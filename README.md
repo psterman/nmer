@@ -241,13 +241,6 @@ cd cursor-helper
 
 欢迎提交 Issue 和 Pull Request！
 
-### 贡献指南
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
 ## 📄 版权声明
 
 本项目采用 **CC BY-NC-SA 4.0**（知识共享 署名-非商业性使用-相同方式共享 4.0 国际）许可证。
@@ -272,9 +265,6 @@ cd cursor-helper
 
 ## 📮 联系方式
 
-- **Issues**：[GitHub Issues](https://github.com/your-username/cursor-helper/issues)
-- **Discussions**：[GitHub Discussions](https://github.com/your-username/cursor-helper/discussions)
-
----
+<img width="950" height="1296" alt="mmqrcode1765714128545" src="https://github.com/user-attachments/assets/68b79c9f-1311-4762-811a-4bbad9b4997a" />
 
 **⭐ 如果这个项目对您有帮助，请给个 Star！**
