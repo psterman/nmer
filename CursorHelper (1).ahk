@@ -33,6 +33,15 @@ global CapsLock2 := false  ; 是否使用过 CapsLock+ 功能标记，使用过�
 ; 动态快捷键映射（默认值）
 global SplitHotkey := "s"
 global BatchHotkey := "b"
+global HotkeyESC := "Esc"  ; 关闭面板
+global HotkeyC := "c"  ; 连续复制
+global HotkeyV := "v"  ; 合并粘贴
+global HotkeyX := "x"  ; 打开剪贴板管理面板
+global HotkeyE := "e"  ; 执行解释
+global HotkeyR := "r"  ; 执行重构
+global HotkeyO := "o"  ; 执行优化
+global HotkeyQ := "q"  ; 打开配置面板
+global HotkeyZ := "z"  ; 语音输入
 ; 配置变量
 global CursorPath := ""
 global AISleepTime := 15000
@@ -45,6 +54,11 @@ global PanelPosition := "center"  ; 位置：center, top-left, top-right, bottom
 global FunctionPanelPos := "center"
 global ConfigPanelPos := "center"
 global ClipboardPanelPos := "center"
+; 各面板的屏幕索引
+global ConfigPanelScreenIndex := 1  ; 配置面板屏幕索引
+global MsgBoxScreenIndex := 1  ; 弹窗屏幕索引
+global VoiceInputScreenIndex := 1  ; 语音输入法提示屏幕索引
+global CursorPanelScreenIndex := 1  ; cursor快捷弹出面板屏幕索引
 global PanelX := -1  ; 自定义 X 坐标（-1 表示使用默认位置）
 global PanelY := -1  ; 自定义 Y 坐标（-1 表示使用默认位置）
 ; 连续复制功能
@@ -105,7 +119,7 @@ GetText(Key) {
             "select_code_first", "请先选中要分割的代码",
             "split_marker_inserted", "已插入分割标记",
             "reset_default_success", "已重置为默认值！",
-            "config_saved", "配置已保存！`n`n提示：如果面板正在显示，请关闭后重新打开以应用新配置。",
+            "config_saved", "配置已保存！快捷键已立即生效。",
             "ai_wait_time_error", "AI 响应等待时间必须是数字！",
             "split_hotkey_error", "分割快捷键必须是单个字符！",
             "batch_hotkey_error", "批量操作快捷键必须是单个字符！",
@@ -154,6 +168,30 @@ GetText(Key) {
             "optimize_prompt", "优化代码提示词:",
             "split_hotkey", "分割快捷键:",
             "batch_hotkey", "批量操作快捷键:",
+            "hotkey_esc", "关闭面板 (ESC):",
+            "hotkey_esc_desc", "当面板显示时，按此键可关闭面板。",
+            "hotkey_c", "连续复制 (C):",
+            "hotkey_c_desc", "选中文本后按此键，可将内容添加到剪贴板历史记录中，支持连续复制多段内容。",
+            "hotkey_v", "合并粘贴 (V):",
+            "hotkey_v_desc", "按此键可将所有已复制的内容合并后粘贴到 Cursor 中。",
+            "hotkey_x", "剪贴板管理 (X):",
+            "hotkey_x_desc", "按此键可打开剪贴板管理面板，查看和管理所有已复制的内容。",
+            "hotkey_e", "解释代码 (E):",
+            "hotkey_e_desc", "在 Cursor 中选中代码后按此键，AI 会自动解释代码的核心逻辑和功能。",
+            "hotkey_r", "重构代码 (R):",
+            "hotkey_r_desc", "在 Cursor 中选中代码后按此键，AI 会自动重构代码，优化代码结构。",
+            "hotkey_o", "优化代码 (O):",
+            "hotkey_o_desc", "在 Cursor 中选中代码后按此键，AI 会分析并优化代码性能。",
+            "hotkey_q", "打开配置 (Q):",
+            "hotkey_q_desc", "按此键可打开配置面板，进行各种设置。",
+            "hotkey_z", "语音输入 (Z):",
+            "hotkey_z_desc", "按此键可启动或停止语音输入功能，支持百度输入法和讯飞输入法。",
+            "hotkey_s", "分割代码 (S):",
+            "hotkey_s_desc", "在面板显示时，按此键可在代码中插入分割标记，用于批量处理。",
+            "hotkey_b", "批量操作 (B):",
+            "hotkey_b_desc", "在面板显示时，按此键可执行批量操作功能。",
+            "hotkey_single_char_hint", "（单个字符，默认: {0}）",
+            "hotkey_esc_hint", "（特殊键，默认: Esc）",
             "display_screen", "显示屏幕:",
             "reset_default", "重置默认",
             "save_config", "保存配置",
@@ -167,6 +205,10 @@ GetText(Key) {
             "panel_pos_func", "功能面板位置",
             "panel_pos_config", "设置面板位置",
             "panel_pos_clip", "剪贴板面板位置",
+            "config_panel_screen", "配置面板显示器:",
+            "msgbox_screen", "弹窗显示器:",
+            "voice_input_screen", "语音输入法提示显示器:",
+            "cursor_panel_screen", "Cursor快捷弹出面板显示器:",
             "default_prompt_explain", "解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点",
             "default_prompt_refactor", "重构这段代码，遵循PEP8/行业规范，简化冗余逻辑，添加中文注释，保持功能不变",
             "default_prompt_optimize", "分析这段代码的性能瓶颈（时间/空间复杂度），给出优化方案+对比说明，保留原逻辑可读性",
@@ -277,6 +319,30 @@ GetText(Key) {
             "optimize_prompt", "Optimize Code Prompt:",
             "split_hotkey", "Split Hotkey:",
             "batch_hotkey", "Batch Hotkey:",
+            "hotkey_esc", "Close Panel (ESC):",
+            "hotkey_esc_desc", "Press this key to close the panel when it is displayed.",
+            "hotkey_c", "Continuous Copy (C):",
+            "hotkey_c_desc", "After selecting text, press this key to add content to clipboard history, supporting continuous copying of multiple segments.",
+            "hotkey_v", "Merge Paste (V):",
+            "hotkey_v_desc", "Press this key to merge all copied content and paste it into Cursor.",
+            "hotkey_x", "Clipboard Manager (X):",
+            "hotkey_x_desc", "Press this key to open the clipboard manager panel to view and manage all copied content.",
+            "hotkey_e", "Explain Code (E):",
+            "hotkey_e_desc", "After selecting code in Cursor, press this key and AI will automatically explain the core logic and functionality of the code.",
+            "hotkey_r", "Refactor Code (R):",
+            "hotkey_r_desc", "After selecting code in Cursor, press this key and AI will automatically refactor the code and optimize its structure.",
+            "hotkey_o", "Optimize Code (O):",
+            "hotkey_o_desc", "After selecting code in Cursor, press this key and AI will analyze and optimize code performance.",
+            "hotkey_q", "Open Config (Q):",
+            "hotkey_q_desc", "Press this key to open the configuration panel for various settings.",
+            "hotkey_z", "Voice Input (Z):",
+            "hotkey_z_desc", "Press this key to start or stop voice input, supporting Baidu Input and Xunfei Input.",
+            "hotkey_s", "Split Code (S):",
+            "hotkey_s_desc", "When the panel is displayed, press this key to insert split markers in the code for batch processing.",
+            "hotkey_b", "Batch Operation (B):",
+            "hotkey_b_desc", "When the panel is displayed, press this key to execute batch operations.",
+            "hotkey_single_char_hint", "(Single character, default: {0})",
+            "hotkey_esc_hint", "(Special key, default: Esc)",
             "display_screen", "Display Screen:",
             "reset_default", "Reset Default",
             "save_config", "Save Settings",
@@ -290,6 +356,10 @@ GetText(Key) {
             "panel_pos_func", "Function Panel Position",
             "panel_pos_config", "Settings Panel Position",
             "panel_pos_clip", "Clipboard Panel Position",
+            "config_panel_screen", "Config Panel Display:",
+            "msgbox_screen", "Message Box Display:",
+            "voice_input_screen", "Voice Input Prompt Display:",
+            "cursor_panel_screen", "Cursor Quick Panel Display:",
             "default_prompt_explain", "Explain the core logic, inputs/outputs, and key functions of this code in simple terms. Highlight potential pitfalls.",
             "default_prompt_refactor", "Refactor this code following PEP8/best practices. Simplify redundant logic, add comments, and keep functionality unchanged.",
             "default_prompt_optimize", "Analyze performance bottlenecks (time/space complexity). Provide optimization solutions with comparison. Keep original logic readable.",
@@ -303,7 +373,7 @@ GetText(Key) {
             "import_success", "Import Successful",
             "import_failed", "Import Failed",
             "confirm_reset", "Are you sure you want to reset to default settings? This will clear all custom configurations.",
-            "config_saved", "Configuration Saved!",
+            "config_saved", "Configuration Saved! Hotkeys are now active.",
             "voice_input_starting", "Starting voice input...",
             "voice_input_active", "🎤 Voice Input Active",
             "voice_input_hint", "Recording, please speak...",
@@ -356,11 +426,24 @@ InitConfig() {
     DefaultPrompt_Optimize := "分析这段代码的性能瓶颈（时间/空间复杂度），给出优化方案+对比说明，保留原逻辑可读性"
     DefaultSplitHotkey := "s"
     DefaultBatchHotkey := "b"
+    DefaultHotkeyESC := "Esc"
+    DefaultHotkeyC := "c"
+    DefaultHotkeyV := "v"
+    DefaultHotkeyX := "x"
+    DefaultHotkeyE := "e"
+    DefaultHotkeyR := "r"
+    DefaultHotkeyO := "o"
+    DefaultHotkeyQ := "q"
+    DefaultHotkeyZ := "z"
     DefaultPanelScreenIndex := 1
     DefaultPanelPosition := "center"
     DefaultFunctionPanelPos := "center"
     DefaultConfigPanelPos := "center"
     DefaultClipboardPanelPos := "center"
+    DefaultConfigPanelScreenIndex := 1
+    DefaultMsgBoxScreenIndex := 1
+    DefaultVoiceInputScreenIndex := 1
+    DefaultCursorPanelScreenIndex := 1
     DefaultLanguage := "zh"  ; 默认中文
 
     ; 2. 无配置文件则创建
@@ -375,33 +458,62 @@ InitConfig() {
         
         IniWrite(DefaultSplitHotkey, ConfigFile, "Hotkeys", "Split")
         IniWrite(DefaultBatchHotkey, ConfigFile, "Hotkeys", "Batch")
+        IniWrite(DefaultHotkeyESC, ConfigFile, "Hotkeys", "ESC")
+        IniWrite(DefaultHotkeyC, ConfigFile, "Hotkeys", "C")
+        IniWrite(DefaultHotkeyV, ConfigFile, "Hotkeys", "V")
+        IniWrite(DefaultHotkeyX, ConfigFile, "Hotkeys", "X")
+        IniWrite(DefaultHotkeyE, ConfigFile, "Hotkeys", "E")
+        IniWrite(DefaultHotkeyR, ConfigFile, "Hotkeys", "R")
+        IniWrite(DefaultHotkeyO, ConfigFile, "Hotkeys", "O")
+        IniWrite(DefaultHotkeyQ, ConfigFile, "Hotkeys", "Q")
+        IniWrite(DefaultHotkeyZ, ConfigFile, "Hotkeys", "Z")
         
         IniWrite(DefaultPanelScreenIndex, ConfigFile, "Appearance", "ScreenIndex")
         IniWrite(DefaultFunctionPanelPos, ConfigFile, "Appearance", "FunctionPanelPos")
         IniWrite(DefaultConfigPanelPos, ConfigFile, "Appearance", "ConfigPanelPos")
         IniWrite(DefaultClipboardPanelPos, ConfigFile, "Appearance", "ClipboardPanelPos")
+        IniWrite(DefaultConfigPanelScreenIndex, ConfigFile, "Advanced", "ConfigPanelScreenIndex")
+        IniWrite(DefaultMsgBoxScreenIndex, ConfigFile, "Advanced", "MsgBoxScreenIndex")
+        IniWrite(DefaultVoiceInputScreenIndex, ConfigFile, "Advanced", "VoiceInputScreenIndex")
+        IniWrite(DefaultCursorPanelScreenIndex, ConfigFile, "Advanced", "CursorPanelScreenIndex")
     }
 
     ; 3. 加载配置（v2的IniRead返回值更直观）
     global CursorPath, AISleepTime, Prompt_Explain, Prompt_Refactor, Prompt_Optimize, SplitHotkey, BatchHotkey, PanelScreenIndex, Language
     global FunctionPanelPos, ConfigPanelPos, ClipboardPanelPos
+    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ
+    global ConfigPanelScreenIndex, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex
     try {
         if FileExist(ConfigFile) {
-            CursorPath := IniRead(ConfigFile, "General", "CursorPath", DefaultCursorPath)
-            AISleepTime := Integer(IniRead(ConfigFile, "General", "AISleepTime", DefaultAISleepTime))
-            Language := IniRead(ConfigFile, "General", "Language", DefaultLanguage)
+            ; 兼容旧配置格式，优先读取新格式
+            CursorPath := IniRead(ConfigFile, "Settings", "CursorPath", IniRead(ConfigFile, "General", "CursorPath", DefaultCursorPath))
+            AISleepTime := Integer(IniRead(ConfigFile, "Settings", "AISleepTime", IniRead(ConfigFile, "General", "AISleepTime", DefaultAISleepTime)))
+            Language := IniRead(ConfigFile, "Settings", "Language", IniRead(ConfigFile, "General", "Language", DefaultLanguage))
             
-            Prompt_Explain := IniRead(ConfigFile, "Prompts", "Explain", DefaultPrompt_Explain)
-            Prompt_Refactor := IniRead(ConfigFile, "Prompts", "Refactor", DefaultPrompt_Refactor)
-            Prompt_Optimize := IniRead(ConfigFile, "Prompts", "Optimize", DefaultPrompt_Optimize)
+            Prompt_Explain := IniRead(ConfigFile, "Settings", "Prompt_Explain", IniRead(ConfigFile, "Prompts", "Explain", DefaultPrompt_Explain))
+            Prompt_Refactor := IniRead(ConfigFile, "Settings", "Prompt_Refactor", IniRead(ConfigFile, "Prompts", "Refactor", DefaultPrompt_Refactor))
+            Prompt_Optimize := IniRead(ConfigFile, "Settings", "Prompt_Optimize", IniRead(ConfigFile, "Prompts", "Optimize", DefaultPrompt_Optimize))
             
             SplitHotkey := IniRead(ConfigFile, "Hotkeys", "Split", DefaultSplitHotkey)
             BatchHotkey := IniRead(ConfigFile, "Hotkeys", "Batch", DefaultBatchHotkey)
+            HotkeyESC := IniRead(ConfigFile, "Hotkeys", "ESC", DefaultHotkeyESC)
+            HotkeyC := IniRead(ConfigFile, "Hotkeys", "C", DefaultHotkeyC)
+            HotkeyV := IniRead(ConfigFile, "Hotkeys", "V", DefaultHotkeyV)
+            HotkeyX := IniRead(ConfigFile, "Hotkeys", "X", DefaultHotkeyX)
+            HotkeyE := IniRead(ConfigFile, "Hotkeys", "E", DefaultHotkeyE)
+            HotkeyR := IniRead(ConfigFile, "Hotkeys", "R", DefaultHotkeyR)
+            HotkeyO := IniRead(ConfigFile, "Hotkeys", "O", DefaultHotkeyO)
+            HotkeyQ := IniRead(ConfigFile, "Hotkeys", "Q", DefaultHotkeyQ)
+            HotkeyZ := IniRead(ConfigFile, "Hotkeys", "Z", DefaultHotkeyZ)
             
             PanelScreenIndex := Integer(IniRead(ConfigFile, "Appearance", "ScreenIndex", DefaultPanelScreenIndex))
             FunctionPanelPos := IniRead(ConfigFile, "Appearance", "FunctionPanelPos", DefaultFunctionPanelPos)
             ConfigPanelPos := IniRead(ConfigFile, "Appearance", "ConfigPanelPos", DefaultConfigPanelPos)
             ClipboardPanelPos := IniRead(ConfigFile, "Appearance", "ClipboardPanelPos", DefaultClipboardPanelPos)
+            ConfigPanelScreenIndex := Integer(IniRead(ConfigFile, "Advanced", "ConfigPanelScreenIndex", DefaultConfigPanelScreenIndex))
+            MsgBoxScreenIndex := Integer(IniRead(ConfigFile, "Advanced", "MsgBoxScreenIndex", DefaultMsgBoxScreenIndex))
+            VoiceInputScreenIndex := Integer(IniRead(ConfigFile, "Advanced", "VoiceInputScreenIndex", DefaultVoiceInputScreenIndex))
+            CursorPanelScreenIndex := Integer(IniRead(ConfigFile, "Advanced", "CursorPanelScreenIndex", DefaultCursorPanelScreenIndex))
         } else {
             ; If config file doesn't exist, use default values directly
             CursorPath := DefaultCursorPath
@@ -412,10 +524,23 @@ InitConfig() {
             Prompt_Optimize := DefaultPrompt_Optimize
             SplitHotkey := DefaultSplitHotkey
             BatchHotkey := DefaultBatchHotkey
+            HotkeyESC := DefaultHotkeyESC
+            HotkeyC := DefaultHotkeyC
+            HotkeyV := DefaultHotkeyV
+            HotkeyX := DefaultHotkeyX
+            HotkeyE := DefaultHotkeyE
+            HotkeyR := DefaultHotkeyR
+            HotkeyO := DefaultHotkeyO
+            HotkeyQ := DefaultHotkeyQ
+            HotkeyZ := DefaultHotkeyZ
             PanelScreenIndex := DefaultPanelScreenIndex
             FunctionPanelPos := DefaultFunctionPanelPos
             ConfigPanelPos := DefaultConfigPanelPos
             ClipboardPanelPos := DefaultClipboardPanelPos
+            ConfigPanelScreenIndex := DefaultConfigPanelScreenIndex
+            MsgBoxScreenIndex := DefaultMsgBoxScreenIndex
+            VoiceInputScreenIndex := DefaultVoiceInputScreenIndex
+            CursorPanelScreenIndex := DefaultCursorPanelScreenIndex
         }
     } catch as e {
         MsgBox("Error loading config: " . e.Message, "Error", "IconStop")
@@ -428,10 +553,23 @@ InitConfig() {
         Prompt_Optimize := DefaultPrompt_Optimize
         SplitHotkey := DefaultSplitHotkey
         BatchHotkey := DefaultBatchHotkey
+        HotkeyESC := DefaultHotkeyESC
+        HotkeyC := DefaultHotkeyC
+        HotkeyV := DefaultHotkeyV
+        HotkeyX := DefaultHotkeyX
+        HotkeyE := DefaultHotkeyE
+        HotkeyR := DefaultHotkeyR
+        HotkeyO := DefaultHotkeyO
+        HotkeyQ := DefaultHotkeyQ
+        HotkeyZ := DefaultHotkeyZ
         PanelScreenIndex := DefaultPanelScreenIndex
         FunctionPanelPos := DefaultFunctionPanelPos
         ConfigPanelPos := DefaultConfigPanelPos
         ClipboardPanelPos := DefaultClipboardPanelPos
+        ConfigPanelScreenIndex := DefaultConfigPanelScreenIndex
+        MsgBoxScreenIndex := DefaultMsgBoxScreenIndex
+        VoiceInputScreenIndex := DefaultVoiceInputScreenIndex
+        CursorPanelScreenIndex := DefaultCursorPanelScreenIndex
     }
     
     ; 验证语言设置
@@ -533,12 +671,16 @@ BlockVoiceInputTimer(*) {
         PressDuration := A_TickCount - CapsLockPressTime
         
         ; 如果长按超过1.5秒，切换屏蔽状态（不恢复语音）
+        ; 仅在语音输入已激活时才显示屏蔽/启用提示
         if (PressDuration >= 1500) {
             VoiceInputBlocked := !VoiceInputBlocked
-            if (VoiceInputBlocked) {
-                TrayTip("语音输入已屏蔽", "提示", "Iconi 1")
-            } else {
-                TrayTip("语音输入已启用", "提示", "Iconi 1")
+            ; 仅在语音输入已激活时才显示提示
+            if (VoiceInputActive) {
+                if (VoiceInputBlocked) {
+                    TrayTip("语音输入已屏蔽", "提示", "Iconi 1")
+                } else {
+                    TrayTip("语音输入已启用", "提示", "Iconi 1")
+                }
             }
             ; 如果之前暂停了，保持暂停状态
             if (VoiceInputPaused) {
@@ -671,7 +813,7 @@ GetPanelPosition(ScreenInfo, Width, Height, PosType := "Center") {
 ; ===================== 显示面板函数 =====================
 ShowCursorPanel() {
     global PanelVisible, GuiID_CursorPanel, SplitHotkey, BatchHotkey, CapsLock2
-    global PanelScreenIndex, FunctionPanelPos
+    global CursorPanelScreenIndex, FunctionPanelPos
     
     if (PanelVisible) {
         return
@@ -734,7 +876,7 @@ ShowCursorPanel() {
     }
     
     ; 获取屏幕信息并计算位置
-    ScreenInfo := GetScreenInfo(PanelScreenIndex)
+    ScreenInfo := GetScreenInfo(CursorPanelScreenIndex)
     Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, FunctionPanelPos)
     
     ; 显示面板
@@ -1028,7 +1170,17 @@ global PromptRefactorEdit := 0
 global PromptOptimizeEdit := 0
 global SplitHotkeyEdit := 0
 global BatchHotkeyEdit := 0
+global HotkeyESCEdit := 0
+global HotkeyCEdit := 0
+global HotkeyVEdit := 0
+global HotkeyXEdit := 0
+global HotkeyEEdit := 0
+global HotkeyREdit := 0
+global HotkeyOEdit := 0
+global HotkeyQEdit := 0
+global HotkeyZEdit := 0
 global PanelScreenRadio := []
+; 已移除动画定时器，改用图片显示
 
 ; ===================== 标签切换函数 =====================
 SwitchTab(TabName) {
@@ -1078,6 +1230,24 @@ SwitchTab(TabName) {
     HideControls(HotkeysTabControls)
     HideControls(AdvancedTabControls)
     
+    ; 隐藏所有快捷键子标签页内容（防止覆盖其他标签页）
+    global HotkeySubTabControls
+    if (HotkeySubTabControls) {
+        for Key, Controls in HotkeySubTabControls {
+            if (Controls && Controls.Length > 0) {
+                for Index, Ctrl in Controls {
+                    if (Ctrl) {
+                        try {
+                            Ctrl.Visible := false
+                        } catch {
+                            ; 忽略已销毁的控件
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     ; 显示当前标签页内容
     switch TabName {
         case "general":
@@ -1088,6 +1258,19 @@ SwitchTab(TabName) {
             ShowControls(PromptsTabControls)
         case "hotkeys":
             ShowControls(HotkeysTabControls)
+            ; 显示第一个子标签页（如果存在）
+            global HotkeySubTabs
+            if (HotkeySubTabControls && HotkeySubTabs) {
+                ; 找到第一个子标签页
+                FirstKey := ""
+                for Key, TabBtn in HotkeySubTabs {
+                    FirstKey := Key
+                    break
+                }
+                if (FirstKey != "") {
+                    SwitchHotkeyTab(FirstKey)
+                }
+            }
         case "advanced":
             ShowControls(AdvancedTabControls)
     }
@@ -1336,7 +1519,9 @@ CreatePromptsTab(ConfigGUI, X, Y, W, H) {
 ; ===================== 创建快捷键标签页 =====================
 CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     global SplitHotkey, BatchHotkey, HotkeysTabPanel, SplitHotkeyEdit, BatchHotkeyEdit, HotkeysTabControls
-    global UI_Colors
+    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ
+    global HotkeyESCEdit, HotkeyCEdit, HotkeyVEdit, HotkeyXEdit, HotkeyEEdit, HotkeyREdit, HotkeyOEdit, HotkeyQEdit, HotkeyZEdit
+    global HotkeySubTabs, HotkeySubTabControls, UI_Colors
     
     ; 创建标签页面板（默认隐藏）
     HotkeysTabPanel := ConfigGUI.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Background" . UI_Colors.Background . " vHotkeysTabPanel", "")
@@ -1348,42 +1533,471 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     Title.SetFont("s16 Bold", "Segoe UI")
     HotkeysTabControls.Push(Title)
     
-    ; 分割快捷键
-    YPos := Y + 70
-    Label1 := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("split_hotkey"))
-    Label1.SetFont("s11", "Segoe UI")
-    HotkeysTabControls.Push(Label1)
+    ; ========== 横向标签页区域 ==========
+    TabBarY := Y + 70
+    TabBarHeight := 40
+    TabBarBg := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . TabBarY . " w" . (W - 60) . " h" . TabBarHeight . " Background2d2d30", "")  ; Cursor 暗色系背景
+    HotkeysTabControls.Push(TabBarBg)
     
-    YPos += 30
-    SplitHotkeyEdit := ConfigGUI.Add("Edit", "x" . (X + 30) . " y" . YPos . " w100 h30 vSplitHotkeyEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, SplitHotkey)
-    SplitHotkeyEdit.SetFont("s11", "Segoe UI")
-    HotkeysTabControls.Push(SplitHotkeyEdit)
+    ; 快捷键列表（定义每个快捷键的信息）
+    HotkeyList := [
+        {Key: "C", Name: "连续复制", Default: HotkeyC, Edit: "HotkeyCEdit", Desc: "hotkey_c_desc", Hint: "hotkey_single_char_hint", DefaultVal: "c"},
+        {Key: "V", Name: "合并粘贴", Default: HotkeyV, Edit: "HotkeyVEdit", Desc: "hotkey_v_desc", Hint: "hotkey_single_char_hint", DefaultVal: "v"},
+        {Key: "X", Name: "剪贴板管理", Default: HotkeyX, Edit: "HotkeyXEdit", Desc: "hotkey_x_desc", Hint: "hotkey_single_char_hint", DefaultVal: "x"},
+        {Key: "E", Name: "解释代码", Default: HotkeyE, Edit: "HotkeyEEdit", Desc: "hotkey_e_desc", Hint: "hotkey_single_char_hint", DefaultVal: "e"},
+        {Key: "R", Name: "重构代码", Default: HotkeyR, Edit: "HotkeyREdit", Desc: "hotkey_r_desc", Hint: "hotkey_single_char_hint", DefaultVal: "r"},
+        {Key: "O", Name: "优化代码", Default: HotkeyO, Edit: "HotkeyOEdit", Desc: "hotkey_o_desc", Hint: "hotkey_single_char_hint", DefaultVal: "o"},
+        {Key: "Q", Name: "打开配置", Default: HotkeyQ, Edit: "HotkeyQEdit", Desc: "hotkey_q_desc", Hint: "hotkey_single_char_hint", DefaultVal: "q"},
+        {Key: "Z", Name: "语音输入", Default: HotkeyZ, Edit: "HotkeyZEdit", Desc: "hotkey_z_desc", Hint: "hotkey_single_char_hint", DefaultVal: "z"},
+        {Key: "S", Name: "分割代码", Default: SplitHotkey, Edit: "SplitHotkeyEdit", Desc: "hotkey_s_desc", Hint: "hotkey_single_char_hint", DefaultVal: "s"},
+        {Key: "B", Name: "批量操作", Default: BatchHotkey, Edit: "BatchHotkeyEdit", Desc: "hotkey_b_desc", Hint: "hotkey_single_char_hint", DefaultVal: "b"}
+    ]
     
-    YPos += 40
-    Hint1 := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h20 c" . UI_Colors.TextDim, FormatText("single_char_hint", "s"))
-    Hint1.SetFont("s9", "Segoe UI")
-    HotkeysTabControls.Push(Hint1)
+    ; 创建横向标签按钮
+    TabWidth := (W - 60) / HotkeyList.Length
+    TabX := X + 30
+    HotkeySubTabs := Map()
+    global HotkeySubTabControls := Map()  ; 确保是全局变量
     
-    ; 批量操作快捷键
-    YPos += 40
-    Label2 := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("batch_hotkey"))
-    Label2.SetFont("s11", "Segoe UI")
-    HotkeysTabControls.Push(Label2)
+    ; 创建横向标签点击处理函数（避免闭包问题）
+    CreateHotkeyTabClickHandler(Key) {
+        return (*) => SwitchHotkeyTab(Key)
+    }
     
-    YPos += 30
-    BatchHotkeyEdit := ConfigGUI.Add("Edit", "x" . (X + 30) . " y" . YPos . " w100 h30 vBatchHotkeyEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, BatchHotkey)
-    BatchHotkeyEdit.SetFont("s11", "Segoe UI")
-    HotkeysTabControls.Push(BatchHotkeyEdit)
+    for Index, Item in HotkeyList {
+        ; 创建横向标签按钮，确保可以点击
+        ; 使用Button控件而不是Text控件，确保点击事件正常工作
+        TabBtn := ConfigGUI.Add("Button", "x" . TabX . " y" . (TabBarY + 5) . " w" . (TabWidth - 2) . " h" . (TabBarHeight - 10) . " vHotkeyTab" . Item.Key, Item.Name)
+        TabBtn.SetFont("s9", "Segoe UI")
+        ; 使用 Cursor 暗色系：未选中状态使用深灰色背景
+        TabBtn.BackColor := "2d2d30"  ; Cursor 暗色系背景
+        TabBtn.SetFont("s9 cCCCCCC", "Segoe UI")  ; Cursor 暗色系文字颜色
+        ; 绑定点击事件，使用辅助函数确保每个按钮绑定到正确的键
+        TabBtn.OnEvent("Click", CreateHotkeyTabClickHandler(Item.Key))
+        ; 悬停效果使用 Cursor 暗色系
+        HoverBtn(TabBtn, "2d2d30", "3e3e42")  ; Cursor 暗色系悬停颜色
+        HotkeysTabControls.Push(TabBtn)
+        HotkeySubTabs[Item.Key] := TabBtn
+        TabX += TabWidth
+    }
     
-    YPos += 40
-    Hint2 := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h20 c" . UI_Colors.TextDim, FormatText("single_char_hint", "b"))
-    Hint2.SetFont("s9", "Segoe UI")
-    HotkeysTabControls.Push(Hint2)
+    global HotkeySubTabs := HotkeySubTabs
+    
+    ; 内容区域（显示当前选中的快捷键配置）
+    ; 创建一个可滚动的容器来包裹所有内容
+    ContentAreaY := TabBarY + TabBarHeight + 20
+    ContentAreaHeight := H - (ContentAreaY - Y) - 20
+    
+    ; 为每个快捷键创建内容面板
+    ; 注意：内容可以超出 ContentAreaHeight，通过滚动查看
+    for Index, Item in HotkeyList {
+        ; 传入更大的高度值，允许内容超出可视区域
+        CreateHotkeySubTab(ConfigGUI, X + 30, ContentAreaY, W - 60, ContentAreaHeight + 500, Item)
+    }
+    
+    ; 默认显示第一个标签页
+    if (HotkeyList.Length > 0) {
+        SwitchHotkeyTab(HotkeyList[1].Key)
+    }
+}
+
+; ===================== 创建快捷键子标签页 =====================
+CreateHotkeySubTab(ConfigGUI, X, Y, W, H, Item) {
+    global HotkeysTabControls, HotkeySubTabControls, UI_Colors
+    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ
+    global SplitHotkey, BatchHotkey
+    global HotkeyESCEdit, HotkeyCEdit, HotkeyVEdit, HotkeyXEdit, HotkeyEEdit, HotkeyREdit, HotkeyOEdit, HotkeyQEdit, HotkeyZEdit
+    global SplitHotkeyEdit, BatchHotkeyEdit
+    
+    ; 初始化子标签页控件数组
+    if (!HotkeySubTabControls.Has(Item.Key)) {
+        HotkeySubTabControls[Item.Key] := []
+    }
+    
+    ; 创建子标签页面板（默认隐藏，作为背景）
+    ; 注意：不添加到 HotkeysTabControls，只添加到 HotkeySubTabControls
+    SubTabPanel := ConfigGUI.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Background" . UI_Colors.Background . " vHotkeySubTab" . Item.Key, "")
+    SubTabPanel.Visible := false
+    HotkeySubTabControls[Item.Key].Push(SubTabPanel)
+    
+    ; ========== 功能演示板块（居中显示，占据更多空间）==========
+    ; 图片区域从顶部开始，居中显示（去掉标题，直接显示图片）
+    AnimX := X + 30  ; 从左侧边距开始
+    AnimY := Y + 20  ; 从顶部开始，去掉标题
+    AnimWidth := W - 60  ; 占据整个宽度（减去左右边距）
+    ; 计算可用高度：参考屏幕高度，确保图片不会太高，留出下方空间
+    ; 使用屏幕高度的70%作为最大图片容器高度，确保下方有足够空间
+    global ConfigHeight
+    MaxImageHeight := Round(ConfigHeight * 0.7)  ; 屏幕高度的70%
+    AvailableHeight := H - (AnimY - Y) - 150  ; 预留150px给底部空间（按钮等）
+    ; 取两者中的较小值，确保图片不会太高
+    AnimHeight := Min(AvailableHeight, MaxImageHeight)
+    
+    ; 图片显示区域（保持比例，不拉伸）
+    ImagePath := GetHotkeyImagePath(Item.Key)
+    
+    ; 创建一个容器背景（始终创建，用于显示图片或提示）
+    PictureBg := ConfigGUI.Add("Text", "x" . AnimX . " y" . AnimY . " w" . AnimWidth . " h" . AnimHeight . " Background" . UI_Colors.InputBg . " vHotkeyPicBg" . Item.Key, "")
+    HotkeySubTabControls[Item.Key].Push(PictureBg)
+    
+    if (FileExist(ImagePath)) {
+        ; 获取图片实际尺寸
+        ImageSize := GetImageSize(ImagePath)
+        
+        ; 计算保持比例的显示尺寸
+        DisplaySize := CalculateImageDisplaySize(ImageSize.Width, ImageSize.Height, AnimWidth, AnimHeight)
+        
+        ; 计算居中位置
+        DisplayX := AnimX + (AnimWidth - DisplaySize.Width) // 2
+        DisplayY := AnimY + (AnimHeight - DisplaySize.Height) // 2
+        
+        try {
+            ; 使用计算好的尺寸和位置显示图片，保持原比例
+            ; 使用 0x200 (SS_CENTERIMAGE) 样式保持图片居中
+            PictureCtrl := ConfigGUI.Add("Picture", "x" . DisplayX . " y" . DisplayY . " w" . DisplaySize.Width . " h" . DisplaySize.Height . " 0x200 vHotkeyPic" . Item.Key, ImagePath)
+            HotkeySubTabControls[Item.Key].Push(PictureCtrl)
+        } catch as e {
+            ; 如果加载失败，显示错误信息
+            ErrorText := ConfigGUI.Add("Text", "x" . AnimX . " y" . AnimY . " w" . AnimWidth . " h" . AnimHeight . " Center c" . UI_Colors.TextDim . " Background" . UI_Colors.InputBg . " vHotkeyPicError" . Item.Key, "图片加载失败`n`n错误: " . e.Message . "`n`n路径: " . ImagePath)
+            ErrorText.SetFont("s9", "Segoe UI")
+            HotkeySubTabControls[Item.Key].Push(ErrorText)
+        }
+    } else {
+        ; 如果图片不存在，显示提示文本（包含完整路径和脚本目录）
+        NoImageText := ConfigGUI.Add("Text", "x" . AnimX . " y" . AnimY . " w" . AnimWidth . " h" . AnimHeight . " Center c" . UI_Colors.TextDim . " Background" . UI_Colors.InputBg . " vHotkeyNoPic" . Item.Key, "图片文件未找到`n`n请将图片保存为:`n" . ImagePath . "`n`n当前脚本目录: " . A_ScriptDir)
+        NoImageText.SetFont("s9", "Segoe UI")
+        HotkeySubTabControls[Item.Key].Push(NoImageText)
+    }
+}
+
+; ===================== 获取图片尺寸 =====================
+GetImageSize(ImagePath) {
+    ; 使用 Windows API 获取图片的实际尺寸
+    try {
+        ; 使用 LoadImage 加载图片获取尺寸
+        hBitmap := DllCall("user32.dll\LoadImage", "UInt", 0, "Str", ImagePath, "UInt", 0, "Int", 0, "Int", 0, "UInt", 0x10, "Ptr")  ; LR_LOADFROMFILE = 0x10
+        if (hBitmap) {
+            ; 获取位图信息
+            bm := Buffer(A_PtrSize = 8 ? 32 : 24, 0)
+            DllCall("gdi32.dll\GetObject", "Ptr", hBitmap, "Int", A_PtrSize = 8 ? 32 : 24, "Ptr", bm, "Int")
+            Width := NumGet(bm, 4, "Int")
+            Height := NumGet(bm, 8, "Int")
+            DllCall("gdi32.dll\DeleteObject", "Ptr", hBitmap, "Ptr")
+            return {Width: Width, Height: Height}
+        }
+    } catch {
+        ; 如果获取失败，尝试使用 GDI+
+        try {
+            ; 初始化 GDI+
+            Input := Buffer(A_PtrSize = 8 ? 24 : 16, 0)
+            NumPut("UInt", 1, Input, 0)  ; GdiplusVersion = 1
+            DllCall("gdiplus.dll\GdipStartup", "Ptr*", &GdiplusToken := 0, "Ptr", Input, "Ptr", 0, "Int")
+            
+            ; 创建 GDI+ 位图对象
+            DllCall("gdiplus.dll\GdipCreateBitmapFromFile", "WStr", ImagePath, "Ptr*", &pBitmap := 0, "Int")
+            if (pBitmap) {
+                ; 获取图片宽度和高度
+                DllCall("gdiplus.dll\GdipGetImageWidth", "Ptr", pBitmap, "UInt*", &Width := 0, "Int")
+                DllCall("gdiplus.dll\GdipGetImageHeight", "Ptr", pBitmap, "UInt*", &Height := 0, "Int")
+                DllCall("gdiplus.dll\GdipDisposeImage", "Ptr", pBitmap, "Int")
+                return {Width: Width, Height: Height}
+            }
+        } catch {
+            ; 如果都失败，返回默认值
+        }
+    }
+    return {Width: 0, Height: 0}
+}
+
+; ===================== 计算保持比例的图片显示尺寸 =====================
+CalculateImageDisplaySize(ImageWidth, ImageHeight, ContainerWidth, ContainerHeight) {
+    ; 计算保持原比例的图片显示尺寸
+    if (ImageWidth = 0 || ImageHeight = 0) {
+        ; 如果无法获取图片尺寸，使用容器尺寸
+        return {Width: ContainerWidth, Height: ContainerHeight}
+    }
+    
+    ; 计算宽高比
+    ImageRatio := ImageWidth / ImageHeight
+    ContainerRatio := ContainerWidth / ContainerHeight
+    
+    ; 根据比例计算合适的显示尺寸
+    if (ImageRatio > ContainerRatio) {
+        ; 图片更宽，以宽度为准
+        DisplayWidth := ContainerWidth
+        DisplayHeight := Round(ContainerWidth / ImageRatio)
+    } else {
+        ; 图片更高，以高度为准
+        DisplayHeight := ContainerHeight
+        DisplayWidth := Round(ContainerHeight * ImageRatio)
+    }
+    
+    return {Width: DisplayWidth, Height: DisplayHeight}
+}
+
+; ===================== 获取快捷键图片路径 =====================
+GetHotkeyImagePath(HotkeyKey) {
+    ; 返回快捷键对应的图片路径
+    ; 图片文件应放在脚本目录下的 images 文件夹中
+    ImageDir := A_ScriptDir . "\images"
+    switch HotkeyKey {
+        case "C":
+            return ImageDir . "\hotkey_c.png"
+        case "V":
+            return ImageDir . "\hotkey_v.png"
+        case "X":
+            return ImageDir . "\hotkey_x.png"
+        case "E":
+            return ImageDir . "\hotkey_e.png"
+        case "R":
+            return ImageDir . "\hotkey_r.png"
+        case "O":
+            return ImageDir . "\hotkey_o.png"
+        case "Q":
+            return ImageDir . "\hotkey_q.png"
+        case "Z":
+            return ImageDir . "\hotkey_z.png"
+        case "S":
+            return ImageDir . "\hotkey_s.png"
+        case "B":
+            return ImageDir . "\hotkey_b.png"
+        case "ESC":
+            return ImageDir . "\hotkey_esc.png"
+        default:
+            return ImageDir . "\hotkey_default.png"
+    }
+}
+
+; ===================== 创建快捷键动画文本 =====================
+CreateHotkeyAnimation(HotkeyKey) {
+    switch HotkeyKey {
+        case "ESC":
+            return "1. 【操作步骤】`n`n   1.1 长按 CapsLock 键`n   1.2 快捷操作面板自动显示`n   1.3 按下 ESC 键`n   1.4 面板立即关闭`n`n2. 【使用场景】`n`n   2.1 快速关闭已打开的面板`n   2.2 取消当前操作`n   2.3 返回正常工作状态`n`n3. 【实现效果】`n`n   3.1 面板瞬间关闭`n   3.2 不影响其他操作`n   3.3 可随时重新打开"
+        case "C":
+            return "1. 【操作步骤】`n`n   1.1 选中第一段文本`n   1.2 长按 CapsLock + C`n   1.3 选中第二段文本`n   1.4 再次按 CapsLock + C`n   1.5 可继续复制更多内容`n`n2. 【使用场景】`n`n   2.1 需要复制多段不连续的内容`n   2.2 收集多个代码片段`n   2.3 批量收集文本信息`n`n3. 【实现效果】`n`n   3.1 所有内容保存到历史`n   3.2 支持无限次连续复制`n   3.3 使用 CapsLock+V 合并粘贴"
+        case "V":
+            return "1. 【操作步骤】`n`n   1.1 使用 CapsLock+C 复制多段内容`n   1.2 长按 CapsLock + V`n   1.3 所有内容自动合并`n   1.4 粘贴到 Cursor 中`n`n2. 【使用场景】`n`n   2.1 将多个代码片段合并粘贴`n   2.2 组合多个文本段落`n   2.3 批量内容一次性插入`n`n3. 【实现效果】`n`n   3.1 自动打开 Cursor`n   3.2 内容按顺序合并`n   3.3 一键完成所有操作"
+        case "X":
+            return "1. 【操作步骤】`n`n   1.1 长按 CapsLock`n   1.2 按下 X 键`n   1.3 剪贴板管理面板打开`n   1.4 查看所有复制历史`n   1.5 双击或选择后操作`n`n2. 【使用场景】`n`n   2.1 查看所有复制历史`n   2.2 选择特定内容粘贴`n   2.3 管理剪贴板记录`n`n3. 【实现效果】`n`n   3.1 显示所有历史记录`n   3.2 支持快速复制`n   3.3 可删除不需要的项目"
+        case "E":
+            return "1. 【操作步骤】`n`n   1.1 在 Cursor 中选中代码`n   1.2 长按 CapsLock`n   1.3 按下 E 键`n   1.4 AI 自动分析代码`n   1.5 显示解释结果`n`n2. 【使用场景】`n`n   2.1 理解复杂代码逻辑`n   2.2 学习新代码库`n   2.3 快速了解函数功能`n`n3. 【实现效果】`n`n   3.1 AI 自动解释代码`n   3.2 用通俗语言说明`n   3.3 标注关键点和易错点"
+        case "R":
+            return "1. 【操作步骤】`n`n   1.1 在 Cursor 中选中代码`n   1.2 长按 CapsLock`n   1.3 按下 R 键`n   1.4 AI 自动重构代码`n   1.5 显示优化后的代码`n`n2. 【使用场景】`n`n   2.1 改进代码结构`n   2.2 遵循编码规范`n   2.3 提升代码可读性`n`n3. 【实现效果】`n`n   3.1 自动重构代码`n   3.2 添加中文注释`n   3.3 保持功能不变"
+        case "O":
+            return "1. 【操作步骤】`n`n   1.1 在 Cursor 中选中代码`n   1.2 长按 CapsLock`n   1.3 按下 O 键`n   1.4 AI 分析性能瓶颈`n   1.5 提供优化方案`n`n2. 【使用场景】`n`n   2.1 优化代码性能`n   2.2 分析复杂度问题`n   2.3 提升执行效率`n`n3. 【实现效果】`n`n   3.1 分析时间/空间复杂度`n   3.2 提供优化对比`n   3.3 保留原逻辑可读性"
+        case "Q":
+            return "1. 【操作步骤】`n`n   1.1 长按 CapsLock`n   1.2 按下 Q 键`n   1.3 配置面板自动打开`n   1.4 进行各种设置`n   1.5 保存配置生效`n`n2. 【使用场景】`n`n   2.1 自定义快捷键`n   2.2 调整提示词`n   2.3 修改面板位置`n`n3. 【实现效果】`n`n   3.1 配置立即生效`n   3.2 支持导入导出`n   3.3 可重置为默认值"
+        case "Z":
+            return "1. 【操作步骤】`n`n   1.1 长按 CapsLock`n   1.2 按下 Z 键启动`n   1.3 开始说话录入`n   1.4 再次按 Z 结束`n   1.5 内容自动发送`n`n2. 【使用场景】`n`n   2.1 快速输入长文本`n   2.2 语音转文字`n   2.3 解放双手输入`n`n3. 【实现效果】`n`n   3.1 支持百度/讯飞输入法`n   3.2 实时语音识别`n   3.3 自动发送到 Cursor"
+        case "S":
+            return "1. 【操作步骤】`n`n   1.1 长按 CapsLock 显示面板`n   1.2 在 Cursor 中选中代码`n   1.3 按下 S 键`n   1.4 插入分割标记`n   1.5 可继续选择其他代码`n`n2. 【使用场景】`n`n   2.1 标记代码分段位置`n   2.2 准备批量处理`n   2.3 组织代码结构`n`n3. 【实现效果】`n`n   3.1 自动插入标记`n   3.2 支持多次标记`n   3.3 便于后续处理"
+        case "B":
+            return "1. 【操作步骤】`n`n   1.1 长按 CapsLock 显示面板`n   1.2 在 Cursor 中选中代码`n   1.3 按下 B 键`n   1.4 执行批量操作`n   1.5 处理所有标记的代码`n`n2. 【使用场景】`n`n   2.1 批量处理多段代码`n   2.2 统一执行操作`n   2.3 提高工作效率`n`n3. 【实现效果】`n`n   3.1 自动识别标记`n   3.2 批量处理代码`n   3.3 一次性完成操作"
+        default:
+            return "操作说明"
+    }
+}
+
+; ===================== 更新快捷键动画 =====================
+UpdateHotkeyAnimation(AnimArea, HotkeyKey) {
+    global VoiceInputActive
+    
+    ; 检查控件是否还存在
+    try {
+        if (!AnimArea || !AnimArea.Hwnd) {
+            return  ; 控件已销毁，停止更新
+        }
+    } catch {
+        return  ; 控件已销毁，停止更新
+    }
+    
+    ; 为不同快捷键提供不同的动画效果
+    static AnimStates := Map()
+    if (!AnimStates.Has(HotkeyKey)) {
+        AnimStates[HotkeyKey] := 0
+    }
+    
+    AnimStates[HotkeyKey] := Mod(AnimStates[HotkeyKey] + 1, 4)
+    CurrentState := AnimStates[HotkeyKey]
+    
+    ; 只更新图形动画，不包含文字说明（文字说明在左侧独立板块）
+    try {
+        switch HotkeyKey {
+            case "ESC":
+                AnimArea.Text := CreateGraphicAnimation("ESC", CurrentState)
+            case "C":
+                ; CapsLock + C 使用图片显示，不再使用动画
+                return
+            case "V":
+                AnimArea.Text := CreateGraphicAnimation("V", CurrentState)
+            case "X":
+                AnimArea.Text := CreateGraphicAnimation("X", CurrentState)
+            case "E":
+                AnimArea.Text := CreateGraphicAnimation("E", CurrentState)
+            case "R":
+                AnimArea.Text := CreateGraphicAnimation("R", CurrentState)
+            case "O":
+                AnimArea.Text := CreateGraphicAnimation("O", CurrentState)
+            case "Q":
+                AnimArea.Text := CreateGraphicAnimation("Q", CurrentState)
+            case "Z":
+                AnimArea.Text := CreateGraphicAnimation("Z", CurrentState, VoiceInputActive)
+            case "S":
+                AnimArea.Text := CreateGraphicAnimation("S", CurrentState)
+            case "B":
+                AnimArea.Text := CreateGraphicAnimation("B", CurrentState)
+            default:
+                AnimArea.Text := CreateGraphicAnimation(HotkeyKey, CurrentState)
+        }
+    } catch {
+        ; 控件已销毁，忽略错误
+    }
+}
+
+; ===================== 创建图形动画 =====================
+CreateGraphicAnimation(HotkeyKey, State, VoiceActive := false) {
+    switch HotkeyKey {
+        case "ESC":
+            switch State {
+                case 0: return "      ┌──────────┐`n      │ CapsLock  │`n      │  [按下]   │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 面板显示  │`n      │ [显示中]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 按ESC键   │`n      │  [等待]  │`n      └──────────┘"
+                case 1: return "      ┌──────────┐`n      │ CapsLock  │`n      │  [按下]   │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 面板显示  │`n      │ [已显示]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 按ESC键   │`n      │  [按下]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 面板关闭  │`n      │  [关闭]  │`n      └──────────┘"
+                case 2: return "      ┌──────────┐`n      │ CapsLock  │`n      │  [按下]   │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 面板显示  │`n      │ [显示中]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 按ESC键   │`n      │  [等待]  │`n      └──────────┘"
+                case 3: return "      ┌──────────┐`n      │ CapsLock  │`n      │  [按下]   │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 面板显示  │`n      │ [已显示]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 按ESC键   │`n      │  [按下]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 面板关闭  │`n      │  [关闭]  │`n      └──────────┘"
+            }
+        case "C":
+            ; CapsLock + C 使用图片显示，不再使用文本动画
+            return ""
+        case "V":
+            switch State {
+                case 0: return "      ┌──────────┐`n      │  剪贴板   │`n      │ [N项内容] │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │CapsLock+V │`n      │  [按下]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │打开Cursor │`n      │ [启动中]  │`n      └──────────┘"
+                case 1: return "      ┌──────────┐`n      │  剪贴板   │`n      │ [N项内容] │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │CapsLock+V │`n      │  [按下]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │打开Cursor │`n      │ [已打开]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 合并内容  │`n      │ [处理中]  │`n      └──────────┘"
+                case 2: return "      ┌──────────┐`n      │  剪贴板   │`n      │ [N项内容] │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │CapsLock+V │`n      │  [按下]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │打开Cursor │`n      │ [已打开]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 合并内容  │`n      │ [已完成]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │  粘贴中   │`n      │  [处理]   │`n      └──────────┘"
+                case 3: return "      ┌──────────┐`n      │  剪贴板   │`n      │ [N项内容] │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │CapsLock+V │`n      │  [按下]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │打开Cursor │`n      │ [已打开]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 合并内容  │`n      │ [已完成]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 粘贴完成  │`n      │ [✓完成]  │`n      └──────────┘"
+            }
+        case "E", "R", "O":
+            ActionName := (HotkeyKey = "E") ? "解释" : (HotkeyKey = "R") ? "重构" : "优化"
+            switch State {
+                case 0: return "      ┌──────────────┐`n      │   选中代码    │`n      │  [代码片段]  │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │  AI" . ActionName . "处理  │`n      │  [分析中...] │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │   生成结果    │`n      │  [处理中...]  │`n      └──────────────┘"
+                case 1: return "      ┌──────────────┐`n      │   选中代码    │`n      │  [代码片段]  │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │  AI" . ActionName . "处理  │`n      │  [分析完成] ✓│`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │   生成结果    │`n      │  [处理中...]  │`n      └──────────────┘"
+                case 2: return "      ┌──────────────┐`n      │   选中代码    │`n      │  [代码片段]  │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │  AI" . ActionName . "处理  │`n      │  [分析完成] ✓│`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │   生成结果    │`n      │  [处理中...]  │`n      └──────────────┘"
+                case 3: return "      ┌──────────────┐`n      │   选中代码    │`n      │  [代码片段]  │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │  AI" . ActionName . "处理  │`n      │  [分析完成] ✓│`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │   生成结果    │`n      │  [已完成] ✓  │`n      └──────────────┘"
+            }
+        case "Z":
+            if (VoiceActive) {
+                switch State {
+                    case 0: return "      ┌──────────┐`n      │CapsLock+Z │`n      │  [按下]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 语音输入  │`n      │  ● ○ ○   │`n      │ [启动中]  │`n      └──────────┘"
+                    case 1: return "      ┌──────────┐`n      │CapsLock+Z │`n      │  [按下]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 语音输入  │`n      │  ○ ● ○   │`n      │ [识别中]  │`n      └──────────┘"
+                    case 2: return "      ┌──────────┐`n      │CapsLock+Z │`n      │  [按下]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 语音输入  │`n      │  ○ ○ ●   │`n      │ [处理中]  │`n      └──────────┘"
+                    case 3: return "      ┌──────────┐`n      │CapsLock+Z │`n      │  [按下]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 语音输入  │`n      │  ● ● ●   │`n      │ [录入中]  │`n      └──────────┘"
+                }
+            } else {
+                switch State {
+                    case 0: return "      ┌──────────┐`n      │CapsLock+Z │`n      │  [按下]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 启动语音  │`n      │  ● ○ ○   │`n      │ [启动中]  │`n      └──────────┘"
+                    case 1: return "      ┌──────────┐`n      │CapsLock+Z │`n      │  [按下]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 启动语音  │`n      │  ○ ● ○   │`n      │ [识别中]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 开始说话  │`n      │  [等待]  │`n      └──────────┘"
+                    case 2: return "      ┌──────────┐`n      │CapsLock+Z │`n      │  [按下]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 启动语音  │`n      │  ○ ○ ●   │`n      │ [处理中]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 开始说话  │`n      │ [已启动]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 语音识别  │`n      │ [进行中]  │`n      └──────────┘"
+                    case 3: return "      ┌──────────┐`n      │CapsLock+Z │`n      │  [按下]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 启动语音  │`n      │  ● ● ●   │`n      │ [已完成]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 开始说话  │`n      │ [已启动]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │ 语音识别  │`n      │ [进行中]  │`n      └─────┬────┘`n            │`n            ▼`n      ┌──────────┐`n      │发送到Cursor│`n      │ [✓完成]  │`n      └──────────┘"
+                }
+            }
+        case "X":
+            switch State {
+                case 0: return "      ┌──────────────┐`n      │ 剪贴板管理面板 │`n      │  [打开中...]  │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │ 显示历史记录  │`n      │  [加载中...]  │`n      └──────────────┘"
+                case 1: return "      ┌──────────────┐`n      │ 剪贴板管理面板 │`n      │  [已打开] ✓  │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │ 显示历史记录  │`n      │  [已加载] ✓  │`n      └──────────────┘"
+                case 2: return "      ┌──────────────┐`n      │ 剪贴板管理面板 │`n      │  [已打开] ✓  │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │ 显示历史记录  │`n      │  [已加载] ✓  │`n      └──────────────┘"
+                case 3: return "      ┌──────────────┐`n      │ 剪贴板管理面板 │`n      │  [已打开] ✓  │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │ 显示历史记录  │`n      │  [已加载] ✓  │`n      └──────────────┘"
+            }
+        case "Q":
+            switch State {
+                case 0: return "      ┌──────────────┐`n      │   配置面板    │`n      │  [打开中...]  │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │ 加载配置选项  │`n      │  [加载中...]  │`n      └──────────────┘"
+                case 1: return "      ┌──────────────┐`n      │   配置面板    │`n      │  [已打开] ✓  │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │ 加载配置选项  │`n      │  [已加载] ✓  │`n      └──────────────┘"
+                case 2: return "      ┌──────────────┐`n      │   配置面板    │`n      │  [已打开] ✓  │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │ 加载配置选项  │`n      │  [已加载] ✓  │`n      └──────────────┘"
+                case 3: return "      ┌──────────────┐`n      │   配置面板    │`n      │  [已打开] ✓  │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │ 加载配置选项  │`n      │  [已加载] ✓  │`n      └──────────────┘"
+            }
+        case "S":
+            switch State {
+                case 0: return "      ┌──────────────┐`n      │   代码片段1   │`n      │  [已标记] ✓  │`n      └──────────────┘`n            +`n      ┌──────────────┐`n      │   代码片段2   │`n      │  [已标记] ✓  │`n      └──────────────┘`n            │`n            ▼`n      ┌──────────────┐`n      │ 插入分割标记 │`n      │  [标记中...] │`n      └──────────────┘"
+                case 1: return "      ┌──────────────┐`n      │   代码片段1   │`n      │  [已标记] ✓  │`n      └──────────────┘`n            +`n      ┌──────────────┐`n      │   代码片段2   │`n      │  [已标记] ✓  │`n      └──────────────┘`n            │`n            ▼`n      ┌──────────────┐`n      │ 插入分割标记 │`n      │  [标记完成] ✓│`n      └──────────────┘"
+                case 2: return "      ┌──────────────┐`n      │   代码片段1   │`n      │  [已标记] ✓  │`n      └──────────────┘`n            +`n      ┌──────────────┐`n      │   代码片段2   │`n      │  [已标记] ✓  │`n      └──────────────┘`n            │`n            ▼`n      ┌──────────────┐`n      │ 插入分割标记 │`n      │  [标记完成] ✓│`n      └──────────────┘"
+                case 3: return "      ┌──────────────┐`n      │   代码片段1   │`n      │  [已标记] ✓  │`n      └──────────────┘`n            +`n      ┌──────────────┐`n      │   代码片段2   │`n      │  [已标记] ✓  │`n      └──────────────┘`n            │`n            ▼`n      ┌──────────────┐`n      │ 插入分割标记 │`n      │  [标记完成] ✓│`n      └──────────────┘"
+            }
+        case "B":
+            switch State {
+                case 0: return "      ┌──────────────┐`n      │   代码片段1   │`n      │  [已标记] ✓  │`n      └──────────────┘`n            +`n      ┌──────────────┐`n      │   代码片段2   │`n      │  [已标记] ✓  │`n      └──────────────┘`n            │`n            ▼`n      ┌──────────────┐`n      │ 批量处理执行  │`n      │  [处理中...]  │`n      └──────────────┘"
+                case 1: return "      ┌──────────────┐`n      │   代码片段1   │`n      │  [已标记] ✓  │`n      └──────────────┘`n            +`n      ┌──────────────┐`n      │   代码片段2   │`n      │  [已标记] ✓  │`n      └──────────────┘`n            │`n            ▼`n      ┌──────────────┐`n      │ 批量处理执行  │`n      │  [处理中...]  │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │ 处理结果展示  │`n      │  [生成中...]  │`n      └──────────────┘"
+                case 2: return "      ┌──────────────┐`n      │   代码片段1   │`n      │  [已标记] ✓  │`n      └──────────────┘`n            +`n      ┌──────────────┐`n      │   代码片段2   │`n      │  [已标记] ✓  │`n      └──────────────┘`n            │`n            ▼`n      ┌──────────────┐`n      │ 批量处理执行  │`n      │  [处理中...]  │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │ 处理结果展示  │`n      │  [生成中...]  │`n      └──────────────┘"
+                case 3: return "      ┌──────────────┐`n      │   代码片段1   │`n      │  [已标记] ✓  │`n      └──────────────┘`n            +`n      ┌──────────────┐`n      │   代码片段2   │`n      │  [已标记] ✓  │`n      └──────────────┘`n            │`n            ▼`n      ┌──────────────┐`n      │ 批量处理执行  │`n      │  [处理完成] ✓│`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │ 处理结果展示  │`n      │  [已完成] ✓  │`n      └──────────────┘"
+            }
+        default:
+            switch State {
+                case 0: return "      ┌──────────────┐`n      │   功能执行    │`n      │  [执行中...]  │`n      └──────────────┘"
+                case 1: return "      ┌──────────────┐`n      │   功能执行    │`n      │  [执行中...]  │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │   处理结果    │`n      │  [处理中...]  │`n      └──────────────┘"
+                case 2: return "      ┌──────────────┐`n      │   功能执行    │`n      │  [执行中...]  │`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │   处理结果    │`n      │  [处理中...]  │`n      └──────────────┘"
+                case 3: return "      ┌──────────────┐`n      │   功能执行    │`n      │  [执行完成] ✓│`n      └──────┬───────┘`n             │`n             ▼`n      ┌──────────────┐`n      │   处理结果    │`n      │  [已完成] ✓  │`n      └──────────────┘"
+            }
+    }
+}
+
+; ===================== 切换快捷键子标签页 =====================
+SwitchHotkeyTab(HotkeyKey) {
+    global HotkeySubTabs, HotkeySubTabControls, UI_Colors
+    
+    ; 调试输出（可以删除）
+    ; TrayTip("切换到: " . HotkeyKey, "提示", "Iconi 1")
+    
+    ; 重置所有子标签样式（使用 Cursor 暗色系）
+    for Key, TabBtn in HotkeySubTabs {
+        if (TabBtn) {
+            try {
+                TabBtn.BackColor := "2d2d30"  ; Cursor 暗色系背景
+                TabBtn.SetFont("s9 cCCCCCC", "Segoe UI")  ; Cursor 暗色系文字颜色
+            }
+        }
+    }
+    
+    ; 隐藏所有子标签页内容
+    for Key, Controls in HotkeySubTabControls {
+        if (Controls && Controls.Length > 0) {
+            for Index, Ctrl in Controls {
+                if (Ctrl) {
+                    try {
+                        Ctrl.Visible := false
+                    } catch {
+                        ; 忽略已销毁的控件
+                    }
+                }
+            }
+        }
+    }
+    
+    ; 设置当前子标签样式（使用 Cursor 暗色系）
+    if (HotkeySubTabs.Has(HotkeyKey) && HotkeySubTabs[HotkeyKey]) {
+        try {
+            HotkeySubTabs[HotkeyKey].BackColor := "37373d"  ; Cursor 暗色系选中背景
+            HotkeySubTabs[HotkeyKey].SetFont("s9 cFFFFFF", "Segoe UI")  ; 选中时白色文字
+        }
+    }
+    
+    ; 显示当前子标签页内容
+    if (HotkeySubTabControls.Has(HotkeyKey)) {
+        Controls := HotkeySubTabControls[HotkeyKey]
+        if (Controls && Controls.Length > 0) {
+            for Index, Ctrl in Controls {
+                if (Ctrl) {
+                    try {
+                        Ctrl.Visible := true
+                    } catch {
+                        ; 忽略已销毁的控件
+                    }
+                }
+            }
+        }
+    }
 }
 
 ; ===================== 创建高级标签页 =====================
 CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     global AISleepTime, AdvancedTabPanel, AISleepTimeEdit, AdvancedTabControls
+    global ConfigPanelScreenIndex, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex
+    global ConfigPanelScreenRadio, MsgBoxScreenRadio, VoiceInputScreenRadio, CursorPanelScreenRadio
     global UI_Colors
     
     ; 创建标签页面板（默认隐藏）
@@ -1411,6 +2025,120 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     Hint1 := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h20 c" . UI_Colors.TextDim, GetText("ai_wait_hint"))
     Hint1.SetFont("s9", "Segoe UI")
     AdvancedTabControls.Push(Hint1)
+    
+    ; 获取屏幕列表
+    ScreenList := []
+    MonitorCount := 0
+    try {
+        MonitorCount := MonitorGetCount()
+        if (MonitorCount > 0) {
+            Loop MonitorCount {
+                MonitorIndex := A_Index
+                MonitorGet(MonitorIndex, &Left, &Top, &Right, &Bottom)
+                ScreenList.Push(FormatText("screen", MonitorIndex))
+            }
+        }
+    } catch {
+        MonitorIndex := 1
+        Loop 10 {
+            try {
+                MonitorGet(MonitorIndex, &Left, &Top, &Right, &Bottom)
+                ScreenList.Push(FormatText("screen", MonitorIndex))
+                MonitorCount++
+                MonitorIndex++
+            } catch {
+                break
+            }
+        }
+    }
+    if (ScreenList.Length = 0) {
+        ScreenList.Push(FormatText("screen", 1))
+        MonitorCount := 1
+    }
+    
+    ; 配置面板显示器选择
+    YPos += 50
+    LabelConfigPanel := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("config_panel_screen"))
+    LabelConfigPanel.SetFont("s11", "Segoe UI")
+    AdvancedTabControls.Push(LabelConfigPanel)
+    
+    YPos += 30
+    ConfigPanelScreenRadio := []
+    StartX := X + 30
+    RadioWidth := 100
+    RadioHeight := 30
+    Spacing := 10
+    for Index, ScreenName in ScreenList {
+        XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
+        RadioBtn := ConfigGUI.Add("Radio", "x" . XPos . " y" . YPos . " w" . RadioWidth . " h" . RadioHeight . " vConfigPanelScreenRadio" . Index . " c" . UI_Colors.Text, ScreenName)
+        RadioBtn.SetFont("s11", "Segoe UI")
+        RadioBtn.BackColor := UI_Colors.Background
+        if (Index = ConfigPanelScreenIndex) {
+            RadioBtn.Value := 1
+        }
+        ConfigPanelScreenRadio.Push(RadioBtn)
+        AdvancedTabControls.Push(RadioBtn)
+    }
+    
+    ; 弹窗显示器选择
+    YPos += 50
+    LabelMsgBox := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("msgbox_screen"))
+    LabelMsgBox.SetFont("s11", "Segoe UI")
+    AdvancedTabControls.Push(LabelMsgBox)
+    
+    YPos += 30
+    MsgBoxScreenRadio := []
+    for Index, ScreenName in ScreenList {
+        XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
+        RadioBtn := ConfigGUI.Add("Radio", "x" . XPos . " y" . YPos . " w" . RadioWidth . " h" . RadioHeight . " vMsgBoxScreenRadio" . Index . " c" . UI_Colors.Text, ScreenName)
+        RadioBtn.SetFont("s11", "Segoe UI")
+        RadioBtn.BackColor := UI_Colors.Background
+        if (Index = MsgBoxScreenIndex) {
+            RadioBtn.Value := 1
+        }
+        MsgBoxScreenRadio.Push(RadioBtn)
+        AdvancedTabControls.Push(RadioBtn)
+    }
+    
+    ; 语音输入法提示显示器选择
+    YPos += 50
+    LabelVoiceInput := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("voice_input_screen"))
+    LabelVoiceInput.SetFont("s11", "Segoe UI")
+    AdvancedTabControls.Push(LabelVoiceInput)
+    
+    YPos += 30
+    VoiceInputScreenRadio := []
+    for Index, ScreenName in ScreenList {
+        XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
+        RadioBtn := ConfigGUI.Add("Radio", "x" . XPos . " y" . YPos . " w" . RadioWidth . " h" . RadioHeight . " vVoiceInputScreenRadio" . Index . " c" . UI_Colors.Text, ScreenName)
+        RadioBtn.SetFont("s11", "Segoe UI")
+        RadioBtn.BackColor := UI_Colors.Background
+        if (Index = VoiceInputScreenIndex) {
+            RadioBtn.Value := 1
+        }
+        VoiceInputScreenRadio.Push(RadioBtn)
+        AdvancedTabControls.Push(RadioBtn)
+    }
+    
+    ; Cursor快捷弹出面板显示器选择
+    YPos += 50
+    LabelCursorPanel := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("cursor_panel_screen"))
+    LabelCursorPanel.SetFont("s11", "Segoe UI")
+    AdvancedTabControls.Push(LabelCursorPanel)
+    
+    YPos += 30
+    CursorPanelScreenRadio := []
+    for Index, ScreenName in ScreenList {
+        XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
+        RadioBtn := ConfigGUI.Add("Radio", "x" . XPos . " y" . YPos . " w" . RadioWidth . " h" . RadioHeight . " vCursorPanelScreenRadio" . Index . " c" . UI_Colors.Text, ScreenName)
+        RadioBtn.SetFont("s11", "Segoe UI")
+        RadioBtn.BackColor := UI_Colors.Background
+        if (Index = CursorPanelScreenIndex) {
+            RadioBtn.Value := 1
+        }
+        CursorPanelScreenRadio.Push(RadioBtn)
+        AdvancedTabControls.Push(RadioBtn)
+    }
 }
 
 ; ===================== 浏览 Cursor 路径 =====================
@@ -1426,6 +2154,7 @@ BrowseCursorPath(*) {
 ResetToDefaults(*) {
     global CursorPathEdit, AISleepTimeEdit, PromptExplainEdit, PromptRefactorEdit, PromptOptimizeEdit
     global SplitHotkeyEdit, BatchHotkeyEdit, PanelScreenRadio
+    global HotkeyESCEdit, HotkeyCEdit, HotkeyVEdit, HotkeyXEdit, HotkeyEEdit, HotkeyREdit, HotkeyOEdit, HotkeyQEdit, HotkeyZEdit
     
     ; 确认对话框
     Result := MsgBox(GetText("confirm_reset"), GetText("confirm"), "YesNo Icon?")
@@ -1440,6 +2169,15 @@ ResetToDefaults(*) {
     DefaultPrompt_Optimize := GetText("default_prompt_optimize")
     DefaultSplitHotkey := "s"
     DefaultBatchHotkey := "b"
+    DefaultHotkeyESC := "Esc"
+    DefaultHotkeyC := "c"
+    DefaultHotkeyV := "v"
+    DefaultHotkeyX := "x"
+    DefaultHotkeyE := "e"
+    DefaultHotkeyR := "r"
+    DefaultHotkeyO := "o"
+    DefaultHotkeyQ := "q"
+    DefaultHotkeyZ := "z"
     DefaultPanelScreenIndex := 1
     
     try {
@@ -1450,6 +2188,15 @@ ResetToDefaults(*) {
         if (IsSet(PromptOptimizeEdit) && PromptOptimizeEdit) PromptOptimizeEdit.Value := DefaultPrompt_Optimize
         if (IsSet(SplitHotkeyEdit) && SplitHotkeyEdit) SplitHotkeyEdit.Value := DefaultSplitHotkey
         if (IsSet(BatchHotkeyEdit) && BatchHotkeyEdit) BatchHotkeyEdit.Value := DefaultBatchHotkey
+        if (IsSet(HotkeyESCEdit) && HotkeyESCEdit) HotkeyESCEdit.Value := DefaultHotkeyESC
+        if (IsSet(HotkeyCEdit) && HotkeyCEdit) HotkeyCEdit.Value := DefaultHotkeyC
+        if (IsSet(HotkeyVEdit) && HotkeyVEdit) HotkeyVEdit.Value := DefaultHotkeyV
+        if (IsSet(HotkeyXEdit) && HotkeyXEdit) HotkeyXEdit.Value := DefaultHotkeyX
+        if (IsSet(HotkeyEEdit) && HotkeyEEdit) HotkeyEEdit.Value := DefaultHotkeyE
+        if (IsSet(HotkeyREdit) && HotkeyREdit) HotkeyREdit.Value := DefaultHotkeyR
+        if (IsSet(HotkeyOEdit) && HotkeyOEdit) HotkeyOEdit.Value := DefaultHotkeyO
+        if (IsSet(HotkeyQEdit) && HotkeyQEdit) HotkeyQEdit.Value := DefaultHotkeyQ
+        if (IsSet(HotkeyZEdit) && HotkeyZEdit) HotkeyZEdit.Value := DefaultHotkeyZ
         
         ; 重置屏幕选择
         if (IsSet(PanelScreenRadio) && PanelScreenRadio && PanelScreenRadio.Length > 0) {
@@ -1598,11 +2345,59 @@ ShowHelp(*) {
 }
 
 ; ===================== 配置面板函数 =====================
+; ===================== 设置窗口最小尺寸限制辅助函数 =====================
+SetWindowMinSizeLimit(Hwnd, MinWidth, MinHeight) {
+    ; 使用窗口属性存储最小尺寸，供 ConfigGUI_Size 使用
+    ; 这样可以在事件处理函数中访问这些值
+    DllCall("user32.dll\SetProp", "Ptr", Hwnd, "Str", "MinWidth", "Int", MinWidth, "Ptr")
+    DllCall("user32.dll\SetProp", "Ptr", Hwnd, "Str", "MinHeight", "Int", MinHeight, "Ptr")
+}
+
+; ===================== 设置窗口滚动信息辅助函数 =====================
+SetWindowScrollInfo(Hwnd, ScrollWidth, ScrollHeight, VisibleWidth, VisibleHeight) {
+    ; 设置窗口的滚动区域，启用滚动条
+    ; ScrollWidth: 滚动区域的总宽度
+    ; ScrollHeight: 滚动区域的总高度
+    ; VisibleWidth: 可视区域的宽度
+    ; VisibleHeight: 可视区域的高度
+    
+    ; 使用 SetScrollInfo 设置滚动条信息
+    ScrollInfo := Buffer(A_PtrSize = 8 ? 32 : 28, 0)
+    
+    ; 水平滚动条（如果需要）
+    if (ScrollWidth > VisibleWidth) {
+        NumPut("UInt", A_PtrSize = 8 ? 32 : 28, ScrollInfo, 0)  ; cbSize
+        NumPut("UInt", 0x17, ScrollInfo, 4)  ; fMask = SIF_RANGE | SIF_PAGE | SIF_DISABLENOSCROLL
+        NumPut("Int", 0, ScrollInfo, 8)  ; nMin
+        NumPut("Int", ScrollWidth, ScrollInfo, 12)  ; nMax
+        NumPut("Int", VisibleWidth, ScrollInfo, 16)  ; nPage (可视宽度)
+        DllCall("user32.dll\SetScrollInfo", "Ptr", Hwnd, "Int", 0, "Ptr", ScrollInfo, "Int", 1)  ; SB_HORZ = 0
+    }
+    
+    ; 垂直滚动条
+    if (ScrollHeight > VisibleHeight) {
+        NumPut("UInt", A_PtrSize = 8 ? 32 : 28, ScrollInfo, 0)  ; cbSize
+        NumPut("UInt", 0x17, ScrollInfo, 4)  ; fMask = SIF_RANGE | SIF_PAGE | SIF_DISABLENOSCROLL
+        NumPut("Int", 0, ScrollInfo, 8)  ; nMin
+        NumPut("Int", ScrollHeight, ScrollInfo, 12)  ; nMax
+        NumPut("Int", VisibleHeight, ScrollInfo, 16)  ; nPage (可视高度)
+        DllCall("user32.dll\SetScrollInfo", "Ptr", Hwnd, "Int", 1, "Ptr", ScrollInfo, "Int", 1)  ; SB_VERT = 1
+    }
+    
+    ; 存储滚动信息到窗口属性，供滚动消息处理使用
+    DllCall("user32.dll\SetProp", "Ptr", Hwnd, "Str", "ScrollWidth", "Int", ScrollWidth, "Ptr")
+    DllCall("user32.dll\SetProp", "Ptr", Hwnd, "Str", "ScrollHeight", "Int", ScrollHeight, "Ptr")
+    DllCall("user32.dll\SetProp", "Ptr", Hwnd, "Str", "VisibleWidth", "Int", VisibleWidth, "Ptr")
+    DllCall("user32.dll\SetProp", "Ptr", Hwnd, "Str", "VisibleHeight", "Int", VisibleHeight, "Ptr")
+    DllCall("user32.dll\SetProp", "Ptr", Hwnd, "Str", "ScrollX", "Int", 0, "Ptr")
+    DllCall("user32.dll\SetProp", "Ptr", Hwnd, "Str", "ScrollY", "Int", 0, "Ptr")
+}
+
 ; ===================== 配置面板函数 =====================
 ShowConfigGUI() {
     global CursorPath, AISleepTime, Prompt_Explain, Prompt_Refactor, Prompt_Optimize
     global SplitHotkey, BatchHotkey, ConfigFile, Language
-    global PanelScreenIndex, PanelPosition
+    global PanelScreenIndex, PanelPosition, ConfigPanelScreenIndex
     global UI_Colors, GuiID_ConfigGUI, GuiID_ClipboardManager
     
     ; 单例模式:如果配置面板已存在,直接激活
@@ -1633,18 +2428,24 @@ ShowConfigGUI() {
     global HotkeysTabControls := []
     global AdvancedTabControls := []
     
-    ; 创建配置 GUI（无边框窗口）
+    ; 创建配置 GUI（无边框窗口，支持滚动）
     ConfigGUI := Gui("+Resize -MaximizeBox -Caption +Border", GetText("config_title"))
     ConfigGUI.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
     ConfigGUI.BackColor := UI_Colors.Background
+    ; 启用窗口滚动（通过设置窗口样式和滚动区域）
+    ; 添加滚动条样式（在窗口显示后设置）
     
-    ; 窗口尺寸
-    ConfigWidth := 900
-    ConfigHeight := 700
+    ; 窗口尺寸 - 全屏显示
+    ScreenInfo := GetScreenInfo(PanelScreenIndex)
+    global ConfigWidth := ScreenInfo.Width
+    global ConfigHeight := ScreenInfo.Height
+    
+    ; 侧边栏宽度（全局变量，用于大小调整）
+    global SidebarWidth := 150
     
     ; ========== 自定义标题栏 (35px) ==========
     ; 调整标题栏宽度，避免覆盖关闭按钮
-    TitleBar := ConfigGUI.Add("Text", "x0 y0 w" . (ConfigWidth - 40) . " h35 Background" . UI_Colors.TitleBar, "")
+    TitleBar := ConfigGUI.Add("Text", "x0 y0 w" . (ConfigWidth - 40) . " h35 Background" . UI_Colors.TitleBar . " vTitleBar", "")
     TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2)) ; 拖动窗口
     
     ; 窗口标题
@@ -1654,14 +2455,14 @@ ShowConfigGUI() {
     
     ; 关闭按钮 (右上角)
     ; 确保关闭按钮在最上层
-    CloseBtn := ConfigGUI.Add("Text", "x" . (ConfigWidth - 40) . " y0 w40 h35 Center 0x200 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text, "✕")
+    CloseBtn := ConfigGUI.Add("Text", "x" . (ConfigWidth - 40) . " y0 w40 h35 Center 0x200 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text . " vCloseBtn", "✕")
     CloseBtn.SetFont("s10", "Segoe UI")
     CloseBtn.OnEvent("Click", (*) => CloseConfigGUI())
     HoverBtn(CloseBtn, UI_Colors.TitleBar, "e81123") ; 红色关闭 hover
     
-    ; ========== 左侧侧边栏 (200px) ==========
-    SidebarWidth := 200
-    SidebarBg := ConfigGUI.Add("Text", "x0 y35 w" . SidebarWidth . " h" . (ConfigHeight - 35) . " Background" . UI_Colors.Sidebar, "")
+    ; ========== 左侧侧边栏 (150px，更窄以给右侧更多空间) ==========
+    ; SidebarWidth 已在上面声明为全局变量
+    SidebarBg := ConfigGUI.Add("Text", "x0 y35 w" . SidebarWidth . " h" . (ConfigHeight - 35) . " Background" . UI_Colors.Sidebar . " vSidebarBg", "")
     
     ; 侧边栏搜索框
     SearchBg := ConfigGUI.Add("Text", "x10 y45 w" . (SidebarWidth - 20) . " h30 Background" . UI_Colors.InputBg, "")
@@ -1691,11 +2492,16 @@ ShowConfigGUI() {
     TabHotkeys := CreateSidebarTab(GetText("tab_hotkeys"), "hotkeys", TabY + (TabHeight + TabSpacing) * 3)
     TabAdvanced := CreateSidebarTab(GetText("tab_advanced"), "advanced", TabY + (TabHeight + TabSpacing) * 4)
     
-    ; ========== 右侧内容区域 ==========
+    ; ========== 右侧内容区域（可滚动）==========
     ContentX := SidebarWidth
     ContentWidth := ConfigWidth - SidebarWidth
     ContentY := 35
     ContentHeight := ConfigHeight - 35 - 50 ; 留出底部按钮空间
+    
+    ; 创建一个可滚动的容器来包裹所有内容
+    ; 使用隐藏的滚动条控件来启用窗口滚动功能
+    ; 在 AutoHotkey v2 中，可以通过设置窗口的滚动区域来实现滚动
+    global ScrollContainer := 0  ; 不使用单独的滚动容器，直接使用窗口滚动
     
     ; 保存标签控件的引用
     ConfigTabs := Map(
@@ -1708,6 +2514,7 @@ ShowConfigGUI() {
     global ConfigTabs := ConfigTabs
     
     ; 创建各个标签页的内容面板 (注意: 此时传入的 Y 坐标是相对于窗口客户区的)
+    ; 内容可以超出 ContentHeight，通过鼠标滚轮滚动查看
     CreateGeneralTab(ConfigGUI, ContentX, ContentY, ContentWidth, ContentHeight)
     CreateAppearanceTab(ConfigGUI, ContentX, ContentY, ContentWidth, ContentHeight)
     CreatePromptsTab(ConfigGUI, ContentX, ContentY, ContentWidth, ContentHeight)
@@ -1716,14 +2523,14 @@ ShowConfigGUI() {
     
     ; ========== 底部按钮区域 (右侧) ==========
     ButtonAreaY := ConfigHeight - 50
-    ConfigGUI.Add("Text", "x" . ContentX . " y" . ButtonAreaY . " w" . ContentWidth . " h50 Background" . UI_Colors.Background, "") ; 遮挡背景
+    ButtonAreaBg := ConfigGUI.Add("Text", "x" . ContentX . " y" . ButtonAreaY . " w" . ContentWidth . " h50 Background" . UI_Colors.Background . " vButtonAreaBg", "") ; 遮挡背景
     
     ; 底部按钮辅助函数 
-    CreateBottomBtn(Label, XPos, Action, IsPrimary := false) {
+    CreateBottomBtn(Label, XPos, Action, IsPrimary := false, BtnName := "") {
         BgColor := IsPrimary ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
         HoverColor := IsPrimary ? UI_Colors.BtnPrimaryHover : UI_Colors.BtnHover
         
-        Btn := ConfigGUI.Add("Text", "x" . XPos . " y" . (ButtonAreaY + 10) . " w80 h30 Center 0x200 cWhite Background" . BgColor, Label)
+        Btn := ConfigGUI.Add("Text", "x" . XPos . " y" . (ButtonAreaY + 10) . " w80 h30 Center 0x200 cWhite Background" . BgColor . (BtnName ? " v" . BtnName : ""), Label)
         Btn.SetFont("s9", "Segoe UI")
         Btn.OnEvent("Click", Action)
         HoverBtn(Btn, BgColor, HoverColor)
@@ -1733,18 +2540,20 @@ ShowConfigGUI() {
     ; 计算按钮位置 (右对齐)
     BtnStartX := ConfigWidth - 460
     
-    CreateBottomBtn(GetText("export_config"), BtnStartX, ExportConfig)
-    CreateBottomBtn(GetText("import_config"), BtnStartX + 90, ImportConfig)
-    CreateBottomBtn(GetText("reset_default"), BtnStartX + 180, ResetToDefaults)
-    CreateBottomBtn(GetText("save_config"), BtnStartX + 270, SaveConfigAndClose, true) ; Primary
-    CreateBottomBtn(GetText("cancel"), BtnStartX + 360, (*) => CloseConfigGUI())
+    CreateBottomBtn(GetText("export_config"), BtnStartX, ExportConfig, false, "ExportBtn")
+    CreateBottomBtn(GetText("import_config"), BtnStartX + 90, ImportConfig, false, "ImportBtn")
+    CreateBottomBtn(GetText("reset_default"), BtnStartX + 180, ResetToDefaults, false, "ResetBtn")
+    CreateBottomBtn(GetText("save_config"), BtnStartX + 270, SaveConfigAndClose, true, "SaveBtn") ; Primary
+    CreateBottomBtn(GetText("cancel"), BtnStartX + 360, (*) => CloseConfigGUI(), false, "CancelBtn")
     
     ; 默认显示通用标签
     SwitchTab("general")
     
-    ; 获取屏幕信息并居中显示 (使用 ConfigPanelPos)
-    ScreenInfo := GetScreenInfo(PanelScreenIndex)
-    Pos := GetPanelPosition(ScreenInfo, ConfigWidth, ConfigHeight, ConfigPanelPos)
+    ; 获取屏幕信息并全屏显示
+    ScreenInfo := GetScreenInfo(ConfigPanelScreenIndex)
+    ; 全屏显示，使用屏幕的左上角坐标
+    PosX := ScreenInfo.Left
+    PosY := ScreenInfo.Top
     
     ; 搜索功能绑定
     SearchEdit.OnEvent("Change", (*) => FilterSettings(SearchEdit.Value))
@@ -1754,16 +2563,359 @@ ShowConfigGUI() {
     ; 保存ConfigGUI引用
     GuiID_ConfigGUI := ConfigGUI
     
-    ConfigGUI.Show("w" . ConfigWidth . " h" . ConfigHeight . " x" . Pos.X . " y" . Pos.Y)
+    ; 添加窗口大小调整事件处理
+    ConfigGUI.OnEvent("Size", ConfigGUI_Size)
+    ConfigGUI.OnEvent("Close", (*) => CloseConfigGUI())
+    
+    ; 全屏显示窗口
+    ConfigGUI.Show("w" . ConfigWidth . " h" . ConfigHeight . " x" . PosX . " y" . PosY)
+    
+    ; 设置窗口最小尺寸限制（使用 DllCall 调用 Windows API）
+    SetWindowMinSizeLimit(ConfigGUI.Hwnd, 800, 600)
+    
+    ; 添加滚动条样式（WS_VSCROLL | WS_HSCROLL）
+    ; GWL_STYLE = -16
+    CurrentStyle := DllCall("user32.dll\GetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -16, "Ptr")
+    NewStyle := CurrentStyle | 0x00200000 | 0x00100000  ; WS_VSCROLL | WS_HSCROLL
+    DllCall("user32.dll\SetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -16, "Ptr", NewStyle, "Ptr")
+    DllCall("user32.dll\SetWindowPos", "Ptr", ConfigGUI.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0027, "Int")  ; SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
+    
+    ; 设置窗口滚动区域（启用滚动条）
+    ; 计算内容区域的最大高度（假设内容可能超出可视区域）
+    MaxContentHeight := ContentHeight * 3  ; 内容可能超出3倍高度
+    SetWindowScrollInfo(ConfigGUI.Hwnd, ContentWidth, MaxContentHeight, ContentWidth, ContentHeight)
+    
+    ; 添加滚动消息处理（使用全局 OnMessage 函数）
+    OnMessage(0x115, ConfigGUI_OnScroll)  ; WM_VSCROLL
+    OnMessage(0x114, ConfigGUI_OnScroll)  ; WM_HSCROLL
     
     ; 确保窗口在最上层并激活
     WinSetAlwaysOnTop(1, ConfigGUI.Hwnd)
     WinActivate(ConfigGUI.Hwnd)
+    
+    ; 启用配置面板的滚轮热键
+    EnableConfigScroll()
+}
+
+; ===================== 配置面板滚动消息处理 =====================
+ConfigGUI_OnScroll(wParam, lParam, msg, hwnd) {
+    global GuiID_ConfigGUI
+    
+    if (GuiID_ConfigGUI = 0 || hwnd != GuiID_ConfigGUI.Hwnd) {
+        return
+    }
+    
+    ; 获取滚动信息
+    ScrollWidth := DllCall("user32.dll\GetProp", "Ptr", hwnd, "Str", "ScrollWidth", "Int")
+    ScrollHeight := DllCall("user32.dll\GetProp", "Ptr", hwnd, "Str", "ScrollHeight", "Int")
+    VisibleWidth := DllCall("user32.dll\GetProp", "Ptr", hwnd, "Str", "VisibleWidth", "Int")
+    VisibleHeight := DllCall("user32.dll\GetProp", "Ptr", hwnd, "Str", "VisibleHeight", "Int")
+    ScrollX := DllCall("user32.dll\GetProp", "Ptr", hwnd, "Str", "ScrollX", "Int")
+    ScrollY := DllCall("user32.dll\GetProp", "Ptr", hwnd, "Str", "ScrollY", "Int")
+    
+    if (!ScrollWidth || !ScrollHeight) {
+        return
+    }
+    
+    ; 判断是垂直滚动还是水平滚动
+    if (msg = 0x115) {  ; WM_VSCROLL - 垂直滚动
+        ScrollCode := wParam & 0xFFFF
+        NewScrollY := ScrollY
+        
+        switch ScrollCode {
+            case 0:  ; SB_LINEUP - 向上滚动一行
+                NewScrollY := Max(0, ScrollY - 20)
+            case 1:  ; SB_LINEDOWN - 向下滚动一行
+                NewScrollY := Min(ScrollHeight - VisibleHeight, ScrollY + 20)
+            case 2:  ; SB_PAGEUP - 向上滚动一页
+                NewScrollY := Max(0, ScrollY - VisibleHeight)
+            case 3:  ; SB_PAGEDOWN - 向下滚动一页
+                NewScrollY := Min(ScrollHeight - VisibleHeight, ScrollY + VisibleHeight)
+            case 4:  ; SB_THUMBPOSITION - 拖动滚动条
+                NewScrollY := (wParam >> 16) & 0xFFFF
+            case 5:  ; SB_THUMBTRACK - 拖动滚动条（实时跟踪）
+                NewScrollY := (wParam >> 16) & 0xFFFF
+            case 6:  ; SB_TOP - 滚动到顶部
+                NewScrollY := 0
+            case 7:  ; SB_BOTTOM - 滚动到底部
+                NewScrollY := ScrollHeight - VisibleHeight
+        }
+        
+        if (NewScrollY != ScrollY) {
+            ; 更新滚动位置
+            DllCall("user32.dll\SetProp", "Ptr", hwnd, "Str", "ScrollY", "Int", NewScrollY, "Ptr")
+            
+            ; 更新滚动条位置
+            ScrollInfo := Buffer(A_PtrSize = 8 ? 32 : 28, 0)
+            NumPut("UInt", A_PtrSize = 8 ? 32 : 28, ScrollInfo, 0)
+            NumPut("UInt", 0x14, ScrollInfo, 4)  ; fMask = SIF_POS
+            NumPut("Int", NewScrollY, ScrollInfo, 20)  ; nPos
+            DllCall("user32.dll\SetScrollInfo", "Ptr", hwnd, "Int", 1, "Ptr", ScrollInfo, "Int", 1)
+            
+            ; 滚动窗口内容
+            DllCall("user32.dll\ScrollWindowEx", "Ptr", hwnd, "Int", 0, "Int", ScrollY - NewScrollY, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Int", 0x0010)  ; SW_INVALIDATE
+            DllCall("user32.dll\UpdateWindow", "Ptr", hwnd, "Int")
+        }
+    } else if (msg = 0x114) {  ; WM_HSCROLL - 水平滚动
+        ScrollCode := wParam & 0xFFFF
+        NewScrollX := ScrollX
+        
+        switch ScrollCode {
+            case 0:  ; SB_LINELEFT
+                NewScrollX := Max(0, ScrollX - 20)
+            case 1:  ; SB_LINERIGHT
+                NewScrollX := Min(ScrollWidth - VisibleWidth, ScrollX + 20)
+            case 2:  ; SB_PAGELEFT
+                NewScrollX := Max(0, ScrollX - VisibleWidth)
+            case 3:  ; SB_PAGERIGHT
+                NewScrollX := Min(ScrollWidth - VisibleWidth, ScrollX + VisibleWidth)
+            case 4:  ; SB_THUMBPOSITION
+                NewScrollX := (wParam >> 16) & 0xFFFF
+            case 5:  ; SB_THUMBTRACK
+                NewScrollX := (wParam >> 16) & 0xFFFF
+            case 6:  ; SB_LEFT
+                NewScrollX := 0
+            case 7:  ; SB_RIGHT
+                NewScrollX := ScrollWidth - VisibleWidth
+        }
+        
+        if (NewScrollX != ScrollX) {
+            ; 更新滚动位置
+            DllCall("user32.dll\SetProp", "Ptr", hwnd, "Str", "ScrollX", "Int", NewScrollX, "Ptr")
+            
+            ; 更新滚动条位置
+            ScrollInfo := Buffer(A_PtrSize = 8 ? 32 : 28, 0)
+            NumPut("UInt", A_PtrSize = 8 ? 32 : 28, ScrollInfo, 0)
+            NumPut("UInt", 0x14, ScrollInfo, 4)  ; fMask = SIF_POS
+            NumPut("Int", NewScrollX, ScrollInfo, 20)  ; nPos
+            DllCall("user32.dll\SetScrollInfo", "Ptr", hwnd, "Int", 0, "Ptr", ScrollInfo, "Int", 1)
+            
+            ; 滚动窗口内容
+            DllCall("user32.dll\ScrollWindowEx", "Ptr", hwnd, "Int", ScrollX - NewScrollX, "Int", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Int", 0x0010)  ; SW_INVALIDATE
+            DllCall("user32.dll\UpdateWindow", "Ptr", hwnd, "Int")
+        }
+    }
+}
+
+; ===================== 配置面板大小调整处理 =====================
+ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
+    global GuiID_ConfigGUI, SidebarWidth, UI_Colors
+    
+    if (GuiID_ConfigGUI = 0 || GuiID_ConfigGUI != GuiObj) {
+        return
+    }
+    
+    ; 获取最小窗口尺寸限制（从窗口属性中读取）
+    MinWidth := DllCall("user32.dll\GetProp", "Ptr", GuiObj.Hwnd, "Str", "MinWidth", "Int")
+    MinHeight := DllCall("user32.dll\GetProp", "Ptr", GuiObj.Hwnd, "Str", "MinHeight", "Int")
+    
+    ; 如果没有设置，使用默认值
+    if (!MinWidth) {
+        MinWidth := 800
+    }
+    if (!MinHeight) {
+        MinHeight := 600
+    }
+    
+    ; 检查并限制最小尺寸
+    if (Width < MinWidth || Height < MinHeight) {
+        ; 如果窗口尺寸小于最小值，调整到最小值
+        NewWidth := Width < MinWidth ? MinWidth : Width
+        NewHeight := Height < MinHeight ? MinHeight : Height
+        GuiObj.Move(, , NewWidth, NewHeight)
+        return
+    }
+    
+    ; 更新标题栏宽度
+    try {
+        TitleBar := GuiObj["TitleBar"]
+        if (TitleBar) {
+            TitleBar.Move(, , Width - 40)
+        }
+    }
+    
+    ; 更新关闭按钮位置
+    try {
+        CloseBtn := GuiObj["CloseBtn"]
+        if (CloseBtn) {
+            CloseBtn.Move(Width - 40)
+        }
+    }
+    
+    ; 更新侧边栏高度
+    try {
+        SidebarBg := GuiObj["SidebarBg"]
+        if (SidebarBg) {
+            SidebarBg.Move(, , , Height - 35)
+        }
+    }
+    
+    ; 更新内容区域大小
+    ContentX := SidebarWidth
+    ContentWidth := Width - SidebarWidth
+    ContentY := 35
+    ContentHeight := Height - 35 - 50
+    
+    ; 更新底部按钮区域位置
+    ButtonAreaY := Height - 50
+    try {
+        ButtonAreaBg := GuiObj["ButtonAreaBg"]
+        if (ButtonAreaBg) {
+            ButtonAreaBg.Move(ContentX, ButtonAreaY, ContentWidth)
+        }
+    }
+    
+    ; 更新各个标签页的内容区域大小
+    ; 通用标签页
+    try {
+        GeneralTabPanel := GuiObj["GeneralTabPanel"]
+        if (GeneralTabPanel) {
+            GeneralTabPanel.Move(ContentX, ContentY, ContentWidth, ContentHeight)
+        }
+    }
+    
+    ; 外观标签页
+    try {
+        AppearanceTabPanel := GuiObj["AppearanceTabPanel"]
+        if (AppearanceTabPanel) {
+            AppearanceTabPanel.Move(ContentX, ContentY, ContentWidth, ContentHeight)
+        }
+    }
+    
+    ; 提示词标签页
+    try {
+        PromptsTabPanel := GuiObj["PromptsTabPanel"]
+        if (PromptsTabPanel) {
+            PromptsTabPanel.Move(ContentX, ContentY, ContentWidth, ContentHeight)
+        }
+    }
+    
+    ; 快捷键标签页
+    try {
+        HotkeysTabPanel := GuiObj["HotkeysTabPanel"]
+        if (HotkeysTabPanel) {
+            HotkeysTabPanel.Move(ContentX, ContentY, ContentWidth, ContentHeight)
+        }
+    }
+    
+    ; 高级标签页
+    try {
+        AdvancedTabPanel := GuiObj["AdvancedTabPanel"]
+        if (AdvancedTabPanel) {
+            AdvancedTabPanel.Move(ContentX, ContentY, ContentWidth, ContentHeight)
+        }
+    }
+    
+    ; 更新滚动容器大小（如果存在）
+    try {
+        ScrollContainer := GuiObj["ScrollContainer"]
+        if (ScrollContainer) {
+            ScrollContainer.Move(ContentX, ContentY, ContentWidth, ContentHeight)
+        }
+    }
+    
+    ; 更新底部按钮位置（右对齐）
+    try {
+        ; 计算按钮起始位置（右对齐）
+        BtnStartX := Width - 460
+        ; 更新所有底部按钮的位置
+        ExportBtn := GuiObj["ExportBtn"]
+        if (ExportBtn) {
+            ExportBtn.Move(BtnStartX, ButtonAreaY + 10)
+        }
+        ImportBtn := GuiObj["ImportBtn"]
+        if (ImportBtn) {
+            ImportBtn.Move(BtnStartX + 90, ButtonAreaY + 10)
+        }
+        ResetBtn := GuiObj["ResetBtn"]
+        if (ResetBtn) {
+            ResetBtn.Move(BtnStartX + 180, ButtonAreaY + 10)
+        }
+        SaveBtn := GuiObj["SaveBtn"]
+        if (SaveBtn) {
+            SaveBtn.Move(BtnStartX + 270, ButtonAreaY + 10)
+        }
+        CancelBtn := GuiObj["CancelBtn"]
+        if (CancelBtn) {
+            CancelBtn.Move(BtnStartX + 360, ButtonAreaY + 10)
+        }
+    }
+}
+
+; ===================== 配置面板滚动处理 =====================
+; 启用配置面板滚动热键
+EnableConfigScroll() {
+    ; 使用热键捕获滚轮事件（仅在配置面板激活时）
+    Hotkey("WheelUp", ConfigWheelUp, "On")
+    Hotkey("WheelDown", ConfigWheelDown, "On")
+}
+
+; 禁用配置面板滚动热键
+DisableConfigScroll() {
+    try {
+        Hotkey("WheelUp", ConfigWheelUp, "Off")
+        Hotkey("WheelDown", ConfigWheelDown, "Off")
+    }
+}
+
+ConfigWheelUp(*) {
+    ; 鼠标滚轮向上滚动
+    global GuiID_ConfigGUI, ScrollContainer
+    if (GuiID_ConfigGUI = 0) {
+        return
+    }
+    
+    ; 检查配置面板是否激活
+    if (!WinActive("ahk_id " . GuiID_ConfigGUI.Hwnd)) {
+        return
+    }
+    
+    MouseGetPos(&MouseX, &MouseY)
+    try {
+        WinGetPos(&WinX, &WinY, &WinW, &WinH, GuiID_ConfigGUI.Hwnd)
+        ; 检查鼠标是否在内容区域（排除标题栏、侧边栏和底部按钮）
+        global SidebarWidth
+        if (MouseX > WinX + SidebarWidth && MouseY > WinY + 35 && MouseY < WinY + WinH - 50) {
+            ; 如果有滚动容器，向滚动容器发送滚动消息
+            if (ScrollContainer && ScrollContainer.Hwnd) {
+                SendMessage(0x115, 0, 0, ScrollContainer.Hwnd)  ; WM_VSCROLL, SB_LINEUP
+            } else {
+                ; 否则向窗口发送滚动消息
+                SendMessage(0x115, 0, 0, , GuiID_ConfigGUI.Hwnd)  ; WM_VSCROLL, SB_LINEUP
+            }
+        }
+    }
+}
+
+ConfigWheelDown(*) {
+    ; 鼠标滚轮向下滚动
+    global GuiID_ConfigGUI, ScrollContainer
+    if (GuiID_ConfigGUI = 0) {
+        return
+    }
+    
+    ; 检查配置面板是否激活
+    if (!WinActive("ahk_id " . GuiID_ConfigGUI.Hwnd)) {
+        return
+    }
+    
+    MouseGetPos(&MouseX, &MouseY)
+    try {
+        WinGetPos(&WinX, &WinY, &WinW, &WinH, GuiID_ConfigGUI.Hwnd)
+        ; 检查鼠标是否在内容区域（排除标题栏、侧边栏和底部按钮）
+        global SidebarWidth
+        if (MouseX > WinX + SidebarWidth && MouseY > WinY + 35 && MouseY < WinY + WinH - 50) {
+            ; 向窗口发送滚动消息（使用 PostMessage 确保消息被处理）
+            PostMessage(0x115, 1, 0, , GuiID_ConfigGUI.Hwnd)  ; WM_VSCROLL, SB_LINEDOWN
+        }
+    }
 }
 
 ; 关闭配置面板
 CloseConfigGUI() {
     global GuiID_ConfigGUI
+    ; 禁用滚动热键
+    DisableConfigScroll()
     if (GuiID_ConfigGUI != 0) {
         try {
             GuiID_ConfigGUI.Destroy()
@@ -1851,23 +3003,14 @@ FilterSettings(SearchText) {
 
 ; ===================== 保存配置函数 =====================
 SaveConfig(*) {
-    global AISleepTimeEdit, SplitHotkeyEdit, BatchHotkeyEdit, PanelScreenRadio
+    global AISleepTimeEdit, PanelScreenRadio
     global CursorPathEdit, PromptExplainEdit, PromptRefactorEdit, PromptOptimizeEdit
     global LangChinese, ConfigFile, GuiID_CursorPanel
+    global ConfigPanelScreenRadio, MsgBoxScreenRadio, VoiceInputScreenRadio, CursorPanelScreenRadio
     
     ; 验证输入
     if (!AISleepTimeEdit || AISleepTimeEdit.Value = "" || !IsNumber(AISleepTimeEdit.Value)) {
         MsgBox(GetText("ai_wait_time_error"), GetText("error"), "Iconx")
-        return false
-    }
-    
-    if (!SplitHotkeyEdit || SplitHotkeyEdit.Value = "" || StrLen(SplitHotkeyEdit.Value) > 1) {
-        MsgBox(GetText("split_hotkey_error"), GetText("error"), "Iconx")
-        return false
-    }
-    
-    if (!BatchHotkeyEdit || BatchHotkeyEdit.Value = "" || StrLen(BatchHotkeyEdit.Value) > 1) {
-        MsgBox(GetText("batch_hotkey_error"), GetText("error"), "Iconx")
         return false
     }
     
@@ -1897,16 +3040,71 @@ SaveConfig(*) {
     if (ClipPosDDL && ClipPosDDL.Value <= PosKeys.Length)
         ClipboardPanelPos := PosKeys[ClipPosDDL.Value]
     
+    ; 解析高级设置中的屏幕索引
+    NewConfigPanelScreenIndex := 1
+    if (ConfigPanelScreenRadio && ConfigPanelScreenRadio.Length > 0) {
+        for Index, RadioBtn in ConfigPanelScreenRadio {
+            if (RadioBtn.Value = 1) {
+                NewConfigPanelScreenIndex := Index
+                break
+            }
+        }
+    }
+    if (NewConfigPanelScreenIndex < 1) {
+        NewConfigPanelScreenIndex := 1
+    }
+    
+    NewMsgBoxScreenIndex := 1
+    if (MsgBoxScreenRadio && MsgBoxScreenRadio.Length > 0) {
+        for Index, RadioBtn in MsgBoxScreenRadio {
+            if (RadioBtn.Value = 1) {
+                NewMsgBoxScreenIndex := Index
+                break
+            }
+        }
+    }
+    if (NewMsgBoxScreenIndex < 1) {
+        NewMsgBoxScreenIndex := 1
+    }
+    
+    NewVoiceInputScreenIndex := 1
+    if (VoiceInputScreenRadio && VoiceInputScreenRadio.Length > 0) {
+        for Index, RadioBtn in VoiceInputScreenRadio {
+            if (RadioBtn.Value = 1) {
+                NewVoiceInputScreenIndex := Index
+                break
+            }
+        }
+    }
+    if (NewVoiceInputScreenIndex < 1) {
+        NewVoiceInputScreenIndex := 1
+    }
+    
+    NewCursorPanelScreenIndex := 1
+    if (CursorPanelScreenRadio && CursorPanelScreenRadio.Length > 0) {
+        for Index, RadioBtn in CursorPanelScreenRadio {
+            if (RadioBtn.Value = 1) {
+                NewCursorPanelScreenIndex := Index
+                break
+            }
+        }
+    }
+    if (NewCursorPanelScreenIndex < 1) {
+        NewCursorPanelScreenIndex := 1
+    }
+    
     ; 更新全局变量
     global CursorPath := CursorPathEdit ? CursorPathEdit.Value : ""
     global AISleepTime := AISleepTimeEdit.Value
     global Prompt_Explain := PromptExplainEdit ? PromptExplainEdit.Value : ""
     global Prompt_Refactor := PromptRefactorEdit ? PromptRefactorEdit.Value : ""
     global Prompt_Optimize := PromptOptimizeEdit ? PromptOptimizeEdit.Value : ""
-    global SplitHotkey := SplitHotkeyEdit.Value
-    global BatchHotkey := BatchHotkeyEdit.Value
     global PanelScreenIndex := NewScreenIndex
     global Language := NewLanguage
+    global ConfigPanelScreenIndex := NewConfigPanelScreenIndex
+    global MsgBoxScreenIndex := NewMsgBoxScreenIndex
+    global VoiceInputScreenIndex := NewVoiceInputScreenIndex
+    global CursorPanelScreenIndex := NewCursorPanelScreenIndex
     
     ; 保存到配置文件
     IniWrite(CursorPath, ConfigFile, "Settings", "CursorPath")
@@ -1914,13 +3112,15 @@ SaveConfig(*) {
     IniWrite(Prompt_Explain, ConfigFile, "Settings", "Prompt_Explain")
     IniWrite(Prompt_Refactor, ConfigFile, "Settings", "Prompt_Refactor")
     IniWrite(Prompt_Optimize, ConfigFile, "Settings", "Prompt_Optimize")
-    IniWrite(SplitHotkey, ConfigFile, "Settings", "SplitHotkey")
-    IniWrite(BatchHotkey, ConfigFile, "Settings", "BatchHotkey")
     IniWrite(PanelScreenIndex, ConfigFile, "Panel", "ScreenIndex")
     IniWrite(Language, ConfigFile, "Settings", "Language")
     IniWrite(FunctionPanelPos, ConfigFile, "Panel", "FunctionPanelPos")
     IniWrite(ConfigPanelPos, ConfigFile, "Panel", "ConfigPanelPos")
     IniWrite(ClipboardPanelPos, ConfigFile, "Panel", "ClipboardPanelPos")
+    IniWrite(ConfigPanelScreenIndex, ConfigFile, "Advanced", "ConfigPanelScreenIndex")
+    IniWrite(MsgBoxScreenIndex, ConfigFile, "Advanced", "MsgBoxScreenIndex")
+    IniWrite(VoiceInputScreenIndex, ConfigFile, "Advanced", "VoiceInputScreenIndex")
+    IniWrite(CursorPanelScreenIndex, ConfigFile, "Advanced", "CursorPanelScreenIndex")
     
     ; 更新托盘菜单（语言可能已改变）
     UpdateTrayMenu()
@@ -2428,6 +3628,79 @@ PasteSelectedToCursor(*) {
     }
 }
 
+; ===================== 动态快捷键处理函数 =====================
+; 检查按键是否匹配配置的快捷键，如果匹配则执行相应操作
+HandleDynamicHotkey(PressedKey, ActionType) {
+    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ
+    global CapsLock2, PanelVisible, VoiceInputActive, CapsLock, VoiceInputBlocked
+    
+    ; 将按键转换为小写进行比较（ESC特殊处理）
+    KeyLower := StrLower(PressedKey)
+    ConfigKey := ""
+    
+    ; 根据操作类型获取配置的快捷键
+    switch ActionType {
+        case "ESC": ConfigKey := StrLower(HotkeyESC)
+        case "C": ConfigKey := StrLower(HotkeyC)
+        case "V": ConfigKey := StrLower(HotkeyV)
+        case "X": ConfigKey := StrLower(HotkeyX)
+        case "E": ConfigKey := StrLower(HotkeyE)
+        case "R": ConfigKey := StrLower(HotkeyR)
+        case "O": ConfigKey := StrLower(HotkeyO)
+        case "Q": ConfigKey := StrLower(HotkeyQ)
+        case "Z": ConfigKey := StrLower(HotkeyZ)
+    }
+    
+    ; 如果按键匹配配置的快捷键，执行操作
+    if (KeyLower = ConfigKey || (ActionType = "ESC" && (PressedKey = "Esc" || KeyLower = "esc"))) {
+        switch ActionType {
+            case "ESC":
+                CapsLock2 := false
+                if (PanelVisible) {
+                    HideCursorPanel()
+                }
+            case "C":
+                CapsLockCopy()
+            case "V":
+                CapsLockPaste()
+            case "X":
+                CapsLock2 := false
+                ShowClipboardManager()
+            case "E":
+                CapsLock2 := false
+                ExecutePrompt("Explain")
+            case "R":
+                CapsLock2 := false
+                ExecutePrompt("Refactor")
+            case "O":
+                CapsLock2 := false
+                ExecutePrompt("Optimize")
+            case "Q":
+                CapsLock2 := false
+                if (PanelVisible) {
+                    HideCursorPanel()
+                }
+                ShowConfigGUI()
+            case "Z":
+                CapsLock2 := false
+                if (VoiceInputBlocked && !VoiceInputActive) {
+                    TrayTip("语音输入已被屏蔽，长按CapsLock可启用", "提示", "Icon! 2")
+                    return
+                }
+                if (VoiceInputActive) {
+                    if (CapsLock) {
+                        CapsLock := false
+                    }
+                    StopVoiceInput()
+                } else {
+                    StartVoiceInput()
+                }
+        }
+        return true  ; 已处理
+    }
+    return false  ; 未匹配，需要发送原始按键
+}
+
 ; ===================== 面板快捷键 =====================
 ; 当 CapsLock 按下时，响应快捷键（采用 CapsLock+ 方案）
 ; 注意：在 AutoHotkey v2 中，需要使用函数来检查变量
@@ -2435,83 +3708,65 @@ PasteSelectedToCursor(*) {
 
 ; ESC 关闭面板
 Esc:: {
-    global CapsLock2, PanelVisible
-    CapsLock2 := false  ; 清除标记，表示使用了功能
-    if (PanelVisible) {
-        HideCursorPanel()
+    if (!HandleDynamicHotkey("Esc", "ESC")) {
+        ; 如果不匹配，发送原始按键
+        Send("{Esc}")
     }
 }
 
 ; C 键连续复制（立即响应，不等待面板）
 c:: {
-    ; 立即执行复制，不等待任何延迟
-    CapsLockCopy()
+    if (!HandleDynamicHotkey("c", "C")) {
+        Send("c")
+    }
 }
 
 ; V 键合并粘贴
 v:: {
-    CapsLockPaste()
+    if (!HandleDynamicHotkey("v", "V")) {
+        Send("v")
+    }
 }
 
 ; X 键打开剪贴板管理面板
 x:: {
-    global CapsLock2
-    CapsLock2 := false  ; 清除标记，表示使用了功能
-    ShowClipboardManager()
+    if (!HandleDynamicHotkey("x", "X")) {
+        Send("x")
+    }
 }
 
 ; E 键执行解释
 e:: {
-    global CapsLock2
-    CapsLock2 := false  ; 清除标记，表示使用了功能
-    ExecutePrompt("Explain")
+    if (!HandleDynamicHotkey("e", "E")) {
+        Send("e")
+    }
 }
 
 ; R 键执行重构
 r:: {
-    global CapsLock2
-    CapsLock2 := false  ; 清除标记，表示使用了功能
-    ExecutePrompt("Refactor")
+    if (!HandleDynamicHotkey("r", "R")) {
+        Send("r")
+    }
 }
 
 ; O 键执行优化
 o:: {
-    global CapsLock2
-    CapsLock2 := false  ; 清除标记，表示使用了功能
-    ExecutePrompt("Optimize")
+    if (!HandleDynamicHotkey("o", "O")) {
+        Send("o")
+    }
 }
 
 ; Q 键打开配置面板
 q:: {
-    global CapsLock2, PanelVisible
-    CapsLock2 := false  ; 清除标记，表示使用了功能
-    if (PanelVisible) {
-        HideCursorPanel()
+    if (!HandleDynamicHotkey("q", "Q")) {
+        Send("q")
     }
-    ShowConfigGUI()
 }
 
 ; Z 键语音输入（切换模式）
 z:: {
-    global CapsLock2, VoiceInputActive, CapsLock, VoiceInputBlocked
-    CapsLock2 := false  ; 清除标记，表示使用了功能
-    
-    ; 如果语音输入被屏蔽，则不响应
-    if (VoiceInputBlocked && !VoiceInputActive) {
-        TrayTip("语音输入已被屏蔽，长按CapsLock可启用", "提示", "Icon! 2")
-        return
-    }
-    
-    if (VoiceInputActive) {
-        ; 如果正在语音输入，则结束输入
-        ; 确保CapsLock状态被重置
-        if (CapsLock) {
-            CapsLock := false
-        }
-        StopVoiceInput()
-    } else {
-        ; 如果未在语音输入，则开始输入
-        StartVoiceInput()
+    if (!HandleDynamicHotkey("z", "Z")) {
+        Send("z")
     }
 }
 
@@ -2533,26 +3788,24 @@ StopDynamicHotkeys() {
 ; 当 CapsLock 按下且面板显示时，响应快捷键
 #HotIf GetCapsLockState() && GetPanelVisibleState()
 
-; 默认的 s 键（分割）
+; S 键（分割）
 s:: {
     global SplitHotkey, CapsLock2
-    CapsLock2 := false  ; 清除标记，表示使用了功能
-    if (SplitHotkey = "s") {
+    CapsLock2 := false
+    if (StrLower(SplitHotkey) = "s") {
         SplitCode()
     } else {
-        ; 如果不是配置的快捷键，发送原始按键
         Send("s")
     }
 }
 
-; 默认的 b 键（批量）
+; B 键（批量）
 b:: {
     global BatchHotkey, CapsLock2
-    CapsLock2 := false  ; 清除标记，表示使用了功能
-    if (BatchHotkey = "b") {
+    CapsLock2 := false
+    if (StrLower(BatchHotkey) = "b") {
         BatchOperation()
     } else {
-        ; 如果不是配置的快捷键，发送原始按键
         Send("b")
     }
 }
@@ -2930,7 +4183,7 @@ StopVoiceInput() {
 
 ; 显示语音输入动画
 ShowVoiceInputAnimation() {
-    global GuiID_VoiceInput, VoiceInputActive, PanelScreenIndex, UI_Colors
+    global GuiID_VoiceInput, VoiceInputActive, VoiceInputScreenIndex, UI_Colors
     
     if (GuiID_VoiceInput != 0) {
         try {
@@ -2959,7 +4212,7 @@ ShowVoiceInputAnimation() {
     
     SetTimer(UpdateVoiceAnimation, 500)
     
-    ScreenInfo := GetScreenInfo(PanelScreenIndex)
+    ScreenInfo := GetScreenInfo(VoiceInputScreenIndex)
     Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, "center")
     
     GuiID_VoiceInput.Show("w" . PanelWidth . " h" . PanelHeight . " x" . Pos.X . " y" . Pos.Y . " NoActivate")
