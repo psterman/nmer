@@ -5571,10 +5571,10 @@ ShowVoiceSearchInputPanel() {
     GuiID_VoiceInput.SetFont("s12 cFFFFFF Bold", "Segoe UI")
     
     PanelWidth := 600
-    ; 计算所需高度：标题(50) + 输入框标签(25) + 输入框(40) + 搜索按钮(45) + 自动加载开关(35) + 自动更新开关(35) + 引擎标签(30) + 按钮区域 + 边距(20)
+    ; 计算所需高度：标题(50) + 输入框标签(25) + 输入框(80) + 搜索按钮(45) + 语音输入开关(35) + 自动加载开关(35) + 自动更新开关(35) + 引擎标签(30) + 按钮区域 + 边距(20)
     ButtonsRows := Ceil(8 / 4)  ; 每行4个按钮，共8个搜索引擎
     ButtonsAreaHeight := ButtonsRows * 45  ; 每行45px（按钮35px + 间距10px）
-    PanelHeight := 50 + 25 + 40 + 45 + 35 + 35 + 30 + ButtonsAreaHeight + 20
+    PanelHeight := 50 + 25 + 80 + 45 + 35 + 35 + 35 + 30 + ButtonsAreaHeight + 20
     
     ; 标题
     TitleText := GuiID_VoiceInput.Add("Text", "x0 y15 w600 h30 Center cFFFFFF", "语音搜索")
@@ -5587,19 +5587,29 @@ ShowVoiceSearchInputPanel() {
     
     ; 输入框（可编辑，用于显示和编辑语音输入内容）
     YPos += 25
-    VoiceSearchInputEdit := GuiID_VoiceInput.Add("Edit", "x20 y" . YPos . " w460 h40 vVoiceSearchInputEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, "")
+    VoiceSearchInputEdit := GuiID_VoiceInput.Add("Edit", "x20 y" . YPos . " w520 h80 vVoiceSearchInputEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", "")
     VoiceSearchInputEdit.SetFont("s12", "Segoe UI")
     ; 添加焦点事件，自动切换到中文输入法
     VoiceSearchInputEdit.OnEvent("Focus", SwitchToChineseIME)
     
     ; 搜索按钮
-    SearchBtn := GuiID_VoiceInput.Add("Text", "x490 y" . YPos . " w90 h40 Center 0x200 cWhite Background" . UI_Colors.BtnBg . " vSearchBtn", "搜索")
+    SearchBtn := GuiID_VoiceInput.Add("Text", "x550 y" . YPos . " w40 h80 Center 0x200 cWhite Background" . UI_Colors.BtnBg . " vSearchBtn", "搜索")
     SearchBtn.SetFont("s11 Bold", "Segoe UI")
     SearchBtn.OnEvent("Click", ExecuteVoiceSearch)
     HoverBtn(SearchBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     
+    ; 语音输入开关
+    YPos += 90
+    global VoiceSearchActive, VoiceSearchVoiceInputSwitch
+    VoiceInputSwitchText := VoiceSearchActive ? "✓ 语音输入中" : "○ 启动语音输入"
+    VoiceInputSwitchBg := VoiceSearchActive ? UI_Colors.BtnHover : UI_Colors.BtnBg
+    VoiceSearchVoiceInputSwitch := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h30 Center 0x200 cWhite Background" . VoiceInputSwitchBg . " vVoiceInputSwitch", VoiceInputSwitchText)
+    VoiceSearchVoiceInputSwitch.SetFont("s10", "Segoe UI")
+    VoiceSearchVoiceInputSwitch.OnEvent("Click", ToggleVoiceInputInSearch)
+    HoverBtn(VoiceSearchVoiceInputSwitch, VoiceInputSwitchBg, UI_Colors.BtnHover)
+    
     ; 自动加载选中文本开关
-    YPos += 50
+    YPos += 40
     global AutoLoadSelectedText, VoiceSearchAutoLoadSwitch
     AutoLoadLabel := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h25 cCCCCCC", "自动加载选中文本:")
     AutoLoadLabel.SetFont("s10", "Segoe UI")
@@ -5668,7 +5678,8 @@ ShowVoiceSearchInputPanel() {
     
     ScreenInfo := GetScreenInfo(VoiceInputScreenIndex)
     Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, "center")
-    GuiID_VoiceInput.Show("w" . PanelWidth . " h" . PanelHeight . " x" . Pos.X . " y" . Pos.Y . " NoActivate")
+    ; 移除 NoActivate，让窗口可以激活，这样才能接收输入法输入
+    GuiID_VoiceInput.Show("w" . PanelWidth . " h" . PanelHeight . " x" . Pos.X . " y" . Pos.Y)
     WinSetAlwaysOnTop(1, GuiID_VoiceInput.Hwnd)
     
     ; 确保输入框为空
@@ -5677,9 +5688,39 @@ ShowVoiceSearchInputPanel() {
     ; 首先明确停止监听（无论之前状态如何）
     SetTimer(MonitorSelectedText, 0)
     
-    ; 设置输入框焦点并自动激活语音输入
-    Sleep(100)
-    VoiceSearchInputEdit.Focus()
+    ; 激活窗口并设置输入框真正的输入焦点，这样才能接收输入法输入
+    WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
+    Sleep(200)  ; 增加等待时间，确保窗口完全激活
+    
+    ; 确保窗口真正激活
+    if (!WinActive("ahk_id " . GuiID_VoiceInput.Hwnd)) {
+        WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
+        Sleep(200)
+    }
+    
+    ; 获取输入框的控件句柄
+    InputEditHwnd := VoiceSearchInputEdit.Hwnd
+    
+    ; 使用ControlFocus确保输入框有真正的输入焦点（IME焦点）
+    try {
+        ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+        Sleep(100)
+    } catch {
+        ; 如果ControlFocus失败，使用Focus方法
+        VoiceSearchInputEdit.Focus()
+        Sleep(100)
+    }
+    
+    ; 再次确保输入框有焦点（双重保险）
+    if (!VoiceSearchInputEdit.HasFocus()) {
+        try {
+            ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+            Sleep(100)
+        } catch {
+            VoiceSearchInputEdit.Focus()
+            Sleep(100)
+        }
+    }
     
     ; 如果自动加载开关已开启，启动监听；否则确保监听已停止
     if (AutoLoadSelectedText) {
@@ -5689,8 +5730,8 @@ ShowVoiceSearchInputPanel() {
         SetTimer(MonitorSelectedText, 0)
     }
     
-    ; 自动激活语音输入
-    StartVoiceInputInSearch()
+    ; 不自动激活语音输入，由用户通过开关控制
+    ; StartVoiceInputInSearch()
 }
 
 ; 切换焦点到输入框并清空
@@ -6032,16 +6073,70 @@ HideVoiceSearchInputPanel() {
 
 ; 开始语音输入（在语音搜索界面中）
 StartVoiceInputInSearch() {
-    global VoiceSearchActive, VoiceInputMethod, VoiceSearchPanelVisible, VoiceSearchInputEdit
+    global VoiceSearchActive, VoiceInputMethod, VoiceSearchPanelVisible, VoiceSearchInputEdit, VoiceSearchVoiceInputSwitch, UI_Colors
     
     if (VoiceSearchActive || !VoiceSearchPanelVisible) {
         return
     }
     
     try {
-        ; 确保输入框为空
+        ; 确保窗口激活并输入框有真正的输入焦点
+        global GuiID_VoiceInput
+        if (GuiID_VoiceInput) {
+            ; 激活窗口
+            WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
+            Sleep(200)  ; 增加等待时间，确保窗口完全激活
+            
+            ; 确保窗口真正激活
+            if (!WinActive("ahk_id " . GuiID_VoiceInput.Hwnd)) {
+                ; 如果仍未激活，再次尝试
+                WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
+                Sleep(200)
+            }
+        }
+        
+        ; 确保输入框为空并获取真正的输入焦点
         if (VoiceSearchInputEdit) {
             VoiceSearchInputEdit.Value := ""
+            
+            ; 获取输入框的控件句柄
+            InputEditHwnd := VoiceSearchInputEdit.Hwnd
+            
+            ; 使用ControlFocus确保输入框有真正的输入焦点（IME焦点）
+            try {
+                ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                Sleep(100)
+            } catch {
+                ; 如果ControlFocus失败，使用Focus方法
+                VoiceSearchInputEdit.Focus()
+                Sleep(100)
+            }
+            
+            ; 再次确保焦点（双重保险）
+            if (!VoiceSearchInputEdit.HasFocus()) {
+                try {
+                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(100)
+                } catch {
+                    VoiceSearchInputEdit.Focus()
+                    Sleep(100)
+                }
+            }
+            
+            ; 最后再次确认窗口激活和输入框焦点
+            if (GuiID_VoiceInput) {
+                if (!WinActive("ahk_id " . GuiID_VoiceInput.Hwnd)) {
+                    WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(100)
+                }
+                try {
+                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(50)
+                } catch {
+                    VoiceSearchInputEdit.Focus()
+                    Sleep(50)
+                }
+            }
         }
         
         ; 自动检测输入法类型
@@ -6050,24 +6145,68 @@ StartVoiceInputInSearch() {
         ; 根据输入法类型使用不同的快捷键
         if (VoiceInputMethod = "baidu") {
             ; 百度输入法：Alt+Y 激活，F2 开始
+            ; 确保输入框有焦点
+            if (VoiceSearchInputEdit) {
+                InputEditHwnd := VoiceSearchInputEdit.Hwnd
+                try {
+                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(100)
+                } catch {
+                    VoiceSearchInputEdit.Focus()
+                    Sleep(100)
+                }
+            }
             Send("!y")
             Sleep(500)
             Send("{F2}")
             Sleep(200)
+            ; 注意：启动语音输入后，百度输入法会弹出"正在识别中..."窗口
+            ; 这个窗口会抢夺焦点，这是正常的，不要立即恢复焦点
+            ; 让输入法窗口保持焦点，但定时器会使用ControlFocus确保输入框有输入焦点
+            ; 定时器 UpdateVoiceSearchInputInPanel 会处理内容更新和焦点管理
         } else if (VoiceInputMethod = "xunfei") {
             ; 讯飞输入法：直接按 F6 开始语音输入
             Send("{F6}")
             Sleep(800)
+            ; 讯飞输入法通常不会弹出模态窗口，可以确保输入框有焦点
+            if (VoiceSearchInputEdit) {
+                InputEditHwnd := VoiceSearchInputEdit.Hwnd
+                try {
+                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(100)
+                } catch {
+                    VoiceSearchInputEdit.Focus()
+                    Sleep(100)
+                }
+            }
         } else {
             ; 默认尝试百度方案
+            if (VoiceSearchInputEdit) {
+                InputEditHwnd := VoiceSearchInputEdit.Hwnd
+                try {
+                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(100)
+                } catch {
+                    VoiceSearchInputEdit.Focus()
+                    Sleep(100)
+                }
+            }
             Send("!y")
             Sleep(500)
             Send("{F2}")
             Sleep(200)
+            ; 注意：启动语音输入后，百度输入法会弹出"正在识别中..."窗口
+            ; 这个窗口会抢夺焦点，这是正常的，不要立即恢复焦点
         }
         
         VoiceSearchActive := true
         VoiceSearchContent := ""
+        
+        ; 更新开关按钮显示
+        if (VoiceSearchVoiceInputSwitch) {
+            VoiceSearchVoiceInputSwitch.Text := "✓ 语音输入中"
+            VoiceSearchVoiceInputSwitch.BackColor := UI_Colors.BtnHover
+        }
         
         ; 等待一下，确保语音输入已启动，再开始更新输入框内容
         Sleep(500)
@@ -6086,9 +6225,58 @@ StartVoiceInputInSearch() {
     }
 }
 
+; 检测百度输入法语音识别窗口是否存在
+IsBaiduVoiceWindowActive() {
+    ; 检测百度输入法的语音识别窗口（常见的窗口标题和类名）
+    ; 百度输入法的语音识别窗口可能有这些特征：
+    ; - 窗口标题包含"正在识别"、"语音"、"说完了"等关键词
+    ; - 窗口类名可能是 #32770（对话框）、BaiduIME、BaiduPinyin 等
+    
+    ; 方法1：通过窗口标题检测（最可靠）
+    AllWindows := WinGetList()
+    for Index, Hwnd in AllWindows {
+        try {
+            WinTitle := WinGetTitle("ahk_id " . Hwnd)
+            ; 检查窗口标题是否包含语音识别相关关键词
+            if (InStr(WinTitle, "正在识别") || InStr(WinTitle, "说完了") || InStr(WinTitle, "语音输入")) {
+                ; 进一步检查窗口是否可见且处于活动状态
+                if (WinExist("ahk_id " . Hwnd)) {
+                    IsVisible := WinGetMinMax("ahk_id " . Hwnd)
+                    if (IsVisible != -1) {  ; -1 表示最小化
+                        return true
+                    }
+                }
+            }
+        } catch {
+            ; 忽略错误，继续检测下一个窗口
+        }
+    }
+    
+    ; 方法2：通过窗口类名检测百度输入法相关窗口
+    BaiduClasses := ["BaiduIME", "BaiduPinyin", "BaiduInput", "#32770"]
+    for Index, ClassName in BaiduClasses {
+        if (WinExist("ahk_class " . ClassName)) {
+            try {
+                WinTitle := WinGetTitle("ahk_class " . ClassName)
+                ; 检查窗口标题是否包含语音识别相关关键词
+                if (InStr(WinTitle, "识别") || InStr(WinTitle, "语音") || InStr(WinTitle, "说完了")) {
+                    IsVisible := WinGetMinMax("ahk_class " . ClassName)
+                    if (IsVisible != -1) {
+                        return true
+                    }
+                }
+            } catch {
+                ; 忽略错误
+            }
+        }
+    }
+    
+    return false
+}
+
 ; 更新语音搜索输入框内容（在面板中）
 UpdateVoiceSearchInputInPanel(*) {
-    global VoiceSearchActive, VoiceSearchInputEdit, VoiceSearchPanelVisible, AutoLoadSelectedText
+    global VoiceSearchActive, VoiceSearchInputEdit, VoiceSearchPanelVisible, AutoLoadSelectedText, GuiID_VoiceInput, VoiceInputMethod
     
     ; 如果"自动记载选中文本"开关未开启，停止定时器
     if (!AutoLoadSelectedText) {
@@ -6102,29 +6290,142 @@ UpdateVoiceSearchInputInPanel(*) {
     }
     
     try {
-        ; 从剪贴板读取当前内容
-        OldClipboard := A_Clipboard
-        A_Clipboard := ""
-        Send("^c")
-        if ClipWait(0.1) {
-            CurrentContent := A_Clipboard
-            ; 只更新非空内容，避免填入剪贴板中的旧内容
-            if (CurrentContent != "" && StrLen(CurrentContent) > 0) {
-                ; 检查内容是否看起来像语音输入的内容（不是文件路径或快捷方式）
-                ; 如果输入框为空，且剪贴板内容包含路径分隔符或看起来像文件路径，则忽略
-                CurrentInputValue := VoiceSearchInputEdit.Value
-                if (CurrentInputValue = "" && (InStr(CurrentContent, "\") || InStr(CurrentContent, ".lnk") || InStr(CurrentContent, "快捷方式"))) {
-                    ; 忽略看起来像文件路径或快捷方式的内容
-                    A_Clipboard := OldClipboard
-                    return
+        ; 检测百度输入法语音识别窗口是否存在（竞态条件处理）
+        BaiduVoiceWindowActive := false
+        if (VoiceInputMethod = "baidu") {
+            BaiduVoiceWindowActive := IsBaiduVoiceWindowActive()
+        }
+        
+        ; 获取输入框的控件句柄，用于ControlFocus
+        InputEditHwnd := VoiceSearchInputEdit.Hwnd
+        
+        ; 如果百度输入法的语音识别窗口存在，不要强制激活主窗口
+        ; 但需要确保输入框有真正的输入焦点（使用ControlFocus，不激活窗口）
+        if (BaiduVoiceWindowActive) {
+            ; 输入法窗口存在时，使用ControlFocus确保输入框有输入焦点
+            ; 这样不会激活主窗口，不会抢夺输入法窗口的焦点
+            ; 但输入框仍然可以接收输入法的输入
+            if (GuiID_VoiceInput) {
+                ; 确保主窗口存在且可见（但不激活，避免抢夺焦点）
+                if (WinExist("ahk_id " . GuiID_VoiceInput.Hwnd)) {
+                    ; 使用ControlFocus直接设置输入框焦点，不激活窗口
+                    try {
+                        ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                        Sleep(20)  ; 短暂等待，让焦点设置生效
+                    } catch {
+                        ; 如果ControlFocus失败，尝试使用Focus方法
+                        try {
+                            VoiceSearchInputEdit.Focus()
+                            Sleep(20)
+                        } catch {
+                            ; 忽略错误
+                        }
+                    }
+                }
+            }
+        } else {
+            ; 输入法窗口不存在时，正常激活主窗口并设置焦点
+            if (GuiID_VoiceInput) {
+                ; 确保窗口激活
+                if (!WinActive("ahk_id " . GuiID_VoiceInput.Hwnd)) {
+                    WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(100)  ; 增加等待时间，确保窗口完全激活
                 }
                 
-                ; 只在内容变化时更新
-                if (CurrentContent != CurrentInputValue) {
-                    VoiceSearchInputEdit.Value := CurrentContent
+                ; 确保输入框有焦点（使用ControlFocus确保真正的输入焦点）
+                try {
+                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(50)
+                    ; 如果ControlFocus后仍然没有焦点，使用Focus方法
+                    if (!VoiceSearchInputEdit.HasFocus()) {
+                        VoiceSearchInputEdit.Focus()
+                        Sleep(50)
+                    }
+                } catch {
+                    ; 如果ControlFocus失败，使用Focus方法
+                    if (!VoiceSearchInputEdit.HasFocus()) {
+                        VoiceSearchInputEdit.Focus()
+                        Sleep(50)
+                    }
                 }
             }
         }
+        
+        ; 方法：尝试直接读取输入框内容，如果失败则通过剪贴板
+        ; 保存当前剪贴板
+        OldClipboard := A_Clipboard
+        CurrentContent := ""
+        CurrentInputValue := ""
+        
+        ; 先尝试直接读取输入框内容（更可靠，不会触发焦点变化）
+        try {
+            CurrentInputValue := VoiceSearchInputEdit.Value
+            CurrentContent := CurrentInputValue
+        } catch {
+            ; 如果直接读取失败，使用剪贴板方式
+            ; 只有在输入法窗口不存在时才使用剪贴板方式（避免干扰输入法）
+            if (!BaiduVoiceWindowActive && GuiID_VoiceInput) {
+                ; 确保窗口激活和输入框有焦点
+                if (!WinActive("ahk_id " . GuiID_VoiceInput.Hwnd)) {
+                    WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(50)
+                }
+                try {
+                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(30)
+                } catch {
+                    VoiceSearchInputEdit.Focus()
+                    Sleep(30)
+                }
+                
+                Send("^a")
+                Sleep(30)
+                A_Clipboard := ""
+                Send("^c")
+                Sleep(80)
+                
+                ; 如果复制成功，获取内容
+                if (ClipWait(0.15)) {
+                    CurrentContent := A_Clipboard
+                }
+            }
+        }
+        
+        ; 处理读取到的内容
+        if (CurrentContent != "" && StrLen(CurrentContent) > 0) {
+            ; 检查内容是否看起来像语音输入的内容（不是文件路径或快捷方式）
+            if (CurrentInputValue = "" && (InStr(CurrentContent, "\") || InStr(CurrentContent, ".lnk") || InStr(CurrentContent, "快捷方式"))) {
+                ; 忽略看起来像文件路径或快捷方式的内容
+                A_Clipboard := OldClipboard
+                return
+            }
+            
+            ; 如果内容有变化且新内容更长，更新输入框（说明有新输入）
+            ; 注意：如果通过直接读取获取的内容，CurrentInputValue 已经是最新的了
+            ; 只有在通过剪贴板方式获取内容时才需要更新
+            if (CurrentContent != CurrentInputValue && StrLen(CurrentContent) >= StrLen(CurrentInputValue)) {
+                try {
+                    ; 在输入法窗口存在时，不更新输入框内容（避免干扰输入法）
+                    ; 输入法会自动将内容输入到输入框
+                    if (!BaiduVoiceWindowActive) {
+                        VoiceSearchInputEdit.Value := CurrentContent
+                        ; 将光标移到末尾
+                        try {
+                            ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                            Sleep(20)
+                            Send("^{End}")
+                        } catch {
+                            ; 忽略错误
+                        }
+                    }
+                } catch {
+                    ; 如果更新失败，可能是输入框被锁定或输入法窗口正在使用
+                    ; 忽略错误，下次再尝试
+                }
+            }
+        }
+        
+        ; 恢复剪贴板
         A_Clipboard := OldClipboard
     } catch {
         ; 忽略错误
@@ -6133,7 +6434,7 @@ UpdateVoiceSearchInputInPanel(*) {
 
 ; 结束语音输入（在语音搜索界面中）
 StopVoiceInputInSearch() {
-    global VoiceSearchActive, VoiceInputMethod, CapsLock, VoiceSearchInputEdit, VoiceSearchPanelVisible
+    global VoiceSearchActive, VoiceInputMethod, CapsLock, VoiceSearchInputEdit, VoiceSearchPanelVisible, VoiceSearchVoiceInputSwitch, UI_Colors
     
     if (!VoiceSearchActive || !VoiceSearchPanelVisible) {
         return
@@ -6204,6 +6505,12 @@ StopVoiceInputInSearch() {
         VoiceSearchActive := false
         SetTimer(UpdateVoiceSearchInputInPanel, 0)  ; 停止更新输入框
         
+        ; 更新开关按钮显示
+        if (VoiceSearchVoiceInputSwitch) {
+            VoiceSearchVoiceInputSwitch.Text := "○ 启动语音输入"
+            VoiceSearchVoiceInputSwitch.BackColor := UI_Colors.BtnBg
+        }
+        
         ; 将内容填入输入框
         if (VoiceSearchContent != "" && StrLen(VoiceSearchContent) > 0 && VoiceSearchInputEdit) {
             VoiceSearchInputEdit.Value := VoiceSearchContent
@@ -6212,10 +6519,44 @@ StopVoiceInputInSearch() {
     } catch as e {
         VoiceSearchActive := false
         SetTimer(UpdateVoiceSearchInputInPanel, 0)
+        ; 更新开关按钮显示
+        if (VoiceSearchVoiceInputSwitch) {
+            VoiceSearchVoiceInputSwitch.Text := "○ 启动语音输入"
+            VoiceSearchVoiceInputSwitch.BackColor := UI_Colors.BtnBg
+        }
         TrayTip(GetText("voice_search_failed") . ": " . e.Message, GetText("error"), "Iconx 2")
     }
 }
 
+
+; 切换语音输入开关（在语音搜索界面中）
+ToggleVoiceInputInSearch(*) {
+    global VoiceSearchActive, VoiceSearchVoiceInputSwitch, VoiceSearchPanelVisible, UI_Colors, VoiceSearchInputEdit
+    
+    if (!VoiceSearchPanelVisible || !VoiceSearchVoiceInputSwitch) {
+        return
+    }
+    
+    ; 如果语音输入未激活，则启动语音输入
+    if (!VoiceSearchActive) {
+        StartVoiceInputInSearch()
+        
+        ; 更新按钮显示
+        VoiceInputSwitchText := "✓ 语音输入中"
+        VoiceInputSwitchBg := UI_Colors.BtnHover
+        VoiceSearchVoiceInputSwitch.Text := VoiceInputSwitchText
+        VoiceSearchVoiceInputSwitch.BackColor := VoiceInputSwitchBg
+    } else {
+        ; 如果语音输入已激活，则停止语音输入
+        StopVoiceInputInSearch()
+        
+        ; 更新按钮显示
+        VoiceInputSwitchText := "○ 启动语音输入"
+        VoiceInputSwitchBg := UI_Colors.BtnBg
+        VoiceSearchVoiceInputSwitch.Text := VoiceInputSwitchText
+        VoiceSearchVoiceInputSwitch.BackColor := VoiceInputSwitchBg
+    }
+}
 
 ; 显示搜索引擎选择界面
 ShowSearchEngineSelection(Content) {
@@ -6346,9 +6687,15 @@ SendVoiceSearchToBrowser(Content, Engine) {
             case "wenxin":
                 SearchURL := "https://yiyan.baidu.com/search?query=" . EncodedContent
             case "qianwen":
-                SearchURL := "https://tongyi.aliyun.com/search?query=" . EncodedContent
+                ; 通义千问：使用qianwen/chat路径，添加intent和query参数
+                ; intent参数指定为chat，query参数传递搜索内容
+                SearchURL := "https://tongyi.aliyun.com/qianwen/chat?intent=chat&query=" . EncodedContent
             case "kimi":
-                SearchURL := "https://kimi.moonshot.cn/search?query=" . EncodedContent
+                ; Kimi：使用_prefill_chat路径，添加intent相关参数
+                ; force_search=true：强制进行搜索
+                ; send_immediately=true：立即发送预填充的内容
+                ; prefill_prompt：设置预填充的聊天内容（intent语句）
+                SearchURL := "https://kimi.moonshot.cn/_prefill_chat?force_search=true&send_immediately=true&prefill_prompt=" . EncodedContent
             default:
                 SearchURL := "https://chat.deepseek.com/?q=" . EncodedContent
         }
@@ -6364,8 +6711,21 @@ SendVoiceSearchToBrowser(Content, Engine) {
 ; 切换到中文输入法
 SwitchToChineseIME(*) {
     try {
-        ; 获取当前活动窗口的句柄
-        ActiveHwnd := WinGetID("A")
+        ; 对于语音搜索输入框，使用输入框所在的窗口句柄
+        global GuiID_VoiceInput, VoiceSearchInputEdit
+        if (GuiID_VoiceInput && VoiceSearchInputEdit) {
+            ; 确保窗口激活
+            WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
+            Sleep(50)
+            ; 确保输入框有焦点
+            VoiceSearchInputEdit.Focus()
+            Sleep(50)
+            ActiveHwnd := GuiID_VoiceInput.Hwnd
+        } else {
+            ; 获取当前活动窗口的句柄
+            ActiveHwnd := WinGetID("A")
+        }
+        
         if (!ActiveHwnd) {
             return
         }
