@@ -102,6 +102,64 @@ global QuickActionButtons := [
     {Type: "Explain", Hotkey: "e"}
 ]
 
+; ===================== UI 颜色初始化（必须在脚本早期初始化）=====================
+; 主题模式：dark（暗色，默认）或 light（亮色）
+global ThemeMode := "dark"
+
+; 暗色主题颜色
+UI_Colors_Dark := {
+    Background: "1e1e1e",
+    Sidebar: "252526",
+    Border: "3c3c3c", 
+    Text: "cccccc",
+    TextDim: "888888",
+    InputBg: "3c3c3c",
+    DDLBg: "2d2d30",
+    DDLBorder: "3e3e42",
+    DDLText: "cccccc",
+    DDLHover: "37373d",
+    BtnBg: "3c3c3c",
+    BtnHover: "4c4c4c",
+    BtnPrimary: "0e639c",
+    BtnPrimaryHover: "1177bb",
+    TabActive: "37373d",
+    TitleBar: "252526"
+}
+
+; 亮色主题颜色
+UI_Colors_Light := {
+    Background: "ffffff",
+    Sidebar: "f3f3f3",
+    Border: "d0d0d0", 
+    Text: "333333",
+    TextDim: "666666",
+    InputBg: "ffffff",
+    DDLBg: "ffffff",
+    DDLBorder: "d0d0d0",
+    DDLText: "333333",
+    DDLHover: "e8e8e8",
+    BtnBg: "e8e8e8",
+    BtnHover: "d0d0d0",
+    BtnPrimary: "0e639c",
+    BtnPrimaryHover: "1177bb",
+    TabActive: "e8e8e8",
+    TitleBar: "f3f3f3"
+}
+
+; 初始化UI颜色（默认暗色）
+global UI_Colors := UI_Colors_Dark
+
+; 应用主题
+ApplyTheme(Mode) {
+    global UI_Colors, ThemeMode, UI_Colors_Dark, UI_Colors_Light
+    ThemeMode := Mode
+    if (Mode = "light") {
+        UI_Colors := UI_Colors_Light
+    } else {
+        UI_Colors := UI_Colors_Dark
+    }
+}
+
 ; ===================== 多语言支持 =====================
 ; 获取本地化文本
 GetText(Key) {
@@ -233,6 +291,9 @@ GetText(Key) {
             "panel_pos_func", "功能面板位置",
             "panel_pos_config", "设置面板位置",
             "panel_pos_clip", "剪贴板面板位置",
+            "theme_mode", "主题模式:",
+            "theme_light", "亮色模式",
+            "theme_dark", "暗色模式",
             "config_panel_screen", "配置面板显示器:",
             "msgbox_screen", "弹窗显示器:",
             "voice_input_screen", "语音输入法提示显示器:",
@@ -269,6 +330,23 @@ GetText(Key) {
             "voice_search_sent", "正在打开搜索...",
             "voice_search_failed", "语音搜索失败",
             "voice_search_no_content", "未检测到语音搜索内容",
+            "voice_search_title", "语音搜索",
+            "voice_search_input_label", "输入内容:",
+            "voice_search_button", "搜索",
+            "voice_input_start", "○ 启动语音输入",
+            "voice_input_active_text", "✓ 语音输入中",
+            "auto_load_selected_text", "自动加载选中文本:",
+            "auto_update_voice_input", "自动更新语音输入:",
+            "switch_on", "✓ 已开启",
+            "switch_off", "○ 已关闭",
+            "select_search_engine", "选择搜索引擎:",
+            "select_search_engine_title", "选择搜索引擎",
+            "select_action", "选择操作",
+            "voice_input_content", "语音输入内容:",
+            "send_to_cursor", "发送到 Cursor",
+            "no_search_engine_selected", "请至少选择一个搜索引擎",
+            "search_engines_opened", "已打开 {0} 个搜索引擎",
+            "tip", "提示",
             "search_engine_setting", "搜索引擎设置",
             "search_engine_label", "默认搜索引擎:",
             "search_engine_deepseek", "DeepSeek",
@@ -427,6 +505,9 @@ GetText(Key) {
             "panel_pos_func", "Function Panel Position",
             "panel_pos_config", "Settings Panel Position",
             "panel_pos_clip", "Clipboard Panel Position",
+            "theme_mode", "Theme Mode:",
+            "theme_light", "Light Mode",
+            "theme_dark", "Dark Mode",
             "config_panel_screen", "Config Panel Display:",
             "msgbox_screen", "Message Box Display:",
             "voice_input_screen", "Voice Input Prompt Display:",
@@ -465,6 +546,23 @@ GetText(Key) {
             "voice_search_sent", "Opening search...",
             "voice_search_failed", "Voice search failed",
             "voice_search_no_content", "No voice search content detected",
+            "voice_search_title", "Voice Search",
+            "voice_search_input_label", "Input Content:",
+            "voice_search_button", "Search",
+            "voice_input_start", "○ Start Voice Input",
+            "voice_input_active_text", "✓ Voice Input Active",
+            "auto_load_selected_text", "Auto Load Selected Text:",
+            "auto_update_voice_input", "Auto Update Voice Input:",
+            "switch_on", "✓ On",
+            "switch_off", "○ Off",
+            "select_search_engine", "Select Search Engine:",
+            "select_search_engine_title", "Select Search Engine",
+            "select_action", "Select Action",
+            "voice_input_content", "Voice Input Content:",
+            "send_to_cursor", "Send to Cursor",
+            "no_search_engine_selected", "Please select at least one search engine",
+            "search_engines_opened", "{0} search engines opened",
+            "tip", "Tip",
             "search_engine_setting", "Search Engine Settings",
             "search_engine_label", "Default Search Engine:",
             "search_engine_deepseek", "DeepSeek",
@@ -533,9 +631,17 @@ InitConfig() {
     ; 1. 默认配置
     DefaultCursorPath := "C:\Users\" A_UserName "\AppData\Local\Cursor\Cursor.exe"
     DefaultAISleepTime := 15000
-    DefaultPrompt_Explain := "解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点"
-    DefaultPrompt_Refactor := "重构这段代码，遵循PEP8/行业规范，简化冗余逻辑，添加中文注释，保持功能不变"
-    DefaultPrompt_Optimize := "分析这段代码的性能瓶颈（时间/空间复杂度），给出优化方案+对比说明，保留原逻辑可读性"
+    ; 根据语言设置使用不同的默认提示词
+    DefaultLanguage := IniRead(ConfigFile, "Settings", "Language", "zh")
+    if (DefaultLanguage = "en") {
+        DefaultPrompt_Explain := GetText("default_prompt_explain")
+        DefaultPrompt_Refactor := GetText("default_prompt_refactor")
+        DefaultPrompt_Optimize := GetText("default_prompt_optimize")
+    } else {
+        DefaultPrompt_Explain := "解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点"
+        DefaultPrompt_Refactor := "重构这段代码，遵循PEP8/行业规范，简化冗余逻辑，添加中文注释，保持功能不变"
+        DefaultPrompt_Optimize := "分析这段代码的性能瓶颈（时间/空间复杂度），给出优化方案+对比说明，保留原逻辑可读性"
+    }
     DefaultSplitHotkey := "s"
     DefaultBatchHotkey := "b"
     DefaultHotkeyESC := "Esc"
@@ -583,11 +689,13 @@ InitConfig() {
         IniWrite("deepseek", ConfigFile, "Settings", "SearchEngine")
         IniWrite("0", ConfigFile, "Settings", "AutoLoadSelectedText")
         IniWrite("1", ConfigFile, "Settings", "AutoUpdateVoiceInput")
+        IniWrite("deepseek", ConfigFile, "Settings", "VoiceSearchSelectedEngines")  ; 保存默认选中的搜索引擎
         
         IniWrite(DefaultPanelScreenIndex, ConfigFile, "Appearance", "ScreenIndex")
         IniWrite(DefaultFunctionPanelPos, ConfigFile, "Appearance", "FunctionPanelPos")
         IniWrite(DefaultConfigPanelPos, ConfigFile, "Appearance", "ConfigPanelPos")
         IniWrite(DefaultClipboardPanelPos, ConfigFile, "Appearance", "ClipboardPanelPos")
+        IniWrite("dark", ConfigFile, "Settings", "ThemeMode")  ; 默认暗色主题
         IniWrite(DefaultConfigPanelScreenIndex, ConfigFile, "Advanced", "ConfigPanelScreenIndex")
         IniWrite(DefaultMsgBoxScreenIndex, ConfigFile, "Advanced", "MsgBoxScreenIndex")
         IniWrite(DefaultVoiceInputScreenIndex, ConfigFile, "Advanced", "VoiceInputScreenIndex")
@@ -613,6 +721,75 @@ InitConfig() {
     global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ
     global ConfigPanelScreenIndex, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex
     global QuickActionButtons
+    
+    ; 确保默认值变量已定义（如果InitConfig未调用）
+    if (!IsSet(DefaultCursorPath)) {
+        DefaultCursorPath := "C:\Users\" A_UserName "\AppData\Local\Cursor\Cursor.exe"
+    }
+    if (!IsSet(DefaultAISleepTime)) {
+        DefaultAISleepTime := 15000
+    }
+    if (!IsSet(DefaultLanguage)) {
+        DefaultLanguage := "zh"
+    }
+    if (!IsSet(DefaultSplitHotkey)) {
+        DefaultSplitHotkey := "s"
+    }
+    if (!IsSet(DefaultBatchHotkey)) {
+        DefaultBatchHotkey := "b"
+    }
+    if (!IsSet(DefaultHotkeyESC)) {
+        DefaultHotkeyESC := "Esc"
+    }
+    if (!IsSet(DefaultHotkeyC)) {
+        DefaultHotkeyC := "c"
+    }
+    if (!IsSet(DefaultHotkeyV)) {
+        DefaultHotkeyV := "v"
+    }
+    if (!IsSet(DefaultHotkeyX)) {
+        DefaultHotkeyX := "x"
+    }
+    if (!IsSet(DefaultHotkeyE)) {
+        DefaultHotkeyE := "e"
+    }
+    if (!IsSet(DefaultHotkeyR)) {
+        DefaultHotkeyR := "r"
+    }
+    if (!IsSet(DefaultHotkeyO)) {
+        DefaultHotkeyO := "o"
+    }
+    if (!IsSet(DefaultHotkeyQ)) {
+        DefaultHotkeyQ := "q"
+    }
+    if (!IsSet(DefaultHotkeyZ)) {
+        DefaultHotkeyZ := "z"
+    }
+    if (!IsSet(DefaultPanelScreenIndex)) {
+        DefaultPanelScreenIndex := 1
+    }
+    if (!IsSet(DefaultFunctionPanelPos)) {
+        DefaultFunctionPanelPos := "center"
+    }
+    if (!IsSet(DefaultConfigPanelPos)) {
+        DefaultConfigPanelPos := "center"
+    }
+    if (!IsSet(DefaultClipboardPanelPos)) {
+        DefaultClipboardPanelPos := "center"
+    }
+    if (!IsSet(DefaultConfigPanelScreenIndex)) {
+        DefaultConfigPanelScreenIndex := 1
+    }
+    if (!IsSet(DefaultMsgBoxScreenIndex)) {
+        DefaultMsgBoxScreenIndex := 1
+    }
+    if (!IsSet(DefaultVoiceInputScreenIndex)) {
+        DefaultVoiceInputScreenIndex := 1
+    }
+    if (!IsSet(DefaultCursorPanelScreenIndex)) {
+        DefaultCursorPanelScreenIndex := 1
+    }
+    
     try {
         if FileExist(ConfigFile) {
             ; 兼容旧配置格式，优先读取新格式
@@ -620,9 +797,38 @@ InitConfig() {
             AISleepTime := Integer(IniRead(ConfigFile, "Settings", "AISleepTime", IniRead(ConfigFile, "General", "AISleepTime", DefaultAISleepTime)))
             Language := IniRead(ConfigFile, "Settings", "Language", IniRead(ConfigFile, "General", "Language", DefaultLanguage))
             
-            Prompt_Explain := IniRead(ConfigFile, "Settings", "Prompt_Explain", IniRead(ConfigFile, "Prompts", "Explain", DefaultPrompt_Explain))
-            Prompt_Refactor := IniRead(ConfigFile, "Settings", "Prompt_Refactor", IniRead(ConfigFile, "Prompts", "Refactor", DefaultPrompt_Refactor))
-            Prompt_Optimize := IniRead(ConfigFile, "Settings", "Prompt_Optimize", IniRead(ConfigFile, "Prompts", "Optimize", DefaultPrompt_Optimize))
+            ; 读取prompt，如果为空或使用默认值，根据当前语言设置
+            Prompt_Explain := IniRead(ConfigFile, "Settings", "Prompt_Explain", IniRead(ConfigFile, "Prompts", "Explain", ""))
+            Prompt_Refactor := IniRead(ConfigFile, "Settings", "Prompt_Refactor", IniRead(ConfigFile, "Prompts", "Refactor", ""))
+            Prompt_Optimize := IniRead(ConfigFile, "Settings", "Prompt_Optimize", IniRead(ConfigFile, "Prompts", "Optimize", ""))
+            
+            ; 如果prompt为空，根据当前语言设置默认值
+            ; 确保DefaultPrompt_Explain等变量已定义
+            if (!IsSet(DefaultPrompt_Explain)) {
+                if (Language = "zh") {
+                    DefaultPrompt_Explain := "解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点"
+                    DefaultPrompt_Refactor := "重构这段代码，遵循PEP8/行业规范，简化冗余逻辑，添加中文注释，保持功能不变"
+                    DefaultPrompt_Optimize := "分析这段代码的性能瓶颈（时间/空间复杂度），给出优化方案+对比说明，保留原逻辑可读性"
+                } else {
+                    DefaultPrompt_Explain := GetText("default_prompt_explain")
+                    DefaultPrompt_Refactor := GetText("default_prompt_refactor")
+                    DefaultPrompt_Optimize := GetText("default_prompt_optimize")
+                }
+            }
+            ; 检查prompt是否为中文默认值，如果是且当前语言是英文，则替换为英文
+            ChineseDefaultExplain := "解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点"
+            ChineseDefaultRefactor := "重构这段代码，遵循PEP8/行业规范，简化冗余逻辑，添加中文注释，保持功能不变"
+            ChineseDefaultOptimize := "分析这段代码的性能瓶颈（时间/空间复杂度），给出优化方案+对比说明，保留原逻辑可读性"
+            
+            if (Prompt_Explain = "" || Prompt_Explain = ChineseDefaultExplain) {
+                Prompt_Explain := (Language = "zh") ? ChineseDefaultExplain : GetText("default_prompt_explain")
+            }
+            if (Prompt_Refactor = "" || Prompt_Refactor = ChineseDefaultRefactor) {
+                Prompt_Refactor := (Language = "zh") ? ChineseDefaultRefactor : GetText("default_prompt_refactor")
+            }
+            if (Prompt_Optimize = "" || Prompt_Optimize = ChineseDefaultOptimize) {
+                Prompt_Optimize := (Language = "zh") ? ChineseDefaultOptimize : GetText("default_prompt_optimize")
+            }
             
             SplitHotkey := IniRead(ConfigFile, "Hotkeys", "Split", DefaultSplitHotkey)
             BatchHotkey := IniRead(ConfigFile, "Hotkeys", "Batch", DefaultBatchHotkey)
@@ -639,6 +845,30 @@ InitConfig() {
             SearchEngine := IniRead(ConfigFile, "Settings", "SearchEngine", "deepseek")
             AutoLoadSelectedText := (IniRead(ConfigFile, "Settings", "AutoLoadSelectedText", "0") = "1")
             AutoUpdateVoiceInput := (IniRead(ConfigFile, "Settings", "AutoUpdateVoiceInput", "1") = "1")
+            
+            ; 加载主题模式（暗色或亮色）
+            global ThemeMode
+            ThemeMode := IniRead(ConfigFile, "Settings", "ThemeMode", "dark")
+            ApplyTheme(ThemeMode)
+            
+            ; 加载语音搜索选中的搜索引擎（保存上次的选择）
+            VoiceSearchSelectedEnginesStr := IniRead(ConfigFile, "Settings", "VoiceSearchSelectedEngines", "deepseek")
+            if (VoiceSearchSelectedEnginesStr != "") {
+                VoiceSearchSelectedEngines := []
+                EnginesArray := StrSplit(VoiceSearchSelectedEnginesStr, ",")
+                for Index, Engine in EnginesArray {
+                    Engine := Trim(Engine)
+                    if (Engine != "") {
+                        VoiceSearchSelectedEngines.Push(Engine)
+                    }
+                }
+                ; 如果解析后为空，使用默认值
+                if (VoiceSearchSelectedEngines.Length = 0) {
+                    VoiceSearchSelectedEngines := ["deepseek"]
+                }
+            } else {
+                VoiceSearchSelectedEngines := ["deepseek"]
+            }
             
             PanelScreenIndex := Integer(IniRead(ConfigFile, "Appearance", "ScreenIndex", DefaultPanelScreenIndex))
             FunctionPanelPos := IniRead(ConfigFile, "Appearance", "FunctionPanelPos", DefaultFunctionPanelPos)
@@ -691,9 +921,13 @@ InitConfig() {
             CursorPath := DefaultCursorPath
             AISleepTime := DefaultAISleepTime
             Language := DefaultLanguage
-            Prompt_Explain := DefaultPrompt_Explain
-            Prompt_Refactor := DefaultPrompt_Refactor
-            Prompt_Optimize := DefaultPrompt_Optimize
+            ; 根据当前语言设置默认prompt值
+            ChineseDefaultExplain := "解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点"
+            ChineseDefaultRefactor := "重构这段代码，遵循PEP8/行业规范，简化冗余逻辑，添加中文注释，保持功能不变"
+            ChineseDefaultOptimize := "分析这段代码的性能瓶颈（时间/空间复杂度），给出优化方案+对比说明，保留原逻辑可读性"
+            Prompt_Explain := (Language = "zh") ? ChineseDefaultExplain : GetText("default_prompt_explain")
+            Prompt_Refactor := (Language = "zh") ? ChineseDefaultRefactor : GetText("default_prompt_refactor")
+            Prompt_Optimize := (Language = "zh") ? ChineseDefaultOptimize : GetText("default_prompt_optimize")
             SplitHotkey := DefaultSplitHotkey
             BatchHotkey := DefaultBatchHotkey
             HotkeyESC := DefaultHotkeyESC
@@ -715,14 +949,18 @@ InitConfig() {
             CursorPanelScreenIndex := DefaultCursorPanelScreenIndex
         }
     } catch as e {
-        MsgBox("Error loading config: " . e.Message, "Error", "IconStop")
+        MsgBox("Error loading config: " . e.Message, "Error", "IconX")
         ; Fallback to defaults in case of error
         CursorPath := DefaultCursorPath
         AISleepTime := DefaultAISleepTime
         Language := DefaultLanguage
-        Prompt_Explain := DefaultPrompt_Explain
-        Prompt_Refactor := DefaultPrompt_Refactor
-        Prompt_Optimize := DefaultPrompt_Optimize
+        ; 根据当前语言设置默认prompt值
+        ChineseDefaultExplain := "解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点"
+        ChineseDefaultRefactor := "重构这段代码，遵循PEP8/行业规范，简化冗余逻辑，添加中文注释，保持功能不变"
+        ChineseDefaultOptimize := "分析这段代码的性能瓶颈（时间/空间复杂度），给出优化方案+对比说明，保留原逻辑可读性"
+        Prompt_Explain := (Language = "zh") ? ChineseDefaultExplain : GetText("default_prompt_explain")
+        Prompt_Refactor := (Language = "zh") ? ChineseDefaultRefactor : GetText("default_prompt_refactor")
+        Prompt_Optimize := (Language = "zh") ? ChineseDefaultOptimize : GetText("default_prompt_optimize")
         SplitHotkey := DefaultSplitHotkey
         BatchHotkey := DefaultBatchHotkey
         HotkeyESC := DefaultHotkeyESC
@@ -941,6 +1179,7 @@ GetPanelPosition(ScreenInfo, Width, Height, PosType := "Center") {
 ShowCursorPanel() {
     global PanelVisible, GuiID_CursorPanel, SplitHotkey, BatchHotkey, CapsLock2
     global CursorPanelScreenIndex, FunctionPanelPos, QuickActionButtons
+    global UI_Colors, ThemeMode
     
     if (PanelVisible) {
         return
@@ -970,22 +1209,22 @@ ShowCursorPanel() {
     }
     
     ; 创建 GUI
-    ; Cursor 风格的深色主题
+    ; 使用主题颜色
     GuiID_CursorPanel := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
-    GuiID_CursorPanel.BackColor := "1e1e1e"  ; Cursor 的主背景色
-    GuiID_CursorPanel.SetFont("s11 cCCCCCC", "Segoe UI")  ; Cursor 使用的字体
+    GuiID_CursorPanel.BackColor := UI_Colors.Background
+    GuiID_CursorPanel.SetFont("s11 c" . UI_Colors.Text, "Segoe UI")
     
     ; 添加圆角和阴影效果（通过边框实现）
     ; 标题区域
-    TitleBg := GuiID_CursorPanel.Add("Text", "x0 y0 w420 h50 Background1e1e1e", "")
-    TitleText := GuiID_CursorPanel.Add("Text", "x20 y12 w380 h26 Center cFFFFFF", GetText("panel_title"))
+    TitleBg := GuiID_CursorPanel.Add("Text", "x0 y0 w420 h50 Background" . UI_Colors.Background, "")
+    TitleText := GuiID_CursorPanel.Add("Text", "x20 y12 w380 h26 Center c" . UI_Colors.Text, GetText("panel_title"))
     TitleText.SetFont("s13 Bold", "Segoe UI")
     
     ; 分隔线
-    GuiID_CursorPanel.Add("Text", "x0 y50 w420 h1 Background3c3c3c", "")
+    GuiID_CursorPanel.Add("Text", "x0 y50 w420 h1 Background" . UI_Colors.Border, "")
     
     ; 提示文本（更小的字体，更柔和的颜色）
-    HintText := GuiID_CursorPanel.Add("Text", "x20 y60 w380 h18 Center c888888", FormatText("split_hint", SplitHotkey, BatchHotkey))
+    HintText := GuiID_CursorPanel.Add("Text", "x20 y60 w380 h18 Center c" . UI_Colors.TextDim, FormatText("split_hint", SplitHotkey, BatchHotkey))
     HintText.SetFont("s9", "Segoe UI")
     
     ; 按钮区域（根据配置动态创建）
@@ -1081,7 +1320,10 @@ ShowCursorPanel() {
         
         ; 创建按钮，添加点击事件以更新说明文字
         Btn := GuiID_CursorPanel.Add("Button", "x30 y" . ButtonY . " w360 h" . ButtonHeight, ButtonText)
-        Btn.SetFont("s11 cFFFFFF", "Segoe UI")
+        ; 按钮文字颜色：亮色模式下使用深色文字，暗色模式下使用白色文字
+        global ThemeMode
+        BtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+        Btn.SetFont("s11 c" . BtnTextColor, "Segoe UI")
         ; 创建包装函数，同时更新说明文字和执行操作
         WrappedAction := CreateButtonActionWithDesc(ButtonAction, ButtonDesc)
         Btn.OnEvent("Click", WrappedAction)
@@ -1091,7 +1333,7 @@ ShowCursorPanel() {
     
     ; 说明文字显示区域（在按钮和底部提示之间）
     DescY := ButtonY + 5
-    global CursorPanelDescText := GuiID_CursorPanel.Add("Text", "x20 y" . DescY . " w380 h40 Center c888888 vCursorPanelDescText", "")
+    global CursorPanelDescText := GuiID_CursorPanel.Add("Text", "x20 y" . DescY . " w380 h40 Center c" . UI_Colors.TextDim . " vCursorPanelDescText", "")
     CursorPanelDescText.SetFont("s9", "Segoe UI")
     
     ; 初始显示第一个按钮的说明（如果有按钮）
@@ -1126,11 +1368,11 @@ ShowCursorPanel() {
     
     ; 底部提示文本
     FooterY := DescY + 45
-    FooterText := GuiID_CursorPanel.Add("Text", "x20 y" . FooterY . " w380 h50 Center c666666", GetText("footer_hint"))
+    FooterText := GuiID_CursorPanel.Add("Text", "x20 y" . FooterY . " w380 h50 Center c" . UI_Colors.TextDim, GetText("footer_hint"))
     FooterText.SetFont("s9", "Segoe UI")
     
     ; 底部边框
-    GuiID_CursorPanel.Add("Text", "x0 y" . (PanelHeight - 10) . " w420 h10 Background1e1e1e", "")
+    GuiID_CursorPanel.Add("Text", "x0 y" . (PanelHeight - 10) . " w420 h10 Background" . UI_Colors.Background, "")
     
     ; 获取屏幕信息并计算位置
     ScreenInfo := GetScreenInfo(CursorPanelScreenIndex)
@@ -1479,12 +1721,13 @@ SwitchTab(TabName) {
     global ConfigTabs, CurrentTab
     global GeneralTabControls, AppearanceTabControls, PromptsTabControls, HotkeysTabControls, AdvancedTabControls
     
-    ; 重置所有标签样式
+    ; 重置所有标签样式（使用主题颜色）
+    global UI_Colors
     for Key, TabBtn in ConfigTabs {
         if (TabBtn) {
             try {
-                TabBtn.BackColor := "2d2d30"  ; 未选中状态
-                TabBtn.SetFont("s11 cCCCCCC", "Segoe UI")
+                TabBtn.BackColor := UI_Colors.Sidebar  ; 未选中状态
+                TabBtn.SetFont("s11 c" . UI_Colors.Text, "Segoe UI")
             }
         }
     }
@@ -1492,8 +1735,8 @@ SwitchTab(TabName) {
     ; 设置当前标签样式（选中状态）
     if (ConfigTabs.Has(TabName) && ConfigTabs[TabName]) {
         try {
-            ConfigTabs[TabName].BackColor := "1e1e1e"  ; 选中状态
-            ConfigTabs[TabName].SetFont("s11 cFFFFFF", "Segoe UI")
+            ConfigTabs[TabName].BackColor := UI_Colors.Background  ; 选中状态
+            ConfigTabs[TabName].SetFont("s11 c" . UI_Colors.Text, "Segoe UI")
         }
     }
     
@@ -1643,50 +1886,6 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
     } else {
         LangEnglish.Value := 1
     }
-    
-    ; 搜索引擎设置
-    YPos += 60
-    global SearchEngineDDL
-    Label3 := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("search_engine_label"))
-    Label3.SetFont("s11", "Segoe UI")
-    GeneralTabControls.Push(Label3)
-    
-    YPos += 30
-    ; 搜索引擎选项
-    SearchEngineOptions := [
-        GetText("search_engine_deepseek"),
-        GetText("search_engine_yuanbao"),
-        GetText("search_engine_doubao"),
-        GetText("search_engine_zhipu"),
-        GetText("search_engine_mita"),
-        GetText("search_engine_wenxin"),
-        GetText("search_engine_qianwen"),
-        GetText("search_engine_kimi")
-    ]
-    SearchEngineValues := ["deepseek", "yuanbao", "doubao", "zhipu", "mita", "wenxin", "qianwen", "kimi"]
-    
-    ; 外边框
-    DDLX := X + 30
-    DDLY := YPos
-    DDLW := 200
-    DDLH := 30
-    SearchEngineDDLBorder := ConfigGUI.Add("Text", "x" . DDLX . " y" . DDLY . " w" . DDLW . " h" . DDLH . " Background" . UI_Colors.DDLBorder, "")
-    GeneralTabControls.Push(SearchEngineDDLBorder)
-    ; 内背景
-    SearchEngineDDLBg := ConfigGUI.Add("Text", "x" . (DDLX + 1) . " y" . (DDLY + 1) . " w" . (DDLW - 2) . " h" . (DDLH - 2) . " Background" . UI_Colors.DDLBg, "")
-    GeneralTabControls.Push(SearchEngineDDLBg)
-    ; 下拉框
-    global SearchEngine
-    SearchEngineDDL := ConfigGUI.Add("DropDownList", "x" . (DDLX + 1) . " y" . (DDLY + 1) . " w" . (DDLW - 2) . " h" . (DDLH - 2) . " Choose1 vSearchEngineDDL AltSubmit Background" . UI_Colors.DDLBg . " c" . UI_Colors.DDLText, SearchEngineOptions)
-    SearchEngineDDL.SetFont("s10", "Segoe UI")
-    ; 设置当前选中项
-    for i, value in SearchEngineValues {
-        if (value = SearchEngine) {
-            SearchEngineDDL.Choose(i)
-            break
-        }
-    }
-    GeneralTabControls.Push(SearchEngineDDL)
     
     ; 快捷操作按钮配置
     YPos += 60
@@ -2007,8 +2206,6 @@ RefreshQuickActionConfigUI() {
 ; ===================== 创建外观标签页 =====================
 CreateAppearanceTab(ConfigGUI, X, Y, W, H) {
     global PanelScreenIndex, AppearanceTabPanel, PanelScreenRadio, AppearanceTabControls
-    global FunctionPanelPos, ConfigPanelPos, ClipboardPanelPos
-    global FuncPosDDL, ConfigPosDDL, ClipPosDDL
     global UI_Colors
     
     ; 创建标签页面板（默认隐藏）
@@ -2081,84 +2278,30 @@ CreateAppearanceTab(ConfigGUI, X, Y, W, H) {
     ; 显示文本
     PosTexts := [GetText("pos_center"), GetText("pos_top_left"), GetText("pos_top_right"), GetText("pos_bottom_left"), GetText("pos_bottom_right")]
     
-    ; 1. 功能面板
-    YPos += 60
-    LabelFunc := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("panel_pos_func"))
-    LabelFunc.SetFont("s11", "Segoe UI")
-    AppearanceTabControls.Push(LabelFunc)
+    ; 主题模式设置（亮色/暗色）
+    YPos += 50
+    LabelTheme := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("theme_mode"))
+    LabelTheme.SetFont("s11", "Segoe UI")
+    AppearanceTabControls.Push(LabelTheme)
     
-    ; 1. 功能面板位置下拉框（Cursor风格）
-    DDLX1 := X + 240
-    DDLY1 := YPos
-    DDLW1 := 150
-    DDLH1 := 30
-    ; 外边框
-    FuncPosDDLBorder := ConfigGUI.Add("Text", "x" . DDLX1 . " y" . DDLY1 . " w" . DDLW1 . " h" . DDLH1 . " Background" . UI_Colors.DDLBorder, "")
-    AppearanceTabControls.Push(FuncPosDDLBorder)
-    ; 内背景
-    FuncPosDDLBg := ConfigGUI.Add("Text", "x" . (DDLX1 + 1) . " y" . (DDLY1 + 1) . " w" . (DDLW1 - 2) . " h" . (DDLH1 - 2) . " Background" . UI_Colors.DDLBg, "")
-    AppearanceTabControls.Push(FuncPosDDLBg)
-    ; 下拉框
-    FuncPosDDL := ConfigGUI.Add("DropDownList", "x" . (DDLX1 + 1) . " y" . (DDLY1 + 1) . " w" . (DDLW1 - 2) . " h" . (DDLH1 - 2) . " Choose1 vFuncPosDDL AltSubmit Background" . UI_Colors.DDLBg . " c" . UI_Colors.DDLText, PosTexts)
-    FuncPosDDL.SetFont("s10", "Segoe UI")
-    ; 设置当前选中项
-    for i, key in PosKeys {
-        if (key = FunctionPanelPos) {
-            FuncPosDDL.Choose(i)
-            break
-        }
+    YPos += 30
+    global ThemeMode, ThemeLightRadio, ThemeDarkRadio
+    ThemeLightRadio := ConfigGUI.Add("Radio", "x" . (X + 30) . " y" . YPos . " w100 h30 vThemeLightRadio c" . UI_Colors.Text, GetText("theme_light"))
+    ThemeLightRadio.SetFont("s11", "Segoe UI")
+    ThemeLightRadio.BackColor := UI_Colors.Background
+    AppearanceTabControls.Push(ThemeLightRadio)
+    
+    ThemeDarkRadio := ConfigGUI.Add("Radio", "x" . (X + 140) . " y" . YPos . " w100 h30 vThemeDarkRadio c" . UI_Colors.Text, GetText("theme_dark"))
+    ThemeDarkRadio.SetFont("s11", "Segoe UI")
+    ThemeDarkRadio.BackColor := UI_Colors.Background
+    AppearanceTabControls.Push(ThemeDarkRadio)
+    
+    ; 设置当前主题
+    if (ThemeMode = "light") {
+        ThemeLightRadio.Value := 1
+    } else {
+        ThemeDarkRadio.Value := 1
     }
-    AppearanceTabControls.Push(FuncPosDDL)
-    
-    ; 2. 设置面板位置下拉框（Cursor风格）
-    YPos += 40
-    LabelConfig := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("panel_pos_config"))
-    LabelConfig.SetFont("s11", "Segoe UI")
-    AppearanceTabControls.Push(LabelConfig)
-    
-    DDLX2 := X + 240
-    DDLY2 := YPos
-    ; 外边框
-    ConfigPosDDLBorder := ConfigGUI.Add("Text", "x" . DDLX2 . " y" . DDLY2 . " w" . DDLW1 . " h" . DDLH1 . " Background" . UI_Colors.DDLBorder, "")
-    AppearanceTabControls.Push(ConfigPosDDLBorder)
-    ; 内背景
-    ConfigPosDDLBg := ConfigGUI.Add("Text", "x" . (DDLX2 + 1) . " y" . (DDLY2 + 1) . " w" . (DDLW1 - 2) . " h" . (DDLH1 - 2) . " Background" . UI_Colors.DDLBg, "")
-    AppearanceTabControls.Push(ConfigPosDDLBg)
-    ; 下拉框
-    ConfigPosDDL := ConfigGUI.Add("DropDownList", "x" . (DDLX2 + 1) . " y" . (DDLY2 + 1) . " w" . (DDLW1 - 2) . " h" . (DDLH1 - 2) . " Choose1 vConfigPosDDL AltSubmit Background" . UI_Colors.DDLBg . " c" . UI_Colors.DDLText, PosTexts)
-    ConfigPosDDL.SetFont("s10", "Segoe UI")
-    for i, key in PosKeys {
-        if (key = ConfigPanelPos) {
-            ConfigPosDDL.Choose(i)
-            break
-        }
-    }
-    AppearanceTabControls.Push(ConfigPosDDL)
-    
-    ; 3. 剪贴板面板位置下拉框（Cursor风格）
-    YPos += 40
-    LabelClip := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("panel_pos_clip"))
-    LabelClip.SetFont("s11", "Segoe UI")
-    AppearanceTabControls.Push(LabelClip)
-    
-    DDLX3 := X + 240
-    DDLY3 := YPos
-    ; 外边框
-    ClipPosDDLBorder := ConfigGUI.Add("Text", "x" . DDLX3 . " y" . DDLY3 . " w" . DDLW1 . " h" . DDLH1 . " Background" . UI_Colors.DDLBorder, "")
-    AppearanceTabControls.Push(ClipPosDDLBorder)
-    ; 内背景
-    ClipPosDDLBg := ConfigGUI.Add("Text", "x" . (DDLX3 + 1) . " y" . (DDLY3 + 1) . " w" . (DDLW1 - 2) . " h" . (DDLH1 - 2) . " Background" . UI_Colors.DDLBg, "")
-    AppearanceTabControls.Push(ClipPosDDLBg)
-    ; 下拉框
-    ClipPosDDL := ConfigGUI.Add("DropDownList", "x" . (DDLX3 + 1) . " y" . (DDLY3 + 1) . " w" . (DDLW1 - 2) . " h" . (DDLH1 - 2) . " Choose1 vClipPosDDL AltSubmit Background" . UI_Colors.DDLBg . " c" . UI_Colors.DDLText, PosTexts)
-    ClipPosDDL.SetFont("s10", "Segoe UI")
-    for i, key in PosKeys {
-        if (key = ClipboardPanelPos) {
-            ClipPosDDL.Choose(i)
-            break
-        }
-    }
-    AppearanceTabControls.Push(ClipPosDDL)
 }
 
 ; ===================== 创建提示词标签页 =====================
@@ -2230,21 +2373,21 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     ; ========== 横向标签页区域 ==========
     TabBarY := Y + 70
     TabBarHeight := 40
-    TabBarBg := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . TabBarY . " w" . (W - 60) . " h" . TabBarHeight . " Background2d2d30", "")  ; Cursor 暗色系背景
+    TabBarBg := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . TabBarY . " w" . (W - 60) . " h" . TabBarHeight . " Background" . UI_Colors.Sidebar, "")  ; 使用主题颜色
     HotkeysTabControls.Push(TabBarBg)
     
     ; 快捷键列表（定义每个快捷键的信息）
     HotkeyList := [
-        {Key: "C", Name: "连续复制", Default: HotkeyC, Edit: "HotkeyCEdit", Desc: "hotkey_c_desc", Hint: "hotkey_single_char_hint", DefaultVal: "c"},
-        {Key: "V", Name: "合并粘贴", Default: HotkeyV, Edit: "HotkeyVEdit", Desc: "hotkey_v_desc", Hint: "hotkey_single_char_hint", DefaultVal: "v"},
-        {Key: "X", Name: "剪贴板管理", Default: HotkeyX, Edit: "HotkeyXEdit", Desc: "hotkey_x_desc", Hint: "hotkey_single_char_hint", DefaultVal: "x"},
-        {Key: "E", Name: "解释代码", Default: HotkeyE, Edit: "HotkeyEEdit", Desc: "hotkey_e_desc", Hint: "hotkey_single_char_hint", DefaultVal: "e"},
-        {Key: "R", Name: "重构代码", Default: HotkeyR, Edit: "HotkeyREdit", Desc: "hotkey_r_desc", Hint: "hotkey_single_char_hint", DefaultVal: "r"},
-        {Key: "O", Name: "优化代码", Default: HotkeyO, Edit: "HotkeyOEdit", Desc: "hotkey_o_desc", Hint: "hotkey_single_char_hint", DefaultVal: "o"},
-        {Key: "Q", Name: "打开配置", Default: HotkeyQ, Edit: "HotkeyQEdit", Desc: "hotkey_q_desc", Hint: "hotkey_single_char_hint", DefaultVal: "q"},
-        {Key: "Z", Name: "语音输入", Default: HotkeyZ, Edit: "HotkeyZEdit", Desc: "hotkey_z_desc", Hint: "hotkey_single_char_hint", DefaultVal: "z"},
-        {Key: "S", Name: "分割代码", Default: SplitHotkey, Edit: "SplitHotkeyEdit", Desc: "hotkey_s_desc", Hint: "hotkey_single_char_hint", DefaultVal: "s"},
-        {Key: "B", Name: "批量操作", Default: BatchHotkey, Edit: "BatchHotkeyEdit", Desc: "hotkey_b_desc", Hint: "hotkey_single_char_hint", DefaultVal: "b"}
+        {Key: "C", Name: GetText("hotkey_c"), Default: HotkeyC, Edit: "HotkeyCEdit", Desc: "hotkey_c_desc", Hint: "hotkey_single_char_hint", DefaultVal: "c"},
+        {Key: "V", Name: GetText("hotkey_v"), Default: HotkeyV, Edit: "HotkeyVEdit", Desc: "hotkey_v_desc", Hint: "hotkey_single_char_hint", DefaultVal: "v"},
+        {Key: "X", Name: GetText("hotkey_x"), Default: HotkeyX, Edit: "HotkeyXEdit", Desc: "hotkey_x_desc", Hint: "hotkey_single_char_hint", DefaultVal: "x"},
+        {Key: "E", Name: GetText("hotkey_e"), Default: HotkeyE, Edit: "HotkeyEEdit", Desc: "hotkey_e_desc", Hint: "hotkey_single_char_hint", DefaultVal: "e"},
+        {Key: "R", Name: GetText("hotkey_r"), Default: HotkeyR, Edit: "HotkeyREdit", Desc: "hotkey_r_desc", Hint: "hotkey_single_char_hint", DefaultVal: "r"},
+        {Key: "O", Name: GetText("hotkey_o"), Default: HotkeyO, Edit: "HotkeyOEdit", Desc: "hotkey_o_desc", Hint: "hotkey_single_char_hint", DefaultVal: "o"},
+        {Key: "Q", Name: GetText("hotkey_q"), Default: HotkeyQ, Edit: "HotkeyQEdit", Desc: "hotkey_q_desc", Hint: "hotkey_single_char_hint", DefaultVal: "q"},
+        {Key: "Z", Name: GetText("hotkey_z"), Default: HotkeyZ, Edit: "HotkeyZEdit", Desc: "hotkey_z_desc", Hint: "hotkey_single_char_hint", DefaultVal: "z"},
+        {Key: "S", Name: GetText("hotkey_s"), Default: SplitHotkey, Edit: "SplitHotkeyEdit", Desc: "hotkey_s_desc", Hint: "hotkey_single_char_hint", DefaultVal: "s"},
+        {Key: "B", Name: GetText("hotkey_b"), Default: BatchHotkey, Edit: "BatchHotkeyEdit", Desc: "hotkey_b_desc", Hint: "hotkey_single_char_hint", DefaultVal: "b"}
     ]
     
     ; 创建横向标签按钮
@@ -2263,13 +2406,13 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
         ; 使用Button控件而不是Text控件，确保点击事件正常工作
         TabBtn := ConfigGUI.Add("Button", "x" . TabX . " y" . (TabBarY + 5) . " w" . (TabWidth - 2) . " h" . (TabBarHeight - 10) . " vHotkeyTab" . Item.Key, Item.Name)
         TabBtn.SetFont("s9", "Segoe UI")
-        ; 使用 Cursor 暗色系：未选中状态使用深灰色背景
-        TabBtn.BackColor := "2d2d30"  ; Cursor 暗色系背景
-        TabBtn.SetFont("s9 cCCCCCC", "Segoe UI")  ; Cursor 暗色系文字颜色
+        ; 使用主题颜色：未选中状态
+        TabBtn.BackColor := UI_Colors.Sidebar  ; 使用主题侧边栏颜色
+        TabBtn.SetFont("s9 c" . UI_Colors.TextDim, "Segoe UI")  ; 使用主题文字颜色
         ; 绑定点击事件，使用辅助函数确保每个按钮绑定到正确的键
         TabBtn.OnEvent("Click", CreateHotkeyTabClickHandler(Item.Key))
-        ; 悬停效果使用 Cursor 暗色系
-        HoverBtn(TabBtn, "2d2d30", "3e3e42")  ; Cursor 暗色系悬停颜色
+        ; 悬停效果使用主题颜色
+        HoverBtn(TabBtn, UI_Colors.Sidebar, UI_Colors.BtnHover)  ; 使用主题悬停颜色
         HotkeysTabControls.Push(TabBtn)
         HotkeySubTabs[Item.Key] := TabBtn
         TabX += TabWidth
@@ -2637,12 +2780,12 @@ SwitchHotkeyTab(HotkeyKey) {
     ; 调试输出（可以删除）
     ; TrayTip("切换到: " . HotkeyKey, "提示", "Iconi 1")
     
-    ; 重置所有子标签样式（使用 Cursor 暗色系）
+    ; 重置所有子标签样式（使用主题颜色）
     for Key, TabBtn in HotkeySubTabs {
         if (TabBtn) {
             try {
-                TabBtn.BackColor := "2d2d30"  ; Cursor 暗色系背景
-                TabBtn.SetFont("s9 cCCCCCC", "Segoe UI")  ; Cursor 暗色系文字颜色
+                TabBtn.BackColor := UI_Colors.Sidebar  ; 使用主题侧边栏颜色
+                TabBtn.SetFont("s9 c" . UI_Colors.TextDim, "Segoe UI")  ; 使用主题文字颜色
             }
         }
     }
@@ -2665,8 +2808,8 @@ SwitchHotkeyTab(HotkeyKey) {
     ; 设置当前子标签样式（使用 Cursor 暗色系）
     if (HotkeySubTabs.Has(HotkeyKey) && HotkeySubTabs[HotkeyKey]) {
         try {
-            HotkeySubTabs[HotkeyKey].BackColor := "37373d"  ; Cursor 暗色系选中背景
-            HotkeySubTabs[HotkeyKey].SetFont("s9 cFFFFFF", "Segoe UI")  ; 选中时白色文字
+            HotkeySubTabs[HotkeyKey].BackColor := UI_Colors.TabActive  ; 使用主题选中背景
+            HotkeySubTabs[HotkeyKey].SetFont("s9 c" . UI_Colors.Text, "Segoe UI")  ; 使用主题文字颜色
         }
     }
     
@@ -2911,24 +3054,7 @@ ResetToDefaults(*) {
 }
 
 ; ===================== UI 常量定义 =====================
-global UI_Colors := {
-    Background: "1e1e1e",
-    Sidebar: "252526",
-    Border: "3c3c3c", 
-    Text: "cccccc",
-    TextDim: "888888",
-    InputBg: "3c3c3c",
-    DDLBg: "2d2d30",  ; Cursor风格下拉框背景（稍浅的深灰色）
-    DDLBorder: "3e3e42",  ; Cursor风格下拉框边框（更柔和的浅灰色，更接近Cursor）
-    DDLText: "cccccc",  ; Cursor风格下拉框文本（中等灰色）
-    DDLHover: "37373d",  ; Cursor风格下拉框悬停背景
-    BtnBg: "3c3c3c",
-    BtnHover: "4c4c4c",
-    BtnPrimary: "0e639c",
-    BtnPrimaryHover: "1177bb",
-    TabActive: "37373d",
-    TitleBar: "252526"
-}
+; UI颜色已在脚本开头初始化（第104-165行），这里不再重复定义
 
 ; 窗口拖动事件
 WM_LBUTTONDOWN(*) {
@@ -3219,7 +3345,7 @@ ShowConfigGUI() {
     global SearchEdit := ConfigGUI.Add("Edit", "x36 y50 w" . (SidebarWidth - 46) . " h20 vSearchEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " -E0x200", "") 
     SearchEdit.SetFont("s9", "Segoe UI")
     
-    global SearchHint := ConfigGUI.Add("Text", "x36 y50 w" . (SidebarWidth - 46) . " h20 c" . UI_Colors.TextDim . " Background" . UI_Colors.InputBg, "Search settings...")
+    global SearchHint := ConfigGUI.Add("Text", "x36 y50 w" . (SidebarWidth - 46) . " h20 c" . UI_Colors.TextDim . " Background" . UI_Colors.InputBg, GetText("search_placeholder"))
     SearchHint.SetFont("s9 Italic", "Segoe UI")
     
     ; 标签按钮起始位置
@@ -3281,7 +3407,12 @@ ShowConfigGUI() {
         BgColor := IsPrimary ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
         HoverColor := IsPrimary ? UI_Colors.BtnPrimaryHover : UI_Colors.BtnHover
         
-        Btn := ConfigGUI.Add("Text", "x" . XPos . " y" . (ButtonAreaY + 10) . " w80 h30 Center 0x200 cWhite Background" . BgColor . (BtnName ? " v" . BtnName : ""), Label)
+        ; 按钮文字颜色：主要按钮使用白色，非主要按钮根据主题调整
+        ; 亮色模式下非主要按钮使用深色文字，暗色模式下使用白色文字
+        global ThemeMode
+        TextColor := IsPrimary ? "FFFFFF" : (ThemeMode = "light" ? UI_Colors.Text : "FFFFFF")
+        
+        Btn := ConfigGUI.Add("Text", "x" . XPos . " y" . (ButtonAreaY + 10) . " w80 h30 Center 0x200 c" . TextColor . " Background" . BgColor . (BtnName ? " v" . BtnName : ""), Label)
         Btn.SetFont("s9", "Segoe UI")
         Btn.OnEvent("Click", Action)
         HoverBtn(Btn, BgColor, HoverColor)
@@ -3786,7 +3917,7 @@ SaveConfig(*) {
     global CursorPathEdit, PromptExplainEdit, PromptRefactorEdit, PromptOptimizeEdit
     global LangChinese, ConfigFile, GuiID_CursorPanel, GuiID_ConfigGUI
     global ConfigPanelScreenRadio, MsgBoxScreenRadio, VoiceInputScreenRadio, CursorPanelScreenRadio
-    global PanelVisible, SearchEngineDDL
+    global PanelVisible, ThemeLightRadio, ThemeDarkRadio
     
     ; 验证输入
     if (!AISleepTimeEdit || AISleepTimeEdit.Value = "" || !IsNumber(AISleepTimeEdit.Value)) {
@@ -3810,15 +3941,6 @@ SaveConfig(*) {
     
     ; 获取语言设置
     NewLanguage := (LangChinese && LangChinese.Value) ? "zh" : "en"
-    
-    ; 获取面板位置设置
-    PosKeys := ["Center", "TopLeft", "TopRight", "BottomLeft", "BottomRight"]
-    if (FuncPosDDL && FuncPosDDL.Value <= PosKeys.Length)
-        FunctionPanelPos := PosKeys[FuncPosDDL.Value]
-    if (ConfigPosDDL && ConfigPosDDL.Value <= PosKeys.Length)
-        ConfigPanelPos := PosKeys[ConfigPosDDL.Value]
-    if (ClipPosDDL && ClipPosDDL.Value <= PosKeys.Length)
-        ClipboardPanelPos := PosKeys[ClipPosDDL.Value]
     
     ; 解析高级设置中的屏幕索引
     NewConfigPanelScreenIndex := 1
@@ -3945,11 +4067,20 @@ SaveConfig(*) {
         }
     }
     
-    ; 获取搜索引擎设置
-    NewSearchEngine := "deepseek"
-    if (SearchEngineDDL && SearchEngineDDL.Value >= 1 && SearchEngineDDL.Value <= 8) {
-        SearchEngineValues := ["deepseek", "yuanbao", "doubao", "zhipu", "mita", "wenxin", "qianwen", "kimi"]
-        NewSearchEngine := SearchEngineValues[SearchEngineDDL.Value]
+    ; 获取主题模式设置
+    NewThemeMode := "dark"
+    ; 如果外观标签页已创建，从单选按钮读取；否则使用当前主题模式
+    if (IsSet(ThemeLightRadio) && ThemeLightRadio && IsObject(ThemeLightRadio) && ThemeLightRadio.Value) {
+        NewThemeMode := "light"
+    } else {
+        ; 如果控件不存在，使用当前主题模式
+        global ThemeMode
+        NewThemeMode := ThemeMode
+    }
+    global ThemeMode
+    if (ThemeMode != NewThemeMode) {
+        ThemeMode := NewThemeMode
+        ApplyTheme(NewThemeMode)
     }
     
     ; 更新全局变量
@@ -3960,7 +4091,6 @@ SaveConfig(*) {
     global Prompt_Optimize := PromptOptimizeEdit ? PromptOptimizeEdit.Value : ""
     global PanelScreenIndex := NewScreenIndex
     global Language := NewLanguage
-    global SearchEngine := NewSearchEngine
     global ConfigPanelScreenIndex := NewConfigPanelScreenIndex
     global MsgBoxScreenIndex := NewMsgBoxScreenIndex
     global VoiceInputScreenIndex := NewVoiceInputScreenIndex
@@ -3974,7 +4104,7 @@ SaveConfig(*) {
     IniWrite(Prompt_Optimize, ConfigFile, "Settings", "Prompt_Optimize")
     IniWrite(PanelScreenIndex, ConfigFile, "Panel", "ScreenIndex")
     IniWrite(Language, ConfigFile, "Settings", "Language")
-    IniWrite(SearchEngine, ConfigFile, "Settings", "SearchEngine")
+    IniWrite(ThemeMode, ConfigFile, "Settings", "ThemeMode")
     global AutoLoadSelectedText
     IniWrite(AutoLoadSelectedText ? "1" : "0", ConfigFile, "Settings", "AutoLoadSelectedText")
     IniWrite(FunctionPanelPos, ConfigFile, "Panel", "FunctionPanelPos")
@@ -4252,11 +4382,15 @@ ShowClipboardManager() {
     ToolbarBg := GuiID_ClipboardManager.Add("Text", "x0 y41 w600 h45 Background" . UI_Colors.Sidebar, "")
     
     ; 辅助函数：创建平面按钮
-    CreateFlatBtn(Parent, Label, X, Y, W, H, Action, Color := "") {
+    CreateFlatBtn(Parent, Label, X, Y, W, H, Action, Color := "", IsPrimary := false) {
         if (Color = "")
             Color := UI_Colors.BtnBg
+        
+        ; 按钮文字颜色：主要按钮使用白色，非主要按钮根据主题调整
+        global ThemeMode
+        TextColor := IsPrimary ? "FFFFFF" : (ThemeMode = "light" ? UI_Colors.Text : "FFFFFF")
             
-        Btn := Parent.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Center 0x200 cWhite Background" . Color, Label)
+        Btn := Parent.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Center 0x200 c" . TextColor . " Background" . Color, Label)
         Btn.SetFont("s10", "Segoe UI")
         Btn.OnEvent("Click", Action)
         HoverBtn(Btn, Color, UI_Colors.BtnHover)
@@ -4284,7 +4418,7 @@ ShowClipboardManager() {
     ; 操作按钮
     CreateFlatBtn(GuiID_ClipboardManager, GetText("copy_selected"), 20, 440, 100, 35, CopySelectedItem)
     CreateFlatBtn(GuiID_ClipboardManager, GetText("delete_selected"), 130, 440, 100, 35, DeleteSelectedItem)
-    CreateFlatBtn(GuiID_ClipboardManager, GetText("paste_to_cursor"), 240, 440, 120, 35, PasteSelectedToCursor, UI_Colors.BtnPrimary)
+    CreateFlatBtn(GuiID_ClipboardManager, GetText("paste_to_cursor"), 240, 440, 120, 35, PasteSelectedToCursor, UI_Colors.BtnPrimary, true)
     
     ; 导出和导入按钮
     CreateFlatBtn(GuiID_ClipboardManager, GetText("export_clipboard"), 370, 440, 100, 35, ExportClipboard)
@@ -5133,7 +5267,7 @@ ShowVoiceInputAnimation() {
     
     GuiID_VoiceInput := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
     GuiID_VoiceInput.BackColor := UI_Colors.Background
-    GuiID_VoiceInput.SetFont("s12 cFFFFFF Bold", "Segoe UI")
+    GuiID_VoiceInput.SetFont("s12 c" . UI_Colors.Text . " Bold", "Segoe UI")
     
     PanelWidth := 400
     PanelHeight := 150
@@ -5265,7 +5399,7 @@ ShowVoiceInputActionSelection(Content) {
     
     GuiID_VoiceInput := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
     GuiID_VoiceInput.BackColor := UI_Colors.Background
-    GuiID_VoiceInput.SetFont("s12 cFFFFFF Bold", "Segoe UI")
+    GuiID_VoiceInput.SetFont("s12 c" . UI_Colors.Text . " Bold", "Segoe UI")
     
     PanelWidth := 500
     ; 计算所需高度：标题(50) + 内容标签(25) + 内容框(60) + 自动加载开关(35) + 操作标签(30) + 操作按钮(45) + 引擎标签(30) + 按钮区域 + 取消按钮(45) + 边距(20)
@@ -5274,12 +5408,12 @@ ShowVoiceInputActionSelection(Content) {
     PanelHeight := 50 + 25 + 60 + 35 + 30 + 45 + 30 + ButtonsAreaHeight + 45 + 20
     
     ; 标题
-    TitleText := GuiID_VoiceInput.Add("Text", "x0 y15 w500 h30 Center cFFFFFF", "选择操作")
+    TitleText := GuiID_VoiceInput.Add("Text", "x0 y15 w500 h30 Center c" . UI_Colors.Text, GetText("select_action"))
     TitleText.SetFont("s14 Bold", "Segoe UI")
     
     ; 显示输入内容
     YPos := 55
-    LabelText := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w460 h20 cCCCCCC", "语音输入内容:")
+    LabelText := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w460 h20 c" . UI_Colors.TextDim, GetText("voice_input_content"))
     LabelText.SetFont("s10", "Segoe UI")
     
     YPos += 25
@@ -5289,31 +5423,37 @@ ShowVoiceInputActionSelection(Content) {
     ; 自动加载选中文本开关
     YPos += 70
     global AutoLoadSelectedText, VoiceInputAutoLoadSwitch
-    AutoLoadLabel := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h25 cCCCCCC", "自动加载选中文本:")
+    AutoLoadLabel := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h25 c" . UI_Colors.TextDim, GetText("auto_load_selected_text"))
     AutoLoadLabel.SetFont("s10", "Segoe UI")
     ; 创建开关按钮（使用文本按钮模拟开关）
-    SwitchText := AutoLoadSelectedText ? "✓ 已开启" : "○ 已关闭"
+    SwitchText := AutoLoadSelectedText ? GetText("switch_on") : GetText("switch_off")
     SwitchBg := AutoLoadSelectedText ? UI_Colors.BtnHover : UI_Colors.BtnBg
-    VoiceInputAutoLoadSwitch := GuiID_VoiceInput.Add("Text", "x220 y" . YPos . " w120 h25 Center 0x200 cWhite Background" . SwitchBg . " vVoiceInputAutoLoadSwitch", SwitchText)
+    ; 按钮文字颜色：根据主题调整
+    global ThemeMode
+    SwitchTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    VoiceInputAutoLoadSwitch := GuiID_VoiceInput.Add("Text", "x220 y" . YPos . " w120 h25 Center 0x200 c" . SwitchTextColor . " Background" . SwitchBg . " vVoiceInputAutoLoadSwitch", SwitchText)
     VoiceInputAutoLoadSwitch.SetFont("s10", "Segoe UI")
     VoiceInputAutoLoadSwitch.OnEvent("Click", ToggleAutoLoadSelectedTextForVoiceInput)
     HoverBtn(VoiceInputAutoLoadSwitch, SwitchBg, UI_Colors.BtnHover)
     
     ; 操作选择
     YPos += 35
-    LabelAction := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w460 h20 cCCCCCC", "选择操作:")
+    LabelAction := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w460 h20 c" . UI_Colors.TextDim, GetText("select_action") . ":")
     LabelAction.SetFont("s10", "Segoe UI")
     
     ; 搜索引擎按钮标签（先创建，以便后续引用）
     YPos += 50
-    LabelEngine := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w460 h20 cCCCCCC vEngineLabel", "选择搜索引擎:")
+    LabelEngine := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w460 h20 c" . UI_Colors.TextDim . " vEngineLabel", GetText("select_search_engine"))
     LabelEngine.SetFont("s10", "Segoe UI")
     LabelEngine.Visible := false
     
     ; 操作按钮（在操作标签下方）
     YPos := 55 + 25 + 60 + 70 + 35 + 20 + 10  ; 重新计算YPos位置（标题+标签+输入框+开关间距+开关+操作标签间距+操作标签高度+按钮间距）
     ; 发送到Cursor按钮
-    SendToCursorBtn := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w220 h35 Center 0x200 cWhite Background" . UI_Colors.BtnBg . " vSendToCursorBtn", "发送到 Cursor")
+    ; 按钮文字颜色：根据主题调整
+    global ThemeMode
+    ActionBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    SendToCursorBtn := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w220 h35 Center 0x200 c" . ActionBtnTextColor . " Background" . UI_Colors.BtnBg . " vSendToCursorBtn", GetText("send_to_cursor"))
     SendToCursorBtn.SetFont("s11", "Segoe UI")
     SendToCursorBtn.OnEvent("Click", CreateSendToCursorHandler(Content))
     HoverBtn(SendToCursorBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
@@ -5321,7 +5461,7 @@ ShowVoiceInputActionSelection(Content) {
     ; 搜索按钮（保存引用以便后续访问）
     global VoiceInputSendToCursorBtn := SendToCursorBtn
     global VoiceInputSearchBtn
-    SearchBtn := GuiID_VoiceInput.Add("Text", "x260 y" . YPos . " w220 h35 Center 0x200 cWhite Background" . UI_Colors.BtnBg . " vSearchBtn", "搜索")
+    SearchBtn := GuiID_VoiceInput.Add("Text", "x260 y" . YPos . " w220 h35 Center 0x200 c" . ActionBtnTextColor . " Background" . UI_Colors.BtnBg . " vSearchBtn", GetText("voice_search_button"))
     SearchBtn.SetFont("s11", "Segoe UI")
     SearchBtn.OnEvent("Click", CreateShowSearchEnginesHandler(Content, SendToCursorBtn, SearchBtn, LabelEngine))
     VoiceInputSearchBtn := SearchBtn
@@ -5355,7 +5495,10 @@ ShowVoiceInputActionSelection(Content) {
         BtnY := YPos + Row * (ButtonHeight + ButtonSpacing)
         
         ; 创建按钮（初始隐藏）
-        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 cWhite Background" . UI_Colors.BtnBg . " vSearchEngineBtn" . Index, Engine.Name)
+        ; 按钮文字颜色：根据主题调整
+        global ThemeMode
+        EngineBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . EngineBtnTextColor . " Background" . UI_Colors.BtnBg . " vSearchEngineBtn" . Index, Engine.Name)
         Btn.SetFont("s10", "Segoe UI")
         Btn.OnEvent("Click", CreateSearchEngineClickHandler(Content, Engine.Value))
         Btn.Visible := false
@@ -5365,7 +5508,11 @@ ShowVoiceInputActionSelection(Content) {
     
     ; 取消按钮
     CancelBtnY := YPos + (Floor((SearchEngines.Length - 1) / ButtonsPerRow) + 1) * (ButtonHeight + ButtonSpacing) + 10
-    CancelBtn := GuiID_VoiceInput.Add("Text", "x" . (PanelWidth // 2 - 60) . " y" . CancelBtnY . " w120 h35 Center 0x200 cWhite Background666666 vCancelBtn", "取消")
+    ; 取消按钮颜色：根据主题调整
+    global ThemeMode
+    CancelBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    CancelBtnBg := (ThemeMode = "light") ? UI_Colors.BtnBg : "666666"
+    CancelBtn := GuiID_VoiceInput.Add("Text", "x" . (PanelWidth // 2 - 60) . " y" . CancelBtnY . " w120 h35 Center 0x200 c" . CancelBtnTextColor . " Background" . CancelBtnBg . " vCancelBtn", GetText("cancel"))
     CancelBtn.SetFont("s11", "Segoe UI")
     CancelBtn.OnEvent("Click", CancelVoiceInputActionSelection)
     HoverBtn(CancelBtn, "666666", "777777")
@@ -5568,21 +5715,29 @@ ShowVoiceSearchInputPanel() {
     
     GuiID_VoiceInput := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
     GuiID_VoiceInput.BackColor := UI_Colors.Background
-    GuiID_VoiceInput.SetFont("s12 cFFFFFF Bold", "Segoe UI")
+    GuiID_VoiceInput.SetFont("s12 c" . UI_Colors.Text . " Bold", "Segoe UI")
     
     PanelWidth := 600
-    ; 计算所需高度：标题(50) + 输入框标签(25) + 输入框(80) + 搜索按钮(45) + 语音输入开关(35) + 自动加载开关(35) + 自动更新开关(35) + 引擎标签(30) + 按钮区域 + 边距(20)
+    ; 计算所需高度：标题(50) + 输入框标签(25) + 输入框(80) + 搜索按钮(45) + 自动加载开关(35) + 自动更新开关(35) + 引擎标签(30) + 按钮区域 + 边距(20)
     ButtonsRows := Ceil(8 / 4)  ; 每行4个按钮，共8个搜索引擎
     ButtonsAreaHeight := ButtonsRows * 45  ; 每行45px（按钮35px + 间距10px）
-    PanelHeight := 50 + 25 + 80 + 45 + 35 + 35 + 35 + 30 + ButtonsAreaHeight + 20
+    PanelHeight := 50 + 25 + 80 + 45 + 35 + 35 + 30 + ButtonsAreaHeight + 20
     
     ; 标题
-    TitleText := GuiID_VoiceInput.Add("Text", "x0 y15 w600 h30 Center cFFFFFF", "语音搜索")
+    TitleText := GuiID_VoiceInput.Add("Text", "x0 y15 w600 h30 Center c" . UI_Colors.Text, GetText("voice_search_title"))
     TitleText.SetFont("s14 Bold", "Segoe UI")
+    
+    ; 右上角关闭按钮
+    CloseBtnX := PanelWidth - 40  ; 距离右边20px，按钮宽度30px
+    CloseBtnY := 10  ; 距离顶部10px
+    CloseBtn := GuiID_VoiceInput.Add("Text", "x" . CloseBtnX . " y" . CloseBtnY . " w30 h30 Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg . " vCloseBtn", "×")
+    CloseBtn.SetFont("s18 Bold", "Segoe UI")
+    CloseBtn.OnEvent("Click", HideVoiceSearchInputPanel)
+    HoverBtn(CloseBtn, UI_Colors.BtnBg, "FF4444")  ; 悬停时显示红色
     
     ; 输入框标签
     YPos := 55
-    LabelText := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w560 h20 cCCCCCC", "输入内容:")
+    LabelText := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w560 h20 c" . UI_Colors.TextDim, GetText("voice_search_input_label"))
     LabelText.SetFont("s10", "Segoe UI")
     
     ; 输入框（可编辑，用于显示和编辑语音输入内容）
@@ -5593,30 +5748,25 @@ ShowVoiceSearchInputPanel() {
     VoiceSearchInputEdit.OnEvent("Focus", SwitchToChineseIME)
     
     ; 搜索按钮
-    SearchBtn := GuiID_VoiceInput.Add("Text", "x550 y" . YPos . " w40 h80 Center 0x200 cWhite Background" . UI_Colors.BtnBg . " vSearchBtn", "搜索")
+    ; 按钮文字颜色：根据主题调整
+    global ThemeMode
+    SearchBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    SearchBtn := GuiID_VoiceInput.Add("Text", "x550 y" . YPos . " w40 h80 Center 0x200 c" . SearchBtnTextColor . " Background" . UI_Colors.BtnBg . " vSearchBtn", GetText("voice_search_button"))
     SearchBtn.SetFont("s11 Bold", "Segoe UI")
     SearchBtn.OnEvent("Click", ExecuteVoiceSearch)
     HoverBtn(SearchBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     
-    ; 语音输入开关
-    YPos += 90
-    global VoiceSearchActive, VoiceSearchVoiceInputSwitch
-    VoiceInputSwitchText := VoiceSearchActive ? "✓ 语音输入中" : "○ 启动语音输入"
-    VoiceInputSwitchBg := VoiceSearchActive ? UI_Colors.BtnHover : UI_Colors.BtnBg
-    VoiceSearchVoiceInputSwitch := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h30 Center 0x200 cWhite Background" . VoiceInputSwitchBg . " vVoiceInputSwitch", VoiceInputSwitchText)
-    VoiceSearchVoiceInputSwitch.SetFont("s10", "Segoe UI")
-    VoiceSearchVoiceInputSwitch.OnEvent("Click", ToggleVoiceInputInSearch)
-    HoverBtn(VoiceSearchVoiceInputSwitch, VoiceInputSwitchBg, UI_Colors.BtnHover)
-    
     ; 自动加载选中文本开关
-    YPos += 40
+    YPos += 90
     global AutoLoadSelectedText, VoiceSearchAutoLoadSwitch
-    AutoLoadLabel := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h25 cCCCCCC", "自动加载选中文本:")
+    AutoLoadLabel := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h25 c" . UI_Colors.TextDim, GetText("auto_load_selected_text"))
     AutoLoadLabel.SetFont("s10", "Segoe UI")
     ; 创建开关按钮（使用文本按钮模拟开关）
-    SwitchText := AutoLoadSelectedText ? "✓ 已开启" : "○ 已关闭"
+    SwitchText := AutoLoadSelectedText ? GetText("switch_on") : GetText("switch_off")
     SwitchBg := AutoLoadSelectedText ? UI_Colors.BtnHover : UI_Colors.BtnBg
-    VoiceSearchAutoLoadSwitch := GuiID_VoiceInput.Add("Text", "x220 y" . YPos . " w120 h25 Center 0x200 cWhite Background" . SwitchBg . " vAutoLoadSwitch", SwitchText)
+    ; 按钮文字颜色：根据主题调整
+    SwitchTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    VoiceSearchAutoLoadSwitch := GuiID_VoiceInput.Add("Text", "x220 y" . YPos . " w120 h25 Center 0x200 c" . SwitchTextColor . " Background" . SwitchBg . " vAutoLoadSwitch", SwitchText)
     VoiceSearchAutoLoadSwitch.SetFont("s10", "Segoe UI")
     VoiceSearchAutoLoadSwitch.OnEvent("Click", ToggleAutoLoadSelectedText)
     HoverBtn(VoiceSearchAutoLoadSwitch, SwitchBg, UI_Colors.BtnHover)
@@ -5624,19 +5774,21 @@ ShowVoiceSearchInputPanel() {
     ; 自动更新语音输入开关
     YPos += 35
     global AutoUpdateVoiceInput, VoiceSearchAutoUpdateSwitch
-    AutoUpdateLabel := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h25 cCCCCCC", "自动更新语音输入:")
+    AutoUpdateLabel := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h25 c" . UI_Colors.TextDim, GetText("auto_update_voice_input"))
     AutoUpdateLabel.SetFont("s10", "Segoe UI")
     ; 创建开关按钮（使用文本按钮模拟开关）
-    UpdateSwitchText := AutoUpdateVoiceInput ? "✓ 已开启" : "○ 已关闭"
+    UpdateSwitchText := AutoUpdateVoiceInput ? GetText("switch_on") : GetText("switch_off")
     UpdateSwitchBg := AutoUpdateVoiceInput ? UI_Colors.BtnHover : UI_Colors.BtnBg
-    VoiceSearchAutoUpdateSwitch := GuiID_VoiceInput.Add("Text", "x220 y" . YPos . " w120 h25 Center 0x200 cWhite Background" . UpdateSwitchBg . " vAutoUpdateSwitch", UpdateSwitchText)
+    ; 按钮文字颜色：根据主题调整
+    UpdateSwitchTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    VoiceSearchAutoUpdateSwitch := GuiID_VoiceInput.Add("Text", "x220 y" . YPos . " w120 h25 Center 0x200 c" . UpdateSwitchTextColor . " Background" . UpdateSwitchBg . " vAutoUpdateSwitch", UpdateSwitchText)
     VoiceSearchAutoUpdateSwitch.SetFont("s10", "Segoe UI")
     VoiceSearchAutoUpdateSwitch.OnEvent("Click", ToggleAutoUpdateVoiceInput)
     HoverBtn(VoiceSearchAutoUpdateSwitch, UpdateSwitchBg, UI_Colors.BtnHover)
     
     ; 搜索引擎标签
     YPos += 35
-    LabelEngine := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w560 h20 cCCCCCC", "选择搜索引擎:")
+    LabelEngine := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w560 h20 c" . UI_Colors.TextDim, GetText("select_search_engine"))
     LabelEngine.SetFont("s10", "Segoe UI")
     
     ; 搜索引擎按钮
@@ -5669,7 +5821,9 @@ ShowVoiceSearchInputPanel() {
         IsSelected := (ArrayContainsValue(VoiceSearchSelectedEngines, Engine.Value) > 0)
         BtnBg := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
         BtnText := IsSelected ? "✓ " . Engine.Name : Engine.Name
-        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 cWhite Background" . BtnBg . " vSearchEngineBtn" . Index, BtnText)
+        ; 按钮文字颜色：根据主题调整
+        EngineBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . EngineBtnTextColor . " Background" . BtnBg . " vSearchEngineBtn" . Index, BtnText)
         Btn.SetFont("s10", "Segoe UI")
         Btn.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
         HoverBtn(Btn, BtnBg, UI_Colors.BtnHover)
@@ -5712,14 +5866,13 @@ ShowVoiceSearchInputPanel() {
     }
     
     ; 再次确保输入框有焦点（双重保险）
-    if (!VoiceSearchInputEdit.HasFocus()) {
-        try {
-            ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-            Sleep(100)
-        } catch {
-            VoiceSearchInputEdit.Focus()
-            Sleep(100)
-        }
+    ; 注意：AutoHotkey v2 中 Edit 控件没有 HasFocus() 方法，直接使用 Focus() 确保焦点
+    try {
+        ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+        Sleep(50)
+    } catch {
+        VoiceSearchInputEdit.Focus()
+        Sleep(50)
     }
     
     ; 如果自动加载开关已开启，启动监听；否则确保监听已停止
@@ -5828,12 +5981,12 @@ ToggleAutoUpdateVoiceInput(*) {
         ; 忽略保存错误
     }
     
-    ; 根据"自动记载选中文本"开关状态立即启动或停止定时器（无论是否正在语音输入）
+    ; 根据"自动更新语音输入"或"自动加载选中文本"开关状态立即启动或停止定时器（无论是否正在语音输入）
     ; 先停止定时器，确保状态正确
     SetTimer(UpdateVoiceSearchInputInPanel, 0)
     global AutoLoadSelectedText
-    if (AutoLoadSelectedText && VoiceSearchActive) {
-        ; 只有在"自动记载选中文本"开关开启且正在语音输入时才启动定时器
+    if ((AutoUpdateVoiceInput || AutoLoadSelectedText) && VoiceSearchActive) {
+        ; 如果"自动更新语音输入"或"自动加载选中文本"任一开启，且正在语音输入，启动定时器
         SetTimer(UpdateVoiceSearchInputInPanel, 300)  ; 每300ms更新一次
     } else {
         ; 明确停止定时器，确保不会自动更新
@@ -5985,6 +6138,21 @@ CreateToggleSearchEngineHandler(Engine, BtnIndex) {
             VoiceSearchSelectedEngines.Push(Engine)
         }
         
+        ; 保存到配置文件（保存上次的选择）
+        try {
+            global ConfigFile
+            EnginesStr := ""
+            for Index, Eng in VoiceSearchSelectedEngines {
+                if (Index > 1) {
+                    EnginesStr .= ","
+                }
+                EnginesStr .= Eng
+            }
+            IniWrite(EnginesStr, ConfigFile, "Settings", "VoiceSearchSelectedEngines")
+        } catch {
+            ; 忽略保存错误
+        }
+        
         ; 更新按钮样式
         if (IsSet(VoiceSearchEngineButtons) && VoiceSearchEngineButtons.Length > 0 && BtnIndex <= VoiceSearchEngineButtons.Length) {
             Btn := VoiceSearchEngineButtons[BtnIndex]
@@ -6027,7 +6195,7 @@ ExecuteVoiceSearch(*) {
         if (Content != "" && StrLen(Content) > 0) {
             ; 检查是否有选中的搜索引擎
             if (VoiceSearchSelectedEngines.Length = 0) {
-                TrayTip("请至少选择一个搜索引擎", "提示", "Icon! 2")
+                TrayTip(GetText("no_search_engine_selected"), GetText("tip"), "Icon! 2")
                 return
             }
             
@@ -6043,7 +6211,7 @@ ExecuteVoiceSearch(*) {
                 }
             }
             
-            TrayTip("已打开 " . VoiceSearchSelectedEngines.Length . " 个搜索引擎", "提示", "Iconi 1")
+            TrayTip(FormatText("search_engines_opened", VoiceSearchSelectedEngines.Length), GetText("tip"), "Iconi 1")
         }
     } catch as e {
         TrayTip(GetText("voice_search_failed") . ": " . e.Message, GetText("error"), "Iconx 2")
@@ -6051,7 +6219,7 @@ ExecuteVoiceSearch(*) {
 }
 
 ; 隐藏语音搜索输入界面
-HideVoiceSearchInputPanel() {
+HideVoiceSearchInputPanel(*) {
     global GuiID_VoiceInput, VoiceSearchPanelVisible, VoiceSearchInputEdit
     
     ; 自动关闭 CapsLock 大写状态
@@ -6073,7 +6241,7 @@ HideVoiceSearchInputPanel() {
 
 ; 开始语音输入（在语音搜索界面中）
 StartVoiceInputInSearch() {
-    global VoiceSearchActive, VoiceInputMethod, VoiceSearchPanelVisible, VoiceSearchInputEdit, VoiceSearchVoiceInputSwitch, UI_Colors
+    global VoiceSearchActive, VoiceInputMethod, VoiceSearchPanelVisible, VoiceSearchInputEdit, UI_Colors
     
     if (VoiceSearchActive || !VoiceSearchPanelVisible) {
         return
@@ -6113,14 +6281,13 @@ StartVoiceInputInSearch() {
             }
             
             ; 再次确保焦点（双重保险）
-            if (!VoiceSearchInputEdit.HasFocus()) {
-                try {
-                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                    Sleep(100)
-                } catch {
-                    VoiceSearchInputEdit.Focus()
-                    Sleep(100)
-                }
+            ; 注意：AutoHotkey v2 中 Edit 控件没有 HasFocus() 方法，直接使用 Focus() 确保焦点
+            try {
+                ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                Sleep(50)
+            } catch {
+                VoiceSearchInputEdit.Focus()
+                Sleep(50)
             }
             
             ; 最后再次确认窗口激活和输入框焦点
@@ -6145,9 +6312,23 @@ StartVoiceInputInSearch() {
         ; 根据输入法类型使用不同的快捷键
         if (VoiceInputMethod = "baidu") {
             ; 百度输入法：Alt+Y 激活，F2 开始
-            ; 确保输入框有焦点
+            ; 确保输入框有焦点并切换到中文输入法
             if (VoiceSearchInputEdit) {
                 InputEditHwnd := VoiceSearchInputEdit.Hwnd
+                try {
+                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(150)
+                } catch {
+                    VoiceSearchInputEdit.Focus()
+                    Sleep(150)
+                }
+                ; 切换到中文输入法，确保百度输入法处于活动状态
+                SwitchToChineseIME()
+                Sleep(200)
+            }
+            
+            ; 再次确保输入框有焦点
+            if (VoiceSearchInputEdit) {
                 try {
                     ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
                     Sleep(100)
@@ -6156,10 +6337,26 @@ StartVoiceInputInSearch() {
                     Sleep(100)
                 }
             }
+            
+            ; 发送 Alt+Y 激活百度输入法
             Send("!y")
-            Sleep(500)
+            Sleep(800)  ; 增加等待时间，确保输入法已激活
+            
+            ; 再次确保输入框有焦点（输入法激活后可能失去焦点）
+            if (VoiceSearchInputEdit) {
+                try {
+                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(200)
+                } catch {
+                    VoiceSearchInputEdit.Focus()
+                    Sleep(200)
+                }
+            }
+            
+            ; 发送 F2 开始语音输入
             Send("{F2}")
-            Sleep(200)
+            Sleep(300)  ; 增加等待时间，确保语音输入已启动
+            
             ; 注意：启动语音输入后，百度输入法会弹出"正在识别中..."窗口
             ; 这个窗口会抢夺焦点，这是正常的，不要立即恢复焦点
             ; 让输入法窗口保持焦点，但定时器会使用ControlFocus确保输入框有输入焦点
@@ -6185,16 +6382,46 @@ StartVoiceInputInSearch() {
                 InputEditHwnd := VoiceSearchInputEdit.Hwnd
                 try {
                     ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(150)
+                } catch {
+                    VoiceSearchInputEdit.Focus()
+                    Sleep(150)
+                }
+                ; 切换到中文输入法
+                SwitchToChineseIME()
+                Sleep(200)
+            }
+            
+            ; 再次确保输入框有焦点
+            if (VoiceSearchInputEdit) {
+                try {
+                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
                     Sleep(100)
                 } catch {
                     VoiceSearchInputEdit.Focus()
                     Sleep(100)
                 }
             }
+            
+            ; 发送 Alt+Y 激活百度输入法
             Send("!y")
-            Sleep(500)
+            Sleep(800)  ; 增加等待时间，确保输入法已激活
+            
+            ; 再次确保输入框有焦点
+            if (VoiceSearchInputEdit) {
+                try {
+                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(200)
+                } catch {
+                    VoiceSearchInputEdit.Focus()
+                    Sleep(200)
+                }
+            }
+            
+            ; 发送 F2 开始语音输入
             Send("{F2}")
-            Sleep(200)
+            Sleep(300)  ; 增加等待时间，确保语音输入已启动
+            
             ; 注意：启动语音输入后，百度输入法会弹出"正在识别中..."窗口
             ; 这个窗口会抢夺焦点，这是正常的，不要立即恢复焦点
         }
@@ -6202,19 +6429,15 @@ StartVoiceInputInSearch() {
         VoiceSearchActive := true
         VoiceSearchContent := ""
         
-        ; 更新开关按钮显示
-        if (VoiceSearchVoiceInputSwitch) {
-            VoiceSearchVoiceInputSwitch.Text := "✓ 语音输入中"
-            VoiceSearchVoiceInputSwitch.BackColor := UI_Colors.BtnHover
-        }
         
         ; 等待一下，确保语音输入已启动，再开始更新输入框内容
         Sleep(500)
-        ; 根据"自动记载选中文本"开关状态决定是否开始更新输入框内容
-        global AutoLoadSelectedText
+        ; 根据"自动更新语音输入"或"自动加载选中文本"开关状态决定是否开始更新输入框内容
+        global AutoLoadSelectedText, AutoUpdateVoiceInput
         ; 先停止定时器，确保状态正确
         SetTimer(UpdateVoiceSearchInputInPanel, 0)
-        if (AutoLoadSelectedText) {
+        if (AutoUpdateVoiceInput || AutoLoadSelectedText) {
+            ; 如果"自动更新语音输入"或"自动加载选中文本"任一开启，启动定时器
             SetTimer(UpdateVoiceSearchInputInPanel, 300)  ; 每300ms更新一次
         } else {
             ; 明确停止定时器，确保不会自动更新
@@ -6275,11 +6498,15 @@ IsBaiduVoiceWindowActive() {
 }
 
 ; 更新语音搜索输入框内容（在面板中）
+; 功能说明：
+; - 当"自动更新语音输入"开关开启时，定时器会自动将语音输入的内容更新到输入框
+; - 当"自动加载选中文本"开关开启时，也会触发此定时器（用于加载选中的文本）
+; - 两个开关任一开启都会启动定时器，但只有"自动加载选中文本"开启时才会加载选中文本
 UpdateVoiceSearchInputInPanel(*) {
-    global VoiceSearchActive, VoiceSearchInputEdit, VoiceSearchPanelVisible, AutoLoadSelectedText, GuiID_VoiceInput, VoiceInputMethod
+    global VoiceSearchActive, VoiceSearchInputEdit, VoiceSearchPanelVisible, AutoLoadSelectedText, AutoUpdateVoiceInput, GuiID_VoiceInput, VoiceInputMethod
     
-    ; 如果"自动记载选中文本"开关未开启，停止定时器
-    if (!AutoLoadSelectedText) {
+    ; 如果"自动更新语音输入"和"自动加载选中文本"都未开启，停止定时器
+    if (!AutoUpdateVoiceInput && !AutoLoadSelectedText) {
         SetTimer(UpdateVoiceSearchInputInPanel, 0)
         return
     }
@@ -6333,20 +6560,14 @@ UpdateVoiceSearchInputInPanel(*) {
                 }
                 
                 ; 确保输入框有焦点（使用ControlFocus确保真正的输入焦点）
+                ; 注意：AutoHotkey v2 中 Edit 控件没有 HasFocus() 方法，直接使用 Focus() 确保焦点
                 try {
                     ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
                     Sleep(50)
-                    ; 如果ControlFocus后仍然没有焦点，使用Focus方法
-                    if (!VoiceSearchInputEdit.HasFocus()) {
-                        VoiceSearchInputEdit.Focus()
-                        Sleep(50)
-                    }
                 } catch {
                     ; 如果ControlFocus失败，使用Focus方法
-                    if (!VoiceSearchInputEdit.HasFocus()) {
-                        VoiceSearchInputEdit.Focus()
-                        Sleep(50)
-                    }
+                    VoiceSearchInputEdit.Focus()
+                    Sleep(50)
                 }
             }
         }
@@ -6434,7 +6655,7 @@ UpdateVoiceSearchInputInPanel(*) {
 
 ; 结束语音输入（在语音搜索界面中）
 StopVoiceInputInSearch() {
-    global VoiceSearchActive, VoiceInputMethod, CapsLock, VoiceSearchInputEdit, VoiceSearchPanelVisible, VoiceSearchVoiceInputSwitch, UI_Colors
+    global VoiceSearchActive, VoiceInputMethod, CapsLock, VoiceSearchInputEdit, VoiceSearchPanelVisible, UI_Colors
     
     if (!VoiceSearchActive || !VoiceSearchPanelVisible) {
         return
@@ -6505,10 +6726,10 @@ StopVoiceInputInSearch() {
         VoiceSearchActive := false
         SetTimer(UpdateVoiceSearchInputInPanel, 0)  ; 停止更新输入框
         
-        ; 更新开关按钮显示
-        if (VoiceSearchVoiceInputSwitch) {
-            VoiceSearchVoiceInputSwitch.Text := "○ 启动语音输入"
-            VoiceSearchVoiceInputSwitch.BackColor := UI_Colors.BtnBg
+        ; 更新开关按钮显示（安全访问）
+        try {
+        } catch {
+            ; 忽略更新按钮时的错误
         }
         
         ; 将内容填入输入框
@@ -6519,44 +6740,16 @@ StopVoiceInputInSearch() {
     } catch as e {
         VoiceSearchActive := false
         SetTimer(UpdateVoiceSearchInputInPanel, 0)
-        ; 更新开关按钮显示
-        if (VoiceSearchVoiceInputSwitch) {
-            VoiceSearchVoiceInputSwitch.Text := "○ 启动语音输入"
-            VoiceSearchVoiceInputSwitch.BackColor := UI_Colors.BtnBg
+        ; 更新开关按钮显示（安全访问，避免变量未初始化错误）
+        try {
+        } catch {
+            ; 忽略更新按钮时的错误
         }
         TrayTip(GetText("voice_search_failed") . ": " . e.Message, GetText("error"), "Iconx 2")
     }
 }
 
 
-; 切换语音输入开关（在语音搜索界面中）
-ToggleVoiceInputInSearch(*) {
-    global VoiceSearchActive, VoiceSearchVoiceInputSwitch, VoiceSearchPanelVisible, UI_Colors, VoiceSearchInputEdit
-    
-    if (!VoiceSearchPanelVisible || !VoiceSearchVoiceInputSwitch) {
-        return
-    }
-    
-    ; 如果语音输入未激活，则启动语音输入
-    if (!VoiceSearchActive) {
-        StartVoiceInputInSearch()
-        
-        ; 更新按钮显示
-        VoiceInputSwitchText := "✓ 语音输入中"
-        VoiceInputSwitchBg := UI_Colors.BtnHover
-        VoiceSearchVoiceInputSwitch.Text := VoiceInputSwitchText
-        VoiceSearchVoiceInputSwitch.BackColor := VoiceInputSwitchBg
-    } else {
-        ; 如果语音输入已激活，则停止语音输入
-        StopVoiceInputInSearch()
-        
-        ; 更新按钮显示
-        VoiceInputSwitchText := "○ 启动语音输入"
-        VoiceInputSwitchBg := UI_Colors.BtnBg
-        VoiceSearchVoiceInputSwitch.Text := VoiceInputSwitchText
-        VoiceSearchVoiceInputSwitch.BackColor := VoiceInputSwitchBg
-    }
-}
 
 ; 显示搜索引擎选择界面
 ShowSearchEngineSelection(Content) {
@@ -6573,7 +6766,7 @@ ShowSearchEngineSelection(Content) {
     
     GuiID_VoiceInput := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
     GuiID_VoiceInput.BackColor := UI_Colors.Background
-    GuiID_VoiceInput.SetFont("s12 cFFFFFF Bold", "Segoe UI")
+    GuiID_VoiceInput.SetFont("s12 c" . UI_Colors.Text . " Bold", "Segoe UI")
     
     PanelWidth := 500
     ; 计算所需高度：标题(50) + 内容标签(25) + 内容框(60) + 引擎标签(30) + 按钮区域 + 取消按钮(45) + 边距(20)
@@ -6582,7 +6775,7 @@ ShowSearchEngineSelection(Content) {
     PanelHeight := 50 + 25 + 60 + 30 + ButtonsAreaHeight + 45 + 20
     
     ; 标题
-    TitleText := GuiID_VoiceInput.Add("Text", "x0 y15 w500 h30 Center cFFFFFF", "选择搜索引擎")
+    TitleText := GuiID_VoiceInput.Add("Text", "x0 y15 w500 h30 Center c" . UI_Colors.Text, GetText("select_search_engine_title"))
     TitleText.SetFont("s14 Bold", "Segoe UI")
     
     ; 显示搜索内容
@@ -6596,7 +6789,7 @@ ShowSearchEngineSelection(Content) {
     
     ; 搜索引擎按钮
     YPos += 80
-    LabelEngine := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w460 h20 cCCCCCC", "选择搜索引擎:")
+    LabelEngine := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w460 h20 c" . UI_Colors.TextDim, GetText("select_search_engine"))
     LabelEngine.SetFont("s10", "Segoe UI")
     
     YPos += 30
@@ -6626,7 +6819,10 @@ ShowSearchEngineSelection(Content) {
         BtnY := YPos + Row * (ButtonHeight + ButtonSpacing)
         
         ; 创建按钮
-        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 cWhite Background" . UI_Colors.BtnBg . " vSearchEngineBtn" . Index, Engine.Name)
+        ; 按钮文字颜色：根据主题调整
+        global ThemeMode
+        EngineBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . EngineBtnTextColor . " Background" . UI_Colors.BtnBg . " vSearchEngineBtn" . Index, Engine.Name)
         Btn.SetFont("s10", "Segoe UI")
         Btn.OnEvent("Click", CreateSearchEngineClickHandler(Content, Engine.Value))
         HoverBtn(Btn, UI_Colors.BtnBg, UI_Colors.BtnHover)
@@ -6635,7 +6831,11 @@ ShowSearchEngineSelection(Content) {
     
     ; 取消按钮
     CancelBtnY := YPos + (Floor((SearchEngines.Length - 1) / ButtonsPerRow) + 1) * (ButtonHeight + ButtonSpacing) + 10
-    CancelBtn := GuiID_VoiceInput.Add("Text", "x" . (PanelWidth // 2 - 60) . " y" . CancelBtnY . " w120 h35 Center 0x200 cWhite Background666666 vCancelBtn", "取消")
+    ; 取消按钮颜色：根据主题调整
+    global ThemeMode
+    CancelBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    CancelBtnBg := (ThemeMode = "light") ? UI_Colors.BtnBg : "666666"
+    CancelBtn := GuiID_VoiceInput.Add("Text", "x" . (PanelWidth // 2 - 60) . " y" . CancelBtnY . " w120 h35 Center 0x200 c" . CancelBtnTextColor . " Background" . CancelBtnBg . " vCancelBtn", GetText("cancel"))
     CancelBtn.SetFont("s11", "Segoe UI")
     CancelBtn.OnEvent("Click", CancelSearchEngineSelection)
     HoverBtn(CancelBtn, "666666", "777777")
@@ -6677,13 +6877,20 @@ SendVoiceSearchToBrowser(Content, Engine) {
             case "deepseek":
                 SearchURL := "https://chat.deepseek.com/?q=" . EncodedContent
             case "yuanbao":
-                SearchURL := "https://www.yuanbao.com/search?query=" . EncodedContent
+                ; 元宝AI：使用根路径，添加q参数（intent查询）
+                ; 注意：使用yuanbao.tencent.com而不是www.yuanbao.com
+                ; 格式：https://yuanbao.tencent.com/?q=搜索关键词
+                SearchURL := "https://yuanbao.tencent.com/?q=" . EncodedContent
             case "doubao":
-                SearchURL := "https://www.doubao.com/search?query=" . EncodedContent
+                ; 豆包AI：使用chat路径，添加q参数（intent查询）
+                ; q参数用于预填充查询内容
+                SearchURL := "https://www.doubao.com/chat/?q=" . EncodedContent
             case "zhipu":
                 SearchURL := "https://chatglm.cn/main/search?query=" . EncodedContent
             case "mita":
-                SearchURL := "https://www.metaso.cn/search?query=" . EncodedContent
+                ; 秘塔AI搜索：使用q参数（intent查询）
+                ; q参数用于指定搜索关键词
+                SearchURL := "https://metaso.cn/?q=" . EncodedContent
             case "wenxin":
                 SearchURL := "https://yiyan.baidu.com/search?query=" . EncodedContent
             case "qianwen":
