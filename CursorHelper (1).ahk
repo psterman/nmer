@@ -47,6 +47,7 @@ global HotkeyF := "f"  ; 语音搜索
 ; 配置变量
 global CursorPath := ""
 global AISleepTime := 15000
+global CapsLockHoldTimeSeconds := 0.5  ; CapsLock长按时间（秒），默认0.5秒
 global Prompt_Explain := ""
 global Prompt_Refactor := ""
 global Prompt_Optimize := ""
@@ -77,6 +78,7 @@ global VoiceHintText := 0  ; 语音输入动画提示文本控件
 global VoiceAnimationText := 0  ; 语音输入/搜索动画文本控件
 global VoiceSearchInputEdit := 0  ; 语音搜索输入框控件
 global VoiceSearchEngineButtons := []  ; 搜索引擎按钮数组
+global VoiceSearchInputLastEditTime := 0  ; 输入框最后编辑时间（用于检测用户是否正在输入）
 ; 语音搜索功能
 global VoiceSearchActive := false  ; 语音搜索是否激活
 global VoiceSearchContent := ""  ; 存储语音搜索的内容
@@ -185,6 +187,7 @@ GetText(Key) {
             "no_content", "未检测到新内容",
             "no_clipboard", "请先使用 CapsLock+C 复制内容",
             "clear_all", "清空全部",
+            "clear", "清空",
             "refresh", "刷新",
             "copy_selected", "复制选中",
             "delete_selected", "删除选中",
@@ -246,6 +249,9 @@ GetText(Key) {
             "settings_panel", "🖥️ 面板位置设置",
             "cursor_path", "Cursor 路径:",
             "browse", "浏览...",
+            "capslock_hold_time", "CapsLock 长按时间 (秒):",
+            "capslock_hold_time_hint", "设置长按 CapsLock 键多少秒后弹出快捷操作面板，范围：0.1-5.0 秒，默认：0.5 秒",
+            "capslock_hold_time_error", "CapsLock 长按时间必须在 0.1 到 5.0 秒之间",
             "ai_wait_time", "AI 响应等待时间 (毫秒):",
             "explain_prompt", "解释代码提示词:",
             "refactor_prompt", "重构代码提示词:",
@@ -399,6 +405,7 @@ GetText(Key) {
             "no_content", "No new content detected",
             "no_clipboard", "Please use CapsLock+C to copy content first",
             "clear_all", "Clear All",
+            "clear", "Clear",
             "refresh", "Refresh",
             "copy_selected", "Copy Selected",
             "delete_selected", "Delete Selected",
@@ -460,6 +467,9 @@ GetText(Key) {
             "settings_panel", "🖥️ Panel Position Settings",
             "cursor_path", "Cursor Path:",
             "browse", "Browse...",
+            "capslock_hold_time", "CapsLock Hold Time (seconds):",
+            "capslock_hold_time_hint", "Set how many seconds to hold CapsLock before opening the quick action panel. Range: 0.1-5.0 seconds, Default: 0.5 seconds",
+            "capslock_hold_time_error", "CapsLock hold time must be between 0.1 and 5.0 seconds",
             "ai_wait_time", "AI Response Wait Time (ms):",
             "explain_prompt", "Explain Code Prompt:",
             "refactor_prompt", "Refactor Code Prompt:",
@@ -631,6 +641,7 @@ InitConfig() {
     ; 1. 默认配置
     DefaultCursorPath := "C:\Users\" A_UserName "\AppData\Local\Cursor\Cursor.exe"
     DefaultAISleepTime := 15000
+    DefaultCapsLockHoldTimeSeconds := 0.5  ; 默认长按0.5秒
     ; 根据语言设置使用不同的默认提示词
     DefaultLanguage := IniRead(ConfigFile, "Settings", "Language", "zh")
     if (DefaultLanguage = "en") {
@@ -668,6 +679,7 @@ InitConfig() {
     if !FileExist(ConfigFile) {
         IniWrite(DefaultCursorPath, ConfigFile, "General", "CursorPath")
         IniWrite(DefaultAISleepTime, ConfigFile, "General", "AISleepTime")
+        IniWrite(DefaultCapsLockHoldTimeSeconds, ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
         IniWrite(DefaultLanguage, ConfigFile, "General", "Language")
         
         IniWrite(DefaultPrompt_Explain, ConfigFile, "Prompts", "Explain")
@@ -728,6 +740,9 @@ InitConfig() {
     }
     if (!IsSet(DefaultAISleepTime)) {
         DefaultAISleepTime := 15000
+    }
+    if (!IsSet(DefaultCapsLockHoldTimeSeconds)) {
+        DefaultCapsLockHoldTimeSeconds := 0.5
     }
     if (!IsSet(DefaultLanguage)) {
         DefaultLanguage := "zh"
@@ -795,6 +810,17 @@ InitConfig() {
             ; 兼容旧配置格式，优先读取新格式
             CursorPath := IniRead(ConfigFile, "Settings", "CursorPath", IniRead(ConfigFile, "General", "CursorPath", DefaultCursorPath))
             AISleepTime := Integer(IniRead(ConfigFile, "Settings", "AISleepTime", IniRead(ConfigFile, "General", "AISleepTime", DefaultAISleepTime)))
+            ; 读取CapsLock长按时间（秒），如果未设置则使用默认值
+            if (!IsSet(DefaultCapsLockHoldTimeSeconds)) {
+                DefaultCapsLockHoldTimeSeconds := 0.5
+            }
+            CapsLockHoldTimeSeconds := Float(IniRead(ConfigFile, "Settings", "CapsLockHoldTimeSeconds", DefaultCapsLockHoldTimeSeconds))
+            ; 确保值在合理范围内（0.1秒到5秒）
+            if (CapsLockHoldTimeSeconds < 0.1) {
+                CapsLockHoldTimeSeconds := 0.1
+            } else if (CapsLockHoldTimeSeconds > 5.0) {
+                CapsLockHoldTimeSeconds := 5.0
+            }
             Language := IniRead(ConfigFile, "Settings", "Language", IniRead(ConfigFile, "General", "Language", DefaultLanguage))
             
             ; 读取prompt，如果为空或使用默认值，根据当前语言设置
@@ -920,6 +946,7 @@ InitConfig() {
             ; If config file doesn't exist, use default values directly
             CursorPath := DefaultCursorPath
             AISleepTime := DefaultAISleepTime
+            CapsLockHoldTimeSeconds := DefaultCapsLockHoldTimeSeconds
             Language := DefaultLanguage
             ; 根据当前语言设置默认prompt值
             ChineseDefaultExplain := "解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点"
@@ -939,6 +966,7 @@ InitConfig() {
             HotkeyO := DefaultHotkeyO
             HotkeyQ := DefaultHotkeyQ
             HotkeyZ := DefaultHotkeyZ
+            CapsLockHoldTimeSeconds := DefaultCapsLockHoldTimeSeconds
             PanelScreenIndex := DefaultPanelScreenIndex
             FunctionPanelPos := DefaultFunctionPanelPos
             ConfigPanelPos := DefaultConfigPanelPos
@@ -1103,8 +1131,17 @@ global CapsLockPressTime := 0
     ; 如果在这 300ms 内使用了 CapsLock+ 功能，CapsLock2 会被提前清除
     SetTimer(ClearCapsLock2Timer, -300)
     
-    ; 设置定时器：长按 0.5 秒后自动显示面板（不在语音输入时）
-    SetTimer(ShowPanelTimer, -500)
+    ; 设置定时器：长按指定时间后自动显示面板（不在语音输入时）
+    ; 使用配置的长按时间（秒转换为毫秒）
+    global CapsLockHoldTimeSeconds
+    HoldTimeMs := Round(CapsLockHoldTimeSeconds * 1000)
+    ; 确保时间在合理范围内（100ms到5000ms）
+    if (HoldTimeMs < 100) {
+        HoldTimeMs := 100
+    } else if (HoldTimeMs > 5000) {
+        HoldTimeMs := 5000
+    }
+    SetTimer(ShowPanelTimer, -HoldTimeMs)
     
     ; 等待 CapsLock 释放
     KeyWait("CapsLock")
@@ -1699,6 +1736,7 @@ global CursorPathEdit := 0
 global LangChinese := 0
 global LangEnglish := 0
 global AISleepTimeEdit := 0
+global CapsLockHoldTimeEdit := 0
 global PromptExplainEdit := 0
 global PromptRefactorEdit := 0
 global PromptOptimizeEdit := 0
@@ -1886,6 +1924,23 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
     } else {
         LangEnglish.Value := 1
     }
+    
+    ; CapsLock长按时间设置
+    YPos += 60
+    global CapsLockHoldTimeSeconds, CapsLockHoldTimeEdit
+    LabelCapsLockHoldTime := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("capslock_hold_time"))
+    LabelCapsLockHoldTime.SetFont("s11", "Segoe UI")
+    GeneralTabControls.Push(LabelCapsLockHoldTime)
+    
+    YPos += 30
+    CapsLockHoldTimeEdit := ConfigGUI.Add("Edit", "x" . (X + 30) . " y" . YPos . " w150 h30 vCapsLockHoldTimeEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, CapsLockHoldTimeSeconds)
+    CapsLockHoldTimeEdit.SetFont("s11", "Segoe UI")
+    GeneralTabControls.Push(CapsLockHoldTimeEdit)
+    
+    YPos += 35
+    HintCapsLockHoldTime := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h20 c" . UI_Colors.TextDim, GetText("capslock_hold_time_hint"))
+    HintCapsLockHoldTime.SetFont("s9", "Segoe UI")
+    GeneralTabControls.Push(HintCapsLockHoldTime)
     
     ; 快捷操作按钮配置
     YPos += 60
@@ -3913,7 +3968,7 @@ FilterSettings(SearchText) {
 
 ; ===================== 保存配置函数 =====================
 SaveConfig(*) {
-    global AISleepTimeEdit, PanelScreenRadio
+    global AISleepTimeEdit, PanelScreenRadio, CapsLockHoldTimeEdit
     global CursorPathEdit, PromptExplainEdit, PromptRefactorEdit, PromptOptimizeEdit
     global LangChinese, ConfigFile, GuiID_CursorPanel, GuiID_ConfigGUI
     global ConfigPanelScreenRadio, MsgBoxScreenRadio, VoiceInputScreenRadio, CursorPanelScreenRadio
@@ -3923,6 +3978,15 @@ SaveConfig(*) {
     if (!AISleepTimeEdit || AISleepTimeEdit.Value = "" || !IsNumber(AISleepTimeEdit.Value)) {
         MsgBox(GetText("ai_wait_time_error"), GetText("error"), "Iconx")
         return false
+    }
+    
+    ; 验证CapsLock长按时间
+    if (CapsLockHoldTimeEdit && CapsLockHoldTimeEdit.Value != "") {
+        NewHoldTime := Float(CapsLockHoldTimeEdit.Value)
+        if (!IsNumber(NewHoldTime) || NewHoldTime < 0.1 || NewHoldTime > 5.0) {
+            MsgBox(GetText("capslock_hold_time_error"), GetText("error"), "Iconx")
+            return false
+        }
     }
     
     ; 解析屏幕索引（Radio 按钮组）
@@ -4086,6 +4150,7 @@ SaveConfig(*) {
     ; 更新全局变量
     global CursorPath := CursorPathEdit ? CursorPathEdit.Value : ""
     global AISleepTime := AISleepTimeEdit.Value
+    global CapsLockHoldTimeSeconds := (CapsLockHoldTimeEdit && CapsLockHoldTimeEdit.Value != "") ? Float(CapsLockHoldTimeEdit.Value) : 0.5
     global Prompt_Explain := PromptExplainEdit ? PromptExplainEdit.Value : ""
     global Prompt_Refactor := PromptRefactorEdit ? PromptRefactorEdit.Value : ""
     global Prompt_Optimize := PromptOptimizeEdit ? PromptOptimizeEdit.Value : ""
@@ -4099,6 +4164,7 @@ SaveConfig(*) {
     ; 保存到配置文件
     IniWrite(CursorPath, ConfigFile, "Settings", "CursorPath")
     IniWrite(AISleepTime, ConfigFile, "Settings", "AISleepTime")
+    IniWrite(CapsLockHoldTimeSeconds, ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
     IniWrite(Prompt_Explain, ConfigFile, "Settings", "Prompt_Explain")
     IniWrite(Prompt_Refactor, ConfigFile, "Settings", "Prompt_Refactor")
     IniWrite(Prompt_Optimize, ConfigFile, "Settings", "Prompt_Optimize")
@@ -5746,15 +5812,24 @@ ShowVoiceSearchInputPanel() {
     VoiceSearchInputEdit.SetFont("s12", "Segoe UI")
     ; 添加焦点事件，自动切换到中文输入法
     VoiceSearchInputEdit.OnEvent("Focus", SwitchToChineseIME)
+    ; 添加内容变化事件，记录最后编辑时间（用于检测用户是否正在输入）
+    VoiceSearchInputEdit.OnEvent("Change", UpdateVoiceSearchInputEditTime)
     
-    ; 搜索按钮
+    ; 清空按钮和搜索按钮（并排显示）
     ; 按钮文字颜色：根据主题调整
     global ThemeMode
+    ClearBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    ClearBtn := GuiID_VoiceInput.Add("Text", "x550 y" . YPos . " w40 h40 Center 0x200 c" . ClearBtnTextColor . " Background" . UI_Colors.BtnBg . " vClearBtn", GetText("clear"))
+    ClearBtn.SetFont("s10", "Segoe UI")
+    ClearBtn.OnEvent("Click", ClearVoiceSearchInput)
+    HoverBtn(ClearBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    ; 搜索按钮（在清空按钮下方）
     SearchBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-    SearchBtn := GuiID_VoiceInput.Add("Text", "x550 y" . YPos . " w40 h80 Center 0x200 c" . SearchBtnTextColor . " Background" . UI_Colors.BtnBg . " vSearchBtn", GetText("voice_search_button"))
+    SearchBtn := GuiID_VoiceInput.Add("Text", "x550 y" . (YPos + 40) . " w40 h40 Center 0x200 c" . SearchBtnTextColor . " Background" . UI_Colors.BtnPrimary . " vSearchBtn", GetText("voice_search_button"))
     SearchBtn.SetFont("s11 Bold", "Segoe UI")
     SearchBtn.OnEvent("Click", ExecuteVoiceSearch)
-    HoverBtn(SearchBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    HoverBtn(SearchBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
     
     ; 自动加载选中文本开关
     YPos += 90
@@ -5838,6 +5913,8 @@ ShowVoiceSearchInputPanel() {
     
     ; 确保输入框为空
     VoiceSearchInputEdit.Value := ""
+    ; 重置最后编辑时间
+    global VoiceSearchInputLastEditTime := 0
     
     ; 首先明确停止监听（无论之前状态如何）
     SetTimer(MonitorSelectedText, 0)
@@ -6071,14 +6148,38 @@ MonitorSelectedTextForVoiceInput(*) {
     }
 }
 
+; 更新输入框最后编辑时间（用于检测用户是否正在输入）
+UpdateVoiceSearchInputEditTime(*) {
+    global VoiceSearchInputLastEditTime
+    VoiceSearchInputLastEditTime := A_TickCount
+}
+
 ; 监听选中文本并自动加载到输入框
 MonitorSelectedText(*) {
     global AutoLoadSelectedText, VoiceSearchPanelVisible, GuiID_VoiceInput, VoiceSearchInputEdit
+    global VoiceSearchInputLastEditTime
     
     ; 如果开关未开启或面板未显示，立即停止监听
     if (!AutoLoadSelectedText || !VoiceSearchPanelVisible || !GuiID_VoiceInput) {
         SetTimer(MonitorSelectedText, 0)
         return
+    }
+    
+    ; 检测用户是否正在输入：如果输入框在最近2秒内被编辑过，说明用户正在输入，不自动加载
+    CurrentTime := A_TickCount
+    if (VoiceSearchInputLastEditTime > 0 && (CurrentTime - VoiceSearchInputLastEditTime) < 2000) {
+        ; 用户正在输入（最近2秒内编辑过），不自动加载
+        return
+    }
+    
+    ; 检查输入框是否有内容，如果有内容且不是最近编辑的，也不自动加载（避免覆盖用户已输入的内容）
+    try {
+        if (VoiceSearchInputEdit && VoiceSearchInputEdit.Value != "") {
+            ; 输入框有内容，且不是最近编辑的，不自动加载（避免覆盖用户输入）
+            return
+        }
+    } catch {
+        ; 忽略错误
     }
     
     ; 检查是否有选中的文本
@@ -6093,20 +6194,24 @@ MonitorSelectedText(*) {
         
         ; 检查是否复制成功
         if (ClipWait(0.1) && A_Clipboard != "" && A_Clipboard != OldClipboard) {
-            ; 有选中文本，加载到输入框
+            ; 有选中文本，加载到输入框（只在输入框为空时加载）
             SelectedText := A_Clipboard
             if (SelectedText != "" && StrLen(SelectedText) > 0) {
-                ; 尝试获取输入框控件并更新
+                ; 尝试获取输入框控件并更新（只在输入框为空时更新）
                 try {
                     InputEdit := GuiID_VoiceInput["VoiceSearchInputEdit"]
-                    if (InputEdit && (InputEdit.Value = "" || InputEdit.Value != SelectedText)) {
+                    if (InputEdit && InputEdit.Value = "") {
                         InputEdit.Value := SelectedText
+                        ; 更新编辑时间，避免立即被再次覆盖
+                        VoiceSearchInputLastEditTime := A_TickCount
                     }
                 } catch {
                     ; 如果通过GUI对象获取失败，尝试使用全局变量（备用方案）
                     try {
-                        if (VoiceSearchInputEdit && (VoiceSearchInputEdit.Value = "" || VoiceSearchInputEdit.Value != SelectedText)) {
+                        if (VoiceSearchInputEdit && VoiceSearchInputEdit.Value = "") {
                             VoiceSearchInputEdit.Value := SelectedText
+                            ; 更新编辑时间，避免立即被再次覆盖
+                            VoiceSearchInputLastEditTime := A_TickCount
                         }
                     } catch {
                         ; 忽略错误
@@ -6180,6 +6285,23 @@ CreateToggleSearchEngineHandler(Engine, BtnIndex) {
         }
     }
     return ToggleSearchEngineHandler
+}
+
+; 清空语音搜索输入框
+ClearVoiceSearchInput(*) {
+    global VoiceSearchInputEdit, VoiceSearchPanelVisible
+    
+    if (!VoiceSearchPanelVisible || !VoiceSearchInputEdit) {
+        return
+    }
+    
+    try {
+        VoiceSearchInputEdit.Value := ""
+        ; 重新聚焦到输入框
+        VoiceSearchInputEdit.Focus()
+    } catch as e {
+        ; 忽略错误
+    }
 }
 
 ; 执行语音搜索
