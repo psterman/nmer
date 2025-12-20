@@ -4252,9 +4252,11 @@ ShowConfigGUI() {
     
     ; 添加滚动条样式（WS_VSCROLL | WS_HSCROLL）
     ; GWL_STYLE = -16
-    CurrentStyle := DllCall("user32.dll\GetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -16, "Ptr")
+    ; 【关键修复】在AutoHotkey v2中，使用GetWindowLong和SetWindowLong（自动处理32/64位）
+    ; 注意：在64位系统上，GetWindowLong会自动处理为GetWindowLongPtr
+    CurrentStyle := DllCall("user32.dll\GetWindowLong", "Ptr", ConfigGUI.Hwnd, "Int", -16, "Int")
     NewStyle := CurrentStyle | 0x00200000 | 0x00100000  ; WS_VSCROLL | WS_HSCROLL
-    DllCall("user32.dll\SetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -16, "Ptr", NewStyle, "Ptr")
+    DllCall("user32.dll\SetWindowLong", "Ptr", ConfigGUI.Hwnd, "Int", -16, "Int", NewStyle, "Int")
     DllCall("user32.dll\SetWindowPos", "Ptr", ConfigGUI.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0027, "Int")  ; SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
     
     ; 设置窗口滚动区域（启用滚动条）

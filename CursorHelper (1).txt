@@ -65,8 +65,14 @@ global CursorPanelScreenIndex := 1  ; cursor快捷弹出面板屏幕索引
 global PanelX := -1  ; 自定义 X 坐标（-1 表示使用默认位置）
 global PanelY := -1  ; 自定义 Y 坐标（-1 表示使用默认位置）
 ; 连续复制功能
-global ClipboardHistory := []  ; 存储所有复制的内容
+global ClipboardHistory := []  ; 存储所有复制的内容（兼容旧版本，保留）
+global ClipboardHistory_CtrlC := []  ; 存储 Ctrl+C 复制的内容
+global ClipboardHistory_CapsLockC := []  ; 存储 CapsLock+C 复制的内容
 global GuiID_ClipboardManager := 0  ; 剪贴板管理面板 GUI ID
+global ClipboardCurrentTab := "CtrlC"  ; 当前显示的版块："CtrlC" 或 "CapsLockC"
+global ClipboardCtrlCTab := 0  ; Ctrl+C Tab 控件引用
+global ClipboardCapsLockCTab := 0  ; CapsLock+C Tab 控件引用
+global LastSelectedIndex := 0  ; 最后选中的ListBox项索引，用于刷新后恢复
 ; 语音输入功能
 global VoiceInputActive := false  ; 语音输入是否激活
 global GuiID_VoiceInput := 0  ; 语音输入动画GUI ID
@@ -86,6 +92,9 @@ global SearchEngine := "deepseek"  ; 默认搜索引擎：deepseek, yuanbao, dou
 global VoiceSearchSelecting := false  ; 是否正在选择搜索引擎
 global VoiceSearchPanelVisible := false  ; 语音搜索面板是否显示
 global VoiceSearchSelectedEngines := ["deepseek"]  ; 当前在语音搜索界面中选择的搜索引擎（支持多选）
+global VoiceSearchCurrentCategory := "ai"  ; 当前选中的搜索引擎分类标签
+global VoiceSearchCategoryTabs := []  ; 分类标签按钮数组
+global VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]  ; 启用的搜索标签列表（默认全部启用）
 global AutoLoadSelectedText := false  ; 是否自动加载选中文本到输入框
 global VoiceSearchAutoLoadSwitch := 0  ; 自动加载开关控件（语音搜索）
 global VoiceInputAutoLoadSwitch := 0  ; 自动加载开关控件（语音输入）
@@ -187,12 +196,15 @@ GetText(Key) {
             "no_content", "未检测到新内容",
             "no_clipboard", "请先使用 CapsLock+C 复制内容",
             "clear_all", "清空全部",
+            "clear_selection", "清空选择",
             "clear", "清空",
             "refresh", "刷新",
             "copy_selected", "复制选中",
             "delete_selected", "删除选中",
             "paste_to_cursor", "粘贴到 Cursor",
             "clipboard_hint", "双击项目可复制 | ESC 关闭",
+            "clipboard_tab_ctrlc", "Ctrl+C",
+            "clipboard_tab_capslockc", "CapsLock+C",
             "total_items", "共 {0} 项",
             "confirm_clear", "确定要清空所有剪贴板记录吗？",
             "cleared", "已清空所有记录",
@@ -363,8 +375,164 @@ GetText(Key) {
             "search_engine_wenxin", "文心一言",
             "search_engine_qianwen", "千问",
             "search_engine_kimi", "Kimi",
+            "search_engine_perplexity", "Perplexity",
+            "search_engine_copilot", "Copilot",
+            "search_engine_chatgpt", "ChatGPT",
+            "search_engine_grok", "Grok",
+            "search_engine_you", "You",
+            "search_engine_claude", "Claude",
+            "search_engine_monica", "Monica",
+            "search_engine_webpilot", "WebPilot",
+            ; 学术类搜索引擎
+            "search_engine_zhihu", "知乎",
+            "search_engine_wechat_article", "微信文章搜索",
+            "search_engine_cainiao", "菜鸟编程",
+            "search_engine_gitee", "Gitee",
+            "search_engine_pubscholar", "PubScholar",
+            "search_engine_semantic", "Semantic Scholar",
+            "search_engine_baidu_academic", "百度学术",
+            "search_engine_bing_academic", "微软必应学术",
+            "search_engine_csdn", "CSDN搜索",
+            "search_engine_national_library", "国家图书馆",
+            "search_engine_chaoxing", "超星发现",
+            "search_engine_cnki", "中国知网",
+            "search_engine_wechat_reading", "微信读书",
+            "search_engine_dada", "哒哒文库",
+            "search_engine_patent", "专利检索",
+            "search_engine_ip_office", "国家知识产权局",
+            "search_engine_dedao", "得到",
+            "search_engine_pkmer", "Pkmer知识社区",
+            ; 百度类搜索引擎
+            "search_engine_baidu", "百度",
+            "search_engine_baidu_title", "限定标题搜索",
+            "search_engine_baidu_hanyu", "百度汉语",
+            "search_engine_baidu_wenku", "百度文库",
+            "search_engine_baidu_map", "百度地图",
+            "search_engine_baidu_pdf", "限定搜PDF",
+            "search_engine_baidu_doc", "限定搜DOC",
+            "search_engine_baidu_ppt", "限定搜PPT",
+            "search_engine_baidu_xls", "限定搜XLS",
+            ; 图片类搜索引擎
+            "search_engine_image_aggregate", "搜图聚合搜索",
+            "search_engine_iconfont", "搜矢量图标库",
+            "search_engine_wenxin_image", "文心一言文生图",
+            "search_engine_tiangong_image", "天工文生图",
+            "search_engine_yuanbao_image", "元宝AI画图",
+            "search_engine_tongyi_image", "通义万相文字作画",
+            "search_engine_zhipu_image", "智谱清言AI画图",
+            "search_engine_miaohua", "秒画",
+            "search_engine_keling", "可灵",
+            "search_engine_jimmeng", "即梦AI文生画",
+            "search_engine_baidu_image", "百度图库",
+            "search_engine_shetu", "摄图网",
+            "search_engine_ai_image_lib", "AI图库网站",
+            "search_engine_huaban", "花瓣网",
+            "search_engine_zcool", "站酷",
+            "search_engine_uisdc", "优设网",
+            "search_engine_nipic", "昵图网",
+            "search_engine_qianku", "千库网",
+            "search_engine_qiantu", "千图网",
+            "search_engine_zhongtu", "众图网",
+            "search_engine_miyuan", "觅元素",
+            "search_engine_mizhi", "觅知网",
+            "search_engine_icons", "ICONS",
+            "search_engine_tuxing", "图行天下",
+            "search_engine_xiangsheji", "享设计",
+            "search_engine_bing_image", "必应图片",
+            "search_engine_google_image", "谷歌图片",
+            "search_engine_weibo_image", "微博图片",
+            "search_engine_sogou_image", "搜狗图片",
+            "search_engine_haosou_image", "好搜图片",
+            ; 音频类搜索引擎
+            "search_engine_netease_music", "网易云音乐",
+            "search_engine_tiangong_music", "天工AI音乐",
+            "search_engine_text_to_speech", "文本转语音",
+            "search_engine_speech_to_text", "语音转文本",
+            "search_engine_shetu_music", "摄图背景音乐",
+            "search_engine_qq_music", "QQ音乐",
+            "search_engine_kuwo", "酷我音乐",
+            "search_engine_kugou", "酷狗音乐",
+            "search_engine_qianqian", "千千音乐",
+            "search_engine_ximalaya", "喜马拉雅",
+            "search_engine_5sing", "5sing原创音乐",
+            "search_engine_lossless", "无损音乐吧",
+            "search_engine_erling", "耳聆-音效",
+            ; 视频类搜索引擎
+            "search_engine_douyin", "抖音",
+            "search_engine_yuewen", "悦问",
+            "search_engine_qingying", "清影-AI生视频",
+            "search_engine_tongyi_video", "通义万相视频生成",
+            "search_engine_jimmeng_video", "即梦AI视频生成",
+            "search_engine_youtube", "YouTube",
+            "search_engine_find_lines", "找台词",
+            "search_engine_shetu_video", "摄图视频",
+            "search_engine_yandex", "Yandex",
+            "search_engine_pexels", "Pexels",
+            "search_engine_youku", "优酷",
+            "search_engine_chanjing", "蝉镜",
+            "search_engine_duojia", "度加创作",
+            "search_engine_tencent_zhiying", "腾讯智影",
+            "search_engine_wansheng", "万兴AI剪辑",
+            "search_engine_tencent_video", "腾讯视频",
+            "search_engine_iqiyi", "爱奇艺",
+            ; 图书类搜索引擎
+            "search_engine_duokan", "多看阅读",
+            "search_engine_turing", "图灵社区",
+            "search_engine_panda_book", "熊猫搜书",
+            "search_engine_douban_book", "豆瓣读书",
+            "search_engine_lifelong_edu", "终身教育平台",
+            "search_engine_verypan", "verypan搜",
+            "search_engine_zouddupai", "走读派导航网",
+            "search_engine_gd_library", "广东省立中山图书馆",
+            "search_engine_pansou", "盘搜",
+            "search_engine_zsxq", "知识星球",
+            "search_engine_jiumo", "鸠摩搜书",
+            "search_engine_weibo_book", "微博",
+            ; 比价类搜索引擎
+            "search_engine_jd", "京东",
+            "search_engine_baidu_procure", "百度爱采购",
+            "search_engine_dangdang", "当当",
+            "search_engine_1688", "1688",
+            "search_engine_taobao", "淘宝",
+            "search_engine_tmall", "天猫",
+            "search_engine_pinduoduo", "拼多多",
+            "search_engine_xianyu", "闲鱼",
+            "search_engine_smzdm", "什么值得买",
+            "search_engine_yanxuan", "网易严选",
+            "search_engine_gaide", "盖得排行",
+            "search_engine_suning", "苏宁易购",
+            "search_engine_ebay", "eBay",
+            "search_engine_amazon", "亚马逊",
+            ; 医疗类搜索引擎
+            "search_engine_dxy", "丁香园",
+            "search_engine_left_doctor", "左手医生AI",
+            "search_engine_medisearch", "MediSearch",
+            "search_engine_merck", "默沙东诊疗手册",
+            "search_engine_aplus_medical", "A+医学百科",
+            "search_engine_medical_baike", "医学百科",
+            "search_engine_weiyi", "微医",
+            "search_engine_medlive", "医脉通",
+            "search_engine_xywy", "寻医问药",
+            ; 网盘类搜索引擎
+            "search_engine_pansoso", "盘搜搜",
+            "search_engine_panso", "盘搜Pro",
+            "search_engine_xiaomapan", "小码盘",
+            "search_engine_dashengpan", "大圣盘",
+            "search_engine_miaosou", "秒搜",
+            "search_category_ai", "AI",
+            "search_category_academic", "学术",
+            "search_category_baidu", "百度",
+            "search_category_image", "图片",
+            "search_category_audio", "音频",
+            "search_category_video", "视频",
+            "search_category_book", "图书",
+            "search_category_price", "比价",
+            "search_category_medical", "医疗",
+            "search_category_cloud", "网盘",
             "quick_action_config", "快捷操作按钮配置",
             "quick_action_config_desc", "配置快捷操作面板中的按钮顺序和功能按键（最多5个）",
+            "search_category_config", "搜索标签配置",
+            "search_category_config_desc", "配置语音搜索面板中显示的标签，只有勾选的标签才会显示",
             "quick_action_button", "按钮 {0}",
             "quick_action_type", "功能类型:",
             "quick_action_hotkey", "快捷键:",
@@ -405,12 +573,15 @@ GetText(Key) {
             "no_content", "No new content detected",
             "no_clipboard", "Please use CapsLock+C to copy content first",
             "clear_all", "Clear All",
+            "clear_selection", "Clear Selection",
             "clear", "Clear",
             "refresh", "Refresh",
             "copy_selected", "Copy Selected",
             "delete_selected", "Delete Selected",
             "paste_to_cursor", "Paste to Cursor",
             "clipboard_hint", "Double-click to copy | ESC to close",
+            "clipboard_tab_ctrlc", "Ctrl+C",
+            "clipboard_tab_capslockc", "CapsLock+C",
             "total_items", "Total {0} items",
             "confirm_clear", "Are you sure you want to clear all clipboard records?",
             "cleared", "All records cleared",
@@ -583,8 +754,164 @@ GetText(Key) {
             "search_engine_wenxin", "Wenxin Yiyan",
             "search_engine_qianwen", "Qianwen",
             "search_engine_kimi", "Kimi",
+            "search_engine_perplexity", "Perplexity",
+            "search_engine_copilot", "Copilot",
+            "search_engine_chatgpt", "ChatGPT",
+            "search_engine_grok", "Grok",
+            "search_engine_you", "You",
+            "search_engine_claude", "Claude",
+            "search_engine_monica", "Monica",
+            "search_engine_webpilot", "WebPilot",
+            ; 学术类搜索引擎
+            "search_engine_zhihu", "Zhihu",
+            "search_engine_wechat_article", "WeChat Article",
+            "search_engine_cainiao", "Cainiao Programming",
+            "search_engine_gitee", "Gitee",
+            "search_engine_pubscholar", "PubScholar",
+            "search_engine_semantic", "Semantic Scholar",
+            "search_engine_baidu_academic", "Baidu Academic",
+            "search_engine_bing_academic", "Bing Academic",
+            "search_engine_csdn", "CSDN Search",
+            "search_engine_national_library", "National Library",
+            "search_engine_chaoxing", "Chaoxing Discovery",
+            "search_engine_cnki", "CNKI",
+            "search_engine_wechat_reading", "WeChat Reading",
+            "search_engine_dada", "Dada Wenku",
+            "search_engine_patent", "Patent Search",
+            "search_engine_ip_office", "IP Office",
+            "search_engine_dedao", "Dedao",
+            "search_engine_pkmer", "Pkmer",
+            ; 百度类搜索引擎
+            "search_engine_baidu", "Baidu",
+            "search_engine_baidu_title", "Title Search",
+            "search_engine_baidu_hanyu", "Baidu Hanyu",
+            "search_engine_baidu_wenku", "Baidu Wenku",
+            "search_engine_baidu_map", "Baidu Map",
+            "search_engine_baidu_pdf", "PDF Search",
+            "search_engine_baidu_doc", "DOC Search",
+            "search_engine_baidu_ppt", "PPT Search",
+            "search_engine_baidu_xls", "XLS Search",
+            ; 图片类搜索引擎
+            "search_engine_image_aggregate", "Image Aggregate",
+            "search_engine_iconfont", "Icon Font",
+            "search_engine_wenxin_image", "Wenxin Image",
+            "search_engine_tiangong_image", "Tiangong Image",
+            "search_engine_yuanbao_image", "Yuanbao Image",
+            "search_engine_tongyi_image", "Tongyi Image",
+            "search_engine_zhipu_image", "Zhipu Image",
+            "search_engine_miaohua", "Miaohua",
+            "search_engine_keling", "Keling",
+            "search_engine_jimmeng", "Jimmeng",
+            "search_engine_baidu_image", "Baidu Image",
+            "search_engine_shetu", "Shetu",
+            "search_engine_ai_image_lib", "AI Image Library",
+            "search_engine_huaban", "Huaban",
+            "search_engine_zcool", "Zcool",
+            "search_engine_uisdc", "UISDC",
+            "search_engine_nipic", "Nipic",
+            "search_engine_qianku", "Qianku",
+            "search_engine_qiantu", "Qiantu",
+            "search_engine_zhongtu", "Zhongtu",
+            "search_engine_miyuan", "Miyuan",
+            "search_engine_mizhi", "Mizhi",
+            "search_engine_icons", "ICONS",
+            "search_engine_tuxing", "Tuxing",
+            "search_engine_xiangsheji", "Xiangsheji",
+            "search_engine_bing_image", "Bing Image",
+            "search_engine_google_image", "Google Image",
+            "search_engine_weibo_image", "Weibo Image",
+            "search_engine_sogou_image", "Sogou Image",
+            "search_engine_haosou_image", "Haosou Image",
+            ; 音频类搜索引擎
+            "search_engine_netease_music", "NetEase Music",
+            "search_engine_tiangong_music", "Tiangong Music",
+            "search_engine_text_to_speech", "Text to Speech",
+            "search_engine_speech_to_text", "Speech to Text",
+            "search_engine_shetu_music", "Shetu Music",
+            "search_engine_qq_music", "QQ Music",
+            "search_engine_kuwo", "Kuwo",
+            "search_engine_kugou", "Kugou",
+            "search_engine_qianqian", "Qianqian",
+            "search_engine_ximalaya", "Ximalaya",
+            "search_engine_5sing", "5sing",
+            "search_engine_lossless", "Lossless Music",
+            "search_engine_erling", "Erling",
+            ; 视频类搜索引擎
+            "search_engine_douyin", "Douyin",
+            "search_engine_yuewen", "Yuewen",
+            "search_engine_qingying", "Qingying",
+            "search_engine_tongyi_video", "Tongyi Video",
+            "search_engine_jimmeng_video", "Jimmeng Video",
+            "search_engine_youtube", "YouTube",
+            "search_engine_find_lines", "Find Lines",
+            "search_engine_shetu_video", "Shetu Video",
+            "search_engine_yandex", "Yandex",
+            "search_engine_pexels", "Pexels",
+            "search_engine_youku", "Youku",
+            "search_engine_chanjing", "Chanjing",
+            "search_engine_duojia", "Duojia",
+            "search_engine_tencent_zhiying", "Tencent Zhiying",
+            "search_engine_wansheng", "Wansheng",
+            "search_engine_tencent_video", "Tencent Video",
+            "search_engine_iqiyi", "iQiyi",
+            ; 图书类搜索引擎
+            "search_engine_duokan", "Duokan",
+            "search_engine_turing", "Turing",
+            "search_engine_panda_book", "Panda Book",
+            "search_engine_douban_book", "Douban Book",
+            "search_engine_lifelong_edu", "Lifelong Education",
+            "search_engine_verypan", "Verypan",
+            "search_engine_zouddupai", "Zouddupai",
+            "search_engine_gd_library", "GD Library",
+            "search_engine_pansou", "Pansou",
+            "search_engine_zsxq", "ZSXQ",
+            "search_engine_jiumo", "Jiumo",
+            "search_engine_weibo_book", "Weibo",
+            ; 比价类搜索引擎
+            "search_engine_jd", "JD",
+            "search_engine_baidu_procure", "Baidu Procure",
+            "search_engine_dangdang", "Dangdang",
+            "search_engine_1688", "1688",
+            "search_engine_taobao", "Taobao",
+            "search_engine_tmall", "Tmall",
+            "search_engine_pinduoduo", "Pinduoduo",
+            "search_engine_xianyu", "Xianyu",
+            "search_engine_smzdm", "SMZDM",
+            "search_engine_yanxuan", "Yanxuan",
+            "search_engine_gaide", "Gaide",
+            "search_engine_suning", "Suning",
+            "search_engine_ebay", "eBay",
+            "search_engine_amazon", "Amazon",
+            ; 医疗类搜索引擎
+            "search_engine_dxy", "DXY",
+            "search_engine_left_doctor", "Left Doctor",
+            "search_engine_medisearch", "MediSearch",
+            "search_engine_merck", "Merck Manual",
+            "search_engine_aplus_medical", "A+ Medical",
+            "search_engine_medical_baike", "Medical Baike",
+            "search_engine_weiyi", "Weiyi",
+            "search_engine_medlive", "Medlive",
+            "search_engine_xywy", "XYWY",
+            ; 网盘类搜索引擎
+            "search_engine_pansoso", "Pansoso",
+            "search_engine_panso", "Panso Pro",
+            "search_engine_xiaomapan", "Xiaomapan",
+            "search_engine_dashengpan", "Dashengpan",
+            "search_engine_miaosou", "Miaosou",
+            "search_category_ai", "AI",
+            "search_category_academic", "Academic",
+            "search_category_baidu", "Baidu",
+            "search_category_image", "Image",
+            "search_category_audio", "Audio",
+            "search_category_video", "Video",
+            "search_category_book", "Book",
+            "search_category_price", "Price",
+            "search_category_medical", "Medical",
+            "search_category_cloud", "Cloud",
             "quick_action_config", "Quick Action Button Configuration",
             "quick_action_config_desc", "Configure button order and hotkeys in the quick action panel (max 5)",
+            "search_category_config", "Search Category Configuration",
+            "search_category_config_desc", "Configure which categories are displayed in the voice search panel",
             "quick_action_button", "Button {0}",
             "quick_action_type", "Action Type:",
             "quick_action_hotkey", "Hotkey:",
@@ -702,6 +1029,10 @@ InitConfig() {
         IniWrite("0", ConfigFile, "Settings", "AutoLoadSelectedText")
         IniWrite("1", ConfigFile, "Settings", "AutoUpdateVoiceInput")
         IniWrite("deepseek", ConfigFile, "Settings", "VoiceSearchSelectedEngines")  ; 保存默认选中的搜索引擎
+        
+        ; 保存默认启用的搜索标签（默认全部启用）
+        DefaultEnabledCategories := "ai,academic,baidu,image,audio,video,book,price,medical,cloud"
+        IniWrite(DefaultEnabledCategories, ConfigFile, "Settings", "VoiceSearchEnabledCategories")
         
         IniWrite(DefaultPanelScreenIndex, ConfigFile, "Appearance", "ScreenIndex")
         IniWrite(DefaultFunctionPanelPos, ConfigFile, "Appearance", "FunctionPanelPos")
@@ -896,6 +1227,26 @@ InitConfig() {
                 VoiceSearchSelectedEngines := ["deepseek"]
             }
             
+            ; 加载启用的搜索标签
+            global VoiceSearchEnabledCategories
+            EnabledCategoriesStr := IniRead(ConfigFile, "Settings", "VoiceSearchEnabledCategories", "ai,academic,baidu,image,audio,video,book,price,medical,cloud")
+            if (EnabledCategoriesStr != "") {
+                VoiceSearchEnabledCategories := []
+                CategoriesArray := StrSplit(EnabledCategoriesStr, ",")
+                for Index, Category in CategoriesArray {
+                    Category := Trim(Category)
+                    if (Category != "") {
+                        VoiceSearchEnabledCategories.Push(Category)
+                    }
+                }
+                ; 如果解析后为空，使用默认值
+                if (VoiceSearchEnabledCategories.Length = 0) {
+                    VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+                }
+            } else {
+                VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+            }
+            
             PanelScreenIndex := Integer(IniRead(ConfigFile, "Appearance", "ScreenIndex", DefaultPanelScreenIndex))
             FunctionPanelPos := IniRead(ConfigFile, "Appearance", "FunctionPanelPos", DefaultFunctionPanelPos)
             ConfigPanelPos := IniRead(ConfigFile, "Appearance", "ConfigPanelPos", DefaultConfigPanelPos)
@@ -1018,6 +1369,77 @@ InitConfig() {
 
 InitConfig() ; 启动初始化
 
+; ===================== 剪贴板变化监听 =====================
+; 注意：OnClipboardChange 必须在脚本启动时注册，确保在 InitConfig 之后定义
+; 监听 Ctrl+C 复制操作，自动记录到 Ctrl+C 历史记录
+global LastClipboardContent := ""  ; 记录上次剪贴板内容，避免重复记录
+global CapsLockCopyInProgress := false  ; 标记 CapsLock+C 是否正在进行中
+global CapsLockCopyEndTime := 0  ; CapsLock+C 结束时间，用于延迟检测
+
+; 【关键修复】在 AHK v2 中，调用 OnClipboardChange 注册监听函数
+OnClipboardChange(HandleClipboardChange)
+
+HandleClipboardChange(Type) {
+    ; 只在剪贴板内容变化时触发（不是由 CapsLock+C 触发的）
+    global ClipboardHistory_CtrlC, LastClipboardContent, CapsLockCopyInProgress, CapsLockCopyEndTime
+    
+    ; 如果 CapsLock+C 正在进行中，不记录（避免重复记录）
+    if (CapsLockCopyInProgress) {
+        return
+    }
+    
+    ; 如果 CapsLock+C 刚结束（或处于保护期），也不记录（避免重复记录）
+    CurrentTime := A_TickCount
+    if (CapsLockCopyEndTime > 0 && (CurrentTime < CapsLockCopyEndTime + 2000)) {
+        return
+    }
+    
+    ; 确保 ClipboardHistory_CtrlC 已初始化（使用全局变量）
+    if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
+        ClipboardHistory_CtrlC := []
+    }
+    
+    ; 确保其他全局变量已初始化
+    if (!IsSet(LastClipboardContent)) {
+        LastClipboardContent := ""
+    }
+    
+    ; 获取当前剪贴板内容
+    try {
+        ; 直接读取剪贴板内容，不等待（因为 OnClipboardChange 已经表示剪贴板已变化）
+        CurrentContent := A_Clipboard
+        ; 如果内容为空或与上次相同，不记录
+        if (CurrentContent = "" || CurrentContent = LastClipboardContent) {
+            return
+        }
+        
+        ; 检查内容长度（太短的内容可能是误触）
+        if (StrLen(CurrentContent) < 1) {
+            return
+        }
+        
+        ; 记录到 Ctrl+C 历史记录（限制最多保存100条）
+        ; 使用已声明的全局变量
+        ClipboardHistory_CtrlC.Push(CurrentContent)
+        if (ClipboardHistory_CtrlC.Length > 100) {
+            ClipboardHistory_CtrlC.RemoveAt(1)  ; 删除最旧的记录
+        }
+        
+        ; 更新上次内容
+        LastClipboardContent := CurrentContent
+        
+        ; 如果剪贴板面板正在显示，刷新列表（无论当前Tab是什么）
+        ; 使用 SetTimer 延迟刷新，确保数据已完全更新
+        global GuiID_ClipboardManager
+        if (GuiID_ClipboardManager != 0) {
+            ; 延迟刷新，确保数据已完全更新，同时避免频繁刷新
+            SetTimer(RefreshClipboardListDelayed, -100)
+        }
+    } catch as e {
+        ; 忽略错误（剪贴板可能被其他程序占用）
+    }
+}
+
 ; ===================== 托盘图标配置 =====================
 UpdateTrayMenu() {
     A_TrayMenu.Delete()  ; 清空菜单
@@ -1033,7 +1455,9 @@ UpdateTrayMenu()  ; 初始化托盘菜单
 ; 用于 #HotIf 指令的函数
 GetCapsLockState() {
     global CapsLock
-    return CapsLock
+    ; 检查变量状态或物理按键状态（确保即使变量被清除，物理按键仍能触发）
+    ; 这样即使用户先按 CapsLock 再释放，只要在释放前按了其他键，也能触发
+    return CapsLock || GetKeyState("CapsLock", "P")
 }
 
 ; ===================== 面板可见状态检查函数 =====================
@@ -1047,6 +1471,11 @@ GetPanelVisibleState() {
 ; 定时器函数定义（需要在 CapsLock 处理函数外部定义）
 ClearCapsLock2Timer(*) {
     global CapsLock2 := false
+}
+
+; 延迟清除 CapsLock 变量的函数
+ClearCapsLockTimer(*) {
+    global CapsLock := false
 }
 
 ShowPanelTimer(*) {
@@ -1150,8 +1579,16 @@ global CapsLockPressTime := 0
     SetTimer(ClearCapsLock2Timer, 0)
     SetTimer(ShowPanelTimer, 0)
     
-    ; CapsLock 最优先置空，来关闭 CapsLock+ 功能的触发
-    CapsLock := false
+    ; 延迟清除 CapsLock 变量，给快捷键处理函数足够的时间
+    ; 如果 CapsLock2 已被清除（说明使用了功能），延迟清除 CapsLock
+    ; 如果 CapsLock2 仍为 true（说明没有使用功能），立即清除 CapsLock
+    if (!CapsLock2) {
+        ; 使用了功能，延迟清除 CapsLock（给快捷键处理函数时间）
+        SetTimer(ClearCapsLockTimer, -100)
+    } else {
+        ; 没有使用功能，立即清除 CapsLock
+        CapsLock := false
+    }
     
     ; 如果 CapsLock2 还存在（说明没有使用过 CapsLock+ 功能），就切换大小写
     if (CapsLock2) {
@@ -1837,6 +2274,19 @@ SwitchTab(TabName) {
     switch TabName {
         case "general":
             ShowControls(GeneralTabControls)
+            ; 显示第一个子标签页（如果存在）
+            global GeneralSubTabs
+            if (GeneralSubTabControls && GeneralSubTabs) {
+                ; 找到第一个子标签页
+                FirstKey := ""
+                for Key, TabBtn in GeneralSubTabs {
+                    FirstKey := Key
+                    break
+                }
+                if (FirstKey != "") {
+                    SwitchGeneralSubTab(FirstKey)
+                }
+            }
         case "appearance":
             ShowControls(AppearanceTabControls)
         case "prompts":
@@ -1942,21 +2392,175 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
     HintCapsLockHoldTime.SetFont("s9", "Segoe UI")
     GeneralTabControls.Push(HintCapsLockHoldTime)
     
-    ; 快捷操作按钮配置
-    YPos += 60
-    QuickActionLabel := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h25 c" . UI_Colors.Text, GetText("quick_action_config"))
-    QuickActionLabel.SetFont("s12 Bold", "Segoe UI")
-    GeneralTabControls.Push(QuickActionLabel)
+    ; ========== 横向标签页区域（快捷操作按钮配置和搜索标签配置）==========
+    TabBarY := YPos + 50
+    TabBarHeight := 40
+    TabBarBg := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . TabBarY . " w" . (W - 60) . " h" . TabBarHeight . " Background" . UI_Colors.Sidebar, "")
+    GeneralTabControls.Push(TabBarBg)
     
-    YPos += 30
-    QuickActionDesc := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h20 c" . UI_Colors.TextDim, GetText("quick_action_config_desc"))
-    QuickActionDesc.SetFont("s9", "Segoe UI")
-    GeneralTabControls.Push(QuickActionDesc)
+    ; 创建两个子标签
+    global GeneralSubTabs, GeneralSubTabControls
+    GeneralSubTabs := Map()
+    GeneralSubTabControls := Map()
     
-    ; 创建按钮配置列表容器
-    YPos += 30
-    global QuickActionConfigControls := []
-    CreateQuickActionConfigUI(ConfigGUI, X + 30, YPos, W - 60, GeneralTabControls)
+    ; 子标签列表
+    GeneralSubTabList := [
+        {Key: "quickaction", Name: GetText("quick_action_config")},
+        {Key: "searchcategory", Name: GetText("search_category_config")}
+    ]
+    
+    ; 创建横向标签按钮
+    TabWidth := (W - 60) / GeneralSubTabList.Length
+    TabX := X + 30
+    
+    ; 创建横向标签点击处理函数
+    CreateGeneralSubTabClickHandler(Key) {
+        return (*) => SwitchGeneralSubTab(Key)
+    }
+    
+    for Index, Item in GeneralSubTabList {
+        ; 【关键修复】使用Text控件模拟按钮，确保BackColor在暗色主题中正确生效
+        ; 使用0x200样式（SS_CENTER）使文字居中，配合Background属性设置背景色
+        BtnX := TabX
+        BtnY := TabBarY + 5
+        BtnW := TabWidth - 2
+        BtnH := TabBarHeight - 10
+        
+        ; 【关键修复】为按钮添加边框，使两个按钮在暗色和亮色模式下都能清晰区分
+        ; 上边框
+        TopBorder := ConfigGUI.Add("Text", "x" . BtnX . " y" . BtnY . " w" . BtnW . " h1 Background" . UI_Colors.Border, "")
+        GeneralTabControls.Push(TopBorder)
+        ; 下边框
+        BottomBorder := ConfigGUI.Add("Text", "x" . BtnX . " y" . (BtnY + BtnH - 1) . " w" . BtnW . " h1 Background" . UI_Colors.Border, "")
+        GeneralTabControls.Push(BottomBorder)
+        ; 左边框
+        LeftBorder := ConfigGUI.Add("Text", "x" . BtnX . " y" . BtnY . " w1 h" . BtnH . " Background" . UI_Colors.Border, "")
+        GeneralTabControls.Push(LeftBorder)
+        ; 右边框
+        RightBorder := ConfigGUI.Add("Text", "x" . (BtnX + BtnW - 1) . " y" . BtnY . " w1 h" . BtnH . " Background" . UI_Colors.Border, "")
+        GeneralTabControls.Push(RightBorder)
+        
+        ; 按钮主体（内缩1px以显示边框）
+        TabBtn := ConfigGUI.Add("Text", "x" . (BtnX + 1) . " y" . (BtnY + 1) . " w" . (BtnW - 2) . " h" . (BtnH - 2) . " Center 0x200 c" . UI_Colors.TextDim . " Background" . UI_Colors.Sidebar . " vGeneralSubTab" . Item.Key, Item.Name)
+        TabBtn.SetFont("s10", "Segoe UI")
+        TabBtn.OnEvent("Click", CreateGeneralSubTabClickHandler(Item.Key))
+        ; 【关键修复】悬停效果使用主题颜色
+        HoverBtn(TabBtn, UI_Colors.Sidebar, UI_Colors.BtnHover)
+        GeneralTabControls.Push(TabBtn)
+        GeneralSubTabs[Item.Key] := TabBtn
+        TabX += TabWidth
+    }
+    
+    global GeneralSubTabs := GeneralSubTabs
+    
+    ; 内容区域（显示当前选中的子标签页配置）
+    ContentAreaY := TabBarY + TabBarHeight + 20
+    ContentAreaHeight := H - (ContentAreaY - Y) - 20
+    
+    ; 为每个子标签创建内容面板
+    for Index, Item in GeneralSubTabList {
+        CreateGeneralSubTab(ConfigGUI, X + 30, ContentAreaY, W - 60, ContentAreaHeight + 500, Item)
+    }
+    
+    ; 默认显示第一个子标签页
+    if (GeneralSubTabList.Length > 0) {
+        SwitchGeneralSubTab(GeneralSubTabList[1].Key)
+    }
+}
+
+; ===================== 创建通用子标签页 =====================
+CreateGeneralSubTab(ConfigGUI, X, Y, W, H, Item) {
+    global GeneralTabControls, GeneralSubTabControls, UI_Colors
+    
+    ; 初始化子标签页控件数组
+    if (!GeneralSubTabControls.Has(Item.Key)) {
+        GeneralSubTabControls[Item.Key] := []
+    }
+    
+    ; 创建子标签页面板（默认隐藏，作为背景）
+    SubTabPanel := ConfigGUI.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Background" . UI_Colors.Background . " vGeneralSubTab" . Item.Key . "Panel", "")
+    SubTabPanel.Visible := false
+    GeneralSubTabControls[Item.Key].Push(SubTabPanel)
+    
+    ; 根据子标签类型创建不同的内容
+    switch Item.Key {
+        case "quickaction":
+            ; 快捷操作按钮配置
+            YPos := Y + 20
+            QuickActionDesc := ConfigGUI.Add("Text", "x" . X . " y" . YPos . " w" . W . " h20 c" . UI_Colors.TextDim, GetText("quick_action_config_desc"))
+            QuickActionDesc.SetFont("s9", "Segoe UI")
+            GeneralSubTabControls[Item.Key].Push(QuickActionDesc)
+            
+            YPos += 30
+            global QuickActionConfigControls := []
+            CreateQuickActionConfigUI(ConfigGUI, X, YPos, W, GeneralSubTabControls[Item.Key])
+            
+        case "searchcategory":
+            ; 搜索标签配置
+            YPos := Y + 20
+            SearchCategoryDesc := ConfigGUI.Add("Text", "x" . X . " y" . YPos . " w" . W . " h20 c" . UI_Colors.TextDim, GetText("search_category_config_desc"))
+            SearchCategoryDesc.SetFont("s9", "Segoe UI")
+            GeneralSubTabControls[Item.Key].Push(SearchCategoryDesc)
+            
+            YPos += 30
+            global SearchCategoryConfigControls := []
+            CreateSearchCategoryConfigUI(ConfigGUI, X, YPos, W, GeneralSubTabControls[Item.Key])
+    }
+}
+
+; ===================== 切换通用子标签页 =====================
+SwitchGeneralSubTab(SubTabKey) {
+    global GeneralSubTabs, GeneralSubTabControls, UI_Colors
+    
+    ; 重置所有子标签样式
+    for Key, TabBtn in GeneralSubTabs {
+        if (TabBtn) {
+            try {
+                TabBtn.BackColor := UI_Colors.Sidebar
+                TabBtn.SetFont("s10 c" . UI_Colors.TextDim, "Segoe UI")
+            }
+        }
+    }
+    
+    ; 隐藏所有子标签页内容
+    for Key, Controls in GeneralSubTabControls {
+        if (Controls && Controls.Length > 0) {
+            for Index, Ctrl in Controls {
+                if (Ctrl) {
+                    try {
+                        Ctrl.Visible := false
+                    } catch {
+                        ; 忽略已销毁的控件
+                    }
+                }
+            }
+        }
+    }
+    
+    ; 设置当前子标签样式
+    if (GeneralSubTabs.Has(SubTabKey) && GeneralSubTabs[SubTabKey]) {
+        try {
+            ; 【关键修复】使用Text控件的Background属性设置选中状态的背景色
+            GeneralSubTabs[SubTabKey].BackColor := UI_Colors.TabActive
+            GeneralSubTabs[SubTabKey].SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
+        }
+    }
+    
+    ; 显示当前子标签页内容
+    if (GeneralSubTabControls.Has(SubTabKey)) {
+        Controls := GeneralSubTabControls[SubTabKey]
+        if (Controls && Controls.Length > 0) {
+            for Index, Ctrl in Controls {
+                if (Ctrl) {
+                    try {
+                        Ctrl.Visible := true
+                    } catch {
+                        ; 忽略已销毁的控件
+                    }
+                }
+            }
+        }
+    }
 }
 
 ; ===================== 创建快捷操作按钮配置UI =====================
@@ -2091,6 +2695,111 @@ CreateQuickActionConfigUI(ConfigGUI, X, Y, W, ParentControls) {
     for Index, Ctrl in QuickActionConfigControls {
         ParentControls.Push(Ctrl)
     }
+    
+    ; 返回最后的Y位置，供后续配置使用
+    return ButtonY
+}
+
+; ===================== 创建搜索标签配置UI =====================
+CreateSearchCategoryConfigUI(ConfigGUI, X, Y, W, ParentControls) {
+    global VoiceSearchEnabledCategories, SearchCategoryConfigControls, UI_Colors
+    
+    ; 清空之前的控件
+    if (IsSet(SearchCategoryConfigControls)) {
+        for Index, Ctrl in SearchCategoryConfigControls {
+            try {
+                Ctrl.Destroy()
+            } catch {
+                ; 忽略已销毁的控件
+            }
+        }
+    }
+    SearchCategoryConfigControls := []
+    
+    ; 所有可用的标签
+    AllCategories := [
+        {Key: "ai", Text: GetText("search_category_ai")},
+        {Key: "academic", Text: GetText("search_category_academic")},
+        {Key: "baidu", Text: GetText("search_category_baidu")},
+        {Key: "image", Text: GetText("search_category_image")},
+        {Key: "audio", Text: GetText("search_category_audio")},
+        {Key: "video", Text: GetText("search_category_video")},
+        {Key: "book", Text: GetText("search_category_book")},
+        {Key: "price", Text: GetText("search_category_price")},
+        {Key: "medical", Text: GetText("search_category_medical")},
+        {Key: "cloud", Text: GetText("search_category_cloud")}
+    ]
+    
+    ; 确保 VoiceSearchEnabledCategories 已初始化
+    if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
+        global VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+    }
+    
+    ; 创建复选框（每行2个）
+    CheckboxY := Y
+    CheckboxWidth := (W - 30) / 2  ; 两个复选框，中间间距30
+    CheckboxHeight := 30
+    CheckboxSpacing := 10
+    
+    for Index, Category in AllCategories {
+        ; 计算位置
+        Row := Floor((Index - 1) / 2)
+        Col := Mod((Index - 1), 2)
+        CheckboxX := X + Col * (CheckboxWidth + 30)
+        CurrentY := CheckboxY + Row * (CheckboxHeight + CheckboxSpacing)
+        
+        ; 检查是否启用
+        IsEnabled := (ArrayContainsValue(VoiceSearchEnabledCategories, Category.Key) > 0)
+        
+        ; 创建复选框
+        Checkbox := ConfigGUI.Add("Checkbox", "x" . CheckboxX . " y" . CurrentY . " w" . CheckboxWidth . " h" . CheckboxHeight . " vSearchCategoryCheckbox" . Category.Key . " c" . UI_Colors.Text, Category.Text)
+        Checkbox.SetFont("s10", "Segoe UI")
+        Checkbox.Value := IsEnabled ? 1 : 0
+        Checkbox.BackColor := UI_Colors.Background
+        Checkbox.OnEvent("Click", CreateSearchCategoryCheckboxHandler(Category.Key))
+        SearchCategoryConfigControls.Push(Checkbox)
+        ParentControls.Push(Checkbox)  ; 【关键修复】将复选框添加到父控件列表，确保在标签页切换时正确显示/隐藏
+    }
+}
+
+; ===================== 搜索标签复选框点击处理 =====================
+CreateSearchCategoryCheckboxHandler(CategoryKey) {
+    return (*) => ToggleSearchCategory(CategoryKey)
+}
+
+ToggleSearchCategory(CategoryKey) {
+    global VoiceSearchEnabledCategories, GuiID_ConfigGUI
+    
+    ; 确保数组已初始化
+    if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
+        VoiceSearchEnabledCategories := []
+    }
+    
+    ; 获取复选框状态
+    try {
+        Checkbox := GuiID_ConfigGUI["SearchCategoryCheckbox" . CategoryKey]
+        if (Checkbox && IsObject(Checkbox)) {
+            IsEnabled := (Checkbox.Value = 1)
+            
+            ; 更新启用列表
+            FoundIndex := ArrayContainsValue(VoiceSearchEnabledCategories, CategoryKey)
+            if (IsEnabled && FoundIndex = 0) {
+                ; 启用：添加到列表
+                VoiceSearchEnabledCategories.Push(CategoryKey)
+            } else if (!IsEnabled && FoundIndex > 0) {
+                ; 禁用：从列表移除
+                VoiceSearchEnabledCategories.RemoveAt(FoundIndex)
+            }
+            
+            ; 确保至少有一个标签启用
+            if (VoiceSearchEnabledCategories.Length = 0) {
+                VoiceSearchEnabledCategories.Push("ai")  ; 默认启用AI标签
+                Checkbox.Value := 1
+            }
+        }
+    } catch {
+        ; 忽略错误
+    }
 }
 
 ; ===================== 快捷操作类型改变处理 =====================
@@ -2198,7 +2907,7 @@ RemoveQuickActionButton(Index) {
 
 ; ===================== 刷新快捷操作配置UI =====================
 RefreshQuickActionConfigUI() {
-    global GuiID_ConfigGUI, GeneralTabControls, QuickActionButtons
+    global GuiID_ConfigGUI, GeneralSubTabControls, QuickActionButtons, UI_Colors
     
     if (GuiID_ConfigGUI = 0) {
         return
@@ -2210,49 +2919,54 @@ RefreshQuickActionConfigUI() {
             return
         }
         
-        ; 获取通用标签页的位置和尺寸
-        ; 由于需要重新创建UI，我们需要找到通用标签页的位置
-        ; 这里我们通过查找GeneralTabPanel来获取位置
-        GeneralTabPanel := ConfigGUI["GeneralTabPanel"]
-        if (!GeneralTabPanel) {
+        ; 获取通用子标签页的位置和尺寸
+        ; 查找快捷操作子标签页的面板
+        QuickActionPanel := ConfigGUI["GeneralSubTabquickactionPanel"]
+        if (!QuickActionPanel) {
             return
         }
         
         ; 获取面板位置和尺寸
-        GeneralTabPanel.GetPos(&TabX, &TabY, &TabW, &TabH)
+        QuickActionPanel.GetPos(&TabX, &TabY, &TabW, &TabH)
         
         ; 重新创建快捷操作配置UI
         ; 先销毁旧的控件
         global QuickActionConfigControls
-        for Index, Ctrl in QuickActionConfigControls {
-            try {
-                Ctrl.Destroy()
-            } catch {
-                ; 忽略已销毁的控件
-            }
-        }
-        
-        ; 从GeneralTabControls中移除快捷操作相关的控件
-        NewGeneralTabControls := []
-        for Index, Ctrl in GeneralTabControls {
-            IsQuickActionCtrl := false
-            for J, QACtrl in QuickActionConfigControls {
-                if (Ctrl = QACtrl) {
-                    IsQuickActionCtrl := true
-                    break
+        if (IsSet(QuickActionConfigControls)) {
+            for Index, Ctrl in QuickActionConfigControls {
+                try {
+                    Ctrl.Destroy()
+                } catch {
+                    ; 忽略已销毁的控件
                 }
             }
-            if (!IsQuickActionCtrl) {
-                NewGeneralTabControls.Push(Ctrl)
-            }
         }
-        GeneralTabControls := NewGeneralTabControls
+        
+        ; 从GeneralSubTabControls中移除快捷操作相关的控件
+        if (GeneralSubTabControls.Has("quickaction")) {
+            NewQuickActionControls := []
+            for Index, Ctrl in GeneralSubTabControls["quickaction"] {
+                IsQuickActionCtrl := false
+                if (IsSet(QuickActionConfigControls)) {
+                    for J, QACtrl in QuickActionConfigControls {
+                        if (Ctrl = QACtrl) {
+                            IsQuickActionCtrl := true
+                            break
+                        }
+                    }
+                }
+                if (!IsQuickActionCtrl) {
+                    NewQuickActionControls.Push(Ctrl)
+                }
+            }
+            GeneralSubTabControls["quickaction"] := NewQuickActionControls
+        }
         
         ; 重新创建快捷操作配置UI
-        ; 计算Y位置（在语言设置之后，大约在TabY + 200的位置）
-        ; 需要找到语言设置之后的位置，这里使用固定偏移
-        ; 由于UI结构已简化，高度计算：每个按钮75px，5个按钮共375px
-        CreateQuickActionConfigUI(ConfigGUI, TabX + 30, TabY + 200, TabW - 60, GeneralTabControls)
+        ; Y位置从面板顶部开始，加上描述文字的高度
+        YPos := TabY + 50
+        QuickActionConfigControls := []
+        CreateQuickActionConfigUI(ConfigGUI, TabX, YPos, TabW, GeneralSubTabControls["quickaction"])
     } catch {
         ; 如果更新失败，忽略错误
     }
@@ -2379,6 +3093,23 @@ CreatePromptsTab(ConfigGUI, X, Y, W, H) {
     Label1 := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h25 c" . UI_Colors.Text, GetText("explain_prompt"))
     Label1.SetFont("s11", "Segoe UI")
     PromptsTabControls.Push(Label1)
+    
+    ; 【关键修复】确保提示词文本根据当前语言显示正确的默认值
+    global Language
+    ChineseDefaultExplain := "解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点"
+    ChineseDefaultRefactor := "重构这段代码，遵循PEP8/行业规范，简化冗余逻辑，添加中文注释，保持功能不变"
+    ChineseDefaultOptimize := "分析这段代码的性能瓶颈（时间/空间复杂度），给出优化方案+对比说明，保留原逻辑可读性"
+    
+    ; 如果提示词为空或是中文默认值，根据当前语言设置正确的默认值
+    if (Prompt_Explain = "" || Prompt_Explain = ChineseDefaultExplain) {
+        Prompt_Explain := (Language = "zh") ? ChineseDefaultExplain : GetText("default_prompt_explain")
+    }
+    if (Prompt_Refactor = "" || Prompt_Refactor = ChineseDefaultRefactor) {
+        Prompt_Refactor := (Language = "zh") ? ChineseDefaultRefactor : GetText("default_prompt_refactor")
+    }
+    if (Prompt_Optimize = "" || Prompt_Optimize = ChineseDefaultOptimize) {
+        Prompt_Optimize := (Language = "zh") ? ChineseDefaultOptimize : GetText("default_prompt_optimize")
+    }
     
     YPos += 30
     PromptExplainEdit := ConfigGUI.Add("Edit", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h80 vPromptExplainEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", Prompt_Explain)
@@ -4059,6 +4790,37 @@ SaveConfig(*) {
         NewCursorPanelScreenIndex := 1
     }
     
+    ; 读取搜索标签配置（从复选框读取）
+    global VoiceSearchEnabledCategories
+    if (GuiID_ConfigGUI) {
+        try {
+            ConfigGUI := GuiFromHwnd(GuiID_ConfigGUI)
+            if (ConfigGUI) {
+                AllCategoryKeys := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+                VoiceSearchEnabledCategories := []
+                for Index, CategoryKey in AllCategoryKeys {
+                    try {
+                        Checkbox := ConfigGUI["SearchCategoryCheckbox" . CategoryKey]
+                        if (Checkbox && IsObject(Checkbox) && Checkbox.Value = 1) {
+                            VoiceSearchEnabledCategories.Push(CategoryKey)
+                        }
+                    } catch {
+                        ; 忽略错误
+                    }
+                }
+                ; 确保至少有一个标签启用
+                if (VoiceSearchEnabledCategories.Length = 0) {
+                    VoiceSearchEnabledCategories := ["ai"]
+                }
+            }
+        } catch {
+            ; 如果读取失败，使用默认值
+            if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
+                VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+            }
+        }
+    }
+    
     ; 读取快捷操作按钮配置（从单选按钮读取类型，快捷键根据类型自动确定）
     global QuickActionButtons
     try {
@@ -4134,8 +4896,10 @@ SaveConfig(*) {
     ; 获取主题模式设置
     NewThemeMode := "dark"
     ; 如果外观标签页已创建，从单选按钮读取；否则使用当前主题模式
-    if (IsSet(ThemeLightRadio) && ThemeLightRadio && IsObject(ThemeLightRadio) && ThemeLightRadio.Value) {
+    if (IsSet(ThemeLightRadio) && ThemeLightRadio && IsObject(ThemeLightRadio) && ThemeLightRadio.Value = 1) {
         NewThemeMode := "light"
+    } else if (IsSet(ThemeDarkRadio) && ThemeDarkRadio && IsObject(ThemeDarkRadio) && ThemeDarkRadio.Value = 1) {
+        NewThemeMode := "dark"
     } else {
         ; 如果控件不存在，使用当前主题模式
         global ThemeMode
@@ -4171,6 +4935,11 @@ SaveConfig(*) {
     IniWrite(PanelScreenIndex, ConfigFile, "Panel", "ScreenIndex")
     IniWrite(Language, ConfigFile, "Settings", "Language")
     IniWrite(ThemeMode, ConfigFile, "Settings", "ThemeMode")
+    
+    ; 主题已更改，需要重新创建所有面板以应用新主题
+    ; 注意：这里不立即重新创建，因为用户可能还在查看配置面板
+    ; 主题会在下次打开面板时自动应用
+    
     global AutoLoadSelectedText
     IniWrite(AutoLoadSelectedText ? "1" : "0", ConfigFile, "Settings", "AutoLoadSelectedText")
     IniWrite(FunctionPanelPos, ConfigFile, "Panel", "FunctionPanelPos")
@@ -4187,6 +4956,23 @@ SaveConfig(*) {
     for Index, Button in QuickActionButtons {
         IniWrite(Button.Type, ConfigFile, "QuickActions", "Button" . Index . "Type")
         IniWrite(Button.Hotkey, ConfigFile, "QuickActions", "Button" . Index . "Hotkey")
+    }
+    
+    ; 保存启用的搜索标签配置
+    global VoiceSearchEnabledCategories
+    if (IsSet(VoiceSearchEnabledCategories) && IsObject(VoiceSearchEnabledCategories) && VoiceSearchEnabledCategories.Length > 0) {
+        EnabledCategoriesStr := ""
+        for Index, Category in VoiceSearchEnabledCategories {
+            if (Index > 1) {
+                EnabledCategoriesStr .= ","
+            }
+            EnabledCategoriesStr .= Category
+        }
+        IniWrite(EnabledCategoriesStr, ConfigFile, "Settings", "VoiceSearchEnabledCategories")
+    } else {
+        ; 如果没有启用任何标签，使用默认值
+        DefaultEnabledCategories := "ai,academic,baidu,image,audio,video,book,price,medical,cloud"
+        IniWrite(DefaultEnabledCategories, ConfigFile, "Settings", "VoiceSearchEnabledCategories")
     }
     
     ; 更新托盘菜单（语言可能已改变）
@@ -4257,34 +5043,155 @@ CleanUp() {
 ; ===================== 连续复制功能 =====================
 ; CapsLock+C: 连续复制，将内容添加到历史记录中
 CapsLockCopy() {
-    global CapsLock2, ClipboardHistory
+    global CapsLock2, ClipboardHistory_CapsLockC, CapsLockCopyInProgress, CapsLockCopyEndTime
+    global CapsLock, HotkeyC
+    
+    ; 诊断信息：确认函数被调用
+    ; TrayTip("调试：CapsLockCopy() 函数被调用`n配置的快捷键: " . HotkeyC, "函数调用", "Iconi 2")
+    
+    ; 【关键修复】检查是否在保护期内（标签切换期间）
+    ; 如果 CapsLockCopyEndTime 被设置为未来时间，说明是在标签切换的保护期内，不执行复制
+    ; 这是最优先的检查，确保在标签切换期间不会触发复制
+    if (CapsLockCopyEndTime > A_TickCount) {
+        ; 在保护期内，直接返回，不执行任何复制操作
+        return
+    }
+    
+    ; 【关键修复】如果 CapsLockCopyInProgress 为 true 且 CapsLock 为 false，说明是在标签切换期间，不执行复制
+    ; 这样可以防止点击 CapsLock+C 标签时触发复制操作
+    if (CapsLockCopyInProgress && !CapsLock) {
+        ; 在标签切换期间，直接返回，不执行任何复制操作
+        return
+    }
     
     CapsLock2 := false  ; 清除标记，表示使用了功能
+    ; 确保 CapsLock 变量在复制过程中保持为 true
+    CapsLock := true
+    
+    ; 确保 ClipboardHistory_CapsLockC 已初始化（使用全局变量引用）
+    if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
+        global ClipboardHistory_CapsLockC := []
+    }
+    
+    ; 标记 CapsLock+C 正在进行中，避免 OnClipboardChange 重复记录
+    CapsLockCopyInProgress := true
+    CapsLockCopyEndTime := 0  ; 重置结束时间
     
     ; 保存当前剪贴板内容
     OldClipboard := A_Clipboard
     
     ; 立即执行复制操作，使用 ClipWait 确保稳定性
+    ; 清空剪贴板以便检测复制操作是否成功
     A_Clipboard := ""
+    ; 发送 Ctrl+C 复制命令
     Send("^c")
-    if !ClipWait(0.5) {
-        ; 如果复制失败，恢复旧剪贴板
+    ; 短暂等待，确保复制命令被处理
+    Sleep(50)
+    
+    ; 【环节1】等待复制完成，增加等待时间确保稳定性（从1.0秒增加到2.0秒）
+    if !ClipWait(2.0) {
+        ; 故障：ClipWait 超时 - 2秒内未检测到剪贴板变化
+        ; 可能原因：1) 没有选中文本 2) 应用程序响应慢 3) 剪贴板被占用
         A_Clipboard := OldClipboard
+        CapsLockCopyEndTime := A_TickCount
+        SetTimer(ClearCapsLockCopyFlag, -1500)
+        TrayTip("【故障】复制超时：2秒内未检测到剪贴板变化`n可能原因：未选中文本、应用响应慢或剪贴板被占用", GetText("tip"), "Iconx 3")
         return
     }
     
-    ; 获取新内容
-    NewContent := A_Clipboard
+    ; 【环节2】额外等待，确保剪贴板内容完全准备好
+    Sleep(150)
     
-    ; 如果复制到了新内容且不为空，添加到历史记录
-    if (NewContent != "" && NewContent != OldClipboard && StrLen(NewContent) > 0) {
-        ClipboardHistory.Push(NewContent)
-        
-        ; 显示简短提示，因为这是 CapsLock+C 专门的复制操作，用户需要确认反馈
-        TrayTip(FormatText("copy_success", ClipboardHistory.Length), GetText("tip"), "Iconi 1")
+    ; 【环节3】获取新内容
+    try {
+        NewContent := A_Clipboard
+    } catch as e {
+        ; 故障：获取剪贴板内容异常
+        ; 可能原因：剪贴板格式不支持或剪贴板被其他程序占用
+        A_Clipboard := OldClipboard
+        CapsLockCopyEndTime := A_TickCount
+        SetTimer(ClearCapsLockCopyFlag, -1500)
+        TrayTip("【故障】获取剪贴板内容失败`n错误：" . e.Message . "`n可能原因：剪贴板格式不支持或被占用", GetText("tip"), "Iconx 3")
+        return
     }
     
-    ; 恢复 CapsLock 标记（可选，依据设计需求）
+    ; 【环节4】检查内容是否有效（不为空且长度大于0）
+    if (NewContent != "" && StrLen(NewContent) > 0) {
+        ; 【环节5】添加到 CapsLock+C 历史记录
+        try {
+            ; 确保使用全局变量引用（已在函数开头声明 global）
+            if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
+                global ClipboardHistory_CapsLockC := []
+            }
+            
+            ; 使用已声明的全局变量（已在函数开头声明 global）
+            ClipboardHistory_CapsLockC.Push(NewContent)
+            
+            ; 限制最多保存100条
+            if (ClipboardHistory_CapsLockC.Length > 100) {
+                ClipboardHistory_CapsLockC.RemoveAt(1)  ; 删除最旧的记录
+            }
+            
+            ; 【完全隔离】恢复系统剪贴板到原始内容，不改变系统剪贴板
+            ; 这样 Ctrl+C 和 CapsLock+C 的剪贴板完全隔离
+            A_Clipboard := OldClipboard
+            
+            ; 【成功提示】显示复制成功提示（显示实际保存的数量）
+            SavedCount := ClipboardHistory_CapsLockC.Length
+            TrayTip("【成功】已复制到剪贴板管理（共 " . SavedCount . " 项）", GetText("tip"), "Iconi 1")
+            
+            ; 【环节6】如果剪贴板面板正在显示，刷新列表
+            ; 使用延迟刷新，确保数据已完全更新
+            global GuiID_ClipboardManager
+            if (GuiID_ClipboardManager != 0) {
+                ; 延迟刷新，确保数据已完全更新
+                SetTimer(RefreshClipboardListDelayed, -100)
+            }
+        } catch as e {
+            ; 故障：添加到历史记录失败
+            ; 恢复旧剪贴板
+            A_Clipboard := OldClipboard
+            TrayTip("【故障】添加到剪贴板管理失败`n错误：" . e.Message, GetText("tip"), "Iconx 3")
+        }
+    } else {
+        ; 【警告】内容为空，恢复旧剪贴板
+        A_Clipboard := OldClipboard
+        TrayTip("【警告】复制的内容为空`n请先选中要复制的文本", GetText("tip"), "Iconi 2")
+    }
+    
+    ; 记录结束时间，然后延迟清除标记，确保 OnClipboardChange 不会触发
+    ; 无论是否成功添加内容，都要设置结束时间
+    CapsLockCopyEndTime := A_TickCount
+    SetTimer(ClearCapsLockCopyFlag, -1500)  ; 延迟1.5秒，确保 OnClipboardChange 不会触发
+}
+
+; 清除 CapsLock+C 标记的辅助函数
+ClearCapsLockCopyFlag(*) {
+    global CapsLockCopyInProgress
+    CapsLockCopyInProgress := false
+}
+
+; 恢复 CapsLock 状态的辅助函数（用于标签切换）
+RestoreCapsLockState(*) {
+    global CapsLock, CapsLock2, OldCapsLockForTab, OldCapsLock2ForTab
+    if (IsSet(OldCapsLockForTab)) {
+        CapsLock := OldCapsLockForTab
+    }
+    if (IsSet(OldCapsLock2ForTab)) {
+        CapsLock2 := OldCapsLock2ForTab
+    }
+}
+
+; 恢复 CapsLock+C 复制标记的辅助函数（用于标签切换）
+RestoreCapsLockCopyFlag(*) {
+    global CapsLockCopyInProgress, OldCapsLockCopyInProgress, CapsLockCopyEndTime
+    if (IsSet(OldCapsLockCopyInProgress)) {
+        CapsLockCopyInProgress := OldCapsLockCopyInProgress
+    } else {
+        CapsLockCopyInProgress := false
+    }
+    ; 【关键修复】必须重置 CapsLockCopyEndTime，否则会一直阻止 CapsLock+C
+    CapsLockCopyEndTime := 0
 }
 
 ; 异步处理 (已废弃，改用同步 ClipWait)
@@ -4295,19 +5202,24 @@ ProcessCopyResult(OldClipboard) {
 ; ===================== 合并粘贴功能 =====================
 ; CapsLock+V: 将所有复制的内容合并后粘贴到 Cursor 输入框
 CapsLockPaste() {
-    global CapsLock2, ClipboardHistory, CursorPath, AISleepTime
+    global CapsLock2, ClipboardHistory_CapsLockC, CursorPath, AISleepTime
     
     CapsLock2 := false  ; 清除标记，表示使用了功能
     
+    ; 确保 ClipboardHistory_CapsLockC 已初始化
+    if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
+        global ClipboardHistory_CapsLockC := []
+    }
+    
     ; 如果没有复制任何内容，提示用户
-    if (ClipboardHistory.Length = 0) {
-        TrayTip(GetText("no_clipboard"), GetText("tip"), "Iconi 2")
+    if (ClipboardHistory_CapsLockC.Length = 0) {
+        TrayTip("【警告】剪贴板管理中没有内容`n请先使用 CapsLock+C 复制内容", GetText("tip"), "Iconi 2")
         return
     }
     
     ; 合并所有复制的内容（用换行分隔）
     MergedContent := ""
-    for Index, Content in ClipboardHistory {
+    for Index, Content in ClipboardHistory_CapsLockC {
         if (Index > 1) {
             MergedContent .= "`n`n"  ; 两个换行分隔不同内容
         }
@@ -4342,37 +5254,67 @@ CapsLockPaste() {
                 Sleep(200)
             }
             
+            ; 保存当前剪贴板内容（用于恢复）
+            OldClipboardForPaste := A_Clipboard
+            
             ; 将合并的内容复制到剪贴板
             A_Clipboard := MergedContent
+            ; 等待剪贴板准备好
+            if !ClipWait(1.0) {
+                ; 如果剪贴板设置失败，恢复旧剪贴板
+                A_Clipboard := OldClipboardForPaste
+                TrayTip("【故障】设置剪贴板失败，无法粘贴", GetText("tip"), "Iconx 2")
+                return
+            }
             Sleep(100)
             
             ; 粘贴合并的内容
             Send("^v")
-            Sleep(200)  ; 增加等待时间，确保粘贴完成
+            Sleep(300)  ; 增加等待时间，确保粘贴完成
             
-            ; 粘贴后清空历史记录
-            ClipboardHistory := []
+            ; 粘贴后清空历史记录（只清空 CapsLock+C 的记录）
+            global ClipboardHistory_CapsLockC
+            ItemCount := ClipboardHistory_CapsLockC.Length
+            ClipboardHistory_CapsLockC := []
             
-            TrayTip(GetText("paste_success"), GetText("app_name"), "Iconi 1")
+            ; 恢复原始剪贴板内容（可选，保持合并内容在剪贴板中）
+            ; A_Clipboard := OldClipboardForPaste
+            
+            TrayTip("【成功】已粘贴 " . ItemCount . " 项内容到 Cursor", GetText("tip"), "Iconi 1")
         } else {
             ; 如果 Cursor 未运行，尝试启动
             if (CursorPath != "" && FileExist(CursorPath)) {
                 Run(CursorPath)
                 Sleep(AISleepTime)
                 
+                ; 保存当前剪贴板内容（用于恢复）
+                OldClipboardForPaste := A_Clipboard
+                
                 ; 将合并的内容复制到剪贴板
                 A_Clipboard := MergedContent
+                ; 等待剪贴板准备好
+                if !ClipWait(1.0) {
+                    ; 如果剪贴板设置失败，恢复旧剪贴板
+                    A_Clipboard := OldClipboardForPaste
+                    TrayTip("【故障】设置剪贴板失败，无法粘贴", GetText("tip"), "Iconx 2")
+                    return
+                }
                 Sleep(100)
                 
                 Send("^l")
                 Sleep(400)
                 Send("^v")
-                Sleep(200)
+                Sleep(300)  ; 增加等待时间，确保粘贴完成
                 
-                ; 粘贴后清空历史记录
-                ClipboardHistory := []
+                ; 粘贴后清空历史记录（只清空 CapsLock+C 的记录）
+                global ClipboardHistory_CapsLockC
+                ItemCount := ClipboardHistory_CapsLockC.Length
+                ClipboardHistory_CapsLockC := []
                 
-                TrayTip(GetText("paste_success"), GetText("app_name"), "Iconi 1")
+                ; 恢复原始剪贴板内容（可选，保持合并内容在剪贴板中）
+                ; A_Clipboard := OldClipboardForPaste
+                
+                TrayTip("【成功】已粘贴 " . ItemCount . " 项内容到 Cursor", GetText("tip"), "Iconi 1")
             } else {
                 TrayTip(GetText("cursor_not_running_error"), GetText("error"), "Iconx 2")
             }
@@ -4463,15 +5405,33 @@ ShowClipboardManager() {
         return Btn
     }
     
+    ; ========== Tab 切换区域 ==========
+    global ClipboardCurrentTab
+    ; 确保 ClipboardCurrentTab 有默认值
+    if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
+        ClipboardCurrentTab := "CtrlC"
+    }
+    TabY := 48
+    ; Ctrl+C Tab - 确保可以点击
+    CtrlCTab := GuiID_ClipboardManager.Add("Text", "x20 y" . TabY . " w120 h30 Center 0x200 c" . UI_Colors.Text . " Background" . (ClipboardCurrentTab = "CtrlC" ? UI_Colors.TabActive : UI_Colors.Sidebar) . " vCtrlCTab", GetText("clipboard_tab_ctrlc"))
+    CtrlCTab.SetFont("s10", "Segoe UI")
+    ; 使用明确的点击处理函数，确保可以点击
+    CtrlCTab.OnEvent("Click", SwitchClipboardTabCtrlC)
+    HoverBtn(CtrlCTab, (ClipboardCurrentTab = "CtrlC" ? UI_Colors.TabActive : UI_Colors.Sidebar), UI_Colors.BtnHover)
+    
+    ; CapsLock+C Tab - 防止点击时触发复制操作
+    CapsLockCTab := GuiID_ClipboardManager.Add("Text", "x150 y" . TabY . " w150 h30 Center 0x200 c" . UI_Colors.Text . " Background" . (ClipboardCurrentTab = "CapsLockC" ? UI_Colors.TabActive : UI_Colors.Sidebar) . " vCapsLockCTab", GetText("clipboard_tab_capslockc"))
+    CapsLockCTab.SetFont("s10", "Segoe UI")
+    ; 使用明确的点击处理函数，防止触发复制操作
+    CapsLockCTab.OnEvent("Click", SwitchClipboardTabCapsLockC)
+    HoverBtn(CapsLockCTab, (ClipboardCurrentTab = "CapsLockC" ? UI_Colors.TabActive : UI_Colors.Sidebar), UI_Colors.BtnHover)
+    
     ; 清空按钮
-    CreateFlatBtn(GuiID_ClipboardManager, GetText("clear_all"), 20, 48, 100, 30, ClearAllClipboard)
+    CreateFlatBtn(GuiID_ClipboardManager, GetText("clear_all"), 320, 48, 100, 30, ClearAllClipboard)
     
     ; 统计信息
-    CountText := GuiID_ClipboardManager.Add("Text", "x140 y53 w300 h22 Background" . UI_Colors.Sidebar . " c" . UI_Colors.TextDim, FormatText("total_items", "0"))
+    CountText := GuiID_ClipboardManager.Add("Text", "x430 y53 w150 h22 Background" . UI_Colors.Sidebar . " c" . UI_Colors.TextDim . " vClipboardCountText", FormatText("total_items", "0"))
     CountText.SetFont("s10", "Segoe UI")
-    
-    ; 刷新按钮
-    CreateFlatBtn(GuiID_ClipboardManager, GetText("refresh"), 480, 48, 100, 30, (*) => RefreshClipboardList(), UI_Colors.BtnBg)
     
     ; ========== 列表区域 ==========
     ; 使用深色背景的 ListBox
@@ -4494,87 +5454,599 @@ ShowClipboardManager() {
     HintText := GuiID_ClipboardManager.Add("Text", "x20 y485 w560 h15 c" . UI_Colors.TextDim, GetText("clipboard_hint"))
     HintText.SetFont("s9", "Segoe UI")
     
-    ; 绑定双击事件 (ListBox 需要特殊处理 OnEvent)
+    ; 绑定选中变化和双击事件 (ListBox 需要特殊处理 OnEvent)
+    ; 添加 Change 事件，确保选中状态被正确记录（当选中项改变时触发）
+    ListBox.OnEvent("Change", OnClipboardListBoxChange)
     ListBox.OnEvent("DoubleClick", CopySelectedItem)
     
     ; 绑定 ESC 关闭
     GuiID_ClipboardManager.OnEvent("Escape", CloseClipboardManager)
     
-    ; 保存控件引用
-    global ClipboardListBox := ListBox
-    global ClipboardCountText := CountText
+    ; 确保历史记录数组已初始化
+    if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
+        global ClipboardHistory_CtrlC := []
+    }
+    if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
+        global ClipboardHistory_CapsLockC := []
+    }
     
-    ; 刷新列表
-    RefreshClipboardList()
+    ; 保存控件引用（使用全局声明确保正确保存）
+    global ClipboardListBox, ClipboardCountText, ClipboardCtrlCTab, ClipboardCapsLockCTab
+    ClipboardListBox := ListBox
+    ClipboardCountText := CountText
+    ClipboardCtrlCTab := CtrlCTab
+    ClipboardCapsLockCTab := CapsLockCTab
+    ; 确保 ClipboardCurrentTab 已设置
+    if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
+        global ClipboardCurrentTab := "CtrlC"
+    }
     
     ; 获取屏幕信息并计算位置 (使用 ClipboardPanelPos)
     ScreenInfo := GetScreenInfo(PanelScreenIndex)
     Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, ClipboardPanelPos)
     
+    ; 先显示 GUI，确保控件已准备好
     GuiID_ClipboardManager.Show("w" . PanelWidth . " h" . PanelHeight . " x" . Pos.X . " y" . Pos.Y)
     
     ; 确保窗口在最上层并激活
     WinSetAlwaysOnTop(1, GuiID_ClipboardManager.Hwnd)
     WinActivate(GuiID_ClipboardManager.Hwnd)
+    
+    ; 确保全局变量已正确初始化
+    if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
+        global ClipboardHistory_CtrlC := []
+    }
+    if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
+        global ClipboardHistory_CapsLockC := []
+    }
+    if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
+        global ClipboardCurrentTab := "CtrlC"
+    }
+    
+    ; 短暂延迟，确保 GUI 控件已完全准备好
+    Sleep(50)
+    
+    ; 在 GUI 显示后刷新列表（确保控件已准备好）
+    RefreshClipboardList()
+}
+
+; Ctrl+C 标签点击处理函数
+SwitchClipboardTabCtrlC(*) {
+    ; 直接调用切换函数
+    SwitchClipboardTab("CtrlC")
+}
+
+; CapsLock+C 标签点击处理函数（防止触发复制操作）
+SwitchClipboardTabCapsLockC(*) {
+    ; 【关键修复】在切换标签前，先彻底阻止 CapsLock+C 快捷键触发
+    ; 必须在函数最开始就设置阻止标记，防止任何复制操作
+    global CapsLock, CapsLock2, CapsLockCopyInProgress, CapsLockCopyEndTime
+    global OldCapsLockForTab, OldCapsLock2ForTab, OldCapsLockCopyInProgress
+    
+    ; 【关键修复】立即设置阻止标记，必须在任何其他操作之前（甚至在任何变量声明之前）
+    ; 这是第一行代码，确保阻止标记在所有可能的快捷键处理之前生效
+    
+    ; 保存当前状态（用于后续恢复）
+    OldCapsLockForTab := CapsLock
+    OldCapsLock2ForTab := CapsLock2
+    OldCapsLockCopyInProgress := CapsLockCopyInProgress
+    
+    ; 【关键修复】立即设置阻止标记（必须在保存状态之后立即设置）
+    ; 1. 立即清除 CapsLock 标记，防止触发复制
+    CapsLock := false
+    CapsLock2 := false
+    ; 2. 立即设置 CapsLockCopyInProgress 为 true，防止复制函数执行
+    CapsLockCopyInProgress := true
+    ; 3. 设置一个短暂的未来结束时间（500ms），只保护点击标签的瞬间
+    ; 缩短保护期，确保用户可以在点击标签后正常使用 CapsLock+C
+    CapsLockCopyEndTime := A_TickCount + 500
+    
+    ; 【关键修复】短暂延迟，确保阻止标记已完全生效
+    ; 短暂延迟，确保阻止标记在所有快捷键处理之前生效
+    Sleep(50)  ; 50ms 足够确保阻止标记生效
+    
+    ; 切换标签
+    SwitchClipboardTab("CapsLockC")
+    
+    ; 【关键修复】延迟恢复状态（使用较短的延迟，确保用户可以正常使用）
+    ; 延迟时间要大于 CapsLockCopyEndTime 的设置，确保恢复时已经过了阻止期
+    ; 使用 600ms，确保完全安全且不会影响正常使用
+    SetTimer(RestoreCapsLockState, -600)
+    SetTimer(RestoreCapsLockCopyFlag, -600)
+}
+
+; 切换剪贴板 Tab
+SwitchClipboardTab(TabName) {
+    global ClipboardCurrentTab, ClipboardCtrlCTab, ClipboardCapsLockCTab, UI_Colors
+    global ClipboardListBox, ClipboardCountText, GuiID_ClipboardManager
+    global CapsLock, CapsLock2, CapsLockCopyInProgress, LastSelectedIndex
+    
+    ; 检查 GUI 是否存在
+    if (!GuiID_ClipboardManager) {
+        ; 如果 GUI 对象不存在，尝试重新创建
+        try {
+            ShowClipboardManager()
+            ; 等待 GUI 创建完成
+            Sleep(100)
+        } catch {
+            return
+        }
+    }
+    
+    ; 验证 TabName 参数
+    if (TabName != "CtrlC" && TabName != "CapsLockC") {
+        return
+    }
+    
+    ; 切换标签时，清除之前保存的选中索引（因为不同标签的数据不同）
+    LastSelectedIndex := 0
+    
+    ; 注意：如果是从 SwitchClipboardTabCapsLockC 调用的，状态已经在那个函数中设置了
+    ; 这里只处理从 SwitchClipboardTabCtrlC 调用的情况
+    if (TabName = "CtrlC") {
+        ; 【关键修复】点击CtrlC标签时，只需要清除CapsLock标记防止触发CapsLock+C
+        ; 但**不应该**设置CapsLockCopyInProgress，因为这会阻止Ctrl+C的记录
+        ; 用户点击CtrlC标签就是为了查看Ctrl+C的历史记录，不应该阻止新记录
+        global OldCapsLockForTab, OldCapsLock2ForTab
+        OldCapsLockForTab := CapsLock
+        OldCapsLock2ForTab := CapsLock2
+        CapsLock := false
+        CapsLock2 := false
+        
+        ; 【重要】不设置CapsLockCopyInProgress，允许Ctrl+C正常记录
+        ; 只需要短暂延迟恢复CapsLock状态，防止点击时触发CapsLock+C
+        ; 使用较短的延迟时间（50ms），确保不会影响正常的Ctrl+C操作
+        SetTimer(RestoreCapsLockState, -50)
+    }
+    
+    ; 尝试获取GUI对象（GuiID_ClipboardManager 应该是 Gui 对象，不是 Hwnd）
+    ClipboardGUI := ""
+    try {
+        ; 如果 GuiID_ClipboardManager 是 Gui 对象，直接使用
+        if (IsObject(GuiID_ClipboardManager) && GuiID_ClipboardManager.HasProp("Hwnd")) {
+            ClipboardGUI := GuiID_ClipboardManager
+        } else {
+            ; 否则尝试从 Hwnd 获取
+            ClipboardGUI := GuiFromHwnd(GuiID_ClipboardManager)
+        }
+        if (ClipboardGUI) {
+            ; 如果控件引用丢失，尝试重新获取
+            if (!ClipboardCtrlCTab || !IsObject(ClipboardCtrlCTab)) {
+                try {
+                    ClipboardCtrlCTab := ClipboardGUI["CtrlCTab"]
+                    ; 确保事件绑定正确
+                    if (ClipboardCtrlCTab && IsObject(ClipboardCtrlCTab)) {
+                        ClipboardCtrlCTab.OnEvent("Click", SwitchClipboardTabCtrlC)
+                    }
+                } catch {
+                    ; 忽略错误
+                }
+            }
+            if (!ClipboardCapsLockCTab || !IsObject(ClipboardCapsLockCTab)) {
+                try {
+                    ClipboardCapsLockCTab := ClipboardGUI["CapsLockCTab"]
+                    ; 确保事件绑定正确
+                    if (ClipboardCapsLockCTab && IsObject(ClipboardCapsLockCTab)) {
+                        ClipboardCapsLockCTab.OnEvent("Click", SwitchClipboardTabCapsLockC)
+                    }
+                } catch {
+                    ; 忽略错误
+                }
+            }
+            ; 同时更新其他控件引用
+            if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
+                try {
+                    ClipboardListBox := ClipboardGUI["ClipboardListBox"]
+                } catch {
+                    ; 忽略错误
+                }
+            }
+            if (!ClipboardCountText || !IsObject(ClipboardCountText)) {
+                try {
+                    ClipboardCountText := ClipboardGUI["ClipboardCountText"]
+                } catch {
+                    ; 忽略错误
+                }
+            }
+        }
+    } catch {
+        ; 忽略错误
+    }
+    
+    ; 更新当前标签（必须在更新样式之前）
+    ClipboardCurrentTab := TabName
+    
+    ; 【关键修复】在切换标签时，彻底清空列表，确保不会显示旧标签的数据
+    ; 这解决了两个标签共用内容框的问题
+    try {
+        if (ClipboardListBox && IsObject(ClipboardListBox)) {
+            ; 【改进】使用更可靠的清空方法，确保列表完全清空
+            ; 方法1：从后往前删除
+            Loop 200 {  ; 最多尝试200次，防止无限循环
+                try {
+                    CurrentList := ClipboardListBox.List
+                    if (!CurrentList || CurrentList.Length = 0) {
+                        break
+                    }
+                    ; 从后往前删除，避免索引变化
+                    ClipboardListBox.Delete(CurrentList.Length)
+                } catch {
+                    break
+                }
+            }
+            
+            ; 方法2：从前往后删除（双重保险）
+            Loop 200 {  ; 最多尝试200次
+                try {
+                    CurrentList := ClipboardListBox.List
+                    if (!CurrentList || CurrentList.Length = 0) {
+                        break
+                    }
+                    ClipboardListBox.Delete(1)
+                } catch {
+                    break
+                }
+            }
+            
+            ; 方法3：最终验证，确保列表为空
+            try {
+                FinalCheck := ClipboardListBox.List
+                if (FinalCheck && FinalCheck.Length > 0) {
+                    ; 如果还有项，强制清空
+                    Loop FinalCheck.Length {
+                        try {
+                            ClipboardListBox.Delete(1)
+                        } catch {
+                            break
+                        }
+                    }
+                }
+            } catch {
+                ; 忽略最终检查错误
+            }
+            
+            ; 【关键】强制刷新UI，确保视觉上立即清空
+            try {
+                if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
+                    WinRedraw(GuiID_ClipboardManager.Hwnd)
+                }
+            } catch {
+                ; 忽略重绘失败
+            }
+        }
+    } catch {
+        ; 忽略清空错误，继续执行
+    }
+    
+    ; 更新 Tab 样式
+    try {
+        ; 先尝试使用现有的控件引用
+        if (ClipboardCtrlCTab && IsObject(ClipboardCtrlCTab)) {
+            if (TabName = "CtrlC") {
+                ClipboardCtrlCTab.BackColor := UI_Colors.TabActive
+            } else {
+                ClipboardCtrlCTab.BackColor := UI_Colors.Sidebar
+            }
+        }
+        
+        if (ClipboardCapsLockCTab && IsObject(ClipboardCapsLockCTab)) {
+            if (TabName = "CapsLockC") {
+                ClipboardCapsLockCTab.BackColor := UI_Colors.TabActive
+            } else {
+                ClipboardCapsLockCTab.BackColor := UI_Colors.Sidebar
+            }
+        }
+        
+        ; 如果控件引用丢失，尝试从GUI重新获取
+        if ((!ClipboardCtrlCTab || !IsObject(ClipboardCtrlCTab) || !ClipboardCapsLockCTab || !IsObject(ClipboardCapsLockCTab)) && ClipboardGUI) {
+            try {
+                if (!ClipboardCtrlCTab || !IsObject(ClipboardCtrlCTab)) {
+                    TempCtrlCTab := ClipboardGUI["CtrlCTab"]
+                    if (TempCtrlCTab && IsObject(TempCtrlCTab)) {
+                        ClipboardCtrlCTab := TempCtrlCTab
+                        if (TabName = "CtrlC") {
+                            ClipboardCtrlCTab.BackColor := UI_Colors.TabActive
+                        } else {
+                            ClipboardCtrlCTab.BackColor := UI_Colors.Sidebar
+                        }
+                    }
+                }
+                
+                if (!ClipboardCapsLockCTab || !IsObject(ClipboardCapsLockCTab)) {
+                    TempCapsLockCTab := ClipboardGUI["CapsLockCTab"]
+                    if (TempCapsLockCTab && IsObject(TempCapsLockCTab)) {
+                        ClipboardCapsLockCTab := TempCapsLockCTab
+                        if (TabName = "CapsLockC") {
+                            ClipboardCapsLockCTab.BackColor := UI_Colors.TabActive
+                        } else {
+                            ClipboardCapsLockCTab.BackColor := UI_Colors.Sidebar
+                        }
+                    }
+                }
+            } catch {
+                ; 忽略错误，继续执行
+            }
+        }
+    } catch {
+        ; 忽略样式更新错误，继续执行
+    }
+    
+    ; 刷新列表（无论样式更新是否成功，都要刷新列表）
+    RefreshClipboardList()
+}
+
+; 延迟刷新剪贴板列表（用于 OnClipboardChange 等场景）
+RefreshClipboardListDelayed(*) {
+    RefreshClipboardList()
 }
 
 ; 刷新剪贴板列表
 RefreshClipboardList() {
-    global ClipboardHistory, ClipboardListBox, ClipboardCountText, GuiID_ClipboardManager
+    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
+    global ClipboardListBox, ClipboardCountText, GuiID_ClipboardManager
     
-    ; 检查控件是否存在且 GUI 未销毁
-    if (!ClipboardListBox || !ClipboardCountText || !GuiID_ClipboardManager) {
+    ; 确保全局变量已初始化
+    if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
+        ClipboardHistory_CtrlC := []
+    }
+    if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
+        ClipboardHistory_CapsLockC := []
+    }
+    if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
+        ClipboardCurrentTab := "CtrlC"
+    }
+    
+    ; 检查 GUI 是否存在
+    if (!GuiID_ClipboardManager) {
+        return
+    }
+    
+    ; 如果控件引用丢失，尝试获取GUI对象并重新获取控件
+    if (!ClipboardListBox || !IsObject(ClipboardListBox) || !ClipboardCountText || !IsObject(ClipboardCountText)) {
+        try {
+            ; 尝试获取GUI对象
+            ClipboardGUI := ""
+            if (IsObject(GuiID_ClipboardManager) && GuiID_ClipboardManager.HasProp("Hwnd")) {
+                ClipboardGUI := GuiID_ClipboardManager
+            } else {
+                ClipboardGUI := GuiFromHwnd(GuiID_ClipboardManager)
+            }
+            if (ClipboardGUI) {
+                ; 如果控件引用丢失，尝试重新获取
+                if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
+                    try {
+                        ClipboardListBox := ClipboardGUI["ClipboardListBox"]
+                    } catch {
+                        ; 如果无法获取，返回
+                        return
+                    }
+                }
+                if (!ClipboardCountText || !IsObject(ClipboardCountText)) {
+                    try {
+                        ClipboardCountText := ClipboardGUI["ClipboardCountText"]
+                    } catch {
+                        ; 如果无法获取，返回
+                        return
+                    }
+                }
+            } else {
+                ; 如果无法获取GUI对象，但控件引用存在，继续使用现有引用
+                if (!ClipboardListBox || !IsObject(ClipboardListBox) || !ClipboardCountText || !IsObject(ClipboardCountText)) {
+                    return
+                }
+            }
+        } catch {
+            ; 如果出错，但控件引用存在，继续使用现有引用
+            if (!ClipboardListBox || !IsObject(ClipboardListBox) || !ClipboardCountText || !IsObject(ClipboardCountText)) {
+                return
+            }
+        }
+    }
+    
+    ; 检查控件是否存在
+    if (!ClipboardListBox || !ClipboardCountText) {
         return
     }
     
     try {
-        ; 获取当前列表项（通过 List 属性）
-        ; 在 AutoHotkey v2 中，List 属性返回数组
-        try {
-            CurrentList := ClipboardListBox.List
-            ListCount := CurrentList ? CurrentList.Length : 0
-        } catch {
-            ListCount := 0
+        ; 确保历史记录数组已初始化（使用全局声明确保正确访问）
+        if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
+            global ClipboardHistory_CtrlC := []
+        }
+        if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
+            global ClipboardHistory_CapsLockC := []
         }
         
-        ; 从后往前删除所有项（避免索引变化问题）
-        if (ListCount > 0) {
-            Loop ListCount {
+        ; 【关键修复】确保 ClipboardCurrentTab 有默认值，但不覆盖已设置的值
+        ; 只在未设置或为空时才设置默认值，避免覆盖正确的标签值
+        if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
+            ClipboardCurrentTab := "CtrlC"
+        }
+        
+        ; 【关键修复】使用局部变量保存当前标签值，避免在函数执行过程中被修改
+        CurrentTabName := ClipboardCurrentTab
+        
+        ; 根据当前 Tab 选择对应的历史记录（直接使用全局变量，确保引用正确）
+        ; 【关键修复】直接使用全局变量引用，不要创建局部副本
+        CurrentHistory := []
+        HistoryLength := 0
+        
+        ; 【关键修复】使用保存的 CurrentTabName，确保使用正确的标签值
+        if (CurrentTabName = "CtrlC") {
+            ; 直接使用全局变量 ClipboardHistory_CtrlC
+            if (IsSet(ClipboardHistory_CtrlC) && IsObject(ClipboardHistory_CtrlC)) {
+                ; 【关键】直接使用全局数组，不创建副本
+                CurrentHistory := ClipboardHistory_CtrlC
+                HistoryLength := ClipboardHistory_CtrlC.Length
+            } else {
+                CurrentHistory := []
+                HistoryLength := 0
+            }
+        } else if (CurrentTabName = "CapsLockC") {
+            ; 直接使用全局变量 ClipboardHistory_CapsLockC
+            if (IsSet(ClipboardHistory_CapsLockC) && IsObject(ClipboardHistory_CapsLockC)) {
+                ; 【关键】直接使用全局数组，不创建副本
+                CurrentHistory := ClipboardHistory_CapsLockC
+                HistoryLength := ClipboardHistory_CapsLockC.Length
+            } else {
+                CurrentHistory := []
+                HistoryLength := 0
+            }
+        } else {
+            ; 默认使用 CtrlC
+            if (IsSet(ClipboardHistory_CtrlC) && IsObject(ClipboardHistory_CtrlC)) {
+                CurrentHistory := ClipboardHistory_CtrlC
+                HistoryLength := ClipboardHistory_CtrlC.Length
+            } else {
+                CurrentHistory := []
+                HistoryLength := 0
+            }
+        }
+        
+        ; 确保 CurrentHistory 是有效的数组
+        if (!IsObject(CurrentHistory)) {
+            CurrentHistory := []
+            HistoryLength := 0
+        }
+        
+        ; 清空列表（使用更可靠的方法）
+        ; 在 AutoHotkey v2 中，可以通过删除所有项来清空列表
+        try {
+            ; 方法1：尝试使用 List 属性获取并删除所有项
+            Loop {
                 try {
-                    ClipboardListBox.Delete(ListCount - A_Index + 1)
+                    CurrentList := ClipboardListBox.List
+                    if (!CurrentList || CurrentList.Length = 0) {
+                        break
+                    }
+                    ; 从后往前删除，避免索引变化
+                    ClipboardListBox.Delete(CurrentList.Length)
                 } catch {
-                    ; 如果删除失败，继续尝试
-                    continue
+                    ; 如果删除失败，尝试其他方法
+                    break
                 }
             }
+            
+            ; 方法2：确保列表已完全清空（双重检查）
+            Loop 100 {  ; 最多尝试100次，防止无限循环
+                try {
+                    CurrentList := ClipboardListBox.List
+                    if (!CurrentList || CurrentList.Length = 0) {
+                        break
+                    }
+                    ; 删除第一项
+                    ClipboardListBox.Delete(1)
+                } catch {
+                    break
+                }
+            }
+            
+            ; 方法3：最终检查，确保列表为空
+            try {
+                FinalList := ClipboardListBox.List
+                if (FinalList && FinalList.Length > 0) {
+                    ; 如果还有项，强制清空（使用循环删除）
+                    Loop FinalList.Length {
+                        try {
+                            ClipboardListBox.Delete(1)
+                        } catch {
+                            break
+                        }
+                    }
+                }
+            } catch {
+                ; 忽略最终检查错误
+            }
+        } catch {
+            ; 如果清空失败，尝试重新创建控件（最后手段）
+            ; 这里不重新创建，只是忽略错误
         }
         
         ; 添加所有历史记录（显示前80个字符作为预览）
         Items := []
-        for Index, Content in ClipboardHistory {
-            ; 处理换行和特殊字符，创建预览文本
-            Preview := StrReplace(Content, "`r`n", " ")
-            Preview := StrReplace(Preview, "`n", " ")
-            Preview := StrReplace(Preview, "`r", " ")
-            Preview := StrReplace(Preview, "`t", " ")
-            
-            ; 限制预览长度
-            if (StrLen(Preview) > 80) {
-                Preview := SubStr(Preview, 1, 80) . "..."
+        ; 直接使用全局变量，确保数据正确
+        if (HistoryLength > 0) {
+            for Index, Content in CurrentHistory {
+                ; 确保 Content 是字符串
+                if (Content = "") {
+                    continue
+                }
+                
+                ; 处理换行和特殊字符，创建预览文本
+                Preview := StrReplace(Content, "`r`n", " ")
+                Preview := StrReplace(Preview, "`n", " ")
+                Preview := StrReplace(Preview, "`r", " ")
+                Preview := StrReplace(Preview, "`t", " ")
+                
+                ; 限制预览长度
+                if (StrLen(Preview) > 80) {
+                    Preview := SubStr(Preview, 1, 80) . "..."
+                }
+                
+                ; 添加序号和预览
+                DisplayText := "[" . Index . "] " . Preview
+                Items.Push(DisplayText)
             }
-            
-            ; 添加序号和预览
-            DisplayText := "[" . Index . "] " . Preview
-            Items.Push(DisplayText)
+        }
+        
+        ; 保存刷新前的选中索引
+        global LastSelectedIndex
+        PreviousSelectedIndex := 0
+        try {
+            if (IsSet(LastSelectedIndex) && LastSelectedIndex > 0) {
+                PreviousSelectedIndex := LastSelectedIndex
+            }
+        } catch {
+            PreviousSelectedIndex := 0
         }
         
         ; 批量添加项目
         if (Items.Length > 0) {
-            ClipboardListBox.Add(Items)
+            try {
+                ClipboardListBox.Add(Items)
+            } catch {
+                ; 如果批量添加失败，尝试逐个添加
+                for Index, Item in Items {
+                    try {
+                        ClipboardListBox.Add(Item)
+                    } catch {
+                        ; 忽略单个项目添加失败
+                        continue
+                    }
+                }
+            }
         }
         
-    ; 更新统计信息
-    ClipboardCountText.Text := FormatText("total_items", ClipboardHistory.Length)
+        ; 尝试恢复之前的选中状态
+        if (PreviousSelectedIndex > 0 && PreviousSelectedIndex <= HistoryLength) {
+            try {
+                ClipboardListBox.Value := PreviousSelectedIndex
+                LastSelectedIndex := PreviousSelectedIndex
+            } catch {
+                ; 如果恢复失败，清除保存的索引
+                LastSelectedIndex := 0
+            }
+        } else {
+            ; 如果没有有效的选中项，清除保存的索引
+            LastSelectedIndex := 0
+        }
+        
+        ; 更新统计信息（使用实际的历史记录长度）
+        try {
+            ClipboardCountText.Text := FormatText("total_items", HistoryLength)
+        } catch {
+            ; 忽略更新统计信息失败
+        }
+        
+        ; 强制刷新UI，确保视觉更新
+        try {
+            if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
+                ; 强制重绘窗口
+                WinRedraw(GuiID_ClipboardManager.Hwnd)
+            }
+        } catch {
+            ; 忽略重绘失败
+        }
     } catch as e {
         ; 如果控件已销毁，静默失败
         return
@@ -4583,74 +6055,330 @@ RefreshClipboardList() {
 
 ; 清空所有剪贴板
 ClearAllClipboard(*) {
-    global ClipboardHistory, ClipboardListBox, ClipboardCountText
+    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
+    global ClipboardListBox, ClipboardCountText
     
     ; 确认对话框
     Result := MsgBox(GetText("confirm_clear"), GetText("confirm"), "YesNo Icon?")
     if (Result = "Yes") {
-        ClipboardHistory := []
+        ; 根据当前 Tab 清空对应的历史记录
+        if (ClipboardCurrentTab = "CtrlC") {
+            ClipboardHistory_CtrlC := []
+        } else {
+            ClipboardHistory_CapsLockC := []
+        }
+        ; 立即刷新列表和计数，确保界面即时更新
         RefreshClipboardList()
+        ; 强制刷新UI，确保视觉更新
+        try {
+            global GuiID_ClipboardManager
+            if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
+                ; 强制重绘窗口
+                WinRedraw(GuiID_ClipboardManager.Hwnd)
+            }
+        } catch {
+            ; 忽略重绘失败
+        }
+        ; 确保刷新完成后再显示提示
+        Sleep(10)
         TrayTip(GetText("cleared"), GetText("tip"), "Iconi 1")
+    }
+}
+
+; ListBox 选中变化事件处理函数（确保选中状态被正确记录）
+OnClipboardListBoxChange(*) {
+    global ClipboardListBox, LastSelectedIndex
+    try {
+        if (ClipboardListBox && IsObject(ClipboardListBox)) {
+            ; 获取当前选中项的索引
+            SelectedIndex := ClipboardListBox.Value
+            ; 确保是整数类型
+            if (Type(SelectedIndex) != "Integer") {
+                if (Type(SelectedIndex) = "String" && SelectedIndex != "") {
+                    try {
+                        SelectedIndex := Integer(SelectedIndex)
+                    } catch {
+                        SelectedIndex := 0
+                    }
+                } else {
+                    SelectedIndex := 0
+                }
+            }
+            ; 保存最后选中的索引，用于刷新后恢复
+            if (SelectedIndex > 0) {
+                LastSelectedIndex := SelectedIndex
+            }
+        }
+    } catch {
+        ; 忽略错误
+    }
+}
+
+; 获取 ListBox 选中项索引的辅助函数
+GetSelectedIndex(ListBox) {
+    if (!ListBox || !IsObject(ListBox)) {
+        return 0
+    }
+    try {
+        ; 方法1：直接获取Value属性
+        SelectedIndex := ListBox.Value
+        
+        ; 确保 SelectedIndex 是数字类型
+        if (Type(SelectedIndex) != "Integer") {
+            if (Type(SelectedIndex) = "String" && SelectedIndex != "") {
+                ; 尝试转换为整数
+                try {
+                    SelectedIndex := Integer(SelectedIndex)
+                } catch {
+                    SelectedIndex := 0
+                }
+            } else {
+                SelectedIndex := 0
+            }
+        }
+        
+        ; 如果Value为0，尝试使用最后保存的选中索引
+        if (SelectedIndex <= 0) {
+            global LastSelectedIndex
+            if (IsSet(LastSelectedIndex) && LastSelectedIndex > 0) {
+                ; 验证保存的索引是否仍然有效
+                try {
+                    ListItems := ListBox.List
+                    if (ListItems && LastSelectedIndex <= ListItems.Length) {
+                        ; 恢复选中状态
+                        ListBox.Value := LastSelectedIndex
+                        SelectedIndex := LastSelectedIndex
+                    }
+                } catch {
+                    ; 忽略错误
+                }
+            }
+        }
+        
+        return SelectedIndex
+    } catch {
+        return 0
     }
 }
 
 ; 复制选中项
 CopySelectedItem(*) {
-    global ClipboardHistory, ClipboardListBox, GuiID_ClipboardManager
+    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
+    global ClipboardListBox, GuiID_ClipboardManager
     
-    if (!ClipboardListBox || !GuiID_ClipboardManager) {
+    if (!GuiID_ClipboardManager) {
+        return
+    }
+    
+    ; 如果控件引用丢失，尝试重新获取
+    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
+        try {
+            ClipboardGUI := GuiFromHwnd(GuiID_ClipboardManager)
+            if (ClipboardGUI) {
+                ClipboardListBox := ClipboardGUI["ClipboardListBox"]
+            }
+        } catch {
+            return
+        }
+    }
+    
+    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
         return
     }
     
     try {
-        SelectedIndex := ClipboardListBox.Value
-        if (SelectedIndex > 0 && SelectedIndex <= ClipboardHistory.Length) {
-            A_Clipboard := ClipboardHistory[SelectedIndex]
+        ; 确保全局变量已初始化
+        if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
+            global ClipboardHistory_CtrlC := []
+        }
+        if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
+            global ClipboardHistory_CapsLockC := []
+        }
+        if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
+            global ClipboardCurrentTab := "CtrlC"
+        }
+        
+        ; 根据当前 Tab 选择对应的历史记录（直接使用全局变量引用）
+        CurrentHistory := []
+        if (ClipboardCurrentTab = "CtrlC") {
+            if (IsSet(ClipboardHistory_CtrlC) && IsObject(ClipboardHistory_CtrlC)) {
+                CurrentHistory := ClipboardHistory_CtrlC
+            }
+        } else {
+            if (IsSet(ClipboardHistory_CapsLockC) && IsObject(ClipboardHistory_CapsLockC)) {
+                CurrentHistory := ClipboardHistory_CapsLockC
+            }
+        }
+        
+        ; 获取选中项的索引
+        SelectedIndex := GetSelectedIndex(ClipboardListBox)
+        
+        ; 验证索引有效性
+        if (SelectedIndex > 0 && SelectedIndex <= CurrentHistory.Length) {
+            A_Clipboard := CurrentHistory[SelectedIndex]
             TrayTip(GetText("copied"), GetText("tip"), "Iconi 1")
         } else {
             TrayTip(FormatText("select_first", GetText("copy")), GetText("tip"), "Iconi 1")
         }
-    } catch {
-        TrayTip(GetText("operation_failed"), GetText("error"), "Iconx 1")
+    } catch as e {
+        TrayTip(GetText("operation_failed") . ": " . e.Message, GetText("error"), "Iconx 1")
     }
 }
 
 ; 删除选中项
 DeleteSelectedItem(*) {
-    global ClipboardHistory, ClipboardListBox, GuiID_ClipboardManager
+    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
+    global ClipboardListBox, GuiID_ClipboardManager
     
-    if (!ClipboardListBox || !GuiID_ClipboardManager) {
+    if (!GuiID_ClipboardManager) {
+        return
+    }
+    
+    ; 如果控件引用丢失，尝试重新获取
+    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
+        try {
+            ClipboardGUI := GuiFromHwnd(GuiID_ClipboardManager)
+            if (ClipboardGUI) {
+                ClipboardListBox := ClipboardGUI["ClipboardListBox"]
+            }
+        } catch {
+            return
+        }
+    }
+    
+    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
         return
     }
     
     try {
-        SelectedIndex := ClipboardListBox.Value
-        if (SelectedIndex > 0 && SelectedIndex <= ClipboardHistory.Length) {
-            ; 从数组中删除（注意：ListBox 的索引从 1 开始，数组索引也从 1 开始）
-            ClipboardHistory.RemoveAt(SelectedIndex)
-            RefreshClipboardList()
-            TrayTip(GetText("deleted"), GetText("tip"), "Iconi 1")
+        ; 确保全局变量已初始化
+        if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
+            global ClipboardHistory_CtrlC := []
+        }
+        if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
+            global ClipboardHistory_CapsLockC := []
+        }
+        if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
+            global ClipboardCurrentTab := "CtrlC"
+        }
+        
+        ; 获取选中项的索引
+        SelectedIndex := GetSelectedIndex(ClipboardListBox)
+        
+        if (SelectedIndex > 0) {
+            if (ClipboardCurrentTab = "CtrlC") {
+                if (IsSet(ClipboardHistory_CtrlC) && IsObject(ClipboardHistory_CtrlC) && SelectedIndex <= ClipboardHistory_CtrlC.Length) {
+                    ; 直接操作全局数组
+                    ClipboardHistory_CtrlC.RemoveAt(SelectedIndex)
+                    ; 【关键修复】清除保存的选中索引，防止刷新后选中错误的项
+                    global LastSelectedIndex
+                    LastSelectedIndex := 0
+                    ; 立即刷新列表和计数，确保界面即时更新
+                    RefreshClipboardList()
+                    ; 【关键修复】强制刷新UI，确保视觉更新（延迟一点确保刷新完成）
+                    Sleep(50)
+                    try {
+                        if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
+                            ; 强制重绘窗口
+                            WinRedraw(GuiID_ClipboardManager.Hwnd)
+                            ; 再次刷新列表，确保数据同步
+                            RefreshClipboardList()
+                        }
+                    } catch {
+                        ; 忽略重绘失败
+                    }
+                    TrayTip(GetText("deleted"), GetText("tip"), "Iconi 1")
+                } else {
+                    TrayTip(FormatText("select_first", GetText("delete")), GetText("tip"), "Iconi 1")
+                }
+            } else {
+                if (IsSet(ClipboardHistory_CapsLockC) && IsObject(ClipboardHistory_CapsLockC) && SelectedIndex <= ClipboardHistory_CapsLockC.Length) {
+                    ; 直接操作全局数组
+                    ClipboardHistory_CapsLockC.RemoveAt(SelectedIndex)
+                    ; 【关键修复】清除保存的选中索引，防止刷新后选中错误的项
+                    global LastSelectedIndex
+                    LastSelectedIndex := 0
+                    ; 立即刷新列表和计数，确保界面即时更新
+                    RefreshClipboardList()
+                    ; 【关键修复】强制刷新UI，确保视觉更新（延迟一点确保刷新完成）
+                    Sleep(50)
+                    try {
+                        if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
+                            ; 强制重绘窗口
+                            WinRedraw(GuiID_ClipboardManager.Hwnd)
+                            ; 再次刷新列表，确保数据同步
+                            RefreshClipboardList()
+                        }
+                    } catch {
+                        ; 忽略重绘失败
+                    }
+                    TrayTip(GetText("deleted"), GetText("tip"), "Iconi 1")
+                } else {
+                    TrayTip(FormatText("select_first", GetText("delete")), GetText("tip"), "Iconi 1")
+                }
+            }
         } else {
             TrayTip(FormatText("select_first", GetText("delete")), GetText("tip"), "Iconi 1")
         }
-    } catch {
-        TrayTip(GetText("operation_failed"), GetText("error"), "Iconx 1")
+    } catch as e {
+        TrayTip(GetText("operation_failed") . ": " . e.Message, GetText("error"), "Iconx 1")
     }
 }
 
 ; 粘贴选中项到 Cursor
 PasteSelectedToCursor(*) {
-    global ClipboardHistory, ClipboardListBox, CursorPath, AISleepTime, GuiID_ClipboardManager
+    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
+    global ClipboardListBox, CursorPath, AISleepTime, GuiID_ClipboardManager
     
-    if (!ClipboardListBox || !GuiID_ClipboardManager) {
+    if (!GuiID_ClipboardManager) {
+        return
+    }
+    
+    ; 如果控件引用丢失，尝试重新获取
+    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
+        try {
+            ClipboardGUI := GuiFromHwnd(GuiID_ClipboardManager)
+            if (ClipboardGUI) {
+                ClipboardListBox := ClipboardGUI["ClipboardListBox"]
+            }
+        } catch {
+            return
+        }
+    }
+    
+    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
         return
     }
     
     try {
-        SelectedIndex := ClipboardListBox.Value
-        if (SelectedIndex > 0 && SelectedIndex <= ClipboardHistory.Length) {
-            Content := ClipboardHistory[SelectedIndex]
-            
+        ; 确保全局变量已初始化
+        if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
+            global ClipboardHistory_CtrlC := []
+        }
+        if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
+            global ClipboardHistory_CapsLockC := []
+        }
+        if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
+            global ClipboardCurrentTab := "CtrlC"
+        }
+        
+        ; 获取选中项的索引
+        SelectedIndex := GetSelectedIndex(ClipboardListBox)
+        
+        Content := ""
+        if (SelectedIndex > 0) {
+            if (ClipboardCurrentTab = "CtrlC") {
+                if (IsSet(ClipboardHistory_CtrlC) && IsObject(ClipboardHistory_CtrlC) && SelectedIndex <= ClipboardHistory_CtrlC.Length) {
+                    Content := ClipboardHistory_CtrlC[SelectedIndex]
+                }
+            } else {
+                if (IsSet(ClipboardHistory_CapsLockC) && IsObject(ClipboardHistory_CapsLockC) && SelectedIndex <= ClipboardHistory_CapsLockC.Length) {
+                    Content := ClipboardHistory_CapsLockC[SelectedIndex]
+                }
+            }
+        }
+        
+        if (Content != "" && StrLen(Content) > 0) {
             ; 激活 Cursor 窗口
             try {
                 if WinExist("ahk_exe Cursor.exe") {
@@ -4673,30 +6401,30 @@ PasteSelectedToCursor(*) {
                         Sleep(200)
                     }
                     
-                A_Clipboard := Content
-                Sleep(100)
-                Send("^v")
-                Sleep(200)
-                
-                TrayTip(GetText("paste_success"), GetText("tip"), "Iconi 1")
-            } else {
-                if (CursorPath != "" && FileExist(CursorPath)) {
-                    Run(CursorPath)
-                    Sleep(AISleepTime)
                     A_Clipboard := Content
                     Sleep(100)
-                    Send("^l")
-                    Sleep(400)
                     Send("^v")
                     Sleep(200)
+                    
                     TrayTip(GetText("paste_success"), GetText("tip"), "Iconi 1")
                 } else {
-                    TrayTip(GetText("cursor_not_running"), GetText("error"), "Iconx 2")
+                    if (CursorPath != "" && FileExist(CursorPath)) {
+                        Run(CursorPath)
+                        Sleep(AISleepTime)
+                        A_Clipboard := Content
+                        Sleep(100)
+                        Send("^l")
+                        Sleep(400)
+                        Send("^v")
+                        Sleep(200)
+                        TrayTip(GetText("paste_success"), GetText("tip"), "Iconi 1")
+                    } else {
+                        TrayTip(GetText("cursor_not_running"), GetText("error"), "Iconx 2")
+                    }
                 }
+            } catch as e {
+                MsgBox(GetText("paste_failed") . ": " . e.Message)
             }
-        } catch as e {
-            MsgBox(GetText("paste_failed") . ": " . e.Message)
-        }
         } else {
             TrayTip(FormatText("select_first", GetText("paste")), GetText("tip"), "Iconi 1")
         }
@@ -4766,6 +6494,26 @@ HandleDynamicHotkey(PressedKey, ActionType) {
             case "ESC":
                 CapsLock2 := false
             case "C":
+                ; 【关键修复】检查是否在标签切换期间，如果是则不执行复制
+                global CapsLockCopyInProgress, CapsLockCopyEndTime, GuiID_ClipboardManager
+                
+                ; 双重检查：1. 检查是否是标签切换期间
+                if (CapsLockCopyInProgress && CapsLockCopyEndTime > A_TickCount) {
+                    ; 在标签切换期间，不执行复制操作
+                    return true  ; 已处理（阻止复制）
+                }
+                
+                ; 双重检查：2. 如果剪贴板管理面板已打开，额外检查是否是标签点击期间
+                ; 这个检查是为了防止在点击标签时，CapsLock 键还处于按下状态导致的意外触发
+                if (GuiID_ClipboardManager != 0 && CapsLockCopyInProgress && CapsLockCopyEndTime > A_TickCount) {
+                    ; 在标签点击期间且剪贴板管理面板打开时，不执行复制操作
+                    return true  ; 已处理（阻止复制）
+                }
+                
+                ; 确保 CapsLock 变量保持为 true，直到复制完成
+                global CapsLock
+                CapsLock := true
+                ; 调用复制函数
                 CapsLockCopy()
             case "V":
                 CapsLockPaste()
@@ -4797,6 +6545,13 @@ HandleDynamicHotkey(PressedKey, ActionType) {
             case "F":
                 CapsLock2 := false
                 global VoiceSearchPanelVisible, VoiceSearchActive
+                ; 【关键修复】确保变量已初始化
+                if (!IsSet(VoiceSearchPanelVisible)) {
+                    VoiceSearchPanelVisible := false
+                }
+                if (!IsSet(VoiceSearchActive)) {
+                    VoiceSearchActive := false
+                }
                 if (VoiceSearchPanelVisible) {
                     ; 面板已显示
                     if (VoiceSearchActive) {
@@ -4839,7 +6594,30 @@ Esc:: {
 
 ; C 键连续复制（立即响应，不等待面板）
 c:: {
+    ; 【关键修复】在剪贴板管理面板打开时，检查是否是标签点击期间
+    ; 如果是标签点击期间，不执行复制操作，避免点击标签时触发复制
+    global GuiID_ClipboardManager, CapsLockCopyInProgress, CapsLockCopyEndTime
+    
+    ; 如果剪贴板管理面板已打开，检查是否是标签切换期间
+    if (GuiID_ClipboardManager != 0) {
+        ; 检查是否是标签点击期间（通过 CapsLockCopyInProgress 和 CapsLockCopyEndTime 判断）
+        if (CapsLockCopyInProgress && CapsLockCopyEndTime > A_TickCount) {
+            ; 在标签点击期间，不执行复制操作，直接返回
+            return
+        }
+    }
+    
+    ; 添加调试信息：确认快捷键被触发
+    ; TrayTip("调试：CapsLock+C 被触发", "快捷键检测", "Iconi 1")
+    
+    ; 确保 CapsLock 变量被设置（防止在释放时被清除）
+    global CapsLock
+    if (!CapsLock) {
+        CapsLock := true
+    }
+    
     if (!HandleDynamicHotkey("c", "C")) {
+        ; 如果没有匹配到配置的快捷键，发送原始按键
         Send("c")
     }
 }
@@ -4985,21 +6763,25 @@ ImportConfig(*) {
 
 ; 导出剪贴板历史
 ExportClipboard(*) {
-    global ClipboardHistory
+    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
     
-    if (ClipboardHistory.Length = 0) {
+    ; 根据当前 Tab 选择对应的历史记录
+    CurrentHistory := (ClipboardCurrentTab = "CtrlC") ? ClipboardHistory_CtrlC : ClipboardHistory_CapsLockC
+    
+    if (CurrentHistory.Length = 0) {
         MsgBox(GetText("no_clipboard"), GetText("tip"), "Iconi")
         return
     }
     
-    ExportPath := FileSelect("S", A_ScriptDir "\ClipboardHistory_" . A_Now . ".txt", GetText("export_clipboard"), "Text Files (*.txt)")
+    TabName := (ClipboardCurrentTab = "CtrlC") ? "CtrlC" : "CapsLockC"
+    ExportPath := FileSelect("S", A_ScriptDir "\ClipboardHistory_" . TabName . "_" . A_Now . ".txt", GetText("export_clipboard"), "Text Files (*.txt)")
     if (ExportPath = "") {
         return
     }
     
     try {
-        Content := ""
-        for Index, Item in ClipboardHistory {
+        Content := "=== " . TabName . " Clipboard History ===`n`n"
+        for Index, Item in CurrentHistory {
             Content .= "=== Item " . Index . " ===`n"
             Content .= Item . "`n`n"
         }
@@ -5013,7 +6795,7 @@ ExportClipboard(*) {
 
 ; 导入剪贴板历史
 ImportClipboard(*) {
-    global ClipboardHistory
+    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
     
     ImportPath := FileSelect(1, A_ScriptDir, GetText("import_clipboard"), "Text Files (*.txt)")
     if (ImportPath = "") {
@@ -5022,16 +6804,30 @@ ImportClipboard(*) {
     
     try {
         Content := FileRead(ImportPath, "UTF-8")
+        
+        ; 根据当前 Tab 选择对应的历史记录
+        CurrentHistory := (ClipboardCurrentTab = "CtrlC") ? ClipboardHistory_CtrlC : ClipboardHistory_CapsLockC
+        
         ; 清空当前历史
-        ClipboardHistory := []
+        if (ClipboardCurrentTab = "CtrlC") {
+            ClipboardHistory_CtrlC := []
+            CurrentHistory := ClipboardHistory_CtrlC
+        } else {
+            ClipboardHistory_CapsLockC := []
+            CurrentHistory := ClipboardHistory_CapsLockC
+        }
         
         ; 解析导入的内容
         Lines := StrSplit(Content, "`n")
         CurrentItem := ""
         for Index, Line in Lines {
+            ; 跳过标题行
+            if (InStr(Line, "=== ") = 1 && InStr(Line, " Clipboard History") > 0) {
+                continue
+            }
             if (InStr(Line, "=== Item ") = 1) {
                 if (CurrentItem != "") {
-                    ClipboardHistory.Push(Trim(CurrentItem, "`r`n "))
+                    CurrentHistory.Push(Trim(CurrentItem, "`r`n "))
                     CurrentItem := ""
                 }
             } else if (Line != "") {
@@ -5040,7 +6836,14 @@ ImportClipboard(*) {
         }
         ; 添加最后一项
         if (CurrentItem != "") {
-            ClipboardHistory.Push(Trim(CurrentItem, "`r`n "))
+            CurrentHistory.Push(Trim(CurrentItem, "`r`n "))
+        }
+        
+        ; 更新对应的全局变量
+        if (ClipboardCurrentTab = "CtrlC") {
+            ClipboardHistory_CtrlC := CurrentHistory
+        } else {
+            ClipboardHistory_CapsLockC := CurrentHistory
         }
         
         ; 刷新剪贴板列表
@@ -5536,16 +7339,8 @@ ShowVoiceInputActionSelection(Content) {
     ; 搜索引擎按钮位置（从LabelEngine下方开始）
     YPos := 55 + 25 + 60 + 70 + 35 + 20 + 10 + 35 + 50  ; 操作按钮下方（标题+标签+输入框+开关间距+开关+操作标签间距+操作标签+按钮间距+操作按钮+引擎标签间距）
     ; 搜索引擎列表
-    SearchEngines := [
-        {Name: GetText("search_engine_deepseek"), Value: "deepseek"},
-        {Name: GetText("search_engine_yuanbao"), Value: "yuanbao"},
-        {Name: GetText("search_engine_doubao"), Value: "doubao"},
-        {Name: GetText("search_engine_zhipu"), Value: "zhipu"},
-        {Name: GetText("search_engine_mita"), Value: "mita"},
-        {Name: GetText("search_engine_wenxin"), Value: "wenxin"},
-        {Name: GetText("search_engine_qianwen"), Value: "qianwen"},
-        {Name: GetText("search_engine_kimi"), Value: "kimi"}
-    ]
+    global VoiceSearchCurrentCategory
+    SearchEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)
     
     VoiceSearchEngineButtons := []
     ButtonWidth := 110
@@ -5637,7 +7432,22 @@ CreateShowSearchEnginesHandler(Content, SendToCursorBtn, SearchBtn, EngineLabel)
                     Index := A_Index
                     Btn := VoiceSearchEngineButtons[Index]
                     if (Btn) {
-                        Btn.Visible := true
+                        ; 检查是否是新的按钮结构（对象）还是旧的（直接控件）
+                        if (IsObject(Btn) && Btn.Bg) {
+                            ; 新结构：显示背景、图标和文字
+                            if (Btn.Bg) {
+                                Btn.Bg.Visible := true
+                            }
+                            if (Btn.Icon) {
+                                Btn.Icon.Visible := true
+                            }
+                            if (Btn.Text) {
+                                Btn.Text.Visible := true
+                            }
+                        } else {
+                            ; 旧结构：直接显示控件
+                            Btn.Visible := true
+                        }
                     }
                 }
             }
@@ -5765,6 +7575,541 @@ StartVoiceSearch() {
     }
 }
 
+; 获取所有搜索引擎（带分类信息）
+GetAllSearchEngines() {
+    ; 定义所有搜索引擎，每个引擎包含分类信息
+    AllEngines := [
+        ; AI类
+        {Name: GetText("search_engine_deepseek"), Value: "deepseek", Category: "ai"},
+        {Name: GetText("search_engine_yuanbao"), Value: "yuanbao", Category: "ai"},
+        {Name: GetText("search_engine_doubao"), Value: "doubao", Category: "ai"},
+        {Name: GetText("search_engine_zhipu"), Value: "zhipu", Category: "ai"},
+        {Name: GetText("search_engine_mita"), Value: "mita", Category: "ai"},
+        {Name: GetText("search_engine_wenxin"), Value: "wenxin", Category: "ai"},
+        {Name: GetText("search_engine_qianwen"), Value: "qianwen", Category: "ai"},
+        {Name: GetText("search_engine_kimi"), Value: "kimi", Category: "ai"},
+        {Name: GetText("search_engine_perplexity"), Value: "perplexity", Category: "ai"},
+        {Name: GetText("search_engine_copilot"), Value: "copilot", Category: "ai"},
+        {Name: GetText("search_engine_chatgpt"), Value: "chatgpt", Category: "ai"},
+        {Name: GetText("search_engine_grok"), Value: "grok", Category: "ai"},
+        {Name: GetText("search_engine_you"), Value: "you", Category: "ai"},
+        {Name: GetText("search_engine_claude"), Value: "claude", Category: "ai"},
+        {Name: GetText("search_engine_monica"), Value: "monica", Category: "ai"},
+        {Name: GetText("search_engine_webpilot"), Value: "webpilot", Category: "ai"},
+        
+        ; 学术类
+        {Name: GetText("search_engine_zhihu"), Value: "zhihu", Category: "academic"},
+        {Name: GetText("search_engine_wechat_article"), Value: "wechat_article", Category: "academic"},
+        {Name: GetText("search_engine_cainiao"), Value: "cainiao", Category: "academic"},
+        {Name: GetText("search_engine_gitee"), Value: "gitee", Category: "academic"},
+        {Name: GetText("search_engine_pubscholar"), Value: "pubscholar", Category: "academic"},
+        {Name: GetText("search_engine_semantic"), Value: "semantic", Category: "academic"},
+        {Name: GetText("search_engine_baidu_academic"), Value: "baidu_academic", Category: "academic"},
+        {Name: GetText("search_engine_bing_academic"), Value: "bing_academic", Category: "academic"},
+        {Name: GetText("search_engine_csdn"), Value: "csdn", Category: "academic"},
+        {Name: GetText("search_engine_national_library"), Value: "national_library", Category: "academic"},
+        {Name: GetText("search_engine_chaoxing"), Value: "chaoxing", Category: "academic"},
+        {Name: GetText("search_engine_cnki"), Value: "cnki", Category: "academic"},
+        {Name: GetText("search_engine_wechat_reading"), Value: "wechat_reading", Category: "academic"},
+        {Name: GetText("search_engine_dada"), Value: "dada", Category: "academic"},
+        {Name: GetText("search_engine_patent"), Value: "patent", Category: "academic"},
+        {Name: GetText("search_engine_ip_office"), Value: "ip_office", Category: "academic"},
+        {Name: GetText("search_engine_dedao"), Value: "dedao", Category: "academic"},
+        {Name: GetText("search_engine_pkmer"), Value: "pkmer", Category: "academic"},
+        
+        ; 百度类
+        {Name: GetText("search_engine_baidu"), Value: "baidu", Category: "baidu"},
+        {Name: GetText("search_engine_baidu_title"), Value: "baidu_title", Category: "baidu"},
+        {Name: GetText("search_engine_baidu_hanyu"), Value: "baidu_hanyu", Category: "baidu"},
+        {Name: GetText("search_engine_baidu_wenku"), Value: "baidu_wenku", Category: "baidu"},
+        {Name: GetText("search_engine_baidu_map"), Value: "baidu_map", Category: "baidu"},
+        {Name: GetText("search_engine_baidu_pdf"), Value: "baidu_pdf", Category: "baidu"},
+        {Name: GetText("search_engine_baidu_doc"), Value: "baidu_doc", Category: "baidu"},
+        {Name: GetText("search_engine_baidu_ppt"), Value: "baidu_ppt", Category: "baidu"},
+        {Name: GetText("search_engine_baidu_xls"), Value: "baidu_xls", Category: "baidu"},
+        
+        ; 图片类
+        {Name: GetText("search_engine_image_aggregate"), Value: "image_aggregate", Category: "image"},
+        {Name: GetText("search_engine_iconfont"), Value: "iconfont", Category: "image"},
+        {Name: GetText("search_engine_wenxin_image"), Value: "wenxin_image", Category: "image"},
+        {Name: GetText("search_engine_tiangong_image"), Value: "tiangong_image", Category: "image"},
+        {Name: GetText("search_engine_yuanbao_image"), Value: "yuanbao_image", Category: "image"},
+        {Name: GetText("search_engine_tongyi_image"), Value: "tongyi_image", Category: "image"},
+        {Name: GetText("search_engine_zhipu_image"), Value: "zhipu_image", Category: "image"},
+        {Name: GetText("search_engine_miaohua"), Value: "miaohua", Category: "image"},
+        {Name: GetText("search_engine_keling"), Value: "keling", Category: "image"},
+        {Name: GetText("search_engine_jimmeng"), Value: "jimmeng", Category: "image"},
+        {Name: GetText("search_engine_baidu_image"), Value: "baidu_image", Category: "image"},
+        {Name: GetText("search_engine_shetu"), Value: "shetu", Category: "image"},
+        {Name: GetText("search_engine_ai_image_lib"), Value: "ai_image_lib", Category: "image"},
+        {Name: GetText("search_engine_huaban"), Value: "huaban", Category: "image"},
+        {Name: GetText("search_engine_zcool"), Value: "zcool", Category: "image"},
+        {Name: GetText("search_engine_uisdc"), Value: "uisdc", Category: "image"},
+        {Name: GetText("search_engine_nipic"), Value: "nipic", Category: "image"},
+        {Name: GetText("search_engine_qianku"), Value: "qianku", Category: "image"},
+        {Name: GetText("search_engine_qiantu"), Value: "qiantu", Category: "image"},
+        {Name: GetText("search_engine_zhongtu"), Value: "zhongtu", Category: "image"},
+        {Name: GetText("search_engine_miyuan"), Value: "miyuan", Category: "image"},
+        {Name: GetText("search_engine_mizhi"), Value: "mizhi", Category: "image"},
+        {Name: GetText("search_engine_icons"), Value: "icons", Category: "image"},
+        {Name: GetText("search_engine_tuxing"), Value: "tuxing", Category: "image"},
+        {Name: GetText("search_engine_xiangsheji"), Value: "xiangsheji", Category: "image"},
+        {Name: GetText("search_engine_bing_image"), Value: "bing_image", Category: "image"},
+        {Name: GetText("search_engine_google_image"), Value: "google_image", Category: "image"},
+        {Name: GetText("search_engine_weibo_image"), Value: "weibo_image", Category: "image"},
+        {Name: GetText("search_engine_sogou_image"), Value: "sogou_image", Category: "image"},
+        {Name: GetText("search_engine_haosou_image"), Value: "haosou_image", Category: "image"},
+        
+        ; 音频类
+        {Name: GetText("search_engine_netease_music"), Value: "netease_music", Category: "audio"},
+        {Name: GetText("search_engine_tiangong_music"), Value: "tiangong_music", Category: "audio"},
+        {Name: GetText("search_engine_text_to_speech"), Value: "text_to_speech", Category: "audio"},
+        {Name: GetText("search_engine_speech_to_text"), Value: "speech_to_text", Category: "audio"},
+        {Name: GetText("search_engine_shetu_music"), Value: "shetu_music", Category: "audio"},
+        {Name: GetText("search_engine_qq_music"), Value: "qq_music", Category: "audio"},
+        {Name: GetText("search_engine_kuwo"), Value: "kuwo", Category: "audio"},
+        {Name: GetText("search_engine_kugou"), Value: "kugou", Category: "audio"},
+        {Name: GetText("search_engine_qianqian"), Value: "qianqian", Category: "audio"},
+        {Name: GetText("search_engine_ximalaya"), Value: "ximalaya", Category: "audio"},
+        {Name: GetText("search_engine_5sing"), Value: "5sing", Category: "audio"},
+        {Name: GetText("search_engine_lossless"), Value: "lossless", Category: "audio"},
+        {Name: GetText("search_engine_erling"), Value: "erling", Category: "audio"},
+        
+        ; 视频类
+        {Name: GetText("search_engine_douyin"), Value: "douyin", Category: "video"},
+        {Name: GetText("search_engine_yuewen"), Value: "yuewen", Category: "video"},
+        {Name: GetText("search_engine_qingying"), Value: "qingying", Category: "video"},
+        {Name: GetText("search_engine_tongyi_video"), Value: "tongyi_video", Category: "video"},
+        {Name: GetText("search_engine_jimmeng_video"), Value: "jimmeng_video", Category: "video"},
+        {Name: GetText("search_engine_youtube"), Value: "youtube", Category: "video"},
+        {Name: GetText("search_engine_find_lines"), Value: "find_lines", Category: "video"},
+        {Name: GetText("search_engine_shetu_video"), Value: "shetu_video", Category: "video"},
+        {Name: GetText("search_engine_yandex"), Value: "yandex", Category: "video"},
+        {Name: GetText("search_engine_pexels"), Value: "pexels", Category: "video"},
+        {Name: GetText("search_engine_youku"), Value: "youku", Category: "video"},
+        {Name: GetText("search_engine_chanjing"), Value: "chanjing", Category: "video"},
+        {Name: GetText("search_engine_duojia"), Value: "duojia", Category: "video"},
+        {Name: GetText("search_engine_tencent_zhiying"), Value: "tencent_zhiying", Category: "video"},
+        {Name: GetText("search_engine_wansheng"), Value: "wansheng", Category: "video"},
+        {Name: GetText("search_engine_tencent_video"), Value: "tencent_video", Category: "video"},
+        {Name: GetText("search_engine_iqiyi"), Value: "iqiyi", Category: "video"},
+        
+        ; 图书类
+        {Name: GetText("search_engine_duokan"), Value: "duokan", Category: "book"},
+        {Name: GetText("search_engine_turing"), Value: "turing", Category: "book"},
+        {Name: GetText("search_engine_panda_book"), Value: "panda_book", Category: "book"},
+        {Name: GetText("search_engine_douban_book"), Value: "douban_book", Category: "book"},
+        {Name: GetText("search_engine_lifelong_edu"), Value: "lifelong_edu", Category: "book"},
+        {Name: GetText("search_engine_verypan"), Value: "verypan", Category: "book"},
+        {Name: GetText("search_engine_zouddupai"), Value: "zouddupai", Category: "book"},
+        {Name: GetText("search_engine_gd_library"), Value: "gd_library", Category: "book"},
+        {Name: GetText("search_engine_pansou"), Value: "pansou", Category: "book"},
+        {Name: GetText("search_engine_zsxq"), Value: "zsxq", Category: "book"},
+        {Name: GetText("search_engine_jiumo"), Value: "jiumo", Category: "book"},
+        {Name: GetText("search_engine_weibo_book"), Value: "weibo_book", Category: "book"},
+        
+        ; 比价类
+        {Name: GetText("search_engine_jd"), Value: "jd", Category: "price"},
+        {Name: GetText("search_engine_baidu_procure"), Value: "baidu_procure", Category: "price"},
+        {Name: GetText("search_engine_dangdang"), Value: "dangdang", Category: "price"},
+        {Name: GetText("search_engine_1688"), Value: "1688", Category: "price"},
+        {Name: GetText("search_engine_taobao"), Value: "taobao", Category: "price"},
+        {Name: GetText("search_engine_tmall"), Value: "tmall", Category: "price"},
+        {Name: GetText("search_engine_pinduoduo"), Value: "pinduoduo", Category: "price"},
+        {Name: GetText("search_engine_xianyu"), Value: "xianyu", Category: "price"},
+        {Name: GetText("search_engine_smzdm"), Value: "smzdm", Category: "price"},
+        {Name: GetText("search_engine_yanxuan"), Value: "yanxuan", Category: "price"},
+        {Name: GetText("search_engine_gaide"), Value: "gaide", Category: "price"},
+        {Name: GetText("search_engine_suning"), Value: "suning", Category: "price"},
+        {Name: GetText("search_engine_ebay"), Value: "ebay", Category: "price"},
+        {Name: GetText("search_engine_amazon"), Value: "amazon", Category: "price"},
+        
+        ; 医疗类
+        {Name: GetText("search_engine_dxy"), Value: "dxy", Category: "medical"},
+        {Name: GetText("search_engine_left_doctor"), Value: "left_doctor", Category: "medical"},
+        {Name: GetText("search_engine_medisearch"), Value: "medisearch", Category: "medical"},
+        {Name: GetText("search_engine_merck"), Value: "merck", Category: "medical"},
+        {Name: GetText("search_engine_aplus_medical"), Value: "aplus_medical", Category: "medical"},
+        {Name: GetText("search_engine_medical_baike"), Value: "medical_baike", Category: "medical"},
+        {Name: GetText("search_engine_weiyi"), Value: "weiyi", Category: "medical"},
+        {Name: GetText("search_engine_medlive"), Value: "medlive", Category: "medical"},
+        {Name: GetText("search_engine_xywy"), Value: "xywy", Category: "medical"},
+        
+        ; 网盘类
+        {Name: GetText("search_engine_pansoso"), Value: "pansoso", Category: "cloud"},
+        {Name: GetText("search_engine_panso"), Value: "panso", Category: "cloud"},
+        {Name: GetText("search_engine_xiaomapan"), Value: "xiaomapan", Category: "cloud"},
+        {Name: GetText("search_engine_dashengpan"), Value: "dashengpan", Category: "cloud"},
+        {Name: GetText("search_engine_miaosou"), Value: "miaosou", Category: "cloud"}
+    ]
+    
+    return AllEngines
+}
+
+; 获取排序后的搜索引擎列表（根据语言版本和分类过滤）
+GetSortedSearchEngines(Category := "") {
+    global Language, VoiceSearchCurrentCategory
+    
+    ; 如果没有指定分类，使用当前选中的分类
+    if (Category = "") {
+        Category := VoiceSearchCurrentCategory
+    }
+    
+    ; 获取所有搜索引擎
+    AllEngines := GetAllSearchEngines()
+    
+    ; 按分类过滤
+    FilteredEngines := []
+    for Index, Engine in AllEngines {
+        if (Engine.Category = Category) {
+            FilteredEngines.Push(Engine)
+        }
+    }
+    
+    ; 如果当前分类没有搜索引擎，返回空数组（不显示提示，让调用者处理）
+    if (FilteredEngines.Length = 0) {
+        return FilteredEngines
+    }
+    
+    ; 根据语言版本排序（仅对AI类有效）
+    if (Category = "ai") {
+        ChineseEngines := []
+        AIEngines := []
+        
+        for Index, Engine in FilteredEngines {
+            ; 判断是中文引擎还是AI引擎
+            ChineseEngineValues := ["deepseek", "yuanbao", "doubao", "zhipu", "mita", "wenxin", "qianwen", "kimi"]
+            if (ArrayContainsValue(ChineseEngineValues, Engine.Value) > 0) {
+                ChineseEngines.Push(Engine)
+            } else {
+                AIEngines.Push(Engine)
+            }
+        }
+        
+        ; 根据语言版本排序
+        if (Language = "en") {
+            ; 英文版：AI引擎在前，中文引擎在后
+            SearchEngines := []
+            for Index, Engine in AIEngines {
+                SearchEngines.Push(Engine)
+            }
+            for Index, Engine in ChineseEngines {
+                SearchEngines.Push(Engine)
+            }
+        } else {
+            ; 中文版：中文引擎在前，AI引擎在后
+            SearchEngines := []
+            for Index, Engine in ChineseEngines {
+                SearchEngines.Push(Engine)
+            }
+            for Index, Engine in AIEngines {
+                SearchEngines.Push(Engine)
+            }
+        }
+        
+        return SearchEngines
+    }
+    
+    ; 其他分类直接返回过滤后的结果
+    return FilteredEngines
+}
+
+; 获取搜索引擎对应的图标文件名
+GetSearchEngineIcon(EngineValue) {
+    ; 根据搜索引擎值返回对应的图标文件名
+    IconMap := Map(
+        ; AI类
+        "deepseek", "DeepSeek.png",
+        "yuanbao", "元宝.png",
+        "doubao", "豆包.png",
+        "zhipu", "智谱.png",
+        "mita", "秘塔.png",
+        "wenxin", "文心一言.png",
+        "qianwen", "通义千问.png",
+        "kimi", "Kimi.png",
+        "perplexity", "Perplexity.png",
+        "copilot", "Copilot.png",
+        "chatgpt", "ChatGPT.png",
+        "grok", "Grok.png",
+        "you", "You.png",
+        "claude", "Claude.png",
+        "monica", "Monica.png",
+        "webpilot", "WebPilot.png"
+        ; 注意：其他分类的搜索引擎如果没有对应的图标文件，会返回空字符串，使用文本显示
+    )
+    
+    IconName := IconMap.Get(EngineValue, "")
+    if (IconName != "") {
+        ; 返回完整的图标路径
+        ScriptDir := A_ScriptDir
+        IconPath := ScriptDir . "\aiicons\" . IconName
+        if (FileExist(IconPath)) {
+            return IconPath
+        }
+    }
+    return ""  ; 如果图标不存在，返回空字符串
+}
+
+; 创建分类标签切换处理函数
+CreateCategoryTabHandler(CategoryKey) {
+    ; 使用闭包捕获CategoryKey
+    CategoryTabHandler(*) {
+        global VoiceSearchCurrentCategory, VoiceSearchCategoryTabs, VoiceSearchEngineButtons, GuiID_VoiceInput
+        global VoiceSearchSelectedEngines, UI_Colors, ThemeMode, VoiceSearchLabelEngineY
+        
+        ; 使用捕获的CategoryKey，而不是全局变量
+        ; 更新当前分类
+        VoiceSearchCurrentCategory := CategoryKey
+        
+        ; 确保GUI存在
+        if (!GuiID_VoiceInput) {
+            return
+        }
+        
+        ; 更新所有标签按钮的样式
+        for Index, TabObj in VoiceSearchCategoryTabs {
+            ; 【关键修复】如果按钮引用丢失，尝试从GUI重新获取
+            if (!TabObj.Btn || !IsObject(TabObj.Btn)) {
+                try {
+                    TabObj.Btn := GuiID_VoiceInput["CategoryTab" . TabObj.Key]
+                } catch {
+                    ; 如果无法获取，跳过这个标签
+                    continue
+                }
+            }
+            
+            if (TabObj.Btn && IsObject(TabObj.Btn)) {
+                IsActive := (TabObj.Key = CategoryKey)
+                TabBg := IsActive ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
+                TabTextColor := IsActive ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
+                try {
+                    TabObj.Btn.BackColor := TabBg
+                    TabObj.Btn.Text := GetText("search_category_" . TabObj.Key)
+                } catch {
+                    ; 忽略更新样式时的错误
+                }
+            }
+        }
+        
+        ; 【关键修复】立即刷新GUI，确保标签背景色更新立即显示
+        try {
+            if (GuiID_VoiceInput && IsObject(GuiID_VoiceInput) && GuiID_VoiceInput.HasProp("Hwnd")) {
+                WinRedraw(GuiID_VoiceInput.Hwnd)
+            }
+        } catch {
+            ; 忽略刷新错误
+        }
+        
+        ; 【关键修复】隐藏旧的搜索引擎按钮，而不是尝试销毁它们（AHK v2 不支持直接销毁控件）
+        if (IsSet(VoiceSearchEngineButtons) && VoiceSearchEngineButtons.Length > 0) {
+            for Index, BtnObj in VoiceSearchEngineButtons {
+                if (IsObject(BtnObj)) {
+                    ; 隐藏所有控件并移出可见区域，防止重叠和干扰
+                    try {
+                        if (BtnObj.Bg) {
+                            BtnObj.Bg.Visible := false
+                            BtnObj.Bg.Move(-1000, -1000)
+                        }
+                    } catch {
+                    }
+                    try {
+                        if (BtnObj.Icon && IsObject(BtnObj.Icon)) {
+                            BtnObj.Icon.Visible := false
+                            BtnObj.Icon.Move(-1000, -1000)
+                        }
+                    } catch {
+                    }
+                    try {
+                        if (BtnObj.Text) {
+                            BtnObj.Text.Visible := false
+                            BtnObj.Text.Move(-1000, -1000)
+                        }
+                    } catch {
+                    }
+                }
+            }
+        }
+        VoiceSearchEngineButtons := []
+        
+        ; 第三步：立即刷新GUI，确保所有旧按钮从界面上完全消失
+        try {
+            WinRedraw(GuiID_VoiceInput.Hwnd)
+        } catch {
+        }
+        
+        ; 【关键】确保在创建新按钮之前，所有旧按钮都已完全清除
+        ; 清空按钮数组，确保不会引用到旧按钮
+        VoiceSearchEngineButtons := []
+        
+        ; 获取新分类的搜索引擎（只显示对应标签下的搜索引擎）
+        try {
+            SearchEngines := GetSortedSearchEngines(CategoryKey)
+        } catch as e {
+            ; 如果获取失败，显示错误并返回
+            TrayTip("获取搜索引擎失败: " . e.Message, "错误", "Iconx 1")
+            return
+        }
+        
+        ; 如果没有搜索引擎，显示提示并返回（不创建任何按钮）
+        if (!SearchEngines || SearchEngines.Length = 0) {
+            ; 创建提示文本
+            try {
+                NoEngineText := GuiID_VoiceInput["NoEngineText"]
+                if (NoEngineText) {
+                    NoEngineText.Destroy()
+                }
+            } catch {
+            }
+            NoEngineText := GuiID_VoiceInput.Add("Text", "x20 y" . (VoiceSearchLabelEngineY + 30) . " w560 h30 Center c" . UI_Colors.TextDim . " vNoEngineText", "该分类暂无搜索引擎")
+            NoEngineText.SetFont("s11", "Segoe UI")
+            ; 刷新GUI，确保提示文本显示
+            try {
+                WinRedraw(GuiID_VoiceInput.Hwnd)
+            } catch {
+            }
+            return
+        } else {
+            ; 如果有搜索引擎，移除提示文本（确保只显示搜索引擎按钮）
+            try {
+                NoEngineText := GuiID_VoiceInput["NoEngineText"]
+                if (NoEngineText) {
+                    NoEngineText.Destroy()
+                }
+            } catch {
+            }
+        }
+        
+        ; 【关键】重新创建搜索引擎按钮（只显示当前标签对应的搜索引擎，完全覆盖原先的列表）
+        ; 计算按钮位置（从引擎标签下方开始）
+        global VoiceSearchLabelEngineY
+        LabelEngineY := 0
+        ; 优先使用全局变量
+        if (IsSet(VoiceSearchLabelEngineY) && VoiceSearchLabelEngineY > 0) {
+            LabelEngineY := VoiceSearchLabelEngineY
+        } else {
+            ; 如果全局变量未设置，尝试从控件获取
+            try {
+                LabelEngineCtrl := GuiID_VoiceInput["LabelEngine"]
+                if (LabelEngineCtrl) {
+                    LabelEngineCtrl.GetPos(, &LabelEngineY)
+                    if (LabelEngineY > 0) {
+                        VoiceSearchLabelEngineY := LabelEngineY
+                    }
+                }
+            } catch {
+            }
+            
+            ; 如果还是获取不到，使用默认值（根据标签栏计算）
+            if (LabelEngineY = 0) {
+                ; 标签栏位置：自动更新开关(35) + 间距(35) + 分类标签(30) + 标签高度(28) + 间距(15) = 143
+                ; 加上输入框等基础高度：55 + 25 + 150 + 45 + 35 = 310
+                ; 总计：310 + 143 = 453，但实际应该更高，使用710作为默认值
+                LabelEngineY := 710
+                VoiceSearchLabelEngineY := LabelEngineY
+            }
+        }
+        
+        YPos := LabelEngineY + 30
+        ButtonWidth := 130
+        ButtonHeight := 35
+        ButtonSpacing := 10
+        StartX := 20
+        ButtonsPerRow := 4
+        IconSizeInButton := 20
+        
+        ; 【关键】只创建当前标签对应的搜索引擎按钮（完全覆盖原先的列表）
+        for Index, Engine in SearchEngines {
+            Row := Floor((Index - 1) / ButtonsPerRow)
+            Col := Mod((Index - 1), ButtonsPerRow)
+            BtnX := StartX + Col * (ButtonWidth + ButtonSpacing)
+            BtnY := YPos + Row * (ButtonHeight + ButtonSpacing)
+            
+            ; 检查是否选中
+            IsSelected := (ArrayContainsValue(VoiceSearchSelectedEngines, Engine.Value) > 0)
+            BtnBgColor := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
+            BtnText := IsSelected ? "✓ " . Engine.Name : Engine.Name
+            EngineBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+            
+            ; 获取图标路径
+            IconPath := GetSearchEngineIcon(Engine.Value)
+            IconCtrl := 0
+            
+            try {
+                ; 创建按钮背景（不再使用 v 变量，以避免在同一个 GUI 实例中发生命名冲突）
+                Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . EngineBtnTextColor . " Background" . BtnBgColor, "")
+                if (IsObject(Btn)) {
+                    Btn.SetFont("s10", "Segoe UI")
+                    Btn.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
+                    HoverBtn(Btn, BtnBgColor, UI_Colors.BtnHover)
+                } else {
+                    ; 如果创建失败，跳过这个按钮
+                    continue
+                }
+            } catch as e {
+                ; 如果创建失败，跳过这个按钮
+                continue
+            }
+            
+            ; 如果图标存在，在按钮左侧添加小图标
+            if (IconPath != "" && FileExist(IconPath)) {
+                try {
+                    ; 计算图标位置（按钮左侧，垂直居中）
+                    IconX := BtnX + 8
+                    IconY := BtnY + (ButtonHeight - IconSizeInButton) // 2
+                    ImageSize := GetImageSize(IconPath)
+                    DisplaySize := CalculateImageDisplaySize(ImageSize.Width, ImageSize.Height, IconSizeInButton, IconSizeInButton)
+                    DisplayX := IconX
+                    DisplayY := IconY + (IconSizeInButton - DisplaySize.Height) // 2
+                    IconCtrl := GuiID_VoiceInput.Add("Picture", "x" . DisplayX . " y" . DisplayY . " w" . DisplaySize.Width . " h" . DisplaySize.Height . " 0x200", IconPath)
+                    if (IsObject(IconCtrl)) {
+                        IconCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
+                    } else {
+                        IconCtrl := 0
+                    }
+                    TextX := IconX + IconSizeInButton + 5
+                    TextWidth := ButtonWidth - (TextX - BtnX) - 8
+                } catch {
+                    IconCtrl := 0
+                    TextX := BtnX + 8
+                    TextWidth := ButtonWidth - 16
+                }
+            } else {
+                IconCtrl := 0
+                TextX := BtnX + 8
+                TextWidth := ButtonWidth - 16
+            }
+            
+            try {
+                TextCtrl := GuiID_VoiceInput.Add("Text", "x" . TextX . " y" . BtnY . " w" . TextWidth . " h" . ButtonHeight . " Left 0x200 c" . EngineBtnTextColor . " BackgroundTrans", BtnText)
+                if (IsObject(TextCtrl)) {
+                    TextCtrl.SetFont("s10", "Segoe UI")
+                    TextCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
+                } else {
+                    TextCtrl := 0
+                }
+            } catch {
+                TextCtrl := 0
+            }
+            
+            ; 保存按钮引用（只保存当前标签的按钮）
+            VoiceSearchEngineButtons.Push({Bg: Btn, Icon: IconCtrl, Text: TextCtrl, Index: Index})
+        }
+        
+        ; 【关键】立即刷新GUI，确保新标签的搜索引擎列表完全覆盖原先的列表
+        try {
+            ; 先显示GUI（如果隐藏了）
+            if (!GuiID_VoiceInput.Visible) {
+                GuiID_VoiceInput.Show()
+            }
+            ; 立即强制重绘窗口，确保新按钮显示，旧按钮消失（完全覆盖原先的列表）
+            WinRedraw(GuiID_VoiceInput.Hwnd)
+        } catch {
+            ; 忽略错误
+        }
+    }
+    return CategoryTabHandler
+}
+
 ; 显示语音搜索输入界面
 ShowVoiceSearchInputPanel() {
     global GuiID_VoiceInput, VoiceInputScreenIndex, UI_Colors, VoiceSearchPanelVisible
@@ -5779,36 +8124,125 @@ ShowVoiceSearchInputPanel() {
         GuiID_VoiceInput := 0
     }
     
-    GuiID_VoiceInput := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
+    ; 【关键修复】移除 -Caption，添加标题栏以支持窗口拖动
+    ; 使用 +Resize 允许调整大小（虽然我们动态计算尺寸，但保留这个选项）
+    GuiID_VoiceInput := Gui("+AlwaysOnTop -DPIScale")
     GuiID_VoiceInput.BackColor := UI_Colors.Background
     GuiID_VoiceInput.SetFont("s12 c" . UI_Colors.Text . " Bold", "Segoe UI")
+    GuiID_VoiceInput.Title := GetText("voice_search_title")
     
-    PanelWidth := 600
-    ; 计算所需高度：标题(50) + 输入框标签(25) + 输入框(80) + 搜索按钮(45) + 自动加载开关(35) + 自动更新开关(35) + 引擎标签(30) + 按钮区域 + 边距(20)
-    ButtonsRows := Ceil(8 / 4)  ; 每行4个按钮，共8个搜索引擎
-    ButtonsAreaHeight := ButtonsRows * 45  ; 每行45px（按钮35px + 间距10px）
-    PanelHeight := 50 + 25 + 80 + 45 + 35 + 35 + 30 + ButtonsAreaHeight + 20
+    ; 【关键修复】动态计算宽度，确保所有按钮可见
+    ; 先获取搜索引擎列表以计算所需宽度
+    InputBoxHeight := 150
+    global VoiceSearchCurrentCategory, VoiceSearchEnabledCategories
+    ; 【关键修复】确保VoiceSearchCurrentCategory已初始化
+    if (!IsSet(VoiceSearchCurrentCategory) || VoiceSearchCurrentCategory = "") {
+        VoiceSearchCurrentCategory := "ai"
+    }
+    ; 【关键修复】确保VoiceSearchEnabledCategories已初始化
+    if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
+        VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+    }
+    SearchEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)  ; 先获取当前分类的搜索引擎列表
+    TotalEngines := SearchEngines.Length
+    ButtonWidth := 130
+    ButtonHeight := 35
+    ButtonSpacing := 10
+    ButtonsPerRow := 4  ; 每行4个按钮
+    ButtonsRows := Ceil(TotalEngines / ButtonsPerRow)  ; 计算需要的行数
+    ButtonsAreaHeight := ButtonsRows * (ButtonHeight + ButtonSpacing)  ; 每行高度（按钮+间距）
     
-    ; 标题
-    TitleText := GuiID_VoiceInput.Add("Text", "x0 y15 w600 h30 Center c" . UI_Colors.Text, GetText("voice_search_title"))
-    TitleText.SetFont("s14 Bold", "Segoe UI")
+    ; 计算所需宽度：左边距(20) + 按钮区域宽度 + 右边距(20)
+    ; 按钮区域宽度 = 按钮数量 * 按钮宽度 + (按钮数量-1) * 间距
+    ; 但需要考虑输入框和右侧按钮，所以取最大值
+    InputBoxWidth := 520  ; 输入框宽度
+    RightButtonsWidth := 40 + 20  ; 右侧按钮宽度 + 间距
+    ButtonsAreaWidth := ButtonsPerRow * ButtonWidth + (ButtonsPerRow - 1) * ButtonSpacing
+    MinWidth := InputBoxWidth + RightButtonsWidth + 40  ; 输入框 + 右侧按钮 + 左右边距
+    PanelWidth := Max(MinWidth, ButtonsAreaWidth + 40)  ; 取较大值，确保所有内容可见
     
-    ; 右上角关闭按钮
+    ; 计算分类标签区域宽度（先定义变量，后面会使用）
+    TabWidth := 50
+    TabSpacing := 5
+    TabsPerRow := 10  ; 默认每行10个标签
+    TabAreaWidth := TabsPerRow * TabWidth + (TabsPerRow - 1) * TabSpacing
+    ; 标签区域宽度需要考虑清空选择按钮的位置
+    MinTabAreaWidth := TabAreaWidth + 150  ; 标签区域 + 清空按钮宽度 + 间距
+    PanelWidth := Max(PanelWidth, MinTabAreaWidth)  ; 确保标签区域也可见
+    
+    CategoryTabHeight := 28 + 15  ; 标签高度 + 间距（如果有多行，需要额外计算）
+    ; 【关键修复】只显示启用的标签
+    ; 所有可用的标签
+    AllCategories := [
+        {Key: "ai", Text: GetText("search_category_ai")},
+        {Key: "academic", Text: GetText("search_category_academic")},
+        {Key: "baidu", Text: GetText("search_category_baidu")},
+        {Key: "image", Text: GetText("search_category_image")},
+        {Key: "audio", Text: GetText("search_category_audio")},
+        {Key: "video", Text: GetText("search_category_video")},
+        {Key: "book", Text: GetText("search_category_book")},
+        {Key: "price", Text: GetText("search_category_price")},
+        {Key: "medical", Text: GetText("search_category_medical")},
+        {Key: "cloud", Text: GetText("search_category_cloud")}
+    ]
+    
+    ; 确保 VoiceSearchEnabledCategories 已初始化
+    global VoiceSearchEnabledCategories
+    if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
+        VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+    }
+    
+    ; 只保留启用的标签
+    Categories := []
+    for Index, Category in AllCategories {
+        if (ArrayContainsValue(VoiceSearchEnabledCategories, Category.Key) > 0) {
+            Categories.Push(Category)
+        }
+    }
+    
+    ; 如果没有启用的标签，默认启用AI标签
+    if (Categories.Length = 0) {
+        Categories.Push({Key: "ai", Text: GetText("search_category_ai")})
+        global VoiceSearchCurrentCategory
+        VoiceSearchCurrentCategory := "ai"
+    }
+    
+    ; 如果当前选中的标签不在启用列表中，切换到第一个启用的标签
+    global VoiceSearchCurrentCategory
+    if (ArrayContainsValue(VoiceSearchEnabledCategories, VoiceSearchCurrentCategory) = 0) {
+        if (Categories.Length > 0) {
+            VoiceSearchCurrentCategory := Categories[1].Key
+        } else {
+            VoiceSearchCurrentCategory := "ai"
+        }
+    }
+    
+    TabRows := Ceil(Categories.Length / TabsPerRow)
+    CategoryTabHeight := TabRows * (28 + TabSpacing) + 15  ; 多行标签高度
+    
+    ; 【关键修复】动态计算高度，确保所有内容可见
+    ; 标题栏高度(约30) + 标题区域(15) + 输入框标签(25) + 输入框(150) + 自动加载开关(35) + 自动更新开关(35) + 分类标签栏 + 引擎标签(30) + 按钮区域 + 底部边距(20)
+    PanelHeight := 30 + 15 + 25 + InputBoxHeight + 35 + 35 + CategoryTabHeight + 30 + ButtonsAreaHeight + 20
+    
+    ; 【关键修复】标题栏已由GUI的Title属性提供，不再需要单独的标题文本
+    ; 右上角关闭按钮（使用系统关闭按钮，或自定义）
+    ; 由于现在有标题栏，可以使用系统关闭按钮，但为了保持一致性，我们仍然使用自定义按钮
     CloseBtnX := PanelWidth - 40  ; 距离右边20px，按钮宽度30px
-    CloseBtnY := 10  ; 距离顶部10px
+    CloseBtnY := 5  ; 距离顶部5px（标题栏内）
     CloseBtn := GuiID_VoiceInput.Add("Text", "x" . CloseBtnX . " y" . CloseBtnY . " w30 h30 Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg . " vCloseBtn", "×")
     CloseBtn.SetFont("s18 Bold", "Segoe UI")
     CloseBtn.OnEvent("Click", HideVoiceSearchInputPanel)
     HoverBtn(CloseBtn, UI_Colors.BtnBg, "FF4444")  ; 悬停时显示红色
     
     ; 输入框标签
-    YPos := 55
-    LabelText := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w560 h20 c" . UI_Colors.TextDim, GetText("voice_search_input_label"))
+    YPos := 50  ; 标题栏后开始
+    LabelText := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w" . (PanelWidth - 80) . " h20 c" . UI_Colors.TextDim, GetText("voice_search_input_label"))
     LabelText.SetFont("s10", "Segoe UI")
     
     ; 输入框（可编辑，用于显示和编辑语音输入内容）
     YPos += 25
-    VoiceSearchInputEdit := GuiID_VoiceInput.Add("Edit", "x20 y" . YPos . " w520 h80 vVoiceSearchInputEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", "")
+    InputBoxActualWidth := PanelWidth - 80  ; 左边距20 + 右边距20 + 右侧按钮区域40
+    VoiceSearchInputEdit := GuiID_VoiceInput.Add("Edit", "x20 y" . YPos . " w" . InputBoxActualWidth . " h150 vVoiceSearchInputEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", "")
     VoiceSearchInputEdit.SetFont("s12", "Segoe UI")
     ; 添加焦点事件，自动切换到中文输入法
     VoiceSearchInputEdit.OnEvent("Focus", SwitchToChineseIME)
@@ -5819,20 +8253,21 @@ ShowVoiceSearchInputPanel() {
     ; 按钮文字颜色：根据主题调整
     global ThemeMode
     ClearBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-    ClearBtn := GuiID_VoiceInput.Add("Text", "x550 y" . YPos . " w40 h40 Center 0x200 c" . ClearBtnTextColor . " Background" . UI_Colors.BtnBg . " vClearBtn", GetText("clear"))
+    RightBtnX := PanelWidth - 60  ; 距离右边20px，按钮宽度40px
+    ClearBtn := GuiID_VoiceInput.Add("Text", "x" . RightBtnX . " y" . YPos . " w40 h40 Center 0x200 c" . ClearBtnTextColor . " Background" . UI_Colors.BtnBg . " vClearBtn", GetText("clear"))
     ClearBtn.SetFont("s10", "Segoe UI")
     ClearBtn.OnEvent("Click", ClearVoiceSearchInput)
     HoverBtn(ClearBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     
-    ; 搜索按钮（在清空按钮下方）
+    ; 搜索按钮（在清空按钮下方，输入框高度为150，所以按钮位置需要调整）
     SearchBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-    SearchBtn := GuiID_VoiceInput.Add("Text", "x550 y" . (YPos + 40) . " w40 h40 Center 0x200 c" . SearchBtnTextColor . " Background" . UI_Colors.BtnPrimary . " vSearchBtn", GetText("voice_search_button"))
+    SearchBtn := GuiID_VoiceInput.Add("Text", "x" . RightBtnX . " y" . (YPos + 110) . " w40 h40 Center 0x200 c" . SearchBtnTextColor . " Background" . UI_Colors.BtnPrimary . " vSearchBtn", GetText("voice_search_button"))
     SearchBtn.SetFont("s11 Bold", "Segoe UI")
     SearchBtn.OnEvent("Click", ExecuteVoiceSearch)
     HoverBtn(SearchBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
     
     ; 自动加载选中文本开关
-    YPos += 90
+    YPos += 160  ; 输入框高度150 + 间距10
     global AutoLoadSelectedText, VoiceSearchAutoLoadSwitch
     AutoLoadLabel := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h25 c" . UI_Colors.TextDim, GetText("auto_load_selected_text"))
     AutoLoadLabel.SetFont("s10", "Segoe UI")
@@ -5861,23 +8296,123 @@ ShowVoiceSearchInputPanel() {
     VoiceSearchAutoUpdateSwitch.OnEvent("Click", ToggleAutoUpdateVoiceInput)
     HoverBtn(VoiceSearchAutoUpdateSwitch, UpdateSwitchBg, UI_Colors.BtnHover)
     
-    ; 搜索引擎标签
+    ; 分类标签栏
     YPos += 35
-    LabelEngine := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w560 h20 c" . UI_Colors.TextDim, GetText("select_search_engine"))
+    LabelCategoryWidth := PanelWidth - 280  ; 左边距20 + 清空按钮130 + 间距10 + 右边距20
+    LabelCategory := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w" . LabelCategoryWidth . " h20 c" . UI_Colors.TextDim, GetText("select_search_engine"))
+    LabelCategory.SetFont("s10", "Segoe UI")
+    
+    ; 清空选择按钮（在标签旁边）
+    ClearSelectionBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    ClearSelectionBtnX := PanelWidth - 150  ; 距离右边20px，按钮宽度130px
+    ClearSelectionBtn := GuiID_VoiceInput.Add("Text", "x" . ClearSelectionBtnX . " y" . YPos . " w130 h25 Center 0x200 c" . ClearSelectionBtnTextColor . " Background" . UI_Colors.BtnBg . " vClearSelectionBtn", GetText("clear_selection"))
+    ClearSelectionBtn.SetFont("s10", "Segoe UI")
+    ClearSelectionBtn.OnEvent("Click", ClearAllSearchEngineSelection)
+    HoverBtn(ClearSelectionBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    ; 创建分类标签按钮
+    YPos += 30
+    global VoiceSearchCurrentCategory, VoiceSearchCategoryTabs, VoiceSearchEnabledCategories
+    
+    ; 【关键修复】Categories 已经在上面计算过了，这里直接使用
+    ; 如果 Categories 未定义，重新计算（防止出错）
+    if (!IsSet(Categories) || !IsObject(Categories) || Categories.Length = 0) {
+        ; 所有可用的标签
+        AllCategories := [
+            {Key: "ai", Text: GetText("search_category_ai")},
+            {Key: "academic", Text: GetText("search_category_academic")},
+            {Key: "baidu", Text: GetText("search_category_baidu")},
+            {Key: "image", Text: GetText("search_category_image")},
+            {Key: "audio", Text: GetText("search_category_audio")},
+            {Key: "video", Text: GetText("search_category_video")},
+            {Key: "book", Text: GetText("search_category_book")},
+            {Key: "price", Text: GetText("search_category_price")},
+            {Key: "medical", Text: GetText("search_category_medical")},
+            {Key: "cloud", Text: GetText("search_category_cloud")}
+        ]
+        
+        ; 确保 VoiceSearchEnabledCategories 已初始化
+        if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
+            VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+        }
+        
+        ; 只保留启用的标签
+        Categories := []
+        for Index, Category in AllCategories {
+            if (ArrayContainsValue(VoiceSearchEnabledCategories, Category.Key) > 0) {
+                Categories.Push(Category)
+            }
+        }
+        
+        ; 如果没有启用的标签，默认启用AI标签
+        if (Categories.Length = 0) {
+            Categories.Push({Key: "ai", Text: GetText("search_category_ai")})
+            VoiceSearchCurrentCategory := "ai"
+        }
+    }
+    
+    VoiceSearchCategoryTabs := []
+    TabWidth := 50
+    TabHeight := 28
+    TabSpacing := 5
+    TabStartX := 20
+    TabY := YPos
+    TabsPerRow := 10  ; 每行显示10个标签
+    
+    ; 第一行标签
+    for Index, Category in Categories {
+        if (Index > TabsPerRow) {
+            break
+        }
+        TabX := TabStartX + (Index - 1) * (TabWidth + TabSpacing)
+        IsActive := (VoiceSearchCurrentCategory = Category.Key)
+        TabBg := IsActive ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
+        TabTextColor := IsActive ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
+        
+        TabBtn := GuiID_VoiceInput.Add("Text", "x" . TabX . " y" . TabY . " w" . TabWidth . " h" . TabHeight . " Center 0x200 c" . TabTextColor . " Background" . TabBg . " vCategoryTab" . Category.Key, Category.Text)
+        TabBtn.SetFont("s9", "Segoe UI")
+        ; 创建事件处理函数并绑定
+        TabHandler := CreateCategoryTabHandler(Category.Key)
+        TabBtn.OnEvent("Click", TabHandler)
+        HoverBtn(TabBtn, TabBg, UI_Colors.BtnHover)
+        VoiceSearchCategoryTabs.Push({Btn: TabBtn, Key: Category.Key, Handler: TabHandler})
+    }
+    
+    ; 如果标签超过10个，创建第二行
+    if (Categories.Length > TabsPerRow) {
+        TabY += TabHeight + TabSpacing
+        for Index, Category in Categories {
+            if (Index <= TabsPerRow) {
+                continue
+            }
+            TabIndex := Index - TabsPerRow
+            TabX := TabStartX + (TabIndex - 1) * (TabWidth + TabSpacing)
+            IsActive := (VoiceSearchCurrentCategory = Category.Key)
+            TabBg := IsActive ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
+            TabTextColor := IsActive ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
+            
+            TabBtn := GuiID_VoiceInput.Add("Text", "x" . TabX . " y" . TabY . " w" . TabWidth . " h" . TabHeight . " Center 0x200 c" . TabTextColor . " Background" . TabBg . " vCategoryTab" . Category.Key, Category.Text)
+            TabBtn.SetFont("s9", "Segoe UI")
+            ; 创建事件处理函数并绑定
+            TabHandler := CreateCategoryTabHandler(Category.Key)
+            TabBtn.OnEvent("Click", TabHandler)
+            HoverBtn(TabBtn, TabBg, UI_Colors.BtnHover)
+            VoiceSearchCategoryTabs.Push({Btn: TabBtn, Key: Category.Key, Handler: TabHandler})
+        }
+    }
+    
+    ; 搜索引擎标签
+    YPos := TabY + TabHeight + 15
+    LabelEngineWidth := PanelWidth - 40  ; 左右边距各20px
+    LabelEngine := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w" . LabelEngineWidth . " h20 c" . UI_Colors.TextDim . " vLabelEngine", GetText("select_search_engine"))
     LabelEngine.SetFont("s10", "Segoe UI")
     
-    ; 搜索引擎按钮
+    ; 保存LabelEngine的Y位置到全局变量，供切换标签时使用
+    global VoiceSearchLabelEngineY := YPos
+    
+    ; 搜索引擎按钮（文字+图标）
     YPos += 30
-    SearchEngines := [
-        {Name: GetText("search_engine_deepseek"), Value: "deepseek"},
-        {Name: GetText("search_engine_yuanbao"), Value: "yuanbao"},
-        {Name: GetText("search_engine_doubao"), Value: "doubao"},
-        {Name: GetText("search_engine_zhipu"), Value: "zhipu"},
-        {Name: GetText("search_engine_mita"), Value: "mita"},
-        {Name: GetText("search_engine_wenxin"), Value: "wenxin"},
-        {Name: GetText("search_engine_qianwen"), Value: "qianwen"},
-        {Name: GetText("search_engine_kimi"), Value: "kimi"}
-    ]
+    ; SearchEngines已经在上面计算面板高度时获取过了，这里直接使用
     
     VoiceSearchEngineButtons := []
     ButtonWidth := 130
@@ -5885,6 +8420,21 @@ ShowVoiceSearchInputPanel() {
     ButtonSpacing := 10
     StartX := 20
     ButtonsPerRow := 4
+    IconSizeInButton := 20  ; 按钮内图标大小
+    
+    ; 【关键修复】动态调整每行按钮数量，确保所有按钮可见
+    ; 计算可用宽度：总宽度 - 左右边距
+    AvailableWidth := PanelWidth - 40  ; 左右边距各20px
+    MaxButtonsPerRow := Floor((AvailableWidth + ButtonSpacing) / (ButtonWidth + ButtonSpacing))
+    if (MaxButtonsPerRow < 1) {
+        MaxButtonsPerRow := 1  ; 至少1个按钮
+    }
+    ButtonsPerRow := Min(ButtonsPerRow, MaxButtonsPerRow)  ; 使用较小的值，确保按钮可见
+    ButtonsRows := Ceil(TotalEngines / ButtonsPerRow)  ; 重新计算行数
+    ButtonsAreaHeight := ButtonsRows * (ButtonHeight + ButtonSpacing)  ; 重新计算按钮区域高度
+    
+    ; 重新计算面板高度，因为按钮行数可能已改变
+    PanelHeight := 30 + 15 + 25 + InputBoxHeight + 35 + 35 + CategoryTabHeight + 30 + ButtonsAreaHeight + 20
     
     for Index, Engine in SearchEngines {
         Row := Floor((Index - 1) / ButtonsPerRow)
@@ -5892,17 +8442,67 @@ ShowVoiceSearchInputPanel() {
         BtnX := StartX + Col * (ButtonWidth + ButtonSpacing)
         BtnY := YPos + Row * (ButtonHeight + ButtonSpacing)
         
-        ; 创建按钮（支持多选）
+        ; 检查是否选中
         IsSelected := (ArrayContainsValue(VoiceSearchSelectedEngines, Engine.Value) > 0)
-        BtnBg := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
+        BtnBgColor := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
         BtnText := IsSelected ? "✓ " . Engine.Name : Engine.Name
         ; 按钮文字颜色：根据主题调整
         EngineBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . EngineBtnTextColor . " Background" . BtnBg . " vSearchEngineBtn" . Index, BtnText)
+        
+        ; 获取图标路径
+        IconPath := GetSearchEngineIcon(Engine.Value)
+        IconCtrl := 0  ; 初始化图标控件变量
+        
+        ; 创建按钮背景
+        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . EngineBtnTextColor . " Background" . BtnBgColor, "")
         Btn.SetFont("s10", "Segoe UI")
         Btn.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
-        HoverBtn(Btn, BtnBg, UI_Colors.BtnHover)
-        VoiceSearchEngineButtons.Push(Btn)
+        HoverBtn(Btn, BtnBgColor, UI_Colors.BtnHover)
+        
+        ; 如果图标存在，在按钮左侧添加小图标
+        if (IconPath != "" && FileExist(IconPath)) {
+            try {
+                ; 计算图标位置（按钮左侧，垂直居中）
+                IconX := BtnX + 8  ; 左边距8px
+                IconY := BtnY + (ButtonHeight - IconSizeInButton) // 2  ; 垂直居中
+                
+                ; 获取图标实际尺寸
+                ImageSize := GetImageSize(IconPath)
+                
+                ; 计算保持比例的显示尺寸
+                DisplaySize := CalculateImageDisplaySize(ImageSize.Width, ImageSize.Height, IconSizeInButton, IconSizeInButton)
+                
+                ; 计算垂直居中位置
+                DisplayX := IconX
+                DisplayY := IconY + (IconSizeInButton - DisplaySize.Height) // 2
+                
+                ; 创建图标控件（不再使用 v 变量）
+                IconCtrl := GuiID_VoiceInput.Add("Picture", "x" . DisplayX . " y" . DisplayY . " w" . DisplaySize.Width . " h" . DisplaySize.Height . " 0x200", IconPath)
+                IconCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
+                
+                ; 计算文字位置（图标右侧）
+                TextX := IconX + IconSizeInButton + 5  ; 图标右侧5px间距
+                TextWidth := ButtonWidth - (TextX - BtnX) - 8  ; 右边距8px
+            } catch {
+                ; 如果图标加载失败，文字从左边开始
+                IconCtrl := 0
+                TextX := BtnX + 8
+                TextWidth := ButtonWidth - 16
+            }
+        } else {
+            ; 如果图标不存在，文字从左边开始
+            TextX := BtnX + 8
+            TextWidth := ButtonWidth - 16
+        }
+        
+        ; 创建文字标签
+        ; 创建文字标签（不再使用 v 变量）
+        TextCtrl := GuiID_VoiceInput.Add("Text", "x" . TextX . " y" . BtnY . " w" . TextWidth . " h" . ButtonHeight . " Left 0x200 c" . EngineBtnTextColor . " BackgroundTrans", BtnText)
+        TextCtrl.SetFont("s10", "Segoe UI")
+        TextCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
+        
+        ; 保存按钮引用（包含背景、图标和文字）
+        VoiceSearchEngineButtons.Push({Bg: Btn, Icon: IconCtrl, Text: TextCtrl, Index: Index})
     }
     
     ScreenInfo := GetScreenInfo(VoiceInputScreenIndex)
@@ -6253,38 +8853,125 @@ CreateToggleSearchEngineHandler(Engine, BtnIndex) {
                 }
                 EnginesStr .= Eng
             }
+            ; 确保至少有一个默认值
+            if (EnginesStr = "") {
+                EnginesStr := "deepseek"
+            }
             IniWrite(EnginesStr, ConfigFile, "Settings", "VoiceSearchSelectedEngines")
-        } catch {
-            ; 忽略保存错误
+        } catch as e {
+            ; 输出错误信息以便调试
+            TrayTip("保存搜索引擎选择失败: " . e.Message, "错误", "Iconx 1")
         }
         
-        ; 更新按钮样式
+        ; 更新按钮样式（文字+图标按钮）
         if (IsSet(VoiceSearchEngineButtons) && VoiceSearchEngineButtons.Length > 0 && BtnIndex <= VoiceSearchEngineButtons.Length) {
-            Btn := VoiceSearchEngineButtons[BtnIndex]
-            if (Btn) {
+            BtnObj := VoiceSearchEngineButtons[BtnIndex]
+            if (BtnObj && IsObject(BtnObj)) {
                 IsSelected := (ArrayContainsValue(VoiceSearchSelectedEngines, Engine) > 0)
-                Btn.BackColor := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
                 
-                ; 更新按钮文本（添加/移除 ✓ 标记）
-                SearchEngines := [
-                    {Name: GetText("search_engine_deepseek"), Value: "deepseek"},
-                    {Name: GetText("search_engine_yuanbao"), Value: "yuanbao"},
-                    {Name: GetText("search_engine_doubao"), Value: "doubao"},
-                    {Name: GetText("search_engine_zhipu"), Value: "zhipu"},
-                    {Name: GetText("search_engine_mita"), Value: "mita"},
-                    {Name: GetText("search_engine_wenxin"), Value: "wenxin"},
-                    {Name: GetText("search_engine_qianwen"), Value: "qianwen"},
-                    {Name: GetText("search_engine_kimi"), Value: "kimi"}
-                ]
+                ; 更新背景颜色
+                if (BtnObj.Bg) {
+                    BtnObj.Bg.BackColor := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
+                }
                 
-                if (BtnIndex <= SearchEngines.Length) {
-                    EngineName := SearchEngines[BtnIndex].Name
-                    Btn.Text := IsSelected ? "✓ " . EngineName : EngineName
+                ; 更新文字（添加/移除 ✓ 标记）
+                if (BtnObj.Text) {
+                    ; 获取搜索引擎名称（从所有搜索引擎中查找，因为可能切换了分类）
+                    AllEngines := GetAllSearchEngines()
+                    EngineName := ""
+                    for Index, Eng in AllEngines {
+                        if (Eng.Value = Engine) {
+                            EngineName := Eng.Name
+                            break
+                        }
+                    }
+                    if (EngineName != "") {
+                        BtnObj.Text.Text := IsSelected ? "✓ " . EngineName : EngineName
+                    }
+                }
+            }
+        }
+        
+        ; 【关键修复】立即刷新GUI，确保按钮背景色更新立即显示
+        try {
+            global GuiID_VoiceInput
+            if (GuiID_VoiceInput && IsObject(GuiID_VoiceInput) && GuiID_VoiceInput.HasProp("Hwnd")) {
+                WinRedraw(GuiID_VoiceInput.Hwnd)
+            }
+        } catch {
+            ; 忽略刷新错误
+        }
+    }
+    return ToggleSearchEngineHandler
+}
+
+; 清空所有搜索引擎选择
+ClearAllSearchEngineSelection(*) {
+    global VoiceSearchSelectedEngines, VoiceSearchEngineButtons, UI_Colors, GuiID_VoiceInput
+    global ConfigFile, VoiceSearchCurrentCategory
+    
+    ; 清空选择数组
+    VoiceSearchSelectedEngines := []
+    
+    ; 保存到配置文件
+    try {
+        IniWrite("deepseek", ConfigFile, "Settings", "VoiceSearchSelectedEngines")
+    } catch as e {
+        ; 忽略保存错误
+    }
+    
+    ; 更新所有按钮的样式（移除选中状态）
+    if (IsSet(VoiceSearchEngineButtons) && VoiceSearchEngineButtons.Length > 0) {
+        ; 获取当前分类的搜索引擎列表
+        try {
+            CurrentEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)
+        } catch {
+            CurrentEngines := []
+        }
+        
+        for Index, BtnObj in VoiceSearchEngineButtons {
+            if (BtnObj && IsObject(BtnObj)) {
+                ; 更新背景颜色（取消选中）
+                try {
+                    if (BtnObj.Bg && IsObject(BtnObj.Bg)) {
+                        BtnObj.Bg.BackColor := UI_Colors.BtnBg
+                    }
+                } catch {
+                    ; 忽略更新错误
+                }
+                
+                ; 更新文字（移除 ✓ 标记）
+                try {
+                    if (BtnObj.Text && IsObject(BtnObj.Text) && BtnObj.Index > 0 && BtnObj.Index <= CurrentEngines.Length) {
+                        EngineName := CurrentEngines[BtnObj.Index].Name
+                        if (EngineName != "") {
+                            ; 移除 ✓ 标记（如果存在）
+                            CurrentText := BtnObj.Text.Text
+                            if (SubStr(CurrentText, 1, 2) = "✓ ") {
+                                BtnObj.Text.Text := EngineName
+                            } else {
+                                BtnObj.Text.Text := EngineName
+                            }
+                        }
+                    }
+                } catch {
+                    ; 忽略更新错误
                 }
             }
         }
     }
-    return ToggleSearchEngineHandler
+    
+    ; 立即刷新GUI，确保所有按钮样式更新立即显示
+    try {
+        if (GuiID_VoiceInput && IsObject(GuiID_VoiceInput) && GuiID_VoiceInput.HasProp("Hwnd")) {
+            WinRedraw(GuiID_VoiceInput.Hwnd)
+        }
+    } catch {
+        ; 忽略刷新错误
+    }
+    
+    ; 显示提示
+    TrayTip(GetText("cleared"), GetText("tip"), "Iconi 1")
 }
 
 ; 清空语音搜索输入框
@@ -6916,16 +9603,8 @@ ShowSearchEngineSelection(Content) {
     
     YPos += 30
     ; 搜索引擎列表
-    SearchEngines := [
-        {Name: GetText("search_engine_deepseek"), Value: "deepseek"},
-        {Name: GetText("search_engine_yuanbao"), Value: "yuanbao"},
-        {Name: GetText("search_engine_doubao"), Value: "doubao"},
-        {Name: GetText("search_engine_zhipu"), Value: "zhipu"},
-        {Name: GetText("search_engine_mita"), Value: "mita"},
-        {Name: GetText("search_engine_wenxin"), Value: "wenxin"},
-        {Name: GetText("search_engine_qianwen"), Value: "qianwen"},
-        {Name: GetText("search_engine_kimi"), Value: "kimi"}
-    ]
+    global VoiceSearchCurrentCategory
+    SearchEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)
     
     VoiceSearchEngineButtons := []
     ButtonWidth := 110
@@ -7025,6 +9704,227 @@ SendVoiceSearchToBrowser(Content, Engine) {
                 ; send_immediately=true：立即发送预填充的内容
                 ; prefill_prompt：设置预填充的聊天内容（intent语句）
                 SearchURL := "https://kimi.moonshot.cn/_prefill_chat?force_search=true&send_immediately=true&prefill_prompt=" . EncodedContent
+            case "perplexity":
+                ; Perplexity AI：使用intent参数进行搜索
+                ; intent=qa：指定为问答意图，q参数传递搜索内容
+                SearchURL := "https://www.perplexity.ai/search?intent=qa&q=" . EncodedContent
+            case "copilot":
+                ; Microsoft Copilot：使用chat路径，添加q参数（intent查询）
+                SearchURL := "https://copilot.microsoft.com/chat?q=" . EncodedContent
+            case "chatgpt":
+                ; ChatGPT：使用根路径，添加q参数（intent查询）
+                SearchURL := "https://chat.openai.com/?q=" . EncodedContent
+            case "grok":
+                ; Grok：使用grok.com路径，添加q参数（intent查询）
+                SearchURL := "https://grok.com/?q=" . EncodedContent
+            case "you":
+                ; You.com：使用search路径，添加q参数（intent查询）
+                SearchURL := "https://you.com/search?q=" . EncodedContent
+            case "claude":
+                ; Claude：使用new路径，添加q参数（intent查询）
+                SearchURL := "https://claude.ai/new?q=" . EncodedContent
+            case "monica":
+                ; Monica：使用answers路径，添加q参数（intent查询）
+                SearchURL := "https://monica.so/answers/?q=" . EncodedContent
+            case "webpilot":
+                ; WebPilot：使用search路径，添加q参数（intent查询）
+                SearchURL := "https://webpilot.ai/search?q=" . EncodedContent
+            ; 学术类
+            case "zhihu":
+                SearchURL := "https://www.zhihu.com/search?q=" . EncodedContent
+            case "wechat_article":
+                SearchURL := "https://weixin.sogou.com/weixin?query=" . EncodedContent
+            case "cainiao":
+                SearchURL := "https://www.cainiao.com/search?q=" . EncodedContent
+            case "gitee":
+                SearchURL := "https://gitee.com/search?q=" . EncodedContent
+            case "pubscholar":
+                SearchURL := "https://pubscholar.cn/search?q=" . EncodedContent
+            case "semantic":
+                SearchURL := "https://www.semanticscholar.org/search?q=" . EncodedContent
+            case "baidu_academic":
+                SearchURL := "https://xueshu.baidu.com/s?wd=" . EncodedContent
+            case "bing_academic":
+                SearchURL := "https://www.bing.com/academic/search?q=" . EncodedContent
+            case "csdn":
+                SearchURL := "https://so.csdn.net/so/search?q=" . EncodedContent
+            case "national_library":
+                SearchURL := "https://www.nlc.cn/dsb_search/search?q=" . EncodedContent
+            case "chaoxing":
+                SearchURL := "https://www.chaoxing.com/search?q=" . EncodedContent
+            case "cnki":
+                SearchURL := "https://kns.cnki.net/kns8/AdvSearch?q=" . EncodedContent
+            case "wechat_reading":
+                SearchURL := "https://weread.qq.com/web/search/books?q=" . EncodedContent
+            case "dada":
+                SearchURL := "https://www.dadawenku.com/search?q=" . EncodedContent
+            case "patent":
+                SearchURL := "https://www.patenthub.cn/search?q=" . EncodedContent
+            case "ip_office":
+                SearchURL := "https://www.cnipa.gov.cn/col/col49/index.html?q=" . EncodedContent
+            case "dedao":
+                SearchURL := "https://www.dedao.cn/search?q=" . EncodedContent
+            case "pkmer":
+                SearchURL := "https://pkmer.cn/search?q=" . EncodedContent
+            ; 百度类
+            case "baidu":
+                SearchURL := "https://www.baidu.com/s?wd=" . EncodedContent
+            case "baidu_title":
+                SearchURL := "https://www.baidu.com/s?wd=intitle:" . EncodedContent
+            case "baidu_hanyu":
+                SearchURL := "https://hanyu.baidu.com/s?wd=" . EncodedContent
+            case "baidu_wenku":
+                SearchURL := "https://wenku.baidu.com/search?word=" . EncodedContent
+            case "baidu_map":
+                SearchURL := "https://map.baidu.com/search/" . EncodedContent
+            case "baidu_pdf":
+                SearchURL := "https://www.baidu.com/s?wd=" . EncodedContent . " filetype:pdf"
+            case "baidu_doc":
+                SearchURL := "https://www.baidu.com/s?wd=" . EncodedContent . " filetype:doc"
+            case "baidu_ppt":
+                SearchURL := "https://www.baidu.com/s?wd=" . EncodedContent . " filetype:ppt"
+            case "baidu_xls":
+                SearchURL := "https://www.baidu.com/s?wd=" . EncodedContent . " filetype:xls"
+            ; 图片类
+            case "image_aggregate":
+                SearchURL := "https://www.tineye.com/search?q=" . EncodedContent
+            case "iconfont":
+                SearchURL := "https://www.iconfont.cn/search/index?q=" . EncodedContent
+            case "wenxin_image":
+                SearchURL := "https://yiyan.baidu.com/image?query=" . EncodedContent
+            case "tiangong_image":
+                SearchURL := "https://tiangong.kuaishou.com/image?q=" . EncodedContent
+            case "yuanbao_image":
+                SearchURL := "https://yuanbao.tencent.com/image?q=" . EncodedContent
+            case "tongyi_image":
+                SearchURL := "https://tongyi.aliyun.com/wanxiang/image?q=" . EncodedContent
+            case "zhipu_image":
+                SearchURL := "https://chatglm.cn/image?q=" . EncodedContent
+            case "miaohua":
+                SearchURL := "https://miaohua.sensetime.com/?q=" . EncodedContent
+            case "keling":
+                SearchURL := "https://kling.kuaishou.com/?q=" . EncodedContent
+            case "jimmeng":
+                SearchURL := "https://jimmeng.douyin.com/?q=" . EncodedContent
+            case "baidu_image":
+                SearchURL := "https://image.baidu.com/search/index?tn=baiduimage&word=" . EncodedContent
+            case "shetu":
+                SearchURL := "https://699pic.com/search.html?kw=" . EncodedContent
+            case "huaban":
+                SearchURL := "https://huaban.com/search/?q=" . EncodedContent
+            case "zcool":
+                SearchURL := "https://www.zcool.com.cn/search/content?&word=" . EncodedContent
+            case "uisdc":
+                SearchURL := "https://www.uisdc.com/search?q=" . EncodedContent
+            case "nipic":
+                SearchURL := "https://www.nipic.com/search.html?k=" . EncodedContent
+            case "bing_image":
+                SearchURL := "https://www.bing.com/images/search?q=" . EncodedContent
+            case "google_image":
+                SearchURL := "https://www.google.com/search?tbm=isch&q=" . EncodedContent
+            case "weibo_image":
+                SearchURL := "https://s.weibo.com/image?q=" . EncodedContent
+            case "sogou_image":
+                SearchURL := "https://pic.sogou.com/pics?query=" . EncodedContent
+            case "haosou_image":
+                SearchURL := "https://image.so.com/i?q=" . EncodedContent
+            ; 音频类
+            case "netease_music":
+                SearchURL := "https://music.163.com/#/search/m/?s=" . EncodedContent
+            case "tiangong_music":
+                SearchURL := "https://tiangong.kuaishou.com/music?q=" . EncodedContent
+            case "qq_music":
+                SearchURL := "https://y.qq.com/n/ryqq/search?w=" . EncodedContent
+            case "kuwo":
+                SearchURL := "https://www.kuwo.cn/search/list?key=" . EncodedContent
+            case "kugou":
+                SearchURL := "https://www.kugou.com/yy/html/search.html#searchType=song&searchKeyWord=" . EncodedContent
+            case "qianqian":
+                SearchURL := "https://music.taihe.com/search?word=" . EncodedContent
+            case "ximalaya":
+                SearchURL := "https://www.ximalaya.com/search/" . EncodedContent
+            case "5sing":
+                SearchURL := "https://5sing.kugou.com/search.html?q=" . EncodedContent
+            ; 视频类
+            case "douyin":
+                SearchURL := "https://www.douyin.com/search/" . EncodedContent
+            case "youtube":
+                SearchURL := "https://www.youtube.com/results?search_query=" . EncodedContent
+            case "youku":
+                SearchURL := "https://so.youku.com/search_video/q_" . EncodedContent
+            case "tencent_video":
+                SearchURL := "https://v.qq.com/x/search/?q=" . EncodedContent
+            case "iqiyi":
+                SearchURL := "https://so.iqiyi.com/so/q_" . EncodedContent
+            case "pexels":
+                SearchURL := "https://www.pexels.com/search/" . EncodedContent
+            case "yandex":
+                SearchURL := "https://yandex.com/video/search?text=" . EncodedContent
+            ; 图书类
+            case "duokan":
+                SearchURL := "https://www.duokan.com/search/" . EncodedContent
+            case "turing":
+                SearchURL := "https://www.ituring.com.cn/search?q=" . EncodedContent
+            case "panda_book":
+                SearchURL := "https://www.xpanda.cc/search?q=" . EncodedContent
+            case "douban_book":
+                SearchURL := "https://book.douban.com/subject_search?search_text=" . EncodedContent
+            case "jiumo":
+                SearchURL := "https://www.jiumodiary.com/search?q=" . EncodedContent
+            case "weibo_book":
+                SearchURL := "https://s.weibo.com/weibo/" . EncodedContent
+            ; 比价类
+            case "jd":
+                SearchURL := "https://search.jd.com/Search?keyword=" . EncodedContent
+            case "taobao":
+                SearchURL := "https://s.taobao.com/search?q=" . EncodedContent
+            case "tmall":
+                SearchURL := "https://list.tmall.com/search_product.htm?q=" . EncodedContent
+            case "pinduoduo":
+                SearchURL := "https://mobile.yangkeduo.com/search_result.html?search_key=" . EncodedContent
+            case "xianyu":
+                SearchURL := "https://s.2.taobao.com/list/list.htm?q=" . EncodedContent
+            case "smzdm":
+                SearchURL := "https://search.smzdm.com/?c=faxian&s=" . EncodedContent
+            case "dangdang":
+                SearchURL := "https://search.dangdang.com/?key=" . EncodedContent
+            case "1688":
+                SearchURL := "https://s.1688.com/selloffer/offer_search.htm?keywords=" . EncodedContent
+            case "amazon":
+                SearchURL := "https://www.amazon.com/s?k=" . EncodedContent
+            case "ebay":
+                SearchURL := "https://www.ebay.com/sch/i.html?_nkw=" . EncodedContent
+            ; 医疗类
+            case "dxy":
+                SearchURL := "https://www.dxy.cn/bbs/newweb/pc/search?q=" . EncodedContent
+            case "merck":
+                SearchURL := "https://www.msdmanuals.com/zh/search?q=" . EncodedContent
+            case "aplus_medical":
+                SearchURL := "https://www.a-hospital.com/w/" . EncodedContent
+            case "medical_baike":
+                SearchURL := "https://www.yixue.com/index.php?q=" . EncodedContent
+            case "weiyi":
+                SearchURL := "https://www.guahao.com/search?q=" . EncodedContent
+            case "medlive":
+                SearchURL := "https://www.medlive.cn/search?q=" . EncodedContent
+            case "xywy":
+                SearchURL := "https://www.xywy.com/search?q=" . EncodedContent
+            ; 网盘类
+            case "pansoso":
+                ; 盘搜搜：直接打开主页（不支持参数传递）
+                SearchURL := "https://www.pansoso.com/zh/"
+            case "panso":
+                ; 盘搜Pro：使用search路径，添加q参数
+                SearchURL := "https://panso.pro/search?q=" . EncodedContent
+            case "xiaomapan":
+                ; 小码盘：使用search路径，添加keyword参数
+                SearchURL := "https://www.xiaomapan.com/#/main/search?keyword=" . EncodedContent
+            case "dashengpan":
+                ; 大圣盘：使用search路径，添加keyword参数
+                SearchURL := "https://www.dashengpan.com/#/main/search?keyword=" . EncodedContent
+            case "miaosou":
+                ; 秒搜：使用info路径，添加searchKey参数
+                SearchURL := "https://miaosou.fun/info?searchKey=" . EncodedContent
             default:
                 SearchURL := "https://chat.deepseek.com/?q=" . EncodedContent
         }
