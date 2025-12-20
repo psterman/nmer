@@ -92,6 +92,8 @@ global SearchEngine := "deepseek"  ; 默认搜索引擎：deepseek, yuanbao, dou
 global VoiceSearchSelecting := false  ; 是否正在选择搜索引擎
 global VoiceSearchPanelVisible := false  ; 语音搜索面板是否显示
 global VoiceSearchSelectedEngines := ["deepseek"]  ; 当前在语音搜索界面中选择的搜索引擎（支持多选）
+global VoiceSearchCurrentCategory := "ai"  ; 当前选中的搜索引擎分类标签
+global VoiceSearchCategoryTabs := []  ; 分类标签按钮数组
 global AutoLoadSelectedText := false  ; 是否自动加载选中文本到输入框
 global VoiceSearchAutoLoadSwitch := 0  ; 自动加载开关控件（语音搜索）
 global VoiceInputAutoLoadSwitch := 0  ; 自动加载开关控件（语音输入）
@@ -379,6 +381,152 @@ GetText(Key) {
             "search_engine_claude", "Claude",
             "search_engine_monica", "Monica",
             "search_engine_webpilot", "WebPilot",
+            ; 学术类搜索引擎
+            "search_engine_zhihu", "知乎",
+            "search_engine_wechat_article", "微信文章搜索",
+            "search_engine_cainiao", "菜鸟编程",
+            "search_engine_gitee", "Gitee",
+            "search_engine_pubscholar", "PubScholar",
+            "search_engine_semantic", "Semantic Scholar",
+            "search_engine_baidu_academic", "百度学术",
+            "search_engine_bing_academic", "微软必应学术",
+            "search_engine_csdn", "CSDN搜索",
+            "search_engine_national_library", "国家图书馆",
+            "search_engine_chaoxing", "超星发现",
+            "search_engine_cnki", "中国知网",
+            "search_engine_wechat_reading", "微信读书",
+            "search_engine_dada", "哒哒文库",
+            "search_engine_patent", "专利检索",
+            "search_engine_ip_office", "国家知识产权局",
+            "search_engine_dedao", "得到",
+            "search_engine_pkmer", "Pkmer知识社区",
+            ; 百度类搜索引擎
+            "search_engine_baidu", "百度",
+            "search_engine_baidu_title", "限定标题搜索",
+            "search_engine_baidu_hanyu", "百度汉语",
+            "search_engine_baidu_wenku", "百度文库",
+            "search_engine_baidu_map", "百度地图",
+            "search_engine_baidu_pdf", "限定搜PDF",
+            "search_engine_baidu_doc", "限定搜DOC",
+            "search_engine_baidu_ppt", "限定搜PPT",
+            "search_engine_baidu_xls", "限定搜XLS",
+            ; 图片类搜索引擎
+            "search_engine_image_aggregate", "搜图聚合搜索",
+            "search_engine_iconfont", "搜矢量图标库",
+            "search_engine_wenxin_image", "文心一言文生图",
+            "search_engine_tiangong_image", "天工文生图",
+            "search_engine_yuanbao_image", "元宝AI画图",
+            "search_engine_tongyi_image", "通义万相文字作画",
+            "search_engine_zhipu_image", "智谱清言AI画图",
+            "search_engine_miaohua", "秒画",
+            "search_engine_keling", "可灵",
+            "search_engine_jimmeng", "即梦AI文生画",
+            "search_engine_baidu_image", "百度图库",
+            "search_engine_shetu", "摄图网",
+            "search_engine_ai_image_lib", "AI图库网站",
+            "search_engine_huaban", "花瓣网",
+            "search_engine_zcool", "站酷",
+            "search_engine_uisdc", "优设网",
+            "search_engine_nipic", "昵图网",
+            "search_engine_qianku", "千库网",
+            "search_engine_qiantu", "千图网",
+            "search_engine_zhongtu", "众图网",
+            "search_engine_miyuan", "觅元素",
+            "search_engine_mizhi", "觅知网",
+            "search_engine_icons", "ICONS",
+            "search_engine_tuxing", "图行天下",
+            "search_engine_xiangsheji", "享设计",
+            "search_engine_bing_image", "必应图片",
+            "search_engine_google_image", "谷歌图片",
+            "search_engine_weibo_image", "微博图片",
+            "search_engine_sogou_image", "搜狗图片",
+            "search_engine_haosou_image", "好搜图片",
+            ; 音频类搜索引擎
+            "search_engine_netease_music", "网易云音乐",
+            "search_engine_tiangong_music", "天工AI音乐",
+            "search_engine_text_to_speech", "文本转语音",
+            "search_engine_speech_to_text", "语音转文本",
+            "search_engine_shetu_music", "摄图背景音乐",
+            "search_engine_qq_music", "QQ音乐",
+            "search_engine_kuwo", "酷我音乐",
+            "search_engine_kugou", "酷狗音乐",
+            "search_engine_qianqian", "千千音乐",
+            "search_engine_ximalaya", "喜马拉雅",
+            "search_engine_5sing", "5sing原创音乐",
+            "search_engine_lossless", "无损音乐吧",
+            "search_engine_erling", "耳聆-音效",
+            ; 视频类搜索引擎
+            "search_engine_douyin", "抖音",
+            "search_engine_yuewen", "悦问",
+            "search_engine_qingying", "清影-AI生视频",
+            "search_engine_tongyi_video", "通义万相视频生成",
+            "search_engine_jimmeng_video", "即梦AI视频生成",
+            "search_engine_youtube", "YouTube",
+            "search_engine_find_lines", "找台词",
+            "search_engine_shetu_video", "摄图视频",
+            "search_engine_yandex", "Yandex",
+            "search_engine_pexels", "Pexels",
+            "search_engine_youku", "优酷",
+            "search_engine_chanjing", "蝉镜",
+            "search_engine_duojia", "度加创作",
+            "search_engine_tencent_zhiying", "腾讯智影",
+            "search_engine_wansheng", "万兴AI剪辑",
+            "search_engine_tencent_video", "腾讯视频",
+            "search_engine_iqiyi", "爱奇艺",
+            ; 图书类搜索引擎
+            "search_engine_duokan", "多看阅读",
+            "search_engine_turing", "图灵社区",
+            "search_engine_panda_book", "熊猫搜书",
+            "search_engine_douban_book", "豆瓣读书",
+            "search_engine_lifelong_edu", "终身教育平台",
+            "search_engine_verypan", "verypan搜",
+            "search_engine_zouddupai", "走读派导航网",
+            "search_engine_gd_library", "广东省立中山图书馆",
+            "search_engine_pansou", "盘搜",
+            "search_engine_zsxq", "知识星球",
+            "search_engine_jiumo", "鸠摩搜书",
+            "search_engine_weibo_book", "微博",
+            ; 比价类搜索引擎
+            "search_engine_jd", "京东",
+            "search_engine_baidu_procure", "百度爱采购",
+            "search_engine_dangdang", "当当",
+            "search_engine_1688", "1688",
+            "search_engine_taobao", "淘宝",
+            "search_engine_tmall", "天猫",
+            "search_engine_pinduoduo", "拼多多",
+            "search_engine_xianyu", "闲鱼",
+            "search_engine_smzdm", "什么值得买",
+            "search_engine_yanxuan", "网易严选",
+            "search_engine_gaide", "盖得排行",
+            "search_engine_suning", "苏宁易购",
+            "search_engine_ebay", "eBay",
+            "search_engine_amazon", "亚马逊",
+            ; 医疗类搜索引擎
+            "search_engine_dxy", "丁香园",
+            "search_engine_left_doctor", "左手医生AI",
+            "search_engine_medisearch", "MediSearch",
+            "search_engine_merck", "默沙东诊疗手册",
+            "search_engine_aplus_medical", "A+医学百科",
+            "search_engine_medical_baike", "医学百科",
+            "search_engine_weiyi", "微医",
+            "search_engine_medlive", "医脉通",
+            "search_engine_xywy", "寻医问药",
+            ; 网盘类搜索引擎
+            "search_engine_pansoso", "盘搜搜",
+            "search_engine_panso", "盘搜Pro",
+            "search_engine_xiaomapan", "小码盘",
+            "search_engine_dashengpan", "大圣盘",
+            "search_engine_miaosou", "秒搜",
+            "search_category_ai", "AI",
+            "search_category_academic", "学术",
+            "search_category_baidu", "百度",
+            "search_category_image", "图片",
+            "search_category_audio", "音频",
+            "search_category_video", "视频",
+            "search_category_book", "图书",
+            "search_category_price", "比价",
+            "search_category_medical", "医疗",
+            "search_category_cloud", "网盘",
             "quick_action_config", "快捷操作按钮配置",
             "quick_action_config_desc", "配置快捷操作面板中的按钮顺序和功能按键（最多5个）",
             "quick_action_button", "按钮 {0}",
@@ -609,6 +757,152 @@ GetText(Key) {
             "search_engine_claude", "Claude",
             "search_engine_monica", "Monica",
             "search_engine_webpilot", "WebPilot",
+            ; 学术类搜索引擎
+            "search_engine_zhihu", "Zhihu",
+            "search_engine_wechat_article", "WeChat Article",
+            "search_engine_cainiao", "Cainiao Programming",
+            "search_engine_gitee", "Gitee",
+            "search_engine_pubscholar", "PubScholar",
+            "search_engine_semantic", "Semantic Scholar",
+            "search_engine_baidu_academic", "Baidu Academic",
+            "search_engine_bing_academic", "Bing Academic",
+            "search_engine_csdn", "CSDN Search",
+            "search_engine_national_library", "National Library",
+            "search_engine_chaoxing", "Chaoxing Discovery",
+            "search_engine_cnki", "CNKI",
+            "search_engine_wechat_reading", "WeChat Reading",
+            "search_engine_dada", "Dada Wenku",
+            "search_engine_patent", "Patent Search",
+            "search_engine_ip_office", "IP Office",
+            "search_engine_dedao", "Dedao",
+            "search_engine_pkmer", "Pkmer",
+            ; 百度类搜索引擎
+            "search_engine_baidu", "Baidu",
+            "search_engine_baidu_title", "Title Search",
+            "search_engine_baidu_hanyu", "Baidu Hanyu",
+            "search_engine_baidu_wenku", "Baidu Wenku",
+            "search_engine_baidu_map", "Baidu Map",
+            "search_engine_baidu_pdf", "PDF Search",
+            "search_engine_baidu_doc", "DOC Search",
+            "search_engine_baidu_ppt", "PPT Search",
+            "search_engine_baidu_xls", "XLS Search",
+            ; 图片类搜索引擎
+            "search_engine_image_aggregate", "Image Aggregate",
+            "search_engine_iconfont", "Icon Font",
+            "search_engine_wenxin_image", "Wenxin Image",
+            "search_engine_tiangong_image", "Tiangong Image",
+            "search_engine_yuanbao_image", "Yuanbao Image",
+            "search_engine_tongyi_image", "Tongyi Image",
+            "search_engine_zhipu_image", "Zhipu Image",
+            "search_engine_miaohua", "Miaohua",
+            "search_engine_keling", "Keling",
+            "search_engine_jimmeng", "Jimmeng",
+            "search_engine_baidu_image", "Baidu Image",
+            "search_engine_shetu", "Shetu",
+            "search_engine_ai_image_lib", "AI Image Library",
+            "search_engine_huaban", "Huaban",
+            "search_engine_zcool", "Zcool",
+            "search_engine_uisdc", "UISDC",
+            "search_engine_nipic", "Nipic",
+            "search_engine_qianku", "Qianku",
+            "search_engine_qiantu", "Qiantu",
+            "search_engine_zhongtu", "Zhongtu",
+            "search_engine_miyuan", "Miyuan",
+            "search_engine_mizhi", "Mizhi",
+            "search_engine_icons", "ICONS",
+            "search_engine_tuxing", "Tuxing",
+            "search_engine_xiangsheji", "Xiangsheji",
+            "search_engine_bing_image", "Bing Image",
+            "search_engine_google_image", "Google Image",
+            "search_engine_weibo_image", "Weibo Image",
+            "search_engine_sogou_image", "Sogou Image",
+            "search_engine_haosou_image", "Haosou Image",
+            ; 音频类搜索引擎
+            "search_engine_netease_music", "NetEase Music",
+            "search_engine_tiangong_music", "Tiangong Music",
+            "search_engine_text_to_speech", "Text to Speech",
+            "search_engine_speech_to_text", "Speech to Text",
+            "search_engine_shetu_music", "Shetu Music",
+            "search_engine_qq_music", "QQ Music",
+            "search_engine_kuwo", "Kuwo",
+            "search_engine_kugou", "Kugou",
+            "search_engine_qianqian", "Qianqian",
+            "search_engine_ximalaya", "Ximalaya",
+            "search_engine_5sing", "5sing",
+            "search_engine_lossless", "Lossless Music",
+            "search_engine_erling", "Erling",
+            ; 视频类搜索引擎
+            "search_engine_douyin", "Douyin",
+            "search_engine_yuewen", "Yuewen",
+            "search_engine_qingying", "Qingying",
+            "search_engine_tongyi_video", "Tongyi Video",
+            "search_engine_jimmeng_video", "Jimmeng Video",
+            "search_engine_youtube", "YouTube",
+            "search_engine_find_lines", "Find Lines",
+            "search_engine_shetu_video", "Shetu Video",
+            "search_engine_yandex", "Yandex",
+            "search_engine_pexels", "Pexels",
+            "search_engine_youku", "Youku",
+            "search_engine_chanjing", "Chanjing",
+            "search_engine_duojia", "Duojia",
+            "search_engine_tencent_zhiying", "Tencent Zhiying",
+            "search_engine_wansheng", "Wansheng",
+            "search_engine_tencent_video", "Tencent Video",
+            "search_engine_iqiyi", "iQiyi",
+            ; 图书类搜索引擎
+            "search_engine_duokan", "Duokan",
+            "search_engine_turing", "Turing",
+            "search_engine_panda_book", "Panda Book",
+            "search_engine_douban_book", "Douban Book",
+            "search_engine_lifelong_edu", "Lifelong Education",
+            "search_engine_verypan", "Verypan",
+            "search_engine_zouddupai", "Zouddupai",
+            "search_engine_gd_library", "GD Library",
+            "search_engine_pansou", "Pansou",
+            "search_engine_zsxq", "ZSXQ",
+            "search_engine_jiumo", "Jiumo",
+            "search_engine_weibo_book", "Weibo",
+            ; 比价类搜索引擎
+            "search_engine_jd", "JD",
+            "search_engine_baidu_procure", "Baidu Procure",
+            "search_engine_dangdang", "Dangdang",
+            "search_engine_1688", "1688",
+            "search_engine_taobao", "Taobao",
+            "search_engine_tmall", "Tmall",
+            "search_engine_pinduoduo", "Pinduoduo",
+            "search_engine_xianyu", "Xianyu",
+            "search_engine_smzdm", "SMZDM",
+            "search_engine_yanxuan", "Yanxuan",
+            "search_engine_gaide", "Gaide",
+            "search_engine_suning", "Suning",
+            "search_engine_ebay", "eBay",
+            "search_engine_amazon", "Amazon",
+            ; 医疗类搜索引擎
+            "search_engine_dxy", "DXY",
+            "search_engine_left_doctor", "Left Doctor",
+            "search_engine_medisearch", "MediSearch",
+            "search_engine_merck", "Merck Manual",
+            "search_engine_aplus_medical", "A+ Medical",
+            "search_engine_medical_baike", "Medical Baike",
+            "search_engine_weiyi", "Weiyi",
+            "search_engine_medlive", "Medlive",
+            "search_engine_xywy", "XYWY",
+            ; 网盘类搜索引擎
+            "search_engine_pansoso", "Pansoso",
+            "search_engine_panso", "Panso Pro",
+            "search_engine_xiaomapan", "Xiaomapan",
+            "search_engine_dashengpan", "Dashengpan",
+            "search_engine_miaosou", "Miaosou",
+            "search_category_ai", "AI",
+            "search_category_academic", "Academic",
+            "search_category_baidu", "Baidu",
+            "search_category_image", "Image",
+            "search_category_audio", "Audio",
+            "search_category_video", "Video",
+            "search_category_book", "Book",
+            "search_category_price", "Price",
+            "search_category_medical", "Medical",
+            "search_category_cloud", "Cloud",
             "quick_action_config", "Quick Action Button Configuration",
             "quick_action_config_desc", "Configure button order and hotkeys in the quick action panel (max 5)",
             "quick_action_button", "Button {0}",
@@ -6676,7 +6970,8 @@ ShowVoiceInputActionSelection(Content) {
     ; 搜索引擎按钮位置（从LabelEngine下方开始）
     YPos := 55 + 25 + 60 + 70 + 35 + 20 + 10 + 35 + 50  ; 操作按钮下方（标题+标签+输入框+开关间距+开关+操作标签间距+操作标签+按钮间距+操作按钮+引擎标签间距）
     ; 搜索引擎列表
-    SearchEngines := GetSortedSearchEngines()
+    global VoiceSearchCurrentCategory
+    SearchEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)
     
     VoiceSearchEngineButtons := []
     ButtonWidth := 110
@@ -6911,61 +7206,250 @@ StartVoiceSearch() {
     }
 }
 
-; 获取排序后的搜索引擎列表（根据语言版本排序：英文版AI引擎靠前，中文版靠后）
-GetSortedSearchEngines() {
-    global Language
-    
-    ; 定义所有搜索引擎
-    ChineseEngines := [
-        {Name: GetText("search_engine_deepseek"), Value: "deepseek"},
-        {Name: GetText("search_engine_yuanbao"), Value: "yuanbao"},
-        {Name: GetText("search_engine_doubao"), Value: "doubao"},
-        {Name: GetText("search_engine_zhipu"), Value: "zhipu"},
-        {Name: GetText("search_engine_mita"), Value: "mita"},
-        {Name: GetText("search_engine_wenxin"), Value: "wenxin"},
-        {Name: GetText("search_engine_qianwen"), Value: "qianwen"},
-        {Name: GetText("search_engine_kimi"), Value: "kimi"}
+; 获取所有搜索引擎（带分类信息）
+GetAllSearchEngines() {
+    ; 定义所有搜索引擎，每个引擎包含分类信息
+    AllEngines := [
+        ; AI类
+        {Name: GetText("search_engine_deepseek"), Value: "deepseek", Category: "ai"},
+        {Name: GetText("search_engine_yuanbao"), Value: "yuanbao", Category: "ai"},
+        {Name: GetText("search_engine_doubao"), Value: "doubao", Category: "ai"},
+        {Name: GetText("search_engine_zhipu"), Value: "zhipu", Category: "ai"},
+        {Name: GetText("search_engine_mita"), Value: "mita", Category: "ai"},
+        {Name: GetText("search_engine_wenxin"), Value: "wenxin", Category: "ai"},
+        {Name: GetText("search_engine_qianwen"), Value: "qianwen", Category: "ai"},
+        {Name: GetText("search_engine_kimi"), Value: "kimi", Category: "ai"},
+        {Name: GetText("search_engine_perplexity"), Value: "perplexity", Category: "ai"},
+        {Name: GetText("search_engine_copilot"), Value: "copilot", Category: "ai"},
+        {Name: GetText("search_engine_chatgpt"), Value: "chatgpt", Category: "ai"},
+        {Name: GetText("search_engine_grok"), Value: "grok", Category: "ai"},
+        {Name: GetText("search_engine_you"), Value: "you", Category: "ai"},
+        {Name: GetText("search_engine_claude"), Value: "claude", Category: "ai"},
+        {Name: GetText("search_engine_monica"), Value: "monica", Category: "ai"},
+        {Name: GetText("search_engine_webpilot"), Value: "webpilot", Category: "ai"},
+        
+        ; 学术类
+        {Name: GetText("search_engine_zhihu"), Value: "zhihu", Category: "academic"},
+        {Name: GetText("search_engine_wechat_article"), Value: "wechat_article", Category: "academic"},
+        {Name: GetText("search_engine_cainiao"), Value: "cainiao", Category: "academic"},
+        {Name: GetText("search_engine_gitee"), Value: "gitee", Category: "academic"},
+        {Name: GetText("search_engine_pubscholar"), Value: "pubscholar", Category: "academic"},
+        {Name: GetText("search_engine_semantic"), Value: "semantic", Category: "academic"},
+        {Name: GetText("search_engine_baidu_academic"), Value: "baidu_academic", Category: "academic"},
+        {Name: GetText("search_engine_bing_academic"), Value: "bing_academic", Category: "academic"},
+        {Name: GetText("search_engine_csdn"), Value: "csdn", Category: "academic"},
+        {Name: GetText("search_engine_national_library"), Value: "national_library", Category: "academic"},
+        {Name: GetText("search_engine_chaoxing"), Value: "chaoxing", Category: "academic"},
+        {Name: GetText("search_engine_cnki"), Value: "cnki", Category: "academic"},
+        {Name: GetText("search_engine_wechat_reading"), Value: "wechat_reading", Category: "academic"},
+        {Name: GetText("search_engine_dada"), Value: "dada", Category: "academic"},
+        {Name: GetText("search_engine_patent"), Value: "patent", Category: "academic"},
+        {Name: GetText("search_engine_ip_office"), Value: "ip_office", Category: "academic"},
+        {Name: GetText("search_engine_dedao"), Value: "dedao", Category: "academic"},
+        {Name: GetText("search_engine_pkmer"), Value: "pkmer", Category: "academic"},
+        
+        ; 百度类
+        {Name: GetText("search_engine_baidu"), Value: "baidu", Category: "baidu"},
+        {Name: GetText("search_engine_baidu_title"), Value: "baidu_title", Category: "baidu"},
+        {Name: GetText("search_engine_baidu_hanyu"), Value: "baidu_hanyu", Category: "baidu"},
+        {Name: GetText("search_engine_baidu_wenku"), Value: "baidu_wenku", Category: "baidu"},
+        {Name: GetText("search_engine_baidu_map"), Value: "baidu_map", Category: "baidu"},
+        {Name: GetText("search_engine_baidu_pdf"), Value: "baidu_pdf", Category: "baidu"},
+        {Name: GetText("search_engine_baidu_doc"), Value: "baidu_doc", Category: "baidu"},
+        {Name: GetText("search_engine_baidu_ppt"), Value: "baidu_ppt", Category: "baidu"},
+        {Name: GetText("search_engine_baidu_xls"), Value: "baidu_xls", Category: "baidu"},
+        
+        ; 图片类
+        {Name: GetText("search_engine_image_aggregate"), Value: "image_aggregate", Category: "image"},
+        {Name: GetText("search_engine_iconfont"), Value: "iconfont", Category: "image"},
+        {Name: GetText("search_engine_wenxin_image"), Value: "wenxin_image", Category: "image"},
+        {Name: GetText("search_engine_tiangong_image"), Value: "tiangong_image", Category: "image"},
+        {Name: GetText("search_engine_yuanbao_image"), Value: "yuanbao_image", Category: "image"},
+        {Name: GetText("search_engine_tongyi_image"), Value: "tongyi_image", Category: "image"},
+        {Name: GetText("search_engine_zhipu_image"), Value: "zhipu_image", Category: "image"},
+        {Name: GetText("search_engine_miaohua"), Value: "miaohua", Category: "image"},
+        {Name: GetText("search_engine_keling"), Value: "keling", Category: "image"},
+        {Name: GetText("search_engine_jimmeng"), Value: "jimmeng", Category: "image"},
+        {Name: GetText("search_engine_baidu_image"), Value: "baidu_image", Category: "image"},
+        {Name: GetText("search_engine_shetu"), Value: "shetu", Category: "image"},
+        {Name: GetText("search_engine_ai_image_lib"), Value: "ai_image_lib", Category: "image"},
+        {Name: GetText("search_engine_huaban"), Value: "huaban", Category: "image"},
+        {Name: GetText("search_engine_zcool"), Value: "zcool", Category: "image"},
+        {Name: GetText("search_engine_uisdc"), Value: "uisdc", Category: "image"},
+        {Name: GetText("search_engine_nipic"), Value: "nipic", Category: "image"},
+        {Name: GetText("search_engine_qianku"), Value: "qianku", Category: "image"},
+        {Name: GetText("search_engine_qiantu"), Value: "qiantu", Category: "image"},
+        {Name: GetText("search_engine_zhongtu"), Value: "zhongtu", Category: "image"},
+        {Name: GetText("search_engine_miyuan"), Value: "miyuan", Category: "image"},
+        {Name: GetText("search_engine_mizhi"), Value: "mizhi", Category: "image"},
+        {Name: GetText("search_engine_icons"), Value: "icons", Category: "image"},
+        {Name: GetText("search_engine_tuxing"), Value: "tuxing", Category: "image"},
+        {Name: GetText("search_engine_xiangsheji"), Value: "xiangsheji", Category: "image"},
+        {Name: GetText("search_engine_bing_image"), Value: "bing_image", Category: "image"},
+        {Name: GetText("search_engine_google_image"), Value: "google_image", Category: "image"},
+        {Name: GetText("search_engine_weibo_image"), Value: "weibo_image", Category: "image"},
+        {Name: GetText("search_engine_sogou_image"), Value: "sogou_image", Category: "image"},
+        {Name: GetText("search_engine_haosou_image"), Value: "haosou_image", Category: "image"},
+        
+        ; 音频类
+        {Name: GetText("search_engine_netease_music"), Value: "netease_music", Category: "audio"},
+        {Name: GetText("search_engine_tiangong_music"), Value: "tiangong_music", Category: "audio"},
+        {Name: GetText("search_engine_text_to_speech"), Value: "text_to_speech", Category: "audio"},
+        {Name: GetText("search_engine_speech_to_text"), Value: "speech_to_text", Category: "audio"},
+        {Name: GetText("search_engine_shetu_music"), Value: "shetu_music", Category: "audio"},
+        {Name: GetText("search_engine_qq_music"), Value: "qq_music", Category: "audio"},
+        {Name: GetText("search_engine_kuwo"), Value: "kuwo", Category: "audio"},
+        {Name: GetText("search_engine_kugou"), Value: "kugou", Category: "audio"},
+        {Name: GetText("search_engine_qianqian"), Value: "qianqian", Category: "audio"},
+        {Name: GetText("search_engine_ximalaya"), Value: "ximalaya", Category: "audio"},
+        {Name: GetText("search_engine_5sing"), Value: "5sing", Category: "audio"},
+        {Name: GetText("search_engine_lossless"), Value: "lossless", Category: "audio"},
+        {Name: GetText("search_engine_erling"), Value: "erling", Category: "audio"},
+        
+        ; 视频类
+        {Name: GetText("search_engine_douyin"), Value: "douyin", Category: "video"},
+        {Name: GetText("search_engine_yuewen"), Value: "yuewen", Category: "video"},
+        {Name: GetText("search_engine_qingying"), Value: "qingying", Category: "video"},
+        {Name: GetText("search_engine_tongyi_video"), Value: "tongyi_video", Category: "video"},
+        {Name: GetText("search_engine_jimmeng_video"), Value: "jimmeng_video", Category: "video"},
+        {Name: GetText("search_engine_youtube"), Value: "youtube", Category: "video"},
+        {Name: GetText("search_engine_find_lines"), Value: "find_lines", Category: "video"},
+        {Name: GetText("search_engine_shetu_video"), Value: "shetu_video", Category: "video"},
+        {Name: GetText("search_engine_yandex"), Value: "yandex", Category: "video"},
+        {Name: GetText("search_engine_pexels"), Value: "pexels", Category: "video"},
+        {Name: GetText("search_engine_youku"), Value: "youku", Category: "video"},
+        {Name: GetText("search_engine_chanjing"), Value: "chanjing", Category: "video"},
+        {Name: GetText("search_engine_duojia"), Value: "duojia", Category: "video"},
+        {Name: GetText("search_engine_tencent_zhiying"), Value: "tencent_zhiying", Category: "video"},
+        {Name: GetText("search_engine_wansheng"), Value: "wansheng", Category: "video"},
+        {Name: GetText("search_engine_tencent_video"), Value: "tencent_video", Category: "video"},
+        {Name: GetText("search_engine_iqiyi"), Value: "iqiyi", Category: "video"},
+        
+        ; 图书类
+        {Name: GetText("search_engine_duokan"), Value: "duokan", Category: "book"},
+        {Name: GetText("search_engine_turing"), Value: "turing", Category: "book"},
+        {Name: GetText("search_engine_panda_book"), Value: "panda_book", Category: "book"},
+        {Name: GetText("search_engine_douban_book"), Value: "douban_book", Category: "book"},
+        {Name: GetText("search_engine_lifelong_edu"), Value: "lifelong_edu", Category: "book"},
+        {Name: GetText("search_engine_verypan"), Value: "verypan", Category: "book"},
+        {Name: GetText("search_engine_zouddupai"), Value: "zouddupai", Category: "book"},
+        {Name: GetText("search_engine_gd_library"), Value: "gd_library", Category: "book"},
+        {Name: GetText("search_engine_pansou"), Value: "pansou", Category: "book"},
+        {Name: GetText("search_engine_zsxq"), Value: "zsxq", Category: "book"},
+        {Name: GetText("search_engine_jiumo"), Value: "jiumo", Category: "book"},
+        {Name: GetText("search_engine_weibo_book"), Value: "weibo_book", Category: "book"},
+        
+        ; 比价类
+        {Name: GetText("search_engine_jd"), Value: "jd", Category: "price"},
+        {Name: GetText("search_engine_baidu_procure"), Value: "baidu_procure", Category: "price"},
+        {Name: GetText("search_engine_dangdang"), Value: "dangdang", Category: "price"},
+        {Name: GetText("search_engine_1688"), Value: "1688", Category: "price"},
+        {Name: GetText("search_engine_taobao"), Value: "taobao", Category: "price"},
+        {Name: GetText("search_engine_tmall"), Value: "tmall", Category: "price"},
+        {Name: GetText("search_engine_pinduoduo"), Value: "pinduoduo", Category: "price"},
+        {Name: GetText("search_engine_xianyu"), Value: "xianyu", Category: "price"},
+        {Name: GetText("search_engine_smzdm"), Value: "smzdm", Category: "price"},
+        {Name: GetText("search_engine_yanxuan"), Value: "yanxuan", Category: "price"},
+        {Name: GetText("search_engine_gaide"), Value: "gaide", Category: "price"},
+        {Name: GetText("search_engine_suning"), Value: "suning", Category: "price"},
+        {Name: GetText("search_engine_ebay"), Value: "ebay", Category: "price"},
+        {Name: GetText("search_engine_amazon"), Value: "amazon", Category: "price"},
+        
+        ; 医疗类
+        {Name: GetText("search_engine_dxy"), Value: "dxy", Category: "medical"},
+        {Name: GetText("search_engine_left_doctor"), Value: "left_doctor", Category: "medical"},
+        {Name: GetText("search_engine_medisearch"), Value: "medisearch", Category: "medical"},
+        {Name: GetText("search_engine_merck"), Value: "merck", Category: "medical"},
+        {Name: GetText("search_engine_aplus_medical"), Value: "aplus_medical", Category: "medical"},
+        {Name: GetText("search_engine_medical_baike"), Value: "medical_baike", Category: "medical"},
+        {Name: GetText("search_engine_weiyi"), Value: "weiyi", Category: "medical"},
+        {Name: GetText("search_engine_medlive"), Value: "medlive", Category: "medical"},
+        {Name: GetText("search_engine_xywy"), Value: "xywy", Category: "medical"},
+        
+        ; 网盘类
+        {Name: GetText("search_engine_pansoso"), Value: "pansoso", Category: "cloud"},
+        {Name: GetText("search_engine_panso"), Value: "panso", Category: "cloud"},
+        {Name: GetText("search_engine_xiaomapan"), Value: "xiaomapan", Category: "cloud"},
+        {Name: GetText("search_engine_dashengpan"), Value: "dashengpan", Category: "cloud"},
+        {Name: GetText("search_engine_miaosou"), Value: "miaosou", Category: "cloud"}
     ]
     
-    AIEngines := [
-        {Name: GetText("search_engine_perplexity"), Value: "perplexity"},
-        {Name: GetText("search_engine_copilot"), Value: "copilot"},
-        {Name: GetText("search_engine_chatgpt"), Value: "chatgpt"},
-        {Name: GetText("search_engine_grok"), Value: "grok"},
-        {Name: GetText("search_engine_you"), Value: "you"},
-        {Name: GetText("search_engine_claude"), Value: "claude"},
-        {Name: GetText("search_engine_monica"), Value: "monica"},
-        {Name: GetText("search_engine_webpilot"), Value: "webpilot"}
-    ]
+    return AllEngines
+}
+
+; 获取排序后的搜索引擎列表（根据语言版本和分类过滤）
+GetSortedSearchEngines(Category := "") {
+    global Language, VoiceSearchCurrentCategory
     
-    ; 根据语言版本排序
-    if (Language = "en") {
-        ; 英文版：AI引擎在前，中文引擎在后
-        SearchEngines := []
-        for Index, Engine in AIEngines {
-            SearchEngines.Push(Engine)
-        }
-        for Index, Engine in ChineseEngines {
-            SearchEngines.Push(Engine)
-        }
-    } else {
-        ; 中文版：中文引擎在前，AI引擎在后
-        SearchEngines := []
-        for Index, Engine in ChineseEngines {
-            SearchEngines.Push(Engine)
-        }
-        for Index, Engine in AIEngines {
-            SearchEngines.Push(Engine)
+    ; 如果没有指定分类，使用当前选中的分类
+    if (Category = "") {
+        Category := VoiceSearchCurrentCategory
+    }
+    
+    ; 获取所有搜索引擎
+    AllEngines := GetAllSearchEngines()
+    
+    ; 按分类过滤
+    FilteredEngines := []
+    for Index, Engine in AllEngines {
+        if (Engine.Category = Category) {
+            FilteredEngines.Push(Engine)
         }
     }
     
-    return SearchEngines
+    ; 如果当前分类没有搜索引擎，返回空数组（不显示提示，让调用者处理）
+    if (FilteredEngines.Length = 0) {
+        return FilteredEngines
+    }
+    
+    ; 根据语言版本排序（仅对AI类有效）
+    if (Category = "ai") {
+        ChineseEngines := []
+        AIEngines := []
+        
+        for Index, Engine in FilteredEngines {
+            ; 判断是中文引擎还是AI引擎
+            ChineseEngineValues := ["deepseek", "yuanbao", "doubao", "zhipu", "mita", "wenxin", "qianwen", "kimi"]
+            if (ArrayContainsValue(ChineseEngineValues, Engine.Value) > 0) {
+                ChineseEngines.Push(Engine)
+            } else {
+                AIEngines.Push(Engine)
+            }
+        }
+        
+        ; 根据语言版本排序
+        if (Language = "en") {
+            ; 英文版：AI引擎在前，中文引擎在后
+            SearchEngines := []
+            for Index, Engine in AIEngines {
+                SearchEngines.Push(Engine)
+            }
+            for Index, Engine in ChineseEngines {
+                SearchEngines.Push(Engine)
+            }
+        } else {
+            ; 中文版：中文引擎在前，AI引擎在后
+            SearchEngines := []
+            for Index, Engine in ChineseEngines {
+                SearchEngines.Push(Engine)
+            }
+            for Index, Engine in AIEngines {
+                SearchEngines.Push(Engine)
+            }
+        }
+        
+        return SearchEngines
+    }
+    
+    ; 其他分类直接返回过滤后的结果
+    return FilteredEngines
 }
 
 ; 获取搜索引擎对应的图标文件名
 GetSearchEngineIcon(EngineValue) {
     ; 根据搜索引擎值返回对应的图标文件名
     IconMap := Map(
+        ; AI类
         "deepseek", "DeepSeek.png",
         "yuanbao", "元宝.png",
         "doubao", "豆包.png",
@@ -6982,6 +7466,7 @@ GetSearchEngineIcon(EngineValue) {
         "claude", "Claude.png",
         "monica", "Monica.png",
         "webpilot", "WebPilot.png"
+        ; 注意：其他分类的搜索引擎如果没有对应的图标文件，会返回空字符串，使用文本显示
     )
     
     IconName := IconMap.Get(EngineValue, "")
@@ -6994,6 +7479,247 @@ GetSearchEngineIcon(EngineValue) {
         }
     }
     return ""  ; 如果图标不存在，返回空字符串
+}
+
+; 创建分类标签切换处理函数
+CreateCategoryTabHandler(CategoryKey) {
+    ; 使用闭包捕获CategoryKey
+    CategoryTabHandler(*) {
+        global VoiceSearchCurrentCategory, VoiceSearchCategoryTabs, VoiceSearchEngineButtons, GuiID_VoiceInput
+        global VoiceSearchSelectedEngines, UI_Colors, ThemeMode, VoiceSearchLabelEngineY
+        
+        ; 使用捕获的CategoryKey，而不是全局变量
+        ; 更新当前分类
+        VoiceSearchCurrentCategory := CategoryKey
+        
+        ; 确保GUI存在
+        if (!GuiID_VoiceInput) {
+            return
+        }
+        
+        ; 更新所有标签按钮的样式
+        for Index, TabObj in VoiceSearchCategoryTabs {
+            if (TabObj.Btn) {
+                IsActive := (TabObj.Key = CategoryKey)
+                TabBg := IsActive ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
+                TabTextColor := IsActive ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
+                try {
+                    TabObj.Btn.BackColor := TabBg
+                    TabObj.Btn.Text := GetText("search_category_" . TabObj.Key)
+                } catch {
+                    ; 忽略更新样式时的错误
+                }
+            }
+        }
+        
+        ; 【关键修复】隐藏旧的搜索引擎按钮，而不是尝试销毁它们（AHK v2 不支持直接销毁控件）
+        if (IsSet(VoiceSearchEngineButtons) && VoiceSearchEngineButtons.Length > 0) {
+            for Index, BtnObj in VoiceSearchEngineButtons {
+                if (IsObject(BtnObj)) {
+                    ; 隐藏所有控件并移出可见区域，防止重叠和干扰
+                    try {
+                        if (BtnObj.Bg) {
+                            BtnObj.Bg.Visible := false
+                            BtnObj.Bg.Move(-1000, -1000)
+                        }
+                    } catch {
+                    }
+                    try {
+                        if (BtnObj.Icon && IsObject(BtnObj.Icon)) {
+                            BtnObj.Icon.Visible := false
+                            BtnObj.Icon.Move(-1000, -1000)
+                        }
+                    } catch {
+                    }
+                    try {
+                        if (BtnObj.Text) {
+                            BtnObj.Text.Visible := false
+                            BtnObj.Text.Move(-1000, -1000)
+                        }
+                    } catch {
+                    }
+                }
+            }
+        }
+        VoiceSearchEngineButtons := []
+        
+        ; 第三步：立即刷新GUI，确保所有旧按钮从界面上完全消失
+        try {
+            WinRedraw(GuiID_VoiceInput.Hwnd)
+        } catch {
+        }
+        
+        ; 【关键】确保在创建新按钮之前，所有旧按钮都已完全清除
+        ; 清空按钮数组，确保不会引用到旧按钮
+        VoiceSearchEngineButtons := []
+        
+        ; 获取新分类的搜索引擎（只显示对应标签下的搜索引擎）
+        try {
+            SearchEngines := GetSortedSearchEngines(CategoryKey)
+        } catch as e {
+            ; 如果获取失败，显示错误并返回
+            TrayTip("获取搜索引擎失败: " . e.Message, "错误", "Iconx 1")
+            return
+        }
+        
+        ; 如果没有搜索引擎，显示提示并返回（不创建任何按钮）
+        if (!SearchEngines || SearchEngines.Length = 0) {
+            ; 创建提示文本
+            try {
+                NoEngineText := GuiID_VoiceInput["NoEngineText"]
+                if (NoEngineText) {
+                    NoEngineText.Destroy()
+                }
+            } catch {
+            }
+            NoEngineText := GuiID_VoiceInput.Add("Text", "x20 y" . (VoiceSearchLabelEngineY + 30) . " w560 h30 Center c" . UI_Colors.TextDim . " vNoEngineText", "该分类暂无搜索引擎")
+            NoEngineText.SetFont("s11", "Segoe UI")
+            ; 刷新GUI，确保提示文本显示
+            try {
+                WinRedraw(GuiID_VoiceInput.Hwnd)
+            } catch {
+            }
+            return
+        } else {
+            ; 如果有搜索引擎，移除提示文本（确保只显示搜索引擎按钮）
+            try {
+                NoEngineText := GuiID_VoiceInput["NoEngineText"]
+                if (NoEngineText) {
+                    NoEngineText.Destroy()
+                }
+            } catch {
+            }
+        }
+        
+        ; 【关键】重新创建搜索引擎按钮（只显示当前标签对应的搜索引擎，完全覆盖原先的列表）
+        ; 计算按钮位置（从引擎标签下方开始）
+        global VoiceSearchLabelEngineY
+        LabelEngineY := 0
+        ; 优先使用全局变量
+        if (IsSet(VoiceSearchLabelEngineY) && VoiceSearchLabelEngineY > 0) {
+            LabelEngineY := VoiceSearchLabelEngineY
+        } else {
+            ; 如果全局变量未设置，尝试从控件获取
+            try {
+                LabelEngineCtrl := GuiID_VoiceInput["LabelEngine"]
+                if (LabelEngineCtrl) {
+                    LabelEngineCtrl.GetPos(, &LabelEngineY)
+                    if (LabelEngineY > 0) {
+                        VoiceSearchLabelEngineY := LabelEngineY
+                    }
+                }
+            } catch {
+            }
+            
+            ; 如果还是获取不到，使用默认值（根据标签栏计算）
+            if (LabelEngineY = 0) {
+                ; 标签栏位置：自动更新开关(35) + 间距(35) + 分类标签(30) + 标签高度(28) + 间距(15) = 143
+                ; 加上输入框等基础高度：55 + 25 + 150 + 45 + 35 = 310
+                ; 总计：310 + 143 = 453，但实际应该更高，使用710作为默认值
+                LabelEngineY := 710
+                VoiceSearchLabelEngineY := LabelEngineY
+            }
+        }
+        
+        YPos := LabelEngineY + 30
+        ButtonWidth := 130
+        ButtonHeight := 35
+        ButtonSpacing := 10
+        StartX := 20
+        ButtonsPerRow := 4
+        IconSizeInButton := 20
+        
+        ; 【关键】只创建当前标签对应的搜索引擎按钮（完全覆盖原先的列表）
+        for Index, Engine in SearchEngines {
+            Row := Floor((Index - 1) / ButtonsPerRow)
+            Col := Mod((Index - 1), ButtonsPerRow)
+            BtnX := StartX + Col * (ButtonWidth + ButtonSpacing)
+            BtnY := YPos + Row * (ButtonHeight + ButtonSpacing)
+            
+            ; 检查是否选中
+            IsSelected := (ArrayContainsValue(VoiceSearchSelectedEngines, Engine.Value) > 0)
+            BtnBgColor := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
+            BtnText := IsSelected ? "✓ " . Engine.Name : Engine.Name
+            EngineBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+            
+            ; 获取图标路径
+            IconPath := GetSearchEngineIcon(Engine.Value)
+            IconCtrl := 0
+            
+            try {
+                ; 创建按钮背景（不再使用 v 变量，以避免在同一个 GUI 实例中发生命名冲突）
+                Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . EngineBtnTextColor . " Background" . BtnBgColor, "")
+                if (IsObject(Btn)) {
+                    Btn.SetFont("s10", "Segoe UI")
+                    Btn.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
+                    HoverBtn(Btn, BtnBgColor, UI_Colors.BtnHover)
+                } else {
+                    ; 如果创建失败，跳过这个按钮
+                    continue
+                }
+            } catch as e {
+                ; 如果创建失败，跳过这个按钮
+                continue
+            }
+            
+            ; 如果图标存在，在按钮左侧添加小图标
+            if (IconPath != "" && FileExist(IconPath)) {
+                try {
+                    ; 计算图标位置（按钮左侧，垂直居中）
+                    IconX := BtnX + 8
+                    IconY := BtnY + (ButtonHeight - IconSizeInButton) // 2
+                    ImageSize := GetImageSize(IconPath)
+                    DisplaySize := CalculateImageDisplaySize(ImageSize.Width, ImageSize.Height, IconSizeInButton, IconSizeInButton)
+                    DisplayX := IconX
+                    DisplayY := IconY + (IconSizeInButton - DisplaySize.Height) // 2
+                    IconCtrl := GuiID_VoiceInput.Add("Picture", "x" . DisplayX . " y" . DisplayY . " w" . DisplaySize.Width . " h" . DisplaySize.Height . " 0x200", IconPath)
+                    if (IsObject(IconCtrl)) {
+                        IconCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
+                    } else {
+                        IconCtrl := 0
+                    }
+                    TextX := IconX + IconSizeInButton + 5
+                    TextWidth := ButtonWidth - (TextX - BtnX) - 8
+                } catch {
+                    IconCtrl := 0
+                    TextX := BtnX + 8
+                    TextWidth := ButtonWidth - 16
+                }
+            } else {
+                IconCtrl := 0
+                TextX := BtnX + 8
+                TextWidth := ButtonWidth - 16
+            }
+            
+            try {
+                TextCtrl := GuiID_VoiceInput.Add("Text", "x" . TextX . " y" . BtnY . " w" . TextWidth . " h" . ButtonHeight . " Left 0x200 c" . EngineBtnTextColor . " BackgroundTrans", BtnText)
+                if (IsObject(TextCtrl)) {
+                    TextCtrl.SetFont("s10", "Segoe UI")
+                    TextCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
+                } else {
+                    TextCtrl := 0
+                }
+            } catch {
+                TextCtrl := 0
+            }
+            
+            ; 保存按钮引用（只保存当前标签的按钮）
+            VoiceSearchEngineButtons.Push({Bg: Btn, Icon: IconCtrl, Text: TextCtrl, Index: Index})
+        }
+        
+        ; 【关键】立即刷新GUI，确保新标签的搜索引擎列表完全覆盖原先的列表
+        try {
+            ; 先显示GUI（如果隐藏了）
+            if (!GuiID_VoiceInput.Visible) {
+                GuiID_VoiceInput.Show()
+            }
+            ; 立即强制重绘窗口，确保新按钮显示，旧按钮消失（完全覆盖原先的列表）
+            WinRedraw(GuiID_VoiceInput.Hwnd)
+        } catch {
+            ; 忽略错误
+        }
+    }
+    return CategoryTabHandler
 }
 
 ; 显示语音搜索输入界面
@@ -7015,17 +7741,19 @@ ShowVoiceSearchInputPanel() {
     GuiID_VoiceInput.SetFont("s12 c" . UI_Colors.Text . " Bold", "Segoe UI")
     
     PanelWidth := 600
-    ; 计算所需高度：标题(50) + 输入框标签(25) + 输入框(150) + 搜索按钮(45) + 自动加载开关(35) + 自动更新开关(35) + 引擎标签(30) + 按钮区域 + 边距(20)
+    ; 计算所需高度：标题(50) + 输入框标签(25) + 输入框(150) + 搜索按钮(45) + 自动加载开关(35) + 自动更新开关(35) + 分类标签栏(30+28+15) + 引擎标签(30) + 按钮区域 + 边距(20)
     ; 注意：按钮行数会根据语言版本和搜索引擎数量动态计算，这里先获取搜索引擎列表
     InputBoxHeight := 150
-    SearchEngines := GetSortedSearchEngines()  ; 先获取排序后的搜索引擎列表
+    global VoiceSearchCurrentCategory
+    SearchEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)  ; 先获取当前分类的搜索引擎列表
     TotalEngines := SearchEngines.Length
     ButtonWidth := 130
     ButtonHeight := 35
     ButtonSpacing := 10
     ButtonsRows := Ceil(TotalEngines / 4)  ; 每行4个按钮
     ButtonsAreaHeight := ButtonsRows * (ButtonHeight + ButtonSpacing)  ; 每行高度（按钮+间距）
-    PanelHeight := 50 + 25 + InputBoxHeight + 45 + 35 + 35 + 30 + ButtonsAreaHeight + 20
+    CategoryTabHeight := 28 + 15  ; 标签高度 + 间距
+    PanelHeight := 50 + 25 + InputBoxHeight + 45 + 35 + 35 + 30 + CategoryTabHeight + 30 + ButtonsAreaHeight + 20
     
     ; 标题
     TitleText := GuiID_VoiceInput.Add("Text", "x0 y15 w600 h30 Center c" . UI_Colors.Text, GetText("voice_search_title"))
@@ -7099,10 +7827,84 @@ ShowVoiceSearchInputPanel() {
     VoiceSearchAutoUpdateSwitch.OnEvent("Click", ToggleAutoUpdateVoiceInput)
     HoverBtn(VoiceSearchAutoUpdateSwitch, UpdateSwitchBg, UI_Colors.BtnHover)
     
-    ; 搜索引擎标签
+    ; 分类标签栏
     YPos += 35
-    LabelEngine := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w560 h20 c" . UI_Colors.TextDim, GetText("select_search_engine"))
+    LabelCategory := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w560 h20 c" . UI_Colors.TextDim, GetText("select_search_engine"))
+    LabelCategory.SetFont("s10", "Segoe UI")
+    
+    ; 创建分类标签按钮
+    YPos += 30
+    global VoiceSearchCurrentCategory, VoiceSearchCategoryTabs
+    Categories := [
+        {Key: "ai", Text: GetText("search_category_ai")},
+        {Key: "academic", Text: GetText("search_category_academic")},
+        {Key: "baidu", Text: GetText("search_category_baidu")},
+        {Key: "image", Text: GetText("search_category_image")},
+        {Key: "audio", Text: GetText("search_category_audio")},
+        {Key: "video", Text: GetText("search_category_video")},
+        {Key: "book", Text: GetText("search_category_book")},
+        {Key: "price", Text: GetText("search_category_price")},
+        {Key: "medical", Text: GetText("search_category_medical")},
+        {Key: "cloud", Text: GetText("search_category_cloud")}
+    ]
+    
+    VoiceSearchCategoryTabs := []
+    TabWidth := 50
+    TabHeight := 28
+    TabSpacing := 5
+    TabStartX := 20
+    TabY := YPos
+    TabsPerRow := 10  ; 每行显示10个标签
+    
+    ; 第一行标签
+    for Index, Category in Categories {
+        if (Index > TabsPerRow) {
+            break
+        }
+        TabX := TabStartX + (Index - 1) * (TabWidth + TabSpacing)
+        IsActive := (VoiceSearchCurrentCategory = Category.Key)
+        TabBg := IsActive ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
+        TabTextColor := IsActive ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
+        
+        TabBtn := GuiID_VoiceInput.Add("Text", "x" . TabX . " y" . TabY . " w" . TabWidth . " h" . TabHeight . " Center 0x200 c" . TabTextColor . " Background" . TabBg . " vCategoryTab" . Category.Key, Category.Text)
+        TabBtn.SetFont("s9", "Segoe UI")
+        ; 创建事件处理函数并绑定
+        TabHandler := CreateCategoryTabHandler(Category.Key)
+        TabBtn.OnEvent("Click", TabHandler)
+        HoverBtn(TabBtn, TabBg, UI_Colors.BtnHover)
+        VoiceSearchCategoryTabs.Push({Btn: TabBtn, Key: Category.Key, Handler: TabHandler})
+    }
+    
+    ; 如果标签超过10个，创建第二行
+    if (Categories.Length > TabsPerRow) {
+        TabY += TabHeight + TabSpacing
+        for Index, Category in Categories {
+            if (Index <= TabsPerRow) {
+                continue
+            }
+            TabIndex := Index - TabsPerRow
+            TabX := TabStartX + (TabIndex - 1) * (TabWidth + TabSpacing)
+            IsActive := (VoiceSearchCurrentCategory = Category.Key)
+            TabBg := IsActive ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
+            TabTextColor := IsActive ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
+            
+            TabBtn := GuiID_VoiceInput.Add("Text", "x" . TabX . " y" . TabY . " w" . TabWidth . " h" . TabHeight . " Center 0x200 c" . TabTextColor . " Background" . TabBg . " vCategoryTab" . Category.Key, Category.Text)
+            TabBtn.SetFont("s9", "Segoe UI")
+            ; 创建事件处理函数并绑定
+            TabHandler := CreateCategoryTabHandler(Category.Key)
+            TabBtn.OnEvent("Click", TabHandler)
+            HoverBtn(TabBtn, TabBg, UI_Colors.BtnHover)
+            VoiceSearchCategoryTabs.Push({Btn: TabBtn, Key: Category.Key, Handler: TabHandler})
+        }
+    }
+    
+    ; 搜索引擎标签
+    YPos := TabY + TabHeight + 15
+    LabelEngine := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w560 h20 c" . UI_Colors.TextDim . " vLabelEngine", GetText("select_search_engine"))
     LabelEngine.SetFont("s10", "Segoe UI")
+    
+    ; 保存LabelEngine的Y位置到全局变量，供切换标签时使用
+    global VoiceSearchLabelEngineY := YPos
     
     ; 搜索引擎按钮（文字+图标）
     YPos += 30
@@ -7134,7 +7936,7 @@ ShowVoiceSearchInputPanel() {
         IconCtrl := 0  ; 初始化图标控件变量
         
         ; 创建按钮背景
-        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . EngineBtnTextColor . " Background" . BtnBgColor . " vSearchEngineBtn" . Index, "")
+        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . EngineBtnTextColor . " Background" . BtnBgColor, "")
         Btn.SetFont("s10", "Segoe UI")
         Btn.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
         HoverBtn(Btn, BtnBgColor, UI_Colors.BtnHover)
@@ -7156,8 +7958,8 @@ ShowVoiceSearchInputPanel() {
                 DisplayX := IconX
                 DisplayY := IconY + (IconSizeInButton - DisplaySize.Height) // 2
                 
-                ; 创建图标控件
-                IconCtrl := GuiID_VoiceInput.Add("Picture", "x" . DisplayX . " y" . DisplayY . " w" . DisplaySize.Width . " h" . DisplaySize.Height . " 0x200 vSearchEngineIcon" . Index, IconPath)
+                ; 创建图标控件（不再使用 v 变量）
+                IconCtrl := GuiID_VoiceInput.Add("Picture", "x" . DisplayX . " y" . DisplayY . " w" . DisplaySize.Width . " h" . DisplaySize.Height . " 0x200", IconPath)
                 IconCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
                 
                 ; 计算文字位置（图标右侧）
@@ -7176,7 +7978,8 @@ ShowVoiceSearchInputPanel() {
         }
         
         ; 创建文字标签
-        TextCtrl := GuiID_VoiceInput.Add("Text", "x" . TextX . " y" . BtnY . " w" . TextWidth . " h" . ButtonHeight . " Left 0x200 c" . EngineBtnTextColor . " BackgroundTrans vSearchEngineText" . Index, BtnText)
+        ; 创建文字标签（不再使用 v 变量）
+        TextCtrl := GuiID_VoiceInput.Add("Text", "x" . TextX . " y" . BtnY . " w" . TextWidth . " h" . ButtonHeight . " Left 0x200 c" . EngineBtnTextColor . " BackgroundTrans", BtnText)
         TextCtrl.SetFont("s10", "Segoe UI")
         TextCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
         
@@ -7555,10 +8358,10 @@ CreateToggleSearchEngineHandler(Engine, BtnIndex) {
                 
                 ; 更新文字（添加/移除 ✓ 标记）
                 if (BtnObj.Text) {
-                    ; 获取搜索引擎名称
-                    SearchEngines := GetSortedSearchEngines()
+                    ; 获取搜索引擎名称（从所有搜索引擎中查找，因为可能切换了分类）
+                    AllEngines := GetAllSearchEngines()
                     EngineName := ""
-                    for Index, Eng in SearchEngines {
+                    for Index, Eng in AllEngines {
                         if (Eng.Value = Engine) {
                             EngineName := Eng.Name
                             break
@@ -8203,7 +9006,8 @@ ShowSearchEngineSelection(Content) {
     
     YPos += 30
     ; 搜索引擎列表
-    SearchEngines := GetSortedSearchEngines()
+    global VoiceSearchCurrentCategory
+    SearchEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)
     
     VoiceSearchEngineButtons := []
     ButtonWidth := 110
@@ -8328,6 +9132,202 @@ SendVoiceSearchToBrowser(Content, Engine) {
             case "webpilot":
                 ; WebPilot：使用search路径，添加q参数（intent查询）
                 SearchURL := "https://webpilot.ai/search?q=" . EncodedContent
+            ; 学术类
+            case "zhihu":
+                SearchURL := "https://www.zhihu.com/search?q=" . EncodedContent
+            case "wechat_article":
+                SearchURL := "https://weixin.sogou.com/weixin?query=" . EncodedContent
+            case "cainiao":
+                SearchURL := "https://www.cainiao.com/search?q=" . EncodedContent
+            case "gitee":
+                SearchURL := "https://gitee.com/search?q=" . EncodedContent
+            case "pubscholar":
+                SearchURL := "https://pubscholar.cn/search?q=" . EncodedContent
+            case "semantic":
+                SearchURL := "https://www.semanticscholar.org/search?q=" . EncodedContent
+            case "baidu_academic":
+                SearchURL := "https://xueshu.baidu.com/s?wd=" . EncodedContent
+            case "bing_academic":
+                SearchURL := "https://www.bing.com/academic/search?q=" . EncodedContent
+            case "csdn":
+                SearchURL := "https://so.csdn.net/so/search?q=" . EncodedContent
+            case "national_library":
+                SearchURL := "https://www.nlc.cn/dsb_search/search?q=" . EncodedContent
+            case "chaoxing":
+                SearchURL := "https://www.chaoxing.com/search?q=" . EncodedContent
+            case "cnki":
+                SearchURL := "https://kns.cnki.net/kns8/AdvSearch?q=" . EncodedContent
+            case "wechat_reading":
+                SearchURL := "https://weread.qq.com/web/search/books?q=" . EncodedContent
+            case "dada":
+                SearchURL := "https://www.dadawenku.com/search?q=" . EncodedContent
+            case "patent":
+                SearchURL := "https://www.patenthub.cn/search?q=" . EncodedContent
+            case "ip_office":
+                SearchURL := "https://www.cnipa.gov.cn/col/col49/index.html?q=" . EncodedContent
+            case "dedao":
+                SearchURL := "https://www.dedao.cn/search?q=" . EncodedContent
+            case "pkmer":
+                SearchURL := "https://pkmer.cn/search?q=" . EncodedContent
+            ; 百度类
+            case "baidu":
+                SearchURL := "https://www.baidu.com/s?wd=" . EncodedContent
+            case "baidu_title":
+                SearchURL := "https://www.baidu.com/s?wd=intitle:" . EncodedContent
+            case "baidu_hanyu":
+                SearchURL := "https://hanyu.baidu.com/s?wd=" . EncodedContent
+            case "baidu_wenku":
+                SearchURL := "https://wenku.baidu.com/search?word=" . EncodedContent
+            case "baidu_map":
+                SearchURL := "https://map.baidu.com/search/" . EncodedContent
+            case "baidu_pdf":
+                SearchURL := "https://www.baidu.com/s?wd=" . EncodedContent . " filetype:pdf"
+            case "baidu_doc":
+                SearchURL := "https://www.baidu.com/s?wd=" . EncodedContent . " filetype:doc"
+            case "baidu_ppt":
+                SearchURL := "https://www.baidu.com/s?wd=" . EncodedContent . " filetype:ppt"
+            case "baidu_xls":
+                SearchURL := "https://www.baidu.com/s?wd=" . EncodedContent . " filetype:xls"
+            ; 图片类
+            case "image_aggregate":
+                SearchURL := "https://www.tineye.com/search?q=" . EncodedContent
+            case "iconfont":
+                SearchURL := "https://www.iconfont.cn/search/index?q=" . EncodedContent
+            case "wenxin_image":
+                SearchURL := "https://yiyan.baidu.com/image?query=" . EncodedContent
+            case "tiangong_image":
+                SearchURL := "https://tiangong.kuaishou.com/image?q=" . EncodedContent
+            case "yuanbao_image":
+                SearchURL := "https://yuanbao.tencent.com/image?q=" . EncodedContent
+            case "tongyi_image":
+                SearchURL := "https://tongyi.aliyun.com/wanxiang/image?q=" . EncodedContent
+            case "zhipu_image":
+                SearchURL := "https://chatglm.cn/image?q=" . EncodedContent
+            case "miaohua":
+                SearchURL := "https://miaohua.sensetime.com/?q=" . EncodedContent
+            case "keling":
+                SearchURL := "https://kling.kuaishou.com/?q=" . EncodedContent
+            case "jimmeng":
+                SearchURL := "https://jimmeng.douyin.com/?q=" . EncodedContent
+            case "baidu_image":
+                SearchURL := "https://image.baidu.com/search/index?tn=baiduimage&word=" . EncodedContent
+            case "shetu":
+                SearchURL := "https://699pic.com/search.html?kw=" . EncodedContent
+            case "huaban":
+                SearchURL := "https://huaban.com/search/?q=" . EncodedContent
+            case "zcool":
+                SearchURL := "https://www.zcool.com.cn/search/content?&word=" . EncodedContent
+            case "uisdc":
+                SearchURL := "https://www.uisdc.com/search?q=" . EncodedContent
+            case "nipic":
+                SearchURL := "https://www.nipic.com/search.html?k=" . EncodedContent
+            case "bing_image":
+                SearchURL := "https://www.bing.com/images/search?q=" . EncodedContent
+            case "google_image":
+                SearchURL := "https://www.google.com/search?tbm=isch&q=" . EncodedContent
+            case "weibo_image":
+                SearchURL := "https://s.weibo.com/image?q=" . EncodedContent
+            case "sogou_image":
+                SearchURL := "https://pic.sogou.com/pics?query=" . EncodedContent
+            case "haosou_image":
+                SearchURL := "https://image.so.com/i?q=" . EncodedContent
+            ; 音频类
+            case "netease_music":
+                SearchURL := "https://music.163.com/#/search/m/?s=" . EncodedContent
+            case "tiangong_music":
+                SearchURL := "https://tiangong.kuaishou.com/music?q=" . EncodedContent
+            case "qq_music":
+                SearchURL := "https://y.qq.com/n/ryqq/search?w=" . EncodedContent
+            case "kuwo":
+                SearchURL := "https://www.kuwo.cn/search/list?key=" . EncodedContent
+            case "kugou":
+                SearchURL := "https://www.kugou.com/yy/html/search.html#searchType=song&searchKeyWord=" . EncodedContent
+            case "qianqian":
+                SearchURL := "https://music.taihe.com/search?word=" . EncodedContent
+            case "ximalaya":
+                SearchURL := "https://www.ximalaya.com/search/" . EncodedContent
+            case "5sing":
+                SearchURL := "https://5sing.kugou.com/search.html?q=" . EncodedContent
+            ; 视频类
+            case "douyin":
+                SearchURL := "https://www.douyin.com/search/" . EncodedContent
+            case "youtube":
+                SearchURL := "https://www.youtube.com/results?search_query=" . EncodedContent
+            case "youku":
+                SearchURL := "https://so.youku.com/search_video/q_" . EncodedContent
+            case "tencent_video":
+                SearchURL := "https://v.qq.com/x/search/?q=" . EncodedContent
+            case "iqiyi":
+                SearchURL := "https://so.iqiyi.com/so/q_" . EncodedContent
+            case "pexels":
+                SearchURL := "https://www.pexels.com/search/" . EncodedContent
+            case "yandex":
+                SearchURL := "https://yandex.com/video/search?text=" . EncodedContent
+            ; 图书类
+            case "duokan":
+                SearchURL := "https://www.duokan.com/search/" . EncodedContent
+            case "turing":
+                SearchURL := "https://www.ituring.com.cn/search?q=" . EncodedContent
+            case "panda_book":
+                SearchURL := "https://www.xpanda.cc/search?q=" . EncodedContent
+            case "douban_book":
+                SearchURL := "https://book.douban.com/subject_search?search_text=" . EncodedContent
+            case "jiumo":
+                SearchURL := "https://www.jiumodiary.com/search?q=" . EncodedContent
+            case "weibo_book":
+                SearchURL := "https://s.weibo.com/weibo/" . EncodedContent
+            ; 比价类
+            case "jd":
+                SearchURL := "https://search.jd.com/Search?keyword=" . EncodedContent
+            case "taobao":
+                SearchURL := "https://s.taobao.com/search?q=" . EncodedContent
+            case "tmall":
+                SearchURL := "https://list.tmall.com/search_product.htm?q=" . EncodedContent
+            case "pinduoduo":
+                SearchURL := "https://mobile.yangkeduo.com/search_result.html?search_key=" . EncodedContent
+            case "xianyu":
+                SearchURL := "https://s.2.taobao.com/list/list.htm?q=" . EncodedContent
+            case "smzdm":
+                SearchURL := "https://search.smzdm.com/?c=faxian&s=" . EncodedContent
+            case "dangdang":
+                SearchURL := "https://search.dangdang.com/?key=" . EncodedContent
+            case "1688":
+                SearchURL := "https://s.1688.com/selloffer/offer_search.htm?keywords=" . EncodedContent
+            case "amazon":
+                SearchURL := "https://www.amazon.com/s?k=" . EncodedContent
+            case "ebay":
+                SearchURL := "https://www.ebay.com/sch/i.html?_nkw=" . EncodedContent
+            ; 医疗类
+            case "dxy":
+                SearchURL := "https://www.dxy.cn/bbs/newweb/pc/search?q=" . EncodedContent
+            case "merck":
+                SearchURL := "https://www.msdmanuals.com/zh/search?q=" . EncodedContent
+            case "aplus_medical":
+                SearchURL := "https://www.a-hospital.com/w/" . EncodedContent
+            case "medical_baike":
+                SearchURL := "https://www.yixue.com/index.php?q=" . EncodedContent
+            case "weiyi":
+                SearchURL := "https://www.guahao.com/search?q=" . EncodedContent
+            case "medlive":
+                SearchURL := "https://www.medlive.cn/search?q=" . EncodedContent
+            case "xywy":
+                SearchURL := "https://www.xywy.com/search?q=" . EncodedContent
+            ; 网盘类
+            case "pansoso":
+                ; 盘搜搜：直接打开主页（不支持参数传递）
+                SearchURL := "https://www.pansoso.com/zh/"
+            case "panso":
+                ; 盘搜Pro：使用search路径，添加q参数
+                SearchURL := "https://panso.pro/search?q=" . EncodedContent
+            case "xiaomapan":
+                ; 小码盘：使用search路径，添加keyword参数
+                SearchURL := "https://www.xiaomapan.com/#/main/search?keyword=" . EncodedContent
+            case "dashengpan":
+                ; 大圣盘：使用search路径，添加keyword参数
+                SearchURL := "https://www.dashengpan.com/#/main/search?keyword=" . EncodedContent
+            case "miaosou":
+                ; 秒搜：使用info路径，添加searchKey参数
+                SearchURL := "https://miaosou.fun/info?searchKey=" . EncodedContent
             default:
                 SearchURL := "https://chat.deepseek.com/?q=" . EncodedContent
         }
