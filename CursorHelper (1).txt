@@ -65,14 +65,8 @@ global CursorPanelScreenIndex := 1  ; cursor快捷弹出面板屏幕索引
 global PanelX := -1  ; 自定义 X 坐标（-1 表示使用默认位置）
 global PanelY := -1  ; 自定义 Y 坐标（-1 表示使用默认位置）
 ; 连续复制功能
-global ClipboardHistory := []  ; 存储所有复制的内容（兼容旧版本，保留）
-global ClipboardHistory_CtrlC := []  ; 存储 Ctrl+C 复制的内容
-global ClipboardHistory_CapsLockC := []  ; 存储 CapsLock+C 复制的内容
+global ClipboardHistory := []  ; 存储所有复制的内容
 global GuiID_ClipboardManager := 0  ; 剪贴板管理面板 GUI ID
-global ClipboardCurrentTab := "CtrlC"  ; 当前显示的版块："CtrlC" 或 "CapsLockC"
-global ClipboardCtrlCTab := 0  ; Ctrl+C Tab 控件引用
-global ClipboardCapsLockCTab := 0  ; CapsLock+C Tab 控件引用
-global LastSelectedIndex := 0  ; 最后选中的ListBox项索引，用于刷新后恢复
 ; 语音输入功能
 global VoiceInputActive := false  ; 语音输入是否激活
 global GuiID_VoiceInput := 0  ; 语音输入动画GUI ID
@@ -199,8 +193,6 @@ GetText(Key) {
             "delete_selected", "删除选中",
             "paste_to_cursor", "粘贴到 Cursor",
             "clipboard_hint", "双击项目可复制 | ESC 关闭",
-            "clipboard_tab_ctrlc", "Ctrl+C",
-            "clipboard_tab_capslockc", "CapsLock+C",
             "total_items", "共 {0} 项",
             "confirm_clear", "确定要清空所有剪贴板记录吗？",
             "cleared", "已清空所有记录",
@@ -371,14 +363,6 @@ GetText(Key) {
             "search_engine_wenxin", "文心一言",
             "search_engine_qianwen", "千问",
             "search_engine_kimi", "Kimi",
-            "search_engine_perplexity", "Perplexity",
-            "search_engine_copilot", "Copilot",
-            "search_engine_chatgpt", "ChatGPT",
-            "search_engine_grok", "Grok",
-            "search_engine_you", "You",
-            "search_engine_claude", "Claude",
-            "search_engine_monica", "Monica",
-            "search_engine_webpilot", "WebPilot",
             "quick_action_config", "快捷操作按钮配置",
             "quick_action_config_desc", "配置快捷操作面板中的按钮顺序和功能按键（最多5个）",
             "quick_action_button", "按钮 {0}",
@@ -427,8 +411,6 @@ GetText(Key) {
             "delete_selected", "Delete Selected",
             "paste_to_cursor", "Paste to Cursor",
             "clipboard_hint", "Double-click to copy | ESC to close",
-            "clipboard_tab_ctrlc", "Ctrl+C",
-            "clipboard_tab_capslockc", "CapsLock+C",
             "total_items", "Total {0} items",
             "confirm_clear", "Are you sure you want to clear all clipboard records?",
             "cleared", "All records cleared",
@@ -601,14 +583,6 @@ GetText(Key) {
             "search_engine_wenxin", "Wenxin Yiyan",
             "search_engine_qianwen", "Qianwen",
             "search_engine_kimi", "Kimi",
-            "search_engine_perplexity", "Perplexity",
-            "search_engine_copilot", "Copilot",
-            "search_engine_chatgpt", "ChatGPT",
-            "search_engine_grok", "Grok",
-            "search_engine_you", "You",
-            "search_engine_claude", "Claude",
-            "search_engine_monica", "Monica",
-            "search_engine_webpilot", "WebPilot",
             "quick_action_config", "Quick Action Button Configuration",
             "quick_action_config_desc", "Configure button order and hotkeys in the quick action panel (max 5)",
             "quick_action_button", "Button {0}",
@@ -1044,74 +1018,6 @@ InitConfig() {
 
 InitConfig() ; 启动初始化
 
-; ===================== 剪贴板变化监听 =====================
-; 注意：OnClipboardChange 必须在脚本启动时注册，确保在 InitConfig 之后定义
-; 监听 Ctrl+C 复制操作，自动记录到 Ctrl+C 历史记录
-global LastClipboardContent := ""  ; 记录上次剪贴板内容，避免重复记录
-global CapsLockCopyInProgress := false  ; 标记 CapsLock+C 是否正在进行中
-global CapsLockCopyEndTime := 0  ; CapsLock+C 结束时间，用于延迟检测
-
-OnClipboardChange(ClipboardChanged) {
-    ; 只在剪贴板内容变化时触发（不是由 CapsLock+C 触发的）
-    global ClipboardHistory_CtrlC, LastClipboardContent, CapsLockCopyInProgress, CapsLockCopyEndTime
-    
-    ; 如果 CapsLock+C 正在进行中，不记录（避免重复记录）
-    if (CapsLockCopyInProgress) {
-        return
-    }
-    
-    ; 如果 CapsLock+C 刚结束（2秒内），也不记录（避免重复记录）
-    CurrentTime := A_TickCount
-    if (CapsLockCopyEndTime > 0 && (CurrentTime - CapsLockCopyEndTime) < 2000) {
-        return
-    }
-    
-    ; 确保 ClipboardHistory_CtrlC 已初始化（使用全局变量）
-    if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
-        ClipboardHistory_CtrlC := []
-    }
-    
-    ; 确保其他全局变量已初始化
-    if (!IsSet(LastClipboardContent)) {
-        LastClipboardContent := ""
-    }
-    
-    ; 获取当前剪贴板内容
-    try {
-        ; 直接读取剪贴板内容，不等待（因为 OnClipboardChange 已经表示剪贴板已变化）
-        CurrentContent := A_Clipboard
-        ; 如果内容为空或与上次相同，不记录
-        if (CurrentContent = "" || CurrentContent = LastClipboardContent) {
-            return
-        }
-        
-        ; 检查内容长度（太短的内容可能是误触）
-        if (StrLen(CurrentContent) < 1) {
-            return
-        }
-        
-        ; 记录到 Ctrl+C 历史记录（限制最多保存100条）
-        ; 使用已声明的全局变量
-        ClipboardHistory_CtrlC.Push(CurrentContent)
-        if (ClipboardHistory_CtrlC.Length > 100) {
-            ClipboardHistory_CtrlC.RemoveAt(1)  ; 删除最旧的记录
-        }
-        
-        ; 更新上次内容
-        LastClipboardContent := CurrentContent
-        
-        ; 如果剪贴板面板正在显示，刷新列表（无论当前Tab是什么）
-        ; 使用 SetTimer 延迟刷新，确保数据已完全更新
-        global GuiID_ClipboardManager
-        if (GuiID_ClipboardManager != 0) {
-            ; 延迟刷新，确保数据已完全更新，同时避免频繁刷新
-            SetTimer(RefreshClipboardListDelayed, -100)
-        }
-    } catch as e {
-        ; 忽略错误（剪贴板可能被其他程序占用）
-    }
-}
-
 ; ===================== 托盘图标配置 =====================
 UpdateTrayMenu() {
     A_TrayMenu.Delete()  ; 清空菜单
@@ -1127,9 +1033,7 @@ UpdateTrayMenu()  ; 初始化托盘菜单
 ; 用于 #HotIf 指令的函数
 GetCapsLockState() {
     global CapsLock
-    ; 检查变量状态或物理按键状态（确保即使变量被清除，物理按键仍能触发）
-    ; 这样即使用户先按 CapsLock 再释放，只要在释放前按了其他键，也能触发
-    return CapsLock || GetKeyState("CapsLock", "P")
+    return CapsLock
 }
 
 ; ===================== 面板可见状态检查函数 =====================
@@ -1143,11 +1047,6 @@ GetPanelVisibleState() {
 ; 定时器函数定义（需要在 CapsLock 处理函数外部定义）
 ClearCapsLock2Timer(*) {
     global CapsLock2 := false
-}
-
-; 延迟清除 CapsLock 变量的函数
-ClearCapsLockTimer(*) {
-    global CapsLock := false
 }
 
 ShowPanelTimer(*) {
@@ -1251,16 +1150,8 @@ global CapsLockPressTime := 0
     SetTimer(ClearCapsLock2Timer, 0)
     SetTimer(ShowPanelTimer, 0)
     
-    ; 延迟清除 CapsLock 变量，给快捷键处理函数足够的时间
-    ; 如果 CapsLock2 已被清除（说明使用了功能），延迟清除 CapsLock
-    ; 如果 CapsLock2 仍为 true（说明没有使用功能），立即清除 CapsLock
-    if (!CapsLock2) {
-        ; 使用了功能，延迟清除 CapsLock（给快捷键处理函数时间）
-        SetTimer(ClearCapsLockTimer, -100)
-    } else {
-        ; 没有使用功能，立即清除 CapsLock
-        CapsLock := false
-    }
+    ; CapsLock 最优先置空，来关闭 CapsLock+ 功能的触发
+    CapsLock := false
     
     ; 如果 CapsLock2 还存在（说明没有使用过 CapsLock+ 功能），就切换大小写
     if (CapsLock2) {
@@ -4243,10 +4134,8 @@ SaveConfig(*) {
     ; 获取主题模式设置
     NewThemeMode := "dark"
     ; 如果外观标签页已创建，从单选按钮读取；否则使用当前主题模式
-    if (IsSet(ThemeLightRadio) && ThemeLightRadio && IsObject(ThemeLightRadio) && ThemeLightRadio.Value = 1) {
+    if (IsSet(ThemeLightRadio) && ThemeLightRadio && IsObject(ThemeLightRadio) && ThemeLightRadio.Value) {
         NewThemeMode := "light"
-    } else if (IsSet(ThemeDarkRadio) && ThemeDarkRadio && IsObject(ThemeDarkRadio) && ThemeDarkRadio.Value = 1) {
-        NewThemeMode := "dark"
     } else {
         ; 如果控件不存在，使用当前主题模式
         global ThemeMode
@@ -4282,11 +4171,6 @@ SaveConfig(*) {
     IniWrite(PanelScreenIndex, ConfigFile, "Panel", "ScreenIndex")
     IniWrite(Language, ConfigFile, "Settings", "Language")
     IniWrite(ThemeMode, ConfigFile, "Settings", "ThemeMode")
-    
-    ; 主题已更改，需要重新创建所有面板以应用新主题
-    ; 注意：这里不立即重新创建，因为用户可能还在查看配置面板
-    ; 主题会在下次打开面板时自动应用
-    
     global AutoLoadSelectedText
     IniWrite(AutoLoadSelectedText ? "1" : "0", ConfigFile, "Settings", "AutoLoadSelectedText")
     IniWrite(FunctionPanelPos, ConfigFile, "Panel", "FunctionPanelPos")
@@ -4373,168 +4257,34 @@ CleanUp() {
 ; ===================== 连续复制功能 =====================
 ; CapsLock+C: 连续复制，将内容添加到历史记录中
 CapsLockCopy() {
-    global CapsLock2, ClipboardHistory_CapsLockC, CapsLockCopyInProgress, CapsLockCopyEndTime
-    global CapsLock, HotkeyC
-    
-    ; 诊断信息：确认函数被调用
-    ; TrayTip("调试：CapsLockCopy() 函数被调用`n配置的快捷键: " . HotkeyC, "函数调用", "Iconi 2")
-    
-    ; 【关键修复】如果 CapsLockCopyInProgress 为 true，说明是在标签切换期间或其他阻止复制的场景，不执行复制
-    ; 这样可以防止点击 CapsLock+C 标签时触发复制操作
-    if (CapsLockCopyInProgress) {
-        ; 【关键修复】如果 CapsLockCopyEndTime 被设置为未来时间，说明是在标签切换期间，不执行复制
-        ; 优先检查这个，因为这是最明确的阻止信号
-        if (CapsLockCopyEndTime > A_TickCount) {
-            ; 在标签切换期间，直接返回，不执行任何复制操作
-            return
-        }
-        ; 【关键修复】如果 CapsLock 为 false，说明是在标签切换期间，不执行复制操作
-        if (!CapsLock) {
-            ; 在标签切换期间，直接返回，不执行任何复制操作
-            return
-        }
-    }
-    
-    ; 【关键修复】额外检查：如果 CapsLockCopyEndTime 被设置为未来时间（即使 CapsLockCopyInProgress 为 false），也不执行复制
-    ; 这是双重保险，防止在标签切换期间触发复制
-    if (CapsLockCopyEndTime > A_TickCount) {
-        return
-    }
-    
-    ; 【关键修复】额外检查：如果剪贴板管理面板已打开，且是标签点击期间，不执行复制
-    ; 这个检查是为了防止在点击标签时，CapsLock 键还处于按下状态导致的意外触发
-    global GuiID_ClipboardManager
-    if (GuiID_ClipboardManager != 0 && CapsLockCopyInProgress && CapsLockCopyEndTime > A_TickCount) {
-        ; 在标签点击期间且剪贴板管理面板打开时，不执行复制操作
-        return
-    }
+    global CapsLock2, ClipboardHistory
     
     CapsLock2 := false  ; 清除标记，表示使用了功能
-    ; 确保 CapsLock 变量在复制过程中保持为 true
-    CapsLock := true
-    
-    ; 确保 ClipboardHistory_CapsLockC 已初始化（使用全局变量引用）
-    if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
-        global ClipboardHistory_CapsLockC := []
-    }
-    
-    ; 标记 CapsLock+C 正在进行中，避免 OnClipboardChange 重复记录
-    CapsLockCopyInProgress := true
-    CapsLockCopyEndTime := 0  ; 重置结束时间
     
     ; 保存当前剪贴板内容
     OldClipboard := A_Clipboard
     
     ; 立即执行复制操作，使用 ClipWait 确保稳定性
-    ; 清空剪贴板以便检测复制操作是否成功
     A_Clipboard := ""
-    ; 发送 Ctrl+C 复制命令
     Send("^c")
-    ; 短暂等待，确保复制命令被处理
-    Sleep(50)
-    
-    ; 【环节1】等待复制完成，增加等待时间确保稳定性（从1.0秒增加到2.0秒）
-    if !ClipWait(2.0) {
-        ; 故障：ClipWait 超时 - 2秒内未检测到剪贴板变化
-        ; 可能原因：1) 没有选中文本 2) 应用程序响应慢 3) 剪贴板被占用
+    if !ClipWait(0.5) {
+        ; 如果复制失败，恢复旧剪贴板
         A_Clipboard := OldClipboard
-        CapsLockCopyEndTime := A_TickCount
-        SetTimer(ClearCapsLockCopyFlag, -1500)
-        TrayTip("【故障】复制超时：2秒内未检测到剪贴板变化`n可能原因：未选中文本、应用响应慢或剪贴板被占用", GetText("tip"), "Iconx 3")
         return
     }
     
-    ; 【环节2】额外等待，确保剪贴板内容完全准备好
-    Sleep(150)
+    ; 获取新内容
+    NewContent := A_Clipboard
     
-    ; 【环节3】获取新内容
-    try {
-        NewContent := A_Clipboard
-    } catch as e {
-        ; 故障：获取剪贴板内容异常
-        ; 可能原因：剪贴板格式不支持或剪贴板被其他程序占用
-        A_Clipboard := OldClipboard
-        CapsLockCopyEndTime := A_TickCount
-        SetTimer(ClearCapsLockCopyFlag, -1500)
-        TrayTip("【故障】获取剪贴板内容失败`n错误：" . e.Message . "`n可能原因：剪贴板格式不支持或被占用", GetText("tip"), "Iconx 3")
-        return
+    ; 如果复制到了新内容且不为空，添加到历史记录
+    if (NewContent != "" && NewContent != OldClipboard && StrLen(NewContent) > 0) {
+        ClipboardHistory.Push(NewContent)
+        
+        ; 显示简短提示，因为这是 CapsLock+C 专门的复制操作，用户需要确认反馈
+        TrayTip(FormatText("copy_success", ClipboardHistory.Length), GetText("tip"), "Iconi 1")
     }
     
-    ; 【环节4】检查内容是否有效（不为空且长度大于0）
-    if (NewContent != "" && StrLen(NewContent) > 0) {
-        ; 【环节5】添加到 CapsLock+C 历史记录
-        try {
-            ; 确保使用全局变量引用（已在函数开头声明 global）
-            if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
-                global ClipboardHistory_CapsLockC := []
-            }
-            
-            ; 使用已声明的全局变量（已在函数开头声明 global）
-            ClipboardHistory_CapsLockC.Push(NewContent)
-            
-            ; 限制最多保存100条
-            if (ClipboardHistory_CapsLockC.Length > 100) {
-                ClipboardHistory_CapsLockC.RemoveAt(1)  ; 删除最旧的记录
-            }
-            
-            ; 【完全隔离】恢复系统剪贴板到原始内容，不改变系统剪贴板
-            ; 这样 Ctrl+C 和 CapsLock+C 的剪贴板完全隔离
-            A_Clipboard := OldClipboard
-            
-            ; 【成功提示】显示复制成功提示（显示实际保存的数量）
-            SavedCount := ClipboardHistory_CapsLockC.Length
-            TrayTip("【成功】已复制到剪贴板管理（共 " . SavedCount . " 项）", GetText("tip"), "Iconi 1")
-            
-            ; 【环节6】如果剪贴板面板正在显示，刷新列表
-            ; 使用延迟刷新，确保数据已完全更新
-            global GuiID_ClipboardManager
-            if (GuiID_ClipboardManager != 0) {
-                ; 延迟刷新，确保数据已完全更新
-                SetTimer(RefreshClipboardListDelayed, -100)
-            }
-        } catch as e {
-            ; 故障：添加到历史记录失败
-            ; 恢复旧剪贴板
-            A_Clipboard := OldClipboard
-            TrayTip("【故障】添加到剪贴板管理失败`n错误：" . e.Message, GetText("tip"), "Iconx 3")
-        }
-    } else {
-        ; 【警告】内容为空，恢复旧剪贴板
-        A_Clipboard := OldClipboard
-        TrayTip("【警告】复制的内容为空`n请先选中要复制的文本", GetText("tip"), "Iconi 2")
-    }
-    
-    ; 记录结束时间，然后延迟清除标记，确保 OnClipboardChange 不会触发
-    ; 无论是否成功添加内容，都要设置结束时间
-    CapsLockCopyEndTime := A_TickCount
-    SetTimer(ClearCapsLockCopyFlag, -1500)  ; 延迟1.5秒，确保 OnClipboardChange 不会触发
-}
-
-; 清除 CapsLock+C 标记的辅助函数
-ClearCapsLockCopyFlag(*) {
-    global CapsLockCopyInProgress
-    CapsLockCopyInProgress := false
-}
-
-; 恢复 CapsLock 状态的辅助函数（用于标签切换）
-RestoreCapsLockState(*) {
-    global CapsLock, CapsLock2, OldCapsLockForTab, OldCapsLock2ForTab
-    if (IsSet(OldCapsLockForTab)) {
-        CapsLock := OldCapsLockForTab
-    }
-    if (IsSet(OldCapsLock2ForTab)) {
-        CapsLock2 := OldCapsLock2ForTab
-    }
-}
-
-; 恢复 CapsLock+C 复制标记的辅助函数（用于标签切换）
-RestoreCapsLockCopyFlag(*) {
-    global CapsLockCopyInProgress, OldCapsLockCopyInProgress
-    if (IsSet(OldCapsLockCopyInProgress)) {
-        CapsLockCopyInProgress := OldCapsLockCopyInProgress
-    } else {
-        CapsLockCopyInProgress := false
-    }
+    ; 恢复 CapsLock 标记（可选，依据设计需求）
 }
 
 ; 异步处理 (已废弃，改用同步 ClipWait)
@@ -4545,24 +4295,19 @@ ProcessCopyResult(OldClipboard) {
 ; ===================== 合并粘贴功能 =====================
 ; CapsLock+V: 将所有复制的内容合并后粘贴到 Cursor 输入框
 CapsLockPaste() {
-    global CapsLock2, ClipboardHistory_CapsLockC, CursorPath, AISleepTime
+    global CapsLock2, ClipboardHistory, CursorPath, AISleepTime
     
     CapsLock2 := false  ; 清除标记，表示使用了功能
     
-    ; 确保 ClipboardHistory_CapsLockC 已初始化
-    if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
-        global ClipboardHistory_CapsLockC := []
-    }
-    
     ; 如果没有复制任何内容，提示用户
-    if (ClipboardHistory_CapsLockC.Length = 0) {
-        TrayTip("【警告】剪贴板管理中没有内容`n请先使用 CapsLock+C 复制内容", GetText("tip"), "Iconi 2")
+    if (ClipboardHistory.Length = 0) {
+        TrayTip(GetText("no_clipboard"), GetText("tip"), "Iconi 2")
         return
     }
     
     ; 合并所有复制的内容（用换行分隔）
     MergedContent := ""
-    for Index, Content in ClipboardHistory_CapsLockC {
+    for Index, Content in ClipboardHistory {
         if (Index > 1) {
             MergedContent .= "`n`n"  ; 两个换行分隔不同内容
         }
@@ -4597,67 +4342,37 @@ CapsLockPaste() {
                 Sleep(200)
             }
             
-            ; 保存当前剪贴板内容（用于恢复）
-            OldClipboardForPaste := A_Clipboard
-            
             ; 将合并的内容复制到剪贴板
             A_Clipboard := MergedContent
-            ; 等待剪贴板准备好
-            if !ClipWait(1.0) {
-                ; 如果剪贴板设置失败，恢复旧剪贴板
-                A_Clipboard := OldClipboardForPaste
-                TrayTip("【故障】设置剪贴板失败，无法粘贴", GetText("tip"), "Iconx 2")
-                return
-            }
             Sleep(100)
             
             ; 粘贴合并的内容
             Send("^v")
-            Sleep(300)  ; 增加等待时间，确保粘贴完成
+            Sleep(200)  ; 增加等待时间，确保粘贴完成
             
-            ; 粘贴后清空历史记录（只清空 CapsLock+C 的记录）
-            global ClipboardHistory_CapsLockC
-            ItemCount := ClipboardHistory_CapsLockC.Length
-            ClipboardHistory_CapsLockC := []
+            ; 粘贴后清空历史记录
+            ClipboardHistory := []
             
-            ; 恢复原始剪贴板内容（可选，保持合并内容在剪贴板中）
-            ; A_Clipboard := OldClipboardForPaste
-            
-            TrayTip("【成功】已粘贴 " . ItemCount . " 项内容到 Cursor", GetText("tip"), "Iconi 1")
+            TrayTip(GetText("paste_success"), GetText("app_name"), "Iconi 1")
         } else {
             ; 如果 Cursor 未运行，尝试启动
             if (CursorPath != "" && FileExist(CursorPath)) {
                 Run(CursorPath)
                 Sleep(AISleepTime)
                 
-                ; 保存当前剪贴板内容（用于恢复）
-                OldClipboardForPaste := A_Clipboard
-                
                 ; 将合并的内容复制到剪贴板
                 A_Clipboard := MergedContent
-                ; 等待剪贴板准备好
-                if !ClipWait(1.0) {
-                    ; 如果剪贴板设置失败，恢复旧剪贴板
-                    A_Clipboard := OldClipboardForPaste
-                    TrayTip("【故障】设置剪贴板失败，无法粘贴", GetText("tip"), "Iconx 2")
-                    return
-                }
                 Sleep(100)
                 
                 Send("^l")
                 Sleep(400)
                 Send("^v")
-                Sleep(300)  ; 增加等待时间，确保粘贴完成
+                Sleep(200)
                 
-                ; 粘贴后清空历史记录（只清空 CapsLock+C 的记录）
-                global ClipboardHistory_CapsLockC
-                ItemCount := ClipboardHistory_CapsLockC.Length
-                ClipboardHistory_CapsLockC := []
+                ; 粘贴后清空历史记录
+                ClipboardHistory := []
                 
-                ; 恢复原始剪贴板内容（可选，保持合并内容在剪贴板中）
-                ; A_Clipboard := OldClipboardForPaste
-                
-                TrayTip("【成功】已粘贴 " . ItemCount . " 项内容到 Cursor", GetText("tip"), "Iconi 1")
+                TrayTip(GetText("paste_success"), GetText("app_name"), "Iconi 1")
             } else {
                 TrayTip(GetText("cursor_not_running_error"), GetText("error"), "Iconx 2")
             }
@@ -4748,33 +4463,15 @@ ShowClipboardManager() {
         return Btn
     }
     
-    ; ========== Tab 切换区域 ==========
-    global ClipboardCurrentTab
-    ; 确保 ClipboardCurrentTab 有默认值
-    if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
-        ClipboardCurrentTab := "CtrlC"
-    }
-    TabY := 48
-    ; Ctrl+C Tab - 确保可以点击
-    CtrlCTab := GuiID_ClipboardManager.Add("Text", "x20 y" . TabY . " w120 h30 Center 0x200 c" . UI_Colors.Text . " Background" . (ClipboardCurrentTab = "CtrlC" ? UI_Colors.TabActive : UI_Colors.Sidebar) . " vCtrlCTab", GetText("clipboard_tab_ctrlc"))
-    CtrlCTab.SetFont("s10", "Segoe UI")
-    ; 使用明确的点击处理函数，确保可以点击
-    CtrlCTab.OnEvent("Click", SwitchClipboardTabCtrlC)
-    HoverBtn(CtrlCTab, (ClipboardCurrentTab = "CtrlC" ? UI_Colors.TabActive : UI_Colors.Sidebar), UI_Colors.BtnHover)
-    
-    ; CapsLock+C Tab - 防止点击时触发复制操作
-    CapsLockCTab := GuiID_ClipboardManager.Add("Text", "x150 y" . TabY . " w150 h30 Center 0x200 c" . UI_Colors.Text . " Background" . (ClipboardCurrentTab = "CapsLockC" ? UI_Colors.TabActive : UI_Colors.Sidebar) . " vCapsLockCTab", GetText("clipboard_tab_capslockc"))
-    CapsLockCTab.SetFont("s10", "Segoe UI")
-    ; 使用明确的点击处理函数，防止触发复制操作
-    CapsLockCTab.OnEvent("Click", SwitchClipboardTabCapsLockC)
-    HoverBtn(CapsLockCTab, (ClipboardCurrentTab = "CapsLockC" ? UI_Colors.TabActive : UI_Colors.Sidebar), UI_Colors.BtnHover)
-    
     ; 清空按钮
-    CreateFlatBtn(GuiID_ClipboardManager, GetText("clear_all"), 320, 48, 100, 30, ClearAllClipboard)
+    CreateFlatBtn(GuiID_ClipboardManager, GetText("clear_all"), 20, 48, 100, 30, ClearAllClipboard)
     
     ; 统计信息
-    CountText := GuiID_ClipboardManager.Add("Text", "x430 y53 w150 h22 Background" . UI_Colors.Sidebar . " c" . UI_Colors.TextDim . " vClipboardCountText", FormatText("total_items", "0"))
+    CountText := GuiID_ClipboardManager.Add("Text", "x140 y53 w300 h22 Background" . UI_Colors.Sidebar . " c" . UI_Colors.TextDim, FormatText("total_items", "0"))
     CountText.SetFont("s10", "Segoe UI")
+    
+    ; 刷新按钮
+    CreateFlatBtn(GuiID_ClipboardManager, GetText("refresh"), 480, 48, 100, 30, (*) => RefreshClipboardList(), UI_Colors.BtnBg)
     
     ; ========== 列表区域 ==========
     ; 使用深色背景的 ListBox
@@ -4797,600 +4494,87 @@ ShowClipboardManager() {
     HintText := GuiID_ClipboardManager.Add("Text", "x20 y485 w560 h15 c" . UI_Colors.TextDim, GetText("clipboard_hint"))
     HintText.SetFont("s9", "Segoe UI")
     
-    ; 绑定选中变化和双击事件 (ListBox 需要特殊处理 OnEvent)
-    ; 添加 Change 事件，确保选中状态被正确记录（当选中项改变时触发）
-    ListBox.OnEvent("Change", OnClipboardListBoxChange)
+    ; 绑定双击事件 (ListBox 需要特殊处理 OnEvent)
     ListBox.OnEvent("DoubleClick", CopySelectedItem)
     
     ; 绑定 ESC 关闭
     GuiID_ClipboardManager.OnEvent("Escape", CloseClipboardManager)
     
-    ; 确保历史记录数组已初始化
-    if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
-        global ClipboardHistory_CtrlC := []
-    }
-    if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
-        global ClipboardHistory_CapsLockC := []
-    }
+    ; 保存控件引用
+    global ClipboardListBox := ListBox
+    global ClipboardCountText := CountText
     
-    ; 保存控件引用（使用全局声明确保正确保存）
-    global ClipboardListBox, ClipboardCountText, ClipboardCtrlCTab, ClipboardCapsLockCTab
-    ClipboardListBox := ListBox
-    ClipboardCountText := CountText
-    ClipboardCtrlCTab := CtrlCTab
-    ClipboardCapsLockCTab := CapsLockCTab
-    ; 确保 ClipboardCurrentTab 已设置
-    if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
-        global ClipboardCurrentTab := "CtrlC"
-    }
+    ; 刷新列表
+    RefreshClipboardList()
     
     ; 获取屏幕信息并计算位置 (使用 ClipboardPanelPos)
     ScreenInfo := GetScreenInfo(PanelScreenIndex)
     Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, ClipboardPanelPos)
     
-    ; 先显示 GUI，确保控件已准备好
     GuiID_ClipboardManager.Show("w" . PanelWidth . " h" . PanelHeight . " x" . Pos.X . " y" . Pos.Y)
     
     ; 确保窗口在最上层并激活
     WinSetAlwaysOnTop(1, GuiID_ClipboardManager.Hwnd)
     WinActivate(GuiID_ClipboardManager.Hwnd)
-    
-    ; 确保全局变量已正确初始化
-    if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
-        global ClipboardHistory_CtrlC := []
-    }
-    if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
-        global ClipboardHistory_CapsLockC := []
-    }
-    if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
-        global ClipboardCurrentTab := "CtrlC"
-    }
-    
-    ; 短暂延迟，确保 GUI 控件已完全准备好
-    Sleep(50)
-    
-    ; 在 GUI 显示后刷新列表（确保控件已准备好）
-    RefreshClipboardList()
-}
-
-; Ctrl+C 标签点击处理函数
-SwitchClipboardTabCtrlC(*) {
-    ; 直接调用切换函数
-    SwitchClipboardTab("CtrlC")
-}
-
-; CapsLock+C 标签点击处理函数（防止触发复制操作）
-SwitchClipboardTabCapsLockC(*) {
-    ; 【关键修复】在切换标签前，先彻底阻止 CapsLock+C 快捷键触发
-    ; 必须在函数最开始就设置阻止标记，防止任何复制操作
-    global CapsLock, CapsLock2, CapsLockCopyInProgress, CapsLockCopyEndTime
-    global OldCapsLockForTab, OldCapsLock2ForTab, OldCapsLockCopyInProgress
-    
-    ; 【关键修复】立即设置阻止标记，必须在任何其他操作之前（甚至在任何变量声明之前）
-    ; 这是第一行代码，确保阻止标记在所有可能的快捷键处理之前生效
-    
-    ; 保存当前状态（用于后续恢复）
-    OldCapsLockForTab := CapsLock
-    OldCapsLock2ForTab := CapsLock2
-    OldCapsLockCopyInProgress := CapsLockCopyInProgress
-    
-    ; 【关键修复】立即设置阻止标记（必须在保存状态之后立即设置）
-    ; 1. 立即清除 CapsLock 标记，防止触发复制
-    CapsLock := false
-    CapsLock2 := false
-    ; 2. 立即设置 CapsLockCopyInProgress 为 true，防止复制函数执行
-    CapsLockCopyInProgress := true
-    ; 3. 设置一个未来的结束时间（8秒），确保在恢复之前不会触发复制
-    ; 增加延迟时间，确保点击标签后即使 CapsLock 键还处于按下状态也不会触发复制
-    ; 使用更长的延迟时间（8秒），确保完全阻止
-    CapsLockCopyEndTime := A_TickCount + 8000
-    
-    ; 【关键修复】短暂延迟，确保阻止标记已完全生效
-    ; 增加延迟时间，确保阻止标记在所有快捷键处理之前生效
-    Sleep(100)  ; 增加到 100ms，确保阻止标记完全生效
-    
-    ; 切换标签
-    SwitchClipboardTab("CapsLockC")
-    
-    ; 【关键修复】延迟恢复状态（使用更长的延迟，确保不会触发复制）
-    ; 延迟时间要大于 CapsLockCopyEndTime 的设置，确保恢复时已经过了阻止期
-    ; 增加到 8.5 秒，确保完全安全
-    SetTimer(RestoreCapsLockState, -8500)
-    SetTimer(RestoreCapsLockCopyFlag, -8500)
-}
-
-; 切换剪贴板 Tab
-SwitchClipboardTab(TabName) {
-    global ClipboardCurrentTab, ClipboardCtrlCTab, ClipboardCapsLockCTab, UI_Colors
-    global ClipboardListBox, ClipboardCountText, GuiID_ClipboardManager
-    global CapsLock, CapsLock2, CapsLockCopyInProgress, LastSelectedIndex
-    
-    ; 检查 GUI 是否存在
-    if (!GuiID_ClipboardManager) {
-        ; 如果 GUI 对象不存在，尝试重新创建
-        try {
-            ShowClipboardManager()
-            ; 等待 GUI 创建完成
-            Sleep(100)
-        } catch {
-            return
-        }
-    }
-    
-    ; 验证 TabName 参数
-    if (TabName != "CtrlC" && TabName != "CapsLockC") {
-        return
-    }
-    
-    ; 切换标签时，清除之前保存的选中索引（因为不同标签的数据不同）
-    LastSelectedIndex := 0
-    
-    ; 注意：如果是从 SwitchClipboardTabCapsLockC 调用的，状态已经在那个函数中设置了
-    ; 这里只处理从 SwitchClipboardTabCtrlC 调用的情况
-    if (TabName = "CtrlC") {
-        ; 防止点击标签时触发 CapsLock+C 快捷键
-        ; 临时清除 CapsLock 标记，避免触发复制操作
-        global OldCapsLockForTab, OldCapsLock2ForTab, OldCapsLockCopyInProgress
-        OldCapsLockForTab := CapsLock
-        OldCapsLock2ForTab := CapsLock2
-        CapsLock := false
-        CapsLock2 := false
-        
-        ; 临时标记 CapsLock+C 正在进行中，防止点击标签时触发复制操作
-        ; 这样可以防止点击"CapsLock+C"标签时意外触发复制
-        OldCapsLockCopyInProgress := CapsLockCopyInProgress
-        CapsLockCopyInProgress := true
-        
-        ; 延迟恢复，确保点击事件处理完成（增加延迟时间，确保不会触发复制操作）
-        ; 使用更长的延迟时间（200ms），确保标签切换完成后再恢复状态
-        SetTimer(RestoreCapsLockState, -200)
-        SetTimer(RestoreCapsLockCopyFlag, -200)
-    }
-    
-    ; 尝试获取GUI对象（GuiID_ClipboardManager 应该是 Gui 对象，不是 Hwnd）
-    ClipboardGUI := ""
-    try {
-        ; 如果 GuiID_ClipboardManager 是 Gui 对象，直接使用
-        if (IsObject(GuiID_ClipboardManager) && GuiID_ClipboardManager.HasProp("Hwnd")) {
-            ClipboardGUI := GuiID_ClipboardManager
-        } else {
-            ; 否则尝试从 Hwnd 获取
-            ClipboardGUI := GuiFromHwnd(GuiID_ClipboardManager)
-        }
-        if (ClipboardGUI) {
-            ; 如果控件引用丢失，尝试重新获取
-            if (!ClipboardCtrlCTab || !IsObject(ClipboardCtrlCTab)) {
-                try {
-                    ClipboardCtrlCTab := ClipboardGUI["CtrlCTab"]
-                    ; 确保事件绑定正确
-                    if (ClipboardCtrlCTab && IsObject(ClipboardCtrlCTab)) {
-                        ClipboardCtrlCTab.OnEvent("Click", SwitchClipboardTabCtrlC)
-                    }
-                } catch {
-                    ; 忽略错误
-                }
-            }
-            if (!ClipboardCapsLockCTab || !IsObject(ClipboardCapsLockCTab)) {
-                try {
-                    ClipboardCapsLockCTab := ClipboardGUI["CapsLockCTab"]
-                    ; 确保事件绑定正确
-                    if (ClipboardCapsLockCTab && IsObject(ClipboardCapsLockCTab)) {
-                        ClipboardCapsLockCTab.OnEvent("Click", SwitchClipboardTabCapsLockC)
-                    }
-                } catch {
-                    ; 忽略错误
-                }
-            }
-            ; 同时更新其他控件引用
-            if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
-                try {
-                    ClipboardListBox := ClipboardGUI["ClipboardListBox"]
-                } catch {
-                    ; 忽略错误
-                }
-            }
-            if (!ClipboardCountText || !IsObject(ClipboardCountText)) {
-                try {
-                    ClipboardCountText := ClipboardGUI["ClipboardCountText"]
-                } catch {
-                    ; 忽略错误
-                }
-            }
-        }
-    } catch {
-        ; 忽略错误
-    }
-    
-    ; 更新当前标签（必须在更新样式之前）
-    ClipboardCurrentTab := TabName
-    
-    ; 【关键修复】在切换标签时，彻底清空列表，确保不会显示旧标签的数据
-    ; 这解决了两个标签共用内容框的问题
-    try {
-        if (ClipboardListBox && IsObject(ClipboardListBox)) {
-            ; 【改进】使用更可靠的清空方法，确保列表完全清空
-            ; 方法1：从后往前删除
-            Loop 200 {  ; 最多尝试200次，防止无限循环
-                try {
-                    CurrentList := ClipboardListBox.List
-                    if (!CurrentList || CurrentList.Length = 0) {
-                        break
-                    }
-                    ; 从后往前删除，避免索引变化
-                    ClipboardListBox.Delete(CurrentList.Length)
-                } catch {
-                    break
-                }
-            }
-            
-            ; 方法2：从前往后删除（双重保险）
-            Loop 200 {  ; 最多尝试200次
-                try {
-                    CurrentList := ClipboardListBox.List
-                    if (!CurrentList || CurrentList.Length = 0) {
-                        break
-                    }
-                    ClipboardListBox.Delete(1)
-                } catch {
-                    break
-                }
-            }
-            
-            ; 方法3：最终验证，确保列表为空
-            try {
-                FinalCheck := ClipboardListBox.List
-                if (FinalCheck && FinalCheck.Length > 0) {
-                    ; 如果还有项，强制清空
-                    Loop FinalCheck.Length {
-                        try {
-                            ClipboardListBox.Delete(1)
-                        } catch {
-                            break
-                        }
-                    }
-                }
-            } catch {
-                ; 忽略最终检查错误
-            }
-            
-            ; 【关键】强制刷新UI，确保视觉上立即清空
-            try {
-                if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
-                    WinRedraw(GuiID_ClipboardManager.Hwnd)
-                }
-            } catch {
-                ; 忽略重绘失败
-            }
-        }
-    } catch {
-        ; 忽略清空错误，继续执行
-    }
-    
-    ; 更新 Tab 样式
-    try {
-        ; 先尝试使用现有的控件引用
-        if (ClipboardCtrlCTab && IsObject(ClipboardCtrlCTab)) {
-            if (TabName = "CtrlC") {
-                ClipboardCtrlCTab.BackColor := UI_Colors.TabActive
-            } else {
-                ClipboardCtrlCTab.BackColor := UI_Colors.Sidebar
-            }
-        }
-        
-        if (ClipboardCapsLockCTab && IsObject(ClipboardCapsLockCTab)) {
-            if (TabName = "CapsLockC") {
-                ClipboardCapsLockCTab.BackColor := UI_Colors.TabActive
-            } else {
-                ClipboardCapsLockCTab.BackColor := UI_Colors.Sidebar
-            }
-        }
-        
-        ; 如果控件引用丢失，尝试从GUI重新获取
-        if ((!ClipboardCtrlCTab || !IsObject(ClipboardCtrlCTab) || !ClipboardCapsLockCTab || !IsObject(ClipboardCapsLockCTab)) && ClipboardGUI) {
-            try {
-                if (!ClipboardCtrlCTab || !IsObject(ClipboardCtrlCTab)) {
-                    TempCtrlCTab := ClipboardGUI["CtrlCTab"]
-                    if (TempCtrlCTab && IsObject(TempCtrlCTab)) {
-                        ClipboardCtrlCTab := TempCtrlCTab
-                        if (TabName = "CtrlC") {
-                            ClipboardCtrlCTab.BackColor := UI_Colors.TabActive
-                        } else {
-                            ClipboardCtrlCTab.BackColor := UI_Colors.Sidebar
-                        }
-                    }
-                }
-                
-                if (!ClipboardCapsLockCTab || !IsObject(ClipboardCapsLockCTab)) {
-                    TempCapsLockCTab := ClipboardGUI["CapsLockCTab"]
-                    if (TempCapsLockCTab && IsObject(TempCapsLockCTab)) {
-                        ClipboardCapsLockCTab := TempCapsLockCTab
-                        if (TabName = "CapsLockC") {
-                            ClipboardCapsLockCTab.BackColor := UI_Colors.TabActive
-                        } else {
-                            ClipboardCapsLockCTab.BackColor := UI_Colors.Sidebar
-                        }
-                    }
-                }
-            } catch {
-                ; 忽略错误，继续执行
-            }
-        }
-    } catch {
-        ; 忽略样式更新错误，继续执行
-    }
-    
-    ; 刷新列表（无论样式更新是否成功，都要刷新列表）
-    RefreshClipboardList()
-}
-
-; 延迟刷新剪贴板列表（用于 OnClipboardChange 等场景）
-RefreshClipboardListDelayed(*) {
-    RefreshClipboardList()
 }
 
 ; 刷新剪贴板列表
 RefreshClipboardList() {
-    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
-    global ClipboardListBox, ClipboardCountText, GuiID_ClipboardManager
+    global ClipboardHistory, ClipboardListBox, ClipboardCountText, GuiID_ClipboardManager
     
-    ; 确保全局变量已初始化
-    if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
-        ClipboardHistory_CtrlC := []
-    }
-    if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
-        ClipboardHistory_CapsLockC := []
-    }
-    if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
-        ClipboardCurrentTab := "CtrlC"
-    }
-    
-    ; 检查 GUI 是否存在
-    if (!GuiID_ClipboardManager) {
-        return
-    }
-    
-    ; 如果控件引用丢失，尝试获取GUI对象并重新获取控件
-    if (!ClipboardListBox || !IsObject(ClipboardListBox) || !ClipboardCountText || !IsObject(ClipboardCountText)) {
-        try {
-            ; 尝试获取GUI对象
-            ClipboardGUI := ""
-            if (IsObject(GuiID_ClipboardManager) && GuiID_ClipboardManager.HasProp("Hwnd")) {
-                ClipboardGUI := GuiID_ClipboardManager
-            } else {
-                ClipboardGUI := GuiFromHwnd(GuiID_ClipboardManager)
-            }
-            if (ClipboardGUI) {
-                ; 如果控件引用丢失，尝试重新获取
-                if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
-                    try {
-                        ClipboardListBox := ClipboardGUI["ClipboardListBox"]
-                    } catch {
-                        ; 如果无法获取，返回
-                        return
-                    }
-                }
-                if (!ClipboardCountText || !IsObject(ClipboardCountText)) {
-                    try {
-                        ClipboardCountText := ClipboardGUI["ClipboardCountText"]
-                    } catch {
-                        ; 如果无法获取，返回
-                        return
-                    }
-                }
-            } else {
-                ; 如果无法获取GUI对象，但控件引用存在，继续使用现有引用
-                if (!ClipboardListBox || !IsObject(ClipboardListBox) || !ClipboardCountText || !IsObject(ClipboardCountText)) {
-                    return
-                }
-            }
-        } catch {
-            ; 如果出错，但控件引用存在，继续使用现有引用
-            if (!ClipboardListBox || !IsObject(ClipboardListBox) || !ClipboardCountText || !IsObject(ClipboardCountText)) {
-                return
-            }
-        }
-    }
-    
-    ; 检查控件是否存在
-    if (!ClipboardListBox || !ClipboardCountText) {
+    ; 检查控件是否存在且 GUI 未销毁
+    if (!ClipboardListBox || !ClipboardCountText || !GuiID_ClipboardManager) {
         return
     }
     
     try {
-        ; 确保历史记录数组已初始化（使用全局声明确保正确访问）
-        if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
-            global ClipboardHistory_CtrlC := []
-        }
-        if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
-            global ClipboardHistory_CapsLockC := []
-        }
-        
-        ; 确保 ClipboardCurrentTab 有默认值
-        if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
-            global ClipboardCurrentTab := "CtrlC"
-        }
-        
-        ; 根据当前 Tab 选择对应的历史记录（直接使用全局变量，确保引用正确）
-        ; 【关键修复】直接使用全局变量引用，不要创建局部副本
-        CurrentHistory := []
-        HistoryLength := 0
-        
-        ; 【关键修复】确保使用全局变量，并根据当前标签选择正确的数组
-        if (ClipboardCurrentTab = "CtrlC") {
-            ; 直接使用全局变量 ClipboardHistory_CtrlC
-            if (IsSet(ClipboardHistory_CtrlC) && IsObject(ClipboardHistory_CtrlC)) {
-                ; 【关键】直接使用全局数组，不创建副本
-                CurrentHistory := ClipboardHistory_CtrlC
-                HistoryLength := ClipboardHistory_CtrlC.Length
-            } else {
-                CurrentHistory := []
-                HistoryLength := 0
-            }
-        } else if (ClipboardCurrentTab = "CapsLockC") {
-            ; 直接使用全局变量 ClipboardHistory_CapsLockC
-            if (IsSet(ClipboardHistory_CapsLockC) && IsObject(ClipboardHistory_CapsLockC)) {
-                ; 【关键】直接使用全局数组，不创建副本
-                CurrentHistory := ClipboardHistory_CapsLockC
-                HistoryLength := ClipboardHistory_CapsLockC.Length
-            } else {
-                CurrentHistory := []
-                HistoryLength := 0
-            }
-        } else {
-            ; 默认使用 CtrlC
-            if (IsSet(ClipboardHistory_CtrlC) && IsObject(ClipboardHistory_CtrlC)) {
-                CurrentHistory := ClipboardHistory_CtrlC
-                HistoryLength := ClipboardHistory_CtrlC.Length
-            } else {
-                CurrentHistory := []
-                HistoryLength := 0
-            }
-        }
-        
-        ; 确保 CurrentHistory 是有效的数组
-        if (!IsObject(CurrentHistory)) {
-            CurrentHistory := []
-            HistoryLength := 0
-        }
-        
-        ; 清空列表（使用更可靠的方法）
-        ; 在 AutoHotkey v2 中，可以通过删除所有项来清空列表
+        ; 获取当前列表项（通过 List 属性）
+        ; 在 AutoHotkey v2 中，List 属性返回数组
         try {
-            ; 方法1：尝试使用 List 属性获取并删除所有项
-            Loop {
-                try {
-                    CurrentList := ClipboardListBox.List
-                    if (!CurrentList || CurrentList.Length = 0) {
-                        break
-                    }
-                    ; 从后往前删除，避免索引变化
-                    ClipboardListBox.Delete(CurrentList.Length)
-                } catch {
-                    ; 如果删除失败，尝试其他方法
-                    break
-                }
-            }
-            
-            ; 方法2：确保列表已完全清空（双重检查）
-            Loop 100 {  ; 最多尝试100次，防止无限循环
-                try {
-                    CurrentList := ClipboardListBox.List
-                    if (!CurrentList || CurrentList.Length = 0) {
-                        break
-                    }
-                    ; 删除第一项
-                    ClipboardListBox.Delete(1)
-                } catch {
-                    break
-                }
-            }
-            
-            ; 方法3：最终检查，确保列表为空
-            try {
-                FinalList := ClipboardListBox.List
-                if (FinalList && FinalList.Length > 0) {
-                    ; 如果还有项，强制清空（使用循环删除）
-                    Loop FinalList.Length {
-                        try {
-                            ClipboardListBox.Delete(1)
-                        } catch {
-                            break
-                        }
-                    }
-                }
-            } catch {
-                ; 忽略最终检查错误
-            }
+            CurrentList := ClipboardListBox.List
+            ListCount := CurrentList ? CurrentList.Length : 0
         } catch {
-            ; 如果清空失败，尝试重新创建控件（最后手段）
-            ; 这里不重新创建，只是忽略错误
+            ListCount := 0
+        }
+        
+        ; 从后往前删除所有项（避免索引变化问题）
+        if (ListCount > 0) {
+            Loop ListCount {
+                try {
+                    ClipboardListBox.Delete(ListCount - A_Index + 1)
+                } catch {
+                    ; 如果删除失败，继续尝试
+                    continue
+                }
+            }
         }
         
         ; 添加所有历史记录（显示前80个字符作为预览）
         Items := []
-        ; 直接使用全局变量，确保数据正确
-        if (HistoryLength > 0) {
-            for Index, Content in CurrentHistory {
-                ; 确保 Content 是字符串
-                if (Content = "") {
-                    continue
-                }
-                
-                ; 处理换行和特殊字符，创建预览文本
-                Preview := StrReplace(Content, "`r`n", " ")
-                Preview := StrReplace(Preview, "`n", " ")
-                Preview := StrReplace(Preview, "`r", " ")
-                Preview := StrReplace(Preview, "`t", " ")
-                
-                ; 限制预览长度
-                if (StrLen(Preview) > 80) {
-                    Preview := SubStr(Preview, 1, 80) . "..."
-                }
-                
-                ; 添加序号和预览
-                DisplayText := "[" . Index . "] " . Preview
-                Items.Push(DisplayText)
+        for Index, Content in ClipboardHistory {
+            ; 处理换行和特殊字符，创建预览文本
+            Preview := StrReplace(Content, "`r`n", " ")
+            Preview := StrReplace(Preview, "`n", " ")
+            Preview := StrReplace(Preview, "`r", " ")
+            Preview := StrReplace(Preview, "`t", " ")
+            
+            ; 限制预览长度
+            if (StrLen(Preview) > 80) {
+                Preview := SubStr(Preview, 1, 80) . "..."
             }
-        }
-        
-        ; 保存刷新前的选中索引
-        global LastSelectedIndex
-        PreviousSelectedIndex := 0
-        try {
-            if (IsSet(LastSelectedIndex) && LastSelectedIndex > 0) {
-                PreviousSelectedIndex := LastSelectedIndex
-            }
-        } catch {
-            PreviousSelectedIndex := 0
+            
+            ; 添加序号和预览
+            DisplayText := "[" . Index . "] " . Preview
+            Items.Push(DisplayText)
         }
         
         ; 批量添加项目
         if (Items.Length > 0) {
-            try {
-                ClipboardListBox.Add(Items)
-            } catch {
-                ; 如果批量添加失败，尝试逐个添加
-                for Index, Item in Items {
-                    try {
-                        ClipboardListBox.Add(Item)
-                    } catch {
-                        ; 忽略单个项目添加失败
-                        continue
-                    }
-                }
-            }
+            ClipboardListBox.Add(Items)
         }
         
-        ; 尝试恢复之前的选中状态
-        if (PreviousSelectedIndex > 0 && PreviousSelectedIndex <= HistoryLength) {
-            try {
-                ClipboardListBox.Value := PreviousSelectedIndex
-                LastSelectedIndex := PreviousSelectedIndex
-            } catch {
-                ; 如果恢复失败，清除保存的索引
-                LastSelectedIndex := 0
-            }
-        } else {
-            ; 如果没有有效的选中项，清除保存的索引
-            LastSelectedIndex := 0
-        }
-        
-        ; 更新统计信息（使用实际的历史记录长度）
-        try {
-            ClipboardCountText.Text := FormatText("total_items", HistoryLength)
-        } catch {
-            ; 忽略更新统计信息失败
-        }
-        
-        ; 强制刷新UI，确保视觉更新
-        try {
-            if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
-                ; 强制重绘窗口
-                WinRedraw(GuiID_ClipboardManager.Hwnd)
-            }
-        } catch {
-            ; 忽略重绘失败
-        }
+    ; 更新统计信息
+    ClipboardCountText.Text := FormatText("total_items", ClipboardHistory.Length)
     } catch as e {
         ; 如果控件已销毁，静默失败
         return
@@ -5399,330 +4583,74 @@ RefreshClipboardList() {
 
 ; 清空所有剪贴板
 ClearAllClipboard(*) {
-    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
-    global ClipboardListBox, ClipboardCountText
+    global ClipboardHistory, ClipboardListBox, ClipboardCountText
     
     ; 确认对话框
     Result := MsgBox(GetText("confirm_clear"), GetText("confirm"), "YesNo Icon?")
     if (Result = "Yes") {
-        ; 根据当前 Tab 清空对应的历史记录
-        if (ClipboardCurrentTab = "CtrlC") {
-            ClipboardHistory_CtrlC := []
-        } else {
-            ClipboardHistory_CapsLockC := []
-        }
-        ; 立即刷新列表和计数，确保界面即时更新
+        ClipboardHistory := []
         RefreshClipboardList()
-        ; 强制刷新UI，确保视觉更新
-        try {
-            global GuiID_ClipboardManager
-            if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
-                ; 强制重绘窗口
-                WinRedraw(GuiID_ClipboardManager.Hwnd)
-            }
-        } catch {
-            ; 忽略重绘失败
-        }
-        ; 确保刷新完成后再显示提示
-        Sleep(10)
         TrayTip(GetText("cleared"), GetText("tip"), "Iconi 1")
-    }
-}
-
-; ListBox 选中变化事件处理函数（确保选中状态被正确记录）
-OnClipboardListBoxChange(*) {
-    global ClipboardListBox, LastSelectedIndex
-    try {
-        if (ClipboardListBox && IsObject(ClipboardListBox)) {
-            ; 获取当前选中项的索引
-            SelectedIndex := ClipboardListBox.Value
-            ; 确保是整数类型
-            if (Type(SelectedIndex) != "Integer") {
-                if (Type(SelectedIndex) = "String" && SelectedIndex != "") {
-                    try {
-                        SelectedIndex := Integer(SelectedIndex)
-                    } catch {
-                        SelectedIndex := 0
-                    }
-                } else {
-                    SelectedIndex := 0
-                }
-            }
-            ; 保存最后选中的索引，用于刷新后恢复
-            if (SelectedIndex > 0) {
-                LastSelectedIndex := SelectedIndex
-            }
-        }
-    } catch {
-        ; 忽略错误
-    }
-}
-
-; 获取 ListBox 选中项索引的辅助函数
-GetSelectedIndex(ListBox) {
-    if (!ListBox || !IsObject(ListBox)) {
-        return 0
-    }
-    try {
-        ; 方法1：直接获取Value属性
-        SelectedIndex := ListBox.Value
-        
-        ; 确保 SelectedIndex 是数字类型
-        if (Type(SelectedIndex) != "Integer") {
-            if (Type(SelectedIndex) = "String" && SelectedIndex != "") {
-                ; 尝试转换为整数
-                try {
-                    SelectedIndex := Integer(SelectedIndex)
-                } catch {
-                    SelectedIndex := 0
-                }
-            } else {
-                SelectedIndex := 0
-            }
-        }
-        
-        ; 如果Value为0，尝试使用最后保存的选中索引
-        if (SelectedIndex <= 0) {
-            global LastSelectedIndex
-            if (IsSet(LastSelectedIndex) && LastSelectedIndex > 0) {
-                ; 验证保存的索引是否仍然有效
-                try {
-                    ListItems := ListBox.List
-                    if (ListItems && LastSelectedIndex <= ListItems.Length) {
-                        ; 恢复选中状态
-                        ListBox.Value := LastSelectedIndex
-                        SelectedIndex := LastSelectedIndex
-                    }
-                } catch {
-                    ; 忽略错误
-                }
-            }
-        }
-        
-        return SelectedIndex
-    } catch {
-        return 0
     }
 }
 
 ; 复制选中项
 CopySelectedItem(*) {
-    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
-    global ClipboardListBox, GuiID_ClipboardManager
+    global ClipboardHistory, ClipboardListBox, GuiID_ClipboardManager
     
-    if (!GuiID_ClipboardManager) {
-        return
-    }
-    
-    ; 如果控件引用丢失，尝试重新获取
-    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
-        try {
-            ClipboardGUI := GuiFromHwnd(GuiID_ClipboardManager)
-            if (ClipboardGUI) {
-                ClipboardListBox := ClipboardGUI["ClipboardListBox"]
-            }
-        } catch {
-            return
-        }
-    }
-    
-    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
+    if (!ClipboardListBox || !GuiID_ClipboardManager) {
         return
     }
     
     try {
-        ; 确保全局变量已初始化
-        if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
-            global ClipboardHistory_CtrlC := []
-        }
-        if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
-            global ClipboardHistory_CapsLockC := []
-        }
-        if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
-            global ClipboardCurrentTab := "CtrlC"
-        }
-        
-        ; 根据当前 Tab 选择对应的历史记录（直接使用全局变量引用）
-        CurrentHistory := []
-        if (ClipboardCurrentTab = "CtrlC") {
-            if (IsSet(ClipboardHistory_CtrlC) && IsObject(ClipboardHistory_CtrlC)) {
-                CurrentHistory := ClipboardHistory_CtrlC
-            }
-        } else {
-            if (IsSet(ClipboardHistory_CapsLockC) && IsObject(ClipboardHistory_CapsLockC)) {
-                CurrentHistory := ClipboardHistory_CapsLockC
-            }
-        }
-        
-        ; 获取选中项的索引
-        SelectedIndex := GetSelectedIndex(ClipboardListBox)
-        
-        ; 验证索引有效性
-        if (SelectedIndex > 0 && SelectedIndex <= CurrentHistory.Length) {
-            A_Clipboard := CurrentHistory[SelectedIndex]
+        SelectedIndex := ClipboardListBox.Value
+        if (SelectedIndex > 0 && SelectedIndex <= ClipboardHistory.Length) {
+            A_Clipboard := ClipboardHistory[SelectedIndex]
             TrayTip(GetText("copied"), GetText("tip"), "Iconi 1")
         } else {
             TrayTip(FormatText("select_first", GetText("copy")), GetText("tip"), "Iconi 1")
         }
-    } catch as e {
-        TrayTip(GetText("operation_failed") . ": " . e.Message, GetText("error"), "Iconx 1")
+    } catch {
+        TrayTip(GetText("operation_failed"), GetText("error"), "Iconx 1")
     }
 }
 
 ; 删除选中项
 DeleteSelectedItem(*) {
-    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
-    global ClipboardListBox, GuiID_ClipboardManager
+    global ClipboardHistory, ClipboardListBox, GuiID_ClipboardManager
     
-    if (!GuiID_ClipboardManager) {
-        return
-    }
-    
-    ; 如果控件引用丢失，尝试重新获取
-    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
-        try {
-            ClipboardGUI := GuiFromHwnd(GuiID_ClipboardManager)
-            if (ClipboardGUI) {
-                ClipboardListBox := ClipboardGUI["ClipboardListBox"]
-            }
-        } catch {
-            return
-        }
-    }
-    
-    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
+    if (!ClipboardListBox || !GuiID_ClipboardManager) {
         return
     }
     
     try {
-        ; 确保全局变量已初始化
-        if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
-            global ClipboardHistory_CtrlC := []
-        }
-        if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
-            global ClipboardHistory_CapsLockC := []
-        }
-        if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
-            global ClipboardCurrentTab := "CtrlC"
-        }
-        
-        ; 获取选中项的索引
-        SelectedIndex := GetSelectedIndex(ClipboardListBox)
-        
-        if (SelectedIndex > 0) {
-            if (ClipboardCurrentTab = "CtrlC") {
-                if (IsSet(ClipboardHistory_CtrlC) && IsObject(ClipboardHistory_CtrlC) && SelectedIndex <= ClipboardHistory_CtrlC.Length) {
-                    ; 直接操作全局数组
-                    ClipboardHistory_CtrlC.RemoveAt(SelectedIndex)
-                    ; 【关键修复】清除保存的选中索引，防止刷新后选中错误的项
-                    global LastSelectedIndex
-                    LastSelectedIndex := 0
-                    ; 立即刷新列表和计数，确保界面即时更新
-                    RefreshClipboardList()
-                    ; 【关键修复】强制刷新UI，确保视觉更新（延迟一点确保刷新完成）
-                    Sleep(50)
-                    try {
-                        if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
-                            ; 强制重绘窗口
-                            WinRedraw(GuiID_ClipboardManager.Hwnd)
-                            ; 再次刷新列表，确保数据同步
-                            RefreshClipboardList()
-                        }
-                    } catch {
-                        ; 忽略重绘失败
-                    }
-                    TrayTip(GetText("deleted"), GetText("tip"), "Iconi 1")
-                } else {
-                    TrayTip(FormatText("select_first", GetText("delete")), GetText("tip"), "Iconi 1")
-                }
-            } else {
-                if (IsSet(ClipboardHistory_CapsLockC) && IsObject(ClipboardHistory_CapsLockC) && SelectedIndex <= ClipboardHistory_CapsLockC.Length) {
-                    ; 直接操作全局数组
-                    ClipboardHistory_CapsLockC.RemoveAt(SelectedIndex)
-                    ; 【关键修复】清除保存的选中索引，防止刷新后选中错误的项
-                    global LastSelectedIndex
-                    LastSelectedIndex := 0
-                    ; 立即刷新列表和计数，确保界面即时更新
-                    RefreshClipboardList()
-                    ; 【关键修复】强制刷新UI，确保视觉更新（延迟一点确保刷新完成）
-                    Sleep(50)
-                    try {
-                        if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
-                            ; 强制重绘窗口
-                            WinRedraw(GuiID_ClipboardManager.Hwnd)
-                            ; 再次刷新列表，确保数据同步
-                            RefreshClipboardList()
-                        }
-                    } catch {
-                        ; 忽略重绘失败
-                    }
-                    TrayTip(GetText("deleted"), GetText("tip"), "Iconi 1")
-                } else {
-                    TrayTip(FormatText("select_first", GetText("delete")), GetText("tip"), "Iconi 1")
-                }
-            }
+        SelectedIndex := ClipboardListBox.Value
+        if (SelectedIndex > 0 && SelectedIndex <= ClipboardHistory.Length) {
+            ; 从数组中删除（注意：ListBox 的索引从 1 开始，数组索引也从 1 开始）
+            ClipboardHistory.RemoveAt(SelectedIndex)
+            RefreshClipboardList()
+            TrayTip(GetText("deleted"), GetText("tip"), "Iconi 1")
         } else {
             TrayTip(FormatText("select_first", GetText("delete")), GetText("tip"), "Iconi 1")
         }
-    } catch as e {
-        TrayTip(GetText("operation_failed") . ": " . e.Message, GetText("error"), "Iconx 1")
+    } catch {
+        TrayTip(GetText("operation_failed"), GetText("error"), "Iconx 1")
     }
 }
 
 ; 粘贴选中项到 Cursor
 PasteSelectedToCursor(*) {
-    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
-    global ClipboardListBox, CursorPath, AISleepTime, GuiID_ClipboardManager
+    global ClipboardHistory, ClipboardListBox, CursorPath, AISleepTime, GuiID_ClipboardManager
     
-    if (!GuiID_ClipboardManager) {
-        return
-    }
-    
-    ; 如果控件引用丢失，尝试重新获取
-    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
-        try {
-            ClipboardGUI := GuiFromHwnd(GuiID_ClipboardManager)
-            if (ClipboardGUI) {
-                ClipboardListBox := ClipboardGUI["ClipboardListBox"]
-            }
-        } catch {
-            return
-        }
-    }
-    
-    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
+    if (!ClipboardListBox || !GuiID_ClipboardManager) {
         return
     }
     
     try {
-        ; 确保全局变量已初始化
-        if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
-            global ClipboardHistory_CtrlC := []
-        }
-        if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
-            global ClipboardHistory_CapsLockC := []
-        }
-        if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
-            global ClipboardCurrentTab := "CtrlC"
-        }
-        
-        ; 获取选中项的索引
-        SelectedIndex := GetSelectedIndex(ClipboardListBox)
-        
-        Content := ""
-        if (SelectedIndex > 0) {
-            if (ClipboardCurrentTab = "CtrlC") {
-                if (IsSet(ClipboardHistory_CtrlC) && IsObject(ClipboardHistory_CtrlC) && SelectedIndex <= ClipboardHistory_CtrlC.Length) {
-                    Content := ClipboardHistory_CtrlC[SelectedIndex]
-                }
-            } else {
-                if (IsSet(ClipboardHistory_CapsLockC) && IsObject(ClipboardHistory_CapsLockC) && SelectedIndex <= ClipboardHistory_CapsLockC.Length) {
-                    Content := ClipboardHistory_CapsLockC[SelectedIndex]
-                }
-            }
-        }
-        
-        if (Content != "" && StrLen(Content) > 0) {
+        SelectedIndex := ClipboardListBox.Value
+        if (SelectedIndex > 0 && SelectedIndex <= ClipboardHistory.Length) {
+            Content := ClipboardHistory[SelectedIndex]
+            
             ; 激活 Cursor 窗口
             try {
                 if WinExist("ahk_exe Cursor.exe") {
@@ -5745,30 +4673,30 @@ PasteSelectedToCursor(*) {
                         Sleep(200)
                     }
                     
+                A_Clipboard := Content
+                Sleep(100)
+                Send("^v")
+                Sleep(200)
+                
+                TrayTip(GetText("paste_success"), GetText("tip"), "Iconi 1")
+            } else {
+                if (CursorPath != "" && FileExist(CursorPath)) {
+                    Run(CursorPath)
+                    Sleep(AISleepTime)
                     A_Clipboard := Content
                     Sleep(100)
+                    Send("^l")
+                    Sleep(400)
                     Send("^v")
                     Sleep(200)
-                    
                     TrayTip(GetText("paste_success"), GetText("tip"), "Iconi 1")
                 } else {
-                    if (CursorPath != "" && FileExist(CursorPath)) {
-                        Run(CursorPath)
-                        Sleep(AISleepTime)
-                        A_Clipboard := Content
-                        Sleep(100)
-                        Send("^l")
-                        Sleep(400)
-                        Send("^v")
-                        Sleep(200)
-                        TrayTip(GetText("paste_success"), GetText("tip"), "Iconi 1")
-                    } else {
-                        TrayTip(GetText("cursor_not_running"), GetText("error"), "Iconx 2")
-                    }
+                    TrayTip(GetText("cursor_not_running"), GetText("error"), "Iconx 2")
                 }
-            } catch as e {
-                MsgBox(GetText("paste_failed") . ": " . e.Message)
             }
+        } catch as e {
+            MsgBox(GetText("paste_failed") . ": " . e.Message)
+        }
         } else {
             TrayTip(FormatText("select_first", GetText("paste")), GetText("tip"), "Iconi 1")
         }
@@ -5838,26 +4766,6 @@ HandleDynamicHotkey(PressedKey, ActionType) {
             case "ESC":
                 CapsLock2 := false
             case "C":
-                ; 【关键修复】检查是否在标签切换期间，如果是则不执行复制
-                global CapsLockCopyInProgress, CapsLockCopyEndTime, GuiID_ClipboardManager
-                
-                ; 双重检查：1. 检查是否是标签切换期间
-                if (CapsLockCopyInProgress && CapsLockCopyEndTime > A_TickCount) {
-                    ; 在标签切换期间，不执行复制操作
-                    return true  ; 已处理（阻止复制）
-                }
-                
-                ; 双重检查：2. 如果剪贴板管理面板已打开，额外检查是否是标签点击期间
-                ; 这个检查是为了防止在点击标签时，CapsLock 键还处于按下状态导致的意外触发
-                if (GuiID_ClipboardManager != 0 && CapsLockCopyInProgress && CapsLockCopyEndTime > A_TickCount) {
-                    ; 在标签点击期间且剪贴板管理面板打开时，不执行复制操作
-                    return true  ; 已处理（阻止复制）
-                }
-                
-                ; 确保 CapsLock 变量保持为 true，直到复制完成
-                global CapsLock
-                CapsLock := true
-                ; 调用复制函数
                 CapsLockCopy()
             case "V":
                 CapsLockPaste()
@@ -5931,30 +4839,7 @@ Esc:: {
 
 ; C 键连续复制（立即响应，不等待面板）
 c:: {
-    ; 【关键修复】在剪贴板管理面板打开时，检查是否是标签点击期间
-    ; 如果是标签点击期间，不执行复制操作，避免点击标签时触发复制
-    global GuiID_ClipboardManager, CapsLockCopyInProgress, CapsLockCopyEndTime
-    
-    ; 如果剪贴板管理面板已打开，检查是否是标签切换期间
-    if (GuiID_ClipboardManager != 0) {
-        ; 检查是否是标签点击期间（通过 CapsLockCopyInProgress 和 CapsLockCopyEndTime 判断）
-        if (CapsLockCopyInProgress && CapsLockCopyEndTime > A_TickCount) {
-            ; 在标签点击期间，不执行复制操作，直接返回
-            return
-        }
-    }
-    
-    ; 添加调试信息：确认快捷键被触发
-    ; TrayTip("调试：CapsLock+C 被触发", "快捷键检测", "Iconi 1")
-    
-    ; 确保 CapsLock 变量被设置（防止在释放时被清除）
-    global CapsLock
-    if (!CapsLock) {
-        CapsLock := true
-    }
-    
     if (!HandleDynamicHotkey("c", "C")) {
-        ; 如果没有匹配到配置的快捷键，发送原始按键
         Send("c")
     }
 }
@@ -6100,25 +4985,21 @@ ImportConfig(*) {
 
 ; 导出剪贴板历史
 ExportClipboard(*) {
-    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
+    global ClipboardHistory
     
-    ; 根据当前 Tab 选择对应的历史记录
-    CurrentHistory := (ClipboardCurrentTab = "CtrlC") ? ClipboardHistory_CtrlC : ClipboardHistory_CapsLockC
-    
-    if (CurrentHistory.Length = 0) {
+    if (ClipboardHistory.Length = 0) {
         MsgBox(GetText("no_clipboard"), GetText("tip"), "Iconi")
         return
     }
     
-    TabName := (ClipboardCurrentTab = "CtrlC") ? "CtrlC" : "CapsLockC"
-    ExportPath := FileSelect("S", A_ScriptDir "\ClipboardHistory_" . TabName . "_" . A_Now . ".txt", GetText("export_clipboard"), "Text Files (*.txt)")
+    ExportPath := FileSelect("S", A_ScriptDir "\ClipboardHistory_" . A_Now . ".txt", GetText("export_clipboard"), "Text Files (*.txt)")
     if (ExportPath = "") {
         return
     }
     
     try {
-        Content := "=== " . TabName . " Clipboard History ===`n`n"
-        for Index, Item in CurrentHistory {
+        Content := ""
+        for Index, Item in ClipboardHistory {
             Content .= "=== Item " . Index . " ===`n"
             Content .= Item . "`n`n"
         }
@@ -6132,7 +5013,7 @@ ExportClipboard(*) {
 
 ; 导入剪贴板历史
 ImportClipboard(*) {
-    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
+    global ClipboardHistory
     
     ImportPath := FileSelect(1, A_ScriptDir, GetText("import_clipboard"), "Text Files (*.txt)")
     if (ImportPath = "") {
@@ -6141,30 +5022,16 @@ ImportClipboard(*) {
     
     try {
         Content := FileRead(ImportPath, "UTF-8")
-        
-        ; 根据当前 Tab 选择对应的历史记录
-        CurrentHistory := (ClipboardCurrentTab = "CtrlC") ? ClipboardHistory_CtrlC : ClipboardHistory_CapsLockC
-        
         ; 清空当前历史
-        if (ClipboardCurrentTab = "CtrlC") {
-            ClipboardHistory_CtrlC := []
-            CurrentHistory := ClipboardHistory_CtrlC
-        } else {
-            ClipboardHistory_CapsLockC := []
-            CurrentHistory := ClipboardHistory_CapsLockC
-        }
+        ClipboardHistory := []
         
         ; 解析导入的内容
         Lines := StrSplit(Content, "`n")
         CurrentItem := ""
         for Index, Line in Lines {
-            ; 跳过标题行
-            if (InStr(Line, "=== ") = 1 && InStr(Line, " Clipboard History") > 0) {
-                continue
-            }
             if (InStr(Line, "=== Item ") = 1) {
                 if (CurrentItem != "") {
-                    CurrentHistory.Push(Trim(CurrentItem, "`r`n "))
+                    ClipboardHistory.Push(Trim(CurrentItem, "`r`n "))
                     CurrentItem := ""
                 }
             } else if (Line != "") {
@@ -6173,14 +5040,7 @@ ImportClipboard(*) {
         }
         ; 添加最后一项
         if (CurrentItem != "") {
-            CurrentHistory.Push(Trim(CurrentItem, "`r`n "))
-        }
-        
-        ; 更新对应的全局变量
-        if (ClipboardCurrentTab = "CtrlC") {
-            ClipboardHistory_CtrlC := CurrentHistory
-        } else {
-            ClipboardHistory_CapsLockC := CurrentHistory
+            ClipboardHistory.Push(Trim(CurrentItem, "`r`n "))
         }
         
         ; 刷新剪贴板列表
@@ -6676,7 +5536,16 @@ ShowVoiceInputActionSelection(Content) {
     ; 搜索引擎按钮位置（从LabelEngine下方开始）
     YPos := 55 + 25 + 60 + 70 + 35 + 20 + 10 + 35 + 50  ; 操作按钮下方（标题+标签+输入框+开关间距+开关+操作标签间距+操作标签+按钮间距+操作按钮+引擎标签间距）
     ; 搜索引擎列表
-    SearchEngines := GetSortedSearchEngines()
+    SearchEngines := [
+        {Name: GetText("search_engine_deepseek"), Value: "deepseek"},
+        {Name: GetText("search_engine_yuanbao"), Value: "yuanbao"},
+        {Name: GetText("search_engine_doubao"), Value: "doubao"},
+        {Name: GetText("search_engine_zhipu"), Value: "zhipu"},
+        {Name: GetText("search_engine_mita"), Value: "mita"},
+        {Name: GetText("search_engine_wenxin"), Value: "wenxin"},
+        {Name: GetText("search_engine_qianwen"), Value: "qianwen"},
+        {Name: GetText("search_engine_kimi"), Value: "kimi"}
+    ]
     
     VoiceSearchEngineButtons := []
     ButtonWidth := 110
@@ -6768,22 +5637,7 @@ CreateShowSearchEnginesHandler(Content, SendToCursorBtn, SearchBtn, EngineLabel)
                     Index := A_Index
                     Btn := VoiceSearchEngineButtons[Index]
                     if (Btn) {
-                        ; 检查是否是新的按钮结构（对象）还是旧的（直接控件）
-                        if (IsObject(Btn) && Btn.Bg) {
-                            ; 新结构：显示背景、图标和文字
-                            if (Btn.Bg) {
-                                Btn.Bg.Visible := true
-                            }
-                            if (Btn.Icon) {
-                                Btn.Icon.Visible := true
-                            }
-                            if (Btn.Text) {
-                                Btn.Text.Visible := true
-                            }
-                        } else {
-                            ; 旧结构：直接显示控件
-                            Btn.Visible := true
-                        }
+                        Btn.Visible := true
                     }
                 }
             }
@@ -6911,91 +5765,6 @@ StartVoiceSearch() {
     }
 }
 
-; 获取排序后的搜索引擎列表（根据语言版本排序：英文版AI引擎靠前，中文版靠后）
-GetSortedSearchEngines() {
-    global Language
-    
-    ; 定义所有搜索引擎
-    ChineseEngines := [
-        {Name: GetText("search_engine_deepseek"), Value: "deepseek"},
-        {Name: GetText("search_engine_yuanbao"), Value: "yuanbao"},
-        {Name: GetText("search_engine_doubao"), Value: "doubao"},
-        {Name: GetText("search_engine_zhipu"), Value: "zhipu"},
-        {Name: GetText("search_engine_mita"), Value: "mita"},
-        {Name: GetText("search_engine_wenxin"), Value: "wenxin"},
-        {Name: GetText("search_engine_qianwen"), Value: "qianwen"},
-        {Name: GetText("search_engine_kimi"), Value: "kimi"}
-    ]
-    
-    AIEngines := [
-        {Name: GetText("search_engine_perplexity"), Value: "perplexity"},
-        {Name: GetText("search_engine_copilot"), Value: "copilot"},
-        {Name: GetText("search_engine_chatgpt"), Value: "chatgpt"},
-        {Name: GetText("search_engine_grok"), Value: "grok"},
-        {Name: GetText("search_engine_you"), Value: "you"},
-        {Name: GetText("search_engine_claude"), Value: "claude"},
-        {Name: GetText("search_engine_monica"), Value: "monica"},
-        {Name: GetText("search_engine_webpilot"), Value: "webpilot"}
-    ]
-    
-    ; 根据语言版本排序
-    if (Language = "en") {
-        ; 英文版：AI引擎在前，中文引擎在后
-        SearchEngines := []
-        for Index, Engine in AIEngines {
-            SearchEngines.Push(Engine)
-        }
-        for Index, Engine in ChineseEngines {
-            SearchEngines.Push(Engine)
-        }
-    } else {
-        ; 中文版：中文引擎在前，AI引擎在后
-        SearchEngines := []
-        for Index, Engine in ChineseEngines {
-            SearchEngines.Push(Engine)
-        }
-        for Index, Engine in AIEngines {
-            SearchEngines.Push(Engine)
-        }
-    }
-    
-    return SearchEngines
-}
-
-; 获取搜索引擎对应的图标文件名
-GetSearchEngineIcon(EngineValue) {
-    ; 根据搜索引擎值返回对应的图标文件名
-    IconMap := Map(
-        "deepseek", "DeepSeek.png",
-        "yuanbao", "元宝.png",
-        "doubao", "豆包.png",
-        "zhipu", "智谱.png",
-        "mita", "秘塔.png",
-        "wenxin", "文心一言.png",
-        "qianwen", "通义千问.png",
-        "kimi", "Kimi.png",
-        "perplexity", "Perplexity.png",
-        "copilot", "Copilot.png",
-        "chatgpt", "ChatGPT.png",
-        "grok", "Grok.png",
-        "you", "You.png",
-        "claude", "Claude.png",
-        "monica", "Monica.png",
-        "webpilot", "WebPilot.png"
-    )
-    
-    IconName := IconMap.Get(EngineValue, "")
-    if (IconName != "") {
-        ; 返回完整的图标路径
-        ScriptDir := A_ScriptDir
-        IconPath := ScriptDir . "\aiicons\" . IconName
-        if (FileExist(IconPath)) {
-            return IconPath
-        }
-    }
-    return ""  ; 如果图标不存在，返回空字符串
-}
-
 ; 显示语音搜索输入界面
 ShowVoiceSearchInputPanel() {
     global GuiID_VoiceInput, VoiceInputScreenIndex, UI_Colors, VoiceSearchPanelVisible
@@ -7015,17 +5784,10 @@ ShowVoiceSearchInputPanel() {
     GuiID_VoiceInput.SetFont("s12 c" . UI_Colors.Text . " Bold", "Segoe UI")
     
     PanelWidth := 600
-    ; 计算所需高度：标题(50) + 输入框标签(25) + 输入框(150) + 搜索按钮(45) + 自动加载开关(35) + 自动更新开关(35) + 引擎标签(30) + 按钮区域 + 边距(20)
-    ; 注意：按钮行数会根据语言版本和搜索引擎数量动态计算，这里先获取搜索引擎列表
-    InputBoxHeight := 150
-    SearchEngines := GetSortedSearchEngines()  ; 先获取排序后的搜索引擎列表
-    TotalEngines := SearchEngines.Length
-    ButtonWidth := 130
-    ButtonHeight := 35
-    ButtonSpacing := 10
-    ButtonsRows := Ceil(TotalEngines / 4)  ; 每行4个按钮
-    ButtonsAreaHeight := ButtonsRows * (ButtonHeight + ButtonSpacing)  ; 每行高度（按钮+间距）
-    PanelHeight := 50 + 25 + InputBoxHeight + 45 + 35 + 35 + 30 + ButtonsAreaHeight + 20
+    ; 计算所需高度：标题(50) + 输入框标签(25) + 输入框(80) + 搜索按钮(45) + 自动加载开关(35) + 自动更新开关(35) + 引擎标签(30) + 按钮区域 + 边距(20)
+    ButtonsRows := Ceil(8 / 4)  ; 每行4个按钮，共8个搜索引擎
+    ButtonsAreaHeight := ButtonsRows * 45  ; 每行45px（按钮35px + 间距10px）
+    PanelHeight := 50 + 25 + 80 + 45 + 35 + 35 + 30 + ButtonsAreaHeight + 20
     
     ; 标题
     TitleText := GuiID_VoiceInput.Add("Text", "x0 y15 w600 h30 Center c" . UI_Colors.Text, GetText("voice_search_title"))
@@ -7046,7 +5808,7 @@ ShowVoiceSearchInputPanel() {
     
     ; 输入框（可编辑，用于显示和编辑语音输入内容）
     YPos += 25
-    VoiceSearchInputEdit := GuiID_VoiceInput.Add("Edit", "x20 y" . YPos . " w520 h150 vVoiceSearchInputEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", "")
+    VoiceSearchInputEdit := GuiID_VoiceInput.Add("Edit", "x20 y" . YPos . " w520 h80 vVoiceSearchInputEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", "")
     VoiceSearchInputEdit.SetFont("s12", "Segoe UI")
     ; 添加焦点事件，自动切换到中文输入法
     VoiceSearchInputEdit.OnEvent("Focus", SwitchToChineseIME)
@@ -7062,15 +5824,15 @@ ShowVoiceSearchInputPanel() {
     ClearBtn.OnEvent("Click", ClearVoiceSearchInput)
     HoverBtn(ClearBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     
-    ; 搜索按钮（在清空按钮下方，输入框高度为150，所以按钮位置需要调整）
+    ; 搜索按钮（在清空按钮下方）
     SearchBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-    SearchBtn := GuiID_VoiceInput.Add("Text", "x550 y" . (YPos + 110) . " w40 h40 Center 0x200 c" . SearchBtnTextColor . " Background" . UI_Colors.BtnPrimary . " vSearchBtn", GetText("voice_search_button"))
+    SearchBtn := GuiID_VoiceInput.Add("Text", "x550 y" . (YPos + 40) . " w40 h40 Center 0x200 c" . SearchBtnTextColor . " Background" . UI_Colors.BtnPrimary . " vSearchBtn", GetText("voice_search_button"))
     SearchBtn.SetFont("s11 Bold", "Segoe UI")
     SearchBtn.OnEvent("Click", ExecuteVoiceSearch)
     HoverBtn(SearchBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
     
     ; 自动加载选中文本开关
-    YPos += 160  ; 输入框高度150 + 间距10
+    YPos += 90
     global AutoLoadSelectedText, VoiceSearchAutoLoadSwitch
     AutoLoadLabel := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h25 c" . UI_Colors.TextDim, GetText("auto_load_selected_text"))
     AutoLoadLabel.SetFont("s10", "Segoe UI")
@@ -7104,9 +5866,18 @@ ShowVoiceSearchInputPanel() {
     LabelEngine := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w560 h20 c" . UI_Colors.TextDim, GetText("select_search_engine"))
     LabelEngine.SetFont("s10", "Segoe UI")
     
-    ; 搜索引擎按钮（文字+图标）
+    ; 搜索引擎按钮
     YPos += 30
-    ; SearchEngines已经在上面计算面板高度时获取过了，这里直接使用
+    SearchEngines := [
+        {Name: GetText("search_engine_deepseek"), Value: "deepseek"},
+        {Name: GetText("search_engine_yuanbao"), Value: "yuanbao"},
+        {Name: GetText("search_engine_doubao"), Value: "doubao"},
+        {Name: GetText("search_engine_zhipu"), Value: "zhipu"},
+        {Name: GetText("search_engine_mita"), Value: "mita"},
+        {Name: GetText("search_engine_wenxin"), Value: "wenxin"},
+        {Name: GetText("search_engine_qianwen"), Value: "qianwen"},
+        {Name: GetText("search_engine_kimi"), Value: "kimi"}
+    ]
     
     VoiceSearchEngineButtons := []
     ButtonWidth := 130
@@ -7114,7 +5885,6 @@ ShowVoiceSearchInputPanel() {
     ButtonSpacing := 10
     StartX := 20
     ButtonsPerRow := 4
-    IconSizeInButton := 20  ; 按钮内图标大小
     
     for Index, Engine in SearchEngines {
         Row := Floor((Index - 1) / ButtonsPerRow)
@@ -7122,66 +5892,17 @@ ShowVoiceSearchInputPanel() {
         BtnX := StartX + Col * (ButtonWidth + ButtonSpacing)
         BtnY := YPos + Row * (ButtonHeight + ButtonSpacing)
         
-        ; 检查是否选中
+        ; 创建按钮（支持多选）
         IsSelected := (ArrayContainsValue(VoiceSearchSelectedEngines, Engine.Value) > 0)
-        BtnBgColor := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
+        BtnBg := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
         BtnText := IsSelected ? "✓ " . Engine.Name : Engine.Name
         ; 按钮文字颜色：根据主题调整
         EngineBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-        
-        ; 获取图标路径
-        IconPath := GetSearchEngineIcon(Engine.Value)
-        IconCtrl := 0  ; 初始化图标控件变量
-        
-        ; 创建按钮背景
-        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . EngineBtnTextColor . " Background" . BtnBgColor . " vSearchEngineBtn" . Index, "")
+        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . EngineBtnTextColor . " Background" . BtnBg . " vSearchEngineBtn" . Index, BtnText)
         Btn.SetFont("s10", "Segoe UI")
         Btn.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
-        HoverBtn(Btn, BtnBgColor, UI_Colors.BtnHover)
-        
-        ; 如果图标存在，在按钮左侧添加小图标
-        if (IconPath != "" && FileExist(IconPath)) {
-            try {
-                ; 计算图标位置（按钮左侧，垂直居中）
-                IconX := BtnX + 8  ; 左边距8px
-                IconY := BtnY + (ButtonHeight - IconSizeInButton) // 2  ; 垂直居中
-                
-                ; 获取图标实际尺寸
-                ImageSize := GetImageSize(IconPath)
-                
-                ; 计算保持比例的显示尺寸
-                DisplaySize := CalculateImageDisplaySize(ImageSize.Width, ImageSize.Height, IconSizeInButton, IconSizeInButton)
-                
-                ; 计算垂直居中位置
-                DisplayX := IconX
-                DisplayY := IconY + (IconSizeInButton - DisplaySize.Height) // 2
-                
-                ; 创建图标控件
-                IconCtrl := GuiID_VoiceInput.Add("Picture", "x" . DisplayX . " y" . DisplayY . " w" . DisplaySize.Width . " h" . DisplaySize.Height . " 0x200 vSearchEngineIcon" . Index, IconPath)
-                IconCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
-                
-                ; 计算文字位置（图标右侧）
-                TextX := IconX + IconSizeInButton + 5  ; 图标右侧5px间距
-                TextWidth := ButtonWidth - (TextX - BtnX) - 8  ; 右边距8px
-            } catch {
-                ; 如果图标加载失败，文字从左边开始
-                IconCtrl := 0
-                TextX := BtnX + 8
-                TextWidth := ButtonWidth - 16
-            }
-        } else {
-            ; 如果图标不存在，文字从左边开始
-            TextX := BtnX + 8
-            TextWidth := ButtonWidth - 16
-        }
-        
-        ; 创建文字标签
-        TextCtrl := GuiID_VoiceInput.Add("Text", "x" . TextX . " y" . BtnY . " w" . TextWidth . " h" . ButtonHeight . " Left 0x200 c" . EngineBtnTextColor . " BackgroundTrans vSearchEngineText" . Index, BtnText)
-        TextCtrl.SetFont("s10", "Segoe UI")
-        TextCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
-        
-        ; 保存按钮引用（包含背景、图标和文字）
-        VoiceSearchEngineButtons.Push({Bg: Btn, Icon: IconCtrl, Text: TextCtrl, Index: Index})
+        HoverBtn(Btn, BtnBg, UI_Colors.BtnHover)
+        VoiceSearchEngineButtons.Push(Btn)
     }
     
     ScreenInfo := GetScreenInfo(VoiceInputScreenIndex)
@@ -7532,41 +6253,33 @@ CreateToggleSearchEngineHandler(Engine, BtnIndex) {
                 }
                 EnginesStr .= Eng
             }
-            ; 确保至少有一个默认值
-            if (EnginesStr = "") {
-                EnginesStr := "deepseek"
-            }
             IniWrite(EnginesStr, ConfigFile, "Settings", "VoiceSearchSelectedEngines")
-        } catch as e {
-            ; 输出错误信息以便调试
-            TrayTip("保存搜索引擎选择失败: " . e.Message, "错误", "Iconx 1")
+        } catch {
+            ; 忽略保存错误
         }
         
-        ; 更新按钮样式（文字+图标按钮）
+        ; 更新按钮样式
         if (IsSet(VoiceSearchEngineButtons) && VoiceSearchEngineButtons.Length > 0 && BtnIndex <= VoiceSearchEngineButtons.Length) {
-            BtnObj := VoiceSearchEngineButtons[BtnIndex]
-            if (BtnObj && IsObject(BtnObj)) {
+            Btn := VoiceSearchEngineButtons[BtnIndex]
+            if (Btn) {
                 IsSelected := (ArrayContainsValue(VoiceSearchSelectedEngines, Engine) > 0)
+                Btn.BackColor := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
                 
-                ; 更新背景颜色
-                if (BtnObj.Bg) {
-                    BtnObj.Bg.BackColor := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
-                }
+                ; 更新按钮文本（添加/移除 ✓ 标记）
+                SearchEngines := [
+                    {Name: GetText("search_engine_deepseek"), Value: "deepseek"},
+                    {Name: GetText("search_engine_yuanbao"), Value: "yuanbao"},
+                    {Name: GetText("search_engine_doubao"), Value: "doubao"},
+                    {Name: GetText("search_engine_zhipu"), Value: "zhipu"},
+                    {Name: GetText("search_engine_mita"), Value: "mita"},
+                    {Name: GetText("search_engine_wenxin"), Value: "wenxin"},
+                    {Name: GetText("search_engine_qianwen"), Value: "qianwen"},
+                    {Name: GetText("search_engine_kimi"), Value: "kimi"}
+                ]
                 
-                ; 更新文字（添加/移除 ✓ 标记）
-                if (BtnObj.Text) {
-                    ; 获取搜索引擎名称
-                    SearchEngines := GetSortedSearchEngines()
-                    EngineName := ""
-                    for Index, Eng in SearchEngines {
-                        if (Eng.Value = Engine) {
-                            EngineName := Eng.Name
-                            break
-                        }
-                    }
-                    if (EngineName != "") {
-                        BtnObj.Text.Text := IsSelected ? "✓ " . EngineName : EngineName
-                    }
+                if (BtnIndex <= SearchEngines.Length) {
+                    EngineName := SearchEngines[BtnIndex].Name
+                    Btn.Text := IsSelected ? "✓ " . EngineName : EngineName
                 }
             }
         }
@@ -8203,7 +6916,16 @@ ShowSearchEngineSelection(Content) {
     
     YPos += 30
     ; 搜索引擎列表
-    SearchEngines := GetSortedSearchEngines()
+    SearchEngines := [
+        {Name: GetText("search_engine_deepseek"), Value: "deepseek"},
+        {Name: GetText("search_engine_yuanbao"), Value: "yuanbao"},
+        {Name: GetText("search_engine_doubao"), Value: "doubao"},
+        {Name: GetText("search_engine_zhipu"), Value: "zhipu"},
+        {Name: GetText("search_engine_mita"), Value: "mita"},
+        {Name: GetText("search_engine_wenxin"), Value: "wenxin"},
+        {Name: GetText("search_engine_qianwen"), Value: "qianwen"},
+        {Name: GetText("search_engine_kimi"), Value: "kimi"}
+    ]
     
     VoiceSearchEngineButtons := []
     ButtonWidth := 110
@@ -8303,31 +7025,6 @@ SendVoiceSearchToBrowser(Content, Engine) {
                 ; send_immediately=true：立即发送预填充的内容
                 ; prefill_prompt：设置预填充的聊天内容（intent语句）
                 SearchURL := "https://kimi.moonshot.cn/_prefill_chat?force_search=true&send_immediately=true&prefill_prompt=" . EncodedContent
-            case "perplexity":
-                ; Perplexity AI：使用intent参数进行搜索
-                ; intent=qa：指定为问答意图，q参数传递搜索内容
-                SearchURL := "https://www.perplexity.ai/search?intent=qa&q=" . EncodedContent
-            case "copilot":
-                ; Microsoft Copilot：使用chat路径，添加q参数（intent查询）
-                SearchURL := "https://copilot.microsoft.com/chat?q=" . EncodedContent
-            case "chatgpt":
-                ; ChatGPT：使用根路径，添加q参数（intent查询）
-                SearchURL := "https://chat.openai.com/?q=" . EncodedContent
-            case "grok":
-                ; Grok：使用grok.com路径，添加q参数（intent查询）
-                SearchURL := "https://grok.com/?q=" . EncodedContent
-            case "you":
-                ; You.com：使用search路径，添加q参数（intent查询）
-                SearchURL := "https://you.com/search?q=" . EncodedContent
-            case "claude":
-                ; Claude：使用new路径，添加q参数（intent查询）
-                SearchURL := "https://claude.ai/new?q=" . EncodedContent
-            case "monica":
-                ; Monica：使用answers路径，添加q参数（intent查询）
-                SearchURL := "https://monica.so/answers/?q=" . EncodedContent
-            case "webpilot":
-                ; WebPilot：使用search路径，添加q参数（intent查询）
-                SearchURL := "https://webpilot.ai/search?q=" . EncodedContent
             default:
                 SearchURL := "https://chat.deepseek.com/?q=" . EncodedContent
         }
