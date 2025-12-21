@@ -106,7 +106,7 @@ global VoiceSearchAutoUpdateSwitch := 0  ; 自动更新开关控件（语音搜�
 global VoiceInputActionSelectionVisible := false  ; 语音输入操作选择界面是否显示
 ; 多语言支持
 global Language := "zh"  ; 语言设置：zh=中文, en=英文
-; 快捷操作按钮配置（最多5个）
+; 快捷操作按钮（最多5个）
 ; 每个按钮配置格式：{Type: "Explain|Refactor|Optimize|Config", Hotkey: "e|r|o|q"}
 global QuickActionButtons := [
     {Type: "Explain", Hotkey: "e"},
@@ -357,6 +357,7 @@ GetText(Key) {
             "msgbox_screen", "弹窗显示器:",
             "voice_input_screen", "语音输入法提示显示器:",
             "cursor_panel_screen", "Cursor快捷弹出面板显示器:",
+            "config_manage", "配置管理:",
             "default_prompt_explain", "解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点",
             "default_prompt_refactor", "重构这段代码，遵循PEP8/行业规范，简化冗余逻辑，添加中文注释，保持功能不变",
             "default_prompt_optimize", "分析这段代码的性能瓶颈（时间/空间复杂度），给出优化方案+对比说明，保留原逻辑可读性",
@@ -573,9 +574,9 @@ GetText(Key) {
             "search_category_price", "比价",
             "search_category_medical", "医疗",
             "search_category_cloud", "网盘",
-            "search_category_config", "搜索标签配置",
+            "search_category_config", "搜索标签",
             "search_category_config_desc", "配置语音搜索面板中显示的标签，只有勾选的标签才会显示",
-            "quick_action_config", "快捷操作按钮配置",
+            "quick_action_config", "快捷操作按钮",
             "quick_action_config_desc", "配置快捷操作面板中的按钮顺序和功能按键（最多5个）",
             "quick_action_button", "按钮 {0}",
             "quick_action_type", "功能类型:",
@@ -737,6 +738,7 @@ GetText(Key) {
             "msgbox_screen", "Message Box Display:",
             "voice_input_screen", "Voice Input Prompt Display:",
             "cursor_panel_screen", "Cursor Quick Panel Display:",
+            "config_manage", "Config Management:",
             "default_prompt_explain", "Explain the core logic, inputs/outputs, and key functions of this code in simple terms. Highlight potential pitfalls.",
             "default_prompt_refactor", "Refactor this code following PEP8/best practices. Simplify redundant logic, add comments, and keep functionality unchanged.",
             "default_prompt_optimize", "Analyze performance bottlenecks (time/space complexity). Provide optimization solutions with comparison. Keep original logic readable.",
@@ -1218,18 +1220,29 @@ InitConfig() {
                 }
             }
             ; 检查prompt是否为中文默认值，如果是且当前语言是英文，则替换为英文
-            ChineseDefaultExplain := "解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点"
-            ChineseDefaultRefactor := "重构这段代码，遵循PEP8/行业规范，简化冗余逻辑，添加中文注释，保持功能不变"
-            ChineseDefaultOptimize := "分析这段代码的性能瓶颈（时间/空间复杂度），给出优化方案+对比说明，保留原逻辑可读性"
+            ; 检查 prompt 是否为中文或英文默认值，根据当前语言进行适配
+            ; 获取两种语言的默认值
+            ; 注意：静态变量或临时获取
+            zhExp := "解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点"
+            zhRef := "重构这段代码，遵循PEP8/行业规范，简化冗余逻辑，添加中文注释，保持功能不变"
+            zhOpt := "分析这段代码的性能瓶颈（时间/空间复杂度），给出优化方案+对比说明，保留原逻辑可读性"
             
-            if (Prompt_Explain = "" || Prompt_Explain = ChineseDefaultExplain) {
-                Prompt_Explain := (Language = "zh") ? ChineseDefaultExplain : GetText("default_prompt_explain")
+            ; 临时切换语言环境获取英文默认值
+            OldLang := Language
+            Language := "en"
+            enExp := GetText("default_prompt_explain")
+            enRef := GetText("default_prompt_refactor")
+            enOpt := GetText("default_prompt_optimize")
+            Language := OldLang
+            
+            if (Prompt_Explain == "" || Prompt_Explain == zhExp || Prompt_Explain == enExp) {
+                Prompt_Explain := (Language == "zh") ? zhExp : enExp
             }
-            if (Prompt_Refactor = "" || Prompt_Refactor = ChineseDefaultRefactor) {
-                Prompt_Refactor := (Language = "zh") ? ChineseDefaultRefactor : GetText("default_prompt_refactor")
+            if (Prompt_Refactor == "" || Prompt_Refactor == zhRef || Prompt_Refactor == enRef) {
+                Prompt_Refactor := (Language == "zh") ? zhRef : enRef
             }
-            if (Prompt_Optimize = "" || Prompt_Optimize = ChineseDefaultOptimize) {
-                Prompt_Optimize := (Language = "zh") ? ChineseDefaultOptimize : GetText("default_prompt_optimize")
+            if (Prompt_Optimize == "" || Prompt_Optimize == zhOpt || Prompt_Optimize == enOpt) {
+                Prompt_Optimize := (Language == "zh") ? zhOpt : enOpt
             }
             
             SplitHotkey := IniRead(ConfigFile, "Hotkeys", "Split", DefaultSplitHotkey)
@@ -2260,13 +2273,15 @@ SwitchTab(TabName) {
     global ConfigTabs, CurrentTab
     global GeneralTabControls, AppearanceTabControls, PromptsTabControls, HotkeysTabControls, AdvancedTabControls
     
-    ; 重置所有标签样式（使用主题颜色）
-    global UI_Colors
-    for Key, TabBtn in ConfigTabs {
-        if (TabBtn) {
-            try {
-                TabBtn.BackColor := UI_Colors.Sidebar  ; 未选中状态
-                TabBtn.SetFont("s11 c" . UI_Colors.Text, "Segoe UI")
+    ; 重置所有标签样式（使用 Material 风格单选按钮）
+    global TabRadioGroup
+    if (TabRadioGroup && TabRadioGroup.Length > 0) {
+        for Index, TabBtn in TabRadioGroup {
+            if (TabBtn) {
+                try {
+                    TabBtn.IsSelected := false
+                    UpdateMaterialRadioButtonStyle(TabBtn, false)
+                }
             }
         }
     }
@@ -2274,8 +2289,8 @@ SwitchTab(TabName) {
     ; 设置当前标签样式（选中状态）
     if (ConfigTabs.Has(TabName) && ConfigTabs[TabName]) {
         try {
-            ConfigTabs[TabName].BackColor := UI_Colors.Background  ; 选中状态
-            ConfigTabs[TabName].SetFont("s11 c" . UI_Colors.Text, "Segoe UI")
+            ConfigTabs[TabName].IsSelected := true
+            UpdateMaterialRadioButtonStyle(ConfigTabs[TabName], true)
         }
     }
     
@@ -2503,33 +2518,17 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
     }
     
     for Index, Item in GeneralSubTabList {
-        ; 使用Text控件模拟按钮，确保BackColor在暗色主题中正确生效
-        ; 使用0x200样式（SS_CENTER）使文字居中，配合Background属性设置背景色
-        BtnX := TabX
-        BtnY := TabBarY + 5
-        BtnW := TabWidth - 2
-        BtnH := TabBarHeight - 10
+        ; 使用 Text 控件模拟 Material 风格按钮
+        TabBtn := ConfigGUI.Add("Text", "x" . TabX . " y" . (TabBarY + 5) . " w" . (TabWidth - 2) . " h" . (TabBarHeight - 10) . " Center 0x200 vGeneralSubTab" . Item.Key, Item.Name)
+        TabBtn.SetFont("s9", "Segoe UI")
         
-        ; 为按钮添加边框，使两个按钮在暗色和亮色模式下都能清晰区分
-        ; 上边框
-        TopBorder := ConfigGUI.Add("Text", "x" . BtnX . " y" . BtnY . " w" . BtnW . " h1 Background" . UI_Colors.Border, "")
-        GeneralTabControls.Push(TopBorder)
-        ; 下边框
-        BottomBorder := ConfigGUI.Add("Text", "x" . BtnX . " y" . (BtnY + BtnH - 1) . " w" . BtnW . " h1 Background" . UI_Colors.Border, "")
-        GeneralTabControls.Push(BottomBorder)
-        ; 左边框
-        LeftBorder := ConfigGUI.Add("Text", "x" . BtnX . " y" . BtnY . " w1 h" . BtnH . " Background" . UI_Colors.Border, "")
-        GeneralTabControls.Push(LeftBorder)
-        ; 右边框
-        RightBorder := ConfigGUI.Add("Text", "x" . (BtnX + BtnW - 1) . " y" . BtnY . " w1 h" . BtnH . " Background" . UI_Colors.Border, "")
-        GeneralTabControls.Push(RightBorder)
+        ; 使用主题颜色：默认未选中状态
+        TabBtn.Opt("+Background" . UI_Colors.Sidebar)
+        TabBtn.SetFont("s9 c" . UI_Colors.TextDim, "Segoe UI")
         
-        ; 按钮主体（内缩1px以显示边框）
-        TabBtn := ConfigGUI.Add("Text", "x" . (BtnX + 1) . " y" . (BtnY + 1) . " w" . (BtnW - 2) . " h" . (BtnH - 2) . " Center 0x200 c" . UI_Colors.TextDim . " Background" . UI_Colors.Sidebar . " vGeneralSubTab" . Item.Key, Item.Name)
-        TabBtn.SetFont("s10", "Segoe UI")
         TabBtn.OnEvent("Click", CreateGeneralSubTabClickHandler(Item.Key))
         ; 悬停效果使用主题颜色
-        HoverBtn(TabBtn, UI_Colors.Sidebar, UI_Colors.BtnHover)
+        HoverBtnWithAnimation(TabBtn, UI_Colors.Sidebar, UI_Colors.BtnHover)
         GeneralTabControls.Push(TabBtn)
         GeneralSubTabs[Item.Key] := TabBtn
         TabX += TabWidth
@@ -2705,7 +2704,7 @@ CreateGeneralSubTab(ConfigGUI, X, Y, W, H, Item) {
     ; 根据子标签类型创建不同的内容
     switch Item.Key {
         case "quickaction":
-            ; 快捷操作按钮配置
+            ; 快捷操作按钮
             YPos := Y + 20
             QuickActionDesc := ConfigGUI.Add("Text", "x" . X . " y" . YPos . " w" . W . " h20 c" . UI_Colors.TextDim, GetText("quick_action_config_desc"))
             QuickActionDesc.SetFont("s9", "Segoe UI")
@@ -2716,7 +2715,7 @@ CreateGeneralSubTab(ConfigGUI, X, Y, W, H, Item) {
             CreateQuickActionConfigUI(ConfigGUI, X, YPos, W, GeneralSubTabControls[Item.Key])
             
         case "searchcategory":
-            ; 搜索标签配置
+            ; 搜索标签
             YPos := Y + 20
             SearchCategoryDesc := ConfigGUI.Add("Text", "x" . X . " y" . YPos . " w" . W . " h20 c" . UI_Colors.TextDim, GetText("search_category_config_desc"))
             SearchCategoryDesc.SetFont("s9", "Segoe UI")
@@ -2736,8 +2735,9 @@ SwitchGeneralSubTab(SubTabKey) {
     for Key, TabBtn in GeneralSubTabs {
         if (TabBtn) {
             try {
-                TabBtn.BackColor := UI_Colors.Sidebar
-                TabBtn.SetFont("s10 c" . UI_Colors.TextDim, "Segoe UI")
+                TabBtn.Opt("+Background" . UI_Colors.Sidebar)
+                TabBtn.SetFont("s9 c" . UI_Colors.TextDim . " Norm", "Segoe UI")
+                TabBtn.Redraw()
             }
         }
     }
@@ -2760,9 +2760,12 @@ SwitchGeneralSubTab(SubTabKey) {
     ; 设置当前子标签样式
     if (GeneralSubTabs.Has(SubTabKey) && GeneralSubTabs[SubTabKey]) {
         try {
-            ; 使用Text控件的Background属性设置选中状态的背景色
-            GeneralSubTabs[SubTabKey].BackColor := UI_Colors.TabActive
-            GeneralSubTabs[SubTabKey].SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
+            TabBtn := GeneralSubTabs[SubTabKey]
+            ; 选中状态：蓝色背景 (0078D4)，高亮文字
+            SelectedText := (ThemeMode = "dark") ? "E0E0E0" : "FFFFFF"
+            TabBtn.Opt("+Background" . UI_Colors.BtnPrimary)
+            TabBtn.SetFont("s9 c" . SelectedText . " Bold", "Segoe UI")
+            TabBtn.Redraw()
         }
     }
     
@@ -2890,6 +2893,9 @@ ToggleSearchCategory(CategoryKey) {
                 ; 更新样式
                 UpdateMaterialCheckboxStyle(Checkbox, IsEnabled)
             }
+            
+            ; 自动保存配置
+            SetTimer(AutoSaveConfig, -100)
         }
     } catch {
         ; 忽略错误
@@ -2955,6 +2961,9 @@ MaterialRadioButtonClick(Ctrl, *) {
     ; 设置当前按钮为选中状态
     Ctrl.IsSelected := true
     UpdateMaterialRadioButtonStyle(Ctrl, true)
+    
+    ; 自动保存配置
+    SetTimer(AutoSaveConfig, -100)
 }
 
 ; 注意：由于 AutoHotkey v2 的 Button 控件不支持 MouseMove 和 MouseLeave 事件
@@ -3044,6 +3053,9 @@ CreateRadioClickHandler(Index, Desc, TypeIndex, RadioControls) {
         }
         ; 更新说明文字
         UpdateQuickActionDesc(Index, Desc, TypeIndex)
+        
+        ; 自动保存配置
+        SetTimer(AutoSaveConfig, -100)
     }
     return ActionFunc
 }
@@ -3399,16 +3411,18 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     
     for Index, Item in HotkeyList {
         ; 创建横向标签按钮，确保可以点击
-        ; 使用Button控件而不是Text控件，确保点击事件正常工作
-        TabBtn := ConfigGUI.Add("Button", "x" . TabX . " y" . (TabBarY + 5) . " w" . TabWidth . " h" . (TabBarHeight - 10) . " vHotkeyTab" . Item.Key, Item.Name)
+        ; 使用 Text 控件模拟 Material 风格按钮
+        TabBtn := ConfigGUI.Add("Text", "x" . TabX . " y" . (TabBarY + 5) . " w" . TabWidth . " h" . (TabBarHeight - 10) . " Center 0x200 vHotkeyTab" . Item.Key, Item.Name)
         TabBtn.SetFont("s8", "Segoe UI")  ; 减小字体以适应一行显示
-        ; 使用主题颜色：未选中状态
-        TabBtn.BackColor := UI_Colors.Sidebar  ; 使用主题侧边栏颜色
-        TabBtn.SetFont("s8 c" . UI_Colors.TextDim, "Segoe UI")  ; 使用主题文字颜色
-        ; 绑定点击事件，使用辅助函数确保每个按钮绑定到正确的键
+        
+        ; 使用主题颜色：默认未选中状态
+        TabBtn.Opt("+Background" . UI_Colors.Sidebar)
+        TabBtn.SetFont("s8 c" . UI_Colors.TextDim, "Segoe UI")
+        
+        ; 绑定点击事件
         TabBtn.OnEvent("Click", CreateHotkeyTabClickHandler(Item.Key))
         ; 悬停效果使用主题颜色（带动效）
-        HoverBtnWithAnimation(TabBtn, UI_Colors.Sidebar, UI_Colors.BtnHover)  ; 使用带动效的悬停函数
+        HoverBtnWithAnimation(TabBtn, UI_Colors.Sidebar, UI_Colors.BtnHover)
         HotkeysTabControls.Push(TabBtn)
         HotkeySubTabs[Item.Key] := TabBtn
         TabX += TabWidth + TabSpacing  ; 添加间距
@@ -3780,8 +3794,9 @@ SwitchHotkeyTab(HotkeyKey) {
     for Key, TabBtn in HotkeySubTabs {
         if (TabBtn) {
             try {
-                TabBtn.BackColor := UI_Colors.Sidebar  ; 使用主题侧边栏颜色
-                TabBtn.SetFont("s9 c" . UI_Colors.TextDim, "Segoe UI")  ; 使用主题文字颜色
+                TabBtn.Opt("+Background" . UI_Colors.Sidebar)  ; 使用主题侧边栏颜色
+                TabBtn.SetFont("s8 c" . UI_Colors.TextDim . " Norm", "Segoe UI")  ; 使用主题文字颜色
+                TabBtn.Redraw()
             }
         }
     }
@@ -3801,11 +3816,15 @@ SwitchHotkeyTab(HotkeyKey) {
         }
     }
     
-    ; 设置当前子标签样式（使用 Cursor 暗色系）
+    ; 设置当前子标签样式（选中状态）
     if (HotkeySubTabs.Has(HotkeyKey) && HotkeySubTabs[HotkeyKey]) {
         try {
-            HotkeySubTabs[HotkeyKey].BackColor := UI_Colors.TabActive  ; 使用主题选中背景
-            HotkeySubTabs[HotkeyKey].SetFont("s9 c" . UI_Colors.Text, "Segoe UI")  ; 使用主题文字颜色
+            TabBtn := HotkeySubTabs[HotkeyKey]
+            ; 选中状态：蓝色背景 (0078D4)，高亮文字
+            SelectedText := (ThemeMode = "dark") ? "E0E0E0" : "FFFFFF"
+            TabBtn.Opt("+Background" . UI_Colors.BtnPrimary)
+            TabBtn.SetFont("s8 c" . SelectedText . " Bold", "Segoe UI")
+            TabBtn.Redraw()
         }
     }
     
@@ -3988,6 +4007,40 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
         CursorPanelScreenRadio.Push(RadioBtn)
         AdvancedTabControls.Push(RadioBtn)
     }
+    
+    ; 配置管理功能（导出、导入、重置默认）
+    YPos += 80
+    LabelConfigManage := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("config_manage"))
+    LabelConfigManage.SetFont("s11", "Segoe UI")
+    AdvancedTabControls.Push(LabelConfigManage)
+    
+    YPos += 30
+    ; 创建三个功能按钮
+    BtnWidth := 120
+    BtnHeight := 35
+    BtnSpacing := 15
+    BtnStartX := X + 30
+    
+    ; 导出配置按钮
+    ExportBtn := ConfigGUI.Add("Text", "x" . BtnStartX . " y" . YPos . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vAdvancedExportBtn", GetText("export_config"))
+    ExportBtn.SetFont("s10", "Segoe UI")
+    ExportBtn.OnEvent("Click", ExportConfig)
+    HoverBtnWithAnimation(ExportBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+    AdvancedTabControls.Push(ExportBtn)
+    
+    ; 导入配置按钮
+    ImportBtn := ConfigGUI.Add("Text", "x" . (BtnStartX + BtnWidth + BtnSpacing) . " y" . YPos . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vAdvancedImportBtn", GetText("import_config"))
+    ImportBtn.SetFont("s10", "Segoe UI")
+    ImportBtn.OnEvent("Click", ImportConfig)
+    HoverBtnWithAnimation(ImportBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+    AdvancedTabControls.Push(ImportBtn)
+    
+    ; 重置默认按钮
+    ResetBtn := ConfigGUI.Add("Text", "x" . (BtnStartX + (BtnWidth + BtnSpacing) * 2) . " y" . YPos . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vAdvancedResetBtn", GetText("reset_default"))
+    ResetBtn.SetFont("s10", "Segoe UI")
+    ResetBtn.OnEvent("Click", ResetToDefaults)
+    HoverBtnWithAnimation(ResetBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+    AdvancedTabControls.Push(ResetBtn)
 }
 
 ; ===================== 浏览 Cursor 路径 =====================
@@ -4543,21 +4596,31 @@ ShowConfigGUI() {
     TabHeight := 35
     TabSpacing := 2
     
-    ; 创建侧边栏标签按钮的辅助函数
-    CreateSidebarTab(Label, Name, YPos) {
-        Btn := ConfigGUI.Add("Text", "x0 y" . YPos . " w" . SidebarWidth . " h" . TabHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.Sidebar . " vTab" . Name, Label)
-        Btn.SetFont("s10", "Segoe UI")
-        Btn.OnEvent("Click", (*) => SwitchTab(Name))
-        ; 使用带动效的悬停函数
-        HoverBtnWithAnimation(Btn, UI_Colors.Sidebar, UI_Colors.TabActive)
-        return Btn
-    }
+    ; 创建侧边栏标签按钮组（使用 Material 风格单选按钮）
+    global TabRadioGroup := []
+    TabRadioWidth := SidebarWidth - 10
+    TabRadioHeight := TabHeight
     
-    TabGeneral := CreateSidebarTab(GetText("tab_general"), "general", TabY)
-    TabAppearance := CreateSidebarTab(GetText("tab_appearance"), "appearance", TabY + (TabHeight + TabSpacing))
-    TabPrompts := CreateSidebarTab(GetText("tab_prompts"), "prompts", TabY + (TabHeight + TabSpacing) * 2)
-    TabHotkeys := CreateSidebarTab(GetText("tab_hotkeys"), "hotkeys", TabY + (TabHeight + TabSpacing) * 3)
-    TabAdvanced := CreateSidebarTab(GetText("tab_advanced"), "advanced", TabY + (TabHeight + TabSpacing) * 4)
+    ; 创建标签页单选按钮（不自动绑定点击事件，使用自定义事件）
+    TabGeneral := CreateMaterialRadioButton(ConfigGUI, 5, TabY, TabRadioWidth, TabRadioHeight, "TabGeneral", GetText("tab_general"), TabRadioGroup, 10, false)
+    TabRadioGroup.Push(TabGeneral)
+    TabGeneral.OnEvent("Click", (*) => SwitchTab("general"))
+    
+    TabAppearance := CreateMaterialRadioButton(ConfigGUI, 5, TabY + (TabHeight + TabSpacing), TabRadioWidth, TabRadioHeight, "TabAppearance", GetText("tab_appearance"), TabRadioGroup, 10, false)
+    TabRadioGroup.Push(TabAppearance)
+    TabAppearance.OnEvent("Click", (*) => SwitchTab("appearance"))
+    
+    TabPrompts := CreateMaterialRadioButton(ConfigGUI, 5, TabY + (TabHeight + TabSpacing) * 2, TabRadioWidth, TabRadioHeight, "TabPrompts", GetText("tab_prompts"), TabRadioGroup, 10, false)
+    TabRadioGroup.Push(TabPrompts)
+    TabPrompts.OnEvent("Click", (*) => SwitchTab("prompts"))
+    
+    TabHotkeys := CreateMaterialRadioButton(ConfigGUI, 5, TabY + (TabHeight + TabSpacing) * 3, TabRadioWidth, TabRadioHeight, "TabHotkeys", GetText("tab_hotkeys"), TabRadioGroup, 10, false)
+    TabRadioGroup.Push(TabHotkeys)
+    TabHotkeys.OnEvent("Click", (*) => SwitchTab("hotkeys"))
+    
+    TabAdvanced := CreateMaterialRadioButton(ConfigGUI, 5, TabY + (TabHeight + TabSpacing) * 4, TabRadioWidth, TabRadioHeight, "TabAdvanced", GetText("tab_advanced"), TabRadioGroup, 10, false)
+    TabRadioGroup.Push(TabAdvanced)
+    TabAdvanced.OnEvent("Click", (*) => SwitchTab("advanced"))
     
     ; ========== 右侧内容区域（可滚动）==========
     ContentX := SidebarWidth
@@ -4615,15 +4678,12 @@ ShowConfigGUI() {
     }
 
     ; 计算按钮位置 (右对齐，确保不重叠)
+    ; 导出、导入、重置默认已移到高级标签页，现在只有2个按钮
     BtnWidth := 80
     BtnSpacing := 10
-    BtnStartX := ConfigWidth - (BtnWidth * 5 + BtnSpacing * 4) - 20  ; 5个按钮，4个间距，右边距20
-    
-    CreateBottomBtn(GetText("export_config"), BtnStartX, ExportConfig, false, "ExportBtn", GetText("export_config_desc"))
-    CreateBottomBtn(GetText("import_config"), BtnStartX + BtnWidth + BtnSpacing, ImportConfig, false, "ImportBtn", GetText("import_config_desc"))
-    CreateBottomBtn(GetText("reset_default"), BtnStartX + (BtnWidth + BtnSpacing) * 2, ResetToDefaults, false, "ResetBtn", GetText("reset_default_desc"))
-    CreateBottomBtn(GetText("save_config"), BtnStartX + (BtnWidth + BtnSpacing) * 3, SaveConfigAndClose, true, "SaveBtn", GetText("save_config_desc")) ; Primary
-    CreateBottomBtn(GetText("cancel"), BtnStartX + (BtnWidth + BtnSpacing) * 4, (*) => CloseConfigGUI(), false, "CancelBtn", GetText("cancel_desc"))
+    BtnStartX := ConfigWidth - (BtnWidth * 2 + BtnSpacing) - 20  ; 2个按钮，1个间距，右边距20
+    CreateBottomBtn(GetText("save_config"), BtnStartX, SaveConfigAndClose, true, "SaveBtn", GetText("save_config_desc")) ; Primary
+    CreateBottomBtn(GetText("cancel"), BtnStartX + BtnWidth + BtnSpacing, (*) => CloseConfigGUI(), false, "CancelBtn", GetText("cancel_desc"))
     
     ; 默认显示通用标签
     SwitchTab("general")
@@ -4910,26 +4970,15 @@ ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
     ; 更新底部按钮位置（右对齐，确保不重叠）
     try {
         ; 计算按钮起始位置（右对齐）
+        ; 导出、导入、重置默认已移到高级标签页，现在只有2个按钮
         BtnWidth := 80
         BtnSpacing := 10
-        BtnStartX := Width - (BtnWidth * 5 + BtnSpacing * 4) - 20  ; 5个按钮，4个间距，右边距20
+        BtnStartX := Width - (BtnWidth * 2 + BtnSpacing) - 20  ; 2个按钮，1个间距，右边距20
         
         ; 更新所有底部按钮的位置
-        ExportBtn := GuiObj["ExportBtn"]
-        if (ExportBtn) {
-            ExportBtn.Move(BtnStartX, ButtonAreaY + 10)
-        }
-        ImportBtn := GuiObj["ImportBtn"]
-        if (ImportBtn) {
-            ImportBtn.Move(BtnStartX + BtnWidth + BtnSpacing, ButtonAreaY + 10)
-        }
-        ResetBtn := GuiObj["ResetBtn"]
-        if (ResetBtn) {
-            ResetBtn.Move(BtnStartX + (BtnWidth + BtnSpacing) * 2, ButtonAreaY + 10)
-        }
         SaveBtn := GuiObj["SaveBtn"]
         if (SaveBtn) {
-            SaveBtn.Move(BtnStartX + (BtnWidth + BtnSpacing) * 3, ButtonAreaY + 10)
+            SaveBtn.Move(BtnStartX, ButtonAreaY + 10)
         }
         CancelBtn := GuiObj["CancelBtn"]
         if (CancelBtn) {
@@ -5410,14 +5459,14 @@ SaveConfig(*) {
     return true
 }
 
-; 显示保存成功提示（辅助函数）
-ShowSaveSuccessTip(*) {
-    ; 创建临时GUI确保消息框置顶
-    TempGui := Gui("+AlwaysOnTop -Caption +ToolWindow")
-    TempGui.Show("Hide")
-    MsgBox(GetText("config_saved"), GetText("tip"), "Iconi T1")
-    try TempGui.Destroy()
-}
+; 显示保存成功提示（已移除，不再显示弹窗）
+; ShowSaveSuccessTip(*) {
+;     ; 创建临时GUI确保消息框置顶
+;     TempGui := Gui("+AlwaysOnTop -Caption +ToolWindow")
+;     TempGui.Show("Hide")
+;     MsgBox(GetText("config_saved"), GetText("tip"), "Iconi T1")
+;     try TempGui.Destroy()
+; }
 
 ; 显示导入成功提示（辅助函数）
 ShowImportSuccessTip(*) {
@@ -5428,17 +5477,33 @@ ShowImportSuccessTip(*) {
     try TempGui.Destroy()
 }
 
+; 自动保存配置（延迟执行，避免频繁保存）
+AutoSaveConfig(*) {
+    ; 静默保存配置，不显示弹窗
+    SaveConfig()
+}
+
+; 自动显示剪贴板管理面板（延迟执行，避免干扰复制操作）
+AutoShowClipboardManager(*) {
+    global GuiID_ClipboardManager
+    ; 再次检查是否已打开（防止重复打开）
+    if (GuiID_ClipboardManager = 0) {
+        ShowClipboardManager()
+        ; 切换到 CapsLock+C 标签
+        global ClipboardCurrentTab
+        if (ClipboardCurrentTab != "CapsLockC") {
+            SwitchClipboardTab("CapsLockC")
+        }
+    }
+}
+
 ; 保存配置并关闭
 SaveConfigAndClose(*) {
     global GuiID_ConfigGUI
     
     if (SaveConfig()) {
-        ; 先关闭配置面板
+        ; 关闭配置面板（不显示成功提示）
         CloseConfigGUI()
-        
-        ; 显示成功提示（确保在最前方）
-        ; 使用 SetTimer 确保消息框在窗口关闭后显示
-        SetTimer(ShowSaveSuccessTip, -100)
     }
 }
 
@@ -5604,9 +5669,21 @@ CapsLockCopy() {
             SavedCount := ClipboardHistory_CapsLockC.Length
             TrayTip("【成功】已复制到剪贴板管理（共 " . SavedCount . " 项）", GetText("tip"), "Iconi 1")
             
-            ; 【环节6】如果剪贴板面板正在显示，刷新列表
-            ; 使用延迟刷新，确保数据已完全更新
+            ; 【环节6】自动弹出剪贴板管理面板（如果还未打开）
             global GuiID_ClipboardManager
+            if (GuiID_ClipboardManager = 0) {
+                ; 延迟显示，避免干扰复制操作
+                SetTimer(AutoShowClipboardManager, -300)
+            } else {
+                ; 如果已打开，刷新列表并切换到 CapsLock+C 标签
+                global ClipboardCurrentTab
+                if (ClipboardCurrentTab != "CapsLockC") {
+                    SwitchClipboardTab("CapsLockC")
+                }
+            }
+            
+            ; 【环节7】如果剪贴板面板正在显示，刷新列表
+            ; 使用延迟刷新，确保数据已完全更新
             if (GuiID_ClipboardManager != 0) {
                 ; 延迟刷新，确保数据已完全更新
                 SetTimer(RefreshClipboardListDelayed, -100)
@@ -5739,6 +5816,12 @@ CapsLockPaste() {
             ItemCount := ClipboardHistory_CapsLockC.Length
             ClipboardHistory_CapsLockC := []
             
+            ; 自动关闭剪贴板管理面板
+            global GuiID_ClipboardManager
+            if (GuiID_ClipboardManager != 0) {
+                CloseClipboardManager()
+            }
+            
             ; 恢复原始剪贴板内容（可选，保持合并内容在剪贴板中）
             ; A_Clipboard := OldClipboardForPaste
             
@@ -5772,6 +5855,12 @@ CapsLockPaste() {
                 global ClipboardHistory_CapsLockC
                 ItemCount := ClipboardHistory_CapsLockC.Length
                 ClipboardHistory_CapsLockC := []
+                
+                ; 自动关闭剪贴板管理面板
+                global GuiID_ClipboardManager
+                if (GuiID_ClipboardManager != 0) {
+                    CloseClipboardManager()
+                }
                 
                 ; 恢复原始剪贴板内容（可选，保持合并内容在剪贴板中）
                 ; A_Clipboard := OldClipboardForPaste
