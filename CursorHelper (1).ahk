@@ -72,12 +72,7 @@ global GuiID_ClipboardManager := 0  ; 剪贴板管理面板 GUI ID
 global ClipboardCurrentTab := "CtrlC"  ; 当前显示的版块："CtrlC" 或 "CapsLockC"
 global ClipboardCtrlCTab := 0  ; Ctrl+C Tab 控件引用
 global ClipboardCapsLockCTab := 0  ; CapsLock+C Tab 控件引用
-global ClipboardListBoxCtrlC := 0  ; Ctrl+C 列表容器控件引用
-global ClipboardListBoxCapsLockC := 0  ; CapsLock+C 列表容器控件引用
-global ClipboardListBox := 0  ; 当前激活的ListBox引用（兼容旧代码）
-global LastSelectedIndexCtrlC := 0  ; Ctrl+C最后选中的ListBox项索引
-global LastSelectedIndexCapsLockC := 0  ; CapsLock+C最后选中的ListBox项索引
-global ClipboardClearAllBtn := 0  ; 清空全部按钮控件引用
+global LastSelectedIndex := 0  ; 最后选中的ListBox项索引，用于刷新后恢复
 ; 语音输入功能
 global VoiceInputActive := false  ; 语音输入是否激活
 global GuiID_VoiceInput := 0  ; 语音输入动画GUI ID
@@ -99,7 +94,6 @@ global VoiceSearchPanelVisible := false  ; 语音搜索面板是否显示
 global VoiceSearchSelectedEngines := ["deepseek"]  ; 当前在语音搜索界面中选择的搜索引擎（支持多选）
 global VoiceSearchCurrentCategory := "ai"  ; 当前选中的搜索引擎分类标签
 global VoiceSearchCategoryTabs := []  ; 分类标签按钮数组
-global VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]  ; 启用的搜索标签列表（默认全部启用）
 global AutoLoadSelectedText := false  ; 是否自动加载选中文本到输入框
 global VoiceSearchAutoLoadSwitch := 0  ; 自动加载开关控件（语音搜索）
 global VoiceInputAutoLoadSwitch := 0  ; 自动加载开关控件（语音输入）
@@ -176,6 +170,44 @@ ApplyTheme(Mode) {
     }
 }
 
+; ===================== 颜色混合辅助函数（模拟透明度效果）====================
+BlendColor(Color1, Color2, Ratio) {
+    ; 将十六进制颜色转换为 RGB（处理可能的格式）
+    ; 确保颜色字符串长度为6
+    if (StrLen(Color1) != 6) {
+        Color1 := SubStr(Color1, -6)  ; 取最后6位
+    }
+    if (StrLen(Color2) != 6) {
+        Color2 := SubStr(Color2, -6)  ; 取最后6位
+    }
+    
+    ; 转换为整数
+    R1 := Integer("0x" . SubStr(Color1, 1, 2))
+    G1 := Integer("0x" . SubStr(Color1, 3, 2))
+    B1 := Integer("0x" . SubStr(Color1, 5, 2))
+    
+    R2 := Integer("0x" . SubStr(Color2, 1, 2))
+    G2 := Integer("0x" . SubStr(Color2, 3, 2))
+    B2 := Integer("0x" . SubStr(Color2, 5, 2))
+    
+    ; 混合颜色
+    R := Round(R1 + (R2 - R1) * Ratio)
+    G := Round(G1 + (G2 - G1) * Ratio)
+    B := Round(B1 + (B2 - B1) * Ratio)
+    
+    ; 限制范围
+    R := (R < 0) ? 0 : ((R > 255) ? 255 : R)
+    G := (G < 0) ? 0 : ((G > 255) ? 255 : G)
+    B := (B < 0) ? 0 : ((B > 255) ? 255 : B)
+    
+    ; 转换回十六进制
+    RHex := Format("{:02X}", R)
+    GHex := Format("{:02X}", G)
+    BHex := Format("{:02X}", B)
+    
+    return RHex . GHex . BHex
+}
+
 ; ===================== 多语言支持 =====================
 ; 获取本地化文本
 GetText(Key) {
@@ -201,7 +233,6 @@ GetText(Key) {
             "no_content", "未检测到新内容",
             "no_clipboard", "请先使用 CapsLock+C 复制内容",
             "clear_all", "清空全部",
-            "clear_selection", "清空选择",
             "clear", "清空",
             "refresh", "刷新",
             "copy_selected", "复制选中",
@@ -534,10 +565,10 @@ GetText(Key) {
             "search_category_price", "比价",
             "search_category_medical", "医疗",
             "search_category_cloud", "网盘",
-            "quick_action_config", "快捷操作按钮配置",
-            "quick_action_config_desc", "配置快捷操作面板中的按钮顺序和功能按键（最多5个）",
             "search_category_config", "搜索标签配置",
             "search_category_config_desc", "配置语音搜索面板中显示的标签，只有勾选的标签才会显示",
+            "quick_action_config", "快捷操作按钮配置",
+            "quick_action_config_desc", "配置快捷操作面板中的按钮顺序和功能按键（最多5个）",
             "quick_action_button", "按钮 {0}",
             "quick_action_type", "功能类型:",
             "quick_action_hotkey", "快捷键:",
@@ -578,7 +609,6 @@ GetText(Key) {
             "no_content", "No new content detected",
             "no_clipboard", "Please use CapsLock+C to copy content first",
             "clear_all", "Clear All",
-            "clear_selection", "Clear Selection",
             "clear", "Clear",
             "refresh", "Refresh",
             "copy_selected", "Copy Selected",
@@ -913,10 +943,10 @@ GetText(Key) {
             "search_category_price", "Price",
             "search_category_medical", "Medical",
             "search_category_cloud", "Cloud",
-            "quick_action_config", "Quick Action Button Configuration",
-            "quick_action_config_desc", "Configure button order and hotkeys in the quick action panel (max 5)",
             "search_category_config", "Search Category Configuration",
             "search_category_config_desc", "Configure which categories are displayed in the voice search panel",
+            "quick_action_config", "Quick Action Button Configuration",
+            "quick_action_config_desc", "Configure button order and hotkeys in the quick action panel (max 5)",
             "quick_action_button", "Button {0}",
             "quick_action_type", "Action Type:",
             "quick_action_hotkey", "Hotkey:",
@@ -1035,10 +1065,6 @@ InitConfig() {
         IniWrite("1", ConfigFile, "Settings", "AutoUpdateVoiceInput")
         IniWrite("deepseek", ConfigFile, "Settings", "VoiceSearchSelectedEngines")  ; 保存默认选中的搜索引擎
         
-        ; 保存默认启用的搜索标签（默认全部启用）
-        DefaultEnabledCategories := "ai,academic,baidu,image,audio,video,book,price,medical,cloud"
-        IniWrite(DefaultEnabledCategories, ConfigFile, "Settings", "VoiceSearchEnabledCategories")
-        
         IniWrite(DefaultPanelScreenIndex, ConfigFile, "Appearance", "ScreenIndex")
         IniWrite(DefaultFunctionPanelPos, ConfigFile, "Appearance", "FunctionPanelPos")
         IniWrite(DefaultConfigPanelPos, ConfigFile, "Appearance", "ConfigPanelPos")
@@ -1064,7 +1090,7 @@ InitConfig() {
     }
 
     ; 3. 加载配置（v2的IniRead返回值更直观）
-    global CursorPath, AISleepTime, Prompt_Explain, Prompt_Refactor, Prompt_Optimize, SplitHotkey, BatchHotkey, PanelScreenIndex, Language
+    global CursorPath, AISleepTime, CapsLockHoldTimeSeconds, Prompt_Explain, Prompt_Refactor, Prompt_Optimize, SplitHotkey, BatchHotkey, PanelScreenIndex, Language
     global FunctionPanelPos, ConfigPanelPos, ClipboardPanelPos
     global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ
     global ConfigPanelScreenIndex, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex
@@ -1157,6 +1183,8 @@ InitConfig() {
             } else if (CapsLockHoldTimeSeconds > 5.0) {
                 CapsLockHoldTimeSeconds := 5.0
             }
+            ; 【确保持久化】将验证后的值写回 ini 文件，确保配置总是保存的（使用字符串格式）
+            IniWrite(String(CapsLockHoldTimeSeconds), ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
             Language := IniRead(ConfigFile, "Settings", "Language", IniRead(ConfigFile, "General", "Language", DefaultLanguage))
             
             ; 读取prompt，如果为空或使用默认值，根据当前语言设置
@@ -1232,26 +1260,6 @@ InitConfig() {
                 VoiceSearchSelectedEngines := ["deepseek"]
             }
             
-            ; 加载启用的搜索标签
-            global VoiceSearchEnabledCategories
-            EnabledCategoriesStr := IniRead(ConfigFile, "Settings", "VoiceSearchEnabledCategories", "ai,academic,baidu,image,audio,video,book,price,medical,cloud")
-            if (EnabledCategoriesStr != "") {
-                VoiceSearchEnabledCategories := []
-                CategoriesArray := StrSplit(EnabledCategoriesStr, ",")
-                for Index, Category in CategoriesArray {
-                    Category := Trim(Category)
-                    if (Category != "") {
-                        VoiceSearchEnabledCategories.Push(Category)
-                    }
-                }
-                ; 如果解析后为空，使用默认值
-                if (VoiceSearchEnabledCategories.Length = 0) {
-                    VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
-                }
-            } else {
-                VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
-            }
-            
             PanelScreenIndex := Integer(IniRead(ConfigFile, "Appearance", "ScreenIndex", DefaultPanelScreenIndex))
             FunctionPanelPos := IniRead(ConfigFile, "Appearance", "FunctionPanelPos", DefaultFunctionPanelPos)
             ConfigPanelPos := IniRead(ConfigFile, "Appearance", "ConfigPanelPos", DefaultConfigPanelPos)
@@ -1298,59 +1306,6 @@ InitConfig() {
                     {Type: "Explain", Hotkey: "e"}
                 ]
             }
-            
-            ; 加载最大历史记录数配置（默认100，最大1000）
-            global MaxClipboardHistoryItems
-            MaxClipboardHistoryItems := Integer(IniRead(ConfigFile, "Clipboard", "MaxHistoryItems", "100"))
-            if (MaxClipboardHistoryItems < 1 || MaxClipboardHistoryItems > 1000) {
-                MaxClipboardHistoryItems := 100  ; 默认值，防止设置过大影响性能
-            }
-            
-            ; 加载剪贴板历史记录（使用新的 JSON 格式）
-            ; 首先尝试从 JSON 文件加载
-            LoadClipboardHistory()
-            
-            ; 如果 JSON 文件不存在，尝试从旧的 INI 格式迁移
-            global ClipboardHistoryFile
-            if (!FileExist(ClipboardHistoryFile)) {
-                ; 尝试从 INI 文件加载（兼容旧版本）
-                global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC
-                ClipboardHistory_CtrlC := []
-                CtrlCCount := Integer(IniRead(ConfigFile, "Clipboard", "CtrlCCount", "0"))
-                if (CtrlCCount > 0 && CtrlCCount <= 100) {
-                    Loop CtrlCCount {
-                        Index := A_Index
-                        EncodedContent := IniRead(ConfigFile, "Clipboard", "CtrlC_" . Index, "")
-                        if (EncodedContent != "") {
-                            ; 还原换行符
-                            Content := StrReplace(EncodedContent, "{{CRLF}}", "`r`n")
-                            Content := StrReplace(Content, "{{LF}}", "`n")
-                            Content := StrReplace(Content, "{{CR}}", "`r")
-                            ClipboardHistory_CtrlC.Push(Content)
-                        }
-                    }
-                }
-                
-                CapsLockCCount := Integer(IniRead(ConfigFile, "Clipboard", "CapsLockCCount", "0"))
-                if (CapsLockCCount > 0 && CapsLockCCount <= 100) {
-                    Loop CapsLockCCount {
-                        Index := A_Index
-                        EncodedContent := IniRead(ConfigFile, "Clipboard", "CapsLockC_" . Index, "")
-                        if (EncodedContent != "") {
-                            ; 还原换行符
-                            Content := StrReplace(EncodedContent, "{{CRLF}}", "`r`n")
-                            Content := StrReplace(Content, "{{LF}}", "`n")
-                            Content := StrReplace(Content, "{{CR}}", "`r")
-                            ClipboardHistory_CapsLockC.Push(Content)
-                        }
-                    }
-                }
-                
-                ; 迁移到 JSON 格式并保存
-                if (ClipboardHistory_CtrlC.Length > 0 || ClipboardHistory_CapsLockC.Length > 0) {
-                    SaveClipboardHistory()
-                }
-            }
         } else {
             ; If config file doesn't exist, use default values directly
             CursorPath := DefaultCursorPath
@@ -1375,7 +1330,6 @@ InitConfig() {
             HotkeyO := DefaultHotkeyO
             HotkeyQ := DefaultHotkeyQ
             HotkeyZ := DefaultHotkeyZ
-            HotkeyF := "f"  ; 默认值
             CapsLockHoldTimeSeconds := DefaultCapsLockHoldTimeSeconds
             PanelScreenIndex := DefaultPanelScreenIndex
             FunctionPanelPos := DefaultFunctionPanelPos
@@ -1410,7 +1364,6 @@ InitConfig() {
         HotkeyO := DefaultHotkeyO
         HotkeyQ := DefaultHotkeyQ
         HotkeyZ := DefaultHotkeyZ
-        HotkeyF := "f"  ; 默认值
         PanelScreenIndex := DefaultPanelScreenIndex
         FunctionPanelPos := DefaultFunctionPanelPos
         ConfigPanelPos := DefaultConfigPanelPos
@@ -1429,223 +1382,6 @@ InitConfig() {
 
 InitConfig() ; 启动初始化
 
-; ===================== 剪贴板历史数据持久化 =====================
-; 剪贴板历史数据文件路径
-global ClipboardHistoryFile := A_ScriptDir "\ClipboardHistory.json"
-; 最大历史记录数（可配置，默认100，如果数据量大会影响性能）
-global MaxClipboardHistoryItems := 100  ; 可以通过配置文件修改
-
-; JSON 序列化辅助函数
-; 注意：Json 是 AutoHotkey v2 的内置函数，linter 可能无法识别
-SerializeToJson(Data) {
-    ; 直接调用内置的 Json() 函数进行序列化
-    ; 这是 AutoHotkey v2 的标准 JSON 序列化方法
-    local JsonFunc := Func("Json")  ; 获取内置函数引用
-    return JsonFunc(Data)
-}
-
-; JSON 反序列化辅助函数
-; 注意：Json 是 AutoHotkey v2 的内置函数，linter 可能无法识别
-DeserializeFromJson(JsonString) {
-    ; 直接调用内置的 Json() 函数进行反序列化
-    ; 这是 AutoHotkey v2 的标准 JSON 反序列化方法
-    local JsonFunc := Func("Json")  ; 获取内置函数引用
-    return JsonFunc(JsonString)
-}
-
-; 保存剪贴板历史数据到文件
-SaveClipboardHistory() {
-    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardHistoryFile, MaxClipboardHistoryItems
-    
-    ; 确保 MaxClipboardHistoryItems 已初始化
-    if (!IsSet(MaxClipboardHistoryItems) || MaxClipboardHistoryItems = "") {
-        MaxClipboardHistoryItems := 100  ; 默认值
-    }
-    
-    ; 确保 ClipboardHistoryFile 已初始化
-    if (!IsSet(ClipboardHistoryFile) || ClipboardHistoryFile = "") {
-        ClipboardHistoryFile := A_ScriptDir "\ClipboardHistory.json"
-    }
-    
-    try {
-        ; 确保数组已初始化
-        if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
-            ClipboardHistory_CtrlC := []
-        }
-        if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
-            ClipboardHistory_CapsLockC := []
-        }
-        
-        ; 在保存前限制数据量（避免文件过大）
-        ; 只保存最新的N条记录
-        CtrlCData := ClipboardHistory_CtrlC
-        CapsLockCData := ClipboardHistory_CapsLockC
-        
-        if (CtrlCData.Length > MaxClipboardHistoryItems) {
-            CtrlCData := CtrlCData.Slice(-MaxClipboardHistoryItems)
-        }
-        if (CapsLockCData.Length > MaxClipboardHistoryItems) {
-            CapsLockCData := CapsLockCData.Slice(-MaxClipboardHistoryItems)
-        }
-        
-        ; 创建数据对象
-        HistoryData := Map(
-            "CtrlC", CtrlCData,
-            "CapsLockC", CapsLockCData,
-            "Version", "1.0",
-            "LastSaved", A_Now,
-            "MaxItems", MaxClipboardHistoryItems
-        )
-        
-        ; 转换为 JSON 并保存
-        JsonData := SerializeToJson(HistoryData)
-        
-        ; 如果文件已存在，先删除再写入（确保文件内容正确）
-        if (FileExist(ClipboardHistoryFile)) {
-            FileDelete(ClipboardHistoryFile)
-        }
-        FileAppend(JsonData, ClipboardHistoryFile, "UTF-8")
-        
-    } catch as e {
-        ; 保存失败时静默处理，不影响主功能
-        ; 可以在这里添加日志记录
-    }
-}
-
-; 从文件加载剪贴板历史数据（优化版：快速加载，只加载最新N条）
-LoadClipboardHistory() {
-    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardHistoryFile, MaxClipboardHistoryItems
-    
-    ; 确保 MaxClipboardHistoryItems 已初始化
-    if (!IsSet(MaxClipboardHistoryItems) || MaxClipboardHistoryItems = "") {
-        MaxClipboardHistoryItems := 100  ; 默认值
-    }
-    
-    ; 确保 ClipboardHistoryFile 已初始化
-    if (!IsSet(ClipboardHistoryFile) || ClipboardHistoryFile = "") {
-        ClipboardHistoryFile := A_ScriptDir "\ClipboardHistory.json"
-    }
-    
-    try {
-        ; 如果文件不存在，初始化空数组
-        if (!FileExist(ClipboardHistoryFile)) {
-            ClipboardHistory_CtrlC := []
-            ClipboardHistory_CapsLockC := []
-            return
-        }
-        
-        ; 快速检查文件大小，如果文件过大（>10MB），只加载最新数据
-        FileSize := FileGetSize(ClipboardHistoryFile)
-        MaxFileSize := 10 * 1024 * 1024  ; 10MB
-        
-        if (FileSize > MaxFileSize) {
-            ; 文件过大，使用快速加载模式：只读取文件末尾部分
-            ; 先初始化空数组，然后尝试读取文件末尾
-            ClipboardHistory_CtrlC := []
-            ClipboardHistory_CapsLockC := []
-            
-            ; 尝试读取文件末尾（最后1MB），如果JSON格式正确，可以解析
-            try {
-                ; 读取整个文件（如果内存允许）
-                JsonData := FileRead(ClipboardHistoryFile, "UTF-8")
-                if (JsonData != "" && JsonData != "`n") {
-                    ; 解析 JSON
-                    HistoryData := DeserializeFromJson(JsonData)
-                    
-                    ; 只加载最新的N条记录
-                    if (IsObject(HistoryData) && HistoryData.Has("CtrlC") && IsObject(HistoryData["CtrlC"])) {
-                        TempArray := HistoryData["CtrlC"]
-                        if (Type(TempArray) = "Array" && TempArray.Length > 0) {
-                            ; 只保留最新的N条
-                            StartIndex := Max(1, TempArray.Length - MaxClipboardHistoryItems + 1)
-                            ClipboardHistory_CtrlC := TempArray.Slice(StartIndex)
-                        } else {
-                            ClipboardHistory_CtrlC := []
-                        }
-                    } else {
-                        ClipboardHistory_CtrlC := []
-                    }
-                    
-                    if (IsObject(HistoryData) && HistoryData.Has("CapsLockC") && IsObject(HistoryData["CapsLockC"])) {
-                        TempArray := HistoryData["CapsLockC"]
-                        if (Type(TempArray) = "Array" && TempArray.Length > 0) {
-                            ; 只保留最新的N条
-                            StartIndex := Max(1, TempArray.Length - MaxClipboardHistoryItems + 1)
-                            ClipboardHistory_CapsLockC := TempArray.Slice(StartIndex)
-                        } else {
-                            ClipboardHistory_CapsLockC := []
-                        }
-                    } else {
-                        ClipboardHistory_CapsLockC := []
-                    }
-                }
-            } catch {
-                ; 如果解析失败，使用空数组
-                ClipboardHistory_CtrlC := []
-                ClipboardHistory_CapsLockC := []
-            }
-            return
-        }
-        
-        ; 正常大小的文件，正常加载
-        ; 读取 JSON 文件
-        JsonData := FileRead(ClipboardHistoryFile, "UTF-8")
-        if (JsonData = "" || JsonData = "`n") {
-            ClipboardHistory_CtrlC := []
-            ClipboardHistory_CapsLockC := []
-            return
-        }
-        
-        ; 解析 JSON
-        HistoryData := DeserializeFromJson(JsonData)
-        
-        ; 检查是否有配置的最大记录数
-        if (IsObject(HistoryData) && HistoryData.Has("MaxItems")) {
-            SavedMaxItems := HistoryData["MaxItems"]
-            if (IsNumber(SavedMaxItems) && SavedMaxItems > 0) {
-                ; 使用保存的配置，但不允许超过1000（防止性能问题）
-                MaxClipboardHistoryItems := Min(SavedMaxItems, 1000)
-            }
-        }
-        
-        ; 加载数据（兼容旧版本，如果数据格式不对则使用空数组）
-        if (IsObject(HistoryData) && HistoryData.Has("CtrlC") && IsObject(HistoryData["CtrlC"])) {
-            ClipboardHistory_CtrlC := HistoryData["CtrlC"]
-            ; 确保是数组类型
-            if (Type(ClipboardHistory_CtrlC) != "Array") {
-                ClipboardHistory_CtrlC := []
-            }
-            ; 限制最多N条（使用配置的最大值）
-            if (ClipboardHistory_CtrlC.Length > MaxClipboardHistoryItems) {
-                ; 保留最新的N条
-                ClipboardHistory_CtrlC := ClipboardHistory_CtrlC.Slice(-MaxClipboardHistoryItems)
-            }
-        } else {
-            ClipboardHistory_CtrlC := []
-        }
-        
-        if (IsObject(HistoryData) && HistoryData.Has("CapsLockC") && IsObject(HistoryData["CapsLockC"])) {
-            ClipboardHistory_CapsLockC := HistoryData["CapsLockC"]
-            ; 确保是数组类型
-            if (Type(ClipboardHistory_CapsLockC) != "Array") {
-                ClipboardHistory_CapsLockC := []
-            }
-            ; 限制最多N条（使用配置的最大值）
-            if (ClipboardHistory_CapsLockC.Length > MaxClipboardHistoryItems) {
-                ; 保留最新的N条
-                ClipboardHistory_CapsLockC := ClipboardHistory_CapsLockC.Slice(-MaxClipboardHistoryItems)
-            }
-        } else {
-            ClipboardHistory_CapsLockC := []
-        }
-        
-    } catch as e {
-        ; 加载失败时使用空数组，不影响程序启动
-        ClipboardHistory_CtrlC := []
-        ClipboardHistory_CapsLockC := []
-    }
-}
-
 ; ===================== 剪贴板变化监听 =====================
 ; 注意：OnClipboardChange 必须在脚本启动时注册，确保在 InitConfig 之后定义
 ; 监听 Ctrl+C 复制操作，自动记录到 Ctrl+C 历史记录
@@ -1653,10 +1389,7 @@ global LastClipboardContent := ""  ; 记录上次剪贴板内容，避免重复�
 global CapsLockCopyInProgress := false  ; 标记 CapsLock+C 是否正在进行中
 global CapsLockCopyEndTime := 0  ; CapsLock+C 结束时间，用于延迟检测
 
-; 【关键修复】在 AHK v2 中，调用 OnClipboardChange 注册监听函数
-OnClipboardChange(HandleClipboardChange)
-
-HandleClipboardChange(Type) {
+OnClipboardChange(ClipboardChanged) {
     ; 只在剪贴板内容变化时触发（不是由 CapsLock+C 触发的）
     global ClipboardHistory_CtrlC, LastClipboardContent, CapsLockCopyInProgress, CapsLockCopyEndTime
     
@@ -1665,9 +1398,9 @@ HandleClipboardChange(Type) {
         return
     }
     
-    ; 如果 CapsLock+C 刚结束（或处于保护期），也不记录（避免重复记录）
+    ; 如果 CapsLock+C 刚结束（2秒内），也不记录（避免重复记录）
     CurrentTime := A_TickCount
-    if (CapsLockCopyEndTime > 0 && (CurrentTime < CapsLockCopyEndTime + 2000)) {
+    if (CapsLockCopyEndTime > 0 && (CurrentTime - CapsLockCopyEndTime) < 2000) {
         return
     }
     
@@ -1686,21 +1419,7 @@ HandleClipboardChange(Type) {
         ; 直接读取剪贴板内容，不等待（因为 OnClipboardChange 已经表示剪贴板已变化）
         CurrentContent := A_Clipboard
         ; 如果内容为空或与上次相同，不记录
-        ; 如果内容为空，不记录
-        if (CurrentContent = "") {
-            return
-        }
-        
-        ; 【增强排重】检查是否已经在历史记录中（避免连续复制相同内容）
-        ; 检查最近的 3 条记录，如果完全相同则不记录
-        IsDuplicate := false
-        Loop Min(ClipboardHistory_CtrlC.Length, 3) {
-            if (ClipboardHistory_CtrlC[ClipboardHistory_CtrlC.Length - A_Index + 1] = CurrentContent) {
-                IsDuplicate := true
-                break
-            }
-        }
-        if (IsDuplicate) {
+        if (CurrentContent = "" || CurrentContent = LastClipboardContent) {
             return
         }
         
@@ -1709,20 +1428,12 @@ HandleClipboardChange(Type) {
             return
         }
         
-        ; 记录到 Ctrl+C 历史记录（限制最多保存N条）
+        ; 记录到 Ctrl+C 历史记录（限制最多保存100条）
         ; 使用已声明的全局变量
-        global MaxClipboardHistoryItems
-        ; 确保 MaxClipboardHistoryItems 已初始化
-        if (!IsSet(MaxClipboardHistoryItems) || MaxClipboardHistoryItems = "") {
-            MaxClipboardHistoryItems := 100  ; 默认值
-        }
         ClipboardHistory_CtrlC.Push(CurrentContent)
-        if (ClipboardHistory_CtrlC.Length > MaxClipboardHistoryItems) {
+        if (ClipboardHistory_CtrlC.Length > 100) {
             ClipboardHistory_CtrlC.RemoveAt(1)  ; 删除最旧的记录
         }
-        
-        ; 保存到文件（延迟保存，避免频繁写入）
-        SetTimer(SaveClipboardHistory, -500)  ; 500ms 后保存
         
         ; 更新上次内容
         LastClipboardContent := CurrentContent
@@ -1993,8 +1704,20 @@ ShowCursorPanel() {
     TitleText := GuiID_CursorPanel.Add("Text", "x20 y12 w380 h26 Center c" . UI_Colors.Text, GetText("panel_title"))
     TitleText.SetFont("s13 Bold", "Segoe UI")
     
-    ; 分隔线
-    GuiID_CursorPanel.Add("Text", "x0 y50 w420 h1 Background" . UI_Colors.Border, "")
+    ; 分隔线（使用层叠投影替代1px边框）
+    ; 底层：大范围、低饱和度、模糊阴影
+    global ThemeMode
+    OuterShadowColor := (ThemeMode = "light") ? "E0E0E0" : "1A1A1A"
+    InnerShadowColor := (ThemeMode = "light") ? "B0B0B0" : "2A2A2A"
+    ; 底层阴影（3层渐变）
+    Loop 3 {
+        LayerOffset := 4 + (A_Index - 1) * 1
+        LayerAlpha := 255 - (A_Index - 1) * 60
+        LayerColor := BlendColor(OuterShadowColor, (ThemeMode = "light") ? "FFFFFF" : "000000", LayerAlpha / 255)
+        GuiID_CursorPanel.Add("Text", "x0 y" . (50 + LayerOffset) . " w420 h1 Background" . LayerColor, "")
+    }
+    ; 顶层阴影（紧凑、深色）
+    GuiID_CursorPanel.Add("Text", "x0 y51 w420 h1 Background" . InnerShadowColor, "")
     
     ; 提示文本（更小的字体，更柔和的颜色）
     HintText := GuiID_CursorPanel.Add("Text", "x20 y60 w380 h18 Center c" . UI_Colors.TextDim, FormatText("split_hint", SplitHotkey, BatchHotkey))
@@ -2569,6 +2292,24 @@ SwitchTab(TabName) {
         }
     }
     
+    ; 隐藏所有通用子标签页内容（防止覆盖其他标签页）
+    global GeneralSubTabControls
+    if (GeneralSubTabControls) {
+        for Key, Controls in GeneralSubTabControls {
+            if (Controls && Controls.Length > 0) {
+                for Index, Ctrl in Controls {
+                    if (Ctrl) {
+                        try {
+                            Ctrl.Visible := false
+                        } catch {
+                            ; 忽略已销毁的控件
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     ; 显示当前标签页内容
     switch TabName {
         case "general":
@@ -2718,14 +2459,14 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
     }
     
     for Index, Item in GeneralSubTabList {
-        ; 【关键修复】使用Text控件模拟按钮，确保BackColor在暗色主题中正确生效
+        ; 使用Text控件模拟按钮，确保BackColor在暗色主题中正确生效
         ; 使用0x200样式（SS_CENTER）使文字居中，配合Background属性设置背景色
         BtnX := TabX
         BtnY := TabBarY + 5
         BtnW := TabWidth - 2
         BtnH := TabBarHeight - 10
         
-        ; 【关键修复】为按钮添加边框，使两个按钮在暗色和亮色模式下都能清晰区分
+        ; 为按钮添加边框，使两个按钮在暗色和亮色模式下都能清晰区分
         ; 上边框
         TopBorder := ConfigGUI.Add("Text", "x" . BtnX . " y" . BtnY . " w" . BtnW . " h1 Background" . UI_Colors.Border, "")
         GeneralTabControls.Push(TopBorder)
@@ -2743,7 +2484,7 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
         TabBtn := ConfigGUI.Add("Text", "x" . (BtnX + 1) . " y" . (BtnY + 1) . " w" . (BtnW - 2) . " h" . (BtnH - 2) . " Center 0x200 c" . UI_Colors.TextDim . " Background" . UI_Colors.Sidebar . " vGeneralSubTab" . Item.Key, Item.Name)
         TabBtn.SetFont("s10", "Segoe UI")
         TabBtn.OnEvent("Click", CreateGeneralSubTabClickHandler(Item.Key))
-        ; 【关键修复】悬停效果使用主题颜色
+        ; 悬停效果使用主题颜色
         HoverBtn(TabBtn, UI_Colors.Sidebar, UI_Colors.BtnHover)
         GeneralTabControls.Push(TabBtn)
         GeneralSubTabs[Item.Key] := TabBtn
@@ -2764,101 +2505,6 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
     ; 默认显示第一个子标签页
     if (GeneralSubTabList.Length > 0) {
         SwitchGeneralSubTab(GeneralSubTabList[1].Key)
-    }
-}
-
-; ===================== 创建通用子标签页 =====================
-CreateGeneralSubTab(ConfigGUI, X, Y, W, H, Item) {
-    global GeneralTabControls, GeneralSubTabControls, UI_Colors
-    
-    ; 初始化子标签页控件数组
-    if (!GeneralSubTabControls.Has(Item.Key)) {
-        GeneralSubTabControls[Item.Key] := []
-    }
-    
-    ; 创建子标签页面板（默认隐藏，作为背景）
-    SubTabPanel := ConfigGUI.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Background" . UI_Colors.Background . " vGeneralSubTab" . Item.Key . "Panel", "")
-    SubTabPanel.Visible := false
-    GeneralSubTabControls[Item.Key].Push(SubTabPanel)
-    
-    ; 根据子标签类型创建不同的内容
-    switch Item.Key {
-        case "quickaction":
-            ; 快捷操作按钮配置
-            YPos := Y + 20
-            QuickActionDesc := ConfigGUI.Add("Text", "x" . X . " y" . YPos . " w" . W . " h20 c" . UI_Colors.TextDim, GetText("quick_action_config_desc"))
-            QuickActionDesc.SetFont("s9", "Segoe UI")
-            GeneralSubTabControls[Item.Key].Push(QuickActionDesc)
-            
-            YPos += 30
-            global QuickActionConfigControls := []
-            CreateQuickActionConfigUI(ConfigGUI, X, YPos, W, GeneralSubTabControls[Item.Key])
-            
-        case "searchcategory":
-            ; 搜索标签配置
-            YPos := Y + 20
-            SearchCategoryDesc := ConfigGUI.Add("Text", "x" . X . " y" . YPos . " w" . W . " h20 c" . UI_Colors.TextDim, GetText("search_category_config_desc"))
-            SearchCategoryDesc.SetFont("s9", "Segoe UI")
-            GeneralSubTabControls[Item.Key].Push(SearchCategoryDesc)
-            
-            YPos += 30
-            global SearchCategoryConfigControls := []
-            CreateSearchCategoryConfigUI(ConfigGUI, X, YPos, W, GeneralSubTabControls[Item.Key])
-    }
-}
-
-; ===================== 切换通用子标签页 =====================
-SwitchGeneralSubTab(SubTabKey) {
-    global GeneralSubTabs, GeneralSubTabControls, UI_Colors
-    
-    ; 重置所有子标签样式
-    for Key, TabBtn in GeneralSubTabs {
-        if (TabBtn) {
-            try {
-                TabBtn.BackColor := UI_Colors.Sidebar
-                TabBtn.SetFont("s10 c" . UI_Colors.TextDim, "Segoe UI")
-            }
-        }
-    }
-    
-    ; 隐藏所有子标签页内容
-    for Key, Controls in GeneralSubTabControls {
-        if (Controls && Controls.Length > 0) {
-            for Index, Ctrl in Controls {
-                if (Ctrl) {
-                    try {
-                        Ctrl.Visible := false
-                    } catch {
-                        ; 忽略已销毁的控件
-                    }
-                }
-            }
-        }
-    }
-    
-    ; 设置当前子标签样式
-    if (GeneralSubTabs.Has(SubTabKey) && GeneralSubTabs[SubTabKey]) {
-        try {
-            ; 【关键修复】使用Text控件的Background属性设置选中状态的背景色
-            GeneralSubTabs[SubTabKey].BackColor := UI_Colors.TabActive
-            GeneralSubTabs[SubTabKey].SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
-        }
-    }
-    
-    ; 显示当前子标签页内容
-    if (GeneralSubTabControls.Has(SubTabKey)) {
-        Controls := GeneralSubTabControls[SubTabKey]
-        if (Controls && Controls.Length > 0) {
-            for Index, Ctrl in Controls {
-                if (Ctrl) {
-                    try {
-                        Ctrl.Visible := true
-                    } catch {
-                        ; 忽略已销毁的控件
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -2981,10 +2627,22 @@ CreateQuickActionConfigUI(ConfigGUI, X, Y, W, ParentControls) {
         
         ; 说明文字已在创建DescText时设置，无需重复初始化
         
-        ; 底部边框线（Cursor风格：分隔每个按钮项，使用更柔和的颜色）
+        ; 底部分隔线（使用层叠投影替代1px边框）
         if (Index < 5) {
-            BottomBorder := ConfigGUI.Add("Text", "x" . X . " y" . (ButtonY + 105) . " w" . W . " h1 Background" . UI_Colors.Border, "")
-            QuickActionConfigControls.Push(BottomBorder)
+            ; 底层：大范围、低饱和度、模糊阴影
+            OuterShadowColor := (ThemeMode = "light") ? "E0E0E0" : "1A1A1A"
+            InnerShadowColor := (ThemeMode = "light") ? "B0B0B0" : "2A2A2A"
+            ; 底层阴影（3层渐变）
+            Loop 3 {
+                LayerOffset := 4 + (A_Index - 1) * 1
+                LayerAlpha := 255 - (A_Index - 1) * 60
+                LayerColor := BlendColor(OuterShadowColor, (ThemeMode = "light") ? "FFFFFF" : "000000", LayerAlpha / 255)
+                ShadowLayer := ConfigGUI.Add("Text", "x" . X . " y" . (ButtonY + 105 + LayerOffset) . " w" . W . " h1 Background" . LayerColor, "")
+                QuickActionConfigControls.Push(ShadowLayer)
+            }
+            ; 顶层阴影（紧凑、深色）
+            InnerShadow := ConfigGUI.Add("Text", "x" . X . " y" . (ButtonY + 106) . " w" . W . " h1 Background" . InnerShadowColor, "")
+            QuickActionConfigControls.Push(InnerShadow)
         }
         
         ButtonY += 110  ; 增加高度以适应两行单选按钮和说明文字
@@ -2994,9 +2652,101 @@ CreateQuickActionConfigUI(ConfigGUI, X, Y, W, ParentControls) {
     for Index, Ctrl in QuickActionConfigControls {
         ParentControls.Push(Ctrl)
     }
+}
+
+; ===================== 创建通用子标签页 =====================
+CreateGeneralSubTab(ConfigGUI, X, Y, W, H, Item) {
+    global GeneralTabControls, GeneralSubTabControls, UI_Colors
     
-    ; 返回最后的Y位置，供后续配置使用
-    return ButtonY
+    ; 初始化子标签页控件数组
+    if (!GeneralSubTabControls.Has(Item.Key)) {
+        GeneralSubTabControls[Item.Key] := []
+    }
+    
+    ; 创建子标签页面板（默认隐藏，作为背景）
+    SubTabPanel := ConfigGUI.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Background" . UI_Colors.Background . " vGeneralSubTab" . Item.Key . "Panel", "")
+    SubTabPanel.Visible := false
+    GeneralSubTabControls[Item.Key].Push(SubTabPanel)
+    
+    ; 根据子标签类型创建不同的内容
+    switch Item.Key {
+        case "quickaction":
+            ; 快捷操作按钮配置
+            YPos := Y + 20
+            QuickActionDesc := ConfigGUI.Add("Text", "x" . X . " y" . YPos . " w" . W . " h20 c" . UI_Colors.TextDim, GetText("quick_action_config_desc"))
+            QuickActionDesc.SetFont("s9", "Segoe UI")
+            GeneralSubTabControls[Item.Key].Push(QuickActionDesc)
+            
+            YPos += 30
+            global QuickActionConfigControls := []
+            CreateQuickActionConfigUI(ConfigGUI, X, YPos, W, GeneralSubTabControls[Item.Key])
+            
+        case "searchcategory":
+            ; 搜索标签配置
+            YPos := Y + 20
+            SearchCategoryDesc := ConfigGUI.Add("Text", "x" . X . " y" . YPos . " w" . W . " h20 c" . UI_Colors.TextDim, GetText("search_category_config_desc"))
+            SearchCategoryDesc.SetFont("s9", "Segoe UI")
+            GeneralSubTabControls[Item.Key].Push(SearchCategoryDesc)
+            
+            YPos += 30
+            global SearchCategoryConfigControls := []
+            CreateSearchCategoryConfigUI(ConfigGUI, X, YPos, W, GeneralSubTabControls[Item.Key])
+    }
+}
+
+; ===================== 切换通用子标签页 =====================
+SwitchGeneralSubTab(SubTabKey) {
+    global GeneralSubTabs, GeneralSubTabControls, UI_Colors
+    
+    ; 重置所有子标签样式
+    for Key, TabBtn in GeneralSubTabs {
+        if (TabBtn) {
+            try {
+                TabBtn.BackColor := UI_Colors.Sidebar
+                TabBtn.SetFont("s10 c" . UI_Colors.TextDim, "Segoe UI")
+            }
+        }
+    }
+    
+    ; 隐藏所有子标签页内容
+    for Key, Controls in GeneralSubTabControls {
+        if (Controls && Controls.Length > 0) {
+            for Index, Ctrl in Controls {
+                if (Ctrl) {
+                    try {
+                        Ctrl.Visible := false
+                    } catch {
+                        ; 忽略已销毁的控件
+                    }
+                }
+            }
+        }
+    }
+    
+    ; 设置当前子标签样式
+    if (GeneralSubTabs.Has(SubTabKey) && GeneralSubTabs[SubTabKey]) {
+        try {
+            ; 使用Text控件的Background属性设置选中状态的背景色
+            GeneralSubTabs[SubTabKey].BackColor := UI_Colors.TabActive
+            GeneralSubTabs[SubTabKey].SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
+        }
+    }
+    
+    ; 显示当前子标签页内容
+    if (GeneralSubTabControls.Has(SubTabKey)) {
+        Controls := GeneralSubTabControls[SubTabKey]
+        if (Controls && Controls.Length > 0) {
+            for Index, Ctrl in Controls {
+                if (Ctrl) {
+                    try {
+                        Ctrl.Visible := true
+                    } catch {
+                        ; 忽略已销毁的控件
+                    }
+                }
+            }
+        }
+    }
 }
 
 ; ===================== 创建搜索标签配置UI =====================
@@ -3057,7 +2807,7 @@ CreateSearchCategoryConfigUI(ConfigGUI, X, Y, W, ParentControls) {
         Checkbox.BackColor := UI_Colors.Background
         Checkbox.OnEvent("Click", CreateSearchCategoryCheckboxHandler(Category.Key))
         SearchCategoryConfigControls.Push(Checkbox)
-        ParentControls.Push(Checkbox)  ; 【关键修复】将复选框添加到父控件列表，确保在标签页切换时正确显示/隐藏
+        ParentControls.Push(Checkbox)  ; 将复选框添加到父控件列表，确保在标签页切换时正确显示/隐藏
     }
 }
 
@@ -3206,7 +2956,7 @@ RemoveQuickActionButton(Index) {
 
 ; ===================== 刷新快捷操作配置UI =====================
 RefreshQuickActionConfigUI() {
-    global GuiID_ConfigGUI, GeneralSubTabControls, QuickActionButtons, UI_Colors
+    global GuiID_ConfigGUI, GeneralTabControls, QuickActionButtons
     
     if (GuiID_ConfigGUI = 0) {
         return
@@ -3218,54 +2968,49 @@ RefreshQuickActionConfigUI() {
             return
         }
         
-        ; 获取通用子标签页的位置和尺寸
-        ; 查找快捷操作子标签页的面板
-        QuickActionPanel := ConfigGUI["GeneralSubTabquickactionPanel"]
-        if (!QuickActionPanel) {
+        ; 获取通用标签页的位置和尺寸
+        ; 由于需要重新创建UI，我们需要找到通用标签页的位置
+        ; 这里我们通过查找GeneralTabPanel来获取位置
+        GeneralTabPanel := ConfigGUI["GeneralTabPanel"]
+        if (!GeneralTabPanel) {
             return
         }
         
         ; 获取面板位置和尺寸
-        QuickActionPanel.GetPos(&TabX, &TabY, &TabW, &TabH)
+        GeneralTabPanel.GetPos(&TabX, &TabY, &TabW, &TabH)
         
         ; 重新创建快捷操作配置UI
         ; 先销毁旧的控件
         global QuickActionConfigControls
-        if (IsSet(QuickActionConfigControls)) {
-            for Index, Ctrl in QuickActionConfigControls {
-                try {
-                    Ctrl.Destroy()
-                } catch {
-                    ; 忽略已销毁的控件
-                }
+        for Index, Ctrl in QuickActionConfigControls {
+            try {
+                Ctrl.Destroy()
+            } catch {
+                ; 忽略已销毁的控件
             }
         }
         
-        ; 从GeneralSubTabControls中移除快捷操作相关的控件
-        if (GeneralSubTabControls.Has("quickaction")) {
-            NewQuickActionControls := []
-            for Index, Ctrl in GeneralSubTabControls["quickaction"] {
-                IsQuickActionCtrl := false
-                if (IsSet(QuickActionConfigControls)) {
-                    for J, QACtrl in QuickActionConfigControls {
-                        if (Ctrl = QACtrl) {
-                            IsQuickActionCtrl := true
-                            break
-                        }
-                    }
-                }
-                if (!IsQuickActionCtrl) {
-                    NewQuickActionControls.Push(Ctrl)
+        ; 从GeneralTabControls中移除快捷操作相关的控件
+        NewGeneralTabControls := []
+        for Index, Ctrl in GeneralTabControls {
+            IsQuickActionCtrl := false
+            for J, QACtrl in QuickActionConfigControls {
+                if (Ctrl = QACtrl) {
+                    IsQuickActionCtrl := true
+                    break
                 }
             }
-            GeneralSubTabControls["quickaction"] := NewQuickActionControls
+            if (!IsQuickActionCtrl) {
+                NewGeneralTabControls.Push(Ctrl)
+            }
         }
+        GeneralTabControls := NewGeneralTabControls
         
         ; 重新创建快捷操作配置UI
-        ; Y位置从面板顶部开始，加上描述文字的高度
-        YPos := TabY + 50
-        QuickActionConfigControls := []
-        CreateQuickActionConfigUI(ConfigGUI, TabX, YPos, TabW, GeneralSubTabControls["quickaction"])
+        ; 计算Y位置（在语言设置之后，大约在TabY + 200的位置）
+        ; 需要找到语言设置之后的位置，这里使用固定偏移
+        ; 由于UI结构已简化，高度计算：每个按钮75px，5个按钮共375px
+        CreateQuickActionConfigUI(ConfigGUI, TabX + 30, TabY + 200, TabW - 60, GeneralTabControls)
     } catch {
         ; 如果更新失败，忽略错误
     }
@@ -3393,23 +3138,6 @@ CreatePromptsTab(ConfigGUI, X, Y, W, H) {
     Label1.SetFont("s11", "Segoe UI")
     PromptsTabControls.Push(Label1)
     
-    ; 【关键修复】确保提示词文本根据当前语言显示正确的默认值
-    global Language
-    ChineseDefaultExplain := "解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点"
-    ChineseDefaultRefactor := "重构这段代码，遵循PEP8/行业规范，简化冗余逻辑，添加中文注释，保持功能不变"
-    ChineseDefaultOptimize := "分析这段代码的性能瓶颈（时间/空间复杂度），给出优化方案+对比说明，保留原逻辑可读性"
-    
-    ; 如果提示词为空或是中文默认值，根据当前语言设置正确的默认值
-    if (Prompt_Explain = "" || Prompt_Explain = ChineseDefaultExplain) {
-        Prompt_Explain := (Language = "zh") ? ChineseDefaultExplain : GetText("default_prompt_explain")
-    }
-    if (Prompt_Refactor = "" || Prompt_Refactor = ChineseDefaultRefactor) {
-        Prompt_Refactor := (Language = "zh") ? ChineseDefaultRefactor : GetText("default_prompt_refactor")
-    }
-    if (Prompt_Optimize = "" || Prompt_Optimize = ChineseDefaultOptimize) {
-        Prompt_Optimize := (Language = "zh") ? ChineseDefaultOptimize : GetText("default_prompt_optimize")
-    }
-    
     YPos += 30
     PromptExplainEdit := ConfigGUI.Add("Edit", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h80 vPromptExplainEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", Prompt_Explain)
     PromptExplainEdit.SetFont("s10", "Consolas")
@@ -3457,7 +3185,7 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     
     ; ========== 横向标签页区域 ==========
     TabBarY := Y + 70
-    TabBarHeight := 40
+    TabBarHeight := 35  ; 【优化】减少高度，因为标签已经一行显示
     TabBarBg := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . TabBarY . " w" . (W - 60) . " h" . TabBarHeight . " Background" . UI_Colors.Sidebar, "")  ; 使用主题颜色
     HotkeysTabControls.Push(TabBarBg)
     
@@ -3475,8 +3203,11 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
         {Key: "B", Name: GetText("hotkey_b"), Default: BatchHotkey, Edit: "BatchHotkeyEdit", Desc: "hotkey_b_desc", Hint: "hotkey_single_char_hint", DefaultVal: "b"}
     ]
     
-    ; 创建横向标签按钮
-    TabWidth := (W - 60) / HotkeyList.Length
+    ; 创建横向标签按钮（十个选项一行显示）
+    ; 计算每个标签的宽度，确保10个标签能在一行显示
+    TabSpacing := 2  ; 标签之间的间距
+    TotalSpacing := TabSpacing * (HotkeyList.Length - 1)  ; 总间距
+    TabWidth := (W - 60 - TotalSpacing) / HotkeyList.Length  ; 每个标签的宽度
     TabX := X + 30
     HotkeySubTabs := Map()
     global HotkeySubTabControls := Map()  ; 确保是全局变量
@@ -3489,18 +3220,18 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     for Index, Item in HotkeyList {
         ; 创建横向标签按钮，确保可以点击
         ; 使用Button控件而不是Text控件，确保点击事件正常工作
-        TabBtn := ConfigGUI.Add("Button", "x" . TabX . " y" . (TabBarY + 5) . " w" . (TabWidth - 2) . " h" . (TabBarHeight - 10) . " vHotkeyTab" . Item.Key, Item.Name)
-        TabBtn.SetFont("s9", "Segoe UI")
+        TabBtn := ConfigGUI.Add("Button", "x" . TabX . " y" . (TabBarY + 5) . " w" . TabWidth . " h" . (TabBarHeight - 10) . " vHotkeyTab" . Item.Key, Item.Name)
+        TabBtn.SetFont("s8", "Segoe UI")  ; 减小字体以适应一行显示
         ; 使用主题颜色：未选中状态
         TabBtn.BackColor := UI_Colors.Sidebar  ; 使用主题侧边栏颜色
-        TabBtn.SetFont("s9 c" . UI_Colors.TextDim, "Segoe UI")  ; 使用主题文字颜色
+        TabBtn.SetFont("s8 c" . UI_Colors.TextDim, "Segoe UI")  ; 使用主题文字颜色
         ; 绑定点击事件，使用辅助函数确保每个按钮绑定到正确的键
         TabBtn.OnEvent("Click", CreateHotkeyTabClickHandler(Item.Key))
-        ; 悬停效果使用主题颜色
-        HoverBtn(TabBtn, UI_Colors.Sidebar, UI_Colors.BtnHover)  ; 使用主题悬停颜色
+        ; 悬停效果使用主题颜色（带动效）
+        HoverBtnWithAnimation(TabBtn, UI_Colors.Sidebar, UI_Colors.BtnHover)  ; 使用带动效的悬停函数
         HotkeysTabControls.Push(TabBtn)
         HotkeySubTabs[Item.Key] := TabBtn
-        TabX += TabWidth
+        TabX += TabWidth + TabSpacing  ; 添加间距
     }
     
     global HotkeySubTabs := HotkeySubTabs
@@ -4100,13 +3831,11 @@ ResetToDefaults(*) {
     DefaultHotkeyO := "o"
     DefaultHotkeyQ := "q"
     DefaultHotkeyZ := "z"
-    DefaultCapsLockHoldTimeSeconds := 0.5
     DefaultPanelScreenIndex := 1
     
     try {
         if (IsSet(CursorPathEdit) && CursorPathEdit) CursorPathEdit.Value := DefaultCursorPath
         if (IsSet(AISleepTimeEdit) && AISleepTimeEdit) AISleepTimeEdit.Value := DefaultAISleepTime
-        if (IsSet(CapsLockHoldTimeEdit) && CapsLockHoldTimeEdit) CapsLockHoldTimeEdit.Value := DefaultCapsLockHoldTimeSeconds
         if (IsSet(PromptExplainEdit) && PromptExplainEdit) PromptExplainEdit.Value := DefaultPrompt_Explain
         if (IsSet(PromptRefactorEdit) && PromptRefactorEdit) PromptRefactorEdit.Value := DefaultPrompt_Refactor
         if (IsSet(PromptOptimizeEdit) && PromptOptimizeEdit) PromptOptimizeEdit.Value := DefaultPrompt_Optimize
@@ -4148,10 +3877,124 @@ WM_LBUTTONDOWN(*) {
     PostMessage(0xA1, 2)
 }
 
-; 自定义按钮悬停效果
+; 自定义按钮悬停效果（基础版本，保持兼容性）
 HoverBtn(Ctrl, NormalColor, HoverColor) {
     Ctrl.NormalColor := NormalColor
     Ctrl.HoverColor := HoverColor
+}
+
+; 自定义按钮悬停效果（带动效版本）
+HoverBtnWithAnimation(Ctrl, NormalColor, HoverColor) {
+    Ctrl.NormalColor := NormalColor
+    Ctrl.HoverColor := HoverColor
+    try {
+        Ctrl.IsAnimating := false  ; 标记是否正在动画中
+    } catch {
+        ; 如果无法设置属性，忽略
+    }
+    
+    ; 保存原始点击事件处理器（如果存在）
+    try {
+        if (Ctrl.HasProp("OriginalClickHandler")) {
+            ; 如果已经有原始处理器，不重复绑定
+        } else {
+            ; 获取当前的点击事件处理器
+            ; 注意：AutoHotkey v2 中无法直接获取事件处理器，所以我们通过包装来实现
+            ; 点击动画会在WM_MOUSEMOVE中通过检测鼠标按下状态来实现
+        }
+    } catch {
+    }
+}
+
+; 按钮悬停动画（平滑过渡）
+AnimateButtonHover(Ctrl, NormalColor, HoverColor, IsEntering) {
+    ; 如果正在动画中，跳过
+    try {
+        if (Ctrl.HasProp("IsAnimating") && Ctrl.IsAnimating) {
+            return
+        }
+    } catch {
+    }
+    
+    try {
+        Ctrl.IsAnimating := true
+    } catch {
+        ; 如果无法设置属性，直接设置颜色
+        try {
+            if (IsEntering) {
+                Ctrl.BackColor := HoverColor
+            } else {
+                Ctrl.BackColor := NormalColor
+            }
+        } catch {
+        }
+        return
+    }
+    
+    ; 使用颜色混合实现平滑过渡（5帧动画）
+    AnimationSteps := 5
+    Loop AnimationSteps {
+        Step := A_Index
+        Ratio := Step / AnimationSteps
+        
+        ; 计算中间颜色
+        if (IsEntering) {
+            CurrentColor := BlendColor(NormalColor, HoverColor, Ratio)
+        } else {
+            CurrentColor := BlendColor(HoverColor, NormalColor, Ratio)
+        }
+        
+        try {
+            Ctrl.BackColor := CurrentColor
+        } catch {
+            ; 忽略错误
+        }
+        
+        Sleep(10)  ; 每帧10ms，总共50ms的动画
+    }
+    
+    ; 设置最终颜色
+    try {
+        if (IsEntering) {
+            Ctrl.BackColor := HoverColor
+        } else {
+            Ctrl.BackColor := NormalColor
+        }
+    } catch {
+    }
+    
+    try {
+        Ctrl.IsAnimating := false
+    } catch {
+    }
+}
+
+; 按钮点击动画（按下效果）
+AnimateButtonClick(Ctrl) {
+    if (!Ctrl.HasProp("HoverColor")) {
+        return
+    }
+    
+    try {
+        OriginalColor := Ctrl.BackColor
+        ClickColor := BlendColor(Ctrl.HoverColor, "000000", 0.3)  ; 变暗30%模拟按下效果
+        
+        ; 快速变暗（使用定时器避免阻塞）
+        Ctrl.BackColor := ClickColor
+        ; 使用定时器恢复颜色（通过闭包捕获变量）
+        RestoreColorFunc := RestoreButtonColor.Bind(Ctrl, OriginalColor)
+        SetTimer(RestoreColorFunc, -50)  ; 50ms后恢复
+    } catch {
+        ; 忽略错误
+    }
+}
+
+; 恢复按钮颜色的辅助函数
+RestoreButtonColor(Ctrl, OriginalColor, *) {
+    try {
+        Ctrl.BackColor := OriginalColor
+    } catch {
+    }
 }
 
 ; ===================== 创建Cursor风格的下拉框 =====================
@@ -4201,13 +4044,50 @@ WM_MOUSEMOVE(wParam, lParam, Msg, Hwnd) {
         ; 如果是新控件且具有 Hover 属性
         if (MouseCtrl && MouseCtrl.HasProp("HoverColor")) {
             if (LastHoverCtrl != MouseCtrl) {
-                ; 恢复上一个控件颜色
+                ; 恢复上一个控件颜色（带动效）
                 if (LastHoverCtrl && LastHoverCtrl.HasProp("NormalColor")) {
-                    try LastHoverCtrl.BackColor := LastHoverCtrl.NormalColor
+                    try {
+                        ; 检查是否正在动画中
+                        IsAnimating := false
+                        try {
+                            if (LastHoverCtrl.HasProp("IsAnimating")) {
+                                IsAnimating := LastHoverCtrl.IsAnimating
+                            }
+                        } catch {
+                        }
+                        
+                        if (IsAnimating) {
+                            ; 如果正在动画中，直接设置最终颜色
+                            LastHoverCtrl.BackColor := LastHoverCtrl.NormalColor
+                            try {
+                                LastHoverCtrl.IsAnimating := false
+                            } catch {
+                            }
+                        } else {
+                            ; 使用动画过渡
+                            AnimateButtonHover(LastHoverCtrl, LastHoverCtrl.NormalColor, LastHoverCtrl.HoverColor, false)
+                        }
+                    } catch {
+                        try LastHoverCtrl.BackColor := LastHoverCtrl.NormalColor
+                    }
                 }
                 
-                ; 设置新控件颜色
-                try MouseCtrl.BackColor := MouseCtrl.HoverColor
+                ; 设置新控件颜色（带动效）
+                try {
+                    IsAnimating := false
+                    try {
+                        if (MouseCtrl.HasProp("IsAnimating")) {
+                            IsAnimating := MouseCtrl.IsAnimating
+                        }
+                    } catch {
+                    }
+                    
+                    if (!IsAnimating) {
+                        AnimateButtonHover(MouseCtrl, MouseCtrl.NormalColor, MouseCtrl.HoverColor, true)
+                    }
+                } catch {
+                    try MouseCtrl.BackColor := MouseCtrl.HoverColor
+                }
                 LastHoverCtrl := MouseCtrl
                 
                 ; 启动定时器检测鼠标离开
@@ -4231,7 +4111,29 @@ CheckMouseLeave() {
         ; 如果鼠标不在当前控件上
         if (MouseHwnd != LastHoverCtrl.Hwnd) {
             if (LastHoverCtrl.HasProp("NormalColor")) {
-                try LastHoverCtrl.BackColor := LastHoverCtrl.NormalColor
+                try {
+                    ; 检查是否正在动画中
+                    IsAnimating := false
+                    try {
+                        if (LastHoverCtrl.HasProp("IsAnimating")) {
+                            IsAnimating := LastHoverCtrl.IsAnimating
+                        }
+                    } catch {
+                    }
+                    
+                    ; 使用动画过渡恢复颜色
+                    if (!IsAnimating) {
+                        AnimateButtonHover(LastHoverCtrl, LastHoverCtrl.NormalColor, LastHoverCtrl.HoverColor, false)
+                    } else {
+                        LastHoverCtrl.BackColor := LastHoverCtrl.NormalColor
+                        try {
+                            LastHoverCtrl.IsAnimating := false
+                        } catch {
+                        }
+                    }
+                } catch {
+                    try LastHoverCtrl.BackColor := LastHoverCtrl.NormalColor
+                }
             }
             LastHoverCtrl := 0
             SetTimer , 0
@@ -4370,8 +4272,8 @@ ShowConfigGUI() {
     global HotkeysTabControls := []
     global AdvancedTabControls := []
     
-    ; 创建配置 GUI（无边框窗口，支持滚动）
-    ConfigGUI := Gui("+Resize -MaximizeBox -Caption +Border", GetText("config_title"))
+    ; 创建配置 GUI（无边框窗口，无白边，无滚动条）
+    ConfigGUI := Gui("+Resize -MaximizeBox -Caption", GetText("config_title"))
     ConfigGUI.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
     ConfigGUI.BackColor := UI_Colors.Background
     ; 启用窗口滚动（通过设置窗口样式和滚动区域）
@@ -4394,7 +4296,7 @@ ShowConfigGUI() {
     CloseBtnTopLeft := ConfigGUI.Add("Text", "x0 y0 w35 h35 Center 0x200 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text . " vCloseBtnTopLeft", "✕")
     CloseBtnTopLeft.SetFont("s10", "Segoe UI")
     CloseBtnTopLeft.OnEvent("Click", (*) => CloseConfigGUI())
-    HoverBtn(CloseBtnTopLeft, UI_Colors.TitleBar, "e81123") ; 红色关闭 hover
+    HoverBtnWithAnimation(CloseBtnTopLeft, UI_Colors.TitleBar, "e81123") ; 红色关闭 hover（带动效）
     
     ; 窗口标题（调整位置，避免被左上角关闭按钮遮挡）
     WinTitle := ConfigGUI.Add("Text", "x40 y8 w" . (ConfigWidth - 80) . " h20 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text . " vWinTitle", GetText("config_title"))
@@ -4405,19 +4307,19 @@ ShowConfigGUI() {
     CloseBtnTopRight := ConfigGUI.Add("Text", "x" . (ConfigWidth - 40) . " y0 w40 h35 Center 0x200 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text . " vCloseBtnTopRight", "✕")
     CloseBtnTopRight.SetFont("s10", "Segoe UI")
     CloseBtnTopRight.OnEvent("Click", (*) => CloseConfigGUI())
-    HoverBtn(CloseBtnTopRight, UI_Colors.TitleBar, "e81123") ; 红色关闭 hover
+    HoverBtnWithAnimation(CloseBtnTopRight, UI_Colors.TitleBar, "e81123") ; 红色关闭 hover（带动效）
     
     ; 左下角关闭按钮
     CloseBtnBottomLeft := ConfigGUI.Add("Text", "x0 y" . (ConfigHeight - 40) . " w40 h40 Center 0x200 Background" . UI_Colors.Background . " c" . UI_Colors.Text . " vCloseBtnBottomLeft", "✕")
     CloseBtnBottomLeft.SetFont("s10", "Segoe UI")
     CloseBtnBottomLeft.OnEvent("Click", (*) => CloseConfigGUI())
-    HoverBtn(CloseBtnBottomLeft, UI_Colors.Background, "e81123") ; 红色关闭 hover
+    HoverBtnWithAnimation(CloseBtnBottomLeft, UI_Colors.Background, "e81123") ; 红色关闭 hover（带动效）
     
     ; 右下角关闭按钮
     CloseBtnBottomRight := ConfigGUI.Add("Text", "x" . (ConfigWidth - 40) . " y" . (ConfigHeight - 40) . " w40 h40 Center 0x200 Background" . UI_Colors.Background . " c" . UI_Colors.Text . " vCloseBtnBottomRight", "✕")
     CloseBtnBottomRight.SetFont("s10", "Segoe UI")
     CloseBtnBottomRight.OnEvent("Click", (*) => CloseConfigGUI())
-    HoverBtn(CloseBtnBottomRight, UI_Colors.Background, "e81123") ; 红色关闭 hover
+    HoverBtnWithAnimation(CloseBtnBottomRight, UI_Colors.Background, "e81123") ; 红色关闭 hover（带动效）
     
     ; ========== 左侧侧边栏 (150px，更窄以给右侧更多空间) ==========
     ; SidebarWidth 已在上面声明为全局变量
@@ -4445,7 +4347,8 @@ ShowConfigGUI() {
         Btn := ConfigGUI.Add("Text", "x0 y" . YPos . " w" . SidebarWidth . " h" . TabHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.Sidebar . " vTab" . Name, Label)
         Btn.SetFont("s10", "Segoe UI")
         Btn.OnEvent("Click", (*) => SwitchTab(Name))
-        HoverBtn(Btn, UI_Colors.Sidebar, UI_Colors.TabActive)
+        ; 使用带动效的悬停函数
+        HoverBtnWithAnimation(Btn, UI_Colors.Sidebar, UI_Colors.TabActive)
         return Btn
     }
     
@@ -4485,11 +4388,11 @@ ShowConfigGUI() {
     CreateAdvancedTab(ConfigGUI, ContentX, ContentY, ContentWidth, ContentHeight)
     
     ; ========== 底部按钮区域 (右侧) ==========
-    ButtonAreaY := ConfigHeight - 70  ; 增加高度以容纳按钮说明文字
+    ButtonAreaY := ConfigHeight - 50  ; 减少高度（已移除说明文字）
     ; 移除底部按钮区域的背景色块，只保留按钮本身
     ; ButtonAreaBg := ConfigGUI.Add("Text", "x" . ContentX . " y" . ButtonAreaY . " w" . ContentWidth . " h50 Background" . UI_Colors.Background . " vButtonAreaBg", "") ; 遮挡背景
     
-    ; 底部按钮辅助函数（带说明文字）
+    ; 底部按钮辅助函数（不带说明文字）
     CreateBottomBtn(Label, XPos, Action, IsPrimary := false, BtnName := "", Desc := "") {
         BgColor := IsPrimary ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
         HoverColor := IsPrimary ? UI_Colors.BtnPrimaryHover : UI_Colors.BtnHover
@@ -4502,13 +4405,10 @@ ShowConfigGUI() {
         Btn := ConfigGUI.Add("Text", "x" . XPos . " y" . (ButtonAreaY + 10) . " w80 h30 Center 0x200 c" . TextColor . " Background" . BgColor . (BtnName ? " v" . BtnName : ""), Label)
         Btn.SetFont("s9", "Segoe UI")
         Btn.OnEvent("Click", Action)
-        HoverBtn(Btn, BgColor, HoverColor)
+        ; 使用带动效的悬停函数
+        HoverBtnWithAnimation(Btn, BgColor, HoverColor)
         
-        ; 添加按钮功能说明
-        if (Desc != "") {
-            DescText := ConfigGUI.Add("Text", "x" . XPos . " y" . (ButtonAreaY + 42) . " w80 h15 Center c" . UI_Colors.TextDim, Desc)
-            DescText.SetFont("s7", "Segoe UI")
-        }
+        ; 【移除说明文字】不再添加按钮功能说明
         
         return Btn
     }
@@ -4551,30 +4451,26 @@ ShowConfigGUI() {
     ; 设置窗口最小尺寸限制（使用 DllCall 调用 Windows API）
     SetWindowMinSizeLimit(ConfigGUI.Hwnd, 800, 600)
     
-    ; 添加滚动条样式（WS_VSCROLL | WS_HSCROLL）
+    ; 【移除滚动条】不再添加滚动条样式，避免出现白边和滚动条
+    ; 移除窗口边框样式（WS_BORDER, WS_THICKFRAME）
     ; GWL_STYLE = -16
-    ; 【关键修复】在AutoHotkey v2中，使用GetWindowLong和SetWindowLong（自动处理32/64位）
-    ; 注意：在64位系统上，GetWindowLong会自动处理为GetWindowLongPtr
-    CurrentStyle := DllCall("user32.dll\GetWindowLong", "Ptr", ConfigGUI.Hwnd, "Int", -16, "Int")
-    NewStyle := CurrentStyle | 0x00200000 | 0x00100000  ; WS_VSCROLL | WS_HSCROLL
-    DllCall("user32.dll\SetWindowLong", "Ptr", ConfigGUI.Hwnd, "Int", -16, "Int", NewStyle, "Int")
+    CurrentStyle := DllCall("user32.dll\GetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -16, "Ptr")
+    ; 移除边框和滚动条样式：~0x00B40000 = 移除 WS_BORDER(0x00800000), WS_THICKFRAME(0x00040000), WS_VSCROLL(0x00200000), WS_HSCROLL(0x00100000)
+    NewStyle := CurrentStyle & ~0x00B40000
+    DllCall("user32.dll\SetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -16, "Ptr", NewStyle, "Ptr")
+    ; 移除扩展样式中的边框（WS_EX_CLIENTEDGE = 0x00000200）
+    ; GWL_EXSTYLE = -20
+    CurrentExStyle := DllCall("user32.dll\GetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -20, "Ptr")
+    NewExStyle := CurrentExStyle & ~0x00000200
+    DllCall("user32.dll\SetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -20, "Ptr", NewExStyle, "Ptr")
+    ; 刷新窗口框架
     DllCall("user32.dll\SetWindowPos", "Ptr", ConfigGUI.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0027, "Int")  ; SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
-    
-    ; 设置窗口滚动区域（启用滚动条）
-    ; 计算内容区域的最大高度（假设内容可能超出可视区域）
-    MaxContentHeight := ContentHeight * 3  ; 内容可能超出3倍高度
-    SetWindowScrollInfo(ConfigGUI.Hwnd, ContentWidth, MaxContentHeight, ContentWidth, ContentHeight)
-    
-    ; 添加滚动消息处理（使用全局 OnMessage 函数）
-    OnMessage(0x115, ConfigGUI_OnScroll)  ; WM_VSCROLL
-    OnMessage(0x114, ConfigGUI_OnScroll)  ; WM_HSCROLL
     
     ; 确保窗口在最上层并激活
     WinSetAlwaysOnTop(1, ConfigGUI.Hwnd)
     WinActivate(ConfigGUI.Hwnd)
     
-    ; 启用配置面板的滚轮热键
-    EnableConfigScroll()
+    ; 【移除滚动功能】不再启用配置面板的滚轮热键（已移除滚动条）
 }
 
 ; ===================== 配置面板滚动消息处理 =====================
@@ -4912,9 +4808,57 @@ ConfigWheelDown(*) {
 
 ; 关闭配置面板
 CloseConfigGUI() {
-    global GuiID_ConfigGUI
+    global GuiID_ConfigGUI, CapsLockHoldTimeEdit, CapsLockHoldTimeSeconds, ConfigFile
     ; 禁用滚动热键
     DisableConfigScroll()
+    
+    ; 【修复】在关闭配置面板前，自动保存 CapsLock 长按时间的修改
+    if (GuiID_ConfigGUI != 0 && CapsLockHoldTimeEdit) {
+        try {
+            ; 获取编辑框的值
+            EditValue := CapsLockHoldTimeEdit.Value
+            if (EditValue != "") {
+                ; 尝试转换为浮点数（更健壮的方式，不依赖 IsNumber）
+                try {
+                    NewHoldTime := Float(EditValue)
+                    ; 验证值在合理范围内（0.1秒到5秒）
+                    if (NewHoldTime >= 0.1 && NewHoldTime <= 5.0) {
+                        ; 更新全局变量
+                        CapsLockHoldTimeSeconds := NewHoldTime
+                        ; 保存到配置文件（确保使用字符串格式保存，避免精度问题）
+                        IniWrite(String(CapsLockHoldTimeSeconds), ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
+                    } else {
+                        ; 如果值超出范围，修正并保存
+                        if (NewHoldTime < 0.1) {
+                            CapsLockHoldTimeSeconds := 0.1
+                        } else if (NewHoldTime > 5.0) {
+                            CapsLockHoldTimeSeconds := 5.0
+                        }
+                        IniWrite(String(CapsLockHoldTimeSeconds), ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
+                    }
+                } catch {
+                    ; 如果转换失败，保持当前全局变量的值并保存
+                    if (IsSet(CapsLockHoldTimeSeconds) && CapsLockHoldTimeSeconds != "") {
+                        IniWrite(String(CapsLockHoldTimeSeconds), ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
+                    }
+                }
+            } else {
+                ; 如果编辑框为空，保存当前全局变量的值（不丢失已有配置）
+                if (IsSet(CapsLockHoldTimeSeconds) && CapsLockHoldTimeSeconds != "") {
+                    IniWrite(String(CapsLockHoldTimeSeconds), ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
+                }
+            }
+        } catch as e {
+            ; 记录错误但不影响关闭操作
+            ; 尝试保存当前全局变量的值作为后备
+            try {
+                if (IsSet(CapsLockHoldTimeSeconds) && CapsLockHoldTimeSeconds != "") {
+                    IniWrite(String(CapsLockHoldTimeSeconds), ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
+                }
+            }
+        }
+    }
+    
     if (GuiID_ConfigGUI != 0) {
         try {
             GuiID_ConfigGUI.Destroy()
@@ -5093,37 +5037,6 @@ SaveConfig(*) {
         NewCursorPanelScreenIndex := 1
     }
     
-    ; 读取搜索标签配置（从复选框读取）
-    global VoiceSearchEnabledCategories
-    if (GuiID_ConfigGUI) {
-        try {
-            ConfigGUI := GuiFromHwnd(GuiID_ConfigGUI)
-            if (ConfigGUI) {
-                AllCategoryKeys := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
-                VoiceSearchEnabledCategories := []
-                for Index, CategoryKey in AllCategoryKeys {
-                    try {
-                        Checkbox := ConfigGUI["SearchCategoryCheckbox" . CategoryKey]
-                        if (Checkbox && IsObject(Checkbox) && Checkbox.Value = 1) {
-                            VoiceSearchEnabledCategories.Push(CategoryKey)
-                        }
-                    } catch {
-                        ; 忽略错误
-                    }
-                }
-                ; 确保至少有一个标签启用
-                if (VoiceSearchEnabledCategories.Length = 0) {
-                    VoiceSearchEnabledCategories := ["ai"]
-                }
-            }
-        } catch {
-            ; 如果读取失败，使用默认值
-            if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
-                VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
-            }
-        }
-    }
-    
     ; 读取快捷操作按钮配置（从单选按钮读取类型，快捷键根据类型自动确定）
     global QuickActionButtons
     try {
@@ -5217,28 +5130,17 @@ SaveConfig(*) {
     ; 更新全局变量
     global CursorPath := CursorPathEdit ? CursorPathEdit.Value : ""
     global AISleepTime := AISleepTimeEdit.Value
-    ; 【修复】确保从编辑框正确读取 CapsLockHoldTimeSeconds
-    ; 无论编辑框是否有值，都尝试读取（即使值为0.5也要保存）
-    if (CapsLockHoldTimeEdit) {
-        ; 尝试读取编辑框的值
-        EditValue := CapsLockHoldTimeEdit.Value
-        if (EditValue != "" && IsNumber(EditValue)) {
-            global CapsLockHoldTimeSeconds := Float(EditValue)
-            ; 确保值在合理范围内
-            if (CapsLockHoldTimeSeconds < 0.1) {
-                CapsLockHoldTimeSeconds := 0.1
-            } else if (CapsLockHoldTimeSeconds > 5.0) {
-                CapsLockHoldTimeSeconds := 5.0
-            }
-        } else {
-            ; 如果编辑框值无效，使用当前全局变量的值（不重置为默认值）
-            ; 这样可以保持用户之前设置的值
-            if (!IsSet(CapsLockHoldTimeSeconds) || CapsLockHoldTimeSeconds = "") {
-                global CapsLockHoldTimeSeconds := 0.5  ; 只有在完全未设置时才使用默认值
-            }
+    ; 【修复】确保CapsLock长按时间正确保存：优先使用编辑框的值，如果为空则使用当前全局变量的值（不重置为默认值）
+    if (CapsLockHoldTimeEdit && CapsLockHoldTimeEdit.Value != "") {
+        global CapsLockHoldTimeSeconds := Float(CapsLockHoldTimeEdit.Value)
+        ; 确保值在合理范围内
+        if (CapsLockHoldTimeSeconds < 0.1) {
+            CapsLockHoldTimeSeconds := 0.1
+        } else if (CapsLockHoldTimeSeconds > 5.0) {
+            CapsLockHoldTimeSeconds := 5.0
         }
     } else {
-        ; 如果编辑框不存在，使用当前全局变量的值
+        ; 如果编辑框为空，保持当前全局变量的值（不重置为默认值）
         if (!IsSet(CapsLockHoldTimeSeconds) || CapsLockHoldTimeSeconds = "") {
             global CapsLockHoldTimeSeconds := 0.5  ; 只有在完全未设置时才使用默认值
         }
@@ -5256,8 +5158,8 @@ SaveConfig(*) {
     ; 保存到配置文件
     IniWrite(CursorPath, ConfigFile, "Settings", "CursorPath")
     IniWrite(AISleepTime, ConfigFile, "Settings", "AISleepTime")
-    ; 【修复】保存 CapsLockHoldTimeSeconds（确保已从编辑框读取）
-    IniWrite(CapsLockHoldTimeSeconds, ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
+    ; 【修复】使用字符串格式保存，确保精度和一致性
+    IniWrite(String(CapsLockHoldTimeSeconds), ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
     IniWrite(Prompt_Explain, ConfigFile, "Settings", "Prompt_Explain")
     IniWrite(Prompt_Refactor, ConfigFile, "Settings", "Prompt_Refactor")
     IniWrite(Prompt_Optimize, ConfigFile, "Settings", "Prompt_Optimize")
@@ -5285,23 +5187,6 @@ SaveConfig(*) {
     for Index, Button in QuickActionButtons {
         IniWrite(Button.Type, ConfigFile, "QuickActions", "Button" . Index . "Type")
         IniWrite(Button.Hotkey, ConfigFile, "QuickActions", "Button" . Index . "Hotkey")
-    }
-    
-    ; 保存启用的搜索标签配置
-    global VoiceSearchEnabledCategories
-    if (IsSet(VoiceSearchEnabledCategories) && IsObject(VoiceSearchEnabledCategories) && VoiceSearchEnabledCategories.Length > 0) {
-        EnabledCategoriesStr := ""
-        for Index, Category in VoiceSearchEnabledCategories {
-            if (Index > 1) {
-                EnabledCategoriesStr .= ","
-            }
-            EnabledCategoriesStr .= Category
-        }
-        IniWrite(EnabledCategoriesStr, ConfigFile, "Settings", "VoiceSearchEnabledCategories")
-    } else {
-        ; 如果没有启用任何标签，使用默认值
-        DefaultEnabledCategories := "ai,academic,baidu,image,audio,video,book,price,medical,cloud"
-        IniWrite(DefaultEnabledCategories, ConfigFile, "Settings", "VoiceSearchEnabledCategories")
     }
     
     ; 更新托盘菜单（语言可能已改变）
@@ -5358,7 +5243,41 @@ SaveConfigAndClose(*) {
 
 ; ===================== 清理函数 =====================
 CleanUp() {
-    global GuiID_CursorPanel
+    global GuiID_CursorPanel, CapsLockHoldTimeSeconds, ConfigFile, GuiID_ConfigGUI, CapsLockHoldTimeEdit
+    
+    ; 【修复】在退出前保存CapsLock长按时间到配置文件
+    try {
+        ; 如果配置面板还打开着，优先从编辑框读取最新值
+        if (GuiID_ConfigGUI != 0 && CapsLockHoldTimeEdit) {
+            EditValue := CapsLockHoldTimeEdit.Value
+            if (EditValue != "") {
+                ; 尝试转换为浮点数（更健壮的方式）
+                try {
+                    NewHoldTime := Float(EditValue)
+                    ; 验证值在合理范围内（0.1秒到5秒）
+                    if (NewHoldTime >= 0.1 && NewHoldTime <= 5.0) {
+                        CapsLockHoldTimeSeconds := NewHoldTime
+                    } else {
+                        ; 如果值超出范围，修正
+                        if (NewHoldTime < 0.1) {
+                            CapsLockHoldTimeSeconds := 0.1
+                        } else if (NewHoldTime > 5.0) {
+                            CapsLockHoldTimeSeconds := 5.0
+                        }
+                    }
+                } catch {
+                    ; 转换失败，保持当前值
+                }
+            }
+        }
+        
+        ; 保存到配置文件（使用字符串格式确保精度）
+        if (IsSet(CapsLockHoldTimeSeconds) && CapsLockHoldTimeSeconds != "") {
+            IniWrite(String(CapsLockHoldTimeSeconds), ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
+        }
+    } catch {
+        ; 忽略保存错误
+    }
     
     if (GuiID_CursorPanel != 0) {
         try {
@@ -5378,18 +5297,33 @@ CapsLockCopy() {
     ; 诊断信息：确认函数被调用
     ; TrayTip("调试：CapsLockCopy() 函数被调用`n配置的快捷键: " . HotkeyC, "函数调用", "Iconi 2")
     
-    ; 【关键修复】检查是否在保护期内（标签切换期间）
-    ; 如果 CapsLockCopyEndTime 被设置为未来时间，说明是在标签切换的保护期内，不执行复制
-    ; 这是最优先的检查，确保在标签切换期间不会触发复制
+    ; 【关键修复】如果 CapsLockCopyInProgress 为 true，说明是在标签切换期间或其他阻止复制的场景，不执行复制
+    ; 这样可以防止点击 CapsLock+C 标签时触发复制操作
+    if (CapsLockCopyInProgress) {
+        ; 【关键修复】如果 CapsLockCopyEndTime 被设置为未来时间，说明是在标签切换期间，不执行复制
+        ; 优先检查这个，因为这是最明确的阻止信号
+        if (CapsLockCopyEndTime > A_TickCount) {
+            ; 在标签切换期间，直接返回，不执行任何复制操作
+            return
+        }
+        ; 【关键修复】如果 CapsLock 为 false，说明是在标签切换期间，不执行复制操作
+        if (!CapsLock) {
+            ; 在标签切换期间，直接返回，不执行任何复制操作
+            return
+        }
+    }
+    
+    ; 【关键修复】额外检查：如果 CapsLockCopyEndTime 被设置为未来时间（即使 CapsLockCopyInProgress 为 false），也不执行复制
+    ; 这是双重保险，防止在标签切换期间触发复制
     if (CapsLockCopyEndTime > A_TickCount) {
-        ; 在保护期内，直接返回，不执行任何复制操作
         return
     }
     
-    ; 【关键修复】如果 CapsLockCopyInProgress 为 true 且 CapsLock 为 false，说明是在标签切换期间，不执行复制
-    ; 这样可以防止点击 CapsLock+C 标签时触发复制操作
-    if (CapsLockCopyInProgress && !CapsLock) {
-        ; 在标签切换期间，直接返回，不执行任何复制操作
+    ; 【关键修复】额外检查：如果剪贴板管理面板已打开，且是标签点击期间，不执行复制
+    ; 这个检查是为了防止在点击标签时，CapsLock 键还处于按下状态导致的意外触发
+    global GuiID_ClipboardManager
+    if (GuiID_ClipboardManager != 0 && CapsLockCopyInProgress && CapsLockCopyEndTime > A_TickCount) {
+        ; 在标签点击期间且剪贴板管理面板打开时，不执行复制操作
         return
     }
     
@@ -5454,20 +5388,12 @@ CapsLockCopy() {
             }
             
             ; 使用已声明的全局变量（已在函数开头声明 global）
-            global MaxClipboardHistoryItems
-            ; 确保 MaxClipboardHistoryItems 已初始化
-            if (!IsSet(MaxClipboardHistoryItems) || MaxClipboardHistoryItems = "") {
-                MaxClipboardHistoryItems := 100  ; 默认值
-            }
             ClipboardHistory_CapsLockC.Push(NewContent)
             
-            ; 限制最多保存N条
-            if (ClipboardHistory_CapsLockC.Length > MaxClipboardHistoryItems) {
+            ; 限制最多保存100条
+            if (ClipboardHistory_CapsLockC.Length > 100) {
                 ClipboardHistory_CapsLockC.RemoveAt(1)  ; 删除最旧的记录
             }
-            
-            ; 保存到文件（延迟保存，避免频繁写入）
-            SetTimer(SaveClipboardHistory, -500)  ; 500ms 后保存
             
             ; 【完全隔离】恢复系统剪贴板到原始内容，不改变系统剪贴板
             ; 这样 Ctrl+C 和 CapsLock+C 的剪贴板完全隔离
@@ -5521,14 +5447,12 @@ RestoreCapsLockState(*) {
 
 ; 恢复 CapsLock+C 复制标记的辅助函数（用于标签切换）
 RestoreCapsLockCopyFlag(*) {
-    global CapsLockCopyInProgress, OldCapsLockCopyInProgress, CapsLockCopyEndTime
+    global CapsLockCopyInProgress, OldCapsLockCopyInProgress
     if (IsSet(OldCapsLockCopyInProgress)) {
         CapsLockCopyInProgress := OldCapsLockCopyInProgress
     } else {
         CapsLockCopyInProgress := false
     }
-    ; 【关键修复】必须重置 CapsLockCopyEndTime，否则会一直阻止 CapsLock+C
-    CapsLockCopyEndTime := 0
 }
 
 ; 异步处理 (已废弃，改用同步 ClipWait)
@@ -5720,8 +5644,19 @@ ShowClipboardManager() {
     CloseBtn.OnEvent("Click", CloseClipboardManager)
     HoverBtn(CloseBtn, UI_Colors.TitleBar, "e81123")
     
-    ; 分隔线
-    GuiID_ClipboardManager.Add("Text", "x0 y40 w600 h1 Background" . UI_Colors.Border, "")
+    ; 分隔线（使用层叠投影替代1px边框）
+    ; 底层：大范围、低饱和度、模糊阴影
+    OuterShadowColor := (ThemeMode = "light") ? "E0E0E0" : "1A1A1A"
+    InnerShadowColor := (ThemeMode = "light") ? "B0B0B0" : "2A2A2A"
+    ; 底层阴影（3层渐变）
+    Loop 3 {
+        LayerOffset := 4 + (A_Index - 1) * 1
+        LayerAlpha := 255 - (A_Index - 1) * 60
+        LayerColor := BlendColor(OuterShadowColor, (ThemeMode = "light") ? "FFFFFF" : "000000", LayerAlpha / 255)
+        GuiID_ClipboardManager.Add("Text", "x0 y" . (40 + LayerOffset) . " w600 h1 Background" . LayerColor, "")
+    }
+    ; 顶层阴影（紧凑、深色）
+    GuiID_ClipboardManager.Add("Text", "x0 y41 w600 h1 Background" . InnerShadowColor, "")
     
     ; ========== 工具栏区域 ==========
     ToolbarBg := GuiID_ClipboardManager.Add("Text", "x0 y41 w600 h45 Background" . UI_Colors.Sidebar, "")
@@ -5764,35 +5699,16 @@ ShowClipboardManager() {
     HoverBtn(CapsLockCTab, (ClipboardCurrentTab = "CapsLockC" ? UI_Colors.TabActive : UI_Colors.Sidebar), UI_Colors.BtnHover)
     
     ; 清空按钮
-    global ClipboardClearAllBtn
-    ClipboardClearAllBtn := CreateFlatBtn(GuiID_ClipboardManager, GetText("clear_all"), 320, 48, 100, 30, ClearAllClipboard)
+    CreateFlatBtn(GuiID_ClipboardManager, GetText("clear_all"), 320, 48, 100, 30, ClearAllClipboard)
     
     ; 统计信息
     CountText := GuiID_ClipboardManager.Add("Text", "x430 y53 w150 h22 Background" . UI_Colors.Sidebar . " c" . UI_Colors.TextDim . " vClipboardCountText", FormatText("total_items", "0"))
     CountText.SetFont("s10", "Segoe UI")
     
     ; ========== 列表区域 ==========
-    ; 创建两个独立的ListBox容器
-    ; Ctrl+C 列表容器
-    ListBoxCtrlC := GuiID_ClipboardManager.Add("ListBox", "x20 y100 w560 h320 vClipboardListBoxCtrlC Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " -E0x200")
-    ListBoxCtrlC.SetFont("s10", "Consolas")
-    ListBoxCtrlC.OnEvent("Change", OnClipboardListBoxChange)
-    ListBoxCtrlC.OnEvent("DoubleClick", CopySelectedItem)
-    
-    ; CapsLock+C 列表容器
-    ListBoxCapsLockC := GuiID_ClipboardManager.Add("ListBox", "x20 y100 w560 h320 vClipboardListBoxCapsLockC Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " -E0x200")
-    ListBoxCapsLockC.SetFont("s10", "Consolas")
-    ListBoxCapsLockC.OnEvent("Change", OnClipboardListBoxChange)
-    ListBoxCapsLockC.OnEvent("DoubleClick", CopySelectedItem)
-    
-    ; 根据当前Tab决定显示哪个ListBox
-    if (ClipboardCurrentTab = "CtrlC") {
-        ListBoxCtrlC.Visible := true
-        ListBoxCapsLockC.Visible := false
-    } else {
-        ListBoxCtrlC.Visible := false
-        ListBoxCapsLockC.Visible := true
-    }
+    ; 使用深色背景的 ListBox
+    ListBox := GuiID_ClipboardManager.Add("ListBox", "x20 y100 w560 h320 vClipboardListBox Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " -E0x200")
+    ListBox.SetFont("s10", "Consolas")
     
     ; ========== 底部按钮区域 ==========
     GuiID_ClipboardManager.Add("Text", "x0 y430 w600 h70 Background" . UI_Colors.Background, "")
@@ -5810,6 +5726,11 @@ ShowClipboardManager() {
     HintText := GuiID_ClipboardManager.Add("Text", "x20 y485 w560 h15 c" . UI_Colors.TextDim, GetText("clipboard_hint"))
     HintText.SetFont("s9", "Segoe UI")
     
+    ; 绑定选中变化和双击事件 (ListBox 需要特殊处理 OnEvent)
+    ; 添加 Change 事件，确保选中状态被正确记录（当选中项改变时触发）
+    ListBox.OnEvent("Change", OnClipboardListBoxChange)
+    ListBox.OnEvent("DoubleClick", CopySelectedItem)
+    
     ; 绑定 ESC 关闭
     GuiID_ClipboardManager.OnEvent("Escape", CloseClipboardManager)
     
@@ -5822,11 +5743,8 @@ ShowClipboardManager() {
     }
     
     ; 保存控件引用（使用全局声明确保正确保存）
-    global ClipboardListBox, ClipboardListBoxCtrlC, ClipboardListBoxCapsLockC, ClipboardCountText, ClipboardCtrlCTab, ClipboardCapsLockCTab
-    ClipboardListBoxCtrlC := ListBoxCtrlC
-    ClipboardListBoxCapsLockC := ListBoxCapsLockC
-    ; 设置当前激活的ListBox（兼容旧代码）
-    ClipboardListBox := (ClipboardCurrentTab = "CtrlC") ? ListBoxCtrlC : ListBoxCapsLockC
+    global ClipboardListBox, ClipboardCountText, ClipboardCtrlCTab, ClipboardCapsLockCTab
+    ClipboardListBox := ListBox
     ClipboardCountText := CountText
     ClipboardCtrlCTab := CtrlCTab
     ClipboardCapsLockCTab := CapsLockCTab
@@ -5870,16 +5788,51 @@ SwitchClipboardTabCtrlC(*) {
     SwitchClipboardTab("CtrlC")
 }
 
-; CapsLock+C 标签点击处理函数
+; CapsLock+C 标签点击处理函数（防止触发复制操作）
 SwitchClipboardTabCapsLockC(*) {
-    ; 直接调用切换函数
+    ; 【关键修复】在切换标签前，先彻底阻止 CapsLock+C 快捷键触发
+    ; 必须在函数最开始就设置阻止标记，防止任何复制操作
+    global CapsLock, CapsLock2, CapsLockCopyInProgress, CapsLockCopyEndTime
+    global OldCapsLockForTab, OldCapsLock2ForTab, OldCapsLockCopyInProgress
+    
+    ; 【关键修复】立即设置阻止标记，必须在任何其他操作之前（甚至在任何变量声明之前）
+    ; 这是第一行代码，确保阻止标记在所有可能的快捷键处理之前生效
+    
+    ; 保存当前状态（用于后续恢复）
+    OldCapsLockForTab := CapsLock
+    OldCapsLock2ForTab := CapsLock2
+    OldCapsLockCopyInProgress := CapsLockCopyInProgress
+    
+    ; 【关键修复】立即设置阻止标记（必须在保存状态之后立即设置）
+    ; 1. 立即清除 CapsLock 标记，防止触发复制
+    CapsLock := false
+    CapsLock2 := false
+    ; 2. 立即设置 CapsLockCopyInProgress 为 true，防止复制函数执行
+    CapsLockCopyInProgress := true
+    ; 3. 设置一个未来的结束时间（8秒），确保在恢复之前不会触发复制
+    ; 增加延迟时间，确保点击标签后即使 CapsLock 键还处于按下状态也不会触发复制
+    ; 使用更长的延迟时间（8秒），确保完全阻止
+    CapsLockCopyEndTime := A_TickCount + 8000
+    
+    ; 【关键修复】短暂延迟，确保阻止标记已完全生效
+    ; 增加延迟时间，确保阻止标记在所有快捷键处理之前生效
+    Sleep(100)  ; 增加到 100ms，确保阻止标记完全生效
+    
+    ; 切换标签
     SwitchClipboardTab("CapsLockC")
+    
+    ; 【关键修复】延迟恢复状态（使用更长的延迟，确保不会触发复制）
+    ; 延迟时间要大于 CapsLockCopyEndTime 的设置，确保恢复时已经过了阻止期
+    ; 增加到 8.5 秒，确保完全安全
+    SetTimer(RestoreCapsLockState, -8500)
+    SetTimer(RestoreCapsLockCopyFlag, -8500)
 }
 
 ; 切换剪贴板 Tab
 SwitchClipboardTab(TabName) {
     global ClipboardCurrentTab, ClipboardCtrlCTab, ClipboardCapsLockCTab, UI_Colors
-    global ClipboardListBox, ClipboardListBoxCtrlC, ClipboardListBoxCapsLockC, ClipboardCountText, GuiID_ClipboardManager
+    global ClipboardListBox, ClipboardCountText, GuiID_ClipboardManager
+    global CapsLock, CapsLock2, CapsLockCopyInProgress, LastSelectedIndex
     
     ; 检查 GUI 是否存在
     if (!GuiID_ClipboardManager) {
@@ -5896,6 +5849,31 @@ SwitchClipboardTab(TabName) {
     ; 验证 TabName 参数
     if (TabName != "CtrlC" && TabName != "CapsLockC") {
         return
+    }
+    
+    ; 切换标签时，清除之前保存的选中索引（因为不同标签的数据不同）
+    LastSelectedIndex := 0
+    
+    ; 注意：如果是从 SwitchClipboardTabCapsLockC 调用的，状态已经在那个函数中设置了
+    ; 这里只处理从 SwitchClipboardTabCtrlC 调用的情况
+    if (TabName = "CtrlC") {
+        ; 防止点击标签时触发 CapsLock+C 快捷键
+        ; 临时清除 CapsLock 标记，避免触发复制操作
+        global OldCapsLockForTab, OldCapsLock2ForTab, OldCapsLockCopyInProgress
+        OldCapsLockForTab := CapsLock
+        OldCapsLock2ForTab := CapsLock2
+        CapsLock := false
+        CapsLock2 := false
+        
+        ; 临时标记 CapsLock+C 正在进行中，防止点击标签时触发复制操作
+        ; 这样可以防止点击"CapsLock+C"标签时意外触发复制
+        OldCapsLockCopyInProgress := CapsLockCopyInProgress
+        CapsLockCopyInProgress := true
+        
+        ; 延迟恢复，确保点击事件处理完成（增加延迟时间，确保不会触发复制操作）
+        ; 使用更长的延迟时间（200ms），确保标签切换完成后再恢复状态
+        SetTimer(RestoreCapsLockState, -200)
+        SetTimer(RestoreCapsLockCopyFlag, -200)
     }
     
     ; 尝试获取GUI对象（GuiID_ClipboardManager 应该是 Gui 对象，不是 Hwnd）
@@ -5933,16 +5911,9 @@ SwitchClipboardTab(TabName) {
                 }
             }
             ; 同时更新其他控件引用
-            if (!ClipboardListBoxCtrlC || !IsObject(ClipboardListBoxCtrlC)) {
+            if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
                 try {
-                    ClipboardListBoxCtrlC := ClipboardGUI["ClipboardListBoxCtrlC"]
-                } catch {
-                    ; 忽略错误
-                }
-            }
-            if (!ClipboardListBoxCapsLockC || !IsObject(ClipboardListBoxCapsLockC)) {
-                try {
-                    ClipboardListBoxCapsLockC := ClipboardGUI["ClipboardListBoxCapsLockC"]
+                    ClipboardListBox := ClipboardGUI["ClipboardListBox"]
                 } catch {
                     ; 忽略错误
                 }
@@ -5962,27 +5933,87 @@ SwitchClipboardTab(TabName) {
     ; 更新当前标签（必须在更新样式之前）
     ClipboardCurrentTab := TabName
     
-    ; 切换ListBox的显示/隐藏
+    ; 【关键修复】在切换标签时，彻底清空列表，确保不会显示旧标签的数据
+    ; 这解决了两个标签共用内容框的问题
     try {
-        if (ClipboardListBoxCtrlC && IsObject(ClipboardListBoxCtrlC) && ClipboardListBoxCapsLockC && IsObject(ClipboardListBoxCapsLockC)) {
-            if (TabName = "CtrlC") {
-                ClipboardListBoxCtrlC.Visible := true
-                ClipboardListBoxCapsLockC.Visible := false
-                ; 更新当前激活的ListBox引用（兼容旧代码）
-                ClipboardListBox := ClipboardListBoxCtrlC
-            } else {
-                ClipboardListBoxCtrlC.Visible := false
-                ClipboardListBoxCapsLockC.Visible := true
-                ; 更新当前激活的ListBox引用（兼容旧代码）
-                ClipboardListBox := ClipboardListBoxCapsLockC
+        if (ClipboardListBox && IsObject(ClipboardListBox)) {
+            ; 【改进】使用更可靠的清空方法，确保列表完全清空
+            ; 方法1：从后往前删除
+            Loop 200 {  ; 最多尝试200次，防止无限循环
+                try {
+                    CurrentList := ClipboardListBox.List
+                    if (!CurrentList || CurrentList.Length = 0) {
+                        break
+                    }
+                    ; 从后往前删除，避免索引变化
+                    ClipboardListBox.Delete(CurrentList.Length)
+                } catch {
+                    break
+                }
+            }
+            
+            ; 方法2：从前往后删除（双重保险）
+            Loop 200 {  ; 最多尝试200次
+                try {
+                    CurrentList := ClipboardListBox.List
+                    if (!CurrentList || CurrentList.Length = 0) {
+                        break
+                    }
+                    ClipboardListBox.Delete(1)
+                } catch {
+                    break
+                }
+            }
+            
+            ; 方法3：最终验证，确保列表为空
+            try {
+                FinalCheck := ClipboardListBox.List
+                if (FinalCheck && FinalCheck.Length > 0) {
+                    ; 如果还有项，强制清空
+                    Loop FinalCheck.Length {
+                        try {
+                            ClipboardListBox.Delete(1)
+                        } catch {
+                            break
+                        }
+                    }
+                }
+            } catch {
+                ; 忽略最终检查错误
+            }
+            
+            ; 【关键】强制刷新UI，确保视觉上立即清空
+            try {
+                if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
+                    WinRedraw(GuiID_ClipboardManager.Hwnd)
+                }
+            } catch {
+                ; 忽略重绘失败
             }
         }
     } catch {
-        ; 忽略错误，继续执行
+        ; 忽略清空错误，继续执行
     }
     
     ; 更新 Tab 样式
     try {
+        ; 先尝试使用现有的控件引用
+        if (ClipboardCtrlCTab && IsObject(ClipboardCtrlCTab)) {
+            if (TabName = "CtrlC") {
+                ClipboardCtrlCTab.BackColor := UI_Colors.TabActive
+            } else {
+                ClipboardCtrlCTab.BackColor := UI_Colors.Sidebar
+            }
+        }
+        
+        if (ClipboardCapsLockCTab && IsObject(ClipboardCapsLockCTab)) {
+            if (TabName = "CapsLockC") {
+                ClipboardCapsLockCTab.BackColor := UI_Colors.TabActive
+            } else {
+                ClipboardCapsLockCTab.BackColor := UI_Colors.Sidebar
+            }
+        }
+        
         ; 如果控件引用丢失，尝试从GUI重新获取
         if ((!ClipboardCtrlCTab || !IsObject(ClipboardCtrlCTab) || !ClipboardCapsLockCTab || !IsObject(ClipboardCapsLockCTab)) && ClipboardGUI) {
             try {
@@ -5990,6 +6021,11 @@ SwitchClipboardTab(TabName) {
                     TempCtrlCTab := ClipboardGUI["CtrlCTab"]
                     if (TempCtrlCTab && IsObject(TempCtrlCTab)) {
                         ClipboardCtrlCTab := TempCtrlCTab
+                        if (TabName = "CtrlC") {
+                            ClipboardCtrlCTab.BackColor := UI_Colors.TabActive
+                        } else {
+                            ClipboardCtrlCTab.BackColor := UI_Colors.Sidebar
+                        }
                     }
                 }
                 
@@ -5997,31 +6033,16 @@ SwitchClipboardTab(TabName) {
                     TempCapsLockCTab := ClipboardGUI["CapsLockCTab"]
                     if (TempCapsLockCTab && IsObject(TempCapsLockCTab)) {
                         ClipboardCapsLockCTab := TempCapsLockCTab
+                        if (TabName = "CapsLockC") {
+                            ClipboardCapsLockCTab.BackColor := UI_Colors.TabActive
+                        } else {
+                            ClipboardCapsLockCTab.BackColor := UI_Colors.Sidebar
+                        }
                     }
                 }
             } catch {
                 ; 忽略错误，继续执行
             }
-        }
-        
-        ; 更新两个Tab的背景色（确保两个都更新）
-        if (ClipboardCtrlCTab && IsObject(ClipboardCtrlCTab)) {
-            ActiveTabColor := (TabName = "CtrlC") ? UI_Colors.TabActive : UI_Colors.Sidebar
-            ClipboardCtrlCTab.BackColor := ActiveTabColor
-            ; 【关键修复】同时更新NormalColor，确保悬停逻辑 CheckMouseLeave 恢复时使用正确的背景色
-            ClipboardCtrlCTab.NormalColor := ActiveTabColor
-        }
-        
-        if (ClipboardCapsLockCTab && IsObject(ClipboardCapsLockCTab)) {
-            ActiveTabColor := (TabName = "CapsLockC") ? UI_Colors.TabActive : UI_Colors.Sidebar
-            ClipboardCapsLockCTab.BackColor := ActiveTabColor
-            ; 【关键修复】同时更新NormalColor，确保悬停逻辑 CheckMouseLeave 恢复时使用正确的背景色
-            ClipboardCapsLockCTab.NormalColor := ActiveTabColor
-        }
-        
-        ; 强制刷新UI，确保背景色变化立即显示
-        if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
-            WinRedraw(GuiID_ClipboardManager.Hwnd)
         }
     } catch {
         ; 忽略样式更新错误，继续执行
@@ -6029,50 +6050,6 @@ SwitchClipboardTab(TabName) {
     
     ; 刷新列表（无论样式更新是否成功，都要刷新列表）
     RefreshClipboardList()
-    
-    ; 设置焦点到当前激活的ListBox，确保焦点即时切换
-    try {
-        if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager) && GuiID_ClipboardManager.HasProp("Hwnd")) {
-            ; 使用SetTimer延迟设置焦点，确保UI更新完成后再设置
-            SetTimer(SetClipboardListBoxFocus, -50)
-        }
-    } catch {
-        ; 忽略错误
-    }
-}
-
-; 设置剪贴板ListBox焦点的辅助函数
-SetClipboardListBoxFocus(*) {
-    global GuiID_ClipboardManager, ClipboardCurrentTab, ClipboardListBoxCtrlC, ClipboardListBoxCapsLockC
-    
-    try {
-        if (!GuiID_ClipboardManager || !IsObject(GuiID_ClipboardManager)) {
-            return
-        }
-        
-        CurrentListBox := ""
-        if (ClipboardCurrentTab = "CtrlC") {
-            CurrentListBox := ClipboardListBoxCtrlC
-        } else {
-            CurrentListBox := ClipboardListBoxCapsLockC
-        }
-        
-        if (CurrentListBox && IsObject(CurrentListBox) && CurrentListBox.HasProp("Hwnd")) {
-            ; 使用ControlFocus确保焦点真正切换
-            try {
-                ControlFocus(CurrentListBox.Hwnd, "ahk_id " . GuiID_ClipboardManager.Hwnd)
-            } catch {
-                ; 如果ControlFocus失败，尝试使用Focus方法
-                try {
-                    CurrentListBox.Focus()
-                } catch {
-                    ; 忽略焦点设置失败
-                }
-            }
-        }
-    } catch {
-        ; 忽略错误
-    }
 }
 
 ; 延迟刷新剪贴板列表（用于 OnClipboardChange 等场景）
@@ -6083,8 +6060,7 @@ RefreshClipboardListDelayed(*) {
 ; 刷新剪贴板列表
 RefreshClipboardList() {
     global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
-    global ClipboardListBox, ClipboardListBoxCtrlC, ClipboardListBoxCapsLockC, ClipboardCountText, GuiID_ClipboardManager
-    global LastSelectedIndexCtrlC, LastSelectedIndexCapsLockC
+    global ClipboardListBox, ClipboardCountText, GuiID_ClipboardManager
     
     ; 确保全局变量已初始化
     if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
@@ -6102,16 +6078,8 @@ RefreshClipboardList() {
         return
     }
     
-    ; 根据当前Tab选择正确的ListBox
-    CurrentListBox := ""
-    if (ClipboardCurrentTab = "CtrlC") {
-        CurrentListBox := ClipboardListBoxCtrlC
-    } else {
-        CurrentListBox := ClipboardListBoxCapsLockC
-    }
-    
     ; 如果控件引用丢失，尝试获取GUI对象并重新获取控件
-    if (!CurrentListBox || !IsObject(CurrentListBox) || !ClipboardCountText || !IsObject(ClipboardCountText)) {
+    if (!ClipboardListBox || !IsObject(ClipboardListBox) || !ClipboardCountText || !IsObject(ClipboardCountText)) {
         try {
             ; 尝试获取GUI对象
             ClipboardGUI := ""
@@ -6122,29 +6090,15 @@ RefreshClipboardList() {
             }
             if (ClipboardGUI) {
                 ; 如果控件引用丢失，尝试重新获取
-                if (!ClipboardListBoxCtrlC || !IsObject(ClipboardListBoxCtrlC)) {
+                if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
                     try {
-                        ClipboardListBoxCtrlC := ClipboardGUI["ClipboardListBoxCtrlC"]
+                        ClipboardListBox := ClipboardGUI["ClipboardListBox"]
                     } catch {
-                        ; 忽略错误
+                        ; 如果无法获取，返回
+                        return
                     }
+
                 }
-                if (!ClipboardListBoxCapsLockC || !IsObject(ClipboardListBoxCapsLockC)) {
-                    try {
-                        ClipboardListBoxCapsLockC := ClipboardGUI["ClipboardListBoxCapsLockC"]
-                    } catch {
-                        ; 忽略错误
-                    }
-                }
-                ; 重新选择当前ListBox
-                if (ClipboardCurrentTab = "CtrlC") {
-                    CurrentListBox := ClipboardListBoxCtrlC
-                } else {
-                    CurrentListBox := ClipboardListBoxCapsLockC
-                }
-                ; 更新兼容引用
-                ClipboardListBox := CurrentListBox
-                
                 if (!ClipboardCountText || !IsObject(ClipboardCountText)) {
                     try {
                         ClipboardCountText := ClipboardGUI["ClipboardCountText"]
@@ -6154,17 +6108,21 @@ RefreshClipboardList() {
                     }
                 }
             } else {
-                ; 如果无法获取GUI对象，返回
-                return
+                ; 如果无法获取GUI对象，但控件引用存在，继续使用现有引用
+                if (!ClipboardListBox || !IsObject(ClipboardListBox) || !ClipboardCountText || !IsObject(ClipboardCountText)) {
+                    return
+                }
             }
         } catch {
-            ; 如果出错，返回
-            return
+            ; 如果出错，但控件引用存在，继续使用现有引用
+            if (!ClipboardListBox || !IsObject(ClipboardListBox) || !ClipboardCountText || !IsObject(ClipboardCountText)) {
+                return
+            }
         }
     }
     
     ; 检查控件是否存在
-    if (!CurrentListBox || !IsObject(CurrentListBox) || !ClipboardCountText) {
+    if (!ClipboardListBox || !ClipboardCountText) {
         return
     }
     
@@ -6177,22 +6135,18 @@ RefreshClipboardList() {
             global ClipboardHistory_CapsLockC := []
         }
         
-        ; 【关键修复】确保 ClipboardCurrentTab 有默认值，但不覆盖已设置的值
-        ; 只在未设置或为空时才设置默认值，避免覆盖正确的标签值
+        ; 确保 ClipboardCurrentTab 有默认值
         if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
-            ClipboardCurrentTab := "CtrlC"
+            global ClipboardCurrentTab := "CtrlC"
         }
-        
-        ; 【关键修复】使用局部变量保存当前标签值，避免在函数执行过程中被修改
-        CurrentTabName := ClipboardCurrentTab
         
         ; 根据当前 Tab 选择对应的历史记录（直接使用全局变量，确保引用正确）
         ; 【关键修复】直接使用全局变量引用，不要创建局部副本
         CurrentHistory := []
         HistoryLength := 0
         
-        ; 【关键修复】使用保存的 CurrentTabName，确保使用正确的标签值
-        if (CurrentTabName = "CtrlC") {
+        ; 【关键修复】确保使用全局变量，并根据当前标签选择正确的数组
+        if (ClipboardCurrentTab = "CtrlC") {
             ; 直接使用全局变量 ClipboardHistory_CtrlC
             if (IsSet(ClipboardHistory_CtrlC) && IsObject(ClipboardHistory_CtrlC)) {
                 ; 【关键】直接使用全局数组，不创建副本
@@ -6202,7 +6156,7 @@ RefreshClipboardList() {
                 CurrentHistory := []
                 HistoryLength := 0
             }
-        } else if (CurrentTabName = "CapsLockC") {
+        } else if (ClipboardCurrentTab = "CapsLockC") {
             ; 直接使用全局变量 ClipboardHistory_CapsLockC
             if (IsSet(ClipboardHistory_CapsLockC) && IsObject(ClipboardHistory_CapsLockC)) {
                 ; 【关键】直接使用全局数组，不创建副本
@@ -6235,12 +6189,12 @@ RefreshClipboardList() {
             ; 方法1：尝试使用 List 属性获取并删除所有项
             Loop {
                 try {
-                    CurrentList := CurrentListBox.List
+                    CurrentList := ClipboardListBox.List
                     if (!CurrentList || CurrentList.Length = 0) {
                         break
                     }
                     ; 从后往前删除，避免索引变化
-                    CurrentListBox.Delete(CurrentList.Length)
+                    ClipboardListBox.Delete(CurrentList.Length)
                 } catch {
                     ; 如果删除失败，尝试其他方法
                     break
@@ -6250,12 +6204,12 @@ RefreshClipboardList() {
             ; 方法2：确保列表已完全清空（双重检查）
             Loop 100 {  ; 最多尝试100次，防止无限循环
                 try {
-                    CurrentList := CurrentListBox.List
+                    CurrentList := ClipboardListBox.List
                     if (!CurrentList || CurrentList.Length = 0) {
                         break
                     }
                     ; 删除第一项
-                    CurrentListBox.Delete(1)
+                    ClipboardListBox.Delete(1)
                 } catch {
                     break
                 }
@@ -6263,12 +6217,12 @@ RefreshClipboardList() {
             
             ; 方法3：最终检查，确保列表为空
             try {
-                FinalList := CurrentListBox.List
+                FinalList := ClipboardListBox.List
                 if (FinalList && FinalList.Length > 0) {
                     ; 如果还有项，强制清空（使用循环删除）
                     Loop FinalList.Length {
                         try {
-                            CurrentListBox.Delete(1)
+                            ClipboardListBox.Delete(1)
                         } catch {
                             break
                         }
@@ -6309,27 +6263,26 @@ RefreshClipboardList() {
             }
         }
         
-        ; 保存刷新前的选中索引（根据当前Tab选择对应的索引）
+        ; 保存刷新前的选中索引
+        global LastSelectedIndex
         PreviousSelectedIndex := 0
-        if (ClipboardCurrentTab = "CtrlC") {
-            if (IsSet(LastSelectedIndexCtrlC) && LastSelectedIndexCtrlC > 0) {
-                PreviousSelectedIndex := LastSelectedIndexCtrlC
+        try {
+            if (IsSet(LastSelectedIndex) && LastSelectedIndex > 0) {
+                PreviousSelectedIndex := LastSelectedIndex
             }
-        } else {
-            if (IsSet(LastSelectedIndexCapsLockC) && LastSelectedIndexCapsLockC > 0) {
-                PreviousSelectedIndex := LastSelectedIndexCapsLockC
-            }
+        } catch {
+            PreviousSelectedIndex := 0
         }
         
         ; 批量添加项目
         if (Items.Length > 0) {
             try {
-                CurrentListBox.Add(Items)
+                ClipboardListBox.Add(Items)
             } catch {
                 ; 如果批量添加失败，尝试逐个添加
                 for Index, Item in Items {
                     try {
-                        CurrentListBox.Add(Item)
+                        ClipboardListBox.Add(Item)
                     } catch {
                         ; 忽略单个项目添加失败
                         continue
@@ -6341,28 +6294,15 @@ RefreshClipboardList() {
         ; 尝试恢复之前的选中状态
         if (PreviousSelectedIndex > 0 && PreviousSelectedIndex <= HistoryLength) {
             try {
-                CurrentListBox.Value := PreviousSelectedIndex
-                ; 根据当前Tab保存选中索引
-                if (ClipboardCurrentTab = "CtrlC") {
-                    LastSelectedIndexCtrlC := PreviousSelectedIndex
-                } else {
-                    LastSelectedIndexCapsLockC := PreviousSelectedIndex
-                }
+                ClipboardListBox.Value := PreviousSelectedIndex
+                LastSelectedIndex := PreviousSelectedIndex
             } catch {
                 ; 如果恢复失败，清除保存的索引
-                if (ClipboardCurrentTab = "CtrlC") {
-                    LastSelectedIndexCtrlC := 0
-                } else {
-                    LastSelectedIndexCapsLockC := 0
-                }
+                LastSelectedIndex := 0
             }
         } else {
             ; 如果没有有效的选中项，清除保存的索引
-            if (ClipboardCurrentTab = "CtrlC") {
-                LastSelectedIndexCtrlC := 0
-            } else {
-                LastSelectedIndexCapsLockC := 0
-            }
+            LastSelectedIndex := 0
         }
         
         ; 更新统计信息（使用实际的历史记录长度）
@@ -6390,50 +6330,10 @@ RefreshClipboardList() {
 ; 清空所有剪贴板
 ClearAllClipboard(*) {
     global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
-    global ClipboardListBox, ClipboardCountText, ClipboardClearAllBtn, UI_Colors, GuiID_ClipboardManager
-    
-    ; 添加点击时的视觉反馈
-    OriginalColor := ""
-    if (ClipboardClearAllBtn && IsObject(ClipboardClearAllBtn)) {
-        try {
-            ; 保存原始颜色
-            OriginalColor := ClipboardClearAllBtn.HasProp("NormalColor") ? ClipboardClearAllBtn.NormalColor : UI_Colors.BtnBg
-            ; 临时改变背景色为点击状态（稍微暗一点）
-            ClickColor := "444444"  ; 点击时的深色
-            ClipboardClearAllBtn.BackColor := ClickColor
-            ; 强制刷新UI
-            try {
-                if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager) && GuiID_ClipboardManager.HasProp("Hwnd")) {
-                    WinRedraw(GuiID_ClipboardManager.Hwnd)
-                }
-            } catch {
-                ; 忽略刷新错误
-            }
-        } catch {
-            ; 忽略视觉反馈错误，继续执行功能
-        }
-    }
+    global ClipboardListBox, ClipboardCountText
     
     ; 确认对话框
-    ; 【置顶修复】设置 +OwnDialogs 确保对话框在剪贴板管理器最前方且模态
-    if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
-        GuiID_ClipboardManager.Opt("+OwnDialogs")
-    }
     Result := MsgBox(GetText("confirm_clear"), GetText("confirm"), "YesNo Icon?")
-    
-    ; 恢复按钮颜色（在确认对话框关闭后）
-    if (ClipboardClearAllBtn && IsObject(ClipboardClearAllBtn)) {
-        try {
-            ; 恢复到 NormalColor 属性记录的颜色
-            RestoreColor := ClipboardClearAllBtn.HasProp("NormalColor") ? ClipboardClearAllBtn.NormalColor : UI_Colors.BtnBg
-            ClipboardClearAllBtn.BackColor := RestoreColor
-            if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
-                WinRedraw(GuiID_ClipboardManager.Hwnd)
-            }
-        } catch {
-            ; 忽略恢复颜色错误
-        }
-    }
     if (Result = "Yes") {
         ; 根据当前 Tab 清空对应的历史记录
         if (ClipboardCurrentTab = "CtrlC") {
@@ -6441,8 +6341,6 @@ ClearAllClipboard(*) {
         } else {
             ClipboardHistory_CapsLockC := []
         }
-        ; 保存到文件
-        SaveClipboardHistory()
         ; 立即刷新列表和计数，确保界面即时更新
         RefreshClipboardList()
         ; 强制刷新UI，确保视觉更新
@@ -6463,7 +6361,7 @@ ClearAllClipboard(*) {
 
 ; ListBox 选中变化事件处理函数（确保选中状态被正确记录）
 OnClipboardListBoxChange(*) {
-    global ClipboardListBox, ClipboardCurrentTab, LastSelectedIndexCtrlC, LastSelectedIndexCapsLockC
+    global ClipboardListBox, LastSelectedIndex
     try {
         if (ClipboardListBox && IsObject(ClipboardListBox)) {
             ; 获取当前选中项的索引
@@ -6480,13 +6378,9 @@ OnClipboardListBoxChange(*) {
                     SelectedIndex := 0
                 }
             }
-            ; 根据当前Tab保存最后选中的索引，用于刷新后恢复
+            ; 保存最后选中的索引，用于刷新后恢复
             if (SelectedIndex > 0) {
-                if (ClipboardCurrentTab = "CtrlC") {
-                    LastSelectedIndexCtrlC := SelectedIndex
-                } else {
-                    LastSelectedIndexCapsLockC := SelectedIndex
-                }
+                LastSelectedIndex := SelectedIndex
             }
         }
     } catch {
@@ -6517,20 +6411,10 @@ GetSelectedIndex(ListBox) {
             }
         }
         
-        ; 如果Value为0，尝试使用最后保存的选中索引（根据当前Tab选择对应的索引）
+        ; 如果Value为0，尝试使用最后保存的选中索引
         if (SelectedIndex <= 0) {
-            global ClipboardCurrentTab, LastSelectedIndexCtrlC, LastSelectedIndexCapsLockC
-            LastSelectedIndex := 0
-            if (ClipboardCurrentTab = "CtrlC") {
-                if (IsSet(LastSelectedIndexCtrlC) && LastSelectedIndexCtrlC > 0) {
-                    LastSelectedIndex := LastSelectedIndexCtrlC
-                }
-            } else {
-                if (IsSet(LastSelectedIndexCapsLockC) && LastSelectedIndexCapsLockC > 0) {
-                    LastSelectedIndex := LastSelectedIndexCapsLockC
-                }
-            }
-            if (LastSelectedIndex > 0) {
+            global LastSelectedIndex
+            if (IsSet(LastSelectedIndex) && LastSelectedIndex > 0) {
                 ; 验证保存的索引是否仍然有效
                 try {
                     ListItems := ListBox.List
@@ -6554,41 +6438,25 @@ GetSelectedIndex(ListBox) {
 ; 复制选中项
 CopySelectedItem(*) {
     global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
-    global ClipboardListBox, ClipboardListBoxCtrlC, ClipboardListBoxCapsLockC, GuiID_ClipboardManager
+    global ClipboardListBox, GuiID_ClipboardManager
     
     if (!GuiID_ClipboardManager) {
         return
     }
     
-    ; 根据当前Tab选择正确的ListBox
-    CurrentListBox := ""
-    if (ClipboardCurrentTab = "CtrlC") {
-        CurrentListBox := ClipboardListBoxCtrlC
-    } else {
-        CurrentListBox := ClipboardListBoxCapsLockC
-    }
-    
     ; 如果控件引用丢失，尝试重新获取
-    if (!CurrentListBox || !IsObject(CurrentListBox)) {
+    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
         try {
             ClipboardGUI := GuiFromHwnd(GuiID_ClipboardManager)
             if (ClipboardGUI) {
-                if (ClipboardCurrentTab = "CtrlC") {
-                    CurrentListBox := ClipboardGUI["ClipboardListBoxCtrlC"]
-                    ClipboardListBoxCtrlC := CurrentListBox
-                } else {
-                    CurrentListBox := ClipboardGUI["ClipboardListBoxCapsLockC"]
-                    ClipboardListBoxCapsLockC := CurrentListBox
-                }
-                ; 更新兼容引用
-                ClipboardListBox := CurrentListBox
+                ClipboardListBox := ClipboardGUI["ClipboardListBox"]
             }
         } catch {
             return
         }
     }
     
-    if (!CurrentListBox || !IsObject(CurrentListBox)) {
+    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
         return
     }
     
@@ -6617,7 +6485,7 @@ CopySelectedItem(*) {
         }
         
         ; 获取选中项的索引
-        SelectedIndex := GetSelectedIndex(CurrentListBox)
+        SelectedIndex := GetSelectedIndex(ClipboardListBox)
         
         ; 验证索引有效性
         if (SelectedIndex > 0 && SelectedIndex <= CurrentHistory.Length) {
@@ -6634,76 +6502,51 @@ CopySelectedItem(*) {
 ; 删除选中项
 DeleteSelectedItem(*) {
     global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
-    global ClipboardListBox, ClipboardListBoxCtrlC, ClipboardListBoxCapsLockC, GuiID_ClipboardManager
-    global LastSelectedIndexCtrlC, LastSelectedIndexCapsLockC
+    global ClipboardListBox, GuiID_ClipboardManager
     
     if (!GuiID_ClipboardManager) {
         return
     }
     
-    ; 确保全局变量已初始化
-    if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
-        global ClipboardCurrentTab := "CtrlC"
+    ; 如果控件引用丢失，尝试重新获取
+    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
+        try {
+            ClipboardGUI := GuiFromHwnd(GuiID_ClipboardManager)
+            if (ClipboardGUI) {
+                ClipboardListBox := ClipboardGUI["ClipboardListBox"]
+            }
+        } catch {
+            return
+        }
+    }
+    
+    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
+        return
     }
     
     try {
-        ; 确保历史记录数组已初始化
+        ; 确保全局变量已初始化
         if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
             global ClipboardHistory_CtrlC := []
         }
         if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
             global ClipboardHistory_CapsLockC := []
         }
-        
-        ; 根据当前Tab选择正确的ListBox
-        CurrentListBox := ""
-        if (ClipboardCurrentTab = "CtrlC") {
-            if (ClipboardListBoxCtrlC && IsObject(ClipboardListBoxCtrlC)) {
-                CurrentListBox := ClipboardListBoxCtrlC
-            } else {
-                try {
-                    ClipboardGUI := GuiFromHwnd(GuiID_ClipboardManager)
-                    if (ClipboardGUI) {
-                        CurrentListBox := ClipboardGUI["ClipboardListBoxCtrlC"]
-                        ClipboardListBoxCtrlC := CurrentListBox
-                    }
-                } catch {
-                    CurrentListBox := ClipboardListBox
-                }
-            }
-        } else {
-            if (ClipboardListBoxCapsLockC && IsObject(ClipboardListBoxCapsLockC)) {
-                CurrentListBox := ClipboardListBoxCapsLockC
-            } else {
-                try {
-                    ClipboardGUI := GuiFromHwnd(GuiID_ClipboardManager)
-                    if (ClipboardGUI) {
-                        CurrentListBox := ClipboardGUI["ClipboardListBoxCapsLockC"]
-                        ClipboardListBoxCapsLockC := CurrentListBox
-                    }
-                } catch {
-                    CurrentListBox := ClipboardListBox
-                }
-            }
-        }
-        
-        ; 如果无法获取，使用兼容引用
-        if (!CurrentListBox || !IsObject(CurrentListBox)) {
-            CurrentListBox := ClipboardListBox
+        if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
+            global ClipboardCurrentTab := "CtrlC"
         }
         
         ; 获取选中项的索引
-        SelectedIndex := GetSelectedIndex(CurrentListBox)
+        SelectedIndex := GetSelectedIndex(ClipboardListBox)
         
         if (SelectedIndex > 0) {
             if (ClipboardCurrentTab = "CtrlC") {
                 if (IsSet(ClipboardHistory_CtrlC) && IsObject(ClipboardHistory_CtrlC) && SelectedIndex <= ClipboardHistory_CtrlC.Length) {
                     ; 直接操作全局数组
                     ClipboardHistory_CtrlC.RemoveAt(SelectedIndex)
-                    ; 清除保存的选中索引，防止刷新后选中错误的项
-                    LastSelectedIndexCtrlC := 0
-                    ; 保存到文件
-                    SaveClipboardHistory()
+                    ; 【关键修复】清除保存的选中索引，防止刷新后选中错误的项
+                    global LastSelectedIndex
+                    LastSelectedIndex := 0
                     ; 立即刷新列表和计数，确保界面即时更新
                     RefreshClipboardList()
                     ; 【关键修复】强制刷新UI，确保视觉更新（延迟一点确保刷新完成）
@@ -6726,10 +6569,9 @@ DeleteSelectedItem(*) {
                 if (IsSet(ClipboardHistory_CapsLockC) && IsObject(ClipboardHistory_CapsLockC) && SelectedIndex <= ClipboardHistory_CapsLockC.Length) {
                     ; 直接操作全局数组
                     ClipboardHistory_CapsLockC.RemoveAt(SelectedIndex)
-                    ; 清除保存的选中索引，防止刷新后选中错误的项
-                    LastSelectedIndexCapsLockC := 0
-                    ; 保存到文件
-                    SaveClipboardHistory()
+                    ; 【关键修复】清除保存的选中索引，防止刷新后选中错误的项
+                    global LastSelectedIndex
+                    LastSelectedIndex := 0
                     ; 立即刷新列表和计数，确保界面即时更新
                     RefreshClipboardList()
                     ; 【关键修复】强制刷新UI，确保视觉更新（延迟一点确保刷新完成）
@@ -6760,41 +6602,25 @@ DeleteSelectedItem(*) {
 ; 粘贴选中项到 Cursor
 PasteSelectedToCursor(*) {
     global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
-    global ClipboardListBox, ClipboardListBoxCtrlC, ClipboardListBoxCapsLockC, CursorPath, AISleepTime, GuiID_ClipboardManager
+    global ClipboardListBox, CursorPath, AISleepTime, GuiID_ClipboardManager
     
     if (!GuiID_ClipboardManager) {
         return
     }
     
-    ; 根据当前Tab选择正确的ListBox
-    CurrentListBox := ""
-    if (ClipboardCurrentTab = "CtrlC") {
-        CurrentListBox := ClipboardListBoxCtrlC
-    } else {
-        CurrentListBox := ClipboardListBoxCapsLockC
-    }
-    
     ; 如果控件引用丢失，尝试重新获取
-    if (!CurrentListBox || !IsObject(CurrentListBox)) {
+    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
         try {
             ClipboardGUI := GuiFromHwnd(GuiID_ClipboardManager)
             if (ClipboardGUI) {
-                if (ClipboardCurrentTab = "CtrlC") {
-                    CurrentListBox := ClipboardGUI["ClipboardListBoxCtrlC"]
-                    ClipboardListBoxCtrlC := CurrentListBox
-                } else {
-                    CurrentListBox := ClipboardGUI["ClipboardListBoxCapsLockC"]
-                    ClipboardListBoxCapsLockC := CurrentListBox
-                }
-                ; 更新兼容引用
-                ClipboardListBox := CurrentListBox
+                ClipboardListBox := ClipboardGUI["ClipboardListBox"]
             }
         } catch {
             return
         }
     }
     
-    if (!CurrentListBox || !IsObject(CurrentListBox)) {
+    if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
         return
     }
     
@@ -6811,7 +6637,7 @@ PasteSelectedToCursor(*) {
         }
         
         ; 获取选中项的索引
-        SelectedIndex := GetSelectedIndex(CurrentListBox)
+        SelectedIndex := GetSelectedIndex(ClipboardListBox)
         
         Content := ""
         if (SelectedIndex > 0) {
@@ -6887,11 +6713,6 @@ HandleDynamicHotkey(PressedKey, ActionType) {
     global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyF
     global CapsLock2, PanelVisible, VoiceInputActive, CapsLock, VoiceSearchActive
     global QuickActionButtons
-    
-    ; 确保 HotkeyF 已初始化
-    if (!IsSet(HotkeyF) || HotkeyF = "") {
-        HotkeyF := "f"  ; 默认值
-    }
     
     ; 将按键转换为小写进行比较（ESC特殊处理）
     KeyLower := StrLower(PressedKey)
@@ -7299,9 +7120,6 @@ ImportClipboard(*) {
             ClipboardHistory_CapsLockC := CurrentHistory
         }
         
-        ; 保存到文件
-        SaveClipboardHistory()
-        
         ; 刷新剪贴板列表
         RefreshClipboardList()
         
@@ -7417,9 +7235,28 @@ StartVoiceInput() {
         Send("{Delete}")
         Sleep(100)
         
-        ; 使用 Cursor 的快捷键 Ctrl+Shift+Space 启动语音输入
-        Send("^+{Space}")
-        Sleep(300)  ; 等待语音输入启动
+        ; 自动检测输入法类型
+        VoiceInputMethod := DetectInputMethod()
+        
+        ; 根据输入法类型使用不同的快捷键（不显示弹窗，动画界面会提供反馈）
+        if (VoiceInputMethod = "baidu") {
+            ; 百度输入法：Alt+Y 激活，F2 开始
+            Send("!y")
+            Sleep(500)
+            Send("{F2}")
+            Sleep(200)
+        } else if (VoiceInputMethod = "xunfei") {
+            ; 讯飞输入法：直接按 F6 开始语音输入（F6 也是结束键）
+            ; 注意：讯飞输入法不需要先激活，直接按 F6 即可
+            Send("{F6}")
+            Sleep(800)  ; 给讯飞输入法更多时间启动语音识别
+        } else {
+            ; 默认尝试百度方案
+            Send("!y")
+            Sleep(500)
+            Send("{F2}")
+            Sleep(200)
+        }
         
         VoiceInputActive := true
         VoiceInputContent := ""
@@ -7445,17 +7282,114 @@ StopVoiceInput() {
             CapsLock := false
         }
         
-        ; 使用 Cursor 的快捷键 Ctrl+Shift+Space 停止语音输入
-        Send("^+{Space}")
-        Sleep(800)  ; 等待语音识别完成并填入内容
-        
-        ; Cursor 的语音输入会自动将识别内容填入输入框
-        ; 直接发送 Enter 键提交内容
-        Send("{Enter}")
-        Sleep(200)
+        ; 根据输入法类型使用不同的结束快捷键
+        if (VoiceInputMethod = "baidu") {
+            ; 百度输入法：F1 结束语音录入
+            Send("{F1}")
+            Sleep(800)  ; 增加等待时间，确保语音识别完成
+            
+            ; 获取语音输入内容
+            OldClipboard := A_Clipboard
+            ; 先选中输入框中的所有内容
+            Send("^a")
+            Sleep(200)  ; 增加等待时间，确保选中完成
+            A_Clipboard := ""
+            Send("^c")
+            if ClipWait(1.5) {
+                VoiceInputContent := A_Clipboard
+            }
+            A_Clipboard := OldClipboard
+            
+            ; 如果内容为空或太短，再尝试一次
+            if (VoiceInputContent = "" || StrLen(VoiceInputContent) < 2) {
+                Sleep(300)  ; 再等待一下
+                Send("^a")
+                Sleep(200)
+                A_Clipboard := ""
+                Send("^c")
+                if ClipWait(1.5) {
+                    VoiceInputContent := A_Clipboard
+                }
+                A_Clipboard := OldClipboard
+            }
+            
+            ; 退出百度输入法语音模式（Alt+Y 关闭语音窗口）
+            Send("!y")
+            Sleep(300)
+        } else if (VoiceInputMethod = "xunfei") {
+            ; 讯飞输入法：F6 结束（与开始相同，按 F6 切换开始/结束）
+            Send("{F6}")
+            Sleep(1000)  ; 给讯飞输入法更多时间处理结束操作和识别结果
+            
+            ; 获取语音输入内容
+            OldClipboard := A_Clipboard
+            ; 先选中输入框中的所有内容
+            Send("^a")
+            Sleep(200)  ; 增加等待时间，确保选中完成
+            A_Clipboard := ""
+            Send("^c")
+            if ClipWait(1.5) {
+                VoiceInputContent := A_Clipboard
+            }
+            A_Clipboard := OldClipboard
+            
+            ; 如果内容为空或太短，再尝试一次
+            if (VoiceInputContent = "" || StrLen(VoiceInputContent) < 2) {
+                Sleep(300)  ; 再等待一下
+                Send("^a")
+                Sleep(200)
+                A_Clipboard := ""
+                Send("^c")
+                if ClipWait(1.5) {
+                    VoiceInputContent := A_Clipboard
+                }
+                A_Clipboard := OldClipboard
+            }
+        } else {
+            ; 默认尝试百度方案
+            Send("{F1}")
+            Sleep(800)  ; 增加等待时间，确保语音识别完成
+            
+            ; 获取语音输入内容
+            OldClipboard := A_Clipboard
+            ; 先选中输入框中的所有内容
+            Send("^a")
+            Sleep(200)  ; 增加等待时间，确保选中完成
+            A_Clipboard := ""
+            Send("^c")
+            if ClipWait(1.5) {
+                VoiceInputContent := A_Clipboard
+            }
+            A_Clipboard := OldClipboard
+            
+            ; 如果内容为空或太短，再尝试一次
+            if (VoiceInputContent = "" || StrLen(VoiceInputContent) < 2) {
+                Sleep(300)  ; 再等待一下
+                Send("^a")
+                Sleep(200)
+                A_Clipboard := ""
+                Send("^c")
+                if ClipWait(1.5) {
+                    VoiceInputContent := A_Clipboard
+                }
+                A_Clipboard := OldClipboard
+            }
+            
+            ; 退出百度输入法语音模式（Alt+Y 关闭语音窗口）
+            Send("!y")
+            Sleep(300)
+        }
         
         VoiceInputActive := false
         HideVoiceInputAnimation()
+        
+        if (VoiceInputContent != "" && StrLen(VoiceInputContent) > 0) {
+            ; 显示选择界面：发送到Cursor或搜索
+            ShowVoiceInputActionSelection(VoiceInputContent)
+        } else {
+            ; 只在没有内容时显示提示
+            TrayTip(GetText("voice_input_no_content"), GetText("tip"), "Iconi 2")
+        }
         ; 不显示"正在结束"的提示，动画界面已关闭
     } catch as e {
         VoiceInputActive := false
@@ -7883,6 +7817,14 @@ ArrayContainsValue(Arr, Value) {
 StartVoiceSearch() {
     global VoiceSearchActive, VoiceSearchPanelVisible, PanelVisible
     
+    ; 【关键修复】确保变量已初始化
+    if (!IsSet(VoiceSearchPanelVisible)) {
+        VoiceSearchPanelVisible := false
+    }
+    if (!IsSet(VoiceSearchActive)) {
+        VoiceSearchActive := false
+    }
+    
     ; 自动关闭 CapsLock 大写状态
     SetCapsLockState("Off")
     
@@ -8239,755 +8181,267 @@ CreateCategoryTabHandler(CategoryKey) {
         } catch {
             ; 忽略刷新错误
         }
-        
-        ; 设置焦点到第一个可见的搜索引擎按钮或输入框，确保焦点即时切换
-        try {
-            if (GuiID_VoiceInput && IsObject(GuiID_VoiceInput) && GuiID_VoiceInput.HasProp("Hwnd")) {
-                ; 使用SetTimer延迟设置焦点，确保UI更新完成后再设置
-                ; 注意：这里需要在创建新按钮之后调用，所以会在函数末尾再次调用
-            }
-        } catch {
-            ; 忽略错误
-        }
-        
-        ; 【关键修复】隐藏旧的搜索引擎按钮，而不是尝试销毁它们（AHK v2 不支持直接销毁控件）
-        if (IsSet(VoiceSearchEngineButtons) && VoiceSearchEngineButtons.Length > 0) {
-            for Index, BtnObj in VoiceSearchEngineButtons {
-                if (IsObject(BtnObj)) {
-                    ; 隐藏所有控件并移出可见区域，防止重叠和干扰
-                    try {
-                        if (BtnObj.Bg) {
-                            BtnObj.Bg.Visible := false
-                            BtnObj.Bg.Move(-1000, -1000)
-                        }
-                    } catch {
-                    }
-                    try {
-                        if (BtnObj.Icon && IsObject(BtnObj.Icon)) {
-                            BtnObj.Icon.Visible := false
-                            BtnObj.Icon.Move(-1000, -1000)
-                        }
-                    } catch {
-                    }
-                    try {
-                        if (BtnObj.Text) {
-                            BtnObj.Text.Visible := false
-                            BtnObj.Text.Move(-1000, -1000)
-                        }
-                    } catch {
-                    }
-                }
-            }
-        }
-        VoiceSearchEngineButtons := []
-        
-        ; 第三步：立即刷新GUI，确保所有旧按钮从界面上完全消失
-        try {
-            WinRedraw(GuiID_VoiceInput.Hwnd)
-        } catch {
-        }
-        
-        ; 【关键】确保在创建新按钮之前，所有旧按钮都已完全清除
-        ; 清空按钮数组，确保不会引用到旧按钮
-        VoiceSearchEngineButtons := []
-        
-        ; 获取新分类的搜索引擎（只显示对应标签下的搜索引擎）
-        try {
-            SearchEngines := GetSortedSearchEngines(CategoryKey)
-        } catch as e {
-            ; 如果获取失败，显示错误并返回
-            TrayTip("获取搜索引擎失败: " . e.Message, "错误", "Iconx 1")
-            return
-        }
-        
-        ; 如果没有搜索引擎，显示提示并返回（不创建任何按钮）
-        if (!SearchEngines || SearchEngines.Length = 0) {
-            ; 创建提示文本
-            try {
-                NoEngineText := GuiID_VoiceInput["NoEngineText"]
-                if (NoEngineText) {
-                    NoEngineText.Destroy()
-                }
-            } catch {
-            }
-            NoEngineText := GuiID_VoiceInput.Add("Text", "x20 y" . (VoiceSearchLabelEngineY + 30) . " w560 h30 Center c" . UI_Colors.TextDim . " vNoEngineText", "该分类暂无搜索引擎")
-            NoEngineText.SetFont("s11", "Segoe UI")
-            ; 刷新GUI，确保提示文本显示
-            try {
-                WinRedraw(GuiID_VoiceInput.Hwnd)
-            } catch {
-            }
-            return
-        } else {
-            ; 如果有搜索引擎，移除提示文本（确保只显示搜索引擎按钮）
-            try {
-                NoEngineText := GuiID_VoiceInput["NoEngineText"]
-                if (NoEngineText) {
-                    NoEngineText.Destroy()
-                }
-            } catch {
-            }
-        }
-        
-        ; 【关键】重新创建搜索引擎按钮（只显示当前标签对应的搜索引擎，完全覆盖原先的列表）
-        ; 计算按钮位置（从引擎标签下方开始）
-        global VoiceSearchLabelEngineY
-        LabelEngineY := 0
-        ; 优先使用全局变量
-        if (IsSet(VoiceSearchLabelEngineY) && VoiceSearchLabelEngineY > 0) {
-            LabelEngineY := VoiceSearchLabelEngineY
-        } else {
-            ; 如果全局变量未设置，尝试从控件获取
-            try {
-                LabelEngineCtrl := GuiID_VoiceInput["LabelEngine"]
-                if (LabelEngineCtrl) {
-                    LabelEngineCtrl.GetPos(, &LabelEngineY)
-                    if (LabelEngineY > 0) {
-                        VoiceSearchLabelEngineY := LabelEngineY
-                    }
-                }
-            } catch {
-            }
-            
-            ; 如果还是获取不到，使用默认值（根据标签栏计算）
-            if (LabelEngineY = 0) {
-                ; 标签栏位置：自动更新开关(35) + 间距(35) + 分类标签(30) + 标签高度(28) + 间距(15) = 143
-                ; 加上输入框等基础高度：55 + 25 + 150 + 45 + 35 = 310
-                ; 总计：310 + 143 = 453，但实际应该更高，使用710作为默认值
-                LabelEngineY := 710
-                VoiceSearchLabelEngineY := LabelEngineY
-            }
-        }
-        
-        YPos := LabelEngineY + 30
-        ButtonWidth := 130
-        ButtonHeight := 35
-        ButtonSpacing := 10
-        StartX := 20
-        ButtonsPerRow := 4
-        IconSizeInButton := 20
-        
-        ; 【关键】只创建当前标签对应的搜索引擎按钮（完全覆盖原先的列表）
-        for Index, Engine in SearchEngines {
-            Row := Floor((Index - 1) / ButtonsPerRow)
-            Col := Mod((Index - 1), ButtonsPerRow)
-            BtnX := StartX + Col * (ButtonWidth + ButtonSpacing)
-            BtnY := YPos + Row * (ButtonHeight + ButtonSpacing)
-            
-            ; 检查是否选中
-            IsSelected := (ArrayContainsValue(VoiceSearchSelectedEngines, Engine.Value) > 0)
-            BtnBgColor := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
-            BtnText := IsSelected ? "✓ " . Engine.Name : Engine.Name
-            EngineBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-            
-            ; 获取图标路径
-            IconPath := GetSearchEngineIcon(Engine.Value)
-            IconCtrl := 0
-            
-            try {
-                ; 创建按钮背景（不再使用 v 变量，以避免在同一个 GUI 实例中发生命名冲突）
-                Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . EngineBtnTextColor . " Background" . BtnBgColor, "")
-                if (IsObject(Btn)) {
-                    Btn.SetFont("s10", "Segoe UI")
-                    Btn.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
-                    HoverBtn(Btn, BtnBgColor, UI_Colors.BtnHover)
-                } else {
-                    ; 如果创建失败，跳过这个按钮
-                    continue
-                }
-            } catch as e {
-                ; 如果创建失败，跳过这个按钮
-                continue
-            }
-            
-            ; 如果图标存在，在按钮左侧添加小图标
-            if (IconPath != "" && FileExist(IconPath)) {
-                try {
-                    ; 计算图标位置（按钮左侧，垂直居中）
-                    IconX := BtnX + 8
-                    IconY := BtnY + (ButtonHeight - IconSizeInButton) // 2
-                    ImageSize := GetImageSize(IconPath)
-                    DisplaySize := CalculateImageDisplaySize(ImageSize.Width, ImageSize.Height, IconSizeInButton, IconSizeInButton)
-                    DisplayX := IconX
-                    DisplayY := IconY + (IconSizeInButton - DisplaySize.Height) // 2
-                    IconCtrl := GuiID_VoiceInput.Add("Picture", "x" . DisplayX . " y" . DisplayY . " w" . DisplaySize.Width . " h" . DisplaySize.Height . " 0x200", IconPath)
-                    if (IsObject(IconCtrl)) {
-                        IconCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
-                    } else {
-                        IconCtrl := 0
-                    }
-                    TextX := IconX + IconSizeInButton + 5
-                    TextWidth := ButtonWidth - (TextX - BtnX) - 8
-                } catch {
-                    IconCtrl := 0
-                    TextX := BtnX + 8
-                    TextWidth := ButtonWidth - 16
-                }
-            } else {
-                IconCtrl := 0
-                TextX := BtnX + 8
-                TextWidth := ButtonWidth - 16
-            }
-            
-            try {
-                TextCtrl := GuiID_VoiceInput.Add("Text", "x" . TextX . " y" . BtnY . " w" . TextWidth . " h" . ButtonHeight . " Left 0x200 c" . EngineBtnTextColor . " BackgroundTrans", BtnText)
-                if (IsObject(TextCtrl)) {
-                    TextCtrl.SetFont("s10", "Segoe UI")
-                    TextCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
-                } else {
-                    TextCtrl := 0
-                }
-            } catch {
-                TextCtrl := 0
-            }
-            
-            ; 保存按钮引用（只保存当前标签的按钮）
-            VoiceSearchEngineButtons.Push({Bg: Btn, Icon: IconCtrl, Text: TextCtrl, Index: Index})
-        }
-        
-        ; 【关键】立即刷新GUI，确保新标签的搜索引擎列表完全覆盖原先的列表
-        try {
-            ; 先显示GUI（如果隐藏了）
-            if (!GuiID_VoiceInput.Visible) {
-                GuiID_VoiceInput.Show()
-            }
-            ; 立即强制重绘窗口，确保新按钮显示，旧按钮消失（完全覆盖原先的列表）
-            WinRedraw(GuiID_VoiceInput.Hwnd)
-        } catch {
-            ; 忽略错误
-        }
-        
-        ; 设置焦点到第一个可见的搜索引擎按钮或输入框，确保焦点即时切换
-        try {
-            if (GuiID_VoiceInput && IsObject(GuiID_VoiceInput) && GuiID_VoiceInput.HasProp("Hwnd")) {
-                ; 使用SetTimer延迟设置焦点，确保新按钮创建完成后再设置
-                SetTimer(SetVoiceSearchFocus, -100)
-            }
-        } catch {
-            ; 忽略错误
-        }
     }
     return CategoryTabHandler
 }
 
-; 设置语音搜索面板焦点的辅助函数
-SetVoiceSearchFocus(*) {
-    global GuiID_VoiceInput, VoiceSearchEngineButtons, VoiceSearchInputEdit
+; ===================== 语音搜索相关函数 =====================
+; 执行语音搜索
+ExecuteVoiceSearch(*) {
+    global VoiceSearchInputEdit, VoiceSearchSelectedEngines, VoiceSearchPanelVisible
+    
+    if (!VoiceSearchPanelVisible || !VoiceSearchInputEdit) {
+        return
+    }
     
     try {
-        if (!GuiID_VoiceInput || !IsObject(GuiID_VoiceInput)) {
-            return
-        }
-        
-        ; 优先设置焦点到第一个可见的搜索引擎按钮
-        if (IsSet(VoiceSearchEngineButtons) && VoiceSearchEngineButtons.Length > 0) {
-            for Index, BtnObj in VoiceSearchEngineButtons {
-                if (IsObject(BtnObj)) {
-                    try {
-                        ; 尝试设置焦点到按钮的文本控件
-                        if (BtnObj.Text && IsObject(BtnObj.Text) && BtnObj.Text.Visible && BtnObj.Text.HasProp("Hwnd")) {
-                            try {
-                                ControlFocus(BtnObj.Text.Hwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                                return  ; 成功设置焦点后返回
-                            } catch {
-                                ; 继续尝试下一个
-                            }
-                        }
-                        ; 尝试设置焦点到按钮的背景控件
-                        if (BtnObj.Bg && IsObject(BtnObj.Bg) && BtnObj.Bg.Visible && BtnObj.Bg.HasProp("Hwnd")) {
-                            try {
-                                ControlFocus(BtnObj.Bg.Hwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                                return  ; 成功设置焦点后返回
-                            } catch {
-                                ; 继续尝试下一个
-                            }
-                        }
-                    } catch {
-                        ; 忽略错误，继续尝试下一个
-                        continue
-                    }
-                }
+        Content := VoiceSearchInputEdit.Value
+        if (Content != "" && StrLen(Content) > 0) {
+            ; 检查是否有选中的搜索引擎
+            if (VoiceSearchSelectedEngines.Length = 0) {
+                TrayTip(GetText("no_search_engine_selected"), GetText("tip"), "Icon! 2")
+                return
             }
-        }
-        
-        ; 如果无法设置焦点到按钮，设置到输入框
-        if (VoiceSearchInputEdit && IsObject(VoiceSearchInputEdit) && VoiceSearchInputEdit.HasProp("Hwnd")) {
-            try {
-                ControlFocus(VoiceSearchInputEdit.Hwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-            } catch {
-                ; 如果ControlFocus失败，尝试使用Focus方法
-                try {
-                    VoiceSearchInputEdit.Focus()
-                } catch {
-                    ; 忽略焦点设置失败
-                }
-            }
-        }
-    } catch {
-        ; 忽略所有错误
-    }
-}
-
-; 显示语音搜索输入界面
-ShowVoiceSearchInputPanel() {
-    global GuiID_VoiceInput, VoiceInputScreenIndex, UI_Colors, VoiceSearchPanelVisible
-    global VoiceSearchInputEdit, VoiceSearchSelectedEngines, VoiceSearchEngineButtons
-    
-    VoiceSearchPanelVisible := true
-    
-    if (GuiID_VoiceInput != 0) {
-        try {
-            GuiID_VoiceInput.Destroy()
-        }
-        GuiID_VoiceInput := 0
-    }
-    
-    ; 【关键修复】移除 -Caption，添加标题栏以支持窗口拖动
-    ; 使用 +Resize 允许调整大小（虽然我们动态计算尺寸，但保留这个选项）
-    GuiID_VoiceInput := Gui("+AlwaysOnTop -DPIScale")
-    GuiID_VoiceInput.BackColor := UI_Colors.Background
-    GuiID_VoiceInput.SetFont("s12 c" . UI_Colors.Text . " Bold", "Segoe UI")
-    GuiID_VoiceInput.Title := GetText("voice_search_title")
-    
-    ; 【关键修复】动态计算宽度，确保所有按钮可见
-    ; 先获取搜索引擎列表以计算所需宽度
-    InputBoxHeight := 150
-    global VoiceSearchCurrentCategory, VoiceSearchEnabledCategories
-    ; 【关键修复】确保VoiceSearchCurrentCategory已初始化
-    if (!IsSet(VoiceSearchCurrentCategory) || VoiceSearchCurrentCategory = "") {
-        VoiceSearchCurrentCategory := "ai"
-    }
-    ; 【关键修复】确保VoiceSearchEnabledCategories已初始化
-    if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
-        VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
-    }
-    SearchEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)  ; 先获取当前分类的搜索引擎列表
-    TotalEngines := SearchEngines.Length
-    ButtonWidth := 130
-    ButtonHeight := 35
-    ButtonSpacing := 10
-    ButtonsPerRow := 4  ; 每行4个按钮
-    ButtonsRows := Ceil(TotalEngines / ButtonsPerRow)  ; 计算需要的行数
-    ButtonsAreaHeight := ButtonsRows * (ButtonHeight + ButtonSpacing)  ; 每行高度（按钮+间距）
-    
-    ; 计算所需宽度：左边距(20) + 按钮区域宽度 + 右边距(20)
-    ; 按钮区域宽度 = 按钮数量 * 按钮宽度 + (按钮数量-1) * 间距
-    ; 但需要考虑输入框和右侧按钮，所以取最大值
-    InputBoxWidth := 520  ; 输入框宽度
-    RightButtonsWidth := 40 + 20  ; 右侧按钮宽度 + 间距
-    ButtonsAreaWidth := ButtonsPerRow * ButtonWidth + (ButtonsPerRow - 1) * ButtonSpacing
-    MinWidth := InputBoxWidth + RightButtonsWidth + 40  ; 输入框 + 右侧按钮 + 左右边距
-    PanelWidth := Max(MinWidth, ButtonsAreaWidth + 40)  ; 取较大值，确保所有内容可见
-    
-    ; 计算分类标签区域宽度（先定义变量，后面会使用）
-    TabWidth := 50
-    TabSpacing := 5
-    TabsPerRow := 10  ; 默认每行10个标签
-    TabAreaWidth := TabsPerRow * TabWidth + (TabsPerRow - 1) * TabSpacing
-    ; 标签区域宽度需要考虑清空选择按钮的位置
-    MinTabAreaWidth := TabAreaWidth + 150  ; 标签区域 + 清空按钮宽度 + 间距
-    PanelWidth := Max(PanelWidth, MinTabAreaWidth)  ; 确保标签区域也可见
-    
-    CategoryTabHeight := 28 + 15  ; 标签高度 + 间距（如果有多行，需要额外计算）
-    ; 【关键修复】只显示启用的标签
-    ; 所有可用的标签
-    AllCategories := [
-        {Key: "ai", Text: GetText("search_category_ai")},
-        {Key: "academic", Text: GetText("search_category_academic")},
-        {Key: "baidu", Text: GetText("search_category_baidu")},
-        {Key: "image", Text: GetText("search_category_image")},
-        {Key: "audio", Text: GetText("search_category_audio")},
-        {Key: "video", Text: GetText("search_category_video")},
-        {Key: "book", Text: GetText("search_category_book")},
-        {Key: "price", Text: GetText("search_category_price")},
-        {Key: "medical", Text: GetText("search_category_medical")},
-        {Key: "cloud", Text: GetText("search_category_cloud")}
-    ]
-    
-    ; 确保 VoiceSearchEnabledCategories 已初始化
-    global VoiceSearchEnabledCategories
-    if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
-        VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
-    }
-    
-    ; 只保留启用的标签
-    Categories := []
-    for Index, Category in AllCategories {
-        if (ArrayContainsValue(VoiceSearchEnabledCategories, Category.Key) > 0) {
-            Categories.Push(Category)
-        }
-    }
-    
-    ; 如果没有启用的标签，默认启用AI标签
-    if (Categories.Length = 0) {
-        Categories.Push({Key: "ai", Text: GetText("search_category_ai")})
-        global VoiceSearchCurrentCategory
-        VoiceSearchCurrentCategory := "ai"
-    }
-    
-    ; 如果当前选中的标签不在启用列表中，切换到第一个启用的标签
-    global VoiceSearchCurrentCategory
-    if (ArrayContainsValue(VoiceSearchEnabledCategories, VoiceSearchCurrentCategory) = 0) {
-        if (Categories.Length > 0) {
-            VoiceSearchCurrentCategory := Categories[1].Key
-        } else {
-            VoiceSearchCurrentCategory := "ai"
-        }
-    }
-    
-    TabRows := Ceil(Categories.Length / TabsPerRow)
-    CategoryTabHeight := TabRows * (28 + TabSpacing) + 15  ; 多行标签高度
-    
-    ; 【关键修复】动态计算高度，确保所有内容可见
-    ; 标题栏高度(约30) + 标题区域(15) + 输入框标签(25) + 输入框(150) + 自动加载开关(35) + 自动更新开关(35) + 分类标签栏 + 引擎标签(30) + 按钮区域 + 底部边距(20)
-    PanelHeight := 30 + 15 + 25 + InputBoxHeight + 35 + 35 + CategoryTabHeight + 30 + ButtonsAreaHeight + 20
-    
-    ; 【关键修复】标题栏已由GUI的Title属性提供，不再需要单独的标题文本
-    ; 右上角关闭按钮（使用系统关闭按钮，或自定义）
-    ; 由于现在有标题栏，可以使用系统关闭按钮，但为了保持一致性，我们仍然使用自定义按钮
-    CloseBtnX := PanelWidth - 40  ; 距离右边20px，按钮宽度30px
-    CloseBtnY := 5  ; 距离顶部5px（标题栏内）
-    CloseBtn := GuiID_VoiceInput.Add("Text", "x" . CloseBtnX . " y" . CloseBtnY . " w30 h30 Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg . " vCloseBtn", "×")
-    CloseBtn.SetFont("s18 Bold", "Segoe UI")
-    CloseBtn.OnEvent("Click", HideVoiceSearchInputPanel)
-    HoverBtn(CloseBtn, UI_Colors.BtnBg, "FF4444")  ; 悬停时显示红色
-    
-    ; 输入框标签
-    YPos := 50  ; 标题栏后开始
-    LabelText := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w" . (PanelWidth - 80) . " h20 c" . UI_Colors.TextDim, GetText("voice_search_input_label"))
-    LabelText.SetFont("s10", "Segoe UI")
-    
-    ; 输入框（可编辑，用于显示和编辑语音输入内容）
-    YPos += 25
-    InputBoxActualWidth := PanelWidth - 80  ; 左边距20 + 右边距20 + 右侧按钮区域40
-    VoiceSearchInputEdit := GuiID_VoiceInput.Add("Edit", "x20 y" . YPos . " w" . InputBoxActualWidth . " h150 vVoiceSearchInputEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", "")
-    VoiceSearchInputEdit.SetFont("s12", "Segoe UI")
-    ; 添加焦点事件，自动切换到中文输入法
-    VoiceSearchInputEdit.OnEvent("Focus", SwitchToChineseIME)
-    ; 添加内容变化事件，记录最后编辑时间（用于检测用户是否正在输入）
-    VoiceSearchInputEdit.OnEvent("Change", UpdateVoiceSearchInputEditTime)
-    
-    ; 清空按钮和搜索按钮（并排显示）
-    ; 按钮文字颜色：根据主题调整
-    global ThemeMode
-    ; 确保 ThemeMode 已初始化
-    if (!IsSet(ThemeMode) || ThemeMode = "") {
-        ThemeMode := "dark"  ; 默认暗色主题
-    }
-    ClearBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-    RightBtnX := PanelWidth - 60  ; 距离右边20px，按钮宽度40px
-    ClearBtn := GuiID_VoiceInput.Add("Text", "x" . RightBtnX . " y" . YPos . " w40 h40 Center 0x200 c" . ClearBtnTextColor . " Background" . UI_Colors.BtnBg . " vClearBtn", GetText("clear"))
-    ClearBtn.SetFont("s10", "Segoe UI")
-    ClearBtn.OnEvent("Click", ClearVoiceSearchInput)
-    HoverBtn(ClearBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
-    
-    ; 搜索按钮（在清空按钮下方，输入框高度为150，所以按钮位置需要调整）
-    ; ThemeMode 已在上面初始化
-    SearchBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-    SearchBtn := GuiID_VoiceInput.Add("Text", "x" . RightBtnX . " y" . (YPos + 110) . " w40 h40 Center 0x200 c" . SearchBtnTextColor . " Background" . UI_Colors.BtnPrimary . " vSearchBtn", GetText("voice_search_button"))
-    SearchBtn.SetFont("s11 Bold", "Segoe UI")
-    SearchBtn.OnEvent("Click", ExecuteVoiceSearch)
-    HoverBtn(SearchBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
-    
-    ; 自动加载选中文本开关
-    YPos += 160  ; 输入框高度150 + 间距10
-    global AutoLoadSelectedText, VoiceSearchAutoLoadSwitch
-    AutoLoadLabel := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h25 c" . UI_Colors.TextDim, GetText("auto_load_selected_text"))
-    AutoLoadLabel.SetFont("s10", "Segoe UI")
-    ; 创建开关按钮（使用文本按钮模拟开关）
-    SwitchText := AutoLoadSelectedText ? GetText("switch_on") : GetText("switch_off")
-    SwitchBg := AutoLoadSelectedText ? UI_Colors.BtnHover : UI_Colors.BtnBg
-    ; 按钮文字颜色：根据主题调整
-    SwitchTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-    VoiceSearchAutoLoadSwitch := GuiID_VoiceInput.Add("Text", "x220 y" . YPos . " w120 h25 Center 0x200 c" . SwitchTextColor . " Background" . SwitchBg . " vAutoLoadSwitch", SwitchText)
-    VoiceSearchAutoLoadSwitch.SetFont("s10", "Segoe UI")
-    VoiceSearchAutoLoadSwitch.OnEvent("Click", ToggleAutoLoadSelectedText)
-    HoverBtn(VoiceSearchAutoLoadSwitch, SwitchBg, UI_Colors.BtnHover)
-    
-    ; 自动更新语音输入开关
-    YPos += 35
-    global AutoUpdateVoiceInput, VoiceSearchAutoUpdateSwitch
-    AutoUpdateLabel := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h25 c" . UI_Colors.TextDim, GetText("auto_update_voice_input"))
-    AutoUpdateLabel.SetFont("s10", "Segoe UI")
-    ; 创建开关按钮（使用文本按钮模拟开关）
-    UpdateSwitchText := AutoUpdateVoiceInput ? GetText("switch_on") : GetText("switch_off")
-    UpdateSwitchBg := AutoUpdateVoiceInput ? UI_Colors.BtnHover : UI_Colors.BtnBg
-    ; 按钮文字颜色：根据主题调整
-    UpdateSwitchTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-    VoiceSearchAutoUpdateSwitch := GuiID_VoiceInput.Add("Text", "x220 y" . YPos . " w120 h25 Center 0x200 c" . UpdateSwitchTextColor . " Background" . UpdateSwitchBg . " vAutoUpdateSwitch", UpdateSwitchText)
-    VoiceSearchAutoUpdateSwitch.SetFont("s10", "Segoe UI")
-    VoiceSearchAutoUpdateSwitch.OnEvent("Click", ToggleAutoUpdateVoiceInput)
-    HoverBtn(VoiceSearchAutoUpdateSwitch, UpdateSwitchBg, UI_Colors.BtnHover)
-    
-    ; 分类标签栏
-    YPos += 35
-    LabelCategoryWidth := PanelWidth - 280  ; 左边距20 + 清空按钮130 + 间距10 + 右边距20
-    LabelCategory := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w" . LabelCategoryWidth . " h20 c" . UI_Colors.TextDim, GetText("select_search_engine"))
-    LabelCategory.SetFont("s10", "Segoe UI")
-    
-    ; 清空选择按钮（在标签旁边）
-    ClearSelectionBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-    ClearSelectionBtnX := PanelWidth - 150  ; 距离右边20px，按钮宽度130px
-    ClearSelectionBtn := GuiID_VoiceInput.Add("Text", "x" . ClearSelectionBtnX . " y" . YPos . " w130 h25 Center 0x200 c" . ClearSelectionBtnTextColor . " Background" . UI_Colors.BtnBg . " vClearSelectionBtn", GetText("clear_selection"))
-    ClearSelectionBtn.SetFont("s10", "Segoe UI")
-    ClearSelectionBtn.OnEvent("Click", ClearAllSearchEngineSelection)
-    HoverBtn(ClearSelectionBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
-    
-    ; 创建分类标签按钮
-    YPos += 30
-    global VoiceSearchCurrentCategory, VoiceSearchCategoryTabs, VoiceSearchEnabledCategories
-    
-    ; 【关键修复】Categories 已经在上面计算过了，这里直接使用
-    ; 如果 Categories 未定义，重新计算（防止出错）
-    if (!IsSet(Categories) || !IsObject(Categories) || Categories.Length = 0) {
-        ; 所有可用的标签
-        AllCategories := [
-            {Key: "ai", Text: GetText("search_category_ai")},
-            {Key: "academic", Text: GetText("search_category_academic")},
-            {Key: "baidu", Text: GetText("search_category_baidu")},
-            {Key: "image", Text: GetText("search_category_image")},
-            {Key: "audio", Text: GetText("search_category_audio")},
-            {Key: "video", Text: GetText("search_category_video")},
-            {Key: "book", Text: GetText("search_category_book")},
-            {Key: "price", Text: GetText("search_category_price")},
-            {Key: "medical", Text: GetText("search_category_medical")},
-            {Key: "cloud", Text: GetText("search_category_cloud")}
-        ]
-        
-        ; 确保 VoiceSearchEnabledCategories 已初始化
-        if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
-            VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
-        }
-        
-        ; 只保留启用的标签
-        Categories := []
-        for Index, Category in AllCategories {
-            if (ArrayContainsValue(VoiceSearchEnabledCategories, Category.Key) > 0) {
-                Categories.Push(Category)
-            }
-        }
-        
-        ; 如果没有启用的标签，默认启用AI标签
-        if (Categories.Length = 0) {
-            Categories.Push({Key: "ai", Text: GetText("search_category_ai")})
-            VoiceSearchCurrentCategory := "ai"
-        }
-    }
-    
-    VoiceSearchCategoryTabs := []
-    TabWidth := 50
-    TabHeight := 28
-    TabSpacing := 5
-    TabStartX := 20
-    TabY := YPos
-    TabsPerRow := 10  ; 每行显示10个标签
-    
-    ; 第一行标签
-    for Index, Category in Categories {
-        if (Index > TabsPerRow) {
-            break
-        }
-        TabX := TabStartX + (Index - 1) * (TabWidth + TabSpacing)
-        IsActive := (VoiceSearchCurrentCategory = Category.Key)
-        TabBg := IsActive ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
-        TabTextColor := IsActive ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
-        
-        TabBtn := GuiID_VoiceInput.Add("Text", "x" . TabX . " y" . TabY . " w" . TabWidth . " h" . TabHeight . " Center 0x200 c" . TabTextColor . " Background" . TabBg . " vCategoryTab" . Category.Key, Category.Text)
-        TabBtn.SetFont("s9", "Segoe UI")
-        ; 创建事件处理函数并绑定
-        TabHandler := CreateCategoryTabHandler(Category.Key)
-        TabBtn.OnEvent("Click", TabHandler)
-        HoverBtn(TabBtn, TabBg, UI_Colors.BtnHover)
-        VoiceSearchCategoryTabs.Push({Btn: TabBtn, Key: Category.Key, Handler: TabHandler})
-    }
-    
-    ; 如果标签超过10个，创建第二行
-    if (Categories.Length > TabsPerRow) {
-        TabY += TabHeight + TabSpacing
-        for Index, Category in Categories {
-            if (Index <= TabsPerRow) {
-                continue
-            }
-            TabIndex := Index - TabsPerRow
-            TabX := TabStartX + (TabIndex - 1) * (TabWidth + TabSpacing)
-            IsActive := (VoiceSearchCurrentCategory = Category.Key)
-            TabBg := IsActive ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
-            TabTextColor := IsActive ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
             
-            TabBtn := GuiID_VoiceInput.Add("Text", "x" . TabX . " y" . TabY . " w" . TabWidth . " h" . TabHeight . " Center 0x200 c" . TabTextColor . " Background" . TabBg . " vCategoryTab" . Category.Key, Category.Text)
-            TabBtn.SetFont("s9", "Segoe UI")
-            ; 创建事件处理函数并绑定
-            TabHandler := CreateCategoryTabHandler(Category.Key)
-            TabBtn.OnEvent("Click", TabHandler)
-            HoverBtn(TabBtn, TabBg, UI_Colors.BtnHover)
-            VoiceSearchCategoryTabs.Push({Btn: TabBtn, Key: Category.Key, Handler: TabHandler})
-        }
-    }
-    
-    ; 搜索引擎标签
-    YPos := TabY + TabHeight + 15
-    LabelEngineWidth := PanelWidth - 40  ; 左右边距各20px
-    LabelEngine := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w" . LabelEngineWidth . " h20 c" . UI_Colors.TextDim . " vLabelEngine", GetText("select_search_engine"))
-    LabelEngine.SetFont("s10", "Segoe UI")
-    
-    ; 保存LabelEngine的Y位置到全局变量，供切换标签时使用
-    global VoiceSearchLabelEngineY := YPos
-    
-    ; 搜索引擎按钮（文字+图标）
-    YPos += 30
-    ; SearchEngines已经在上面计算面板高度时获取过了，这里直接使用
-    
-    VoiceSearchEngineButtons := []
-    ButtonWidth := 130
-    ButtonHeight := 35
-    ButtonSpacing := 10
-    StartX := 20
-    ButtonsPerRow := 4
-    IconSizeInButton := 20  ; 按钮内图标大小
-    
-    ; 【关键修复】动态调整每行按钮数量，确保所有按钮可见
-    ; 计算可用宽度：总宽度 - 左右边距
-    AvailableWidth := PanelWidth - 40  ; 左右边距各20px
-    MaxButtonsPerRow := Floor((AvailableWidth + ButtonSpacing) / (ButtonWidth + ButtonSpacing))
-    if (MaxButtonsPerRow < 1) {
-        MaxButtonsPerRow := 1  ; 至少1个按钮
-    }
-    ButtonsPerRow := Min(ButtonsPerRow, MaxButtonsPerRow)  ; 使用较小的值，确保按钮可见
-    ButtonsRows := Ceil(TotalEngines / ButtonsPerRow)  ; 重新计算行数
-    ButtonsAreaHeight := ButtonsRows * (ButtonHeight + ButtonSpacing)  ; 重新计算按钮区域高度
-    
-    ; 重新计算面板高度，因为按钮行数可能已改变
-    PanelHeight := 30 + 15 + 25 + InputBoxHeight + 35 + 35 + CategoryTabHeight + 30 + ButtonsAreaHeight + 20
-    
-    for Index, Engine in SearchEngines {
-        Row := Floor((Index - 1) / ButtonsPerRow)
-        Col := Mod((Index - 1), ButtonsPerRow)
-        BtnX := StartX + Col * (ButtonWidth + ButtonSpacing)
-        BtnY := YPos + Row * (ButtonHeight + ButtonSpacing)
-        
-        ; 检查是否选中
-        IsSelected := (ArrayContainsValue(VoiceSearchSelectedEngines, Engine.Value) > 0)
-        BtnBgColor := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
-        BtnText := IsSelected ? "✓ " . Engine.Name : Engine.Name
-        ; 按钮文字颜色：根据主题调整
-        EngineBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-        
-        ; 获取图标路径
-        IconPath := GetSearchEngineIcon(Engine.Value)
-        IconCtrl := 0  ; 初始化图标控件变量
-        
-        ; 创建按钮背景
-        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . EngineBtnTextColor . " Background" . BtnBgColor, "")
-        Btn.SetFont("s10", "Segoe UI")
-        Btn.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
-        HoverBtn(Btn, BtnBgColor, UI_Colors.BtnHover)
-        
-        ; 如果图标存在，在按钮左侧添加小图标
-        if (IconPath != "" && FileExist(IconPath)) {
-            try {
-                ; 计算图标位置（按钮左侧，垂直居中）
-                IconX := BtnX + 8  ; 左边距8px
-                IconY := BtnY + (ButtonHeight - IconSizeInButton) // 2  ; 垂直居中
-                
-                ; 获取图标实际尺寸
-                ImageSize := GetImageSize(IconPath)
-                
-                ; 计算保持比例的显示尺寸
-                DisplaySize := CalculateImageDisplaySize(ImageSize.Width, ImageSize.Height, IconSizeInButton, IconSizeInButton)
-                
-                ; 计算垂直居中位置
-                DisplayX := IconX
-                DisplayY := IconY + (IconSizeInButton - DisplaySize.Height) // 2
-                
-                ; 创建图标控件（不再使用 v 变量）
-                IconCtrl := GuiID_VoiceInput.Add("Picture", "x" . DisplayX . " y" . DisplayY . " w" . DisplaySize.Width . " h" . DisplaySize.Height . " 0x200", IconPath)
-                IconCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
-                
-                ; 计算文字位置（图标右侧）
-                TextX := IconX + IconSizeInButton + 5  ; 图标右侧5px间距
-                TextWidth := ButtonWidth - (TextX - BtnX) - 8  ; 右边距8px
-            } catch {
-                ; 如果图标加载失败，文字从左边开始
-                IconCtrl := 0
-                TextX := BtnX + 8
-                TextWidth := ButtonWidth - 16
+            ; 隐藏面板
+            HideVoiceSearchInputPanel()
+            
+            ; 打开所有选中的搜索引擎
+            ; 【修复】检查VoiceSearchSelectedEngines是否已初始化且不为空
+            if (!IsSet(VoiceSearchSelectedEngines) || !IsObject(VoiceSearchSelectedEngines) || VoiceSearchSelectedEngines.Length = 0) {
+                TrayTip(GetText("no_search_engine_selected"), GetText("tip"), "Icon! 2")
+                return
             }
-        } else {
-            ; 如果图标不存在，文字从左边开始
-            TextX := BtnX + 8
-            TextWidth := ButtonWidth - 16
+            
+            for Index, Engine in VoiceSearchSelectedEngines {
+                ; 【修复】检查Engine是否有值
+                if (!IsSet(Engine) || Engine = "") {
+                    continue  ; 跳过无效的引擎
+                }
+                SendVoiceSearchToBrowser(Content, Engine)
+                ; 每个搜索引擎之间稍作延迟，避免同时打开太多窗口
+                if (Index < VoiceSearchSelectedEngines.Length) {
+                    Sleep(300)
+                }
+            }
+            
+            TrayTip(FormatText("search_engines_opened", VoiceSearchSelectedEngines.Length), GetText("tip"), "Iconi 1")
         }
-        
-        ; 创建文字标签
-        ; 创建文字标签（不再使用 v 变量）
-        TextCtrl := GuiID_VoiceInput.Add("Text", "x" . TextX . " y" . BtnY . " w" . TextWidth . " h" . ButtonHeight . " Left 0x200 c" . EngineBtnTextColor . " BackgroundTrans", BtnText)
-        TextCtrl.SetFont("s10", "Segoe UI")
-        TextCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
-        
-        ; 保存按钮引用（包含背景、图标和文字）
-        VoiceSearchEngineButtons.Push({Bg: Btn, Icon: IconCtrl, Text: TextCtrl, Index: Index})
+    } catch as e {
+        TrayTip(GetText("voice_search_failed") . ": " . e.Message, GetText("error"), "Iconx 2")
     }
-    
-    ScreenInfo := GetScreenInfo(VoiceInputScreenIndex)
-    Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, "center")
-    ; 移除 NoActivate，让窗口可以激活，这样才能接收输入法输入
-    GuiID_VoiceInput.Show("w" . PanelWidth . " h" . PanelHeight . " x" . Pos.X . " y" . Pos.Y)
-    WinSetAlwaysOnTop(1, GuiID_VoiceInput.Hwnd)
-    
-    ; 确保输入框为空
-    VoiceSearchInputEdit.Value := ""
-    ; 重置最后编辑时间
-    global VoiceSearchInputLastEditTime := 0
-    
-    ; 首先明确停止监听（无论之前状态如何）
-    SetTimer(MonitorSelectedText, 0)
-    
-    ; 激活窗口并设置输入框真正的输入焦点，这样才能接收输入法输入
-    WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
-    Sleep(200)  ; 增加等待时间，确保窗口完全激活
-    
-    ; 确保窗口真正激活
-    if (!WinActive("ahk_id " . GuiID_VoiceInput.Hwnd)) {
-        WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
-        Sleep(200)
-    }
-    
-    ; 获取输入框的控件句柄
-    InputEditHwnd := VoiceSearchInputEdit.Hwnd
-    
-    ; 使用ControlFocus确保输入框有真正的输入焦点（IME焦点）
-    try {
-        ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-        Sleep(100)
-    } catch {
-        ; 如果ControlFocus失败，使用Focus方法
-        VoiceSearchInputEdit.Focus()
-        Sleep(100)
-    }
-    
-    ; 再次确保输入框有焦点（双重保险）
-    ; 注意：AutoHotkey v2 中 Edit 控件没有 HasFocus() 方法，直接使用 Focus() 确保焦点
-    try {
-        ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-        Sleep(50)
-    } catch {
-        VoiceSearchInputEdit.Focus()
-        Sleep(50)
-    }
-    
-    ; 如果自动加载开关已开启，启动监听；否则确保监听已停止
-    if (AutoLoadSelectedText) {
-        SetTimer(MonitorSelectedText, 200)  ; 每200ms检查一次
-    } else {
-        ; 明确停止监听，确保不会自动加载
-        SetTimer(MonitorSelectedText, 0)
-    }
-    
-    ; 不自动激活语音输入，由用户通过开关控制
-    ; StartVoiceInputInSearch()
 }
 
-; 切换焦点到输入框并清空
+; 开始语音输入（在语音搜索界面中）
+StartVoiceInputInSearch() {
+    global VoiceSearchActive, VoiceInputMethod, VoiceSearchPanelVisible, VoiceSearchInputEdit, UI_Colors
+    
+    if (VoiceSearchActive || !VoiceSearchPanelVisible) {
+        return
+    }
+    
+    try {
+        ; 确保窗口激活并输入框有真正的输入焦点
+        global GuiID_VoiceInput
+        if (GuiID_VoiceInput) {
+            ; 激活窗口
+            WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
+            Sleep(200)
+            
+            ; 确保窗口真正激活
+            if (!WinActive("ahk_id " . GuiID_VoiceInput.Hwnd)) {
+                ; 如果仍未激活，再次尝试
+                WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
+                Sleep(200)
+            }
+        }
+        
+        ; 确保输入框为空并获取真正的输入焦点
+        if (VoiceSearchInputEdit) {
+            VoiceSearchInputEdit.Value := ""
+            
+            ; 获取输入框的控件句柄
+            InputEditHwnd := VoiceSearchInputEdit.Hwnd
+            
+            ; 使用ControlFocus确保输入框有真正的输入焦点（IME焦点）
+            try {
+                ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                Sleep(100)
+            } catch {
+                ; 如果ControlFocus失败，使用Focus方法
+                VoiceSearchInputEdit.Focus()
+                Sleep(100)
+            }
+        }
+        
+        ; 自动检测输入法类型
+        VoiceInputMethod := DetectInputMethod()
+        
+        ; 根据输入法类型使用不同的快捷键
+        if (VoiceInputMethod = "baidu") {
+            ; 百度输入法：Alt+Y 激活，F2 开始
+            if (VoiceSearchInputEdit) {
+                InputEditHwnd := VoiceSearchInputEdit.Hwnd
+                try {
+                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(150)
+                } catch {
+                    VoiceSearchInputEdit.Focus()
+                    Sleep(150)
+                }
+                ; 切换到中文输入法，确保百度输入法处于活动状态
+                SwitchToChineseIME()
+                Sleep(200)
+            }
+            
+            ; 发送 Alt+Y 激活百度输入法
+            Send("!y")
+            Sleep(800)
+            
+            ; 发送 F2 开始语音输入
+            Send("{F2}")
+            Sleep(300)
+        } else if (VoiceInputMethod = "xunfei") {
+            ; 讯飞输入法：直接按 F6 开始语音输入
+            Send("{F6}")
+            Sleep(800)
+            if (VoiceSearchInputEdit) {
+                InputEditHwnd := VoiceSearchInputEdit.Hwnd
+                try {
+                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(100)
+                } catch {
+                    VoiceSearchInputEdit.Focus()
+                    Sleep(100)
+                }
+            }
+        } else {
+            ; 默认尝试百度方案
+            if (VoiceSearchInputEdit) {
+                InputEditHwnd := VoiceSearchInputEdit.Hwnd
+                try {
+                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(150)
+                } catch {
+                    VoiceSearchInputEdit.Focus()
+                    Sleep(150)
+                }
+                SwitchToChineseIME()
+                Sleep(200)
+            }
+            
+            Send("!y")
+            Sleep(800)
+            Send("{F2}")
+            Sleep(300)
+        }
+        
+        VoiceSearchActive := true
+        global VoiceSearchContent := ""
+        
+        ; 等待一下，确保语音输入已启动，再开始更新输入框内容
+        Sleep(500)
+        ; 根据"自动更新语音输入"或"自动加载选中文本"开关状态决定是否开始更新输入框内容
+        global AutoLoadSelectedText, AutoUpdateVoiceInput
+        ; 先停止定时器，确保状态正确
+        SetTimer(UpdateVoiceSearchInputInPanel, 0)
+        if (AutoUpdateVoiceInput || AutoLoadSelectedText) {
+            ; 如果"自动更新语音输入"或"自动加载选中文本"任一开启，启动定时器
+            SetTimer(UpdateVoiceSearchInputInPanel, 300)  ; 每300ms更新一次
+        }
+    } catch as e {
+        VoiceSearchActive := false
+        TrayTip(GetText("voice_search_failed") . ": " . e.Message, GetText("error"), "Iconx 2")
+    }
+}
+
+; 停止语音输入（在语音搜索界面中）
+StopVoiceInputInSearch() {
+    global VoiceSearchActive, VoiceInputMethod, CapsLock, VoiceSearchInputEdit, VoiceSearchPanelVisible, UI_Colors
+    
+    if (!VoiceSearchActive || !VoiceSearchPanelVisible) {
+        return
+    }
+    
+    try {
+        ; 先确保CapsLock状态被重置
+        if (CapsLock) {
+            CapsLock := false
+        }
+        
+        ; 根据输入法类型使用不同的结束快捷键
+        if (VoiceInputMethod = "baidu") {
+            ; 百度输入法：F1 结束语音录入
+            Send("{F1}")
+            Sleep(800)
+            
+            ; 获取语音输入内容
+            OldClipboard := A_Clipboard
+            Send("^a")
+            Sleep(200)
+            A_Clipboard := ""
+            Send("^c")
+            if ClipWait(1.5) {
+                global VoiceSearchContent := A_Clipboard
+            }
+            A_Clipboard := OldClipboard
+            
+            ; 退出百度输入法语音模式
+            Send("!y")
+            Sleep(300)
+        } else if (VoiceInputMethod = "xunfei") {
+            ; 讯飞输入法：F6 结束
+            Send("{F6}")
+            Sleep(1000)
+            
+            ; 获取语音输入内容
+            OldClipboard := A_Clipboard
+            Send("^a")
+            Sleep(200)
+            A_Clipboard := ""
+            Send("^c")
+            if ClipWait(1.5) {
+                global VoiceSearchContent := A_Clipboard
+            }
+            A_Clipboard := OldClipboard
+        } else {
+            ; 默认尝试百度方案
+            Send("{F1}")
+            Sleep(800)
+            
+            ; 获取语音输入内容
+            OldClipboard := A_Clipboard
+            Send("^a")
+            Sleep(200)
+            A_Clipboard := ""
+            Send("^c")
+            if ClipWait(1.5) {
+                global VoiceSearchContent := A_Clipboard
+            }
+            A_Clipboard := OldClipboard
+            
+            ; 退出百度输入法语音模式
+            Send("!y")
+            Sleep(300)
+        }
+        
+        VoiceSearchActive := false
+        SetTimer(UpdateVoiceSearchInputInPanel, 0)  ; 停止更新输入框
+        
+        ; 将内容填入输入框
+        global VoiceSearchContent
+        if (VoiceSearchContent != "" && StrLen(VoiceSearchContent) > 0 && VoiceSearchInputEdit) {
+            VoiceSearchInputEdit.Value := VoiceSearchContent
+            VoiceSearchInputEdit.Focus()
+        }
+    } catch as e {
+        VoiceSearchActive := false
+        SetTimer(UpdateVoiceSearchInputInPanel, 0)
+        TrayTip(GetText("voice_search_failed") . ": " . e.Message, GetText("error"), "Iconx 2")
+    }
+}
+
+; 聚焦语音搜索输入框
 FocusVoiceSearchInput() {
     global VoiceSearchInputEdit, VoiceSearchPanelVisible, AutoLoadSelectedText
     
@@ -9014,83 +8468,6 @@ FocusVoiceSearchInput() {
         }
     } catch {
         ; 忽略错误
-    }
-}
-
-; 切换自动加载选中文本开关
-ToggleAutoLoadSelectedText(*) {
-    global AutoLoadSelectedText, VoiceSearchAutoLoadSwitch, VoiceSearchPanelVisible, UI_Colors, ConfigFile
-    
-    if (!VoiceSearchPanelVisible || !VoiceSearchAutoLoadSwitch) {
-        return
-    }
-    
-    ; 切换状态
-    AutoLoadSelectedText := !AutoLoadSelectedText
-    
-    ; 更新开关显示
-    SwitchText := AutoLoadSelectedText ? "✓ 已开启" : "○ 已关闭"
-    SwitchBg := AutoLoadSelectedText ? UI_Colors.BtnHover : UI_Colors.BtnBg
-    VoiceSearchAutoLoadSwitch.Text := SwitchText
-    VoiceSearchAutoLoadSwitch.BackColor := SwitchBg
-    
-    ; 保存到配置文件
-    try {
-        IniWrite(AutoLoadSelectedText ? "1" : "0", ConfigFile, "Settings", "AutoLoadSelectedText")
-    } catch {
-        ; 忽略保存错误
-    }
-    
-    ; 如果开启，启动监听；如果关闭，立即停止监听
-    if (AutoLoadSelectedText) {
-        SetTimer(MonitorSelectedText, 200)  ; 每200ms检查一次
-        ; 如果正在语音输入，也启动更新输入框的定时器
-        global VoiceSearchActive
-        if (VoiceSearchActive) {
-            SetTimer(UpdateVoiceSearchInputInPanel, 300)  ; 每300ms更新一次
-        }
-    } else {
-        ; 立即停止监听，确保不会继续自动加载
-        SetTimer(MonitorSelectedText, 0)
-        ; 同时停止更新输入框的定时器
-        SetTimer(UpdateVoiceSearchInputInPanel, 0)
-    }
-}
-
-; 切换自动更新语音输入开关
-ToggleAutoUpdateVoiceInput(*) {
-    global AutoUpdateVoiceInput, VoiceSearchAutoUpdateSwitch, VoiceSearchPanelVisible, UI_Colors, ConfigFile, VoiceSearchActive
-    
-    if (!VoiceSearchPanelVisible || !VoiceSearchAutoUpdateSwitch) {
-        return
-    }
-    
-    ; 切换状态
-    AutoUpdateVoiceInput := !AutoUpdateVoiceInput
-    
-    ; 更新开关显示
-    SwitchText := AutoUpdateVoiceInput ? "✓ 已开启" : "○ 已关闭"
-    SwitchBg := AutoUpdateVoiceInput ? UI_Colors.BtnHover : UI_Colors.BtnBg
-    VoiceSearchAutoUpdateSwitch.Text := SwitchText
-    VoiceSearchAutoUpdateSwitch.BackColor := SwitchBg
-    
-    ; 保存到配置文件
-    try {
-        IniWrite(AutoUpdateVoiceInput ? "1" : "0", ConfigFile, "Settings", "AutoUpdateVoiceInput")
-    } catch {
-        ; 忽略保存错误
-    }
-    
-    ; 根据"自动更新语音输入"或"自动加载选中文本"开关状态立即启动或停止定时器（无论是否正在语音输入）
-    ; 先停止定时器，确保状态正确
-    SetTimer(UpdateVoiceSearchInputInPanel, 0)
-    global AutoLoadSelectedText
-    if ((AutoUpdateVoiceInput || AutoLoadSelectedText) && VoiceSearchActive) {
-        ; 如果"自动更新语音输入"或"自动加载选中文本"任一开启，且正在语音输入，启动定时器
-        SetTimer(UpdateVoiceSearchInputInPanel, 300)  ; 每300ms更新一次
-    } else {
-        ; 明确停止定时器，确保不会自动更新
-        SetTimer(UpdateVoiceSearchInputInPanel, 0)
     }
 }
 
@@ -9171,6 +8548,567 @@ MonitorSelectedTextForVoiceInput(*) {
     }
 }
 
+; 显示搜索引擎选择界面
+ShowSearchEngineSelection(Content) {
+    global GuiID_VoiceInput, VoiceInputScreenIndex, UI_Colors, VoiceSearchSelecting, VoiceSearchEngineButtons
+    
+    VoiceSearchSelecting := true
+    
+    if (GuiID_VoiceInput != 0) {
+        try {
+            GuiID_VoiceInput.Destroy()
+        }
+        GuiID_VoiceInput := 0
+    }
+    
+    GuiID_VoiceInput := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
+    GuiID_VoiceInput.BackColor := UI_Colors.Background
+    GuiID_VoiceInput.SetFont("s12 c" . UI_Colors.Text . " Bold", "Segoe UI")
+    
+    ; 获取所有搜索引擎
+    global SearchEngines := GetAllSearchEngines()
+    
+    PanelWidth := 500
+    ; 计算所需高度：标题(50) + 内容标签(25) + 内容框(60) + 引擎标签(30) + 按钮区域 + 取消按钮(45) + 边距(20)
+    ButtonsRows := Ceil(SearchEngines.Length / 4)  ; 每行4个按钮
+    ButtonsAreaHeight := ButtonsRows * 45  ; 每行45px（按钮35px + 间距10px）
+    PanelHeight := 50 + 25 + 60 + 30 + ButtonsAreaHeight + 45 + 20
+    
+    ; 标题
+    TitleText := GuiID_VoiceInput.Add("Text", "x0 y15 w500 h30 Center c" . UI_Colors.Text, GetText("select_search_engine_title"))
+    TitleText.SetFont("s14 Bold", "Segoe UI")
+    
+    ; 显示搜索内容
+    YPos := 55
+    LabelText := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w460 h20 cCCCCCC", "搜索内容:")
+    LabelText.SetFont("s10", "Segoe UI")
+    
+    YPos += 25
+    ContentText := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w460 h60 Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, Content)
+    ContentText.SetFont("s11", "Segoe UI")
+    
+    ; 搜索引擎按钮
+    YPos += 70
+    LabelEngine := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w460 h25 c" . UI_Colors.Text, GetText("select_search_engine"))
+    LabelEngine.SetFont("s11", "Segoe UI")
+    
+    YPos += 30
+    ButtonWidth := 110
+    ButtonHeight := 35
+    ButtonSpacing := 10
+    ButtonsPerRow := 4
+    
+    VoiceSearchEngineButtons := []
+    for Index, Engine in SearchEngines {
+        Row := Floor((Index - 1) / ButtonsPerRow)
+        Col := Mod(Index - 1, ButtonsPerRow)
+        BtnX := 20 + Col * (ButtonWidth + ButtonSpacing)
+        BtnY := YPos + Row * (ButtonHeight + ButtonSpacing)
+        
+        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg . " vSearchEngineBtn" . Index, Engine.Name)
+        Btn.SetFont("s10", "Segoe UI")
+        Btn.OnEvent("Click", CreateSearchEngineClickHandler(Content, Engine.Value))
+        HoverBtn(Btn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        VoiceSearchEngineButtons.Push(Btn)
+    }
+    
+    ; 取消按钮
+    CancelBtnY := YPos + (Floor((SearchEngines.Length - 1) / ButtonsPerRow) + 1) * (ButtonHeight + ButtonSpacing) + 10
+    global ThemeMode
+    CancelBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    CancelBtnBg := (ThemeMode = "light") ? UI_Colors.BtnBg : "666666"
+    CancelBtn := GuiID_VoiceInput.Add("Text", "x" . (PanelWidth // 2 - 60) . " y" . CancelBtnY . " w120 h35 Center 0x200 c" . CancelBtnTextColor . " Background" . CancelBtnBg . " vCancelBtn", GetText("cancel"))
+    CancelBtn.SetFont("s11", "Segoe UI")
+    CancelBtn.OnEvent("Click", CancelSearchEngineSelection)
+    HoverBtn(CancelBtn, "666666", "777777")
+    
+    ScreenInfo := GetScreenInfo(VoiceInputScreenIndex)
+    Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, "center")
+    GuiID_VoiceInput.Show("w" . PanelWidth . " h" . PanelHeight . " x" . Pos.X . " y" . Pos.Y . " NoActivate")
+    WinSetAlwaysOnTop(1, GuiID_VoiceInput.Hwnd)
+}
+
+; 创建搜索引擎点击处理函数
+CreateSearchEngineClickHandler(Content, Engine) {
+    ; 使用闭包保存参数
+    SearchEngineClickHandler(*) {
+        global VoiceSearchSelecting
+        VoiceSearchSelecting := false
+        HideVoiceSearchInputPanel()
+        SendVoiceSearchToBrowser(Content, Engine)
+    }
+    return SearchEngineClickHandler
+}
+
+; 取消搜索引擎选择
+CancelSearchEngineSelection(*) {
+    global VoiceSearchSelecting
+    VoiceSearchSelecting := false
+    HideVoiceSearchInputPanel()
+}
+
+; 显示语音搜索输入界面
+ShowVoiceSearchInputPanel() {
+    global GuiID_VoiceInput, VoiceInputScreenIndex, UI_Colors, VoiceSearchPanelVisible
+    global VoiceSearchInputEdit, VoiceSearchSelectedEngines, VoiceSearchEngineButtons
+    
+    VoiceSearchPanelVisible := true
+    
+    if (GuiID_VoiceInput != 0) {
+        try {
+            GuiID_VoiceInput.Destroy()
+        }
+        GuiID_VoiceInput := 0
+    }
+    
+    ; 【关键修复】移除 -Caption，添加标题栏以支持窗口拖动
+    GuiID_VoiceInput := Gui("+AlwaysOnTop -DPIScale")
+    GuiID_VoiceInput.BackColor := UI_Colors.Background
+    GuiID_VoiceInput.SetFont("s12 c" . UI_Colors.Text . " Bold", "Segoe UI")
+    GuiID_VoiceInput.Title := GetText("voice_search_title")
+    
+    ; 动态计算宽度，确保所有按钮可见
+    InputBoxHeight := 150
+    global VoiceSearchCurrentCategory, VoiceSearchEnabledCategories
+    if (!IsSet(VoiceSearchCurrentCategory) || VoiceSearchCurrentCategory = "") {
+        VoiceSearchCurrentCategory := "ai"
+    }
+    if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
+        VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+    }
+    SearchEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)
+    TotalEngines := SearchEngines.Length
+    ButtonWidth := 130
+    ButtonHeight := 35
+    ButtonSpacing := 10
+    ButtonsPerRow := 4
+    ButtonsRows := Ceil(TotalEngines / ButtonsPerRow)
+    ButtonsAreaHeight := ButtonsRows * (ButtonHeight + ButtonSpacing)
+    
+    InputBoxWidth := 520
+    RightButtonsWidth := 40 + 20
+    ButtonsAreaWidth := ButtonsPerRow * ButtonWidth + (ButtonsPerRow - 1) * ButtonSpacing
+    MinWidth := InputBoxWidth + RightButtonsWidth + 40
+    PanelWidth := Max(MinWidth, ButtonsAreaWidth + 40)
+    
+    ; 计算分类标签区域宽度
+    TabWidth := 50
+    TabSpacing := 5
+    TabsPerRow := 10
+    TabAreaWidth := TabsPerRow * TabWidth + (TabsPerRow - 1) * TabSpacing
+    MinTabAreaWidth := TabAreaWidth + 150
+    PanelWidth := Max(PanelWidth, MinTabAreaWidth)
+    
+    CategoryTabHeight := 28 + 15
+    AllCategories := [
+        {Key: "ai", Text: GetText("search_category_ai")},
+        {Key: "academic", Text: GetText("search_category_academic")},
+        {Key: "baidu", Text: GetText("search_category_baidu")},
+        {Key: "image", Text: GetText("search_category_image")},
+        {Key: "audio", Text: GetText("search_category_audio")},
+        {Key: "video", Text: GetText("search_category_video")},
+        {Key: "book", Text: GetText("search_category_book")},
+        {Key: "price", Text: GetText("search_category_price")},
+        {Key: "medical", Text: GetText("search_category_medical")},
+        {Key: "cloud", Text: GetText("search_category_cloud")}
+    ]
+    
+    if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
+        VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+    }
+    
+    Categories := []
+    for Index, Category in AllCategories {
+        if (ArrayContainsValue(VoiceSearchEnabledCategories, Category.Key) > 0) {
+            Categories.Push(Category)
+        }
+    }
+    
+    if (Categories.Length = 0) {
+        Categories.Push({Key: "ai", Text: GetText("search_category_ai")})
+        VoiceSearchCurrentCategory := "ai"
+    }
+    
+    if (ArrayContainsValue(VoiceSearchEnabledCategories, VoiceSearchCurrentCategory) = 0) {
+        if (Categories.Length > 0) {
+            VoiceSearchCurrentCategory := Categories[1].Key
+        } else {
+            VoiceSearchCurrentCategory := "ai"
+        }
+    }
+    
+    TabRows := Ceil(Categories.Length / TabsPerRow)
+    CategoryTabHeight := TabRows * (28 + TabSpacing) + 15
+    
+    PanelHeight := 30 + 15 + 25 + InputBoxHeight + 35 + 35 + CategoryTabHeight + 30 + ButtonsAreaHeight + 20
+    
+    ; 关闭按钮
+    CloseBtnX := PanelWidth - 40
+    CloseBtnY := 5
+    CloseBtn := GuiID_VoiceInput.Add("Text", "x" . CloseBtnX . " y" . CloseBtnY . " w30 h30 Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg . " vCloseBtn", "×")
+    CloseBtn.SetFont("s18 Bold", "Segoe UI")
+    CloseBtn.OnEvent("Click", HideVoiceSearchInputPanel)
+    HoverBtn(CloseBtn, UI_Colors.BtnBg, "FF4444")
+    
+    ; 输入框标签
+    YPos := 50
+    LabelText := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w" . (PanelWidth - 80) . " h20 c" . UI_Colors.TextDim, GetText("voice_search_input_label"))
+    LabelText.SetFont("s10", "Segoe UI")
+    
+    ; 输入框
+    YPos += 25
+    InputBoxActualWidth := PanelWidth - 80
+    VoiceSearchInputEdit := GuiID_VoiceInput.Add("Edit", "x20 y" . YPos . " w" . InputBoxActualWidth . " h150 vVoiceSearchInputEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", "")
+    VoiceSearchInputEdit.SetFont("s12", "Segoe UI")
+    VoiceSearchInputEdit.OnEvent("Focus", SwitchToChineseIME)
+    VoiceSearchInputEdit.OnEvent("Change", UpdateVoiceSearchInputEditTime)
+    
+    ; 清空按钮和搜索按钮
+    global ThemeMode
+    if (!IsSet(ThemeMode) || ThemeMode = "") {
+        ThemeMode := "dark"
+    }
+    ClearBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    RightBtnX := PanelWidth - 60
+    ClearBtn := GuiID_VoiceInput.Add("Text", "x" . RightBtnX . " y" . YPos . " w40 h40 Center 0x200 c" . ClearBtnTextColor . " Background" . UI_Colors.BtnBg . " vClearBtn", GetText("clear"))
+    ClearBtn.SetFont("s10", "Segoe UI")
+    ClearBtn.OnEvent("Click", ClearVoiceSearchInput)
+    HoverBtn(ClearBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    SearchBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    SearchBtn := GuiID_VoiceInput.Add("Text", "x" . RightBtnX . " y" . (YPos + 110) . " w40 h40 Center 0x200 c" . SearchBtnTextColor . " Background" . UI_Colors.BtnPrimary . " vSearchBtn", GetText("voice_search_button"))
+    SearchBtn.SetFont("s11 Bold", "Segoe UI")
+    SearchBtn.OnEvent("Click", ExecuteVoiceSearch)
+    HoverBtn(SearchBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+    
+    ; 自动加载选中文本开关
+    YPos += 160
+    global AutoLoadSelectedText, VoiceSearchAutoLoadSwitch
+    AutoLoadLabel := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h25 c" . UI_Colors.TextDim, GetText("auto_load_selected_text"))
+    AutoLoadLabel.SetFont("s10", "Segoe UI")
+    SwitchText := AutoLoadSelectedText ? GetText("switch_on") : GetText("switch_off")
+    SwitchBg := AutoLoadSelectedText ? UI_Colors.BtnHover : UI_Colors.BtnBg
+    SwitchTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    VoiceSearchAutoLoadSwitch := GuiID_VoiceInput.Add("Text", "x220 y" . YPos . " w120 h25 Center 0x200 c" . SwitchTextColor . " Background" . SwitchBg . " vAutoLoadSwitch", SwitchText)
+    VoiceSearchAutoLoadSwitch.SetFont("s10", "Segoe UI")
+    VoiceSearchAutoLoadSwitch.OnEvent("Click", ToggleAutoLoadSelectedText)
+    HoverBtn(VoiceSearchAutoLoadSwitch, SwitchBg, UI_Colors.BtnHover)
+    
+    ; 自动更新语音输入开关
+    YPos += 35
+    global AutoUpdateVoiceInput, VoiceSearchAutoUpdateSwitch
+    AutoUpdateLabel := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h25 c" . UI_Colors.TextDim, GetText("auto_update_voice_input"))
+    AutoUpdateLabel.SetFont("s10", "Segoe UI")
+    UpdateSwitchText := AutoUpdateVoiceInput ? GetText("switch_on") : GetText("switch_off")
+    UpdateSwitchBg := AutoUpdateVoiceInput ? UI_Colors.BtnHover : UI_Colors.BtnBg
+    UpdateSwitchTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    VoiceSearchAutoUpdateSwitch := GuiID_VoiceInput.Add("Text", "x220 y" . YPos . " w120 h25 Center 0x200 c" . UpdateSwitchTextColor . " Background" . UpdateSwitchBg . " vAutoUpdateSwitch", UpdateSwitchText)
+    VoiceSearchAutoUpdateSwitch.SetFont("s10", "Segoe UI")
+    VoiceSearchAutoUpdateSwitch.OnEvent("Click", ToggleAutoUpdateVoiceInput)
+    HoverBtn(VoiceSearchAutoUpdateSwitch, UpdateSwitchBg, UI_Colors.BtnHover)
+    
+    ; 分类标签栏
+    YPos += 35
+    LabelCategoryWidth := PanelWidth - 280
+    LabelCategory := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w" . LabelCategoryWidth . " h20 c" . UI_Colors.TextDim, GetText("select_search_engine"))
+    LabelCategory.SetFont("s10", "Segoe UI")
+    
+    ClearSelectionBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    ClearSelectionBtnX := PanelWidth - 150
+    ClearSelectionBtn := GuiID_VoiceInput.Add("Text", "x" . ClearSelectionBtnX . " y" . YPos . " w130 h25 Center 0x200 c" . ClearSelectionBtnTextColor . " Background" . UI_Colors.BtnBg . " vClearSelectionBtn", GetText("clear_selection"))
+    ClearSelectionBtn.SetFont("s10", "Segoe UI")
+    ClearSelectionBtn.OnEvent("Click", ClearAllSearchEngineSelection)
+    HoverBtn(ClearSelectionBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    ; 创建分类标签按钮
+    YPos += 30
+    global VoiceSearchCategoryTabs
+    
+    VoiceSearchCategoryTabs := []
+    TabWidth := 50
+    TabHeight := 28
+    TabSpacing := 5
+    TabStartX := 20
+    TabY := YPos
+    TabsPerRow := 10
+    
+    ; 第一行标签
+    for Index, Category in Categories {
+        if (Index > TabsPerRow) {
+            break
+        }
+        TabX := TabStartX + (Index - 1) * (TabWidth + TabSpacing)
+        IsActive := (VoiceSearchCurrentCategory = Category.Key)
+        TabBg := IsActive ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
+        TabTextColor := IsActive ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
+        
+        TabBtn := GuiID_VoiceInput.Add("Text", "x" . TabX . " y" . TabY . " w" . TabWidth . " h" . TabHeight . " Center 0x200 c" . TabTextColor . " Background" . TabBg . " vCategoryTab" . Category.Key, Category.Text)
+        TabBtn.SetFont("s9", "Segoe UI")
+        TabHandler := CreateCategoryTabHandler(Category.Key)
+        TabBtn.OnEvent("Click", TabHandler)
+        HoverBtn(TabBtn, TabBg, UI_Colors.BtnHover)
+        VoiceSearchCategoryTabs.Push({Btn: TabBtn, Key: Category.Key, Handler: TabHandler})
+    }
+    
+    ; 如果标签超过10个，创建第二行
+    if (Categories.Length > TabsPerRow) {
+        TabY += TabHeight + TabSpacing
+        for Index, Category in Categories {
+            if (Index <= TabsPerRow) {
+                continue
+            }
+            TabIndex := Index - TabsPerRow
+            TabX := TabStartX + (TabIndex - 1) * (TabWidth + TabSpacing)
+            IsActive := (VoiceSearchCurrentCategory = Category.Key)
+            TabBg := IsActive ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
+            TabTextColor := IsActive ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
+            
+            TabBtn := GuiID_VoiceInput.Add("Text", "x" . TabX . " y" . TabY . " w" . TabWidth . " h" . TabHeight . " Center 0x200 c" . TabTextColor . " Background" . TabBg . " vCategoryTab" . Category.Key, Category.Text)
+            TabBtn.SetFont("s9", "Segoe UI")
+            TabHandler := CreateCategoryTabHandler(Category.Key)
+            TabBtn.OnEvent("Click", TabHandler)
+            HoverBtn(TabBtn, TabBg, UI_Colors.BtnHover)
+            VoiceSearchCategoryTabs.Push({Btn: TabBtn, Key: Category.Key, Handler: TabHandler})
+        }
+    }
+    
+    ; 搜索引擎标签
+    YPos := TabY + TabHeight + 15
+    LabelEngineWidth := PanelWidth - 40
+    LabelEngine := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w" . LabelEngineWidth . " h20 c" . UI_Colors.TextDim . " vLabelEngine", GetText("select_search_engine"))
+    LabelEngine.SetFont("s10", "Segoe UI")
+    
+    global VoiceSearchLabelEngineY := YPos
+    
+    ; 搜索引擎按钮
+    YPos += 30
+    VoiceSearchEngineButtons := []
+    ButtonWidth := 130
+    ButtonHeight := 35
+    ButtonSpacing := 10
+    StartX := 20
+    ButtonsPerRow := 4
+    IconSizeInButton := 20
+    
+    AvailableWidth := PanelWidth - 40
+    MaxButtonsPerRow := Floor((AvailableWidth + ButtonSpacing) / (ButtonWidth + ButtonSpacing))
+    if (MaxButtonsPerRow < 1) {
+        MaxButtonsPerRow := 1
+    }
+    ButtonsPerRow := Min(ButtonsPerRow, MaxButtonsPerRow)
+    ButtonsRows := Ceil(TotalEngines / ButtonsPerRow)
+    ButtonsAreaHeight := ButtonsRows * (ButtonHeight + ButtonSpacing)
+    
+    PanelHeight := 30 + 15 + 25 + InputBoxHeight + 35 + 35 + CategoryTabHeight + 30 + ButtonsAreaHeight + 20
+    
+    for Index, Engine in SearchEngines {
+        Row := Floor((Index - 1) / ButtonsPerRow)
+        Col := Mod((Index - 1), ButtonsPerRow)
+        BtnX := StartX + Col * (ButtonWidth + ButtonSpacing)
+        BtnY := YPos + Row * (ButtonHeight + ButtonSpacing)
+        
+        IsSelected := (ArrayContainsValue(VoiceSearchSelectedEngines, Engine.Value) > 0)
+        BtnBgColor := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
+        BtnText := IsSelected ? "✓ " . Engine.Name : Engine.Name
+        EngineBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+        
+        IconPath := GetSearchEngineIcon(Engine.Value)
+        IconCtrl := 0
+        
+        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . EngineBtnTextColor . " Background" . BtnBgColor, "")
+        Btn.SetFont("s10", "Segoe UI")
+        Btn.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
+        HoverBtn(Btn, BtnBgColor, UI_Colors.BtnHover)
+        
+        if (IconPath != "" && FileExist(IconPath)) {
+            try {
+                IconX := BtnX + 8
+                IconY := BtnY + (ButtonHeight - IconSizeInButton) // 2
+                
+                ImageSize := GetImageSize(IconPath)
+                DisplaySize := CalculateImageDisplaySize(ImageSize.Width, ImageSize.Height, IconSizeInButton, IconSizeInButton)
+                
+                DisplayX := IconX
+                DisplayY := IconY + (IconSizeInButton - DisplaySize.Height) // 2
+                
+                IconCtrl := GuiID_VoiceInput.Add("Picture", "x" . DisplayX . " y" . DisplayY . " w" . DisplaySize.Width . " h" . DisplaySize.Height . " 0x200", IconPath)
+                IconCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
+                
+                TextX := IconX + IconSizeInButton + 5
+                TextWidth := ButtonWidth - (TextX - BtnX) - 8
+            } catch {
+                IconCtrl := 0
+                TextX := BtnX + 8
+                TextWidth := ButtonWidth - 16
+            }
+        } else {
+            TextX := BtnX + 8
+            TextWidth := ButtonWidth - 16
+        }
+        
+        TextCtrl := GuiID_VoiceInput.Add("Text", "x" . TextX . " y" . BtnY . " w" . TextWidth . " h" . ButtonHeight . " Left 0x200 c" . EngineBtnTextColor . " BackgroundTrans", BtnText)
+        TextCtrl.SetFont("s10", "Segoe UI")
+        TextCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
+        
+        VoiceSearchEngineButtons.Push({Bg: Btn, Icon: IconCtrl, Text: TextCtrl, Index: Index})
+    }
+    
+    ScreenInfo := GetScreenInfo(VoiceInputScreenIndex)
+    Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, "center")
+    GuiID_VoiceInput.Show("w" . PanelWidth . " h" . PanelHeight . " x" . Pos.X . " y" . Pos.Y)
+    WinSetAlwaysOnTop(1, GuiID_VoiceInput.Hwnd)
+    
+    VoiceSearchInputEdit.Value := ""
+    global VoiceSearchInputLastEditTime := 0
+    
+    SetTimer(MonitorSelectedText, 0)
+    
+    WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
+    Sleep(200)
+    
+    if (!WinActive("ahk_id " . GuiID_VoiceInput.Hwnd)) {
+        WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
+        Sleep(200)
+    }
+    
+    InputEditHwnd := VoiceSearchInputEdit.Hwnd
+    
+    try {
+        ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+        Sleep(100)
+    } catch {
+        VoiceSearchInputEdit.Focus()
+        Sleep(100)
+    }
+    
+    try {
+        ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+        Sleep(50)
+    } catch {
+        VoiceSearchInputEdit.Focus()
+        Sleep(50)
+    }
+    
+    if (AutoLoadSelectedText) {
+        SetTimer(MonitorSelectedText, 200)
+    } else {
+        SetTimer(MonitorSelectedText, 0)
+    }
+}
+
+; ===================== 语音搜索辅助函数 =====================
+; 隐藏语音搜索输入界面
+HideVoiceSearchInputPanel(*) {
+    global GuiID_VoiceInput, VoiceSearchPanelVisible, VoiceSearchInputEdit
+    
+    ; 自动关闭 CapsLock 大写状态
+    SetCapsLockState("Off")
+    
+    ; 停止监听选中文本
+    SetTimer(MonitorSelectedText, 0)
+    
+    VoiceSearchPanelVisible := false
+    
+    if (GuiID_VoiceInput != 0) {
+        try {
+            GuiID_VoiceInput.Destroy()
+        }
+        GuiID_VoiceInput := 0
+    }
+    VoiceSearchInputEdit := 0
+}
+
+; 清空语音搜索输入框
+ClearVoiceSearchInput(*) {
+    global VoiceSearchInputEdit, VoiceSearchPanelVisible
+    
+    if (!VoiceSearchPanelVisible || !VoiceSearchInputEdit) {
+        return
+    }
+    
+    try {
+        VoiceSearchInputEdit.Value := ""
+        ; 重新聚焦到输入框
+        VoiceSearchInputEdit.Focus()
+    } catch as e {
+        ; 忽略错误
+    }
+}
+
+; 切换自动加载选中文本开关
+ToggleAutoLoadSelectedText(*) {
+    global AutoLoadSelectedText, VoiceSearchAutoLoadSwitch, VoiceSearchPanelVisible, UI_Colors, ConfigFile
+    
+    if (!VoiceSearchPanelVisible || !VoiceSearchAutoLoadSwitch) {
+        return
+    }
+    
+    ; 切换状态
+    AutoLoadSelectedText := !AutoLoadSelectedText
+    
+    ; 更新开关显示
+    SwitchText := AutoLoadSelectedText ? "✓ 已开启" : "○ 已关闭"
+    SwitchBg := AutoLoadSelectedText ? UI_Colors.BtnHover : UI_Colors.BtnBg
+    VoiceSearchAutoLoadSwitch.Text := SwitchText
+    VoiceSearchAutoLoadSwitch.BackColor := SwitchBg
+    
+    ; 保存到配置文件
+    try {
+        IniWrite(AutoLoadSelectedText ? "1" : "0", ConfigFile, "Settings", "AutoLoadSelectedText")
+    } catch {
+        ; 忽略保存错误
+    }
+    
+    ; 如果开启，启动监听；如果关闭，立即停止监听
+    if (AutoLoadSelectedText) {
+        SetTimer(MonitorSelectedText, 200)  ; 每200ms检查一次
+        ; 如果正在语音输入，也启动更新输入框的定时器
+        global VoiceSearchActive
+        if (VoiceSearchActive) {
+            SetTimer(UpdateVoiceSearchInputInPanel, 300)  ; 每300ms更新一次
+        }
+    } else {
+        ; 立即停止监听，确保不会继续自动加载
+        SetTimer(MonitorSelectedText, 0)
+    }
+}
+
+; 切换自动更新语音输入开关
+ToggleAutoUpdateVoiceInput(*) {
+    global AutoUpdateVoiceInput, VoiceSearchAutoUpdateSwitch, VoiceSearchPanelVisible, UI_Colors, ConfigFile, VoiceSearchActive
+    
+    if (!VoiceSearchPanelVisible || !VoiceSearchAutoUpdateSwitch) {
+        return
+    }
+    
+    ; 切换状态
+    AutoUpdateVoiceInput := !AutoUpdateVoiceInput
+    
+    ; 更新开关显示
+    SwitchText := AutoUpdateVoiceInput ? "✓ 已开启" : "○ 已关闭"
+    SwitchBg := AutoUpdateVoiceInput ? UI_Colors.BtnHover : UI_Colors.BtnBg
+    VoiceSearchAutoUpdateSwitch.Text := SwitchText
+    VoiceSearchAutoUpdateSwitch.BackColor := SwitchBg
+    
+    ; 保存到配置文件
+    try {
+        IniWrite(AutoUpdateVoiceInput ? "1" : "0", ConfigFile, "Settings", "AutoUpdateVoiceInput")
+    } catch {
+        ; 忽略保存错误
+    }
+    
+    ; 根据"自动更新语音输入"或"自动加载选中文本"开关状态立即启动或停止定时器
+    SetTimer(UpdateVoiceSearchInputInPanel, 0)
+    global AutoLoadSelectedText
+    if ((AutoUpdateVoiceInput || AutoLoadSelectedText) && VoiceSearchActive) {
+        ; 如果"自动更新语音输入"或"自动加载选中文本"任一开启，且正在语音输入，启动定时器
+        SetTimer(UpdateVoiceSearchInputInPanel, 300)  ; 每300ms更新一次
+    } else {
+        ; 否则停止定时器
+        SetTimer(UpdateVoiceSearchInputInPanel, 0)
+    }
+}
+
 ; 更新输入框最后编辑时间（用于检测用户是否正在输入）
 UpdateVoiceSearchInputEditTime(*) {
     global VoiceSearchInputLastEditTime
@@ -9217,28 +9155,16 @@ MonitorSelectedText(*) {
         
         ; 检查是否复制成功
         if (ClipWait(0.1) && A_Clipboard != "" && A_Clipboard != OldClipboard) {
-            ; 有选中文本，加载到输入框（只在输入框为空时加载）
+            ; 有选中文本，加载到输入框
             SelectedText := A_Clipboard
             if (SelectedText != "" && StrLen(SelectedText) > 0) {
-                ; 尝试获取输入框控件并更新（只在输入框为空时更新）
+                ; 尝试获取输入框控件并更新
                 try {
-                    InputEdit := GuiID_VoiceInput["VoiceSearchInputEdit"]
-                    if (InputEdit && InputEdit.Value = "") {
-                        InputEdit.Value := SelectedText
-                        ; 更新编辑时间，避免立即被再次覆盖
-                        VoiceSearchInputLastEditTime := A_TickCount
+                    if (VoiceSearchInputEdit && (VoiceSearchInputEdit.Value = "" || VoiceSearchInputEdit.Value != SelectedText)) {
+                        VoiceSearchInputEdit.Value := SelectedText
                     }
                 } catch {
-                    ; 如果通过GUI对象获取失败，尝试使用全局变量（备用方案）
-                    try {
-                        if (VoiceSearchInputEdit && VoiceSearchInputEdit.Value = "") {
-                            VoiceSearchInputEdit.Value := SelectedText
-                            ; 更新编辑时间，避免立即被再次覆盖
-                            VoiceSearchInputLastEditTime := A_TickCount
-                        }
-                    } catch {
-                        ; 忽略错误
-                    }
+                    ; 忽略错误
                 }
             }
         }
@@ -9250,7 +9176,136 @@ MonitorSelectedText(*) {
     }
 }
 
-; 创建切换搜索引擎选择处理函数（支持多选）
+; 更新语音搜索输入框内容（定时器调用）
+UpdateVoiceSearchInputInPanel(*) {
+    global VoiceSearchActive, VoiceSearchInputEdit, VoiceSearchPanelVisible, AutoLoadSelectedText, AutoUpdateVoiceInput, GuiID_VoiceInput, VoiceInputMethod
+    
+    ; 如果"自动更新语音输入"和"自动加载选中文本"都未开启，停止定时器
+    if (!AutoUpdateVoiceInput && !AutoLoadSelectedText) {
+        SetTimer(UpdateVoiceSearchInputInPanel, 0)
+        return
+    }
+    
+    if (!VoiceSearchActive || !VoiceSearchPanelVisible || !VoiceSearchInputEdit) {
+        SetTimer(UpdateVoiceSearchInputInPanel, 0)
+        return
+    }
+    
+    try {
+        ; 检测百度输入法语音识别窗口是否存在
+        BaiduVoiceWindowActive := false
+        if (VoiceInputMethod = "baidu") {
+            BaiduVoiceWindowActive := IsBaiduVoiceWindowActive()
+        }
+        
+        ; 获取输入框的控件句柄
+        InputEditHwnd := VoiceSearchInputEdit.Hwnd
+        
+        ; 如果百度输入法的语音识别窗口存在，使用ControlFocus确保输入框有输入焦点
+        if (BaiduVoiceWindowActive) {
+            if (GuiID_VoiceInput) {
+                if (WinExist("ahk_id " . GuiID_VoiceInput.Hwnd)) {
+                    try {
+                        ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                        Sleep(20)
+                    } catch {
+                        try {
+                            VoiceSearchInputEdit.Focus()
+                            Sleep(20)
+                        } catch {
+                        }
+                    }
+                }
+            }
+        } else {
+            ; 输入法窗口不存在时，正常激活主窗口并设置焦点
+            if (GuiID_VoiceInput) {
+                if (!WinActive("ahk_id " . GuiID_VoiceInput.Hwnd)) {
+                    WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(100)
+                }
+                
+                try {
+                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(50)
+                } catch {
+                    VoiceSearchInputEdit.Focus()
+                    Sleep(50)
+                }
+            }
+        }
+        
+        ; 尝试直接读取输入框内容
+        OldClipboard := A_Clipboard
+        CurrentContent := ""
+        CurrentInputValue := ""
+        
+        try {
+            CurrentInputValue := VoiceSearchInputEdit.Value
+            CurrentContent := CurrentInputValue
+        } catch {
+            ; 如果直接读取失败，使用剪贴板方式
+            if (!BaiduVoiceWindowActive && GuiID_VoiceInput) {
+                if (!WinActive("ahk_id " . GuiID_VoiceInput.Hwnd)) {
+                    WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(50)
+                }
+                try {
+                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                    Sleep(30)
+                } catch {
+                    VoiceSearchInputEdit.Focus()
+                    Sleep(30)
+                }
+                
+                Send("^a")
+                Sleep(30)
+                A_Clipboard := ""
+                Send("^c")
+                Sleep(80)
+                
+                if (ClipWait(0.15)) {
+                    CurrentContent := A_Clipboard
+                }
+            }
+        }
+        
+        ; 处理读取到的内容
+        if (CurrentContent != "" && StrLen(CurrentContent) > 0) {
+            ; 检查内容是否看起来像语音输入的内容
+            if (CurrentInputValue = "" && (InStr(CurrentContent, "\") || InStr(CurrentContent, ".lnk") || InStr(CurrentContent, "快捷方式"))) {
+                ; 忽略看起来像文件路径或快捷方式的内容
+                A_Clipboard := OldClipboard
+                return
+            }
+            
+            ; 如果内容有变化且新内容更长，更新输入框
+            if (CurrentContent != CurrentInputValue && StrLen(CurrentContent) >= StrLen(CurrentInputValue)) {
+                try {
+                    ; 在输入法窗口存在时，不更新输入框内容（避免干扰输入法）
+                    if (!BaiduVoiceWindowActive) {
+                        VoiceSearchInputEdit.Value := CurrentContent
+                        ; 将光标移到末尾
+                        try {
+                            ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
+                            Sleep(20)
+                            Send("^{End}")
+                        } catch {
+                        }
+                    }
+                } catch {
+                }
+            }
+        }
+        
+        ; 恢复剪贴板
+        A_Clipboard := OldClipboard
+    } catch {
+        ; 忽略错误
+    }
+}
+
+; 创建切换搜索引擎选择处理函数
 CreateToggleSearchEngineHandler(Engine, BtnIndex) {
     ToggleSearchEngineHandler(*) {
         global VoiceSearchSelectedEngines, VoiceSearchEngineButtons, UI_Colors
@@ -9266,7 +9321,7 @@ CreateToggleSearchEngineHandler(Engine, BtnIndex) {
             VoiceSearchSelectedEngines.Push(Engine)
         }
         
-        ; 保存到配置文件（保存上次的选择）
+        ; 保存到配置文件
         try {
             global ConfigFile
             EnginesStr := ""
@@ -9276,17 +9331,15 @@ CreateToggleSearchEngineHandler(Engine, BtnIndex) {
                 }
                 EnginesStr .= Eng
             }
-            ; 确保至少有一个默认值
             if (EnginesStr = "") {
                 EnginesStr := "deepseek"
             }
             IniWrite(EnginesStr, ConfigFile, "Settings", "VoiceSearchSelectedEngines")
         } catch as e {
-            ; 输出错误信息以便调试
             TrayTip("保存搜索引擎选择失败: " . e.Message, "错误", "Iconx 1")
         }
         
-        ; 更新按钮样式（文字+图标按钮）
+        ; 更新按钮样式
         if (IsSet(VoiceSearchEngineButtons) && VoiceSearchEngineButtons.Length > 0 && BtnIndex <= VoiceSearchEngineButtons.Length) {
             BtnObj := VoiceSearchEngineButtons[BtnIndex]
             if (BtnObj && IsObject(BtnObj)) {
@@ -9299,7 +9352,6 @@ CreateToggleSearchEngineHandler(Engine, BtnIndex) {
                 
                 ; 更新文字（添加/移除 ✓ 标记）
                 if (BtnObj.Text) {
-                    ; 获取搜索引擎名称（从所有搜索引擎中查找，因为可能切换了分类）
                     AllEngines := GetAllSearchEngines()
                     EngineName := ""
                     for Index, Eng in AllEngines {
@@ -9315,14 +9367,13 @@ CreateToggleSearchEngineHandler(Engine, BtnIndex) {
             }
         }
         
-        ; 【关键修复】立即刷新GUI，确保按钮背景色更新立即显示
+        ; 立即刷新GUI
         try {
             global GuiID_VoiceInput
             if (GuiID_VoiceInput && IsObject(GuiID_VoiceInput) && GuiID_VoiceInput.HasProp("Hwnd")) {
                 WinRedraw(GuiID_VoiceInput.Hwnd)
             }
         } catch {
-            ; 忽略刷新错误
         }
     }
     return ToggleSearchEngineHandler
@@ -9340,12 +9391,10 @@ ClearAllSearchEngineSelection(*) {
     try {
         IniWrite("deepseek", ConfigFile, "Settings", "VoiceSearchSelectedEngines")
     } catch as e {
-        ; 忽略保存错误
     }
     
-    ; 更新所有按钮的样式（移除选中状态）
+    ; 更新所有按钮的样式
     if (IsSet(VoiceSearchEngineButtons) && VoiceSearchEngineButtons.Length > 0) {
-        ; 获取当前分类的搜索引擎列表
         try {
             CurrentEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)
         } catch {
@@ -9354,21 +9403,17 @@ ClearAllSearchEngineSelection(*) {
         
         for Index, BtnObj in VoiceSearchEngineButtons {
             if (BtnObj && IsObject(BtnObj)) {
-                ; 更新背景颜色（取消选中）
                 try {
                     if (BtnObj.Bg && IsObject(BtnObj.Bg)) {
                         BtnObj.Bg.BackColor := UI_Colors.BtnBg
                     }
                 } catch {
-                    ; 忽略更新错误
                 }
                 
-                ; 更新文字（移除 ✓ 标记）
                 try {
                     if (BtnObj.Text && IsObject(BtnObj.Text) && BtnObj.Index > 0 && BtnObj.Index <= CurrentEngines.Length) {
                         EngineName := CurrentEngines[BtnObj.Index].Name
                         if (EngineName != "") {
-                            ; 移除 ✓ 标记（如果存在）
                             CurrentText := BtnObj.Text.Text
                             if (SubStr(CurrentText, 1, 2) = "✓ ") {
                                 BtnObj.Text.Text := EngineName
@@ -9378,316 +9423,122 @@ ClearAllSearchEngineSelection(*) {
                         }
                     }
                 } catch {
-                    ; 忽略更新错误
                 }
             }
         }
     }
     
-    ; 立即刷新GUI，确保所有按钮样式更新立即显示
+    ; 立即刷新GUI
     try {
         if (GuiID_VoiceInput && IsObject(GuiID_VoiceInput) && GuiID_VoiceInput.HasProp("Hwnd")) {
             WinRedraw(GuiID_VoiceInput.Hwnd)
         }
     } catch {
-        ; 忽略刷新错误
     }
     
     ; 显示提示
     TrayTip(GetText("cleared"), GetText("tip"), "Iconi 1")
 }
 
-; 清空语音搜索输入框
-ClearVoiceSearchInput(*) {
-    global VoiceSearchInputEdit, VoiceSearchPanelVisible
-    
-    if (!VoiceSearchPanelVisible || !VoiceSearchInputEdit) {
-        return
-    }
-    
+; 发送语音搜索内容到浏览器
+SendVoiceSearchToBrowser(Content, Engine) {
     try {
-        VoiceSearchInputEdit.Value := ""
-        ; 重新聚焦到输入框
-        VoiceSearchInputEdit.Focus()
-    } catch as e {
-        ; 忽略错误
-    }
-}
-
-; 执行语音搜索
-ExecuteVoiceSearch(*) {
-    global VoiceSearchInputEdit, VoiceSearchSelectedEngines, VoiceSearchPanelVisible
-    
-    if (!VoiceSearchPanelVisible || !VoiceSearchInputEdit) {
-        return
-    }
-    
-    try {
-        Content := VoiceSearchInputEdit.Value
-        if (Content != "" && StrLen(Content) > 0) {
-            ; 检查是否有选中的搜索引擎
-            if (VoiceSearchSelectedEngines.Length = 0) {
-                TrayTip(GetText("no_search_engine_selected"), GetText("tip"), "Icon! 2")
-                return
-            }
-            
-            ; 隐藏面板
-            HideVoiceSearchInputPanel()
-            
-            ; 打开所有选中的搜索引擎
-            for Index, Engine in VoiceSearchSelectedEngines {
-                SendVoiceSearchToBrowser(Content, Engine)
-                ; 每个搜索引擎之间稍作延迟，避免同时打开太多窗口
-                if (Index < VoiceSearchSelectedEngines.Length) {
-                    Sleep(300)
-                }
-            }
-            
-            TrayTip(FormatText("search_engines_opened", VoiceSearchSelectedEngines.Length), GetText("tip"), "Iconi 1")
+        ; URL编码搜索内容
+        EncodedContent := UriEncode(Content)
+        
+        ; 根据搜索引擎构建URL
+        SearchURL := ""
+        switch Engine {
+            case "deepseek":
+                SearchURL := "https://chat.deepseek.com/?q=" . EncodedContent
+            case "yuanbao":
+                SearchURL := "https://yuanbao.tencent.com/?q=" . EncodedContent
+            case "doubao":
+                SearchURL := "https://www.doubao.com/chat/?q=" . EncodedContent
+            case "zhipu":
+                SearchURL := "https://chatglm.cn/main/search?query=" . EncodedContent
+            case "mita":
+                SearchURL := "https://metaso.cn/?q=" . EncodedContent
+            case "wenxin":
+                SearchURL := "https://yiyan.baidu.com/search?query=" . EncodedContent
+            case "qianwen":
+                SearchURL := "https://tongyi.aliyun.com/qianwen/chat?intent=chat&query=" . EncodedContent
+            case "kimi":
+                SearchURL := "https://kimi.moonshot.cn/_prefill_chat?force_search=true&send_immediately=true&prefill_prompt=" . EncodedContent
+            case "perplexity":
+                SearchURL := "https://www.perplexity.ai/search?intent=qa&q=" . EncodedContent
+            case "copilot":
+                SearchURL := "https://copilot.microsoft.com/chat?q=" . EncodedContent
+            case "chatgpt":
+                SearchURL := "https://chat.openai.com/?q=" . EncodedContent
+            case "grok":
+                SearchURL := "https://grok.com/?q=" . EncodedContent
+            case "you":
+                SearchURL := "https://you.com/search?q=" . EncodedContent
+            case "claude":
+                SearchURL := "https://claude.ai/new?q=" . EncodedContent
+            case "monica":
+                SearchURL := "https://monica.so/answers/?q=" . EncodedContent
+            case "webpilot":
+                SearchURL := "https://webpilot.ai/search?q=" . EncodedContent
+            case "zhihu":
+                SearchURL := "https://www.zhihu.com/search?q=" . EncodedContent
+            case "baidu":
+                SearchURL := "https://www.baidu.com/s?wd=" . EncodedContent
+            default:
+                SearchURL := "https://chat.deepseek.com/?q=" . EncodedContent
         }
+        
+        ; 打开浏览器
+        Run(SearchURL)
+        TrayTip(GetText("voice_search_sent"), GetText("tip"), "Iconi 1")
     } catch as e {
         TrayTip(GetText("voice_search_failed") . ": " . e.Message, GetText("error"), "Iconx 2")
     }
 }
 
-; 隐藏语音搜索输入界面
-HideVoiceSearchInputPanel(*) {
-    global GuiID_VoiceInput, VoiceSearchPanelVisible, VoiceSearchInputEdit
-    
-    ; 自动关闭 CapsLock 大写状态
-    SetCapsLockState("Off")
-    
-    ; 停止监听选中文本
-    SetTimer(MonitorSelectedText, 0)
-    
-    VoiceSearchPanelVisible := false
-    
-    if (GuiID_VoiceInput != 0) {
-        try {
-            GuiID_VoiceInput.Destroy()
-        }
-        GuiID_VoiceInput := 0
-    }
-    VoiceSearchInputEdit := 0
-}
-
-; 开始语音输入（在语音搜索界面中）
-StartVoiceInputInSearch() {
-    global VoiceSearchActive, VoiceInputMethod, VoiceSearchPanelVisible, VoiceSearchInputEdit, UI_Colors
-    
-    if (VoiceSearchActive || !VoiceSearchPanelVisible) {
-        return
-    }
-    
+; 切换到中文输入法
+SwitchToChineseIME(*) {
     try {
-        ; 确保窗口激活并输入框有真正的输入焦点
-        global GuiID_VoiceInput
-        if (GuiID_VoiceInput) {
-            ; 激活窗口
+        global GuiID_VoiceInput, VoiceSearchInputEdit
+        if (GuiID_VoiceInput && VoiceSearchInputEdit) {
             WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
-            Sleep(200)  ; 增加等待时间，确保窗口完全激活
-            
-            ; 确保窗口真正激活
-            if (!WinActive("ahk_id " . GuiID_VoiceInput.Hwnd)) {
-                ; 如果仍未激活，再次尝试
-                WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
-                Sleep(200)
-            }
-        }
-        
-        ; 确保输入框为空并获取真正的输入焦点
-        if (VoiceSearchInputEdit) {
-            VoiceSearchInputEdit.Value := ""
-            
-            ; 获取输入框的控件句柄
-            InputEditHwnd := VoiceSearchInputEdit.Hwnd
-            
-            ; 使用ControlFocus确保输入框有真正的输入焦点（IME焦点）
-            try {
-                ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                Sleep(100)
-            } catch {
-                ; 如果ControlFocus失败，使用Focus方法
-                VoiceSearchInputEdit.Focus()
-                Sleep(100)
-            }
-            
-            ; 再次确保焦点（双重保险）
-            ; 注意：AutoHotkey v2 中 Edit 控件没有 HasFocus() 方法，直接使用 Focus() 确保焦点
-            try {
-                ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                Sleep(50)
-            } catch {
-                VoiceSearchInputEdit.Focus()
-                Sleep(50)
-            }
-            
-            ; 最后再次确认窗口激活和输入框焦点
-            if (GuiID_VoiceInput) {
-                if (!WinActive("ahk_id " . GuiID_VoiceInput.Hwnd)) {
-                    WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
-                    Sleep(100)
-                }
-                try {
-                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                    Sleep(50)
-                } catch {
-                    VoiceSearchInputEdit.Focus()
-                    Sleep(50)
-                }
-            }
-        }
-        
-        ; 自动检测输入法类型
-        VoiceInputMethod := DetectInputMethod()
-        
-        ; 根据输入法类型使用不同的快捷键
-        if (VoiceInputMethod = "baidu") {
-            ; 百度输入法：Alt+Y 激活，F2 开始
-            ; 确保输入框有焦点并切换到中文输入法
-            if (VoiceSearchInputEdit) {
-                InputEditHwnd := VoiceSearchInputEdit.Hwnd
-                try {
-                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                    Sleep(150)
-                } catch {
-                    VoiceSearchInputEdit.Focus()
-                    Sleep(150)
-                }
-                ; 切换到中文输入法，确保百度输入法处于活动状态
-                SwitchToChineseIME()
-                Sleep(200)
-            }
-            
-            ; 再次确保输入框有焦点
-            if (VoiceSearchInputEdit) {
-                try {
-                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                    Sleep(100)
-                } catch {
-                    VoiceSearchInputEdit.Focus()
-                    Sleep(100)
-                }
-            }
-            
-            ; 发送 Alt+Y 激活百度输入法
-            Send("!y")
-            Sleep(800)  ; 增加等待时间，确保输入法已激活
-            
-            ; 再次确保输入框有焦点（输入法激活后可能失去焦点）
-            if (VoiceSearchInputEdit) {
-                try {
-                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                    Sleep(200)
-                } catch {
-                    VoiceSearchInputEdit.Focus()
-                    Sleep(200)
-                }
-            }
-            
-            ; 发送 F2 开始语音输入
-            Send("{F2}")
-            Sleep(300)  ; 增加等待时间，确保语音输入已启动
-            
-            ; 注意：启动语音输入后，百度输入法会弹出"正在识别中..."窗口
-            ; 这个窗口会抢夺焦点，这是正常的，不要立即恢复焦点
-            ; 让输入法窗口保持焦点，但定时器会使用ControlFocus确保输入框有输入焦点
-            ; 定时器 UpdateVoiceSearchInputInPanel 会处理内容更新和焦点管理
-        } else if (VoiceInputMethod = "xunfei") {
-            ; 讯飞输入法：直接按 F6 开始语音输入
-            Send("{F6}")
-            Sleep(800)
-            ; 讯飞输入法通常不会弹出模态窗口，可以确保输入框有焦点
-            if (VoiceSearchInputEdit) {
-                InputEditHwnd := VoiceSearchInputEdit.Hwnd
-                try {
-                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                    Sleep(100)
-                } catch {
-                    VoiceSearchInputEdit.Focus()
-                    Sleep(100)
-                }
-            }
+            Sleep(50)
+            VoiceSearchInputEdit.Focus()
+            Sleep(50)
+            ActiveHwnd := GuiID_VoiceInput.Hwnd
         } else {
-            ; 默认尝试百度方案
-            if (VoiceSearchInputEdit) {
-                InputEditHwnd := VoiceSearchInputEdit.Hwnd
-                try {
-                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                    Sleep(150)
-                } catch {
-                    VoiceSearchInputEdit.Focus()
-                    Sleep(150)
-                }
-                ; 切换到中文输入法
-                SwitchToChineseIME()
-                Sleep(200)
-            }
-            
-            ; 再次确保输入框有焦点
-            if (VoiceSearchInputEdit) {
-                try {
-                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                    Sleep(100)
-                } catch {
-                    VoiceSearchInputEdit.Focus()
-                    Sleep(100)
-                }
-            }
-            
-            ; 发送 Alt+Y 激活百度输入法
-            Send("!y")
-            Sleep(800)  ; 增加等待时间，确保输入法已激活
-            
-            ; 再次确保输入框有焦点
-            if (VoiceSearchInputEdit) {
-                try {
-                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                    Sleep(200)
-                } catch {
-                    VoiceSearchInputEdit.Focus()
-                    Sleep(200)
-                }
-            }
-            
-            ; 发送 F2 开始语音输入
-            Send("{F2}")
-            Sleep(300)  ; 增加等待时间，确保语音输入已启动
-            
-            ; 注意：启动语音输入后，百度输入法会弹出"正在识别中..."窗口
-            ; 这个窗口会抢夺焦点，这是正常的，不要立即恢复焦点
+            ActiveHwnd := WinGetID("A")
         }
         
-        VoiceSearchActive := true
-        VoiceSearchContent := ""
-        
-        
-        ; 等待一下，确保语音输入已启动，再开始更新输入框内容
-        Sleep(500)
-        ; 根据"自动更新语音输入"或"自动加载选中文本"开关状态决定是否开始更新输入框内容
-        global AutoLoadSelectedText, AutoUpdateVoiceInput
-        ; 先停止定时器，确保状态正确
-        SetTimer(UpdateVoiceSearchInputInPanel, 0)
-        if (AutoUpdateVoiceInput || AutoLoadSelectedText) {
-            ; 如果"自动更新语音输入"或"自动加载选中文本"任一开启，启动定时器
-            SetTimer(UpdateVoiceSearchInputInPanel, 300)  ; 每300ms更新一次
-        } else {
-            ; 明确停止定时器，确保不会自动更新
-            SetTimer(UpdateVoiceSearchInputInPanel, 0)
+        if (!ActiveHwnd) {
+            return
         }
-    } catch as e {
-        TrayTip(GetText("voice_search_failed") . ": " . e.Message, GetText("error"), "Iconx 2")
+        
+        ; 使用 Windows IME API 切换到中文输入法
+        hIMC := DllCall("imm32\ImmGetContext", "Ptr", ActiveHwnd, "Ptr")
+        if (hIMC) {
+            DllCall("imm32\ImmGetConversionStatus", "Ptr", hIMC, "UInt*", &ConversionMode := 0, "UInt*", &SentenceMode := 0)
+            ConversionMode := ConversionMode | 0x0001  ; IME_CMODE_NATIVE
+            DllCall("imm32\ImmSetConversionStatus", "Ptr", hIMC, "UInt", ConversionMode, "UInt", SentenceMode)
+            DllCall("imm32\ImmReleaseContext", "Ptr", ActiveHwnd, "Ptr", hIMC)
+        }
+        
+        ; 尝试切换到中文键盘布局
+        try {
+            hKL := DllCall("user32\LoadKeyboardLayout", "Str", "00000804", "UInt", 0x00000001, "Ptr")
+            if (hKL) {
+                PostMessage(0x0050, 0x0001, hKL, , , "ahk_id " . ActiveHwnd)
+            }
+        } catch {
+        }
+    } catch {
     }
 }
 
-; 检测百度输入法语音识别窗口是否存在
+; 检测百度输入法语音识别窗口是否激活
 IsBaiduVoiceWindowActive() {
-    ; 检测百度输入法的语音识别窗口（常见的窗口标题和类名）
-    ; 百度输入法的语音识别窗口可能有这些特征：
-    ; - 窗口标题包含"正在识别"、"语音"、"说完了"等关键词
-    ; - 窗口类名可能是 #32770（对话框）、BaiduIME、BaiduPinyin 等
-    
-    ; 方法1：通过窗口标题检测（最可靠）
+    ; 检测百度输入法的语音识别窗口
     AllWindows := WinGetList()
     for Index, Hwnd in AllWindows {
         try {
@@ -9707,718 +9558,21 @@ IsBaiduVoiceWindowActive() {
         }
     }
     
-    ; 方法2：通过窗口类名检测百度输入法相关窗口
+    ; 通过窗口类名检测百度输入法相关窗口
     BaiduClasses := ["BaiduIME", "BaiduPinyin", "BaiduInput", "#32770"]
     for Index, ClassName in BaiduClasses {
         if (WinExist("ahk_class " . ClassName)) {
             try {
                 WinTitle := WinGetTitle("ahk_class " . ClassName)
-                ; 检查窗口标题是否包含语音识别相关关键词
-                if (InStr(WinTitle, "识别") || InStr(WinTitle, "语音") || InStr(WinTitle, "说完了")) {
-                    IsVisible := WinGetMinMax("ahk_class " . ClassName)
-                    if (IsVisible != -1) {
-                        return true
-                    }
+                if (InStr(WinTitle, "正在识别") || InStr(WinTitle, "说完了") || InStr(WinTitle, "语音输入")) {
+                    return true
                 }
             } catch {
-                ; 忽略错误
             }
         }
     }
     
     return false
-}
-
-; 更新语音搜索输入框内容（在面板中）
-; 功能说明：
-; - 当"自动更新语音输入"开关开启时，定时器会自动将语音输入的内容更新到输入框
-; - 当"自动加载选中文本"开关开启时，也会触发此定时器（用于加载选中的文本）
-; - 两个开关任一开启都会启动定时器，但只有"自动加载选中文本"开启时才会加载选中文本
-UpdateVoiceSearchInputInPanel(*) {
-    global VoiceSearchActive, VoiceSearchInputEdit, VoiceSearchPanelVisible, AutoLoadSelectedText, AutoUpdateVoiceInput, GuiID_VoiceInput, VoiceInputMethod
-    
-    ; 如果"自动更新语音输入"和"自动加载选中文本"都未开启，停止定时器
-    if (!AutoUpdateVoiceInput && !AutoLoadSelectedText) {
-        SetTimer(UpdateVoiceSearchInputInPanel, 0)
-        return
-    }
-    
-    if (!VoiceSearchActive || !VoiceSearchPanelVisible || !VoiceSearchInputEdit) {
-        SetTimer(UpdateVoiceSearchInputInPanel, 0)
-        return
-    }
-    
-    try {
-        ; 检测百度输入法语音识别窗口是否存在（竞态条件处理）
-        BaiduVoiceWindowActive := false
-        if (VoiceInputMethod = "baidu") {
-            BaiduVoiceWindowActive := IsBaiduVoiceWindowActive()
-        }
-        
-        ; 获取输入框的控件句柄，用于ControlFocus
-        InputEditHwnd := VoiceSearchInputEdit.Hwnd
-        
-        ; 如果百度输入法的语音识别窗口存在，不要强制激活主窗口
-        ; 但需要确保输入框有真正的输入焦点（使用ControlFocus，不激活窗口）
-        if (BaiduVoiceWindowActive) {
-            ; 输入法窗口存在时，使用ControlFocus确保输入框有输入焦点
-            ; 这样不会激活主窗口，不会抢夺输入法窗口的焦点
-            ; 但输入框仍然可以接收输入法的输入
-            if (GuiID_VoiceInput) {
-                ; 确保主窗口存在且可见（但不激活，避免抢夺焦点）
-                if (WinExist("ahk_id " . GuiID_VoiceInput.Hwnd)) {
-                    ; 使用ControlFocus直接设置输入框焦点，不激活窗口
-                    try {
-                        ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                        Sleep(20)  ; 短暂等待，让焦点设置生效
-                    } catch {
-                        ; 如果ControlFocus失败，尝试使用Focus方法
-                        try {
-                            VoiceSearchInputEdit.Focus()
-                            Sleep(20)
-                        } catch {
-                            ; 忽略错误
-                        }
-                    }
-                }
-            }
-        } else {
-            ; 输入法窗口不存在时，正常激活主窗口并设置焦点
-            if (GuiID_VoiceInput) {
-                ; 确保窗口激活
-                if (!WinActive("ahk_id " . GuiID_VoiceInput.Hwnd)) {
-                    WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
-                    Sleep(100)  ; 增加等待时间，确保窗口完全激活
-                }
-                
-                ; 确保输入框有焦点（使用ControlFocus确保真正的输入焦点）
-                ; 注意：AutoHotkey v2 中 Edit 控件没有 HasFocus() 方法，直接使用 Focus() 确保焦点
-                try {
-                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                    Sleep(50)
-                } catch {
-                    ; 如果ControlFocus失败，使用Focus方法
-                    VoiceSearchInputEdit.Focus()
-                    Sleep(50)
-                }
-            }
-        }
-        
-        ; 方法：尝试直接读取输入框内容，如果失败则通过剪贴板
-        ; 保存当前剪贴板
-        OldClipboard := A_Clipboard
-        CurrentContent := ""
-        CurrentInputValue := ""
-        
-        ; 先尝试直接读取输入框内容（更可靠，不会触发焦点变化）
-        try {
-            CurrentInputValue := VoiceSearchInputEdit.Value
-            CurrentContent := CurrentInputValue
-        } catch {
-            ; 如果直接读取失败，使用剪贴板方式
-            ; 只有在输入法窗口不存在时才使用剪贴板方式（避免干扰输入法）
-            if (!BaiduVoiceWindowActive && GuiID_VoiceInput) {
-                ; 确保窗口激活和输入框有焦点
-                if (!WinActive("ahk_id " . GuiID_VoiceInput.Hwnd)) {
-                    WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
-                    Sleep(50)
-                }
-                try {
-                    ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                    Sleep(30)
-                } catch {
-                    VoiceSearchInputEdit.Focus()
-                    Sleep(30)
-                }
-                
-                Send("^a")
-                Sleep(30)
-                A_Clipboard := ""
-                Send("^c")
-                Sleep(80)
-                
-                ; 如果复制成功，获取内容
-                if (ClipWait(0.15)) {
-                    CurrentContent := A_Clipboard
-                }
-            }
-        }
-        
-        ; 处理读取到的内容
-        if (CurrentContent != "" && StrLen(CurrentContent) > 0) {
-            ; 检查内容是否看起来像语音输入的内容（不是文件路径或快捷方式）
-            if (CurrentInputValue = "" && (InStr(CurrentContent, "\") || InStr(CurrentContent, ".lnk") || InStr(CurrentContent, "快捷方式"))) {
-                ; 忽略看起来像文件路径或快捷方式的内容
-                A_Clipboard := OldClipboard
-                return
-            }
-            
-            ; 如果内容有变化且新内容更长，更新输入框（说明有新输入）
-            ; 注意：如果通过直接读取获取的内容，CurrentInputValue 已经是最新的了
-            ; 只有在通过剪贴板方式获取内容时才需要更新
-            if (CurrentContent != CurrentInputValue && StrLen(CurrentContent) >= StrLen(CurrentInputValue)) {
-                try {
-                    ; 在输入法窗口存在时，不更新输入框内容（避免干扰输入法）
-                    ; 输入法会自动将内容输入到输入框
-                    if (!BaiduVoiceWindowActive) {
-                        VoiceSearchInputEdit.Value := CurrentContent
-                        ; 将光标移到末尾
-                        try {
-                            ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
-                            Sleep(20)
-                            Send("^{End}")
-                        } catch {
-                            ; 忽略错误
-                        }
-                    }
-                } catch {
-                    ; 如果更新失败，可能是输入框被锁定或输入法窗口正在使用
-                    ; 忽略错误，下次再尝试
-                }
-            }
-        }
-        
-        ; 恢复剪贴板
-        A_Clipboard := OldClipboard
-    } catch {
-        ; 忽略错误
-    }
-}
-
-; 结束语音输入（在语音搜索界面中）
-StopVoiceInputInSearch() {
-    global VoiceSearchActive, VoiceInputMethod, CapsLock, VoiceSearchInputEdit, VoiceSearchPanelVisible, UI_Colors
-    
-    if (!VoiceSearchActive || !VoiceSearchPanelVisible) {
-        return
-    }
-    
-    try {
-        ; 先确保CapsLock状态被重置
-        if (CapsLock) {
-            CapsLock := false
-        }
-        
-        ; 根据输入法类型使用不同的结束快捷键
-        if (VoiceInputMethod = "baidu") {
-            ; 百度输入法：F1 结束语音录入
-            Send("{F1}")
-            Sleep(800)
-            
-            ; 获取语音输入内容
-            OldClipboard := A_Clipboard
-            Send("^a")
-            Sleep(200)
-            A_Clipboard := ""
-            Send("^c")
-            if ClipWait(1.5) {
-                VoiceSearchContent := A_Clipboard
-            }
-            A_Clipboard := OldClipboard
-            
-            ; 退出百度输入法语音模式
-            Send("!y")
-            Sleep(300)
-        } else if (VoiceInputMethod = "xunfei") {
-            ; 讯飞输入法：F6 结束
-            Send("{F6}")
-            Sleep(1000)
-            
-            ; 获取语音输入内容
-            OldClipboard := A_Clipboard
-            Send("^a")
-            Sleep(200)
-            A_Clipboard := ""
-            Send("^c")
-            if ClipWait(1.5) {
-                VoiceSearchContent := A_Clipboard
-            }
-            A_Clipboard := OldClipboard
-        } else {
-            ; 默认尝试百度方案
-            Send("{F1}")
-            Sleep(800)
-            
-            ; 获取语音输入内容
-            OldClipboard := A_Clipboard
-            Send("^a")
-            Sleep(200)
-            A_Clipboard := ""
-            Send("^c")
-            if ClipWait(1.5) {
-                VoiceSearchContent := A_Clipboard
-            }
-            A_Clipboard := OldClipboard
-            
-            ; 退出百度输入法语音模式
-            Send("!y")
-            Sleep(300)
-        }
-        
-        VoiceSearchActive := false
-        SetTimer(UpdateVoiceSearchInputInPanel, 0)  ; 停止更新输入框
-        
-        ; 更新开关按钮显示（安全访问）
-        try {
-        } catch {
-            ; 忽略更新按钮时的错误
-        }
-        
-        ; 将内容填入输入框
-        if (VoiceSearchContent != "" && StrLen(VoiceSearchContent) > 0 && VoiceSearchInputEdit) {
-            VoiceSearchInputEdit.Value := VoiceSearchContent
-            VoiceSearchInputEdit.Focus()
-        }
-    } catch as e {
-        VoiceSearchActive := false
-        SetTimer(UpdateVoiceSearchInputInPanel, 0)
-        ; 更新开关按钮显示（安全访问，避免变量未初始化错误）
-        try {
-        } catch {
-            ; 忽略更新按钮时的错误
-        }
-        TrayTip(GetText("voice_search_failed") . ": " . e.Message, GetText("error"), "Iconx 2")
-    }
-}
-
-
-
-; 显示搜索引擎选择界面
-ShowSearchEngineSelection(Content) {
-    global GuiID_VoiceInput, VoiceInputScreenIndex, UI_Colors, VoiceSearchSelecting, VoiceSearchEngineButtons
-    
-    VoiceSearchSelecting := true
-    
-    if (GuiID_VoiceInput != 0) {
-        try {
-            GuiID_VoiceInput.Destroy()
-        }
-        GuiID_VoiceInput := 0
-    }
-    
-    GuiID_VoiceInput := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
-    GuiID_VoiceInput.BackColor := UI_Colors.Background
-    GuiID_VoiceInput.SetFont("s12 c" . UI_Colors.Text . " Bold", "Segoe UI")
-    
-    PanelWidth := 500
-    ; 计算所需高度：标题(50) + 内容标签(25) + 内容框(60) + 引擎标签(30) + 按钮区域 + 取消按钮(45) + 边距(20)
-    ButtonsRows := Ceil(SearchEngines.Length / 4)  ; 每行4个按钮
-    ButtonsAreaHeight := ButtonsRows * 45  ; 每行45px（按钮35px + 间距10px）
-    PanelHeight := 50 + 25 + 60 + 30 + ButtonsAreaHeight + 45 + 20
-    
-    ; 标题
-    TitleText := GuiID_VoiceInput.Add("Text", "x0 y15 w500 h30 Center c" . UI_Colors.Text, GetText("select_search_engine_title"))
-    TitleText.SetFont("s14 Bold", "Segoe UI")
-    
-    ; 显示搜索内容
-    YPos := 55
-    LabelText := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w460 h20 cCCCCCC", "搜索内容:")
-    LabelText.SetFont("s10", "Segoe UI")
-    
-    YPos += 25
-    ContentEdit := GuiID_VoiceInput.Add("Edit", "x20 y" . YPos . " w460 h60 vSearchContentEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " ReadOnly Multi", Content)
-    ContentEdit.SetFont("s11", "Segoe UI")
-    
-    ; 搜索引擎按钮
-    YPos += 80
-    LabelEngine := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w460 h20 c" . UI_Colors.TextDim, GetText("select_search_engine"))
-    LabelEngine.SetFont("s10", "Segoe UI")
-    
-    YPos += 30
-    ; 搜索引擎列表
-    global VoiceSearchCurrentCategory
-    SearchEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)
-    
-    VoiceSearchEngineButtons := []
-    ButtonWidth := 110
-    ButtonHeight := 35
-    ButtonSpacing := 10
-    StartX := 20
-    ButtonsPerRow := 4
-    
-    for Index, Engine in SearchEngines {
-        Row := Floor((Index - 1) / ButtonsPerRow)
-        Col := Mod((Index - 1), ButtonsPerRow)
-        BtnX := StartX + Col * (ButtonWidth + ButtonSpacing)
-        BtnY := YPos + Row * (ButtonHeight + ButtonSpacing)
-        
-        ; 创建按钮
-        ; 按钮文字颜色：根据主题调整
-        global ThemeMode
-        EngineBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . EngineBtnTextColor . " Background" . UI_Colors.BtnBg . " vSearchEngineBtn" . Index, Engine.Name)
-        Btn.SetFont("s10", "Segoe UI")
-        Btn.OnEvent("Click", CreateSearchEngineClickHandler(Content, Engine.Value))
-        HoverBtn(Btn, UI_Colors.BtnBg, UI_Colors.BtnHover)
-        VoiceSearchEngineButtons.Push(Btn)
-    }
-    
-    ; 取消按钮
-    CancelBtnY := YPos + (Floor((SearchEngines.Length - 1) / ButtonsPerRow) + 1) * (ButtonHeight + ButtonSpacing) + 10
-    ; 取消按钮颜色：根据主题调整
-    global ThemeMode
-    CancelBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-    CancelBtnBg := (ThemeMode = "light") ? UI_Colors.BtnBg : "666666"
-    CancelBtn := GuiID_VoiceInput.Add("Text", "x" . (PanelWidth // 2 - 60) . " y" . CancelBtnY . " w120 h35 Center 0x200 c" . CancelBtnTextColor . " Background" . CancelBtnBg . " vCancelBtn", GetText("cancel"))
-    CancelBtn.SetFont("s11", "Segoe UI")
-    CancelBtn.OnEvent("Click", CancelSearchEngineSelection)
-    HoverBtn(CancelBtn, "666666", "777777")
-    
-    ScreenInfo := GetScreenInfo(VoiceInputScreenIndex)
-    Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, "center")
-    GuiID_VoiceInput.Show("w" . PanelWidth . " h" . PanelHeight . " x" . Pos.X . " y" . Pos.Y . " NoActivate")
-    WinSetAlwaysOnTop(1, GuiID_VoiceInput.Hwnd)
-}
-
-; 创建搜索引擎点击处理函数
-CreateSearchEngineClickHandler(Content, Engine) {
-    ; 使用闭包保存参数
-    SearchEngineClickHandler(*) {
-        global VoiceSearchSelecting
-        VoiceSearchSelecting := false
-        HideVoiceSearchInputPanel()
-        SendVoiceSearchToBrowser(Content, Engine)
-    }
-    return SearchEngineClickHandler
-}
-
-; 取消搜索引擎选择
-CancelSearchEngineSelection(*) {
-    global VoiceSearchSelecting
-    VoiceSearchSelecting := false
-    HideVoiceSearchInputPanel()
-}
-
-; 发送语音搜索内容到浏览器
-SendVoiceSearchToBrowser(Content, Engine) {
-    try {
-        ; URL编码搜索内容
-        EncodedContent := UriEncode(Content)
-        
-        ; 根据搜索引擎构建URL
-        SearchURL := ""
-        switch Engine {
-            case "deepseek":
-                SearchURL := "https://chat.deepseek.com/?q=" . EncodedContent
-            case "yuanbao":
-                ; 元宝AI：使用根路径，添加q参数（intent查询）
-                ; 注意：使用yuanbao.tencent.com而不是www.yuanbao.com
-                ; 格式：https://yuanbao.tencent.com/?q=搜索关键词
-                SearchURL := "https://yuanbao.tencent.com/?q=" . EncodedContent
-            case "doubao":
-                ; 豆包AI：使用chat路径，添加q参数（intent查询）
-                ; q参数用于预填充查询内容
-                SearchURL := "https://www.doubao.com/chat/?q=" . EncodedContent
-            case "zhipu":
-                SearchURL := "https://chatglm.cn/main/search?query=" . EncodedContent
-            case "mita":
-                ; 秘塔AI搜索：使用q参数（intent查询）
-                ; q参数用于指定搜索关键词
-                SearchURL := "https://metaso.cn/?q=" . EncodedContent
-            case "wenxin":
-                SearchURL := "https://yiyan.baidu.com/search?query=" . EncodedContent
-            case "qianwen":
-                ; 通义千问：使用qianwen/chat路径，添加intent和query参数
-                ; intent参数指定为chat，query参数传递搜索内容
-                SearchURL := "https://tongyi.aliyun.com/qianwen/chat?intent=chat&query=" . EncodedContent
-            case "kimi":
-                ; Kimi：使用_prefill_chat路径，添加intent相关参数
-                ; force_search=true：强制进行搜索
-                ; send_immediately=true：立即发送预填充的内容
-                ; prefill_prompt：设置预填充的聊天内容（intent语句）
-                SearchURL := "https://kimi.moonshot.cn/_prefill_chat?force_search=true&send_immediately=true&prefill_prompt=" . EncodedContent
-            case "perplexity":
-                ; Perplexity AI：使用intent参数进行搜索
-                ; intent=qa：指定为问答意图，q参数传递搜索内容
-                SearchURL := "https://www.perplexity.ai/search?intent=qa&q=" . EncodedContent
-            case "copilot":
-                ; Microsoft Copilot：使用chat路径，添加q参数（intent查询）
-                SearchURL := "https://copilot.microsoft.com/chat?q=" . EncodedContent
-            case "chatgpt":
-                ; ChatGPT：使用根路径，添加q参数（intent查询）
-                SearchURL := "https://chat.openai.com/?q=" . EncodedContent
-            case "grok":
-                ; Grok：使用grok.com路径，添加q参数（intent查询）
-                SearchURL := "https://grok.com/?q=" . EncodedContent
-            case "you":
-                ; You.com：使用search路径，添加q参数（intent查询）
-                SearchURL := "https://you.com/search?q=" . EncodedContent
-            case "claude":
-                ; Claude：使用new路径，添加q参数（intent查询）
-                SearchURL := "https://claude.ai/new?q=" . EncodedContent
-            case "monica":
-                ; Monica：使用answers路径，添加q参数（intent查询）
-                SearchURL := "https://monica.so/answers/?q=" . EncodedContent
-            case "webpilot":
-                ; WebPilot：使用search路径，添加q参数（intent查询）
-                SearchURL := "https://webpilot.ai/search?q=" . EncodedContent
-            ; 学术类
-            case "zhihu":
-                SearchURL := "https://www.zhihu.com/search?q=" . EncodedContent
-            case "wechat_article":
-                SearchURL := "https://weixin.sogou.com/weixin?query=" . EncodedContent
-            case "cainiao":
-                SearchURL := "https://www.cainiao.com/search?q=" . EncodedContent
-            case "gitee":
-                SearchURL := "https://gitee.com/search?q=" . EncodedContent
-            case "pubscholar":
-                SearchURL := "https://pubscholar.cn/search?q=" . EncodedContent
-            case "semantic":
-                SearchURL := "https://www.semanticscholar.org/search?q=" . EncodedContent
-            case "baidu_academic":
-                SearchURL := "https://xueshu.baidu.com/s?wd=" . EncodedContent
-            case "bing_academic":
-                SearchURL := "https://www.bing.com/academic/search?q=" . EncodedContent
-            case "csdn":
-                SearchURL := "https://so.csdn.net/so/search?q=" . EncodedContent
-            case "national_library":
-                SearchURL := "https://www.nlc.cn/dsb_search/search?q=" . EncodedContent
-            case "chaoxing":
-                SearchURL := "https://www.chaoxing.com/search?q=" . EncodedContent
-            case "cnki":
-                SearchURL := "https://kns.cnki.net/kns8/AdvSearch?q=" . EncodedContent
-            case "wechat_reading":
-                SearchURL := "https://weread.qq.com/web/search/books?q=" . EncodedContent
-            case "dada":
-                SearchURL := "https://www.dadawenku.com/search?q=" . EncodedContent
-            case "patent":
-                SearchURL := "https://www.patenthub.cn/search?q=" . EncodedContent
-            case "ip_office":
-                SearchURL := "https://www.cnipa.gov.cn/col/col49/index.html?q=" . EncodedContent
-            case "dedao":
-                SearchURL := "https://www.dedao.cn/search?q=" . EncodedContent
-            case "pkmer":
-                SearchURL := "https://pkmer.cn/search?q=" . EncodedContent
-            ; 百度类
-            case "baidu":
-                SearchURL := "https://www.baidu.com/s?wd=" . EncodedContent
-            case "baidu_title":
-                SearchURL := "https://www.baidu.com/s?wd=intitle:" . EncodedContent
-            case "baidu_hanyu":
-                SearchURL := "https://hanyu.baidu.com/s?wd=" . EncodedContent
-            case "baidu_wenku":
-                SearchURL := "https://wenku.baidu.com/search?word=" . EncodedContent
-            case "baidu_map":
-                SearchURL := "https://map.baidu.com/search/" . EncodedContent
-            case "baidu_pdf":
-                SearchURL := "https://www.baidu.com/s?wd=" . EncodedContent . " filetype:pdf"
-            case "baidu_doc":
-                SearchURL := "https://www.baidu.com/s?wd=" . EncodedContent . " filetype:doc"
-            case "baidu_ppt":
-                SearchURL := "https://www.baidu.com/s?wd=" . EncodedContent . " filetype:ppt"
-            case "baidu_xls":
-                SearchURL := "https://www.baidu.com/s?wd=" . EncodedContent . " filetype:xls"
-            ; 图片类
-            case "image_aggregate":
-                SearchURL := "https://www.tineye.com/search?q=" . EncodedContent
-            case "iconfont":
-                SearchURL := "https://www.iconfont.cn/search/index?q=" . EncodedContent
-            case "wenxin_image":
-                SearchURL := "https://yiyan.baidu.com/image?query=" . EncodedContent
-            case "tiangong_image":
-                SearchURL := "https://tiangong.kuaishou.com/image?q=" . EncodedContent
-            case "yuanbao_image":
-                SearchURL := "https://yuanbao.tencent.com/image?q=" . EncodedContent
-            case "tongyi_image":
-                SearchURL := "https://tongyi.aliyun.com/wanxiang/image?q=" . EncodedContent
-            case "zhipu_image":
-                SearchURL := "https://chatglm.cn/image?q=" . EncodedContent
-            case "miaohua":
-                SearchURL := "https://miaohua.sensetime.com/?q=" . EncodedContent
-            case "keling":
-                SearchURL := "https://kling.kuaishou.com/?q=" . EncodedContent
-            case "jimmeng":
-                SearchURL := "https://jimmeng.douyin.com/?q=" . EncodedContent
-            case "baidu_image":
-                SearchURL := "https://image.baidu.com/search/index?tn=baiduimage&word=" . EncodedContent
-            case "shetu":
-                SearchURL := "https://699pic.com/search.html?kw=" . EncodedContent
-            case "huaban":
-                SearchURL := "https://huaban.com/search/?q=" . EncodedContent
-            case "zcool":
-                SearchURL := "https://www.zcool.com.cn/search/content?&word=" . EncodedContent
-            case "uisdc":
-                SearchURL := "https://www.uisdc.com/search?q=" . EncodedContent
-            case "nipic":
-                SearchURL := "https://www.nipic.com/search.html?k=" . EncodedContent
-            case "bing_image":
-                SearchURL := "https://www.bing.com/images/search?q=" . EncodedContent
-            case "google_image":
-                SearchURL := "https://www.google.com/search?tbm=isch&q=" . EncodedContent
-            case "weibo_image":
-                SearchURL := "https://s.weibo.com/image?q=" . EncodedContent
-            case "sogou_image":
-                SearchURL := "https://pic.sogou.com/pics?query=" . EncodedContent
-            case "haosou_image":
-                SearchURL := "https://image.so.com/i?q=" . EncodedContent
-            ; 音频类
-            case "netease_music":
-                SearchURL := "https://music.163.com/#/search/m/?s=" . EncodedContent
-            case "tiangong_music":
-                SearchURL := "https://tiangong.kuaishou.com/music?q=" . EncodedContent
-            case "qq_music":
-                SearchURL := "https://y.qq.com/n/ryqq/search?w=" . EncodedContent
-            case "kuwo":
-                SearchURL := "https://www.kuwo.cn/search/list?key=" . EncodedContent
-            case "kugou":
-                SearchURL := "https://www.kugou.com/yy/html/search.html#searchType=song&searchKeyWord=" . EncodedContent
-            case "qianqian":
-                SearchURL := "https://music.taihe.com/search?word=" . EncodedContent
-            case "ximalaya":
-                SearchURL := "https://www.ximalaya.com/search/" . EncodedContent
-            case "5sing":
-                SearchURL := "https://5sing.kugou.com/search.html?q=" . EncodedContent
-            ; 视频类
-            case "douyin":
-                SearchURL := "https://www.douyin.com/search/" . EncodedContent
-            case "youtube":
-                SearchURL := "https://www.youtube.com/results?search_query=" . EncodedContent
-            case "youku":
-                SearchURL := "https://so.youku.com/search_video/q_" . EncodedContent
-            case "tencent_video":
-                SearchURL := "https://v.qq.com/x/search/?q=" . EncodedContent
-            case "iqiyi":
-                SearchURL := "https://so.iqiyi.com/so/q_" . EncodedContent
-            case "pexels":
-                SearchURL := "https://www.pexels.com/search/" . EncodedContent
-            case "yandex":
-                SearchURL := "https://yandex.com/video/search?text=" . EncodedContent
-            ; 图书类
-            case "duokan":
-                SearchURL := "https://www.duokan.com/search/" . EncodedContent
-            case "turing":
-                SearchURL := "https://www.ituring.com.cn/search?q=" . EncodedContent
-            case "panda_book":
-                SearchURL := "https://www.xpanda.cc/search?q=" . EncodedContent
-            case "douban_book":
-                SearchURL := "https://book.douban.com/subject_search?search_text=" . EncodedContent
-            case "jiumo":
-                SearchURL := "https://www.jiumodiary.com/search?q=" . EncodedContent
-            case "weibo_book":
-                SearchURL := "https://s.weibo.com/weibo/" . EncodedContent
-            ; 比价类
-            case "jd":
-                SearchURL := "https://search.jd.com/Search?keyword=" . EncodedContent
-            case "taobao":
-                SearchURL := "https://s.taobao.com/search?q=" . EncodedContent
-            case "tmall":
-                SearchURL := "https://list.tmall.com/search_product.htm?q=" . EncodedContent
-            case "pinduoduo":
-                SearchURL := "https://mobile.yangkeduo.com/search_result.html?search_key=" . EncodedContent
-            case "xianyu":
-                SearchURL := "https://s.2.taobao.com/list/list.htm?q=" . EncodedContent
-            case "smzdm":
-                SearchURL := "https://search.smzdm.com/?c=faxian&s=" . EncodedContent
-            case "dangdang":
-                SearchURL := "https://search.dangdang.com/?key=" . EncodedContent
-            case "1688":
-                SearchURL := "https://s.1688.com/selloffer/offer_search.htm?keywords=" . EncodedContent
-            case "amazon":
-                SearchURL := "https://www.amazon.com/s?k=" . EncodedContent
-            case "ebay":
-                SearchURL := "https://www.ebay.com/sch/i.html?_nkw=" . EncodedContent
-            ; 医疗类
-            case "dxy":
-                SearchURL := "https://www.dxy.cn/bbs/newweb/pc/search?q=" . EncodedContent
-            case "merck":
-                SearchURL := "https://www.msdmanuals.com/zh/search?q=" . EncodedContent
-            case "aplus_medical":
-                SearchURL := "https://www.a-hospital.com/w/" . EncodedContent
-            case "medical_baike":
-                SearchURL := "https://www.yixue.com/index.php?q=" . EncodedContent
-            case "weiyi":
-                SearchURL := "https://www.guahao.com/search?q=" . EncodedContent
-            case "medlive":
-                SearchURL := "https://www.medlive.cn/search?q=" . EncodedContent
-            case "xywy":
-                SearchURL := "https://www.xywy.com/search?q=" . EncodedContent
-            ; 网盘类
-            case "pansoso":
-                ; 盘搜搜：直接打开主页（不支持参数传递）
-                SearchURL := "https://www.pansoso.com/zh/"
-            case "panso":
-                ; 盘搜Pro：使用search路径，添加q参数
-                SearchURL := "https://panso.pro/search?q=" . EncodedContent
-            case "xiaomapan":
-                ; 小码盘：使用search路径，添加keyword参数
-                SearchURL := "https://www.xiaomapan.com/#/main/search?keyword=" . EncodedContent
-            case "dashengpan":
-                ; 大圣盘：使用search路径，添加keyword参数
-                SearchURL := "https://www.dashengpan.com/#/main/search?keyword=" . EncodedContent
-            case "miaosou":
-                ; 秒搜：使用info路径，添加searchKey参数
-                SearchURL := "https://miaosou.fun/info?searchKey=" . EncodedContent
-            default:
-                SearchURL := "https://chat.deepseek.com/?q=" . EncodedContent
-        }
-        
-        ; 打开浏览器
-        Run(SearchURL)
-        TrayTip(GetText("voice_search_sent"), GetText("tip"), "Iconi 1")
-    } catch as e {
-        TrayTip(GetText("voice_search_failed") . ": " . e.Message, GetText("error"), "Iconx 2")
-    }
-}
-
-; 切换到中文输入法
-SwitchToChineseIME(*) {
-    try {
-        ; 对于语音搜索输入框，使用输入框所在的窗口句柄
-        global GuiID_VoiceInput, VoiceSearchInputEdit
-        if (GuiID_VoiceInput && VoiceSearchInputEdit) {
-            ; 确保窗口激活
-            WinActivate("ahk_id " . GuiID_VoiceInput.Hwnd)
-            Sleep(50)
-            ; 确保输入框有焦点
-            VoiceSearchInputEdit.Focus()
-            Sleep(50)
-            ActiveHwnd := GuiID_VoiceInput.Hwnd
-        } else {
-            ; 获取当前活动窗口的句柄
-            ActiveHwnd := WinGetID("A")
-        }
-        
-        if (!ActiveHwnd) {
-            return
-        }
-        
-        ; 方法1：使用 Windows IME API 切换到中文输入法
-        ; 加载 imm32.dll
-        hIMC := DllCall("imm32\ImmGetContext", "Ptr", ActiveHwnd, "Ptr")
-        if (hIMC) {
-            ; 获取当前输入法状态
-            DllCall("imm32\ImmGetConversionStatus", "Ptr", hIMC, "UInt*", &ConversionMode := 0, "UInt*", &SentenceMode := 0)
-            
-            ; 设置输入法为中文模式（IME_CMODE_NATIVE = 1）
-            ; IME_CMODE_NATIVE 表示使用本地语言（中文）输入模式
-            ConversionMode := ConversionMode | 0x0001  ; IME_CMODE_NATIVE
-            
-            ; 应用新的输入法状态
-            DllCall("imm32\ImmSetConversionStatus", "Ptr", hIMC, "UInt", ConversionMode, "UInt", SentenceMode)
-            
-            ; 释放输入法上下文
-            DllCall("imm32\ImmReleaseContext", "Ptr", ActiveHwnd, "Ptr", hIMC)
-        }
-        
-        ; 方法2：尝试切换到中文键盘布局（备用方案）
-        ; 中文简体键盘布局代码：0x0804 (2052)
-        ; 使用 PostMessage 发送输入法切换请求
-        try {
-            ; WM_INPUTLANGCHANGEREQUEST = 0x0050
-            ; 参数：wParam = INPUTLANGCHANGE_SYSCHARSET (0x0001), lParam = 键盘布局句柄
-            ; 获取中文键盘布局句柄
-            hKL := DllCall("user32\LoadKeyboardLayout", "Str", "00000804", "UInt", 0x00000001, "Ptr")  ; KLF_ACTIVATE = 1
-            if (hKL) {
-                ; 发送输入法切换消息
-                PostMessage(0x0050, 0x0001, hKL, , , "ahk_id " . ActiveHwnd)
-            }
-        } catch {
-            ; 如果失败，静默处理
-        }
-        
-    } catch {
-        ; 如果切换失败，静默处理（不显示错误提示）
-    }
 }
 
 ; URL编码函数（使用 UTF-8 编码，正确处理中文）
@@ -10464,4 +9618,3 @@ UriEncode(Uri) {
         return Uri
     }
 }
-
