@@ -233,6 +233,7 @@ GetText(Key) {
             "no_content", "未检测到新内容",
             "no_clipboard", "请先使用 CapsLock+C 复制内容",
             "clear_all", "清空全部",
+            "clear_selection", "清空选择",
             "clear", "清空",
             "refresh", "刷新",
             "copy_selected", "复制选中",
@@ -609,6 +610,7 @@ GetText(Key) {
             "no_content", "No new content detected",
             "no_clipboard", "Please use CapsLock+C to copy content first",
             "clear_all", "Clear All",
+            "clear_selection", "Clear Selection",
             "clear", "Clear",
             "refresh", "Refresh",
             "copy_selected", "Copy Selected",
@@ -6759,9 +6761,23 @@ HandleDynamicHotkey(PressedKey, ActionType) {
     
     ; 如果按键匹配配置的快捷键，执行操作
     if (KeyLower = ConfigKey || (ActionType = "ESC" && (PressedKey = "Esc" || KeyLower = "esc"))) {
-        ; 立即隐藏面板（所有快捷键操作都应该隐藏面板）
-        if (PanelVisible) {
-            HideCursorPanel()
+        ; 【关键修复】对于 F 键，需要先检查语音搜索面板状态，避免影响弹出菜单
+        ; 如果是 F 键且语音搜索面板已显示，不隐藏快捷操作面板，避免影响菜单状态
+        global VoiceSearchPanelVisible
+        if (ActionType = "F") {
+            ; 确保变量已初始化
+            if (!IsSet(VoiceSearchPanelVisible)) {
+                VoiceSearchPanelVisible := false
+            }
+            ; 如果语音搜索面板已显示，不隐藏快捷操作面板，避免影响菜单状态
+            if (!VoiceSearchPanelVisible && PanelVisible) {
+                HideCursorPanel()
+            }
+        } else {
+            ; 其他快捷键操作都应该隐藏面板
+            if (PanelVisible) {
+                HideCursorPanel()
+            }
         }
         
         switch ActionType {
@@ -6818,7 +6834,7 @@ HandleDynamicHotkey(PressedKey, ActionType) {
                 }
             case "F":
                 CapsLock2 := false
-                global VoiceSearchPanelVisible, VoiceSearchActive
+                global VoiceSearchActive
                 ; 【关键修复】确保变量已初始化
                 if (!IsSet(VoiceSearchPanelVisible)) {
                     VoiceSearchPanelVisible := false
@@ -6845,6 +6861,7 @@ HandleDynamicHotkey(PressedKey, ActionType) {
                     }
                 } else {
                     ; 面板未显示，显示面板
+                    ; 【关键修复】如果快捷操作面板正在显示，先关闭它（在 StartVoiceSearch 中处理）
                     StartVoiceSearch()
                 }
         }
@@ -7624,6 +7641,11 @@ ShowVoiceInputActionSelection(Content) {
     ButtonsPerRow := 4
     
     for Index, Engine in SearchEngines {
+        ; 【修复】添加安全检查，防止访问无效对象属性
+        if (!IsObject(Engine) || !Engine.HasProp("Value") || !Engine.HasProp("Name")) {
+            continue  ; 跳过无效的引擎对象
+        }
+        
         Row := Floor((Index - 1) / ButtonsPerRow)
         Col := Mod((Index - 1), ButtonsPerRow)
         BtnX := StartX + Col * (ButtonWidth + ButtonSpacing)
@@ -7805,10 +7827,25 @@ SendVoiceInputToCursor(Content) {
 ; ===================== 语音搜索功能 =====================
 ; 辅助函数：检查数组是否包含某个值
 ArrayContainsValue(Arr, Value) {
-    for Index, Item in Arr {
-        if (Item = Value) {
-            return Index
+    ; 【修复】添加安全检查，防止 "Item has no value" 错误
+    if (!IsSet(Arr) || !IsObject(Arr) || Arr.Length = 0) {
+        return 0
+    }
+    try {
+        for Index, Item in Arr {
+            ; 【关键修复】检查 Item 是否有值，防止 "Item has no value" 错误
+            try {
+                ; 先检查 Item 是否有效，然后再比较
+                if (IsSet(Item) && Item = Value) {
+                    return Index
+                }
+            } catch {
+                ; 如果 Item 没有值或无法比较，跳过该项
+                ; 继续下一次循环
+            }
         }
+    } catch {
+        return 0
     }
     return 0
 }
@@ -8043,7 +8080,8 @@ GetSortedSearchEngines(Category := "") {
     ; 按分类过滤
     FilteredEngines := []
     for Index, Engine in AllEngines {
-        if (Engine.Category = Category) {
+        ; 【修复】添加安全检查，防止访问无效对象属性
+        if (IsObject(Engine) && Engine.HasProp("Category") && Engine.Category = Category) {
             FilteredEngines.Push(Engine)
         }
     }
@@ -8059,6 +8097,10 @@ GetSortedSearchEngines(Category := "") {
         AIEngines := []
         
         for Index, Engine in FilteredEngines {
+            ; 【修复】添加安全检查，防止访问无效对象属性
+            if (!IsObject(Engine) || !Engine.HasProp("Value")) {
+                continue
+            }
             ; 判断是中文引擎还是AI引擎
             ChineseEngineValues := ["deepseek", "yuanbao", "doubao", "zhipu", "mita", "wenxin", "qianwen", "kimi"]
             if (ArrayContainsValue(ChineseEngineValues, Engine.Value) > 0) {
@@ -8600,6 +8642,11 @@ ShowSearchEngineSelection(Content) {
     
     VoiceSearchEngineButtons := []
     for Index, Engine in SearchEngines {
+        ; 【修复】添加安全检查，防止访问无效对象属性
+        if (!IsObject(Engine) || !Engine.HasProp("Value") || !Engine.HasProp("Name")) {
+            continue  ; 跳过无效的引擎对象
+        }
+        
         Row := Floor((Index - 1) / ButtonsPerRow)
         Col := Mod(Index - 1, ButtonsPerRow)
         BtnX := 20 + Col * (ButtonWidth + ButtonSpacing)
@@ -8676,7 +8723,24 @@ ShowVoiceSearchInputPanel() {
     if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
         VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
     }
+    ; 【关键修复】确保 VoiceSearchSelectedEngines 已正确初始化
+    if (!IsSet(VoiceSearchSelectedEngines) || !IsObject(VoiceSearchSelectedEngines)) {
+        VoiceSearchSelectedEngines := ["deepseek"]
+    }
+    if (VoiceSearchSelectedEngines.Length = 0) {
+        VoiceSearchSelectedEngines := ["deepseek"]
+    }
     SearchEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)
+    ; 【修复】确保 SearchEngines 是有效的数组
+    if (!IsObject(SearchEngines) || SearchEngines.Length = 0) {
+        ; 如果当前分类没有搜索引擎，使用默认分类
+        VoiceSearchCurrentCategory := "ai"
+        SearchEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)
+        if (!IsObject(SearchEngines) || SearchEngines.Length = 0) {
+            ; 如果仍然为空，创建一个默认引擎
+            SearchEngines := [{Name: GetText("search_engine_deepseek"), Value: "deepseek", Category: "ai"}]
+        }
+    }
     TotalEngines := SearchEngines.Length
     ButtonWidth := 130
     ButtonHeight := 35
@@ -8719,6 +8783,10 @@ ShowVoiceSearchInputPanel() {
     
     Categories := []
     for Index, Category in AllCategories {
+        ; 【关键修复】添加安全检查，防止访问无效对象属性导致 "Item has no value" 错误
+        if (!IsObject(Category) || !Category.HasProp("Key")) {
+            continue  ; 跳过无效的分类对象
+        }
         if (ArrayContainsValue(VoiceSearchEnabledCategories, Category.Key) > 0) {
             Categories.Push(Category)
         }
@@ -8731,7 +8799,12 @@ ShowVoiceSearchInputPanel() {
     
     if (ArrayContainsValue(VoiceSearchEnabledCategories, VoiceSearchCurrentCategory) = 0) {
         if (Categories.Length > 0) {
-            VoiceSearchCurrentCategory := Categories[1].Key
+            ; 【关键修复】添加安全检查，防止访问无效对象属性
+            if (IsObject(Categories[1]) && Categories[1].HasProp("Key")) {
+                VoiceSearchCurrentCategory := Categories[1].Key
+            } else {
+                VoiceSearchCurrentCategory := "ai"
+            }
         } else {
             VoiceSearchCurrentCategory := "ai"
         }
@@ -8834,6 +8907,10 @@ ShowVoiceSearchInputPanel() {
     
     ; 第一行标签
     for Index, Category in Categories {
+        ; 【关键修复】添加安全检查，防止访问无效对象属性导致 "Item has no value" 错误
+        if (!IsObject(Category) || !Category.HasProp("Key") || !Category.HasProp("Text")) {
+            continue  ; 跳过无效的分类对象
+        }
         if (Index > TabsPerRow) {
             break
         }
@@ -8854,6 +8931,10 @@ ShowVoiceSearchInputPanel() {
     if (Categories.Length > TabsPerRow) {
         TabY += TabHeight + TabSpacing
         for Index, Category in Categories {
+            ; 【关键修复】添加安全检查，防止访问无效对象属性导致 "Item has no value" 错误
+            if (!IsObject(Category) || !Category.HasProp("Key") || !Category.HasProp("Text")) {
+                continue  ; 跳过无效的分类对象
+            }
             if (Index <= TabsPerRow) {
                 continue
             }
@@ -8902,6 +8983,11 @@ ShowVoiceSearchInputPanel() {
     PanelHeight := 30 + 15 + 25 + InputBoxHeight + 35 + 35 + CategoryTabHeight + 30 + ButtonsAreaHeight + 20
     
     for Index, Engine in SearchEngines {
+        ; 【关键修复】添加安全检查，防止访问无效对象属性导致 "Item has no value" 错误
+        if (!IsObject(Engine) || !Engine.HasProp("Value") || !Engine.HasProp("Name")) {
+            continue  ; 跳过无效的引擎对象
+        }
+        
         Row := Floor((Index - 1) / ButtonsPerRow)
         Col := Mod((Index - 1), ButtonsPerRow)
         BtnX := StartX + Col * (ButtonWidth + ButtonSpacing)
@@ -8993,6 +9079,15 @@ ShowVoiceSearchInputPanel() {
         SetTimer(MonitorSelectedText, 200)
     } else {
         SetTimer(MonitorSelectedText, 0)
+    }
+    
+    ; 自动激活语音输入
+    try {
+        Sleep(300)  ; 等待窗口完全显示和焦点设置完成
+        StartVoiceInputInSearch()
+    } catch as e {
+        ; 如果启动语音输入失败，不影响面板显示
+        TrayTip(GetText("voice_search_failed") . ": " . e.Message, GetText("error"), "Iconx 2")
     }
 }
 
