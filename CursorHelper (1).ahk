@@ -1299,39 +1299,56 @@ InitConfig() {
                 ]
             }
             
-            ; 加载剪贴板历史记录（Ctrl+C）
-            global ClipboardHistory_CtrlC
-            ClipboardHistory_CtrlC := []
-            CtrlCCount := Integer(IniRead(ConfigFile, "Clipboard", "CtrlCCount", "0"))
-            if (CtrlCCount > 0 && CtrlCCount <= 100) {
-                Loop CtrlCCount {
-                    Index := A_Index
-                    EncodedContent := IniRead(ConfigFile, "Clipboard", "CtrlC_" . Index, "")
-                    if (EncodedContent != "") {
-                        ; 还原换行符
-                        Content := StrReplace(EncodedContent, "{{CRLF}}", "`r`n")
-                        Content := StrReplace(Content, "{{LF}}", "`n")
-                        Content := StrReplace(Content, "{{CR}}", "`r")
-                        ClipboardHistory_CtrlC.Push(Content)
-                    }
-                }
+            ; 加载最大历史记录数配置（默认100，最大1000）
+            global MaxClipboardHistoryItems
+            MaxClipboardHistoryItems := Integer(IniRead(ConfigFile, "Clipboard", "MaxHistoryItems", "100"))
+            if (MaxClipboardHistoryItems < 1 || MaxClipboardHistoryItems > 1000) {
+                MaxClipboardHistoryItems := 100  ; 默认值，防止设置过大影响性能
             }
             
-            ; 加载剪贴板历史记录（CapsLock+C）
-            global ClipboardHistory_CapsLockC
-            ClipboardHistory_CapsLockC := []
-            CapsLockCCount := Integer(IniRead(ConfigFile, "Clipboard", "CapsLockCCount", "0"))
-            if (CapsLockCCount > 0 && CapsLockCCount <= 100) {
-                Loop CapsLockCCount {
-                    Index := A_Index
-                    EncodedContent := IniRead(ConfigFile, "Clipboard", "CapsLockC_" . Index, "")
-                    if (EncodedContent != "") {
-                        ; 还原换行符
-                        Content := StrReplace(EncodedContent, "{{CRLF}}", "`r`n")
-                        Content := StrReplace(Content, "{{LF}}", "`n")
-                        Content := StrReplace(Content, "{{CR}}", "`r")
-                        ClipboardHistory_CapsLockC.Push(Content)
+            ; 加载剪贴板历史记录（使用新的 JSON 格式）
+            ; 首先尝试从 JSON 文件加载
+            LoadClipboardHistory()
+            
+            ; 如果 JSON 文件不存在，尝试从旧的 INI 格式迁移
+            global ClipboardHistoryFile
+            if (!FileExist(ClipboardHistoryFile)) {
+                ; 尝试从 INI 文件加载（兼容旧版本）
+                global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC
+                ClipboardHistory_CtrlC := []
+                CtrlCCount := Integer(IniRead(ConfigFile, "Clipboard", "CtrlCCount", "0"))
+                if (CtrlCCount > 0 && CtrlCCount <= 100) {
+                    Loop CtrlCCount {
+                        Index := A_Index
+                        EncodedContent := IniRead(ConfigFile, "Clipboard", "CtrlC_" . Index, "")
+                        if (EncodedContent != "") {
+                            ; 还原换行符
+                            Content := StrReplace(EncodedContent, "{{CRLF}}", "`r`n")
+                            Content := StrReplace(Content, "{{LF}}", "`n")
+                            Content := StrReplace(Content, "{{CR}}", "`r")
+                            ClipboardHistory_CtrlC.Push(Content)
+                        }
                     }
+                }
+                
+                CapsLockCCount := Integer(IniRead(ConfigFile, "Clipboard", "CapsLockCCount", "0"))
+                if (CapsLockCCount > 0 && CapsLockCCount <= 100) {
+                    Loop CapsLockCCount {
+                        Index := A_Index
+                        EncodedContent := IniRead(ConfigFile, "Clipboard", "CapsLockC_" . Index, "")
+                        if (EncodedContent != "") {
+                            ; 还原换行符
+                            Content := StrReplace(EncodedContent, "{{CRLF}}", "`r`n")
+                            Content := StrReplace(Content, "{{LF}}", "`n")
+                            Content := StrReplace(Content, "{{CR}}", "`r")
+                            ClipboardHistory_CapsLockC.Push(Content)
+                        }
+                    }
+                }
+                
+                ; 迁移到 JSON 格式并保存
+                if (ClipboardHistory_CtrlC.Length > 0 || ClipboardHistory_CapsLockC.Length > 0) {
+                    SaveClipboardHistory()
                 }
             }
         } else {
@@ -1358,6 +1375,7 @@ InitConfig() {
             HotkeyO := DefaultHotkeyO
             HotkeyQ := DefaultHotkeyQ
             HotkeyZ := DefaultHotkeyZ
+            HotkeyF := "f"  ; 默认值
             CapsLockHoldTimeSeconds := DefaultCapsLockHoldTimeSeconds
             PanelScreenIndex := DefaultPanelScreenIndex
             FunctionPanelPos := DefaultFunctionPanelPos
@@ -1392,6 +1410,7 @@ InitConfig() {
         HotkeyO := DefaultHotkeyO
         HotkeyQ := DefaultHotkeyQ
         HotkeyZ := DefaultHotkeyZ
+        HotkeyF := "f"  ; 默认值
         PanelScreenIndex := DefaultPanelScreenIndex
         FunctionPanelPos := DefaultFunctionPanelPos
         ConfigPanelPos := DefaultConfigPanelPos
@@ -1409,6 +1428,223 @@ InitConfig() {
 }
 
 InitConfig() ; 启动初始化
+
+; ===================== 剪贴板历史数据持久化 =====================
+; 剪贴板历史数据文件路径
+global ClipboardHistoryFile := A_ScriptDir "\ClipboardHistory.json"
+; 最大历史记录数（可配置，默认100，如果数据量大会影响性能）
+global MaxClipboardHistoryItems := 100  ; 可以通过配置文件修改
+
+; JSON 序列化辅助函数
+; 注意：Json 是 AutoHotkey v2 的内置函数，linter 可能无法识别
+SerializeToJson(Data) {
+    ; 直接调用内置的 Json() 函数进行序列化
+    ; 这是 AutoHotkey v2 的标准 JSON 序列化方法
+    local JsonFunc := Func("Json")  ; 获取内置函数引用
+    return JsonFunc(Data)
+}
+
+; JSON 反序列化辅助函数
+; 注意：Json 是 AutoHotkey v2 的内置函数，linter 可能无法识别
+DeserializeFromJson(JsonString) {
+    ; 直接调用内置的 Json() 函数进行反序列化
+    ; 这是 AutoHotkey v2 的标准 JSON 反序列化方法
+    local JsonFunc := Func("Json")  ; 获取内置函数引用
+    return JsonFunc(JsonString)
+}
+
+; 保存剪贴板历史数据到文件
+SaveClipboardHistory() {
+    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardHistoryFile, MaxClipboardHistoryItems
+    
+    ; 确保 MaxClipboardHistoryItems 已初始化
+    if (!IsSet(MaxClipboardHistoryItems) || MaxClipboardHistoryItems = "") {
+        MaxClipboardHistoryItems := 100  ; 默认值
+    }
+    
+    ; 确保 ClipboardHistoryFile 已初始化
+    if (!IsSet(ClipboardHistoryFile) || ClipboardHistoryFile = "") {
+        ClipboardHistoryFile := A_ScriptDir "\ClipboardHistory.json"
+    }
+    
+    try {
+        ; 确保数组已初始化
+        if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
+            ClipboardHistory_CtrlC := []
+        }
+        if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
+            ClipboardHistory_CapsLockC := []
+        }
+        
+        ; 在保存前限制数据量（避免文件过大）
+        ; 只保存最新的N条记录
+        CtrlCData := ClipboardHistory_CtrlC
+        CapsLockCData := ClipboardHistory_CapsLockC
+        
+        if (CtrlCData.Length > MaxClipboardHistoryItems) {
+            CtrlCData := CtrlCData.Slice(-MaxClipboardHistoryItems)
+        }
+        if (CapsLockCData.Length > MaxClipboardHistoryItems) {
+            CapsLockCData := CapsLockCData.Slice(-MaxClipboardHistoryItems)
+        }
+        
+        ; 创建数据对象
+        HistoryData := Map(
+            "CtrlC", CtrlCData,
+            "CapsLockC", CapsLockCData,
+            "Version", "1.0",
+            "LastSaved", A_Now,
+            "MaxItems", MaxClipboardHistoryItems
+        )
+        
+        ; 转换为 JSON 并保存
+        JsonData := SerializeToJson(HistoryData)
+        
+        ; 如果文件已存在，先删除再写入（确保文件内容正确）
+        if (FileExist(ClipboardHistoryFile)) {
+            FileDelete(ClipboardHistoryFile)
+        }
+        FileAppend(JsonData, ClipboardHistoryFile, "UTF-8")
+        
+    } catch as e {
+        ; 保存失败时静默处理，不影响主功能
+        ; 可以在这里添加日志记录
+    }
+}
+
+; 从文件加载剪贴板历史数据（优化版：快速加载，只加载最新N条）
+LoadClipboardHistory() {
+    global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardHistoryFile, MaxClipboardHistoryItems
+    
+    ; 确保 MaxClipboardHistoryItems 已初始化
+    if (!IsSet(MaxClipboardHistoryItems) || MaxClipboardHistoryItems = "") {
+        MaxClipboardHistoryItems := 100  ; 默认值
+    }
+    
+    ; 确保 ClipboardHistoryFile 已初始化
+    if (!IsSet(ClipboardHistoryFile) || ClipboardHistoryFile = "") {
+        ClipboardHistoryFile := A_ScriptDir "\ClipboardHistory.json"
+    }
+    
+    try {
+        ; 如果文件不存在，初始化空数组
+        if (!FileExist(ClipboardHistoryFile)) {
+            ClipboardHistory_CtrlC := []
+            ClipboardHistory_CapsLockC := []
+            return
+        }
+        
+        ; 快速检查文件大小，如果文件过大（>10MB），只加载最新数据
+        FileSize := FileGetSize(ClipboardHistoryFile)
+        MaxFileSize := 10 * 1024 * 1024  ; 10MB
+        
+        if (FileSize > MaxFileSize) {
+            ; 文件过大，使用快速加载模式：只读取文件末尾部分
+            ; 先初始化空数组，然后尝试读取文件末尾
+            ClipboardHistory_CtrlC := []
+            ClipboardHistory_CapsLockC := []
+            
+            ; 尝试读取文件末尾（最后1MB），如果JSON格式正确，可以解析
+            try {
+                ; 读取整个文件（如果内存允许）
+                JsonData := FileRead(ClipboardHistoryFile, "UTF-8")
+                if (JsonData != "" && JsonData != "`n") {
+                    ; 解析 JSON
+                    HistoryData := DeserializeFromJson(JsonData)
+                    
+                    ; 只加载最新的N条记录
+                    if (IsObject(HistoryData) && HistoryData.Has("CtrlC") && IsObject(HistoryData["CtrlC"])) {
+                        TempArray := HistoryData["CtrlC"]
+                        if (Type(TempArray) = "Array" && TempArray.Length > 0) {
+                            ; 只保留最新的N条
+                            StartIndex := Max(1, TempArray.Length - MaxClipboardHistoryItems + 1)
+                            ClipboardHistory_CtrlC := TempArray.Slice(StartIndex)
+                        } else {
+                            ClipboardHistory_CtrlC := []
+                        }
+                    } else {
+                        ClipboardHistory_CtrlC := []
+                    }
+                    
+                    if (IsObject(HistoryData) && HistoryData.Has("CapsLockC") && IsObject(HistoryData["CapsLockC"])) {
+                        TempArray := HistoryData["CapsLockC"]
+                        if (Type(TempArray) = "Array" && TempArray.Length > 0) {
+                            ; 只保留最新的N条
+                            StartIndex := Max(1, TempArray.Length - MaxClipboardHistoryItems + 1)
+                            ClipboardHistory_CapsLockC := TempArray.Slice(StartIndex)
+                        } else {
+                            ClipboardHistory_CapsLockC := []
+                        }
+                    } else {
+                        ClipboardHistory_CapsLockC := []
+                    }
+                }
+            } catch {
+                ; 如果解析失败，使用空数组
+                ClipboardHistory_CtrlC := []
+                ClipboardHistory_CapsLockC := []
+            }
+            return
+        }
+        
+        ; 正常大小的文件，正常加载
+        ; 读取 JSON 文件
+        JsonData := FileRead(ClipboardHistoryFile, "UTF-8")
+        if (JsonData = "" || JsonData = "`n") {
+            ClipboardHistory_CtrlC := []
+            ClipboardHistory_CapsLockC := []
+            return
+        }
+        
+        ; 解析 JSON
+        HistoryData := DeserializeFromJson(JsonData)
+        
+        ; 检查是否有配置的最大记录数
+        if (IsObject(HistoryData) && HistoryData.Has("MaxItems")) {
+            SavedMaxItems := HistoryData["MaxItems"]
+            if (IsNumber(SavedMaxItems) && SavedMaxItems > 0) {
+                ; 使用保存的配置，但不允许超过1000（防止性能问题）
+                MaxClipboardHistoryItems := Min(SavedMaxItems, 1000)
+            }
+        }
+        
+        ; 加载数据（兼容旧版本，如果数据格式不对则使用空数组）
+        if (IsObject(HistoryData) && HistoryData.Has("CtrlC") && IsObject(HistoryData["CtrlC"])) {
+            ClipboardHistory_CtrlC := HistoryData["CtrlC"]
+            ; 确保是数组类型
+            if (Type(ClipboardHistory_CtrlC) != "Array") {
+                ClipboardHistory_CtrlC := []
+            }
+            ; 限制最多N条（使用配置的最大值）
+            if (ClipboardHistory_CtrlC.Length > MaxClipboardHistoryItems) {
+                ; 保留最新的N条
+                ClipboardHistory_CtrlC := ClipboardHistory_CtrlC.Slice(-MaxClipboardHistoryItems)
+            }
+        } else {
+            ClipboardHistory_CtrlC := []
+        }
+        
+        if (IsObject(HistoryData) && HistoryData.Has("CapsLockC") && IsObject(HistoryData["CapsLockC"])) {
+            ClipboardHistory_CapsLockC := HistoryData["CapsLockC"]
+            ; 确保是数组类型
+            if (Type(ClipboardHistory_CapsLockC) != "Array") {
+                ClipboardHistory_CapsLockC := []
+            }
+            ; 限制最多N条（使用配置的最大值）
+            if (ClipboardHistory_CapsLockC.Length > MaxClipboardHistoryItems) {
+                ; 保留最新的N条
+                ClipboardHistory_CapsLockC := ClipboardHistory_CapsLockC.Slice(-MaxClipboardHistoryItems)
+            }
+        } else {
+            ClipboardHistory_CapsLockC := []
+        }
+        
+    } catch as e {
+        ; 加载失败时使用空数组，不影响程序启动
+        ClipboardHistory_CtrlC := []
+        ClipboardHistory_CapsLockC := []
+    }
+}
 
 ; ===================== 剪贴板变化监听 =====================
 ; 注意：OnClipboardChange 必须在脚本启动时注册，确保在 InitConfig 之后定义
@@ -1473,12 +1709,20 @@ HandleClipboardChange(Type) {
             return
         }
         
-        ; 记录到 Ctrl+C 历史记录（限制最多保存100条）
+        ; 记录到 Ctrl+C 历史记录（限制最多保存N条）
         ; 使用已声明的全局变量
+        global MaxClipboardHistoryItems
+        ; 确保 MaxClipboardHistoryItems 已初始化
+        if (!IsSet(MaxClipboardHistoryItems) || MaxClipboardHistoryItems = "") {
+            MaxClipboardHistoryItems := 100  ; 默认值
+        }
         ClipboardHistory_CtrlC.Push(CurrentContent)
-        if (ClipboardHistory_CtrlC.Length > 100) {
+        if (ClipboardHistory_CtrlC.Length > MaxClipboardHistoryItems) {
             ClipboardHistory_CtrlC.RemoveAt(1)  ; 删除最旧的记录
         }
+        
+        ; 保存到文件（延迟保存，避免频繁写入）
+        SetTimer(SaveClipboardHistory, -500)  ; 500ms 后保存
         
         ; 更新上次内容
         LastClipboardContent := CurrentContent
@@ -3856,11 +4100,13 @@ ResetToDefaults(*) {
     DefaultHotkeyO := "o"
     DefaultHotkeyQ := "q"
     DefaultHotkeyZ := "z"
+    DefaultCapsLockHoldTimeSeconds := 0.5
     DefaultPanelScreenIndex := 1
     
     try {
         if (IsSet(CursorPathEdit) && CursorPathEdit) CursorPathEdit.Value := DefaultCursorPath
         if (IsSet(AISleepTimeEdit) && AISleepTimeEdit) AISleepTimeEdit.Value := DefaultAISleepTime
+        if (IsSet(CapsLockHoldTimeEdit) && CapsLockHoldTimeEdit) CapsLockHoldTimeEdit.Value := DefaultCapsLockHoldTimeSeconds
         if (IsSet(PromptExplainEdit) && PromptExplainEdit) PromptExplainEdit.Value := DefaultPrompt_Explain
         if (IsSet(PromptRefactorEdit) && PromptRefactorEdit) PromptRefactorEdit.Value := DefaultPrompt_Refactor
         if (IsSet(PromptOptimizeEdit) && PromptOptimizeEdit) PromptOptimizeEdit.Value := DefaultPrompt_Optimize
@@ -4971,7 +5217,32 @@ SaveConfig(*) {
     ; 更新全局变量
     global CursorPath := CursorPathEdit ? CursorPathEdit.Value : ""
     global AISleepTime := AISleepTimeEdit.Value
-    global CapsLockHoldTimeSeconds := (CapsLockHoldTimeEdit && CapsLockHoldTimeEdit.Value != "") ? Float(CapsLockHoldTimeEdit.Value) : 0.5
+    ; 【修复】确保从编辑框正确读取 CapsLockHoldTimeSeconds
+    ; 无论编辑框是否有值，都尝试读取（即使值为0.5也要保存）
+    if (CapsLockHoldTimeEdit) {
+        ; 尝试读取编辑框的值
+        EditValue := CapsLockHoldTimeEdit.Value
+        if (EditValue != "" && IsNumber(EditValue)) {
+            global CapsLockHoldTimeSeconds := Float(EditValue)
+            ; 确保值在合理范围内
+            if (CapsLockHoldTimeSeconds < 0.1) {
+                CapsLockHoldTimeSeconds := 0.1
+            } else if (CapsLockHoldTimeSeconds > 5.0) {
+                CapsLockHoldTimeSeconds := 5.0
+            }
+        } else {
+            ; 如果编辑框值无效，使用当前全局变量的值（不重置为默认值）
+            ; 这样可以保持用户之前设置的值
+            if (!IsSet(CapsLockHoldTimeSeconds) || CapsLockHoldTimeSeconds = "") {
+                global CapsLockHoldTimeSeconds := 0.5  ; 只有在完全未设置时才使用默认值
+            }
+        }
+    } else {
+        ; 如果编辑框不存在，使用当前全局变量的值
+        if (!IsSet(CapsLockHoldTimeSeconds) || CapsLockHoldTimeSeconds = "") {
+            global CapsLockHoldTimeSeconds := 0.5  ; 只有在完全未设置时才使用默认值
+        }
+    }
     global Prompt_Explain := PromptExplainEdit ? PromptExplainEdit.Value : ""
     global Prompt_Refactor := PromptRefactorEdit ? PromptRefactorEdit.Value : ""
     global Prompt_Optimize := PromptOptimizeEdit ? PromptOptimizeEdit.Value : ""
@@ -4985,6 +5256,7 @@ SaveConfig(*) {
     ; 保存到配置文件
     IniWrite(CursorPath, ConfigFile, "Settings", "CursorPath")
     IniWrite(AISleepTime, ConfigFile, "Settings", "AISleepTime")
+    ; 【修复】保存 CapsLockHoldTimeSeconds（确保已从编辑框读取）
     IniWrite(CapsLockHoldTimeSeconds, ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
     IniWrite(Prompt_Explain, ConfigFile, "Settings", "Prompt_Explain")
     IniWrite(Prompt_Refactor, ConfigFile, "Settings", "Prompt_Refactor")
@@ -5182,12 +5454,20 @@ CapsLockCopy() {
             }
             
             ; 使用已声明的全局变量（已在函数开头声明 global）
+            global MaxClipboardHistoryItems
+            ; 确保 MaxClipboardHistoryItems 已初始化
+            if (!IsSet(MaxClipboardHistoryItems) || MaxClipboardHistoryItems = "") {
+                MaxClipboardHistoryItems := 100  ; 默认值
+            }
             ClipboardHistory_CapsLockC.Push(NewContent)
             
-            ; 限制最多保存100条
-            if (ClipboardHistory_CapsLockC.Length > 100) {
+            ; 限制最多保存N条
+            if (ClipboardHistory_CapsLockC.Length > MaxClipboardHistoryItems) {
                 ClipboardHistory_CapsLockC.RemoveAt(1)  ; 删除最旧的记录
             }
+            
+            ; 保存到文件（延迟保存，避免频繁写入）
+            SetTimer(SaveClipboardHistory, -500)  ; 500ms 后保存
             
             ; 【完全隔离】恢复系统剪贴板到原始内容，不改变系统剪贴板
             ; 这样 Ctrl+C 和 CapsLock+C 的剪贴板完全隔离
@@ -6161,6 +6441,8 @@ ClearAllClipboard(*) {
         } else {
             ClipboardHistory_CapsLockC := []
         }
+        ; 保存到文件
+        SaveClipboardHistory()
         ; 立即刷新列表和计数，确保界面即时更新
         RefreshClipboardList()
         ; 强制刷新UI，确保视觉更新
@@ -6420,6 +6702,8 @@ DeleteSelectedItem(*) {
                     ClipboardHistory_CtrlC.RemoveAt(SelectedIndex)
                     ; 清除保存的选中索引，防止刷新后选中错误的项
                     LastSelectedIndexCtrlC := 0
+                    ; 保存到文件
+                    SaveClipboardHistory()
                     ; 立即刷新列表和计数，确保界面即时更新
                     RefreshClipboardList()
                     ; 【关键修复】强制刷新UI，确保视觉更新（延迟一点确保刷新完成）
@@ -6444,6 +6728,8 @@ DeleteSelectedItem(*) {
                     ClipboardHistory_CapsLockC.RemoveAt(SelectedIndex)
                     ; 清除保存的选中索引，防止刷新后选中错误的项
                     LastSelectedIndexCapsLockC := 0
+                    ; 保存到文件
+                    SaveClipboardHistory()
                     ; 立即刷新列表和计数，确保界面即时更新
                     RefreshClipboardList()
                     ; 【关键修复】强制刷新UI，确保视觉更新（延迟一点确保刷新完成）
@@ -6601,6 +6887,11 @@ HandleDynamicHotkey(PressedKey, ActionType) {
     global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyF
     global CapsLock2, PanelVisible, VoiceInputActive, CapsLock, VoiceSearchActive
     global QuickActionButtons
+    
+    ; 确保 HotkeyF 已初始化
+    if (!IsSet(HotkeyF) || HotkeyF = "") {
+        HotkeyF := "f"  ; 默认值
+    }
     
     ; 将按键转换为小写进行比较（ESC特殊处理）
     KeyLower := StrLower(PressedKey)
@@ -7008,6 +7299,9 @@ ImportClipboard(*) {
             ClipboardHistory_CapsLockC := CurrentHistory
         }
         
+        ; 保存到文件
+        SaveClipboardHistory()
+        
         ; 刷新剪贴板列表
         RefreshClipboardList()
         
@@ -7123,28 +7417,9 @@ StartVoiceInput() {
         Send("{Delete}")
         Sleep(100)
         
-        ; 自动检测输入法类型
-        VoiceInputMethod := DetectInputMethod()
-        
-        ; 根据输入法类型使用不同的快捷键（不显示弹窗，动画界面会提供反馈）
-        if (VoiceInputMethod = "baidu") {
-            ; 百度输入法：Alt+Y 激活，F2 开始
-            Send("!y")
-            Sleep(500)
-            Send("{F2}")
-            Sleep(200)
-        } else if (VoiceInputMethod = "xunfei") {
-            ; 讯飞输入法：直接按 F6 开始语音输入（F6 也是结束键）
-            ; 注意：讯飞输入法不需要先激活，直接按 F6 即可
-            Send("{F6}")
-            Sleep(800)  ; 给讯飞输入法更多时间启动语音识别
-        } else {
-            ; 默认尝试百度方案
-            Send("!y")
-            Sleep(500)
-            Send("{F2}")
-            Sleep(200)
-        }
+        ; 使用 Cursor 的快捷键 Ctrl+Shift+Space 启动语音输入
+        Send("^+{Space}")
+        Sleep(300)  ; 等待语音输入启动
         
         VoiceInputActive := true
         VoiceInputContent := ""
@@ -7170,114 +7445,17 @@ StopVoiceInput() {
             CapsLock := false
         }
         
-        ; 根据输入法类型使用不同的结束快捷键
-        if (VoiceInputMethod = "baidu") {
-            ; 百度输入法：F1 结束语音录入
-            Send("{F1}")
-            Sleep(800)  ; 增加等待时间，确保语音识别完成
-            
-            ; 获取语音输入内容
-            OldClipboard := A_Clipboard
-            ; 先选中输入框中的所有内容
-            Send("^a")
-            Sleep(200)  ; 增加等待时间，确保选中完成
-            A_Clipboard := ""
-            Send("^c")
-            if ClipWait(1.5) {
-                VoiceInputContent := A_Clipboard
-            }
-            A_Clipboard := OldClipboard
-            
-            ; 如果内容为空或太短，再尝试一次
-            if (VoiceInputContent = "" || StrLen(VoiceInputContent) < 2) {
-                Sleep(300)  ; 再等待一下
-                Send("^a")
-                Sleep(200)
-                A_Clipboard := ""
-                Send("^c")
-                if ClipWait(1.5) {
-                    VoiceInputContent := A_Clipboard
-                }
-                A_Clipboard := OldClipboard
-            }
-            
-            ; 退出百度输入法语音模式（Alt+Y 关闭语音窗口）
-            Send("!y")
-            Sleep(300)
-        } else if (VoiceInputMethod = "xunfei") {
-            ; 讯飞输入法：F6 结束（与开始相同，按 F6 切换开始/结束）
-            Send("{F6}")
-            Sleep(1000)  ; 给讯飞输入法更多时间处理结束操作和识别结果
-            
-            ; 获取语音输入内容
-            OldClipboard := A_Clipboard
-            ; 先选中输入框中的所有内容
-            Send("^a")
-            Sleep(200)  ; 增加等待时间，确保选中完成
-            A_Clipboard := ""
-            Send("^c")
-            if ClipWait(1.5) {
-                VoiceInputContent := A_Clipboard
-            }
-            A_Clipboard := OldClipboard
-            
-            ; 如果内容为空或太短，再尝试一次
-            if (VoiceInputContent = "" || StrLen(VoiceInputContent) < 2) {
-                Sleep(300)  ; 再等待一下
-                Send("^a")
-                Sleep(200)
-                A_Clipboard := ""
-                Send("^c")
-                if ClipWait(1.5) {
-                    VoiceInputContent := A_Clipboard
-                }
-                A_Clipboard := OldClipboard
-            }
-        } else {
-            ; 默认尝试百度方案
-            Send("{F1}")
-            Sleep(800)  ; 增加等待时间，确保语音识别完成
-            
-            ; 获取语音输入内容
-            OldClipboard := A_Clipboard
-            ; 先选中输入框中的所有内容
-            Send("^a")
-            Sleep(200)  ; 增加等待时间，确保选中完成
-            A_Clipboard := ""
-            Send("^c")
-            if ClipWait(1.5) {
-                VoiceInputContent := A_Clipboard
-            }
-            A_Clipboard := OldClipboard
-            
-            ; 如果内容为空或太短，再尝试一次
-            if (VoiceInputContent = "" || StrLen(VoiceInputContent) < 2) {
-                Sleep(300)  ; 再等待一下
-                Send("^a")
-                Sleep(200)
-                A_Clipboard := ""
-                Send("^c")
-                if ClipWait(1.5) {
-                    VoiceInputContent := A_Clipboard
-                }
-                A_Clipboard := OldClipboard
-            }
-            
-            ; 退出百度输入法语音模式（Alt+Y 关闭语音窗口）
-            Send("!y")
-            Sleep(300)
-        }
+        ; 使用 Cursor 的快捷键 Ctrl+Shift+Space 停止语音输入
+        Send("^+{Space}")
+        Sleep(800)  ; 等待语音识别完成并填入内容
+        
+        ; Cursor 的语音输入会自动将识别内容填入输入框
+        ; 直接发送 Enter 键提交内容
+        Send("{Enter}")
+        Sleep(200)
         
         VoiceInputActive := false
         HideVoiceInputAnimation()
-        
-        if (VoiceInputContent != "" && StrLen(VoiceInputContent) > 0) {
-            ; 显示选择界面：发送到Cursor或搜索
-            ShowVoiceInputActionSelection(VoiceInputContent)
-        } else {
-            ; 只在没有内容时显示提示
-            TrayTip(GetText("voice_input_no_content"), GetText("tip"), "Iconi 2")
-        }
         ; 不显示"正在结束"的提示，动画界面已关闭
     } catch as e {
         VoiceInputActive := false
@@ -8492,6 +8670,10 @@ ShowVoiceSearchInputPanel() {
     ; 清空按钮和搜索按钮（并排显示）
     ; 按钮文字颜色：根据主题调整
     global ThemeMode
+    ; 确保 ThemeMode 已初始化
+    if (!IsSet(ThemeMode) || ThemeMode = "") {
+        ThemeMode := "dark"  ; 默认暗色主题
+    }
     ClearBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
     RightBtnX := PanelWidth - 60  ; 距离右边20px，按钮宽度40px
     ClearBtn := GuiID_VoiceInput.Add("Text", "x" . RightBtnX . " y" . YPos . " w40 h40 Center 0x200 c" . ClearBtnTextColor . " Background" . UI_Colors.BtnBg . " vClearBtn", GetText("clear"))
@@ -8500,6 +8682,7 @@ ShowVoiceSearchInputPanel() {
     HoverBtn(ClearBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     
     ; 搜索按钮（在清空按钮下方，输入框高度为150，所以按钮位置需要调整）
+    ; ThemeMode 已在上面初始化
     SearchBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
     SearchBtn := GuiID_VoiceInput.Add("Text", "x" . RightBtnX . " y" . (YPos + 110) . " w40 h40 Center 0x200 c" . SearchBtnTextColor . " Background" . UI_Colors.BtnPrimary . " vSearchBtn", GetText("voice_search_button"))
     SearchBtn.SetFont("s11 Bold", "Segoe UI")
