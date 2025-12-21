@@ -134,7 +134,7 @@ UI_Colors_Dark := {
     DDLHover: "37373d",
     BtnBg: "3c3c3c",
     BtnHover: "4c4c4c",
-    BtnPrimary: "0e639c",
+    BtnPrimary: "0078D4",
     BtnPrimaryHover: "1177bb",
     TabActive: "37373d",
     TitleBar: "252526"
@@ -154,7 +154,7 @@ UI_Colors_Light := {
     DDLHover: "e8e8e8",
     BtnBg: "e8e8e8",
     BtnHover: "d0d0d0",
-    BtnPrimary: "0e639c",
+    BtnPrimary: "0078D4",
     BtnPrimaryHover: "1177bb",
     TabActive: "e8e8e8",
     TitleBar: "f3f3f3"
@@ -2440,21 +2440,23 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
     GeneralTabControls.Push(Label2)
     
     YPos += 30
-    LangChinese := ConfigGUI.Add("Radio", "x" . (X + 30) . " y" . YPos . " w100 h30 vLangChinese c" . UI_Colors.Text, GetText("language_chinese"))
-    LangChinese.SetFont("s11", "Segoe UI")
-    LangChinese.BackColor := UI_Colors.Background
+    ; 创建 Material 风格的语言选择单选按钮组
+    global LangRadioGroup := []
+    LangChinese := CreateMaterialRadioButton(ConfigGUI, X + 30, YPos, 100, 30, "LangChinese", GetText("language_chinese"), LangRadioGroup, 11)
+    LangRadioGroup.Push(LangChinese)
     GeneralTabControls.Push(LangChinese)
     
-    LangEnglish := ConfigGUI.Add("Radio", "x" . (X + 140) . " y" . YPos . " w100 h30 vLangEnglish c" . UI_Colors.Text, GetText("language_english"))
-    LangEnglish.SetFont("s11", "Segoe UI")
-    LangEnglish.BackColor := UI_Colors.Background
+    LangEnglish := CreateMaterialRadioButton(ConfigGUI, X + 140, YPos, 100, 30, "LangEnglish", GetText("language_english"), LangRadioGroup, 11)
+    LangRadioGroup.Push(LangEnglish)
     GeneralTabControls.Push(LangEnglish)
     
     ; 设置当前语言
     if (Language = "zh") {
-        LangChinese.Value := 1
+        LangChinese.IsSelected := true
+        UpdateMaterialRadioButtonStyle(LangChinese, true)
     } else {
-        LangEnglish.Value := 1
+        LangEnglish.IsSelected := true
+        UpdateMaterialRadioButtonStyle(LangEnglish, true)
     }
     
     ; CapsLock长按时间设置
@@ -2650,8 +2652,8 @@ CreateQuickActionConfigUI(ConfigGUI, X, Y, W, ParentControls) {
             ; 由于单选按钮在循环中创建且位置不连续，无法使用自动互斥功能
             ; 改为手动管理互斥：每个按钮使用唯一的变量名，在点击事件中手动取消其他按钮的选中状态
             RadioCtrlName := RadioGroupName . "_" . TypeIndex
-            RadioCtrl := ConfigGUI.Add("Radio", "x" . RadioXPos . " y" . RadioYPos . " w95 h28 v" . RadioCtrlName . " c" . UI_Colors.Text . " Background" . UI_Colors.Background, ActionType.Name)
-            RadioCtrl.SetFont("s9", "Segoe UI")
+            ; 使用 Material 风格的单选按钮（不自动绑定默认点击事件，使用自定义事件）
+            RadioCtrl := CreateMaterialRadioButton(ConfigGUI, RadioXPos, RadioYPos, 95, 28, RadioCtrlName, ActionType.Name, RadioControls, 9, false)
             
             ; 添加事件处理：当单选按钮改变时，更新说明文字并手动管理互斥
             ; 为每个单选按钮创建独立的事件处理器，确保点击时能正确更新说明和互斥状态
@@ -2662,30 +2664,20 @@ CreateQuickActionConfigUI(ConfigGUI, X, Y, W, ParentControls) {
             QuickActionConfigControls.Push(RadioCtrl)
         }
         
-        ; 设置选中状态（通过设置对应索引的单选按钮的Value为1）
+        ; 设置选中状态（Material 风格）
+        ; 确保至少有一个按钮被选中（默认选择第一个）
         if (SelectedTypeIndex >= 1 && SelectedTypeIndex <= RadioControls.Length) {
-            RadioControls[SelectedTypeIndex].Value := 1
+            RadioControls[SelectedTypeIndex].IsSelected := true
+            UpdateMaterialRadioButtonStyle(RadioControls[SelectedTypeIndex], true)
+        } else if (RadioControls.Length > 0) {
+            ; 如果没有匹配的，默认选择第一个
+            RadioControls[1].IsSelected := true
+            UpdateMaterialRadioButtonStyle(RadioControls[1], true)
         }
         
         ; 说明文字已在创建DescText时设置，无需重复初始化
         
-        ; 底部分隔线（使用层叠投影替代1px边框）
-        if (Index < 5) {
-            ; 底层：大范围、低饱和度、模糊阴影
-            OuterShadowColor := (ThemeMode = "light") ? "E0E0E0" : "1A1A1A"
-            InnerShadowColor := (ThemeMode = "light") ? "B0B0B0" : "2A2A2A"
-            ; 底层阴影（3层渐变）
-            Loop 3 {
-                LayerOffset := 4 + (A_Index - 1) * 1
-                LayerAlpha := 255 - (A_Index - 1) * 60
-                LayerColor := BlendColor(OuterShadowColor, (ThemeMode = "light") ? "FFFFFF" : "000000", LayerAlpha / 255)
-                ShadowLayer := ConfigGUI.Add("Text", "x" . X . " y" . (ButtonY + 105 + LayerOffset) . " w" . W . " h1 Background" . LayerColor, "")
-                QuickActionConfigControls.Push(ShadowLayer)
-            }
-            ; 顶层阴影（紧凑、深色）
-            InnerShadow := ConfigGUI.Add("Text", "x" . X . " y" . (ButtonY + 106) . " w" . W . " h1 Background" . InnerShadowColor, "")
-            QuickActionConfigControls.Push(InnerShadow)
-        }
+        ; 去掉底部分隔线，使用更简洁的 Material 风格
         
         ButtonY += 110  ; 增加高度以适应两行单选按钮和说明文字
     }
@@ -2826,10 +2818,10 @@ CreateSearchCategoryConfigUI(ConfigGUI, X, Y, W, ParentControls) {
         global VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
     }
     
-    ; 创建复选框（每行2个）
+    ; 创建复选框（每行2个，参考单选按钮尺寸）
     CheckboxY := Y
-    CheckboxWidth := (W - 30) / 2  ; 两个复选框，中间间距30
-    CheckboxHeight := 30
+    CheckboxWidth := 100  ; 参考单选按钮宽度
+    CheckboxHeight := 30  ; 参考单选按钮高度
     CheckboxSpacing := 10
     
     for Index, Category in AllCategories {
@@ -2842,11 +2834,10 @@ CreateSearchCategoryConfigUI(ConfigGUI, X, Y, W, ParentControls) {
         ; 检查是否启用
         IsEnabled := (ArrayContainsValue(VoiceSearchEnabledCategories, Category.Key) > 0)
         
-        ; 创建复选框
-        Checkbox := ConfigGUI.Add("Checkbox", "x" . CheckboxX . " y" . CurrentY . " w" . CheckboxWidth . " h" . CheckboxHeight . " vSearchCategoryCheckbox" . Category.Key . " c" . UI_Colors.Text, Category.Text)
-        Checkbox.SetFont("s10", "Segoe UI")
-        Checkbox.Value := IsEnabled ? 1 : 0
-        Checkbox.BackColor := UI_Colors.Background
+        ; 创建 Material 风格的复选框
+        Checkbox := CreateMaterialCheckbox(ConfigGUI, CheckboxX, CurrentY, CheckboxWidth, CheckboxHeight, "SearchCategoryCheckbox" . Category.Key, Category.Text, 10)
+        Checkbox.IsChecked := IsEnabled
+        UpdateMaterialCheckboxStyle(Checkbox, IsEnabled)
         Checkbox.OnEvent("Click", CreateSearchCategoryCheckboxHandler(Category.Key))
         SearchCategoryConfigControls.Push(Checkbox)
         ParentControls.Push(Checkbox)  ; 将复选框添加到父控件列表，确保在标签页切换时正确显示/隐藏
@@ -2870,7 +2861,15 @@ ToggleSearchCategory(CategoryKey) {
     try {
         Checkbox := GuiID_ConfigGUI["SearchCategoryCheckbox" . CategoryKey]
         if (Checkbox && IsObject(Checkbox)) {
-            IsEnabled := (Checkbox.Value = 1)
+            ; 切换选中状态
+            if (Checkbox.HasProp("IsChecked")) {
+                Checkbox.IsChecked := !Checkbox.IsChecked
+                IsEnabled := Checkbox.IsChecked
+            } else {
+                ; 兼容旧代码
+                IsEnabled := (Checkbox.Value = 1)
+                Checkbox.IsChecked := IsEnabled
+            }
             
             ; 更新启用列表
             FoundIndex := ArrayContainsValue(VoiceSearchEnabledCategories, CategoryKey)
@@ -2885,7 +2884,11 @@ ToggleSearchCategory(CategoryKey) {
             ; 确保至少有一个标签启用
             if (VoiceSearchEnabledCategories.Length = 0) {
                 VoiceSearchEnabledCategories.Push("ai")  ; 默认启用AI标签
-                Checkbox.Value := 1
+                Checkbox.IsChecked := true
+                UpdateMaterialCheckboxStyle(Checkbox, true)
+            } else {
+                ; 更新样式
+                UpdateMaterialCheckboxStyle(Checkbox, IsEnabled)
             }
         }
     } catch {
@@ -2898,6 +2901,125 @@ CreateQuickActionTypeChangeHandler(Index, Desc, TypeIndex) {
     return (*) => UpdateQuickActionDesc(Index, Desc, TypeIndex)
 }
 
+; ===================== 创建 Material 风格单选按钮 =====================
+; 创建 Material Design 扁平化风格的单选按钮（使用 Button 控件模拟）
+; AutoBindClick: 是否自动绑定默认点击事件（如果为 false，需要手动绑定自定义事件）
+CreateMaterialRadioButton(GUI, X, Y, W, H, VarName, Text, RadioGroup, FontSize := 11, AutoBindClick := true) {
+    global UI_Colors, ThemeMode
+    
+    ; 使用 Text 控件模拟按钮，因为 Text 控件在 v2 中能更可靠地设置背景色
+    RadioBtn := GUI.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " v" . VarName . " Center +0x200", Text)
+    RadioBtn.SetFont("s" . FontSize, "Segoe UI")
+    
+    ; 设置基础样式 (使用 Opt 设置背景色，BackColor 在 v2 Text 控件上有时不奏效)
+    RadioBtn.Opt("+Background" . UI_Colors.Sidebar)
+    RadioBtn.SetFont("s" . FontSize . " c" . UI_Colors.Text, "Segoe UI")
+    
+    ; 存储信息
+    if (!RadioBtn.HasProp("RadioGroup")) {
+        RadioBtn.DefineProp("RadioGroup", {Value: RadioGroup})
+    }
+    if (!RadioBtn.HasProp("IsSelected")) {
+        RadioBtn.DefineProp("IsSelected", {Value: false})
+    }
+    if (!RadioBtn.HasProp("FontSize")) {
+        RadioBtn.DefineProp("FontSize", {Value: FontSize})
+    }
+    
+    ; 添加响应
+    if (AutoBindClick) {
+        RadioBtn.OnEvent("Click", MaterialRadioButtonClick)
+    }
+    
+    return RadioBtn
+}
+
+; Material 单选按钮点击事件
+MaterialRadioButtonClick(Ctrl, *) {
+    global UI_Colors
+    
+    ; 获取按钮组
+    RadioGroup := Ctrl.RadioGroup
+    if (!RadioGroup || !RadioGroup.Length) {
+        return
+    }
+    
+    ; 取消同组其他按钮的选中状态
+    for Index, Btn in RadioGroup {
+        if (Btn != Ctrl) {
+            Btn.IsSelected := false
+            UpdateMaterialRadioButtonStyle(Btn, false)
+        }
+    }
+    
+    ; 设置当前按钮为选中状态
+    Ctrl.IsSelected := true
+    UpdateMaterialRadioButtonStyle(Ctrl, true)
+}
+
+; 注意：由于 AutoHotkey v2 的 Button 控件不支持 MouseMove 和 MouseLeave 事件
+; 悬停效果暂时无法实现，但 Material 风格仍然通过选中/未选中状态的颜色差异来体现
+
+; ===================== 创建 Material 风格复选框 =====================
+; 创建 Material Design 扁平化风格的复选框（使用 Button 控件模拟）
+CreateMaterialCheckbox(GUI, X, Y, W, H, VarName, Text, FontSize := 10) {
+    global UI_Colors, ThemeMode
+    
+    ; 使用 Text 控件模拟
+    CheckboxBtn := GUI.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " v" . VarName . " Center +0x200", Text)
+    CheckboxBtn.SetFont("s" . FontSize, "Segoe UI")
+    
+    CheckboxBtn.Opt("+Background" . UI_Colors.Sidebar)
+    CheckboxBtn.SetFont("s" . FontSize . " c" . UI_Colors.Text, "Segoe UI")
+    
+    if (!CheckboxBtn.HasProp("IsChecked")) {
+        CheckboxBtn.DefineProp("IsChecked", {Value: false})
+    }
+    if (!CheckboxBtn.HasProp("FontSize")) {
+        CheckboxBtn.DefineProp("FontSize", {Value: FontSize})
+    }
+    
+    return CheckboxBtn
+}
+
+; 更新 Material 复选框样式
+UpdateMaterialCheckboxStyle(Ctrl, IsChecked) {
+    global UI_Colors, ThemeMode
+    
+    FontSize := Ctrl.HasProp("FontSize") ? Ctrl.FontSize : 10
+    
+    if (IsChecked) {
+        ; 选中状态：使用图片中的蓝色 (0078D4)，浅色文字，无前缀
+        SelectedText := (ThemeMode = "dark") ? "E0E0E0" : "FFFFFF"
+        Ctrl.Opt("+Background" . UI_Colors.BtnPrimary)
+        Ctrl.SetFont("s" . FontSize . " c" . SelectedText . " Bold", "Segoe UI")
+    } else {
+        ; 未选中状态：侧边栏背景
+        Ctrl.Opt("+Background" . UI_Colors.Sidebar)
+        Ctrl.SetFont("s" . FontSize . " c" . UI_Colors.Text . " Norm", "Segoe UI")
+    }
+    Ctrl.Redraw()
+}
+
+; 更新 Material 单选按钮样式
+UpdateMaterialRadioButtonStyle(Ctrl, IsSelected) {
+    global UI_Colors, ThemeMode
+    
+    FontSize := Ctrl.HasProp("FontSize") ? Ctrl.FontSize : 11
+    
+    if (IsSelected) {
+        ; 选中状态：蓝色背景
+        SelectedText := (ThemeMode = "dark") ? "E0E0E0" : "FFFFFF"
+        Ctrl.Opt("+Background" . UI_Colors.BtnPrimary)
+        Ctrl.SetFont("s" . FontSize . " c" . SelectedText . " Bold", "Segoe UI")
+    } else {
+        ; 未选中状态
+        Ctrl.Opt("+Background" . UI_Colors.Sidebar)
+        Ctrl.SetFont("s" . FontSize . " c" . UI_Colors.Text . " Norm", "Segoe UI")
+    }
+    Ctrl.Redraw()
+}
+
 ; ===================== 创建单选按钮点击处理器 =====================
 CreateRadioClickHandler(Index, Desc, TypeIndex, RadioControls) {
     ; 返回一个函数，该函数会手动管理互斥并更新说明文字
@@ -2905,9 +3027,19 @@ CreateRadioClickHandler(Index, Desc, TypeIndex, RadioControls) {
         ; 手动管理互斥：取消其他按钮的选中状态
         for RadioIndex, RadioCtrl in RadioControls {
             if (RadioIndex != TypeIndex) {
-                RadioCtrl.Value := 0
+                if (RadioCtrl.HasProp("IsSelected")) {
+                    RadioCtrl.IsSelected := false
+                    UpdateMaterialRadioButtonStyle(RadioCtrl, false)
+                } else {
+                    RadioCtrl.Value := 0
+                }
             } else {
-                RadioCtrl.Value := 1
+                if (RadioCtrl.HasProp("IsSelected")) {
+                    RadioCtrl.IsSelected := true
+                    UpdateMaterialRadioButtonStyle(RadioCtrl, true)
+                } else {
+                    RadioCtrl.Value := 1
+                }
             }
         }
         ; 更新说明文字
@@ -3115,13 +3247,17 @@ CreateAppearanceTab(ConfigGUI, X, Y, W, H) {
     RadioWidth := 100
     RadioHeight := 30
     Spacing := 10
+    ; 确保 PanelScreenIndex 在有效范围内
+    if (PanelScreenIndex < 1 || PanelScreenIndex > ScreenList.Length) {
+        PanelScreenIndex := 1
+    }
     for Index, ScreenName in ScreenList {
         XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
-        RadioBtn := ConfigGUI.Add("Radio", "x" . XPos . " y" . YPos . " w" . RadioWidth . " h" . RadioHeight . " vPanelScreenRadio" . Index . " c" . UI_Colors.Text, ScreenName)
-        RadioBtn.SetFont("s11", "Segoe UI")
-        RadioBtn.BackColor := UI_Colors.Background
+        ; 使用 Material 风格的单选按钮
+        RadioBtn := CreateMaterialRadioButton(ConfigGUI, XPos, YPos, RadioWidth, RadioHeight, "PanelScreenRadio" . Index, ScreenName, PanelScreenRadio, 11)
         if (Index = PanelScreenIndex) {
-            RadioBtn.Value := 1
+            RadioBtn.IsSelected := true
+            UpdateMaterialRadioButtonStyle(RadioBtn, true)
         }
         PanelScreenRadio.Push(RadioBtn)
         AppearanceTabControls.Push(RadioBtn)
@@ -3141,21 +3277,23 @@ CreateAppearanceTab(ConfigGUI, X, Y, W, H) {
     
     YPos += 30
     global ThemeMode, ThemeLightRadio, ThemeDarkRadio
-    ThemeLightRadio := ConfigGUI.Add("Radio", "x" . (X + 30) . " y" . YPos . " w100 h30 vThemeLightRadio c" . UI_Colors.Text, GetText("theme_light"))
-    ThemeLightRadio.SetFont("s11", "Segoe UI")
-    ThemeLightRadio.BackColor := UI_Colors.Background
+    ; 创建 Material 风格的主题模式单选按钮组
+    global ThemeRadioGroup := []
+    ThemeLightRadio := CreateMaterialRadioButton(ConfigGUI, X + 30, YPos, 100, 30, "ThemeLightRadio", GetText("theme_light"), ThemeRadioGroup, 11)
+    ThemeRadioGroup.Push(ThemeLightRadio)
     AppearanceTabControls.Push(ThemeLightRadio)
     
-    ThemeDarkRadio := ConfigGUI.Add("Radio", "x" . (X + 140) . " y" . YPos . " w100 h30 vThemeDarkRadio c" . UI_Colors.Text, GetText("theme_dark"))
-    ThemeDarkRadio.SetFont("s11", "Segoe UI")
-    ThemeDarkRadio.BackColor := UI_Colors.Background
+    ThemeDarkRadio := CreateMaterialRadioButton(ConfigGUI, X + 140, YPos, 100, 30, "ThemeDarkRadio", GetText("theme_dark"), ThemeRadioGroup, 11)
+    ThemeRadioGroup.Push(ThemeDarkRadio)
     AppearanceTabControls.Push(ThemeDarkRadio)
     
     ; 设置当前主题
     if (ThemeMode = "light") {
-        ThemeLightRadio.Value := 1
+        ThemeLightRadio.IsSelected := true
+        UpdateMaterialRadioButtonStyle(ThemeLightRadio, true)
     } else {
-        ThemeDarkRadio.Value := 1
+        ThemeDarkRadio.IsSelected := true
+        UpdateMaterialRadioButtonStyle(ThemeDarkRadio, true)
     }
 }
 
@@ -3763,13 +3901,17 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     RadioWidth := 100
     RadioHeight := 30
     Spacing := 10
+    ; 确保 ConfigPanelScreenIndex 在有效范围内
+    if (ConfigPanelScreenIndex < 1 || ConfigPanelScreenIndex > ScreenList.Length) {
+        ConfigPanelScreenIndex := 1
+    }
     for Index, ScreenName in ScreenList {
         XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
-        RadioBtn := ConfigGUI.Add("Radio", "x" . XPos . " y" . YPos . " w" . RadioWidth . " h" . RadioHeight . " vConfigPanelScreenRadio" . Index . " c" . UI_Colors.Text, ScreenName)
-        RadioBtn.SetFont("s11", "Segoe UI")
-        RadioBtn.BackColor := UI_Colors.Background
+        ; 使用 Material 风格的单选按钮
+        RadioBtn := CreateMaterialRadioButton(ConfigGUI, XPos, YPos, RadioWidth, RadioHeight, "ConfigPanelScreenRadio" . Index, ScreenName, ConfigPanelScreenRadio, 11)
         if (Index = ConfigPanelScreenIndex) {
-            RadioBtn.Value := 1
+            RadioBtn.IsSelected := true
+            UpdateMaterialRadioButtonStyle(RadioBtn, true)
         }
         ConfigPanelScreenRadio.Push(RadioBtn)
         AdvancedTabControls.Push(RadioBtn)
@@ -3783,13 +3925,17 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     
     YPos += 30
     MsgBoxScreenRadio := []
+    ; 确保 MsgBoxScreenIndex 在有效范围内
+    if (MsgBoxScreenIndex < 1 || MsgBoxScreenIndex > ScreenList.Length) {
+        MsgBoxScreenIndex := 1
+    }
     for Index, ScreenName in ScreenList {
         XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
-        RadioBtn := ConfigGUI.Add("Radio", "x" . XPos . " y" . YPos . " w" . RadioWidth . " h" . RadioHeight . " vMsgBoxScreenRadio" . Index . " c" . UI_Colors.Text, ScreenName)
-        RadioBtn.SetFont("s11", "Segoe UI")
-        RadioBtn.BackColor := UI_Colors.Background
+        ; 使用 Material 风格的单选按钮
+        RadioBtn := CreateMaterialRadioButton(ConfigGUI, XPos, YPos, RadioWidth, RadioHeight, "MsgBoxScreenRadio" . Index, ScreenName, MsgBoxScreenRadio, 11)
         if (Index = MsgBoxScreenIndex) {
-            RadioBtn.Value := 1
+            RadioBtn.IsSelected := true
+            UpdateMaterialRadioButtonStyle(RadioBtn, true)
         }
         MsgBoxScreenRadio.Push(RadioBtn)
         AdvancedTabControls.Push(RadioBtn)
@@ -3803,13 +3949,17 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     
     YPos += 30
     VoiceInputScreenRadio := []
+    ; 确保 VoiceInputScreenIndex 在有效范围内
+    if (VoiceInputScreenIndex < 1 || VoiceInputScreenIndex > ScreenList.Length) {
+        VoiceInputScreenIndex := 1
+    }
     for Index, ScreenName in ScreenList {
         XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
-        RadioBtn := ConfigGUI.Add("Radio", "x" . XPos . " y" . YPos . " w" . RadioWidth . " h" . RadioHeight . " vVoiceInputScreenRadio" . Index . " c" . UI_Colors.Text, ScreenName)
-        RadioBtn.SetFont("s11", "Segoe UI")
-        RadioBtn.BackColor := UI_Colors.Background
+        ; 使用 Material 风格的单选按钮
+        RadioBtn := CreateMaterialRadioButton(ConfigGUI, XPos, YPos, RadioWidth, RadioHeight, "VoiceInputScreenRadio" . Index, ScreenName, VoiceInputScreenRadio, 11)
         if (Index = VoiceInputScreenIndex) {
-            RadioBtn.Value := 1
+            RadioBtn.IsSelected := true
+            UpdateMaterialRadioButtonStyle(RadioBtn, true)
         }
         VoiceInputScreenRadio.Push(RadioBtn)
         AdvancedTabControls.Push(RadioBtn)
@@ -3823,13 +3973,17 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     
     YPos += 30
     CursorPanelScreenRadio := []
+    ; 确保 CursorPanelScreenIndex 在有效范围内
+    if (CursorPanelScreenIndex < 1 || CursorPanelScreenIndex > ScreenList.Length) {
+        CursorPanelScreenIndex := 1
+    }
     for Index, ScreenName in ScreenList {
         XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
-        RadioBtn := ConfigGUI.Add("Radio", "x" . XPos . " y" . YPos . " w" . RadioWidth . " h" . RadioHeight . " vCursorPanelScreenRadio" . Index . " c" . UI_Colors.Text, ScreenName)
-        RadioBtn.SetFont("s11", "Segoe UI")
-        RadioBtn.BackColor := UI_Colors.Background
+        ; 使用 Material 风格的单选按钮
+        RadioBtn := CreateMaterialRadioButton(ConfigGUI, XPos, YPos, RadioWidth, RadioHeight, "CursorPanelScreenRadio" . Index, ScreenName, CursorPanelScreenRadio, 11)
         if (Index = CursorPanelScreenIndex) {
-            RadioBtn.Value := 1
+            RadioBtn.IsSelected := true
+            UpdateMaterialRadioButtonStyle(RadioBtn, true)
         }
         CursorPanelScreenRadio.Push(RadioBtn)
         AdvancedTabControls.Push(RadioBtn)
@@ -3896,12 +4050,17 @@ ResetToDefaults(*) {
         ; 重置屏幕选择
         if (IsSet(PanelScreenRadio) && PanelScreenRadio && PanelScreenRadio.Length > 0) {
             for Index, RadioBtn in PanelScreenRadio {
-                RadioBtn.Value := 0
+                if (RadioBtn.HasProp("IsSelected")) {
+                    RadioBtn.IsSelected := false
+                    UpdateMaterialRadioButtonStyle(RadioBtn, false)
+                }
             }
             if (DefaultPanelScreenIndex >= 1 && DefaultPanelScreenIndex <= PanelScreenRadio.Length) {
-                PanelScreenRadio[DefaultPanelScreenIndex].Value := 1
+                PanelScreenRadio[DefaultPanelScreenIndex].IsSelected := true
+                UpdateMaterialRadioButtonStyle(PanelScreenRadio[DefaultPanelScreenIndex], true)
             } else if (PanelScreenRadio.Length > 0) {
-                PanelScreenRadio[1].Value := 1
+                PanelScreenRadio[1].IsSelected := true
+                UpdateMaterialRadioButtonStyle(PanelScreenRadio[1], true)
             }
         }
     } catch {
@@ -5013,7 +5172,7 @@ SaveConfig(*) {
     NewScreenIndex := 1
     if (PanelScreenRadio && PanelScreenRadio.Length > 0) {
         for Index, RadioBtn in PanelScreenRadio {
-            if (RadioBtn.Value = 1) {
+            if (RadioBtn.HasProp("IsSelected") && RadioBtn.IsSelected) {
                 NewScreenIndex := Index
                 break
             }
@@ -5024,13 +5183,13 @@ SaveConfig(*) {
     }
     
     ; 获取语言设置
-    NewLanguage := (LangChinese && LangChinese.Value) ? "zh" : "en"
+    NewLanguage := (LangChinese && LangChinese.HasProp("IsSelected") && LangChinese.IsSelected) ? "zh" : "en"
     
     ; 解析高级设置中的屏幕索引
     NewConfigPanelScreenIndex := 1
     if (ConfigPanelScreenRadio && ConfigPanelScreenRadio.Length > 0) {
         for Index, RadioBtn in ConfigPanelScreenRadio {
-            if (RadioBtn.Value = 1) {
+            if (RadioBtn.HasProp("IsSelected") && RadioBtn.IsSelected) {
                 NewConfigPanelScreenIndex := Index
                 break
             }
@@ -5043,7 +5202,7 @@ SaveConfig(*) {
     NewMsgBoxScreenIndex := 1
     if (MsgBoxScreenRadio && MsgBoxScreenRadio.Length > 0) {
         for Index, RadioBtn in MsgBoxScreenRadio {
-            if (RadioBtn.Value = 1) {
+            if (RadioBtn.HasProp("IsSelected") && RadioBtn.IsSelected) {
                 NewMsgBoxScreenIndex := Index
                 break
             }
@@ -5056,7 +5215,7 @@ SaveConfig(*) {
     NewVoiceInputScreenIndex := 1
     if (VoiceInputScreenRadio && VoiceInputScreenRadio.Length > 0) {
         for Index, RadioBtn in VoiceInputScreenRadio {
-            if (RadioBtn.Value = 1) {
+            if (RadioBtn.HasProp("IsSelected") && RadioBtn.IsSelected) {
                 NewVoiceInputScreenIndex := Index
                 break
             }
@@ -5069,7 +5228,7 @@ SaveConfig(*) {
     NewCursorPanelScreenIndex := 1
     if (CursorPanelScreenRadio && CursorPanelScreenRadio.Length > 0) {
         for Index, RadioBtn in CursorPanelScreenRadio {
-            if (RadioBtn.Value = 1) {
+            if (RadioBtn.HasProp("IsSelected") && RadioBtn.IsSelected) {
                 NewCursorPanelScreenIndex := Index
                 break
             }
@@ -5105,12 +5264,12 @@ SaveConfig(*) {
                 ButtonHotkey := ""
                 
                 ; 读取单选按钮的值（现在每个按钮都有唯一的变量名）
-                ; 遍历所有可能的单选按钮，找到值为1的那个
+                ; 遍历所有可能的单选按钮，找到选中的那个
                 RadioGroupName := "QuickActionType" . Index
                 for TypeIndex, ActionType in ActionTypes {
                     RadioCtrlName := RadioGroupName . "_" . TypeIndex
                     RadioCtrl := ConfigGUI[RadioCtrlName]
-                    if (RadioCtrl && RadioCtrl.Value = 1) {
+                    if (RadioCtrl && RadioCtrl.HasProp("IsSelected") && RadioCtrl.IsSelected) {
                         ButtonType := ActionType.Type
                         ButtonHotkey := ActionType.Hotkey
                         break
@@ -5154,9 +5313,9 @@ SaveConfig(*) {
     ; 获取主题模式设置
     NewThemeMode := "dark"
     ; 如果外观标签页已创建，从单选按钮读取；否则使用当前主题模式
-    if (IsSet(ThemeLightRadio) && ThemeLightRadio && IsObject(ThemeLightRadio) && ThemeLightRadio.Value = 1) {
+    if (IsSet(ThemeLightRadio) && ThemeLightRadio && IsObject(ThemeLightRadio) && ThemeLightRadio.HasProp("IsSelected") && ThemeLightRadio.IsSelected) {
         NewThemeMode := "light"
-    } else if (IsSet(ThemeDarkRadio) && ThemeDarkRadio && IsObject(ThemeDarkRadio) && ThemeDarkRadio.Value = 1) {
+    } else if (IsSet(ThemeDarkRadio) && ThemeDarkRadio && IsObject(ThemeDarkRadio) && ThemeDarkRadio.HasProp("IsSelected") && ThemeDarkRadio.IsSelected) {
         NewThemeMode := "dark"
     } else {
         ; 如果控件不存在，使用当前主题模式
