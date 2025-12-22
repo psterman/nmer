@@ -269,6 +269,11 @@ GetText(Key) {
             "select_code_first", "请先选中要分割的代码",
             "split_marker_inserted", "已插入分割标记",
             "reset_default_success", "已重置为默认值！",
+            "install_cursor_chinese", "安装 Cursor 中文版",
+            "install_cursor_chinese_desc", "一键安装 Cursor 中文语言包",
+            "install_cursor_chinese_guide", "安装步骤：`n`n1. 命令面板已自动打开，请等待选项显示`n2. 手动选择：Configure Display Language`n3. 点击：Install additional languages...`n4. 在扩展商店搜索：Chinese (Simplified) Language Pack`n5. 点击 Install 按钮安装`n6. 安装完成后重启 Cursor 生效",
+            "install_cursor_chinese_starting", "命令面板已打开，请输入并选择 Configure Display Language，然后按照提示完成安装",
+            "install_cursor_chinese_complete", "请按照以下步骤完成安装：`n`n1. 在命令面板中选择：Configure Display Language`n2. 点击：Install additional languages...`n3. 搜索：Chinese (Simplified) Language Pack`n4. 点击 Install 按钮`n5. 安装完成后重启 Cursor 生效",
             "config_saved", "配置已保存！快捷键已立即生效。",
             "ai_wait_time_error", "AI 响应等待时间必须是数字！",
             "split_hotkey_error", "分割快捷键必须是单个字符！",
@@ -677,6 +682,11 @@ GetText(Key) {
             "select_code_first", "Please select code to split first",
             "split_marker_inserted", "Split marker inserted",
             "reset_default_success", "Reset to default values!",
+            "install_cursor_chinese", "Install Cursor Chinese",
+            "install_cursor_chinese_desc", "One-click install Cursor Chinese language pack",
+            "install_cursor_chinese_guide", "Installation steps:`n`n1. Command palette will open automatically, please wait for options to appear`n2. Manually select: Configure Display Language`n3. Click: Install additional languages...`n4. Search in extension store: Chinese (Simplified) Language Pack`n5. Click Install button`n6. Restart Cursor after installation to apply",
+            "install_cursor_chinese_starting", "Command palette opened, please type and select Configure Display Language, then follow the prompts to complete installation",
+            "install_cursor_chinese_complete", "Please complete the installation following these steps:`n`n1. Select in command palette: Configure Display Language`n2. Click: Install additional languages...`n3. Search: Chinese (Simplified) Language Pack`n4. Click Install button`n5. Restart Cursor after installation to apply",
             "config_saved", "Settings saved!`n`nNote: If panel is showing, close and reopen to apply new settings.",
             "ai_wait_time_error", "AI response wait time must be a number!",
             "split_hotkey_error", "Split hotkey must be a single character!",
@@ -4613,6 +4623,24 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     ResetBtn.OnEvent("Click", ResetToDefaults)
     HoverBtnWithAnimation(ResetBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
     AdvancedTabControls.Push(ResetBtn)
+    
+    ; 安装 Cursor 中文版按钮
+    YPos += 60
+    LabelInstallChinese := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("install_cursor_chinese"))
+    LabelInstallChinese.SetFont("s11", "Segoe UI")
+    AdvancedTabControls.Push(LabelInstallChinese)
+    
+    YPos += 30
+    InstallChineseBtn := ConfigGUI.Add("Text", "x" . BtnStartX . " y" . YPos . " w" . (BtnWidth * 2 + BtnSpacing) . " h" . BtnHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vAdvancedInstallChineseBtn", GetText("install_cursor_chinese"))
+    InstallChineseBtn.SetFont("s10", "Segoe UI")
+    InstallChineseBtn.OnEvent("Click", InstallCursorChinese)
+    HoverBtnWithAnimation(InstallChineseBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+    AdvancedTabControls.Push(InstallChineseBtn)
+    
+    YPos += 40
+    HintInstallChinese := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h40 c" . UI_Colors.TextDim, GetText("install_cursor_chinese_desc"))
+    HintInstallChinese.SetFont("s9", "Segoe UI")
+    AdvancedTabControls.Push(HintInstallChinese)
 }
 
 ; ===================== 浏览 Cursor 路径 =====================
@@ -4694,6 +4722,78 @@ ResetToDefaults(*) {
     }
     
     MsgBox(GetText("reset_default_success"), GetText("tip"), "Iconi")
+}
+
+; ===================== 安装 Cursor 中文版 =====================
+InstallCursorChinese(*) {
+    global CursorPath, AISleepTime, GuiID_ConfigGUI
+    
+    ; 关闭配置面板
+    if (GuiID_ConfigGUI != 0) {
+        try {
+            CloseConfigGUI()
+        } catch {
+            ; 如果关闭失败，直接销毁
+            try {
+                GuiID_ConfigGUI.Destroy()
+                GuiID_ConfigGUI := 0
+            }
+        }
+    }
+    
+    ; 显示提示信息
+    MsgBox(GetText("install_cursor_chinese_guide"), GetText("install_cursor_chinese"), "Iconi")
+    
+    ; 检查 Cursor 是否运行
+    if (!WinExist("ahk_exe Cursor.exe")) {
+        if (CursorPath != "" && FileExist(CursorPath)) {
+            Run(CursorPath)
+            Sleep(AISleepTime * 2)  ; 等待 Cursor 启动
+        } else {
+            TrayTip(GetText("cursor_not_running_error"), GetText("error"), "Iconx 2")
+            return
+        }
+    }
+    
+    ; 激活 Cursor 窗口
+    try {
+        WinActivate("ahk_exe Cursor.exe")
+        WinWaitActive("ahk_exe Cursor.exe", , 3)
+        Sleep(500)  ; 等待窗口完全激活
+        
+        ; 确保窗口已激活
+        if (!WinActive("ahk_exe Cursor.exe")) {
+            WinActivate("ahk_exe Cursor.exe")
+            Sleep(300)
+        }
+        
+        ; 步骤 1: 打开命令面板 (Ctrl + Shift + P)
+        Sleep(500)
+        Send("^+p")  ; Ctrl + Shift + P
+        Sleep(1000)  ; 等待命令面板打开
+        
+        ; 步骤 2: 直接粘贴 "Configure Display Language"
+        ; 先保存当前剪贴板内容
+        OldClipboard := A_Clipboard
+        A_Clipboard := "Configure Display Language"
+        ClipWait(1)  ; 等待剪贴板就绪
+        
+        ; 粘贴文本
+        Send("^v")  ; Ctrl + V
+        Sleep(500)  ; 等待粘贴完成和选项显示
+        
+        ; 恢复原剪贴板内容
+        A_Clipboard := OldClipboard
+        
+        ; 步骤 3: 按回车确认
+        Send("{Enter}")
+        
+        ; 显示详细的操作提示
+        TrayTip(GetText("install_cursor_chinese_complete"), GetText("install_cursor_chinese"), "Iconi 5")
+        
+    } catch as e {
+        TrayTip("安装流程执行失败: " . e.Message, GetText("error"), "Iconx 2")
+    }
 }
 
 ; ===================== UI 常量定义 =====================
