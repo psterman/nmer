@@ -107,6 +107,7 @@ global VoiceSearchPanelVisible := false  ; 语音搜索面板是否显示
 global VoiceSearchSelectedEngines := ["deepseek"]  ; 当前在语音搜索界面中选择的搜索引擎（支持多选）
 global VoiceSearchCurrentCategory := "ai"  ; 当前选中的搜索引擎分类标签
 global VoiceSearchCategoryTabs := []  ; 分类标签按钮数组
+global VoiceSearchSelectedEnginesByCategory := Map()  ; 每个分类的搜索引擎选择状态（分类Key -> 引擎数组）
 global AutoLoadSelectedText := false  ; 是否自动加载选中文本到输入框
 global VoiceSearchAutoLoadSwitch := 0  ; 自动加载开关控件（语音搜索）
 global VoiceInputAutoLoadSwitch := 0  ; 自动加载开关控件（语音输入）
@@ -1331,23 +1332,74 @@ InitConfig() {
             ThemeMode := IniRead(ConfigFile, "Settings", "ThemeMode", "dark")
             ApplyTheme(ThemeMode)
             
-            ; 加载语音搜索选中的搜索引擎（保存上次的选择）
-            VoiceSearchSelectedEnginesStr := IniRead(ConfigFile, "Settings", "VoiceSearchSelectedEngines", "deepseek")
-            if (VoiceSearchSelectedEnginesStr != "") {
-                VoiceSearchSelectedEngines := []
-                EnginesArray := StrSplit(VoiceSearchSelectedEnginesStr, ",")
-                for Index, Engine in EnginesArray {
-                    Engine := Trim(Engine)
-                    if (Engine != "") {
-                        VoiceSearchSelectedEngines.Push(Engine)
+            ; 初始化每个分类的搜索引擎选择状态Map
+            global VoiceSearchSelectedEnginesByCategory
+            if (!IsSet(VoiceSearchSelectedEnginesByCategory) || !IsObject(VoiceSearchSelectedEnginesByCategory)) {
+                VoiceSearchSelectedEnginesByCategory := Map()
+            }
+            
+            ; 加载每个分类的搜索引擎选择状态
+            AllCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+            for Index, Category in AllCategories {
+                CategoryEnginesStr := IniRead(ConfigFile, "Settings", "VoiceSearchSelectedEngines_" . Category, "")
+                if (CategoryEnginesStr != "") {
+                    ; 解析格式：分类:引擎1,引擎2 或直接是 引擎1,引擎2
+                    if (InStr(CategoryEnginesStr, ":") > 0) {
+                        EnginesStr := SubStr(CategoryEnginesStr, InStr(CategoryEnginesStr, ":") + 1)
+                    } else {
+                        EnginesStr := CategoryEnginesStr
+                    }
+                    EnginesArray := StrSplit(EnginesStr, ",")
+                    CategoryEngines := []
+                    for EngIndex, Engine in EnginesArray {
+                        Engine := Trim(Engine)
+                        if (Engine != "") {
+                            CategoryEngines.Push(Engine)
+                        }
+                    }
+                    if (CategoryEngines.Length > 0) {
+                        VoiceSearchSelectedEnginesByCategory[Category] := CategoryEngines
                     }
                 }
-                ; 如果解析后为空，使用默认值
-                if (VoiceSearchSelectedEngines.Length = 0) {
-                    VoiceSearchSelectedEngines := ["deepseek"]
+            }
+            
+            ; 加载当前分类的搜索引擎选择状态（兼容旧版本）
+            global VoiceSearchCurrentCategory
+            if (!IsSet(VoiceSearchCurrentCategory) || VoiceSearchCurrentCategory = "") {
+                VoiceSearchCurrentCategory := "ai"
+            }
+            
+            ; 如果当前分类有保存的状态，使用它；否则使用默认值
+            if (VoiceSearchSelectedEnginesByCategory.Has(VoiceSearchCurrentCategory)) {
+                VoiceSearchSelectedEngines := []
+                for Index, Engine in VoiceSearchSelectedEnginesByCategory[VoiceSearchCurrentCategory] {
+                    VoiceSearchSelectedEngines.Push(Engine)
                 }
             } else {
-                VoiceSearchSelectedEngines := ["deepseek"]
+                ; 兼容旧版本：加载全局的搜索引擎选择
+                VoiceSearchSelectedEnginesStr := IniRead(ConfigFile, "Settings", "VoiceSearchSelectedEngines", "deepseek")
+                if (VoiceSearchSelectedEnginesStr != "") {
+                    VoiceSearchSelectedEngines := []
+                    EnginesArray := StrSplit(VoiceSearchSelectedEnginesStr, ",")
+                    for Index, Engine in EnginesArray {
+                        Engine := Trim(Engine)
+                        if (Engine != "") {
+                            VoiceSearchSelectedEngines.Push(Engine)
+                        }
+                    }
+                    ; 如果解析后为空，使用默认值
+                    if (VoiceSearchSelectedEngines.Length = 0) {
+                        VoiceSearchSelectedEngines := ["deepseek"]
+                    }
+                    ; 保存到当前分类的Map中
+                    CurrentEngines := []
+                    for Index, Engine in VoiceSearchSelectedEngines {
+                        CurrentEngines.Push(Engine)
+                    }
+                    VoiceSearchSelectedEnginesByCategory[VoiceSearchCurrentCategory] := CurrentEngines
+                } else {
+                    VoiceSearchSelectedEngines := ["deepseek"]
+                }
             }
             
             PanelScreenIndex := Integer(IniRead(ConfigFile, "Appearance", "ScreenIndex", DefaultPanelScreenIndex))
@@ -9507,6 +9559,23 @@ CreateCategoryTabHandler(CategoryKey) {
     CategoryTabHandler(*) {
         global VoiceSearchCurrentCategory, VoiceSearchCategoryTabs, VoiceSearchEngineButtons, GuiID_VoiceInput
         global VoiceSearchSelectedEngines, UI_Colors, ThemeMode, VoiceSearchLabelEngineY
+        global VoiceSearchSelectedEnginesByCategory
+        
+        ; 确保 VoiceSearchSelectedEnginesByCategory 已初始化
+        if (!IsSet(VoiceSearchSelectedEnginesByCategory) || !IsObject(VoiceSearchSelectedEnginesByCategory)) {
+            VoiceSearchSelectedEnginesByCategory := Map()
+        }
+        
+        ; 【关键修复】保存当前分类的搜索引擎选择状态
+        OldCategory := VoiceSearchCurrentCategory
+        if (OldCategory != "" && OldCategory != CategoryKey) {
+            ; 保存当前分类的选择状态
+            CurrentEngines := []
+            for Index, Engine in VoiceSearchSelectedEngines {
+                CurrentEngines.Push(Engine)
+            }
+            VoiceSearchSelectedEnginesByCategory[OldCategory] := CurrentEngines
+        }
         
         ; 使用捕获的CategoryKey，而不是全局变量
         ; 更新当前分类
@@ -9534,15 +9603,47 @@ CreateCategoryTabHandler(CategoryKey) {
                 TabBg := IsActive ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
                 TabTextColor := IsActive ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
                 try {
-                    TabObj.Btn.BackColor := TabBg
+                    ; 【关键修复】使用 Opt() 方法更新背景色，确保立即生效
+                    TabObj.Btn.Opt("+Background" . TabBg)
+                    TabObj.Btn.SetFont("s9 c" . TabTextColor, "Segoe UI")
                     TabObj.Btn.Text := GetText("search_category_" . TabObj.Key)
+                    ; 强制重绘以确保背景色更新
+                    TabObj.Btn.Redraw()
                 } catch {
-                    ; 忽略更新样式时的错误
+                    ; 如果上述方法失败，尝试直接设置 BackColor
+                    try {
+                        TabObj.Btn.BackColor := TabBg
+                        TabObj.Btn.SetFont("s9 c" . TabTextColor, "Segoe UI")
+                        TabObj.Btn.Text := GetText("search_category_" . TabObj.Key)
+                    } catch {
+                        ; 忽略更新样式时的错误
+                    }
                 }
             }
         }
         
-        ; 【关键修复】立即刷新GUI，确保标签背景色更新立即显示
+        ; 【关键修复】恢复新分类的搜索引擎选择状态
+        if (VoiceSearchSelectedEnginesByCategory.Has(CategoryKey)) {
+            ; 如果该分类有保存的选择状态，恢复它
+            VoiceSearchSelectedEngines := []
+            for Index, Engine in VoiceSearchSelectedEnginesByCategory[CategoryKey] {
+                VoiceSearchSelectedEngines.Push(Engine)
+            }
+        } else {
+            ; 如果该分类没有保存的选择状态，使用默认值（根据分类的第一个搜索引擎）
+            try {
+                SearchEngines := GetSortedSearchEngines(CategoryKey)
+                if (SearchEngines && SearchEngines.Length > 0 && IsObject(SearchEngines[1]) && SearchEngines[1].HasProp("Value")) {
+                    VoiceSearchSelectedEngines := [SearchEngines[1].Value]
+                } else {
+                    VoiceSearchSelectedEngines := ["deepseek"]
+                }
+            } catch {
+                VoiceSearchSelectedEngines := ["deepseek"]
+            }
+        }
+        
+        ; 【关键修复】先刷新标签背景色，确保立即显示
         try {
             if (GuiID_VoiceInput && IsObject(GuiID_VoiceInput) && GuiID_VoiceInput.HasProp("Hwnd")) {
                 WinRedraw(GuiID_VoiceInput.Hwnd)
@@ -9550,8 +9651,181 @@ CreateCategoryTabHandler(CategoryKey) {
         } catch {
             ; 忽略刷新错误
         }
+        
+        ; 【关键修复】刷新搜索引擎按钮显示（隐藏旧的，显示新的）
+        ; 使用短暂延迟确保标签背景色先更新，提升流畅度
+        SetTimer(() => RefreshSearchEngineButtons(), -10)
     }
     return CategoryTabHandler
+}
+
+; ===================== 刷新搜索引擎按钮显示 =====================
+RefreshSearchEngineButtons() {
+    global GuiID_VoiceInput, VoiceSearchCurrentCategory, VoiceSearchEngineButtons, VoiceSearchSelectedEngines
+    global VoiceSearchLabelEngineY, UI_Colors, ThemeMode
+    
+    if (!GuiID_VoiceInput) {
+        return
+    }
+    
+    ; 【关键修复】从GUI窗口获取实际宽度
+    try {
+        WinGetPos(, , &PanelWidth, , "ahk_id " . GuiID_VoiceInput.Hwnd)
+    } catch {
+        ; 如果获取失败，使用默认值
+        PanelWidth := 600
+    }
+    
+    ; 【关键修复】优化切换流畅度：先隐藏旧按钮，创建新按钮后再销毁旧按钮
+    if (IsSet(VoiceSearchEngineButtons) && IsObject(VoiceSearchEngineButtons)) {
+        ; 先隐藏所有旧按钮（不立即销毁，保持界面流畅）
+        for Index, BtnObj in VoiceSearchEngineButtons {
+            if (IsObject(BtnObj)) {
+                try {
+                    if (BtnObj.Bg) {
+                        BtnObj.Bg.Visible := false
+                    }
+                    if (BtnObj.Icon) {
+                        BtnObj.Icon.Visible := false
+                    }
+                    if (BtnObj.Text) {
+                        BtnObj.Text.Visible := false
+                    }
+                } catch {
+                    ; 忽略隐藏错误
+                }
+            }
+        }
+    }
+    
+    ; 保存旧按钮数组用于后续销毁
+    OldButtons := VoiceSearchEngineButtons
+    ; 清空按钮数组，准备创建新按钮
+    VoiceSearchEngineButtons := []
+    
+    ; 获取当前分类的搜索引擎列表
+    try {
+        SearchEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)
+    } catch {
+        return
+    }
+    
+    if (!IsObject(SearchEngines) || SearchEngines.Length = 0) {
+        return
+    }
+    
+    ; 计算按钮位置和布局
+    global VoiceSearchLabelEngineY
+    YPos := VoiceSearchLabelEngineY + 30
+    ButtonWidth := 130
+    ButtonHeight := 35
+    ButtonSpacing := 10
+    StartX := 20
+    ButtonsPerRow := 4
+    IconSizeInButton := 20
+    
+    AvailableWidth := PanelWidth - 40
+    MaxButtonsPerRow := Floor((AvailableWidth + ButtonSpacing) / (ButtonWidth + ButtonSpacing))
+    if (MaxButtonsPerRow < 1) {
+        MaxButtonsPerRow := 1
+    }
+    ButtonsPerRow := Min(ButtonsPerRow, MaxButtonsPerRow)
+    
+    ; 创建新的搜索引擎按钮
+    for Index, Engine in SearchEngines {
+        if (!IsObject(Engine) || !Engine.HasProp("Value") || !Engine.HasProp("Name")) {
+            continue
+        }
+        
+        Row := Floor((Index - 1) / ButtonsPerRow)
+        Col := Mod((Index - 1), ButtonsPerRow)
+        BtnX := StartX + Col * (ButtonWidth + ButtonSpacing)
+        BtnY := YPos + Row * (ButtonHeight + ButtonSpacing)
+        
+        IsSelected := (ArrayContainsValue(VoiceSearchSelectedEngines, Engine.Value) > 0)
+        BtnBgColor := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
+        BtnText := IsSelected ? "✓ " . Engine.Name : Engine.Name
+        EngineBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+        
+        IconPath := GetSearchEngineIcon(Engine.Value)
+        IconCtrl := 0
+        
+        Btn := GuiID_VoiceInput.Add("Text", "x" . BtnX . " y" . BtnY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . EngineBtnTextColor . " Background" . BtnBgColor, "")
+        Btn.SetFont("s10", "Segoe UI")
+        Btn.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
+        HoverBtn(Btn, BtnBgColor, UI_Colors.BtnHover)
+        
+        if (IconPath != "" && FileExist(IconPath)) {
+            try {
+                IconX := BtnX + 8
+                IconY := BtnY + (ButtonHeight - IconSizeInButton) // 2
+                
+                ImageSize := GetImageSize(IconPath)
+                DisplaySize := CalculateImageDisplaySize(ImageSize.Width, ImageSize.Height, IconSizeInButton, IconSizeInButton)
+                
+                DisplayX := IconX
+                DisplayY := IconY + (IconSizeInButton - DisplaySize.Height) // 2
+                
+                IconCtrl := GuiID_VoiceInput.Add("Picture", "x" . DisplayX . " y" . DisplayY . " w" . DisplaySize.Width . " h" . DisplaySize.Height . " 0x200", IconPath)
+                IconCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
+                
+                TextX := IconX + IconSizeInButton + 5
+                TextWidth := ButtonWidth - (TextX - BtnX) - 8
+            } catch {
+                IconCtrl := 0
+                TextX := BtnX + 8
+                TextWidth := ButtonWidth - 16
+            }
+        } else {
+            TextX := BtnX + 8
+            TextWidth := ButtonWidth - 16
+        }
+        
+        TextCtrl := GuiID_VoiceInput.Add("Text", "x" . TextX . " y" . BtnY . " w" . TextWidth . " h" . ButtonHeight . " Left 0x200 c" . EngineBtnTextColor . " BackgroundTrans", BtnText)
+        TextCtrl.SetFont("s10", "Segoe UI")
+        TextCtrl.OnEvent("Click", CreateToggleSearchEngineHandler(Engine.Value, Index))
+        
+        ; 使用新的索引（从1开始）
+        NewIndex := VoiceSearchEngineButtons.Length + 1
+        VoiceSearchEngineButtons.Push({Bg: Btn, Icon: IconCtrl, Text: TextCtrl, Index: NewIndex})
+    }
+    
+    ; 【关键修复】刷新GUI显示，确保新按钮立即显示
+    try {
+        if (GuiID_VoiceInput && IsObject(GuiID_VoiceInput) && GuiID_VoiceInput.HasProp("Hwnd")) {
+            WinRedraw(GuiID_VoiceInput.Hwnd)
+        }
+    } catch {
+        ; 忽略刷新错误
+    }
+    
+    ; 【关键修复】延迟销毁旧按钮，确保新按钮已显示后再清理，提升流畅度
+    SetTimer(() => DestroyOldSearchEngineButtons(OldButtons), -100)
+}
+
+; 销毁旧的搜索引擎按钮（延迟执行，提升流畅度）
+DestroyOldSearchEngineButtons(OldButtons) {
+    if (!IsSet(OldButtons) || !IsObject(OldButtons)) {
+        return
+    }
+    
+    for Index, BtnObj in OldButtons {
+        if (IsObject(BtnObj)) {
+            try {
+                if (BtnObj.Bg) {
+                    BtnObj.Bg.Destroy()
+                }
+                if (BtnObj.Icon) {
+                    BtnObj.Icon.Destroy()
+                }
+                if (BtnObj.Text) {
+                    BtnObj.Text.Destroy()
+                }
+            } catch {
+                ; 忽略销毁错误
+            }
+        }
+    }
 }
 
 ; ===================== 语音搜索相关函数 =====================
@@ -10050,6 +10324,32 @@ ShowVoiceSearchInputPanel() {
     if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
         VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
     }
+    ; 【关键修复】确保 VoiceSearchSelectedEnginesByCategory 已初始化
+    global VoiceSearchSelectedEnginesByCategory
+    if (!IsSet(VoiceSearchSelectedEnginesByCategory) || !IsObject(VoiceSearchSelectedEnginesByCategory)) {
+        VoiceSearchSelectedEnginesByCategory := Map()
+    }
+    
+    ; 【关键修复】根据当前分类恢复搜索引擎选择状态
+    if (VoiceSearchSelectedEnginesByCategory.Has(VoiceSearchCurrentCategory)) {
+        VoiceSearchSelectedEngines := []
+        for Index, Engine in VoiceSearchSelectedEnginesByCategory[VoiceSearchCurrentCategory] {
+            VoiceSearchSelectedEngines.Push(Engine)
+        }
+    } else {
+        ; 如果当前分类没有保存的状态，使用默认值
+        try {
+            SearchEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)
+            if (SearchEngines && SearchEngines.Length > 0 && IsObject(SearchEngines[1]) && SearchEngines[1].HasProp("Value")) {
+                VoiceSearchSelectedEngines := [SearchEngines[1].Value]
+            } else {
+                VoiceSearchSelectedEngines := ["deepseek"]
+            }
+        } catch {
+            VoiceSearchSelectedEngines := ["deepseek"]
+        }
+    }
+    
     ; 【关键修复】确保 VoiceSearchSelectedEngines 已正确初始化
     if (!IsSet(VoiceSearchSelectedEngines) || !IsObject(VoiceSearchSelectedEngines)) {
         VoiceSearchSelectedEngines := ["deepseek"]
@@ -10731,7 +11031,12 @@ UpdateVoiceSearchInputInPanel(*) {
 CreateToggleSearchEngineHandler(Engine, BtnIndex) {
     ToggleSearchEngineHandler(*) {
         global VoiceSearchSelectedEngines, VoiceSearchEngineButtons, UI_Colors
-        global SearchEngines
+        global VoiceSearchCurrentCategory, VoiceSearchSelectedEnginesByCategory, ConfigFile
+        
+        ; 确保 VoiceSearchSelectedEnginesByCategory 已初始化
+        if (!IsSet(VoiceSearchSelectedEnginesByCategory) || !IsObject(VoiceSearchSelectedEnginesByCategory)) {
+            VoiceSearchSelectedEnginesByCategory := Map()
+        }
         
         ; 切换选择状态
         FoundIndex := ArrayContainsValue(VoiceSearchSelectedEngines, Engine)
@@ -10743,9 +11048,17 @@ CreateToggleSearchEngineHandler(Engine, BtnIndex) {
             VoiceSearchSelectedEngines.Push(Engine)
         }
         
-        ; 保存到配置文件
+        ; 【关键修复】保存当前分类的选择状态到分类Map中
+        if (VoiceSearchCurrentCategory != "") {
+            CurrentEngines := []
+            for Index, Eng in VoiceSearchSelectedEngines {
+                CurrentEngines.Push(Eng)
+            }
+            VoiceSearchSelectedEnginesByCategory[VoiceSearchCurrentCategory] := CurrentEngines
+        }
+        
+        ; 保存到配置文件（保存当前分类的选择状态）
         try {
-            global ConfigFile
             EnginesStr := ""
             for Index, Eng in VoiceSearchSelectedEngines {
                 if (Index > 1) {
@@ -10756,7 +11069,9 @@ CreateToggleSearchEngineHandler(Engine, BtnIndex) {
             if (EnginesStr = "") {
                 EnginesStr := "deepseek"
             }
-            IniWrite(EnginesStr, ConfigFile, "Settings", "VoiceSearchSelectedEngines")
+            ; 保存格式：分类:引擎1,引擎2
+            CategoryEnginesStr := VoiceSearchCurrentCategory . ":" . EnginesStr
+            IniWrite(CategoryEnginesStr, ConfigFile, "Settings", "VoiceSearchSelectedEngines_" . VoiceSearchCurrentCategory)
         } catch as e {
             TrayTip("保存搜索引擎选择失败: " . e.Message, "错误", "Iconx 1")
         }
