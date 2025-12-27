@@ -1,0 +1,245 @@
+[2025-12-27 22:32:21] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=14
+[2025-12-27 22:32:21] RefreshClipboardListView: 查询成功，共 13 条记录
+[2025-12-27 22:32:21] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 22:32:21] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 22:32:21] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 22:32:22] RefreshClipboardListView: 查询成功，共 13 条记录
+[2025-12-27 22:32:22] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 22:32:22] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 22:32:22] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 22:32:26] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=24
+[2025-12-27 22:32:27] RefreshClipboardListView: 查询成功，共 14 条记录
+[2025-12-27 22:32:27] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 22:32:27] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 22:32:27] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 22:32:30] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=134
+[2025-12-27 22:32:30] RefreshClipboardListView: 查询成功，共 15 条记录
+[2025-12-27 22:32:30] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 22:32:30] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 22:32:30] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 22:32:32] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=18
+[2025-12-27 22:32:33] RefreshClipboardListView: 查询成功，共 16 条记录
+[2025-12-27 22:32:33] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 22:32:33] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 22:32:33] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 22:39:32] RefreshClipboardList: 切换到 CapsLockC 标签，调用 RefreshClipboardListView
+[2025-12-27 22:39:32] RefreshClipboardListView: 函数被调用，ClipboardCurrentTab=CapsLockC
+[2025-12-27 22:39:32] RefreshClipboardListView: 查询成功，共 16 条记录
+[2025-12-27 22:39:32] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 22:39:32] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 22:39:32] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 22:40:25] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=102
+[2025-12-27 22:40:25] RefreshClipboardList: 切换到 CapsLockC 标签，调用 RefreshClipboardListView
+[2025-12-27 22:40:25] RefreshClipboardListView: 函数被调用，ClipboardCurrentTab=CapsLockC
+[2025-12-27 22:40:25] RefreshClipboardListView: 查询成功，共 17 条记录
+[2025-12-27 22:40:25] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 22:40:25] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 22:40:25] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 22:55:02] RefreshClipboardListView: 查询成功，共 17 条记录
+[2025-12-27 22:55:02] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 22:55:02] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 22:55:02] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:02:26] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=16
+[2025-12-27 23:02:26] RefreshClipboardListView: 查询成功，共 18 条记录
+[2025-12-27 23:02:26] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:02:26] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:02:26] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:02:26] RefreshClipboardListView: 查询成功，共 18 条记录
+[2025-12-27 23:02:26] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:02:26] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:02:26] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:02:31] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=27
+[2025-12-27 23:02:31] RefreshClipboardListView: 查询成功，共 19 条记录
+[2025-12-27 23:02:31] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:02:31] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:02:31] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:02:36] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=23
+[2025-12-27 23:02:37] RefreshClipboardListView: 查询成功，共 20 条记录
+[2025-12-27 23:02:37] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:02:37] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:02:37] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:02:40] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=73
+[2025-12-27 23:02:41] RefreshClipboardListView: 查询成功，共 21 条记录
+[2025-12-27 23:02:41] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:02:41] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:02:41] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:02:53] RefreshClipboardListView: 查询成功，共 21 条记录
+[2025-12-27 23:02:53] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:02:53] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:02:53] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:02:55] RefreshClipboardListView: 查询成功，共 21 条记录
+[2025-12-27 23:02:55] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:02:55] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:02:55] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:21:09] RefreshClipboardListView: 查询成功，共 21 条记录
+[2025-12-27 23:21:09] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:21:09] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:21:09] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:21:19] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=99
+[2025-12-27 23:21:19] RefreshClipboardListView: 查询成功，共 22 条记录
+[2025-12-27 23:21:19] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:21:19] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:21:19] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:21:24] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=38
+[2025-12-27 23:21:24] RefreshClipboardListView: 查询成功，共 23 条记录
+[2025-12-27 23:21:24] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:21:24] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:21:24] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:21:27] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=35
+[2025-12-27 23:21:28] RefreshClipboardListView: 查询成功，共 24 条记录
+[2025-12-27 23:21:28] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:21:28] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:21:28] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:21:40] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=30
+[2025-12-27 23:21:40] RefreshClipboardListView: 查询成功，共 25 条记录
+[2025-12-27 23:21:40] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:21:40] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:21:40] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:21:51] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=11
+[2025-12-27 23:21:52] RefreshClipboardListView: 查询成功，共 26 条记录
+[2025-12-27 23:21:52] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:21:52] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:21:52] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:21:58] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=44
+[2025-12-27 23:21:58] RefreshClipboardListView: 查询成功，共 27 条记录
+[2025-12-27 23:21:58] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:21:58] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:21:58] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:22:12] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=39
+[2025-12-27 23:22:13] RefreshClipboardListView: 查询成功，共 28 条记录
+[2025-12-27 23:22:13] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:13] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:13] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:22:13] RefreshClipboardListView: 查询成功，共 28 条记录
+[2025-12-27 23:22:13] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:13] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:13] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:22:19] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=25
+[2025-12-27 23:22:20] RefreshClipboardListView: 查询成功，共 29 条记录
+[2025-12-27 23:22:20] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:20] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:20] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:22:27] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=6
+[2025-12-27 23:22:27] RefreshClipboardListView: 查询成功，共 30 条记录
+[2025-12-27 23:22:27] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:27] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:27] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:22:31] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=113
+[2025-12-27 23:22:31] RefreshClipboardListView: 查询成功，共 31 条记录
+[2025-12-27 23:22:31] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:31] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:31] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:22:33] RefreshClipboardListView: 查询成功，共 31 条记录
+[2025-12-27 23:22:33] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:33] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:33] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:22:37] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=92
+[2025-12-27 23:22:37] RefreshClipboardListView: 查询成功，共 32 条记录
+[2025-12-27 23:22:37] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:37] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:37] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:22:41] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=62
+[2025-12-27 23:22:41] RefreshClipboardListView: 查询成功，共 33 条记录
+[2025-12-27 23:22:41] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:41] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:41] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:22:51] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=39
+[2025-12-27 23:22:52] RefreshClipboardListView: 查询成功，共 34 条记录
+[2025-12-27 23:22:52] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:52] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:52] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:22:52] RefreshClipboardListView: 查询成功，共 34 条记录
+[2025-12-27 23:22:52] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:52] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:22:52] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:23:02] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:23:02] RefreshClipboardListView: 查询成功，共 35 条记录
+[2025-12-27 23:23:02] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:23:02] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:23:02] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:23:08] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:23:09] RefreshClipboardListView: 查询成功，共 36 条记录
+[2025-12-27 23:23:09] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:23:09] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:23:09] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:23:09] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:23:10] RefreshClipboardListView: 查询成功，共 37 条记录
+[2025-12-27 23:23:10] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:23:10] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:23:10] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:23:21] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=20
+[2025-12-27 23:23:22] RefreshClipboardListView: 查询成功，共 38 条记录
+[2025-12-27 23:23:22] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:23:22] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:23:22] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:23:33] CapsLockPaste: 数据插入成功 - SessionID=1, Content长度=66
+[2025-12-27 23:23:34] RefreshClipboardListView: 查询成功，共 39 条记录
+[2025-12-27 23:23:34] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:23:34] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:23:34] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:23:37] RefreshClipboardListView: 查询成功，共 39 条记录
+[2025-12-27 23:23:37] RefreshClipboardListView: 行 1 - ID=27, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:23:37] RefreshClipboardListView: 行 2 - ID=28, SessionID=1, ItemIndex=1, Content长度=1
+[2025-12-27 23:23:37] RefreshClipboardListView: 行 3 - ID=29, SessionID=1, ItemIndex=1, Content长度=15
+[2025-12-27 23:44:54] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=17
+[2025-12-27 23:44:54] RefreshClipboardListView: 查询成功，共 40 条记录
+[2025-12-27 23:44:54] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=17
+[2025-12-27 23:44:54] RefreshClipboardListView: 查询成功，共 41 条记录
+[2025-12-27 23:44:57] RefreshClipboardListView: 查询成功，共 41 条记录
+[2025-12-27 23:44:58] RefreshClipboardListView: 查询成功，共 41 条记录
+[2025-12-27 23:45:05] RefreshClipboardListView: 查询成功，共 41 条记录
+[2025-12-27 23:45:06] RefreshClipboardListView: 查询成功，共 41 条记录
+[2025-12-27 23:45:07] RefreshClipboardListView: 查询成功，共 41 条记录
+[2025-12-27 23:45:08] RefreshClipboardListView: 查询成功，共 41 条记录
+[2025-12-27 23:45:09] RefreshClipboardListView: 查询成功，共 41 条记录
+[2025-12-27 23:47:20] RefreshClipboardListView: 查询成功但无数据，Rows.Length=0
+[2025-12-27 23:47:26] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=2, Content长度=39
+[2025-12-27 23:47:26] CapsLockCopy: ListView插入失败 - Invalid option.
+[2025-12-27 23:47:26] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=39
+[2025-12-27 23:47:26] RefreshClipboardListView: 查询成功，共 2 条记录
+[2025-12-27 23:47:28] RefreshClipboardListView: 查询成功，共 2 条记录
+[2025-12-27 23:47:29] RefreshClipboardListView: 查询成功，共 2 条记录
+[2025-12-27 23:47:42] RefreshClipboardListView: 查询成功，共 2 条记录
+[2025-12-27 23:53:39] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=33
+[2025-12-27 23:53:39] RefreshClipboardListView: 查询成功，共 3 条记录
+[2025-12-27 23:53:39] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=33
+[2025-12-27 23:53:39] RefreshClipboardListView: 查询成功，共 4 条记录
+[2025-12-27 23:53:49] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=2, Content长度=59
+[2025-12-27 23:53:49] CapsLockCopy: ListView插入失败 - Invalid option.
+[2025-12-27 23:53:49] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=59
+[2025-12-27 23:53:50] RefreshClipboardListView: 查询成功，共 6 条记录
+[2025-12-27 23:53:50] RefreshClipboardListView: 查询成功，共 6 条记录
+[2025-12-27 23:53:52] RefreshClipboardListView: 查询成功，共 6 条记录
+[2025-12-27 23:53:57] RefreshClipboardListView: 查询成功，共 6 条记录
+[2025-12-27 23:54:08] RefreshClipboardListView: 查询成功，共 6 条记录
+[2025-12-28 00:02:13] RefreshClipboardListView: 查询成功，共 6 条记录
+[2025-12-28 00:02:22] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=174
+[2025-12-28 00:02:22] RefreshClipboardListView: 查询成功，共 7 条记录
+[2025-12-28 00:02:37] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=65
+[2025-12-28 00:02:38] RefreshClipboardListView: 查询成功，共 8 条记录
+[2025-12-28 00:05:53] ShowCursorPanel: 查询数据库失败 - Invalid option.
+[2025-12-28 00:06:01] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2025-12-28 00:06:01] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=1, Content长度=22
+[2025-12-28 00:06:01] RefreshClipboardListView: 查询成功，共 9 条记录
+[2025-12-28 00:06:01] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=22
+[2025-12-28 00:06:01] RefreshClipboardListView: 查询成功，共 10 条记录
+[2025-12-28 00:06:10] RefreshClipboardListView: 查询成功，共 10 条记录
+[2025-12-28 00:06:11] RefreshClipboardListView: 查询成功，共 10 条记录
+[2025-12-28 00:06:15] RefreshClipboardListView: 查询成功，共 10 条记录
+[2025-12-28 00:06:28] RefreshClipboardListView: 查询成功，共 10 条记录
+[2025-12-28 00:07:07] RefreshClipboardListView: 查询成功，共 10 条记录
+[2025-12-28 00:17:10] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2025-12-28 00:17:10] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=1, Content长度=16
+[2025-12-28 00:17:10] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=16
+[2025-12-28 00:17:10] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=1, 总项数=12, 最大列数=2
+[2025-12-28 00:17:10] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=1, 总项数=12, 最大列数=2
+[2025-12-28 00:17:27] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2025-12-28 00:17:27] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=2, Content长度=16
+[2025-12-28 00:17:27] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=16
+[2025-12-28 00:17:27] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=1, 总项数=14, 最大列数=2
+[2025-12-28 00:17:43] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2025-12-28 00:17:43] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=3, Content长度=4
+[2025-12-28 00:17:43] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=4
+[2025-12-28 00:17:43] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=1, 总项数=16, 最大列数=3
+[2025-12-28 00:17:55] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=1, 总项数=16, 最大列数=3
+[2025-12-28 00:17:57] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=1, 总项数=16, 最大列数=3
