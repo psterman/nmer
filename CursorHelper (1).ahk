@@ -11782,12 +11782,15 @@ CapsLockCopy() {
                         CurrentColCount := 2
                     }
                     
-                    ; 如果列数不够，添加新列
+                    ; 如果列数不够，添加新列（使用固定宽度）
+                    ; NeededCol = StageStepCount + 1（第1列是阶段标签，后续列是内容列）
                     if (NeededCol > CurrentColCount) {
                         Loop (NeededCol - CurrentColCount) {
                             ColIndex := CurrentColCount + A_Index
                             try {
-                                ClipboardListView.InsertCol(ColIndex, "Auto Left", "第" . (ColIndex - 1) . "次")
+                                ; 第一列应该已经存在，所以这里添加的列从第2列开始
+                                ; 每列固定宽度 150px
+                                ClipboardListView.InsertCol(ColIndex, "150 Left", "第" . (ColIndex - 1) . "次")
                             } catch {
                             }
                         }
@@ -12281,43 +12284,21 @@ ShowClipboardManager() {
     PanelWidth := 600
     PanelHeight := 500
     
-    ; 创建无边框 GUI
-    GuiID_ClipboardManager := Gui("+AlwaysOnTop +ToolWindow -Caption +Border -DPIScale", GetText("clipboard_manager"))
+    ; 创建可调整大小的 GUI（使用系统标题栏以支持调整大小）
+    GuiID_ClipboardManager := Gui("+AlwaysOnTop +Resize -MaximizeBox -DPIScale", "📋 " . GetText("clipboard_manager"))
     GuiID_ClipboardManager.BackColor := UI_Colors.Background
     GuiID_ClipboardManager.SetFont("s11 c" . UI_Colors.Text, "Segoe UI")
     
-    ; ========== 自定义标题栏 (可拖动) ==========
-    ; 调整标题栏宽度，避免覆盖关闭按钮
-    TitleBar := GuiID_ClipboardManager.Add("Text", "x0 y0 w560 h40 Background" . UI_Colors.TitleBar, "")
-    TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2)) ; 拖动窗口
+    ; 工具栏区域（从 y=0 开始，系统标题栏会自动显示，内容区域从 y=30 开始）
     
-    ; 窗口标题
-    TitleText := GuiID_ClipboardManager.Add("Text", "x20 y8 w500 h24 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text, "📋 " . GetText("clipboard_manager"))
-    TitleText.SetFont("s12 Bold", "Segoe UI")
-    TitleText.OnEvent("Click", (*) => PostMessage(0xA1, 2))
-    
-    ; 关闭按钮
-    CloseBtn := GuiID_ClipboardManager.Add("Text", "x560 y0 w40 h40 Center 0x200 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text, "✕")
-    CloseBtn.SetFont("s12", "Segoe UI")
-    CloseBtn.OnEvent("Click", CloseClipboardManager)
-    HoverBtn(CloseBtn, UI_Colors.TitleBar, "e81123")
-    
-    ; 分隔线（使用层叠投影替代1px边框）
-    ; 底层：大范围、低饱和度、模糊阴影
+    ; 分隔线
+    SeparatorY := 30
     OuterShadowColor := (ThemeMode = "light") ? "E0E0E0" : "1A1A1A"
     InnerShadowColor := (ThemeMode = "light") ? "B0B0B0" : "2A2A2A"
-    ; 底层阴影（3层渐变）
-    Loop 3 {
-        LayerOffset := 4 + (A_Index - 1) * 1
-        LayerAlpha := 255 - (A_Index - 1) * 60
-        LayerColor := BlendColor(OuterShadowColor, (ThemeMode = "light") ? "FFFFFF" : "000000", LayerAlpha / 255)
-        GuiID_ClipboardManager.Add("Text", "x0 y" . (40 + LayerOffset) . " w600 h1 Background" . LayerColor, "")
-    }
-    ; 顶层阴影（紧凑、深色）
-    GuiID_ClipboardManager.Add("Text", "x0 y41 w600 h1 Background" . InnerShadowColor, "")
+    GuiID_ClipboardManager.Add("Text", "x0 y" . SeparatorY . " w600 h1 Background" . InnerShadowColor, "")
     
     ; ========== 工具栏区域 ==========
-    ToolbarBg := GuiID_ClipboardManager.Add("Text", "x0 y41 w600 h45 Background" . UI_Colors.Sidebar, "")
+    ToolbarBg := GuiID_ClipboardManager.Add("Text", "x0 y" . SeparatorY . " w600 h45 Background" . UI_Colors.Sidebar, "")
     
     ; 辅助函数：创建平面按钮
     CreateFlatBtn(Parent, Label, X, Y, W, H, Action, Color := "", IsPrimary := false) {
@@ -12341,7 +12322,7 @@ ShowClipboardManager() {
     if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
         ClipboardCurrentTab := "CtrlC"
     }
-    TabY := 48
+    TabY := 38  ; 调整Y坐标以适应系统标题栏
     ; Ctrl+C Tab - 确保可以点击
     CtrlCTab := GuiID_ClipboardManager.Add("Text", "x20 y" . TabY . " w120 h30 Center 0x200 c" . UI_Colors.Text . " Background" . (ClipboardCurrentTab = "CtrlC" ? UI_Colors.TabActive : UI_Colors.Sidebar) . " vCtrlCTab", GetText("clipboard_tab_ctrlc"))
     CtrlCTab.SetFont("s10", "Segoe UI")
@@ -12371,15 +12352,18 @@ ShowClipboardManager() {
     
     ; 创建两个控件（根据当前Tab显示/隐藏）
     ; ListBox用于CtrlC标签
-    ListBox := GuiID_ClipboardManager.Add("ListBox", "x20 y100 w560 h320 vClipboardListBox Background" . ListBoxBgColor . " c" . ListBoxTextColor . " -E0x200")
+    ListBox := GuiID_ClipboardManager.Add("ListBox", "x20 y90 w560 h320 vClipboardListBox Background" . ListBoxBgColor . " c" . ListBoxTextColor . " -E0x200")
     ListBox.SetFont("s10 c" . ListBoxTextColor, "Consolas")
     ListBox.Opt("+Background" . ListBoxBgColor)
     
-    ; ListView用于CapsLockC标签（表格布局 - 横向显示）
+    ; ListView用于CapsLockC标签（表格布局 - 横向显示，带网格线）
     ListViewTextColor := (ThemeMode = "dark") ? UI_Colors.Text : UI_Colors.Text
     ; 横向布局：阶段标签（第一列）+ 第1次复制、第2次复制...（动态列）
-    ListViewCtrl := GuiID_ClipboardManager.Add("ListView", "x20 y100 w560 h320 vClipboardListView Background" . ListBoxBgColor . " c" . ListViewTextColor . " -Multi +ReadOnly +NoSortHdr +LV0x10000", ["阶段标签", "内容"])
+    ; +LV0x1 = LVS_EX_GRIDLINES（网格线）
+    ListViewCtrl := GuiID_ClipboardManager.Add("ListView", "x20 y90 w560 h320 vClipboardListView Background" . ListBoxBgColor . " c" . ListViewTextColor . " -Multi +ReadOnly +NoSortHdr +LV0x10000 +LV0x1", ["阶段标签", "内容"])
     ListViewCtrl.SetFont("s9 c" . ListViewTextColor, "Consolas")
+    ; 绑定单元格点击事件（用于显示浮窗）
+    ListViewCtrl.OnEvent("ItemSelect", OnClipboardListViewItemSelect)
     
     ; 保存ListBox句柄和创建画刷，用于WM_CTLCOLORLISTBOX消息处理
     global ClipboardListBoxHwnd, ClipboardListBoxBrush
@@ -12399,19 +12383,38 @@ ShowClipboardManager() {
     }
     
     ; ========== 底部按钮区域 ==========
-    GuiID_ClipboardManager.Add("Text", "x0 y430 w600 h70 Background" . UI_Colors.Background, "")
+    ; 底部区域Y坐标需要根据窗口高度动态调整（在Size事件中处理）
+    BottomAreaY := 430
+    BottomArea := GuiID_ClipboardManager.Add("Text", "x0 y" . BottomAreaY . " w600 h70 Background" . UI_Colors.Background . " vClipboardBottomArea", "")
     
-    ; 操作按钮
-    CreateFlatBtn(GuiID_ClipboardManager, GetText("copy_selected"), 20, 440, 100, 35, CopySelectedItem)
-    CreateFlatBtn(GuiID_ClipboardManager, GetText("delete_selected"), 130, 440, 100, 35, DeleteSelectedItem)
-    CreateFlatBtn(GuiID_ClipboardManager, GetText("paste_to_cursor"), 240, 440, 120, 35, PasteSelectedToCursor, UI_Colors.BtnPrimary, true)
+    ; 操作按钮（使用v参数保存引用以便调整位置）
+    CopyBtn := GuiID_ClipboardManager.Add("Text", "x20 y" . (BottomAreaY + 10) . " w100 h35 Center 0x200 c" . ((ThemeMode = "dark") ? "FFFFFF" : "000000") . " Background" . UI_Colors.BtnBg . " vClipboardCopyBtn", GetText("copy_selected"))
+    CopyBtn.SetFont("s10", "Segoe UI")
+    CopyBtn.OnEvent("Click", CopySelectedItem)
+    HoverBtn(CopyBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     
-    ; 导出和导入按钮
-    CreateFlatBtn(GuiID_ClipboardManager, GetText("export_clipboard"), 370, 440, 100, 35, ExportClipboard)
-    CreateFlatBtn(GuiID_ClipboardManager, GetText("import_clipboard"), 480, 440, 100, 35, ImportClipboard)
+    DeleteBtn := GuiID_ClipboardManager.Add("Text", "x130 y" . (BottomAreaY + 10) . " w100 h35 Center 0x200 c" . ((ThemeMode = "dark") ? "FFFFFF" : "000000") . " Background" . UI_Colors.BtnBg . " vClipboardDeleteBtn", GetText("delete_selected"))
+    DeleteBtn.SetFont("s10", "Segoe UI")
+    DeleteBtn.OnEvent("Click", DeleteSelectedItem)
+    HoverBtn(DeleteBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    PasteBtn := GuiID_ClipboardManager.Add("Text", "x240 y" . (BottomAreaY + 10) . " w120 h35 Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vClipboardPasteBtn", GetText("paste_to_cursor"))
+    PasteBtn.SetFont("s10", "Segoe UI")
+    PasteBtn.OnEvent("Click", PasteSelectedToCursor)
+    HoverBtn(PasteBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+    
+    ExportBtn := GuiID_ClipboardManager.Add("Text", "x370 y" . (BottomAreaY + 10) . " w100 h35 Center 0x200 c" . ((ThemeMode = "dark") ? "FFFFFF" : "000000") . " Background" . UI_Colors.BtnBg . " vClipboardExportBtn", GetText("export_clipboard"))
+    ExportBtn.SetFont("s10", "Segoe UI")
+    ExportBtn.OnEvent("Click", ExportClipboard)
+    HoverBtn(ExportBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    ImportBtn := GuiID_ClipboardManager.Add("Text", "x480 y" . (BottomAreaY + 10) . " w100 h35 Center 0x200 c" . ((ThemeMode = "dark") ? "FFFFFF" : "000000") . " Background" . UI_Colors.BtnBg . " vClipboardImportBtn", GetText("import_clipboard"))
+    ImportBtn.SetFont("s10", "Segoe UI")
+    ImportBtn.OnEvent("Click", ImportClipboard)
+    HoverBtn(ImportBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     
     ; 底部提示
-    HintText := GuiID_ClipboardManager.Add("Text", "x20 y485 w560 h15 c" . UI_Colors.TextDim, GetText("clipboard_hint"))
+    HintText := GuiID_ClipboardManager.Add("Text", "x20 y" . (BottomAreaY + 55) . " w560 h15 c" . UI_Colors.TextDim . " vClipboardHintText", GetText("clipboard_hint"))
     HintText.SetFont("s9", "Segoe UI")
     
     ; 绑定选中变化和双击事件
@@ -12421,6 +12424,11 @@ ShowClipboardManager() {
     
     ; ListView用于CapsLockC标签
     ListViewCtrl.OnEvent("DoubleClick", CopySelectedItem)
+    ; 绑定单元格点击事件（用于显示浮窗）- 使用Item参数
+    ListViewCtrl.OnEvent("ItemSelect", OnClipboardListViewItemSelect)
+    
+    ; 绑定窗口大小变化事件（使ListView自适应窗口大小）
+    GuiID_ClipboardManager.OnEvent("Size", OnClipboardManagerSize)
     
     ; 绑定 ESC 关闭
     GuiID_ClipboardManager.OnEvent("Escape", CloseClipboardManager)
@@ -13316,25 +13324,27 @@ RefreshClipboardListView() {
         ; 需要的列数 = 1（阶段标签列）+ MaxItemIndex（内容列）
         NeededColCount := 1 + MaxItemIndex
         
-        ; 如果当前列数不够，需要重建 ListView 的列
-        ; AHK v2 ListView 不支持动态删除/添加列，需要通过设置列标题来实现
-        ; 这里我们通过 InsertCol 添加缺少的列
+        ; 如果当前列数不够，需要添加缺少的列（使用固定宽度）
+        ; 第一列（阶段标签列）应该已经存在，所以只添加内容列
         if (NeededColCount > CurrentColCount) {
             Loop (NeededColCount - CurrentColCount) {
                 ColIndex := CurrentColCount + A_Index
                 try {
-                    ClipboardListView.InsertCol(ColIndex, "AutoHdr", "第" . (ColIndex - 1) . "次")
+                    ; 第一列应该已经存在，这里只添加内容列，每列固定宽度 150px
+                    ClipboardListView.InsertCol(ColIndex, "150 Left", "第" . (ColIndex - 1) . "次")
                 } catch {
                 }
             }
         }
         
-        ; 设置列标题
+        ; 设置列标题和固定宽度（内容过长时自动截断）
         try {
-            ClipboardListView.ModifyCol(1, "80 Left", "阶段标签")
+            ; 第一列：阶段标签，固定宽度 100px
+            ClipboardListView.ModifyCol(1, "100 Left", "阶段标签")
+            ; 后续列：每列固定宽度 150px，内容过长会被截断
             Loop MaxItemIndex {
                 ColNum := A_Index + 1
-                ClipboardListView.ModifyCol(ColNum, "Auto Left", "第" . A_Index . "次")
+                ClipboardListView.ModifyCol(ColNum, "150 Left", "第" . A_Index . "次")
             }
         } catch {
         }
@@ -13418,6 +13428,295 @@ RefreshClipboardListView() {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 发生异常 - " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
         } catch {
         }
+    }
+}
+
+; ===================== 窗口大小变化事件处理 =====================
+OnClipboardManagerSize(GuiObj, MinMax, Width, Height) {
+    global ClipboardListView, ClipboardListBox, ClipboardCurrentTab, GuiID_ClipboardManager
+    
+    try {
+        ; 计算ListView的新尺寸（窗口宽度 - 左右边距40，窗口高度 - 工具栏75 - 底部区域70）
+        ListViewX := 20
+        ListViewY := 90
+        ListViewWidth := Width - 40
+        ListViewHeight := Height - 90 - 70
+        
+        ; 调整ListView尺寸
+        if (ClipboardCurrentTab = "CapsLockC" && ClipboardListView && IsObject(ClipboardListView)) {
+            ClipboardListView.Move(ListViewX, ListViewY, ListViewWidth, ListViewHeight)
+        } else if (ClipboardCurrentTab = "CtrlC" && ClipboardListBox && IsObject(ClipboardListBox)) {
+            ClipboardListBox.Move(ListViewX, ListViewY, ListViewWidth, ListViewHeight)
+        }
+        
+        ; 调整底部区域和按钮位置（固定在底部）
+        try {
+            BottomAreaY := Height - 70
+            BottomArea := GuiObj["ClipboardBottomArea"]
+            if (BottomArea && IsObject(BottomArea)) {
+                BottomArea.Move(, BottomAreaY, Width, 70)
+            }
+            
+            ; 调整底部按钮位置（保持相对位置）- 通过v参数访问控件
+            ButtonY := BottomAreaY + 10
+            try {
+                CopyBtn := GuiObj["ClipboardCopyBtn"]
+                if (CopyBtn && IsObject(CopyBtn)) {
+                    CopyBtn.Move(20, ButtonY)
+                }
+                DeleteBtn := GuiObj["ClipboardDeleteBtn"]
+                if (DeleteBtn && IsObject(DeleteBtn)) {
+                    DeleteBtn.Move(130, ButtonY)
+                }
+                PasteBtn := GuiObj["ClipboardPasteBtn"]
+                if (PasteBtn && IsObject(PasteBtn)) {
+                    PasteBtn.Move(240, ButtonY)
+                }
+                ExportBtn := GuiObj["ClipboardExportBtn"]
+                if (ExportBtn && IsObject(ExportBtn)) {
+                    ExportBtn.Move(370, ButtonY)
+                }
+                ImportBtn := GuiObj["ClipboardImportBtn"]
+                if (ImportBtn && IsObject(ImportBtn)) {
+                    ImportBtn.Move(480, ButtonY)
+                }
+            } catch {
+                ; 如果无法访问控件，忽略错误
+            }
+            
+            ; 调整底部提示文字位置
+            HintText := GuiObj["ClipboardHintText"]
+            if (HintText && IsObject(HintText)) {
+                HintText.Move(20, BottomAreaY + 55, Width - 40)
+            }
+        } catch {
+        }
+    } catch {
+    }
+}
+
+; ===================== ListView项目选择事件处理（显示完整内容浮窗） =====================
+OnClipboardListViewItemSelect(Control, Item, *) {
+    global ClipboardListView, ClipboardDB, ClipboardCurrentTab
+    
+    ; 只在CapsLockC标签时处理，且只在点击时触发（不在程序选择时触发）
+    if (ClipboardCurrentTab != "CapsLockC" || !ClipboardListView || !IsObject(ClipboardListView)) {
+        return
+    }
+    
+    ; 获取选中的行（Item参数是行索引，从1开始）
+    RowIndex := Item
+    if (RowIndex < 1) {
+        return
+    }
+    
+    ; 延迟一点时间，使用鼠标位置来确定点击的列
+    SetTimer(() => OnClipboardListViewCellClickDelayed(RowIndex), -50)
+}
+
+; ===================== 延迟处理单元格点击（用于获取鼠标位置） =====================
+OnClipboardListViewCellClickDelayed(RowIndex) {
+    global ClipboardListView, ClipboardDB, ClipboardCurrentTab
+    
+    ; 再次检查
+    if (ClipboardCurrentTab != "CapsLockC" || !ClipboardListView || !IsObject(ClipboardListView)) {
+        return
+    }
+    
+    try {
+        ; 获取鼠标位置
+        MouseGetPos(&MouseX, &MouseY, &MouseWin, &MouseCtrl)
+        
+        ; 获取ListView的位置
+        ClipboardListView.GetPos(&LVX, &LVY, &LVW, &LVH)
+        
+        ; 检查鼠标是否在ListView内
+        if (MouseX < LVX || MouseX > LVX + LVW || MouseY < LVY || MouseY > LVY + LVH) {
+            return
+        }
+        
+        ; 计算相对于ListView的X坐标
+        RelativeX := MouseX - LVX
+        
+        ; 计算点击的列（使用固定列宽）
+        ColIndex := 1
+        AccumWidth := 0
+        ColCount := ClipboardListView.GetCount("Col")
+        
+        ; 第一列宽度100px，其他列宽度150px
+        Loop ColCount {
+            if (A_Index = 1) {
+                ColWidth := 100
+            } else {
+                ColWidth := 150
+            }
+            
+            if (RelativeX >= AccumWidth && RelativeX < AccumWidth + ColWidth) {
+                ColIndex := A_Index
+                break
+            }
+            AccumWidth += ColWidth
+        }
+        
+        ; 获取单元格显示内容
+        CellText := ClipboardListView.GetText(RowIndex, ColIndex)
+        
+        ; 如果单元格内容被截断（以...结尾）或者内容较长，显示浮窗
+        if (CellText != "" && (InStr(CellText, "...") || StrLen(CellText) >= 45 || (ColIndex > 1 && CellText != ""))) {
+            ; 从数据库获取完整内容
+            FullContent := GetCellFullContent(RowIndex, ColIndex)
+            if (FullContent != "") {
+                ShowClipboardCellContentWindow(FullContent, RowIndex, ColIndex)
+            }
+        }
+    } catch {
+        ; 如果出错，忽略
+    }
+}
+
+; ===================== 从数据库获取单元格完整内容 =====================
+GetCellFullContent(RowIndex, ColIndex) {
+    global ClipboardDB, ClipboardListView
+    
+    try {
+        if (!ClipboardDB || ClipboardDB = 0 || !ClipboardListView) {
+            return ""
+        }
+        
+        ; 从ListView获取阶段标签（第一列），提取SessionID
+        StageLabel := ClipboardListView.GetText(RowIndex, 1)
+        if (StageLabel = "") {
+            return ""
+        }
+        
+        ; 解析阶段标签：格式为 "阶段 X"
+        RegExMatch(StageLabel, "阶段\s+(\d+)", &Match)
+        if (!Match || !Match[1]) {
+            return ""
+        }
+        SessionID := Integer(Match[1])
+        
+        ; 如果是第一列（阶段标签列），返回阶段标签文本
+        if (ColIndex = 1) {
+            return StageLabel
+        }
+        
+        ; 其他列：ItemIndex = ColIndex - 1（因为第一列是阶段标签）
+        ItemIndex := ColIndex - 1
+        
+        ; 从数据库查询完整内容
+        ResultTable := ""
+        SQL := "SELECT Content FROM ClipboardHistory WHERE SessionID = " . SessionID . " AND ItemIndex = " . ItemIndex . " LIMIT 1"
+        if (ClipboardDB.GetTable(SQL, &ResultTable)) {
+            if (ResultTable && ResultTable.HasProp("Rows") && ResultTable.Rows.Length > 0) {
+                if (ResultTable.Rows[1].Length > 0) {
+                    return ResultTable.Rows[1][1]  ; Content列
+                }
+            }
+        }
+    } catch {
+    }
+    
+    return ""
+}
+
+; ===================== 显示单元格内容浮窗 =====================
+ShowClipboardCellContentWindow(Content, RowIndex, ColIndex) {
+    global UI_Colors, ThemeMode, GuiID_ClipboardManager
+    static CellContentWindow := 0
+    
+    ; 如果窗口已存在，先销毁
+    if (CellContentWindow != 0) {
+        try {
+            CellContentWindow.Destroy()
+        } catch {
+        }
+        CellContentWindow := 0
+    }
+    
+    try {
+        ; 创建浮窗
+        CellContentWindow := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale", "单元格内容")
+        CellContentWindow.BackColor := UI_Colors.Background
+        
+        ; 窗口尺寸
+        WindowWidth := 600
+        WindowHeight := 400
+        
+        ; 保存Content到局部变量，供闭包使用
+        SavedContent := Content
+        
+        ; 创建关闭窗口的处理函数（使用闭包捕获CellContentWindow）
+        CloseWindowHandler(*) {
+            if (CellContentWindow && IsObject(CellContentWindow)) {
+                try {
+                    CellContentWindow.Destroy()
+                } catch {
+                }
+                CellContentWindow := 0
+            }
+        }
+        
+        ; 自定义标题栏
+        TitleBarHeight := 35
+        TitleBar := CellContentWindow.Add("Text", "x0 y0 w" . WindowWidth . " h" . TitleBarHeight . " Background" . UI_Colors.TitleBar, "")
+        TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2))
+        
+        TitleText := CellContentWindow.Add("Text", "x20 y8 w" . (WindowWidth - 80) . " h20 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text, "单元格内容 (行 " . RowIndex . ", 列 " . ColIndex . ")")
+        TitleText.SetFont("s10 Bold", "Segoe UI")
+        TitleText.OnEvent("Click", (*) => PostMessage(0xA1, 2))
+        
+        ; 关闭按钮（标题栏）
+        CloseBtn := CellContentWindow.Add("Text", "x" . (WindowWidth - 40) . " y0 w40 h" . TitleBarHeight . " Center 0x200 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text, "✕")
+        CloseBtn.SetFont("s12", "Segoe UI")
+        CloseBtn.OnEvent("Click", CloseWindowHandler)
+        HoverBtn(CloseBtn, UI_Colors.TitleBar, "e81123")
+        
+        ; 分隔线
+        CellContentWindow.Add("Text", "x0 y" . TitleBarHeight . " w" . WindowWidth . " h1 Background" . UI_Colors.Border, "")
+        
+        ; 内容编辑框（可编辑、可选中、可复制）- 移除ReadOnly以支持编辑
+        ContentY := TitleBarHeight + 10
+        ContentHeight := WindowHeight - TitleBarHeight - 60
+        ContentEdit := CellContentWindow.Add("Edit", "x20 y" . ContentY . " w" . (WindowWidth - 40) . " h" . ContentHeight . " Multi Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " +VScroll +HScroll", Content)
+        ContentEdit.SetFont("s9", "Consolas")
+        
+        ; 底部按钮区域
+        BtnY := WindowHeight - 45
+        TextColor := (ThemeMode = "dark") ? "FFFFFF" : "000000"
+        
+        ; 复制按钮
+        CopyBtnHandler(*) {
+            try {
+                A_Clipboard := SavedContent
+                TrayTip("已复制到剪贴板", "提示", "Iconi 1")
+            } catch {
+                TrayTip("复制失败", "错误", "Iconx 1")
+            }
+        }
+        CopyBtn := CellContentWindow.Add("Text", "x20 y" . BtnY . " w100 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vCellContentCopyBtn", "📋 复制")
+        CopyBtn.SetFont("s10", "Segoe UI")
+        CopyBtn.OnEvent("Click", CopyBtnHandler)
+        HoverBtn(CopyBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+        
+        ; 关闭按钮（底部）
+        CloseBtn2 := CellContentWindow.Add("Text", "x" . (WindowWidth - 120) . " y" . BtnY . " w100 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vCellContentCloseBtn", "关闭")
+        CloseBtn2.SetFont("s10", "Segoe UI")
+        CloseBtn2.OnEvent("Click", CloseWindowHandler)
+        HoverBtn(CloseBtn2, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        
+        ; 绑定ESC关闭
+        CellContentWindow.OnEvent("Escape", CloseWindowHandler)
+        
+        ; 显示窗口（居中显示）
+        CellContentWindow.Show("w" . WindowWidth . " h" . WindowHeight . " Center")
+        
+        ; 确保窗口在最上层
+        WinSetAlwaysOnTop(1, CellContentWindow.Hwnd)
+        
+    } catch as e {
+        TrayTip("显示浮窗失败: " . e.Message, "错误", "Iconx 1")
+        CellContentWindow := 0
     }
 }
 
