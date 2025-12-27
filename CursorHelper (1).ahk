@@ -678,13 +678,11 @@ GetText(Key) {
             "hotkey_main_tab_settings", "快捷键设置",
             "hotkey_main_tab_rules", "Cursor规则",
             "cursor_rules_title", "Cursor 规则配置",
-            "cursor_rules_intro", "根据您开发的程序类型，复制对应的规则内容到 Cursor 的 rules 文件中，让 AI 更好地理解您的项目需求。",
+            "cursor_rules_intro", "根据您开发的程序类型，让 AI 更好地理解您的项目需求。💰 省钱：减少无效的 AI 对话，提高效率`n🎯 精准：AI 更准确理解项目需求`n🛡️ 避坑：避免常见错误和代码问题`n📐 垂直：针对特定领域优化建议`n⚡ 效率：快速生成符合规范的代码",
             "cursor_rules_location_title", "📋 复制位置",
             "cursor_rules_location_desc", "在 Cursor 中，按 Ctrl+Shift+P 打开命令面板，输入 'rules' 或 'cursor rules'，选择 'Open Cursor Rules' 打开 .cursorrules 文件，将规则内容粘贴到该文件中。",
             "cursor_rules_usage_title", "💡 使用方法",
             "cursor_rules_usage_desc", "1. 选择下方对应的开发类型标签`n2. 点击「复制规则」按钮`n3. 在 Cursor 中打开 .cursorrules 文件`n4. 粘贴规则内容并保存`n5. 重启 Cursor 使规则生效",
-            "cursor_rules_benefits_title", "✨ 使用优点",
-            "cursor_rules_benefits_desc", "💰 省钱：减少无效的 AI 对话，提高效率`n🎯 精准：AI 更准确理解项目需求`n🛡️ 避坑：避免常见错误和代码问题`n📐 垂直：针对特定领域优化建议`n⚡ 效率：快速生成符合规范的代码",
             "cursor_rules_copy_btn", "复制规则",
             "cursor_rules_copied", "规则已复制到剪贴板！",
             "cursor_rules_subtab_general", "通用规则",
@@ -1118,8 +1116,6 @@ GetText(Key) {
             "cursor_rules_location_desc", "In Cursor, press Ctrl+Shift+P to open the command palette, type 'rules' or 'cursor rules', select 'Open Cursor Rules' to open the .cursorrules file, and paste the rule content into that file.",
             "cursor_rules_usage_title", "💡 Usage",
             "cursor_rules_usage_desc", "1. Select the corresponding development type tab below`n2. Click the 'Copy Rules' button`n3. Open the .cursorrules file in Cursor`n4. Paste the rule content and save`n5. Restart Cursor to apply the rules",
-            "cursor_rules_benefits_title", "✨ Benefits",
-            "cursor_rules_benefits_desc", "💰 Save Money: Reduce ineffective AI conversations and improve efficiency`n🎯 Accurate: AI better understands project requirements`n🛡️ Avoid Pitfalls: Prevent common errors and code issues`n📐 Vertical: Optimize suggestions for specific domains`n⚡ Efficiency: Quickly generate code that meets standards",
             "cursor_rules_copy_btn", "Copy Rules",
             "cursor_rules_copied", "Rules copied to clipboard!",
             "cursor_rules_subtab_general", "General Rules",
@@ -1135,15 +1131,17 @@ GetText(Key) {
     )
     
     ; 获取当前语言的文本
+    if (!Texts.Has(Language)) {
+        Language := "zh"  ; 默认使用中文
+    }
     LangTexts := Texts[Language]
-    if (!LangTexts) {
-        LangTexts := Texts["zh"]  ; 默认使用中文
+    
+    ; 检查键是否存在
+    if (!LangTexts.Has(Key)) {
+        return Key  ; 如果找不到，返回键名
     }
     
     Text := LangTexts[Key]
-    if (!Text) {
-        Text := Key  ; 如果找不到，返回键名
-    }
     
     ; 支持参数替换 {0}, {1} 等
     if (InStr(Text, "{0}") || InStr(Text, "{1}")) {
@@ -3651,9 +3649,106 @@ SwitchTab(TabName) {
         case "appearance":
             ShowControls(AppearanceTabControls)
         case "prompts":
-            ShowControls(PromptsTabControls)
-            ; 显示第一个主标签页（模板管理）
-            global PromptsMainTabs
+            ; 【架构修复】正确的切换逻辑：
+            ; 问题根源：PromptsTabControls包含了所有控件（公共控件+三个子标签页的所有控件）
+            ; 当ShowControls(PromptsTabControls)时，所有控件都会显示，导致重叠
+            
+            ; 解决方案：分步骤精确控制
+            ; 1. 先隐藏所有子标签页的控件（确保干净状态）
+            ; 2. 显示公共控件（面板、标题、主标签栏）
+            ; 3. 切换到模板管理标签页（会自动显示对应的控件）
+            
+            ; 第一步：强制隐藏所有子标签页的控件（确保干净状态）
+            global PromptsMainTabControls, CursorRulesSubTabControls, PromptCategoryTabControls
+            
+            ; 隐藏所有主标签页的内容控件（但不包括主标签按钮，它们应该始终可见）
+            if (PromptsMainTabControls) {
+                for Key, Controls in PromptsMainTabControls {
+                    if (Controls && Controls.Length > 0) {
+                        for Index, Ctrl in Controls {
+                            if (Ctrl) {
+                                try {
+                                    ; 通过控件名称判断是否是主标签按钮（应该始终可见）
+                                    CtrlName := ""
+                                    try {
+                                        CtrlName := Ctrl.Name
+                                    } catch {
+                                    }
+                                    ; 如果不是主标签按钮，则隐藏
+                                    if (InStr(CtrlName, "PromptsMainTab") = 0) {
+                                        Ctrl.Visible := false
+                                    }
+                                } catch {
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            ; 隐藏所有Cursor规则子标签页内容
+            if (IsSet(CursorRulesSubTabControls) && IsObject(CursorRulesSubTabControls)) {
+                for SubTabKey, Controls in CursorRulesSubTabControls {
+                    if (Controls && Controls.Length > 0) {
+                        for Index, Ctrl in Controls {
+                            if (Ctrl) {
+                                try {
+                                    Ctrl.Visible := false
+                                } catch {
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            ; 隐藏所有分类标签页内容
+            if (IsSet(PromptCategoryTabControls) && IsObject(PromptCategoryTabControls)) {
+                for CategoryName, Controls in PromptCategoryTabControls {
+                    if (Controls && Controls.Length > 0) {
+                        for Index, Ctrl in Controls {
+                            if (Ctrl) {
+                                try {
+                                    Ctrl.Visible := false
+                                } catch {
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            ; 第二步：显示公共控件（面板、标题、主标签栏背景和按钮）
+            ; 通过GuiID_ConfigGUI直接访问公共控件，避免使用PromptsTabControls（因为它包含子标签页控件）
+            global GuiID_ConfigGUI, PromptsTabPanel, PromptsMainTabs
+            if (GuiID_ConfigGUI) {
+                try {
+                    ; 显示面板
+                    if (PromptsTabPanel) {
+                        PromptsTabPanel.Visible := true
+                    } else {
+                        ; 如果全局变量不存在，尝试通过名称获取
+                        PromptsTabPanel := GuiID_ConfigGUI["PromptsTabPanel"]
+                        if (PromptsTabPanel) {
+                            PromptsTabPanel.Visible := true
+                        }
+                    }
+                    ; 显示主标签按钮（它们应该始终可见）
+                    if (PromptsMainTabs) {
+                        for Key, TabBtn in PromptsMainTabs {
+                            if (TabBtn) {
+                                try {
+                                    TabBtn.Visible := true
+                                } catch {
+                                }
+                            }
+                        }
+                    }
+                } catch {
+                }
+            }
+            
+            ; 第三步：切换到模板管理标签页（这会显示对应的控件并隐藏其他标签页的控件）
             if (PromptsMainTabs && PromptsMainTabs.Has("manage")) {
                 SwitchPromptsMainTab("manage")
             } else {
@@ -5716,7 +5811,7 @@ SwitchPromptsMainTab(TabKey) {
         }
     }
     
-    ; 隐藏所有标签页内容
+    ; 隐藏所有标签页内容（先隐藏所有，避免交错显示）
     for Key, Controls in PromptsMainTabControls {
         if (Controls && Controls.Length > 0) {
             for Index, Ctrl in Controls {
@@ -5733,6 +5828,23 @@ SwitchPromptsMainTab(TabKey) {
     ; 隐藏所有分类标签页内容（如果存在）
     if (IsSet(PromptCategoryTabControls) && IsObject(PromptCategoryTabControls)) {
         for CategoryName, Controls in PromptCategoryTabControls {
+            if (Controls && Controls.Length > 0) {
+                for Index, Ctrl in Controls {
+                    if (Ctrl) {
+                        try {
+                            Ctrl.Visible := false
+                        } catch {
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    ; 隐藏所有Cursor规则子标签页内容（如果存在）
+    global CursorRulesSubTabControls
+    if (IsSet(CursorRulesSubTabControls) && IsObject(CursorRulesSubTabControls)) {
+        for SubTabKey, Controls in CursorRulesSubTabControls {
             if (Controls && Controls.Length > 0) {
                 for Index, Ctrl in Controls {
                     if (Ctrl) {
@@ -5793,6 +5905,34 @@ SwitchPromptsMainTab(TabKey) {
         global ExpandedTemplateKey
         ExpandedTemplateKey := ""
         
+        ; 【关键修复】确保Cursor规则和传统编辑标签页的所有控件都被隐藏
+        if (PromptsMainTabControls.Has("rules")) {
+            RulesControls := PromptsMainTabControls["rules"]
+            if (RulesControls && RulesControls.Length > 0) {
+                for Index, Ctrl in RulesControls {
+                    if (Ctrl) {
+                        try {
+                            Ctrl.Visible := false
+                        } catch {
+                        }
+                    }
+                }
+            }
+        }
+        if (PromptsMainTabControls.Has("legacy")) {
+            LegacyControls := PromptsMainTabControls["legacy"]
+            if (LegacyControls && LegacyControls.Length > 0) {
+                for Index, Ctrl in LegacyControls {
+                    if (Ctrl) {
+                        try {
+                            Ctrl.Visible := false
+                        } catch {
+                        }
+                    }
+                }
+            }
+        }
+        
         ; 显示分类标签栏
         global PromptCategoryTabs
         if (IsSet(PromptCategoryTabs) && PromptCategoryTabs.Count > 0) {
@@ -5807,7 +5947,7 @@ SwitchPromptsMainTab(TabKey) {
         }
         
         ; 确保ListView显示在最上层（通过重新设置位置来提升Z-order）
-        global PromptManagerListView, UI_Colors, ThemeMode
+        global PromptManagerListView, UI_Colors, ThemeMode, CurrentPromptFolder
         if (PromptManagerListView) {
             try {
                 PromptManagerListView.GetPos(&ListViewX, &ListViewY, &ListViewW, &ListViewH)
@@ -5821,56 +5961,16 @@ SwitchPromptsMainTab(TabKey) {
             }
         }
         
-        ; 获取所有分类并显示第一个分类
+        ; 【关键修复】切换到"基础"分类标签页（如果存在）
         global PromptTemplates
-        if (IsSet(PromptTemplates) && PromptTemplates.Length > 0) {
-            ; 获取所有分类（按固定顺序）
-            Categories := Map()
-            CategoryOrder := ["基础", "改错", "专业", "自定义"]
-            for Index, Template in PromptTemplates {
-                if (!Categories.Has(Template.Category)) {
-                    Categories[Template.Category] := []
-                }
-                Categories[Template.Category].Push(Template)
-            }
-            
-            ; 找到第一个存在的分类
-            FirstCategory := ""
-            for CategoryName in CategoryOrder {
-                if (Categories.Has(CategoryName)) {
-                    FirstCategory := CategoryName
-                    break
-                }
-            }
-            ; 如果没有找到，使用第一个分类
-            if (FirstCategory = "") {
-                for CategoryName, Templates in Categories {
-                    FirstCategory := CategoryName
-                    break
-                }
-            }
-            
-            ; 显示第一个分类的内容（传入true表示初始化）
-            if (FirstCategory != "" && IsSet(PromptCategoryTabControls) && PromptCategoryTabControls.Has(FirstCategory)) {
-                SwitchPromptCategoryTab(FirstCategory, true)
-            } else {
-                ; 如果没有找到分类，也要确保ListView可见和刷新
-                if (PromptManagerListView) {
-                    try {
-                        PromptManagerListView.Visible := true
-                        PromptManagerListView.Redraw()
-                    } catch {
-                    }
-                }
-            }
-        } else {
-            ; 如果没有模板数据，也要确保ListView可见
-            if (PromptManagerListView) {
-                try {
-                    PromptManagerListView.Visible := true
-                    PromptManagerListView.Redraw()
-                } catch {
-                }
+        DefaultCategory := "基础"
+        if (IsSet(PromptCategoryTabs) && PromptCategoryTabs.Has(DefaultCategory)) {
+            ; 切换到基础分类
+            SwitchPromptCategoryTab(DefaultCategory)
+        } else if (IsSet(PromptCategoryTabControls) && PromptCategoryTabControls.Has(CurrentPromptFolder)) {
+            ; 如果基础分类不存在，使用当前分类，但确保刷新显示
+            if (IsSet(PromptTemplates) && PromptTemplates.Length > 0) {
+                RefreshPromptListView()
             }
         }
     }
@@ -6234,10 +6334,25 @@ RefreshPromptListView() {
     }
     
     ; 调整列宽：名称列固定宽度，内容列自适应
-    PromptManagerListView.ModifyCol(1, 150)  ; 名称列固定150像素
-    PromptManagerListView.ModifyCol(2, "AutoHdr")  ; 内容列自适应
+    ; 检查控件是否仍然有效
+    if (PromptManagerListView && !PromptManagerListView.HasProp("Destroyed")) {
+        try {
+            PromptManagerListView.ModifyCol(1, 150)  ; 名称列固定150像素
+            PromptManagerListView.ModifyCol(2, "AutoHdr")  ; 内容列自适应
+        } catch {
+            ; 如果控件已被销毁，忽略错误
+            return
+        }
+    } else {
+        return  ; 控件已被销毁，退出
+    }
     
     ; ========== 修复拖动列分隔符时的黑色方块和线条问题 ==========
+    ; 再次检查控件是否仍然有效
+    if (!PromptManagerListView || PromptManagerListView.HasProp("Destroyed")) {
+        return  ; 控件已被销毁，退出
+    }
+    
     try {
         LV_Hwnd := PromptManagerListView.Hwnd
         
@@ -8986,21 +9101,8 @@ CreateCursorRulesTabForPrompts(ConfigGUI, X, Y, W, H) {
     PromptsMainTabControls["rules"].Push(UsageDesc)
     PromptsTabControls.Push(UsageDesc)
     
-    ; 使用优点说明（缩小间距）
-    BenefitsTitleY := UsageDescY + 55
-    BenefitsTitle := ConfigGUI.Add("Text", "x" . X . " y" . BenefitsTitleY . " w" . W . " h22 c" . UI_Colors.Text . " vCursorRulesBenefitsTitle", GetText("cursor_rules_benefits_title"))
-    BenefitsTitle.SetFont("s10 Bold", "Segoe UI")
-    PromptsMainTabControls["rules"].Push(BenefitsTitle)
-    PromptsTabControls.Push(BenefitsTitle)
-    
-    BenefitsDescY := BenefitsTitleY + 22
-    BenefitsDesc := ConfigGUI.Add("Text", "x" . X . " y" . BenefitsDescY . " w" . W . " h50 c" . UI_Colors.TextDim . " vCursorRulesBenefitsDesc +0x200", GetText("cursor_rules_benefits_desc"))
-    BenefitsDesc.SetFont("s9", "Segoe UI")
-    PromptsMainTabControls["rules"].Push(BenefitsDesc)
-    PromptsTabControls.Push(BenefitsDesc)
-    
     ; ========== 子标签页区域 ==========
-    SubTabBarY := BenefitsDescY + 55
+    SubTabBarY := UsageDescY + 55
     SubTabBarHeight := 35
     SubTabBarBg := ConfigGUI.Add("Text", "x" . X . " y" . SubTabBarY . " w" . W . " h" . SubTabBarHeight . " Background" . UI_Colors.Sidebar . " vCursorRulesSubTabBar", "")
     PromptsMainTabControls["rules"].Push(SubTabBarBg)
