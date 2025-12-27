@@ -25,7 +25,7 @@ global IsCommandMode := false
 global PanelVisible := false
 global GuiID_CursorPanel := 0
 global CursorPanelDescText := 0  ; 快捷操作面板说明文字控件
-global CursorPanelAlwaysOnTop := true  ; 面板是否置顶
+global CursorPanelAlwaysOnTop := false  ; 面板是否置顶（默认不置顶）
 global CursorPanelAutoHide := false  ; 面板是否启用靠边自动隐藏
 global CursorPanelHidden := false  ; 面板是否已隐藏（靠边时）
 global CursorPanelWidth := 420  ; 面板宽度
@@ -35,6 +35,13 @@ global TrayIconPath := A_ScriptDir "\cursor_helper.ico"
 ; CapsLock+ 方案的核心变量
 global CapsLock := false
 global GuiID_ConfigGUI := 0  ; 配置面板单例
+global DefaultStartTabDDL_Hwnd := 0  ; 默认启动页面下拉框句柄
+global DefaultStartTabDDL_Hwnd_ForTimer := 0  ; 默认启动页面下拉框句柄（用于定时器）
+global DDLBrush := 0  ; 下拉列表背景画刷
+global MoveGUIListBoxHwnd := 0  ; 移动分类弹窗ListBox句柄
+global MoveGUIListBoxBrush := 0  ; 移动分类弹窗ListBox画刷
+global MoveFromTemplateListBoxHwnd := 0  ; 从模板移动弹窗ListBox句柄
+global MoveFromTemplateListBoxBrush := 0  ; 从模板移动弹窗ListBox画刷
 global CapsLock2 := false  ; 是否使用过 CapsLock+ 功能标记，使用过会清除这个变量
 ; 动态快捷键映射（默认值）
 global SplitHotkey := "s"
@@ -65,6 +72,24 @@ global CapsLockHoldTimeSeconds := 0.5  ; CapsLock长按时间（秒），默认0
 global Prompt_Explain := ""
 global Prompt_Refactor := ""
 global Prompt_Optimize := ""
+; 提示词模板系统
+global PromptTemplates := []  ; 模板数组 [{ID, Title, Content, Icon, FunctionCategory, Series, Category(兼容旧版本)}]
+global DefaultTemplateIDs := Map()  ; 默认模板映射 {"Explain" => TemplateID, "Refactor" => TemplateID, "Optimize" => TemplateID}
+global PromptTemplatesFile := A_ScriptDir "\PromptTemplates.ini"  ; 模板配置文件
+global ExpandedTemplateKey := ""  ; 当前展开的模板键（格式：FunctionCategory_Series_Index）
+global CategoryMap := Map()  ; 双层分类索引 CategoryMap[功能分类ID][模板系列ID] = 模板数组
+; 性能优化索引（O(1)查找）
+global TemplateIndexByID := Map()  ; ID -> Template 对象，用于快速查找
+global TemplateIndexByTitle := Map()  ; "Category|Title" -> Template 对象，用于快速查找
+global TemplateIndexByArrayIndex := Map()  ; ArrayIndex -> Template 对象，用于获取数组索引
+global CategoryMapDirty := true  ; 标记分类映射是否需要重建（缓存机制）
+global FunctionCategories := Map()  ; 功能分类定义 {ID: {Name, SortWeight}}
+global SeriesCategories := Map()  ; 模板系列定义 {ID: {Name, SortWeight}}
+global ExpandedState := Map()  ; 展开状态管理 {功能分类ID: {模板系列ID: 展开的模板ID}}
+global CategoryExpandedState := Map()  ; 每个分类的展开状态 {CategoryName: TemplateKey}
+global CurrentFunctionCategory := "Explain"  ; 当前选中的功能分类
+global CurrentPromptFolder := ""  ; 当前查看的prompt文件夹（为空表示显示主文件夹列表）
+global PromptManagerListView := 0  ; 模板管理器ListView控件
 ; 面板位置和屏幕配置
 global PanelScreenIndex := 1  ; 屏幕索引（1为主屏幕）
 global PanelPosition := "center"  ; 位置：center, top-left, top-right, bottom-left, bottom-right, custom
@@ -117,10 +142,13 @@ global AutoLoadSelectedText := false  ; 是否自动加载选中文本到输入�
 global VoiceSearchAutoLoadSwitch := 0  ; 自动加载开关控件（语音搜索）
 global VoiceInputAutoLoadSwitch := 0  ; 自动加载开关控件（语音输入）
 global AutoUpdateVoiceInput := true  ; 是否自动更新语音输入内容到输入框
+global AutoStart := false  ; 是否开启自启动
+global VoiceSearchEnabledCategories := []  ; 启用的搜索标签列表
 global VoiceSearchAutoUpdateSwitch := 0  ; 自动更新开关控件（语音搜索）
 global VoiceInputActionSelectionVisible := false  ; 语音输入操作选择界面是否显示
 ; 多语言支持
 global Language := "zh"  ; 语言设置：zh=中文, en=英文
+global DefaultStartTab := "general"  ; 默认启动页面：general=通用, appearance=外观, prompts=提示词, hotkeys=快捷键, advanced=高级
 ; 快捷操作按钮（最多5个）
 ; 每个按钮配置格式：{Type: "Explain|Refactor|Optimize|Config", Hotkey: "e|r|o|q"}
 global QuickActionButtons := [
@@ -151,6 +179,8 @@ UI_Colors_Dark := {
     BtnHover: "4c4c4c",
     BtnPrimary: "0078D4",
     BtnPrimaryHover: "1177bb",
+    BtnDanger: "e81123",
+    BtnDangerHover: "c50e1f",
     TabActive: "37373d",
     TitleBar: "252526"
 }
@@ -171,6 +201,8 @@ UI_Colors_Light := {
     BtnHover: "d0d0d0",
     BtnPrimary: "0078D4",
     BtnPrimaryHover: "1177bb",
+    BtnDanger: "e81123",
+    BtnDangerHover: "c50e1f",
     TabActive: "e8e8e8",
     TitleBar: "f3f3f3"
 }
@@ -425,6 +457,8 @@ GetText(Key) {
             "voice_input_active_text", "✓ 语音输入中",
             "auto_load_selected_text", "自动加载选中文本:",
             "auto_update_voice_input", "自动更新语音输入:",
+            "auto_start", "开机自启动",
+            "auto_start_desc", "开启后，软件将在Windows启动时自动运行",
             "switch_on", "✓ 已开启",
             "switch_off", "○ 已关闭",
             "select_search_engine", "选择搜索引擎:",
@@ -858,6 +892,8 @@ GetText(Key) {
             "voice_input_active_text", "✓ Voice Input Active",
             "auto_load_selected_text", "Auto Load Selected Text:",
             "auto_update_voice_input", "Auto Update Voice Input:",
+            "auto_start", "Auto Start on Boot",
+            "auto_start_desc", "Enable to automatically start the software when Windows starts",
             "switch_on", "✓ On",
             "switch_off", "○ Off",
             "select_search_engine", "Select Search Engine:",
@@ -1127,6 +1163,535 @@ FormatText(Key, Params*) {
     return Text
 }
 
+; ===================== 提示词模板系统 =====================
+; 初始化分类定义
+InitCategoryDefinitions() {
+    global FunctionCategories, SeriesCategories, Language
+    IsZh := (Language = "zh")
+    
+    ; 功能分类定义（一级分类）
+    FunctionCategories := Map()
+    FunctionCategories["Explain"] := {Name: IsZh ? "解释" : "Explain", SortWeight: 1}
+    FunctionCategories["Refactor"] := {Name: IsZh ? "重构" : "Refactor", SortWeight: 2}
+    FunctionCategories["Optimize"] := {Name: IsZh ? "优化" : "Optimize", SortWeight: 3}
+    
+    ; 模板系列定义（二级分类）
+    SeriesCategories := Map()
+    SeriesCategories["Basic"] := {Name: IsZh ? "基础" : "Basic", SortWeight: 1}
+    SeriesCategories["Professional"] := {Name: IsZh ? "专业" : "Professional", SortWeight: 2}
+    SeriesCategories["BugFix"] := {Name: IsZh ? "改错" : "BugFix", SortWeight: 3}
+    SeriesCategories["Custom"] := {Name: IsZh ? "自定义" : "Custom", SortWeight: 99}
+}
+
+; 构建双层分类索引
+BuildCategoryMap() {
+    global PromptTemplates, CategoryMap, FunctionCategories, SeriesCategories, CategoryMapDirty
+    
+    ; 🚀 性能优化：如果缓存有效，直接返回
+    if (!CategoryMapDirty) {
+        return
+    }
+    
+    ; 初始化分类映射
+    CategoryMap := Map()
+    for FuncCatID, FuncCatInfo in FunctionCategories {
+        CategoryMap[FuncCatID] := Map()
+        for SeriesID, SeriesInfo in SeriesCategories {
+            CategoryMap[FuncCatID][SeriesID] := []
+        }
+    }
+    
+    ; 遍历所有模板，分配到对应的分类
+    for Index, Template in PromptTemplates {
+        ; 获取功能分类（FunctionCategory字段，如果没有则从ID推断）
+        FuncCatID := Template.HasProp("FunctionCategory") ? Template.FunctionCategory : InferFunctionCategory(Template)
+        
+        ; 获取模板系列（Series字段，如果没有则从Category推断）
+        SeriesID := Template.HasProp("Series") ? Template.Series : InferSeries(Template)
+        
+        ; 确保功能分类存在
+        if (!CategoryMap.Has(FuncCatID)) {
+            CategoryMap[FuncCatID] := Map()
+        }
+        
+        ; 确保模板系列存在
+        if (!CategoryMap[FuncCatID].Has(SeriesID)) {
+            CategoryMap[FuncCatID][SeriesID] := []
+        }
+        
+        ; 添加到对应分类
+        CategoryMap[FuncCatID][SeriesID].Push(Template)
+    }
+    
+    ; 🚀 性能优化：标记缓存有效
+    CategoryMapDirty := false
+}
+
+; ===================== 重建模板索引（性能优化） =====================
+; 构建快速查找索引：ID -> Template, Category|Title -> Template
+RebuildTemplateIndex() {
+    global PromptTemplates, TemplateIndexByID, TemplateIndexByTitle, TemplateIndexByArrayIndex
+    
+    ; 清空旧索引
+    TemplateIndexByID := Map()
+    TemplateIndexByTitle := Map()
+    TemplateIndexByArrayIndex := Map()
+    
+    ; 构建新索引 - O(n)，但只执行一次
+    for Index, Template in PromptTemplates {
+        ; ID 索引
+        TemplateIndexByID[Template.ID] := Template
+        
+        ; Category+Title 复合索引
+        Key := Template.Category . "|" . Template.Title
+        TemplateIndexByTitle[Key] := Template
+        
+        ; 数组索引映射
+        TemplateIndexByArrayIndex[Template.ID] := Index
+    }
+}
+
+; ===================== 标记缓存失效（性能优化） =====================
+; 在模板变更时调用，标记分类映射和索引需要重建
+InvalidateTemplateCache() {
+    global CategoryMapDirty
+    CategoryMapDirty := true
+    ; 重建索引
+    RebuildTemplateIndex()
+}
+
+; 从模板ID推断功能分类
+InferFunctionCategory(Template) {
+    ID := Template.ID
+    if (InStr(ID, "explain") || InStr(ID, "Explain")) {
+        return "Explain"
+    } else if (InStr(ID, "refactor") || InStr(ID, "Refactor")) {
+        return "Refactor"
+    } else if (InStr(ID, "optimize") || InStr(ID, "Optimize")) {
+        return "Optimize"
+    } else {
+        ; 默认归类到Explain
+        return "Explain"
+    }
+}
+
+; 从模板Category推断模板系列
+InferSeries(Template) {
+    Category := Template.Category
+    if (!Category) {
+        Category := ""
+    }
+    
+    ; 中文匹配
+    if (Category = "基础" || Category = "Basic") {
+        return "Basic"
+    } else if (Category = "专业" || Category = "Professional") {
+        return "Professional"
+    } else if (Category = "改错" || Category = "BugFix") {
+        return "BugFix"
+    } else {
+        ; 其他归类到自定义
+        return "Custom"
+    }
+}
+
+; 创建默认模板
+CreateDefaultPromptTemplates() {
+    global Language
+    IsZh := (Language = "zh")
+    
+    Templates := []
+    
+    ; ========== 基础系列 - 解释功能 ==========
+    Templates.Push({
+        ID: "explain_basic",
+        Title: IsZh ? "代码解释" : "Explain Code",
+        Content: IsZh ? "解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点" : "Explain the core logic, inputs/outputs, and key functions of this code in simple terms. Highlight potential pitfalls.",
+        Icon: "",
+        FunctionCategory: "Explain",
+        Series: "Basic",
+        Category: IsZh ? "基础" : "Basic"  ; 保留用于兼容
+    })
+    
+    ; ========== 基础系列 - 重构功能 ==========
+    Templates.Push({
+        ID: "refactor_basic",
+        Title: IsZh ? "代码重构" : "Refactor Code",
+        Content: IsZh ? "重构这段代码，遵循PEP8/行业规范，简化冗余逻辑，添加中文注释，保持功能不变" : "Refactor this code following PEP8/best practices. Simplify redundant logic, add comments, and keep functionality unchanged.",
+        Icon: "",
+        FunctionCategory: "Refactor",
+        Series: "Basic",
+        Category: IsZh ? "基础" : "Basic"  ; 保留用于兼容
+    })
+    
+    ; ========== 基础系列 - 优化功能 ==========
+    Templates.Push({
+        ID: "optimize_basic",
+        Title: IsZh ? "性能优化" : "Optimize Code",
+        Content: IsZh ? "分析这段代码的性能瓶颈（时间/空间复杂度），给出优化方案+对比说明，保留原逻辑可读性" : "Analyze performance bottlenecks (time/space complexity). Provide optimization solutions with comparison. Keep original logic readable.",
+        Icon: "",
+        FunctionCategory: "Optimize",
+        Series: "Basic",
+        Category: IsZh ? "基础" : "Basic"  ; 保留用于兼容
+    })
+    
+    Templates.Push({
+        ID: "debug_basic",
+        Title: IsZh ? "调试代码" : "Debug Code",
+        Content: IsZh ? "请帮我调试这段代码，找出可能的bug和错误，并提供修复建议" : "Please help me debug this code, find potential bugs and errors, and provide fix suggestions.",
+        Icon: "",
+        Category: IsZh ? "基础" : "Basic"
+    })
+    
+    Templates.Push({
+        ID: "test_basic",
+        Title: IsZh ? "编写测试" : "Write Tests",
+        Content: IsZh ? "为这段代码编写单元测试，覆盖主要功能和边界情况" : "Write unit tests for this code, covering main functionality and edge cases.",
+        Icon: "",
+        Category: IsZh ? "基础" : "Basic"
+    })
+    
+    Templates.Push({
+        ID: "document_basic",
+        Title: IsZh ? "添加文档" : "Add Documentation",
+        Content: IsZh ? "为这段代码添加详细的文档注释，包括函数说明、参数说明、返回值说明和使用示例" : "Add detailed documentation comments to this code, including function descriptions, parameter descriptions, return value descriptions, and usage examples.",
+        Icon: "",
+        Category: IsZh ? "基础" : "Basic"
+    })
+    
+    ; ========== 专业分类 ==========
+    Templates.Push({
+        ID: "code_review",
+        Title: IsZh ? "代码审查" : "Code Review",
+        Content: IsZh ? "请对这段代码进行全面审查，指出潜在问题、bug、安全隐患和改进建议" : "Review this code comprehensively. Point out potential issues, bugs, security vulnerabilities, and improvement suggestions.",
+        Icon: "",
+        Category: IsZh ? "专业" : "Professional"
+    })
+    
+    Templates.Push({
+        ID: "architecture_analysis",
+        Title: IsZh ? "架构分析" : "Architecture Analysis",
+        Content: IsZh ? "请从专业的角度分析这段代码，包括架构设计、设计模式、技术选型等方面的考量" : "Analyze this code from a professional perspective, including architectural design, design patterns, and technical choices.",
+        Icon: "",
+        Category: IsZh ? "专业" : "Professional"
+    })
+    
+    Templates.Push({
+        ID: "security_audit",
+        Title: IsZh ? "安全审计" : "Security Audit",
+        Content: IsZh ? "请对这段代码进行安全审计，检查是否存在SQL注入、XSS、CSRF等安全漏洞，并提供安全加固建议" : "Perform a security audit on this code, check for security vulnerabilities such as SQL injection, XSS, CSRF, and provide security hardening suggestions.",
+        Icon: "",
+        Category: IsZh ? "专业" : "Professional"
+    })
+    
+    Templates.Push({
+        ID: "performance_profiling",
+        Title: IsZh ? "性能分析" : "Performance Profiling",
+        Content: IsZh ? "请深入分析这段代码的性能问题，包括CPU使用、内存占用、I/O操作等，并提供详细的性能优化方案" : "Deeply analyze the performance issues of this code, including CPU usage, memory consumption, I/O operations, and provide detailed performance optimization solutions.",
+        Icon: "",
+        Category: IsZh ? "专业" : "Professional"
+    })
+    
+    Templates.Push({
+        ID: "design_pattern",
+        Title: IsZh ? "设计模式" : "Design Pattern",
+        Content: IsZh ? "请分析这段代码是否适合应用设计模式，如果适合，请重构代码应用合适的设计模式，并说明原因" : "Analyze whether this code is suitable for applying design patterns. If suitable, refactor the code to apply appropriate design patterns and explain the reasons.",
+        Icon: "",
+        Category: IsZh ? "专业" : "Professional"
+    })
+    
+    Templates.Push({
+        ID: "scalability",
+        Title: IsZh ? "可扩展性分析" : "Scalability Analysis",
+        Content: IsZh ? "请分析这段代码的可扩展性，包括如何处理高并发、大数据量等情况，并提供扩展性改进方案" : "Analyze the scalability of this code, including how to handle high concurrency, large data volumes, and provide scalability improvement solutions.",
+        Icon: "",
+        Category: IsZh ? "专业" : "Professional"
+    })
+    
+    ; ========== 改错分类 ==========
+    Templates.Push({
+        ID: "bugfix_urgent",
+        Title: "不分等着过年？",
+        Content: "现在请你扮演一位经验丰富、以严谨著称的架构师。指出现在可能存在的风险、不足或考虑不周的地方，重新审查我们刚才制定的这个 Bug 修复方案 ，请粘贴错误代码或者截图",
+        Icon: "",
+        Category: IsZh ? "改错" : "BugFix"
+    })
+    
+    Templates.Push({
+        ID: "bugfix_multiple",
+        Title: "AI海王手册",
+        Content: "请提供三种不同的修复方案。并为每种方案说明其优点、缺点和适用场景，让我来做选择，请粘贴错误代码或者截图",
+        Icon: "",
+        Category: IsZh ? "改错" : "BugFix"
+    })
+    
+    Templates.Push({
+        ID: "bugfix_research",
+        Title: "上外网看看吧",
+        Content: "我的代码遇到了一个典型问题：请你扮演网络搜索助手，在GitHub Issues / Stack Overflow等开源社区汇总常见的解决方案，并针对我的这个bug给出最优的修复建议。请粘贴错误代码或者截图",
+        Icon: "",
+        Category: IsZh ? "改错" : "BugFix"
+    })
+    
+    Templates.Push({
+        ID: "bugfix_explain",
+        Title: "给我翻译翻译",
+        Content: "请用最简单易懂的语言告诉我这个错误是什么意思？最可能是我代码中的哪部分导致的？请粘贴错误代码或者截图",
+        Icon: "",
+        Category: IsZh ? "改错" : "BugFix"
+    })
+    
+    Templates.Push({
+        ID: "bugfix_diagram",
+        Title: "无图无真相",
+        Content: "请你为我分别生成 ASCII 序列图或mermaid流程图，模拟展示错误代码的执行步骤和关键变量的变化，帮我直观地看到问题出在哪一步。请粘贴错误代码或者截图",
+        Icon: "",
+        Category: IsZh ? "改错" : "BugFix"
+    })
+    
+    Templates.Push({
+        ID: "bugfix_rules",
+        Title: "乱拳打死老师傅",
+        Content: "我的代码违反了编程基础规则导致bug，请帮我用「规则校验法」排查：`n1. 列出代码违反的核心编程规则（比如「变量命名规范」「条件判断完整性」「资源释放规则」）；`n2. 用ASCII checklist（勾选框）标注每个规则的违反情况；`n3. 解释这些规则的作用，以及违反后为什么会触发bug；`n4. 给出符合规则的修改思路，附带新手易记的规则口诀。请粘贴错误代码或者截图",
+        Icon: "",
+        Category: IsZh ? "改错" : "BugFix"
+    })
+    
+    Templates.Push({
+        ID: "bugfix_reverse",
+        Title: "倒反天罡",
+        Content: "从最终的这个 错误结果 / 异常状态开始，进行逆向逻辑推导。分析：在什么情况下、输入了什么样的数据、经过了怎样的操作，才会导致产生这个特定的结果？列出导致该结果的 3 种最可能的根本原因。请粘贴错误代码或者截图",
+        Icon: "",
+        Category: IsZh ? "改错" : "BugFix"
+    })
+    
+    Templates.Push({
+        ID: "bugfix_debug",
+        Title: "捉奸拿赃",
+        Content: "给我提供一个图形弹窗方案，通过步骤来一步步追溯问题来源，定位问题所在。请粘贴错误代码或者截图",
+        Icon: "",
+        Category: IsZh ? "改错" : "BugFix"
+    })
+    
+    Templates.Push({
+        ID: "bugfix_simple",
+        Title: "弱智吧",
+        Content: "请用生活中的最简单多类比来解释这个 Bug 的成因。在我不理解任何编程术语的前提下，告诉我这个问题到底在'犯什么傻'。请粘贴错误代码或者截图",
+        Icon: "",
+        Category: IsZh ? "改错" : "BugFix"
+    })
+    
+    Templates.Push({
+        ID: "bugfix_isolate",
+        Title: "拆东墙补西墙",
+        Content: "把这段代码想象成乐高积木。请告诉我哪几块积木是独立的？请帮我通过'拆除法'定位到底是哪一块积木坏了？请粘贴错误代码或者截图",
+        Icon: "",
+        Category: IsZh ? "改错" : "BugFix"
+    })
+    
+    Templates.Push({
+        ID: "bugfix_color",
+        Title: "给点color看看",
+        Content: "请给我的代码涂色。绿色是确认安全的，黄色是逻辑可疑的，红色是报错核心。请重点解释红色部分的'逻辑死结'是如何形成的。请粘贴错误代码或者截图",
+        Icon: "",
+        Category: IsZh ? "改错" : "BugFix"
+    })
+    
+    Templates.Push({
+        ID: "bugfix_minimal",
+        Title: "Word很大，你忍一下",
+        Content: "不要大改我的架构。请给出一种'微创手术'方案：只修改最少的字符（比如改个符号或加个判断），就能让整个程序恢复运行，并解释为什么这一刀最关键。请粘贴错误代码或者截图",
+        Icon: "",
+        Category: IsZh ? "改错" : "BugFix"
+    })
+    
+    Templates.Push({
+        ID: "bugfix_human",
+        Title: "请说人话",
+        Content: "请提供一份双语对照表。左边是代码行，右边是对应的'人类意图'。通过对比，帮我定位哪一行有错误。请粘贴错误代码或者截图",
+        Icon: "",
+        Category: IsZh ? "改错" : "BugFix"
+    })
+    
+    return Templates
+}
+
+; 加载提示词模板
+LoadPromptTemplates() {
+    global PromptTemplates, PromptTemplatesFile, DefaultTemplateIDs, Language
+    
+    ; 初始化分类定义
+    InitCategoryDefinitions()
+    
+    ; 先创建默认模板
+    PromptTemplates := CreateDefaultPromptTemplates()
+    
+    ; 从INI文件加载自定义模板
+    if (FileExist(PromptTemplatesFile)) {
+        try {
+            ; 读取模板数量
+            TemplateCount := Integer(IniRead(PromptTemplatesFile, "Templates", "Count", "0"))
+            if (TemplateCount > 0) {
+                Loop TemplateCount {
+                    Index := A_Index
+                    TemplateID := IniRead(PromptTemplatesFile, "Template" . Index, "ID", "")
+                    if (TemplateID != "") {
+                        ; 🚀 性能优化：使用索引查找 - O(1)
+                        global TemplateIndexByID
+                        if (TemplateIndexByID.Has(TemplateID)) {
+                            ; 更新现有模板
+                            Template := TemplateIndexByID[TemplateID]
+                            Template.Title := IniRead(PromptTemplatesFile, "Template" . Index, "Title", Template.Title)
+                            Template.Content := IniRead(PromptTemplatesFile, "Template" . Index, "Content", Template.Content)
+                            Template.Icon := IniRead(PromptTemplatesFile, "Template" . Index, "Icon", Template.Icon)
+                            Template.Category := IniRead(PromptTemplatesFile, "Template" . Index, "Category", Template.Category)
+                            ; 更新索引
+                            TemplateIndexByID[TemplateID] := Template
+                            global TemplateIndexByTitle
+                            Key := Template.Category . "|" . Template.Title
+                            TemplateIndexByTitle[Key] := Template
+                        } else {
+                            ; 添加新模板
+                            NewTemplate := {
+                                ID: TemplateID,
+                                Title: IniRead(PromptTemplatesFile, "Template" . Index, "Title", ""),
+                                Content: IniRead(PromptTemplatesFile, "Template" . Index, "Content", ""),
+                                Icon: IniRead(PromptTemplatesFile, "Template" . Index, "Icon", "📝"),
+                                Category: IniRead(PromptTemplatesFile, "Template" . Index, "Category", "自定义")
+                            }
+                            PromptTemplates.Push(NewTemplate)
+                            ; 🚀 性能优化：更新索引
+                            TemplateIndexByID[TemplateID] := NewTemplate
+                            Key := NewTemplate.Category . "|" . NewTemplate.Title
+                            TemplateIndexByTitle[Key] := NewTemplate
+                            global TemplateIndexByArrayIndex
+                            TemplateIndexByArrayIndex[TemplateID] := PromptTemplates.Length
+                        }
+                    }
+                }
+            }
+        } catch {
+            ; 加载失败，使用默认模板
+        }
+    }
+    
+    ; 初始化默认模板映射
+    DefaultTemplateIDs["Explain"] := IniRead(PromptTemplatesFile, "Defaults", "Explain", "explain_basic")
+    DefaultTemplateIDs["Refactor"] := IniRead(PromptTemplatesFile, "Defaults", "Refactor", "refactor_basic")
+    DefaultTemplateIDs["Optimize"] := IniRead(PromptTemplatesFile, "Defaults", "Optimize", "optimize_basic")
+    
+    ; 构建双层分类索引
+    BuildCategoryMap()
+    
+    ; 🚀 性能优化：重建模板索引
+    RebuildTemplateIndex()
+    
+    ; 加载分类展开状态（从配置文件）
+    global CategoryExpandedState
+    CategoryExpandedState := Map()
+    try {
+        ; 读取展开状态数量
+        ExpandedStateCount := Integer(IniRead(PromptTemplatesFile, "ExpandedStates", "Count", "0"))
+        if (ExpandedStateCount > 0) {
+            Loop ExpandedStateCount {
+                Index := A_Index
+                CategoryName := IniRead(PromptTemplatesFile, "ExpandedState" . Index, "Category", "")
+                TemplateKey := IniRead(PromptTemplatesFile, "ExpandedState" . Index, "TemplateKey", "")
+                if (CategoryName != "" && TemplateKey != "") {
+                    CategoryExpandedState[CategoryName] := TemplateKey
+                }
+            }
+        }
+    } catch {
+        ; 加载失败，使用空的展开状态
+        CategoryExpandedState := Map()
+    }
+}
+
+; 保存提示词模板
+SavePromptTemplates() {
+    global PromptTemplates, PromptTemplatesFile, DefaultTemplateIDs
+    
+    try {
+        ; 保存模板数量
+        IniWrite(String(PromptTemplates.Length), PromptTemplatesFile, "Templates", "Count")
+        
+        ; 保存每个模板
+        for Index, Template in PromptTemplates {
+            SectionName := "Template" . Index
+            IniWrite(Template.ID, PromptTemplatesFile, SectionName, "ID")
+            IniWrite(Template.Title, PromptTemplatesFile, SectionName, "Title")
+            IniWrite(Template.Content, PromptTemplatesFile, SectionName, "Content")
+            IniWrite(Template.Icon, PromptTemplatesFile, SectionName, "Icon")
+            IniWrite(Template.Category, PromptTemplatesFile, SectionName, "Category")
+            
+            ; 保存新字段（如果存在）
+            if (Template.HasProp("FunctionCategory")) {
+                IniWrite(Template.FunctionCategory, PromptTemplatesFile, SectionName, "FunctionCategory")
+            }
+            if (Template.HasProp("Series")) {
+                IniWrite(Template.Series, PromptTemplatesFile, SectionName, "Series")
+            }
+        }
+        
+        ; 重新构建索引
+        BuildCategoryMap()
+        
+        ; 🚀 性能优化：重建模板索引
+        RebuildTemplateIndex()
+        
+        ; 保存默认模板映射
+        IniWrite(DefaultTemplateIDs["Explain"], PromptTemplatesFile, "Defaults", "Explain")
+        IniWrite(DefaultTemplateIDs["Refactor"], PromptTemplatesFile, "Defaults", "Refactor")
+        IniWrite(DefaultTemplateIDs["Optimize"], PromptTemplatesFile, "Defaults", "Optimize")
+        
+        ; 保存分类展开状态
+        global CategoryExpandedState
+        if (IsSet(CategoryExpandedState) && IsObject(CategoryExpandedState) && CategoryExpandedState.Count > 0) {
+            ; 先删除旧的展开状态配置
+            ExpandedStateCount := Integer(IniRead(PromptTemplatesFile, "ExpandedStates", "Count", "0"))
+            if (ExpandedStateCount > 0) {
+                Loop ExpandedStateCount {
+                    IniDelete(PromptTemplatesFile, "ExpandedState" . A_Index)
+                }
+            }
+            
+            ; 保存新的展开状态
+            Index := 0
+            for CategoryName, TemplateKey in CategoryExpandedState {
+                Index++
+                IniWrite(CategoryName, PromptTemplatesFile, "ExpandedState" . Index, "Category")
+                IniWrite(TemplateKey, PromptTemplatesFile, "ExpandedState" . Index, "TemplateKey")
+            }
+            IniWrite(String(Index), PromptTemplatesFile, "ExpandedStates", "Count")
+        } else {
+            ; 如果没有展开状态，清空配置
+            IniWrite("0", PromptTemplatesFile, "ExpandedStates", "Count")
+        }
+    } catch as e {
+        ; 保存失败，忽略错误
+    }
+}
+
+; 根据ID获取模板
+GetTemplateByID(TemplateID) {
+    global TemplateIndexByID
+    
+    ; 🚀 性能优化：使用索引直接查找 - O(1)
+    if (TemplateIndexByID.Has(TemplateID)) {
+        return TemplateIndexByID[TemplateID]
+    }
+    
+    ; 如果索引未初始化，回退到旧方法（向后兼容）
+    global PromptTemplates
+    for Index, Template in PromptTemplates {
+        if (Template.ID = TemplateID) {
+            return Template
+        }
+    }
+    return ""
+}
+
 ; ===================== 初始化配置 =====================
 InitConfig() {
     ; 1. 默认配置
@@ -1194,6 +1759,10 @@ InitConfig() {
         IniWrite("0", ConfigFile, "Settings", "AutoLoadSelectedText")
         IniWrite("1", ConfigFile, "Settings", "AutoUpdateVoiceInput")
         IniWrite("deepseek", ConfigFile, "Settings", "VoiceSearchSelectedEngines")  ; 保存默认选中的搜索引擎
+        IniWrite("0", ConfigFile, "Settings", "AutoStart")  ; 默认不自启动
+        ; 保存默认启用的搜索标签（默认全部启用）
+        DefaultEnabledCategories := "ai,academic,baidu,image,audio,video,book,price,medical,cloud"
+        IniWrite(DefaultEnabledCategories, ConfigFile, "Settings", "VoiceSearchEnabledCategories")
         
         IniWrite(DefaultPanelScreenIndex, ConfigFile, "Appearance", "ScreenIndex")
         IniWrite(DefaultFunctionPanelPos, ConfigFile, "Appearance", "FunctionPanelPos")
@@ -1377,6 +1946,36 @@ InitConfig() {
             SearchEngine := IniRead(ConfigFile, "Settings", "SearchEngine", "deepseek")
             AutoLoadSelectedText := (IniRead(ConfigFile, "Settings", "AutoLoadSelectedText", "0") = "1")
             AutoUpdateVoiceInput := (IniRead(ConfigFile, "Settings", "AutoUpdateVoiceInput", "1") = "1")
+            AutoStart := (IniRead(ConfigFile, "Settings", "AutoStart", "0") = "1")
+            global DefaultStartTab
+            DefaultStartTab := IniRead(ConfigFile, "Settings", "DefaultStartTab", "general")
+            ; 验证值是否有效，如果无效则使用默认值
+            if (DefaultStartTab != "general" && DefaultStartTab != "appearance" && DefaultStartTab != "prompts" && DefaultStartTab != "hotkeys" && DefaultStartTab != "advanced") {
+                DefaultStartTab := "general"
+            }
+            
+            ; 加载启用的搜索标签
+            global VoiceSearchEnabledCategories
+            EnabledCategoriesStr := IniRead(ConfigFile, "Settings", "VoiceSearchEnabledCategories", "ai,academic,baidu,image,audio,video,book,price,medical,cloud")
+            if (EnabledCategoriesStr != "") {
+                VoiceSearchEnabledCategories := []
+                CategoriesArray := StrSplit(EnabledCategoriesStr, ",")
+                for Index, Category in CategoriesArray {
+                    Category := Trim(Category)
+                    if (Category != "") {
+                        VoiceSearchEnabledCategories.Push(Category)
+                    }
+                }
+                ; 如果解析后为空，使用默认值
+                if (VoiceSearchEnabledCategories.Length = 0) {
+                    VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+                }
+            } else {
+                VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+            }
+            
+            ; 应用自启动设置
+            SetAutoStart(AutoStart)
             
             ; 加载主题模式（暗色或亮色）
             global ThemeMode
@@ -1533,6 +2132,8 @@ InitConfig() {
             MsgBoxScreenIndex := DefaultMsgBoxScreenIndex
             VoiceInputScreenIndex := DefaultVoiceInputScreenIndex
             CursorPanelScreenIndex := DefaultCursorPanelScreenIndex
+            AutoStart := false
+            VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
         }
     } catch as e {
         MsgBox("Error loading config: " . e.Message, "Error", "IconX")
@@ -1574,7 +2175,10 @@ InitConfig() {
     }
 }
 
+; 在InitConfig结束后加载模板
 InitConfig() ; 启动初始化
+; 加载提示词模板系统（在配置初始化后）
+LoadPromptTemplates()
 
 ; ===================== 剪贴板变化监听 =====================
 ; 注意：OnClipboardChange 必须在脚本启动时注册，确保在 InitConfig 之后定义
@@ -1688,6 +2292,8 @@ ShowPanelTimer(*) {
     if (VoiceInputActive || VoiceSearchActive || VoiceSearchSelecting) {
         return
     }
+    ; 如果CapsLock仍然按下且面板未显示，则显示面板
+    ; 注意：如果使用了组合快捷键，HandleDynamicHotkey会清除这个定时器，所以这里不需要检查CapsLock2
     if (CapsLock && !PanelVisible) {
         ShowCursorPanel()
     }
@@ -1927,17 +2533,23 @@ ShowCursorPanel() {
     GuiID_CursorPanel.SetFont("s11 c" . UI_Colors.Text, "Segoe UI")
     
     ; 添加圆角和阴影效果（通过边框实现）
-    ; 标题区域
-    TitleBg := GuiID_CursorPanel.Add("Text", "x0 y0 w420 h50 Background" . UI_Colors.Background, "")
-    TitleText := GuiID_CursorPanel.Add("Text", "x20 y12 w300 h26 Center c" . UI_Colors.Text, GetText("panel_title"))
-    TitleText.SetFont("s13 Bold", "Segoe UI")
-    
-    ; 标题栏控制按钮（右侧）
+    ; 标题栏控制按钮（右侧）- 先创建按钮，确保在标题背景之上
     global CursorPanelAlwaysOnTopBtn, CursorPanelAutoHideBtn, CursorPanelCloseBtn
     BtnSize := 30
     BtnY := 10
     BtnSpacing := 5
     BtnStartX := 420 - (BtnSize * 3 + BtnSpacing * 2) - 10
+    
+    ; 标题区域（可拖动）- 调整宽度，不覆盖按钮区域
+    ; 按钮区域从BtnStartX开始，所以标题背景只到BtnStartX-5
+    TitleBgWidth := BtnStartX - 5
+    TitleBg := GuiID_CursorPanel.Add("Text", "x0 y0 w" . TitleBgWidth . " h50 Background" . UI_Colors.Background, "")
+    ; 添加拖动功能到标题栏
+    TitleBg.OnEvent("Click", (*) => PostMessage(0xA1, 2))  ; 拖动窗口
+    TitleText := GuiID_CursorPanel.Add("Text", "x20 y12 w" . (TitleBgWidth - 40) . " h26 Center c" . UI_Colors.Text, GetText("panel_title"))
+    TitleText.SetFont("s13 Bold", "Segoe UI")
+    ; 标题文本也可以拖动
+    TitleText.OnEvent("Click", (*) => PostMessage(0xA1, 2))  ; 拖动窗口
     
     ; 置顶按钮
     CursorPanelAlwaysOnTopBtn := GuiID_CursorPanel.Add("Text", "x" . BtnStartX . " y" . BtnY . " w" . BtnSize . " h" . BtnSize . " Center 0x200 c" . UI_Colors.Text . " Background" . (CursorPanelAlwaysOnTop ? UI_Colors.BtnPrimary : UI_Colors.BtnBg) . " vCursorPanelAlwaysOnTopBtn", "📌")
@@ -2585,8 +3197,9 @@ ExecuteCursorShortcut(Shortcut) {
 }
 
 ; ===================== 执行提示词函数 =====================
-ExecutePrompt(Type) {
+ExecutePrompt(Type, TemplateID := "") {
     global Prompt_Explain, Prompt_Refactor, Prompt_Optimize, CursorPath, AISleepTime, IsCommandMode, CapsLock2, ClipboardHistory
+    global DefaultTemplateIDs, PromptTemplates
     
     ; 清除标记，表示使用了功能
     CapsLock2 := false
@@ -2595,21 +3208,45 @@ ExecutePrompt(Type) {
     
     HideCursorPanel()
     
-    ; 根据类型选择提示词
+    ; 根据类型选择提示词（优先使用模板系统）
     Prompt := ""
-    switch Type {
-        case "Explain":
-            Prompt := Prompt_Explain
-        case "Refactor":
-            Prompt := Prompt_Refactor
-        case "Optimize":
-            Prompt := Prompt_Optimize
-        case "BatchExplain":
-            Prompt := Prompt_Explain
-        case "BatchRefactor":
-            Prompt := Prompt_Refactor
-        case "BatchOptimize":
-            Prompt := Prompt_Optimize
+    
+    ; 如果提供了TemplateID，直接使用模板
+    if (TemplateID != "") {
+        Template := GetTemplateByID(TemplateID)
+        if (Template) {
+            Prompt := Template.Content
+        }
+    }
+    
+    ; 如果没有TemplateID或模板未找到，使用默认模板或传统方式
+    if (Prompt = "") {
+        ; 尝试从默认模板映射获取
+        if (DefaultTemplateIDs.Has(Type)) {
+            TemplateID := DefaultTemplateIDs[Type]
+            Template := GetTemplateByID(TemplateID)
+            if (Template) {
+                Prompt := Template.Content
+            }
+        }
+        
+        ; 如果模板系统未找到，回退到传统方式
+        if (Prompt = "") {
+            switch Type {
+                case "Explain":
+                    Prompt := Prompt_Explain
+                case "Refactor":
+                    Prompt := Prompt_Refactor
+                case "Optimize":
+                    Prompt := Prompt_Optimize
+                case "BatchExplain":
+                    Prompt := Prompt_Explain
+                case "BatchRefactor":
+                    Prompt := Prompt_Refactor
+                case "BatchOptimize":
+                    Prompt := Prompt_Optimize
+            }
+        }
     }
     
     if (Prompt = "") {
@@ -3015,6 +3652,14 @@ SwitchTab(TabName) {
             ShowControls(AppearanceTabControls)
         case "prompts":
             ShowControls(PromptsTabControls)
+            ; 显示第一个主标签页（模板管理）
+            global PromptsMainTabs
+            if (PromptsMainTabs && PromptsMainTabs.Has("manage")) {
+                SwitchPromptsMainTab("manage")
+            } else {
+                ; 如果PromptsMainTabs还未初始化，延迟切换
+                SetTimer(SwitchToManageTab, -100)
+            }
         case "hotkeys":
             ShowControls(HotkeysTabControls)
             ; 显示第一个主标签页（快捷键设置）
@@ -3486,6 +4131,40 @@ CreateSearchCategoryCheckboxHandler(CategoryKey) {
     return (*) => ToggleSearchCategory(CategoryKey)
 }
 
+; ===================== 默认启动页面变更处理 =====================
+OnDefaultStartTabChange(*) {
+    ; 自动保存配置（延迟执行，避免频繁保存）
+    SetTimer(AutoSaveConfig, -100)
+}
+
+ToggleAutoStart(*) {
+    global AutoStart, AutoStartBtn, GuiID_ConfigGUI, UI_Colors, ThemeMode
+    
+    ; 切换自启动状态
+    AutoStart := !AutoStart
+    
+    ; 更新按钮文本和样式
+    try {
+        if (AutoStartBtn && IsObject(AutoStartBtn)) {
+            BtnText := AutoStart ? "开机自启动" : "不开机自启动"
+            BtnBgColor := AutoStart ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
+            BtnTextColor := AutoStart ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
+            
+            AutoStartBtn.Text := BtnText
+            AutoStartBtn.BackColor := BtnBgColor
+            AutoStartBtn.SetFont("s10 c" . BtnTextColor, "Segoe UI")
+            
+            ; 更新悬停效果
+            HoverBtnWithAnimation(AutoStartBtn, BtnBgColor, AutoStart ? UI_Colors.BtnPrimaryHover : UI_Colors.BtnHover)
+        }
+    } catch {
+        ; 忽略错误
+    }
+    
+    ; 自动保存配置
+    SetTimer(AutoSaveConfig, -100)
+}
+
 ToggleSearchCategory(CategoryKey) {
     global VoiceSearchEnabledCategories, GuiID_ConfigGUI
     
@@ -3950,12 +4629,979 @@ CreateAppearanceTab(ConfigGUI, X, Y, W, H) {
         ThemeDarkRadio.IsSelected := true
         UpdateMaterialRadioButtonStyle(ThemeDarkRadio, true)
     }
+    
+    ; 获取屏幕列表（用于显示器选择）
+    ScreenList := []
+    MonitorCount := 0
+    try {
+        MonitorCount := MonitorGetCount()
+        if (MonitorCount > 0) {
+            Loop MonitorCount {
+                MonitorIndex := A_Index
+                MonitorGet(MonitorIndex, &Left, &Top, &Right, &Bottom)
+                ScreenList.Push(FormatText("screen", MonitorIndex))
+            }
+        }
+    } catch {
+        MonitorIndex := 1
+        Loop 10 {
+            try {
+                MonitorGet(MonitorIndex, &Left, &Top, &Right, &Bottom)
+                ScreenList.Push(FormatText("screen", MonitorIndex))
+                MonitorCount++
+                MonitorIndex++
+            } catch {
+                break
+            }
+        }
+    }
+    if (ScreenList.Length = 0) {
+        ScreenList.Push(FormatText("screen", 1))
+        MonitorCount := 1
+    }
+    
+    ; 配置面板显示器选择（从高级设置移到这里）
+    YPos += 60
+    global ConfigPanelScreenIndex, ConfigPanelScreenRadio
+    LabelConfigPanel := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("config_panel_screen"))
+    LabelConfigPanel.SetFont("s11", "Segoe UI")
+    AppearanceTabControls.Push(LabelConfigPanel)
+    
+    YPos += 30
+    ConfigPanelScreenRadio := []
+    StartX := X + 30
+    RadioWidth := 100
+    RadioHeight := 30
+    Spacing := 10
+    if (ConfigPanelScreenIndex < 1 || ConfigPanelScreenIndex > ScreenList.Length) {
+        ConfigPanelScreenIndex := 1
+    }
+    for Index, ScreenName in ScreenList {
+        XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
+        RadioBtn := CreateMaterialRadioButton(ConfigGUI, XPos, YPos, RadioWidth, RadioHeight, "ConfigPanelScreenRadio" . Index, ScreenName, ConfigPanelScreenRadio, 11)
+        if (Index = ConfigPanelScreenIndex) {
+            RadioBtn.IsSelected := true
+            UpdateMaterialRadioButtonStyle(RadioBtn, true)
+        }
+        ConfigPanelScreenRadio.Push(RadioBtn)
+        AppearanceTabControls.Push(RadioBtn)
+    }
+    
+    ; 弹窗显示器选择
+    YPos += 50
+    global MsgBoxScreenIndex, MsgBoxScreenRadio
+    LabelMsgBox := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("msgbox_screen"))
+    LabelMsgBox.SetFont("s11", "Segoe UI")
+    AppearanceTabControls.Push(LabelMsgBox)
+    
+    YPos += 30
+    MsgBoxScreenRadio := []
+    if (MsgBoxScreenIndex < 1 || MsgBoxScreenIndex > ScreenList.Length) {
+        MsgBoxScreenIndex := 1
+    }
+    for Index, ScreenName in ScreenList {
+        XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
+        RadioBtn := CreateMaterialRadioButton(ConfigGUI, XPos, YPos, RadioWidth, RadioHeight, "MsgBoxScreenRadio" . Index, ScreenName, MsgBoxScreenRadio, 11)
+        if (Index = MsgBoxScreenIndex) {
+            RadioBtn.IsSelected := true
+            UpdateMaterialRadioButtonStyle(RadioBtn, true)
+        }
+        MsgBoxScreenRadio.Push(RadioBtn)
+        AppearanceTabControls.Push(RadioBtn)
+    }
+    
+    ; 语音输入法提示显示器选择
+    YPos += 50
+    global VoiceInputScreenIndex, VoiceInputScreenRadio
+    LabelVoiceInput := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("voice_input_screen"))
+    LabelVoiceInput.SetFont("s11", "Segoe UI")
+    AppearanceTabControls.Push(LabelVoiceInput)
+    
+    YPos += 30
+    VoiceInputScreenRadio := []
+    if (VoiceInputScreenIndex < 1 || VoiceInputScreenIndex > ScreenList.Length) {
+        VoiceInputScreenIndex := 1
+    }
+    for Index, ScreenName in ScreenList {
+        XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
+        RadioBtn := CreateMaterialRadioButton(ConfigGUI, XPos, YPos, RadioWidth, RadioHeight, "VoiceInputScreenRadio" . Index, ScreenName, VoiceInputScreenRadio, 11)
+        if (Index = VoiceInputScreenIndex) {
+            RadioBtn.IsSelected := true
+            UpdateMaterialRadioButtonStyle(RadioBtn, true)
+        }
+        VoiceInputScreenRadio.Push(RadioBtn)
+        AppearanceTabControls.Push(RadioBtn)
+    }
+    
+    ; Cursor快捷弹出面板显示器选择
+    YPos += 50
+    global CursorPanelScreenIndex, CursorPanelScreenRadio
+    LabelCursorPanel := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("cursor_panel_screen"))
+    LabelCursorPanel.SetFont("s11", "Segoe UI")
+    AppearanceTabControls.Push(LabelCursorPanel)
+    
+    YPos += 30
+    CursorPanelScreenRadio := []
+    if (CursorPanelScreenIndex < 1 || CursorPanelScreenIndex > ScreenList.Length) {
+        CursorPanelScreenIndex := 1
+    }
+    for Index, ScreenName in ScreenList {
+        XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
+        RadioBtn := CreateMaterialRadioButton(ConfigGUI, XPos, YPos, RadioWidth, RadioHeight, "CursorPanelScreenRadio" . Index, ScreenName, CursorPanelScreenRadio, 11)
+        if (Index = CursorPanelScreenIndex) {
+            RadioBtn.IsSelected := true
+            UpdateMaterialRadioButtonStyle(RadioBtn, true)
+        }
+        CursorPanelScreenRadio.Push(RadioBtn)
+        AppearanceTabControls.Push(RadioBtn)
+    }
+}
+
+; ===================== 模板管理功能 =====================
+; 刷新模板列表
+RefreshTemplateListView() {
+    global PromptTemplateListView, PromptTemplates, DefaultTemplateIDs
+    
+    if (!IsSet(PromptTemplateListView) || !PromptTemplateListView) {
+        return
+    }
+    
+    ; 清空列表
+    PromptTemplateListView.Delete()
+    
+    ; 添加模板到列表
+    for Index, Template in PromptTemplates {
+        ; 检查是否为默认模板
+        DefaultMark := ""
+        if (DefaultTemplateIDs["Explain"] = Template.ID) {
+            DefaultMark := "解释"
+        } else if (DefaultTemplateIDs["Refactor"] = Template.ID) {
+            DefaultMark := "重构"
+        } else if (DefaultTemplateIDs["Optimize"] = Template.ID) {
+            DefaultMark := "优化"
+        }
+        
+        PromptTemplateListView.Add("", Template.Title, Template.Category, DefaultMark)
+    }
+}
+
+; 添加提示词模板
+AddPromptTemplate() {
+    global PromptTemplates, UI_Colors, ConfigGUI, ThemeMode
+    
+    ; 创建编辑对话框
+    EditGUI := Gui("+AlwaysOnTop -Caption", "添加提示词模板")
+    EditGUI.BackColor := UI_Colors.Background
+    EditGUI.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
+    
+    ; 自定义标题栏
+    TitleBarHeight := 35
+    TitleBar := EditGUI.Add("Text", "x0 y0 w340 h" . TitleBarHeight . " Background" . UI_Colors.TitleBar . " vAddTemplateTitleBar", "添加提示词模板")
+    TitleBar.SetFont("s10 Bold c" . UI_Colors.Text, "Segoe UI")
+    TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2, , , EditGUI.Hwnd)) ; 拖动窗口
+    
+    ; 关闭按钮
+    CloseBtn := EditGUI.Add("Text", "x300 y0 w40 h" . TitleBarHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.TitleBar . " vAddTemplateCloseBtn", "✕")
+    CloseBtn.SetFont("s10", "Segoe UI")
+    CloseBtn.OnEvent("Click", (*) => EditGUI.Destroy())
+    HoverBtnWithAnimation(CloseBtn, UI_Colors.TitleBar, "e81123")
+    
+    ; 调整Y位置，为标题栏留出空间
+    EditGUI.Add("Text", "x20 y" . (TitleBarHeight + 10) . " w300 h25 c" . UI_Colors.Text, "模板标题:")
+    TitleEdit := EditGUI.Add("Edit", "x20 y" . (TitleBarHeight + 35) . " w300 h25 vTemplateTitle Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, "")
+    TitleEdit.SetFont("s10", "Segoe UI")
+    
+    ; 分类
+    EditGUI.Add("Text", "x20 y" . (TitleBarHeight + 70) . " w300 h25 c" . UI_Colors.Text, "分类:")
+    CategoryOrder := ["基础", "改错", "专业"]
+    CategoryDDL := EditGUI.Add("DDL", "x20 y" . (TitleBarHeight + 95) . " w300 h30 R3 Background" . UI_Colors.DDLBg . " c" . UI_Colors.DDLText . " vTemplateCategory", CategoryOrder)
+    CategoryDDL.SetFont("s10", "Segoe UI")
+    ; 默认选择第一个分类
+    CategoryDDL.Value := 1
+    
+    ; 内容
+    EditGUI.Add("Text", "x20 y" . (TitleBarHeight + 135) . " w300 h25 c" . UI_Colors.Text, "提示词内容:")
+    ContentEdit := EditGUI.Add("Edit", "x20 y" . (TitleBarHeight + 160) . " w300 h200 vTemplateContent Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", "")
+    ContentEdit.SetFont("s10", "Consolas")
+    
+    ; 按钮
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    BtnY := TitleBarHeight + 370
+    SaveBtn := EditGUI.Add("Text", "x20 y" . BtnY . " w120 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vSaveBtn", "保存")
+    SaveBtn.SetFont("s10", "Segoe UI")
+    SaveBtn.OnEvent("Click", (*) => SaveTemplateFromDialog(EditGUI, ""))
+    HoverBtnWithAnimation(SaveBtn, UI_Colors.BtnPrimary, UI_Colors.BtnHover)
+    
+    CancelBtn := EditGUI.Add("Text", "x200 y" . BtnY . " w120 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vCancelBtn", "取消")
+    CancelBtn.SetFont("s10", "Segoe UI")
+    CancelBtn.OnEvent("Click", (*) => EditGUI.Destroy())
+    HoverBtnWithAnimation(CancelBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    EditGUI.Show("w340 h" . (BtnY + 50))
+}
+
+; 编辑提示词模板
+EditPromptTemplate() {
+    global PromptTemplateListView, PromptTemplates, UI_Colors, ThemeMode
+    
+    SelectedRow := PromptTemplateListView.GetNext()
+    if (SelectedRow = 0) {
+        MsgBox("请先选择一个模板", "提示", "Iconi")
+        return
+    }
+    
+    ; 获取选中的模板
+    TemplateIndex := SelectedRow
+    if (TemplateIndex < 1 || TemplateIndex > PromptTemplates.Length) {
+        return
+    }
+    
+    Template := PromptTemplates[TemplateIndex]
+    
+    ; 创建编辑对话框
+    EditGUI := Gui("+AlwaysOnTop -Caption", "编辑提示词模板")
+    EditGUI.BackColor := UI_Colors.Background
+    EditGUI.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
+    
+    ; 自定义标题栏
+    TitleBarHeight := 35
+    TitleBar := EditGUI.Add("Text", "x0 y0 w340 h" . TitleBarHeight . " Background" . UI_Colors.TitleBar . " vEditPromptTemplateTitleBar", "编辑提示词模板")
+    TitleBar.SetFont("s10 Bold c" . UI_Colors.Text, "Segoe UI")
+    TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2)) ; 拖动窗口
+    
+    ; 关闭按钮
+    CloseBtn := EditGUI.Add("Text", "x300 y0 w40 h" . TitleBarHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.TitleBar . " vEditPromptTemplateCloseBtn", "✕")
+    CloseBtn.SetFont("s10", "Segoe UI")
+    CloseBtn.OnEvent("Click", (*) => EditGUI.Destroy())
+    HoverBtnWithAnimation(CloseBtn, UI_Colors.TitleBar, "e81123")
+    
+    ; 调整Y位置，为标题栏留出空间
+    EditGUI.Add("Text", "x20 y" . (TitleBarHeight + 10) . " w300 h25 c" . UI_Colors.Text, "模板标题:")
+    TitleEdit := EditGUI.Add("Edit", "x20 y" . (TitleBarHeight + 35) . " w300 h25 vTemplateTitle Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, Template.Title)
+    TitleEdit.SetFont("s10", "Segoe UI")
+    
+    ; 分类
+    EditGUI.Add("Text", "x20 y" . (TitleBarHeight + 70) . " w300 h25 c" . UI_Colors.Text, "分类:")
+    CategoryEdit := EditGUI.Add("Edit", "x20 y" . (TitleBarHeight + 95) . " w300 h25 vTemplateCategory Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, Template.Category)
+    CategoryEdit.SetFont("s10", "Segoe UI")
+    
+    ; 内容
+    EditGUI.Add("Text", "x20 y" . (TitleBarHeight + 130) . " w300 h25 c" . UI_Colors.Text, "提示词内容:")
+    ContentEdit := EditGUI.Add("Edit", "x20 y" . (TitleBarHeight + 155) . " w300 h200 vTemplateContent Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", Template.Content)
+    ContentEdit.SetFont("s10", "Consolas")
+    
+    ; 按钮
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    BtnY := TitleBarHeight + 365
+    SaveBtn := EditGUI.Add("Text", "x20 y" . BtnY . " w120 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vSaveBtn", "保存")
+    SaveBtn.SetFont("s10", "Segoe UI")
+    SaveBtn.OnEvent("Click", (*) => SaveTemplateFromDialog(EditGUI, Template.ID))
+    HoverBtnWithAnimation(SaveBtn, UI_Colors.BtnPrimary, UI_Colors.BtnHover)
+    
+    CancelBtn := EditGUI.Add("Text", "x200 y" . BtnY . " w120 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vCancelBtn", "取消")
+    CancelBtn.SetFont("s10", "Segoe UI")
+    CancelBtn.OnEvent("Click", (*) => EditGUI.Destroy())
+    HoverBtnWithAnimation(CancelBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    EditGUI.Show("w340 h" . (BtnY + 50))
+}
+
+; ===================== 编辑模板对话框（接受ID和Template对象）=====================
+EditPromptTemplateDialog(TemplateID, Template) {
+    global PromptTemplates, UI_Colors, ThemeMode, SavePromptTemplates
+    
+    ; 创建编辑对话框
+    EditGUI := Gui("+AlwaysOnTop -Caption", "编辑提示词模板")
+    EditGUI.BackColor := UI_Colors.Background
+    EditGUI.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
+    
+    ; 自定义标题栏
+    TitleBarHeight := 35
+    TitleBar := EditGUI.Add("Text", "x0 y0 w340 h" . TitleBarHeight . " Background" . UI_Colors.TitleBar . " vEditTemplateTitleBar", "编辑提示词模板")
+    TitleBar.SetFont("s10 Bold c" . UI_Colors.Text, "Segoe UI")
+    TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2, , , EditGUI.Hwnd)) ; 拖动窗口
+    
+    ; 关闭按钮
+    CloseBtn := EditGUI.Add("Text", "x300 y0 w40 h" . TitleBarHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.TitleBar . " vEditTemplateCloseBtn", "✕")
+    CloseBtn.SetFont("s10", "Segoe UI")
+    CloseBtn.OnEvent("Click", (*) => EditGUI.Destroy())
+    HoverBtnWithAnimation(CloseBtn, UI_Colors.TitleBar, "e81123")
+    
+    ; 调整Y位置，为标题栏留出空间
+    EditGUI.Add("Text", "x20 y" . (TitleBarHeight + 10) . " w300 h25 c" . UI_Colors.Text, "模板标题:")
+    TitleEdit := EditGUI.Add("Edit", "x20 y" . (TitleBarHeight + 35) . " w300 h25 vTemplateTitle Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, Template.Title)
+    TitleEdit.SetFont("s10", "Segoe UI")
+    
+    ; 分类
+    EditGUI.Add("Text", "x20 y" . (TitleBarHeight + 70) . " w300 h25 c" . UI_Colors.Text, "分类:")
+    CategoryOrder := ["基础", "改错", "专业"]
+    CategoryDDL := EditGUI.Add("DDL", "x20 y" . (TitleBarHeight + 95) . " w300 h30 R3 Background" . UI_Colors.DDLBg . " c" . UI_Colors.DDLText . " vTemplateCategory", CategoryOrder)
+    CategoryDDL.SetFont("s10", "Segoe UI")
+    ; 设置当前分类为选中
+    for Index, Cat in CategoryOrder {
+        if (Cat = Template.Category) {
+            CategoryDDL.Value := Index
+            break
+        }
+    }
+    
+    ; 内容
+    EditGUI.Add("Text", "x20 y" . (TitleBarHeight + 135) . " w300 h25 c" . UI_Colors.Text, "提示词内容:")
+    ContentEdit := EditGUI.Add("Edit", "x20 y" . (TitleBarHeight + 160) . " w300 h200 vTemplateContent Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", Template.Content)
+    ContentEdit.SetFont("s10", "Consolas")
+    
+    ; 按钮
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    BtnY := TitleBarHeight + 370
+    SaveBtn := EditGUI.Add("Text", "x20 y" . BtnY . " w120 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vSaveBtn", "保存")
+    SaveBtn.SetFont("s10", "Segoe UI")
+    SaveBtn.OnEvent("Click", (*) => SaveTemplateFromDialog(EditGUI, TemplateID))
+    HoverBtnWithAnimation(SaveBtn, UI_Colors.BtnPrimary, UI_Colors.BtnHover)
+    
+    CancelBtn := EditGUI.Add("Text", "x200 y" . BtnY . " w120 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vCancelBtn", "取消")
+    CancelBtn.SetFont("s10", "Segoe UI")
+    CancelBtn.OnEvent("Click", (*) => EditGUI.Destroy())
+    HoverBtnWithAnimation(CancelBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    EditGUI.Show("w340 h" . (BtnY + 50))
+}
+
+; 从对话框保存模板
+SaveTemplateFromDialog(EditGUI, TemplateID) {
+    global PromptTemplates
+    
+    ; 获取输入值
+    Title := EditGUI["TemplateTitle"].Value
+    ; 检查是否是DDL还是Edit控件
+    CategoryCtrl := EditGUI["TemplateCategory"]
+    if (Type(CategoryCtrl) = "ComboBox" || CategoryCtrl.Type = "ComboBox") {
+        Category := CategoryCtrl.Text  ; DDL使用Text属性
+    } else {
+        Category := CategoryCtrl.Value  ; Edit控件使用Value属性
+    }
+    Content := EditGUI["TemplateContent"].Value
+    
+    if (Title = "" || Content = "") {
+        MsgBox("标题和内容不能为空", "提示", "Iconx")
+        return
+    }
+    
+    if (TemplateID = "") {
+        ; 添加新模板
+        NewID := "template_" . A_TickCount
+        NewTemplate := {
+            ID: NewID,
+            Title: Title,
+            Content: Content,
+            Icon: "",  ; 不再使用图标
+            Category: Category != "" ? Category : "自定义"
+        }
+        PromptTemplates.Push(NewTemplate)
+        
+        ; 🚀 性能优化：立即更新索引
+        global TemplateIndexByID, TemplateIndexByTitle, TemplateIndexByArrayIndex
+        TemplateIndexByID[NewID] := NewTemplate
+        Key := NewTemplate.Category . "|" . NewTemplate.Title
+        TemplateIndexByTitle[Key] := NewTemplate
+        TemplateIndexByArrayIndex[NewID] := PromptTemplates.Length
+    } else {
+        ; 🚀 性能优化：使用索引直接更新 - O(1)
+        global TemplateIndexByID
+        if (TemplateIndexByID.Has(TemplateID)) {
+            Template := TemplateIndexByID[TemplateID]
+            OldCategory := Template.Category
+            Template.Title := Title
+            Template.Content := Content
+            Template.Category := Category != "" ? Category : "自定义"
+            
+            ; 更新索引
+            TemplateIndexByID[TemplateID] := Template
+            ; 更新Title索引（如果分类或标题改变）
+            if (OldCategory != Template.Category || Template.Title != Title) {
+                global TemplateIndexByTitle
+                ; 删除旧索引
+                OldKey := OldCategory . "|" . Template.Title
+                if (TemplateIndexByTitle.Has(OldKey)) {
+                    TemplateIndexByTitle.Delete(OldKey)
+                }
+                ; 添加新索引
+                NewKey := Template.Category . "|" . Template.Title
+                TemplateIndexByTitle[NewKey] := Template
+            }
+        }
+    }
+    
+    ; 🚀 性能优化：标记分类映射需要重建（如果添加了新模板）
+    if (TemplateID = "") {
+        InvalidateTemplateCache()
+    }
+    
+    ; 保存到文件
+    SavePromptTemplates()
+    
+    ; 刷新模板管理ListView
+    try {
+        RefreshPromptListView()
+    } catch {
+        ; 如果函数不存在，忽略错误
+    }
+    
+    ; 关闭对话框
+    EditGUI.Destroy()
+}
+
+; 删除提示词模板
+DeletePromptTemplate() {
+    global PromptTemplateListView, PromptTemplates, DefaultTemplateIDs
+    
+    SelectedRow := PromptTemplateListView.GetNext()
+    if (SelectedRow = 0) {
+        MsgBox("请先选择一个模板", "提示", "Iconi")
+        return
+    }
+    
+    TemplateIndex := SelectedRow
+    if (TemplateIndex < 1 || TemplateIndex > PromptTemplates.Length) {
+        return
+    }
+    
+    Template := PromptTemplates[TemplateIndex]
+    
+    ; 检查是否为默认模板
+    if (DefaultTemplateIDs["Explain"] = Template.ID || DefaultTemplateIDs["Refactor"] = Template.ID || DefaultTemplateIDs["Optimize"] = Template.ID) {
+        MsgBox("不能删除默认模板，请先取消其默认设置", "提示", "Iconx")
+        return
+    }
+    
+    ; 确认删除
+    Quote := Chr(34)
+    Result := MsgBox("确定要删除模板 " . Quote . Template.Title . Quote . " 吗？", "确认删除", "YesNo Icon?")
+    if (Result = "Yes") {
+        ; 删除模板
+        PromptTemplates.RemoveAt(TemplateIndex)
+        
+        ; 保存到文件
+        SavePromptTemplates()
+        
+        ; 刷新模板管理标签页
+        RefreshPromptsManageTab()
+    }
+}
+
+; 设为默认模板
+SetDefaultTemplate() {
+    global PromptTemplateListView, PromptTemplates, DefaultTemplateIDs
+    
+    SelectedRow := PromptTemplateListView.GetNext()
+    if (SelectedRow = 0) {
+        MsgBox("请先选择一个模板", "提示", "Iconi")
+        return
+    }
+    
+    TemplateIndex := SelectedRow
+    if (TemplateIndex < 1 || TemplateIndex > PromptTemplates.Length) {
+        return
+    }
+    
+    Template := PromptTemplates[TemplateIndex]
+    
+    ; 创建选择对话框
+    SelectGUI := Gui("+AlwaysOnTop -Caption", "设为默认模板")
+    SelectGUI.BackColor := UI_Colors.Background
+    SelectGUI.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
+    
+    ; 自定义标题栏
+    TitleBarHeight := 35
+    TitleBar := SelectGUI.Add("Text", "x0 y0 w300 h" . TitleBarHeight . " Background" . UI_Colors.TitleBar . " vSelectTemplateTitleBar", "设为默认模板")
+    TitleBar.SetFont("s10 Bold c" . UI_Colors.Text, "Segoe UI")
+    TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2, , , SelectGUI.Hwnd)) ; 拖动窗口
+    
+    ; 关闭按钮
+    CloseBtn := SelectGUI.Add("Text", "x260 y0 w40 h" . TitleBarHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.TitleBar . " vSelectTemplateCloseBtn", "✕")
+    CloseBtn.SetFont("s10", "Segoe UI")
+    CloseBtn.OnEvent("Click", (*) => SelectGUI.Destroy())
+    HoverBtnWithAnimation(CloseBtn, UI_Colors.TitleBar, "e81123")
+    
+    ; 调整Y位置，为标题栏留出空间
+    SelectGUI.Add("Text", "x20 y" . (TitleBarHeight + 10) . " w260 h25 c" . UI_Colors.Text, "选择默认用途:")
+    
+    global ThemeMode
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    
+    BtnStartY := TitleBarHeight + 50
+    ExplainBtn := SelectGUI.Add("Text", "x20 y" . BtnStartY . " w260 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vExplainBtn", "设为解释默认模板")
+    ExplainBtn.SetFont("s10", "Segoe UI")
+    ExplainBtn.OnEvent("Click", (*) => SetDefaultTemplateAction(Template.ID, "Explain", SelectGUI))
+    HoverBtnWithAnimation(ExplainBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    BtnStartY += 45
+    RefactorBtn := SelectGUI.Add("Text", "x20 y" . BtnStartY . " w260 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vRefactorBtn", "设为重构默认模板")
+    RefactorBtn.SetFont("s10", "Segoe UI")
+    RefactorBtn.OnEvent("Click", (*) => SetDefaultTemplateAction(Template.ID, "Refactor", SelectGUI))
+    HoverBtnWithAnimation(RefactorBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    BtnStartY += 45
+    OptimizeBtn := SelectGUI.Add("Text", "x20 y" . BtnStartY . " w260 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vOptimizeBtn", "设为优化默认模板")
+    OptimizeBtn.SetFont("s10", "Segoe UI")
+    OptimizeBtn.OnEvent("Click", (*) => SetDefaultTemplateAction(Template.ID, "Optimize", SelectGUI))
+    HoverBtnWithAnimation(OptimizeBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    BtnStartY += 45
+    CancelBtn := SelectGUI.Add("Text", "x20 y" . BtnStartY . " w260 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vCancelBtn", "取消")
+    CancelBtn.SetFont("s10", "Segoe UI")
+    CancelBtn.OnEvent("Click", (*) => SelectGUI.Destroy())
+    HoverBtnWithAnimation(CancelBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    SelectGUI.Show("w300 h" . (BtnStartY + 50))
+}
+
+; 执行设为默认操作
+SetDefaultTemplateAction(TemplateID, Type, SelectGUI) {
+    global DefaultTemplateIDs
+    
+    DefaultTemplateIDs[Type] := TemplateID
+    
+    ; 保存到文件
+    SavePromptTemplates()
+    
+    ; 刷新模板管理标签页
+    RefreshPromptsManageTab()
+    
+    ; 关闭对话框
+    SelectGUI.Destroy()
+    
+    MsgBox("已设置为" . Type . "的默认模板", "提示", "Iconi")
+}
+
+; 导入提示词模板
+ImportPromptTemplates() {
+    global PromptTemplates, UI_Colors, ThemeMode
+    
+    ; 选择文件
+    FilePath := FileSelect(1, A_ScriptDir, "选择要导入的模板文件", "JSON文件 (*.json)")
+    if (FilePath = "") {
+        return
+    }
+    
+    try {
+        ; 读取JSON文件
+        JsonContent := FileRead(FilePath, "UTF-8")
+        if (JsonContent = "") {
+            MsgBox("文件为空", "提示", "Iconx")
+            return
+        }
+        
+        ; 解析JSON（改进解析）
+        ImportedTemplates := ParseJSONTemplates(JsonContent)
+        if (ImportedTemplates.Length = 0) {
+            MsgBox("文件中没有找到模板", "提示", "Iconx")
+            return
+        }
+        
+        ; 询问导入方式
+        ImportGUI := Gui("+AlwaysOnTop -Caption", "导入模板")
+        ImportGUI.BackColor := UI_Colors.Background
+        ImportGUI.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
+        
+        ; 自定义标题栏
+        TitleBarHeight := 35
+        TitleBar := ImportGUI.Add("Text", "x0 y0 w300 h" . TitleBarHeight . " Background" . UI_Colors.TitleBar . " vImportTemplateTitleBar", "导入模板")
+        TitleBar.SetFont("s10 Bold c" . UI_Colors.Text, "Segoe UI")
+        TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2, , , ImportGUI.Hwnd)) ; 拖动窗口
+        
+        ; 关闭按钮
+        CloseBtn := ImportGUI.Add("Text", "x260 y0 w40 h" . TitleBarHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.TitleBar . " vImportTemplateCloseBtn", "✕")
+        CloseBtn.SetFont("s10", "Segoe UI")
+        CloseBtn.OnEvent("Click", (*) => ImportGUI.Destroy())
+        HoverBtnWithAnimation(CloseBtn, UI_Colors.TitleBar, "e81123")
+        
+        ; 调整Y位置，为标题栏留出空间
+        ImportGUI.Add("Text", "x20 y" . (TitleBarHeight + 10) . " w260 h25 c" . UI_Colors.Text, "发现 " . ImportedTemplates.Length . " 个模板")
+        ImportGUI.Add("Text", "x20 y" . (TitleBarHeight + 40) . " w260 h40 c" . UI_Colors.Text, "选择导入方式:")
+        
+        TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+        
+        ; 全部导入（跳过已存在的）
+        BtnStartY := TitleBarHeight + 90
+        ImportAllBtn := ImportGUI.Add("Text", "x20 y" . BtnStartY . " w260 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vImportAllBtn", "全部导入（跳过已存在）")
+        ImportAllBtn.SetFont("s10", "Segoe UI")
+        ImportAllBtn.OnEvent("Click", (*) => ImportTemplatesAction(ImportedTemplates, "skip", ImportGUI))
+        HoverBtnWithAnimation(ImportAllBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+        
+        ; 全部导入（覆盖已存在的）
+        BtnStartY += 45
+        ImportOverwriteBtn := ImportGUI.Add("Text", "x20 y" . BtnStartY . " w260 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vImportOverwriteBtn", "全部导入（覆盖已存在）")
+        ImportOverwriteBtn.SetFont("s10", "Segoe UI")
+        ImportOverwriteBtn.OnEvent("Click", (*) => ImportTemplatesAction(ImportedTemplates, "overwrite", ImportGUI))
+        HoverBtnWithAnimation(ImportOverwriteBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        
+        ; 取消
+        BtnStartY += 45
+        CancelBtn := ImportGUI.Add("Text", "x20 y" . BtnStartY . " w260 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vCancelBtn", "取消")
+        CancelBtn.SetFont("s10", "Segoe UI")
+        CancelBtn.OnEvent("Click", (*) => ImportGUI.Destroy())
+        HoverBtnWithAnimation(CancelBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        
+        ImportGUI.Show("w300 h" . (BtnStartY + 50))
+    } catch as e {
+        MsgBox("导入失败: " . e.Message, "错误", "Iconx")
+    }
+}
+
+; 执行导入操作
+ImportTemplatesAction(ImportedTemplates, Mode, ImportGUI) {
+    global PromptTemplates
+    
+    ImportedCount := 0
+    OverwrittenCount := 0
+    
+    global TemplateIndexByID, TemplateIndexByArrayIndex
+    
+    for Index, Template in ImportedTemplates {
+        ; 🚀 性能优化：使用索引直接查找 - O(1)
+        if (TemplateIndexByID.Has(Template.ID)) {
+            if (Mode = "overwrite") {
+                ; 获取数组索引并覆盖
+                if (TemplateIndexByArrayIndex.Has(Template.ID)) {
+                    FoundIndex := TemplateIndexByArrayIndex[Template.ID]
+                    PromptTemplates[FoundIndex] := Template
+                    ; 更新索引
+                    TemplateIndexByID[Template.ID] := Template
+                    ; 更新Title索引
+                    Key := Template.Category . "|" . Template.Title
+                    global TemplateIndexByTitle
+                    TemplateIndexByTitle[Key] := Template
+                }
+                OverwrittenCount++
+            }
+            ; 如果Mode = "skip"，跳过
+        } else {
+            ; 添加新模板
+            PromptTemplates.Push(Template)
+            ; 更新索引
+            TemplateIndexByID[Template.ID] := Template
+            Key := Template.Category . "|" . Template.Title
+            global TemplateIndexByTitle
+            TemplateIndexByTitle[Key] := Template
+            TemplateIndexByArrayIndex[Template.ID] := PromptTemplates.Length
+            ImportedCount++
+        }
+    }
+    
+    ; 标记分类映射需要重建
+    InvalidateTemplateCache()
+    
+    ; 保存到文件
+    SavePromptTemplates()
+    
+    ; 刷新模板管理标签页
+    RefreshPromptsManageTab()
+    
+    ; 关闭对话框
+    ImportGUI.Destroy()
+    
+    ; 显示结果
+    ResultMsg := "导入完成！`n"
+    if (ImportedCount > 0) {
+        ResultMsg .= "新增: " . ImportedCount . " 个模板`n"
+    }
+    if (OverwrittenCount > 0) {
+        ResultMsg .= "覆盖: " . OverwrittenCount . " 个模板`n"
+    }
+    if (ImportedCount = 0 && OverwrittenCount = 0) {
+        ResultMsg .= "没有新模板导入（所有模板已存在）"
+    }
+    MsgBox(ResultMsg, "导入结果", "Iconi")
+}
+
+; 导出提示词模板
+ExportPromptTemplates() {
+    global PromptTemplates
+    
+    ; 选择保存位置
+    FilePath := FileSelect("S16", A_ScriptDir, "保存模板文件", "JSON文件 (*.json)")
+    if (FilePath = "") {
+        return
+    }
+    
+    ; 确保文件扩展名正确
+    if (!InStr(FilePath, ".json")) {
+        FilePath .= ".json"
+    }
+    
+    try {
+        ; 生成JSON内容
+        JsonContent := TemplatesToJSON(PromptTemplates)
+        
+        ; 写入文件
+        FileDelete(FilePath)
+        FileAppend(JsonContent, FilePath, "UTF-8")
+        
+        MsgBox("模板已导出到: " . FilePath, "提示", "Iconi")
+    } catch as e {
+        MsgBox("导出失败: " . e.Message, "错误", "Iconx")
+    }
+}
+
+; ===================== JSON处理函数 =====================
+; 将模板数组转换为JSON（改进格式，支持批量导入）
+TemplatesToJSON(Templates) {
+    Json := "{`n  `"version`": `"1.0`",`n"
+    Json .= '  `"exportTime`": `"' . FormatTime(, "yyyy-MM-dd HH:mm:ss") . '`,`n'
+    Json .= '  `"count`": ' . Templates.Length . ',`n'
+    Json .= '  `"templates`": [`n'
+    for Index, Template in Templates {
+        if (Index > 1) {
+            Json .= ",`n"
+        }
+        Json .= "    {`n"
+        Json .= '      `"id`": `"' . EscapeJSON(Template.ID) . '`,`n'
+        Json .= '      `"title`": `"' . EscapeJSON(Template.Title) . '`,`n'
+        Json .= '      `"content`": `"' . EscapeJSON(Template.Content) . '`,`n'
+        Json .= '      `"category`": `"' . EscapeJSON(Template.Category) . '`'`n'
+        Json .= "    }"
+    }
+    Json .= "`n  ]`n}"
+    return Json
+}
+
+; JSON转义
+EscapeJSON(Text) {
+    ; 转义反斜杠
+    Text := StrReplace(Text, "\", "\\")
+    ; 转义换行
+    Text := StrReplace(Text, "`n", "\n")
+    Text := StrReplace(Text, "`r", "\r")
+    ; 转义制表符
+    Text := StrReplace(Text, "`t", "\t")
+    ; 转义双引号
+    Text := StrReplace(Text, '"', '\"')
+    return Text
+}
+
+; 解析JSON模板（改进解析，支持多行内容和转义字符）
+ParseJSONTemplates(JsonContent) {
+    Templates := []
+    
+    ; 方法1：使用改进的正则表达式匹配（支持转义字符）
+    ; 模式：{"id":"...","title":"...","content":"...","category":"..."}
+    Pattern := 'i)\{\s*"id"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"\s*,\s*"title"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"\s*,\s*"content"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"category"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"\s*\}'
+    
+    Pos := 1
+    while (Pos := RegExMatch(JsonContent, Pattern, &Match, Pos)) {
+        ; 反转义内容
+        ID := UnescapeJSON(Match[1])
+        Title := UnescapeJSON(Match[2])
+        Content := UnescapeJSON(Match[3])
+        Category := UnescapeJSON(Match[4])
+        
+        Templates.Push({
+            ID: ID,
+            Title: Title,
+            Content: Content,
+            Icon: "",  ; 不再使用图标
+            Category: Category != "" ? Category : "自定义"
+        })
+        
+        Pos += Match.Len
+    }
+    
+    ; 如果方法1失败，尝试方法2：逐对象解析
+    if (Templates.Length = 0) {
+        ; 查找templates数组
+        TemplatesStart := InStr(JsonContent, '"templates"')
+        if (TemplatesStart > 0) {
+            ; 从templates开始查找所有对象
+            TemplatesSection := SubStr(JsonContent, TemplatesStart)
+            
+            ; 查找所有 { ... } 对象
+            ObjectStart := 1
+            while (ObjectStart := InStr(TemplatesSection, "{", false, ObjectStart)) {
+                ; 找到匹配的右括号
+                BraceCount := 1
+                ObjectEnd := ObjectStart + 1
+                while (ObjectEnd <= StrLen(TemplatesSection) && BraceCount > 0) {
+                    Char := SubStr(TemplatesSection, ObjectEnd, 1)
+                    if (Char = "{") {
+                        BraceCount++
+                    } else if (Char = "}") {
+                        BraceCount--
+                    }
+                    ObjectEnd++
+                }
+                
+                if (BraceCount = 0) {
+                    ObjectContent := SubStr(TemplatesSection, ObjectStart, ObjectEnd - ObjectStart)
+                    
+                    ; 提取各个字段
+                    IDPattern := 'i)"id"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"'
+                    TitlePattern := 'i)"title"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"'
+                    ContentPattern := 'i)"content"\s*:\s*"((?:[^"\\]|\\.)*)"'
+                    CategoryPattern := 'i)"category"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"'
+                    
+                    if (RegExMatch(ObjectContent, IDPattern, &IDMatch) && 
+                        RegExMatch(ObjectContent, TitlePattern, &TitleMatch) &&
+                        RegExMatch(ObjectContent, ContentPattern, &ContentMatch) &&
+                        RegExMatch(ObjectContent, CategoryPattern, &CategoryMatch)) {
+                        
+                        ID := UnescapeJSON(IDMatch[1])
+                        Title := UnescapeJSON(TitleMatch[1])
+                        Content := UnescapeJSON(ContentMatch[1])
+                        Category := UnescapeJSON(CategoryMatch[1])
+                        
+                        Templates.Push({
+                            ID: ID,
+                            Title: Title,
+                            Content: Content,
+                            Icon: "",
+                            Category: Category != "" ? Category : "自定义"
+                        })
+                    }
+                }
+                
+                ObjectStart := ObjectEnd
+            }
+        }
+    }
+    
+    return Templates
+}
+
+; JSON反转义
+UnescapeJSON(Text) {
+    ; 反转义双引号
+    Text := StrReplace(Text, '\"', '"')
+    ; 反转义换行
+    Text := StrReplace(Text, "\n", "`n")
+    Text := StrReplace(Text, "\r", "`r")
+    ; 反转义制表符
+    Text := StrReplace(Text, "\t", "`t")
+    ; 反转义反斜杠
+    Text := StrReplace(Text, "\\", "\")
+    return Text
+}
+
+; ===================== 创建提示词模板系列 =====================
+CreatePromptTemplateSeries(ConfigGUI, X, Y, W, H, Series, SeriesIndex) {
+    global PromptTemplateTabControls, UI_Colors, PromptsMainTabControls
+    
+    ; 创建系列面板（默认隐藏）
+    SeriesPanel := ConfigGUI.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Background" . UI_Colors.Background . " vPromptTemplateSeries" . SeriesIndex, "")
+    SeriesPanel.Visible := false
+    PromptTemplateTabControls[SeriesIndex].Push(SeriesPanel)
+    ; 同时添加到模板系列标签页控件列表
+    PromptsMainTabControls["series"].Push(SeriesPanel)
+    
+    ; 创建模板按钮列表
+    BtnY := Y
+    BtnHeight := 35
+    BtnSpacing := 10
+    for Index, Template in Series.Templates {
+        Btn := ConfigGUI.Add("Text", "x" . X . " y" . BtnY . " w" . W . " h" . BtnHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg . " vPromptTemplateBtn" . SeriesIndex . "_" . Index, Template.Name)
+        Btn.SetFont("s10", "Segoe UI")
+        ; 使用闭包创建点击处理器，避免函数名冲突
+        ClickHandler(*) {
+            ApplyPromptTemplate(Template)
+        }
+        Btn.OnEvent("Click", ClickHandler)
+        HoverBtnWithAnimation(Btn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        Btn.Visible := false  ; 默认隐藏，由SwitchPromptTemplateTab控制显示
+        PromptTemplateTabControls[SeriesIndex].Push(Btn)
+        ; 添加到模板系列标签页控件列表
+        PromptsMainTabControls["series"].Push(Btn)
+        BtnY += BtnHeight + BtnSpacing
+    }
+}
+
+; ===================== 切换提示词模板标签页 =====================
+SwitchPromptTemplateTab(TabIndex) {
+    global PromptTemplateTabs, PromptTemplateTabControls, UI_Colors, ThemeMode
+    
+    ; 重置所有标签样式
+    for Index, TabBtn in PromptTemplateTabs {
+        if (TabBtn) {
+            try {
+                TabBtn.Opt("+Background" . UI_Colors.Sidebar)
+                TabBtn.SetFont("s10 c" . UI_Colors.TextDim . " Norm", "Segoe UI")
+                TabBtn.Redraw()
+            }
+        }
+    }
+    
+    ; 隐藏所有系列内容
+    for Index, Controls in PromptTemplateTabControls {
+        if (Controls && Controls.Length > 0) {
+            for CtrlIndex, Ctrl in Controls {
+                if (Ctrl) {
+                    try {
+                        Ctrl.Visible := false
+                    } catch {
+                    }
+                }
+            }
+        }
+    }
+    
+    ; 设置当前标签样式
+    if (PromptTemplateTabs.Has(TabIndex) && PromptTemplateTabs[TabIndex]) {
+        try {
+            TabBtn := PromptTemplateTabs[TabIndex]
+            SelectedText := (ThemeMode = "dark") ? "E0E0E0" : "FFFFFF"
+            TabBtn.Opt("+Background" . UI_Colors.BtnPrimary)
+            TabBtn.SetFont("s10 c" . SelectedText . " Bold", "Segoe UI")
+            TabBtn.Redraw()
+        }
+    }
+    
+    ; 显示当前系列内容
+    if (PromptTemplateTabControls.Has(TabIndex)) {
+        Controls := PromptTemplateTabControls[TabIndex]
+        if (Controls && Controls.Length > 0) {
+            for CtrlIndex, Ctrl in Controls {
+                if (Ctrl) {
+                    try {
+                        Ctrl.Visible := true
+                    } catch {
+                    }
+                }
+            }
+        }
+    }
+}
+
+; ===================== 创建提示词模板标签点击处理器 =====================
+CreatePromptTemplateTabClickHandler(TabIndex) {
+    return (*) => SwitchPromptTemplateTab(TabIndex)
+}
+
+; ===================== 应用提示词模板 =====================
+ApplyPromptTemplate(Template) {
+    global PromptExplainEdit, PromptRefactorEdit, PromptOptimizeEdit
+    
+    if (!Template || !IsObject(Template)) {
+        return
+    }
+    
+    ; 应用模板到编辑框
+    try {
+        if (IsSet(PromptExplainEdit) && PromptExplainEdit) {
+            PromptExplainEdit.Value := Template.Explain
+        }
+        if (IsSet(PromptRefactorEdit) && PromptRefactorEdit) {
+            PromptRefactorEdit.Value := Template.Refactor
+        }
+        if (IsSet(PromptOptimizeEdit) && PromptOptimizeEdit) {
+            PromptOptimizeEdit.Value := Template.Optimize
+        }
+    } catch {
+        ; 忽略错误
+    }
 }
 
 ; ===================== 创建提示词标签页 =====================
 CreatePromptsTab(ConfigGUI, X, Y, W, H) {
     global Prompt_Explain, Prompt_Refactor, Prompt_Optimize, PromptsTabPanel, PromptExplainEdit, PromptRefactorEdit, PromptOptimizeEdit, PromptsTabControls
-    global UI_Colors
+    global UI_Colors, PromptTemplates
     
     ; 创建标签页面板（默认隐藏）
     PromptsTabPanel := ConfigGUI.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Background" . UI_Colors.Background . " vPromptsTabPanel", "")
@@ -3967,38 +5613,2690 @@ CreatePromptsTab(ConfigGUI, X, Y, W, H) {
     Title.SetFont("s16 Bold", "Segoe UI")
     PromptsTabControls.Push(Title)
     
+    ; 创建主标签页（模板系列 / 模板管理 / 传统编辑）
+    MainTabBarY := Y + 60
+    MainTabBarHeight := 40
+    MainTabBarBg := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . MainTabBarY . " w" . (W - 60) . " h" . MainTabBarHeight . " Background" . UI_Colors.Sidebar, "")
+    PromptsTabControls.Push(MainTabBarBg)
+    
+    global PromptsMainTabs := Map()
+    global PromptsMainTabControls := Map()
+    MainTabWidth := (W - 60) / 3
+    MainTabX := X + 30
+    
+    MainTabList := [
+        {Key: "manage", Name: "模板管理"},
+        {Key: "rules", Name: GetText("hotkey_main_tab_rules")},
+        {Key: "legacy", Name: "传统编辑"}
+    ]
+    
+    MainTabWidth := (W - 60) / MainTabList.Length
+    
+    for Index, TabItem in MainTabList {
+        TabBtn := ConfigGUI.Add("Text", "x" . MainTabX . " y" . MainTabBarY . " w" . MainTabWidth . " h" . MainTabBarHeight . " Center 0x200 c" . UI_Colors.TextDim . " Background" . UI_Colors.Sidebar . " vPromptsMainTab" . TabItem.Key, TabItem.Name)
+        TabBtn.SetFont("s10", "Segoe UI")
+        TabBtn.OnEvent("Click", CreatePromptsMainTabClickHandler(TabItem.Key))
+        HoverBtnWithAnimation(TabBtn, UI_Colors.Sidebar, UI_Colors.BtnHover)
+        PromptsMainTabs[TabItem.Key] := TabBtn
+        PromptsMainTabControls[TabItem.Key] := []
+        PromptsTabControls.Push(TabBtn)
+        MainTabX += MainTabWidth
+    }
+    
+    ; 创建各主标签页的内容面板
+    ContentY := MainTabBarY + MainTabBarHeight + 20
+    ContentHeight := H - (ContentY - Y) - 50
+    
+    ; 1. 模板管理标签页（合并了模板系列功能）
+    CreatePromptsManageTab(ConfigGUI, X + 30, ContentY, W - 60, ContentHeight)
+    
+    ; 2. Cursor规则标签页
+    CreateCursorRulesTabForPrompts(ConfigGUI, X + 30, ContentY, W - 60, ContentHeight + 500)
+    
+    ; 3. 传统编辑标签页
+    CreatePromptsLegacyTab(ConfigGUI, X + 30, ContentY, W - 60, ContentHeight)
+    
+    ; 在显示默认标签页之前，先隐藏rules和legacy标签页的所有控件，避免混合显示
+    if (PromptsMainTabControls.Has("rules")) {
+        RulesControls := PromptsMainTabControls["rules"]
+        if (RulesControls && RulesControls.Length > 0) {
+            for Index, Ctrl in RulesControls {
+                if (Ctrl) {
+                    try {
+                        Ctrl.Visible := false
+                    } catch {
+                    }
+                }
+            }
+        }
+    }
+    if (PromptsMainTabControls.Has("legacy")) {
+        LegacyControls := PromptsMainTabControls["legacy"]
+        if (LegacyControls && LegacyControls.Length > 0) {
+            for Index, Ctrl in LegacyControls {
+                if (Ctrl) {
+                    try {
+                        Ctrl.Visible := false
+                    } catch {
+                    }
+                }
+            }
+        }
+    }
+    
+    ; 默认显示模板管理标签页
+    SwitchPromptsMainTab("manage")
+}
+
+; ===================== 切换到模板管理标签页（用于延迟调用）=====================
+SwitchToManageTab(*) {
+    global PromptsMainTabs
+    if (PromptsMainTabs && PromptsMainTabs.Has("manage")) {
+        SwitchPromptsMainTab("manage")
+    }
+}
+
+; ===================== 创建提示词主标签点击处理器 =====================
+CreatePromptsMainTabClickHandler(TabKey) {
+    return (*) => SwitchPromptsMainTab(TabKey)
+}
+
+; ===================== 切换提示词主标签页 =====================
+SwitchPromptsMainTab(TabKey) {
+    global PromptsMainTabs, PromptsMainTabControls, UI_Colors, ThemeMode, PromptCategoryTabControls
+    
+    ; 重置所有标签样式
+    for Key, TabBtn in PromptsMainTabs {
+        if (TabBtn) {
+            try {
+                TabBtn.Opt("+Background" . UI_Colors.Sidebar)
+                TabBtn.SetFont("s10 c" . UI_Colors.TextDim . " Norm", "Segoe UI")
+                TabBtn.Redraw()
+            }
+        }
+    }
+    
+    ; 隐藏所有标签页内容
+    for Key, Controls in PromptsMainTabControls {
+        if (Controls && Controls.Length > 0) {
+            for Index, Ctrl in Controls {
+                if (Ctrl) {
+                    try {
+                        Ctrl.Visible := false
+                    } catch {
+                    }
+                }
+            }
+        }
+    }
+    
+    ; 隐藏所有分类标签页内容（如果存在）
+    if (IsSet(PromptCategoryTabControls) && IsObject(PromptCategoryTabControls)) {
+        for CategoryName, Controls in PromptCategoryTabControls {
+            if (Controls && Controls.Length > 0) {
+                for Index, Ctrl in Controls {
+                    if (Ctrl) {
+                        try {
+                            Ctrl.Visible := false
+                        } catch {
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    ; 设置当前标签样式
+    if (PromptsMainTabs.Has(TabKey) && PromptsMainTabs[TabKey]) {
+        try {
+            TabBtn := PromptsMainTabs[TabKey]
+            SelectedText := (ThemeMode = "dark") ? "E0E0E0" : "FFFFFF"
+            TabBtn.Opt("+Background" . UI_Colors.BtnPrimary)
+            TabBtn.SetFont("s10 c" . SelectedText . " Bold", "Segoe UI")
+            TabBtn.Redraw()
+        }
+    }
+    
+    ; 显示当前标签页内容
+    if (PromptsMainTabControls.Has(TabKey)) {
+        Controls := PromptsMainTabControls[TabKey]
+        if (Controls && Controls.Length > 0) {
+            for Index, Ctrl in Controls {
+                if (Ctrl) {
+                    try {
+                        Ctrl.Visible := true
+                    } catch {
+                    }
+                }
+            }
+        }
+    }
+    
+    ; 如果是Cursor规则标签，显示第一个规则子标签
+    if (TabKey = "rules") {
+        global CursorRulesSubTabs
+        if (CursorRulesSubTabs && CursorRulesSubTabs.Count > 0) {
+            FirstKey := ""
+            for Key, TabBtn in CursorRulesSubTabs {
+                FirstKey := Key
+                break
+            }
+            if (FirstKey != "") {
+                SwitchCursorRulesSubTab(FirstKey)
+            }
+        }
+    }
+    
+    ; 如果是模板管理标签页，需要重新显示分类标签和默认分类内容
+    if (TabKey = "manage") {
+        ; 重置展开状态
+        global ExpandedTemplateKey
+        ExpandedTemplateKey := ""
+        
+        ; 显示分类标签栏
+        global PromptCategoryTabs
+        if (IsSet(PromptCategoryTabs) && PromptCategoryTabs.Count > 0) {
+            for CategoryName, TabBtn in PromptCategoryTabs {
+                if (TabBtn) {
+                    try {
+                        TabBtn.Visible := true
+                    } catch {
+                    }
+                }
+            }
+        }
+        
+        ; 确保ListView显示在最上层（通过重新设置位置来提升Z-order）
+        global PromptManagerListView, UI_Colors, ThemeMode
+        if (PromptManagerListView) {
+            try {
+                PromptManagerListView.GetPos(&ListViewX, &ListViewY, &ListViewW, &ListViewH)
+                PromptManagerListView.Move(ListViewX, ListViewY, ListViewW, ListViewH)
+                PromptManagerListView.Visible := true
+                ; 确保背景色正确设置
+                PromptManagerListView.Opt("+Background" . UI_Colors.InputBg)
+                ; 强制刷新ListView
+                PromptManagerListView.Redraw()
+            } catch {
+            }
+        }
+        
+        ; 获取所有分类并显示第一个分类
+        global PromptTemplates
+        if (IsSet(PromptTemplates) && PromptTemplates.Length > 0) {
+            ; 获取所有分类（按固定顺序）
+            Categories := Map()
+            CategoryOrder := ["基础", "改错", "专业", "自定义"]
+            for Index, Template in PromptTemplates {
+                if (!Categories.Has(Template.Category)) {
+                    Categories[Template.Category] := []
+                }
+                Categories[Template.Category].Push(Template)
+            }
+            
+            ; 找到第一个存在的分类
+            FirstCategory := ""
+            for CategoryName in CategoryOrder {
+                if (Categories.Has(CategoryName)) {
+                    FirstCategory := CategoryName
+                    break
+                }
+            }
+            ; 如果没有找到，使用第一个分类
+            if (FirstCategory = "") {
+                for CategoryName, Templates in Categories {
+                    FirstCategory := CategoryName
+                    break
+                }
+            }
+            
+            ; 显示第一个分类的内容（传入true表示初始化）
+            if (FirstCategory != "" && IsSet(PromptCategoryTabControls) && PromptCategoryTabControls.Has(FirstCategory)) {
+                SwitchPromptCategoryTab(FirstCategory, true)
+            } else {
+                ; 如果没有找到分类，也要确保ListView可见和刷新
+                if (PromptManagerListView) {
+                    try {
+                        PromptManagerListView.Visible := true
+                        PromptManagerListView.Redraw()
+                    } catch {
+                    }
+                }
+            }
+        } else {
+            ; 如果没有模板数据，也要确保ListView可见
+            if (PromptManagerListView) {
+                try {
+                    PromptManagerListView.Visible := true
+                    PromptManagerListView.Redraw()
+                } catch {
+                }
+            }
+        }
+    }
+}
+
+; ===================== 创建模板系列标签页 =====================
+CreatePromptsSeriesTab(ConfigGUI, X, Y, W, H) {
+    global PromptTemplateSeries, PromptsMainTabControls, UI_Colors, PromptsTabControls
+    
+    ; 创建面板
+    SeriesPanel := ConfigGUI.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Background" . UI_Colors.Background . " vPromptsSeriesPanel", "")
+    SeriesPanel.Visible := false
+    PromptsMainTabControls["series"] := []
+    PromptsMainTabControls["series"].Push(SeriesPanel)
+    PromptsTabControls.Push(SeriesPanel)
+    
+    ; 定义模板系列（每个系列作为一个标签页）
+    if (!IsSet(PromptTemplateSeries) || !IsObject(PromptTemplateSeries)) {
+        global PromptTemplateSeries := [
+            {SeriesName: "基础系列", Templates: [
+                {Name: "默认模板", Explain: "解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点", Refactor: "重构这段代码，遵循PEP8/行业规范，简化冗余逻辑，添加中文注释，保持功能不变", Optimize: "分析这段代码的性能瓶颈（时间/空间复杂度），给出优化方案+对比说明，保留原逻辑可读性"},
+                {Name: "简洁版本", Explain: "简洁地解释这段代码做了什么", Refactor: "重构代码，使其更简洁易读", Optimize: "优化代码性能"},
+                {Name: "详细版本", Explain: "请详细解释这段代码的功能、原理、设计思路和实现细节，包括每个函数的作用、参数含义、返回值说明，以及代码的整体架构", Refactor: "请重构这段代码，提高代码质量和可维护性，添加详细的文档字符串和类型注解，优化代码结构，遵循最佳实践", Optimize: "请分析这段代码的性能问题，提供详细的性能优化方案，包括算法优化、数据结构优化、缓存策略等，并说明优化前后的性能对比"}
+            ]},
+            {SeriesName: "专业系列", Templates: [
+                {Name: "代码审查", Explain: "请对这段代码进行全面审查，指出潜在问题、bug、安全隐患和改进建议", Refactor: "请从代码审查的角度重构这段代码，修复所有发现的问题，提高代码质量和安全性", Optimize: "请从性能和可维护性角度审查代码，提供优化建议和重构方案"},
+                {Name: "架构分析", Explain: "请从专业的角度分析这段代码，包括架构设计、设计模式、技术选型等方面的考量", Refactor: "请使用专业的设计模式和架构原则重构代码，提高代码的可扩展性和可维护性", Optimize: "请提供专业的性能优化方案，包括算法优化、系统设计优化、资源管理优化等方面"},
+                {Name: "最佳实践", Explain: "请分析这段代码是否符合最佳实践，指出可以改进的地方", Refactor: "请按照行业最佳实践重构代码，包括命名规范、代码组织、错误处理等方面", Optimize: "请提供基于最佳实践的性能优化建议"}
+            ]},
+            {SeriesName: "改错系列", Templates: [
+                {Name: "改错版本", Explain: "现在请你扮演一位经验丰富、以严谨著称的架构师。指出现在可能存在的风险、不足或考虑不周的地方，重新审查我们刚才制定的这个 Bug 修复方案 ，请粘贴错误代码或者截图", Refactor: "请提供三种不同的修复方案。并为每种方案说明其优点、缺点和适用场景，让我来做选择，请粘贴错误代码或者截图", Optimize: "我的代码遇到了一个典型问题：请你扮演网络搜索助手，在GitHub Issues / Stack Overflow等开源社区汇总常见的解决方案，并针对我的这个bug给出最优的修复建议。请粘贴错误代码或者截图"},
+                {Name: "入门版", Explain: "请用最简单的语言解释这段代码，适合完全没有编程基础的人理解", Refactor: "请将代码重构为最基础的版本，添加大量注释，使用最简单的实现方式", Optimize: "请用通俗易懂的方式解释性能优化的概念"}
+            ]}
+        ]
+    }
+    
+    ; 创建模板标签页栏
+    YPos := Y + 10
+    TemplateTabBarY := YPos
+    TemplateTabBarHeight := 40
+    TemplateTabBarBg := ConfigGUI.Add("Text", "x" . X . " y" . TemplateTabBarY . " w" . W . " h" . TemplateTabBarHeight . " Background" . UI_Colors.Sidebar, "")
+    PromptsMainTabControls["series"].Push(TemplateTabBarBg)
+    
+    ; 创建模板标签按钮
+    global PromptTemplateTabs := Map()
+    global PromptTemplateTabControls := Map()
+    TemplateTabWidth := W / PromptTemplateSeries.Length
+    TemplateTabX := X
+    
+    for Index, Series in PromptTemplateSeries {
+        TabBtn := ConfigGUI.Add("Text", "x" . TemplateTabX . " y" . TemplateTabBarY . " w" . TemplateTabWidth . " h" . TemplateTabBarHeight . " Center 0x200 c" . UI_Colors.TextDim . " Background" . UI_Colors.Sidebar . " vPromptTemplateTab" . Index, Series.SeriesName)
+        TabBtn.SetFont("s10", "Segoe UI")
+        TabBtn.OnEvent("Click", CreatePromptTemplateTabClickHandler(Index))
+        HoverBtnWithAnimation(TabBtn, UI_Colors.Sidebar, UI_Colors.BtnHover)
+        PromptTemplateTabs[Index] := TabBtn
+        PromptTemplateTabControls[Index] := []
+        PromptsMainTabControls["series"].Push(TabBtn)
+        TemplateTabX += TemplateTabWidth
+    }
+    
+    ; 创建模板内容区域
+    TemplateContentY := TemplateTabBarY + TemplateTabBarHeight + 20
+    TemplateContentHeight := H - (TemplateContentY - Y) - 20
+    
+    ; 为每个系列创建模板列表
+    for Index, Series in PromptTemplateSeries {
+        CreatePromptTemplateSeries(ConfigGUI, X, TemplateContentY, W, TemplateContentHeight, Series, Index)
+    }
+    
+    ; 默认显示第一个系列
+    if (PromptTemplateSeries.Length > 0) {
+        SwitchPromptTemplateTab(1)
+    }
+}
+
+; ===================== 创建模板管理标签页 =====================
+CreatePromptsManageTab(ConfigGUI, X, Y, W, H) {
+    global PromptTemplates, PromptsMainTabControls, UI_Colors, DefaultTemplateIDs, ThemeMode, PromptsTabControls
+    
+    ; 创建面板
+    ManagePanel := ConfigGUI.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Background" . UI_Colors.Background . " vPromptsManagePanel", "")
+    ManagePanel.Visible := false
+    PromptsMainTabControls["manage"] := []
+    PromptsMainTabControls["manage"].Push(ManagePanel)
+    PromptsTabControls.Push(ManagePanel)
+    
+    ; 确保模板已加载
+    if (!IsSet(PromptTemplates) || PromptTemplates.Length = 0) {
+        LoadPromptTemplates()
+    }
+    
+    ; 只获取三个主分类：基础、改错、专业
+    Categories := Map()
+    CategoryOrder := ["基础", "改错", "专业"]
+    
+    ; 只收集这三个分类的模板
+    for Index, Template in PromptTemplates {
+        CategoryName := Template.Category
+        ; 只处理基础、专业、改错这三个分类
+        if (CategoryName = "基础" || CategoryName = "专业" || CategoryName = "改错") {
+            if (!Categories.Has(CategoryName)) {
+                Categories[CategoryName] := []
+            }
+            Categories[CategoryName].Push(Template)
+        }
+    }
+    
+    ; 创建分类标签栏
+    YPos := Y + 10
+    CategoryTabBarY := YPos
+    CategoryTabBarHeight := 40
+    CategoryTabBarBg := ConfigGUI.Add("Text", "x" . X . " y" . CategoryTabBarY . " w" . W . " h" . CategoryTabBarHeight . " Background" . UI_Colors.Sidebar, "")
+    PromptsMainTabControls["manage"].Push(CategoryTabBarBg)
+    PromptsTabControls.Push(CategoryTabBarBg)
+    
+    global PromptCategoryTabs := Map()
+    global PromptCategoryTabControls := Map()
+    
+    ; 按固定顺序排列分类（基础、专业、改错）
+    SortedCategories := []
+    for CategoryName in CategoryOrder {
+        if (Categories.Has(CategoryName)) {
+            SortedCategories.Push(CategoryName)
+        }
+    }
+    
+    ; 创建三个标签按钮（固定宽度）
+    CategoryTabWidth := W / 3
+    CategoryTabX := X
+    
+    ; 默认选中第一个分类
+    FirstCategory := ""
+    
+    for Index, CategoryName in CategoryOrder {
+        ; 统计该分类下的模板数量
+        TemplateCount := Categories.Has(CategoryName) ? Categories[CategoryName].Length : 0
+        
+        ; 创建标签按钮（无论是否有模板都创建）
+        TabBtn := ConfigGUI.Add("Text", "x" . CategoryTabX . " y" . CategoryTabBarY . " w" . CategoryTabWidth . " h" . CategoryTabBarHeight . " Center 0x200 c" . UI_Colors.TextDim . " Background" . UI_Colors.Sidebar . " vPromptCategoryTab" . CategoryName, CategoryName . " (" . TemplateCount . ")")
+        TabBtn.SetFont("s10", "Segoe UI")
+        TabBtn.OnEvent("Click", CreatePromptCategoryTabClickHandler(CategoryName))
+        HoverBtnWithAnimation(TabBtn, UI_Colors.Sidebar, UI_Colors.BtnHover)
+        PromptCategoryTabs[CategoryName] := TabBtn
+        PromptCategoryTabControls[CategoryName] := []
+        PromptsMainTabControls["manage"].Push(TabBtn)
+        PromptsTabControls.Push(TabBtn)
+        
+        ; 记录第一个分类
+        if (FirstCategory = "") {
+            FirstCategory := CategoryName
+        }
+        
+        CategoryTabX += CategoryTabWidth
+    }
+    
+    ; 默认选中基础分类（如果存在），否则选中第一个分类
+    DefaultCategory := "基础"
+    if (Categories.Has(DefaultCategory)) {
+        SwitchPromptCategoryTab(DefaultCategory, true)
+    } else if (FirstCategory != "") {
+        SwitchPromptCategoryTab(FirstCategory, true)
+    }
+    
+    ; 创建ListView文件管理器风格的显示区域
+    TemplateContentY := CategoryTabBarY + CategoryTabBarHeight + 20
+    ; 为底部按钮预留空间（按钮高度35 + 间距15）
+    TemplateContentHeight := H - (TemplateContentY - Y) - 60
+    
+    ; 创建ListView用于显示文件夹和prompt
+    global PromptManagerListView, ThemeMode
+    ; 确保文本颜色与背景色有足够对比度
+    ListViewTextColor := (ThemeMode = "dark") ? "FFFFFF" : "000000"
+    ; 创建ListView，使用NoSortHdr移除列标题排序功能
+    ; 添加双缓冲绘图（LVS_EX_DOUBLEBUFFER = 0x10000）以减少拖动时的视觉残留
+    PromptManagerListView := ConfigGUI.Add("ListView", "x" . X . " y" . TemplateContentY . " w" . W . " h" . TemplateContentHeight . " vPromptManagerListView Background" . UI_Colors.InputBg . " c" . ListViewTextColor . " -Multi +ReadOnly +NoSortHdr +LV0x10000", ["名称", "内容"])
+    PromptManagerListView.SetFont("s10 c" . ListViewTextColor, "Segoe UI")
+    PromptManagerListView.OnEvent("DoubleClick", ShowTemplateActionCenterFromDoubleClick)
+    PromptManagerListView.OnEvent("ContextMenu", OnPromptManagerContextMenu)
+    PromptCategoryTabControls["ListView"] := [PromptManagerListView]
+    PromptsMainTabControls["manage"].Push(PromptManagerListView)
+    PromptsTabControls.Push(PromptManagerListView)
+    
+    ; 当前导航路径（用于跟踪当前查看的文件夹）
+    global CurrentPromptFolder := "基础"  ; 默认显示基础分类
+    
+    ; 初始化显示第一个分类（基础）的模板列表
+    RefreshPromptListView()
+    
+    ; 导入/导出按钮区域（放在底部，确保在ListView下方）
+    BtnY := TemplateContentY + TemplateContentHeight + 10
+    BtnWidth := 100
+    BtnHeight := 35
+    BtnSpacing := 15
+    BtnX := X
+    
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    
+    ; 导入模板按钮
+    ImportTemplateBtn := ConfigGUI.Add("Text", "x" . BtnX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vImportTemplateBtn", "导入模板")
+    ImportTemplateBtn.SetFont("s10", "Segoe UI")
+    ImportTemplateBtn.OnEvent("Click", (*) => ImportPromptTemplates())
+    HoverBtnWithAnimation(ImportTemplateBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    PromptsMainTabControls["manage"].Push(ImportTemplateBtn)
+    PromptsTabControls.Push(ImportTemplateBtn)
+    
+    ; 导出模板按钮
+    BtnX += BtnWidth + BtnSpacing
+    ExportTemplateBtn := ConfigGUI.Add("Text", "x" . BtnX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vExportTemplateBtn", "导出模板")
+    ExportTemplateBtn.SetFont("s10", "Segoe UI")
+    ExportTemplateBtn.OnEvent("Click", (*) => ExportPromptTemplates())
+    HoverBtnWithAnimation(ExportTemplateBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    PromptsMainTabControls["manage"].Push(ExportTemplateBtn)
+    PromptsTabControls.Push(ExportTemplateBtn)
+    
+    ; 添加模板按钮
+    BtnX += BtnWidth + BtnSpacing
+    AddTemplateBtn := ConfigGUI.Add("Text", "x" . BtnX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vAddTemplateBtn", "添加模板")
+    AddTemplateBtn.SetFont("s10", "Segoe UI")
+    AddTemplateBtn.OnEvent("Click", (*) => AddPromptTemplate())
+    HoverBtnWithAnimation(AddTemplateBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    PromptsMainTabControls["manage"].Push(AddTemplateBtn)
+    PromptsTabControls.Push(AddTemplateBtn)
+}
+
+; ===================== 创建分类标签点击处理器 =====================
+CreatePromptCategoryTabClickHandler(CategoryName) {
+    return (*) => SwitchPromptCategoryTab(CategoryName)
+}
+
+; ===================== 切换分类标签页 =====================
+SwitchPromptCategoryTab(CategoryName, IsInit := false) {
+    global PromptCategoryTabs, PromptCategoryTabControls, UI_Colors, ThemeMode, PromptTemplates, GuiID_ConfigGUI
+    global CurrentPromptFolder, PromptManagerListView, PromptsMainTabControls
+    
+    ; 设置当前文件夹为选中的分类（直接显示该分类下的模板）
+    CurrentPromptFolder := CategoryName
+    
+    ; 重置所有分类标签样式
+    for TabCategoryName, TabBtn in PromptCategoryTabs {
+        if (TabCategoryName = CategoryName) {
+            ; 选中状态
+            SelectedText := (ThemeMode = "dark") ? "E0E0E0" : "FFFFFF"
+            TabBtn.Opt("+Background" . UI_Colors.BtnPrimary)
+            TabBtn.SetFont("s10 c" . SelectedText . " Bold", "Segoe UI")
+            TabBtn.Redraw()
+        } else {
+            ; 未选中状态
+            TabBtn.Opt("+Background" . UI_Colors.Sidebar)
+            TabBtn.SetFont("s10 c" . UI_Colors.Text . " Norm", "Segoe UI")
+            TabBtn.Redraw()
+        }
+    }
+    
+    ; 确保传统编辑面板被隐藏（防止遮挡ListView）
+    if (PromptsMainTabControls.Has("legacy")) {
+        LegacyControls := PromptsMainTabControls["legacy"]
+        if (LegacyControls && LegacyControls.Length > 0) {
+            for Index, Ctrl in LegacyControls {
+                if (Ctrl) {
+                    try {
+                        Ctrl.Visible := false
+                    } catch {
+                    }
+                }
+            }
+        }
+    }
+    
+    ; 显示ListView并刷新
+    if (PromptCategoryTabControls.Has("ListView")) {
+        Controls := PromptCategoryTabControls["ListView"]
+        if (Controls && Controls.Length > 0) {
+            for Index, Ctrl in Controls {
+                if (Ctrl) {
+                    try {
+                        Ctrl.Visible := true
+                        ; 确保ListView在最上层，通过重新设置位置来提升Z-order
+                        Ctrl.GetPos(&CtrlX, &CtrlY, &CtrlW, &CtrlH)
+                        Ctrl.Move(CtrlX, CtrlY, CtrlW, CtrlH)
+                    } catch {
+                    }
+                }
+            }
+        }
+    }
+    
+    ; 直接操作PromptManagerListView，确保它显示在最上层
+    if (PromptManagerListView) {
+        try {
+            PromptManagerListView.Visible := true
+            PromptManagerListView.GetPos(&ListViewX, &ListViewY, &ListViewW, &ListViewH)
+            PromptManagerListView.Move(ListViewX, ListViewY, ListViewW, ListViewH)
+            ; 强制刷新ListView，确保背景色和内容正确显示
+            PromptManagerListView.Redraw()
+        } catch {
+        }
+    }
+    
+    ; 刷新ListView显示（显示当前分类的模板）
+    RefreshPromptListView()
+    
+    ; 刷新后再次确保ListView可见并刷新显示
+    if (PromptManagerListView) {
+        try {
+            PromptManagerListView.Visible := true
+            PromptManagerListView.Redraw()
+        } catch {
+        }
+    }
+}
+
+; ===================== 刷新模板管理器ListView =====================
+RefreshPromptListView() {
+    global PromptManagerListView, CurrentPromptFolder, PromptTemplates, UI_Colors, ThemeMode
+    
+    if (!PromptManagerListView) {
+        return
+    }
+    
+    ; 确保ListView可见
+    try {
+        PromptManagerListView.Visible := true
+    } catch {
+    }
+    
+    ; 清空列表
+    try {
+        PromptManagerListView.Delete()
+    } catch {
+    }
+    
+    ; 确定要显示的分类（如果CurrentPromptFolder为空，默认显示"基础"）
+    DisplayCategory := CurrentPromptFolder != "" ? CurrentPromptFolder : "基础"
+    
+    ; 直接显示该分类下的所有模板（不再显示文件夹）
+    try {
+        for Index, Template in PromptTemplates {
+            if (Template.Category = DisplayCategory) {
+                ; 检查控件是否仍然有效
+                if (PromptManagerListView && !PromptManagerListView.HasProp("Destroyed")) {
+                    ; 生成内容预览（截取前100个字符，如果太长加省略号）
+                    ContentPreview := Template.Content
+                    if (StrLen(ContentPreview) > 100) {
+                        ContentPreview := SubStr(ContentPreview, 1, 100) . "..."
+                    }
+                    ; 替换换行符为空格，以便在ListView中显示
+                    ContentPreview := StrReplace(ContentPreview, "`n", " ")
+                    ContentPreview := StrReplace(ContentPreview, "`r", "")
+                    PromptManagerListView.Add("", Template.Title, ContentPreview)
+                } else {
+                    return  ; 控件已被销毁，退出
+                }
+            }
+        }
+    } catch as e {
+        ; 如果控件已被销毁，忽略错误
+        if (!InStr(e.Message, "destroyed") && !InStr(e.Message, "控件")) {
+            ; 其他错误才抛出
+            throw e
+        }
+    }
+    
+    ; 调整列宽：名称列固定宽度，内容列自适应
+    PromptManagerListView.ModifyCol(1, 150)  ; 名称列固定150像素
+    PromptManagerListView.ModifyCol(2, "AutoHdr")  ; 内容列自适应
+    
+    ; ========== 修复拖动列分隔符时的黑色方块和线条问题 ==========
+    try {
+        LV_Hwnd := PromptManagerListView.Hwnd
+        
+        ; 1. 启用双缓冲绘图（减少重绘闪烁）
+        ; LVM_SETEXTENDEDLISTVIEWSTYLE = 0x1036
+        ; LVS_EX_DOUBLEBUFFER = 0x00010000
+        CurrentStyle := DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x1037, "Ptr", 0, "Ptr", 0, "UInt")  ; LVM_GETEXTENDEDLISTVIEWSTYLE
+        NewStyle := CurrentStyle | 0x00010000
+        DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x1036, "Ptr", 0x00010000, "Ptr", NewStyle, "UInt")  ; LVM_SETEXTENDEDLISTVIEWSTYLE
+        
+        ; 2. 通过Header控件禁用列分隔符拖动功能（最彻底的解决方案）
+        ; LVM_GETHEADER = 0x101F
+        HeaderHwnd := DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x101F, "Ptr", 0, "Ptr", 0, "Ptr")
+        if (HeaderHwnd) {
+            ; 获取第一列的HDITEM结构
+            ; HDM_GETITEM = 0x120B, HDM_SETITEM = 0x120C
+            ; HDITEM结构：mask, cxy, pszText, hbm, cchTextMax, fmt, lParam, iImage, iOrder
+            ; fmt标志：HDF_FIXEDWIDTH = 0x0100 (固定列宽，不允许调整)
+            
+            ; 为HDITEM结构分配内存（64位系统需要56字节，32位需要44字节）
+            HDITEMSize := A_PtrSize = 8 ? 56 : 44
+            HDITEM := Buffer(HDITEMSize, 0)
+            
+            ; 设置mask = HDI_FORMAT (0x0004)，表示我们要修改fmt字段
+            NumPut("UInt", 0x0004, HDITEM, 0)
+            
+            ; 获取第一列的当前格式
+            DllCall("SendMessage", "Ptr", HeaderHwnd, "UInt", 0x120B, "Ptr", 0, "Ptr", HDITEM.Ptr, "UInt")  ; HDM_GETITEM
+            
+            ; 读取当前fmt值
+            CurrentFmt := NumGet(HDITEM, A_PtrSize = 8 ? 20 : 16, "Int")
+            ; 设置HDF_FIXEDWIDTH标志（0x0100），禁用列宽调整
+            NewFmt := CurrentFmt | 0x0100
+            NumPut("Int", NewFmt, HDITEM, A_PtrSize = 8 ? 20 : 16)
+            
+            ; 应用修改到第一列
+            DllCall("SendMessage", "Ptr", HeaderHwnd, "UInt", 0x120C, "Ptr", 0, "Ptr", HDITEM.Ptr, "UInt")  ; HDM_SETITEM
+            
+            ; 对第二列也做同样处理
+            DllCall("SendMessage", "Ptr", HeaderHwnd, "UInt", 0x120B, "Ptr", 1, "Ptr", HDITEM.Ptr, "UInt")  ; HDM_GETITEM
+            CurrentFmt2 := NumGet(HDITEM, A_PtrSize = 8 ? 20 : 16, "Int")
+            NewFmt2 := CurrentFmt2 | 0x0100
+            NumPut("Int", NewFmt2, HDITEM, A_PtrSize = 8 ? 20 : 16)
+            DllCall("SendMessage", "Ptr", HeaderHwnd, "UInt", 0x120C, "Ptr", 1, "Ptr", HDITEM.Ptr, "UInt")  ; HDM_SETITEM
+        }
+        
+        ; 3. 强制刷新ListView，清除任何视觉残留
+        ; InvalidateRect清除指定区域的绘制缓存
+        DllCall("InvalidateRect", "Ptr", LV_Hwnd, "Ptr", 0, "Int", 1)  ; 1 = TRUE，清除整个控件
+        DllCall("UpdateWindow", "Ptr", LV_Hwnd)  ; 立即重绘
+        
+    } catch as e {
+        ; 如果API调用失败，至少确保基本功能正常
+    }
+    
+    ; 确保ListView的背景色正确设置并强制刷新显示
+    try {
+        ListViewTextColor := (ThemeMode = "dark") ? "FFFFFF" : "000000"
+        PromptManagerListView.Opt("+Background" . UI_Colors.InputBg)
+        PromptManagerListView.Redraw()
+    } catch {
+    }
+}
+
+; ===================== DoubleClick事件处理器 =====================
+ShowTemplateActionCenterFromDoubleClick(GuiCtrlObj, Info) {
+    ; DoubleClick事件传递参数：GuiCtrlObj（控件对象），Info（行号）
+    ShowTemplateActionCenter(Info)
+}
+
+; ===================== 显示模板操作中心 =====================
+ShowTemplateActionCenter(Item) {
+    global PromptManagerListView, CurrentPromptFolder, PromptTemplates, UI_Colors, ThemeMode
+    
+    if (!PromptManagerListView) {
+        TrayTip("ListView未初始化", "错误", "Iconx 2")
+        return
+    }
+    
+    try {
+        ; 如果没有传递Item参数或Item不是数字，尝试获取选中的项
+        ; 注意：DoubleClick事件的第二个参数Info是行号（数字）
+        if (Type(Item) != "Integer" || Item < 1) {
+            Item := PromptManagerListView.GetNext()
+            if (Item = 0) {
+                return
+            }
+        }
+        
+        ; 确保Item是数字
+        if (Type(Item) != "Integer" || Item < 1) {
+            return
+        }
+        
+        ; 获取选中项的信息
+        ItemName := PromptManagerListView.GetText(Item, 1)
+        ; 移除类型检查，因为现在所有项目都是模板
+        
+        ; 选中该项
+        PromptManagerListView.Modify(Item, "Select")
+        
+        ; 确保必要的变量已初始化
+        if (!IsSet(PromptTemplates) || !IsObject(PromptTemplates)) {
+            TrayTip("模板数据未初始化", "错误", "Iconx 2")
+            return
+        }
+        
+        if (!IsSet(CurrentPromptFolder) || CurrentPromptFolder = "") {
+            CurrentPromptFolder := "基础"
+        }
+        
+        ; 🚀 性能优化：使用索引直接查找 - O(1)
+        Key := CurrentPromptFolder . "|" . ItemName
+        global TemplateIndexByTitle, TemplateIndexByArrayIndex
+        
+        if (TemplateIndexByTitle.Has(Key)) {
+            TargetTemplate := TemplateIndexByTitle[Key]
+            
+            ; 获取数组索引
+            if (TemplateIndexByArrayIndex.Has(TargetTemplate.ID)) {
+                TemplateIndex := TemplateIndexByArrayIndex[TargetTemplate.ID]
+            } else {
+                ; 如果索引未初始化，回退到旧方法
+                TemplateIndex := 0
+                for Index, Template in PromptTemplates {
+                    if (Template.ID = TargetTemplate.ID) {
+                        TemplateIndex := Index
+                        break
+                    }
+                }
+            }
+            
+            ; 创建模板操作中心弹窗
+            CreateTemplateActionCenter(TargetTemplate, TemplateIndex)
+        } else {
+            TrayTip("未找到模板: " . ItemName, "提示", "Iconx 2")
+            return
+        }
+        
+    } catch as e {
+        TrayTip("打开操作中心错误: " . e.Message, "错误", "Iconx 2")
+    }
+}
+
+; ===================== ListView右键菜单 =====================
+OnPromptManagerContextMenu(Control, Item, IsRightClick, X, Y) {
+    global PromptManagerListView, CurrentPromptFolder
+    
+    ; 如果没有选中项，尝试从参数获取
+    if (!Item || Item < 1) {
+        ; 尝试从鼠标位置获取选中项
+        Item := PromptManagerListView.GetNext()
+        if (Item = 0) {
+            return
+        }
+    }
+    
+    try {
+        ItemName := PromptManagerListView.GetText(Item, 1)
+        
+        ; 确保选中该项
+        PromptManagerListView.Modify(Item, "Select")
+        
+        ; 创建右键菜单（所有项目都是模板）
+        ContextMenu := Menu()
+        
+        ; 模板的右键菜单
+        ContextMenu.Add("复制", (*) => OnPromptManagerCopy())
+        ContextMenu.Add("发送到Cursor", (*) => OnPromptManagerSendToCursor())
+        ContextMenu.Add()  ; 分隔线
+        ContextMenu.Add("编辑", (*) => OnPromptManagerEdit())
+        ContextMenu.Add("重命名", (*) => OnPromptManagerRename())
+        ContextMenu.Add("移动分类", (*) => OnPromptManagerMove())
+        ContextMenu.Add("删除", (*) => OnPromptManagerDelete())
+        ContextMenu.Add()  ; 分隔线
+        ContextMenu.Add("关闭菜单", (*) => "")
+        
+        ; 显示菜单
+        ContextMenu.Show(X, Y)
+    } catch as e {
+        ; 调试信息
+        TrayTip("右键菜单错误: " . e.Message, "错误", "Iconx 2")
+    }
+}
+
+; ===================== 创建模板操作中心 =====================
+CreateTemplateActionCenter(Template, TemplateIndex) {
+    global UI_Colors, ThemeMode, PromptTemplates, SavePromptTemplates, RefreshPromptListView, CursorPath
+    
+    ; 创建操作中心窗口
+    ActionCenterGUI := Gui("+AlwaysOnTop -Caption", "模板操作中心: " . Template.Title)
+    ActionCenterGUI.BackColor := UI_Colors.Background
+    ActionCenterGUI.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
+    
+    ; 自定义标题栏
+    TitleBarHeight := 35
+    TitleBar := ActionCenterGUI.Add("Text", "x0 y0 w680 h" . TitleBarHeight . " Background" . UI_Colors.TitleBar . " vActionCenterTitleBar", "模板操作中心: " . Template.Title)
+    TitleBar.SetFont("s10 Bold c" . UI_Colors.Text, "Segoe UI")
+    TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2, , , ActionCenterGUI.Hwnd)) ; 拖动窗口
+    
+    ; 关闭按钮
+    CloseBtn := ActionCenterGUI.Add("Text", "x640 y0 w40 h" . TitleBarHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.TitleBar . " vActionCenterCloseBtn", "✕")
+    CloseBtn.SetFont("s10", "Segoe UI")
+    CloseBtn.OnEvent("Click", (*) => ActionCenterGUI.Destroy())
+    HoverBtnWithAnimation(CloseBtn, UI_Colors.TitleBar, "e81123")
+    
+    ; 标题区域
+    TitleY := TitleBarHeight + 20
+    TitleText := ActionCenterGUI.Add("Text", "x20 y" . TitleY . " w640 h30 c" . UI_Colors.Text, "模板: " . Template.Title)
+    TitleText.SetFont("s14 Bold", "Segoe UI")
+    
+    ; 分类信息
+    CategoryY := TitleY + 35
+    CategoryText := ActionCenterGUI.Add("Text", "x20 y" . CategoryY . " w640 h25 c" . UI_Colors.TextDim, "分类: " . Template.Category)
+    CategoryText.SetFont("s10", "Segoe UI")
+    
+    ; 内容预览区域（只读，可滚动）
+    ContentY := CategoryY + 35
+    ContentHeight := 280
+    ContentEdit := ActionCenterGUI.Add("Edit", "x20 y" . ContentY . " w640 h" . ContentHeight . " Multi ReadOnly Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " +VScroll", Template.Content)
+    ContentEdit.SetFont("s9", "Consolas")
+    
+    ; 按钮区域（分两行显示）
+    BtnY := ContentY + ContentHeight + 20
+    BtnY2 := BtnY + 45
+    BtnWidth := 110
+    BtnHeight := 38
+    BtnSpacing := 12
+    BtnStartX := 20
+    TextColor := (ThemeMode = "dark") ? "FFFFFF" : "000000"
+    
+    ; 第一行按钮：复制、发送到Cursor、编辑
+    ; 复制按钮
+    CopyBtn := ActionCenterGUI.Add("Text", "x" . BtnStartX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vActionCenterCopyBtn", "📋 复制")
+    CopyBtn.SetFont("s10", "Segoe UI")
+    ; 设置颜色属性，但不调用HoverBtnWithAnimation（避免覆盖事件）
+    CopyBtn.NormalColor := UI_Colors.BtnBg
+    CopyBtn.HoverColor := UI_Colors.BtnHover
+    CopyBtn.OnEvent("Click", CreateActionCenterCopyHandler(Template))
+    
+    ; 发送到Cursor按钮
+    BtnStartX += BtnWidth + BtnSpacing
+    SendBtn := ActionCenterGUI.Add("Text", "x" . BtnStartX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vActionCenterSendBtn", "🚀 发送到Cursor")
+    SendBtn.SetFont("s10", "Segoe UI")
+    SendBtn.NormalColor := UI_Colors.BtnPrimary
+    SendBtn.HoverColor := UI_Colors.BtnPrimaryHover
+    SendBtn.OnEvent("Click", CreateActionCenterSendHandler(ActionCenterGUI, Template))
+    
+    ; 编辑按钮
+    BtnStartX += BtnWidth + BtnSpacing
+    EditBtn := ActionCenterGUI.Add("Text", "x" . BtnStartX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vActionCenterEditBtn", "✏️ 编辑")
+    EditBtn.SetFont("s10", "Segoe UI")
+    EditBtn.NormalColor := UI_Colors.BtnPrimary
+    EditBtn.HoverColor := UI_Colors.BtnPrimaryHover
+    EditBtn.OnEvent("Click", CreateActionCenterEditHandler(ActionCenterGUI, Template))
+    
+    ; 重命名按钮
+    BtnStartX += BtnWidth + BtnSpacing
+    RenameBtn := ActionCenterGUI.Add("Text", "x" . BtnStartX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vActionCenterRenameBtn", "🏷️ 重命名")
+    RenameBtn.SetFont("s10", "Segoe UI")
+    RenameBtn.NormalColor := UI_Colors.BtnBg
+    RenameBtn.HoverColor := UI_Colors.BtnHover
+    RenameBtn.OnEvent("Click", CreateActionCenterRenameHandler(ActionCenterGUI, Template))
+    
+    ; 第二行按钮：移动分类、删除、关闭
+    BtnStartX := 20
+    ; 移动分类按钮
+    MoveBtn := ActionCenterGUI.Add("Text", "x" . BtnStartX . " y" . BtnY2 . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vActionCenterMoveBtn", "📁 移动分类")
+    MoveBtn.SetFont("s10", "Segoe UI")
+    MoveBtn.NormalColor := UI_Colors.BtnBg
+    MoveBtn.HoverColor := UI_Colors.BtnHover
+    MoveBtn.OnEvent("Click", CreateActionCenterMoveHandler(ActionCenterGUI, Template))
+    
+    ; 删除按钮
+    BtnStartX += BtnWidth + BtnSpacing
+    DeleteBtn := ActionCenterGUI.Add("Text", "x" . BtnStartX . " y" . BtnY2 . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnDanger . " vActionCenterDeleteBtn", "🗑️ 删除")
+    DeleteBtn.SetFont("s10", "Segoe UI")
+    DeleteBtn.NormalColor := UI_Colors.BtnDanger
+    DeleteBtn.HoverColor := UI_Colors.BtnDangerHover
+    DeleteBtn.OnEvent("Click", CreateActionCenterDeleteHandler(ActionCenterGUI, Template))
+    
+    ; 关闭按钮
+    BtnStartX += BtnWidth + BtnSpacing
+    CloseBtn := ActionCenterGUI.Add("Text", "x" . BtnStartX . " y" . BtnY2 . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vActionCenterCloseBtn", "❌ 关闭")
+    CloseBtn.SetFont("s10", "Segoe UI")
+    CloseBtn.NormalColor := UI_Colors.BtnBg
+    CloseBtn.HoverColor := UI_Colors.BtnHover
+    CloseBtn.OnEvent("Click", (*) => ActionCenterGUI.Destroy())
+    
+    ; 显示窗口
+    ActionCenterGUI.Show("w680 h" . (BtnY2 + BtnHeight + 20))
+}
+
+; ===================== 操作中心按钮处理函数 =====================
+CreateActionCenterCopyHandler(Template) {
+    return ActionCenterCopyHandler.Bind(Template)
+}
+
+ActionCenterCopyHandler(Template, *) {
+    A_Clipboard := Template.Content
+    TrayTip("已复制到剪贴板", "提示", "Iconi 1")
+}
+
+CreateActionCenterSendHandler(ActionCenterGUI, Template) {
+    return ActionCenterSendHandler.Bind(ActionCenterGUI, Template)
+}
+
+ActionCenterSendHandler(ActionCenterGUI, Template, *) {
+    ActionCenterGUI.Destroy()
+    SendTemplateToCursorWithKey("", Template)
+}
+
+CreateActionCenterEditHandler(ActionCenterGUI, Template) {
+    return ActionCenterEditHandler.Bind(ActionCenterGUI, Template)
+}
+
+ActionCenterEditHandler(ActionCenterGUI, Template, *) {
+    ActionCenterGUI.Destroy()
+    EditPromptTemplateDialog(Template.ID, Template)
+    SetTimer(() => RefreshPromptListView(), -300)
+}
+
+CreateActionCenterRenameHandler(ActionCenterGUI, Template) {
+    return ActionCenterRenameHandler.Bind(ActionCenterGUI, Template)
+}
+
+ActionCenterRenameHandler(ActionCenterGUI, Template, *) {
+    OnPromptManagerRenameFromPreview(ActionCenterGUI, Template)
+}
+
+CreateActionCenterMoveHandler(ActionCenterGUI, Template) {
+    return ActionCenterMoveHandler.Bind(ActionCenterGUI, Template)
+}
+
+ActionCenterMoveHandler(ActionCenterGUI, Template, *) {
+    ActionCenterGUI.Destroy()
+    OnPromptManagerMoveFromTemplate(Template)
+}
+
+CreateActionCenterDeleteHandler(ActionCenterGUI, Template) {
+    return ActionCenterDeleteHandler.Bind(ActionCenterGUI, Template)
+}
+
+ActionCenterDeleteHandler(ActionCenterGUI, Template, *) {
+    ActionCenterGUI.Destroy()
+    OnPromptManagerDeleteFromTemplate(Template)
+}
+
+; ===================== 双击打开编辑窗口（保留作为备用） =====================
+OnPromptManagerEditDialog() {
+    global PromptManagerListView, CurrentPromptFolder, PromptTemplates, UI_Colors, ThemeMode
+    
+    if (!PromptManagerListView) {
+        TrayTip("ListView未初始化", "错误", "Iconx 2")
+        return
+    }
+    
+    SelectedRow := PromptManagerListView.GetNext()
+    if (SelectedRow = 0) {
+        return
+    }
+    
+    try {
+        ItemName := PromptManagerListView.GetText(SelectedRow, 1)
+        ; 移除类型检查，因为现在所有项目都是模板
+        
+        ; 确保必要的变量已初始化
+        if (!IsSet(PromptTemplates) || !IsObject(PromptTemplates)) {
+            TrayTip("模板数据未初始化", "错误", "Iconx 2")
+            return
+        }
+        
+        if (!IsSet(CurrentPromptFolder) || CurrentPromptFolder = "") {
+            CurrentPromptFolder := "基础"
+        }
+        
+        ; 🚀 性能优化：使用索引直接查找 - O(1)
+        Key := CurrentPromptFolder . "|" . ItemName
+        global TemplateIndexByTitle, TemplateIndexByArrayIndex
+        
+        if (TemplateIndexByTitle.Has(Key)) {
+            TargetTemplate := TemplateIndexByTitle[Key]
+            ; 获取数组索引
+            if (TemplateIndexByArrayIndex.Has(TargetTemplate.ID)) {
+                TemplateIndex := TemplateIndexByArrayIndex[TargetTemplate.ID]
+            } else {
+                TemplateIndex := 0
+            }
+        } else {
+            TrayTip("未找到模板: " . ItemName, "提示", "Iconx 2")
+            return
+        }
+        
+        ; 创建编辑窗口
+        EditDialogGUI := Gui("+AlwaysOnTop -MinimizeBox", "编辑模板: " . TargetTemplate.Title)
+        EditDialogGUI.BackColor := UI_Colors.Background
+        
+        ; 标题
+        EditDialogGUI.Add("Text", "x20 y20 w640 h30 c" . UI_Colors.Text, "模板: " . TargetTemplate.Title)
+        EditDialogGUI.SetFont("s12 Bold", "Segoe UI")
+        
+        ; 分类信息
+        EditDialogGUI.Add("Text", "x20 y55 w640 h25 c" . UI_Colors.TextDim, "分类: " . TargetTemplate.Category)
+        EditDialogGUI.SetFont("s9", "Segoe UI")
+        
+        ; 内容显示区域（只读）
+        ContentEdit := EditDialogGUI.Add("Edit", "x20 y85 w640 h350 Multi ReadOnly Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, TargetTemplate.Content)
+        ContentEdit.SetFont("s9", "Consolas")
+        
+        ; 保存模板引用到GUI对象，供按钮使用
+        EditDialogGUI["Template"] := TargetTemplate
+        EditDialogGUI["TemplateIndex"] := TemplateIndex
+        
+        ; 按钮区域（底部，分两行显示）
+        BtnY := 450
+        BtnY2 := BtnY + 45  ; 第二行按钮Y位置
+        BtnWidth := 100
+        BtnHeight := 35
+        BtnSpacing := 10
+        BtnStartX := 20
+        TextColor := (ThemeMode = "dark") ? "FFFFFF" : "000000"
+        
+        ; 第一行按钮：复制、重命名、删除
+        ; 复制按钮
+        CopyBtn := EditDialogGUI.Add("Text", "x" . BtnStartX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vEditDialogCopyBtn", "复制")
+        CopyBtn.SetFont("s10", "Segoe UI")
+        CopyBtn.OnEvent("Click", CreateEditDialogCopyHandler(TargetTemplate))
+        HoverBtnWithAnimation(CopyBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        
+        ; 重命名按钮
+        BtnStartX += BtnWidth + BtnSpacing
+        RenameBtn := EditDialogGUI.Add("Text", "x" . BtnStartX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vEditDialogRenameBtn", "重命名")
+        RenameBtn.SetFont("s10", "Segoe UI")
+        RenameBtn.OnEvent("Click", CreateEditDialogRenameHandler(EditDialogGUI, TargetTemplate))
+        HoverBtnWithAnimation(RenameBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        
+        ; 删除按钮
+        BtnStartX += BtnWidth + BtnSpacing
+        DeleteBtn := EditDialogGUI.Add("Text", "x" . BtnStartX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnDanger . " vEditDialogDeleteBtn", "删除")
+        DeleteBtn.SetFont("s10", "Segoe UI")
+        DeleteBtn.OnEvent("Click", CreateEditDialogDeleteHandler(EditDialogGUI, TargetTemplate))
+        HoverBtnWithAnimation(DeleteBtn, UI_Colors.BtnDanger, UI_Colors.BtnDangerHover)
+        
+        ; 第二行按钮：发送到Cursor、移动分类、关闭
+        BtnStartX := 20
+        ; 发送到Cursor按钮
+        SendBtn := EditDialogGUI.Add("Text", "x" . BtnStartX . " y" . BtnY2 . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vEditDialogSendBtn", "发送到Cursor")
+        SendBtn.SetFont("s10", "Segoe UI")
+        SendBtn.OnEvent("Click", CreateEditDialogSendHandler(EditDialogGUI, TargetTemplate))
+        HoverBtnWithAnimation(SendBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+        
+        ; 移动分类按钮
+        BtnStartX += BtnWidth + BtnSpacing
+        MoveBtn := EditDialogGUI.Add("Text", "x" . BtnStartX . " y" . BtnY2 . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vEditDialogMoveBtn", "移动分类")
+        MoveBtn.SetFont("s10", "Segoe UI")
+        MoveBtn.OnEvent("Click", CreateEditDialogMoveHandler(EditDialogGUI, TargetTemplate))
+        HoverBtnWithAnimation(MoveBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        
+        ; 关闭按钮
+        BtnStartX += BtnWidth + BtnSpacing
+        CloseBtn := EditDialogGUI.Add("Text", "x" . BtnStartX . " y" . BtnY2 . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vEditDialogCloseBtn", "关闭")
+        CloseBtn.SetFont("s10", "Segoe UI")
+        CloseBtn.OnEvent("Click", (*) => EditDialogGUI.Destroy())
+        HoverBtnWithAnimation(CloseBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        
+        ; 显示窗口（增加高度以容纳两行按钮）
+        EditDialogGUI.Show("w680 h550")
+    } catch as e {
+        TrayTip("打开编辑窗口错误: " . e.Message, "错误", "Iconx 2")
+    }
+}
+
+; ===================== 编辑窗口按钮处理函数 =====================
+CreateEditDialogCopyHandler(Template) {
+    return EditDialogCopyHandler.Bind(Template)
+}
+
+EditDialogCopyHandler(Template, *) {
+    A_Clipboard := Template.Content
+    TrayTip("已复制到剪贴板", "提示", "Iconi 1")
+}
+
+CreateEditDialogRenameHandler(EditDialogGUI, Template) {
+    return EditDialogRenameHandler.Bind(EditDialogGUI, Template)
+}
+
+EditDialogRenameHandler(EditDialogGUI, Template, *) {
+    OnPromptManagerRenameFromPreview(EditDialogGUI, Template)
+}
+
+CreateEditDialogDeleteHandler(EditDialogGUI, Template) {
+    return EditDialogDeleteHandler.Bind(EditDialogGUI, Template)
+}
+
+EditDialogDeleteHandler(EditDialogGUI, Template, *) {
+    OnPromptManagerDeleteFromTemplate(Template)
+    EditDialogGUI.Destroy()
+}
+
+CreateEditDialogSendHandler(EditDialogGUI, Template) {
+    return EditDialogSendHandler.Bind(EditDialogGUI, Template)
+}
+
+EditDialogSendHandler(EditDialogGUI, Template, *) {
+    EditDialogGUI.Destroy()
+    SendTemplateToCursorWithKey("", Template)
+}
+
+CreateEditDialogMoveHandler(EditDialogGUI, Template) {
+    return EditDialogMoveHandler.Bind(EditDialogGUI, Template)
+}
+
+EditDialogMoveHandler(EditDialogGUI, Template, *) {
+    OnPromptManagerMoveFromTemplate(Template)
+    EditDialogGUI.Destroy()
+}
+
+; ===================== 预览模板 =====================
+OnPromptManagerPreview() {
+    global PromptManagerListView, CurrentPromptFolder, PromptTemplates, UI_Colors
+    
+    SelectedRow := PromptManagerListView.GetNext()
+    if (SelectedRow = 0) {
+        return
+    }
+    
+    try {
+        ItemName := PromptManagerListView.GetText(SelectedRow, 1)
+        ; 移除类型检查，因为现在所有项目都是模板
+        
+        ; 🚀 性能优化：使用索引直接查找 - O(1)
+        Key := CurrentPromptFolder . "|" . ItemName
+        global TemplateIndexByTitle, TemplateIndexByArrayIndex
+        
+        if (TemplateIndexByTitle.Has(Key)) {
+            Template := TemplateIndexByTitle[Key]
+            ; 获取数组索引
+            if (TemplateIndexByArrayIndex.Has(Template.ID)) {
+                Index := TemplateIndexByArrayIndex[Template.ID]
+            } else {
+                Index := 0
+            }
+            
+            ; 显示预览窗口
+            PreviewGUI := Gui("+AlwaysOnTop -MinimizeBox", "预览: " . Template.Title)
+            PreviewGUI.BackColor := UI_Colors.Background
+            
+            ; 标题
+            PreviewGUI.Add("Text", "x20 y20 w600 h30 c" . UI_Colors.Text, "模板: " . Template.Title)
+            PreviewGUI.SetFont("s12 Bold", "Segoe UI")
+            
+            ; 分类信息
+            PreviewGUI.Add("Text", "x20 y55 w600 h25 c" . UI_Colors.TextDim, "分类: " . Template.Category)
+            PreviewGUI.SetFont("s9", "Segoe UI")
+            
+            ; 内容预览
+            PreviewEdit := PreviewGUI.Add("Edit", "x20 y85 w600 h400 Multi ReadOnly Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, Template.Content)
+            PreviewEdit.SetFont("s9", "Consolas")
+            
+            ; 注释掉不支持的属性保存方式（AHK v2 GUI对象不支持直接索引赋值）
+            ; PreviewGUI["Template"] := Template
+            ; PreviewGUI["TemplateIndex"] := Index
+            
+            ; 按钮区域（底部）
+            BtnY := 500
+            BtnWidth := 90
+            BtnHeight := 35
+            BtnSpacing := 10
+            BtnStartX := 20
+            TextColor := (ThemeMode = "dark") ? "FFFFFF" : "000000"
+            
+            ; 复制按钮
+            CopyBtn := PreviewGUI.Add("Text", "x" . BtnStartX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vPreviewCopyBtn", "复制")
+            CopyBtn.SetFont("s10", "Segoe UI")
+            CopyBtn.OnEvent("Click", CreatePreviewCopyHandler(PreviewGUI, Template))
+            HoverBtnWithAnimation(CopyBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+            
+            ; 编辑按钮
+            BtnStartX += BtnWidth + BtnSpacing
+            EditBtn := PreviewGUI.Add("Text", "x" . BtnStartX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vPreviewEditBtn", "编辑")
+            EditBtn.SetFont("s10", "Segoe UI")
+            EditBtn.OnEvent("Click", CreatePreviewEditHandler(PreviewGUI, Template))
+            HoverBtnWithAnimation(EditBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+            
+            ; 重命名按钮
+            BtnStartX += BtnWidth + BtnSpacing
+            RenameBtn := PreviewGUI.Add("Text", "x" . BtnStartX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vPreviewRenameBtn", "重命名")
+            RenameBtn.SetFont("s10", "Segoe UI")
+            RenameBtn.OnEvent("Click", CreatePreviewRenameHandler(PreviewGUI, Template))
+            HoverBtnWithAnimation(RenameBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+            
+            ; 发送到Cursor按钮
+            BtnStartX += BtnWidth + BtnSpacing
+            SendBtn := PreviewGUI.Add("Text", "x" . BtnStartX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vPreviewSendBtn", "发送")
+            SendBtn.SetFont("s10", "Segoe UI")
+            SendBtn.OnEvent("Click", CreatePreviewSendHandler(PreviewGUI, Template))
+            HoverBtnWithAnimation(SendBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+            
+            ; 移动分类按钮
+            BtnStartX += BtnWidth + BtnSpacing
+            MoveBtn := PreviewGUI.Add("Text", "x" . BtnStartX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vPreviewMoveBtn", "移动")
+            MoveBtn.SetFont("s10", "Segoe UI")
+            MoveBtn.OnEvent("Click", CreatePreviewMoveHandler(PreviewGUI, Template))
+            HoverBtnWithAnimation(MoveBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+            
+            ; 删除按钮
+            BtnStartX += BtnWidth + BtnSpacing
+            DeleteBtn := PreviewGUI.Add("Text", "x" . BtnStartX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnDanger . " vPreviewDeleteBtn", "删除")
+            DeleteBtn.SetFont("s10", "Segoe UI")
+            DeleteBtn.OnEvent("Click", CreatePreviewDeleteHandler(PreviewGUI, Template))
+            HoverBtnWithAnimation(DeleteBtn, UI_Colors.BtnDanger, UI_Colors.BtnDangerHover)
+            
+            ; 关闭按钮
+            BtnStartX += BtnWidth + BtnSpacing
+            CloseBtn := PreviewGUI.Add("Text", "x" . BtnStartX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vPreviewCloseBtn", "关闭")
+            CloseBtn.SetFont("s10", "Segoe UI")
+            CloseBtn.OnEvent("Click", (*) => PreviewGUI.Destroy())
+            HoverBtnWithAnimation(CloseBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+            
+            PreviewGUI.Show("w640 h550")
+            return
+        }
+    } catch {
+    }
+}
+
+; ===================== 发送到Cursor =====================
+OnPromptManagerSendToCursor() {
+    global PromptManagerListView, CurrentPromptFolder, PromptTemplates
+    
+    SelectedRow := PromptManagerListView.GetNext()
+    if (SelectedRow = 0) {
+        return
+    }
+    
+    try {
+        ItemName := PromptManagerListView.GetText(SelectedRow, 1)
+        ; 移除类型检查，因为现在所有项目都是模板
+        
+        ; 找到对应的模板
+        for Index, Template in PromptTemplates {
+            if (Template.Category = CurrentPromptFolder && Template.Title = ItemName) {
+                SendTemplateToCursorWithKey("", Template)
+                return
+            }
+        }
+    } catch {
+    }
+}
+
+; ===================== 复制模板 =====================
+OnPromptManagerCopy() {
+    global PromptManagerListView, CurrentPromptFolder, PromptTemplates
+    
+    SelectedRow := PromptManagerListView.GetNext()
+    if (SelectedRow = 0) {
+        return
+    }
+    
+    try {
+        ItemName := PromptManagerListView.GetText(SelectedRow, 1)
+        
+        ; 🚀 性能优化：使用索引直接查找 - O(1)
+        Key := CurrentPromptFolder . "|" . ItemName
+        global TemplateIndexByTitle
+        if (TemplateIndexByTitle.Has(Key)) {
+            Template := TemplateIndexByTitle[Key]
+            A_Clipboard := Template.Content
+            TrayTip("已复制", "提示", "Iconi 1")
+            return
+        }
+    } catch {
+    }
+}
+
+; ===================== 编辑模板 =====================
+OnPromptManagerEdit() {
+    global PromptManagerListView, CurrentPromptFolder, PromptTemplates
+    
+    SelectedRow := PromptManagerListView.GetNext()
+    if (SelectedRow = 0) {
+        return
+    }
+    
+    try {
+        ItemName := PromptManagerListView.GetText(SelectedRow, 1)
+        
+        ; 🚀 性能优化：使用索引直接查找 - O(1)
+        Key := CurrentPromptFolder . "|" . ItemName
+        global TemplateIndexByTitle
+        if (TemplateIndexByTitle.Has(Key)) {
+            Template := TemplateIndexByTitle[Key]
+            EditPromptTemplateDialog(Template.ID, Template)
+            ; 使用SetTimer延迟刷新，确保编辑对话框已关闭
+            SetTimer(() => RefreshPromptListView(), -300)
+            return
+        }
+    } catch {
+    }
+}
+
+; ===================== 移动模板 =====================
+OnPromptManagerMove() {
+    global PromptManagerListView, CurrentPromptFolder, PromptTemplates, SavePromptTemplates
+    
+    SelectedRow := PromptManagerListView.GetNext()
+    if (SelectedRow = 0) {
+        return
+    }
+    
+    try {
+        ItemName := PromptManagerListView.GetText(SelectedRow, 1)
+        
+        ; 找到对应的模板
+        TargetTemplate := ""
+        TemplateIndex := 0
+        for Index, Template in PromptTemplates {
+            if (Template.Category = CurrentPromptFolder && Template.Title = ItemName) {
+                TargetTemplate := Template
+                TemplateIndex := Index
+                break
+            }
+        }
+        
+        if (!TargetTemplate) {
+            return
+        }
+        
+        ; 显示移动对话框，选择目标文件夹
+        global UI_Colors, ThemeMode
+        MoveGUI := Gui("+AlwaysOnTop -Caption", "移动到")
+        MoveGUI.BackColor := UI_Colors.Background
+        MoveGUI.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
+        
+        ; 自定义标题栏
+        TitleBarHeight := 35
+        TitleBar := MoveGUI.Add("Text", "x0 y0 w340 h" . TitleBarHeight . " Background" . UI_Colors.TitleBar . " vMoveTitleBar", "移动到")
+        TitleBar.SetFont("s10 Bold c" . UI_Colors.Text, "Segoe UI")
+        TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2, , , MoveGUI.Hwnd)) ; 拖动窗口
+        
+        ; 关闭按钮
+        CloseBtn := MoveGUI.Add("Text", "x300 y0 w40 h" . TitleBarHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.TitleBar . " vMoveCloseBtn", "✕")
+        CloseBtn.SetFont("s10", "Segoe UI")
+        CloseBtn.OnEvent("Click", (*) => MoveGUI.Destroy())
+        HoverBtnWithAnimation(CloseBtn, UI_Colors.TitleBar, "e81123")
+        
+        ; 调整Y位置，为标题栏留出空间
+        MoveGUI.Add("Text", "x20 y" . (TitleBarHeight + 10) . " w300 h25 c" . UI_Colors.Text, "选择目标分类：")
+        
+        ; 从PromptTemplates中获取所有唯一的分类名称（排除"教学"分类）
+        CategorySet := Map()
+        for Index, T in PromptTemplates {
+            ; 直接访问Category属性（与RefreshPromptListView保持一致）
+            ; 排除"教学"分类（已改为"改错"）
+            if (IsObject(T) && T.Category != "" && T.Category != "教学") {
+                CategorySet[T.Category] := true
+            }
+        }
+        
+        ; 将Map的键转换为数组，并按字母顺序排序
+        CategoryOrder := []
+        for CategoryName, _ in CategorySet {
+            CategoryOrder.Push(CategoryName)
+        }
+        
+        ; 使用自定义排序函数对数组进行排序
+        if (CategoryOrder.Length > 1) {
+            ; 使用冒泡排序，使用StrCompare进行字符串比较
+            Loop CategoryOrder.Length - 1 {
+                i := A_Index
+                Loop CategoryOrder.Length - i {
+                    j := A_Index + i
+                    ; 使用StrCompare进行字符串比较（返回-1, 0, 1）
+                    if (StrCompare(CategoryOrder[i], CategoryOrder[j]) > 0) {
+                        temp := CategoryOrder[i]
+                        CategoryOrder[i] := CategoryOrder[j]
+                        CategoryOrder[j] := temp
+                    }
+                }
+            }
+        }
+        
+        ; 如果没有找到任何分类，使用默认分类
+        if (CategoryOrder.Length = 0) {
+            CategoryOrder := ["基础", "改错", "专业"]
+        }
+        
+        ; 调整Y位置，为标题栏留出空间
+        LabelY := TitleBarHeight + 40
+        MoveGUI.Add("Text", "x20 y" . LabelY . " w300 h25 c" . UI_Colors.Text, "分类：")
+        ; 使用ListBox替代DDL，以便显示更多选项
+        ; 计算ListBox高度（每项25像素，最多显示8项，最少100像素）
+        ListBoxHeight := Min(Max(CategoryOrder.Length * 25 + 10, 100), 210)
+        ListBoxY := LabelY + 25
+        CategoryListBox := MoveGUI.Add("ListBox", "x20 y" . ListBoxY . " w300 h" . ListBoxHeight . " Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " vCategoryDDL", CategoryOrder)
+        CategoryListBox.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
+        
+        ; 获取ListBox的句柄并保存，用于WM_CTLCOLORLISTBOX消息处理
+        ListBoxHwnd := CategoryListBox.Hwnd
+        MoveGUI["ListBoxHwnd"] := ListBoxHwnd
+        
+        ; 创建画刷用于ListBox背景色（InputBg颜色）
+        ColorCode := "0x" . UI_Colors.InputBg
+        RGBColor := Integer(ColorCode)
+        R := (RGBColor & 0xFF0000) >> 16
+        G := (RGBColor & 0x00FF00) >> 8
+        B := RGBColor & 0x0000FF
+        BGRColor := (B << 16) | (G << 8) | R
+        ; 保存ListBox句柄和画刷到全局变量，供WM_CTLCOLORLISTBOX使用
+        global MoveGUIListBoxHwnd, MoveGUIListBoxBrush
+        MoveGUIListBoxHwnd := ListBoxHwnd
+        ListBoxBrush := DllCall("gdi32.dll\CreateSolidBrush", "UInt", BGRColor, "Ptr")
+        MoveGUIListBoxBrush := ListBoxBrush
+        
+        ; 在窗口关闭时清理资源
+        MoveGUI.OnEvent("Close", CleanupMoveGUIListBox)
+        
+        ; 设置当前文件夹为默认选项
+        for Index, Cat in CategoryOrder {
+            if (Cat = CurrentPromptFolder) {
+                CategoryListBox.Value := Index
+                break
+            }
+        }
+        
+        ; 计算按钮Y位置（ListBox下方20像素）
+        BtnY := ListBoxY + ListBoxHeight + 20
+        TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+        OkBtn := MoveGUI.Add("Text", "x120 y" . BtnY . " w80 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vMoveOkBtn", "确定")
+        OkBtn.SetFont("s10", "Segoe UI")
+        OkBtn.OnEvent("Click", CreateMoveTemplateConfirmHandler(MoveGUI, TargetTemplate, TemplateIndex))
+        HoverBtnWithAnimation(OkBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+        
+        CancelBtn := MoveGUI.Add("Text", "x210 y" . BtnY . " w80 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vMoveCancelBtn", "取消")
+        CancelBtn.SetFont("s10", "Segoe UI")
+        CancelBtn.OnEvent("Click", CreateMoveCancelHandler(MoveGUI))
+        HoverBtnWithAnimation(CancelBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        
+        ; 计算窗口高度（加上标题栏高度）
+        WindowHeight := BtnY + 50 + TitleBarHeight
+        MoveGUI.Show("w340 h" . WindowHeight)
+    } catch {
+    }
+}
+
+; ===================== 清理移动分类弹窗的ListBox资源 =====================
+CleanupMoveGUIListBox(*) {
+    global MoveGUIListBoxHwnd, MoveGUIListBoxBrush
+    try {
+        if (MoveGUIListBoxBrush != 0) {
+            DllCall("gdi32.dll\DeleteObject", "Ptr", MoveGUIListBoxBrush)
+            MoveGUIListBoxBrush := 0
+        }
+        MoveGUIListBoxHwnd := 0
+    } catch {
+    }
+}
+
+; ===================== 清理从模板移动弹窗的ListBox资源 =====================
+CleanupMoveFromTemplateListBox(*) {
+    global MoveFromTemplateListBoxHwnd, MoveFromTemplateListBoxBrush
+    try {
+        if (MoveFromTemplateListBoxBrush != 0) {
+            DllCall("gdi32.dll\DeleteObject", "Ptr", MoveFromTemplateListBoxBrush)
+            MoveFromTemplateListBoxBrush := 0
+        }
+        MoveFromTemplateListBoxHwnd := 0
+    } catch {
+    }
+}
+
+; ===================== 创建移动分类弹窗取消按钮处理器 =====================
+CreateMoveCancelHandler(MoveGUI) {
+    return MoveCancelHandler.Bind(MoveGUI)
+}
+
+MoveCancelHandler(MoveGUI, *) {
+    CleanupMoveGUIListBox()
+    MoveGUI.Destroy()
+}
+
+; ===================== 创建从模板移动弹窗取消按钮处理器 =====================
+CreateMoveFromTemplateCancelHandler(MoveGUI) {
+    return MoveFromTemplateCancelHandler.Bind(MoveGUI)
+}
+
+MoveFromTemplateCancelHandler(MoveGUI, *) {
+    CleanupMoveFromTemplateListBox()
+    MoveGUI.Destroy()
+}
+
+; ===================== 创建移动模板确认处理器 =====================
+CreateMoveTemplateConfirmHandler(MoveGUI, TargetTemplate, TemplateIndex) {
+    return MoveTemplateConfirmHandler.Bind(MoveGUI, TargetTemplate, TemplateIndex)
+}
+
+MoveTemplateConfirmHandler(MoveGUI, TargetTemplate, TemplateIndex, *) {
+    global PromptTemplates, SavePromptTemplates, RefreshPromptListView, TemplateIndexByTitle, TemplateIndexByArrayIndex
+    global MoveGUIListBoxHwnd, MoveGUIListBoxBrush
+    
+    try {
+        CategoryDDL := MoveGUI["CategoryDDL"]
+        NewCategory := CategoryDDL.Text
+        
+        ; 🚀 性能优化：更新模板的分类并更新索引
+        if (TemplateIndex > 0 && TemplateIndex <= PromptTemplates.Length && TargetTemplate) {
+            OldCategory := TargetTemplate.Category
+            TargetTemplate.Category := NewCategory
+            PromptTemplates[TemplateIndex].Category := NewCategory
+            
+            ; 更新索引
+            OldKey := OldCategory . "|" . TargetTemplate.Title
+            NewKey := NewCategory . "|" . TargetTemplate.Title
+            if (TemplateIndexByTitle.Has(OldKey)) {
+                TemplateIndexByTitle.Delete(OldKey)
+            }
+            TemplateIndexByTitle[NewKey] := TargetTemplate
+            
+            ; 标记分类映射需要重建
+            InvalidateTemplateCache()
+            
+            SavePromptTemplates()
+            RefreshPromptListView()
+        }
+        
+        ; 清理画刷和句柄
+        try {
+            if (MoveGUIListBoxBrush != 0) {
+                DllCall("gdi32.dll\DeleteObject", "Ptr", MoveGUIListBoxBrush)
+                MoveGUIListBoxBrush := 0
+            }
+            MoveGUIListBoxHwnd := 0
+        } catch {
+        }
+        
+        MoveGUI.Destroy()
+        TrayTip("已移动", "提示", "Iconi 1")
+    } catch {
+    }
+}
+
+; ===================== 预览窗口按钮处理函数 =====================
+CreatePreviewCopyHandler(PreviewGUI, Template) {
+    return PreviewCopyHandler.Bind(Template)
+}
+
+PreviewCopyHandler(Template, *) {
+    A_Clipboard := Template.Content
+    TrayTip("已复制到剪贴板", "提示", "Iconi 1")
+}
+
+CreatePreviewEditHandler(PreviewGUI, Template) {
+    return PreviewEditHandler.Bind(PreviewGUI, Template)
+}
+
+PreviewEditHandler(PreviewGUI, Template, *) {
+    PreviewGUI.Destroy()
+    EditPromptTemplateDialog(Template.ID, Template)
+    SetTimer(RefreshPromptListView, -300)
+}
+
+CreatePreviewRenameHandler(PreviewGUI, Template) {
+    return PreviewRenameHandler.Bind(PreviewGUI, Template)
+}
+
+PreviewRenameHandler(PreviewGUI, Template, *) {
+    OnPromptManagerRenameFromPreview(PreviewGUI, Template)
+}
+
+CreatePreviewSendHandler(PreviewGUI, Template) {
+    return PreviewSendHandler.Bind(PreviewGUI, Template)
+}
+
+PreviewSendHandler(PreviewGUI, Template, *) {
+    PreviewGUI.Destroy()
+    SendTemplateToCursorWithKey("", Template)
+}
+
+CreatePreviewMoveHandler(PreviewGUI, Template) {
+    return PreviewMoveHandler.Bind(PreviewGUI, Template)
+}
+
+PreviewMoveHandler(PreviewGUI, Template, *) {
+    PreviewGUI.Destroy()
+    OnPromptManagerMoveFromTemplate(Template)
+}
+
+CreatePreviewDeleteHandler(PreviewGUI, Template) {
+    return PreviewDeleteHandler.Bind(PreviewGUI, Template)
+}
+
+PreviewDeleteHandler(PreviewGUI, Template, *) {
+    PreviewGUI.Destroy()
+    OnPromptManagerDeleteFromTemplate(Template)
+}
+
+; ===================== 从预览窗口重命名 =====================
+OnPromptManagerRenameFromPreview(PreviewGUI, Template) {
+    global PromptTemplates, SavePromptTemplates, UI_Colors, ThemeMode
+    
+    ; 创建重命名对话框
+    RenameGUI := Gui("+AlwaysOnTop -Caption", "重命名模板")
+    RenameGUI.BackColor := UI_Colors.Background
+    RenameGUI.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
+    
+    ; 自定义标题栏
+    TitleBarHeight := 35
+    TitleBar := RenameGUI.Add("Text", "x0 y0 w340 h" . TitleBarHeight . " Background" . UI_Colors.TitleBar . " vRenameTitleBar", "重命名模板")
+    TitleBar.SetFont("s10 Bold c" . UI_Colors.Text, "Segoe UI")
+    TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2, , , RenameGUI.Hwnd)) ; 拖动窗口
+    
+    ; 关闭按钮
+    CloseBtn := RenameGUI.Add("Text", "x300 y0 w40 h" . TitleBarHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.TitleBar . " vRenameCloseBtn", "✕")
+    CloseBtn.SetFont("s10", "Segoe UI")
+    CloseBtn.OnEvent("Click", (*) => RenameGUI.Destroy())
+    HoverBtnWithAnimation(CloseBtn, UI_Colors.TitleBar, "e81123")
+    
+    ; 调整Y位置，为标题栏留出空间
+    RenameGUI.Add("Text", "x20 y" . (TitleBarHeight + 10) . " w300 h25 c" . UI_Colors.Text, "新名称:")
+    EditY := TitleBarHeight + 40
+    NameEdit := RenameGUI.Add("Edit", "x20 y" . EditY . " w300 h30 vNewName Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, Template.Title)
+    NameEdit.SetFont("s10", "Segoe UI")
+    
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    BtnY := TitleBarHeight + 80
+    OkBtn := RenameGUI.Add("Text", "x80 y" . BtnY . " w80 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vRenameOkBtn", "确定")
+    OkBtn.SetFont("s10", "Segoe UI")
+    OkBtn.NormalColor := UI_Colors.BtnPrimary
+    OkBtn.HoverColor := UI_Colors.BtnPrimaryHover
+    OkBtn.OnEvent("Click", CreateRenameConfirmHandler(RenameGUI, Template))
+    HoverBtnWithAnimation(OkBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+    
+    CancelBtn := RenameGUI.Add("Text", "x180 y" . BtnY . " w80 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vRenameCancelBtn", "取消")
+    CancelBtn.SetFont("s10", "Segoe UI")
+    CancelBtn.NormalColor := UI_Colors.BtnBg
+    CancelBtn.HoverColor := UI_Colors.BtnHover
+    CancelBtn.OnEvent("Click", (*) => RenameGUI.Destroy())
+    HoverBtnWithAnimation(CancelBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    RenameGUI.Show("w340 h" . (BtnY + 50))
+}
+
+CreateRenameConfirmHandler(RenameGUI, Template) {
+    return RenameConfirmHandler.Bind(RenameGUI, Template)
+}
+
+RenameConfirmHandler(RenameGUI, Template, *) {
+    global PromptTemplates, SavePromptTemplates, TemplateIndexByTitle
+    
+    NewName := RenameGUI["NewName"].Value
+    if (NewName = "" || NewName = Template.Title) {
+        RenameGUI.Destroy()
+        return
+    }
+    
+    ; 🚀 性能优化：使用索引检查名称是否重复 - O(1)
+    Key := Template.Category . "|" . NewName
+    if (TemplateIndexByTitle.Has(Key)) {
+        ExistingTemplate := TemplateIndexByTitle[Key]
+        if (ExistingTemplate.ID != Template.ID) {
+            MsgBox("该分类下已存在同名模板", "提示", "Iconx")
+            return
+        }
+    }
+    
+    ; 更新模板名称
+    OldTitle := Template.Title
+    Template.Title := NewName
+    
+    ; 🚀 性能优化：更新索引
+    OldKey := Template.Category . "|" . OldTitle
+    if (TemplateIndexByTitle.Has(OldKey)) {
+        TemplateIndexByTitle.Delete(OldKey)
+    }
+    TemplateIndexByTitle[Key] := Template
+    
+    ; 标记分类映射需要重建
+    InvalidateTemplateCache()
+    
+    SavePromptTemplates()
+    RefreshPromptListView()
+    RenameGUI.Destroy()
+    TrayTip("已重命名", "提示", "Iconi 1")
+}
+
+; ===================== 从模板对象执行移动 =====================
+OnPromptManagerMoveFromTemplate(Template) {
+    global PromptTemplates, SavePromptTemplates, CurrentPromptFolder, UI_Colors, ThemeMode
+    
+    ; 显示移动对话框，选择目标文件夹
+    MoveGUI := Gui("+AlwaysOnTop -Caption", "移动到")
+    MoveGUI.BackColor := UI_Colors.Background
+    MoveGUI.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
+    
+    ; 自定义标题栏
+    TitleBarHeight := 35
+    TitleBar := MoveGUI.Add("Text", "x0 y0 w340 h" . TitleBarHeight . " Background" . UI_Colors.TitleBar . " vMoveFromTemplateTitleBar", "移动到")
+    TitleBar.SetFont("s10 Bold c" . UI_Colors.Text, "Segoe UI")
+    TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2, , , MoveGUI.Hwnd)) ; 拖动窗口
+    
+    ; 关闭按钮
+    CloseBtn := MoveGUI.Add("Text", "x300 y0 w40 h" . TitleBarHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.TitleBar . " vMoveFromTemplateCloseBtn", "✕")
+    CloseBtn.SetFont("s10", "Segoe UI")
+    CloseBtn.OnEvent("Click", (*) => MoveGUI.Destroy())
+    HoverBtnWithAnimation(CloseBtn, UI_Colors.TitleBar, "e81123")
+    
+    ; 从PromptTemplates中获取所有唯一的分类名称（排除"教学"分类）
+    CategorySet := Map()
+    for Index, T in PromptTemplates {
+        ; 直接访问Category属性（与RefreshPromptListView保持一致）
+        ; 排除"教学"分类（已改为"改错"）
+        if (IsObject(T) && T.Category != "" && T.Category != "教学") {
+            CategorySet[T.Category] := true
+        }
+    }
+    
+    ; 将Map的键转换为数组，并按字母顺序排序
+    CategoryOrder := []
+    for CategoryName, _ in CategorySet {
+        CategoryOrder.Push(CategoryName)
+    }
+    
+    ; 使用自定义排序函数对数组进行排序
+    if (CategoryOrder.Length > 1) {
+        ; 使用冒泡排序，使用StrCompare进行字符串比较
+        Loop CategoryOrder.Length - 1 {
+            i := A_Index
+            Loop CategoryOrder.Length - i {
+                j := A_Index + i
+                ; 使用StrCompare进行字符串比较（返回-1, 0, 1）
+                if (StrCompare(CategoryOrder[i], CategoryOrder[j]) > 0) {
+                    temp := CategoryOrder[i]
+                    CategoryOrder[i] := CategoryOrder[j]
+                    CategoryOrder[j] := temp
+                }
+            }
+        }
+    }
+    
+    ; 如果没有找到任何分类，使用默认分类
+    if (CategoryOrder.Length = 0) {
+        CategoryOrder := ["基础", "专业", "改错"]
+    }
+    
+    ; 调整Y位置，为标题栏留出空间
+    LabelY := TitleBarHeight + 20
+    MoveGUI.Add("Text", "x20 y" . LabelY . " w300 h25 c" . UI_Colors.Text, "选择目标分类：")
+    
+    ; 使用ListBox替代DDL，以便显示更多选项
+    ; 计算ListBox高度（每项25像素，最多显示8项，最少100像素）
+    ListBoxHeight := Min(Max(CategoryOrder.Length * 25 + 10, 100), 210)
+    ListBoxY := LabelY + 30
+    CategoryListBox := MoveGUI.Add("ListBox", "x20 y" . ListBoxY . " w300 h" . ListBoxHeight . " Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " vCategoryDDL", CategoryOrder)
+    CategoryListBox.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
+    
+    ; 获取ListBox的句柄并保存，用于WM_CTLCOLORLISTBOX消息处理
+    ListBoxHwnd := CategoryListBox.Hwnd
+    global MoveFromTemplateListBoxHwnd, MoveFromTemplateListBoxBrush
+    MoveFromTemplateListBoxHwnd := ListBoxHwnd
+    
+    ; 创建画刷用于ListBox背景色（InputBg颜色）
+    ColorCode := "0x" . UI_Colors.InputBg
+    RGBColor := Integer(ColorCode)
+    R := (RGBColor & 0xFF0000) >> 16
+    G := (RGBColor & 0x00FF00) >> 8
+    B := RGBColor & 0x0000FF
+    BGRColor := (B << 16) | (G << 8) | R
+    MoveFromTemplateListBoxBrush := DllCall("gdi32.dll\CreateSolidBrush", "UInt", BGRColor, "Ptr")
+    
+    ; 在窗口关闭时清理资源
+    MoveGUI.OnEvent("Close", CleanupMoveFromTemplateListBox)
+    
+    ; 设置当前分类为默认选项
+    for Index, Cat in CategoryOrder {
+        if (Cat = Template.Category) {
+            CategoryListBox.Value := Index
+            break
+        }
+    }
+    
+    ; 计算按钮Y位置（ListBox下方20像素）
+    BtnY := ListBoxY + ListBoxHeight + 20
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    OkBtn := MoveGUI.Add("Text", "x120 y" . BtnY . " w80 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vMoveOkBtn", "确定")
+    OkBtn.SetFont("s10", "Segoe UI")
+    OkBtn.OnEvent("Click", CreateMoveFromTemplateHandler(MoveGUI, Template))
+    HoverBtnWithAnimation(OkBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+    
+    CancelBtn := MoveGUI.Add("Text", "x210 y" . BtnY . " w80 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vMoveCancelBtn", "取消")
+    CancelBtn.SetFont("s10", "Segoe UI")
+    CancelBtn.OnEvent("Click", CreateMoveFromTemplateCancelHandler(MoveGUI))
+    HoverBtnWithAnimation(CancelBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    ; 计算窗口高度（加上标题栏高度）
+    WindowHeight := BtnY + 50 + TitleBarHeight
+    MoveGUI.Show("w340 h" . WindowHeight)
+}
+
+CreateMoveFromTemplateHandler(MoveGUI, Template) {
+    return MoveFromTemplateHandler.Bind(MoveGUI, Template)
+}
+
+MoveFromTemplateHandler(MoveGUI, Template, *) {
+    global PromptTemplates, SavePromptTemplates, RefreshPromptListView
+    global MoveFromTemplateListBoxHwnd, MoveFromTemplateListBoxBrush
+    
+    CategoryDDL := MoveGUI["CategoryDDL"]
+    NewCategory := CategoryDDL.Text
+    
+    ; 更新模板的分类
+    Template.Category := NewCategory
+    SavePromptTemplates()
+    RefreshPromptListView()
+    
+    ; 清理画刷和句柄
+    try {
+        if (MoveFromTemplateListBoxBrush != 0) {
+            DllCall("gdi32.dll\DeleteObject", "Ptr", MoveFromTemplateListBoxBrush)
+            MoveFromTemplateListBoxBrush := 0
+        }
+        MoveFromTemplateListBoxHwnd := 0
+    } catch {
+    }
+    
+    MoveGUI.Destroy()
+    TrayTip("已移动", "提示", "Iconi 1")
+}
+
+; ===================== 从模板对象执行删除 =====================
+OnPromptManagerDeleteFromTemplate(Template) {
+    global PromptTemplates, SavePromptTemplates, DefaultTemplateIDs
+    
+    ; 检查是否是默认模板
+    IsDefault := false
+    for Type, TemplateID in DefaultTemplateIDs {
+        if (TemplateID = Template.ID) {
+            IsDefault := true
+            break
+        }
+    }
+    
+    if (IsDefault) {
+        MsgBox("不能删除默认模板", "提示", "Iconx")
+        return
+    }
+    
+    ; 确认删除
+    Quote := Chr(34)
+    Result := MsgBox("确定要删除模板 " . Quote . Template.Title . Quote . " 吗？", "确认删除", "YesNo Icon?")
+    if (Result != "Yes") {
+        return
+    }
+    
+    ; 🚀 性能优化：使用索引直接查找数组位置 - O(1)
+    global TemplateIndexByArrayIndex, TemplateIndexByID, TemplateIndexByTitle
+    if (TemplateIndexByArrayIndex.Has(Template.ID)) {
+        Index := TemplateIndexByArrayIndex[Template.ID]
+        PromptTemplates.RemoveAt(Index)
+        
+        ; 立即删除索引
+        TemplateIndexByID.Delete(Template.ID)
+        Key := Template.Category . "|" . Template.Title
+        if (TemplateIndexByTitle.Has(Key)) {
+            TemplateIndexByTitle.Delete(Key)
+        }
+        TemplateIndexByArrayIndex.Delete(Template.ID)
+        
+        ; 标记分类映射需要重建
+        InvalidateTemplateCache()
+    }
+    
+    SavePromptTemplates()
+    RefreshPromptListView()
+    TrayTip("已删除", "提示", "Iconi 1")
+}
+
+; ===================== 重命名模板 =====================
+OnPromptManagerRename() {
+    global PromptManagerListView, CurrentPromptFolder, PromptTemplates
+    
+    SelectedRow := PromptManagerListView.GetNext()
+    if (SelectedRow = 0) {
+        return
+    }
+    
+    try {
+        ItemName := PromptManagerListView.GetText(SelectedRow, 1)
+        
+        ; 找到对应的模板
+        for Index, Template in PromptTemplates {
+            if (Template.Category = CurrentPromptFolder && Template.Title = ItemName) {
+                OnPromptManagerRenameFromPreview(0, Template)
+                return
+            }
+        }
+    } catch {
+    }
+}
+
+; ===================== 删除模板 =====================
+OnPromptManagerDelete() {
+    global PromptManagerListView, CurrentPromptFolder, PromptTemplates, SavePromptTemplates, DefaultTemplateIDs
+    
+    SelectedRow := PromptManagerListView.GetNext()
+    if (SelectedRow = 0) {
+        return
+    }
+    
+    try {
+        ItemName := PromptManagerListView.GetText(SelectedRow, 1)
+        
+        ; 🚀 性能优化：使用索引直接查找 - O(1)
+        Key := CurrentPromptFolder . "|" . ItemName
+        global TemplateIndexByTitle, TemplateIndexByArrayIndex
+        
+        if (TemplateIndexByTitle.Has(Key)) {
+            TargetTemplate := TemplateIndexByTitle[Key]
+            ; 获取数组索引
+            if (TemplateIndexByArrayIndex.Has(TargetTemplate.ID)) {
+                TemplateIndex := TemplateIndexByArrayIndex[TargetTemplate.ID]
+            } else {
+                TemplateIndex := 0
+            }
+        } else {
+            return
+        }
+        
+        ; 检查是否是默认模板
+        IsDefault := false
+        for Key, DefaultID in DefaultTemplateIDs {
+            if (DefaultID = TargetTemplate.ID) {
+                IsDefault := true
+                break
+            }
+        }
+        
+        if (IsDefault) {
+            MsgBox("无法删除默认模板", "提示", "Icon!")
+            return
+        }
+        
+        ; 确认删除
+        Quote := Chr(34)
+        Result := MsgBox("确定要删除模板 " . Quote . ItemName . Quote . " 吗？", "确认删除", "YesNo Icon?")
+        if (Result = "Yes") {
+            ; 从数组中删除
+            PromptTemplates.RemoveAt(TemplateIndex)
+            SavePromptTemplates()
+            RefreshPromptListView()
+            TrayTip("已删除", "提示", "Iconi 1")
+        }
+    } catch {
+    }
+}
+
+; ===================== 返回上级文件夹 =====================
+OnPromptManagerGoBack() {
+    global CurrentPromptFolder
+    CurrentPromptFolder := ""
+    RefreshPromptListView()
+}
+
+; ===================== 恢复展开的模板 =====================
+RestoreExpandedTemplate(TemplateKey, CategoryName, Template) {
+    global ExpandedTemplateKey, CategoryExpandedState
+    ExpandTemplate(TemplateKey, CategoryName, Template)
+    ExpandedTemplateKey := TemplateKey
+    ; 更新保存的状态
+    if (!IsSet(CategoryExpandedState)) {
+        CategoryExpandedState := Map()
+    }
+    CategoryExpandedState[CategoryName] := TemplateKey
+}
+
+; ===================== 展开分类中的第一个模板 =====================
+ExpandFirstTemplateInCategory(CategoryName, ShouldExpand) {
+    global PromptTemplates, ExpandedTemplateKey, CategoryExpandedState
+    
+    if (!ShouldExpand) {
+        ExpandedTemplateKey := ""
+        return
+    }
+    
+    ; 找到第一个模板
+    FirstTemplate := ""
+    FirstIndex := 0
+    TemplateIndex := 0
+    for Index, Template in PromptTemplates {
+        if (Template.Category = CategoryName) {
+            TemplateIndex++
+            if (TemplateIndex = 1) {
+                FirstTemplate := Template
+                FirstIndex := TemplateIndex
+                break
+            }
+        }
+    }
+    
+    if (FirstTemplate && FirstTemplate.ID != "") {
+        TemplateKey := CategoryName . "_" . FirstIndex
+        ; 使用SetTimer延迟展开，确保UI已经渲染完成
+        SetTimer(() => RestoreExpandedTemplate(TemplateKey, CategoryName, FirstTemplate), -150)
+    } else {
+        ExpandedTemplateKey := ""
+    }
+}
+
+; ===================== 自动展开第一个模板（用于初始化）=====================
+AutoExpandFirstTemplate(TemplateKey, CategoryName, Template) {
+    global ExpandedTemplateKey
+    ExpandTemplate(TemplateKey, CategoryName, Template)
+    ExpandedTemplateKey := TemplateKey
+}
+
+; ===================== 创建分类内容显示区域 =====================
+CreatePromptCategoryContent(ConfigGUI, X, Y, W, H, CategoryName, Templates) {
+    global PromptCategoryTabControls, UI_Colors, PromptsMainTabControls, PromptsTabControls, ExpandedTemplateKey
+    
+    ; 创建分类面板（默认隐藏）
+    CategoryPanel := ConfigGUI.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Background" . UI_Colors.Background . " vPromptCategoryPanel" . CategoryName, "")
+    CategoryPanel.Visible := false
+    PromptCategoryTabControls[CategoryName] := []
+    PromptCategoryTabControls[CategoryName].Push(CategoryPanel)
+    PromptsMainTabControls["manage"].Push(CategoryPanel)
+    PromptsTabControls.Push(CategoryPanel)
+    
+    ; 创建模板按钮列表（动态计算位置，避免重叠）
+    BtnY := Y + 10
+    BtnHeight := 40
+    BtnSpacing := 10
+    ExpandPanelHeight := 300  ; 展开面板的高度
+    ScrollArea := H - 20
+    
+    ; 保存每个模板按钮的位置信息，用于后续动态调整
+    global TemplateButtonPositions := Map()
+    if (!IsSet(TemplateButtonPositions)) {
+        TemplateButtonPositions := Map()
+    }
+    if (!TemplateButtonPositions.Has(CategoryName)) {
+        TemplateButtonPositions[CategoryName] := Map()
+    }
+    
+    for Index, Template in Templates {
+        TemplateKey := CategoryName . "_" . Index
+        
+        ; 模板按钮（可点击展开/折叠）
+        Btn := ConfigGUI.Add("Text", "x" . (X + 10) . " y" . BtnY . " w" . (W - 20) . " h" . BtnHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg . " vPromptTemplateBtn" . TemplateKey, Template.Title)
+        Btn.SetFont("s10", "Segoe UI")
+        Btn.OnEvent("Click", CreateTemplateToggleHandler(TemplateKey, Template, CategoryName, Index, ConfigGUI, X, BtnY + BtnHeight + 5, W - 20, ExpandPanelHeight))
+        HoverBtnWithAnimation(Btn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        Btn.Visible := false
+        PromptCategoryTabControls[CategoryName].Push(Btn)
+        PromptsMainTabControls["manage"].Push(Btn)
+        PromptsTabControls.Push(Btn)
+        
+        ; 展开面板（默认隐藏）
+        ExpandPanel := ConfigGUI.Add("Text", "x" . (X + 10) . " y" . (BtnY + BtnHeight + 5) . " w" . (W - 20) . " h" . ExpandPanelHeight . " Background" . UI_Colors.InputBg . " vPromptExpandPanel" . TemplateKey, "")
+        ExpandPanel.Visible := false
+        PromptCategoryTabControls[CategoryName].Push(ExpandPanel)
+        PromptsMainTabControls["manage"].Push(ExpandPanel)
+        PromptsTabControls.Push(ExpandPanel)
+        
+        ; 模板内容编辑框
+        ContentEditY := BtnY + BtnHeight + 15
+        ContentEdit := ConfigGUI.Add("Edit", "x" . (X + 20) . " y" . ContentEditY . " w" . (W - 40) . " h" . (ExpandPanelHeight - 100) . " Multi vPromptContentEdit" . TemplateKey . " Background" . UI_Colors.Background . " c" . UI_Colors.Text, Template.Content)
+        ContentEdit.SetFont("s9", "Consolas")
+        ContentEdit.Visible := false
+        PromptCategoryTabControls[CategoryName].Push(ContentEdit)
+        PromptsMainTabControls["manage"].Push(ContentEdit)
+        PromptsTabControls.Push(ContentEdit)
+        
+        ; 按钮区域
+        BtnAreaY := ContentEditY + ExpandPanelHeight - 90
+        BtnWidth := 80
+        BtnHeight2 := 30
+        BtnSpacing2 := 10
+        BtnX := X + 20
+        
+        ; 预览按钮
+        PreviewBtn := ConfigGUI.Add("Text", "x" . BtnX . " y" . BtnAreaY . " w" . BtnWidth . " h" . BtnHeight2 . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vPromptPreviewBtn" . TemplateKey, "预览")
+        PreviewBtn.SetFont("s9", "Segoe UI")
+        PreviewBtn.OnEvent("Click", CreatePreviewTemplateHandler(TemplateKey, Template))
+        HoverBtnWithAnimation(PreviewBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+        PreviewBtn.Visible := false
+        PromptCategoryTabControls[CategoryName].Push(PreviewBtn)
+        PromptsMainTabControls["manage"].Push(PreviewBtn)
+        PromptsTabControls.Push(PreviewBtn)
+        
+        ; 发送按钮
+        BtnX += BtnWidth + BtnSpacing2
+        SendBtn := ConfigGUI.Add("Text", "x" . BtnX . " y" . BtnAreaY . " w" . BtnWidth . " h" . BtnHeight2 . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vPromptSendBtn" . TemplateKey, "发送")
+        SendBtn.SetFont("s9", "Segoe UI")
+        SendBtn.OnEvent("Click", CreateSendTemplateHandlerWithKey(TemplateKey, Template))
+        HoverBtnWithAnimation(SendBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+        SendBtn.Visible := false
+        PromptCategoryTabControls[CategoryName].Push(SendBtn)
+        PromptsMainTabControls["manage"].Push(SendBtn)
+        PromptsTabControls.Push(SendBtn)
+        
+        ; 复制按钮
+        BtnX += BtnWidth + BtnSpacing2
+        CopyBtn := ConfigGUI.Add("Text", "x" . BtnX . " y" . BtnAreaY . " w" . BtnWidth . " h" . BtnHeight2 . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vPromptCopyBtn" . TemplateKey, "复制")
+        CopyBtn.SetFont("s9", "Segoe UI")
+        CopyBtn.OnEvent("Click", CreateCopyTemplateHandlerWithKey(TemplateKey, Template))
+        HoverBtnWithAnimation(CopyBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+        CopyBtn.Visible := false
+        PromptCategoryTabControls[CategoryName].Push(CopyBtn)
+        PromptsMainTabControls["manage"].Push(CopyBtn)
+        PromptsTabControls.Push(CopyBtn)
+        
+        ; 编辑按钮
+        BtnX += BtnWidth + BtnSpacing2
+        EditBtn := ConfigGUI.Add("Text", "x" . BtnX . " y" . BtnAreaY . " w" . BtnWidth . " h" . BtnHeight2 . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vPromptEditBtn" . TemplateKey, "编辑")
+        EditBtn.SetFont("s9", "Segoe UI")
+        EditBtn.OnEvent("Click", CreateEditTemplateHandlerWithKey(TemplateKey, Template))
+        HoverBtnWithAnimation(EditBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+        EditBtn.Visible := false
+        PromptCategoryTabControls[CategoryName].Push(EditBtn)
+        PromptsMainTabControls["manage"].Push(EditBtn)
+        PromptsTabControls.Push(EditBtn)
+        
+        ; 删除按钮
+        BtnX += BtnWidth + BtnSpacing2
+        DeleteBtn := ConfigGUI.Add("Text", "x" . BtnX . " y" . BtnAreaY . " w" . BtnWidth . " h" . BtnHeight2 . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnDanger . " vPromptDeleteBtn" . TemplateKey, "删除")
+        DeleteBtn.SetFont("s9", "Segoe UI")
+        DeleteBtn.OnEvent("Click", CreateDeleteTemplateHandlerWithKey(TemplateKey, Template))
+        HoverBtnWithAnimation(DeleteBtn, UI_Colors.BtnDanger, UI_Colors.BtnDangerHover)
+        DeleteBtn.Visible := false
+        PromptCategoryTabControls[CategoryName].Push(DeleteBtn)
+        PromptsMainTabControls["manage"].Push(DeleteBtn)
+        PromptsTabControls.Push(DeleteBtn)
+        
+        ; 更新下一个按钮的Y位置（按钮基础高度 + 间距）
+        ; 注意：展开面板不会影响后续按钮的初始位置，因为展开时我们使用Move来调整位置
+        BtnY += BtnHeight + BtnSpacing
+    }
+}
+
+; ===================== 创建模板展开/折叠处理器 =====================
+CreateTemplateToggleHandler(TemplateKey, Template, CategoryName, Index, ConfigGUI, PanelX, PanelY, PanelW, PanelH) {
+    return (*) => ToggleTemplateExpand(TemplateKey, Template, CategoryName, Index, ConfigGUI, PanelX, PanelY, PanelW, PanelH)
+}
+
+; ===================== 切换模板展开/折叠 =====================
+ToggleTemplateExpand(TemplateKey, Template, CategoryName, Index, ConfigGUI, PanelX, PanelY, PanelW, PanelH) {
+    global ExpandedTemplateKey, PromptCategoryTabControls, UI_Colors, CategoryExpandedState
+    
+    ; 如果点击的是当前展开的模板，则折叠
+    if (ExpandedTemplateKey = TemplateKey) {
+        CollapseTemplate(TemplateKey, CategoryName)
+        ExpandedTemplateKey := ""
+        ; 清除保存的展开状态
+        if (IsSet(CategoryExpandedState) && CategoryExpandedState.Has(CategoryName)) {
+            CategoryExpandedState.Delete(CategoryName)
+        }
+        ; 延迟保存到配置文件
+        SetTimer(SavePromptTemplates, -500)
+        return
+    }
+    
+    ; 折叠之前展开的模板（同一分类内的）
+    if (ExpandedTemplateKey != "") {
+        ; 检查是否是同一分类
+        Parts := StrSplit(ExpandedTemplateKey, "_", , 2)
+        if (Parts.Length >= 2 && Parts[1] = CategoryName) {
+            CollapseTemplate(ExpandedTemplateKey, CategoryName)
+        }
+    }
+    
+    ; 展开当前模板
+    ExpandTemplate(TemplateKey, CategoryName, Template)
+    ExpandedTemplateKey := TemplateKey
+    
+    ; 保存当前分类的展开状态到内存
+    if (!IsSet(CategoryExpandedState)) {
+        CategoryExpandedState := Map()
+    }
+    CategoryExpandedState[CategoryName] := TemplateKey
+    
+    ; 延迟保存到配置文件（避免频繁IO）
+    SetTimer(SavePromptTemplates, -500)
+}
+
+; ===================== 展开模板 =====================
+ExpandTemplate(TemplateKey, CategoryName, Template) {
+    global PromptCategoryTabControls, GuiID_ConfigGUI
+    
+    try {
+        ConfigGUI := GuiFromHwnd(GuiID_ConfigGUI)
+        if (!ConfigGUI) {
+            return
+        }
+        
+        ; 显示展开面板
+        ExpandPanel := ConfigGUI["PromptExpandPanel" . TemplateKey]
+        if (ExpandPanel) {
+            ExpandPanel.Visible := true
+        }
+        
+        ; 显示内容编辑框
+        ContentEdit := ConfigGUI["PromptContentEdit" . TemplateKey]
+        if (ContentEdit) {
+            ContentEdit.Visible := true
+            ContentEdit.Value := Template.Content
+        }
+        
+        ; 显示所有按钮
+        PreviewBtn := ConfigGUI["PromptPreviewBtn" . TemplateKey]
+        if (PreviewBtn) {
+            PreviewBtn.Visible := true
+        }
+        
+        SendBtn := ConfigGUI["PromptSendBtn" . TemplateKey]
+        if (SendBtn) {
+            SendBtn.Visible := true
+        }
+        
+        CopyBtn := ConfigGUI["PromptCopyBtn" . TemplateKey]
+        if (CopyBtn) {
+            CopyBtn.Visible := true
+        }
+        
+        EditBtn := ConfigGUI["PromptEditBtn" . TemplateKey]
+        if (EditBtn) {
+            EditBtn.Visible := true
+        }
+        
+        DeleteBtn := ConfigGUI["PromptDeleteBtn" . TemplateKey]
+        if (DeleteBtn) {
+            DeleteBtn.Visible := true
+        }
+    } catch {
+    }
+}
+
+; ===================== 折叠模板 =====================
+CollapseTemplate(TemplateKey, CategoryName) {
+    global GuiID_ConfigGUI
+    
+    try {
+        ConfigGUI := GuiFromHwnd(GuiID_ConfigGUI)
+        if (!ConfigGUI) {
+            return
+        }
+        
+        ; 隐藏展开面板
+        ExpandPanel := ConfigGUI["PromptExpandPanel" . TemplateKey]
+        if (ExpandPanel) {
+            ExpandPanel.Visible := false
+        }
+        
+        ; 隐藏内容编辑框
+        ContentEdit := ConfigGUI["PromptContentEdit" . TemplateKey]
+        if (ContentEdit) {
+            ContentEdit.Visible := false
+        }
+        
+        ; 隐藏所有按钮
+        PreviewBtn := ConfigGUI["PromptPreviewBtn" . TemplateKey]
+        if (PreviewBtn) {
+            PreviewBtn.Visible := false
+        }
+        
+        SendBtn := ConfigGUI["PromptSendBtn" . TemplateKey]
+        if (SendBtn) {
+            SendBtn.Visible := false
+        }
+        
+        CopyBtn := ConfigGUI["PromptCopyBtn" . TemplateKey]
+        if (CopyBtn) {
+            CopyBtn.Visible := false
+        }
+        
+        EditBtn := ConfigGUI["PromptEditBtn" . TemplateKey]
+        if (EditBtn) {
+            EditBtn.Visible := false
+        }
+        
+        DeleteBtn := ConfigGUI["PromptDeleteBtn" . TemplateKey]
+        if (DeleteBtn) {
+            DeleteBtn.Visible := false
+        }
+    } catch {
+    }
+}
+
+; ===================== 创建预览模板处理器 =====================
+CreatePreviewTemplateHandler(TemplateKey, Template) {
+    return (*) => PreviewTemplateContent(TemplateKey, Template)
+}
+
+; ===================== 预览模板内容 =====================
+PreviewTemplateContent(TemplateKey, Template) {
+    global GuiID_ConfigGUI
+    
+    try {
+        ConfigGUI := GuiFromHwnd(GuiID_ConfigGUI)
+        if (!ConfigGUI) {
+            return
+        }
+        
+        ; 从编辑框获取内容
+        ContentEdit := ConfigGUI["PromptContentEdit" . TemplateKey]
+        Content := ContentEdit ? ContentEdit.Value : Template.Content
+        
+        ; 显示预览窗口
+        PreviewGUI := Gui("+AlwaysOnTop +ToolWindow", "预览: " . Template.Title)
+        PreviewGUI.BackColor := "FFFFFF"
+        PreviewGUI.SetFont("s10", "Consolas")
+        
+        PreviewEdit := PreviewGUI.Add("Edit", "x10 y10 w600 h400 Multi ReadOnly BackgroundFFFFFF", Content)
+        PreviewEdit.SetFont("s9", "Consolas")
+        
+        CloseBtn := PreviewGUI.Add("Button", "x250 y420 w100 h30", "关闭")
+        CloseBtn.OnEvent("Click", (*) => PreviewGUI.Destroy())
+        
+        PreviewGUI.Show()
+    } catch as e {
+        TrayTip("预览失败: " . e.Message, "错误", "Iconx 2")
+    }
+}
+
+; ===================== 创建复制模板处理器（带键） =====================
+CreateCopyTemplateHandlerWithKey(TemplateKey, Template) {
+    return (*) => CopyTemplateToClipboardWithKey(TemplateKey, Template)
+}
+
+; ===================== 复制模板到剪贴板（带键） =====================
+CopyTemplateToClipboardWithKey(TemplateKey, Template) {
+    global GuiID_ConfigGUI
+    
+    try {
+        ConfigGUI := GuiFromHwnd(GuiID_ConfigGUI)
+        if (!ConfigGUI) {
+            return
+        }
+        
+        ; 从编辑框获取内容
+        ContentEdit := ConfigGUI["PromptContentEdit" . TemplateKey]
+        Content := ContentEdit ? ContentEdit.Value : Template.Content
+        
+        A_Clipboard := Content
+        TrayTip("已复制到剪贴板", "提示", "Iconi 1")
+    } catch {
+        A_Clipboard := Template.Content
+        TrayTip("已复制到剪贴板", "提示", "Iconi 1")
+    }
+}
+
+; ===================== 创建发送模板处理器（带键） =====================
+CreateSendTemplateHandlerWithKey(TemplateKey, Template) {
+    return (*) => SendTemplateToCursorWithKey(TemplateKey, Template)
+}
+
+; ===================== 发送模板到Cursor（带键） =====================
+SendTemplateToCursorWithKey(TemplateKey, Template) {
+    global GuiID_ConfigGUI, CursorPath, AISleepTime
+    
+    try {
+        ; 直接使用模板内容，不需要从编辑框获取（因为新界面没有编辑框）
+        Content := Template.Content
+        
+        ; 检查 Cursor 是否运行
+        if (!WinExist("ahk_exe Cursor.exe")) {
+            if (CursorPath != "" && FileExist(CursorPath)) {
+                Run(CursorPath)
+                Sleep(AISleepTime)
+            } else {
+                TrayTip("Cursor未运行", "错误", "Iconx 2")
+                return
+            }
+        }
+        
+        ; 激活 Cursor 窗口
+        WinActivate("ahk_exe Cursor.exe")
+        Sleep(200)
+        
+        ; 打开聊天面板
+        Send("^l")
+        Sleep(300)
+        
+        ; 发送模板内容
+        Send("^v")
+        Sleep(100)
+        
+        ; 如果剪贴板内容不是模板内容，直接输入
+        if (A_Clipboard != Content) {
+            Send("^a")
+            Sleep(50)
+            Send(Content)
+        }
+        
+        ; 发送消息
+        Send("{Enter}")
+        TrayTip("已发送到Cursor", "提示", "Iconi 1")
+    } catch as e {
+        TrayTip("发送失败: " . e.Message, "错误", "Iconx 2")
+    }
+}
+
+; ===================== 创建编辑模板处理器 =====================
+CreateEditTemplateHandlerWithKey(TemplateKey, Template) {
+    return (*) => SaveTemplateFromEdit(TemplateKey, Template)
+}
+
+; ===================== 保存模板编辑 =====================
+SaveTemplateFromEdit(TemplateKey, Template) {
+    global GuiID_ConfigGUI, PromptTemplates, SavePromptTemplates
+    
+    try {
+        ConfigGUI := GuiFromHwnd(GuiID_ConfigGUI)
+        if (!ConfigGUI) {
+            return
+        }
+        
+        ; 从编辑框获取内容
+        ContentEdit := ConfigGUI["PromptContentEdit" . TemplateKey]
+        if (!ContentEdit) {
+            TrayTip("无法找到编辑框", "错误", "Iconx 2")
+            return
+        }
+        
+        NewContent := ContentEdit.Value
+        
+        ; 更新模板内容
+        for Index, T in PromptTemplates {
+            if (T.ID = Template.ID) {
+                T.Content := NewContent
+                break
+            }
+        }
+        
+        ; 保存配置
+        SavePromptTemplates()
+        TrayTip("模板已保存", "提示", "Iconi 1")
+    } catch as e {
+        TrayTip("保存失败: " . e.Message, "错误", "Iconx 2")
+    }
+}
+
+; ===================== 创建删除模板处理器 =====================
+CreateDeleteTemplateHandlerWithKey(TemplateKey, Template) {
+    return (*) => DeleteTemplateFromEdit(TemplateKey, Template)
+}
+
+; ===================== 删除模板 =====================
+DeleteTemplateFromEdit(TemplateKey, Template) {
+    global GuiID_ConfigGUI, PromptTemplates, DefaultTemplateIDs, SavePromptTemplates, ExpandedTemplateKey
+    
+    ; 检查是否是默认模板
+    IsDefault := false
+    for Type, TemplateID in DefaultTemplateIDs {
+        if (TemplateID = Template.ID) {
+            IsDefault := true
+            break
+        }
+    }
+    
+    if (IsDefault) {
+        TrayTip("无法删除默认模板，请先取消默认设置", "提示", "Icon! 2")
+        return
+    }
+    
+    ; 确认删除
+    Quote := Chr(34)
+    Result := MsgBox("确定要删除模板 " . Quote . Template.Title . Quote . " 吗？", "确认删除", "YesNo Icon?")
+    if (Result != "Yes") {
+        return
+    }
+    
+    try {
+        ; 从数组中删除
+        for Index, T in PromptTemplates {
+            if (T.ID = Template.ID) {
+                PromptTemplates.RemoveAt(Index)
+                break
+            }
+        }
+        
+        ; 如果当前展开的是被删除的模板，折叠它
+        if (ExpandedTemplateKey = TemplateKey) {
+            ExpandedTemplateKey := ""
+        }
+        
+        ; 保存配置
+        SavePromptTemplates()
+        
+        ; 刷新UI（重新创建模板管理标签页）
+        RefreshPromptsManageTab()
+        
+        TrayTip("模板已删除", "提示", "Iconi 1")
+    } catch as e {
+        TrayTip("删除失败: " . e.Message, "错误", "Iconx 2")
+    }
+}
+
+; ===================== 刷新模板管理标签页 =====================
+RefreshPromptsManageTab() {
+    global GuiID_ConfigGUI, PromptsMainTabControls, PromptsTabControls
+    
+    try {
+        ConfigGUI := GuiFromHwnd(GuiID_ConfigGUI)
+        if (!ConfigGUI) {
+            return
+        }
+        
+        ; 获取管理面板的位置和尺寸
+        ManagePanel := ConfigGUI["PromptsManagePanel"]
+        if (!ManagePanel) {
+            return
+        }
+        
+        ManagePanel.GetPos(&X, &Y, &W, &H)
+        
+        ; 销毁旧的控件
+        for Index, Ctrl in PromptsMainTabControls["manage"] {
+            try {
+                if (Ctrl && Ctrl != ManagePanel) {
+                    Ctrl.Destroy()
+                }
+            } catch {
+            }
+        }
+        
+        ; 清空控件列表
+        PromptsMainTabControls["manage"] := [ManagePanel]
+        
+        ; 从PromptsTabControls中移除旧的控件（保留ManagePanel）
+        NewPromptsTabControls := []
+        for Index, Ctrl in PromptsTabControls {
+            if (Ctrl = ManagePanel) {
+                NewPromptsTabControls.Push(Ctrl)
+            } else {
+                ; 检查是否在manage列表中
+                IsManageCtrl := false
+                for J, ManageCtrl in PromptsMainTabControls["manage"] {
+                    if (Ctrl = ManageCtrl) {
+                        IsManageCtrl := true
+                        break
+                    }
+                }
+                if (!IsManageCtrl) {
+                    NewPromptsTabControls.Push(Ctrl)
+                }
+            }
+        }
+        PromptsTabControls := NewPromptsTabControls
+        
+        ; 重新创建模板管理标签页
+        CreatePromptsManageTab(ConfigGUI, X, Y, W, H)
+        
+        ; 切换到管理标签页
+        SwitchPromptsMainTab("manage")
+    } catch as e {
+        TrayTip("刷新失败: " . e.Message, "错误", "Iconx 2")
+    }
+}
+
+; ===================== 发送模板到Cursor =====================
+SendTemplateToCursor(Template) {
+    global CursorPath, AISleepTime
+    
+    try {
+        ; 检查 Cursor 是否运行
+        if (!WinExist("ahk_exe Cursor.exe")) {
+            if (CursorPath != "" && FileExist(CursorPath)) {
+                Run(CursorPath)
+                Sleep(AISleepTime)
+            } else {
+                TrayTip("Cursor未运行", "错误", "Iconx 2")
+                return
+            }
+        }
+        
+        ; 激活 Cursor 窗口
+        WinActivate("ahk_exe Cursor.exe")
+        Sleep(200)
+        
+        ; 打开聊天面板
+        Send("^l")
+        Sleep(400)
+        
+        ; 复制模板内容到剪贴板
+        OldClipboard := A_Clipboard
+        A_Clipboard := Template.Content
+        
+        ; 粘贴
+        Send("^v")
+        Sleep(300)
+        
+        ; 提交
+        Send("{Enter}")
+        
+        ; 恢复剪贴板
+        Sleep(200)
+        A_Clipboard := OldClipboard
+        
+        TrayTip("已发送到Cursor", "提示", "Iconi 1")
+    } catch as e {
+        TrayTip("发送失败: " . e.Message, "错误", "Iconx 2")
+    }
+}
+
+; ===================== 创建传统编辑标签页 =====================
+CreatePromptsLegacyTab(ConfigGUI, X, Y, W, H) {
+    global Prompt_Explain, Prompt_Refactor, Prompt_Optimize, PromptExplainEdit, PromptRefactorEdit, PromptOptimizeEdit, PromptsMainTabControls, UI_Colors, PromptsTabControls
+    
+    ; 创建面板
+    LegacyPanel := ConfigGUI.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Background" . UI_Colors.Background . " vPromptsLegacyPanel", "")
+    LegacyPanel.Visible := false
+    PromptsMainTabControls["legacy"] := []
+    PromptsMainTabControls["legacy"].Push(LegacyPanel)
+    PromptsTabControls.Push(LegacyPanel)
+    
     ; 解释代码提示词
-    YPos := Y + 70
-    Label1 := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h25 c" . UI_Colors.Text, GetText("explain_prompt"))
+    YPos := Y + 20
+    Label1 := ConfigGUI.Add("Text", "x" . X . " y" . YPos . " w" . W . " h25 c" . UI_Colors.Text, GetText("explain_prompt"))
     Label1.SetFont("s11", "Segoe UI")
+    PromptsMainTabControls["legacy"].Push(Label1)
     PromptsTabControls.Push(Label1)
     
     YPos += 30
-    PromptExplainEdit := ConfigGUI.Add("Edit", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h80 vPromptExplainEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", Prompt_Explain)
+    PromptExplainEdit := ConfigGUI.Add("Edit", "x" . X . " y" . YPos . " w" . W . " h80 vPromptExplainEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", Prompt_Explain)
     PromptExplainEdit.SetFont("s10", "Consolas")
+    PromptsMainTabControls["legacy"].Push(PromptExplainEdit)
     PromptsTabControls.Push(PromptExplainEdit)
     
     ; 重构代码提示词
     YPos += 100
-    Label2 := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h25 c" . UI_Colors.Text, GetText("refactor_prompt"))
+    Label2 := ConfigGUI.Add("Text", "x" . X . " y" . YPos . " w" . W . " h25 c" . UI_Colors.Text, GetText("refactor_prompt"))
     Label2.SetFont("s11", "Segoe UI")
+    PromptsMainTabControls["legacy"].Push(Label2)
     PromptsTabControls.Push(Label2)
     
     YPos += 30
-    PromptRefactorEdit := ConfigGUI.Add("Edit", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h80 vPromptRefactorEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", Prompt_Refactor)
+    PromptRefactorEdit := ConfigGUI.Add("Edit", "x" . X . " y" . YPos . " w" . W . " h80 vPromptRefactorEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", Prompt_Refactor)
     PromptRefactorEdit.SetFont("s10", "Consolas")
+    PromptsMainTabControls["legacy"].Push(PromptRefactorEdit)
     PromptsTabControls.Push(PromptRefactorEdit)
     
     ; 优化代码提示词
     YPos += 100
-    Label3 := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h25 c" . UI_Colors.Text, GetText("optimize_prompt"))
+    Label3 := ConfigGUI.Add("Text", "x" . X . " y" . YPos . " w" . W . " h25 c" . UI_Colors.Text, GetText("optimize_prompt"))
     Label3.SetFont("s11", "Segoe UI")
+    PromptsMainTabControls["legacy"].Push(Label3)
     PromptsTabControls.Push(Label3)
     
     YPos += 30
-    PromptOptimizeEdit := ConfigGUI.Add("Edit", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h80 vPromptOptimizeEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", Prompt_Optimize)
+    PromptOptimizeEdit := ConfigGUI.Add("Edit", "x" . X . " y" . YPos . " w" . W . " h80 vPromptOptimizeEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", Prompt_Optimize)
     PromptOptimizeEdit.SetFont("s10", "Consolas")
+    PromptsMainTabControls["legacy"].Push(PromptOptimizeEdit)
     PromptsTabControls.Push(PromptOptimizeEdit)
+    
+    ; 提示文字
+    YPos += 100
+    HintText := ConfigGUI.Add("Text", "x" . X . " y" . YPos . " w" . W . " h40 c" . UI_Colors.TextDim, "提示：使用 {code} 表示选中的代码，{lang} 表示编程语言。例如：请用 {lang} 解释以下代码：{code}")
+    HintText.SetFont("s9", "Segoe UI")
+    PromptsMainTabControls["legacy"].Push(HintText)
+    PromptsTabControls.Push(HintText)
 }
 
 ; ===================== 创建快捷键标签页 =====================
@@ -4025,10 +8323,9 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     MainTabBarBg := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . MainTabBarY . " w" . (W - 60) . " h" . MainTabBarHeight . " Background" . UI_Colors.Sidebar, "")
     HotkeysTabControls.Push(MainTabBarBg)
     
-    ; 创建主标签列表
+    ; 创建主标签列表（移除rules，已转移到提示词标签页）
     MainTabList := [
-        {Key: "settings", Name: GetText("hotkey_main_tab_settings")},
-        {Key: "rules", Name: GetText("hotkey_main_tab_rules")}
+        {Key: "settings", Name: GetText("hotkey_main_tab_settings")}
     ]
     
     ; 创建主标签按钮
@@ -4149,9 +8446,6 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     for Key, TabBtn in HotkeySubTabs {
         HotkeysMainTabControls["settings"].Push(TabBtn)
     }
-    
-    ; ========== Cursor规则标签页内容 ==========
-    CreateCursorRulesTab(ConfigGUI, X + 30, ContentAreaY, W - 60, ContentAreaHeight + 500)
     
     ; 默认显示第一个主标签页（快捷键设置）
     SwitchHotkeysMainTab("settings")
@@ -4640,29 +8934,15 @@ SwitchHotkeysMainTab(MainTabKey) {
         }
     }
     
-    ; 如果是Cursor规则标签，显示第一个规则子标签
-    if (MainTabKey = "rules") {
-        global CursorRulesSubTabs
-        if (CursorRulesSubTabs && CursorRulesSubTabs.Count > 0) {
-            FirstKey := ""
-            for Key, TabBtn in CursorRulesSubTabs {
-                FirstKey := Key
-                break
-            }
-            if (FirstKey != "") {
-                SwitchCursorRulesSubTab(FirstKey)
-            }
-        }
-    }
 }
 
-; ===================== 创建Cursor规则标签页 =====================
-CreateCursorRulesTab(ConfigGUI, X, Y, W, H) {
-    global HotkeysMainTabControls, UI_Colors, CursorRulesSubTabs, CursorRulesSubTabControls
+; ===================== 创建Cursor规则标签页（用于提示词标签页）=====================
+CreateCursorRulesTabForPrompts(ConfigGUI, X, Y, W, H) {
+    global PromptsMainTabControls, PromptsTabControls, UI_Colors, CursorRulesSubTabs, CursorRulesSubTabControls
     
     ; 初始化控件数组
-    if (!HotkeysMainTabControls.Has("rules")) {
-        HotkeysMainTabControls["rules"] := []
+    if (!PromptsMainTabControls.Has("rules")) {
+        PromptsMainTabControls["rules"] := []
     }
     CursorRulesSubTabs := Map()
     global CursorRulesSubTabControls := Map()
@@ -4671,51 +8951,60 @@ CreateCursorRulesTab(ConfigGUI, X, Y, W, H) {
     IntroY := Y + 10
     IntroTitle := ConfigGUI.Add("Text", "x" . X . " y" . IntroY . " w" . W . " h28 c" . UI_Colors.Text . " vCursorRulesIntroTitle", GetText("cursor_rules_title"))
     IntroTitle.SetFont("s13 Bold", "Segoe UI")
-    HotkeysMainTabControls["rules"].Push(IntroTitle)
+    PromptsMainTabControls["rules"].Push(IntroTitle)
+    PromptsTabControls.Push(IntroTitle)
     
     IntroY += 28
     IntroText := ConfigGUI.Add("Text", "x" . X . " y" . IntroY . " w" . W . " h35 c" . UI_Colors.TextDim . " vCursorRulesIntroText +0x200", GetText("cursor_rules_intro"))
     IntroText.SetFont("s9", "Segoe UI")
-    HotkeysMainTabControls["rules"].Push(IntroText)
+    PromptsMainTabControls["rules"].Push(IntroText)
+    PromptsTabControls.Push(IntroText)
     
     ; 复制位置说明（缩小间距）
     LocationTitleY := IntroY + 40
     LocationTitle := ConfigGUI.Add("Text", "x" . X . " y" . LocationTitleY . " w" . W . " h22 c" . UI_Colors.Text . " vCursorRulesLocationTitle", GetText("cursor_rules_location_title"))
     LocationTitle.SetFont("s10 Bold", "Segoe UI")
-    HotkeysMainTabControls["rules"].Push(LocationTitle)
+    PromptsMainTabControls["rules"].Push(LocationTitle)
+    PromptsTabControls.Push(LocationTitle)
     
     LocationDescY := LocationTitleY + 22
     LocationDesc := ConfigGUI.Add("Text", "x" . X . " y" . LocationDescY . " w" . W . " h35 c" . UI_Colors.TextDim . " vCursorRulesLocationDesc +0x200", GetText("cursor_rules_location_desc"))
     LocationDesc.SetFont("s9", "Segoe UI")
-    HotkeysMainTabControls["rules"].Push(LocationDesc)
+    PromptsMainTabControls["rules"].Push(LocationDesc)
+    PromptsTabControls.Push(LocationDesc)
     
     ; 使用方法说明（缩小间距）
     UsageTitleY := LocationDescY + 40
     UsageTitle := ConfigGUI.Add("Text", "x" . X . " y" . UsageTitleY . " w" . W . " h22 c" . UI_Colors.Text . " vCursorRulesUsageTitle", GetText("cursor_rules_usage_title"))
     UsageTitle.SetFont("s10 Bold", "Segoe UI")
-    HotkeysMainTabControls["rules"].Push(UsageTitle)
+    PromptsMainTabControls["rules"].Push(UsageTitle)
+    PromptsTabControls.Push(UsageTitle)
     
     UsageDescY := UsageTitleY + 22
     UsageDesc := ConfigGUI.Add("Text", "x" . X . " y" . UsageDescY . " w" . W . " h50 c" . UI_Colors.TextDim . " vCursorRulesUsageDesc +0x200", GetText("cursor_rules_usage_desc"))
     UsageDesc.SetFont("s9", "Segoe UI")
-    HotkeysMainTabControls["rules"].Push(UsageDesc)
+    PromptsMainTabControls["rules"].Push(UsageDesc)
+    PromptsTabControls.Push(UsageDesc)
     
     ; 使用优点说明（缩小间距）
     BenefitsTitleY := UsageDescY + 55
     BenefitsTitle := ConfigGUI.Add("Text", "x" . X . " y" . BenefitsTitleY . " w" . W . " h22 c" . UI_Colors.Text . " vCursorRulesBenefitsTitle", GetText("cursor_rules_benefits_title"))
     BenefitsTitle.SetFont("s10 Bold", "Segoe UI")
-    HotkeysMainTabControls["rules"].Push(BenefitsTitle)
+    PromptsMainTabControls["rules"].Push(BenefitsTitle)
+    PromptsTabControls.Push(BenefitsTitle)
     
     BenefitsDescY := BenefitsTitleY + 22
     BenefitsDesc := ConfigGUI.Add("Text", "x" . X . " y" . BenefitsDescY . " w" . W . " h50 c" . UI_Colors.TextDim . " vCursorRulesBenefitsDesc +0x200", GetText("cursor_rules_benefits_desc"))
     BenefitsDesc.SetFont("s9", "Segoe UI")
-    HotkeysMainTabControls["rules"].Push(BenefitsDesc)
+    PromptsMainTabControls["rules"].Push(BenefitsDesc)
+    PromptsTabControls.Push(BenefitsDesc)
     
     ; ========== 子标签页区域 ==========
     SubTabBarY := BenefitsDescY + 55
     SubTabBarHeight := 35
     SubTabBarBg := ConfigGUI.Add("Text", "x" . X . " y" . SubTabBarY . " w" . W . " h" . SubTabBarHeight . " Background" . UI_Colors.Sidebar . " vCursorRulesSubTabBar", "")
-    HotkeysMainTabControls["rules"].Push(SubTabBarBg)
+    PromptsMainTabControls["rules"].Push(SubTabBarBg)
+    PromptsTabControls.Push(SubTabBarBg)
     
     ; 子标签列表（8个分类）
     CursorRulesSubTabList := [
@@ -4758,7 +9047,8 @@ CreateCursorRulesTab(ConfigGUI, X, Y, W, H) {
         SubTabBtn.OnEvent("Click", CreateCursorRulesSubTabClickHandler(Item.Key))
         ; 悬停效果使用主题颜色（带动效）
         HoverBtnWithAnimation(SubTabBtn, UI_Colors.Sidebar, UI_Colors.BtnHover)
-        HotkeysMainTabControls["rules"].Push(SubTabBtn)
+        PromptsMainTabControls["rules"].Push(SubTabBtn)
+        PromptsTabControls.Push(SubTabBtn)
         CursorRulesSubTabs[Item.Key] := SubTabBtn
     }
     
@@ -4777,16 +9067,27 @@ CreateCursorRulesTab(ConfigGUI, X, Y, W, H) {
     for Key, Controls in CursorRulesSubTabControls {
         if (Controls && Controls.Length > 0) {
             for Index, Ctrl in Controls {
-                HotkeysMainTabControls["rules"].Push(Ctrl)
+                PromptsMainTabControls["rules"].Push(Ctrl)
+                PromptsTabControls.Push(Ctrl)
             }
         }
     }
     
-    ; 默认显示第一个子标签页（但先不显示，等主标签切换时再显示）
-    ; 注释掉自动显示，由主标签切换函数控制
-    ; if (CursorRulesSubTabList.Length > 0) {
-    ;     SwitchCursorRulesSubTab(CursorRulesSubTabList[1].Key)
-    ; }
+    ; 默认隐藏所有规则标签页的控件，等待用户点击标签时才显示
+    ; 这样可以避免在初始化时与其他标签页内容混合显示
+    if (PromptsMainTabControls.Has("rules")) {
+        RulesControls := PromptsMainTabControls["rules"]
+        if (RulesControls && RulesControls.Length > 0) {
+            for Index, Ctrl in RulesControls {
+                if (Ctrl) {
+                    try {
+                        Ctrl.Visible := false
+                    } catch {
+                    }
+                }
+            }
+        }
+    }
 }
 
 ; ===================== 创建Cursor规则子标签页 =====================
@@ -4928,8 +9229,29 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     Title.SetFont("s16 Bold", "Segoe UI")
     AdvancedTabControls.Push(Title)
     
-    ; 语言设置（从通用设置移到这里）
+    ; 自启动设置
     YPos := Y + 70
+    LabelAutoStart := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("auto_start"))
+    LabelAutoStart.SetFont("s11", "Segoe UI")
+    AdvancedTabControls.Push(LabelAutoStart)
+    
+    YPos += 30
+    ; 创建自启动切换按钮（蓝色=开启，灰色=关闭）
+    global AutoStartBtn
+    BtnWidth := 200
+    BtnHeight := 35
+    BtnText := AutoStart ? "开机自启动" : "不开机自启动"
+    BtnBgColor := AutoStart ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
+    BtnTextColor := AutoStart ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
+    
+    AutoStartBtn := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . BtnTextColor . " Background" . BtnBgColor . " vAutoStartBtn", BtnText)
+    AutoStartBtn.SetFont("s10", "Segoe UI")
+    AutoStartBtn.OnEvent("Click", (*) => ToggleAutoStart())
+    HoverBtnWithAnimation(AutoStartBtn, BtnBgColor, AutoStart ? UI_Colors.BtnPrimaryHover : UI_Colors.BtnHover)
+    AdvancedTabControls.Push(AutoStartBtn)
+    
+    ; 语言设置（从通用设置移到这里）
+    YPos += 60
     LabelLanguage := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("language_setting"))
     LabelLanguage.SetFont("s11", "Segoe UI")
     AdvancedTabControls.Push(LabelLanguage)
@@ -4970,138 +9292,84 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     Hint1.SetFont("s9", "Segoe UI")
     AdvancedTabControls.Push(Hint1)
     
-    ; 获取屏幕列表
-    ScreenList := []
-    MonitorCount := 0
+    ; 默认启动页面设置
+    YPos += 80
+    LabelDefaultStartTab := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, "默认启动页面：")
+    LabelDefaultStartTab.SetFont("s11", "Segoe UI")
+    AdvancedTabControls.Push(LabelDefaultStartTab)
+    
+    YPos += 30
+    global DefaultStartTab, DefaultStartTabDDL
+    ; 创建下拉框，让用户选择默认启动页面
+    StartTabOptions := ["通用", "外观", "提示词", "快捷键", "高级"]
+    StartTabValues := ["general", "appearance", "prompts", "hotkeys", "advanced"]
+    
+    ; 找到当前选择的索引
+    DefaultIndex := 1
+    for Index, Value in StartTabValues {
+        if (Value = DefaultStartTab) {
+            DefaultIndex := Index
+            break
+        }
+    }
+    
+    ; 创建下拉框
+    ; 使用R5选项指定下拉列表显示5行（R选项设置下拉列表的高度）
+    DefaultStartTabDDL := ConfigGUI.Add("DDL", "x" . (X + 30) . " y" . YPos . " w200 h30 R5 vDefaultStartTabDDL Background" . UI_Colors.DDLBg . " c" . UI_Colors.DDLText, StartTabOptions)
+    DefaultStartTabDDL.SetFont("s10 c" . UI_Colors.DDLText, "Segoe UI")
+    DefaultStartTabDDL.Value := DefaultIndex
+    DefaultStartTabDDL.OnEvent("Change", (*) => OnDefaultStartTabChange())
+    
+    ; 保存下拉框句柄，用于在窗口显示后设置最小可见项数
+    ; CB_SETMINVISIBLE需要在窗口完全创建并显示后才能生效
     try {
-        MonitorCount := MonitorGetCount()
-        if (MonitorCount > 0) {
-            Loop MonitorCount {
-                MonitorIndex := A_Index
-                MonitorGet(MonitorIndex, &Left, &Top, &Right, &Bottom)
-                ScreenList.Push(FormatText("screen", MonitorIndex))
-            }
-        }
+        DDL_Hwnd := DefaultStartTabDDL.Hwnd
+        ; 保存句柄到全局变量，供窗口显示后的延迟函数使用
+        global DefaultStartTabDDL_Hwnd_ForTimer
+        DefaultStartTabDDL_Hwnd_ForTimer := DDL_Hwnd
     } catch {
-        MonitorIndex := 1
-        Loop 10 {
+        ; 如果获取句柄失败，忽略错误
+    }
+    
+    ; 设置下拉框的背景色
+    ; 使用DDLBg颜色来匹配Cursor主题色
+    try {
+        DefaultStartTabDDL.Opt("Background" . UI_Colors.DDLBg)
+        ; 保存下拉框的句柄，用于消息处理
+        global DefaultStartTabDDL_Hwnd
+        DefaultStartTabDDL_Hwnd := DDL_Hwnd
+        
+        ; 创建画刷用于下拉列表背景色（DDLBg颜色）
+        ; 将颜色从RRGGBB格式转换为BGR格式（Windows使用BGR格式）
+        ColorCode := "0x" . UI_Colors.DDLBg
+        RGBColor := Integer(ColorCode)
+        ; 交换R和B字节（Windows使用BGR格式）
+        R := (RGBColor & 0xFF0000) >> 16
+        G := (RGBColor & 0x00FF00) >> 8
+        B := RGBColor & 0x0000FF
+        BGRColor := (B << 16) | (G << 8) | R
+        global DDLBrush
+        ; 如果已有画刷，先删除
+        if (DDLBrush != 0) {
             try {
-                MonitorGet(MonitorIndex, &Left, &Top, &Right, &Bottom)
-                ScreenList.Push(FormatText("screen", MonitorIndex))
-                MonitorCount++
-                MonitorIndex++
+                DllCall("gdi32.dll\DeleteObject", "Ptr", DDLBrush)
             } catch {
-                break
             }
         }
-    }
-    if (ScreenList.Length = 0) {
-        ScreenList.Push(FormatText("screen", 1))
-        MonitorCount := 1
-    }
-    
-    ; 配置面板显示器选择
-    YPos += 50
-    LabelConfigPanel := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("config_panel_screen"))
-    LabelConfigPanel.SetFont("s11", "Segoe UI")
-    AdvancedTabControls.Push(LabelConfigPanel)
-    
-    YPos += 30
-    ConfigPanelScreenRadio := []
-    StartX := X + 30
-    RadioWidth := 100
-    RadioHeight := 30
-    Spacing := 10
-    ; 确保 ConfigPanelScreenIndex 在有效范围内
-    if (ConfigPanelScreenIndex < 1 || ConfigPanelScreenIndex > ScreenList.Length) {
-        ConfigPanelScreenIndex := 1
-    }
-    for Index, ScreenName in ScreenList {
-        XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
-        ; 使用 Material 风格的单选按钮
-        RadioBtn := CreateMaterialRadioButton(ConfigGUI, XPos, YPos, RadioWidth, RadioHeight, "ConfigPanelScreenRadio" . Index, ScreenName, ConfigPanelScreenRadio, 11)
-        if (Index = ConfigPanelScreenIndex) {
-            RadioBtn.IsSelected := true
-            UpdateMaterialRadioButtonStyle(RadioBtn, true)
-        }
-        ConfigPanelScreenRadio.Push(RadioBtn)
-        AdvancedTabControls.Push(RadioBtn)
+        ; 创建实心画刷
+        DDLBrush := DllCall("gdi32.dll\CreateSolidBrush", "UInt", BGRColor, "Ptr")
+    } catch {
     }
     
-    ; 弹窗显示器选择
-    YPos += 50
-    LabelMsgBox := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("msgbox_screen"))
-    LabelMsgBox.SetFont("s11", "Segoe UI")
-    AdvancedTabControls.Push(LabelMsgBox)
+    AdvancedTabControls.Push(DefaultStartTabDDL)
     
-    YPos += 30
-    MsgBoxScreenRadio := []
-    ; 确保 MsgBoxScreenIndex 在有效范围内
-    if (MsgBoxScreenIndex < 1 || MsgBoxScreenIndex > ScreenList.Length) {
-        MsgBoxScreenIndex := 1
-    }
-    for Index, ScreenName in ScreenList {
-        XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
-        ; 使用 Material 风格的单选按钮
-        RadioBtn := CreateMaterialRadioButton(ConfigGUI, XPos, YPos, RadioWidth, RadioHeight, "MsgBoxScreenRadio" . Index, ScreenName, MsgBoxScreenRadio, 11)
-        if (Index = MsgBoxScreenIndex) {
-            RadioBtn.IsSelected := true
-            UpdateMaterialRadioButtonStyle(RadioBtn, true)
-        }
-        MsgBoxScreenRadio.Push(RadioBtn)
-        AdvancedTabControls.Push(RadioBtn)
-    }
-    
-    ; 语音输入法提示显示器选择
-    YPos += 50
-    LabelVoiceInput := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("voice_input_screen"))
-    LabelVoiceInput.SetFont("s11", "Segoe UI")
-    AdvancedTabControls.Push(LabelVoiceInput)
-    
-    YPos += 30
-    VoiceInputScreenRadio := []
-    ; 确保 VoiceInputScreenIndex 在有效范围内
-    if (VoiceInputScreenIndex < 1 || VoiceInputScreenIndex > ScreenList.Length) {
-        VoiceInputScreenIndex := 1
-    }
-    for Index, ScreenName in ScreenList {
-        XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
-        ; 使用 Material 风格的单选按钮
-        RadioBtn := CreateMaterialRadioButton(ConfigGUI, XPos, YPos, RadioWidth, RadioHeight, "VoiceInputScreenRadio" . Index, ScreenName, VoiceInputScreenRadio, 11)
-        if (Index = VoiceInputScreenIndex) {
-            RadioBtn.IsSelected := true
-            UpdateMaterialRadioButtonStyle(RadioBtn, true)
-        }
-        VoiceInputScreenRadio.Push(RadioBtn)
-        AdvancedTabControls.Push(RadioBtn)
-    }
-    
-    ; Cursor快捷弹出面板显示器选择
-    YPos += 50
-    LabelCursorPanel := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("cursor_panel_screen"))
-    LabelCursorPanel.SetFont("s11", "Segoe UI")
-    AdvancedTabControls.Push(LabelCursorPanel)
-    
-    YPos += 30
-    CursorPanelScreenRadio := []
-    ; 确保 CursorPanelScreenIndex 在有效范围内
-    if (CursorPanelScreenIndex < 1 || CursorPanelScreenIndex > ScreenList.Length) {
-        CursorPanelScreenIndex := 1
-    }
-    for Index, ScreenName in ScreenList {
-        XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
-        ; 使用 Material 风格的单选按钮
-        RadioBtn := CreateMaterialRadioButton(ConfigGUI, XPos, YPos, RadioWidth, RadioHeight, "CursorPanelScreenRadio" . Index, ScreenName, CursorPanelScreenRadio, 11)
-        if (Index = CursorPanelScreenIndex) {
-            RadioBtn.IsSelected := true
-            UpdateMaterialRadioButtonStyle(RadioBtn, true)
-        }
-        CursorPanelScreenRadio.Push(RadioBtn)
-        AdvancedTabControls.Push(RadioBtn)
-    }
+    YPos += 40
+    HintDefaultStartTab := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h20 c" . UI_Colors.TextDim, "CapsLock+Q 启动配置界面时默认显示的页面")
+    HintDefaultStartTab.SetFont("s9", "Segoe UI")
+    AdvancedTabControls.Push(HintDefaultStartTab)
     
     ; 配置管理功能（导出、导入、重置默认）
-    YPos += 80
+    YPos += 60
     LabelConfigManage := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("config_manage"))
     LabelConfigManage.SetFont("s11", "Segoe UI")
     AdvancedTabControls.Push(LabelConfigManage)
@@ -5113,25 +9381,27 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     BtnSpacing := 15
     BtnStartX := X + 30
     
-    ; 导出配置按钮
-    ExportBtn := ConfigGUI.Add("Text", "x" . BtnStartX . " y" . YPos . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vAdvancedExportBtn", GetText("export_config"))
+    ; 导出配置按钮（改为灰色）
+    global ThemeMode
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    ExportBtn := ConfigGUI.Add("Text", "x" . BtnStartX . " y" . YPos . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vAdvancedExportBtn", GetText("export_config"))
     ExportBtn.SetFont("s10", "Segoe UI")
     ExportBtn.OnEvent("Click", ExportConfig)
-    HoverBtnWithAnimation(ExportBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+    HoverBtnWithAnimation(ExportBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     AdvancedTabControls.Push(ExportBtn)
     
-    ; 导入配置按钮
-    ImportBtn := ConfigGUI.Add("Text", "x" . (BtnStartX + BtnWidth + BtnSpacing) . " y" . YPos . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vAdvancedImportBtn", GetText("import_config"))
+    ; 导入配置按钮（改为灰色）
+    ImportBtn := ConfigGUI.Add("Text", "x" . (BtnStartX + BtnWidth + BtnSpacing) . " y" . YPos . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vAdvancedImportBtn", GetText("import_config"))
     ImportBtn.SetFont("s10", "Segoe UI")
     ImportBtn.OnEvent("Click", ImportConfig)
-    HoverBtnWithAnimation(ImportBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+    HoverBtnWithAnimation(ImportBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     AdvancedTabControls.Push(ImportBtn)
     
-    ; 重置默认按钮
-    ResetBtn := ConfigGUI.Add("Text", "x" . (BtnStartX + (BtnWidth + BtnSpacing) * 2) . " y" . YPos . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vAdvancedResetBtn", GetText("reset_default"))
+    ; 重置默认按钮（改为灰色）
+    ResetBtn := ConfigGUI.Add("Text", "x" . (BtnStartX + (BtnWidth + BtnSpacing) * 2) . " y" . YPos . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vAdvancedResetBtn", GetText("reset_default"))
     ResetBtn.SetFont("s10", "Segoe UI")
     ResetBtn.OnEvent("Click", ResetToDefaults)
-    HoverBtnWithAnimation(ResetBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+    HoverBtnWithAnimation(ResetBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     AdvancedTabControls.Push(ResetBtn)
     
     ; 安装 Cursor 中文版按钮
@@ -5141,16 +9411,35 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     AdvancedTabControls.Push(LabelInstallChinese)
     
     YPos += 30
-    InstallChineseBtn := ConfigGUI.Add("Text", "x" . BtnStartX . " y" . YPos . " w" . (BtnWidth * 2 + BtnSpacing) . " h" . BtnHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vAdvancedInstallChineseBtn", GetText("install_cursor_chinese"))
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    InstallChineseBtn := ConfigGUI.Add("Text", "x" . BtnStartX . " y" . YPos . " w" . (BtnWidth * 2 + BtnSpacing) . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vAdvancedInstallChineseBtn", GetText("install_cursor_chinese"))
     InstallChineseBtn.SetFont("s10", "Segoe UI")
     InstallChineseBtn.OnEvent("Click", InstallCursorChinese)
-    HoverBtnWithAnimation(InstallChineseBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+    HoverBtnWithAnimation(InstallChineseBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     AdvancedTabControls.Push(InstallChineseBtn)
     
     YPos += 40
     HintInstallChinese := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h40 c" . UI_Colors.TextDim, GetText("install_cursor_chinese_desc"))
     HintInstallChinese.SetFont("s9", "Segoe UI")
     AdvancedTabControls.Push(HintInstallChinese)
+}
+
+; ===================== 设置下拉列表最小可见项数 =====================
+SetDDLMinVisible(*) {
+    global DefaultStartTabDDL_Hwnd_ForTimer
+    try {
+        if (DefaultStartTabDDL_Hwnd_ForTimer != 0) {
+            ; CB_SETMINVISIBLE = 0x1701, 设置最小可见项数为5
+            ; 这样可以确保下拉列表一次性显示5个选项（Windows Vista+）
+            ; 使用SendMessage设置
+            ; wParam = 5 (最小可见项数), lParam = 0 (未使用)
+            DllCall("SendMessage", "Ptr", DefaultStartTabDDL_Hwnd_ForTimer, "UInt", 0x1701, "Ptr", 5, "Ptr", 0, "Int")
+            ; 为了确保生效，也尝试使用PostMessage（某些情况下PostMessage更可靠）
+            DllCall("PostMessage", "Ptr", DefaultStartTabDDL_Hwnd_ForTimer, "UInt", 0x1701, "Ptr", 5, "Ptr", 0)
+        }
+    } catch {
+        ; 如果设置失败，忽略错误（某些系统可能不支持此功能）
+    }
 }
 
 ; ===================== 浏览 Cursor 路径 =====================
@@ -5315,12 +9604,35 @@ WM_LBUTTONDOWN(*) {
 }
 
 ; 自定义按钮悬停效果（基础版本，保持兼容性）
+; 注意：Text 控件不支持 MouseEnter/MouseLeave 事件，所以只实现点击效果
 HoverBtn(Ctrl, NormalColor, HoverColor) {
     Ctrl.NormalColor := NormalColor
     Ctrl.HoverColor := HoverColor
+    
+    ; 添加点击效果
+    try {
+        if (!Ctrl.HasProp("ClickWrapped")) {
+            ClickHandler := BindEventForClick(Ctrl)
+            Ctrl.OnEvent("Click", ClickHandler)
+            Ctrl.ClickWrapped := true
+        }
+    } catch {
+        ClickHandler := BindEventForClick(Ctrl)
+        Ctrl.OnEvent("Click", ClickHandler)
+    }
+}
+
+; 辅助函数：绑定点击事件
+BindEventForClick(Ctrl) {
+    ; 使用闭包捕获变量
+    Handler(*) {
+        AnimateButtonClick(Ctrl)
+    }
+    return Handler
 }
 
 ; 自定义按钮悬停效果（带动效版本）
+; 注意：Text 控件不支持 MouseEnter/MouseLeave 事件，所以只实现点击效果
 HoverBtnWithAnimation(Ctrl, NormalColor, HoverColor) {
     Ctrl.NormalColor := NormalColor
     Ctrl.HoverColor := HoverColor
@@ -5330,18 +9642,22 @@ HoverBtnWithAnimation(Ctrl, NormalColor, HoverColor) {
         ; 如果无法设置属性，忽略
     }
     
-    ; 保存原始点击事件处理器（如果存在）
+    ; 添加点击效果
     try {
-        if (Ctrl.HasProp("OriginalClickHandler")) {
-            ; 如果已经有原始处理器，不重复绑定
-        } else {
-            ; 获取当前的点击事件处理器
-            ; 注意：AutoHotkey v2 中无法直接获取事件处理器，所以我们通过包装来实现
-            ; 点击动画会在WM_MOUSEMOVE中通过检测鼠标按下状态来实现
+        if (!Ctrl.HasProp("ClickWrapped")) {
+            ClickHandler := BindEventForClick(Ctrl)
+            ; 保存原有的点击事件（如果存在）
+            ; 注意：AutoHotkey v2中无法直接获取已有的事件处理器
+            ; 所以点击动画会在原有事件之前执行
+            Ctrl.OnEvent("Click", ClickHandler)
+            Ctrl.ClickWrapped := true
         }
     } catch {
+        ClickHandler := BindEventForClick(Ctrl)
+        Ctrl.OnEvent("Click", ClickHandler)
     }
 }
+
 
 ; 按钮悬停动画（平滑过渡）
 AnimateButtonHover(Ctrl, NormalColor, HoverColor, IsEntering) {
@@ -5471,6 +9787,66 @@ global LastCursorPanelButton := 0  ; 当前鼠标悬停的 Cursor 面板按钮�
 
 ; 监听鼠标移动消息实现 Hover
 OnMessage(0x0200, WM_MOUSEMOVE)
+; 监听WM_CTLCOLORLISTBOX消息以自定义下拉列表背景色
+OnMessage(0x0134, WM_CTLCOLORLISTBOX)
+
+WM_CTLCOLORLISTBOX(wParam, lParam, Msg, Hwnd) {
+    global DefaultStartTabDDL_Hwnd, DDLBrush, UI_Colors, MoveGUIListBoxHwnd, MoveGUIListBoxBrush, MoveFromTemplateListBoxHwnd, MoveFromTemplateListBoxBrush
+    
+    try {
+        ; 检查是否是默认启动页面下拉框的列表框
+        ; lParam是列表框的句柄，我们需要找到它的父ComboBox
+        if (DefaultStartTabDDL_Hwnd != 0 && DDLBrush != 0) {
+            ParentHwnd := DllCall("user32.dll\GetParent", "Ptr", lParam, "Ptr")
+            if (ParentHwnd = DefaultStartTabDDL_Hwnd) {
+                ; 将颜色从RRGGBB格式转换为BGR格式
+                DDLTextColor := "0x" . UI_Colors.DDLText
+                DDLBgColor := "0x" . UI_Colors.DDLBg
+                TextRGB := Integer(DDLTextColor)
+                BgRGB := Integer(DDLBgColor)
+                ; 转换为BGR格式（交换R和B字节）
+                TextBGR := ((TextRGB & 0xFF) << 16) | (TextRGB & 0xFF00) | ((TextRGB & 0xFF0000) >> 16)
+                BgBGR := ((BgRGB & 0xFF) << 16) | (BgRGB & 0xFF00) | ((BgRGB & 0xFF0000) >> 16)
+                ; 设置文本颜色
+                DllCall("gdi32.dll\SetTextColor", "Ptr", wParam, "UInt", TextBGR)
+                ; 设置背景色
+                DllCall("gdi32.dll\SetBkColor", "Ptr", wParam, "UInt", BgBGR)
+                ; 返回画刷句柄
+                return DDLBrush
+            }
+        }
+        
+        ; 检查是否是移动分类弹窗的ListBox
+        if (MoveGUIListBoxHwnd != 0 && lParam = MoveGUIListBoxHwnd && MoveGUIListBoxBrush != 0) {
+            TextColor := "0x" . UI_Colors.Text
+            BgColor := "0x" . UI_Colors.InputBg
+            TextRGB := Integer(TextColor)
+            BgRGB := Integer(BgColor)
+            TextBGR := ((TextRGB & 0xFF) << 16) | (TextRGB & 0xFF00) | ((TextRGB & 0xFF0000) >> 16)
+            BgBGR := ((BgRGB & 0xFF) << 16) | (BgRGB & 0xFF00) | ((BgRGB & 0xFF0000) >> 16)
+            DllCall("gdi32.dll\SetTextColor", "Ptr", wParam, "UInt", TextBGR)
+            DllCall("gdi32.dll\SetBkColor", "Ptr", wParam, "UInt", BgBGR)
+            return MoveGUIListBoxBrush
+        }
+        
+        ; 检查是否是从模板移动弹窗的ListBox
+        if (MoveFromTemplateListBoxHwnd != 0 && lParam = MoveFromTemplateListBoxHwnd && MoveFromTemplateListBoxBrush != 0) {
+            TextColor := "0x" . UI_Colors.Text
+            BgColor := "0x" . UI_Colors.InputBg
+            TextRGB := Integer(TextColor)
+            BgRGB := Integer(BgColor)
+            TextBGR := ((TextRGB & 0xFF) << 16) | (TextRGB & 0xFF00) | ((TextRGB & 0xFF0000) >> 16)
+            BgBGR := ((BgRGB & 0xFF) << 16) | (BgRGB & 0xFF00) | ((BgRGB & 0xFF0000) >> 16)
+            DllCall("gdi32.dll\SetTextColor", "Ptr", wParam, "UInt", TextBGR)
+            DllCall("gdi32.dll\SetBkColor", "Ptr", wParam, "UInt", BgBGR)
+            return MoveFromTemplateListBoxBrush
+        }
+    } catch {
+    }
+    
+    ; 如果不是我们的下拉框，返回0让系统使用默认处理
+    return 0
+}
 
 WM_MOUSEMOVE(wParam, lParam, Msg, Hwnd) {
     global LastHoverCtrl, GuiID_CursorPanel, LastCursorPanelButton
@@ -5927,8 +10303,12 @@ ShowConfigGUI() {
     CreateBottomBtn(GetText("save_config"), BtnStartX, SaveConfigAndClose, true, "SaveBtn", GetText("save_config_desc")) ; Primary
     CreateBottomBtn(GetText("cancel"), BtnStartX + BtnWidth + BtnSpacing, (*) => CloseConfigGUI(), false, "CancelBtn", GetText("cancel_desc"))
     
-    ; 默认显示通用标签
-    SwitchTab("general")
+    ; 根据配置显示默认标签页
+    global DefaultStartTab
+    if (!IsSet(DefaultStartTab) || DefaultStartTab = "") {
+        DefaultStartTab := "general"
+    }
+    SwitchTab(DefaultStartTab)
     
     ; 获取屏幕信息并全屏显示
     ScreenInfo := GetScreenInfo(ConfigPanelScreenIndex)
@@ -5950,6 +10330,9 @@ ShowConfigGUI() {
     
     ; 全屏显示窗口
     ConfigGUI.Show("w" . ConfigWidth . " h" . ConfigHeight . " x" . PosX . " y" . PosY)
+    
+    ; 设置下拉列表最小可见项数（窗口显示后设置，延迟300ms确保ComboBox完全初始化）
+    SetTimer(SetDDLMinVisible, -300)
     
     ; 设置窗口最小尺寸限制（使用 DllCall 调用 Windows API）
     SetWindowMinSizeLimit(ConfigGUI.Hwnd, 800, 600)
@@ -6301,8 +10684,19 @@ ConfigWheelDown(*) {
 ; 关闭配置面板
 CloseConfigGUI() {
     global GuiID_ConfigGUI, CapsLockHoldTimeEdit, CapsLockHoldTimeSeconds, ConfigFile
+    global DDLBrush, DefaultStartTabDDL_Hwnd
     ; 禁用滚动热键
     DisableConfigScroll()
+    
+    ; 清理下拉框相关的资源
+    if (DDLBrush != 0) {
+        try {
+            DllCall("gdi32.dll\DeleteObject", "Ptr", DDLBrush)
+            DDLBrush := 0
+        } catch {
+        }
+    }
+    DefaultStartTabDDL_Hwnd := 0
     
     ; 【修复】在关闭配置面板前，自动保存 CapsLock 长按时间的修改
     if (GuiID_ConfigGUI != 0 && CapsLockHoldTimeEdit) {
@@ -6647,6 +11041,22 @@ SaveConfig(*) {
     global VoiceInputScreenIndex := NewVoiceInputScreenIndex
     global CursorPanelScreenIndex := NewCursorPanelScreenIndex
     
+    ; 读取默认启动页面设置（从下拉框读取）
+    global DefaultStartTab, DefaultStartTabDDL
+    if (DefaultStartTabDDL && DefaultStartTabDDL.Value) {
+        StartTabOptions := ["general", "appearance", "prompts", "hotkeys", "advanced"]
+        if (DefaultStartTabDDL.Value >= 1 && DefaultStartTabDDL.Value <= StartTabOptions.Length) {
+            DefaultStartTab := StartTabOptions[DefaultStartTabDDL.Value]
+        } else {
+            DefaultStartTab := "general"
+        }
+    } else {
+        DefaultStartTab := "general"
+    }
+    
+    ; 读取自启动设置（从按钮状态读取，已在ToggleAutoStart中更新）
+    global AutoStart
+    
     ; 保存到配置文件
     IniWrite(CursorPath, ConfigFile, "Settings", "CursorPath")
     IniWrite(AISleepTime, ConfigFile, "Settings", "AISleepTime")
@@ -6655,6 +11065,9 @@ SaveConfig(*) {
     IniWrite(Prompt_Explain, ConfigFile, "Settings", "Prompt_Explain")
     IniWrite(Prompt_Refactor, ConfigFile, "Settings", "Prompt_Refactor")
     IniWrite(Prompt_Optimize, ConfigFile, "Settings", "Prompt_Optimize")
+    
+    ; 保存提示词模板系统
+    SavePromptTemplates()
     IniWrite(PanelScreenIndex, ConfigFile, "Panel", "ScreenIndex")
     IniWrite(Language, ConfigFile, "Settings", "Language")
     IniWrite(ThemeMode, ConfigFile, "Settings", "ThemeMode")
@@ -6663,8 +11076,36 @@ SaveConfig(*) {
     ; 注意：这里不立即重新创建，因为用户可能还在查看配置面板
     ; 主题会在下次打开面板时自动应用
     
-    global AutoLoadSelectedText
+    global AutoLoadSelectedText, AutoStart, VoiceSearchEnabledCategories
     IniWrite(AutoLoadSelectedText ? "1" : "0", ConfigFile, "Settings", "AutoLoadSelectedText")
+    IniWrite(AutoStart ? "1" : "0", ConfigFile, "Settings", "AutoStart")
+    
+    ; 保存默认启动页面设置
+    global DefaultStartTab
+    if (IsSet(DefaultStartTab) && DefaultStartTab != "") {
+        IniWrite(DefaultStartTab, ConfigFile, "Settings", "DefaultStartTab")
+    } else {
+        IniWrite("general", ConfigFile, "Settings", "DefaultStartTab")
+    }
+    
+    ; 保存启用的搜索标签
+    if (IsSet(VoiceSearchEnabledCategories) && IsObject(VoiceSearchEnabledCategories) && VoiceSearchEnabledCategories.Length > 0) {
+        EnabledCategoriesStr := ""
+        for Index, Category in VoiceSearchEnabledCategories {
+            if (EnabledCategoriesStr != "") {
+                EnabledCategoriesStr .= ","
+            }
+            EnabledCategoriesStr .= Category
+        }
+        IniWrite(EnabledCategoriesStr, ConfigFile, "Settings", "VoiceSearchEnabledCategories")
+    } else {
+        ; 如果为空，使用默认值
+        IniWrite("ai,academic,baidu,image,audio,video,book,price,medical,cloud", ConfigFile, "Settings", "VoiceSearchEnabledCategories")
+    }
+    
+    ; 应用自启动设置
+    SetAutoStart(AutoStart)
+    
     IniWrite(FunctionPanelPos, ConfigFile, "Panel", "FunctionPanelPos")
     IniWrite(ConfigPanelPos, ConfigFile, "Panel", "ConfigPanelPos")
     IniWrite(ClipboardPanelPos, ConfigFile, "Panel", "ClipboardPanelPos")
@@ -8246,6 +12687,11 @@ HandleDynamicHotkey(PressedKey, ActionType) {
     global CapsLock2, PanelVisible, VoiceInputActive, CapsLock, VoiceSearchActive
     global QuickActionButtons
     
+    ; 如果使用了组合快捷键，清除显示面板的定时器（防止面板被激活）
+    SetTimer(ShowPanelTimer, 0)  ; 停止ShowPanelTimer定时器
+    ; 清除CapsLock2标记，防止面板被激活
+    CapsLock2 := false
+    
     ; 将按键转换为小写进行比较（ESC特殊处理）
     KeyLower := StrLower(PressedKey)
     ConfigKey := ""
@@ -8254,8 +12700,7 @@ HandleDynamicHotkey(PressedKey, ActionType) {
     if (PanelVisible && QuickActionButtons.Length > 0) {
         for Index, Button in QuickActionButtons {
             if (StrLower(Button.Hotkey) = KeyLower) {
-                ; 匹配到快捷操作按钮
-                CapsLock2 := false
+                ; 匹配到快捷操作按钮（CapsLock2已在上面清除）
                 ; 立即隐藏面板
                 if (PanelVisible) {
                     HideCursorPanel()
@@ -8662,6 +13107,31 @@ b:: {
 }
 
 #HotIf
+
+; ===================== 自启动功能 =====================
+; 设置开机自启动（使用注册表）
+SetAutoStart(Enable) {
+    RegKey := "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run"
+    AppName := "CursorHelper"
+    ScriptPath := A_ScriptFullPath
+    
+    try {
+        if (Enable) {
+            ; 添加自启动项
+            RegWrite(ScriptPath, "REG_SZ", RegKey, AppName)
+        } else {
+            ; 删除自启动项
+            try {
+                RegDelete(RegKey, AppName)
+            } catch {
+                ; 如果注册表项不存在，忽略错误
+            }
+        }
+    } catch as e {
+        ; 如果操作失败，显示错误提示（可选）
+        ; TrayTip("设置自启动失败: " . e.Message, "错误", "Iconx 2")
+    }
+}
 
 ; ===================== 导出导入配置功能 =====================
 ; 导出配置
