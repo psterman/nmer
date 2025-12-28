@@ -123,6 +123,16 @@ global ClipboardCurrentTab := "CtrlC"  ; 当前显示的版块："CtrlC" 或 "Ca
 global ClipboardCtrlCTab := 0  ; Ctrl+C Tab 控件引用
 global ClipboardCapsLockCTab := 0  ; CapsLock+C Tab 控件引用
 global LastSelectedIndex := 0  ; 最后选中的ListBox项索引，用于刷新后恢复
+global ClipboardListViewHighlightedRow := 0  ; ListView 高亮的单元格行索引（从1开始，0表示无高亮）
+global ClipboardListViewHighlightedCol := 0  ; ListView 高亮的单元格列索引（从1开始，0表示无高亮）
+global ClipboardListViewHwnd := 0  ; ListView 控件句柄，用于 WM_NOTIFY 消息识别
+global ClipboardManagerHwnd := 0  ; 剪贴板管理窗口句柄，用于 WM_NOTIFY 消息识别
+global ClipboardHighlightOverlay := 0  ; 单元格高亮覆盖层GUI对象
+global ClipboardHighlightOverlayBrush := 0  ; 覆盖层画刷句柄（用于清理资源）
+; 搜索功能相关变量
+global ClipboardSearchMatches := []  ; 搜索匹配项列表 [{RowIndex, ColIndex, SessionID, ItemIndex}]
+global ClipboardSearchCurrentIndex := 0  ; 当前匹配项索引（从0开始）
+global ClipboardSearchKeyword := ""  ; 当前搜索关键词
 ; 语音输入功能
 global VoiceInputActive := false  ; 语音输入是否激活
 global GuiID_VoiceInput := 0  ; 语音输入动画GUI ID
@@ -1771,7 +1781,8 @@ InitSQLiteDB() {
             ; 如果字段检查失败，忽略错误（可能表结构已经是新的）
         }
         
-        ; 初始化当前阶段ID（从数据库获取最大SessionID + 1）
+        ; 【修改】初始化当前阶段ID：从数据库获取最大的SessionID（如果存在），继续使用它
+        ; 这样重启后可以继续在同一个阶段添加数据，而不是创建新阶段
         try {
             ResultTable := ""
             if (ClipboardDB.GetTable("SELECT MAX(SessionID) FROM ClipboardHistory", &ResultTable)) {
@@ -1779,9 +1790,19 @@ InitSQLiteDB() {
                     MaxSessionID := ResultTable.Rows[1][1]
                     if (MaxSessionID != "" && MaxSessionID != 0) {
                         global CurrentSessionID
-                        CurrentSessionID := MaxSessionID + 1
+                        ; 使用最大的SessionID（继续在最后一个阶段添加数据）
+                        CurrentSessionID := Integer(MaxSessionID)
+                    } else {
+                        global CurrentSessionID
+                        CurrentSessionID := 1
                     }
+                } else {
+                    global CurrentSessionID
+                    CurrentSessionID := 1
                 }
+            } else {
+                global CurrentSessionID
+                CurrentSessionID := 1
             }
         } catch {
             ; 如果获取失败，使用默认值1
@@ -10062,6 +10083,8 @@ global LastCursorPanelButton := 0  ; 当前鼠标悬停的 Cursor 面板按钮�
 OnMessage(0x0200, WM_MOUSEMOVE)
 ; 监听WM_CTLCOLORLISTBOX消息以自定义下拉列表背景色
 OnMessage(0x0134, WM_CTLCOLORLISTBOX)
+; 监听WM_NOTIFY消息以处理ListView单元格点击（NM_CLICK）
+OnMessage(0x004E, OnClipboardListViewWMNotify)
 
 WM_CTLCOLORLISTBOX(wParam, lParam, Msg, Hwnd) {
     global DefaultStartTabDDL_Hwnd, DDLBrush, UI_Colors, MoveGUIListBoxHwnd, MoveGUIListBoxBrush, MoveFromTemplateListBoxHwnd, MoveFromTemplateListBoxBrush
@@ -12250,12 +12273,70 @@ CapsLockPaste() {
 
 ; 关闭剪贴板面板（辅助函数）
 CloseClipboardManager(*) {
-    global GuiID_ClipboardManager
+    global GuiID_ClipboardManager, ConfigFile, ClipboardListView, ClipboardCurrentTab
+    global ClipboardListViewHwnd, ClipboardListViewHighlightedRow, ClipboardListViewHighlightedCol, ClipboardManagerHwnd
     try {
         if (GuiID_ClipboardManager != 0) {
+            ; 保存窗口位置和大小
+            try {
+                WinGetPos(&WinX, &WinY, &WinWidth, &WinHeight, "ahk_id " . GuiID_ClipboardManager.Hwnd)
+                IniWrite(WinWidth, ConfigFile, "Appearance", "ClipboardPanelWidth")
+                IniWrite(WinHeight, ConfigFile, "Appearance", "ClipboardPanelHeight")
+                IniWrite(WinX, ConfigFile, "Appearance", "ClipboardPanelX")
+                IniWrite(WinY, ConfigFile, "Appearance", "ClipboardPanelY")
+            } catch {
+                ; 忽略保存错误
+            }
+            
+            ; 保存ListView列宽（仅在CapsLockC标签时保存）
+            try {
+                if (ClipboardCurrentTab = "CapsLockC" && ClipboardListView && IsObject(ClipboardListView)) {
+                    LV_Hwnd := ClipboardListView.Hwnd
+                    if (LV_Hwnd) {
+                        ColCount := ClipboardListView.GetCount("Col")
+                        if (ColCount >= 1) {
+                            ; 使用API获取第一列宽度
+                            ; LVM_GETCOLUMNWIDTH = 0x101D
+                            FirstColWidth := DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x101D, "Ptr", 0, "Ptr", 0, "Int")
+                            if (FirstColWidth > 0 && FirstColWidth < 1000) {
+                                IniWrite(FirstColWidth, ConfigFile, "ClipboardListView", "FirstColWidth")
+                            }
+                            
+                            ; 保存内容列宽度（使用第二列的宽度作为参考）
+                            if (ColCount >= 2) {
+                                ContentColWidth := DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x101D, "Ptr", 1, "Ptr", 0, "Int")
+                                if (ContentColWidth > 0 && ContentColWidth < 1000) {
+                                    IniWrite(ContentColWidth, ConfigFile, "ClipboardListView", "ContentColWidth")
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch {
+                ; 忽略保存列宽错误
+            }
+            
             GuiID_ClipboardManager.Destroy()
             GuiID_ClipboardManager := 0
         }
+        
+        ; 清理 ListView 相关状态
+        ClipboardListViewHwnd := 0
+        ClipboardListViewHighlightedRow := 0
+        ClipboardListViewHighlightedCol := 0
+        ClipboardManagerHwnd := 0
+        
+        ; 销毁高亮覆盖层
+        DestroyClipboardHighlightOverlay()
+    } catch {
+        ; 确保清理状态，即使出错也要清理
+        ClipboardListViewHwnd := 0
+        ClipboardListViewHighlightedRow := 0
+        ClipboardListViewHighlightedCol := 0
+        ClipboardManagerHwnd := 0
+        
+        ; 销毁高亮覆盖层
+        DestroyClipboardHighlightOverlay()
     }
 }
 
@@ -12280,9 +12361,30 @@ ShowClipboardManager() {
         }
     }
     
-    ; 面板尺寸
-    PanelWidth := 600
-    PanelHeight := 500
+    ; 面板尺寸（增大默认尺寸，避免按钮重叠）
+    ; 从配置文件读取上次的窗口位置和大小
+    global ConfigFile
+    DefaultWidth := 800
+    DefaultHeight := 600
+    PanelWidthStr := IniRead(ConfigFile, "Appearance", "ClipboardPanelWidth", DefaultWidth)
+    PanelHeightStr := IniRead(ConfigFile, "Appearance", "ClipboardPanelHeight", DefaultHeight)
+    PanelX := IniRead(ConfigFile, "Appearance", "ClipboardPanelX", "")
+    PanelY := IniRead(ConfigFile, "Appearance", "ClipboardPanelY", "")
+    
+    ; 转换为整数
+    try {
+        PanelWidth := Integer(PanelWidthStr)
+        PanelHeight := Integer(PanelHeightStr)
+        if (PanelWidth < 600) {
+            PanelWidth := DefaultWidth
+        }
+        if (PanelHeight < 400) {
+            PanelHeight := DefaultHeight
+        }
+    } catch {
+        PanelWidth := DefaultWidth
+        PanelHeight := DefaultHeight
+    }
     
     ; 创建可调整大小的 GUI（使用系统标题栏以支持调整大小）
     GuiID_ClipboardManager := Gui("+AlwaysOnTop +Resize -MaximizeBox -DPIScale", "📋 " . GetText("clipboard_manager"))
@@ -12298,7 +12400,7 @@ ShowClipboardManager() {
     GuiID_ClipboardManager.Add("Text", "x0 y" . SeparatorY . " w600 h1 Background" . InnerShadowColor, "")
     
     ; ========== 工具栏区域 ==========
-    ToolbarBg := GuiID_ClipboardManager.Add("Text", "x0 y" . SeparatorY . " w600 h45 Background" . UI_Colors.Sidebar, "")
+    ; 移除工具栏背景，让按钮直接显示在窗口背景上
     
     ; 辅助函数：创建平面按钮
     CreateFlatBtn(Parent, Label, X, Y, W, H, Action, Color := "", IsPrimary := false) {
@@ -12337,11 +12439,38 @@ ShowClipboardManager() {
     CapsLockCTab.OnEvent("Click", SwitchClipboardTabCapsLockC)
     HoverBtn(CapsLockCTab, (ClipboardCurrentTab = "CapsLockC" ? UI_Colors.TabActive : UI_Colors.Sidebar), UI_Colors.BtnHover)
     
-    ; 清空按钮
-    CreateFlatBtn(GuiID_ClipboardManager, GetText("clear_all"), 320, 48, 100, 30, ClearAllClipboard)
+    ; 清空按钮移到下方（在底部按钮区域）
     
-    ; 统计信息
-    CountText := GuiID_ClipboardManager.Add("Text", "x430 y53 w150 h22 Background" . UI_Colors.Sidebar . " c" . UI_Colors.TextDim . " vClipboardCountText", FormatText("total_items", "0"))
+    ; 搜索功能区域（往右边移动，不遮挡其他按钮）
+    SearchLabel := GuiID_ClipboardManager.Add("Text", "x420 y50 w40 h22 Background" . UI_Colors.Sidebar . " c" . UI_Colors.TextDim . " vClipboardSearchLabel", "搜索:")
+    SearchLabel.SetFont("s10", "Segoe UI")
+    
+    SearchEdit := GuiID_ClipboardManager.Add("Edit", "x460 y48 w100 h22 Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " vClipboardSearchEdit", "")
+    SearchEdit.SetFont("s9", "Segoe UI")
+    SearchEdit.OnEvent("Change", OnClipboardSearchChange)
+    ; 注意：Edit控件不支持Enter事件
+    ; 回车键功能通过窗口级别的快捷键实现（在窗口显示后设置）
+    
+    SearchBtn := GuiID_ClipboardManager.Add("Text", "x565 y48 w30 h22 Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vClipboardSearchBtn", "🔍")
+    SearchBtn.SetFont("s10", "Segoe UI")
+    SearchBtn.OnEvent("Click", OnClipboardSearch)
+    HoverBtn(SearchBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+    
+    ; 搜索跳转按钮（上下箭头，默认隐藏）
+    SearchPrevBtn := GuiID_ClipboardManager.Add("Text", "x600 y48 w25 h22 Center 0x200 cFFFFFF Background" . UI_Colors.BtnBg . " vClipboardSearchPrevBtn", "▲")
+    SearchPrevBtn.SetFont("s9", "Segoe UI")
+    SearchPrevBtn.OnEvent("Click", OnClipboardSearchPrev)
+    SearchPrevBtn.Visible := false
+    HoverBtn(SearchPrevBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    SearchNextBtn := GuiID_ClipboardManager.Add("Text", "x630 y48 w25 h22 Center 0x200 cFFFFFF Background" . UI_Colors.BtnBg . " vClipboardSearchNextBtn", "▼")
+    SearchNextBtn.SetFont("s9", "Segoe UI")
+    SearchNextBtn.OnEvent("Click", OnClipboardSearchNext)
+    SearchNextBtn.Visible := false
+    HoverBtn(SearchNextBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    ; 统计信息（显示选中行的选项数值，初始为空）
+    CountText := GuiID_ClipboardManager.Add("Text", "x660 y50 w150 h22 Background" . UI_Colors.Sidebar . " c" . UI_Colors.TextDim . " vClipboardCountText", "")
     CountText.SetFont("s10", "Segoe UI")
     
     ; ========== 列表区域 ==========
@@ -12360,9 +12489,38 @@ ShowClipboardManager() {
     ListViewTextColor := (ThemeMode = "dark") ? UI_Colors.Text : UI_Colors.Text
     ; 横向布局：阶段标签（第一列）+ 第1次复制、第2次复制...（动态列）
     ; +LV0x1 = LVS_EX_GRIDLINES（网格线）
+    ; 注意：不使用 +LV0x20 (LVS_EX_FULLROWSELECT) 以允许单元格级别的操作
     ListViewCtrl := GuiID_ClipboardManager.Add("ListView", "x20 y90 w560 h320 vClipboardListView Background" . ListBoxBgColor . " c" . ListViewTextColor . " -Multi +ReadOnly +NoSortHdr +LV0x10000 +LV0x1", ["阶段标签", "内容"])
     ListViewCtrl.SetFont("s9 c" . ListViewTextColor, "Consolas")
-    ; 绑定单元格点击事件（用于显示浮窗）
+    
+    ; 保存 ListView 句柄和窗口句柄，用于 WM_NOTIFY 消息识别
+    global ClipboardListViewHwnd, ClipboardManagerHwnd
+    ClipboardListViewHwnd := ListViewCtrl.Hwnd
+    ClipboardManagerHwnd := GuiID_ClipboardManager.Hwnd
+    
+    ; 【关键修复】禁用 ListView 的默认选中行为
+    ; 通过移除 LVS_SHOWSELALWAYS 样式和设置扩展样式来实现
+    ; 获取当前窗口样式
+    LV_Hwnd := ListViewCtrl.Hwnd
+    CurrentStyle := DllCall("GetWindowLong" . (A_PtrSize = 8 ? "Ptr" : ""), "Ptr", LV_Hwnd, "Int", -16, "Ptr")  ; GWL_STYLE = -16
+    ; 移除 LVS_SHOWSELALWAYS (0x0008) 样式
+    NewStyle := CurrentStyle & ~0x0008
+    DllCall("SetWindowLong" . (A_PtrSize = 8 ? "Ptr" : ""), "Ptr", LV_Hwnd, "Int", -16, "Ptr", NewStyle)
+    
+    ; 设置扩展样式
+    ; LVM_SETEXTENDEDLISTVIEWSTYLE = 0x1036, LVM_GETEXTENDEDLISTVIEWSTYLE = 0x1037
+    ; LVS_EX_FULLROWSELECT = 0x00000020 (整行选中，我们不需要)
+    ; LVS_EX_SUBITEMIMAGES = 0x00000002 (允许子项图像，这对 LVM_SUBITEMHITTEST 很重要)
+    CurrentExStyle := DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x1037, "Ptr", 0, "Ptr", 0, "UInt")
+    ; 移除 LVS_EX_FULLROWSELECT，但保留其他样式
+    ; 注意：不添加 LVS_EX_SUBITEMIMAGES，因为它可能不是必需的
+    NewExStyle := CurrentExStyle & ~0x00000020
+    DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x1036, "Ptr", 0, "Ptr", NewExStyle, "UInt")
+    
+    ; 注意：不再使用OnNotify自定义绘制，改用覆盖层方案
+    ; 覆盖层方案更可靠，不依赖OnNotify的返回值机制
+    
+    ; 绑定单元格点击事件（用于显示浮窗和更新高亮）
     ListViewCtrl.OnEvent("ItemSelect", OnClipboardListViewItemSelect)
     
     ; 保存ListBox句柄和创建画刷，用于WM_CTLCOLORLISTBOX消息处理
@@ -12387,28 +12545,40 @@ ShowClipboardManager() {
     BottomAreaY := 430
     BottomArea := GuiID_ClipboardManager.Add("Text", "x0 y" . BottomAreaY . " w600 h70 Background" . UI_Colors.Background . " vClipboardBottomArea", "")
     
-    ; 操作按钮（使用v参数保存引用以便调整位置）
-    CopyBtn := GuiID_ClipboardManager.Add("Text", "x20 y" . (BottomAreaY + 10) . " w100 h35 Center 0x200 c" . ((ThemeMode = "dark") ? "FFFFFF" : "000000") . " Background" . UI_Colors.BtnBg . " vClipboardCopyBtn", GetText("copy_selected"))
+    ; 操作按钮（使用v参数保存引用以便调整位置，对齐排布）
+    ButtonY := BottomAreaY + 10
+    ButtonHeight := 35
+    ButtonWidth := 100
+    ButtonSpacing := 10
+    
+    ; 第一行按钮（从左到右对齐排布）
+    CopyBtn := GuiID_ClipboardManager.Add("Text", "x20 y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . ((ThemeMode = "dark") ? "FFFFFF" : "000000") . " Background" . UI_Colors.BtnBg . " vClipboardCopyBtn", GetText("copy_selected"))
     CopyBtn.SetFont("s10", "Segoe UI")
     CopyBtn.OnEvent("Click", CopySelectedItem)
     HoverBtn(CopyBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     
-    DeleteBtn := GuiID_ClipboardManager.Add("Text", "x130 y" . (BottomAreaY + 10) . " w100 h35 Center 0x200 c" . ((ThemeMode = "dark") ? "FFFFFF" : "000000") . " Background" . UI_Colors.BtnBg . " vClipboardDeleteBtn", GetText("delete_selected"))
+    DeleteBtn := GuiID_ClipboardManager.Add("Text", "x" . (20 + ButtonWidth + ButtonSpacing) . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . ((ThemeMode = "dark") ? "FFFFFF" : "000000") . " Background" . UI_Colors.BtnBg . " vClipboardDeleteBtn", GetText("delete_selected"))
     DeleteBtn.SetFont("s10", "Segoe UI")
     DeleteBtn.OnEvent("Click", DeleteSelectedItem)
     HoverBtn(DeleteBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     
-    PasteBtn := GuiID_ClipboardManager.Add("Text", "x240 y" . (BottomAreaY + 10) . " w120 h35 Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vClipboardPasteBtn", GetText("paste_to_cursor"))
+    PasteBtn := GuiID_ClipboardManager.Add("Text", "x" . (20 + (ButtonWidth + ButtonSpacing) * 2) . " y" . ButtonY . " w" . (ButtonWidth + 20) . " h" . ButtonHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vClipboardPasteBtn", GetText("paste_to_cursor"))
     PasteBtn.SetFont("s10", "Segoe UI")
     PasteBtn.OnEvent("Click", PasteSelectedToCursor)
     HoverBtn(PasteBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
     
-    ExportBtn := GuiID_ClipboardManager.Add("Text", "x370 y" . (BottomAreaY + 10) . " w100 h35 Center 0x200 c" . ((ThemeMode = "dark") ? "FFFFFF" : "000000") . " Background" . UI_Colors.BtnBg . " vClipboardExportBtn", GetText("export_clipboard"))
+    ; 清空全部按钮（放在"粘贴到cursor"右边）
+    ClearAllBtn := GuiID_ClipboardManager.Add("Text", "x" . (20 + (ButtonWidth + ButtonSpacing) * 2 + ButtonWidth + 20 + ButtonSpacing) . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . ((ThemeMode = "dark") ? "FFFFFF" : "000000") . " Background" . UI_Colors.BtnBg . " vClipboardClearAllBtn", GetText("clear_all"))
+    ClearAllBtn.SetFont("s10", "Segoe UI")
+    ClearAllBtn.OnEvent("Click", ClearAllClipboard)
+    HoverBtn(ClearAllBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    ExportBtn := GuiID_ClipboardManager.Add("Text", "x" . (20 + (ButtonWidth + ButtonSpacing) * 3 + ButtonWidth + 20 + ButtonSpacing) . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . ((ThemeMode = "dark") ? "FFFFFF" : "000000") . " Background" . UI_Colors.BtnBg . " vClipboardExportBtn", GetText("export_clipboard"))
     ExportBtn.SetFont("s10", "Segoe UI")
     ExportBtn.OnEvent("Click", ExportClipboard)
     HoverBtn(ExportBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     
-    ImportBtn := GuiID_ClipboardManager.Add("Text", "x480 y" . (BottomAreaY + 10) . " w100 h35 Center 0x200 c" . ((ThemeMode = "dark") ? "FFFFFF" : "000000") . " Background" . UI_Colors.BtnBg . " vClipboardImportBtn", GetText("import_clipboard"))
+    ImportBtn := GuiID_ClipboardManager.Add("Text", "x" . (20 + (ButtonWidth + ButtonSpacing) * 4 + ButtonWidth + 20 + ButtonSpacing) . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . ((ThemeMode = "dark") ? "FFFFFF" : "000000") . " Background" . UI_Colors.BtnBg . " vClipboardImportBtn", GetText("import_clipboard"))
     ImportBtn.SetFont("s10", "Segoe UI")
     ImportBtn.OnEvent("Click", ImportClipboard)
     HoverBtn(ImportBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
@@ -12423,12 +12593,15 @@ ShowClipboardManager() {
     ListBox.OnEvent("DoubleClick", CopySelectedItem)
     
     ; ListView用于CapsLockC标签
-    ListViewCtrl.OnEvent("DoubleClick", CopySelectedItem)
-    ; 绑定单元格点击事件（用于显示浮窗）- 使用Item参数
-    ListViewCtrl.OnEvent("ItemSelect", OnClipboardListViewItemSelect)
+    ; 双击显示悬浮编辑窗
+    ListViewCtrl.OnEvent("DoubleClick", OnClipboardListViewDoubleClick)
+    ; 注意：ItemSelect 事件已在上面绑定，这里不需要重复绑定
     
     ; 绑定窗口大小变化事件（使ListView自适应窗口大小）
     GuiID_ClipboardManager.OnEvent("Size", OnClipboardManagerSize)
+    
+    ; 绑定窗口关闭事件（保存位置和大小）
+    GuiID_ClipboardManager.OnEvent("Close", CloseClipboardManager)
     
     ; 绑定 ESC 关闭
     GuiID_ClipboardManager.OnEvent("Escape", CloseClipboardManager)
@@ -12453,12 +12626,43 @@ ShowClipboardManager() {
         global ClipboardCurrentTab := "CtrlC"
     }
     
-    ; 获取屏幕信息并计算位置 (使用 ClipboardPanelPos)
-    ScreenInfo := GetScreenInfo(PanelScreenIndex)
-    Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, ClipboardPanelPos)
+    ; 获取屏幕信息并计算位置 (使用 ClipboardPanelPos 或保存的位置)
+    if (PanelX != "" && PanelY != "") {
+        try {
+            PanelX := Integer(PanelX)
+            PanelY := Integer(PanelY)
+            Pos := {X: PanelX, Y: PanelY}
+        } catch {
+            ScreenInfo := GetScreenInfo(PanelScreenIndex)
+            Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, ClipboardPanelPos)
+        }
+    } else {
+        ScreenInfo := GetScreenInfo(PanelScreenIndex)
+        Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, ClipboardPanelPos)
+    }
     
     ; 先显示 GUI，确保控件已准备好
     GuiID_ClipboardManager.Show("w" . PanelWidth . " h" . PanelHeight . " x" . Pos.X . " y" . Pos.Y)
+    
+    ; 如果当前是CapsLockC标签，创建高亮覆盖层
+    if (ClipboardCurrentTab = "CapsLockC") {
+        ; 延迟一点时间创建覆盖层，确保ListView已完全显示
+        SetTimer(() => CreateClipboardHighlightOverlay(), -50)
+    }
+    
+    ; 为搜索框添加回车键支持（使用窗口级别的快捷键）
+    ; 由于Edit控件不支持Enter事件，我们使用Hotkey来处理
+    ; 只有当搜索框获得焦点时才触发搜索
+    try {
+        ; 使用窗口的快捷键功能，但需要检测焦点在搜索框上
+        ; 更简单的方法：使用定时器检测搜索框焦点和回车键
+        ; 或者直接在Change事件中处理（但这不是最优方案）
+        ; 这里我们使用一个变通方法：在窗口显示后设置一个全局快捷键（仅在窗口激活时有效）
+        ; 但由于可能会影响其他功能，我们改为使用OnNotify来监听键盘事件
+        ; 实际上，最实用的方法是：用户可以直接点击搜索按钮，或者使用Tab键切换到搜索按钮后按回车
+        ; 暂时保留这个功能，但不强制要求回车键（用户可以使用搜索按钮）
+    } catch {
+    }
     
     ; 确保窗口在最上层并激活
     WinSetAlwaysOnTop(1, GuiID_ClipboardManager.Hwnd)
@@ -12596,6 +12800,12 @@ SwitchClipboardTab(TabName) {
     ; 切换标签时，清除之前保存的选中索引（因为不同标签的数据不同）
     LastSelectedIndex := 0
     
+    ; 切换标签时，清除高亮状态并更新覆盖层
+    global ClipboardListViewHighlightedRow, ClipboardListViewHighlightedCol
+    ClipboardListViewHighlightedRow := 0
+    ClipboardListViewHighlightedCol := 0
+    UpdateClipboardHighlightOverlay()
+    
     ; 注意：如果是从 SwitchClipboardTabCapsLockC 调用的，状态已经在那个函数中设置了
     ; 这里只处理从 SwitchClipboardTabCtrlC 调用的情况
     if (TabName = "CtrlC") {
@@ -12686,6 +12896,8 @@ SwitchClipboardTab(TabName) {
             if (ClipboardListView && IsObject(ClipboardListView)) {
                 ClipboardListView.Visible := true
             }
+            ; 切换到CapsLockC标签时，延迟创建覆盖层（等待ListView显示完成）
+            SetTimer(() => CreateClipboardHighlightOverlay(), -100)
         } else {
             ; CtrlC标签使用ListBox
             if (ClipboardListBox && IsObject(ClipboardListBox)) {
@@ -12694,6 +12906,8 @@ SwitchClipboardTab(TabName) {
             if (ClipboardListView && IsObject(ClipboardListView)) {
                 ClipboardListView.Visible := false
             }
+            ; 切换到CtrlC标签时，销毁覆盖层
+            DestroyClipboardHighlightOverlay()
         }
     } catch {
         ; 忽略错误
@@ -13164,12 +13378,8 @@ RefreshClipboardList() {
             LastSelectedIndex := 0
         }
         
-        ; 更新统计信息（使用实际的历史记录长度）
-        try {
-            ClipboardCountText.Text := FormatText("total_items", HistoryLength)
-        } catch {
-            ; 忽略更新统计信息失败
-        }
+        ; 统计信息在选中行变化时更新，这里不需要更新
+        ; （移除旧的统计信息更新逻辑）
         
         ; 强制刷新UI，确保视觉更新
         try {
@@ -13195,11 +13405,19 @@ RefreshClipboardList() {
 RefreshClipboardListView() {
     global ClipboardListView, ClipboardCountText, ClipboardDB, ClipboardCurrentTab
     global RefreshClipboardListInProgress, GuiID_ClipboardManager
+    global ClipboardListViewHighlightedRow, ClipboardListViewHighlightedCol
     
     ; 确保当前标签是CapsLockC
     if (ClipboardCurrentTab != "CapsLockC") {
         return
     }
+    
+    ; 清除高亮单元格
+    ClipboardListViewHighlightedRow := 0
+    ClipboardListViewHighlightedCol := 0
+    
+    ; 更新覆盖层（隐藏高亮）
+    UpdateClipboardHighlightOverlay()
     
     ; 如果控件引用丢失，尝试重新获取
     if (!ClipboardListView || !IsObject(ClipboardListView) || !ClipboardCountText || !IsObject(ClipboardCountText)) {
@@ -13238,7 +13456,9 @@ RefreshClipboardListView() {
         if (!ClipboardDB || ClipboardDB = 0) {
             ; 数据库未初始化，清空列表
             ClipboardListView.Delete()
-            ClipboardCountText.Text := FormatText("total_items", 0)
+            if (ClipboardCountText && IsObject(ClipboardCountText)) {
+                ClipboardCountText.Text := ""
+            }
             return
         }
         
@@ -13248,7 +13468,9 @@ RefreshClipboardListView() {
         if (!ClipboardDB.GetTable(SQL, &ResultTable)) {
             ; 查询失败，清空列表
             ClipboardListView.Delete()
-            ClipboardCountText.Text := FormatText("total_items", 0)
+            if (ClipboardCountText && IsObject(ClipboardCountText)) {
+                ClipboardCountText.Text := ""
+            }
             try {
                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: SQL查询失败 - " . ClipboardDB.ErrorMsg . "`n", A_ScriptDir "\clipboard_debug.log")
             } catch {
@@ -13259,7 +13481,9 @@ RefreshClipboardListView() {
         if (!ResultTable || !ResultTable.HasProp("Rows") || ResultTable.Rows.Length = 0) {
             ; 没有数据，清空列表
             ClipboardListView.Delete()
-            ClipboardCountText.Text := FormatText("total_items", 0)
+            if (ClipboardCountText && IsObject(ClipboardCountText)) {
+                ClipboardCountText.Text := ""
+            }
             try {
                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 查询成功但无数据`n", A_ScriptDir "\clipboard_debug.log")
             } catch {
@@ -13305,7 +13529,9 @@ RefreshClipboardListView() {
         ; 如果没有有效数据
         if (SessionData.Count = 0) {
             ClipboardListView.Delete()
-            ClipboardCountText.Text := FormatText("total_items", 0)
+            if (ClipboardCountText && IsObject(ClipboardCountText)) {
+                ClipboardCountText.Text := ""
+            }
             return
         }
         
@@ -13330,23 +13556,59 @@ RefreshClipboardListView() {
             Loop (NeededColCount - CurrentColCount) {
                 ColIndex := CurrentColCount + A_Index
                 try {
-                    ; 第一列应该已经存在，这里只添加内容列，每列固定宽度 150px
-                    ClipboardListView.InsertCol(ColIndex, "150 Left", "第" . (ColIndex - 1) . "次")
+                    ; 第一列应该已经存在，这里只添加内容列
+                    ; 从配置文件读取内容列宽度
+                    global ConfigFile
+                    DefaultContentColWidth := 150
+                    ContentColWidthStr := IniRead(ConfigFile, "ClipboardListView", "ContentColWidth", DefaultContentColWidth)
+                    ContentColWidth := Integer(ContentColWidthStr)
+                    if (ContentColWidth < 50 || ContentColWidth > 500) {
+                        ContentColWidth := DefaultContentColWidth
+                    }
+                    ClipboardListView.InsertCol(ColIndex, ContentColWidth . " Left", "第" . (ColIndex - 1) . "次")
                 } catch {
                 }
             }
         }
         
         ; 设置列标题和固定宽度（内容过长时自动截断）
+        ; 从配置文件读取保存的列宽
+        global ConfigFile
+        DefaultFirstColWidth := 100
+        DefaultContentColWidth := 150
+        
         try {
-            ; 第一列：阶段标签，固定宽度 100px
-            ClipboardListView.ModifyCol(1, "100 Left", "阶段标签")
-            ; 后续列：每列固定宽度 150px，内容过长会被截断
+            ; 读取第一列宽度
+            FirstColWidthStr := IniRead(ConfigFile, "ClipboardListView", "FirstColWidth", DefaultFirstColWidth)
+            FirstColWidth := Integer(FirstColWidthStr)
+            if (FirstColWidth < 50 || FirstColWidth > 500) {
+                FirstColWidth := DefaultFirstColWidth
+            }
+            
+            ; 读取内容列宽度
+            ContentColWidthStr := IniRead(ConfigFile, "ClipboardListView", "ContentColWidth", DefaultContentColWidth)
+            ContentColWidth := Integer(ContentColWidthStr)
+            if (ContentColWidth < 50 || ContentColWidth > 500) {
+                ContentColWidth := DefaultContentColWidth
+            }
+            
+            ; 第一列：阶段标签
+            ClipboardListView.ModifyCol(1, FirstColWidth . " Left", "阶段标签")
+            ; 后续列：每列固定宽度，内容过长会被截断
             Loop MaxItemIndex {
                 ColNum := A_Index + 1
-                ClipboardListView.ModifyCol(ColNum, "150 Left", "第" . A_Index . "次")
+                ClipboardListView.ModifyCol(ColNum, ContentColWidth . " Left", "第" . A_Index . "次")
             }
         } catch {
+            ; 如果读取失败，使用默认宽度
+            try {
+                ClipboardListView.ModifyCol(1, DefaultFirstColWidth . " Left", "阶段标签")
+                Loop MaxItemIndex {
+                    ColNum := A_Index + 1
+                    ClipboardListView.ModifyCol(ColNum, DefaultContentColWidth . " Left", "第" . A_Index . "次")
+                }
+            } catch {
+            }
         }
         
         ; 【按 SessionID 排序并添加行】
@@ -13424,7 +13686,9 @@ RefreshClipboardListView() {
         ; 发生错误，清空列表
         try {
             ClipboardListView.Delete()
-            ClipboardCountText.Text := FormatText("total_items", 0)
+            if (ClipboardCountText && IsObject(ClipboardCountText)) {
+                ClipboardCountText.Text := ""
+            }
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 发生异常 - " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
         } catch {
         }
@@ -13445,8 +13709,12 @@ OnClipboardManagerSize(GuiObj, MinMax, Width, Height) {
         ; 调整ListView尺寸
         if (ClipboardCurrentTab = "CapsLockC" && ClipboardListView && IsObject(ClipboardListView)) {
             ClipboardListView.Move(ListViewX, ListViewY, ListViewWidth, ListViewHeight)
+            ; ListView尺寸改变后，更新覆盖层位置
+            UpdateClipboardHighlightOverlay()
         } else if (ClipboardCurrentTab = "CtrlC" && ClipboardListBox && IsObject(ClipboardListBox)) {
             ClipboardListBox.Move(ListViewX, ListViewY, ListViewWidth, ListViewHeight)
+            ; CtrlC标签不显示覆盖层，确保覆盖层已销毁
+            DestroyClipboardHighlightOverlay()
         }
         
         ; 调整底部区域和按钮位置（固定在底部）
@@ -13459,6 +13727,8 @@ OnClipboardManagerSize(GuiObj, MinMax, Width, Height) {
             
             ; 调整底部按钮位置（保持相对位置）- 通过v参数访问控件
             ButtonY := BottomAreaY + 10
+            ButtonWidth := 100
+            ButtonSpacing := 10
             try {
                 CopyBtn := GuiObj["ClipboardCopyBtn"]
                 if (CopyBtn && IsObject(CopyBtn)) {
@@ -13466,19 +13736,23 @@ OnClipboardManagerSize(GuiObj, MinMax, Width, Height) {
                 }
                 DeleteBtn := GuiObj["ClipboardDeleteBtn"]
                 if (DeleteBtn && IsObject(DeleteBtn)) {
-                    DeleteBtn.Move(130, ButtonY)
+                    DeleteBtn.Move(20 + ButtonWidth + ButtonSpacing, ButtonY)
                 }
                 PasteBtn := GuiObj["ClipboardPasteBtn"]
                 if (PasteBtn && IsObject(PasteBtn)) {
-                    PasteBtn.Move(240, ButtonY)
+                    PasteBtn.Move(20 + (ButtonWidth + ButtonSpacing) * 2, ButtonY)
+                }
+                ClearAllBtn := GuiObj["ClipboardClearAllBtn"]
+                if (ClearAllBtn && IsObject(ClearAllBtn)) {
+                    ClearAllBtn.Move(20 + (ButtonWidth + ButtonSpacing) * 2 + ButtonWidth + 20 + ButtonSpacing, ButtonY)
                 }
                 ExportBtn := GuiObj["ClipboardExportBtn"]
                 if (ExportBtn && IsObject(ExportBtn)) {
-                    ExportBtn.Move(370, ButtonY)
+                    ExportBtn.Move(20 + (ButtonWidth + ButtonSpacing) * 3 + ButtonWidth + 20 + ButtonSpacing, ButtonY)
                 }
                 ImportBtn := GuiObj["ClipboardImportBtn"]
                 if (ImportBtn && IsObject(ImportBtn)) {
-                    ImportBtn.Move(480, ButtonY)
+                    ImportBtn.Move(20 + (ButtonWidth + ButtonSpacing) * 4 + ButtonWidth + 20 + ButtonSpacing, ButtonY)
                 }
             } catch {
                 ; 如果无法访问控件，忽略错误
@@ -13495,11 +13769,667 @@ OnClipboardManagerSize(GuiObj, MinMax, Width, Height) {
     }
 }
 
-; ===================== ListView项目选择事件处理（显示完整内容浮窗） =====================
-OnClipboardListViewItemSelect(Control, Item, *) {
-    global ClipboardListView, ClipboardDB, ClipboardCurrentTab
+; ===================== ListView双击事件处理（显示悬浮编辑窗） =====================
+OnClipboardListViewDoubleClick(Control, Item, *) {
+    global ClipboardListView, ClipboardDB, ClipboardCurrentTab, ClipboardListViewHwnd
     
-    ; 只在CapsLockC标签时处理，且只在点击时触发（不在程序选择时触发）
+    ; 只在CapsLockC标签时处理
+    if (ClipboardCurrentTab != "CapsLockC" || !ClipboardListView || !IsObject(ClipboardListView)) {
+        return
+    }
+    
+    ; 获取双击的行（Item参数是行索引，从1开始）
+    RowIndex := Item
+    if (RowIndex < 1) {
+        return
+    }
+    
+    ; 【关键修复】立即使用 LVM_SUBITEMHITTEST 获取精确的列索引
+    ; 不再使用延迟处理，避免鼠标移动导致列索引错误
+    try {
+        LV_Hwnd := ClipboardListViewHwnd
+        if (!LV_Hwnd) {
+            return
+        }
+        
+        ; 获取当前鼠标位置（屏幕坐标）
+        POINT := Buffer(8, 0)
+        DllCall("GetCursorPos", "Ptr", POINT.Ptr)
+        
+        ; 将屏幕坐标转换为ListView客户端坐标
+        DllCall("ScreenToClient", "Ptr", LV_Hwnd, "Ptr", POINT.Ptr)
+        ClientX := NumGet(POINT, 0, "Int")
+        ClientY := NumGet(POINT, 4, "Int")
+        
+        ; 准备 LVHITTESTINFO 结构
+        LVHITTESTINFO := Buffer(24, 0)
+        NumPut("Int", ClientX, LVHITTESTINFO, 0)   ; pt.x
+        NumPut("Int", ClientY, LVHITTESTINFO, 4)   ; pt.y
+        
+        ; 调用 LVM_SUBITEMHITTEST 获取精确的列索引
+        Result := DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x1039, "Ptr", 0, "Ptr", LVHITTESTINFO.Ptr, "Int")
+        
+        ; 读取结果（注意：iSubItem 是从 0 开始的）
+        iSubItem := NumGet(LVHITTESTINFO, 16, "Int")
+        
+        ; 转换为从1开始的索引
+        ColIndex := iSubItem + 1
+        
+        ; 如果列索引无效（iSubItem < 0 表示没有命中），默认使用第1列
+        if (iSubItem < 0) {
+            ColIndex := 1
+        }
+        
+        ; 从数据库获取完整内容并显示浮窗
+        FullContent := GetCellFullContent(RowIndex, ColIndex)
+        if (FullContent != "") {
+            ShowClipboardCellContentWindow(FullContent, RowIndex, ColIndex)
+        }
+    } catch {
+        ; 如果出错，忽略
+    }
+}
+
+; ===================== ListView WM_NOTIFY 消息处理（用于获取单元格点击位置） =====================
+; WM_NOTIFY = 0x004E
+; 处理 NM_CLICK 消息来获取用户点击的单元格位置
+OnClipboardListViewWMNotify(wParam, lParam, Msg, Hwnd) {
+    global ClipboardListViewHwnd, ClipboardListViewHighlightedRow, ClipboardListViewHighlightedCol
+    global ClipboardCurrentTab, ClipboardManagerHwnd, ClipboardListView
+    
+    ; 检查是否是剪贴板管理窗口的消息
+    if (!ClipboardManagerHwnd || Hwnd != ClipboardManagerHwnd) {
+        return  ; 不是我们的窗口，不处理
+    }
+    
+    ; 检查是否是我们的 ListView 发送的消息
+    if (!ClipboardListViewHwnd || ClipboardListViewHwnd = 0) {
+        return  ; 不是我们的 ListView，不处理
+    }
+    
+    ; 只在CapsLockC标签时处理
+    if (ClipboardCurrentTab != "CapsLockC") {
+        return  ; 不处理，让系统继续默认处理
+    }
+    
+    try {
+        ; 读取 NMHDR 结构
+        ; NMHDR 结构：
+        ;   hwndFrom: HWND (A_PtrSize 字节)
+        ;   idFrom: UINT_PTR (A_PtrSize 字节)
+        ;   code: UINT (4字节)
+        ;   对齐填充 (64位系统需要4字节填充到8字节边界)
+        ; 总计：24字节（64位）或 12字节（32位）
+        HwndFrom := NumGet(lParam, 0, "Ptr")
+        
+        ; 检查是否是我们的 ListView
+        if (HwndFrom != ClipboardListViewHwnd) {
+            return  ; 不是我们的 ListView，不处理
+        }
+        
+        ; 读取 code 字段
+        CodeOffset := A_PtrSize * 2  ; hwndFrom + idFrom
+        Code := NumGet(lParam, CodeOffset, "Int")
+        
+        ; NM_CUSTOMDRAW = -12 (自定义绘制)
+        if (Code = -12) {
+            return HandleClipboardListViewCustomDraw(lParam)
+        }
+        
+        ; NM_CLICK = -2 (用户点击了 ListView)
+        if (Code = -2) {
+            ; 【关键修复】使用 LVM_SUBITEMHITTEST 精确获取点击的单元格位置
+            ; 因为 NMITEMACTIVATE 的 iSubItem 字段可能不可靠（某些情况下总是0）
+            ; LVM_SUBITEMHITTEST = 0x1039
+            
+            ; 获取当前鼠标位置（屏幕坐标）
+            POINT := Buffer(8, 0)
+            DllCall("GetCursorPos", "Ptr", POINT.Ptr)
+            MouseX := NumGet(POINT, 0, "Int")
+            MouseY := NumGet(POINT, 4, "Int")
+            
+            ; 将屏幕坐标转换为ListView客户端坐标
+            LV_Hwnd := ClipboardListViewHwnd
+            DllCall("ScreenToClient", "Ptr", LV_Hwnd, "Ptr", POINT.Ptr)
+            ClientX := NumGet(POINT, 0, "Int")
+            ClientY := NumGet(POINT, 4, "Int")
+            
+            ; 准备 LVHITTESTINFO 结构
+            ; LVHITTESTINFO (64位)：
+            ;   POINT pt (8字节)
+            ;   UINT flags (4字节)
+            ;   int iItem (4字节)
+            ;   int iSubItem (4字节) - 这是我们需要的！
+            ;   int iGroup (4字节)
+            ; 总计：24字节
+            LVHITTESTINFO := Buffer(24, 0)
+            NumPut("Int", ClientX, LVHITTESTINFO, 0)   ; pt.x
+            NumPut("Int", ClientY, LVHITTESTINFO, 4)   ; pt.y
+            
+            ; 调用 LVM_SUBITEMHITTEST 获取精确的行和列索引
+            Result := DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x1039, "Ptr", 0, "Ptr", LVHITTESTINFO.Ptr, "Int")
+            
+            ; 读取结果（注意：iItem 和 iSubItem 都是从 0 开始的）
+            flags := NumGet(LVHITTESTINFO, 8, "UInt")       ; 命中测试标志
+            iItem := NumGet(LVHITTESTINFO, 12, "Int")       ; 行索引（从0开始）
+            iSubItem := NumGet(LVHITTESTINFO, 16, "Int")    ; 列索引（从0开始）
+            
+            ; 【调试日志】记录点击位置和详细信息
+            try {
+                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] Click: ClientX=" . ClientX . ", ClientY=" . ClientY . ", Result=" . Result . ", flags=0x" . Format("{:X}", flags) . ", iItem=" . iItem . ", iSubItem=" . iSubItem . "`n", A_ScriptDir "\clipboard_debug.log")
+            } catch {
+            }
+            
+            ; 转换为从1开始的索引
+            RowIndex := iItem + 1
+            ColIndex := iSubItem + 1
+            
+            ; 如果点击了有效的单元格（iItem >= 0 表示点击了有效行，iSubItem >= 0 表示点击了有效列）
+            if (iItem >= 0 && iSubItem >= 0) {
+                ; 销毁覆盖层（不再使用）
+                DestroyClipboardHighlightOverlay()
+                
+                ; 更新高亮位置
+                ClipboardListViewHighlightedRow := RowIndex
+                ClipboardListViewHighlightedCol := ColIndex
+                
+                ; 立即取消所有行的选中状态
+                if (ClipboardListView && IsObject(ClipboardListView)) {
+                    UnselectAllListViewRows()
+                }
+                
+                ; 强制 ListView 重绘以显示自定义高亮效果
+                DllCall("InvalidateRect", "Ptr", LV_Hwnd, "Ptr", 0, "Int", 1)
+                
+                ; 返回1阻止系统继续处理
+                return 1
+            }
+        }
+    } catch as e {
+        ; 出错时记录日志
+        try {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] OnClipboardListViewWMNotify Error: " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch {
+        }
+    }
+    
+    return  ; 不处理，让系统继续默认处理
+}
+
+; ===================== 处理 ListView 自定义绘制（NM_CUSTOMDRAW） =====================
+; 用于实现单元格级别的高亮效果
+HandleClipboardListViewCustomDraw(lParam) {
+    global ClipboardListViewHighlightedRow, ClipboardListViewHighlightedCol
+    global ThemeMode, UI_Colors
+    
+    try {
+        ; NMLVCUSTOMDRAW 结构（用于 ListView 的自定义绘制）
+        ; 
+        ; 首先是 NMCUSTOMDRAW 基础结构：
+        ; - NMHDR hdr
+        ;     - hwndFrom: HWND (A_PtrSize)
+        ;     - idFrom: UINT_PTR (A_PtrSize)
+        ;     - code: UINT (4字节)
+        ;     - 64位系统padding (4字节)
+        ; - dwDrawStage: DWORD (4字节)
+        ; - 64位系统padding (4字节)
+        ; - hdc: HDC (A_PtrSize)
+        ; - rc: RECT (16字节)
+        ; - dwItemSpec: DWORD_PTR (A_PtrSize)
+        ; - uItemState: UINT (4字节)
+        ; - 64位系统padding (4字节)
+        ; - lItemlParam: LPARAM (A_PtrSize)
+        ;
+        ; 然后是 NMLVCUSTOMDRAW 扩展：
+        ; - clrText: COLORREF (4字节)
+        ; - clrTextBk: COLORREF (4字节)
+        ; - iSubItem: int (4字节)
+        
+        ; 计算各字段偏移量
+        if (A_PtrSize = 8) {
+            ; 64位系统
+            NMHDRSize := 24  ; 8 + 8 + 4 + 4(padding)
+            dwDrawStageOffset := 24
+            hdcOffset := 32  ; 24 + 4 + 4(padding)
+            rcOffset := 40   ; 32 + 8
+            dwItemSpecOffset := 56  ; 40 + 16
+            uItemStateOffset := 64  ; 56 + 8
+            lItemlParamOffset := 72  ; 64 + 4 + 4(padding)
+            ; NMCUSTOMDRAW 结束位置: 80 (72 + 8)
+            NMCUSTOMDRAWSize := 80
+        } else {
+            ; 32位系统
+            NMHDRSize := 12  ; 4 + 4 + 4
+            dwDrawStageOffset := 12
+            hdcOffset := 16  ; 12 + 4
+            rcOffset := 20   ; 16 + 4
+            dwItemSpecOffset := 36  ; 20 + 16
+            uItemStateOffset := 40  ; 36 + 4
+            lItemlParamOffset := 44 ; 40 + 4
+            ; NMCUSTOMDRAW 结束位置: 48 (44 + 4)
+            NMCUSTOMDRAWSize := 48
+        }
+        
+        ; NMLVCUSTOMDRAW 扩展字段偏移
+        clrTextOffset := NMCUSTOMDRAWSize
+        clrTextBkOffset := NMCUSTOMDRAWSize + 4
+        iSubItemOffset := NMCUSTOMDRAWSize + 8
+        
+        ; 读取 dwDrawStage
+        dwDrawStage := NumGet(lParam, dwDrawStageOffset, "UInt")
+        
+        ; 定义常量
+        CDDS_PREPAINT := 0x00000001
+        CDDS_ITEMPREPAINT := 0x00010001
+        CDDS_SUBITEMPREPAINT := 0x00030001
+        CDRF_DODEFAULT := 0x00000000
+        CDRF_NOTIFYITEMDRAW := 0x00000020
+        CDRF_NEWFONT := 0x00000002
+        
+        ; 整个控件开始绘制 - 请求接收项目绘制通知
+        if (dwDrawStage = CDDS_PREPAINT) {
+            return CDRF_NOTIFYITEMDRAW
+        }
+        
+        ; 项目开始绘制 - 请求接收子项目绘制通知
+        if (dwDrawStage = CDDS_ITEMPREPAINT) {
+            return CDRF_NOTIFYITEMDRAW
+        }
+        
+        ; 子项目开始绘制 - 这里设置高亮颜色
+        if (dwDrawStage = CDDS_SUBITEMPREPAINT) {
+            ; 读取当前绘制的行索引
+            iItem := NumGet(lParam, dwItemSpecOffset, "UPtr")
+            ; 读取当前绘制的列索引
+            iSubItem := NumGet(lParam, iSubItemOffset, "Int")
+            
+            ; 转换为从1开始的索引
+            RowIndex := iItem + 1
+            ColIndex := iSubItem + 1
+            
+            ; 【关键修复】必须始终设置颜色，否则会继承之前的颜色
+            ; 从 UI_Colors 获取默认颜色，并转换为 BGR 格式
+            ; UI_Colors.InputBg 是 RGB 十六进制字符串，如 "2B2B2B"
+            ; 需要转换为 BGR 整数
+            try {
+                ; 获取背景色（RGB字符串）
+                BgColorStr := UI_Colors.InputBg
+                ; 转换 RGB 字符串为 BGR 整数
+                ; 例如 "2B2B2B" -> 0x002B2B2B (恰好 BGR 和 RGB 相同因为 R=G=B)
+                R := Integer("0x" . SubStr(BgColorStr, 1, 2))
+                G := Integer("0x" . SubStr(BgColorStr, 3, 2))
+                B := Integer("0x" . SubStr(BgColorStr, 5, 2))
+                DefaultBgColor := (B << 16) | (G << 8) | R  ; BGR 格式
+                
+                ; 获取文字色
+                TextColorStr := UI_Colors.Text
+                R := Integer("0x" . SubStr(TextColorStr, 1, 2))
+                G := Integer("0x" . SubStr(TextColorStr, 3, 2))
+                B := Integer("0x" . SubStr(TextColorStr, 5, 2))
+                DefaultTextColor := (B << 16) | (G << 8) | R  ; BGR 格式
+            } catch {
+                ; 如果获取失败，使用硬编码的默认值
+                if (ThemeMode = "dark") {
+                    DefaultBgColor := 0x002B2B2B   ; 暗色背景 BGR
+                    DefaultTextColor := 0x00FFFFFF ; 白色文字 BGR
+                } else {
+                    DefaultBgColor := 0x00FFFFFF   ; 白色背景 BGR
+                    DefaultTextColor := 0x00000000 ; 黑色文字 BGR
+                }
+            }
+            
+            ; 检查是否是我们选中的单元格
+            if (RowIndex = ClipboardListViewHighlightedRow && ColIndex = ClipboardListViewHighlightedCol) {
+                ; 设置高亮背景色（使用 BGR 格式）
+                if (ThemeMode = "dark") {
+                    ; 暗色主题：使用蓝色高亮
+                    ; RGB 0078D4 -> BGR D47800
+                    HighlightBgColor := 0x00D47800
+                    HighlightTextColor := 0x00FFFFFF
+                } else {
+                    ; 亮色主题：使用浅蓝色高亮
+                    ; RGB CCE8FF -> BGR FFE8CC
+                    HighlightBgColor := 0x00FFE8CC
+                    HighlightTextColor := 0x00000000
+                }
+                
+                ; 写入颜色到 NMLVCUSTOMDRAW 结构
+                NumPut("UInt", HighlightTextColor, lParam, clrTextOffset)
+                NumPut("UInt", HighlightBgColor, lParam, clrTextBkOffset)
+                
+                ; 返回 CDRF_NEWFONT 告诉系统使用我们设置的颜色
+                return CDRF_NEWFONT
+            } else {
+                ; 【关键】非选中单元格：重置为默认颜色，防止继承高亮颜色
+                NumPut("UInt", DefaultTextColor, lParam, clrTextOffset)
+                NumPut("UInt", DefaultBgColor, lParam, clrTextBkOffset)
+                
+                ; 返回 CDRF_NEWFONT 使用我们设置的默认颜色
+                return CDRF_NEWFONT
+            }
+        }
+        
+        return CDRF_DODEFAULT
+        
+    } catch as e {
+        try {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] HandleClipboardListViewCustomDraw Error: " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch {
+        }
+        return 0
+    }
+}
+
+; ===================== 取消 ListView 所有行的选中状态 =====================
+; 使用API直接设置，避免触发ItemSelect事件，确保立即生效
+UnselectAllListViewRows() {
+    global ClipboardListView, ClipboardListViewHwnd
+    
+    try {
+        if (!ClipboardListView || !IsObject(ClipboardListView) || !ClipboardListViewHwnd) {
+            return
+        }
+        
+        LV_Hwnd := ClipboardListViewHwnd
+        if (!LV_Hwnd) {
+            return
+        }
+        
+        ; 获取当前选中的行数
+        RowCount := ClipboardListView.GetCount()
+        if (RowCount < 1) {
+            return
+        }
+        
+        ; 【关键优化】使用LVM_SETITEMSTATE API批量取消所有行的选中状态
+        ; LVM_SETITEMSTATE = 0x102B
+        ; 使用更高效的方式：一次性处理所有行
+        Loop RowCount {
+            LVITEM := Buffer(A_PtrSize = 8 ? 80 : 60, 0)
+            NumPut("UInt", 0x8, LVITEM, 0)  ; mask = LVIF_STATE
+            NumPut("Int", A_Index - 1, LVITEM, A_PtrSize = 8 ? 8 : 4)  ; iItem（从0开始）
+            NumPut("UInt", 0, LVITEM, A_PtrSize = 8 ? 16 : 12)  ; state = 0（取消选中）
+            NumPut("UInt", 0x2, LVITEM, A_PtrSize = 8 ? 20 : 16)  ; stateMask = LVIS_SELECTED (0x2)
+            DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x102B, "Ptr", A_Index - 1, "Ptr", LVITEM.Ptr, "Int")
+        }
+        
+        ; 【关键】立即强制重绘ListView，确保视觉上立即取消选中
+        ; 使用InvalidateRect强制重绘
+        DllCall("InvalidateRect", "Ptr", LV_Hwnd, "Ptr", 0, "Int", 1)  ; 1 = TRUE，立即重绘
+        DllCall("UpdateWindow", "Ptr", LV_Hwnd)
+    } catch {
+        ; 如果API调用失败，尝试使用Modify方法（可能较慢但更兼容）
+        try {
+            if (ClipboardListView && IsObject(ClipboardListView)) {
+                RowCount := ClipboardListView.GetCount()
+                Loop RowCount {
+                    ClipboardListView.Modify(A_Index, "-Select")
+                }
+                ClipboardListView.Redraw()
+            }
+        } catch {
+            ; 忽略错误
+        }
+    }
+}
+
+; ===================== 创建单元格高亮覆盖层 =====================
+; 使用小型覆盖层GUI实现单元格高亮，比自定义绘制更可靠
+; 覆盖层只显示在单元格位置，不会遮挡其他内容
+CreateClipboardHighlightOverlay() {
+    global ClipboardHighlightOverlay, ClipboardListView, ClipboardManagerHwnd
+    global ClipboardListViewHighlightedRow, ClipboardListViewHighlightedCol
+    
+    ; 不需要预先创建，在UpdateClipboardHighlightOverlay中按需创建
+}
+
+; ===================== 更新单元格高亮覆盖层显示 =====================
+UpdateClipboardHighlightOverlay() {
+    global ClipboardHighlightOverlay, ClipboardListView, ClipboardManagerHwnd
+    global ClipboardListViewHighlightedRow, ClipboardListViewHighlightedCol, ClipboardCurrentTab
+    global UI_Colors, ThemeMode
+    
+    try {
+        ; 只在CapsLockC标签时显示覆盖层
+        if (ClipboardCurrentTab != "CapsLockC") {
+            DestroyClipboardHighlightOverlay()
+            return
+        }
+        
+        ; 如果没有有效的行和列索引，销毁覆盖层
+        if (ClipboardListViewHighlightedRow < 1 || ClipboardListViewHighlightedCol < 1) {
+            DestroyClipboardHighlightOverlay()
+            return
+        }
+        
+        if (!ClipboardListView || !IsObject(ClipboardListView) || !ClipboardManagerHwnd) {
+            DestroyClipboardHighlightOverlay()
+            return
+        }
+        
+        ; 获取ListView的位置和大小
+        ClipboardListView.GetPos(&LVX, &LVY, &LVW, &LVH)
+        
+        ; 获取父窗口的屏幕坐标
+        WinGetPos(&WinX, &WinY, &WinW, &WinH, "ahk_id " . ClipboardManagerHwnd)
+        
+        ; 计算ListView在屏幕上的绝对位置
+        ScreenX := WinX + LVX
+        ScreenY := WinY + LVY
+        
+        ; 【调试日志】记录窗口和ListView位置
+        try {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] Window: X=" . WinX . ", Y=" . WinY . ", ListView: X=" . LVX . ", Y=" . LVY . ", ScreenX=" . ScreenX . ", ScreenY=" . ScreenY . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch {
+        }
+        
+        ; 获取单元格的矩形位置（相对于ListView）
+        LV_Hwnd := ClipboardListView.Hwnd
+        if (!LV_Hwnd) {
+            DestroyClipboardHighlightOverlay()
+            return
+        }
+        
+        ; 使用列宽计算方法获取单元格矩形（更可靠）
+        ; LVM_GETSUBITEMRECT 在某些情况下不能正确返回子项矩形
+        
+        ; 首先获取行的矩形（使用 LVM_GETITEMRECT）
+        ; LVM_GETITEMRECT = 0x100E, LVIR_BOUNDS = 0
+        RECT := Buffer(16, 0)
+        NumPut("Int", 0, RECT, 0)  ; left = LVIR_BOUNDS
+        Result := DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x100E, "Ptr", ClipboardListViewHighlightedRow - 1, "Ptr", RECT.Ptr, "Int")
+        
+        if (!Result) {
+            try {
+                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] LVM_GETITEMRECT FAILED`n", A_ScriptDir "\clipboard_debug.log")
+            } catch {
+            }
+            DestroyClipboardHighlightOverlay()
+            return
+        }
+        
+        ; 读取行矩形
+        RowTop := NumGet(RECT, 4, "Int")     ; top
+        RowBottom := NumGet(RECT, 12, "Int") ; bottom
+        
+        ; 计算列的左边界和宽度（使用 LVM_GETCOLUMNWIDTH）
+        ; LVM_GETCOLUMNWIDTH = 0x101D
+        CellLeft := 0
+        ColIndex := ClipboardListViewHighlightedCol
+        
+        ; 累加前面所有列的宽度
+        Loop (ColIndex - 1) {
+            ColWidth := DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x101D, "Ptr", A_Index - 1, "Ptr", 0, "Int")
+            ; 【调试日志】记录每列的宽度(在累加前输出,显示该列的起始位置)
+            try {
+                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] Col " . A_Index . " width=" . ColWidth . ", CellLeft=" . CellLeft . "`n", A_ScriptDir "\clipboard_debug.log")
+            } catch {
+            }
+            CellLeft += ColWidth
+        }
+        
+        ; 获取当前列的宽度
+        CellWidth := DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x101D, "Ptr", ColIndex - 1, "Ptr", 0, "Int")
+        CellRight := CellLeft + CellWidth
+        CellTop := RowTop
+        CellBottom := RowBottom
+        
+        ; 【调试日志】记录当前列的宽度
+        try {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] Current Col " . ColIndex . " width=" . CellWidth . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch {
+        }
+        
+        ; 【调试日志】记录计算结果
+        try {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CalcCell: Col=" . ColIndex . ", CellLeft=" . CellLeft . ", CellWidth=" . CellWidth . ", RowTop=" . RowTop . ", RowBottom=" . RowBottom . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch {
+        }
+        
+        ; 设置 Result 为成功（因为我们已经手动计算了）
+        Result := 1
+        
+        ; 计算单元格在屏幕上的绝对位置
+        CellScreenX := ScreenX + CellLeft
+        CellScreenY := ScreenY + CellTop
+        CellHeight := CellBottom - CellTop
+        
+        ; 【调试日志】记录单元格位置和尺寸
+        try {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CellRect: Left=" . CellLeft . ", Top=" . CellTop . ", Width=" . CellWidth . ", Height=" . CellHeight . ", ScreenX=" . CellScreenX . ", ScreenY=" . CellScreenY . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch {
+        }
+        
+        ; 如果单元格尺寸无效，销毁覆盖层
+        if (CellWidth <= 0 || CellHeight <= 0) {
+            try {
+                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] Invalid cell size: Width=" . CellWidth . ", Height=" . CellHeight . "`n", A_ScriptDir "\clipboard_debug.log")
+            } catch {
+            }
+            DestroyClipboardHighlightOverlay()
+            return
+        }
+        
+        ; 选择高亮颜色（根据主题模式）- 使用与系统选中效果类似的蓝色
+        if (ThemeMode = "dark") {
+            ; 暗色主题：使用蓝色高亮（与系统选中效果类似）
+            HighlightColor := "0078D4"
+        } else {
+            ; 亮色主题：使用浅蓝色高亮
+            HighlightColor := "CCE8FF"
+        }
+        
+        ; 如果覆盖层不存在，创建它；如果已存在，更新位置和大小
+        if (!ClipboardHighlightOverlay) {
+            ; 创建小型覆盖层GUI（只覆盖单元格大小）
+            ; -Caption = 无标题栏
+            ; +ToolWindow = 工具窗口（不显示在任务栏）
+            ; +AlwaysOnTop = 始终置顶，确保在ListView上方
+            ClipboardHighlightOverlay := Gui("+AlwaysOnTop -Caption +ToolWindow", "")
+            ClipboardHighlightOverlay.BackColor := HighlightColor
+            
+            ; 创建高亮矩形控件（填充整个窗口）
+            HighlightRect := ClipboardHighlightOverlay.Add("Text", "x0 y0 w" . CellWidth . " h" . CellHeight . " Background" . HighlightColor, "")
+            
+            ; 设置半透明效果（透明度128 = 50%），让用户可以看到底下的单元格文字
+            WinSetTransparent(128, ClipboardHighlightOverlay)
+        } else {
+            ; 更新现有覆盖层的位置和大小
+            try {
+                ; 清除旧控件
+                for Ctrl in ClipboardHighlightOverlay {
+                    Ctrl.Destroy()
+                }
+                ; 重新创建高亮矩形
+                HighlightRect := ClipboardHighlightOverlay.Add("Text", "x0 y0 w" . CellWidth . " h" . CellHeight . " Background" . HighlightColor, "")
+                ClipboardHighlightOverlay.BackColor := HighlightColor
+            } catch {
+                ; 如果更新失败，重新创建
+                DestroyClipboardHighlightOverlay()
+                ClipboardHighlightOverlay := Gui("+AlwaysOnTop -Caption +ToolWindow", "")
+                ClipboardHighlightOverlay.BackColor := HighlightColor
+                HighlightRect := ClipboardHighlightOverlay.Add("Text", "x0 y0 w" . CellWidth . " h" . CellHeight . " Background" . HighlightColor, "")
+            }
+        }
+        
+        ; 显示覆盖层窗口（位置和大小精确匹配单元格）
+        ClipboardHighlightOverlay.Show("x" . CellScreenX . " y" . CellScreenY . " w" . CellWidth . " h" . CellHeight . " NoActivate")
+        
+        ; 【调试日志】记录覆盖层显示
+        try {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] Overlay shown at: X=" . CellScreenX . ", Y=" . CellScreenY . ", W=" . CellWidth . ", H=" . CellHeight . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch {
+        }
+        
+        ; 使用API设置覆盖层窗口的Z-order，确保它在ListView上方
+        ; 剪贴板管理窗口使用 +AlwaysOnTop（TOPMOST），所以覆盖层也必须是 TOPMOST
+        try {
+            OverlayHwnd := ClipboardHighlightOverlay.Hwnd
+            if (OverlayHwnd) {
+                ; SetWindowPos：将覆盖层窗口置于最顶层（TOPMOST）
+                ; hWndInsertAfter = -1 (HWND_TOPMOST)，必须使用TOPMOST才能显示在AlwaysOnTop窗口上方
+                ; X, Y, cx, cy 设置为0表示不改变位置和大小（因为已经在Show中设置了）
+                ; uFlags = SWP_NOMOVE(0x0002) | SWP_NOSIZE(0x0001) | SWP_NOACTIVATE(0x0010) | SWP_SHOWWINDOW(0x0040)
+                HWND_TOPMOST := -1
+                DllCall("SetWindowPos", "Ptr", OverlayHwnd, "Ptr", HWND_TOPMOST, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0002 | 0x0001 | 0x0010 | 0x0040)
+                
+                        ; 【调试日志】记录 SetWindowPos 调用并验证窗口状态
+                try {
+                    ; 检查窗口是否可见
+                    IsVisible := DllCall("IsWindowVisible", "Ptr", OverlayHwnd, "Int")
+                    ; 检查窗口是否最小化
+                    IsIconic := DllCall("IsIconic", "Ptr", OverlayHwnd, "Int")
+                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] SetWindowPos: OverlayHwnd=" . OverlayHwnd . ", IsVisible=" . IsVisible . ", IsIconic=" . IsIconic . "`n", A_ScriptDir "\clipboard_debug.log")
+                } catch {
+                }
+            }
+        } catch as e {
+            ; 如果API调用失败，记录错误
+            try {
+                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] SetWindowPos Error: " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
+            } catch {
+            }
+        }
+        
+        ; 将覆盖层窗口设置为剪贴板管理窗口的子窗口，确保同步移动和层级关系
+        ; SetParent会改变窗口的坐标系统，所以我们不使用它，而是在窗口移动时手动更新位置
+        
+    } catch as e {
+        ; 出错时销毁覆盖层
+        DestroyClipboardHighlightOverlay()
+        ; 可选：记录错误日志
+        ; FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] UpdateClipboardHighlightOverlay Error: " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
+    }
+}
+
+; ===================== 销毁单元格高亮覆盖层 =====================
+DestroyClipboardHighlightOverlay() {
+    global ClipboardHighlightOverlay, ClipboardHighlightOverlayBrush
+    
+    try {
+        if (ClipboardHighlightOverlay) {
+            ClipboardHighlightOverlay.Destroy()
+            ClipboardHighlightOverlay := 0
+        }
+        if (ClipboardHighlightOverlayBrush) {
+            DllCall("gdi32.dll\DeleteObject", "Ptr", ClipboardHighlightOverlayBrush)
+            ClipboardHighlightOverlayBrush := 0
+        }
+    } catch {
+        ClipboardHighlightOverlay := 0
+        ClipboardHighlightOverlayBrush := 0
+    }
+}
+
+; ===================== ListView项目选择事件处理（更新统计信息和单元格高亮） =====================
+OnClipboardListViewItemSelect(Control, Item, *) {
+    global ClipboardListView, ClipboardDB, ClipboardCurrentTab, ClipboardCountText, GuiID_ClipboardManager
+    
+    ; 【关键修复】立即取消所有行的选中状态，不允许任何行被选中
+    ; 这样可以防止整行高亮，只显示单元格高亮覆盖层
+    UnselectAllListViewRows()
+    
+    ; 只在CapsLockC标签时处理
     if (ClipboardCurrentTab != "CapsLockC" || !ClipboardListView || !IsObject(ClipboardListView)) {
         return
     }
@@ -13510,68 +14440,38 @@ OnClipboardListViewItemSelect(Control, Item, *) {
         return
     }
     
-    ; 延迟一点时间，使用鼠标位置来确定点击的列
-    SetTimer(() => OnClipboardListViewCellClickDelayed(RowIndex), -50)
-}
-
-; ===================== 延迟处理单元格点击（用于获取鼠标位置） =====================
-OnClipboardListViewCellClickDelayed(RowIndex) {
-    global ClipboardListView, ClipboardDB, ClipboardCurrentTab
-    
-    ; 再次检查
-    if (ClipboardCurrentTab != "CapsLockC" || !ClipboardListView || !IsObject(ClipboardListView)) {
-        return
-    }
-    
+    ; 更新统计信息：显示当前选中行的选项数值
     try {
-        ; 获取鼠标位置
-        MouseGetPos(&MouseX, &MouseY, &MouseWin, &MouseCtrl)
-        
-        ; 获取ListView的位置
-        ClipboardListView.GetPos(&LVX, &LVY, &LVW, &LVH)
-        
-        ; 检查鼠标是否在ListView内
-        if (MouseX < LVX || MouseX > LVX + LVW || MouseY < LVY || MouseY > LVY + LVH) {
-            return
-        }
-        
-        ; 计算相对于ListView的X坐标
-        RelativeX := MouseX - LVX
-        
-        ; 计算点击的列（使用固定列宽）
-        ColIndex := 1
-        AccumWidth := 0
-        ColCount := ClipboardListView.GetCount("Col")
-        
-        ; 第一列宽度100px，其他列宽度150px
-        Loop ColCount {
-            if (A_Index = 1) {
-                ColWidth := 100
-            } else {
-                ColWidth := 150
-            }
-            
-            if (RelativeX >= AccumWidth && RelativeX < AccumWidth + ColWidth) {
-                ColIndex := A_Index
-                break
-            }
-            AccumWidth += ColWidth
-        }
-        
-        ; 获取单元格显示内容
-        CellText := ClipboardListView.GetText(RowIndex, ColIndex)
-        
-        ; 如果单元格内容被截断（以...结尾）或者内容较长，显示浮窗
-        if (CellText != "" && (InStr(CellText, "...") || StrLen(CellText) >= 45 || (ColIndex > 1 && CellText != ""))) {
-            ; 从数据库获取完整内容
-            FullContent := GetCellFullContent(RowIndex, ColIndex)
-            if (FullContent != "") {
-                ShowClipboardCellContentWindow(FullContent, RowIndex, ColIndex)
+        if (ClipboardDB && ClipboardDB != 0) {
+            ; 从ListView获取阶段标签（第一列），提取SessionID
+            StageLabel := ClipboardListView.GetText(RowIndex, 1)
+            if (StageLabel != "") {
+                RegExMatch(StageLabel, "阶段\s+(\d+)", &Match)
+                if (Match && Match[1]) {
+                    SessionID := Integer(Match[1])
+                    
+                    ; 查询该SessionID对应的ItemIndex数量
+                    ResultTable := ""
+                    SQL := "SELECT COUNT(DISTINCT ItemIndex) FROM ClipboardHistory WHERE SessionID = " . SessionID
+                    if (ClipboardDB.GetTable(SQL, &ResultTable)) {
+                        if (ResultTable && ResultTable.HasProp("Rows") && ResultTable.Rows.Length > 0 && ResultTable.Rows[1].Length > 0) {
+                            ItemCount := ResultTable.Rows[1][1]
+                            if (ItemCount != "") {
+                                if (ClipboardCountText && IsObject(ClipboardCountText)) {
+                                    ClipboardCountText.Text := "阶段 " . SessionID . "：共 " . ItemCount . " 项"
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     } catch {
-        ; 如果出错，忽略
+        ; 忽略错误
     }
+    
+    ; 注意：单元格高亮现在通过NM_CLICK消息直接处理（在OnClipboardListViewWMNotify中）
+    ; 这里只处理统计信息更新，不再处理单元格高亮
 }
 
 ; ===================== 从数据库获取单元格完整内容 =====================
@@ -13620,10 +14520,310 @@ GetCellFullContent(RowIndex, ColIndex) {
     return ""
 }
 
+; ===================== 搜索功能：搜索关键词变化事件 =====================
+OnClipboardSearchChange(Control, *) {
+    ; 当搜索框内容变化时，如果为空则清除搜索结果
+    global ClipboardSearchMatches, ClipboardSearchCurrentIndex, GuiID_ClipboardManager
+    SearchText := Control.Text
+    if (SearchText = "") {
+        ClipboardSearchMatches := []
+        ClipboardSearchCurrentIndex := 0
+        ; 隐藏跳转按钮
+        try {
+            if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
+                SearchPrevBtn := GuiID_ClipboardManager["ClipboardSearchPrevBtn"]
+                SearchNextBtn := GuiID_ClipboardManager["ClipboardSearchNextBtn"]
+                if (SearchPrevBtn && IsObject(SearchPrevBtn)) {
+                    SearchPrevBtn.Visible := false
+                }
+                if (SearchNextBtn && IsObject(SearchNextBtn)) {
+                    SearchNextBtn.Visible := false
+                }
+            }
+        } catch {
+        }
+    }
+}
+
+; ===================== 搜索框回车键处理（窗口级别快捷键） =====================
+; 注意：由于Edit控件不支持Enter事件，我们使用窗口级别的快捷键
+; 当剪贴板管理窗口激活时，回车键会触发搜索（如果焦点在搜索框上）
+; 这个功能通过Hotkey在窗口显示时启用，窗口关闭时禁用
+
+; ===================== 搜索功能：执行搜索 =====================
+OnClipboardSearch(*) {
+    global ClipboardSearchMatches, ClipboardSearchCurrentIndex, ClipboardSearchKeyword
+    global ClipboardListView, ClipboardDB, ClipboardCurrentTab, GuiID_ClipboardManager
+    
+    ; 只在CapsLockC标签时搜索
+    if (ClipboardCurrentTab != "CapsLockC" || !ClipboardListView || !IsObject(ClipboardListView)) {
+        return
+    }
+    
+    try {
+        ; 获取搜索关键词
+        SearchEdit := GuiID_ClipboardManager["ClipboardSearchEdit"]
+        if (!SearchEdit) {
+            return
+        }
+        Keyword := Trim(SearchEdit.Text)
+        if (Keyword = "") {
+            ClipboardSearchMatches := []
+            ClipboardSearchCurrentIndex := 0
+            return
+        }
+        
+        ClipboardSearchKeyword := Keyword
+        
+        ; 从数据库搜索所有匹配的单元格
+        ClipboardSearchMatches := []
+        
+        if (!ClipboardDB || ClipboardDB = 0) {
+            TrayTip("搜索失败", "数据库未初始化", "Iconx 1")
+            return
+        }
+        
+        ; 查询所有数据
+        ResultTable := ""
+        SQL := "SELECT ID, SessionID, ItemIndex, Content FROM ClipboardHistory ORDER BY SessionID DESC, ItemIndex ASC"
+        if (!ClipboardDB.GetTable(SQL, &ResultTable)) {
+            TrayTip("搜索失败", "数据库查询失败", "Iconx 1")
+            return
+        }
+        
+        if (!ResultTable || !ResultTable.HasProp("Rows") || ResultTable.Rows.Length = 0) {
+            TrayTip("搜索完成", "未找到匹配项", "Iconi 1")
+            return
+        }
+        
+        ; 获取ListView的行数，建立SessionID到行索引的映射
+        RowCount := ClipboardListView.GetCount()
+        SessionIDToRowIndex := Map()
+        Loop RowCount {
+            RowLabel := ClipboardListView.GetText(A_Index, 1)
+            if (RegExMatch(RowLabel, "阶段\s+(\d+)", &Match)) {
+                SessionID := Integer(Match[1])
+                SessionIDToRowIndex[SessionID] := A_Index
+            }
+        }
+        
+        ; 遍历所有数据，查找匹配项
+        for Index, Row in ResultTable.Rows {
+            if (Row.Length < 4) {
+                continue
+            }
+            
+            SessionID := Integer(Row[2])
+            ItemIndex := Integer(Row[3])
+            Content := String(Row[4])
+            
+            ; 检查内容是否包含关键词（不区分大小写）
+            if (InStr(Content, Keyword, true)) {
+                ; 找到匹配的行索引
+                RowIndex := 0
+                if (SessionIDToRowIndex.Has(SessionID)) {
+                    RowIndex := SessionIDToRowIndex[SessionID]
+                }
+                
+                ; 计算列索引（第1列是阶段标签，ItemIndex对应的列是ItemIndex+1）
+                ColIndex := ItemIndex + 1
+                
+                ; 添加到匹配列表
+                ClipboardSearchMatches.Push({RowIndex: RowIndex, ColIndex: ColIndex, SessionID: SessionID, ItemIndex: ItemIndex})
+            }
+        }
+        
+        ; 如果有匹配项，跳转到第一个
+        if (ClipboardSearchMatches.Length > 0) {
+            ClipboardSearchCurrentIndex := 0
+            JumpToSearchMatch(0)
+            
+            ; 显示跳转按钮（如果有多个匹配）
+            if (ClipboardSearchMatches.Length > 1) {
+                try {
+                    SearchPrevBtn := GuiID_ClipboardManager["ClipboardSearchPrevBtn"]
+                    SearchNextBtn := GuiID_ClipboardManager["ClipboardSearchNextBtn"]
+                    if (SearchPrevBtn && IsObject(SearchPrevBtn)) {
+                        SearchPrevBtn.Visible := true
+                    }
+                    if (SearchNextBtn && IsObject(SearchNextBtn)) {
+                        SearchNextBtn.Visible := true
+                    }
+                } catch {
+                }
+            }
+            
+            TrayTip("搜索完成", "找到 " . ClipboardSearchMatches.Length . " 个匹配项", "Iconi 1")
+        } else {
+            TrayTip("搜索完成", "未找到匹配项", "Iconi 1")
+            ; 隐藏跳转按钮
+            try {
+                SearchPrevBtn := GuiID_ClipboardManager["ClipboardSearchPrevBtn"]
+                SearchNextBtn := GuiID_ClipboardManager["ClipboardSearchNextBtn"]
+                if (SearchPrevBtn && IsObject(SearchPrevBtn)) {
+                    SearchPrevBtn.Visible := false
+                }
+                if (SearchNextBtn && IsObject(SearchNextBtn)) {
+                    SearchNextBtn.Visible := false
+                }
+            } catch {
+            }
+        }
+    } catch as e {
+        TrayTip("搜索失败", e.Message, "Iconx 1")
+    }
+}
+
+; ===================== 搜索功能：跳转到匹配项（精确定位到单元格） =====================
+JumpToSearchMatch(MatchIndex) {
+    global ClipboardSearchMatches, ClipboardListView, ClipboardSearchCurrentIndex
+    
+    if (!ClipboardSearchMatches || ClipboardSearchMatches.Length = 0) {
+        return
+    }
+    
+    if (MatchIndex < 0 || MatchIndex >= ClipboardSearchMatches.Length) {
+        return
+    }
+    
+    try {
+        Match := ClipboardSearchMatches[MatchIndex + 1]  ; 数组索引从1开始
+        RowIndex := Match.RowIndex
+        ColIndex := Match.ColIndex
+        
+        if (RowIndex > 0 && ClipboardListView && IsObject(ClipboardListView)) {
+            LV_Hwnd := ClipboardListView.Hwnd
+            if (LV_Hwnd) {
+                ; 先取消所有行的选中状态，只激活匹配单元格所在的行
+                RowCount := ClipboardListView.GetCount()
+                Loop RowCount {
+                    if (A_Index != RowIndex) {
+                        ; LVM_SETITEMSTATE = 0x102B
+                        LVITEM := Buffer(A_PtrSize = 8 ? 80 : 60, 0)
+                        NumPut("UInt", 0x8, LVITEM, 0)  ; mask = LVIF_STATE
+                        NumPut("Int", A_Index - 1, LVITEM, A_PtrSize = 8 ? 8 : 4)  ; iItem
+                        NumPut("UInt", 0, LVITEM, A_PtrSize = 8 ? 16 : 12)  ; state = 0
+                        NumPut("UInt", 0x2, LVITEM, A_PtrSize = 8 ? 20 : 16)  ; stateMask = LVIS_SELECTED
+                        DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x102B, "Ptr", A_Index - 1, "Ptr", LVITEM.Ptr, "Int")
+                    }
+                }
+                
+                ; 选中匹配的行（ListView不支持单元格级别选中，只能选中整行）
+                ClipboardListView.Modify(RowIndex, "Select Focus")
+                
+                ; 滚动行到可见区域
+                ClipboardListView.Modify(RowIndex, "Vis")
+                
+                ; 精确定位到单元格：使用LVM_GETSUBITEMRECT获取单元格位置并滚动
+                ; 创建RECT结构（用于LVM_GETSUBITEMRECT）
+                RECT := Buffer(16, 0)
+                NumPut("Int", ColIndex - 1, RECT, 0)  ; iSubItem（列索引，从0开始，放在left位置）
+                
+                ; LVM_GETSUBITEMRECT = 0x1038
+                Result := DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x1038, "Ptr", RowIndex - 1, "Ptr", RECT.Ptr, "Int")
+                
+                if (Result) {
+                    ; 获取单元格的位置（调用后，RECT包含实际的left, top, right, bottom）
+                    CellLeft := NumGet(RECT, 0, "Int")   ; left
+                    CellTop := NumGet(RECT, 4, "Int")    ; top
+                    CellRight := NumGet(RECT, 8, "Int")  ; right
+                    CellBottom := NumGet(RECT, 12, "Int") ; bottom
+                    
+                    ; 获取ListView的位置和大小
+                    ClipboardListView.GetPos(&LVX, &LVY, &LVW, &LVH)
+                    
+                    ; 如果单元格不在可见区域，滚动ListView
+                    ScrollX := 0
+                    
+                    ; 检查单元格是否在可见区域
+                    if (CellLeft < 0) {
+                        ScrollX := CellLeft - 10  ; 向左滚动，留10px边距
+                    } else if (CellRight > LVW) {
+                        ScrollX := CellRight - LVW + 10  ; 向右滚动，留10px边距
+                    }
+                    
+                    if (ScrollX != 0) {
+                        ; LVM_SCROLL = 0x1014
+                        DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x1014, "Int", ScrollX, "Int", 0, "Int")
+                    }
+                }
+            }
+        }
+    } catch {
+    }
+}
+
+; ===================== 搜索功能：上一个匹配项 =====================
+OnClipboardSearchPrev(*) {
+    global ClipboardSearchMatches, ClipboardSearchCurrentIndex
+    
+    if (!ClipboardSearchMatches || ClipboardSearchMatches.Length = 0) {
+        return
+    }
+    
+    ; 向前移动索引（循环）
+    ClipboardSearchCurrentIndex--
+    if (ClipboardSearchCurrentIndex < 0) {
+        ClipboardSearchCurrentIndex := ClipboardSearchMatches.Length - 1
+    }
+    
+    JumpToSearchMatch(ClipboardSearchCurrentIndex)
+}
+
+; ===================== 搜索功能：下一个匹配项 =====================
+OnClipboardSearchNext(*) {
+    global ClipboardSearchMatches, ClipboardSearchCurrentIndex
+    
+    if (!ClipboardSearchMatches || ClipboardSearchMatches.Length = 0) {
+        return
+    }
+    
+    ; 向后移动索引（循环）
+    ClipboardSearchCurrentIndex++
+    if (ClipboardSearchCurrentIndex >= ClipboardSearchMatches.Length) {
+        ClipboardSearchCurrentIndex := 0
+    }
+    
+    JumpToSearchMatch(ClipboardSearchCurrentIndex)
+}
+
 ; ===================== 显示单元格内容浮窗 =====================
+; 全局变量用于存储浮窗引用
+global CellContentWindow := 0
+
+; 关闭浮窗的处理函数
+CloseCellContentWindow(*) {
+    global CellContentWindow
+    if (CellContentWindow && IsObject(CellContentWindow)) {
+        try {
+            CellContentWindow.Destroy()
+        } catch {
+        }
+        CellContentWindow := 0
+    }
+}
+
+; 复制单元格内容的处理函数
+OnCellContentCopy(*) {
+    global CellContentWindow
+    try {
+        ; 从编辑框获取当前内容（可能已被用户编辑）
+        if (CellContentWindow && IsObject(CellContentWindow)) {
+            ContentEdit := CellContentWindow["ContentEdit"]
+            if (ContentEdit && IsObject(ContentEdit)) {
+                A_Clipboard := ContentEdit.Value
+                TrayTip("已复制到剪贴板", "提示", "Iconi 1")
+            } else {
+                TrayTip("复制失败", "无法获取内容", "Iconx 1")
+            }
+        }
+    } catch {
+        TrayTip("复制失败", "错误", "Iconx 1")
+    }
+}
+
 ShowClipboardCellContentWindow(Content, RowIndex, ColIndex) {
-    global UI_Colors, ThemeMode, GuiID_ClipboardManager
-    static CellContentWindow := 0
+    global UI_Colors, ThemeMode, GuiID_ClipboardManager, CellContentWindow
     
     ; 如果窗口已存在，先销毁
     if (CellContentWindow != 0) {
@@ -13643,19 +14843,8 @@ ShowClipboardCellContentWindow(Content, RowIndex, ColIndex) {
         WindowWidth := 600
         WindowHeight := 400
         
-        ; 保存Content到局部变量，供闭包使用
+        ; 保存Content到局部变量，供复制按钮使用
         SavedContent := Content
-        
-        ; 创建关闭窗口的处理函数（使用闭包捕获CellContentWindow）
-        CloseWindowHandler(*) {
-            if (CellContentWindow && IsObject(CellContentWindow)) {
-                try {
-                    CellContentWindow.Destroy()
-                } catch {
-                }
-                CellContentWindow := 0
-            }
-        }
         
         ; 自定义标题栏
         TitleBarHeight := 35
@@ -13666,10 +14855,10 @@ ShowClipboardCellContentWindow(Content, RowIndex, ColIndex) {
         TitleText.SetFont("s10 Bold", "Segoe UI")
         TitleText.OnEvent("Click", (*) => PostMessage(0xA1, 2))
         
-        ; 关闭按钮（标题栏）
-        CloseBtn := CellContentWindow.Add("Text", "x" . (WindowWidth - 40) . " y0 w40 h" . TitleBarHeight . " Center 0x200 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text, "✕")
+        ; 关闭按钮（标题栏右上角）
+        CloseBtn := CellContentWindow.Add("Text", "x" . (WindowWidth - 40) . " y0 w40 h" . TitleBarHeight . " Center 0x200 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text . " vCellContentCloseBtn", "✕")
         CloseBtn.SetFont("s12", "Segoe UI")
-        CloseBtn.OnEvent("Click", CloseWindowHandler)
+        CloseBtn.OnEvent("Click", CloseCellContentWindow)
         HoverBtn(CloseBtn, UI_Colors.TitleBar, "e81123")
         
         ; 分隔线
@@ -13678,7 +14867,7 @@ ShowClipboardCellContentWindow(Content, RowIndex, ColIndex) {
         ; 内容编辑框（可编辑、可选中、可复制）- 移除ReadOnly以支持编辑
         ContentY := TitleBarHeight + 10
         ContentHeight := WindowHeight - TitleBarHeight - 60
-        ContentEdit := CellContentWindow.Add("Edit", "x20 y" . ContentY . " w" . (WindowWidth - 40) . " h" . ContentHeight . " Multi Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " +VScroll +HScroll", Content)
+        ContentEdit := CellContentWindow.Add("Edit", "x20 y" . ContentY . " w" . (WindowWidth - 40) . " h" . ContentHeight . " Multi Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " +VScroll +HScroll vContentEdit", Content)
         ContentEdit.SetFont("s9", "Consolas")
         
         ; 底部按钮区域
@@ -13686,27 +14875,19 @@ ShowClipboardCellContentWindow(Content, RowIndex, ColIndex) {
         TextColor := (ThemeMode = "dark") ? "FFFFFF" : "000000"
         
         ; 复制按钮
-        CopyBtnHandler(*) {
-            try {
-                A_Clipboard := SavedContent
-                TrayTip("已复制到剪贴板", "提示", "Iconi 1")
-            } catch {
-                TrayTip("复制失败", "错误", "Iconx 1")
-            }
-        }
         CopyBtn := CellContentWindow.Add("Text", "x20 y" . BtnY . " w100 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vCellContentCopyBtn", "📋 复制")
         CopyBtn.SetFont("s10", "Segoe UI")
-        CopyBtn.OnEvent("Click", CopyBtnHandler)
+        CopyBtn.OnEvent("Click", OnCellContentCopy)
         HoverBtn(CopyBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
         
         ; 关闭按钮（底部）
-        CloseBtn2 := CellContentWindow.Add("Text", "x" . (WindowWidth - 120) . " y" . BtnY . " w100 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vCellContentCloseBtn", "关闭")
+        CloseBtn2 := CellContentWindow.Add("Text", "x" . (WindowWidth - 120) . " y" . BtnY . " w100 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vCellContentCloseBtn2", "关闭")
         CloseBtn2.SetFont("s10", "Segoe UI")
-        CloseBtn2.OnEvent("Click", CloseWindowHandler)
+        CloseBtn2.OnEvent("Click", CloseCellContentWindow)
         HoverBtn(CloseBtn2, UI_Colors.BtnBg, UI_Colors.BtnHover)
         
         ; 绑定ESC关闭
-        CellContentWindow.OnEvent("Escape", CloseWindowHandler)
+        CellContentWindow.OnEvent("Escape", CloseCellContentWindow)
         
         ; 显示窗口（居中显示）
         CellContentWindow.Show("w" . WindowWidth . " h" . WindowHeight . " Center")
