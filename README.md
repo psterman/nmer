@@ -2,7 +2,7 @@
 <div align="center">
   <img src="./牛马.png" alt="牛马" width="200">
 </div>
-为[Cursor](ttps://cursor.sh/)编辑器打造的 Windows 效率神器！通过「CapsLock 牛马召唤器」快捷键方案，让 Cursor 做牛做马，替你扛下繁琐工作，编程效率狂飙 100%～
+为[Cursor](https://cursor.sh/)编辑器打造的 Windows 效率神器！通过「CapsLock 牛马召唤器」快捷键方案，让 Cursor 做牛做马，替你扛下繁琐工作，编程效率狂飙 100%～
 
 ## ✨ 牛马核心特色
 - 🚀 **CapsLock 召唤器**：短按保持大小写切换功能，长按 0.5s 调出牛马快捷面板，贴心不添乱
