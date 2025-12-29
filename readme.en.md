@@ -5,7 +5,9 @@
 <div align="center">
   <img src="./banner.jpg" alt="NiuMa" width="800">
 </div>
-[简体中文](readme.md] |[English](readme.en.md)
+
+[简体中文](README.md] | English
+
 An efficiency tool for Windows, specially designed for the [Cursor](https://cursor.sh/) editor! With the "CapsLock NiuMa Summoner" shortcut scheme, let Cursor work tirelessly to handle tedious tasks, boosting your coding efficiency by 100%~
 
 ---
