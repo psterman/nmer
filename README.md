@@ -2,7 +2,7 @@
 <div align="center">
   <img src="./banner.jpg" alt="牛马" width="800">
 </div>
-[English](./readme.en.md)|[简体中文](./README.md)
+[English](./README_EN.md) | 简体中文
 
 为 <a href="https://cursor.sh/" target="_blank">Cursor</a> 编辑器打造的 Windows 效率神器！通过「CapsLock 牛马召唤器」快捷键方案，让 Cursor 做牛做马，替你扛下繁琐工作，编程效率狂飙 100%～
 
