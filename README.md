@@ -57,11 +57,8 @@
 
 ### 安装牛马口粮（AutoHotkey v2）
 1. **下载口粮**：访问 [AutoHotkey 官网](https://www.autohotkey.com/)，[下载并安装 v2 版本](https://www.autohotkey.com/download/ahk-v2.exe)
-2. **验证口粮**：
-   - 打开命令提示符或 PowerShell
-   - 运行 `ahk --version` 检查版本，显示 v2.x.x 即为合格
-3. **绑定口粮（可选）**：
-   - 右键 `牛马.ahk` 文件 → 「打开方式」→ 选择 AutoHotkey v2
+2. **绑定口粮（可选）**：
+   - 右键 `牛马.ahk` 文件 → 「打开方式」→ 选择 AutoHotkey
    - 勾选「始终使用此应用打开」，下次直接召唤
 
 ## 📦 调教牛马步骤
