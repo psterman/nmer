@@ -1,5 +1,3 @@
----
-
 # NiuMa - Cursor Editor Efficiency Tool
 
 <div align="center">
