@@ -140,6 +140,14 @@ global ClipboardSearchKeyword := ""  ; 当前搜索关键词
 global VoiceInputActive := false  ; 语音输入是否激活
 global GuiID_VoiceInput := 0  ; 语音输入动画GUI ID
 global GuiID_VoiceInputPanel := 0  ; 语音输入面板GUI ID
+global GuiID_SearchCenter := 0  ; 搜索中心窗口GUI ID
+; 搜索中心相关变量
+global SearchCenterActiveArea := "top"  ; 当前激活区域："top" 或 "bottom"
+global SearchCenterCurrentGroup := 0  ; 当前选中的搜索组索引（0, 1, 2）
+global SearchCenterSearchEdit := 0  ; 搜索输入框控件
+global SearchCenterResultLV := 0  ; 搜索结果 ListView 控件
+global SearchCenterGroupButtons := []  ; 搜索组按钮数组
+global SearchCenterSearchResults := []  ; 当前搜索结果数据
 global VoiceInputContent := ""  ; 存储语音输入的内容
 global VoiceInputMethod := ""  ; 当前使用的输入法类型：baidu, xunfei, auto
 global VoiceInputPaused := false  ; 语音输入是否被暂停（按住CapsLock时）
@@ -1767,6 +1775,9 @@ SavePromptTemplates() {
     } catch as e {
         ; 保存失败，忽略错误
     }
+    
+    ; 同步到数据库
+    SyncPromptTemplatesToDB()
 }
 
 ; 根据ID获取模板
@@ -1887,6 +1898,50 @@ InitSQLiteDB() {
             CurrentSessionID := 1
         }
         
+        ; 创建 Prompts 表（如果不存在）- 用于存储提示词模板
+        SQL := "CREATE TABLE IF NOT EXISTS Prompts (ID TEXT PRIMARY KEY, Title TEXT NOT NULL COLLATE NOCASE, Content TEXT NOT NULL, Category TEXT COLLATE NOCASE, Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)"
+        if (!ClipboardDB.Exec(SQL)) {
+            TrayTip("警告", "创建 Prompts 表失败: " . ClipboardDB.ErrorMsg, "Iconx 3")
+        }
+        
+        ; 创建统一搜索视图 v_GlobalSearch（统一字段：Title, Content, Source, Timestamp, OriginalID）
+        ; 先删除旧视图（如果存在），然后创建新视图
+        ClipboardDB.Exec("DROP VIEW IF EXISTS v_GlobalSearch")
+        SQL := "CREATE VIEW v_GlobalSearch AS " .
+               "SELECT " .
+               "  Title, " .
+               "  Content, " .
+               "  'prompt' AS Source, " .
+               "  Timestamp, " .
+               "  ID AS OriginalID " .
+               "FROM Prompts " .
+               "UNION ALL " .
+               "SELECT " .
+               "  SUBSTR(Content, 1, 100) AS Title, " .
+               "  Content, " .
+               "  'clipboard' AS Source, " .
+               "  Timestamp, " .
+               "  CAST(ID AS TEXT) AS OriginalID " .
+               "FROM ClipboardHistory"
+        if (!ClipboardDB.Exec(SQL)) {
+            TrayTip("警告", "创建搜索视图失败: " . ClipboardDB.ErrorMsg, "Iconx 3")
+        }
+        
+        ; 为搜索相关列创建索引（COLLATE NOCASE 用于大小写不敏感搜索）
+        ; Prompts 表索引
+        SQL := "CREATE INDEX IF NOT EXISTS idx_prompts_title ON Prompts(Title COLLATE NOCASE)"
+        ClipboardDB.Exec(SQL)
+        SQL := "CREATE INDEX IF NOT EXISTS idx_prompts_content ON Prompts(Content COLLATE NOCASE)"
+        ClipboardDB.Exec(SQL)
+        SQL := "CREATE INDEX IF NOT EXISTS idx_prompts_category ON Prompts(Category COLLATE NOCASE)"
+        ClipboardDB.Exec(SQL)
+        
+        ; ClipboardHistory 表索引
+        SQL := "CREATE INDEX IF NOT EXISTS idx_clipboard_content ON ClipboardHistory(Content COLLATE NOCASE)"
+        ClipboardDB.Exec(SQL)
+        SQL := "CREATE INDEX IF NOT EXISTS idx_clipboard_timestamp ON ClipboardHistory(Timestamp DESC)"
+        ClipboardDB.Exec(SQL)
+        
         ; 成功初始化
         ; TrayTip("提示", "SQLite 数据库初始化成功", "Iconi 1")
     } catch as e {
@@ -1897,7 +1952,62 @@ InitSQLiteDB() {
             TrayTip("警告", "初始化 SQLite 数据库时出错: " . e.Message . "`n剪贴板历史将使用内存存储。", "Iconx 3")
         }
         ClipboardDB := 0
+    }
+}
+
+; ===================== 同步提示词模板到数据库 =====================
+SyncPromptTemplatesToDB() {
+    global ClipboardDB, PromptTemplates
+    
+    if (!ClipboardDB || ClipboardDB = 0) {
         return
+    }
+    
+    if (!IsSet(PromptTemplates) || PromptTemplates.Length = 0) {
+        return
+    }
+    
+    ST := ""
+    try {
+        ; 使用 INSERT OR REPLACE 来同步模板
+        SQL := "INSERT OR REPLACE INTO Prompts (ID, Title, Content, Category, Timestamp) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)"
+        
+        if (!ClipboardDB.Prepare(SQL, &ST)) {
+            return
+        }
+        
+        if (!IsObject(ST) || !ST.HasProp("Bind")) {
+            return
+        }
+        
+        for Index, Template in PromptTemplates {
+            if (!ST.Bind(1, "Text", Template.ID)) {
+                continue
+            }
+            if (!ST.Bind(2, "Text", Template.Title)) {
+                continue
+            }
+            if (!ST.Bind(3, "Text", Template.Content)) {
+                continue
+            }
+            Category := Template.HasProp("Category") ? Template.Category : ""
+            if (!ST.Bind(4, "Text", Category)) {
+                continue
+            }
+            
+            ST.Step()
+            ST.Reset()
+        }
+    } catch as e {
+        ; 错误处理
+    } finally {
+        ; 强制释放 prepared statement
+        try {
+            if (IsObject(ST) && ST.HasProp("Free")) {
+                ST.Free()
+            }
+        } catch {
+        }
     }
 }
 
@@ -2410,6 +2520,8 @@ InitConfig() ; 启动初始化
 InitSQLiteDB()
 ; 加载提示词模板系统（在配置初始化后）
 LoadPromptTemplates()
+; 同步提示词模板到数据库
+SyncPromptTemplatesToDB()
 
 ; ===================== 剪贴板变化监听 =====================
 ; 注意：OnClipboardChange 必须在脚本启动时注册，确保在 InitConfig 之后定义
@@ -2504,6 +2616,15 @@ GetCapsLockState() {
 GetPanelVisibleState() {
     global PanelVisible
     return PanelVisible
+}
+
+; ===================== 搜索中心窗口激活状态检查函数 =====================
+; 用于 #HotIf 指令的函数
+IsSearchCenterActive() {
+    global GuiID_SearchCenter
+    if (GuiID_SearchCenter = 0)
+        return false
+    return WinActive("ahk_id " . GuiID_SearchCenter)
 }
 
 ; ===================== CapsLock核心逻辑 =====================
@@ -7983,6 +8104,23 @@ RenameConfirmHandler(RenameGUI, Template, *) {
     TrayTip("已重命名", "提示", "Iconi 1")
 }
 
+; ===================== 从预览窗口编辑 =====================
+OnPromptManagerEditFromPreview(PreviewGUI, Template) {
+    ; 如果提供了GUI，先关闭它
+    if (PreviewGUI != 0 && PreviewGUI) {
+        try {
+            PreviewGUI.Destroy()
+        } catch {
+        }
+    }
+    
+    ; 打开编辑对话框
+    EditPromptTemplateDialog(Template.ID, Template)
+    
+    ; 延迟刷新列表，确保编辑对话框已关闭
+    SetTimer(() => RefreshPromptListView(), -300)
+}
+
 ; ===================== 从模板对象执行移动 =====================
 OnPromptManagerMoveFromTemplate(Template) {
     global PromptTemplates, SavePromptTemplates, CurrentPromptFolder, UI_Colors, ThemeMode
@@ -10317,7 +10455,144 @@ GetDataTypeName(DataType) {
 }
 
 ; 统一搜索函数
+; ===================== 使用统一视图搜索 =====================
+SearchGlobalView(Keyword, MaxResults := 100) {
+    global ClipboardDB
+    Results := []
+    
+    if (!ClipboardDB || ClipboardDB = 0) {
+        return Results
+    }
+    
+    if (Keyword = "") {
+        return Results
+    }
+    
+    KeywordLower := StrLower(Keyword)
+    ; 使用统一搜索视图进行搜索（字段顺序：Title, Content, Source, Timestamp, OriginalID）
+    SQL := "SELECT Title, Content, Source, Timestamp, OriginalID FROM v_GlobalSearch WHERE LOWER(Title) LIKE ? OR LOWER(Content) LIKE ? ORDER BY Timestamp DESC LIMIT ?"
+    
+    ST := ""
+    try {
+        if (!ClipboardDB.Prepare(SQL, &ST)) {
+            return Results
+        }
+        
+        ; 检查ST是否是有效的Statement对象
+        if (!IsObject(ST) || !ST.HasProp("Bind")) {
+            return Results
+        }
+        
+        ; 使用小写关键词进行搜索
+        SearchPattern := "%" . KeywordLower . "%"
+        if (!ST.Bind(1, "Text", SearchPattern)) {
+            return Results
+        }
+        if (!ST.Bind(2, "Text", SearchPattern)) {
+            return Results
+        }
+        if (!ST.Bind(3, "Int", MaxResults)) {
+            return Results
+        }
+        
+        while (ST.Step()) {
+            Title := ST.Column(0)
+            Content := ST.Column(1)
+            Source := ST.Column(2)
+            Timestamp := ST.Column(3)
+            OriginalID := ST.Column(4)
+            
+            ; 格式化时间
+            try {
+                TimeFormatted := FormatTime(Timestamp, "yyyy-MM-dd HH:mm:ss")
+            } catch {
+                TimeFormatted := Timestamp
+            }
+            
+            ; 生成预览文本（截取前100个字符）
+            Preview := SubStr(Content, 1, 100)
+            if (StrLen(Content) > 100) {
+                Preview .= "..."
+            }
+            
+            ; 根据来源设置不同的操作
+            Action := ""
+            ActionParams := Map()
+            DataTypeName := ""
+            
+            switch Source {
+                case "prompt":
+                    DataTypeName := "提示词"
+                    Action := "open_prompt"
+                    ActionParams["ID"] := OriginalID
+                case "clipboard":
+                    DataTypeName := "剪贴板"
+                    Action := "copy_to_clipboard"
+                    ActionParams["ID"] := OriginalID
+                    ActionParams["Content"] := Content
+                default:
+                    DataTypeName := Source
+                    Action := "copy_to_clipboard"
+                    ActionParams["Content"] := Content
+            }
+            
+            ResultItem := {
+                DataType: Source,
+                DataTypeName: DataTypeName,
+                ID: OriginalID,
+                Title: Title,
+                Content: Content,
+                Preview: Preview,
+                Timestamp: Timestamp,
+                TimeFormatted: TimeFormatted,
+                Source: Source,
+                Action: Action,
+                ActionParams: ActionParams
+            }
+            
+            Results.Push(ResultItem)
+        }
+    } catch as e {
+        ; 错误处理
+    } finally {
+        ; 强制释放 prepared statement
+        try {
+            if (IsObject(ST) && ST.HasProp("Free")) {
+                ST.Free()
+            }
+        } catch {
+        }
+    }
+    
+    return Results
+}
+
 SearchAllDataSources(Keyword, DataTypes := [], MaxResults := 10) {
+    ; 优先使用统一视图搜索（如果数据库可用）
+    global ClipboardDB
+    if (ClipboardDB && ClipboardDB != 0) {
+        GlobalResults := SearchGlobalView(Keyword, 100)
+        if (GlobalResults.Length > 0) {
+            ; 转换为旧格式以保持兼容性
+            Results := Map()
+            for Index, Item in GlobalResults {
+                DataType := Item.DataType
+                if (!Results.Has(DataType)) {
+                    Results[DataType] := {
+                        DataType: DataType,
+                        DataTypeName: Item.DataTypeName,
+                        Count: 0,
+                        Items: []
+                    }
+                }
+                Results[DataType].Items.Push(Item)
+                Results[DataType].Count++
+            }
+            return Results
+        }
+    }
+    
+    ; 回退到旧搜索方式
     Results := Map()
     
     ; 如果未指定类型，搜索所有数据源（增强搜索功能）
@@ -10384,16 +10659,13 @@ SearchClipboardHistory(Keyword, MaxResults := 10) {
         }
         
         ; 使用小写关键词进行搜索
-        if (!ST.Bind(1, "%" . KeywordLower . "%")) {
-            ST.Free()
+        if (!ST.Bind(1, "Text", "%" . KeywordLower . "%")) {
             return Results
         }
-        if (!ST.Bind(2, "%" . KeywordLower . "%")) {
-            ST.Free()
+        if (!ST.Bind(2, "Text", "%" . KeywordLower . "%")) {
             return Results
         }
-        if (!ST.Bind(3, MaxResults)) {
-            ST.Free()
+        if (!ST.Bind(3, "Int", MaxResults)) {
             return Results
         }
         
@@ -10440,10 +10712,10 @@ SearchClipboardHistory(Keyword, MaxResults := 10) {
             
             Results.Push(ResultItem)
         }
-        
-        ST.Free()
     } catch as e {
-        ; 如果出错，尝试释放ST
+        ; 错误处理
+    } finally {
+        ; 强制释放 prepared statement
         try {
             if (IsObject(ST) && ST.HasProp("Free")) {
                 ST.Free()
@@ -10688,80 +10960,81 @@ SearchFilePaths(Keyword, MaxResults := 10) {
     global ClipboardDB
     Results := []
     
+    if (!ClipboardDB || ClipboardDB = 0) {
+        return Results
+    }
+    
     KeywordLower := StrLower(Keyword)
     Count := 0
     
     ; 从剪贴板历史中提取文件路径
-    if (ClipboardDB && ClipboardDB != 0) {
-        ; 使用LOWER()函数进行大小写不敏感的搜索
-        SQL := "SELECT DISTINCT Content, Timestamp FROM ClipboardHistory WHERE (LOWER(Content) LIKE ? OR LOWER(Content) LIKE ?) ORDER BY Timestamp DESC LIMIT ?"
-        ST := ""
-        try {
-            if (ClipboardDB.Prepare(SQL, &ST)) {
-                ; 检查ST是否是有效的Statement对象
-                if (!IsObject(ST) || !ST.HasProp("Bind")) {
-                    return Results
-                }
+    ; 使用LOWER()函数进行大小写不敏感的搜索
+    SQL := "SELECT DISTINCT Content, Timestamp FROM ClipboardHistory WHERE (LOWER(Content) LIKE ? OR LOWER(Content) LIKE ?) ORDER BY Timestamp DESC LIMIT ?"
+    ST := ""
+    try {
+        if (!ClipboardDB.Prepare(SQL, &ST)) {
+            return Results
+        }
+        
+        ; 检查ST是否是有效的Statement对象
+        if (!IsObject(ST) || !ST.HasProp("Bind")) {
+            return Results
+        }
+        
+        ; 搜索路径格式（Windows路径、URL等），使用小写关键词
+        if (!ST.Bind(1, "Text", "%" . KeywordLower . "%")) {
+            return Results
+        }
+        if (!ST.Bind(2, "Text", "file://%" . KeywordLower . "%")) {
+            return Results
+        }
+        if (!ST.Bind(3, "Int", MaxResults * 2)) {
+            return Results
+        }
+        
+        while (ST.Step() && Count < MaxResults) {
+            Content := ST.Column(0)
+            Timestamp := ST.Column(1)
+            
+            ; 检查是否为文件路径
+            if (IsFilePath(Content)) {
+                SplitPath(Content, &FileName, &DirPath, &Ext, &NameNoExt)
                 
-                ; 搜索路径格式（Windows路径、URL等），使用小写关键词
-                if (!ST.Bind(1, "%" . KeywordLower . "%")) {
-                    ST.Free()
-                    return Results
-                }
-                if (!ST.Bind(2, "file://%" . KeywordLower . "%")) {
-                    ST.Free()
-                    return Results
-                }
-                if (!ST.Bind(3, MaxResults * 2)) {
-                    ST.Free()
-                    return Results
-                }
-                
-                while (ST.Step() && Count < MaxResults) {
-                    Content := ST.Column(0)
-                    Timestamp := ST.Column(1)
-                    
-                    ; 检查是否为文件路径
-                    if (IsFilePath(Content)) {
-                        SplitPath(Content, &FileName, &DirPath, &Ext, &NameNoExt)
-                        
-                        ; 检查文件名或路径是否匹配关键词
-                        if (InStr(StrLower(FileName), KeywordLower) || InStr(StrLower(Content), KeywordLower)) {
-                            ResultItem := {
-                                DataType: "file",
-                                DataTypeName: "文件路径",
-                                ID: Content,
-                                Title: FileName,
-                                SubTitle: DirPath . " · " . (Ext ? Ext : "文件"),
-                                Content: Content,
-                                Preview: Content,
-                                Metadata: Map(
-                                    "FilePath", Content,
-                                    "FileName", FileName,
-                                    "DirPath", DirPath,
-                                    "Ext", Ext ? Ext : "",
-                                    "Timestamp", Timestamp
-                                ),
-                                Action: "open_file",
-                                ActionParams: Map("FilePath", Content)
-                            }
-                            
-                            Results.Push(ResultItem)
-                            Count++
-                        }
+                ; 检查文件名或路径是否匹配关键词
+                if (InStr(StrLower(FileName), KeywordLower) || InStr(StrLower(Content), KeywordLower)) {
+                    ResultItem := {
+                        DataType: "file",
+                        DataTypeName: "文件路径",
+                        ID: Content,
+                        Title: FileName,
+                        SubTitle: DirPath . " · " . (Ext ? Ext : "文件"),
+                        Content: Content,
+                        Preview: Content,
+                        Metadata: Map(
+                            "FilePath", Content,
+                            "FileName", FileName,
+                            "DirPath", DirPath,
+                            "Ext", Ext ? Ext : "",
+                            "Timestamp", Timestamp
+                        ),
+                        Action: "open_file",
+                        ActionParams: Map("FilePath", Content)
                     }
+                    
+                    Results.Push(ResultItem)
+                    Count++
                 }
-                
+            }
+        }
+    } catch as e {
+        ; 错误处理
+    } finally {
+        ; 强制释放 prepared statement
+        try {
+            if (IsObject(ST) && ST.HasProp("Free")) {
                 ST.Free()
             }
-        } catch as e {
-            ; 如果出错，尝试释放ST
-            try {
-                if (IsObject(ST) && ST.HasProp("Free")) {
-                    ST.Free()
-                }
-            } catch {
-            }
+        } catch {
         }
     }
     
@@ -11024,7 +11297,7 @@ CreateSearchTab(ConfigGUI, X, Y, W, H) {
     SearchTabControls.Push(SearchTabPanel)
     
     ; 标题
-    Title := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . (Y + 20) . " w" . (W - 60) . " h30 c" . UI_Colors.Text, "搜索")
+    Title := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . (Y + 20) . " w" . (W - 60) . " h30 c" . UI_Colors.Text, "全域搜索")
     Title.SetFont("s16 Bold", "Segoe UI")
     SearchTabControls.Push(Title)
     
@@ -11056,19 +11329,18 @@ CreateSearchTab(ConfigGUI, X, Y, W, H) {
     CreateSearchTypeFilters(ConfigGUI, X + 30, YPos, W - 60)
     YPos += 40
     
-    ; ListView
+    ; ListView - 使用新列结构：内容、来源、时间
     ListViewHeight := H - (YPos - Y) - 30
     ListViewTextColor := (ThemeMode = "dark") ? "FFFFFF" : UI_Colors.Text
-    global SearchResultsListView := ConfigGUI.Add("ListView", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h" . ListViewHeight . " vSearchResultsListView Background" . UI_Colors.InputBg . " c" . ListViewTextColor . " -Multi +ReadOnly", ["类型", "标题", "副标题", "预览"])
+    global SearchResultsListView := ConfigGUI.Add("ListView", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h" . ListViewHeight . " vSearchResultsListView Background" . UI_Colors.InputBg . " c" . ListViewTextColor . " -Multi +ReadOnly", ["内容", "来源", "时间"])
     SearchResultsListView.SetFont("s10 c" . ListViewTextColor, "Segoe UI")
     SearchResultsListView.OnEvent("DoubleClick", OnSearchResultDoubleClick)
     SearchTabControls.Push(SearchResultsListView)
     
     ; 设置列宽
-    SearchResultsListView.ModifyCol(1, 120)  ; 类型
-    SearchResultsListView.ModifyCol(2, 200)  ; 标题
-    SearchResultsListView.ModifyCol(3, 250)  ; 副标题
-    SearchResultsListView.ModifyCol(4, 300)  ; 预览
+    SearchResultsListView.ModifyCol(1, 400)  ; 内容
+    SearchResultsListView.ModifyCol(2, 100)  ; 来源
+    SearchResultsListView.ModifyCol(3, 150)  ; 时间
 }
 
 ; ===================== 创建类型过滤按钮 =====================
@@ -11294,11 +11566,10 @@ RefreshSearchResultsListView(SearchResults, FilterType := "") {
             AddSearchResultItem(SearchResultsListView, Item)
         }
         
-        ; 自动调整列宽
+        ; 自动调整列宽（3列：内容、来源、时间）
         SearchResultsListView.ModifyCol(1, "AutoHdr")
         SearchResultsListView.ModifyCol(2, "AutoHdr")
         SearchResultsListView.ModifyCol(3, "AutoHdr")
-        SearchResultsListView.ModifyCol(4, "AutoHdr")
     } catch {
         ; 如果添加失败，可能控件已被销毁，忽略错误
     }
@@ -11326,8 +11597,12 @@ AddSearchResultItem(ListView, Item) {
     }
     
     try {
-        ; 列：类型 | 标题 | 副标题 | 预览
-        ListView.Add("", Item.DataTypeName, Item.Title, Item.SubTitle, Item.Preview)
+        ; 新列结构：内容 | 来源 | 时间
+        Content := Item.HasProp("Preview") ? Item.Preview : (Item.HasProp("Content") ? Item.Content : Item.Title)
+        Source := Item.HasProp("Source") ? Item.Source : (Item.HasProp("DataTypeName") ? Item.DataTypeName : "")
+        TimeStr := Item.HasProp("TimeFormatted") ? Item.TimeFormatted : (Item.HasProp("Timestamp") ? Item.Timestamp : "")
+        
+        ListView.Add("", Content, Source, TimeStr)
         
         ; 保存结果项数据到ListView行数据（通过行索引关联）
         RowIndex := ListView.GetCount()
@@ -11386,9 +11661,9 @@ PerformSearch() {
         return
     }
     
-    ; 执行搜索
+    ; 执行搜索（使用 LIMIT 100）
     try {
-        SearchResultsCache := SearchAllDataSources(Keyword)
+        SearchResultsCache := SearchAllDataSources(Keyword, [], 100)
         
         ; 刷新ListView（使用当前过滤类型）
         RefreshSearchResultsListView(SearchResultsCache, SearchCurrentFilterType)
@@ -11415,42 +11690,95 @@ OnSearchResultDoubleClick(*) {
 
 ; ===================== 处理搜索结果跳转 =====================
 HandleSearchResultAction(Item) {
-    switch Item.Action {
-        case "copy_to_clipboard":
-            ; 复制到剪贴板
-            A_Clipboard := Item.Content
-            TrayTip("提示", "已复制到剪贴板", "Iconi 1")
-            
-        case "send_to_cursor":
-            ; 发送模板到Cursor
-            Template := Item.ActionParams["Template"]
-            SendTemplateToCursorWithKey("", Template)
-            
-        case "jump_to_config":
-            ; 跳转到配置标签页
-            TabName := Item.ActionParams["TabName"]
-            Section := Item.ActionParams["Section"]
-            Key := Item.ActionParams["Key"]
-            JumpToConfigItem(TabName, Section, Key)
-            
-        case "open_file":
-            ; 打开文件
-            FilePath := Item.ActionParams["FilePath"]
-            try {
-                Run(FilePath)
-            } catch {
-                TrayTip("错误", "无法打开文件: " . FilePath, "Iconx 2")
+    global GuiID_ConfigGUI
+    
+    ; 根据来源类型处理
+    Source := Item.HasProp("Source") ? Item.Source : Item.DataType
+    
+    switch Source {
+        case "prompt":
+            ; 提示词：切换到提示词标签并加载对应编辑页面
+            if (GuiID_ConfigGUI != 0) {
+                SwitchTab("prompts")
+                ; 查找并加载对应的模板
+                TemplateID := Item.HasProp("ID") ? Item.ID : (Item.ActionParams.Has("ID") ? Item.ActionParams["ID"] : "")
+                if (TemplateID != "") {
+                    global PromptTemplates
+                    for Index, Template in PromptTemplates {
+                        if (Template.ID = TemplateID) {
+                            ; 触发编辑模板事件
+                            OnPromptManagerEditFromPreview(0, Template)
+                            break
+                        }
+                    }
+                }
             }
             
-        case "jump_to_hotkey_config":
-            ; 跳转到快捷键配置
-            FunctionName := Item.ActionParams["Function"]
-            JumpToHotkeyConfig(FunctionName)
+        case "clipboard":
+            ; 剪贴板：复制到剪贴板并关闭面板
+            Content := Item.HasProp("Content") ? Item.Content : ""
+            if (Content != "") {
+                A_Clipboard := Content
+                TrayTip("提示", "已复制到剪贴板", "Iconi 1")
+                ; 可选：关闭配置面板
+                ; if (GuiID_ConfigGUI != 0) {
+                ;     GuiID_ConfigGUI.Hide()
+                ; }
+            }
             
-        case "execute_function":
-            ; 执行功能
-            FunctionName := Item.ActionParams["FunctionName"]
-            ExecuteFunction(FunctionName)
+        default:
+            ; 其他操作类型
+            switch Item.Action {
+                case "copy_to_clipboard":
+                    ; 复制到剪贴板
+                    A_Clipboard := Item.Content
+                    TrayTip("提示", "已复制到剪贴板", "Iconi 1")
+                    
+                case "send_to_cursor":
+                    ; 发送模板到Cursor
+                    Template := Item.ActionParams["Template"]
+                    SendTemplateToCursorWithKey("", Template)
+                    
+                case "open_prompt":
+                    ; 打开提示词编辑
+                    TemplateID := Item.ActionParams["ID"]
+                    if (GuiID_ConfigGUI != 0) {
+                        SwitchTab("prompts")
+                        global PromptTemplates
+                        for Index, Template in PromptTemplates {
+                            if (Template.ID = TemplateID) {
+                                OnPromptManagerEditFromPreview(0, Template)
+                                break
+                            }
+                        }
+                    }
+                    
+                case "jump_to_config":
+                    ; 跳转到配置标签页
+                    TabName := Item.ActionParams["TabName"]
+                    Section := Item.ActionParams["Section"]
+                    Key := Item.ActionParams["Key"]
+                    JumpToConfigItem(TabName, Section, Key)
+                    
+                case "open_file":
+                    ; 打开文件
+                    FilePath := Item.ActionParams["FilePath"]
+                    try {
+                        Run(FilePath)
+                    } catch {
+                        TrayTip("错误", "无法打开文件: " . FilePath, "Iconx 2")
+                    }
+                    
+                case "jump_to_hotkey_config":
+                    ; 跳转到快捷键配置
+                    FunctionName := Item.ActionParams["Function"]
+                    JumpToHotkeyConfig(FunctionName)
+                    
+                case "execute_function":
+                    ; 执行功能
+                    FunctionName := Item.ActionParams["FunctionName"]
+                    ExecuteFunction(FunctionName)
+            }
     }
 }
 
@@ -12642,8 +12970,8 @@ ShowConfigGUI() {
     TabRadioGroup.Push(TabAdvanced)
     TabAdvanced.OnEvent("Click", (*) => SwitchTab("advanced"))
     
-    ; 添加搜索标签
-    TabSearch := CreateMaterialRadioButton(ConfigGUI, 5, TabY + (TabHeight + TabSpacing) * 5, TabRadioWidth, TabRadioHeight, "TabSearch", "搜索", TabRadioGroup, 10, false)
+    ; 添加全域搜索标签
+    TabSearch := CreateMaterialRadioButton(ConfigGUI, 5, TabY + (TabHeight + TabSpacing) * 5, TabRadioWidth, TabRadioHeight, "TabSearch", "全域搜索", TabRadioGroup, 10, false)
     TabRadioGroup.Push(TabSearch)
     TabSearch.OnEvent("Click", (*) => SwitchTab("search"))
     
@@ -13040,6 +13368,34 @@ ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
         AdvancedTabPanel := GuiObj["AdvancedTabPanel"]
         if (AdvancedTabPanel) {
             AdvancedTabPanel.Move(ContentX, ContentY, ContentWidth, ContentHeight)
+        }
+    }
+    
+    ; 搜索标签页（全域搜索）
+    try {
+        SearchTabPanel := GuiObj["SearchTabPanel"]
+        if (SearchTabPanel) {
+            SearchTabPanel.Move(ContentX, ContentY, ContentWidth, ContentHeight)
+            
+            ; 更新搜索输入框宽度
+            global SearchHistoryEdit
+            if (SearchHistoryEdit) {
+                try {
+                    SearchHistoryEdit.GetPos(&EditX, &EditY, , &EditH)
+                    SearchHistoryEdit.Move(EditX, EditY, ContentWidth - 100, EditH)
+                } catch {
+                }
+            }
+            
+            ; 更新搜索结果ListView大小
+            global SearchResultsListView
+            if (SearchResultsListView) {
+                try {
+                    SearchResultsListView.GetPos(&LVX, &LVY, , &LVH)
+                    SearchResultsListView.Move(LVX, LVY, ContentWidth - 60, LVH)
+                } catch {
+                }
+            }
         }
     }
     
@@ -14029,9 +14385,11 @@ CapsLockCopy() {
                 ; 使用参数化查询防止 SQL 注入和特殊字符问题
                 SQL := "INSERT INTO ClipboardHistory (SessionID, ItemIndex, Content, SourceApp) VALUES (?, ?, ?, ?)"
                 ST := ""
+                PrepareSuccess := false
                 ; 尝试使用参数化查询
                 try {
                     if (ClipboardDB.Prepare(SQL, &ST)) {
+                        PrepareSuccess := true
                         ; 绑定参数（1-based index）
                         if (ST.Bind(1, "Int", CurrentSessionID) && 
                             ST.Bind(2, "Int", StageStepCount) && 
@@ -14044,8 +14402,6 @@ CapsLockCopy() {
                                     FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 数据插入成功（参数化查询） - SessionID=" . CurrentSessionID . ", ItemIndex=" . StageStepCount . ", Content长度=" . StrLen(NewContent) . "`n", A_ScriptDir "\clipboard_debug.log")
                                 } catch {
                                 }
-                                ; 释放 prepared statement
-                                ST.Free()
                                 ; 成功，跳过后续的 Exec 回退
                                 goto SkipExecFallback
                             } else {
@@ -14054,7 +14410,6 @@ CapsLockCopy() {
                                     FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 数据库插入失败（参数化查询Step失败） - " . ST.ErrorMsg . "`n", A_ScriptDir "\clipboard_debug.log")
                                 } catch {
                                 }
-                                ST.Free()
                                 ; 回退到 Exec
                             }
                         } else {
@@ -14063,7 +14418,6 @@ CapsLockCopy() {
                                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 绑定参数失败 - " . ST.ErrorMsg . "`n", A_ScriptDir "\clipboard_debug.log")
                             } catch {
                             }
-                            ST.Free()
                             ; 回退到 Exec
                         }
                     } else {
@@ -14077,6 +14431,14 @@ CapsLockCopy() {
                     ; 参数化查询异常，回退到普通 Exec
                     try {
                         FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 参数化查询异常，回退到Exec - " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
+                    } catch {
+                    }
+                } finally {
+                    ; 强制释放 prepared statement
+                    try {
+                        if (IsObject(ST) && ST.HasProp("Free")) {
+                            ST.Free()
+                        }
                     } catch {
                     }
                 }
@@ -18332,11 +18694,45 @@ z:: {
     }
 }
 
-; F 键语音搜索（切换模式）
+; F 键搜索中心（长短按区分）
 f:: {
-    if (!HandleDynamicHotkey("f", "F")) {
-        Send("f")
+    global GuiID_SearchCenter
+    KeyWaitResult := KeyWait("f", "T0.3")  ; 等待最多300ms，返回是否在时间内释放
+    if (KeyWaitResult) {
+        ; 短按：如果搜索窗口已激活，执行 Enter（确认搜索）
+        if (GuiID_SearchCenter != 0 && WinActive("ahk_id " . GuiID_SearchCenter)) {
+            Send("{Enter}")
+        } else {
+            ; 如果窗口未激活，发送原始按键
+            if (!HandleDynamicHotkey("f", "F")) {
+                Send("f")
+            }
+        }
+    } else {
+        ; 长按（>300ms）：激活搜索中心窗口
+        KeyWait("f")  ; 等待按键释放
+        ShowSearchCenter()
     }
+}
+
+; W 键映射为 Up（上方向键）
+w:: {
+    Send("{Up}")
+}
+
+; S 键映射为 Down（下方向键）
+s:: {
+    Send("{Down}")
+}
+
+; A 键映射为 Left（左方向键）
+a:: {
+    Send("{Left}")
+}
+
+; D 键映射为 Right（右方向键）
+d:: {
+    Send("{Right}")
 }
 
 ; P 键区域截图
@@ -18365,6 +18761,57 @@ p:: {
 
 5:: {
     ActivateQuickActionButton(5)
+}
+
+#HotIf
+
+; ===================== 搜索中心窗口上下文映射 =====================
+; 当搜索中心窗口激活时，CapsLock + A/D 变为翻页/组切换，CapsLock + W/S 变为区域切换
+#HotIf IsSearchCenterActive() && GetCapsLockState()
+
+; W 键：切换到顶部路由区
+w:: {
+    global SearchCenterActiveArea
+    SearchCenterActiveArea := "top"
+    UpdateSearchCenterHighlight()
+}
+
+; S 键：切换到底部结果区
+s:: {
+    global SearchCenterActiveArea
+    SearchCenterActiveArea := "bottom"
+    UpdateSearchCenterHighlight()
+}
+
+; A 键：在顶部路由区时，切换到上一个搜索组
+a:: {
+    global SearchCenterActiveArea, SearchCenterCurrentGroup
+    if (SearchCenterActiveArea = "top") {
+        SwitchSearchGroup(-1)  ; -1 表示上一个
+    } else {
+        Send("{Left}")
+    }
+}
+
+; D 键：在顶部路由区时，切换到下一个搜索组
+d:: {
+    global SearchCenterActiveArea, SearchCenterCurrentGroup
+    if (SearchCenterActiveArea = "top") {
+        SwitchSearchGroup(1)  ; 1 表示下一个
+    } else {
+        Send("{Right}")
+    }
+}
+
+; F 键：在顶部路由区时，一键并发打开该组内所有搜索引擎
+f:: {
+    global SearchCenterActiveArea, SearchCenterCurrentGroup
+    if (SearchCenterActiveArea = "top") {
+        OpenSearchGroupEngines()
+    } else {
+        ; 如果不在顶部，执行 Enter（确认搜索）
+        Send("{Enter}")
+    }
 }
 
 #HotIf
@@ -18454,17 +18901,6 @@ StopDynamicHotkeys() {
 ; 当 CapsLock 按下且面板显示时，响应快捷键
 #HotIf GetCapsLockState() && GetPanelVisibleState()
 
-; S 键（分割）
-s:: {
-    global SplitHotkey, CapsLock2
-    CapsLock2 := false
-    if (StrLower(SplitHotkey) = "s") {
-        SplitCode()
-    } else {
-        Send("s")
-    }
-}
-
 ; B 键（批量）
 b:: {
     global BatchHotkey, CapsLock2
@@ -18500,6 +18936,370 @@ SetAutoStart(Enable) {
     } catch as e {
         ; 如果操作失败，显示错误提示（可选）
         ; TrayTip("设置自启动失败: " . e.Message, "错误", "Iconx 2")
+    }
+}
+
+; ===================== 全局搜索引擎类 =====================
+/**
+ * 全局搜索引擎类
+ * 解决了句柄泄露，并实现了多表联合查询
+ */
+class GlobalSearchEngine {
+    static PerformSearch(Keyword, MaxResults := 100) {
+        global ClipboardDB
+        Results := []
+        ST := 0  ; 初始化 Statement 句柄
+        
+        ; 检查数据库是否已初始化
+        if (!IsObject(ClipboardDB) || ClipboardDB = 0) {
+            return Results
+        }
+        
+        ; 构建模糊匹配模式
+        SearchPattern := "%" . Keyword . "%"
+        
+        try {
+            ; 使用 UNION ALL 一次性查询提示词和剪贴板
+            ; 这是架构师推荐的"联合视图"写法
+            SQL := "
+            (
+                SELECT Name AS Title, Content, '提示词' AS Source, CreateTime, rowid AS ID 
+                FROM Prompts 
+                WHERE Name LIKE ? OR Content LIKE ?
+                UNION ALL
+                SELECT SUBSTR(Content, 1, 50) AS Title, Content, '剪贴板' AS Source, CreateTime, rowid AS ID 
+                FROM ClipboardHistory 
+                WHERE Content LIKE ?
+                ORDER BY CreateTime DESC 
+                LIMIT " . MaxResults . "
+            )"
+            
+            ; 准备语句
+            if !ClipboardDB.Prepare(SQL, &ST)
+                return Results
+
+            ; 绑定参数（防止 SQL 注入并提高性能）
+            ST.Bind(1, SearchPattern)
+            ST.Bind(2, SearchPattern)
+            ST.Bind(3, SearchPattern)
+
+            ; 迭代结果集
+            while (ST.Step() = 100) { ; 100 代表 SQLITE_ROW
+                Results.Push({
+                    Title: ST.ColumnText(0),
+                    Content: ST.ColumnText(1),
+                    Source: ST.ColumnText(2),
+                    Time: ST.ColumnText(3),
+                    ID: ST.ColumnInt(4)
+                })
+            }
+        } catch as e {
+            OutputDebug("搜索出错: " . e.Message)
+        } finally {
+            ; 【关键：修复泄露】
+            ; 无论搜索成功、失败还是中间被 return，finally 块都会强制执行
+            if (IsObject(ST) && ST != 0)
+                ST.Free()
+        }
+        return Results
+    }
+}
+
+; ===================== 搜索中心窗口 =====================
+; 显示搜索中心窗口（分段式动作面板）
+ShowSearchCenter() {
+    global GuiID_SearchCenter, UI_Colors, ThemeMode
+    global SearchCenterActiveArea, SearchCenterCurrentGroup
+    global SearchCenterSearchEdit, SearchCenterResultLV, SearchCenterGroupButtons
+    
+    ; 如果窗口已存在，先销毁
+    if (GuiID_SearchCenter != 0) {
+        try {
+            GuiID_SearchCenter.Destroy()
+        } catch {
+        }
+        GuiID_SearchCenter := 0
+    }
+    
+    ; 初始化状态
+    SearchCenterActiveArea := "top"
+    SearchCenterCurrentGroup := 0
+    SearchCenterGroupButtons := []
+    
+    ; 窗口尺寸
+    WindowWidth := 900
+    WindowHeight := 700
+    
+    ; 创建窗口
+    GuiID_SearchCenter := Gui("+AlwaysOnTop -Caption -DPIScale", "搜索中心")
+    GuiID_SearchCenter.BackColor := UI_Colors.Background
+    GuiID_SearchCenter.SetFont("s11 c" . UI_Colors.Text, "Segoe UI")
+    
+    ; 自定义标题栏
+    TitleBarHeight := 40
+    TitleBar := GuiID_SearchCenter.Add("Text", "x0 y0 w" . WindowWidth . " h" . TitleBarHeight . " Background" . UI_Colors.TitleBar . " vSearchCenterTitleBar", "搜索中心")
+    TitleBar.SetFont("s12 Bold c" . UI_Colors.Text, "Segoe UI")
+    TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2, , , GuiID_SearchCenter.Hwnd)) ; 拖动窗口
+    
+    ; 关闭按钮
+    CloseBtn := GuiID_SearchCenter.Add("Text", "x" . (WindowWidth - 40) . " y0 w40 h" . TitleBarHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.TitleBar . " vSearchCenterCloseBtn", "✕")
+    CloseBtn.SetFont("s12", "Segoe UI")
+    CloseBtn.OnEvent("Click", (*) => GuiID_SearchCenter.Destroy())
+    HoverBtnWithAnimation(CloseBtn, UI_Colors.TitleBar, "e81123")
+    
+    ; ========== 顶部路由区（搜索组选择）==========
+    RouteAreaY := TitleBarHeight + 20
+    RouteAreaHeight := 60
+    
+    ; 搜索组定义
+    SearchGroups := [
+        {Name: "AI 智搜", Engines: ["DeepSeek", "Claude"], URLs: Map("DeepSeek", "https://chat.deepseek.com/?q={query}", "Claude", "https://claude.ai/chat?q={query}")},
+        {Name: "常用搜索", Engines: ["百度", "谷歌"], URLs: Map("百度", "https://www.baidu.com/s?wd={query}", "谷歌", "https://www.google.com/search?q={query}")},
+        {Name: "社交媒体", Engines: ["B站", "小红书"], URLs: Map("B站", "https://search.bilibili.com/all?keyword={query}", "小红书", "https://www.xiaohongshu.com/search_result?keyword={query}")}
+    ]
+    
+    ; 创建搜索组按钮
+    GroupButtonWidth := 200
+    GroupButtonHeight := 50
+    GroupButtonSpacing := 20
+    StartX := (WindowWidth - (SearchGroups.Length * GroupButtonWidth + (SearchGroups.Length - 1) * GroupButtonSpacing)) / 2
+    
+    for Index, Group in SearchGroups {
+        GroupX := StartX + (Index - 1) * (GroupButtonWidth + GroupButtonSpacing)
+        GroupY := RouteAreaY + 5
+        
+        ; 根据是否选中设置背景色
+        IsSelected := (Index - 1 = SearchCenterCurrentGroup)
+        BgColor := IsSelected ? UI_Colors.BtnPrimary : UI_Colors.Sidebar
+        TextColor := IsSelected ? "FFFFFF" : UI_Colors.Text
+        
+        GroupBtn := GuiID_SearchCenter.Add("Text", "x" . GroupX . " y" . GroupY . " w" . GroupButtonWidth . " h" . GroupButtonHeight . " Center 0x200 c" . TextColor . " Background" . BgColor . " vSearchGroupBtn" . Index, Group.Name)
+        GroupBtn.SetFont("s11 Bold", "Segoe UI")
+        GroupBtn.OnEvent("Click", CreateSearchGroupClickHandler(Index - 1))
+        HoverBtnWithAnimation(GroupBtn, BgColor, UI_Colors.BtnHover)
+        SearchCenterGroupButtons.Push(GroupBtn)
+    }
+    
+    ; ========== 中部输入区 ==========
+    InputAreaY := RouteAreaY + RouteAreaHeight + 30
+    InputAreaHeight := 80
+    
+    ; 搜索输入框（大字体）
+    SearchEditX := 40
+    SearchEditY := InputAreaY + 10
+    SearchEditWidth := WindowWidth - 80
+    SearchEditHeight := 60
+    
+    SearchCenterSearchEdit := GuiID_SearchCenter.Add("Edit", "x" . SearchEditX . " y" . SearchEditY . " w" . SearchEditWidth . " h" . SearchEditHeight . " Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " vSearchCenterEdit", "")
+    SearchCenterSearchEdit.SetFont("s16", "Segoe UI")
+    SearchCenterSearchEdit.OnEvent("Change", ExecuteSearchCenterSearch)
+    
+    ; ========== 底部结果区 ==========
+    ResultAreaY := InputAreaY + InputAreaHeight + 20
+    ResultAreaHeight := WindowHeight - ResultAreaY - 20
+    
+    ; 结果 ListView
+    ResultLVX := 40
+    ResultLVY := ResultAreaY + 10
+    ResultLVWidth := WindowWidth - 80
+    ResultLVHeight := ResultAreaHeight - 20
+    
+    SearchCenterResultLV := GuiID_SearchCenter.Add("ListView", "x" . ResultLVX . " y" . ResultLVY . " w" . ResultLVWidth . " h" . ResultLVHeight . " Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " -Multi +ReadOnly vSearchResultLV", ["标题", "来源", "时间"])
+    SearchCenterResultLV.SetFont("s10", "Segoe UI")
+    SearchCenterResultLV.OnEvent("DoubleClick", OnSearchCenterResultDoubleClick)
+    
+    ; 设置列宽
+    SearchCenterResultLV.ModifyCol(1, ResultLVWidth * 0.5)
+    SearchCenterResultLV.ModifyCol(2, ResultLVWidth * 0.25)
+    SearchCenterResultLV.ModifyCol(3, ResultLVWidth * 0.25)
+    
+    ; 窗口关闭事件
+    GuiID_SearchCenter.OnEvent("Close", (*) => GuiID_SearchCenter.Destroy())
+    
+    ; 显示窗口
+    GuiID_SearchCenter.Show("w" . WindowWidth . " h" . WindowHeight)
+    
+    ; 聚焦到搜索框
+    ControlFocus(SearchCenterSearchEdit)
+    
+    ; 更新高亮显示
+    UpdateSearchCenterHighlight()
+}
+
+; 创建搜索组点击处理器
+CreateSearchGroupClickHandler(GroupIndex) {
+    return (*) => SwitchSearchGroup(GroupIndex, true)
+}
+
+; 切换搜索组
+SwitchSearchGroup(Direction, DirectIndex := false) {
+    global SearchCenterCurrentGroup, SearchCenterGroupButtons, UI_Colors
+    
+    ; 搜索组定义（与 ShowSearchCenter 中保持一致）
+    SearchGroups := [
+        {Name: "AI 智搜", Engines: ["DeepSeek", "Claude"], URLs: Map("DeepSeek", "https://chat.deepseek.com/?q={query}", "Claude", "https://claude.ai/chat?q={query}")},
+        {Name: "常用搜索", Engines: ["百度", "谷歌"], URLs: Map("百度", "https://www.baidu.com/s?wd={query}", "谷歌", "https://www.google.com/search?q={query}")},
+        {Name: "社交媒体", Engines: ["B站", "小红书"], URLs: Map("B站", "https://search.bilibili.com/all?keyword={query}", "小红书", "https://www.xiaohongshu.com/search_result?keyword={query}")}
+    ]
+    
+    if (DirectIndex) {
+        ; 直接设置索引
+        NewIndex := Direction
+    } else {
+        ; 根据方向切换
+        NewIndex := SearchCenterCurrentGroup + Direction
+        if (NewIndex < 0)
+            NewIndex := SearchGroups.Length - 1
+        else if (NewIndex >= SearchGroups.Length)
+            NewIndex := 0
+    }
+    
+    SearchCenterCurrentGroup := NewIndex
+    
+    ; 更新按钮样式
+    for Index, Btn in SearchCenterGroupButtons {
+        IsSelected := (Index - 1 = SearchCenterCurrentGroup)
+        BgColor := IsSelected ? UI_Colors.BtnPrimary : UI_Colors.Sidebar
+        TextColor := IsSelected ? "FFFFFF" : UI_Colors.Text
+        Btn.Opt("+Background" . BgColor)
+        Btn.SetFont("s11 Bold c" . TextColor, "Segoe UI")
+    }
+}
+
+; 更新搜索中心高亮显示
+UpdateSearchCenterHighlight() {
+    global SearchCenterActiveArea, SearchCenterCurrentGroup, SearchCenterGroupButtons, SearchCenterResultLV, UI_Colors
+    
+    ; 更新顶部路由区高亮
+    for Index, Btn in SearchCenterGroupButtons {
+        IsSelected := (Index - 1 = SearchCenterCurrentGroup)
+        IsActive := (SearchCenterActiveArea = "top" && IsSelected)
+        
+        if (IsActive) {
+            ; 激活状态：更亮的背景色
+            BgColor := UI_Colors.BtnPrimary
+            TextColor := "FFFFFF"
+        } else if (IsSelected) {
+            ; 选中但未激活
+            BgColor := UI_Colors.BtnPrimary
+            TextColor := "FFFFFF"
+        } else {
+            ; 未选中
+            BgColor := UI_Colors.Sidebar
+            TextColor := UI_Colors.Text
+        }
+        
+        Btn.Opt("+Background" . BgColor)
+        Btn.SetFont("s11 Bold c" . TextColor, "Segoe UI")
+    }
+    
+    ; 更新底部结果区高亮（通过边框或背景色）
+    if (SearchCenterActiveArea = "bottom") {
+        ; 激活底部时，可以添加边框或改变背景色
+        SearchCenterResultLV.Opt("+Background" . UI_Colors.BtnHover)
+    } else {
+        SearchCenterResultLV.Opt("+Background" . UI_Colors.InputBg)
+    }
+}
+
+; 执行搜索中心搜索
+ExecuteSearchCenterSearch(*) {
+    global SearchCenterSearchEdit, SearchCenterResultLV, SearchCenterSearchResults
+    
+    Keyword := SearchCenterSearchEdit.Value
+    if (StrLen(Keyword) < 1) {
+        ; 清空结果
+        SearchCenterResultLV.Delete()
+        SearchCenterSearchResults := []
+        return
+    }
+    
+    ; 调用搜索引擎
+    Results := GlobalSearchEngine.PerformSearch(Keyword, 50)
+    SearchCenterSearchResults := Results
+    
+    ; 更新 ListView
+    SearchCenterResultLV.Opt("-Redraw")
+    SearchCenterResultLV.Delete()
+    for Index, Item in Results {
+        SearchCenterResultLV.Add(, Item.Title, Item.Source, Item.Time)
+    }
+    SearchCenterResultLV.Opt("+Redraw")
+}
+
+; 搜索中心搜索结果双击事件
+OnSearchCenterResultDoubleClick(LV, Row) {
+    global SearchCenterSearchResults
+    
+    if (Row > 0 && Row <= SearchCenterSearchResults.Length) {
+        Item := SearchCenterSearchResults[Row]
+        ; 复制内容到剪贴板
+        A_Clipboard := Item.Content
+        TrayTip("已复制到剪贴板", Item.Title, "Iconi 1")
+    }
+}
+
+; 一键并发打开搜索引擎
+OpenSearchGroupEngines() {
+    global SearchCenterCurrentGroup, SearchCenterSearchEdit, GuiID_SearchCenter
+    
+    ; 搜索组定义
+    SearchGroups := [
+        {Name: "AI 智搜", Engines: ["DeepSeek", "Claude"], URLs: Map("DeepSeek", "https://chat.deepseek.com/?q={query}", "Claude", "https://claude.ai/chat?q={query}")},
+        {Name: "常用搜索", Engines: ["百度", "谷歌"], URLs: Map("百度", "https://www.baidu.com/s?wd={query}", "谷歌", "https://www.google.com/search?q={query}")},
+        {Name: "社交媒体", Engines: ["B站", "小红书"], URLs: Map("B站", "https://search.bilibili.com/all?keyword={query}", "小红书", "https://www.xiaohongshu.com/search_result?keyword={query}")}
+    ]
+    
+    ; 获取当前组
+    if (SearchCenterCurrentGroup < 0 || SearchCenterCurrentGroup >= SearchGroups.Length)
+        return
+    
+    CurrentGroup := SearchGroups[SearchCenterCurrentGroup + 1]
+    Query := SearchCenterSearchEdit.Value
+    
+    ; 如果查询为空，使用默认查询
+    if (Query = "")
+        Query := "搜索"
+    
+    ; 并发打开所有搜索引擎
+    for EngineName, URLTemplate in CurrentGroup.URLs {
+        ; 替换 URL 中的 {query} 占位符
+        URL := StrReplace(URLTemplate, "{query}", EncodeURIComponent(Query))
+        try {
+            Run(URL)
+            Sleep(100)  ; 稍微延迟，避免同时打开太多窗口
+        } catch as e {
+            OutputDebug("打开搜索引擎失败: " . EngineName . " - " . e.Message)
+        }
+    }
+}
+
+; URL 编码辅助函数
+EncodeURIComponent(Str) {
+    ; 使用 COM 对象进行 URL 编码（更可靠）
+    try {
+        ; 创建 ScriptControl 对象进行编码
+        Encoded := ""
+        Loop Parse, Str {
+            Char := A_LoopField
+            ; ASCII 字符直接使用
+            if (Ord(Char) < 128 && RegExMatch(Char, "[A-Za-z0-9\-_.!~*'()]")) {
+                Encoded .= Char
+            } else {
+                ; 非 ASCII 字符进行 URL 编码
+                ; 使用 StrPut 获取 UTF-8 字节
+                UTF8Buf := Buffer(StrPut(Char, "UTF-8"))
+                StrPut(Char, UTF8Buf, "UTF-8")
+                Loop UTF8Buf.Size {
+                    Byte := NumGet(UTF8Buf, A_Index - 1, "UChar")
+                    Encoded .= "%" . Format("{:02X}", Byte)
+                }
+            }
+        }
+        return Encoded
+    } catch {
+        ; 如果编码失败，返回原始字符串（浏览器通常能处理）
+        return Str
     }
 }
 
@@ -22140,3 +22940,17 @@ UriEncode(Uri) {
         return Uri
     }
 }
+
+; ===================== 脚本退出处理 =====================
+; 在脚本退出前关闭数据库连接，确保数据完全写入
+ExitFunc(ExitReason, ExitCode) {
+    global ClipboardDB
+    if (ClipboardDB && ClipboardDB != 0) {
+        try {
+            ClipboardDB.CloseDB()
+        } catch {
+            ; 忽略关闭错误
+        }
+    }
+}
+OnExit(ExitFunc)
