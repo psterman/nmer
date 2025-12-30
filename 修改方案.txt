@@ -1,0 +1,80 @@
+在你的 ConfigGUI 中
+SearchEdit.OnEvent("Change", (ed, *) => SetTimer(ExecuteSearch, -150))
+
+ExecuteSearch() {
+    Keyword := SearchEdit.Value
+    if (StrLen(Keyword) < 1) {
+        ; 如果搜索框空了，恢复原始分类显示逻辑
+        RestoreOriginalList()
+        return
+    }
+
+    ; 调用上面的引擎
+    Data := GlobalSearchEngine.PerformSearch(Keyword)
+    
+    ; 更新 ListView 性能优化
+    ResultLV.Opt("-Redraw") ; 暂停重绘，防止拉伸抖动
+    ResultLV.Delete()
+    for item in Data {
+        ResultLV.Add(, item.Title, item.Source, item.Time)
+    }
+    ResultLV.Opt("+Redraw") ; 恢复重绘
+}
+/**
+ * 全局搜索引擎类
+ * 解决了句柄泄露，并实现了多表联合查询
+ */
+class GlobalSearchEngine {
+    static PerformSearch(Keyword, MaxResults := 100) {
+        Results := []
+        ST := 0  ; 初始化 Statement 句柄
+        
+        ; 构建模糊匹配模式
+        SearchPattern := "%" . Keyword . "%"
+        
+        try {
+            ; 使用 UNION ALL 一次性查询提示词和剪贴板
+            ; 这是架构师推荐的“联合视图”写法
+            SQL := "
+            (
+                SELECT Name AS Title, Content, '提示词' AS Source, CreateTime, rowid AS ID 
+                FROM Prompts 
+                WHERE Name LIKE ? OR Content LIKE ?
+                UNION ALL
+                SELECT SUBSTR(Content, 1, 50), Content, '剪贴板', CreateTime, rowid 
+                FROM ClipboardHistory 
+                WHERE Content LIKE ?
+                ORDER BY CreateTime DESC 
+                LIMIT " . MaxResults . "
+            )"
+            
+            ; 准备语句
+            if !ClipboardDB.Prepare(SQL, &ST)
+                return Results
+
+            ; 绑定参数（防止 SQL 注入并提高性能）
+            ST.Bind(1, SearchPattern)
+            ST.Bind(2, SearchPattern)
+            ST.Bind(3, SearchPattern)
+
+            ; 迭代结果集
+            while (ST.Step() = 100) { ; 100 代表 SQLITE_ROW
+                Results.Push({
+                    Title: ST.ColumnText(0),
+                    Content: ST.ColumnText(1),
+                    Source: ST.ColumnText(2),
+                    Time: ST.ColumnText(3),
+                    ID: ST.ColumnInt(4)
+                })
+            }
+        } catch as e {
+            OutputDebug("搜索出错: " . e.Message)
+        } finally {
+            ; 【关键：修复泄露】
+            ; 无论搜索成功、失败还是中间被 return，finally 块都会强制执行
+            if IsObject(ST)
+                ST.Free()
+        }
+        return Results
+    }
+}
