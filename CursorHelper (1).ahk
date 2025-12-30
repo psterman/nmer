@@ -39,6 +39,7 @@ global CursorPanelWidth := 420  ; 面板宽度
 global CursorPanelHeight := 0  ; 面板高度（动态计算）
 global ConfigFile := A_ScriptDir "\CursorShortcut.ini"
 global TrayIconPath := A_ScriptDir "\cursor_helper.ico"
+global CustomIconPath := ""  ; 用户自定义图标路径
 ; CapsLock+ 方案的核心变量
 global CapsLock := false
 global GuiID_ConfigGUI := 0  ; 配置面板单例
@@ -169,6 +170,16 @@ global AutoStart := false  ; 是否开启自启动
 global VoiceSearchEnabledCategories := []  ; 启用的搜索标签列表
 global VoiceSearchAutoUpdateSwitch := 0  ; 自动更新开关控件（语音搜索）
 global VoiceInputActionSelectionVisible := false  ; 语音输入操作选择界面是否显示
+; 配置面板搜索功能相关变量
+global SearchTabControls := []  ; 搜索标签页控件数组
+global SearchHistoryEdit := 0  ; 搜索输入框控件
+global SearchResultsListView := 0  ; 搜索结果ListView控件
+global SearchResultsData := Map()  ; 搜索结果数据映射（行索引 -> 结果项）
+global SearchResultsCache := Map()  ; 搜索结果缓存
+global SearchLastKeyword := ""  ; 上次搜索关键词
+global SearchCurrentFilterType := ""  ; 当前过滤类型（空字符串表示全部）
+global SearchTypeFilterButtons := []  ; 类型过滤按钮数组
+global SearchDebounceTimer := 0  ; 搜索防抖定时器
 ; 窗口拖动状态跟踪（用于防止拖动时组件闪烁）
 global WindowDragging := false  ; 是否正在拖动窗口
 global DraggingTimers := Map()  ; 存储拖动时需要暂停的定时器 {TimerName: TimerID}
@@ -2152,6 +2163,15 @@ InitConfig() {
             AutoStart := (IniRead(ConfigFile, "Settings", "AutoStart", "0") = "1")
             global DefaultStartTab
             DefaultStartTab := IniRead(ConfigFile, "Settings", "DefaultStartTab", "general")
+            ; 读取自定义图标路径
+            global CustomIconPath
+            CustomIconPath := IniRead(ConfigFile, "Settings", "CustomIconPath", "")
+            ; 如果路径存在且文件存在，使用自定义图标；否则使用默认图标
+            if (CustomIconPath != "" && FileExist(CustomIconPath)) {
+                ; 使用自定义图标
+            } else {
+                CustomIconPath := ""
+            }
             ; 验证值是否有效，如果无效则使用默认值
             if (DefaultStartTab != "general" && DefaultStartTab != "appearance" && DefaultStartTab != "prompts" && DefaultStartTab != "hotkeys" && DefaultStartTab != "advanced") {
                 DefaultStartTab := "general"
@@ -2184,6 +2204,9 @@ InitConfig() {
             global ThemeMode
             ThemeMode := IniRead(ConfigFile, "Settings", "ThemeMode", "dark")
             ApplyTheme(ThemeMode)
+            
+            ; 更新托盘图标（使用自定义图标）
+            UpdateTrayIcon()
             
             ; 初始化每个分类的搜索引擎选择状态Map
             global VoiceSearchSelectedEnginesByCategory
@@ -3870,7 +3893,7 @@ global PanelScreenRadio := []
 ; ===================== 标签切换函数 =====================
 SwitchTab(TabName) {
     global ConfigTabs, CurrentTab
-    global GeneralTabControls, AppearanceTabControls, PromptsTabControls, HotkeysTabControls, AdvancedTabControls
+    global GeneralTabControls, AppearanceTabControls, PromptsTabControls, HotkeysTabControls, AdvancedTabControls, SearchTabControls
     
     ; 重置所有标签样式（使用 Material 风格单选按钮）
     global TabRadioGroup
@@ -3929,6 +3952,7 @@ SwitchTab(TabName) {
     HideControls(PromptsTabControls)
     HideControls(HotkeysTabControls)
     HideControls(AdvancedTabControls)
+    HideControls(SearchTabControls)
     
     ; 隐藏所有快捷键子标签页内容（防止覆盖其他标签页）
     global HotkeySubTabControls
@@ -4157,6 +4181,21 @@ SwitchTab(TabName) {
             }
         case "advanced":
             ShowControls(AdvancedTabControls)
+        case "search":
+            ; 【Bug修复1】先准备数据，再显示控件，减少闪烁
+            global SearchHistoryEdit, SearchResultsCache, SearchCurrentFilterType
+            if (SearchHistoryEdit && SearchHistoryEdit.Value != "") {
+                ; 如果已有缓存，先刷新数据（此时控件还隐藏，不会闪烁）
+                if (IsSet(SearchResultsCache) && SearchResultsCache.Count > 0) {
+                    ; 先填充数据（控件隐藏时）
+                    RefreshSearchResultsListView(SearchResultsCache, SearchCurrentFilterType)
+                } else {
+                    ; 否则执行搜索（先获取数据）
+                    PerformSearch()
+                }
+            }
+            ; 数据准备完成后再显示控件
+            ShowControls(SearchTabControls)
     }
     
     CurrentTab := TabName
@@ -10262,6 +10301,1204 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     AdvancedTabControls.Push(ResetBtn)
 }
 
+; ===================== 搜索功能核心函数 =====================
+; 获取数据类型名称
+GetDataTypeName(DataType) {
+    SearchDataType := Map(
+        "clipboard", "剪贴板历史",
+        "template", "提示词模板",
+        "config", "配置项",
+        "file", "文件路径",
+        "hotkey", "快捷键",
+        "function", "功能",
+        "ui", "界面元素"
+    )
+    return SearchDataType.Has(DataType) ? SearchDataType[DataType] : "未知类型"
+}
+
+; 统一搜索函数
+SearchAllDataSources(Keyword, DataTypes := [], MaxResults := 10) {
+    Results := Map()
+    
+    ; 如果未指定类型，搜索所有数据源（增强搜索功能）
+    if (DataTypes.Length = 0) {
+        DataTypes := ["clipboard", "template", "config", "file", "hotkey", "function", "ui"]
+    }
+    
+    ; 并行搜索各个数据源
+    for Index, DataType in DataTypes {
+        TypeResults := []
+        
+        switch DataType {
+            case "clipboard":
+                TypeResults := SearchClipboardHistory(Keyword, MaxResults)
+            case "template":
+                TypeResults := SearchPromptTemplates(Keyword, MaxResults)
+            case "config":
+                TypeResults := SearchConfigItems(Keyword, MaxResults)
+            case "file":
+                TypeResults := SearchFilePaths(Keyword, MaxResults)
+            case "hotkey":
+                TypeResults := SearchHotkeys(Keyword, MaxResults)
+            case "function":
+                TypeResults := SearchFunctions(Keyword, MaxResults)
+            case "ui":
+                TypeResults := SearchUITabs(Keyword, MaxResults)
+        }
+        
+        if (TypeResults.Length > 0) {
+            Results[DataType] := {
+                DataType: DataType,
+                DataTypeName: GetDataTypeName(DataType),
+                Count: TypeResults.Length,
+                Items: TypeResults
+            }
+        }
+    }
+    
+    return Results
+}
+
+; 搜索剪贴板历史
+SearchClipboardHistory(Keyword, MaxResults := 10) {
+    global ClipboardDB
+    Results := []
+    
+    if (!ClipboardDB || ClipboardDB = 0) {
+        return Results
+    }
+    
+    KeywordLower := StrLower(Keyword)
+    ; 使用LOWER()函数进行大小写不敏感的搜索
+    SQL := "SELECT ID, Content, SourceApp, Timestamp, SessionID, ItemIndex FROM ClipboardHistory WHERE LOWER(Content) LIKE ? OR LOWER(SourceApp) LIKE ? ORDER BY Timestamp DESC LIMIT ?"
+    
+    ST := ""
+    try {
+        if (!ClipboardDB.Prepare(SQL, &ST)) {
+            return Results
+        }
+        
+        ; 检查ST是否是有效的Statement对象
+        if (!IsObject(ST) || !ST.HasProp("Bind")) {
+            return Results
+        }
+        
+        ; 使用小写关键词进行搜索
+        if (!ST.Bind(1, "%" . KeywordLower . "%")) {
+            ST.Free()
+            return Results
+        }
+        if (!ST.Bind(2, "%" . KeywordLower . "%")) {
+            ST.Free()
+            return Results
+        }
+        if (!ST.Bind(3, MaxResults)) {
+            ST.Free()
+            return Results
+        }
+        
+        while (ST.Step()) {
+            ID := ST.Column(0)
+            Content := ST.Column(1)
+            SourceApp := ST.Column(2)
+            Timestamp := ST.Column(3)
+            SessionID := ST.Column(4)
+            ItemIndex := ST.Column(5)
+            
+            ; 生成预览文本（截取前100个字符）
+            Preview := SubStr(Content, 1, 100)
+            if (StrLen(Content) > 100) {
+                Preview .= "..."
+            }
+            
+            ; 格式化时间
+            try {
+                TimeFormatted := FormatTime(Timestamp, "yyyy-MM-dd HH:mm:ss")
+            } catch {
+                TimeFormatted := Timestamp
+            }
+            
+            ResultItem := {
+                DataType: "clipboard",
+                DataTypeName: "剪贴板历史",
+                ID: ID,
+                Title: Preview,
+                SubTitle: SourceApp ? (SourceApp . " · " . TimeFormatted) : TimeFormatted,
+                Content: Content,
+                Preview: Preview,
+                Timestamp: Timestamp,  ; 添加时间戳字段用于排序
+                Metadata: Map(
+                    "SourceApp", SourceApp ? SourceApp : "",
+                    "Timestamp", Timestamp,
+                    "TimeFormatted", TimeFormatted,
+                    "SessionID", SessionID,
+                    "ItemIndex", ItemIndex
+                ),
+                Action: "copy_to_clipboard",
+                ActionParams: Map("ID", ID, "Content", Content)
+            }
+            
+            Results.Push(ResultItem)
+        }
+        
+        ST.Free()
+    } catch as e {
+        ; 如果出错，尝试释放ST
+        try {
+            if (IsObject(ST) && ST.HasProp("Free")) {
+                ST.Free()
+            }
+        } catch {
+        }
+    }
+    
+    return Results
+}
+
+; 搜索提示词模板
+SearchPromptTemplates(Keyword, MaxResults := 10) {
+    global PromptTemplates
+    Results := []
+    
+    if (!IsSet(PromptTemplates) || PromptTemplates.Length = 0) {
+        return Results
+    }
+    
+    KeywordLower := StrLower(Keyword)
+    Count := 0
+    
+    for Index, Template in PromptTemplates {
+        if (Count >= MaxResults) {
+            break
+        }
+        
+        ; 搜索标题、内容、分类
+        TitleMatch := InStr(StrLower(Template.Title), KeywordLower)
+        ContentMatch := InStr(StrLower(Template.Content), KeywordLower)
+        CategoryMatch := InStr(StrLower(Template.Category), KeywordLower)
+        
+        if (TitleMatch || ContentMatch || CategoryMatch) {
+            ; 生成内容预览
+            ContentPreview := SubStr(Template.Content, 1, 80)
+            if (StrLen(Template.Content) > 80) {
+                ContentPreview .= "..."
+            }
+            
+            ; 为模板添加时间戳用于排序
+            ; 如果没有时间戳，使用当前时间（模板会显示在一起，按索引顺序）
+            TemplateTimestamp := ""
+            if (Template.HasProp("Timestamp") && Template.Timestamp != "") {
+                TemplateTimestamp := Template.Timestamp
+            } else {
+                ; 使用当前时间作为模板时间戳
+                ; SQLite DATETIME 格式通常是 "YYYY-MM-DD HH:MM:SS"
+                ; 转换为相同格式以确保正确排序
+                CurrentTime := A_Now
+                ; A_Now 格式：yyyyMMddHHmmss
+                ; 转换为 SQLite 格式：yyyy-MM-dd HH:mm:ss
+                Year := SubStr(CurrentTime, 1, 4)
+                Month := SubStr(CurrentTime, 5, 2)
+                Day := SubStr(CurrentTime, 7, 2)
+                Hour := SubStr(CurrentTime, 9, 2)
+                Min := SubStr(CurrentTime, 11, 2)
+                Sec := SubStr(CurrentTime, 13, 2)
+                TemplateTimestamp := Format("{}-{}-{} {}:{}:{}", Year, Month, Day, Hour, Min, Sec)
+            }
+            
+            ResultItem := {
+                DataType: "template",
+                DataTypeName: "提示词模板",
+                ID: Template.ID,
+                Title: Template.Title,
+                SubTitle: Template.Category . " · " . ContentPreview,
+                Content: Template.Content,
+                Preview: ContentPreview,
+                Timestamp: TemplateTimestamp,  ; 添加时间戳字段
+                Metadata: Map(
+                    "Category", Template.Category,
+                    "Icon", Template.HasProp("Icon") ? Template.Icon : "",
+                    "FunctionCategory", Template.HasProp("FunctionCategory") ? Template.FunctionCategory : "",
+                    "Series", Template.HasProp("Series") ? Template.Series : ""
+                ),
+                Action: "send_to_cursor",
+                ActionParams: Map("TemplateID", Template.ID, "Template", Template)
+            }
+            
+            Results.Push(ResultItem)
+            Count++
+        }
+    }
+    
+    return Results
+}
+
+; 搜索配置项
+SearchConfigItems(Keyword, MaxResults := 10) {
+    global ConfigFile
+    Results := []
+    
+    if (!FileExist(ConfigFile)) {
+        return Results
+    }
+    
+    KeywordLower := StrLower(Keyword)
+    Count := 0
+    
+    ; 【Bug修复3】扩展配置项映射，包括标签页名称搜索
+    ; 定义配置项映射（配置项名称 -> 所属标签页）
+    ConfigSections := Map(
+        "General", "general",
+        "Settings", "general",
+        "Prompts", "prompts",
+        "Hotkeys", "hotkeys",
+        "Appearance", "appearance",
+        "Advanced", "advanced"
+    )
+    
+    ; 定义标签页名称映射（用于搜索标签页）
+    TabNameMap := Map(
+        "通用", "general",
+        "General", "general",
+        "外观", "appearance",
+        "Appearance", "appearance",
+        "提示词", "prompts",
+        "Prompts", "prompts",
+        "快捷键", "hotkeys",
+        "Hotkeys", "hotkeys",
+        "高级", "advanced",
+        "Advanced", "advanced"
+    )
+    
+    ; 搜索标签页名称
+    for TabName, TabKey in TabNameMap {
+        if (Count >= MaxResults) {
+            break
+        }
+        
+        if (InStr(StrLower(TabName), KeywordLower)) {
+            ResultItem := {
+                DataType: "config",
+                DataTypeName: "配置项",
+                ID: "config_tab_" . TabKey,
+                Title: TabName . "标签页",
+                SubTitle: "标签页 · 配置面板",
+                Content: "跳转到" . TabName . "标签页",
+                Preview: "点击跳转到" . TabName . "标签页",
+                Metadata: Map(
+                    "Section", "",
+                    "Key", "",
+                    "TabName", TabKey
+                ),
+                Action: "jump_to_config",
+                ActionParams: Map("TabName", TabKey, "Section", "", "Key", "")
+            }
+            
+            Results.Push(ResultItem)
+            Count++
+        }
+    }
+    
+    ; 读取所有配置节
+    for SectionName, TabName in ConfigSections {
+        try {
+            ; 获取节下的所有键
+            SectionContent := IniRead(ConfigFile, SectionName)
+            if (SectionContent) {
+                ; 解析键值对
+                Loop Parse, SectionContent, "`n" {
+                    if (Count >= MaxResults) {
+                        break
+                    }
+                    
+                    Line := Trim(A_LoopField)
+                    if (Line = "") {
+                        continue
+                    }
+                    
+                    ; 解析键值对（格式：Key=Value）
+                    KeyValuePos := InStr(Line, "=")
+                    if (KeyValuePos > 0) {
+                        Key := Trim(SubStr(Line, 1, KeyValuePos - 1))
+                        Value := Trim(SubStr(Line, KeyValuePos + 1))
+                        
+                        ; 搜索键名和值
+                        KeyMatch := InStr(StrLower(Key), KeywordLower)
+                        ValueMatch := InStr(StrLower(Value), KeywordLower)
+                        
+                        if (KeyMatch || ValueMatch) {
+                            ; 截取值预览
+                            ValuePreview := SubStr(Value, 1, 60)
+                            if (StrLen(Value) > 60) {
+                                ValuePreview .= "..."
+                            }
+                            
+                            ResultItem := {
+                                DataType: "config",
+                                DataTypeName: "配置项",
+                                ID: SectionName . "." . Key,
+                                Title: Key,
+                                SubTitle: SectionName . " · " . ValuePreview,
+                                Content: Value,
+                                Preview: ValuePreview,
+                                Metadata: Map(
+                                    "Section", SectionName,
+                                    "Key", Key,
+                                    "TabName", TabName
+                                ),
+                                Action: "jump_to_config",
+                                ActionParams: Map("TabName", TabName, "Section", SectionName, "Key", Key)
+                            }
+                            
+                            Results.Push(ResultItem)
+                            Count++
+                        }
+                    }
+                }
+            }
+        } catch {
+            ; 忽略读取错误
+        }
+    }
+    
+    return Results
+}
+
+; 判断是否为文件路径
+IsFilePath(Path) {
+    ; 检查Windows路径格式（C:\、\\server\等）
+    if (RegExMatch(Path, "^(?:[A-Za-z]:\\|\\\\).*")) {
+        return FileExist(Path) || DirExist(Path)
+    }
+    
+    ; 检查URL格式
+    if (RegExMatch(Path, "^(?:https?|file)://.*")) {
+        return true
+    }
+    
+    ; 检查相对路径（以.\或..\开头）
+    if (RegExMatch(Path, "^(?:\.\.?[/\\]).*")) {
+        return FileExist(Path) || DirExist(Path)
+    }
+    
+    return false
+}
+
+; 搜索文件路径
+SearchFilePaths(Keyword, MaxResults := 10) {
+    global ClipboardDB
+    Results := []
+    
+    KeywordLower := StrLower(Keyword)
+    Count := 0
+    
+    ; 从剪贴板历史中提取文件路径
+    if (ClipboardDB && ClipboardDB != 0) {
+        ; 使用LOWER()函数进行大小写不敏感的搜索
+        SQL := "SELECT DISTINCT Content, Timestamp FROM ClipboardHistory WHERE (LOWER(Content) LIKE ? OR LOWER(Content) LIKE ?) ORDER BY Timestamp DESC LIMIT ?"
+        ST := ""
+        try {
+            if (ClipboardDB.Prepare(SQL, &ST)) {
+                ; 检查ST是否是有效的Statement对象
+                if (!IsObject(ST) || !ST.HasProp("Bind")) {
+                    return Results
+                }
+                
+                ; 搜索路径格式（Windows路径、URL等），使用小写关键词
+                if (!ST.Bind(1, "%" . KeywordLower . "%")) {
+                    ST.Free()
+                    return Results
+                }
+                if (!ST.Bind(2, "file://%" . KeywordLower . "%")) {
+                    ST.Free()
+                    return Results
+                }
+                if (!ST.Bind(3, MaxResults * 2)) {
+                    ST.Free()
+                    return Results
+                }
+                
+                while (ST.Step() && Count < MaxResults) {
+                    Content := ST.Column(0)
+                    Timestamp := ST.Column(1)
+                    
+                    ; 检查是否为文件路径
+                    if (IsFilePath(Content)) {
+                        SplitPath(Content, &FileName, &DirPath, &Ext, &NameNoExt)
+                        
+                        ; 检查文件名或路径是否匹配关键词
+                        if (InStr(StrLower(FileName), KeywordLower) || InStr(StrLower(Content), KeywordLower)) {
+                            ResultItem := {
+                                DataType: "file",
+                                DataTypeName: "文件路径",
+                                ID: Content,
+                                Title: FileName,
+                                SubTitle: DirPath . " · " . (Ext ? Ext : "文件"),
+                                Content: Content,
+                                Preview: Content,
+                                Metadata: Map(
+                                    "FilePath", Content,
+                                    "FileName", FileName,
+                                    "DirPath", DirPath,
+                                    "Ext", Ext ? Ext : "",
+                                    "Timestamp", Timestamp
+                                ),
+                                Action: "open_file",
+                                ActionParams: Map("FilePath", Content)
+                            }
+                            
+                            Results.Push(ResultItem)
+                            Count++
+                        }
+                    }
+                }
+                
+                ST.Free()
+            }
+        } catch as e {
+            ; 如果出错，尝试释放ST
+            try {
+                if (IsObject(ST) && ST.HasProp("Free")) {
+                    ST.Free()
+                }
+            } catch {
+            }
+        }
+    }
+    
+    return Results
+}
+
+; 搜索快捷键
+SearchHotkeys(Keyword, MaxResults := 10) {
+    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyT
+    global SplitHotkey, BatchHotkey
+    Results := []
+    
+    KeywordLower := StrLower(Keyword)
+    Count := 0
+    
+    ; 【Bug修复3】扩展搜索关键词，包括"快捷"、"快捷键"等
+    ; 如果关键词包含"快捷"，添加快捷键标签页结果
+    if (InStr(KeywordLower, "快捷")) {
+        ResultItem := {
+            DataType: "hotkey",
+            DataTypeName: "快捷键",
+            ID: "hotkeys_tab",
+            Title: "快捷键标签页",
+            SubTitle: "标签页 · 配置面板中的快捷键设置",
+            Content: "跳转到快捷键标签页",
+            Preview: "点击跳转到快捷键标签页",
+            Metadata: Map(
+                "TabKey", "hotkeys",
+                "Type", "标签页"
+            ),
+            Action: "jump_to_config",
+            ActionParams: Map("TabName", "hotkeys", "Section", "", "Key", "")
+        }
+        Results.Push(ResultItem)
+        Count++
+    }
+    
+    ; 定义快捷键映射
+    HotkeyMap := Map(
+        "关闭面板", Map("Hotkey", HotkeyESC, "Function", "关闭面板", "Description", "关闭快捷操作面板"),
+        "连续复制", Map("Hotkey", HotkeyC, "Function", "连续复制", "Description", "CapsLock+C 连续复制内容"),
+        "合并粘贴", Map("Hotkey", HotkeyV, "Function", "合并粘贴", "Description", "CapsLock+V 合并粘贴所有复制的内容"),
+        "剪贴板管理", Map("Hotkey", HotkeyX, "Function", "剪贴板管理", "Description", "CapsLock+X 打开剪贴板管理面板"),
+        "解释", Map("Hotkey", HotkeyE, "Function", "解释", "Description", "CapsLock+E 解释代码"),
+        "重构", Map("Hotkey", HotkeyR, "Function", "重构", "Description", "CapsLock+R 重构代码"),
+        "优化", Map("Hotkey", HotkeyO, "Function", "优化", "Description", "CapsLock+O 优化代码"),
+        "配置", Map("Hotkey", HotkeyQ, "Function", "配置", "Description", "CapsLock+Q 打开配置面板"),
+        "语音输入", Map("Hotkey", HotkeyZ, "Function", "语音输入", "Description", "CapsLock+Z 语音输入"),
+        "区域截图", Map("Hotkey", HotkeyT, "Function", "区域截图", "Description", "CapsLock+T 区域截图"),
+        "分割代码", Map("Hotkey", SplitHotkey, "Function", "分割代码", "Description", "CapsLock+" . SplitHotkey . " 分割代码"),
+        "批量操作", Map("Hotkey", BatchHotkey, "Function", "批量操作", "Description", "CapsLock+" . BatchHotkey . " 批量操作"),
+        "快捷操作", Map("Hotkey", "", "Function", "快捷操作", "Description", "快捷操作按钮面板"),
+        "快捷操作按钮", Map("Hotkey", "", "Function", "快捷操作按钮", "Description", "快捷操作按钮面板")
+    )
+    
+    for FunctionName, HotkeyInfo in HotkeyMap {
+        if (Count >= MaxResults) {
+            break
+        }
+        
+        ; 【Bug修复3】扩展搜索范围：功能名称、快捷键、描述，以及"快捷"相关关键词
+        FunctionMatch := InStr(StrLower(FunctionName), KeywordLower)
+        HotkeyMatch := InStr(StrLower(HotkeyInfo["Hotkey"]), KeywordLower)
+        DescMatch := InStr(StrLower(HotkeyInfo["Description"]), KeywordLower)
+        ; 如果关键词包含"快捷"，匹配所有快捷键相关项
+        QuickMatch := (InStr(KeywordLower, "快捷") && (InStr(StrLower(FunctionName), "快捷") || InStr(StrLower(HotkeyInfo["Description"]), "快捷")))
+        
+        if (FunctionMatch || HotkeyMatch || DescMatch || QuickMatch) {
+            HotkeyDisplay := "CapsLock+" . HotkeyInfo["Hotkey"]
+            
+            ResultItem := {
+                DataType: "hotkey",
+                DataTypeName: "快捷键",
+                ID: FunctionName,
+                Title: FunctionName,
+                SubTitle: HotkeyDisplay . " · " . HotkeyInfo["Description"],
+                Content: HotkeyInfo["Description"],
+                Preview: HotkeyDisplay,
+                Metadata: Map(
+                    "Hotkey", HotkeyInfo["Hotkey"],
+                    "Function", HotkeyInfo["Function"],
+                    "Description", HotkeyInfo["Description"]
+                ),
+                Action: "jump_to_hotkey_config",
+                ActionParams: Map("Function", FunctionName)
+            }
+            
+            Results.Push(ResultItem)
+            Count++
+        }
+    }
+    
+    return Results
+}
+
+; 搜索功能
+SearchFunctions(Keyword, MaxResults := 10) {
+    Results := []
+    
+    KeywordLower := StrLower(Keyword)
+    Count := 0
+    
+    ; 定义功能列表
+    Functions := [
+        Map("Name", "解释代码", "Description", "使用AI解释代码逻辑", "Category", "AI功能"),
+        Map("Name", "重构代码", "Description", "使用AI重构代码", "Category", "AI功能"),
+        Map("Name", "优化代码", "Description", "使用AI优化代码性能", "Category", "AI功能"),
+        Map("Name", "剪贴板管理", "Description", "管理剪贴板历史记录", "Category", "工具功能"),
+        Map("Name", "语音输入", "Description", "使用语音输入文本", "Category", "工具功能"),
+        Map("Name", "语音搜索", "Description", "使用语音搜索", "Category", "工具功能"),
+        Map("Name", "区域截图", "Description", "截取屏幕区域", "Category", "工具功能"),
+        Map("Name", "模板管理", "Description", "管理提示词模板", "Category", "配置功能")
+    ]
+    
+    for Index, Func in Functions {
+        if (Count >= MaxResults) {
+            break
+        }
+        
+        NameMatch := InStr(StrLower(Func["Name"]), KeywordLower)
+        DescMatch := InStr(StrLower(Func["Description"]), KeywordLower)
+        CategoryMatch := InStr(StrLower(Func["Category"]), KeywordLower)
+        
+        if (NameMatch || DescMatch || CategoryMatch) {
+            ResultItem := {
+                DataType: "function",
+                DataTypeName: "功能",
+                ID: Func["Name"],
+                Title: Func["Name"],
+                SubTitle: Func["Category"] . " · " . Func["Description"],
+                Content: Func["Description"],
+                Preview: Func["Description"],
+                Metadata: Map(
+                    "Category", Func["Category"],
+                    "Description", Func["Description"]
+                ),
+                Action: "execute_function",
+                ActionParams: Map("FunctionName", Func["Name"])
+            }
+            
+            Results.Push(ResultItem)
+            Count++
+        }
+    }
+    
+    return Results
+}
+
+; ===================== 搜索UI标签页和界面元素 =====================
+SearchUITabs(Keyword, MaxResults := 10) {
+    Results := []
+    
+    KeywordLower := StrLower(Keyword)
+    Count := 0
+    
+    ; 定义标签页映射（标签页名称 -> 标签页Key）
+    TabMap := Map(
+        "通用", "general",
+        "General", "general",
+        "外观", "appearance",
+        "Appearance", "appearance",
+        "提示词", "prompts",
+        "Prompts", "prompts",
+        "快捷键", "hotkeys",
+        "Hotkeys", "hotkeys",
+        "高级", "advanced",
+        "Advanced", "advanced",
+        "搜索", "search"
+    )
+    
+    ; 定义UI元素映射（按钮/标签文本 -> 标签页Key和描述）
+    UIElements := [
+        Map("Name", "快捷操作", "Tab", "hotkeys", "Description", "快捷操作按钮面板", "Type", "按钮"),
+        Map("Name", "快捷操作按钮", "Tab", "hotkeys", "Description", "快捷操作按钮面板", "Type", "按钮"),
+        Map("Name", "快捷键设置", "Tab", "hotkeys", "Description", "快捷键配置页面", "Type", "标签页"),
+        Map("Name", "快捷键配置", "Tab", "hotkeys", "Description", "快捷键配置页面", "Type", "标签页"),
+        Map("Name", "模板管理", "Tab", "prompts", "Description", "提示词模板管理", "Type", "标签页"),
+        Map("Name", "剪贴板管理", "Tab", "general", "Description", "剪贴板历史管理", "Type", "功能"),
+        Map("Name", "配置面板", "Tab", "general", "Description", "打开配置面板", "Type", "功能")
+    ]
+    
+    ; 搜索标签页
+    for TabName, TabKey in TabMap {
+        if (Count >= MaxResults) {
+            break
+        }
+        
+        if (InStr(StrLower(TabName), KeywordLower)) {
+            ResultItem := {
+                DataType: "ui",
+                DataTypeName: "界面元素",
+                ID: "tab_" . TabKey,
+                Title: TabName,
+                SubTitle: "标签页 · 配置面板",
+                Content: "跳转到" . TabName . "标签页",
+                Preview: "点击跳转到" . TabName . "标签页",
+                Metadata: Map(
+                    "TabKey", TabKey,
+                    "TabName", TabName,
+                    "Type", "标签页"
+                ),
+                Action: "jump_to_config",
+                ActionParams: Map("TabName", TabKey, "Section", "", "Key", "")
+            }
+            
+            Results.Push(ResultItem)
+            Count++
+        }
+    }
+    
+    ; 搜索UI元素（按钮、功能等）
+    for Index, Element in UIElements {
+        if (Count >= MaxResults) {
+            break
+        }
+        
+        NameMatch := InStr(StrLower(Element["Name"]), KeywordLower)
+        DescMatch := InStr(StrLower(Element["Description"]), KeywordLower)
+        
+        if (NameMatch || DescMatch) {
+            ResultItem := {
+                DataType: "ui",
+                DataTypeName: "界面元素",
+                ID: "ui_" . Element["Tab"] . "_" . Element["Name"],
+                Title: Element["Name"],
+                SubTitle: Element["Type"] . " · " . Element["Description"],
+                Content: Element["Description"],
+                Preview: Element["Description"],
+                Metadata: Map(
+                    "TabKey", Element["Tab"],
+                    "TabName", Element["Name"],
+                    "Type", Element["Type"],
+                    "Description", Element["Description"]
+                ),
+                Action: "jump_to_config",
+                ActionParams: Map("TabName", Element["Tab"], "Section", "", "Key", "")
+            }
+            
+            Results.Push(ResultItem)
+            Count++
+        }
+    }
+    
+    return Results
+}
+
+; ===================== 创建搜索标签页 =====================
+CreateSearchTab(ConfigGUI, X, Y, W, H) {
+    global SearchTabControls, UI_Colors, ThemeMode, SearchHistoryEdit, SearchResultsListView
+    global SearchTypeFilterButtons, SearchCurrentFilterType
+    
+    ; 初始化控件数组
+    if (!IsSet(SearchTabControls)) {
+        global SearchTabControls := []
+    }
+    
+    ; 创建标签页面板（默认隐藏）
+    SearchTabPanel := ConfigGUI.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Background" . UI_Colors.Background . " vSearchTabPanel", "")
+    SearchTabPanel.Visible := false
+    SearchTabControls.Push(SearchTabPanel)
+    
+    ; 标题
+    Title := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . (Y + 20) . " w" . (W - 60) . " h30 c" . UI_Colors.Text, "搜索")
+    Title.SetFont("s16 Bold", "Segoe UI")
+    SearchTabControls.Push(Title)
+    
+    ; 搜索输入框
+    YPos := Y + 70
+    LabelSearch := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, "搜索关键词：")
+    LabelSearch.SetFont("s11", "Segoe UI")
+    SearchTabControls.Push(LabelSearch)
+    
+    YPos += 30
+    ; 根据主题模式设置输入框颜色
+    if (!IsSet(ThemeMode) || ThemeMode = "") {
+        ThemeMode := "dark"
+    }
+    if (ThemeMode = "dark") {
+        InputBgColor := "2d2d30"
+        InputTextColor := "FFFFFF"
+    } else {
+        InputBgColor := UI_Colors.InputBg
+        InputTextColor := UI_Colors.Text
+    }
+    global SearchHistoryEdit := ConfigGUI.Add("Edit", "x" . (X + 30) . " y" . YPos . " w" . (W - 100) . " h30 vSearchHistoryEdit Background" . InputBgColor . " c" . InputTextColor, "")
+    SearchHistoryEdit.SetFont("s11", "Segoe UI")
+    SearchHistoryEdit.OnEvent("Change", OnSearchInputChange)
+    SearchTabControls.Push(SearchHistoryEdit)
+    
+    ; 类型过滤按钮
+    YPos += 50
+    CreateSearchTypeFilters(ConfigGUI, X + 30, YPos, W - 60)
+    YPos += 40
+    
+    ; ListView
+    ListViewHeight := H - (YPos - Y) - 30
+    ListViewTextColor := (ThemeMode = "dark") ? "FFFFFF" : UI_Colors.Text
+    global SearchResultsListView := ConfigGUI.Add("ListView", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h" . ListViewHeight . " vSearchResultsListView Background" . UI_Colors.InputBg . " c" . ListViewTextColor . " -Multi +ReadOnly", ["类型", "标题", "副标题", "预览"])
+    SearchResultsListView.SetFont("s10 c" . ListViewTextColor, "Segoe UI")
+    SearchResultsListView.OnEvent("DoubleClick", OnSearchResultDoubleClick)
+    SearchTabControls.Push(SearchResultsListView)
+    
+    ; 设置列宽
+    SearchResultsListView.ModifyCol(1, 120)  ; 类型
+    SearchResultsListView.ModifyCol(2, 200)  ; 标题
+    SearchResultsListView.ModifyCol(3, 250)  ; 副标题
+    SearchResultsListView.ModifyCol(4, 300)  ; 预览
+}
+
+; ===================== 创建类型过滤按钮 =====================
+CreateSearchTypeFilters(ConfigGUI, X, Y, W) {
+    global SearchTypeFilterButtons, SearchCurrentFilterType
+    
+    SearchTypeFilterButtons := []
+    SearchCurrentFilterType := ""  ; 空字符串表示显示所有类型
+    
+    ; 定义类型按钮
+    Types := [
+        {Key: "", Name: "全部"},
+        {Key: "clipboard", Name: "剪贴板"},
+        {Key: "template", Name: "模板"},
+        {Key: "config", Name: "配置"},
+        {Key: "file", Name: "文件"},
+        {Key: "hotkey", Name: "快捷键"},
+        {Key: "function", Name: "功能"}
+    ]
+    
+    ButtonWidth := 80
+    ButtonHeight := 30
+    ButtonSpacing := 10
+    CurrentX := X
+    
+    for Index, Type in Types {
+        FilterBtn := ConfigGUI.Add("Button", "x" . CurrentX . " y" . Y . " w" . ButtonWidth . " h" . ButtonHeight . " vSearchFilter" . Type.Key, Type.Name)
+        FilterBtn.SetFont("s10", "Segoe UI")
+        FilterBtn.OnEvent("Click", CreateSearchFilterHandler(Type.Key))
+        SearchTypeFilterButtons.Push(FilterBtn)
+        global SearchTabControls
+        SearchTabControls.Push(FilterBtn)
+        
+        CurrentX += ButtonWidth + ButtonSpacing
+    }
+}
+
+; ===================== 创建过滤按钮事件处理器 =====================
+CreateSearchFilterHandler(FilterType) {
+    return (*) => OnSearchFilterClick(FilterType)
+}
+
+; ===================== 搜索过滤按钮点击事件 =====================
+OnSearchFilterClick(FilterType) {
+    global SearchCurrentFilterType, SearchResultsCache, SearchHistoryEdit
+    
+    SearchCurrentFilterType := FilterType
+    
+    ; 更新按钮样式（高亮当前选中的按钮）
+    UpdateSearchFilterButtons(FilterType)
+    
+    ; 【Bug修复2】确保缓存存在后再刷新显示
+    ; 如果缓存为空且搜索框有内容，先执行搜索
+    if ((!IsSet(SearchResultsCache) || SearchResultsCache.Count = 0) && SearchHistoryEdit) {
+        try {
+            Keyword := SearchHistoryEdit.Value
+            if (Keyword != "") {
+                ; 重新执行搜索
+                SearchResultsCache := SearchAllDataSources(Keyword)
+            }
+        } catch {
+        }
+    }
+    
+    ; 刷新ListView显示
+    if (IsSet(SearchResultsCache) && SearchResultsCache.Count > 0) {
+        RefreshSearchResultsListView(SearchResultsCache, FilterType)
+    } else {
+        ; 即使缓存为空，也刷新ListView（会显示空列表）
+        RefreshSearchResultsListView(Map(), FilterType)
+    }
+}
+
+; ===================== 更新过滤按钮样式 =====================
+UpdateSearchFilterButtons(ActiveType) {
+    global SearchTypeFilterButtons, UI_Colors, ThemeMode
+    
+    ; 定义类型按钮映射
+    TypeButtonMap := Map(
+        "", "全部",
+        "clipboard", "剪贴板",
+        "template", "模板",
+        "config", "配置",
+        "file", "文件",
+        "hotkey", "快捷键",
+        "function", "功能"
+    )
+    
+    for Index, Btn in SearchTypeFilterButtons {
+        if (Btn) {
+            try {
+                ; 根据是否为活动按钮设置不同样式
+                BtnText := Btn.Text
+                ExpectedText := TypeButtonMap.Has(ActiveType) ? TypeButtonMap[ActiveType] : ""
+                
+                if (BtnText = ExpectedText) {
+                    ; 选中状态
+                    Btn.Opt("Background" . UI_Colors.BtnPrimary)
+                } else {
+                    ; 未选中状态
+                    Btn.Opt("Background" . UI_Colors.BtnBg)
+                }
+            } catch {
+            }
+        }
+    }
+}
+
+; ===================== 刷新搜索结果ListView =====================
+RefreshSearchResultsListView(SearchResults, FilterType := "") {
+    global SearchResultsListView, SearchResultsData, SearchHistoryEdit
+    
+    if (!SearchResultsListView) {
+        return
+    }
+    
+    ; 检查控件是否有效
+    try {
+        ; 尝试访问控件属性来检查是否有效
+        _ := SearchResultsListView.Hwnd
+    } catch {
+        ; 控件已被销毁，直接返回
+        return
+    }
+    
+    ; 【Bug修复2】如果SearchResults为空且搜索框有内容，自动重新搜索
+    if ((!SearchResults || SearchResults.Count = 0) && SearchHistoryEdit) {
+        try {
+            Keyword := SearchHistoryEdit.Value
+            if (Keyword != "") {
+                ; 重新执行搜索
+                global SearchResultsCache
+                SearchResultsCache := SearchAllDataSources(Keyword)
+                SearchResults := SearchResultsCache
+            }
+        } catch {
+            ; 如果重新搜索失败，继续使用空的SearchResults
+        }
+    }
+    
+    ; 【Bug修复1】禁用重绘，减少闪烁
+    try {
+        SearchResultsListView.Opt("-Redraw")
+    } catch {
+    }
+    
+    ; 清空列表和数据
+    try {
+        SearchResultsListView.Delete()
+    } catch {
+        ; 如果删除失败，可能控件已被销毁
+        try {
+            SearchResultsListView.Opt("+Redraw")
+        } catch {
+        }
+        return
+    }
+    
+    try {
+        SearchResultsData.Clear()
+    } catch {
+    }
+    
+    ; 收集所有结果项
+    AllItems := []
+    
+    ; 如果指定了过滤类型，只显示该类型的结果
+    if (FilterType != "") {
+        if (SearchResults.Has(FilterType)) {
+            Group := SearchResults[FilterType]
+            for Index, Item in Group.Items {
+                AllItems.Push(Item)
+            }
+        }
+    } else {
+        ; 显示所有类型的结果，合并到一个数组
+        for Key, Group in SearchResults {
+            if (IsObject(Group) && Group.HasProp("Items")) {
+                for ItemIndex, Item in Group.Items {
+                    AllItems.Push(Item)
+                }
+            }
+        }
+    }
+    
+    ; 按时间倒序排列（Everything式体验）
+    ; 使用自定义排序：按Timestamp字段排序，Timestamp越大越新
+    if (AllItems.Length > 1) {
+        ; 冒泡排序：按时间戳倒序排列
+        Loop AllItems.Length - 1 {
+            i := A_Index
+            Loop AllItems.Length - i {
+                j := A_Index + i
+                
+                ; 获取时间戳进行比较
+                TimeI := AllItems[i].HasProp("Timestamp") ? AllItems[i].Timestamp : ""
+                TimeJ := AllItems[j].HasProp("Timestamp") ? AllItems[j].Timestamp : ""
+                
+                ; 如果时间戳为空，放到后面
+                if (TimeI = "" && TimeJ != "") {
+                    ; i的时间戳为空，j有，交换位置
+                    temp := AllItems[i]
+                    AllItems[i] := AllItems[j]
+                    AllItems[j] := temp
+                } else if (TimeI != "" && TimeJ != "") {
+                    ; 两个都有时间戳，比较大小
+                    ; 时间戳格式：YYYY-MM-DD HH:MM:SS，字符串比较可以正确排序
+                    ; StrCompare 返回：TimeJ > TimeI 时返回正数，TimeJ < TimeI 时返回负数
+                    if (StrCompare(TimeJ, TimeI) > 0) {
+                        ; j的时间戳更大（更新），交换位置（倒序排列，最新的在前）
+                        temp := AllItems[i]
+                        AllItems[i] := AllItems[j]
+                        AllItems[j] := temp
+                    }
+                }
+            }
+        }
+    }
+    
+    ; 将排序后的结果添加到ListView
+    try {
+        for Index, Item in AllItems {
+            AddSearchResultItem(SearchResultsListView, Item)
+        }
+        
+        ; 自动调整列宽
+        SearchResultsListView.ModifyCol(1, "AutoHdr")
+        SearchResultsListView.ModifyCol(2, "AutoHdr")
+        SearchResultsListView.ModifyCol(3, "AutoHdr")
+        SearchResultsListView.ModifyCol(4, "AutoHdr")
+    } catch {
+        ; 如果添加失败，可能控件已被销毁，忽略错误
+    }
+    
+    ; 【Bug修复1】重新启用重绘
+    try {
+        SearchResultsListView.Opt("+Redraw")
+    } catch {
+    }
+}
+
+; ===================== 添加搜索结果项到ListView =====================
+AddSearchResultItem(ListView, Item) {
+    ; 检查ListView是否有效
+    if (!ListView) {
+        return
+    }
+    
+    try {
+        ; 尝试访问控件属性来检查是否有效
+        _ := ListView.Hwnd
+    } catch {
+        ; 控件已被销毁，直接返回
+        return
+    }
+    
+    try {
+        ; 列：类型 | 标题 | 副标题 | 预览
+        ListView.Add("", Item.DataTypeName, Item.Title, Item.SubTitle, Item.Preview)
+        
+        ; 保存结果项数据到ListView行数据（通过行索引关联）
+        RowIndex := ListView.GetCount()
+        ; 注意：AutoHotkey v2的ListView不直接支持行数据，需要通过全局Map存储
+        global SearchResultsData
+        if (!IsSet(SearchResultsData)) {
+            global SearchResultsData := Map()
+        }
+        SearchResultsData[RowIndex] := Item
+    } catch {
+        ; 如果添加失败，可能控件已被销毁，忽略错误
+    }
+}
+
+; ===================== 搜索输入框变化事件 =====================
+OnSearchInputChange(*) {
+    global SearchHistoryEdit, SearchResultsCache, SearchDebounceTimer
+    
+    ; 防抖处理：延迟150ms执行搜索（Everything式即时搜索体验）
+    if (SearchDebounceTimer != 0) {
+        SetTimer(SearchDebounceTimer, 0)
+    }
+    
+    SearchDebounceTimer := (*) => PerformSearch()
+    
+    SetTimer(SearchDebounceTimer, -150)  ; 150ms延迟
+}
+
+; ===================== 执行搜索 =====================
+PerformSearch() {
+    global SearchHistoryEdit, SearchResultsCache, SearchCurrentFilterType
+    
+    ; 检查控件是否有效
+    if (!SearchHistoryEdit) {
+        return
+    }
+    
+    try {
+        ; 尝试访问控件属性来检查是否有效
+        _ := SearchHistoryEdit.Hwnd
+    } catch {
+        ; 控件已被销毁，直接返回
+        return
+    }
+    
+    try {
+        Keyword := SearchHistoryEdit.Value
+    } catch {
+        ; 如果获取值失败，可能控件已被销毁
+        return
+    }
+    
+    if (Keyword = "") {
+        ; 清空结果
+        RefreshSearchResultsListView(Map(), "")
+        return
+    }
+    
+    ; 执行搜索
+    try {
+        SearchResultsCache := SearchAllDataSources(Keyword)
+        
+        ; 刷新ListView（使用当前过滤类型）
+        RefreshSearchResultsListView(SearchResultsCache, SearchCurrentFilterType)
+    } catch as e {
+        ; 如果搜索失败，忽略错误
+    }
+}
+
+; ===================== 搜索结果ListView双击事件 =====================
+OnSearchResultDoubleClick(*) {
+    global SearchResultsListView, SearchResultsData
+    
+    SelectedRow := SearchResultsListView.GetNext()
+    if (SelectedRow = 0) {
+        return
+    }
+    
+    ; 获取对应的结果项
+    if (SearchResultsData.Has(SelectedRow)) {
+        Item := SearchResultsData[SelectedRow]
+        HandleSearchResultAction(Item)
+    }
+}
+
+; ===================== 处理搜索结果跳转 =====================
+HandleSearchResultAction(Item) {
+    switch Item.Action {
+        case "copy_to_clipboard":
+            ; 复制到剪贴板
+            A_Clipboard := Item.Content
+            TrayTip("提示", "已复制到剪贴板", "Iconi 1")
+            
+        case "send_to_cursor":
+            ; 发送模板到Cursor
+            Template := Item.ActionParams["Template"]
+            SendTemplateToCursorWithKey("", Template)
+            
+        case "jump_to_config":
+            ; 跳转到配置标签页
+            TabName := Item.ActionParams["TabName"]
+            Section := Item.ActionParams["Section"]
+            Key := Item.ActionParams["Key"]
+            JumpToConfigItem(TabName, Section, Key)
+            
+        case "open_file":
+            ; 打开文件
+            FilePath := Item.ActionParams["FilePath"]
+            try {
+                Run(FilePath)
+            } catch {
+                TrayTip("错误", "无法打开文件: " . FilePath, "Iconx 2")
+            }
+            
+        case "jump_to_hotkey_config":
+            ; 跳转到快捷键配置
+            FunctionName := Item.ActionParams["Function"]
+            JumpToHotkeyConfig(FunctionName)
+            
+        case "execute_function":
+            ; 执行功能
+            FunctionName := Item.ActionParams["FunctionName"]
+            ExecuteFunction(FunctionName)
+    }
+}
+
+; ===================== 跳转到配置项 =====================
+JumpToConfigItem(TabName, Section, Key) {
+    global GuiID_ConfigGUI
+    
+    ; 切换到对应标签页
+    SwitchTab(TabName)
+    
+    ; 高亮对应的配置项（需要根据具体实现）
+    ; 这里简化处理，实际需要根据控件名称定位并高亮
+    TrayTip("提示", "已跳转到" . TabName . "标签页", "Iconi 1")
+}
+
+; ===================== 跳转到快捷键配置 =====================
+JumpToHotkeyConfig(FunctionName) {
+    ; 切换到快捷键标签页
+    SwitchTab("hotkeys")
+    
+    ; 高亮对应的快捷键配置项
+    ; 需要根据具体实现定位控件
+    TrayTip("提示", "已跳转到快捷键配置", "Iconi 1")
+}
+
+; ===================== 执行功能 =====================
+ExecuteFunction(FunctionName) {
+    switch FunctionName {
+        case "解释代码":
+            ; 触发解释功能
+            ExecutePrompt("Explain")
+        case "重构代码":
+            ExecutePrompt("Refactor")
+        case "优化代码":
+            ExecutePrompt("Optimize")
+        case "剪贴板管理":
+            ; 打开剪贴板管理面板
+            ShowClipboardManager()
+        case "模板管理":
+            ; 跳转到模板管理标签页
+            SwitchTab("prompts")
+            ; 切换到管理子标签
+            ; SwitchPromptTemplateTab(?)  ; 需要根据实际实现
+        default:
+            TrayTip("提示", "功能: " . FunctionName, "Iconi 1")
+    }
+}
+
 ; ===================== 设置下拉列表最小可见项数 =====================
 SetDDLMinVisible(*) {
     global DefaultStartTabDDL_Hwnd_ForTimer
@@ -11359,41 +12596,23 @@ ShowConfigGUI() {
     ; SidebarWidth 已在上面声明为全局变量
     SidebarBg := ConfigGUI.Add("Text", "x0 y35 w" . SidebarWidth . " h" . (ConfigHeight - 35) . " Background" . UI_Colors.Sidebar . " vSidebarBg", "")
     
-    ; 侧边栏搜索框
-    ; 牛马图标（放在搜索框外面左边，放大显示）
-    global ThemeMode
+    ; 牛马图标（放大显示，可点击切换）
+    global ThemeMode, CustomIconPath
     if (!IsSet(ThemeMode) || ThemeMode = "") {
         ThemeMode := "dark"
     }
     IconSize := 32
     IconX := 10
     IconY := 45
-    IconPath := A_ScriptDir "\牛马.ico"
+    ; 优先使用用户自定义图标
+    IconPath := (CustomIconPath != "" && FileExist(CustomIconPath)) ? CustomIconPath : (A_ScriptDir "\牛马.ico")
     if (FileExist(IconPath)) {
-        SearchIcon := ConfigGUI.Add("Picture", "x" . IconX . " y" . IconY . " w" . IconSize . " h" . IconSize . " 0x200 BackgroundTrans", IconPath)
+        global SearchIcon := ConfigGUI.Add("Picture", "x" . IconX . " y" . IconY . " w" . IconSize . " h" . IconSize . " BackgroundTrans vConfigIcon", IconPath)
+        SearchIcon.OnEvent("Click", (*) => ChangeCustomIcon())
     }
-    
-    ; 搜索框背景（调整位置，为图标留出空间）
-    SearchBgX := IconX + IconSize + 10
-    SearchBgWidth := SidebarWidth - SearchBgX - 10
-    SearchBg := ConfigGUI.Add("Text", "x" . SearchBgX . " y45 w" . SearchBgWidth . " h30 Background" . UI_Colors.InputBg, "")
-    
-    ; 搜索输入框（根据主题模式设置颜色）
-    if (ThemeMode = "dark") {
-        SearchInputBgColor := "2d2d30"  ; Cursor风格的黑灰色
-        SearchInputTextColor := "FFFFFF"  ; 白色文字
-    } else {
-        SearchInputBgColor := UI_Colors.InputBg
-        SearchInputTextColor := UI_Colors.Text
-    }
-    global SearchEdit := ConfigGUI.Add("Edit", "x" . SearchBgX . " y50 w" . SearchBgWidth . " h20 vSearchEdit Background" . SearchInputBgColor . " c" . SearchInputTextColor . " -E0x200", "") 
-    SearchEdit.SetFont("s9", "Segoe UI")
-    
-    global SearchHint := ConfigGUI.Add("Text", "x" . SearchBgX . " y50 w" . SearchBgWidth . " h20 c" . UI_Colors.TextDim . " Background" . SearchInputBgColor, GetText("search_placeholder"))
-    SearchHint.SetFont("s9 Italic", "Segoe UI")
     
     ; 标签按钮起始位置
-    TabY := 90
+    TabY := 50
     TabHeight := 35
     TabSpacing := 2
     
@@ -11423,6 +12642,11 @@ ShowConfigGUI() {
     TabRadioGroup.Push(TabAdvanced)
     TabAdvanced.OnEvent("Click", (*) => SwitchTab("advanced"))
     
+    ; 添加搜索标签
+    TabSearch := CreateMaterialRadioButton(ConfigGUI, 5, TabY + (TabHeight + TabSpacing) * 5, TabRadioWidth, TabRadioHeight, "TabSearch", "搜索", TabRadioGroup, 10, false)
+    TabRadioGroup.Push(TabSearch)
+    TabSearch.OnEvent("Click", (*) => SwitchTab("search"))
+    
     ; ========== 右侧内容区域（可滚动）==========
     ContentX := SidebarWidth
     ContentWidth := ConfigWidth - SidebarWidth
@@ -11440,7 +12664,8 @@ ShowConfigGUI() {
         "appearance", TabAppearance,
         "prompts", TabPrompts,
         "hotkeys", TabHotkeys,
-        "advanced", TabAdvanced
+        "advanced", TabAdvanced,
+        "search", TabSearch
     )
     global ConfigTabs := ConfigTabs
     
@@ -11451,6 +12676,7 @@ ShowConfigGUI() {
     CreatePromptsTab(ConfigGUI, ContentX, ContentY, ContentWidth, ContentHeight)
     CreateHotkeysTab(ConfigGUI, ContentX, ContentY, ContentWidth, ContentHeight)
     CreateAdvancedTab(ConfigGUI, ContentX, ContentY, ContentWidth, ContentHeight)
+    CreateSearchTab(ConfigGUI, ContentX, ContentY, ContentWidth, ContentHeight)
     
     ; ========== 底部按钮区域 (右侧) ==========
     ButtonAreaY := ConfigHeight - 50  ; 减少高度（已移除说明文字）
@@ -11498,11 +12724,6 @@ ShowConfigGUI() {
     ; 全屏显示，使用屏幕的左上角坐标
     PosX := ScreenInfo.Left
     PosY := ScreenInfo.Top
-    
-    ; 搜索功能绑定
-    SearchEdit.OnEvent("Change", (*) => FilterSettings(SearchEdit.Value))
-    SearchEdit.OnEvent("Focus", SearchEditFocus)
-    SearchEdit.OnEvent("LoseFocus", SearchEditLoseFocus)
     
     ; 保存ConfigGUI引用
     GuiID_ConfigGUI := ConfigGUI
@@ -12132,78 +13353,88 @@ CloseConfigGUI() {
     SetTimer(() => IsClosing := false, -100)
 }
 
-; ===================== 搜索框事件处理 =====================
-SearchEditFocus(*) {
-    global SearchHint
-    try {
-        if (SearchHint) {
-            SearchHint.Visible := false
-        }
-    }
-}
-
-SearchEditLoseFocus(*) {
-    global SearchEdit, SearchHint
-    try {
-        if (SearchEdit && SearchEdit.Value = "") {
-            if (SearchHint) {
-                SearchHint.Visible := true
-            }
-        }
-    }
-}
-
-; ===================== 搜索功能 =====================
-FilterSettings(SearchText) {
-    global ConfigTabs, CurrentTab
+; ===================== 图标切换功能 =====================
+ChangeCustomIcon(*) {
+    global CustomIconPath, GuiID_ConfigGUI, SearchIcon, ConfigFile
     
-    ; 如果搜索文本为空，显示所有标签
-    if (SearchText = "") {
-        ; 显示所有标签
-        for Key, TabBtn in ConfigTabs {
-            TabBtn.Visible := true
-        }
-        ; 如果当前标签存在，显示它
-        if (CurrentTab && ConfigTabs.Has(CurrentTab)) {
-            SwitchTab(CurrentTab)
-        }
+    ; 打开文件选择对话框，只允许选择图片文件
+    SelectedFile := FileSelect("1", A_ScriptDir, "选择图标文件", "图片文件 (*.ico; *.png; *.jpg; *.jpeg; *.bmp)")
+    
+    if (SelectedFile = "") {
+        return  ; 用户取消了选择
+    }
+    
+    ; 验证文件是否存在
+    if (!FileExist(SelectedFile)) {
+        MsgBox("文件不存在: " . SelectedFile, "错误", "Iconx")
         return
     }
     
-    ; 转换为小写以便搜索（不区分大小写）
-    SearchLower := StrLower(SearchText)
+    ; 更新全局变量
+    CustomIconPath := SelectedFile
     
-    ; 定义每个标签的关键词（中英文）
-    TabKeywords := Map(
-        "general", ["通用", "general", "cursor", "路径", "path", "语言", "language", "设置", "settings"],
-        "appearance", ["外观", "appearance", "屏幕", "screen", "显示", "display", "位置", "position"],
-        "prompts", ["提示词", "prompt", "解释", "explain", "重构", "refactor", "优化", "optimize", "ai"],
-        "hotkeys", ["快捷键", "hotkey", "分割", "split", "批量", "batch", "键盘", "keyboard"],
-        "advanced", ["高级", "advanced", "ai", "等待", "wait", "时间", "time", "性能", "performance"]
-    )
-    
-    ; 检查每个标签是否匹配搜索关键词
-    for TabName, Keywords in TabKeywords {
-        Match := false
-        for Index, Keyword in Keywords {
-            if (InStr(StrLower(Keyword), SearchLower)) {
-                Match := true
-                break
+    ; 更新配置面板中的图标
+    if (GuiID_ConfigGUI && SearchIcon) {
+        try {
+            ; 重新设置图标图片
+            SearchIcon.Value := SelectedFile
+            SearchIcon.Redraw()
+        } catch as e {
+            ; 如果更新失败，尝试重新创建图标控件
+            try {
+                ; 获取图标位置和大小
+                IconX := 10
+                IconY := 45
+                IconSize := 32
+                ; 删除旧图标
+                SearchIcon.Destroy()
+                ; 创建新图标
+                global ConfigGUI
+                ConfigGUI := GuiFromHwnd(GuiID_ConfigGUI)
+                if (ConfigGUI) {
+                    SearchIcon := ConfigGUI.Add("Picture", "x" . IconX . " y" . IconY . " w" . IconSize . " h" . IconSize . " 0x200 BackgroundTrans vConfigIcon", SelectedFile)
+                    SearchIcon.OnEvent("Click", (*) => ChangeCustomIcon())
+                    SearchIcon.Opt("+E0x200")
+                }
+            } catch {
+                MsgBox("更新图标失败: " . e.Message, "错误", "Iconx")
             }
-        }
-        
-        ; 显示或隐藏标签
-        if (ConfigTabs.Has(TabName)) {
-            ConfigTabs[TabName].Visible := Match
         }
     }
     
-    ; 如果当前标签被隐藏，切换到第一个可见的标签
-    if (CurrentTab && ConfigTabs.Has(CurrentTab) && !ConfigTabs[CurrentTab].Visible) {
-        for TabName, TabBtn in ConfigTabs {
-            if (TabBtn.Visible) {
-                SwitchTab(TabName)
-                break
+    ; 更新托盘图标
+    UpdateTrayIcon()
+    
+    ; 保存配置（延迟保存，避免频繁IO）
+    SetTimer((*) => SaveIconConfig(), -500)
+}
+
+; 保存图标配置
+SaveIconConfig() {
+    global CustomIconPath, ConfigFile
+    if (IsSet(CustomIconPath)) {
+        if (CustomIconPath != "" && FileExist(CustomIconPath)) {
+            IniWrite(CustomIconPath, ConfigFile, "Settings", "CustomIconPath")
+        } else {
+            IniWrite("", ConfigFile, "Settings", "CustomIconPath")
+        }
+    }
+}
+
+; 更新托盘图标
+UpdateTrayIcon() {
+    global CustomIconPath
+    
+    IconPath := (CustomIconPath != "" && FileExist(CustomIconPath)) ? CustomIconPath : (A_ScriptDir "\牛马.ico")
+    
+    if (FileExist(IconPath)) {
+        try {
+            TraySetIcon(IconPath)
+        } catch {
+            ; 如果设置失败，尝试使用默认图标
+            try {
+                TraySetIcon(A_ScriptDir "\牛马.ico")
+            } catch {
             }
         }
     }
@@ -12546,6 +13777,19 @@ SaveConfig(*) {
         IniWrite(Button.Type, ConfigFile, "QuickActions", "Button" . Index . "Type")
         IniWrite(Button.Hotkey, ConfigFile, "QuickActions", "Button" . Index . "Hotkey")
     }
+    
+    ; 保存自定义图标路径
+    global CustomIconPath
+    if (IsSet(CustomIconPath)) {
+        if (CustomIconPath != "" && FileExist(CustomIconPath)) {
+            IniWrite(CustomIconPath, ConfigFile, "Settings", "CustomIconPath")
+        } else {
+            IniWrite("", ConfigFile, "Settings", "CustomIconPath")
+        }
+    }
+    
+    ; 更新托盘图标（使用自定义图标）
+    UpdateTrayIcon()
     
     ; 更新托盘菜单（语言可能已改变）
     UpdateTrayMenu()
@@ -20066,7 +21310,9 @@ ShowVoiceSearchInputPanel() {
     IconSize := 32
     IconX := 20
     IconY := YPos
-    IconPath := A_ScriptDir "\牛马.ico"
+    ; 优先使用用户自定义图标
+    global CustomIconPath
+    IconPath := (CustomIconPath != "" && FileExist(CustomIconPath)) ? CustomIconPath : (A_ScriptDir "\牛马.ico")
     if (FileExist(IconPath)) {
         VoiceSearchIcon := GuiID_VoiceInput.Add("Picture", "x" . IconX . " y" . IconY . " w" . IconSize . " h" . IconSize . " 0x200", IconPath)
     }
