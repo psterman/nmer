@@ -6,6 +6,9 @@ SetKeyDelay(20, 20)
 SetMouseDelay(10)
 SendMode("Input")
 DetectHiddenWindows(true)
+; 设置托盘图标
+TraySetIcon("牛马.ico")
+
 
 ; ===================== 包含 SQLite 数据库类 =====================
 ; 包含 lib 文件夹中的 Class_SQLiteDB.ahk（AHK v2 版本）
@@ -28,7 +31,6 @@ global CapsLockDownTime := 0
 global IsCommandMode := false
 global PanelVisible := false
 global GuiID_CursorPanel := 0
-global LV_Cursor := 0  ; CursorPanel 中的 ListView 控件，用于显示复制历史
 global CursorPanelDescText := 0  ; 快捷操作面板说明文字控件
 global CursorPanelAlwaysOnTop := false  ; 面板是否置顶（默认不置顶）
 global CursorPanelAutoHide := false  ; 面板是否启用靠边自动隐藏
@@ -61,7 +63,7 @@ global HotkeyO := "o"  ; 执行优化
 global HotkeyQ := "q"  ; 打开配置面板
 global HotkeyZ := "z"  ; 语音输入
 global HotkeyF := "f"  ; 语音搜索
-global HotkeyP := "p"  ; 区域截图
+global HotkeyT := "t"  ; 区域截图
 ; 截图等待粘贴相关变量
 global ScreenshotWaiting := false  ; 是否正在等待粘贴截图
 global ScreenshotClipboard := ""  ; 保存的截图剪贴板内容
@@ -106,8 +108,10 @@ global ConfigPanelScreenIndex := 1  ; 配置面板屏幕索引
 global MsgBoxScreenIndex := 1  ; 弹窗屏幕索引
 global VoiceInputScreenIndex := 1  ; 语音输入法提示屏幕索引
 global CursorPanelScreenIndex := 1  ; cursor快捷弹出面板屏幕索引
+global ClipboardPanelScreenIndex := 1  ; 剪贴板管理面板屏幕索引
 global PanelX := -1  ; 自定义 X 坐标（-1 表示使用默认位置）
 global PanelY := -1  ; 自定义 Y 坐标（-1 表示使用默认位置）
+global WindowPositionSaveTimers := Map()  ; 存储每个窗口的延迟保存定时器
 ; 连续复制功能
 global ClipboardHistory := []  ; 存储所有复制的内容（兼容旧版本，保留）
 global ClipboardHistory_CtrlC := []  ; 存储 Ctrl+C 复制的内容
@@ -120,7 +124,6 @@ global CurrentSessionID := 1  ; 当前复制阶段ID（SessionID），用于分�
 global TotalCopyCount := 0  ; 总复制次数
 global StageStepCount := 0  ; 当前阶段的复制次数
 global ClipboardCurrentTab := "CtrlC"  ; 当前显示的版块："CtrlC" 或 "CapsLockC"
-global ClipboardCtrlCTab := 0  ; Ctrl+C Tab 控件引用
 global ClipboardCapsLockCTab := 0  ; CapsLock+C Tab 控件引用
 global LastSelectedIndex := 0  ; 最后选中的ListBox项索引，用于刷新后恢复
 global ClipboardListViewHighlightedRow := 0  ; ListView 高亮的单元格行索引（从1开始，0表示无高亮）
@@ -239,6 +242,52 @@ ApplyTheme(Mode) {
         UI_Colors := UI_Colors_Light
     } else {
         UI_Colors := UI_Colors_Dark
+    }
+    
+    ; 更新下拉菜单画刷（如果下拉菜单已创建）
+    UpdateDefaultStartTabDDLBrush()
+}
+
+; ===================== 更新默认启动页面下拉菜单画刷 =====================
+UpdateDefaultStartTabDDLBrush() {
+    global DefaultStartTabDDL_Hwnd, DDLBrush, UI_Colors, ThemeMode
+    
+    ; 如果下拉菜单未创建，直接返回
+    if (!DefaultStartTabDDL_Hwnd || DefaultStartTabDDL_Hwnd = 0) {
+        return
+    }
+    
+    try {
+        ; 根据主题模式设置颜色
+        if (ThemeMode = "dark") {
+            ColorCode := "0x1e1e1e"  ; 黑灰色背景
+        } else {
+            ColorCode := "0x" . UI_Colors.DDLBg  ; 亮色模式背景
+        }
+        RGBColor := Integer(ColorCode)
+        ; 交换R和B字节（Windows使用BGR格式）
+        R := (RGBColor & 0xFF0000) >> 16
+        G := (RGBColor & 0x00FF00) >> 8
+        B := RGBColor & 0x0000FF
+        BGRColor := (B << 16) | (G << 8) | R
+        
+        ; 如果已有画刷，先删除
+        if (DDLBrush != 0) {
+            try {
+                DllCall("gdi32.dll\DeleteObject", "Ptr", DDLBrush)
+            } catch {
+            }
+        }
+        ; 创建新的实心画刷
+        DDLBrush := DllCall("gdi32.dll\CreateSolidBrush", "UInt", BGRColor, "Ptr")
+        
+        ; 强制刷新下拉菜单
+        try {
+            DllCall("user32.dll\InvalidateRect", "Ptr", DefaultStartTabDDL_Hwnd, "Ptr", 0, "Int", 1)
+            DllCall("user32.dll\UpdateWindow", "Ptr", DefaultStartTabDDL_Hwnd)
+        } catch {
+        }
+    } catch {
     }
 }
 
@@ -408,8 +457,8 @@ GetText(Key) {
             "hotkey_s_desc", "在 Cursor 中选中代码后，长按 CapsLock 调出面板，按此键可在代码中插入分割标记，用于标记多个代码片段以便批量处理。",
             "hotkey_b", "批量操作 (B):",
             "hotkey_b_desc", "在 Cursor 中选中代码后，长按 CapsLock 调出面板，按此键可对已标记的所有代码片段执行批量操作（解释/重构/优化）。",
-            "hotkey_p", "区域截图 (P):",
-            "hotkey_p_desc", "按此键可启动区域截图功能，选择截图区域后，会弹出悬浮面板，点击面板中的粘贴按钮即可将截图粘贴到 Cursor 输入框。",
+            "hotkey_t", "区域截图 (T):",
+            "hotkey_t_desc", "按此键可启动区域截图功能，选择截图区域后，会自动将截图粘贴到 Cursor 输入框。",
             "screenshot_button_text", "📷 粘贴截图",
             "screenshot_paste_success", "截图已粘贴到输入框",
             "screenshot_button_tip", "点击此按钮将截图粘贴到 Cursor 输入框",
@@ -435,6 +484,7 @@ GetText(Key) {
             "msgbox_screen", "弹窗显示器:",
             "voice_input_screen", "语音输入法提示显示器:",
             "cursor_panel_screen", "Cursor快捷弹出面板显示器:",
+            "clipboard_panel_screen", "剪贴板管理面板显示器:",
             "config_manage", "配置管理:",
             "default_prompt_explain", "解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点",
             "default_prompt_refactor", "重构这段代码，遵循PEP8/行业规范，简化冗余逻辑，添加中文注释，保持功能不变",
@@ -706,6 +756,13 @@ GetText(Key) {
             "cursor_rules_usage_desc", "1. 选择下方对应的开发类型标签`n2. 点击「复制规则」按钮`n3. 在 Cursor 中打开 .cursorrules 文件`n4. 粘贴规则内容并保存`n5. 重启 Cursor 使规则生效",
             "cursor_rules_copy_btn", "复制规则",
             "cursor_rules_copied", "规则已复制到剪贴板！",
+            "cursor_rules_import_btn", "导入规则",
+            "cursor_rules_imported", "规则已导入！",
+            "cursor_rules_import_failed", "导入规则失败",
+            "cursor_rules_file_not_found", "未找到 Programming Rules.txt 文件",
+            "cursor_rules_export_btn", "导出到文件",
+            "cursor_rules_exported", "规则已导出到 .cursorrules 文件！",
+            "cursor_rules_export_failed", "导出规则失败",
             "cursor_rules_subtab_general", "通用规则",
             "cursor_rules_subtab_web", "网页开发",
             "cursor_rules_subtab_miniprogram", "小程序",
@@ -839,8 +896,8 @@ GetText(Key) {
             "hotkey_s_desc", "When the panel is displayed, press this key to insert split markers in the code for batch processing.",
             "hotkey_b", "Batch Operation (B):",
             "hotkey_b_desc", "When the panel is displayed, press this key to execute batch operations.",
-            "hotkey_p", "Screenshot (P):",
-            "hotkey_p_desc", "Press this key to start area screenshot. After selecting the area, a floating panel will appear. Click the paste button in the panel to paste the screenshot into Cursor's input box.",
+            "hotkey_t", "Screenshot (T):",
+            "hotkey_t_desc", "Press this key to start area screenshot. After selecting the area, the screenshot will be automatically pasted into Cursor's input box.",
             "screenshot_button_text", "📷 Paste Screenshot",
             "screenshot_paste_success", "Screenshot pasted to input box",
             "screenshot_button_tip", "Click this button to paste screenshot to Cursor input box",
@@ -1139,6 +1196,13 @@ GetText(Key) {
             "cursor_rules_usage_desc", "1. Select the corresponding development type tab below`n2. Click the 'Copy Rules' button`n3. Open the .cursorrules file in Cursor`n4. Paste the rule content and save`n5. Restart Cursor to apply the rules",
             "cursor_rules_copy_btn", "Copy Rules",
             "cursor_rules_copied", "Rules copied to clipboard!",
+            "cursor_rules_import_btn", "Import Rules",
+            "cursor_rules_imported", "Rules imported!",
+            "cursor_rules_import_failed", "Failed to import rules",
+            "cursor_rules_file_not_found", "Programming Rules.txt file not found",
+            "cursor_rules_export_btn", "Export to File",
+            "cursor_rules_exported", "Rules exported to .cursorrules file!",
+            "cursor_rules_export_failed", "Failed to export rules",
             "cursor_rules_subtab_general", "General Rules",
             "cursor_rules_subtab_web", "Web Development",
             "cursor_rules_subtab_miniprogram", "Mini Program",
@@ -1861,6 +1925,7 @@ InitConfig() {
     DefaultMsgBoxScreenIndex := 1
     DefaultVoiceInputScreenIndex := 1
     DefaultCursorPanelScreenIndex := 1
+    DefaultClipboardPanelScreenIndex := 1
     DefaultLanguage := "zh"  ; 默认中文
 
     ; 2. 无配置文件则创建
@@ -1905,6 +1970,7 @@ InitConfig() {
         IniWrite(DefaultMsgBoxScreenIndex, ConfigFile, "Advanced", "MsgBoxScreenIndex")
         IniWrite(DefaultVoiceInputScreenIndex, ConfigFile, "Advanced", "VoiceInputScreenIndex")
         IniWrite(DefaultCursorPanelScreenIndex, ConfigFile, "Advanced", "CursorPanelScreenIndex")
+        IniWrite(DefaultClipboardPanelScreenIndex, ConfigFile, "Advanced", "ClipboardPanelScreenIndex")
         
         ; 保存默认快捷操作按钮配置（固定5个按钮）
         IniWrite(5, ConfigFile, "QuickActions", "ButtonCount")
@@ -1923,8 +1989,8 @@ InitConfig() {
     ; 3. 加载配置（v2的IniRead返回值更直观）
     global CursorPath, AISleepTime, CapsLockHoldTimeSeconds, Prompt_Explain, Prompt_Refactor, Prompt_Optimize, SplitHotkey, BatchHotkey, PanelScreenIndex, Language
     global FunctionPanelPos, ConfigPanelPos, ClipboardPanelPos
-    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyP
-    global ConfigPanelScreenIndex, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex
+    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyT
+    global ConfigPanelScreenIndex, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex, ClipboardPanelScreenIndex
     global QuickActionButtons
     
     ; 确保默认值变量已定义（如果InitConfig未调用）
@@ -1996,6 +2062,9 @@ InitConfig() {
     }
     if (!IsSet(DefaultCursorPanelScreenIndex)) {
         DefaultCursorPanelScreenIndex := 1
+    }
+    if (!IsSet(DefaultClipboardPanelScreenIndex)) {
+        DefaultClipboardPanelScreenIndex := 1
     }
     
     try {
@@ -2074,7 +2143,7 @@ InitConfig() {
             HotkeyQ := IniRead(ConfigFile, "Hotkeys", "Q", DefaultHotkeyQ)
             HotkeyZ := IniRead(ConfigFile, "Hotkeys", "Z", DefaultHotkeyZ)
             HotkeyF := IniRead(ConfigFile, "Hotkeys", "F", "f")
-            HotkeyP := IniRead(ConfigFile, "Hotkeys", "P", "p")
+            HotkeyT := IniRead(ConfigFile, "Hotkeys", "T", "t")
             SearchEngine := IniRead(ConfigFile, "Settings", "SearchEngine", "deepseek")
             AutoLoadSelectedText := (IniRead(ConfigFile, "Settings", "AutoLoadSelectedText", "0") = "1")
             AutoUpdateVoiceInput := (IniRead(ConfigFile, "Settings", "AutoUpdateVoiceInput", "1") = "1")
@@ -2192,6 +2261,7 @@ InitConfig() {
             MsgBoxScreenIndex := Integer(IniRead(ConfigFile, "Advanced", "MsgBoxScreenIndex", DefaultMsgBoxScreenIndex))
             VoiceInputScreenIndex := Integer(IniRead(ConfigFile, "Advanced", "VoiceInputScreenIndex", DefaultVoiceInputScreenIndex))
             CursorPanelScreenIndex := Integer(IniRead(ConfigFile, "Advanced", "CursorPanelScreenIndex", DefaultCursorPanelScreenIndex))
+            ClipboardPanelScreenIndex := Integer(IniRead(ConfigFile, "Advanced", "ClipboardPanelScreenIndex", DefaultClipboardPanelScreenIndex))
             
             ; 加载快捷操作按钮配置
             QuickActionButtons := []
@@ -2264,6 +2334,7 @@ InitConfig() {
             MsgBoxScreenIndex := DefaultMsgBoxScreenIndex
             VoiceInputScreenIndex := DefaultVoiceInputScreenIndex
             CursorPanelScreenIndex := DefaultCursorPanelScreenIndex
+            ClipboardPanelScreenIndex := DefaultClipboardPanelScreenIndex
             AutoStart := false
             VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
         }
@@ -2299,6 +2370,7 @@ InitConfig() {
         MsgBoxScreenIndex := DefaultMsgBoxScreenIndex
         VoiceInputScreenIndex := DefaultVoiceInputScreenIndex
         CursorPanelScreenIndex := DefaultCursorPanelScreenIndex
+        ClipboardPanelScreenIndex := DefaultClipboardPanelScreenIndex
     }
     
     ; 验证语言设置
@@ -2438,7 +2510,21 @@ global CapsLockPressTime := 0
 
 ; 采用 CapsLock+ 方案：使用 ~ 前缀保留原始功能，通过标记变量控制行为
 ~CapsLock:: {
-    global CapsLock, CapsLock2, IsCommandMode, PanelVisible, VoiceInputActive, VoiceSearchActive, VoiceInputMethod, VoiceInputPaused
+    global CapsLock, CapsLock2, IsCommandMode, PanelVisible, VoiceInputActive, VoiceSearchActive, VoiceInputMethod, VoiceInputPaused, CapsLockHoldTimeSeconds
+    
+    ; 确保全局变量已初始化
+    if (!IsSet(PanelVisible)) {
+        PanelVisible := false
+    }
+    if (!IsSet(VoiceInputActive)) {
+        VoiceInputActive := false
+    }
+    if (!IsSet(VoiceSearchActive)) {
+        VoiceSearchActive := false
+    }
+    if (!IsSet(CapsLockHoldTimeSeconds) || CapsLockHoldTimeSeconds = "") {
+        CapsLockHoldTimeSeconds := 0.5
+    }
     
     ; 标记 CapsLock 已按下
     CapsLock := true
@@ -2449,6 +2535,7 @@ global CapsLockPressTime := 0
     CapsLockPressTime := A_TickCount
     
     ; 如果正在语音输入或语音搜索，处理暂停/恢复逻辑
+    global VoiceInputActive, VoiceSearchActive
     if (VoiceInputActive || VoiceSearchActive) {
         ; 设置定时器：300ms 后清除 CapsLock2（用于检测是否按了其他键）
         SetTimer(ClearCapsLock2Timer, -300)
@@ -2506,7 +2593,6 @@ global CapsLockPressTime := 0
     
     ; 设置定时器：长按指定时间后自动显示面板（不在语音输入时）
     ; 使用配置的长按时间（秒转换为毫秒）
-    global CapsLockHoldTimeSeconds
     HoldTimeMs := Round(CapsLockHoldTimeSeconds * 1000)
     ; 确保时间在合理范围内（100ms到5000ms）
     if (HoldTimeMs < 100) {
@@ -2627,6 +2713,128 @@ GetWindowScreenIndex(WinTitle) {
     }
 }
 
+; ===================== 窗口位置和大小记忆功能 =====================
+; 保存窗口位置和大小到配置文件
+SaveWindowPosition(WindowName, X, Y, Width, Height) {
+    global ConfigFile
+    IniWrite(String(X), ConfigFile, "WindowPositions", WindowName . "_X")
+    IniWrite(String(Y), ConfigFile, "WindowPositions", WindowName . "_Y")
+    IniWrite(String(Width), ConfigFile, "WindowPositions", WindowName . "_Width")
+    IniWrite(String(Height), ConfigFile, "WindowPositions", WindowName . "_Height")
+}
+
+; 从配置文件恢复窗口位置和大小
+RestoreWindowPosition(WindowName, DefaultWidth, DefaultHeight, DefaultX := -1, DefaultY := -1) {
+    global ConfigFile
+    X := Integer(IniRead(ConfigFile, "WindowPositions", WindowName . "_X", String(DefaultX)))
+    Y := Integer(IniRead(ConfigFile, "WindowPositions", WindowName . "_Y", String(DefaultY)))
+    Width := Integer(IniRead(ConfigFile, "WindowPositions", WindowName . "_Width", String(DefaultWidth)))
+    Height := Integer(IniRead(ConfigFile, "WindowPositions", WindowName . "_Height", String(DefaultHeight)))
+    
+    ; 验证位置和大小是否在屏幕范围内
+    ScreenInfo := GetScreenInfo(1)
+    if (Width < 300) {
+        Width := DefaultWidth
+    }
+    if (Height < 200) {
+        Height := DefaultHeight
+    }
+    if (X < ScreenInfo.Left || X > ScreenInfo.Right) {
+        X := DefaultX
+    }
+    if (Y < ScreenInfo.Top || Y > ScreenInfo.Bottom) {
+        Y := DefaultY
+    }
+    
+    return {X: X, Y: Y, Width: Width, Height: Height}
+}
+
+; 窗口大小改变时保存位置和大小
+OnWindowSize(GuiObj, MinMax, Width, Height) {
+    ; MinMax: -1=最小化, 1=最大化, 0=正常大小
+    if (MinMax = 0) {
+        ; 【延迟保存】使用定时器延迟保存，等用户停止调整后再执行
+        ; 这样可以避免在拖动窗口时频繁写入INI文件
+        try {
+            WindowName := GuiObj.Title
+            if (WindowName = "") {
+                WindowName := "Window_" . GuiObj.Hwnd
+            }
+            
+            ; 如果该窗口已有定时器，先删除旧的定时器
+            if (WindowPositionSaveTimers.Has(WindowName)) {
+                try {
+                    SetTimer(WindowPositionSaveTimers[WindowName], 0)  ; 停止定时器
+                } catch {
+                }
+            }
+            
+            ; 创建新的延迟保存函数
+            SaveWindowPositionDelayed(*) {
+                try {
+                    WinGetPos(&X, &Y, &W, &H, GuiObj)
+                    SaveWindowPosition(WindowName, X, Y, W, H)
+                    ; 保存完成后，从Map中移除定时器引用
+                    if (WindowPositionSaveTimers.Has(WindowName)) {
+                        WindowPositionSaveTimers.Delete(WindowName)
+                    }
+                } catch {
+                    ; 忽略错误
+                }
+            }
+            
+            ; 保存定时器函数引用到Map中
+            WindowPositionSaveTimers[WindowName] := SaveWindowPositionDelayed
+            
+            ; 延迟500ms后执行保存（如果用户继续调整，定时器会被重置）
+            SetTimer(SaveWindowPositionDelayed, -500)
+        } catch {
+            ; 忽略错误
+        }
+    }
+}
+
+; 窗口移动时保存位置
+OnWindowMove(GuiObj, X, Y) {
+    ; 【延迟保存】使用定时器延迟保存，等用户停止调整后再执行
+    try {
+        WindowName := GuiObj.Title
+        if (WindowName = "") {
+            WindowName := "Window_" . GuiObj.Hwnd
+        }
+        
+        ; 如果该窗口已有定时器，先删除旧的定时器
+        if (WindowPositionSaveTimers.Has(WindowName)) {
+            try {
+                SetTimer(WindowPositionSaveTimers[WindowName], 0)  ; 停止定时器
+            } catch {
+            }
+        }
+        
+        ; 创建新的延迟保存函数
+        SaveWindowPositionDelayed(*) {
+            try {
+                WinGetPos(&WinX, &WinY, &WinW, &WinH, GuiObj)
+                SaveWindowPosition(WindowName, WinX, WinY, WinW, WinH)
+                ; 保存完成后，从Map中移除定时器引用
+                if (WindowPositionSaveTimers.Has(WindowName)) {
+                    WindowPositionSaveTimers.Delete(WindowName)
+                }
+            } catch {
+                ; 忽略错误
+            }
+        }
+        
+        ; 保存定时器函数引用到Map中
+        WindowPositionSaveTimers[WindowName] := SaveWindowPositionDelayed
+        
+        ; 延迟500ms后执行保存（如果用户继续调整，定时器会被重置）
+        SetTimer(SaveWindowPositionDelayed, -500)
+    } catch {
+        ; 忽略错误
+    }
+}
+
 ; ===================== 显示面板函数 =====================
 ShowCursorPanel() {
     global PanelVisible, GuiID_CursorPanel, SplitHotkey, BatchHotkey, CapsLock2
@@ -2645,9 +2853,8 @@ ShowCursorPanel() {
     ButtonHeight := 42
     ButtonSpacing := 50
     BaseHeight := 200  ; 标题、提示、说明文字、底部提示等基础高度（增加50px给说明文字区域）
-    ListViewHeight := 200  ; ListView 高度
-    ; 增加 ListView 的高度到基础高度
-    global CursorPanelHeight := BaseHeight + (ButtonCount * ButtonSpacing) + ListViewHeight
+    ; 移除ListView高度（实际上没有ListView，只是底部提示文本）
+    global CursorPanelHeight := BaseHeight + (ButtonCount * ButtonSpacing)
     
     ; 面板尺寸（Cursor 风格，更紧凑现代）
     global CursorPanelWidth := 420
@@ -2883,16 +3090,8 @@ ShowCursorPanel() {
         ButtonY += ButtonSpacing
     }
     
-    ; 创建 ListView 用于显示复制历史（在按钮和说明文字之间）
-    ListViewY := ButtonY + 10
-    ListViewHeight := 200
-    ListViewTextColor := (ThemeMode = "dark") ? UI_Colors.Text : UI_Colors.Text
-    ListViewBgColor := (ThemeMode = "dark") ? UI_Colors.InputBg : UI_Colors.InputBg
-    global LV_Cursor := GuiID_CursorPanel.Add("ListView", "x20 y" . ListViewY . " w380 h" . ListViewHeight . " vLV_Cursor Background" . ListViewBgColor . " c" . ListViewTextColor . " -Multi +ReadOnly +NoSortHdr", ["阶段标签", "内容"])
-    LV_Cursor.SetFont("s9", "Consolas")
-    
-    ; 说明文字显示区域（在 ListView 和底部提示之间）
-    DescY := ListViewY + ListViewHeight + 10
+    ; 说明文字显示区域（在按钮和底部提示之间）
+    DescY := ButtonY + 10
     global CursorPanelDescText := GuiID_CursorPanel.Add("Text", "x20 y" . DescY . " w380 h40 Center c" . UI_Colors.TextDim . " vCursorPanelDescText", "")
     CursorPanelDescText.SetFont("s9", "Segoe UI")
     
@@ -2959,11 +3158,12 @@ ShowCursorPanel() {
     ; 显示面板
     GuiID_CursorPanel.Show("w" . CursorPanelWidth . " h" . CursorPanelHeight . " x" . Pos.X . " y" . Pos.Y . " NoActivate")
     
-    ; 根据置顶状态设置窗口
-    if (CursorPanelAlwaysOnTop) {
-        WinSetAlwaysOnTop(1, GuiID_CursorPanel.Hwnd)
-    } else {
-        WinSetAlwaysOnTop(0, GuiID_CursorPanel.Hwnd)
+    ; 确保快捷操作面板始终在最上层（无论置顶状态如何，都要确保在其他面板之上）
+    WinSetAlwaysOnTop(1, GuiID_CursorPanel.Hwnd)
+    ; 根据置顶状态设置窗口（如果未启用置顶，则延迟移除，确保显示优先）
+    if (!CursorPanelAlwaysOnTop) {
+        ; 延迟移除置顶，给用户足够的时间看到面板
+        SetTimer(RemoveCursorPanelAlwaysOnTop, -500)  ; 500ms后移除置顶
     }
     
     ; 启动定时器检测窗口位置（用于自动隐藏功能）
@@ -2971,49 +3171,15 @@ ShowCursorPanel() {
         SetTimer(CheckCursorPanelEdge, 500)  ; 每500ms检测一次
     }
     
-    ; 从数据库查询最近 50 条数据并填充到 LV_Cursor
-    global ClipboardDB
-    if (ClipboardDB && ClipboardDB != 0 && LV_Cursor && IsObject(LV_Cursor)) {
+}
+
+; ===================== 移除快捷操作面板置顶（延迟调用）=====================
+RemoveCursorPanelAlwaysOnTop(*) {
+    global CursorPanelAlwaysOnTop, GuiID_CursorPanel
+    if (!CursorPanelAlwaysOnTop && GuiID_CursorPanel != 0) {
         try {
-            ResultTable := ""
-            ; 查询最近 50 条数据，按 SessionID DESC, ItemIndex ASC 排序（最新在前）
-            SQL := "SELECT SessionID, ItemIndex, Content FROM ClipboardHistory ORDER BY SessionID DESC, ItemIndex ASC LIMIT 50"
-            if (ClipboardDB.GetTable(SQL, &ResultTable)) {
-                if (ResultTable && ResultTable.HasProp("Rows") && ResultTable.Rows.Length > 0) {
-                    for Index, Row in ResultTable.Rows {
-                        if (Row.Length >= 3) {
-                            SessionID := (Row[1] != "" && Row[1] != 0) ? Integer(Row[1]) : 1
-                            ItemIndex := (Row[2] != "" && Row[2] != 0) ? Integer(Row[2]) : 1
-                            Content := (Row[3] != "") ? String(Row[3]) : ""
-                            
-                            if (Content != "") {
-                                ; 构造显示标签：阶段 X-第 Y 个
-                                DisplayLabel := "阶段 " . SessionID . "-第 " . ItemIndex . " 个"
-                                
-                                ; 截取内容预览（限制长度）
-                                ContentPreview := Content
-                                if (StrLen(ContentPreview) > 80) {
-                                    ContentPreview := SubStr(ContentPreview, 1, 80) . "..."
-                                }
-                                ; 替换换行符和制表符
-                                ContentPreview := StrReplace(ContentPreview, "`r`n", " ")
-                                ContentPreview := StrReplace(ContentPreview, "`n", " ")
-                                ContentPreview := StrReplace(ContentPreview, "`r", " ")
-                                ContentPreview := StrReplace(ContentPreview, "`t", " ")
-                                
-                                ; 插入到 ListView（最新在最前面）
-                                LV_Cursor.Insert(1, DisplayLabel, ContentPreview)
-                            }
-                        }
-                    }
-                }
-            }
-        } catch as e {
-            ; 查询失败，记录错误但不影响面板显示
-            try {
-                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] ShowCursorPanel: 查询数据库失败 - " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
-            } catch {
-            }
+            WinSetAlwaysOnTop(0, GuiID_CursorPanel.Hwnd)
+        } catch {
         }
     }
 }
@@ -3683,7 +3849,7 @@ global HotkeyREdit := 0
 global HotkeyOEdit := 0
 global HotkeyQEdit := 0
 global HotkeyZEdit := 0
-global HotkeyPEdit := 0
+global HotkeyTEdit := 0
 global PanelScreenRadio := []
 ; 已移除动画定时器，改用图片显示
 
@@ -3940,7 +4106,19 @@ SwitchTab(TabName) {
                 }
             }
             
-            ; 第三步：切换到模板管理标签页（这会显示对应的控件并隐藏其他标签页的控件）
+            ; 第三步：确保所有主标签按钮都可见（包括rules和legacy标签按钮）
+            if (PromptsMainTabs && PromptsMainTabs.Count > 0) {
+                for Key, TabBtn in PromptsMainTabs {
+                    if (TabBtn) {
+                        try {
+                            TabBtn.Visible := true
+                        } catch {
+                        }
+                    }
+                }
+            }
+            
+            ; 第四步：切换到模板管理标签页（这会显示对应的控件并隐藏其他标签页的控件）
             if (PromptsMainTabs && PromptsMainTabs.Has("manage")) {
                 SwitchPromptsMainTab("manage")
             } else {
@@ -4430,7 +4608,7 @@ ToggleAutoStart(*) {
     ; 切换自启动状态
     AutoStart := !AutoStart
     
-    ; 更新按钮文本和样式
+    ; 更新按钮文本和样式（开启时蓝色，关闭时灰色）
     try {
         if (AutoStartBtn && IsObject(AutoStartBtn)) {
             BtnText := AutoStart ? "开机自启动" : "不开机自启动"
@@ -4438,8 +4616,10 @@ ToggleAutoStart(*) {
             BtnTextColor := AutoStart ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
             
             AutoStartBtn.Text := BtnText
-            AutoStartBtn.BackColor := BtnBgColor
+            ; 使用Opt方法更新背景色（更可靠）
+            AutoStartBtn.Opt("+Background" . BtnBgColor)
             AutoStartBtn.SetFont("s10 c" . BtnTextColor, "Segoe UI")
+            AutoStartBtn.Redraw()  ; 强制重绘按钮
             
             ; 更新悬停效果
             HoverBtnWithAnimation(AutoStartBtn, BtnBgColor, AutoStart ? UI_Colors.BtnPrimaryHover : UI_Colors.BtnHover)
@@ -5040,6 +5220,29 @@ CreateAppearanceTab(ConfigGUI, X, Y, W, H) {
             UpdateMaterialRadioButtonStyle(RadioBtn, true)
         }
         CursorPanelScreenRadio.Push(RadioBtn)
+        AppearanceTabControls.Push(RadioBtn)
+    }
+    
+    ; 剪贴板管理面板显示器选择
+    YPos += 50
+    global ClipboardPanelScreenIndex, ClipboardPanelScreenRadio
+    LabelClipboardPanel := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("clipboard_panel_screen"))
+    LabelClipboardPanel.SetFont("s11", "Segoe UI")
+    AppearanceTabControls.Push(LabelClipboardPanel)
+    
+    YPos += 30
+    ClipboardPanelScreenRadio := []
+    if (ClipboardPanelScreenIndex < 1 || ClipboardPanelScreenIndex > ScreenList.Length) {
+        ClipboardPanelScreenIndex := 1
+    }
+    for Index, ScreenName in ScreenList {
+        XPos := StartX + (Index - 1) * (RadioWidth + Spacing)
+        RadioBtn := CreateMaterialRadioButton(ConfigGUI, XPos, YPos, RadioWidth, RadioHeight, "ClipboardPanelScreenRadio" . Index, ScreenName, ClipboardPanelScreenRadio, 11)
+        if (Index = ClipboardPanelScreenIndex) {
+            RadioBtn.IsSelected := true
+            UpdateMaterialRadioButtonStyle(RadioBtn, true)
+        }
+        ClipboardPanelScreenRadio.Push(RadioBtn)
         AppearanceTabControls.Push(RadioBtn)
     }
 }
@@ -6050,14 +6253,27 @@ SwitchPromptsMainTab(TabKey) {
         }
     }
     
-    ; 设置当前标签样式
-    if (PromptsMainTabs.Has(TabKey) && PromptsMainTabs[TabKey]) {
-        try {
-            TabBtn := PromptsMainTabs[TabKey]
-            SelectedText := (ThemeMode = "dark") ? "E0E0E0" : "FFFFFF"
-            TabBtn.Opt("+Background" . UI_Colors.BtnPrimary)
-            TabBtn.SetFont("s10 c" . SelectedText . " Bold", "Segoe UI")
-            TabBtn.Redraw()
+    ; 设置当前标签样式（确保所有标签按钮都可见）
+    if (PromptsMainTabs && PromptsMainTabs.Count > 0) {
+        for Key, TabBtn in PromptsMainTabs {
+            if (TabBtn) {
+                try {
+                    ; 确保标签按钮可见
+                    TabBtn.Visible := true
+                    if (Key = TabKey) {
+                        ; 当前选中的标签按钮
+                        SelectedText := (ThemeMode = "dark") ? "E0E0E0" : "FFFFFF"
+                        TabBtn.Opt("+Background" . UI_Colors.BtnPrimary)
+                        TabBtn.SetFont("s10 c" . SelectedText . " Bold", "Segoe UI")
+                    } else {
+                        ; 其他标签按钮
+                        TabBtn.Opt("+Background" . UI_Colors.Sidebar)
+                        TabBtn.SetFont("s10 c" . UI_Colors.TextDim . " Norm", "Segoe UI")
+                    }
+                    TabBtn.Redraw()
+                } catch {
+                }
+            }
         }
     }
     
@@ -8609,7 +8825,7 @@ CreatePromptsLegacyTab(ConfigGUI, X, Y, W, H) {
 ; ===================== 创建快捷键标签页 =====================
 CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     global SplitHotkey, BatchHotkey, HotkeysTabPanel, SplitHotkeyEdit, BatchHotkeyEdit, HotkeysTabControls
-    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyP
+    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyT
     global HotkeyESCEdit, HotkeyCEdit, HotkeyVEdit, HotkeyXEdit, HotkeyEEdit, HotkeyREdit, HotkeyOEdit, HotkeyQEdit, HotkeyZEdit
     global HotkeySubTabs, HotkeySubTabControls, UI_Colors
     global HotkeysMainTabs, HotkeysMainTabControls, CursorRulesTabPanel
@@ -8688,7 +8904,7 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
         {Key: "Z", Name: GetText("hotkey_z"), Default: HotkeyZ, Edit: "HotkeyZEdit", Desc: "hotkey_z_desc", Hint: "hotkey_single_char_hint", DefaultVal: "z"},
         {Key: "S", Name: GetText("hotkey_s"), Default: SplitHotkey, Edit: "SplitHotkeyEdit", Desc: "hotkey_s_desc", Hint: "hotkey_single_char_hint", DefaultVal: "s"},
         {Key: "B", Name: GetText("hotkey_b"), Default: BatchHotkey, Edit: "BatchHotkeyEdit", Desc: "hotkey_b_desc", Hint: "hotkey_single_char_hint", DefaultVal: "b"},
-        {Key: "P", Name: GetText("hotkey_p"), Default: HotkeyP, Edit: "HotkeyPEdit", Desc: "hotkey_p_desc", Hint: "hotkey_single_char_hint", DefaultVal: "p"}
+        {Key: "T", Name: GetText("hotkey_t"), Default: HotkeyT, Edit: "HotkeyTEdit", Desc: "hotkey_t_desc", Hint: "hotkey_single_char_hint", DefaultVal: "t"}
     ]
     
     ; 创建横向标签按钮（十一个选项一行显示）
@@ -8761,9 +8977,9 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
 ; ===================== 创建快捷键子标签页 =====================
 CreateHotkeySubTab(ConfigGUI, X, Y, W, H, Item) {
     global HotkeysTabControls, HotkeySubTabControls, UI_Colors
-    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyP, HotkeyP
+    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyT
     global SplitHotkey, BatchHotkey
-    global HotkeyESCEdit, HotkeyCEdit, HotkeyVEdit, HotkeyXEdit, HotkeyEEdit, HotkeyREdit, HotkeyOEdit, HotkeyQEdit, HotkeyZEdit, HotkeyPEdit
+    global HotkeyESCEdit, HotkeyCEdit, HotkeyVEdit, HotkeyXEdit, HotkeyEEdit, HotkeyREdit, HotkeyOEdit, HotkeyQEdit, HotkeyZEdit, HotkeyTEdit
     global SplitHotkeyEdit, BatchHotkeyEdit
     
     ; 初始化子标签页控件数组
@@ -8919,7 +9135,7 @@ GetHotkeyImagePath(HotkeyKey) {
         case "B":
             return ImageDir . "\hotkey_b.png"
         case "P":
-            return ImageDir . "\hotkey_p.png"
+            return ImageDir . "\hotkey_t.png"
         case "ESC":
             return ImageDir . "\hotkey_esc.png"
         default:
@@ -9398,19 +9614,58 @@ CreateCursorRulesSubTab(ConfigGUI, X, Y, W, H, Item) {
     SubTabPanel.Visible := false
     CursorRulesSubTabControls[Item.Key].Push(SubTabPanel)
     
-    ; 规则内容区域（紧凑布局，确保复制按钮可见）
+    ; 规则内容区域（紧凑布局，确保按钮可见且不与底部按钮重叠）
     ContentY := Y + 10
-    ContentHeight := H - 80  ; 留出底部按钮空间（减少高度，更紧凑）
+    ; 缩小文本框面积到原来的三分之一（缩小三分之二）
+    ContentHeight := (H - 120) // 3  ; 缩小三分之二，保留三分之一
     
-    ; 规则内容文本框（可编辑，方便用户查看和复制）
-    RulesEdit := ConfigGUI.Add("Edit", "x" . X . " y" . ContentY . " w" . W . " h" . ContentHeight . " Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi ReadOnly vCursorRulesContent" . Item.Key, GetText("cursor_rules_content_placeholder"))
+    ; 尝试从配置文件读取已保存的规则内容
+    global ConfigFile
+    SavedRulesContent := IniRead(ConfigFile, "CursorRules", Item.Key, GetText("cursor_rules_content_placeholder"))
+    
+    ; 规则内容文本框（可编辑，方便用户查看、编辑和复制）
+    RulesEdit := ConfigGUI.Add("Edit", "x" . X . " y" . ContentY . " w" . W . " h" . ContentHeight . " Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi vCursorRulesContent" . Item.Key, SavedRulesContent)
     RulesEdit.SetFont("s10", "Consolas")
     RulesEdit.Visible := false  ; 默认隐藏，防止覆盖其他页面
     CursorRulesSubTabControls[Item.Key].Push(RulesEdit)
     
-    ; 复制按钮（确保可见）
-    CopyBtnY := Y + ContentHeight + 15  ; 减少间距，更紧凑
-    CopyBtn := ConfigGUI.Add("Text", "x" . (X + W - 120) . " y" . CopyBtnY . " w100 h35 Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vCursorRulesCopyBtn" . Item.Key, GetText("cursor_rules_copy_btn"))
+    ; 按钮区域（导入按钮和复制按钮）
+    BtnY := Y + ContentHeight + 15  ; 减少间距，更紧凑
+    BtnSpacing := 10
+    BtnWidth := 100
+    
+    ; 导入规则按钮（左侧）
+    ImportBtn := ConfigGUI.Add("Text", "x" . X . " y" . BtnY . " w" . BtnWidth . " h35 Center 0x200 cFFFFFF Background" . UI_Colors.BtnBg . " vCursorRulesImportBtn" . Item.Key, GetText("cursor_rules_import_btn"))
+    ImportBtn.SetFont("s10 Bold", "Segoe UI")
+    ImportBtn.Visible := false  ; 默认隐藏，防止覆盖其他页面
+    
+    ; 创建导入按钮点击处理函数
+    CreateImportBtnClickHandler(Key) {
+        return (*) => ImportCursorRules(Key)
+    }
+    
+    ImportBtn.OnEvent("Click", CreateImportBtnClickHandler(Item.Key))
+    ; 悬停效果
+    HoverBtnWithAnimation(ImportBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    CursorRulesSubTabControls[Item.Key].Push(ImportBtn)
+    
+    ; 导出到.cursorrules按钮（中间）
+    ExportBtn := ConfigGUI.Add("Text", "x" . (X + W - BtnWidth * 2 - BtnSpacing) . " y" . BtnY . " w" . BtnWidth . " h35 Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vCursorRulesExportBtn" . Item.Key, GetText("cursor_rules_export_btn"))
+    ExportBtn.SetFont("s10 Bold", "Segoe UI")
+    ExportBtn.Visible := false  ; 默认隐藏，防止覆盖其他页面
+    
+    ; 创建导出按钮点击处理函数
+    CreateExportBtnClickHandler(Key) {
+        return (*) => ExportCursorRulesToFile(Key)
+    }
+    
+    ExportBtn.OnEvent("Click", CreateExportBtnClickHandler(Item.Key))
+    ; 悬停效果
+    HoverBtnWithAnimation(ExportBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+    CursorRulesSubTabControls[Item.Key].Push(ExportBtn)
+    
+    ; 复制按钮（右侧）
+    CopyBtn := ConfigGUI.Add("Text", "x" . (X + W - BtnWidth) . " y" . BtnY . " w" . BtnWidth . " h35 Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary . " vCursorRulesCopyBtn" . Item.Key, GetText("cursor_rules_copy_btn"))
     CopyBtn.SetFont("s10 Bold", "Segoe UI")
     CopyBtn.Visible := false  ; 默认隐藏，防止覆盖其他页面
     
@@ -9497,19 +9752,260 @@ CopyCursorRules(SubTabKey) {
         RulesEdit := GuiID_ConfigGUI["CursorRulesContent" . SubTabKey]
         if (RulesEdit) {
             RulesContent := RulesEdit.Value
+            
+            ; 如果内容为空，提示用户
+            if (RulesContent = "" || RulesContent = GetText("cursor_rules_content_placeholder")) {
+                TrayTip("规则内容为空，请先导入规则", GetText("tip"), "Iconi 1")
+                return
+            }
+            
             ; 复制到剪贴板
             A_Clipboard := RulesContent
-            TrayTip(GetText("cursor_rules_copied"), GetText("tip"), "Iconi 1")
+            
+            ; 显示文件名提示
+            FileNameMap := Map(
+                "general", "general.md",
+                "web", "web.md",
+                "miniprogram", "miniprogram.md",
+                "plugin", "plugin.md",
+                "android", "android.md",
+                "ios", "ios.md",
+                "python", "python.md",
+                "backend", "backend.md"
+            )
+            
+            FileName := FileNameMap.Has(SubTabKey) ? FileNameMap[SubTabKey] : SubTabKey . ".md"
+            TrayTip(GetText("cursor_rules_copied") . "`n文件名: " . FileName, GetText("tip"), "Iconi 1")
         }
     } catch as e {
         TrayTip("复制失败: " . e.Message, GetText("error"), "Iconx 2")
     }
 }
 
+; ===================== 导出 Cursor 规则到文件 =====================
+ExportCursorRulesToFile(SubTabKey) {
+    global CursorRulesSubTabControls, GuiID_ConfigGUI, A_ScriptDir
+    
+    try {
+        if (!GuiID_ConfigGUI) {
+            TrayTip("配置面板未打开", GetText("error"), "Iconx 2")
+            return
+        }
+        
+        ; 获取规则内容
+        RulesEdit := GuiID_ConfigGUI["CursorRulesContent" . SubTabKey]
+        if (!RulesEdit) {
+            TrayTip("无法找到规则编辑框", GetText("error"), "Iconx 2")
+            return
+        }
+        
+        RulesContent := RulesEdit.Value
+        PlaceholderText := GetText("cursor_rules_content_placeholder")
+        
+        ; 检查内容是否有效
+        if (RulesContent = "" || RulesContent = PlaceholderText) {
+            TrayTip("规则内容为空，请先导入或编辑规则", GetText("tip"), "Iconi 1")
+            return
+        }
+        
+        ; 定义文件名映射
+        FileNameMap := Map(
+            "general", "general.md",
+            "web", "web.md",
+            "miniprogram", "miniprogram.md",
+            "plugin", "plugin.md",
+            "android", "android.md",
+            "ios", "ios.md",
+            "python", "python.md",
+            "backend", "backend.md"
+        )
+        
+        FileName := FileNameMap.Has(SubTabKey) ? FileNameMap[SubTabKey] : SubTabKey . ".md"
+        
+        ; 查找 Cursor 的 .cursorrules 目录
+        ; 通常在用户目录下的 .cursor 文件夹中
+        CursorRulesDir := ""
+        
+        ; 方法1：尝试从环境变量获取
+        UserProfile := EnvGet("USERPROFILE")
+        if (UserProfile != "") {
+            ; 尝试多个可能的位置
+            PossiblePaths := [
+                UserProfile . "\.cursor\rules",
+                UserProfile . "\.cursorrules",
+                A_ScriptDir . "\.cursorrules"
+            ]
+            
+            for Index, Path in PossiblePaths {
+                if (DirExist(Path)) {
+                    CursorRulesDir := Path
+                    break
+                }
+            }
+            
+            ; 如果目录不存在，尝试创建
+            if (CursorRulesDir = "") {
+                ; 使用第一个路径作为默认位置
+                CursorRulesDir := UserProfile . "\.cursor\rules"
+                try {
+                    DirCreate(CursorRulesDir)
+                } catch {
+                    ; 如果创建失败，使用脚本目录
+                    CursorRulesDir := A_ScriptDir . "\.cursorrules"
+                    DirCreate(CursorRulesDir)
+                }
+            }
+        } else {
+            ; 如果无法获取用户目录，使用脚本目录
+            CursorRulesDir := A_ScriptDir . "\.cursorrules"
+            DirCreate(CursorRulesDir)
+        }
+        
+        ; 构建完整文件路径
+        FilePath := CursorRulesDir . "\" . FileName
+        
+        ; 写入文件（使用UTF-8编码）
+        FileObj := FileOpen(FilePath, "w", "UTF-8")
+        if (!FileObj) {
+            throw Error("无法创建文件: " . FilePath)
+        }
+        
+        FileObj.Write(RulesContent)
+        FileObj.Close()
+        
+        TrayTip(GetText("cursor_rules_exported") . "`n" . FilePath, GetText("tip"), "Iconi 1")
+    } catch as e {
+        TrayTip(GetText("cursor_rules_export_failed") . ": " . e.Message, GetText("error"), "Iconx 2")
+    }
+}
+
+; ===================== 导入 Cursor 规则 =====================
+ImportCursorRules(SubTabKey) {
+    global CursorRulesSubTabControls, GuiID_ConfigGUI, A_ScriptDir
+    
+    try {
+        if (!GuiID_ConfigGUI) {
+            TrayTip("配置面板未打开", GetText("error"), "Iconx 2")
+            return
+        }
+        
+        ; 查找 Programming Rules.txt 文件（在脚本目录下）
+        RulesFilePath := A_ScriptDir . "\Programming Rules.txt"
+        if (!FileExist(RulesFilePath)) {
+            TrayTip(GetText("cursor_rules_file_not_found"), GetText("error"), "Iconx 2")
+            return
+        }
+        
+        ; 读取文件内容（使用UTF-8编码）
+        RulesFileContent := FileRead(RulesFilePath, "UTF-8")
+        
+        ; 解析规则文件，提取对应类别的规则
+        RulesContent := ParseRulesFile(RulesFileContent, SubTabKey)
+        
+        if (RulesContent = "" || RulesContent = GetText("cursor_rules_content_placeholder")) {
+            TrayTip("未找到对应类别的规则，请检查 Programming Rules.txt 文件格式", GetText("error"), "Iconx 2")
+            return
+        }
+        
+        ; 更新规则内容到编辑框
+        RulesEdit := GuiID_ConfigGUI["CursorRulesContent" . SubTabKey]
+        if (RulesEdit) {
+            RulesEdit.Value := RulesContent
+            RulesEdit.Redraw()  ; 强制刷新显示
+            TrayTip(GetText("cursor_rules_imported"), GetText("tip"), "Iconi 1")
+        } else {
+            TrayTip("无法找到规则编辑框", GetText("error"), "Iconx 2")
+        }
+    } catch as e {
+        TrayTip(GetText("cursor_rules_import_failed") . ": " . e.Message, GetText("error"), "Iconx 2")
+    }
+}
+
+; ===================== 解析规则文件 =====================
+ParseRulesFile(FileContent, CategoryKey) {
+    ; 定义类别映射（匹配 Programming Rules.txt 中的标题）
+    ; 注意：plugin 类别的标题包含括号，需要特殊处理
+    CategoryMap := Map(
+        "general", "General Programming Rules",
+        "web", "Web Development Rules",
+        "miniprogram", "WeChat Mini Program Rules",
+        "plugin", "Browser Extension Rules (MV3)",
+        "android", "Android Development Rules",
+        "ios", "iOS Development Rules",
+        "python", "Python Development Rules",
+        "backend", "Backend Service Rules"
+    )
+    
+    ; 获取对应的标题
+    if (!CategoryMap.Has(CategoryKey)) {
+        return ""
+    }
+    
+    TargetTitle := CategoryMap[CategoryKey]
+    
+    ; 查找目标标题的位置
+    Lines := StrSplit(FileContent, "`n", "`r")
+    StartIndex := 0
+    EndIndex := 0
+    
+    ; 查找开始位置（匹配 "# 标题" 格式）
+    ; 使用多种匹配方式确保能找到标题
+    for Index, Line in Lines {
+        ; 方法1：精确匹配（转义特殊字符）
+        EscapedTitle := RegExReplace(TargetTitle, "([\(\)])", "\$1")
+        if (RegExMatch(Line, "^# " . EscapedTitle . "$")) {
+            StartIndex := Index
+            break
+        }
+        
+        ; 方法2：直接匹配（不转义，用于处理括号）
+        if (RegExMatch(Line, "^# " . TargetTitle . "$")) {
+            StartIndex := Index
+            break
+        }
+        
+        ; 方法3：不区分大小写匹配
+        if (RegExMatch(Line, "i)^# " . TargetTitle)) {
+            StartIndex := Index
+            break
+        }
+    }
+    
+    if (StartIndex = 0) {
+        return ""
+    }
+    
+    ; 查找结束位置（下一个 # 开头的行，或者文件结束）
+    EndIndex := Lines.Length + 1
+    for Index, Line in Lines {
+        if (Index > StartIndex && RegExMatch(Line, "^# ")) {
+            EndIndex := Index
+            break
+        }
+    }
+    
+    ; 提取规则内容
+    RulesLines := []
+    Loop EndIndex - StartIndex {
+        RulesLines.Push(Lines[StartIndex + A_Index - 1])
+    }
+    
+    ; 合并为字符串
+    RulesContent := ""
+    for Index, Line in RulesLines {
+        RulesContent .= Line . "`n"
+    }
+    
+    ; 去除末尾的换行符
+    RulesContent := RTrim(RulesContent, "`n")
+    
+    return RulesContent
+}
+
 ; ===================== 创建高级标签页 =====================
 CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     global AISleepTime, AdvancedTabPanel, AISleepTimeEdit, AdvancedTabControls
-    global ConfigPanelScreenIndex, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex
+    global ConfigPanelScreenIndex, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex, ClipboardPanelScreenIndex
     global ConfigPanelScreenRadio, MsgBoxScreenRadio, VoiceInputScreenRadio, CursorPanelScreenRadio
     global Language, LangChinese, LangEnglish, UI_Colors
     
@@ -9630,12 +10126,16 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     try {
         DefaultStartTabDDL.Opt("Background" . UI_Colors.DDLBg)
         ; 保存下拉框的句柄，用于消息处理
-        global DefaultStartTabDDL_Hwnd
+        global DefaultStartTabDDL_Hwnd, ThemeMode
         DefaultStartTabDDL_Hwnd := DDL_Hwnd
         
-        ; 创建画刷用于下拉列表背景色（DDLBg颜色）
-        ; 将颜色从RRGGBB格式转换为BGR格式（Windows使用BGR格式）
-        ColorCode := "0x" . UI_Colors.DDLBg
+        ; 创建画刷用于下拉列表背景色（根据主题模式设置）
+        ; 暗色模式：使用黑灰色1e1e1e，亮色模式：使用UI_Colors.DDLBg
+        if (ThemeMode = "dark") {
+            ColorCode := "0x1e1e1e"  ; 黑灰色背景
+        } else {
+            ColorCode := "0x" . UI_Colors.DDLBg  ; 亮色模式背景
+        }
         RGBColor := Integer(ColorCode)
         ; 交换R和B字节（Windows使用BGR格式）
         R := (RGBColor & 0xFF0000) >> 16
@@ -9792,7 +10292,7 @@ ResetToDefaults(*) {
         if (IsSet(HotkeyOEdit) && HotkeyOEdit) HotkeyOEdit.Value := DefaultHotkeyO
         if (IsSet(HotkeyQEdit) && HotkeyQEdit) HotkeyQEdit.Value := DefaultHotkeyQ
         if (IsSet(HotkeyZEdit) && HotkeyZEdit) HotkeyZEdit.Value := DefaultHotkeyZ
-        if (IsSet(HotkeyPEdit) && HotkeyPEdit) HotkeyPEdit.Value := "p"
+        if (IsSet(HotkeyTEdit) && HotkeyTEdit) HotkeyTEdit.Value := "t"
         
         ; 重置屏幕选择
         if (IsSet(PanelScreenRadio) && PanelScreenRadio && PanelScreenRadio.Length > 0) {
@@ -10083,6 +10583,8 @@ global LastCursorPanelButton := 0  ; 当前鼠标悬停的 Cursor 面板按钮�
 OnMessage(0x0200, WM_MOUSEMOVE)
 ; 监听WM_CTLCOLORLISTBOX消息以自定义下拉列表背景色
 OnMessage(0x0134, WM_CTLCOLORLISTBOX)
+; 监听WM_CTLCOLOREDIT消息以自定义ComboBox编辑框背景色
+OnMessage(0x0133, WM_CTLCOLOREDIT)
 ; 监听WM_NOTIFY消息以处理ListView单元格点击（NM_CLICK）
 OnMessage(0x004E, OnClipboardListViewWMNotify)
 
@@ -10124,9 +10626,16 @@ WM_CTLCOLORLISTBOX(wParam, lParam, Msg, Hwnd) {
         if (DefaultStartTabDDL_Hwnd != 0 && DDLBrush != 0) {
             ParentHwnd := DllCall("user32.dll\GetParent", "Ptr", lParam, "Ptr")
             if (ParentHwnd = DefaultStartTabDDL_Hwnd) {
-                ; 将颜色从RRGGBB格式转换为BGR格式
-                DDLTextColor := "0x" . UI_Colors.DDLText
-                DDLBgColor := "0x" . UI_Colors.DDLBg
+                ; 根据主题模式设置下拉列表背景色和文字颜色
+                if (ThemeMode = "dark") {
+                    ; 暗色模式：黑灰色背景，白色文字
+                    DDLTextColor := "0x" . "ffffff"  ; 白色文字
+                    DDLBgColor := "0x" . "1e1e1e"  ; 黑灰色背景
+                } else {
+                    ; 亮色模式：使用UI_Colors中的颜色
+                    DDLTextColor := "0x" . UI_Colors.DDLText
+                    DDLBgColor := "0x" . UI_Colors.DDLBg
+                }
                 TextRGB := Integer(DDLTextColor)
                 BgRGB := Integer(DDLBgColor)
                 ; 转换为BGR格式（交换R和B字节）
@@ -10165,6 +10674,46 @@ WM_CTLCOLORLISTBOX(wParam, lParam, Msg, Hwnd) {
             DllCall("gdi32.dll\SetTextColor", "Ptr", wParam, "UInt", TextBGR)
             DllCall("gdi32.dll\SetBkColor", "Ptr", wParam, "UInt", BgBGR)
             return MoveFromTemplateListBoxBrush
+        }
+    } catch {
+    }
+    
+    ; 如果不是我们的下拉框，返回0让系统使用默认处理
+    return 0
+}
+
+; 处理ComboBox编辑框部分的背景色和文字颜色
+WM_CTLCOLOREDIT(wParam, lParam, Msg, Hwnd) {
+    global DefaultStartTabDDL_Hwnd, DDLBrush, UI_Colors, ThemeMode
+    
+    try {
+        ; 检查是否是默认启动页面下拉框的编辑框部分
+        ; lParam是编辑框的句柄，我们需要找到它的父ComboBox
+        if (DefaultStartTabDDL_Hwnd != 0 && DDLBrush != 0) {
+            ParentHwnd := DllCall("user32.dll\GetParent", "Ptr", lParam, "Ptr")
+            if (ParentHwnd = DefaultStartTabDDL_Hwnd) {
+                ; 根据主题模式设置颜色
+                if (ThemeMode = "dark") {
+                    ; 暗色模式：黑灰色背景，白色文字
+                    DDLTextColor := "0x" . "ffffff"  ; 白色文字
+                    DDLBgColor := "0x" . "1e1e1e"  ; 黑灰色背景
+                } else {
+                    ; 亮色模式：使用UI_Colors中的颜色
+                    DDLTextColor := "0x" . UI_Colors.DDLText
+                    DDLBgColor := "0x" . UI_Colors.DDLBg
+                }
+                TextRGB := Integer(DDLTextColor)
+                BgRGB := Integer(DDLBgColor)
+                ; 转换为BGR格式（交换R和B字节）
+                TextBGR := ((TextRGB & 0xFF) << 16) | (TextRGB & 0xFF00) | ((TextRGB & 0xFF0000) >> 16)
+                BgBGR := ((BgRGB & 0xFF) << 16) | (BgRGB & 0xFF00) | ((BgRGB & 0xFF0000) >> 16)
+                ; 设置文本颜色
+                DllCall("gdi32.dll\SetTextColor", "Ptr", wParam, "UInt", TextBGR)
+                ; 设置背景色
+                DllCall("gdi32.dll\SetBkColor", "Ptr", wParam, "UInt", BgBGR)
+                ; 返回画刷句柄
+                return DDLBrush
+            }
         }
     } catch {
     }
@@ -10524,9 +11073,15 @@ ShowConfigGUI() {
     
     ; 侧边栏搜索框
     SearchBg := ConfigGUI.Add("Text", "x10 y45 w" . (SidebarWidth - 20) . " h30 Background" . UI_Colors.InputBg, "")
-    ; 放大镜图标
-    SearchIcon := ConfigGUI.Add("Text", "x18 y50 w16 h16 Center 0x200 c" . UI_Colors.TextDim . " Background" . UI_Colors.InputBg, "🔍")
-    SearchIcon.SetFont("s10", "Segoe UI")
+    ; 放大镜图标（使用牛马.ico）
+    IconPath := A_ScriptDir . "\牛马.ico"
+    if (FileExist(IconPath)) {
+        SearchIcon := ConfigGUI.Add("Picture", "x18 y50 w16 h16 0x200 vSearchIcon", IconPath)
+    } else {
+        ; 如果图标文件不存在，使用文本作为后备
+        SearchIcon := ConfigGUI.Add("Text", "x18 y50 w16 h16 Center 0x200 c" . UI_Colors.TextDim . " Background" . UI_Colors.InputBg, "🔍")
+        SearchIcon.SetFont("s10", "Segoe UI")
+    }
     ; 搜索输入框（调整位置，为放大镜图标留出空间）
     global SearchEdit := ConfigGUI.Add("Edit", "x36 y50 w" . (SidebarWidth - 46) . " h20 vSearchEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " -E0x200", "") 
     SearchEdit.SetFont("s9", "Segoe UI")
@@ -10651,10 +11206,56 @@ ShowConfigGUI() {
     
     ; 添加窗口大小调整事件处理
     ConfigGUI.OnEvent("Size", ConfigGUI_Size)
+    ; 注意：AutoHotkey v2 不支持 Move 事件，使用定时器定期保存位置
     ConfigGUI.OnEvent("Close", (*) => CloseConfigGUI())
     
-    ; 全屏显示窗口
-    ConfigGUI.Show("w" . ConfigWidth . " h" . ConfigHeight . " x" . PosX . " y" . PosY)
+    ; 使用定时器定期保存配置窗口位置（每500ms检查一次）
+    ; 注意：AutoHotkey v2 不支持 Move 事件，所以使用定时器
+    SetTimer(() => SaveConfigGUIPosition(ConfigGUI), 500)
+    
+    ; 恢复窗口位置和大小
+    WindowName := GetText("config_title")
+    RestoredPos := RestoreWindowPosition(WindowName, ConfigWidth, ConfigHeight)
+    if (RestoredPos.X = -1 || RestoredPos.Y = -1) {
+        RestoredPos.X := PosX
+        RestoredPos.Y := PosY
+    }
+    
+    ; 显示窗口
+    ConfigGUI.Show("w" . RestoredPos.Width . " h" . RestoredPos.Height . " x" . RestoredPos.X . " y" . RestoredPos.Y)
+    
+    ; 【确保关闭按钮在最上层】使用SetWindowPos将关闭按钮移到最上层，避免被其他控件遮挡
+    try {
+        ; HWND_TOP = 0，将控件移到最上层
+        ; SWP_NOMOVE | SWP_NOSIZE = 0x0003，不改变位置和大小，只改变Z-order
+        if (IsSet(CloseBtnTopLeft) && CloseBtnTopLeft) {
+            DllCall("user32.dll\SetWindowPos", "Ptr", CloseBtnTopLeft.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0003, "Int")
+        }
+        if (IsSet(CloseBtnTopRight) && CloseBtnTopRight) {
+            DllCall("user32.dll\SetWindowPos", "Ptr", CloseBtnTopRight.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0003, "Int")
+        }
+        if (IsSet(CloseBtnBottomLeft) && CloseBtnBottomLeft) {
+            DllCall("user32.dll\SetWindowPos", "Ptr", CloseBtnBottomLeft.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0003, "Int")
+        }
+        if (IsSet(CloseBtnBottomRight) && CloseBtnBottomRight) {
+            DllCall("user32.dll\SetWindowPos", "Ptr", CloseBtnBottomRight.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0003, "Int")
+        }
+    } catch {
+        ; 如果设置失败，忽略错误
+    }
+    
+    ; 【启用双缓冲】减少窗口调整大小时和控件重绘时的闪烁
+    ; WS_EX_COMPOSITED = 0x02000000，启用双缓冲绘图
+    try {
+        ; GWL_EXSTYLE = -20
+        CurrentExStyle := DllCall("user32.dll\GetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -20, "Ptr")
+        NewExStyle := CurrentExStyle | 0x02000000  ; 添加WS_EX_COMPOSITED标志
+        DllCall("user32.dll\SetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -20, "Ptr", NewExStyle, "Ptr")
+        ; 强制窗口重绘以应用新样式
+        DllCall("user32.dll\SetWindowPos", "Ptr", ConfigGUI.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0027, "Int")  ; SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
+    } catch {
+        ; 如果启用双缓冲失败，忽略错误（某些系统可能不支持）
+    }
     
     ; 设置下拉列表最小可见项数（窗口显示后设置，延迟300ms确保ComboBox完全初始化）
     SetTimer(SetDDLMinVisible, -300)
@@ -10663,11 +11264,11 @@ ShowConfigGUI() {
     SetWindowMinSizeLimit(ConfigGUI.Hwnd, 800, 600)
     
     ; 【移除滚动条】不再添加滚动条样式，避免出现白边和滚动条
-    ; 移除窗口边框样式（WS_BORDER, WS_THICKFRAME）
+    ; 移除窗口边框样式（只移除WS_BORDER，保留WS_THICKFRAME以支持调整大小）
     ; GWL_STYLE = -16
     CurrentStyle := DllCall("user32.dll\GetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -16, "Ptr")
-    ; 移除边框和滚动条样式：~0x00B40000 = 移除 WS_BORDER(0x00800000), WS_THICKFRAME(0x00040000), WS_VSCROLL(0x00200000), WS_HSCROLL(0x00100000)
-    NewStyle := CurrentStyle & ~0x00B40000
+    ; 移除边框和滚动条样式（保留WS_THICKFRAME以支持调整大小）：~0x00A00000 = 移除 WS_BORDER(0x00800000), WS_VSCROLL(0x00200000), WS_HSCROLL(0x00100000)
+    NewStyle := CurrentStyle & ~0x00A00000
     DllCall("user32.dll\SetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -16, "Ptr", NewStyle, "Ptr")
     ; 移除扩展样式中的边框（WS_EX_CLIENTEDGE = 0x00000200）
     ; GWL_EXSTYLE = -20
@@ -10813,6 +11414,14 @@ ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
         return
     }
     
+    ; 【修复闪烁问题】锁定窗口更新，防止在调整大小过程中出现闪烁
+    ; LockWindowUpdate 会阻止窗口重绘，直到调用 UnlockWindowUpdate
+    try {
+        DllCall("user32.dll\LockWindowUpdate", "Ptr", GuiObj.Hwnd)
+    } catch {
+        ; 如果锁定失败，继续执行（某些情况下可能失败）
+    }
+    
     ; 更新标题栏宽度
     try {
         TitleBar := GuiObj["TitleBar"]
@@ -10867,6 +11476,15 @@ ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
     ;         ButtonAreaBg.Move(ContentX, ButtonAreaY, ContentWidth)
     ;     }
     ; }
+    
+    ; 保存窗口大小（在窗口大小改变时立即保存）
+    try {
+        WinGetPos(&WinX, &WinY, , , GuiObj.Hwnd)
+        WindowName := GetText("config_title")
+        SaveWindowPosition(WindowName, WinX, WinY, Width, Height)
+    } catch {
+        ; 忽略错误
+    }
     
     ; 更新各个标签页的内容区域大小
     ; 通用标签页
@@ -10933,6 +11551,21 @@ ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
         CancelBtn := GuiObj["CancelBtn"]
         if (CancelBtn) {
             CancelBtn.Move(BtnStartX + (BtnWidth + BtnSpacing) * 4, ButtonAreaY + 10)
+        }
+    }
+    
+    ; 【修复闪烁问题】解锁窗口更新，允许窗口重绘
+    ; 所有控件更新完成后，一次性重绘窗口
+    try {
+        DllCall("user32.dll\LockWindowUpdate", "Ptr", 0)  ; 0表示解锁
+        ; 使用InvalidateRect和UpdateWindow来强制重绘整个窗口
+        DllCall("user32.dll\InvalidateRect", "Ptr", GuiObj.Hwnd, "Ptr", 0, "Int", 1)  ; 1 = TRUE，重绘整个窗口
+        DllCall("user32.dll\UpdateWindow", "Ptr", GuiObj.Hwnd)
+    } catch {
+        ; 如果解锁失败，尝试使用WinRedraw作为后备方案
+        try {
+            WinRedraw(GuiObj.Hwnd)
+        } catch {
         }
     }
 }
@@ -11003,6 +11636,86 @@ ConfigWheelDown(*) {
             ; 向窗口发送滚动消息（使用 PostMessage 确保消息被处理）
             PostMessage(0x115, 1, 0, , GuiID_ConfigGUI.Hwnd)  ; WM_VSCROLL, SB_LINEDOWN
         }
+    }
+}
+
+; ===================== 保存配置窗口位置 =====================
+SaveConfigGUIPosition(ConfigGUI) {
+    global GuiID_ConfigGUI
+    try {
+        ; 检查窗口是否还存在
+        if (!ConfigGUI || !GuiID_ConfigGUI || GuiID_ConfigGUI = 0) {
+            ; 窗口已关闭，停止定时器
+            SetTimer(() => SaveConfigGUIPosition(ConfigGUI), 0)
+            return
+        }
+        
+        ; 获取窗口位置和大小
+        WinGetPos(&WinX, &WinY, &WinW, &WinH, ConfigGUI.Hwnd)
+        WindowName := GetText("config_title")
+        SaveWindowPosition(WindowName, WinX, WinY, WinW, WinH)
+    } catch {
+        ; 忽略错误（窗口可能已关闭）
+    }
+}
+
+; ===================== 保存剪贴板管理器窗口位置 =====================
+SaveClipboardManagerPosition() {
+    global GuiID_ClipboardManager
+    try {
+        ; 检查窗口是否还存在
+        if (!GuiID_ClipboardManager || GuiID_ClipboardManager = 0) {
+            ; 窗口已关闭，停止定时器
+            SetTimer(() => SaveClipboardManagerPosition(), 0)
+            return
+        }
+        
+        ; 获取窗口位置和大小
+        WinGetPos(&WinX, &WinY, &WinW, &WinH, GuiID_ClipboardManager.Hwnd)
+        WindowName := "📋 " . GetText("clipboard_manager")
+        SaveWindowPosition(WindowName, WinX, WinY, WinW, WinH)
+    } catch {
+        ; 忽略错误（窗口可能已关闭）
+    }
+}
+
+; ===================== 保存语音输入面板窗口位置 =====================
+SaveVoiceInputPanelPosition() {
+    global GuiID_VoiceInputPanel
+    try {
+        ; 检查窗口是否还存在
+        if (!GuiID_VoiceInputPanel || GuiID_VoiceInputPanel = 0) {
+            ; 窗口已关闭，停止定时器
+            SetTimer(() => SaveVoiceInputPanelPosition(), 0)
+            return
+        }
+        
+        ; 获取窗口位置和大小
+        WinGetPos(&WinX, &WinY, &WinW, &WinH, GuiID_VoiceInputPanel.Hwnd)
+        WindowName := GetText("voice_input_active")
+        SaveWindowPosition(WindowName, WinX, WinY, WinW, WinH)
+    } catch {
+        ; 忽略错误（窗口可能已关闭）
+    }
+}
+
+; ===================== 保存语音搜索输入窗口位置 =====================
+SaveVoiceInputPosition() {
+    global GuiID_VoiceInput
+    try {
+        ; 检查窗口是否还存在
+        if (!GuiID_VoiceInput || GuiID_VoiceInput = 0) {
+            ; 窗口已关闭，停止定时器
+            SetTimer(() => SaveVoiceInputPosition(), 0)
+            return
+        }
+        
+        ; 获取窗口位置和大小
+        WinGetPos(&WinX, &WinY, &WinW, &WinH, GuiID_VoiceInput.Hwnd)
+        WindowName := GetText("voice_search_title")
+        SaveWindowPosition(WindowName, WinX, WinY, WinW, WinH)
+    } catch {
+        ; 忽略错误（窗口可能已关闭）
     }
 }
 
@@ -11248,6 +11961,20 @@ SaveConfig(*) {
         NewCursorPanelScreenIndex := 1
     }
     
+    NewClipboardPanelScreenIndex := 1
+    global ClipboardPanelScreenRadio
+    if (ClipboardPanelScreenRadio && ClipboardPanelScreenRadio.Length > 0) {
+        for Index, RadioBtn in ClipboardPanelScreenRadio {
+            if (RadioBtn.HasProp("IsSelected") && RadioBtn.IsSelected) {
+                NewClipboardPanelScreenIndex := Index
+                break
+            }
+        }
+    }
+    if (NewClipboardPanelScreenIndex < 1) {
+        NewClipboardPanelScreenIndex := 1
+    }
+    
     ; 读取快捷操作按钮配置（从单选按钮读取类型，快捷键根据类型自动确定）
     global QuickActionButtons
     try {
@@ -11365,6 +12092,7 @@ SaveConfig(*) {
     global MsgBoxScreenIndex := NewMsgBoxScreenIndex
     global VoiceInputScreenIndex := NewVoiceInputScreenIndex
     global CursorPanelScreenIndex := NewCursorPanelScreenIndex
+    global ClipboardPanelScreenIndex := NewClipboardPanelScreenIndex
     
     ; 读取默认启动页面设置（从下拉框读取）
     global DefaultStartTab, DefaultStartTabDDL
@@ -11413,6 +12141,36 @@ SaveConfig(*) {
         IniWrite("general", ConfigFile, "Settings", "DefaultStartTab")
     }
     
+    ; 保存 Cursor 规则内容
+    try {
+        if (GuiID_ConfigGUI) {
+            ConfigGUI := GuiFromHwnd(GuiID_ConfigGUI)
+            if (ConfigGUI) {
+                ; 定义所有规则类别
+                RuleCategories := ["general", "web", "miniprogram", "plugin", "android", "ios", "python", "backend"]
+                
+                for Index, CategoryKey in RuleCategories {
+                    try {
+                        RulesEdit := ConfigGUI["CursorRulesContent" . CategoryKey]
+                        if (RulesEdit) {
+                            RulesContent := RulesEdit.Value
+                            PlaceholderText := GetText("cursor_rules_content_placeholder")
+                            ; 如果内容不是占位符且不为空，保存到配置文件
+                            if (RulesContent != "" && RulesContent != PlaceholderText) {
+                                ; IniWrite会自动处理换行符，直接保存即可
+                                IniWrite(RulesContent, ConfigFile, "CursorRules", CategoryKey)
+                            }
+                        }
+                    } catch as e {
+                        ; 忽略单个规则保存失败，继续保存其他规则
+                    }
+                }
+            }
+        }
+    } catch as e {
+        ; 忽略保存规则时的错误，不影响其他配置的保存
+    }
+    
     ; 保存启用的搜索标签
     if (IsSet(VoiceSearchEnabledCategories) && IsObject(VoiceSearchEnabledCategories) && VoiceSearchEnabledCategories.Length > 0) {
         EnabledCategoriesStr := ""
@@ -11438,6 +12196,7 @@ SaveConfig(*) {
     IniWrite(MsgBoxScreenIndex, ConfigFile, "Advanced", "MsgBoxScreenIndex")
     IniWrite(VoiceInputScreenIndex, ConfigFile, "Advanced", "VoiceInputScreenIndex")
     IniWrite(CursorPanelScreenIndex, ConfigFile, "Advanced", "CursorPanelScreenIndex")
+    IniWrite(ClipboardPanelScreenIndex, ConfigFile, "Advanced", "ClipboardPanelScreenIndex")
     
     ; 保存快捷操作按钮配置
     ButtonCount := QuickActionButtons.Length
@@ -11852,54 +12611,6 @@ CapsLockCopy() {
             ; 【成功提示】显示复制成功
             TrayTip("【成功】" . DisplayLabel . "`n已复制并保存", GetText("tip"), "Iconi 1")
             
-            ; 【新功能】如果 CursorPanel 面板已打开（PanelVisible 为 true），立即插入到 LV_Cursor
-            global GuiID_CursorPanel, LV_Cursor, PanelVisible
-            if (PanelVisible && GuiID_CursorPanel != 0) {
-                try {
-                    ; 检查面板是否真的存在（窗口句柄有效）
-                    if (WinExist("ahk_id " . GuiID_CursorPanel.Hwnd)) {
-                        ; 如果 LV_Cursor 引用丢失，尝试重新获取
-                        if (!LV_Cursor || !IsObject(LV_Cursor)) {
-                            try {
-                                LV_Cursor := GuiID_CursorPanel["LV_Cursor"]
-                            } catch {
-                                ; 如果获取失败，尝试通过控件名称获取
-                                try {
-                                    CursorGUI := GuiFromHwnd(GuiID_CursorPanel.Hwnd)
-                                    if (CursorGUI) {
-                                        LV_Cursor := CursorGUI["LV_Cursor"]
-                                    }
-                                } catch {
-                                }
-                            }
-                        }
-                        
-                        ; 如果 LV_Cursor 存在，插入新条目
-                        if (LV_Cursor && IsObject(LV_Cursor)) {
-                            ; 截取内容预览（限制长度，避免单元格过宽）
-                            ContentPreview := NewContent
-                            if (StrLen(ContentPreview) > 80) {
-                                ContentPreview := SubStr(ContentPreview, 1, 80) . "..."
-                            }
-                            ; 替换换行符和制表符
-                            ContentPreview := StrReplace(ContentPreview, "`r`n", " ")
-                            ContentPreview := StrReplace(ContentPreview, "`n", " ")
-                            ContentPreview := StrReplace(ContentPreview, "`r", " ")
-                            ContentPreview := StrReplace(ContentPreview, "`t", " ")
-                            
-                            ; 使用 Insert(1, ...) 插入到第一行（最新在最前面）
-                            ; 第一列：阶段标签，第二列：内容预览
-                            LV_Cursor.Insert(1, DisplayLabel, ContentPreview)
-                        }
-                    }
-                } catch as e {
-                    ; 插入 LV_Cursor 失败，记录错误但不影响其他操作
-                    try {
-                        FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: LV_Cursor插入失败 - " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
-                    } catch {
-                    }
-                }
-            }
             
             ; 【环节6】自动弹出剪贴板管理面板（如果还未打开）
             if (GuiID_ClipboardManager = 0) {
@@ -12341,7 +13052,7 @@ CloseClipboardManager(*) {
 }
 
 ShowClipboardManager() {
-    global ClipboardHistory, GuiID_ClipboardManager, PanelScreenIndex, ClipboardPanelPos
+    global ClipboardHistory, GuiID_ClipboardManager, ClipboardPanelScreenIndex, ClipboardPanelPos
     global UI_Colors, GuiID_ConfigGUI
     
     ; 如果面板已存在，先销毁
@@ -12362,34 +13073,24 @@ ShowClipboardManager() {
     }
     
     ; 面板尺寸（增大默认尺寸，避免按钮重叠）
-    ; 从配置文件读取上次的窗口位置和大小
-    global ConfigFile
+    ; 使用通用函数恢复窗口位置和大小
     DefaultWidth := 800
     DefaultHeight := 600
-    PanelWidthStr := IniRead(ConfigFile, "Appearance", "ClipboardPanelWidth", DefaultWidth)
-    PanelHeightStr := IniRead(ConfigFile, "Appearance", "ClipboardPanelHeight", DefaultHeight)
-    PanelX := IniRead(ConfigFile, "Appearance", "ClipboardPanelX", "")
-    PanelY := IniRead(ConfigFile, "Appearance", "ClipboardPanelY", "")
-    
-    ; 转换为整数
-    try {
-        PanelWidth := Integer(PanelWidthStr)
-        PanelHeight := Integer(PanelHeightStr)
-        if (PanelWidth < 600) {
-            PanelWidth := DefaultWidth
-        }
-        if (PanelHeight < 400) {
-            PanelHeight := DefaultHeight
-        }
-    } catch {
-        PanelWidth := DefaultWidth
-        PanelHeight := DefaultHeight
-    }
+    WindowName := "📋 " . GetText("clipboard_manager")
+    RestoredPos := RestoreWindowPosition(WindowName, DefaultWidth, DefaultHeight)
+    PanelWidth := RestoredPos.Width
+    PanelHeight := RestoredPos.Height
     
     ; 创建可调整大小的 GUI（使用系统标题栏以支持调整大小）
     GuiID_ClipboardManager := Gui("+AlwaysOnTop +Resize -MaximizeBox -DPIScale", "📋 " . GetText("clipboard_manager"))
     GuiID_ClipboardManager.BackColor := UI_Colors.Background
     GuiID_ClipboardManager.SetFont("s11 c" . UI_Colors.Text, "Segoe UI")
+    
+    ; 添加窗口大小改变和移动事件处理
+    GuiID_ClipboardManager.OnEvent("Size", OnWindowSize)
+    ; 注意：AutoHotkey v2 不支持 Move 事件，使用定时器定期保存位置
+    ; GuiID_ClipboardManager.OnEvent("Move", OnWindowMove)
+    SetTimer(() => SaveClipboardManagerPosition(), 500)
     
     ; 工具栏区域（从 y=0 开始，系统标题栏会自动显示，内容区域从 y=30 开始）
     
@@ -12420,20 +13121,13 @@ ShowClipboardManager() {
     
     ; ========== Tab 切换区域 ==========
     global ClipboardCurrentTab
-    ; 确保 ClipboardCurrentTab 有默认值
+    ; 确保 ClipboardCurrentTab 有默认值（默认使用 CapsLockC）
     if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
-        ClipboardCurrentTab := "CtrlC"
+        ClipboardCurrentTab := "CapsLockC"
     }
     TabY := 38  ; 调整Y坐标以适应系统标题栏
-    ; Ctrl+C Tab - 确保可以点击
-    CtrlCTab := GuiID_ClipboardManager.Add("Text", "x20 y" . TabY . " w120 h30 Center 0x200 c" . UI_Colors.Text . " Background" . (ClipboardCurrentTab = "CtrlC" ? UI_Colors.TabActive : UI_Colors.Sidebar) . " vCtrlCTab", GetText("clipboard_tab_ctrlc"))
-    CtrlCTab.SetFont("s10", "Segoe UI")
-    ; 使用明确的点击处理函数，确保可以点击
-    CtrlCTab.OnEvent("Click", SwitchClipboardTabCtrlC)
-    HoverBtn(CtrlCTab, (ClipboardCurrentTab = "CtrlC" ? UI_Colors.TabActive : UI_Colors.Sidebar), UI_Colors.BtnHover)
-    
     ; CapsLock+C Tab - 防止点击时触发复制操作
-    CapsLockCTab := GuiID_ClipboardManager.Add("Text", "x150 y" . TabY . " w150 h30 Center 0x200 c" . UI_Colors.Text . " Background" . (ClipboardCurrentTab = "CapsLockC" ? UI_Colors.TabActive : UI_Colors.Sidebar) . " vCapsLockCTab", GetText("clipboard_tab_capslockc"))
+    CapsLockCTab := GuiID_ClipboardManager.Add("Text", "x20 y" . TabY . " w150 h30 Center 0x200 c" . UI_Colors.Text . " Background" . (ClipboardCurrentTab = "CapsLockC" ? UI_Colors.TabActive : UI_Colors.Sidebar) . " vCapsLockCTab", GetText("clipboard_tab_capslockc"))
     CapsLockCTab.SetFont("s10", "Segoe UI")
     ; 使用明确的点击处理函数，防止触发复制操作
     CapsLockCTab.OnEvent("Click", SwitchClipboardTabCapsLockC)
@@ -12479,9 +13173,26 @@ ShowClipboardManager() {
     ListBoxBgColor := (ThemeMode = "dark") ? UI_Colors.InputBg : UI_Colors.InputBg
     ListBoxTextColor := (ThemeMode = "dark") ? UI_Colors.Text : UI_Colors.Text
     
+    ; 【关键修复】根据窗口大小计算 ListView/ListBox 的初始大小，而不是使用固定值
+    ; 列表控件位置：x=20, y=90
+    ; 列表控件宽度：窗口宽度 - 左右边距(40) = PanelWidth - 40
+    ; 列表控件高度：窗口高度 - 工具栏(90) - 底部区域(70) = PanelHeight - 90 - 70
+    ListX := 20
+    ListY := 90
+    ListWidth := PanelWidth - 40
+    ListHeight := PanelHeight - 90 - 70
+    
+    ; 确保最小尺寸
+    if (ListWidth < 200) {
+        ListWidth := 200
+    }
+    if (ListHeight < 100) {
+        ListHeight := 100
+    }
+    
     ; 创建两个控件（根据当前Tab显示/隐藏）
     ; ListBox用于CtrlC标签
-    ListBox := GuiID_ClipboardManager.Add("ListBox", "x20 y90 w560 h320 vClipboardListBox Background" . ListBoxBgColor . " c" . ListBoxTextColor . " -E0x200")
+    ListBox := GuiID_ClipboardManager.Add("ListBox", "x" . ListX . " y" . ListY . " w" . ListWidth . " h" . ListHeight . " vClipboardListBox Background" . ListBoxBgColor . " c" . ListBoxTextColor . " -E0x200")
     ListBox.SetFont("s10 c" . ListBoxTextColor, "Consolas")
     ListBox.Opt("+Background" . ListBoxBgColor)
     
@@ -12490,7 +13201,7 @@ ShowClipboardManager() {
     ; 横向布局：阶段标签（第一列）+ 第1次复制、第2次复制...（动态列）
     ; +LV0x1 = LVS_EX_GRIDLINES（网格线）
     ; 注意：不使用 +LV0x20 (LVS_EX_FULLROWSELECT) 以允许单元格级别的操作
-    ListViewCtrl := GuiID_ClipboardManager.Add("ListView", "x20 y90 w560 h320 vClipboardListView Background" . ListBoxBgColor . " c" . ListViewTextColor . " -Multi +ReadOnly +NoSortHdr +LV0x10000 +LV0x1", ["阶段标签", "内容"])
+    ListViewCtrl := GuiID_ClipboardManager.Add("ListView", "x" . ListX . " y" . ListY . " w" . ListWidth . " h" . ListHeight . " vClipboardListView Background" . ListBoxBgColor . " c" . ListViewTextColor . " -Multi +ReadOnly +NoSortHdr +LV0x10000 +LV0x1", ["阶段标签", "内容"])
     ListViewCtrl.SetFont("s9 c" . ListViewTextColor, "Consolas")
     
     ; 保存 ListView 句柄和窗口句柄，用于 WM_NOTIFY 消息识别
@@ -12542,8 +13253,10 @@ ShowClipboardManager() {
     
     ; ========== 底部按钮区域 ==========
     ; 底部区域Y坐标需要根据窗口高度动态调整（在Size事件中处理）
-    BottomAreaY := 430
-    BottomArea := GuiID_ClipboardManager.Add("Text", "x0 y" . BottomAreaY . " w600 h70 Background" . UI_Colors.Background . " vClipboardBottomArea", "")
+    ; 【关键修复】根据窗口高度计算底部区域的初始位置
+    BottomAreaY := PanelHeight - 70
+    ; 底部区域宽度：窗口宽度
+    BottomArea := GuiID_ClipboardManager.Add("Text", "x0 y" . BottomAreaY . " w" . PanelWidth . " h70 Background" . UI_Colors.Background . " vClipboardBottomArea", "")
     
     ; 操作按钮（使用v参数保存引用以便调整位置，对齐排布）
     ButtonY := BottomAreaY + 10
@@ -12584,7 +13297,8 @@ ShowClipboardManager() {
     HoverBtn(ImportBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     
     ; 底部提示
-    HintText := GuiID_ClipboardManager.Add("Text", "x20 y" . (BottomAreaY + 55) . " w560 h15 c" . UI_Colors.TextDim . " vClipboardHintText", GetText("clipboard_hint"))
+    ; 【关键修复】根据窗口宽度计算提示文字的宽度
+    HintText := GuiID_ClipboardManager.Add("Text", "x20 y" . (BottomAreaY + 55) . " w" . (PanelWidth - 40) . " h15 c" . UI_Colors.TextDim . " vClipboardHintText", GetText("clipboard_hint"))
     HintText.SetFont("s9", "Segoe UI")
     
     ; 绑定选中变化和双击事件
@@ -12615,34 +13329,26 @@ ShowClipboardManager() {
     }
     
     ; 保存控件引用（使用全局声明确保正确保存）
-    global ClipboardListBox, ClipboardListView, ClipboardCountText, ClipboardCtrlCTab, ClipboardCapsLockCTab
+    global ClipboardListBox, ClipboardListView, ClipboardCountText, ClipboardCapsLockCTab
     ClipboardListBox := ListBox
     ClipboardListView := ListViewCtrl  ; ListView控件
     ClipboardCountText := CountText
-    ClipboardCtrlCTab := CtrlCTab
     ClipboardCapsLockCTab := CapsLockCTab
     ; 确保 ClipboardCurrentTab 已设置
     if (!IsSet(ClipboardCurrentTab) || ClipboardCurrentTab = "") {
         global ClipboardCurrentTab := "CtrlC"
     }
     
-    ; 获取屏幕信息并计算位置 (使用 ClipboardPanelPos 或保存的位置)
-    if (PanelX != "" && PanelY != "") {
-        try {
-            PanelX := Integer(PanelX)
-            PanelY := Integer(PanelY)
-            Pos := {X: PanelX, Y: PanelY}
-        } catch {
-            ScreenInfo := GetScreenInfo(PanelScreenIndex)
-            Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, ClipboardPanelPos)
-        }
-    } else {
-        ScreenInfo := GetScreenInfo(PanelScreenIndex)
+    ; 使用恢复的位置，如果没有保存的位置则使用默认位置
+    if (RestoredPos.X = -1 || RestoredPos.Y = -1) {
+        ScreenInfo := GetScreenInfo(ClipboardPanelScreenIndex)
         Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, ClipboardPanelPos)
+        RestoredPos.X := Pos.X
+        RestoredPos.Y := Pos.Y
     }
     
     ; 先显示 GUI，确保控件已准备好
-    GuiID_ClipboardManager.Show("w" . PanelWidth . " h" . PanelHeight . " x" . Pos.X . " y" . Pos.Y)
+    GuiID_ClipboardManager.Show("w" . RestoredPos.Width . " h" . RestoredPos.Height . " x" . RestoredPos.X . " y" . RestoredPos.Y)
     
     ; 如果当前是CapsLockC标签，创建高亮覆盖层
     if (ClipboardCurrentTab = "CapsLockC") {
@@ -12729,10 +13435,6 @@ ShowClipboardManager() {
 }
 
 ; Ctrl+C 标签点击处理函数
-SwitchClipboardTabCtrlC(*) {
-    ; 直接调用切换函数
-    SwitchClipboardTab("CtrlC")
-}
 
 ; CapsLock+C 标签点击处理函数（防止触发复制操作）
 SwitchClipboardTabCapsLockC(*) {
@@ -12776,7 +13478,7 @@ SwitchClipboardTabCapsLockC(*) {
 
 ; 切换剪贴板 Tab
 SwitchClipboardTab(TabName) {
-    global ClipboardCurrentTab, ClipboardCtrlCTab, ClipboardCapsLockCTab, UI_Colors
+    global ClipboardCurrentTab, ClipboardCapsLockCTab, UI_Colors
     global ClipboardListBox, ClipboardCountText, GuiID_ClipboardManager
     global CapsLock, CapsLock2, CapsLockCopyInProgress, LastSelectedIndex
     
@@ -12792,8 +13494,8 @@ SwitchClipboardTab(TabName) {
         }
     }
     
-    ; 验证 TabName 参数
-    if (TabName != "CtrlC" && TabName != "CapsLockC") {
+    ; 验证 TabName 参数（只支持 CapsLockC）
+    if (TabName != "CapsLockC") {
         return
     }
     
@@ -12806,27 +13508,6 @@ SwitchClipboardTab(TabName) {
     ClipboardListViewHighlightedCol := 0
     UpdateClipboardHighlightOverlay()
     
-    ; 注意：如果是从 SwitchClipboardTabCapsLockC 调用的，状态已经在那个函数中设置了
-    ; 这里只处理从 SwitchClipboardTabCtrlC 调用的情况
-    if (TabName = "CtrlC") {
-        ; 防止点击标签时触发 CapsLock+C 快捷键
-        ; 临时清除 CapsLock 标记，避免触发复制操作
-        global OldCapsLockForTab, OldCapsLock2ForTab, OldCapsLockCopyInProgress
-        OldCapsLockForTab := CapsLock
-        OldCapsLock2ForTab := CapsLock2
-        CapsLock := false
-        CapsLock2 := false
-        
-        ; 临时标记 CapsLock+C 正在进行中，防止点击标签时触发复制操作
-        ; 这样可以防止点击"CapsLock+C"标签时意外触发复制
-        OldCapsLockCopyInProgress := CapsLockCopyInProgress
-        CapsLockCopyInProgress := true
-        
-        ; 延迟恢复，确保点击事件处理完成（增加延迟时间，确保不会触发复制操作）
-        ; 使用更长的延迟时间（200ms），确保标签切换完成后再恢复状态
-        SetTimer(RestoreCapsLockState, -200)
-        SetTimer(RestoreCapsLockCopyFlag, -200)
-    }
     
     ; 尝试获取GUI对象（GuiID_ClipboardManager 应该是 Gui 对象，不是 Hwnd）
     ClipboardGUI := ""
@@ -12840,17 +13521,6 @@ SwitchClipboardTab(TabName) {
         }
         if (ClipboardGUI) {
             ; 如果控件引用丢失，尝试重新获取
-            if (!ClipboardCtrlCTab || !IsObject(ClipboardCtrlCTab)) {
-                try {
-                    ClipboardCtrlCTab := ClipboardGUI["CtrlCTab"]
-                    ; 确保事件绑定正确
-                    if (ClipboardCtrlCTab && IsObject(ClipboardCtrlCTab)) {
-                        ClipboardCtrlCTab.OnEvent("Click", SwitchClipboardTabCtrlC)
-                    }
-                } catch {
-                    ; 忽略错误
-                }
-            }
             if (!ClipboardCapsLockCTab || !IsObject(ClipboardCapsLockCTab)) {
                 try {
                     ClipboardCapsLockCTab := ClipboardGUI["CapsLockCTab"]
@@ -12985,13 +13655,6 @@ SwitchClipboardTab(TabName) {
     ; 更新 Tab 样式
     try {
         ; 先尝试使用现有的控件引用
-        if (ClipboardCtrlCTab && IsObject(ClipboardCtrlCTab)) {
-            if (TabName = "CtrlC") {
-                ClipboardCtrlCTab.BackColor := UI_Colors.TabActive
-            } else {
-                ClipboardCtrlCTab.BackColor := UI_Colors.Sidebar
-            }
-        }
         
         if (ClipboardCapsLockCTab && IsObject(ClipboardCapsLockCTab)) {
             if (TabName = "CapsLockC") {
@@ -13002,20 +13665,8 @@ SwitchClipboardTab(TabName) {
         }
         
         ; 如果控件引用丢失，尝试从GUI重新获取
-        if ((!ClipboardCtrlCTab || !IsObject(ClipboardCtrlCTab) || !ClipboardCapsLockCTab || !IsObject(ClipboardCapsLockCTab)) && ClipboardGUI) {
+        if ((!ClipboardCapsLockCTab || !IsObject(ClipboardCapsLockCTab)) && ClipboardGUI) {
             try {
-                if (!ClipboardCtrlCTab || !IsObject(ClipboardCtrlCTab)) {
-                    TempCtrlCTab := ClipboardGUI["CtrlCTab"]
-                    if (TempCtrlCTab && IsObject(TempCtrlCTab)) {
-                        ClipboardCtrlCTab := TempCtrlCTab
-                        if (TabName = "CtrlC") {
-                            ClipboardCtrlCTab.BackColor := UI_Colors.TabActive
-                        } else {
-                            ClipboardCtrlCTab.BackColor := UI_Colors.Sidebar
-                        }
-                    }
-                }
-                
                 if (!ClipboardCapsLockCTab || !IsObject(ClipboardCapsLockCTab)) {
                     TempCapsLockCTab := ClipboardGUI["CapsLockCTab"]
                     if (TempCapsLockCTab && IsObject(TempCapsLockCTab)) {
@@ -13773,14 +14424,28 @@ OnClipboardManagerSize(GuiObj, MinMax, Width, Height) {
 OnClipboardListViewDoubleClick(Control, Item, *) {
     global ClipboardListView, ClipboardDB, ClipboardCurrentTab, ClipboardListViewHwnd
     
+    ; 【调试日志】记录双击事件
+    try {
+        FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: Item=" . Item . ", Tab=" . ClipboardCurrentTab . "`n", A_ScriptDir "\clipboard_debug.log")
+    } catch {
+    }
+    
     ; 只在CapsLockC标签时处理
     if (ClipboardCurrentTab != "CapsLockC" || !ClipboardListView || !IsObject(ClipboardListView)) {
+        try {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: Early return - Tab=" . ClipboardCurrentTab . ", ListView=" . (ClipboardListView ? "exists" : "null") . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch {
+        }
         return
     }
     
     ; 获取双击的行（Item参数是行索引，从1开始）
     RowIndex := Item
     if (RowIndex < 1) {
+        try {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: Invalid RowIndex=" . RowIndex . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch {
+        }
         return
     }
     
@@ -13789,6 +14454,10 @@ OnClipboardListViewDoubleClick(Control, Item, *) {
     try {
         LV_Hwnd := ClipboardListViewHwnd
         if (!LV_Hwnd) {
+            try {
+                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: No LV_Hwnd`n", A_ScriptDir "\clipboard_debug.log")
+            } catch {
+            }
             return
         }
         
@@ -13815,19 +14484,172 @@ OnClipboardListViewDoubleClick(Control, Item, *) {
         ; 转换为从1开始的索引
         ColIndex := iSubItem + 1
         
+        ; 【调试日志】记录列索引
+        try {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: Row=" . RowIndex . ", Col=" . ColIndex . ", iSubItem=" . iSubItem . ", ClientX=" . ClientX . ", ClientY=" . ClientY . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch {
+        }
+        
         ; 如果列索引无效（iSubItem < 0 表示没有命中），默认使用第1列
         if (iSubItem < 0) {
             ColIndex := 1
+            try {
+                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: Invalid iSubItem, using Col=1`n", A_ScriptDir "\clipboard_debug.log")
+            } catch {
+            }
         }
         
         ; 从数据库获取完整内容并显示浮窗
         FullContent := GetCellFullContent(RowIndex, ColIndex)
+        try {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: FullContent length=" . StrLen(FullContent) . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch {
+        }
+        
         if (FullContent != "") {
             ShowClipboardCellContentWindow(FullContent, RowIndex, ColIndex)
+            try {
+                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: ShowClipboardCellContentWindow called`n", A_ScriptDir "\clipboard_debug.log")
+            } catch {
+            }
+        } else {
+            try {
+                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: FullContent is empty, not showing window`n", A_ScriptDir "\clipboard_debug.log")
+            } catch {
+            }
         }
-    } catch {
-        ; 如果出错，忽略
+    } catch as e {
+        ; 记录错误
+        try {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick Error: " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch {
+        }
     }
+}
+
+; ===================== 处理 ListView 双击消息（NM_DBLCLICK） =====================
+; 用于处理第二列及以后列的双击事件
+HandleClipboardListViewDoubleClick(lParam) {
+    global ClipboardListView, ClipboardDB, ClipboardCurrentTab, ClipboardListViewHwnd
+    
+    try {
+        ; 【调试日志】记录 NM_DBLCLICK 消息
+        FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK received`n", A_ScriptDir "\clipboard_debug.log")
+    } catch {
+    }
+    
+    ; 只在CapsLockC标签时处理
+    if (ClipboardCurrentTab != "CapsLockC" || !ClipboardListView || !IsObject(ClipboardListView)) {
+        return
+    }
+    
+    try {
+        LV_Hwnd := ClipboardListViewHwnd
+        if (!LV_Hwnd) {
+            return
+        }
+        
+        ; 【关键修复】NMITEMACTIVATE 结构在 64 位系统上的正确布局：
+        ; NMHDR hdr
+        ;   - hwndFrom: HWND (8字节)
+        ;   - idFrom: UINT_PTR (8字节)
+        ;   - code: UINT (4字节)
+        ;   - 对齐填充 (4字节)
+        ; int iItem (4字节)
+        ; int iSubItem (4字节)
+        ; UINT uNewState (4字节)
+        ; UINT uOldState (4字节)
+        ; UINT uChanged (4字节)
+        ; POINT ptAction (8字节)
+        ; LPARAM lParam (8字节)
+        
+        ; 计算偏移量（64位系统）
+        NMHDRSize := A_PtrSize = 8 ? 24 : 12
+        
+        ; 读取行和列索引
+        iItem := NumGet(lParam, NMHDRSize, "Int")
+        iSubItem := NumGet(lParam, NMHDRSize + 4, "Int")
+        
+        ; 【调试日志】
+        try {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK: iItem=" . iItem . ", iSubItem=" . iSubItem . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch {
+        }
+        
+        ; 【关键修复】NMITEMACTIVATE 的 iItem 和 iSubItem 在双击非第一列时可能无效
+        ; 总是使用 LVM_SUBITEMHITTEST 来获取精确的位置
+        ; 获取当前鼠标位置（屏幕坐标）
+        POINT := Buffer(8, 0)
+        DllCall("GetCursorPos", "Ptr", POINT.Ptr)
+        
+        ; 将屏幕坐标转换为ListView客户端坐标
+        DllCall("ScreenToClient", "Ptr", LV_Hwnd, "Ptr", POINT.Ptr)
+        ClientX := NumGet(POINT, 0, "Int")
+        ClientY := NumGet(POINT, 4, "Int")
+        
+        ; 使用 LVM_SUBITEMHITTEST 获取精确的行和列索引
+        LVHITTESTINFO := Buffer(24, 0)
+        NumPut("Int", ClientX, LVHITTESTINFO, 0)   ; pt.x
+        NumPut("Int", ClientY, LVHITTESTINFO, 4)   ; pt.y
+        
+        ; 调用 LVM_SUBITEMHITTEST
+        Result := DllCall("SendMessage", "Ptr", LV_Hwnd, "UInt", 0x1039, "Ptr", 0, "Ptr", LVHITTESTINFO.Ptr, "Int")
+        
+        ; 读取结果
+        flags := NumGet(LVHITTESTINFO, 8, "UInt")
+        iItem := NumGet(LVHITTESTINFO, 12, "Int")
+        iSubItem := NumGet(LVHITTESTINFO, 16, "Int")
+        
+        ; 转换为从1开始的索引
+        RowIndex := iItem + 1
+        ColIndex := iSubItem + 1
+        
+        ; 【调试日志】
+        try {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK: After hittest - Row=" . RowIndex . ", Col=" . ColIndex . ", ClientX=" . ClientX . ", ClientY=" . ClientY . ", flags=0x" . Format("{:X}", flags) . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch {
+        }
+        
+        ; 检查是否点击了有效的单元格
+        if (iItem >= 0 && iSubItem >= 0 && RowIndex >= 1 && ColIndex >= 1) {
+            ; 从数据库获取完整内容并显示浮窗
+            FullContent := GetCellFullContent(RowIndex, ColIndex)
+            try {
+                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK: FullContent length=" . StrLen(FullContent) . "`n", A_ScriptDir "\clipboard_debug.log")
+            } catch {
+            }
+            
+            if (FullContent != "") {
+                try {
+                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK: Calling ShowClipboardCellContentWindow with Row=" . RowIndex . ", Col=" . ColIndex . ", ContentLength=" . StrLen(FullContent) . "`n", A_ScriptDir "\clipboard_debug.log")
+                    ShowClipboardCellContentWindow(FullContent, RowIndex, ColIndex)
+                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK: ShowClipboardCellContentWindow returned`n", A_ScriptDir "\clipboard_debug.log")
+                } catch as e {
+                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK: ShowClipboardCellContentWindow Error: " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
+                }
+                ; 【关键】在 AutoHotkey v2 中，WM_NOTIFY 消息处理函数返回的值会被忽略
+                ; 我们需要通过其他方式阻止默认行为，或者不返回值
+                return
+            } else {
+                try {
+                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK: FullContent is empty`n", A_ScriptDir "\clipboard_debug.log")
+                } catch {
+                }
+            }
+        } else {
+            try {
+                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK: Invalid cell - Row=" . RowIndex . ", Col=" . ColIndex . "`n", A_ScriptDir "\clipboard_debug.log")
+            } catch {
+            }
+        }
+    } catch as e {
+        try {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK Error: " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch {
+        }
+    }
+    
+    ; 不返回值，让系统继续处理（AutoHotkey v2 中返回值可能无效）
 }
 
 ; ===================== ListView WM_NOTIFY 消息处理（用于获取单元格点击位置） =====================
@@ -13874,6 +14696,11 @@ OnClipboardListViewWMNotify(wParam, lParam, Msg, Hwnd) {
         ; NM_CUSTOMDRAW = -12 (自定义绘制)
         if (Code = -12) {
             return HandleClipboardListViewCustomDraw(lParam)
+        }
+        
+        ; NM_DBLCLICK = -3 (用户双击了 ListView)
+        if (Code = -3) {
+            return HandleClipboardListViewDoubleClick(lParam)
         }
         
         ; NM_CLICK = -2 (用户点击了 ListView)
@@ -13933,16 +14760,12 @@ OnClipboardListViewWMNotify(wParam, lParam, Msg, Hwnd) {
                 ClipboardListViewHighlightedRow := RowIndex
                 ClipboardListViewHighlightedCol := ColIndex
                 
-                ; 立即取消所有行的选中状态
-                if (ClipboardListView && IsObject(ClipboardListView)) {
-                    UnselectAllListViewRows()
-                }
-                
                 ; 强制 ListView 重绘以显示自定义高亮效果
                 DllCall("InvalidateRect", "Ptr", LV_Hwnd, "Ptr", 0, "Int", 1)
                 
-                ; 返回1阻止系统继续处理
-                return 1
+                ; 【关键修复】不返回任何值，让系统继续处理单击和双击事件
+                ; 返回1会阻止双击事件的触发，导致第二列及以后的单元格无法双击打开编辑窗口
+                ; 取消选中的操作在ItemSelect事件中延迟执行，以确保双击事件能够正常触发
             }
         }
     } catch as e {
@@ -14421,13 +15244,21 @@ DestroyClipboardHighlightOverlay() {
     }
 }
 
+; ===================== 延迟取消ListView选中（辅助函数） =====================
+DelayUnselectListViewRows(*) {
+    global ClipboardListView
+    if (ClipboardListView && IsObject(ClipboardListView)) {
+        UnselectAllListViewRows()
+    }
+}
+
 ; ===================== ListView项目选择事件处理（更新统计信息和单元格高亮） =====================
 OnClipboardListViewItemSelect(Control, Item, *) {
     global ClipboardListView, ClipboardDB, ClipboardCurrentTab, ClipboardCountText, GuiID_ClipboardManager
     
-    ; 【关键修复】立即取消所有行的选中状态，不允许任何行被选中
-    ; 这样可以防止整行高亮，只显示单元格高亮覆盖层
-    UnselectAllListViewRows()
+    ; 【关键修复】延迟取消选中，确保双击事件能够正常触发
+    ; 使用定时器延迟150ms后取消选中，这样双击事件可以在两次单击之间正常触发
+    SetTimer(DelayUnselectListViewRows, -150)  ; 延迟150ms执行，只执行一次
     
     ; 只在CapsLockC标签时处理
     if (ClipboardCurrentTab != "CapsLockC" || !ClipboardListView || !IsObject(ClipboardListView)) {
@@ -14890,12 +15721,24 @@ ShowClipboardCellContentWindow(Content, RowIndex, ColIndex) {
         CellContentWindow.OnEvent("Escape", CloseCellContentWindow)
         
         ; 显示窗口（居中显示）
-        CellContentWindow.Show("w" . WindowWidth . " h" . WindowHeight . " Center")
+        try {
+            CellContentWindow.Show("w" . WindowWidth . " h" . WindowHeight . " Center")
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] ShowClipboardCellContentWindow: Window shown, Hwnd=" . CellContentWindow.Hwnd . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch as e {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] ShowClipboardCellContentWindow: Show() Error: " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
+            throw e
+        }
         
         ; 确保窗口在最上层
-        WinSetAlwaysOnTop(1, CellContentWindow.Hwnd)
+        try {
+            WinSetAlwaysOnTop(1, CellContentWindow.Hwnd)
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] ShowClipboardCellContentWindow: AlwaysOnTop set`n", A_ScriptDir "\clipboard_debug.log")
+        } catch as e {
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] ShowClipboardCellContentWindow: WinSetAlwaysOnTop Error: " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
+        }
         
     } catch as e {
+        FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] ShowClipboardCellContentWindow: Exception: " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
         TrayTip("显示浮窗失败: " . e.Message, "错误", "Iconx 1")
         CellContentWindow := 0
     }
@@ -15580,7 +16423,7 @@ PasteSelectedToCursor(*) {
 ; ===================== 动态快捷键处理函数 =====================
 ; 检查按键是否匹配配置的快捷键，如果匹配则执行相应操作
 HandleDynamicHotkey(PressedKey, ActionType) {
-    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyP, HotkeyF, HotkeyP
+    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyT, HotkeyF, HotkeyP
     global CapsLock2, PanelVisible, VoiceInputActive, CapsLock, VoiceSearchActive
     global QuickActionButtons
     
@@ -15647,7 +16490,7 @@ HandleDynamicHotkey(PressedKey, ActionType) {
         case "Q": ConfigKey := StrLower(HotkeyQ)
         case "Z": ConfigKey := StrLower(HotkeyZ)
         case "F": ConfigKey := StrLower(HotkeyF)
-        case "P": ConfigKey := StrLower(HotkeyP)
+        case "T": ConfigKey := StrLower(HotkeyT)
     }
     
     ; 如果按键匹配配置的快捷键，执行操作
@@ -16084,7 +16927,7 @@ ExportClipboard(*) {
         return
     }
     
-    TabName := (ClipboardCurrentTab = "CtrlC") ? "CtrlC" : "CapsLockC"
+        TabName := "CapsLockC"
     ExportPath := FileSelect("S", A_ScriptDir "\ClipboardHistory_" . TabName . "_" . A_Now . ".txt", GetText("export_clipboard"), "Text Files (*.txt)")
     if (ExportPath = "") {
         return
@@ -16463,11 +17306,17 @@ ShowVoiceInputPanel() {
         GuiID_VoiceInputPanel := 0
     }
     
-    GuiID_VoiceInputPanel := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
+    GuiID_VoiceInputPanel := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale +Resize -MaximizeBox")
     GuiID_VoiceInputPanel.BackColor := UI_Colors.Background
     
     PanelWidth := 280
     PanelHeight := 120
+    
+    ; 添加窗口大小改变和移动事件处理
+    GuiID_VoiceInputPanel.OnEvent("Size", OnWindowSize)
+    ; 注意：AutoHotkey v2 不支持 Move 事件，使用定时器定期保存位置
+    ; GuiID_VoiceInputPanel.OnEvent("Move", OnWindowMove)
+    SetTimer(() => SaveVoiceInputPanelPosition(), 500)
     
     ; 状态文本
     YPos := 15
@@ -16500,26 +17349,40 @@ ShowVoiceInputPanel() {
     VoiceInputPauseBtn.OnEvent("Click", ToggleVoiceInputPause)
     HoverBtn(VoiceInputPauseBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     
+    ; 关闭按钮（右上角）
+    CloseBtnSize := 25
+    CloseBtnX := PanelWidth - CloseBtnSize - 5
+    CloseBtnY := 5
+    VoiceInputCloseBtn := GuiID_VoiceInputPanel.Add("Text", "x" . CloseBtnX . " y" . CloseBtnY . " w" . CloseBtnSize . " h" . CloseBtnSize . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnBg . " vVoiceInputCloseBtn", "✕")
+    VoiceInputCloseBtn.SetFont("s12", "Segoe UI")
+    VoiceInputCloseBtn.OnEvent("Click", (*) => HideVoiceInputPanel())
+    HoverBtn(VoiceInputCloseBtn, UI_Colors.BtnBg, "e81123")
+    
     ; 启动动画定时器
     SetTimer(UpdateVoiceAnimation, 500)
     
-    ; 获取 Cursor 窗口所在的屏幕索引，并在该屏幕中心显示面板
-    try {
-        CursorScreenIndex := GetWindowScreenIndex("ahk_exe Cursor.exe")
-        ScreenInfo := GetScreenInfo(CursorScreenIndex)
-        ; 使用 GetPanelPosition 函数计算中心位置
-        Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, "Center")
-        X := Pos.X
-        Y := Pos.Y
-    } catch {
-        ; 如果出错，使用默认屏幕的中心位置
-        ScreenInfo := GetScreenInfo(1)
-        Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, "Center")
-        X := Pos.X
-        Y := Pos.Y
+    ; 恢复窗口位置和大小
+    WindowName := "VoiceInputPanel"
+    RestoredPos := RestoreWindowPosition(WindowName, PanelWidth, PanelHeight)
+    if (RestoredPos.X = -1 || RestoredPos.Y = -1) {
+        ; 获取 Cursor 窗口所在的屏幕索引，并在该屏幕中心显示面板
+        try {
+            CursorScreenIndex := GetWindowScreenIndex("ahk_exe Cursor.exe")
+            ScreenInfo := GetScreenInfo(CursorScreenIndex)
+            ; 使用 GetPanelPosition 函数计算中心位置
+            Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, "Center")
+            RestoredPos.X := Pos.X
+            RestoredPos.Y := Pos.Y
+        } catch {
+            ; 如果出错，使用默认屏幕的中心位置
+            ScreenInfo := GetScreenInfo(1)
+            Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, "Center")
+            RestoredPos.X := Pos.X
+            RestoredPos.Y := Pos.Y
+        }
     }
     
-    GuiID_VoiceInputPanel.Show("w" . PanelWidth . " h" . PanelHeight . " x" . X . " y" . Y . " NoActivate")
+    GuiID_VoiceInputPanel.Show("w" . RestoredPos.Width . " h" . RestoredPos.Height . " x" . RestoredPos.X . " y" . RestoredPos.Y . " NoActivate")
     WinSetAlwaysOnTop(1, GuiID_VoiceInputPanel.Hwnd)
 }
 
@@ -16922,20 +17785,8 @@ ExecuteScreenshot() {
         ; 保存当前剪贴板内容
         OldClipboard := ClipboardAll()
         
-        ; 启动等待粘贴模式（在截图前就启动，以便立即显示悬浮面板）
+        ; 启动等待粘贴模式
         ScreenshotWaiting := true
-        
-        ; 立即显示悬浮面板（在截图前显示，给用户视觉反馈）
-        try {
-            ShowScreenshotButton()
-        } catch as e {
-            TrayTip("显示悬浮面板失败: " . e.Message, GetText("error"), "Iconx 2")
-            ScreenshotWaiting := false
-            return
-        }
-        
-        ; 30秒后自动隐藏面板（不显示提示）
-        SetTimer(StopScreenshotWaiting, -30000)
         
         ; 使用 Windows 10/11 的截图工具（Win+Shift+S）
         ; 这会打开截图工具，用户选择区域后，截图会自动保存到剪贴板
@@ -16990,7 +17841,7 @@ ExecuteScreenshot() {
             }
         }
         
-        ; 如果截图成功，保存截图数据
+        ; 如果截图成功，立即自动粘贴到 Cursor
         if (ScreenshotTaken) {
             ; 等待一下确保截图已保存到剪贴板
             Sleep(300)
@@ -17009,20 +17860,24 @@ ExecuteScreenshot() {
                 TrayTip("保存截图失败: " . e.Message, GetText("error"), "Iconx 2")
                 A_Clipboard := OldClipboard
                 ScreenshotWaiting := false
-                HideScreenshotButton()
                 return
             }
             
             ; 恢复旧剪贴板（不影响用户其他操作）
             A_Clipboard := OldClipboard
             
-            ; 显示成功提示（悬浮面板已经在截图前显示了）
-            TrayTip("截图已保存，请点击悬浮面板粘贴", GetText("tip"), "Iconi 1")
+            ; 立即自动粘贴截图到 Cursor 输入框
+            try {
+                PasteScreenshotToCursor()
+            } catch as e {
+                TrayTip("自动粘贴失败: " . e.Message, GetText("error"), "Iconx 2")
+                ScreenshotWaiting := false
+                ScreenshotClipboard := ""
+            }
         } else {
-            ; 截图超时或取消，恢复旧剪贴板并隐藏面板
+            ; 截图超时或取消，恢复旧剪贴板
             A_Clipboard := OldClipboard
             ScreenshotWaiting := false
-            HideScreenshotButton()
             TrayTip("截图已取消或超时", GetText("tip"), "Iconi 1")
         }
     } catch as e {
@@ -17034,22 +17889,66 @@ ExecuteScreenshot() {
     }
 }
 
-; ===================== 从悬浮面板粘贴截图 =====================
-PasteScreenshotFromButton(*) {
-    global ScreenshotWaiting, ScreenshotClipboard, GuiID_ScreenshotButton, ScreenshotButtonVisible, CursorPath, AISleepTime
+; ===================== 自动粘贴截图到 Cursor =====================
+PasteScreenshotToCursor() {
+    global ScreenshotWaiting, ScreenshotClipboard, CursorPath, AISleepTime
     
     ; 如果不在等待状态或没有截图数据，不执行
     if (!ScreenshotWaiting || !ScreenshotClipboard) {
-        ; 如果不在等待状态，直接隐藏面板
-        HideScreenshotButton()
         return
     }
     
     try {
-        ; 先隐藏悬浮面板，避免干扰窗口焦点
-        HideScreenshotButton()
-        Sleep(100)  ; 等待面板关闭完成
+        ; 检查当前焦点是否在 Cursor 的输入框
+        ; 如果 Cursor 窗口已激活，假设焦点可能在输入框，直接尝试粘贴（不改变焦点）
+        IsInCursorInput := WinActive("ahk_exe Cursor.exe")
         
+        if (IsInCursorInput) {
+            ; 焦点在 Cursor，直接粘贴（不等待，立即粘贴，不改变焦点）
+            ; 先恢复截图到剪贴板
+            try {
+                ; 检查系统剪贴板是否有图片数据（可能是用户最新的截图）
+                CurrentClipboardHasImage := false
+                try {
+                    if (DllCall("OpenClipboard", "Ptr", 0)) {
+                        if (DllCall("IsClipboardFormatAvailable", "UInt", 2) || DllCall("IsClipboardFormatAvailable", "UInt", 17)) {
+                            CurrentClipboardHasImage := true
+                        } else {
+                            PNGFormat := DllCall("RegisterClipboardFormat", "Str", "PNG")
+                            if (PNGFormat && DllCall("IsClipboardFormatAvailable", "UInt", PNGFormat)) {
+                                CurrentClipboardHasImage := true
+                            }
+                        }
+                        DllCall("CloseClipboard")
+                    }
+                } catch {
+                }
+                
+                ; 如果系统剪贴板没有图片，使用保存的数据
+                if (!CurrentClipboardHasImage && ScreenshotClipboard) {
+                    A_Clipboard := ""
+                    Sleep(50)
+                    A_Clipboard := ScreenshotClipboard
+                    Sleep(200)  ; 短暂等待确保系统识别图片数据
+                }
+                
+                ; 立即粘贴（不等待，不改变焦点）
+                Send("^v")
+                Sleep(100)  ; 短暂等待确保粘贴完成
+                
+                ; 停止等待状态
+                ScreenshotWaiting := false
+                ScreenshotClipboard := ""
+                
+                ; 显示成功提示
+                TrayTip(GetText("screenshot_paste_success"), GetText("tip"), "Iconi 1")
+                return
+            } catch as e {
+                ; 如果直接粘贴失败，继续执行完整流程
+            }
+        }
+        
+        ; 如果焦点不在 Cursor 或直接粘贴失败，执行完整的激活和粘贴流程
         ; 确保 Cursor 窗口存在
         if (!WinExist("ahk_exe Cursor.exe")) {
             if (CursorPath != "" && FileExist(CursorPath)) {
@@ -17061,27 +17960,67 @@ PasteScreenshotFromButton(*) {
             }
         }
         
-        ; 激活 Cursor 窗口
+        ; 激活 Cursor 窗口（多次尝试确保激活成功）
         WinActivate("ahk_exe Cursor.exe")
-        WinWaitActive("ahk_exe Cursor.exe", , 2)
-        Sleep(300)  ; 增加等待时间确保窗口完全激活
+        WinWaitActive("ahk_exe Cursor.exe", , 3)
+        Sleep(400)  ; 增加等待时间确保窗口完全激活
         
-        ; 确保 Cursor 窗口仍然激活
+        ; 再次确保 Cursor 窗口激活
+        if !WinActive("ahk_exe Cursor.exe") {
+            WinActivate("ahk_exe Cursor.exe")
+            WinWaitActive("ahk_exe Cursor.exe", , 3)
+            Sleep(400)
+        }
+        
+        ; 第三次确保窗口激活（关键步骤）
+        if !WinActive("ahk_exe Cursor.exe") {
+            WinActivate("ahk_exe Cursor.exe")
+            WinWaitActive("ahk_exe Cursor.exe", , 3)
+            Sleep(300)
+        }
+        
+        ; 先按 ESC 关闭可能已打开的输入框，避免冲突
+        Send("{Esc}")
+        Sleep(300)
+        
+        ; 确保窗口激活（ESC 后可能失去焦点）
+        if !WinActive("ahk_exe Cursor.exe") {
+            WinActivate("ahk_exe Cursor.exe")
+            WinWaitActive("ahk_exe Cursor.exe", , 3)
+            Sleep(400)
+        }
+        
+        ; 打开 Cursor 的 AI 聊天面板（Ctrl+L）
+        Send("^l")
+        Sleep(1000)  ; 增加等待时间确保聊天面板完全打开
+        
+        ; 再次确保窗口激活（打开聊天面板后可能失去焦点）
+        if !WinActive("ahk_exe Cursor.exe") {
+            WinActivate("ahk_exe Cursor.exe")
+            WinWaitActive("ahk_exe Cursor.exe", , 3)
+            Sleep(500)
+        }
+        
+        ; 确保输入框获得焦点
+        ; 方法1：按 Tab 键移动到输入框（如果焦点不在输入框上）
+        Send("{Tab}")
+        Sleep(200)
+        
+        ; 方法2：再次确保窗口激活
         if !WinActive("ahk_exe Cursor.exe") {
             WinActivate("ahk_exe Cursor.exe")
             WinWaitActive("ahk_exe Cursor.exe", , 2)
             Sleep(300)
         }
         
-        ; 先按 ESC 关闭可能已打开的输入框，避免冲突
+        ; 方法3：如果 Tab 不起作用，尝试再次按 Ctrl+L 确保聊天面板打开且焦点在输入框
+        ; 但先检查一下，如果已经打开了，再次按可能会关闭，所以先按 ESC 再按 Ctrl+L
         Send("{Esc}")
         Sleep(150)
-        
-        ; 打开 Cursor 的 AI 聊天面板（Ctrl+L）
         Send("^l")
-        Sleep(500)  ; 增加等待时间确保聊天面板完全打开
+        Sleep(600)
         
-        ; 再次确保窗口激活（防止在等待期间窗口失去焦点）
+        ; 最后一次确保窗口激活（粘贴前关键检查）
         if !WinActive("ahk_exe Cursor.exe") {
             WinActivate("ahk_exe Cursor.exe")
             WinWaitActive("ahk_exe Cursor.exe", , 2)
@@ -17121,30 +18060,64 @@ PasteScreenshotFromButton(*) {
                 ; 系统剪贴板没有图片，使用之前保存的数据
                 ; 先清空剪贴板
                 A_Clipboard := ""
-                Sleep(100)
+                Sleep(150)
                 
                 ; 恢复 ClipboardAll 数据（图片数据）
                 A_Clipboard := ScreenshotClipboard
-                Sleep(800) ; 增加延迟确保系统识别图片数据并准备好
+                Sleep(1000) ; 增加延迟确保系统识别图片数据并准备好
+                
+                ; 验证数据是否成功恢复
+                if (!DllCall("OpenClipboard", "Ptr", 0)) {
+                    ; 如果无法打开剪贴板，再等待一次
+                    Sleep(500)
+                } else {
+                    DllCall("CloseClipboard")
+                }
             } else {
                 throw Error("没有可用的截图数据")
             }
             
-            ; 验证剪贴板是否包含位图或 DIB 数据 (CF_BITMAP=2, CF_DIB=17)
-            IsImage := DllCall("IsClipboardFormatAvailable", "UInt", 2) || DllCall("IsClipboardFormatAvailable", "UInt", 17)
-            if (!IsImage) {
-                ; 如果图片数据未准备好，再等待一次
-                Sleep(500)
-                IsImage := DllCall("IsClipboardFormatAvailable", "UInt", 2) || DllCall("IsClipboardFormatAvailable", "UInt", 17)
-                if (!IsImage) {
-                    ; 最后尝试检查 PNG 格式
-                    PNGFormat := DllCall("RegisterClipboardFormat", "Str", "PNG")
-                    if (PNGFormat && DllCall("IsClipboardFormatAvailable", "UInt", PNGFormat)) {
+            ; 验证剪贴板是否包含图片数据（需要先打开剪贴板）
+            IsImage := false
+            if (DllCall("OpenClipboard", "Ptr", 0)) {
+                try {
+                    ; 检查是否包含位图格式
+                    if (DllCall("IsClipboardFormatAvailable", "UInt", 2)) {  ; CF_BITMAP = 2
                         IsImage := true
+                    } else if (DllCall("IsClipboardFormatAvailable", "UInt", 17)) {  ; CF_DIB = 17
+                        IsImage := true
+                    } else {
+                        ; 检查 PNG 格式
+                        PNGFormat := DllCall("RegisterClipboardFormat", "Str", "PNG")
+                        if (PNGFormat && DllCall("IsClipboardFormatAvailable", "UInt", PNGFormat)) {
+                            IsImage := true
+                        }
                     }
-                    if (!IsImage) {
-                        throw Error("剪贴板中未检测到图片数据，截图可能已失效")
+                } finally {
+                    DllCall("CloseClipboard")
+                }
+            }
+            
+            if (!IsImage) {
+                ; 如果图片数据未准备好，再等待一次并重新检查
+                Sleep(500)
+                if (DllCall("OpenClipboard", "Ptr", 0)) {
+                    try {
+                        if (DllCall("IsClipboardFormatAvailable", "UInt", 2) || DllCall("IsClipboardFormatAvailable", "UInt", 17)) {
+                            IsImage := true
+                        } else {
+                            PNGFormat := DllCall("RegisterClipboardFormat", "Str", "PNG")
+                            if (PNGFormat && DllCall("IsClipboardFormatAvailable", "UInt", PNGFormat)) {
+                                IsImage := true
+                            }
+                        }
+                    } finally {
+                        DllCall("CloseClipboard")
                     }
+                }
+                
+                if (!IsImage) {
+                    throw Error("剪贴板中未检测到图片数据，截图可能已失效")
                 }
             }
         } catch as e {
@@ -17165,9 +18138,23 @@ PasteScreenshotFromButton(*) {
             Sleep(200)
         }
         
-        ; 粘贴截图到 Cursor 输入框（使用 Shift+Insert）
-        Send("+{Insert}")
-        Sleep(800)  ; 增加等待时间确保粘贴完成
+        ; 确保输入框获得焦点（粘贴前最后检查）
+        ; 再次确保窗口激活
+        if !WinActive("ahk_exe Cursor.exe") {
+            WinActivate("ahk_exe Cursor.exe")
+            WinWaitActive("ahk_exe Cursor.exe", , 2)
+            Sleep(300)
+        }
+        
+        ; 使用 Ctrl+V 粘贴（只使用一种方式，避免重复粘贴）
+        ; 在粘贴前，再次确保焦点在输入框（通过发送一个字符然后删除）
+        ; 这样可以确保输入框确实获得了焦点
+        Send("{Home}")  ; 移动到输入框开头（如果焦点在输入框，这会生效）
+        Sleep(100)
+        
+        ; 执行粘贴
+        Send("^v")
+        Sleep(600)  ; 等待粘贴完成（图片粘贴可能需要更长时间）
         
         ; 停止等待状态
         ScreenshotWaiting := false
@@ -17179,10 +18166,16 @@ PasteScreenshotFromButton(*) {
         TrayTip(GetText("screenshot_paste_success"), GetText("tip"), "Iconi 1")
     } catch as e {
         TrayTip("粘贴截图失败: " . e.Message, GetText("error"), "Iconx 2")
-        ; 即使失败，也停止等待状态并隐藏面板
+        ; 即使失败，也停止等待状态
         ScreenshotWaiting := false
-        HideScreenshotButton()
+        ScreenshotClipboard := ""
     }
+}
+
+; ===================== 从悬浮面板粘贴截图（已废弃，保留用于兼容）=====================
+PasteScreenshotFromButton(*) {
+    ; 直接调用自动粘贴函数
+    PasteScreenshotToCursor()
 }
 
 ; ===================== 显示截图悬浮面板 =====================
@@ -17217,18 +18210,44 @@ ShowScreenshotButton() {
         PanelWidth := 160
         PanelHeight := 60
         
-        ; 计算面板位置（优先显示在 Cursor 窗口正中间）
+        ; 计算面板位置（优先显示在 Cursor 窗口正中间，并确保在同一屏幕）
         global ScreenshotPanelX, ScreenshotPanelY, ConfigFile
         PanelX := -1
         PanelY := -1
         
-        ; 尝试获取 Cursor 窗口位置和大小
+        ; 尝试获取 Cursor 窗口位置和大小，并确定其所在的屏幕
         if (WinExist("ahk_exe Cursor.exe")) {
             try {
                 WinGetPos(&CursorX, &CursorY, &CursorW, &CursorH, "ahk_exe Cursor.exe")
-                ; 计算 Cursor 窗口中心位置
-                PanelX := CursorX + (CursorW - PanelWidth) // 2
-                PanelY := CursorY + (CursorH - PanelHeight) // 2
+                ; 获取 Cursor 窗口所在的屏幕索引
+                CursorScreenIndex := GetWindowScreenIndex("ahk_exe Cursor.exe")
+                ScreenInfo := GetScreenInfo(CursorScreenIndex)
+                
+                ; 计算 Cursor 窗口中心位置（相对于其所在屏幕）
+                CursorCenterX := CursorX + CursorW // 2
+                CursorCenterY := CursorY + CursorH // 2
+                
+                ; 确保中心点在屏幕范围内
+                if (CursorCenterX >= ScreenInfo.Left && CursorCenterX < ScreenInfo.Right && 
+                    CursorCenterY >= ScreenInfo.Top && CursorCenterY < ScreenInfo.Bottom) {
+                    ; 计算面板位置（Cursor 窗口中心）
+                    PanelX := CursorCenterX - PanelWidth // 2
+                    PanelY := CursorCenterY - PanelHeight // 2
+                    
+                    ; 确保面板完全在屏幕范围内
+                    if (PanelX < ScreenInfo.Left) {
+                        PanelX := ScreenInfo.Left + 10
+                    }
+                    if (PanelY < ScreenInfo.Top) {
+                        PanelY := ScreenInfo.Top + 10
+                    }
+                    if (PanelX + PanelWidth > ScreenInfo.Right) {
+                        PanelX := ScreenInfo.Right - PanelWidth - 10
+                    }
+                    if (PanelY + PanelHeight > ScreenInfo.Bottom) {
+                        PanelY := ScreenInfo.Bottom - PanelHeight - 10
+                    }
+                }
             } catch {
                 ; 如果获取失败，使用保存的位置或屏幕中心
             }
@@ -17243,33 +18262,73 @@ ShowScreenshotButton() {
             if (ScreenshotPanelX != "-1" && ScreenshotPanelY != "-1") {
                 PanelX := Integer(ScreenshotPanelX)
                 PanelY := Integer(ScreenshotPanelY)
+                
+                ; 验证保存的位置是否在有效屏幕范围内
+                ; 如果不在，使用主屏幕中心
+                ValidPosition := false
+                MonitorCount := MonitorGetCount()
+                Loop MonitorCount {
+                    MonitorIndex := A_Index
+                    MonitorGet(MonitorIndex, &Left, &Top, &Right, &Bottom)
+                    if (PanelX >= Left && PanelX < Right && PanelY >= Top && PanelY < Bottom) {
+                        ValidPosition := true
+                        break
+                    }
+                }
+                
+                if (!ValidPosition) {
+                    ; 位置无效，使用主屏幕中心
+                    ScreenInfo := GetScreenInfo(1)
+                    PanelX := ScreenInfo.Left + (ScreenInfo.Width - PanelWidth) // 2
+                    PanelY := ScreenInfo.Top + (ScreenInfo.Height - PanelHeight) // 2
+                }
             } else {
-                ; 如果也没有保存的位置，使用屏幕中心
-                ScreenWidth := A_ScreenWidth
-                ScreenHeight := A_ScreenHeight
-                PanelX := (ScreenWidth - PanelWidth) // 2
-                PanelY := (ScreenHeight - PanelHeight) // 2
+                ; 如果也没有保存的位置，使用主屏幕中心
+                ScreenInfo := GetScreenInfo(1)
+                PanelX := ScreenInfo.Left + (ScreenInfo.Width - PanelWidth) // 2
+                PanelY := ScreenInfo.Top + (ScreenInfo.Height - PanelHeight) // 2
             }
         }
         
-        ; 创建透明的标题栏用于拖动（不遮挡按钮区域）
-        ; 标题栏只占据顶部5像素高度
-        TitleBar := GuiID_ScreenshotButton.Add("Text", "x0 y0 w" . PanelWidth . " h5 BackgroundTrans")
-        TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2, , GuiID_ScreenshotButton.Hwnd))
-        
-        ; 创建按钮（后创建按钮，确保按钮在背景之上）
+        ; 创建按钮（先创建按钮，确保可以点击）
         ButtonText := GetText("screenshot_button_text")
         ButtonWidth := PanelWidth - 20
         ButtonHeight := 40
         ButtonX := 10
         ButtonY := 10
         
-        ; 创建按钮（确保按钮在背景之上，可以点击）
+        ; 创建按钮（确保按钮可以点击）
         ; 添加 SS_NOTIFY (0x100) 确保 Text 控件响应点击
         ScreenshotBtn := GuiID_ScreenshotButton.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 +0x100 cFFFFFF Background" . UI_Colors.BtnPrimary . " vScreenshotBtn", ButtonText)
         ScreenshotBtn.SetFont("s11 Bold", "Segoe UI")
         ; 绑定点击事件（直接绑定函数，不使用闭包）
         ScreenshotBtn.OnEvent("Click", PasteScreenshotFromButton)
+        
+        ; 在按钮右上角添加拖动柄（显示一个拖动图标）
+        DragHandleSize := 20
+        DragHandleX := ButtonX + ButtonWidth - DragHandleSize - 2
+        DragHandleY := ButtonY + 2
+        ; 使用半透明背景，让拖动柄更明显
+        DragHandleBg := (ThemeMode = "light") ? "E0E0E0" : "404040"
+        DragHandle := GuiID_ScreenshotButton.Add("Text", "x" . DragHandleX . " y" . DragHandleY . " w" . DragHandleSize . " h" . DragHandleSize . " Center 0x200 cFFFFFF Background" . DragHandleBg . " vDragHandle", "☰")
+        DragHandle.SetFont("s12 Bold", "Segoe UI")
+        DragHandle.OnEvent("Click", (*) => PostMessage(0xA1, 2, , , GuiID_ScreenshotButton.Hwnd))
+        ; 注意：Text 控件不支持 MouseMove/MouseLeave 事件，所以使用固定背景色
+        
+        ; 创建可拖动的背景区域（后创建，在按钮下方，但不覆盖按钮）
+        ; 创建多个拖动区域，覆盖按钮周围的区域
+        ; 顶部拖动区域
+        DragAreaTop := GuiID_ScreenshotButton.Add("Text", "x0 y0 w" . PanelWidth . " h" . ButtonY . " BackgroundTrans")
+        DragAreaTop.OnEvent("Click", (*) => PostMessage(0xA1, 2, , , GuiID_ScreenshotButton.Hwnd))
+        ; 左侧拖动区域
+        DragAreaLeft := GuiID_ScreenshotButton.Add("Text", "x0 y" . ButtonY . " w" . ButtonX . " h" . ButtonHeight . " BackgroundTrans")
+        DragAreaLeft.OnEvent("Click", (*) => PostMessage(0xA1, 2, , , GuiID_ScreenshotButton.Hwnd))
+        ; 右侧拖动区域（不包括拖动柄区域）
+        DragAreaRight := GuiID_ScreenshotButton.Add("Text", "x" . (ButtonX + ButtonWidth) . " y" . ButtonY . " w" . (PanelWidth - ButtonX - ButtonWidth) . " h" . ButtonHeight . " BackgroundTrans")
+        DragAreaRight.OnEvent("Click", (*) => PostMessage(0xA1, 2, , , GuiID_ScreenshotButton.Hwnd))
+        ; 底部拖动区域
+        DragAreaBottom := GuiID_ScreenshotButton.Add("Text", "x0 y" . (ButtonY + ButtonHeight) . " w" . PanelWidth . " h" . (PanelHeight - ButtonY - ButtonHeight) . " BackgroundTrans")
+        DragAreaBottom.OnEvent("Click", (*) => PostMessage(0xA1, 2, , , GuiID_ScreenshotButton.Hwnd))
         
         ; 添加悬停效果
         HoverBtn(ScreenshotBtn, UI_Colors.BtnPrimary, UI_Colors.BtnHover)
@@ -18145,16 +19204,9 @@ StartVoiceInputInSearch() {
         VoiceSearchActive := true
         global VoiceSearchContent := ""
         
-        ; 等待一下，确保语音输入已启动，再开始更新输入框内容
+        ; 等待一下，确保语音输入已启动
         Sleep(500)
-        ; 根据"自动更新语音输入"或"自动加载选中文本"开关状态决定是否开始更新输入框内容
-        global AutoLoadSelectedText, AutoUpdateVoiceInput
-        ; 先停止定时器，确保状态正确
-        SetTimer(UpdateVoiceSearchInputInPanel, 0)
-        if (AutoUpdateVoiceInput || AutoLoadSelectedText) {
-            ; 如果"自动更新语音输入"或"自动加载选中文本"任一开启，启动定时器
-            SetTimer(UpdateVoiceSearchInputInPanel, 300)  ; 每300ms更新一次
-        }
+        ; 注意：自动更新和自动加载功能已移除，不再启动定时器
     } catch as e {
         VoiceSearchActive := false
         TrayTip(GetText("voice_search_failed") . ": " . e.Message, GetText("error"), "Iconx 2")
@@ -18261,17 +19313,8 @@ FocusVoiceSearchInput() {
         ; 设置焦点
         VoiceSearchInputEdit.Focus()
         
-        ; 根据开关状态确保定时器状态正确
-        ; 先停止定时器，然后根据开关状态决定是否启动
+        ; 注意：自动加载功能已移除，不再启动定时器
         SetTimer(MonitorSelectedText, 0)
-        
-        ; 只有在开关开启时才启动定时器
-        if (AutoLoadSelectedText) {
-            SetTimer(MonitorSelectedText, 200)  ; 每200ms检查一次
-        } else {
-            ; 确保定时器已停止
-            SetTimer(MonitorSelectedText, 0)
-        }
     } catch {
         ; 忽略错误
     }
@@ -18472,11 +19515,14 @@ ShowVoiceSearchInputPanel() {
         GuiID_VoiceInput := 0
     }
     
-    ; 【关键修复】移除 -Caption，添加标题栏以支持窗口拖动
-    GuiID_VoiceInput := Gui("+AlwaysOnTop -DPIScale")
+    ; 【关键修复】移除 -Caption，添加标题栏以支持窗口拖动，添加 +Resize 支持调整大小
+    GuiID_VoiceInput := Gui("+AlwaysOnTop -DPIScale +Resize -MaximizeBox")
     GuiID_VoiceInput.BackColor := UI_Colors.Background
     GuiID_VoiceInput.SetFont("s12 c" . UI_Colors.Text . " Bold", "Segoe UI")
     GuiID_VoiceInput.Title := GetText("voice_search_title")
+    
+    ; 添加窗口大小改变和移动事件处理
+    ; 注意：在窗口显示后再绑定事件，避免初始化问题
     
     ; 动态计算宽度，确保所有按钮可见
     InputBoxHeight := 150
@@ -18603,7 +19649,7 @@ ShowVoiceSearchInputPanel() {
     TabRows := Ceil(Categories.Length / TabsPerRow)
     CategoryTabHeight := TabRows * (28 + TabSpacing) + 15
     
-    PanelHeight := 30 + 15 + 25 + InputBoxHeight + 35 + 35 + CategoryTabHeight + 30 + ButtonsAreaHeight + 20
+    PanelHeight := 30 + 15 + 25 + InputBoxHeight + CategoryTabHeight + 30 + ButtonsAreaHeight + 20
     
     ; 关闭按钮
     CloseBtnX := PanelWidth - 40
@@ -18644,34 +19690,8 @@ ShowVoiceSearchInputPanel() {
     SearchBtn.OnEvent("Click", ExecuteVoiceSearch)
     HoverBtn(SearchBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
     
-    ; 自动加载选中文本开关
-    YPos += 160
-    global AutoLoadSelectedText, VoiceSearchAutoLoadSwitch
-    AutoLoadLabel := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h25 c" . UI_Colors.TextDim, GetText("auto_load_selected_text"))
-    AutoLoadLabel.SetFont("s10", "Segoe UI")
-    SwitchText := AutoLoadSelectedText ? GetText("switch_on") : GetText("switch_off")
-    SwitchBg := AutoLoadSelectedText ? UI_Colors.BtnHover : UI_Colors.BtnBg
-    SwitchTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-    VoiceSearchAutoLoadSwitch := GuiID_VoiceInput.Add("Text", "x220 y" . YPos . " w120 h25 Center 0x200 c" . SwitchTextColor . " Background" . SwitchBg . " vAutoLoadSwitch", SwitchText)
-    VoiceSearchAutoLoadSwitch.SetFont("s10", "Segoe UI")
-    VoiceSearchAutoLoadSwitch.OnEvent("Click", ToggleAutoLoadSelectedText)
-    HoverBtn(VoiceSearchAutoLoadSwitch, SwitchBg, UI_Colors.BtnHover)
-    
-    ; 自动更新语音输入开关
-    YPos += 35
-    global AutoUpdateVoiceInput, VoiceSearchAutoUpdateSwitch
-    AutoUpdateLabel := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w200 h25 c" . UI_Colors.TextDim, GetText("auto_update_voice_input"))
-    AutoUpdateLabel.SetFont("s10", "Segoe UI")
-    UpdateSwitchText := AutoUpdateVoiceInput ? GetText("switch_on") : GetText("switch_off")
-    UpdateSwitchBg := AutoUpdateVoiceInput ? UI_Colors.BtnHover : UI_Colors.BtnBg
-    UpdateSwitchTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-    VoiceSearchAutoUpdateSwitch := GuiID_VoiceInput.Add("Text", "x220 y" . YPos . " w120 h25 Center 0x200 c" . UpdateSwitchTextColor . " Background" . UpdateSwitchBg . " vAutoUpdateSwitch", UpdateSwitchText)
-    VoiceSearchAutoUpdateSwitch.SetFont("s10", "Segoe UI")
-    VoiceSearchAutoUpdateSwitch.OnEvent("Click", ToggleAutoUpdateVoiceInput)
-    HoverBtn(VoiceSearchAutoUpdateSwitch, UpdateSwitchBg, UI_Colors.BtnHover)
-    
     ; 分类标签栏
-    YPos += 35
+    YPos += 160
     LabelCategoryWidth := PanelWidth - 280
     LabelCategory := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w" . LabelCategoryWidth . " h20 c" . UI_Colors.TextDim, GetText("select_search_engine"))
     LabelCategory.SetFont("s10", "Segoe UI")
@@ -18770,7 +19790,7 @@ ShowVoiceSearchInputPanel() {
     ButtonsRows := Ceil(TotalEngines / ButtonsPerRow)
     ButtonsAreaHeight := ButtonsRows * (ButtonHeight + ButtonSpacing)
     
-    PanelHeight := 30 + 15 + 25 + InputBoxHeight + 35 + 35 + CategoryTabHeight + 30 + ButtonsAreaHeight + 20
+    PanelHeight := 30 + 15 + 25 + InputBoxHeight + CategoryTabHeight + 30 + ButtonsAreaHeight + 20
     
     for Index, Engine in SearchEngines {
         ; 【关键修复】添加安全检查，防止访问无效对象属性导致 "Item has no value" 错误
@@ -18829,10 +19849,38 @@ ShowVoiceSearchInputPanel() {
         VoiceSearchEngineButtons.Push({Bg: Btn, Icon: IconCtrl, Text: TextCtrl, Index: Index})
     }
     
-    ScreenInfo := GetScreenInfo(VoiceInputScreenIndex)
-    Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, "center")
-    GuiID_VoiceInput.Show("w" . PanelWidth . " h" . PanelHeight . " x" . Pos.X . " y" . Pos.Y)
+    ; 恢复窗口位置和大小
+    WindowName := GetText("voice_search_title")
+    RestoredPos := RestoreWindowPosition(WindowName, PanelWidth, PanelHeight)
+    if (RestoredPos.X = -1 || RestoredPos.Y = -1) {
+        ScreenInfo := GetScreenInfo(VoiceInputScreenIndex)
+        Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, "center")
+        RestoredPos.X := Pos.X
+        RestoredPos.Y := Pos.Y
+    }
+    GuiID_VoiceInput.Show("w" . RestoredPos.Width . " h" . RestoredPos.Height . " x" . RestoredPos.X . " y" . RestoredPos.Y)
     WinSetAlwaysOnTop(1, GuiID_VoiceInput.Hwnd)
+    
+    ; 【确保关闭按钮在最上层】使用SetWindowPos将关闭按钮移到最上层，避免被其他控件遮挡
+    try {
+        if (IsSet(CloseBtn) && CloseBtn) {
+            ; HWND_TOP = 0，将控件移到最上层
+            ; SWP_NOMOVE | SWP_NOSIZE = 0x0003，不改变位置和大小，只改变Z-order
+            DllCall("user32.dll\SetWindowPos", "Ptr", CloseBtn.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0003, "Int")
+        }
+    } catch {
+        ; 如果设置失败，忽略错误
+    }
+    
+    ; 在窗口显示后绑定事件（避免初始化问题）
+    try {
+        GuiID_VoiceInput.OnEvent("Size", OnWindowSize)
+        ; 注意：AutoHotkey v2 不支持 Move 事件，使用定时器定期保存位置
+        ; GuiID_VoiceInput.OnEvent("Move", OnWindowMove)
+        SetTimer(() => SaveVoiceInputPosition(), 500)
+    } catch {
+        ; 如果绑定失败，忽略错误（窗口仍然可以正常使用）
+    }
     
     VoiceSearchInputEdit.Value := ""
     global VoiceSearchInputLastEditTime := 0
@@ -18865,11 +19913,7 @@ ShowVoiceSearchInputPanel() {
         Sleep(50)
     }
     
-    if (AutoLoadSelectedText) {
-        SetTimer(MonitorSelectedText, 200)
-    } else {
-        SetTimer(MonitorSelectedText, 0)
-    }
+    ; 注意：自动加载功能已移除，不再启动定时器
     
     ; 自动激活语音输入
     try {
@@ -18920,79 +19964,11 @@ ClearVoiceSearchInput(*) {
     }
 }
 
-; 切换自动加载选中文本开关
-ToggleAutoLoadSelectedText(*) {
-    global AutoLoadSelectedText, VoiceSearchAutoLoadSwitch, VoiceSearchPanelVisible, UI_Colors, ConfigFile
-    
-    if (!VoiceSearchPanelVisible || !VoiceSearchAutoLoadSwitch) {
-        return
-    }
-    
-    ; 切换状态
-    AutoLoadSelectedText := !AutoLoadSelectedText
-    
-    ; 更新开关显示
-    SwitchText := AutoLoadSelectedText ? "✓ 已开启" : "○ 已关闭"
-    SwitchBg := AutoLoadSelectedText ? UI_Colors.BtnHover : UI_Colors.BtnBg
-    VoiceSearchAutoLoadSwitch.Text := SwitchText
-    VoiceSearchAutoLoadSwitch.BackColor := SwitchBg
-    
-    ; 保存到配置文件
-    try {
-        IniWrite(AutoLoadSelectedText ? "1" : "0", ConfigFile, "Settings", "AutoLoadSelectedText")
-    } catch {
-        ; 忽略保存错误
-    }
-    
-    ; 如果开启，启动监听；如果关闭，立即停止监听
-    if (AutoLoadSelectedText) {
-        SetTimer(MonitorSelectedText, 200)  ; 每200ms检查一次
-        ; 如果正在语音输入，也启动更新输入框的定时器
-        global VoiceSearchActive
-        if (VoiceSearchActive) {
-            SetTimer(UpdateVoiceSearchInputInPanel, 300)  ; 每300ms更新一次
-        }
-    } else {
-        ; 立即停止监听，确保不会继续自动加载
-        SetTimer(MonitorSelectedText, 0)
-    }
-}
+; 切换自动加载选中文本开关（已删除 - 语音搜索不再支持此功能）
+; ToggleAutoLoadSelectedText 函数已删除
 
-; 切换自动更新语音输入开关
-ToggleAutoUpdateVoiceInput(*) {
-    global AutoUpdateVoiceInput, VoiceSearchAutoUpdateSwitch, VoiceSearchPanelVisible, UI_Colors, ConfigFile, VoiceSearchActive
-    
-    if (!VoiceSearchPanelVisible || !VoiceSearchAutoUpdateSwitch) {
-        return
-    }
-    
-    ; 切换状态
-    AutoUpdateVoiceInput := !AutoUpdateVoiceInput
-    
-    ; 更新开关显示
-    SwitchText := AutoUpdateVoiceInput ? "✓ 已开启" : "○ 已关闭"
-    SwitchBg := AutoUpdateVoiceInput ? UI_Colors.BtnHover : UI_Colors.BtnBg
-    VoiceSearchAutoUpdateSwitch.Text := SwitchText
-    VoiceSearchAutoUpdateSwitch.BackColor := SwitchBg
-    
-    ; 保存到配置文件
-    try {
-        IniWrite(AutoUpdateVoiceInput ? "1" : "0", ConfigFile, "Settings", "AutoUpdateVoiceInput")
-    } catch {
-        ; 忽略保存错误
-    }
-    
-    ; 根据"自动更新语音输入"或"自动加载选中文本"开关状态立即启动或停止定时器
-    SetTimer(UpdateVoiceSearchInputInPanel, 0)
-    global AutoLoadSelectedText
-    if ((AutoUpdateVoiceInput || AutoLoadSelectedText) && VoiceSearchActive) {
-        ; 如果"自动更新语音输入"或"自动加载选中文本"任一开启，且正在语音输入，启动定时器
-        SetTimer(UpdateVoiceSearchInputInPanel, 300)  ; 每300ms更新一次
-    } else {
-        ; 否则停止定时器
-        SetTimer(UpdateVoiceSearchInputInPanel, 0)
-    }
-}
+; 切换自动更新语音输入开关（已删除 - 语音搜索不再支持此功能）
+; ToggleAutoUpdateVoiceInput 函数已删除
 
 ; 更新输入框最后编辑时间（用于检测用户是否正在输入）
 UpdateVoiceSearchInputEditTime(*) {

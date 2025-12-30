@@ -65,8 +65,8 @@
 [2025-12-28 11:13:13] CellRect: Left=408, Top=24, Width=308, Height=18, ScreenX=668, ScreenY=317
 [2025-12-28 11:13:13] Overlay shown at: X=668, Y=317, W=308, H=18
 [2025-12-28 11:13:13] SetWindowPos: OverlayHwnd=7605540, IsVisible=1, IsIconic=0
-[2025-12-28 11:21:05] RefreshClipboardListView: ºáÏò²¼¾ÖË¢ÐÂÍê³É - ½×¶ÎÊý=3, ×ÜÏîÊý=36, ×î´óÁÐÊý=8
-[2025-12-28 11:21:07] Click: ClientX=29, ClientY=32, Result=0, flags=0x4, iItem=0, iSubItem=0
+[2025-12-28 11:21:05] RefreshClipboardListView: ï¿½ï¿½ï¿½ò²¼¾ï¿½Ë¢ï¿½ï¿½ï¿½ï¿½ï¿½ - ï¿½×¶ï¿½ï¿½ï¿½=3, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=36, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=8
+[2025-12-28 11:21:07] Click: ClientX=29, ClientY=32, Result=0, flags=0x4, iItem=0, iSubItem=0ng
 [2025-12-28 11:21:07] Window: X=240, Y=203, ListView: X=20, Y=90, ScreenX=260, ScreenY=293
 [2025-12-28 11:21:07] Current Col 1 width=100
 [2025-12-28 11:21:07] CalcCell: Col=1, CellLeft=0, CellWidth=100, RowTop=24, RowBottom=42
@@ -246,7 +246,7 @@
 [2025-12-28 11:21:24] CellRect: Left=116, Top=42, Width=308, Height=18, ScreenX=376, ScreenY=335
 [2025-12-28 11:21:24] Overlay shown at: X=376, Y=335, W=308, H=18
 [2025-12-28 11:21:24] SetWindowPos: OverlayHwnd=3542390, IsVisible=1, IsIconic=0
-[2025-12-28 11:27:03] RefreshClipboardListView: ºáÏò²¼¾ÖË¢ÐÂÍê³É - ½×¶ÎÊý=3, ×ÜÏîÊý=36, ×î´óÁÐÊý=8
+[2025-12-28 11:27:03] RefreshClipboardListView: ï¿½ï¿½ï¿½ò²¼¾ï¿½Ë¢ï¿½ï¿½ï¿½ï¿½ï¿½ - ï¿½×¶ï¿½ï¿½ï¿½=3, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=36, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=8
 [2025-12-28 11:27:04] Click: ClientX=38, ClientY=29, Result=0, flags=0x4, iItem=0, iSubItem=0
 [2025-12-28 11:27:04] Window: X=240, Y=203, ListView: X=20, Y=90, ScreenX=260, ScreenY=293
 [2025-12-28 11:27:04] Current Col 1 width=55
@@ -401,7 +401,7 @@
 [2025-12-28 11:27:56] CellRect: Left=421, Top=42, Width=61, Height=18, ScreenX=681, ScreenY=335
 [2025-12-28 11:27:56] Overlay shown at: X=681, Y=335, W=61, H=18
 [2025-12-28 11:27:56] SetWindowPos: OverlayHwnd=4590230, IsVisible=1, IsIconic=0
-[2025-12-28 11:31:29] RefreshClipboardListView: ºáÏò²¼¾ÖË¢ÐÂÍê³É - ½×¶ÎÊý=3, ×ÜÏîÊý=36, ×î´óÁÐÊý=8
+[2025-12-28 11:31:29] RefreshClipboardListView: ï¿½ï¿½ï¿½ò²¼¾ï¿½Ë¢ï¿½ï¿½ï¿½ï¿½ï¿½ - ï¿½×¶ï¿½ï¿½ï¿½=3, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=36, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=8
 [2025-12-28 11:31:30] Click: ClientX=22, ClientY=54, Result=1, flags=0x4, iItem=1, iSubItem=0
 [2025-12-28 11:31:30] Window: X=240, Y=203, ListView: X=20, Y=90, ScreenX=260, ScreenY=293
 [2025-12-28 11:31:30] Current Col 1 width=55
@@ -475,7 +475,7 @@
 [2025-12-28 11:33:45] CellRect: Left=0, Top=60, Width=455, Height=18, ScreenX=260, ScreenY=353
 [2025-12-28 11:33:45] Overlay shown at: X=260, Y=353, W=455, H=18
 [2025-12-28 11:33:45] SetWindowPos: OverlayHwnd=2427478, IsVisible=1, IsIconic=0
-[2025-12-28 11:39:14] RefreshClipboardListView: ºáÏò²¼¾ÖË¢ÐÂÍê³É - ½×¶ÎÊý=3, ×ÜÏîÊý=36, ×î´óÁÐÊý=8
+[2025-12-28 11:39:14] RefreshClipboardListView: ï¿½ï¿½ï¿½ò²¼¾ï¿½Ë¢ï¿½ï¿½ï¿½ï¿½ï¿½ - ï¿½×¶ï¿½ï¿½ï¿½=3, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=36, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=8
 [2025-12-28 11:39:15] Click: ClientX=48, ClientY=38, Result=0, flags=0x4, iItem=0, iSubItem=0
 [2025-12-28 11:39:16] Click: ClientX=43, ClientY=54, Result=1, flags=0x4, iItem=1, iSubItem=0
 [2025-12-28 11:39:17] Click: ClientX=43, ClientY=65, Result=2, flags=0x4, iItem=2, iSubItem=0
@@ -495,7 +495,7 @@
 [2025-12-28 11:40:15] Click: ClientX=266, ClientY=68, Result=2, flags=0x4, iItem=2, iSubItem=4
 [2025-12-28 11:40:16] Click: ClientX=184, ClientY=71, Result=2, flags=0x4, iItem=2, iSubItem=2
 [2025-12-28 11:40:16] Click: ClientX=80, ClientY=61, Result=2, flags=0x4, iItem=2, iSubItem=1
-[2025-12-28 11:43:38] RefreshClipboardListView: ºáÏò²¼¾ÖË¢ÐÂÍê³É - ½×¶ÎÊý=3, ×ÜÏîÊý=36, ×î´óÁÐÊý=8
+[2025-12-28 11:43:38] RefreshClipboardListView: ï¿½ï¿½ï¿½ò²¼¾ï¿½Ë¢ï¿½ï¿½ï¿½ï¿½ï¿½ - ï¿½×¶ï¿½ï¿½ï¿½=3, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=36, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=8
 [2025-12-28 11:43:38] CustomDraw: Row=1, Col=2, Highlighted: Row=0, Col=0
 [2025-12-28 11:43:38] CustomDraw: Row=1, Col=2, Highlighted: Row=0, Col=0
 [2025-12-28 11:43:38] CustomDraw: Row=1, Col=3, Highlighted: Row=0, Col=0
@@ -1123,7 +1123,7 @@
 [2025-12-28 11:44:07] CustomDraw: Row=1, Col=8, Highlighted: Row=1, Col=2
 [2025-12-28 11:44:07] CustomDraw: Row=1, Col=9, Highlighted: Row=1, Col=2
 [2025-12-28 11:44:07] CustomDraw: Row=1, Col=10, Highlighted: Row=1, Col=2
-[2025-12-28 11:44:15] RefreshClipboardListView: ºáÏò²¼¾ÖË¢ÐÂÍê³É - ½×¶ÎÊý=3, ×ÜÏîÊý=36, ×î´óÁÐÊý=8
+[2025-12-28 11:44:15] RefreshClipboardListView: ï¿½ï¿½ï¿½ò²¼¾ï¿½Ë¢ï¿½ï¿½ï¿½ï¿½ï¿½ - ï¿½×¶ï¿½ï¿½ï¿½=3, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=36, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=8
 [2025-12-28 11:44:15] CustomDraw: Row=1, Col=2, Highlighted: Row=0, Col=0
 [2025-12-28 11:44:15] CustomDraw: Row=1, Col=2, Highlighted: Row=0, Col=0
 [2025-12-28 11:44:15] CustomDraw: Row=1, Col=3, Highlighted: Row=0, Col=0
@@ -4832,10 +4832,991 @@
 [2025-12-28 11:57:09] CustomDraw: Row=3, Col=8, Highlighted: Row=1, Col=2
 [2025-12-28 11:57:09] CustomDraw: Row=3, Col=9, Highlighted: Row=1, Col=2
 [2025-12-28 11:57:09] CustomDraw: Row=3, Col=10, Highlighted: Row=1, Col=2
-[2025-12-28 11:57:22] RefreshClipboardListView: ºáÏò²¼¾ÖË¢ÐÂÍê³É - ½×¶ÎÊý=3, ×ÜÏîÊý=36, ×î´óÁÐÊý=8
+[2025-12-28 11:57:22] RefreshClipboardListView: ï¿½ï¿½ï¿½ò²¼¾ï¿½Ë¢ï¿½ï¿½ï¿½ï¿½ï¿½ - ï¿½×¶ï¿½ï¿½ï¿½=3, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=36, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=8
 [2025-12-28 11:57:23] Click: ClientX=15, ClientY=31, Result=0, flags=0x4, iItem=0, iSubItem=0
 [2025-12-28 11:57:23] Click: ClientX=103, ClientY=35, Result=0, flags=0x4, iItem=0, iSubItem=1
 [2025-12-28 11:57:24] Click: ClientX=165, ClientY=43, Result=1, flags=0x4, iItem=1, iSubItem=2
 [2025-12-28 11:57:25] Click: ClientX=72, ClientY=64, Result=2, flags=0x1, iItem=2, iSubItem=0
 [2025-12-28 11:57:25] Click: ClientX=130, ClientY=57, Result=1, flags=0x4, iItem=1, iSubItem=1
 [2025-12-28 11:57:26] Click: ClientX=124, ClientY=69, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2025-12-28 11:59:07] Window: X=-32000, Y=-32000, ListView: X=20, Y=90, ScreenX=-31980, ScreenY=-31910
+[2025-12-28 11:59:07] Col 1 width=76, CellLeft=0
+[2025-12-28 11:59:07] Current Col 2 width=70
+[2025-12-28 11:59:07] CalcCell: Col=2, CellLeft=76, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 11:59:07] CellRect: Left=76, Top=60, Width=70, Height=18, ScreenX=-31904, ScreenY=-31850
+[2025-12-28 11:59:07] Overlay shown at: X=-31904, Y=-31850, W=70, H=18
+[2025-12-28 11:59:07] SetWindowPos: OverlayHwnd=788768, IsVisible=1, IsIconic=0
+[2025-12-28 11:59:08] Window: X=252, Y=115, ListView: X=20, Y=90, ScreenX=272, ScreenY=205
+[2025-12-28 11:59:08] Col 1 width=76, CellLeft=0
+[2025-12-28 11:59:08] Current Col 2 width=70
+[2025-12-28 11:59:08] CalcCell: Col=2, CellLeft=76, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 11:59:08] CellRect: Left=76, Top=60, Width=70, Height=18, ScreenX=348, ScreenY=265
+[2025-12-28 11:59:08] Overlay shown at: X=348, Y=265, W=70, H=18
+[2025-12-28 11:59:08] SetWindowPos: OverlayHwnd=854304, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:06] RefreshClipboardListView: ï¿½ï¿½ï¿½ò²¼¾ï¿½Ë¢ï¿½ï¿½ï¿½ï¿½ï¿½ - ï¿½×¶ï¿½ï¿½ï¿½=3, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=36, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=8
+[2025-12-28 12:06:15] Click: ClientX=239, ClientY=73, Result=2, flags=0x4, iItem=2, iSubItem=3
+[2025-12-28 12:06:16] Click: ClientX=239, ClientY=73, Result=2, flags=0x4, iItem=2, iSubItem=3
+[2025-12-28 12:06:17] Click: ClientX=325, ClientY=66, Result=2, flags=0x4, iItem=2, iSubItem=4
+[2025-12-28 12:06:18] Window: X=544, Y=78, ListView: X=20, Y=90, ScreenX=564, ScreenY=168
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=228
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=228, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=2362880, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:18] Window: X=544, Y=91, ListView: X=20, Y=90, ScreenX=564, ScreenY=181
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=241
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=241, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=2428416, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:18] Window: X=544, Y=115, ListView: X=20, Y=90, ScreenX=564, ScreenY=205
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=265
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=265, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=2493952, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:18] Window: X=544, Y=162, ListView: X=20, Y=90, ScreenX=564, ScreenY=252
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=312
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=312, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=2559488, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:18] Window: X=544, Y=211, ListView: X=20, Y=90, ScreenX=564, ScreenY=301
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=361
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=361, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=2625024, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:18] Window: X=544, Y=279, ListView: X=20, Y=90, ScreenX=564, ScreenY=369
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=429
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=429, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=2690560, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:18] Window: X=544, Y=302, ListView: X=20, Y=90, ScreenX=564, ScreenY=392
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=452
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=452, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=2756096, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:18] Window: X=544, Y=304, ListView: X=20, Y=90, ScreenX=564, ScreenY=394
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=454
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=454, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=2821632, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:18] Window: X=544, Y=303, ListView: X=20, Y=90, ScreenX=564, ScreenY=393
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=453
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=453, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=2887168, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:18] Window: X=544, Y=299, ListView: X=20, Y=90, ScreenX=564, ScreenY=389
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=449
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=449, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=2952704, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:18] Window: X=544, Y=293, ListView: X=20, Y=90, ScreenX=564, ScreenY=383
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=443
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=443, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=3018240, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:18] Window: X=544, Y=288, ListView: X=20, Y=90, ScreenX=564, ScreenY=378
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=438
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=438, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=3083776, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:18] Window: X=544, Y=284, ListView: X=20, Y=90, ScreenX=564, ScreenY=374
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=434
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=434, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=3149312, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:18] Window: X=544, Y=276, ListView: X=20, Y=90, ScreenX=564, ScreenY=366
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=426
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=426, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=3214848, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:18] Window: X=544, Y=265, ListView: X=20, Y=90, ScreenX=564, ScreenY=355
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=415
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=415, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=3280384, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:18] Window: X=544, Y=255, ListView: X=20, Y=90, ScreenX=564, ScreenY=345
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=405
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=405, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=3345920, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:18] Window: X=544, Y=252, ListView: X=20, Y=90, ScreenX=564, ScreenY=342
+[2025-12-28 12:06:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:06:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:06:18] Col 3 width=70, CellLeft=146
+[2025-12-28 12:06:18] Col 4 width=70, CellLeft=216
+[2025-12-28 12:06:18] Current Col 5 width=70
+[2025-12-28 12:06:18] CalcCell: Col=5, CellLeft=286, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:06:18] CellRect: Left=286, Top=60, Width=70, Height=18, ScreenX=850, ScreenY=402
+[2025-12-28 12:06:18] Overlay shown at: X=850, Y=402, W=70, H=18
+[2025-12-28 12:06:18] SetWindowPos: OverlayHwnd=3411456, IsVisible=1, IsIconic=0
+[2025-12-28 12:06:21] Click: ClientX=475, ClientY=73, Result=2, flags=0x4, iItem=2, iSubItem=6
+[2025-12-28 12:06:22] Click: ClientX=534, ClientY=69, Result=2, flags=0x4, iItem=2, iSubItem=7
+[2025-12-28 12:06:23] Click: ClientX=608, ClientY=62, Result=2, flags=0x4, iItem=2, iSubItem=8
+[2025-12-28 12:06:23] Click: ClientX=606, ClientY=62, Result=2, flags=0x4, iItem=2, iSubItem=8
+[2025-12-28 12:06:24] Click: ClientX=127, ClientY=63, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2025-12-28 12:06:24] Click: ClientX=127, ClientY=63, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2025-12-28 12:06:25] Click: ClientX=12, ClientY=60, Result=2, flags=0x4, iItem=2, iSubItem=0
+[2025-12-28 12:06:30] Click: ClientX=113, ClientY=67, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2025-12-28 12:06:30] Click: ClientX=113, ClientY=67, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2025-12-28 12:06:31] Click: ClientX=113, ClientY=67, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2025-12-28 12:06:31] Click: ClientX=203, ClientY=74, Result=2, flags=0x4, iItem=2, iSubItem=2
+[2025-12-28 12:06:32] Click: ClientX=173, ClientY=62, Result=2, flags=0x4, iItem=2, iSubItem=2
+[2025-12-28 12:06:32] Click: ClientX=173, ClientY=62, Result=2, flags=0x4, iItem=2, iSubItem=2
+[2025-12-28 12:07:18] Window: X=142, Y=118, ListView: X=20, Y=90, ScreenX=162, ScreenY=208
+[2025-12-28 12:07:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:18] Current Col 3 width=70
+[2025-12-28 12:07:18] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:18] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=268
+[2025-12-28 12:07:18] Overlay shown at: X=308, Y=268, W=70, H=18
+[2025-12-28 12:07:18] SetWindowPos: OverlayHwnd=921010, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:18] Window: X=142, Y=131, ListView: X=20, Y=90, ScreenX=162, ScreenY=221
+[2025-12-28 12:07:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:18] Current Col 3 width=70
+[2025-12-28 12:07:18] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:18] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=281
+[2025-12-28 12:07:18] Overlay shown at: X=308, Y=281, W=70, H=18
+[2025-12-28 12:07:18] SetWindowPos: OverlayHwnd=986546, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:18] Window: X=142, Y=168, ListView: X=20, Y=90, ScreenX=162, ScreenY=258
+[2025-12-28 12:07:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:18] Current Col 3 width=70
+[2025-12-28 12:07:18] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:18] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=318
+[2025-12-28 12:07:18] Overlay shown at: X=308, Y=318, W=70, H=18
+[2025-12-28 12:07:18] SetWindowPos: OverlayHwnd=1052082, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:18] Window: X=142, Y=226, ListView: X=20, Y=90, ScreenX=162, ScreenY=316
+[2025-12-28 12:07:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:18] Current Col 3 width=70
+[2025-12-28 12:07:18] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:18] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=376
+[2025-12-28 12:07:18] Overlay shown at: X=308, Y=376, W=70, H=18
+[2025-12-28 12:07:18] SetWindowPos: OverlayHwnd=1117618, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:18] Window: X=142, Y=271, ListView: X=20, Y=90, ScreenX=162, ScreenY=361
+[2025-12-28 12:07:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:18] Current Col 3 width=70
+[2025-12-28 12:07:18] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:18] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=421
+[2025-12-28 12:07:18] Overlay shown at: X=308, Y=421, W=70, H=18
+[2025-12-28 12:07:18] SetWindowPos: OverlayHwnd=1183154, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:18] Window: X=142, Y=292, ListView: X=20, Y=90, ScreenX=162, ScreenY=382
+[2025-12-28 12:07:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:18] Current Col 3 width=70
+[2025-12-28 12:07:18] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:18] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=442
+[2025-12-28 12:07:18] Overlay shown at: X=308, Y=442, W=70, H=18
+[2025-12-28 12:07:18] SetWindowPos: OverlayHwnd=1248690, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:18] Window: X=142, Y=310, ListView: X=20, Y=90, ScreenX=162, ScreenY=400
+[2025-12-28 12:07:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:18] Current Col 3 width=70
+[2025-12-28 12:07:18] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:18] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=460
+[2025-12-28 12:07:18] Overlay shown at: X=308, Y=460, W=70, H=18
+[2025-12-28 12:07:18] SetWindowPos: OverlayHwnd=1314226, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:18] Window: X=142, Y=328, ListView: X=20, Y=90, ScreenX=162, ScreenY=418
+[2025-12-28 12:07:18] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:18] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:18] Current Col 3 width=70
+[2025-12-28 12:07:18] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:18] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=478
+[2025-12-28 12:07:18] Overlay shown at: X=308, Y=478, W=70, H=18
+[2025-12-28 12:07:18] SetWindowPos: OverlayHwnd=1379762, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:19] Window: X=142, Y=346, ListView: X=20, Y=90, ScreenX=162, ScreenY=436
+[2025-12-28 12:07:19] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:19] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:19] Current Col 3 width=70
+[2025-12-28 12:07:19] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:19] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=496
+[2025-12-28 12:07:19] Overlay shown at: X=308, Y=496, W=70, H=18
+[2025-12-28 12:07:19] SetWindowPos: OverlayHwnd=1445298, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:19] Window: X=142, Y=369, ListView: X=20, Y=90, ScreenX=162, ScreenY=459
+[2025-12-28 12:07:19] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:19] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:19] Current Col 3 width=70
+[2025-12-28 12:07:19] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:19] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=519
+[2025-12-28 12:07:19] Overlay shown at: X=308, Y=519, W=70, H=18
+[2025-12-28 12:07:19] SetWindowPos: OverlayHwnd=1510834, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:19] Window: X=142, Y=391, ListView: X=20, Y=90, ScreenX=162, ScreenY=481
+[2025-12-28 12:07:19] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:19] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:19] Current Col 3 width=70
+[2025-12-28 12:07:19] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:19] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=541
+[2025-12-28 12:07:19] Overlay shown at: X=308, Y=541, W=70, H=18
+[2025-12-28 12:07:19] SetWindowPos: OverlayHwnd=1576370, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:19] Window: X=142, Y=416, ListView: X=20, Y=90, ScreenX=162, ScreenY=506
+[2025-12-28 12:07:19] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:19] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:19] Current Col 3 width=70
+[2025-12-28 12:07:19] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:19] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=566
+[2025-12-28 12:07:19] Overlay shown at: X=308, Y=566, W=70, H=18
+[2025-12-28 12:07:19] SetWindowPos: OverlayHwnd=1641906, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:19] Window: X=142, Y=429, ListView: X=20, Y=90, ScreenX=162, ScreenY=519
+[2025-12-28 12:07:19] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:19] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:19] Current Col 3 width=70
+[2025-12-28 12:07:19] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:19] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=579
+[2025-12-28 12:07:19] Overlay shown at: X=308, Y=579, W=70, H=18
+[2025-12-28 12:07:19] SetWindowPos: OverlayHwnd=1707442, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:19] Window: X=142, Y=435, ListView: X=20, Y=90, ScreenX=162, ScreenY=525
+[2025-12-28 12:07:19] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:19] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:19] Current Col 3 width=70
+[2025-12-28 12:07:19] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:19] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=585
+[2025-12-28 12:07:19] Overlay shown at: X=308, Y=585, W=70, H=18
+[2025-12-28 12:07:19] SetWindowPos: OverlayHwnd=1772978, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:19] Window: X=142, Y=436, ListView: X=20, Y=90, ScreenX=162, ScreenY=526
+[2025-12-28 12:07:19] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:19] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:19] Current Col 3 width=70
+[2025-12-28 12:07:19] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:19] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=586
+[2025-12-28 12:07:19] Overlay shown at: X=308, Y=586, W=70, H=18
+[2025-12-28 12:07:19] SetWindowPos: OverlayHwnd=1838514, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:19] Window: X=142, Y=435, ListView: X=20, Y=90, ScreenX=162, ScreenY=525
+[2025-12-28 12:07:19] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:19] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:19] Current Col 3 width=70
+[2025-12-28 12:07:19] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:19] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=585
+[2025-12-28 12:07:19] Overlay shown at: X=308, Y=585, W=70, H=18
+[2025-12-28 12:07:19] SetWindowPos: OverlayHwnd=1904050, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:19] Window: X=142, Y=433, ListView: X=20, Y=90, ScreenX=162, ScreenY=523
+[2025-12-28 12:07:19] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:19] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:19] Current Col 3 width=70
+[2025-12-28 12:07:19] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:19] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=583
+[2025-12-28 12:07:19] Window: X=142, Y=432, ListView: X=20, Y=90, ScreenX=162, ScreenY=522
+[2025-12-28 12:07:19] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:19] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:19] Current Col 3 width=70
+[2025-12-28 12:07:19] CalcCell: Col=3, CellLeft=146, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:07:19] CellRect: Left=146, Top=60, Width=70, Height=18, ScreenX=308, ScreenY=582
+[2025-12-28 12:07:19] Overlay shown at: X=308, Y=582, W=70, H=18
+[2025-12-28 12:07:19] SetWindowPos: OverlayHwnd=2035122, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:27] Click: ClientX=247, ClientY=72, Result=2, flags=0x4, iItem=2, iSubItem=3
+[2025-12-28 12:07:28] Click: ClientX=323, ClientY=66, Result=2, flags=0x4, iItem=2, iSubItem=4
+[2025-12-28 12:07:29] Click: ClientX=400, ClientY=61, Result=2, flags=0x4, iItem=2, iSubItem=5
+[2025-12-28 12:07:29] Click: ClientX=477, ClientY=58, Result=1, flags=0x4, iItem=1, iSubItem=6
+[2025-12-28 12:07:31] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:31] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:31] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:31] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:31] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:31] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:31] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:31] Current Col 7 width=70
+[2025-12-28 12:07:31] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:31] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:31] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:31] SetWindowPos: OverlayHwnd=2100658, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:31] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:31] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:31] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:31] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:31] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:31] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:31] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:31] Current Col 7 width=70
+[2025-12-28 12:07:31] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:31] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:31] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:31] SetWindowPos: OverlayHwnd=2166194, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=2231730, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=2297266, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=2362802, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=2428338, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=2493874, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=2559410, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=2624946, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=2690482, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=2756018, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=2821554, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=2887090, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=2952626, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=3018162, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=3083698, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=3149234, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=3214770, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=3280306, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=3345842, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=3411378, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=3476914, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=3542450, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=3607986, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=3673522, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=3739058, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=3804594, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=3935666, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=4001202, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:32] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:32] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:32] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:32] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:32] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:32] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:32] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:32] Current Col 7 width=70
+[2025-12-28 12:07:32] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:32] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:32] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:32] SetWindowPos: OverlayHwnd=4066738, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:33] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:33] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:33] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:33] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:33] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:33] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:33] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:33] Current Col 7 width=70
+[2025-12-28 12:07:33] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:33] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:33] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:33] SetWindowPos: OverlayHwnd=4132274, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:33] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:33] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:33] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:33] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:33] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:33] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:33] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:33] Current Col 7 width=70
+[2025-12-28 12:07:33] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:33] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:33] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:33] SetWindowPos: OverlayHwnd=4197810, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:33] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:33] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:33] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:33] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:33] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:33] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:33] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:33] Current Col 7 width=70
+[2025-12-28 12:07:33] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:33] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:33] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:33] SetWindowPos: OverlayHwnd=4263346, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:33] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:33] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:33] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:33] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:33] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:33] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:33] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:33] Current Col 7 width=70
+[2025-12-28 12:07:33] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:33] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:33] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:33] SetWindowPos: OverlayHwnd=4328882, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:33] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:33] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:33] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:33] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:33] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:33] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:33] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:33] Current Col 7 width=70
+[2025-12-28 12:07:33] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:33] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:33] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:33] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:33] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:33] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:33] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:33] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:33] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:33] Current Col 7 width=70
+[2025-12-28 12:07:33] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:33] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:33] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:33] SetWindowPos: OverlayHwnd=4459954, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:33] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:33] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:33] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:33] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:33] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:33] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:33] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:33] Current Col 7 width=70
+[2025-12-28 12:07:33] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:33] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:33] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:33] SetWindowPos: OverlayHwnd=4525490, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:33] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:33] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:33] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:33] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:33] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:33] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:33] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:33] Current Col 7 width=70
+[2025-12-28 12:07:33] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:33] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:33] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:33] SetWindowPos: OverlayHwnd=4591026, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:33] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:33] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:33] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:33] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:33] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:33] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:33] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:33] Current Col 7 width=70
+[2025-12-28 12:07:33] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:33] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:33] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:33] SetWindowPos: OverlayHwnd=4656562, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:33] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:33] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:33] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:33] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:33] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:33] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:33] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:33] Current Col 7 width=70
+[2025-12-28 12:07:33] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:33] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:33] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:33] SetWindowPos: OverlayHwnd=4722098, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:33] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:33] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:33] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:33] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:33] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:33] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:33] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:33] Current Col 7 width=70
+[2025-12-28 12:07:33] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:33] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:33] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:33] SetWindowPos: OverlayHwnd=4787634, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:33] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:33] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:33] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:33] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:33] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:33] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:33] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:33] Current Col 7 width=70
+[2025-12-28 12:07:33] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:33] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:33] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:33] SetWindowPos: OverlayHwnd=4853170, IsVisible=1, IsIconic=0
+[2025-12-28 12:07:33] Window: X=401, Y=221, ListView: X=20, Y=90, ScreenX=421, ScreenY=311
+[2025-12-28 12:07:33] Col 1 width=76, CellLeft=0
+[2025-12-28 12:07:33] Col 2 width=70, CellLeft=76
+[2025-12-28 12:07:33] Col 3 width=70, CellLeft=146
+[2025-12-28 12:07:33] Col 4 width=70, CellLeft=216
+[2025-12-28 12:07:33] Col 5 width=70, CellLeft=286
+[2025-12-28 12:07:33] Col 6 width=70, CellLeft=356
+[2025-12-28 12:07:33] Current Col 7 width=70
+[2025-12-28 12:07:33] CalcCell: Col=7, CellLeft=426, CellWidth=70, RowTop=42, RowBottom=60
+[2025-12-28 12:07:33] CellRect: Left=426, Top=42, Width=70, Height=18, ScreenX=847, ScreenY=353
+[2025-12-28 12:07:33] Overlay shown at: X=847, Y=353, W=70, H=18
+[2025-12-28 12:07:33] SetWindowPos: OverlayHwnd=4918706, IsVisible=1, IsIconic=0
+[2025-12-28 12:13:52] RefreshClipboardListView: ï¿½ï¿½ï¿½ò²¼¾ï¿½Ë¢ï¿½ï¿½ï¿½ï¿½ï¿½ - ï¿½×¶ï¿½ï¿½ï¿½=3, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=36, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=8
+[2025-12-28 12:13:55] Click: ClientX=23, ClientY=50, Result=1, flags=0x4, iItem=1, iSubItem=0
+[2025-12-28 12:13:55] Click: ClientX=30, ClientY=78, Result=-1, flags=0x1, iItem=-1, iSubItem=0
+[2025-12-28 12:13:56] Click: ClientX=104, ClientY=79, Result=-1, flags=0x1, iItem=-1, iSubItem=1
+[2025-12-28 12:13:57] Click: ClientX=112, ClientY=65, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2025-12-28 12:13:57] Click: ClientX=112, ClientY=65, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2025-12-28 12:13:59] Click: ClientX=6, ClientY=62, Result=2, flags=0x4, iItem=2, iSubItem=0
+[2025-12-28 12:14:00] Click: ClientX=27, ClientY=73, Result=2, flags=0x4, iItem=2, iSubItem=0
+[2025-12-28 12:14:02] Click: ClientX=105, ClientY=67, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2025-12-28 12:14:03] Click: ClientX=105, ClientY=67, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2025-12-28 12:14:03] Click: ClientX=105, ClientY=67, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2025-12-28 12:14:04] Click: ClientX=167, ClientY=64, Result=2, flags=0x4, iItem=2, iSubItem=2
+[2025-12-28 12:14:04] Click: ClientX=167, ClientY=64, Result=2, flags=0x4, iItem=2, iSubItem=2
+[2025-12-28 12:14:07] Click: ClientX=234, ClientY=75, Result=2, flags=0x4, iItem=2, iSubItem=3
+[2025-12-28 12:14:07] Click: ClientX=234, ClientY=74, Result=2, flags=0x4, iItem=2, iSubItem=3
+[2025-12-28 12:14:56] Window: X=-32000, Y=-32000, ListView: X=20, Y=90, ScreenX=-31980, ScreenY=-31910
+[2025-12-28 12:14:56] Col 1 width=76, CellLeft=0
+[2025-12-28 12:14:56] Col 2 width=70, CellLeft=76
+[2025-12-28 12:14:56] Col 3 width=70, CellLeft=146
+[2025-12-28 12:14:56] Current Col 4 width=70
+[2025-12-28 12:14:56] CalcCell: Col=4, CellLeft=216, CellWidth=70, RowTop=60, RowBottom=78
+[2025-12-28 12:14:56] CellRect: Left=216, Top=60, Width=70, Height=18, ScreenX=-31764, ScreenY=-31850
+[2025-12-28 12:14:56] Overlay shown at: X=-31764, Y=-31850, W=70, H=18
+[2025-12-28 12:14:56] SetWindowPos: OverlayHwnd=462630, IsVisible=1, IsIconic=0
+[2025-12-28 12:18:45] RefreshClipboardListView: ï¿½ï¿½ï¿½ò²¼¾ï¿½Ë¢ï¿½ï¿½ï¿½ï¿½ï¿½ - ï¿½×¶ï¿½ï¿½ï¿½=3, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=36, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=8
+[2025-12-28 12:18:46] Click: ClientX=50, ClientY=63, Result=2, flags=0x4, iItem=2, iSubItem=0
+[2025-12-28 12:18:46] NM_DBLCLICK received
+[2025-12-28 12:18:46] NM_DBLCLICK: Row=3, Col=1, iItem=2, iSubItem=0
+[2025-12-28 12:18:46] NM_DBLCLICK: FullContent length=4
+[2025-12-28 12:18:46] NM_DBLCLICK: ShowClipboardCellContentWindow called
+[2025-12-28 12:18:49] Click: ClientX=101, ClientY=67, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2025-12-28 12:18:50] NM_DBLCLICK received
+[2025-12-28 12:18:50] NM_DBLCLICK: Row=0, Col=2, iItem=-1, iSubItem=1
+[2025-12-28 12:18:52] Click: ClientX=103, ClientY=63, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2025-12-28 12:18:52] NM_DBLCLICK received
+[2025-12-28 12:18:52] NM_DBLCLICK: Row=0, Col=2, iItem=-1, iSubItem=1
+[2025-12-28 12:18:53] Click: ClientX=103, ClientY=63, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2025-12-28 12:18:53] NM_DBLCLICK received
+[2025-12-28 12:18:53] NM_DBLCLICK: Row=0, Col=2, iItem=-1, iSubItem=1
+[2025-12-28 12:18:53] Click: ClientX=103, ClientY=63, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2025-12-28 12:18:53] NM_DBLCLICK received
+[2025-12-28 12:18:53] NM_DBLCLICK: Row=0, Col=2, iItem=-1, iSubItem=1
+[2025-12-28 12:18:54] Click: ClientX=193, ClientY=53, Result=1, flags=0x4, iItem=1, iSubItem=2
+[2025-12-28 12:18:54] NM_DBLCLICK received
+[2025-12-28 12:18:54] NM_DBLCLICK: Row=0, Col=3, iItem=-1, iSubItem=2
+[2025-12-28 12:18:54] Click: ClientX=193, ClientY=53, Result=1, flags=0x4, iItem=1, iSubItem=2
+[2025-12-28 12:18:55] Click: ClientX=196, ClientY=78, Result=-1, flags=0x1, iItem=-1, iSubItem=2
+[2025-12-28 12:18:55] Click: ClientX=193, ClientY=71, Result=2, flags=0x4, iItem=2, iSubItem=2
+[2025-12-28 12:18:55] NM_DBLCLICK received
+[2025-12-28 12:18:55] NM_DBLCLICK: Row=0, Col=3, iItem=-1, iSubItem=2
+[2025-12-28 12:18:55] Click: ClientX=193, ClientY=70, Result=2, flags=0x4, iItem=2, iSubItem=2
+[2025-12-28 12:24:10] RefreshClipboardListView: ï¿½ï¿½ï¿½ò²¼¾ï¿½Ë¢ï¿½ï¿½ï¿½ï¿½ï¿½ - ï¿½×¶ï¿½ï¿½ï¿½=3, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=36, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½=8
+[2025-12-28 12:24:11] Click: ClientX=41, ClientY=28, Result=0, flags=0x4, iItem=0, iSubItem=0
+[2025-12-28 12:24:11] NM_DBLCLICK received
+[2025-12-28 12:24:11] NM_DBLCLICK: iItem=0, iSubItem=0
+[2025-12-28 12:24:11] NM_DBLCLICK: After hittest - Row=1, Col=1, ClientX=41, ClientY=28, flags=0x4
+[2025-12-28 12:24:11] NM_DBLCLICK: FullContent length=4
+[2025-12-28 12:24:11] NM_DBLCLICK: Calling ShowClipboardCellContentWindow with Row=1, Col=1, ContentLength=4
+[2025-12-28 12:24:11] ShowClipboardCellContentWindow: Window shown, Hwnd=593886
+[2025-12-28 12:24:11] ShowClipboardCellContentWindow: AlwaysOnTop set
+[2025-12-28 12:24:11] NM_DBLCLICK: ShowClipboardCellContentWindow returned
+[2025-12-28 12:24:11] DoubleClick: Item=1, Tab=CapsLockC
+[2025-12-28 12:24:11] DoubleClick: Row=1, Col=1, iSubItem=0, ClientX=41, ClientY=28
+[2025-12-28 12:24:11] DoubleClick: FullContent length=4
+[2025-12-28 12:24:11] ShowClipboardCellContentWindow: Window shown, Hwnd=659422
+[2025-12-28 12:24:11] ShowClipboardCellContentWindow: AlwaysOnTop set
+[2025-12-28 12:24:11] DoubleClick: ShowClipboardCellContentWindow called
+[2025-12-28 12:24:15] Click: ClientX=115, ClientY=46, Result=1, flags=0x4, iItem=1, iSubItem=1
+[2025-12-28 12:24:15] NM_DBLCLICK received
+[2025-12-28 12:24:15] NM_DBLCLICK: iItem=-1, iSubItem=1
+[2025-12-28 12:24:15] NM_DBLCLICK: After hittest - Row=2, Col=2, ClientX=115, ClientY=46, flags=0x4
+[2025-12-28 12:24:15] NM_DBLCLICK: FullContent length=4
+[2025-12-28 12:24:15] NM_DBLCLICK: Calling ShowClipboardCellContentWindow with Row=2, Col=2, ContentLength=4
+[2025-12-28 12:24:15] ShowClipboardCellContentWindow: Window shown, Hwnd=200442
+[2025-12-28 12:24:15] ShowClipboardCellContentWindow: AlwaysOnTop set
+[2025-12-28 12:24:15] NM_DBLCLICK: ShowClipboardCellContentWindow returned
+[2025-12-28 12:24:15] DoubleClick: Item=0, Tab=CapsLockC
+[2025-12-28 12:24:15] DoubleClick: Invalid RowIndex=0
+[2025-12-28 12:24:15] Click: ClientX=115, ClientY=46, Result=1, flags=0x4, iItem=1, iSubItem=1
+[2025-12-28 12:24:16] Click: ClientX=151, ClientY=53, Result=1, flags=0x4, iItem=1, iSubItem=2
+[2025-12-28 12:24:16] NM_DBLCLICK received
+[2025-12-28 12:24:16] NM_DBLCLICK: iItem=-1, iSubItem=2
+[2025-12-28 12:24:16] NM_DBLCLICK: After hittest - Row=2, Col=3, ClientX=151, ClientY=53, flags=0x4
+[2025-12-28 12:24:16] NM_DBLCLICK: FullContent length=11
+[2025-12-28 12:24:16] NM_DBLCLICK: Calling ShowClipboardCellContentWindow with Row=2, Col=3, ContentLength=11
+[2025-12-28 12:24:16] ShowClipboardCellContentWindow: Window shown, Hwnd=265978
+[2025-12-28 12:24:16] ShowClipboardCellContentWindow: AlwaysOnTop set
+[2025-12-28 12:24:16] NM_DBLCLICK: ShowClipboardCellContentWindow returned
+[2025-12-28 12:24:16] DoubleClick: Item=0, Tab=CapsLockC
+[2025-12-28 12:24:16] DoubleClick: Invalid RowIndex=0
+[2025-12-28 15:54:24] ShowCursorPanel: ï¿½ï¿½Ñ¯ï¿½ï¿½ï¿½Ý¿ï¿½Ê§ï¿½ï¿½ - Invalid option.
+[2025-12-28 15:55:18] ShowCursorPanel: ï¿½ï¿½Ñ¯ï¿½ï¿½ï¿½Ý¿ï¿½Ê§ï¿½ï¿½ - Invalid option.
+[2025-12-28 15:56:18] ShowCursorPanel: ï¿½ï¿½Ñ¯ï¿½ï¿½ï¿½Ý¿ï¿½Ê§ï¿½ï¿½ - Invalid option.
+[2025-12-28 16:10:50] ShowCursorPanel: ï¿½ï¿½Ñ¯ï¿½ï¿½ï¿½Ý¿ï¿½Ê§ï¿½ï¿½ - Invalid option.
+[2025-12-28 16:10:57] ShowCursorPanel: ï¿½ï¿½Ñ¯ï¿½ï¿½ï¿½Ý¿ï¿½Ê§ï¿½ï¿½ - Invalid option.
+[2025-12-28 16:11:03] ShowCursorPanel: ï¿½ï¿½Ñ¯ï¿½ï¿½ï¿½Ý¿ï¿½Ê§ï¿½ï¿½ - Invalid option.
+[2025-12-28 16:11:06] ShowCursorPanel: ï¿½ï¿½Ñ¯ï¿½ï¿½ï¿½Ý¿ï¿½Ê§ï¿½ï¿½ - Invalid option.
+[2025-12-28 16:11:25] ShowCursorPanel: ï¿½ï¿½Ñ¯ï¿½ï¿½ï¿½Ý¿ï¿½Ê§ï¿½ï¿½ - Invalid option.
+[2025-12-28 16:49:07] ShowCursorPanel: ²éÑ¯Êý¾Ý¿âÊ§°Ü - Invalid option.
+[2025-12-28 17:15:15] ShowCursorPanel: ²éÑ¯Êý¾Ý¿âÊ§°Ü - Invalid option.
+[2025-12-28 18:19:48] ShowCursorPanel: ²éÑ¯Êý¾Ý¿âÊ§°Ü - Invalid option.
+[2025-12-28 20:04:51] ShowCursorPanel: ²éÑ¯Êý¾Ý¿âÊ§°Ü - Invalid option.
+[2025-12-28 20:04:57] ShowCursorPanel: ²éÑ¯Êý¾Ý¿âÊ§°Ü - Invalid option.
+[2025-12-29 19:02:32] ShowCursorPanel: ²éÑ¯Êý¾Ý¿âÊ§°Ü - Invalid option.
+[2025-12-29 19:02:35] ShowCursorPanel: ²éÑ¯Êý¾Ý¿âÊ§°Ü - Invalid option.
+[2025-12-29 19:02:48] ShowCursorPanel: ²éÑ¯Êý¾Ý¿âÊ§°Ü - Invalid option.
+[2025-12-29 19:03:18] ShowCursorPanel: ²éÑ¯Êý¾Ý¿âÊ§°Ü - Invalid option.
+[2025-12-29 19:03:27] ShowCursorPanel: ²éÑ¯Êý¾Ý¿âÊ§°Ü - Invalid option.
+[2025-12-29 19:12:13] RefreshClipboardListView: ºáÏò²¼¾ÖË¢ÐÂÍê³É - ½×¶ÎÊý=3, ×ÜÏîÊý=36, ×î´óÁÐÊý=8
+[2025-12-30 10:30:28] RefreshClipboardListView: ºáÏò²¼¾ÖË¢ÐÂÍê³É - ½×¶ÎÊý=3, ×ÜÏîÊý=36, ×î´óÁÐÊý=8

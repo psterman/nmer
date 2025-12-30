@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="scroll-smooth dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>牛马 - 让程序员做牛做马？不，是让Cursor为你做牛做马！</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        niu: {
+                            bg: '#0A0A0A',
+                            sidebar: '#1A1A1A',
+                            border: '#333333',
+                            text: '#F5F5F5',
+                            muted: '#888888',
+                            accent: '#E67E22',
+                            accent_hover: '#D35400',
+                            gold: '#F1C40F',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes glow { from { text-shadow: 0 0 5px #F1C40F; } to { text-shadow: 0 0 20px #F1C40F; } }
+        .animate-glow { animation: glow 2s ease-in-out infinite alternate; }
+        .glass-panel { backdrop-filter: blur(12px); background: rgba(255, 255, 255, 0.9); }
+        .dark .glass-panel { background: rgba(26, 26, 26, 0.8); }
+        .kbd-key { display: inline-block; padding: 0.1em 0.4em; background: #edf2f7; border: 1px solid #cbd5e0; border-radius: 0.25rem; font-family: monospace; color: #2d3748; }
+        .dark .kbd-key { background: #2d3748; border-color: #E67E22; color: #e2e8f0; }
+        .flying-text { position: absolute; z-index: 50; background: #E67E22; color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px; pointer-events: none; }
+        .cursor-caret { display: inline-block; width: 2px; height: 1.2em; background-color: #F1C40F; vertical-align: middle; animation: blink 1s step-end infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+        .engine-selected { background-color: rgba(230, 126, 34, 0.2) !important; border-color: #E67E22 !important; color: white !important; }
+    </style>
+
+    <style>
+        @keyframes glow {
+            from { text-shadow: 0 0 5px #F1C40F, 0 0 10px #F1C40F; }
+            to { text-shadow: 0 0 10px #F1C40F, 0 0 20px #F1C40F, 0 0 30px #F1C40F; }
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #F5F5F5;
+        }
+        .dark ::-webkit-scrollbar-track {
+            background: #1A1A1A;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #E67E22;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #D35400;
+        }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(230, 126, 34, 0.1);
+        }
+        .dark .glass-panel {
+            background: rgba(26, 26, 26, 0.8);
+            border: 1px solid rgba(230, 126, 34, 0.1);
+        }
+
+        .kbd-key {
+            display: inline-block;
+            padding: 0.1em 0.4em;
+            font-size: 0.85em;
+            line-height: 1;
+            color: #2d3748;
+            background-color: #edf2f7;
+            border: 1px solid #cbd5e0;
+            border-radius: 0.25rem;
+            box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .dark .kbd-key {
+            color: #e2e8f0;
+            background-color: #2d3748;
+            border-color: #E67E22;
+            box-shadow: 0 1px 1px rgba(230, 126, 34, 0.2);
+        }
+
+        /* Demo Animation Styles */
+        .demo-window {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        }
+        
+        .code-line {
+            transition: background-color 0.3s ease;
+        }
+        
+        .flying-text {
+            position: absolute;
+            z-index: 50;
+            background: #E67E22;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            pointer-events: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            white-space: nowrap;
+        }
+
+        .queue-item-enter {
+            animation: queueEnter 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes queueEnter {
+            from { opacity: 0; transform: scale(0.8) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        
+        .cursor-caret {
+            display: inline-block;
+            width: 2px;
+            height: 1.2em;
+            background-color: #F1C40F;
+            vertical-align: middle;
+            animation: blink 1s step-end infinite;
+        }
+        
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        /* Browser Tab Animations */
+        .tab-enter {
+            animation: tabPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes tabPop {
+            from { transform: translateY(100%) scale(0.9); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        .engine-selected {
+            background-color: rgba(230, 126, 34, 0.15) !important;
+            border-color: #E67E22 !important;
+            color: #1A1A1A !important;
+        }
+        .dark .engine-selected {
+            background-color: rgba(230, 126, 34, 0.2) !important;
+            color: white !important;
+        }
+        .engine-check {
+            display: inline-block;
+            margin-right: 4px;
+            color: #E67E22;
+        }
+
+        /* Screenshot Animations */
+        .crosshair-cursor {
+            cursor: crosshair;
+        }
+
+        /* Hero Section Animations */
+        .hero-glow {
+            background: radial-gradient(ellipse at center, rgba(230, 126, 34, 0.15) 0%, transparent 70%);
+        }
+        
+        .cow-pattern {
+            background-image: radial-gradient(circle at 20% 50%, #8B4515 2px, transparent 2px),
+                              radial-gradient(circle at 80% 20%, #8B4515 1px, transparent 1px),
+                              radial-gradient(circle at 40% 80%, #8B4515 1.5px, transparent 1.5px);
+            background-size: 100px 100px, 60px 60px, 80px 80px;
+            opacity: 0.03;
+        }
+        
+        .success-metric {
+            background: linear-gradient(135deg, rgba(241, 196, 15, 0.1), rgba(230, 126, 34, 0.1));
+            border: 1px solid rgba(241, 196, 15, 0.3);
+        }
+        
+        .feature-card {
+            transition: all 0.3s ease;
+            border: 1px solid rgba(230, 126, 34, 0.2);
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(230, 126, 34, 0.5);
+            box-shadow: 0 10px 25px rgba(230, 126, 34, 0.1);
+        }
+
+        /* 确保亮色模式下的文本可读性 */
+        .bg-niu-sidebar {
+            color: #1A1A1A;
+        }
+        .dark .bg-niu-sidebar {
+            color: #F5F5F5;
+        }
+    </style>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-white dark:bg-niu-bg text-gray-900 dark:text-niu-text transition-colors duration-300">
+
+    <header class="fixed top-0 w-full z-50 border-b border-gray-200 dark:border-niu-border glass-panel h-16 flex items-center">
+        <div class="max-w-7xl mx-auto px-4 w-full flex justify-between items-center">
+            <div class="flex items-center gap-2 font-bold text-xl">
+                <img src="./牛马.png" class="w-10 h-10" alt="Logo">
+                <span class="text-niu-accent" data-i18n="title-main">牛马</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <button onclick="toggleTheme()" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10">
+                    <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+                    <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+                </button>
+                <button onclick="toggleLang()" class="text-xs font-bold px-3 py-1.5 border border-niu-accent rounded hover:bg-niu-accent hover:text-white transition-all">
+                    <span id="lang-btn-text">EN</span>
+                </button>
+                <a href="https://github.com/psterman/-c" target="_blank" class="p-2"><i data-lucide="github" class="w-5 h-5"></i></a>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex max-w-7xl mx-auto pt-16">
+        <aside class="w-64 hidden lg:block fixed h-full border-r border-gray-200 dark:border-niu-border py-8 px-6 overflow-y-auto" id="nav-container"></aside>
+
+        <main class="flex-1 lg:pl-72 py-10 px-6 md:px-12 max-w-5xl">
+            
+            <section id="intro" class="mb-20 scroll-mt-24">
+                <h1 class="text-5xl font-extrabold mb-4 tracking-tight">
+                    <span class="text-niu-accent" data-i18n="title-main">牛马</span>
+                    <span data-i18n="title-sub"> - 让程序员解放双手</span>
+                </h1>
+                <div class="text-2xl font-bold animate-glow mb-8">
+                    <span class="text-gray-900 dark:text-niu-gold" data-i18n="subtitle-prefix">专注于驱动 Cursor 为人类做事，</span>
+                    <span class="text-niu-accent" data-i18n="subtitle-suffix">助你走上人生巅峰。</span>
+                </div>
+               <p class="text-lg text-niu-muted leading-relaxed mb-8 max-w-3xl mx-auto">
+                        <span data-i18n="desc-prefix">专为 Cursor 编辑器打造的效率神器。通过</span> <kbd class="kbd-key">CapsLock</kbd> <span data-i18n="desc-middle">键赋予你全新的交互方式，</span>
+                        <strong class="text-niu-accent" data-i18n="desc-strong-1">让 Cursor 做牛做马</strong><span data-i18n="desc-middle-2">，为你处理繁琐工作，</span>
+                        <strong class="text-niu-gold" data-i18n="desc-strong-2">助你走上人生巅峰</strong>。
+                    </p>
+<div align="center">
+  <img src="./banner.jpg" alt="牛马" width="800">
+</div>
+                </section>
+            <section id="quick-start" class="mb-20 scroll-mt-24">
+                <div class="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
+                    <a href="#download" class="bg-niu-accent text-white px-8 py-3 rounded-full font-bold hover:bg-niu-accent_hover transition-all transform hover:scale-105 flex items-center gap-2">
+                        <i data-lucide="download" class="w-5 h-5"></i>
+                        <span data-i18n="hero-download-btn">立即下载牛马</span>
+                    </a>
+                    <a href="#quick-start" class="border border-niu-accent text-niu-accent px-8 py-3 rounded-full font-medium hover:bg-niu-accent hover:text-white transition-all flex items-center gap-2">
+                        <i data-lucide="play" class="w-5 h-5"></i>
+                        <span data-i18n="hero-tutorial-btn">查看教程</span>
+                    </a>
+                </div>
+                
+                <!-- 成功指标 -->
+                <div class="grid grid-cols-3 gap-4 max-w-2xl mx-auto mb-8">
+                    <div class="success-metric p-4 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-niu-gold" data-i18n="metric-1-value">10万+</div>
+                        <div class="text-xs text-niu-muted" data-i18n="metric-1-label">程序员已解放</div>
+                    </div>
+                    <div class="success-metric p-4 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-niu-gold" data-i18n="metric-2-value">300%</div>
+                        <div class="text-xs text-niu-muted" data-i18n="metric-2-label">效率提升</div>
+                    </div>
+                    <div class="success-metric p-4 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-niu-gold" data-i18n="metric-3-value">24/7</div>
+                        <div class="text-xs text-niu-muted" data-i18n="metric-3-label">Cursor为你工作</div>
+                    </div>
+                </div>
+                
+                <h2 class="text-2xl font-bold mb-8 flex items-center gap-2"><i data-lucide="zap" class="text-niu-accent"></i> <span data-i18n="qs-title">快速开始 - 3步走上巅峰</span></h2>
+                <div class="grid gap-6" id="qs-content"></div>
+            </section>
+
+   <section id="concept-capslock" class="mb-20 scroll-mt-24">
+                <h2 class="text-2xl font-bold mb-6" data-i18n="cap-title">CapsLock+ 核心机制 - 一键使唤</h2>
+                <p class="text-gray-600 dark:text-niu-muted mb-6" data-i18n="cap-desc">牛马不会废弃您的 CapsLock 键，而是将其改造为召唤键 (牛马召唤器)。从此，让 Cursor 做牛做马只需一键。</p>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="p-6 rounded-xl bg-gray-50 dark:bg-niu-sidebar border border-gray-200 dark:border-niu-border">
+                        <div class="text-niu-accent font-mono mb-2" data-i18n="cap-short-label">短按 Click</div>
+                        <p class="text-sm" data-i18n="cap-short-desc">切换大小写，不影响日常打字，牛马很贴心。</p>
+                    </div>
+                    <div class="p-6 rounded-xl border-2 border-niu-accent bg-niu-accent/5">
+                        <div class="text-niu-gold font-mono mb-2" data-i18n="cap-hold-label">长按 Hold (>0.5s)</div>
+                        <p class="text-sm" data-i18n="cap-hold-desc">召唤半透明快捷操作面板，按字母键让 Cursor 开始为你工作。</p>
+                    </div>
+                </div>
+            </section>
+
+
+            <section id="concept-panel" class="mb-20 scroll-mt-24">
+                <h2 class="text-2xl font-bold mb-6" data-i18n="map-title">快捷键映射 - 让 Cursor 干活的指令</h2>
+                <div class="overflow-x-auto rounded-xl border border-niu-border" id="map-table"></div>
+            </section>
+
+            <!-- Feature Details -->
+            <section id="feat-ai" class="mb-16 scroll-mt-20">
+                <h2 class="text-2xl font-semibold mb-6 flex items-center gap-2">
+                    <i data-lucide="brain-circuit" class="text-niu-accent"></i> <span data-i18n="feat-ai-title">AI 辅助编程 - Cursor当牛做马</span>
+                </h2>
+                <p class="text-niu-muted mb-4" data-i18n="feat-ai-desc">
+                    无需手动打字提问，牛马预设了高效的 Prompt 模板。只需选中代码，唤起面板，一键让Cursor开始干活。
+                </p>
+                <div class="bg-gray-50 dark:bg-niu-sidebar rounded-lg p-6 border border-gray-200 dark:border-niu-border">
+                    <h4 class="font-medium text-gray-900 dark:text-white mb-2" data-i18n="feat-ai-workflow-title">工作流程：</h4>
+                    <ol class="list-decimal list-inside text-niu-muted space-y-2 text-sm" id="feat-ai-workflow"></ol>
+                    <div class="mt-4 p-4 bg-gray-900/50 dark:bg-black/50 rounded border border-gray-200 dark:border-niu-border text-xs font-mono text-gray-300 dark:text-gray-400" id="feat-ai-example"></div>
+                </div>
+            </section>
+
+
+            <section id="feat-clipboard" class="mb-20 scroll-mt-24">
+                <h2 class="text-2xl font-bold mb-6 flex items-center gap-2"><i data-lucide="clipboard-list" class="text-niu-accent"></i> <span data-i18n="f-cb-title">智能剪贴板 - 牛马的记忆</span></h2>
+                <div class="border border-gray-200 dark:border-niu-border rounded-xl bg-gray-50 dark:bg-niu-sidebar/50 p-6 overflow-hidden relative shadow-lg">
+                    <div id="demo-stage" class="relative h-[280px] bg-white dark:bg-niu-bg border border-gray-200 dark:border-niu-border rounded-lg flex items-start justify-between p-6 overflow-hidden"></div>
+                    <div class="mt-4 flex items-center justify-center h-8">
+                        <div id="demo-caption" class="px-4 py-1.5 rounded-full bg-niu-accent/10 border border-niu-accent/30 text-xs text-niu-accent font-mono" data-i18n="demo-clipboard-init">牛马正在准备工作...</div>
+                    </div>
+                </div>  <!-- 优点列表 -->
+                <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4" id="feat-clipboard-benefits"></div>
+            </section>
+
+            <section id="feat-search" class="mb-20 scroll-mt-24">
+                <h2 class="text-2xl font-bold mb-6 flex items-center gap-2"><i data-lucide="globe" class="text-niu-accent"></i> <span data-i18n="f-sr-title">聚合搜索 - 牛马跑腿</span></h2>
+                <div class="border border-gray-200 dark:border-niu-border rounded-xl bg-gray-50 dark:bg-niu-sidebar/50 p-6 overflow-hidden relative shadow-lg">
+                    <div id="search-demo-stage" class="relative h-[300px] bg-white dark:bg-niu-bg border border-niu-border rounded-lg flex items-center justify-center overflow-hidden p-4"></div>
+                    <div class="mt-4 flex items-center justify-center h-8">
+                        <div id="search-demo-caption" class="px-4 py-1.5 rounded-full bg-niu-accent/10 border border-niu-accent/30 text-xs text-niu-accent font-mono" data-i18n="demo-search-init">牛马跑腿中...</div>
+                    </div>
+                </div>
+  <!-- 优点列表 -->
+                <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4" id="feat-search-benefits"></div>
+            </section>
+
+            <section id="feat-utils" class="mb-20 scroll-mt-24">
+                <h2 class="text-2xl font-semibold mb-6" data-i18n="feat-utils-title">其他实用工具 - 牛马的绝活</h2>
+                <ul class="space-y-4 mb-12" id="feat-utils-list"></ul>
+
+                <h2 class="text-2xl font-bold mb-6 flex items-center gap-2"><i data-lucide="camera" class="text-niu-accent"></i> <span data-i18n="f-ss-title">截图直达 - 牛马截图术</span></h2>
+                <div class="border border-gray-200 dark:border-niu-border rounded-xl bg-gray-50 dark:bg-niu-sidebar/50 p-6 overflow-hidden relative shadow-lg">
+                    <div id="screenshot-demo-stage" class="relative h-[280px] bg-white dark:bg-niu-bg border border-niu-border rounded-lg overflow-hidden flex flex-col"></div>
+                    <div class="mt-4 flex items-center justify-center h-8">
+                        <div id="screenshot-demo-caption" class="px-4 py-1.5 rounded-full bg-niu-accent/10 border border-niu-accent/30 text-xs text-niu-accent font-mono" data-i18n="demo-screenshot-init">牛马准备截图...</div>
+                    </div>
+                </div>
+
+                <!-- 优点列表 -->
+                <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4" id="feat-screenshot-benefits"></div>
+            </section>
+
+            <section id="interface-settings" class="mb-20 scroll-mt-24">
+                <h2 class="text-2xl font-semibold mb-6" data-i18n="set-title">配置与个性化 (Q) - 调教你的牛马</h2>
+                <p class="text-niu-muted mb-4" data-i18n="set-desc">按 <kbd class="kbd-key">CapsLock</kbd>+<kbd class="kbd-key">Q</kbd> 打开设置面板，调教你的专属牛马。</p>
+                <div class="bg-gray-50 dark:bg-niu-sidebar p-6 rounded-xl border border-niu-border" id="set-content"></div>
+            </section>
+
+            <section id="troubleshooting" class="mb-20 scroll-mt-24">
+                <h2 class="text-2xl font-bold mb-6" data-i18n="trouble-title">常见问题 - 牛马生病了？</h2>
+                <div id="trouble-list" class="space-y-4"></div>
+            </section>
+       <section id="download" class="py-10 border-t border-niu-border text-center">    
+<!-- 水平垂直都居中 -->
+<div class="flex items-center justify-center h-34">   <img src="./牛马.png" alt="牛马logo" class="w-28 h-28">
+</div>    <h2 class="text-2xl font-bold mb-4" data-i18n="dl-title">准备好让Cursor做牛做马了吗？</h2>
+                <p class="text-niu-muted mb-6" data-i18n="dl-desc">下载牛马，让AI编程快人一步，助你走上人生巅峰。</p>
+                <button class="bg-niu-accent text-white px-8 py-3 rounded-full font-bold hover:scale-105 transition-transform flex items-center gap-2 mx-auto">
+                    <i data-lucide="download" class="w-5 h-5"></i>
+                    <span data-i18n="dl-btn">下载牛马 v3.0</span>
+                </button>
+                <p class="text-xs text-niu-muted mt-4" data-i18n="dl-note">仅支持 Windows 10/11 系统</p>
+                <div class="mt-4 text-niu-gold text-sm animate-bounce-gold" data-i18n="dl-cta">
+                    🚀 立即开启你的巅峰之路
+                </div>
+            </section>
+
+        </main>
+    </div>
+    <script>
+        // --- 全量文案数据 1:1 ---
+        const i18n = {
+            zh: {
+                'title-main': '牛马', 'title-sub': ' - 让程序员解放双手', 'subtitle-prefix': '专注于驱动 Cursor 为人类做事，', 'subtitle-suffix': '助你走上人生巅峰。',
+                'desc-prefix': '专为 Cursor 编辑器打造的效率神器。通过', 'desc-middle': '键赋予你全新的交互方式，', 'desc-strong-1': '让 Cursor 做牛做马', 'desc-middle-2': '，为你处理繁琐工作，', 'desc-strong-2': '助你走上人生巅峰',
+                'hero-download-btn': '立即下载牛马', 'hero-tutorial-btn': '查看教程',
+                'metric-1-value': '10万+', 'metric-1-label': '程序员已解放',
+                'metric-2-value': '300%', 'metric-2-label': '效率提升',
+                'metric-3-value': '24/7', 'metric-3-label': 'Cursor为你工作',
+                'desc-1': '专为 Cursor 编辑器打造的效率神器。通过 CapsLock 键赋予你全新的交互方式，让 Cursor 做牛做马，为你处理繁琐工作。',
+                'qs-title': '快速开始 - 3步走上巅峰', 
+                'qs-s1-t': '1. 安装环境', 'qs-s1-d': '确保您已安装 AutoHotkey v2 版本。这是让牛马跑起来的基础。',
+                'qs-s2-t': '2. 运行脚本', 'qs-s2-d': '右键点击 牛马.ahk，选择"Run Script"。牛马会自动尝试获取管理员权限。',
+                'qs-s3-t': '3. 开始使唤', 'qs-s3-d': '长按 CapsLock (0.5s) 召唤面板，按字母键让 Cursor 干活。',
+                'cap-title': 'CapsLock+ 核心机制 - 一键使唤', 'cap-desc': '牛马不会废弃您的 CapsLock 键，而是将其改造为召唤键 (牛马召唤器)。从此，让 Cursor 做牛做马只需一键。',
+                'cap-short-label': '短按 Click', 'cap-short-desc': '切换大小写，不影响日常打字，牛马很贴心。',
+                'cap-hold-label': '长按 Hold (>0.5s)', 'cap-hold-desc': '召唤半透明快捷操作面板，按字母键让 Cursor 开始为你工作。',
+                'map-title': '快捷键映射 - 让 Cursor 干活的指令',
+                'feat-ai-title': 'AI 辅助编程 - Cursor当牛做马', 'feat-ai-desc': '无需手动打字提问，牛马预设了高效的 Prompt 模板。只需选中代码，唤起面板，一键让Cursor开始干活。',
+                'feat-ai-workflow-title': '工作流程：',
+                'feat-ai-workflow-1': '在 Cursor 编辑器中选中一段代码。',
+                'feat-ai-workflow-2': '长按 CapsLock 直到面板出现。',
+                'feat-ai-workflow-3': '按 E (解释)、R (重构) 或 O (优化)。',
+                'feat-ai-workflow-4': '牛马会自动：复制选中代码 → 聚焦 Chat 面板 → 填入预设 Prompt → 发送。',
+                'feat-ai-example': '// 示例：解释代码的默认 Prompt\n"解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点..."',
+                'f-cb-title': '智能剪贴板 - 牛马的记忆', 'f-sr-title': '聚合搜索 - 牛马跑腿', 'f-ss-title': '截图直达 - 牛马截图术',
+                'feat-utils-title': '其他实用工具 - 牛马的绝活',
+                'feat-utils-s-title': '代码分割 (S)', 'feat-utils-s-desc': '在代码中插入特定的分割标记。结合 批量操作 (B)，可以一次性让Cursor处理多个分散的代码块，牛马批量作业。',
+                'feat-utils-p-title': '截图粘贴 (P)', 'feat-utils-p-desc': '调用系统截图工具。截图完成后，自动将图片粘贴到Cursor对话框中（解决部分场景下直接粘贴失效的问题），牛马式截图服务。',
+                'set-title': '配置与个性化 (Q) - 调教你的牛马', 'set-desc': '按 CapsLock+Q 打开设置面板，调教你的专属牛马。',
+                'set-rule-t': 'Cursor 规则 (.cursorrules)', 'set-rule-d': '一键复制牛马规则，可选择特定的需求（如 Python, 网页开发，APP等），让 牛马更懂你的规矩，成为真正的贴心下属。',
+                'set-main-title': '主要设置项：',
+                'set-main-1': 'Cursor 路径：设置 Cursor.exe 的安装位置。',
+                'set-main-2': 'AI 响应时间：调整自动脚本等待时间。',
+                'set-main-3': '提示词模板：修改默认 Prompt，定制你的牛马话术。',
+                'set-main-4': '外观：切换面板位置，中英文，牛马也要欧。',
+                'trouble-title': '常见问题 - 牛马生病了？', 
+                'trouble-q1': '提示 "Cursor 未运行"？', 'trouble-a1': '请检查设置面板中的 Cursor 路径 是否正确。通常路径为 C:\\Users\\用户名\\AppData\\Local\\Cursor\\Cursor.exe。如果没有正确识别，请点击"浏览"手动指定，确保牛马能找到它的主人。',
+                'trouble-q2': '快捷键无反应或被杀毒软件拦截', 'trouble-a2': '脚本需要监听键盘底层钩子。请务必以管理员身份运行脚本。如果不生效，请尝试重新加载脚本或检查 Windows Defender/360 是否拦截了按键监听。牛马需要权限才能为你服务！',
+                'trouble-q3': '什么鬼？连续复制用不了？', 'trouble-a3': '请确保脚本目录下的 sqlite3.dll 文件存在。脚本使用 SQLite 数据库存储历史记录。如果丢失该文件，将回退到内存存储，重启后数据会丢失。牛马的记忆需要这个文件支撑！',
+                'dl-title': '准备好让Cursor做牛做马了吗？', 'dl-desc': '下载牛马，让AI编程快人一步，助你走上人生巅峰。', 'dl-btn': '下载牛马 v3.0', 'dl-note': '仅支持 Windows 10/11 系统', 'dl-cta': '🚀 立即开启你的巅峰之路',
+                'nav-g1': '入门', 'nav-g2': '核心概念', 'nav-g3': '功能详解', 'nav-g4': '高级',
+                'demo-clipboard-init': '牛马正在准备工作...', 'demo-clipboard-1': '1. 选中 calculate_sum...', 'demo-clipboard-2': '2. 按 CapsLock+C，牛马记住', 'demo-clipboard-3': '3. 按 CapsLock+V，牛马自动合并',
+                'demo-search-init': '牛马跑腿中...', 'demo-search-1': '1. 召唤搜索框并输入...', 'demo-search-2': '2. 牛马同时在多引擎找答案...',
+                'demo-screenshot-init': '牛马准备截图...', 'demo-screenshot-1': '1. 按 CapsLock+T 启动截图', 'demo-screenshot-2': '2. 牛马自动框选区域...', 'demo-screenshot-3': '3. 自动发车，牛马直达 Cursor！',
+                'clipboard-benefit-1-title': '减少切换', 'clipboard-benefit-1-desc': '无需在源文件和目标文件之间频繁 Alt+Tab 切换窗口，牛马帮你跑腿。',
+                'clipboard-benefit-2-title': '保持心流', 'clipboard-benefit-2-desc': '一次性收集所需素材，保持阅读代码的连贯性，不被打断，牛马懂你的心。',
+                'clipboard-benefit-3-title': '自动合并', 'clipboard-benefit-3-desc': '粘贴时自动用空格或换行符连接，智能处理格式，牛马的整理术。',
+                'search-benefit-1-title': '大召唤师', 'search-benefit-1-desc': '一次性召唤全球ai牛马为你干活，kimi，豆包，元宝，文心，gemini，grok，chatgpt等十多个大模型申请出战',
+                'search-benefit-2-title': '头脑风暴', 'search-benefit-2-desc': '地球各路ai为你的bug操心，不但懂你的代码，而且懂你的难处，七嘴八舌为你解忧。',
+                'search-benefit-3-title': '提问', 'search-benefit-3-desc': '一次提问，多ai回复，省时间省钱省心，白嫖全球大模型资本。',
+                'screenshot-benefit-1-title': '有图有真相', 'screenshot-benefit-1-desc': '遇到问题先截图，cursor你看你又干了什么坏事',
+                'screenshot-benefit-2-title': '专属按键', 'screenshot-benefit-2-desc': '不再寻找cursor截图的针小按钮，一步到位快速截图',
+                'screenshot-benefit-3-title': '自动粘贴', 'screenshot-benefit-3-desc': '截图过后，直接粘贴到对话框，让cursor好好反思修bug',
+                'map-key': '按键', 'map-function': '功能', 'map-desc': '描述'
+            },
+
+            en: {
+                'title-main': 'Nmer', 'title-sub': ' - Free Your Hands', 'subtitle-prefix': 'Driving Cursor to work for humans, ', 'subtitle-suffix': 'helping you reach the peak.',
+                'desc-prefix': 'The ultimate efficiency tool for Cursor editor. Through', 'desc-middle': 'key gives you a new way to interact,', 'desc-strong-1': 'make Cursor your workhorse', 'desc-middle-2': ', handle tedious work for you,', 'desc-strong-2': 'help you reach the peak',
+                'hero-download-btn': 'Download Now', 'hero-tutorial-btn': 'View Tutorial',
+                'metric-1-value': '100K+', 'metric-1-label': 'Developers Freed',
+                'metric-2-value': '300%', 'metric-2-label': 'Efficiency Boost',
+                'metric-3-value': '24/7', 'metric-3-label': 'Cursor Working',
+                'desc-1': 'The ultimate efficiency tool for Cursor. Reimagining CapsLock as your command center.',
+                'qs-title': 'Quick Start - 3 Steps', 
+                'qs-s1-t': '1. Setup Environment', 'qs-s1-d': 'Ensure AutoHotkey v2 is installed. This is the foundation for Nmer.',
+                'qs-s2-t': '2. Run Script', 'qs-s2-d': 'Right click Nmer.ahk and select "Run Script". Nmer will automatically request admin privileges.',
+                'qs-s3-t': '3. Command Cursor', 'qs-s3-d': 'Hold CapsLock (0.5s) to summon the panel, press letter keys to make Cursor work.',
+                'cap-title': 'CapsLock+ Core Mechanism - One-Key Command', 'cap-desc': 'Nmer won\'t disable your CapsLock key, but transforms it into a summon key (Nmer Summoner). From now on, commanding Cursor is just one key away.',
+                'cap-short-label': 'Short Press (Click)', 'cap-short-desc': 'Toggles case as usual, doesn\'t affect daily typing. Nmer cares.',
+                'cap-hold-label': 'Long Press (>0.5s)', 'cap-hold-desc': 'Summons a semi-transparent quick action panel. Press letter keys to make Cursor start working for you.',
+                'map-title': 'Hotkey Mapping - Commands to Make Cursor Work',
+                'feat-ai-title': 'AI-Assisted Programming - Cursor as Workhorse', 'feat-ai-desc': 'No need to type questions manually. Nmer has preset efficient Prompt templates. Just select code, summon the panel, and let Cursor start working with one key.',
+                'feat-ai-workflow-title': 'Workflow:',
+                'feat-ai-workflow-1': 'Select a piece of code in Cursor editor.',
+                'feat-ai-workflow-2': 'Hold CapsLock until the panel appears.',
+                'feat-ai-workflow-3': 'Press E (Explain), R (Refactor), or O (Optimize).',
+                'feat-ai-workflow-4': 'Nmer will automatically: Copy selected code → Focus Chat panel → Fill preset Prompt → Send.',
+                'feat-ai-example': '// Example: Default Prompt for explaining code\n"Explain the core logic, input/output, key function roles of this code in beginner-friendly language, mark common pitfalls..."',
+                'f-cb-title': 'Smart Clipboard - Nmer\'s Memory', 'f-sr-title': 'Aggregate Search - Nmer\'s Errand', 'f-ss-title': 'Screenshot Direct - Nmer\'s Screenshot',
+                'feat-utils-title': 'Other Utility Tools - Nmer\'s Special Skills',
+                'feat-utils-s-title': 'Code Split (S)', 'feat-utils-s-desc': 'Insert specific split markers in code. Combined with Batch Operation (B), you can make Cursor process multiple scattered code blocks at once. Nmer batch processing.',
+                'feat-utils-p-title': 'Screenshot Paste (P)', 'feat-utils-p-desc': 'Call system screenshot tool. After screenshot, automatically paste the image into Cursor dialog (solves the issue where direct paste fails in some scenarios). Nmer-style screenshot service.',
+                'feat-utils-v-title': 'Merge Paste', 'feat-utils-v-desc': 'Merge content and paste at once. Nmer helps you organize.',
+                'set-title': 'Configuration & Personalization (Q) - Train Your Nmer', 'set-desc': 'Press CapsLock+Q to open settings panel and train your exclusive Nmer.',
+                'set-rule-t': 'Cursor Rules (.cursorrules)', 'set-rule-d': 'One-click copy Nmer rules, can choose specific needs (such as Python, web development, APP, etc.), making Nmer understand your rules better and become a truly considerate assistant.',
+                'set-main-title': 'Main Settings:',
+                'set-main-1': 'Cursor Path: Set the installation location of Cursor.exe.',
+                'set-main-2': 'AI Response Time: Adjust automatic script wait time.',
+                'set-main-3': 'Prompt Template: Modify default Prompt, customize your Nmer\'s wording.',
+                'set-main-4': 'Appearance: Switch panel position, Chinese/English, Nmer also wants to be European.',
+                'trouble-title': 'Common Problems - Is Nmer Sick?', 
+                'trouble-q1': 'Prompt "Cursor Not Running"?', 'trouble-a1': 'Please check if the Cursor path in the settings panel is correct. Usually the path is C:\\Users\\Username\\AppData\\Local\\Cursor\\Cursor.exe. If not correctly identified, click "Browse" to manually specify, ensuring Nmer can find its master.',
+                'trouble-q2': 'Hotkeys Not Responding or Blocked by Antivirus', 'trouble-a2': 'The script needs to listen to low-level keyboard hooks. Please run the script as Administrator. If it doesn\'t work, try reloading the script or check if Windows Defender/360 is blocking key monitoring. Nmer needs permission to serve you!',
+                'trouble-q3': 'CapsLock+c is wrong?', 'trouble-a3': 'Please ensure the sqlite3.dll file exists in the script directory. The script uses SQLite database to store history. If this file is missing, it will fall back to memory storage, and data will be lost after restart. Nmer\'s memory needs this file!',
+                'dl-title': 'Ready to Make Cursor Your Workhorse?', 'dl-desc': 'Download Nmer, make AI programming faster, help you reach the peak.', 'dl-btn': 'Download Nmer v3.0', 'dl-note': 'Windows 10/11 only', 'dl-cta': '🚀 Start Your Peak Journey Now',
+                'nav-g1': 'Get Started', 'nav-g2': 'Core Concepts', 'nav-g3': 'Features', 'nav-g4': 'Advanced',
+                'demo-clipboard-init': 'Nmer is preparing...', 'demo-clipboard-1': '1. Select calculate_sum...', 'demo-clipboard-2': '2. Press CapsLock+C, Nmer remembers', 'demo-clipboard-3': '3. Press CapsLock+V, Nmer auto-merges',
+                'demo-search-init': 'Nmer is running errands...', 'demo-search-1': '1. Summon search box and type...', 'demo-search-2': '2. Nmer searches multiple engines simultaneously...',
+                'demo-screenshot-init': 'Nmer preparing screenshot...', 'demo-screenshot-1': '1. Press CapsLock+T to start screenshot', 'demo-screenshot-2': '2. Nmer auto-selects area...', 'demo-screenshot-3': '3. Auto launch, Nmer goes straight to Cursor!',
+                'clipboard-benefit-1-title': 'Reduce Switching', 'clipboard-benefit-1-desc': 'No need to frequently Alt+Tab between source and target files. Nmer runs errands for you.',
+                'clipboard-benefit-2-title': 'Maintain Flow', 'clipboard-benefit-2-desc': 'Collect all needed materials at once, maintain code reading continuity without interruption. Nmer understands you.',
+                'clipboard-benefit-3-title': 'Auto Merge', 'clipboard-benefit-3-desc': 'Automatically connect with spaces or line breaks when pasting, intelligently handle formatting. Nmer\'s organization skills.',
+                'search-benefit-1-title': 'Grand Summoner', 'search-benefit-1-desc': 'Summon global AI workhorses at once: kimi, doubao, yuanbao, wenxin, gemini, grok, chatgpt and more than ten large models ready for battle',
+                'search-benefit-2-title': 'Brainstorming', 'search-benefit-2-desc': 'AIs from around the world worry about your bugs, understanding both your code and your difficulties, chattering to solve your problems.',
+                'search-benefit-3-title': 'One Question', 'search-benefit-3-desc': 'One question, multiple AI replies, saving time, money and peace of mind. Free-riding global large model capital.',
+                'screenshot-benefit-1-title': 'Pictures Tell the Truth', 'screenshot-benefit-1-desc': 'When encountering problems, screenshot first. Cursor, look what you\'ve done wrong again',
+                'screenshot-benefit-2-title': 'Dedicated Key', 'screenshot-benefit-2-desc': 'No more searching for Cursor\'s tiny screenshot button, one-step quick screenshot',
+                'screenshot-benefit-3-title': 'Auto Paste', 'screenshot-benefit-3-desc': 'After screenshot, directly paste to dialog, let Cursor reflect and fix bugs',
+                'map-key': 'Key', 'map-function': 'Function', 'map-desc': 'Description'
+            }
+        };
+
+        const keyMapData = {
+            zh: [
+                { k: 'E', n: '解释代码 (Explain)', d: '让Cursor讲清楚核心逻辑，当牛做马讲清楚。' },
+                { k: 'R', n: '重构代码 (Refactor)', d: '让Cursor遵循规范重构，牛马式整理。' },
+                { k: 'O', n: '优化代码 (Optimize)', d: '分析性能瓶颈并优化，牛马式提速。' },
+                { k: 'C', n: '连续复制', d: '多次选中连续按 C 存入历史，牛马帮你收集。' },
+                { k: 'V', n: '合并粘贴', d: '将内容合并一次性粘贴，牛马帮你整理。' },
+                { k: 'F', n: '聚合搜索', d: '输入关键词，让牛马在多个引擎找答案。' },
+                { k: 'T', n: '区域截图', d: '截图并粘贴到 Cursor，牛马式截图服务。' }
+            ],
+            en: [
+                { k: 'E', n: 'Explain Code', d: 'Make Cursor explain core logic clearly, workhorse-style explanation.' },
+                { k: 'R', n: 'Refactor Code', d: 'Make Cursor refactor following standards, Nmer-style organization.' },
+                { k: 'O', n: 'Optimize Code', d: 'Analyze performance bottlenecks and optimize, Nmer-style speed boost.' },
+                { k: 'C', n: 'Continuous Copy', d: 'Select multiple times and press C continuously to save to history. Nmer helps you collect.' },
+                { k: 'V', n: 'Merge Paste', d: 'Merge content and paste at once. Nmer helps you organize.' },
+                { k: 'F', n: 'Aggregate Search', d: 'Enter keywords, let Nmer search multiple engines for answers.' },
+                { k: 'T', n: 'Area Screenshot', d: 'Screenshot and paste to Cursor. Nmer-style screenshot service.' }
+            ]
+        };
+
+        const navData = {
+            zh: [
+                { g: 'nav-g1', items: [{l:'简介',id:'intro'},{l:'快速开始',id:'quick-start'}] },
+                { g: 'nav-g2', items: [{l:'CapsLock+ 机制',id:'concept-capslock'}, {l:'快捷面板',id:'concept-panel'}] },
+                { g: 'nav-g3', items: [{l:'智能剪贴板',id:'feat-clipboard'},{l:'聚合搜索',id:'feat-search'},{l:'实用工具',id:'feat-utils'}] },
+                { g: 'nav-g4', items: [{l:'配置与规则',id:'interface-settings'},{l:'常见问题',id:'troubleshooting'}] }
+            ],
+            en: [
+                { g: 'nav-g1', items: [{l:'Introduction',id:'intro'},{l:'Quick Start',id:'quick-start'}] },
+                { g: 'nav-g2', items: [{l:'CapsLock+ Mechanism',id:'concept-capslock'}, {l:'Quick Panel',id:'concept-panel'}] },
+                { g: 'nav-g3', items: [{l:'Smart Clipboard',id:'feat-clipboard'},{l:'Aggregate Search',id:'feat-search'},{l:'Utility Tools',id:'feat-utils'}] },
+                { g: 'nav-g4', items: [{l:'Configuration',id:'interface-settings'},{l:'Troubleshooting',id:'troubleshooting'}] }
+            ]
+        };
+
+        let currentLang = 'zh';
+        function toggleTheme() { document.documentElement.classList.toggle('dark'); }
+        function toggleLang() { 
+            currentLang = currentLang === 'zh' ? 'en' : 'zh'; 
+            updateUI();
+            // 动画函数会自动使用最新的 currentLang，因为它们直接访问全局变量
+        }
+
+        function updateUI() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18n[currentLang][key]) {
+                    el.textContent = i18n[currentLang][key];
+                }
+            });
+            document.getElementById('lang-btn-text').textContent = currentLang === 'zh' ? 'EN' : '中文';
+            
+            // 目录还原
+            document.getElementById('nav-container').innerHTML = navData[currentLang].map(group => `
+                <div class="mb-6">
+                    <h3 class="font-bold text-niu-accent text-xs uppercase mb-3 px-2">${i18n[currentLang][group.g]}</h3>
+                    <div class="space-y-1">
+                        ${group.items.map(i => `<a href="#${i.id}" class="block px-2 py-1.5 text-sm hover:text-niu-accent transition-colors">${i.l}</a>`).join('')}
+                    </div>
+                </div>
+            `).join('');
+
+            // 快速开始内容
+            document.getElementById('qs-content').innerHTML = [1,2,3].map(i => `
+                <div class="p-6 rounded-xl bg-gray-50 dark:bg-niu-sidebar border border-gray-200 dark:border-niu-border flex gap-4">
+                    <div class="w-10 h-10 rounded-full bg-niu-accent flex items-center justify-center text-white font-bold">${i}</div>
+                    <div><h3 class="font-bold">${i18n[currentLang][`qs-s${i}-t`]}</h3><p class="text-sm text-niu-muted">${i18n[currentLang][`qs-s${i}-d`]}</p></div>
+                </div>
+            `).join('');
+
+            // 映射表
+            document.getElementById('map-table').innerHTML = `
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-gray-100 dark:bg-niu-sidebar text-niu-accent">
+                        <tr><th class="px-6 py-3">${i18n[currentLang]['map-key']}</th><th class="px-6 py-3">${i18n[currentLang]['map-function']}</th><th class="px-6 py-3">${i18n[currentLang]['map-desc']}</th></tr>
+                    </thead>
+                    <tbody class="divide-y divide-niu-border">
+                        ${keyMapData[currentLang].map(item => `<tr><td class="px-6 py-4 font-mono font-bold">${item.k}</td><td class="px-6 py-4">${item.n}</td><td class="px-6 py-4 text-niu-muted">${item.d}</td></tr>`).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            // AI 辅助编程工作流程
+            document.getElementById('feat-ai-workflow').innerHTML = [1,2,3,4].map(i => `
+                <li>${i18n[currentLang][`feat-ai-workflow-${i}`]}</li>
+            `).join('');
+            document.getElementById('feat-ai-example').innerHTML = i18n[currentLang]['feat-ai-example'].replace(/\n/g, '<br>');
+
+            // 剪贴板优点
+            document.getElementById('feat-clipboard-benefits').innerHTML = [1,2,3].map(i => `
+                <div class="feature-card bg-gray-50 dark:bg-niu-sidebar/30 p-4 rounded-lg">
+                    <div class="text-niu-accent mb-2"><i data-lucide="${i===1?'zap':i===2?'layers':'database'}" class="w-5 h-5"></i></div>
+                    <h5 class="text-gray-900 dark:text-white text-sm font-semibold mb-1">${i18n[currentLang][`clipboard-benefit-${i}-title`]}</h5>
+                    <p class="text-xs text-niu-muted">${i18n[currentLang][`clipboard-benefit-${i}-desc`]}</p>
+                </div>
+            `).join('');
+
+            // 搜索优点
+            document.getElementById('feat-search-benefits').innerHTML = [1,2,3].map(i => `
+                <div class="feature-card bg-gray-50 dark:bg-niu-sidebar/30 p-4 rounded-lg">
+                    <div class="text-niu-accent mb-2"><i data-lucide="${i===1?'zap':i===2?'layers':'database'}" class="w-5 h-5"></i></div>
+                    <h5 class="text-gray-900 dark:text-white text-sm font-semibold mb-1">${i18n[currentLang][`search-benefit-${i}-title`]}</h5>
+                    <p class="text-xs text-niu-muted">${i18n[currentLang][`search-benefit-${i}-desc`]}</p>
+                </div>
+            `).join('');
+
+            // 实用工具列表
+            document.getElementById('feat-utils-list').innerHTML = `
+                <li class="feature-card bg-gray-50 dark:bg-niu-sidebar p-4 rounded-lg border border-gray-200 dark:border-niu-border">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-bold text-gray-900 dark:text-white">${i18n[currentLang]['feat-utils-s-title']}</span>
+                        <span class="text-xs bg-niu-accent/20 text-niu-accent px-2 py-1 rounded">Batch</span>
+                    </div>
+                    <p class="text-sm text-niu-muted">${i18n[currentLang]['feat-utils-s-desc']}</p>
+                </li>
+                <li class="feature-card bg-gray-50 dark:bg-niu-sidebar p-4 rounded-lg border border-gray-200 dark:border-niu-border">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-bold text-gray-900 dark:text-white">${i18n[currentLang]['feat-utils-p-title']}</span>
+                        <span class="text-xs bg-niu-accent/20 text-niu-accent px-2 py-1 rounded">Image</span>
+                    </div>
+                    <p class="text-sm text-niu-muted">${i18n[currentLang]['feat-utils-p-desc']}</p>
+                </li>
+            `;
+
+            // 截图优点
+            document.getElementById('feat-screenshot-benefits').innerHTML = [1,2,3].map(i => `
+                <div class="feature-card bg-gray-50 dark:bg-niu-sidebar/30 p-4 rounded-lg">
+                    <div class="text-niu-accent mb-2"><i data-lucide="${i===1?'database':i===2?'zap':'layers'}" class="w-5 h-5"></i></div>
+                    <h5 class="text-gray-900 dark:text-white text-sm font-semibold mb-1">${i18n[currentLang][`screenshot-benefit-${i}-title`]}</h5>
+                    <p class="text-xs text-niu-muted">${i18n[currentLang][`screenshot-benefit-${i}-desc`]}</p>
+                </div>
+            `).join('');
+
+            // 配置内容
+            document.getElementById('set-content').innerHTML = `
+                <div class="space-y-4">
+                    <div>
+                        <h4 class="font-bold text-niu-accent mb-2">${i18n[currentLang]['set-main-title']}</h4>
+                        <ul class="list-disc list-inside text-sm text-niu-muted mt-2 space-y-1">
+                            <li><strong>${i18n[currentLang]['set-main-1']}</strong></li>
+                            <li><strong>${i18n[currentLang]['set-main-2']}</strong></li>
+                            <li><strong>${i18n[currentLang]['set-main-3']}</strong></li>
+                            <li><strong>${i18n[currentLang]['set-main-4']}</strong></li>
+                        </ul>
+                    </div>
+                    <div class="border-t border-niu-border pt-4">
+                        <h4 class="font-bold text-niu-accent">${i18n[currentLang]['set-rule-t']}</h4>
+                        <p class="text-sm text-niu-muted">${i18n[currentLang]['set-rule-d']}</p>
+                    </div>
+                </div>
+            `;
+
+            // 问题列表
+            document.getElementById('trouble-list').innerHTML = [1,2,3].map(i => `
+                <details class="p-4 bg-gray-50 dark:bg-niu-sidebar rounded-lg border border-niu-border group">
+                    <summary class="cursor-pointer font-bold list-none flex justify-between">${i18n[currentLang][`trouble-q${i}`]} <i data-lucide="chevron-down" class="w-4 h-4"></i></summary>
+                    <p class="mt-4 text-sm text-niu-muted border-t pt-4">${i18n[currentLang][`trouble-a${i}`]}</p>
+                </details>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        // --- 动画逻辑 (完整 1:1) ---
+        async function runClipboardDemo() {
+            const stage = document.getElementById('demo-stage');
+            stage.innerHTML = `<div class="w-[45%] h-full flex flex-col"><div class="text-[10px] text-niu-muted mb-2">utils.py</div><div class="flex-1 bg-gray-100 dark:bg-[#1E1E1E] rounded p-3 font-mono text-[10px] space-y-2 relative"><div id="c-line-1">def calculate_sum(a, b):</div><div id="c-line-2">def calculate_avg(a, b):</div><div id="sel-h" class="absolute bg-niu-accent/30 border border-niu-accent opacity-0 transition-all duration-300"></div></div></div><div id="c-queue" class="w-[10%] flex flex-col-reverse items-center gap-2 pt-10"></div><div class="w-[45%] h-full flex flex-col"><div class="text-[10px] text-niu-muted mb-2">main.py</div><div class="flex-1 bg-gray-100 dark:bg-[#1E1E1E] rounded p-3 font-mono text-[10px]"><div>from utils import <span id="c-target" class="text-niu-accent font-bold"></span><span class="cursor-caret"></span></div></div></div>`;
+            const q = document.getElementById('c-queue'), target = document.getElementById('c-target'), sel = document.getElementById('sel-h'), cap = document.getElementById('demo-caption');
+            while(true) {
+                target.textContent = ""; q.innerHTML = ""; cap.textContent = i18n[currentLang]['demo-clipboard-1'];
+                sel.style.top = "12px"; sel.style.width="110px"; sel.style.height="14px"; sel.style.opacity="1";
+                await new Promise(r => setTimeout(r, 1000));
+                q.innerHTML += `<div class="bg-niu-accent text-[8px] px-1 rounded text-white">sum</div>`;
+                sel.style.top = "26px"; cap.textContent = i18n[currentLang]['demo-clipboard-2'];
+                await new Promise(r => setTimeout(r, 1000));
+                q.innerHTML += `<div class="bg-niu-accent text-[8px] px-1 rounded text-white">avg</div>`;
+                sel.style.opacity="0"; cap.textContent = i18n[currentLang]['demo-clipboard-3'];
+                await new Promise(r => setTimeout(r, 1000));
+                target.textContent = "calculate_sum, calculate_avg"; q.innerHTML = "";
+                await new Promise(r => setTimeout(r, 3000));
+            }
+        }
+
+        async function runSearchDemo() {
+            const stage = document.getElementById('search-demo-stage');
+            const panel = document.getElementById('s-panel'), input = document.getElementById('s-input'), win = document.getElementById('b-win'), tabs = document.getElementById('b-tabs'), cap = document.getElementById('search-demo-caption');
+            
+            function updateSearchPanel() {
+                const searchTitle = currentLang === 'zh' ? '牛马聚合搜索' : 'Nmer Aggregate Search';
+                if (stage) {
+                    stage.innerHTML = `<div id="s-panel" class="w-64 bg-gray-100 dark:bg-[#1E1E1E] p-4 rounded-xl border border-niu-border shadow-2xl transition-all duration-500 z-20"><div class="text-[10px] mb-2 font-bold flex items-center gap-2"><i data-lucide="search" class="w-3 h-3 text-niu-accent"></i> ${searchTitle}</div><div class="bg-white dark:bg-black/30 h-8 rounded border border-niu-border flex items-center px-2 text-[10px]" id="s-input"></div><div class="grid grid-cols-2 gap-2 mt-3" id="s-engines"><div class="text-[8px] border p-1 rounded" id="eng-1">DeepSeek</div><div class="text-[8px] border p-1 rounded" id="eng-2">Google</div></div></div><div id="b-win" class="absolute inset-10 bg-white dark:bg-[#2D2D2D] rounded-t-lg shadow-2xl translate-y-full transition-transform duration-500 z-10 overflow-hidden"><div class="h-6 bg-gray-200 dark:bg-[#202020] flex items-center px-2 gap-2"><div class="flex gap-1"><div class="w-1.5 h-1.5 rounded-full bg-red-400"></div><div class="w-1.5 h-1.5 rounded-full bg-green-400"></div></div><div id="b-tabs" class="flex gap-1 ml-2 h-full items-end"></div></div></div>`;
+                    lucide.createIcons();
+                }
+            }
+            
+            updateSearchPanel();
+            
+            let lastLang = currentLang;
+            while(true) {
+                // 如果语言改变，更新面板
+                if (lastLang !== currentLang) {
+                    lastLang = currentLang;
+                    updateSearchPanel();
+                    await new Promise(r => setTimeout(r, 100));
+                }
+                const panel = document.getElementById('s-panel'), input = document.getElementById('s-input'), win = document.getElementById('b-win'), tabs = document.getElementById('b-tabs');
+                if (!panel || !input || !win || !tabs) {
+                    updateSearchPanel();
+                    await new Promise(r => setTimeout(r, 100));
+                    continue;
+                }
+                panel.style.transform = "scale(1)"; panel.style.opacity = "1"; input.textContent = ""; win.classList.add('translate-y-full'); tabs.innerHTML = "";
+                cap.textContent = i18n[currentLang]['demo-search-1'];
+                const text = "Python Asyncio";
+                for(let c of text) { input.textContent += c; await new Promise(r => setTimeout(r, 80)); }
+                await new Promise(r => setTimeout(r, 400));
+                document.getElementById('eng-1')?.classList.add('engine-selected'); document.getElementById('eng-2')?.classList.add('engine-selected');
+                cap.textContent = i18n[currentLang]['demo-search-2'];
+                await new Promise(r => setTimeout(r, 600));
+                panel.style.transform = "scale(0.8)"; panel.style.opacity = "0"; win.classList.remove('translate-y-full');
+                ['DeepSeek', 'Google'].forEach(t => tabs.innerHTML += `<div class="bg-white dark:bg-[#3C3C3C] px-2 text-[8px] h-4 rounded-t flex items-center border-x border-t border-black/10 animate-pulse">${t}</div>`);
+                await new Promise(r => setTimeout(r, 3000));
+            }
+        }
+
+        async function runScreenshotDemo() {
+            const stage = document.getElementById('screenshot-demo-stage');
+            const ov = document.getElementById('ss-ov'), box = document.getElementById('ss-box'), btn = document.getElementById('ss-btn'), cap = document.getElementById('screenshot-demo-caption');
+            
+            function updateScreenshotPanel() {
+                const btnText = currentLang === 'zh' ? '粘贴到 Cursor' : 'Paste to Cursor';
+                if (stage) {
+                    stage.innerHTML = `<div class="flex-1 p-4 grid grid-cols-2 gap-2 opacity-30"><div class="bg-gray-200 dark:bg-gray-800 h-10 rounded"></div><div class="bg-gray-200 dark:bg-gray-800 h-10 rounded"></div><div class="bg-gray-200 dark:bg-gray-800 h-20 rounded col-span-2"></div></div><div id="ss-ov" class="absolute inset-0 bg-black/40 opacity-0 transition-opacity"></div><div id="ss-box" class="absolute border-2 border-white opacity-0 transition-all duration-1000"></div><div id="ss-btn" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-niu-accent text-white px-4 py-2 rounded-lg text-xs opacity-0 scale-75 transition-all shadow-xl font-bold flex items-center gap-1"><i data-lucide="clipboard" class="w-3 h-3"></i> ${btnText}</div>`;
+                    lucide.createIcons();
+                }
+            }
+            
+            updateScreenshotPanel();
+            
+            let lastLang = currentLang;
+            while(true) {
+                // 如果语言改变，更新面板
+                if (lastLang !== currentLang) {
+                    lastLang = currentLang;
+                    updateScreenshotPanel();
+                    await new Promise(r => setTimeout(r, 100));
+                }
+                const ov = document.getElementById('ss-ov'), box = document.getElementById('ss-box'), btn = document.getElementById('ss-btn');
+                if (!ov || !box || !btn) {
+                    updateScreenshotPanel();
+                    await new Promise(r => setTimeout(r, 100));
+                    continue;
+                }
+                ov.style.opacity = "0"; box.style.opacity = "0"; btn.style.opacity = "0"; btn.style.transform = "scale(0.75)";
+                cap.textContent = i18n[currentLang]['demo-screenshot-1']; await new Promise(r => setTimeout(r, 1200));
+                ov.style.opacity = "1"; cap.textContent = i18n[currentLang]['demo-screenshot-2']; await new Promise(r => setTimeout(r, 400));
+                box.style.opacity = "1"; box.style.top = "20%"; box.style.left = "20%"; box.style.width = "60%"; box.style.height = "40%";
+                await new Promise(r => setTimeout(r, 1200));
+                ov.style.opacity = "0"; box.style.opacity = "0"; btn.style.opacity = "1"; btn.style.transform = "scale(1)";
+                cap.textContent = i18n[currentLang]['demo-screenshot-3']; await new Promise(r => setTimeout(r, 3000));
+            }
+        }
+
+        // 存储动画函数引用以便重新启动
+        let clipboardDemoRunning = false;
+        let searchDemoRunning = false;
+        let screenshotDemoRunning = false;
+
+        function startDemos() {
+            if (!clipboardDemoRunning) {
+                clipboardDemoRunning = true;
+                runClipboardDemo();
+            }
+            if (!searchDemoRunning) {
+                searchDemoRunning = true;
+                runSearchDemo();
+            }
+            if (!screenshotDemoRunning) {
+                screenshotDemoRunning = true;
+                runScreenshotDemo();
+            }
+        }
+
+        updateUI();
+        startDemos();
+    </script>
+</body>
+</html>

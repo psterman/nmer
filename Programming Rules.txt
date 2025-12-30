@@ -1,0 +1,141 @@
+# General Programming Rules
+
+## 1. 代码格式规范
+- **缩进统一**：使用 4 个空格，禁止混合使用 Tab。
+- **行宽限制**：单行长不超过 80 字符，超出在运算符后换行。
+- **空行规范**：类间空 2 行，逻辑段落间空 1 行。
+- **括号风格**：左括号紧跟行末，右括号单独成行并对齐缩进。
+
+## 2. 命名规范 (见名知意)
+- **蛇形命名**：变量、函数使用 `snake_case`（如 `user_status`）。
+- **帕斯卡命名**：类名使用 `PascalCase`（如 `OrderService`）。
+- **常量规范**：全大写蛇形命名（如 `MAX_RETRY_LIMIT`）。
+- **私有成员**：类内部私有变量/方法必须以单下划线开头（如 `_internal_method`）。
+
+## 3. 逻辑安全与防御
+- **严格判空**：所有外部输入（API、用户输入）必须先进行有效性校验。
+- **异常捕获**：禁止使用 bare except，必须捕获具体异常并配合 `finally` 释放资源。
+- **类型注解**：函数参数和返回值必须包含 Type Hints。
+- **路径安全**：禁止硬编码，统一使用 `pathlib` 库。
+
+## 4. AI 协作指令 (Cursor Exclusive)
+- **语言**：所有回复、注释、解释必须使用 **简体中文**。
+- **计划先行**：大规模修改前必须先列出修改逻辑列表供用户确认。
+- **日志友好**：在关键分支处自动添加带有前缀的 `print` 或 `logging` 信息。
+
+# Web Development Rules
+
+## 1. 前端技术栈与格式
+- **HTML 语义化**：禁止滥用 `div`，使用 `<header>`, `<main>`, `<footer>` 等。
+- **CSS 命名**：遵循 BEM 规范或 Tailwind CSS 指令。
+- **现代语法**：优先使用 ES6+ 特性（可选链 `?.`、解构赋值）。
+
+## 2. 响应式与布局
+- **移动端优先**：先考虑手机布局，再通过媒体查询适配大屏。
+- **单位规范**：优先使用 `rem`, `vh/vw` 或 `flex`，禁止硬编码固定像素宽度。
+- **触控优化**：移动端点击区域不小于 44x44 像素。
+
+## 3. 前后端交互 (API & State)
+- **请求封装**：统一处理 Loading、Success、Error 状态。
+- **安全规范**：严禁使用 `innerHTML` 渲染用户数据，必须防止 XSS。
+- **外部链接**：`target="_blank"` 必须配合 `rel="noopener noreferrer"`。
+
+## 4. Cursor 协作指令
+- **样式预览**：修改 CSS 时请优先提供内联样式或 class 说明，方便快速预览。
+- **结构优化**：DOM 层级超过 5 层时请主动提醒重构。
+
+# WeChat Mini Program Rules
+
+## 1. 结构与性能
+- **命名一致性**：文件夹名与内部四剑客文件（.wxml, .js等）必须一致。
+- **setData 限制**：严禁高频调用 setData，严禁单次传输超 1MB 数据，仅传输差异化数据。
+- **分包策略**：主包仅保留 TabBar 页面，其余逻辑必须分包。
+
+## 2. 语法与交互
+- **单位**：布局统一使用 `rpx`。
+- **反馈机制**：请求时必须显示 `showLoading`，核心操作（删除等）必须有 `showModal` 二次确认。
+- **列表渲染**：`wx:for` 必须显式指定 `wx:key`。
+
+## 3. Cursor 协作指令
+- **自动转换**：粘贴 HTML 时请自动转换为小程序标签（view, text, image）。
+- **生命周期辅助**：逻辑编写时需提醒放在 `onLoad` 还是 `onShow`。
+
+# Browser Extension Rules (MV3)
+
+## 1. 架构规范
+- **MV3 标准**：强制遵循 Manifest V3，使用 Service Worker 替代 Background Pages。
+- **脚本隔离**：严格区分 content_scripts、background 与 popup 职责。
+- **权限最小化**：仅申请必需权限并在注释中说明用途。
+
+## 2. 通信与安全
+- **异步响应**：`onMessage` 监听器异步返回时必须 `return true`。
+- **禁止内联**：禁止在 HTML 中写内联 JS，必须外挂脚本文件。
+- **状态持久化**：Service Worker 必须设计为无状态，数据存入 `chrome.storage`。
+
+## 3. Cursor 协作指令
+- **配置同步**：新增功能涉及权限时，提醒我同步更新 `manifest.json`。
+- **样式隔离**：注入样式时建议使用 Shadow DOM。
+
+# Android Development Rules
+
+## 1. 语言与工具
+- **Kotlin 优先**：强制使用 Kotlin 及协程 (Coroutines)，弃用 RxJava。
+- **版本目录**：依赖管理必须使用 `libs.versions.toml`。
+
+## 2. UI 与架构 (Compose/MVVM)
+- **声明式 UI**：新功能优先使用 Jetpack Compose。
+- **资源解耦**：禁止硬编码，必须使用 `res/values` 下的资源文件。
+- **生命周期安全**：异步任务必须绑定 `viewModelScope` 或 `lifecycleScope`。
+
+## 3. Cursor 协作指令
+- **内存泄漏检查**：严禁在 ViewModel 中持有 Activity 的 Context。
+- **API 兼容性**：使用高版本特性时自动添加 `SDK_INT` 判断逻辑。
+
+# iOS Development Rules
+
+## 1. Swift 语法
+- **Swift 6 规范**：采用最新的并发安全语法，严禁使用 `!` 强制解包。
+- **类型选择**：优先使用值类型 (`struct`)。
+
+## 2. SwiftUI & 并发
+- **组件拆分**：View 超过 100 行必须拆分。
+- **并发安全**：UI 更新必须标记 `@MainActor`，异步统一使用 `async/await`。
+- **预览配套**：每个 View 必须自带 `#Preview` 模块。
+
+## 3. Cursor 协作指令
+- **内存安全**：逃逸闭包自动提醒使用 `[weak self]`。
+- **重构建议**：body 块逻辑过杂时自动提醒提取计算属性。
+
+# Python Development Rules
+
+## 1. 编码基础
+- **PEP 8**：严格遵守官方排版指南。
+- **类型安全**：所有函数强制要求 Type Hints。
+- **环境兼容**：使用 `pathlib` 处理跨平台路径。
+
+## 2. 逻辑简洁
+- **避免冗余**：逻辑重复处必须抽离函数。
+- **简化判断**：超过 3 层的 if-elif 使用字典映射或 `match-case`。
+- **魔法值**：所有硬编码数值必须定义为常量。
+
+## 3. Cursor 协作指令
+- **Docstring**：为复杂函数生成 Google 风格的文档字符串。
+- **内置优化**：优先推荐内置函数（sum, sorted 等）而非手写逻辑。
+
+
+# Backend Service Rules
+
+## 1. 接口与契约
+- **RESTful**：标准 HTTP 动词、URL 名词复数、版本号控制。
+- **响应格式**：统一返回 `{code, data, message}`。
+- **幂等性**：写操作接口必须考虑重复请求处理。
+
+## 2. 数据库规范
+- **ORM 安全**：严禁手写 SQL 拼接，防止注入。
+- **事务管理**：涉及多表操作强制包裹在 Transaction 中。
+- **软删除**：核心数据使用 `is_deleted` 进行逻辑删除。
+
+## 3. 安全与日志
+- **敏感信息**：日志严禁记录明文密码或 Token。
+- **错误屏蔽**：生产环境严禁向前端返回详细堆栈信息。
+- **追踪**：所有请求必须携带 Trace ID。
