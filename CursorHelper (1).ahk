@@ -111,7 +111,6 @@ global CursorPanelScreenIndex := 1  ; cursor快捷弹出面板屏幕索引
 global ClipboardPanelScreenIndex := 1  ; 剪贴板管理面板屏幕索引
 global PanelX := -1  ; 自定义 X 坐标（-1 表示使用默认位置）
 global PanelY := -1  ; 自定义 Y 坐标（-1 表示使用默认位置）
-global WindowPositionSaveTimers := Map()  ; 存储每个窗口的延迟保存定时器
 ; 连续复制功能
 global ClipboardHistory := []  ; 存储所有复制的内容（兼容旧版本，保留）
 global ClipboardHistory_CtrlC := []  ; 存储 Ctrl+C 复制的内容
@@ -170,6 +169,9 @@ global AutoStart := false  ; 是否开启自启动
 global VoiceSearchEnabledCategories := []  ; 启用的搜索标签列表
 global VoiceSearchAutoUpdateSwitch := 0  ; 自动更新开关控件（语音搜索）
 global VoiceInputActionSelectionVisible := false  ; 语音输入操作选择界面是否显示
+; 窗口拖动状态跟踪（用于防止拖动时组件闪烁）
+global WindowDragging := false  ; 是否正在拖动窗口
+global DraggingTimers := Map()  ; 存储拖动时需要暂停的定时器 {TimerName: TimerID}
 ; 多语言支持
 global Language := "zh"  ; 语言设置：zh=中文, en=英文
 global DefaultStartTab := "general"  ; 默认启动页面：general=通用, appearance=外观, prompts=提示词, hotkeys=快捷键, advanced=高级
@@ -2715,12 +2717,65 @@ GetWindowScreenIndex(WinTitle) {
 
 ; ===================== 窗口位置和大小记忆功能 =====================
 ; 保存窗口位置和大小到配置文件
+; 待保存的窗口位置信息（用于延迟保存）
+global PendingWindowPositions := Map()
+global WindowPositionSaveTimer := 0
+
+; 保存窗口位置（立即保存，用于需要立即保存的场景）
 SaveWindowPosition(WindowName, X, Y, Width, Height) {
     global ConfigFile
     IniWrite(String(X), ConfigFile, "WindowPositions", WindowName . "_X")
     IniWrite(String(Y), ConfigFile, "WindowPositions", WindowName . "_Y")
     IniWrite(String(Width), ConfigFile, "WindowPositions", WindowName . "_Width")
     IniWrite(String(Height), ConfigFile, "WindowPositions", WindowName . "_Height")
+}
+
+; 延迟保存窗口位置（优化性能，避免频繁IO）
+QueueWindowPositionSave(WindowName, X, Y, Width, Height) {
+    global PendingWindowPositions, WindowPositionSaveTimer
+    
+    ; 将窗口位置信息存储到Map中（如果已存在则更新）
+    PendingWindowPositions[WindowName] := {X: X, Y: Y, Width: Width, Height: Height}
+    
+    ; 如果定时器已存在，先删除（重置延迟时间）
+    if (WindowPositionSaveTimer != 0) {
+        try {
+            SetTimer(WindowPositionSaveTimer, 0)
+        } catch {
+        }
+    }
+    
+    ; 设置延迟保存定时器（500ms后执行，给用户足够的时间完成窗口调整）
+    WindowPositionSaveTimer := (*) => FlushPendingWindowPositions()
+    SetTimer(WindowPositionSaveTimer, -500)
+}
+
+; 立即保存所有待保存的窗口位置
+FlushPendingWindowPositions() {
+    global PendingWindowPositions, WindowPositionSaveTimer, ConfigFile
+    
+    ; 如果Map为空，直接返回
+    if (!PendingWindowPositions || PendingWindowPositions.Count = 0) {
+        return
+    }
+    
+    ; 批量保存所有待保存的窗口位置
+    try {
+        for WindowName, Pos in PendingWindowPositions {
+            IniWrite(String(Pos.X), ConfigFile, "WindowPositions", WindowName . "_X")
+            IniWrite(String(Pos.Y), ConfigFile, "WindowPositions", WindowName . "_Y")
+            IniWrite(String(Pos.Width), ConfigFile, "WindowPositions", WindowName . "_Width")
+            IniWrite(String(Pos.Height), ConfigFile, "WindowPositions", WindowName . "_Height")
+        }
+        
+        ; 清空待保存列表
+        PendingWindowPositions.Clear()
+    } catch {
+        ; 如果保存失败，保留待保存列表，下次再试
+    }
+    
+    ; 清除定时器
+    WindowPositionSaveTimer := 0
 }
 
 ; 从配置文件恢复窗口位置和大小
@@ -2751,43 +2806,23 @@ RestoreWindowPosition(WindowName, DefaultWidth, DefaultHeight, DefaultX := -1, D
 
 ; 窗口大小改变时保存位置和大小
 OnWindowSize(GuiObj, MinMax, Width, Height) {
+    global WindowDragging
+    
+    ; 如果窗口正在拖动，跳过保存以避免频繁IO
+    if (WindowDragging) {
+        return
+    }
+    
     ; MinMax: -1=最小化, 1=最大化, 0=正常大小
     if (MinMax = 0) {
-        ; 【延迟保存】使用定时器延迟保存，等用户停止调整后再执行
-        ; 这样可以避免在拖动窗口时频繁写入INI文件
         try {
+            WinGetPos(&X, &Y, &W, &H, GuiObj)
             WindowName := GuiObj.Title
             if (WindowName = "") {
                 WindowName := "Window_" . GuiObj.Hwnd
             }
-            
-            ; 如果该窗口已有定时器，先删除旧的定时器
-            if (WindowPositionSaveTimers.Has(WindowName)) {
-                try {
-                    SetTimer(WindowPositionSaveTimers[WindowName], 0)  ; 停止定时器
-                } catch {
-                }
-            }
-            
-            ; 创建新的延迟保存函数
-            SaveWindowPositionDelayed(*) {
-                try {
-                    WinGetPos(&X, &Y, &W, &H, GuiObj)
-                    SaveWindowPosition(WindowName, X, Y, W, H)
-                    ; 保存完成后，从Map中移除定时器引用
-                    if (WindowPositionSaveTimers.Has(WindowName)) {
-                        WindowPositionSaveTimers.Delete(WindowName)
-                    }
-                } catch {
-                    ; 忽略错误
-                }
-            }
-            
-            ; 保存定时器函数引用到Map中
-            WindowPositionSaveTimers[WindowName] := SaveWindowPositionDelayed
-            
-            ; 延迟500ms后执行保存（如果用户继续调整，定时器会被重置）
-            SetTimer(SaveWindowPositionDelayed, -500)
+            ; 使用延迟保存，避免频繁IO
+            QueueWindowPositionSave(WindowName, X, Y, W, H)
         } catch {
             ; 忽略错误
         }
@@ -2796,40 +2831,14 @@ OnWindowSize(GuiObj, MinMax, Width, Height) {
 
 ; 窗口移动时保存位置
 OnWindowMove(GuiObj, X, Y) {
-    ; 【延迟保存】使用定时器延迟保存，等用户停止调整后再执行
     try {
+        WinGetPos(&WinX, &WinY, &WinW, &WinH, GuiObj)
         WindowName := GuiObj.Title
         if (WindowName = "") {
             WindowName := "Window_" . GuiObj.Hwnd
         }
-        
-        ; 如果该窗口已有定时器，先删除旧的定时器
-        if (WindowPositionSaveTimers.Has(WindowName)) {
-            try {
-                SetTimer(WindowPositionSaveTimers[WindowName], 0)  ; 停止定时器
-            } catch {
-            }
-        }
-        
-        ; 创建新的延迟保存函数
-        SaveWindowPositionDelayed(*) {
-            try {
-                WinGetPos(&WinX, &WinY, &WinW, &WinH, GuiObj)
-                SaveWindowPosition(WindowName, WinX, WinY, WinW, WinH)
-                ; 保存完成后，从Map中移除定时器引用
-                if (WindowPositionSaveTimers.Has(WindowName)) {
-                    WindowPositionSaveTimers.Delete(WindowName)
-                }
-            } catch {
-                ; 忽略错误
-            }
-        }
-        
-        ; 保存定时器函数引用到Map中
-        WindowPositionSaveTimers[WindowName] := SaveWindowPositionDelayed
-        
-        ; 延迟500ms后执行保存（如果用户继续调整，定时器会被重置）
-        SetTimer(SaveWindowPositionDelayed, -500)
+        ; 使用延迟保存，避免频繁IO
+        QueueWindowPositionSave(WindowName, WinX, WinY, WinW, WinH)
     } catch {
         ; 忽略错误
     }
@@ -3325,7 +3334,12 @@ ToggleCursorPanelAutoHide(*) {
 
 ; ===================== 检测面板是否靠边 =====================
 CheckCursorPanelEdge(*) {
-    global GuiID_CursorPanel, CursorPanelAutoHide, CursorPanelHidden, CursorPanelWidth, CursorPanelHeight, CursorPanelScreenIndex
+    global GuiID_CursorPanel, CursorPanelAutoHide, CursorPanelHidden, CursorPanelWidth, CursorPanelHeight, CursorPanelScreenIndex, WindowDragging
+    
+    ; 如果窗口正在拖动，跳过检测以避免闪烁
+    if (WindowDragging) {
+        return
+    }
     
     if (!CursorPanelAutoHide || GuiID_CursorPanel = 0) {
         return
@@ -6692,7 +6706,12 @@ SwitchPromptCategoryTab(CategoryName, IsInit := false) {
 
 ; ===================== 刷新模板管理器ListView =====================
 RefreshPromptListView() {
-    global PromptManagerListView, CurrentPromptFolder, PromptTemplates, UI_Colors, ThemeMode
+    global PromptManagerListView, CurrentPromptFolder, PromptTemplates, UI_Colors, ThemeMode, WindowDragging
+    
+    ; 如果窗口正在拖动，跳过刷新以避免闪烁
+    if (WindowDragging) {
+        return
+    }
     
     if (!PromptManagerListView) {
         return
@@ -10587,6 +10606,9 @@ OnMessage(0x0134, WM_CTLCOLORLISTBOX)
 OnMessage(0x0133, WM_CTLCOLOREDIT)
 ; 监听WM_NOTIFY消息以处理ListView单元格点击（NM_CLICK）
 OnMessage(0x004E, OnClipboardListViewWMNotify)
+; 监听窗口拖动消息（WM_ENTERSIZEMOVE = 0x0231, WM_EXITSIZEMOVE = 0x0232）
+OnMessage(0x0231, WM_ENTERSIZEMOVE)
+OnMessage(0x0232, WM_EXITSIZEMOVE)
 
 WM_CTLCOLORLISTBOX(wParam, lParam, Msg, Hwnd) {
     global DefaultStartTabDDL_Hwnd, DDLBrush, UI_Colors, MoveGUIListBoxHwnd, MoveGUIListBoxBrush, MoveFromTemplateListBoxHwnd, MoveFromTemplateListBoxBrush
@@ -10720,6 +10742,231 @@ WM_CTLCOLOREDIT(wParam, lParam, Msg, Hwnd) {
     
     ; 如果不是我们的下拉框，返回0让系统使用默认处理
     return 0
+}
+
+; ===================== 窗口拖动消息处理（防止拖动时组件闪烁）====================
+WM_ENTERSIZEMOVE(wParam, lParam, Msg, Hwnd) {
+    global WindowDragging, GuiID_ConfigGUI, GuiID_CursorPanel, GuiID_ClipboardManager
+    global GuiID_VoiceInputPanel, GuiID_ScreenshotButton
+    
+    ; 检查是否是我们的窗口
+    IsOurWindow := false
+    try {
+        if (GuiID_ConfigGUI != 0 && Hwnd = GuiID_ConfigGUI.Hwnd) {
+            IsOurWindow := true
+        } else if (GuiID_CursorPanel != 0 && Hwnd = GuiID_CursorPanel.Hwnd) {
+            IsOurWindow := true
+        } else if (GuiID_ClipboardManager != 0 && Hwnd = GuiID_ClipboardManager.Hwnd) {
+            IsOurWindow := true
+        } else if (GuiID_VoiceInputPanel != 0 && Hwnd = GuiID_VoiceInputPanel.Hwnd) {
+            IsOurWindow := true
+        } else if (GuiID_ScreenshotButton != 0 && Hwnd = GuiID_ScreenshotButton.Hwnd) {
+            IsOurWindow := true
+        }
+    } catch {
+    }
+    
+    if (!IsOurWindow) {
+        return
+    }
+    
+    ; 标记窗口正在拖动
+    WindowDragging := true
+    
+    ; 暂停所有可能引起闪烁的定时器
+    try {
+        ; 暂停面板边缘检测定时器
+        SetTimer(CheckCursorPanelEdge, 0)
+        DraggingTimers["CheckCursorPanelEdge"] := true
+        
+        ; 暂停剪贴板列表刷新定时器
+        SetTimer(RefreshClipboardListDelayed, 0)
+        DraggingTimers["RefreshClipboardListDelayed"] := true
+        
+        ; 暂停提示词列表刷新定时器
+        SetTimer(RefreshPromptListView, 0)
+        DraggingTimers["RefreshPromptListView"] := true
+        
+        ; 暂停搜索引擎按钮刷新定时器
+        SetTimer(() => RefreshSearchEngineButtons(), 0)
+        DraggingTimers["RefreshSearchEngineButtons"] := true
+    } catch {
+    }
+    
+    ; 禁用ListView重绘（如果存在）
+    try {
+        global PromptManagerListView, ClipboardListViewHwnd
+        if (PromptManagerListView) {
+            ; 使用LockWindowUpdate来锁定窗口更新
+            DllCall("user32.dll\LockWindowUpdate", "Ptr", PromptManagerListView.Hwnd)
+        }
+        if (ClipboardListViewHwnd) {
+            DllCall("user32.dll\LockWindowUpdate", "Ptr", ClipboardListViewHwnd)
+        }
+    } catch {
+    }
+}
+
+WM_EXITSIZEMOVE(wParam, lParam, Msg, Hwnd) {
+    global WindowDragging, GuiID_ConfigGUI, GuiID_CursorPanel, GuiID_ClipboardManager
+    global GuiID_VoiceInputPanel, GuiID_ScreenshotButton, CursorPanelAutoHide
+    
+    ; 检查是否是我们的窗口
+    IsOurWindow := false
+    try {
+        if (GuiID_ConfigGUI != 0 && Hwnd = GuiID_ConfigGUI.Hwnd) {
+            IsOurWindow := true
+        } else if (GuiID_CursorPanel != 0 && Hwnd = GuiID_CursorPanel.Hwnd) {
+            IsOurWindow := true
+        } else if (GuiID_ClipboardManager != 0 && Hwnd = GuiID_ClipboardManager.Hwnd) {
+            IsOurWindow := true
+        } else if (GuiID_VoiceInputPanel != 0 && Hwnd = GuiID_VoiceInputPanel.Hwnd) {
+            IsOurWindow := true
+        } else if (GuiID_ScreenshotButton != 0 && Hwnd = GuiID_ScreenshotButton.Hwnd) {
+            IsOurWindow := true
+        }
+    } catch {
+    }
+    
+    if (!IsOurWindow) {
+        return
+    }
+    
+    ; 标记窗口拖动结束
+    WindowDragging := false
+    
+    ; 恢复窗口更新锁定
+    try {
+        DllCall("user32.dll\LockWindowUpdate", "Ptr", 0)
+    } catch {
+    }
+    
+    ; 恢复所有定时器
+    try {
+        ; 恢复面板边缘检测定时器（如果启用）
+        if (CursorPanelAutoHide && DraggingTimers.Has("CheckCursorPanelEdge")) {
+            SetTimer(CheckCursorPanelEdge, 500)
+            DraggingTimers.Delete("CheckCursorPanelEdge")
+        }
+        
+        ; 其他定时器在需要时会自动恢复，不需要在这里恢复
+        ; 因为它们通常是延迟执行的（-100, -300等），不会持续运行
+        DraggingTimers.Clear()
+    } catch {
+    }
+    
+    ; 强制刷新ListView（如果需要）
+    try {
+        global PromptManagerListView, ClipboardListViewHwnd
+        if (PromptManagerListView) {
+            PromptManagerListView.Redraw()
+        }
+        if (ClipboardListViewHwnd) {
+            DllCall("user32.dll\InvalidateRect", "Ptr", ClipboardListViewHwnd, "Ptr", 0, "Int", 1)
+            DllCall("user32.dll\UpdateWindow", "Ptr", ClipboardListViewHwnd)
+        }
+    } catch {
+    }
+    
+    ; 【关键优化】如果是配置面板，在拖动结束后执行完整的布局更新
+    try {
+        global GuiID_ConfigGUI
+        if (GuiID_ConfigGUI != 0 && Hwnd = GuiID_ConfigGUI.Hwnd) {
+            ; 获取当前窗口大小并触发完整的布局更新
+            WinGetPos(, , &WinWidth, &WinHeight, GuiID_ConfigGUI.Hwnd)
+            ; 延迟执行，确保窗口位置已稳定
+            SetTimer(() => UpdateConfigGUILayoutAfterDrag(WinWidth, WinHeight), -50)
+        }
+    } catch {
+    }
+}
+
+; ===================== 拖动结束后更新配置面板布局 =====================
+UpdateConfigGUILayoutAfterDrag(Width, Height) {
+    global GuiID_ConfigGUI, SidebarWidth
+    
+    if (GuiID_ConfigGUI = 0) {
+        return
+    }
+    
+    try {
+        ; 锁定窗口更新，防止闪烁
+        DllCall("user32.dll\LockWindowUpdate", "Ptr", GuiID_ConfigGUI.Hwnd)
+        
+        ; 更新标题栏宽度
+        try {
+            TitleBar := GuiID_ConfigGUI["TitleBar"]
+            if (TitleBar) {
+                TitleBar.Move(, , Width)
+            }
+        } catch {
+        }
+        
+        ; 更新侧边栏高度
+        try {
+            SidebarBg := GuiID_ConfigGUI["SidebarBg"]
+            if (SidebarBg) {
+                SidebarBg.Move(, , , Height - 35)
+            }
+        } catch {
+        }
+        
+        ; 更新内容区域大小
+        ContentX := SidebarWidth
+        ContentWidth := Width - SidebarWidth
+        ContentY := 35
+        ContentHeight := Height - 35 - 50
+        
+        ; 更新各个标签页的内容区域大小
+        TabPanels := ["GeneralTabPanel", "AppearanceTabPanel", "PromptsTabPanel", "HotkeysTabPanel", "AdvancedTabPanel"]
+        for Index, PanelName in TabPanels {
+            try {
+                TabPanel := GuiID_ConfigGUI[PanelName]
+                if (TabPanel) {
+                    TabPanel.Move(ContentX, ContentY, ContentWidth, ContentHeight)
+                }
+            } catch {
+            }
+        }
+        
+        ; 更新底部按钮位置
+        try {
+            ButtonAreaY := Height - 70
+            BtnWidth := 80
+            BtnSpacing := 10
+            BtnStartX := Width - (BtnWidth * 2 + BtnSpacing) - 20
+            
+            SaveBtn := GuiID_ConfigGUI["SaveBtn"]
+            if (SaveBtn) {
+                SaveBtn.Move(BtnStartX, ButtonAreaY + 10)
+            }
+            CancelBtn := GuiID_ConfigGUI["CancelBtn"]
+            if (CancelBtn) {
+                CancelBtn.Move(BtnStartX + BtnWidth + BtnSpacing, ButtonAreaY + 10)
+            }
+        } catch {
+        }
+        
+        ; 保存窗口大小（使用延迟保存）
+        try {
+            WinGetPos(&WinX, &WinY, , , GuiID_ConfigGUI.Hwnd)
+            WindowName := GetText("config_title")
+            QueueWindowPositionSave(WindowName, WinX, WinY, Width, Height)
+        } catch {
+        }
+        
+        ; 解锁窗口更新
+        DllCall("user32.dll\LockWindowUpdate", "Ptr", 0)
+        
+        ; 强制刷新窗口
+        WinRedraw(GuiID_ConfigGUI.Hwnd)
+    } catch {
+        ; 确保解锁窗口更新
+        try {
+            DllCall("user32.dll\LockWindowUpdate", "Ptr", 0)
+        } catch {
+        }
+    }
 }
 
 WM_MOUSEMOVE(wParam, lParam, Msg, Hwnd) {
@@ -11074,14 +11321,7 @@ ShowConfigGUI() {
     ; 侧边栏搜索框
     SearchBg := ConfigGUI.Add("Text", "x10 y45 w" . (SidebarWidth - 20) . " h30 Background" . UI_Colors.InputBg, "")
     ; 放大镜图标（使用牛马.ico）
-    IconPath := A_ScriptDir . "\牛马.ico"
-    if (FileExist(IconPath)) {
-        SearchIcon := ConfigGUI.Add("Picture", "x18 y50 w16 h16 0x200 vSearchIcon", IconPath)
-    } else {
-        ; 如果图标文件不存在，使用文本作为后备
-        SearchIcon := ConfigGUI.Add("Text", "x18 y50 w16 h16 Center 0x200 c" . UI_Colors.TextDim . " Background" . UI_Colors.InputBg, "🔍")
-        SearchIcon.SetFont("s10", "Segoe UI")
-    }
+    SearchIcon := ConfigGUI.Add("Picture", "x18 y50 w16 h16 0x200 Background" . UI_Colors.InputBg, "牛马.ico")
     ; 搜索输入框（调整位置，为放大镜图标留出空间）
     global SearchEdit := ConfigGUI.Add("Edit", "x36 y50 w" . (SidebarWidth - 46) . " h20 vSearchEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " -E0x200", "") 
     SearchEdit.SetFont("s9", "Segoe UI")
@@ -11224,39 +11464,6 @@ ShowConfigGUI() {
     ; 显示窗口
     ConfigGUI.Show("w" . RestoredPos.Width . " h" . RestoredPos.Height . " x" . RestoredPos.X . " y" . RestoredPos.Y)
     
-    ; 【确保关闭按钮在最上层】使用SetWindowPos将关闭按钮移到最上层，避免被其他控件遮挡
-    try {
-        ; HWND_TOP = 0，将控件移到最上层
-        ; SWP_NOMOVE | SWP_NOSIZE = 0x0003，不改变位置和大小，只改变Z-order
-        if (IsSet(CloseBtnTopLeft) && CloseBtnTopLeft) {
-            DllCall("user32.dll\SetWindowPos", "Ptr", CloseBtnTopLeft.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0003, "Int")
-        }
-        if (IsSet(CloseBtnTopRight) && CloseBtnTopRight) {
-            DllCall("user32.dll\SetWindowPos", "Ptr", CloseBtnTopRight.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0003, "Int")
-        }
-        if (IsSet(CloseBtnBottomLeft) && CloseBtnBottomLeft) {
-            DllCall("user32.dll\SetWindowPos", "Ptr", CloseBtnBottomLeft.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0003, "Int")
-        }
-        if (IsSet(CloseBtnBottomRight) && CloseBtnBottomRight) {
-            DllCall("user32.dll\SetWindowPos", "Ptr", CloseBtnBottomRight.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0003, "Int")
-        }
-    } catch {
-        ; 如果设置失败，忽略错误
-    }
-    
-    ; 【启用双缓冲】减少窗口调整大小时和控件重绘时的闪烁
-    ; WS_EX_COMPOSITED = 0x02000000，启用双缓冲绘图
-    try {
-        ; GWL_EXSTYLE = -20
-        CurrentExStyle := DllCall("user32.dll\GetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -20, "Ptr")
-        NewExStyle := CurrentExStyle | 0x02000000  ; 添加WS_EX_COMPOSITED标志
-        DllCall("user32.dll\SetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -20, "Ptr", NewExStyle, "Ptr")
-        ; 强制窗口重绘以应用新样式
-        DllCall("user32.dll\SetWindowPos", "Ptr", ConfigGUI.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0027, "Int")  ; SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
-    } catch {
-        ; 如果启用双缓冲失败，忽略错误（某些系统可能不支持）
-    }
-    
     ; 设置下拉列表最小可见项数（窗口显示后设置，延迟300ms确保ComboBox完全初始化）
     SetTimer(SetDDLMinVisible, -300)
     
@@ -11387,7 +11594,7 @@ ConfigGUI_OnScroll(wParam, lParam, msg, hwnd) {
 
 ; ===================== 配置面板大小调整处理 =====================
 ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
-    global GuiID_ConfigGUI, SidebarWidth, UI_Colors
+    global GuiID_ConfigGUI, SidebarWidth, UI_Colors, WindowDragging
     
     if (GuiID_ConfigGUI = 0 || GuiID_ConfigGUI != GuiObj) {
         return
@@ -11411,6 +11618,31 @@ ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
         NewWidth := Width < MinWidth ? MinWidth : Width
         NewHeight := Height < MinHeight ? MinHeight : Height
         GuiObj.Move(, , NewWidth, NewHeight)
+        return
+    }
+    
+    ; 【关键优化】如果窗口正在拖动，只更新必要的控件位置，跳过复杂的布局更新
+    ; 这样可以避免拖动时频繁重绘整个窗口
+    if (WindowDragging) {
+        ; 只更新关闭按钮位置（必须的，否则按钮位置会错乱）
+        try {
+            CloseBtnTopRight := GuiObj["CloseBtnTopRight"]
+            if (CloseBtnTopRight) {
+                CloseBtnTopRight.Move(Width - 40)
+            }
+            
+            CloseBtnBottomLeft := GuiObj["CloseBtnBottomLeft"]
+            if (CloseBtnBottomLeft) {
+                CloseBtnBottomLeft.Move(, Height - 40)
+            }
+            
+            CloseBtnBottomRight := GuiObj["CloseBtnBottomRight"]
+            if (CloseBtnBottomRight) {
+                CloseBtnBottomRight.Move(Width - 40, Height - 40)
+            }
+        } catch {
+        }
+        ; 拖动时不保存位置，不更新其他控件，避免频繁重绘
         return
     }
     
@@ -11477,11 +11709,11 @@ ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
     ;     }
     ; }
     
-    ; 保存窗口大小（在窗口大小改变时立即保存）
+    ; 保存窗口大小（使用延迟保存，避免频繁IO）
     try {
         WinGetPos(&WinX, &WinY, , , GuiObj.Hwnd)
         WindowName := GetText("config_title")
-        SaveWindowPosition(WindowName, WinX, WinY, Width, Height)
+        QueueWindowPositionSave(WindowName, WinX, WinY, Width, Height)
     } catch {
         ; 忽略错误
     }
@@ -11645,15 +11877,17 @@ SaveConfigGUIPosition(ConfigGUI) {
     try {
         ; 检查窗口是否还存在
         if (!ConfigGUI || !GuiID_ConfigGUI || GuiID_ConfigGUI = 0) {
-            ; 窗口已关闭，停止定时器
+            ; 窗口已关闭，停止定时器并立即保存所有待保存的位置
             SetTimer(() => SaveConfigGUIPosition(ConfigGUI), 0)
+            FlushPendingWindowPositions()
             return
         }
         
         ; 获取窗口位置和大小
         WinGetPos(&WinX, &WinY, &WinW, &WinH, ConfigGUI.Hwnd)
         WindowName := GetText("config_title")
-        SaveWindowPosition(WindowName, WinX, WinY, WinW, WinH)
+        ; 使用延迟保存，统一管理
+        QueueWindowPositionSave(WindowName, WinX, WinY, WinW, WinH)
     } catch {
         ; 忽略错误（窗口可能已关闭）
     }
@@ -11665,15 +11899,17 @@ SaveClipboardManagerPosition() {
     try {
         ; 检查窗口是否还存在
         if (!GuiID_ClipboardManager || GuiID_ClipboardManager = 0) {
-            ; 窗口已关闭，停止定时器
+            ; 窗口已关闭，停止定时器并立即保存所有待保存的位置
             SetTimer(() => SaveClipboardManagerPosition(), 0)
+            FlushPendingWindowPositions()
             return
         }
         
         ; 获取窗口位置和大小
         WinGetPos(&WinX, &WinY, &WinW, &WinH, GuiID_ClipboardManager.Hwnd)
         WindowName := "📋 " . GetText("clipboard_manager")
-        SaveWindowPosition(WindowName, WinX, WinY, WinW, WinH)
+        ; 使用延迟保存，统一管理
+        QueueWindowPositionSave(WindowName, WinX, WinY, WinW, WinH)
     } catch {
         ; 忽略错误（窗口可能已关闭）
     }
@@ -11685,15 +11921,17 @@ SaveVoiceInputPanelPosition() {
     try {
         ; 检查窗口是否还存在
         if (!GuiID_VoiceInputPanel || GuiID_VoiceInputPanel = 0) {
-            ; 窗口已关闭，停止定时器
+            ; 窗口已关闭，停止定时器并立即保存所有待保存的位置
             SetTimer(() => SaveVoiceInputPanelPosition(), 0)
+            FlushPendingWindowPositions()
             return
         }
         
         ; 获取窗口位置和大小
         WinGetPos(&WinX, &WinY, &WinW, &WinH, GuiID_VoiceInputPanel.Hwnd)
         WindowName := GetText("voice_input_active")
-        SaveWindowPosition(WindowName, WinX, WinY, WinW, WinH)
+        ; 使用延迟保存，统一管理
+        QueueWindowPositionSave(WindowName, WinX, WinY, WinW, WinH)
     } catch {
         ; 忽略错误（窗口可能已关闭）
     }
@@ -11705,15 +11943,17 @@ SaveVoiceInputPosition() {
     try {
         ; 检查窗口是否还存在
         if (!GuiID_VoiceInput || GuiID_VoiceInput = 0) {
-            ; 窗口已关闭，停止定时器
+            ; 窗口已关闭，停止定时器并立即保存所有待保存的位置
             SetTimer(() => SaveVoiceInputPosition(), 0)
+            FlushPendingWindowPositions()
             return
         }
         
         ; 获取窗口位置和大小
         WinGetPos(&WinX, &WinY, &WinW, &WinH, GuiID_VoiceInput.Hwnd)
         WindowName := GetText("voice_search_title")
-        SaveWindowPosition(WindowName, WinX, WinY, WinW, WinH)
+        ; 使用延迟保存，统一管理
+        QueueWindowPositionSave(WindowName, WinX, WinY, WinW, WinH)
     } catch {
         ; 忽略错误（窗口可能已关闭）
     }
@@ -13692,6 +13932,13 @@ SwitchClipboardTab(TabName) {
 
 ; 延迟刷新剪贴板列表（用于 OnClipboardChange 等场景）
 RefreshClipboardListDelayed(*) {
+    global WindowDragging
+    
+    ; 如果窗口正在拖动，跳过刷新以避免闪烁
+    if (WindowDragging) {
+        return
+    }
+    
     ; 确保刷新时当前标签是 CapsLockC
     global ClipboardCurrentTab
     if (ClipboardCurrentTab = "CapsLockC") {
@@ -13704,6 +13951,12 @@ RefreshClipboardList() {
     global ClipboardHistory_CtrlC, ClipboardHistory_CapsLockC, ClipboardCurrentTab
     global ClipboardListBox, ClipboardCountText, GuiID_ClipboardManager
     global RefreshClipboardListInProgress := false  ; 防重复刷新标志
+    global WindowDragging
+    
+    ; 如果窗口正在拖动，跳过刷新以避免闪烁
+    if (WindowDragging) {
+        return
+    }
     
     ; 【关键修复】防止并发刷新导致的数据叠加
     ; 如果正在刷新，直接返回，避免重复执行
@@ -18884,7 +19137,12 @@ CreateCategoryTabHandler(CategoryKey) {
 ; ===================== 刷新搜索引擎按钮显示 =====================
 RefreshSearchEngineButtons() {
     global GuiID_VoiceInput, VoiceSearchCurrentCategory, VoiceSearchEngineButtons, VoiceSearchSelectedEngines
-    global VoiceSearchLabelEngineY, UI_Colors, ThemeMode
+    global VoiceSearchLabelEngineY, UI_Colors, ThemeMode, WindowDragging
+    
+    ; 如果窗口正在拖动，跳过刷新以避免闪烁
+    if (WindowDragging) {
+        return
+    }
     
     if (!GuiID_VoiceInput) {
         return
@@ -19860,17 +20118,6 @@ ShowVoiceSearchInputPanel() {
     }
     GuiID_VoiceInput.Show("w" . RestoredPos.Width . " h" . RestoredPos.Height . " x" . RestoredPos.X . " y" . RestoredPos.Y)
     WinSetAlwaysOnTop(1, GuiID_VoiceInput.Hwnd)
-    
-    ; 【确保关闭按钮在最上层】使用SetWindowPos将关闭按钮移到最上层，避免被其他控件遮挡
-    try {
-        if (IsSet(CloseBtn) && CloseBtn) {
-            ; HWND_TOP = 0，将控件移到最上层
-            ; SWP_NOMOVE | SWP_NOSIZE = 0x0003，不改变位置和大小，只改变Z-order
-            DllCall("user32.dll\SetWindowPos", "Ptr", CloseBtn.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0003, "Int")
-        }
-    } catch {
-        ; 如果设置失败，忽略错误
-    }
     
     ; 在窗口显示后绑定事件（避免初始化问题）
     try {
