@@ -4127,11 +4127,33 @@ SwitchTab(TabName) {
                 SetTimer(SwitchToManageTab, -100)
             }
         case "hotkeys":
+            ; 先隐藏所有主标签页内容，确保干净状态（在显示HotkeysTabControls之前）
+            global HotkeysMainTabControls
+            if (HotkeysMainTabControls) {
+                for Key, Controls in HotkeysMainTabControls {
+                    if (Controls && Controls.Length > 0) {
+                        for Index, Ctrl in Controls {
+                            if (Ctrl) {
+                                try {
+                                    Ctrl.Visible := false
+                                } catch {
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            ; 显示快捷键标签页的公共控件（主标签按钮等）
+            ; 【架构修复】HotkeysTabControls 现在只包含真正的公共控件（主标签按钮、标题、面板背景等）
+            ; TabBarBg 和快捷键子标签按钮已从 HotkeysTabControls 中移除，只属于 HotkeysMainTabControls["settings"]
             ShowControls(HotkeysTabControls)
-            ; 显示第一个主标签页（快捷键设置）
+            ; 显示第一个主标签页（快捷操作按钮）
             global HotkeysMainTabs
-            if (HotkeysMainTabs && HotkeysMainTabs.Has("settings")) {
-                SwitchHotkeysMainTab("settings")
+            if (HotkeysMainTabs && HotkeysMainTabs.Has("quickaction")) {
+                SwitchHotkeysMainTab("quickaction")
+            } else {
+                ; 如果HotkeysMainTabs还未初始化，延迟切换
+                SetTimer(SwitchToQuickActionTab, -100)
             }
         case "advanced":
             ShowControls(AdvancedTabControls)
@@ -4216,6 +4238,112 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
     HintCapsLockHoldTime := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h20 c" . UI_Colors.TextDim, GetText("capslock_hold_time_hint"))
     HintCapsLockHoldTime.SetFont("s9", "Segoe UI")
     GeneralTabControls.Push(HintCapsLockHoldTime)
+    
+    ; 自启动设置（从高级设置移到这里）
+    YPos += 60
+    LabelAutoStart := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("auto_start"))
+    LabelAutoStart.SetFont("s11", "Segoe UI")
+    GeneralTabControls.Push(LabelAutoStart)
+    
+    YPos += 30
+    ; 创建自启动切换按钮（蓝色=开启，灰色=关闭）
+    global AutoStartBtn
+    BtnWidth := 200
+    BtnHeight := 35
+    BtnText := AutoStart ? "开机自启动" : "不开机自启动"
+    BtnBgColor := AutoStart ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
+    BtnTextColor := AutoStart ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
+    
+    AutoStartBtn := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . BtnTextColor . " Background" . BtnBgColor . " vAutoStartBtn", BtnText)
+    AutoStartBtn.SetFont("s10", "Segoe UI")
+    AutoStartBtn.OnEvent("Click", (*) => ToggleAutoStart())
+    HoverBtnWithAnimation(AutoStartBtn, BtnBgColor, AutoStart ? UI_Colors.BtnPrimaryHover : UI_Colors.BtnHover)
+    GeneralTabControls.Push(AutoStartBtn)
+    
+    ; 默认启动页面设置（从高级设置移到这里）
+    YPos += 60
+    LabelDefaultStartTab := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, "默认启动页面：")
+    LabelDefaultStartTab.SetFont("s11", "Segoe UI")
+    GeneralTabControls.Push(LabelDefaultStartTab)
+    
+    YPos += 30
+    global DefaultStartTab, DefaultStartTabDDL
+    ; 创建下拉框，让用户选择默认启动页面
+    StartTabOptions := ["通用", "外观", "提示词", "快捷键", "高级"]
+    StartTabValues := ["general", "appearance", "prompts", "hotkeys", "advanced"]
+    
+    ; 找到当前选择的索引
+    DefaultIndex := 1
+    for Index, Value in StartTabValues {
+        if (Value = DefaultStartTab) {
+            DefaultIndex := Index
+            break
+        }
+    }
+    
+    ; 创建下拉框
+    ; 根据主题模式设置下拉框颜色（暗色模式使用cursor黑灰色系）
+    if (!IsSet(ThemeMode) || ThemeMode = "") {
+        ThemeMode := "dark"
+    }
+    if (ThemeMode = "dark") {
+        DDLBgColor := "2d2d30"  ; Cursor风格的黑灰色
+        DDLTextColor := "FFFFFF"  ; 白色文字
+    } else {
+        DDLBgColor := UI_Colors.DDLBg
+        DDLTextColor := UI_Colors.DDLText
+    }
+    ; 使用R5选项指定下拉列表显示5行（R选项设置下拉列表的高度）
+    DefaultStartTabDDL := ConfigGUI.Add("DDL", "x" . (X + 30) . " y" . YPos . " w200 h30 R5 vDefaultStartTabDDL Background" . DDLBgColor . " c" . DDLTextColor, StartTabOptions)
+    DefaultStartTabDDL.SetFont("s10 c" . DDLTextColor, "Segoe UI")
+    DefaultStartTabDDL.Value := DefaultIndex
+    DefaultStartTabDDL.OnEvent("Change", (*) => OnDefaultStartTabChange())
+    
+    ; 保存下拉框句柄，用于在窗口显示后设置最小可见项数
+    ; CB_SETMINVISIBLE需要在窗口完全创建并显示后才能生效
+    try {
+        DDL_Hwnd := DefaultStartTabDDL.Hwnd
+        ; 保存句柄到全局变量，供窗口显示后的延迟函数使用
+        global DefaultStartTabDDL_Hwnd_ForTimer
+        DefaultStartTabDDL_Hwnd_ForTimer := DDL_Hwnd
+    } catch {
+        ; 如果获取句柄失败，忽略错误
+    }
+    
+    ; 设置下拉框的背景色
+    ; 使用DDLBg颜色来匹配Cursor主题色
+    try {
+        DefaultStartTabDDL.Opt("Background" . UI_Colors.DDLBg)
+        ; 保存下拉框的句柄，用于消息处理
+        global DefaultStartTabDDL_Hwnd, ThemeMode
+        DefaultStartTabDDL_Hwnd := DDL_Hwnd
+        
+        ; 创建画刷用于下拉列表背景色（根据主题模式设置）
+        ; 在窗口显示后设置下拉列表的背景色
+        SetTimer(UpdateDefaultStartTabDDLBrush, -300)
+    } catch {
+        ; 如果设置失败，忽略错误
+    }
+    GeneralTabControls.Push(DefaultStartTabDDL)
+    
+    ; 安装 Cursor 中文版按钮（从高级设置移到这里）
+    YPos += 60
+    LabelInstallChinese := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("install_cursor_chinese"))
+    LabelInstallChinese.SetFont("s11", "Segoe UI")
+    GeneralTabControls.Push(LabelInstallChinese)
+    
+    YPos += 30
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    InstallChineseBtn := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (BtnWidth * 2 + 10) . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vGeneralInstallChineseBtn", GetText("install_cursor_chinese"))
+    InstallChineseBtn.SetFont("s10", "Segoe UI")
+    InstallChineseBtn.OnEvent("Click", InstallCursorChinese)
+    HoverBtnWithAnimation(InstallChineseBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    GeneralTabControls.Push(InstallChineseBtn)
+    
+    YPos += 40
+    HintInstallChinese := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h40 c" . UI_Colors.TextDim, GetText("install_cursor_chinese_desc"))
+    HintInstallChinese.SetFont("s9", "Segoe UI")
+    GeneralTabControls.Push(HintInstallChinese)
 }
 
 ; ===================== 创建快捷操作按钮配置UI =====================
@@ -6141,6 +6269,13 @@ SwitchToManageTab(*) {
     global PromptsMainTabs
     if (PromptsMainTabs && PromptsMainTabs.Has("manage")) {
         SwitchPromptsMainTab("manage")
+    }
+}
+
+SwitchToQuickActionTab(*) {
+    global HotkeysMainTabs
+    if (HotkeysMainTabs && HotkeysMainTabs.Has("quickaction")) {
+        SwitchHotkeysMainTab("quickaction")
     }
 }
 
@@ -8809,11 +8944,11 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     MainTabBarBg := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . MainTabBarY . " w" . (W - 60) . " h" . MainTabBarHeight . " Background" . UI_Colors.Sidebar, "")
     HotkeysTabControls.Push(MainTabBarBg)
     
-    ; 创建主标签列表（三个标签：快捷键设置、快操作按钮、搜索标签）
+    ; 创建主标签列表（三个标签：快操作按钮、搜索标签、快捷键设置）
     MainTabList := [
-        {Key: "settings", Name: GetText("hotkey_main_tab_settings")},
         {Key: "quickaction", Name: GetText("quick_action_config")},
-        {Key: "searchcategory", Name: GetText("search_category_config")}
+        {Key: "searchcategory", Name: GetText("search_category_config")},
+        {Key: "settings", Name: GetText("hotkey_main_tab_settings")}
     ]
     
     ; 创建主标签按钮
@@ -8855,7 +8990,8 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     TabBarY := ContentAreaY
     TabBarHeight := 35
     TabBarBg := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . TabBarY . " w" . (W - 60) . " h" . TabBarHeight . " Background" . UI_Colors.Sidebar . " vHotkeySettingsTabBar", "")
-    HotkeysTabControls.Push(TabBarBg)
+    ; 【架构修复】TabBarBg 只属于 "settings" 主标签页，不添加到 HotkeysTabControls（公共控件列表）
+    ; 这样 SwitchHotkeysMainTab 可以统一管理其显示/隐藏
     
     ; 快捷键列表（定义每个快捷键的信息）
     HotkeyList := [
@@ -8900,7 +9036,8 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
         TabBtn.OnEvent("Click", CreateHotkeyTabClickHandler(Item.Key))
         ; 悬停效果使用主题颜色（带动效）
         HoverBtnWithAnimation(TabBtn, UI_Colors.Sidebar, UI_Colors.BtnHover)
-        HotkeysTabControls.Push(TabBtn)
+        ; 【架构修复】快捷键子标签按钮只属于 "settings" 主标签页，不添加到 HotkeysTabControls（公共控件列表）
+        ; 这样 SwitchHotkeysMainTab 可以统一管理其显示/隐藏
         HotkeySubTabs[Item.Key] := TabBtn
         TabX += TabWidth + TabSpacing  ; 添加间距
     }
@@ -8945,16 +9082,16 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     QuickActionDesc.SetFont("s9", "Segoe UI")
     QuickActionDesc.Visible := false
     HotkeysMainTabControls["quickaction"].Push(QuickActionDesc)
-    HotkeysTabControls.Push(QuickActionDesc)
+    ; 【架构修复】QuickActionDesc 只属于 "quickaction" 主标签页，不添加到 HotkeysTabControls
     
     ; 创建快操作按钮配置UI
     global QuickActionConfigControls := []
     CreateQuickActionConfigUI(ConfigGUI, X + 30, QuickActionContentY + 35, W - 60, HotkeysMainTabControls["quickaction"])
-    ; 将快操作按钮控件设置为默认隐藏，并添加到HotkeysTabControls以便统一管理
+    ; 【架构修复】快操作按钮配置控件只属于 "quickaction" 主标签页，不添加到 HotkeysTabControls
+    ; 这些控件由 SwitchHotkeysMainTab 统一管理显示/隐藏
     for Index, Ctrl in QuickActionConfigControls {
         try {
             Ctrl.Visible := false
-            HotkeysTabControls.Push(Ctrl)
         } catch {
         }
     }
@@ -8969,22 +9106,22 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     SearchCategoryDesc.SetFont("s9", "Segoe UI")
     SearchCategoryDesc.Visible := false
     HotkeysMainTabControls["searchcategory"].Push(SearchCategoryDesc)
-    HotkeysTabControls.Push(SearchCategoryDesc)
+    ; 【架构修复】SearchCategoryDesc 只属于 "searchcategory" 主标签页，不添加到 HotkeysTabControls
     
     ; 创建搜索标签配置UI
     global SearchCategoryConfigControls := []
     CreateSearchCategoryConfigUI(ConfigGUI, X + 30, SearchCategoryContentY + 50, W - 60, HotkeysMainTabControls["searchcategory"])
-    ; 将搜索标签控件设置为默认隐藏，并添加到HotkeysTabControls以便统一管理
+    ; 【架构修复】搜索标签配置控件只属于 "searchcategory" 主标签页，不添加到 HotkeysTabControls
+    ; 这些控件由 SwitchHotkeysMainTab 统一管理显示/隐藏
     for Index, Ctrl in SearchCategoryConfigControls {
         try {
             Ctrl.Visible := false
-            HotkeysTabControls.Push(Ctrl)
         } catch {
         }
     }
     
-    ; 默认显示第一个主标签页（快捷键设置）
-    SwitchHotkeysMainTab("settings")
+    ; 默认显示第一个主标签页（快捷操作按钮）
+    SwitchHotkeysMainTab("quickaction")
 }
 
 ; ===================== 创建快捷键子标签页 =====================
@@ -9440,6 +9577,8 @@ SwitchHotkeysMainTab(MainTabKey) {
     }
     
     ; 显示当前主标签页内容
+    ; 【架构修复】现在 TabBarBg 和快捷键子标签按钮都在 HotkeysMainTabControls["settings"] 中
+    ; 所以这里统一显示/隐藏即可，不需要特殊处理
     if (HotkeysMainTabControls.Has(MainTabKey)) {
         Controls := HotkeysMainTabControls[MainTabKey]
         if (Controls && Controls.Length > 0) {
@@ -9457,7 +9596,7 @@ SwitchHotkeysMainTab(MainTabKey) {
     
     ; 如果是快捷键设置标签，显示第一个快捷键子标签
     if (MainTabKey = "settings") {
-        global HotkeySubTabs, HotkeySubTabControls
+        global HotkeySubTabControls
         if (HotkeySubTabs && HotkeySubTabs.Count > 0) {
             FirstKey := ""
             for Key, TabBtn in HotkeySubTabs {
@@ -10032,29 +10171,8 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     Title.SetFont("s16 Bold", "Segoe UI")
     AdvancedTabControls.Push(Title)
     
-    ; 自启动设置
-    YPos := Y + 70
-    LabelAutoStart := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("auto_start"))
-    LabelAutoStart.SetFont("s11", "Segoe UI")
-    AdvancedTabControls.Push(LabelAutoStart)
-    
-    YPos += 30
-    ; 创建自启动切换按钮（蓝色=开启，灰色=关闭）
-    global AutoStartBtn
-    BtnWidth := 200
-    BtnHeight := 35
-    BtnText := AutoStart ? "开机自启动" : "不开机自启动"
-    BtnBgColor := AutoStart ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
-    BtnTextColor := AutoStart ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
-    
-    AutoStartBtn := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . BtnTextColor . " Background" . BtnBgColor . " vAutoStartBtn", BtnText)
-    AutoStartBtn.SetFont("s10", "Segoe UI")
-    AutoStartBtn.OnEvent("Click", (*) => ToggleAutoStart())
-    HoverBtnWithAnimation(AutoStartBtn, BtnBgColor, AutoStart ? UI_Colors.BtnPrimaryHover : UI_Colors.BtnHover)
-    AdvancedTabControls.Push(AutoStartBtn)
-    
     ; 语言设置（从通用设置移到这里）
-    YPos += 60
+    YPos := Y + 70
     LabelLanguage := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("language_setting"))
     LabelLanguage.SetFont("s11", "Segoe UI")
     AdvancedTabControls.Push(LabelLanguage)
@@ -10107,97 +10225,6 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     Hint1.SetFont("s9", "Segoe UI")
     AdvancedTabControls.Push(Hint1)
     
-    ; 默认启动页面设置
-    YPos += 80
-    LabelDefaultStartTab := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, "默认启动页面：")
-    LabelDefaultStartTab.SetFont("s11", "Segoe UI")
-    AdvancedTabControls.Push(LabelDefaultStartTab)
-    
-    YPos += 30
-    global DefaultStartTab, DefaultStartTabDDL
-    ; 创建下拉框，让用户选择默认启动页面
-    StartTabOptions := ["通用", "外观", "提示词", "快捷键", "高级"]
-    StartTabValues := ["general", "appearance", "prompts", "hotkeys", "advanced"]
-    
-    ; 找到当前选择的索引
-    DefaultIndex := 1
-    for Index, Value in StartTabValues {
-        if (Value = DefaultStartTab) {
-            DefaultIndex := Index
-            break
-        }
-    }
-    
-    ; 创建下拉框
-    ; 根据主题模式设置下拉框颜色（暗色模式使用cursor黑灰色系）
-    if (!IsSet(ThemeMode) || ThemeMode = "") {
-        ThemeMode := "dark"
-    }
-    if (ThemeMode = "dark") {
-        DDLBgColor := "2d2d30"  ; Cursor风格的黑灰色
-        DDLTextColor := "FFFFFF"  ; 白色文字
-    } else {
-        DDLBgColor := UI_Colors.DDLBg
-        DDLTextColor := UI_Colors.DDLText
-    }
-    ; 使用R5选项指定下拉列表显示5行（R选项设置下拉列表的高度）
-    DefaultStartTabDDL := ConfigGUI.Add("DDL", "x" . (X + 30) . " y" . YPos . " w200 h30 R5 vDefaultStartTabDDL Background" . DDLBgColor . " c" . DDLTextColor, StartTabOptions)
-    DefaultStartTabDDL.SetFont("s10 c" . DDLTextColor, "Segoe UI")
-    DefaultStartTabDDL.Value := DefaultIndex
-    DefaultStartTabDDL.OnEvent("Change", (*) => OnDefaultStartTabChange())
-    
-    ; 保存下拉框句柄，用于在窗口显示后设置最小可见项数
-    ; CB_SETMINVISIBLE需要在窗口完全创建并显示后才能生效
-    try {
-        DDL_Hwnd := DefaultStartTabDDL.Hwnd
-        ; 保存句柄到全局变量，供窗口显示后的延迟函数使用
-        global DefaultStartTabDDL_Hwnd_ForTimer
-        DefaultStartTabDDL_Hwnd_ForTimer := DDL_Hwnd
-    } catch {
-        ; 如果获取句柄失败，忽略错误
-    }
-    
-    ; 设置下拉框的背景色
-    ; 使用DDLBg颜色来匹配Cursor主题色
-    try {
-        DefaultStartTabDDL.Opt("Background" . UI_Colors.DDLBg)
-        ; 保存下拉框的句柄，用于消息处理
-        global DefaultStartTabDDL_Hwnd, ThemeMode
-        DefaultStartTabDDL_Hwnd := DDL_Hwnd
-        
-        ; 创建画刷用于下拉列表背景色（根据主题模式设置）
-        ; 暗色模式：使用Cursor风格黑灰色2d2d30，亮色模式：使用UI_Colors.DDLBg
-        if (ThemeMode = "dark") {
-            ColorCode := "0x2d2d30"  ; Cursor风格的黑灰色背景
-        } else {
-            ColorCode := "0x" . UI_Colors.DDLBg  ; 亮色模式背景
-        }
-        RGBColor := Integer(ColorCode)
-        ; 交换R和B字节（Windows使用BGR格式）
-        R := (RGBColor & 0xFF0000) >> 16
-        G := (RGBColor & 0x00FF00) >> 8
-        B := RGBColor & 0x0000FF
-        BGRColor := (B << 16) | (G << 8) | R
-        global DDLBrush
-        ; 如果已有画刷，先删除
-        if (DDLBrush != 0) {
-            try {
-                DllCall("gdi32.dll\DeleteObject", "Ptr", DDLBrush)
-            } catch {
-            }
-        }
-        ; 创建实心画刷
-        DDLBrush := DllCall("gdi32.dll\CreateSolidBrush", "UInt", BGRColor, "Ptr")
-    } catch {
-    }
-    
-    AdvancedTabControls.Push(DefaultStartTabDDL)
-    
-    YPos += 40
-    HintDefaultStartTab := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h20 c" . UI_Colors.TextDim, "CapsLock+Q 启动配置界面时默认显示的页面")
-    HintDefaultStartTab.SetFont("s9", "Segoe UI")
-    AdvancedTabControls.Push(HintDefaultStartTab)
-    
     ; 配置管理功能（导出、导入、重置默认）
     YPos += 60
     LabelConfigManage := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("config_manage"))
@@ -10233,25 +10260,6 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     ResetBtn.OnEvent("Click", ResetToDefaults)
     HoverBtnWithAnimation(ResetBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     AdvancedTabControls.Push(ResetBtn)
-    
-    ; 安装 Cursor 中文版按钮
-    YPos += 60
-    LabelInstallChinese := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("install_cursor_chinese"))
-    LabelInstallChinese.SetFont("s11", "Segoe UI")
-    AdvancedTabControls.Push(LabelInstallChinese)
-    
-    YPos += 30
-    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
-    InstallChineseBtn := ConfigGUI.Add("Text", "x" . BtnStartX . " y" . YPos . " w" . (BtnWidth * 2 + BtnSpacing) . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vAdvancedInstallChineseBtn", GetText("install_cursor_chinese"))
-    InstallChineseBtn.SetFont("s10", "Segoe UI")
-    InstallChineseBtn.OnEvent("Click", InstallCursorChinese)
-    HoverBtnWithAnimation(InstallChineseBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
-    AdvancedTabControls.Push(InstallChineseBtn)
-    
-    YPos += 40
-    HintInstallChinese := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h40 c" . UI_Colors.TextDim, GetText("install_cursor_chinese_desc"))
-    HintInstallChinese.SetFont("s9", "Segoe UI")
-    AdvancedTabControls.Push(HintInstallChinese)
 }
 
 ; ===================== 设置下拉列表最小可见项数 =====================
@@ -11299,7 +11307,7 @@ ShowConfigGUI() {
     global GeneralSubTabControls := Map()
     
     ; 创建配置 GUI（无边框窗口，无白边，无滚动条）
-    ConfigGUI := Gui("+Resize -MaximizeBox -Caption", GetText("config_title"))
+    ConfigGUI := Gui("+Resize -MaximizeBox -Caption -Border", GetText("config_title"))
     ConfigGUI.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
     ConfigGUI.BackColor := UI_Colors.Background
     ; 启用窗口滚动（通过设置窗口样式和滚动区域）
@@ -11362,7 +11370,7 @@ ShowConfigGUI() {
     IconY := 45
     IconPath := A_ScriptDir "\牛马.ico"
     if (FileExist(IconPath)) {
-        SearchIcon := ConfigGUI.Add("Picture", "x" . IconX . " y" . IconY . " w" . IconSize . " h" . IconSize . " 0x200", IconPath)
+        SearchIcon := ConfigGUI.Add("Picture", "x" . IconX . " y" . IconY . " w" . IconSize . " h" . IconSize . " 0x200 BackgroundTrans", IconPath)
     }
     
     ; 搜索框背景（调整位置，为图标留出空间）
