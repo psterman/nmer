@@ -260,9 +260,9 @@ UpdateDefaultStartTabDDLBrush() {
     }
     
     try {
-        ; 根据主题模式设置颜色
+        ; 根据主题模式设置颜色（使用cursor黑灰色系）
         if (ThemeMode = "dark") {
-            ColorCode := "0x1e1e1e"  ; 黑灰色背景
+            ColorCode := "0x2d2d30"  ; Cursor风格的黑灰色背景
         } else {
             ColorCode := "0x" . UI_Colors.DDLBg  ; 亮色模式背景
         }
@@ -4005,19 +4005,6 @@ SwitchTab(TabName) {
     switch TabName {
         case "general":
             ShowControls(GeneralTabControls)
-            ; 显示第一个子标签页（如果存在）
-            global GeneralSubTabs
-            if (GeneralSubTabControls && GeneralSubTabs) {
-                ; 找到第一个子标签页
-                FirstKey := ""
-                for Key, TabBtn in GeneralSubTabs {
-                    FirstKey := Key
-                    break
-                }
-                if (FirstKey != "") {
-                    SwitchGeneralSubTab(FirstKey)
-                }
-            }
         case "appearance":
             ShowControls(AppearanceTabControls)
         case "prompts":
@@ -4175,7 +4162,19 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
     GeneralTabControls.Push(Label1)
     
     YPos += 30
-    CursorPathEdit := ConfigGUI.Add("Edit", "x" . (X + 30) . " y" . YPos . " w" . (W - 150) . " h30 vCursorPathEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, CursorPath)
+    ; 根据主题模式设置输入框颜色（暗色模式使用cursor黑灰色系）
+    global ThemeMode
+    if (!IsSet(ThemeMode) || ThemeMode = "") {
+        ThemeMode := "dark"
+    }
+    if (ThemeMode = "dark") {
+        InputBgColor := "2d2d30"  ; Cursor风格的黑灰色
+        InputTextColor := "FFFFFF"  ; 白色文字
+    } else {
+        InputBgColor := UI_Colors.InputBg
+        InputTextColor := UI_Colors.Text
+    }
+    CursorPathEdit := ConfigGUI.Add("Edit", "x" . (X + 30) . " y" . YPos . " w" . (W - 150) . " h30 vCursorPathEdit Background" . InputBgColor . " c" . InputTextColor, CursorPath)
     CursorPathEdit.SetFont("s11", "Segoe UI")
     GeneralTabControls.Push(CursorPathEdit)
     
@@ -4199,7 +4198,17 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
     GeneralTabControls.Push(LabelCapsLockHoldTime)
     
     YPos += 30
-    CapsLockHoldTimeEdit := ConfigGUI.Add("Edit", "x" . (X + 30) . " y" . YPos . " w150 h30 vCapsLockHoldTimeEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, CapsLockHoldTimeSeconds)
+    ; 使用之前定义的InputBgColor和InputTextColor（如果已定义）
+    if (!IsSet(InputBgColor) || !IsSet(InputTextColor)) {
+        if (ThemeMode = "dark") {
+            InputBgColor := "2d2d30"
+            InputTextColor := "FFFFFF"
+        } else {
+            InputBgColor := UI_Colors.InputBg
+            InputTextColor := UI_Colors.Text
+        }
+    }
+    CapsLockHoldTimeEdit := ConfigGUI.Add("Edit", "x" . (X + 30) . " y" . YPos . " w150 h30 vCapsLockHoldTimeEdit Background" . InputBgColor . " c" . InputTextColor, CapsLockHoldTimeSeconds)
     CapsLockHoldTimeEdit.SetFont("s11", "Segoe UI")
     GeneralTabControls.Push(CapsLockHoldTimeEdit)
     
@@ -4207,71 +4216,6 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
     HintCapsLockHoldTime := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h20 c" . UI_Colors.TextDim, GetText("capslock_hold_time_hint"))
     HintCapsLockHoldTime.SetFont("s9", "Segoe UI")
     GeneralTabControls.Push(HintCapsLockHoldTime)
-    
-    ; ========== 横向标签页区域（快捷操作按钮配置和搜索标签配置）==========
-    TabBarY := YPos + 30  ; 缩小间距（从50px改为30px），为快捷操作按钮留出更多空间
-    TabBarHeight := 40
-    TabBarBg := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . TabBarY . " w" . (W - 60) . " h" . TabBarHeight . " Background" . UI_Colors.Sidebar, "")
-    GeneralTabControls.Push(TabBarBg)
-    
-    ; 创建两个子标签
-    global GeneralSubTabs, GeneralSubTabControls
-    GeneralSubTabs := Map()
-    GeneralSubTabControls := Map()
-    
-    ; 子标签列表
-    GeneralSubTabList := [
-        {Key: "quickaction", Name: GetText("quick_action_config")},
-        {Key: "searchcategory", Name: GetText("search_category_config")}
-    ]
-    
-    ; 创建横向标签按钮
-    TabWidth := (W - 60) / GeneralSubTabList.Length
-    TabX := X + 30
-    
-    ; 创建横向标签点击处理函数
-    CreateGeneralSubTabClickHandler(Key) {
-        return (*) => SwitchGeneralSubTab(Key)
-    }
-    
-    for Index, Item in GeneralSubTabList {
-        ; 使用 Text 控件模拟 Material 风格按钮
-        TabBtn := ConfigGUI.Add("Text", "x" . TabX . " y" . (TabBarY + 5) . " w" . (TabWidth - 2) . " h" . (TabBarHeight - 10) . " Center 0x200 vGeneralSubTab" . Item.Key, Item.Name)
-        TabBtn.SetFont("s9", "Segoe UI")
-        
-        ; 使用主题颜色：默认未选中状态
-        TabBtn.Opt("+Background" . UI_Colors.Sidebar)
-        TabBtn.SetFont("s9 c" . UI_Colors.TextDim, "Segoe UI")
-        
-        TabBtn.OnEvent("Click", CreateGeneralSubTabClickHandler(Item.Key))
-        ; 悬停效果使用主题颜色
-        HoverBtnWithAnimation(TabBtn, UI_Colors.Sidebar, UI_Colors.BtnHover)
-        GeneralTabControls.Push(TabBtn)
-        GeneralSubTabs[Item.Key] := TabBtn
-        TabX += TabWidth
-    }
-    
-    global GeneralSubTabs := GeneralSubTabs
-    
-    ; 内容区域（显示当前选中的子标签页配置）
-    ContentAreaY := TabBarY + TabBarHeight + 10  ; 缩小间距（从20px改为10px）
-    ; 计算所需高度：5个按钮，每个136px，加上描述文字和间距，总共约750px
-    ; 使用更大的高度值确保所有内容可见
-    ContentAreaHeight := H - (ContentAreaY - Y) - 20
-    ; 如果计算出的高度不够，使用固定高度
-    if (ContentAreaHeight < 750) {
-        ContentAreaHeight := 750
-    }
-    
-    ; 为每个子标签创建内容面板
-    for Index, Item in GeneralSubTabList {
-        CreateGeneralSubTab(ConfigGUI, X + 30, ContentAreaY, W - 60, ContentAreaHeight, Item)
-    }
-    
-    ; 默认显示第一个子标签页
-    if (GeneralSubTabList.Length > 0) {
-        SwitchGeneralSubTab(GeneralSubTabList[1].Key)
-    }
 }
 
 ; ===================== 创建快捷操作按钮配置UI =====================
@@ -8859,15 +8803,17 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     Title.SetFont("s16 Bold", "Segoe UI")
     HotkeysTabControls.Push(Title)
     
-    ; ========== 主标签页区域（快捷键设置 / Cursor规则）==========
+    ; ========== 主标签页区域（快捷键设置 / 快操作按钮 / 搜索标签）==========
     MainTabBarY := Y + 70
     MainTabBarHeight := 40
     MainTabBarBg := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . MainTabBarY . " w" . (W - 60) . " h" . MainTabBarHeight . " Background" . UI_Colors.Sidebar, "")
     HotkeysTabControls.Push(MainTabBarBg)
     
-    ; 创建主标签列表（移除rules，已转移到提示词标签页）
+    ; 创建主标签列表（三个标签：快捷键设置、快操作按钮、搜索标签）
     MainTabList := [
-        {Key: "settings", Name: GetText("hotkey_main_tab_settings")}
+        {Key: "settings", Name: GetText("hotkey_main_tab_settings")},
+        {Key: "quickaction", Name: GetText("quick_action_config")},
+        {Key: "searchcategory", Name: GetText("search_category_config")}
     ]
     
     ; 创建主标签按钮
@@ -8987,6 +8933,54 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     ; 添加快捷键子标签按钮
     for Key, TabBtn in HotkeySubTabs {
         HotkeysMainTabControls["settings"].Push(TabBtn)
+    }
+    
+    ; ========== 快操作按钮主标签页内容 ==========
+    QuickActionContentY := ContentAreaY
+    QuickActionContentHeight := ContentAreaHeight
+    HotkeysMainTabControls["quickaction"] := []
+    
+    ; 描述文字
+    QuickActionDesc := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . (QuickActionContentY + 10) . " w" . (W - 60) . " h20 c" . UI_Colors.TextDim . " vHotkeysQuickActionDesc", GetText("quick_action_config_desc"))
+    QuickActionDesc.SetFont("s9", "Segoe UI")
+    QuickActionDesc.Visible := false
+    HotkeysMainTabControls["quickaction"].Push(QuickActionDesc)
+    HotkeysTabControls.Push(QuickActionDesc)
+    
+    ; 创建快操作按钮配置UI
+    global QuickActionConfigControls := []
+    CreateQuickActionConfigUI(ConfigGUI, X + 30, QuickActionContentY + 35, W - 60, HotkeysMainTabControls["quickaction"])
+    ; 将快操作按钮控件设置为默认隐藏，并添加到HotkeysTabControls以便统一管理
+    for Index, Ctrl in QuickActionConfigControls {
+        try {
+            Ctrl.Visible := false
+            HotkeysTabControls.Push(Ctrl)
+        } catch {
+        }
+    }
+    
+    ; ========== 搜索标签主标签页内容 ==========
+    SearchCategoryContentY := ContentAreaY
+    SearchCategoryContentHeight := ContentAreaHeight
+    HotkeysMainTabControls["searchcategory"] := []
+    
+    ; 描述文字
+    SearchCategoryDesc := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . (SearchCategoryContentY + 20) . " w" . (W - 60) . " h20 c" . UI_Colors.TextDim . " vHotkeysSearchCategoryDesc", GetText("search_category_config_desc"))
+    SearchCategoryDesc.SetFont("s9", "Segoe UI")
+    SearchCategoryDesc.Visible := false
+    HotkeysMainTabControls["searchcategory"].Push(SearchCategoryDesc)
+    HotkeysTabControls.Push(SearchCategoryDesc)
+    
+    ; 创建搜索标签配置UI
+    global SearchCategoryConfigControls := []
+    CreateSearchCategoryConfigUI(ConfigGUI, X + 30, SearchCategoryContentY + 50, W - 60, HotkeysMainTabControls["searchcategory"])
+    ; 将搜索标签控件设置为默认隐藏，并添加到HotkeysTabControls以便统一管理
+    for Index, Ctrl in SearchCategoryConfigControls {
+        try {
+            Ctrl.Visible := false
+            HotkeysTabControls.Push(Ctrl)
+        } catch {
+        }
     }
     
     ; 默认显示第一个主标签页（快捷键设置）
@@ -10092,7 +10086,19 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     AdvancedTabControls.Push(Label1)
     
     YPos += 30
-    AISleepTimeEdit := ConfigGUI.Add("Edit", "x" . (X + 30) . " y" . YPos . " w150 h30 vAISleepTimeEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, AISleepTime)
+    ; 根据主题模式设置输入框颜色（暗色模式使用cursor黑灰色系）
+    global ThemeMode
+    if (!IsSet(ThemeMode) || ThemeMode = "") {
+        ThemeMode := "dark"
+    }
+    if (ThemeMode = "dark") {
+        InputBgColor := "2d2d30"  ; Cursor风格的黑灰色
+        InputTextColor := "FFFFFF"  ; 白色文字
+    } else {
+        InputBgColor := UI_Colors.InputBg
+        InputTextColor := UI_Colors.Text
+    }
+    AISleepTimeEdit := ConfigGUI.Add("Edit", "x" . (X + 30) . " y" . YPos . " w150 h30 vAISleepTimeEdit Background" . InputBgColor . " c" . InputTextColor, AISleepTime)
     AISleepTimeEdit.SetFont("s11", "Segoe UI")
     AdvancedTabControls.Push(AISleepTimeEdit)
     
@@ -10123,9 +10129,20 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     }
     
     ; 创建下拉框
+    ; 根据主题模式设置下拉框颜色（暗色模式使用cursor黑灰色系）
+    if (!IsSet(ThemeMode) || ThemeMode = "") {
+        ThemeMode := "dark"
+    }
+    if (ThemeMode = "dark") {
+        DDLBgColor := "2d2d30"  ; Cursor风格的黑灰色
+        DDLTextColor := "FFFFFF"  ; 白色文字
+    } else {
+        DDLBgColor := UI_Colors.DDLBg
+        DDLTextColor := UI_Colors.DDLText
+    }
     ; 使用R5选项指定下拉列表显示5行（R选项设置下拉列表的高度）
-    DefaultStartTabDDL := ConfigGUI.Add("DDL", "x" . (X + 30) . " y" . YPos . " w200 h30 R5 vDefaultStartTabDDL Background" . UI_Colors.DDLBg . " c" . UI_Colors.DDLText, StartTabOptions)
-    DefaultStartTabDDL.SetFont("s10 c" . UI_Colors.DDLText, "Segoe UI")
+    DefaultStartTabDDL := ConfigGUI.Add("DDL", "x" . (X + 30) . " y" . YPos . " w200 h30 R5 vDefaultStartTabDDL Background" . DDLBgColor . " c" . DDLTextColor, StartTabOptions)
+    DefaultStartTabDDL.SetFont("s10 c" . DDLTextColor, "Segoe UI")
     DefaultStartTabDDL.Value := DefaultIndex
     DefaultStartTabDDL.OnEvent("Change", (*) => OnDefaultStartTabChange())
     
@@ -10149,9 +10166,9 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
         DefaultStartTabDDL_Hwnd := DDL_Hwnd
         
         ; 创建画刷用于下拉列表背景色（根据主题模式设置）
-        ; 暗色模式：使用黑灰色1e1e1e，亮色模式：使用UI_Colors.DDLBg
+        ; 暗色模式：使用Cursor风格黑灰色2d2d30，亮色模式：使用UI_Colors.DDLBg
         if (ThemeMode = "dark") {
-            ColorCode := "0x1e1e1e"  ; 黑灰色背景
+            ColorCode := "0x2d2d30"  ; Cursor风格的黑灰色背景
         } else {
             ColorCode := "0x" . UI_Colors.DDLBg  ; 亮色模式背景
         }
@@ -10566,22 +10583,36 @@ RestoreButtonColor(Ctrl, OriginalColor, *) {
 ; ===================== 创建Cursor风格的下拉框 =====================
 ; 创建一个带边框和Cursor风格样式的下拉框
 CreateCursorDDL(Parent, X, Y, W, H, Options, VarName := "", ControlList := "") {
-    global UI_Colors
+    global UI_Colors, ThemeMode
+    
+    ; 根据主题模式设置下拉框颜色（暗色模式使用cursor黑灰色系）
+    if (!IsSet(ThemeMode) || ThemeMode = "") {
+        ThemeMode := "dark"
+    }
+    if (ThemeMode = "dark") {
+        DDLBgColor := "2d2d30"  ; Cursor风格的黑灰色
+        DDLTextColor := "FFFFFF"  ; 白色文字
+        DDLBorderColor := "3e3e42"  ; 边框颜色
+    } else {
+        DDLBgColor := UI_Colors.DDLBg
+        DDLTextColor := UI_Colors.DDLText
+        DDLBorderColor := UI_Colors.DDLBorder
+    }
     
     ; 外边框（浅灰色，模拟Cursor风格）
-    DDLBorderOuter := Parent.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Background" . UI_Colors.DDLBorder, "")
+    DDLBorderOuter := Parent.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Background" . DDLBorderColor, "")
     if (ControlList != "") {
         ControlList.Push(DDLBorderOuter)
     }
     
     ; 内背景（深灰色，Cursor风格）
-    DDLBgRect := Parent.Add("Text", "x" . (X + 1) . " y" . (Y + 1) . " w" . (W - 2) . " h" . (H - 2) . " Background" . UI_Colors.DDLBg, "")
+    DDLBgRect := Parent.Add("Text", "x" . (X + 1) . " y" . (Y + 1) . " w" . (W - 2) . " h" . (H - 2) . " Background" . DDLBgColor, "")
     if (ControlList != "") {
         ControlList.Push(DDLBgRect)
     }
     
     ; 创建下拉框（内嵌2px以显示边框）
-    DDL := Parent.Add("DDL", "x" . (X + 2) . " y" . (Y + 2) . " w" . (W - 4) . " h" . (H - 4) . " v" . VarName . " Background" . UI_Colors.DDLBg . " c" . UI_Colors.DDLText . " " . Options, [])
+    DDL := Parent.Add("DDL", "x" . (X + 2) . " y" . (Y + 2) . " w" . (W - 4) . " h" . (H - 4) . " v" . VarName . " Background" . DDLBgColor . " c" . DDLTextColor . " " . Options, [])
     DDL.SetFont("s10", "Segoe UI")
     
     ; 添加选项
@@ -11264,6 +11295,8 @@ ShowConfigGUI() {
     global PromptsTabControls := []
     global HotkeysTabControls := []
     global AdvancedTabControls := []
+    global GeneralSubTabs := Map()
+    global GeneralSubTabControls := Map()
     
     ; 创建配置 GUI（无边框窗口，无白边，无滚动条）
     ConfigGUI := Gui("+Resize -MaximizeBox -Caption", GetText("config_title"))
@@ -11319,14 +11352,36 @@ ShowConfigGUI() {
     SidebarBg := ConfigGUI.Add("Text", "x0 y35 w" . SidebarWidth . " h" . (ConfigHeight - 35) . " Background" . UI_Colors.Sidebar . " vSidebarBg", "")
     
     ; 侧边栏搜索框
-    SearchBg := ConfigGUI.Add("Text", "x10 y45 w" . (SidebarWidth - 20) . " h30 Background" . UI_Colors.InputBg, "")
-    ; 放大镜图标（使用牛马.ico）
-    SearchIcon := ConfigGUI.Add("Picture", "x18 y50 w16 h16 0x200 Background" . UI_Colors.InputBg, "牛马.ico")
-    ; 搜索输入框（调整位置，为放大镜图标留出空间）
-    global SearchEdit := ConfigGUI.Add("Edit", "x36 y50 w" . (SidebarWidth - 46) . " h20 vSearchEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " -E0x200", "") 
+    ; 牛马图标（放在搜索框外面左边，放大显示）
+    global ThemeMode
+    if (!IsSet(ThemeMode) || ThemeMode = "") {
+        ThemeMode := "dark"
+    }
+    IconSize := 32
+    IconX := 10
+    IconY := 45
+    IconPath := A_ScriptDir "\牛马.ico"
+    if (FileExist(IconPath)) {
+        SearchIcon := ConfigGUI.Add("Picture", "x" . IconX . " y" . IconY . " w" . IconSize . " h" . IconSize . " 0x200", IconPath)
+    }
+    
+    ; 搜索框背景（调整位置，为图标留出空间）
+    SearchBgX := IconX + IconSize + 10
+    SearchBgWidth := SidebarWidth - SearchBgX - 10
+    SearchBg := ConfigGUI.Add("Text", "x" . SearchBgX . " y45 w" . SearchBgWidth . " h30 Background" . UI_Colors.InputBg, "")
+    
+    ; 搜索输入框（根据主题模式设置颜色）
+    if (ThemeMode = "dark") {
+        SearchInputBgColor := "2d2d30"  ; Cursor风格的黑灰色
+        SearchInputTextColor := "FFFFFF"  ; 白色文字
+    } else {
+        SearchInputBgColor := UI_Colors.InputBg
+        SearchInputTextColor := UI_Colors.Text
+    }
+    global SearchEdit := ConfigGUI.Add("Edit", "x" . SearchBgX . " y50 w" . SearchBgWidth . " h20 vSearchEdit Background" . SearchInputBgColor . " c" . SearchInputTextColor . " -E0x200", "") 
     SearchEdit.SetFont("s9", "Segoe UI")
     
-    global SearchHint := ConfigGUI.Add("Text", "x36 y50 w" . (SidebarWidth - 46) . " h20 c" . UI_Colors.TextDim . " Background" . UI_Colors.InputBg, GetText("search_placeholder"))
+    global SearchHint := ConfigGUI.Add("Text", "x" . SearchBgX . " y50 w" . SearchBgWidth . " h20 c" . UI_Colors.TextDim . " Background" . SearchInputBgColor, GetText("search_placeholder"))
     SearchHint.SetFont("s9 Italic", "Segoe UI")
     
     ; 标签按钮起始位置
@@ -11963,6 +12018,33 @@ SaveVoiceInputPosition() {
 CloseConfigGUI() {
     global GuiID_ConfigGUI, CapsLockHoldTimeEdit, CapsLockHoldTimeSeconds, ConfigFile
     global DDLBrush, DefaultStartTabDDL_Hwnd
+    static IsClosing := false  ; 防重复点击标志
+    
+    ; 如果正在关闭，直接返回
+    if (IsClosing) {
+        return
+    }
+    
+    ; 如果窗口已经不存在，直接返回
+    if (GuiID_ConfigGUI = 0) {
+        return
+    }
+    
+    ; 检查窗口是否仍然有效
+    try {
+        if (!WinExist("ahk_id " . GuiID_ConfigGUI.Hwnd)) {
+            GuiID_ConfigGUI := 0
+            return
+        }
+    } catch {
+        ; 如果检查失败，说明窗口可能已经关闭
+        GuiID_ConfigGUI := 0
+        return
+    }
+    
+    ; 设置关闭标志
+    IsClosing := true
+    
     ; 禁用滚动热键
     DisableConfigScroll()
     
@@ -12023,12 +12105,23 @@ CloseConfigGUI() {
         }
     }
     
+    ; 关闭窗口
     if (GuiID_ConfigGUI != 0) {
         try {
-            GuiID_ConfigGUI.Destroy()
+            ; 先重置全局变量，避免重复调用
+            TempGUI := GuiID_ConfigGUI
+            GuiID_ConfigGUI := 0
+            
+            ; 销毁窗口
+            TempGUI.Destroy()
+        } catch as e {
+            ; 如果销毁失败，确保全局变量已重置
+            GuiID_ConfigGUI := 0
         }
-        GuiID_ConfigGUI := 0
     }
+    
+    ; 重置关闭标志（延迟重置，确保窗口完全关闭）
+    SetTimer(() => IsClosing := false, -100)
 }
 
 ; ===================== 搜索框事件处理 =====================
@@ -13665,13 +13758,26 @@ ShowClipboardManager() {
         if (!ClipboardCountText || !IsObject(ClipboardCountText)) {
             ClipboardCountText := CountText
         }
+        ; 确保 ListView 控件引用已保存
+        global ClipboardListView
+        if (!ClipboardListView || !IsObject(ClipboardListView)) {
+            ClipboardListView := ListViewCtrl
+        }
     } catch {
         ; 忽略错误
     }
     
-    ; 【关键修复】在 GUI 显示后刷新列表（确保控件已准备好）
+    ; 【关键修复】在 GUI 显示后立即刷新列表（确保控件已准备好）
+    ; 【新增】自动加载 ListView：窗口显示后立即刷新列表，确保 ListView 自动加载数据
     ; 使用延迟刷新，确保所有初始化都已完成
-    SetTimer(() => RefreshClipboardList(), -150)
+    ; 对于 CapsLockC 标签，使用更短的延迟以确保 ListView 立即加载
+    if (ClipboardCurrentTab = "CapsLockC") {
+        ; CapsLockC 标签使用 ListView，需要立即加载
+        SetTimer(RefreshClipboardListAfterShow, -100)
+    } else {
+        ; 对于其他标签（CtrlC），使用 ListBox，也使用延迟刷新
+        SetTimer(() => RefreshClipboardList(), -150)
+    }
 }
 
 ; Ctrl+C 标签点击处理函数
@@ -13943,6 +14049,25 @@ RefreshClipboardListDelayed(*) {
     global ClipboardCurrentTab
     if (ClipboardCurrentTab = "CapsLockC") {
         RefreshClipboardList()
+    }
+}
+
+; 在 GUI 显示后刷新剪贴板列表（用于 ShowClipboardManager）
+RefreshClipboardListAfterShow(*) {
+    try {
+        global GuiID_ClipboardManager, ClipboardListView
+        if (GuiID_ClipboardManager != 0) {
+            ; 确保 ListView 控件可用
+            if (ClipboardListView && IsObject(ClipboardListView)) {
+                RefreshClipboardList()
+            } else {
+                ; 如果 ListView 不可用，稍后重试
+                SetTimer(() => RefreshClipboardList(), -200)
+            }
+        }
+    } catch {
+        ; 如果失败，使用更长的延迟作为后备
+        SetTimer(() => RefreshClipboardList(), -300)
     }
 }
 
@@ -19922,19 +20047,39 @@ ShowVoiceSearchInputPanel() {
     LabelText := GuiID_VoiceInput.Add("Text", "x20 y" . YPos . " w" . (PanelWidth - 80) . " h20 c" . UI_Colors.TextDim, GetText("voice_search_input_label"))
     LabelText.SetFont("s10", "Segoe UI")
     
-    ; 输入框
+    ; 检查主题模式
+    global ThemeMode
+    if (!IsSet(ThemeMode) || ThemeMode = "") {
+        ThemeMode := "dark"
+    }
+    
+    ; 牛马图标（放在输入框左边）
     YPos += 25
-    InputBoxActualWidth := PanelWidth - 80
-    VoiceSearchInputEdit := GuiID_VoiceInput.Add("Edit", "x20 y" . YPos . " w" . InputBoxActualWidth . " h150 vVoiceSearchInputEdit Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " Multi", "")
+    IconSize := 32
+    IconX := 20
+    IconY := YPos
+    IconPath := A_ScriptDir "\牛马.ico"
+    if (FileExist(IconPath)) {
+        VoiceSearchIcon := GuiID_VoiceInput.Add("Picture", "x" . IconX . " y" . IconY . " w" . IconSize . " h" . IconSize . " 0x200", IconPath)
+    }
+    
+    ; 输入框（调整位置，为图标留出空间）
+    InputBoxX := IconX + IconSize + 10  ; 图标右边留10px间距
+    InputBoxActualWidth := PanelWidth - InputBoxX - 80  ; 减去左边距和右边距
+    ; 根据主题模式设置输入框颜色（暗色模式使用cursor黑灰色系）
+    if (ThemeMode = "dark") {
+        InputBgColor := "2d2d30"  ; Cursor风格的黑灰色
+        InputTextColor := "FFFFFF"  ; 白色文字
+    } else {
+        InputBgColor := UI_Colors.InputBg
+        InputTextColor := UI_Colors.Text
+    }
+    VoiceSearchInputEdit := GuiID_VoiceInput.Add("Edit", "x" . InputBoxX . " y" . YPos . " w" . InputBoxActualWidth . " h150 vVoiceSearchInputEdit Background" . InputBgColor . " c" . InputTextColor . " Multi", "")
     VoiceSearchInputEdit.SetFont("s12", "Segoe UI")
     VoiceSearchInputEdit.OnEvent("Focus", SwitchToChineseIME)
     VoiceSearchInputEdit.OnEvent("Change", UpdateVoiceSearchInputEditTime)
     
     ; 清空按钮和搜索按钮
-    global ThemeMode
-    if (!IsSet(ThemeMode) || ThemeMode = "") {
-        ThemeMode := "dark"
-    }
     ClearBtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
     RightBtnX := PanelWidth - 60
     ClearBtn := GuiID_VoiceInput.Add("Text", "x" . RightBtnX . " y" . YPos . " w40 h40 Center 0x200 c" . ClearBtnTextColor . " Background" . UI_Colors.BtnBg . " vClearBtn", GetText("clear"))
