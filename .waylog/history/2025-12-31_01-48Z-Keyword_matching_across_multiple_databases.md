@@ -235,3 +235,99 @@ Line:	23876
 清理第23873行及后续多余文本，仅保留 `OnExit(ExitFunc)`：
 
 ---
+
+
+**User**
+
+解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点
+
+---
+
+
+**User**
+
+请在脚本中重构 ShowSearchCenter 界面和逻辑
+UI 结构：顶部显示 SearchEngines 中的分类标签（AI、搜索、视频等）；中部为输入框；底部为 ListView。
+当用户输入关键词后
+WSAD 导航：
+CapsLock + W：聚焦顶部标签。此时按 A/D 切换分类（如从 AI 换到学术）。
+CapsLock + S：聚焦底部 ListView。
+CapsLock + F：若焦点在顶部，一键 Run 当前分类下所有勾选的网址；若在底部，粘贴选中项。
+
+---
+
+
+**Cursor**
+
+查看当前的 `ShowSearchCenter` 实现：
+
+
+
+查看搜索引擎数据结构和当前的导航逻辑：
+
+---
+
+
+**User**
+
+Error: Missing "propertyname:" in object literal.
+
+	19524: {
+	19525: {
+▶	19525: Return  { global SearchCenterActiveArea SwitchSearchCenterCategory(CategoryIndex, true) SearchCenterActiveArea := "category" UpdateSearchCenterHighlight() }
+
+---
+
+
+**Cursor**
+
+修复语法错误：`CreateSearchCategoryClickHandler` 的返回函数格式不正确。
+
+
+
+修复箭头函数语法错误：
+
+---
+
+
+**User**
+
+1/用户输入文字后，capslock+w无法激活上方的搜索引擎类目，而且看不到已经选中的搜索引擎
+2/用户capslock+s也无法跳赚到下方的listview类目选择相关选项
+
+---
+
+
+**Cursor**
+
+检查并修复这两个问题：
+
+
+
+检查并修复这两个问题：
+
+---
+
+
+**User**
+
+Error: The following reserved word must not be used as a variable name:
+"global"
+
+	19497: SearchCenterSearchEdit.OnEvent("Change", ExecuteSearchCenterSearch)
+	19499: {
+▶	19499: Return  ( global SearchCenterActiveArea, SearchCenterActiveArea := "input", UpdateSearchCenterHighlight(), SwitchToChineseIMEForSearchCenter() )
+
+---
+
+
+**User**
+
+Error: The following reserved word must not be used as a variable name:
+"global"
+
+	19497: SearchCenterSearchEdit.OnEvent("Change", ExecuteSearchCenterSearch)
+	19499: {
+▶	19499: Return  ( global SearchCenterActiveArea, SearchCenterActiveArea := "input", UpdateSearchCenterHighlight(), SwitchToChineseIMEForSearchCenter() )
+
+---
