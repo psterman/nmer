@@ -48,3 +48,15 @@ w
 查看相关代码，定位并修复这两个问题：
 
 ---
+
+
+**User**
+
+交换 CapsLock + G 和 CapsLock + F:
+由 CapsLock + F 全权负责激活 SearchCenter 窗口。
+CapsLock + g唤起 “语音输入面板” 或 “旧版快捷面板” 
+当 SearchCenter 窗口已激活时，按下 CapsLock + F 执行逻辑根据当前焦点区域分流：
+搜索引擎 / 输入框区域：根据输入内容，一键并发跳转（Run）当前选中的搜索引擎组。
+ListView 区域：将选中的本地结果（代码片段或 Prompt）直接粘贴（Paste）到 Cursor 窗口。
+
+---

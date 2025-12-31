@@ -2629,13 +2629,18 @@ GetPanelVisibleState() {
 
 ; ===================== 搜索中心窗口激活状态检查函数 =====================
 ; 用于 #HotIf 指令的函数
+; 【修复】加强检查逻辑，确保窗口确实存在且激活，避免误判
 IsSearchCenterActive() {
     global GuiID_SearchCenter
     if (!GuiID_SearchCenter || GuiID_SearchCenter = 0)
         return false
     ; 【关键修复】使用 .Hwnd 属性获取窗口句柄
     if (IsObject(GuiID_SearchCenter) && GuiID_SearchCenter.HasProp("Hwnd")) {
-        return WinActive("ahk_id " . GuiID_SearchCenter.Hwnd)
+        Hwnd := GuiID_SearchCenter.Hwnd
+        ; 双重检查：窗口存在且激活
+        if (WinExist("ahk_id " . Hwnd) && WinActive("ahk_id " . Hwnd)) {
+            return true
+        }
     }
     return false
 }
@@ -18749,43 +18754,33 @@ z:: {
     }
 }
 
-; F 键长短按区分（短按：原有逻辑；长按：发送回车键）
+; F 键：激活搜索中心或执行区域内操作
 f:: {
-    global GuiID_SearchCenter, CapsLockHoldTimeSeconds
-    ; 使用配置的长按时间（默认0.5秒，转换为毫秒）
-    HoldTimeMs := 300  ; 默认300ms作为长按判断时间
-    if (IsSet(CapsLockHoldTimeSeconds) && CapsLockHoldTimeSeconds != "") {
-        HoldTimeMs := Round(CapsLockHoldTimeSeconds * 1000)
-        ; 限制在合理范围内（200ms到1000ms）
-        if (HoldTimeMs < 200) {
-            HoldTimeMs := 200
-        } else if (HoldTimeMs > 1000) {
-            HoldTimeMs := 1000
-        }
-    }
-    HoldTimeSeconds := HoldTimeMs / 1000.0
-    
-    KeyWaitResult := KeyWait("f", "T" . HoldTimeSeconds)  ; 等待指定时间，返回是否在时间内释放
-    if (KeyWaitResult) {
-        ; 短按（<长按时间）：如果搜索窗口已激活，执行 Enter（确认搜索）
-        if (GuiID_SearchCenter != 0 && WinActive("ahk_id " . GuiID_SearchCenter.Hwnd)) {
-            Send("{Enter}")
-        } else {
-            ; 如果窗口未激活，发送原始按键
-            if (!HandleDynamicHotkey("f", "F")) {
-                Send("f")
-            }
-        }
+    global GuiID_SearchCenter
+    ; 【修复】如果 SearchCenter 窗口已存在且激活，执行区域内操作逻辑
+    if (IsSearchCenterActive()) {
+        HandleSearchCenterF()
     } else {
-        ; 长按（>长按时间）：发送回车键（Enter）
-        KeyWait("f")  ; 等待按键释放
-        Send("{Enter}")
+        ; 如果窗口已存在但未激活，激活它而不是重新创建
+        if (GuiID_SearchCenter != 0 && IsObject(GuiID_SearchCenter) && GuiID_SearchCenter.HasProp("Hwnd")) {
+            try {
+                WinActivate("ahk_id " . GuiID_SearchCenter.Hwnd)
+                WinWaitActive("ahk_id " . GuiID_SearchCenter.Hwnd, , 0.5)
+            } catch {
+                ; 如果激活失败，重新创建窗口
+                ShowSearchCenter()
+            }
+        } else {
+            ; 窗口不存在，创建新窗口
+            ShowSearchCenter()
+        }
     }
 }
 
-; G 键激活搜索中心
+; G 键激活语音搜索面板
 g:: {
-    ShowSearchCenter()
+    ; CapsLock+G 激活原来的语音搜索面板
+    StartVoiceSearch()
 }
 
 #HotIf  ; 结束 GetCapsLockState() 作用域，为 SearchCenter 专用热键让路
@@ -18919,128 +18914,7 @@ p:: {
 
 #HotIf
 
-; ===================== 搜索中心窗口上下文映射 =====================
-; 当搜索中心窗口激活时，CapsLock + W 向上切换到分类栏，CapsLock + D/W 切换分类
 ; ===================== SearchCenter 其他功能键 =====================
-
-
-; F 键：若焦点在顶部，一键 Run 当前分类下所有勾选的网址；若在底部，粘贴选中项
-; 【修复】只在CapsLock按下时拦截F键，否则让F键正常输入到输入框
-#HotIf IsSearchCenterActive() && GetCapsLockState()
-f:: {
-    global SearchCenterActiveArea, SearchCenterResultLV, SearchCenterSearchResults
-    global SearchCenterCurrentCategory, SearchCenterSelectedEngines, SearchCenterSelectedEnginesByCategory
-    global SearchCenterSearchEdit
-    
-    if (SearchCenterActiveArea = "category") {
-        ; 焦点在顶部：一键 Run 当前分类下所有勾选的网址
-        ; 获取当前分类
-        Categories := GetSearchCenterCategories()
-        if (Categories.Length = 0 || SearchCenterCurrentCategory < 0 || SearchCenterCurrentCategory >= Categories.Length) {
-            TrayTip("没有可用的分类", "提示", "Icon! 2")
-            return
-        }
-        
-        CurrentCategory := Categories[SearchCenterCurrentCategory + 1]
-        CategoryKey := CurrentCategory.Key
-        
-        ; 恢复当前分类的搜索引擎选择状态
-        if (SearchCenterSelectedEnginesByCategory.Has(CategoryKey)) {
-            SearchCenterSelectedEngines := []
-            for Index, Engine in SearchCenterSelectedEnginesByCategory[CategoryKey] {
-                SearchCenterSelectedEngines.Push(Engine)
-            }
-        } else {
-            ; 如果内存中没有，尝试从配置文件加载
-            try {
-                global ConfigFile
-                CategoryEnginesStr := IniRead(ConfigFile, "Settings", "SearchCenterSelectedEngines_" . CategoryKey, "")
-                if (CategoryEnginesStr != "") {
-                    ; 解析格式：分类:引擎1,引擎2
-                    if (InStr(CategoryEnginesStr, ":") > 0) {
-                        EnginesStr := SubStr(CategoryEnginesStr, InStr(CategoryEnginesStr, ":") + 1)
-                    } else {
-                        EnginesStr := CategoryEnginesStr
-                    }
-                    if (EnginesStr != "") {
-                        SearchCenterSelectedEngines := []
-                        EnginesArray := StrSplit(EnginesStr, ",")
-                        for Index, Engine in EnginesArray {
-                            Engine := Trim(Engine)
-                            if (Engine != "") {
-                                SearchCenterSelectedEngines.Push(Engine)
-                            }
-                        }
-                    } else {
-                        SearchCenterSelectedEngines := []
-                    }
-                } else {
-                    SearchCenterSelectedEngines := []
-                }
-            } catch {
-                SearchCenterSelectedEngines := []
-            }
-        }
-        
-        ; 检查是否有选中的搜索引擎
-        if (!IsSet(SearchCenterSelectedEngines) || !IsObject(SearchCenterSelectedEngines) || SearchCenterSelectedEngines.Length = 0) {
-            TrayTip("请至少选择一个搜索引擎", "提示", "Icon! 2")
-            return
-        }
-        
-        ; 获取搜索关键词
-        Keyword := SearchCenterSearchEdit ? SearchCenterSearchEdit.Value : ""
-        if (StrLen(Keyword) < 1) {
-            Keyword := "搜索"
-        }
-        
-        ; 打开所有选中的搜索引擎
-        for Index, Engine in SearchCenterSelectedEngines {
-            if (!IsSet(Engine) || Engine = "") {
-                continue  ; 跳过无效的引擎
-            }
-            SendVoiceSearchToBrowser(Keyword, Engine)
-            ; 每个搜索引擎之间稍作延迟，避免同时打开太多窗口
-            if (Index < SearchCenterSelectedEngines.Length) {
-                Sleep(300)
-            }
-        }
-        
-        TrayTip("已打开 " . SearchCenterSelectedEngines.Length . " 个搜索引擎", "提示", "Iconi 1")
-    } else if (SearchCenterActiveArea = "listview") {
-        ; 焦点在底部：粘贴选中项
-        if (!SearchCenterResultLV || SearchCenterResultLV = 0) {
-            return
-        }
-        
-        SelectedRow := SearchCenterResultLV.GetNext()
-        if (SelectedRow = 0) {
-            ; 如果没有选中项，选中第一项
-            if (SearchCenterResultLV.GetCount() > 0) {
-                SearchCenterResultLV.Modify(1, "Select Focus")
-                SelectedRow := 1
-            } else {
-                TrayTip("没有搜索结果", "提示", "Icon! 2")
-                return
-            }
-        }
-        
-        ; 获取选中项的内容
-        if (SelectedRow > 0 && SelectedRow <= SearchCenterSearchResults.Length) {
-            Item := SearchCenterSearchResults[SelectedRow]
-            Content := Item.HasProp("Content") ? Item.Content : Item.Title
-            
-            ; 复制到剪贴板并粘贴
-            A_Clipboard := Content
-            Sleep(50)
-            Send("^v")  ; Ctrl+V 粘贴
-            TrayTip("已粘贴", Item.Title, "Iconi 1")
-        }
-    } else {
-        ; 其他情况，发送原始按键
-        Send("f")
-    }
-}
 
 #HotIf  ; 结束 IsSearchCenterActive() && GetCapsLockState() 作用域
 
@@ -19403,6 +19277,65 @@ HandleSearchCenterRight() {
     } else if (SearchCenterActiveArea = "listview") {
         ; listview (列表区域) -> →/D：向下翻页（PageDown）
         Send("{PgDn}")
+    }
+}
+
+; 处理搜索中心 F 键导航 (F)
+HandleSearchCenterF() {
+    global SearchCenterActiveArea, SearchCenterResultLV, SearchCenterSearchResults
+    global SearchCenterSearchEdit, CursorPath, CapsLock2
+    
+    ; 标记已处理按键，防止 CapsLock 切换状态
+    CapsLock2 := false
+    
+    if (SearchCenterActiveArea = "category" || SearchCenterActiveArea = "input") {
+        ; 搜索引擎/输入框区域：执行搜索操作
+        ExecuteSearchCenterBatchSearch()
+    } else if (SearchCenterActiveArea = "listview") {
+        ; ListView 区域：执行粘贴到 Cursor
+        if (!SearchCenterResultLV || SearchCenterResultLV = 0) {
+            return
+        }
+        
+        SelectedRow := SearchCenterResultLV.GetNext()
+        if (SelectedRow <= 0) {
+            ; 如果没有选中项，选中第一项
+            if (SearchCenterResultLV.GetCount() > 0) {
+                SearchCenterResultLV.Modify(1, "Select Focus")
+                SelectedRow := 1
+            } else {
+                TrayTip("没有可用的搜索结果", "提示", "Icon! 2")
+                return
+            }
+        }
+        
+        ; 获取选中内容并执行粘贴
+        if (SelectedRow > 0 && SelectedRow <= SearchCenterSearchResults.Length) {
+            Item := SearchCenterSearchResults[SelectedRow]
+            Content := Item.HasProp("Content") ? Item.Content : Item.Title
+            
+            try {
+                ; 复制到剪贴板
+                A_Clipboard := Content
+                Sleep(150) ; 等待剪贴板写入完成
+                
+                ; 查找并激活 Cursor 窗口
+                if (WinExist("ahk_exe Cursor.exe")) {
+                    WinActivate("ahk_exe Cursor.exe")
+                    ; 尽量等待激活完成
+                    WinWaitActive("ahk_exe Cursor.exe", , 1)
+                } else if (IsSet(CursorPath) && CursorPath != "" && FileExist(CursorPath)) {
+                    Run(CursorPath)
+                    WinWaitActive("ahk_exe Cursor.exe", , 5)
+                }
+                
+                ; 发送粘贴命令
+                Send("^v")
+                TrayTip("已粘贴到 Cursor", Item.Title, "Iconi 1")
+            } catch as e {
+                TrayTip("粘贴失败: " . e.Message, "错误", "Iconx 2")
+            }
+        }
     }
 }
 
