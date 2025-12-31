@@ -7,7 +7,7 @@ SetMouseDelay(10)
 SendMode("Input")
 DetectHiddenWindows(true)
 ; 设置托盘图标
-TraySetIcon("牛马.ico")
+TraySetIcon("favicon.ico")
 
 
 ; ===================== 包含 SQLite 数据库类 =====================
@@ -2645,13 +2645,16 @@ ClearCapsLockTimer(*) {
 }
 
 ShowPanelTimer(*) {
-    global CapsLock, PanelVisible, VoiceInputActive, VoiceSearchActive, VoiceSearchSelecting
+    global CapsLock, CapsLock2, PanelVisible, VoiceInputActive, VoiceSearchActive, VoiceSearchSelecting
     ; 如果正在语音输入、语音搜索或选择搜索引擎，不显示快捷操作面板
     if (VoiceInputActive || VoiceSearchActive || VoiceSearchSelecting) {
         return
     }
+    ; 【关键修改】如果CapsLock2被清除，说明用户按了组合键（如CapsLock+C），不要激活面板
+    if (!CapsLock2) {
+        return
+    }
     ; 如果CapsLock仍然按下且面板未显示，则显示面板
-    ; 注意：如果使用了组合快捷键，HandleDynamicHotkey会清除这个定时器，所以这里不需要检查CapsLock2
     if (CapsLock && !PanelVisible) {
         ShowCursorPanel()
     }
@@ -3313,6 +3316,9 @@ ShowCursorPanel() {
     ; 获取屏幕信息并计算位置
     ScreenInfo := GetScreenInfo(CursorPanelScreenIndex)
     Pos := GetPanelPosition(ScreenInfo, CursorPanelWidth, CursorPanelHeight, FunctionPanelPos)
+    
+    ; ESC 键关闭面板
+    GuiID_CursorPanel.OnEvent("Escape", (*) => CloseCursorPanel())
     
     ; 显示面板
     GuiID_CursorPanel.Show("w" . CursorPanelWidth . " h" . CursorPanelHeight . " x" . Pos.X . " y" . Pos.Y . " NoActivate")
@@ -5579,6 +5585,9 @@ AddPromptTemplate() {
     CancelBtn.OnEvent("Click", (*) => EditGUI.Destroy())
     HoverBtnWithAnimation(CancelBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     
+    ; ESC键关闭窗口
+    EditGUI.OnEvent("Escape", (*) => EditGUI.Destroy())
+    
     EditGUI.Show("w340 h" . (BtnY + 50))
 }
 
@@ -5704,6 +5713,9 @@ EditPromptTemplateDialog(TemplateID, Template) {
     CancelBtn.SetFont("s10", "Segoe UI")
     CancelBtn.OnEvent("Click", (*) => EditGUI.Destroy())
     HoverBtnWithAnimation(CancelBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    ; ESC键关闭窗口
+    EditGUI.OnEvent("Escape", (*) => EditGUI.Destroy())
     
     EditGUI.Show("w340 h" . (BtnY + 50))
 }
@@ -5894,6 +5906,9 @@ SetDefaultTemplate() {
     CancelBtn.OnEvent("Click", (*) => SelectGUI.Destroy())
     HoverBtnWithAnimation(CancelBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     
+    ; ESC键关闭窗口
+    SelectGUI.OnEvent("Escape", (*) => SelectGUI.Destroy())
+    
     SelectGUI.Show("w300 h" . (BtnStartY + 50))
 }
 
@@ -5983,6 +5998,9 @@ ImportPromptTemplates() {
         CancelBtn.SetFont("s10", "Segoe UI")
         CancelBtn.OnEvent("Click", (*) => ImportGUI.Destroy())
         HoverBtnWithAnimation(CancelBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        
+        ; ESC键关闭窗口
+        ImportGUI.OnEvent("Escape", (*) => ImportGUI.Destroy())
         
         ImportGUI.Show("w300 h" . (BtnStartY + 50))
     } catch as e {
@@ -7314,6 +7332,9 @@ CreateTemplateActionCenter(Template, TemplateIndex) {
     CloseBtn.HoverColor := UI_Colors.BtnHover
     CloseBtn.OnEvent("Click", (*) => ActionCenterGUI.Destroy())
     
+    ; ESC键关闭窗口
+    ActionCenterGUI.OnEvent("Escape", (*) => ActionCenterGUI.Destroy())
+    
     ; 显示窗口
     ActionCenterGUI.Show("w680 h" . (BtnY2 + BtnHeight + 20))
 }
@@ -7490,6 +7511,9 @@ OnPromptManagerEditDialog() {
         CloseBtn.OnEvent("Click", (*) => EditDialogGUI.Destroy())
         HoverBtnWithAnimation(CloseBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
         
+        ; ESC键关闭窗口
+        EditDialogGUI.OnEvent("Escape", (*) => EditDialogGUI.Destroy())
+        
         ; 显示窗口（增加高度以容纳两行按钮）
         EditDialogGUI.Show("w680 h550")
     } catch as e {
@@ -7643,6 +7667,9 @@ OnPromptManagerPreview() {
             CloseBtn.SetFont("s10", "Segoe UI")
             CloseBtn.OnEvent("Click", (*) => PreviewGUI.Destroy())
             HoverBtnWithAnimation(CloseBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+            
+            ; ESC键关闭窗口
+            PreviewGUI.OnEvent("Escape", (*) => PreviewGUI.Destroy())
             
             PreviewGUI.Show("w640 h550")
             return
@@ -7863,6 +7890,9 @@ OnPromptManagerMove() {
         CancelBtn.OnEvent("Click", CreateMoveCancelHandler(MoveGUI))
         HoverBtnWithAnimation(CancelBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
         
+        ; ESC键关闭窗口
+        MoveGUI.OnEvent("Escape", (*) => MoveGUI.Destroy())
+        
         ; 计算窗口高度（加上标题栏高度）
         WindowHeight := BtnY + 50 + TitleBarHeight
         MoveGUI.Show("w340 h" . WindowHeight)
@@ -8064,6 +8094,9 @@ OnPromptManagerRenameFromPreview(PreviewGUI, Template) {
     CancelBtn.OnEvent("Click", (*) => RenameGUI.Destroy())
     HoverBtnWithAnimation(CancelBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
     
+    ; ESC键关闭窗口
+    RenameGUI.OnEvent("Escape", (*) => RenameGUI.Destroy())
+    
     RenameGUI.Show("w340 h" . (BtnY + 50))
 }
 
@@ -8234,6 +8267,9 @@ OnPromptManagerMoveFromTemplate(Template) {
     CancelBtn.SetFont("s10", "Segoe UI")
     CancelBtn.OnEvent("Click", CreateMoveFromTemplateCancelHandler(MoveGUI))
     HoverBtnWithAnimation(CancelBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    ; ESC键关闭窗口
+    MoveGUI.OnEvent("Escape", (*) => MoveGUI.Destroy())
     
     ; 计算窗口高度（加上标题栏高度）
     WindowHeight := BtnY + 50 + TitleBarHeight
@@ -8757,6 +8793,9 @@ PreviewTemplateContent(TemplateKey, Template) {
         
         CloseBtn := PreviewGUI.Add("Button", "x250 y420 w100 h30", "关闭")
         CloseBtn.OnEvent("Click", (*) => PreviewGUI.Destroy())
+        
+        ; ESC键关闭窗口
+        PreviewGUI.OnEvent("Escape", (*) => PreviewGUI.Destroy())
         
         PreviewGUI.Show()
     } catch as e {
@@ -12896,35 +12935,10 @@ ShowConfigGUI() {
     TitleBar := ConfigGUI.Add("Text", "x0 y0 w" . ConfigWidth . " h35 Background" . UI_Colors.TitleBar . " vTitleBar", "")
     TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2)) ; 拖动窗口
     
-    ; 关闭按钮 - 四个角都设置（先创建关闭按钮，确保在最上层）
-    ; 左上角关闭按钮（调整位置，不遮挡标题）
-    CloseBtnTopLeft := ConfigGUI.Add("Text", "x0 y0 w35 h35 Center 0x200 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text . " vCloseBtnTopLeft", "✕")
-    CloseBtnTopLeft.SetFont("s10", "Segoe UI")
-    CloseBtnTopLeft.OnEvent("Click", (*) => CloseConfigGUI())
-    HoverBtnWithAnimation(CloseBtnTopLeft, UI_Colors.TitleBar, "e81123") ; 红色关闭 hover（带动效）
-    
     ; 窗口标题（调整位置，避免被左上角关闭按钮遮挡）
     WinTitle := ConfigGUI.Add("Text", "x40 y8 w" . (ConfigWidth - 80) . " h20 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text . " vWinTitle", GetText("config_title"))
     WinTitle.SetFont("s10 Bold", "Segoe UI")
     WinTitle.OnEvent("Click", (*) => PostMessage(0xA1, 2))
-    
-    ; 右上角关闭按钮
-    CloseBtnTopRight := ConfigGUI.Add("Text", "x" . (ConfigWidth - 40) . " y0 w40 h35 Center 0x200 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text . " vCloseBtnTopRight", "✕")
-    CloseBtnTopRight.SetFont("s10", "Segoe UI")
-    CloseBtnTopRight.OnEvent("Click", (*) => CloseConfigGUI())
-    HoverBtnWithAnimation(CloseBtnTopRight, UI_Colors.TitleBar, "e81123") ; 红色关闭 hover（带动效）
-    
-    ; 左下角关闭按钮
-    CloseBtnBottomLeft := ConfigGUI.Add("Text", "x0 y" . (ConfigHeight - 40) . " w40 h40 Center 0x200 Background" . UI_Colors.Background . " c" . UI_Colors.Text . " vCloseBtnBottomLeft", "✕")
-    CloseBtnBottomLeft.SetFont("s10", "Segoe UI")
-    CloseBtnBottomLeft.OnEvent("Click", (*) => CloseConfigGUI())
-    HoverBtnWithAnimation(CloseBtnBottomLeft, UI_Colors.Background, "e81123") ; 红色关闭 hover（带动效）
-    
-    ; 右下角关闭按钮
-    CloseBtnBottomRight := ConfigGUI.Add("Text", "x" . (ConfigWidth - 40) . " y" . (ConfigHeight - 40) . " w40 h40 Center 0x200 Background" . UI_Colors.Background . " c" . UI_Colors.Text . " vCloseBtnBottomRight", "✕")
-    CloseBtnBottomRight.SetFont("s10", "Segoe UI")
-    CloseBtnBottomRight.OnEvent("Click", (*) => CloseConfigGUI())
-    HoverBtnWithAnimation(CloseBtnBottomRight, UI_Colors.Background, "e81123") ; 红色关闭 hover（带动效）
     
     ; ========== 左侧侧边栏 (150px，更窄以给右侧更多空间) ==========
     ; SidebarWidth 已在上面声明为全局变量
@@ -12939,7 +12953,7 @@ ShowConfigGUI() {
     IconX := 10
     IconY := 45
     ; 优先使用用户自定义图标
-    IconPath := (CustomIconPath != "" && FileExist(CustomIconPath)) ? CustomIconPath : (A_ScriptDir "\牛马.ico")
+    IconPath := (CustomIconPath != "" && FileExist(CustomIconPath)) ? CustomIconPath : (A_ScriptDir "\favicon.ico")
     if (FileExist(IconPath)) {
         global SearchIcon := ConfigGUI.Add("Picture", "x" . IconX . " y" . IconY . " w" . IconSize . " h" . IconSize . " BackgroundTrans vConfigIcon", IconPath)
         SearchIcon.OnEvent("Click", (*) => ChangeCustomIcon())
@@ -13078,6 +13092,34 @@ ShowConfigGUI() {
         RestoredPos.X := PosX
         RestoredPos.Y := PosY
     }
+    
+    ; 【关键修复】创建关闭按钮 - 四个角都设置（后创建按钮，确保在最上层，不被背景遮挡）
+    ; 左上角关闭按钮
+    CloseBtnTopLeft := ConfigGUI.Add("Text", "x0 y0 w35 h35 Center 0x200 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text . " vCloseBtnTopLeft", "✕")
+    CloseBtnTopLeft.SetFont("s10", "Segoe UI")
+    CloseBtnTopLeft.OnEvent("Click", (*) => CloseConfigGUI())
+    HoverBtnWithAnimation(CloseBtnTopLeft, UI_Colors.TitleBar, "e81123")
+    
+    ; 右上角关闭按钮
+    CloseBtnTopRight := ConfigGUI.Add("Text", "x" . (RestoredPos.Width - 40) . " y0 w40 h35 Center 0x200 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text . " vCloseBtnTopRight", "✕")
+    CloseBtnTopRight.SetFont("s10", "Segoe UI")
+    CloseBtnTopRight.OnEvent("Click", (*) => CloseConfigGUI())
+    HoverBtnWithAnimation(CloseBtnTopRight, UI_Colors.TitleBar, "e81123")
+    
+    ; 左下角关闭按钮
+    CloseBtnBottomLeft := ConfigGUI.Add("Text", "x0 y" . (RestoredPos.Height - 40) . " w40 h40 Center 0x200 Background" . UI_Colors.Background . " c" . UI_Colors.Text . " vCloseBtnBottomLeft", "✕")
+    CloseBtnBottomLeft.SetFont("s10", "Segoe UI")
+    CloseBtnBottomLeft.OnEvent("Click", (*) => CloseConfigGUI())
+    HoverBtnWithAnimation(CloseBtnBottomLeft, UI_Colors.Background, "e81123")
+    
+    ; 右下角关闭按钮
+    CloseBtnBottomRight := ConfigGUI.Add("Text", "x" . (RestoredPos.Width - 40) . " y" . (RestoredPos.Height - 40) . " w40 h40 Center 0x200 Background" . UI_Colors.Background . " c" . UI_Colors.Text . " vCloseBtnBottomRight", "✕")
+    CloseBtnBottomRight.SetFont("s10", "Segoe UI")
+    CloseBtnBottomRight.OnEvent("Click", (*) => CloseConfigGUI())
+    HoverBtnWithAnimation(CloseBtnBottomRight, UI_Colors.Background, "e81123")
+
+    ; 添加 Escape 键关闭命令
+    ConfigGUI.OnEvent("Escape", (*) => CloseConfigGUI())
     
     ; 显示窗口
     ConfigGUI.Show("w" . RestoredPos.Width . " h" . RestoredPos.Height . " x" . RestoredPos.X . " y" . RestoredPos.Y)
@@ -13787,7 +13829,7 @@ SaveIconConfig() {
 UpdateTrayIcon() {
     global CustomIconPath
     
-    IconPath := (CustomIconPath != "" && FileExist(CustomIconPath)) ? CustomIconPath : (A_ScriptDir "\牛马.ico")
+    IconPath := (CustomIconPath != "" && FileExist(CustomIconPath)) ? CustomIconPath : (A_ScriptDir "\favicon.ico")
     
     if (FileExist(IconPath)) {
         try {
@@ -13795,7 +13837,7 @@ UpdateTrayIcon() {
         } catch {
             ; 如果设置失败，尝试使用默认图标
             try {
-                TraySetIcon(A_ScriptDir "\牛马.ico")
+                TraySetIcon(A_ScriptDir "\favicon.ico")
             } catch {
             }
         }
@@ -20654,6 +20696,9 @@ ShowVoiceInputPanel() {
         }
     }
     
+    ; 添加 Escape 键关闭命令
+    GuiID_VoiceInputPanel.OnEvent("Escape", (*) => HideVoiceInputPanel())
+    
     GuiID_VoiceInputPanel.Show("w" . RestoredPos.Width . " h" . RestoredPos.Height . " x" . RestoredPos.X . " y" . RestoredPos.Y . " NoActivate")
     WinSetAlwaysOnTop(1, GuiID_VoiceInputPanel.Hwnd)
 }
@@ -22954,7 +22999,7 @@ ShowVoiceSearchInputPanel() {
     IconY := YPos
     ; 优先使用用户自定义图标
     global CustomIconPath
-    IconPath := (CustomIconPath != "" && FileExist(CustomIconPath)) ? CustomIconPath : (A_ScriptDir "\牛马.ico")
+    IconPath := (CustomIconPath != "" && FileExist(CustomIconPath)) ? CustomIconPath : (A_ScriptDir "\favicon.ico")
     if (FileExist(IconPath)) {
         VoiceSearchIcon := GuiID_VoiceInput.Add("Picture", "x" . IconX . " y" . IconY . " w" . IconSize . " h" . IconSize . " 0x200", IconPath)
     }
@@ -23159,6 +23204,9 @@ ShowVoiceSearchInputPanel() {
     }
     GuiID_VoiceInput.Show("w" . RestoredPos.Width . " h" . RestoredPos.Height . " x" . RestoredPos.X . " y" . RestoredPos.Y)
     WinSetAlwaysOnTop(1, GuiID_VoiceInput.Hwnd)
+    
+    ; 添加 Escape 键关闭命令
+    GuiID_VoiceInput.OnEvent("Escape", HideVoiceSearchInputPanel)
     
     ; 在窗口显示后绑定事件（避免初始化问题）
     try {
@@ -23834,10 +23882,4 @@ ExitFunc(ExitReason, ExitCode) {
         }
     }
 }
-OnExit(ExitFunc)解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点
-
-以下是选中的代码：
-```
 OnExit(ExitFunc)
-
-```

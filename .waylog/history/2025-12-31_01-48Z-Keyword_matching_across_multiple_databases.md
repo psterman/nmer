@@ -190,3 +190,48 @@ Line:	23795
 2/
 
 ---
+
+
+**User**
+
+1/注意长按capslock时，要和用户组合按键区分，如果有组合键，不要长按激活CURSOR快捷操作面板了
+2/解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点
+
+---
+
+
+**User**
+
+1/注意长按capslock时，要和用户组合按键区分，如果有capslock组合键，不要长按激活CURSOR快捷操作面板了
+2/牛头的托盘ico太小了，改成favicon.ico
+3/所有窗口都支持esc退出
+
+---
+
+
+**Cursor**
+
+查看相关代码：
+
+---
+
+
+**User**
+
+Error: This line does not contain a recognized action.
+
+Text:	```
+Line:	23876
+
+---
+
+
+**Cursor**
+
+检查第23876行附近的代码：
+
+
+
+清理第23873行及后续多余文本，仅保留 `OnExit(ExitFunc)`：
+
+---
