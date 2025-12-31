@@ -48,3 +48,14 @@ _Exported on 12/31/2025 at 17:37:26 GMT+8 from Cursor via WayLog_
 1. 核心逻辑：capslock+wsad 如
 
 ---
+
+
+**User**
+
+输入框的样式不好看，希望有黑边，参考material重构样式
+在输入框下方添加了操作提示文本控件
+显示当前区域名称（分类搜索/输入框/本地搜索）
+显示当前区域的操作提示
+显示轻提示：可以使用方向键或 CapsLock+WSAD 切换区域
+
+---

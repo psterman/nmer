@@ -152,6 +152,9 @@ global SearchCenterSearchResults := []  ; 当前搜索结果数据
 global SearchCenterEngineIcons := []  ; 搜索引擎图标控件数组
 global SearchCenterSelectedEngines := []  ; 搜索中心选中的搜索引擎（支持多选）
 global SearchCenterSelectedEnginesByCategory := Map()  ; 每个分类的搜索引擎选择状态（分类Key -> 引擎数组）
+global SearchCenterHintText := 0  ; 搜索中心操作提示文本控件
+global SearchCenterAreaIndicator := 0  ; 搜索中心区域指示器控件（动效）
+global SearchCenterInputContainer := 0  ; 搜索中心输入框边框容器控件（Material Design风格）
 global GlobalSearchStatement := 0  ; 全局搜索 Statement 对象（用于熔断机制）
 global SearchDebounceTimer := 0  ; 搜索防抖定时器
 global VoiceInputContent := ""  ; 存储语音输入的内容
@@ -18922,6 +18925,8 @@ p:: {
 
 
 ; F 键：若焦点在顶部，一键 Run 当前分类下所有勾选的网址；若在底部，粘贴选中项
+; 【修复】只在CapsLock按下时拦截F键，否则让F键正常输入到输入框
+#HotIf IsSearchCenterActive() && GetCapsLockState()
 f:: {
     global SearchCenterActiveArea, SearchCenterResultLV, SearchCenterSearchResults
     global SearchCenterCurrentCategory, SearchCenterSelectedEngines, SearchCenterSelectedEnginesByCategory
@@ -19037,7 +19042,7 @@ f:: {
     }
 }
 
-#HotIf
+#HotIf  ; 结束 IsSearchCenterActive() && GetCapsLockState() 作用域
 
 ; ===================== 激活快捷操作按钮 =====================
 ActivateQuickActionButton(Index) {
@@ -19407,7 +19412,7 @@ ShowSearchCenter() {
     global GuiID_SearchCenter, UI_Colors, ThemeMode
     global SearchCenterActiveArea, SearchCenterCurrentCategory
     global SearchCenterSearchEdit, SearchCenterResultLV, SearchCenterCategoryButtons
-    global VoiceSearchEnabledCategories
+    global VoiceSearchEnabledCategories, SearchCenterAreaIndicator
     
     ; 如果窗口已存在，先销毁
     if (GuiID_SearchCenter != 0) {
@@ -19562,7 +19567,7 @@ ShowSearchCenter() {
     SearchEditWidth := WindowWidth - Padding * 2
     SearchEditHeight := 50
     
-    ; 根据主题模式设置输入框颜色（暗色模式使用cursor黑灰色系）
+    ; 根据主题模式设置输入框颜色（Material Design风格，完全移除边框和底边）
     if (ThemeMode = "dark") {
         InputBgColor := "2d2d30"  ; Cursor风格的黑灰色
         InputTextColor := "FFFFFF"  ; 白色文字
@@ -19570,8 +19575,35 @@ ShowSearchCenter() {
         InputBgColor := UI_Colors.InputBg
         InputTextColor := UI_Colors.Text
     }
-    SearchCenterSearchEdit := GuiID_SearchCenter.Add("Edit", "x" . SearchEditX . " y" . SearchEditY . " w" . SearchEditWidth . " h" . SearchEditHeight . " Background" . InputBgColor . " c" . InputTextColor . " vSearchCenterEdit", "")
+    
+    ; 【Material Design风格】完全移除边框容器，避免任何底边显示
+    ; 使用 -Border 选项移除默认边框，避免黑边问题
+    ; 使用 -VScroll -HScroll 禁用滚动条，-Border 移除默认边框
+    SearchCenterSearchEdit := GuiID_SearchCenter.Add("Edit", "x" . SearchEditX . " y" . SearchEditY . " w" . SearchEditWidth . " h" . SearchEditHeight . " Background" . InputBgColor . " c" . InputTextColor . " -VScroll -HScroll -Border vSearchCenterEdit", "")
     SearchCenterSearchEdit.SetFont("s16", "Segoe UI")
+    
+    ; 完全移除边框容器，不再使用
+    SearchCenterInputContainer := 0
+    
+    ; 【Material Design风格】移除Edit控件的默认3D边框（底部黑边）
+    ; 通过移除WS_EX_CLIENTEDGE扩展样式来消除3D边框效果
+    try {
+        EditHwnd := SearchCenterSearchEdit.Hwnd
+        if (EditHwnd) {
+            ; GWL_EXSTYLE = -20, WS_EX_CLIENTEDGE = 0x00000200
+            ; 获取当前扩展样式
+            CurrentExStyle := DllCall("GetWindowLongPtr", "Ptr", EditHwnd, "Int", -20, "Ptr")
+            ; 移除WS_EX_CLIENTEDGE（3D边框效果），保留其他样式
+            NewExStyle := CurrentExStyle & ~0x00000200
+            ; 应用新样式
+            DllCall("SetWindowLongPtr", "Ptr", EditHwnd, "Int", -20, "Ptr", NewExStyle, "Ptr")
+            ; 强制重绘窗口以应用样式更改
+            DllCall("InvalidateRect", "Ptr", EditHwnd, "Ptr", 0, "Int", 1)
+            DllCall("UpdateWindow", "Ptr", EditHwnd)
+        }
+    } catch {
+        ; 如果API调用失败，至少确保基本功能正常
+    }
     SearchCenterSearchEdit.OnEvent("Change", ExecuteSearchCenterSearch)
     ; 【关键修复】添加Focus事件处理：设置焦点区域为input，并切换到中文输入法
     SearchCenterSearchEdit.OnEvent("Focus", (*) => (
@@ -19583,8 +19615,24 @@ ShowSearchCenter() {
     ; ESC键关闭窗口（使用统一的关闭处理函数）
     GuiID_SearchCenter.OnEvent("Escape", SearchCenterCloseHandler)
     
+    ; ========== 区域名称动画展示（输入框下方）==========
+    AreaIndicatorY := SearchEditY + SearchEditHeight + 8
+    AreaIndicatorHeight := 25
+    ; 创建区域名称动画展示控件（显示当前区域名称：分类搜索/输入框/本地搜索）
+    SearchCenterAreaIndicator := GuiID_SearchCenter.Add("Text", "x" . Padding . " y" . AreaIndicatorY . " w" . SearchEditWidth . " h" . AreaIndicatorHeight . " c" . UI_Colors.BtnPrimary . " BackgroundTrans vSearchCenterAreaIndicator", "")
+    SearchCenterAreaIndicator.SetFont("s11 Bold", "Segoe UI")
+    SearchCenterAreaIndicator.Visible := true
+    
+    ; ========== 操作提示文本（区域名称下方）==========
+    HintTextY := AreaIndicatorY + AreaIndicatorHeight + 5
+    HintTextHeight := 40
+    ; 创建操作提示文本控件（显示详细的操作提示）
+    SearchCenterHintText := GuiID_SearchCenter.Add("Text", "x" . Padding . " y" . HintTextY . " w" . SearchEditWidth . " h" . HintTextHeight . " c" . UI_Colors.TextDim . " BackgroundTrans vSearchCenterHintText", "")
+    SearchCenterHintText.SetFont("s9", "Segoe UI")
+    SearchCenterHintText.Visible := true
+    
     ; ========== 底部结果区 ==========
-    ResultAreaY := InputAreaY + InputAreaHeight + Padding
+    ResultAreaY := InputAreaY + InputAreaHeight + Padding + AreaIndicatorHeight + HintTextHeight + 10  ; 为区域名称和提示文本留出空间
     ResultAreaHeight := WindowHeight - ResultAreaY - Padding
     
     ; 结果 ListView
@@ -19767,7 +19815,7 @@ SwitchSearchCenterCategory(Direction, DirectIndex := false) {
 ; 更新搜索中心高亮显示
 UpdateSearchCenterHighlight() {
     global SearchCenterActiveArea, SearchCenterCurrentCategory, SearchCenterCategoryButtons, SearchCenterSearchEdit, SearchCenterResultLV, UI_Colors, ThemeMode
-    global SearchCenterSelectedEnginesByCategory, ConfigFile
+    global SearchCenterSelectedEnginesByCategory, ConfigFile, SearchCenterHintText, GuiID_SearchCenter, SearchCenterAreaIndicator
     
     ; 更新分类标签高亮
     Categories := GetSearchCenterCategories()
@@ -19834,9 +19882,10 @@ UpdateSearchCenterHighlight() {
         }
     }
     
-    ; 更新输入框高亮
+    ; 更新输入框高亮（Material Design风格：聚焦时背景色变化，无边框）
     if (SearchCenterSearchEdit != 0) {
         try {
+            ; 根据主题模式设置背景色（完全移除边框，只改变背景色）
             if (SearchCenterActiveArea = "input") {
                 ; 激活输入框时，使用更亮的背景色
                 if (ThemeMode = "dark") {
@@ -19870,6 +19919,109 @@ UpdateSearchCenterHighlight() {
         } catch {
             ; 忽略错误
         }
+    }
+    
+    ; 更新区域名称动画展示
+    if (SearchCenterAreaIndicator != 0) {
+        try {
+            ; 根据当前区域生成区域名称
+            AreaName := ""
+            switch SearchCenterActiveArea {
+                case "category":
+                    AreaName := "📍 分类搜索"  ; 当前区域名称
+                case "input":
+                    AreaName := "✏️ 输入框"  ; 当前区域名称
+                case "listview":
+                    AreaName := "🔍 本地搜索"  ; 当前区域名称（搜索结果列表）
+            }
+            
+            ; 更新区域名称文本（带动效：先放大高亮，然后恢复）
+            SearchCenterAreaIndicator.Text := AreaName
+            
+            ; 区域切换动效：文本颜色和大小动画
+            try {
+                ; 先设置为高亮颜色和更大字体（动效提示）
+                HighlightColor := UI_Colors.BtnPrimary
+                SearchCenterAreaIndicator.SetFont("s13 Bold c" . HighlightColor, "Segoe UI")
+                ; 300ms后恢复为普通大小和颜色
+                SetTimer(() => (
+                    SearchCenterAreaIndicator.SetFont("s11 Bold c" . UI_Colors.BtnPrimary, "Segoe UI")
+                ), -300)
+            } catch {
+                ; 忽略动效错误
+            }
+        } catch {
+            ; 忽略更新错误
+        }
+    }
+    
+    ; 更新操作提示文本
+    if (SearchCenterHintText != 0) {
+        try {
+            ; 根据当前区域生成详细的操作提示文本
+            AreaHint := ""
+            
+            switch SearchCenterActiveArea {
+                case "category":
+                    AreaHint := "您可以使用方向键或 CapsLock+WSAD 切换操作。向上可以切换分类，向下进入输入框，Enter 执行搜索"
+                case "input":
+                    AreaHint := "您可以使用方向键或 CapsLock+WSAD 切换操作。向上进入分类栏，向下查看本地搜索结果，Enter 执行搜索。向上实现向多个AI提问或者网络搜索，向下可以查看搜索本地提示词和剪贴板"
+                case "listview":
+                    AreaHint := "您可以使用方向键或 CapsLock+WSAD 切换操作。向上返回输入框，向下浏览结果，Enter 粘贴选中项。这里显示本地搜索的提示词和剪贴板历史"
+            }
+            
+            ; 更新提示文本
+            SearchCenterHintText.Text := AreaHint
+            
+            ; 区域切换动效：文本颜色闪烁提示
+            try {
+                ; 先设置为高亮颜色（动效提示）
+                HighlightColor := UI_Colors.BtnPrimary
+                SearchCenterHintText.SetFont("s9 Bold c" . HighlightColor, "Segoe UI")
+                ; 200ms后恢复为普通颜色
+                SetTimer(() => (
+                    SearchCenterHintText.SetFont("s9 c" . UI_Colors.TextDim, "Segoe UI")
+                ), -200)
+            } catch {
+                ; 忽略动效错误
+            }
+        } catch {
+            ; 忽略更新错误
+        }
+    }
+    
+    ; 区域边框高亮动效（通过改变输入框和ListView的边框颜色）
+    try {
+        ; 输入框边框动效
+        if (SearchCenterSearchEdit != 0) {
+            if (SearchCenterActiveArea = "input") {
+                ; 激活时：添加边框高亮效果（通过改变背景色实现）
+                if (ThemeMode = "dark") {
+                    ; 暗色模式：使用更亮的背景色作为边框效果
+                    SearchCenterSearchEdit.Opt("+Background" . "3d3d40")
+                } else {
+                    ; 亮色模式：使用稍亮的背景色
+                    SearchCenterSearchEdit.Opt("+Background" . UI_Colors.InputBg)
+                }
+            }
+        }
+        
+        ; ListView边框动效（通过背景色变化实现）
+        if (SearchCenterResultLV != 0) {
+            if (SearchCenterActiveArea = "listview") {
+                ; 激活时：使用稍亮的背景色
+                if (ThemeMode = "dark") {
+                    SearchCenterResultLV.Opt("+Background" . "3d3d40")
+                } else {
+                    SearchCenterResultLV.Opt("+Background" . UI_Colors.InputBg)
+                }
+            } else {
+                ; 未激活时：恢复默认背景色
+                SearchCenterResultLV.Opt("+Background" . UI_Colors.InputBg)
+            }
+        }
+    } catch {
+        ; 忽略动效错误
     }
 }
 
