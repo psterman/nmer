@@ -142,12 +142,18 @@ global GuiID_VoiceInput := 0  ; 语音输入动画GUI ID
 global GuiID_VoiceInputPanel := 0  ; 语音输入面板GUI ID
 global GuiID_SearchCenter := 0  ; 搜索中心窗口GUI ID
 ; 搜索中心相关变量
-global SearchCenterActiveArea := "top"  ; 当前激活区域："top" 或 "bottom"
-global SearchCenterCurrentGroup := 0  ; 当前选中的搜索组索引（0, 1, 2）
+global SearchCenterActiveArea := "input"  ; 当前激活区域："category" 或 "input"
+global SearchCenterCurrentCategory := 0  ; 当前选中的分类索引（0-based）
+global SearchCenterCurrentGroup := 0  ; 当前选中的搜索组索引（0-based）
 global SearchCenterSearchEdit := 0  ; 搜索输入框控件
 global SearchCenterResultLV := 0  ; 搜索结果 ListView 控件
-global SearchCenterGroupButtons := []  ; 搜索组按钮数组
+global SearchCenterCategoryButtons := []  ; 分类标签按钮数组
 global SearchCenterSearchResults := []  ; 当前搜索结果数据
+global SearchCenterEngineIcons := []  ; 搜索引擎图标控件数组
+global SearchCenterSelectedEngines := []  ; 搜索中心选中的搜索引擎（支持多选）
+global SearchCenterSelectedEnginesByCategory := Map()  ; 每个分类的搜索引擎选择状态（分类Key -> 引擎数组）
+global GlobalSearchStatement := 0  ; 全局搜索 Statement 对象（用于熔断机制）
+global SearchDebounceTimer := 0  ; 搜索防抖定时器
 global VoiceInputContent := ""  ; 存储语音输入的内容
 global VoiceInputMethod := ""  ; 当前使用的输入法类型：baidu, xunfei, auto
 global VoiceInputPaused := false  ; 语音输入是否被暂停（按住CapsLock时）
@@ -2624,7 +2630,7 @@ IsSearchCenterActive() {
     global GuiID_SearchCenter
     if (GuiID_SearchCenter = 0)
         return false
-    return WinActive("ahk_id " . GuiID_SearchCenter)
+    return WinActive("ahk_id " . GuiID_SearchCenter.Hwnd)
 }
 
 ; ===================== CapsLock核心逻辑 =====================
@@ -18694,13 +18700,26 @@ z:: {
     }
 }
 
-; F 键搜索中心（长短按区分）
+; F 键长短按区分（短按：原有逻辑；长按：发送回车键）
 f:: {
-    global GuiID_SearchCenter
-    KeyWaitResult := KeyWait("f", "T0.3")  ; 等待最多300ms，返回是否在时间内释放
+    global GuiID_SearchCenter, CapsLockHoldTimeSeconds
+    ; 使用配置的长按时间（默认0.5秒，转换为毫秒）
+    HoldTimeMs := 300  ; 默认300ms作为长按判断时间
+    if (IsSet(CapsLockHoldTimeSeconds) && CapsLockHoldTimeSeconds != "") {
+        HoldTimeMs := Round(CapsLockHoldTimeSeconds * 1000)
+        ; 限制在合理范围内（200ms到1000ms）
+        if (HoldTimeMs < 200) {
+            HoldTimeMs := 200
+        } else if (HoldTimeMs > 1000) {
+            HoldTimeMs := 1000
+        }
+    }
+    HoldTimeSeconds := HoldTimeMs / 1000.0
+    
+    KeyWaitResult := KeyWait("f", "T" . HoldTimeSeconds)  ; 等待指定时间，返回是否在时间内释放
     if (KeyWaitResult) {
-        ; 短按：如果搜索窗口已激活，执行 Enter（确认搜索）
-        if (GuiID_SearchCenter != 0 && WinActive("ahk_id " . GuiID_SearchCenter)) {
+        ; 短按（<长按时间）：如果搜索窗口已激活，执行 Enter（确认搜索）
+        if (GuiID_SearchCenter != 0 && WinActive("ahk_id " . GuiID_SearchCenter.Hwnd)) {
             Send("{Enter}")
         } else {
             ; 如果窗口未激活，发送原始按键
@@ -18709,28 +18728,33 @@ f:: {
             }
         }
     } else {
-        ; 长按（>300ms）：激活搜索中心窗口
+        ; 长按（>长按时间）：发送回车键（Enter）
         KeyWait("f")  ; 等待按键释放
-        ShowSearchCenter()
+        Send("{Enter}")
     }
 }
 
-; W 键映射为 Up（上方向键）
+; G 键激活搜索中心
+g:: {
+    ShowSearchCenter()
+}
+
+; W 键映射为 Up（上方向键）- 全局生效
 w:: {
     Send("{Up}")
 }
 
-; S 键映射为 Down（下方向键）
+; S 键映射为 Down（下方向键）- 全局生效
 s:: {
     Send("{Down}")
 }
 
-; A 键映射为 Left（左方向键）
+; A 键映射为 Left（左方向键）- 全局生效
 a:: {
     Send("{Left}")
 }
 
-; D 键映射为 Right（右方向键）
+; D 键映射为 Right（右方向键）- 全局生效
 d:: {
     Send("{Right}")
 }
@@ -18766,51 +18790,66 @@ p:: {
 #HotIf
 
 ; ===================== 搜索中心窗口上下文映射 =====================
-; 当搜索中心窗口激活时，CapsLock + A/D 变为翻页/组切换，CapsLock + W/S 变为区域切换
+; 当搜索中心窗口激活时，CapsLock + W 向上切换到分类栏，CapsLock + D/W 切换分类
+#HotIf IsSearchCenterActive()
+
+; ESC 键：关闭搜索中心窗口
+Esc:: {
+    SearchCenterCloseHandler()
+}
+
+; Enter 键：执行批量搜索
+Enter:: {
+    ExecuteSearchCenterBatchSearch()
+}
+
 #HotIf IsSearchCenterActive() && GetCapsLockState()
 
-; W 键：切换到顶部路由区
+; W 键：从输入框向上切换到分类栏，或向上切换分类
 w:: {
-    global SearchCenterActiveArea
-    SearchCenterActiveArea := "top"
-    UpdateSearchCenterHighlight()
-}
-
-; S 键：切换到底部结果区
-s:: {
-    global SearchCenterActiveArea
-    SearchCenterActiveArea := "bottom"
-    UpdateSearchCenterHighlight()
-}
-
-; A 键：在顶部路由区时，切换到上一个搜索组
-a:: {
-    global SearchCenterActiveArea, SearchCenterCurrentGroup
-    if (SearchCenterActiveArea = "top") {
-        SwitchSearchGroup(-1)  ; -1 表示上一个
-    } else {
-        Send("{Left}")
+    global SearchCenterActiveArea, SearchCenterCurrentCategory
+    if (SearchCenterActiveArea = "input") {
+        ; 从输入框切换到分类栏
+        SearchCenterActiveArea := "category"
+        UpdateSearchCenterHighlight()
+    } else if (SearchCenterActiveArea = "category") {
+        ; 在分类栏时，向上切换分类
+        SwitchSearchCenterCategory(-1)
     }
 }
 
-; D 键：在顶部路由区时，切换到下一个搜索组
+; D 键：在分类栏时，向右切换分类；在输入框时，向右移动光标
 d:: {
-    global SearchCenterActiveArea, SearchCenterCurrentGroup
-    if (SearchCenterActiveArea = "top") {
-        SwitchSearchGroup(1)  ; 1 表示下一个
+    global SearchCenterActiveArea
+    if (SearchCenterActiveArea = "category") {
+        SwitchSearchCenterCategory(1)  ; 向右切换分类
     } else {
         Send("{Right}")
     }
 }
 
-; F 键：在顶部路由区时，一键并发打开该组内所有搜索引擎
-f:: {
-    global SearchCenterActiveArea, SearchCenterCurrentGroup
-    if (SearchCenterActiveArea = "top") {
-        OpenSearchGroupEngines()
+; A 键：在分类栏时，向左切换分类；在输入框时，向左移动光标
+a:: {
+    global SearchCenterActiveArea
+    if (SearchCenterActiveArea = "category") {
+        SwitchSearchCenterCategory(-1)  ; 向左切换分类
     } else {
-        ; 如果不在顶部，执行 Enter（确认搜索）
-        Send("{Enter}")
+        Send("{Left}")
+    }
+}
+
+; S 键：从分类栏切换到输入框
+s:: {
+    global SearchCenterActiveArea, SearchCenterSearchEdit
+    if (SearchCenterActiveArea = "category") {
+        SearchCenterActiveArea := "input"
+        UpdateSearchCenterHighlight()
+        ; 聚焦到输入框
+        if (SearchCenterSearchEdit != 0) {
+            ControlFocus(SearchCenterSearchEdit)
+        }
+    } else {
+        Send("s")
     }
 }
 
@@ -18942,25 +18981,44 @@ SetAutoStart(Enable) {
 ; ===================== 全局搜索引擎类 =====================
 /**
  * 全局搜索引擎类
- * 解决了句柄泄露，并实现了多表联合查询
+ * 彻底解决句柄泄露和 Database Locked 问题
+ * 引入熔断机制、Try-Finally 保护、并发同步
  */
 class GlobalSearchEngine {
+    /**
+     * 熔断机制：在执行 Prepare 之前强制释放旧的 Statement 句柄
+     */
+    static ReleaseOldStatement() {
+        global GlobalSearchStatement
+        try {
+            if (IsObject(GlobalSearchStatement) && GlobalSearchStatement != 0) {
+                GlobalSearchStatement.Free()
+                GlobalSearchStatement := 0
+            }
+        } catch as e {
+            OutputDebug("释放旧 Statement 失败: " . e.Message)
+            GlobalSearchStatement := 0
+        }
+    }
+    
     static PerformSearch(Keyword, MaxResults := 100) {
-        global ClipboardDB
+        global ClipboardDB, GlobalSearchStatement
         Results := []
-        ST := 0  ; 初始化 Statement 句柄
+        ST := 0  ; 局部 Statement 句柄
         
         ; 检查数据库是否已初始化
         if (!IsObject(ClipboardDB) || ClipboardDB = 0) {
             return Results
         }
         
+        ; 【熔断机制】在执行任何 Prepare 之前，强制释放旧的 Statement
+        GlobalSearchEngine.ReleaseOldStatement()
+        
         ; 构建模糊匹配模式
         SearchPattern := "%" . Keyword . "%"
         
         try {
             ; 使用 UNION ALL 一次性查询提示词和剪贴板
-            ; 这是架构师推荐的"联合视图"写法
             SQL := "
             (
                 SELECT Name AS Title, Content, '提示词' AS Source, CreateTime, rowid AS ID 
@@ -18975,42 +19033,71 @@ class GlobalSearchEngine {
             )"
             
             ; 准备语句
-            if !ClipboardDB.Prepare(SQL, &ST)
+            if !ClipboardDB.Prepare(SQL, &ST) {
                 return Results
+            }
+            
+            ; 更新全局 Statement（用于熔断机制）
+            GlobalSearchStatement := ST
 
             ; 绑定参数（防止 SQL 注入并提高性能）
             ST.Bind(1, SearchPattern)
             ST.Bind(2, SearchPattern)
             ST.Bind(3, SearchPattern)
 
-            ; 迭代结果集
-            while (ST.Step() = 100) { ; 100 代表 SQLITE_ROW
-                Results.Push({
-                    Title: ST.ColumnText(0),
-                    Content: ST.ColumnText(1),
-                    Source: ST.ColumnText(2),
-                    Time: ST.ColumnText(3),
-                    ID: ST.ColumnInt(4)
-                })
+            ; 【Try-Finally 保护】将 Step() 循环包裹在 try-finally 中
+            try {
+                ; 迭代结果集
+                while (ST.Step() = 100) { ; 100 代表 SQLITE_ROW
+                    Results.Push({
+                        Title: ST.ColumnText(0),
+                        Content: ST.ColumnText(1),
+                        Source: ST.ColumnText(2),
+                        Time: ST.ColumnText(3),
+                        ID: ST.ColumnInt(4)
+                    })
+                }
+            } catch as e {
+                OutputDebug("搜索 Step() 循环出错: " . e.Message)
+            } finally {
+                ; 【关键：修复泄露】无论成功、失败还是被用户提前终止，都必须释放
+                if (IsObject(ST) && ST != 0) {
+                    try {
+                        ST.Free()
+                    } catch {
+                        ; 忽略释放时的错误
+                    }
+                }
+                ; 清空全局 Statement
+                if (GlobalSearchStatement = ST) {
+                    GlobalSearchStatement := 0
+                }
             }
         } catch as e {
             OutputDebug("搜索出错: " . e.Message)
-        } finally {
-            ; 【关键：修复泄露】
-            ; 无论搜索成功、失败还是中间被 return，finally 块都会强制执行
-            if (IsObject(ST) && ST != 0)
-                ST.Free()
+            ; 确保异常时也释放句柄
+            if (IsObject(ST) && ST != 0) {
+                try {
+                    ST.Free()
+                } catch {
+                }
+            }
+            if (GlobalSearchStatement = ST) {
+                GlobalSearchStatement := 0
+            }
         }
+        
         return Results
     }
 }
 
 ; ===================== 搜索中心窗口 =====================
-; 显示搜索中心窗口（分段式动作面板）
+; 显示搜索中心窗口（无边框，带分类标签栏）
 ShowSearchCenter() {
     global GuiID_SearchCenter, UI_Colors, ThemeMode
-    global SearchCenterActiveArea, SearchCenterCurrentGroup
-    global SearchCenterSearchEdit, SearchCenterResultLV, SearchCenterGroupButtons
+    global SearchCenterActiveArea, SearchCenterCurrentCategory
+    global SearchCenterSearchEdit, SearchCenterResultLV, SearchCenterCategoryButtons
+    global VoiceSearchEnabledCategories, SearchCenterEngineIcons
     
     ; 如果窗口已存在，先销毁
     if (GuiID_SearchCenter != 0) {
@@ -19022,87 +19109,147 @@ ShowSearchCenter() {
     }
     
     ; 初始化状态
-    SearchCenterActiveArea := "top"
-    SearchCenterCurrentGroup := 0
-    SearchCenterGroupButtons := []
+    SearchCenterActiveArea := "input"  ; 默认焦点在输入框
+    SearchCenterCurrentCategory := 0
+    SearchCenterCategoryButtons := []
+    SearchCenterEngineIcons := []
+    
+    ; 初始化搜索引擎选择状态
+    if (!IsSet(SearchCenterSelectedEngines) || !IsObject(SearchCenterSelectedEngines)) {
+        SearchCenterSelectedEngines := []
+    }
+    if (!IsSet(SearchCenterSelectedEnginesByCategory) || !IsObject(SearchCenterSelectedEnginesByCategory)) {
+        SearchCenterSelectedEnginesByCategory := Map()
+        ; 【关键修复】参考CAPSLOCK+F的实现：从配置文件加载所有分类的选择状态
+        try {
+            global ConfigFile
+            AllCategories := GetSearchCenterCategories()
+            for Index, Category in AllCategories {
+                CategoryKey := Category.Key
+                CategoryEnginesStr := IniRead(ConfigFile, "Settings", "SearchCenterSelectedEngines_" . CategoryKey, "")
+                if (CategoryEnginesStr != "") {
+                    ; 解析格式：分类:引擎1,引擎2
+                    if (InStr(CategoryEnginesStr, ":") > 0) {
+                        EnginesStr := SubStr(CategoryEnginesStr, InStr(CategoryEnginesStr, ":") + 1)
+                    } else {
+                        EnginesStr := CategoryEnginesStr
+                    }
+                    if (EnginesStr != "") {
+                        EnginesArray := StrSplit(EnginesStr, ",")
+                        CurrentEngines := []
+                        for Index2, Engine in EnginesArray {
+                            Engine := Trim(Engine)
+                            if (Engine != "") {
+                                CurrentEngines.Push(Engine)
+                            }
+                        }
+                        if (CurrentEngines.Length > 0) {
+                            SearchCenterSelectedEnginesByCategory[CategoryKey] := CurrentEngines
+                        }
+                    }
+                }
+            }
+        } catch {
+            ; 忽略加载错误
+        }
+    }
     
     ; 窗口尺寸
     WindowWidth := 900
-    WindowHeight := 700
+    WindowHeight := 600
+    Padding := 20
     
-    ; 创建窗口
+    ; 创建无边框窗口
     GuiID_SearchCenter := Gui("+AlwaysOnTop -Caption -DPIScale", "搜索中心")
     GuiID_SearchCenter.BackColor := UI_Colors.Background
     GuiID_SearchCenter.SetFont("s11 c" . UI_Colors.Text, "Segoe UI")
     
-    ; 自定义标题栏
-    TitleBarHeight := 40
-    TitleBar := GuiID_SearchCenter.Add("Text", "x0 y0 w" . WindowWidth . " h" . TitleBarHeight . " Background" . UI_Colors.TitleBar . " vSearchCenterTitleBar", "搜索中心")
-    TitleBar.SetFont("s12 Bold c" . UI_Colors.Text, "Segoe UI")
-    TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2, , , GuiID_SearchCenter.Hwnd)) ; 拖动窗口
+    ; ========== 顶部分类标签栏（CategoryBar）==========
+    CategoryBarHeight := 50
+    CategoryBarY := Padding
     
-    ; 关闭按钮
-    CloseBtn := GuiID_SearchCenter.Add("Text", "x" . (WindowWidth - 40) . " y0 w40 h" . TitleBarHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.TitleBar . " vSearchCenterCloseBtn", "✕")
-    CloseBtn.SetFont("s12", "Segoe UI")
-    CloseBtn.OnEvent("Click", (*) => GuiID_SearchCenter.Destroy())
-    HoverBtnWithAnimation(CloseBtn, UI_Colors.TitleBar, "e81123")
+    ; 获取分类列表（从语音搜索面板提取）
+    AllCategories := GetSearchCenterCategories()
     
-    ; ========== 顶部路由区（搜索组选择）==========
-    RouteAreaY := TitleBarHeight + 20
-    RouteAreaHeight := 60
+    if (AllCategories.Length = 0) {
+        ; 如果没有分类，使用默认分类
+        AllCategories := [{Key: "ai", Text: GetText("search_category_ai")}]
+    }
     
-    ; 搜索组定义
-    SearchGroups := [
-        {Name: "AI 智搜", Engines: ["DeepSeek", "Claude"], URLs: Map("DeepSeek", "https://chat.deepseek.com/?q={query}", "Claude", "https://claude.ai/chat?q={query}")},
-        {Name: "常用搜索", Engines: ["百度", "谷歌"], URLs: Map("百度", "https://www.baidu.com/s?wd={query}", "谷歌", "https://www.google.com/search?q={query}")},
-        {Name: "社交媒体", Engines: ["B站", "小红书"], URLs: Map("B站", "https://search.bilibili.com/all?keyword={query}", "小红书", "https://www.xiaohongshu.com/search_result?keyword={query}")}
-    ]
+    ; 创建分类标签按钮（横向排列）
+    CategoryButtonHeight := 35
+    CategoryButtonSpacing := 10
+    CategoryStartX := Padding
+    CategoryButtonY := CategoryBarY + (CategoryBarHeight - CategoryButtonHeight) / 2
+    CurrentCategoryX := CategoryStartX  ; 当前X坐标
     
-    ; 创建搜索组按钮
-    GroupButtonWidth := 200
-    GroupButtonHeight := 50
-    GroupButtonSpacing := 20
-    StartX := (WindowWidth - (SearchGroups.Length * GroupButtonWidth + (SearchGroups.Length - 1) * GroupButtonSpacing)) / 2
-    
-    for Index, Group in SearchGroups {
-        GroupX := StartX + (Index - 1) * (GroupButtonWidth + GroupButtonSpacing)
-        GroupY := RouteAreaY + 5
+    for Index, Category in AllCategories {
+        ; 计算按钮宽度（根据文本长度动态调整）
+        CategoryText := Category.Text
+        TextWidth := StrLen(CategoryText) * 10 + 20  ; 估算宽度
+        CategoryButtonWidth := Max(60, TextWidth)  ; 最小宽度60
         
         ; 根据是否选中设置背景色
-        IsSelected := (Index - 1 = SearchCenterCurrentGroup)
+        IsSelected := (Index - 1 = SearchCenterCurrentCategory)
         BgColor := IsSelected ? UI_Colors.BtnPrimary : UI_Colors.Sidebar
         TextColor := IsSelected ? "FFFFFF" : UI_Colors.Text
         
-        GroupBtn := GuiID_SearchCenter.Add("Text", "x" . GroupX . " y" . GroupY . " w" . GroupButtonWidth . " h" . GroupButtonHeight . " Center 0x200 c" . TextColor . " Background" . BgColor . " vSearchGroupBtn" . Index, Group.Name)
-        GroupBtn.SetFont("s11 Bold", "Segoe UI")
-        GroupBtn.OnEvent("Click", CreateSearchGroupClickHandler(Index - 1))
-        HoverBtnWithAnimation(GroupBtn, BgColor, UI_Colors.BtnHover)
-        SearchCenterGroupButtons.Push(GroupBtn)
+        CategoryBtn := GuiID_SearchCenter.Add("Text", "x" . CurrentCategoryX . " y" . CategoryButtonY . " w" . CategoryButtonWidth . " h" . CategoryButtonHeight . " Center 0x200 c" . TextColor . " Background" . BgColor . " vSearchCategoryBtn" . Index, CategoryText)
+        CategoryBtn.SetFont("s10 Bold", "Segoe UI")
+        CategoryBtn.OnEvent("Click", CreateSearchCategoryClickHandler(Index - 1))
+        HoverBtnWithAnimation(CategoryBtn, BgColor, UI_Colors.BtnHover)
+        SearchCenterCategoryButtons.Push(CategoryBtn)
+        
+        ; 更新下一个按钮的X坐标
+        CurrentCategoryX += CategoryButtonWidth + CategoryButtonSpacing
     }
     
+    ; ========== 搜索引擎图标行 ==========
+    EngineIconRowHeight := 50
+    EngineIconRowY := CategoryBarY + CategoryBarHeight + 5
+    EngineIconSpacing := 10
+    EngineIconSize := 32
+    EngineIconStartX := Padding
+    
+    ; 初始化搜索引擎图标数组
+    SearchCenterEngineIcons := []
+    
     ; ========== 中部输入区 ==========
-    InputAreaY := RouteAreaY + RouteAreaHeight + 30
-    InputAreaHeight := 80
+    InputAreaY := EngineIconRowY + EngineIconRowHeight + Padding
+    InputAreaHeight := 70
     
     ; 搜索输入框（大字体）
-    SearchEditX := 40
-    SearchEditY := InputAreaY + 10
-    SearchEditWidth := WindowWidth - 80
-    SearchEditHeight := 60
+    SearchEditX := Padding
+    SearchEditY := InputAreaY + (InputAreaHeight - 50) / 2
+    SearchEditWidth := WindowWidth - Padding * 2
+    SearchEditHeight := 50
     
-    SearchCenterSearchEdit := GuiID_SearchCenter.Add("Edit", "x" . SearchEditX . " y" . SearchEditY . " w" . SearchEditWidth . " h" . SearchEditHeight . " Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " vSearchCenterEdit", "")
+    ; 根据主题模式设置输入框颜色（暗色模式使用cursor黑灰色系）
+    if (ThemeMode = "dark") {
+        InputBgColor := "2d2d30"  ; Cursor风格的黑灰色
+        InputTextColor := "FFFFFF"  ; 白色文字
+    } else {
+        InputBgColor := UI_Colors.InputBg
+        InputTextColor := UI_Colors.Text
+    }
+    SearchCenterSearchEdit := GuiID_SearchCenter.Add("Edit", "x" . SearchEditX . " y" . SearchEditY . " w" . SearchEditWidth . " h" . SearchEditHeight . " Background" . InputBgColor . " c" . InputTextColor . " vSearchCenterEdit", "")
     SearchCenterSearchEdit.SetFont("s16", "Segoe UI")
     SearchCenterSearchEdit.OnEvent("Change", ExecuteSearchCenterSearch)
+    ; 【关键修复】参考CAPSLOCK+F的实现：添加Focus事件处理，自动切换到中文输入法
+    SearchCenterSearchEdit.OnEvent("Focus", SwitchToChineseIMEForSearchCenter)
+    ; 注意：AutoHotkey v2 的 Edit 控件不支持 "Enter" 事件，改用窗口级别的快捷键绑定
+    ; ESC键关闭窗口（使用统一的关闭处理函数）
+    GuiID_SearchCenter.OnEvent("Escape", SearchCenterCloseHandler)
     
     ; ========== 底部结果区 ==========
-    ResultAreaY := InputAreaY + InputAreaHeight + 20
-    ResultAreaHeight := WindowHeight - ResultAreaY - 20
+    ResultAreaY := InputAreaY + InputAreaHeight + Padding
+    ResultAreaHeight := WindowHeight - ResultAreaY - Padding
     
     ; 结果 ListView
-    ResultLVX := 40
-    ResultLVY := ResultAreaY + 10
-    ResultLVWidth := WindowWidth - 80
-    ResultLVHeight := ResultAreaHeight - 20
+    ResultLVX := Padding
+    ResultLVY := ResultAreaY
+    ResultLVWidth := WindowWidth - Padding * 2
+    ResultLVHeight := ResultAreaHeight
     
     SearchCenterResultLV := GuiID_SearchCenter.Add("ListView", "x" . ResultLVX . " y" . ResultLVY . " w" . ResultLVWidth . " h" . ResultLVHeight . " Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " -Multi +ReadOnly vSearchResultLV", ["标题", "来源", "时间"])
     SearchCenterResultLV.SetFont("s10", "Segoe UI")
@@ -19113,70 +19260,167 @@ ShowSearchCenter() {
     SearchCenterResultLV.ModifyCol(2, ResultLVWidth * 0.25)
     SearchCenterResultLV.ModifyCol(3, ResultLVWidth * 0.25)
     
-    ; 窗口关闭事件
-    GuiID_SearchCenter.OnEvent("Close", (*) => GuiID_SearchCenter.Destroy())
+    ; 窗口关闭事件（ESC键关闭）
+    GuiID_SearchCenter.OnEvent("Close", SearchCenterCloseHandler)
     
-    ; 显示窗口
-    GuiID_SearchCenter.Show("w" . WindowWidth . " h" . WindowHeight)
+    ; 显示窗口（居中显示）
+    GuiID_SearchCenter.Show("w" . WindowWidth . " h" . WindowHeight . " Center")
     
-    ; 聚焦到搜索框
-    ControlFocus(SearchCenterSearchEdit)
+    ; 【关键修复】激活窗口并聚焦到输入框（参考CAPSLOCK+F的实现）
+    WinActivate("ahk_id " . GuiID_SearchCenter.Hwnd)
+    Sleep(100)
+    try {
+        SearchCenterSearchEdit.Focus()
+        Sleep(100)
+        ; 切换到中文输入法
+        SwitchToChineseIMEForSearchCenter()
+    } catch {
+        ; 忽略错误
+    }
+    
+    ; 注意：Enter和ESC键热键已在文件顶部使用#HotIf IsSearchCenterActive()定义，无需在此注册
     
     ; 更新高亮显示
     UpdateSearchCenterHighlight()
-}
-
-; 创建搜索组点击处理器
-CreateSearchGroupClickHandler(GroupIndex) {
-    return (*) => SwitchSearchGroup(GroupIndex, true)
-}
-
-; 切换搜索组
-SwitchSearchGroup(Direction, DirectIndex := false) {
-    global SearchCenterCurrentGroup, SearchCenterGroupButtons, UI_Colors
     
-    ; 搜索组定义（与 ShowSearchCenter 中保持一致）
-    SearchGroups := [
-        {Name: "AI 智搜", Engines: ["DeepSeek", "Claude"], URLs: Map("DeepSeek", "https://chat.deepseek.com/?q={query}", "Claude", "https://claude.ai/chat?q={query}")},
-        {Name: "常用搜索", Engines: ["百度", "谷歌"], URLs: Map("百度", "https://www.baidu.com/s?wd={query}", "谷歌", "https://www.google.com/search?q={query}")},
-        {Name: "社交媒体", Engines: ["B站", "小红书"], URLs: Map("B站", "https://search.bilibili.com/all?keyword={query}", "小红书", "https://www.xiaohongshu.com/search_result?keyword={query}")}
+    ; 刷新搜索引擎图标显示
+    RefreshSearchCenterEngineIcons()
+}
+
+; 获取搜索中心分类列表（从语音搜索面板提取）
+GetSearchCenterCategories() {
+    global VoiceSearchEnabledCategories
+    
+    ; 所有可用的分类
+    AllCategories := [
+        {Key: "ai", Text: GetText("search_category_ai")},
+        {Key: "academic", Text: GetText("search_category_academic")},
+        {Key: "baidu", Text: GetText("search_category_baidu")},
+        {Key: "image", Text: GetText("search_category_image")},
+        {Key: "audio", Text: GetText("search_category_audio")},
+        {Key: "video", Text: GetText("search_category_video")},
+        {Key: "book", Text: GetText("search_category_book")},
+        {Key: "price", Text: GetText("search_category_price")},
+        {Key: "medical", Text: GetText("search_category_medical")},
+        {Key: "cloud", Text: GetText("search_category_cloud")}
     ]
+    
+    ; 确保 VoiceSearchEnabledCategories 已初始化
+    if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
+        VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+    }
+    
+    ; 过滤出启用的分类
+    EnabledCategories := []
+    for Index, Category in AllCategories {
+        if (ArrayContainsValue(VoiceSearchEnabledCategories, Category.Key) > 0) {
+            EnabledCategories.Push(Category)
+        }
+    }
+    
+    ; 如果没有启用的分类，返回默认分类
+    if (EnabledCategories.Length = 0) {
+        EnabledCategories.Push({Key: "ai", Text: GetText("search_category_ai")})
+    }
+    
+    return EnabledCategories
+}
+
+; 创建分类点击处理器
+CreateSearchCategoryClickHandler(CategoryIndex) {
+    return (*) => SwitchSearchCenterCategory(CategoryIndex, true)
+}
+
+; 切换搜索中心分类
+SwitchSearchCenterCategory(Direction, DirectIndex := false) {
+    global SearchCenterCurrentCategory, SearchCenterCategoryButtons, UI_Colors, SearchCenterActiveArea
+    global SearchCenterSelectedEngines, SearchCenterSelectedEnginesByCategory
+    
+    ; 获取分类列表
+    Categories := GetSearchCenterCategories()
+    
+    if (Categories.Length = 0) {
+        return
+    }
+    
+    ; 【关键修复】保存当前分类的搜索引擎选择状态（切换分类前保存）
+    if (Categories.Length > 0 && SearchCenterCurrentCategory >= 0 && SearchCenterCurrentCategory < Categories.Length) {
+        OldCategory := Categories[SearchCenterCurrentCategory + 1]
+        if (IsSet(SearchCenterSelectedEngines) && IsObject(SearchCenterSelectedEngines)) {
+            CurrentEngines := []
+            for Index, Engine in SearchCenterSelectedEngines {
+                CurrentEngines.Push(Engine)
+            }
+            if (!IsSet(SearchCenterSelectedEnginesByCategory) || !IsObject(SearchCenterSelectedEnginesByCategory)) {
+                SearchCenterSelectedEnginesByCategory := Map()
+            }
+            SearchCenterSelectedEnginesByCategory[OldCategory.Key] := CurrentEngines
+            
+            ; 【关键修复】参考CAPSLOCK+F的实现：保存到配置文件
+            try {
+                global ConfigFile
+                EnginesStr := ""
+                for Index, Eng in SearchCenterSelectedEngines {
+                    if (Index > 1) {
+                        EnginesStr .= ","
+                    }
+                    EnginesStr .= Eng
+                }
+                ; 保存格式：分类:引擎1,引擎2
+                CategoryEnginesStr := OldCategory.Key . ":" . EnginesStr
+                IniWrite(CategoryEnginesStr, ConfigFile, "Settings", "SearchCenterSelectedEngines_" . OldCategory.Key)
+            } catch {
+                ; 忽略保存错误
+            }
+        }
+    }
     
     if (DirectIndex) {
         ; 直接设置索引
         NewIndex := Direction
     } else {
         ; 根据方向切换
-        NewIndex := SearchCenterCurrentGroup + Direction
+        NewIndex := SearchCenterCurrentCategory + Direction
         if (NewIndex < 0)
-            NewIndex := SearchGroups.Length - 1
-        else if (NewIndex >= SearchGroups.Length)
+            NewIndex := Categories.Length - 1
+        else if (NewIndex >= Categories.Length)
             NewIndex := 0
     }
     
-    SearchCenterCurrentGroup := NewIndex
+    SearchCenterCurrentCategory := NewIndex
     
     ; 更新按钮样式
-    for Index, Btn in SearchCenterGroupButtons {
-        IsSelected := (Index - 1 = SearchCenterCurrentGroup)
-        BgColor := IsSelected ? UI_Colors.BtnPrimary : UI_Colors.Sidebar
-        TextColor := IsSelected ? "FFFFFF" : UI_Colors.Text
-        Btn.Opt("+Background" . BgColor)
-        Btn.SetFont("s11 Bold c" . TextColor, "Segoe UI")
+    UpdateSearchCenterHighlight()
+    
+    ; 【关键修复】先刷新标签背景色，确保立即显示
+    try {
+        if (GuiID_SearchCenter && IsObject(GuiID_SearchCenter) && GuiID_SearchCenter.HasProp("Hwnd")) {
+            WinRedraw(GuiID_SearchCenter.Hwnd)
+        }
+    } catch {
+        ; 忽略刷新错误
     }
+    
+    ; 【关键修复】刷新搜索引擎图标显示（会自动恢复新分类的选择状态）
+    ; 使用短暂延迟确保标签背景色先更新，提升流畅度
+    SetTimer(() => RefreshSearchCenterEngineIcons(), -10)
+    
+    ; 确保激活状态在分类栏
+    SearchCenterActiveArea := "category"
 }
 
 ; 更新搜索中心高亮显示
 UpdateSearchCenterHighlight() {
-    global SearchCenterActiveArea, SearchCenterCurrentGroup, SearchCenterGroupButtons, SearchCenterResultLV, UI_Colors
+    global SearchCenterActiveArea, SearchCenterCurrentCategory, SearchCenterCategoryButtons, SearchCenterSearchEdit, UI_Colors
     
-    ; 更新顶部路由区高亮
-    for Index, Btn in SearchCenterGroupButtons {
-        IsSelected := (Index - 1 = SearchCenterCurrentGroup)
-        IsActive := (SearchCenterActiveArea = "top" && IsSelected)
+    ; 更新分类标签高亮
+    Categories := GetSearchCenterCategories()
+    for Index, Btn in SearchCenterCategoryButtons {
+        IsSelected := (Index - 1 = SearchCenterCurrentCategory)
+        IsActive := (SearchCenterActiveArea = "category" && IsSelected)
         
         if (IsActive) {
-            ; 激活状态：更亮的背景色
+            ; 激活状态：高亮背景色
             BgColor := UI_Colors.BtnPrimary
             TextColor := "FFFFFF"
         } else if (IsSelected) {
@@ -19190,41 +19434,128 @@ UpdateSearchCenterHighlight() {
         }
         
         Btn.Opt("+Background" . BgColor)
-        Btn.SetFont("s11 Bold c" . TextColor, "Segoe UI")
+        Btn.SetFont("s10 Bold c" . TextColor, "Segoe UI")
     }
     
-    ; 更新底部结果区高亮（通过边框或背景色）
-    if (SearchCenterActiveArea = "bottom") {
-        ; 激活底部时，可以添加边框或改变背景色
-        SearchCenterResultLV.Opt("+Background" . UI_Colors.BtnHover)
-    } else {
-        SearchCenterResultLV.Opt("+Background" . UI_Colors.InputBg)
+    ; 更新输入框高亮（通过边框或背景色）
+    if (SearchCenterActiveArea = "input" && SearchCenterSearchEdit != 0) {
+        ; 激活输入框时，可以添加边框或改变背景色
+        try {
+            SearchCenterSearchEdit.Opt("+Background" . UI_Colors.InputBg)
+        } catch {
+            ; 忽略错误
+        }
     }
 }
 
-; 执行搜索中心搜索
+; 执行搜索中心搜索（带防抖）
 ExecuteSearchCenterSearch(*) {
     global SearchCenterSearchEdit, SearchCenterResultLV, SearchCenterSearchResults
+    global SearchDebounceTimer
+    
+    ; 取消之前的防抖定时器
+    if (SearchDebounceTimer != 0) {
+        SetTimer(SearchDebounceTimer, 0)
+        SearchDebounceTimer := 0
+    }
+    
+    ; 设置新的防抖定时器（150ms 延迟）
+    SearchDebounceTimer := DebouncedSearchCenter
+    SetTimer(SearchDebounceTimer, -150)
+}
+
+; 防抖后的实际搜索执行
+DebouncedSearchCenter(*) {
+    global SearchCenterSearchEdit, SearchCenterResultLV, SearchCenterSearchResults
+    global SearchDebounceTimer, GlobalSearchStatement, ClipboardDB
+    
+    ; 清除定时器标记
+    SearchDebounceTimer := 0
+    
+    ; 【熔断机制】在执行搜索前，强制释放旧的 Statement
+    GlobalSearchEngine.ReleaseOldStatement()
     
     Keyword := SearchCenterSearchEdit.Value
     if (StrLen(Keyword) < 1) {
         ; 清空结果
-        SearchCenterResultLV.Delete()
+        try {
+            SearchCenterResultLV.Opt("-Redraw")
+            SearchCenterResultLV.Delete()
+            SearchCenterResultLV.Opt("+Redraw")
+        } catch {
+            ; 控件可能已销毁，忽略错误
+        }
         SearchCenterSearchResults := []
         return
     }
     
-    ; 调用搜索引擎
-    Results := GlobalSearchEngine.PerformSearch(Keyword, 50)
+    ; 【关键修改】使用 SearchAllDataSources 搜索所有数据源（包含提示词、剪贴板、配置、文件、快捷键、函数、UI等）
+    ; SearchAllDataSources 内部已优先使用统一视图搜索（SearchGlobalView），如果没有结果则回退到多数据源搜索
+    ; 统一视图和多数据源搜索的结果已经按时间排序（最新的在前），所以直接转换格式即可
+    AllDataResults := SearchAllDataSources(Keyword, [], 50)
+    Results := []
+    
+    ; 将 Map 格式转换为扁平化的数组
+    for DataType, TypeData in AllDataResults {
+        if (IsObject(TypeData) && TypeData.HasProp("Items")) {
+            for Index, Item in TypeData.Items {
+                ; 格式化时间显示
+                TimeDisplay := ""
+                if (Item.HasProp("TimeFormatted")) {
+                    TimeDisplay := Item.TimeFormatted
+                } else if (Item.HasProp("Timestamp")) {
+                    try {
+                        TimeDisplay := FormatTime(Item.Timestamp, "yyyy-MM-dd HH:mm:ss")
+                    } catch {
+                        TimeDisplay := Item.Timestamp
+                    }
+                } else {
+                    TimeDisplay := ""
+                }
+                
+                ; 生成标题（如果没有标题，从内容截取）
+                TitleText := ""
+                if (Item.HasProp("Title") && Item.Title != "") {
+                    TitleText := Item.Title
+                } else if (Item.HasProp("Content") && Item.Content != "") {
+                    TitleText := SubStr(Item.Content, 1, 50)
+                    if (StrLen(Item.Content) > 50) {
+                        TitleText .= "..."
+                    }
+                } else {
+                    TitleText := ""
+                }
+                
+                ; 获取内容
+                ContentText := Item.HasProp("Content") ? Item.Content : (Item.HasProp("Title") ? Item.Title : "")
+                
+                Results.Push({
+                    Title: TitleText,
+                    Source: TypeData.HasProp("DataTypeName") ? TypeData.DataTypeName : DataType,
+                    Time: TimeDisplay,
+                    Content: ContentText,
+                    ID: Item.HasProp("ID") ? Item.ID : "",
+                    DataType: DataType,
+                    Action: Item.HasProp("Action") ? Item.Action : "",
+                    ActionParams: Item.HasProp("ActionParams") ? Item.ActionParams : Map()
+                })
+            }
+        }
+    }
+    
     SearchCenterSearchResults := Results
     
     ; 更新 ListView
-    SearchCenterResultLV.Opt("-Redraw")
-    SearchCenterResultLV.Delete()
-    for Index, Item in Results {
-        SearchCenterResultLV.Add(, Item.Title, Item.Source, Item.Time)
+    try {
+        SearchCenterResultLV.Opt("-Redraw")
+        SearchCenterResultLV.Delete()
+        for Index, Item in Results {
+            SearchCenterResultLV.Add(, Item.Title, Item.Source, Item.Time)
+        }
+        SearchCenterResultLV.Opt("+Redraw")
+    } catch {
+        ; 控件可能已销毁，忽略错误
     }
-    SearchCenterResultLV.Opt("+Redraw")
 }
 
 ; 搜索中心搜索结果双击事件
@@ -19239,9 +19570,520 @@ OnSearchCenterResultDoubleClick(LV, Row) {
     }
 }
 
+; 搜索中心 Enter 键处理函数（检查窗口是否激活）
+; 搜索中心窗口关闭处理函数
+SearchCenterCloseHandler(*) {
+    global GuiID_SearchCenter, SearchCenterSelectedEngines, SearchCenterSelectedEnginesByCategory, SearchCenterCurrentCategory
+    ; 【关键修复】在关闭窗口前保存当前分类的选择状态
+    try {
+        Categories := GetSearchCenterCategories()
+        if (Categories.Length > 0 && SearchCenterCurrentCategory >= 0 && SearchCenterCurrentCategory < Categories.Length) {
+            CurrentCategory := Categories[SearchCenterCurrentCategory + 1]
+            CategoryKey := CurrentCategory.Key
+            if (IsSet(SearchCenterSelectedEngines) && IsObject(SearchCenterSelectedEngines)) {
+                ; 保存到内存Map
+                if (!IsSet(SearchCenterSelectedEnginesByCategory) || !IsObject(SearchCenterSelectedEnginesByCategory)) {
+                    SearchCenterSelectedEnginesByCategory := Map()
+                }
+                CurrentEngines := []
+                for Index, Engine in SearchCenterSelectedEngines {
+                    CurrentEngines.Push(Engine)
+                }
+                SearchCenterSelectedEnginesByCategory[CategoryKey] := CurrentEngines
+                
+                ; 保存到配置文件
+                global ConfigFile
+                EnginesStr := ""
+                for Index, Eng in SearchCenterSelectedEngines {
+                    if (Index > 1) {
+                        EnginesStr .= ","
+                    }
+                    EnginesStr .= Eng
+                }
+                ; 保存格式：分类:引擎1,引擎2
+                CategoryEnginesStr := CategoryKey . ":" . EnginesStr
+                IniWrite(CategoryEnginesStr, ConfigFile, "Settings", "SearchCenterSelectedEngines_" . CategoryKey)
+            }
+        }
+    } catch {
+        ; 忽略保存错误，不影响关闭窗口
+    }
+    
+    ; 注意：Enter和ESC键热键使用#HotIf自动管理，无需手动取消注册
+    ; 销毁窗口
+    if (GuiID_SearchCenter) {
+        try {
+            GuiID_SearchCenter.Destroy()
+            GuiID_SearchCenter := 0
+        } catch {
+            ; 忽略错误
+        }
+    }
+}
+
+; 执行搜索中心批量搜索（按Enter键时）
+ExecuteSearchCenterBatchSearch(*) {
+    global SearchCenterSearchEdit, SearchCenterSelectedEngines, GuiID_SearchCenter
+    global GlobalSearchStatement, SearchDebounceTimer
+    
+    ; 【并发同步】第一行代码：强制释放 Statement 句柄
+    GlobalSearchEngine.ReleaseOldStatement()
+    
+    ; 取消搜索防抖定时器
+    if (SearchDebounceTimer != 0) {
+        SetTimer(SearchDebounceTimer, 0)
+        SearchDebounceTimer := 0
+    }
+    
+    ; 获取搜索关键词
+    Keyword := SearchCenterSearchEdit.Value
+    if (StrLen(Keyword) < 1) {
+        TrayTip("请输入搜索关键词", "提示", "Icon! 2")
+        return
+    }
+    
+    ; 检查是否有选中的搜索引擎
+    if (!IsSet(SearchCenterSelectedEngines) || !IsObject(SearchCenterSelectedEngines) || SearchCenterSelectedEngines.Length = 0) {
+        TrayTip("请至少选择一个搜索引擎", "提示", "Icon! 2")
+        return
+    }
+    
+    ; 打开所有选中的搜索引擎
+    for Index, Engine in SearchCenterSelectedEngines {
+        if (!IsSet(Engine) || Engine = "") {
+            continue  ; 跳过无效的引擎
+        }
+        SendVoiceSearchToBrowser(Keyword, Engine)
+        ; 每个搜索引擎之间稍作延迟，避免同时打开太多窗口
+        if (Index < SearchCenterSelectedEngines.Length) {
+            Sleep(300)
+        }
+    }
+    
+    TrayTip("已打开 " . SearchCenterSelectedEngines.Length . " 个搜索引擎", "提示", "Iconi 1")
+    
+    ; 可选：关闭搜索中心窗口
+    ; if (GuiID_SearchCenter != 0) {
+    ;     try {
+    ;         GuiID_SearchCenter.Destroy()
+    ;     } catch {
+    ;     }
+    ; }
+}
+
+; 刷新搜索中心搜索引擎图标显示
+RefreshSearchCenterEngineIcons() {
+    global GuiID_SearchCenter, SearchCenterCurrentCategory, SearchCenterEngineIcons, UI_Colors
+    global SearchCenterSelectedEngines, SearchCenterSelectedEnginesByCategory
+    
+    ; 如果窗口不存在，直接返回
+    if (!GuiID_SearchCenter || GuiID_SearchCenter = 0) {
+        return
+    }
+    
+    ; 【关键修复】参考capslock+f的实现：先隐藏旧图标，创建新图标后再销毁旧图标，避免闪烁
+    if (IsSet(SearchCenterEngineIcons) && IsObject(SearchCenterEngineIcons)) {
+        ; 先隐藏所有旧图标控件（不立即销毁，保持界面流畅）
+        for Index, IconObj in SearchCenterEngineIcons {
+            if (IsObject(IconObj)) {
+                try {
+                    if (IconObj.HasProp("Icon") && IconObj.Icon != 0) {
+                        IconObj.Icon.Visible := false
+                    }
+                    if (IconObj.HasProp("NameLabel") && IconObj.NameLabel != 0) {
+                        IconObj.NameLabel.Visible := false
+                    }
+                    if (IconObj.HasProp("Bg") && IconObj.Bg != 0) {
+                        IconObj.Bg.Visible := false
+                    }
+                    if (IconObj.HasProp("Check") && IconObj.Check != 0) {
+                        IconObj.Check.Visible := false
+                    }
+                } catch {
+                    ; 忽略隐藏错误
+                }
+            }
+        }
+    }
+    
+    ; 保存旧图标数组用于后续销毁
+    OldIcons := SearchCenterEngineIcons
+    ; 清空图标数组，准备创建新图标
+    SearchCenterEngineIcons := []
+    
+    ; 获取当前分类
+    Categories := GetSearchCenterCategories()
+    if (Categories.Length = 0 || SearchCenterCurrentCategory < 0 || SearchCenterCurrentCategory >= Categories.Length) {
+        return
+    }
+    
+    CurrentCategory := Categories[SearchCenterCurrentCategory + 1]
+    CategoryKey := CurrentCategory.Key
+    
+    ; 【关键修复】恢复当前分类的搜索引擎选择状态（参考CAPSLOCK+F的实现）
+    if (!IsSet(SearchCenterSelectedEnginesByCategory) || !IsObject(SearchCenterSelectedEnginesByCategory)) {
+        SearchCenterSelectedEnginesByCategory := Map()
+    }
+    
+    if (SearchCenterSelectedEnginesByCategory.Has(CategoryKey)) {
+        SearchCenterSelectedEngines := []
+        for Index, Engine in SearchCenterSelectedEnginesByCategory[CategoryKey] {
+            SearchCenterSelectedEngines.Push(Engine)
+        }
+    } else {
+        ; 如果内存中没有，尝试从配置文件加载
+        try {
+            global ConfigFile
+            CategoryEnginesStr := IniRead(ConfigFile, "Settings", "SearchCenterSelectedEngines_" . CategoryKey, "")
+            if (CategoryEnginesStr != "") {
+                ; 解析格式：分类:引擎1,引擎2
+                if (InStr(CategoryEnginesStr, ":") > 0) {
+                    EnginesStr := SubStr(CategoryEnginesStr, InStr(CategoryEnginesStr, ":") + 1)
+                } else {
+                    EnginesStr := CategoryEnginesStr
+                }
+                if (EnginesStr != "") {
+                    SearchCenterSelectedEngines := []
+                    EnginesArray := StrSplit(EnginesStr, ",")
+                    for Index, Engine in EnginesArray {
+                        Engine := Trim(Engine)
+                        if (Engine != "") {
+                            SearchCenterSelectedEngines.Push(Engine)
+                        }
+                    }
+                    ; 保存到内存Map中
+                    CurrentEngines := []
+                    for Index, Engine in SearchCenterSelectedEngines {
+                        CurrentEngines.Push(Engine)
+                    }
+                    SearchCenterSelectedEnginesByCategory[CategoryKey] := CurrentEngines
+                } else {
+                    SearchCenterSelectedEngines := []
+                }
+            } else {
+                ; 如果该分类没有保存的选择状态，初始化为空数组，让用户自己选择（支持多选）
+                SearchCenterSelectedEngines := []
+            }
+        } catch {
+            ; 如果加载失败，初始化为空数组
+            SearchCenterSelectedEngines := []
+        }
+    }
+    
+    ; 获取当前分类的搜索引擎列表
+    SearchEngines := GetSortedSearchEngines(CategoryKey)
+    if (!IsObject(SearchEngines) || SearchEngines.Length = 0) {
+        return
+    }
+    
+    ; 计算图标位置参数（与 ShowSearchCenter 中的布局保持一致）
+    Padding := 20
+    CategoryBarY := Padding
+    CategoryBarHeight := 50
+    EngineIconRowY := CategoryBarY + CategoryBarHeight + 5
+    EngineIconRowHeight := 70  ; 增加高度以容纳图标下方的名称标签（50图标 + 2间距 + 16名称 = 68，留2像素余量）
+    EngineIconSize := 40
+    EngineIconSpacing := 15
+    EngineIconStartX := Padding
+    IconButtonSize := 50  ; 图标按钮的总大小（包括边框）
+    
+    ; 创建搜索引擎图标
+    CurrentX := EngineIconStartX
+    for Index, Engine in SearchEngines {
+        if (!IsObject(Engine) || !Engine.HasProp("Value")) {
+            continue
+        }
+        
+        ; 检查是否选中
+        IsSelected := (ArrayContainsValue(SearchCenterSelectedEngines, Engine.Value) > 0)
+        
+        ; 获取图标路径
+        IconPath := GetSearchEngineIcon(Engine.Value)
+        
+        ; 计算图标按钮位置
+        IconButtonX := CurrentX
+        IconButtonY := EngineIconRowY + (EngineIconRowHeight - IconButtonSize) // 2
+        
+        ; 创建背景按钮（用于点击区域和选中状态显示）
+        BgColor := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
+        BgBtn := GuiID_SearchCenter.Add("Text", "x" . IconButtonX . " y" . IconButtonY . " w" . IconButtonSize . " h" . IconButtonSize . " Center 0x200 Background" . BgColor, "")
+        BgBtn.OnEvent("Click", CreateSearchCenterEngineClickHandler(Engine.Value, Index))
+        HoverBtn(BgBtn, BgColor, UI_Colors.BtnHover)
+        
+        IconCtrl := 0
+        CheckMark := 0
+        NameLabel := 0
+        
+        if (IconPath != "" && FileExist(IconPath)) {
+            try {
+                ; 计算图标显示尺寸
+                ImageSize := GetImageSize(IconPath)
+                DisplaySize := CalculateImageDisplaySize(ImageSize.Width, ImageSize.Height, EngineIconSize, EngineIconSize)
+                
+                ; 计算图标位置（在按钮中居中）
+                IconX := IconButtonX + (IconButtonSize - DisplaySize.Width) // 2
+                IconY := IconButtonY + (IconButtonSize - DisplaySize.Height) // 2
+                
+                ; 创建图标控件
+                IconCtrl := GuiID_SearchCenter.Add("Picture", "x" . IconX . " y" . IconY . " w" . DisplaySize.Width . " h" . DisplaySize.Height . " 0x200", IconPath)
+                IconCtrl.OnEvent("Click", CreateSearchCenterEngineClickHandler(Engine.Value, Index))
+                
+                ; 如果选中，显示选中标记
+                if (IsSelected) {
+                    CheckX := IconButtonX + IconButtonSize - 18
+                    CheckY := IconButtonY + 2
+                    CheckMark := GuiID_SearchCenter.Add("Text", "x" . CheckX . " y" . CheckY . " w16 h16 Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary, "✓")
+                    CheckMark.SetFont("s12 Bold", "Segoe UI")
+                    CheckMark.OnEvent("Click", CreateSearchCenterEngineClickHandler(Engine.Value, Index))
+                }
+            } catch as e {
+                OutputDebug("创建搜索引擎图标失败: " . Engine.Value . " - " . e.Message)
+                ; 如果图标创建失败，使用文字显示
+                IconPath := ""
+            }
+        }
+        
+        ; 如果图标不存在，显示搜索引擎名称（在图标下方）
+        if (IconPath = "" || !FileExist(IconPath)) {
+            try {
+                ; 获取搜索引擎名称
+                EngineName := Engine.HasProp("Name") ? Engine.Name : Engine.Value
+                
+                ; 创建文字标签（显示在图标按钮下方，而不是中间）
+                NameLabelY := IconButtonY + IconButtonSize + 2  ; 图标下方2像素
+                NameLabelHeight := 16  ; 名称标签高度
+                NameLabel := GuiID_SearchCenter.Add("Text", "x" . IconButtonX . " y" . NameLabelY . " w" . IconButtonSize . " h" . NameLabelHeight . " Center 0x200 c" . UI_Colors.Text . " BackgroundTrans", EngineName)
+                NameLabel.SetFont("s8", "Segoe UI")
+                NameLabel.OnEvent("Click", CreateSearchCenterEngineClickHandler(Engine.Value, Index))
+                
+                ; 如果选中，显示选中标记
+                if (IsSelected) {
+                    CheckX := IconButtonX + IconButtonSize - 18
+                    CheckY := IconButtonY + 2
+                    CheckMark := GuiID_SearchCenter.Add("Text", "x" . CheckX . " y" . CheckY . " w16 h16 Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary, "✓")
+                    CheckMark.SetFont("s12 Bold", "Segoe UI")
+                    CheckMark.OnEvent("Click", CreateSearchCenterEngineClickHandler(Engine.Value, Index))
+                }
+            } catch as e {
+                OutputDebug("创建搜索引擎名称标签失败: " . Engine.Value . " - " . e.Message)
+            }
+        } else {
+            ; 即使有图标，也在图标下方显示名称
+            try {
+                ; 获取搜索引擎名称
+                EngineName := Engine.HasProp("Name") ? Engine.Name : Engine.Value
+                
+                ; 创建文字标签（显示在图标按钮下方）
+                NameLabelY := IconButtonY + IconButtonSize + 2  ; 图标下方2像素
+                NameLabelHeight := 16  ; 名称标签高度
+                NameLabel := GuiID_SearchCenter.Add("Text", "x" . IconButtonX . " y" . NameLabelY . " w" . IconButtonSize . " h" . NameLabelHeight . " Center 0x200 c" . UI_Colors.Text . " BackgroundTrans", EngineName)
+                NameLabel.SetFont("s8", "Segoe UI")
+                NameLabel.OnEvent("Click", CreateSearchCenterEngineClickHandler(Engine.Value, Index))
+            } catch as e {
+                OutputDebug("创建搜索引擎名称标签失败: " . Engine.Value . " - " . e.Message)
+            }
+        }
+        
+        ; 保存图标对象（包括名称标签）
+        SearchCenterEngineIcons.Push({Bg: BgBtn, Icon: IconCtrl, NameLabel: NameLabel, Check: CheckMark, Engine: Engine.Value, Index: Index})
+        
+        ; 更新下一个图标的位置
+        CurrentX += IconButtonSize + EngineIconSpacing
+    }
+    
+    ; 【关键修复】刷新GUI显示，确保新图标立即显示
+    try {
+        if (GuiID_SearchCenter && IsObject(GuiID_SearchCenter) && GuiID_SearchCenter.HasProp("Hwnd")) {
+            WinRedraw(GuiID_SearchCenter.Hwnd)
+        }
+    } catch {
+        ; 忽略刷新错误
+    }
+    
+    ; 【关键修复】延迟销毁旧图标，确保新图标已显示后再清理，提升流畅度并避免名称叠加
+    SetTimer(() => DestroyOldSearchCenterIcons(OldIcons), -100)
+}
+
+; 销毁旧的搜索中心图标（延迟执行，提升流畅度）
+DestroyOldSearchCenterIcons(OldIcons) {
+    if (!IsSet(OldIcons) || !IsObject(OldIcons)) {
+        return
+    }
+    
+    for Index, IconObj in OldIcons {
+        if (IsObject(IconObj)) {
+            try {
+                if (IconObj.HasProp("Icon") && IconObj.Icon != 0) {
+                    IconObj.Icon.Destroy()
+                }
+                if (IconObj.HasProp("NameLabel") && IconObj.NameLabel != 0) {
+                    IconObj.NameLabel.Destroy()
+                }
+                if (IconObj.HasProp("Bg") && IconObj.Bg != 0) {
+                    IconObj.Bg.Destroy()
+                }
+                if (IconObj.HasProp("Check") && IconObj.Check != 0) {
+                    IconObj.Check.Destroy()
+                }
+            } catch {
+                ; 忽略销毁错误
+            }
+        }
+    }
+}
+
+; 创建搜索中心搜索引擎点击处理函数
+CreateSearchCenterEngineClickHandler(EngineValue, Index) {
+    return (*) => ToggleSearchCenterEngine(EngineValue, Index)
+}
+
+; 切换搜索中心搜索引擎选择状态
+ToggleSearchCenterEngine(EngineValue, Index) {
+    global SearchCenterSelectedEngines, SearchCenterSelectedEnginesByCategory, SearchCenterCurrentCategory
+    global SearchCenterEngineIcons, UI_Colors, GuiID_SearchCenter
+    
+    ; 确保数组已初始化
+    if (!IsSet(SearchCenterSelectedEngines) || !IsObject(SearchCenterSelectedEngines)) {
+        SearchCenterSelectedEngines := []
+    }
+    
+    ; 确保Map已初始化
+    if (!IsSet(SearchCenterSelectedEnginesByCategory) || !IsObject(SearchCenterSelectedEnginesByCategory)) {
+        SearchCenterSelectedEnginesByCategory := Map()
+    }
+    
+    ; 获取当前分类
+    Categories := GetSearchCenterCategories()
+    if (Categories.Length = 0 || SearchCenterCurrentCategory < 0 || SearchCenterCurrentCategory >= Categories.Length) {
+        return
+    }
+    CurrentCategory := Categories[SearchCenterCurrentCategory + 1]
+    CategoryKey := CurrentCategory.Key
+    
+    ; 切换选中状态
+    FoundIndex := ArrayContainsValue(SearchCenterSelectedEngines, EngineValue)
+    IsSelected := (FoundIndex = 0)  ; 如果没找到，说明要选中
+    
+    if (FoundIndex > 0) {
+        ; 取消选中
+        SearchCenterSelectedEngines.RemoveAt(FoundIndex)
+    } else {
+        ; 选中（支持多选）
+        SearchCenterSelectedEngines.Push(EngineValue)
+    }
+    
+    ; 保存到分类Map
+    CurrentEngines := []
+    for Index, Eng in SearchCenterSelectedEngines {
+        CurrentEngines.Push(Eng)
+    }
+    SearchCenterSelectedEnginesByCategory[CategoryKey] := CurrentEngines
+    
+    ; 【关键修复】参考CAPSLOCK+F的实现：保存到配置文件（持久化记忆用户选择）
+    try {
+        global ConfigFile
+        EnginesStr := ""
+        for Index, Eng in SearchCenterSelectedEngines {
+            if (Index > 1) {
+                EnginesStr .= ","
+            }
+            EnginesStr .= Eng
+        }
+        ; 保存格式：分类:引擎1,引擎2
+        CategoryEnginesStr := CategoryKey . ":" . EnginesStr
+        IniWrite(CategoryEnginesStr, ConfigFile, "Settings", "SearchCenterSelectedEngines_" . CategoryKey)
+    } catch as e {
+        ; 忽略保存错误，不影响功能
+    }
+    
+    ; 【优化】只更新当前图标的选中状态，避免重新创建所有图标导致闪烁
+    if (IsSet(SearchCenterEngineIcons) && IsObject(SearchCenterEngineIcons)) {
+        ; 找到对应的图标对象
+        for IconIndex, IconObj in SearchCenterEngineIcons {
+            if (IsObject(IconObj) && IconObj.HasProp("Engine") && IconObj.Engine = EngineValue) {
+                ; 更新背景按钮颜色
+                if (IconObj.HasProp("Bg") && IconObj.Bg != 0) {
+                    try {
+                        NewBgColor := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
+                        IconObj.Bg.Opt("+Background" . NewBgColor)
+                        IconObj.Bg.Redraw()
+                    } catch {
+                        ; 如果更新失败，使用完整刷新
+                        RefreshSearchCenterEngineIcons()
+                        return
+                    }
+                }
+                
+                ; 更新选中标记
+                if (IsSelected) {
+                    ; 需要显示选中标记
+                    if (!IconObj.HasProp("Check") || IconObj.Check = 0) {
+                        ; 创建选中标记
+                        try {
+                            IconButtonX := 0
+                            IconButtonY := 0
+                            IconButtonSize := 50
+                            ; 从背景按钮获取位置
+                            if (IconObj.HasProp("Bg") && IconObj.Bg != 0) {
+                                IconObj.Bg.GetPos(&IconButtonX, &IconButtonY, &IconButtonSize, &IconButtonSize)
+                            }
+                            CheckX := IconButtonX + IconButtonSize - 18
+                            CheckY := IconButtonY + 2
+                            CheckMark := GuiID_SearchCenter.Add("Text", "x" . CheckX . " y" . CheckY . " w16 h16 Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary, "✓")
+                            CheckMark.SetFont("s12 Bold", "Segoe UI")
+                            CheckMark.OnEvent("Click", CreateSearchCenterEngineClickHandler(EngineValue, Index))
+                            IconObj.Check := CheckMark
+                        } catch {
+                            ; 如果创建失败，使用完整刷新
+                            RefreshSearchCenterEngineIcons()
+                            return
+                        }
+                    }
+                } else {
+                    ; 需要隐藏选中标记
+                    if (IconObj.HasProp("Check") && IconObj.Check != 0) {
+                        try {
+                            IconObj.Check.Destroy()
+                            IconObj.Check := 0
+                        } catch {
+                            ; 如果销毁失败，使用完整刷新
+                            RefreshSearchCenterEngineIcons()
+                            return
+                        }
+                    }
+                }
+                ; 找到并更新后退出循环
+                break
+            }
+        }
+    } else {
+        ; 如果图标数组不存在，使用完整刷新
+        RefreshSearchCenterEngineIcons()
+    }
+}
+
 ; 一键并发打开搜索引擎
 OpenSearchGroupEngines() {
     global SearchCenterCurrentGroup, SearchCenterSearchEdit, GuiID_SearchCenter
+    global GlobalSearchStatement, SearchDebounceTimer
+    
+    ; 【并发同步】第一行代码：强制释放 Statement 句柄并关闭窗口
+    ; 确保浏览器弹出的瞬间，SQLite 数据库连接已安全归还
+    GlobalSearchEngine.ReleaseOldStatement()
+    
+    ; 取消搜索防抖定时器
+    if (SearchDebounceTimer != 0) {
+        SetTimer(SearchDebounceTimer, 0)
+        SearchDebounceTimer := 0
+    }
+    
+    ; 关闭搜索中心窗口（可选，根据需求决定是否关闭）
+    ; if (GuiID_SearchCenter != 0) {
+    ;     try {
+    ;         GuiID_SearchCenter.Destroy()
+    ;     } catch {
+    ;     }
+    ; }
     
     ; 搜索组定义
     SearchGroups := [
@@ -22819,7 +23661,7 @@ SendVoiceSearchToBrowser(Content, Engine) {
     }
 }
 
-; 切换到中文输入法
+; 切换到中文输入法（用于语音输入面板）
 SwitchToChineseIME(*) {
     try {
         global GuiID_VoiceInput, VoiceSearchInputEdit
@@ -22829,6 +23671,45 @@ SwitchToChineseIME(*) {
             VoiceSearchInputEdit.Focus()
             Sleep(50)
             ActiveHwnd := GuiID_VoiceInput.Hwnd
+        } else {
+            ActiveHwnd := WinGetID("A")
+        }
+        
+        if (!ActiveHwnd) {
+            return
+        }
+        
+        ; 使用 Windows IME API 切换到中文输入法
+        hIMC := DllCall("imm32\ImmGetContext", "Ptr", ActiveHwnd, "Ptr")
+        if (hIMC) {
+            DllCall("imm32\ImmGetConversionStatus", "Ptr", hIMC, "UInt*", &ConversionMode := 0, "UInt*", &SentenceMode := 0)
+            ConversionMode := ConversionMode | 0x0001  ; IME_CMODE_NATIVE
+            DllCall("imm32\ImmSetConversionStatus", "Ptr", hIMC, "UInt", ConversionMode, "UInt", SentenceMode)
+            DllCall("imm32\ImmReleaseContext", "Ptr", ActiveHwnd, "Ptr", hIMC)
+        }
+        
+        ; 尝试切换到中文键盘布局
+        try {
+            hKL := DllCall("user32\LoadKeyboardLayout", "Str", "00000804", "UInt", 0x00000001, "Ptr")
+            if (hKL) {
+                PostMessage(0x0050, 0x0001, hKL, , , "ahk_id " . ActiveHwnd)
+            }
+        } catch {
+        }
+    } catch {
+    }
+}
+
+; 切换到中文输入法（用于搜索中心窗口）
+SwitchToChineseIMEForSearchCenter(*) {
+    try {
+        global GuiID_SearchCenter, SearchCenterSearchEdit
+        if (GuiID_SearchCenter && SearchCenterSearchEdit) {
+            WinActivate("ahk_id " . GuiID_SearchCenter.Hwnd)
+            Sleep(50)
+            SearchCenterSearchEdit.Focus()
+            Sleep(50)
+            ActiveHwnd := GuiID_SearchCenter.Hwnd
         } else {
             ActiveHwnd := WinGetID("A")
         }
@@ -22953,4 +23834,10 @@ ExitFunc(ExitReason, ExitCode) {
         }
     }
 }
+OnExit(ExitFunc)解释这段代码的核心逻辑、输入输出、关键函数作用，用新手能懂的语言，标注易错点
+
+以下是选中的代码：
+```
 OnExit(ExitFunc)
+
+```
