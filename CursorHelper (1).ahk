@@ -35,8 +35,13 @@ global CursorPanelDescText := 0  ; 快捷操作面板说明文字控件
 global CursorPanelAlwaysOnTop := false  ; 面板是否置顶（默认不置顶）
 global CursorPanelAutoHide := false  ; 面板是否启用靠边自动隐藏
 global CursorPanelHidden := false  ; 面板是否已隐藏（靠边时）
-global CursorPanelWidth := 420  ; 面板宽度
+global CursorPanelWidth := 680  ; 面板宽度（参考 Raycast 和 uTools 的默认宽度）
 global CursorPanelHeight := 0  ; 面板高度（动态计算）
+global CursorPanelSearchEdit := 0  ; 快捷操作面板搜索输入框
+global CursorPanelResultLV := 0  ; 快捷操作面板搜索结果ListView
+global CursorPanelSearchResults := []  ; 快捷操作面板搜索结果数组
+global CursorPanelShowMoreBtn := 0  ; 快捷操作面板"更多"按钮
+global CursorPanelSearchDebounceTimer := 0  ; 快捷操作面板搜索防抖定时器
 global ConfigFile := A_ScriptDir "\CursorShortcut.ini"
 global TrayIconPath := A_ScriptDir "\cursor_helper.ico"
 global CustomIconPath := ""  ; 用户自定义图标路径
@@ -156,7 +161,17 @@ global SearchCenterHintText := 0  ; 搜索中心操作提示文本控件
 global SearchCenterAreaIndicator := 0  ; 搜索中心区域指示器控件（动效）
 global SearchCenterInputContainer := 0  ; 搜索中心输入框边框容器控件（Material Design风格）
 global GlobalSearchStatement := 0  ; 全局搜索 Statement 对象（用于熔断机制）
+global global_ST := 0  ; 全局 Statement 句柄（终极闭环管理）
 global SearchDebounceTimer := 0  ; 搜索防抖定时器
+; 圆环倒计时模块
+global LaunchDelaySeconds := 3.0  ; 倒计时时长（秒）
+global IsCountdownActive := false  ; 倒计时是否激活
+global CountdownGui := 0  ; 倒计时 GUI 对象
+global CountdownTimer := 0  ; 倒计时定时器
+global CountdownStartTime := 0  ; 倒计时开始时间
+global CountdownGraphics := 0  ; GDI+ Graphics 对象
+global CountdownBitmap := 0  ; GDI+ Bitmap 对象
+global CountdownContent := ""  ; 待粘贴的内容
 global VoiceInputContent := ""  ; 存储语音输入的内容
 global VoiceInputMethod := ""  ; 当前使用的输入法类型：baidu, xunfei, auto
 global VoiceInputPaused := false  ; 语音输入是否被暂停（按住CapsLock时）
@@ -305,7 +320,7 @@ UpdateDefaultStartTabDDLBrush() {
         if (DDLBrush != 0) {
             try {
                 DllCall("gdi32.dll\DeleteObject", "Ptr", DDLBrush)
-            } catch {
+            } catch as err {
             }
         }
         ; 创建新的实心画刷
@@ -315,9 +330,9 @@ UpdateDefaultStartTabDDLBrush() {
         try {
             DllCall("user32.dll\InvalidateRect", "Ptr", DefaultStartTabDDL_Hwnd, "Ptr", 0, "Int", 1)
             DllCall("user32.dll\UpdateWindow", "Ptr", DefaultStartTabDDL_Hwnd)
-        } catch {
+        } catch as err {
         }
-    } catch {
+    } catch as err {
     }
 }
 
@@ -458,6 +473,8 @@ GetText(Key) {
             "capslock_hold_time_hint", "设置长按 CapsLock 键多少秒后弹出快捷操作面板，范围：0.1-5.0 秒，默认：0.5 秒",
             "capslock_hold_time_error", "CapsLock 长按时间必须在 0.1 到 5.0 秒之间",
             "ai_wait_time", "AI 响应等待时间 (毫秒):",
+            "countdown_delay", "倒计时延迟时间 (秒):",
+            "countdown_delay_hint", "设置粘贴操作前的倒计时时长，范围：0.5-10.0 秒，默认：3.0 秒",
             "explain_prompt", "解释代码提示词:",
             "refactor_prompt", "重构代码提示词:",
             "optimize_prompt", "优化代码提示词:",
@@ -852,6 +869,8 @@ GetText(Key) {
             "install_cursor_chinese_complete", "Please complete the installation following these steps:`n`n1. Select in command palette: Configure Display Language`n2. Click: Install additional languages...`n3. Search: Chinese (Simplified) Language Pack`n4. Click Install button`n5. Restart Cursor after installation to apply",
             "config_saved", "Settings saved!`n`nNote: If panel is showing, close and reopen to apply new settings.",
             "ai_wait_time_error", "AI response wait time must be a number!",
+            "countdown_delay", "Countdown Delay (seconds):",
+            "countdown_delay_hint", "Set the countdown duration before paste operation, range: 0.5-10.0 seconds, default: 3.0 seconds",
             "split_hotkey_error", "Split hotkey must be a single character!",
             "batch_hotkey_error", "Batch hotkey must be a single character!",
             "copy", "copy",
@@ -1683,7 +1702,7 @@ LoadPromptTemplates() {
                     }
                 }
             }
-        } catch {
+        } catch as err {
             ; 加载失败，使用默认模板
         }
     }
@@ -1715,7 +1734,7 @@ LoadPromptTemplates() {
                 }
             }
         }
-    } catch {
+    } catch as err {
         ; 加载失败，使用空的展开状态
         CategoryExpandedState := Map()
     }
@@ -1874,7 +1893,7 @@ InitSQLiteDB() {
                     ClipboardDB.Exec("UPDATE ClipboardHistory SET ItemIndex = (SELECT COUNT(*) FROM ClipboardHistory AS T2 WHERE T2.SessionID = ClipboardHistory.SessionID AND T2.ID <= ClipboardHistory.ID) WHERE ItemIndex IS NULL OR ItemIndex = 0")
                 }
             }
-        } catch {
+        } catch as err {
             ; 如果字段检查失败，忽略错误（可能表结构已经是新的）
         }
         
@@ -1901,7 +1920,7 @@ InitSQLiteDB() {
                 global CurrentSessionID
                 CurrentSessionID := 1
             }
-        } catch {
+        } catch as err {
             ; 如果获取失败，使用默认值1
             global CurrentSessionID
             CurrentSessionID := 1
@@ -1966,7 +1985,7 @@ InitSQLiteDB() {
 
 ; ===================== 同步提示词模板到数据库 =====================
 SyncPromptTemplatesToDB() {
-    global ClipboardDB, PromptTemplates
+    global ClipboardDB, PromptTemplates, global_ST
     
     if (!ClipboardDB || ClipboardDB = 0) {
         return
@@ -1974,6 +1993,15 @@ SyncPromptTemplatesToDB() {
     
     if (!IsSet(PromptTemplates) || PromptTemplates.Length = 0) {
         return
+    }
+    
+    ; 【入口强制释放】在调用 DB.Prepare 之前，必须执行强制释放
+    if (IsObject(global_ST) && global_ST.HasProp("Free")) {
+        try {
+            global_ST.Free()
+        } catch as err {
+        }
+        global_ST := 0
     }
     
     ST := ""
@@ -1984,6 +2012,9 @@ SyncPromptTemplatesToDB() {
         if (!ClipboardDB.Prepare(SQL, &ST)) {
             return
         }
+        
+        ; 更新全局句柄
+        global_ST := ST
         
         if (!IsObject(ST) || !ST.HasProp("Bind")) {
             return
@@ -2010,12 +2041,13 @@ SyncPromptTemplatesToDB() {
     } catch as e {
         ; 错误处理
     } finally {
-        ; 强制释放 prepared statement
+        ; 【过程保底】无论查询成功还是报错，都在 finally 块中释放句柄
         try {
-            if (IsObject(ST) && ST.HasProp("Free")) {
-                ST.Free()
+            if (IsObject(global_ST) && global_ST.HasProp("Free")) {
+                global_ST.Free()
             }
-        } catch {
+            global_ST := 0
+        } catch as err {
         }
     }
 }
@@ -2217,6 +2249,20 @@ InitConfig() {
             }
             ; 【确保持久化】将验证后的值写回 ini 文件，确保配置总是保存的（使用字符串格式）
             IniWrite(String(CapsLockHoldTimeSeconds), ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
+            ; 读取倒计时延迟时间（秒），如果未设置则使用默认值
+            global LaunchDelaySeconds
+            if (!IsSet(LaunchDelaySeconds)) {
+                LaunchDelaySeconds := 3.0
+            }
+            LaunchDelaySeconds := Float(IniRead(ConfigFile, "Settings", "LaunchDelaySeconds", LaunchDelaySeconds))
+            ; 确保值在合理范围内（0.5秒到10秒）
+            if (LaunchDelaySeconds < 0.5) {
+                LaunchDelaySeconds := 0.5
+            } else if (LaunchDelaySeconds > 10.0) {
+                LaunchDelaySeconds := 10.0
+            }
+            ; 【确保持久化】将验证后的值写回 ini 文件
+            IniWrite(String(LaunchDelaySeconds), ConfigFile, "Settings", "LaunchDelaySeconds")
             Language := IniRead(ConfigFile, "Settings", "Language", IniRead(ConfigFile, "General", "Language", DefaultLanguage))
             
             ; 读取prompt，如果为空或使用默认值，根据当前语言设置
@@ -2666,6 +2712,10 @@ ShowPanelTimer(*) {
     if (!CapsLock2) {
         return
     }
+    ; 【修复】检查 CapsLock 是否仍然按下（防止短按后定时器延迟触发）
+    if (!GetKeyState("CapsLock", "P")) {
+        return
+    }
     ; 如果CapsLock仍然按下且面板未显示，则显示面板
     if (CapsLock && !PanelVisible) {
         ShowCursorPanel()
@@ -2754,9 +2804,12 @@ global CapsLockPressTime := 0
     }
     
     ; 如果未在语音输入，执行正常的 CapsLock+ 逻辑
-    ; 设置定时器：300ms 后清除 CapsLock2（犹豫操作时间）
-    ; 如果在这 300ms 内使用了 CapsLock+ 功能，CapsLock2 会被提前清除
-    SetTimer(ClearCapsLock2Timer, -300)
+    ; 【关键修复】不再设置ClearCapsLock2Timer定时器自动清除CapsLock2
+    ; 因为如果自动清除，长按CapsLock显示面板时，CapsLock2会被提前清除，导致面板无法显示
+    ; CapsLock2只应该在以下情况被清除：
+    ; 1. 用户按了组合键（如CapsLock+C），由组合键处理函数清除
+    ; 2. CapsLock释放后，由释放逻辑清除
+    ; SetTimer(ClearCapsLock2Timer, -300)  ; 已移除
     
     ; 设置定时器：长按指定时间后自动显示面板（不在语音输入时）
     ; 使用配置的长按时间（秒转换为毫秒）
@@ -2775,9 +2828,20 @@ global CapsLockPressTime := 0
     ; 等待 CapsLock 释放
     KeyWait("CapsLock")
     
-    ; 停止所有定时器
-    SetTimer(ClearCapsLock2Timer, 0)
+    ; 停止所有定时器（ClearCapsLock2Timer已不再使用，但保留停止调用以避免潜在问题）
+    ; SetTimer(ClearCapsLock2Timer, 0)  ; 已移除ClearCapsLock2Timer定时器
     SetTimer(ShowPanelTimer, 0)
+    
+    ; 【修复】检查面板是否已显示（如果已显示，说明是长按，不应该切换大小写）
+    ; 如果面板已显示，说明是长按触发的，不应该切换大小写
+    if (PanelVisible) {
+        ; 面板已显示，说明是长按，保持当前状态不变
+        SetCapsLockState(InitialCapsLockState)
+        ; 延迟清除 CapsLock 变量，给快捷键处理函数足够的时间
+        SetTimer(ClearCapsLockTimer, -100)
+        CapsLock2 := false
+        return
+    }
     
     ; 逻辑修复：处理大小写切换误触
     ; 如果 CapsLock2 为 false (说明使用了 CapsLock + [Key] 功能)，则恢复初始状态，防止误切换
@@ -2788,7 +2852,7 @@ global CapsLockPressTime := 0
         ; 延迟清除 CapsLock 变量，给快捷键处理函数足够的时间
         SetTimer(ClearCapsLockTimer, -100)
     } else {
-        ; 没有使用功能，切换状态
+        ; 没有使用功能，切换状态（短按 CapsLock 的正常行为）
         SetCapsLockState(!InitialCapsLockState)
         CapsLock := false
     }
@@ -2796,14 +2860,8 @@ global CapsLockPressTime := 0
     ; 清除标记
     CapsLock2 := false
     
-    ; 如果面板还在显示，检查是否置顶，如果置顶则不自动隐藏
-    if (PanelVisible) {
-        global CursorPanelAlwaysOnTop
-        ; 只有当面板未置顶时才自动隐藏
-        if (!CursorPanelAlwaysOnTop) {
-            HideCursorPanel()
-        }
-    }
+    ; 【修改】长按 CapsLock 松手后，面板保持显示，直到用户按关闭按钮或 ESC 键退出
+    ; 不再自动隐藏面板
     IsCommandMode := false
 }
 
@@ -2820,7 +2878,7 @@ GetScreenInfo(ScreenIndex) {
         try {
             MonitorGet(1, &Left, &Top, &Right, &Bottom)
             return {Left: Left, Top: Top, Right: Right, Bottom: Bottom, Width: Right - Left, Height: Bottom - Top}
-        } catch {
+        } catch as err {
             ; 如果还是失败，使用默认屏幕尺寸
             return {Left: 0, Top: 0, Right: A_ScreenWidth, Bottom: A_ScreenHeight, Width: A_ScreenWidth, Height: A_ScreenHeight}
         }
@@ -2874,7 +2932,7 @@ GetWindowScreenIndex(WinTitle) {
         
         ; 如果没找到，返回主屏幕
         return 1
-    } catch {
+    } catch as err {
         ; 出错时返回主屏幕
         return 1
     }
@@ -2906,7 +2964,7 @@ QueueWindowPositionSave(WindowName, X, Y, Width, Height) {
     if (WindowPositionSaveTimer != 0) {
         try {
             SetTimer(WindowPositionSaveTimer, 0)
-        } catch {
+        } catch as err {
         }
     }
     
@@ -2935,7 +2993,7 @@ FlushPendingWindowPositions() {
         
         ; 清空待保存列表
         PendingWindowPositions.Clear()
-    } catch {
+    } catch as err {
         ; 如果保存失败，保留待保存列表，下次再试
     }
     
@@ -2988,7 +3046,7 @@ OnWindowSize(GuiObj, MinMax, Width, Height) {
             }
             ; 使用延迟保存，避免频繁IO
             QueueWindowPositionSave(WindowName, X, Y, W, H)
-        } catch {
+        } catch as err {
             ; 忽略错误
         }
     }
@@ -3004,7 +3062,7 @@ OnWindowMove(GuiObj, X, Y) {
         }
         ; 使用延迟保存，避免频繁IO
         QueueWindowPositionSave(WindowName, WinX, WinY, WinW, WinH)
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
 }
@@ -3026,18 +3084,20 @@ ShowCursorPanel() {
     ButtonCount := QuickActionButtons.Length
     ButtonHeight := 42
     ButtonSpacing := 50
-    BaseHeight := 200  ; 标题、提示、说明文字、底部提示等基础高度（增加50px给说明文字区域）
-    ; 移除ListView高度（实际上没有ListView，只是底部提示文本）
-    global CursorPanelHeight := BaseHeight + (ButtonCount * ButtonSpacing)
+    BaseHeight := 200  ; 标题、输入框、说明文字、底部提示等基础高度
+    ; 为ListView预留空间（ListView高度600 + 更多按钮高度35 + 间距30 = 665）
+    ListViewReservedHeight := 665
+    ; 初始面板高度 = 基础高度 + ListView预留空间 + 按钮区域高度
+    global CursorPanelHeight := BaseHeight + ListViewReservedHeight + (ButtonCount * ButtonSpacing)
     
-    ; 面板尺寸（Cursor 风格，更紧凑现代）
-    global CursorPanelWidth := 420
+    ; 面板尺寸（参考 Raycast 和 uTools 的默认宽度，约 640-720px）
+    global CursorPanelWidth := 680
     
     ; 如果面板已存在，先销毁
     if (GuiID_CursorPanel != 0) {
         try {
             GuiID_CursorPanel.Destroy()
-        } catch {
+        } catch as err {
             ; 忽略错误
         }
         global GuiID_CursorPanel := 0
@@ -3055,7 +3115,7 @@ ShowCursorPanel() {
     BtnSize := 30
     BtnY := 10
     BtnSpacing := 5
-    BtnStartX := 420 - (BtnSize * 3 + BtnSpacing * 2) - 10
+    BtnStartX := CursorPanelWidth - (BtnSize * 3 + BtnSpacing * 2) - 10
     
     ; 标题区域（可拖动）- 调整宽度，不覆盖按钮区域
     ; 按钮区域从BtnStartX开始，所以标题背景只到BtnStartX-5
@@ -3096,17 +3156,85 @@ ShowCursorPanel() {
         LayerOffset := 4 + (A_Index - 1) * 1
         LayerAlpha := 255 - (A_Index - 1) * 60
         LayerColor := BlendColor(OuterShadowColor, (ThemeMode = "light") ? "FFFFFF" : "000000", LayerAlpha / 255)
-        GuiID_CursorPanel.Add("Text", "x0 y" . (50 + LayerOffset) . " w420 h1 Background" . LayerColor, "")
+        GuiID_CursorPanel.Add("Text", "x0 y" . (50 + LayerOffset) . " w" . CursorPanelWidth . " h1 Background" . LayerColor, "")
     }
     ; 顶层阴影（紧凑、深色）
-    GuiID_CursorPanel.Add("Text", "x0 y51 w420 h1 Background" . InnerShadowColor, "")
+    GuiID_CursorPanel.Add("Text", "x0 y51 w" . CursorPanelWidth . " h1 Background" . InnerShadowColor, "")
     
-    ; 提示文本（更小的字体，更柔和的颜色）
-    HintText := GuiID_CursorPanel.Add("Text", "x20 y60 w380 h18 Center c" . UI_Colors.TextDim, FormatText("split_hint", SplitHotkey, BatchHotkey))
-    HintText.SetFont("s9", "Segoe UI")
+    ; ========== 搜索输入框（无边，与面板同宽）==========
+    SearchEditY := 60
+    SearchEditHeight := 35
+    SearchEditX := 0
+    SearchEditWidth := CursorPanelWidth
     
-    ; 按钮区域（根据配置动态创建）
-    ButtonY := 90
+    ; 根据主题模式设置输入框颜色
+    if (ThemeMode = "dark") {
+        InputBgColor := "2d2d30"  ; Cursor风格的黑灰色
+        InputTextColor := "FFFFFF"  ; 白色文字
+    } else {
+        InputBgColor := UI_Colors.InputBg
+        InputTextColor := UI_Colors.Text
+    }
+    
+    ; 创建无边输入框（使用-Border移除边框）
+    global CursorPanelSearchEdit := GuiID_CursorPanel.Add("Edit", "x" . SearchEditX . " y" . SearchEditY . " w" . SearchEditWidth . " h" . SearchEditHeight . " Background" . InputBgColor . " c" . InputTextColor . " -VScroll -HScroll -Border vCursorPanelSearchEdit", "")
+    CursorPanelSearchEdit.SetFont("s11", "Segoe UI")
+    
+    ; 移除Edit控件的默认3D边框
+    try {
+        EditHwnd := CursorPanelSearchEdit.Hwnd
+        if (EditHwnd) {
+            CurrentExStyle := DllCall("GetWindowLongPtr", "Ptr", EditHwnd, "Int", -20, "Ptr")
+            NewExStyle := CurrentExStyle & ~0x00000200  ; 移除WS_EX_CLIENTEDGE
+            DllCall("SetWindowLongPtr", "Ptr", EditHwnd, "Int", -20, "Ptr", NewExStyle, "Ptr")
+            DllCall("InvalidateRect", "Ptr", EditHwnd, "Ptr", 0, "Int", 1)
+            DllCall("UpdateWindow", "Ptr", EditHwnd)
+        }
+    } catch as err {
+        ; 忽略错误
+    }
+    
+    ; 搜索输入框Change事件（防抖搜索）
+    CursorPanelSearchEdit.OnEvent("Change", ExecuteCursorPanelSearch)
+    
+    ; ========== ListView卡片（与面板同宽，不溢出）==========
+    ; 【修复】ListView 宽度调整为面板宽度，避免左边被截断
+    ListViewWidth := CursorPanelWidth  ; 与面板同宽
+    ListViewHeight := 600
+    ListViewX := 0  ; 从左边开始，与面板对齐
+    ListViewY := SearchEditY + SearchEditHeight + 10
+    
+    ; 根据主题模式设置ListView颜色
+    ListViewTextColor := (ThemeMode = "dark") ? "FFFFFF" : UI_Colors.Text
+    global CursorPanelResultLV := GuiID_CursorPanel.Add("ListView", "x" . ListViewX . " y" . ListViewY . " w" . ListViewWidth . " h" . ListViewHeight . " Background" . UI_Colors.InputBg . " c" . ListViewTextColor . " -Multi +ReadOnly vCursorPanelResultLV", ["标题", "来源", "时间"])
+    CursorPanelResultLV.SetFont("s10 c" . ListViewTextColor, "Segoe UI")
+    ; 【修改】ListView 始终显示，用于全局搜索所有内容
+    CursorPanelResultLV.Visible := true  ; 始终显示
+    CursorPanelResultLV.OnEvent("DoubleClick", OnCursorPanelResultDoubleClick)
+    
+    ; 【修复】设置ListView列宽，考虑实际可用宽度（减去滚动条宽度约20px）
+    AvailableWidth := ListViewWidth - 20  ; 减去滚动条宽度
+    CursorPanelResultLV.ModifyCol(1, AvailableWidth * 0.5)   ; 标题列：50%
+    CursorPanelResultLV.ModifyCol(2, AvailableWidth * 0.25)  ; 来源列：25%
+    CursorPanelResultLV.ModifyCol(3, AvailableWidth * 0.25)  ; 时间列：25%
+    
+    ; ========== "更多"按钮（初始隐藏，放在ListView下方）==========
+    MoreBtnY := ListViewY + ListViewHeight + 10
+    MoreBtnWidth := 100
+    MoreBtnHeight := 35
+    MoreBtnX := (CursorPanelWidth - MoreBtnWidth) / 2  ; 居中
+    global CursorPanelShowMoreBtn := GuiID_CursorPanel.Add("Text", "x" . MoreBtnX . " y" . MoreBtnY . " w" . MoreBtnWidth . " h" . MoreBtnHeight . " Center 0x200 c" . ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF") . " Background" . UI_Colors.BtnBg . " vCursorPanelShowMoreBtn", "更多")
+    CursorPanelShowMoreBtn.SetFont("s10", "Segoe UI")
+    CursorPanelShowMoreBtn.Visible := false  ; 初始隐藏
+    CursorPanelShowMoreBtn.OnEvent("Click", OnCursorPanelShowMore)
+    HoverBtnWithAnimation(CursorPanelShowMoreBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+    
+    ; 初始化搜索结果数组
+    global CursorPanelSearchResults := []
+    
+    ; ========== 按钮区域（始终在ListView下方，为ListView预留空间）==========
+    ; 按钮区域起始位置：ListView下方（即使ListView初始隐藏，也要预留空间）
+    ButtonY := MoreBtnY + MoreBtnHeight + 20
     for Index, Button in QuickActionButtons {
         ; 获取按钮文本和功能
         ButtonText := ""
@@ -3248,7 +3376,9 @@ ShowCursorPanel() {
         }
         
         ; 创建按钮，添加点击事件以更新说明文字
-        Btn := GuiID_CursorPanel.Add("Button", "x30 y" . ButtonY . " w360 h" . ButtonHeight, ButtonText)
+        ; 按钮宽度 = 面板宽度 - 左右边距（30*2 = 60）
+        ButtonWidth := CursorPanelWidth - 60
+        Btn := GuiID_CursorPanel.Add("Button", "x30 y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight, ButtonText)
         ; 按钮文字颜色：亮色模式下使用深色文字，暗色模式下使用白色文字
         global ThemeMode
         BtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
@@ -3266,7 +3396,9 @@ ShowCursorPanel() {
     
     ; 说明文字显示区域（在按钮和底部提示之间）
     DescY := ButtonY + 10
-    global CursorPanelDescText := GuiID_CursorPanel.Add("Text", "x20 y" . DescY . " w380 h40 Center c" . UI_Colors.TextDim . " vCursorPanelDescText", "")
+    ; 说明文字宽度 = 面板宽度 - 左右边距（20*2 = 40）
+    DescTextWidth := CursorPanelWidth - 40
+    global CursorPanelDescText := GuiID_CursorPanel.Add("Text", "x20 y" . DescY . " w" . DescTextWidth . " h40 Center c" . UI_Colors.TextDim . " vCursorPanelDescText", "")
     CursorPanelDescText.SetFont("s9", "Segoe UI")
     
     ; 初始显示第一个按钮的说明（如果有按钮）
@@ -3319,11 +3451,13 @@ ShowCursorPanel() {
     
     ; 底部提示文本
     FooterY := DescY + 45
-    FooterText := GuiID_CursorPanel.Add("Text", "x20 y" . FooterY . " w380 h50 Center c" . UI_Colors.TextDim, GetText("footer_hint"))
+    ; 底部提示文字宽度 = 面板宽度 - 左右边距（20*2 = 40）
+    FooterTextWidth := CursorPanelWidth - 40
+    FooterText := GuiID_CursorPanel.Add("Text", "x20 y" . FooterY . " w" . FooterTextWidth . " h50 Center c" . UI_Colors.TextDim, GetText("footer_hint"))
     FooterText.SetFont("s9", "Segoe UI")
     
     ; 底部边框
-    GuiID_CursorPanel.Add("Text", "x0 y" . (CursorPanelHeight - 10) . " w420 h10 Background" . UI_Colors.Background, "")
+    GuiID_CursorPanel.Add("Text", "x0 y" . (CursorPanelHeight - 10) . " w" . CursorPanelWidth . " h10 Background" . UI_Colors.Background, "")
     
     ; 获取屏幕信息并计算位置
     ScreenInfo := GetScreenInfo(CursorPanelScreenIndex)
@@ -3334,6 +3468,9 @@ ShowCursorPanel() {
     
     ; 显示面板
     GuiID_CursorPanel.Show("w" . CursorPanelWidth . " h" . CursorPanelHeight . " x" . Pos.X . " y" . Pos.Y . " NoActivate")
+    
+    ; 【修改】ListView 始终显示，不需要临时显示/隐藏来初始化
+    ; ListView 的坐标是相对于主面板的，主面板位置已确定，ListView 会自动正确定位
     
     ; 确保快捷操作面板始终在最上层（无论置顶状态如何，都要确保在其他面板之上）
     WinSetAlwaysOnTop(1, GuiID_CursorPanel.Hwnd)
@@ -3350,13 +3487,349 @@ ShowCursorPanel() {
     
 }
 
+; ===================== 快捷操作面板搜索功能 =====================
+; 搜索输入框Change事件（防抖）
+ExecuteCursorPanelSearch(*) {
+    global CursorPanelSearchDebounceTimer
+    
+    ; 取消之前的防抖定时器
+    if (CursorPanelSearchDebounceTimer != 0) {
+        try {
+            SetTimer(CursorPanelSearchDebounceTimer, 0)
+        } catch as err {
+            ; 忽略错误
+        }
+        CursorPanelSearchDebounceTimer := 0
+    }
+    
+    ; 设置新的防抖定时器（150ms 延迟）
+    CursorPanelSearchDebounceTimer := DebouncedCursorPanelSearch
+    SetTimer(CursorPanelSearchDebounceTimer, -150)
+}
+
+; 防抖后的实际搜索执行
+DebouncedCursorPanelSearch(*) {
+    global CursorPanelSearchEdit, CursorPanelResultLV, CursorPanelSearchResults
+    global CursorPanelSearchDebounceTimer, ClipboardDB, global_ST, CursorPanelShowMoreBtn, GuiID_CursorPanel
+    global CursorPanelWidth, CursorPanelHeight, CursorPanelScreenIndex, FunctionPanelPos
+    
+    ; 清除定时器标记
+    CursorPanelSearchDebounceTimer := 0
+    
+    ; 【入口熔断】在执行搜索前，必须先检查并释放旧句柄
+    if (IsObject(global_ST) && global_ST.HasProp("Free")) {
+        try {
+            global_ST.Free()
+        } catch as err {
+        }
+        global_ST := 0
+    }
+    
+    ; 【入口熔断】使用 GlobalSearchEngine 释放旧句柄（与全域搜索保持一致）
+    GlobalSearchEngine.ReleaseOldStatement()
+    
+    Keyword := CursorPanelSearchEdit.Value
+    if (StrLen(Keyword) < 1) {
+        ; 【修改】输入框为空时，清空结果但保持 ListView 显示
+        try {
+            ; 彻底清空 ListView 内容
+            CursorPanelResultLV.Opt("-Redraw")
+            CursorPanelResultLV.Delete()
+            CursorPanelResultLV.Opt("+Redraw")
+            
+            ; 重置搜索结果数组
+            CursorPanelSearchResults := []
+            
+            ; 隐藏"更多"按钮（不再需要）
+            CursorPanelShowMoreBtn.Visible := false
+            
+            ; 【关键】确保数据库句柄已释放，防止下次搜索时死锁
+            if (IsObject(global_ST) && global_ST.HasProp("Free")) {
+                try {
+                    global_ST.Free()
+                } catch as err {
+                    ; 忽略错误
+                }
+                global_ST := 0
+            }
+        } catch as err {
+            ; 控件可能已销毁，忽略错误
+        }
+        
+        ; ListView 始终显示，不需要调整布局
+        return
+    }
+    
+    ; 【修改】使用 SearchAllDataSources 搜索所有数据源（包含 prompt、clipboard、config、file、hotkey、function、ui）
+    ; SearchAllDataSources 内部已优先使用统一视图搜索（SearchGlobalView），如果没有结果则回退到多数据源搜索
+    ; 统一视图和多数据源搜索的结果已经按时间排序（最新的在前），所以直接转换格式即可
+    AllDataResults := SearchAllDataSources(Keyword, [], 50)
+    Results := []
+    
+    ; 将 Map 格式转换为扁平化的数组
+    for DataType, TypeData in AllDataResults {
+        if (IsObject(TypeData) && TypeData.HasProp("Items")) {
+            for Index, Item in TypeData.Items {
+                ; 格式化时间显示
+                TimeDisplay := ""
+                if (Item.HasProp("TimeFormatted")) {
+                    TimeDisplay := Item.TimeFormatted
+                } else if (Item.HasProp("Timestamp")) {
+                    try {
+                        TimeDisplay := FormatTime(Item.Timestamp, "yyyy-MM-dd HH:mm:ss")
+                    } catch as err {
+                        TimeDisplay := Item.Timestamp
+                    }
+                } else {
+                    TimeDisplay := ""
+                }
+                
+                ; 生成标题（如果没有标题，从内容截取）
+                TitleText := ""
+                if (Item.HasProp("Title") && Item.Title != "") {
+                    TitleText := Item.Title
+                } else if (Item.HasProp("Content") && Item.Content != "") {
+                    TitleText := SubStr(Item.Content, 1, 50)
+                    if (StrLen(Item.Content) > 50) {
+                        TitleText .= "..."
+                    }
+                } else {
+                    TitleText := ""
+                }
+                
+                ; 获取来源显示名称
+                SourceName := TypeData.HasProp("DataTypeName") ? TypeData.DataTypeName : DataType
+                
+                Results.Push({
+                    Title: TitleText,
+                    Source: SourceName,
+                    Time: TimeDisplay,
+                    Content: Item.HasProp("Content") ? Item.Content : (Item.HasProp("Title") ? Item.Title : ""),
+                    ID: Item.HasProp("ID") ? Item.ID : "",
+                    DataType: DataType,
+                    Action: Item.HasProp("Action") ? Item.Action : "",
+                    ActionParams: Item.HasProp("ActionParams") ? Item.ActionParams : Map()
+                })
+            }
+        }
+    }
+    
+    ; 保存所有搜索结果
+    CursorPanelSearchResults := Results
+    
+    ; 【修改】显示所有结果（最多 50 个），不再限制为前 5 个
+    ; 更新ListView显示
+    try {
+        CursorPanelResultLV.Opt("-Redraw")
+        CursorPanelResultLV.Delete()
+        for Index, Item in Results {
+            CursorPanelResultLV.Add(, Item.Title, Item.Source, Item.Time)
+        }
+        CursorPanelResultLV.Opt("+Redraw")
+        
+        ; ListView 始终显示，隐藏"更多"按钮（因为显示所有结果）
+        CursorPanelResultLV.Visible := true
+        CursorPanelShowMoreBtn.Visible := false
+    } catch as err {
+        ; 控件可能已销毁，忽略错误
+    }
+    
+    ; ListView 始终显示，不需要调整布局
+}
+
+; 更新快捷操作面板布局（根据ListView是否显示调整高度）
+UpdateCursorPanelLayout(ListViewVisible) {
+    global GuiID_CursorPanel, CursorPanelWidth, CursorPanelHeight, CursorPanelScreenIndex, FunctionPanelPos
+    global QuickActionButtons, ButtonSpacing
+    
+    if (GuiID_CursorPanel = 0) {
+        return
+    }
+    
+    try {
+        ; 由于按钮位置已经固定在ListView下方，只需要根据ListView的显示状态调整窗口高度
+        ; 实际上，面板高度已经在创建时预留了ListView的空间，所以这里只需要确保窗口大小正确
+        ; 如果ListView隐藏，可以稍微减小高度（可选），但为了保持一致性，保持原高度
+        
+        ; 获取屏幕信息并重新计算位置（保持中心位置）
+        ScreenInfo := GetScreenInfo(CursorPanelScreenIndex)
+        Pos := GetPanelPosition(ScreenInfo, CursorPanelWidth, CursorPanelHeight, FunctionPanelPos)
+        
+        ; 调整窗口位置（保持大小不变，因为已经预留了空间）
+        WinGetPos(&WinX, &WinY, &WinW, &WinH, GuiID_CursorPanel.Hwnd)
+        if (WinX != Pos.X || WinY != Pos.Y) {
+            GuiID_CursorPanel.Move(Pos.X, Pos.Y)
+        }
+        
+        ; 重新绘制窗口
+        WinRedraw(GuiID_CursorPanel.Hwnd)
+    } catch as err {
+        ; 忽略错误
+    }
+}
+
+; 快捷操作面板"更多"按钮点击事件
+OnCursorPanelShowMore(*) {
+    global CursorPanelResultLV, CursorPanelSearchResults, CursorPanelShowMoreBtn
+    
+    if (CursorPanelSearchResults.Length <= 5) {
+        CursorPanelShowMoreBtn.Visible := false
+        return
+    }
+    
+    ; 显示所有结果
+    try {
+        CursorPanelResultLV.Opt("-Redraw")
+        CursorPanelResultLV.Delete()
+        for Index, Item in CursorPanelSearchResults {
+            ; 格式化时间显示
+            TimeDisplay := Item.HasProp("TimeFormatted") ? Item.TimeFormatted : ""
+            if (TimeDisplay = "" && Item.HasProp("Timestamp")) {
+                try {
+                    TimeDisplay := FormatTime(Item.Timestamp, "yyyy-MM-dd HH:mm:ss")
+                } catch as err {
+                    TimeDisplay := Item.Timestamp
+                }
+            }
+            CursorPanelResultLV.Add(, Item.Title, Item.DataTypeName, TimeDisplay)
+        }
+        CursorPanelResultLV.Opt("+Redraw")
+        
+        ; 隐藏更多按钮
+        CursorPanelShowMoreBtn.Visible := false
+    } catch as err {
+        ; 控件可能已销毁，忽略错误
+    }
+}
+
+; 快捷操作面板搜索结果双击事件
+OnCursorPanelResultDoubleClick(LV, Row) {
+    global CursorPanelSearchResults
+    
+    if (Row > 0 && Row <= CursorPanelSearchResults.Length) {
+        Item := CursorPanelSearchResults[Row]
+        Content := Item.HasProp("Content") ? Item.Content : Item.Title
+        
+        ; 【修改】支持所有数据类型，根据 Action 执行相应操作
+        if (Item.HasProp("Action")) {
+            switch Item.Action {
+                case "open_prompt":
+                    ; 提示词类型：发送到 Cursor
+                    TemplateFound := false
+                    if (Item.HasProp("ID")) {
+                        global TemplateIndexByID
+                        if (TemplateIndexByID.Has(Item.ID)) {
+                            Template := TemplateIndexByID[Item.ID]
+                            SendTemplateToCursor(Template)
+                            CloseCursorPanel()
+                            TemplateFound := true
+                            return  ; 找到模板，直接返回
+                        }
+                    }
+                    ; 如果没有找到模板，使用通用处理（复制到剪贴板并粘贴）
+                    ; 继续执行 copy_to_clipboard 的逻辑
+                case "copy_to_clipboard":
+                    ; 复制到剪贴板并粘贴（通用处理）
+                    global CursorPath, AISleepTime
+                    try {
+                        ; 检查 Cursor 是否运行
+                        if (!WinExist("ahk_exe Cursor.exe")) {
+                            if (CursorPath != "" && FileExist(CursorPath)) {
+                                Run(CursorPath)
+                                Sleep(AISleepTime)
+                            } else {
+                                TrayTip("Cursor未运行", "错误", "Iconx 2")
+                                return
+                            }
+                        }
+                        
+                        ; 激活 Cursor 窗口
+                        WinActivate("ahk_exe Cursor.exe")
+                        Sleep(200)
+                        
+                        ; 打开聊天面板
+                        Send("^l")
+                        Sleep(400)
+                        
+                        ; 复制内容到剪贴板
+                        OldClipboard := A_Clipboard
+                        A_Clipboard := Content
+                        
+                        ; 粘贴
+                        Send("^v")
+                        Sleep(300)
+                        
+                        ; 提交
+                        Send("{Enter}")
+                        
+                        ; 恢复剪贴板
+                        Sleep(200)
+                        A_Clipboard := OldClipboard
+                        
+                        ; 关闭面板
+                        CloseCursorPanel()
+                    } catch as e {
+                        TrayTip("发送失败: " . e.Message, "错误", "Iconx 2")
+                    }
+                case "open_file":
+                    ; 文件类型：打开文件
+                    if (Item.HasProp("ActionParams") && Item.ActionParams.Has("FilePath")) {
+                        FilePath := Item.ActionParams["FilePath"]
+                        if (FileExist(FilePath)) {
+                            Run(FilePath)
+                            CloseCursorPanel()
+                        } else {
+                            TrayTip("文件不存在", "错误", "Iconx 2")
+                        }
+                    }
+                default:
+                    ; 默认：复制到剪贴板
+                    A_Clipboard := Content
+                    TrayTip("已复制到剪贴板", Item.Title, "Iconi 1")
+                    CloseCursorPanel()
+            }
+        } else {
+            ; 如果没有 Action，默认复制到剪贴板并粘贴到 Cursor
+            global CursorPath, AISleepTime
+            try {
+                if (!WinExist("ahk_exe Cursor.exe")) {
+                    if (CursorPath != "" && FileExist(CursorPath)) {
+                        Run(CursorPath)
+                        Sleep(AISleepTime)
+                    } else {
+                        TrayTip("Cursor未运行", "错误", "Iconx 2")
+                        return
+                    }
+                }
+                
+                WinActivate("ahk_exe Cursor.exe")
+                Sleep(200)
+                Send("^l")
+                Sleep(400)
+                
+                OldClipboard := A_Clipboard
+                A_Clipboard := Content
+                Send("^v")
+                Sleep(300)
+                Send("{Enter}")
+                Sleep(200)
+                A_Clipboard := OldClipboard
+                
+                CloseCursorPanel()
+            } catch as e {
+                TrayTip("发送失败: " . e.Message, "错误", "Iconx 2")
+            }
+        }
+    }
+}
+
 ; ===================== 移除快捷操作面板置顶（延迟调用）=====================
 RemoveCursorPanelAlwaysOnTop(*) {
     global CursorPanelAlwaysOnTop, GuiID_CursorPanel
     if (!CursorPanelAlwaysOnTop && GuiID_CursorPanel != 0) {
         try {
             WinSetAlwaysOnTop(0, GuiID_CursorPanel.Hwnd)
-        } catch {
+        } catch as err {
         }
     }
 }
@@ -3388,7 +3861,7 @@ ToggleCursorPanelAlwaysOnTop(*) {
             }
             ; 刷新窗口以确保状态更新
             WinRedraw(GuiID_CursorPanel.Hwnd)
-        } catch {
+        } catch as err {
             ; 忽略错误
         }
     }
@@ -3400,7 +3873,7 @@ UpdateCursorPanelDesc(Desc) {
     if (CursorPanelDescText != 0) {
         try {
             CursorPanelDescText.Text := Desc
-        } catch {
+        } catch as err {
             ; 忽略错误
         }
     }
@@ -3455,7 +3928,7 @@ RestoreDefaultCursorPanelDesc() {
             if (FirstButtonDesc != "") {
                 CursorPanelDescText.Text := FirstButtonDesc
             }
-        } catch {
+        } catch as err {
             ; 忽略错误
         }
     }
@@ -3494,7 +3967,7 @@ ToggleCursorPanelAutoHide(*) {
             }
             ; 刷新窗口以确保状态更新
             WinRedraw(GuiID_CursorPanel.Hwnd)
-        } catch {
+        } catch as err {
             ; 忽略错误
         }
     }
@@ -3539,7 +4012,7 @@ CheckCursorPanelEdge(*) {
         else if (!IsAtLeftEdge && !IsAtRightEdge && !IsAtTopEdge && !IsAtBottomEdge && CursorPanelHidden) {
             RestoreCursorPanel()
         }
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
 }
@@ -3601,7 +4074,7 @@ HideCursorPanelToEdge(IsLeft, IsRight, IsTop, IsBottom) {
         ; 隐藏大部分控件，只显示标题栏
         ; 这里简化处理，直接缩小窗口
         CursorPanelHidden := true
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
 }
@@ -3626,7 +4099,7 @@ RestoreCursorPanel() {
         }
         
         CursorPanelHidden := false
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
 }
@@ -4069,7 +4542,7 @@ SwitchTab(TabName) {
                     if (Ctrl) {
                         Ctrl.Visible := false
                     }
-                } catch {
+                } catch as err {
                     ; 忽略已销毁的控件
                 }
             }
@@ -4084,7 +4557,7 @@ SwitchTab(TabName) {
                     if (Ctrl) {
                         Ctrl.Visible := true
                     }
-                } catch {
+                } catch as err {
                     ; 忽略已销毁的控件
                 }
             }
@@ -4108,7 +4581,7 @@ SwitchTab(TabName) {
                     if (Ctrl) {
                         try {
                             Ctrl.Visible := false
-                        } catch {
+                        } catch as err {
                             ; 忽略已销毁的控件
                         }
                     }
@@ -4126,7 +4599,7 @@ SwitchTab(TabName) {
                     if (Ctrl) {
                         try {
                             Ctrl.Visible := false
-                        } catch {
+                        } catch as err {
                             ; 忽略已销毁的控件
                         }
                     }
@@ -4143,7 +4616,7 @@ SwitchTab(TabName) {
                     if (Ctrl) {
                         try {
                             Ctrl.Visible := false
-                        } catch {
+                        } catch as err {
                             ; 忽略已销毁的控件
                         }
                     }
@@ -4161,7 +4634,7 @@ SwitchTab(TabName) {
                     if (Ctrl) {
                         try {
                             Ctrl.Visible := false
-                        } catch {
+                        } catch as err {
                             ; 忽略已销毁的控件
                         }
                     }
@@ -4200,13 +4673,13 @@ SwitchTab(TabName) {
                                     CtrlName := ""
                                     try {
                                         CtrlName := Ctrl.Name
-                                    } catch {
+                                    } catch as err {
                                     }
                                     ; 如果不是主标签按钮，则隐藏
                                     if (InStr(CtrlName, "PromptsMainTab") = 0) {
                                         Ctrl.Visible := false
                                     }
-                                } catch {
+                                } catch as err {
                                 }
                             }
                         }
@@ -4222,7 +4695,7 @@ SwitchTab(TabName) {
                             if (Ctrl) {
                                 try {
                                     Ctrl.Visible := false
-                                } catch {
+                                } catch as err {
                                 }
                             }
                         }
@@ -4238,7 +4711,7 @@ SwitchTab(TabName) {
                             if (Ctrl) {
                                 try {
                                     Ctrl.Visible := false
-                                } catch {
+                                } catch as err {
                                 }
                             }
                         }
@@ -4267,12 +4740,12 @@ SwitchTab(TabName) {
                             if (TabBtn) {
                                 try {
                                     TabBtn.Visible := true
-                                } catch {
+                                } catch as err {
                                 }
                             }
                         }
                     }
-                } catch {
+                } catch as err {
                 }
             }
             
@@ -4282,7 +4755,7 @@ SwitchTab(TabName) {
                     if (TabBtn) {
                         try {
                             TabBtn.Visible := true
-                        } catch {
+                        } catch as err {
                         }
                     }
                 }
@@ -4305,7 +4778,7 @@ SwitchTab(TabName) {
                             if (Ctrl) {
                                 try {
                                     Ctrl.Visible := false
-                                } catch {
+                                } catch as err {
                                 }
                             }
                         }
@@ -4490,7 +4963,7 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
         ; 保存句柄到全局变量，供窗口显示后的延迟函数使用
         global DefaultStartTabDDL_Hwnd_ForTimer
         DefaultStartTabDDL_Hwnd_ForTimer := DDL_Hwnd
-    } catch {
+    } catch as err {
         ; 如果获取句柄失败，忽略错误
     }
     
@@ -4505,7 +4978,7 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
         ; 创建画刷用于下拉列表背景色（根据主题模式设置）
         ; 在窗口显示后设置下拉列表的背景色
         SetTimer(UpdateDefaultStartTabDDLBrush, -300)
-    } catch {
+    } catch as err {
         ; 如果设置失败，忽略错误
     }
     GeneralTabControls.Push(DefaultStartTabDDL)
@@ -4538,7 +5011,7 @@ CreateQuickActionConfigUI(ConfigGUI, X, Y, W, ParentControls) {
     for Index, Ctrl in QuickActionConfigControls {
         try {
             Ctrl.Destroy()
-        } catch {
+        } catch as err {
             ; 忽略已销毁的控件
         }
     }
@@ -4763,7 +5236,7 @@ SwitchGeneralSubTab(SubTabKey) {
                 if (Ctrl) {
                     try {
                         Ctrl.Visible := false
-                    } catch {
+                    } catch as err {
                         ; 忽略已销毁的控件
                     }
                 }
@@ -4791,7 +5264,7 @@ SwitchGeneralSubTab(SubTabKey) {
                 if (Ctrl) {
                     try {
                         Ctrl.Visible := true
-                    } catch {
+                    } catch as err {
                         ; 忽略已销毁的控件
                     }
                 }
@@ -4809,7 +5282,7 @@ CreateSearchCategoryConfigUI(ConfigGUI, X, Y, W, ParentControls) {
         for Index, Ctrl in SearchCategoryConfigControls {
             try {
                 Ctrl.Destroy()
-            } catch {
+            } catch as err {
                 ; 忽略已销毁的控件
             }
         }
@@ -4894,7 +5367,7 @@ ToggleAutoStart(*) {
             ; 更新悬停效果
             HoverBtnWithAnimation(AutoStartBtn, BtnBgColor, AutoStart ? UI_Colors.BtnPrimaryHover : UI_Colors.BtnHover)
         }
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
     
@@ -4947,7 +5420,7 @@ ToggleSearchCategory(CategoryKey) {
             ; 自动保存配置
             SetTimer(AutoSaveConfig, -100)
         }
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
 }
@@ -5230,7 +5703,7 @@ RefreshQuickActionConfigUI() {
         for Index, Ctrl in QuickActionConfigControls {
             try {
                 Ctrl.Destroy()
-            } catch {
+            } catch as err {
                 ; 忽略已销毁的控件
             }
         }
@@ -5256,7 +5729,7 @@ RefreshQuickActionConfigUI() {
         ; 需要找到语言设置之后的位置，这里使用固定偏移
         ; 由于UI结构已简化，高度计算：每个按钮75px，5个按钮共375px
         CreateQuickActionConfigUI(ConfigGUI, TabX + 30, TabY + 200, TabW - 60, GeneralTabControls)
-    } catch {
+    } catch as err {
         ; 如果更新失败，忽略错误
     }
 }
@@ -5294,7 +5767,7 @@ CreateAppearanceTab(ConfigGUI, X, Y, W, H) {
                 ScreenList.Push(FormatText("screen", MonitorIndex))
             }
         }
-    } catch {
+    } catch as err {
         MonitorIndex := 1
         Loop 10 {
             try {
@@ -5302,7 +5775,7 @@ CreateAppearanceTab(ConfigGUI, X, Y, W, H) {
                 ScreenList.Push(FormatText("screen", MonitorIndex))
                 MonitorCount++
                 MonitorIndex++
-            } catch {
+            } catch as err {
                 break
             }
         }
@@ -5379,7 +5852,7 @@ CreateAppearanceTab(ConfigGUI, X, Y, W, H) {
                 ScreenList.Push(FormatText("screen", MonitorIndex))
             }
         }
-    } catch {
+    } catch as err {
         MonitorIndex := 1
         Loop 10 {
             try {
@@ -5387,7 +5860,7 @@ CreateAppearanceTab(ConfigGUI, X, Y, W, H) {
                 ScreenList.Push(FormatText("screen", MonitorIndex))
                 MonitorCount++
                 MonitorIndex++
-            } catch {
+            } catch as err {
                 break
             }
         }
@@ -5808,7 +6281,7 @@ SaveTemplateFromDialog(EditGUI, TemplateID) {
     ; 刷新模板管理ListView
     try {
         RefreshPromptListView()
-    } catch {
+    } catch as err {
         ; 如果函数不存在，忽略错误
     }
     
@@ -6307,7 +6780,7 @@ SwitchPromptTemplateTab(TabIndex) {
                 if (Ctrl) {
                     try {
                         Ctrl.Visible := false
-                    } catch {
+                    } catch as err {
                     }
                 }
             }
@@ -6333,7 +6806,7 @@ SwitchPromptTemplateTab(TabIndex) {
                 if (Ctrl) {
                     try {
                         Ctrl.Visible := true
-                    } catch {
+                    } catch as err {
                     }
                 }
             }
@@ -6365,7 +6838,7 @@ ApplyPromptTemplate(Template) {
         if (IsSet(PromptOptimizeEdit) && PromptOptimizeEdit) {
             PromptOptimizeEdit.Value := Template.Optimize
         }
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
 }
@@ -6436,7 +6909,7 @@ CreatePromptsTab(ConfigGUI, X, Y, W, H) {
                 if (Ctrl) {
                     try {
                         Ctrl.Visible := false
-                    } catch {
+                    } catch as err {
                     }
                 }
             }
@@ -6449,7 +6922,7 @@ CreatePromptsTab(ConfigGUI, X, Y, W, H) {
                 if (Ctrl) {
                     try {
                         Ctrl.Visible := false
-                    } catch {
+                    } catch as err {
                     }
                 }
             }
@@ -6502,7 +6975,7 @@ SwitchPromptsMainTab(TabKey) {
                 if (Ctrl) {
                     try {
                         Ctrl.Visible := false
-                    } catch {
+                    } catch as err {
                     }
                 }
             }
@@ -6517,7 +6990,7 @@ SwitchPromptsMainTab(TabKey) {
                     if (Ctrl) {
                         try {
                             Ctrl.Visible := false
-                        } catch {
+                        } catch as err {
                         }
                     }
                 }
@@ -6534,7 +7007,7 @@ SwitchPromptsMainTab(TabKey) {
                     if (Ctrl) {
                         try {
                             Ctrl.Visible := false
-                        } catch {
+                        } catch as err {
                         }
                     }
                 }
@@ -6560,7 +7033,7 @@ SwitchPromptsMainTab(TabKey) {
                         TabBtn.SetFont("s10 c" . UI_Colors.TextDim . " Norm", "Segoe UI")
                     }
                     TabBtn.Redraw()
-                } catch {
+                } catch as err {
                 }
             }
         }
@@ -6574,7 +7047,7 @@ SwitchPromptsMainTab(TabKey) {
                 if (Ctrl) {
                     try {
                         Ctrl.Visible := true
-                    } catch {
+                    } catch as err {
                     }
                 }
             }
@@ -6610,7 +7083,7 @@ SwitchPromptsMainTab(TabKey) {
                     if (Ctrl) {
                         try {
                             Ctrl.Visible := false
-                        } catch {
+                        } catch as err {
                         }
                     }
                 }
@@ -6623,7 +7096,7 @@ SwitchPromptsMainTab(TabKey) {
                     if (Ctrl) {
                         try {
                             Ctrl.Visible := false
-                        } catch {
+                        } catch as err {
                         }
                     }
                 }
@@ -6637,7 +7110,7 @@ SwitchPromptsMainTab(TabKey) {
                 if (TabBtn) {
                     try {
                         TabBtn.Visible := true
-                    } catch {
+                    } catch as err {
                     }
                 }
             }
@@ -6654,7 +7127,7 @@ SwitchPromptsMainTab(TabKey) {
                 PromptManagerListView.Opt("+Background" . UI_Colors.InputBg)
                 ; 强制刷新ListView
                 PromptManagerListView.Redraw()
-            } catch {
+            } catch as err {
             }
         }
         
@@ -6929,7 +7402,7 @@ SwitchPromptCategoryTab(CategoryName, IsInit := false) {
                 if (Ctrl) {
                     try {
                         Ctrl.Visible := false
-                    } catch {
+                    } catch as err {
                     }
                 }
             }
@@ -6947,7 +7420,7 @@ SwitchPromptCategoryTab(CategoryName, IsInit := false) {
                         ; 确保ListView在最上层，通过重新设置位置来提升Z-order
                         Ctrl.GetPos(&CtrlX, &CtrlY, &CtrlW, &CtrlH)
                         Ctrl.Move(CtrlX, CtrlY, CtrlW, CtrlH)
-                    } catch {
+                    } catch as err {
                     }
                 }
             }
@@ -6962,7 +7435,7 @@ SwitchPromptCategoryTab(CategoryName, IsInit := false) {
             PromptManagerListView.Move(ListViewX, ListViewY, ListViewW, ListViewH)
             ; 强制刷新ListView，确保背景色和内容正确显示
             PromptManagerListView.Redraw()
-        } catch {
+        } catch as err {
         }
     }
     
@@ -6974,7 +7447,7 @@ SwitchPromptCategoryTab(CategoryName, IsInit := false) {
         try {
             PromptManagerListView.Visible := true
             PromptManagerListView.Redraw()
-        } catch {
+        } catch as err {
         }
     }
 }
@@ -6995,13 +7468,13 @@ RefreshPromptListView() {
     ; 确保ListView可见
     try {
         PromptManagerListView.Visible := true
-    } catch {
+    } catch as err {
     }
     
     ; 清空列表
     try {
         PromptManagerListView.Delete()
-    } catch {
+    } catch as err {
     }
     
     ; 确定要显示的分类（如果CurrentPromptFolder为空，默认显示"基础"）
@@ -7041,7 +7514,7 @@ RefreshPromptListView() {
         try {
             PromptManagerListView.ModifyCol(1, 150)  ; 名称列固定150像素
             PromptManagerListView.ModifyCol(2, "AutoHdr")  ; 内容列自适应
-        } catch {
+        } catch as err {
             ; 如果控件已被销毁，忽略错误
             return
         }
@@ -7115,7 +7588,7 @@ RefreshPromptListView() {
         ListViewTextColor := (ThemeMode = "dark") ? "FFFFFF" : "000000"
         PromptManagerListView.Opt("+Background" . UI_Colors.InputBg)
         PromptManagerListView.Redraw()
-    } catch {
+    } catch as err {
     }
 }
 
@@ -7686,7 +8159,7 @@ OnPromptManagerPreview() {
             PreviewGUI.Show("w640 h550")
             return
         }
-    } catch {
+    } catch as err {
     }
 }
 
@@ -7710,7 +8183,7 @@ OnPromptManagerSendToCursor() {
                 return
             }
         }
-    } catch {
+    } catch as err {
     }
 }
 
@@ -7735,7 +8208,7 @@ OnPromptManagerCopy() {
             TrayTip("已复制", "提示", "Iconi 1")
             return
         }
-    } catch {
+    } catch as err {
     }
 }
 
@@ -7761,7 +8234,7 @@ OnPromptManagerEdit() {
             SetTimer(() => RefreshPromptListView(), -300)
             return
         }
-    } catch {
+    } catch as err {
     }
 }
 
@@ -7908,7 +8381,7 @@ OnPromptManagerMove() {
         ; 计算窗口高度（加上标题栏高度）
         WindowHeight := BtnY + 50 + TitleBarHeight
         MoveGUI.Show("w340 h" . WindowHeight)
-    } catch {
+    } catch as err {
     }
 }
 
@@ -7921,7 +8394,7 @@ CleanupMoveGUIListBox(*) {
             MoveGUIListBoxBrush := 0
         }
         MoveGUIListBoxHwnd := 0
-    } catch {
+    } catch as err {
     }
 }
 
@@ -7934,7 +8407,7 @@ CleanupMoveFromTemplateListBox(*) {
             MoveFromTemplateListBoxBrush := 0
         }
         MoveFromTemplateListBoxHwnd := 0
-    } catch {
+    } catch as err {
     }
 }
 
@@ -7999,12 +8472,12 @@ MoveTemplateConfirmHandler(MoveGUI, TargetTemplate, TemplateIndex, *) {
                 MoveGUIListBoxBrush := 0
             }
             MoveGUIListBoxHwnd := 0
-        } catch {
+        } catch as err {
         }
         
         MoveGUI.Destroy()
         TrayTip("已移动", "提示", "Iconi 1")
-    } catch {
+    } catch as err {
     }
 }
 
@@ -8161,7 +8634,7 @@ OnPromptManagerEditFromPreview(PreviewGUI, Template) {
     if (PreviewGUI != 0 && PreviewGUI) {
         try {
             PreviewGUI.Destroy()
-        } catch {
+        } catch as err {
         }
     }
     
@@ -8311,7 +8784,7 @@ MoveFromTemplateHandler(MoveGUI, Template, *) {
             MoveFromTemplateListBoxBrush := 0
         }
         MoveFromTemplateListBoxHwnd := 0
-    } catch {
+    } catch as err {
     }
     
     MoveGUI.Destroy()
@@ -8385,7 +8858,7 @@ OnPromptManagerRename() {
                 return
             }
         }
-    } catch {
+    } catch as err {
     }
 }
 
@@ -8441,7 +8914,7 @@ OnPromptManagerDelete() {
             RefreshPromptListView()
             TrayTip("已删除", "提示", "Iconi 1")
         }
-    } catch {
+    } catch as err {
     }
 }
 
@@ -8721,7 +9194,7 @@ ExpandTemplate(TemplateKey, CategoryName, Template) {
         if (DeleteBtn) {
             DeleteBtn.Visible := true
         }
-    } catch {
+    } catch as err {
     }
 }
 
@@ -8772,7 +9245,7 @@ CollapseTemplate(TemplateKey, CategoryName) {
         if (DeleteBtn) {
             DeleteBtn.Visible := false
         }
-    } catch {
+    } catch as err {
     }
 }
 
@@ -8836,7 +9309,7 @@ CopyTemplateToClipboardWithKey(TemplateKey, Template) {
         
         A_Clipboard := Content
         TrayTip("已复制到剪贴板", "提示", "Iconi 1")
-    } catch {
+    } catch as err {
         A_Clipboard := Template.Content
         TrayTip("已复制到剪贴板", "提示", "Iconi 1")
     }
@@ -9013,7 +9486,7 @@ RefreshPromptsManageTab() {
                 if (Ctrl && Ctrl != ManagePanel) {
                     Ctrl.Destroy()
                 }
-            } catch {
+            } catch as err {
             }
         }
         
@@ -9326,7 +9799,7 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     for Index, Ctrl in QuickActionConfigControls {
         try {
             Ctrl.Visible := false
-        } catch {
+        } catch as err {
         }
     }
     
@@ -9350,7 +9823,7 @@ CreateHotkeysTab(ConfigGUI, X, Y, W, H) {
     for Index, Ctrl in SearchCategoryConfigControls {
         try {
             Ctrl.Visible := false
-        } catch {
+        } catch as err {
         }
     }
     
@@ -9442,7 +9915,7 @@ GetImageSize(ImagePath) {
             DllCall("gdi32.dll\DeleteObject", "Ptr", hBitmap, "Ptr")
             return {Width: Width, Height: Height}
         }
-    } catch {
+    } catch as err {
         ; 如果获取失败，尝试使用 GDI+
         try {
             ; 初始化 GDI+
@@ -9459,7 +9932,7 @@ GetImageSize(ImagePath) {
                 DllCall("gdiplus.dll\GdipDisposeImage", "Ptr", pBitmap, "Int")
                 return {Width: Width, Height: Height}
             }
-        } catch {
+        } catch as err {
             ; 如果都失败，返回默认值
         }
     }
@@ -9568,7 +10041,7 @@ UpdateHotkeyAnimation(AnimArea, HotkeyKey) {
         if (!AnimArea || !AnimArea.Hwnd) {
             return  ; 控件已销毁，停止更新
         }
-    } catch {
+    } catch as err {
         return  ; 控件已销毁，停止更新
     }
     
@@ -9612,7 +10085,7 @@ UpdateHotkeyAnimation(AnimArea, HotkeyKey) {
             default:
                 AnimArea.Text := CreateGraphicAnimation(HotkeyKey, CurrentState)
         }
-    } catch {
+    } catch as err {
         ; 控件已销毁，忽略错误
     }
 }
@@ -9731,7 +10204,7 @@ SwitchHotkeyTab(HotkeyKey) {
                 if (Ctrl) {
                     try {
                         Ctrl.Visible := false
-                    } catch {
+                    } catch as err {
                         ; 忽略已销毁的控件
                     }
                 }
@@ -9759,7 +10232,7 @@ SwitchHotkeyTab(HotkeyKey) {
                 if (Ctrl) {
                     try {
                         Ctrl.Visible := true
-                    } catch {
+                    } catch as err {
                         ; 忽略已销毁的控件
                     }
                 }
@@ -9790,7 +10263,7 @@ SwitchHotkeysMainTab(MainTabKey) {
                 if (Ctrl) {
                     try {
                         Ctrl.Visible := false
-                    } catch {
+                    } catch as err {
                         ; 忽略已销毁的控件
                     }
                 }
@@ -9820,7 +10293,7 @@ SwitchHotkeysMainTab(MainTabKey) {
                 if (Ctrl) {
                     try {
                         Ctrl.Visible := true
-                    } catch {
+                    } catch as err {
                         ; 忽略已销毁的控件
                     }
                 }
@@ -9978,7 +10451,7 @@ CreateCursorRulesTabForPrompts(ConfigGUI, X, Y, W, H) {
                 if (Ctrl) {
                     try {
                         Ctrl.Visible := false
-                    } catch {
+                    } catch as err {
                     }
                 }
             }
@@ -10088,7 +10561,7 @@ SwitchCursorRulesSubTab(SubTabKey) {
                 if (Ctrl) {
                     try {
                         Ctrl.Visible := false
-                    } catch {
+                    } catch as err {
                         ; 忽略已销毁的控件
                     }
                 }
@@ -10116,7 +10589,7 @@ SwitchCursorRulesSubTab(SubTabKey) {
                 if (Ctrl) {
                     try {
                         Ctrl.Visible := true
-                    } catch {
+                    } catch as err {
                         ; 忽略已销毁的控件
                     }
                 }
@@ -10235,7 +10708,7 @@ ExportCursorRulesToFile(SubTabKey) {
                 CursorRulesDir := UserProfile . "\.cursor\rules"
                 try {
                     DirCreate(CursorRulesDir)
-                } catch {
+                } catch as err {
                     ; 如果创建失败，使用脚本目录
                     CursorRulesDir := A_ScriptDir . "\.cursorrules"
                     DirCreate(CursorRulesDir)
@@ -10393,7 +10866,7 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     global AISleepTime, AdvancedTabPanel, AISleepTimeEdit, AdvancedTabControls
     global ConfigPanelScreenIndex, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex, ClipboardPanelScreenIndex
     global ConfigPanelScreenRadio, MsgBoxScreenRadio, VoiceInputScreenRadio, CursorPanelScreenRadio
-    global Language, LangChinese, LangEnglish, UI_Colors
+    global Language, LangChinese, LangEnglish, UI_Colors, LaunchDelaySeconds, LaunchDelaySecondsEdit
     
     ; 创建标签页面板（默认隐藏）
     AdvancedTabPanel := ConfigGUI.Add("Text", "x" . X . " y" . Y . " w" . W . " h" . H . " Background" . UI_Colors.Background . " vAdvancedTabPanel", "")
@@ -10459,6 +10932,23 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     Hint1.SetFont("s9", "Segoe UI")
     AdvancedTabControls.Push(Hint1)
     
+    ; 倒计时延迟时间设置
+    YPos += 60
+    global LaunchDelaySeconds, LaunchDelaySecondsEdit
+    LabelCountdown := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("countdown_delay"))
+    LabelCountdown.SetFont("s11", "Segoe UI")
+    AdvancedTabControls.Push(LabelCountdown)
+    
+    YPos += 30
+    LaunchDelaySecondsEdit := ConfigGUI.Add("Edit", "x" . (X + 30) . " y" . YPos . " w150 h30 vLaunchDelaySecondsEdit Background" . InputBgColor . " c" . InputTextColor, LaunchDelaySeconds)
+    LaunchDelaySecondsEdit.SetFont("s11", "Segoe UI")
+    AdvancedTabControls.Push(LaunchDelaySecondsEdit)
+    
+    YPos += 40
+    HintCountdown := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h20 c" . UI_Colors.TextDim, GetText("countdown_delay_hint"))
+    HintCountdown.SetFont("s9", "Segoe UI")
+    AdvancedTabControls.Push(HintCountdown)
+    
     ; 配置管理功能（导出、导入、重置默认）
     YPos += 60
     LabelConfigManage := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w200 h25 c" . UI_Colors.Text, GetText("config_manage"))
@@ -10514,26 +11004,38 @@ GetDataTypeName(DataType) {
 ; 统一搜索函数
 ; ===================== 使用统一视图搜索 =====================
 SearchGlobalView(Keyword, MaxResults := 100) {
-    global ClipboardDB
+    global ClipboardDB, global_ST
     Results := []
-    
+
     if (!ClipboardDB || ClipboardDB = 0) {
         return Results
     }
-    
+
     if (Keyword = "") {
         return Results
     }
-    
+
+    ; 【入口熔断】在执行 Prepare 之前，必须先检查并释放旧句柄
+    if (IsObject(global_ST) && global_ST.HasProp("Free")) {
+        try {
+            global_ST.Free()
+        } catch as err {
+        }
+        global_ST := 0
+    }
+
     KeywordLower := StrLower(Keyword)
     ; 使用统一搜索视图进行搜索（字段顺序：Title, Content, Source, Timestamp, OriginalID）
     SQL := "SELECT Title, Content, Source, Timestamp, OriginalID FROM v_GlobalSearch WHERE LOWER(Title) LIKE ? OR LOWER(Content) LIKE ? ORDER BY Timestamp DESC LIMIT ?"
-    
+
     ST := ""
     try {
         if (!ClipboardDB.Prepare(SQL, &ST)) {
             return Results
         }
+        
+        ; 更新全局句柄
+        global_ST := ST
         
         ; 检查ST是否是有效的Statement对象
         if (!IsObject(ST) || !ST.HasProp("Bind")) {
@@ -10562,7 +11064,7 @@ SearchGlobalView(Keyword, MaxResults := 100) {
             ; 格式化时间
             try {
                 TimeFormatted := FormatTime(Timestamp, "yyyy-MM-dd HH:mm:ss")
-            } catch {
+            } catch as err {
                 TimeFormatted := Timestamp
             }
             
@@ -10612,12 +11114,13 @@ SearchGlobalView(Keyword, MaxResults := 100) {
     } catch as e {
         ; 错误处理
     } finally {
-        ; 强制释放 prepared statement
+        ; 【过程保底】无论查询成功还是报错，都在 finally 块中释放句柄
         try {
-            if (IsObject(ST) && ST.HasProp("Free")) {
-                ST.Free()
+            if (IsObject(global_ST) && global_ST.HasProp("Free")) {
+                global_ST.Free()
             }
-        } catch {
+            global_ST := 0
+        } catch as err {
         }
     }
     
@@ -10693,11 +11196,20 @@ SearchAllDataSources(Keyword, DataTypes := [], MaxResults := 10) {
 
 ; 搜索剪贴板历史
 SearchClipboardHistory(Keyword, MaxResults := 10) {
-    global ClipboardDB
+    global ClipboardDB, global_ST
     Results := []
     
     if (!ClipboardDB || ClipboardDB = 0) {
         return Results
+    }
+    
+    ; 【入口熔断】在执行 Prepare 之前，必须先检查并释放旧句柄
+    if (IsObject(global_ST) && global_ST.HasProp("Free")) {
+        try {
+            global_ST.Free()
+        } catch as err {
+        }
+        global_ST := 0
     }
     
     KeywordLower := StrLower(Keyword)
@@ -10709,6 +11221,9 @@ SearchClipboardHistory(Keyword, MaxResults := 10) {
         if (!ClipboardDB.Prepare(SQL, &ST)) {
             return Results
         }
+        
+        ; 更新全局句柄
+        global_ST := ST
         
         ; 检查ST是否是有效的Statement对象
         if (!IsObject(ST) || !ST.HasProp("Bind")) {
@@ -10743,7 +11258,7 @@ SearchClipboardHistory(Keyword, MaxResults := 10) {
             ; 格式化时间
             try {
                 TimeFormatted := FormatTime(Timestamp, "yyyy-MM-dd HH:mm:ss")
-            } catch {
+            } catch as err {
                 TimeFormatted := Timestamp
             }
             
@@ -10772,12 +11287,13 @@ SearchClipboardHistory(Keyword, MaxResults := 10) {
     } catch as e {
         ; 错误处理
     } finally {
-        ; 强制释放 prepared statement
+        ; 【过程保底】无论查询成功还是报错，都在 finally 块中强制执行 global_ST.Free()
         try {
-            if (IsObject(ST) && ST.HasProp("Free")) {
-                ST.Free()
+            if (IsObject(global_ST) && global_ST.HasProp("Free")) {
+                global_ST.Free()
             }
-        } catch {
+            global_ST := 0
+        } catch as err {
         }
     }
     
@@ -10984,7 +11500,7 @@ SearchConfigItems(Keyword, MaxResults := 10) {
                     }
                 }
             }
-        } catch {
+        } catch as err {
             ; 忽略读取错误
         }
     }
@@ -11014,11 +11530,20 @@ IsFilePath(Path) {
 
 ; 搜索文件路径
 SearchFilePaths(Keyword, MaxResults := 10) {
-    global ClipboardDB
+    global ClipboardDB, global_ST
     Results := []
     
     if (!ClipboardDB || ClipboardDB = 0) {
         return Results
+    }
+    
+    ; 【入口熔断】在执行 Prepare 之前，必须先检查并释放旧句柄
+    if (IsObject(global_ST) && global_ST.HasProp("Free")) {
+        try {
+            global_ST.Free()
+        } catch as err {
+        }
+        global_ST := 0
     }
     
     KeywordLower := StrLower(Keyword)
@@ -11032,6 +11557,9 @@ SearchFilePaths(Keyword, MaxResults := 10) {
         if (!ClipboardDB.Prepare(SQL, &ST)) {
             return Results
         }
+        
+        ; 更新全局句柄
+        global_ST := ST
         
         ; 检查ST是否是有效的Statement对象
         if (!IsObject(ST) || !ST.HasProp("Bind")) {
@@ -11086,12 +11614,13 @@ SearchFilePaths(Keyword, MaxResults := 10) {
     } catch as e {
         ; 错误处理
     } finally {
-        ; 强制释放 prepared statement
+        ; 【过程保底】无论查询成功还是报错，都在 finally 块中强制执行 global_ST.Free()
         try {
-            if (IsObject(ST) && ST.HasProp("Free")) {
-                ST.Free()
+            if (IsObject(global_ST) && global_ST.HasProp("Free")) {
+                global_ST.Free()
             }
-        } catch {
+            global_ST := 0
+        } catch as err {
         }
     }
     
@@ -11458,7 +11987,7 @@ OnSearchFilterClick(FilterType) {
                 ; 重新执行搜索
                 SearchResultsCache := SearchAllDataSources(Keyword)
             }
-        } catch {
+        } catch as err {
         }
     }
     
@@ -11500,7 +12029,7 @@ UpdateSearchFilterButtons(ActiveType) {
                     ; 未选中状态
                     Btn.Opt("Background" . UI_Colors.BtnBg)
                 }
-            } catch {
+            } catch as err {
             }
         }
     }
@@ -11518,7 +12047,7 @@ RefreshSearchResultsListView(SearchResults, FilterType := "") {
     try {
         ; 尝试访问控件属性来检查是否有效
         _ := SearchResultsListView.Hwnd
-    } catch {
+    } catch as err {
         ; 控件已被销毁，直接返回
         return
     }
@@ -11533,7 +12062,7 @@ RefreshSearchResultsListView(SearchResults, FilterType := "") {
                 SearchResultsCache := SearchAllDataSources(Keyword)
                 SearchResults := SearchResultsCache
             }
-        } catch {
+        } catch as err {
             ; 如果重新搜索失败，继续使用空的SearchResults
         }
     }
@@ -11541,24 +12070,24 @@ RefreshSearchResultsListView(SearchResults, FilterType := "") {
     ; 【Bug修复1】禁用重绘，减少闪烁
     try {
         SearchResultsListView.Opt("-Redraw")
-    } catch {
+    } catch as err {
     }
     
     ; 清空列表和数据
     try {
         SearchResultsListView.Delete()
-    } catch {
+    } catch as err {
         ; 如果删除失败，可能控件已被销毁
         try {
             SearchResultsListView.Opt("+Redraw")
-        } catch {
+        } catch as err {
         }
         return
     }
     
     try {
         SearchResultsData.Clear()
-    } catch {
+    } catch as err {
     }
     
     ; 收集所有结果项
@@ -11627,14 +12156,14 @@ RefreshSearchResultsListView(SearchResults, FilterType := "") {
         SearchResultsListView.ModifyCol(1, "AutoHdr")
         SearchResultsListView.ModifyCol(2, "AutoHdr")
         SearchResultsListView.ModifyCol(3, "AutoHdr")
-    } catch {
+    } catch as err {
         ; 如果添加失败，可能控件已被销毁，忽略错误
     }
     
     ; 【Bug修复1】重新启用重绘
     try {
         SearchResultsListView.Opt("+Redraw")
-    } catch {
+    } catch as err {
     }
 }
 
@@ -11648,7 +12177,7 @@ AddSearchResultItem(ListView, Item) {
     try {
         ; 尝试访问控件属性来检查是否有效
         _ := ListView.Hwnd
-    } catch {
+    } catch as err {
         ; 控件已被销毁，直接返回
         return
     }
@@ -11669,7 +12198,7 @@ AddSearchResultItem(ListView, Item) {
             global SearchResultsData := Map()
         }
         SearchResultsData[RowIndex] := Item
-    } catch {
+    } catch as err {
         ; 如果添加失败，可能控件已被销毁，忽略错误
     }
 }
@@ -11700,14 +12229,14 @@ PerformSearch() {
     try {
         ; 尝试访问控件属性来检查是否有效
         _ := SearchHistoryEdit.Hwnd
-    } catch {
+    } catch as err {
         ; 控件已被销毁，直接返回
         return
     }
     
     try {
         Keyword := SearchHistoryEdit.Value
-    } catch {
+    } catch as err {
         ; 如果获取值失败，可能控件已被销毁
         return
     }
@@ -11822,7 +12351,7 @@ HandleSearchResultAction(Item) {
                     FilePath := Item.ActionParams["FilePath"]
                     try {
                         Run(FilePath)
-                    } catch {
+                    } catch as err {
                         TrayTip("错误", "无法打开文件: " . FilePath, "Iconx 2")
                     }
                     
@@ -11897,7 +12426,7 @@ SetDDLMinVisible(*) {
             ; 为了确保生效，也尝试使用PostMessage（某些情况下PostMessage更可靠）
             DllCall("PostMessage", "Ptr", DefaultStartTabDDL_Hwnd_ForTimer, "UInt", 0x1701, "Ptr", 5, "Ptr", 0)
         }
-    } catch {
+    } catch as err {
         ; 如果设置失败，忽略错误（某些系统可能不支持此功能）
     }
 }
@@ -11976,7 +12505,7 @@ ResetToDefaults(*) {
                 UpdateMaterialRadioButtonStyle(PanelScreenRadio[1], true)
             }
         }
-    } catch {
+    } catch as err {
         ; 忽略控件失效错误
     }
     
@@ -11991,7 +12520,7 @@ InstallCursorChinese(*) {
     if (GuiID_ConfigGUI != 0) {
         try {
             CloseConfigGUI()
-        } catch {
+        } catch as err {
             ; 如果关闭失败，直接销毁
             try {
                 GuiID_ConfigGUI.Destroy()
@@ -12076,7 +12605,7 @@ HoverBtn(Ctrl, NormalColor, HoverColor) {
             Ctrl.OnEvent("Click", ClickHandler)
             Ctrl.ClickWrapped := true
         }
-    } catch {
+    } catch as err {
         ClickHandler := BindEventForClick(Ctrl)
         Ctrl.OnEvent("Click", ClickHandler)
     }
@@ -12098,7 +12627,7 @@ HoverBtnWithAnimation(Ctrl, NormalColor, HoverColor) {
     Ctrl.HoverColor := HoverColor
     try {
         Ctrl.IsAnimating := false  ; 标记是否正在动画中
-    } catch {
+    } catch as err {
         ; 如果无法设置属性，忽略
     }
     
@@ -12112,7 +12641,7 @@ HoverBtnWithAnimation(Ctrl, NormalColor, HoverColor) {
             Ctrl.OnEvent("Click", ClickHandler)
             Ctrl.ClickWrapped := true
         }
-    } catch {
+    } catch as err {
         ClickHandler := BindEventForClick(Ctrl)
         Ctrl.OnEvent("Click", ClickHandler)
     }
@@ -12126,12 +12655,12 @@ AnimateButtonHover(Ctrl, NormalColor, HoverColor, IsEntering) {
         if (Ctrl.HasProp("IsAnimating") && Ctrl.IsAnimating) {
             return
         }
-    } catch {
+    } catch as err {
     }
     
     try {
         Ctrl.IsAnimating := true
-    } catch {
+    } catch as err {
         ; 如果无法设置属性，直接设置颜色
         try {
             if (IsEntering) {
@@ -12139,7 +12668,7 @@ AnimateButtonHover(Ctrl, NormalColor, HoverColor, IsEntering) {
             } else {
                 Ctrl.BackColor := NormalColor
             }
-        } catch {
+        } catch as err {
         }
         return
     }
@@ -12159,7 +12688,7 @@ AnimateButtonHover(Ctrl, NormalColor, HoverColor, IsEntering) {
         
         try {
             Ctrl.BackColor := CurrentColor
-        } catch {
+        } catch as err {
             ; 忽略错误
         }
         
@@ -12173,12 +12702,12 @@ AnimateButtonHover(Ctrl, NormalColor, HoverColor, IsEntering) {
         } else {
             Ctrl.BackColor := NormalColor
         }
-    } catch {
+    } catch as err {
     }
     
     try {
         Ctrl.IsAnimating := false
-    } catch {
+    } catch as err {
     }
 }
 
@@ -12197,7 +12726,7 @@ AnimateButtonClick(Ctrl) {
         ; 使用定时器恢复颜色（通过闭包捕获变量）
         RestoreColorFunc := RestoreButtonColor.Bind(Ctrl, OriginalColor)
         SetTimer(RestoreColorFunc, -50)  ; 50ms后恢复
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
 }
@@ -12206,7 +12735,7 @@ AnimateButtonClick(Ctrl) {
 RestoreButtonColor(Ctrl, OriginalColor, *) {
     try {
         Ctrl.BackColor := OriginalColor
-    } catch {
+    } catch as err {
     }
 }
 
@@ -12358,7 +12887,7 @@ WM_CTLCOLORLISTBOX(wParam, lParam, Msg, Hwnd) {
             DllCall("gdi32.dll\SetBkColor", "Ptr", wParam, "UInt", BgBGR)
             return MoveFromTemplateListBoxBrush
         }
-    } catch {
+    } catch as err {
     }
     
     ; 如果不是我们的下拉框，返回0让系统使用默认处理
@@ -12398,7 +12927,7 @@ WM_CTLCOLOREDIT(wParam, lParam, Msg, Hwnd) {
                 return DDLBrush
             }
         }
-    } catch {
+    } catch as err {
     }
     
     ; 如果不是我们的下拉框，返回0让系统使用默认处理
@@ -12424,7 +12953,7 @@ WM_ENTERSIZEMOVE(wParam, lParam, Msg, Hwnd) {
         } else if (GuiID_ScreenshotButton != 0 && Hwnd = GuiID_ScreenshotButton.Hwnd) {
             IsOurWindow := true
         }
-    } catch {
+    } catch as err {
     }
     
     if (!IsOurWindow) {
@@ -12451,7 +12980,7 @@ WM_ENTERSIZEMOVE(wParam, lParam, Msg, Hwnd) {
         ; 暂停搜索引擎按钮刷新定时器
         SetTimer(() => RefreshSearchEngineButtons(), 0)
         DraggingTimers["RefreshSearchEngineButtons"] := true
-    } catch {
+    } catch as err {
     }
     
     ; 禁用ListView重绘（如果存在）
@@ -12464,7 +12993,7 @@ WM_ENTERSIZEMOVE(wParam, lParam, Msg, Hwnd) {
         if (ClipboardListViewHwnd) {
             DllCall("user32.dll\LockWindowUpdate", "Ptr", ClipboardListViewHwnd)
         }
-    } catch {
+    } catch as err {
     }
 }
 
@@ -12486,7 +13015,7 @@ WM_EXITSIZEMOVE(wParam, lParam, Msg, Hwnd) {
         } else if (GuiID_ScreenshotButton != 0 && Hwnd = GuiID_ScreenshotButton.Hwnd) {
             IsOurWindow := true
         }
-    } catch {
+    } catch as err {
     }
     
     if (!IsOurWindow) {
@@ -12499,7 +13028,7 @@ WM_EXITSIZEMOVE(wParam, lParam, Msg, Hwnd) {
     ; 恢复窗口更新锁定
     try {
         DllCall("user32.dll\LockWindowUpdate", "Ptr", 0)
-    } catch {
+    } catch as err {
     }
     
     ; 恢复所有定时器
@@ -12513,7 +13042,7 @@ WM_EXITSIZEMOVE(wParam, lParam, Msg, Hwnd) {
         ; 其他定时器在需要时会自动恢复，不需要在这里恢复
         ; 因为它们通常是延迟执行的（-100, -300等），不会持续运行
         DraggingTimers.Clear()
-    } catch {
+    } catch as err {
     }
     
     ; 强制刷新ListView（如果需要）
@@ -12526,7 +13055,7 @@ WM_EXITSIZEMOVE(wParam, lParam, Msg, Hwnd) {
             DllCall("user32.dll\InvalidateRect", "Ptr", ClipboardListViewHwnd, "Ptr", 0, "Int", 1)
             DllCall("user32.dll\UpdateWindow", "Ptr", ClipboardListViewHwnd)
         }
-    } catch {
+    } catch as err {
     }
     
     ; 【关键优化】如果是配置面板，在拖动结束后执行完整的布局更新
@@ -12538,7 +13067,7 @@ WM_EXITSIZEMOVE(wParam, lParam, Msg, Hwnd) {
             ; 延迟执行，确保窗口位置已稳定
             SetTimer(() => UpdateConfigGUILayoutAfterDrag(WinWidth, WinHeight), -50)
         }
-    } catch {
+    } catch as err {
     }
 }
 
@@ -12560,7 +13089,7 @@ UpdateConfigGUILayoutAfterDrag(Width, Height) {
             if (TitleBar) {
                 TitleBar.Move(, , Width)
             }
-        } catch {
+        } catch as err {
         }
         
         ; 更新侧边栏高度
@@ -12569,7 +13098,7 @@ UpdateConfigGUILayoutAfterDrag(Width, Height) {
             if (SidebarBg) {
                 SidebarBg.Move(, , , Height - 35)
             }
-        } catch {
+        } catch as err {
         }
         
         ; 更新内容区域大小
@@ -12586,7 +13115,7 @@ UpdateConfigGUILayoutAfterDrag(Width, Height) {
                 if (TabPanel) {
                     TabPanel.Move(ContentX, ContentY, ContentWidth, ContentHeight)
                 }
-            } catch {
+            } catch as err {
             }
         }
         
@@ -12605,7 +13134,7 @@ UpdateConfigGUILayoutAfterDrag(Width, Height) {
             if (CancelBtn) {
                 CancelBtn.Move(BtnStartX + BtnWidth + BtnSpacing, ButtonAreaY + 10)
             }
-        } catch {
+        } catch as err {
         }
         
         ; 保存窗口大小（使用延迟保存）
@@ -12613,7 +13142,7 @@ UpdateConfigGUILayoutAfterDrag(Width, Height) {
             WinGetPos(&WinX, &WinY, , , GuiID_ConfigGUI.Hwnd)
             WindowName := GetText("config_title")
             QueueWindowPositionSave(WindowName, WinX, WinY, Width, Height)
-        } catch {
+        } catch as err {
         }
         
         ; 解锁窗口更新
@@ -12621,11 +13150,11 @@ UpdateConfigGUILayoutAfterDrag(Width, Height) {
         
         ; 强制刷新窗口
         WinRedraw(GuiID_ConfigGUI.Hwnd)
-    } catch {
+    } catch as err {
         ; 确保解锁窗口更新
         try {
             DllCall("user32.dll\LockWindowUpdate", "Ptr", 0)
-        } catch {
+        } catch as err {
         }
     }
 }
@@ -12656,7 +13185,7 @@ WM_MOUSEMOVE(wParam, lParam, Msg, Hwnd) {
                         LastCursorPanelButton := 0
                     }
                 }
-            } catch {
+            } catch as err {
                 ; 忽略错误
             }
         }
@@ -12673,7 +13202,7 @@ WM_MOUSEMOVE(wParam, lParam, Msg, Hwnd) {
                             if (LastHoverCtrl.HasProp("IsAnimating")) {
                                 IsAnimating := LastHoverCtrl.IsAnimating
                             }
-                        } catch {
+                        } catch as err {
                         }
                         
                         if (IsAnimating) {
@@ -12681,13 +13210,13 @@ WM_MOUSEMOVE(wParam, lParam, Msg, Hwnd) {
                             LastHoverCtrl.BackColor := LastHoverCtrl.NormalColor
                             try {
                                 LastHoverCtrl.IsAnimating := false
-                            } catch {
+                            } catch as err {
                             }
                         } else {
                             ; 使用动画过渡
                             AnimateButtonHover(LastHoverCtrl, LastHoverCtrl.NormalColor, LastHoverCtrl.HoverColor, false)
                         }
-                    } catch {
+                    } catch as err {
                         try LastHoverCtrl.BackColor := LastHoverCtrl.NormalColor
                     }
                 }
@@ -12699,13 +13228,13 @@ WM_MOUSEMOVE(wParam, lParam, Msg, Hwnd) {
                         if (MouseCtrl.HasProp("IsAnimating")) {
                             IsAnimating := MouseCtrl.IsAnimating
                         }
-                    } catch {
+                    } catch as err {
                     }
                     
                     if (!IsAnimating) {
                         AnimateButtonHover(MouseCtrl, MouseCtrl.NormalColor, MouseCtrl.HoverColor, true)
                     }
-                } catch {
+                } catch as err {
                     try MouseCtrl.BackColor := MouseCtrl.HoverColor
                 }
                 LastHoverCtrl := MouseCtrl
@@ -12739,7 +13268,7 @@ CheckMouseLeave() {
                             RestoreDefaultCursorPanelDesc()
                             LastCursorPanelButton := 0
                         }
-                    } catch {
+                    } catch as err {
                         ; 如果出错，恢复默认说明
                         RestoreDefaultCursorPanelDesc()
                         LastCursorPanelButton := 0
@@ -12749,7 +13278,7 @@ CheckMouseLeave() {
                     LastCursorPanelButton := 0
                 }
             }
-        } catch {
+        } catch as err {
             ; 忽略错误
         }
     }
@@ -12772,7 +13301,7 @@ CheckMouseLeave() {
                         if (LastHoverCtrl.HasProp("IsAnimating")) {
                             IsAnimating := LastHoverCtrl.IsAnimating
                         }
-                    } catch {
+                    } catch as err {
                     }
                     
                     ; 使用动画过渡恢复颜色
@@ -12782,17 +13311,17 @@ CheckMouseLeave() {
                         LastHoverCtrl.BackColor := LastHoverCtrl.NormalColor
                         try {
                             LastHoverCtrl.IsAnimating := false
-                        } catch {
+                        } catch as err {
                         }
                     }
-                } catch {
+                } catch as err {
                     try LastHoverCtrl.BackColor := LastHoverCtrl.NormalColor
                 }
             }
             LastHoverCtrl := 0
             SetTimer , 0
         }
-    } catch {
+    } catch as err {
         ; 出错时清理
         LastHoverCtrl := 0
         SetTimer , 0
@@ -12903,7 +13432,7 @@ ShowConfigGUI() {
         try {
             WinActivate(GuiID_ConfigGUI.Hwnd)
             return
-        } catch {
+        } catch as err {
             ; 如果窗口已被销毁,继续创建新的
             GuiID_ConfigGUI := 0
         }
@@ -12914,7 +13443,7 @@ ShowConfigGUI() {
         try {
             GuiID_ClipboardManager.Destroy()
             GuiID_ClipboardManager := 0
-        } catch {
+        } catch as err {
             GuiID_ClipboardManager := 0
         }
     }
@@ -13312,7 +13841,7 @@ ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
             if (CloseBtnBottomRight) {
                 CloseBtnBottomRight.Move(Width - 40, Height - 40)
             }
-        } catch {
+        } catch as err {
         }
         ; 拖动时不保存位置，不更新其他控件，避免频繁重绘
         return
@@ -13322,7 +13851,7 @@ ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
     ; LockWindowUpdate 会阻止窗口重绘，直到调用 UnlockWindowUpdate
     try {
         DllCall("user32.dll\LockWindowUpdate", "Ptr", GuiObj.Hwnd)
-    } catch {
+    } catch as err {
         ; 如果锁定失败，继续执行（某些情况下可能失败）
     }
     
@@ -13386,7 +13915,7 @@ ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
         WinGetPos(&WinX, &WinY, , , GuiObj.Hwnd)
         WindowName := GetText("config_title")
         QueueWindowPositionSave(WindowName, WinX, WinY, Width, Height)
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
     
@@ -13443,7 +13972,7 @@ ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
                 try {
                     SearchHistoryEdit.GetPos(&EditX, &EditY, , &EditH)
                     SearchHistoryEdit.Move(EditX, EditY, ContentWidth - 100, EditH)
-                } catch {
+                } catch as err {
                 }
             }
             
@@ -13453,7 +13982,7 @@ ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
                 try {
                     SearchResultsListView.GetPos(&LVX, &LVY, , &LVH)
                     SearchResultsListView.Move(LVX, LVY, ContentWidth - 60, LVH)
-                } catch {
+                } catch as err {
                 }
             }
         }
@@ -13493,11 +14022,11 @@ ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
         ; 使用InvalidateRect和UpdateWindow来强制重绘整个窗口
         DllCall("user32.dll\InvalidateRect", "Ptr", GuiObj.Hwnd, "Ptr", 0, "Int", 1)  ; 1 = TRUE，重绘整个窗口
         DllCall("user32.dll\UpdateWindow", "Ptr", GuiObj.Hwnd)
-    } catch {
+    } catch as err {
         ; 如果解锁失败，尝试使用WinRedraw作为后备方案
         try {
             WinRedraw(GuiObj.Hwnd)
-        } catch {
+        } catch as err {
         }
     }
 }
@@ -13588,7 +14117,7 @@ SaveConfigGUIPosition(ConfigGUI) {
         WindowName := GetText("config_title")
         ; 使用延迟保存，统一管理
         QueueWindowPositionSave(WindowName, WinX, WinY, WinW, WinH)
-    } catch {
+    } catch as err {
         ; 忽略错误（窗口可能已关闭）
     }
 }
@@ -13610,7 +14139,7 @@ SaveClipboardManagerPosition() {
         WindowName := "📋 " . GetText("clipboard_manager")
         ; 使用延迟保存，统一管理
         QueueWindowPositionSave(WindowName, WinX, WinY, WinW, WinH)
-    } catch {
+    } catch as err {
         ; 忽略错误（窗口可能已关闭）
     }
 }
@@ -13632,7 +14161,7 @@ SaveVoiceInputPanelPosition() {
         WindowName := GetText("voice_input_active")
         ; 使用延迟保存，统一管理
         QueueWindowPositionSave(WindowName, WinX, WinY, WinW, WinH)
-    } catch {
+    } catch as err {
         ; 忽略错误（窗口可能已关闭）
     }
 }
@@ -13654,7 +14183,7 @@ SaveVoiceInputPosition() {
         WindowName := GetText("voice_search_title")
         ; 使用延迟保存，统一管理
         QueueWindowPositionSave(WindowName, WinX, WinY, WinW, WinH)
-    } catch {
+    } catch as err {
         ; 忽略错误（窗口可能已关闭）
     }
 }
@@ -13681,7 +14210,7 @@ CloseConfigGUI() {
             GuiID_ConfigGUI := 0
             return
         }
-    } catch {
+    } catch as err {
         ; 如果检查失败，说明窗口可能已经关闭
         GuiID_ConfigGUI := 0
         return
@@ -13698,7 +14227,7 @@ CloseConfigGUI() {
         try {
             DllCall("gdi32.dll\DeleteObject", "Ptr", DDLBrush)
             DDLBrush := 0
-        } catch {
+        } catch as err {
         }
     }
     DefaultStartTabDDL_Hwnd := 0
@@ -13727,7 +14256,7 @@ CloseConfigGUI() {
                         }
                         IniWrite(String(CapsLockHoldTimeSeconds), ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
                     }
-                } catch {
+                } catch as err {
                     ; 如果转换失败，保持当前全局变量的值并保存
                     if (IsSet(CapsLockHoldTimeSeconds) && CapsLockHoldTimeSeconds != "") {
                         IniWrite(String(CapsLockHoldTimeSeconds), ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
@@ -13812,7 +14341,7 @@ ChangeCustomIcon(*) {
                     SearchIcon.OnEvent("Click", (*) => ChangeCustomIcon())
                     SearchIcon.Opt("+E0x200")
                 }
-            } catch {
+            } catch as err {
                 MsgBox("更新图标失败: " . e.Message, "错误", "Iconx")
             }
         }
@@ -13846,11 +14375,11 @@ UpdateTrayIcon() {
     if (FileExist(IconPath)) {
         try {
             TraySetIcon(IconPath)
-        } catch {
+        } catch as err {
             ; 如果设置失败，尝试使用默认图标
             try {
                 TraySetIcon(A_ScriptDir "\favicon.ico")
-            } catch {
+            } catch as err {
             }
         }
     }
@@ -14015,7 +14544,7 @@ SaveConfig(*) {
                 QuickActionButtons.Push({Type: "Explain", Hotkey: "e"})
             }
         }
-    } catch {
+    } catch as err {
         ; 如果读取失败，使用默认配置
         if (!QuickActionButtons || QuickActionButtons.Length = 0) {
             QuickActionButtons := [
@@ -14074,6 +14603,22 @@ SaveConfig(*) {
     global Prompt_Explain := PromptExplainEdit ? PromptExplainEdit.Value : ""
     global Prompt_Refactor := PromptRefactorEdit ? PromptRefactorEdit.Value : ""
     global Prompt_Optimize := PromptOptimizeEdit ? PromptOptimizeEdit.Value : ""
+    ; 读取倒计时延迟时间
+    global LaunchDelaySeconds, LaunchDelaySecondsEdit
+    if (LaunchDelaySecondsEdit && LaunchDelaySecondsEdit.Value != "") {
+        LaunchDelaySeconds := Float(LaunchDelaySecondsEdit.Value)
+        ; 确保值在合理范围内（0.5秒到10秒）
+        if (LaunchDelaySeconds < 0.5) {
+            LaunchDelaySeconds := 0.5
+        } else if (LaunchDelaySeconds > 10.0) {
+            LaunchDelaySeconds := 10.0
+        }
+    } else {
+        ; 如果编辑框为空，保持当前全局变量的值
+        if (!IsSet(LaunchDelaySeconds) || LaunchDelaySeconds = "") {
+            LaunchDelaySeconds := 3.0  ; 只有在完全未设置时才使用默认值
+        }
+    }
     global PanelScreenIndex := NewScreenIndex
     global Language := NewLanguage
     global ConfigPanelScreenIndex := NewConfigPanelScreenIndex
@@ -14103,6 +14648,7 @@ SaveConfig(*) {
     IniWrite(AISleepTime, ConfigFile, "Settings", "AISleepTime")
     ; 【修复】使用字符串格式保存，确保精度和一致性
     IniWrite(String(CapsLockHoldTimeSeconds), ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
+    IniWrite(String(LaunchDelaySeconds), ConfigFile, "Settings", "LaunchDelaySeconds")
     IniWrite(Prompt_Explain, ConfigFile, "Settings", "Prompt_Explain")
     IniWrite(Prompt_Refactor, ConfigFile, "Settings", "Prompt_Refactor")
     IniWrite(Prompt_Optimize, ConfigFile, "Settings", "Prompt_Optimize")
@@ -14299,7 +14845,7 @@ CleanUp() {
                             CapsLockHoldTimeSeconds := 5.0
                         }
                     }
-                } catch {
+                } catch as err {
                     ; 转换失败，保持当前值
                 }
             }
@@ -14309,7 +14855,7 @@ CleanUp() {
         if (IsSet(CapsLockHoldTimeSeconds) && CapsLockHoldTimeSeconds != "") {
             IniWrite(String(CapsLockHoldTimeSeconds), ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
         }
-    } catch {
+    } catch as err {
         ; 忽略保存错误
     }
     
@@ -14433,7 +14979,7 @@ CapsLockCopy() {
             ; 获取当前活动窗口的进程名
             try {
                 SourceApp := WinGetProcessName("A")
-            } catch {
+            } catch as err {
                 SourceApp := "Unknown"
             }
             
@@ -14442,6 +14988,16 @@ CapsLockCopy() {
             
             ; 如果数据库已初始化，使用参数化查询插入到数据库
             if (ClipboardDB && ClipboardDB != 0) {
+                ; 【入口熔断】在执行 Prepare 之前，必须先检查并释放旧句柄
+                global global_ST
+                if (IsObject(global_ST) && global_ST.HasProp("Free")) {
+                    try {
+                        global_ST.Free()
+                    } catch as err {
+                    }
+                    global_ST := 0
+                }
+                
                 ; 使用参数化查询防止 SQL 注入和特殊字符问题
                 SQL := "INSERT INTO ClipboardHistory (SessionID, ItemIndex, Content, SourceApp) VALUES (?, ?, ?, ?)"
                 ST := ""
@@ -14449,6 +15005,8 @@ CapsLockCopy() {
                 ; 尝试使用参数化查询
                 try {
                     if (ClipboardDB.Prepare(SQL, &ST)) {
+                        ; 更新全局句柄
+                        global_ST := ST
                         PrepareSuccess := true
                         ; 绑定参数（1-based index）
                         if (ST.Bind(1, "Int", CurrentSessionID) && 
@@ -14460,7 +15018,7 @@ CapsLockCopy() {
                                 ; 插入成功
                                 try {
                                     FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 数据插入成功（参数化查询） - SessionID=" . CurrentSessionID . ", ItemIndex=" . StageStepCount . ", Content长度=" . StrLen(NewContent) . "`n", A_ScriptDir "\clipboard_debug.log")
-                                } catch {
+                                } catch as err {
                                 }
                                 ; 成功，跳过后续的 Exec 回退
                                 goto SkipExecFallback
@@ -14468,7 +15026,7 @@ CapsLockCopy() {
                                 ; 插入失败
                                 try {
                                     FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 数据库插入失败（参数化查询Step失败） - " . ST.ErrorMsg . "`n", A_ScriptDir "\clipboard_debug.log")
-                                } catch {
+                                } catch as err {
                                 }
                                 ; 回退到 Exec
                             }
@@ -14476,7 +15034,7 @@ CapsLockCopy() {
                             ; 绑定参数失败
                             try {
                                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 绑定参数失败 - " . ST.ErrorMsg . "`n", A_ScriptDir "\clipboard_debug.log")
-                            } catch {
+                            } catch as err {
                             }
                             ; 回退到 Exec
                         }
@@ -14484,22 +15042,23 @@ CapsLockCopy() {
                         ; Prepare 失败，回退到普通 Exec
                         try {
                             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: Prepare失败，回退到Exec - " . ClipboardDB.ErrorMsg . "`n", A_ScriptDir "\clipboard_debug.log")
-                        } catch {
+                        } catch as err {
                         }
                     }
                 } catch as e {
                     ; 参数化查询异常，回退到普通 Exec
                     try {
                         FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 参数化查询异常，回退到Exec - " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
-                    } catch {
+                    } catch as err {
                     }
                 } finally {
-                    ; 强制释放 prepared statement
+                    ; 【过程保底】无论查询成功还是报错，都在 finally 块中释放句柄
                     try {
-                        if (IsObject(ST) && ST.HasProp("Free")) {
-                            ST.Free()
+                        if (IsObject(global_ST) && global_ST.HasProp("Free")) {
+                            global_ST.Free()
                         }
-                    } catch {
+                        global_ST := 0
+                    } catch as err {
                     }
                 }
                 
@@ -14518,14 +15077,14 @@ CapsLockCopy() {
                 if (!ClipboardDB.Exec(SQL)) {
                     try {
                         FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 数据库插入失败（Exec） - " . ClipboardDB.ErrorMsg . "`nSQL: " . SQL . "`n", A_ScriptDir "\clipboard_debug.log")
-                    } catch {
+                    } catch as err {
                     }
                     TrayTip("【警告】保存到数据库失败`n错误：" . ClipboardDB.ErrorMsg, GetText("tip"), "Iconx 2")
                 } else {
                     ; Exec 插入成功
                     try {
                         FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 数据插入成功（Exec） - SessionID=" . CurrentSessionID . ", ItemIndex=" . StageStepCount . ", Content长度=" . StrLen(NewContent) . "`n", A_ScriptDir "\clipboard_debug.log")
-                    } catch {
+                    } catch as err {
                     }
                 }
                 
@@ -14567,7 +15126,7 @@ CapsLockCopy() {
                     CurrentColCount := 0
                     try {
                         CurrentColCount := ClipboardListView.GetCount("Col")
-                    } catch {
+                    } catch as err {
                         CurrentColCount := 2
                     }
                     
@@ -14580,7 +15139,7 @@ CapsLockCopy() {
                                 ; 第一列应该已经存在，所以这里添加的列从第2列开始
                                 ; 每列固定宽度 150px
                                 ClipboardListView.InsertCol(ColIndex, "150 Left", "第" . (ColIndex - 1) . "次")
-                            } catch {
+                            } catch as err {
                             }
                         }
                     }
@@ -14589,7 +15148,7 @@ CapsLockCopy() {
                         ; 行已存在，更新对应列的内容
                         try {
                             ClipboardListView.Modify(FoundRow, "Col" . NeededCol, ContentPreview)
-                        } catch {
+                        } catch as err {
                         }
                     } else {
                         ; 新阶段，在第一行插入新行
@@ -14610,7 +15169,7 @@ CapsLockCopy() {
                     try {
                         FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: ListView横向更新失败，执行完整刷新 - " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
                         SetTimer(RefreshClipboardListDelayed, -100)
-                    } catch {
+                    } catch as err {
                     }
                 }
             }
@@ -14645,7 +15204,7 @@ CapsLockCopy() {
             ; 获取当前活动窗口的进程名
             try {
                 SourceApp := WinGetProcessName("A")
-            } catch {
+            } catch as err {
                 SourceApp := "Unknown"
             }
             
@@ -14672,7 +15231,7 @@ CapsLockCopy() {
                             }
                         }
                     }
-                } catch {
+                } catch as err {
                     ; 如果获取失败，使用默认值1
                     ItemIndex := 1
                 }
@@ -14684,7 +15243,7 @@ CapsLockCopy() {
                     ; 调试：记录插入失败
                     try {
                         FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 数据库插入失败 - " . ClipboardDB.ErrorMsg . "`nSQL: " . SQL . "`n", A_ScriptDir "\clipboard_debug.log")
-                    } catch {
+                    } catch as err {
                     }
                     throw Error("数据库插入失败: " . ClipboardDB.ErrorMsg)
                 }
@@ -14692,7 +15251,7 @@ CapsLockCopy() {
                 ; 调试：记录插入成功
                 try {
                     FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 数据插入成功 - SessionID=" . CurrentSessionID . ", ItemIndex=" . ItemIndex . ", Content长度=" . StrLen(NewContent) . "`n", A_ScriptDir "\clipboard_debug.log")
-                } catch {
+                } catch as err {
                 }
                 
                 ; 获取总记录数用于显示（使用 GetTable 方法）
@@ -14842,7 +15401,7 @@ CapsLockPaste() {
                     }
                 }
             }
-        } catch {
+        } catch as err {
             ; 数据库读取失败，回退到数组
             if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
                 global ClipboardHistory_CapsLockC := []
@@ -15002,7 +15561,7 @@ CloseClipboardManager(*) {
                 IniWrite(WinHeight, ConfigFile, "Appearance", "ClipboardPanelHeight")
                 IniWrite(WinX, ConfigFile, "Appearance", "ClipboardPanelX")
                 IniWrite(WinY, ConfigFile, "Appearance", "ClipboardPanelY")
-            } catch {
+            } catch as err {
                 ; 忽略保存错误
             }
             
@@ -15030,7 +15589,7 @@ CloseClipboardManager(*) {
                         }
                     }
                 }
-            } catch {
+            } catch as err {
                 ; 忽略保存列宽错误
             }
             
@@ -15046,7 +15605,7 @@ CloseClipboardManager(*) {
         
         ; 销毁高亮覆盖层
         DestroyClipboardHighlightOverlay()
-    } catch {
+    } catch as err {
         ; 确保清理状态，即使出错也要清理
         ClipboardListViewHwnd := 0
         ClipboardListViewHighlightedRow := 0
@@ -15074,7 +15633,7 @@ ShowClipboardManager() {
         try {
             GuiID_ConfigGUI.Destroy()
             GuiID_ConfigGUI := 0
-        } catch {
+        } catch as err {
             GuiID_ConfigGUI := 0
         }
     }
@@ -15374,7 +15933,7 @@ ShowClipboardManager() {
         ; 但由于可能会影响其他功能，我们改为使用OnNotify来监听键盘事件
         ; 实际上，最实用的方法是：用户可以直接点击搜索按钮，或者使用Tab键切换到搜索按钮后按回车
         ; 暂时保留这个功能，但不强制要求回车键（用户可以使用搜索按钮）
-    } catch {
+    } catch as err {
     }
     
     ; 确保窗口在最上层并激活
@@ -15406,7 +15965,7 @@ ShowClipboardManager() {
             ListBox.SetFont("s10 c" . ListBoxTextColor, "Consolas")
             ListBox.Redraw()
         }
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
     
@@ -15437,7 +15996,7 @@ ShowClipboardManager() {
         if (!ClipboardListView || !IsObject(ClipboardListView)) {
             ClipboardListView := ListViewCtrl
         }
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
     
@@ -15509,7 +16068,7 @@ SwitchClipboardTab(TabName) {
             ShowClipboardManager()
             ; 等待 GUI 创建完成
             Sleep(100)
-        } catch {
+        } catch as err {
             return
         }
     }
@@ -15548,7 +16107,7 @@ SwitchClipboardTab(TabName) {
                     if (ClipboardCapsLockCTab && IsObject(ClipboardCapsLockCTab)) {
                         ClipboardCapsLockCTab.OnEvent("Click", SwitchClipboardTabCapsLockC)
                     }
-                } catch {
+                } catch as err {
                     ; 忽略错误
                 }
             }
@@ -15556,19 +16115,19 @@ SwitchClipboardTab(TabName) {
             if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
                 try {
                     ClipboardListBox := ClipboardGUI["ClipboardListBox"]
-                } catch {
+                } catch as err {
                     ; 忽略错误
                 }
             }
             if (!ClipboardCountText || !IsObject(ClipboardCountText)) {
                 try {
                     ClipboardCountText := ClipboardGUI["ClipboardCountText"]
-                } catch {
+                } catch as err {
                     ; 忽略错误
                 }
             }
         }
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
     
@@ -15599,7 +16158,7 @@ SwitchClipboardTab(TabName) {
             ; 切换到CtrlC标签时，销毁覆盖层
             DestroyClipboardHighlightOverlay()
         }
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
     
@@ -15624,7 +16183,7 @@ SwitchClipboardTab(TabName) {
                     }
                     ; 从后往前删除，避免索引变化
                     ClipboardListBox.Delete(CurrentList.Length)
-                } catch {
+                } catch as err {
                     break
                 }
             }
@@ -15637,7 +16196,7 @@ SwitchClipboardTab(TabName) {
                         break
                     }
                     ClipboardListBox.Delete(1)
-                } catch {
+                } catch as err {
                     break
                 }
             }
@@ -15650,12 +16209,12 @@ SwitchClipboardTab(TabName) {
                     Loop FinalCheck.Length {
                         try {
                             ClipboardListBox.Delete(1)
-                        } catch {
+                        } catch as err {
                             break
                         }
                     }
                 }
-            } catch {
+            } catch as err {
                 ; 忽略最终检查错误
             }
             
@@ -15664,11 +16223,11 @@ SwitchClipboardTab(TabName) {
                 if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
                     WinRedraw(GuiID_ClipboardManager.Hwnd)
                 }
-            } catch {
+            } catch as err {
                 ; 忽略重绘失败
             }
         }
-    } catch {
+    } catch as err {
         ; 忽略清空错误，继续执行
     }
     
@@ -15698,11 +16257,11 @@ SwitchClipboardTab(TabName) {
                         }
                     }
                 }
-            } catch {
+            } catch as err {
                 ; 忽略错误，继续执行
             }
         }
-    } catch {
+    } catch as err {
         ; 忽略样式更新错误，继续执行
     }
     
@@ -15739,7 +16298,7 @@ RefreshClipboardListAfterShow(*) {
                 SetTimer(() => RefreshClipboardList(), -200)
             }
         }
-    } catch {
+    } catch as err {
         ; 如果失败，使用更长的延迟作为后备
         SetTimer(() => RefreshClipboardList(), -300)
     }
@@ -15795,7 +16354,7 @@ RefreshClipboardList() {
                 if (!ClipboardListBox || !IsObject(ClipboardListBox)) {
                     try {
                         ClipboardListBox := ClipboardGUI["ClipboardListBox"]
-                    } catch {
+                    } catch as err {
                         ; 如果无法获取，返回
                         return
                     }
@@ -15804,7 +16363,7 @@ RefreshClipboardList() {
                 if (!ClipboardCountText || !IsObject(ClipboardCountText)) {
                     try {
                         ClipboardCountText := ClipboardGUI["ClipboardCountText"]
-                    } catch {
+                    } catch as err {
                         ; 如果无法获取，返回
                         return
                     }
@@ -15815,7 +16374,7 @@ RefreshClipboardList() {
                     return
                 }
             }
-        } catch {
+        } catch as err {
             ; 如果出错，但控件引用存在，继续使用现有引用
             if (!ClipboardListBox || !IsObject(ClipboardListBox) || !ClipboardCountText || !IsObject(ClipboardCountText)) {
                 return
@@ -15897,7 +16456,7 @@ RefreshClipboardList() {
                         CurrentHistory := []
                         HistoryLength := 0
                     }
-                } catch {
+                } catch as err {
                     ; 如果数据库读取失败，回退到数组
                     if (IsSet(ClipboardHistory_CapsLockC) && IsObject(ClipboardHistory_CapsLockC)) {
                         CurrentHistory := ClipboardHistory_CapsLockC
@@ -15950,7 +16509,7 @@ RefreshClipboardList() {
                 ; 从前往后删除第一项（最简单可靠的方法）
                 try {
                     ClipboardListBox.Delete(1)
-                } catch {
+                } catch as err {
                     ; 删除失败，可能已经为空，退出循环
                     break
                 }
@@ -15963,7 +16522,7 @@ RefreshClipboardList() {
                 Loop FinalCheckList.Length {
                     try {
                         ClipboardListBox.Delete(1)
-                    } catch {
+                    } catch as err {
                         break
                     }
                 }
@@ -15971,11 +16530,11 @@ RefreshClipboardList() {
             
             ; 重新启用ListBox更新
             ClipboardListBox.Opt("+Redraw")
-        } catch {
+        } catch as err {
             ; 如果清空过程出错，尝试重新启用更新
             try {
                 ClipboardListBox.Opt("+Redraw")
-            } catch {
+            } catch as err {
             }
         }
         
@@ -15989,7 +16548,7 @@ RefreshClipboardList() {
                 ClipboardListBox.Opt("+Background" . ListBoxBgColor)
                 ClipboardListBox.SetFont("s10 c" . ListBoxTextColor, "Consolas")
             }
-        } catch {
+        } catch as err {
             ; 忽略颜色设置错误
         }
         
@@ -16046,7 +16605,7 @@ RefreshClipboardList() {
             if (IsSet(LastSelectedIndex) && LastSelectedIndex > 0) {
                 PreviousSelectedIndex := LastSelectedIndex
             }
-        } catch {
+        } catch as err {
             PreviousSelectedIndex := 0
         }
         
@@ -16054,12 +16613,12 @@ RefreshClipboardList() {
         if (Items.Length > 0) {
             try {
                 ClipboardListBox.Add(Items)
-            } catch {
+            } catch as err {
                 ; 如果批量添加失败，尝试逐个添加
                 for Index, Item in Items {
                     try {
                         ClipboardListBox.Add(Item)
-                    } catch {
+                    } catch as err {
                         ; 忽略单个项目添加失败
                         continue
                     }
@@ -16072,7 +16631,7 @@ RefreshClipboardList() {
             try {
                 ClipboardListBox.Value := PreviousSelectedIndex
                 LastSelectedIndex := PreviousSelectedIndex
-            } catch {
+            } catch as err {
                 ; 如果恢复失败，清除保存的索引
                 LastSelectedIndex := 0
             }
@@ -16090,7 +16649,7 @@ RefreshClipboardList() {
                 ; 强制重绘窗口
                 WinRedraw(GuiID_ClipboardManager.Hwnd)
             }
-        } catch {
+        } catch as err {
             ; 忽略重绘失败
         }
     } catch as e {
@@ -16135,17 +16694,17 @@ RefreshClipboardListView() {
                 if (!ClipboardListView || !IsObject(ClipboardListView)) {
                     try {
                         ClipboardListView := ClipboardGUI["ClipboardListView"]
-                    } catch {
+                    } catch as err {
                     }
                 }
                 if (!ClipboardCountText || !IsObject(ClipboardCountText)) {
                     try {
                         ClipboardCountText := ClipboardGUI["ClipboardCountText"]
-                    } catch {
+                    } catch as err {
                     }
                 }
             }
-        } catch {
+        } catch as err {
         }
     }
     
@@ -16176,7 +16735,7 @@ RefreshClipboardListView() {
             }
             try {
                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: SQL查询失败 - " . ClipboardDB.ErrorMsg . "`n", A_ScriptDir "\clipboard_debug.log")
-            } catch {
+            } catch as err {
             }
             return
         }
@@ -16189,7 +16748,7 @@ RefreshClipboardListView() {
             }
             try {
                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 查询成功但无数据`n", A_ScriptDir "\clipboard_debug.log")
-            } catch {
+            } catch as err {
             }
             return
         }
@@ -16246,7 +16805,7 @@ RefreshClipboardListView() {
         CurrentColCount := 0
         try {
             CurrentColCount := ClipboardListView.GetCount("Col")
-        } catch {
+        } catch as err {
             CurrentColCount := 2
         }
         
@@ -16269,7 +16828,7 @@ RefreshClipboardListView() {
                         ContentColWidth := DefaultContentColWidth
                     }
                     ClipboardListView.InsertCol(ColIndex, ContentColWidth . " Left", "第" . (ColIndex - 1) . "次")
-                } catch {
+                } catch as err {
                 }
             }
         }
@@ -16302,7 +16861,7 @@ RefreshClipboardListView() {
                 ColNum := A_Index + 1
                 ClipboardListView.ModifyCol(ColNum, ContentColWidth . " Left", "第" . A_Index . "次")
             }
-        } catch {
+        } catch as err {
             ; 如果读取失败，使用默认宽度
             try {
                 ClipboardListView.ModifyCol(1, DefaultFirstColWidth . " Left", "阶段标签")
@@ -16310,7 +16869,7 @@ RefreshClipboardListView() {
                     ColNum := A_Index + 1
                     ClipboardListView.ModifyCol(ColNum, DefaultContentColWidth . " Left", "第" . A_Index . "次")
                 }
-            } catch {
+            } catch as err {
             }
         }
         
@@ -16365,7 +16924,7 @@ RefreshClipboardListView() {
             } catch as e {
                 try {
                     FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 添加行失败 - SessionID=" . SessionID . ", 错误=" . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
-                } catch {
+                } catch as err {
                 }
             }
         }
@@ -16376,13 +16935,13 @@ RefreshClipboardListView() {
         ; 调试：记录刷新完成
         try {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=" . SessionData.Count . ", 总项数=" . TotalItems . ", 最大列数=" . MaxItemIndex . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
         
         ; 强制刷新显示
         try {
             ClipboardListView.Redraw()
-        } catch {
+        } catch as err {
         }
         
     } catch as e {
@@ -16393,7 +16952,7 @@ RefreshClipboardListView() {
                 ClipboardCountText.Text := ""
             }
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 发生异常 - " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
     }
 }
@@ -16457,7 +17016,7 @@ OnClipboardManagerSize(GuiObj, MinMax, Width, Height) {
                 if (ImportBtn && IsObject(ImportBtn)) {
                     ImportBtn.Move(20 + (ButtonWidth + ButtonSpacing) * 4 + ButtonWidth + 20 + ButtonSpacing, ButtonY)
                 }
-            } catch {
+            } catch as err {
                 ; 如果无法访问控件，忽略错误
             }
             
@@ -16466,9 +17025,9 @@ OnClipboardManagerSize(GuiObj, MinMax, Width, Height) {
             if (HintText && IsObject(HintText)) {
                 HintText.Move(20, BottomAreaY + 55, Width - 40)
             }
-        } catch {
+        } catch as err {
         }
-    } catch {
+    } catch as err {
     }
 }
 
@@ -16479,14 +17038,14 @@ OnClipboardListViewDoubleClick(Control, Item, *) {
     ; 【调试日志】记录双击事件
     try {
         FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: Item=" . Item . ", Tab=" . ClipboardCurrentTab . "`n", A_ScriptDir "\clipboard_debug.log")
-    } catch {
+    } catch as err {
     }
     
     ; 只在CapsLockC标签时处理
     if (ClipboardCurrentTab != "CapsLockC" || !ClipboardListView || !IsObject(ClipboardListView)) {
         try {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: Early return - Tab=" . ClipboardCurrentTab . ", ListView=" . (ClipboardListView ? "exists" : "null") . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
         return
     }
@@ -16496,7 +17055,7 @@ OnClipboardListViewDoubleClick(Control, Item, *) {
     if (RowIndex < 1) {
         try {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: Invalid RowIndex=" . RowIndex . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
         return
     }
@@ -16508,7 +17067,7 @@ OnClipboardListViewDoubleClick(Control, Item, *) {
         if (!LV_Hwnd) {
             try {
                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: No LV_Hwnd`n", A_ScriptDir "\clipboard_debug.log")
-            } catch {
+            } catch as err {
             }
             return
         }
@@ -16539,7 +17098,7 @@ OnClipboardListViewDoubleClick(Control, Item, *) {
         ; 【调试日志】记录列索引
         try {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: Row=" . RowIndex . ", Col=" . ColIndex . ", iSubItem=" . iSubItem . ", ClientX=" . ClientX . ", ClientY=" . ClientY . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
         
         ; 如果列索引无效（iSubItem < 0 表示没有命中），默认使用第1列
@@ -16547,7 +17106,7 @@ OnClipboardListViewDoubleClick(Control, Item, *) {
             ColIndex := 1
             try {
                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: Invalid iSubItem, using Col=1`n", A_ScriptDir "\clipboard_debug.log")
-            } catch {
+            } catch as err {
             }
         }
         
@@ -16555,26 +17114,26 @@ OnClipboardListViewDoubleClick(Control, Item, *) {
         FullContent := GetCellFullContent(RowIndex, ColIndex)
         try {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: FullContent length=" . StrLen(FullContent) . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
         
         if (FullContent != "") {
             ShowClipboardCellContentWindow(FullContent, RowIndex, ColIndex)
             try {
                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: ShowClipboardCellContentWindow called`n", A_ScriptDir "\clipboard_debug.log")
-            } catch {
+            } catch as err {
             }
         } else {
             try {
                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: FullContent is empty, not showing window`n", A_ScriptDir "\clipboard_debug.log")
-            } catch {
+            } catch as err {
             }
         }
     } catch as e {
         ; 记录错误
         try {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick Error: " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
     }
 }
@@ -16587,7 +17146,7 @@ HandleClipboardListViewDoubleClick(lParam) {
     try {
         ; 【调试日志】记录 NM_DBLCLICK 消息
         FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK received`n", A_ScriptDir "\clipboard_debug.log")
-    } catch {
+    } catch as err {
     }
     
     ; 只在CapsLockC标签时处理
@@ -16625,7 +17184,7 @@ HandleClipboardListViewDoubleClick(lParam) {
         ; 【调试日志】
         try {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK: iItem=" . iItem . ", iSubItem=" . iSubItem . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
         
         ; 【关键修复】NMITEMACTIVATE 的 iItem 和 iSubItem 在双击非第一列时可能无效
@@ -16659,7 +17218,7 @@ HandleClipboardListViewDoubleClick(lParam) {
         ; 【调试日志】
         try {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK: After hittest - Row=" . RowIndex . ", Col=" . ColIndex . ", ClientX=" . ClientX . ", ClientY=" . ClientY . ", flags=0x" . Format("{:X}", flags) . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
         
         ; 检查是否点击了有效的单元格
@@ -16668,7 +17227,7 @@ HandleClipboardListViewDoubleClick(lParam) {
             FullContent := GetCellFullContent(RowIndex, ColIndex)
             try {
                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK: FullContent length=" . StrLen(FullContent) . "`n", A_ScriptDir "\clipboard_debug.log")
-            } catch {
+            } catch as err {
             }
             
             if (FullContent != "") {
@@ -16685,19 +17244,19 @@ HandleClipboardListViewDoubleClick(lParam) {
             } else {
                 try {
                     FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK: FullContent is empty`n", A_ScriptDir "\clipboard_debug.log")
-                } catch {
+                } catch as err {
                 }
             }
         } else {
             try {
                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK: Invalid cell - Row=" . RowIndex . ", Col=" . ColIndex . "`n", A_ScriptDir "\clipboard_debug.log")
-            } catch {
+            } catch as err {
             }
         }
     } catch as e {
         try {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] NM_DBLCLICK Error: " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
     }
     
@@ -16796,7 +17355,7 @@ OnClipboardListViewWMNotify(wParam, lParam, Msg, Hwnd) {
             ; 【调试日志】记录点击位置和详细信息
             try {
                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] Click: ClientX=" . ClientX . ", ClientY=" . ClientY . ", Result=" . Result . ", flags=0x" . Format("{:X}", flags) . ", iItem=" . iItem . ", iSubItem=" . iSubItem . "`n", A_ScriptDir "\clipboard_debug.log")
-            } catch {
+            } catch as err {
             }
             
             ; 转换为从1开始的索引
@@ -16824,7 +17383,7 @@ OnClipboardListViewWMNotify(wParam, lParam, Msg, Hwnd) {
         ; 出错时记录日志
         try {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] OnClipboardListViewWMNotify Error: " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
     }
     
@@ -16942,7 +17501,7 @@ HandleClipboardListViewCustomDraw(lParam) {
                 G := Integer("0x" . SubStr(TextColorStr, 3, 2))
                 B := Integer("0x" . SubStr(TextColorStr, 5, 2))
                 DefaultTextColor := (B << 16) | (G << 8) | R  ; BGR 格式
-            } catch {
+            } catch as err {
                 ; 如果获取失败，使用硬编码的默认值
                 if (ThemeMode = "dark") {
                     DefaultBgColor := 0x002B2B2B   ; 暗色背景 BGR
@@ -16989,7 +17548,7 @@ HandleClipboardListViewCustomDraw(lParam) {
     } catch as e {
         try {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] HandleClipboardListViewCustomDraw Error: " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
         return 0
     }
@@ -17032,7 +17591,7 @@ UnselectAllListViewRows() {
         ; 使用InvalidateRect强制重绘
         DllCall("InvalidateRect", "Ptr", LV_Hwnd, "Ptr", 0, "Int", 1)  ; 1 = TRUE，立即重绘
         DllCall("UpdateWindow", "Ptr", LV_Hwnd)
-    } catch {
+    } catch as err {
         ; 如果API调用失败，尝试使用Modify方法（可能较慢但更兼容）
         try {
             if (ClipboardListView && IsObject(ClipboardListView)) {
@@ -17042,7 +17601,7 @@ UnselectAllListViewRows() {
                 }
                 ClipboardListView.Redraw()
             }
-        } catch {
+        } catch as err {
             ; 忽略错误
         }
     }
@@ -17095,7 +17654,7 @@ UpdateClipboardHighlightOverlay() {
         ; 【调试日志】记录窗口和ListView位置
         try {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] Window: X=" . WinX . ", Y=" . WinY . ", ListView: X=" . LVX . ", Y=" . LVY . ", ScreenX=" . ScreenX . ", ScreenY=" . ScreenY . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
         
         ; 获取单元格的矩形位置（相对于ListView）
@@ -17117,7 +17676,7 @@ UpdateClipboardHighlightOverlay() {
         if (!Result) {
             try {
                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] LVM_GETITEMRECT FAILED`n", A_ScriptDir "\clipboard_debug.log")
-            } catch {
+            } catch as err {
             }
             DestroyClipboardHighlightOverlay()
             return
@@ -17138,7 +17697,7 @@ UpdateClipboardHighlightOverlay() {
             ; 【调试日志】记录每列的宽度(在累加前输出,显示该列的起始位置)
             try {
                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] Col " . A_Index . " width=" . ColWidth . ", CellLeft=" . CellLeft . "`n", A_ScriptDir "\clipboard_debug.log")
-            } catch {
+            } catch as err {
             }
             CellLeft += ColWidth
         }
@@ -17152,13 +17711,13 @@ UpdateClipboardHighlightOverlay() {
         ; 【调试日志】记录当前列的宽度
         try {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] Current Col " . ColIndex . " width=" . CellWidth . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
         
         ; 【调试日志】记录计算结果
         try {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CalcCell: Col=" . ColIndex . ", CellLeft=" . CellLeft . ", CellWidth=" . CellWidth . ", RowTop=" . RowTop . ", RowBottom=" . RowBottom . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
         
         ; 设置 Result 为成功（因为我们已经手动计算了）
@@ -17172,14 +17731,14 @@ UpdateClipboardHighlightOverlay() {
         ; 【调试日志】记录单元格位置和尺寸
         try {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CellRect: Left=" . CellLeft . ", Top=" . CellTop . ", Width=" . CellWidth . ", Height=" . CellHeight . ", ScreenX=" . CellScreenX . ", ScreenY=" . CellScreenY . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
         
         ; 如果单元格尺寸无效，销毁覆盖层
         if (CellWidth <= 0 || CellHeight <= 0) {
             try {
                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] Invalid cell size: Width=" . CellWidth . ", Height=" . CellHeight . "`n", A_ScriptDir "\clipboard_debug.log")
-            } catch {
+            } catch as err {
             }
             DestroyClipboardHighlightOverlay()
             return
@@ -17218,7 +17777,7 @@ UpdateClipboardHighlightOverlay() {
                 ; 重新创建高亮矩形
                 HighlightRect := ClipboardHighlightOverlay.Add("Text", "x0 y0 w" . CellWidth . " h" . CellHeight . " Background" . HighlightColor, "")
                 ClipboardHighlightOverlay.BackColor := HighlightColor
-            } catch {
+            } catch as err {
                 ; 如果更新失败，重新创建
                 DestroyClipboardHighlightOverlay()
                 ClipboardHighlightOverlay := Gui("+AlwaysOnTop -Caption +ToolWindow", "")
@@ -17233,7 +17792,7 @@ UpdateClipboardHighlightOverlay() {
         ; 【调试日志】记录覆盖层显示
         try {
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] Overlay shown at: X=" . CellScreenX . ", Y=" . CellScreenY . ", W=" . CellWidth . ", H=" . CellHeight . "`n", A_ScriptDir "\clipboard_debug.log")
-        } catch {
+        } catch as err {
         }
         
         ; 使用API设置覆盖层窗口的Z-order，确保它在ListView上方
@@ -17255,14 +17814,14 @@ UpdateClipboardHighlightOverlay() {
                     ; 检查窗口是否最小化
                     IsIconic := DllCall("IsIconic", "Ptr", OverlayHwnd, "Int")
                     FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] SetWindowPos: OverlayHwnd=" . OverlayHwnd . ", IsVisible=" . IsVisible . ", IsIconic=" . IsIconic . "`n", A_ScriptDir "\clipboard_debug.log")
-                } catch {
+                } catch as err {
                 }
             }
         } catch as e {
             ; 如果API调用失败，记录错误
             try {
                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] SetWindowPos Error: " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
-            } catch {
+            } catch as err {
             }
         }
         
@@ -17290,7 +17849,7 @@ DestroyClipboardHighlightOverlay() {
             DllCall("gdi32.dll\DeleteObject", "Ptr", ClipboardHighlightOverlayBrush)
             ClipboardHighlightOverlayBrush := 0
         }
-    } catch {
+    } catch as err {
         ClipboardHighlightOverlay := 0
         ClipboardHighlightOverlayBrush := 0
     }
@@ -17349,7 +17908,7 @@ OnClipboardListViewItemSelect(Control, Item, *) {
                 }
             }
         }
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
     
@@ -17397,7 +17956,7 @@ GetCellFullContent(RowIndex, ColIndex) {
                 }
             }
         }
-    } catch {
+    } catch as err {
     }
     
     return ""
@@ -17423,7 +17982,7 @@ OnClipboardSearchChange(Control, *) {
                     SearchNextBtn.Visible := false
                 }
             }
-        } catch {
+        } catch as err {
         }
     }
 }
@@ -17532,7 +18091,7 @@ OnClipboardSearch(*) {
                     if (SearchNextBtn && IsObject(SearchNextBtn)) {
                         SearchNextBtn.Visible := true
                     }
-                } catch {
+                } catch as err {
                 }
             }
             
@@ -17549,7 +18108,7 @@ OnClipboardSearch(*) {
                 if (SearchNextBtn && IsObject(SearchNextBtn)) {
                     SearchNextBtn.Visible := false
                 }
-            } catch {
+            } catch as err {
             }
         }
     } catch as e {
@@ -17632,7 +18191,7 @@ JumpToSearchMatch(MatchIndex) {
                 }
             }
         }
-    } catch {
+    } catch as err {
     }
 }
 
@@ -17680,7 +18239,7 @@ CloseCellContentWindow(*) {
     if (CellContentWindow && IsObject(CellContentWindow)) {
         try {
             CellContentWindow.Destroy()
-        } catch {
+        } catch as err {
         }
         CellContentWindow := 0
     }
@@ -17700,7 +18259,7 @@ OnCellContentCopy(*) {
                 TrayTip("复制失败", "无法获取内容", "Iconx 1")
             }
         }
-    } catch {
+    } catch as err {
         TrayTip("复制失败", "错误", "Iconx 1")
     }
 }
@@ -17712,7 +18271,7 @@ ShowClipboardCellContentWindow(Content, RowIndex, ColIndex) {
     if (CellContentWindow != 0) {
         try {
             CellContentWindow.Destroy()
-        } catch {
+        } catch as err {
         }
         CellContentWindow := 0
     }
@@ -17890,7 +18449,7 @@ GetClipboardDataForCurrentTab() {
                         return {Source: "database", Data: DataArray, IDs: IDArray}
                     }
                 }
-            } catch {
+            } catch as err {
                 ; 数据库读取失败，回退到数组
             }
         }
@@ -17919,7 +18478,7 @@ GetDatabaseIDByDisplayIndex(DisplayIndex) {
                 return DataInfo.IDs[DisplayIndex]
             }
         }
-    } catch {
+    } catch as err {
     }
     return 0
 }
@@ -17942,7 +18501,7 @@ ClearAllClipboard(*) {
                 try {
                     ; 从数据库清空
                     ClipboardDB.Exec("DELETE FROM ClipboardHistory")
-                } catch {
+                } catch as err {
                     ; 数据库清空失败，清空数组（兼容模式）
                     if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
                         global ClipboardHistory_CapsLockC := []
@@ -17968,7 +18527,7 @@ ClearAllClipboard(*) {
                 ; 强制重绘窗口
                 WinRedraw(GuiID_ClipboardManager.Hwnd)
             }
-        } catch {
+        } catch as err {
             ; 忽略重绘失败
         }
         ; 确保刷新完成后再显示提示
@@ -17989,7 +18548,7 @@ OnClipboardListBoxChange(*) {
                 if (Type(SelectedIndex) = "String" && SelectedIndex != "") {
                     try {
                         SelectedIndex := Integer(SelectedIndex)
-                    } catch {
+                    } catch as err {
                         SelectedIndex := 0
                     }
                 } else {
@@ -18001,7 +18560,7 @@ OnClipboardListBoxChange(*) {
                 LastSelectedIndex := SelectedIndex
             }
         }
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
 }
@@ -18021,7 +18580,7 @@ GetSelectedIndex(ListBox) {
                 ; 尝试转换为整数
                 try {
                     SelectedIndex := Integer(SelectedIndex)
-                } catch {
+                } catch as err {
                     SelectedIndex := 0
                 }
             } else {
@@ -18041,14 +18600,14 @@ GetSelectedIndex(ListBox) {
                         ListBox.Value := LastSelectedIndex
                         SelectedIndex := LastSelectedIndex
                     }
-                } catch {
+                } catch as err {
                     ; 忽略错误
                 }
             }
         }
         
         return SelectedIndex
-    } catch {
+    } catch as err {
         return 0
     }
 }
@@ -18071,7 +18630,7 @@ CopySelectedItem(*) {
                 if (ClipboardGUI) {
                     ClipboardListView := ClipboardGUI["ClipboardListView"]
                 }
-            } catch {
+            } catch as err {
                 return
             }
         }
@@ -18135,7 +18694,7 @@ CopySelectedItem(*) {
             if (ClipboardGUI) {
                 ClipboardListBox := ClipboardGUI["ClipboardListBox"]
             }
-        } catch {
+        } catch as err {
             return
         }
     }
@@ -18205,7 +18764,7 @@ DeleteSelectedItem(*) {
                 if (ClipboardGUI) {
                     ClipboardListView := ClipboardGUI["ClipboardListView"]
                 }
-            } catch {
+            } catch as err {
                 return
             }
         }
@@ -18264,7 +18823,7 @@ DeleteSelectedItem(*) {
             if (ClipboardGUI) {
                 ClipboardListBox := ClipboardGUI["ClipboardListBox"]
             }
-        } catch {
+        } catch as err {
             return
         }
     }
@@ -18378,7 +18937,7 @@ PasteSelectedToCursor(*) {
             if (ClipboardGUI) {
                 ClipboardListBox := ClipboardGUI["ClipboardListBox"]
             }
-        } catch {
+        } catch as err {
             return
         }
     }
@@ -18467,7 +19026,7 @@ PasteSelectedToCursor(*) {
         } else {
             TrayTip(FormatText("select_first", GetText("paste")), GetText("tip"), "Iconi 1")
         }
-    } catch {
+    } catch as err {
         TrayTip(GetText("operation_failed"), GetText("error"), "Iconx 1")
     }
 }
@@ -18756,24 +19315,19 @@ z:: {
 
 ; F 键：激活搜索中心或执行区域内操作
 f:: {
-    global GuiID_SearchCenter
-    ; 【修复】如果 SearchCenter 窗口已存在且激活，执行区域内操作逻辑
+    global IsCountdownActive
+    ; 如果倒计时正在进行，按下 F 立即加速执行（发射内容）
+    if (IsCountdownActive) {
+        ExecuteCountdownAction()
+        return
+    }
+    
+    ; 如果 SearchCenter 窗口已激活，执行区域内操作逻辑
     if (IsSearchCenterActive()) {
         HandleSearchCenterF()
     } else {
-        ; 如果窗口已存在但未激活，激活它而不是重新创建
-        if (GuiID_SearchCenter != 0 && IsObject(GuiID_SearchCenter) && GuiID_SearchCenter.HasProp("Hwnd")) {
-            try {
-                WinActivate("ahk_id " . GuiID_SearchCenter.Hwnd)
-                WinWaitActive("ahk_id " . GuiID_SearchCenter.Hwnd, , 0.5)
-            } catch {
-                ; 如果激活失败，重新创建窗口
-                ShowSearchCenter()
-            }
-        } else {
-            ; 窗口不存在，创建新窗口
-            ShowSearchCenter()
-        }
+        ; 否则激活搜索中心窗口
+        ShowSearchCenter()
     }
 }
 
@@ -18791,17 +19345,27 @@ g:: {
 
 #HotIf IsSearchCenterActive()
 
-; ESC 键：关闭搜索中心窗口
+; ESC 键：关闭搜索中心窗口或取消倒计时
 Esc:: {
-    SearchCenterCloseHandler()
+    global IsCountdownActive
+    if (IsCountdownActive) {
+        CancelCountdown()
+    } else {
+        SearchCenterCloseHandler()
+    }
 }
 
-; Enter 键：根据焦点区域执行不同操作
+; Enter 键：根据焦点区域执行不同操作，或加速倒计时
 Enter:: {
+    global IsCountdownActive
+    if (IsCountdownActive) {
+        ExecuteCountdownAction()
+        return
+    }
     global SearchCenterActiveArea, SearchCenterResultLV, SearchCenterSearchResults, SearchCenterSearchEdit
     
     if (SearchCenterActiveArea = "listview") {
-        ; 焦点在ListView：粘贴选中项
+        ; 焦点在ListView：启动倒计时
         if (!SearchCenterResultLV || SearchCenterResultLV = 0) {
             return
         }
@@ -18817,14 +19381,13 @@ Enter:: {
             }
         }
         
-        ; 获取选中项的内容并粘贴
+        ; 获取选中项的内容并启动倒计时
         if (SelectedRow > 0 && SelectedRow <= SearchCenterSearchResults.Length) {
             Item := SearchCenterSearchResults[SelectedRow]
             Content := Item.HasProp("Content") ? Item.Content : Item.Title
-            A_Clipboard := Content
-            Sleep(50)
-            Send("^v")  ; Ctrl+V 粘贴
-            TrayTip("已粘贴", Item.Title, "Iconi 1")
+            
+            ; 启动倒计时前的准备（不显示提示，直接进入倒计时准备粘贴）
+            SearchCenterListViewLaunchHandler(Content, Item.Title)
         }
     } else {
         ; 焦点在输入框或分类栏：执行批量搜索
@@ -18850,7 +19413,38 @@ $s::HandleSearchCenterDown()  ; CapsLock+S = ↓，完全复刻方向键行为
 $a::HandleSearchCenterLeft()  ; CapsLock+A = ←，完全复刻方向键行为
 $d::HandleSearchCenterRight() ; CapsLock+D = →，完全复刻方向键行为
 
+; F 键：在倒计时期间加速执行
+$f:: {
+    global IsCountdownActive
+    if (IsCountdownActive) {
+        ExecuteCountdownAction()
+    } else {
+        HandleSearchCenterF()
+    }
+}
+
 #HotIf  ; 结束 SearchCenter 作用域
+
+; ===================== 倒计时期间全局热键 =====================
+; 【作用域】倒计时激活时全局生效（优先级最高）
+#HotIf IsCountdownActive
+
+; F 键：加速执行
+f:: {
+    ExecuteCountdownAction()
+}
+
+; Enter 键：加速执行
+Enter:: {
+    ExecuteCountdownAction()
+}
+
+; ESC 键：取消倒计时
+Esc:: {
+    CancelCountdown()
+}
+
+#HotIf  ; 结束倒计时作用域
 
 ; ===================== 全局 CapsLock 热键（优先级较低）=====================
 ; 【作用域】CapsLock 按下时全局生效（SearchCenter 除外，因为上面已经定义了更具体的热键）
@@ -19031,7 +19625,7 @@ SetAutoStart(Enable) {
             ; 删除自启动项
             try {
                 RegDelete(RegKey, AppName)
-            } catch {
+            } catch as err {
                 ; 如果注册表项不存在，忽略错误
             }
         }
@@ -19065,13 +19659,22 @@ class GlobalSearchEngine {
     }
     
     static PerformSearch(Keyword, MaxResults := 100) {
-        global ClipboardDB, GlobalSearchStatement
+        global ClipboardDB, GlobalSearchStatement, global_ST
         Results := []
         ST := 0  ; 局部 Statement 句柄
         
         ; 检查数据库是否已初始化
         if (!IsObject(ClipboardDB) || ClipboardDB = 0) {
             return Results
+        }
+        
+        ; 【入口熔断】在执行任何 Prepare 之前，必须先检查并释放旧句柄
+        if (IsObject(global_ST) && global_ST.HasProp("Free")) {
+            try {
+                global_ST.Free()
+            } catch as err {
+            }
+            global_ST := 0
         }
         
         ; 【熔断机制】在执行任何 Prepare 之前，强制释放旧的 Statement
@@ -19102,6 +19705,7 @@ class GlobalSearchEngine {
             
             ; 更新全局 Statement（用于熔断机制）
             GlobalSearchStatement := ST
+            global_ST := ST  ; 同时更新 global_ST
 
             ; 绑定参数（防止 SQL 注入并提高性能）
             ST.Bind(1, SearchPattern)
@@ -19123,13 +19727,13 @@ class GlobalSearchEngine {
             } catch as e {
                 OutputDebug("搜索 Step() 循环出错: " . e.Message)
             } finally {
-                ; 【关键：修复泄露】无论成功、失败还是被用户提前终止，都必须释放
-                if (IsObject(ST) && ST != 0) {
-                    try {
-                        ST.Free()
-                    } catch {
-                        ; 忽略释放时的错误
+                ; 【过程保底】无论查询成功还是报错，都在 finally 块中释放句柄
+                try {
+                    if (IsObject(global_ST) && global_ST.HasProp("Free")) {
+                        global_ST.Free()
                     }
+                    global_ST := 0
+                } catch as err {
                 }
                 ; 清空全局 Statement
                 if (GlobalSearchStatement = ST) {
@@ -19138,13 +19742,15 @@ class GlobalSearchEngine {
             }
         } catch as e {
             OutputDebug("搜索出错: " . e.Message)
-            ; 确保异常时也释放句柄
-            if (IsObject(ST) && ST != 0) {
-                try {
-                    ST.Free()
-                } catch {
+            ; 【过程保底】确保异常时也释放句柄
+            try {
+                if (IsObject(global_ST) && global_ST.HasProp("Free")) {
+                    global_ST.Free()
                 }
+                global_ST := 0
+            } catch as err {
             }
+            ; 注意：global_ST 已在上面释放，这里只清理 GlobalSearchStatement
             if (GlobalSearchStatement = ST) {
                 GlobalSearchStatement := 0
             }
@@ -19182,7 +19788,7 @@ HandleSearchCenterUp() {
                     if (SearchCenterSearchEdit != 0) {
                         try {
                             SearchCenterSearchEdit.Focus()
-                        } catch {
+                        } catch as err {
                             ; 忽略焦点错误
                         }
                     }
@@ -19213,7 +19819,7 @@ HandleSearchCenterDown() {
         if (SearchCenterSearchEdit != 0) {
             try {
                 SearchCenterSearchEdit.Focus()
-            } catch {
+            } catch as err {
                 ; 忽略焦点错误
             }
         }
@@ -19226,8 +19832,11 @@ HandleSearchCenterDown() {
                 if (GuiID_SearchCenter != 0 && !WinActive("ahk_id " . GuiID_SearchCenter.Hwnd)) {
                     WinActivate("ahk_id " . GuiID_SearchCenter.Hwnd)
                 }
+                ; 【优化】自动选中第一行，以便用户直接按 F 键"开火"
                 if (SearchCenterResultLV.GetCount() > 0) {
                     SearchCenterResultLV.Modify(1, "Select Focus")
+                    ; 确保第一行被选中并聚焦
+                    Sleep(50)  ; 短暂延迟确保选中生效
                 }
                 ControlFocus(SearchCenterResultLV)
             } catch as e {
@@ -19292,7 +19901,7 @@ HandleSearchCenterF() {
         ; 搜索引擎/输入框区域：执行搜索操作
         ExecuteSearchCenterBatchSearch()
     } else if (SearchCenterActiveArea = "listview") {
-        ; ListView 区域：执行粘贴到 Cursor
+        ; ListView 区域：如果已选中数据，立即启动倒计时准备粘贴
         if (!SearchCenterResultLV || SearchCenterResultLV = 0) {
             return
         }
@@ -19309,32 +19918,389 @@ HandleSearchCenterF() {
             }
         }
         
-        ; 获取选中内容并执行粘贴
+        ; 获取选中内容并立即启动倒计时
         if (SelectedRow > 0 && SelectedRow <= SearchCenterSearchResults.Length) {
             Item := SearchCenterSearchResults[SelectedRow]
             Content := Item.HasProp("Content") ? Item.Content : Item.Title
             
+            ; 调用启动处理函数（封装了隐藏窗口和启动倒计时的逻辑）
+            SearchCenterListViewLaunchHandler(Content, Item.Title)
+        }
+    }
+}
+
+; 搜索中心内容发射处理程序（封装逻辑，供 Enter 和 F 键共用）
+SearchCenterListViewLaunchHandler(Content, Title) {
+    global GuiID_SearchCenter, global_ST
+    
+    ; 1. 彻底销毁搜索中心窗口，确保 CapsLock + F 逻辑完美重置
+    try {
+        if (GuiID_SearchCenter != 0 && IsObject(GuiID_SearchCenter)) {
+            GuiID_SearchCenter.Destroy()
+            GuiID_SearchCenter := 0
+        }
+        ; 2. 释放数据库资源，防止占用
+        if (IsSet(global_ST) && IsObject(global_ST) && global_ST.HasProp("Free")) {
             try {
-                ; 复制到剪贴板
-                A_Clipboard := Content
-                Sleep(150) ; 等待剪贴板写入完成
-                
-                ; 查找并激活 Cursor 窗口
-                if (WinExist("ahk_exe Cursor.exe")) {
-                    WinActivate("ahk_exe Cursor.exe")
-                    ; 尽量等待激活完成
-                    WinWaitActive("ahk_exe Cursor.exe", , 1)
-                } else if (IsSet(CursorPath) && CursorPath != "" && FileExist(CursorPath)) {
-                    Run(CursorPath)
-                    WinWaitActive("ahk_exe Cursor.exe", , 5)
-                }
-                
-                ; 发送粘贴命令
-                Send("^v")
-                TrayTip("已粘贴到 Cursor", Item.Title, "Iconi 1")
-            } catch as e {
-                TrayTip("粘贴失败: " . e.Message, "错误", "Iconx 2")
+                global_ST.Free()
+            } catch as err {
             }
+            global_ST := 0
+        }
+    } catch as err {
+    }
+    
+    ; 3. 启动倒计时功能
+    StartActionCountdown(Content, Title)
+}
+
+; ===================== 圆环倒计时模块 =====================
+; 启动倒计时
+StartActionCountdown(Content, Title := "") {
+    global LaunchDelaySeconds, IsCountdownActive, CountdownGui, CountdownTimer
+    global CountdownStartTime, CountdownContent, GuiID_SearchCenter
+    
+    ; 如果倒计时已激活，再次按 F 或 Enter 则加速执行
+    if (IsCountdownActive) {
+        ExecuteCountdownAction()
+        return
+    }
+    
+    ; 保存内容
+    CountdownContent := Content
+    
+    ; 创建倒计时 GUI
+    CreateCountdownGui()
+    
+    ; 启动倒计时
+    IsCountdownActive := true
+    CountdownStartTime := A_TickCount
+    CountdownTimer := SetTimer(UpdateCountdown, 30)  ; 每 30ms 刷新一次
+}
+
+; 创建倒计时 GUI
+CreateCountdownGui() {
+    global CountdownGui, CountdownGraphics, CountdownBitmap
+    global LaunchDelaySeconds
+    
+    ; 如果 GUI 已存在，先销毁
+    if (CountdownGui != 0) {
+        try {
+            CleanupCountdownGui()
+        } catch as err {
+        }
+    }
+    
+    ; 初始化 GDI+
+    InitGDI()
+    
+    ; 1. 创建透明分层窗口
+    ; WS_EX_LAYERED (0x80000) + WS_EX_TRANSPARENT (0x20) + WS_EX_TOPMOST (0x8)
+    CountdownGui := Gui("+AlwaysOnTop +Disabled -Caption +E0x80028", "ActionCountdown")
+    
+    ; 设置窗口大小
+    WindowSize := 100
+    
+    ; 2. 计算位置（在当前鼠标所在的显示器居中）
+    ; 获取鼠标位置
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&mX, &mY)
+    
+    ; 获取显示器信息
+    TargetMonitor := 1
+    MonitorCount := MonitorGetCount()
+    loop MonitorCount {
+        MonitorGet(A_Index, &mLeft, &mTop, &mRight, &mBottom)
+        if (mX >= mLeft && mX <= mRight && mY >= mTop && mY <= mBottom) {
+            TargetMonitor := A_Index
+            break
+        }
+    }
+    
+    MonitorGet(TargetMonitor, &Left, &Top, &Right, &Bottom)
+    CountdownX := Left + (Right - Left - WindowSize) / 2
+    CountdownY := Top + (Bottom - Top - WindowSize) / 2
+    
+    ; 3. 显示窗口（指定精确位置和分层属性）
+    CountdownGui.Show("x" . CountdownX . " y" . CountdownY . " w" . WindowSize . " h" . WindowSize . " NA")
+}
+
+; 更新倒计时显示
+UpdateCountdown(*) {
+    global LaunchDelaySeconds, IsCountdownActive, CountdownStartTime
+    global CountdownGui, CountdownGraphics, CountdownBitmap
+    global CountdownContent
+    
+    if (!IsCountdownActive || CountdownGui = 0) {
+        return
+    }
+    
+    ; 计算剩余时间
+    Elapsed := (A_TickCount - CountdownStartTime) / 1000.0
+    Remaining := LaunchDelaySeconds - Elapsed
+    
+    ; 如果倒计时结束，执行操作
+    if (Remaining <= 0) {
+        ExecuteCountdownAction()
+        return
+    }
+    
+    ; 绘制圆环
+    DrawCountdownRing(Remaining)
+}
+
+; 绘制倒计时圆环
+DrawCountdownRing(Remaining) {
+    global CountdownGui, LaunchDelaySeconds
+    
+    if (CountdownGui = 0) {
+        return
+    }
+    
+    WindowSize := 100
+    CenterX := WindowSize / 2
+    CenterY := WindowSize / 2
+    Radius := 35  ; 稍微增大圆环
+    StrokeWidth := 5  ; 减细一些，更精致
+    
+    ; 创建内存 DC 和位图用于绘制
+    hdc := DllCall("GetDC", "Ptr", CountdownGui.Hwnd, "Ptr")
+    hdcMem := DllCall("CreateCompatibleDC", "Ptr", hdc, "Ptr")
+    hbm := DllCall("CreateCompatibleBitmap", "Ptr", hdc, "Int", WindowSize, "Int", WindowSize, "Ptr")
+    hbmOld := DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hbm)
+    
+    ; 初始化 GDI+ Graphics
+    pGraphics := 0
+    DllCall("gdiplus.dll\GdipCreateFromHDC", "Ptr", hdcMem, "Ptr*", &pGraphics)
+    
+    if (!pGraphics) {
+        DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hbmOld)
+        DllCall("DeleteObject", "Ptr", hbm)
+        DllCall("DeleteDC", "Ptr", hdcMem)
+        DllCall("ReleaseDC", "Ptr", CountdownGui.Hwnd, "Ptr", hdc)
+        return
+    }
+    
+    try {
+        ; 设置高质量渲染
+        DllCall("gdiplus.dll\GdipSetSmoothingMode", "Ptr", pGraphics, "Int", 2)  ; SmoothingModeAntiAlias
+        DllCall("gdiplus.dll\GdipSetTextRenderingHint", "Ptr", pGraphics, "Int", 4)  ; TextRenderingHintAntiAlias
+        
+        ; 清除背景（完全透明）
+        DllCall("gdiplus.dll\GdipGraphicsClear", "Ptr", pGraphics, "UInt", 0x00000000)
+        
+        ; 计算进度（从 1.0 递减至 0.0）
+        Progress := Remaining / LaunchDelaySeconds
+        StartAngle := 270.0  ; 从顶部开始
+        SweepAngle := 360.0 * Progress
+        
+        ; 绘制背景圆环（深色底环，作为辅助参照）
+        DllCall("gdiplus.dll\GdipCreatePen1", "UInt", 0x20007AFF, "Float", StrokeWidth, "Int", 0, "Ptr*", &pPenBg := 0)
+        DllCall("gdiplus.dll\GdipDrawArc", "Ptr", pGraphics, "Ptr", pPenBg, "Float", CenterX - Radius, "Float", CenterY - Radius, "Float", Radius * 2, "Float", Radius * 2, "Float", 0, "Float", 360)
+        DllCall("gdiplus.dll\GdipDeletePen", "Ptr", pPenBg)
+        
+        ; 绘制进度圆弧（鲜艳的蓝色）
+        ; 采用 iOS 风格的蓝色 #007AFF
+        DllCall("gdiplus.dll\GdipCreatePen1", "UInt", 0xFF007AFF, "Float", StrokeWidth, "Int", 0, "Ptr*", &pPenProgress := 0)
+        DllCall("gdiplus.dll\GdipSetPenStartCap", "Ptr", pPenProgress, "Int", 2)  ; LineCapRound
+        DllCall("gdiplus.dll\GdipSetPenEndCap", "Ptr", pPenProgress, "Int", 2)  ; LineCapRound
+        DllCall("gdiplus.dll\GdipDrawArc", "Ptr", pGraphics, "Ptr", pPenProgress, "Float", CenterX - Radius, "Float", CenterY - Radius, "Float", Radius * 2, "Float", Radius * 2, "Float", StartAngle, "Float", SweepAngle)
+        DllCall("gdiplus.dll\GdipDeletePen", "Ptr", pPenProgress)
+        
+        ; 绘制中心文本 "Esc取消"
+        ; 第一行 Esc，第二行 取消，增加识别度
+        Text := "Esc`n取消"
+        DllCall("gdiplus.dll\GdipCreateFontFamilyFromName", "WStr", "Microsoft YaHei", "Ptr", 0, "Ptr*", &pFontFamily := 0)
+        DllCall("gdiplus.dll\GdipCreateFont", "Ptr", pFontFamily, "Float", 11, "Int", 1, "Int", 0, "Ptr*", &pFont := 0) ; Bold
+        
+        DllCall("gdiplus.dll\GdipCreateStringFormat", "Int", 0, "UShort", 0, "Ptr*", &pStringFormat := 0)
+        DllCall("gdiplus.dll\GdipSetStringFormatAlign", "Ptr", pStringFormat, "Int", 1) ; Center
+        DllCall("gdiplus.dll\GdipSetStringFormatLineAlign", "Ptr", pStringFormat, "Int", 1) ; Middle
+        
+        DllCall("gdiplus.dll\GdipCreateSolidFill", "UInt", 0xFFFFFFFF, "Ptr*", &pBrush := 0)
+        
+        Rect := Buffer(16, 0)
+        NumPut("Float", 0, Rect, 0)
+        NumPut("Float", 0, Rect, 4)
+        NumPut("Float", WindowSize, Rect, 8)
+        NumPut("Float", WindowSize, Rect, 12)
+        
+        DllCall("gdiplus.dll\GdipDrawString", "Ptr", pGraphics, "WStr", Text, "Int", -1, "Ptr", pFont, "Ptr", Rect, "Ptr", pStringFormat, "Ptr", pBrush)
+        
+        ; 清理 GDI+ 资源
+        DllCall("gdiplus.dll\GdipDeleteBrush", "Ptr", pBrush)
+        DllCall("gdiplus.dll\GdipDeleteStringFormat", "Ptr", pStringFormat)
+        DllCall("gdiplus.dll\GdipDeleteFont", "Ptr", pFont)
+        DllCall("gdiplus.dll\GdipDeleteFontFamily", "Ptr", pFontFamily)
+        DllCall("gdiplus.dll\GdipDeleteGraphics", "Ptr", pGraphics)
+        
+        ; 更新分层窗口
+        ; 获取窗口位置
+        WinGetPos(&WinX, &WinY, , , "ahk_id " . CountdownGui.Hwnd)
+        
+        ; BLENDFUNCTION 结构体（4字节）
+        BlendFunc := Buffer(4, 0)
+        NumPut("UChar", 1, BlendFunc, 0)  ; BlendOp: AC_SRC_OVER
+        NumPut("UChar", 0, BlendFunc, 1)  ; BlendFlags
+        NumPut("UChar", 255, BlendFunc, 2)  ; SourceConstantAlpha (0-255)
+        NumPut("UChar", 1, BlendFunc, 3)  ; AlphaFormat: AC_SRC_ALPHA
+        
+        ; 目标位置（POINT 结构，8字节）
+        DstPoint := Buffer(8, 0)
+        NumPut("Int", WinX, DstPoint, 0)  ; xDst
+        NumPut("Int", WinY, DstPoint, 4)  ; yDst
+        
+        ; 大小（SIZE 结构，8字节）
+        Size := Buffer(8, 0)
+        NumPut("Int", WindowSize, Size, 0)  ; cx
+        NumPut("Int", WindowSize, Size, 4)  ; cy
+        
+        ; 源位置（POINT 结构，8字节）
+        SrcPoint := Buffer(8, 0)
+        NumPut("Int", 0, SrcPoint, 0)  ; xSrc
+        NumPut("Int", 0, SrcPoint, 4)  ; ySrc
+        
+        ; 调用 UpdateLayeredWindow
+        ; UpdateLayeredWindow(hwnd, hdcDst, pptDst, psize, hdcSrc, pptSrc, crKey, pblend, dwFlags)
+        DllCall("UpdateLayeredWindow", "Ptr", CountdownGui.Hwnd, "Ptr", 0, "Ptr", DstPoint, "Ptr", Size, "Ptr", hdcMem, "Ptr", SrcPoint, "UInt", 0, "Ptr", BlendFunc, "UInt", 2)
+    } catch as e {
+        OutputDebug("绘制圆环失败: " . e.Message)
+        ; 确保清理资源
+        DllCall("gdiplus.dll\GdipDeleteGraphics", "Ptr", pGraphics)
+    }
+    
+    ; 清理资源
+    DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hbmOld)
+    DllCall("DeleteObject", "Ptr", hbm)
+    DllCall("DeleteDC", "Ptr", hdcMem)
+    DllCall("ReleaseDC", "Ptr", CountdownGui.Hwnd, "Ptr", hdc)
+}
+
+; 执行倒计时操作
+ExecuteCountdownAction() {
+    global IsCountdownActive, CountdownContent, CountdownTimer
+    global global_ST
+    
+    ; 停止倒计时
+    if (CountdownTimer != 0) {
+        try {
+            CountdownTimer.Delete()
+        } catch as err {
+        }
+        CountdownTimer := 0
+    }
+    IsCountdownActive := false
+    
+    ; 清理 GUI
+    CleanupCountdownGui()
+    
+    ; 执行粘贴操作
+    try {
+        ; 复制到剪贴板
+        A_Clipboard := CountdownContent
+        Sleep(150)  ; 等待剪贴板写入完成
+        
+        ; 查找并激活 Cursor 窗口
+        if (WinExist("ahk_exe Cursor.exe")) {
+            WinActivate("ahk_exe Cursor.exe")
+            WinWaitActive("ahk_exe Cursor.exe", , 1)
+            Sleep(150)  ; 【健壮性要求】防止粘贴指令发送过快
+        } else {
+            global CursorPath
+            if (IsSet(CursorPath) && CursorPath != "" && FileExist(CursorPath)) {
+                Run(CursorPath)
+                WinWaitActive("ahk_exe Cursor.exe", , 5)
+                Sleep(150)
+            }
+        }
+        
+        ; 发送粘贴命令
+        Send("^v")
+        TrayTip("已粘贴到 Cursor", "", "Iconi 1")
+    } catch as e {
+        TrayTip("粘贴失败: " . e.Message, "错误", "Iconx 2")
+    }
+    
+    ; 清空内容
+    CountdownContent := ""
+}
+
+; 取消倒计时
+CancelCountdown() {
+    global IsCountdownActive, CountdownTimer, CountdownContent
+    
+    ; 停止倒计时
+    if (CountdownTimer != 0) {
+        try {
+            CountdownTimer.Delete()
+        } catch as err {
+        }
+        CountdownTimer := 0
+    }
+    IsCountdownActive := false
+    
+    ; 清理 GUI
+    CleanupCountdownGui()
+    
+    ; 清空内容
+    CountdownContent := ""
+    
+    ; 显示提示
+    ToolTip("已取消")
+    SetTimer(() => ToolTip(), -2000)  ; 2秒后清除提示
+}
+
+; 清理倒计时 GUI
+CleanupCountdownGui() {
+    global CountdownGui, CountdownGraphics, CountdownBitmap
+    
+    ; 销毁 GUI
+    if (CountdownGui != 0) {
+        try {
+            CountdownGui.Destroy()
+        } catch as err {
+        }
+        CountdownGui := 0
+    }
+    
+    ; 清理变量
+    CountdownGraphics := 0
+    CountdownBitmap := 0
+}
+
+; 初始化 GDI+
+; 初始化 GDI+
+InitGDI() {
+    static GdiplusToken := 0
+    if (GdiplusToken = 0) {
+        ; 确保 gdiplus.dll 已加载
+        if (!DllCall("GetModuleHandle", "Str", "gdiplus", "Ptr")) {
+            DllCall("LoadLibrary", "Str", "gdiplus")
+        }
+        
+        ; GdiplusStartupInput 结构体
+        ; 32位: 4字节 (UInt GdiplusVersion) + 4字节 (Void* DebugEventCallback) + 4字节 (Bool SuppressBackgroundThread) + 4字节 (Bool SuppressExternalCodecs) = 16字节
+        ; 64位: 4字节 (UInt GdiplusVersion) + 8字节 (Void* DebugEventCallback) + 4字节 (Bool SuppressBackgroundThread) + 4字节 (Bool SuppressExternalCodecs) = 20字节（对齐到24字节）
+        Input := Buffer(A_PtrSize = 8 ? 24 : 16, 0)
+        NumPut("UInt", 1, Input, 0)  ; GdiplusVersion = 1
+        ; 其他字段默认为 0
+        
+        ; 调用 GdipStartup（与代码库中其他 GDI+ 函数保持一致，使用 Gdip* 前缀）
+        ; GdipStartup(token, input, output)
+        ; token: ULONG_PTR* (输出参数)
+        ; input: GdiplusStartupInput* (输入结构)
+        ; output: GdiplusStartupOutput* (输出结构，可以为 NULL)
+        ; 返回值：Status (UInt)，0 表示成功
+        ; 注意：参考第9474行的调用方式，使用 "gdiplus.dll\GdipStartup"
+        try {
+            Status := DllCall("gdiplus.dll\GdipStartup", "Ptr*", &GdiplusToken := 0, "Ptr", Input, "Ptr", 0, "Int")
+            if (Status != 0) {
+                OutputDebug("GDI+ 初始化失败，状态码: " . Status)
+                GdiplusToken := 0
+            }
+        } catch as e {
+            OutputDebug("GDI+ 初始化失败: " . e.Message)
+            GdiplusToken := 0
         }
     }
 }
@@ -19351,7 +20317,7 @@ ShowSearchCenter() {
     if (GuiID_SearchCenter != 0) {
         try {
             GuiID_SearchCenter.Destroy()
-        } catch {
+        } catch as err {
         }
         GuiID_SearchCenter := 0
     }
@@ -19400,7 +20366,7 @@ ShowSearchCenter() {
                     }
                 }
             }
-        } catch {
+        } catch as err {
             ; 忽略加载错误
         }
     }
@@ -19459,7 +20425,7 @@ ShowSearchCenter() {
                         SelectedCount := EnginesArray.Length
                     }
                 }
-            } catch {
+            } catch as err {
             }
         }
         
@@ -19534,7 +20500,7 @@ ShowSearchCenter() {
             DllCall("InvalidateRect", "Ptr", EditHwnd, "Ptr", 0, "Int", 1)
             DllCall("UpdateWindow", "Ptr", EditHwnd)
         }
-    } catch {
+    } catch as err {
         ; 如果API调用失败，至少确保基本功能正常
     }
     SearchCenterSearchEdit.OnEvent("Change", ExecuteSearchCenterSearch)
@@ -19602,7 +20568,7 @@ ShowSearchCenter() {
         Sleep(100)
         ; 切换到中文输入法
         SwitchToChineseIMEForSearchCenter()
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
     
@@ -19706,7 +20672,7 @@ SwitchSearchCenterCategory(Direction, DirectIndex := false) {
                 ; 保存格式：分类:引擎1,引擎2
                 CategoryEnginesStr := OldCategory.Key . ":" . EnginesStr
                 IniWrite(CategoryEnginesStr, ConfigFile, "Settings", "SearchCenterSelectedEngines_" . OldCategory.Key)
-            } catch {
+            } catch as err {
                 ; 忽略保存错误
             }
         }
@@ -19734,7 +20700,7 @@ SwitchSearchCenterCategory(Direction, DirectIndex := false) {
         if (GuiID_SearchCenter && IsObject(GuiID_SearchCenter) && GuiID_SearchCenter.HasProp("Hwnd")) {
             WinRedraw(GuiID_SearchCenter.Hwnd)
         }
-    } catch {
+    } catch as err {
         ; 忽略刷新错误
     }
     
@@ -19777,7 +20743,7 @@ UpdateSearchCenterHighlight() {
                             SelectedCount := EnginesArray.Length
                         }
                     }
-                } catch {
+                } catch as err {
                 }
             }
             
@@ -19789,7 +20755,7 @@ UpdateSearchCenterHighlight() {
             
             try {
                 Btn.Text := CategoryText
-            } catch {
+            } catch as err {
             }
         }
         
@@ -19810,7 +20776,7 @@ UpdateSearchCenterHighlight() {
         try {
             Btn.Opt("+Background" . BgColor)
             Btn.SetFont("s10 Bold c" . TextColor, "Segoe UI")
-        } catch {
+        } catch as err {
             ; 忽略错误
         }
     }
@@ -19834,7 +20800,7 @@ UpdateSearchCenterHighlight() {
                     SearchCenterSearchEdit.Opt("+Background" . UI_Colors.InputBg)
                 }
             }
-        } catch {
+        } catch as err {
             ; 忽略错误
         }
     }
@@ -19849,7 +20815,7 @@ UpdateSearchCenterHighlight() {
                     SearchCenterResultLV.Modify(1, "Select Focus")
                 }
             }
-        } catch {
+        } catch as err {
             ; 忽略错误
         }
     }
@@ -19880,10 +20846,10 @@ UpdateSearchCenterHighlight() {
                 SetTimer(() => (
                     SearchCenterAreaIndicator.SetFont("s11 Bold c" . UI_Colors.BtnPrimary, "Segoe UI")
                 ), -300)
-            } catch {
+            } catch as err {
                 ; 忽略动效错误
             }
-        } catch {
+        } catch as err {
             ; 忽略更新错误
         }
     }
@@ -19915,10 +20881,10 @@ UpdateSearchCenterHighlight() {
                 SetTimer(() => (
                     SearchCenterHintText.SetFont("s9 c" . UI_Colors.TextDim, "Segoe UI")
                 ), -200)
-            } catch {
+            } catch as err {
                 ; 忽略动效错误
             }
-        } catch {
+        } catch as err {
             ; 忽略更新错误
         }
     }
@@ -19953,7 +20919,7 @@ UpdateSearchCenterHighlight() {
                 SearchCenterResultLV.Opt("+Background" . UI_Colors.InputBg)
             }
         }
-    } catch {
+    } catch as err {
         ; 忽略动效错误
     }
 }
@@ -19977,10 +20943,19 @@ ExecuteSearchCenterSearch(*) {
 ; 防抖后的实际搜索执行
 DebouncedSearchCenter(*) {
     global SearchCenterSearchEdit, SearchCenterResultLV, SearchCenterSearchResults
-    global SearchDebounceTimer, GlobalSearchStatement, ClipboardDB
+    global SearchDebounceTimer, GlobalSearchStatement, ClipboardDB, global_ST
     
     ; 清除定时器标记
     SearchDebounceTimer := 0
+    
+    ; 【入口熔断】在执行搜索前，必须先检查并释放旧句柄
+    if (IsObject(global_ST) && global_ST.HasProp("Free")) {
+        try {
+            global_ST.Free()
+        } catch as err {
+        }
+        global_ST := 0
+    }
     
     ; 【熔断机制】在执行搜索前，强制释放旧的 Statement
     GlobalSearchEngine.ReleaseOldStatement()
@@ -19992,7 +20967,7 @@ DebouncedSearchCenter(*) {
             SearchCenterResultLV.Opt("-Redraw")
             SearchCenterResultLV.Delete()
             SearchCenterResultLV.Opt("+Redraw")
-        } catch {
+        } catch as err {
             ; 控件可能已销毁，忽略错误
         }
         SearchCenterSearchResults := []
@@ -20016,7 +20991,7 @@ DebouncedSearchCenter(*) {
                 } else if (Item.HasProp("Timestamp")) {
                     try {
                         TimeDisplay := FormatTime(Item.Timestamp, "yyyy-MM-dd HH:mm:ss")
-                    } catch {
+                    } catch as err {
                         TimeDisplay := Item.Timestamp
                     }
                 } else {
@@ -20063,7 +21038,7 @@ DebouncedSearchCenter(*) {
             SearchCenterResultLV.Add(, Item.Title, Item.Source, Item.Time)
         }
         SearchCenterResultLV.Opt("+Redraw")
-    } catch {
+    } catch as err {
         ; 控件可能已销毁，忽略错误
     }
 }
@@ -20118,7 +21093,7 @@ SearchCenterCloseHandler(*) {
                 IniWrite(CategoryEnginesStr, ConfigFile, "Settings", "SearchCenterSelectedEngines_" . CategoryKey)
             }
         }
-    } catch {
+    } catch as err {
         ; 忽略保存错误，不影响关闭窗口
     }
     
@@ -20128,7 +21103,7 @@ SearchCenterCloseHandler(*) {
         try {
             GuiID_SearchCenter.Destroy()
             GuiID_SearchCenter := 0
-        } catch {
+        } catch as err {
             ; 忽略错误
         }
     }
@@ -20179,7 +21154,7 @@ ExecuteSearchCenterBatchSearch(*) {
     ; if (GuiID_SearchCenter != 0) {
     ;     try {
     ;         GuiID_SearchCenter.Destroy()
-    ;     } catch {
+    ;     } catch as err {
     ;     }
     ; }
 }
@@ -20212,7 +21187,7 @@ RefreshSearchCenterEngineIcons() {
                     if (IconObj.HasProp("Check") && IconObj.Check != 0) {
                         IconObj.Check.Visible := false
                     }
-                } catch {
+                } catch as err {
                     ; 忽略隐藏错误
                 }
             }
@@ -20277,7 +21252,7 @@ RefreshSearchCenterEngineIcons() {
                 ; 如果该分类没有保存的选择状态，初始化为空数组，让用户自己选择（支持多选）
                 SearchCenterSelectedEngines := []
             }
-        } catch {
+        } catch as err {
             ; 如果加载失败，初始化为空数组
             SearchCenterSelectedEngines := []
         }
@@ -20409,7 +21384,7 @@ RefreshSearchCenterEngineIcons() {
         if (GuiID_SearchCenter && IsObject(GuiID_SearchCenter) && GuiID_SearchCenter.HasProp("Hwnd")) {
             WinRedraw(GuiID_SearchCenter.Hwnd)
         }
-    } catch {
+    } catch as err {
         ; 忽略刷新错误
     }
     
@@ -20438,7 +21413,7 @@ DestroyOldSearchCenterIcons(OldIcons) {
                 if (IconObj.HasProp("Check") && IconObj.Check != 0) {
                     IconObj.Check.Destroy()
                 }
-            } catch {
+            } catch as err {
                 ; 忽略销毁错误
             }
         }
@@ -20520,7 +21495,7 @@ ToggleSearchCenterEngine(EngineValue, Index) {
                         NewBgColor := IsSelected ? UI_Colors.BtnHover : UI_Colors.BtnBg
                         IconObj.Bg.Opt("+Background" . NewBgColor)
                         IconObj.Bg.Redraw()
-                    } catch {
+                    } catch as err {
                         ; 如果更新失败，使用完整刷新
                         RefreshSearchCenterEngineIcons()
                         return
@@ -20546,7 +21521,7 @@ ToggleSearchCenterEngine(EngineValue, Index) {
                             CheckMark.SetFont("s12 Bold", "Segoe UI")
                             CheckMark.OnEvent("Click", CreateSearchCenterEngineClickHandler(EngineValue, Index))
                             IconObj.Check := CheckMark
-                        } catch {
+                        } catch as err {
                             ; 如果创建失败，使用完整刷新
                             RefreshSearchCenterEngineIcons()
                             return
@@ -20558,7 +21533,7 @@ ToggleSearchCenterEngine(EngineValue, Index) {
                         try {
                             IconObj.Check.Destroy()
                             IconObj.Check := 0
-                        } catch {
+                        } catch as err {
                             ; 如果销毁失败，使用完整刷新
                             RefreshSearchCenterEngineIcons()
                             return
@@ -20594,7 +21569,7 @@ OpenSearchGroupEngines() {
     ; if (GuiID_SearchCenter != 0) {
     ;     try {
     ;         GuiID_SearchCenter.Destroy()
-    ;     } catch {
+    ;     } catch as err {
     ;     }
     ; }
     
@@ -20652,7 +21627,7 @@ EncodeURIComponent(Str) {
             }
         }
         return Encoded
-    } catch {
+    } catch as err {
         ; 如果编码失败，返回原始字符串（浏览器通常能处理）
         return Str
     }
@@ -20793,7 +21768,7 @@ ImportClipboard(*) {
                         SQL := "INSERT INTO ClipboardHistory (Content, SourceApp) VALUES ('" . EscapedContent . "', 'Import')"
                         ClipboardDB.Exec(SQL)
                     }
-                } catch {
+                } catch as err {
                     ; 如果数据库导入失败，回退到数组
                     global ClipboardHistory_CapsLockC := ImportedItems
                 }
@@ -21158,7 +22133,7 @@ ShowVoiceInputPanel() {
             Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, "Center")
             RestoredPos.X := Pos.X
             RestoredPos.Y := Pos.Y
-        } catch {
+        } catch as err {
             ; 如果出错，使用默认屏幕的中心位置
             ScreenInfo := GetScreenInfo(1)
             Pos := GetPanelPosition(ScreenInfo, PanelWidth, PanelHeight, "Center")
@@ -21193,7 +22168,7 @@ UpdateVoiceInputPanelState() {
         } else {
             VoiceInputStatusText.Text := GetText("voice_input_active")
         }
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
 }
@@ -21481,7 +22456,7 @@ CreateShowSearchEnginesHandler(Content, SendToCursorBtn, SearchBtn, EngineLabel)
                     }
                 }
             }
-        } catch {
+        } catch as err {
             ; 如果出错，直接显示搜索引擎选择界面
             HideVoiceInputActionSelection()
             ShowSearchEngineSelection(Content)
@@ -21709,7 +22684,7 @@ PasteScreenshotToCursor() {
                         }
                         DllCall("CloseClipboard")
                     }
-                } catch {
+                } catch as err {
                 }
                 
                 ; 如果系统剪贴板没有图片，使用保存的数据
@@ -21835,7 +22810,7 @@ PasteScreenshotToCursor() {
                     }
                     DllCall("CloseClipboard")
                 }
-            } catch {
+            } catch as err {
                 ; 检查失败，忽略，继续使用保存的数据
             }
             
@@ -21975,7 +22950,7 @@ ShowScreenshotButton() {
         if (ScreenshotButtonVisible && GuiID_ScreenshotButton != 0) {
             try {
                 GuiID_ScreenshotButton.Destroy()
-            } catch {
+            } catch as err {
             }
             GuiID_ScreenshotButton := 0
         }
@@ -22036,7 +23011,7 @@ ShowScreenshotButton() {
                         PanelY := ScreenInfo.Bottom - PanelHeight - 10
                     }
                 }
-            } catch {
+            } catch as err {
                 ; 如果获取失败，使用保存的位置或屏幕中心
             }
         }
@@ -22136,7 +23111,7 @@ ShowScreenshotButton() {
             ; 使用 ToolTip 显示提示
             ToolTip(GetText("screenshot_button_tip"), PanelX + PanelWidth // 2, PanelY - 30)
             SetTimer(() => ToolTip(), -3000)  ; 3秒后自动隐藏提示
-        } catch {
+        } catch as err {
         }
     } catch as e {
         ; 如果创建失败，显示错误信息
@@ -22159,11 +23134,11 @@ HideScreenshotButton() {
         try {
             ; 确保窗口被销毁
             GuiID_ScreenshotButton.Destroy()
-        } catch {
+        } catch as err {
             ; 如果销毁失败，尝试强制关闭
             try {
                 WinClose("ahk_id " . GuiID_ScreenshotButton.Hwnd)
-            } catch {
+            } catch as err {
             }
         }
         GuiID_ScreenshotButton := 0
@@ -22196,7 +23171,7 @@ SaveScreenshotPanelPosition(*) {
                 IniWrite(ScreenshotPanelX, ConfigFile, "Screenshot", "PanelX")
                 IniWrite(ScreenshotPanelY, ConfigFile, "Screenshot", "PanelY")
             }
-        } catch {
+        } catch as err {
             ; 忽略保存失败
         }
     }
@@ -22228,12 +23203,12 @@ ArrayContainsValue(Arr, Value) {
                 if (IsSet(Item) && Item = Value) {
                     return Index
                 }
-            } catch {
+            } catch as err {
                 ; 如果 Item 没有值或无法比较，跳过该项
                 ; 继续下一次循环
             }
         }
-    } catch {
+    } catch as err {
         return 0
     }
     return 0
@@ -22602,7 +23577,7 @@ CreateCategoryTabHandler(CategoryKey) {
             if (!TabObj.Btn || !IsObject(TabObj.Btn)) {
                 try {
                     TabObj.Btn := GuiID_VoiceInput["CategoryTab" . TabObj.Key]
-                } catch {
+                } catch as err {
                     ; 如果无法获取，跳过这个标签
                     continue
                 }
@@ -22619,13 +23594,13 @@ CreateCategoryTabHandler(CategoryKey) {
                     TabObj.Btn.Text := GetText("search_category_" . TabObj.Key)
                     ; 强制重绘以确保背景色更新
                     TabObj.Btn.Redraw()
-                } catch {
+                } catch as err {
                     ; 如果上述方法失败，尝试直接设置 BackColor
                     try {
                         TabObj.Btn.BackColor := TabBg
                         TabObj.Btn.SetFont("s9 c" . TabTextColor, "Segoe UI")
                         TabObj.Btn.Text := GetText("search_category_" . TabObj.Key)
-                    } catch {
+                    } catch as err {
                         ; 忽略更新样式时的错误
                     }
                 }
@@ -22648,7 +23623,7 @@ CreateCategoryTabHandler(CategoryKey) {
                 } else {
                     VoiceSearchSelectedEngines := ["deepseek"]
                 }
-            } catch {
+            } catch as err {
                 VoiceSearchSelectedEngines := ["deepseek"]
             }
         }
@@ -22658,7 +23633,7 @@ CreateCategoryTabHandler(CategoryKey) {
             if (GuiID_VoiceInput && IsObject(GuiID_VoiceInput) && GuiID_VoiceInput.HasProp("Hwnd")) {
                 WinRedraw(GuiID_VoiceInput.Hwnd)
             }
-        } catch {
+        } catch as err {
             ; 忽略刷新错误
         }
         
@@ -22686,7 +23661,7 @@ RefreshSearchEngineButtons() {
     ; 【关键修复】从GUI窗口获取实际宽度
     try {
         WinGetPos(, , &PanelWidth, , "ahk_id " . GuiID_VoiceInput.Hwnd)
-    } catch {
+    } catch as err {
         ; 如果获取失败，使用默认值
         PanelWidth := 600
     }
@@ -22706,7 +23681,7 @@ RefreshSearchEngineButtons() {
                     if (BtnObj.Text) {
                         BtnObj.Text.Visible := false
                     }
-                } catch {
+                } catch as err {
                     ; 忽略隐藏错误
                 }
             }
@@ -22721,7 +23696,7 @@ RefreshSearchEngineButtons() {
     ; 获取当前分类的搜索引擎列表
     try {
         SearchEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)
-    } catch {
+    } catch as err {
         return
     }
     
@@ -22786,7 +23761,7 @@ RefreshSearchEngineButtons() {
                 
                 TextX := IconX + IconSizeInButton + 5
                 TextWidth := ButtonWidth - (TextX - BtnX) - 8
-            } catch {
+            } catch as err {
                 IconCtrl := 0
                 TextX := BtnX + 8
                 TextWidth := ButtonWidth - 16
@@ -22810,7 +23785,7 @@ RefreshSearchEngineButtons() {
         if (GuiID_VoiceInput && IsObject(GuiID_VoiceInput) && GuiID_VoiceInput.HasProp("Hwnd")) {
             WinRedraw(GuiID_VoiceInput.Hwnd)
         }
-    } catch {
+    } catch as err {
         ; 忽略刷新错误
     }
     
@@ -22836,7 +23811,7 @@ DestroyOldSearchEngineButtons(OldButtons) {
                 if (BtnObj.Text) {
                     BtnObj.Text.Destroy()
                 }
-            } catch {
+            } catch as err {
                 ; 忽略销毁错误
             }
         }
@@ -22925,7 +23900,7 @@ StartVoiceInputInSearch() {
             try {
                 ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
                 Sleep(100)
-            } catch {
+            } catch as err {
                 ; 如果ControlFocus失败，使用Focus方法
                 VoiceSearchInputEdit.Focus()
                 Sleep(100)
@@ -22943,7 +23918,7 @@ StartVoiceInputInSearch() {
                 try {
                     ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
                     Sleep(150)
-                } catch {
+                } catch as err {
                     VoiceSearchInputEdit.Focus()
                     Sleep(150)
                 }
@@ -22968,7 +23943,7 @@ StartVoiceInputInSearch() {
                 try {
                     ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
                     Sleep(100)
-                } catch {
+                } catch as err {
                     VoiceSearchInputEdit.Focus()
                     Sleep(100)
                 }
@@ -22980,7 +23955,7 @@ StartVoiceInputInSearch() {
                 try {
                     ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
                     Sleep(150)
-                } catch {
+                } catch as err {
                     VoiceSearchInputEdit.Focus()
                     Sleep(150)
                 }
@@ -23108,7 +24083,7 @@ FocusVoiceSearchInput() {
         
         ; 注意：自动加载功能已移除，不再启动定时器
         SetTimer(MonitorSelectedText, 0)
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
 }
@@ -23133,7 +24108,7 @@ ToggleAutoLoadSelectedTextForVoiceInput(*) {
     ; 保存到配置文件
     try {
         IniWrite(AutoLoadSelectedText ? "1" : "0", ConfigFile, "Settings", "AutoLoadSelectedText")
-    } catch {
+    } catch as err {
         ; 忽略保存错误
     }
     
@@ -23177,7 +24152,7 @@ MonitorSelectedTextForVoiceInput(*) {
                     if (ContentEdit && (ContentEdit.Value = "" || ContentEdit.Value != SelectedText)) {
                         ContentEdit.Value := SelectedText
                     }
-                } catch {
+                } catch as err {
                     ; 忽略错误
                 }
             }
@@ -23185,7 +24160,7 @@ MonitorSelectedTextForVoiceInput(*) {
         
         ; 恢复剪贴板
         A_Clipboard := OldClipboard
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
 }
@@ -23347,7 +24322,7 @@ ShowVoiceSearchInputPanel() {
             } else {
                 VoiceSearchSelectedEngines := ["deepseek"]
             }
-        } catch {
+        } catch as err {
             VoiceSearchSelectedEngines := ["deepseek"]
         }
     }
@@ -23647,7 +24622,7 @@ ShowVoiceSearchInputPanel() {
                 
                 TextX := IconX + IconSizeInButton + 5
                 TextWidth := ButtonWidth - (TextX - BtnX) - 8
-            } catch {
+            } catch as err {
                 IconCtrl := 0
                 TextX := BtnX + 8
                 TextWidth := ButtonWidth - 16
@@ -23685,7 +24660,7 @@ ShowVoiceSearchInputPanel() {
         ; 注意：AutoHotkey v2 不支持 Move 事件，使用定时器定期保存位置
         ; GuiID_VoiceInput.OnEvent("Move", OnWindowMove)
         SetTimer(() => SaveVoiceInputPosition(), 500)
-    } catch {
+    } catch as err {
         ; 如果绑定失败，忽略错误（窗口仍然可以正常使用）
     }
     
@@ -23707,7 +24682,7 @@ ShowVoiceSearchInputPanel() {
     try {
         ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
         Sleep(100)
-    } catch {
+    } catch as err {
         VoiceSearchInputEdit.Focus()
         Sleep(100)
     }
@@ -23715,7 +24690,7 @@ ShowVoiceSearchInputPanel() {
     try {
         ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
         Sleep(50)
-    } catch {
+    } catch as err {
         VoiceSearchInputEdit.Focus()
         Sleep(50)
     }
@@ -23807,7 +24782,7 @@ MonitorSelectedText(*) {
             ; 输入框有内容，且不是最近编辑的，不自动加载（避免覆盖用户输入）
             return
         }
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
     
@@ -23831,7 +24806,7 @@ MonitorSelectedText(*) {
                     if (VoiceSearchInputEdit && (VoiceSearchInputEdit.Value = "" || VoiceSearchInputEdit.Value != SelectedText)) {
                         VoiceSearchInputEdit.Value := SelectedText
                     }
-                } catch {
+                } catch as err {
                     ; 忽略错误
                 }
             }
@@ -23839,7 +24814,7 @@ MonitorSelectedText(*) {
         
         ; 恢复剪贴板
         A_Clipboard := OldClipboard
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
 }
@@ -23876,11 +24851,11 @@ UpdateVoiceSearchInputInPanel(*) {
                     try {
                         ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
                         Sleep(20)
-                    } catch {
+                    } catch as err {
                         try {
                             VoiceSearchInputEdit.Focus()
                             Sleep(20)
-                        } catch {
+                        } catch as err {
                         }
                     }
                 }
@@ -23896,7 +24871,7 @@ UpdateVoiceSearchInputInPanel(*) {
                 try {
                     ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
                     Sleep(50)
-                } catch {
+                } catch as err {
                     VoiceSearchInputEdit.Focus()
                     Sleep(50)
                 }
@@ -23911,7 +24886,7 @@ UpdateVoiceSearchInputInPanel(*) {
         try {
             CurrentInputValue := VoiceSearchInputEdit.Value
             CurrentContent := CurrentInputValue
-        } catch {
+        } catch as err {
             ; 如果直接读取失败，使用剪贴板方式
             if (!BaiduVoiceWindowActive && GuiID_VoiceInput) {
                 if (!WinActive("ahk_id " . GuiID_VoiceInput.Hwnd)) {
@@ -23921,7 +24896,7 @@ UpdateVoiceSearchInputInPanel(*) {
                 try {
                     ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
                     Sleep(30)
-                } catch {
+                } catch as err {
                     VoiceSearchInputEdit.Focus()
                     Sleep(30)
                 }
@@ -23958,17 +24933,17 @@ UpdateVoiceSearchInputInPanel(*) {
                             ControlFocus(InputEditHwnd, "ahk_id " . GuiID_VoiceInput.Hwnd)
                             Sleep(20)
                             Send("^{End}")
-                        } catch {
+                        } catch as err {
                         }
                     }
-                } catch {
+                } catch as err {
                 }
             }
         }
         
         ; 恢复剪贴板
         A_Clipboard := OldClipboard
-    } catch {
+    } catch as err {
         ; 忽略错误
     }
 }
@@ -24056,7 +25031,7 @@ CreateToggleSearchEngineHandler(Engine, BtnIndex) {
             if (GuiID_VoiceInput && IsObject(GuiID_VoiceInput) && GuiID_VoiceInput.HasProp("Hwnd")) {
                 WinRedraw(GuiID_VoiceInput.Hwnd)
             }
-        } catch {
+        } catch as err {
         }
     }
     return ToggleSearchEngineHandler
@@ -24080,7 +25055,7 @@ ClearAllSearchEngineSelection(*) {
     if (IsSet(VoiceSearchEngineButtons) && VoiceSearchEngineButtons.Length > 0) {
         try {
             CurrentEngines := GetSortedSearchEngines(VoiceSearchCurrentCategory)
-        } catch {
+        } catch as err {
             CurrentEngines := []
         }
         
@@ -24090,7 +25065,7 @@ ClearAllSearchEngineSelection(*) {
                     if (BtnObj.Bg && IsObject(BtnObj.Bg)) {
                         BtnObj.Bg.BackColor := UI_Colors.BtnBg
                     }
-                } catch {
+                } catch as err {
                 }
                 
                 try {
@@ -24105,7 +25080,7 @@ ClearAllSearchEngineSelection(*) {
                             }
                         }
                     }
-                } catch {
+                } catch as err {
                 }
             }
         }
@@ -24116,7 +25091,7 @@ ClearAllSearchEngineSelection(*) {
         if (GuiID_VoiceInput && IsObject(GuiID_VoiceInput) && GuiID_VoiceInput.HasProp("Hwnd")) {
             WinRedraw(GuiID_VoiceInput.Hwnd)
         }
-    } catch {
+    } catch as err {
     }
     
     ; 显示提示
@@ -24213,9 +25188,9 @@ SwitchToChineseIME(*) {
             if (hKL) {
                 PostMessage(0x0050, 0x0001, hKL, , , "ahk_id " . ActiveHwnd)
             }
-        } catch {
+        } catch as err {
         }
-    } catch {
+    } catch as err {
     }
 }
 
@@ -24252,9 +25227,9 @@ SwitchToChineseIMEForSearchCenter(*) {
             if (hKL) {
                 PostMessage(0x0050, 0x0001, hKL, , , "ahk_id " . ActiveHwnd)
             }
-        } catch {
+        } catch as err {
         }
-    } catch {
+    } catch as err {
     }
 }
 
@@ -24275,7 +25250,7 @@ IsBaiduVoiceWindowActive() {
                     }
                 }
             }
-        } catch {
+        } catch as err {
             ; 忽略错误，继续检测下一个窗口
         }
     }
@@ -24289,7 +25264,7 @@ IsBaiduVoiceWindowActive() {
                 if (InStr(WinTitle, "正在识别") || InStr(WinTitle, "说完了") || InStr(WinTitle, "语音输入")) {
                     return true
                 }
-            } catch {
+            } catch as err {
             }
         }
     }
@@ -24311,7 +25286,7 @@ UriEncode(Uri) {
             EscapedUri := StrReplace(EscapedUri, "`r", "\r")
             Encoded := js.Eval("encodeURIComponent('" . EscapedUri . "')")
             return Encoded
-        } catch {
+        } catch as err {
             ; 方法2：手动 UTF-8 编码（更可靠的备用方案）
             Encoded := ""
             ; 将字符串转换为 UTF-8 字节数组
@@ -24335,7 +25310,7 @@ UriEncode(Uri) {
             }
             return Encoded
         }
-    } catch {
+    } catch as err {
         ; 如果编码失败，返回原始字符串
         return Uri
     }
@@ -24348,7 +25323,7 @@ ExitFunc(ExitReason, ExitCode) {
     if (ClipboardDB && ClipboardDB != 0) {
         try {
             ClipboardDB.CloseDB()
-        } catch {
+        } catch as err {
             ; 忽略关闭错误
         }
     }
