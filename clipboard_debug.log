@@ -5874,3 +5874,5 @@
 [2025-12-30 18:23:03] NM_DBLCLICK: ShowClipboardCellContentWindow returned
 [2025-12-30 18:23:03] DoubleClick: Item=0, Tab=CapsLockC
 [2025-12-30 18:23:03] DoubleClick: Invalid RowIndex=0
+[2026-01-01 09:12:30] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=52, 最大列数=8
+[2026-01-01 11:31:06] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=52, 最大列数=8
