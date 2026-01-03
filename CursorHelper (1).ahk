@@ -14,6 +14,10 @@ TraySetIcon("favicon.ico")
 ; 包含 lib 文件夹中的 Class_SQLiteDB.ahk（AHK v2 版本）
 #Include lib\Class_SQLiteDB.ahk
 
+; ===================== 包含 OCR 模块 =====================
+; 包含 lib 文件夹中的 OCR.ahk（用于识图取词功能）
+#Include lib\OCR.ahk
+
 ; ===================== 管理员权限检查 =====================
 ; 如果脚本不是以管理员权限运行，则重新以管理员权限启动
 if (!A_IsAdmin) {
@@ -78,6 +82,12 @@ global GuiID_ScreenshotButton := 0  ; 截图悬浮按钮 GUI ID
 global ScreenshotButtonVisible := false  ; 截图按钮是否可见
 global ScreenshotPanelX := -1  ; 截图面板 X 坐标（-1 表示使用默认居中位置）
 global ScreenshotPanelY := -1  ; 截图面板 Y 坐标（-1 表示使用默认居中位置）
+; 剪贴板智能菜单相关变量
+global GuiID_ClipboardSmartMenu := 0  ; 剪贴板智能菜单 GUI ID
+global ClipboardMenuButtons := []  ; 按钮数组
+global ClipboardMenuSelectedIndex := 0  ; 当前选中的按钮索引
+global ClipboardMenuOptions := []  ; 选项数组
+global ClipboardMenuHotkeysRegistered := false  ; 热键是否已注册
 ; 配置变量
 global CursorPath := ""
 global AISleepTime := 15000
@@ -13160,11 +13170,56 @@ UpdateConfigGUILayoutAfterDrag(Width, Height) {
 }
 
 WM_MOUSEMOVE(wParam, lParam, Msg, Hwnd) {
-    global LastHoverCtrl, GuiID_CursorPanel, LastCursorPanelButton
+    global LastHoverCtrl, GuiID_CursorPanel, LastCursorPanelButton, GuiID_ClipboardSmartMenu, ClipboardMenuSelectedIndex
     
     try {
         ; 获取鼠标下的控件
         MouseCtrl := GuiCtrlFromHwnd(Hwnd)
+        
+        ; 检查是否是 smart 菜单的按钮
+        if (MouseCtrl && GuiID_ClipboardSmartMenu != 0) {
+            try {
+                ; 检查控件是否属于 smart 菜单
+                CtrlGui := MouseCtrl.Gui
+                if (CtrlGui = GuiID_ClipboardSmartMenu && MouseCtrl.HasProp("IsMenuButton")) {
+                    ; 这是菜单按钮，处理悬停效果
+                    if (LastHoverCtrl != MouseCtrl) {
+                        ; 恢复上一个按钮的颜色
+                        if (LastHoverCtrl && LastHoverCtrl.HasProp("IsMenuButton")) {
+                            try {
+                                if (LastHoverCtrl.HasProp("ButtonIndex") && LastHoverCtrl.ButtonIndex = ClipboardMenuSelectedIndex) {
+                                    ; 上一个按钮是选中的，恢复选中背景色
+                                    LastHoverCtrl.BackColor := LastHoverCtrl.SelectedBg
+                                } else {
+                                    ; 上一个按钮未选中，恢复正常背景色
+                                    LastHoverCtrl.BackColor := LastHoverCtrl.NormalColor
+                                }
+                            } catch as err {
+                                ; 忽略错误
+                            }
+                        }
+                        
+                        ; 设置当前按钮的悬停颜色
+                        try {
+                            if (MouseCtrl.HasProp("ButtonIndex") && MouseCtrl.ButtonIndex = ClipboardMenuSelectedIndex) {
+                                ; 当前按钮是选中的，使用选中+悬停背景色
+                                MouseCtrl.BackColor := MouseCtrl.SelectedHoverBg
+                            } else {
+                                ; 当前按钮未选中，使用悬停背景色
+                                MouseCtrl.BackColor := MouseCtrl.HoverColor
+                            }
+                        } catch as err {
+                            ; 忽略错误
+                        }
+                        
+                        LastHoverCtrl := MouseCtrl
+                    }
+                    return  ; 已处理，不需要继续
+                }
+            } catch as err {
+                ; 忽略错误
+            }
+        }
         
         ; 检查是否是 Cursor 快捷操作面板的按钮（用于更新说明文字）
         if (MouseCtrl && GuiID_CursorPanel != 0) {
@@ -13190,8 +13245,8 @@ WM_MOUSEMOVE(wParam, lParam, Msg, Hwnd) {
             }
         }
         
-        ; 如果是新控件且具有 Hover 属性
-        if (MouseCtrl && MouseCtrl.HasProp("HoverColor")) {
+        ; 如果是新控件且具有 Hover 属性（但不是菜单按钮）
+        if (MouseCtrl && MouseCtrl.HasProp("HoverColor") && !MouseCtrl.HasProp("IsMenuButton")) {
             if (LastHoverCtrl != MouseCtrl) {
                 ; 恢复上一个控件颜色（带动效）
                 if (LastHoverCtrl && LastHoverCtrl.HasProp("NormalColor")) {
@@ -13247,7 +13302,38 @@ WM_MOUSEMOVE(wParam, lParam, Msg, Hwnd) {
 }
 
 CheckMouseLeave() {
-    global LastHoverCtrl, LastCursorPanelButton, GuiID_CursorPanel
+    global LastHoverCtrl, LastCursorPanelButton, GuiID_CursorPanel, GuiID_ClipboardSmartMenu, ClipboardMenuSelectedIndex
+    
+    ; 检查 smart 菜单按钮的鼠标离开
+    if (LastHoverCtrl && LastHoverCtrl.HasProp("IsMenuButton") && GuiID_ClipboardSmartMenu != 0) {
+        try {
+            MouseGetPos ,,, &MouseHwnd, 2
+            ; 如果鼠标不在按钮上，恢复按钮颜色
+            if (MouseHwnd != LastHoverCtrl.Hwnd) {
+                ; 检查鼠标是否还在菜单窗口上
+                try {
+                    MenuHwnd := GuiID_ClipboardSmartMenu.Hwnd
+                    MouseGetPos(, , , &MouseWinHwnd, 2)
+                    if (MouseWinHwnd != MenuHwnd) {
+                        ; 鼠标离开了菜单窗口，恢复按钮颜色
+                        if (LastHoverCtrl.HasProp("ButtonIndex") && LastHoverCtrl.ButtonIndex = ClipboardMenuSelectedIndex) {
+                            LastHoverCtrl.BackColor := LastHoverCtrl.SelectedBg
+                        } else {
+                            LastHoverCtrl.BackColor := LastHoverCtrl.NormalColor
+                        }
+                        LastHoverCtrl := 0
+                    }
+                } catch as err {
+                    ; 如果菜单已关闭，清除引用
+                    if (GuiID_ClipboardSmartMenu = 0) {
+                        LastHoverCtrl := 0
+                    }
+                }
+            }
+        } catch as err {
+            ; 忽略错误
+        }
+    }
     
     ; 检查 Cursor 面板按钮的鼠标离开
     if (LastCursorPanelButton) {
@@ -19215,6 +19301,10 @@ HandleDynamicHotkey(PressedKey, ActionType) {
                 CapsLock2 := false
                 ; 执行区域截图并粘贴到Cursor
                 ExecuteScreenshot()
+            case "T":
+                CapsLock2 := false
+                ; 执行截图，完成后弹出智能菜单
+                ExecuteScreenshotWithMenu()
         }
         return true  ; 已处理
     }
@@ -19310,6 +19400,13 @@ q:: {
 z:: {
     if (!HandleDynamicHotkey("z", "Z")) {
         Send("z")
+    }
+}
+
+; T 键执行截图并弹出智能菜单
+t:: {
+    if (!HandleDynamicHotkey("t", "T")) {
+        Send("t")
     }
 }
 
@@ -22531,6 +22628,1214 @@ SendVoiceInputToCursor(Content) {
     } catch as e {
         TrayTip(GetText("voice_input_failed") . ": " . e.Message, GetText("error"), "Iconx 2")
     }
+}
+
+; ===================== 截图后智能处理菜单 =====================
+; 全局变量
+global GuiID_ClipboardSmartMenu := 0  ; 智能菜单 GUI ID
+global ScreenshotOldClipboard := ""  ; 保存截图前的剪贴板内容
+
+; 执行截图并等待完成后弹出智能菜单
+ExecuteScreenshotWithMenu() {
+    global CursorPath, AISleepTime, ScreenshotWaiting, ScreenshotClipboard, ScreenshotOldClipboard
+    global PanelVisible
+    
+    try {
+        ; 隐藏面板（如果显示）
+        if (PanelVisible) {
+            HideCursorPanel()
+        }
+        
+        ; 保存当前剪贴板内容
+        ScreenshotOldClipboard := ClipboardAll()
+        
+        ; 启动等待截图模式
+        ScreenshotWaiting := true
+        
+        ; 使用 Windows 10/11 的截图工具（Win+Shift+S）
+        Send("#+{s}")
+        
+        ; 等待用户完成截图（最多等待30秒）
+        MaxWaitTime := 30000  ; 30秒
+        WaitInterval := 200   ; 每200ms检查一次
+        ElapsedTime := 0
+        ScreenshotTaken := false
+        
+        ; 等待一下，让截图工具启动
+        Sleep(500)
+        
+        ; 监控剪贴板，等待截图完成
+        while (ElapsedTime < MaxWaitTime) {
+            Sleep(WaitInterval)
+            ElapsedTime += WaitInterval
+            
+            ; 检查剪贴板是否包含图片
+            try {
+                if (DllCall("OpenClipboard", "Ptr", 0)) {
+                    ; 检查是否包含位图格式
+                    if (DllCall("IsClipboardFormatAvailable", "UInt", 2)) {  ; CF_BITMAP = 2
+                        DllCall("CloseClipboard")
+                        ScreenshotTaken := true
+                        break
+                    }
+                    ; 检查是否包含 DIB 格式
+                    if (DllCall("IsClipboardFormatAvailable", "UInt", 17)) {  ; CF_DIB = 17
+                        DllCall("CloseClipboard")
+                        ScreenshotTaken := true
+                        break
+                    }
+                    ; 检查是否包含 PNG 格式
+                    PNGFormat := DllCall("RegisterClipboardFormat", "Str", "PNG")
+                    if (PNGFormat && DllCall("IsClipboardFormatAvailable", "UInt", PNGFormat)) {
+                        DllCall("CloseClipboard")
+                        ScreenshotTaken := true
+                        break
+                    }
+                    DllCall("CloseClipboard")
+                }
+            } catch as e {
+                ; 如果检测失败，继续等待
+            }
+        }
+        
+        ; 如果截图成功，保存截图并弹出智能菜单
+        if (ScreenshotTaken) {
+            ; 等待一下确保截图已保存到剪贴板
+            Sleep(300)
+            
+            ; 保存截图到全局变量
+            try {
+                ScreenshotClipboard := ClipboardAll()
+                
+                if (!ScreenshotClipboard) {
+                    throw Error("截图数据为空")
+                }
+            } catch as e {
+                TrayTip("保存截图失败: " . e.Message, GetText("error"), "Iconx 2")
+                A_Clipboard := ScreenshotOldClipboard
+                ScreenshotWaiting := false
+                return
+            }
+            
+            ; 恢复旧剪贴板（智能菜单会重新设置）
+            A_Clipboard := ScreenshotOldClipboard
+            
+            ; 清除等待状态
+            ScreenshotWaiting := false
+            
+            ; 弹出智能菜单（显示图片相关选项）
+            ShowClipboardSmartMenu("image")
+        } else {
+            ; 截图超时或取消，恢复旧剪贴板
+            A_Clipboard := ScreenshotOldClipboard
+            ScreenshotWaiting := false
+            TrayTip("截图已取消或超时", GetText("tip"), "Iconi 1")
+        }
+    } catch as e {
+        TrayTip("截图失败: " . e.Message, GetText("error"), "Iconx 2")
+        try {
+            A_Clipboard := ScreenshotOldClipboard
+        }
+        ScreenshotWaiting := false
+    }
+}
+
+; 显示剪贴板智能处理菜单
+ShowClipboardSmartMenu(ForceType := "") {
+    global GuiID_ClipboardSmartMenu, UI_Colors, ThemeMode, PanelVisible
+    global ClipboardMenuSelectedIndex, ClipboardMenuButtons, ClipboardMenuOptions
+    
+    ; 如果面板已显示，先隐藏
+    if (PanelVisible) {
+        HideCursorPanel()
+    }
+    
+    ; 如果菜单已存在，先销毁
+    if (GuiID_ClipboardSmartMenu != 0) {
+        try {
+            GuiID_ClipboardSmartMenu.Destroy()
+        } catch as err {
+            ; 忽略错误
+        }
+        global GuiID_ClipboardSmartMenu := 0
+    }
+    
+    ; 检查剪贴板内容类型
+    if (ForceType != "") {
+        ; 强制指定类型（截图后使用）
+        ClipboardType := ForceType
+    } else {
+        ; 自动检测类型
+        ClipboardType := GetClipboardType()
+    }
+    
+    ; 创建菜单 GUI
+    GuiID_ClipboardSmartMenu := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
+    GuiID_ClipboardSmartMenu.BackColor := UI_Colors.Background
+    GuiID_ClipboardSmartMenu.SetFont("s11 c" . UI_Colors.Text, "Segoe UI")
+    
+    ; 菜单尺寸
+    MenuWidth := 420
+    MenuHeight := 0  ; 动态计算
+    ButtonHeight := 50
+    ButtonSpacing := 8
+    Padding := 20
+    
+    ; 当前 Y 位置
+    CurrentY := Padding
+    
+    ; 标题
+    TitleText := GuiID_ClipboardSmartMenu.Add("Text", "x" . Padding . " y" . CurrentY . " w" . (MenuWidth - Padding * 2) . " h30 Center c" . UI_Colors.Text, "📋 智能剪贴板处理")
+    TitleText.SetFont("s13 Bold", "Segoe UI")
+    CurrentY += 35
+    
+    ; 提示文字（根据类型显示不同提示）
+    if (ClipboardType = "image") {
+        HintText := GuiID_ClipboardSmartMenu.Add("Text", "x" . Padding . " y" . CurrentY . " w" . (MenuWidth - Padding * 2) . " h20 Center c" . UI_Colors.TextDim, "检测到图片，请选择处理方式：")
+    } else if (ClipboardType = "text") {
+        HintText := GuiID_ClipboardSmartMenu.Add("Text", "x" . Padding . " y" . CurrentY . " w" . (MenuWidth - Padding * 2) . " h20 Center c" . UI_Colors.TextDim, "检测到文本，请选择处理方式：")
+    } else {
+        HintText := GuiID_ClipboardSmartMenu.Add("Text", "x" . Padding . " y" . CurrentY . " w" . (MenuWidth - Padding * 2) . " h20 Center c" . UI_Colors.TextDim, "剪贴板为空")
+    }
+    HintText.SetFont("s9", "Segoe UI")
+    CurrentY += 25
+    
+    ; 根据剪贴板类型显示不同的选项
+    ClipboardMenuOptions := []
+    
+    if (ClipboardType = "image") {
+        ; 图片类型：显示图片相关选项
+        ClipboardMenuOptions.Push(Map("icon", "🔍", "text", "识图取词 (保留布局)", "desc", "提取文字，保留原始分行和缩进", "action", "ocr_preserve_layout"))
+        ClipboardMenuOptions.Push(Map("icon", "🔄", "text", "识图取词 (自动流转)", "desc", "提取文字，合并断行并去除中文间空格", "action", "ocr_auto_flow"))
+        ClipboardMenuOptions.Push(Map("icon", "📷", "text", "粘贴图片", "desc", "保留原始图片状态", "action", "paste_image"))
+        ; 如果是截图后的菜单，确保使用保存的截图数据
+        if (ForceType = "image") {
+            ; 恢复截图到剪贴板，供后续操作使用
+            global ScreenshotClipboard
+            if (ScreenshotClipboard) {
+                A_Clipboard := ScreenshotClipboard
+                Sleep(200)
+            }
+        }
+    } else if (ClipboardType = "text") {
+        ; 文本类型：显示文本相关选项
+        ClipboardMenuOptions.Push(Map("icon", "📝", "text", "提取文本 (保留布局)", "desc", "保留原始的分行和缩进（适合代码、诗歌）", "action", "extract_preserve_layout"))
+        ClipboardMenuOptions.Push(Map("icon", "🔄", "text", "提取文本 (自动流转)", "desc", "合并断行，去除中文间空格（适合阅读、论文）", "action", "extract_auto_flow"))
+        ClipboardMenuOptions.Push(Map("icon", "✨", "text", "文本净化", "desc", "去除重复空格、统一标点、移除 HTML 标签", "action", "text_cleanup"))
+    } else {
+        ; 空剪贴板或其他类型
+        ClipboardMenuOptions.Push(Map("icon", "⚠️", "text", "剪贴板为空", "desc", "请先复制内容", "action", "empty"))
+    }
+    
+    ; 初始化按钮数组和选中索引
+    ClipboardMenuButtons := []
+    ClipboardMenuSelectedIndex := 1  ; 默认选中第一个按钮
+    
+    ; 计算按钮背景色（增强对比度，让光效更明显）
+    ; 如果背景是深色，按钮使用稍亮的灰色；如果背景是浅色，按钮使用稍暗的灰色
+    BtnNormalBg := (ThemeMode = "light") ? "e0e0e0" : "2d2d2d"  ; 正常状态（稍暗，与背景有区别）
+    BtnHoverBg := (ThemeMode = "light") ? "c0c0c0" : "5a5a5a"   ; 悬停时的背景色（明显的光效）
+    BtnSelectedBg := (ThemeMode = "light") ? "b0b0b0" : "6a6a6a"  ; 选中时的背景色（更亮的光效）
+    BtnSelectedHoverBg := (ThemeMode = "light") ? "a0a0a0" : "7a7a7a"  ; 选中+悬停时的背景色（最亮的光效）
+    
+    ; 添加选项按钮
+    for Index, Option in ClipboardMenuOptions {
+        if (Option["action"] = "empty") {
+            ; 空剪贴板提示
+            EmptyText := GuiID_ClipboardSmartMenu.Add("Text", "x" . Padding . " y" . CurrentY . " w" . (MenuWidth - Padding * 2) . " h" . ButtonHeight . " Center c" . UI_Colors.TextDim, Option["text"])
+            EmptyText.SetFont("s11", "Segoe UI")
+            CurrentY += ButtonHeight + ButtonSpacing
+        } else {
+            ; 创建按钮
+            BtnY := CurrentY
+            BtnX := Padding
+            
+            ; 确定按钮背景色（选中时使用更亮的颜色）
+            CurrentBtnBg := (Index = ClipboardMenuSelectedIndex) ? BtnSelectedBg : BtnNormalBg
+            
+            ; 按钮背景（使用更亮的背景色，确保与背景有对比度，避免黑色块效果）
+            BtnBg := GuiID_ClipboardSmartMenu.Add("Text", "x" . BtnX . " y" . BtnY . " w" . (MenuWidth - Padding * 2) . " h" . ButtonHeight . " Background" . CurrentBtnBg . " vBtnBg" . Index, "")
+            
+            ; 图标和文字
+            IconText := GuiID_ClipboardSmartMenu.Add("Text", "x" . (BtnX + 15) . " y" . (BtnY + 10) . " w30 h30 Center 0x200 c" . UI_Colors.Text . " BackgroundTrans vBtnIcon" . Index, Option["icon"])
+            IconText.SetFont("s16", "Segoe UI")
+            
+            ; 主文字
+            MainText := GuiID_ClipboardSmartMenu.Add("Text", "x" . (BtnX + 55) . " y" . (BtnY + 8) . " w" . (MenuWidth - Padding * 2 - 70) . " h22 0x200 c" . UI_Colors.Text . " BackgroundTrans vBtnText" . Index, Option["text"])
+            MainText.SetFont("s11 Bold", "Segoe UI")
+            
+            ; 描述文字
+            DescText := GuiID_ClipboardSmartMenu.Add("Text", "x" . (BtnX + 55) . " y" . (BtnY + 28) . " w" . (MenuWidth - Padding * 2 - 70) . " h18 0x200 c" . UI_Colors.TextDim . " BackgroundTrans vBtnDesc" . Index, Option["desc"])
+            DescText.SetFont("s9", "Segoe UI")
+            
+            ; 为按钮背景设置悬停属性（让WM_MOUSEMOVE能处理）
+            BtnBg.NormalColor := BtnNormalBg
+            BtnBg.HoverColor := BtnHoverBg
+            BtnBg.SelectedBg := BtnSelectedBg
+            BtnBg.SelectedHoverBg := BtnSelectedHoverBg
+            BtnBg.ButtonIndex := Index
+            BtnBg.IsMenuButton := true  ; 标记这是菜单按钮
+            
+            ; 保存按钮引用
+            ClipboardMenuButtons.Push({
+                Bg: BtnBg,
+                Icon: IconText,
+                Text: MainText,
+                Desc: DescText,
+                Index: Index,
+                Action: Option["action"],
+                NormalBg: BtnNormalBg,
+                HoverBg: BtnHoverBg,
+                SelectedBg: BtnSelectedBg,
+                SelectedHoverBg: BtnSelectedHoverBg
+            })
+            
+            ; 添加点击事件
+            ActionFunc := CreateMenuActionHandler(Option["action"])
+            BtnBg.OnEvent("Click", ActionFunc)
+            IconText.OnEvent("Click", ActionFunc)
+            MainText.OnEvent("Click", ActionFunc)
+            DescText.OnEvent("Click", ActionFunc)
+            
+            CurrentY += ButtonHeight + ButtonSpacing
+        }
+    }
+    
+    ; 关闭按钮
+    CloseBtnY := CurrentY + 10
+    CloseBtn := GuiID_ClipboardSmartMenu.Add("Text", "x" . (MenuWidth - 40) . " y" . (CloseBtnY - 5) . " w30 h30 Center 0x200 cFFFFFF Background" . BtnNormalBg . " vCloseBtn", "✕")
+    CloseBtn.SetFont("s12", "Segoe UI")
+    CloseBtn.OnEvent("Click", (*) => CloseClipboardSmartMenu())
+    HoverBtnWithAnimation(CloseBtn, BtnNormalBg, "e81123")
+    
+    ; 更新菜单高度
+    MenuHeight := CloseBtnY + 35
+    
+    ; 计算菜单位置（屏幕居中）
+    ScreenInfo := GetScreenInfo(1)
+    MenuX := (ScreenInfo.Width - MenuWidth) // 2
+    MenuY := (ScreenInfo.Height - MenuHeight) // 2
+    
+    ; 创建一个隐藏的输入框用于接收键盘焦点（在显示前创建）
+    DummyEdit := GuiID_ClipboardSmartMenu.Add("Edit", "x0 y0 w0 h0 vDummyFocus")
+    
+    ; 显示菜单
+    GuiID_ClipboardSmartMenu.Show("w" . MenuWidth . " h" . MenuHeight . " x" . MenuX . " y" . MenuY)
+    
+    ; 添加键盘事件
+    GuiID_ClipboardSmartMenu.OnEvent("Escape", (*) => CloseClipboardSmartMenu())
+    
+    ; 使用窗口消息处理键盘事件（更可靠）
+    OnMessage(0x0100, HandleClipboardMenuKeyMessage)  ; WM_KEYDOWN
+    
+    ; 注册热键（仅在菜单显示时生效）
+    RegisterClipboardMenuHotkeys()
+    
+    ; 更新按钮高亮（初始状态）
+    UpdateClipboardMenuHighlight()
+    
+    ; 确保窗口获得焦点，以便接收键盘事件
+    try {
+        ; 等待窗口完全显示
+        Sleep(50)
+        WinActivate("ahk_id " . GuiID_ClipboardSmartMenu.Hwnd)
+        ; 再次等待确保激活完成
+        Sleep(50)
+        ; 设置输入框焦点
+        DummyEdit.Focus()
+        ; 确保窗口在前台
+        WinSetAlwaysOnTop(true, "ahk_id " . GuiID_ClipboardSmartMenu.Hwnd)
+    } catch as err {
+        ; 忽略错误
+    }
+}
+
+; 处理剪贴板菜单键盘消息
+HandleClipboardMenuKeyMessage(wParam, lParam, msg, hwnd) {
+    global GuiID_ClipboardSmartMenu
+    if (GuiID_ClipboardSmartMenu = 0 || hwnd != GuiID_ClipboardSmartMenu.Hwnd) {
+        return
+    }
+    
+    ; wParam 是虚拟键码
+    KeyCode := wParam
+    
+    ; 上方向键 (VK_UP = 0x26)
+    if (KeyCode = 0x26) {
+        HandleClipboardMenuUp()
+        return 1  ; 阻止默认行为
+    }
+    
+    ; 下方向键 (VK_DOWN = 0x28)
+    if (KeyCode = 0x28) {
+        HandleClipboardMenuDown()
+        return 1  ; 阻止默认行为
+    }
+    
+    ; 回车键 (VK_RETURN = 0x0D)
+    if (KeyCode = 0x0D) {
+        HandleClipboardMenuEnter()
+        return 1  ; 阻止默认行为
+    }
+    
+    return 0  ; 允许默认行为
+}
+
+; 创建菜单操作处理函数
+CreateMenuActionHandler(Action) {
+    return (*) => HandleClipboardMenuAction(Action)
+}
+
+; 处理菜单操作
+HandleClipboardMenuAction(Action) {
+    global GuiID_ClipboardSmartMenu
+    
+    ; 关闭菜单
+    CloseClipboardSmartMenu()
+    
+    ; 根据操作类型执行相应功能
+    switch Action {
+        case "ocr_preserve_layout":
+            ProcessOCR("preserve_layout")
+        case "ocr_auto_flow":
+            ProcessOCR("auto_flow")
+        case "paste_image":
+            PasteImage()
+        case "extract_preserve_layout":
+            ExtractTextPreserveLayout()
+        case "extract_auto_flow":
+            ExtractTextAutoFlow()
+        case "text_cleanup":
+            CleanupText()
+    }
+}
+
+; 关闭智能菜单
+CloseClipboardSmartMenu() {
+    global GuiID_ClipboardSmartMenu, ClipboardMenuHotkeysRegistered
+    if (GuiID_ClipboardSmartMenu != 0) {
+        try {
+            ; 注销热键
+            UnregisterClipboardMenuHotkeys()
+            ; 移除消息处理
+            OnMessage(0x0100, HandleClipboardMenuKeyMessage, 0)  ; 移除 WM_KEYDOWN 处理
+            ; 清理所有按钮的悬停状态（不需要清理定时器，因为使用WM_MOUSEMOVE）
+            global LastHoverCtrl
+            if (LastHoverCtrl && LastHoverCtrl.HasProp("IsMenuButton")) {
+                try {
+                    if (LastHoverCtrl.HasProp("ButtonIndex") && LastHoverCtrl.ButtonIndex = ClipboardMenuSelectedIndex) {
+                        LastHoverCtrl.BackColor := LastHoverCtrl.SelectedBg
+                    } else {
+                        LastHoverCtrl.BackColor := LastHoverCtrl.NormalColor
+                    }
+                } catch as err {
+                    ; 忽略错误
+                }
+                LastHoverCtrl := 0
+            }
+            GuiID_ClipboardSmartMenu.Destroy()
+        } catch as err {
+            ; 忽略错误
+        }
+        global GuiID_ClipboardSmartMenu := 0
+        global ClipboardMenuButtons := []
+        global ClipboardMenuSelectedIndex := 0
+    }
+}
+
+; 注册剪贴板菜单热键（占位函数，实际使用窗口消息处理）
+RegisterClipboardMenuHotkeys() {
+    global ClipboardMenuHotkeysRegistered
+    ClipboardMenuHotkeysRegistered := true
+}
+
+; 注销剪贴板菜单热键（占位函数）
+UnregisterClipboardMenuHotkeys() {
+    global ClipboardMenuHotkeysRegistered
+    ClipboardMenuHotkeysRegistered := false
+}
+
+; 处理剪贴板菜单上方向键
+HandleClipboardMenuUp(*) {
+    global ClipboardMenuSelectedIndex, ClipboardMenuButtons, GuiID_ClipboardSmartMenu
+    if (GuiID_ClipboardSmartMenu = 0 || ClipboardMenuButtons.Length = 0) {
+        return
+    }
+    
+    ClipboardMenuSelectedIndex--
+    if (ClipboardMenuSelectedIndex < 1) {
+        ClipboardMenuSelectedIndex := ClipboardMenuButtons.Length
+    }
+    
+    ; 更新高亮（会同时检查悬停状态）
+    UpdateClipboardMenuHighlight()
+    
+    ; 确保窗口获得焦点，以便继续接收键盘事件
+    try {
+        WinActivate("ahk_id " . GuiID_ClipboardSmartMenu.Hwnd)
+        ; 重新设置焦点到隐藏输入框
+        try {
+            DummyEdit := GuiID_ClipboardSmartMenu["DummyFocus"]
+            if (DummyEdit) {
+                DummyEdit.Focus()
+            }
+        } catch as err {
+            ; 忽略错误
+        }
+    } catch as err {
+        ; 忽略错误
+    }
+}
+
+; 处理剪贴板菜单下方向键
+HandleClipboardMenuDown(*) {
+    global ClipboardMenuSelectedIndex, ClipboardMenuButtons, GuiID_ClipboardSmartMenu
+    if (GuiID_ClipboardSmartMenu = 0 || ClipboardMenuButtons.Length = 0) {
+        return
+    }
+    
+    ClipboardMenuSelectedIndex++
+    if (ClipboardMenuSelectedIndex > ClipboardMenuButtons.Length) {
+        ClipboardMenuSelectedIndex := 1
+    }
+    
+    ; 更新高亮（会同时检查悬停状态）
+    UpdateClipboardMenuHighlight()
+    
+    ; 确保窗口获得焦点，以便继续接收键盘事件
+    try {
+        WinActivate("ahk_id " . GuiID_ClipboardSmartMenu.Hwnd)
+        ; 重新设置焦点到隐藏输入框
+        try {
+            DummyEdit := GuiID_ClipboardSmartMenu["DummyFocus"]
+            if (DummyEdit) {
+                DummyEdit.Focus()
+            }
+        } catch as err {
+            ; 忽略错误
+        }
+    } catch as err {
+        ; 忽略错误
+    }
+}
+
+; 处理剪贴板菜单回车键
+HandleClipboardMenuEnter(*) {
+    global ClipboardMenuSelectedIndex, ClipboardMenuButtons, GuiID_ClipboardSmartMenu
+    if (GuiID_ClipboardSmartMenu = 0 || ClipboardMenuButtons.Length = 0 || ClipboardMenuSelectedIndex < 1 || ClipboardMenuSelectedIndex > ClipboardMenuButtons.Length) {
+        return
+    }
+    
+    Button := ClipboardMenuButtons[ClipboardMenuSelectedIndex]
+    HandleClipboardMenuAction(Button.Action)
+}
+
+; 更新剪贴板菜单高亮（所有按钮都有悬停光效）
+UpdateClipboardMenuHighlight() {
+    global ClipboardMenuButtons, ClipboardMenuSelectedIndex, GuiID_ClipboardSmartMenu, LastHoverCtrl
+    
+    if (GuiID_ClipboardSmartMenu = 0 || ClipboardMenuButtons.Length = 0) {
+        return
+    }
+    
+    ; 更新所有按钮的背景色（考虑选中状态和悬停状态）
+    ; 悬停状态由WM_MOUSEMOVE处理，这里只处理选中状态
+    for Index, Button in ClipboardMenuButtons {
+        try {
+            ; 检查按钮是否被鼠标悬停（通过LastHoverCtrl判断）
+            IsHovering := (LastHoverCtrl = Button.Bg)
+            
+            ; 根据选中和悬停状态设置背景色
+            if (Index = ClipboardMenuSelectedIndex) {
+                ; 已选中状态
+                if (IsHovering) {
+                    ; 选中+悬停 = 最亮光效
+                    Button.Bg.BackColor := Button.SelectedHoverBg
+                } else {
+                    ; 选中但未悬停：使用选中背景色
+                    Button.Bg.BackColor := Button.SelectedBg
+                }
+            } else {
+                ; 未选中状态
+                if (IsHovering) {
+                    ; 悬停时有光效
+                    Button.Bg.BackColor := Button.HoverBg
+                } else {
+                    ; 未悬停：使用正常背景色
+                    Button.Bg.BackColor := Button.NormalBg
+                }
+            }
+        } catch as err {
+            ; 忽略错误
+        }
+    }
+}
+
+; 设置按钮悬停效果
+SetupButtonHover(BtnBg, IconText, MainText, DescText, NormalBg, HoverBg, SelectedBg, SelectedHoverBg, Index) {
+    global ClipboardMenuButtons, ClipboardMenuSelectedIndex, GuiID_ClipboardSmartMenu
+    
+    ; 创建悬停检测函数
+    HoverCheckFunc(*) {
+        CheckButtonHover(Index, BtnBg, NormalBg, HoverBg, SelectedBg, SelectedHoverBg)
+    }
+    
+    ; 使用定时器检测鼠标位置（每30ms检查一次，更流畅）
+    SetTimer(HoverCheckFunc, 30)
+    
+    ; 保存定时器引用以便清理
+    try {
+        BtnBg.HoverTimer := HoverCheckFunc
+    } catch as err {
+        ; 忽略错误
+    }
+}
+
+; 检查按钮悬停状态（所有按钮都有悬停光效）
+CheckButtonHover(Index, BtnBg, NormalBg, HoverBg, SelectedBg, SelectedHoverBg) {
+    global ClipboardMenuSelectedIndex, GuiID_ClipboardSmartMenu
+    
+    if (GuiID_ClipboardSmartMenu = 0) {
+        return
+    }
+    
+    try {
+        ; 获取按钮位置和大小
+        WinGetPos(&WinX, &WinY, , , "ahk_id " . GuiID_ClipboardSmartMenu.Hwnd)
+        ControlGetPos(&CtrlX, &CtrlY, &CtrlW, &CtrlH, , "ahk_id " . BtnBg.Hwnd)
+        
+        ; 获取鼠标位置
+        MouseGetPos(&MouseX, &MouseY)
+        
+        ; 计算按钮在屏幕上的绝对位置
+        BtnLeft := WinX + CtrlX
+        BtnRight := BtnLeft + CtrlW
+        BtnTop := WinY + CtrlY
+        BtnBottom := BtnTop + CtrlH
+        
+        ; 检查鼠标是否在按钮上
+        IsHovering := (MouseX >= BtnLeft && MouseX <= BtnRight && MouseY >= BtnTop && MouseY <= BtnBottom)
+        
+        ; 所有按钮都有悬停光效
+        if (Index = ClipboardMenuSelectedIndex) {
+            ; 已选中状态：根据是否悬停来决定背景色
+            if (IsHovering) {
+                ; 选中+悬停 = 最亮光效
+                BtnBg.BackColor := SelectedHoverBg
+            } else {
+                ; 选中但未悬停：使用选中背景色
+                BtnBg.BackColor := SelectedBg
+            }
+        } else {
+            ; 未选中状态
+            if (IsHovering) {
+                ; 悬停时有光效
+                BtnBg.BackColor := HoverBg
+            } else {
+                ; 未悬停：使用正常背景色
+                BtnBg.BackColor := NormalBg
+            }
+        }
+    } catch as err {
+        ; 忽略错误
+    }
+}
+
+; 获取剪贴板类型
+GetClipboardType() {
+    try {
+        ; 检查是否包含图片
+        if (DllCall("OpenClipboard", "Ptr", 0)) {
+            ; 检查位图格式
+            if (DllCall("IsClipboardFormatAvailable", "UInt", 2)) {  ; CF_BITMAP
+                DllCall("CloseClipboard")
+                return "image"
+            }
+            ; 检查 DIB 格式
+            if (DllCall("IsClipboardFormatAvailable", "UInt", 17)) {  ; CF_DIB
+                DllCall("CloseClipboard")
+                return "image"
+            }
+            ; 检查 PNG 格式
+            PNGFormat := DllCall("RegisterClipboardFormat", "Str", "PNG")
+            if (PNGFormat && DllCall("IsClipboardFormatAvailable", "UInt", PNGFormat)) {
+                DllCall("CloseClipboard")
+                return "image"
+            }
+            DllCall("CloseClipboard")
+        }
+        
+        ; 检查文本
+        try {
+            ClipboardText := A_Clipboard
+            if (ClipboardText != "" && StrLen(ClipboardText) > 0) {
+                return "text"
+            }
+        } catch as err {
+            ; 忽略错误
+        }
+        
+        return "empty"
+    } catch as err {
+        return "empty"
+    }
+}
+
+; ===================== OCR 识图取词功能 =====================
+ProcessOCR(Mode := "preserve_layout") {
+    global UI_Colors, ScreenshotClipboard
+    
+    ; 显示处理中提示（简化）
+    TrayTip("⚙️ 处理中...", "", "Iconi 1")
+    
+    try {
+        ; 保存当前剪贴板
+        OldClipboard := ClipboardAll()
+        
+        ; 如果有保存的截图数据，优先使用
+        if (ScreenshotClipboard) {
+            A_Clipboard := ScreenshotClipboard
+            Sleep(200)
+        }
+        
+        ; 检查剪贴板是否有图片
+        if (!DllCall("OpenClipboard", "Ptr", 0)) {
+            TrayTip("无法访问剪贴板", "错误", "Iconx 2")
+            A_Clipboard := OldClipboard
+            return
+        }
+        
+        ; 获取位图句柄
+        hBitmap := 0
+        NeedDeleteBitmap := false
+        
+        if (DllCall("IsClipboardFormatAvailable", "UInt", 2)) {  ; CF_BITMAP
+            hBitmap := DllCall("GetClipboardData", "UInt", 2, "Ptr")  ; CF_BITMAP = 2
+        } else if (DllCall("IsClipboardFormatAvailable", "UInt", 17)) {  ; CF_DIB
+            ; 对于 DIB，需要转换为 HBITMAP
+            hDIB := DllCall("GetClipboardData", "UInt", 17, "Ptr")  ; CF_DIB = 17
+            if (hDIB) {
+                ; 创建兼容的位图
+                hDC := DllCall("CreateCompatibleDC", "Ptr", 0, "Ptr")
+                hBitmap := DllCall("CreateDIBitmap", "Ptr", hDC, "Ptr", hDIB, "UInt", 0, "Ptr", 0, "Ptr", 0, "UInt", 0, "Ptr")
+                DllCall("DeleteDC", "Ptr", hDC)
+                NeedDeleteBitmap := true
+            }
+        }
+        
+        DllCall("CloseClipboard")
+        
+        if (!hBitmap) {
+            ; 如果没有位图格式，尝试使用 ClipboardAll 保存后转换为临时文件
+            ; 先恢复剪贴板
+            A_Clipboard := OldClipboard
+            Sleep(100)
+            
+            ; 重新获取剪贴板（使用 ClipboardAll）
+            try {
+                ClipboardData := ClipboardAll()
+                if (ClipboardData) {
+                    ; 保存到临时文件
+                    TempFile := A_Temp "\ocr_temp_" . A_TickCount . ".bmp"
+                    ; 注意：ClipboardAll 在 AHK v2 中返回的是对象，需要特殊处理
+                    ; 这里简化处理，提示用户
+                    TrayTip("请使用位图格式的图片（CF_BITMAP 或 CF_DIB）", "提示", "Iconi 2")
+                    return
+                }
+            } catch as err {
+                TrayTip("剪贴板中没有可识别的图片格式", "错误", "Iconx 2")
+                return
+            }
+            return
+        }
+        
+        ; 使用 OCR.FromBitmap 识别图片
+        OCRResult := OCR.FromBitmap(hBitmap)
+        
+        ; 清理位图（如果是 DIB 创建的）
+        if (NeedDeleteBitmap && hBitmap) {
+            DllCall("DeleteObject", "Ptr", hBitmap)
+        }
+        
+        if (!OCRResult || !OCRResult.Text || StrLen(OCRResult.Text) = 0) {
+            TrayTip("OCR 识别失败：未检测到文字", "错误", "Iconx 2")
+            A_Clipboard := OldClipboard
+            return
+        }
+        
+        ; 提取原始文本
+        ExtractedText := OCRResult.Text
+        
+        ; 根据模式处理文本
+        if (Mode = "auto_flow") {
+            ; 自动流转模式：合并断行，去除中文间空格，去除 HTML 标签
+            ExtractedText := ProcessOCRTextAutoFlow(ExtractedText)
+        } else {
+            ; 保留布局模式：仅进行基础清理（乱码修复、去 HTML 标签）
+            ExtractedText := ProcessOCRTextPreserveLayout(ExtractedText)
+        }
+        
+        ; 将处理后的文本放入剪贴板
+        A_Clipboard := ExtractedText
+        Sleep(200)
+        
+        ; 清除截图数据（已处理完成）
+        global ScreenshotClipboard
+        ScreenshotClipboard := ""
+        
+        ; 显示成功提示（简化）
+        TrayTip("✅ OCR 完成", "已识别 " . StrLen(ExtractedText) . " 个字符", "Iconi 1")
+        
+        ; 自动粘贴
+        Sleep(300)
+        Send("^v")
+        
+    } catch as e {
+        TrayTip("OCR 识别失败：" . e.Message, "错误", "Iconx 2")
+        try {
+            A_Clipboard := OldClipboard
+        } catch as err {
+            ; 忽略错误
+        }
+    }
+}
+
+; ===================== OCR 文本处理（保留布局） =====================
+ProcessOCRTextPreserveLayout(Text) {
+    ; 1. 乱码修复（常见 OCR 错误字符替换）
+    Text := FixOCREncodingErrors(Text)
+    
+    ; 2. 去除 HTML 标签
+    Text := RemoveHTMLTags(Text)
+    
+    ; 3. 去除多余的空格（但保留换行和基本布局）
+    ; 去除行首行尾空格
+    Lines := StrSplit(Text, "`n")
+    ProcessedLines := []
+    for Index, Line in Lines {
+        ProcessedLine := Trim(Line, " `t`r")
+        ProcessedLines.Push(ProcessedLine)
+    }
+    Text := ""
+    for Index, Line in ProcessedLines {
+        if (Index > 1) {
+            Text .= "`n"
+        }
+        Text .= Line
+    }
+    
+    ; 4. 清理重复的换行（超过 2 个连续换行合并为 2 个）
+    while (InStr(Text, "`n`n`n")) {
+        Text := StrReplace(Text, "`n`n`n", "`n`n")
+    }
+    
+    return Text
+}
+
+; ===================== OCR 文本处理（自动流转） =====================
+ProcessOCRTextAutoFlow(Text) {
+    ; 1. 乱码修复
+    Text := FixOCREncodingErrors(Text)
+    
+    ; 2. 去除 HTML 标签
+    Text := RemoveHTMLTags(Text)
+    
+    ; 3. 合并所有换行符为空格（但保留段落分隔）
+    Text := StrReplace(Text, "`r`n", " ")
+    Text := StrReplace(Text, "`n", " ")
+    Text := StrReplace(Text, "`r", " ")
+    
+    ; 4. 去除中文间的无意义空格
+    Text := RemoveSpacesBetweenChinese(Text)
+    
+    ; 5. 清理多余空格（多个连续空格合并为一个）
+    while (InStr(Text, "  ")) {
+        Text := StrReplace(Text, "  ", " ")
+    }
+    
+    ; 6. 去除首尾空格
+    Text := Trim(Text)
+    
+    return Text
+}
+
+; ===================== OCR 乱码修复 =====================
+FixOCREncodingErrors(Text) {
+    ; 常见 OCR 识别错误字符映射表
+    ; 格式：错误字符 => 正确字符
+    ErrorMap := Map(
+        "０", "0", "１", "1", "２", "2", "３", "3", "４", "4",
+        "５", "5", "６", "6", "７", "7", "８", "8", "９", "9",
+        "（", "(", "）", ")", "，", ",", "。", ".", "：", ":",
+        "；", ";", "？", "?", "！", "!", "、", ",", "—", "-",
+        "…", "...", "“", '"', "”", '"', "'", "'", "'", "'",
+        "【", "[", "】", "]", "《", "<", "》", ">", "·", "·"
+    )
+    
+    ; 替换错误字符
+    Result := Text
+    for WrongChar, CorrectChar in ErrorMap {
+        Result := StrReplace(Result, WrongChar, CorrectChar)
+    }
+    
+    ; 修复常见的 OCR 识别错误
+    ; 修复 "l" 和 "1" 的混淆（在特定上下文中）
+    ; 修复 "O" 和 "0" 的混淆（在特定上下文中）
+    ; 这里可以根据需要添加更多规则
+    
+    ; 修复常见的英文识别错误
+    CommonErrors := Map(
+        "rn", "m",  ; rn 常被识别为 m
+        "vv", "w",  ; vv 常被识别为 w
+        "cl", "d",  ; cl 常被识别为 d
+        "ii", "n"   ; ii 常被识别为 n
+    )
+    
+    ; 注意：这些替换需要谨慎，只在特定上下文中才适用
+    ; 这里简化处理，不进行自动替换，避免误替换
+    
+    return Result
+}
+
+; ===================== 粘贴图片功能 =====================
+PasteImage() {
+    global ScreenshotClipboard
+    
+    try {
+        ; 如果有保存的截图数据，优先使用
+        if (ScreenshotClipboard) {
+            A_Clipboard := ScreenshotClipboard
+            Sleep(200)
+        }
+        
+        ; 检查剪贴板是否有图片
+        if (!DllCall("OpenClipboard", "Ptr", 0)) {
+            TrayTip("剪贴板中没有图片", "错误", "Iconx 2")
+            return
+        }
+        
+        HasImage := false
+        if (DllCall("IsClipboardFormatAvailable", "UInt", 2) || DllCall("IsClipboardFormatAvailable", "UInt", 17)) {
+            HasImage := true
+        } else {
+            PNGFormat := DllCall("RegisterClipboardFormat", "Str", "PNG")
+            if (PNGFormat && DllCall("IsClipboardFormatAvailable", "UInt", PNGFormat)) {
+                HasImage := true
+            }
+        }
+        DllCall("CloseClipboard")
+        
+        if (!HasImage) {
+            TrayTip("剪贴板中没有图片", "错误", "Iconx 2")
+            return
+        }
+        
+        ; 清除截图数据（已处理完成）
+        global ScreenshotClipboard
+        ScreenshotClipboard := ""
+        
+        ; 直接粘贴图片
+        Send("^v")
+        Sleep(200)
+        
+        ; 显示成功提示（简化）
+        TrayTip("✅ 图片已粘贴", "", "Iconi 1")
+        
+    } catch as e {
+        TrayTip("粘贴图片失败：" . e.Message, "错误", "Iconx 2")
+    }
+}
+
+; ===================== 提取文本（保留布局） =====================
+ExtractTextPreserveLayout() {
+    try {
+        ; 显示处理中提示（简化）
+        TrayTip("⚙️ 处理中...", "", "Iconi 1")
+        
+        ; 获取剪贴板文本
+        ClipboardText := A_Clipboard
+        
+        if (ClipboardText = "" || StrLen(ClipboardText) = 0) {
+            TrayTip("剪贴板中没有文本", "错误", "Iconx 2")
+            return
+        }
+        
+        ; 保留原始布局，仅进行基础清理
+        ProcessedText := ClipboardText
+        
+        ; 1. 去除 HTML 标签
+        ProcessedText := RemoveHTMLTags(ProcessedText)
+        
+        ; 2. 去除行首行尾空格（保留换行）
+        Lines := StrSplit(ProcessedText, "`n")
+        ProcessedLines := []
+        for Index, Line in Lines {
+            ProcessedLine := Trim(Line, " `t`r")
+            ProcessedLines.Push(ProcessedLine)
+        }
+        ProcessedText := ""
+        for Index, Line in ProcessedLines {
+            if (Index > 1) {
+                ProcessedText .= "`n"
+            }
+            ProcessedText .= Line
+        }
+        
+        ; 3. 清理重复的换行（超过 2 个连续换行合并为 2 个）
+        while (InStr(ProcessedText, "`n`n`n")) {
+            ProcessedText := StrReplace(ProcessedText, "`n`n`n", "`n`n")
+        }
+        
+        ; 回填剪贴板
+        A_Clipboard := ProcessedText
+        Sleep(200)
+        
+        ; 显示成功提示（简化）
+        TrayTip("✅ 文本已处理", "", "Iconi 1")
+        
+        ; 自动粘贴
+        Sleep(300)
+        Send("^v")
+        
+    } catch as e {
+        TrayTip("文本提取失败：" . e.Message, "错误", "Iconx 2")
+    }
+}
+
+; ===================== 提取文本（自动流转） =====================
+ExtractTextAutoFlow() {
+    try {
+        ; 显示处理中提示（简化）
+        TrayTip("⚙️ 处理中...", "", "Iconi 1")
+        
+        ; 获取剪贴板文本
+        ClipboardText := A_Clipboard
+        
+        if (ClipboardText = "" || StrLen(ClipboardText) = 0) {
+            TrayTip("剪贴板中没有文本", "错误", "Iconx 2")
+            return
+        }
+        
+        ; 处理文本：合并断行，去除中文间空格
+        ProcessedText := ClipboardText
+        
+        ; 1. 去除 HTML 标签
+        ProcessedText := RemoveHTMLTags(ProcessedText)
+        
+        ; 2. 合并所有换行符为空格（但保留段落分隔）
+        ProcessedText := StrReplace(ProcessedText, "`r`n", " ")
+        ProcessedText := StrReplace(ProcessedText, "`n", " ")
+        ProcessedText := StrReplace(ProcessedText, "`r", " ")
+        
+        ; 3. 去除中文间的无意义空格（中文字符之间的空格）
+        ProcessedText := RemoveSpacesBetweenChinese(ProcessedText)
+        
+        ; 4. 清理多余空格（多个连续空格合并为一个）
+        while (InStr(ProcessedText, "  ")) {
+            ProcessedText := StrReplace(ProcessedText, "  ", " ")
+        }
+        
+        ; 5. 去除首尾空格
+        ProcessedText := Trim(ProcessedText)
+        
+        ; 回填剪贴板
+        A_Clipboard := ProcessedText
+        Sleep(200)
+        
+        ; 显示成功提示（简化）
+        TrayTip("✅ 文本已处理", "", "Iconi 1")
+        
+        ; 自动粘贴
+        Sleep(300)
+        Send("^v")
+        
+    } catch as e {
+        TrayTip("文本流转失败：" . e.Message, "错误", "Iconx 2")
+    }
+}
+
+; 去除中文字符之间的空格
+RemoveSpacesBetweenChinese(Text) {
+    ; 简单的实现：遍历文本，如果遇到中文字符-空格-中文字符的模式，删除空格
+    Result := ""
+    TextLen := StrLen(Text)
+    
+    Loop TextLen {
+        CurrentChar := SubStr(Text, A_Index, 1)
+        NextChar := (A_Index < TextLen) ? SubStr(Text, A_Index + 1, 1) : ""
+        PrevChar := (A_Index > 1) ? SubStr(Text, A_Index - 1, 1) : ""
+        
+        ; 检查是否是中文字符（Unicode 范围：\u4e00-\u9fff）
+        IsChinese := (Ord(CurrentChar) >= 0x4E00 && Ord(CurrentChar) <= 0x9FFF)
+        IsPrevChinese := (PrevChar != "" && Ord(PrevChar) >= 0x4E00 && Ord(PrevChar) <= 0x9FFF)
+        IsNextChinese := (NextChar != "" && Ord(NextChar) >= 0x4E00 && Ord(NextChar) <= 0x9FFF)
+        
+        ; 如果是空格，且前后都是中文，则跳过（不添加到结果）
+        if (CurrentChar = " " && IsPrevChinese && IsNextChinese) {
+            continue
+        }
+        
+        Result .= CurrentChar
+    }
+    
+    return Result
+}
+
+; ===================== 文本净化功能 =====================
+CleanupText() {
+    try {
+        ; 显示处理中提示（简化）
+        TrayTip("⚙️ 处理中...", "", "Iconi 1")
+        
+        ; 获取剪贴板文本
+        ClipboardText := A_Clipboard
+        
+        if (ClipboardText = "" || StrLen(ClipboardText) = 0) {
+            TrayTip("剪贴板中没有文本", "错误", "Iconx 2")
+            return
+        }
+        
+        ; 文本净化处理
+        ProcessedText := ClipboardText
+        
+        ; 1. 去除 HTML 标签
+        ProcessedText := RemoveHTMLTags(ProcessedText)
+        
+        ; 2. 去除链接（http:// 或 https:// 开头的 URL）
+        ProcessedText := RemoveURLs(ProcessedText)
+        
+        ; 3. 去除重复空格
+        while (InStr(ProcessedText, "  ")) {
+            ProcessedText := StrReplace(ProcessedText, "  ", " ")
+        }
+        
+        ; 4. 统一标点格式（将中文标点后的空格去除，英文标点后添加空格）
+        ProcessedText := NormalizePunctuation(ProcessedText)
+        
+        ; 5. 去除中文间的无意义空格
+        ProcessedText := RemoveSpacesBetweenChinese(ProcessedText)
+        
+        ; 6. 去除首尾空格和换行
+        ProcessedText := Trim(ProcessedText, " `t`r`n")
+        
+        ; 7. 清理重复的换行（超过 2 个连续换行合并为 2 个）
+        while (InStr(ProcessedText, "`n`n`n")) {
+            ProcessedText := StrReplace(ProcessedText, "`n`n`n", "`n`n")
+        }
+        
+        ; 回填剪贴板
+        A_Clipboard := ProcessedText
+        Sleep(200)
+        
+        ; 显示成功提示（简化）
+        TrayTip("✅ 文本已净化", "", "Iconi 1")
+        
+        ; 自动粘贴
+        Sleep(300)
+        Send("^v")
+        
+    } catch as e {
+        TrayTip("文本净化失败：" . e.Message, "错误", "Iconx 2")
+    }
+}
+
+; 去除 HTML 标签
+RemoveHTMLTags(Text) {
+    ; 简单的 HTML 标签移除（使用正则表达式或循环）
+    Result := Text
+    
+    ; 移除常见的 HTML 标签
+    Loop {
+        ; 查找 <...> 标签
+        StartPos := InStr(Result, "<")
+        if (!StartPos) {
+            break
+        }
+        
+        EndPos := InStr(Result, ">", false, StartPos)
+        if (!EndPos) {
+            break
+        }
+        
+        ; 移除标签
+        Result := SubStr(Result, 1, StartPos - 1) . SubStr(Result, EndPos + 1)
+    }
+    
+    ; 解码 HTML 实体
+    Result := StrReplace(Result, "&nbsp;", " ")
+    Result := StrReplace(Result, "&amp;", "&")
+    Result := StrReplace(Result, "&lt;", "<")
+    Result := StrReplace(Result, "&gt;", ">")
+    Result := StrReplace(Result, "&quot;", '"')
+    Result := StrReplace(Result, "&#39;", "'")
+    
+    return Result
+}
+
+; 去除 URL
+RemoveURLs(Text) {
+    ; 简单的 URL 移除（查找 http:// 或 https:// 开头的字符串）
+    Result := Text
+    Pos := 1
+    
+    Loop {
+        ; 查找 http:// 或 https://
+        HttpPos := InStr(Result, "http://", false, Pos)
+        HttpsPos := InStr(Result, "https://", false, Pos)
+        
+        StartPos := 0
+        if (HttpPos && (!HttpsPos || HttpPos < HttpsPos)) {
+            StartPos := HttpPos
+        } else if (HttpsPos) {
+            StartPos := HttpsPos
+        }
+        
+        if (!StartPos) {
+            break
+        }
+        
+        ; 查找 URL 结束位置（空格、换行、标点等）
+        EndPos := StartPos
+        TextLen := StrLen(Result)
+        
+        while (EndPos <= TextLen) {
+            Char := SubStr(Result, EndPos, 1)
+            if (Char = " " || Char = "`n" || Char = "`r" || Char = "`t" || 
+                Char = "<" || Char = ">" || Char = "(" || Char = ")" || 
+                Char = "[" || Char = "]" || Char = "{" || Char = "}") {
+                break
+            }
+            EndPos++
+        }
+        
+        ; 移除 URL
+        Result := SubStr(Result, 1, StartPos - 1) . SubStr(Result, EndPos)
+        Pos := StartPos
+    }
+    
+    return Result
+}
+
+; 统一标点格式
+NormalizePunctuation(Text) {
+    Result := Text
+    
+    ; 中文标点后去除空格
+    ChinesePunctuation := "，。！？；：、"
+    Loop StrLen(ChinesePunctuation) {
+        Punctuation := SubStr(ChinesePunctuation, A_Index, 1)
+        Result := StrReplace(Result, Punctuation . " ", Punctuation)
+    }
+    
+    ; 英文标点后添加空格（如果后面不是空格或标点）
+    EnglishPunctuation := ".,!?;:"
+    Loop StrLen(EnglishPunctuation) {
+        Punctuation := SubStr(EnglishPunctuation, A_Index, 1)
+        ; 简单的处理：标点后如果是字母或数字，添加空格
+        ; 这里使用简单的替换，实际可能需要更复杂的逻辑
+    }
+    
+    return Result
 }
 
 ; ===================== 区域截图功能 =====================
