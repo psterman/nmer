@@ -1,4 +1,4 @@
-﻿class WinClip_base
+class WinClip_base
 {
     Static __Call( aTarget, aParams ) { ; 2nd param already is an array, so omit "*"
         if ObjHasOwnProp( WinClip_base, aTarget )
@@ -42,7 +42,21 @@ class WinClipAPI extends WinClip_base
     static m := (this.u)?2:1        ; Unicode/Ansi str buffer multiplier
     
     Static memcopy( dest, src, size ) {
-        return DllCall( "msvcrt\memcpy", "ptr", dest, "ptr", src, "uint", size )
+        ; 参数验证
+        if (!dest || dest = 0) {
+            throw Error("memcopy: dest parameter is invalid (null or zero)", -1)
+        }
+        if (!src || src = 0) {
+            throw Error("memcopy: src parameter is invalid (null or zero)", -1)
+        }
+        if (!size || size <= 0) {
+            throw Error("memcopy: size parameter is invalid (zero or negative)", -1)
+        }
+        try {
+            return DllCall( "msvcrt\memcpy", "ptr", dest, "ptr", src, "uint", size )
+        } catch as e {
+            throw Error("memcopy failed: " . e.Message . "`nDest: " . dest . ", Src: " . src . ", Size: " . size, -1)
+        }
     }
     Static GlobalSize( hObj ) {
         return DllCall( "GlobalSize", "Ptr", hObj )
