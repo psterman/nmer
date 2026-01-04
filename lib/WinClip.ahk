@@ -126,8 +126,9 @@ class WinClip extends WinClip_base
     
     _fromclipboard( &clipData )
     {
-        if !WinClipAPI.OpenClipboard()
-            return 0
+        try {
+            if !WinClipAPI.OpenClipboard()
+                return 0
         nextformat := 0
         objFormats := Map()
         clipSize := 0
@@ -173,12 +174,38 @@ class WinClip extends WinClip_base
             offset += 4
             NumPut( "UInt", params.size, clipData, offset )
             offset += 4
-            WinClipAPI.memcopy( clipData.ptr + offset, params.handle, params.size )
+            ; 验证参数有效性
+            if (!params.handle || params.handle = 0) {
+                WinClipAPI.CloseClipboard()
+                throw Error("_fromclipboard: Invalid handle for format " . fmt, -1)
+            }
+            if (!params.size || params.size <= 0) {
+                WinClipAPI.CloseClipboard()
+                throw Error("_fromclipboard: Invalid size for format " . fmt, -1)
+            }
+            if (offset + params.size > structSize) {
+                WinClipAPI.CloseClipboard()
+                throw Error("_fromclipboard: Buffer overflow. Offset: " . offset . ", Size: " . params.size . ", TotalSize: " . structSize, -1)
+            }
+            try {
+                WinClipAPI.memcopy( clipData.ptr + offset, params.handle, params.size )
+            } catch as e {
+                WinClipAPI.CloseClipboard()
+                throw Error("_fromclipboard: memcopy failed for format " . fmt . ". " . e.Message, -1)
+            }
             offset += params.size
             WinClipAPI.GlobalUnlock( params.handle )
         }
         WinClipAPI.CloseClipboard()
         return structSize
+        } catch as e {
+            try {
+                WinClipAPI.CloseClipboard()
+            } catch {
+                ; 忽略关闭错误
+            }
+            throw Error("_fromclipboard failed: " . e.Message, -1)
+        }
     }
     
     _IsInstance( funcName )
@@ -220,6 +247,13 @@ class WinClip extends WinClip_base
         ; if !( pData := ObjGetAddress( this, "allData" ) )
             ; return 0
         this.allData := Buffer(size)
+        ; 验证指针有效性
+        if (!data.ptr || data.ptr = 0) {
+            throw Error("_setClipData: data.ptr is invalid", -1)
+        }
+        if (!this.allData.ptr || this.allData.ptr = 0) {
+            throw Error("_setClipData: allData.ptr is invalid", -1)
+        }
         WinClipAPI.memcopy( this.allData.ptr, data.ptr, size )
         return size
     }
@@ -232,8 +266,18 @@ class WinClip extends WinClip_base
             ; return 0
         If (Type(this.allData) != "Buffer")
             return 0
+        if (!this.allData.size || this.allData.size <= 0) {
+            return 0
+        }
         data := Buffer( this.allData.size, 0 )
-        WinClipAPI.memcopy( data, this.allData.ptr, this.allData.size )
+        ; 验证指针有效性
+        if (!this.allData.ptr || this.allData.ptr = 0) {
+            throw Error("_getClipData: allData.ptr is invalid", -1)
+        }
+        if (!data.ptr || data.ptr = 0) {
+            throw Error("_getClipData: data.ptr is invalid", -1)
+        }
+        WinClipAPI.memcopy( data.ptr, this.allData.ptr, this.allData.size )
         return this.allData.size
     }
     
@@ -762,6 +806,12 @@ class WinClip extends WinClip_base
         needleFormat := (WinClipAPI.IsInteger( needleFormat ) ? needleFormat : WinClipAPI.RegisterClipboardFormat( needleFormat ))
         if !needleFormat
             return 0
+        if (!data || !data.ptr || data.ptr = 0) {
+            throw Error("_getFormatData: data parameter is invalid", -1)
+        }
+        if (!size || size <= 0) {
+            return 0
+        }
         offset := 0
         while ( offset < size )
         {
@@ -773,8 +823,24 @@ class WinClip extends WinClip_base
             offset += 4
             if ( fmt == needleFormat )
             {
+                ; 验证数据大小和偏移量
+                if (dataSize <= 0 || dataSize > size || offset + dataSize > size) {
+                    throw Error("_getFormatData: Invalid dataSize or offset. Size: " . dataSize . ", Offset: " . offset . ", TotalSize: " . size, -1)
+                }
                 out_data := Buffer( dataSize, 0 )
-                WinClipAPI.memcopy( out_data.ptr, data.ptr + offset, dataSize )
+                if (!out_data || !out_data.ptr || out_data.ptr = 0) {
+                    throw Error("_getFormatData: Failed to allocate output buffer", -1)
+                }
+                ; 计算源指针
+                srcPtr := data.ptr + offset
+                if (!srcPtr || srcPtr = 0) {
+                    throw Error("_getFormatData: Invalid source pointer. Offset: " . offset, -1)
+                }
+                try {
+                    WinClipAPI.memcopy( out_data.ptr, srcPtr, dataSize )
+                } catch as e {
+                    throw Error("_getFormatData: memcopy failed. " . e.Message . "`nOffset: " . offset . ", DataSize: " . dataSize . ", TotalSize: " . size, -1)
+                }
                 return dataSize
             }
             offset += dataSize
@@ -796,11 +862,21 @@ class WinClip extends WinClip_base
     
     GetBitmap()
     {
-        if !( clipSize := this._fromclipboard( &clipData ) )
-            return ""
-        if !( out_size := this._getFormatData( &out_data, &clipData, clipSize, this.ClipboardFormats.CF_DIB ) )
-            return ""
-        return this._DIBtoHBITMAP( &out_data )
+        try {
+            if !( clipSize := this._fromclipboard( &clipData ) )
+                return ""
+            if (!clipData || !clipData.ptr || clipData.ptr = 0) {
+                throw Error("GetBitmap: Invalid clipData from _fromclipboard", -1)
+            }
+            if !( out_size := this._getFormatData( &out_data, &clipData, clipSize, this.ClipboardFormats.CF_DIB ) )
+                return ""
+            if (!out_data || !out_data.ptr || out_data.ptr = 0) {
+                throw Error("GetBitmap: Invalid out_data from _getFormatData", -1)
+            }
+            return this._DIBtoHBITMAP( &out_data )
+        } catch as e {
+            throw Error("GetBitmap failed: " . e.Message, -1)
+        }
     }
     
     iGetBitmap()
