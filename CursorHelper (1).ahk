@@ -12,6 +12,10 @@ SetKeyDelay(20, 20)
 SetMouseDelay(10)
 SendMode("Input")
 DetectHiddenWindows(true)
+; 设置坐标模式（用于拖动窗口等功能）
+CoordMode("Mouse", "Screen")
+CoordMode("Pixel", "Screen")
+CoordMode("ToolTip", "Screen")
 ; 设置托盘图标
 TraySetIcon("favicon.ico")
 
@@ -12982,10 +12986,11 @@ WM_CTLCOLOREDIT(wParam, lParam, Msg, Hwnd) {
 ; ===================== 窗口拖动消息处理（防止拖动时组件闪烁）====================
 WM_ENTERSIZEMOVE(wParam, lParam, Msg, Hwnd) {
     global WindowDragging, GuiID_ConfigGUI, GuiID_CursorPanel, GuiID_ClipboardManager
-    global GuiID_VoiceInputPanel, GuiID_ScreenshotButton
+    global GuiID_VoiceInputPanel, GuiID_ScreenshotButton, GuiID_ScreenshotEditor, GuiID_ScreenshotToolbar
     
     ; 检查是否是我们的窗口
     IsOurWindow := false
+    IsScreenshotEditor := false
     try {
         if (GuiID_ConfigGUI != 0 && Hwnd = GuiID_ConfigGUI.Hwnd) {
             IsOurWindow := true
@@ -12997,12 +13002,20 @@ WM_ENTERSIZEMOVE(wParam, lParam, Msg, Hwnd) {
             IsOurWindow := true
         } else if (GuiID_ScreenshotButton != 0 && Hwnd = GuiID_ScreenshotButton.Hwnd) {
             IsOurWindow := true
+        } else if (GuiID_ScreenshotEditor != 0 && Hwnd = GuiID_ScreenshotEditor.Hwnd) {
+            IsOurWindow := true
+            IsScreenshotEditor := true
         }
     } catch as err {
     }
     
     if (!IsOurWindow) {
         return
+    }
+    
+    ; 如果是截图助手窗口开始拖动，启动工具栏同步移动定时器
+    if (IsScreenshotEditor && GuiID_ScreenshotToolbar != 0) {
+        SetTimer(SyncScreenshotToolbarPosition, 10)  ; 每10ms同步一次位置
     }
     
     ; 标记窗口正在拖动
@@ -13045,9 +13058,11 @@ WM_ENTERSIZEMOVE(wParam, lParam, Msg, Hwnd) {
 WM_EXITSIZEMOVE(wParam, lParam, Msg, Hwnd) {
     global WindowDragging, GuiID_ConfigGUI, GuiID_CursorPanel, GuiID_ClipboardManager
     global GuiID_VoiceInputPanel, GuiID_ScreenshotButton, CursorPanelAutoHide
+    global GuiID_ScreenshotEditor, GuiID_ScreenshotToolbar
     
     ; 检查是否是我们的窗口
     IsOurWindow := false
+    IsScreenshotEditor := false
     try {
         if (GuiID_ConfigGUI != 0 && Hwnd = GuiID_ConfigGUI.Hwnd) {
             IsOurWindow := true
@@ -13059,12 +13074,20 @@ WM_EXITSIZEMOVE(wParam, lParam, Msg, Hwnd) {
             IsOurWindow := true
         } else if (GuiID_ScreenshotButton != 0 && Hwnd = GuiID_ScreenshotButton.Hwnd) {
             IsOurWindow := true
+        } else if (GuiID_ScreenshotEditor != 0 && Hwnd = GuiID_ScreenshotEditor.Hwnd) {
+            IsOurWindow := true
+            IsScreenshotEditor := true
         }
     } catch as err {
     }
     
     if (!IsOurWindow) {
         return
+    }
+    
+    ; 如果是截图助手窗口结束拖动，停止工具栏同步移动定时器
+    if (IsScreenshotEditor) {
+        SetTimer(SyncScreenshotToolbarPosition, 0)  ; 停止定时器
     }
     
     ; 标记窗口拖动结束
@@ -22901,11 +22924,32 @@ ExecuteScreenshotWithMenu() {
                 UpdateDebugStep(DebugGui, 12, "等待状态已清除", true)
             }
             
+            ; 等待截图工具完全关闭，避免窗口阻挡用户截图
+            if (DebugGui) {
+                UpdateDebugStep(DebugGui, 13, "等待截图工具关闭...", false)
+            }
+            ; 等待1秒，确保截图工具已完全关闭
+            Sleep(1000)
+            
+            ; 尝试等待截图工具窗口关闭（最多等待2秒）
+            try {
+                ; 检查是否存在截图工具窗口
+                if (WinExist("ahk_exe SnippingTool.exe") || WinExist("ahk_class Microsoft-Windows-SnippingTool")) {
+                    ; 等待窗口关闭，最多等待2秒
+                    WinWaitClose("ahk_exe SnippingTool.exe", , 2)
+                    WinWaitClose("ahk_class Microsoft-Windows-SnippingTool", , 2)
+                }
+            } catch {
+                ; 如果等待失败，继续执行
+            }
+            
+            ; 再等待500ms，确保截图工具完全退出
+            Sleep(500)
+            
             ; 弹出截图助手预览窗（替代智能菜单）
             if (DebugGui) {
                 UpdateDebugStep(DebugGui, 13, "调用 ShowScreenshotEditor() 显示助手窗口...", false)
             }
-            TrayTip("调试", "准备调用 ShowScreenshotEditor()，ScreenshotClipboard=" . (ScreenshotClipboard ? "存在" : "为空"), "Iconi 1")
             try {
                 ShowScreenshotEditor(DebugGui)
                 if (DebugGui) {
@@ -26964,14 +27008,18 @@ ShowScreenshotEditor(DebugGui := 0) {
             UpdateDebugStep(DebugGui, 14, "ShowScreenshotEditor: 开始执行...", false)
         }
         
-        ; 如果预览窗已存在，先关闭
+        ; 如果预览窗已存在，先关闭并清理旧资源，确保每次都是新截图
         if (DebugGui) {
             UpdateDebugStep(DebugGui, 15, "检查预览窗是否已存在...", false)
         }
         if (GuiID_ScreenshotEditor && (GuiID_ScreenshotEditor != 0)) {
+            if (DebugGui) {
+                UpdateDebugStep(DebugGui, 15, "发现旧的预览窗，正在关闭并清理资源...", false)
+            }
+            ; 关闭旧窗口并清理所有资源，确保每次都是新截图
             CloseScreenshotEditor()
             if (DebugGui) {
-                UpdateDebugStep(DebugGui, 15, "已关闭旧的预览窗", true)
+                UpdateDebugStep(DebugGui, 15, "旧预览窗已关闭，资源已清理", true)
             }
         } else {
             if (DebugGui) {
@@ -27181,18 +27229,23 @@ ShowScreenshotEditor(DebugGui := 0) {
         GuiID_ScreenshotEditor.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
         
         ; 窗口尺寸（仅预览区域，工具栏独立悬浮）
-        WindowWidth := PreviewWidth + 40
-        WindowHeight := PreviewHeight + 40
+        ; 消除黑边：窗口宽度等于图片宽度，高度等于标题栏+图片高度
+        TitleBarHeight := 30
+        WindowWidth := PreviewWidth
+        WindowHeight := TitleBarHeight + PreviewHeight
         
         ; 标题栏（可拖动）
-        TitleBarHeight := 30
-        global ScreenshotEditorTitleBar := GuiID_ScreenshotEditor.Add("Text", "x0 y0 w" . WindowWidth . " h" . TitleBarHeight . " Center Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text, "📷 截图助手")
+        global ScreenshotEditorTitleBar := GuiID_ScreenshotEditor.Add("Text", "x0 y0 w" . (WindowWidth - 40) . " h" . TitleBarHeight . " Center Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text, "📷 截图助手")
         ScreenshotEditorTitleBar.SetFont("s11 Bold", "Segoe UI")
-        ; 添加拖动功能
-        ScreenshotEditorTitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2, 0, 0, GuiID_ScreenshotEditor.Hwnd))
+        ; 添加拖动功能（Text控件只支持Click事件）
+        ScreenshotEditorTitleBar.OnEvent("Click", ScreenshotEditorDragWindow)
         
-        ; 预览区域（使用Picture控件显示）
-        PreviewY := TitleBarHeight + 5
+        ; [关闭] 按钮（在标题栏右侧，最后创建以确保在最上层）
+        ; 注意：关闭按钮需要在所有其他控件之后创建，以确保它在最上层
+        global ScreenshotEditorCloseBtn := 0  ; 先初始化为0，稍后创建
+        
+        ; 预览区域（使用Picture控件显示，紧贴窗口边缘，无黑边）
+        PreviewY := TitleBarHeight
         ; 将位图保存为临时文件用于显示
         TempImagePath := A_Temp "\ScreenshotEditor_" . A_TickCount . ".png"
         try {
@@ -27212,20 +27265,14 @@ ShowScreenshotEditor(DebugGui := 0) {
             }
             return
         }
-        PreviewPic := GuiID_ScreenshotEditor.Add("Picture", "x20 y" . PreviewY . " w" . PreviewWidth . " h" . PreviewHeight, TempImagePath)
+        PreviewPic := GuiID_ScreenshotEditor.Add("Picture", "x0 y" . PreviewY . " w" . PreviewWidth . " h" . PreviewHeight, TempImagePath)
         
-        ; 为图片控件添加拖动功能（长按左键拖动）
+        ; 为图片控件添加拖动功能（Picture控件支持Click事件）
         global ScreenshotEditorIsDraggingWindow := false
-        PreviewPic.OnEvent("Click", OnScreenshotEditorPicClick)
+        PreviewPic.OnEvent("Click", (*) => ScreenshotEditorDragWindow())
         
         ; 全局变量
         global ScreenshotEditorPreviewPic := PreviewPic  ; 保存图片控件引用
-        
-        ; [关闭] 按钮（在标题栏右侧）
-        global ScreenshotEditorCloseBtn := GuiID_ScreenshotEditor.Add("Text", "x" . (WindowWidth - 40) . " y5 w30 h30 Center 0x200 cFFFFFF Background" . UI_Colors.BtnDanger, "✕")
-        ScreenshotEditorCloseBtn.SetFont("s12", "Segoe UI")
-        ScreenshotEditorCloseBtn.OnEvent("Click", (*) => CloseScreenshotEditor())
-        HoverBtnWithAnimation(ScreenshotEditorCloseBtn, UI_Colors.BtnDanger, UI_Colors.BtnDangerHover)
         
         ; 创建独立的悬浮工具栏窗口
         global GuiID_ScreenshotToolbar := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
@@ -27240,6 +27287,9 @@ ShowScreenshotEditor(DebugGui := 0) {
         ButtonSpacing := 10
         ButtonY := (ToolbarHeight - ButtonHeight) // 2
         ButtonX := ToolbarPadding
+        
+        ; 先创建拖动区域（在按钮下方，不覆盖按钮）
+        ; 注意：拖动区域会在按钮创建后添加，确保按钮在上层
         
         ; 工具栏按钮（添加到悬浮工具栏）
         ; [置顶] 按钮
@@ -27278,9 +27328,39 @@ ShowScreenshotEditor(DebugGui := 0) {
         HoverBtnWithAnimation(SaveBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
         ButtonX += ButtonWidth + ButtonSpacing
         
+        ; [关闭] 按钮（在工具栏）
+        CloseToolbarBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnDanger, "✕ 关闭")
+        CloseToolbarBtn.SetFont("s9", "Segoe UI")
+        CloseToolbarBtn.OnEvent("Click", (*) => CloseScreenshotEditor())
+        HoverBtnWithAnimation(CloseToolbarBtn, UI_Colors.BtnDanger, UI_Colors.BtnDangerHover)
+        ButtonX += ButtonWidth + ButtonSpacing
+        
         ; 计算工具栏宽度
         ToolbarWidth := ButtonX + ToolbarPadding
         
+        ; 为工具栏添加拖动功能
+        ; 在工具栏的空白区域添加拖动区域（不覆盖按钮）
+        ; Text控件只支持Click事件
+        ; 顶部拖动区域
+        ToolbarDragTop := GuiID_ScreenshotToolbar.Add("Text", "x0 y0 w" . ToolbarWidth . " h" . ButtonY . " BackgroundTrans")
+        ToolbarDragTop.OnEvent("Click", ScreenshotToolbarDragWindow)
+        ; 底部拖动区域
+        ToolbarDragBottom := GuiID_ScreenshotToolbar.Add("Text", "x0 y" . (ButtonY + ButtonHeight) . " w" . ToolbarWidth . " h" . (ToolbarHeight - ButtonY - ButtonHeight) . " BackgroundTrans")
+        ToolbarDragBottom.OnEvent("Click", ScreenshotToolbarDragWindow)
+        ; 左侧拖动区域（按钮左侧）
+        ToolbarDragLeft := GuiID_ScreenshotToolbar.Add("Text", "x0 y" . ButtonY . " w" . ToolbarPadding . " h" . ButtonHeight . " BackgroundTrans")
+        ToolbarDragLeft.OnEvent("Click", ScreenshotToolbarDragWindow)
+        ; 右侧拖动区域（按钮右侧到工具栏边缘）
+        ToolbarDragRight := GuiID_ScreenshotToolbar.Add("Text", "x" . (ButtonX - ToolbarPadding) . " y" . ButtonY . " w" . (ToolbarWidth - ButtonX + ToolbarPadding) . " h" . ButtonHeight . " BackgroundTrans")
+        ToolbarDragRight.OnEvent("Click", ScreenshotToolbarDragWindow)
+        
+        ; [关闭] 按钮（在标题栏右侧，最后创建以确保在最上层）
+        if (!ScreenshotEditorCloseBtn || ScreenshotEditorCloseBtn = 0) {
+            global ScreenshotEditorCloseBtn := GuiID_ScreenshotEditor.Add("Text", "x" . (WindowWidth - 40) . " y0 w40 h" . TitleBarHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnDanger, "✕")
+            ScreenshotEditorCloseBtn.SetFont("s12", "Segoe UI")
+            ScreenshotEditorCloseBtn.OnEvent("Click", (*) => CloseScreenshotEditor())
+            HoverBtnWithAnimation(ScreenshotEditorCloseBtn, UI_Colors.BtnDanger, UI_Colors.BtnDangerHover)
+        }
         
         ; 添加键盘事件
         GuiID_ScreenshotEditor.OnEvent("Escape", (*) => CloseScreenshotEditor())
@@ -27447,6 +27527,88 @@ CopyErrorInfoToClipboard(ErrorInfo) {
     TrayTip("提示", "错误信息已复制到剪贴板", "Iconi 1")
 }
 
+; 截图助手窗口拖动函数
+ScreenshotEditorDragWindow(*) {
+    global GuiID_ScreenshotEditor
+    
+    try {
+        if (GuiID_ScreenshotEditor && GuiID_ScreenshotEditor != 0) {
+            ; 发送拖动消息（WM_NCLBUTTONDOWN with HTCAPTION = 2）
+            ; 使用 PostMessage，参数格式：PostMessage(Msg, wParam, lParam, Control, WinTitle)
+            PostMessage(0xA1, 2, 0, , "ahk_id " . GuiID_ScreenshotEditor.Hwnd)
+        }
+    } catch as e {
+        ; 如果失败，尝试直接使用窗口句柄
+        try {
+            if (GuiID_ScreenshotEditor && GuiID_ScreenshotEditor.Hwnd) {
+                PostMessage(0xA1, 2, 0, 0, GuiID_ScreenshotEditor.Hwnd)
+            }
+        } catch {
+            ; 忽略错误
+        }
+    }
+}
+
+; 工具栏拖动窗口函数
+ScreenshotToolbarDragWindow(*) {
+    global GuiID_ScreenshotToolbar
+    
+    try {
+        if (GuiID_ScreenshotToolbar && GuiID_ScreenshotToolbar != 0) {
+            ; 发送拖动消息（WM_NCLBUTTONDOWN with HTCAPTION = 2）
+            PostMessage(0xA1, 2, 0, , "ahk_id " . GuiID_ScreenshotToolbar.Hwnd)
+        }
+    } catch as e {
+        ; 如果失败，尝试直接使用窗口句柄
+        try {
+            if (GuiID_ScreenshotToolbar && GuiID_ScreenshotToolbar.Hwnd) {
+                PostMessage(0xA1, 2, 0, 0, GuiID_ScreenshotToolbar.Hwnd)
+            }
+        } catch {
+            ; 忽略错误
+        }
+    }
+}
+
+; 同步工具栏位置（跟随主窗口移动）
+SyncScreenshotToolbarPosition() {
+    global GuiID_ScreenshotEditor, GuiID_ScreenshotToolbar
+    
+    try {
+        if (!GuiID_ScreenshotEditor || GuiID_ScreenshotEditor = 0) {
+            SetTimer(SyncScreenshotToolbarPosition, 0)  ; 停止定时器
+            return
+        }
+        
+        if (!GuiID_ScreenshotToolbar || GuiID_ScreenshotToolbar = 0) {
+            SetTimer(SyncScreenshotToolbarPosition, 0)  ; 停止定时器
+            return
+        }
+        
+        ; 获取主窗口位置和尺寸
+        WinGetPos(&EditorX, &EditorY, &EditorW, &EditorH, "ahk_id " . GuiID_ScreenshotEditor.Hwnd)
+        
+        if (!EditorX || !EditorY || !EditorW || !EditorH) {
+            return  ; 如果获取位置失败，跳过本次同步
+        }
+        
+        ; 计算工具栏位置（放在主窗口下方，间距10像素）
+        ToolbarX := EditorX
+        ToolbarY := EditorY + EditorH + 10
+        
+        ; 获取工具栏当前尺寸
+        WinGetPos(, , &ToolbarW, &ToolbarH, "ahk_id " . GuiID_ScreenshotToolbar.Hwnd)
+        
+        ; 移动工具栏到新位置
+        if (ToolbarW && ToolbarH) {
+            GuiID_ScreenshotToolbar.Show("x" . ToolbarX . " y" . ToolbarY)
+        }
+    } catch as e {
+        ; 如果出错，停止定时器
+        SetTimer(SyncScreenshotToolbarPosition, 0)
+    }
+}
+
 ; 切换截图助手置顶状态（隐藏/显示工具栏和标题栏）
 ToggleScreenshotEditorAlwaysOnTop() {
     global GuiID_ScreenshotEditor, GuiID_ScreenshotToolbar, ScreenshotEditorAlwaysOnTop
@@ -27468,10 +27630,10 @@ ToggleScreenshotEditorAlwaysOnTop() {
                 GuiID_ScreenshotToolbar.Hide()
             }
             
-            ; 调整窗口大小和图片位置（移除标题栏高度）
+            ; 调整窗口大小和图片位置（移除标题栏高度，无黑边）
             WinGetPos(&WinX, &WinY, &WinW, &WinH, "ahk_id " . GuiID_ScreenshotEditor.Hwnd)
-            NewHeight := ScreenshotEditorPreviewHeight + 40  ; 预览高度 + 上下边距
-            ScreenshotEditorPreviewPic.Move(20, 5)  ; 图片移到顶部（移除标题栏高度35px）
+            NewHeight := ScreenshotEditorPreviewHeight  ; 预览高度（无边距）
+            ScreenshotEditorPreviewPic.Move(0, 0)  ; 图片移到顶部，紧贴边缘
             GuiID_ScreenshotEditor.Show("w" . WinW . " h" . NewHeight . " x" . WinX . " y" . WinY)
             
             TrayTip("提示", "已隐藏工具栏和标题栏，右键图片可显示菜单", "Iconi 1")
@@ -27502,12 +27664,12 @@ ShowScreenshotEditorToolbar() {
             ScreenshotEditorCloseBtn.Visible := true
         }
         
-        ; 调整窗口大小和图片位置（恢复标题栏高度）
+        ; 调整窗口大小和图片位置（恢复标题栏高度，无黑边）
         WinGetPos(&WinX, &WinY, &WinW, &WinH, "ahk_id " . GuiID_ScreenshotEditor.Hwnd)
         TitleBarHeight := 30
-        PreviewY := TitleBarHeight + 5
-        NewHeight := ScreenshotEditorPreviewHeight + 40 + TitleBarHeight + 5  ; 预览高度 + 边距 + 标题栏高度 + 间距
-        ScreenshotEditorPreviewPic.Move(20, PreviewY)  ; 图片移到标题栏下方
+        PreviewY := TitleBarHeight
+        NewHeight := ScreenshotEditorPreviewHeight + TitleBarHeight  ; 预览高度 + 标题栏高度（无边距）
+        ScreenshotEditorPreviewPic.Move(0, PreviewY)  ; 图片移到标题栏下方，紧贴左边缘
         GuiID_ScreenshotEditor.Show("w" . WinW . " h" . NewHeight . " x" . WinX . " y" . WinY)
         
         ; 显示工具栏
@@ -27531,8 +27693,11 @@ OnScreenshotEditorPicClick(Ctrl, Info) {
         if (GetKeyState("LButton", "P")) {
             ; 长按左键，开始拖动窗口
             ScreenshotEditorIsDraggingWindow := true
-            ; 发送拖动消息（WM_NCLBUTTONDOWN with HTCAPTION）
-            PostMessage(0xA1, 2, 0, 0, GuiID_ScreenshotEditor.Hwnd)
+            
+            ; 发送拖动消息（确保窗口句柄有效）
+            if (GuiID_ScreenshotEditor && GuiID_ScreenshotEditor != 0) {
+                PostMessage(0xA1, 2, 0, 0, GuiID_ScreenshotEditor.Hwnd)
+            }
             
             ; 监听鼠标释放
             SetTimer(() => CheckScreenshotEditorWindowDragUp(), 10)
@@ -27724,56 +27889,359 @@ PasteOCRTextToCursor(Text, OCRResultGui) {
 }
 
 ; 执行OCR识别
-ExecuteScreenshotOCR() {
-    global ScreenshotEditorBitmap, ScreenshotClipboard
+; 为代码OCR预处理位图（放大、裁剪、增强对比度）
+PrepareBitmapForCodeOCR(pBitmap) {
+    if (!pBitmap || pBitmap <= 0) {
+        return 0
+    }
+    
+    G := 0
+    pNew := 0
+    pAttr := 0
     
     try {
-        ; 如果剪贴板中没有图片，使用保存的截图
-        if (ScreenshotClipboard) {
-            A_Clipboard := ScreenshotClipboard
-            Sleep(200)
+        ; 获取原始尺寸
+        Width := Gdip_GetImageWidth(pBitmap)
+        Height := Gdip_GetImageHeight(pBitmap)
+        
+        if (Width <= 0 || Height <= 0) {
+            return 0
         }
         
-        ; 初始化WinClip
-        ; 涓嶅啀浣跨敤 WinClip
+        ; 1. 比例缩放：如果高度小于500px，放大2倍
+        scale := (Height < 500) ? 2 : 1
+        margin := 8  ; 四周内缩8像素
         
-        ; 调用OCR识别（从剪贴板位图）
-        pBitmap := Gdip_CreateBitmapFromClipboard()
-        if (!pBitmap || pBitmap < 0) {
-            TrayTip("错误", "无法从剪贴板获取位图", "Iconx 2")
+        ; 确保裁剪后尺寸有效
+        if (Width <= margin * 2 || Height <= margin * 2) {
+            ; 如果图片太小，不进行裁剪，只进行缩放
+            margin := 0
+        }
+        
+        ; 计算裁剪后的源尺寸
+        srcW := Width - (margin * 2)
+        srcH := Height - (margin * 2)
+        
+        if (srcW <= 0 || srcH <= 0) {
+            ; 如果裁剪后无效，使用原始尺寸
+            srcW := Width
+            srcH := Height
+            margin := 0
+        }
+        
+        ; 计算新尺寸（裁剪后放大）
+        newW := Floor(srcW * scale)
+        newH := Floor(srcH * scale)
+        
+        if (newW <= 0 || newH <= 0) {
+            return 0
+        }
+        
+        ; 创建新位图
+        pNew := Gdip_CreateBitmap(newW, newH)
+        if (!pNew || pNew <= 0) {
+            return 0
+        }
+        
+        ; 获取图形上下文
+        G := Gdip_GraphicsFromImage(pNew)
+        if (!G || G <= 0) {
+            Gdip_DisposeImage(pNew)
+            return 0
+        }
+        
+        ; 设置高质量插值模式
+        Gdip_SetInterpolationMode(G, 7)  ; HighQualityBicubic
+        
+        ; 2. 应用极致对比度颜色矩阵
+        ; 矩阵格式：2.5|0|0|0|0|0|2.5|0|0|0|0|0|2.5|0|0|0|0|0|1|0|-1|-1|-1|0|1
+        Matrix := "2.5|0|0|0|0|0|2.5|0|0|0|0|0|2.5|0|0|0|0|0|1|0|-1|-1|-1|0|1"
+        pAttr := Gdip_SetImageAttributesColorMatrix(Matrix)
+        
+        ; 3. 绘制时进行偏移（实现裁剪边缘）
+        ; 从源位图的(margin, margin)位置开始，尺寸为(srcW, srcH)
+        ; 绘制到新位图的(0, 0)位置，尺寸为(newW, newH)（已放大）
+        srcX := margin
+        srcY := margin
+        
+        ; 绘制图像（应用颜色矩阵和裁剪，同时放大）
+        ; Gdip_DrawImage(pGraphics, pBitmap, dx, dy, dw, dh, sx, sy, sw, sh, Matrix)
+        result := Gdip_DrawImage(G, pBitmap, 0, 0, newW, newH, srcX, srcY, srcW, srcH, pAttr)
+        
+        ; 检查绘制是否成功
+        if (result != 0) {
+            ; 绘制失败，释放资源并返回0
+            if (pAttr) {
+                Gdip_DisposeImageAttributes(pAttr)
+            }
+            Gdip_DeleteGraphics(G)
+            Gdip_DisposeImage(pNew)
+            return 0
+        }
+        
+        ; 释放资源
+        if (pAttr) {
+            Gdip_DisposeImageAttributes(pAttr)
+            pAttr := 0
+        }
+        Gdip_DeleteGraphics(G)
+        G := 0
+        
+        return pNew
+    } catch as e {
+        ; 如果出错，释放已创建的资源
+        if (G && G > 0) {
+            try Gdip_DeleteGraphics(G)
+        }
+        if (pNew && pNew > 0) {
+            try Gdip_DisposeImage(pNew)
+        }
+        if (pAttr && pAttr > 0) {
+            try Gdip_DisposeImageAttributes(pAttr)
+        }
+        return 0
+    }
+}
+
+; 清洗代码OCR结果文本
+CleanCodeOCRText(ResultObj) {
+    ; 首先尝试直接返回 Text 属性
+    try {
+        if (ResultObj.HasProp("Text") && ResultObj.Text != "") {
+            return ResultObj.Text
+        }
+    } catch {
+    }
+
+    ; 如果没有 Text 属性或为空，尝试从 Words 构建
+    try {
+        if (!ResultObj.HasProp("Words")) {
+            return ""
+        }
+
+        Words := ResultObj.Words
+        if (!Words || Words.Length = 0) {
+            return ""
+        }
+
+        ; 计算所有字符的平均高度
+        sumH := 0
+        wordCount := 0
+        for w in Words {
+            try {
+                if (w.HasProp("h") && w.h > 0) {
+                    sumH += w.h
+                    wordCount++
+                }
+            } catch {
+                continue
+            }
+        }
+
+        if (wordCount = 0) {
+            ; 如果无法获取高度信息，直接拼接所有单词
+            simpleText := ""
+            for w in Words {
+                try {
+                    if (w.HasProp("Text")) {
+                        simpleText .= w.Text . " "
+                    }
+                } catch {
+                }
+            }
+            return Trim(simpleText)
+        }
+
+        avgH := sumH / wordCount
+
+        ; 按行组织单词（根据y坐标）
+        lines := Map()
+        for w in Words {
+            try {
+                ; 过滤掉异常高度的字符（噪点或边框）
+                if (!w.HasProp("h") || w.h <= 0) {
+                    continue
+                }
+                if (w.h < avgH * 0.4 || w.h > avgH * 2.0) {
+                    continue
+                }
+
+                ; 简单的行合并逻辑（根据y坐标，每10像素为一组）
+                yKey := Round(w.y / 10) * 10
+                if (!lines.Has(yKey)) {
+                    lines[yKey] := []
+                }
+                lines[yKey].Push(w)
+            } catch {
+                continue
+            }
+        }
+
+        ; 按y坐标排序
+        sortedYKeys := []
+        for yKey in lines {
+            sortedYKeys.Push(yKey)
+        }
+        sortedYKeys.Sort()
+
+        ; 构建最终文本
+        finalText := ""
+        for yKey in sortedYKeys {
+            words := lines[yKey]
+
+            ; 按x坐标排序单词
+            wordsArray := []
+            for w in words {
+                wordsArray.Push(w)
+            }
+            ; 按x坐标排序（使用Sort方法）
+            wordsArray.Sort((a, b) => a.x - b.x)
+
+            ; 构建行文本
+            lineStr := ""
+            for w in wordsArray {
+                try {
+                    ; 访问Word对象的Text属性
+                    if (w.HasProp("Text")) {
+                        lineStr .= w.Text . " "
+                    }
+                } catch {
+                    ; 如果访问失败，跳过该单词
+                }
+            }
+            
+            ; 正则清理行首行尾干扰符
+            lineStr := RegExReplace(lineStr, "^[|!_I:.\-]\s*", "")
+            lineStr := RegExReplace(lineStr, "\s*[|!_I:.\-]$", "")
+            
+            ; 修正代码常见符号：单独出现的 | 在行首或行尾时移除
+            lineStr := RegExReplace(lineStr, "^\s*\|\s+", "")
+            lineStr := RegExReplace(lineStr, "\s+\|\s*$", "")
+            
+            ; 移除多余空格
+            lineStr := RegExReplace(lineStr, "\s+", " ")
+            lineStr := Trim(lineStr)
+            
+            if (lineStr != "") {
+                finalText .= lineStr . "`n"
+            }
+        }
+        
+        return Trim(finalText, "`n")
+    } catch as e {
+        ; 如果清洗失败，返回原始文本
+        try {
+            return ResultObj.Text
+        } catch {
+            return ""
+        }
+    }
+}
+
+; 执行截图OCR识别（优化版，专为代码截图设计）
+ExecuteScreenshotOCR() {
+    global ScreenshotEditorBitmap
+    
+    ToolTip("正在优化代码格式并识别...")
+    
+    try {
+        ; 使用截图编辑器中的位图
+        if (!ScreenshotEditorBitmap || ScreenshotEditorBitmap <= 0) {
+            TrayTip("错误", "截图位图不存在", "Iconx 2")
+            ToolTip()
             return
         }
         
-        ; 调用OCR识别
-        Result := OCR.FromBitmap(pBitmap)
-        Gdip_DisposeImage(pBitmap)
-        
-        if (Result && Result.Text) {
-            ; 显示OCR结果
-            OCRResultGui := Gui("+AlwaysOnTop -Caption")
-            OCRResultGui.BackColor := UI_Colors.Background
-            OCRResultGui.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
-            
-            ResultText := OCRResultGui.Add("Edit", "x10 y10 w500 h300 ReadOnly Multi Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, Result.Text)
-            ResultText.SetFont("s11", "Consolas")
-            
-            ; [粘贴纯文本] 按钮
-            PasteTextBtn := OCRResultGui.Add("Text", "x10 y320 w120 h30 Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary, "📋 粘贴纯文本")
-            PasteTextBtn.SetFont("s10", "Segoe UI")
-            PasteTextBtn.OnEvent("Click", (*) => PasteOCRTextToCursor(Result.Text, OCRResultGui))
-            HoverBtnWithAnimation(PasteTextBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
-            
-            ; [关闭] 按钮
-            CloseBtn := OCRResultGui.Add("Text", "x420 y320 w80 h30 Center 0x200 cFFFFFF Background" . UI_Colors.BtnBg, "关闭")
-            CloseBtn.SetFont("s10", "Segoe UI")
-            CloseBtn.OnEvent("Click", (*) => OCRResultGui.Destroy())
-            HoverBtnWithAnimation(CloseBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
-            
-            OCRResultGui.Show("w520 h360")
-        } else {
-            TrayTip("提示", (Result ? "未识别到文字" : "OCR识别失败"), "Iconi 1")
+        ; 验证位图有效性
+        try {
+            testWidth := Gdip_GetImageWidth(ScreenshotEditorBitmap)
+            testHeight := Gdip_GetImageHeight(ScreenshotEditorBitmap)
+            if (testWidth <= 0 || testHeight <= 0) {
+                throw Error("位图尺寸无效: " . testWidth . "x" . testHeight)
+            }
+        } catch as e {
+            TrayTip("错误", "位图无效: " . e.Message, "Iconx 2")
+            ToolTip()
+            return
         }
+        
+        ; 不使用预处理，直接保存为临时文件进行 OCR
+        ; 因为 OCR.FromBitmap 可能不稳定，改用 OCR.FromFile
+        TempPath := A_Temp "\OCR_Screenshot_" . A_TickCount . ".png"
+        result := Gdip_SaveBitmapToFile(ScreenshotEditorBitmap, TempPath)
+        if (result != 0) {
+            TrayTip("错误", "保存临时图片失败", "Iconx 2")
+            ToolTip()
+            return
+        }
+
+        ; 调用OCR识别（指定中文语言）
+        ToolTip("正在识别文字...")
+        Result := OCR.FromFile(TempPath, "zh-CN")
+
+        ; 删除临时文件
+        try {
+            FileDelete(TempPath)
+        } catch {
+        }
+
+        if (!Result) {
+            TrayTip("提示", "OCR识别失败，请重试", "Iconi 1")
+            ToolTip()
+            return
+        }
+        
+        ; 获取识别文本
+        cleanedText := ""
+        try {
+            ; 优先使用 Text 属性
+            if (Result.HasProp("Text") && Result.Text != "") {
+                cleanedText := Result.Text
+            }
+        } catch {
+        }
+
+        ; 如果 Text 为空，尝试清洗处理
+        if (cleanedText = "") {
+            try {
+                cleanedText := CleanCodeOCRText(Result)
+            } catch as e {
+                TrayTip("错误", "处理OCR结果失败: " . e.Message, "Iconx 2")
+                ToolTip()
+                return
+            }
+        }
+
+        if (cleanedText = "") {
+            TrayTip("提示", "未识别到文字，请确保截图包含清晰的文字内容", "Iconi 1")
+            ToolTip()
+            return
+        }
+        
+        ; 显示OCR结果
+        OCRResultGui := Gui("+AlwaysOnTop -Caption")
+        OCRResultGui.BackColor := UI_Colors.Background
+        OCRResultGui.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
+        
+        ResultText := OCRResultGui.Add("Edit", "x10 y10 w500 h300 ReadOnly Multi Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, cleanedText)
+        ResultText.SetFont("s11", "Consolas")
+        
+        ; [粘贴纯文本] 按钮
+        PasteTextBtn := OCRResultGui.Add("Text", "x10 y320 w120 h30 Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary, "📋 粘贴纯文本")
+        PasteTextBtn.SetFont("s10", "Segoe UI")
+        PasteTextBtn.OnEvent("Click", (*) => PasteOCRTextToCursor(cleanedText, OCRResultGui))
+        HoverBtnWithAnimation(PasteTextBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+        
+        ; [关闭] 按钮
+        CloseBtn := OCRResultGui.Add("Text", "x420 y320 w80 h30 Center 0x200 cFFFFFF Background" . UI_Colors.BtnBg, "关闭")
+        CloseBtn.SetFont("s10", "Segoe UI")
+        CloseBtn.OnEvent("Click", (*) => OCRResultGui.Destroy())
+        HoverBtnWithAnimation(CloseBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        
+        OCRResultGui.Show("w520 h360")
+        ToolTip()
     } catch as e {
+        ToolTip()
         TrayTip("错误", "OCR识别失败: " . e.Message, "Iconx 2")
     }
 }
@@ -27830,13 +28298,27 @@ PasteScreenshotAsText() {
         } catch {
         }
 
-        if (!ocrResult || !ocrResult.Text) {
+        if (!ocrResult) {
+            TrayTip("错误", "OCR识别失败", "Iconx 2")
+            return
+        }
+
+        ; 获取识别文本
+        recognizedText := ""
+        try {
+            if (ocrResult.HasProp("Text")) {
+                recognizedText := ocrResult.Text
+            }
+        } catch {
+        }
+
+        if (recognizedText = "") {
             TrayTip("错误", "未识别到文字", "Iconx 2")
             return
         }
 
         ; 将识别结果复制到剪贴板
-        A_Clipboard := ocrResult.Text
+        A_Clipboard := recognizedText
         TrayTip("成功", "文字已复制到剪贴板，可直接粘贴", "Iconi 1")
 
         ; 关闭预览窗
