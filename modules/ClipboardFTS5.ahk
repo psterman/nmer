@@ -130,11 +130,71 @@ InitClipboardFTS5DB() {
             ; 忽略错误，继续执行
         }
         
-        ; 5. 跳过 FTS5 虚拟表创建（因为当前SQLite版本不支持FTS5）
-        ; 注意：如果需要全文搜索功能，需要使用支持FTS5的SQLite版本
-        ; 目前使用简单的LIKE查询作为替代方案
+        ; 5. 创建 FTS5 虚拟表（用于高性能全文搜索）
+        ; 使用 unicode61 分词器以完美支持中文搜索
+        SQL := "CREATE VIRTUAL TABLE IF NOT EXISTS ClipboardHistory USING fts5(" .
+               "Content, " .
+               "SourceApp, " .
+               "DataType, " .
+               "LastCopyTime UNINDEXED, " .
+               "SourcePath UNINDEXED, " .
+               "IconPath UNINDEXED, " .
+               "CharCount UNINDEXED, " .
+               "Timestamp UNINDEXED, " .
+               "ImagePath UNINDEXED, " .
+               "IsFavorite UNINDEXED, " .
+               "CopyCount UNINDEXED, " .
+               "tokenize='unicode61'" .
+               ")"
         
-        ; 6. 创建索引以提升查询性能
+        if (!ClipboardFTS5DB.Exec(SQL)) {
+            ; 如果 FTS5 创建失败，记录但不中断（可能是 SQLite 版本不支持）
+            ; 继续使用普通表
+        }
+        
+        ; 5.1 创建触发器，自动同步 ClipMain 表到 FTS5 虚拟表
+        ; 插入触发器
+        SQL := "CREATE TRIGGER IF NOT EXISTS clipmain_fts5_insert AFTER INSERT ON ClipMain BEGIN " .
+               "INSERT INTO ClipboardHistory(rowid, Content, SourceApp, DataType, LastCopyTime, SourcePath, IconPath, CharCount, Timestamp, ImagePath, IsFavorite, CopyCount) " .
+               "VALUES (new.ID, new.Content, new.SourceApp, new.DataType, " .
+               "COALESCE(new.LastCopyTime, new.Timestamp), new.SourcePath, new.IconPath, new.CharCount, new.Timestamp, new.ImagePath, new.IsFavorite, new.CopyCount); " .
+               "END"
+        ClipboardFTS5DB.Exec(SQL)
+        
+        ; 更新触发器
+        SQL := "CREATE TRIGGER IF NOT EXISTS clipmain_fts5_update AFTER UPDATE ON ClipMain BEGIN " .
+               "UPDATE ClipboardHistory SET " .
+               "Content = new.Content, " .
+               "SourceApp = new.SourceApp, " .
+               "DataType = new.DataType, " .
+               "LastCopyTime = COALESCE(new.LastCopyTime, new.Timestamp), " .
+               "SourcePath = new.SourcePath, " .
+               "IconPath = new.IconPath, " .
+               "CharCount = new.CharCount, " .
+               "Timestamp = new.Timestamp, " .
+               "ImagePath = new.ImagePath, " .
+               "IsFavorite = new.IsFavorite, " .
+               "CopyCount = new.CopyCount " .
+               "WHERE rowid = new.ID; " .
+               "END"
+        ClipboardFTS5DB.Exec(SQL)
+        
+        ; 删除触发器
+        SQL := "CREATE TRIGGER IF NOT EXISTS clipmain_fts5_delete AFTER DELETE ON ClipMain BEGIN " .
+               "DELETE FROM ClipboardHistory WHERE rowid = old.ID; " .
+               "END"
+        ClipboardFTS5DB.Exec(SQL)
+        
+        ; 5.2 如果 FTS5 表已存在但 ClipMain 表有数据，同步现有数据
+        SQL := "INSERT OR IGNORE INTO ClipboardHistory(rowid, Content, SourceApp, DataType, LastCopyTime, SourcePath, IconPath, CharCount, Timestamp, ImagePath, IsFavorite, CopyCount) " .
+               "SELECT ID, Content, SourceApp, DataType, " .
+               "COALESCE(LastCopyTime, Timestamp), SourcePath, IconPath, CharCount, Timestamp, ImagePath, IsFavorite, " .
+               "COALESCE(CopyCount, 1) " .
+               "FROM ClipMain " .
+               "WHERE ID NOT IN (SELECT rowid FROM ClipboardHistory)"
+        ClipboardFTS5DB.Exec(SQL)
+        
+        ; 6. 创建索引以提升查询性能（针对 ClipMain 表）
         SQL := "CREATE INDEX IF NOT EXISTS idx_clipmain_timestamp ON ClipMain(Timestamp DESC)"
         ClipboardFTS5DB.Exec(SQL)
         

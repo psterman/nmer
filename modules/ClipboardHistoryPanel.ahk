@@ -21,6 +21,7 @@ global HistoryTagButtons := Map()  ; 存储标签按钮对象
 global HistorySelectedTag := ""  ; 当前选中的标签（空字符串表示全部）
 global ColorSummaryGUI := 0  ; 颜色汇总面板GUI
 global ColorSummaryIsVisible := false  ; 颜色汇总面板是否可见
+global HistorySearchTimer := 0  ; 搜索防抖定时器
 
 ; 暗黑模式配色（Cursor色系）
 HistoryColors := {
@@ -300,13 +301,34 @@ RefreshHistoryData(keyword := "") {
             
             orderByField := hasLastCopyTime ? "LastCopyTime" : "Timestamp"
             
+            ; 检查 FTS5 虚拟表是否存在
+            SQL := "SELECT name FROM sqlite_master WHERE type='table' AND name='ClipboardHistory'"
+            table := ""
+            hasFTS5Table := false
+            if (ClipboardFTS5DB.GetTable(SQL, &table)) {
+                if (table.HasRows && table.Rows.Length > 0) {
+                    hasFTS5Table := true
+                }
+            }
+            
             ; 构建WHERE条件
             whereConditions := []
             
-            ; 添加关键词搜索条件
+            ; 添加关键词搜索条件（优先使用 FTS5 MATCH 语法）
             if (keyword != "") {
-                escapedKeyword := StrReplace(keyword, "'", "''")
-                whereConditions.Push("Content LIKE '%" . escapedKeyword . "%'")
+                if (hasFTS5Table) {
+                    ; 使用 FTS5 MATCH 语法，性能提升百倍
+                    ; 转义特殊字符并添加 * 号实现前缀匹配
+                    escapedKeyword := StrReplace(keyword, "'", "''")
+                    escapedKeyword := StrReplace(escapedKeyword, "\", "\\")
+                    escapedKeyword := StrReplace(escapedKeyword, '"', '\"')
+                    ; 使用 FTS5 表进行搜索
+                    whereConditions.Push("ID IN (SELECT rowid FROM ClipboardHistory WHERE ClipboardHistory MATCH '" . escapedKeyword . "*')")
+                } else {
+                    ; 回退到 LIKE 查询（如果 FTS5 不可用）
+                    escapedKeyword := StrReplace(keyword, "'", "''")
+                    whereConditions.Push("Content LIKE '%" . escapedKeyword . "%'")
+                }
             }
             
             ; 添加标签过滤条件
@@ -322,7 +344,7 @@ RefreshHistoryData(keyword := "") {
                 }
             }
             
-            ; 构建SQL查询
+            ; 构建SQL查询（从 ClipMain 表查询，但使用 FTS5 进行搜索）
             SQL := "SELECT " . selectFields . " FROM ClipMain"
             if (whereConditions.Length > 0) {
                 SQL .= " WHERE " . whereConditions[1]
@@ -584,10 +606,27 @@ RefreshHistoryData(keyword := "") {
     }
 }
 
-; ===================== 搜索框变化事件 =====================
+; ===================== 搜索框变化事件（带防抖）=====================
 OnHistorySearchChange(*) {
-    global HistorySearchEdit
+    global HistorySearchEdit, HistorySearchTimer
     
+    ; 如果用户正在快速输入，取消上一个还没执行的刷新任务
+    if (HistorySearchTimer != 0) {
+        try {
+            SetTimer(HistorySearchTimer, 0)  ; 取消定时器
+        } catch {
+        }
+    }
+    
+    ; 设置 300 毫秒后执行刷新（用户停顿后才查数据库）
+    ; 使用函数对象而不是箭头函数，避免语法问题
+    HistorySearchTimer := DoSearchRefresh
+    SetTimer(HistorySearchTimer, -300)  ; 300毫秒后执行
+}
+
+; ===================== 执行搜索刷新（防抖回调）=====================
+DoSearchRefresh(*) {
+    global HistorySearchEdit
     keyword := HistorySearchEdit.Value
     RefreshHistoryData(keyword)
 }
