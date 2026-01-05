@@ -103,7 +103,7 @@ CreateHistoryPanelGUI() {
     }
     
     ; 创建 GUI（可调整大小，置顶）
-    GuiID_ClipboardHistory := Gui("+Resize +AlwaysOnTop", "粘贴板")
+    GuiID_ClipboardHistory := Gui("+Resize +AlwaysOnTop", "记录")  ; [需求4] 窗口名称改为"记录"
     GuiID_ClipboardHistory.BackColor := HistoryColors.Background
     GuiID_ClipboardHistory.SetFont("s10 c" . HistoryColors.Text, "Segoe UI")
     

@@ -42,6 +42,9 @@ global MainScriptDir := A_ScriptDir
 #Include modules\ClipboardFTS5.ahk
 #Include modules\ClipboardHistoryPanel.ahk
 
+; ===================== 包含悬浮工具栏模块 =====================
+#Include modules\FloatingToolbar.ahk
+
 ; ===================== 管理员权限检查 =====================
 ; 如果脚本不是以管理员权限运行，则重新以管理员权限启动
 if (!A_IsAdmin) {
@@ -2655,6 +2658,10 @@ InitClipboardDB()
 InitClipboardFTS5DB()
 ; 初始化粘贴板历史面板
 InitClipboardHistoryPanel()
+; 初始化悬浮工具栏
+InitFloatingToolbar()
+; 显示悬浮工具栏（随主脚本运行）
+ShowFloatingToolbar()
 ; 加载提示词模板系统（在配置初始化后）
 LoadPromptTemplates()
 ; 同步提示词模板到数据库
