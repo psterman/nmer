@@ -1,0 +1,373 @@
+20260105104119: 开始初始化数据库
+20260105104119: 数据库初始化成功
+20260105104119: ClipboardFTS5DB 状态: 已设置
+20260105104119: 剪贴板监听器已注册
+20260105104122: 剪贴板变化检测到，类型: 0
+20260105104122: 剪贴板变化检测到，类型: 1
+20260105104122: 剪贴板内容: PS C:\Users\pster\Desktop\小c> powershell -Command "Start-Sleep 3"
+鉁?AutoGLM 蹇嵎鍛戒护宸插姞杞斤紒
+鐢ㄦ硶: ag "浣犵殑鎸囦护"
+绀轰緥: ag "杩斿洖妗岄潰"
+
+
+
+
+20260105104122: 开始调用 CaptureClipboardTextToFTS5
+20260105104122: CaptureClipboardTextToFTS5 开始执行
+20260105104122: 数据库连接正常
+20260105104122: 剪贴板内容长度: 133
+20260105104122: 内容类型: Text
+20260105104122: 字符数: 125
+20260105104122: 准备SQL语句
+20260105104122: 异常: Missing a required parameter.
+20260105104122: CaptureClipboardTextToFTS5 结果: 失败
+20260105104133: 剪贴板变化检测到，类型: 1
+20260105104133: 剪贴板内容: ?Debug test content
+
+20260105104133: 开始调用 CaptureClipboardTextToFTS5
+20260105104133: CaptureClipboardTextToFTS5 开始执行
+20260105104133: 数据库连接正常
+20260105104133: 剪贴板内容长度: 21
+20260105104133: 内容类型: Text
+20260105104133: 字符数: 19
+20260105104133: 准备SQL语句
+20260105104133: 异常: Missing a required parameter.
+20260105104133: CaptureClipboardTextToFTS5 结果: 失败
+20260105104145: 剪贴板变化检测到，类型: 0
+20260105104145: 剪贴板变化检测到，类型: 1
+20260105104145: 剪贴板内容: 鉁?AutoGLM 蹇嵎鍛戒护宸插姞杞斤紒
+鐢ㄦ硶: ag "浣犵殑鎸囦护"
+绀轰緥: ag "杩斿洖妗岄潰"
+PS C:\Users\pster\Desktop\小c> powershell -Command "Start-Sleep 2"
+鉁?AutoGLM 蹇嵎鍛戒护宸插姞杞斤紒
+鐢ㄦ硶: ag "浣犵殑鎸囦护"
+绀轰緥: ag "杩斿洖妗岄潰"
+
+
+
+
+
+20260105104145: 开始调用 CaptureClipboardTextToFTS5
+20260105104145: CaptureClipboardTextToFTS5 开始执行
+20260105104145: 数据库连接正常
+20260105104145: 剪贴板内容长度: 195
+20260105104145: 内容类型: Text
+20260105104145: 字符数: 185
+20260105104145: 准备SQL语句
+20260105104145: 异常: Missing a required parameter.
+20260105104145: CaptureClipboardTextToFTS5 结果: 失败
+20260105104436: 剪贴板变化检测到，类型: 1
+20260105104436: CaptureClipboardTextToFTS5 开始执行
+20260105104436: 数据库连接正常
+20260105104436: 剪贴板内容长度: 40
+20260105104436: 内容类型: Code
+20260105104436: 字符数: 40
+20260105104436: 准备SQL语句
+20260105104436: 异常: Missing a required parameter.
+20260105104436: 剪贴板内容: 右侧：一个 Edit 或 ActiveX(WebView2) 控件用于展示详情。
+20260105104436: 开始调用 CaptureClipboardTextToFTS5
+20260105104436: CaptureClipboardTextToFTS5 开始执行
+20260105104436: 数据库连接正常
+20260105104436: 剪贴板内容长度: 40
+20260105104436: 内容类型: Code
+20260105104436: 字符数: 40
+20260105104436: 准备SQL语句
+20260105104436: 异常: Missing a required parameter.
+20260105104436: CaptureClipboardTextToFTS5 结果: 失败
+20260105104442: 剪贴板变化检测到，类型: 1
+20260105104442: 剪贴板内容: 右侧：一个 Edit 或 ActiveX(WebView2) 控件用于展示详情。
+20260105104442: 开始调用 CaptureClipboardTextToFTS5
+20260105104442: CaptureClipboardTextToFTS5 开始执行
+20260105104442: 数据库连接正常
+20260105104442: 剪贴板内容长度: 40
+20260105104442: 内容类型: Code
+20260105104442: 字符数: 40
+20260105104442: CaptureClipboardTextToFTS5 开始执行
+20260105104442: 准备SQL语句
+20260105104442: 数据库连接正常
+20260105104442: 异常: Missing a required parameter.
+20260105104442: CaptureClipboardTextToFTS5 结果: 失败
+20260105104442: 剪贴板内容长度: 40
+20260105104442: 内容类型: Code
+20260105104442: 字符数: 40
+20260105104442: 准备SQL语句
+20260105104442: 异常: Missing a required parameter.
+20260105105207: 剪贴板变化检测到，类型: 1
+20260105105207: 剪贴板内容: 请分析我的 ClipboardFTS5.ahk 和 CursorHelper (1).ahk：
+
+注册监听器：在 CursorHelper 的初始化区域添加 OnClipboardChange(OnClipboardChangeHandler)。
+
+完善采集逻辑：修改 OnClipboardChangeHandler，使其具备防抖功能。当 Type=1（文本）时，自动获取当前活动窗口的进程名作为 SourceApp，并调用 SaveToClipboardFTS5。
+
+解决单引号问题：确保 SaveToClipboardFTS5 在执行 SQL 插入时对文本内容进行了转义（StrReplace 单引号为双单引号），防止数据库写入失败。
+
+路径修正：确保 sqlite3.dll 的加载路径指向主脚本所在目录。
+20260105105207: 开始调用 CaptureClipboardTextToFTS5
+20260105105207: CaptureClipboardTextToFTS5 开始执行
+20260105105207: 数据库连接正常
+20260105105207: 剪贴板内容长度: 357
+20260105105207: 内容类型: Code
+20260105105207: 字符数: 357
+20260105105207: 准备SQL语句
+20260105105207: 异常: Missing a required parameter.
+20260105105207: CaptureClipboardTextToFTS5 开始执行
+20260105105207: CaptureClipboardTextToFTS5 结果: 失败
+20260105105207: 数据库连接正常
+20260105105207: 剪贴板内容长度: 357
+20260105105207: 内容类型: Code
+20260105105207: 字符数: 357
+20260105105207: 准备SQL语句
+20260105105207: 异常: Missing a required parameter.
+20260105105443: 剪贴板变化检测到，类型: 1
+20260105105443: 剪贴板内容: 增加图片预
+20260105105443: 开始调用 CaptureClipboardTextToFTS5
+20260105105443: CaptureClipboardTextToFTS5 开始执行
+20260105105443: 数据库连接正常
+20260105105443: 剪贴板内容长度: 5
+20260105105443: 内容类型: Text
+20260105105443: 字符数: 5
+20260105105443: 异常: (32) 另一个程序正在使用此文件，进程无法访问。
+20260105105443: 准备SQL语句
+20260105105443: 异常: Missing a required parameter.
+20260105105443: CaptureClipboardTextToFTS5 结果: 失败
+20260105105554: 剪贴板变化检测到，类型: 1
+20260105105554: CaptureClipboardTextToFTS5 开始执行
+20260105105554: 数据库连接正常
+20260105105554: 剪贴板内容长度: 59
+20260105105554: 内容类型: Text
+20260105105554: 字符数: 59
+20260105105554: 准备SQL语句
+20260105105554: 异常: Missing a required parameter.
+20260105105554: 剪贴板内容: ipChange 重命名为 OnClipboardChangeHandler
+添加防抖机制（300 毫秒延迟），避免
+20260105105554: 开始调用 CaptureClipboardTextToFTS5
+20260105105554: CaptureClipboardTextToFTS5 开始执行
+20260105105554: 数据库连接正常
+20260105105554: 剪贴板内容长度: 59
+20260105105554: 内容类型: Text
+20260105105554: 字符数: 59
+20260105105554: 准备SQL语句
+20260105105554: 异常: Missing a required parameter.
+20260105105554: CaptureClipboardTextToFTS5 结果: 失败
+20260105105601: CaptureClipboardTextToFTS5 开始执行
+20260105105601: 数据库连接正常
+20260105105601: 剪贴板内容长度: 158
+20260105105601: 内容类型: Code
+20260105105601: 字符数: 158
+20260105105601: 准备SQL语句
+20260105105601: 异常: Missing a required parameter.
+20260105105604: CaptureClipboardTextToFTS5 开始执行
+20260105105604: 数据库连接正常
+20260105105604: 剪贴板内容长度: 158
+20260105105604: 内容类型: Code
+20260105105604: 字符数: 158
+20260105105604: 准备SQL语句
+20260105105604: 异常: Missing a required parameter.
+20260105105722: 剪贴板变化检测到，类型: 1
+20260105105722: 剪贴板内容: 
+1. 路径修正
+在主脚本 CursorHelper (1).ahk 中定义了 MainScriptDir 全局变量
+在 ClipboardFTS5.ahk 模块中使用 MainScriptDir 来定位 sqlite3.dll，确保指向主脚本目录
+2. 创建 SaveToClipboardFTS5 函数
+在 ClipboardFTS5.ahk 中新增 SaveToClipboardFTS5 函数
+对单引号进行转义（StrReplace(content, "'", "''")）
+使用参数化查询插入数据（双重保护）
+自动分类内容类型并计算统计信息
+3. 完善采集逻辑（防抖功能）
+将 OnClipChange 重命名为 OnClipboardChangeHandler
+添加防抖机制（300 毫秒延迟），避免频繁触发
+当 Type=1（文本）时，自动获取当前活动窗口的进程名作为 SourceApp
+调用 SaveToClipboardFTS5 函数保存文本内容
+4. 监听器注册
+确认 OnClipboardChange 监听器已在初始化区域正确注册（第 2674 行）
+注册位置在 InitClipboardFTS5DB() 之后，确保数据库已初始化
+20260105105722: 开始调用 CaptureClipboardTextToFTS5
+20260105105722: CaptureClipboardTextToFTS5 开始执行
+20260105105722: 数据库连接正常
+20260105105722: 剪贴板内容长度: 545
+20260105105722: 内容类型: Code
+20260105105722: 字符数: 543
+20260105105722: 准备SQL语句
+20260105105722: 异常: (32) 另一个程序正在使用此文件，进程无法访问。
+20260105105725: CaptureClipboardTextToFTS5 结果: 失败
+20260105105857: 剪贴板变化检测到，类型: 1
+20260105105857: CaptureClipboardTextToFTS5 开始执行
+20260105105857: 数据库连接正常
+20260105105857: 剪贴板内容长度: 238
+20260105105857: 内容类型: Text
+20260105105857: 字符数: 237
+20260105105857: 准备SQL语句
+20260105105857: 剪贴板内容:  行）
+CleanupClipboardFTS5 函数（第 531 行）
+MarkAsFavorite 函数（第 566 行）
+UnmarkAsFavorite 函数（第 596 行）
+SearchClipboardFTS5 函数（第 636 行）
+modules/ClipboardGUI_FTS5.ahk - 修复了 1 处：
+加载剪贴板数据函数（第 220 行）
+modules/ClipboardGUI_FTS5_Fixed.ahk - 修复了 2 处：
+20260105105857: 异常: Missing a required parameter.
+20260105105857: 开始调用 CaptureClipboardTextToFTS5
+20260105105857: CaptureClipboardTextToFTS5 开始执行
+20260105105857: 数据库连接正常
+20260105105857: 剪贴板内容长度: 238
+20260105105857: 内容类型: Text
+20260105105857: 字符数: 237
+20260105105857: 准备SQL语句
+20260105105857: 异常: Missing a required parameter.
+20260105105857: CaptureClipboardTextToFTS5 结果: 失败
+20260105105900: CaptureClipboardTextToFTS5 开始执行
+20260105105900: 数据库连接正常
+20260105105900: 剪贴板内容长度: 158
+20260105105900: 内容类型: Code
+20260105105900: 字符数: 158
+20260105105900: 准备SQL语句
+20260105105900: 异常: Missing a required parameter.
+20260105105904: CaptureClipboardTextToFTS5 开始执行
+20260105105904: 数据库连接正常
+20260105105904: 剪贴板内容长度: 158
+20260105105904: 内容类型: Code
+20260105105904: 字符数: 158
+20260105105904: 准备SQL语句
+20260105105904: 异常: Missing a required parameter.
+20260105110103: 剪贴板变化检测到，类型: 1
+20260105110103: 剪贴板内容: stmt := ""
+if (!ClipboardFTS5DB.Prepare(SQL, &stmt)) {
+20260105110103: 开始调用 CaptureClipboardTextToFTS5
+20260105110103: CaptureClipboardTextToFTS5 开始执行
+20260105110103: 数据库连接正常
+20260105110103: 剪贴板内容长度: 55
+20260105110103: 内容类型: Code
+20260105110103: 字符数: 55
+20260105110103: CaptureClipboardTextToFTS5 开始执行
+20260105110103: 准备SQL语句
+20260105110103: 数据库连接正常
+20260105110103: 异常: Missing a required parameter.
+20260105110103: CaptureClipboardTextToFTS5 结果: 失败
+20260105110103: 异常: (32) 另一个程序正在使用此文件，进程无法访问。
+20260105110107: CaptureClipboardTextToFTS5 开始执行
+20260105110107: 数据库连接正常
+20260105110107: 剪贴板内容长度: 158
+20260105110107: 内容类型: Code
+20260105110107: 字符数: 158
+20260105110107: 准备SQL语句
+20260105110107: 异常: Missing a required parameter.
+20260105110112: CaptureClipboardTextToFTS5 开始执行
+20260105110112: 数据库连接正常
+20260105110112: 剪贴板内容长度: 158
+20260105110112: 内容类型: Code
+20260105110112: 字符数: 158
+20260105110112: 准备SQL语句
+20260105110112: 异常: Missing a required parameter.
+20260105110232: 剪贴板变化检测到，类型: 1
+20260105110232: 剪贴板内容: DB.Prepare(SQL, &stmt)) {
+    ; 错误处理
+    return false
+}
+20260105110232: 开始调用 CaptureClipboardTextToFTS5
+20260105110232: CaptureClipboardTextToFTS5 开始执行
+20260105110232: 数据库连接正常
+20260105110232: 剪贴板内容长度: 58
+20260105110232: 内容类型: Code
+20260105110232: CaptureClipboardTextToFTS5 开始执行
+20260105110232: 异常: (32) 另一个程序正在使用此文件，进程无法访问。
+20260105110232: 数据库连接正常
+20260105110232: CaptureClipboardTextToFTS5 结果: 失败
+20260105110232: 剪贴板内容长度: 58
+20260105110232: 内容类型: Code
+20260105110232: 字符数: 58
+20260105110232: 准备SQL语句
+20260105110232: 异常: Missing a required parameter.
+20260105110253: 剪贴板变化检测到，类型: 1
+20260105110253: CaptureClipboardTextToFTS5 开始执行
+20260105110253: 数据库连接正常
+20260105110253: 剪贴板内容长度: 1
+20260105110253: 内容类型: Text
+20260105110253: 字符数: 1
+20260105110253: 准备SQL语句
+20260105110253: 异常: Missing a required parameter.
+20260105110253: 剪贴板内容: 1
+20260105110253: 开始调用 CaptureClipboardTextToFTS5
+20260105110253: CaptureClipboardTextToFTS5 开始执行
+20260105110253: 数据库连接正常
+20260105110253: 剪贴板内容长度: 1
+20260105110253: 内容类型: Text
+20260105110253: 字符数: 1
+20260105110253: 准备SQL语句
+20260105110253: 异常: Missing a required parameter.
+20260105110253: CaptureClipboardTextToFTS5 结果: 失败
+20260105110256: CaptureClipboardTextToFTS5 开始执行
+20260105110256: 数据库连接正常
+20260105110256: 剪贴板内容长度: 158
+20260105110256: 内容类型: Code
+20260105110256: 字符数: 158
+20260105110256: 准备SQL语句
+20260105110256: 异常: Missing a required parameter.
+20260105110309: CaptureClipboardTextToFTS5 开始执行
+20260105110309: 数据库连接正常
+20260105110309: 剪贴板内容长度: 158
+20260105110309: 内容类型: Code
+20260105110309: 字符数: 158
+20260105110309: 剪贴板变化检测到，类型: 1
+20260105110309: 异常: (32) 另一个程序正在使用此文件，进程无法访问。
+20260105110309: 剪贴板内容: Error: Missing a required parameter.
+
+Specifically: ST
+
+	033: {
+	034: SQL := "SELECT COUNT(*) FROM ClipMain"
+?	035: stmt := ClipboardFTS5DB.Prepare(SQL)
+20260105110309: 开始调用 CaptureClipboardTextToFTS5
+20260105110309: CaptureClipboardTextToFTS5 开始执行
+20260105110309: 数据库连接正常
+20260105110309: 剪贴板内容长度: 158
+20260105110309: 内容类型: Code
+20260105110309: 字符数: 158
+20260105110309: 准备SQL语句
+20260105110309: 异常: Missing a required parameter.
+20260105110309: CaptureClipboardTextToFTS5 结果: 失败
+20260105110623: 剪贴板变化检测到，类型: 1
+20260105110623: 剪贴板内容: 经非
+20260105110623: 开始调用 CaptureClipboardTextToFTS5
+20260105110623: CaptureClipboardTextToFTS5 开始执行
+20260105110623: 数据库连接正常
+20260105110623: 剪贴板内容长度: 2
+20260105110623: 内容类型: Text
+20260105110623: 字符数: 2
+20260105110623: 准备SQL语句
+20260105110623: CaptureClipboardTextToFTS5 开始执行
+20260105110623: 异常: Missing a required parameter.
+20260105110623: 数据库连接正常
+20260105110623: CaptureClipboardTextToFTS5 结果: 失败
+20260105110623: 剪贴板内容长度: 2
+20260105110623: 内容类型: Text
+20260105110623: 字符数: 2
+20260105110623: 准备SQL语句
+20260105110623: 异常: Missing a required parameter.
+20260105110626: CaptureClipboardTextToFTS5 开始执行
+20260105110626: 数据库连接正常
+20260105110626: 剪贴板内容长度: 158
+20260105110626: 内容类型: Code
+20260105110626: 字符数: 158
+20260105110626: 准备SQL语句
+20260105110626: 异常: Missing a required parameter.
+20260105111608: CaptureClipboardTextToFTS5 开始执行
+20260105111608: 数据库连接正常
+20260105111608: 剪贴板内容长度: 228
+20260105111608: 内容类型: Code
+20260105111608: 字符数: 225
+20260105111608: 准备SQL语句
+20260105111608: 异常: Missing a required parameter.
+20260105111610: CaptureClipboardTextToFTS5 开始执行
+20260105111610: 数据库连接正常
+20260105111610: 剪贴板内容长度: 232
+20260105111610: 内容类型: Code
+20260105111610: 字符数: 230
+20260105111610: 准备SQL语句
+20260105111610: 异常: Missing a required parameter.
+20260105111621: CaptureClipboardTextToFTS5 开始执行
+20260105111621: 数据库连接正常
+20260105111621: 剪贴板内容长度: 124
+20260105111621: 内容类型: Code
+20260105111621: 字符数: 124
+20260105111621: 准备SQL语句
+20260105111621: 异常: Missing a required parameter.

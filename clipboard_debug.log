@@ -5877,3 +5877,327 @@
 [2026-01-01 09:12:30] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=52, 最大列数=8
 [2026-01-01 11:31:06] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=52, 最大列数=8
 [2026-01-04 08:37:50] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=52, 最大列数=8
+[2026-01-04 23:10:02] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=52, 最大列数=8
+[2026-01-04 23:10:05] Click: ClientX=141, ClientY=64, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2026-01-04 23:10:06] Click: ClientX=117, ClientY=86, Result=3, flags=0x4, iItem=3, iSubItem=1
+[2026-01-04 23:10:21] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=52, 最大列数=8
+[2026-01-04 23:10:31] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-04 23:10:31] CapsLockCopy: 数据插入成功（Exec） - SessionID=2, ItemIndex=1, Content长度=26
+[2026-01-04 23:10:31] CapsLockCopy: 数据插入成功 - SessionID=2, ItemIndex=1, Content长度=26
+[2026-01-04 23:10:32] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=54, 最大列数=8
+[2026-01-04 23:10:44] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-04 23:10:44] CapsLockCopy: 数据插入成功（Exec） - SessionID=2, ItemIndex=2, Content长度=1
+[2026-01-04 23:10:44] CapsLockCopy: 数据插入成功 - SessionID=2, ItemIndex=1, Content长度=1
+[2026-01-04 23:10:45] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=56, 最大列数=8
+[2026-01-04 23:10:57] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-04 23:10:57] CapsLockCopy: 数据插入成功（Exec） - SessionID=2, ItemIndex=3, Content长度=1
+[2026-01-04 23:10:57] CapsLockCopy: 数据插入成功 - SessionID=2, ItemIndex=1, Content长度=1
+[2026-01-04 23:10:57] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=58, 最大列数=8
+[2026-01-04 23:11:04] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=58, 最大列数=8
+[2026-01-04 23:11:18] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=58, 最大列数=8
+[2026-01-04 23:48:41] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=58, 最大列数=8
+[2026-01-04 23:48:44] Click: ClientX=505, ClientY=85, Result=3, flags=0x4, iItem=3, iSubItem=7
+[2026-01-04 23:48:45] Click: ClientX=617, ClientY=88, Result=3, flags=0x4, iItem=3, iSubItem=8
+[2026-01-04 23:49:09] Click: ClientX=310, ClientY=105, Result=-1, flags=0x1, iItem=-1, iSubItem=4
+[2026-01-04 23:49:09] Click: ClientX=294, ClientY=66, Result=2, flags=0x4, iItem=2, iSubItem=4
+[2026-01-04 23:49:10] Click: ClientX=281, ClientY=76, Result=2, flags=0x4, iItem=2, iSubItem=3
+[2026-01-04 23:49:10] Click: ClientX=258, ClientY=85, Result=3, flags=0x4, iItem=3, iSubItem=3
+[2026-01-04 23:49:11] Click: ClientX=192, ClientY=84, Result=3, flags=0x4, iItem=3, iSubItem=2
+[2026-01-04 23:49:11] Click: ClientX=141, ClientY=79, Result=3, flags=0x4, iItem=3, iSubItem=1
+[2026-01-04 23:49:11] Click: ClientX=112, ClientY=79, Result=3, flags=0x4, iItem=3, iSubItem=1
+[2026-01-04 23:49:12] Click: ClientX=114, ClientY=51, Result=1, flags=0x4, iItem=1, iSubItem=1
+[2026-01-04 23:49:12] Click: ClientX=114, ClientY=32, Result=0, flags=0x4, iItem=0, iSubItem=1
+[2026-01-04 23:49:18] Window: X=-32000, Y=-32000, ListView: X=20, Y=90, ScreenX=-31980, ScreenY=-31910
+[2026-01-04 23:49:18] Col 1 width=76, CellLeft=0
+[2026-01-04 23:49:18] Current Col 2 width=70
+[2026-01-04 23:49:18] CalcCell: Col=2, CellLeft=76, CellWidth=70, RowTop=24, RowBottom=42
+[2026-01-04 23:49:18] CellRect: Left=76, Top=24, Width=70, Height=18, ScreenX=-31904, ScreenY=-31886
+[2026-01-04 23:49:18] Overlay shown at: X=-31904, Y=-31886, W=70, H=18
+[2026-01-04 23:49:19] SetWindowPos: OverlayHwnd=57281838, IsVisible=1, IsIconic=0
+[2026-01-05 00:15:56] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=58, 最大列数=8
+[2026-01-05 00:15:59] Click: ClientX=611, ClientY=87, Result=3, flags=0x4, iItem=3, iSubItem=8
+[2026-01-05 00:16:01] Click: ClientX=658, ClientY=91, Result=-1, flags=0x1, iItem=-1, iSubItem=-1
+[2026-01-05 00:16:03] Click: ClientX=455, ClientY=78, Result=3, flags=0x4, iItem=3, iSubItem=6
+[2026-01-05 00:16:03] NM_DBLCLICK received
+[2026-01-05 00:16:03] NM_DBLCLICK: iItem=-1, iSubItem=6
+[2026-01-05 00:16:03] NM_DBLCLICK: After hittest - Row=4, Col=7, ClientX=455, ClientY=78, flags=0x4
+[2026-01-05 00:16:03] NM_DBLCLICK: FullContent length=3
+[2026-01-05 00:16:03] NM_DBLCLICK: Calling ShowClipboardCellContentWindow with Row=4, Col=7, ContentLength=3
+[2026-01-05 00:16:03] ShowClipboardCellContentWindow: Window shown, Hwnd=2099096
+[2026-01-05 00:16:03] ShowClipboardCellContentWindow: AlwaysOnTop set
+[2026-01-05 00:16:03] NM_DBLCLICK: ShowClipboardCellContentWindow returned
+[2026-01-05 00:16:03] DoubleClick: Item=0, Tab=CapsLockC
+[2026-01-05 00:16:03] DoubleClick: Invalid RowIndex=0
+[2026-01-05 00:16:08] Click: ClientX=377, ClientY=90, Result=3, flags=0x4, iItem=3, iSubItem=5
+[2026-01-05 00:16:08] NM_DBLCLICK received
+[2026-01-05 00:16:08] NM_DBLCLICK: iItem=-1, iSubItem=5
+[2026-01-05 00:16:08] NM_DBLCLICK: After hittest - Row=4, Col=6, ClientX=377, ClientY=90, flags=0x4
+[2026-01-05 00:16:08] NM_DBLCLICK: FullContent length=7
+[2026-01-05 00:16:08] NM_DBLCLICK: Calling ShowClipboardCellContentWindow with Row=4, Col=6, ContentLength=7
+[2026-01-05 00:16:08] ShowClipboardCellContentWindow: Window shown, Hwnd=2164632
+[2026-01-05 00:16:08] ShowClipboardCellContentWindow: AlwaysOnTop set
+[2026-01-05 00:16:08] NM_DBLCLICK: ShowClipboardCellContentWindow returned
+[2026-01-05 00:16:08] DoubleClick: Item=0, Tab=CapsLockC
+[2026-01-05 00:16:08] DoubleClick: Invalid RowIndex=0
+[2026-01-05 00:16:16] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:16:16] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=1, Content长度=46
+[2026-01-05 00:16:16] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=46
+[2026-01-05 00:16:17] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=60, 最大列数=8
+[2026-01-05 00:16:22] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:16:22] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=2, Content长度=17
+[2026-01-05 00:16:22] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=17
+[2026-01-05 00:16:22] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=62, 最大列数=8
+[2026-01-05 00:16:26] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:16:26] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=3, Content长度=7
+[2026-01-05 00:16:26] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=7
+[2026-01-05 00:16:26] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=64, 最大列数=8
+[2026-01-05 00:16:29] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:16:29] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=4, Content长度=6
+[2026-01-05 00:16:29] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=6
+[2026-01-05 00:16:29] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=66, 最大列数=8
+[2026-01-05 00:16:43] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=66, 最大列数=8
+[2026-01-05 00:16:51] Click: ClientX=103, ClientY=89, Result=3, flags=0x4, iItem=3, iSubItem=1
+[2026-01-05 00:16:52] Click: ClientX=157, ClientY=37, Result=0, flags=0x4, iItem=0, iSubItem=2
+[2026-01-05 00:16:53] Click: ClientX=144, ClientY=30, Result=0, flags=0x4, iItem=0, iSubItem=1
+[2026-01-05 00:17:03] RefreshClipboardListView: 查询成功但无数据
+[2026-01-05 00:17:09] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:17:09] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=1, Content长度=5
+[2026-01-05 00:17:09] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=5
+[2026-01-05 00:17:09] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=1, 总项数=2, 最大列数=1
+[2026-01-05 00:17:15] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:17:15] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=2, Content长度=15
+[2026-01-05 00:17:15] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=15
+[2026-01-05 00:17:16] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=1, 总项数=4, 最大列数=2
+[2026-01-05 00:17:19] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=1, 总项数=4, 最大列数=2
+[2026-01-05 00:17:39] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=1, 总项数=4, 最大列数=2
+[2026-01-05 00:17:42] Click: ClientX=654, ClientY=32, Result=-1, flags=0x1, iItem=-1, iSubItem=-1
+[2026-01-05 00:17:42] NM_DBLCLICK received
+[2026-01-05 00:17:42] NM_DBLCLICK: iItem=-1, iSubItem=0
+[2026-01-05 00:17:42] NM_DBLCLICK: After hittest - Row=0, Col=0, ClientX=654, ClientY=32, flags=0x1
+[2026-01-05 00:17:42] NM_DBLCLICK: Invalid cell - Row=0, Col=0
+[2026-01-05 00:17:42] DoubleClick: Item=0, Tab=CapsLockC
+[2026-01-05 00:17:42] DoubleClick: Invalid RowIndex=0
+[2026-01-05 00:17:50] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:17:50] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=1, Content长度=3
+[2026-01-05 00:17:50] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=3
+[2026-01-05 00:17:51] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=1, 总项数=6, 最大列数=2
+[2026-01-05 00:17:57] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=1, 总项数=6, 最大列数=2
+[2026-01-05 00:18:06] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=1, 总项数=6, 最大列数=2
+[2026-01-05 00:18:08] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:18:08] CapsLockCopy: 数据插入成功（Exec） - SessionID=2, ItemIndex=1, Content长度=8
+[2026-01-05 00:18:08] CapsLockCopy: 数据插入成功 - SessionID=2, ItemIndex=1, Content长度=8
+[2026-01-05 00:18:09] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=2, 总项数=8, 最大列数=2
+[2026-01-05 00:18:13] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=2, 总项数=8, 最大列数=2
+[2026-01-05 00:18:18] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=2, 总项数=8, 最大列数=2
+[2026-01-05 00:18:21] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:18:21] CapsLockCopy: 数据插入成功（Exec） - SessionID=3, ItemIndex=1, Content长度=6
+[2026-01-05 00:18:22] CapsLockCopy: 数据插入成功 - SessionID=3, ItemIndex=1, Content长度=6
+[2026-01-05 00:18:22] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=3, 总项数=10, 最大列数=2
+[2026-01-05 00:18:32] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=3, 总项数=10, 最大列数=2
+[2026-01-05 00:18:40] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=3, 总项数=10, 最大列数=2
+[2026-01-05 00:18:47] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=3, 总项数=10, 最大列数=2
+[2026-01-05 00:18:51] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:18:51] CapsLockCopy: 数据插入成功（Exec） - SessionID=2, ItemIndex=1, Content长度=5
+[2026-01-05 00:18:51] CapsLockCopy: 数据插入成功 - SessionID=2, ItemIndex=1, Content长度=5
+[2026-01-05 00:18:52] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=3, 总项数=12, 最大列数=2
+[2026-01-05 00:18:54] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:18:54] CapsLockCopy: 数据插入成功（Exec） - SessionID=2, ItemIndex=2, Content长度=7
+[2026-01-05 00:18:54] CapsLockCopy: 数据插入成功 - SessionID=2, ItemIndex=1, Content长度=7
+[2026-01-05 00:18:55] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=3, 总项数=14, 最大列数=2
+[2026-01-05 00:18:57] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=3, 总项数=14, 最大列数=2
+[2026-01-05 00:19:00] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=3, 总项数=14, 最大列数=2
+[2026-01-05 00:19:06] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:19:06] CapsLockCopy: 数据插入成功（Exec） - SessionID=3, ItemIndex=1, Content长度=11
+[2026-01-05 00:19:06] CapsLockCopy: 数据插入成功 - SessionID=3, ItemIndex=1, Content长度=11
+[2026-01-05 00:19:06] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=3, 总项数=16, 最大列数=2
+[2026-01-05 00:19:10] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:19:10] CapsLockCopy: 数据插入成功（Exec） - SessionID=3, ItemIndex=2, Content长度=16
+[2026-01-05 00:19:10] CapsLockCopy: 数据插入成功 - SessionID=3, ItemIndex=1, Content长度=16
+[2026-01-05 00:19:11] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=3, 总项数=18, 最大列数=2
+[2026-01-05 00:19:13] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:19:13] CapsLockCopy: 数据插入成功（Exec） - SessionID=3, ItemIndex=3, Content长度=16
+[2026-01-05 00:19:13] CapsLockCopy: 数据插入成功 - SessionID=3, ItemIndex=1, Content长度=16
+[2026-01-05 00:19:13] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=3, 总项数=20, 最大列数=3
+[2026-01-05 00:19:15] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:19:15] CapsLockCopy: 数据插入成功（Exec） - SessionID=3, ItemIndex=4, Content长度=17
+[2026-01-05 00:19:15] CapsLockCopy: 数据插入成功 - SessionID=3, ItemIndex=1, Content长度=17
+[2026-01-05 00:19:15] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=3, 总项数=22, 最大列数=4
+[2026-01-05 00:19:15] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=3, 总项数=22, 最大列数=4
+[2026-01-05 00:19:16] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=3, 总项数=22, 最大列数=4
+[2026-01-05 00:19:24] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=3, 总项数=22, 最大列数=4
+[2026-01-05 00:19:27] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:19:27] CapsLockCopy: 数据插入成功（Exec） - SessionID=4, ItemIndex=1, Content长度=21
+[2026-01-05 00:19:27] CapsLockCopy: 数据插入成功 - SessionID=4, ItemIndex=1, Content长度=21
+[2026-01-05 00:19:27] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=24, 最大列数=4
+[2026-01-05 00:19:30] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:19:30] CapsLockCopy: 数据插入成功（Exec） - SessionID=4, ItemIndex=2, Content长度=16
+[2026-01-05 00:19:30] CapsLockCopy: 数据插入成功 - SessionID=4, ItemIndex=1, Content长度=16
+[2026-01-05 00:19:30] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=26, 最大列数=4
+[2026-01-05 00:19:32] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:19:32] CapsLockCopy: 数据插入成功（Exec） - SessionID=4, ItemIndex=3, Content长度=108
+[2026-01-05 00:19:32] CapsLockCopy: 数据插入成功 - SessionID=4, ItemIndex=1, Content长度=108
+[2026-01-05 00:19:32] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=28, 最大列数=4
+[2026-01-05 00:19:34] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=4, 总项数=28, 最大列数=4
+[2026-01-05 00:19:42] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:19:42] CapsLockCopy: 数据插入成功（Exec） - SessionID=5, ItemIndex=1, Content长度=15
+[2026-01-05 00:19:42] CapsLockCopy: 数据插入成功 - SessionID=5, ItemIndex=1, Content长度=15
+[2026-01-05 00:19:43] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=30, 最大列数=4
+[2026-01-05 00:19:47] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:19:47] CapsLockCopy: 数据插入成功（Exec） - SessionID=5, ItemIndex=2, Content长度=12
+[2026-01-05 00:19:47] CapsLockCopy: 数据插入成功 - SessionID=5, ItemIndex=1, Content长度=12
+[2026-01-05 00:19:47] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=32, 最大列数=4
+[2026-01-05 00:19:54] Click: ClientX=238, ClientY=33, Result=0, flags=0x4, iItem=0, iSubItem=1
+[2026-01-05 00:19:54] Click: ClientX=238, ClientY=33, Result=0, flags=0x4, iItem=0, iSubItem=1
+[2026-01-05 00:19:55] NM_DBLCLICK received
+[2026-01-05 00:19:55] NM_DBLCLICK: iItem=-1, iSubItem=1
+[2026-01-05 00:19:55] NM_DBLCLICK: After hittest - Row=1, Col=2, ClientX=238, ClientY=33, flags=0x4
+[2026-01-05 00:19:55] NM_DBLCLICK: FullContent length=15
+[2026-01-05 00:19:55] NM_DBLCLICK: Calling ShowClipboardCellContentWindow with Row=1, Col=2, ContentLength=15
+[2026-01-05 00:19:55] ShowClipboardCellContentWindow: Window shown, Hwnd=12978234
+[2026-01-05 00:19:55] ShowClipboardCellContentWindow: AlwaysOnTop set
+[2026-01-05 00:19:55] NM_DBLCLICK: ShowClipboardCellContentWindow returned
+[2026-01-05 00:19:55] DoubleClick: Item=0, Tab=CapsLockC
+[2026-01-05 00:19:55] DoubleClick: Invalid RowIndex=0
+[2026-01-05 00:20:02] Click: ClientX=223, ClientY=40, Result=0, flags=0x4, iItem=0, iSubItem=1
+[2026-01-05 00:20:02] Click: ClientX=216, ClientY=52, Result=1, flags=0x4, iItem=1, iSubItem=1
+[2026-01-05 00:20:03] Click: ClientX=201, ClientY=74, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2026-01-05 00:20:09] Click: ClientX=61, ClientY=34, Result=0, flags=0x1, iItem=0, iSubItem=0
+[2026-01-05 00:20:23] Click: ClientX=169, ClientY=40, Result=0, flags=0x4, iItem=0, iSubItem=1
+[2026-01-05 00:20:23] NM_DBLCLICK received
+[2026-01-05 00:20:23] NM_DBLCLICK: iItem=-1, iSubItem=1
+[2026-01-05 00:20:23] NM_DBLCLICK: After hittest - Row=1, Col=2, ClientX=169, ClientY=40, flags=0x4
+[2026-01-05 00:20:23] NM_DBLCLICK: FullContent length=15
+[2026-01-05 00:20:23] NM_DBLCLICK: Calling ShowClipboardCellContentWindow with Row=1, Col=2, ContentLength=15
+[2026-01-05 00:20:23] ShowClipboardCellContentWindow: Window shown, Hwnd=1836652
+[2026-01-05 00:20:23] ShowClipboardCellContentWindow: AlwaysOnTop set
+[2026-01-05 00:20:23] NM_DBLCLICK: ShowClipboardCellContentWindow returned
+[2026-01-05 00:20:23] DoubleClick: Item=0, Tab=CapsLockC
+[2026-01-05 00:20:23] DoubleClick: Invalid RowIndex=0
+[2026-01-05 00:21:59] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=32, 最大列数=4
+[2026-01-05 00:22:07] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=32, 最大列数=4
+[2026-01-05 00:22:10] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:22:10] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=1, Content长度=15
+[2026-01-05 00:22:10] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=15
+[2026-01-05 00:22:10] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=34, 最大列数=4
+[2026-01-05 00:22:10] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:22:10] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=2, Content长度=15
+[2026-01-05 00:22:10] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=15
+[2026-01-05 00:22:11] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=36, 最大列数=4
+[2026-01-05 00:22:13] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:22:13] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=3, Content长度=21
+[2026-01-05 00:22:13] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=21
+[2026-01-05 00:22:14] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=38, 最大列数=4
+[2026-01-05 00:22:15] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:22:15] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=4, Content长度=38
+[2026-01-05 00:22:15] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=38
+[2026-01-05 00:22:16] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=40, 最大列数=4
+[2026-01-05 00:22:17] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:22:17] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=5, Content长度=51
+[2026-01-05 00:22:17] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=51
+[2026-01-05 00:22:17] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=42, 最大列数=5
+[2026-01-05 00:22:18] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:22:18] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=6, Content长度=16
+[2026-01-05 00:22:18] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=16
+[2026-01-05 00:22:18] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=44, 最大列数=6
+[2026-01-05 00:22:19] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:22:19] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=7, Content长度=119
+[2026-01-05 00:22:19] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=119
+[2026-01-05 00:22:19] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=46, 最大列数=7
+[2026-01-05 00:22:20] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:22:20] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=8, Content长度=18
+[2026-01-05 00:22:20] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=18
+[2026-01-05 00:22:20] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=48, 最大列数=8
+[2026-01-05 00:22:25] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=48, 最大列数=8
+[2026-01-05 00:22:33] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:22:33] CapsLockCopy: 数据插入成功（Exec） - SessionID=2, ItemIndex=1, Content长度=10
+[2026-01-05 00:22:33] CapsLockCopy: 数据插入成功 - SessionID=2, ItemIndex=1, Content长度=10
+[2026-01-05 00:22:34] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=50, 最大列数=8
+[2026-01-05 00:22:38] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:22:38] CapsLockCopy: 数据插入成功（Exec） - SessionID=2, ItemIndex=2, Content长度=31
+[2026-01-05 00:22:38] CapsLockCopy: 数据插入成功 - SessionID=2, ItemIndex=1, Content长度=31
+[2026-01-05 00:22:38] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=52, 最大列数=8
+[2026-01-05 00:22:40] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:22:40] CapsLockCopy: 数据插入成功（Exec） - SessionID=2, ItemIndex=3, Content长度=62
+[2026-01-05 00:22:40] CapsLockCopy: 数据插入成功 - SessionID=2, ItemIndex=1, Content长度=62
+[2026-01-05 00:22:40] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=54, 最大列数=8
+[2026-01-05 00:22:47] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:22:47] CapsLockCopy: 数据插入成功（Exec） - SessionID=2, ItemIndex=4, Content长度=62
+[2026-01-05 00:22:47] CapsLockCopy: 数据插入成功 - SessionID=2, ItemIndex=1, Content长度=62
+[2026-01-05 00:22:47] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=5, 总项数=56, 最大列数=8
+[2026-01-05 00:38:41] RefreshClipboardListView: 发生异常 - Invalid index.
+[2026-01-05 00:38:49] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 00:38:49] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=1, Content长度=11
+[2026-01-05 00:38:50] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=11
+[2026-01-05 00:38:50] RefreshClipboardListView: 发生异常 - Invalid index.
+[2026-01-05 00:38:52] RefreshClipboardListView: 发生异常 - Invalid index.
+[2026-01-05 00:38:53] Click: ClientX=119, ClientY=148, Result=-1, flags=0x1, iItem=-1, iSubItem=0
+[2026-01-05 00:38:53] Click: ClientX=150, ClientY=218, Result=-1, flags=0x1, iItem=-1, iSubItem=0
+[2026-01-05 00:40:32] RefreshClipboardListView: 发生异常 - Invalid index.
+[2026-01-05 01:00:17] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 01:00:17] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=1, Content长度=42
+[2026-01-05 01:00:17] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=42
+[2026-01-05 01:00:20] Click: ClientX=292, ClientY=34, Result=0, flags=0x1, iItem=0, iSubItem=0
+[2026-01-05 01:00:22] Click: ClientX=421, ClientY=49, Result=-1, flags=0x1, iItem=-1, iSubItem=0
+[2026-01-05 01:00:22] Click: ClientX=347, ClientY=54, Result=-1, flags=0x1, iItem=-1, iSubItem=0
+[2026-01-05 01:00:23] Click: ClientX=533, ClientY=95, Result=-1, flags=0x1, iItem=-1, iSubItem=0
+[2026-01-05 01:00:24] Click: ClientX=356, ClientY=42, Result=-1, flags=0x1, iItem=-1, iSubItem=0
+[2026-01-05 01:00:26] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 01:00:26] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=2, Content长度=17
+[2026-01-05 01:00:26] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=17
+[2026-01-05 01:00:28] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 01:00:28] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=3, Content长度=65
+[2026-01-05 01:00:28] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=65
+[2026-01-05 01:00:29] Click: ClientX=507, ClientY=65, Result=-1, flags=0x1, iItem=-1, iSubItem=0
+[2026-01-05 01:00:31] Click: ClientX=181, ClientY=51, Result=-1, flags=0x1, iItem=-1, iSubItem=0
+[2026-01-05 01:00:33] Click: ClientX=79, ClientY=51, Result=-1, flags=0x1, iItem=-1, iSubItem=0
+[2026-01-05 01:00:35] Click: ClientX=153, ClientY=238, Result=-1, flags=0x1, iItem=-1, iSubItem=0
+[2026-01-05 07:44:43] CapsLockCopy: 参数化查询异常，回退到Exec - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 07:44:43] CapsLockCopy: 数据插入成功（Exec） - SessionID=1, ItemIndex=1, Content长度=98
+[2026-01-05 07:44:43] CapsLockCopy: 数据插入成功 - SessionID=1, ItemIndex=1, Content长度=98
+[2026-01-05 07:44:47] Click: ClientX=401, ClientY=42, Result=-1, flags=0x1, iItem=-1, iSubItem=0
+[2026-01-05 07:44:47] Click: ClientX=410, ClientY=32, Result=0, flags=0x1, iItem=0, iSubItem=0
+[2026-01-05 07:45:31] RefreshClipboardListView: 查询成功，行数=1
+[2026-01-05 07:45:31] RefreshClipboardListView: 行1 - ID=1, Content长度=39, DataType=Text
+[2026-01-05 07:45:31] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-05 07:45:31] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=0
+[2026-01-05 07:45:31] RefreshClipboardListView: 查询成功，行数=1
+[2026-01-05 07:45:31] RefreshClipboardListView: 行1 - ID=1, Content长度=39, DataType=Text
+[2026-01-05 07:45:31] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-05 07:45:31] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=0
+[2026-01-05 07:45:41] RefreshClipboardListView: 查询成功，行数=2
+[2026-01-05 07:45:41] RefreshClipboardListView: 行1 - ID=2, Content长度=11, DataType=Text
+[2026-01-05 07:45:41] RefreshClipboardListView: 行2 - ID=1, Content长度=39, DataType=Text
+[2026-01-05 07:45:41] RefreshClipboardListView: 添加行失败 - ID=2, 错误=Invalid option.
+[2026-01-05 07:45:41] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-05 07:45:41] RefreshClipboardListView: 列表刷新完成 - 总项数=2, 已添加行数=0
+[2026-01-05 07:45:43] RefreshClipboardListView: 查询成功，行数=2
+[2026-01-05 07:45:43] RefreshClipboardListView: 行1 - ID=2, Content长度=11, DataType=Text
+[2026-01-05 07:45:43] RefreshClipboardListView: 行2 - ID=1, Content长度=39, DataType=Text
+[2026-01-05 07:45:43] RefreshClipboardListView: 添加行失败 - ID=2, 错误=Invalid option.
+[2026-01-05 07:45:43] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-05 07:45:43] RefreshClipboardListView: 列表刷新完成 - 总项数=2, 已添加行数=0
+[2026-01-05 07:45:44] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-05 07:45:44] RefreshClipboardListView: 查询成功，行数=2
+[2026-01-05 07:45:44] RefreshClipboardListView: 行1 - ID=2, Content长度=11, DataType=Text
+[2026-01-05 07:45:44] RefreshClipboardListView: 行2 - ID=1, Content长度=39, DataType=Text
+[2026-01-05 07:45:44] RefreshClipboardListView: 添加行失败 - ID=2, 错误=Invalid option.
+[2026-01-05 07:45:44] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-05 07:45:44] RefreshClipboardListView: 列表刷新完成 - 总项数=2, 已添加行数=0
+[2026-01-05 07:47:40] RefreshClipboardListView: 查询成功，行数=1
+[2026-01-05 07:47:40] RefreshClipboardListView: 行1 - ID=1, Content长度=55, DataType=Text
+[2026-01-05 07:47:40] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-05 07:47:40] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=0
+[2026-01-05 07:47:40] RefreshClipboardListView: 查询成功，行数=1
+[2026-01-05 07:47:40] RefreshClipboardListView: 行1 - ID=1, Content长度=55, DataType=Text
+[2026-01-05 07:47:40] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-05 07:47:40] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=0
+[2026-01-05 07:50:27] RefreshClipboardListView: 查询成功，行数=1
+[2026-01-05 07:50:27] RefreshClipboardListView: 行1 - ID=1, Content长度=106, DataType=Text
+[2026-01-05 07:50:27] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-05 07:50:27] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=0
+[2026-01-05 07:50:27] RefreshClipboardListView: 查询成功，行数=1
+[2026-01-05 07:50:27] RefreshClipboardListView: 行1 - ID=1, Content长度=106, DataType=Text
+[2026-01-05 07:50:27] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-05 07:50:27] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=0
+[2026-01-05 08:17:57] RefreshClipboardListView: 查询成功，行数=0
+[2026-01-05 08:17:57] RefreshClipboardListView: 查询成功但无数据

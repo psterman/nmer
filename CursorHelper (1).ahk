@@ -35,6 +35,13 @@ TraySetIcon("favicon.ico")
 #Include lib\WinClipAPI.ahk
 #Include lib\WinClip.ahk
 
+; ===================== 定义主脚本目录（供模块使用）=====================
+global MainScriptDir := A_ScriptDir
+
+; ===================== 包含新的剪贴板管理器模块 =====================
+#Include modules\ClipboardFTS5.ahk
+#Include modules\ClipboardHistoryPanel.ahk
+
 ; ===================== 管理员权限检查 =====================
 ; 如果脚本不是以管理员权限运行，则重新以管理员权限启动
 if (!A_IsAdmin) {
@@ -161,10 +168,7 @@ global ClipboardHistory_CapsLockC := []  ; 存储 CapsLock+C 复制的内容
 global GuiID_ClipboardManager := 0  ; 剪贴板管理面板 GUI ID
 ; SQLite 数据库
 global ClipboardDB := 0  ; SQLite 数据库对象
-global ClipboardDBPath := A_ScriptDir "\CursorData.db"  ; 数据库文件路径
-global CurrentSessionID := 1  ; 当前复制阶段ID（SessionID），用于分组显示
-global TotalCopyCount := 0  ; 总复制次数
-global StageStepCount := 0  ; 当前阶段的复制次数
+global ClipboardDBPath := A_ScriptDir "\Data\CursorData.db"  ; 数据库文件路径（存储在Data目录，使用CursorData.db确保物理保存）
 global ClipboardCurrentTab := "CtrlC"  ; 当前显示的版块："CtrlC" 或 "CapsLockC"
 global ClipboardCapsLockCTab := 0  ; CapsLock+C Tab 控件引用
 global LastSelectedIndex := 0  ; 最后选中的ListBox项索引，用于刷新后恢复
@@ -172,10 +176,12 @@ global ClipboardListViewHighlightedRow := 0  ; ListView 高亮的单元格行索
 global ClipboardListViewHighlightedCol := 0  ; ListView 高亮的单元格列索引（从1开始，0表示无高亮）
 global ClipboardListViewHwnd := 0  ; ListView 控件句柄，用于 WM_NOTIFY 消息识别
 global ClipboardManagerHwnd := 0  ; 剪贴板管理窗口句柄，用于 WM_NOTIFY 消息识别
+global ClipboardCurrentCategory := "All"  ; 当前选中的分类（All, Text, Code, Link, Image）
+global ClipboardCategoryButtons := []  ; 分类标签按钮数组
 global ClipboardHighlightOverlay := 0  ; 单元格高亮覆盖层GUI对象
 global ClipboardHighlightOverlayBrush := 0  ; 覆盖层画刷句柄（用于清理资源）
 ; 搜索功能相关变量
-global ClipboardSearchMatches := []  ; 搜索匹配项列表 [{RowIndex, ColIndex, SessionID, ItemIndex}]
+global ClipboardSearchMatches := []  ; 搜索匹配项列表 [{RowIndex, ColIndex, ID}]
 global ClipboardSearchCurrentIndex := 0  ; 当前匹配项索引（从0开始）
 global ClipboardSearchKeyword := ""  ; 当前搜索关键词
 ; 语音输入功能
@@ -1864,51 +1870,82 @@ GetTemplateByID(TemplateID) {
     return ""
 }
 
-; ===================== 初始化 SQLite 数据库 =====================
-InitSQLiteDB() {
+; ===================== 初始化剪贴板数据库（Raycast 级架构）=====================
+InitClipboardDB() {
     global ClipboardDB, ClipboardDBPath
     
-    ; 检查 sqlite3.dll 是否存在
+    ; 1. 自动创建目录
+    if !DirExist(A_ScriptDir "\Data") {
+        DirCreate(A_ScriptDir "\Data")
+    }
+    
+    ; 设置数据库文件路径（使用 CursorData.db 确保物理保存）
+    ClipboardDBPath := A_ScriptDir "\Data\CursorData.db"
+    
+    ; 2. 检查 sqlite3.dll 是否存在
     DllPath := A_ScriptDir "\sqlite3.dll"
     if (!FileExist(DllPath)) {
-        ; sqlite3.dll 不存在时给出提示，但不中断脚本运行（保持便携性）
-        TrayTip("提示", "sqlite3.dll 未找到，剪贴板历史将使用内存存储。`n请确保 sqlite3.dll 与脚本位于同一目录以启用数据库存储。", "Iconi 3")
+        MsgBox("sqlite3.dll 未找到。`n请确保 sqlite3.dll 与脚本位于同一目录。", "数据库初始化错误", "IconX")
         ClipboardDB := 0
         return
     }
     
-    ; 加载 sqlite3.dll（Class_SQLiteDB 会自动加载，但我们可以显式检查）
-    ; 注意：Class_SQLiteDB 类会在使用时自动加载 sqlite3.dll，这里主要是检查文件是否存在
-    
-    ; 创建 SQLiteDB 实例并打开数据库
+    ; 3. 创建 SQLiteDB 实例并打开数据库
     try {
-        ; 尝试创建 SQLiteDB 实例（如果类不存在会抛出异常）
         ClipboardDB := SQLiteDB()
         if (!ClipboardDB.OpenDB(ClipboardDBPath)) {
-            TrayTip("警告", "无法打开数据库: " . ClipboardDBPath, "Iconx 3")
+            MsgBox("无法打开数据库: " . ClipboardDBPath . "`n错误: " . ClipboardDB.ErrorMsg, "数据库初始化错误", "IconX")
             ClipboardDB := 0
             return
         }
         
-        ; 创建 ClipboardHistory 表（如果不存在）
-        ; 【新功能】添加 SessionID 字段，用于标识复制阶段
-        ; 【新功能】添加 DataType 字段，用于标识数据类型（Text/Image等）
-        SQL := "CREATE TABLE IF NOT EXISTS ClipboardHistory (ID INTEGER PRIMARY KEY AUTOINCREMENT, SessionID INTEGER NOT NULL DEFAULT 1, ItemIndex INTEGER NOT NULL DEFAULT 1, Content TEXT NOT NULL, SourceApp TEXT, DataType TEXT, Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)"
+        ; 4. 重写建表逻辑：彻底清除旧结构
+        SQL := "DROP TABLE IF EXISTS ClipboardHistory;"
         if (!ClipboardDB.Exec(SQL)) {
-            TrayTip("警告", "创建数据库表失败: " . ClipboardDB.ErrorMsg, "Iconx 3")
+            MsgBox("删除旧表失败: " . ClipboardDB.ErrorMsg, "数据库初始化错误", "IconX")
             ClipboardDB.CloseDB()
             ClipboardDB := 0
             return
         }
         
-        ; 【兼容性处理】如果表已存在但没有 SessionID、ItemIndex 或 DataType 字段，需要添加这些字段
+        ; 5. 创建全新的 ClipboardHistory 表（11字段架构，废弃 SessionID 和 ItemIndex）
+        ; Content: 文本、代码或本地文件路径
+        ; DataType: 分类: Text, Code, Link, Image, File, Email
+        ; SourceApp: 程序名 (chrome.exe)
+        ; SourceTitle: 窗口标题
+        ; SourcePath: 程序完整路径 (用于提取图标)
+        ; CharCount: 字符数
+        ; WordCount: 词数
+        ; Timestamp: 时间戳
+        ; MetaData: JSON 格式扩展数据
+        ; IsPinned: 收藏/置顶
+        SQL := "CREATE TABLE ClipboardHistory (" .
+               "ID INTEGER PRIMARY KEY AUTOINCREMENT, " .
+               "Timestamp DATETIME DEFAULT (datetime('now', 'localtime')), " .
+               "Content TEXT, " .
+               "DataType TEXT, " .
+               "SourceApp TEXT, " .
+               "SourceTitle TEXT, " .
+               "SourcePath TEXT, " .
+               "CharCount INTEGER, " .
+               "WordCount INTEGER, " .
+               "MetaData TEXT, " .
+               "IsPinned INTEGER DEFAULT 0)"
+        
+        if (!ClipboardDB.Exec(SQL)) {
+            MsgBox("创建数据库表失败: " . ClipboardDB.ErrorMsg, "数据库初始化错误", "IconX")
+            ClipboardDB.CloseDB()
+            ClipboardDB := 0
+            return
+        }
+        
+        ; 5.1. 兼容性处理：如果表已存在但包含 SessionID 或 ItemIndex 字段，删除它们
+        ; 注意：由于上面已经 DROP TABLE，这个检查主要是为了处理其他可能的场景
         try {
-            ; 检查字段是否存在
             ResultTable := ""
             if (ClipboardDB.GetTable("PRAGMA table_info(ClipboardHistory)", &ResultTable)) {
                 HasSessionID := false
                 HasItemIndex := false
-                HasDataType := false
                 if (ResultTable && ResultTable.HasProp("Rows")) {
                     for Index, Row in ResultTable.Rows {
                         if (Row.Length > 1 && Row[2] = "SessionID") {  ; Row[2] 是字段名
@@ -1917,70 +1954,73 @@ InitSQLiteDB() {
                         if (Row.Length > 1 && Row[2] = "ItemIndex") {
                             HasItemIndex := true
                         }
-                        if (Row.Length > 1 && Row[2] = "DataType") {
-                            HasDataType := true
-                        }
                     }
                 }
                 
-                ; 如果缺少字段，添加它们
-                if (!HasSessionID) {
-                    ClipboardDB.Exec("ALTER TABLE ClipboardHistory ADD COLUMN SessionID INTEGER NOT NULL DEFAULT 1")
-                    ; 为现有数据设置 SessionID（默认都是阶段1）
-                    ClipboardDB.Exec("UPDATE ClipboardHistory SET SessionID = 1 WHERE SessionID IS NULL")
-                }
-                if (!HasItemIndex) {
-                    ClipboardDB.Exec("ALTER TABLE ClipboardHistory ADD COLUMN ItemIndex INTEGER NOT NULL DEFAULT 1")
-                    ; 为现有数据设置 ItemIndex（为每个SessionID内的记录设置连续索引）
-                    ClipboardDB.Exec("UPDATE ClipboardHistory SET ItemIndex = (SELECT COUNT(*) FROM ClipboardHistory AS T2 WHERE T2.SessionID = ClipboardHistory.SessionID AND T2.ID <= ClipboardHistory.ID) WHERE ItemIndex IS NULL OR ItemIndex = 0")
-                }
-                if (!HasDataType) {
-                    ClipboardDB.Exec("ALTER TABLE ClipboardHistory ADD COLUMN DataType TEXT")
-                    ; 为现有数据设置 DataType（默认为Text）
-                    ClipboardDB.Exec("UPDATE ClipboardHistory SET DataType = 'Text' WHERE DataType IS NULL")
+                ; 如果存在旧字段，删除它们（SQLite 不支持直接删除列，需要重建表）
+                if (HasSessionID || HasItemIndex) {
+                    ; 由于 SQLite 不支持 ALTER TABLE DROP COLUMN，这里只记录日志
+                    ; 实际删除会在下次 DROP TABLE 时完成
+                    try {
+                        FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] InitClipboardDB: 检测到旧字段 SessionID/ItemIndex，将在下次重建表时移除`n", A_ScriptDir "\clipboard_debug.log")
+                    } catch {
+                    }
                 }
             }
         } catch as err {
             ; 如果字段检查失败，忽略错误（可能表结构已经是新的）
-        }
-        
-        ; 【修改】初始化当前阶段ID：从数据库获取最大的SessionID（如果存在），继续使用它
-        ; 这样重启后可以继续在同一个阶段添加数据，而不是创建新阶段
-        try {
-            ResultTable := ""
-            if (ClipboardDB.GetTable("SELECT MAX(SessionID) FROM ClipboardHistory", &ResultTable)) {
-                if (ResultTable && ResultTable.HasProp("Rows") && ResultTable.Rows.Length > 0 && ResultTable.Rows[1].Length > 1) {
-                    MaxSessionID := ResultTable.Rows[1][1]
-                    if (MaxSessionID != "" && MaxSessionID != 0) {
-                        global CurrentSessionID
-                        ; 使用最大的SessionID（继续在最后一个阶段添加数据）
-                        CurrentSessionID := Integer(MaxSessionID)
-                    } else {
-                        global CurrentSessionID
-                        CurrentSessionID := 1
-                    }
-                } else {
-                    global CurrentSessionID
-                    CurrentSessionID := 1
-                }
-            } else {
-                global CurrentSessionID
-                CurrentSessionID := 1
+            try {
+                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] InitClipboardDB: 字段检查异常 - " . err.Message . "`n", A_ScriptDir "\clipboard_debug.log")
+            } catch {
             }
-        } catch as err {
-            ; 如果获取失败，使用默认值1
-            global CurrentSessionID
-            CurrentSessionID := 1
         }
         
-        ; 创建 Prompts 表（如果不存在）- 用于存储提示词模板
+        ; 6. 全局对象规范：验证 ClipboardDB 已正确初始化
+        if (!IsObject(ClipboardDB) || ClipboardDB = 0) {
+            ErrorMsg := "ClipboardDB 对象未正确创建"
+            if (IsObject(ClipboardDB) && ClipboardDB.HasProp("ErrorMsg")) {
+                ErrorMsg .= "`n错误: " . ClipboardDB.ErrorMsg
+            }
+            MsgBox("数据库初始化失败：" . ErrorMsg, "数据库初始化错误", "IconX")
+            ClipboardDB := 0
+            return
+        }
+        
+        ; 7. 创建索引以提升查询性能
+        SQL := "CREATE INDEX IF NOT EXISTS idx_clipboard_timestamp ON ClipboardHistory(Timestamp DESC)"
+        if (!ClipboardDB.Exec(SQL)) {
+            MsgBox("创建时间戳索引失败: " . ClipboardDB.ErrorMsg, "数据库初始化错误", "IconX")
+        }
+        
+        SQL := "CREATE INDEX IF NOT EXISTS idx_clipboard_content ON ClipboardHistory(Content COLLATE NOCASE)"
+        if (!ClipboardDB.Exec(SQL)) {
+            MsgBox("创建内容索引失败: " . ClipboardDB.ErrorMsg, "数据库初始化错误", "IconX")
+        }
+        
+        SQL := "CREATE INDEX IF NOT EXISTS idx_clipboard_datatype ON ClipboardHistory(DataType COLLATE NOCASE)"
+        if (!ClipboardDB.Exec(SQL)) {
+            MsgBox("创建数据类型索引失败: " . ClipboardDB.ErrorMsg, "数据库初始化错误", "IconX")
+        }
+        
+        SQL := "CREATE INDEX IF NOT EXISTS idx_clipboard_sourceapp ON ClipboardHistory(SourceApp COLLATE NOCASE)"
+        if (!ClipboardDB.Exec(SQL)) {
+            MsgBox("创建来源应用索引失败: " . ClipboardDB.ErrorMsg, "数据库初始化错误", "IconX")
+        }
+        
+        SQL := "CREATE INDEX IF NOT EXISTS idx_clipboard_ispinned ON ClipboardHistory(IsPinned)"
+        if (!ClipboardDB.Exec(SQL)) {
+            MsgBox("创建置顶索引失败: " . ClipboardDB.ErrorMsg, "数据库初始化错误", "IconX")
+        }
+        
+        ; 7.1. SessionID 模式已废弃，不再需要初始化
+        
+        ; 8. 创建 Prompts 表（如果不存在）- 用于存储提示词模板
         SQL := "CREATE TABLE IF NOT EXISTS Prompts (ID TEXT PRIMARY KEY, Title TEXT NOT NULL COLLATE NOCASE, Content TEXT NOT NULL, Category TEXT COLLATE NOCASE, Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)"
         if (!ClipboardDB.Exec(SQL)) {
-            TrayTip("警告", "创建 Prompts 表失败: " . ClipboardDB.ErrorMsg, "Iconx 3")
+            MsgBox("创建 Prompts 表失败: " . ClipboardDB.ErrorMsg, "数据库初始化错误", "IconX")
         }
         
-        ; 创建统一搜索视图 v_GlobalSearch（统一字段：Title, Content, Source, Timestamp, OriginalID）
-        ; 先删除旧视图（如果存在），然后创建新视图
+        ; 9. 创建统一搜索视图 v_GlobalSearch
         ClipboardDB.Exec("DROP VIEW IF EXISTS v_GlobalSearch")
         SQL := "CREATE VIEW v_GlobalSearch AS " .
                "SELECT " .
@@ -1999,11 +2039,10 @@ InitSQLiteDB() {
                "  CAST(ID AS TEXT) AS OriginalID " .
                "FROM ClipboardHistory"
         if (!ClipboardDB.Exec(SQL)) {
-            TrayTip("警告", "创建搜索视图失败: " . ClipboardDB.ErrorMsg, "Iconx 3")
+            MsgBox("创建搜索视图失败: " . ClipboardDB.ErrorMsg, "数据库初始化错误", "IconX")
         }
         
-        ; 为搜索相关列创建索引（COLLATE NOCASE 用于大小写不敏感搜索）
-        ; Prompts 表索引
+        ; 为 Prompts 表创建索引
         SQL := "CREATE INDEX IF NOT EXISTS idx_prompts_title ON Prompts(Title COLLATE NOCASE)"
         ClipboardDB.Exec(SQL)
         SQL := "CREATE INDEX IF NOT EXISTS idx_prompts_content ON Prompts(Content COLLATE NOCASE)"
@@ -2011,20 +2050,12 @@ InitSQLiteDB() {
         SQL := "CREATE INDEX IF NOT EXISTS idx_prompts_category ON Prompts(Category COLLATE NOCASE)"
         ClipboardDB.Exec(SQL)
         
-        ; ClipboardHistory 表索引
-        SQL := "CREATE INDEX IF NOT EXISTS idx_clipboard_content ON ClipboardHistory(Content COLLATE NOCASE)"
-        ClipboardDB.Exec(SQL)
-        SQL := "CREATE INDEX IF NOT EXISTS idx_clipboard_timestamp ON ClipboardHistory(Timestamp DESC)"
-        ClipboardDB.Exec(SQL)
-        
-        ; 成功初始化
-        ; TrayTip("提示", "SQLite 数据库初始化成功", "Iconi 1")
     } catch as e {
         ; 检查是否是类不存在的错误
         if (InStr(e.Message, "SQLiteDB") || InStr(e.Message, "does not contain a recognized action")) {
-            TrayTip("提示", "Class_SQLiteDB.ahk 类文件未找到或无效。`n请从以下地址下载正确的文件：`nhttps://raw.githubusercontent.com/AHK-just-me/Class_SQLiteDB/master/Sources_v1.1/Class_SQLiteDB.ahk`n`n将文件保存为 Class_SQLiteDB.ahk 并放在脚本同目录下。`n剪贴板历史将使用内存存储。", "Iconi 5")
+            MsgBox("Class_SQLiteDB.ahk 类文件未找到或无效。`n请从以下地址下载正确的文件：`nhttps://raw.githubusercontent.com/AHK-just-me/Class_SQLiteDB/master/Sources_v1.1/Class_SQLiteDB.ahk`n`n将文件保存为 Class_SQLiteDB.ahk 并放在脚本同目录下。", "数据库初始化错误", "IconX")
         } else {
-            TrayTip("警告", "初始化 SQLite 数据库时出错: " . e.Message . "`n剪贴板历史将使用内存存储。", "Iconx 3")
+            MsgBox("初始化数据库时发生异常: " . e.Message, "数据库初始化错误", "IconX")
         }
         ClipboardDB := 0
     }
@@ -2618,8 +2649,12 @@ InitConfig() {
 
 ; 在InitConfig结束后加载模板
 InitConfig() ; 启动初始化
-; 初始化 SQLite 数据库（在配置初始化后）
-InitSQLiteDB()
+; 初始化剪贴板数据库（在配置初始化后）
+InitClipboardDB()
+; 初始化新的剪贴板管理器数据库（FTS5）
+InitClipboardFTS5DB()
+; 初始化粘贴板历史面板
+InitClipboardHistoryPanel()
 ; 加载提示词模板系统（在配置初始化后）
 LoadPromptTemplates()
 ; 同步提示词模板到数据库
@@ -2631,65 +2666,265 @@ SyncPromptTemplatesToDB()
 global LastClipboardContent := ""  ; 记录上次剪贴板内容，避免重复记录
 global CapsLockCopyInProgress := false  ; 标记 CapsLock+C 是否正在进行中
 global CapsLockCopyEndTime := 0  ; CapsLock+C 结束时间，用于延迟检测
+global ClipboardChangeDebounceTimer := 0  ; 剪贴板变化防抖定时器
+global PendingClipboardType := 0  ; 待处理的剪贴板类型
+global PendingClipboardContent := ""  ; 待处理的剪贴板内容
 
-OnClipboardChange(ClipboardChanged) {
-    ; 只在剪贴板内容变化时触发（不是由 CapsLock+C 触发的）
-    global ClipboardHistory_CtrlC, LastClipboardContent, CapsLockCopyInProgress, CapsLockCopyEndTime
+; 注册剪贴板变化监听器
+OnClipboardChange(OnClipboardChangeHandler, 1)  ; 1 表示添加监听器
+
+; ===================== 图片保存函数 =====================
+; 图片持久化管理：使用 Gdip 将剪贴板位图保存，确保 DisposeImage 释放资源
+; 路径：A_ScriptDir "\Data\Images\IMG_" A_Now ".png"
+; 返回：成功返回完整路径，失败返回空字符串
+SaveClipboardImage() {
+    ImgDir := A_ScriptDir "\Data\Images"
+    if !DirExist(ImgDir)
+        DirCreate(ImgDir)
     
-    ; 如果 CapsLock+C 正在进行中，不记录（避免重复记录）
+    FilePath := ImgDir "\IMG_" A_Now ".png"
+    pBitmap := Gdip_CreateBitmapFromClipboard()
+    if (pBitmap > 0) {
+        Gdip_SaveBitmapToFile(pBitmap, FilePath)
+        Gdip_DisposeImage(pBitmap)
+        return FilePath
+    }
+    return ""
+}
+
+; ===================== 规范入库与排重函数 =====================
+; ===================== 智能分拣剪贴板内容 =====================
+; 对文本进行智能分类和环境捕获
+ClassifyClipboardContent(content) {
+    ; 初始化返回结果
+    result := Map()
+    result["DataType"] := "Text"
+    result["CharCount"] := 0
+    result["WordCount"] := 0
+    
+    ; 如果内容为空，返回默认值
+    if (content = "" || StrLen(content) = 0) {
+        return result
+    }
+    
+    ; 计算字符数和词数
+    trimmedContent := Trim(content, " `t`r`n")
+    result["CharCount"] := StrLen(trimmedContent)
+    
+    ; 计算词数（去除标点符号后按空格分割）
+    words := StrSplit(RegExReplace(trimmedContent, "[^\w\s]+", ""), " ")
+    result["WordCount"] := words.Length
+    
+    ; 智能分类：对选中的文本进行正则判定
+    ; 1. 链接检测 (Link)
+    if (RegExMatch(trimmedContent, "i)^(https?:\/\/|www\.)[^\s]+$")) {
+        result["DataType"] := "Link"
+    }
+    ; 2. 邮箱检测 (Email)
+    else if (RegExMatch(trimmedContent, "i)^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$")) {
+        result["DataType"] := "Email"
+    }
+    ; 3. 代码检测 (Code) - 检测常见的代码特征
+    else if (RegExMatch(trimmedContent, "[\{\}\[\]\(\);]|=>|:=|function|const|import|class|def|return|var|let")) {
+        result["DataType"] := "Code"
+    }
+    ; 4. 默认文本 (Text)
+    else {
+        result["DataType"] := "Text"
+    }
+    
+    return result
+}
+
+; ===================== 捕获环境信息 =====================
+CaptureEnvironmentInfo() {
+    envInfo := Map()
+    envInfo["SourceApp"] := "Unknown"
+    envInfo["SourceTitle"] := ""
+    envInfo["SourcePath"] := ""
+    
+    try {
+        ; 获取当前活动窗口ID
+        ActiveID := WinGetID("A")
+        
+        ; 获取进程名
+        try {
+            envInfo["SourceApp"] := WinGetProcessName(ActiveID)
+        } catch as err {
+            envInfo["SourceApp"] := "Unknown"
+        }
+        
+        ; 获取窗口标题
+        try {
+            envInfo["SourceTitle"] := WinGetTitle(ActiveID)
+        } catch as err {
+            envInfo["SourceTitle"] := ""
+        }
+        
+        ; 获取进程路径
+        try {
+            envInfo["SourcePath"] := WinGetProcessPath(ActiveID)
+        } catch as err {
+            envInfo["SourcePath"] := ""
+        }
+    } catch as e {
+        ; 捕获失败，使用默认值
+    }
+    
+    return envInfo
+}
+
+; ===================== 保存剪贴板数据到数据库（11字段架构，废弃 SessionID 模式） =====================
+SaveToDB(content, type, app, title, path, cCount, wCount) {
+    global ClipboardDB  ; 必须声明全局，否则函数内部找不到数据库句柄
+    if (!ClipboardDB || ClipboardDB = 0) {
+        InitClipboardDB() ; 如果连接断开，尝试重新初始化
+    }
+
+    ; 排重检查：获取最后一条内容
+    try {
+        recordSet := ClipboardDB.GetTable("SELECT Content FROM ClipboardHistory ORDER BY ID DESC LIMIT 1")
+        if (recordSet.HasNames && recordSet.Rows.Length > 0 && recordSet.Rows[1][1] = content)
+            return ; 内容重复，直接返回不写入
+    }
+
+    ; 构造 SQL：严格按照 11 字段架构，禁止手动插入 ID（由 AUTOINCREMENT 自动处理）
+    sql := "INSERT INTO ClipboardHistory " .
+           "(Content, DataType, SourceApp, SourceTitle, SourcePath, CharCount, WordCount, Timestamp) " .
+           "VALUES (" .
+           "'" . StrReplace(content, "'", "''") . "', " .
+           "'" . type . "', " .
+           "'" . StrReplace(app, "'", "''") . "', " .
+           "'" . StrReplace(title, "'", "''") . "', " .
+           "'" . StrReplace(path, "'", "''") . "', " .
+           cCount . ", " . wCount . ", " .
+           "datetime('now', 'localtime'))"
+
+    try {
+        ClipboardDB.Exec(sql) ; 执行物理写入
+    } catch as err {
+        ; 记录错误日志，防止静默失败
+        FileAppend(A_Now ": SQL Error " err.Message "`n", "db_error.log")
+    }
+}
+
+; ===================== 剪贴板变化监听器（带防抖功能）=====================
+; 回调函数，用于注册到 OnClipboardChange
+; 具备防抖功能：在短时间内多次触发时，只执行最后一次
+OnClipboardChangeHandler(Type) {
+    global ClipboardDB, ClipboardFTS5DB, CapsLockCopyInProgress
+    global ClipboardChangeDebounceTimer, PendingClipboardType, PendingClipboardContent
+
+    ; 【关键修复】如果 CapsLock+C 正在进行中，不记录到数据库（避免重复记录）
+    ; 必须在最开始判断，防止与系统复制冲突
     if (CapsLockCopyInProgress) {
         return
     }
-    
-    ; 如果 CapsLock+C 刚结束（2秒内），也不记录（避免重复记录）
-    CurrentTime := A_TickCount
-    if (CapsLockCopyEndTime > 0 && (CurrentTime - CapsLockCopyEndTime) < 2000) {
+
+    if (Type = 0 || A_PtrSize = "")
         return
+
+    ; 防抖处理：清除之前的定时器
+    if (ClipboardChangeDebounceTimer != 0) {
+        try {
+            SetTimer(ClipboardChangeDebounceTimer, 0)  ; 清除定时器
+        } catch {
+        }
     }
-    
-    ; 确保 ClipboardHistory_CtrlC 已初始化（使用全局变量）
-    if (!IsSet(ClipboardHistory_CtrlC) || !IsObject(ClipboardHistory_CtrlC)) {
-        ClipboardHistory_CtrlC := []
+
+    ; 保存当前剪贴板类型和内容（用于防抖延迟执行）
+    PendingClipboardType := Type
+    if (Type = 1) { ; 文本类型
+        try {
+            PendingClipboardContent := A_Clipboard
+        } catch {
+            PendingClipboardContent := ""
+        }
+    } else {
+        PendingClipboardContent := ""
     }
-    
-    ; 确保其他全局变量已初始化
-    if (!IsSet(LastClipboardContent)) {
-        LastClipboardContent := ""
-    }
-    
-    ; 获取当前剪贴板内容
+
+    ; 设置防抖定时器（300毫秒延迟，避免频繁触发）
+    ClipboardChangeDebounceTimer := (*) => ProcessClipboardChange()
+    SetTimer(ClipboardChangeDebounceTimer, -300)  ; 300毫秒后执行
+}
+
+; ===================== 处理剪贴板变化（防抖后的实际处理函数）=====================
+ProcessClipboardChange() {
+    global ClipboardDB, ClipboardFTS5DB, PendingClipboardType, PendingClipboardContent
+
+    Type := PendingClipboardType
+    if (Type = 0 || A_PtrSize = "")
+        return
+
     try {
-        ; 直接读取剪贴板内容，不等待（因为 OnClipboardChange 已经表示剪贴板已变化）
-        CurrentContent := A_Clipboard
-        ; 如果内容为空或与上次相同，不记录
-        if (CurrentContent = "" || CurrentContent = LastClipboardContent) {
-            return
-        }
+        ; 1. 捕获环境信息（获取当前活动窗口的进程名）
+        SourceApp := "Unknown"
+        SourceTitle := ""
+        SourcePath := ""
         
-        ; 检查内容长度（太短的内容可能是误触）
-        if (StrLen(CurrentContent) < 1) {
-            return
+        try {
+            ActiveID := WinGetID("A")
+            SourceApp := WinGetProcessName(ActiveID)
+            SourceTitle := WinGetTitle(ActiveID)
+            SourcePath := WinGetProcessPath(ActiveID)
+        } catch {
+            SourceApp := "Unknown"
         }
-        
-        ; 记录到 Ctrl+C 历史记录（限制最多保存100条）
-        ; 使用已声明的全局变量
-        ClipboardHistory_CtrlC.Push(CurrentContent)
-        if (ClipboardHistory_CtrlC.Length > 100) {
-            ClipboardHistory_CtrlC.RemoveAt(1)  ; 删除最旧的记录
+
+        dataType := "Text", content := "", charCount := 0, wordCount := 0
+
+        if (Type = 1) { ; 文本
+            raw := A_Clipboard
+            content := Trim(raw, " `t`r`n")
+            charCount := StrLen(content)
+            wordCount := StrSplit(RegExReplace(content, "[^\w\s]+", ""), " ").Length
+
+            ; 智能分拣
+            if RegExMatch(content, "i)^(https?:\/\/|www\.)[^\s]+$")
+                dataType := "Link"
+            else if RegExMatch(content, "i)^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$")
+                dataType := "Email"
+            else if RegExMatch(content, "[\{\}\[\]\(\);]|=>|:=|function|const|import")
+                dataType := "Code"
+
+        } else if (Type = 2) { ; 图片或文件
+            ClipboardObj := WinClip()
+            if (files := ClipboardObj.GetFiles()) {
+                dataType := "File"
+                content := files
+                charCount := StrLen(content)
+                FileLines := StrSplit(files, "`n")
+                wordCount := FileLines.Length
+            } else {
+                dataType := "Image"
+                content := SaveClipboardImage() ; 调用下方保存函数
+                if (content != "") {
+                    charCount := StrLen(content)
+                    wordCount := 1  ; 图片计为1个"词"
+                }
+            }
         }
-        
-        ; 更新上次内容
-        LastClipboardContent := CurrentContent
-        
-        ; 如果剪贴板面板正在显示，刷新列表（无论当前Tab是什么）
-        ; 使用 SetTimer 延迟刷新，确保数据已完全更新
-        global GuiID_ClipboardManager
-        if (GuiID_ClipboardManager != 0) {
-            ; 延迟刷新，确保数据已完全更新，同时避免频繁刷新
-            SetTimer(RefreshClipboardListDelayed, -100)
+
+        if (content != "") {
+            ; 保存到旧的数据库系统（用于现有的剪贴板管理器）
+            if (ClipboardDB && ClipboardDB != 0) {
+                SaveToDB(content, dataType, SourceApp, SourceTitle, SourcePath, charCount, wordCount)
+            }
+
+            ; 保存到新的FTS5数据库系统（用于新的剪贴板管理器）
+            ; 当 Type=1（文本）时，自动获取当前活动窗口的进程名作为 SourceApp，并调用 SaveToClipboardFTS5
+            if (ClipboardFTS5DB && ClipboardFTS5DB != 0) {
+                if (Type = 1) {
+                    ; 使用 SaveToClipboardFTS5 函数，自动处理单引号转义
+                    SaveToClipboardFTS5(content, SourceApp)
+                } else if (Type = 2) {
+                    CaptureClipboardImageToFTS5(SourceApp)
+                }
+            }
         }
-    } catch as e {
-        ; 忽略错误（剪贴板可能被其他程序占用）
+    } catch as err {
+        ; 静默处理错误，避免影响其他功能
     }
 }
 
@@ -11260,75 +11495,143 @@ SearchClipboardHistory(Keyword, MaxResults := 10) {
     }
     
     KeywordLower := StrLower(Keyword)
-    ; 使用LOWER()函数进行大小写不敏感的搜索
-    SQL := "SELECT ID, Content, SourceApp, Timestamp, SessionID, ItemIndex FROM ClipboardHistory WHERE LOWER(Content) LIKE ? OR LOWER(SourceApp) LIKE ? ORDER BY Timestamp DESC LIMIT ?"
-    
+    ; 【增强搜索】支持多字段搜索：Content, SourceApp, SourceTitle, SourcePath, DataType
+    ; 【修复】使用 ORDER BY Timestamp DESC 确保按时间倒序排列
+    SQL := "SELECT ID, Content, SourceApp, SourceTitle, SourcePath, DataType, Timestamp, CharCount, WordCount FROM ClipboardHistory WHERE LOWER(Content) LIKE ? OR LOWER(SourceApp) LIKE ? OR LOWER(SourceTitle) LIKE ? OR LOWER(SourcePath) LIKE ? OR LOWER(DataType) LIKE ? ORDER BY Timestamp DESC LIMIT ?"
+
     ST := ""
     try {
         if (!ClipboardDB.Prepare(SQL, &ST)) {
             return Results
         }
-        
+
         ; 更新全局句柄
         global_ST := ST
-        
+
         ; 检查ST是否是有效的Statement对象
         if (!IsObject(ST) || !ST.HasProp("Bind")) {
             return Results
         }
-        
-        ; 使用小写关键词进行搜索
-        if (!ST.Bind(1, "Text", "%" . KeywordLower . "%")) {
+
+        ; 使用小写关键词进行搜索（绑定所有搜索字段）
+        SearchPattern := "%" . KeywordLower . "%"
+        if (!ST.Bind(1, "Text", SearchPattern)) {
             return Results
         }
-        if (!ST.Bind(2, "Text", "%" . KeywordLower . "%")) {
+        if (!ST.Bind(2, "Text", SearchPattern)) {
             return Results
         }
-        if (!ST.Bind(3, "Int", MaxResults)) {
+        if (!ST.Bind(3, "Text", SearchPattern)) {
             return Results
         }
-        
+        if (!ST.Bind(4, "Text", SearchPattern)) {
+            return Results
+        }
+        if (!ST.Bind(5, "Text", SearchPattern)) {
+            return Results
+        }
+        if (!ST.Bind(6, "Int", MaxResults)) {
+            return Results
+        }
+
         while (ST.Step()) {
             ID := ST.Column(0)
             Content := ST.Column(1)
             SourceApp := ST.Column(2)
-            Timestamp := ST.Column(3)
-            SessionID := ST.Column(4)
-            ItemIndex := ST.Column(5)
-            
+            SourceTitle := ST.Column(3)
+            SourcePath := ST.Column(4)
+            DataType := ST.Column(5)
+            Timestamp := ST.Column(6)
+            CharCount := ST.Column(7)
+            WordCount := ST.Column(8)
+
             ; 生成预览文本（截取前100个字符）
             Preview := SubStr(Content, 1, 100)
             if (StrLen(Content) > 100) {
                 Preview .= "..."
             }
-            
+
             ; 格式化时间
             try {
                 TimeFormatted := FormatTime(Timestamp, "yyyy-MM-dd HH:mm:ss")
             } catch as err {
                 TimeFormatted := Timestamp
             }
+
+            ; 构建标题 Emoji 前缀
+            TitlePrefix := ""
+            if (DataType = "Code") {
+                TitlePrefix := "💻 [代码] "
+            } else if (DataType = "Link") {
+                TitlePrefix := "🔗 [链接] "
+            } else if (DataType = "Email") {
+                TitlePrefix := "📧 [邮件] "
+            } else if (DataType = "Image") {
+                TitlePrefix := "🖼️ [图片] "
+            } else if (DataType = "Text") {
+                TitlePrefix := "📝 [文本] "
+            }
+
+            ; 构建子标题（包含来源应用、字数等信息）
+            SubTitle := ""
+            if (SourceApp && SourceApp != "") {
+                SubTitle := "来自: " . SourceApp
+            }
+            if (CharCount && CharCount > 0) {
+                if (SubTitle != "") {
+                    SubTitle .= " | 字数: " . CharCount
+                } else {
+                    SubTitle := "字数: " . CharCount
+                }
+            }
+            if (SubTitle != "") {
+                SubTitle .= " · " . TimeFormatted
+            } else {
+                SubTitle := TimeFormatted
+            }
+
+            ; 获取数据类型显示名称
+            DataTypeDisplayName := "剪贴板历史"
+            if (DataType = "Code") {
+                DataTypeDisplayName := "代码片段"
+            } else if (DataType = "Link") {
+                DataTypeDisplayName := "链接"
+            } else if (DataType = "Email") {
+                DataTypeDisplayName := "邮箱"
+            } else if (DataType = "File") {
+                DataTypeDisplayName := "文件"
+            } else if (DataType = "Image") {
+                DataTypeDisplayName := "图片"
+            } else if (DataType = "Text") {
+                DataTypeDisplayName := "文本"
+            }
+
+            ; 生成带 Emoji 前缀的标题
+            DisplayTitle := TitlePrefix . Preview
             
             ResultItem := {
                 DataType: "clipboard",
-                DataTypeName: "剪贴板历史",
+                DataTypeName: DataTypeDisplayName,
                 ID: ID,
-                Title: Preview,
-                SubTitle: SourceApp ? (SourceApp . " · " . TimeFormatted) : TimeFormatted,
+                Title: DisplayTitle,
+                SubTitle: SubTitle,
                 Content: Content,
                 Preview: Preview,
                 Timestamp: Timestamp,  ; 添加时间戳字段用于排序
                 Metadata: Map(
                     "SourceApp", SourceApp ? SourceApp : "",
+                    "SourceTitle", SourceTitle ? SourceTitle : "",
+                    "SourcePath", SourcePath ? SourcePath : "",
+                    "DataType", DataType ? DataType : "",
                     "Timestamp", Timestamp,
                     "TimeFormatted", TimeFormatted,
-                    "SessionID", SessionID,
-                    "ItemIndex", ItemIndex
+                    "CharCount", CharCount ? CharCount : 0,
+                    "WordCount", WordCount ? WordCount : 0
                 ),
                 Action: "copy_to_clipboard",
                 ActionParams: Map("ID", ID, "Content", Content)
             }
-            
+
             Results.Push(ResultItem)
         }
     } catch as e {
@@ -12448,8 +12751,8 @@ ExecuteFunction(FunctionName) {
         case "优化代码":
             ExecutePrompt("Optimize")
         case "剪贴板管理":
-            ; 打开剪贴板管理面板
-            ShowClipboardManager()
+            ; 打开粘贴板面板
+            ShowClipboardHistoryPanel()
         case "模板管理":
             ; 跳转到模板管理标签页
             SwitchTab("prompts")
@@ -15130,222 +15433,62 @@ CapsLockCopy() {
     
     ; 【环节4】检查内容是否有效（不为空且长度大于0）
     if (NewContent != "" && StrLen(NewContent) > 0) {
-        ; 【新逻辑】立即插入到 ListView 和数据库
+        ; 【完全隔离】恢复系统剪贴板到原始内容，不改变系统剪贴板
+        A_Clipboard := OldClipboard
+        
+        ; 【升级采集与分拣逻辑】调用智能分拣流程
         try {
-            global ClipboardDB, CurrentSessionID, TotalCopyCount, StageStepCount, ClipboardListView, GuiID_ClipboardManager
+            ; 【强制引用】明确声明全局数据库对象
+            global ClipboardDB
             
-            ; 更新计数器
-            TotalCopyCount++
-            StageStepCount++
-            
-            ; 确保 CurrentSessionID 已初始化
-            if (!IsSet(CurrentSessionID) || CurrentSessionID = 0) {
-                CurrentSessionID := 1
-            }
-            
-            ; 构造显示标签：阶段 X-第 Y 个
-            DisplayLabel := "阶段 " . CurrentSessionID . "-第 " . StageStepCount . " 个"
-            
-            ; 获取当前活动窗口的进程名
-            try {
-                SourceApp := WinGetProcessName("A")
-            } catch as err {
-                SourceApp := "Unknown"
-            }
-            
-            ; 【完全隔离】恢复系统剪贴板到原始内容，不改变系统剪贴板
-            A_Clipboard := OldClipboard
-            
-            ; 如果数据库已初始化，使用参数化查询插入到数据库
-            if (ClipboardDB && ClipboardDB != 0) {
-                ; 【入口熔断】在执行 Prepare 之前，必须先检查并释放旧句柄
-                global global_ST
-                if (IsObject(global_ST) && global_ST.HasProp("Free")) {
-                    try {
-                        global_ST.Free()
-                    } catch as err {
-                    }
-                    global_ST := 0
-                }
-                
-                ; 使用参数化查询防止 SQL 注入和特殊字符问题
-                SQL := "INSERT INTO ClipboardHistory (SessionID, ItemIndex, Content, SourceApp) VALUES (?, ?, ?, ?)"
-                ST := ""
-                PrepareSuccess := false
-                ; 尝试使用参数化查询
-                try {
-                    if (ClipboardDB.Prepare(SQL, &ST)) {
-                        ; 更新全局句柄
-                        global_ST := ST
-                        PrepareSuccess := true
-                        ; 绑定参数（1-based index）
-                        if (ST.Bind(1, "Int", CurrentSessionID) && 
-                            ST.Bind(2, "Int", StageStepCount) && 
-                            ST.Bind(3, "Text", NewContent) && 
-                            ST.Bind(4, "Text", SourceApp)) {
-                            ; 执行插入
-                            if (ST.Step()) {
-                                ; 插入成功
-                                try {
-                                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 数据插入成功（参数化查询） - SessionID=" . CurrentSessionID . ", ItemIndex=" . StageStepCount . ", Content长度=" . StrLen(NewContent) . "`n", A_ScriptDir "\clipboard_debug.log")
-                                } catch as err {
-                                }
-                                ; 成功，跳过后续的 Exec 回退
-                                goto SkipExecFallback
-                            } else {
-                                ; 插入失败
-                                try {
-                                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 数据库插入失败（参数化查询Step失败） - " . ST.ErrorMsg . "`n", A_ScriptDir "\clipboard_debug.log")
-                                } catch as err {
-                                }
-                                ; 回退到 Exec
-                            }
-                        } else {
-                            ; 绑定参数失败
-                            try {
-                                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 绑定参数失败 - " . ST.ErrorMsg . "`n", A_ScriptDir "\clipboard_debug.log")
-                            } catch as err {
-                            }
-                            ; 回退到 Exec
-                        }
-                    } else {
-                        ; Prepare 失败，回退到普通 Exec
-                        try {
-                            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: Prepare失败，回退到Exec - " . ClipboardDB.ErrorMsg . "`n", A_ScriptDir "\clipboard_debug.log")
-                        } catch as err {
-                        }
-                    }
-                } catch as e {
-                    ; 参数化查询异常，回退到普通 Exec
-                    try {
-                        FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 参数化查询异常，回退到Exec - " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
-                    } catch as err {
-                    }
-                } finally {
-                    ; 【过程保底】无论查询成功还是报错，都在 finally 块中释放句柄
-                    try {
-                        if (IsObject(global_ST) && global_ST.HasProp("Free")) {
-                            global_ST.Free()
-                        }
-                        global_ST := 0
-                    } catch as err {
-                    }
-                }
-                
-                ; 回退到普通 Exec（兼容模式，使用转义防止 SQL 注入）
-                ; 使用 quote() 函数更安全地转义字符串
-                EscapedContent := NewContent
-                EscapedSourceApp := SourceApp
-                ; 转义单引号
-                EscapedContent := StrReplace(EscapedContent, "'", "''")
-                EscapedSourceApp := StrReplace(EscapedSourceApp, "'", "''")
-                ; 转义反斜杠（如果数据库需要）
-                EscapedContent := StrReplace(EscapedContent, "\", "\\")
-                EscapedSourceApp := StrReplace(EscapedSourceApp, "\", "\\")
-                
-                SQL := "INSERT INTO ClipboardHistory (SessionID, ItemIndex, Content, SourceApp) VALUES (" . CurrentSessionID . ", " . StageStepCount . ", '" . EscapedContent . "', '" . EscapedSourceApp . "')"
-                if (!ClipboardDB.Exec(SQL)) {
-                    try {
-                        FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 数据库插入失败（Exec） - " . ClipboardDB.ErrorMsg . "`nSQL: " . SQL . "`n", A_ScriptDir "\clipboard_debug.log")
-                    } catch as err {
-                    }
-                    TrayTip("【警告】保存到数据库失败`n错误：" . ClipboardDB.ErrorMsg, GetText("tip"), "Iconx 2")
-                } else {
-                    ; Exec 插入成功
-                    try {
-                        FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 数据插入成功（Exec） - SessionID=" . CurrentSessionID . ", ItemIndex=" . StageStepCount . ", Content长度=" . StrLen(NewContent) . "`n", A_ScriptDir "\clipboard_debug.log")
-                    } catch as err {
-                    }
-                }
-                
-                SkipExecFallback:
-            }
-            
-            ; 【横向布局】立即更新 ListView（如果面板已打开且是 CapsLockC 标签）
-            ; 逻辑：找到当前阶段的行，在对应列更新内容；如果是新阶段，插入新行
-            global ClipboardCurrentTab, ClipboardListView
-            if (GuiID_ClipboardManager != 0 && ClipboardCurrentTab = "CapsLockC" && ClipboardListView && IsObject(ClipboardListView)) {
-                try {
-                    ; 截取内容预览（限制长度）
-                    ContentPreview := NewContent
-                    if (StrLen(ContentPreview) > 50) {
-                        ContentPreview := SubStr(ContentPreview, 1, 50) . "..."
-                    }
-                    ; 替换换行符和制表符
-                    ContentPreview := StrReplace(ContentPreview, "`r`n", " ")
-                    ContentPreview := StrReplace(ContentPreview, "`n", " ")
-                    ContentPreview := StrReplace(ContentPreview, "`r", " ")
-                    ContentPreview := StrReplace(ContentPreview, "`t", " ")
-                    
-                    ; 【横向布局】更新当前阶段的行
-                    ; 查找当前 SessionID 对应的行
-                    CurrentSessionLabel := "阶段 " . CurrentSessionID
-                    FoundRow := 0
-                    RowCount := ClipboardListView.GetCount()
-                    
-                    Loop RowCount {
-                        RowLabel := ClipboardListView.GetText(A_Index, 1)
-                        if (RowLabel = CurrentSessionLabel) {
-                            FoundRow := A_Index
-                            break
-                        }
-                    }
-                    
-                    ; 确保有足够的列（第1列是阶段标签，第 StageStepCount+1 列是当前复制内容）
-                    NeededCol := StageStepCount + 1
-                    CurrentColCount := 0
-                    try {
-                        CurrentColCount := ClipboardListView.GetCount("Col")
-                    } catch as err {
-                        CurrentColCount := 2
-                    }
-                    
-                    ; 如果列数不够，添加新列（使用固定宽度）
-                    ; NeededCol = StageStepCount + 1（第1列是阶段标签，后续列是内容列）
-                    if (NeededCol > CurrentColCount) {
-                        Loop (NeededCol - CurrentColCount) {
-                            ColIndex := CurrentColCount + A_Index
-                            try {
-                                ; 第一列应该已经存在，所以这里添加的列从第2列开始
-                                ; 每列固定宽度 150px
-                                ClipboardListView.InsertCol(ColIndex, "150 Left", "第" . (ColIndex - 1) . "次")
-                            } catch as err {
-                            }
-                        }
-                    }
-                    
-                    if (FoundRow > 0) {
-                        ; 行已存在，更新对应列的内容
-                        try {
-                            ClipboardListView.Modify(FoundRow, "Col" . NeededCol, ContentPreview)
-                        } catch as err {
-                        }
-                    } else {
-                        ; 新阶段，在第一行插入新行
-                        ; 构建行数据：阶段标签 + 空列 + 当前内容
-                        RowData := [CurrentSessionLabel]
-                        Loop (StageStepCount - 1) {
-                            RowData.Push("")  ; 前面的列为空
-                        }
-                        RowData.Push(ContentPreview)  ; 当前内容
-                        
-                        ClipboardListView.Insert(1, "", RowData*)
-                    }
-                    
-                    ; 强制刷新显示
-                    ClipboardListView.Redraw()
-                } catch as e {
-                    ; 更新 ListView 失败，使用完整刷新作为回退
-                    try {
-                        FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: ListView横向更新失败，执行完整刷新 - " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
-                        SetTimer(RefreshClipboardListDelayed, -100)
-                    } catch as err {
-                    }
+            ; 【数据库检查】如果数据库不存在或未初始化，先初始化
+            if (!ClipboardDB || ClipboardDB = 0) {
+                InitClipboardDB()
+                ; 再次检查
+                if (!ClipboardDB || ClipboardDB = 0) {
+                    TrayTip("【故障】数据库初始化失败`n无法保存数据", GetText("tip"), "Iconx 3")
+                    CapsLockCopyEndTime := A_TickCount
+                    SetTimer(ClearCapsLockCopyFlag, -1500)
+                    return
                 }
             }
             
-            ; 【成功提示】显示复制成功
-            TrayTip("【成功】" . DisplayLabel . "`n已复制并保存", GetText("tip"), "Iconi 1")
+            ; 【环境捕获】获取 SourceApp, SourceTitle, SourcePath
+            EnvInfo := CaptureEnvironmentInfo()
+            SourceApp := EnvInfo["SourceApp"]
+            SourceTitle := EnvInfo["SourceTitle"]
+            SourcePath := EnvInfo["SourcePath"]
+            
+            ; 【智能分类】对选中的文本进行正则判定（Link, Email, Code, Text）
+            Classification := ClassifyClipboardContent(NewContent)
+            DataType := Classification["DataType"]
+            CharCount := Classification["CharCount"]
+            WordCount := Classification["WordCount"]
+            
+            ; 【数据统计】计算 CharCount 和 WordCount（已在 ClassifyClipboardContent 中完成）
+            
+            ; 【物理入库】调用 SaveToDB 函数，它会自动处理排重检查
+            ; SaveToDB 内部会查询末位记录，如果内容重复则跳过
+            ; 使用 Trim 处理内容，确保数据一致性
+            global ClipboardListView, GuiID_ClipboardManager
+            TrimmedContent := Trim(NewContent, " `t`r`n")
+            ; 调用 SaveToDB（11字段架构，废弃 SessionID 模式）
+            SaveToDB(TrimmedContent, DataType, SourceApp, SourceTitle, SourcePath, CharCount, WordCount)
+            
+            ; 【同步UI刷新】数据存入数据库后，立即刷新列表（如果分类面板打开着）
+            ; 确保数据即时出现在"全部"和"代码"标签下
+            if (GuiID_ClipboardManager != 0) {
+                ; 如果剪贴板管理面板已打开，立即刷新列表
+                SetTimer(RefreshClipboardListDelayed, -50)  ; 延迟50ms刷新，确保数据库写入完成
+            }
+            
+            ; 【成功提示】显示复制成功（废弃 SessionID 模式，简化提示）
+            ; 截取内容预览用于提示
+            ContentPreview := TrimmedContent
+            if (StrLen(ContentPreview) > 30) {
+                ContentPreview := SubStr(ContentPreview, 1, 30) . "..."
+            }
+            TrayTip("【成功】已复制并保存`n" . ContentPreview, GetText("tip"), "Iconi 1")
             
             
             ; 【环节6】自动弹出剪贴板管理面板（如果还未打开）
@@ -15362,145 +15505,19 @@ CapsLockCopy() {
                 }
             }
         } catch as e {
-            ; 故障：插入失败
+            ; 故障：处理失败
             A_Clipboard := OldClipboard
-            TrayTip("【故障】插入失败`n错误：" . e.Message, GetText("tip"), "Iconx 3")
+            TrayTip("【故障】处理失败`n错误：" . e.Message, GetText("tip"), "Iconx 3")
+            CapsLockCopyEndTime := A_TickCount
+            SetTimer(ClearCapsLockCopyFlag, -1500)
+            return
         }
         
-        ; 【环节5】添加到 SQLite 数据库
-        try {
-            global ClipboardDB
-            
-            ; 获取当前活动窗口的进程名
-            try {
-                SourceApp := WinGetProcessName("A")
-            } catch as err {
-                SourceApp := "Unknown"
-            }
-            
-            ; 如果数据库已初始化，使用数据库存储
-            if (ClipboardDB && ClipboardDB != 0) {
-                ; 转义单引号以防止 SQL 注入
-                EscapedContent := StrReplace(NewContent, "'", "''")
-                EscapedSourceApp := StrReplace(SourceApp, "'", "''")
-                
-                ; 获取当前阶段的ItemIndex（当前阶段内已有多少条记录）
-                global CurrentSessionID
-                if (!IsSet(CurrentSessionID) || CurrentSessionID = 0) {
-                    CurrentSessionID := 1
-                }
-                ItemIndex := 1
-                try {
-                    ResultTable := ""
-                    SQL := "SELECT MAX(ItemIndex) FROM ClipboardHistory WHERE SessionID = " . CurrentSessionID
-                    if (ClipboardDB.GetTable(SQL, &ResultTable)) {
-                        if (ResultTable && ResultTable.HasProp("Rows") && ResultTable.Rows.Length > 0 && ResultTable.Rows[1].Length > 1) {
-                            MaxItemIndex := ResultTable.Rows[1][1]
-                            if (MaxItemIndex != "" && MaxItemIndex != 0) {
-                                ItemIndex := MaxItemIndex + 1
-                            }
-                        }
-                    }
-                } catch as err {
-                    ; 如果获取失败，使用默认值1
-                    ItemIndex := 1
-                }
-                
-                ; 插入到数据库（包含SessionID和ItemIndex）
-                SQL := "INSERT INTO ClipboardHistory (SessionID, ItemIndex, Content, SourceApp) VALUES (" . CurrentSessionID . ", " . ItemIndex . ", '" . EscapedContent . "', '" . EscapedSourceApp . "')"
-                if (!ClipboardDB.Exec(SQL)) {
-                    ; 插入失败，抛出错误（会被外层的 try-catch 捕获）
-                    ; 调试：记录插入失败
-                    try {
-                        FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 数据库插入失败 - " . ClipboardDB.ErrorMsg . "`nSQL: " . SQL . "`n", A_ScriptDir "\clipboard_debug.log")
-                    } catch as err {
-                    }
-                    throw Error("数据库插入失败: " . ClipboardDB.ErrorMsg)
-                }
-                
-                ; 调试：记录插入成功
-                try {
-                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] CapsLockCopy: 数据插入成功 - SessionID=" . CurrentSessionID . ", ItemIndex=" . ItemIndex . ", Content长度=" . StrLen(NewContent) . "`n", A_ScriptDir "\clipboard_debug.log")
-                } catch as err {
-                }
-                
-                ; 获取总记录数用于显示（使用 GetTable 方法）
-                SavedCount := 0
-                try {
-                    ResultTable := ""
-                    if (ClipboardDB.GetTable("SELECT COUNT(*) FROM ClipboardHistory", &ResultTable)) {
-                        if (ResultTable && ResultTable.HasProp("Rows") && ResultTable.Rows.Length > 0) {
-                            ; 第一行第一列是 COUNT 的结果
-                            SavedCount := ResultTable.Rows[1][1]
-                        } else if (ResultTable && ResultTable.HasProp("RowCount")) {
-                            ; 如果没有 Rows，尝试使用 RowCount
-                            SavedCount := ResultTable.RowCount
-                        }
-                    }
-                    ; 如果仍然为 0，说明可能是第一次插入，设为 1
-                    if (SavedCount = 0) {
-                        SavedCount := 1
-                    }
-                } catch as e {
-                    ; 如果获取记录数失败，使用默认值 1（至少插入了一条）
-                    SavedCount := 1
-                }
-            } else {
-                ; 如果数据库未初始化，回退到数组存储（兼容模式）
-                if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
-                    global ClipboardHistory_CapsLockC := []
-                }
-                ; 最新数据插入到数组开头（保持与数据库一致：最新在最前面）
-                ClipboardHistory_CapsLockC.InsertAt(1, NewContent)
-                ; 限制最多保存100条（删除最旧的，即数组末尾的）
-                if (ClipboardHistory_CapsLockC.Length > 100) {
-                    ClipboardHistory_CapsLockC.RemoveAt(ClipboardHistory_CapsLockC.Length)
-                }
-                SavedCount := ClipboardHistory_CapsLockC.Length
-            }
-            
-            ; 【完全隔离】恢复系统剪贴板到原始内容，不改变系统剪贴板
-            ; 这样 Ctrl+C 和 CapsLock+C 的剪贴板完全隔离
-            A_Clipboard := OldClipboard
-            
-            ; 【成功提示】显示复制成功提示（显示实际保存的数量）
-            TrayTip("【成功】已复制到剪贴板管理（共 " . SavedCount . " 项）", GetText("tip"), "Iconi 1")
-            
-            ; 【环节6】自动弹出剪贴板管理面板（如果还未打开）
-            global GuiID_ClipboardManager
-            if (GuiID_ClipboardManager = 0) {
-                ; 延迟显示，避免干扰复制操作
-                SetTimer(AutoShowClipboardManager, -300)
-            } else {
-                ; 如果已打开，刷新列表并切换到 CapsLock+C 标签
-                global ClipboardCurrentTab
-                if (ClipboardCurrentTab != "CapsLockC") {
-                    SwitchClipboardTab("CapsLockC")
-                }
-            }
-            
-            ; 【环节7】如果剪贴板面板正在显示，刷新列表
-            ; 使用延迟刷新，确保数据已完全更新
-            if (GuiID_ClipboardManager != 0) {
-                ; 确保当前标签是 CapsLockC，如果不是则切换
-                global ClipboardCurrentTab
-                if (ClipboardCurrentTab != "CapsLockC") {
-                    ; 切换标签会自动刷新列表
-                    SwitchClipboardTab("CapsLockC")
-                } else {
-                    ; 如果已经是 CapsLockC 标签，直接刷新列表
-                    ; 延迟刷新，确保数据已完全更新（增加延迟时间，确保数据库写入完成）
-                    ; 使用多次延迟刷新，确保数据可见
-                    SetTimer(RefreshClipboardListDelayed, -100)
-                    SetTimer(RefreshClipboardListDelayed, -300)
-                }
-            }
-        } catch as e {
-            ; 故障：添加到历史记录失败
-            ; 恢复旧剪贴板
-            A_Clipboard := OldClipboard
-            TrayTip("【故障】添加到剪贴板管理失败`n错误：" . e.Message, GetText("tip"), "Iconx 3")
-        }
+        ; 【成功提示】显示复制成功（已在 try 块内显示，这里不再重复）
+        ; 注意：成功提示已在第15614行显示，这里不需要重复
+        
+        ; 【环节6】自动弹出剪贴板管理面板（如果还未打开）
+        ; 注意：这部分代码已在 try 块内的第15617-15629行处理，这里不需要重复
     } else {
         ; 【警告】内容为空，恢复旧剪贴板
         A_Clipboard := OldClipboard
@@ -15548,25 +15565,23 @@ ProcessCopyResult(OldClipboard) {
 ; ===================== 合并粘贴功能 =====================
 ; CapsLock+V: 将当前阶段的所有内容合并后粘贴到 Cursor 输入框
 CapsLockPaste() {
-    global CapsLock2, ClipboardHistory_CapsLockC, CursorPath, AISleepTime, ClipboardDB, CurrentSessionID
-    global StageStepCount, TotalCopyCount
+    global CapsLock2, ClipboardHistory_CapsLockC, CursorPath, AISleepTime, ClipboardDB
     
     CapsLock2 := false  ; 清除标记，表示使用了功能
     
-    ; 【新逻辑】从数据库获取当前阶段的所有数据进行粘贴
+    ; 【新逻辑】从数据库获取最近的数据进行粘贴（废弃 SessionID 模式）
     CurrentHistory := []
     
     if (ClipboardDB && ClipboardDB != 0) {
-        ; 从数据库获取当前阶段的数据
+        ; 从数据库获取最近的数据（按时间倒序，取前50条）
         try {
             ResultTable := ""
-            ; 只获取当前阶段（CurrentSessionID）的数据，按 ItemIndex 升序排列
-            SQL := "SELECT ItemIndex, Content FROM ClipboardHistory WHERE SessionID = " . CurrentSessionID . " ORDER BY ItemIndex ASC"
+            SQL := "SELECT Content FROM ClipboardHistory ORDER BY Timestamp DESC LIMIT 50"
             if (ClipboardDB.GetTable(SQL, &ResultTable)) {
                 if (ResultTable && ResultTable.HasProp("Rows") && ResultTable.Rows.Length > 0) {
                     for Index, Row in ResultTable.Rows {
-                        if (Row.Length > 1) {
-                            CurrentHistory.Push(Row[2])  ; Content是第二列
+                        if (Row.Length > 0 && Row[1] != "") {
+                            CurrentHistory.Push(Row[1])  ; Content是第一列
                         }
                     }
                 }
@@ -15601,9 +15616,7 @@ CapsLockPaste() {
         MergedContent .= Content
     }
     
-    ; 【关键功能】阶段切换：重置 StageStepCount，增加 CurrentSessionID
-    StageStepCount := 0
-    CurrentSessionID++
+    ; 【废弃 SessionID 模式】不再需要阶段切换逻辑
     
     ; 刷新列表显示（如果面板已打开）
     global GuiID_ClipboardManager
@@ -15869,6 +15882,52 @@ ShowClipboardManager() {
     CapsLockCTab.OnEvent("Click", SwitchClipboardTabCapsLockC)
     HoverBtn(CapsLockCTab, (ClipboardCurrentTab = "CapsLockC" ? UI_Colors.TabActive : UI_Colors.Sidebar), UI_Colors.BtnHover)
     
+    ; ========== 分类标签栏（仅在 CapsLockC 标签时显示）==========
+    global ClipboardCurrentCategory, ClipboardCategoryButtons
+    if (!IsSet(ClipboardCurrentCategory) || ClipboardCurrentCategory = "") {
+        ClipboardCurrentCategory := "All"
+    }
+    ClipboardCategoryButtons := []
+    
+    ; 分类标签定义
+    Categories := [
+        {Key: "All", Text: "全部"},
+        {Key: "Text", Text: "文本"},
+        {Key: "Code", Text: "代码"},
+        {Key: "Link", Text: "链接"},
+        {Key: "Image", Text: "图片"}
+    ]
+    
+    ; 分类标签栏位置（在 Tab 下方）
+    CategoryBarY := TabY + 35
+    CategoryBarHeight := 30
+    CategoryButtonHeight := 28
+    CategoryButtonSpacing := 8
+    CategoryStartX := 20
+    CategoryButtonY := CategoryBarY + (CategoryBarHeight - CategoryButtonHeight) / 2
+    CurrentCategoryX := CategoryStartX
+    
+    ; 创建分类标签按钮
+    for Index, Category in Categories {
+        ; 计算按钮宽度
+        TextWidth := StrLen(Category.Text) * 10 + 20
+        CategoryButtonWidth := Max(60, TextWidth)
+        
+        ; 根据是否选中设置背景色
+        IsSelected := (Category.Key = ClipboardCurrentCategory)
+        BgColor := IsSelected ? UI_Colors.BtnPrimary : UI_Colors.Sidebar
+        TextColor := IsSelected ? "FFFFFF" : UI_Colors.Text
+        
+        CategoryBtn := GuiID_ClipboardManager.Add("Text", "x" . CurrentCategoryX . " y" . CategoryButtonY . " w" . CategoryButtonWidth . " h" . CategoryButtonHeight . " Center 0x200 c" . TextColor . " Background" . BgColor . " vClipboardCategoryBtn" . Category.Key, Category.Text)
+        CategoryBtn.SetFont("s9", "Segoe UI")
+        CategoryBtn.OnEvent("Click", CreateClipboardCategoryClickHandler(Category.Key))
+        HoverBtn(CategoryBtn, BgColor, UI_Colors.BtnHover)
+        ClipboardCategoryButtons.Push(CategoryBtn)
+        
+        ; 更新下一个按钮的X坐标
+        CurrentCategoryX += CategoryButtonWidth + CategoryButtonSpacing
+    }
+    
     ; 清空按钮移到下方（在底部按钮区域）
     
     ; 搜索功能区域（往右边移动，不遮挡其他按钮）
@@ -15910,13 +15969,13 @@ ShowClipboardManager() {
     ListBoxTextColor := (ThemeMode = "dark") ? UI_Colors.Text : UI_Colors.Text
     
     ; 【关键修复】根据窗口大小计算 ListView/ListBox 的初始大小，而不是使用固定值
-    ; 列表控件位置：x=20, y=90
+    ; 列表控件位置：x=20, y=90（调整为适应分类标签栏）
     ; 列表控件宽度：窗口宽度 - 左右边距(40) = PanelWidth - 40
-    ; 列表控件高度：窗口高度 - 工具栏(90) - 底部区域(70) = PanelHeight - 90 - 70
+    ; 列表控件高度：窗口高度 - 工具栏(90) - 分类标签栏(30) - 底部区域(70) = PanelHeight - 90 - 30 - 70
     ListX := 20
-    ListY := 90
+    ListY := CategoryBarY + CategoryBarHeight + 5  ; 分类标签栏下方
     ListWidth := PanelWidth - 40
-    ListHeight := PanelHeight - 90 - 70
+    ListHeight := PanelHeight - 90 - CategoryBarHeight - 70
     
     ; 确保最小尺寸
     if (ListWidth < 200) {
@@ -16223,6 +16282,64 @@ SwitchClipboardTabCapsLockC(*) {
     ; 增加到 8.5 秒，确保完全安全
     SetTimer(RestoreCapsLockState, -8500)
     SetTimer(RestoreCapsLockCopyFlag, -8500)
+}
+
+; 创建分类点击处理函数
+CreateClipboardCategoryClickHandler(CategoryKey) {
+    return (*) => SwitchClipboardCategory(CategoryKey)
+}
+
+; 切换剪贴板分类
+SwitchClipboardCategory(CategoryKey) {
+    global ClipboardCurrentCategory, ClipboardCategoryButtons, UI_Colors
+    global ClipboardListView, ClipboardCurrentTab
+    
+    ; 只在 CapsLockC 标签时生效
+    if (ClipboardCurrentTab != "CapsLockC") {
+        return
+    }
+    
+    ; 更新当前分类（如果点击的是"全部"，设置为 "All"）
+    if (CategoryKey = "全部" || CategoryKey = "") {
+        ClipboardCurrentCategory := "All"
+    } else {
+        ClipboardCurrentCategory := CategoryKey
+    }
+    
+    ; 立即清空 ListView，防止数据堆叠
+    try {
+        if (ClipboardListView && IsObject(ClipboardListView)) {
+            ClipboardListView.Delete()
+        }
+    } catch as err {
+    }
+    
+    ; 更新分类标签按钮样式
+    Categories := [
+        {Key: "All", Text: "全部"},
+        {Key: "Text", Text: "文本"},
+        {Key: "Code", Text: "代码"},
+        {Key: "Link", Text: "链接"},
+        {Key: "Image", Text: "图片"}
+    ]
+    
+    for Index, Category in Categories {
+        if (Index <= ClipboardCategoryButtons.Length) {
+            Btn := ClipboardCategoryButtons[Index]
+            IsSelected := (Category.Key = ClipboardCurrentCategory)
+            BgColor := IsSelected ? UI_Colors.BtnPrimary : UI_Colors.Sidebar
+            TextColor := IsSelected ? "FFFFFF" : UI_Colors.Text
+            
+            try {
+                Btn.Opt("+Background" . BgColor)
+                Btn.SetFont("s9 c" . TextColor, "Segoe UI")
+            } catch as err {
+            }
+        }
+    }
+    
+    ; 立即调用 RefreshClipboardListView() 重新加载数据
+    RefreshClipboardListView()
 }
 
 ; 切换剪贴板 Tab
@@ -16600,21 +16717,16 @@ RefreshClipboardList() {
             if (ClipboardDB && ClipboardDB != 0) {
                 try {
                     ResultTable := ""
-                    ; 【新功能】按SessionID和ItemIndex排序，实现按阶段分组显示
-                    ; 显示顺序：最新的阶段在前，每个阶段内的项目按ItemIndex排序
-                    if (ClipboardDB.GetTable("SELECT SessionID, ItemIndex, Content FROM ClipboardHistory ORDER BY SessionID DESC, ItemIndex ASC", &ResultTable)) {
+                    ; 【修复】使用 ORDER BY Timestamp DESC 确保按时间倒序排列，兼容旧的 UI 过滤逻辑
+                    if (ClipboardDB.GetTable("SELECT ID, Content FROM ClipboardHistory ORDER BY Timestamp DESC", &ResultTable)) {
                         if (ResultTable && ResultTable.HasProp("Rows") && ResultTable.Rows.Length > 0) {
-                            ; 从数据库结果构建数组（Row[1]=SessionID, Row[2]=ItemIndex, Row[3]=Content）
+                            ; 从数据库结果构建数组（Row[1]=ID, Row[2]=Content）
                             CurrentHistory := []
                             for Index, Row in ResultTable.Rows {
-                                ; Row数组索引从1开始：Row[1]=SessionID, Row[2]=ItemIndex, Row[3]=Content
-                                if (Row.Length > 2) {
-                                    ; 存储格式：Map对象，包含SessionID、ItemIndex和Content
-                                    ItemData := Map()
-                                    ItemData["SessionID"] := Row[1]
-                                    ItemData["ItemIndex"] := Row[2]
-                                    ItemData["Content"] := Row[3]
-                                    CurrentHistory.Push(ItemData)
+                                ; Row数组索引从1开始：Row[1]=ID, Row[2]=Content
+                                if (Row.Length > 1 && Row[2] != "") {
+                                    ; 存储格式：直接存储内容（废弃 SessionID 模式）
+                                    CurrentHistory.Push(Row[2])
                                 }
                             }
                             HistoryLength := CurrentHistory.Length
@@ -16838,10 +16950,17 @@ RefreshClipboardListView() {
     global ClipboardListView, ClipboardCountText, ClipboardDB, ClipboardCurrentTab
     global RefreshClipboardListInProgress, GuiID_ClipboardManager
     global ClipboardListViewHighlightedRow, ClipboardListViewHighlightedCol
+    global ClipboardCurrentCategory
     
     ; 确保当前标签是CapsLockC
     if (ClipboardCurrentTab != "CapsLockC") {
         return
+    }
+    
+    ; 获取当前分类（默认为 All）
+    CurrentCategory := ClipboardCurrentCategory
+    if (!IsSet(CurrentCategory) || CurrentCategory = "") {
+        CurrentCategory := "All"
     }
     
     ; 清除高亮单元格
@@ -16884,229 +17003,314 @@ RefreshClipboardListView() {
     }
     
     try {
+        ; 【关键修复】锁定界面更新，防止闪烁（先禁用重绘）
+        ClipboardListView.Opt("-Redraw")
+        
+        ; 【关键修复】在查询前立即清空列表，防止数据堆叠
+        try {
+            ClipboardListView.Delete()
+        } catch as err {
+        }
+        
         ; 从数据库读取所有数据
         if (!ClipboardDB || ClipboardDB = 0) {
-            ; 数据库未初始化，清空列表
-            ClipboardListView.Delete()
-            if (ClipboardCountText && IsObject(ClipboardCountText)) {
-                ClipboardCountText.Text := ""
+            ; 数据库未初始化，尝试重新初始化
+            try {
+                InitClipboardDB()
+                if (!ClipboardDB || ClipboardDB = 0) {
+                    ; 初始化失败，清空列表
+                    if (ClipboardCountText && IsObject(ClipboardCountText)) {
+                        ClipboardCountText.Text := "数据库未初始化"
+                    }
+                    ; 恢复重绘
+                    ClipboardListView.Opt("+Redraw")
+                    try {
+                        FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 数据库未初始化，尝试重新初始化失败`n", A_ScriptDir "\clipboard_debug.log")
+                    } catch as err {
+                    }
+                    return
+                }
+            } catch as err {
+                ; 初始化异常
+                if (ClipboardCountText && IsObject(ClipboardCountText)) {
+                    ClipboardCountText.Text := "数据库初始化失败"
+                }
+                ClipboardListView.Opt("+Redraw")
+                try {
+                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 数据库初始化异常 - " . err.Message . "`n", A_ScriptDir "\clipboard_debug.log")
+                } catch as err2 {
+                }
+                return
             }
-            return
         }
         
         ResultTable := ""
-        ; 获取所有数据，按 SessionID DESC, ItemIndex ASC 排序
-        SQL := "SELECT ID, SessionID, ItemIndex, Content FROM ClipboardHistory ORDER BY SessionID DESC, ItemIndex ASC"
-        if (!ClipboardDB.GetTable(SQL, &ResultTable)) {
-            ; 查询失败，清空列表
-            ClipboardListView.Delete()
-            if (ClipboardCountText && IsObject(ClipboardCountText)) {
-                ClipboardCountText.Text := ""
+        ; 根据分类过滤 SQL 查询
+        ; 逻辑：如果分类不为空且不是 "All" 或 "全部"，则添加过滤条件
+        if (CurrentCategory != "" && CurrentCategory != "All" && CurrentCategory != "全部") {
+            ; 根据分类过滤：Text, Code, Link, Image
+            ; 使用参数化查询防止 SQL 注入
+            FilterSQL := " WHERE DataType = ?"
+            SQL := "SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount FROM ClipboardHistory" . FilterSQL . " ORDER BY Timestamp DESC"
+        } else {
+            ; 全部：不添加过滤条件
+            FilterSQL := ""
+            SQL := "SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount FROM ClipboardHistory" . FilterSQL . " ORDER BY Timestamp DESC"
+        }
+        
+        ; 使用参数化查询（如果分类不是 All）
+        if (CurrentCategory != "All") {
+            ST := ""
+            if (!ClipboardDB.Prepare(SQL, &ST)) {
+                ClipboardListView.Delete()
+                if (ClipboardCountText && IsObject(ClipboardCountText)) {
+                    ClipboardCountText.Text := ""
+                }
+                ClipboardListView.Opt("+Redraw") ; 恢复重绘
+                return
             }
+            
+            ; 绑定分类参数
+            if (!ST.Bind(1, "Text", CurrentCategory)) {
+                ClipboardListView.Delete()
+                if (ClipboardCountText && IsObject(ClipboardCountText)) {
+                    ClipboardCountText.Text := ""
+                }
+                ClipboardListView.Opt("+Redraw") ; 恢复重绘
+                return
+            }
+            
+            ; 执行查询并构建结果表
+            ResultTable := {Rows: []}
+            while (ST.Step()) {
+                Row := []
+                Row.Push(ST.Column(0))  ; ID
+                Row.Push(ST.Column(1))  ; Content
+                Row.Push(ST.Column(2))  ; DataType
+                Row.Push(ST.Column(3))  ; SourceApp
+                Row.Push(ST.Column(4))  ; SourcePath
+                Row.Push(ST.Column(5))  ; CharCount
+                ResultTable.Rows.Push(Row)
+            }
+            ST.Free()
+        } else {
+            ; 全部：使用 GetTable（需要扩展列以包含 DataType 和 SourcePath）
+            ; 注意：GetTable 返回的列顺序与 SELECT 顺序一致
+            if (!ClipboardDB.GetTable(SQL, &ResultTable)) {
+                ; 查询失败，清空列表
+                ClipboardListView.Delete()
+                if (ClipboardCountText && IsObject(ClipboardCountText)) {
+                    ClipboardCountText.Text := ""
+                }
+                try {
+                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: SQL查询失败 - " . ClipboardDB.ErrorMsg . "`nSQL: " . SQL . "`n", A_ScriptDir "\clipboard_debug.log")
+                } catch as err {
+                }
+                ClipboardListView.Opt("+Redraw") ; 恢复重绘
+                return
+            }
+            
+            ; 【调试】记录查询结果
             try {
-                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: SQL查询失败 - " . ClipboardDB.ErrorMsg . "`n", A_ScriptDir "\clipboard_debug.log")
+                if (ResultTable && ResultTable.HasProp("Rows")) {
+                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 查询成功，行数=" . ResultTable.Rows.Length . "`n", A_ScriptDir "\clipboard_debug.log")
+                }
             } catch as err {
             }
-            return
         }
         
         if (!ResultTable || !ResultTable.HasProp("Rows") || ResultTable.Rows.Length = 0) {
             ; 没有数据，清空列表
             ClipboardListView.Delete()
             if (ClipboardCountText && IsObject(ClipboardCountText)) {
-                ClipboardCountText.Text := ""
+                ClipboardCountText.Text := "共 0 项"
             }
             try {
                 FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 查询成功但无数据`n", A_ScriptDir "\clipboard_debug.log")
             } catch as err {
             }
+            ClipboardListView.Opt("+Redraw") ; 恢复重绘
             return
         }
         
-        ; 【横向布局】按 SessionID 分组数据
-        ; SessionData[SessionID] = [{ItemIndex: X, Content: "..."}, ...]
-        SessionData := Map()
-        MaxItemIndex := 0  ; 记录最大的 ItemIndex，用于确定列数
+        ; 创建 ImageList 用于显示图标（如果还没有创建）
+        static ClipboardImageList := 0
+        static IconCache := Map()
+        if (!ClipboardImageList) {
+            ; 创建 ImageList：16x16 图标，支持 32 位色
+            ClipboardImageList := IL_Create(10, 10, 0)  ; 初始容量 10，增长 10
+            ; 设置 ListView 的 ImageList
+            try {
+                LV_Hwnd := ClipboardListView.Hwnd
+                ; LVM_SETIMAGELIST = 0x1003, LVSIL_SMALL = 0x0001
+                SendMessage(0x1003, 0x0001, ClipboardImageList, LV_Hwnd)
+            } catch as err {
+            }
+        }
+        
+        ; 【简化布局】废弃 SessionID 模式，改为简单列表显示
+        ; 按时间倒序显示所有记录，每行一条记录
+        ClipboardItems := []
         TotalItems := 0
         
         for Index, Row in ResultTable.Rows {
-            if (!IsObject(Row) || !Row.HasProp("Length") || Row.Length < 4) {
+            if (!IsObject(Row) || !Row.HasProp("Length") || Row.Length < 2) {
+                ; 【调试】记录跳过的行
+                try {
+                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 跳过无效行 Index=" . Index . ", Length=" . (Row.HasProp("Length") ? Row.Length : "N/A") . "`n", A_ScriptDir "\clipboard_debug.log")
+                } catch as err {
+                }
                 continue
             }
             
-            ; Row[1] = ID, Row[2] = SessionID, Row[3] = ItemIndex, Row[4] = Content
-            SessionID := (Row[2] != "" && Row[2] != 0) ? Integer(Row[2]) : 1
-            ItemIndex := (Row[3] != "" && Row[3] != 0) ? Integer(Row[3]) : 1
-            Content := (Row[4] != "") ? String(Row[4]) : ""
+            ; Row[1] = ID, Row[2] = Content, Row[3] = DataType, Row[4] = SourceApp, Row[5] = SourcePath, Row[6] = CharCount
+            ; 注意：GetTable 返回的 Rows 数组中，每一行的索引从 1 开始
+            ID := (Row.Length >= 1 && Row[1] != "" && Row[1] != 0) ? Integer(Row[1]) : 0
+            Content := (Row.Length >= 2 && Row[2] != "") ? String(Row[2]) : ""
+            DataType := (Row.Length >= 3 && Row[3] != "") ? String(Row[3]) : "Text"
+            SourceApp := (Row.Length >= 4 && Row[4] != "") ? String(Row[4]) : ""
+            SourcePath := (Row.Length >= 5 && Row[5] != "") ? String(Row[5]) : ""
+            CharCount := (Row.Length >= 6 && Row[6] != "" && Row[6] != 0) ? Integer(Row[6]) : 0
+            
+            ; 【调试】记录读取的数据
+            try {
+                if (Index <= 3) {  ; 只记录前3条，避免日志过多
+                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 行" . Index . " - ID=" . ID . ", Content长度=" . StrLen(Content) . ", DataType=" . DataType . "`n", A_ScriptDir "\clipboard_debug.log")
+                }
+            } catch as err {
+            }
             
             if (Content = "") {
+                ; 【调试】记录空内容
+                try {
+                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 跳过空内容行 Index=" . Index . "`n", A_ScriptDir "\clipboard_debug.log")
+                } catch as err {
+                }
                 continue
             }
             
-            ; 初始化 SessionID 的数组（如果不存在）
-            if (!SessionData.Has(SessionID)) {
-                SessionData[SessionID] := []
+            ; 提取图标（如果有 SourcePath）
+            IconIndex := 0
+            if (SourcePath != "" && FileExist(SourcePath)) {
+                ; 检查缓存
+                if (IconCache.Has(SourcePath)) {
+                    IconIndex := IconCache[SourcePath]
+                } else {
+                    ; 提取图标
+                    try {
+                        ; 使用 IL_Add 从文件路径提取图标
+                        IconIndex := IL_Add(ClipboardImageList, SourcePath, 0)
+                        if (IconIndex > 0) {
+                            IconCache[SourcePath] := IconIndex
+                        } else {
+                            IconIndex := 0
+                        }
+                    } catch as err {
+                        IconIndex := 0
+                    }
+                }
             }
             
-            ; 添加到对应 SessionID 的数组
-            SessionData[SessionID].Push({ItemIndex: ItemIndex, Content: Content})
+            ; 添加到列表（包含图标索引、来源应用和字符数）
+            ClipboardItems.Push({ID: ID, Content: Content, DataType: DataType, SourceApp: SourceApp, CharCount: CharCount, IconIndex: IconIndex})
             TotalItems++
-            
-            ; 更新最大 ItemIndex
-            if (ItemIndex > MaxItemIndex) {
-                MaxItemIndex := ItemIndex
-            }
         }
         
         ; 如果没有有效数据
-        if (SessionData.Count = 0) {
-            ClipboardListView.Delete()
+        if (ClipboardItems.Length = 0) {
+            ; ListView 已在函数开始时清空，这里只需更新统计信息
             if (ClipboardCountText && IsObject(ClipboardCountText)) {
-                ClipboardCountText.Text := ""
+                ClipboardCountText.Text := "共 0 项"
             }
+            ClipboardListView.Opt("+Redraw") ; 恢复重绘
             return
         }
         
-        ; 清空 ListView
-        ClipboardListView.Delete()
+        ; ListView 已在函数开始时清空，这里直接添加数据
         
-        ; 【动态调整列数】删除所有现有列，重新添加
+        ; 【简化布局】设置为单列显示（内容列）
         ; 先获取当前列数
         CurrentColCount := 0
         try {
             CurrentColCount := ClipboardListView.GetCount("Col")
         } catch as err {
-            CurrentColCount := 2
+            CurrentColCount := 1
         }
         
-        ; 需要的列数 = 1（阶段标签列）+ MaxItemIndex（内容列）
-        NeededColCount := 1 + MaxItemIndex
+        ; 只需要 1 列：内容列
+        NeededColCount := 1
         
-        ; 如果当前列数不够，需要添加缺少的列（使用固定宽度）
-        ; 第一列（阶段标签列）应该已经存在，所以只添加内容列
-        if (NeededColCount > CurrentColCount) {
-            Loop (NeededColCount - CurrentColCount) {
-                ColIndex := CurrentColCount + A_Index
-                try {
-                    ; 第一列应该已经存在，这里只添加内容列
-                    ; 从配置文件读取内容列宽度
-                    global ConfigFile
-                    DefaultContentColWidth := 150
-                    ContentColWidthStr := IniRead(ConfigFile, "ClipboardListView", "ContentColWidth", DefaultContentColWidth)
-                    ContentColWidth := Integer(ContentColWidthStr)
-                    if (ContentColWidth < 50 || ContentColWidth > 500) {
-                        ContentColWidth := DefaultContentColWidth
-                    }
-                    ClipboardListView.InsertCol(ColIndex, ContentColWidth . " Left", "第" . (ColIndex - 1) . "次")
-                } catch as err {
-                }
-            }
-        }
-        
-        ; 设置列标题和固定宽度（内容过长时自动截断）
-        ; 从配置文件读取保存的列宽
-        global ConfigFile
-        DefaultFirstColWidth := 100
-        DefaultContentColWidth := 150
-        
-        try {
-            ; 读取第一列宽度
-            FirstColWidthStr := IniRead(ConfigFile, "ClipboardListView", "FirstColWidth", DefaultFirstColWidth)
-            FirstColWidth := Integer(FirstColWidthStr)
-            if (FirstColWidth < 50 || FirstColWidth > 500) {
-                FirstColWidth := DefaultFirstColWidth
-            }
-            
-            ; 读取内容列宽度
-            ContentColWidthStr := IniRead(ConfigFile, "ClipboardListView", "ContentColWidth", DefaultContentColWidth)
-            ContentColWidth := Integer(ContentColWidthStr)
-            if (ContentColWidth < 50 || ContentColWidth > 500) {
-                ContentColWidth := DefaultContentColWidth
-            }
-            
-            ; 第一列：阶段标签
-            ClipboardListView.ModifyCol(1, FirstColWidth . " Left", "阶段标签")
-            ; 后续列：每列固定宽度，内容过长会被截断
-            Loop MaxItemIndex {
-                ColNum := A_Index + 1
-                ClipboardListView.ModifyCol(ColNum, ContentColWidth . " Left", "第" . A_Index . "次")
-            }
-        } catch as err {
-            ; 如果读取失败，使用默认宽度
+        ; 如果列数不对，重新设置列
+        if (CurrentColCount != NeededColCount) {
             try {
-                ClipboardListView.ModifyCol(1, DefaultFirstColWidth . " Left", "阶段标签")
-                Loop MaxItemIndex {
-                    ColNum := A_Index + 1
-                    ClipboardListView.ModifyCol(ColNum, DefaultContentColWidth . " Left", "第" . A_Index . "次")
+                ; 删除所有现有列
+                Loop CurrentColCount {
+                    ClipboardListView.DeleteCol(1)
                 }
+                ; 添加内容列
+                global ConfigFile
+                DefaultContentColWidth := 500
+                ContentColWidthStr := IniRead(ConfigFile, "ClipboardListView", "ContentColWidth", DefaultContentColWidth)
+                ContentColWidth := Integer(ContentColWidthStr)
+                if (ContentColWidth < 100 || ContentColWidth > 1000) {
+                    ContentColWidth := DefaultContentColWidth
+                }
+                ClipboardListView.InsertCol(1, ContentColWidth . " Left", "内容")
+            } catch as err {
+            }
+        } else {
+            ; 更新列标题和宽度
+            try {
+                global ConfigFile
+                DefaultContentColWidth := 500
+                ContentColWidthStr := IniRead(ConfigFile, "ClipboardListView", "ContentColWidth", DefaultContentColWidth)
+                ContentColWidth := Integer(ContentColWidthStr)
+                if (ContentColWidth < 100 || ContentColWidth > 1000) {
+                    ContentColWidth := DefaultContentColWidth
+                }
+                ClipboardListView.ModifyCol(1, ContentColWidth . " Left", "内容")
             } catch as err {
             }
         }
         
-        ; 【按 SessionID 排序并添加行】
-        ; 获取所有 SessionID 并降序排序（最新的阶段在最前面）
-        SessionIDs := []
-        for SessionID, Items in SessionData {
-            SessionIDs.Push(SessionID)
-        }
-        ; 降序排序
-        SessionIDs := SortArrayDesc(SessionIDs)
-        
-        ; 添加行：每个 SessionID 一行
-        for SessionIndex, SessionID in SessionIDs {
-            Items := SessionData[SessionID]
-            
-            ; 构造行数据：第一列是阶段标签，后续列是各次复制的内容
-            RowData := ["阶段 " . SessionID]
-            
-            ; 按 ItemIndex 排序 Items
-            SortedItems := []
-            Loop MaxItemIndex {
-                SortedItems.Push("")  ; 初始化为空字符串
+        ; 【添加行】按时间倒序显示（最新的在最前面）
+        for Index, Item in ClipboardItems {
+            ; 截取内容预览
+            ContentPreview := Item.Content
+            if (StrLen(ContentPreview) > 200) {
+                ContentPreview := SubStr(ContentPreview, 1, 200) . "..."
             }
+            ; 替换换行符
+            ContentPreview := StrReplace(ContentPreview, "`r`n", " ")
+            ContentPreview := StrReplace(ContentPreview, "`n", " ")
+            ContentPreview := StrReplace(ContentPreview, "`r", " ")
+            ContentPreview := StrReplace(ContentPreview, "`t", " ")
             
-            ; 填充 SortedItems
-            for ItemIndex, Item in Items {
-                Idx := Item.ItemIndex
-                if (Idx >= 1 && Idx <= MaxItemIndex) {
-                    ; 截取内容预览
-                    ContentPreview := Item.Content
-                    if (StrLen(ContentPreview) > 50) {
-                        ContentPreview := SubStr(ContentPreview, 1, 50) . "..."
-                    }
-                    ; 替换换行符
-                    ContentPreview := StrReplace(ContentPreview, "`r`n", " ")
-                    ContentPreview := StrReplace(ContentPreview, "`n", " ")
-                    ContentPreview := StrReplace(ContentPreview, "`r", " ")
-                    ContentPreview := StrReplace(ContentPreview, "`t", " ")
-                    SortedItems[Idx] := ContentPreview
-                }
-            }
-            
-            ; 添加内容列到 RowData
-            for ColIndex, ColContent in SortedItems {
-                RowData.Push(ColContent)
-            }
-            
-            ; 添加行到 ListView
+            ; 添加行到 ListView（第一个参数是图标索引）
+            IconIndex := Item.HasProp("IconIndex") ? Item.IconIndex : 0
             try {
-                ClipboardListView.Add("", RowData*)
+                ClipboardListView.Add(IconIndex > 0 ? IconIndex : "", ContentPreview)
             } catch as e {
                 try {
-                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 添加行失败 - SessionID=" . SessionID . ", 错误=" . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
+                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 添加行失败 - ID=" . Item.ID . ", 错误=" . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
                 } catch as err {
                 }
             }
         }
         
         ; 更新统计信息
-        ClipboardCountText.Text := FormatText("total_items", TotalItems)
+        if (ClipboardCountText && IsObject(ClipboardCountText)) {
+            ClipboardCountText.Text := "共 " . TotalItems . " 项"
+        }
         
         ; 调试：记录刷新完成
         try {
-            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 横向布局刷新完成 - 阶段数=" . SessionData.Count . ", 总项数=" . TotalItems . ", 最大列数=" . MaxItemIndex . "`n", A_ScriptDir "\clipboard_debug.log")
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 列表刷新完成 - 总项数=" . TotalItems . ", 已添加行数=" . ClipboardListView.GetCount() . "`n", A_ScriptDir "\clipboard_debug.log")
         } catch as err {
         }
+        
+        ; 【关键修复】恢复绘制（在所有数据添加完成后）
+        ClipboardListView.Opt("+Redraw")
         
         ; 强制刷新显示
         try {
@@ -17122,6 +17326,11 @@ RefreshClipboardListView() {
                 ClipboardCountText.Text := ""
             }
             FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 发生异常 - " . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
+        } catch as err {
+        }
+        ; 【关键修复】即使发生错误，也要恢复重绘
+        try {
+            ClipboardListView.Opt("+Redraw")
         } catch as err {
         }
     }
@@ -17280,18 +17489,44 @@ OnClipboardListViewDoubleClick(Control, Item, *) {
             }
         }
         
-        ; 从数据库获取完整内容并显示浮窗
+        ; 从数据库获取完整内容和数据类型
         FullContent := GetCellFullContent(RowIndex, ColIndex)
+        DataType := GetCellDataType(RowIndex, ColIndex)
+        
         try {
-            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: FullContent length=" . StrLen(FullContent) . "`n", A_ScriptDir "\clipboard_debug.log")
+            FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: FullContent length=" . StrLen(FullContent) . ", DataType=" . DataType . "`n", A_ScriptDir "\clipboard_debug.log")
         } catch as err {
         }
         
         if (FullContent != "") {
-            ShowClipboardCellContentWindow(FullContent, RowIndex, ColIndex)
-            try {
-                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: ShowClipboardCellContentWindow called`n", A_ScriptDir "\clipboard_debug.log")
-            } catch as err {
+            ; 根据数据类型执行不同操作
+            if (DataType = "Link") {
+                ; 链接类型：直接打开浏览器
+                try {
+                    Run(FullContent)
+                    TrayTip("已打开链接", FullContent, "Iconi 1")
+                } catch as err {
+                    TrayTip("打开链接失败", err.Message, "Iconx 2")
+                }
+            } else if (DataType = "Image") {
+                ; 图片类型：使用系统查看器打开
+                try {
+                    if (FileExist(FullContent)) {
+                        Run(FullContent)
+                        TrayTip("已打开图片", FullContent, "Iconi 1")
+                    } else {
+                        TrayTip("图片文件不存在", FullContent, "Iconx 2")
+                    }
+                } catch as err {
+                    TrayTip("打开图片失败", err.Message, "Iconx 2")
+                }
+            } else {
+                ; 其他类型：显示浮窗（传递数据类型）
+                ShowClipboardCellContentWindow(FullContent, RowIndex, ColIndex, DataType)
+                try {
+                    FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] DoubleClick: ShowClipboardCellContentWindow called`n", A_ScriptDir "\clipboard_debug.log")
+                } catch as err {
+                }
             }
         } else {
             try {
@@ -18132,6 +18367,53 @@ GetCellFullContent(RowIndex, ColIndex) {
     return ""
 }
 
+; 获取单元格数据类型
+GetCellDataType(RowIndex, ColIndex) {
+    global ClipboardDB, ClipboardListView
+    
+    try {
+        if (!ClipboardDB || ClipboardDB = 0 || !ClipboardListView) {
+            return "Text"
+        }
+        
+        ; 从ListView获取阶段标签（第一列），提取SessionID
+        StageLabel := ClipboardListView.GetText(RowIndex, 1)
+        if (StageLabel = "") {
+            return "Text"
+        }
+        
+        ; 解析阶段标签：格式为 "阶段 X"
+        RegExMatch(StageLabel, "阶段\s+(\d+)", &Match)
+        if (!Match || !Match[1]) {
+            return "Text"
+        }
+        SessionID := Integer(Match[1])
+        
+        ; 如果是第一列（阶段标签列），返回默认类型
+        if (ColIndex = 1) {
+            return "Text"
+        }
+        
+        ; 其他列：ItemIndex = ColIndex - 1（因为第一列是阶段标签）
+        ItemIndex := ColIndex - 1
+        
+        ; 从数据库查询数据类型
+        ResultTable := ""
+        SQL := "SELECT DataType FROM ClipboardHistory WHERE SessionID = " . SessionID . " AND ItemIndex = " . ItemIndex . " LIMIT 1"
+        if (ClipboardDB.GetTable(SQL, &ResultTable)) {
+            if (ResultTable && ResultTable.HasProp("Rows") && ResultTable.Rows.Length > 0) {
+                if (ResultTable.Rows[1].Length > 0) {
+                    DataType := ResultTable.Rows[1][1]
+                    return (DataType != "") ? DataType : "Text"
+                }
+            }
+        }
+    } catch as err {
+    }
+    
+    return "Text"
+}
+
 ; ===================== 搜索功能：搜索关键词变化事件 =====================
 OnClipboardSearchChange(Control, *) {
     ; 当搜索框内容变化时，如果为空则清除搜索结果
@@ -18197,7 +18479,7 @@ OnClipboardSearch(*) {
         
         ; 查询所有数据
         ResultTable := ""
-        SQL := "SELECT ID, SessionID, ItemIndex, Content FROM ClipboardHistory ORDER BY SessionID DESC, ItemIndex ASC"
+        SQL := "SELECT ID, Content FROM ClipboardHistory ORDER BY Timestamp DESC"
         if (!ClipboardDB.GetTable(SQL, &ResultTable)) {
             TrayTip("搜索失败", "数据库查询失败", "Iconx 1")
             return
@@ -18434,9 +18716,9 @@ OnCellContentCopy(*) {
     }
 }
 
-ShowClipboardCellContentWindow(Content, RowIndex, ColIndex) {
+ShowClipboardCellContentWindow(Content, RowIndex, ColIndex, DataType := "") {
     global UI_Colors, ThemeMode, GuiID_ClipboardManager, CellContentWindow
-    
+
     ; 如果窗口已存在，先销毁
     if (CellContentWindow != 0) {
         try {
@@ -18445,16 +18727,24 @@ ShowClipboardCellContentWindow(Content, RowIndex, ColIndex) {
         }
         CellContentWindow := 0
     }
-    
+
     try {
+        ; 检查是否是图片类型
+        IsImage := (DataType = "Image" && FileExist(Content))
+        
         ; 创建浮窗
-        CellContentWindow := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale", "单元格内容")
+        CellContentWindow := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale", IsImage ? "图片预览" : "单元格内容")
         CellContentWindow.BackColor := UI_Colors.Background
-        
-        ; 窗口尺寸
-        WindowWidth := 600
-        WindowHeight := 400
-        
+
+        ; 窗口尺寸（图片预览窗口更大）
+        if (IsImage) {
+            WindowWidth := 800
+            WindowHeight := 600
+        } else {
+            WindowWidth := 600
+            WindowHeight := 400
+        }
+
         ; 保存Content到局部变量，供复制按钮使用
         SavedContent := Content
         
@@ -18600,7 +18890,7 @@ GetClipboardDataForCurrentTab() {
             try {
                 ResultTable := ""
                 ; 【新功能】按SessionID和ItemIndex排序，实现按阶段分组
-                if (ClipboardDB.GetTable("SELECT ID, SessionID, ItemIndex, Content FROM ClipboardHistory ORDER BY SessionID DESC, ItemIndex ASC", &ResultTable)) {
+                if (ClipboardDB.GetTable("SELECT ID, Content FROM ClipboardHistory ORDER BY Timestamp DESC", &ResultTable)) {
                     if (ResultTable && ResultTable.HasProp("Rows") && ResultTable.Rows.Length > 0) {
                         DataArray := []
                         IDArray := []  ; 保存ID，用于删除操作
@@ -19328,7 +19618,7 @@ HandleDynamicHotkey(PressedKey, ActionType) {
                 CapsLockPaste()
             case "X":
                 CapsLock2 := false
-                ShowClipboardManager()
+                ShowClipboardHistoryPanel()
             case "E":
                 CapsLock2 := false
                 ExecutePrompt("Explain")
@@ -19419,34 +19709,35 @@ Esc:: {
 }
 
 ; C 键连续复制（立即响应，不等待面板）
-c:: {
-    ; 【关键修复】在剪贴板管理面板打开时，检查是否是标签点击期间
-    ; 如果是标签点击期间，不执行复制操作，避免点击标签时触发复制
-    global GuiID_ClipboardManager, CapsLockCopyInProgress, CapsLockCopyEndTime
-    
-    ; 如果剪贴板管理面板已打开，检查是否是标签切换期间
-    if (GuiID_ClipboardManager != 0) {
-        ; 检查是否是标签点击期间（通过 CapsLockCopyInProgress 和 CapsLockCopyEndTime 判断）
-        if (CapsLockCopyInProgress && CapsLockCopyEndTime > A_TickCount) {
-            ; 在标签点击期间，不执行复制操作，直接返回
-            return
-        }
-    }
-    
-    ; 添加调试信息：确认快捷键被触发
-    ; TrayTip("调试：CapsLock+C 被触发", "快捷键检测", "Iconi 1")
-    
-    ; 确保 CapsLock 变量被设置（防止在释放时被清除）
-    global CapsLock
-    if (!CapsLock) {
-        CapsLock := true
-    }
-    
-    if (!HandleDynamicHotkey("c", "C")) {
-        ; 如果没有匹配到配置的快捷键，发送原始按键
-        Send("c")
-    }
-}
+; 【已禁用】CapsLock+C 剪贴板面板功能已取消
+; c:: {
+;     ; 【关键修复】在剪贴板管理面板打开时，检查是否是标签点击期间
+;     ; 如果是标签点击期间，不执行复制操作，避免点击标签时触发复制
+;     global GuiID_ClipboardManager, CapsLockCopyInProgress, CapsLockCopyEndTime
+;     
+;     ; 如果剪贴板管理面板已打开，检查是否是标签切换期间
+;     if (GuiID_ClipboardManager != 0) {
+;         ; 检查是否是标签点击期间（通过 CapsLockCopyInProgress 和 CapsLockCopyEndTime 判断）
+;         if (CapsLockCopyInProgress && CapsLockCopyEndTime > A_TickCount) {
+;             ; 在标签点击期间，不执行复制操作，直接返回
+;             return
+;         }
+;     }
+;     
+;     ; 添加调试信息：确认快捷键被触发
+;     ; TrayTip("调试：CapsLock+C 被触发", "快捷键检测", "Iconi 1")
+;     
+;     ; 确保 CapsLock 变量被设置（防止在释放时被清除）
+;     global CapsLock
+;     if (!CapsLock) {
+;         CapsLock := true
+;     }
+;     
+;     if (!HandleDynamicHotkey("c", "C")) {
+;         ; 如果没有匹配到配置的快捷键，发送原始按键
+;         Send("c")
+;     }
+; }
 
 ; V 键合并粘贴
 v:: {
@@ -19455,7 +19746,7 @@ v:: {
     }
 }
 
-; X 键打开剪贴板管理面板
+; X 键打开剪贴板管理面板（新的 FTS5 剪贴板管理器）
 x:: {
     if (!HandleDynamicHotkey("x", "X")) {
         Send("x")
@@ -19749,7 +20040,7 @@ ActivateQuickActionButton(Index) {
         case "Paste":
             CapsLockPaste()
         case "Clipboard":
-            ShowClipboardManager()
+            ShowClipboardHistoryPanel()
         case "Voice":
             StartVoiceInput()
         case "Split":
@@ -21242,15 +21533,45 @@ DebouncedSearchCenter(*) {
 ; 搜索中心搜索结果双击事件
 OnSearchCenterResultDoubleClick(LV, Row) {
     global SearchCenterSearchResults
-    
+
     if (Row > 0 && Row <= SearchCenterSearchResults.Length) {
         Item := SearchCenterSearchResults[Row]
         Content := Item.HasProp("Content") ? Item.Content : Item.Title
-        ; 复制内容到剪贴板并粘贴
-        A_Clipboard := Content
-        Sleep(50)
-        Send("^v")  ; Ctrl+V 粘贴
-        TrayTip("已粘贴", Item.Title, "Iconi 1")
+        
+        ; 检查数据类型
+        DataType := ""
+        if (Item.HasProp("Metadata") && IsObject(Item.Metadata) && Item.Metadata.Has("DataType")) {
+            DataType := Item.Metadata["DataType"]
+        }
+        
+        ; 根据类型执行不同操作
+        if (DataType = "Link") {
+            ; 链接类型：直接打开浏览器
+            try {
+                Run(Content)
+                TrayTip("已打开链接", Content, "Iconi 1")
+            } catch as err {
+                TrayTip("打开链接失败", err.Message, "Iconx 2")
+            }
+        } else if (DataType = "Image") {
+            ; 图片类型：使用系统查看器打开
+            try {
+                if (FileExist(Content)) {
+                    Run(Content)
+                    TrayTip("已打开图片", Content, "Iconi 1")
+                } else {
+                    TrayTip("图片文件不存在", Content, "Iconx 2")
+                }
+            } catch as err {
+                TrayTip("打开图片失败", err.Message, "Iconx 2")
+            }
+        } else {
+            ; 其他类型：复制内容到剪贴板并粘贴
+            A_Clipboard := Content
+            Sleep(50)
+            Send("^v")  ; Ctrl+V 粘贴
+            TrayTip("已粘贴", Item.Title, "Iconi 1")
+        }
     }
 }
 
@@ -28384,7 +28705,7 @@ SaveScreenshotToFile() {
                 try {
                     ; 转义路径中的单引号
                     EscapedPath := StrReplace(CachePath, "'", "''")
-                    SQL := "INSERT INTO ClipboardHistory (SessionID, ItemIndex, Content, SourceApp, DataType) VALUES (1, 1, '" . EscapedPath . "', 'ScreenshotEditor', 'Image')"
+                    SQL := "INSERT INTO ClipboardHistory (Content, SourceApp, DataType, CharCount, WordCount, Timestamp) VALUES ('" . EscapedPath . "', 'ScreenshotEditor', 'Image', " . StrLen(CachePath) . ", 1, datetime('now', 'localtime'))"
                     ClipboardDB.Exec(SQL)
                 } catch as err {
                     ; 忽略数据库错误
