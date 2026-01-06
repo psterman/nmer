@@ -47,18 +47,31 @@ global MainScriptDir := A_ScriptDir
 
 ; ===================== Everything API 封装 =====================
 ; Everything API 封装
+; ===================== Everything API 封装 =====================
 GetEverythingResults(keyword, maxResults := 30) {
     static evDll := A_ScriptDir "\lib\everything64.dll"
+    
+    ; 1. 基础检查：DLL 是否存在
     if (!FileExist(evDll)) {
         return []
     }
     
-    ; 设置搜索参数 (W版本支持Unicode)
-    DllCall(evDll "\Everything_SetSearchW", "WStr", keyword)
-    DllCall(evDll "\Everything_SetMax", "UInt", maxResults)
-    DllCall(evDll "\Everything_QueryW", "Int", 1) ; 1 = 等待执行完成
+    ; 2. 尝试设置搜索参数 (W版本支持Unicode)
+    try {
+        DllCall(evDll "\Everything_SetSearchW", "WStr", keyword)
+        DllCall(evDll "\Everything_SetMax", "UInt", maxResults)
+        DllCall(evDll "\Everything_QueryW", "Int", 1) ; 1 = 等待执行完成
+    } catch as e {
+        ; 防止 DLL 调用失败导致脚本崩溃
+        return []
+    }
     
+    ; 3. 获取结果数量
     count := DllCall(evDll "\Everything_GetNumResults", "UInt")
+    
+    ; 调试用：如果你想看有没有搜到，可以在这里弹窗，这时候 count 才有值
+    ; MsgBox("Everything 找到了 " . count . " 个结果") 
+    
     paths := []
     Loop Min(count, maxResults) {
         bufSize := 1024
@@ -11473,31 +11486,9 @@ SearchGlobalView(Keyword, MaxResults := 100) {
 }
 
 SearchAllDataSources(Keyword, DataTypes := [], MaxResults := 10) {
-    ; 优先使用统一视图搜索（如果数据库可用）
-    global ClipboardDB
-    if (ClipboardDB && ClipboardDB != 0) {
-        GlobalResults := SearchGlobalView(Keyword, 100)
-        if (GlobalResults.Length > 0) {
-            ; 转换为旧格式以保持兼容性
-            Results := Map()
-            for Index, Item in GlobalResults {
-                DataType := Item.DataType
-                if (!Results.Has(DataType)) {
-                    Results[DataType] := {
-                        DataType: DataType,
-                        DataTypeName: Item.DataTypeName,
-                        Count: 0,
-                        Items: []
-                    }
-                }
-                Results[DataType].Items.Push(Item)
-                Results[DataType].Count++
-            }
-            return Results
-        }
-    }
+    ; 【修改】始终搜索所有数据源，确保剪贴板、提示词、配置项等数据能够混排显示
+    ; 不再优先使用统一视图，而是并行搜索所有数据源，然后混排结果
     
-    ; 回退到旧搜索方式
     Results := Map()
     
     ; 如果未指定类型，搜索所有数据源（增强搜索功能）
@@ -11511,6 +11502,7 @@ SearchAllDataSources(Keyword, DataTypes := [], MaxResults := 10) {
         
         switch DataType {
             case "clipboard":
+                ; 【关键】优先使用新的剪贴板数据库（ClipMain）
                 TypeResults := SearchClipboardHistory(Keyword, MaxResults)
             case "template":
                 TypeResults := SearchPromptTemplates(Keyword, MaxResults)
@@ -11539,11 +11531,231 @@ SearchAllDataSources(Keyword, DataTypes := [], MaxResults := 10) {
     return Results
 }
 
-; 搜索剪贴板历史
-SearchClipboardHistory(Keyword, MaxResults := 10) {
-    global ClipboardDB, global_ST
+; ===================== 搜索剪贴板 FTS5 数据库（用于 SearchCenter）=====================
+; 从新的剪贴板数据库 ClipMain 表搜索数据
+SearchClipboardFTS5ForSearchCenter(Keyword, MaxResults := 10) {
+    global ClipboardFTS5DB
     Results := []
     
+    if (!ClipboardFTS5DB || ClipboardFTS5DB = 0) {
+        return Results
+    }
+    
+    try {
+        ; 【修复】如果关键词为空，直接返回空结果
+        if (StrLen(Keyword) < 1) {
+            return Results
+        }
+        
+        KeywordLower := StrLower(Keyword)
+        SearchPattern := "%" . KeywordLower . "%"
+        
+        ; 检查字段是否存在，动态构建查询
+        SQL := "PRAGMA table_info(ClipMain)"
+        tableInfo := ""
+        hasLastCopyTime := false
+        hasCopyCount := false
+        hasSourcePath := false
+        
+        if (ClipboardFTS5DB.GetTable(SQL, &tableInfo)) {
+            if (tableInfo.HasRows && tableInfo.Rows.Length > 0) {
+                Loop tableInfo.Rows.Length {
+                    row := tableInfo.Rows[A_Index]
+                    columnName := row[2]
+                    if (columnName = "LastCopyTime") {
+                        hasLastCopyTime := true
+                    }
+                    if (columnName = "CopyCount") {
+                        hasCopyCount := true
+                    }
+                    if (columnName = "SourcePath") {
+                        hasSourcePath := true
+                    }
+                }
+            }
+        }
+        
+        ; 构建查询字段
+        selectFields := "ID, Content, SourceApp, DataType, CharCount, Timestamp"
+        if (hasSourcePath) {
+            selectFields .= ", SourcePath"
+        } else {
+            selectFields .= ", '' AS SourcePath"
+        }
+        if (hasLastCopyTime) {
+            selectFields .= ", LastCopyTime"
+        } else {
+            selectFields .= ", Timestamp AS LastCopyTime"
+        }
+        if (hasCopyCount) {
+            selectFields .= ", CopyCount"
+        } else {
+            selectFields .= ", 1 AS CopyCount"
+        }
+        
+        ; 使用 LIKE 查询（支持短关键词即时匹配）
+        ; 同时搜索 Content 和 SourceApp 字段
+        SQL := "SELECT " . selectFields . " FROM ClipMain " .
+               "WHERE (LOWER(Content) LIKE ? OR LOWER(SourceApp) LIKE ?) " .
+               "ORDER BY " . (hasLastCopyTime ? "LastCopyTime" : "Timestamp") . " DESC LIMIT ?"
+        
+        stmt := ""
+        if (!ClipboardFTS5DB.Prepare(SQL, &stmt)) {
+            return Results
+        }
+        
+        ; 绑定参数
+        if (!stmt.Bind(1, SearchPattern)) {
+            stmt.Free()
+            return Results
+        }
+        if (!stmt.Bind(2, SearchPattern)) {
+            stmt.Free()
+            return Results
+        }
+        if (!stmt.Bind(3, MaxResults)) {
+            stmt.Free()
+            return Results
+        }
+        
+        ; 遍历结果
+        try {
+            while (stmt.Step()) {
+                ID := stmt.Column(0)
+                Content := stmt.Column(1)
+                SourceApp := stmt.Column(2)
+                DataType := stmt.Column(3)
+                CharCount := stmt.Column(4)
+                Timestamp := stmt.Column(5)
+                SourcePath := stmt.Column(6)
+                LastCopyTime := stmt.Column(7)
+                CopyCount := stmt.Column(8)
+                
+                ; 生成预览文本（截取前100个字符）
+                Preview := SubStr(Content, 1, 100)
+                if (StrLen(Content) > 100) {
+                    Preview .= "..."
+                }
+                
+                ; 格式化时间
+                try {
+                    TimeFormatted := FormatTime(LastCopyTime ? LastCopyTime : Timestamp, "yyyy-MM-dd HH:mm:ss")
+                } catch as err {
+                    TimeFormatted := LastCopyTime ? LastCopyTime : Timestamp
+                }
+                
+                ; 构建标题 Emoji 前缀
+                TitlePrefix := ""
+                if (DataType = "Code") {
+                    TitlePrefix := "💻 [代码] "
+                } else if (DataType = "Link") {
+                    TitlePrefix := "🔗 [链接] "
+                } else if (DataType = "Email") {
+                    TitlePrefix := "📧 [邮件] "
+                } else if (DataType = "Image") {
+                    TitlePrefix := "🖼️ [图片] "
+                } else if (DataType = "Color") {
+                    TitlePrefix := "🎨 [颜色] "
+                } else if (DataType = "Text") {
+                    TitlePrefix := "📝 [文本] "
+                }
+                
+                ; 构建子标题（包含来源应用、字数等信息）
+                SubTitle := ""
+                if (SourceApp && SourceApp != "") {
+                    SubTitle := "来自: " . SourceApp
+                }
+                if (CharCount && CharCount > 0) {
+                    if (SubTitle != "") {
+                        SubTitle .= " | 字数: " . CharCount
+                    } else {
+                        SubTitle := "字数: " . CharCount
+                    }
+                }
+                if (SubTitle != "") {
+                    SubTitle .= " · " . TimeFormatted
+                } else {
+                    SubTitle := TimeFormatted
+                }
+                
+                ; 获取数据类型显示名称
+                DataTypeDisplayName := "剪贴板历史"
+                if (DataType = "Code") {
+                    DataTypeDisplayName := "代码片段"
+                } else if (DataType = "Link") {
+                    DataTypeDisplayName := "链接"
+                } else if (DataType = "Email") {
+                    DataTypeDisplayName := "邮箱"
+                } else if (DataType = "Color") {
+                    DataTypeDisplayName := "颜色"
+                } else if (DataType = "Image") {
+                    DataTypeDisplayName := "图片"
+                } else if (DataType = "Text") {
+                    DataTypeDisplayName := "文本"
+                }
+                
+                ; 生成带 Emoji 前缀的标题
+                DisplayTitle := TitlePrefix . Preview
+                
+                ResultItem := {
+                    DataType: "clipboard",
+                    DataTypeName: DataTypeDisplayName,
+                    ID: ID,
+                    Title: DisplayTitle,
+                    SubTitle: SubTitle,
+                    Content: Content,
+                    Preview: Preview,
+                    Time: TimeFormatted,
+                    TimeFormatted: TimeFormatted,
+                    Timestamp: LastCopyTime ? LastCopyTime : Timestamp,
+                    Source: DataTypeDisplayName,  ; 【新增】添加 Source 字段，用于 ListView 显示
+                    Metadata: Map(
+                        "SourceApp", SourceApp ? SourceApp : "",
+                        "SourcePath", SourcePath ? SourcePath : "",
+                        "DataType", DataType ? DataType : "",
+                        "Timestamp", Timestamp,
+                        "TimeFormatted", TimeFormatted,
+                        "CharCount", CharCount ? CharCount : 0,
+                        "CopyCount", CopyCount ? CopyCount : 1
+                    )
+                }
+                
+                Results.Push(ResultItem)
+            }
+        } finally {
+            ; 【关键修复】确保stmt总是被释放，即使查询失败或出错
+            if (IsObject(stmt) && stmt.HasProp("Free")) {
+                try {
+                    stmt.Free()
+                } catch as err {
+                    ; 忽略释放错误
+                }
+            }
+        }
+        
+    } catch as err {
+        ; 错误处理
+        OutputDebug("SearchClipboardFTS5ForSearchCenter 错误: " . err.Message)
+    }
+    
+    return Results
+}
+
+; 搜索剪贴板历史（优先使用新的 FTS5 数据库 ClipMain）
+SearchClipboardHistory(Keyword, MaxResults := 10) {
+    global ClipboardDB, ClipboardFTS5DB, global_ST
+    Results := []
+    
+    ; 【新增】优先使用新的剪贴板数据库（ClipMain）
+    if (ClipboardFTS5DB && ClipboardFTS5DB != 0) {
+        Results := SearchClipboardFTS5ForSearchCenter(Keyword, MaxResults)
+        ; 【修复】如果新数据库有结果，直接返回；如果没有结果，回退到旧数据库查询
+        if (Results.Length > 0) {
+            return Results
+        }
+    }
+    
+    ; 回退到旧数据库（ClipboardHistory）
     if (!ClipboardDB || ClipboardDB = 0) {
         return Results
     }
@@ -11718,6 +11930,11 @@ SearchPromptTemplates(Keyword, MaxResults := 10) {
     global PromptTemplates
     Results := []
     
+    ; 【修复】如果关键词为空，直接返回空结果
+    if (StrLen(Keyword) < 1) {
+        return Results
+    }
+    
     if (!IsSet(PromptTemplates) || PromptTemplates.Length = 0) {
         return Results
     }
@@ -11794,6 +12011,11 @@ SearchPromptTemplates(Keyword, MaxResults := 10) {
 SearchConfigItems(Keyword, MaxResults := 10) {
     global ConfigFile
     Results := []
+    
+    ; 【修复】如果关键词为空，直接返回空结果
+    if (StrLen(Keyword) < 1) {
+        return Results
+    }
     
     if (!FileExist(ConfigFile)) {
         return Results
@@ -11946,6 +12168,11 @@ SearchFilePaths(Keyword, MaxResults := 10) {
     global ClipboardDB, global_ST
     Results := []
     
+    ; 【修复】如果关键词为空，直接返回空结果
+    if (StrLen(Keyword) < 1) {
+        return Results
+    }
+    
     if (!ClipboardDB || ClipboardDB = 0) {
         return Results
     }
@@ -12046,6 +12273,11 @@ SearchHotkeys(Keyword, MaxResults := 10) {
     global SplitHotkey, BatchHotkey
     Results := []
     
+    ; 【修复】如果关键词为空，直接返回空结果
+    if (StrLen(Keyword) < 1) {
+        return Results
+    }
+    
     KeywordLower := StrLower(Keyword)
     Count := 0
     
@@ -12133,6 +12365,11 @@ SearchHotkeys(Keyword, MaxResults := 10) {
 SearchFunctions(Keyword, MaxResults := 10) {
     Results := []
     
+    ; 【修复】如果关键词为空，直接返回空结果
+    if (StrLen(Keyword) < 1) {
+        return Results
+    }
+    
     KeywordLower := StrLower(Keyword)
     Count := 0
     
@@ -12185,6 +12422,11 @@ SearchFunctions(Keyword, MaxResults := 10) {
 ; ===================== 搜索UI标签页和界面元素 =====================
 SearchUITabs(Keyword, MaxResults := 10) {
     Results := []
+    
+    ; 【修复】如果关键词为空，直接返回空结果
+    if (StrLen(Keyword) < 1) {
+        return Results
+    }
     
     KeywordLower := StrLower(Keyword)
     Count := 0
@@ -21261,6 +21503,19 @@ SwitchSearchCenterCategory(Direction, DirectIndex := false) {
     SearchCenterActiveArea := "category"
 }
 
+; 恢复搜索中心区域指示器字体（用于 SetTimer 回调）
+RestoreSearchCenterAreaIndicatorFont() {
+    global SearchCenterAreaIndicator, UI_Colors
+    ; 【修复】检查控件是否存在，避免控件已销毁错误
+    if (SearchCenterAreaIndicator != 0) {
+        try {
+            SearchCenterAreaIndicator.SetFont("s11 Bold c" . UI_Colors.BtnPrimary, "Segoe UI")
+        } catch as err {
+            ; 忽略控件已销毁的错误
+        }
+    }
+}
+
 ; 更新搜索中心高亮显示
 UpdateSearchCenterHighlight() {
     global SearchCenterActiveArea, SearchCenterCurrentCategory, SearchCenterCategoryButtons, SearchCenterSearchEdit, SearchCenterResultLV, UI_Colors, ThemeMode
@@ -21389,13 +21644,14 @@ UpdateSearchCenterHighlight() {
             
             ; 区域切换动效：文本颜色和大小动画
             try {
-                ; 先设置为高亮颜色和更大字体（动效提示）
-                HighlightColor := UI_Colors.BtnPrimary
-                SearchCenterAreaIndicator.SetFont("s13 Bold c" . HighlightColor, "Segoe UI")
-                ; 300ms后恢复为普通大小和颜色
-                SetTimer(() => (
-                    SearchCenterAreaIndicator.SetFont("s11 Bold c" . UI_Colors.BtnPrimary, "Segoe UI")
-                ), -300)
+                ; 【修复】检查控件是否存在，避免访问已销毁的控件
+                if (SearchCenterAreaIndicator != 0) {
+                    ; 先设置为高亮颜色和更大字体（动效提示）
+                    HighlightColor := UI_Colors.BtnPrimary
+                    SearchCenterAreaIndicator.SetFont("s13 Bold c" . HighlightColor, "Segoe UI")
+                    ; 300ms后恢复为普通大小和颜色
+                    SetTimer(RestoreSearchCenterAreaIndicatorFont, -300)
+                }
             } catch as err {
                 ; 忽略动效错误
             }
@@ -21510,17 +21766,145 @@ DebouncedSearchCenter(*) {
     ; 【熔断机制】在执行搜索前，强制释放旧的 Statement
     GlobalSearchEngine.ReleaseOldStatement()
     
-    Keyword := SearchCenterSearchEdit.Value
+    ; 【修复】检查控件是否存在，避免访问已销毁的控件
+    if (!SearchCenterSearchEdit || SearchCenterSearchEdit = 0) {
+        return
+    }
+    
+    ; 【修复】使用 try-catch 保护控件访问，避免控件已销毁错误
+    try {
+        Keyword := SearchCenterSearchEdit.Value
+    } catch as err {
+        ; 控件已被销毁，直接返回
+        return
+    }
+    
+    ; 【新增】如果没有关键词，显示最新的剪贴板数据（汇总展示）
     if (StrLen(Keyword) < 1) {
-        ; 清空结果
+        ; 显示最新的剪贴板数据
+        Results := []
+        
+        ; 从新的剪贴板数据库获取最新数据
+        if (ClipboardFTS5DB && ClipboardFTS5DB != 0) {
+            try {
+                ; 检查字段是否存在
+                SQL := "PRAGMA table_info(ClipMain)"
+                tableInfo := ""
+                hasLastCopyTime := false
+                
+                if (ClipboardFTS5DB.GetTable(SQL, &tableInfo)) {
+                    if (tableInfo.HasRows && tableInfo.Rows.Length > 0) {
+                        Loop tableInfo.Rows.Length {
+                            row := tableInfo.Rows[A_Index]
+                            columnName := row[2]
+                            if (columnName = "LastCopyTime") {
+                                hasLastCopyTime := true
+                            }
+                        }
+                    }
+                }
+                
+                ; 查询最新的剪贴板数据（最多50条）
+                selectFields := "ID, Content, SourceApp, DataType, CharCount, Timestamp"
+                if (hasLastCopyTime) {
+                    selectFields .= ", LastCopyTime"
+                } else {
+                    selectFields .= ", Timestamp AS LastCopyTime"
+                }
+                
+                SQL := "SELECT " . selectFields . " FROM ClipMain " .
+                       "ORDER BY " . (hasLastCopyTime ? "LastCopyTime" : "Timestamp") . " DESC LIMIT 50"
+                
+                table := ""
+                if (ClipboardFTS5DB.GetTable(SQL, &table)) {
+                    if (table.HasRows && table.Rows.Length > 0) {
+                        Loop table.Rows.Length {
+                            row := table.Rows[A_Index]
+                            ID := row[1]
+                            Content := row[2]
+                            SourceApp := row[3]
+                            DataType := row[4]
+                            CharCount := row[5]
+                            Timestamp := row[6]
+                            LastCopyTime := row[7]
+                            
+                            ; 生成预览文本
+                            Preview := SubStr(Content, 1, 100)
+                            if (StrLen(Content) > 100) {
+                                Preview .= "..."
+                            }
+                            
+                            ; 格式化时间
+                            try {
+                                TimeFormatted := FormatTime(LastCopyTime ? LastCopyTime : Timestamp, "yyyy-MM-dd HH:mm:ss")
+                            } catch as err {
+                                TimeFormatted := LastCopyTime ? LastCopyTime : Timestamp
+                            }
+                            
+                            ; 构建标题 Emoji 前缀
+                            TitlePrefix := ""
+                            if (DataType = "Code") {
+                                TitlePrefix := "💻 [代码] "
+                            } else if (DataType = "Link") {
+                                TitlePrefix := "🔗 [链接] "
+                            } else if (DataType = "Email") {
+                                TitlePrefix := "📧 [邮件] "
+                            } else if (DataType = "Image") {
+                                TitlePrefix := "🖼️ [图片] "
+                            } else if (DataType = "Color") {
+                                TitlePrefix := "🎨 [颜色] "
+                            } else if (DataType = "Text") {
+                                TitlePrefix := "📝 [文本] "
+                            }
+                            
+                            ; 获取数据类型显示名称
+                            DataTypeDisplayName := "剪贴板历史"
+                            if (DataType = "Code") {
+                                DataTypeDisplayName := "代码片段"
+                            } else if (DataType = "Link") {
+                                DataTypeDisplayName := "链接"
+                            } else if (DataType = "Email") {
+                                DataTypeDisplayName := "邮箱"
+                            } else if (DataType = "Color") {
+                                DataTypeDisplayName := "颜色"
+                            } else if (DataType = "Image") {
+                                DataTypeDisplayName := "图片"
+                            } else if (DataType = "Text") {
+                                DataTypeDisplayName := "文本"
+                            }
+                            
+                            DisplayTitle := TitlePrefix . Preview
+                            
+                            Results.Push({
+                                Title: DisplayTitle,
+                                Source: DataTypeDisplayName,
+                                Time: TimeFormatted,
+                                Content: Content,
+                                ID: ID,
+                                DataType: "clipboard",
+                                TimeFormatted: TimeFormatted,
+                                Timestamp: LastCopyTime ? LastCopyTime : Timestamp
+                            })
+                        }
+                    }
+                }
+            } catch as err {
+                ; 错误处理
+            }
+        }
+        
+        ; 更新 ListView
+        SearchCenterSearchResults := Results
         try {
             SearchCenterResultLV.Opt("-Redraw")
             SearchCenterResultLV.Delete()
+            for Index, Item in Results {
+                SearchCenterResultLV.Add(, Item.Title, Item.Source, Item.Time)
+            }
             SearchCenterResultLV.Opt("+Redraw")
         } catch as err {
             ; 控件可能已销毁，忽略错误
         }
-        SearchCenterSearchResults := []
         return
     }
     
@@ -21564,16 +21948,78 @@ DebouncedSearchCenter(*) {
                 ; 获取内容
                 ContentText := Item.HasProp("Content") ? Item.Content : (Item.HasProp("Title") ? Item.Title : "")
                 
+                ; 【修复】优先使用 Item.Source（如果存在），否则使用 TypeData.DataTypeName
+                SourceText := ""
+                if (Item.HasProp("Source") && Item.Source != "") {
+                    SourceText := Item.Source
+                } else if (Item.HasProp("DataTypeName") && Item.DataTypeName != "") {
+                    SourceText := Item.DataTypeName
+                } else {
+                    SourceText := TypeData.HasProp("DataTypeName") ? TypeData.DataTypeName : DataType
+                }
+                
+                ; 【新增】添加时间戳字段用于排序
+                TimestampValue := ""
+                if (Item.HasProp("Timestamp") && Item.Timestamp != "") {
+                    TimestampValue := Item.Timestamp
+                } else if (Item.HasProp("TimeFormatted") && Item.TimeFormatted != "") {
+                    ; 尝试从格式化时间反推时间戳（用于排序）
+                    try {
+                        TimestampValue := Item.TimeFormatted
+                    } catch {
+                        TimestampValue := TimeDisplay
+                    }
+                } else {
+                    TimestampValue := TimeDisplay
+                }
+                
                 Results.Push({
                     Title: TitleText,
-                    Source: TypeData.HasProp("DataTypeName") ? TypeData.DataTypeName : DataType,
+                    Source: SourceText,
                     Time: TimeDisplay,
                     Content: ContentText,
                     ID: Item.HasProp("ID") ? Item.ID : "",
                     DataType: DataType,
                     Action: Item.HasProp("Action") ? Item.Action : "",
-                    ActionParams: Item.HasProp("ActionParams") ? Item.ActionParams : Map()
+                    ActionParams: Item.HasProp("ActionParams") ? Item.ActionParams : Map(),
+                    Timestamp: TimestampValue  ; 【新增】用于排序
                 })
+            }
+        }
+    }
+    
+    ; 【新增】按时间戳排序，确保所有数据源的结果混排并按时间倒序显示
+    ; 使用简单的冒泡排序（时间格式统一为 yyyy-MM-dd HH:mm:ss，可以直接字符串比较）
+    if (Results.Length > 1) {
+        ; 对结果数组按时间戳排序（倒序，最新的在前）
+        ; yyyy-MM-dd HH:mm:ss 格式可以直接字符串排序
+        Loop Results.Length - 1 {
+            i := A_Index
+            Loop Results.Length - i {
+                j := A_Index + i
+                TimeI := Results[i].HasProp("Timestamp") ? Results[i].Timestamp : Results[i].Time
+                TimeJ := Results[j].HasProp("Timestamp") ? Results[j].Timestamp : Results[j].Time
+                
+                ; 【修复】检查时间戳是否为空，避免空字符串比较错误
+                if (TimeI = "" || TimeJ = "") {
+                    ; 如果任一时间为空，跳过比较（空值排在后面）
+                    if (TimeI = "" && TimeJ != "") {
+                        ; i 为空，j 不为空，交换位置
+                        temp := Results[i]
+                        Results[i] := Results[j]
+                        Results[j] := temp
+                    }
+                    continue
+                }
+                
+                ; 【修复】使用 StrCompare 进行字符串比较，避免类型错误
+                ; StrCompare 返回：负数（TimeJ < TimeI），0（相等），正数（TimeJ > TimeI）
+                ; 如果 TimeJ > TimeI（即 TimeJ 更新），则交换位置
+                if (StrCompare(TimeJ, TimeI) > 0) {
+                    temp := Results[i]
+                    Results[i] := Results[j]
+                    Results[j] := temp
+                }
             }
         }
     }
@@ -21613,12 +22059,46 @@ DebouncedSearchCenter(*) {
                     DataType: "file",
                     Action: "open_file",
                     ActionParams: Map("FilePath", FilePath),
-                    Metadata: Map("DirPath", DirPath, "FileName", FileName, "Ext", Ext ? Ext : "")
+                    Metadata: Map("DirPath", DirPath, "FileName", FileName, "Ext", Ext ? Ext : ""),
+                    Timestamp: FileTime  ; 【新增】添加时间戳用于排序
                 })
             }
         } catch as err {
             ; Everything 搜索失败，忽略错误（不影响本地搜索）
             OutputDebug("Everything 搜索失败: " . err.Message)
+        }
+        
+        ; 【新增】Everything 搜索完成后，再次排序，确保所有结果按时间混排
+        if (Results.Length > 1) {
+            Loop Results.Length - 1 {
+                i := A_Index
+                Loop Results.Length - i {
+                    j := A_Index + i
+                TimeI := Results[i].HasProp("Timestamp") ? Results[i].Timestamp : Results[i].Time
+                TimeJ := Results[j].HasProp("Timestamp") ? Results[j].Timestamp : Results[j].Time
+                
+                ; 【修复】检查时间戳是否为空，避免空字符串比较错误
+                if (TimeI = "" || TimeJ = "") {
+                    ; 如果任一时间为空，跳过比较（空值排在后面）
+                    if (TimeI = "" && TimeJ != "") {
+                        ; i 为空，j 不为空，交换位置
+                        temp := Results[i]
+                        Results[i] := Results[j]
+                        Results[j] := temp
+                    }
+                    continue
+                }
+                
+                ; 【修复】使用 StrCompare 进行字符串比较，避免类型错误
+                ; StrCompare 返回：负数（TimeJ < TimeI），0（相等），正数（TimeJ > TimeI）
+                ; 如果 TimeJ > TimeI（即 TimeJ 更新），则交换位置
+                if (StrCompare(TimeJ, TimeI) > 0) {
+                        temp := Results[i]
+                        Results[i] := Results[j]
+                        Results[j] := temp
+                    }
+                }
+            }
         }
     }
     
