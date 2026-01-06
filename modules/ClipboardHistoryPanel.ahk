@@ -33,12 +33,12 @@ HistoryColors := {
     ListBg: "252526",
     ListItemHover: "37373d",
     SearchBorder: "007acc",  ; Cursor蓝色
-    TagBg: "2d2d30",
-    TagBgActive: "007acc",  ; Cursor蓝色（激活状态）
+    TagBg: "2d2d30",  ; 侧边栏颜色（未选中状态，与 SearchCenter 一致）
+    TagBgActive: "e67e22",  ; 橙色（激活状态，与 SearchCenter 一致）
     TagText: "cccccc",
     TagTextActive: "ffffff",
     TagBorder: "3c3c3c",
-    TagBorderActive: "007acc"  ; Cursor蓝色
+    TagBorderActive: "e67e22"  ; 橙色
 }
 
 ; ===================== 显示/隐藏面板 =====================
@@ -171,32 +171,32 @@ CreateHistoryPanelGUI() {
         ; 计算按钮X位置
         tagX := TagStartX + (tagIndex - 1) * (TagButtonWidth + TagSpacing)
         
-        ; 创建按钮（Material风格：扁平、无边框）
-        tagButton := GuiID_ClipboardHistory.Add("Button", 
+        ; 创建标签按钮（使用 Text 控件，与 SearchCenter 风格一致）
+        ; 根据是否选中设置背景色和文字颜色
+        IsSelected := (HistorySelectedTag = tagType)
+        BgColor := IsSelected ? HistoryColors.TagBgActive : HistoryColors.TagBg
+        TextColor := IsSelected ? HistoryColors.TagTextActive : HistoryColors.TagText
+        
+        tagButton := GuiID_ClipboardHistory.Add("Text", 
             "x" . tagX . " y" . TagAreaY . 
             " w" . TagButtonWidth . " h" . TagButtonHeight . 
-            " Background" . HistoryColors.TagBg . 
-            " c" . HistoryColors.TagText . 
+            " Center 0x200 c" . TextColor . 
+            " Background" . BgColor . 
             " vHistoryTag_" . tagType, tagLabel)
         
-        tagButton.SetFont("s9 Bold", "Segoe UI")
-        
-        ; 设置按钮样式（Material风格：扁平、无边框）
-        tagButtonHwnd := tagButton.Hwnd
-        try {
-            ; 设置按钮为扁平样式（移除Windows主题）
-            DllCall("uxtheme\SetWindowTheme", "Ptr", tagButtonHwnd, "Ptr", 0, "Ptr", 0)
-            ; 设置按钮为扁平样式（BS_FLAT）
-            CurrentStyle := DllCall("GetWindowLongPtr", "Ptr", tagButtonHwnd, "Int", -16, "Ptr")
-            NewStyle := CurrentStyle | 0x8000  ; BS_FLAT
-            DllCall("SetWindowLongPtr", "Ptr", tagButtonHwnd, "Int", -16, "Ptr", NewStyle, "Ptr")
-            ; 移除边框
-            NewStyle := NewStyle & ~0x84000000  ; 移除WS_BORDER和WS_DLGFRAME
-            DllCall("SetWindowLongPtr", "Ptr", tagButtonHwnd, "Int", -16, "Ptr", NewStyle, "Ptr")
-        }
+        tagButton.SetFont("s10 Bold", "Segoe UI")
         
         ; 绑定点击事件
         tagButton.OnEvent("Click", OnHistoryTagClick.Bind(tagType))
+        
+        ; 添加悬停效果（如果 HoverBtnWithAnimation 函数可用）
+        try {
+            if (Func("HoverBtnWithAnimation")) {
+                HoverBtnWithAnimation(tagButton, BgColor, HistoryColors.TagBgActive)
+            }
+        } catch {
+            ; 如果函数不可用，忽略错误
+        }
         
         ; 存储按钮引用
         HistoryTagButtons[tagType] := tagButton
@@ -739,18 +739,24 @@ UpdateHistoryTagButtons() {
     
     ; 遍历所有标签按钮
     for tagType, button in HistoryTagButtons {
-        if (HistorySelectedTag = tagType) {
-            ; 选中状态：使用激活颜色
+        IsSelected := (HistorySelectedTag = tagType)
+        BgColor := IsSelected ? HistoryColors.TagBgActive : HistoryColors.TagBg
+        TextColor := IsSelected ? HistoryColors.TagTextActive : HistoryColors.TagText
+        
+        try {
+            button.Opt("+Background" . BgColor)
+            button.SetFont("s10 c" . TextColor . " Bold", "Segoe UI")
+            
+            ; 更新悬停效果（如果 HoverBtnWithAnimation 函数可用）
             try {
-                button.Opt("Background" . HistoryColors.TagBgActive)
-                button.Opt("c" . HistoryColors.TagTextActive)
+                if (Func("HoverBtnWithAnimation")) {
+                    HoverBtnWithAnimation(button, BgColor, HistoryColors.TagBgActive)
+                }
+            } catch {
+                ; 如果函数不可用，忽略错误
             }
-        } else {
-            ; 未选中状态：使用默认颜色
-            try {
-                button.Opt("Background" . HistoryColors.TagBg)
-                button.Opt("c" . HistoryColors.TagText)
-            }
+        } catch as err {
+            ; 忽略错误，继续处理下一个按钮
         }
     }
 }
@@ -885,11 +891,12 @@ ShowColorSummaryPanel() {
         x := 10 + col * (blockSize + blockSpacing)
         y := scrollY + row * rowHeight
         
-        ; 创建颜色块按钮
+        ; 创建颜色块按钮（去掉 # 号，因为 Background 选项不接受 #）
+        hexColor := StrReplace(colorItem["hex"], "#", "")
         colorBtn := ColorSummaryGUI.Add("Button", 
             "x" . x . " y" . y . 
             " w" . blockSize . " h" . blockSize . 
-            " Background" . colorItem["hex"] . 
+            " Background" . hexColor . 
             " -Theme vColorBtn_" . index, "")
         
         ; 设置按钮点击事件

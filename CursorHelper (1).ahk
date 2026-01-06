@@ -402,24 +402,24 @@ global ThemeMode := "dark"
 
 ; 暗色主题颜色
 UI_Colors_Dark := {
-    Background: "1e1e1e",
-    Sidebar: "252526",
-    Border: "3c3c3c", 
-    Text: "cccccc",
-    TextDim: "888888",
-    InputBg: "3c3c3c",
-    DDLBg: "2d2d30",
-    DDLBorder: "3e3e42",
-    DDLText: "cccccc",
-    DDLHover: "37373d",
-    BtnBg: "3c3c3c",
-    BtnHover: "4c4c4c",
-    BtnPrimary: "0078D4",
-    BtnPrimaryHover: "1177bb",
-    BtnDanger: "e81123",
-    BtnDangerHover: "c50e1f",
-    TabActive: "37373d",
-    TitleBar: "252526"
+    Background: "0a0a0a",      ; html.to.design 风格：深黑色背景
+    Sidebar: "1a1a1a",         ; html.to.design 风格：侧边栏深灰色
+    Border: "333333",          ; html.to.design 风格：边框深灰色
+    Text: "f5f5f5",            ; html.to.design 风格：主文本浅灰色
+    TextDim: "888888",         ; html.to.design 风格：次要文本中灰色
+    InputBg: "1a1a1a",         ; html.to.design 风格：输入框背景
+    DDLBg: "1a1a1a",           ; html.to.design 风格：下拉框背景
+    DDLBorder: "333333",       ; html.to.design 风格：下拉框边框
+    DDLText: "f5f5f5",         ; html.to.design 风格：下拉框文本
+    DDLHover: "2a2a2a",        ; html.to.design 风格：下拉框悬停
+    BtnBg: "1a1a1a",           ; html.to.design 风格：按钮背景
+    BtnHover: "2a2a2a",        ; html.to.design 风格：按钮悬停
+    BtnPrimary: "e67e22",      ; html.to.design 风格：主按钮橙色
+    BtnPrimaryHover: "d35400", ; html.to.design 风格：主按钮悬停深橙色
+    BtnDanger: "e81123",       ; 保持红色危险按钮
+    BtnDangerHover: "c50e1f",  ; 保持红色危险按钮悬停
+    TabActive: "2a2a2a",       ; html.to.design 风格：激活标签
+    TitleBar: "1a1a1a"         ; html.to.design 风格：标题栏
 }
 
 ; 亮色主题颜色
@@ -471,9 +471,9 @@ UpdateDefaultStartTabDDLBrush() {
     }
     
     try {
-        ; 根据主题模式设置颜色（使用cursor黑灰色系）
+        ; 根据主题模式设置颜色（使用 html.to.design 风格配色）
         if (ThemeMode = "dark") {
-            ColorCode := "0x2d2d30"  ; Cursor风格的黑灰色背景
+            ColorCode := "0x" . UI_Colors.DDLBg  ; html.to.design 风格背景
         } else {
             ColorCode := "0x" . UI_Colors.DDLBg  ; 亮色模式背景
         }
@@ -3553,17 +3553,17 @@ ShowCursorPanel() {
     CursorPanelAutoHideBtn.OnEvent("Click", ToggleCursorPanelAutoHide)
     HoverBtnWithAnimation(CursorPanelAutoHideBtn, (CursorPanelAutoHide ? UI_Colors.BtnPrimary : UI_Colors.BtnBg), UI_Colors.BtnPrimaryHover)
     
-    ; 关闭按钮
-    CursorPanelCloseBtn := GuiID_CursorPanel.Add("Text", "x" . (BtnStartX + (BtnSize + BtnSpacing) * 2) . " y" . BtnY . " w" . BtnSize . " h" . BtnSize . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnBg . " vCursorPanelCloseBtn", "✕")
+    ; 关闭按钮（使用 html.to.design 风格配色）
+    CursorPanelCloseBtn := GuiID_CursorPanel.Add("Text", "x" . (BtnStartX + (BtnSize + BtnSpacing) * 2) . " y" . BtnY . " w" . BtnSize . " h" . BtnSize . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg . " vCursorPanelCloseBtn", "✕")
     CursorPanelCloseBtn.SetFont("s14", "Segoe UI")
     CursorPanelCloseBtn.OnEvent("Click", CloseCursorPanel)
     HoverBtnWithAnimation(CursorPanelCloseBtn, UI_Colors.BtnBg, "e81123")
     
     ; 分隔线（使用层叠投影替代1px边框）
-    ; 底层：大范围、低饱和度、模糊阴影
+    ; 底层：大范围、低饱和度、模糊阴影（使用 html.to.design 风格配色）
     global ThemeMode
-    OuterShadowColor := (ThemeMode = "light") ? "E0E0E0" : "1A1A1A"
-    InnerShadowColor := (ThemeMode = "light") ? "B0B0B0" : "2A2A2A"
+    OuterShadowColor := (ThemeMode = "light") ? "E0E0E0" : UI_Colors.Background
+    InnerShadowColor := (ThemeMode = "light") ? "B0B0B0" : UI_Colors.Sidebar
     ; 底层阴影（3层渐变）
     Loop 3 {
         LayerOffset := 4 + (A_Index - 1) * 1
@@ -3580,10 +3580,10 @@ ShowCursorPanel() {
     SearchEditX := 0
     SearchEditWidth := CursorPanelWidth
     
-    ; 根据主题模式设置输入框颜色
+    ; 根据主题模式设置输入框颜色（使用 html.to.design 风格配色）
     if (ThemeMode = "dark") {
-        InputBgColor := "2d2d30"  ; Cursor风格的黑灰色
-        InputTextColor := "FFFFFF"  ; 白色文字
+        InputBgColor := UI_Colors.InputBg  ; html.to.design 风格背景
+        InputTextColor := UI_Colors.Text    ; html.to.design 风格文本
     } else {
         InputBgColor := UI_Colors.InputBg
         InputTextColor := UI_Colors.Text
@@ -3617,8 +3617,8 @@ ShowCursorPanel() {
     ListViewX := 0  ; 从左边开始，与面板对齐
     ListViewY := SearchEditY + SearchEditHeight + 10
     
-    ; 根据主题模式设置ListView颜色
-    ListViewTextColor := (ThemeMode = "dark") ? "FFFFFF" : UI_Colors.Text
+    ; 根据主题模式设置ListView颜色（使用 html.to.design 风格配色）
+    ListViewTextColor := (ThemeMode = "dark") ? UI_Colors.Text : UI_Colors.Text
     global CursorPanelResultLV := GuiID_CursorPanel.Add("ListView", "x" . ListViewX . " y" . ListViewY . " w" . ListViewWidth . " h" . ListViewHeight . " Background" . UI_Colors.InputBg . " c" . ListViewTextColor . " -Multi +ReadOnly vCursorPanelResultLV", ["标题", "来源", "时间"])
     CursorPanelResultLV.SetFont("s10 c" . ListViewTextColor, "Segoe UI")
     ; 【修改】ListView 始终显示，用于全局搜索所有内容
@@ -3636,7 +3636,7 @@ ShowCursorPanel() {
     MoreBtnWidth := 100
     MoreBtnHeight := 35
     MoreBtnX := (CursorPanelWidth - MoreBtnWidth) / 2  ; 居中
-    global CursorPanelShowMoreBtn := GuiID_CursorPanel.Add("Text", "x" . MoreBtnX . " y" . MoreBtnY . " w" . MoreBtnWidth . " h" . MoreBtnHeight . " Center 0x200 c" . ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF") . " Background" . UI_Colors.BtnBg . " vCursorPanelShowMoreBtn", "更多")
+    global CursorPanelShowMoreBtn := GuiID_CursorPanel.Add("Text", "x" . MoreBtnX . " y" . MoreBtnY . " w" . MoreBtnWidth . " h" . MoreBtnHeight . " Center 0x200 c" . ((ThemeMode = "light") ? UI_Colors.Text : UI_Colors.Text) . " Background" . UI_Colors.BtnBg . " vCursorPanelShowMoreBtn", "更多")  ; html.to.design 风格文本
     CursorPanelShowMoreBtn.SetFont("s10", "Segoe UI")
     CursorPanelShowMoreBtn.Visible := false  ; 初始隐藏
     CursorPanelShowMoreBtn.OnEvent("Click", OnCursorPanelShowMore)
@@ -3792,9 +3792,9 @@ ShowCursorPanel() {
         ; 按钮宽度 = 面板宽度 - 左右边距（30*2 = 60）
         ButtonWidth := CursorPanelWidth - 60
         Btn := GuiID_CursorPanel.Add("Button", "x30 y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight, ButtonText)
-        ; 按钮文字颜色：亮色模式下使用深色文字，暗色模式下使用白色文字
+        ; 按钮文字颜色：使用 html.to.design 风格配色
         global ThemeMode
-        BtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+        BtnTextColor := (ThemeMode = "light") ? UI_Colors.Text : UI_Colors.Text
         Btn.SetFont("s11 c" . BtnTextColor, "Segoe UI")
         ; 创建包装函数，同时更新说明文字和执行操作
         WrappedAction := CreateButtonActionWithDesc(ButtonAction, ButtonDesc)
@@ -5260,8 +5260,8 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
         ThemeMode := "dark"
     }
     if (ThemeMode = "dark") {
-        InputBgColor := "2d2d30"  ; Cursor风格的黑灰色
-        InputTextColor := "FFFFFF"  ; 白色文字
+        InputBgColor := UI_Colors.InputBg  ; html.to.design 风格背景
+        InputTextColor := UI_Colors.Text   ; html.to.design 风格文本
     } else {
         InputBgColor := UI_Colors.InputBg
         InputTextColor := UI_Colors.Text
@@ -5293,8 +5293,8 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
     ; 使用之前定义的InputBgColor和InputTextColor（如果已定义）
     if (!IsSet(InputBgColor) || !IsSet(InputTextColor)) {
         if (ThemeMode = "dark") {
-            InputBgColor := "2d2d30"
-            InputTextColor := "FFFFFF"
+            InputBgColor := UI_Colors.InputBg  ; html.to.design 风格背景
+            InputTextColor := UI_Colors.Text    ; html.to.design 风格文本
         } else {
             InputBgColor := UI_Colors.InputBg
             InputTextColor := UI_Colors.Text
@@ -5322,7 +5322,7 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
     BtnHeight := 35
     BtnText := AutoStart ? "开机自启动" : "不开机自启动"
     BtnBgColor := AutoStart ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
-    BtnTextColor := AutoStart ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
+    BtnTextColor := AutoStart ? UI_Colors.Text : ((ThemeMode = "light") ? UI_Colors.Text : UI_Colors.Text)  ; html.to.design 风格文本
     
     AutoStartBtn := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . BtnTextColor . " Background" . BtnBgColor . " vAutoStartBtn", BtnText)
     AutoStartBtn.SetFont("s10", "Segoe UI")
@@ -5357,8 +5357,8 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
         ThemeMode := "dark"
     }
     if (ThemeMode = "dark") {
-        DDLBgColor := "2d2d30"  ; Cursor风格的黑灰色
-        DDLTextColor := "FFFFFF"  ; 白色文字
+        DDLBgColor := UI_Colors.DDLBg    ; html.to.design 风格背景
+        DDLTextColor := UI_Colors.DDLText ; html.to.design 风格文本
     } else {
         DDLBgColor := UI_Colors.DDLBg
         DDLTextColor := UI_Colors.DDLText
@@ -5403,7 +5403,7 @@ CreateGeneralTab(ConfigGUI, X, Y, W, H) {
     GeneralTabControls.Push(LabelInstallChinese)
     
     YPos += 30
-    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : UI_Colors.Text  ; html.to.design 风格文本
     InstallChineseBtn := ConfigGUI.Add("Text", "x" . (X + 30) . " y" . YPos . " w" . (BtnWidth * 2 + 10) . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vGeneralInstallChineseBtn", GetText("install_cursor_chinese"))
     InstallChineseBtn.SetFont("s10", "Segoe UI")
     InstallChineseBtn.OnEvent("Click", InstallCursorChinese)
@@ -5662,7 +5662,7 @@ SwitchGeneralSubTab(SubTabKey) {
         try {
             TabBtn := GeneralSubTabs[SubTabKey]
             ; 选中状态：蓝色背景 (0078D4)，高亮文字
-            SelectedText := (ThemeMode = "dark") ? "E0E0E0" : "FFFFFF"
+            SelectedText := (ThemeMode = "dark") ? UI_Colors.Text : "FFFFFF"  ; html.to.design 风格文本（亮色模式保持白色）
             TabBtn.Opt("+Background" . UI_Colors.BtnPrimary)
             TabBtn.SetFont("s9 c" . SelectedText . " Bold", "Segoe UI")
             TabBtn.Redraw()
@@ -5769,7 +5769,7 @@ ToggleAutoStart(*) {
         if (AutoStartBtn && IsObject(AutoStartBtn)) {
             BtnText := AutoStart ? "开机自启动" : "不开机自启动"
             BtnBgColor := AutoStart ? UI_Colors.BtnPrimary : UI_Colors.BtnBg
-            BtnTextColor := AutoStart ? "FFFFFF" : ((ThemeMode = "light") ? UI_Colors.Text : "FFFFFF")
+            BtnTextColor := AutoStart ? UI_Colors.Text : ((ThemeMode = "light") ? UI_Colors.Text : UI_Colors.Text)  ; html.to.design 风格文本
             
             AutoStartBtn.Text := BtnText
             ; 使用Opt方法更新背景色（更可靠）
@@ -6471,7 +6471,7 @@ AddPromptTemplate() {
     ContentEdit.SetFont("s10", "Consolas")
     
     ; 按钮
-    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : UI_Colors.Text  ; html.to.design 风格文本
     BtnY := TitleBarHeight + 370
     SaveBtn := EditGUI.Add("Text", "x20 y" . BtnY . " w120 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vSaveBtn", "保存")
     SaveBtn.SetFont("s10", "Segoe UI")
@@ -6540,7 +6540,7 @@ EditPromptTemplate() {
     ContentEdit.SetFont("s10", "Consolas")
     
     ; 按钮
-    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : UI_Colors.Text  ; html.to.design 风格文本
     BtnY := TitleBarHeight + 365
     SaveBtn := EditGUI.Add("Text", "x20 y" . BtnY . " w120 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vSaveBtn", "保存")
     SaveBtn.SetFont("s10", "Segoe UI")
@@ -6600,7 +6600,7 @@ EditPromptTemplateDialog(TemplateID, Template) {
     ContentEdit.SetFont("s10", "Consolas")
     
     ; 按钮
-    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : UI_Colors.Text  ; html.to.design 风格文本
     BtnY := TitleBarHeight + 370
     SaveBtn := EditGUI.Add("Text", "x20 y" . BtnY . " w120 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vSaveBtn", "保存")
     SaveBtn.SetFont("s10", "Segoe UI")
@@ -6778,7 +6778,7 @@ SetDefaultTemplate() {
     SelectGUI.Add("Text", "x20 y" . (TitleBarHeight + 10) . " w260 h25 c" . UI_Colors.Text, "选择默认用途:")
     
     global ThemeMode
-    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : UI_Colors.Text  ; html.to.design 风格文本
     
     BtnStartY := TitleBarHeight + 50
     ExplainBtn := SelectGUI.Add("Text", "x20 y" . BtnStartY . " w260 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vExplainBtn", "设为解释默认模板")
@@ -6874,7 +6874,7 @@ ImportPromptTemplates() {
         ImportGUI.Add("Text", "x20 y" . (TitleBarHeight + 10) . " w260 h25 c" . UI_Colors.Text, "发现 " . ImportedTemplates.Length . " 个模板")
         ImportGUI.Add("Text", "x20 y" . (TitleBarHeight + 40) . " w260 h40 c" . UI_Colors.Text, "选择导入方式:")
         
-        TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+        TextColor := (ThemeMode = "light") ? UI_Colors.Text : UI_Colors.Text  ; html.to.design 风格文本
         
         ; 全部导入（跳过已存在的）
         BtnStartY := TitleBarHeight + 90
@@ -7204,7 +7204,7 @@ SwitchPromptTemplateTab(TabIndex) {
     if (PromptTemplateTabs.Has(TabIndex) && PromptTemplateTabs[TabIndex]) {
         try {
             TabBtn := PromptTemplateTabs[TabIndex]
-            SelectedText := (ThemeMode = "dark") ? "E0E0E0" : "FFFFFF"
+            SelectedText := (ThemeMode = "dark") ? UI_Colors.Text : "FFFFFF"  ; html.to.design 风格文本（亮色模式保持白色）
             TabBtn.Opt("+Background" . UI_Colors.BtnPrimary)
             TabBtn.SetFont("s10 c" . SelectedText . " Bold", "Segoe UI")
             TabBtn.Redraw()
@@ -7437,7 +7437,7 @@ SwitchPromptsMainTab(TabKey) {
                     TabBtn.Visible := true
                     if (Key = TabKey) {
                         ; 当前选中的标签按钮
-                        SelectedText := (ThemeMode = "dark") ? "E0E0E0" : "FFFFFF"
+                        SelectedText := (ThemeMode = "dark") ? UI_Colors.Text : "FFFFFF"  ; html.to.design 风格文本（亮色模式保持白色）
                         TabBtn.Opt("+Background" . UI_Colors.BtnPrimary)
                         TabBtn.SetFont("s10 c" . SelectedText . " Bold", "Segoe UI")
                     } else {
@@ -7749,7 +7749,7 @@ CreatePromptsManageTab(ConfigGUI, X, Y, W, H) {
     BtnSpacing := 15
     BtnX := X
     
-    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : UI_Colors.Text  ; html.to.design 风格文本
     
     ; 导入模板按钮
     ImportTemplateBtn := ConfigGUI.Add("Text", "x" . BtnX . " y" . BtnY . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vImportTemplateBtn", "导入模板")
@@ -7795,7 +7795,7 @@ SwitchPromptCategoryTab(CategoryName, IsInit := false) {
     for TabCategoryName, TabBtn in PromptCategoryTabs {
         if (TabCategoryName = CategoryName) {
             ; 选中状态
-            SelectedText := (ThemeMode = "dark") ? "E0E0E0" : "FFFFFF"
+            SelectedText := (ThemeMode = "dark") ? UI_Colors.Text : "FFFFFF"  ; html.to.design 风格文本（亮色模式保持白色）
             TabBtn.Opt("+Background" . UI_Colors.BtnPrimary)
             TabBtn.SetFont("s10 c" . SelectedText . " Bold", "Segoe UI")
             TabBtn.Redraw()
@@ -8777,7 +8777,7 @@ OnPromptManagerMove() {
         
         ; 计算按钮Y位置（ListBox下方20像素）
         BtnY := ListBoxY + ListBoxHeight + 20
-        TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+        TextColor := (ThemeMode = "light") ? UI_Colors.Text : UI_Colors.Text  ; html.to.design 风格文本
         OkBtn := MoveGUI.Add("Text", "x120 y" . BtnY . " w80 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vMoveOkBtn", "确定")
         OkBtn.SetFont("s10", "Segoe UI")
         OkBtn.OnEvent("Click", CreateMoveTemplateConfirmHandler(MoveGUI, TargetTemplate, TemplateIndex))
@@ -8976,7 +8976,7 @@ OnPromptManagerRenameFromPreview(PreviewGUI, Template) {
     NameEdit := RenameGUI.Add("Edit", "x20 y" . EditY . " w300 h30 vNewName Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, Template.Title)
     NameEdit.SetFont("s10", "Segoe UI")
     
-    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : UI_Colors.Text  ; html.to.design 风格文本
     BtnY := TitleBarHeight + 80
     OkBtn := RenameGUI.Add("Text", "x80 y" . BtnY . " w80 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vRenameOkBtn", "确定")
     OkBtn.SetFont("s10", "Segoe UI")
@@ -9155,7 +9155,7 @@ OnPromptManagerMoveFromTemplate(Template) {
     
     ; 计算按钮Y位置（ListBox下方20像素）
     BtnY := ListBoxY + ListBoxHeight + 20
-    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : UI_Colors.Text  ; html.to.design 风格文本
     OkBtn := MoveGUI.Add("Text", "x120 y" . BtnY . " w80 h35 Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnPrimary . " vMoveOkBtn", "确定")
     OkBtn.SetFont("s10", "Segoe UI")
     OkBtn.OnEvent("Click", CreateMoveFromTemplateHandler(MoveGUI, Template))
@@ -10630,7 +10630,7 @@ SwitchHotkeyTab(HotkeyKey) {
         try {
             TabBtn := HotkeySubTabs[HotkeyKey]
             ; 选中状态：蓝色背景 (0078D4)，高亮文字
-            SelectedText := (ThemeMode = "dark") ? "E0E0E0" : "FFFFFF"
+            SelectedText := (ThemeMode = "dark") ? UI_Colors.Text : "FFFFFF"  ; html.to.design 风格文本（亮色模式保持白色）
             TabBtn.Opt("+Background" . UI_Colors.BtnPrimary)
             TabBtn.SetFont("s8 c" . SelectedText . " Bold", "Segoe UI")
             TabBtn.Redraw()
@@ -10689,7 +10689,7 @@ SwitchHotkeysMainTab(MainTabKey) {
         try {
             TabBtn := HotkeysMainTabs[MainTabKey]
             ; 选中状态：使用主题主色
-            SelectedText := (ThemeMode = "dark") ? "E0E0E0" : "FFFFFF"
+            SelectedText := (ThemeMode = "dark") ? UI_Colors.Text : "FFFFFF"  ; html.to.design 风格文本（亮色模式保持白色）
             TabBtn.Opt("+Background" . UI_Colors.BtnPrimary)
             TabBtn.SetFont("s10 c" . SelectedText . " Bold", "Segoe UI")
             TabBtn.Redraw()
@@ -10987,7 +10987,7 @@ SwitchCursorRulesSubTab(SubTabKey) {
         try {
             TabBtn := CursorRulesSubTabs[SubTabKey]
             ; 选中状态：使用主题主色
-            SelectedText := (ThemeMode = "dark") ? "E0E0E0" : "FFFFFF"
+            SelectedText := (ThemeMode = "dark") ? UI_Colors.Text : "FFFFFF"  ; html.to.design 风格文本（亮色模式保持白色）
             TabBtn.Opt("+Background" . UI_Colors.BtnPrimary)
             TabBtn.SetFont("s9 c" . SelectedText . " Bold", "Segoe UI")
             TabBtn.Redraw()
@@ -11330,8 +11330,8 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
         ThemeMode := "dark"
     }
     if (ThemeMode = "dark") {
-        InputBgColor := "2d2d30"  ; Cursor风格的黑灰色
-        InputTextColor := "FFFFFF"  ; 白色文字
+        InputBgColor := UI_Colors.InputBg  ; html.to.design 风格背景
+        InputTextColor := UI_Colors.Text   ; html.to.design 风格文本
     } else {
         InputBgColor := UI_Colors.InputBg
         InputTextColor := UI_Colors.Text
@@ -11377,7 +11377,7 @@ CreateAdvancedTab(ConfigGUI, X, Y, W, H) {
     
     ; 导出配置按钮（改为灰色）
     global ThemeMode
-    TextColor := (ThemeMode = "light") ? UI_Colors.Text : "FFFFFF"
+    TextColor := (ThemeMode = "light") ? UI_Colors.Text : UI_Colors.Text  ; html.to.design 风格文本
     ExportBtn := ConfigGUI.Add("Text", "x" . BtnStartX . " y" . YPos . " w" . BtnWidth . " h" . BtnHeight . " Center 0x200 c" . TextColor . " Background" . UI_Colors.BtnBg . " vAdvancedExportBtn", GetText("export_config"))
     ExportBtn.SetFont("s10", "Segoe UI")
     ExportBtn.OnEvent("Click", ExportConfig)
@@ -13445,9 +13445,9 @@ CreateCursorDDL(Parent, X, Y, W, H, Options, VarName := "", ControlList := "") {
         ThemeMode := "dark"
     }
     if (ThemeMode = "dark") {
-        DDLBgColor := "2d2d30"  ; Cursor风格的黑灰色
-        DDLTextColor := "FFFFFF"  ; 白色文字
-        DDLBorderColor := "3e3e42"  ; 边框颜色
+        DDLBgColor := UI_Colors.DDLBg      ; html.to.design 风格背景
+        DDLTextColor := UI_Colors.DDLText   ; html.to.design 风格文本
+        DDLBorderColor := UI_Colors.DDLBorder ; html.to.design 风格边框
     } else {
         DDLBgColor := UI_Colors.DDLBg
         DDLTextColor := UI_Colors.DDLText
@@ -13538,9 +13538,9 @@ WM_CTLCOLORLISTBOX(wParam, lParam, Msg, Hwnd) {
             if (ParentHwnd = DefaultStartTabDDL_Hwnd) {
                 ; 根据主题模式设置下拉列表背景色和文字颜色
                 if (ThemeMode = "dark") {
-                    ; 暗色模式：黑灰色背景，白色文字
-                    DDLTextColor := "0x" . "ffffff"  ; 白色文字
-                    DDLBgColor := "0x" . "1e1e1e"  ; 黑灰色背景
+                    ; 暗色模式：html.to.design 风格配色
+                    DDLTextColor := "0x" . UI_Colors.DDLText  ; html.to.design 风格文本
+                    DDLBgColor := "0x" . UI_Colors.DDLBg      ; html.to.design 风格背景
                 } else {
                     ; 亮色模式：使用UI_Colors中的颜色
                     DDLTextColor := "0x" . UI_Colors.DDLText
@@ -13604,9 +13604,9 @@ WM_CTLCOLOREDIT(wParam, lParam, Msg, Hwnd) {
             if (ParentHwnd = DefaultStartTabDDL_Hwnd) {
                 ; 根据主题模式设置颜色
                 if (ThemeMode = "dark") {
-                    ; 暗色模式：黑灰色背景，白色文字
-                    DDLTextColor := "0x" . "ffffff"  ; 白色文字
-                    DDLBgColor := "0x" . "1e1e1e"  ; 黑灰色背景
+                    ; 暗色模式：html.to.design 风格配色
+                    DDLTextColor := "0x" . UI_Colors.DDLText  ; html.to.design 风格文本
+                    DDLBgColor := "0x" . UI_Colors.DDLBg      ; html.to.design 风格背景
                 } else {
                     ; 亮色模式：使用UI_Colors中的颜色
                     DDLTextColor := "0x" . UI_Colors.DDLText
@@ -13800,29 +13800,22 @@ UpdateConfigGUILayoutAfterDrag(Width, Height) {
         ; 锁定窗口更新，防止闪烁
         DllCall("user32.dll\LockWindowUpdate", "Ptr", GuiID_ConfigGUI.Hwnd)
         
-        ; 更新标题栏宽度
-        try {
-            TitleBar := GuiID_ConfigGUI["TitleBar"]
-            if (TitleBar) {
-                TitleBar.Move(, , Width)
-            }
-        } catch as err {
-        }
+        ; 使用原生标题栏，不需要更新自定义标题栏
         
         ; 更新侧边栏高度
         try {
             SidebarBg := GuiID_ConfigGUI["SidebarBg"]
             if (SidebarBg) {
-                SidebarBg.Move(, , , Height - 35)
+                SidebarBg.Move(, , , Height)
             }
         } catch as err {
         }
         
-        ; 更新内容区域大小
+        ; 更新内容区域大小（使用原生标题栏，内容从顶部开始）
         ContentX := SidebarWidth
         ContentWidth := Width - SidebarWidth
-        ContentY := 35
-        ContentHeight := Height - 35 - 50
+        ContentY := 0
+        ContentHeight := Height - 50
         
         ; 更新各个标签页的内容区域大小
         TabPanels := ["GeneralTabPanel", "AppearanceTabPanel", "PromptsTabPanel", "HotkeysTabPanel", "AdvancedTabPanel"]
@@ -14276,33 +14269,30 @@ ShowConfigGUI() {
     global GeneralSubTabs := Map()
     global GeneralSubTabControls := Map()
     
-    ; 创建配置 GUI（无边框窗口，无白边，无滚动条）
-    ConfigGUI := Gui("+Resize -MaximizeBox -Caption -Border", GetText("config_title"))
+    ; 创建配置 GUI（使用原生标题栏）
+    ConfigGUI := Gui("+Resize -MaximizeBox", GetText("config_title"))
     ConfigGUI.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
     ConfigGUI.BackColor := UI_Colors.Background
-    ; 启用窗口滚动（通过设置窗口样式和滚动区域）
-    ; 添加滚动条样式（在窗口显示后设置）
     
     ; 窗口尺寸 - 全屏显示
     ScreenInfo := GetScreenInfo(PanelScreenIndex)
+    ; 窗口总尺寸（包括标题栏和边框）- 使用屏幕尺寸
     global ConfigWidth := ScreenInfo.Width
     global ConfigHeight := ScreenInfo.Height
+    
+    ; 注意：控件坐标是相对于客户区的，客户区从标题栏下方开始
+    ; 窗口显示后，我们可以通过 WinGetClientPos 获取实际客户区尺寸
+    ; 暂时使用估算值，窗口显示后会通过 Size 事件更新
+    global ConfigClientWidth := ScreenInfo.Width - 20  ; 估算：减去左右边框
+    global ConfigClientHeight := ScreenInfo.Height - 50  ; 估算：减去标题栏和上下边框
     
     ; 侧边栏宽度（全局变量，用于大小调整）
     global SidebarWidth := 150
     
-    ; ========== 自定义标题栏 (35px) ==========
-    TitleBar := ConfigGUI.Add("Text", "x0 y0 w" . ConfigWidth . " h35 Background" . UI_Colors.TitleBar . " vTitleBar", "")
-    TitleBar.OnEvent("Click", (*) => PostMessage(0xA1, 2)) ; 拖动窗口
-    
-    ; 窗口标题（调整位置，避免被左上角关闭按钮遮挡）
-    WinTitle := ConfigGUI.Add("Text", "x40 y8 w" . (ConfigWidth - 80) . " h20 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text . " vWinTitle", GetText("config_title"))
-    WinTitle.SetFont("s10 Bold", "Segoe UI")
-    WinTitle.OnEvent("Click", (*) => PostMessage(0xA1, 2))
-    
     ; ========== 左侧侧边栏 (150px，更窄以给右侧更多空间) ==========
     ; SidebarWidth 已在上面声明为全局变量
-    SidebarBg := ConfigGUI.Add("Text", "x0 y35 w" . SidebarWidth . " h" . (ConfigHeight - 35) . " Background" . UI_Colors.Sidebar . " vSidebarBg", "")
+    ; 控件坐标是相对于客户区的，客户区从标题栏下方开始，所以 y=0 就是标题栏下方
+    SidebarBg := ConfigGUI.Add("Text", "x0 y0 w" . SidebarWidth . " h" . ConfigClientHeight . " Background" . UI_Colors.Sidebar . " vSidebarBg", "")
     
     ; 牛马图标（放大显示，可点击切换）
     global ThemeMode, CustomIconPath
@@ -14311,7 +14301,7 @@ ShowConfigGUI() {
     }
     IconSize := 32
     IconX := 10
-    IconY := 45
+    IconY := 10  ; 客户区顶部（标题栏下方）
     ; 优先使用用户自定义图标
     IconPath := (CustomIconPath != "" && FileExist(CustomIconPath)) ? CustomIconPath : (A_ScriptDir "\favicon.ico")
     if (FileExist(IconPath)) {
@@ -14319,8 +14309,8 @@ ShowConfigGUI() {
         SearchIcon.OnEvent("Click", (*) => ChangeCustomIcon())
     }
     
-    ; 标签按钮起始位置
-    TabY := 50
+    ; 标签按钮起始位置（使用原生标题栏，从图标下方开始）
+    TabY := IconY + IconSize + 10
     TabHeight := 35
     TabSpacing := 2
     
@@ -14357,9 +14347,9 @@ ShowConfigGUI() {
     
     ; ========== 右侧内容区域（可滚动）==========
     ContentX := SidebarWidth
-    ContentWidth := ConfigWidth - SidebarWidth
-    ContentY := 35
-    ContentHeight := ConfigHeight - 35 - 50 ; 留出底部按钮空间
+    ContentWidth := ConfigClientWidth - SidebarWidth
+    ContentY := 0  ; 客户区顶部（标题栏下方）
+    ContentHeight := ConfigClientHeight - 50 ; 留出底部按钮空间
     
     ; 创建一个可滚动的容器来包裹所有内容
     ; 使用隐藏的滚动条控件来启用窗口滚动功能
@@ -14387,7 +14377,7 @@ ShowConfigGUI() {
     CreateSearchTab(ConfigGUI, ContentX, ContentY, ContentWidth, ContentHeight)
     
     ; ========== 底部按钮区域 (右侧) ==========
-    ButtonAreaY := ConfigHeight - 50  ; 减少高度（已移除说明文字）
+    ButtonAreaY := ConfigClientHeight - 50  ; 底部按钮位置（相对于客户区）
     ; 移除底部按钮区域的背景色块，只保留按钮本身
     ; ButtonAreaBg := ConfigGUI.Add("Text", "x" . ContentX . " y" . ButtonAreaY . " w" . ContentWidth . " h50 Background" . UI_Colors.Background . " vButtonAreaBg", "") ; 遮挡背景
     
@@ -14416,7 +14406,7 @@ ShowConfigGUI() {
     ; 导出、导入、重置默认已移到高级标签页，现在只有2个按钮
     BtnWidth := 80
     BtnSpacing := 10
-    BtnStartX := ConfigWidth - (BtnWidth * 2 + BtnSpacing) - 20  ; 2个按钮，1个间距，右边距20
+    BtnStartX := ConfigClientWidth - (BtnWidth * 2 + BtnSpacing) - 20  ; 2个按钮，1个间距，右边距20
     CreateBottomBtn(GetText("save_config"), BtnStartX, SaveConfigAndClose, true, "SaveBtn", GetText("save_config_desc")) ; Primary
     CreateBottomBtn(GetText("cancel"), BtnStartX + BtnWidth + BtnSpacing, (*) => CloseConfigGUI(), false, "CancelBtn", GetText("cancel_desc"))
     
@@ -14452,37 +14442,47 @@ ShowConfigGUI() {
         RestoredPos.X := PosX
         RestoredPos.Y := PosY
     }
+    ; 确保窗口尺寸正确（如果恢复的尺寸无效，使用默认尺寸）
+    if (RestoredPos.Width < 800 || RestoredPos.Height < 600) {
+        RestoredPos.Width := ConfigWidth
+        RestoredPos.Height := ConfigHeight
+    }
     
-    ; 【关键修复】创建关闭按钮 - 四个角都设置（后创建按钮，确保在最上层，不被背景遮挡）
-    ; 左上角关闭按钮
-    CloseBtnTopLeft := ConfigGUI.Add("Text", "x0 y0 w35 h35 Center 0x200 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text . " vCloseBtnTopLeft", "✕")
-    CloseBtnTopLeft.SetFont("s10", "Segoe UI")
-    CloseBtnTopLeft.OnEvent("Click", (*) => CloseConfigGUI())
-    HoverBtnWithAnimation(CloseBtnTopLeft, UI_Colors.TitleBar, "e81123")
-    
-    ; 右上角关闭按钮
-    CloseBtnTopRight := ConfigGUI.Add("Text", "x" . (RestoredPos.Width - 40) . " y0 w40 h35 Center 0x200 Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text . " vCloseBtnTopRight", "✕")
-    CloseBtnTopRight.SetFont("s10", "Segoe UI")
-    CloseBtnTopRight.OnEvent("Click", (*) => CloseConfigGUI())
-    HoverBtnWithAnimation(CloseBtnTopRight, UI_Colors.TitleBar, "e81123")
-    
-    ; 左下角关闭按钮
-    CloseBtnBottomLeft := ConfigGUI.Add("Text", "x0 y" . (RestoredPos.Height - 40) . " w40 h40 Center 0x200 Background" . UI_Colors.Background . " c" . UI_Colors.Text . " vCloseBtnBottomLeft", "✕")
-    CloseBtnBottomLeft.SetFont("s10", "Segoe UI")
-    CloseBtnBottomLeft.OnEvent("Click", (*) => CloseConfigGUI())
-    HoverBtnWithAnimation(CloseBtnBottomLeft, UI_Colors.Background, "e81123")
-    
-    ; 右下角关闭按钮
-    CloseBtnBottomRight := ConfigGUI.Add("Text", "x" . (RestoredPos.Width - 40) . " y" . (RestoredPos.Height - 40) . " w40 h40 Center 0x200 Background" . UI_Colors.Background . " c" . UI_Colors.Text . " vCloseBtnBottomRight", "✕")
-    CloseBtnBottomRight.SetFont("s10", "Segoe UI")
-    CloseBtnBottomRight.OnEvent("Click", (*) => CloseConfigGUI())
-    HoverBtnWithAnimation(CloseBtnBottomRight, UI_Colors.Background, "e81123")
+    ; 使用原生标题栏，不需要自定义关闭按钮
 
     ; 添加 Escape 键关闭命令
     ConfigGUI.OnEvent("Escape", (*) => CloseConfigGUI())
     
-    ; 显示窗口
+    ; 显示窗口（使用窗口总尺寸，包括标题栏和边框）
     ConfigGUI.Show("w" . RestoredPos.Width . " h" . RestoredPos.Height . " x" . RestoredPos.X . " y" . RestoredPos.Y)
+    
+    ; 确保窗口有正确的样式，显示标题栏
+    ; 检查窗口是否有标题栏样式（WS_CAPTION = 0x00C00000）
+    CurrentStyle := DllCall("user32.dll\GetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -16, "Ptr")
+    WS_CAPTION := 0x00C00000
+    if (!(CurrentStyle & WS_CAPTION)) {
+        ; 如果没有标题栏样式，添加它
+        NewStyle := CurrentStyle | WS_CAPTION
+        DllCall("user32.dll\SetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -16, "Ptr", NewStyle, "Ptr")
+        ; 刷新窗口框架
+        DllCall("user32.dll\SetWindowPos", "Ptr", ConfigGUI.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0027, "Int")
+    }
+    
+    ; 窗口显示后，获取实际客户区尺寸并更新布局
+    WinGetClientPos(, , &ActualClientWidth, &ActualClientHeight, ConfigGUI.Hwnd)
+    if (ActualClientWidth > 0 && ActualClientHeight > 0) {
+        global ConfigClientWidth := ActualClientWidth
+        global ConfigClientHeight := ActualClientHeight
+        ; 更新侧边栏和内容区域尺寸
+        try {
+            SidebarBg := ConfigGUI["SidebarBg"]
+            if (SidebarBg) {
+                SidebarBg.Move(, , , ActualClientHeight)
+            }
+        }
+        ; 触发 Size 事件更新所有控件
+        ConfigGUI_Size(ConfigGUI, 0, ActualClientWidth, ActualClientHeight)
+    }
     
     ; 设置下拉列表最小可见项数（窗口显示后设置，延迟300ms确保ComboBox完全初始化）
     SetTimer(SetDDLMinVisible, -300)
@@ -14490,20 +14490,8 @@ ShowConfigGUI() {
     ; 设置窗口最小尺寸限制（使用 DllCall 调用 Windows API）
     SetWindowMinSizeLimit(ConfigGUI.Hwnd, 800, 600)
     
-    ; 【移除滚动条】不再添加滚动条样式，避免出现白边和滚动条
-    ; 移除窗口边框样式（只移除WS_BORDER，保留WS_THICKFRAME以支持调整大小）
-    ; GWL_STYLE = -16
-    CurrentStyle := DllCall("user32.dll\GetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -16, "Ptr")
-    ; 移除边框和滚动条样式（保留WS_THICKFRAME以支持调整大小）：~0x00A00000 = 移除 WS_BORDER(0x00800000), WS_VSCROLL(0x00200000), WS_HSCROLL(0x00100000)
-    NewStyle := CurrentStyle & ~0x00A00000
-    DllCall("user32.dll\SetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -16, "Ptr", NewStyle, "Ptr")
-    ; 移除扩展样式中的边框（WS_EX_CLIENTEDGE = 0x00000200）
-    ; GWL_EXSTYLE = -20
-    CurrentExStyle := DllCall("user32.dll\GetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -20, "Ptr")
-    NewExStyle := CurrentExStyle & ~0x00000200
-    DllCall("user32.dll\SetWindowLongPtr", "Ptr", ConfigGUI.Hwnd, "Int", -20, "Ptr", NewExStyle, "Ptr")
-    ; 刷新窗口框架
-    DllCall("user32.dll\SetWindowPos", "Ptr", ConfigGUI.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0027, "Int")  ; SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
+    ; 保留原生标题栏和边框，不修改窗口样式
+    ; 移除之前的边框修改代码，确保标题栏正常显示
     
     ; 确保窗口在最上层并激活
     WinSetAlwaysOnTop(1, ConfigGUI.Hwnd)
@@ -14644,24 +14632,7 @@ ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
     ; 【关键优化】如果窗口正在拖动，只更新必要的控件位置，跳过复杂的布局更新
     ; 这样可以避免拖动时频繁重绘整个窗口
     if (WindowDragging) {
-        ; 只更新关闭按钮位置（必须的，否则按钮位置会错乱）
-        try {
-            CloseBtnTopRight := GuiObj["CloseBtnTopRight"]
-            if (CloseBtnTopRight) {
-                CloseBtnTopRight.Move(Width - 40)
-            }
-            
-            CloseBtnBottomLeft := GuiObj["CloseBtnBottomLeft"]
-            if (CloseBtnBottomLeft) {
-                CloseBtnBottomLeft.Move(, Height - 40)
-            }
-            
-            CloseBtnBottomRight := GuiObj["CloseBtnBottomRight"]
-            if (CloseBtnBottomRight) {
-                CloseBtnBottomRight.Move(Width - 40, Height - 40)
-            }
-        } catch as err {
-        }
+        ; 使用原生标题栏，不需要更新自定义按钮位置
         ; 拖动时不保存位置，不更新其他控件，避免频繁重绘
         return
     }
@@ -14674,50 +14645,23 @@ ConfigGUI_Size(GuiObj, MinMax, Width, Height) {
         ; 如果锁定失败，继续执行（某些情况下可能失败）
     }
     
-    ; 更新标题栏宽度
-    try {
-        TitleBar := GuiObj["TitleBar"]
-        if (TitleBar) {
-            TitleBar.Move(, , Width - 40)
-        }
-    }
+    ; 使用原生标题栏，不需要更新自定义标题栏和按钮
+    ; 注意：Size 事件中的 Width 和 Height 是客户区大小（不包括标题栏）
+    ; 控件坐标是相对于客户区的，所以 y=0 就是标题栏下方
     
-    ; 更新关闭按钮位置（四个角）
-    try {
-        CloseBtnTopLeft := GuiObj["CloseBtnTopLeft"]
-        if (CloseBtnTopLeft) {
-            ; 左上角位置不变
-        }
-        
-        CloseBtnTopRight := GuiObj["CloseBtnTopRight"]
-        if (CloseBtnTopRight) {
-            CloseBtnTopRight.Move(Width - 40)
-        }
-        
-        CloseBtnBottomLeft := GuiObj["CloseBtnBottomLeft"]
-        if (CloseBtnBottomLeft) {
-            CloseBtnBottomLeft.Move(, Height - 40)
-        }
-        
-        CloseBtnBottomRight := GuiObj["CloseBtnBottomRight"]
-        if (CloseBtnBottomRight) {
-            CloseBtnBottomRight.Move(Width - 40, Height - 40)
-        }
-    }
-    
-    ; 更新侧边栏高度
+    ; 更新侧边栏高度（客户区从 y=0 开始）
     try {
         SidebarBg := GuiObj["SidebarBg"]
         if (SidebarBg) {
-            SidebarBg.Move(, , , Height - 35)
+            SidebarBg.Move(, , , Height)  ; 客户区高度
         }
     }
     
-    ; 更新内容区域大小
+    ; 更新内容区域大小（客户区从 y=0 开始）
     ContentX := SidebarWidth
     ContentWidth := Width - SidebarWidth
-    ContentY := 35
-    ContentHeight := Height - 35 - 50
+    ContentY := 0  ; 客户区顶部
+    ContentHeight := Height - 50  ; 留出底部按钮空间
     
     ; 更新底部按钮区域位置
     ButtonAreaY := Height - 70  ; 增加高度以容纳按钮说明文字
@@ -21209,14 +21153,14 @@ ShowSearchCenter() {
     WindowHeight := 600
     Padding := 20
     
-    ; 创建无边框窗口
-    GuiID_SearchCenter := Gui("+AlwaysOnTop -Caption -DPIScale", "搜索中心")
+    ; 创建窗口（使用原生标题栏）
+    GuiID_SearchCenter := Gui("+AlwaysOnTop -DPIScale +Resize", "搜索中心")
     GuiID_SearchCenter.BackColor := UI_Colors.Background
     GuiID_SearchCenter.SetFont("s11 c" . UI_Colors.Text, "Segoe UI")
     
     ; ========== 顶部分类标签栏（CategoryBar）==========
     CategoryBarHeight := 50
-    CategoryBarY := Padding
+    CategoryBarY := Padding  ; 使用原生标题栏，从Padding开始
     
     ; 获取分类列表（从语音搜索面板提取）
     AllCategories := GetSearchCenterCategories()
@@ -21301,8 +21245,8 @@ ShowSearchCenter() {
     
     ; 根据主题模式设置输入框颜色（Material Design风格，完全移除边框和底边）
     if (ThemeMode = "dark") {
-        InputBgColor := "2d2d30"  ; Cursor风格的黑灰色
-        InputTextColor := "FFFFFF"  ; 白色文字
+        InputBgColor := UI_Colors.InputBg  ; html.to.design 风格背景
+        InputTextColor := UI_Colors.Text   ; html.to.design 风格文本
     } else {
         InputBgColor := UI_Colors.InputBg
         InputTextColor := UI_Colors.Text
@@ -21365,7 +21309,7 @@ ShowSearchCenter() {
     
     ; ========== 底部结果区 ==========
     ResultAreaY := InputAreaY + InputAreaHeight + Padding + AreaIndicatorHeight + HintTextHeight + 10  ; 为区域名称和提示文本留出空间
-    ResultAreaHeight := WindowHeight - ResultAreaY - Padding
+    ResultAreaHeight := WindowHeight - ResultAreaY - Padding  ; 使用原生标题栏，不需要减去自定义标题栏高度
     
     ; 结果 ListView
     ResultLVX := Padding
@@ -21389,6 +21333,9 @@ ShowSearchCenter() {
     
     ; 窗口关闭事件（ESC键关闭）
     GuiID_SearchCenter.OnEvent("Close", SearchCenterCloseHandler)
+    
+    ; 窗口大小改变事件（更新按钮位置）
+    GuiID_SearchCenter.OnEvent("Size", OnSearchCenterSize)
     
     ; 显示窗口（居中显示）
     GuiID_SearchCenter.Show("w" . WindowWidth . " h" . WindowHeight . " Center")
@@ -21641,7 +21588,7 @@ UpdateSearchCenterHighlight() {
             } else {
                 ; 未激活时，恢复默认背景色
                 if (ThemeMode = "dark") {
-                    SearchCenterSearchEdit.Opt("+Background" . "2d2d30")
+                    SearchCenterSearchEdit.Opt("+Background" . UI_Colors.InputBg)  ; html.to.design 风格背景
                 } else {
                     SearchCenterSearchEdit.Opt("+Background" . UI_Colors.InputBg)
                 }
@@ -21935,6 +21882,18 @@ OnSearchCenterResultDoubleClick(LV, Row) {
             TrayTip("已粘贴", Item.Title, "Iconi 1")
         }
     }
+}
+
+; ===================== SearchCenter 窗口大小改变事件 =====================
+OnSearchCenterSize(GuiObj, MinMax, Width, Height) {
+    global GuiID_SearchCenter
+    
+    if (GuiID_SearchCenter = 0 || GuiObj.Hwnd != GuiID_SearchCenter.Hwnd) {
+        return
+    }
+    
+    ; 使用原生标题栏，不需要更新自定义标题栏控件
+    ; 窗口大小改变时，内容区域会自动调整
 }
 
 ; 搜索中心 Enter 键处理函数（检查窗口是否激活）
@@ -22925,7 +22884,8 @@ ShowVoiceInputPanel() {
         ; 如果 UI_Colors 未初始化，使用默认暗色主题
         global UI_Colors_Dark
         if (!IsSet(UI_Colors_Dark)) {
-            UI_Colors_Dark := {Background: "1e1e1e", Text: "cccccc", BtnBg: "3c3c3c", BtnHover: "4c4c4c", BtnPrimary: "0e639c", BtnPrimaryHover: "1177bb"}
+            ; 使用 html.to.design 风格配色作为默认值
+            UI_Colors_Dark := {Background: "0a0a0a", Text: "f5f5f5", BtnBg: "1a1a1a", BtnHover: "2a2a2a", BtnPrimary: "e67e22", BtnPrimaryHover: "d35400"}
         }
         UI_Colors := UI_Colors_Dark
     }
@@ -26795,8 +26755,8 @@ ShowVoiceSearchInputPanel() {
     InputBoxActualWidth := PanelWidth - InputBoxX - 80  ; 减去左边距和右边距
     ; 根据主题模式设置输入框颜色（暗色模式使用cursor黑灰色系）
     if (ThemeMode = "dark") {
-        InputBgColor := "2d2d30"  ; Cursor风格的黑灰色
-        InputTextColor := "FFFFFF"  ; 白色文字
+        InputBgColor := UI_Colors.InputBg  ; html.to.design 风格背景
+        InputTextColor := UI_Colors.Text   ; html.to.design 风格文本
     } else {
         InputBgColor := UI_Colors.InputBg
         InputTextColor := UI_Colors.Text
