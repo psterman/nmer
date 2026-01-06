@@ -12214,6 +12214,51 @@ SearchFilePaths(Keyword, MaxResults := 10) {
         return Results
     }
     
+    ; 【关键修复】参考CapsLock+F的实现：优先使用Everything64.dll进行文件搜索
+    ; 当关键词长度 > 1 时，使用Everything进行文件搜索
+    if (StrLen(Keyword) > 1) {
+        try {
+            ; 调用GetEverythingResults获取文件搜索结果
+            Files := GetEverythingResults(Keyword, MaxResults)
+            
+            ; 将Everything搜索结果转换为统一格式
+            for path in Files {
+                SplitPath(path, &FileName, &DirPath, &Ext, &NameNoExt)
+                
+                ResultItem := {
+                    DataType: "file",
+                    DataTypeName: "文件",
+                    ID: path,
+                    Title: FileName,
+                    SubTitle: DirPath . " · " . (Ext ? Ext : "文件"),
+                    Content: path,
+                    Preview: path,
+                    Source: "文件",
+                    Metadata: Map(
+                        "FilePath", path,
+                        "FileName", FileName,
+                        "DirPath", DirPath,
+                        "Ext", Ext ? Ext : "",
+                        "Timestamp", ""
+                    ),
+                    Action: "open_file",
+                    ActionParams: Map("FilePath", path)
+                }
+                
+                Results.Push(ResultItem)
+            }
+        } catch as err {
+            ; 如果Everything搜索失败，继续使用数据库搜索作为回退
+            OutputDebug("AHK_DEBUG: Everything DLL 搜索失败: " . err.Message)
+        }
+    }
+    
+    ; 如果Everything搜索结果已满足需求，直接返回
+    if (Results.Length >= MaxResults) {
+        return Results
+    }
+    
+    ; 回退到数据库搜索：从剪贴板历史中提取文件路径（作为补充）
     if (!ClipboardDB || ClipboardDB = 0) {
         return Results
     }
@@ -12228,7 +12273,7 @@ SearchFilePaths(Keyword, MaxResults := 10) {
     }
     
     KeywordLower := StrLower(Keyword)
-    Count := 0
+    Count := Results.Length  ; 从已有结果数量开始计数
     
     ; 从剪贴板历史中提取文件路径
     ; 使用LOWER()函数进行大小写不敏感的搜索
@@ -12248,13 +12293,19 @@ SearchFilePaths(Keyword, MaxResults := 10) {
         }
         
         ; 搜索路径格式（Windows路径、URL等），使用小写关键词
+        ; 限制数量为剩余需要的数量
+        RemainingCount := MaxResults - Count
+        if (RemainingCount <= 0) {
+            return Results
+        }
+        
         if (!ST.Bind(1, "Text", "%" . KeywordLower . "%")) {
             return Results
         }
         if (!ST.Bind(2, "Text", "file://%" . KeywordLower . "%")) {
             return Results
         }
-        if (!ST.Bind(3, "Int", MaxResults * 2)) {
+        if (!ST.Bind(3, "Int", RemainingCount * 2)) {
             return Results
         }
         
@@ -12268,27 +12319,39 @@ SearchFilePaths(Keyword, MaxResults := 10) {
                 
                 ; 检查文件名或路径是否匹配关键词
                 if (InStr(StrLower(FileName), KeywordLower) || InStr(StrLower(Content), KeywordLower)) {
-                    ResultItem := {
-                        DataType: "file",
-                        DataTypeName: "文件路径",
-                        ID: Content,
-                        Title: FileName,
-                        SubTitle: DirPath . " · " . (Ext ? Ext : "文件"),
-                        Content: Content,
-                        Preview: Content,
-                        Metadata: Map(
-                            "FilePath", Content,
-                            "FileName", FileName,
-                            "DirPath", DirPath,
-                            "Ext", Ext ? Ext : "",
-                            "Timestamp", Timestamp
-                        ),
-                        Action: "open_file",
-                        ActionParams: Map("FilePath", Content)
+                    ; 检查是否已存在（避免重复）
+                    IsDuplicate := false
+                    for Index, ExistingItem in Results {
+                        if (ExistingItem.Content = Content) {
+                            IsDuplicate := true
+                            break
+                        }
                     }
                     
-                    Results.Push(ResultItem)
-                    Count++
+                    if (!IsDuplicate) {
+                        ResultItem := {
+                            DataType: "file",
+                            DataTypeName: "文件路径",
+                            ID: Content,
+                            Title: FileName,
+                            SubTitle: DirPath . " · " . (Ext ? Ext : "文件"),
+                            Content: Content,
+                            Preview: Content,
+                            Source: "文件路径",
+                            Metadata: Map(
+                                "FilePath", Content,
+                                "FileName", FileName,
+                                "DirPath", DirPath,
+                                "Ext", Ext ? Ext : "",
+                                "Timestamp", Timestamp
+                            ),
+                            Action: "open_file",
+                            ActionParams: Map("FilePath", Content)
+                        }
+                        
+                        Results.Push(ResultItem)
+                        Count++
+                    }
                 }
             }
         }
