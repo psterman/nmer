@@ -371,3 +371,38 @@ Specifically: ST
 20260105111621: 字符数: 124
 20260105111621: 准备SQL语句
 20260105111621: 异常: Missing a required parameter.
+20260106121527: CaptureClipboardTextToFTS5 开始执行
+20260106121527: 数据库连接正常
+20260106121527: 剪贴板内容长度: 178
+20260106121527: 内容类型: Code
+20260106121527: 字符数: 178
+20260106121527: 准备SQL语句
+20260106121527: 准备SQL语句失败: SQLiteDB.Prototype.Prepare: no such column: new.LastCopyTime
+20260106121537: CaptureClipboardTextToFTS5 开始执行
+20260106121537: 数据库连接正常
+20260106121537: 剪贴板内容长度: 178
+20260106121537: 内容类型: Code
+20260106121537: 字符数: 178
+20260106121537: 准备SQL语句
+20260106121537: 准备SQL语句失败: SQLiteDB.Prototype.Prepare: no such column: new.LastCopyTime
+20260106121540: CaptureClipboardTextToFTS5 开始执行
+20260106121540: 数据库连接正常
+20260106121540: 剪贴板内容长度: 228
+20260106121540: 内容类型: Code
+20260106121540: 字符数: 228
+20260106121540: 准备SQL语句
+20260106121540: 准备SQL语句失败: SQLiteDB.Prototype.Prepare: no such column: new.LastCopyTime
+20260106121543: CaptureClipboardTextToFTS5 开始执行
+20260106121543: 数据库连接正常
+20260106121543: 剪贴板内容长度: 228
+20260106121543: 内容类型: Code
+20260106121543: 字符数: 228
+20260106121543: 准备SQL语句
+20260106121543: 准备SQL语句失败: SQLiteDB.Prototype.Prepare: no such column: new.LastCopyTime
+20260106122621: CaptureClipboardTextToFTS5 开始执行
+20260106122621: 数据库连接正常
+20260106122621: 剪贴板内容长度: 1
+20260106122621: 内容类型: Text
+20260106122621: 字符数: 1
+20260106122621: 准备SQL语句
+20260106122621: 准备SQL语句失败: SQLiteDB.Prototype.Prepare: no such column: new.LastCopyTime

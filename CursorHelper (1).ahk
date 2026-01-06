@@ -45,6 +45,60 @@ global MainScriptDir := A_ScriptDir
 ; ===================== 包含悬浮工具栏模块 =====================
 #Include modules\FloatingToolbar.ahk
 
+; ===================== Everything API 封装 =====================
+; Everything API 封装
+GetEverythingResults(keyword, maxResults := 30) {
+    static evDll := A_ScriptDir "\lib\everything64.dll"
+    if (!FileExist(evDll)) {
+        return []
+    }
+    
+    ; 设置搜索参数 (W版本支持Unicode)
+    DllCall(evDll "\Everything_SetSearchW", "WStr", keyword)
+    DllCall(evDll "\Everything_SetMax", "UInt", maxResults)
+    DllCall(evDll "\Everything_QueryW", "Int", 1) ; 1 = 等待执行完成
+    
+    count := DllCall(evDll "\Everything_GetNumResults", "UInt")
+    paths := []
+    Loop Min(count, maxResults) {
+        bufSize := 1024
+        buf := Buffer(bufSize * 2)
+        DllCall(evDll "\Everything_GetResultFullPathNameW", "UInt", A_Index-1, "Ptr", buf.Ptr, "UInt", bufSize)
+        paths.Push(StrGet(buf.Ptr, "UTF-16"))
+    }
+    return paths
+}
+
+; 检查并启动 Everything 服务
+InitEverythingService() {
+    ; 检查 Everything.exe 是否在运行
+    EverythingPID := ProcessExist("Everything.exe")
+    if (!EverythingPID) {
+        ; Everything 未运行，尝试启动
+        EverythingPath := A_ScriptDir "\Everything.exe"
+        if (FileExist(EverythingPath)) {
+            try {
+                Run(EverythingPath . " -startup", , "Hide")
+                Sleep(500)  ; 等待服务启动
+                OutputDebug("Everything 服务已启动")
+            } catch as err {
+                OutputDebug("启动 Everything 服务失败: " . err.Message)
+            }
+        } else {
+            ; 尝试从系统路径启动
+            try {
+                Run("Everything.exe -startup", , "Hide")
+                Sleep(500)
+                OutputDebug("从系统路径启动 Everything 服务")
+            } catch as err {
+                OutputDebug("无法启动 Everything 服务: " . err.Message)
+            }
+        }
+    } else {
+        OutputDebug("Everything 服务已在运行 (PID: " . EverythingPID . ")")
+    }
+}
+
 ; ===================== 管理员权限检查 =====================
 ; 如果脚本不是以管理员权限运行，则重新以管理员权限启动
 if (!A_IsAdmin) {
@@ -2654,6 +2708,8 @@ InitConfig() {
 InitConfig() ; 启动初始化
 ; 初始化剪贴板数据库（在配置初始化后）
 InitClipboardDB()
+; 初始化 Everything 服务（在数据库初始化后）
+InitEverythingService()
 ; 初始化新的剪贴板管理器数据库（FTS5）
 InitClipboardFTS5DB()
 ; 初始化粘贴板历史面板
@@ -21522,6 +21578,50 @@ DebouncedSearchCenter(*) {
         }
     }
     
+    ; ========== 第二步：搜索 Everything（仅当关键词长度 > 1 时）==========
+    if (StrLen(Keyword) > 1) {
+        try {
+            EverythingPaths := GetEverythingResults(Keyword, 50)
+            for Index, FilePath in EverythingPaths {
+                if (!FileExist(FilePath)) {
+                    continue  ; 跳过不存在的文件
+                }
+                
+                SplitPath(FilePath, &FileName, &DirPath, &Ext, &NameNoExt)
+                
+                ; 获取文件修改时间
+                FileTime := ""
+                try {
+                    FileTime := FileGetTime(FilePath, "M")  ; M = 修改时间
+                    FileTime := FormatTime(FileTime, "yyyy-MM-dd HH:mm:ss")
+                } catch {
+                    FileTime := ""
+                }
+                
+                ; 构建目录显示文本（截取最后一部分路径）
+                DirDisplay := DirPath
+                if (StrLen(DirDisplay) > 40) {
+                    DirDisplay := "..." . SubStr(DirDisplay, -37)
+                }
+                
+                Results.Push({
+                    Title: FileName,
+                    Source: "Everything",
+                    Time: FileTime,
+                    Content: FilePath,
+                    ID: FilePath,
+                    DataType: "file",
+                    Action: "open_file",
+                    ActionParams: Map("FilePath", FilePath),
+                    Metadata: Map("DirPath", DirPath, "FileName", FileName, "Ext", Ext ? Ext : "")
+                })
+            }
+        } catch as err {
+            ; Everything 搜索失败，忽略错误（不影响本地搜索）
+            OutputDebug("Everything 搜索失败: " . err.Message)
+        }
+    }
+    
     SearchCenterSearchResults := Results
     
     ; 更新 ListView
@@ -21545,14 +21645,29 @@ OnSearchCenterResultDoubleClick(LV, Row) {
         Item := SearchCenterSearchResults[Row]
         Content := Item.HasProp("Content") ? Item.Content : Item.Title
         
-        ; 检查数据类型
+        ; 检查数据类型（优先检查 DataType 字段，然后检查 Metadata）
         DataType := ""
-        if (Item.HasProp("Metadata") && IsObject(Item.Metadata) && Item.Metadata.Has("DataType")) {
+        if (Item.HasProp("DataType") && Item.DataType != "") {
+            DataType := Item.DataType
+        } else if (Item.HasProp("Metadata") && IsObject(Item.Metadata) && Item.Metadata.Has("DataType")) {
             DataType := Item.Metadata["DataType"]
         }
         
         ; 根据类型执行不同操作
-        if (DataType = "Link") {
+        if (DataType = "file") {
+            ; 文件类型：打开文件
+            FilePath := Content
+            try {
+                if (FileExist(FilePath)) {
+                    Run(FilePath)
+                    TrayTip("已打开文件", Item.Title, "Iconi 1")
+                } else {
+                    TrayTip("文件不存在", FilePath, "Iconx 2")
+                }
+            } catch as err {
+                TrayTip("打开文件失败", err.Message, "Iconx 2")
+            }
+        } else if (DataType = "Link") {
             ; 链接类型：直接打开浏览器
             try {
                 Run(Content)

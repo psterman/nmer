@@ -153,28 +153,63 @@ InitClipboardFTS5DB() {
         }
         
         ; 5.1 创建触发器，自动同步 ClipMain 表到 FTS5 虚拟表
-        ; 插入触发器
-        SQL := "CREATE TRIGGER IF NOT EXISTS clipmain_fts5_insert AFTER INSERT ON ClipMain BEGIN " .
-               "INSERT INTO ClipboardHistory(rowid, Content, SourceApp, DataType, LastCopyTime, SourcePath, IconPath, CharCount, Timestamp, ImagePath, IsFavorite, CopyCount) " .
-               "VALUES (new.ID, new.Content, new.SourceApp, new.DataType, " .
-               "COALESCE(new.LastCopyTime, new.Timestamp), new.SourcePath, new.IconPath, new.CharCount, new.Timestamp, new.ImagePath, new.IsFavorite, new.CopyCount); " .
+        ; 先删除旧触发器（如果存在），避免字段不匹配问题
+        ClipboardFTS5DB.Exec("DROP TRIGGER IF EXISTS clipmain_fts5_insert")
+        ClipboardFTS5DB.Exec("DROP TRIGGER IF EXISTS clipmain_fts5_update")
+        ClipboardFTS5DB.Exec("DROP TRIGGER IF EXISTS clipmain_fts5_delete")
+        
+        ; 插入触发器（动态构建，根据字段存在情况）
+        ; 构建字段列表和值列表
+        insertFields := "rowid, Content, SourceApp, DataType, SourcePath, IconPath, CharCount, Timestamp, ImagePath, IsFavorite"
+        insertValues := "new.ID, new.Content, new.SourceApp, new.DataType, new.SourcePath, new.IconPath, new.CharCount, new.Timestamp, new.ImagePath, new.IsFavorite"
+        
+        if (hasLastCopyTime) {
+            insertFields .= ", LastCopyTime"
+            insertValues .= ", COALESCE(new.LastCopyTime, new.Timestamp)"
+        } else {
+            insertFields .= ", LastCopyTime"
+            insertValues .= ", new.Timestamp"
+        }
+        
+        if (hasCopyCount) {
+            insertFields .= ", CopyCount"
+            insertValues .= ", new.CopyCount"
+        } else {
+            insertFields .= ", CopyCount"
+            insertValues .= ", 1"
+        }
+        
+        SQL := "CREATE TRIGGER clipmain_fts5_insert AFTER INSERT ON ClipMain BEGIN " .
+               "INSERT INTO ClipboardHistory(" . insertFields . ") " .
+               "VALUES (" . insertValues . "); " .
                "END"
         ClipboardFTS5DB.Exec(SQL)
         
-        ; 更新触发器
-        SQL := "CREATE TRIGGER IF NOT EXISTS clipmain_fts5_update AFTER UPDATE ON ClipMain BEGIN " .
-               "UPDATE ClipboardHistory SET " .
-               "Content = new.Content, " .
-               "SourceApp = new.SourceApp, " .
-               "DataType = new.DataType, " .
-               "LastCopyTime = COALESCE(new.LastCopyTime, new.Timestamp), " .
-               "SourcePath = new.SourcePath, " .
-               "IconPath = new.IconPath, " .
-               "CharCount = new.CharCount, " .
-               "Timestamp = new.Timestamp, " .
-               "ImagePath = new.ImagePath, " .
-               "IsFavorite = new.IsFavorite, " .
-               "CopyCount = new.CopyCount " .
+        ; 更新触发器（动态构建）
+        updateFields := "Content = new.Content, " .
+                       "SourceApp = new.SourceApp, " .
+                       "DataType = new.DataType, " .
+                       "SourcePath = new.SourcePath, " .
+                       "IconPath = new.IconPath, " .
+                       "CharCount = new.CharCount, " .
+                       "Timestamp = new.Timestamp, " .
+                       "ImagePath = new.ImagePath, " .
+                       "IsFavorite = new.IsFavorite"
+        
+        if (hasLastCopyTime) {
+            updateFields .= ", LastCopyTime = COALESCE(new.LastCopyTime, new.Timestamp)"
+        } else {
+            updateFields .= ", LastCopyTime = new.Timestamp"
+        }
+        
+        if (hasCopyCount) {
+            updateFields .= ", CopyCount = new.CopyCount"
+        } else {
+            updateFields .= ", CopyCount = 1"
+        }
+        
+        SQL := "CREATE TRIGGER clipmain_fts5_update AFTER UPDATE ON ClipMain BEGIN " .
+               "UPDATE ClipboardHistory SET " . updateFields . " " .
                "WHERE rowid = new.ID; " .
                "END"
         ClipboardFTS5DB.Exec(SQL)

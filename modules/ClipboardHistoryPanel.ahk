@@ -43,21 +43,28 @@ HistoryColors := {
 
 ; ===================== 显示/隐藏面板 =====================
 ShowClipboardHistoryPanel() {
-    global GuiID_ClipboardHistory, HistoryIsVisible, HistorySearchEdit
+    global GuiID_ClipboardHistory, HistoryIsVisible, HistorySearchEdit, ClipboardFTS5DB
     
     if (HistoryIsVisible && GuiID_ClipboardHistory != 0) {
         ; 如果已显示，聚焦到搜索框并刷新数据
         try {
             ControlFocus(HistorySearchEdit)
+            ; 强制刷新数据
             RefreshHistoryData()
         }
+        return
+    }
+    
+    ; 检查数据库连接
+    if (!ClipboardFTS5DB || ClipboardFTS5DB = 0) {
+        MsgBox("数据库未连接！`n请检查数据库初始化。", "错误", "IconX")
         return
     }
     
     ; 创建 GUI
     CreateHistoryPanelGUI()
     
-    ; 加载数据
+    ; 加载数据（确保在显示前加载）
     RefreshHistoryData()
     
     ; 显示 GUI
@@ -66,6 +73,9 @@ ShowClipboardHistoryPanel() {
     
     ; 自动聚焦搜索框
     SetTimer(() => ControlFocus(HistorySearchEdit), -100)
+    
+    ; 延迟再次刷新，确保数据最新（处理可能的时序问题）
+    SetTimer(() => RefreshHistoryData(), -200)
 }
 
 HideClipboardHistoryPanel() {
@@ -237,6 +247,23 @@ CreateHistoryPanelGUI() {
 RefreshHistoryData(keyword := "") {
     global HistoryListView, HistoryDisplayCache, ClipboardFTS5DB, HistorySelectedTag
     
+    ; 如果 ListView 不存在，但面板可能正在创建，不返回（允许后续创建）
+    ; 如果数据库未连接，记录错误但不中断
+    if (!ClipboardFTS5DB || ClipboardFTS5DB = 0) {
+        ; 尝试重新初始化数据库
+        if (InitClipboardFTS5DB()) {
+            ; 重新初始化成功，继续执行
+        } else {
+            ; 如果 ListView 已存在，显示错误信息
+            if (HistoryListView) {
+                HistoryListView.Delete()
+                HistoryListView.Add(, "数据库未连接", "请检查数据库初始化", "", "", "", "", "")
+            }
+            return
+        }
+    }
+    
+    ; 如果 ListView 不存在，可能是 GUI 还未创建，直接返回
     if (!HistoryListView) {
         return
     }
@@ -316,19 +343,48 @@ RefreshHistoryData(keyword := "") {
             
             ; 添加关键词搜索条件（优先使用 FTS5 MATCH 语法）
             if (keyword != "") {
-                if (hasFTS5Table) {
-                    ; 使用 FTS5 MATCH 语法，性能提升百倍
-                    ; 转义特殊字符并添加 * 号实现前缀匹配
-                    escapedKeyword := StrReplace(keyword, "'", "''")
-                    escapedKeyword := StrReplace(escapedKeyword, "\", "\\")
-                    escapedKeyword := StrReplace(escapedKeyword, '"', '\"')
-                    ; 使用 FTS5 表进行搜索
-                    whereConditions.Push("ID IN (SELECT rowid FROM ClipboardHistory WHERE ClipboardHistory MATCH '" . escapedKeyword . "*')")
+                ; 转义关键词（用于 LIKE 查询）
+                escapedKeyword := StrReplace(keyword, "'", "''")
+                escapedKeyword := StrReplace(escapedKeyword, "\", "\\")
+                escapedKeyword := StrReplace(escapedKeyword, "%", "\%")
+                escapedKeyword := StrReplace(escapedKeyword, "_", "\_")
+                
+                ; 对于短关键词（1-2个字符）或包含特殊字符的，使用 LIKE 查询
+                ; FTS5 对单个字符或数字的匹配不够可靠
+                keywordLen := StrLen(keyword)
+                useLikeQuery := (keywordLen <= 2) || !RegExMatch(keyword, "^[\w\s]+$")
+                
+                if (hasFTS5Table && !useLikeQuery) {
+                    ; 使用 FTS5 MATCH 语法（适用于长关键词）
+                    ; FTS5 语法说明：
+                    ; - keyword* 表示前缀匹配（以 keyword 开头的词）
+                    ; - "phrase" 表示短语匹配
+                    ; - 多个词用空格分隔表示 AND
+                    ; 转义特殊字符（FTS5 需要特殊处理）
+                    ftsEscapedKeyword := StrReplace(keyword, "'", "''")
+                    ftsEscapedKeyword := StrReplace(ftsEscapedKeyword, "\", "\\")
+                    ftsEscapedKeyword := StrReplace(ftsEscapedKeyword, '"', '""')
+                    
+                    ; 如果关键词包含空格，使用短语匹配；否则使用前缀匹配
+                    if (InStr(ftsEscapedKeyword, " ")) {
+                        ; 包含空格，使用短语匹配
+                        ftsQuery := '"' . ftsEscapedKeyword . '"'
+                    } else {
+                        ; 单个词，使用前缀匹配
+                        ftsQuery := ftsEscapedKeyword . '*'
+                    }
+                    
+                    ; 使用 FTS5 表进行搜索（MATCH 语法）
+                    ; 注意：FTS5 MATCH 需要使用单引号包裹查询字符串
+                    whereConditions.Push("ID IN (SELECT rowid FROM ClipboardHistory WHERE ClipboardHistory MATCH '" . ftsQuery . "')")
                 } else {
-                    ; 回退到 LIKE 查询（如果 FTS5 不可用）
-                    escapedKeyword := StrReplace(keyword, "'", "''")
-                    whereConditions.Push("Content LIKE '%" . escapedKeyword . "%'")
+                    ; 使用 LIKE 查询（适用于短关键词或 FTS5 不可用）
+                    ; 同时搜索 Content 和 SourceApp 字段，提高匹配率
+                    whereConditions.Push("(Content LIKE '%" . escapedKeyword . "%' OR SourceApp LIKE '%" . escapedKeyword . "%')")
                 }
+            } else {
+                ; 如果没有搜索关键词，但需要确保查询正常执行
+                ; 这里不需要添加条件
             }
             
             ; 添加标签过滤条件
@@ -354,8 +410,13 @@ RefreshHistoryData(keyword := "") {
             }
             SQL .= " ORDER BY " . orderByField . " DESC LIMIT 1000"
             
+            ; 调试：记录 SQL 查询和结果（开发时启用）
+            ; OutputDebug("ClipboardHistoryPanel SQL: " . SQL . "`n")
+            ; OutputDebug("ClipboardHistoryPanel 搜索关键词: " . keyword . ", 标签: " . HistorySelectedTag . "`n")
+            
             table := ""
-            if (ClipboardFTS5DB.GetTable(SQL, &table)) {
+            querySuccess := ClipboardFTS5DB.GetTable(SQL, &table)
+            if (querySuccess) {
                 if (table.HasRows && table.Rows.Length > 0) {
                     ; 获取列名（用于验证列顺序）
                     columnNames := []
@@ -480,7 +541,11 @@ RefreshHistoryData(keyword := "") {
                     }
                 }
             } else {
-                ; 查询失败，尝试最简单的查询
+                ; 查询失败，记录错误并尝试最简单的查询
+                errorMsg := ClipboardFTS5DB.ErrorMsg
+                ; OutputDebug("ClipboardHistoryPanel 查询失败: " . errorMsg . "`n")
+                
+                ; 尝试最简单的查询
                 fallbackSQL := "SELECT ID, Content, SourceApp, DataType, CharCount, Timestamp FROM ClipMain ORDER BY ID DESC LIMIT 1000"
                 fallbackTable := ""
                 if (ClipboardFTS5DB.GetTable(fallbackSQL, &fallbackTable)) {
