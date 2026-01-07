@@ -15,6 +15,7 @@
 #Include ..\lib\Gdip_All.ahk
 #Include ..\lib\WinClipAPI.ahk
 #Include ..\lib\WinClip.ahk
+#Include ..\lib\ImagePut.ahk
 
 ; ===================== 全局变量 =====================
 global ClipboardFTS5DB := 0  ; SQLite FTS5 数据库对象
@@ -379,7 +380,7 @@ CalculateTextStats(content) {
     return stats
 }
 
-; ===================== 图片处理：生成缩略图 =====================
+; ===================== 图片处理：生成缩略图（使用 ImagePut 优化） =====================
 ; 从位图生成 64x64 的 JPG 缩略图，返回 Base64 编码的字符串
 GenerateThumbnail(pBitmap, thumbSize := 64) {
     if (!pBitmap || pBitmap <= 0) {
@@ -387,9 +388,10 @@ GenerateThumbnail(pBitmap, thumbSize := 64) {
     }
     
     try {
-        ; 获取原始图片尺寸
-        width := Gdip_GetImageWidth(pBitmap)
-        height := Gdip_GetImageHeight(pBitmap)
+        ; 获取原始图片尺寸（使用 ImagePut 的 Dimensions 函数）
+        dims := ImageDimensions(pBitmap)
+        width := dims[1]
+        height := dims[2]
         
         if (width <= 0 || height <= 0) {
             return ""
@@ -423,12 +425,19 @@ GenerateThumbnail(pBitmap, thumbSize := 64) {
         ; 清理图形对象
         Gdip_DeleteGraphics(pGraphics)
         
-        ; 保存为 JPG 到临时文件
-        TempFile := A_Temp "\clipboard_thumb_" A_TickCount ".jpg"
-        Gdip_SaveBitmapToFile(pThumbBitmap, TempFile, 85)
+        ; 使用 ImagePut 保存为 WebP 格式（体积更小，适合缩略图）
+        ; 对于缩略图，使用较高压缩率以进一步减小体积
+        TempFile := A_Temp "\clipboard_thumb_" A_TickCount ".webp"
+        try {
+            ImagePut("File", pThumbBitmap, TempFile, 80)  ; 80% 质量，缩略图不需要太高画质
+        } catch {
+            ; 如果 WebP 失败，回退到 JPG
+            TempFile := A_Temp "\clipboard_thumb_" A_TickCount ".jpg"
+            ImagePut("File", pThumbBitmap, TempFile, 85)  ; 85% 质量
+        }
         
         ; 清理位图
-        Gdip_DisposeImage(pThumbBitmap)
+        ImageDestroy(pThumbBitmap)
         
         ; 读取文件并转换为 Base64
         if (FileExist(TempFile)) {
@@ -782,7 +791,7 @@ CaptureClipboardTextToFTS5(SourceApp) {
     }
 }
 
-; ===================== 采集图片到数据库 =====================
+; ===================== 采集图片到数据库（使用 ImagePut 优化） =====================
 CaptureClipboardImageToFTS5(SourceApp) {
     global ClipboardFTS5DB
     
@@ -794,28 +803,41 @@ CaptureClipboardImageToFTS5(SourceApp) {
             DirCreate(CacheDir)
         }
         
-        ; 从剪贴板创建位图
-        pBitmap := Gdip_CreateBitmapFromClipboard()
-        if (!pBitmap || pBitmap <= 0) {
+        ; 使用 ImagePutBitmap 直接从剪贴板获取位图（自动处理所有格式）
+        ; ImagePut 会自动检测并转换剪贴板中的任何图片格式，无需手动判断
+        pBitmap := ImagePutBitmap(A_Clipboard)
+        
+        if (!pBitmap || pBitmap = "") {
             return false
         }
         
-        ; 生成唯一文件名
+        ; 生成唯一文件名（使用 WebP 格式以减少缓存体积，通常比 PNG 小 25-35%）
         timestamp := FormatTime(, "yyyyMMddHHmmss")
-        imageFileName := "IMG_" . timestamp . "_" . A_TickCount . ".png"
+        imageFileName := "IMG_" . timestamp . "_" . A_TickCount . ".webp"
         imagePath := CacheDir "\" . imageFileName
         
-        ; 保存原始图片
-        if (Gdip_SaveBitmapToFile(pBitmap, imagePath) != 0) {
-            Gdip_DisposeImage(pBitmap)
-            return false
+        ; 使用 ImagePut 保存为 WebP 格式（高质量，体积更小）
+        ; WebP 格式在保持高质量的同时显著减少文件大小，适合长期存储
+        try {
+            ImagePut("File", pBitmap, imagePath, 90)  ; 90% 质量，平衡文件大小和画质
+        } catch as err {
+            ; 如果 WebP 保存失败，回退到 PNG 格式
+            try {
+                imageFileName := "IMG_" . timestamp . "_" . A_TickCount . ".png"
+                imagePath := CacheDir "\" . imageFileName
+                ImagePut("File", pBitmap, imagePath)
+            } catch as err2 {
+                ; 如果保存失败，清理资源并返回
+                ImageDestroy(pBitmap)
+                return false
+            }
         }
         
         ; 生成缩略图（Base64）
         thumbnailBase64 := GenerateThumbnail(pBitmap)
         
-        ; 清理位图资源
-        Gdip_DisposeImage(pBitmap)
+        ; 清理位图资源（使用 ImagePut 的统一清理函数）
+        ImageDestroy(pBitmap)
         
         ; 插入到数据库
         SQL := "INSERT INTO ClipMain (Content, SourceApp, DataType, CharCount, ImagePath, ThumbnailData, Timestamp) " .

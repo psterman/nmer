@@ -35,6 +35,10 @@ TraySetIcon("favicon.ico")
 #Include lib\WinClipAPI.ahk
 #Include lib\WinClip.ahk
 
+; ===================== 包含 ImagePut 库 =====================
+; 包含 lib 文件夹中的 ImagePut.ahk（用于简化图片处理，提高性能和功能）
+#Include lib\ImagePut.ahk
+
 ; ===================== 定义主脚本目录（供模块使用）=====================
 global MainScriptDir := A_ScriptDir
 
@@ -3051,6 +3055,18 @@ ProcessClipboardChange() {
                     SaveToClipboardFTS5(content, SourceApp)
                 } else if (Type = 2) {
                     CaptureClipboardImageToFTS5(SourceApp)
+                }
+                
+                ; 如果 ClipboardHistoryPanel 已显示，自动刷新数据
+                try {
+                    ; 检查面板是否已显示（通过全局变量）
+                    global HistoryIsVisible
+                    if (IsSet(HistoryIsVisible) && HistoryIsVisible) {
+                        ; 延迟刷新，确保数据已写入数据库
+                        SetTimer(() => RefreshHistoryData(), -300)
+                    }
+                } catch {
+                    ; 如果函数不存在或面板未加载，忽略错误（避免影响主功能）
                 }
             }
         }
@@ -24339,12 +24355,12 @@ GetClipboardType() {
     }
 }
 
-; ===================== OCR 识图取词功能 =====================
+; ===================== OCR 识图取词功能（使用 ImagePut 优化） =====================
 ProcessOCR(Mode := "preserve_layout") {
     global UI_Colors, ScreenshotClipboard
     
-    ; 显示处理中提示（简化）
-    TrayTip("⚙️ 处理中...", "", "Iconi 1")
+    ; 显示处理中提示
+    TrayTip("⚙️ OCR 处理中...", "", "Iconi 1")
     
     try {
         ; 保存当前剪贴板
@@ -24356,63 +24372,70 @@ ProcessOCR(Mode := "preserve_layout") {
             Sleep(200)
         }
         
-        ; 检查剪贴板是否有图片
-        if (!DllCall("OpenClipboard", "Ptr", 0)) {
-            TrayTip("无法访问剪贴板", "错误", "Iconx 2")
+        ; 使用 ImagePutBitmap 直接从剪贴板获取位图（自动处理所有格式：CF_BITMAP, CF_DIB, PNG等）
+        ; ImagePut 会自动检测并转换剪贴板中的任何图片格式，无需手动判断
+        pBitmap := ImagePutBitmap(A_Clipboard)
+        
+        if (!pBitmap || pBitmap = "") {
+            TrayTip("剪贴板中没有可识别的图片格式", "错误", "Iconx 2")
             A_Clipboard := OldClipboard
             return
         }
         
-        ; 获取位图句柄
-        hBitmap := 0
-        NeedDeleteBitmap := false
+        ; 将 GDI+ Bitmap 转换为 RandomAccessStream（OCR 需要）
+        ; 先保存为临时文件，然后使用 OCR.FromFile 识别（性能更好，支持更多格式）
+        TempFile := A_Temp "\ocr_temp_" . A_TickCount . ".png"
+        OCRResult := ""
         
-        if (DllCall("IsClipboardFormatAvailable", "UInt", 2)) {  ; CF_BITMAP
-            hBitmap := DllCall("GetClipboardData", "UInt", 2, "Ptr")  ; CF_BITMAP = 2
-        } else if (DllCall("IsClipboardFormatAvailable", "UInt", 17)) {  ; CF_DIB
-            ; 对于 DIB，需要转换为 HBITMAP
-            hDIB := DllCall("GetClipboardData", "UInt", 17, "Ptr")  ; CF_DIB = 17
-            if (hDIB) {
-                ; 创建兼容的位图
-                hDC := DllCall("CreateCompatibleDC", "Ptr", 0, "Ptr")
-                hBitmap := DllCall("CreateDIBitmap", "Ptr", hDC, "Ptr", hDIB, "UInt", 0, "Ptr", 0, "Ptr", 0, "UInt", 0, "Ptr")
-                DllCall("DeleteDC", "Ptr", hDC)
-                NeedDeleteBitmap := true
-            }
-        }
-        
-        DllCall("CloseClipboard")
-        
-        if (!hBitmap) {
-            ; 如果没有位图格式，尝试使用 ClipboardAll 保存后转换为临时文件
-            ; 先恢复剪贴板
-            A_Clipboard := OldClipboard
-            Sleep(100)
+        try {
+            ; 使用 ImagePut 保存为 PNG（高质量，支持透明通道）
+            ImagePut("File", pBitmap, TempFile)
             
-            ; 重新获取剪贴板（使用 ClipboardAll）
+            ; 清理 Bitmap 资源
+            ImageDestroy(pBitmap)
+            pBitmap := ""
+            
+            ; 使用 OCR.FromFile 识别（支持更多格式，性能更好）
+            OCRResult := OCR.FromFile(TempFile)
+            
+            ; 删除临时文件
             try {
-                ClipboardData := ClipboardAll()
-                if (ClipboardData) {
-                    ; 保存到临时文件
-                    TempFile := A_Temp "\ocr_temp_" . A_TickCount . ".bmp"
-                    ; 注意：ClipboardAll 在 AHK v2 中返回的是对象，需要特殊处理
-                    ; 这里简化处理，提示用户
-                    TrayTip("请使用位图格式的图片（CF_BITMAP 或 CF_DIB）", "提示", "Iconi 2")
-                    return
+                FileDelete(TempFile)
+            } catch {
+                ; 忽略删除错误
+            }
+            
+        } catch as e {
+            ; 清理资源
+            try {
+                if (FileExist(TempFile)) {
+                    FileDelete(TempFile)
+                }
+            } catch {
+                ; 忽略清理错误
+            }
+            
+            ; 如果文件方式失败，尝试直接使用 RandomAccessStream（备用方案）
+            try {
+                ; 重新从剪贴板读取（如果之前已清理）
+                if (!pBitmap) {
+                    pBitmap := ImagePutBitmap(A_Clipboard)
+                }
+                
+                if (pBitmap) {
+                    ; 将 Bitmap 转换为 RandomAccessStream
+                    ras := ImagePut("RandomAccessStream", pBitmap, "png")
+                    OCRResult := OCR(ras)
+                    ImageDestroy(pBitmap)
+                    pBitmap := ""
+                } else {
+                    throw Error("无法读取剪贴板图片")
                 }
             } catch as err {
-                TrayTip("剪贴板中没有可识别的图片格式", "错误", "Iconx 2")
+                TrayTip("OCR 识别失败：" . err.Message, "错误", "Iconx 2")
+                A_Clipboard := OldClipboard
                 return
             }
-            return
-        }
-        
-        ; 使用 OCR.FromBitmap 识别图片
-        OCRResult := OCR.FromBitmap(hBitmap)
-        
-        ; 清理位图（如果是 DIB 创建的）
-        if (NeedDeleteBitmap && hBitmap) {
-            DllCall("DeleteObject", "Ptr", hBitmap)
         }
         
         if (!OCRResult || !OCRResult.Text || StrLen(OCRResult.Text) = 0) {
@@ -24441,7 +24464,7 @@ ProcessOCR(Mode := "preserve_layout") {
         global ScreenshotClipboard
         ScreenshotClipboard := ""
         
-        ; 显示成功提示（简化）
+        ; 显示成功提示
         TrayTip("✅ OCR 完成", "已识别 " . StrLen(ExtractedText) . " 个字符", "Iconi 1")
         
         ; 自动粘贴

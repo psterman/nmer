@@ -10,6 +10,10 @@
 
 #Requires AutoHotkey v2.0
 #Include ClipboardFTS5.ahk
+#Include ..\lib\ImagePut.ahk
+#Include ..\lib\Gdip_All.ahk
+#Include ..\lib\WinClip.ahk
+#Include ..\lib\OCR.ahk
 
 ; ===================== 全局变量 =====================
 global GuiID_ClipboardHistory := 0
@@ -22,6 +26,10 @@ global HistorySelectedTag := ""  ; 当前选中的标签（空字符串表示全
 global ColorSummaryGUI := 0  ; 颜色汇总面板GUI
 global ColorSummaryIsVisible := false  ; 颜色汇总面板是否可见
 global HistorySearchTimer := 0  ; 搜索防抖定时器
+global HistoryImagePreviewGUI := 0  ; 图片预览窗口
+global HistoryImagePreviewIsVisible := false  ; 图片预览窗口是否可见
+global HistoryImagePreviewTimer := 0  ; 图片预览防抖定时器
+global HistoryImagePreviewCurrentPath := ""  ; 当前预览的图片路径
 
 ; 暗黑模式配色（Cursor色系）
 HistoryColors := {
@@ -83,6 +91,9 @@ HideClipboardHistoryPanel() {
     
     ; 隐藏颜色汇总面板
     HideColorSummaryPanel()
+    
+    ; 隐藏图片预览窗口
+    HideHistoryImagePreview()
     
     if (GuiID_ClipboardHistory != 0) {
         GuiID_ClipboardHistory.Hide()
@@ -191,7 +202,8 @@ CreateHistoryPanelGUI() {
         
         ; 添加悬停效果（如果 HoverBtnWithAnimation 函数可用）
         try {
-            if (Func("HoverBtnWithAnimation")) {
+            hoverFunc := HoverBtnWithAnimation
+            if (IsSet(hoverFunc)) {
                 HoverBtnWithAnimation(tagButton, BgColor, HistoryColors.TagBgActive)
             }
         } catch {
@@ -224,7 +236,7 @@ CreateHistoryPanelGUI() {
     
     ; 设置列宽
     HistoryListView.ModifyCol(1, 50)   ; 序号
-    HistoryListView.ModifyCol(2, 310)  ; 内容预览
+    HistoryListView.ModifyCol(2, 300)  ; 内容预览
     HistoryListView.ModifyCol(3, 100)  ; 来源应用
     HistoryListView.ModifyCol(4, 200)  ; 文件位置
     HistoryListView.ModifyCol(5, 70)   ; 类型
@@ -234,7 +246,9 @@ CreateHistoryPanelGUI() {
     
     ; ListView 事件
     HistoryListView.OnEvent("ItemSelect", OnHistoryItemSelect)
+    HistoryListView.OnEvent("ItemFocus", OnHistoryItemSelect)  ; 添加焦点事件，确保点击时能触发
     HistoryListView.OnEvent("DoubleClick", OnHistoryItemDoubleClick)
+    HistoryListView.OnEvent("Click", OnHistoryItemClick)  ; 添加点击事件，确保能触发预览
     
     ; ========== 底部状态栏 ==========
     StatusBarText := GuiID_ClipboardHistory.Add("Text", 
@@ -314,7 +328,7 @@ RefreshHistoryData(keyword := "") {
             } else {
                 selectFields .= ", '' AS IconPath"
             }
-            selectFields .= ", DataType, CharCount, Timestamp"
+            selectFields .= ", DataType, CharCount, Timestamp, ImagePath"
             if (hasLastCopyTime) {
                 selectFields .= ", LastCopyTime"
             } else {
@@ -395,6 +409,14 @@ RefreshHistoryData(keyword := "") {
                 ; 特殊处理：文本标签包含Text和Email类型
                 if (HistorySelectedTag = "Text") {
                     whereConditions.Push("(DataType = 'Text' OR DataType = 'Email')")
+                } else if (HistorySelectedTag = "Image") {
+                    ; 图片标签：筛选 DataType = 'Image' 的记录
+                    ; 同时也筛选 Content 字段是图片路径的记录（即使 DataType 不是 Image）
+                    whereConditions.Push("(DataType = 'Image' OR " .
+                        "(Content LIKE '%.png' OR Content LIKE '%.jpg' OR Content LIKE '%.jpeg' OR " .
+                        "Content LIKE '%.gif' OR Content LIKE '%.bmp' OR Content LIKE '%.webp' OR " .
+                        "Content LIKE '%.tiff' OR Content LIKE '%.ico' OR " .
+                        "ImagePath IS NOT NULL AND ImagePath != ''))")
                 } else {
                     whereConditions.Push("DataType = '" . escapedTagType . "'")
                 }
@@ -468,9 +490,12 @@ RefreshHistoryData(keyword := "") {
                             if (columnIndexMap.Has("CopyCount")) {
                                 rowData["CopyCount"] := row[columnIndexMap["CopyCount"]]
                             }
+                            if (columnIndexMap.Has("ImagePath")) {
+                                rowData["ImagePath"] := row[columnIndexMap["ImagePath"]]
+                            }
                         } else {
                             ; 按固定顺序读取（后备方案）
-                            ; SQL查询的列顺序：ID(1), Content(2), SourceApp(3), SourcePath(4), IconPath(5), DataType(6), CharCount(7), Timestamp(8), LastCopyTime(9), CopyCount(10)
+                            ; SQL查询的列顺序：ID(1), Content(2), SourceApp(3), SourcePath(4), IconPath(5), DataType(6), CharCount(7), Timestamp(8), ImagePath(9), LastCopyTime(10), CopyCount(11)
                             rowCount := row.Length
                             
                             if (rowCount >= 1) {
@@ -498,10 +523,13 @@ RefreshHistoryData(keyword := "") {
                                 rowData["Timestamp"] := row[8]
                             }
                             if (rowCount >= 9) {
-                                rowData["LastCopyTime"] := row[9]
+                                rowData["ImagePath"] := row[9]
                             }
                             if (rowCount >= 10) {
-                                rowData["CopyCount"] := row[10]
+                                rowData["LastCopyTime"] := row[10]
+                            }
+                            if (rowCount >= 11) {
+                                rowData["CopyCount"] := row[11]
                             }
                         }
                         
@@ -509,8 +537,17 @@ RefreshHistoryData(keyword := "") {
                         if (!rowData.Has("ID") || rowData["ID"] = "") {
                             continue
                         }
-                        if (!rowData.Has("Content") || rowData["Content"] = "") {
-                            continue  ; 跳过空内容
+                        ; 对于图片类型，Content 可能为空（因为图片路径存储在 ImagePath 中）
+                        ; 对于非图片类型，Content 不能为空
+                        if (rowData.Has("DataType") && rowData["DataType"] != "Image") {
+                            if (!rowData.Has("Content") || rowData["Content"] = "") {
+                                continue  ; 跳过空内容（非图片类型）
+                            }
+                        } else if (!rowData.Has("DataType") || rowData["DataType"] = "") {
+                            ; 如果没有数据类型，检查 Content
+                            if (!rowData.Has("Content") || rowData["Content"] = "") {
+                                continue  ; 跳过空内容
+                            }
                         }
                         if (!rowData.Has("SourceApp") || rowData["SourceApp"] = "") {
                             rowData["SourceApp"] := "Unknown"
@@ -535,6 +572,9 @@ RefreshHistoryData(keyword := "") {
                         }
                         if (!rowData.Has("IconPath")) {
                             rowData["IconPath"] := ""
+                        }
+                        if (!rowData.Has("ImagePath")) {
+                            rowData["ImagePath"] := ""
                         }
                         
                         results.Push(rowData)
@@ -587,14 +627,33 @@ RefreshHistoryData(keyword := "") {
         ; 添加数据
         for index, rowData in results {
             ; 获取内容预览（最多80字符）
+            ; 对于图片类型，Content 字段存储的是图片路径，显示文件名
+            dataType := rowData.Has("DataType") ? rowData["DataType"] : "Text"
             preview := rowData["Content"]
-            if (StrLen(preview) > 80) {
-                preview := SubStr(preview, 1, 80) . "..."
+            
+            ; 如果是图片类型，显示图片文件名而不是完整路径
+            if (dataType = "Image") {
+                imagePath := rowData.Has("ImagePath") ? rowData["ImagePath"] : preview
+                if (imagePath != "" && FileExist(imagePath)) {
+                    try {
+                        SplitPath(imagePath, &fileName)
+                        preview := "[图片] " . fileName
+                    } catch {
+                        preview := "[图片] " . imagePath
+                    }
+                } else {
+                    preview := "[图片]"
+                }
+            } else {
+                ; 文本类型，正常处理
+                if (StrLen(preview) > 80) {
+                    preview := SubStr(preview, 1, 80) . "..."
+                }
+                ; 替换换行符为空格
+                preview := StrReplace(preview, "`r`n", " ")
+                preview := StrReplace(preview, "`n", " ")
+                preview := StrReplace(preview, "`r", " ")
             }
-            ; 替换换行符为空格
-            preview := StrReplace(preview, "`r`n", " ")
-            preview := StrReplace(preview, "`n", " ")
-            preview := StrReplace(preview, "`r", " ")
             
             ; 格式化时间
             try {
@@ -604,24 +663,78 @@ RefreshHistoryData(keyword := "") {
                 timeText := rowData.Has("LastCopyTime") ? rowData["LastCopyTime"] : rowData["Timestamp"]
             }
             
-            ; 获取文件位置（显示文件名或路径）
-            sourcePath := rowData.Has("SourcePath") ? rowData["SourcePath"] : ""
-            fileLocation := ""
-            if (sourcePath != "" && sourcePath != "\\") {
-                ; 只显示文件名，完整路径在工具提示中显示
-                try {
-                    SplitPath(sourcePath, &fileName)
-                    fileLocation := fileName
-                } catch {
-                    fileLocation := sourcePath
-                }
-            } else {
-                fileLocation := "-"
-            }
-            
             ; 确保所有字段都有值并正确类型
             sourceApp := rowData.Has("SourceApp") && rowData["SourceApp"] != "" ? String(rowData["SourceApp"]) : "Unknown"
             dataType := rowData.Has("DataType") && rowData["DataType"] != "" ? String(rowData["DataType"]) : "Text"
+            
+            ; 处理图片路径识别（需要在 fileLocation 计算之前）
+            imagePath := ""
+            ; 优先使用 ImagePath 字段
+            if (rowData.Has("ImagePath") && rowData["ImagePath"] != "") {
+                imagePath := rowData["ImagePath"]
+            } else if (rowData.Has("Content") && rowData["Content"] != "") {
+                ; 如果 ImagePath 为空，检查 Content 是否是图片路径
+                content := rowData["Content"]
+                ; 处理路径中的转义字符（将 \\\\ 转换为 \\，将 \\ 转换为 \）
+                content := StrReplace(content, "\\\\", "\")
+                content := StrReplace(content, "\\", "\")
+                
+                ; 检查是否是文件路径（包含路径分隔符）
+                if (InStr(content, "\") || InStr(content, "/")) {
+                    ; 检查文件扩展名，确认是图片文件（先检查扩展名，避免不必要的 FileExist 调用）
+                    SplitPath(content, , , &ext)
+                    ext := StrLower(ext)
+                    if (ext = "png" || ext = "jpg" || ext = "jpeg" || ext = "gif" || ext = "bmp" || ext = "webp" || ext = "tiff" || ext = "ico") {
+                        ; 检查文件是否存在
+                        if (FileExist(content)) {
+                            imagePath := content
+                            ; 如果数据类型不是 Image，但文件是图片，也当作图片处理
+                            if (dataType != "Image") {
+                                dataType := "Image"
+                            }
+                        }
+                    }
+                }
+            }
+            
+            ; 获取文件位置（显示文件名或路径）
+            ; 对于图片类型，优先显示图片文件名；否则显示来源应用的文件名
+            fileLocation := "-"
+            if (dataType = "Image" || (imagePath != "" && FileExist(imagePath))) {
+                ; 图片类型，显示图片文件名
+                if (imagePath != "" && FileExist(imagePath)) {
+                    try {
+                        SplitPath(imagePath, &fileName)
+                        fileLocation := fileName
+                    } catch {
+                        ; 如果解析失败，尝试从 Content 获取
+                        if (rowData.Has("Content")) {
+                            content := rowData["Content"]
+                            if (InStr(content, "\") || InStr(content, "/")) {
+                                SplitPath(content, &fileName)
+                                fileLocation := fileName
+                            } else {
+                                fileLocation := "-"
+                            }
+                        }
+                    }
+                } else {
+                    fileLocation := "-"
+                }
+            } else {
+                ; 非图片类型，显示来源应用的文件名
+                sourcePath := rowData.Has("SourcePath") ? rowData["SourcePath"] : ""
+                if (sourcePath != "" && sourcePath != "\\") {
+                    try {
+                        SplitPath(sourcePath, &fileName)
+                        fileLocation := fileName
+                    } catch {
+                        fileLocation := sourcePath
+                    }
+                } else {
+                    fileLocation := "-"
+                }
+            }
             
             ; 获取复制次数（确保是数字）
             copyCount := 1
@@ -654,8 +767,8 @@ RefreshHistoryData(keyword := "") {
                 charCount := StrLen(rowData["Content"])
             }
             
-            ; 添加行（确保数据类型正确）
-            rowIndex := HistoryListView.Add(, 
+            ; 添加行到 ListView（第一个参数为空字符串表示无选项）
+            rowIndex := HistoryListView.Add("",
                 String(index),            ; 序号
                 String(preview),          ; 内容预览
                 String(sourceApp),        ; 来源应用
@@ -674,6 +787,9 @@ RefreshHistoryData(keyword := "") {
 ; ===================== 搜索框变化事件（带防抖）=====================
 OnHistorySearchChange(*) {
     global HistorySearchEdit, HistorySearchTimer
+    
+    ; 搜索时隐藏图片预览窗口
+    HideHistoryImagePreview()
     
     ; 如果用户正在快速输入，取消上一个还没执行的刷新任务
     if (HistorySearchTimer != 0) {
@@ -749,7 +865,8 @@ UpdateHistoryTagButtons() {
             
             ; 更新悬停效果（如果 HoverBtnWithAnimation 函数可用）
             try {
-                if (Func("HoverBtnWithAnimation")) {
+                hoverFunc := HoverBtnWithAnimation
+                if (IsSet(hoverFunc)) {
                     HoverBtnWithAnimation(button, BgColor, HistoryColors.TagBgActive)
                 }
             } catch {
@@ -761,42 +878,258 @@ UpdateHistoryTagButtons() {
     }
 }
 
+; ===================== ListView 点击事件 =====================
+OnHistoryItemClick(*) {
+    ; 点击时立即触发预览
+    OutputDebug("ClipboardHistoryPanel: OnHistoryItemClick 被调用`n")
+    ; 延迟一点执行，确保选中状态已更新
+    SetTimer(() => ProcessImagePreview(), -10)
+}
+
 ; ===================== ListView 项选择事件 =====================
 OnHistoryItemSelect(*) {
-    global HistoryListView, HistoryDisplayCache
+    ; 选中时也触发预览
+    OutputDebug("ClipboardHistoryPanel: OnHistoryItemSelect 被调用`n")
+    ; 延迟一点执行，确保选中状态已更新
+    SetTimer(() => ProcessImagePreview(), -10)
+}
+
+; ===================== 处理图片预览（统一处理函数）=====================
+ProcessImagePreview() {
+    global HistoryListView, HistoryDisplayCache, HistoryImagePreviewTimer, HistoryImagePreviewCurrentPath, GuiID_ClipboardHistory
+    
+    OutputDebug("ClipboardHistoryPanel: ProcessImagePreview 开始执行`n")
+    
+    ; 确保 ListView 存在且事件已绑定
+    if (!HistoryListView) {
+        OutputDebug("ClipboardHistoryPanel: HistoryListView 不存在，退出`n")
+        return
+    }
     
     selectedRow := HistoryListView.GetNext()
+    OutputDebug("ClipboardHistoryPanel: 选中的行 = " . selectedRow . ", 缓存长度 = " . HistoryDisplayCache.Length . "`n")
+    
     if (selectedRow > 0 && selectedRow <= HistoryDisplayCache.Length) {
         rowData := HistoryDisplayCache[selectedRow]
         
-        ; 显示详细信息（工具提示）
-        detailText := "ID: " . rowData["ID"] . "`n"
-        detailText .= "内容: " . rowData["Content"] . "`n"
-        detailText .= "来源应用: " . rowData["SourceApp"] . "`n"
+        ; 改进的图片判定逻辑：不仅检查 DataType，还检查文件扩展名和文件是否存在
+        imagePath := GetImagePathFromRowData(rowData)
         
-        if (rowData.Has("SourcePath") && rowData["SourcePath"] != "") {
-            detailText .= "文件位置: " . rowData["SourcePath"] . "`n"
+        ; 调试输出（用于排查问题）
+        if (imagePath != "") {
+            OutputDebug("ClipboardHistoryPanel: 找到图片路径 - " . imagePath . ", FileExist=" . (FileExist(imagePath) ? "true" : "false") . "`n")
+        } else {
+            content := rowData.Has("Content") ? rowData["Content"] : ""
+            dataType := rowData.Has("DataType") ? rowData["DataType"] : ""
+            OutputDebug("ClipboardHistoryPanel: 未找到图片路径，Content=" . content . ", DataType=" . dataType . "`n")
         }
         
-        if (rowData.Has("IconPath") && rowData["IconPath"] != "") {
-            detailText .= "图标路径: " . rowData["IconPath"] . "`n"
+        ; 如果是图片且有有效路径，立即显示预览
+        if (imagePath != "" && FileExist(imagePath)) {
+            ; 取消之前的定时器（如果有）
+            if (HistoryImagePreviewTimer != 0) {
+                try {
+                    SetTimer(HistoryImagePreviewTimer, 0)
+                } catch {
+                }
+                HistoryImagePreviewTimer := 0
+            }
+            
+            ; 保存当前路径
+            HistoryImagePreviewCurrentPath := imagePath
+            
+            ; 隐藏工具提示（如果有）
+            ToolTip()
+            
+            ; 立即显示预览窗口（不延迟）
+            ShowImagePreviewImmediately(imagePath)
+        } else {
+            ; 不是图片或图片路径无效，隐藏预览窗口
+            HideHistoryImagePreview()
+            HistoryImagePreviewCurrentPath := ""
+            
+            ; 显示详细信息（工具提示）- 仅当不是图片类型时显示
+            ; 如果是图片类型但路径无效，不显示工具提示，避免干扰
+            dataType := rowData.Has("DataType") ? rowData["DataType"] : "Text"
+            if (dataType != "Image") {
+                detailText := "ID: " . rowData["ID"] . "`n"
+                detailText .= "内容: " . rowData["Content"] . "`n"
+                detailText .= "来源应用: " . rowData["SourceApp"] . "`n"
+                
+                if (rowData.Has("SourcePath") && rowData["SourcePath"] != "") {
+                    detailText .= "文件位置: " . rowData["SourcePath"] . "`n"
+                }
+                
+                if (rowData.Has("IconPath") && rowData["IconPath"] != "") {
+                    detailText .= "图标路径: " . rowData["IconPath"] . "`n"
+                }
+                
+                detailText .= "类型: " . rowData["DataType"] . "`n"
+                detailText .= "字符数: " . rowData["CharCount"] . "`n"
+                detailText .= "首次复制: " . rowData["Timestamp"] . "`n"
+                
+                if (rowData.Has("LastCopyTime") && rowData["LastCopyTime"] != "") {
+                    detailText .= "最后复制: " . rowData["LastCopyTime"] . "`n"
+                }
+                
+                if (rowData.Has("CopyCount")) {
+                    detailText .= "复制次数: " . rowData["CopyCount"] . "`n"
+                }
+                
+                ; 显示工具提示
+                ToolTip(detailText)
+                SetTimer(() => ToolTip(), -5000)  ; 5秒后自动隐藏
+            }
+        }
+    } else {
+        ; 没有选中项，隐藏预览
+        HideHistoryImagePreview()
+        HistoryImagePreviewCurrentPath := ""
+    }
+}
+
+; ===================== 从行数据获取图片路径（改进的判定逻辑）=====================
+GetImagePathFromRowData(rowData) {
+    path := ""
+    
+    ; 1. 优先检查 ImagePath 字段
+    if (rowData.Has("ImagePath") && rowData["ImagePath"] != "") {
+        path := rowData["ImagePath"]
+    }
+    ; 2. 如果 ImagePath 为空，检查 Content 字段
+    else if (rowData.Has("Content") && rowData["Content"] != "") {
+        path := rowData["Content"]
+    }
+    
+    if (path != "") {
+        ; 清理可能的双斜杠转义（处理数据库存储时的转义）
+        path := StrReplace(path, "\\\\", "\")
+        path := StrReplace(path, "\\", "\")
+        
+        ; 验证文件后缀和文件是否存在
+        SplitPath(path, , , &ext)
+        if (ext != "") {
+            ext := StrLower(ext)
+            ; 使用正则表达式检查是否为图片格式
+            if (RegExMatch(ext, "i)^(png|jpg|jpeg|gif|bmp|webp|ico|tiff|svg)$") && FileExist(path)) {
+                return path
+            }
+        }
+    }
+    
+    return ""
+}
+
+; ===================== 立即显示图片预览 =====================
+ShowImagePreviewImmediately(imagePath) {
+    global GuiID_ClipboardHistory, HistoryImagePreviewGUI, HistoryColors
+    
+    OutputDebug("ClipboardHistoryPanel: ShowImagePreviewImmediately 被调用，imagePath=" . imagePath . "`n")
+    
+    if (GuiID_ClipboardHistory = 0) {
+        OutputDebug("ClipboardHistoryPanel: GuiID_ClipboardHistory 为 0，退出`n")
+        return
+    }
+    
+    if (!FileExist(imagePath)) {
+        OutputDebug("ClipboardHistoryPanel: 图片文件不存在 - " . imagePath . "`n")
+        return
+    }
+    
+    try {
+        OutputDebug("ClipboardHistoryPanel: 开始加载图片 - " . imagePath . "`n")
+        
+        ; 1. 获取图片尺寸
+        pBitmap := ImagePut("Bitmap", imagePath)
+        if (!pBitmap || pBitmap = "") {
+            OutputDebug("ClipboardHistoryPanel: ImagePut 失败，无法加载图片`n")
+            return
         }
         
-        detailText .= "类型: " . rowData["DataType"] . "`n"
-        detailText .= "字符数: " . rowData["CharCount"] . "`n"
-        detailText .= "首次复制: " . rowData["Timestamp"] . "`n"
+        dims := ImageDimensions(pBitmap)
+        imgWidth := dims[1]
+        imgHeight := dims[2]
+        ImageDestroy(pBitmap)
         
-        if (rowData.Has("LastCopyTime") && rowData["LastCopyTime"] != "") {
-            detailText .= "最后复制: " . rowData["LastCopyTime"] . "`n"
+        if (imgWidth <= 0 || imgHeight <= 0) {
+            OutputDebug("ClipboardHistoryPanel: 图片尺寸无效 - width=" . imgWidth . ", height=" . imgHeight . "`n")
+            return
         }
         
-        if (rowData.Has("CopyCount")) {
-            detailText .= "复制次数: " . rowData["CopyCount"] . "`n"
+        ; 2. 计算预览窗口尺寸（固定宽度，按比例计算高度）
+        previewWidth := 350
+        previewHeight := Round((imgHeight / imgWidth) * previewWidth)
+        
+        ; 限制最大高度
+        maxHeight := 600
+        if (previewHeight > maxHeight) {
+            previewHeight := maxHeight
+            previewWidth := Round((imgWidth / imgHeight) * previewHeight)
         }
         
-        ; 显示工具提示
-        ToolTip(detailText)
-        SetTimer(() => ToolTip(), -5000)  ; 5秒后自动隐藏
+        ; 3. 计算显示坐标（修复：确保坐标变量被正确赋值）
+        ; 获取主窗口位置，将预览窗放在主窗口右侧
+        GuiID_ClipboardHistory.GetPos(&mainX, &mainY, &mainW, &mainH)
+        targetX := mainX + mainW + 10  ; 右偏移 10 像素
+        targetY := mainY  ; 与主窗口顶部对齐
+        
+        ; 屏幕边界检测
+        MonitorGetWorkArea(1, &screenLeft, &screenTop, &screenRight, &screenBottom)
+        if (targetX + previewWidth > screenRight) {
+            ; 如果右侧空间不足，显示在左侧
+            targetX := mainX - previewWidth - 10
+            if (targetX < screenLeft) {
+                ; 如果左侧也放不下，使用屏幕中心
+                targetX := screenLeft + (screenRight - screenLeft - previewWidth) // 2
+            }
+        }
+        
+        ; 确保 Y 坐标在屏幕内
+        if (targetY + previewHeight > screenBottom) {
+            targetY := screenBottom - previewHeight - 10
+        }
+        if (targetY < screenTop) {
+            targetY := screenTop + 10
+        }
+        
+        OutputDebug("ClipboardHistoryPanel: 计算坐标完成 - targetX=" . targetX . ", targetY=" . targetY . ", previewWidth=" . previewWidth . ", previewHeight=" . previewHeight . "`n")
+        
+        ; 4. 销毁旧窗口（如果存在）
+        if (HistoryImagePreviewGUI != 0) {
+            try {
+                HistoryImagePreviewGUI.Destroy()
+            } catch {
+            }
+            HistoryImagePreviewGUI := 0
+        }
+        
+        ; 5. 创建预览窗口（无标题栏，置顶，带边框）
+        HistoryImagePreviewGUI := Gui("+AlwaysOnTop -Caption +ToolWindow +Border", "")
+        HistoryImagePreviewGUI.BackColor := HistoryColors.Background
+        
+        ; 添加图片控件
+        picCtrl := HistoryImagePreviewGUI.Add("Picture", "x0 y0 w" . previewWidth . " h" . previewHeight . " vPreviewPic", imagePath)
+        
+        ; 存储图片路径到全局变量（用于比较和右键菜单）
+        HistoryImagePreviewCurrentPath := imagePath
+        
+        ; 为窗口添加右键菜单事件
+        HistoryImagePreviewGUI.OnEvent("ContextMenu", OnImagePreviewContextMenu)
+        
+        ; 添加关闭事件（按ESC关闭）
+        HistoryImagePreviewGUI.OnEvent("Escape", HideHistoryImagePreview)
+        
+        ; 6. 显示窗口（修复：使用正确计算的坐标变量）
+        OutputDebug("ClipboardHistoryPanel: 显示预览窗口，位置 x=" . targetX . ", y=" . targetY . "`n")
+        HistoryImagePreviewGUI.Show("x" . targetX . " y" . targetY . " w" . previewWidth . " h" . previewHeight . " NoActivate")
+        HistoryImagePreviewIsVisible := true
+        OutputDebug("ClipboardHistoryPanel: 预览窗口显示成功`n")
+        
+    } catch as err {
+        ; 预览失败，输出错误信息
+        OutputDebug("ClipboardHistoryPanel: 预览失败 - " . err.Message . ", File: " . (err.HasProp("File") ? err.File : "未知") . ", Line: " . (err.HasProp("Line") ? err.Line : "未知") . "`n")
+        HistoryImagePreviewGUI := 0
+        HistoryImagePreviewIsVisible := false
     }
 }
 
@@ -808,10 +1141,73 @@ OnHistoryItemDoubleClick(*) {
     if (selectedRow > 0 && selectedRow <= HistoryDisplayCache.Length) {
         rowData := HistoryDisplayCache[selectedRow]
         
-        ; 复制内容到剪贴板
-        if (rowData.Has("Content")) {
+        ; 获取数据类型
+        dataType := rowData.Has("DataType") ? rowData["DataType"] : "Text"
+        
+        ; 获取图片路径（优先使用 ImagePath，如果没有则使用 Content）
+        imagePath := ""
+        if (rowData.Has("ImagePath") && rowData["ImagePath"] != "") {
+            imagePath := rowData["ImagePath"]
+        } else if (rowData.Has("Content") && rowData["Content"] != "") {
+            ; 检查 Content 是否是图片路径
+            content := rowData["Content"]
+            ; 如果 Content 是文件路径且文件存在，则使用它（不限制数据类型，因为可能是旧数据）
+            if (FileExist(content)) {
+                ; 检查文件扩展名，确认是图片文件
+                SplitPath(content, , , &ext)
+                ext := StrLower(ext)
+                if (ext = "png" || ext = "jpg" || ext = "jpeg" || ext = "gif" || ext = "bmp" || ext = "webp" || ext = "tiff" || ext = "ico") {
+                    imagePath := content
+                    ; 如果数据类型不是 Image，但文件是图片，也当作图片处理
+                    if (dataType != "Image") {
+                        dataType := "Image"
+                    }
+                }
+            }
+        }
+        
+        ; 如果有有效的图片路径，尝试复制图片到剪贴板
+        if (imagePath != "" && FileExist(imagePath)) {
+            ; 先清空剪贴板，避免文本和图片同时存在
+            A_Clipboard := ""
+            Sleep(100)  ; 等待剪贴板清空
+            
+            try {
+                ; 使用 ImagePut 读取图片文件
+                pBitmap := ImagePut("Bitmap", imagePath)
+                if (pBitmap && pBitmap != "") {
+                    ; 使用 Gdip_SetBitmapToClipboard 复制图片到剪贴板（最可靠的方法）
+                    Gdip_SetBitmapToClipboard(pBitmap)
+                    ; 清理资源
+                    ImageDestroy(pBitmap)
+                    
+                    ; 验证图片是否成功复制到剪贴板（检查剪贴板是否有图片格式）
+                    Sleep(50)
+                    if (DllCall("IsClipboardFormatAvailable", "UInt", 8)) {  ; CF_DIB = 8
+                        TrayTip("已复制", "图片已复制到剪贴板", "Iconi 1")
+                        ; 刷新数据（将刚复制的项移到最前面）
+                        RefreshHistoryData()
+                        return  ; 成功复制图片，直接返回
+                    } else {
+                        ; 图片复制失败，回退到文本复制
+                        TrayTip("警告", "图片复制失败，已复制路径文本", "Iconx 1")
+                    }
+                } else {
+                    ; 无法读取图片，回退到文本复制
+                    TrayTip("警告", "无法读取图片文件，已复制路径文本", "Iconx 1")
+                }
+            } catch as err {
+                ; 图片复制异常，回退到文本复制
+                TrayTip("警告", "复制图片失败: " . err.Message . "，已复制路径文本", "Iconx 1")
+            }
+        }
+        
+        ; 如果不是图片类型，或者图片路径无效，或者图片复制失败，则复制文本内容
+        if (rowData.Has("Content") && rowData["Content"] != "") {
             A_Clipboard := rowData["Content"]
-            TrayTip("已复制", "内容已复制到剪贴板", "Iconi 1")
+            if (imagePath = "" || !FileExist(imagePath)) {
+                TrayTip("已复制", "内容已复制到剪贴板", "Iconi 1")
+            }
             
             ; 刷新数据（将刚复制的项移到最前面）
             RefreshHistoryData()
@@ -1050,10 +1446,451 @@ ParseColorValue(colorStr) {
     return ""
 }
 
+
+; ===================== 延迟显示图片预览（防抖回调）=====================
+ShowHistoryImagePreviewDelayed(*) {
+    global HistoryImagePreviewCurrentPath, GuiID_ClipboardHistory
+    
+    if (HistoryImagePreviewCurrentPath = "") {
+        return
+    }
+    
+    ; 1. 读取磁盘路径（已在 HistoryImagePreviewCurrentPath 中）
+    ; 处理路径中的转义字符
+    imagePath := HistoryImagePreviewCurrentPath
+    imagePath := StrReplace(imagePath, "\\\\", "\")
+    imagePath := StrReplace(imagePath, "\\", "\")
+    
+    if (!FileExist(imagePath)) {
+        ; 如果文件不存在，尝试调试输出
+        ; OutputDebug("ClipboardHistoryPanel: 图片文件不存在 - " . imagePath . "`n")
+        return
+    }
+    
+    ; 2. 使用 ImagePut 解析图片尺寸
+    try {
+        pBitmap := ImagePut("Bitmap", imagePath)
+        if (!pBitmap || pBitmap = "") {
+            return
+        }
+        
+        dims := ImageDimensions(pBitmap)
+        imgWidth := dims[1]
+        imgHeight := dims[2]
+        ImageDestroy(pBitmap)
+        
+        if (imgWidth <= 0 || imgHeight <= 0) {
+            return
+        }
+        
+        ; 3. 计算主窗侧边坐标
+        if (GuiID_ClipboardHistory = 0) {
+            return
+        }
+        
+        ; 获取主窗口位置和大小
+        GuiID_ClipboardHistory.GetPos(&mainX, &mainY, &mainW, &mainH)
+        
+        ; 限制预览窗口最大尺寸（800x600）
+        maxWidth := 800
+        maxHeight := 600
+        
+        if (imgWidth > maxWidth || imgHeight > maxHeight) {
+            scale := Min(maxWidth / imgWidth, maxHeight / imgHeight)
+            previewWidth := Round(imgWidth * scale)
+            previewHeight := Round(imgHeight * scale)
+        } else {
+            previewWidth := imgWidth
+            previewHeight := imgHeight
+        }
+        
+        ; 计算预览窗口位置（主窗口右侧，垂直居中）
+        spacing := 10  ; 主窗口和预览窗口之间的间距
+        previewX := mainX + mainW + spacing
+        previewY := mainY + (mainH - previewHeight) // 2
+        
+        ; 确保预览窗口不超出屏幕
+        MonitorGetWorkArea(, &screenLeft, &screenTop, &screenRight, &screenBottom)
+        if (previewX + previewWidth > screenRight) {
+            ; 如果右侧放不下，放在左侧
+            previewX := mainX - previewWidth - spacing
+            if (previewX < screenLeft) {
+                ; 如果左侧也放不下，放在主窗口上方
+                previewX := mainX + (mainW - previewWidth) // 2
+                previewY := mainY - previewHeight - spacing
+                if (previewY < screenTop) {
+                    ; 如果上方也放不下，放在主窗口下方
+                    previewY := mainY + mainH + spacing
+                }
+            }
+        }
+        
+        if (previewY + previewHeight > screenBottom) {
+            previewY := screenBottom - previewHeight - 10
+        }
+        if (previewY < screenTop) {
+            previewY := screenTop + 10
+        }
+        
+        ; 4. 弹出无标题栏置顶窗口
+        ShowHistoryImagePreview(imagePath, previewX, previewY, previewWidth, previewHeight)
+        
+    } catch as err {
+        ; 预览失败，静默处理
+    }
+}
+
+; ===================== 显示图片预览窗口（无标题栏，置顶）=====================
+ShowHistoryImagePreview(imagePath, x := 0, y := 0, width := 0, height := 0) {
+    global HistoryImagePreviewGUI, HistoryImagePreviewIsVisible, HistoryColors
+    
+    OutputDebug("ClipboardHistoryPanel: ShowHistoryImagePreview 被调用，imagePath=" . imagePath . ", x=" . x . ", y=" . y . ", width=" . width . ", height=" . height . "`n")
+    
+    ; 如果预览窗口已存在且显示的是同一张图片，只更新位置
+    if (HistoryImagePreviewIsVisible && HistoryImagePreviewGUI != 0) {
+        try {
+            ; 检查当前显示的图片路径（使用全局变量）
+            currentPath := HistoryImagePreviewCurrentPath
+            if (currentPath = imagePath) {
+                ; 更新位置和大小
+                OutputDebug("ClipboardHistoryPanel: 更新现有预览窗口位置`n")
+                HistoryImagePreviewGUI.Show("x" . x . " y" . y . " w" . width . " h" . height . " NoActivate")
+                return
+            } else {
+                ; 图片不同，销毁旧窗口
+                OutputDebug("ClipboardHistoryPanel: 销毁旧预览窗口，创建新窗口`n")
+                HistoryImagePreviewGUI.Destroy()
+                HistoryImagePreviewGUI := 0
+            }
+        } catch as err {
+            OutputDebug("ClipboardHistoryPanel: 处理现有窗口时出错 - " . err.Message . "`n")
+            HistoryImagePreviewGUI := 0
+        }
+    }
+    
+    try {
+        ; 如果未提供尺寸，读取图片尺寸
+        if (width <= 0 || height <= 0) {
+            OutputDebug("ClipboardHistoryPanel: 未提供尺寸，读取图片尺寸`n")
+            pBitmap := ImagePut("Bitmap", imagePath)
+            if (!pBitmap || pBitmap = "") {
+                OutputDebug("ClipboardHistoryPanel: 无法加载图片位图`n")
+                return
+            }
+            
+            dims := ImageDimensions(pBitmap)
+            imgWidth := dims[1]
+            imgHeight := dims[2]
+            ImageDestroy(pBitmap)
+            
+            OutputDebug("ClipboardHistoryPanel: 图片尺寸 - width=" . imgWidth . ", height=" . imgHeight . "`n")
+            
+            ; 限制预览窗口最大尺寸（800x600）
+            maxWidth := 800
+            maxHeight := 600
+            
+            if (imgWidth > maxWidth || imgHeight > maxHeight) {
+                scale := Min(maxWidth / imgWidth, maxHeight / imgHeight)
+                width := Round(imgWidth * scale)
+                height := Round(imgHeight * scale)
+            } else {
+                width := imgWidth
+                height := imgHeight
+            }
+        }
+        
+        OutputDebug("ClipboardHistoryPanel: 创建预览窗口，尺寸 - width=" . width . ", height=" . height . "`n")
+        
+        ; 创建预览窗口（无标题栏，置顶）
+        HistoryImagePreviewGUI := Gui("+AlwaysOnTop -Caption +ToolWindow", "")
+        HistoryImagePreviewGUI.BackColor := HistoryColors.Background
+        
+        ; 创建图片控件
+        picCtrl := HistoryImagePreviewGUI.Add("Picture", "x0 y0 w" . width . " h" . height . " vPreviewPic", imagePath)
+        
+        ; 存储图片路径到全局变量（用于比较和右键菜单）
+        HistoryImagePreviewCurrentPath := imagePath
+        
+        ; 为窗口添加右键菜单事件（Picture控件可能不支持ContextMenu，使用窗口级别）
+        HistoryImagePreviewGUI.OnEvent("ContextMenu", OnImagePreviewContextMenu)
+        
+        ; 添加关闭事件（点击窗口外部或按ESC关闭）
+        HistoryImagePreviewGUI.OnEvent("Escape", HideHistoryImagePreview)
+        
+        ; 确保坐标有效
+        if (x <= 0 || y <= 0) {
+            ; 如果坐标无效，使用屏幕中心
+            MonitorGetWorkArea(1, &screenLeft, &screenTop, &screenRight, &screenBottom)
+            x := screenLeft + (screenRight - screenLeft - width) // 2
+            y := screenTop + (screenBottom - screenTop - height) // 2
+            OutputDebug("ClipboardHistoryPanel: ShowHistoryImagePreview 坐标无效，使用屏幕中心 - x=" . x . ", y=" . y . "`n")
+        }
+        
+        ; 显示窗口
+        OutputDebug("ClipboardHistoryPanel: 显示预览窗口，位置 x=" . x . ", y=" . y . ", 大小 w=" . width . ", h=" . height . "`n")
+        HistoryImagePreviewGUI.Show("x" . x . " y" . y . " w" . width . " h" . height . " NoActivate")
+        HistoryImagePreviewIsVisible := true
+        OutputDebug("ClipboardHistoryPanel: 预览窗口显示成功`n")
+        
+    } catch as err {
+        ; 预览失败，输出错误信息
+        OutputDebug("ClipboardHistoryPanel: 预览窗口创建失败 - " . err.Message . ", File: " . (err.HasProp("File") ? err.File : "未知") . ", Line: " . (err.HasProp("Line") ? err.Line : "未知") . "`n")
+        HistoryImagePreviewGUI := 0
+        HistoryImagePreviewIsVisible := false
+    }
+}
+
+; ===================== 图片预览右键菜单事件 =====================
+OnImagePreviewContextMenu(GuiObj, GuiCtrl, Item, IsRightClick, X, Y) {
+    global HistoryImagePreviewGUI, HistoryImagePreviewCurrentPath
+    
+    if (!HistoryImagePreviewGUI || HistoryImagePreviewGUI = 0) {
+        return
+    }
+    
+    ; 获取当前图片路径（使用全局变量）
+    imagePath := HistoryImagePreviewCurrentPath
+    if (imagePath = "" || !FileExist(imagePath)) {
+        return
+    }
+    
+    ; 创建右键菜单
+    contextMenu := Menu()
+    contextMenu.Add("保存", OnImagePreviewSave)
+    contextMenu.Add("跳转", OnImagePreviewOpenLocation)
+    contextMenu.Add("提取文字", OnImagePreviewExtractText)
+    contextMenu.Add("复制", OnImagePreviewCopy)
+    contextMenu.Add()  ; 分隔线
+    contextMenu.Add("关闭", OnImagePreviewClose)
+    
+    ; 显示菜单（使用屏幕坐标）
+    contextMenu.Show(X, Y)
+}
+
+; ===================== 图片预览菜单功能 =====================
+; 保存图片
+OnImagePreviewSave(*) {
+    global HistoryImagePreviewGUI, HistoryImagePreviewCurrentPath
+    
+    if (!HistoryImagePreviewGUI || HistoryImagePreviewGUI = 0) {
+        return
+    }
+    
+    imagePath := HistoryImagePreviewCurrentPath
+    if (imagePath = "" || !FileExist(imagePath)) {
+        TrayTip("错误", "图片路径无效", "Iconx 1")
+        return
+    }
+    
+    ; 获取原文件名和扩展名
+    SplitPath(imagePath, &fileName, &fileDir, &fileExt, &fileBaseName)
+    
+    ; 显示保存文件对话框
+    selectedFile := FileSelect("S16", fileDir, "保存图片", "图片文件 (*.png; *.jpg; *.jpeg; *.gif; *.bmp; *.webp; *.tiff; *.ico)")
+    
+    if (selectedFile = "") {
+        return  ; 用户取消
+    }
+    
+    try {
+        ; 复制文件到新位置
+        FileCopy(imagePath, selectedFile, 1)  ; 1 = 覆盖已存在的文件
+        TrayTip("成功", "图片已保存: " . selectedFile, "Iconi 1")
+    } catch as err {
+        TrayTip("错误", "保存失败: " . err.Message, "Iconx 1")
+    }
+}
+
+; 跳转到文件位置
+OnImagePreviewOpenLocation(*) {
+    global HistoryImagePreviewGUI, HistoryImagePreviewCurrentPath
+    
+    if (!HistoryImagePreviewGUI || HistoryImagePreviewGUI = 0) {
+        return
+    }
+    
+    imagePath := HistoryImagePreviewCurrentPath
+    if (imagePath = "" || !FileExist(imagePath)) {
+        TrayTip("错误", "图片路径无效", "Iconx 1")
+        return
+    }
+    
+    try {
+        ; 获取文件所在目录
+        SplitPath(imagePath, &fileName, &fileDir)
+        
+        ; 在资源管理器中打开并选中文件
+        Run('explorer.exe /select,"' . imagePath . '"')
+    } catch as err {
+        TrayTip("错误", "打开文件位置失败: " . err.Message, "Iconx 1")
+    }
+}
+
+; 提取文字（OCR）
+OnImagePreviewExtractText(*) {
+    global HistoryImagePreviewGUI, HistoryImagePreviewCurrentPath
+    
+    if (!HistoryImagePreviewGUI || HistoryImagePreviewGUI = 0) {
+        return
+    }
+    
+    imagePath := HistoryImagePreviewCurrentPath
+    if (imagePath = "" || !FileExist(imagePath)) {
+        TrayTip("错误", "图片路径无效", "Iconx 1")
+        return
+    }
+    
+    try {
+        ; 显示提示
+        TrayTip("提示", "正在提取文字，请稍候...", "Iconi 1")
+        
+        ; 使用OCR从文件提取文字
+        ocrResult := OCR.FromFile(imagePath)
+        
+        if (!ocrResult || !ocrResult.HasProp("Text")) {
+            TrayTip("错误", "无法提取文字", "Iconx 1")
+            return
+        }
+        
+        extractedText := ocrResult.Text
+        
+        if (extractedText = "" || Trim(extractedText) = "") {
+            TrayTip("提示", "未检测到文字", "Iconi 1")
+            return
+        }
+        
+        ; 复制提取的文字到剪贴板
+        A_Clipboard := extractedText
+        
+        ; 显示提取结果窗口
+        ShowExtractedTextWindow(extractedText)
+        
+        TrayTip("成功", "文字已提取并复制到剪贴板", "Iconi 1")
+        
+    } catch as err {
+        TrayTip("错误", "提取文字失败: " . err.Message, "Iconx 1")
+    }
+}
+
+; 复制图片到剪贴板
+OnImagePreviewCopy(*) {
+    global HistoryImagePreviewGUI, HistoryImagePreviewCurrentPath
+    
+    if (!HistoryImagePreviewGUI || HistoryImagePreviewGUI = 0) {
+        return
+    }
+    
+    imagePath := HistoryImagePreviewCurrentPath
+    if (imagePath = "" || !FileExist(imagePath)) {
+        TrayTip("错误", "图片路径无效", "Iconx 1")
+        return
+    }
+    
+    try {
+        ; 先清空剪贴板
+        A_Clipboard := ""
+        Sleep(100)
+        
+        ; 使用 ImagePut 读取图片文件
+        pBitmap := ImagePut("Bitmap", imagePath)
+        if (pBitmap && pBitmap != "") {
+            ; 使用 Gdip_SetBitmapToClipboard 复制图片到剪贴板
+            Gdip_SetBitmapToClipboard(pBitmap)
+            ; 清理资源
+            ImageDestroy(pBitmap)
+            
+            ; 验证图片是否成功复制到剪贴板
+            Sleep(50)
+            if (DllCall("IsClipboardFormatAvailable", "UInt", 8)) {  ; CF_DIB = 8
+                TrayTip("成功", "图片已复制到剪贴板", "Iconi 1")
+            } else {
+                TrayTip("警告", "图片复制失败", "Iconx 1")
+            }
+        } else {
+            TrayTip("错误", "无法读取图片文件", "Iconx 1")
+        }
+    } catch as err {
+        TrayTip("错误", "复制失败: " . err.Message, "Iconx 1")
+    }
+}
+
+; 关闭预览窗口
+OnImagePreviewClose(*) {
+    HideHistoryImagePreview()
+}
+
+; ===================== 提取文字复制按钮事件 =====================
+OnExtractedTextCopy(text, *) {
+    A_Clipboard := text
+    TrayTip("提示", "已复制到剪贴板", "Iconi 1")
+}
+
+; ===================== 显示提取的文字窗口 =====================
+ShowExtractedTextWindow(text) {
+    ; 创建显示文字的窗口
+    textGui := Gui("+AlwaysOnTop +Resize", "提取的文字")
+    textGui.BackColor := HistoryColors.Background
+    textGui.SetFont("s10 c" . HistoryColors.Text, "Consolas")
+    
+    ; 创建文本框（多行，只读）
+    textEdit := textGui.Add("Edit", "x10 y10 w600 h400 +ReadOnly +Multi +VScroll +HScroll", text)
+    textEdit.SetFont("s10", "Consolas")
+    
+    ; 添加关闭按钮
+    closeBtn := textGui.Add("Button", "x520 y420 w90 h30", "关闭")
+    closeBtn.OnEvent("Click", (*) => textGui.Destroy())
+    
+    ; 添加复制按钮
+    copyBtn := textGui.Add("Button", "x420 y420 w90 h30", "复制")
+    copyBtn.OnEvent("Click", OnExtractedTextCopy.Bind(text))
+    
+    ; 窗口关闭事件
+    textGui.OnEvent("Close", (*) => textGui.Destroy())
+    textGui.OnEvent("Escape", (*) => textGui.Destroy())
+    
+    ; 显示窗口
+    textGui.Show("w630 h470")
+}
+
+; ===================== 隐藏图片预览窗口 =====================
+HideHistoryImagePreview(*) {
+    global HistoryImagePreviewGUI, HistoryImagePreviewIsVisible, HistoryImagePreviewTimer
+    
+    ; 取消定时器
+    if (HistoryImagePreviewTimer != 0) {
+        try {
+            SetTimer(HistoryImagePreviewTimer, 0)
+        } catch {
+        }
+        HistoryImagePreviewTimer := 0
+    }
+    
+    ; 隐藏预览窗口
+    if (HistoryImagePreviewGUI != 0) {
+        try {
+            HistoryImagePreviewGUI.Hide()
+            HistoryImagePreviewIsVisible := false
+        } catch {
+        }
+    }
+}
+
 ; ===================== 初始化 =====================
 InitClipboardHistoryPanel() {
     ; 确保数据库已初始化
     if (!ClipboardFTS5DB || ClipboardFTS5DB = 0) {
         InitClipboardFTS5DB()
+    }
+    
+    ; 确保事件已绑定（如果GUI已创建）
+    if (HistoryListView && GuiID_ClipboardHistory != 0) {
+        ; 重新绑定事件（防止事件丢失）
+        try {
+            HistoryListView.OnEvent("ItemSelect", OnHistoryItemSelect)
+            HistoryListView.OnEvent("DoubleClick", OnHistoryItemDoubleClick)
+            HistoryListView.OnEvent("Click", OnHistoryItemClick)
+        } catch {
+            ; 如果绑定失败，忽略错误（可能GUI还未完全创建）
+        }
     }
 }
