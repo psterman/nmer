@@ -30,6 +30,7 @@ global HistoryImagePreviewGUI := 0  ; 图片预览窗口
 global HistoryImagePreviewIsVisible := false  ; 图片预览窗口是否可见
 global HistoryImagePreviewTimer := 0  ; 图片预览防抖定时器
 global HistoryImagePreviewCurrentPath := ""  ; 当前预览的图片路径
+global HistoryGdiplusToken := 0  ; GDI+ Token（用于初始化 GDI+）
 
 ; 暗黑模式配色（Cursor色系）
 HistoryColors := {
@@ -223,18 +224,21 @@ CreateHistoryPanelGUI() {
     ListViewWidth := 880
     ListViewHeight := 500  ; 调整高度
     
-    HistoryListView := GuiID_ClipboardHistory.Add("ListView", 
-        "x" . ListViewX . " y" . ListViewY . 
-        " w" . ListViewWidth . " h" . ListViewHeight . 
-        " Background" . HistoryColors.ListBg . 
-        " c" . HistoryColors.Text . 
-        " +ReadOnly -Multi" . 
-        " vHistoryListView", 
+    HistoryListView := GuiID_ClipboardHistory.Add("ListView",
+        "x" . ListViewX . " y" . ListViewY .
+        " w" . ListViewWidth . " h" . ListViewHeight .
+        " Background" . HistoryColors.ListBg .
+        " c" . HistoryColors.Text .
+        " +ReadOnly -Multi +Report" .
+        " vHistoryListView",
         ["序号", "内容预览", "来源应用", "文件位置", "类型", "最后复制", "复制次数", "字符数"])
     
     HistoryListView.SetFont("s9", "Consolas")
     
-    ; 设置列宽
+    ; 设置系统 ImageList 到 ListView（挂载系统图标库）
+    SetSystemImageList(HistoryListView)
+    
+    ; 设置列宽（注意：图标列通过 IconSmall 选项自动添加在第一列前，不占用列索引）
     HistoryListView.ModifyCol(1, 50)   ; 序号
     HistoryListView.ModifyCol(2, 300)  ; 内容预览
     HistoryListView.ModifyCol(3, 100)  ; 来源应用
@@ -257,6 +261,87 @@ CreateHistoryPanelGUI() {
     StatusBarText.SetFont("s8", "Segoe UI")
 }
 
+; ===================== 设置系统 ImageList =====================
+SetSystemImageList(ListViewCtrl) {
+    ; 挂载系统图标池（标准写法：使用 SHGetFileInfoW 获取系统图标列表句柄）
+    ; SHFILEINFO 结构大小：64位系统为692字节，32位系统为352字节
+    sfi := Buffer(A_PtrSize == 8 ? 692 : 352)
+    ; SHGFI_SYSICONINDEX(0x4000) | SHGFI_SMALLICON(0x1) = 0x4001
+    hSysImageList := DllCall("shell32\SHGetFileInfoW", 
+        "Str", "C:\",           ; 使用根目录作为参考路径
+        "UInt", 0,              ; dwFileAttributes
+        "Ptr", sfi.Ptr,         ; psfi (SHFILEINFO 结构)
+        "UInt", sfi.Size,       ; cbSizeFileInfo
+        "UInt", 0x4001,         ; uFlags (SHGFI_SYSICONINDEX | SHGFI_SMALLICON)
+        "Ptr")
+    
+    if (hSysImageList != 0) {
+        ; LVM_SETIMAGELIST = 0x1003
+        ; LVSIL_SMALL = 1 (小图标列表)
+        SendMessage(0x1003, 1, hSysImageList, ListViewCtrl.Hwnd)
+    }
+}
+
+; ===================== 获取文件图标索引 =====================
+GetFileIconIndex(filePathOrExt) {
+    ; SHGFI_SYSICONINDEX = 0x4000
+    ; SHGFI_SMALLICON = 0x1
+    ; SHGFI_USEFILEATTRIBUTES = 0x10 (如果路径不存在，使用文件属性)
+    
+    SHGFI_SYSICONINDEX := 0x4000
+    SHGFI_SMALLICON := 0x1
+    SHGFI_USEFILEATTRIBUTES := 0x10
+    
+    ; 创建 SHFILEINFO 结构（在 64 位系统上大小为 696 字节）
+    SHFILEINFO := Buffer(696)
+    
+    ; 判断是文件路径还是扩展名
+    path := filePathOrExt
+    flags := SHGFI_SYSICONINDEX | SHGFI_SMALLICON
+    
+    ; 检查是否是文件路径
+    isFilePath := (InStr(filePathOrExt, "\") || InStr(filePathOrExt, "/"))
+    
+    if (!isFilePath) {
+        ; 不是路径，可能是扩展名，添加点号前缀
+        if (!InStr(filePathOrExt, ".")) {
+            path := "." . filePathOrExt
+        } else {
+            path := filePathOrExt
+        }
+        ; 使用 USEFILEATTRIBUTES 标志，这样即使文件不存在也能获取图标
+        flags |= SHGFI_USEFILEATTRIBUTES
+    } else {
+        ; 是文件路径，检查文件是否存在
+        if (!FileExist(filePathOrExt)) {
+            ; 文件不存在，使用 USEFILEATTRIBUTES 标志
+            flags |= SHGFI_USEFILEATTRIBUTES
+        }
+    }
+    
+    ; 调用 SHGetFileInfoW
+    result := DllCall("shell32\SHGetFileInfoW", 
+        "Str", path,                 ; pszPath
+        "UInt", 0,                   ; dwFileAttributes
+        "Ptr", SHFILEINFO.Ptr,       ; psfi
+        "UInt", SHFILEINFO.Size,     ; cbSizeFileInfo
+        "UInt", flags,               ; uFlags
+        "Ptr")
+    
+    if (result != 0) {
+        ; 读取图标索引（在 SHFILEINFO 结构的偏移 0 处，iIcon 字段是 Int 类型）
+        iconIndex := NumGet(SHFILEINFO, 0, "Int")
+        ; 确保返回非负值
+        if (iconIndex < 0) {
+            iconIndex := 0
+        }
+        return iconIndex
+    }
+    
+    ; 如果失败，返回默认图标索引（0 = 未知文件图标）
+    return 0
+}
+
 ; ===================== 加载数据 =====================
 RefreshHistoryData(keyword := "") {
     global HistoryListView, HistoryDisplayCache, ClipboardFTS5DB, HistorySelectedTag
@@ -271,7 +356,7 @@ RefreshHistoryData(keyword := "") {
             ; 如果 ListView 已存在，显示错误信息
             if (HistoryListView) {
                 HistoryListView.Delete()
-                HistoryListView.Add(, "数据库未连接", "请检查数据库初始化", "", "", "", "", "")
+                HistoryListView.Add(, "数据库未连接", "请检查数据库初始化", "-", "-", "-", "-", "-", "-")
             }
             return
         }
@@ -616,6 +701,9 @@ RefreshHistoryData(keyword := "") {
     ; 更新缓存
     HistoryDisplayCache := results
     
+    ; 调试输出：检查数据数量
+    ; OutputDebug("ClipboardHistoryPanel: 准备添加 " . results.Length . " 条数据到 ListView`n")
+    
     ; 更新 ListView
     if (HistoryListView) {
         ; 暂停重绘以提高性能
@@ -626,10 +714,14 @@ RefreshHistoryData(keyword := "") {
         
         ; 添加数据
         for index, rowData in results {
+            ; 调试输出：检查每条数据
+            ; if (index <= 3) {
+            ;     OutputDebug("ClipboardHistoryPanel: 数据 " . index . " - Content=" . (rowData.Has("Content") ? SubStr(rowData["Content"], 1, 50) : "无") . ", SourceApp=" . (rowData.Has("SourceApp") ? rowData["SourceApp"] : "无") . "`n")
+            ; }
             ; 获取内容预览（最多80字符）
             ; 对于图片类型，Content 字段存储的是图片路径，显示文件名
             dataType := rowData.Has("DataType") ? rowData["DataType"] : "Text"
-            preview := rowData["Content"]
+            preview := rowData.Has("Content") ? rowData["Content"] : ""
             
             ; 如果是图片类型，显示图片文件名而不是完整路径
             if (dataType = "Image") {
@@ -646,13 +738,17 @@ RefreshHistoryData(keyword := "") {
                 }
             } else {
                 ; 文本类型，正常处理
-                if (StrLen(preview) > 80) {
-                    preview := SubStr(preview, 1, 80) . "..."
+                if (preview = "") {
+                    preview := "(空内容)"
+                } else {
+                    if (StrLen(preview) > 80) {
+                        preview := SubStr(preview, 1, 80) . "..."
+                    }
+                    ; 替换换行符为空格
+                    preview := StrReplace(preview, "`r`n", " ")
+                    preview := StrReplace(preview, "`n", " ")
+                    preview := StrReplace(preview, "`r", " ")
                 }
-                ; 替换换行符为空格
-                preview := StrReplace(preview, "`r`n", " ")
-                preview := StrReplace(preview, "`n", " ")
-                preview := StrReplace(preview, "`r", " ")
             }
             
             ; 格式化时间
@@ -767,16 +863,90 @@ RefreshHistoryData(keyword := "") {
                 charCount := StrLen(rowData["Content"])
             }
             
-            ; 添加行到 ListView（第一个参数为空字符串表示无选项）
-            rowIndex := HistoryListView.Add("",
-                String(index),            ; 序号
-                String(preview),          ; 内容预览
-                String(sourceApp),        ; 来源应用
-                String(fileLocation),     ; 文件位置
-                String(dataType),         ; 类型
-                String(timeText),         ; 最后复制时间
-                String(copyCount),        ; 复制次数
-                String(charCount))        ; 字符数
+            ; 确定图标索引
+            iconIndex := 0
+            if (dataType = "Image") {
+                ; 图片类型，使用 .png 图标
+                iconIndex := GetFileIconIndex("png")
+            } else if (dataType = "Link") {
+                ; 链接类型，使用 .url 图标
+                iconIndex := GetFileIconIndex("url")
+            } else if (dataType = "Code") {
+                ; 代码类型，使用 .txt 图标（或根据文件扩展名）
+                iconIndex := GetFileIconIndex("txt")
+            } else {
+                ; 文本类型或其他，检查是否是文件路径
+                content := rowData.Has("Content") ? rowData["Content"] : ""
+                if (content != "") {
+                    ; 处理路径中的转义字符
+                    content := StrReplace(content, "\\\\", "\")
+                    content := StrReplace(content, "\\", "\")
+                    
+                    ; 检查是否是文件路径
+                    if ((InStr(content, "\") || InStr(content, "/")) && FileExist(content)) {
+                        ; 是文件路径，获取文件图标
+                        iconIndex := GetFileIconIndex(content)
+                    } else {
+                        ; 检查是否有文件扩展名
+                        SplitPath(content, , , &ext)
+                        if (ext != "") {
+                            iconIndex := GetFileIconIndex(ext)
+                        } else {
+                            ; 默认文本图标
+                            iconIndex := GetFileIconIndex("txt")
+                        }
+                    }
+                } else {
+                    ; 默认文本图标
+                    iconIndex := GetFileIconIndex("txt")
+                }
+            }
+            
+            ; 确保所有字段都有有效值（不能为空字符串，至少要有占位符）
+            if (preview = "") {
+                preview := "(空内容)"
+            }
+            if (sourceApp = "") {
+                sourceApp := "Unknown"
+            }
+            if (fileLocation = "") {
+                fileLocation := "-"
+            }
+            if (dataType = "") {
+                dataType := "Text"
+            }
+            if (timeText = "") {
+                timeText := "-"
+            }
+            if (copyCount = "") {
+                copyCount := "0"
+            }
+            if (charCount = "") {
+                charCount := "0"
+            }
+            
+            ; 添加行到 ListView（标准写法：防止数据覆盖）
+            ; 关键！参数对应：
+            ; 参数1 ("Icon" . N): 行属性，指定图标索引（系统图标索引从0开始，AHK需要从1开始）
+            ;   注意：使用 +IconSmall 时，图标会显示在第一列前，不作为单独列
+            ; 参数2 (index): 第1列 [序号]
+            ; 参数3 (preview): 第2列 [内容预览]
+            ; 参数4 (sourceApp): 第3列 [来源应用]
+            ; 参数5 (fileLocation): 第4列 [文件位置]
+            ; 参数6 (dataType): 第5列 [类型]
+            ; 参数7 (timeText): 第6列 [最后复制时间]
+            ; 参数8 (copyCount): 第7列 [复制次数]
+            ; 参数9 (charCount): 第8列 [字符数]
+            iconOption := iconIndex >= 0 ? "Icon" . (iconIndex + 1) : ""
+            rowIndex := HistoryListView.Add(iconOption,
+                String(index),            ; 第1列：序号
+                String(preview),          ; 第2列：内容预览
+                String(sourceApp),        ; 第3列：来源应用
+                String(fileLocation),     ; 第4列：文件位置
+                String(dataType),         ; 第5列：类型
+                String(timeText),         ; 第6列：最后复制时间
+                String(copyCount),        ; 第7列：复制次数
+                String(charCount))        ; 第8列：字符数
         }
         
         ; 恢复重绘
@@ -916,12 +1086,17 @@ ProcessImagePreview() {
         imagePath := GetImagePathFromRowData(rowData)
         
         ; 调试输出（用于排查问题）
+        ; 只在真正需要调试时输出，避免对非图片类型的正常情况输出警告
         if (imagePath != "") {
             OutputDebug("ClipboardHistoryPanel: 找到图片路径 - " . imagePath . ", FileExist=" . (FileExist(imagePath) ? "true" : "false") . "`n")
         } else {
-            content := rowData.Has("Content") ? rowData["Content"] : ""
+            ; 只在 DataType 为 Image 但找不到路径时输出警告
             dataType := rowData.Has("DataType") ? rowData["DataType"] : ""
-            OutputDebug("ClipboardHistoryPanel: 未找到图片路径，Content=" . content . ", DataType=" . dataType . "`n")
+            if (dataType = "Image") {
+                content := rowData.Has("Content") ? rowData["Content"] : ""
+                OutputDebug("ClipboardHistoryPanel: 图片类型但未找到图片路径，Content=" . content . ", DataType=" . dataType . "`n")
+            }
+            ; 对于非图片类型（如 Text），不输出调试信息，这是正常情况
         }
         
         ; 如果是图片且有有效路径，立即显示预览
@@ -988,6 +1163,29 @@ ProcessImagePreview() {
     }
 }
 
+; ===================== 解析图片路径（处理文件路径和数据库 BLOB）=====================
+ResolveImagePath(imagePath) {
+    ; 如果路径为空，返回空
+    if (imagePath = "" || !imagePath) {
+        return ""
+    }
+    
+    ; 清理路径中的转义字符
+    path := StrReplace(imagePath, "\\\\", "\")
+    path := StrReplace(path, "\\", "\")
+    
+    ; 检查是否是有效的文件路径
+    if (FileExist(path)) {
+        return path
+    }
+    
+    ; 如果不是文件路径，检查是否是数据库中的 BLOB 引用
+    ; 这里可以根据实际需求扩展，比如从数据库读取 BLOB 并写入临时文件
+    ; 目前先返回原路径，让调用者处理
+    
+    return path
+}
+
 ; ===================== 从行数据获取图片路径（改进的判定逻辑）=====================
 GetImagePathFromRowData(rowData) {
     path := ""
@@ -998,7 +1196,16 @@ GetImagePathFromRowData(rowData) {
     }
     ; 2. 如果 ImagePath 为空，检查 Content 字段
     else if (rowData.Has("Content") && rowData["Content"] != "") {
-        path := rowData["Content"]
+        content := rowData["Content"]
+        
+        ; 排除明显不是文件路径的值（如 API 函数名、图标索引等）
+        ; 检查是否包含路径分隔符，或者是否以图片扩展名结尾
+        if (InStr(content, "\") || InStr(content, "/") || RegExMatch(content, "i)\.(png|jpg|jpeg|gif|bmp|webp|ico|tiff|svg)$")) {
+            path := content
+        } else {
+            ; Content 不是文件路径，跳过
+            return ""
+        }
     }
     
     if (path != "") {
@@ -1022,7 +1229,7 @@ GetImagePathFromRowData(rowData) {
 
 ; ===================== 立即显示图片预览 =====================
 ShowImagePreviewImmediately(imagePath) {
-    global GuiID_ClipboardHistory, HistoryImagePreviewGUI, HistoryColors
+    global GuiID_ClipboardHistory, HistoryImagePreviewGUI, HistoryColors, HistoryGdiplusToken
     
     OutputDebug("ClipboardHistoryPanel: ShowImagePreviewImmediately 被调用，imagePath=" . imagePath . "`n")
     
@@ -1031,25 +1238,56 @@ ShowImagePreviewImmediately(imagePath) {
         return
     }
     
-    if (!FileExist(imagePath)) {
-        OutputDebug("ClipboardHistoryPanel: 图片文件不存在 - " . imagePath . "`n")
+    ; 确保 GDI+ 已初始化
+    if (HistoryGdiplusToken = 0) {
+        InitGdiplus()
+        if (HistoryGdiplusToken = 0) {
+            OutputDebug("ClipboardHistoryPanel: GDI+ 初始化失败，无法显示图片预览`n")
+            return
+        }
+    }
+    
+    ; 检查图片路径是否有效（可能是文件路径或需要从数据库读取的 BLOB）
+    actualImagePath := ResolveImagePath(imagePath)
+    if (actualImagePath = "") {
+        OutputDebug("ClipboardHistoryPanel: 无法解析图片路径 - " . imagePath . "`n")
+        return
+    }
+    
+    if (!FileExist(actualImagePath)) {
+        OutputDebug("ClipboardHistoryPanel: 图片文件不存在 - " . actualImagePath . "`n")
         return
     }
     
     try {
-        OutputDebug("ClipboardHistoryPanel: 开始加载图片 - " . imagePath . "`n")
+        OutputDebug("ClipboardHistoryPanel: 开始加载图片 - " . actualImagePath . "`n")
         
-        ; 1. 获取图片尺寸
-        pBitmap := ImagePut("Bitmap", imagePath)
-        if (!pBitmap || pBitmap = "") {
-            OutputDebug("ClipboardHistoryPanel: ImagePut 失败，无法加载图片`n")
-            return
+        ; 1. 获取图片尺寸（使用 GDI+）
+        pBitmap := Gdip_CreateBitmapFromFile(actualImagePath)
+        if (!pBitmap || pBitmap = 0) {
+            OutputDebug("ClipboardHistoryPanel: Gdip_CreateBitmapFromFile 失败，尝试使用 ImagePut`n")
+            ; 回退到 ImagePut
+            pBitmap := ImagePut("Bitmap", actualImagePath)
+            if (!pBitmap || pBitmap = "") {
+                OutputDebug("ClipboardHistoryPanel: ImagePut 也失败，无法加载图片`n")
+                return
+            }
         }
         
-        dims := ImageDimensions(pBitmap)
-        imgWidth := dims[1]
-        imgHeight := dims[2]
-        ImageDestroy(pBitmap)
+        ; 获取图片尺寸
+        imgWidth := 0
+        imgHeight := 0
+        if (IsInteger(pBitmap) && pBitmap != 0) {
+            ; GDI+ Bitmap，使用 Gdip_GetImageDimensions
+            Gdip_GetImageDimensions(pBitmap, &imgWidth, &imgHeight)
+            Gdip_DisposeImage(pBitmap)
+        } else if (pBitmap && pBitmap != "") {
+            ; ImagePut Bitmap，使用 ImageDimensions
+            dims := ImageDimensions(pBitmap)
+            imgWidth := dims[1]
+            imgHeight := dims[2]
+            ImageDestroy(pBitmap)
+        }
         
         if (imgWidth <= 0 || imgHeight <= 0) {
             OutputDebug("ClipboardHistoryPanel: 图片尺寸无效 - width=" . imgWidth . ", height=" . imgHeight . "`n")
@@ -1107,11 +1345,11 @@ ShowImagePreviewImmediately(imagePath) {
         HistoryImagePreviewGUI := Gui("+AlwaysOnTop -Caption +ToolWindow +Border", "")
         HistoryImagePreviewGUI.BackColor := HistoryColors.Background
         
-        ; 添加图片控件
-        picCtrl := HistoryImagePreviewGUI.Add("Picture", "x0 y0 w" . previewWidth . " h" . previewHeight . " vPreviewPic", imagePath)
+        ; 添加图片控件（使用实际解析后的路径）
+        picCtrl := HistoryImagePreviewGUI.Add("Picture", "x0 y0 w" . previewWidth . " h" . previewHeight . " vPreviewPic", actualImagePath)
         
         ; 存储图片路径到全局变量（用于比较和右键菜单）
-        HistoryImagePreviewCurrentPath := imagePath
+        HistoryImagePreviewCurrentPath := actualImagePath
         
         ; 为窗口添加右键菜单事件
         HistoryImagePreviewGUI.OnEvent("ContextMenu", OnImagePreviewContextMenu)
@@ -1173,28 +1411,44 @@ OnHistoryItemDoubleClick(*) {
             Sleep(100)  ; 等待剪贴板清空
             
             try {
-                ; 使用 ImagePut 读取图片文件
-                pBitmap := ImagePut("Bitmap", imagePath)
-                if (pBitmap && pBitmap != "") {
-                    ; 使用 Gdip_SetBitmapToClipboard 复制图片到剪贴板（最可靠的方法）
-                    Gdip_SetBitmapToClipboard(pBitmap)
-                    ; 清理资源
-                    ImageDestroy(pBitmap)
-                    
-                    ; 验证图片是否成功复制到剪贴板（检查剪贴板是否有图片格式）
-                    Sleep(50)
-                    if (DllCall("IsClipboardFormatAvailable", "UInt", 8)) {  ; CF_DIB = 8
-                        TrayTip("已复制", "图片已复制到剪贴板", "Iconi 1")
-                        ; 刷新数据（将刚复制的项移到最前面）
-                        RefreshHistoryData()
-                        return  ; 成功复制图片，直接返回
-                    } else {
-                        ; 图片复制失败，回退到文本复制
-                        TrayTip("警告", "图片复制失败，已复制路径文本", "Iconx 1")
+                ; 确保 GDI+ 已初始化
+                if (HistoryGdiplusToken = 0) {
+                    InitGdiplus()
+                }
+                
+                ; 解析图片路径
+                actualImagePath := ResolveImagePath(imagePath)
+                if (actualImagePath = "" || !FileExist(actualImagePath)) {
+                    throw Error("图片路径无效")
+                }
+                
+                ; 使用 GDI+ 加载图片
+                pBitmap := Gdip_CreateBitmapFromFile(actualImagePath)
+                if (!pBitmap || pBitmap = 0) {
+                    ; 回退到 ImagePut
+                    pBitmap := ImagePut("Bitmap", actualImagePath)
+                    if (!pBitmap || pBitmap = "") {
+                        throw Error("无法加载图片")
                     }
+                    ; 使用 ImagePut 时，使用 Gdip_SetBitmapToClipboard
+                    Gdip_SetBitmapToClipboard(pBitmap)
+                    ImageDestroy(pBitmap)
                 } else {
-                    ; 无法读取图片，回退到文本复制
-                    TrayTip("警告", "无法读取图片文件，已复制路径文本", "Iconx 1")
+                    ; 使用 GDI+ 时，使用 Gdip_SetBitmapToClipboard
+                    Gdip_SetBitmapToClipboard(pBitmap)
+                    Gdip_DisposeImage(pBitmap)
+                }
+                
+                ; 验证图片是否成功复制到剪贴板（检查剪贴板是否有图片格式）
+                Sleep(50)
+                if (DllCall("IsClipboardFormatAvailable", "UInt", 8)) {  ; CF_DIB = 8
+                    TrayTip("已复制", "图片已复制到剪贴板", "Iconi 1")
+                    ; 刷新数据（将刚复制的项移到最前面）
+                    RefreshHistoryData()
+                    return  ; 成功复制图片，直接返回
+                } else {
+                    ; 图片复制失败，回退到文本复制
+                    TrayTip("警告", "图片复制失败，已复制路径文本", "Iconx 1")
                 }
             } catch as err {
                 ; 图片复制异常，回退到文本复制
@@ -1467,17 +1721,36 @@ ShowHistoryImagePreviewDelayed(*) {
         return
     }
     
-    ; 2. 使用 ImagePut 解析图片尺寸
+    ; 2. 使用 GDI+ 解析图片尺寸
     try {
-        pBitmap := ImagePut("Bitmap", imagePath)
-        if (!pBitmap || pBitmap = "") {
+        ; 确保 GDI+ 已初始化
+        if (HistoryGdiplusToken = 0) {
+            InitGdiplus()
+        }
+        
+        ; 解析图片路径
+        actualImagePath := ResolveImagePath(imagePath)
+        if (actualImagePath = "" || !FileExist(actualImagePath)) {
             return
         }
         
-        dims := ImageDimensions(pBitmap)
-        imgWidth := dims[1]
-        imgHeight := dims[2]
-        ImageDestroy(pBitmap)
+        ; 使用 GDI+ 加载图片
+        pBitmap := Gdip_CreateBitmapFromFile(actualImagePath)
+        if (!pBitmap || pBitmap = 0) {
+            ; 回退到 ImagePut
+            pBitmap := ImagePut("Bitmap", actualImagePath)
+            if (!pBitmap || pBitmap = "") {
+                return
+            }
+            dims := ImageDimensions(pBitmap)
+            imgWidth := dims[1]
+            imgHeight := dims[2]
+            ImageDestroy(pBitmap)
+        } else {
+            ; 使用 GDI+ 获取尺寸
+            Gdip_GetImageDimensions(pBitmap, &imgWidth, &imgHeight)
+            Gdip_DisposeImage(pBitmap)
+        }
         
         if (imgWidth <= 0 || imgHeight <= 0) {
             return
@@ -1572,16 +1845,37 @@ ShowHistoryImagePreview(imagePath, x := 0, y := 0, width := 0, height := 0) {
         ; 如果未提供尺寸，读取图片尺寸
         if (width <= 0 || height <= 0) {
             OutputDebug("ClipboardHistoryPanel: 未提供尺寸，读取图片尺寸`n")
-            pBitmap := ImagePut("Bitmap", imagePath)
-            if (!pBitmap || pBitmap = "") {
-                OutputDebug("ClipboardHistoryPanel: 无法加载图片位图`n")
+            
+            ; 确保 GDI+ 已初始化
+            if (HistoryGdiplusToken = 0) {
+                InitGdiplus()
+            }
+            
+            ; 解析图片路径
+            actualImagePath := ResolveImagePath(imagePath)
+            if (actualImagePath = "" || !FileExist(actualImagePath)) {
+                OutputDebug("ClipboardHistoryPanel: 图片路径无效`n")
                 return
             }
             
-            dims := ImageDimensions(pBitmap)
-            imgWidth := dims[1]
-            imgHeight := dims[2]
-            ImageDestroy(pBitmap)
+            ; 使用 GDI+ 加载图片
+            pBitmap := Gdip_CreateBitmapFromFile(actualImagePath)
+            if (!pBitmap || pBitmap = 0) {
+                ; 回退到 ImagePut
+                pBitmap := ImagePut("Bitmap", actualImagePath)
+                if (!pBitmap || pBitmap = "") {
+                    OutputDebug("ClipboardHistoryPanel: 无法加载图片位图`n")
+                    return
+                }
+                dims := ImageDimensions(pBitmap)
+                imgWidth := dims[1]
+                imgHeight := dims[2]
+                ImageDestroy(pBitmap)
+            } else {
+                ; 使用 GDI+ 获取尺寸
+                Gdip_GetImageDimensions(pBitmap, &imgWidth, &imgHeight)
+                Gdip_DisposeImage(pBitmap)
+            }
             
             OutputDebug("ClipboardHistoryPanel: 图片尺寸 - width=" . imgWidth . ", height=" . imgHeight . "`n")
             
@@ -1791,23 +2085,42 @@ OnImagePreviewCopy(*) {
         A_Clipboard := ""
         Sleep(100)
         
-        ; 使用 ImagePut 读取图片文件
-        pBitmap := ImagePut("Bitmap", imagePath)
-        if (pBitmap && pBitmap != "") {
-            ; 使用 Gdip_SetBitmapToClipboard 复制图片到剪贴板
-            Gdip_SetBitmapToClipboard(pBitmap)
-            ; 清理资源
-            ImageDestroy(pBitmap)
-            
-            ; 验证图片是否成功复制到剪贴板
-            Sleep(50)
-            if (DllCall("IsClipboardFormatAvailable", "UInt", 8)) {  ; CF_DIB = 8
-                TrayTip("成功", "图片已复制到剪贴板", "Iconi 1")
-            } else {
-                TrayTip("警告", "图片复制失败", "Iconx 1")
+        ; 确保 GDI+ 已初始化
+        if (HistoryGdiplusToken = 0) {
+            InitGdiplus()
+        }
+        
+        ; 解析图片路径
+        actualImagePath := ResolveImagePath(imagePath)
+        if (actualImagePath = "" || !FileExist(actualImagePath)) {
+            TrayTip("错误", "图片路径无效", "Iconx 1")
+            return
+        }
+        
+        ; 使用 GDI+ 加载图片
+        pBitmap := Gdip_CreateBitmapFromFile(actualImagePath)
+        if (!pBitmap || pBitmap = 0) {
+            ; 回退到 ImagePut
+            pBitmap := ImagePut("Bitmap", actualImagePath)
+            if (!pBitmap || pBitmap = "") {
+                TrayTip("错误", "无法读取图片文件", "Iconx 1")
+                return
             }
+            ; 使用 ImagePut 时，使用 Gdip_SetBitmapToClipboard
+            Gdip_SetBitmapToClipboard(pBitmap)
+            ImageDestroy(pBitmap)
         } else {
-            TrayTip("错误", "无法读取图片文件", "Iconx 1")
+            ; 使用 GDI+ 时，使用 Gdip_SetBitmapToClipboard
+            Gdip_SetBitmapToClipboard(pBitmap)
+            Gdip_DisposeImage(pBitmap)
+        }
+        
+        ; 验证图片是否成功复制到剪贴板
+        Sleep(50)
+        if (DllCall("IsClipboardFormatAvailable", "UInt", 8)) {  ; CF_DIB = 8
+            TrayTip("成功", "图片已复制到剪贴板", "Iconi 1")
+        } else {
+            TrayTip("警告", "图片复制失败", "Iconx 1")
         }
     } catch as err {
         TrayTip("错误", "复制失败: " . err.Message, "Iconx 1")
@@ -1875,12 +2188,56 @@ HideHistoryImagePreview(*) {
     }
 }
 
+; ===================== GDI+ 初始化 =====================
+InitGdiplus() {
+    global HistoryGdiplusToken
+    
+    ; 如果已经初始化，直接返回
+    if (HistoryGdiplusToken != 0) {
+        return HistoryGdiplusToken
+    }
+    
+    try {
+        ; 调用 Gdip_Startup 初始化 GDI+
+        HistoryGdiplusToken := Gdip_Startup()
+        if (!HistoryGdiplusToken || HistoryGdiplusToken = 0) {
+            OutputDebug("ClipboardHistoryPanel: GDI+ 初始化失败`n")
+            HistoryGdiplusToken := 0
+            return 0
+        }
+        OutputDebug("ClipboardHistoryPanel: GDI+ 初始化成功，Token=" . HistoryGdiplusToken . "`n")
+        return HistoryGdiplusToken
+    } catch as err {
+        OutputDebug("ClipboardHistoryPanel: GDI+ 初始化异常 - " . err.Message . "`n")
+        HistoryGdiplusToken := 0
+        return 0
+    }
+}
+
+; ===================== GDI+ 清理 =====================
+ShutdownGdiplus() {
+    global HistoryGdiplusToken
+    
+    if (HistoryGdiplusToken != 0) {
+        try {
+            Gdip_Shutdown(HistoryGdiplusToken)
+            HistoryGdiplusToken := 0
+            OutputDebug("ClipboardHistoryPanel: GDI+ 已关闭`n")
+        } catch as err {
+            OutputDebug("ClipboardHistoryPanel: GDI+ 关闭异常 - " . err.Message . "`n")
+        }
+    }
+}
+
 ; ===================== 初始化 =====================
 InitClipboardHistoryPanel() {
     ; 确保数据库已初始化
     if (!ClipboardFTS5DB || ClipboardFTS5DB = 0) {
         InitClipboardFTS5DB()
     }
+    
+    ; 初始化 GDI+（在使用图片功能前）
+    InitGdiplus()
     
     ; 确保事件已绑定（如果GUI已创建）
     if (HistoryListView && GuiID_ClipboardHistory != 0) {

@@ -254,6 +254,7 @@ InitClipboardFTS5DB() {
 
 ; ===================== 获取应用信息 =====================
 ; 获取当前活动窗口的应用路径和图标路径
+; 增强版：使用 Windows Shell API 和 Everything64.dll 查找图标路径
 GetApplicationInfo() {
     info := Map()
     info["SourceApp"] := "Unknown"
@@ -269,33 +270,115 @@ GetApplicationInfo() {
         info["SourceApp"] := SourceApp
         
         ; 获取进程路径
+        SourcePath := ""
         try {
             SourcePath := WinGetProcessPath(ActiveID)
             info["SourcePath"] := SourcePath
-            
-            ; 图标路径就是可执行文件路径（exe/dll文件本身包含图标）
-            if (FileExist(SourcePath)) {
-                info["IconPath"] := SourcePath
-            }
         } catch {
-            ; 如果无法获取路径，尝试从进程名推断
-            if (SourceApp != "Unknown") {
-                ; 尝试在常见路径查找
+            ; 如果无法获取路径，尝试多种方法查找
+            if (SourceApp != "Unknown" && SourceApp != "") {
+                ; 方法1: 尝试在常见路径查找
                 commonPaths := [
                     A_ProgramFiles . "\" . SourceApp,
                     A_ProgramFiles . "\Windows\System32\" . SourceApp,
-                    A_ProgramFiles . "\Windows\" . SourceApp
+                    A_ProgramFiles . "\Windows\" . SourceApp,
+                    A_ProgramFiles . " (x86)\" . SourceApp,
+                    A_AppData . "\..\Local\" . SourceApp,
+                    A_AppData . "\..\Roaming\" . SourceApp
                 ]
                 
                 for index, path in commonPaths {
                     if (FileExist(path)) {
+                        SourcePath := path
                         info["SourcePath"] := path
-                        info["IconPath"] := path
                         break
+                    }
+                }
+                
+                ; 方法2: 如果仍未找到，尝试使用 Everything64.dll 搜索
+                if (SourcePath = "" || !FileExist(SourcePath)) {
+                    ; 尝试调用 GetEverythingResults 函数（如果存在）
+                    ; 使用 try-catch 来安全地检查函数是否存在
+                    try {
+                        ; 搜索进程名对应的 exe 文件
+                        searchPattern := SourceApp
+                        ; 如果进程名不包含扩展名，添加 .exe
+                        if (!InStr(SourceApp, ".")) {
+                            searchPattern := SourceApp . ".exe"
+                        }
+                        
+                        ; 使用 Everything 搜索文件（精确匹配文件名）
+                        ; 如果 GetEverythingResults 函数不存在，这里会抛出异常
+                        everythingResults := GetEverythingResults(searchPattern, 10)
+                        
+                        ; 遍历搜索结果，找到匹配的文件
+                        if (IsObject(everythingResults) && everythingResults.Length > 0) {
+                            for index, resultPath in everythingResults {
+                                SplitPath(resultPath, &FileName)
+                                ; 检查文件名是否匹配进程名（不区分大小写）
+                                if (StrLower(FileName) = StrLower(SourceApp) || StrLower(FileName) = StrLower(searchPattern)) {
+                                    if (FileExist(resultPath)) {
+                                        SourcePath := resultPath
+                                        info["SourcePath"] := resultPath
+                                        break
+                                    }
+                                }
+                            }
+                            
+                            ; 如果精确匹配失败，尝试模糊匹配（文件名包含进程名）
+                            if (SourcePath = "" || !FileExist(SourcePath)) {
+                                for index, resultPath in everythingResults {
+                                    SplitPath(resultPath, &FileName, , &Ext)
+                                    ; 检查是否是 exe 文件且文件名包含进程名
+                                    if (StrLower(Ext) = "exe" && InStr(StrLower(FileName), StrLower(SourceApp))) {
+                                        if (FileExist(resultPath)) {
+                                            SourcePath := resultPath
+                                            info["SourcePath"] := resultPath
+                                            break
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch as e {
+                        ; GetEverythingResults 函数不存在或 Everything 搜索失败，继续使用其他方法
+                        ; 不输出错误，静默失败
                     }
                 }
             }
         }
+        
+        ; 确定图标路径
+        IconPath := ""
+        
+        ; 方法1: 如果文件存在，直接使用文件路径（exe/dll 文件本身包含图标）
+        if (SourcePath != "" && FileExist(SourcePath)) {
+            IconPath := SourcePath
+        }
+        ; 方法2: 如果文件不存在但进程名已知，使用 Windows Shell API 通过扩展名获取系统图标
+        ; 注意：虽然 Shell API 不能直接返回文件路径，但可以通过扩展名获取图标索引
+        ; UI 层可以通过 GetFileIconIndex 函数使用扩展名获取图标索引
+        else if (SourceApp != "Unknown" && SourceApp != "") {
+            ; 提取文件扩展名
+            SplitPath(SourceApp, , , &Ext)
+            if (Ext = "") {
+                Ext := "exe"  ; 默认使用 exe 扩展名
+            }
+            
+            ; 使用 Windows Shell API 验证扩展名是否有效
+            ; UI 层可以通过 GetFileIconIndex("." . Ext) 获取图标索引
+            ; 这里不设置 IconPath，因为 Shell API 不返回文件路径
+        }
+        
+        ; 设置图标路径（只有找到实际文件时才设置）
+        if (IconPath != "") {
+            info["IconPath"] := IconPath
+        } else if (SourcePath != "" && FileExist(SourcePath)) {
+            ; 如果 SourcePath 存在但 IconPath 未设置，使用 SourcePath
+            info["IconPath"] := SourcePath
+        }
+        ; 如果都找不到，IconPath 保持为空字符串，UI 层会使用默认图标或通过扩展名获取
+        
     } catch {
         ; 使用默认值
     }
