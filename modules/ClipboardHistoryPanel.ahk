@@ -19,6 +19,7 @@
 global GuiID_ClipboardHistory := 0
 global HistoryListView := 0
 global HistorySearchEdit := 0
+global HistoryStatusBarText := 0  ; 状态栏文本控件
 global HistoryIsVisible := false
 global HistoryDisplayCache := []
 global HistoryTagButtons := Map()  ; 存储标签按钮对象
@@ -32,6 +33,8 @@ global HistoryImagePreviewTimer := 0  ; 图片预览防抖定时器
 global HistoryImagePreviewCurrentPath := ""  ; 当前预览的图片路径
 global HistoryGdiplusToken := 0  ; GDI+ Token（用于初始化 GDI+）
 global StackClipboardItems := []  ; 叠加复制的内容列表（存储数据库ID）
+global HistoryImageList := 0  ; 自定义 ImageList（用于显示精准软件图标）
+global HistoryIconCache := Map()  ; 图标缓存（避免重复提取）
 
 ; 暗黑模式配色（Cursor色系）
 HistoryColors := {
@@ -77,8 +80,8 @@ ShowClipboardHistoryPanel() {
     ; 加载数据（确保在显示前加载）
     RefreshHistoryData()
     
-    ; 显示 GUI（增加宽度以容纳新增的列）
-    GuiID_ClipboardHistory.Show("w1000 h600")
+    ; 显示 GUI（增加宽度以容纳所有列和图标）
+    GuiID_ClipboardHistory.Show("w1200 h700")
     HistoryIsVisible := true
     
     ; 自动聚焦搜索框
@@ -101,6 +104,9 @@ HideClipboardHistoryPanel() {
         GuiID_ClipboardHistory.Hide()
         HistoryIsVisible := false
     }
+    
+    ; 注意：不在这里销毁 ImageList，因为窗口可能再次显示
+    ; ImageList 会在程序退出时自动清理
 }
 
 ToggleClipboardHistoryPanel() {
@@ -115,7 +121,7 @@ ToggleClipboardHistoryPanel() {
 
 ; ===================== 创建 GUI =====================
 CreateHistoryPanelGUI() {
-    global GuiID_ClipboardHistory, HistoryListView, HistorySearchEdit
+    global GuiID_ClipboardHistory, HistoryListView, HistorySearchEdit, HistoryStatusBarText
     global HistoryColors, HistoryTagButtons, HistorySelectedTag
     
     ; 如果已存在，先销毁
@@ -137,7 +143,7 @@ CreateHistoryPanelGUI() {
     ; ========== 顶部搜索框 ==========
     SearchBoxX := 10
     SearchBoxY := 10
-    SearchBoxWidth := 980
+    SearchBoxWidth := 1180  ; 增加宽度以匹配窗口
     SearchBoxHeight := 30
     
     HistorySearchEdit := GuiID_ClipboardHistory.Add("Edit", 
@@ -222,8 +228,8 @@ CreateHistoryPanelGUI() {
     ; ========== ListView ==========
     ListViewX := 10
     ListViewY := 90  ; 调整Y位置，为标签区域留出空间
-    ListViewWidth := 980
-    ListViewHeight := 500  ; 调整高度
+    ListViewWidth := 1180  ; 增加宽度以匹配窗口
+    ListViewHeight := 600  ; 调整高度
     
     HistoryListView := GuiID_ClipboardHistory.Add("ListView",
         "x" . ListViewX . " y" . ListViewY .
@@ -236,20 +242,21 @@ CreateHistoryPanelGUI() {
     
     HistoryListView.SetFont("s9", "Consolas")
     
-    ; 设置系统 ImageList 到 ListView（挂载系统图标库）
-    SetSystemImageList(HistoryListView)
+    ; 创建自定义 ImageList 用于显示精准软件图标（参考剪贴板管理的实现）
+    CreateHistoryImageList(HistoryListView)
     
-    ; 设置列宽（注意：图标列通过 IconSmall 选项自动添加在第一列前，不占用列索引）
-    HistoryListView.ModifyCol(1, 45)   ; 序号
-    HistoryListView.ModifyCol(2, 200)  ; 内容预览
-    HistoryListView.ModifyCol(3, 90)   ; 来源应用
-    HistoryListView.ModifyCol(4, 150)  ; 文件位置
-    HistoryListView.ModifyCol(5, 55)   ; 类型
-    HistoryListView.ModifyCol(6, 60)   ; 文件后缀
-    HistoryListView.ModifyCol(7, 70)   ; 文件大小
-    HistoryListView.ModifyCol(8, 110)  ; 最后复制时间
-    HistoryListView.ModifyCol(9, 60)   ; 复制次数
-    HistoryListView.ModifyCol(10, 60)  ; 字符数
+    ; 设置列宽（注意：图标列通过 ImageList 和 IconN 选项显示在第一列前，不占用列索引）
+    ; 图标会自动显示在第一列（序号列）的左侧，宽度约为24像素
+    HistoryListView.ModifyCol(1, 50)   ; 序号（包含图标空间）
+    HistoryListView.ModifyCol(2, 250)  ; 内容预览（增加宽度以显示更多内容）
+    HistoryListView.ModifyCol(3, 100)   ; 来源应用
+    HistoryListView.ModifyCol(4, 180)  ; 文件位置（增加宽度）
+    HistoryListView.ModifyCol(5, 60)   ; 类型
+    HistoryListView.ModifyCol(6, 70)   ; 文件后缀
+    HistoryListView.ModifyCol(7, 80)   ; 文件大小
+    HistoryListView.ModifyCol(8, 130)  ; 最后复制时间（增加宽度）
+    HistoryListView.ModifyCol(9, 70)   ; 复制次数
+    HistoryListView.ModifyCol(10, 70)  ; 字符数
     
     ; ListView 事件
     HistoryListView.OnEvent("ItemSelect", OnHistoryItemSelect)
@@ -258,30 +265,39 @@ CreateHistoryPanelGUI() {
     HistoryListView.OnEvent("Click", OnHistoryItemClick)  ; 添加点击事件，确保能触发预览
     
     ; ========== 底部状态栏 ==========
-    StatusBarText := GuiID_ClipboardHistory.Add("Text", 
-        "x10 y595 w980 h20 c" . HistoryColors.TextDim, 
+    HistoryStatusBarText := GuiID_ClipboardHistory.Add("Text", 
+        "x10 y695 w1180 h20 c" . HistoryColors.TextDim, 
         "提示: 双击项目复制到剪贴板 | 使用搜索框过滤内容 | 点击标签分类筛选 | 鼠标悬停查看完整路径")
-    StatusBarText.SetFont("s8", "Segoe UI")
+    HistoryStatusBarText.SetFont("s8", "Segoe UI")
 }
 
-; ===================== 设置系统 ImageList =====================
-SetSystemImageList(ListViewCtrl) {
-    ; 挂载系统图标池（标准写法：使用 SHGetFileInfoW 获取系统图标列表句柄）
-    ; SHFILEINFO 结构大小：64位系统为692字节，32位系统为352字节
-    sfi := Buffer(A_PtrSize == 8 ? 692 : 352)
-    ; SHGFI_SYSICONINDEX(0x4000) | SHGFI_SMALLICON(0x1) = 0x4001
-    hSysImageList := DllCall("shell32\SHGetFileInfoW", 
-        "Str", "C:\",           ; 使用根目录作为参考路径
-        "UInt", 0,              ; dwFileAttributes
-        "Ptr", sfi.Ptr,         ; psfi (SHFILEINFO 结构)
-        "UInt", sfi.Size,       ; cbSizeFileInfo
-        "UInt", 0x4001,         ; uFlags (SHGFI_SYSICONINDEX | SHGFI_SMALLICON)
-        "Ptr")
+; ===================== 创建自定义 ImageList =====================
+CreateHistoryImageList(ListViewCtrl) {
+    global HistoryImageList
     
-    if (hSysImageList != 0) {
-        ; LVM_SETIMAGELIST = 0x1003
-        ; LVSIL_SMALL = 1 (小图标列表)
-        SendMessage(0x1003, 1, hSysImageList, ListViewCtrl.Hwnd)
+    ; 如果已经创建，直接返回
+    if (HistoryImageList != 0) {
+        return
+    }
+    
+    ; 创建 ImageList：16x16 图标，支持 32 位色
+    ; IL_Create(初始容量, 增长量, 标志) - 标志 0 表示 32 位色
+    HistoryImageList := IL_Create(10, 10, 0)  ; 初始容量 10，增长 10
+    
+    if (HistoryImageList != 0) {
+        ; 设置 ListView 的 ImageList
+        try {
+            LV_Hwnd := ListViewCtrl.Hwnd
+            ; LVM_SETIMAGELIST = 0x1003, LVSIL_SMALL = 0x0001
+            SendMessage(0x1003, 0x0001, HistoryImageList, LV_Hwnd)
+        } catch as err {
+            ; 如果设置失败，清理 ImageList
+            try {
+                IL_Destroy(HistoryImageList)
+            } catch {
+            }
+            HistoryImageList := 0
+        }
     }
 }
 
@@ -456,82 +472,89 @@ getBestIconPath(item) {
     return ".txt"
 }
 
-; ===================== 获取文件图标索引 =====================
-GetFileIconIndex(filePathOrExt) {
-    ; 处理特殊格式：shell32.dll,245（DLL文件,图标索引）
-    if (InStr(filePathOrExt, ",") && InStr(filePathOrExt, ".dll")) {
-        parts := StrSplit(filePathOrExt, ",")
-        if (parts.Length >= 2) {
-            dllPath := parts[1]
-            ; 对于 shell32.dll 等系统 DLL，使用 .ico 扩展名作为替代
-            ; 这样可以获取通用的图标索引
-            if (FileExist(dllPath)) {
-                ; 尝试使用 DLL 路径本身获取图标（shell32.dll 通常有默认图标）
-                ; 如果失败，回退到使用 .ico 扩展名
-                filePathOrExt := ".ico"
-            } else {
-                ; DLL 不存在，使用 .ico 作为通用图标
-                filePathOrExt := ".ico"
+; ===================== 获取文件图标索引（使用自定义 ImageList）=====================
+GetFileIconIndex(filePathOrExt, rowData := "") {
+    global HistoryImageList, HistoryIconCache
+    
+    ; 如果 ImageList 未创建，返回 0
+    if (!HistoryImageList || HistoryImageList = 0) {
+        return 0
+    }
+    
+    ; 优先使用 SourcePath（应用程序路径）来提取精准图标
+    actualPath := ""
+    if (IsObject(rowData)) {
+        ; 优先使用 SourcePath（应用程序路径）
+        if (rowData.Has("SourcePath") && rowData["SourcePath"] != "" && rowData["SourcePath"] != "\\") {
+            sourcePath := rowData["SourcePath"]
+            sourcePath := StrReplace(sourcePath, "\\\\", "\")
+            sourcePath := StrReplace(sourcePath, "\\", "\")
+            if (FileExist(sourcePath)) {
+                actualPath := sourcePath
+            }
+        }
+        
+        ; 如果 SourcePath 不可用，尝试使用 ImagePath（图片路径）
+        if (actualPath = "" && rowData.Has("ImagePath") && rowData["ImagePath"] != "") {
+            imagePath := rowData["ImagePath"]
+            imagePath := StrReplace(imagePath, "\\\\", "\")
+            imagePath := StrReplace(imagePath, "\\", "\")
+            if (FileExist(imagePath)) {
+                actualPath := imagePath
+            }
+        }
+        
+        ; 如果 ImagePath 也不可用，尝试使用 Content（如果是文件路径）
+        if (actualPath = "" && rowData.Has("Content") && rowData["Content"] != "") {
+            content := rowData["Content"]
+            content := StrReplace(content, "\\\\", "\")
+            content := StrReplace(content, "\\", "\")
+            if ((InStr(content, "\") || InStr(content, "/")) && FileExist(content)) {
+                actualPath := content
             }
         }
     }
     
-    ; SHGFI_SYSICONINDEX = 0x4000
-    ; SHGFI_SMALLICON = 0x1
-    ; SHGFI_USEFILEATTRIBUTES = 0x10 (如果路径不存在，使用文件属性)
+    ; 如果 actualPath 为空，使用传入的 filePathOrExt
+    if (actualPath = "") {
+        actualPath := filePathOrExt
+    }
     
-    SHGFI_SYSICONINDEX := 0x4000
-    SHGFI_SMALLICON := 0x1
-    SHGFI_USEFILEATTRIBUTES := 0x10
+    ; 清理路径
+    actualPath := StrReplace(actualPath, "\\\\", "\")
+    actualPath := StrReplace(actualPath, "\\", "\")
     
-    ; 创建 SHFILEINFO 结构（在 64 位系统上大小为 696 字节）
-    SHFILEINFO := Buffer(696)
+    ; 如果路径为空或不是文件路径，返回 0
+    if (actualPath = "" || (!InStr(actualPath, "\") && !InStr(actualPath, "/"))) {
+        return 0
+    }
     
-    ; 判断是文件路径还是扩展名
-    path := filePathOrExt
-    flags := SHGFI_SYSICONINDEX | SHGFI_SMALLICON
+    ; 检查文件是否存在
+    if (!FileExist(actualPath)) {
+        return 0
+    }
     
-    ; 检查是否是文件路径
-    isFilePath := (InStr(filePathOrExt, "\") || InStr(filePathOrExt, "/"))
+    ; 检查缓存
+    if (HistoryIconCache.Has(actualPath)) {
+        return HistoryIconCache[actualPath]
+    }
     
-    if (!isFilePath) {
-        ; 不是路径，可能是扩展名，添加点号前缀
-        if (!InStr(filePathOrExt, ".")) {
-            path := "." . filePathOrExt
+    ; 使用 IL_Add 从文件路径提取图标（参考剪贴板管理的实现）
+    try {
+        ; IL_Add(ImageList, 文件路径, 图标索引) - 图标索引 0 表示使用默认图标
+        IconIndex := IL_Add(HistoryImageList, actualPath, 0)
+        if (IconIndex > 0) {
+            ; 缓存图标索引
+            HistoryIconCache[actualPath] := IconIndex
+            return IconIndex
         } else {
-            path := filePathOrExt
+            ; 提取失败，返回 0
+            return 0
         }
-        ; 使用 USEFILEATTRIBUTES 标志，这样即使文件不存在也能获取图标
-        flags |= SHGFI_USEFILEATTRIBUTES
-    } else {
-        ; 是文件路径，检查文件是否存在
-        if (!FileExist(filePathOrExt)) {
-            ; 文件不存在，使用 USEFILEATTRIBUTES 标志
-            flags |= SHGFI_USEFILEATTRIBUTES
-        }
+    } catch as err {
+        ; 提取异常，返回 0
+        return 0
     }
-    
-    ; 调用 SHGetFileInfoW
-    result := DllCall("shell32\SHGetFileInfoW", 
-        "Str", path,                 ; pszPath
-        "UInt", 0,                   ; dwFileAttributes
-        "Ptr", SHFILEINFO.Ptr,       ; psfi
-        "UInt", SHFILEINFO.Size,     ; cbSizeFileInfo
-        "UInt", flags,               ; uFlags
-        "Ptr")
-    
-    if (result != 0) {
-        ; 读取图标索引（在 SHFILEINFO 结构的偏移 0 处，iIcon 字段是 Int 类型）
-        iconIndex := NumGet(SHFILEINFO, 0, "Int")
-        ; 确保返回非负值
-        if (iconIndex < 0) {
-            iconIndex := 0
-        }
-        return iconIndex
-    }
-    
-    ; 如果失败，返回默认图标索引（0 = 未知文件图标）
-    return 0
 }
 
 ; ===================== 加载数据 =====================
@@ -1170,9 +1193,12 @@ RefreshHistoryData(keyword := "") {
                 charCount := StrLen(rowData["Content"])
             }
             
-            ; 确定图标索引（使用 getBestIconPath 获取最佳路径，然后转换为图标索引）
-            iconPath := getBestIconPath(rowData)
-            iconIndex := GetFileIconIndex(iconPath)
+            ; 确定图标索引（使用自定义 ImageList 提取精准软件图标）
+            ; 优先使用 SourcePath（应用程序路径）来提取图标
+            iconIndex := GetFileIconIndex("", rowData)
+            
+            ; 注意：IL_Add 返回的索引从 1 开始，直接使用即可
+            ; 如果 iconIndex 为 0，表示没有图标，不显示图标
             
             ; 获取文件后缀名和文件大小
             fileExtension := "-"
@@ -1235,8 +1261,8 @@ RefreshHistoryData(keyword := "") {
             
             ; 添加行到 ListView（标准写法：防止数据覆盖）
             ; 关键！参数对应：
-            ; 参数1 ("Icon" . N): 行属性，指定图标索引（系统图标索引从0开始，AHK需要从1开始）
-            ;   注意：使用 +IconSmall 时，图标会显示在第一列前，不作为单独列
+            ; 参数1 ("Icon" . N): 行属性，指定图标索引（IL_Add 返回的索引从1开始，直接使用）
+            ;   注意：在 Report 视图中，图标通过 ImageList 和 IconN 选项显示在第一列前
             ; 参数2 (index): 第1列 [序号]
             ; 参数3 (preview): 第2列 [内容预览]
             ; 参数4 (sourceApp): 第3列 [来源应用]
@@ -1247,7 +1273,8 @@ RefreshHistoryData(keyword := "") {
             ; 参数9 (timeText): 第8列 [最后复制时间]
             ; 参数10 (copyCount): 第9列 [复制次数]
             ; 参数11 (charCount): 第10列 [字符数]
-            iconOption := iconIndex >= 0 ? "Icon" . (iconIndex + 1) : ""
+            ; IL_Add 返回的索引从 1 开始，如果为 0 表示没有图标
+            iconOption := (iconIndex > 0) ? "Icon" . iconIndex : ""
             rowIndex := HistoryListView.Add(iconOption,
                 String(index),            ; 第1列：序号
                 String(preview),          ; 第2列：内容预览
@@ -1783,7 +1810,7 @@ OnHistoryItemDoubleClick(*) {
 
 ; ===================== 窗口大小改变事件 =====================
 OnHistoryPanelSize(*) {
-    global GuiID_ClipboardHistory, HistoryListView, HistorySearchEdit, HistoryTagButtons
+    global GuiID_ClipboardHistory, HistoryListView, HistorySearchEdit, HistoryTagButtons, HistoryStatusBarText
     
     ; 获取窗口大小
     GuiID_ClipboardHistory.GetPos(,, &width, &height)
@@ -1797,6 +1824,13 @@ OnHistoryPanelSize(*) {
     ; 调整 ListView 宽度和高度（为标签区域留出空间）
     listHeight := height - 110  ; 90（ListView起始Y）+ 20（底部状态栏）
     HistoryListView.Move(,, width - 20, listHeight)
+    
+    ; 调整状态栏宽度和位置
+    if (HistoryStatusBarText) {
+        ; 计算状态栏的Y位置（窗口底部，留出10像素边距）
+        statusBarY := height - 25
+        HistoryStatusBarText.Move(, statusBarY, width - 20)
+    }
 }
 
 ; ===================== 窗口关闭事件 =====================
