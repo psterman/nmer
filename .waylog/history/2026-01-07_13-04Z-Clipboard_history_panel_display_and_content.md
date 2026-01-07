@@ -147,3 +147,32 @@ Specifically: StatusBarText
 检查剪贴板管理和 ClipboardHistoryPanel 的图标显示实现，找出差异：
 
 ---
+
+
+**User**
+
+除了剪贴板管理那一行内容，增加这些列的数据：来源应用，文件位置，类型，文件大小，最后复制时间，复制次数，字符数
+
+---
+
+
+**Cursor**
+
+查找剪贴板管理的 ListView 创建和刷新代码，准备添加这些列。
+
+
+
+查看数据库查询部分，确认可用字段：
+
+---
+
+
+**User**
+
+Error: This function declaration conflicts with an existing Func.
+
+Text:	FormatFileSize
+Line:	17007
+File:	C:\Users\pster\Desktop\小c\CursorHelper (1).ahk
+
+---

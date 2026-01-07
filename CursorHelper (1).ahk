@@ -17448,13 +17448,47 @@ RefreshClipboardListView() {
         
         ResultTable := ""
         ; 【参考 ClipboardHistoryPanel.ahk】从 ClipMain 表查询数据
+        ; 检查字段是否存在，动态构建查询
+        SQL := "PRAGMA table_info(ClipMain)"
+        tableInfo := ""
+        hasLastCopyTime := false
+        hasCopyCount := false
+        
+        if (ClipboardFTS5DB.GetTable(SQL, &tableInfo)) {
+            if (tableInfo.HasRows && tableInfo.Rows.Length > 0) {
+                Loop tableInfo.Rows.Length {
+                    row := tableInfo.Rows[A_Index]
+                    columnName := row[2]  ; 列名在第2列
+                    if (columnName = "LastCopyTime") {
+                        hasLastCopyTime := true
+                    }
+                    if (columnName = "CopyCount") {
+                        hasCopyCount := true
+                    }
+                }
+            }
+        }
+        
+        ; 根据字段存在情况构建查询
+        selectFields := "ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp"
+        if (hasLastCopyTime) {
+            selectFields .= ", LastCopyTime"
+        } else {
+            selectFields .= ", Timestamp AS LastCopyTime"
+        }
+        if (hasCopyCount) {
+            selectFields .= ", CopyCount"
+        } else {
+            selectFields .= ", 1 AS CopyCount"
+        }
+        
         ; 根据分类过滤 SQL 查询
         if (CurrentCategory != "" && CurrentCategory != "All" && CurrentCategory != "全部") {
             ; 根据分类过滤：Text, Code, Link, Image
-            SQL := "SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount FROM ClipMain WHERE DataType = '" . StrReplace(CurrentCategory, "'", "''") . "' ORDER BY Timestamp DESC"
+            SQL := "SELECT " . selectFields . " FROM ClipMain WHERE DataType = '" . StrReplace(CurrentCategory, "'", "''") . "' ORDER BY Timestamp DESC"
         } else {
             ; 全部：不添加过滤条件
-            SQL := "SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount FROM ClipMain ORDER BY Timestamp DESC"
+            SQL := "SELECT " . selectFields . " FROM ClipMain ORDER BY Timestamp DESC"
         }
         
         ; 使用 GetTable 查询（参考 ClipboardHistoryPanel.ahk）
@@ -17502,7 +17536,7 @@ RefreshClipboardListView() {
                 continue
             }
             
-            ; Row[1] = ID, Row[2] = Content, Row[3] = DataType, Row[4] = SourceApp, Row[5] = SourcePath, Row[6] = CharCount
+            ; Row[1] = ID, Row[2] = Content, Row[3] = DataType, Row[4] = SourceApp, Row[5] = SourcePath, Row[6] = CharCount, Row[7] = Timestamp, Row[8] = LastCopyTime, Row[9] = CopyCount
             ; 注意：GetTable 返回的 Rows 数组中，每一行的索引从 1 开始
             ID := (Row.Length >= 1 && Row[1] != "" && Row[1] != 0) ? Integer(Row[1]) : 0
             Content := (Row.Length >= 2 && Row[2] != "") ? String(Row[2]) : ""
@@ -17510,6 +17544,9 @@ RefreshClipboardListView() {
             SourceApp := (Row.Length >= 4 && Row[4] != "") ? String(Row[4]) : ""
             SourcePath := (Row.Length >= 5 && Row[5] != "") ? String(Row[5]) : ""
             CharCount := (Row.Length >= 6 && Row[6] != "" && Row[6] != 0) ? Integer(Row[6]) : 0
+            Timestamp := (Row.Length >= 7 && Row[7] != "") ? String(Row[7]) : ""
+            LastCopyTime := (Row.Length >= 8 && Row[8] != "") ? String(Row[8]) : Timestamp
+            CopyCount := (Row.Length >= 9 && Row[9] != "" && Row[9] != 0) ? Integer(Row[9]) : 1
             
             if (Content = "") {
                 continue
@@ -17537,8 +17574,8 @@ RefreshClipboardListView() {
                 }
             }
             
-            ; 添加到列表（包含图标索引、来源应用和字符数）
-            ClipboardItems.Push({ID: ID, Content: Content, DataType: DataType, SourceApp: SourceApp, CharCount: CharCount, IconIndex: IconIndex})
+            ; 添加到列表（包含所有字段）
+            ClipboardItems.Push({ID: ID, Content: Content, DataType: DataType, SourceApp: SourceApp, SourcePath: SourcePath, CharCount: CharCount, Timestamp: Timestamp, LastCopyTime: LastCopyTime, CopyCount: CopyCount, IconIndex: IconIndex})
             TotalItems++
         }
         
@@ -17554,17 +17591,17 @@ RefreshClipboardListView() {
         
         ; ListView 已在函数开始时清空，这里直接添加数据
         
-        ; 【简化布局】设置为单列显示（内容列）
+        ; 【多列布局】设置为8列显示
         ; 先获取当前列数
         CurrentColCount := 0
         try {
             CurrentColCount := ClipboardListView.GetCount("Col")
         } catch as err {
-            CurrentColCount := 1
+            CurrentColCount := 0
         }
         
-        ; 只需要 1 列：内容列
-        NeededColCount := 1
+        ; 需要 8 列：内容预览、来源应用、文件位置、类型、文件大小、最后复制时间、复制次数、字符数
+        NeededColCount := 8
         
         ; 如果列数不对，重新设置列
         if (CurrentColCount != NeededColCount) {
@@ -17573,28 +17610,28 @@ RefreshClipboardListView() {
                 Loop CurrentColCount {
                     ClipboardListView.DeleteCol(1)
                 }
-                ; 添加内容列
-                global ConfigFile
-                DefaultContentColWidth := 500
-                ContentColWidthStr := IniRead(ConfigFile, "ClipboardListView", "ContentColWidth", DefaultContentColWidth)
-                ContentColWidth := Integer(ContentColWidthStr)
-                if (ContentColWidth < 100 || ContentColWidth > 1000) {
-                    ContentColWidth := DefaultContentColWidth
-                }
-                ClipboardListView.InsertCol(1, ContentColWidth . " Left", "内容")
+                ; 添加所有列
+                ClipboardListView.InsertCol(1, 250 . " Left", "内容预览")
+                ClipboardListView.InsertCol(2, 100 . " Left", "来源应用")
+                ClipboardListView.InsertCol(3, 180 . " Left", "文件位置")
+                ClipboardListView.InsertCol(4, 60 . " Left", "类型")
+                ClipboardListView.InsertCol(5, 80 . " Left", "文件大小")
+                ClipboardListView.InsertCol(6, 130 . " Left", "最后复制时间")
+                ClipboardListView.InsertCol(7, 70 . " Left", "复制次数")
+                ClipboardListView.InsertCol(8, 70 . " Left", "字符数")
             } catch as err {
             }
         } else {
             ; 更新列标题和宽度
             try {
-                global ConfigFile
-                DefaultContentColWidth := 500
-                ContentColWidthStr := IniRead(ConfigFile, "ClipboardListView", "ContentColWidth", DefaultContentColWidth)
-                ContentColWidth := Integer(ContentColWidthStr)
-                if (ContentColWidth < 100 || ContentColWidth > 1000) {
-                    ContentColWidth := DefaultContentColWidth
-                }
-                ClipboardListView.ModifyCol(1, ContentColWidth . " Left", "内容")
+                ClipboardListView.ModifyCol(1, 250 . " Left", "内容预览")
+                ClipboardListView.ModifyCol(2, 100 . " Left", "来源应用")
+                ClipboardListView.ModifyCol(3, 180 . " Left", "文件位置")
+                ClipboardListView.ModifyCol(4, 60 . " Left", "类型")
+                ClipboardListView.ModifyCol(5, 80 . " Left", "文件大小")
+                ClipboardListView.ModifyCol(6, 130 . " Left", "最后复制时间")
+                ClipboardListView.ModifyCol(7, 70 . " Left", "复制次数")
+                ClipboardListView.ModifyCol(8, 70 . " Left", "字符数")
             } catch as err {
             }
         }
@@ -17612,11 +17649,76 @@ RefreshClipboardListView() {
             ContentPreview := StrReplace(ContentPreview, "`r", " ")
             ContentPreview := StrReplace(ContentPreview, "`t", " ")
             
+            ; 获取来源应用
+            SourceApp := Item.HasProp("SourceApp") ? Item.SourceApp : ""
+            if (SourceApp = "") {
+                SourceApp := "-"
+            }
+            
+            ; 获取文件位置（显示文件名或路径）
+            FileLocation := "-"
+            SourcePath := Item.HasProp("SourcePath") ? Item.SourcePath : ""
+            if (SourcePath != "" && SourcePath != "\\") {
+                try {
+                    SplitPath(SourcePath, &fileName)
+                    FileLocation := fileName
+                } catch {
+                    FileLocation := SourcePath
+                }
+            }
+            
+            ; 获取类型
+            DataType := Item.HasProp("DataType") ? Item.DataType : "Text"
+            
+            ; 获取文件大小
+            FileSize := "-"
+            if (SourcePath != "" && SourcePath != "\\" && FileExist(SourcePath)) {
+                try {
+                    fileSizeBytes := FileGetSize(SourcePath)
+                    if (fileSizeBytes >= 0) {
+                        FileSize := FormatFileSize(fileSizeBytes)
+                    }
+                } catch {
+                    FileSize := "-"
+                }
+            }
+            
+            ; 格式化最后复制时间
+            LastCopyTimeText := "-"
+            LastCopyTime := Item.HasProp("LastCopyTime") ? Item.LastCopyTime : ""
+            if (LastCopyTime != "") {
+                try {
+                    LastCopyTimeText := FormatTime(LastCopyTime, "yyyy-MM-dd HH:mm:ss")
+                } catch {
+                    LastCopyTimeText := LastCopyTime
+                }
+            }
+            
+            ; 获取复制次数
+            CopyCount := Item.HasProp("CopyCount") ? Item.CopyCount : 1
+            if (CopyCount = "" || CopyCount = 0) {
+                CopyCount := 1
+            }
+            
+            ; 获取字符数
+            CharCount := Item.HasProp("CharCount") ? Item.CharCount : 0
+            if (CharCount = "" || CharCount = 0) {
+                CharCount := StrLen(Item.Content)
+            }
+            
             ; 添加行到 ListView（第一个参数是图标选项字符串，如 "Icon1"）
             IconIndex := Item.HasProp("IconIndex") ? Item.IconIndex : 0
             IconOption := (IconIndex > 0) ? "Icon" . IconIndex : ""
             try {
-                ClipboardListView.Add(IconOption, ContentPreview)
+                ClipboardListView.Add(IconOption,
+                    String(ContentPreview),      ; 第1列：内容预览
+                    String(SourceApp),           ; 第2列：来源应用
+                    String(FileLocation),        ; 第3列：文件位置
+                    String(DataType),            ; 第4列：类型
+                    String(FileSize),            ; 第5列：文件大小
+                    String(LastCopyTimeText),   ; 第6列：最后复制时间
+                    String(CopyCount),           ; 第7列：复制次数
+                    String(CharCount))           ; 第8列：字符数
             } catch as e {
                 try {
                     FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] RefreshClipboardListView: 添加行失败 - ID=" . Item.ID . ", 错误=" . e.Message . "`n", A_ScriptDir "\clipboard_debug.log")
