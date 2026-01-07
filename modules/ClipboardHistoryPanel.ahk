@@ -31,6 +31,7 @@ global HistoryImagePreviewIsVisible := false  ; 图片预览窗口是否可见
 global HistoryImagePreviewTimer := 0  ; 图片预览防抖定时器
 global HistoryImagePreviewCurrentPath := ""  ; 当前预览的图片路径
 global HistoryGdiplusToken := 0  ; GDI+ Token（用于初始化 GDI+）
+global StackClipboardItems := []  ; 叠加复制的内容列表（存储数据库ID）
 
 ; 暗黑模式配色（Cursor色系）
 HistoryColors := {
@@ -76,8 +77,8 @@ ShowClipboardHistoryPanel() {
     ; 加载数据（确保在显示前加载）
     RefreshHistoryData()
     
-    ; 显示 GUI
-    GuiID_ClipboardHistory.Show("w900 h600")
+    ; 显示 GUI（增加宽度以容纳新增的列）
+    GuiID_ClipboardHistory.Show("w1000 h600")
     HistoryIsVisible := true
     
     ; 自动聚焦搜索框
@@ -136,7 +137,7 @@ CreateHistoryPanelGUI() {
     ; ========== 顶部搜索框 ==========
     SearchBoxX := 10
     SearchBoxY := 10
-    SearchBoxWidth := 880
+    SearchBoxWidth := 980
     SearchBoxHeight := 30
     
     HistorySearchEdit := GuiID_ClipboardHistory.Add("Edit", 
@@ -163,12 +164,12 @@ CreateHistoryPanelGUI() {
     TagAreaHeight := 35
     TagSpacing := 8
     TagButtonHeight := 28
-    TagButtonWidth := 80
+    TagButtonWidth := 80  ; 标签按钮宽度
     TagStartX := 10
     
-    ; 标签列表：文本、图片、链接、颜色、代码
-    TagLabels := ["文本", "图片", "链接", "颜色", "代码"]
-    TagTypes := ["Text", "Image", "Link", "Color", "Code"]
+    ; 标签列表：文本、图片、链接、颜色、代码、文件夹、截图
+    TagLabels := ["文本", "图片", "链接", "颜色", "代码", "文件夹", "截图"]
+    TagTypes := ["Text", "Image", "Link", "Color", "Code", "Folder", "Screenshot"]
     
     ; 清空标签按钮映射
     HistoryTagButtons := Map()
@@ -221,7 +222,7 @@ CreateHistoryPanelGUI() {
     ; ========== ListView ==========
     ListViewX := 10
     ListViewY := 90  ; 调整Y位置，为标签区域留出空间
-    ListViewWidth := 880
+    ListViewWidth := 980
     ListViewHeight := 500  ; 调整高度
     
     HistoryListView := GuiID_ClipboardHistory.Add("ListView",
@@ -231,7 +232,7 @@ CreateHistoryPanelGUI() {
         " c" . HistoryColors.Text .
         " +ReadOnly -Multi +Report" .
         " vHistoryListView",
-        ["序号", "内容预览", "来源应用", "文件位置", "类型", "最后复制", "复制次数", "字符数"])
+        ["序号", "内容预览", "来源应用", "文件位置", "类型", "文件后缀", "文件大小", "最后复制", "复制次数", "字符数"])
     
     HistoryListView.SetFont("s9", "Consolas")
     
@@ -239,14 +240,16 @@ CreateHistoryPanelGUI() {
     SetSystemImageList(HistoryListView)
     
     ; 设置列宽（注意：图标列通过 IconSmall 选项自动添加在第一列前，不占用列索引）
-    HistoryListView.ModifyCol(1, 50)   ; 序号
-    HistoryListView.ModifyCol(2, 300)  ; 内容预览
-    HistoryListView.ModifyCol(3, 100)  ; 来源应用
-    HistoryListView.ModifyCol(4, 200)  ; 文件位置
-    HistoryListView.ModifyCol(5, 70)   ; 类型
-    HistoryListView.ModifyCol(6, 120)  ; 最后复制时间
-    HistoryListView.ModifyCol(7, 70)   ; 复制次数
-    HistoryListView.ModifyCol(8, 70)   ; 字符数
+    HistoryListView.ModifyCol(1, 45)   ; 序号
+    HistoryListView.ModifyCol(2, 200)  ; 内容预览
+    HistoryListView.ModifyCol(3, 90)   ; 来源应用
+    HistoryListView.ModifyCol(4, 150)  ; 文件位置
+    HistoryListView.ModifyCol(5, 55)   ; 类型
+    HistoryListView.ModifyCol(6, 60)   ; 文件后缀
+    HistoryListView.ModifyCol(7, 70)   ; 文件大小
+    HistoryListView.ModifyCol(8, 110)  ; 最后复制时间
+    HistoryListView.ModifyCol(9, 60)   ; 复制次数
+    HistoryListView.ModifyCol(10, 60)  ; 字符数
     
     ; ListView 事件
     HistoryListView.OnEvent("ItemSelect", OnHistoryItemSelect)
@@ -256,7 +259,7 @@ CreateHistoryPanelGUI() {
     
     ; ========== 底部状态栏 ==========
     StatusBarText := GuiID_ClipboardHistory.Add("Text", 
-        "x10 y595 w880 h20 c" . HistoryColors.TextDim, 
+        "x10 y595 w980 h20 c" . HistoryColors.TextDim, 
         "提示: 双击项目复制到剪贴板 | 使用搜索框过滤内容 | 点击标签分类筛选 | 鼠标悬停查看完整路径")
     StatusBarText.SetFont("s8", "Segoe UI")
 }
@@ -282,8 +285,197 @@ SetSystemImageList(ListViewCtrl) {
     }
 }
 
+; ===================== 获取文件大小（使用 FileGetSize）=====================
+GetFileSize(filePath) {
+    ; 如果路径为空或不是文件路径，返回空字符串
+    if (filePath = "" || !filePath) {
+        return "-"
+    }
+    
+    ; 清理路径中的转义字符
+    path := StrReplace(filePath, "\\\\", "\")
+    path := StrReplace(path, "\\", "\")
+    
+    ; 检查是否是文件路径
+    if (!InStr(path, "\") && !InStr(path, "/")) {
+        return "-"  ; 不是文件路径
+    }
+    
+    ; 检查文件是否存在
+    if (!FileExist(path)) {
+        return "-"
+    }
+    
+    ; 使用 FileGetSize 获取文件大小
+    try {
+        fileSize := FileGetSize(path)
+        if (fileSize >= 0) {
+            return FormatFileSize(fileSize)
+        }
+    } catch {
+        return "-"
+    }
+    
+    return "-"
+}
+
+; ===================== 格式化文件大小 =====================
+FormatFileSize(bytes) {
+    if (bytes < 1024) {
+        return bytes . " B"
+    } else if (bytes < 1024 * 1024) {
+        return Round(bytes / 1024, 1) . " KB"
+    } else if (bytes < 1024 * 1024 * 1024) {
+        return Round(bytes / (1024 * 1024), 1) . " MB"
+    } else {
+        return Round(bytes / (1024 * 1024 * 1024), 2) . " GB"
+    }
+}
+
+; ===================== 获取文件后缀名 =====================
+GetFileExtension(filePath) {
+    ; 如果路径为空或不是文件路径，返回空字符串
+    if (filePath = "" || !filePath) {
+        return "-"
+    }
+    
+    ; 清理路径中的转义字符
+    path := StrReplace(filePath, "\\\\", "\")
+    path := StrReplace(path, "\\", "\")
+    
+    ; 检查是否是文件路径
+    if (!InStr(path, "\") && !InStr(path, "/")) {
+        return "-"  ; 不是文件路径
+    }
+    
+    ; 提取文件扩展名
+    try {
+        SplitPath(path, , , &ext)
+        if (ext != "") {
+            return StrLower(ext)
+        }
+    } catch {
+        return "-"
+    }
+    
+    return "-"
+}
+
+; ===================== 获取最佳图标路径 =====================
+getBestIconPath(item) {
+    ; 支持 Map 和对象两种格式
+    content := item.Has("Content") ? item["Content"] : (item.HasProp("Content") ? item.Content : "")
+    dataType := item.Has("DataType") ? item["DataType"] : (item.HasProp("DataType") ? item.DataType : "")
+    imagePath := item.Has("ImagePath") ? item["ImagePath"] : (item.HasProp("ImagePath") ? item.ImagePath : "")
+    sourcePath := item.Has("SourcePath") ? item["SourcePath"] : (item.HasProp("SourcePath") ? item.SourcePath : "")
+    
+    ; 清理路径中的转义字符
+    if (content != "") {
+        content := StrReplace(content, "\\\\", "\")
+        content := StrReplace(content, "\\", "\")
+    }
+    if (imagePath != "") {
+        imagePath := StrReplace(imagePath, "\\\\", "\")
+        imagePath := StrReplace(imagePath, "\\", "\")
+    }
+    
+    ; 1. 图片类型：优先使用 ImagePath，然后是 Content（如果是图片路径）
+    if (dataType = "Image") {
+        if (imagePath != "" && FileExist(imagePath))
+            return imagePath
+        ; 检查 Content 是否是图片文件路径
+        if (content != "" && (InStr(content, "\") || InStr(content, "/"))) {
+            if (FileExist(content)) {
+                ; 验证是否是图片文件
+                SplitPath(content, , , &ext)
+                ext := StrLower(ext)
+                if (ext = "png" || ext = "jpg" || ext = "jpeg" || ext = "gif" || 
+                    ext = "bmp" || ext = "webp" || ext = "tiff" || ext = "ico" || ext = "svg")
+                    return content
+            }
+        }
+        return ".png"
+    }
+    
+    ; 2. 链接类型
+    if (dataType = "Link") {
+        return ".url"
+    }
+    
+    ; 3. 颜色类型
+    if (dataType = "Color") {
+        return "shell32.dll,245" ; 借用系统的调色板图标
+    }
+    
+    ; 4. 代码类型和其他文本类型：优先从 Content 中提取信息
+    ; 4.1 检查 Content 是否是文件路径
+    if (content != "" && (InStr(content, "\") || InStr(content, "/"))) {
+        if (FileExist(content)) {
+            ; Content 是真实文件路径，直接返回
+            return content
+        }
+        ; 即使文件不存在，也尝试提取扩展名
+        SplitPath(content, , , &ext)
+        if (ext != "")
+            return "." . ext
+    }
+    
+    ; 4.2 检查 Content 是否包含文件扩展名模式（如 "test.js" 或 "function.js"）
+    if (content != "") {
+        ; 尝试匹配常见的文件扩展名模式
+        if (RegExMatch(content, "i)\.([a-z]{2,5})(\s|$|`r|`n)", &match)) {
+            ext := match[1]
+            ; 验证是否是常见的文件扩展名
+            commonExts := ["js", "ts", "py", "java", "cpp", "c", "h", "cs", "php", 
+                          "rb", "go", "rs", "swift", "kt", "scala", "sh", "bat",
+                          "html", "css", "xml", "json", "yaml", "yml", "md", "txt",
+                          "sql", "r", "m", "pl", "lua", "vim", "conf", "ini", "cfg"]
+            ; 检查扩展名是否在常见扩展名列表中
+            for _, commonExt in commonExts {
+                if (ext = commonExt) {
+                    return "." . ext
+                }
+            }
+        }
+    }
+    
+    ; 5. 代码类型：尝试从 Content 中提取扩展名（更宽松的匹配）
+    if (dataType = "Code") {
+        ; 如果 Content 包含代码文件扩展名提示，提取它
+        if (content != "") {
+            ; 匹配类似 "// file.js" 或 "# file.py" 的模式
+            if (RegExMatch(content, "i)(file|filename|path)[:\s]+[^\s]+\.([a-z]{2,5})", &match)) {
+                ext := match[2]
+                return "." . ext
+            }
+        }
+        return ".txt"
+    }
+    
+    ; 6. 最终兜底：使用文本图标
+    return ".txt"
+}
+
 ; ===================== 获取文件图标索引 =====================
 GetFileIconIndex(filePathOrExt) {
+    ; 处理特殊格式：shell32.dll,245（DLL文件,图标索引）
+    if (InStr(filePathOrExt, ",") && InStr(filePathOrExt, ".dll")) {
+        parts := StrSplit(filePathOrExt, ",")
+        if (parts.Length >= 2) {
+            dllPath := parts[1]
+            ; 对于 shell32.dll 等系统 DLL，使用 .ico 扩展名作为替代
+            ; 这样可以获取通用的图标索引
+            if (FileExist(dllPath)) {
+                ; 尝试使用 DLL 路径本身获取图标（shell32.dll 通常有默认图标）
+                ; 如果失败，回退到使用 .ico 扩展名
+                filePathOrExt := ".ico"
+            } else {
+                ; DLL 不存在，使用 .ico 作为通用图标
+                filePathOrExt := ".ico"
+            }
+        }
+    }
+    
     ; SHGFI_SYSICONINDEX = 0x4000
     ; SHGFI_SMALLICON = 0x1
     ; SHGFI_USEFILEATTRIBUTES = 0x10 (如果路径不存在，使用文件属性)
@@ -502,6 +694,23 @@ RefreshHistoryData(keyword := "") {
                         "Content LIKE '%.gif' OR Content LIKE '%.bmp' OR Content LIKE '%.webp' OR " .
                         "Content LIKE '%.tiff' OR Content LIKE '%.ico' OR " .
                         "ImagePath IS NOT NULL AND ImagePath != ''))")
+                } else if (HistorySelectedTag = "Folder") {
+                    ; 文件夹标签：筛选文件夹路径
+                    ; 注意：由于 SQLite 无法直接调用 DirExist，我们先通过路径格式进行初步筛选
+                    ; 精确过滤将在数据加载后通过代码完成
+                    folderCondition := "(" .
+                        "(Content LIKE '%\\%' OR Content LIKE '%/%') OR " .  ; Content 包含路径分隔符
+                        "(SourcePath IS NOT NULL AND SourcePath != '' AND SourcePath != '\\' AND " .
+                        "(SourcePath LIKE '%\\%' OR SourcePath LIKE '%/%'))" .  ; SourcePath 是路径
+                        ")"
+                    whereConditions.Push(folderCondition)
+                } else if (HistorySelectedTag = "Screenshot") {
+                    ; 截图标签：筛选截图（图片类型）
+                    screenshotCondition := "(" .
+                        "DataType = 'Image' OR " .  ; 截图类型
+                        "ImagePath IS NOT NULL AND ImagePath != ''" .  ; 有图片路径
+                        ")"
+                    whereConditions.Push(screenshotCondition)
                 } else {
                     whereConditions.Push("DataType = '" . escapedTagType . "'")
                 }
@@ -662,6 +871,99 @@ RefreshHistoryData(keyword := "") {
                             rowData["ImagePath"] := ""
                         }
                         
+                        ; 如果选择了"文件夹"标签，进行精确过滤
+                        if (HistorySelectedTag = "Folder") {
+                            ; 检查是否是文件夹路径
+                            isFolder := false
+                            
+                            ; 1. 检查 Content 是否是文件夹路径
+                            if (rowData.Has("Content") && rowData["Content"] != "") {
+                                content := rowData["Content"]
+                                content := StrReplace(content, "\\\\", "\")
+                                content := StrReplace(content, "\\", "\")
+                                
+                                ; 检查是否是路径格式（包含路径分隔符）
+                                if (InStr(content, "\") || InStr(content, "/")) {
+                                    ; 检查是否是文件夹（不是文件）
+                                    if (DirExist(content)) {
+                                        isFolder := true
+                                    }
+                                }
+                            }
+                            
+                            ; 2. 检查 SourcePath 是否是文件夹路径
+                            if (!isFolder && rowData.Has("SourcePath") && rowData["SourcePath"] != "" && rowData["SourcePath"] != "\\") {
+                                sourcePath := rowData["SourcePath"]
+                                sourcePath := StrReplace(sourcePath, "\\\\", "\")
+                                sourcePath := StrReplace(sourcePath, "\\", "\")
+                                
+                                ; 检查是否是路径格式（包含路径分隔符）
+                                if (InStr(sourcePath, "\") || InStr(sourcePath, "/")) {
+                                    ; 检查是否是文件夹（不是文件）
+                                    if (DirExist(sourcePath)) {
+                                        isFolder := true
+                                    }
+                                }
+                            }
+                            
+                            ; 只有是文件夹时才添加到结果中
+                            if (!isFolder) {
+                                continue  ; 跳过这条记录
+                            }
+                        }
+                        
+                        ; 如果选择了"截图"标签，进行精确过滤
+                        if (HistorySelectedTag = "Screenshot") {
+                            ; 检查是否是截图（图片）
+                            isScreenshot := false
+                            
+                            ; 1. 检查 DataType 是否是 Image
+                            if (rowData.Has("DataType") && rowData["DataType"] = "Image") {
+                                isScreenshot := true
+                            }
+                            
+                            ; 2. 检查 ImagePath 是否存在且是图片文件
+                            if (!isScreenshot && rowData.Has("ImagePath") && rowData["ImagePath"] != "") {
+                                imagePath := rowData["ImagePath"]
+                                imagePath := StrReplace(imagePath, "\\\\", "\")
+                                imagePath := StrReplace(imagePath, "\\", "\")
+                                if (FileExist(imagePath)) {
+                                    ; 检查文件扩展名，确认是图片文件
+                                    SplitPath(imagePath, , , &ext)
+                                    ext := StrLower(ext)
+                                    if (ext = "png" || ext = "jpg" || ext = "jpeg" || ext = "gif" || 
+                                        ext = "bmp" || ext = "webp" || ext = "tiff" || ext = "ico") {
+                                        isScreenshot := true
+                                    }
+                                }
+                            }
+                            
+                            ; 3. 检查 Content 是否是图片文件路径
+                            if (!isScreenshot && rowData.Has("Content") && rowData["Content"] != "") {
+                                content := rowData["Content"]
+                                content := StrReplace(content, "\\\\", "\")
+                                content := StrReplace(content, "\\", "\")
+                                
+                                ; 检查是否是路径格式（包含路径分隔符）
+                                if (InStr(content, "\") || InStr(content, "/")) {
+                                    if (FileExist(content)) {
+                                        ; 检查文件扩展名，确认是图片文件
+                                        SplitPath(content, , , &ext)
+                                        ext := StrLower(ext)
+                                        if (ext = "png" || ext = "jpg" || ext = "jpeg" || ext = "gif" || 
+                                            ext = "bmp" || ext = "webp" || ext = "tiff" || ext = "ico") {
+                                            isScreenshot := true
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            ; 只有是截图时才添加到结果中
+                            if (!isScreenshot) {
+                                continue  ; 跳过这条记录
+                            }
+                        }
+                        
                         results.Push(rowData)
                     }
                 }
@@ -749,6 +1051,11 @@ RefreshHistoryData(keyword := "") {
                     preview := StrReplace(preview, "`n", " ")
                     preview := StrReplace(preview, "`r", " ")
                 }
+            }
+            
+            ; 如果是 Stack 标签，在内容前缀添加红色圆点标识和样式标记
+            if (dataType = "Stack") {
+                preview := "🔴 [叠加] " . preview
             }
             
             ; 格式化时间
@@ -863,43 +1170,38 @@ RefreshHistoryData(keyword := "") {
                 charCount := StrLen(rowData["Content"])
             }
             
-            ; 确定图标索引
-            iconIndex := 0
-            if (dataType = "Image") {
-                ; 图片类型，使用 .png 图标
-                iconIndex := GetFileIconIndex("png")
-            } else if (dataType = "Link") {
-                ; 链接类型，使用 .url 图标
-                iconIndex := GetFileIconIndex("url")
-            } else if (dataType = "Code") {
-                ; 代码类型，使用 .txt 图标（或根据文件扩展名）
-                iconIndex := GetFileIconIndex("txt")
+            ; 确定图标索引（使用 getBestIconPath 获取最佳路径，然后转换为图标索引）
+            iconPath := getBestIconPath(rowData)
+            iconIndex := GetFileIconIndex(iconPath)
+            
+            ; 获取文件后缀名和文件大小
+            fileExtension := "-"
+            fileSize := "-"
+            
+            ; 确定文件路径（优先使用 imagePath，然后是 sourcePath，最后是 Content）
+            actualFilePath := ""
+            if (imagePath != "" && FileExist(imagePath)) {
+                actualFilePath := imagePath
             } else {
-                ; 文本类型或其他，检查是否是文件路径
-                content := rowData.Has("Content") ? rowData["Content"] : ""
-                if (content != "") {
-                    ; 处理路径中的转义字符
-                    content := StrReplace(content, "\\\\", "\")
-                    content := StrReplace(content, "\\", "\")
-                    
-                    ; 检查是否是文件路径
-                    if ((InStr(content, "\") || InStr(content, "/")) && FileExist(content)) {
-                        ; 是文件路径，获取文件图标
-                        iconIndex := GetFileIconIndex(content)
-                    } else {
-                        ; 检查是否有文件扩展名
-                        SplitPath(content, , , &ext)
-                        if (ext != "") {
-                            iconIndex := GetFileIconIndex(ext)
-                        } else {
-                            ; 默认文本图标
-                            iconIndex := GetFileIconIndex("txt")
+                sourcePath := rowData.Has("SourcePath") ? rowData["SourcePath"] : ""
+                if (sourcePath != "" && sourcePath != "\\" && FileExist(sourcePath)) {
+                    actualFilePath := sourcePath
+                } else {
+                    content := rowData.Has("Content") ? rowData["Content"] : ""
+                    if (content != "") {
+                        content := StrReplace(content, "\\\\", "\")
+                        content := StrReplace(content, "\\", "\")
+                        if ((InStr(content, "\") || InStr(content, "/")) && FileExist(content)) {
+                            actualFilePath := content
                         }
                     }
-                } else {
-                    ; 默认文本图标
-                    iconIndex := GetFileIconIndex("txt")
                 }
+            }
+            
+            ; 如果有文件路径，获取文件后缀名和大小
+            if (actualFilePath != "") {
+                fileExtension := GetFileExtension(actualFilePath)
+                fileSize := GetFileSize(actualFilePath)
             }
             
             ; 确保所有字段都有有效值（不能为空字符串，至少要有占位符）
@@ -914,6 +1216,12 @@ RefreshHistoryData(keyword := "") {
             }
             if (dataType = "") {
                 dataType := "Text"
+            }
+            if (fileExtension = "") {
+                fileExtension := "-"
+            }
+            if (fileSize = "") {
+                fileSize := "-"
             }
             if (timeText = "") {
                 timeText := "-"
@@ -934,9 +1242,11 @@ RefreshHistoryData(keyword := "") {
             ; 参数4 (sourceApp): 第3列 [来源应用]
             ; 参数5 (fileLocation): 第4列 [文件位置]
             ; 参数6 (dataType): 第5列 [类型]
-            ; 参数7 (timeText): 第6列 [最后复制时间]
-            ; 参数8 (copyCount): 第7列 [复制次数]
-            ; 参数9 (charCount): 第8列 [字符数]
+            ; 参数7 (fileExtension): 第6列 [文件后缀]
+            ; 参数8 (fileSize): 第7列 [文件大小]
+            ; 参数9 (timeText): 第8列 [最后复制时间]
+            ; 参数10 (copyCount): 第9列 [复制次数]
+            ; 参数11 (charCount): 第10列 [字符数]
             iconOption := iconIndex >= 0 ? "Icon" . (iconIndex + 1) : ""
             rowIndex := HistoryListView.Add(iconOption,
                 String(index),            ; 第1列：序号
@@ -944,9 +1254,11 @@ RefreshHistoryData(keyword := "") {
                 String(sourceApp),        ; 第3列：来源应用
                 String(fileLocation),     ; 第4列：文件位置
                 String(dataType),         ; 第5列：类型
-                String(timeText),         ; 第6列：最后复制时间
-                String(copyCount),        ; 第7列：复制次数
-                String(charCount))        ; 第8列：字符数
+                String(fileExtension),     ; 第6列：文件后缀
+                String(fileSize),         ; 第7列：文件大小
+                String(timeText),         ; 第8列：最后复制时间
+                String(copyCount),        ; 第9列：复制次数
+                String(charCount))        ; 第10列：字符数
         }
         
         ; 恢复重绘
@@ -2249,5 +2561,250 @@ InitClipboardHistoryPanel() {
         } catch {
             ; 如果绑定失败，忽略错误（可能GUI还未完全创建）
         }
+    }
+}
+
+; ===================== 叠加复制功能 =====================
+; CapsLock + C：捕获文本并存入数据库（DataType=Stack）
+HandleStackCopy() {
+    global ClipboardFTS5DB, StackClipboardItems
+    
+    ; 确保数据库已初始化
+    if (!ClipboardFTS5DB || ClipboardFTS5DB = 0) {
+        if (!InitClipboardFTS5DB()) {
+            TrayTip("错误", "数据库未初始化，无法保存叠加复制", "Iconx 1")
+            return
+        }
+    }
+    
+    ; 获取剪贴板内容
+    try {
+        clipboardContent := A_Clipboard
+        if (clipboardContent = "" || StrLen(clipboardContent) = 0) {
+            TrayTip("提示", "剪贴板为空，无法叠加复制", "Iconi 1")
+            return
+        }
+        
+        ; 转义单引号和反斜杠
+        escapedContent := StrReplace(clipboardContent, "'", "''")
+        escapedContent := StrReplace(escapedContent, "\", "\\")
+        
+        ; 获取来源应用信息
+        SourceApp := "Unknown"
+        SourcePath := ""
+        IconPath := ""
+        try {
+            SourceApp := WinGetProcessName("A")
+            ; 获取应用信息（路径、图标）
+            appInfo := GetApplicationInfo()
+            if (appInfo.Has("SourceApp") && appInfo["SourceApp"] != "Unknown") {
+                SourceApp := appInfo["SourceApp"]
+            }
+            if (appInfo.Has("SourcePath")) {
+                SourcePath := appInfo["SourcePath"]
+            }
+            if (appInfo.Has("IconPath")) {
+                IconPath := appInfo["IconPath"]
+            }
+        } catch {
+            SourceApp := "Unknown"
+        }
+        
+        ; 转义路径中的特殊字符
+        escapedSourceApp := StrReplace(SourceApp, "'", "''")
+        escapedSourceApp := StrReplace(escapedSourceApp, "\", "\\")
+        escapedSourcePath := StrReplace(SourcePath, "'", "''")
+        escapedSourcePath := StrReplace(escapedSourcePath, "\", "\\")
+        escapedIconPath := StrReplace(IconPath, "'", "''")
+        escapedIconPath := StrReplace(escapedIconPath, "\", "\\")
+        
+        ; 计算字符数
+        charCount := StrLen(clipboardContent)
+        
+        ; 检查字段是否存在
+        SQL := "PRAGMA table_info(ClipMain)"
+        tableInfo := ""
+        hasLastCopyTime := false
+        hasCopyCount := false
+        hasSourcePath := false
+        hasIconPath := false
+        
+        if (ClipboardFTS5DB.GetTable(SQL, &tableInfo)) {
+            if (tableInfo.HasRows && tableInfo.Rows.Length > 0) {
+                Loop tableInfo.Rows.Length {
+                    row := tableInfo.Rows[A_Index]
+                    columnName := row[2]
+                    if (columnName = "LastCopyTime") {
+                        hasLastCopyTime := true
+                    }
+                    if (columnName = "CopyCount") {
+                        hasCopyCount := true
+                    }
+                    if (columnName = "SourcePath") {
+                        hasSourcePath := true
+                    }
+                    if (columnName = "IconPath") {
+                        hasIconPath := true
+                    }
+                }
+            }
+        }
+        
+        ; 确保字段存在
+        if (!hasSourcePath) {
+            ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN SourcePath TEXT")
+            hasSourcePath := true
+        }
+        if (!hasIconPath) {
+            ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN IconPath TEXT")
+            hasIconPath := true
+        }
+        if (!hasLastCopyTime) {
+            ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN LastCopyTime DATETIME DEFAULT (datetime('now', 'localtime'))")
+            hasLastCopyTime := true
+        }
+        if (!hasCopyCount) {
+            ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN CopyCount INTEGER DEFAULT 1")
+            hasCopyCount := true
+        }
+        
+        ; 直接插入新记录（叠加复制总是插入新记录，不检查是否已存在）
+        SQL := "INSERT INTO ClipMain (Content, SourceApp"
+        if (hasSourcePath) {
+            SQL .= ", SourcePath"
+        }
+        if (hasIconPath) {
+            SQL .= ", IconPath"
+        }
+        SQL .= ", DataType, CharCount, Timestamp"
+        if (hasLastCopyTime) {
+            SQL .= ", LastCopyTime"
+        }
+        if (hasCopyCount) {
+            SQL .= ", CopyCount"
+        }
+        SQL .= ") VALUES ('" . escapedContent . "', '" . escapedSourceApp . "'"
+        if (hasSourcePath) {
+            SQL .= ", '" . escapedSourcePath . "'"
+        }
+        if (hasIconPath) {
+            SQL .= ", '" . escapedIconPath . "'"
+        }
+        SQL .= ", 'Stack', " . charCount . ", datetime('now', 'localtime')"
+        if (hasLastCopyTime) {
+            SQL .= ", datetime('now', 'localtime')"
+        }
+        if (hasCopyCount) {
+            SQL .= ", 1"
+        }
+        SQL .= ")"
+        
+        if (ClipboardFTS5DB.Exec(SQL)) {
+            ; 获取刚插入的记录ID
+            recordID := ClipboardFTS5DB.LastInsertRowID()
+            if (recordID > 0) {
+                ; 添加到叠加列表
+                StackClipboardItems.Push(recordID)
+                
+                ; 轻提示：显示叠加数量（1秒后自动消失）
+                previewText := clipboardContent
+                if (StrLen(previewText) > 30) {
+                    previewText := SubStr(previewText, 1, 30) . "..."
+                }
+                TrayTip("叠加复制 " . StackClipboardItems.Length, previewText, "Iconi 1")
+                SetTimer(() => TrayTip(), -1000)  ; 1秒后自动关闭提示
+                
+                ; 如果历史面板已打开，刷新数据
+                if (HistoryIsVisible) {
+                    RefreshHistoryData()
+                }
+            } else {
+                TrayTip("错误", "无法获取插入的记录ID", "Iconx 1")
+            }
+        } else {
+            TrayTip("错误", "保存叠加复制失败: " . (ClipboardFTS5DB.ErrorMsg ? ClipboardFTS5DB.ErrorMsg : "未知错误"), "Iconx 1")
+        }
+    } catch as err {
+        TrayTip("错误", "叠加复制异常: " . err.Message, "Iconx 1")
+    }
+}
+
+; CapsLock + V：一次性粘贴所有叠加内容并清空缓存
+HandleStackPaste() {
+    global ClipboardFTS5DB, StackClipboardItems
+    
+    ; 确保数据库已初始化
+    if (!ClipboardFTS5DB || ClipboardFTS5DB = 0) {
+        TrayTip("错误", "数据库未初始化", "Iconx 1")
+        return
+    }
+    
+    ; 如果没有叠加内容，提示用户
+    if (StackClipboardItems.Length = 0) {
+        TrayTip("提示", "没有叠加复制的内容", "Iconi 1")
+        return
+    }
+    
+    try {
+        ; 从数据库读取所有叠加内容
+        allContent := []
+        for index, recordID in StackClipboardItems {
+            SQL := "SELECT Content FROM ClipMain WHERE ID = " . recordID
+            table := ""
+            if (ClipboardFTS5DB.GetTable(SQL, &table)) {
+                if (table.HasRows && table.Rows.Length > 0) {
+                    content := table.Rows[1][1]
+                    if (content != "" && StrLen(content) > 0) {
+                        allContent.Push(content)
+                    }
+                }
+            }
+        }
+        
+        ; 如果没有有效内容，提示用户
+        if (allContent.Length = 0) {
+            TrayTip("提示", "叠加内容为空", "Iconi 1")
+            StackClipboardItems := []  ; 清空缓存
+            return
+        }
+        
+        ; 合并所有内容（用换行符连接）
+        mergedContent := ""
+        for index, content in allContent {
+            if (index = 1) {
+                mergedContent := content
+            } else {
+                mergedContent .= "`r`n" . content
+            }
+        }
+        
+        ; 保存当前剪贴板内容（用于恢复）
+        oldClipboard := A_Clipboard
+        
+        ; 复制合并后的内容到剪贴板
+        A_Clipboard := mergedContent
+        Sleep(50)  ; 等待剪贴板更新
+        
+        ; 直接粘贴到当前输入位置
+        SendInput("^v")  ; Ctrl+V 粘贴
+        
+        ; 等待粘贴完成
+        Sleep(100)
+        
+        ; 清空叠加列表（重新开始记录）
+        itemCount := StackClipboardItems.Length
+        StackClipboardItems := []
+        
+        ; 轻提示：显示粘贴成功（1秒后自动消失）
+        TrayTip("叠加粘贴", "已粘贴 " . itemCount . " 段内容", "Iconi 1")
+        SetTimer(() => TrayTip(), -1000)  ; 1秒后自动关闭提示
+        
+        ; 如果历史面板已打开，刷新数据
+        if (HistoryIsVisible) {
+            RefreshHistoryData()
+        }
+        
+    } catch as err {
+        TrayTip("错误", "叠加粘贴异常: " . err.Message, "Iconx 1")
     }
 }

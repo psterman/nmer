@@ -6201,3 +6201,172 @@
 [2026-01-05 07:50:27] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=0
 [2026-01-05 08:17:57] RefreshClipboardListView: 查询成功，行数=0
 [2026-01-05 08:17:57] RefreshClipboardListView: 查询成功但无数据
+[2026-01-07 19:57:02] RefreshClipboardListView: 查询成功，行数=1
+[2026-01-07 19:57:02] RefreshClipboardListView: 行1 - ID=1, Content长度=1, DataType=Text
+[2026-01-07 19:57:02] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-07 19:57:02] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=0
+[2026-01-07 19:57:02] RefreshClipboardListView: 查询成功，行数=1
+[2026-01-07 19:57:02] RefreshClipboardListView: 行1 - ID=1, Content长度=1, DataType=Text
+[2026-01-07 19:57:02] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-07 19:57:02] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=0
+[2026-01-07 19:57:08] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:08] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:08] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:09] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:09] RefreshClipboardListView: 查询成功，行数=1
+[2026-01-07 19:57:09] RefreshClipboardListView: 行1 - ID=1, Content长度=1, DataType=Text
+[2026-01-07 19:57:09] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-07 19:57:09] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=0
+[2026-01-07 19:57:10] RefreshClipboardListView: 查询成功，行数=1
+[2026-01-07 19:57:10] RefreshClipboardListView: 行1 - ID=1, Content长度=1, DataType=Text
+[2026-01-07 19:57:10] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-07 19:57:10] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=0
+[2026-01-07 19:57:11] RefreshClipboardListView: 查询成功，行数=1
+[2026-01-07 19:57:11] RefreshClipboardListView: 行1 - ID=1, Content长度=1, DataType=Text
+[2026-01-07 19:57:11] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-07 19:57:11] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=0
+[2026-01-07 19:57:14] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:14] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:15] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:16] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:16] RefreshClipboardListView: 查询成功，行数=1
+[2026-01-07 19:57:16] RefreshClipboardListView: 行1 - ID=1, Content长度=1, DataType=Text
+[2026-01-07 19:57:16] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-07 19:57:16] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=0
+[2026-01-07 19:57:16] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:17] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:17] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:18] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:23] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:31] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:33] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:33] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:34] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:34] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:35] RefreshClipboardListView: 查询成功，行数=5
+[2026-01-07 19:57:35] RefreshClipboardListView: 行1 - ID=5, Content长度=30, DataType=Text
+[2026-01-07 19:57:35] RefreshClipboardListView: 行2 - ID=4, Content长度=1, DataType=Text
+[2026-01-07 19:57:35] RefreshClipboardListView: 行3 - ID=3, Content长度=587, DataType=Code
+[2026-01-07 19:57:35] RefreshClipboardListView: 添加行失败 - ID=5, 错误=Invalid option.
+[2026-01-07 19:57:35] RefreshClipboardListView: 添加行失败 - ID=4, 错误=Invalid option.
+[2026-01-07 19:57:35] RefreshClipboardListView: 添加行失败 - ID=3, 错误=Invalid option.
+[2026-01-07 19:57:35] RefreshClipboardListView: 添加行失败 - ID=2, 错误=Invalid option.
+[2026-01-07 19:57:35] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-07 19:57:35] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=0
+[2026-01-07 19:57:36] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:37] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:37] RefreshClipboardListView: 发生异常 - This value of type "SQLiteDB" has no method named "_Statement".
+[2026-01-07 19:57:37] RefreshClipboardListView: 查询成功，行数=5
+[2026-01-07 19:57:38] RefreshClipboardListView: 行1 - ID=5, Content长度=30, DataType=Text
+[2026-01-07 19:57:38] RefreshClipboardListView: 行2 - ID=4, Content长度=1, DataType=Text
+[2026-01-07 19:57:38] RefreshClipboardListView: 行3 - ID=3, Content长度=587, DataType=Code
+[2026-01-07 19:57:38] RefreshClipboardListView: 添加行失败 - ID=5, 错误=Invalid option.
+[2026-01-07 19:57:38] RefreshClipboardListView: 添加行失败 - ID=4, 错误=Invalid option.
+[2026-01-07 19:57:38] RefreshClipboardListView: 添加行失败 - ID=3, 错误=Invalid option.
+[2026-01-07 19:57:38] RefreshClipboardListView: 添加行失败 - ID=2, 错误=Invalid option.
+[2026-01-07 19:57:38] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-07 19:57:38] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=0
+[2026-01-07 19:57:39] RefreshClipboardListView: 查询成功，行数=5
+[2026-01-07 19:57:39] RefreshClipboardListView: 行1 - ID=5, Content长度=30, DataType=Text
+[2026-01-07 19:57:39] RefreshClipboardListView: 行2 - ID=4, Content长度=1, DataType=Text
+[2026-01-07 19:57:39] RefreshClipboardListView: 行3 - ID=3, Content长度=587, DataType=Code
+[2026-01-07 19:57:39] RefreshClipboardListView: 添加行失败 - ID=5, 错误=Invalid option.
+[2026-01-07 19:57:39] RefreshClipboardListView: 添加行失败 - ID=4, 错误=Invalid option.
+[2026-01-07 19:57:39] RefreshClipboardListView: 添加行失败 - ID=3, 错误=Invalid option.
+[2026-01-07 19:57:39] RefreshClipboardListView: 添加行失败 - ID=2, 错误=Invalid option.
+[2026-01-07 19:57:39] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-07 19:57:39] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=0
+[2026-01-07 19:57:39] RefreshClipboardListView: 查询成功，行数=5
+[2026-01-07 19:57:39] RefreshClipboardListView: 行1 - ID=5, Content长度=30, DataType=Text
+[2026-01-07 19:57:39] RefreshClipboardListView: 行2 - ID=4, Content长度=1, DataType=Text
+[2026-01-07 19:57:39] RefreshClipboardListView: 行3 - ID=3, Content长度=587, DataType=Code
+[2026-01-07 19:57:39] RefreshClipboardListView: 添加行失败 - ID=5, 错误=Invalid option.
+[2026-01-07 19:57:39] RefreshClipboardListView: 添加行失败 - ID=4, 错误=Invalid option.
+[2026-01-07 19:57:39] RefreshClipboardListView: 添加行失败 - ID=3, 错误=Invalid option.
+[2026-01-07 19:57:39] RefreshClipboardListView: 添加行失败 - ID=2, 错误=Invalid option.
+[2026-01-07 19:57:39] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-07 19:57:39] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=0
+[2026-01-07 19:57:50] RefreshClipboardListView: 查询成功，行数=6
+[2026-01-07 19:57:50] RefreshClipboardListView: 行1 - ID=6, Content长度=120, DataType=Text
+[2026-01-07 19:57:50] RefreshClipboardListView: 行2 - ID=5, Content长度=30, DataType=Text
+[2026-01-07 19:57:50] RefreshClipboardListView: 行3 - ID=4, Content长度=1, DataType=Text
+[2026-01-07 19:57:50] RefreshClipboardListView: 添加行失败 - ID=6, 错误=Invalid option.
+[2026-01-07 19:57:50] RefreshClipboardListView: 添加行失败 - ID=5, 错误=Invalid option.
+[2026-01-07 19:57:50] RefreshClipboardListView: 添加行失败 - ID=4, 错误=Invalid option.
+[2026-01-07 19:57:50] RefreshClipboardListView: 添加行失败 - ID=3, 错误=Invalid option.
+[2026-01-07 19:57:50] RefreshClipboardListView: 添加行失败 - ID=2, 错误=Invalid option.
+[2026-01-07 19:57:50] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-07 19:57:50] RefreshClipboardListView: 列表刷新完成 - 总项数=6, 已添加行数=0
+[2026-01-07 19:57:54] RefreshClipboardListView: 查询成功，行数=6
+[2026-01-07 19:57:54] RefreshClipboardListView: 行1 - ID=6, Content长度=120, DataType=Text
+[2026-01-07 19:57:54] RefreshClipboardListView: 行2 - ID=5, Content长度=30, DataType=Text
+[2026-01-07 19:57:54] RefreshClipboardListView: 行3 - ID=4, Content长度=1, DataType=Text
+[2026-01-07 19:57:54] RefreshClipboardListView: 添加行失败 - ID=6, 错误=Invalid option.
+[2026-01-07 19:57:54] RefreshClipboardListView: 添加行失败 - ID=5, 错误=Invalid option.
+[2026-01-07 19:57:54] RefreshClipboardListView: 添加行失败 - ID=4, 错误=Invalid option.
+[2026-01-07 19:57:54] RefreshClipboardListView: 添加行失败 - ID=3, 错误=Invalid option.
+[2026-01-07 19:57:54] RefreshClipboardListView: 添加行失败 - ID=2, 错误=Invalid option.
+[2026-01-07 19:57:54] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-07 19:57:54] RefreshClipboardListView: 列表刷新完成 - 总项数=6, 已添加行数=0
+[2026-01-07 19:58:07] RefreshClipboardListView: 查询成功，行数=8
+[2026-01-07 19:58:07] RefreshClipboardListView: 行1 - ID=8, Content长度=73, DataType=Text
+[2026-01-07 19:58:07] RefreshClipboardListView: 行2 - ID=7, Content长度=739, DataType=Code
+[2026-01-07 19:58:07] RefreshClipboardListView: 行3 - ID=6, Content长度=120, DataType=Text
+[2026-01-07 19:58:07] RefreshClipboardListView: 添加行失败 - ID=8, 错误=Invalid option.
+[2026-01-07 19:58:07] RefreshClipboardListView: 添加行失败 - ID=7, 错误=Invalid option.
+[2026-01-07 19:58:07] RefreshClipboardListView: 添加行失败 - ID=6, 错误=Invalid option.
+[2026-01-07 19:58:07] RefreshClipboardListView: 添加行失败 - ID=5, 错误=Invalid option.
+[2026-01-07 19:58:07] RefreshClipboardListView: 添加行失败 - ID=4, 错误=Invalid option.
+[2026-01-07 19:58:07] RefreshClipboardListView: 添加行失败 - ID=3, 错误=Invalid option.
+[2026-01-07 19:58:07] RefreshClipboardListView: 添加行失败 - ID=2, 错误=Invalid option.
+[2026-01-07 19:58:07] RefreshClipboardListView: 添加行失败 - ID=1, 错误=Invalid option.
+[2026-01-07 19:58:07] RefreshClipboardListView: 列表刷新完成 - 总项数=8, 已添加行数=0
+[2026-01-07 20:05:47] RefreshClipboardListView: 列表刷新完成 - 总项数=192, 已添加行数=192
+[2026-01-07 20:05:49] RefreshClipboardListView: 列表刷新完成 - 总项数=192, 已添加行数=192
+[2026-01-07 20:05:59] Click: ClientX=225, ClientY=50, Result=1, flags=0x4, iItem=1, iSubItem=0
+[2026-01-07 20:06:00] Click: ClientX=99, ClientY=36, Result=0, flags=0x4, iItem=0, iSubItem=0
+[2026-01-07 20:06:01] Click: ClientX=35, ClientY=54, Result=1, flags=0x4, iItem=1, iSubItem=0
+[2026-01-07 20:06:04] RefreshClipboardListView: 列表刷新完成 - 总项数=193, 已添加行数=193
+[2026-01-07 20:06:20] Click: ClientX=250, ClientY=36, Result=0, flags=0x4, iItem=0, iSubItem=0
+[2026-01-07 20:06:21] Click: ClientX=148, ClientY=53, Result=1, flags=0x4, iItem=1, iSubItem=0
+[2026-01-07 20:06:22] Click: ClientX=65, ClientY=78, Result=3, flags=0x1, iItem=3, iSubItem=0
+[2026-01-07 20:06:22] Click: ClientX=54, ClientY=72, Result=2, flags=0x4, iItem=2, iSubItem=0
+[2026-01-07 20:06:23] Click: ClientX=84, ClientY=75, Result=2, flags=0x4, iItem=2, iSubItem=0
+[2026-01-07 20:06:23] Click: ClientX=84, ClientY=75, Result=2, flags=0x4, iItem=2, iSubItem=0
+[2026-01-07 20:06:37] Click: ClientX=152, ClientY=29, Result=0, flags=0x4, iItem=0, iSubItem=0
+[2026-01-07 20:06:38] Click: ClientX=261, ClientY=72, Result=2, flags=0x4, iItem=2, iSubItem=0
+[2026-01-07 20:06:39] Click: ClientX=225, ClientY=95, Result=3, flags=0x1, iItem=3, iSubItem=0
+[2026-01-07 20:06:40] Click: ClientX=139, ClientY=-29, Result=-1, flags=0x1, iItem=-1, iSubItem=0
+[2026-01-07 20:06:40] RefreshClipboardListView: 列表刷新完成 - 总项数=94, 已添加行数=94
+[2026-01-07 20:06:41] RefreshClipboardListView: 列表刷新完成 - 总项数=4, 已添加行数=4
+[2026-01-07 20:06:42] RefreshClipboardListView: 列表刷新完成 - 总项数=92, 已添加行数=92
+[2026-01-07 20:06:44] RefreshClipboardListView: 列表刷新完成 - 总项数=193, 已添加行数=193
+[2026-01-07 20:06:49] RefreshClipboardListView: 列表刷新完成 - 总项数=193, 已添加行数=193
+[2026-01-07 20:07:04] RefreshClipboardListView: 列表刷新完成 - 总项数=194, 已添加行数=194
+[2026-01-07 20:07:17] RefreshClipboardListView: 列表刷新完成 - 总项数=194, 已添加行数=194
+[2026-01-07 20:07:26] RefreshClipboardListView: 列表刷新完成 - 总项数=195, 已添加行数=195
+[2026-01-07 20:07:31] RefreshClipboardListView: 列表刷新完成 - 总项数=195, 已添加行数=195
+[2026-01-07 20:07:48] RefreshClipboardListView: 列表刷新完成 - 总项数=197, 已添加行数=197
+[2026-01-07 20:07:52] Click: ClientX=118, ClientY=64, Result=2, flags=0x1, iItem=2, iSubItem=0
+[2026-01-07 20:07:54] Click: ClientX=140, ClientY=75, Result=2, flags=0x1, iItem=2, iSubItem=0
+[2026-01-07 20:07:54] Click: ClientX=136, ClientY=86, Result=3, flags=0x4, iItem=3, iSubItem=0
+[2026-01-07 20:07:55] Click: ClientX=122, ClientY=155, Result=7, flags=0x1, iItem=7, iSubItem=0
+[2026-01-07 20:07:56] Click: ClientX=130, ClientY=134, Result=6, flags=0x4, iItem=6, iSubItem=0
+[2026-01-07 20:07:56] Click: ClientX=131, ClientY=132, Result=6, flags=0x4, iItem=6, iSubItem=0
+[2026-01-07 20:08:00] RefreshClipboardListView: 列表刷新完成 - 总项数=97, 已添加行数=97
+[2026-01-07 20:08:01] RefreshClipboardListView: 列表刷新完成 - 总项数=197, 已添加行数=197
+[2026-01-07 20:08:04] Click: ClientX=46, ClientY=58, Result=1, flags=0x4, iItem=1, iSubItem=0
+[2026-01-07 20:08:04] Click: ClientX=69, ClientY=40, Result=0, flags=0x4, iItem=0, iSubItem=0
+[2026-01-07 20:08:05] Click: ClientX=77, ClientY=31, Result=0, flags=0x4, iItem=0, iSubItem=0
+[2026-01-07 20:08:06] Click: ClientX=73, ClientY=53, Result=1, flags=0x1, iItem=1, iSubItem=0
+[2026-01-07 20:08:11] RefreshClipboardListView: 列表刷新完成 - 总项数=4, 已添加行数=4
+[2026-01-07 20:08:11] RefreshClipboardListView: 列表刷新完成 - 总项数=97, 已添加行数=97
+[2026-01-07 20:08:12] RefreshClipboardListView: 列表刷新完成 - 总项数=197, 已添加行数=197
+[2026-01-07 20:08:13] Click: ClientX=30, ClientY=42, Result=1, flags=0x4, iItem=1, iSubItem=0
+[2026-01-07 20:08:14] Click: ClientX=41, ClientY=34, Result=0, flags=0x4, iItem=0, iSubItem=0
+[2026-01-07 20:08:15] Click: ClientX=55, ClientY=31, Result=0, flags=0x4, iItem=0, iSubItem=0
+[2026-01-07 20:08:16] Click: ClientX=100, ClientY=53, Result=1, flags=0x1, iItem=1, iSubItem=0
+[2026-01-07 20:08:17] Click: ClientX=97, ClientY=88, Result=3, flags=0x4, iItem=3, iSubItem=0
+[2026-01-07 20:08:18] Click: ClientX=129, ClientY=177, Result=8, flags=0x4, iItem=8, iSubItem=0
+[2026-01-07 20:08:19] Click: ClientX=221, ClientY=256, Result=12, flags=0x4, iItem=12, iSubItem=0
+[2026-01-07 20:08:20] Click: ClientX=-56, ClientY=10, Result=0, flags=0x4, iItem=0, iSubItem=-1
