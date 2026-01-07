@@ -15850,9 +15850,10 @@ CapsLockCopy() {
             
             ; 【同步到 FTS5 数据库】确保 ClipboardHistoryPanel 和剪贴板管理面板都能显示
             ; 参考 ClipboardHistoryPanel.ahk，使用 ClipboardFTS5DB 存储数据
+            ; 【关键修改】CapsLock+C 的数据使用 "Stack" 作为 DataType，便于单独归类
             if (ClipboardFTS5DB && ClipboardFTS5DB != 0) {
                 try {
-                    SaveToClipboardFTS5(TrimmedContent, SourceApp, DataType)
+                    SaveToClipboardFTS5(TrimmedContent, SourceApp, "Stack")
                 } catch as err {
                     ; 忽略错误，不影响主流程
                 }
@@ -16304,6 +16305,7 @@ ShowClipboardManager() {
     ; 分类标签定义
     Categories := [
         {Key: "All", Text: "全部"},
+        {Key: "Stack", Text: "CapsLock+C"},
         {Key: "Text", Text: "文本"},
         {Key: "Code", Text: "代码"},
         {Key: "Link", Text: "链接"},
@@ -17415,7 +17417,7 @@ RefreshClipboardListView() {
     }
     
     try {
-        ; 【关键修复】锁定界面更新，防止闪烁（先禁用重绘）
+        ; 【关键修复】锁定界面更新，防止闪烁（先禁用重绘，避免切换标签时的空白）
         ClipboardListView.Opt("-Redraw")
         
         ; 【关键修复】在查询前立即清空列表，防止数据堆叠
@@ -17424,6 +17426,7 @@ RefreshClipboardListView() {
         } catch as err {
         }
         
+        ; 【优化】先查询数据，再一次性添加，避免空白闪烁
         ; 【参考 ClipboardHistoryPanel.ahk】使用 ClipboardFTS5DB 数据库（ClipMain 表）
         if (!ClipboardFTS5DB || ClipboardFTS5DB = 0) {
             ; 尝试重新初始化数据库
@@ -17484,7 +17487,7 @@ RefreshClipboardListView() {
         
         ; 根据分类过滤 SQL 查询
         if (CurrentCategory != "" && CurrentCategory != "All" && CurrentCategory != "全部") {
-            ; 根据分类过滤：Text, Code, Link, Image
+            ; 根据分类过滤：Stack（CapsLock+C）、Text, Code, Link, Image
             SQL := "SELECT " . selectFields . " FROM ClipMain WHERE DataType = '" . StrReplace(CurrentCategory, "'", "''") . "' ORDER BY Timestamp DESC"
         } else {
             ; 全部：不添加过滤条件

@@ -264,9 +264,116 @@ CreateHistoryPanelGUI() {
     HistoryListView.OnEvent("DoubleClick", OnHistoryItemDoubleClick)
     HistoryListView.OnEvent("Click", OnHistoryItemClick)  ; 添加点击事件，确保能触发预览
     
+    ; ========== 底部按钮区域 ==========
+    ButtonAreaY := 695
+    ButtonY := ButtonAreaY + 5
+    ButtonHeight := 30
+    ButtonWidth := 100
+    ButtonSpacing := 10
+    
+    ; 复制选中按钮
+    CopyBtn := GuiID_ClipboardHistory.Add("Text", 
+        "x10 y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . 
+        " Center 0x200 c" . HistoryColors.TagText . 
+        " Background" . HistoryColors.TagBg . 
+        " vHistoryCopyBtn", "复制选中")
+    CopyBtn.SetFont("s10", "Segoe UI")
+    CopyBtn.OnEvent("Click", HistoryCopySelected)
+    ; 添加悬停效果
+    try {
+        if (IsSet(HoverBtn)) {
+            HoverBtn(CopyBtn, HistoryColors.TagBg, HistoryColors.TagBgActive)
+        }
+    } catch {
+    }
+    
+    ; 删除选中按钮
+    DeleteBtn := GuiID_ClipboardHistory.Add("Text", 
+        "x" . (10 + ButtonWidth + ButtonSpacing) . " y" . ButtonY . 
+        " w" . ButtonWidth . " h" . ButtonHeight . 
+        " Center 0x200 c" . HistoryColors.TagText . 
+        " Background" . HistoryColors.TagBg . 
+        " vHistoryDeleteBtn", "删除选中")
+    DeleteBtn.SetFont("s10", "Segoe UI")
+    DeleteBtn.OnEvent("Click", HistoryDeleteSelected)
+    ; 添加悬停效果
+    try {
+        if (IsSet(HoverBtn)) {
+            HoverBtn(DeleteBtn, HistoryColors.TagBg, HistoryColors.TagBgActive)
+        }
+    } catch {
+    }
+    
+    ; 粘贴到 Cursor 按钮
+    PasteBtn := GuiID_ClipboardHistory.Add("Text", 
+        "x" . (10 + (ButtonWidth + ButtonSpacing) * 2) . " y" . ButtonY . 
+        " w" . (ButtonWidth + 20) . " h" . ButtonHeight . 
+        " Center 0x200 cFFFFFF Background" . HistoryColors.TagBgActive . 
+        " vHistoryPasteBtn", "粘贴到 Cursor")
+    PasteBtn.SetFont("s10", "Segoe UI")
+    PasteBtn.OnEvent("Click", HistoryPasteToCursor)
+    ; 添加悬停效果
+    try {
+        if (IsSet(HoverBtn)) {
+            HoverBtn(PasteBtn, HistoryColors.TagBgActive, HistoryColors.TagBgActive)
+        }
+    } catch {
+    }
+    
+    ; 清空全部按钮
+    ClearAllBtn := GuiID_ClipboardHistory.Add("Text", 
+        "x" . (10 + (ButtonWidth + ButtonSpacing) * 3 + ButtonWidth + 20) . " y" . ButtonY . 
+        " w" . ButtonWidth . " h" . ButtonHeight . 
+        " Center 0x200 c" . HistoryColors.TagText . 
+        " Background" . HistoryColors.TagBg . 
+        " vHistoryClearAllBtn", "清空全部")
+    ClearAllBtn.SetFont("s10", "Segoe UI")
+    ClearAllBtn.OnEvent("Click", HistoryClearAll)
+    ; 添加悬停效果
+    try {
+        if (IsSet(HoverBtn)) {
+            HoverBtn(ClearAllBtn, HistoryColors.TagBg, HistoryColors.TagBgActive)
+        }
+    } catch {
+    }
+    
+    ; 导出剪贴板按钮
+    ExportBtn := GuiID_ClipboardHistory.Add("Text", 
+        "x" . (10 + (ButtonWidth + ButtonSpacing) * 4 + ButtonWidth + 20) . " y" . ButtonY . 
+        " w" . ButtonWidth . " h" . ButtonHeight . 
+        " Center 0x200 c" . HistoryColors.TagText . 
+        " Background" . HistoryColors.TagBg . 
+        " vHistoryExportBtn", "导出")
+    ExportBtn.SetFont("s10", "Segoe UI")
+    ExportBtn.OnEvent("Click", HistoryExportClipboard)
+    ; 添加悬停效果
+    try {
+        if (IsSet(HoverBtn)) {
+            HoverBtn(ExportBtn, HistoryColors.TagBg, HistoryColors.TagBgActive)
+        }
+    } catch {
+    }
+    
+    ; 导入剪贴板按钮
+    ImportBtn := GuiID_ClipboardHistory.Add("Text", 
+        "x" . (10 + (ButtonWidth + ButtonSpacing) * 5 + ButtonWidth + 20) . " y" . ButtonY . 
+        " w" . ButtonWidth . " h" . ButtonHeight . 
+        " Center 0x200 c" . HistoryColors.TagText . 
+        " Background" . HistoryColors.TagBg . 
+        " vHistoryImportBtn", "导入")
+    ImportBtn.SetFont("s10", "Segoe UI")
+    ImportBtn.OnEvent("Click", HistoryImportClipboard)
+    ; 添加悬停效果
+    try {
+        if (IsSet(HoverBtn)) {
+            HoverBtn(ImportBtn, HistoryColors.TagBg, HistoryColors.TagBgActive)
+        }
+    } catch {
+    }
+    
     ; ========== 底部状态栏 ==========
     HistoryStatusBarText := GuiID_ClipboardHistory.Add("Text", 
-        "x10 y695 w1180 h20 c" . HistoryColors.TextDim, 
+        "x10 y" . (ButtonAreaY + ButtonHeight + 10) . " w1180 h20 c" . HistoryColors.TextDim, 
         "提示: 双击项目复制到剪贴板 | 使用搜索框过滤内容 | 点击标签分类筛选 | 鼠标悬停查看完整路径")
     HistoryStatusBarText.SetFont("s8", "Segoe UI")
 }
@@ -2840,5 +2947,288 @@ HandleStackPaste() {
         
     } catch as err {
         TrayTip("错误", "叠加粘贴异常: " . err.Message, "Iconx 1")
+    }
+}
+
+; ===================== 按钮处理函数 =====================
+
+; 复制选中项
+HistoryCopySelected(*) {
+    global HistoryListView, HistoryDisplayCache
+    
+    if (!HistoryListView || !IsObject(HistoryListView)) {
+        return
+    }
+    
+    ; 获取选中的行
+    selectedRow := HistoryListView.GetNext()
+    if (selectedRow = 0) {
+        TrayTip("提示", "请先选中一项", "Iconi 1")
+        return
+    }
+    
+    ; 从缓存中获取数据
+    if (selectedRow > 0 && selectedRow <= HistoryDisplayCache.Length) {
+        rowData := HistoryDisplayCache[selectedRow]
+        content := rowData.Has("Content") ? rowData["Content"] : ""
+        
+        if (content != "") {
+            A_Clipboard := content
+            TrayTip("提示", "已复制到剪贴板", "Iconi 1")
+        } else {
+            TrayTip("错误", "内容为空", "Iconx 1")
+        }
+    } else {
+        TrayTip("错误", "无法获取选中项", "Iconx 1")
+    }
+}
+
+; 删除选中项
+HistoryDeleteSelected(*) {
+    global HistoryListView, HistoryDisplayCache, ClipboardFTS5DB
+    
+    if (!HistoryListView || !IsObject(HistoryListView)) {
+        return
+    }
+    
+    ; 获取选中的行
+    selectedRow := HistoryListView.GetNext()
+    if (selectedRow = 0) {
+        TrayTip("提示", "请先选中一项", "Iconi 1")
+        return
+    }
+    
+    ; 从缓存中获取数据
+    if (selectedRow > 0 && selectedRow <= HistoryDisplayCache.Length) {
+        rowData := HistoryDisplayCache[selectedRow]
+        itemID := rowData.Has("ID") ? rowData["ID"] : 0
+        
+        if (itemID > 0 && ClipboardFTS5DB && ClipboardFTS5DB != 0) {
+            try {
+                SQL := "DELETE FROM ClipMain WHERE ID = " . itemID
+                if (ClipboardFTS5DB.Exec(SQL)) {
+                    ; 刷新数据
+                    RefreshHistoryData()
+                    TrayTip("提示", "已删除", "Iconi 1")
+                } else {
+                    TrayTip("错误", "删除失败: " . (ClipboardFTS5DB.ErrorMsg ? ClipboardFTS5DB.ErrorMsg : "未知错误"), "Iconx 1")
+                }
+            } catch as err {
+                TrayTip("错误", "删除异常: " . err.Message, "Iconx 1")
+            }
+        } else {
+            TrayTip("错误", "无法获取项目ID", "Iconx 1")
+        }
+    } else {
+        TrayTip("错误", "无法获取选中项", "Iconx 1")
+    }
+}
+
+; 粘贴到 Cursor
+HistoryPasteToCursor(*) {
+    global HistoryListView, HistoryDisplayCache
+    
+    if (!HistoryListView || !IsObject(HistoryListView)) {
+        return
+    }
+    
+    ; 获取选中的行
+    selectedRow := HistoryListView.GetNext()
+    if (selectedRow = 0) {
+        TrayTip("提示", "请先选中一项", "Iconi 1")
+        return
+    }
+    
+    ; 从缓存中获取数据
+    if (selectedRow > 0 && selectedRow <= HistoryDisplayCache.Length) {
+        rowData := HistoryDisplayCache[selectedRow]
+        content := rowData.Has("Content") ? rowData["Content"] : ""
+        
+        if (content != "") {
+            ; 保存当前剪贴板
+            oldClipboard := A_Clipboard
+            A_Clipboard := content
+            Sleep(50)
+            
+            ; 获取 Cursor 路径（从配置文件或使用默认路径）
+            CursorPath := ""
+            try {
+                ; 尝试从配置文件读取
+                ConfigFile := A_ScriptDir "\CursorShortcut.ini"
+                if (FileExist(ConfigFile)) {
+                    CursorPath := IniRead(ConfigFile, "Settings", "CursorPath", "")
+                    if (CursorPath = "") {
+                        CursorPath := IniRead(ConfigFile, "General", "CursorPath", "")
+                    }
+                }
+            } catch {
+            }
+            
+            ; 如果配置文件没有，使用默认路径
+            if (CursorPath = "" || !FileExist(CursorPath)) {
+                DefaultCursorPath := "C:\Users\" . A_UserName . "\AppData\Local\Cursor\Cursor.exe"
+                if (FileExist(DefaultCursorPath)) {
+                    CursorPath := DefaultCursorPath
+                }
+            }
+            
+            ; 打开 Cursor（如果未打开）
+            if (!WinExist("ahk_exe Cursor.exe")) {
+                if (CursorPath != "" && FileExist(CursorPath)) {
+                    Run(CursorPath)
+                    WinWait("ahk_exe Cursor.exe", , 5)
+                } else {
+                    TrayTip("错误", "未找到 Cursor 路径，请先打开 Cursor", "Iconx 1")
+                    A_Clipboard := oldClipboard
+                    return
+                }
+            }
+            
+            ; 激活 Cursor 窗口
+            WinActivate("ahk_exe Cursor.exe")
+            Sleep(100)
+            
+            ; 粘贴内容
+            SendInput("^v")
+            
+            ; 恢复剪贴板
+            A_Clipboard := oldClipboard
+            
+            TrayTip("提示", "已粘贴到 Cursor", "Iconi 1")
+        } else {
+            TrayTip("错误", "内容为空", "Iconx 1")
+        }
+    } else {
+        TrayTip("错误", "无法获取选中项", "Iconx 1")
+    }
+}
+
+; 清空全部
+HistoryClearAll(*) {
+    global ClipboardFTS5DB, HistoryDisplayCache
+    
+    ; 确认对话框
+    result := MsgBox("确定要清空所有剪贴板历史吗？", "确认", "YesNo IconQuestion")
+    if (result != "Yes") {
+        return
+    }
+    
+    if (ClipboardFTS5DB && ClipboardFTS5DB != 0) {
+        try {
+            ; 清空数据库
+            if (ClipboardFTS5DB.Exec("DELETE FROM ClipMain")) {
+                ; 清空 FTS5 虚拟表
+                ClipboardFTS5DB.Exec("DELETE FROM ClipboardHistory")
+                
+                ; 刷新显示
+                HistoryDisplayCache := []
+                RefreshHistoryData()
+                
+                TrayTip("提示", "已清空所有历史", "Iconi 1")
+            } else {
+                TrayTip("错误", "清空失败: " . (ClipboardFTS5DB.ErrorMsg ? ClipboardFTS5DB.ErrorMsg : "未知错误"), "Iconx 1")
+            }
+        } catch as err {
+            TrayTip("错误", "清空异常: " . err.Message, "Iconx 1")
+        }
+    } else {
+        TrayTip("错误", "数据库未初始化", "Iconx 1")
+    }
+}
+
+; 导出剪贴板
+HistoryExportClipboard(*) {
+    global HistoryDisplayCache
+    
+    if (HistoryDisplayCache.Length = 0) {
+        MsgBox("没有可导出的数据", "提示", "Iconi")
+        return
+    }
+    
+    exportPath := FileSelect("S", A_ScriptDir "\ClipboardHistory_" . A_Now . ".txt", "导出剪贴板历史", "Text Files (*.txt)")
+    if (exportPath = "") {
+        return
+    }
+    
+    try {
+        content := "=== Clipboard History Export ===`n`n"
+        for index, rowData in HistoryDisplayCache {
+            itemContent := rowData.Has("Content") ? rowData["Content"] : ""
+            if (itemContent != "") {
+                content .= "=== Item " . index . " ===`n"
+                content .= itemContent . "`n`n"
+            }
+        }
+        
+        FileDelete(exportPath)
+        FileAppend(content, exportPath, "UTF-8")
+        MsgBox("导出成功", "提示", "Iconi")
+    } catch as err {
+        MsgBox("导出失败: " . err.Message, "错误", "Iconx")
+    }
+}
+
+; 导入剪贴板
+HistoryImportClipboard(*) {
+    global ClipboardFTS5DB
+    
+    importPath := FileSelect(1, A_ScriptDir, "导入剪贴板历史", "Text Files (*.txt)")
+    if (importPath = "") {
+        return
+    }
+    
+    if (!ClipboardFTS5DB || ClipboardFTS5DB = 0) {
+        MsgBox("数据库未初始化", "错误", "Iconx")
+        return
+    }
+    
+    try {
+        content := FileRead(importPath, "UTF-8")
+        
+        ; 解析导入的内容
+        lines := StrSplit(content, "`n")
+        importedItems := []
+        currentItem := ""
+        
+        for index, line in lines {
+            ; 跳过标题行
+            if (InStr(line, "=== ") = 1 && InStr(line, " Clipboard History Export") > 0) {
+                continue
+            }
+            if (InStr(line, "=== Item ") = 1) {
+                if (currentItem != "") {
+                    importedItems.Push(Trim(currentItem, "`r`n "))
+                    currentItem := ""
+                }
+            } else if (line != "") {
+                currentItem .= line . "`n"
+            }
+        }
+        
+        ; 添加最后一项
+        if (currentItem != "") {
+            importedItems.Push(Trim(currentItem, "`r`n "))
+        }
+        
+        ; 导入到数据库
+        importedCount := 0
+        for index, item in importedItems {
+            if (item != "") {
+                escapedContent := StrReplace(item, "'", "''")
+                escapedContent := StrReplace(escapedContent, "\", "\\")
+                
+                SQL := "INSERT INTO ClipMain (Content, SourceApp, DataType, Timestamp) VALUES ('" . escapedContent . "', 'Import', 'Text', datetime('now', 'localtime'))"
+                if (ClipboardFTS5DB.Exec(SQL)) {
+                    importedCount++
+                }
+            }
+        }
+        
+        ; 刷新显示
+        RefreshHistoryData()
+        
+        MsgBox("导入成功，共导入 " . importedCount . " 项", "提示", "Iconi")
+    } catch as err {
+        MsgBox("导入失败: " . err.Message, "错误", "Iconx")
     }
 }

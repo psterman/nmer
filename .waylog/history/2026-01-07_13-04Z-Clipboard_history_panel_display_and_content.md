@@ -176,3 +176,14 @@ Line:	17007
 File:	C:\Users\pster\Desktop\小c\CursorHelper (1).ahk
 
 ---
+
+
+**Cursor**
+
+查找现有的 `FormatFileSize` 函数定义：
+
+
+
+检查是否有其他地方定义或包含该函数：
+
+---
