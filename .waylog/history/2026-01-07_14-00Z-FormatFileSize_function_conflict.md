@@ -46,3 +46,55 @@ File:	C:\Users\pster\Desktop\小c\CursorHelper (1).ahk
 查看 ClipboardHistoryPanel.ahk 的结构和主文件中剪贴板管理的实现：
 
 ---
+
+
+**User**
+
+1@modules/ClipboardHistoryPanel.ahk listview的下方没有背景空间容纳复制，删除，粘贴，清空，导出，导入这些按钮，参考剪贴板管理
+2剪贴板管理有两个capslock+c按钮，去掉左上角那个，搜索框参考ClipboardHistoryPanel的输入框扩大加宽，去掉放大镜按钮，去掉统计共x项
+3增高剪贴板listview的上方控件的背景板控件，请参考ClipboardHistoryPanel
+
+---
+
+
+**Cursor**
+
+查看相关代码结构：
+
+
+
+查看剪贴板管理的底部按钮区域和背景处理：
+
+
+
+开始修改：
+
+---
+
+
+**User**
+
+Warning: This global variable appears to never be assigned a value.
+
+Specifically: ClipboardCountText
+
+	16811: }
+	16812: }
+▶	16813: If (!ClipboardCountText || !IsObject(ClipboardCountText))
+
+---
+
+
+**Cursor**
+
+查找并修复 `ClipboardCountText` 的残留引用：
+
+
+
+删除所有对 `ClipboardCountText` 的引用：
+
+
+
+删除所有对 `ClipboardCountText` 的引用：
+
+---

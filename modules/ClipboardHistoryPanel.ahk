@@ -20,6 +20,7 @@ global GuiID_ClipboardHistory := 0
 global HistoryListView := 0
 global HistorySearchEdit := 0
 global HistoryStatusBarText := 0  ; 状态栏文本控件
+global HistoryBottomArea := 0  ; 底部按钮区域背景
 global HistoryIsVisible := false
 global HistoryDisplayCache := []
 global HistoryTagButtons := Map()  ; 存储标签按钮对象
@@ -121,7 +122,7 @@ ToggleClipboardHistoryPanel() {
 
 ; ===================== 创建 GUI =====================
 CreateHistoryPanelGUI() {
-    global GuiID_ClipboardHistory, HistoryListView, HistorySearchEdit, HistoryStatusBarText
+    global GuiID_ClipboardHistory, HistoryListView, HistorySearchEdit, HistoryStatusBarText, HistoryBottomArea
     global HistoryColors, HistoryTagButtons, HistorySelectedTag
     
     ; 如果已存在，先销毁
@@ -229,7 +230,8 @@ CreateHistoryPanelGUI() {
     ListViewX := 10
     ListViewY := 90  ; 调整Y位置，为标签区域留出空间
     ListViewWidth := 1180  ; 增加宽度以匹配窗口
-    ListViewHeight := 600  ; 调整高度
+    ; 调整高度：窗口高度(700) - ListView起始Y(90) - 底部按钮区域(70) - 状态栏(20) = 520
+    ListViewHeight := 520  ; 为底部按钮区域留出空间
     
     HistoryListView := GuiID_ClipboardHistory.Add("ListView",
         "x" . ListViewX . " y" . ListViewY .
@@ -265,8 +267,16 @@ CreateHistoryPanelGUI() {
     HistoryListView.OnEvent("Click", OnHistoryItemClick)  ; 添加点击事件，确保能触发预览
     
     ; ========== 底部按钮区域 ==========
-    ButtonAreaY := 695
-    ButtonY := ButtonAreaY + 5
+    ; 参考剪贴板管理，添加底部背景区域
+    BottomAreaY := 610  ; ListViewY(90) + ListViewHeight(520) = 610
+    BottomAreaHeight := 70
+    BottomArea := GuiID_ClipboardHistory.Add("Text", 
+        "x0 y" . BottomAreaY . " w1200 h" . BottomAreaHeight . 
+        " Background" . HistoryColors.Background . 
+        " vHistoryBottomArea", "")
+    
+    ButtonAreaY := BottomAreaY
+    ButtonY := ButtonAreaY + 10
     ButtonHeight := 30
     ButtonWidth := 100
     ButtonSpacing := 10
@@ -373,7 +383,7 @@ CreateHistoryPanelGUI() {
     
     ; ========== 底部状态栏 ==========
     HistoryStatusBarText := GuiID_ClipboardHistory.Add("Text", 
-        "x10 y" . (ButtonAreaY + ButtonHeight + 10) . " w1180 h20 c" . HistoryColors.TextDim, 
+        "x10 y" . (BottomAreaY + ButtonHeight + 10) . " w1180 h20 c" . HistoryColors.TextDim, 
         "提示: 双击项目复制到剪贴板 | 使用搜索框过滤内容 | 点击标签分类筛选 | 鼠标悬停查看完整路径")
     HistoryStatusBarText.SetFont("s8", "Segoe UI")
 }
@@ -1917,7 +1927,7 @@ OnHistoryItemDoubleClick(*) {
 
 ; ===================== 窗口大小改变事件 =====================
 OnHistoryPanelSize(*) {
-    global GuiID_ClipboardHistory, HistoryListView, HistorySearchEdit, HistoryTagButtons, HistoryStatusBarText
+    global GuiID_ClipboardHistory, HistoryListView, HistorySearchEdit, HistoryTagButtons, HistoryStatusBarText, HistoryBottomArea
     
     ; 获取窗口大小
     GuiID_ClipboardHistory.GetPos(,, &width, &height)
@@ -1928,13 +1938,20 @@ OnHistoryPanelSize(*) {
     ; 调整标签按钮位置（如果需要的话，可以保持左对齐）
     ; 标签按钮保持原位置，不随窗口大小改变
     
-    ; 调整 ListView 宽度和高度（为标签区域留出空间）
-    listHeight := height - 110  ; 90（ListView起始Y）+ 20（底部状态栏）
+    ; 调整 ListView 宽度和高度（为标签区域和底部按钮区域留出空间）
+    ; ListView高度 = 窗口高度 - ListView起始Y(90) - 底部按钮区域(70) - 状态栏(20) = height - 180
+    listHeight := height - 180
     HistoryListView.Move(,, width - 20, listHeight)
+    
+    ; 调整底部背景区域位置和大小
+    if (HistoryBottomArea && IsObject(HistoryBottomArea)) {
+        bottomAreaY := 90 + listHeight  ; ListViewY + ListViewHeight
+        HistoryBottomArea.Move(, bottomAreaY, width, 70)
+    }
     
     ; 调整状态栏宽度和位置
     if (HistoryStatusBarText) {
-        ; 计算状态栏的Y位置（窗口底部，留出10像素边距）
+        ; 计算状态栏的Y位置（底部按钮区域下方）
         statusBarY := height - 25
         HistoryStatusBarText.Move(, statusBarY, width - 20)
     }
