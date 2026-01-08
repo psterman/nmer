@@ -43,6 +43,8 @@ global FloatingToolbarScale := 1.0  ; 工具栏缩放比例（1.0 = 100%）
 global FloatingToolbarMinScale := 0.7  ; 最小缩放比例（70%）
 global FloatingToolbarMaxScale := 1.5  ; 最大缩放比例（150%）
 global FloatingToolbarPressedButton := 0  ; 当前按下的按钮（用于下沉效果）
+global FloatingToolbarGdipToken := 0  ; Gdip token
+global FloatingToolbarGdipInitialized := false  ; Gdip是否已初始化
 
 ; Cursor色系配色
 FloatingToolbarColors := {
@@ -59,39 +61,42 @@ FloatingToolbarColors := {
 ; ===================== 显示/隐藏悬浮窗 =====================
 ShowFloatingToolbar() {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarWindowX, FloatingToolbarWindowY
-    
+
     if (FloatingToolbarIsVisible && FloatingToolbarGUI != 0) {
         return
     }
-    
+
+    ; 初始化Gdip（用于按钮特效）
+    FloatingToolbarInitializeGdip()
+
     ; 加载缩放比例
     FloatingToolbarLoadScale()
-    
+
     ; 创建GUI
     CreateFloatingToolbarGUI()
-    
+
     ; [需求1] 从配置文件加载保存的位置
     LoadFloatingToolbarPosition()
-    
+
     ; 显示GUI（默认位置：屏幕右下角）
     if (FloatingToolbarWindowX = 0 && FloatingToolbarWindowY = 0) {
         ; 获取屏幕尺寸
         ScreenWidth := SysGet(0)  ; SM_CXSCREEN
         ScreenHeight := SysGet(1)  ; SM_CYSCREEN
-        
+
         ; 计算窗口宽度和高度（使用基础尺寸和缩放比例）
         ToolbarWidth := FloatingToolbarCalculateWidth()
         ToolbarHeight := FloatingToolbarCalculateHeight()
         FloatingToolbarWindowX := ScreenWidth - ToolbarWidth
         FloatingToolbarWindowY := ScreenHeight - ToolbarHeight
     }
-    
+
     ; 计算窗口宽度和高度
     ToolbarWidth := FloatingToolbarCalculateWidth()
     ToolbarHeight := FloatingToolbarCalculateHeight()
     FloatingToolbarGUI.Show("x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . ToolbarWidth . " h" . ToolbarHeight)
     FloatingToolbarIsVisible := true
-    
+
     ; 启动定时器用于悬停效果检测和位置检查（优化频率为100ms）
     SetTimer(FloatingToolbarCheckButtonHover, 100)
     SetTimer(FloatingToolbarCheckWindowPosition, 100)
@@ -100,18 +105,21 @@ ShowFloatingToolbar() {
 
 HideFloatingToolbar() {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarWindowX, FloatingToolbarWindowY
-    
+
     if (FloatingToolbarGUI != 0) {
         ; [需求1] 保存当前位置到配置文件
         SaveFloatingToolbarPosition()
-        
+
         FloatingToolbarGUI.Hide()
         FloatingToolbarIsVisible := false
-        
+
         ; 停止定时器
         SetTimer(FloatingToolbarCheckButtonHover, 0)
         SetTimer(FloatingToolbarCheckWindowPosition, 0)
         SetTimer(FloatingToolbarCheckButtonDrag, 0)
+
+        ; 清理Gdip资源
+        FloatingToolbarShutdownGdip()
     }
 }
 
@@ -628,8 +636,8 @@ FloatingToolbarCheckButtonHover() {
             ; B. 处理新状态
             if (currentHover != 0) {
                 ; === 鼠标移入了按钮 ===
-                
-                ; 1. 悬停动效（图标放大效果）
+
+                ; 1. 悬停动效（图标放大效果 + 亮度增强）
                 try {
                     if (currentHoverInfo.HasProp("iconPic") && currentHoverInfo.HasProp("iconSize")) {
                         iconPic := currentHoverInfo.iconPic
@@ -640,18 +648,24 @@ FloatingToolbarCheckButtonHover() {
                             hoverIconY := currentHoverInfo.iconY - 2
                             iconPic.Move(hoverIconX, hoverIconY, hoverIconSize, hoverIconSize)
                             currentHoverInfo.isHovered := true
+
+                            ; 应用亮度增强特效
+                            FloatingToolbarApplyHoverBrightness(iconPic, currentHoverInfo)
                         } else {
                             ; 文字后备：改变文字颜色
                             iconPic.Opt("c" . FloatingToolbarColors.TextHover)
                         }
                     }
+                } catch as err {
+                    ; 调试：显示悬停错误
+                    ToolTip("Hover Effect Error: " . err.Message)
                 }
-                
+
                 ; 2. 弹出提示词（小白帮助）
                 action := currentHoverInfo.action
                 tipText := GetButtonTip(action)
                 ToolTip(tipText) ; 默认在鼠标旁边显示，最符合直觉
-                
+
             } else {
                 ; === 鼠标在悬浮窗上，但不在按钮上（比如空隙） ===
                 ToolTip() ; 清除提示
@@ -777,34 +791,227 @@ FloatingToolbarRemovePressEffect(btnHwnd) {
     }
 }
 
-; 应用悬停亮度增强效果（使用Gdip颜色矩阵）
-FloatingToolbarApplyHoverBrightness(iconPic, btnInfo) {
-    ; 使用Gdip颜色矩阵增强亮度
-    ; 注意：由于Picture控件限制，这里使用备用方案
-    ; 实际效果主要通过放大来实现，亮度效果可以通过其他方式增强
+; ===================== Gdip 初始化和清理 =====================
+FloatingToolbarInitializeGdip() {
+    global FloatingToolbarGdipToken, FloatingToolbarGdipInitialized
+
+    if (!FloatingToolbarGdipInitialized) {
+        FloatingToolbarGdipToken := Gdip_Startup()
+        FloatingToolbarGdipInitialized := true
+    }
+}
+
+FloatingToolbarShutdownGdip() {
+    global FloatingToolbarGdipToken, FloatingToolbarGdipInitialized, FloatingToolbarButtons
+
+    if (FloatingToolbarGdipInitialized) {
+        ; 清理所有按钮的Gdip资源
+        for btnHwnd, btnInfo in FloatingToolbarButtons {
+            FloatingToolbarCleanupButtonGdip(btnInfo)
+        }
+        Gdip_Shutdown(FloatingToolbarGdipToken)
+        FloatingToolbarGdipToken := 0
+        FloatingToolbarGdipInitialized := false
+    }
+}
+
+FloatingToolbarCleanupButtonGdip(btnInfo) {
     try {
-        ; 可以在这里添加Gdip处理逻辑
-        ; 由于需要重新加载图片，这里先使用简单的视觉反馈
+        ; 清理悬停状态图片
+        if (btnInfo.HasProp("hoverBitmap") && btnInfo.hoverBitmap != 0) {
+            Gdip_DisposeImage(btnInfo.hoverBitmap)
+            btnInfo.hoverBitmap := 0
+        }
+        ; 清理按下状态图片
+        if (btnInfo.HasProp("pressBitmap") && btnInfo.pressBitmap != 0) {
+            Gdip_DisposeImage(btnInfo.pressBitmap)
+            btnInfo.pressBitmap := 0
+        }
+        ; 清理临时文件
+        if (btnInfo.HasProp("hoverFile") && btnInfo.hoverFile != "" && FileExist(btnInfo.hoverFile)) {
+            FileDelete(btnInfo.hoverFile)
+            btnInfo.hoverFile := ""
+        }
+        if (btnInfo.HasProp("pressFile") && btnInfo.pressFile != "" && FileExist(btnInfo.pressFile)) {
+            FileDelete(btnInfo.pressFile)
+            btnInfo.pressFile := ""
+        }
     } catch {
+    }
+}
+
+; ===================== 悬停和点击特效 =====================
+
+; 应用悬停亮度增强效果
+FloatingToolbarApplyHoverBrightness(iconPic, btnInfo) {
+    global FloatingToolbarGdipInitialized
+
+    if (!FloatingToolbarGdipInitialized || Type(iconPic) = "Text") {
+        return
+    }
+
+    try {
+        ; 如果还没有生成悬停图片，生成并缓存
+        if (!btnInfo.HasProp("hoverFile") || btnInfo.hoverFile = "" || !FileExist(btnInfo.hoverFile)) {
+            FloatingToolbarCreateHoverImage(btnInfo)
+        }
+
+        ; 应用悬停图片（使用WM_SETICON消息更新）
+        if (btnInfo.HasProp("hoverFile") && btnInfo.hoverFile != "" && FileExist(btnInfo.hoverFile)) {
+            ; 使用SendMessage更新图片（更可靠的方法）
+            iconPic.Opt("+BackgroundTrans")
+            SendMessage(0x0172, 0, 0, iconPic.Hwnd)  ; STM_SETIMAGE = 0x0172
+            iconPic.Value := btnInfo.hoverFile
+        }
+    } catch as err {
+        ; 调试：显示错误信息
+        ; ToolTip("Hover Error: " . err.Message)
     }
 }
 
 ; 移除悬停亮度效果
 FloatingToolbarRemoveHoverBrightness(iconPic, btnInfo) {
-    ; 恢复原始状态
+    if (Type(iconPic) = "Text") {
+        return
+    }
+
     try {
-        ; 可以在这里添加恢复逻辑
+        ; 恢复原始图片
+        if (btnInfo.HasProp("iconPath") && btnInfo.iconPath != "" && FileExist(btnInfo.iconPath)) {
+            iconPic.Value := btnInfo.iconPath
+        }
+    } catch as err {
+        ; ToolTip("Restore Error: " . err.Message)
+    }
+}
+
+; 应用点击着色效果
+FloatingToolbarApplyClickColor(iconPic, btnInfo) {
+    global FloatingToolbarGdipInitialized
+
+    if (!FloatingToolbarGdipInitialized || Type(iconPic) = "Text") {
+        return
+    }
+
+    try {
+        ; 如果还没有生成按下图片，生成并缓存
+        if (!btnInfo.HasProp("pressFile") || btnInfo.pressFile = "" || !FileExist(btnInfo.pressFile)) {
+            FloatingToolbarCreatePressImage(btnInfo)
+        }
+
+        ; 应用按下图片
+        if (btnInfo.HasProp("pressFile") && btnInfo.pressFile != "" && FileExist(btnInfo.pressFile)) {
+            iconPic.Opt("+BackgroundTrans")
+            iconPic.Value := btnInfo.pressFile
+        }
+    } catch as err {
+        ; ToolTip("Press Error: " . err.Message)
+    }
+}
+
+; 创建悬停状态图片（亮度增强 - 使用叠加白色半透明层实现）
+FloatingToolbarCreateHoverImage(btnInfo) {
+    global FloatingToolbarGdipToken
+
+    try {
+        if (!FileExist(btnInfo.iconPath)) {
+            return
+        }
+
+        ; 加载原始图片
+        pBitmap := Gdip_CreateBitmapFromFile(btnInfo.iconPath)
+        if (!pBitmap) {
+            return
+        }
+
+        ; 获取图片尺寸
+        width := Gdip_GetImageWidth(pBitmap)
+        height := Gdip_GetImageHeight(pBitmap)
+
+        ; 创建新的位图用于处理
+        pProcessedBitmap := Gdip_CloneBitmapArea(pBitmap, 0, 0, width, height)
+
+        ; 获取Graphics
+        pGraphics := Gdip_GraphicsFromImage(pProcessedBitmap)
+
+        ; 添加白色半透明叠加层（模拟亮度增加效果）
+        ; 25% 透明度的白色
+        pBrush := Gdip_BrushCreateSolid(0x40FFFFFF)
+        Gdip_FillRectangle(pGraphics, pBrush, 0, 0, width, height)
+        Gdip_DeleteBrush(pBrush)
+
+        ; 清理资源
+        Gdip_DeleteGraphics(pGraphics)
+        Gdip_DisposeImage(pBitmap)
+
+        ; 保存到临时文件
+        tempDir := A_Temp . "\FloatingToolbar"
+        if (!DirExist(tempDir)) {
+            DirCreate(tempDir)
+        }
+        hoverFile := tempDir . "\hover_" . btnInfo.action . "_" . A_TickCount . ".png"
+        Gdip_SaveBitmapToFile(pProcessedBitmap, hoverFile, 100)
+        Gdip_DisposeImage(pProcessedBitmap)
+
+        ; 存储到按钮信息
+        btnInfo.hoverFile := hoverFile
     } catch {
     }
 }
 
-; 应用点击着色效果（橙色调）
-FloatingToolbarApplyClickColor(iconPic, btnInfo) {
-    ; 使用Gdip颜色矩阵应用橙色调
-    ; 注意：由于Picture控件限制，这里使用备用方案
+; 创建按下状态图片（变暗 + 橙色叠加）
+FloatingToolbarCreatePressImage(btnInfo) {
+    global FloatingToolbarGdipToken
+
     try {
-        ; 可以在这里添加Gdip处理逻辑
-        ; 实际效果主要通过下沉来实现
+        if (!FileExist(btnInfo.iconPath)) {
+            return
+        }
+
+        ; 加载原始图片
+        pBitmap := Gdip_CreateBitmapFromFile(btnInfo.iconPath)
+        if (!pBitmap) {
+            return
+        }
+
+        ; 获取图片尺寸
+        width := Gdip_GetImageWidth(pBitmap)
+        height := Gdip_GetImageHeight(pBitmap)
+
+        ; 创建新的位图用于处理
+        pProcessedBitmap := Gdip_CloneBitmapArea(pBitmap, 0, 0, width, height)
+
+        ; 获取Graphics
+        pGraphics := Gdip_GraphicsFromImage(pProcessedBitmap)
+
+        ; 先绘制原始图片
+        Gdip_DrawImage(pGraphics, pBitmap, 0, 0, width, height)
+
+        ; 添加黑色半透明叠加层（变暗效果 - 40%透明度的黑色）
+        pBrushDark := Gdip_BrushCreateSolid(0x66000000)
+        Gdip_FillRectangle(pGraphics, pBrushDark, 0, 0, width, height)
+        Gdip_DeleteBrush(pBrushDark)
+
+        ; 添加橙色半透明叠加（增强点击反馈 - 25%透明度的橙色）
+        pBrushOrange := Gdip_BrushCreateSolid(0x40FF6600)
+        Gdip_FillRectangle(pGraphics, pBrushOrange, 0, 0, width, height)
+        Gdip_DeleteBrush(pBrushOrange)
+
+        ; 清理资源
+        Gdip_DeleteGraphics(pGraphics)
+        Gdip_DisposeImage(pBitmap)
+
+        ; 保存到临时文件
+        tempDir := A_Temp . "\FloatingToolbar"
+        if (!DirExist(tempDir)) {
+            DirCreate(tempDir)
+        }
+        pressFile := tempDir . "\press_" . btnInfo.action . "_" . A_TickCount . ".png"
+        Gdip_SaveBitmapToFile(pProcessedBitmap, pressFile, 100)
+        Gdip_DisposeImage(pProcessedBitmap)
+
+        ; 存储到按钮信息
+        btnInfo.pressFile := pressFile
     } catch {
     }
 }
