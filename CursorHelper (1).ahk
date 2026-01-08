@@ -3083,12 +3083,37 @@ ProcessClipboardChange() {
     }
 }
 
+; ===================== 切换工具栏和面板显示 =====================
+ToggleToolbarAndPanel(*) {
+    global FloatingToolbarIsVisible, FloatingToolbarIsMinimized
+    global AIListPanelIsVisible, AIListPanelIsMinimized
+    
+    ; 检查当前状态
+    if (FloatingToolbarIsMinimized || AIListPanelIsMinimized) {
+        ; 如果已最小化，恢复显示
+        RestoreFloatingToolbar()
+        RestoreAIListPanel()
+        if (!FloatingToolbarIsVisible) {
+            ShowFloatingToolbar()
+        }
+    } else {
+        ; 如果正常显示，隐藏到边缘
+        if (FloatingToolbarIsVisible) {
+            MinimizeFloatingToolbarToEdge()
+        }
+        if (AIListPanelIsVisible) {
+            MinimizeAIListPanelToEdge()
+        }
+    }
+}
+
 ; ===================== 托盘图标配置 =====================
 UpdateTrayMenu() {
     A_TrayMenu.Delete()  ; 清空菜单
+    A_TrayMenu.Add("切换工具栏/面板", ToggleToolbarAndPanel)
     A_TrayMenu.Add(GetText("open_config_menu"), (*) => ShowConfigGUI())
     A_TrayMenu.Add(GetText("exit_menu"), (*) => CleanUp())
-    A_TrayMenu.Default := GetText("exit_menu")
+    A_TrayMenu.Default := "切换工具栏/面板"  ; 双击默认操作
     A_IconTip := GetText("app_tip")
 }
 

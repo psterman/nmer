@@ -28,6 +28,7 @@ global FloatingToolbarClickedButton := 0  ; 当前点击的按钮
 global FloatingToolbarButtonDownTime := 0  ; 按钮按下时间（用于区分点击和拖动）
 global FloatingToolbarTooltipText := ""  ; Tooltip文本
 global FloatingToolbarTooltipTimer := 0  ; Tooltip定时器
+global FloatingToolbarIsMinimized := false  ; 是否已最小化到边缘
 
 ; Cursor色系配色
 FloatingToolbarColors := {
@@ -786,6 +787,66 @@ LoadFloatingToolbarPosition() {
 }
 
 ; ===================== 初始化 =====================
+; ===================== 隐藏到屏幕边缘 =====================
+MinimizeFloatingToolbarToEdge() {
+    global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarIsMinimized
+    global FloatingToolbarWindowX, FloatingToolbarWindowY
+    
+    if (!FloatingToolbarIsVisible || FloatingToolbarGUI = 0) {
+        return
+    }
+    
+    ; 获取当前窗口位置
+    FloatingToolbarGUI.GetPos(&currentX, &currentY, &currentW, &currentH)
+    
+    ; 获取屏幕尺寸
+    ScreenWidth := SysGet(0)
+    ScreenHeight := SysGet(1)
+    
+    ; 计算到各边缘的距离，选择最近的边缘
+    distLeft := currentX
+    distRight := ScreenWidth - (currentX + currentW)
+    distTop := currentY
+    distBottom := ScreenHeight - (currentY + currentH)
+    
+    ; 找到最小距离
+    minDist := distLeft
+    targetX := 0
+    targetY := currentY
+    
+    if (distRight < minDist) {
+        minDist := distRight
+        targetX := ScreenWidth - currentW
+        targetY := currentY
+    }
+    if (distTop < minDist) {
+        minDist := distTop
+        targetX := currentX
+        targetY := 0
+    }
+    if (distBottom < minDist) {
+        minDist := distBottom
+        targetX := currentX
+        targetY := ScreenHeight - currentH
+    }
+    
+    ; 移动到最近的边缘
+    FloatingToolbarGUI.Move(targetX, targetY)
+    FloatingToolbarWindowX := targetX
+    FloatingToolbarWindowY := targetY
+    FloatingToolbarIsMinimized := true
+    
+    ; 保存位置
+    SaveFloatingToolbarPosition()
+}
+
+; ===================== 恢复悬浮工具栏 =====================
+RestoreFloatingToolbar() {
+    global FloatingToolbarIsMinimized
+    FloatingToolbarIsMinimized := false
+    ; 位置已保存，显示时会自动加载
+}
+
 InitFloatingToolbar() {
     ; 初始化完成，可以调用 ShowFloatingToolbar() 显示悬浮窗
 }
