@@ -252,6 +252,152 @@ InitClipboardFTS5DB() {
     }
 }
 
+; ===================== Everything 搜索辅助函数 =====================
+; 内部辅助函数：直接实现 Everything 搜索，不依赖主脚本
+; 优先使用主脚本中的 GetEverythingResults（如果存在），否则直接调用 DLL
+_ClipboardFTS5_GetEverythingResults(keyword, maxResults := 10) {
+    ; 首先尝试使用主脚本中的函数（如果存在）
+    ; 使用 try-catch 安全地尝试调用主脚本函数
+    try {
+        ; 直接调用函数，如果函数不存在会抛出异常
+        result := GetEverythingResults(keyword, maxResults)
+        if (IsObject(result)) {
+            return result
+        }
+    } catch {
+        ; 主脚本函数不存在或调用失败，继续使用直接 DLL 调用
+    }
+    
+    ; 直接实现 Everything 搜索（独立于主脚本）
+    static evDll := ""
+    static isInitialized := false
+    
+    ; 初始化 DLL 路径（支持主脚本目录和当前脚本目录）
+    if (evDll = "") {
+        ; 优先使用主脚本目录
+        if (IsSet(MainScriptDir) && MainScriptDir != "") {
+            evDll := MainScriptDir . "\lib\everything64.dll"
+        } else {
+            ; 尝试多个可能的路径
+            possiblePaths := [
+                A_ScriptDir . "\..\lib\everything64.dll",  ; 从 modules 目录向上
+                A_ScriptDir . "\lib\everything64.dll",      ; 当前目录
+                A_WorkingDir . "\lib\everything64.dll"       ; 工作目录
+            ]
+            
+            for index, path in possiblePaths {
+                if (FileExist(path)) {
+                    evDll := path
+                    break
+                }
+            }
+            
+            ; 如果仍未找到，使用默认路径
+            if (evDll = "") {
+                evDll := A_ScriptDir . "\..\lib\everything64.dll"
+            }
+        }
+    }
+    
+    ; 1. 基础防护
+    if (!FileExist(evDll)) {
+        OutputDebug("AHK_DEBUG: ClipboardFTS5 - 找不到 everything64.dll: " . evDll)
+        return []
+    }
+    
+    ; 2. 首次调用时，确保DLL已加载并检查Everything是否可用
+    if (!isInitialized) {
+        ; 加载DLL到进程空间
+        hModule := DllCall("LoadLibrary", "Str", evDll, "Ptr")
+        if (!hModule) {
+            OutputDebug("AHK_DEBUG: ClipboardFTS5 - 无法加载 everything64.dll")
+            return []
+        }
+        isInitialized := true
+        OutputDebug("AHK_DEBUG: ClipboardFTS5 - Everything DLL 加载成功")
+    }
+    
+    ; 3. 检查 Everything 客户端是否在运行（通过获取版本号判断IPC连接）
+    majorVer := DllCall(evDll . "\Everything_GetMajorVersion", "UInt")
+    if (majorVer = 0) {
+        errCode := DllCall(evDll . "\Everything_GetLastError", "UInt")
+        OutputDebug("AHK_DEBUG: ClipboardFTS5 - Everything IPC 连接失败，错误码: " . errCode . " (2=未运行)")
+        ; 尝试启动 Everything
+        if (!ProcessExist("Everything.exe")) {
+            OutputDebug("AHK_DEBUG: ClipboardFTS5 - Everything.exe 未运行，尝试启动...")
+            try {
+                ; 尝试在主脚本目录查找 Everything.exe
+                EverythingExe := ""
+                if (IsSet(MainScriptDir) && MainScriptDir != "") {
+                    EverythingExe := MainScriptDir . "\Everything.exe"
+                } else {
+                    EverythingExe := A_ScriptDir . "\..\Everything.exe"
+                }
+                
+                if (FileExist(EverythingExe)) {
+                    Run(EverythingExe . " -startup", , "Hide")
+                    Sleep(1000)  ; 等待启动
+                } else {
+                    ; 尝试在系统 PATH 中查找
+                    Run("Everything.exe -startup", , "Hide")
+                    Sleep(1000)
+                }
+            } catch {
+                OutputDebug("AHK_DEBUG: ClipboardFTS5 - 无法启动 Everything")
+            }
+        }
+        return []
+    }
+    OutputDebug("AHK_DEBUG: ClipboardFTS5 - Everything 版本: " . majorVer)
+    
+    ; 4. 【关键】清理上一次的搜索状态，防止过滤器残留
+    DllCall(evDll . "\Everything_CleanUp")
+    
+    ; 5. 设置搜索参数
+    DllCall(evDll . "\Everything_SetSearchW", "WStr", keyword)
+    DllCall(evDll . "\Everything_SetMax", "UInt", maxResults)
+    
+    ; 6. 【核心修复】显式请求返回完整路径和文件名 (没有这一行，很多时候取不到路径)
+    ; 0x00000004 = EVERYTHING_REQUEST_FULL_PATH_AND_FILE_NAME
+    DllCall(evDll . "\Everything_SetRequestFlags", "UInt", 0x00000004)
+    
+    ; 7. 执行查询 (1 = 阻塞等待直到结果准备好)
+    isSuccess := DllCall(evDll . "\Everything_QueryW", "Int", 1)
+    
+    ; 8. 错误诊断
+    if (!isSuccess) {
+        errCode := DllCall(evDll . "\Everything_GetLastError", "UInt")
+        OutputDebug("AHK_DEBUG: ClipboardFTS5 - Everything 查询指令发送失败，错误码: " . errCode)
+        ; 错误码说明: 0=OK, 1=内存错误, 2=IPC错误, 3=注册类失败, 4=创建窗口失败, 5=创建线程失败, 6=搜索词无效, 7=取消
+        return []
+    }
+    
+    ; 9. 获取结果
+    count := DllCall(evDll . "\Everything_GetNumResults", "UInt")
+    OutputDebug("AHK_DEBUG: ClipboardFTS5 - Everything DLL 返回数量: " . count . " (关键词: " . keyword . ")")
+    
+    ; 如果返回0，检查是否有错误
+    if (count = 0) {
+        errCode := DllCall(evDll . "\Everything_GetLastError", "UInt")
+        if (errCode != 0) {
+            OutputDebug("AHK_DEBUG: ClipboardFTS5 - Everything 查询后错误码: " . errCode)
+        }
+    }
+    
+    paths := []
+    Loop Min(count, maxResults) {
+        ; 预分配缓冲区，防乱码
+        buf := Buffer(4096, 0)
+        DllCall(evDll . "\Everything_GetResultFullPathNameW", "UInt", A_Index-1, "Ptr", buf.Ptr, "UInt", 2048)
+        fullPath := StrGet(buf.Ptr, "UTF-16")
+        
+        if (fullPath != "")
+            paths.Push(fullPath)
+    }
+    
+    return paths
+}
+
 ; ===================== 获取应用信息 =====================
 ; 获取当前活动窗口的应用路径和图标路径
 ; 增强版：使用 Windows Shell API 和 Everything64.dll 查找图标路径
@@ -297,8 +443,7 @@ GetApplicationInfo() {
                 
                 ; 方法2: 如果仍未找到，尝试使用 Everything64.dll 搜索
                 if (SourcePath = "" || !FileExist(SourcePath)) {
-                    ; 尝试调用 GetEverythingResults 函数（如果存在）
-                    ; 使用 try-catch 来安全地检查函数是否存在
+                    ; 使用内部辅助函数安全调用 GetEverythingResults（如果存在）
                     try {
                         ; 搜索进程名对应的 exe 文件
                         searchPattern := SourceApp
@@ -308,8 +453,8 @@ GetApplicationInfo() {
                         }
                         
                         ; 使用 Everything 搜索文件（精确匹配文件名）
-                        ; 如果 GetEverythingResults 函数不存在，这里会抛出异常
-                        everythingResults := GetEverythingResults(searchPattern, 10)
+                        ; 使用辅助函数，如果主脚本中定义了 GetEverythingResults 则使用它
+                        everythingResults := _ClipboardFTS5_GetEverythingResults(searchPattern, 10)
                         
                         ; 遍历搜索结果，找到匹配的文件
                         if (IsObject(everythingResults) && everythingResults.Length > 0) {

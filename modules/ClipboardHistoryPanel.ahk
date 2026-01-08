@@ -174,9 +174,9 @@ CreateHistoryPanelGUI() {
     TagButtonWidth := 80  ; 标签按钮宽度
     TagStartX := 10
     
-    ; 标签列表：文本、图片、链接、颜色、代码、文件夹、截图
-    TagLabels := ["文本", "图片", "链接", "颜色", "代码", "文件夹", "截图"]
-    TagTypes := ["Text", "Image", "Link", "Color", "Code", "Folder", "Screenshot"]
+    ; 标签列表：文本、图片、链接、颜色、代码、文件夹、截图、CapsLock+C
+    TagLabels := ["文本", "图片", "链接", "颜色", "代码", "文件夹", "截图", "CapsLock+C"]
+    TagTypes := ["Text", "Image", "Link", "Color", "Code", "Folder", "Screenshot", "CapsLockC"]
     
     ; 清空标签按钮映射
     HistoryTagButtons := Map()
@@ -238,7 +238,7 @@ CreateHistoryPanelGUI() {
         " w" . ListViewWidth . " h" . ListViewHeight .
         " Background" . HistoryColors.ListBg .
         " c" . HistoryColors.Text .
-        " +ReadOnly -Multi +Report" .
+        " +ReadOnly +Multi +Report" .
         " vHistoryListView",
         ["序号", "内容预览", "来源应用", "文件位置", "类型", "文件后缀", "文件大小", "最后复制", "复制次数", "字符数"])
     
@@ -265,126 +265,102 @@ CreateHistoryPanelGUI() {
     HistoryListView.OnEvent("ItemFocus", OnHistoryItemSelect)  ; 添加焦点事件，确保点击时能触发
     HistoryListView.OnEvent("DoubleClick", OnHistoryItemDoubleClick)
     HistoryListView.OnEvent("Click", OnHistoryItemClick)  ; 添加点击事件，确保能触发预览
+    HistoryListView.OnEvent("ContextMenu", OnHistoryListViewContextMenu)  ; 右键菜单
+    HistoryListView.OnEvent("ColClick", OnHistoryColumnClick)  ; 列点击事件（用于排序）
     
-    ; ========== 底部按钮区域 ==========
-    ; 参考剪贴板管理，添加底部背景区域
-    BottomAreaY := 610  ; ListViewY(90) + ListViewHeight(520) = 610
+    ; ========== 底部按钮区域（自适应布局）==========
+    ; 使用全局变量存储按钮引用，以便在窗口大小改变时调整位置
+    global HistoryCopyBtn, HistoryDeleteBtn, HistoryPasteBtn, HistoryClearAllBtn, HistoryExportBtn, HistoryImportBtn
+    
+    ; 计算底部区域位置
     BottomAreaHeight := 70
-    BottomArea := GuiID_ClipboardHistory.Add("Text", 
-        "x0 y" . BottomAreaY . " w1200 h" . BottomAreaHeight . 
-        " Background" . HistoryColors.Background . 
-        " vHistoryBottomArea", "")
+    StatusBarHeight := 20
+    ListViewHeight := 520  ; 初始高度
+    bottomAreaY := ListViewY + ListViewHeight
     
-    ButtonAreaY := BottomAreaY
-    ButtonY := ButtonAreaY + 10
+    ; 底部区域高度
     ButtonHeight := 30
     ButtonWidth := 100
     ButtonSpacing := 10
+    ButtonPadding := 10  ; 左右边距
+    
+    ; 创建底部背景区域（自适应宽度）
+    BottomArea := GuiID_ClipboardHistory.Add("Text", 
+        "x0 y" . bottomAreaY . " w1200 h" . BottomAreaHeight . 
+        " Background" . HistoryColors.Background . 
+        " vHistoryBottomArea", "")
+    
+    ; 按钮Y位置（相对于底部区域）
+    ButtonY := bottomAreaY + 10
+    
+    ; 计算按钮总宽度和起始X位置（居中或左对齐）
+    TotalButtonsWidth := (ButtonWidth * 6) + (ButtonSpacing * 5) + (ButtonPadding * 2)
+    StartX := ButtonPadding
     
     ; 复制选中按钮
-    CopyBtn := GuiID_ClipboardHistory.Add("Text", 
-        "x10 y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . 
+    HistoryCopyBtn := GuiID_ClipboardHistory.Add("Text", 
+        "x" . StartX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . 
         " Center 0x200 c" . HistoryColors.TagText . 
         " Background" . HistoryColors.TagBg . 
         " vHistoryCopyBtn", "复制选中")
-    CopyBtn.SetFont("s10", "Segoe UI")
-    CopyBtn.OnEvent("Click", HistoryCopySelected)
-    ; 添加悬停效果
-    try {
-        if (IsSet(HoverBtn)) {
-            HoverBtn(CopyBtn, HistoryColors.TagBg, HistoryColors.TagBgActive)
-        }
-    } catch {
-    }
+    HistoryCopyBtn.SetFont("s10", "Segoe UI")
+    HistoryCopyBtn.OnEvent("Click", HistoryCopySelected)
     
     ; 删除选中按钮
-    DeleteBtn := GuiID_ClipboardHistory.Add("Text", 
-        "x" . (10 + ButtonWidth + ButtonSpacing) . " y" . ButtonY . 
+    HistoryDeleteBtn := GuiID_ClipboardHistory.Add("Text", 
+        "x" . (StartX + ButtonWidth + ButtonSpacing) . " y" . ButtonY . 
         " w" . ButtonWidth . " h" . ButtonHeight . 
         " Center 0x200 c" . HistoryColors.TagText . 
         " Background" . HistoryColors.TagBg . 
         " vHistoryDeleteBtn", "删除选中")
-    DeleteBtn.SetFont("s10", "Segoe UI")
-    DeleteBtn.OnEvent("Click", HistoryDeleteSelected)
-    ; 添加悬停效果
-    try {
-        if (IsSet(HoverBtn)) {
-            HoverBtn(DeleteBtn, HistoryColors.TagBg, HistoryColors.TagBgActive)
-        }
-    } catch {
-    }
+    HistoryDeleteBtn.SetFont("s10", "Segoe UI")
+    HistoryDeleteBtn.OnEvent("Click", HistoryDeleteSelected)
     
     ; 粘贴到 Cursor 按钮
-    PasteBtn := GuiID_ClipboardHistory.Add("Text", 
-        "x" . (10 + (ButtonWidth + ButtonSpacing) * 2) . " y" . ButtonY . 
+    HistoryPasteBtn := GuiID_ClipboardHistory.Add("Text", 
+        "x" . (StartX + (ButtonWidth + ButtonSpacing) * 2) . " y" . ButtonY . 
         " w" . (ButtonWidth + 20) . " h" . ButtonHeight . 
         " Center 0x200 cFFFFFF Background" . HistoryColors.TagBgActive . 
         " vHistoryPasteBtn", "粘贴到 Cursor")
-    PasteBtn.SetFont("s10", "Segoe UI")
-    PasteBtn.OnEvent("Click", HistoryPasteToCursor)
-    ; 添加悬停效果
-    try {
-        if (IsSet(HoverBtn)) {
-            HoverBtn(PasteBtn, HistoryColors.TagBgActive, HistoryColors.TagBgActive)
-        }
-    } catch {
-    }
+    HistoryPasteBtn.SetFont("s10", "Segoe UI")
+    HistoryPasteBtn.OnEvent("Click", HistoryPasteToCursor)
     
     ; 清空全部按钮
-    ClearAllBtn := GuiID_ClipboardHistory.Add("Text", 
-        "x" . (10 + (ButtonWidth + ButtonSpacing) * 3 + ButtonWidth + 20) . " y" . ButtonY . 
+    HistoryClearAllBtn := GuiID_ClipboardHistory.Add("Text", 
+        "x" . (StartX + (ButtonWidth + ButtonSpacing) * 3 + 20) . " y" . ButtonY . 
         " w" . ButtonWidth . " h" . ButtonHeight . 
         " Center 0x200 c" . HistoryColors.TagText . 
         " Background" . HistoryColors.TagBg . 
         " vHistoryClearAllBtn", "清空全部")
-    ClearAllBtn.SetFont("s10", "Segoe UI")
-    ClearAllBtn.OnEvent("Click", HistoryClearAll)
-    ; 添加悬停效果
-    try {
-        if (IsSet(HoverBtn)) {
-            HoverBtn(ClearAllBtn, HistoryColors.TagBg, HistoryColors.TagBgActive)
-        }
-    } catch {
-    }
+    HistoryClearAllBtn.SetFont("s10", "Segoe UI")
+    HistoryClearAllBtn.OnEvent("Click", HistoryClearAll)
     
     ; 导出剪贴板按钮
-    ExportBtn := GuiID_ClipboardHistory.Add("Text", 
-        "x" . (10 + (ButtonWidth + ButtonSpacing) * 4 + ButtonWidth + 20) . " y" . ButtonY . 
+    HistoryExportBtn := GuiID_ClipboardHistory.Add("Text", 
+        "x" . (StartX + (ButtonWidth + ButtonSpacing) * 4 + 20) . " y" . ButtonY . 
         " w" . ButtonWidth . " h" . ButtonHeight . 
         " Center 0x200 c" . HistoryColors.TagText . 
         " Background" . HistoryColors.TagBg . 
         " vHistoryExportBtn", "导出")
-    ExportBtn.SetFont("s10", "Segoe UI")
-    ExportBtn.OnEvent("Click", HistoryExportClipboard)
-    ; 添加悬停效果
-    try {
-        if (IsSet(HoverBtn)) {
-            HoverBtn(ExportBtn, HistoryColors.TagBg, HistoryColors.TagBgActive)
-        }
-    } catch {
-    }
+    HistoryExportBtn.SetFont("s10", "Segoe UI")
+    HistoryExportBtn.OnEvent("Click", HistoryExportClipboard)
     
     ; 导入剪贴板按钮
-    ImportBtn := GuiID_ClipboardHistory.Add("Text", 
-        "x" . (10 + (ButtonWidth + ButtonSpacing) * 5 + ButtonWidth + 20) . " y" . ButtonY . 
+    HistoryImportBtn := GuiID_ClipboardHistory.Add("Text", 
+        "x" . (StartX + (ButtonWidth + ButtonSpacing) * 5 + 20) . " y" . ButtonY . 
         " w" . ButtonWidth . " h" . ButtonHeight . 
         " Center 0x200 c" . HistoryColors.TagText . 
         " Background" . HistoryColors.TagBg . 
         " vHistoryImportBtn", "导入")
-    ImportBtn.SetFont("s10", "Segoe UI")
-    ImportBtn.OnEvent("Click", HistoryImportClipboard)
-    ; 添加悬停效果
-    try {
-        if (IsSet(HoverBtn)) {
-            HoverBtn(ImportBtn, HistoryColors.TagBg, HistoryColors.TagBgActive)
-        }
-    } catch {
-    }
+    HistoryImportBtn.SetFont("s10", "Segoe UI")
+    HistoryImportBtn.OnEvent("Click", HistoryImportClipboard)
     
     ; ========== 底部状态栏 ==========
+    StatusBarY := bottomAreaY + BottomAreaHeight
     HistoryStatusBarText := GuiID_ClipboardHistory.Add("Text", 
-        "x10 y" . (BottomAreaY + ButtonHeight + 10) . " w1180 h20 c" . HistoryColors.TextDim, 
-        "提示: 双击项目复制到剪贴板 | 使用搜索框过滤内容 | 点击标签分类筛选 | 鼠标悬停查看完整路径")
+        "x10 y" . StatusBarY . " w1180 h20 c" . HistoryColors.TextDim . 
+        " vHistoryStatusBarText", 
+        "提示: 双击项目复制到剪贴板 | 使用搜索框过滤内容 | 点击标签分类筛选 | 右键菜单操作 | 点击序号列按图标排序")
     HistoryStatusBarText.SetFont("s8", "Segoe UI")
 }
 
@@ -851,6 +827,14 @@ RefreshHistoryData(keyword := "") {
                         "ImagePath IS NOT NULL AND ImagePath != ''" .  ; 有图片路径
                         ")"
                     whereConditions.Push(screenshotCondition)
+                } else if (HistorySelectedTag = "CapsLockC") {
+                    ; CapsLock+C 标签：筛选 CapsLock+C 复制的数据
+                    ; 注意：ClipMain 表可能没有 SessionID 字段，需要通过其他方式识别
+                    ; 暂时通过 SourceApp 或其他标识来筛选，或者需要添加 SessionID 字段
+                    ; 这里先使用 SourceApp 包含特定标识的方式（需要根据实际实现调整）
+                    ; 如果数据库有 SessionID 字段，可以使用：WHERE SessionID IS NOT NULL
+                    ; 暂时使用 SourceApp 来识别（假设 CapsLock+C 的数据有特殊标识）
+                    whereConditions.Push("(SourceApp LIKE '%CapsLock%' OR SourceApp = 'CapsLock+C')")
                 } else {
                     whereConditions.Push("DataType = '" . escapedTagType . "'")
                 }
@@ -1138,6 +1122,62 @@ RefreshHistoryData(keyword := "") {
         }
     } catch as err {
         ; 错误处理 - 可以在这里添加错误日志
+    }
+    
+    ; ===================== 集成 Everything 文件搜索 =====================
+    ; 参考 SearchCenter 的实现：当关键词长度 > 1 时，使用 Everything 搜索文件
+    if (keyword != "" && StrLen(keyword) > 1 && HistorySelectedTag != "Image" && HistorySelectedTag != "Color" && HistorySelectedTag != "Code") {
+        try {
+            ; 使用辅助函数安全调用 GetEverythingResults（如果存在）
+            everythingResults := _ClipboardFTS5_GetEverythingResults(keyword, 50)
+            
+            if (IsObject(everythingResults) && everythingResults.Length > 0) {
+                ; 先收集所有文件结果
+                fileResults := []
+                
+                for path in everythingResults {
+                    ; 检查文件是否存在
+                    if (!FileExist(path)) {
+                        continue
+                    }
+                    
+                    SplitPath(path, &FileName, &DirPath, &Ext, &NameNoExt)
+                    
+                    ; 创建文件结果项
+                    fileItem := Map()
+                    fileItem["ID"] := "file_" . path  ; 使用特殊前缀标识文件结果
+                    fileItem["Content"] := path
+                    fileItem["SourceApp"] := "文件系统"
+                    fileItem["SourcePath"] := path
+                    fileItem["IconPath"] := path
+                    fileItem["DataType"] := "File"
+                    fileItem["CharCount"] := 0
+                    fileItem["Timestamp"] := ""  ; 文件没有时间戳
+                    fileItem["LastCopyTime"] := ""
+                    fileItem["CopyCount"] := 1
+                    fileItem["ImagePath"] := ""
+                    
+                    fileResults.Push(fileItem)
+                }
+                
+                ; 将文件结果插入到结果数组前面（优先显示文件结果）
+                if (fileResults.Length > 0) {
+                    ; 反转文件结果数组，然后插入到前面（这样第一个文件会在最前面）
+                    fileResultsReverse := []
+                    Loop fileResults.Length {
+                        fileResultsReverse.Push(fileResults[fileResults.Length - A_Index + 1])
+                    }
+                    
+                    ; 将文件结果插入到结果数组前面
+                    for index, fileItem in fileResultsReverse {
+                        results.InsertAt(index, fileItem)
+                    }
+                }
+            }
+        } catch as err {
+            ; Everything 搜索失败，静默失败，不影响剪贴板历史显示
+            ; OutputDebug("ClipboardHistoryPanel: Everything 搜索失败: " . err.Message . "`n")
+        }
     }
     
     ; 更新缓存
@@ -1828,9 +1868,379 @@ ShowImagePreviewImmediately(imagePath) {
 }
 
 ; ===================== ListView 双击事件 =====================
-OnHistoryItemDoubleClick(*) {
+; ===================== ListView 列点击事件（排序）=====================
+OnHistoryColumnClick(LV, ColumnNumber) {
+    global HistoryDisplayCache, HistoryListView
+    
+    ; 如果点击的是序号列（第1列），按图标排序
+    if (ColumnNumber = 1) {
+        ; 按图标路径排序，相同图标的数据排列在一起
+        ; 获取所有行的图标路径
+        iconPaths := Map()
+        for index, rowData in HistoryDisplayCache {
+            iconPath := GetIconPathForRow(rowData)
+            if (!iconPaths.Has(iconPath)) {
+                iconPaths[iconPath] := []
+            }
+            iconPaths[iconPath].Push(index)
+        }
+        
+        ; 重新排序：按图标路径分组
+        sortedResults := []
+        for iconPath, indices in iconPaths {
+            for index in indices {
+                sortedResults.Push(HistoryDisplayCache[index])
+            }
+        }
+        
+        ; 更新缓存
+        HistoryDisplayCache := sortedResults
+        
+        ; 刷新 ListView
+        RefreshHistoryListView()
+    }
+}
+
+; ===================== 刷新 ListView 显示 =====================
+RefreshHistoryListView() {
     global HistoryListView, HistoryDisplayCache
     
+    if (!HistoryListView || HistoryDisplayCache.Length = 0) {
+        return
+    }
+    
+    ; 暂停重绘以提高性能
+    HistoryListView.Opt("-Redraw")
+    
+    ; 清空列表
+    HistoryListView.Delete()
+    
+    ; 添加数据（复用 RefreshHistoryData 中的显示逻辑）
+    for index, rowData in HistoryDisplayCache {
+        ; 获取内容预览
+        dataType := rowData.Has("DataType") ? rowData["DataType"] : "Text"
+        preview := rowData.Has("Content") ? rowData["Content"] : ""
+        
+        ; 如果是图片类型，显示图片文件名
+        if (dataType = "Image") {
+            imagePath := rowData.Has("ImagePath") ? rowData["ImagePath"] : preview
+            if (imagePath != "" && FileExist(imagePath)) {
+                try {
+                    SplitPath(imagePath, &fileName)
+                    preview := "[图片] " . fileName
+                } catch {
+                    preview := "[图片] " . imagePath
+                }
+            } else {
+                preview := "[图片]"
+            }
+        } else {
+            if (preview = "") {
+                preview := "(空内容)"
+            } else {
+                if (StrLen(preview) > 80) {
+                    preview := SubStr(preview, 1, 80) . "..."
+                }
+                preview := StrReplace(preview, "`r`n", " ")
+                preview := StrReplace(preview, "`n", " ")
+                preview := StrReplace(preview, "`r", " ")
+            }
+        }
+        
+        ; 格式化时间
+        try {
+            lastCopyTime := rowData.Has("LastCopyTime") && rowData["LastCopyTime"] != "" ? rowData["LastCopyTime"] : rowData["Timestamp"]
+            timeText := FormatTime(lastCopyTime, "yyyy-MM-dd HH:mm:ss")
+        } catch {
+            timeText := rowData.Has("LastCopyTime") ? rowData["LastCopyTime"] : rowData["Timestamp"]
+        }
+        
+        ; 获取其他字段
+        sourceApp := rowData.Has("SourceApp") && rowData["SourceApp"] != "" ? String(rowData["SourceApp"]) : "Unknown"
+        dataType := rowData.Has("DataType") && rowData["DataType"] != "" ? String(rowData["DataType"]) : "Text"
+        
+        ; 获取文件位置
+        fileLocation := ""
+        if (rowData.Has("SourcePath") && rowData["SourcePath"] != "") {
+            SplitPath(rowData["SourcePath"], &fileName)
+            fileLocation := fileName
+        } else if (rowData.Has("Content") && rowData["Content"] != "") {
+            content := rowData["Content"]
+            if (InStr(content, "\") || InStr(content, "/")) {
+                SplitPath(content, &fileName)
+                fileLocation := fileName
+            }
+        }
+        
+        ; 获取文件后缀
+        fileExtension := ""
+        if (rowData.Has("Content") && rowData["Content"] != "") {
+            content := rowData["Content"]
+            if (InStr(content, ".")) {
+                SplitPath(content, , , &ext)
+                fileExtension := ext
+            }
+        }
+        
+        ; 获取文件大小
+        fileSize := ""
+        if (rowData.Has("CharCount")) {
+            fileSize := FormatBytes(rowData["CharCount"])
+        }
+        
+        ; 获取复制次数
+        copyCount := rowData.Has("CopyCount") ? String(rowData["CopyCount"]) : "1"
+        
+        ; 获取字符数
+        charCount := rowData.Has("CharCount") ? String(rowData["CharCount"]) : "0"
+        
+        ; 获取图标索引
+        iconIndex := GetFileIconIndex(GetIconPathForRow(rowData), rowData)
+        iconOption := iconIndex > 0 ? "Icon" . iconIndex : ""
+        
+        ; 添加到 ListView
+        HistoryListView.Add(iconOption,
+            String(index),
+            String(preview),
+            String(sourceApp),
+            String(fileLocation),
+            String(dataType),
+            String(fileExtension),
+            String(fileSize),
+            String(timeText),
+            String(copyCount),
+            String(charCount))
+    }
+    
+    ; 恢复重绘
+    HistoryListView.Opt("+Redraw")
+}
+
+; ===================== 格式化字节数 =====================
+FormatBytes(bytes) {
+    if (bytes < 1024) {
+        return bytes . " B"
+    } else if (bytes < 1048576) {
+        return Round(bytes / 1024, 2) . " KB"
+    } else {
+        return Round(bytes / 1048576, 2) . " MB"
+    }
+}
+
+; ===================== 获取行的图标路径 =====================
+GetIconPathForRow(rowData) {
+    ; 优先使用 SourcePath，然后是 IconPath，最后是 Content
+    if (rowData.Has("SourcePath") && rowData["SourcePath"] != "") {
+        return rowData["SourcePath"]
+    }
+    if (rowData.Has("IconPath") && rowData["IconPath"] != "") {
+        return rowData["IconPath"]
+    }
+    if (rowData.Has("Content") && rowData["Content"] != "") {
+        content := rowData["Content"]
+        ; 如果是文件路径，返回路径
+        if (InStr(content, "\") || InStr(content, "/")) {
+            return content
+        }
+    }
+    return ""
+}
+
+; ===================== ListView 右键菜单事件 =====================
+OnHistoryListViewContextMenu(LV, Item, IsRightClick, X, Y) {
+    global HistoryListView, HistoryDisplayCache
+    
+    ; 获取选中的行（支持多选）
+    selectedRows := []
+    row := 0
+    Loop {
+        row := HistoryListView.GetNext(row, "Checked")
+        if (row = 0) {
+            break
+        }
+        selectedRows.Push(row)
+    }
+    
+    ; 如果没有选中任何行，选中当前右键点击的行
+    if (selectedRows.Length = 0 && Item > 0) {
+        selectedRows.Push(Item)
+    }
+    
+    ; 如果没有选中任何行，不显示菜单
+    if (selectedRows.Length = 0) {
+        return
+    }
+    
+    ; 创建右键菜单
+    contextMenu := Menu()
+    contextMenu.Add("复制", HistoryContextMenuCopy)
+    contextMenu.Add("粘贴", HistoryContextMenuPaste)
+    contextMenu.Add("删除", HistoryContextMenuDelete)
+    contextMenu.Add("添加到提示词", HistoryContextMenuAddToPrompt)
+    
+    ; 显示菜单
+    contextMenu.Show(X, Y)
+}
+
+; ===================== 右键菜单：复制 =====================
+HistoryContextMenuCopy(*) {
+    global HistoryListView, HistoryDisplayCache
+    
+    ; 获取选中的行
+    selectedRows := []
+    row := 0
+    Loop {
+        row := HistoryListView.GetNext(row, "Checked")
+        if (row = 0) {
+            break
+        }
+        selectedRows.Push(row)
+    }
+    
+    if (selectedRows.Length = 0) {
+        return
+    }
+    
+    ; 复制第一个选中的项
+    if (selectedRows[1] > 0 && selectedRows[1] <= HistoryDisplayCache.Length) {
+        rowData := HistoryDisplayCache[selectedRows[1]]
+        if (rowData.Has("Content") && rowData["Content"] != "") {
+            A_Clipboard := rowData["Content"]
+            TrayTip("已复制", "内容已复制到剪贴板", "Iconi 1")
+        }
+    }
+}
+
+; ===================== 右键菜单：粘贴 =====================
+HistoryContextMenuPaste(*) {
+    global HistoryListView, HistoryDisplayCache
+    
+    ; 获取选中的行
+    selectedRows := []
+    row := 0
+    Loop {
+        row := HistoryListView.GetNext(row, "Checked")
+        if (row = 0) {
+            break
+        }
+        selectedRows.Push(row)
+    }
+    
+    if (selectedRows.Length = 0) {
+        return
+    }
+    
+    ; 粘贴第一个选中的项
+    if (selectedRows[1] > 0 && selectedRows[1] <= HistoryDisplayCache.Length) {
+        rowData := HistoryDisplayCache[selectedRows[1]]
+        if (rowData.Has("Content") && rowData["Content"] != "") {
+            A_Clipboard := rowData["Content"]
+            Sleep(50)
+            Send("^v")
+            TrayTip("已粘贴", "内容已粘贴到 Cursor", "Iconi 1")
+        }
+    }
+}
+
+; ===================== 右键菜单：删除 =====================
+HistoryContextMenuDelete(*) {
+    global HistoryListView, HistoryDisplayCache, ClipboardFTS5DB
+    
+    ; 获取选中的行
+    selectedRows := []
+    row := 0
+    Loop {
+        row := HistoryListView.GetNext(row, "Checked")
+        if (row = 0) {
+            break
+        }
+        selectedRows.Push(row)
+    }
+    
+    if (selectedRows.Length = 0) {
+        return
+    }
+    
+    ; 确认删除
+    if (MsgBox("确定要删除选中的 " . selectedRows.Length . " 项吗？", "确认删除", "YesNo IconQuestion") != "Yes") {
+        return
+    }
+    
+    ; 删除选中的项
+    deletedCount := 0
+    for index, rowNum in selectedRows {
+        if (rowNum > 0 && rowNum <= HistoryDisplayCache.Length) {
+            rowData := HistoryDisplayCache[rowNum]
+            if (rowData.Has("ID") && rowData["ID"] != "") {
+                try {
+                    SQL := "DELETE FROM ClipMain WHERE ID = " . rowData["ID"]
+                    if (ClipboardFTS5DB.Exec(SQL)) {
+                        deletedCount++
+                    }
+                } catch as err {
+                    ; 忽略错误，继续删除下一项
+                }
+            }
+        }
+    }
+    
+    if (deletedCount > 0) {
+        TrayTip("已删除", "成功删除 " . deletedCount . " 项", "Iconi 1")
+        RefreshHistoryData()
+    }
+}
+
+; ===================== 右键菜单：添加到提示词 =====================
+HistoryContextMenuAddToPrompt(*) {
+    global HistoryListView, HistoryDisplayCache
+    
+    ; 获取选中的行
+    selectedRows := []
+    row := 0
+    Loop {
+        row := HistoryListView.GetNext(row, "Checked")
+        if (row = 0) {
+            break
+        }
+        selectedRows.Push(row)
+    }
+    
+    if (selectedRows.Length = 0) {
+        return
+    }
+    
+    ; 收集所有选中项的内容
+    contents := []
+    for index, rowNum in selectedRows {
+        if (rowNum > 0 && rowNum <= HistoryDisplayCache.Length) {
+            rowData := HistoryDisplayCache[rowNum]
+            if (rowData.Has("Content") && rowData["Content"] != "") {
+                contents.Push(rowData["Content"])
+            }
+        }
+    }
+    
+    if (contents.Length = 0) {
+        return
+    }
+    
+    ; 合并内容（用换行符分隔）
+    combinedContent := ""
+    for index, content in contents {
+        if (index > 1) {
+            combinedContent .= "`n"
+        }
+        combinedContent .= content
+    }
+    
+    ; 复制到剪贴板，用户可以手动添加到提示词
+    A_Clipboard := combinedContent
+    TrayTip("已复制", "内容已复制到剪贴板，可以添加到提示词模板", "Iconi 1")
+}
+
+OnHistoryItemDoubleClick(*) {
+    global HistoryListView, HistoryDisplayCache
+
     selectedRow := HistoryListView.GetNext()
     if (selectedRow > 0 && selectedRow <= HistoryDisplayCache.Length) {
         rowData := HistoryDisplayCache[selectedRow]
@@ -1928,6 +2338,7 @@ OnHistoryItemDoubleClick(*) {
 ; ===================== 窗口大小改变事件 =====================
 OnHistoryPanelSize(*) {
     global GuiID_ClipboardHistory, HistoryListView, HistorySearchEdit, HistoryTagButtons, HistoryStatusBarText, HistoryBottomArea
+    global HistoryCopyBtn, HistoryDeleteBtn, HistoryPasteBtn, HistoryClearAllBtn, HistoryExportBtn, HistoryImportBtn
     
     ; 获取窗口大小
     GuiID_ClipboardHistory.GetPos(,, &width, &height)
@@ -1938,15 +2349,51 @@ OnHistoryPanelSize(*) {
     ; 调整标签按钮位置（如果需要的话，可以保持左对齐）
     ; 标签按钮保持原位置，不随窗口大小改变
     
-    ; 调整 ListView 宽度和高度（为标签区域和底部按钮区域留出空间）
-    ; ListView高度 = 窗口高度 - ListView起始Y(90) - 底部按钮区域(70) - 状态栏(20) = height - 180
-    listHeight := height - 180
-    HistoryListView.Move(,, width - 20, listHeight)
+    ; 计算底部区域位置和大小
+    BottomAreaHeight := 70
+    StatusBarHeight := 20
+    ListViewY := 90
+    ListViewHeight := height - ListViewY - BottomAreaHeight - StatusBarHeight
+    
+    ; 计算底部区域Y位置（必须在条件块外，确保变量总是被赋值）
+    bottomAreaY := ListViewY + ListViewHeight
+    
+    ; 调整 ListView 宽度和高度
+    HistoryListView.Move(,, width - 20, ListViewHeight)
     
     ; 调整底部背景区域位置和大小
     if (HistoryBottomArea && IsObject(HistoryBottomArea)) {
-        bottomAreaY := 90 + listHeight  ; ListViewY + ListViewHeight
-        HistoryBottomArea.Move(, bottomAreaY, width, 70)
+        HistoryBottomArea.Move(, bottomAreaY, width, BottomAreaHeight)
+    }
+    
+    ; 调整按钮位置（自适应窗口宽度）
+    ButtonHeight := 30
+    ButtonWidth := 100
+    ButtonSpacing := 10
+    ButtonPadding := 10
+    
+    ; 计算按钮起始位置（保持左对齐）
+    StartX := ButtonPadding
+    ButtonY := bottomAreaY + 10
+    
+    ; 调整所有按钮位置
+    if (HistoryCopyBtn && IsObject(HistoryCopyBtn)) {
+        HistoryCopyBtn.Move(StartX, ButtonY)
+    }
+    if (HistoryDeleteBtn && IsObject(HistoryDeleteBtn)) {
+        HistoryDeleteBtn.Move(StartX + ButtonWidth + ButtonSpacing, ButtonY)
+    }
+    if (HistoryPasteBtn && IsObject(HistoryPasteBtn)) {
+        HistoryPasteBtn.Move(StartX + (ButtonWidth + ButtonSpacing) * 2, ButtonY)
+    }
+    if (HistoryClearAllBtn && IsObject(HistoryClearAllBtn)) {
+        HistoryClearAllBtn.Move(StartX + (ButtonWidth + ButtonSpacing) * 3 + 20, ButtonY)
+    }
+    if (HistoryExportBtn && IsObject(HistoryExportBtn)) {
+        HistoryExportBtn.Move(StartX + (ButtonWidth + ButtonSpacing) * 4 + 20, ButtonY)
+    }
+    if (HistoryImportBtn && IsObject(HistoryImportBtn)) {
+        HistoryImportBtn.Move(StartX + (ButtonWidth + ButtonSpacing) * 5 + 20, ButtonY)
     }
     
     ; 调整状态栏宽度和位置
