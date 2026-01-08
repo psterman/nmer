@@ -382,3 +382,92 @@ _ClipboardFTS5_GetEverythingResults(keyword, maxResults := 10) {
 两个模块都通过 Everything64.dll 搜索本地文件，并将结果与数据库结果合并显示。
 
 ---
+
+
+**User**
+
+在 ClipboardHistoryPanel 和 SearchCenter 的搜索框左侧增加一个结果数量限制的下拉菜单（DropDownList），并让 Everything 搜索深度受此开关控制。
+
+---
+
+
+**Cursor**
+
+查找 SearchCenter 的 GUI 创建代码，定位搜索框位置：
+
+
+
+查看 SearchCenter 和 ClipboardHistoryPanel 的搜索框创建代码：
+
+
+
+创建初始待办列表，开始实现：
+
+
+
+实现 ClipboardHistoryPanel 和 SearchCenter 的结果数量限制下拉菜单：
+
+
+
+添加下拉菜单的 Change 事件处理函数：
+
+
+
+更新窗口大小改变事件，调整下拉菜单和搜索框的位置：
+
+---
+
+
+**User**
+
+Error: Expected an Array but got a String.
+
+Specifically: 10|20|30|50|100|200|500
+
+	---- C:\Users\pster\Desktop\小c\modules\ClipboardHistoryPanel.ahk
+	164: DropdownOptions := "10|20|30|50|100|200|500"
+	165: DropdownDefaultIndex := 4
+▶	167: HistoryResultLimitDropdown := GuiID_ClipboardHistory.Add("DropDownList", "x" . DropdownX . " y" . DropdownY . " w" . DropdownWidth . " h" . DropdownHeight . " Background" . HistoryColors.InputBg . " c" . HistoryColors.Text . " Choose" . DropdownDefaultIndex . " vHistoryResultLimitDropdown", DropdownOptions)
+	Error: This value of type "String" has no method named "SetFont".
+
+	---- C:\Users\pster\Desktop\小c\modules\ClipboardHistoryPanel.ahk
+	165: DropdownDefaultIndex := 4
+	167: HistoryResultLimitDropdown := GuiID_ClipboardHistory.Add("DropDownList", "x" . DropdownX . " y" . DropdownY . " w" . DropdownWidth . " h" . DropdownHeight . " Background" . HistoryColors.InputBg . " c" . HistoryColors.Text . " Choose" . DropdownDefaultIndex . " vHistoryResultLimitDropdown", DropdownOptions)
+▶	175: HistoryResultLimitDropdown.SetFont("s10", "Segoe UI")Error: This value of type "String" has no method named "OnEvent".
+
+	---- C:\Users\pster\Desktop\小c\modules\ClipboardHistoryPanel.ahk
+	167: HistoryResultLimitDropdown := GuiID_ClipboardHistory.Add("DropDownList", "x" . DropdownX . " y" . DropdownY . " w" . DropdownWidth . " h" . DropdownHeight . " Background" . HistoryColors.InputBg . " c" . HistoryColors.Text . " Choose" . DropdownDefaultIndex . " vHistoryResultLimitDropdown", DropdownOptions)
+	175: HistoryResultLimitDropdown.SetFont("s10", "Segoe UI")
+▶	176: HistoryResultLimitDropdown.OnEvent("Change", OnHistoryResultLimitChange)
+
+---
+
+
+**Cursor**
+
+修复错误：AutoHotkey v2 的 `DropDownList` 选项应为数组，而不是用 `|` 分隔的字符串。将选项改为数组：
+
+---
+
+
+**User**
+
+Error: Expected an Array but got a String.
+
+Specifically: 10|20|30|50|100|200|500
+
+	21417: DropdownOptions := "10|20|30|50|100|200|500"
+	21418: DropdownDefaultIndex := 1
+▶	21420: SearchCenterResultLimitDropdown := GuiID_SearchCenter.Add("DropDownList", "x" . DropdownX . " y" . DropdownY . " w" . DropdownWidth . " h" . DropdownHeight . " Background" . InputBgColor . " c" . InputTextColor . " Choose" . DropdownDefaultIndex . " vSearchCenterResultLimitDropdown", DropdownOptions)
+	Error: This value of type "String" has no method named "SetFont".
+
+	21418: DropdownDefaultIndex := 1
+	21420: SearchCenterResultLimitDropdown := GuiID_SearchCenter.Add("DropDownList", "x" . DropdownX . " y" . DropdownY . " w" . DropdownWidth . " h" . DropdownHeight . " Background" . InputBgColor . " c" . InputTextColor . " Choose" . DropdownDefaultIndex . " vSearchCenterResultLimitDropdown", DropdownOptions)
+▶	21428: SearchCenterResultLimitDropdown.SetFont("s14", "Segoe UI")
+	Error: This value of type "String" has no method named "OnEvent".
+
+	21420: SearchCenterResultLimitDropdown := GuiID_SearchCenter.Add("DropDownList", "x" . DropdownX . " y" . DropdownY . " w" . DropdownWidth . " h" . DropdownHeight . " Background" . InputBgColor . " c" . InputTextColor . " Choose" . DropdownDefaultIndex . " vSearchCenterResultLimitDropdown", DropdownOptions)
+	21428: SearchCenterResultLimitDropdown.SetFont("s14", "Segoe UI")
+▶	21429: SearchCenterResultLimitDropdown.OnEvent("Change", OnSearchCenterResultLimitChange)
+
+---

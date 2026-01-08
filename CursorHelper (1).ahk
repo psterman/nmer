@@ -172,6 +172,50 @@ InitEverythingService() {
     }
 }
 
+; Everything API 初始化函数
+Everything_Init() {
+    static evDll := A_ScriptDir "\lib\everything64.dll"
+    static isInitialized := false
+
+    ; 检查 DLL 文件是否存在
+    if (!FileExist(evDll)) {
+        OutputDebug("AHK_DEBUG: Everything_Init - 找不到 everything64.dll")
+        return false
+    }
+
+    ; 首次调用时，确保DLL已加载
+    if (!isInitialized) {
+        hModule := DllCall("LoadLibrary", "Str", evDll, "Ptr")
+        if (!hModule) {
+            OutputDebug("AHK_DEBUG: Everything_Init - 无法加载 everything64.dll")
+            return false
+        }
+        isInitialized := true
+        OutputDebug("AHK_DEBUG: Everything_Init - DLL 加载成功")
+    }
+
+    ; 检查 Everything 客户端是否在运行（通过获取版本号判断IPC连接）
+    majorVer := DllCall(evDll "\Everything_GetMajorVersion", "UInt")
+    if (majorVer = 0) {
+        errCode := DllCall(evDll "\Everything_GetLastError", "UInt")
+        OutputDebug("AHK_DEBUG: Everything_Init - IPC 连接失败，错误码: " . errCode)
+        ; 尝试启动 Everything
+        if (!ProcessExist("Everything.exe")) {
+            InitEverythingService()
+            Sleep(1000)  ; 等待启动
+            ; 再次检查
+            majorVer := DllCall(evDll "\Everything_GetMajorVersion", "UInt")
+            if (majorVer = 0) {
+                return false
+            }
+        } else {
+            return false
+        }
+    }
+
+    return true
+}
+
 ; ===================== 管理员权限检查 =====================
 ; 如果脚本不是以管理员权限运行，则重新以管理员权限启动
 if (!A_IsAdmin) {
@@ -296,6 +340,8 @@ global ClipboardHistory := []  ; 存储所有复制的内容（兼容旧版本�
 global ClipboardHistory_CtrlC := []  ; 存储 Ctrl+C 复制的内容
 global ClipboardHistory_CapsLockC := []  ; 存储 CapsLock+C 复制的内容
 global GuiID_ClipboardManager := 0  ; 剪贴板管理面板 GUI ID
+global ClipboardManagementResultLimitDropdown := 0  ; 剪贴板管理结果数量限制下拉菜单
+global ClipboardManagementEverythingLimit := 50  ; 剪贴板管理 Everything 搜索限制值
 ; CapsLock+C 叠加复制计数和存储
 global CapsLockCCount := 0  ; 当前阶段的复制计数
 global CapsLockCCountTooltip := 0  ; 计数提示 Tooltip 句柄
@@ -332,8 +378,9 @@ global SearchCenterResultLV := 0  ; 搜索结果 ListView 控件
 global SearchCenterCategoryButtons := []  ; 分类标签按钮数组
 global SearchCenterSearchResults := []  ; 当前搜索结果数据
 global SearchCenterEngineIcons := []  ; 搜索引擎图标控件数组
+global SearchCenterResultLimitDropdown := 0  ; 结果数量限制下拉菜单
+global SearchCenterEverythingLimit := 10  ; Everything 搜索的结果数量限制（默认10）
 global SearchCenterCurrentLimit := 50  ; 当前加载的数据量限制
-global SearchCenterLoadMoreBtn := 0  ; "加载更多"按钮
 global SearchCenterHasMoreData := false  ; 是否还有更多数据
 global SearchCenterSelectedEngines := []  ; 搜索中心选中的搜索引擎（支持多选）
 global SearchCenterSelectedEnginesByCategory := Map()  ; 每个分类的搜索引擎选择状态（分类Key -> 引擎数组）
@@ -12297,7 +12344,9 @@ SearchFilePaths(Keyword, MaxResults := 10, Offset := 0) {
     if (StrLen(Keyword) > 1) {
         try {
             ; 调用GetEverythingResults获取文件搜索结果（增加 limit 以检测是否还有更多）
-            Files := GetEverythingResults(Keyword, MaxResults + Offset + 1)
+            ; 使用下拉菜单设置的结果数量限制（如果设置了，优先使用；否则使用 MaxResults）
+            everythingLimit := SearchCenterEverythingLimit > 0 ? SearchCenterEverythingLimit : MaxResults
+            Files := GetEverythingResults(Keyword, everythingLimit + Offset + 1)
             
             ; 跳过 offset 数量的结果
             if (Offset > 0 && Files.Length > Offset) {
@@ -16439,11 +16488,33 @@ ShowClipboardManager() {
     ; 清空按钮移到下方（在底部按钮区域）
     
     ; ========== 搜索功能区域（参考 ClipboardHistoryPanel，扩大加宽）==========
-    ; 搜索框位置：在分类标签栏下方
+    ; 下拉菜单位置：在分类标签栏下方
     SearchBoxY := CategoryBarY + CategoryBarHeight + 10
     SearchBoxHeight := 30  ; 参考 ClipboardHistoryPanel 的高度
-    SearchBoxX := 10
-    SearchBoxWidth := PanelWidth - 20  ; 全宽，参考 ClipboardHistoryPanel
+    
+    ; 下拉菜单（限制结果数量）
+    DropdownX := 10
+    DropdownY := SearchBoxY
+    DropdownWidth := 100
+    DropdownHeight := SearchBoxHeight
+    DropdownDefaultIndex := 4  ; 默认选择50（索引从1开始，50是第4个选项）
+    
+    ClipboardManagementResultLimitDropdown := GuiID_ClipboardManager.Add("DropDownList",
+        "x" . DropdownX . " y" . DropdownY .
+        " w" . DropdownWidth . " h" . DropdownHeight .
+        " R7" .  ; 显示 7 行，确保所有选项可见
+        " Background" . UI_Colors.InputBg .
+        " c" . UI_Colors.Text .
+        " Choose" . DropdownDefaultIndex .
+        " vClipboardManagementResultLimitDropdown",
+        ["10", "20", "30", "50", "100", "200", "500"])
+    
+    ClipboardManagementResultLimitDropdown.SetFont("s11", "Segoe UI")
+    ClipboardManagementResultLimitDropdown.OnEvent("Change", OnClipboardManagementResultLimitChange)
+    
+    ; 搜索框位置：下拉菜单右侧
+    SearchBoxX := DropdownX + DropdownWidth + 10  ; 下拉菜单右侧，间距10
+    SearchBoxWidth := PanelWidth - 20 - DropdownWidth - 10  ; 总宽度减去下拉菜单宽度和间距
     
     ; 添加搜索框背景板（参考 ClipboardHistoryPanel）
     SearchBoxBg := GuiID_ClipboardManager.Add("Text", 
@@ -17412,6 +17483,7 @@ RefreshClipboardListView() {
     global RefreshClipboardListInProgress, GuiID_ClipboardManager
     global ClipboardListViewHighlightedRow, ClipboardListViewHighlightedCol
     global ClipboardCurrentCategory, ClipboardFTS5DB
+    global ClipboardManagementEverythingLimit, ClipboardManagementResultLimitDropdown
     
     ; 确保当前标签是CapsLockC
     if (ClipboardCurrentTab != "CapsLockC") {
@@ -17521,13 +17593,101 @@ RefreshClipboardListView() {
             selectFields .= ", 1 AS CopyCount"
         }
         
-        ; 根据分类过滤 SQL 查询
+        ; 获取搜索关键词（如果有）
+        SearchKeyword := ""
+        try {
+            if (GuiID_ClipboardManager && IsObject(GuiID_ClipboardManager)) {
+                SearchEdit := GuiID_ClipboardManager["ClipboardSearchEdit"]
+                if (SearchEdit && IsObject(SearchEdit)) {
+                    SearchKeyword := Trim(SearchEdit.Value)
+                }
+            }
+        } catch {
+        }
+        
+        ; 获取限制值
+        EverythingLimit := ClipboardManagementEverythingLimit > 0 ? ClipboardManagementEverythingLimit : 50
+        
+        ; 根据分类和搜索关键词过滤 SQL 查询
+        WhereClause := ""
         if (CurrentCategory != "" && CurrentCategory != "All" && CurrentCategory != "全部") {
-            ; 根据分类过滤：Stack（CapsLock+C）、Text, Code, Link, Image
-            SQL := "SELECT " . selectFields . " FROM ClipMain WHERE DataType = '" . StrReplace(CurrentCategory, "'", "''") . "' ORDER BY Timestamp DESC"
+            WhereClause := "WHERE DataType = '" . StrReplace(CurrentCategory, "'", "''") . "'"
+        }
+        
+        ; 如果有搜索关键词，使用 Everything 搜索过滤
+        if (SearchKeyword != "") {
+            ; 使用 Everything 搜索
+            try {
+                ; 初始化 Everything
+                static evDll := A_ScriptDir "\lib\everything64.dll"
+                if (!Everything_Init()) {
+                    ; Everything 初始化失败，使用 SQL LIKE 搜索作为后备
+                    if (WhereClause != "") {
+                        WhereClause .= " AND Content LIKE '%" . StrReplace(SearchKeyword, "'", "''") . "%'"
+                    } else {
+                        WhereClause := "WHERE Content LIKE '%" . StrReplace(SearchKeyword, "'", "''") . "%'"
+                    }
+                } else {
+                    ; Everything 搜索成功，获取结果
+                    DllCall(evDll "\Everything_SetSearchW", "WStr", SearchKeyword)
+                    DllCall(evDll "\Everything_SetMax", "UInt", EverythingLimit)
+                    DllCall(evDll "\Everything_QueryW", "Int", 1)
+                    
+                    ; 获取结果数量
+                    ResultCount := DllCall(evDll "\Everything_GetNumResults", "UInt")
+                    
+                    ; 构建文件路径列表用于 SQL IN 查询
+                    if (ResultCount > 0) {
+                        FilePaths := []
+                        Loop Min(ResultCount, EverythingLimit) {
+                            FilePath := DllCall(evDll "\Everything_GetResultFullPathNameW", "UInt", A_Index - 1, "Ptr", 0, "UInt", 0, "UInt")
+                            if (FilePath > 0) {
+                                FilePathBuffer := Buffer(FilePath * 2 + 2)
+                                DllCall(evDll "\Everything_GetResultFullPathNameW", "UInt", A_Index - 1, "Ptr", FilePathBuffer.Ptr, "UInt", FilePath, "UInt")
+                                FilePathStr := StrGet(FilePathBuffer)
+                                FilePaths.Push("'" . StrReplace(FilePathStr, "'", "''") . "'")
+                            }
+                        }
+                        
+                        ; 如果有文件路径，添加到 WHERE 条件
+                        if (FilePaths.Length > 0) {
+                            ; 构建 IN 子句
+                            InClause := ""
+                            for Index, Path in FilePaths {
+                                if (InClause != "") {
+                                    InClause .= ","
+                                }
+                                InClause .= Path
+                            }
+                            if (WhereClause != "") {
+                                WhereClause .= " AND SourcePath IN (" . InClause . ")"
+                            } else {
+                                WhereClause := "WHERE SourcePath IN (" . InClause . ")"
+                            }
+                        } else {
+                            ; 如果没有文件路径匹配，返回空结果
+                            WhereClause := "WHERE 1=0"
+                        }
+                    } else {
+                        ; 没有搜索结果，返回空结果
+                        WhereClause := "WHERE 1=0"
+                    }
+                }
+            } catch {
+                ; Everything 搜索失败，使用 SQL LIKE 搜索作为后备
+                if (WhereClause != "") {
+                    WhereClause .= " AND Content LIKE '%" . StrReplace(SearchKeyword, "'", "''") . "%'"
+                } else {
+                    WhereClause := "WHERE Content LIKE '%" . StrReplace(SearchKeyword, "'", "''") . "%'"
+                }
+            }
+        }
+        
+        ; 构建最终 SQL 查询
+        if (WhereClause != "") {
+            SQL := "SELECT " . selectFields . " FROM ClipMain " . WhereClause . " ORDER BY Timestamp DESC LIMIT " . EverythingLimit
         } else {
-            ; 全部：不添加过滤条件
-            SQL := "SELECT " . selectFields . " FROM ClipMain ORDER BY Timestamp DESC"
+            SQL := "SELECT " . selectFields . " FROM ClipMain ORDER BY Timestamp DESC LIMIT " . EverythingLimit
         }
         
         ; 使用 GetTable 查询（参考 ClipboardHistoryPanel.ahk）
@@ -18886,6 +19046,28 @@ OnClipboardSearchChange(Control, *) {
                 }
             }
         } catch as err {
+        }
+    }
+}
+
+; 剪贴板管理结果数量限制下拉菜单变化事件处理
+OnClipboardManagementResultLimitChange(Control, *) {
+    global ClipboardManagementEverythingLimit, ClipboardCurrentTab
+    
+    ; 获取选中的值
+    SelectedValue := Control.Text
+    if (SelectedValue != "") {
+        ; 更新全局限制值
+        ClipboardManagementEverythingLimit := Integer(SelectedValue)
+        
+        ; 如果当前标签是 CapsLockC，重新加载数据
+        if (ClipboardCurrentTab = "CapsLockC") {
+            ; 调用刷新函数重新加载数据
+            try {
+                RefreshClipboardListView()
+            } catch as err {
+                OutputDebug("AHK_DEBUG: OnClipboardManagementResultLimitChange - 刷新失败: " . err.Message)
+            }
         }
     }
 }
@@ -21394,12 +21576,6 @@ ShowSearchCenter() {
     InputAreaY := EngineIconRowY + EngineIconRowHeight + Padding
     InputAreaHeight := 70
     
-    ; 搜索输入框（大字体）
-    SearchEditX := Padding
-    SearchEditY := InputAreaY + (InputAreaHeight - 50) / 2
-    SearchEditWidth := WindowWidth - Padding * 2
-    SearchEditHeight := 50
-    
     ; 根据主题模式设置输入框颜色（Material Design风格，完全移除边框和底边）
     if (ThemeMode = "dark") {
         InputBgColor := UI_Colors.InputBg  ; html.to.design 风格背景
@@ -21409,11 +21585,43 @@ ShowSearchCenter() {
         InputTextColor := UI_Colors.Text
     }
     
+    ; ========== 结果数量限制下拉菜单（搜索框左侧）==========
+    DropdownX := Padding
+    DropdownY := InputAreaY + (InputAreaHeight - 50) / 2
+    DropdownWidth := 80
+    DropdownHeight := 50
+    
+    ; 创建下拉菜单选项（10, 20, 30, 50, 100, 200, 500）- 直接内联数组
+    ; R7 表示显示 7 行，确保所有选项可见
+    DropdownDefaultIndex := 1  ; 默认选择10（索引从1开始，10是第1个选项）
+
+    SearchCenterResultLimitDropdown := GuiID_SearchCenter.Add("DropDownList",
+        "x" . DropdownX . " y" . DropdownY .
+        " w" . DropdownWidth . " h" . DropdownHeight .
+        " R7" .  ; 显示 7 行，确保所有选项可见
+        " Background" . InputBgColor .
+        " c" . InputTextColor .
+        " Choose" . DropdownDefaultIndex .
+        " vSearchCenterResultLimitDropdown",
+        ["10", "20", "30", "50", "100", "200", "500"])
+
+    SearchCenterResultLimitDropdown.SetFont("s14", "Segoe UI")
+    SearchCenterResultLimitDropdown.OnEvent("Change", OnSearchCenterResultLimitChange)
+    
+    ; ========== 搜索输入框（下拉菜单右侧）==========
+    SearchEditX := DropdownX + DropdownWidth + 10  ; 下拉菜单右侧，间距10
+    SearchEditY := DropdownY
+    SearchEditWidth := WindowWidth - Padding * 2 - DropdownWidth - 10  ; 总宽度减去下拉菜单宽度和间距
+    SearchEditHeight := 50
+    
     ; 【Material Design风格】完全移除边框容器，避免任何底边显示
     ; 使用 -Border 选项移除默认边框，避免黑边问题
     ; 使用 -VScroll -HScroll 禁用滚动条，-Border 移除默认边框
     SearchCenterSearchEdit := GuiID_SearchCenter.Add("Edit", "x" . SearchEditX . " y" . SearchEditY . " w" . SearchEditWidth . " h" . SearchEditHeight . " Background" . InputBgColor . " c" . InputTextColor . " -VScroll -HScroll -Border vSearchCenterEdit", "")
     SearchCenterSearchEdit.SetFont("s16", "Segoe UI")
+    
+    ; 初始化 Everything 搜索限制值
+    SearchCenterEverythingLimit := 10
     
     ; 完全移除边框容器，不再使用
     SearchCenterInputContainer := 0
@@ -21465,9 +21673,8 @@ ShowSearchCenter() {
     SearchCenterHintText.Visible := true
     
     ; ========== 底部结果区 ==========
-    LoadMoreBtnHeight := 35  ; "加载更多"按钮高度
     ResultAreaY := InputAreaY + InputAreaHeight + Padding + AreaIndicatorHeight + HintTextHeight + 10  ; 为区域名称和提示文本留出空间
-    ResultAreaHeight := WindowHeight - ResultAreaY - Padding - LoadMoreBtnHeight - 5  ; 为"加载更多"按钮留出空间
+    ResultAreaHeight := WindowHeight - ResultAreaY - Padding - 5  ; 移除加载更多按钮后的空间
     
     ; 结果 ListView
     ResultLVX := Padding
@@ -21489,19 +21696,6 @@ ShowSearchCenter() {
     SearchCenterResultLV.ModifyCol(2, ResultLVWidth * 0.25)
     SearchCenterResultLV.ModifyCol(3, ResultLVWidth * 0.25)
     
-    ; ========== "加载更多"按钮 ==========
-    LoadMoreBtnY := ResultLVY + ResultLVHeight + 5
-    LoadMoreBtnWidth := 120
-    LoadMoreBtnX := (WindowWidth - LoadMoreBtnWidth) / 2  ; 居中
-    
-    SearchCenterLoadMoreBtn := GuiID_SearchCenter.Add("Text",
-        "x" . LoadMoreBtnX . " y" . LoadMoreBtnY . " w" . LoadMoreBtnWidth . " h" . LoadMoreBtnHeight .
-        " Center 0x200 c" . UI_Colors.Text .
-        " Background" . UI_Colors.BtnBg .
-        " vSearchCenterLoadMoreBtn", "加载更多")
-    SearchCenterLoadMoreBtn.SetFont("s10", "Segoe UI")
-    SearchCenterLoadMoreBtn.OnEvent("Click", OnSearchCenterLoadMore)
-    SearchCenterLoadMoreBtn.Visible := false  ; 默认隐藏
     
     ; 窗口关闭事件（ESC键关闭）
     GuiID_SearchCenter.OnEvent("Close", SearchCenterCloseHandler)
@@ -21890,6 +22084,30 @@ UpdateSearchCenterHighlight() {
     }
 }
 
+; ===================== 结果数量限制下拉菜单变化事件 =====================
+OnSearchCenterResultLimitChange(*) {
+    global SearchCenterResultLimitDropdown, SearchCenterEverythingLimit, SearchCenterSearchEdit
+    
+    ; 检查控件是否存在
+    if (!IsSet(SearchCenterResultLimitDropdown) || !SearchCenterResultLimitDropdown) {
+        return
+    }
+    
+    ; 获取选中的值
+    try {
+        selectedText := SearchCenterResultLimitDropdown.Value
+        SearchCenterEverythingLimit := Integer(selectedText)
+    } catch {
+        SearchCenterEverythingLimit := 10  ; 默认值
+    }
+    
+    ; 如果搜索框有内容，重新搜索
+    if (IsSet(SearchCenterSearchEdit) && SearchCenterSearchEdit && SearchCenterSearchEdit.Value != "") {
+        ; 触发搜索（使用防抖）
+        ExecuteSearchCenterSearch()
+    }
+}
+
 ; 执行搜索中心搜索（带防抖）
 ExecuteSearchCenterSearch(*) {
     global SearchCenterSearchEdit, SearchCenterResultLV, SearchCenterSearchResults
@@ -22048,47 +22266,9 @@ DebouncedSearchCenter(offset := 0) {
     SearchCenterResultLV.ModifyCol(1, "AutoHdr")
     SearchCenterResultLV.Opt("+Redraw")
     
-    ; 更新"加载更多"按钮
-    UpdateSearchCenterLoadMoreButton()
-    
     OutputDebug("AHK_DEBUG: 搜索中心刷新完成，总结果: " . SearchCenterSearchResults.Length . ", 还有更多: " . (SearchCenterHasMoreData ? "是" : "否"))
 }
 
-; ===================== 更新搜索中心"加载更多"按钮显示状态 =====================
-UpdateSearchCenterLoadMoreButton() {
-    global SearchCenterLoadMoreBtn, SearchCenterHasMoreData, SearchCenterSearchResults
-    
-    ; 检查按钮是否存在
-    if (!SearchCenterLoadMoreBtn || SearchCenterLoadMoreBtn = 0) {
-        return
-    }
-    
-    try {
-        ; 如果有更多数据，显示按钮；否则隐藏
-        if (SearchCenterHasMoreData && SearchCenterSearchResults.Length > 0) {
-            SearchCenterLoadMoreBtn.Visible := true
-        } else {
-            SearchCenterLoadMoreBtn.Visible := false
-        }
-    } catch as err {
-        ; 忽略错误（可能控件已销毁）
-        OutputDebug("AHK_DEBUG: UpdateSearchCenterLoadMoreButton 错误: " . err.Message)
-    }
-}
-
-; ===================== 搜索中心"加载更多"按钮点击事件 =====================
-OnSearchCenterLoadMore(*) {
-    global SearchCenterSearchResults, SearchCenterCurrentLimit, SearchCenterSearchEdit
-    
-    ; 增加加载数量
-    SearchCenterCurrentLimit += 50
-    
-    ; 获取当前已加载的数据量作为 offset
-    currentOffset := SearchCenterSearchResults.Length
-    
-    ; 加载更多数据（追加模式）
-    DebouncedSearchCenter(currentOffset)
-}
 
 ; 搜索中心搜索结果双击事件
 OnSearchCenterResultDoubleClick(LV, Row) {
