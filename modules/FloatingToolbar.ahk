@@ -97,6 +97,9 @@ ShowFloatingToolbar() {
     FloatingToolbarGUI.Show("x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . ToolbarWidth . " h" . ToolbarHeight)
     FloatingToolbarIsVisible := true
 
+    ; 应用圆角边框（窗口显示后）
+    FloatingToolbarApplyRoundedCorners()
+
     ; 启动定时器用于悬停效果检测和位置检查（优化频率为100ms）
     SetTimer(FloatingToolbarCheckButtonHover, 100)
     SetTimer(FloatingToolbarCheckWindowPosition, 100)
@@ -329,6 +332,47 @@ CreateFloatingToolbarGUI() {
     
     ; 监听鼠标滚轮消息，实现缩放功能
     OnMessage(0x020A, FloatingToolbarWM_MOUSEWHEEL)  ; WM_MOUSEWHEEL
+}
+
+; ===================== 圆角边框处理 =====================
+; 应用圆角边框到窗口
+FloatingToolbarApplyRoundedCorners() {
+    global FloatingToolbarGUI, FloatingToolbarScale
+    
+    if (FloatingToolbarGUI = 0) {
+        return
+    }
+    
+    try {
+        ; 获取窗口尺寸
+        FloatingToolbarGUI.GetPos(, , &winWidth, &winHeight)
+        
+        ; 圆角半径（8px，应用缩放比例）
+        radius := Round(8 * FloatingToolbarScale)
+        
+        ; 使用 CreateRoundRectRgn 创建圆角区域
+        ; CreateRoundRectRgn(left, top, right, bottom, widthEllipse, heightEllipse)
+        hRgn := DllCall("CreateRoundRectRgn"
+            , "Int", 0
+            , "Int", 0
+            , "Int", winWidth
+            , "Int", winHeight
+            , "Int", radius * 2
+            , "Int", radius * 2
+            , "Ptr")
+        
+        if (hRgn) {
+            ; 应用圆角区域到窗口
+            DllCall("SetWindowRgn"
+                , "Ptr", FloatingToolbarGUI.Hwnd
+                , "Ptr", hRgn
+                , "Int", 1)  ; 1 = 重绘窗口
+            
+            ; 注意：SetWindowRgn 会接管 hRgn 的所有权，不需要手动删除
+        }
+    } catch {
+        ; 如果设置圆角失败，静默处理
+    }
 }
 
 ; ===================== WM_LBUTTONDOWN 消息处理（简化版） =====================
@@ -1334,6 +1378,9 @@ FloatingToolbarWM_MOUSEWHEEL(wParam, lParam, msg, hwnd) {
         
         ; 显示窗口（使用新位置和新尺寸）
         FloatingToolbarGUI.Show("x" . newX . " y" . newY . " w" . ToolbarWidth . " h" . ToolbarHeight)
+        
+        ; 重新应用圆角边框（窗口尺寸改变后）
+        FloatingToolbarApplyRoundedCorners()
         
         ; 保存缩放比例和位置到配置文件
         FloatingToolbarSaveScale()
