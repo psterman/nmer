@@ -216,3 +216,32 @@ Specifically: ButtonY
 现在 `OnHistoryPanelSize` 函数应该可以正常工作，按钮位置会根据窗口大小自动调整。请测试确认。
 
 ---
+
+
+**User**
+
+是不是searchcenter和clipboardhistorypanel都设置了搜索数量上限，有很多匹配的数据看不到，
+在搜索上限时，最后增加一个按钮，再加载一部分数据，方便用户排查
+
+---
+
+
+**Cursor**
+
+检查 SearchCenter 和 ClipboardHistoryPanel 的搜索数量限制，并添加“加载更多”功能：
+
+---
+
+
+**User**
+
+继续
+
+---
+
+
+**User**
+
+继续
+
+---

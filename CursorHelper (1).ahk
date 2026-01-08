@@ -48,6 +48,7 @@ global MainScriptDir := A_ScriptDir
 
 ; ===================== 包含悬浮工具栏模块 =====================
 #Include modules\FloatingToolbar.ahk
+#Include modules\AIListPanel.ahk
 
 ; ===================== Everything API 封装 =====================
 ; Everything API 封装
@@ -331,6 +332,9 @@ global SearchCenterResultLV := 0  ; 搜索结果 ListView 控件
 global SearchCenterCategoryButtons := []  ; 分类标签按钮数组
 global SearchCenterSearchResults := []  ; 当前搜索结果数据
 global SearchCenterEngineIcons := []  ; 搜索引擎图标控件数组
+global SearchCenterCurrentLimit := 50  ; 当前加载的数据量限制
+global SearchCenterLoadMoreBtn := 0  ; "加载更多"按钮
+global SearchCenterHasMoreData := false  ; 是否还有更多数据
 global SearchCenterSelectedEngines := []  ; 搜索中心选中的搜索引擎（支持多选）
 global SearchCenterSelectedEnginesByCategory := Map()  ; 每个分类的搜索引擎选择状态（分类Key -> 引擎数组）
 global SearchCenterHintText := 0  ; 搜索中心操作提示文本控件
@@ -3996,7 +4000,7 @@ DebouncedCursorPanelSearch(*) {
     ; 【修改】使用 SearchAllDataSources 搜索所有数据源（包含 prompt、clipboard、config、file、hotkey、function、ui）
     ; SearchAllDataSources 内部已优先使用统一视图搜索（SearchGlobalView），如果没有结果则回退到多数据源搜索
     ; 统一视图和多数据源搜索的结果已经按时间排序（最新的在前），所以直接转换格式即可
-    AllDataResults := SearchAllDataSources(Keyword, [], 50)
+    AllDataResults := SearchAllDataSources(Keyword, [], 50, 0)  ; CursorPanel 搜索，offset = 0
     Results := []
     
     ; 将 Map 格式转换为扁平化的数组
@@ -11560,9 +11564,10 @@ SearchGlobalView(Keyword, MaxResults := 100) {
     return Results
 }
 
-SearchAllDataSources(Keyword, DataTypes := [], MaxResults := 10) {
+SearchAllDataSources(Keyword, DataTypes := [], MaxResults := 10, Offset := 0) {
     ; 【修改】始终搜索所有数据源，确保剪贴板、提示词、配置项等数据能够混排显示
     ; 不再优先使用统一视图，而是并行搜索所有数据源，然后混排结果
+    ; 支持 Offset 参数用于分页加载
     
     Results := Map()
     
@@ -11578,19 +11583,19 @@ SearchAllDataSources(Keyword, DataTypes := [], MaxResults := 10) {
         switch DataType {
             case "clipboard":
                 ; 【关键】优先使用新的剪贴板数据库（ClipMain）
-                TypeResults := SearchClipboardHistory(Keyword, MaxResults)
+                TypeResults := SearchClipboardHistory(Keyword, MaxResults, Offset)
             case "template":
-                TypeResults := SearchPromptTemplates(Keyword, MaxResults)
+                TypeResults := SearchPromptTemplates(Keyword, MaxResults, Offset)
             case "config":
-                TypeResults := SearchConfigItems(Keyword, MaxResults)
+                TypeResults := SearchConfigItems(Keyword, MaxResults, Offset)
             case "file":
-                TypeResults := SearchFilePaths(Keyword, MaxResults)
+                TypeResults := SearchFilePaths(Keyword, MaxResults, Offset)
             case "hotkey":
-                TypeResults := SearchHotkeys(Keyword, MaxResults)
+                TypeResults := SearchHotkeys(Keyword, MaxResults, Offset)
             case "function":
-                TypeResults := SearchFunctions(Keyword, MaxResults)
+                TypeResults := SearchFunctions(Keyword, MaxResults, Offset)
             case "ui":
-                TypeResults := SearchUITabs(Keyword, MaxResults)
+                TypeResults := SearchUITabs(Keyword, MaxResults, Offset)
         }
         
         if (TypeResults.Length > 0) {
@@ -11598,7 +11603,8 @@ SearchAllDataSources(Keyword, DataTypes := [], MaxResults := 10) {
                 DataType: DataType,
                 DataTypeName: GetDataTypeName(DataType),
                 Count: TypeResults.Length,
-                Items: TypeResults
+                Items: TypeResults,
+                HasMore: TypeResults.Length >= MaxResults  ; 标记是否还有更多数据
             }
         }
     }
@@ -11608,7 +11614,7 @@ SearchAllDataSources(Keyword, DataTypes := [], MaxResults := 10) {
 
 ; ===================== 搜索剪贴板 FTS5 数据库（用于 SearchCenter）=====================
 ; 从新的剪贴板数据库 ClipMain 表搜索数据
-SearchClipboardFTS5ForSearchCenter(Keyword, MaxResults := 10) {
+SearchClipboardFTS5ForSearchCenter(Keyword, MaxResults := 10, Offset := 0) {
     global ClipboardFTS5DB
     Results := []
     
@@ -11672,10 +11678,11 @@ SearchClipboardFTS5ForSearchCenter(Keyword, MaxResults := 10) {
         ; 同时搜索 Content 和 SourceApp 字段
         ; 【修复】使用 GetTable 替代 Prepare+Step，避免 _Statement 错误
         ; 转义 SQL 字符串中的单引号，防止 SQL 注入
+        ; 支持分页：查询 limit+1 条数据，用于检测是否还有更多
         SearchPatternEscaped := StrReplace(SearchPattern, "'", "''")
         SQL := "SELECT " . selectFields . " FROM ClipMain " .
                "WHERE (LOWER(Content) LIKE '" . SearchPatternEscaped . "' OR LOWER(SourceApp) LIKE '" . SearchPatternEscaped . "') " .
-               "ORDER BY " . (hasLastCopyTime ? "LastCopyTime" : "Timestamp") . " DESC LIMIT " . MaxResults
+               "ORDER BY " . (hasLastCopyTime ? "LastCopyTime" : "Timestamp") . " DESC LIMIT " . (MaxResults + 1) . " OFFSET " . Offset
         
         ResultSet := ""
         if (!ClipboardFTS5DB.GetTable(SQL, &ResultSet)) {
@@ -11685,7 +11692,11 @@ SearchClipboardFTS5ForSearchCenter(Keyword, MaxResults := 10) {
         ; 遍历结果
         try {
             if (ResultSet.HasRows && ResultSet.Rows.Length > 0) {
-                Loop ResultSet.Rows.Length {
+                ; 检查是否还有更多数据（如果返回的数据量等于 MaxResults+1，说明还有更多）
+                hasMore := (ResultSet.Rows.Length > MaxResults)
+                maxRows := hasMore ? MaxResults : ResultSet.Rows.Length
+                
+                Loop maxRows {
                     row := ResultSet.Rows[A_Index]
                     ID := row[1]
                     Content := row[2]
@@ -11803,13 +11814,13 @@ SearchClipboardFTS5ForSearchCenter(Keyword, MaxResults := 10) {
 }
 
 ; 搜索剪贴板历史（优先使用新的 FTS5 数据库 ClipMain）
-SearchClipboardHistory(Keyword, MaxResults := 10) {
+SearchClipboardHistory(Keyword, MaxResults := 10, Offset := 0) {
     global ClipboardDB, ClipboardFTS5DB, global_ST
     Results := []
     
     ; 【新增】优先使用新的剪贴板数据库（ClipMain）
     if (ClipboardFTS5DB && ClipboardFTS5DB != 0) {
-        Results := SearchClipboardFTS5ForSearchCenter(Keyword, MaxResults)
+        Results := SearchClipboardFTS5ForSearchCenter(Keyword, MaxResults, Offset)
         ; 【修复】如果新数据库有结果，直接返回；如果没有结果，回退到旧数据库查询
         if (Results.Length > 0) {
             return Results
@@ -11833,7 +11844,8 @@ SearchClipboardHistory(Keyword, MaxResults := 10) {
     KeywordLower := StrLower(Keyword)
     ; 【增强搜索】支持多字段搜索：Content, SourceApp, SourceTitle, SourcePath, DataType
     ; 【修复】使用 ORDER BY Timestamp DESC 确保按时间倒序排列
-    SQL := "SELECT ID, Content, SourceApp, SourceTitle, SourcePath, DataType, Timestamp, CharCount, WordCount FROM ClipboardHistory WHERE LOWER(Content) LIKE ? OR LOWER(SourceApp) LIKE ? OR LOWER(SourceTitle) LIKE ? OR LOWER(SourcePath) LIKE ? OR LOWER(DataType) LIKE ? ORDER BY Timestamp DESC LIMIT ?"
+    ; 支持分页：查询 limit+1 条数据，用于检测是否还有更多
+    SQL := "SELECT ID, Content, SourceApp, SourceTitle, SourcePath, DataType, Timestamp, CharCount, WordCount FROM ClipboardHistory WHERE LOWER(Content) LIKE ? OR LOWER(SourceApp) LIKE ? OR LOWER(SourceTitle) LIKE ? OR LOWER(SourcePath) LIKE ? OR LOWER(DataType) LIKE ? ORDER BY Timestamp DESC LIMIT " . (MaxResults + 1) . " OFFSET " . Offset
 
     ST := ""
     try {
@@ -11866,11 +11878,12 @@ SearchClipboardHistory(Keyword, MaxResults := 10) {
         if (!ST.Bind(5, "Text", SearchPattern)) {
             return Results
         }
-        if (!ST.Bind(6, "Int", MaxResults)) {
-            return Results
-        }
+        ; 注意：LIMIT 和 OFFSET 已经在 SQL 中，不需要绑定
 
-        while (ST.Step()) {
+        ; 检查是否还有更多数据
+        rowCount := 0
+        while (ST.Step() && rowCount < MaxResults) {
+            rowCount++
             ID := ST.Column(0)
             Content := ST.Column(1)
             SourceApp := ST.Column(2)
@@ -11987,7 +12000,7 @@ SearchClipboardHistory(Keyword, MaxResults := 10) {
 }
 
 ; 搜索提示词模板
-SearchPromptTemplates(Keyword, MaxResults := 10) {
+SearchPromptTemplates(Keyword, MaxResults := 10, Offset := 0) {
     global PromptTemplates
     Results := []
     
@@ -12002,8 +12015,15 @@ SearchPromptTemplates(Keyword, MaxResults := 10) {
     
     KeywordLower := StrLower(Keyword)
     Count := 0
+    skipped := 0  ; 跳过的数量（用于 offset）
     
     for Index, Template in PromptTemplates {
+        ; 跳过 offset 数量的结果
+        if (skipped < Offset) {
+            skipped++
+            continue
+        }
+        
         if (Count >= MaxResults) {
             break
         }
@@ -12069,7 +12089,7 @@ SearchPromptTemplates(Keyword, MaxResults := 10) {
 }
 
 ; 搜索配置项
-SearchConfigItems(Keyword, MaxResults := 10) {
+SearchConfigItems(Keyword, MaxResults := 10, Offset := 0) {
     global ConfigFile
     Results := []
     
@@ -12084,6 +12104,7 @@ SearchConfigItems(Keyword, MaxResults := 10) {
     
     KeywordLower := StrLower(Keyword)
     Count := 0
+    Skipped := 0
     
     ; 【Bug修复3】扩展配置项映射，包括标签页名称搜索
     ; 定义配置项映射（配置项名称 -> 所属标签页）
@@ -12117,6 +12138,12 @@ SearchConfigItems(Keyword, MaxResults := 10) {
         }
         
         if (InStr(StrLower(TabName), KeywordLower)) {
+            ; 跳过前 Offset 个结果
+            if (Skipped < Offset) {
+                Skipped++
+                continue
+            }
+            
             ResultItem := {
                 DataType: "config",
                 DataTypeName: "配置项",
@@ -12162,37 +12189,43 @@ SearchConfigItems(Keyword, MaxResults := 10) {
                         Key := Trim(SubStr(Line, 1, KeyValuePos - 1))
                         Value := Trim(SubStr(Line, KeyValuePos + 1))
                         
-                        ; 搜索键名和值
-                        KeyMatch := InStr(StrLower(Key), KeywordLower)
-                        ValueMatch := InStr(StrLower(Value), KeywordLower)
-                        
-                        if (KeyMatch || ValueMatch) {
-                            ; 截取值预览
-                            ValuePreview := SubStr(Value, 1, 60)
-                            if (StrLen(Value) > 60) {
-                                ValuePreview .= "..."
-                            }
-                            
-                            ResultItem := {
-                                DataType: "config",
-                                DataTypeName: "配置项",
-                                ID: SectionName . "." . Key,
-                                Title: Key,
-                                SubTitle: SectionName . " · " . ValuePreview,
-                                Content: Value,
-                                Preview: ValuePreview,
-                                Metadata: Map(
-                                    "Section", SectionName,
-                                    "Key", Key,
-                                    "TabName", TabName
-                                ),
-                                Action: "jump_to_config",
-                                ActionParams: Map("TabName", TabName, "Section", SectionName, "Key", Key)
-                            }
-                            
-                            Results.Push(ResultItem)
-                            Count++
+                    ; 搜索键名和值
+                    KeyMatch := InStr(StrLower(Key), KeywordLower)
+                    ValueMatch := InStr(StrLower(Value), KeywordLower)
+                    
+                    if (KeyMatch || ValueMatch) {
+                        ; 跳过前 Offset 个结果
+                        if (Skipped < Offset) {
+                            Skipped++
+                            continue
                         }
+                        
+                        ; 截取值预览
+                        ValuePreview := SubStr(Value, 1, 60)
+                        if (StrLen(Value) > 60) {
+                            ValuePreview .= "..."
+                        }
+                        
+                        ResultItem := {
+                            DataType: "config",
+                            DataTypeName: "配置项",
+                            ID: SectionName . "." . Key,
+                            Title: Key,
+                            SubTitle: SectionName . " · " . ValuePreview,
+                            Content: Value,
+                            Preview: ValuePreview,
+                            Metadata: Map(
+                                "Section", SectionName,
+                                "Key", Key,
+                                "TabName", TabName
+                            ),
+                            Action: "jump_to_config",
+                            ActionParams: Map("TabName", TabName, "Section", SectionName, "Key", Key)
+                        }
+                        
+                        Results.Push(ResultItem)
+                        Count++
+                    }
                     }
                 }
             }
@@ -12225,7 +12258,7 @@ IsFilePath(Path) {
 }
 
 ; 搜索文件路径
-SearchFilePaths(Keyword, MaxResults := 10) {
+SearchFilePaths(Keyword, MaxResults := 10, Offset := 0) {
     global ClipboardDB, global_ST
     Results := []
     
@@ -12238,8 +12271,21 @@ SearchFilePaths(Keyword, MaxResults := 10) {
     ; 当关键词长度 > 1 时，使用Everything进行文件搜索
     if (StrLen(Keyword) > 1) {
         try {
-            ; 调用GetEverythingResults获取文件搜索结果
-            Files := GetEverythingResults(Keyword, MaxResults)
+            ; 调用GetEverythingResults获取文件搜索结果（增加 limit 以检测是否还有更多）
+            Files := GetEverythingResults(Keyword, MaxResults + Offset + 1)
+            
+            ; 跳过 offset 数量的结果
+            if (Offset > 0 && Files.Length > Offset) {
+                Files := Files[Offset + 1]  ; 从 offset+1 开始
+            } else if (Offset > 0) {
+                Files := []  ; offset 超出范围
+            }
+            
+            ; 检查是否还有更多数据
+            hasMore := (Files.Length > MaxResults)
+            if (hasMore) {
+                Files.Pop()  ; 移除多查询的一条
+            }
             
             ; 将Everything搜索结果转换为统一格式
             for path in Files {
@@ -12392,7 +12438,7 @@ SearchFilePaths(Keyword, MaxResults := 10) {
 }
 
 ; 搜索快捷键
-SearchHotkeys(Keyword, MaxResults := 10) {
+SearchHotkeys(Keyword, MaxResults := 10, Offset := 0) {
     global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyT
     global SplitHotkey, BatchHotkey
     Results := []
@@ -12404,27 +12450,33 @@ SearchHotkeys(Keyword, MaxResults := 10) {
     
     KeywordLower := StrLower(Keyword)
     Count := 0
+    Skipped := 0
     
     ; 【Bug修复3】扩展搜索关键词，包括"快捷"、"快捷键"等
     ; 如果关键词包含"快捷"，添加快捷键标签页结果
     if (InStr(KeywordLower, "快捷")) {
-        ResultItem := {
-            DataType: "hotkey",
-            DataTypeName: "快捷键",
-            ID: "hotkeys_tab",
-            Title: "快捷键标签页",
-            SubTitle: "标签页 · 配置面板中的快捷键设置",
-            Content: "跳转到快捷键标签页",
-            Preview: "点击跳转到快捷键标签页",
-            Metadata: Map(
-                "TabKey", "hotkeys",
-                "Type", "标签页"
-            ),
-            Action: "jump_to_config",
-            ActionParams: Map("TabName", "hotkeys", "Section", "", "Key", "")
+        ; 跳过前 Offset 个结果
+        if (Skipped >= Offset) {
+            ResultItem := {
+                DataType: "hotkey",
+                DataTypeName: "快捷键",
+                ID: "hotkeys_tab",
+                Title: "快捷键标签页",
+                SubTitle: "标签页 · 配置面板中的快捷键设置",
+                Content: "跳转到快捷键标签页",
+                Preview: "点击跳转到快捷键标签页",
+                Metadata: Map(
+                    "TabKey", "hotkeys",
+                    "Type", "标签页"
+                ),
+                Action: "jump_to_config",
+                ActionParams: Map("TabName", "hotkeys", "Section", "", "Key", "")
+            }
+            Results.Push(ResultItem)
+            Count++
+        } else {
+            Skipped++
         }
-        Results.Push(ResultItem)
-        Count++
     }
     
     ; 定义快捷键映射
@@ -12458,6 +12510,12 @@ SearchHotkeys(Keyword, MaxResults := 10) {
         QuickMatch := (InStr(KeywordLower, "快捷") && (InStr(StrLower(FunctionName), "快捷") || InStr(StrLower(HotkeyInfo["Description"]), "快捷")))
         
         if (FunctionMatch || HotkeyMatch || DescMatch || QuickMatch) {
+            ; 跳过前 Offset 个结果
+            if (Skipped < Offset) {
+                Skipped++
+                continue
+            }
+            
             HotkeyDisplay := "CapsLock+" . HotkeyInfo["Hotkey"]
             
             ResultItem := {
@@ -12486,7 +12544,7 @@ SearchHotkeys(Keyword, MaxResults := 10) {
 }
 
 ; 搜索功能
-SearchFunctions(Keyword, MaxResults := 10) {
+SearchFunctions(Keyword, MaxResults := 10, Offset := 0) {
     Results := []
     
     ; 【修复】如果关键词为空，直接返回空结果
@@ -12496,6 +12554,7 @@ SearchFunctions(Keyword, MaxResults := 10) {
     
     KeywordLower := StrLower(Keyword)
     Count := 0
+    Skipped := 0
     
     ; 定义功能列表
     Functions := [
@@ -12519,6 +12578,12 @@ SearchFunctions(Keyword, MaxResults := 10) {
         CategoryMatch := InStr(StrLower(Func["Category"]), KeywordLower)
         
         if (NameMatch || DescMatch || CategoryMatch) {
+            ; 跳过前 Offset 个结果
+            if (Skipped < Offset) {
+                Skipped++
+                continue
+            }
+            
             ResultItem := {
                 DataType: "function",
                 DataTypeName: "功能",
@@ -12544,7 +12609,7 @@ SearchFunctions(Keyword, MaxResults := 10) {
 }
 
 ; ===================== 搜索UI标签页和界面元素 =====================
-SearchUITabs(Keyword, MaxResults := 10) {
+SearchUITabs(Keyword, MaxResults := 10, Offset := 0) {
     Results := []
     
     ; 【修复】如果关键词为空，直接返回空结果
@@ -12554,6 +12619,7 @@ SearchUITabs(Keyword, MaxResults := 10) {
     
     KeywordLower := StrLower(Keyword)
     Count := 0
+    Skipped := 0
     
     ; 定义标签页映射（标签页名称 -> 标签页Key）
     TabMap := Map(
@@ -12588,6 +12654,12 @@ SearchUITabs(Keyword, MaxResults := 10) {
         }
         
         if (InStr(StrLower(TabName), KeywordLower)) {
+            ; 跳过前 Offset 个结果
+            if (Skipped < Offset) {
+                Skipped++
+                continue
+            }
+            
             ResultItem := {
                 DataType: "ui",
                 DataTypeName: "界面元素",
@@ -12620,6 +12692,11 @@ SearchUITabs(Keyword, MaxResults := 10) {
         DescMatch := InStr(StrLower(Element["Description"]), KeywordLower)
         
         if (NameMatch || DescMatch) {
+            ; 跳过前 Offset 个结果
+            if (Skipped < Offset) {
+                Skipped++
+                continue
+            }
             ResultItem := {
                 DataType: "ui",
                 DataTypeName: "界面元素",
@@ -21363,8 +21440,9 @@ ShowSearchCenter() {
     SearchCenterHintText.Visible := true
     
     ; ========== 底部结果区 ==========
+    LoadMoreBtnHeight := 35  ; "加载更多"按钮高度
     ResultAreaY := InputAreaY + InputAreaHeight + Padding + AreaIndicatorHeight + HintTextHeight + 10  ; 为区域名称和提示文本留出空间
-    ResultAreaHeight := WindowHeight - ResultAreaY - Padding  ; 使用原生标题栏，不需要减去自定义标题栏高度
+    ResultAreaHeight := WindowHeight - ResultAreaY - Padding - LoadMoreBtnHeight - 5  ; 为"加载更多"按钮留出空间
     
     ; 结果 ListView
     ResultLVX := Padding
@@ -21385,6 +21463,20 @@ ShowSearchCenter() {
     SearchCenterResultLV.ModifyCol(1, ResultLVWidth * 0.5)
     SearchCenterResultLV.ModifyCol(2, ResultLVWidth * 0.25)
     SearchCenterResultLV.ModifyCol(3, ResultLVWidth * 0.25)
+    
+    ; ========== "加载更多"按钮 ==========
+    LoadMoreBtnY := ResultLVY + ResultLVHeight + 5
+    LoadMoreBtnWidth := 120
+    LoadMoreBtnX := (WindowWidth - LoadMoreBtnWidth) / 2  ; 居中
+    
+    SearchCenterLoadMoreBtn := GuiID_SearchCenter.Add("Text",
+        "x" . LoadMoreBtnX . " y" . LoadMoreBtnY . " w" . LoadMoreBtnWidth . " h" . LoadMoreBtnHeight .
+        " Center 0x200 c" . UI_Colors.Text .
+        " Background" . UI_Colors.BtnBg .
+        " vSearchCenterLoadMoreBtn", "加载更多")
+    SearchCenterLoadMoreBtn.SetFont("s10", "Segoe UI")
+    SearchCenterLoadMoreBtn.OnEvent("Click", OnSearchCenterLoadMore)
+    SearchCenterLoadMoreBtn.Visible := false  ; 默认隐藏
     
     ; 窗口关闭事件（ESC键关闭）
     GuiID_SearchCenter.OnEvent("Close", SearchCenterCloseHandler)
@@ -21785,7 +21877,7 @@ ExecuteSearchCenterSearch(*) {
     }
     
     ; 设置新的防抖定时器（150ms 延迟）
-    SearchDebounceTimer := DebouncedSearchCenter
+    SearchDebounceTimer := (*) => DebouncedSearchCenter(0)  ; 新搜索，offset = 0
     SetTimer(SearchDebounceTimer, -150)
 }
 
@@ -21822,61 +21914,155 @@ LoadDefaultTemplates() {
 }
 
 ; 防抖后的实际搜索执行
-DebouncedSearchCenter() {
+DebouncedSearchCenter(offset := 0) {
     global SearchCenterSearchResults, SearchCenterResultLV, SearchCenterSearchEdit
+    global SearchCenterCurrentLimit, SearchCenterHasMoreData
+    
     Keyword := Trim(SearchCenterSearchEdit.Value)
     
-    ; 1. 初始化
-    SearchCenterSearchResults := []
-    SearchCenterResultLV.Delete()
+    ; 如果是新搜索（offset = 0），重置数据
+    if (offset = 0) {
+        SearchCenterSearchResults := []
+        SearchCenterResultLV.Delete()
+        SearchCenterCurrentLimit := 50  ; 重置限制
+    }
+    
     if (Keyword == "") {
-        LoadDefaultTemplates()
+        if (offset = 0) {
+            LoadDefaultTemplates()
+        }
         return
     }
 
-    OutputDebug("AHK_DEBUG: 开始搜索流程...")
+    OutputDebug("AHK_DEBUG: 开始搜索流程... (offset: " . offset . ", limit: " . SearchCenterCurrentLimit . ")")
 
-    ; 2. 尝试获取本地剪贴板历史 (加 try 防止报错中断)
+    ; 2. 使用 SearchAllDataSources 搜索所有数据源（支持分页）
+    ; 临时存储新加载的数据
+    NewResults := []
     try {
-        HistoryResults := SearchClipboardFTS5ForSearchCenter(Keyword)
-        for item in HistoryResults {
-            SearchCenterSearchResults.Push(item)
+        AllDataResults := SearchAllDataSources(Keyword, [], SearchCenterCurrentLimit, offset)
+        
+        ; 检查是否有更多数据
+        SearchCenterHasMoreData := false
+        for DataType, TypeData in AllDataResults {
+            if (IsObject(TypeData) && TypeData.HasProp("HasMore") && TypeData.HasMore) {
+                SearchCenterHasMoreData := true
+                break
+            }
+        }
+        
+        ; 将 Map 格式转换为扁平化的数组
+        for DataType, TypeData in AllDataResults {
+            if (IsObject(TypeData) && TypeData.HasProp("Items")) {
+                for Index, Item in TypeData.Items {
+                    ; 格式化时间显示
+                    TimeDisplay := ""
+                    if (Item.HasProp("TimeFormatted")) {
+                        TimeDisplay := Item.TimeFormatted
+                    } else if (Item.HasProp("Timestamp")) {
+                        try {
+                            TimeDisplay := FormatTime(Item.Timestamp, "yyyy-MM-dd HH:mm:ss")
+                        } catch as err {
+                            TimeDisplay := Item.Timestamp
+                        }
+                    } else {
+                        TimeDisplay := ""
+                    }
+                    
+                    ; 生成标题
+                    TitleText := ""
+                    if (Item.HasProp("Title") && Item.Title != "") {
+                        TitleText := Item.Title
+                    } else if (Item.HasProp("Content") && Item.Content != "") {
+                        TitleText := SubStr(Item.Content, 1, 50)
+                        if (StrLen(Item.Content) > 50) {
+                            TitleText .= "..."
+                        }
+                    } else {
+                        TitleText := ""
+                    }
+                    
+                    ResultItem := {
+                        Title: TitleText,
+                        Source: TypeData.HasProp("DataTypeName") ? TypeData.DataTypeName : DataType,
+                        Time: TimeDisplay,
+                        Content: Item.HasProp("Content") ? Item.Content : TitleText,
+                        ID: Item.HasProp("ID") ? Item.ID : "",
+                        DataType: DataType
+                    }
+                    
+                    ; 如果是新搜索，追加到总结果；如果是加载更多，只追加到新结果
+                    if (offset = 0) {
+                        SearchCenterSearchResults.Push(ResultItem)
+                    } else {
+                        NewResults.Push(ResultItem)
+                    }
+                }
+            }
         }
     } catch as err {
-        OutputDebug("AHK_DEBUG: SQLite 模块报错: " . err.Message)
+        OutputDebug("AHK_DEBUG: SearchAllDataSources 报错: " . err.Message)
     }
 
-    ; 3. 搜索 Everything (仅当长度 > 1)
-    if (StrLen(Keyword) > 1) {
-        try {
-            OutputDebug("AHK_DEBUG: 正在调用 Everything DLL...")
-            Files := GetEverythingResults(Keyword, 50)
-            OutputDebug("AHK_DEBUG: Everything 发现条数: " . Files.Length)
-            
-            for path in Files {
-                SplitPath(path, &name)
-                SearchCenterSearchResults.Push({
-                    Title: name,
-                    Content: path,
-                    Source: "文件",
-                    DataType: "file",
-                    Time: ""
-                })
-            }
-        } catch as err {
-            OutputDebug("AHK_DEBUG: Everything DLL 运行报错: " . err.Message)
+    ; 3. 【关键修复】统一渲染到界面
+    SearchCenterResultLV.Opt("-Redraw")
+    if (offset = 0) {
+        SearchCenterResultLV.Delete()
+        ; 添加所有结果
+        for index, res in SearchCenterSearchResults {
+            SearchCenterResultLV.Add(, res.Title, res.Source, res.Time)
+        }
+    } else {
+        ; 加载更多：只追加新数据
+        for index, res in NewResults {
+            SearchCenterSearchResults.Push(res)  ; 追加到总结果数组
+            SearchCenterResultLV.Add(, res.Title, res.Source, res.Time)  ; 追加到 ListView
         }
     }
-
-    ; 4. 【关键修复】统一渲染到界面
-    SearchCenterResultLV.Opt("-Redraw")
-    for res in SearchCenterSearchResults {
-        ; 确保 ListView 的列对应关系正确
-        SearchCenterResultLV.Add(, res.Title, res.Source, res.Time)
-    }
+    
     SearchCenterResultLV.ModifyCol(1, "AutoHdr")
     SearchCenterResultLV.Opt("+Redraw")
-    OutputDebug("AHK_DEBUG: 搜索中心刷新完成，总结果: " . SearchCenterSearchResults.Length)
+    
+    ; 更新"加载更多"按钮
+    UpdateSearchCenterLoadMoreButton()
+    
+    OutputDebug("AHK_DEBUG: 搜索中心刷新完成，总结果: " . SearchCenterSearchResults.Length . ", 还有更多: " . (SearchCenterHasMoreData ? "是" : "否"))
+}
+
+; ===================== 更新搜索中心"加载更多"按钮显示状态 =====================
+UpdateSearchCenterLoadMoreButton() {
+    global SearchCenterLoadMoreBtn, SearchCenterHasMoreData, SearchCenterSearchResults
+    
+    ; 检查按钮是否存在
+    if (!SearchCenterLoadMoreBtn || SearchCenterLoadMoreBtn = 0) {
+        return
+    }
+    
+    try {
+        ; 如果有更多数据，显示按钮；否则隐藏
+        if (SearchCenterHasMoreData && SearchCenterSearchResults.Length > 0) {
+            SearchCenterLoadMoreBtn.Visible := true
+        } else {
+            SearchCenterLoadMoreBtn.Visible := false
+        }
+    } catch as err {
+        ; 忽略错误（可能控件已销毁）
+        OutputDebug("AHK_DEBUG: UpdateSearchCenterLoadMoreButton 错误: " . err.Message)
+    }
+}
+
+; ===================== 搜索中心"加载更多"按钮点击事件 =====================
+OnSearchCenterLoadMore(*) {
+    global SearchCenterSearchResults, SearchCenterCurrentLimit, SearchCenterSearchEdit
+    
+    ; 增加加载数量
+    SearchCenterCurrentLimit += 50
+    
+    ; 获取当前已加载的数据量作为 offset
+    currentOffset := SearchCenterSearchResults.Length
+    
+    ; 加载更多数据（追加模式）
+    DebouncedSearchCenter(currentOffset)
 }
 
 ; 搜索中心搜索结果双击事件

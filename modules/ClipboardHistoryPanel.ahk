@@ -36,6 +36,9 @@ global HistoryGdiplusToken := 0  ; GDI+ Token（用于初始化 GDI+）
 global StackClipboardItems := []  ; 叠加复制的内容列表（存储数据库ID）
 global HistoryImageList := 0  ; 自定义 ImageList（用于显示精准软件图标）
 global HistoryIconCache := Map()  ; 图标缓存（避免重复提取）
+global HistoryCurrentLimit := 100  ; 当前加载的数据量限制
+global HistoryLoadMoreBtn := 0  ; "加载更多"按钮
+global HistoryHasMoreData := false  ; 是否还有更多数据
 
 ; 暗黑模式配色（Cursor色系）
 HistoryColors := {
@@ -63,7 +66,8 @@ ShowClipboardHistoryPanel() {
         ; 如果已显示，聚焦到搜索框并刷新数据
         try {
             ControlFocus(HistorySearchEdit)
-            ; 强制刷新数据
+            ; 重置限制并强制刷新数据
+            HistoryCurrentLimit := 100
             RefreshHistoryData()
         }
         return
@@ -77,6 +81,9 @@ ShowClipboardHistoryPanel() {
     
     ; 创建 GUI
     CreateHistoryPanelGUI()
+    
+    ; 重置限制
+    HistoryCurrentLimit := 100
     
     ; 加载数据（确保在显示前加载）
     RefreshHistoryData()
@@ -230,8 +237,8 @@ CreateHistoryPanelGUI() {
     ListViewX := 10
     ListViewY := 90  ; 调整Y位置，为标签区域留出空间
     ListViewWidth := 1180  ; 增加宽度以匹配窗口
-    ; 调整高度：窗口高度(700) - ListView起始Y(90) - 底部按钮区域(70) - 状态栏(20) = 520
-    ListViewHeight := 520  ; 为底部按钮区域留出空间
+    ; 调整高度：窗口高度(700) - ListView起始Y(90) - 底部按钮区域(70) - 状态栏(20) - 加载更多按钮(35) = 485
+    ListViewHeight := 485  ; 为底部按钮区域和加载更多按钮留出空间
     
     HistoryListView := GuiID_ClipboardHistory.Add("ListView",
         "x" . ListViewX . " y" . ListViewY .
@@ -651,8 +658,14 @@ GetFileIconIndex(filePathOrExt, rowData := "") {
 }
 
 ; ===================== 加载数据 =====================
-RefreshHistoryData(keyword := "") {
+RefreshHistoryData(keyword := "", offset := 0, limit := 0) {
     global HistoryListView, HistoryDisplayCache, ClipboardFTS5DB, HistorySelectedTag
+    global HistoryCurrentLimit, HistoryHasMoreData
+    
+    ; 如果未指定 limit，使用当前限制
+    if (limit = 0) {
+        limit := HistoryCurrentLimit
+    }
     
     ; 如果 ListView 不存在，但面板可能正在创建，不返回（允许后续创建）
     ; 如果数据库未连接，记录错误但不中断
@@ -848,7 +861,8 @@ RefreshHistoryData(keyword := "") {
                     SQL .= " AND " . whereConditions[A_Index + 1]
                 }
             }
-            SQL .= " ORDER BY " . orderByField . " DESC LIMIT 1000"
+            ; 使用 OFFSET 和 LIMIT 支持分页加载
+            SQL .= " ORDER BY " . orderByField . " DESC LIMIT " . (limit + 1) . " OFFSET " . offset
             
             ; 调试：记录 SQL 查询和结果（开发时启用）
             ; OutputDebug("ClipboardHistoryPanel SQL: " . SQL . "`n")
@@ -1091,17 +1105,28 @@ RefreshHistoryData(keyword := "") {
                         results.Push(rowData)
                     }
                 }
+                
+                ; 检查是否还有更多数据（如果返回的数据量等于 limit+1，说明还有更多）
+                HistoryHasMoreData := (results.Length > limit)
+                if (HistoryHasMoreData) {
+                    ; 移除最后一条数据（多查询的一条用于检测）
+                    results.Pop()
+                }
             } else {
                 ; 查询失败，记录错误并尝试最简单的查询
                 errorMsg := ClipboardFTS5DB.ErrorMsg
                 ; OutputDebug("ClipboardHistoryPanel 查询失败: " . errorMsg . "`n")
                 
-                ; 尝试最简单的查询
-                fallbackSQL := "SELECT ID, Content, SourceApp, DataType, CharCount, Timestamp FROM ClipMain ORDER BY ID DESC LIMIT 1000"
+                ; 尝试最简单的查询（也使用分页）
+                fallbackSQL := "SELECT ID, Content, SourceApp, DataType, CharCount, Timestamp FROM ClipMain ORDER BY ID DESC LIMIT " . (limit + 1) . " OFFSET " . offset
                 fallbackTable := ""
                 if (ClipboardFTS5DB.GetTable(fallbackSQL, &fallbackTable)) {
                     if (fallbackTable.HasRows && fallbackTable.Rows.Length > 0) {
-                        Loop fallbackTable.Rows.Length {
+                        ; 检查是否还有更多数据
+                        HistoryHasMoreData := (fallbackTable.Rows.Length > limit)
+                        maxRows := HistoryHasMoreData ? limit : fallbackTable.Rows.Length
+                        
+                        Loop maxRows {
                             row := fallbackTable.Rows[A_Index]
                             rowData := Map()
                             rowData["ID"] := row[1]
@@ -1116,7 +1141,11 @@ RefreshHistoryData(keyword := "") {
                             rowData["CopyCount"] := 1
                             results.Push(rowData)
                         }
+                    } else {
+                        HistoryHasMoreData := false
                     }
+                } else {
+                    HistoryHasMoreData := false
                 }
             }
         }
@@ -1180,8 +1209,16 @@ RefreshHistoryData(keyword := "") {
         }
     }
     
-    ; 更新缓存
-    HistoryDisplayCache := results
+    ; 更新缓存（如果是追加模式，合并数据；否则替换）
+    if (offset > 0 && HistoryDisplayCache.Length > 0) {
+        ; 追加模式：合并到现有缓存
+        for index, item in results {
+            HistoryDisplayCache.Push(item)
+        }
+    } else {
+        ; 替换模式：直接替换缓存
+        HistoryDisplayCache := results
+    }
     
     ; 调试输出：检查数据数量
     ; OutputDebug("ClipboardHistoryPanel: 准备添加 " . results.Length . " 条数据到 ListView`n")
@@ -1191,11 +1228,17 @@ RefreshHistoryData(keyword := "") {
         ; 暂停重绘以提高性能
         HistoryListView.Opt("-Redraw")
         
-        ; 清空列表
-        HistoryListView.Delete()
+        ; 如果是追加模式，不清空列表；否则清空
+        if (offset = 0) {
+            HistoryListView.Delete()
+        }
         
-        ; 添加数据
-        for index, rowData in results {
+        ; 添加数据（追加模式只添加新数据）
+        for index, rowData in HistoryDisplayCache {
+            ; 追加模式：只添加新数据（跳过已存在的）
+            if (offset > 0 && index <= offset) {
+                continue
+            }
             ; 调试输出：检查每条数据
             ; if (index <= 3) {
             ;     OutputDebug("ClipboardHistoryPanel: 数据 " . index . " - Content=" . (rowData.Has("Content") ? SubStr(rowData["Content"], 1, 50) : "无") . ", SourceApp=" . (rowData.Has("SourceApp") ? rowData["SourceApp"] : "无") . "`n")
@@ -1447,6 +1490,85 @@ RefreshHistoryData(keyword := "") {
         
         ; 恢复重绘
         HistoryListView.Opt("+Redraw")
+        
+        ; 更新"加载更多"按钮显示状态
+        UpdateLoadMoreButton()
+    }
+}
+
+; ===================== 更新"加载更多"按钮 =====================
+UpdateLoadMoreButton() {
+    global HistoryLoadMoreBtn, HistoryHasMoreData, HistoryListView, GuiID_ClipboardHistory
+    global HistoryColors
+    
+    ; 如果按钮不存在，创建它
+    if (!HistoryLoadMoreBtn || HistoryLoadMoreBtn = 0) {
+        ; 获取 ListView 位置
+        if (!HistoryListView) {
+            return
+        }
+        
+        HistoryListView.GetPos(&lvX, &lvY, &lvW, &lvH)
+        btnY := lvY + lvH + 5
+        btnX := lvX + (lvW - 120) / 2  ; 居中
+        
+        HistoryLoadMoreBtn := GuiID_ClipboardHistory.Add("Text",
+            "x" . btnX . " y" . btnY . " w120 h30" .
+            " Center 0x200 c" . HistoryColors.TagText .
+            " Background" . HistoryColors.TagBg .
+            " vHistoryLoadMoreBtn", "加载更多")
+        HistoryLoadMoreBtn.SetFont("s10", "Segoe UI")
+        HistoryLoadMoreBtn.OnEvent("Click", OnHistoryLoadMore)
+        
+        ; 添加悬停效果
+        try {
+            if (IsSet(HoverBtn)) {
+                HoverBtn(HistoryLoadMoreBtn, HistoryColors.TagBg, HistoryColors.TagBgActive)
+            }
+        } catch {
+        }
+    }
+    
+    ; 根据是否有更多数据显示或隐藏按钮
+    if (HistoryHasMoreData) {
+        try {
+            HistoryLoadMoreBtn.Visible := true
+        } catch {
+        }
+    } else {
+        try {
+            HistoryLoadMoreBtn.Visible := false
+        } catch {
+        }
+    }
+}
+
+; ===================== 加载更多按钮点击事件 =====================
+OnHistoryLoadMore(*) {
+    global HistoryCurrentLimit, HistorySearchEdit, HistoryDisplayCache, HistoryListView
+    global HistorySelectedTag
+    
+    ; 增加加载数量
+    HistoryCurrentLimit += 100
+    
+    ; 获取当前已加载的数据量作为 offset
+    currentOffset := HistoryDisplayCache.Length
+    
+    ; 重新加载数据（追加模式）
+    keyword := HistorySearchEdit.Value
+    
+    ; 临时保存当前缓存
+    oldCache := HistoryDisplayCache.Clone()
+    
+    ; 加载更多数据
+    RefreshHistoryData(keyword, currentOffset, HistoryCurrentLimit)
+    
+    ; 如果新数据加载成功，追加到现有缓存
+    if (HistoryDisplayCache.Length > oldCache.Length) {
+        ; 数据已追加，无需额外操作
+    } else {
+        ; 如果加载失败，恢复原缓存
+        HistoryDisplayCache := oldCache
     }
 }
 
@@ -1473,9 +1595,12 @@ OnHistorySearchChange(*) {
 
 ; ===================== 执行搜索刷新（防抖回调）=====================
 DoSearchRefresh(*) {
-    global HistorySearchEdit
+    global HistorySearchEdit, HistoryCurrentLimit
+    
     keyword := HistorySearchEdit.Value
-    RefreshHistoryData(keyword)
+    ; 搜索时重置限制
+    HistoryCurrentLimit := 100
+    RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
 }
 
 ; ===================== 标签点击事件 =====================
@@ -1496,7 +1621,8 @@ OnHistoryTagClick(tagType, *) {
         if (tagType = "Color") {
             ; 先刷新数据，然后显示汇总面板
             keyword := HistorySearchEdit.Value
-            RefreshHistoryData(keyword)
+            HistoryCurrentLimit := 100
+            RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
             ; 延迟显示，确保数据已加载
             SetTimer(() => ShowColorSummaryPanel(), -200)
         } else {
@@ -1511,7 +1637,9 @@ OnHistoryTagClick(tagType, *) {
     ; 如果不是颜色标签，刷新数据
     if (tagType != "Color") {
         keyword := HistorySearchEdit.Value
-        RefreshHistoryData(keyword)
+        ; 切换标签时重置限制
+        HistoryCurrentLimit := 100
+        RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
     }
 }
 
@@ -2349,11 +2477,12 @@ OnHistoryPanelSize(*) {
     ; 调整标签按钮位置（如果需要的话，可以保持左对齐）
     ; 标签按钮保持原位置，不随窗口大小改变
     
-    ; 计算底部区域位置和大小
+    ; 计算底部区域位置和大小（为"加载更多"按钮留出空间）
     BottomAreaHeight := 70
     StatusBarHeight := 20
+    LoadMoreBtnHeight := 35  ; "加载更多"按钮高度
     ListViewY := 90
-    ListViewHeight := height - ListViewY - BottomAreaHeight - StatusBarHeight
+    ListViewHeight := height - ListViewY - BottomAreaHeight - StatusBarHeight - LoadMoreBtnHeight
     
     ; 计算底部区域Y位置（必须在条件块外，确保变量总是被赋值）
     bottomAreaY := ListViewY + ListViewHeight
@@ -2394,6 +2523,14 @@ OnHistoryPanelSize(*) {
     }
     if (HistoryImportBtn && IsObject(HistoryImportBtn)) {
         HistoryImportBtn.Move(StartX + (ButtonWidth + ButtonSpacing) * 5 + 20, ButtonY)
+    }
+    
+    ; 调整"加载更多"按钮位置
+    if (HistoryLoadMoreBtn && IsObject(HistoryLoadMoreBtn)) {
+        HistoryListView.GetPos(&lvX, &lvY, , &lvH)
+        btnY := lvY + lvH + 5
+        btnX := lvX + (width - 20 - 120) / 2  ; 居中
+        HistoryLoadMoreBtn.Move(btnX, btnY)
     }
     
     ; 调整状态栏宽度和位置

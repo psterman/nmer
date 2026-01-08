@@ -325,21 +325,12 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
                 SetCapsLockState("Off")
             }
         case "AIAssistant":
-            ; 打开浏览器并加载 Gemini
+            ; 显示AI选择列表面板
             try {
-                Run("https://gemini.google.com/")
+                ShowAIListPanel()
             } catch as err {
-                ; 如果失败，尝试发送快捷键作为后备
-                Send("^+b")
-                Sleep(500)
-                oldClipboard := A_Clipboard
-                A_Clipboard := "https://gemini.google.com/"
-                Sleep(50)
-                Send("^v")
-                Sleep(100)
-                Send("{Enter}")
-                Sleep(100)
-                A_Clipboard := oldClipboard
+                ; 如果AIListPanel模块未加载，使用默认行为
+                TrayTip("AI选择面板加载失败: " . err.Message, "错误", "Iconx 2")
             }
         case "Screenshot":
             ; [需求2] 执行截图并弹出截图助手让用户选择
