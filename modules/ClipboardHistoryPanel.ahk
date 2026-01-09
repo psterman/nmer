@@ -36,10 +36,11 @@ global HistoryGdiplusToken := 0  ; GDI+ Token（用于初始化 GDI+）
 global StackClipboardItems := []  ; 叠加复制的内容列表（存储数据库ID）
 global HistoryImageList := 0  ; 自定义 ImageList（用于显示精准软件图标）
 global HistoryIconCache := Map()  ; 图标缓存（避免重复提取）
-global HistoryCurrentLimit := 100  ; 当前加载的数据量限制
+global HistoryCurrentLimit := 50  ; 当前加载的数据量限制（默认50，保证窗口秒开）
 global HistoryHasMoreData := false  ; 是否还有更多数据
 global HistoryResultLimitDropdown := 0  ; 结果数量限制下拉菜单
 global HistoryEverythingLimit := 50  ; Everything 搜索的结果数量限制（默认50）
+global HistoryMoreDataHintRowIndex := 0  ; ListView中提示行的索引（显示"点击下拉菜单加载更多相关"）
 
 ; 暗黑模式配色（Cursor色系）
 HistoryColors := {
@@ -68,7 +69,7 @@ ShowClipboardHistoryPanel() {
         try {
             ControlFocus(HistorySearchEdit)
             ; 重置限制并强制刷新数据
-            HistoryCurrentLimit := 100
+            HistoryCurrentLimit := 50  ; 默认50，保证窗口秒开
             RefreshHistoryData()
         }
         return
@@ -84,7 +85,7 @@ ShowClipboardHistoryPanel() {
     CreateHistoryPanelGUI()
     
     ; 重置限制
-    HistoryCurrentLimit := 100
+    HistoryCurrentLimit := 50  ; 默认50，保证窗口秒开
     
     ; 加载数据（确保在显示前加载）
     RefreshHistoryData()
@@ -156,22 +157,22 @@ CreateHistoryPanelGUI() {
     ; ========== 结果数量限制下拉菜单（搜索框左侧）==========
     DropdownX := 10
     DropdownY := SearchBoxY
-    DropdownWidth := 80
+    DropdownWidth := 90  ; 增加宽度以容纳"♾️"字符
     DropdownHeight := SearchBoxHeight
     
-    ; 创建下拉菜单选项（10, 20, 30, 50, 100, 200, 500）- 直接内联数组
-    ; R7 表示显示 7 行，确保所有选项都可见
-    DropdownDefaultIndex := 4  ; 默认选择50（索引从1开始，50是第4个选项)
+    ; 创建下拉菜单选项（50, 100, 500, 1000, 10000, ♾️）
+    ; R6 表示显示 6 行，确保所有选项都可见
+    DropdownDefaultIndex := 1  ; 默认选择50（索引从1开始，50是第1个选项）
 
     HistoryResultLimitDropdown := GuiID_ClipboardHistory.Add("DropDownList",
         "x" . DropdownX . " y" . DropdownY .
         " w" . DropdownWidth . " h" . DropdownHeight .
-        " R7" .  ; 显示 7 行，确保所有选项可见
+        " R6" .  ; 显示 6 行，确保所有选项可见
         " Background" . HistoryColors.InputBg .
         " c" . HistoryColors.Text .
         " Choose" . DropdownDefaultIndex .
         " vHistoryResultLimitDropdown",
-        ["10", "20", "30", "50", "100", "200", "500"])
+        ["50", "100", "500", "1000", "10000", "所有"])
     
     HistoryResultLimitDropdown.SetFont("s10", "Segoe UI")
     HistoryResultLimitDropdown.OnEvent("Change", OnHistoryResultLimitChange)
@@ -1647,6 +1648,59 @@ RefreshHistoryData(keyword := "", offset := 0, limit := 0) {
         HistoryListView.Opt("+Redraw")
         
     }
+    
+    ; 更新"更多数据"提示文本的显示/隐藏（作为ListView的最后一行）
+    UpdateHistoryMoreDataHint()
+}
+
+; ===================== 更新"更多数据"提示文本（作为ListView的最后一行）=====================
+UpdateHistoryMoreDataHint() {
+    global HistoryListView, HistoryMoreDataHintRowIndex, HistoryHasMoreData, HistoryCurrentLimit, HistoryColors
+    
+    ; 检查ListView是否存在
+    if (!IsSet(HistoryListView) || !HistoryListView) {
+        return
+    }
+    
+    ; 移除旧的提示行（如果存在）
+    if (HistoryMoreDataHintRowIndex > 0) {
+        try {
+            ; 检查行是否还存在
+            rowCount := HistoryListView.GetCount()
+            if (HistoryMoreDataHintRowIndex <= rowCount) {
+                HistoryListView.Delete(HistoryMoreDataHintRowIndex)
+            }
+        } catch {
+            ; 忽略错误
+        }
+        HistoryMoreDataHintRowIndex := 0
+    }
+    
+    ; 只有当还有更多数据且当前限制为50时才显示提示
+    if (HistoryHasMoreData && HistoryCurrentLimit = 50) {
+        try {
+            ; 在ListView最后添加提示行
+            ; 使用特殊标记"▶"在序号列，提示文本在内容预览列
+            rowCount := HistoryListView.GetCount()
+            HistoryMoreDataHintRowIndex := HistoryListView.Add(,
+                "▶",                                    ; 第1列：序号（特殊标记）
+                "点击下拉菜单加载更多相关",              ; 第2列：内容预览（提示文本）
+                "",                                      ; 第3列：来源应用
+                "",                                      ; 第4列：文件位置
+                "",                                      ; 第5列：类型
+                "",                                      ; 第6列：文件后缀
+                "",                                      ; 第7列：文件大小
+                "",                                      ; 第8列：最后复制时间
+                "",                                      ; 第9列：复制次数
+                "")                                      ; 第10列：字符数
+            
+            ; 设置提示行的颜色（使用ModifyCol无法设置行颜色，但可以通过其他方式）
+            ; 注意：ListView本身不支持行级颜色，这里通过特殊标记来识别
+        } catch as err {
+            ; 如果添加失败，重置索引
+            HistoryMoreDataHintRowIndex := 0
+        }
+    }
 }
 
 ; ===================== 结果数量限制下拉菜单变化事件 =====================
@@ -1660,18 +1714,32 @@ OnHistoryResultLimitChange(*) {
     
     ; 获取选中的值
     try {
-        selectedText := HistoryResultLimitDropdown.Value
-        HistoryEverythingLimit := Integer(selectedText)
+        selectedText := HistoryResultLimitDropdown.Text  ; 使用 Text 属性获取显示的文本
+        selectedIndex := HistoryResultLimitDropdown.Value  ; 获取选中的索引
+        
+        ; 处理"所有"选项（索引6）
+        if (selectedIndex = 6) {
+            HistoryEverythingLimit := 100000  ; 设置一个很大的值
+            HistoryCurrentLimit := 100000
+        } else {
+            ; 尝试转换为整数
+            HistoryEverythingLimit := Integer(selectedText)
+            ; 实时修改 HistoryCurrentLimit 为选择的值
+            HistoryCurrentLimit := HistoryEverythingLimit
+        }
     } catch {
         HistoryEverythingLimit := 50  ; 默认值
+        HistoryCurrentLimit := 50
     }
     
-    ; 如果搜索框有内容，重新搜索
+    ; 获取当前搜索关键词
+    keyword := ""
     if (IsSet(HistorySearchEdit) && HistorySearchEdit && HistorySearchEdit.Value != "") {
         keyword := Trim(HistorySearchEdit.Value)
-        HistoryCurrentLimit := 100  ; 重置限制
-        RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
     }
+    
+    ; 触发刷新数据
+    RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
 }
 
 ; ===================== 搜索框变化事件（带防抖）=====================
@@ -1701,8 +1769,8 @@ DoSearchRefresh(*) {
     
     ; 参考 SearchCenter 的实现，使用 Trim 处理关键词
     keyword := Trim(HistorySearchEdit.Value)
-    ; 搜索时重置限制
-    HistoryCurrentLimit := 100
+    ; 搜索时重置限制（默认50，保证窗口秒开）
+    HistoryCurrentLimit := 50
     RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
 }
 
@@ -1724,7 +1792,7 @@ OnHistoryTagClick(tagType, *) {
         if (tagType = "Color") {
             ; 先刷新数据，然后显示汇总面板
             keyword := Trim(HistorySearchEdit.Value)
-            HistoryCurrentLimit := 100
+            HistoryCurrentLimit := 50  ; 默认50，保证窗口秒开
             RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
             ; 延迟显示，确保数据已加载
             SetTimer(() => ShowColorSummaryPanel(), -200)
@@ -1740,8 +1808,8 @@ OnHistoryTagClick(tagType, *) {
     ; 如果不是颜色标签，刷新数据
     if (tagType != "Color") {
         keyword := Trim(HistorySearchEdit.Value)
-        ; 切换标签时重置限制
-        HistoryCurrentLimit := 100
+        ; 切换标签时重置限制（默认50，保证窗口秒开）
+        HistoryCurrentLimit := 50
         RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
     }
 }
@@ -2279,7 +2347,20 @@ GetIconPathForRow(rowData) {
 
 ; ===================== ListView 右键菜单事件 =====================
 OnHistoryListViewContextMenu(LV, Item, IsRightClick, X, Y) {
-    global HistoryListView, HistoryDisplayCache
+    global HistoryListView, HistoryDisplayCache, HistoryMoreDataHintRowIndex
+    
+    ; 检查是否是提示行
+    if (Item > 0) {
+        try {
+            firstColText := HistoryListView.GetText(Item, 1)  ; 获取第1列（序号列）的文本
+            if (firstColText = "▶") {
+                ; 这是提示行，不显示右键菜单
+                return
+            }
+        } catch {
+            ; 忽略错误，继续执行
+        }
+    }
     
     ; 获取选中的行（支持多选）
     selectedRows := []
@@ -2289,7 +2370,15 @@ OnHistoryListViewContextMenu(LV, Item, IsRightClick, X, Y) {
         if (row = 0) {
             break
         }
-        selectedRows.Push(row)
+        ; 检查是否是提示行
+        try {
+            firstColText := HistoryListView.GetText(row, 1)
+            if (firstColText != "▶") {
+                selectedRows.Push(row)
+            }
+        } catch {
+            selectedRows.Push(row)
+        }
     }
     
     ; 如果没有选中任何行，选中当前右键点击的行
@@ -2470,9 +2559,23 @@ HistoryContextMenuAddToPrompt(*) {
 }
 
 OnHistoryItemDoubleClick(*) {
-    global HistoryListView, HistoryDisplayCache
+    global HistoryListView, HistoryDisplayCache, HistoryMoreDataHintRowIndex
 
     selectedRow := HistoryListView.GetNext()
+    
+    ; 检查是否是提示行（通过序号列的特殊标记"▶"识别）
+    if (selectedRow > 0) {
+        try {
+            firstColText := HistoryListView.GetText(selectedRow, 1)  ; 获取第1列（序号列）的文本
+            if (firstColText = "▶") {
+                ; 这是提示行，不执行任何操作
+                return
+            }
+        } catch {
+            ; 忽略错误，继续执行
+        }
+    }
+    
     if (selectedRow > 0 && selectedRow <= HistoryDisplayCache.Length) {
         rowData := HistoryDisplayCache[selectedRow]
         
@@ -2576,7 +2679,7 @@ OnHistoryPanelSize(*) {
     GuiID_ClipboardHistory.GetPos(,, &width, &height)
     
     ; 调整下拉菜单和搜索框位置
-    DropdownWidth := 80
+    DropdownWidth := 90  ; 增加宽度以容纳"♾️"字符
     DropdownX := 10
     SearchBoxX := DropdownX + DropdownWidth + 10
     SearchBoxWidth := width - SearchBoxX - 10
@@ -3574,7 +3677,7 @@ HandleStackCopy() {
                     }
                     ; 刷新数据（只显示 CapsLock+C 的数据）
                     keyword := Trim(HistorySearchEdit ? HistorySearchEdit.Value : "")
-                    HistoryCurrentLimit := 100
+                    HistoryCurrentLimit := 50  ; 默认50，保证窗口秒开
                     RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
                 }
             } else {
