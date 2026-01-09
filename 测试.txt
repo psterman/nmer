@@ -2648,10 +2648,7 @@ OnClipboardChange(ClipboardChanged) {
 
 ; ===================== 托盘图标配置 =====================
 UpdateTrayMenu() {
-    A_TrayMenu.Delete()  ; 清空菜单
-    A_TrayMenu.Add(GetText("open_config_menu"), (*) => ShowConfigGUI())
-    A_TrayMenu.Add(GetText("exit_menu"), (*) => CleanUp())
-    A_TrayMenu.Default := GetText("exit_menu")
+    ; 只设置托盘图标提示文本
     A_IconTip := GetText("app_tip")
 }
 
