@@ -210,9 +210,9 @@ CreateHistoryPanelGUI() {
     TagButtonWidth := 80  ; 标签按钮宽度
     TagStartX := 10
     
-    ; 标签列表：文本、图片、链接、颜色、代码、文件夹、截图、CapsLock+C
-    TagLabels := ["文本", "图片", "链接", "颜色", "代码", "文件夹", "截图", "CapsLock+C"]
-    TagTypes := ["Text", "Image", "Link", "Color", "Code", "Folder", "Screenshot", "CapsLockC"]
+    ; 标签列表：文本、图片、链接、颜色、代码、文件夹、截图、CapsLock+C、本地文件
+    TagLabels := ["文本", "图片", "链接", "颜色", "代码", "文件夹", "截图", "CapsLock+C", "本地文件"]
+    TagTypes := ["Text", "Image", "Link", "Color", "Code", "Folder", "Screenshot", "CapsLockC", "LocalFile"]
     
     ; 清空标签按钮映射
     HistoryTagButtons := Map()
@@ -876,6 +876,10 @@ RefreshHistoryData(keyword := "", offset := 0, limit := 0) {
                 } else if (HistorySelectedTag = "CapsLockC") {
                     ; CapsLock+C 标签：筛选 CapsLock+C 复制的数据（DataType=Stack）
                     whereConditions.Push("DataType = 'Stack'")
+                } else if (HistorySelectedTag = "LocalFile") {
+                    ; 本地文件标签：添加一个永远为假的条件，让 SQL 查询返回空结果
+                    ; Everything 搜索会填充文件结果
+                    whereConditions.Push("1 = 0")  ; 永远为假，确保不返回任何数据库记录
                 } else {
                     whereConditions.Push("DataType = '" . escapedTagType . "'")
                 }
@@ -1217,6 +1221,12 @@ RefreshHistoryData(keyword := "", offset := 0, limit := 0) {
                             }
                         }
                         
+                        ; 如果选择了"本地文件"标签，跳过数据库中的记录（只显示 Everything 搜索结果）
+                        if (HistorySelectedTag = "LocalFile") {
+                            ; 跳过所有数据库记录，只保留 Everything 搜索返回的文件结果
+                            continue
+                        }
+                        
                         results.Push(rowData)
                     }
                 }
@@ -1270,11 +1280,27 @@ RefreshHistoryData(keyword := "", offset := 0, limit := 0) {
     
     ; ===================== 集成 Everything 文件搜索 =====================
     ; 参考 SearchCenter 的实现：当关键词长度 > 1 时，使用 Everything 搜索文件
-    if (keyword != "" && StrLen(keyword) > 1 && HistorySelectedTag != "Image" && HistorySelectedTag != "Color" && HistorySelectedTag != "Code") {
+    ; 或者当选择"本地文件"标签时，也使用 Everything 搜索
+    shouldSearchEverything := false
+    searchKeyword := keyword
+    
+    if (HistorySelectedTag = "LocalFile") {
+        ; 如果选择了"本地文件"标签，总是使用 Everything 搜索
+        ; 如果没有关键词，使用空字符串搜索（Everything 会返回所有文件）
+        shouldSearchEverything := true
+        if (searchKeyword = "" || StrLen(searchKeyword) <= 1) {
+            searchKeyword := ""  ; 空搜索，Everything 会返回所有文件
+        }
+    } else if (keyword != "" && StrLen(keyword) > 1 && HistorySelectedTag != "Image" && HistorySelectedTag != "Color" && HistorySelectedTag != "Code") {
+        ; 其他情况下，只有当关键词长度 > 1 时才搜索
+        shouldSearchEverything := true
+    }
+    
+    if (shouldSearchEverything) {
         try {
             ; 使用辅助函数安全调用 GetEverythingResults（如果存在）
             ; 使用下拉菜单设置的结果数量限制
-            everythingResults := _ClipboardFTS5_GetEverythingResults(keyword, HistoryEverythingLimit)
+            everythingResults := _ClipboardFTS5_GetEverythingResults(searchKeyword, HistoryEverythingLimit)
             
             if (IsObject(everythingResults) && everythingResults.Length > 0) {
                 ; 先收集所有文件结果
