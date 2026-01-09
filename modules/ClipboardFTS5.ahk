@@ -255,12 +255,12 @@ InitClipboardFTS5DB() {
 ; ===================== Everything 搜索辅助函数 =====================
 ; 内部辅助函数：直接实现 Everything 搜索，不依赖主脚本
 ; 优先使用主脚本中的 GetEverythingResults（如果存在），否则直接调用 DLL
-_ClipboardFTS5_GetEverythingResults(keyword, maxResults := 10) {
+_ClipboardFTS5_GetEverythingResults(keyword, maxResults := 10, includeFolders := true) {
     ; 首先尝试使用主脚本中的函数（如果存在）
     ; 使用 try-catch 安全地尝试调用主脚本函数
     try {
         ; 直接调用函数，如果函数不存在会抛出异常
-        result := GetEverythingResults(keyword, maxResults)
+        result := GetEverythingResults(keyword, maxResults, includeFolders)
         if (IsObject(result)) {
             return result
         }
@@ -268,7 +268,7 @@ _ClipboardFTS5_GetEverythingResults(keyword, maxResults := 10) {
         ; 主脚本函数不存在或调用失败，继续使用直接 DLL 调用
     }
     
-    ; 直接实现 Everything 搜索（独立于主脚本）
+    ; 直接实现 Everything 搜索（独立于主脚本，与主函数保持一致）
     static evDll := ""
     static isInitialized := false
     
@@ -322,7 +322,7 @@ _ClipboardFTS5_GetEverythingResults(keyword, maxResults := 10) {
     if (majorVer = 0) {
         errCode := DllCall(evDll . "\Everything_GetLastError", "UInt")
         OutputDebug("AHK_DEBUG: ClipboardFTS5 - Everything IPC 连接失败，错误码: " . errCode . " (2=未运行)")
-        ; 尝试启动 Everything
+        ; 尝试启动 Everything（带重试机制）
         if (!ProcessExist("Everything.exe")) {
             OutputDebug("AHK_DEBUG: ClipboardFTS5 - Everything.exe 未运行，尝试启动...")
             try {
@@ -336,17 +336,31 @@ _ClipboardFTS5_GetEverythingResults(keyword, maxResults := 10) {
                 
                 if (FileExist(EverythingExe)) {
                     Run(EverythingExe . " -startup", , "Hide")
-                    Sleep(1000)  ; 等待启动
+                    Sleep(2000)  ; 等待启动，增加等待时间
                 } else {
                     ; 尝试在系统 PATH 中查找
                     Run("Everything.exe -startup", , "Hide")
-                    Sleep(1000)
+                    Sleep(2000)
                 }
-            } catch {
-                OutputDebug("AHK_DEBUG: ClipboardFTS5 - 无法启动 Everything")
+                ; 重试检查版本
+                majorVer := DllCall(evDll . "\Everything_GetMajorVersion", "UInt")
+                if (majorVer = 0) {
+                    OutputDebug("AHK_DEBUG: ClipboardFTS5 - Everything 服务启动失败，请手动启动 Everything.exe")
+                    return []
+                }
+            } catch as err {
+                OutputDebug("AHK_DEBUG: ClipboardFTS5 - 无法启动 Everything: " . err.Message)
+                return []
+            }
+        } else {
+            ; Everything 进程存在但IPC连接失败，等待重试
+            Sleep(1000)
+            majorVer := DllCall(evDll . "\Everything_GetMajorVersion", "UInt")
+            if (majorVer = 0) {
+                OutputDebug("AHK_DEBUG: ClipboardFTS5 - Everything 进程存在但IPC连接失败")
+                return []
             }
         }
-        return []
     }
     OutputDebug("AHK_DEBUG: ClipboardFTS5 - Everything 版本: " . majorVer)
     
@@ -357,9 +371,13 @@ _ClipboardFTS5_GetEverythingResults(keyword, maxResults := 10) {
     DllCall(evDll . "\Everything_SetSearchW", "WStr", keyword)
     DllCall(evDll . "\Everything_SetMax", "UInt", maxResults)
     
-    ; 6. 【核心修复】显式请求返回完整路径和文件名 (没有这一行，很多时候取不到路径)
+    ; 6. 【扩展】请求更多信息：完整路径、文件名、大小、修改日期、属性等
     ; 0x00000004 = EVERYTHING_REQUEST_FULL_PATH_AND_FILE_NAME
-    DllCall(evDll . "\Everything_SetRequestFlags", "UInt", 0x00000004)
+    ; 0x00000020 = EVERYTHING_REQUEST_SIZE
+    ; 0x00000080 = EVERYTHING_REQUEST_DATE_MODIFIED
+    ; 0x00000200 = EVERYTHING_REQUEST_ATTRIBUTES
+    requestFlags := 0x00000004 | 0x00000020 | 0x00000080 | 0x00000200
+    DllCall(evDll . "\Everything_SetRequestFlags", "UInt", requestFlags)
     
     ; 7. 执行查询 (1 = 阻塞等待直到结果准备好)
     isSuccess := DllCall(evDll . "\Everything_QueryW", "Int", 1)
@@ -384,18 +402,48 @@ _ClipboardFTS5_GetEverythingResults(keyword, maxResults := 10) {
         }
     }
     
-    paths := []
+    ; 10. 获取结果（返回Map对象数组，包含路径、类型、大小等信息）
+    results := []
     Loop Min(count, maxResults) {
-        ; 预分配缓冲区，防乱码
+        index := A_Index - 1
+        
+        ; 获取文件属性以判断是文件还是文件夹
+        attributes := DllCall(evDll . "\Everything_GetResultAttributes", "UInt", index, "UInt")
+        isDirectory := (attributes & 0x10) != 0  ; FILE_ATTRIBUTE_DIRECTORY = 0x10
+        
+        ; 如果设置了不包含文件夹，则跳过文件夹
+        if (!includeFolders && isDirectory) {
+            continue
+        }
+        
+        ; 获取完整路径
         buf := Buffer(4096, 0)
-        DllCall(evDll . "\Everything_GetResultFullPathNameW", "UInt", A_Index-1, "Ptr", buf.Ptr, "UInt", 2048)
+        DllCall(evDll . "\Everything_GetResultFullPathNameW", "UInt", index, "Ptr", buf.Ptr, "UInt", 2048)
         fullPath := StrGet(buf.Ptr, "UTF-16")
         
-        if (fullPath != "")
-            paths.Push(fullPath)
+        if (fullPath = "") {
+            continue
+        }
+        
+        ; 获取文件大小
+        fileSize := DllCall(evDll . "\Everything_GetResultSize", "UInt", index, "Int64")
+        
+        ; 获取修改日期
+        fileTime := DllCall(evDll . "\Everything_GetResultDateModified", "UInt", index, "Int64")
+        
+        ; 创建结果对象
+        result := Map()
+        result["Path"] := fullPath
+        result["IsDirectory"] := isDirectory
+        result["Type"] := isDirectory ? "folder" : "file"
+        result["Size"] := fileSize
+        result["DateModified"] := fileTime
+        result["Attributes"] := attributes
+        
+        results.Push(result)
     }
     
-    return paths
+    return results
 }
 
 ; ===================== 获取应用信息 =====================

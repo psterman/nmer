@@ -9729,3 +9729,1255 @@
 [2026-01-08 09:34:59] RefreshClipboardListView: 列表刷新完成 - 总项数=4, 已添加行数=4
 [2026-01-08 17:29:13] RefreshClipboardListView: 列表刷新完成 - 总项数=329, 已添加行数=329
 [2026-01-08 17:29:13] RefreshClipboardListView: 列表刷新完成 - 总项数=329, 已添加行数=329
+[2026-01-09 08:05:19] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:05:20] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:06:22] RefreshClipboardListView: 列表刷新完成 - 总项数=6, 已添加行数=6
+[2026-01-09 08:06:57] RefreshClipboardListView: 列表刷新完成 - 总项数=20, 已添加行数=20
+[2026-01-09 08:07:02] Click: ClientX=200, ClientY=102, Result=4, flags=0x1, iItem=4, iSubItem=0
+[2026-01-09 08:07:03] Click: ClientX=165, ClientY=177, Result=8, flags=0x4, iItem=8, iSubItem=0
+[2026-01-09 08:17:20] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:17:20] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:17:24] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:17:54] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:17:59] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 08:24:43] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:24:44] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:24:49] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:24:52] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:27:48] Click: ClientX=131, ClientY=192, Result=9, flags=0x1, iItem=9, iSubItem=0
+[2026-01-09 08:27:50] Click: ClientX=209, ClientY=272, Result=13, flags=0x4, iItem=13, iSubItem=0
+[2026-01-09 08:27:50] Click: ClientX=194, ClientY=355, Result=18, flags=0x1, iItem=18, iSubItem=0
+[2026-01-09 08:28:15] Click: ClientX=166, ClientY=243, Result=12, flags=0x1, iItem=12, iSubItem=0
+[2026-01-09 08:28:16] Click: ClientX=182, ClientY=132, Result=6, flags=0x4, iItem=6, iSubItem=0
+[2026-01-09 08:28:16] Click: ClientX=166, ClientY=217, Result=10, flags=0x1, iItem=10, iSubItem=0
+[2026-01-09 08:28:17] Click: ClientX=162, ClientY=273, Result=13, flags=0x4, iItem=13, iSubItem=0
+[2026-01-09 08:28:18] Click: ClientX=189, ClientY=236, Result=11, flags=0x4, iItem=11, iSubItem=0
+[2026-01-09 08:28:19] Click: ClientX=169, ClientY=246, Result=12, flags=0x1, iItem=12, iSubItem=0
+[2026-01-09 08:28:19] Click: ClientX=152, ClientY=258, Result=13, flags=0x4, iItem=13, iSubItem=0
+[2026-01-09 08:31:09] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:31:10] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:31:12] RefreshClipboardListView: 列表刷新完成 - 总项数=8, 已添加行数=8
+[2026-01-09 08:31:13] RefreshClipboardListView: 列表刷新完成 - 总项数=8, 已添加行数=8
+[2026-01-09 08:31:14] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:31:15] RefreshClipboardListView: 列表刷新完成 - 总项数=28, 已添加行数=28
+[2026-01-09 08:31:16] RefreshClipboardListView: 列表刷新完成 - 总项数=8, 已添加行数=8
+[2026-01-09 08:31:18] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:38:58] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:38:59] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:41:59] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:41:59] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:42:12] RefreshClipboardListView: 列表刷新完成 - 总项数=8, 已添加行数=8
+[2026-01-09 08:42:13] RefreshClipboardListView: 列表刷新完成 - 总项数=28, 已添加行数=28
+[2026-01-09 08:42:14] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:42:14] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-09 08:42:15] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:42:15] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-09 08:42:16] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:42:16] RefreshClipboardListView: 列表刷新完成 - 总项数=8, 已添加行数=8
+[2026-01-09 08:42:18] RefreshClipboardListView: 列表刷新完成 - 总项数=28, 已添加行数=28
+[2026-01-09 08:42:18] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-09 08:47:21] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:47:21] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:51:14] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:51:14] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:51:22] RefreshClipboardListView: 列表刷新完成 - 总项数=11, 已添加行数=11
+[2026-01-09 08:51:25] RefreshClipboardListView: 列表刷新完成 - 总项数=12, 已添加行数=12
+[2026-01-09 08:52:18] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:52:19] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:53:11] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 08:53:11] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:05:03] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:05:04] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:05:17] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:05:18] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:05:19] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:05:20] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:05:26] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:05:30] RefreshClipboardListView: 列表刷新完成 - 总项数=28, 已添加行数=28
+[2026-01-09 09:05:31] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:05:32] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:05:33] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:05:50] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:08:31] Click: ClientX=75, ClientY=336, Result=17, flags=0x1, iItem=17, iSubItem=0
+[2026-01-09 09:08:32] Click: ClientX=162, ClientY=323, Result=16, flags=0x1, iItem=16, iSubItem=0
+[2026-01-09 09:08:33] Click: ClientX=333, ClientY=303, Result=15, flags=0x4, iItem=15, iSubItem=1
+[2026-01-09 09:08:33] Click: ClientX=315, ClientY=325, Result=16, flags=0x4, iItem=16, iSubItem=1
+[2026-01-09 09:08:34] Click: ClientX=452, ClientY=332, Result=17, flags=0x4, iItem=17, iSubItem=2
+[2026-01-09 09:23:30] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:23:30] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:23:44] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:23:46] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:23:48] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:23:50] Click: ClientX=582, ClientY=45, Result=1, flags=0x4, iItem=1, iSubItem=3
+[2026-01-09 09:23:51] Click: ClientX=645, ClientY=35, Result=0, flags=0x4, iItem=0, iSubItem=4
+[2026-01-09 09:23:52] Click: ClientX=156, ClientY=82, Result=3, flags=0x4, iItem=3, iSubItem=0
+[2026-01-09 09:23:53] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:23:57] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:23:59] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:39:15] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:39:16] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 09:55:26] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:00:42] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:00:42] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:00:44] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:00:45] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:00:46] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:00:48] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:00:50] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:00:51] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:00:52] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:00:54] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:00:55] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:00:56] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:00:56] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:00:57] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:00:59] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:00:59] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:01:01] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:01:01] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:01:02] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:01:02] RefreshClipboardListView: 列表刷新完成 - 总项数=40, 已添加行数=40
+[2026-01-09 10:01:02] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:01:05] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:01:07] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:01:11] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:01:13] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:01:16] RefreshClipboardListView: 列表刷新完成 - 总项数=42, 已添加行数=42
+[2026-01-09 10:01:17] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:01:19] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:01:22] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:01:23] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:01:25] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:01:32] RefreshClipboardListView: 列表刷新完成 - 总项数=25, 已添加行数=25
+[2026-01-09 10:01:35] RefreshClipboardListView: 列表刷新完成 - 总项数=25, 已添加行数=25
+[2026-01-09 10:01:49] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:01:51] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:01:54] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:01:59] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:02:01] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:02:05] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:02:09] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:08:08] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:08:10] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:08:20] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:08:21] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:08:22] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:08:22] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:08:23] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:08:25] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:08:26] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:08:45] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:08:46] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:08:49] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:08:49] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:08:52] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:08:55] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:09:17] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:09:20] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:09:27] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:09:29] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:09:31] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:10:08] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:10:10] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:10:54] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:11:00] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:11:01] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:11:15] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:11:15] RefreshClipboardListView: 列表刷新完成 - 总项数=23, 已添加行数=23
+[2026-01-09 10:11:19] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:11:20] RefreshClipboardListView: 列表刷新完成 - 总项数=23, 已添加行数=23
+[2026-01-09 10:11:32] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:12:08] RefreshClipboardListView: 列表刷新完成 - 总项数=23, 已添加行数=23
+[2026-01-09 10:12:09] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:13:13] RefreshClipboardListView: 列表刷新完成 - 总项数=25, 已添加行数=25
+[2026-01-09 10:13:18] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:13:21] RefreshClipboardListView: 列表刷新完成 - 总项数=25, 已添加行数=25
+[2026-01-09 10:16:30] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:16:39] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:16:44] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:16:46] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:18:35] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:18:35] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:18:40] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:18:40] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:18:41] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:18:42] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:19:15] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:19:15] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:19:19] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:19:20] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:19:21] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:19:22] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:19:36] RefreshClipboardListView: 列表刷新完成 - 总项数=26, 已添加行数=26
+[2026-01-09 10:19:38] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:19:43] RefreshClipboardListView: 列表刷新完成 - 总项数=9, 已添加行数=9
+[2026-01-09 10:19:44] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:19:45] RefreshClipboardListView: 列表刷新完成 - 总项数=9, 已添加行数=9
+[2026-01-09 10:19:46] RefreshClipboardListView: 列表刷新完成 - 总项数=13, 已添加行数=13
+[2026-01-09 10:19:48] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 10:19:50] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:19:51] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:19:54] RefreshClipboardListView: 列表刷新完成 - 总项数=13, 已添加行数=13
+[2026-01-09 10:19:55] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 10:19:56] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:19:58] RefreshClipboardListView: 列表刷新完成 - 总项数=26, 已添加行数=26
+[2026-01-09 10:20:00] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:28:08] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:28:08] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:28:12] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:13] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:13] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:13] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:14] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:28:14] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:15] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:15] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:15] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:15] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:15] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:28:18] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:18] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:18] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:18] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:19] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:19] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:28:21] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:22] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 10:28:24] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:25] RefreshClipboardListView: 列表刷新完成 - 总项数=11, 已添加行数=11
+[2026-01-09 10:28:26] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:27] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 10:28:29] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:51] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:28:51] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:34:50] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:34:51] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:34:53] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:34:54] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:35:03] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:35:05] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:35:07] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:35:08] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:35:08] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:35:09] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:35:09] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:35:10] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 10:35:11] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:35:11] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:35:12] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:35:12] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:35:13] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:35:14] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:35:15] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:35:17] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:36:24] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:36:25] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:36:27] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:36:30] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:36:31] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:36:31] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 7: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:36:31] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 7: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:36:32] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:36:34] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:36:37] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:36:38] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:36:39] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:36:41] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:36:45] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:36:46] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:36:47] RefreshClipboardListView: 列表刷新完成 - 总项数=25, 已添加行数=25
+[2026-01-09 10:36:49] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 10:36:53] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 10:36:54] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:36:57] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:36:57] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:41:44] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:41:45] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:41:47] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:41:48] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:41:49] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:41:49] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:41:50] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:41:50] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:41:54] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:41:57] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 10:41:58] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:41:58] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 10:41:59] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:42:00] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 10:42:00] RefreshClipboardListView: 列表刷新完成 - 总项数=11, 已添加行数=11
+[2026-01-09 10:42:03] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 10:42:04] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:42:05] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 10:42:05] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:42:07] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 10:42:07] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:42:08] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 10:42:08] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:42:10] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:42:11] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:42:14] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:45:51] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:52:32] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 10:52:32] 全部标签查询成功，结果数: 50
+[2026-01-09 10:52:32] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:52:32] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 10:52:32] 全部标签查询成功，结果数: 50
+[2026-01-09 10:52:32] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:52:34] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:52:37] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 10:52:37] 全部标签查询成功，结果数: 50
+[2026-01-09 10:52:37] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:52:39] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 10:52:41] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 10:52:41] 全部标签查询成功，结果数: 50
+[2026-01-09 10:52:41] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 10:52:43] RefreshClipboardListView: 列表刷新完成 - 总项数=19, 已添加行数=19
+[2026-01-09 10:52:43] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 10:52:43] 全部标签查询成功，结果数: 50
+[2026-01-09 10:52:43] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:01:55] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:01:55] 全部标签查询成功，结果数: 50
+[2026-01-09 11:01:55] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:01:56] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:01:56] 全部标签查询成功，结果数: 50
+[2026-01-09 11:01:56] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:01:58] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:01:59] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:01:59] 全部标签查询成功，结果数: 50
+[2026-01-09 11:01:59] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:02:00] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:02:01] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 7: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:02:02] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 7: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:02:03] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:02:03] 全部标签查询成功，结果数: 50
+[2026-01-09 11:02:03] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:02:04] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:02:04] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:02:04] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:02:05] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:02:05] 全部标签查询成功，结果数: 50
+[2026-01-09 11:02:05] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:02:07] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:12:34] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:12:34] 全部标签查询成功，结果数: 50
+[2026-01-09 11:12:34] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:12:36] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:12:38] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:12:38] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:12:39] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 7: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:12:40] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 7: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:12:40] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 7: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:12:40] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 7: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:12:41] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 7: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:12:41] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 7: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:12:44] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 11:12:45] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 11:12:45] RefreshClipboardListView: 列表刷新完成 - 总项数=19, 已添加行数=19
+[2026-01-09 11:12:49] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 11:12:50] RefreshClipboardListView: 列表刷新完成 - 总项数=19, 已添加行数=19
+[2026-01-09 11:12:58] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:12:59] RefreshClipboardListView: 列表刷新完成 - 总项数=19, 已添加行数=19
+[2026-01-09 11:13:11] RefreshClipboardListView: 列表刷新完成 - 总项数=4, 已添加行数=4
+[2026-01-09 11:13:13] RefreshClipboardListView: 列表刷新完成 - 总项数=19, 已添加行数=19
+[2026-01-09 11:13:17] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:13:17] 全部标签查询成功，结果数: 50
+[2026-01-09 11:13:17] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:13:18] RefreshClipboardListView: 列表刷新完成 - 总项数=19, 已添加行数=19
+[2026-01-09 11:13:19] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:13:19] 全部标签查询成功，结果数: 50
+[2026-01-09 11:13:19] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:13:21] RefreshClipboardListView: 列表刷新完成 - 总项数=19, 已添加行数=19
+[2026-01-09 11:13:23] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:13:23] 全部标签查询成功，结果数: 50
+[2026-01-09 11:13:23] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:13:37] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:13:37] 全部标签查询成功，结果数: 50
+[2026-01-09 11:13:37] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:13:39] RefreshClipboardListView: 列表刷新完成 - 总项数=20, 已添加行数=20
+[2026-01-09 11:13:43] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:13:43] 全部标签查询成功，结果数: 50
+[2026-01-09 11:13:43] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:13:44] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:13:52] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 11:13:53] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:13:55] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:13:55] 全部标签查询成功，结果数: 50
+[2026-01-09 11:13:55] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:13:56] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:14:15] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:14:15] 全部标签查询成功，结果数: 50
+[2026-01-09 11:14:15] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:14:53] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:14:53] 全部标签查询成功，结果数: 50
+[2026-01-09 11:14:54] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:41:09] RefreshClipboardListView: 列表刷新完成 - 总项数=21, 已添加行数=21
+[2026-01-09 11:41:11] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:41:11] 全部标签查询成功，结果数: 50
+[2026-01-09 11:41:11] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:41:13] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:41:14] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:41:15] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:41:32] RefreshClipboardListView: 列表刷新完成 - 总项数=22, 已添加行数=22
+[2026-01-09 11:41:41] RefreshClipboardListView: 列表刷新完成 - 总项数=23, 已添加行数=23
+[2026-01-09 11:41:48] RefreshClipboardListView: 列表刷新完成 - 总项数=24, 已添加行数=24
+[2026-01-09 11:41:56] RefreshClipboardListView: 列表刷新完成 - 总项数=24, 已添加行数=24
+[2026-01-09 11:42:06] RefreshClipboardListView: 列表刷新完成 - 总项数=24, 已添加行数=24
+[2026-01-09 11:42:10] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:42:10] 全部标签查询成功，结果数: 50
+[2026-01-09 11:42:11] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:42:12] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:42:13] RefreshClipboardListView: 列表刷新完成 - 总项数=24, 已添加行数=24
+[2026-01-09 11:42:16] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 11:42:31] RefreshClipboardListView: 列表刷新完成 - 总项数=24, 已添加行数=24
+[2026-01-09 11:42:33] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:42:34] RefreshClipboardListView: 列表刷新完成 - 总项数=28, 已添加行数=28
+[2026-01-09 11:42:37] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:42:39] Click: ClientX=182, ClientY=67, Result=2, flags=0x4, iItem=2, iSubItem=0
+[2026-01-09 11:42:41] Click: ClientX=286, ClientY=62, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2026-01-09 11:42:42] Click: ClientX=437, ClientY=68, Result=2, flags=0x4, iItem=2, iSubItem=2
+[2026-01-09 11:42:42] Click: ClientX=604, ClientY=74, Result=2, flags=0x4, iItem=2, iSubItem=4
+[2026-01-09 11:42:43] Click: ClientX=348, ClientY=61, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2026-01-09 11:42:43] Click: ClientX=318, ClientY=64, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2026-01-09 11:42:44] Click: ClientX=214, ClientY=71, Result=2, flags=0x4, iItem=2, iSubItem=0
+[2026-01-09 11:42:45] Click: ClientX=235, ClientY=71, Result=2, flags=0x1, iItem=2, iSubItem=0
+[2026-01-09 11:42:45] Click: ClientX=205, ClientY=35, Result=0, flags=0x4, iItem=0, iSubItem=0
+[2026-01-09 11:42:46] Click: ClientX=213, ClientY=104, Result=4, flags=0x1, iItem=4, iSubItem=0
+[2026-01-09 11:42:47] Click: ClientX=190, ClientY=158, Result=7, flags=0x1, iItem=7, iSubItem=0
+[2026-01-09 11:42:48] Click: ClientX=186, ClientY=184, Result=8, flags=0x4, iItem=8, iSubItem=0
+[2026-01-09 11:42:49] Click: ClientX=169, ClientY=121, Result=5, flags=0x1, iItem=5, iSubItem=0
+[2026-01-09 11:42:50] RefreshClipboardListView: 列表刷新完成 - 总项数=24, 已添加行数=24
+[2026-01-09 11:42:51] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 11:42:55] RefreshClipboardListView: 列表刷新完成 - 总项数=24, 已添加行数=24
+[2026-01-09 11:43:11] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:43:11] 全部标签查询成功，结果数: 50
+[2026-01-09 11:43:11] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:43:14] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:43:16] RefreshClipboardListView: 列表刷新完成 - 总项数=4, 已添加行数=4
+[2026-01-09 11:43:17] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:43:18] RefreshClipboardListView: 列表刷新完成 - 总项数=32, 已添加行数=32
+[2026-01-09 11:43:19] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:46:06] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:46:06] 全部标签查询成功，结果数: 50
+[2026-01-09 11:46:06] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:46:09] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:46:11] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 11:46:13] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:46:15] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:46:15] 全部标签查询成功，结果数: 50
+[2026-01-09 11:46:15] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:46:17] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:46:19] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:46:19] 全部标签查询成功，结果数: 50
+[2026-01-09 11:46:19] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:46:26] RefreshClipboardListView: 列表刷新完成 - 总项数=24, 已添加行数=24
+[2026-01-09 11:46:27] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:46:27] 全部标签查询成功，结果数: 50
+[2026-01-09 11:46:27] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:46:32] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:46:32] 全部标签查询成功，结果数: 50
+[2026-01-09 11:46:32] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:46:33] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:46:35] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:46:35] 全部标签查询成功，结果数: 50
+[2026-01-09 11:46:35] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:46:36] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:46:38] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:46:39] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:46:39] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:46:39] 全部标签查询成功，结果数: 50
+[2026-01-09 11:46:39] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:52:46] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:52:46] 全部标签查询成功，结果数: 50
+[2026-01-09 11:52:46] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:52:50] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:52:52] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:52:53] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 11:52:57] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 11:52:58] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 11:53:02] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 11:53:03] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 11:53:04] RefreshClipboardListView: 列表刷新完成 - 总项数=25, 已添加行数=25
+[2026-01-09 11:53:16] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 11:53:16] 全部标签查询成功，结果数: 50
+[2026-01-09 11:53:16] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 11:53:20] RefreshClipboardListView: 列表刷新完成 - 总项数=25, 已添加行数=25
+[2026-01-09 11:53:21] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 11:53:22] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 12:22:26] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 12:22:26] 全部标签查询成功，结果数: 50
+[2026-01-09 12:22:26] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 12:23:29] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 12:55:51] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 12:55:51] 全部标签查询成功，结果数: 50
+[2026-01-09 12:55:51] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 12:55:53] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 12:55:55] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 12:55:56] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 12:55:57] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 12:55:59] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 12:55:59] 全部标签查询成功，结果数: 50
+[2026-01-09 12:55:59] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 12:56:06] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 12:56:06] 全部标签查询成功，结果数: 50
+[2026-01-09 12:56:06] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 12:56:10] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 12:56:11] RefreshClipboardListView: 列表刷新完成 - 总项数=32, 已添加行数=32
+[2026-01-09 12:56:12] RefreshClipboardListView: 列表刷新完成 - 总项数=4, 已添加行数=4
+[2026-01-09 12:56:13] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 12:56:18] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 12:56:19] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 13:00:32] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 13:00:32] 全部标签查询成功，结果数: 50
+[2026-01-09 13:00:32] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 13:00:34] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 13:00:35] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 13:00:36] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:10:35] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE DataType = 'Stack' ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 14:10:35] 全部标签查询成功，结果数: 26
+[2026-01-09 14:10:36] RefreshClipboardListView: 列表刷新完成 - 总项数=26, 已添加行数=26
+[2026-01-09 14:10:37] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:10:38] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:10:38] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:10:42] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 14:10:45] RefreshClipboardListView: 列表刷新完成 - 总项数=33, 已添加行数=33
+[2026-01-09 14:10:50] RefreshClipboardListView: 列表刷新完成 - 总项数=26, 已添加行数=26
+[2026-01-09 14:10:51] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 14:10:52] RefreshClipboardListView: 列表刷新完成 - 总项数=16, 已添加行数=16
+[2026-01-09 14:10:53] RefreshClipboardListView: 列表刷新完成 - 总项数=26, 已添加行数=26
+[2026-01-09 14:10:53] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 14:10:54] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 14:10:56] RefreshClipboardListView: 列表刷新完成 - 总项数=26, 已添加行数=26
+[2026-01-09 14:10:58] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 14:10:59] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 14:11:00] RefreshClipboardListView: 列表刷新完成 - 总项数=28, 已添加行数=28
+[2026-01-09 14:11:01] RefreshClipboardListView: 列表刷新完成 - 总项数=26, 已添加行数=26
+[2026-01-09 14:11:02] RefreshClipboardListView: 列表刷新完成 - 总项数=4, 已添加行数=4
+[2026-01-09 14:11:04] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 14:11:05] RefreshClipboardListView: 列表刷新完成 - 总项数=2, 已添加行数=2
+[2026-01-09 14:11:06] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 14:11:06] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:16:53] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 14:16:53] 全部标签查询成功，结果数: 50
+[2026-01-09 14:16:53] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 14:16:58] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 100
+[2026-01-09 14:16:58] 全部标签查询成功，结果数: 100
+[2026-01-09 14:16:58] RefreshClipboardListView: 列表刷新完成 - 总项数=100, 已添加行数=100
+[2026-01-09 14:17:00] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:17:02] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 14:17:03] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 14:25:12] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 14:25:12] 全部标签查询成功，结果数: 50
+[2026-01-09 14:25:12] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 14:25:14] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:25:16] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:25:17] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:25:20] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 14:25:22] RefreshClipboardListView: 列表刷新完成 - 总项数=2, 已添加行数=2
+[2026-01-09 14:25:23] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 14:25:24] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:25:26] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 14:25:26] 全部标签查询成功，结果数: 50
+[2026-01-09 14:25:26] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 14:25:27] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:25:30] RefreshClipboardListView: 列表刷新完成 - 总项数=12, 已添加行数=12
+[2026-01-09 14:25:31] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:25:32] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 14:25:37] RefreshClipboardListView: 列表刷新完成 - 总项数=11, 已添加行数=11
+[2026-01-09 14:25:39] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:25:41] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 14:25:41] 全部标签查询成功，结果数: 50
+[2026-01-09 14:25:41] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 14:25:43] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:25:44] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 14:25:44] 全部标签查询成功，结果数: 50
+[2026-01-09 14:25:44] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 14:25:45] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:25:47] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 14:25:47] 全部标签查询成功，结果数: 50
+[2026-01-09 14:25:47] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 14:25:53] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 20
+[2026-01-09 14:25:53] 全部标签查询成功，结果数: 20
+[2026-01-09 14:25:53] RefreshClipboardListView: 列表刷新完成 - 总项数=20, 已添加行数=20
+[2026-01-09 14:25:54] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 10
+[2026-01-09 14:25:54] 全部标签查询成功，结果数: 10
+[2026-01-09 14:25:54] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-09 14:25:58] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 500
+[2026-01-09 14:25:58] 全部标签查询成功，结果数: 426
+[2026-01-09 14:25:58] RefreshClipboardListView: 列表刷新完成 - 总项数=426, 已添加行数=426
+[2026-01-09 14:26:09] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 20
+[2026-01-09 14:26:09] 全部标签查询成功，结果数: 20
+[2026-01-09 14:26:09] RefreshClipboardListView: 列表刷新完成 - 总项数=20, 已添加行数=20
+[2026-01-09 14:26:11] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:36:21] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 14:36:21] 全部标签查询成功，结果数: 50
+[2026-01-09 14:36:22] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 14:36:28] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 14:36:28] 全部标签查询成功，结果数: 50
+[2026-01-09 14:36:28] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 14:36:29] RefreshClipboardListView: 列表刷新完成 - 总项数=26, 已添加行数=26
+[2026-01-09 14:36:30] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 14:36:30] 全部标签查询成功，结果数: 50
+[2026-01-09 14:36:30] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 14:36:33] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:36:34] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 14:36:35] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:36:35] RefreshClipboardListView: 列表刷新完成 - 总项数=26, 已添加行数=26
+[2026-01-09 14:36:36] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:36:37] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 14:36:38] RefreshClipboardListView: 列表刷新完成 - 总项数=26, 已添加行数=26
+[2026-01-09 14:36:38] RefreshClipboardListView: 列表刷新完成 - 总项数=16, 已添加行数=16
+[2026-01-09 14:37:25] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:37:25] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 14:37:26] RefreshClipboardListView: 列表刷新完成 - 总项数=26, 已添加行数=26
+[2026-01-09 14:37:27] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 14:37:28] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:37:55] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 14:37:56] RefreshClipboardListView: 列表刷新完成 - 总项数=5, 已添加行数=5
+[2026-01-09 14:37:56] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 15:24:09] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 15:24:09] 全部标签查询成功，结果数: 50
+[2026-01-09 15:24:09] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 15:24:12] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 15:24:13] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 15:24:13] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 7: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 15:25:10] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 15:25:10] 全部标签查询成功，结果数: 50
+[2026-01-09 15:25:10] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 15:25:22] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 15:25:22] 全部标签查询成功，结果数: 50
+[2026-01-09 15:25:22] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 15:26:56] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:26:56] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:27:01] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:27:02] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:27:03] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:27:04] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:27:05] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:27:07] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 15:27:08] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 15:27:10] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:27:14] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-09 15:27:16] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-09 15:27:20] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-09 15:27:23] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-09 15:27:24] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-09 15:27:27] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-09 15:27:32] RefreshClipboardListView: 列表刷新完成 - 总项数=43, 已添加行数=43
+[2026-01-09 15:27:39] RefreshClipboardListView: 列表刷新完成 - 总项数=43, 已添加行数=43
+[2026-01-09 15:28:50] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 15:28:50] 全部标签查询成功，结果数: 50
+[2026-01-09 15:28:50] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:28:52] RefreshClipboardListView: 发生异常 - Compile error 37 at offset 2: PCRE does not support \L, \l, \N{name}, \U, or \u
+[2026-01-09 15:28:53] RefreshClipboardListView: 列表刷新完成 - 总项数=6, 已添加行数=6
+[2026-01-09 15:28:56] RefreshClipboardListView: 列表刷新完成 - 总项数=27, 已添加行数=27
+[2026-01-09 15:28:59] RefreshClipboardListView: 列表刷新完成 - 总项数=27, 已添加行数=27
+[2026-01-09 15:29:05] RefreshClipboardListView: 列表刷新完成 - 总项数=226, 已添加行数=226
+[2026-01-09 15:29:06] RefreshClipboardListView: 列表刷新完成 - 总项数=148, 已添加行数=148
+[2026-01-09 15:29:07] RefreshClipboardListView: 列表刷新完成 - 总项数=28, 已添加行数=28
+[2026-01-09 15:29:08] RefreshClipboardListView: 列表刷新完成 - 总项数=432, 已添加行数=432
+[2026-01-09 15:29:12] RefreshClipboardListView: 列表刷新完成 - 总项数=28, 已添加行数=28
+[2026-01-09 15:29:34] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-09 15:29:42] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-09 15:29:43] Click: ClientX=143, ClientY=36, Result=0, flags=0x4, iItem=0, iSubItem=0
+[2026-01-09 15:29:44] Click: ClientX=128, ClientY=61, Result=2, flags=0x4, iItem=2, iSubItem=0
+[2026-01-09 15:29:45] Click: ClientX=135, ClientY=51, Result=1, flags=0x4, iItem=1, iSubItem=0
+[2026-01-09 15:29:54] Click: ClientX=180, ClientY=39, Result=0, flags=0x4, iItem=0, iSubItem=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=920388, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=985924, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=1051460, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=1116996, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=1182532, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=1248068, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=1313604, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=1379140, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=1444676, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=1510212, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=1575748, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=1641284, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=1706820, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=1772356, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=1837892, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=1903428, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=1968964, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=2034500, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=2100036, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=2165572, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=2231108, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=2296644, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=2362180, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=2427716, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=2493252, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=2558788, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=2624324, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=2689860, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=2755396, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=2820932, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:21] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:21] Current Col 1 width=250
+[2026-01-09 15:30:21] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:21] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:21] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:21] SetWindowPos: OverlayHwnd=2886468, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:22] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:22] Current Col 1 width=250
+[2026-01-09 15:30:22] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:22] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:22] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:22] SetWindowPos: OverlayHwnd=2952004, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:22] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:22] Current Col 1 width=250
+[2026-01-09 15:30:22] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:22] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:22] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:22] SetWindowPos: OverlayHwnd=3017540, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:22] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:22] Current Col 1 width=250
+[2026-01-09 15:30:22] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:22] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:22] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:22] SetWindowPos: OverlayHwnd=3083076, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:22] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:22] Current Col 1 width=250
+[2026-01-09 15:30:22] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:22] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:22] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:22] SetWindowPos: OverlayHwnd=3148612, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:22] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:22] Current Col 1 width=250
+[2026-01-09 15:30:22] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:22] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:22] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:22] SetWindowPos: OverlayHwnd=3214148, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:22] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:22] Current Col 1 width=250
+[2026-01-09 15:30:22] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:22] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:22] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:22] SetWindowPos: OverlayHwnd=3279684, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:23] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:23] Current Col 1 width=250
+[2026-01-09 15:30:23] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:23] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:23] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:23] SetWindowPos: OverlayHwnd=3345220, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:23] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:23] Current Col 1 width=250
+[2026-01-09 15:30:23] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:23] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:23] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:23] SetWindowPos: OverlayHwnd=3410756, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:23] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:23] Current Col 1 width=250
+[2026-01-09 15:30:23] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:23] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:23] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:23] SetWindowPos: OverlayHwnd=3476292, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:23] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:23] Current Col 1 width=250
+[2026-01-09 15:30:23] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:23] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:23] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:23] SetWindowPos: OverlayHwnd=3541828, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:23] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:23] Current Col 1 width=250
+[2026-01-09 15:30:23] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:23] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:23] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:23] SetWindowPos: OverlayHwnd=3607364, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:23] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:23] Current Col 1 width=250
+[2026-01-09 15:30:23] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:23] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:23] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:23] SetWindowPos: OverlayHwnd=3672900, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:23] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:23] Current Col 1 width=250
+[2026-01-09 15:30:23] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:23] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:23] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:23] SetWindowPos: OverlayHwnd=3738436, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:23] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:23] Current Col 1 width=250
+[2026-01-09 15:30:23] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:23] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:23] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:23] SetWindowPos: OverlayHwnd=3803972, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:23] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:23] Current Col 1 width=250
+[2026-01-09 15:30:23] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:23] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:23] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:23] SetWindowPos: OverlayHwnd=3869508, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:23] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:23] Current Col 1 width=250
+[2026-01-09 15:30:23] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:23] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:23] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:23] SetWindowPos: OverlayHwnd=3935044, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:24] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:24] Current Col 1 width=250
+[2026-01-09 15:30:24] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:24] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:24] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:24] SetWindowPos: OverlayHwnd=4000580, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:24] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:24] Current Col 1 width=250
+[2026-01-09 15:30:24] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:24] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:24] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:24] SetWindowPos: OverlayHwnd=4066116, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:24] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:24] Current Col 1 width=250
+[2026-01-09 15:30:24] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:24] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:24] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:24] SetWindowPos: OverlayHwnd=4131652, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:24] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:24] Current Col 1 width=250
+[2026-01-09 15:30:24] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:24] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:24] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:24] SetWindowPos: OverlayHwnd=4197188, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:24] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:24] Current Col 1 width=250
+[2026-01-09 15:30:24] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:24] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:24] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:24] SetWindowPos: OverlayHwnd=4262724, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:24] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:24] Current Col 1 width=250
+[2026-01-09 15:30:24] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:24] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:24] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:24] SetWindowPos: OverlayHwnd=4328260, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:24] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:24] Current Col 1 width=250
+[2026-01-09 15:30:24] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:24] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:24] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:24] SetWindowPos: OverlayHwnd=4393796, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:24] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:24] Current Col 1 width=250
+[2026-01-09 15:30:24] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:24] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:24] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:24] SetWindowPos: OverlayHwnd=4459332, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:24] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:24] Current Col 1 width=250
+[2026-01-09 15:30:24] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:24] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:24] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:24] SetWindowPos: OverlayHwnd=4524868, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:24] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:24] Current Col 1 width=250
+[2026-01-09 15:30:24] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:24] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:24] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:24] SetWindowPos: OverlayHwnd=4590404, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:24] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:24] Current Col 1 width=250
+[2026-01-09 15:30:24] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:24] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:24] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:24] SetWindowPos: OverlayHwnd=4655940, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:25] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:25] Current Col 1 width=250
+[2026-01-09 15:30:25] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:25] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:25] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:25] SetWindowPos: OverlayHwnd=4721476, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:25] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:25] Current Col 1 width=250
+[2026-01-09 15:30:25] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:25] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:25] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:25] SetWindowPos: OverlayHwnd=4787012, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:25] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:25] Current Col 1 width=250
+[2026-01-09 15:30:25] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:25] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:25] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:25] SetWindowPos: OverlayHwnd=4852548, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:25] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:25] Current Col 1 width=250
+[2026-01-09 15:30:25] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:25] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:25] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:25] SetWindowPos: OverlayHwnd=4918084, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:25] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:25] Current Col 1 width=250
+[2026-01-09 15:30:25] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:25] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:25] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:25] SetWindowPos: OverlayHwnd=4983620, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:25] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:25] Current Col 1 width=250
+[2026-01-09 15:30:25] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:25] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:25] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:25] SetWindowPos: OverlayHwnd=5049156, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:25] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:25] Current Col 1 width=250
+[2026-01-09 15:30:25] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:25] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:25] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:25] SetWindowPos: OverlayHwnd=5114692, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:25] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:25] Current Col 1 width=250
+[2026-01-09 15:30:25] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:25] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:25] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:25] SetWindowPos: OverlayHwnd=5180228, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:25] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:25] Current Col 1 width=250
+[2026-01-09 15:30:25] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:25] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:25] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:25] SetWindowPos: OverlayHwnd=5245764, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:25] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:25] Current Col 1 width=250
+[2026-01-09 15:30:25] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:25] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:25] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:25] SetWindowPos: OverlayHwnd=5311300, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:25] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:25] Current Col 1 width=250
+[2026-01-09 15:30:25] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:25] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:25] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:25] SetWindowPos: OverlayHwnd=5376836, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:25] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:25] Current Col 1 width=250
+[2026-01-09 15:30:25] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:25] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:25] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:25] SetWindowPos: OverlayHwnd=5442372, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=5507908, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=5573444, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=5638980, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=5704516, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=5835588, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=5901124, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=5966660, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=6032196, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=6097732, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=6163268, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=6228804, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=6294340, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=6359876, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=6425412, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=6490948, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=6556484, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=6622020, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=6687556, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=6753092, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=6818628, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=6884164, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:26] Window: X=802, Y=13, ListView: X=20, Y=123, ScreenX=822, ScreenY=136
+[2026-01-09 15:30:26] Current Col 1 width=250
+[2026-01-09 15:30:26] CalcCell: Col=1, CellLeft=0, CellWidth=250, RowTop=24, RowBottom=42
+[2026-01-09 15:30:26] CellRect: Left=0, Top=24, Width=250, Height=18, ScreenX=822, ScreenY=160
+[2026-01-09 15:30:26] Overlay shown at: X=822, Y=160, W=250, H=18
+[2026-01-09 15:30:26] SetWindowPos: OverlayHwnd=6949700, IsVisible=1, IsIconic=0
+[2026-01-09 15:30:29] Click: ClientX=256, ClientY=94, Result=3, flags=0x4, iItem=3, iSubItem=1
+[2026-01-09 15:30:29] Click: ClientX=79, ClientY=72, Result=2, flags=0x4, iItem=2, iSubItem=0
+[2026-01-09 15:30:30] Click: ClientX=292, ClientY=99, Result=4, flags=0x4, iItem=4, iSubItem=1
+[2026-01-09 15:30:40] Click: ClientX=292, ClientY=65, Result=2, flags=0x4, iItem=2, iSubItem=1
+[2026-01-09 15:30:41] Click: ClientX=316, ClientY=101, Result=4, flags=0x4, iItem=4, iSubItem=1
+[2026-01-09 15:30:41] Click: ClientX=315, ClientY=149, Result=6, flags=0x4, iItem=6, iSubItem=1
+[2026-01-09 15:30:42] Click: ClientX=314, ClientY=168, Result=8, flags=0x4, iItem=8, iSubItem=1
+[2026-01-09 15:30:42] Click: ClientX=313, ClientY=182, Result=8, flags=0x4, iItem=8, iSubItem=1
+[2026-01-09 15:30:42] Click: ClientX=311, ClientY=192, Result=9, flags=0x4, iItem=9, iSubItem=1
+[2026-01-09 15:30:43] Click: ClientX=162, ClientY=182, Result=8, flags=0x1, iItem=8, iSubItem=0
+[2026-01-09 15:30:43] Click: ClientX=108, ClientY=206, Result=-1, flags=0x1, iItem=-1, iSubItem=0
+[2026-01-09 15:30:44] Click: ClientX=122, ClientY=188, Result=9, flags=0x1, iItem=9, iSubItem=0
+[2026-01-09 15:30:44] Click: ClientX=116, ClientY=196, Result=9, flags=0x1, iItem=9, iSubItem=0
+[2026-01-09 15:30:45] Click: ClientX=116, ClientY=159, Result=7, flags=0x4, iItem=7, iSubItem=0
+[2026-01-09 15:30:45] Click: ClientX=140, ClientY=101, Result=4, flags=0x4, iItem=4, iSubItem=0
+[2026-01-09 15:30:46] Click: ClientX=157, ClientY=55, Result=1, flags=0x4, iItem=1, iSubItem=0
+[2026-01-09 15:30:46] Click: ClientX=170, ClientY=36, Result=0, flags=0x4, iItem=0, iSubItem=0
+[2026-01-09 15:31:01] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 15:31:01] 全部标签查询成功，结果数: 50
+[2026-01-09 15:31:01] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:31:02] Click: ClientX=226, ClientY=33, Result=0, flags=0x4, iItem=0, iSubItem=0
+[2026-01-09 15:31:04] Click: ClientX=171, ClientY=55, Result=1, flags=0x4, iItem=1, iSubItem=0
+[2026-01-09 15:31:09] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:31:12] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:31:16] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:31:20] RefreshClipboardListView: 列表刷新完成 - 总项数=28, 已添加行数=28
+[2026-01-09 15:31:21] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:31:25] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 15:31:26] RefreshClipboardListView: 列表刷新完成 - 总项数=1, 已添加行数=1
+[2026-01-09 15:31:28] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-09 15:34:53] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-09 15:34:53] 全部标签查询成功，结果数: 50
+[2026-01-09 15:34:53] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:34:54] RefreshClipboardListView: 列表刷新完成 - 总项数=29, 已添加行数=29
+[2026-01-09 15:34:55] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:34:56] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:34:56] RefreshClipboardListView: 列表刷新完成 - 总项数=28, 已添加行数=28
+[2026-01-09 15:34:58] RefreshClipboardListView: 列表刷新完成 - 总项数=29, 已添加行数=29
+[2026-01-09 15:35:04] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:35:04] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-09 15:35:06] RefreshClipboardListView: 列表刷新完成 - 总项数=28, 已添加行数=28
+[2026-01-09 15:35:07] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50

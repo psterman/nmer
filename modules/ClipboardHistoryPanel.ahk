@@ -788,9 +788,13 @@ RefreshHistoryData(keyword := "", offset := 0, limit := 0) {
             }
             
             ; 构建WHERE条件
+            ; 支持全域搜索：当 HistorySelectedTag 为空时，不添加 DataType 过滤，可以搜索所有类型
             whereConditions := []
             
             ; 添加关键词搜索条件（优先使用 FTS5 MATCH 语法）
+            ; 关键词搜索不受标签限制，可以跨所有 DataType 进行搜索
+            ; 参考 SearchCenter 的实现，确保关键词经过 Trim 处理
+            keyword := Trim(keyword)
             if (keyword != "") {
                 ; 转义关键词（用于 LIKE 查询）
                 escapedKeyword := StrReplace(keyword, "'", "''")
@@ -825,18 +829,18 @@ RefreshHistoryData(keyword := "", offset := 0, limit := 0) {
                     
                     ; 使用 FTS5 表进行搜索（MATCH 语法）
                     ; 注意：FTS5 MATCH 需要使用单引号包裹查询字符串
+                    ; 搜索 Content 和 SourceApp 等核心字段，不受 DataType 限制（全域搜索）
                     whereConditions.Push("ID IN (SELECT rowid FROM ClipboardHistory WHERE ClipboardHistory MATCH '" . ftsQuery . "')")
                 } else {
                     ; 使用 LIKE 查询（适用于短关键词或 FTS5 不可用）
-                    ; 同时搜索 Content 和 SourceApp 字段，提高匹配率
+                    ; 搜索 Content 和 SourceApp 字段，不受 DataType 限制（全域搜索）
                     whereConditions.Push("(Content LIKE '%" . escapedKeyword . "%' OR SourceApp LIKE '%" . escapedKeyword . "%')")
                 }
-            } else {
-                ; 如果没有搜索关键词，但需要确保查询正常执行
-                ; 这里不需要添加条件
             }
             
             ; 添加标签过滤条件
+            ; 只有当 HistorySelectedTag 不为空时，才添加 DataType 过滤条件
+            ; 当 HistorySelectedTag 为空时（默认状态），不添加任何 DataType 条件，实现全域搜索
             if (HistorySelectedTag != "") {
                 ; 转义标签类型
                 escapedTagType := StrReplace(HistorySelectedTag, "'", "''")
@@ -870,13 +874,8 @@ RefreshHistoryData(keyword := "", offset := 0, limit := 0) {
                         ")"
                     whereConditions.Push(screenshotCondition)
                 } else if (HistorySelectedTag = "CapsLockC") {
-                    ; CapsLock+C 标签：筛选 CapsLock+C 复制的数据
-                    ; 注意：ClipMain 表可能没有 SessionID 字段，需要通过其他方式识别
-                    ; 暂时通过 SourceApp 或其他标识来筛选，或者需要添加 SessionID 字段
-                    ; 这里先使用 SourceApp 包含特定标识的方式（需要根据实际实现调整）
-                    ; 如果数据库有 SessionID 字段，可以使用：WHERE SessionID IS NOT NULL
-                    ; 暂时使用 SourceApp 来识别（假设 CapsLock+C 的数据有特殊标识）
-                    whereConditions.Push("(SourceApp LIKE '%CapsLock%' OR SourceApp = 'CapsLock+C')")
+                    ; CapsLock+C 标签：筛选 CapsLock+C 复制的数据（DataType=Stack）
+                    whereConditions.Push("DataType = 'Stack'")
                 } else {
                     whereConditions.Push("DataType = '" . escapedTagType . "'")
                 }
@@ -884,6 +883,8 @@ RefreshHistoryData(keyword := "", offset := 0, limit := 0) {
             
             ; 构建SQL查询（从 ClipMain 表查询，但使用 FTS5 进行搜索）
             SQL := "SELECT " . selectFields . " FROM ClipMain"
+            ; 如果 whereConditions 数组不为空，使用 AND 连接所有条件
+            ; 如果数组为空（既没搜关键词也没选标签），则不添加 WHERE 子句，直接查询全表
             if (whereConditions.Length > 0) {
                 SQL .= " WHERE " . whereConditions[1]
                 Loop whereConditions.Length - 1 {
@@ -1131,6 +1132,91 @@ RefreshHistoryData(keyword := "", offset := 0, limit := 0) {
                             }
                         }
                         
+                        ; 如果选择了"图片"标签，进行精确过滤
+                        if (HistorySelectedTag = "Image") {
+                            ; 检查是否是图片
+                            isImage := false
+                            
+                            ; 1. 检查 DataType 是否是 Image
+                            if (rowData.Has("DataType") && rowData["DataType"] = "Image") {
+                                isImage := true
+                            }
+                            
+                            ; 2. 检查 ImagePath 是否存在且是图片文件
+                            if (!isImage && rowData.Has("ImagePath") && rowData["ImagePath"] != "") {
+                                imagePath := rowData["ImagePath"]
+                                imagePath := StrReplace(imagePath, "\\\\", "\")
+                                imagePath := StrReplace(imagePath, "\\", "\")
+                                if (FileExist(imagePath)) {
+                                    ; 检查文件扩展名，确认是图片文件
+                                    SplitPath(imagePath, , , &ext)
+                                    ext := StrLower(ext)
+                                    if (ext = "png" || ext = "jpg" || ext = "jpeg" || ext = "gif" || 
+                                        ext = "bmp" || ext = "webp" || ext = "tiff" || ext = "ico" || ext = "svg") {
+                                        isImage := true
+                                    }
+                                }
+                            }
+                            
+                            ; 3. 检查 Content 是否是图片文件路径
+                            if (!isImage && rowData.Has("Content") && rowData["Content"] != "") {
+                                content := rowData["Content"]
+                                content := StrReplace(content, "\\\\", "\")
+                                content := StrReplace(content, "\\", "\")
+                                
+                                ; 检查是否是路径格式（包含路径分隔符）
+                                if (InStr(content, "\") || InStr(content, "/")) {
+                                    if (FileExist(content)) {
+                                        ; 检查文件扩展名，确认是图片文件
+                                        SplitPath(content, , , &ext)
+                                        ext := StrLower(ext)
+                                        if (ext = "png" || ext = "jpg" || ext = "jpeg" || ext = "gif" || 
+                                            ext = "bmp" || ext = "webp" || ext = "tiff" || ext = "ico" || ext = "svg") {
+                                            isImage := true
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            ; 只有是图片时才添加到结果中
+                            if (!isImage) {
+                                continue  ; 跳过这条记录
+                            }
+                        }
+                        
+                        ; 如果选择了"代码"标签，进行精确过滤
+                        if (HistorySelectedTag = "Code") {
+                            ; 只匹配 DataType = 'Code' 的记录
+                            if (!rowData.Has("DataType") || rowData["DataType"] != "Code") {
+                                continue  ; 跳过非代码类型的记录
+                            }
+                        }
+                        
+                        ; 如果选择了"链接"标签，进行精确过滤
+                        if (HistorySelectedTag = "Link") {
+                            ; 只匹配 DataType = 'Link' 的记录
+                            if (!rowData.Has("DataType") || rowData["DataType"] != "Link") {
+                                continue  ; 跳过非链接类型的记录
+                            }
+                        }
+                        
+                        ; 如果选择了"文本"标签，进行精确过滤
+                        if (HistorySelectedTag = "Text") {
+                            ; 只匹配 DataType = 'Text' 或 'Email' 的记录
+                            if (!rowData.Has("DataType") || 
+                                (rowData["DataType"] != "Text" && rowData["DataType"] != "Email")) {
+                                continue  ; 跳过非文本类型的记录
+                            }
+                        }
+                        
+                        ; 如果选择了"CapsLock+C"标签，进行精确过滤
+                        if (HistorySelectedTag = "CapsLockC") {
+                            ; 只匹配 DataType = 'Stack' 的记录
+                            if (!rowData.Has("DataType") || rowData["DataType"] != "Stack") {
+                                continue  ; 跳过非Stack类型的记录
+                            }
+                        }
+                        
                         results.Push(rowData)
                     }
                 }
@@ -1194,9 +1280,21 @@ RefreshHistoryData(keyword := "", offset := 0, limit := 0) {
                 ; 先收集所有文件结果
                 fileResults := []
                 
-                for path in everythingResults {
-                    ; 检查文件是否存在
-                    if (!FileExist(path)) {
+                for index, result in everythingResults {
+                    ; 处理新的Map格式结果
+                    path := ""
+                    isDirectory := false
+                    
+                    if (Type(result) = "Map") {
+                        path := result["Path"]
+                        isDirectory := result.Has("IsDirectory") ? result["IsDirectory"] : false
+                    } else {
+                        ; 向后兼容：如果返回的是字符串路径
+                        path := result
+                    }
+                    
+                    ; 检查路径是否存在
+                    if (path = "" || (!FileExist(path) && !DirExist(path))) {
                         continue
                     }
                     
@@ -1204,17 +1302,18 @@ RefreshHistoryData(keyword := "", offset := 0, limit := 0) {
                     
                     ; 创建文件结果项
                     fileItem := Map()
-                    fileItem["ID"] := "file_" . path  ; 使用特殊前缀标识文件结果
+                    fileItem["ID"] := (isDirectory ? "folder_" : "file_") . path  ; 使用特殊前缀标识文件/文件夹结果
                     fileItem["Content"] := path
-                    fileItem["SourceApp"] := "文件系统"
+                    fileItem["SourceApp"] := isDirectory ? "文件夹" : "文件系统"
                     fileItem["SourcePath"] := path
                     fileItem["IconPath"] := path
-                    fileItem["DataType"] := "File"
+                    fileItem["DataType"] := isDirectory ? "Folder" : "File"
                     fileItem["CharCount"] := 0
                     fileItem["Timestamp"] := ""  ; 文件没有时间戳
                     fileItem["LastCopyTime"] := ""
                     fileItem["CopyCount"] := 1
                     fileItem["ImagePath"] := ""
+                    fileItem["IsDirectory"] := isDirectory
                     
                     fileResults.Push(fileItem)
                 }
@@ -1543,7 +1642,7 @@ OnHistoryResultLimitChange(*) {
     
     ; 如果搜索框有内容，重新搜索
     if (IsSet(HistorySearchEdit) && HistorySearchEdit && HistorySearchEdit.Value != "") {
-        keyword := HistorySearchEdit.Value
+        keyword := Trim(HistorySearchEdit.Value)
         HistoryCurrentLimit := 100  ; 重置限制
         RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
     }
@@ -1574,7 +1673,8 @@ OnHistorySearchChange(*) {
 DoSearchRefresh(*) {
     global HistorySearchEdit, HistoryCurrentLimit
     
-    keyword := HistorySearchEdit.Value
+    ; 参考 SearchCenter 的实现，使用 Trim 处理关键词
+    keyword := Trim(HistorySearchEdit.Value)
     ; 搜索时重置限制
     HistoryCurrentLimit := 100
     RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
@@ -1597,7 +1697,7 @@ OnHistoryTagClick(tagType, *) {
         ; 如果点击的是颜色标签，显示颜色汇总面板
         if (tagType = "Color") {
             ; 先刷新数据，然后显示汇总面板
-            keyword := HistorySearchEdit.Value
+            keyword := Trim(HistorySearchEdit.Value)
             HistoryCurrentLimit := 100
             RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
             ; 延迟显示，确保数据已加载
@@ -1613,7 +1713,7 @@ OnHistoryTagClick(tagType, *) {
     
     ; 如果不是颜色标签，刷新数据
     if (tagType != "Color") {
-        keyword := HistorySearchEdit.Value
+        keyword := Trim(HistorySearchEdit.Value)
         ; 切换标签时重置限制
         HistoryCurrentLimit := 100
         RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
@@ -3437,9 +3537,19 @@ HandleStackCopy() {
                 TrayTip("叠加复制 " . StackClipboardItems.Length, previewText, "Iconi 1")
                 SetTimer(() => TrayTip(), -1000)  ; 1秒后自动关闭提示
                 
-                ; 如果历史面板已打开，刷新数据
+                ; 如果历史面板已打开，自动切换到 CapsLock+C 标签并刷新数据
                 if (HistoryIsVisible) {
-                    RefreshHistoryData()
+                    global HistorySelectedTag, HistoryTagButtons, HistorySearchEdit
+                    ; 自动切换到 CapsLock+C 标签
+                    HistorySelectedTag := "CapsLockC"
+                    ; 更新标签按钮样式
+                    if (IsSet(HistoryTagButtons) && HistoryTagButtons.Has("CapsLockC")) {
+                        UpdateHistoryTagButtons()
+                    }
+                    ; 刷新数据（只显示 CapsLock+C 的数据）
+                    keyword := Trim(HistorySearchEdit ? HistorySearchEdit.Value : "")
+                    HistoryCurrentLimit := 100
+                    RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
                 }
             } else {
                 TrayTip("错误", "无法获取插入的记录ID", "Iconx 1")

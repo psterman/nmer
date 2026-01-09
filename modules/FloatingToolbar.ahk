@@ -45,6 +45,9 @@ global FloatingToolbarMaxScale := 1.5  ; 最大缩放比例（150%）
 global FloatingToolbarPressedButton := 0  ; 当前按下的按钮（用于下沉效果）
 global FloatingToolbarGdipToken := 0  ; Gdip token
 global FloatingToolbarGdipInitialized := false  ; Gdip是否已初始化
+global FloatingToolbarInitialMouseX := 0  ; 点击时的初始鼠标X坐标
+global FloatingToolbarInitialMouseY := 0  ; 点击时的初始鼠标Y坐标
+global FloatingToolbarMouseMoved := false  ; 鼠标是否移动
 
 ; Cursor色系配色
 FloatingToolbarColors := {
@@ -392,17 +395,25 @@ FloatingToolbarWM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
         return
     }
     
-    ; 如果点击在按钮上，记录按下时间（用于拖动检测）并应用下沉效果
+    ; 如果点击在按钮上，立即进入拖动模式（如果没有抬起鼠标）
     if (FloatingToolbarHoveredButton != 0 && !FloatingToolbarDragging) {
         ; 记录按下的按钮和时间
         FloatingToolbarClickedButton := FloatingToolbarHoveredButton
         FloatingToolbarButtonDownTime := A_TickCount
         FloatingToolbarPressedButton := FloatingToolbarHoveredButton
         
+        ; 记录初始鼠标位置（用于检测是否移动）
+        MouseGetPos(&initialX, &initialY)
+        global FloatingToolbarInitialMouseX := initialX
+        global FloatingToolbarInitialMouseY := initialY
+        global FloatingToolbarMouseMoved := false
+        
         ; 应用下沉效果（坐标下移2px）
         FloatingToolbarApplyPressEffect(FloatingToolbarHoveredButton)
         
-        ; 让消息继续传递，控件的Click事件会处理点击
+        ; 【修改】立即进入拖动模式，而不是等待150ms
+        ; 如果鼠标没有移动就抬起，会在 FloatingToolbarCheckButtonDrag 中处理点击
+        ; 如果鼠标移动了，就执行拖动操作
     }
 }
 
@@ -523,11 +534,10 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
     }
 }
 
-; 检测按钮拖动（长按按钮时拖动）
+; 检测按钮拖动（点击时如果没有抬起鼠标，默认是拖动操作）
 FloatingToolbarCheckButtonDrag() {
     global FloatingToolbarGUI, FloatingToolbarButtons, FloatingToolbarDragging, FloatingToolbarButtonDownTime, FloatingToolbarClickedButton, FloatingToolbarIsVisible, FloatingToolbarColors, FloatingToolbarWindowX, FloatingToolbarWindowY
-    
-    static lastX := 0, lastY := 0
+    global FloatingToolbarInitialMouseX, FloatingToolbarInitialMouseY, FloatingToolbarMouseMoved
     
     ; 如果窗口不可见，不处理
     if (!FloatingToolbarIsVisible || FloatingToolbarGUI = 0) {
@@ -536,14 +546,18 @@ FloatingToolbarCheckButtonDrag() {
     
     ; 如果鼠标左键按下且按下了按钮
     if (GetKeyState("LButton", "P") && FloatingToolbarClickedButton != 0) {
-        ; 检查是否长按（超过150ms，降低阈值使拖动更容易触发）
-        if (A_TickCount - FloatingToolbarButtonDownTime > 150) {
-            ; 检查鼠标是否移动（拖动）
-            MouseGetPos(&mx, &my)
-            if (lastX != 0 && lastY != 0) {
-                ; 降低移动阈值，使拖动更容易触发
-                if (Abs(mx - lastX) > 3 || Abs(my - lastY) > 3) {
-                    ; 开始拖动（恢复下沉效果）
+        ; 【修改】立即检测鼠标是否移动，不需要等待150ms
+        MouseGetPos(&mx, &my)
+        
+        ; 检查鼠标是否从初始位置移动了（移动阈值：5像素）
+        if (FloatingToolbarInitialMouseX != 0 && FloatingToolbarInitialMouseY != 0) {
+            if (Abs(mx - FloatingToolbarInitialMouseX) > 5 || Abs(my - FloatingToolbarInitialMouseY) > 5) {
+                ; 鼠标移动了，标记为已移动
+                FloatingToolbarMouseMoved := true
+                
+                ; 如果还没有进入拖动模式，立即进入拖动模式
+                if (!FloatingToolbarDragging) {
+                    ; 恢复下沉效果
                     global FloatingToolbarPressedButton
                     if (FloatingToolbarPressedButton != 0) {
                         FloatingToolbarRemovePressEffect(FloatingToolbarPressedButton)
@@ -563,52 +577,49 @@ FloatingToolbarCheckButtonDrag() {
                     SetTimer(FloatingToolbarCheckDragEnd, 50)
                 }
             }
-            lastX := mx
-            lastY := my
-        } else {
-            ; 记录初始位置
-            MouseGetPos(&mx, &my)
-            lastX := mx
-            lastY := my
         }
     } else {
         ; 鼠标释放，检查是否是点击（不是拖动）
         if (FloatingToolbarClickedButton != 0 && !FloatingToolbarDragging) {
-            ; 恢复下沉效果
-            global FloatingToolbarPressedButton
-            if (FloatingToolbarPressedButton != 0) {
-                FloatingToolbarRemovePressEffect(FloatingToolbarPressedButton)
-                FloatingToolbarPressedButton := 0
+            ; 如果鼠标没有移动，执行点击操作
+            if (!FloatingToolbarMouseMoved) {
+                ; 恢复下沉效果
+                global FloatingToolbarPressedButton
+                if (FloatingToolbarPressedButton != 0) {
+                    FloatingToolbarRemovePressEffect(FloatingToolbarPressedButton)
+                    FloatingToolbarPressedButton := 0
+                }
+                
+                ; 获取按钮信息并执行动作
+                if (FloatingToolbarButtons.Has(FloatingToolbarClickedButton)) {
+                    buttonInfo := FloatingToolbarButtons[FloatingToolbarClickedButton]
+                    action := buttonInfo.action
+                    
+                    ; 更新选中状态（显示橙色点）
+                    global FloatingToolbarSelectedButton
+                    ; 先隐藏所有点的选中状态
+                    for btnHwnd, btn in FloatingToolbarButtons {
+                        if (btn.HasProp("selectedDot")) {
+                            btn.selectedDot.Visible := false
+                        }
+                    }
+                    ; 显示当前按钮的选中点
+                    if (buttonInfo.HasProp("selectedDot")) {
+                        buttonInfo.selectedDot.Visible := true
+                    }
+                    FloatingToolbarSelectedButton := FloatingToolbarClickedButton
+                    
+                    ; 执行动作
+                    FloatingToolbarExecuteButtonAction(action, FloatingToolbarClickedButton)
+                }
             }
             
-            ; 获取按钮信息并执行动作
-            if (FloatingToolbarButtons.Has(FloatingToolbarClickedButton)) {
-                buttonInfo := FloatingToolbarButtons[FloatingToolbarClickedButton]
-                action := buttonInfo.action
-                
-                ; 更新选中状态（显示橙色点）
-                global FloatingToolbarSelectedButton
-                ; 先隐藏所有点的选中状态
-                for btnHwnd, btn in FloatingToolbarButtons {
-                    if (btn.HasProp("selectedDot")) {
-                        btn.selectedDot.Visible := false
-                    }
-                }
-                ; 显示当前按钮的选中点
-                if (buttonInfo.HasProp("selectedDot")) {
-                    buttonInfo.selectedDot.Visible := true
-                }
-                FloatingToolbarSelectedButton := FloatingToolbarClickedButton
-                
-                ; 执行动作
-                FloatingToolbarExecuteButtonAction(action, FloatingToolbarClickedButton)
-            }
+            ; 重置状态
             FloatingToolbarClickedButton := 0
+            FloatingToolbarInitialMouseX := 0
+            FloatingToolbarInitialMouseY := 0
+            FloatingToolbarMouseMoved := false
         }
-        
-        ; 重置拖动检测
-        lastX := 0
-        lastY := 0
     }
 }
 
