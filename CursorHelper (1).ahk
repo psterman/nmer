@@ -3336,6 +3336,14 @@ global CapsLockPressTime := 0
         CapsLockHoldTimeSeconds := 0.5
     }
     
+    ; 【关键修复】记录初始状态，必须在按下时立即记录，用于最后的恢复/切换逻辑
+    ; 必须在任何可能改变CAPSLOCK状态的操作之前记录
+    local InitialCapsLockState := GetKeyState("CapsLock", "T")
+    
+    ; 【关键修复】立即禁用CAPSLOCK的物理状态改变，防止大写锁定一直生效
+    ; 这样可以确保在按下CAPSLOCK时，不会触发大写锁定状态
+    SetCapsLockState("Off")
+    
     ; 标记 CapsLock 已按下
     CapsLock := true
     CapsLock2 := true  ; 初始化为 true，如果使用了功能会被清除
@@ -3391,6 +3399,8 @@ global CapsLockPressTime := 0
             }
         }
         
+        ; 【关键修复】恢复CAPSLOCK状态到按下前的状态，确保输入法可以正常切换
+        SetCapsLockState(InitialCapsLockState)
         CapsLock := false
         CapsLock2 := false
         return
@@ -3415,9 +3425,6 @@ global CapsLockPressTime := 0
     }
     SetTimer(ShowPanelTimer, -HoldTimeMs)
     
-    ; 记录初始状态，用于最后的恢复/切换逻辑
-    local InitialCapsLockState := GetKeyState("CapsLock", "T")
-    
     ; 等待 CapsLock 释放
     KeyWait("CapsLock")
     
@@ -3428,7 +3435,7 @@ global CapsLockPressTime := 0
     ; 【修复】检查面板是否已显示（如果已显示，说明是长按，不应该切换大小写）
     ; 如果面板已显示，说明是长按触发的，不应该切换大小写
     if (PanelVisible) {
-        ; 面板已显示，说明是长按，保持当前状态不变
+        ; 面板已显示，说明是长按，恢复初始状态（保持按下前的状态）
         SetCapsLockState(InitialCapsLockState)
         ; 延迟清除 CapsLock 变量，给快捷键处理函数足够的时间
         SetTimer(ClearCapsLockTimer, -100)
@@ -3441,6 +3448,7 @@ global CapsLockPressTime := 0
     ; 如果 CapsLock2 为 true (说明没有使用任何功能)，则切换大小写状态
     if (!CapsLock2) {
         ; 使用了功能，强制恢复到按下前的状态，防止状态改变
+        ; 【关键修复】确保恢复初始状态，这样输入法可以正常切换
         SetCapsLockState(InitialCapsLockState)
         ; 延迟清除 CapsLock 变量，给快捷键处理函数足够的时间
         SetTimer(ClearCapsLockTimer, -100)
