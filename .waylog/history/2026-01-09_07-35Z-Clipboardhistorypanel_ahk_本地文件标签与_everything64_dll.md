@@ -95,3 +95,79 @@ DropDownList和 HistoryEverythingLimit 冲突问题
 修复这些问题：
 
 ---
+
+
+**User**
+
+clipboardhistorypanel的数据被“始终限制在 50 条”？请检查以下代码问题：
+静态变量覆盖：在你的 ShowClipboardHistoryPanel 函数中，可能存在一行 HistoryCurrentLimit := 50。这意味着每次你打开面板，用户的选择都会被重置。建议将其改为： if (!IsSet(HistoryCurrentLimit)) HistoryCurrentLimit := 50
+
+硬编码常量：检查代码中是否定义了 global HistoryEverythingLimit := 50 并在查询中使用了它。如果有，请统一替换为 HistoryCurrentLimit。
+
+Submit 缺失：如果使用 v 变量模式，必须在 OnEvent 中执行 SavedValues := MyGui.Submit(false) 才能更新变量。或者像我在上面的代码中那样，直接读取 GuiCtrl.Text。
+
+---
+
+
+**Cursor**
+
+检查这些问题：
+
+
+
+修复这些问题：
+
+---
+
+
+**User**
+
+Error: Parameter #1 of Gui.Control.Prototype.OnEvent is invalid.
+
+Specifically: LostFocus
+
+	---- C:\Users\pster\Desktop\小c\modules\ClipboardHistoryPanel.ahk
+	188: HistoryResultLimitDropdown := GuiID_ClipboardHistory.Add("DropDownList", "x" . DropdownX . " y" . DropdownY . " w" . DropdownWidth . " h" . DropdownHeight . " R6" . " Background" . HistoryColors.InputBg . " c" . HistoryColors.Text . " Choose" . DropdownDefaultIndex . " vHistoryResultLimitDropdown", ["50", "100", "500", "1000", "10000", "所有"])
+	198: HistoryResultLimitDropdown.SetFont("s10", "Segoe UI")
+▶	201: HistoryResultLimitDropdown.OnEvent("LostFocus", OnHistoryResultLimitChange)
+ DropDownList 在 AHK v2 中的 Change 事件可能不可靠，使用 LostFocus 事件
+
+
+      200 +    ; 当用户完成选择后，下拉列表会关闭并失去焦点
+
+
+      201 +    HistoryResultLimitDropdown.OnEvent("LostFocus", OnHistoryResultLimitChange)
+让我可以实现查看切换下拉列表数量时的情况和问题
+
+---
+
+
+**Cursor**
+
+修复事件绑定问题：DropDownList 在 AHK v2 中应使用 "Change" 事件，并添加调试输出以查看切换情况。
+
+
+
+修复事件绑定：DropDownList 在 AHK v2 中应使用 "Change" 事件。如果不可靠，改用其他方法。添加调试输出以查看切换情况。
+
+---
+
+
+**User**
+
+[19500] ClipboardHistoryPanel - OnHistoryResultLimitChange 事件已触发
+[19500] ClipboardHistoryPanel - 错误: HistoryResultLimitDropdown 控件不存在
+如何修复，让下拉菜单对应的数字可以对应上listview显示数据的数量
+
+---
+
+
+**Cursor**
+
+检查并修复控件作用域问题：
+
+
+
+修复作用域问题：在 `CreateHistoryPanelGUI()` 中创建控件时未使用 `global`，导致事件处理函数中无法访问。修复中：
+
+---
