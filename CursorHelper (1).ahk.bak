@@ -12291,43 +12291,17 @@ SearchClipboardFTS5ForSearchCenter(Keyword, MaxResults := 10, Offset := 0) {
                 hasMore := (ResultSet.Rows.Length > MaxResults)
                 maxRows := hasMore ? MaxResults : ResultSet.Rows.Length
                 
-                ; 创建列名映射
-                columnNames := []
-                columnIndexMap := Map()
-                if (ResultSet.HasNames && ResultSet.ColumnNames.Length > 0) {
-                    columnNames := ResultSet.ColumnNames
-                    Loop columnNames.Length {
-                        colName := columnNames[A_Index]
-                        columnIndexMap[colName] := A_Index
-                    }
-                }
-
                 Loop maxRows {
                     row := ResultSet.Rows[A_Index]
-                    
-                    ; 使用列名映射访问（正确方式）
-                    if (columnIndexMap.Count > 0) {
-                        ID := columnIndexMap.Has("ID") && row.Has(columnIndexMap["ID"]) ? row[columnIndexMap["ID"]] : ""
-                        Content := columnIndexMap.Has("Content") && row.Has(columnIndexMap["Content"]) ? row[columnIndexMap["Content"]] : ""
-                        SourceApp := columnIndexMap.Has("SourceApp") && row.Has(columnIndexMap["SourceApp"]) ? row[columnIndexMap["SourceApp"]] : ""
-                        DataType := columnIndexMap.Has("DataType") && row.Has(columnIndexMap["DataType"]) ? row[columnIndexMap["DataType"]] : ""
-                        CharCount := columnIndexMap.Has("CharCount") && row.Has(columnIndexMap["CharCount"]) ? row[columnIndexMap["CharCount"]] : 0
-                        Timestamp := columnIndexMap.Has("Timestamp") && row.Has(columnIndexMap["Timestamp"]) ? row[columnIndexMap["Timestamp"]] : ""
-                        SourcePath := columnIndexMap.Has("SourcePath") && row.Has(columnIndexMap["SourcePath"]) ? row[columnIndexMap["SourcePath"]] : ""
-                        LastCopyTime := columnIndexMap.Has("LastCopyTime") && row.Has(columnIndexMap["LastCopyTime"]) ? row[columnIndexMap["LastCopyTime"]] : Timestamp
-                        CopyCount := columnIndexMap.Has("CopyCount") && row.Has(columnIndexMap["CopyCount"]) ? row[columnIndexMap["CopyCount"]] : 1
-                    } else {
-                        ; 后备方案：按固定顺序读取
-                        ID := row.HasProp("Length") && row.Length >= 1 ? row[1] : ""
-                        Content := row.HasProp("Length") && row.Length >= 2 ? row[2] : ""
-                        SourceApp := row.HasProp("Length") && row.Length >= 3 ? row[3] : ""
-                        DataType := row.HasProp("Length") && row.Length >= 4 ? row[4] : ""
-                        CharCount := row.HasProp("Length") && row.Length >= 5 ? row[5] : 0
-                        Timestamp := row.HasProp("Length") && row.Length >= 6 ? row[6] : ""
-                        SourcePath := row.HasProp("Length") && row.Length >= 7 ? row[7] : ""
-                        LastCopyTime := row.HasProp("Length") && row.Length >= 8 ? row[8] : Timestamp
-                        CopyCount := row.HasProp("Length") && row.Length >= 9 ? row[9] : 1
-                    }
+                    ID := row[1]
+                    Content := row[2]
+                    SourceApp := row[3]
+                    DataType := row[4]
+                    CharCount := row[5]
+                    Timestamp := row[6]
+                    SourcePath := row[7]
+                    LastCopyTime := row[8]
+                    CopyCount := row[9]
                     
                     ; 生成预览文本（截取前100个字符）
                     Preview := SubStr(Content, 1, 100)
@@ -18571,7 +18545,12 @@ RefreshClipboardListView() {
                             ClipboardItems.Push({ID: ID, Content: Content, DataType: DataType, SourceApp: SourceApp, SourcePath: SourcePath, CharCount: CharCount, Timestamp: Timestamp, LastCopyTime: LastCopyTime, CopyCount: CopyCount, IconIndex: IconIndex})
                             TotalItems++
                         }
+                    }
                 }
+            } else {
+                ; 【调试】记录查询失败
+                FileAppend("[" . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "] 全部标签查询失败: querySuccess=" . (querySuccess ? "true" : "false") . ", ResultTable=" . (ResultTable ? "exists" : "null") . "`n", A_ScriptDir "\clipboard_debug.log")
+            }
             
             ; 2. 文件数据（如果有搜索关键词）
             ; 【修复说明】文件数据只在有搜索关键词时查询是合理的，因为查询所有文件会非常慢
@@ -18778,142 +18757,38 @@ RefreshClipboardListView() {
             SQL .= " ORDER BY " . orderByField . " DESC LIMIT " . EverythingLimit
             ResultTable := 0
             if (ClipboardFTS5DB.GetTable(SQL, &ResultTable) && ResultTable && ResultTable.HasProp("Rows")) {
-                ; 创建列名映射
-                columnNames := []
-                columnIndexMap := Map()
-                if (ResultTable.HasNames && ResultTable.ColumnNames.Length > 0) {
-                    columnNames := ResultTable.ColumnNames
-                    Loop columnNames.Length {
-                        colName := columnNames[A_Index]
-                        columnIndexMap[colName] := A_Index
-                    }
-                }
-
                 for Index, Row in ResultTable.Rows {
-                    rowData := Map()
-                    
-                    if (columnIndexMap.Count > 0) {
-                        ; 使用列名映射访问（正确方式）
-                        if (columnIndexMap.Has("ID")) {
-                            rowData["ID"] := Row[columnIndexMap["ID"]]
-                        }
-                        if (columnIndexMap.Has("Content")) {
-                            rowData["Content"] := Row[columnIndexMap["Content"]]
-                        }
-                        if (columnIndexMap.Has("DataType")) {
-                            rowData["DataType"] := Row[columnIndexMap["DataType"]]
-                        }
-                        if (columnIndexMap.Has("SourceApp")) {
-                            rowData["SourceApp"] := Row[columnIndexMap["SourceApp"]]
-                        }
-                        if (columnIndexMap.Has("SourcePath")) {
-                            rowData["SourcePath"] := Row[columnIndexMap["SourcePath"]]
-                        }
-                        if (columnIndexMap.Has("CharCount")) {
-                            rowData["CharCount"] := Row[columnIndexMap["CharCount"]]
-                        }
-                        if (columnIndexMap.Has("Timestamp")) {
-                            rowData["Timestamp"] := Row[columnIndexMap["Timestamp"]]
-                        }
-                        if (columnIndexMap.Has("LastCopyTime")) {
-                            rowData["LastCopyTime"] := Row[columnIndexMap["LastCopyTime"]]
-                        }
-                        if (columnIndexMap.Has("CopyCount")) {
-                            rowData["CopyCount"] := Row[columnIndexMap["CopyCount"]]
-                        }
-                        if (columnIndexMap.Has("ImagePath")) {
-                            rowData["ImagePath"] := Row[columnIndexMap["ImagePath"]]
-                        }
-                    } else {
-                        ; 后备方案：按固定顺序读取
-                        if (Row.HasProp("Length") && Row.Length >= 1) {
-                            rowData["ID"] := Row[1]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 2) {
-                            rowData["Content"] := Row[2]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 3) {
-                            rowData["DataType"] := Row[3]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 4) {
-                            rowData["SourceApp"] := Row[4]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 5) {
-                            rowData["SourcePath"] := Row[5]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 6) {
-                            rowData["CharCount"] := Row[6]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 7) {
-                            rowData["Timestamp"] := Row[7]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 8) {
-                            rowData["LastCopyTime"] := Row[8]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 9) {
-                            rowData["CopyCount"] := Row[9]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 10) {
-                            rowData["ImagePath"] := Row[10]
-                        }
-                    }
-                    
-                    ; 确保所有必需字段都有值
-                    if (!rowData.Has("ID") || rowData["ID"] = "") {
-                        continue
-                    }
-                    if (!rowData.Has("Content") || rowData["Content"] = "") {
-                        continue
-                    }
-                    if (!rowData.Has("DataType") || rowData["DataType"] = "") {
-                        rowData["DataType"] := "Text"
-                    }
-                    if (!rowData.Has("SourceApp") || rowData["SourceApp"] = "") {
-                        rowData["SourceApp"] := ""
-                    }
-                    if (!rowData.Has("SourcePath")) {
-                        rowData["SourcePath"] := ""
-                    }
-                    if (!rowData.Has("CharCount") || rowData["CharCount"] = "" || rowData["CharCount"] = 0) {
-                        rowData["CharCount"] := StrLen(rowData["Content"])
-                    }
-                    if (!rowData.Has("Timestamp") || rowData["Timestamp"] = "") {
-                        rowData["Timestamp"] := ""
-                    }
-                    if (!rowData.Has("LastCopyTime") || rowData["LastCopyTime"] = "") {
-                        rowData["LastCopyTime"] := rowData["Timestamp"]
-                    }
-                    if (!rowData.Has("CopyCount") || rowData["CopyCount"] = "" || rowData["CopyCount"] = 0) {
-                        rowData["CopyCount"] := 1
-                    }
-                    
-                    ID := Integer(rowData["ID"])
-                    Content := String(rowData["Content"])
-                    DataType := String(rowData["DataType"])
-                    SourceApp := String(rowData["SourceApp"])
-                    SourcePath := String(rowData["SourcePath"])
-                    CharCount := Integer(rowData["CharCount"])
-                    Timestamp := String(rowData["Timestamp"])
-                    LastCopyTime := String(rowData["LastCopyTime"])
-                    CopyCount := Integer(rowData["CopyCount"])
-                    
-                    IconIndex := 0
-                    if (SourcePath != "" && FileExist(SourcePath)) {
-                        if (IconCache.Has(SourcePath)) {
-                            IconIndex := IconCache[SourcePath]
-                        } else {
-                            try {
-                                IconIndex := IL_Add(ClipboardImageList, SourcePath, 0)
-                                if (IconIndex > 0) {
-                                    IconCache[SourcePath] := IconIndex
+                    if (IsObject(Row) && Row.HasProp("Length") && Row.Length >= 2) {
+                        ID := (Row.Length >= 1 && Row[1] != "" && Row[1] != 0) ? Integer(Row[1]) : 0
+                        Content := (Row.Length >= 2 && Row[2] != "") ? String(Row[2]) : ""
+                        if (Content != "") {
+                            DataType := (Row.Length >= 3 && Row[3] != "") ? String(Row[3]) : "Text"
+                            SourceApp := (Row.Length >= 4 && Row[4] != "") ? String(Row[4]) : ""
+                            SourcePath := (Row.Length >= 5 && Row[5] != "") ? String(Row[5]) : ""
+                            CharCount := (Row.Length >= 6 && Row[6] != "" && Row[6] != 0) ? Integer(Row[6]) : 0
+                            Timestamp := (Row.Length >= 7 && Row[7] != "") ? String(Row[7]) : ""
+                            LastCopyTime := (Row.Length >= 8 && Row[8] != "") ? String(Row[8]) : Timestamp
+                            CopyCount := (Row.Length >= 9 && Row[9] != "" && Row[9] != 0) ? Integer(Row[9]) : 1
+                            
+                            IconIndex := 0
+                            if (SourcePath != "" && FileExist(SourcePath)) {
+                                if (IconCache.Has(SourcePath)) {
+                                    IconIndex := IconCache[SourcePath]
+                                } else {
+                                    try {
+                                        IconIndex := IL_Add(ClipboardImageList, SourcePath, 0)
+                                        if (IconIndex > 0) {
+                                            IconCache[SourcePath] := IconIndex
+                                        }
+                                    } catch {
+                                    }
                                 }
-                            } catch {
                             }
+                            
+                            ClipboardItems.Push({ID: ID, Content: Content, DataType: DataType, SourceApp: SourceApp, SourcePath: SourcePath, CharCount: CharCount, Timestamp: Timestamp, LastCopyTime: LastCopyTime, CopyCount: CopyCount, IconIndex: IconIndex})
+                            TotalItems++
                         }
                     }
-                    
-                    ClipboardItems.Push({ID: ID, Content: Content, DataType: DataType, SourceApp: SourceApp, SourcePath: SourcePath, CharCount: CharCount, Timestamp: Timestamp, LastCopyTime: LastCopyTime, CopyCount: CopyCount, IconIndex: IconIndex})
-                    TotalItems++
                 }
             }
         } else if (CurrentCategory == "Text") {
@@ -18976,142 +18851,38 @@ RefreshClipboardListView() {
             SQL .= " ORDER BY " . orderByField . " DESC LIMIT " . EverythingLimit
             ResultTable := 0
             if (ClipboardFTS5DB.GetTable(SQL, &ResultTable) && ResultTable && ResultTable.HasProp("Rows")) {
-                ; 创建列名映射
-                columnNames := []
-                columnIndexMap := Map()
-                if (ResultTable.HasNames && ResultTable.ColumnNames.Length > 0) {
-                    columnNames := ResultTable.ColumnNames
-                    Loop columnNames.Length {
-                        colName := columnNames[A_Index]
-                        columnIndexMap[colName] := A_Index
-                    }
-                }
-
                 for Index, Row in ResultTable.Rows {
-                    rowData := Map()
-                    
-                    if (columnIndexMap.Count > 0) {
-                        ; 使用列名映射访问（正确方式）
-                        if (columnIndexMap.Has("ID")) {
-                            rowData["ID"] := Row[columnIndexMap["ID"]]
-                        }
-                        if (columnIndexMap.Has("Content")) {
-                            rowData["Content"] := Row[columnIndexMap["Content"]]
-                        }
-                        if (columnIndexMap.Has("DataType")) {
-                            rowData["DataType"] := Row[columnIndexMap["DataType"]]
-                        }
-                        if (columnIndexMap.Has("SourceApp")) {
-                            rowData["SourceApp"] := Row[columnIndexMap["SourceApp"]]
-                        }
-                        if (columnIndexMap.Has("SourcePath")) {
-                            rowData["SourcePath"] := Row[columnIndexMap["SourcePath"]]
-                        }
-                        if (columnIndexMap.Has("CharCount")) {
-                            rowData["CharCount"] := Row[columnIndexMap["CharCount"]]
-                        }
-                        if (columnIndexMap.Has("Timestamp")) {
-                            rowData["Timestamp"] := Row[columnIndexMap["Timestamp"]]
-                        }
-                        if (columnIndexMap.Has("LastCopyTime")) {
-                            rowData["LastCopyTime"] := Row[columnIndexMap["LastCopyTime"]]
-                        }
-                        if (columnIndexMap.Has("CopyCount")) {
-                            rowData["CopyCount"] := Row[columnIndexMap["CopyCount"]]
-                        }
-                        if (columnIndexMap.Has("ImagePath")) {
-                            rowData["ImagePath"] := Row[columnIndexMap["ImagePath"]]
-                        }
-                    } else {
-                        ; 后备方案：按固定顺序读取
-                        if (Row.HasProp("Length") && Row.Length >= 1) {
-                            rowData["ID"] := Row[1]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 2) {
-                            rowData["Content"] := Row[2]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 3) {
-                            rowData["DataType"] := Row[3]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 4) {
-                            rowData["SourceApp"] := Row[4]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 5) {
-                            rowData["SourcePath"] := Row[5]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 6) {
-                            rowData["CharCount"] := Row[6]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 7) {
-                            rowData["Timestamp"] := Row[7]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 8) {
-                            rowData["LastCopyTime"] := Row[8]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 9) {
-                            rowData["CopyCount"] := Row[9]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 10) {
-                            rowData["ImagePath"] := Row[10]
-                        }
-                    }
-                    
-                    ; 确保所有必需字段都有值
-                    if (!rowData.Has("ID") || rowData["ID"] = "") {
-                        continue
-                    }
-                    if (!rowData.Has("Content") || rowData["Content"] = "") {
-                        continue
-                    }
-                    if (!rowData.Has("DataType") || rowData["DataType"] = "") {
-                        rowData["DataType"] := "Text"
-                    }
-                    if (!rowData.Has("SourceApp") || rowData["SourceApp"] = "") {
-                        rowData["SourceApp"] := ""
-                    }
-                    if (!rowData.Has("SourcePath")) {
-                        rowData["SourcePath"] := ""
-                    }
-                    if (!rowData.Has("CharCount") || rowData["CharCount"] = "" || rowData["CharCount"] = 0) {
-                        rowData["CharCount"] := StrLen(rowData["Content"])
-                    }
-                    if (!rowData.Has("Timestamp") || rowData["Timestamp"] = "") {
-                        rowData["Timestamp"] := ""
-                    }
-                    if (!rowData.Has("LastCopyTime") || rowData["LastCopyTime"] = "") {
-                        rowData["LastCopyTime"] := rowData["Timestamp"]
-                    }
-                    if (!rowData.Has("CopyCount") || rowData["CopyCount"] = "" || rowData["CopyCount"] = 0) {
-                        rowData["CopyCount"] := 1
-                    }
-                    
-                    ID := Integer(rowData["ID"])
-                    Content := String(rowData["Content"])
-                    DataType := String(rowData["DataType"])
-                    SourceApp := String(rowData["SourceApp"])
-                    SourcePath := String(rowData["SourcePath"])
-                    CharCount := Integer(rowData["CharCount"])
-                    Timestamp := String(rowData["Timestamp"])
-                    LastCopyTime := String(rowData["LastCopyTime"])
-                    CopyCount := Integer(rowData["CopyCount"])
-                    
-                    IconIndex := 0
-                    if (SourcePath != "" && FileExist(SourcePath)) {
-                        if (IconCache.Has(SourcePath)) {
-                            IconIndex := IconCache[SourcePath]
-                        } else {
-                            try {
-                                IconIndex := IL_Add(ClipboardImageList, SourcePath, 0)
-                                if (IconIndex > 0) {
-                                    IconCache[SourcePath] := IconIndex
+                    if (IsObject(Row) && Row.HasProp("Length") && Row.Length >= 2) {
+                        ID := (Row.Length >= 1 && Row[1] != "" && Row[1] != 0) ? Integer(Row[1]) : 0
+                        Content := (Row.Length >= 2 && Row[2] != "") ? String(Row[2]) : ""
+                        if (Content != "") {
+                            DataType := (Row.Length >= 3 && Row[3] != "") ? String(Row[3]) : "Text"
+                            SourceApp := (Row.Length >= 4 && Row[4] != "") ? String(Row[4]) : ""
+                            SourcePath := (Row.Length >= 5 && Row[5] != "") ? String(Row[5]) : ""
+                            CharCount := (Row.Length >= 6 && Row[6] != "" && Row[6] != 0) ? Integer(Row[6]) : 0
+                            Timestamp := (Row.Length >= 7 && Row[7] != "") ? String(Row[7]) : ""
+                            LastCopyTime := (Row.Length >= 8 && Row[8] != "") ? String(Row[8]) : Timestamp
+                            CopyCount := (Row.Length >= 9 && Row[9] != "" && Row[9] != 0) ? Integer(Row[9]) : 1
+                            
+                            IconIndex := 0
+                            if (SourcePath != "" && FileExist(SourcePath)) {
+                                if (IconCache.Has(SourcePath)) {
+                                    IconIndex := IconCache[SourcePath]
+                                } else {
+                                    try {
+                                        IconIndex := IL_Add(ClipboardImageList, SourcePath, 0)
+                                        if (IconIndex > 0) {
+                                            IconCache[SourcePath] := IconIndex
+                                        }
+                                    } catch {
+                                    }
                                 }
-                            } catch {
                             }
+                            
+                            ClipboardItems.Push({ID: ID, Content: Content, DataType: DataType, SourceApp: SourceApp, SourcePath: SourcePath, CharCount: CharCount, Timestamp: Timestamp, LastCopyTime: LastCopyTime, CopyCount: CopyCount, IconIndex: IconIndex})
+                            TotalItems++
                         }
                     }
-                    
-                    ClipboardItems.Push({ID: ID, Content: Content, DataType: DataType, SourceApp: SourceApp, SourcePath: SourcePath, CharCount: CharCount, Timestamp: Timestamp, LastCopyTime: LastCopyTime, CopyCount: CopyCount, IconIndex: IconIndex})
-                    TotalItems++
                 }
             }
         } else if (CurrentCategory == "Code") {
@@ -19174,142 +18945,38 @@ RefreshClipboardListView() {
             SQL .= " ORDER BY " . orderByField . " DESC LIMIT " . EverythingLimit
             ResultTable := 0
             if (ClipboardFTS5DB.GetTable(SQL, &ResultTable) && ResultTable && ResultTable.HasProp("Rows")) {
-                ; 创建列名映射
-                columnNames := []
-                columnIndexMap := Map()
-                if (ResultTable.HasNames && ResultTable.ColumnNames.Length > 0) {
-                    columnNames := ResultTable.ColumnNames
-                    Loop columnNames.Length {
-                        colName := columnNames[A_Index]
-                        columnIndexMap[colName] := A_Index
-                    }
-                }
-
                 for Index, Row in ResultTable.Rows {
-                    rowData := Map()
-                    
-                    if (columnIndexMap.Count > 0) {
-                        ; 使用列名映射访问（正确方式）
-                        if (columnIndexMap.Has("ID")) {
-                            rowData["ID"] := Row[columnIndexMap["ID"]]
-                        }
-                        if (columnIndexMap.Has("Content")) {
-                            rowData["Content"] := Row[columnIndexMap["Content"]]
-                        }
-                        if (columnIndexMap.Has("DataType")) {
-                            rowData["DataType"] := Row[columnIndexMap["DataType"]]
-                        }
-                        if (columnIndexMap.Has("SourceApp")) {
-                            rowData["SourceApp"] := Row[columnIndexMap["SourceApp"]]
-                        }
-                        if (columnIndexMap.Has("SourcePath")) {
-                            rowData["SourcePath"] := Row[columnIndexMap["SourcePath"]]
-                        }
-                        if (columnIndexMap.Has("CharCount")) {
-                            rowData["CharCount"] := Row[columnIndexMap["CharCount"]]
-                        }
-                        if (columnIndexMap.Has("Timestamp")) {
-                            rowData["Timestamp"] := Row[columnIndexMap["Timestamp"]]
-                        }
-                        if (columnIndexMap.Has("LastCopyTime")) {
-                            rowData["LastCopyTime"] := Row[columnIndexMap["LastCopyTime"]]
-                        }
-                        if (columnIndexMap.Has("CopyCount")) {
-                            rowData["CopyCount"] := Row[columnIndexMap["CopyCount"]]
-                        }
-                        if (columnIndexMap.Has("ImagePath")) {
-                            rowData["ImagePath"] := Row[columnIndexMap["ImagePath"]]
-                        }
-                    } else {
-                        ; 后备方案：按固定顺序读取
-                        if (Row.HasProp("Length") && Row.Length >= 1) {
-                            rowData["ID"] := Row[1]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 2) {
-                            rowData["Content"] := Row[2]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 3) {
-                            rowData["DataType"] := Row[3]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 4) {
-                            rowData["SourceApp"] := Row[4]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 5) {
-                            rowData["SourcePath"] := Row[5]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 6) {
-                            rowData["CharCount"] := Row[6]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 7) {
-                            rowData["Timestamp"] := Row[7]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 8) {
-                            rowData["LastCopyTime"] := Row[8]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 9) {
-                            rowData["CopyCount"] := Row[9]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 10) {
-                            rowData["ImagePath"] := Row[10]
-                        }
-                    }
-                    
-                    ; 确保所有必需字段都有值
-                    if (!rowData.Has("ID") || rowData["ID"] = "") {
-                        continue
-                    }
-                    if (!rowData.Has("Content") || rowData["Content"] = "") {
-                        continue
-                    }
-                    if (!rowData.Has("DataType") || rowData["DataType"] = "") {
-                        rowData["DataType"] := "Text"
-                    }
-                    if (!rowData.Has("SourceApp") || rowData["SourceApp"] = "") {
-                        rowData["SourceApp"] := ""
-                    }
-                    if (!rowData.Has("SourcePath")) {
-                        rowData["SourcePath"] := ""
-                    }
-                    if (!rowData.Has("CharCount") || rowData["CharCount"] = "" || rowData["CharCount"] = 0) {
-                        rowData["CharCount"] := StrLen(rowData["Content"])
-                    }
-                    if (!rowData.Has("Timestamp") || rowData["Timestamp"] = "") {
-                        rowData["Timestamp"] := ""
-                    }
-                    if (!rowData.Has("LastCopyTime") || rowData["LastCopyTime"] = "") {
-                        rowData["LastCopyTime"] := rowData["Timestamp"]
-                    }
-                    if (!rowData.Has("CopyCount") || rowData["CopyCount"] = "" || rowData["CopyCount"] = 0) {
-                        rowData["CopyCount"] := 1
-                    }
-                    
-                    ID := Integer(rowData["ID"])
-                    Content := String(rowData["Content"])
-                    DataType := String(rowData["DataType"])
-                    SourceApp := String(rowData["SourceApp"])
-                    SourcePath := String(rowData["SourcePath"])
-                    CharCount := Integer(rowData["CharCount"])
-                    Timestamp := String(rowData["Timestamp"])
-                    LastCopyTime := String(rowData["LastCopyTime"])
-                    CopyCount := Integer(rowData["CopyCount"])
-                    
-                    IconIndex := 0
-                    if (SourcePath != "" && FileExist(SourcePath)) {
-                        if (IconCache.Has(SourcePath)) {
-                            IconIndex := IconCache[SourcePath]
-                        } else {
-                            try {
-                                IconIndex := IL_Add(ClipboardImageList, SourcePath, 0)
-                                if (IconIndex > 0) {
-                                    IconCache[SourcePath] := IconIndex
+                    if (IsObject(Row) && Row.HasProp("Length") && Row.Length >= 2) {
+                        ID := (Row.Length >= 1 && Row[1] != "" && Row[1] != 0) ? Integer(Row[1]) : 0
+                        Content := (Row.Length >= 2 && Row[2] != "") ? String(Row[2]) : ""
+                        if (Content != "") {
+                            DataType := (Row.Length >= 3 && Row[3] != "") ? String(Row[3]) : "Text"
+                            SourceApp := (Row.Length >= 4 && Row[4] != "") ? String(Row[4]) : ""
+                            SourcePath := (Row.Length >= 5 && Row[5] != "") ? String(Row[5]) : ""
+                            CharCount := (Row.Length >= 6 && Row[6] != "" && Row[6] != 0) ? Integer(Row[6]) : 0
+                            Timestamp := (Row.Length >= 7 && Row[7] != "") ? String(Row[7]) : ""
+                            LastCopyTime := (Row.Length >= 8 && Row[8] != "") ? String(Row[8]) : Timestamp
+                            CopyCount := (Row.Length >= 9 && Row[9] != "" && Row[9] != 0) ? Integer(Row[9]) : 1
+                            
+                            IconIndex := 0
+                            if (SourcePath != "" && FileExist(SourcePath)) {
+                                if (IconCache.Has(SourcePath)) {
+                                    IconIndex := IconCache[SourcePath]
+                                } else {
+                                    try {
+                                        IconIndex := IL_Add(ClipboardImageList, SourcePath, 0)
+                                        if (IconIndex > 0) {
+                                            IconCache[SourcePath] := IconIndex
+                                        }
+                                    } catch {
+                                    }
                                 }
-                            } catch {
                             }
+                            
+                            ClipboardItems.Push({ID: ID, Content: Content, DataType: DataType, SourceApp: SourceApp, SourcePath: SourcePath, CharCount: CharCount, Timestamp: Timestamp, LastCopyTime: LastCopyTime, CopyCount: CopyCount, IconIndex: IconIndex})
+                            TotalItems++
                         }
                     }
-                    
-                    ClipboardItems.Push({ID: ID, Content: Content, DataType: DataType, SourceApp: SourceApp, SourcePath: SourcePath, CharCount: CharCount, Timestamp: Timestamp, LastCopyTime: LastCopyTime, CopyCount: CopyCount, IconIndex: IconIndex})
-                    TotalItems++
                 }
             }
         } else if (CurrentCategory == "Link") {
@@ -19372,142 +19039,38 @@ RefreshClipboardListView() {
             SQL .= " ORDER BY " . orderByField . " DESC LIMIT " . EverythingLimit
             ResultTable := 0
             if (ClipboardFTS5DB.GetTable(SQL, &ResultTable) && ResultTable && ResultTable.HasProp("Rows")) {
-                ; 创建列名映射
-                columnNames := []
-                columnIndexMap := Map()
-                if (ResultTable.HasNames && ResultTable.ColumnNames.Length > 0) {
-                    columnNames := ResultTable.ColumnNames
-                    Loop columnNames.Length {
-                        colName := columnNames[A_Index]
-                        columnIndexMap[colName] := A_Index
-                    }
-                }
-
                 for Index, Row in ResultTable.Rows {
-                    rowData := Map()
-                    
-                    if (columnIndexMap.Count > 0) {
-                        ; 使用列名映射访问（正确方式）
-                        if (columnIndexMap.Has("ID")) {
-                            rowData["ID"] := Row[columnIndexMap["ID"]]
-                        }
-                        if (columnIndexMap.Has("Content")) {
-                            rowData["Content"] := Row[columnIndexMap["Content"]]
-                        }
-                        if (columnIndexMap.Has("DataType")) {
-                            rowData["DataType"] := Row[columnIndexMap["DataType"]]
-                        }
-                        if (columnIndexMap.Has("SourceApp")) {
-                            rowData["SourceApp"] := Row[columnIndexMap["SourceApp"]]
-                        }
-                        if (columnIndexMap.Has("SourcePath")) {
-                            rowData["SourcePath"] := Row[columnIndexMap["SourcePath"]]
-                        }
-                        if (columnIndexMap.Has("CharCount")) {
-                            rowData["CharCount"] := Row[columnIndexMap["CharCount"]]
-                        }
-                        if (columnIndexMap.Has("Timestamp")) {
-                            rowData["Timestamp"] := Row[columnIndexMap["Timestamp"]]
-                        }
-                        if (columnIndexMap.Has("LastCopyTime")) {
-                            rowData["LastCopyTime"] := Row[columnIndexMap["LastCopyTime"]]
-                        }
-                        if (columnIndexMap.Has("CopyCount")) {
-                            rowData["CopyCount"] := Row[columnIndexMap["CopyCount"]]
-                        }
-                        if (columnIndexMap.Has("ImagePath")) {
-                            rowData["ImagePath"] := Row[columnIndexMap["ImagePath"]]
-                        }
-                    } else {
-                        ; 后备方案：按固定顺序读取
-                        if (Row.HasProp("Length") && Row.Length >= 1) {
-                            rowData["ID"] := Row[1]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 2) {
-                            rowData["Content"] := Row[2]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 3) {
-                            rowData["DataType"] := Row[3]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 4) {
-                            rowData["SourceApp"] := Row[4]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 5) {
-                            rowData["SourcePath"] := Row[5]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 6) {
-                            rowData["CharCount"] := Row[6]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 7) {
-                            rowData["Timestamp"] := Row[7]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 8) {
-                            rowData["LastCopyTime"] := Row[8]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 9) {
-                            rowData["CopyCount"] := Row[9]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 10) {
-                            rowData["ImagePath"] := Row[10]
-                        }
-                    }
-                    
-                    ; 确保所有必需字段都有值
-                    if (!rowData.Has("ID") || rowData["ID"] = "") {
-                        continue
-                    }
-                    if (!rowData.Has("Content") || rowData["Content"] = "") {
-                        continue
-                    }
-                    if (!rowData.Has("DataType") || rowData["DataType"] = "") {
-                        rowData["DataType"] := "Text"
-                    }
-                    if (!rowData.Has("SourceApp") || rowData["SourceApp"] = "") {
-                        rowData["SourceApp"] := ""
-                    }
-                    if (!rowData.Has("SourcePath")) {
-                        rowData["SourcePath"] := ""
-                    }
-                    if (!rowData.Has("CharCount") || rowData["CharCount"] = "" || rowData["CharCount"] = 0) {
-                        rowData["CharCount"] := StrLen(rowData["Content"])
-                    }
-                    if (!rowData.Has("Timestamp") || rowData["Timestamp"] = "") {
-                        rowData["Timestamp"] := ""
-                    }
-                    if (!rowData.Has("LastCopyTime") || rowData["LastCopyTime"] = "") {
-                        rowData["LastCopyTime"] := rowData["Timestamp"]
-                    }
-                    if (!rowData.Has("CopyCount") || rowData["CopyCount"] = "" || rowData["CopyCount"] = 0) {
-                        rowData["CopyCount"] := 1
-                    }
-                    
-                    ID := Integer(rowData["ID"])
-                    Content := String(rowData["Content"])
-                    DataType := String(rowData["DataType"])
-                    SourceApp := String(rowData["SourceApp"])
-                    SourcePath := String(rowData["SourcePath"])
-                    CharCount := Integer(rowData["CharCount"])
-                    Timestamp := String(rowData["Timestamp"])
-                    LastCopyTime := String(rowData["LastCopyTime"])
-                    CopyCount := Integer(rowData["CopyCount"])
-                    
-                    IconIndex := 0
-                    if (SourcePath != "" && FileExist(SourcePath)) {
-                        if (IconCache.Has(SourcePath)) {
-                            IconIndex := IconCache[SourcePath]
-                        } else {
-                            try {
-                                IconIndex := IL_Add(ClipboardImageList, SourcePath, 0)
-                                if (IconIndex > 0) {
-                                    IconCache[SourcePath] := IconIndex
+                    if (IsObject(Row) && Row.HasProp("Length") && Row.Length >= 2) {
+                        ID := (Row.Length >= 1 && Row[1] != "" && Row[1] != 0) ? Integer(Row[1]) : 0
+                        Content := (Row.Length >= 2 && Row[2] != "") ? String(Row[2]) : ""
+                        if (Content != "") {
+                            DataType := (Row.Length >= 3 && Row[3] != "") ? String(Row[3]) : "Text"
+                            SourceApp := (Row.Length >= 4 && Row[4] != "") ? String(Row[4]) : ""
+                            SourcePath := (Row.Length >= 5 && Row[5] != "") ? String(Row[5]) : ""
+                            CharCount := (Row.Length >= 6 && Row[6] != "" && Row[6] != 0) ? Integer(Row[6]) : 0
+                            Timestamp := (Row.Length >= 7 && Row[7] != "") ? String(Row[7]) : ""
+                            LastCopyTime := (Row.Length >= 8 && Row[8] != "") ? String(Row[8]) : Timestamp
+                            CopyCount := (Row.Length >= 9 && Row[9] != "" && Row[9] != 0) ? Integer(Row[9]) : 1
+                            
+                            IconIndex := 0
+                            if (SourcePath != "" && FileExist(SourcePath)) {
+                                if (IconCache.Has(SourcePath)) {
+                                    IconIndex := IconCache[SourcePath]
+                                } else {
+                                    try {
+                                        IconIndex := IL_Add(ClipboardImageList, SourcePath, 0)
+                                        if (IconIndex > 0) {
+                                            IconCache[SourcePath] := IconIndex
+                                        }
+                                    } catch {
+                                    }
                                 }
-                            } catch {
                             }
+                            
+                            ClipboardItems.Push({ID: ID, Content: Content, DataType: DataType, SourceApp: SourceApp, SourcePath: SourcePath, CharCount: CharCount, Timestamp: Timestamp, LastCopyTime: LastCopyTime, CopyCount: CopyCount, IconIndex: IconIndex})
+                            TotalItems++
                         }
                     }
-                    
-                    ClipboardItems.Push({ID: ID, Content: Content, DataType: DataType, SourceApp: SourceApp, SourcePath: SourcePath, CharCount: CharCount, Timestamp: Timestamp, LastCopyTime: LastCopyTime, CopyCount: CopyCount, IconIndex: IconIndex})
-                    TotalItems++
                 }
             }
         } else if (CurrentCategory == "Image") {
@@ -19570,142 +19133,38 @@ RefreshClipboardListView() {
             SQL .= " ORDER BY " . orderByField . " DESC LIMIT " . EverythingLimit
             ResultTable := 0
             if (ClipboardFTS5DB.GetTable(SQL, &ResultTable) && ResultTable && ResultTable.HasProp("Rows")) {
-                ; 创建列名映射
-                columnNames := []
-                columnIndexMap := Map()
-                if (ResultTable.HasNames && ResultTable.ColumnNames.Length > 0) {
-                    columnNames := ResultTable.ColumnNames
-                    Loop columnNames.Length {
-                        colName := columnNames[A_Index]
-                        columnIndexMap[colName] := A_Index
-                    }
-                }
-
                 for Index, Row in ResultTable.Rows {
-                    rowData := Map()
-                    
-                    if (columnIndexMap.Count > 0) {
-                        ; 使用列名映射访问（正确方式）
-                        if (columnIndexMap.Has("ID")) {
-                            rowData["ID"] := Row[columnIndexMap["ID"]]
-                        }
-                        if (columnIndexMap.Has("Content")) {
-                            rowData["Content"] := Row[columnIndexMap["Content"]]
-                        }
-                        if (columnIndexMap.Has("DataType")) {
-                            rowData["DataType"] := Row[columnIndexMap["DataType"]]
-                        }
-                        if (columnIndexMap.Has("SourceApp")) {
-                            rowData["SourceApp"] := Row[columnIndexMap["SourceApp"]]
-                        }
-                        if (columnIndexMap.Has("SourcePath")) {
-                            rowData["SourcePath"] := Row[columnIndexMap["SourcePath"]]
-                        }
-                        if (columnIndexMap.Has("CharCount")) {
-                            rowData["CharCount"] := Row[columnIndexMap["CharCount"]]
-                        }
-                        if (columnIndexMap.Has("Timestamp")) {
-                            rowData["Timestamp"] := Row[columnIndexMap["Timestamp"]]
-                        }
-                        if (columnIndexMap.Has("LastCopyTime")) {
-                            rowData["LastCopyTime"] := Row[columnIndexMap["LastCopyTime"]]
-                        }
-                        if (columnIndexMap.Has("CopyCount")) {
-                            rowData["CopyCount"] := Row[columnIndexMap["CopyCount"]]
-                        }
-                        if (columnIndexMap.Has("ImagePath")) {
-                            rowData["ImagePath"] := Row[columnIndexMap["ImagePath"]]
-                        }
-                    } else {
-                        ; 后备方案：按固定顺序读取
-                        if (Row.HasProp("Length") && Row.Length >= 1) {
-                            rowData["ID"] := Row[1]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 2) {
-                            rowData["Content"] := Row[2]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 3) {
-                            rowData["DataType"] := Row[3]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 4) {
-                            rowData["SourceApp"] := Row[4]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 5) {
-                            rowData["SourcePath"] := Row[5]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 6) {
-                            rowData["CharCount"] := Row[6]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 7) {
-                            rowData["Timestamp"] := Row[7]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 8) {
-                            rowData["LastCopyTime"] := Row[8]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 9) {
-                            rowData["CopyCount"] := Row[9]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 10) {
-                            rowData["ImagePath"] := Row[10]
-                        }
-                    }
-                    
-                    ; 确保所有必需字段都有值
-                    if (!rowData.Has("ID") || rowData["ID"] = "") {
-                        continue
-                    }
-                    if (!rowData.Has("Content") || rowData["Content"] = "") {
-                        continue
-                    }
-                    if (!rowData.Has("DataType") || rowData["DataType"] = "") {
-                        rowData["DataType"] := "Text"
-                    }
-                    if (!rowData.Has("SourceApp") || rowData["SourceApp"] = "") {
-                        rowData["SourceApp"] := ""
-                    }
-                    if (!rowData.Has("SourcePath")) {
-                        rowData["SourcePath"] := ""
-                    }
-                    if (!rowData.Has("CharCount") || rowData["CharCount"] = "" || rowData["CharCount"] = 0) {
-                        rowData["CharCount"] := StrLen(rowData["Content"])
-                    }
-                    if (!rowData.Has("Timestamp") || rowData["Timestamp"] = "") {
-                        rowData["Timestamp"] := ""
-                    }
-                    if (!rowData.Has("LastCopyTime") || rowData["LastCopyTime"] = "") {
-                        rowData["LastCopyTime"] := rowData["Timestamp"]
-                    }
-                    if (!rowData.Has("CopyCount") || rowData["CopyCount"] = "" || rowData["CopyCount"] = 0) {
-                        rowData["CopyCount"] := 1
-                    }
-                    
-                    ID := Integer(rowData["ID"])
-                    Content := String(rowData["Content"])
-                    DataType := String(rowData["DataType"])
-                    SourceApp := String(rowData["SourceApp"])
-                    SourcePath := String(rowData["SourcePath"])
-                    CharCount := Integer(rowData["CharCount"])
-                    Timestamp := String(rowData["Timestamp"])
-                    LastCopyTime := String(rowData["LastCopyTime"])
-                    CopyCount := Integer(rowData["CopyCount"])
-                    
-                    IconIndex := 0
-                    if (SourcePath != "" && FileExist(SourcePath)) {
-                        if (IconCache.Has(SourcePath)) {
-                            IconIndex := IconCache[SourcePath]
-                        } else {
-                            try {
-                                IconIndex := IL_Add(ClipboardImageList, SourcePath, 0)
-                                if (IconIndex > 0) {
-                                    IconCache[SourcePath] := IconIndex
+                    if (IsObject(Row) && Row.HasProp("Length") && Row.Length >= 2) {
+                        ID := (Row.Length >= 1 && Row[1] != "" && Row[1] != 0) ? Integer(Row[1]) : 0
+                        Content := (Row.Length >= 2 && Row[2] != "") ? String(Row[2]) : ""
+                        if (Content != "") {
+                            DataType := (Row.Length >= 3 && Row[3] != "") ? String(Row[3]) : "Text"
+                            SourceApp := (Row.Length >= 4 && Row[4] != "") ? String(Row[4]) : ""
+                            SourcePath := (Row.Length >= 5 && Row[5] != "") ? String(Row[5]) : ""
+                            CharCount := (Row.Length >= 6 && Row[6] != "" && Row[6] != 0) ? Integer(Row[6]) : 0
+                            Timestamp := (Row.Length >= 7 && Row[7] != "") ? String(Row[7]) : ""
+                            LastCopyTime := (Row.Length >= 8 && Row[8] != "") ? String(Row[8]) : Timestamp
+                            CopyCount := (Row.Length >= 9 && Row[9] != "" && Row[9] != 0) ? Integer(Row[9]) : 1
+                            
+                            IconIndex := 0
+                            if (SourcePath != "" && FileExist(SourcePath)) {
+                                if (IconCache.Has(SourcePath)) {
+                                    IconIndex := IconCache[SourcePath]
+                                } else {
+                                    try {
+                                        IconIndex := IL_Add(ClipboardImageList, SourcePath, 0)
+                                        if (IconIndex > 0) {
+                                            IconCache[SourcePath] := IconIndex
+                                        }
+                                    } catch {
+                                    }
                                 }
-                            } catch {
                             }
+                            
+                            ClipboardItems.Push({ID: ID, Content: Content, DataType: DataType, SourceApp: SourceApp, SourcePath: SourcePath, CharCount: CharCount, Timestamp: Timestamp, LastCopyTime: LastCopyTime, CopyCount: CopyCount, IconIndex: IconIndex})
+                            TotalItems++
                         }
                     }
-                    
-                    ClipboardItems.Push({ID: ID, Content: Content, DataType: DataType, SourceApp: SourceApp, SourcePath: SourcePath, CharCount: CharCount, Timestamp: Timestamp, LastCopyTime: LastCopyTime, CopyCount: CopyCount, IconIndex: IconIndex})
-                    TotalItems++
                 }
             }
         } else if (CurrentCategory == "Clipboard") {
@@ -19720,142 +19179,38 @@ RefreshClipboardListView() {
             SQL := "SELECT " . selectFields . " FROM ClipMain " . (WhereClause != "" ? WhereClause : "") . " ORDER BY " . orderByField . " DESC LIMIT " . EverythingLimit
             ResultTable := 0
             if (ClipboardFTS5DB.GetTable(SQL, &ResultTable) && ResultTable && ResultTable.HasProp("Rows")) {
-                ; 创建列名映射
-                columnNames := []
-                columnIndexMap := Map()
-                if (ResultTable.HasNames && ResultTable.ColumnNames.Length > 0) {
-                    columnNames := ResultTable.ColumnNames
-                    Loop columnNames.Length {
-                        colName := columnNames[A_Index]
-                        columnIndexMap[colName] := A_Index
-                    }
-                }
-
                 for Index, Row in ResultTable.Rows {
-                    rowData := Map()
-                    
-                    if (columnIndexMap.Count > 0) {
-                        ; 使用列名映射访问（正确方式）
-                        if (columnIndexMap.Has("ID")) {
-                            rowData["ID"] := Row[columnIndexMap["ID"]]
-                        }
-                        if (columnIndexMap.Has("Content")) {
-                            rowData["Content"] := Row[columnIndexMap["Content"]]
-                        }
-                        if (columnIndexMap.Has("DataType")) {
-                            rowData["DataType"] := Row[columnIndexMap["DataType"]]
-                        }
-                        if (columnIndexMap.Has("SourceApp")) {
-                            rowData["SourceApp"] := Row[columnIndexMap["SourceApp"]]
-                        }
-                        if (columnIndexMap.Has("SourcePath")) {
-                            rowData["SourcePath"] := Row[columnIndexMap["SourcePath"]]
-                        }
-                        if (columnIndexMap.Has("CharCount")) {
-                            rowData["CharCount"] := Row[columnIndexMap["CharCount"]]
-                        }
-                        if (columnIndexMap.Has("Timestamp")) {
-                            rowData["Timestamp"] := Row[columnIndexMap["Timestamp"]]
-                        }
-                        if (columnIndexMap.Has("LastCopyTime")) {
-                            rowData["LastCopyTime"] := Row[columnIndexMap["LastCopyTime"]]
-                        }
-                        if (columnIndexMap.Has("CopyCount")) {
-                            rowData["CopyCount"] := Row[columnIndexMap["CopyCount"]]
-                        }
-                        if (columnIndexMap.Has("ImagePath")) {
-                            rowData["ImagePath"] := Row[columnIndexMap["ImagePath"]]
-                        }
-                    } else {
-                        ; 后备方案：按固定顺序读取
-                        if (Row.HasProp("Length") && Row.Length >= 1) {
-                            rowData["ID"] := Row[1]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 2) {
-                            rowData["Content"] := Row[2]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 3) {
-                            rowData["DataType"] := Row[3]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 4) {
-                            rowData["SourceApp"] := Row[4]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 5) {
-                            rowData["SourcePath"] := Row[5]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 6) {
-                            rowData["CharCount"] := Row[6]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 7) {
-                            rowData["Timestamp"] := Row[7]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 8) {
-                            rowData["LastCopyTime"] := Row[8]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 9) {
-                            rowData["CopyCount"] := Row[9]
-                        }
-                        if (Row.HasProp("Length") && Row.Length >= 10) {
-                            rowData["ImagePath"] := Row[10]
-                        }
-                    }
-                    
-                    ; 确保所有必需字段都有值
-                    if (!rowData.Has("ID") || rowData["ID"] = "") {
-                        continue
-                    }
-                    if (!rowData.Has("Content") || rowData["Content"] = "") {
-                        continue
-                    }
-                    if (!rowData.Has("DataType") || rowData["DataType"] = "") {
-                        rowData["DataType"] := "Text"
-                    }
-                    if (!rowData.Has("SourceApp") || rowData["SourceApp"] = "") {
-                        rowData["SourceApp"] := ""
-                    }
-                    if (!rowData.Has("SourcePath")) {
-                        rowData["SourcePath"] := ""
-                    }
-                    if (!rowData.Has("CharCount") || rowData["CharCount"] = "" || rowData["CharCount"] = 0) {
-                        rowData["CharCount"] := StrLen(rowData["Content"])
-                    }
-                    if (!rowData.Has("Timestamp") || rowData["Timestamp"] = "") {
-                        rowData["Timestamp"] := ""
-                    }
-                    if (!rowData.Has("LastCopyTime") || rowData["LastCopyTime"] = "") {
-                        rowData["LastCopyTime"] := rowData["Timestamp"]
-                    }
-                    if (!rowData.Has("CopyCount") || rowData["CopyCount"] = "" || rowData["CopyCount"] = 0) {
-                        rowData["CopyCount"] := 1
-                    }
-                    
-                    ID := Integer(rowData["ID"])
-                    Content := String(rowData["Content"])
-                    DataType := String(rowData["DataType"])
-                    SourceApp := String(rowData["SourceApp"])
-                    SourcePath := String(rowData["SourcePath"])
-                    CharCount := Integer(rowData["CharCount"])
-                    Timestamp := String(rowData["Timestamp"])
-                    LastCopyTime := String(rowData["LastCopyTime"])
-                    CopyCount := Integer(rowData["CopyCount"])
-                    
-                    IconIndex := 0
-                    if (SourcePath != "" && FileExist(SourcePath)) {
-                        if (IconCache.Has(SourcePath)) {
-                            IconIndex := IconCache[SourcePath]
-                        } else {
-                            try {
-                                IconIndex := IL_Add(ClipboardImageList, SourcePath, 0)
-                                if (IconIndex > 0) {
-                                    IconCache[SourcePath] := IconIndex
+                    if (IsObject(Row) && Row.HasProp("Length") && Row.Length >= 2) {
+                        ID := (Row.Length >= 1 && Row[1] != "" && Row[1] != 0) ? Integer(Row[1]) : 0
+                        Content := (Row.Length >= 2 && Row[2] != "") ? String(Row[2]) : ""
+                        if (Content != "") {
+                            DataType := (Row.Length >= 3 && Row[3] != "") ? String(Row[3]) : "Text"
+                            SourceApp := (Row.Length >= 4 && Row[4] != "") ? String(Row[4]) : ""
+                            SourcePath := (Row.Length >= 5 && Row[5] != "") ? String(Row[5]) : ""
+                            CharCount := (Row.Length >= 6 && Row[6] != "" && Row[6] != 0) ? Integer(Row[6]) : 0
+                            Timestamp := (Row.Length >= 7 && Row[7] != "") ? String(Row[7]) : ""
+                            LastCopyTime := (Row.Length >= 8 && Row[8] != "") ? String(Row[8]) : Timestamp
+                            CopyCount := (Row.Length >= 9 && Row[9] != "" && Row[9] != 0) ? Integer(Row[9]) : 1
+                            
+                            IconIndex := 0
+                            if (SourcePath != "" && FileExist(SourcePath)) {
+                                if (IconCache.Has(SourcePath)) {
+                                    IconIndex := IconCache[SourcePath]
+                                } else {
+                                    try {
+                                        IconIndex := IL_Add(ClipboardImageList, SourcePath, 0)
+                                        if (IconIndex > 0) {
+                                            IconCache[SourcePath] := IconIndex
+                                        }
+                                    } catch {
+                                    }
                                 }
-                            } catch {
                             }
+                            
+                            ClipboardItems.Push({ID: ID, Content: Content, DataType: DataType, SourceApp: SourceApp, SourcePath: SourcePath, CharCount: CharCount, Timestamp: Timestamp, LastCopyTime: LastCopyTime, CopyCount: CopyCount, IconIndex: IconIndex})
+                            TotalItems++
                         }
                     }
-                    
-                    ClipboardItems.Push({ID: ID, Content: Content, DataType: DataType, SourceApp: SourceApp, SourcePath: SourcePath, CharCount: CharCount, Timestamp: Timestamp, LastCopyTime: LastCopyTime, CopyCount: CopyCount, IconIndex: IconIndex})
-                    TotalItems++
                 }
             }
         } else if (CurrentCategory == "File") {
@@ -20021,129 +19376,22 @@ RefreshClipboardListView() {
                 return
             }
             
-            ; 创建列名映射
-            columnNames := []
-            columnIndexMap := Map()
-            if (ResultTable.HasNames && ResultTable.ColumnNames.Length > 0) {
-                columnNames := ResultTable.ColumnNames
-                Loop columnNames.Length {
-                    colName := columnNames[A_Index]
-                    columnIndexMap[colName] := A_Index
-                }
-            }
-            
             ; 处理数据库查询结果
             for Index, Row in ResultTable.Rows {
-                if (!IsObject(Row)) {
+                if (!IsObject(Row) || !Row.HasProp("Length") || Row.Length < 2) {
                     continue
                 }
                 
-                rowData := Map()
-                
-                if (columnIndexMap.Count > 0) {
-                    ; 使用列名映射访问（正确方式）
-                    if (columnIndexMap.Has("ID")) {
-                        rowData["ID"] := Row[columnIndexMap["ID"]]
-                    }
-                    if (columnIndexMap.Has("Content")) {
-                        rowData["Content"] := Row[columnIndexMap["Content"]]
-                    }
-                    if (columnIndexMap.Has("DataType")) {
-                        rowData["DataType"] := Row[columnIndexMap["DataType"]]
-                    }
-                    if (columnIndexMap.Has("SourceApp")) {
-                        rowData["SourceApp"] := Row[columnIndexMap["SourceApp"]]
-                    }
-                    if (columnIndexMap.Has("SourcePath")) {
-                        rowData["SourcePath"] := Row[columnIndexMap["SourcePath"]]
-                    }
-                    if (columnIndexMap.Has("CharCount")) {
-                        rowData["CharCount"] := Row[columnIndexMap["CharCount"]]
-                    }
-                    if (columnIndexMap.Has("Timestamp")) {
-                        rowData["Timestamp"] := Row[columnIndexMap["Timestamp"]]
-                    }
-                    if (columnIndexMap.Has("LastCopyTime")) {
-                        rowData["LastCopyTime"] := Row[columnIndexMap["LastCopyTime"]]
-                    }
-                    if (columnIndexMap.Has("CopyCount")) {
-                        rowData["CopyCount"] := Row[columnIndexMap["CopyCount"]]
-                    }
-                    if (columnIndexMap.Has("ImagePath")) {
-                        rowData["ImagePath"] := Row[columnIndexMap["ImagePath"]]
-                    }
-                } else {
-                    ; 后备方案：按固定顺序读取
-                    if (Row.HasProp("Length") && Row.Length >= 1) {
-                        rowData["ID"] := Row[1]
-                    }
-                    if (Row.HasProp("Length") && Row.Length >= 2) {
-                        rowData["Content"] := Row[2]
-                    }
-                    if (Row.HasProp("Length") && Row.Length >= 3) {
-                        rowData["DataType"] := Row[3]
-                    }
-                    if (Row.HasProp("Length") && Row.Length >= 4) {
-                        rowData["SourceApp"] := Row[4]
-                    }
-                    if (Row.HasProp("Length") && Row.Length >= 5) {
-                        rowData["SourcePath"] := Row[5]
-                    }
-                    if (Row.HasProp("Length") && Row.Length >= 6) {
-                        rowData["CharCount"] := Row[6]
-                    }
-                    if (Row.HasProp("Length") && Row.Length >= 7) {
-                        rowData["Timestamp"] := Row[7]
-                    }
-                    if (Row.HasProp("Length") && Row.Length >= 8) {
-                        rowData["LastCopyTime"] := Row[8]
-                    }
-                    if (Row.HasProp("Length") && Row.Length >= 9) {
-                        rowData["CopyCount"] := Row[9]
-                    }
-                    if (Row.HasProp("Length") && Row.Length >= 10) {
-                        rowData["ImagePath"] := Row[10]
-                    }
-                }
-                
-                ; 确保所有必需字段都有值
-                if (!rowData.Has("ID") || rowData["ID"] = "") {
-                    continue
-                }
-                if (!rowData.Has("Content") || rowData["Content"] = "") {
-                    continue
-                }
-                if (!rowData.Has("DataType") || rowData["DataType"] = "") {
-                    rowData["DataType"] := "Text"
-                }
-                if (!rowData.Has("SourceApp") || rowData["SourceApp"] = "") {
-                    rowData["SourceApp"] := ""
-                }
-                if (!rowData.Has("SourcePath")) {
-                    rowData["SourcePath"] := ""
-                }
-                if (!rowData.Has("CharCount") || rowData["CharCount"] = "" || rowData["CharCount"] = 0) {
-                    rowData["CharCount"] := StrLen(rowData["Content"])
-                }
-                if (!rowData.Has("Timestamp") || rowData["Timestamp"] = "") {
-                    rowData["Timestamp"] := ""
-                }
-                if (!rowData.Has("LastCopyTime") || rowData["LastCopyTime"] = "") {
-                    rowData["LastCopyTime"] := rowData["Timestamp"]
-                }
-                if (!rowData.Has("CopyCount") || rowData["CopyCount"] = "" || rowData["CopyCount"] = 0) {
-                    rowData["CopyCount"] := 1
-                }
-                
-                ID := Integer(rowData["ID"])
-                Content := String(rowData["Content"])
-                DataType := String(rowData["DataType"])
-                SourceApp := String(rowData["SourceApp"])
-                SourcePath := String(rowData["SourcePath"])
-                CharCount := Integer(rowData["CharCount"])
-                Timestamp := String(rowData["Timestamp"])
-                LastCopyTime := String(rowData["LastCopyTime"])
-                CopyCount := Integer(rowData["CopyCount"])
+                ; Row[1] = ID, Row[2] = Content, Row[3] = DataType, Row[4] = SourceApp, Row[5] = SourcePath, Row[6] = CharCount, Row[7] = Timestamp, Row[8] = LastCopyTime, Row[9] = CopyCount
+                ID := (Row.Length >= 1 && Row[1] != "" && Row[1] != 0) ? Integer(Row[1]) : 0
+                Content := (Row.Length >= 2 && Row[2] != "") ? String(Row[2]) : ""
+                DataType := (Row.Length >= 3 && Row[3] != "") ? String(Row[3]) : "Text"
+                SourceApp := (Row.Length >= 4 && Row[4] != "") ? String(Row[4]) : ""
+                SourcePath := (Row.Length >= 5 && Row[5] != "") ? String(Row[5]) : ""
+                CharCount := (Row.Length >= 6 && Row[6] != "" && Row[6] != 0) ? Integer(Row[6]) : 0
+                Timestamp := (Row.Length >= 7 && Row[7] != "") ? String(Row[7]) : ""
+                LastCopyTime := (Row.Length >= 8 && Row[8] != "") ? String(Row[8]) : Timestamp
+                CopyCount := (Row.Length >= 9 && Row[9] != "" && Row[9] != 0) ? Integer(Row[9]) : 1
                 
                 if (Content = "") {
                     continue

@@ -36,10 +36,10 @@ global HistoryGdiplusToken := 0  ; GDI+ Token（用于初始化 GDI+）
 global StackClipboardItems := []  ; 叠加复制的内容列表（存储数据库ID）
 global HistoryImageList := 0  ; 自定义 ImageList（用于显示精准软件图标）
 global HistoryIconCache := Map()  ; 图标缓存（避免重复提取）
-global HistoryCurrentLimit := 100  ; 当前加载的数据量限制
+global HistoryCurrentLimit := 50  ; 当前加载的数据量限制
 global HistoryHasMoreData := false  ; 是否还有更多数据
 global HistoryResultLimitDropdown := 0  ; 结果数量限制下拉菜单
-global HistoryEverythingLimit := 50  ; Everything 搜索的结果数量限制（默认50）
+; HistoryEverythingLimit 已废弃，统一使用 HistoryCurrentLimit
 
 ; 暗黑模式配色（Cursor色系）
 HistoryColors := {
@@ -68,7 +68,7 @@ ShowClipboardHistoryPanel() {
         try {
             ControlFocus(HistorySearchEdit)
             ; 重置限制并强制刷新数据
-            HistoryCurrentLimit := 100
+            HistoryCurrentLimit := 50
             RefreshHistoryData()
         }
         return
@@ -84,7 +84,7 @@ ShowClipboardHistoryPanel() {
     CreateHistoryPanelGUI()
     
     ; 重置限制
-    HistoryCurrentLimit := 100
+    HistoryCurrentLimit := 50
     
     ; 加载数据（确保在显示前加载）
     RefreshHistoryData()
@@ -159,19 +159,19 @@ CreateHistoryPanelGUI() {
     DropdownWidth := 80
     DropdownHeight := SearchBoxHeight
     
-    ; 创建下拉菜单选项（10, 20, 30, 50, 100, 200, 500）- 直接内联数组
-    ; R7 表示显示 7 行，确保所有选项都可见
-    DropdownDefaultIndex := 4  ; 默认选择50（索引从1开始，50是第4个选项)
+    ; 创建下拉菜单选项（50, 100, 500, 1000, 10000, 所有）- 直接内联数组
+    ; R6 表示显示 6 行，确保所有选项都可见
+    DropdownDefaultIndex := 1  ; 默认选择50（索引从1开始，50是第1个选项)
 
     HistoryResultLimitDropdown := GuiID_ClipboardHistory.Add("DropDownList",
         "x" . DropdownX . " y" . DropdownY .
         " w" . DropdownWidth . " h" . DropdownHeight .
-        " R7" .  ; 显示 7 行，确保所有选项可见
+        " R6" .  ; 显示 6 行，确保所有选项都可见
         " Background" . HistoryColors.InputBg .
         " c" . HistoryColors.Text .
         " Choose" . DropdownDefaultIndex .
         " vHistoryResultLimitDropdown",
-        ["10", "20", "30", "50", "100", "200", "500"])
+        ["50", "100", "500", "1000", "10000", "所有"])
     
     HistoryResultLimitDropdown.SetFont("s10", "Segoe UI")
     HistoryResultLimitDropdown.OnEvent("Change", OnHistoryResultLimitChange)
@@ -190,9 +190,6 @@ CreateHistoryPanelGUI() {
     
     HistorySearchEdit.SetFont("s11", "Segoe UI")
     HistorySearchEdit.OnEvent("Change", OnHistorySearchChange)
-    
-    ; 初始化 Everything 搜索限制值
-    HistoryEverythingLimit := 50
     
     ; 移除 Edit 控件的默认边框样式
     SearchEditHwnd := HistorySearchEdit.Hwnd
@@ -1273,8 +1270,8 @@ RefreshHistoryData(keyword := "", offset := 0, limit := 0) {
     if (keyword != "" && StrLen(keyword) > 1 && HistorySelectedTag != "Image" && HistorySelectedTag != "Color" && HistorySelectedTag != "Code") {
         try {
             ; 使用辅助函数安全调用 GetEverythingResults（如果存在）
-            ; 使用下拉菜单设置的结果数量限制
-            everythingResults := _ClipboardFTS5_GetEverythingResults(keyword, HistoryEverythingLimit)
+            ; 使用 HistoryCurrentLimit 作为结果数量限制
+            everythingResults := _ClipboardFTS5_GetEverythingResults(keyword, HistoryCurrentLimit)
             
             if (IsObject(everythingResults) && everythingResults.Length > 0) {
                 ; 先收集所有文件结果
@@ -1624,28 +1621,56 @@ RefreshHistoryData(keyword := "", offset := 0, limit := 0) {
 }
 
 ; ===================== 结果数量限制下拉菜单变化事件 =====================
-OnHistoryResultLimitChange(*) {
-    global HistoryResultLimitDropdown, HistoryEverythingLimit, HistorySearchEdit, HistoryCurrentLimit
-    
-    ; 检查控件是否存在
-    if (!IsSet(HistoryResultLimitDropdown) || !HistoryResultLimitDropdown) {
-        return
+OnHistoryResultLimitChange(Ctrl, *) {
+    global HistoryResultLimitDropdown, HistorySearchEdit, HistoryCurrentLimit, GuiID_ClipboardHistory
+
+    ; 优先使用事件参数传入的控件引用，如果不存在则使用全局变量
+    dropdownCtrl := Ctrl
+    if (!dropdownCtrl || !IsObject(dropdownCtrl)) {
+        ; 如果事件参数无效，尝试使用全局变量
+        if (IsSet(HistoryResultLimitDropdown) && HistoryResultLimitDropdown) {
+            dropdownCtrl := HistoryResultLimitDropdown
+        } else {
+            ; 尝试从 GUI 对象获取控件
+            try {
+                dropdownCtrl := GuiID_ClipboardHistory["HistoryResultLimitDropdown"]
+            } catch {
+                return
+            }
+        }
     }
-    
-    ; 获取选中的值
+
+    ; 获取选中的值（直接读取控件的 Text 和 Value 属性）
     try {
-        selectedText := HistoryResultLimitDropdown.Value
-        HistoryEverythingLimit := Integer(selectedText)
-    } catch {
-        HistoryEverythingLimit := 50  ; 默认值
+        ; 方法1：使用 Text 属性获取显示的文本
+        selectedText := dropdownCtrl.Text
+        ; 方法2：使用 Value 属性获取选中的索引（从1开始）
+        selectedIndex := dropdownCtrl.Value
+
+        ; 处理"所有"选项（索引6）
+        if (selectedIndex = 6) {
+            HistoryCurrentLimit := 100000  ; 设置一个很大的值
+        } else {
+            ; 尝试转换为整数，直接设置 HistoryCurrentLimit
+            newLimit := Integer(selectedText)
+            if (newLimit > 0) {
+                HistoryCurrentLimit := newLimit
+            } else {
+                ; 保持当前值
+            }
+        }
+    } catch as err {
+        HistoryCurrentLimit := 50  ; 默认值
     }
     
-    ; 如果搜索框有内容，重新搜索
+    ; 获取当前搜索关键词
+    keyword := ""
     if (IsSet(HistorySearchEdit) && HistorySearchEdit && HistorySearchEdit.Value != "") {
         keyword := Trim(HistorySearchEdit.Value)
-        HistoryCurrentLimit := 100  ; 重置限制
-        RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
     }
+
+    ; 刷新数据
+    RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
 }
 
 ; ===================== 搜索框变化事件（带防抖）=====================
@@ -1675,8 +1700,7 @@ DoSearchRefresh(*) {
     
     ; 参考 SearchCenter 的实现，使用 Trim 处理关键词
     keyword := Trim(HistorySearchEdit.Value)
-    ; 搜索时重置限制
-    HistoryCurrentLimit := 100
+    ; 搜索时不重置限制，保持用户在下拉菜单中的选择
     RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
 }
 
@@ -1698,7 +1722,7 @@ OnHistoryTagClick(tagType, *) {
         if (tagType = "Color") {
             ; 先刷新数据，然后显示汇总面板
             keyword := Trim(HistorySearchEdit.Value)
-            HistoryCurrentLimit := 100
+            ; 不重置限制，保持用户在下拉菜单中的选择
             RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
             ; 延迟显示，确保数据已加载
             SetTimer(() => ShowColorSummaryPanel(), -200)
@@ -1714,8 +1738,7 @@ OnHistoryTagClick(tagType, *) {
     ; 如果不是颜色标签，刷新数据
     if (tagType != "Color") {
         keyword := Trim(HistorySearchEdit.Value)
-        ; 切换标签时重置限制
-        HistoryCurrentLimit := 100
+        ; 切换标签时不重置限制，保持用户在下拉菜单中的选择
         RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
     }
 }
@@ -3548,7 +3571,7 @@ HandleStackCopy() {
                     }
                     ; 刷新数据（只显示 CapsLock+C 的数据）
                     keyword := Trim(HistorySearchEdit ? HistorySearchEdit.Value : "")
-                    HistoryCurrentLimit := 100
+                    ; 不重置限制，保持用户在下拉菜单中的选择
                     RefreshHistoryData(keyword, 0, HistoryCurrentLimit)
                 }
             } else {

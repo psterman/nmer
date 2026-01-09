@@ -1,0 +1,119 @@
+                            TotalItems++
+                        }
+                    }
+                }
+            }
+            
+            ; 2. 文件数据（如果有搜索关键词）
+            ; 【修复说明】文件数据只在有搜索关键词时查询是合理的，因为查询所有文件会非常慢
+            ; 但如果用户期望"全部"标签显示所有文件，可以考虑添加一个选项或限制数量
+            if (SearchKeyword != "" && StrLen(SearchKeyword) > 1) {
+                try {
+                    EverythingResults := GetEverythingResults(SearchKeyword, EverythingLimit, true)
+                    for index, result in EverythingResults {
+                        if (Type(result) = "Map") {
+                            path := result["Path"]
+                            isDirectory := result["IsDirectory"]
+                            fileSize := result.Has("Size") ? result["Size"] : 0
+                            dateModified := result.Has("DateModified") ? result["DateModified"] : 0
+                            
+                            SplitPath(path, &FileName, &DirPath, &Ext, &NameNoExt)
+                            
+                            IconIndex := 0
+                            if (IconCache.Has(path)) {
+                                IconIndex := IconCache[path]
+                            } else {
+                                try {
+                                    IconIndex := IL_Add(ClipboardImageList, path, 0)
+                                    if (IconIndex > 0) {
+                                        IconCache[path] := IconIndex
+                                    }
+                                } catch {
+                                }
+                            }
+                            
+                            sizeStr := ""
+                            if (!isDirectory && fileSize > 0) {
+                                if (fileSize < 1024) {
+                                    sizeStr := fileSize . " B"
+                                } else if (fileSize < 1048576) {
+                                    sizeStr := Round(fileSize / 1024, 2) . " KB"
+                                } else if (fileSize < 1073741824) {
+                                    sizeStr := Round(fileSize / 1048576, 2) . " MB"
+                                } else {
+                                    sizeStr := Round(fileSize / 1073741824, 2) . " GB"
+                                }
+                            }
+                            
+                            dateStr := ""
+                            if (dateModified > 0) {
+                                try {
+                                    fileTime := Buffer(8)
+                                    NumPut("Int64", dateModified, fileTime)
+                                    localFileTime := Buffer(8)
+                                    if (DllCall("FileTimeToLocalFileTime", "Ptr", fileTime.Ptr, "Ptr", localFileTime.Ptr)) {
+                                        systemTime := Buffer(16)
+                                        if (DllCall("FileTimeToSystemTime", "Ptr", localFileTime.Ptr, "Ptr", systemTime.Ptr)) {
+                                            year := NumGet(systemTime, 0, "UShort")
+                                            month := NumGet(systemTime, 2, "UShort")
+                                            day := NumGet(systemTime, 4, "UShort")
+                                            hour := NumGet(systemTime, 6, "UShort")
+                                            minute := NumGet(systemTime, 8, "UShort")
+                                            dateStr := Format("{:04d}-{:02d}-{:02d} {:02d}:{:02d}", year, month, day, hour, minute)
+                                        }
+                                    }
+                                } catch {
+                                }
+                            }
+                            
+                            fileItem := Map()
+                            fileItem["ID"] := 0
+                            fileItem["Content"] := path
+                            fileItem["DataType"] := isDirectory ? "Folder" : "File"
+                            fileItem["SourceApp"] := "文件系统"
+                            fileItem["SourcePath"] := path
+                            fileItem["CharCount"] := 0
+                            fileItem["Timestamp"] := dateStr
+                            fileItem["LastCopyTime"] := dateStr
+                            fileItem["CopyCount"] := 1
+                            fileItem["IconIndex"] := IconIndex
+                            fileItem["FileSize"] := sizeStr
+                            
+                            ClipboardItems.Push(fileItem)
+                            TotalItems++
+                        }
+                    }
+                } catch {
+                }
+            }
+            
+            ; 3. 提示词数据（如果有搜索关键词）
+            if (SearchKeyword != "") {
+                try {
+                    TemplateResults := SearchPromptTemplates(SearchKeyword, EverythingLimit, 0)
+                    for index, templateResult in TemplateResults {
+                        if (Type(templateResult) = "Map" && templateResult.Has("Content")) {
+                            templateItem := Map()
+                            templateItem["ID"] := templateResult.Has("ID") ? templateResult["ID"] : 0
+                            templateItem["Content"] := templateResult["Content"]
+                            templateItem["DataType"] := "Template"
+                            templateItem["SourceApp"] := templateResult.Has("Metadata") && templateResult["Metadata"].Has("Category") ? templateResult["Metadata"]["Category"] : "提示词"
+                            templateItem["SourcePath"] := ""
+                            templateItem["CharCount"] := StrLen(templateResult["Content"])
+                            templateItem["Timestamp"] := ""
+                            templateItem["LastCopyTime"] := ""
+                            templateItem["CopyCount"] := 1
+                            templateItem["IconIndex"] := 0
+                            templateItem["FileSize"] := "-"
+                            templateItem["Title"] := templateResult.Has("Title") ? templateResult["Title"] : ""
+                            
+                            ClipboardItems.Push(templateItem)
+                            TotalItems++
+                        }
+                    }
+                } catch {
+                }
+            }
+            
+            ; 4. 配置项数据（软件内部选项，如果有搜索关键词）
+            if (SearchKeyword != "") {

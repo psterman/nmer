@@ -10981,3 +10981,108 @@
 [2026-01-09 15:35:04] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
 [2026-01-09 15:35:06] RefreshClipboardListView: 列表刷新完成 - 总项数=28, 已添加行数=28
 [2026-01-09 15:35:07] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-10 04:46:42] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-10 04:46:42] 全部标签查询成功，结果数: 50
+[2026-01-10 04:46:42] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-10 04:46:44] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%1%' OR SourceApp LIKE '%1%') ORDER BY Timestamp DESC LIMIT 50
+[2026-01-10 04:46:44] 全部标签查询成功，结果数: 50
+[2026-01-10 04:46:44] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-10 04:46:45] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%13%' OR SourceApp LIKE '%13%') ORDER BY Timestamp DESC LIMIT 50
+[2026-01-10 04:46:45] 全部标签查询成功，结果数: 25
+[2026-01-10 04:46:45] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-10 04:46:48] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%1%' OR SourceApp LIKE '%1%') ORDER BY Timestamp DESC LIMIT 50
+[2026-01-10 04:46:48] 全部标签查询成功，结果数: 50
+[2026-01-10 04:46:48] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-10 04:46:49] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-10 04:46:49] 全部标签查询成功，结果数: 50
+[2026-01-10 04:46:49] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-10 04:46:50] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE ID IN (SELECT rowid FROM ClipboardHistory WHERE ClipboardHistory MATCH 'NIHAO') ORDER BY Timestamp DESC LIMIT 50
+[2026-01-10 04:46:50] 全部标签查询成功，结果数: 0
+[2026-01-10 04:46:51] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-10 04:46:51] 全部标签查询成功，结果数: 50
+[2026-01-10 04:46:51] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-10 04:46:56] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%去%' OR SourceApp LIKE '%去%') ORDER BY Timestamp DESC LIMIT 50
+[2026-01-10 04:46:56] 全部标签查询成功，结果数: 9
+[2026-01-10 04:46:56] RefreshClipboardListView: 列表刷新完成 - 总项数=9, 已添加行数=9
+[2026-01-10 04:46:57] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-10 04:46:57] 全部标签查询成功，结果数: 50
+[2026-01-10 04:46:57] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-10 04:46:59] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%我%' OR SourceApp LIKE '%我%') ORDER BY Timestamp DESC LIMIT 50
+[2026-01-10 04:46:59] 全部标签查询成功，结果数: 38
+[2026-01-10 04:46:59] RefreshClipboardListView: 列表刷新完成 - 总项数=38, 已添加行数=38
+[2026-01-10 04:47:01] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-10 04:47:01] 全部标签查询成功，结果数: 50
+[2026-01-10 04:47:01] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-10 04:47:15] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 100
+[2026-01-10 04:47:15] 全部标签查询成功，结果数: 100
+[2026-01-10 04:47:15] RefreshClipboardListView: 列表刷新完成 - 总项数=100, 已添加行数=100
+[2026-01-10 04:47:20] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 20
+[2026-01-10 04:47:20] 全部标签查询成功，结果数: 20
+[2026-01-10 04:47:20] RefreshClipboardListView: 列表刷新完成 - 总项数=20, 已添加行数=20
+[2026-01-10 04:47:30] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%我%' OR SourceApp LIKE '%我%') ORDER BY Timestamp DESC LIMIT 20
+[2026-01-10 04:47:30] 全部标签查询成功，结果数: 20
+[2026-01-10 04:47:30] RefreshClipboardListView: 列表刷新完成 - 总项数=20, 已添加行数=20
+[2026-01-10 04:47:34] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%我%' OR SourceApp LIKE '%我%') ORDER BY Timestamp DESC LIMIT 500
+[2026-01-10 04:47:34] 全部标签查询成功，结果数: 38
+[2026-01-10 04:47:34] RefreshClipboardListView: 列表刷新完成 - 总项数=38, 已添加行数=38
+[2026-01-10 04:47:49] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%我%' OR SourceApp LIKE '%我%') ORDER BY Timestamp DESC LIMIT 20
+[2026-01-10 04:47:49] 全部标签查询成功，结果数: 20
+[2026-01-10 04:47:49] RefreshClipboardListView: 列表刷新完成 - 总项数=20, 已添加行数=20
+[2026-01-10 04:47:51] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%我%' OR SourceApp LIKE '%我%') ORDER BY Timestamp DESC LIMIT 10
+[2026-01-10 04:47:51] 全部标签查询成功，结果数: 10
+[2026-01-10 04:47:51] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-10 04:47:58] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%我%' OR SourceApp LIKE '%我%') ORDER BY Timestamp DESC LIMIT 200
+[2026-01-10 04:47:58] 全部标签查询成功，结果数: 38
+[2026-01-10 04:47:58] RefreshClipboardListView: 列表刷新完成 - 总项数=38, 已添加行数=38
+[2026-01-10 04:48:07] Click: ClientX=166, ClientY=181, Result=8, flags=0x4, iItem=8, iSubItem=0
+[2026-01-10 04:48:15] RefreshClipboardListView: 列表刷新完成 - 总项数=12, 已添加行数=12
+[2026-01-10 04:48:18] RefreshClipboardListView: 列表刷新完成 - 总项数=26, 已添加行数=26
+[2026-01-10 04:48:28] RefreshClipboardListView: 列表刷新完成 - 总项数=26, 已添加行数=26
+[2026-01-10 04:55:38] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-10 04:55:38] 全部标签查询成功，结果数: 50
+[2026-01-10 04:55:38] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-10 04:55:40] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%1%' OR SourceApp LIKE '%1%') ORDER BY Timestamp DESC LIMIT 50
+[2026-01-10 04:55:40] 全部标签查询成功，结果数: 50
+[2026-01-10 04:55:40] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-10 04:55:41] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%1%' OR SourceApp LIKE '%1%') ORDER BY Timestamp DESC LIMIT 10
+[2026-01-10 04:55:41] 全部标签查询成功，结果数: 10
+[2026-01-10 04:55:41] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-10 04:55:43] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%1%' OR SourceApp LIKE '%1%') ORDER BY Timestamp DESC LIMIT 30
+[2026-01-10 04:55:43] 全部标签查询成功，结果数: 30
+[2026-01-10 04:55:43] RefreshClipboardListView: 列表刷新完成 - 总项数=30, 已添加行数=30
+[2026-01-10 04:55:45] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%1%' OR SourceApp LIKE '%1%') ORDER BY Timestamp DESC LIMIT 200
+[2026-01-10 04:55:45] 全部标签查询成功，结果数: 195
+[2026-01-10 04:55:45] RefreshClipboardListView: 列表刷新完成 - 总项数=195, 已添加行数=195
+[2026-01-10 05:17:00] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-10 05:17:00] 全部标签查询成功，结果数: 50
+[2026-01-10 05:17:00] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-10 05:17:02] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 20
+[2026-01-10 05:17:02] 全部标签查询成功，结果数: 20
+[2026-01-10 05:17:02] RefreshClipboardListView: 列表刷新完成 - 总项数=20, 已添加行数=20
+[2026-01-10 05:27:34] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 50
+[2026-01-10 05:27:34] 全部标签查询成功，结果数: 50
+[2026-01-10 05:27:34] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
+[2026-01-10 05:27:36] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 30
+[2026-01-10 05:27:36] 全部标签查询成功，结果数: 30
+[2026-01-10 05:27:36] RefreshClipboardListView: 列表刷新完成 - 总项数=30, 已添加行数=30
+[2026-01-10 05:27:37] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain ORDER BY Timestamp DESC LIMIT 10
+[2026-01-10 05:27:37] 全部标签查询成功，结果数: 10
+[2026-01-10 05:27:37] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-10 05:27:56] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%1%' OR SourceApp LIKE '%1%') ORDER BY Timestamp DESC LIMIT 10
+[2026-01-10 05:27:56] 全部标签查询成功，结果数: 10
+[2026-01-10 05:27:56] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-10 05:27:57] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%13%' OR SourceApp LIKE '%13%') ORDER BY Timestamp DESC LIMIT 10
+[2026-01-10 05:27:57] 全部标签查询成功，结果数: 10
+[2026-01-10 05:27:57] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-10 05:28:00] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%13%' OR SourceApp LIKE '%13%') ORDER BY Timestamp DESC LIMIT 20
+[2026-01-10 05:28:00] 全部标签查询成功，结果数: 20
+[2026-01-10 05:28:00] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-10 05:28:02] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%13%' OR SourceApp LIKE '%13%') ORDER BY Timestamp DESC LIMIT 10
+[2026-01-10 05:28:02] 全部标签查询成功，结果数: 10
+[2026-01-10 05:28:02] RefreshClipboardListView: 发生异常 - This value of type "Map" has no property named "Content".
+[2026-01-10 05:28:03] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%1%' OR SourceApp LIKE '%1%') ORDER BY Timestamp DESC LIMIT 10
+[2026-01-10 05:28:03] 全部标签查询成功，结果数: 10
+[2026-01-10 05:28:03] RefreshClipboardListView: 列表刷新完成 - 总项数=10, 已添加行数=10
+[2026-01-10 05:28:07] 全部标签SQL查询: SELECT ID, Content, DataType, SourceApp, SourcePath, CharCount, Timestamp, Timestamp AS LastCopyTime, CopyCount FROM ClipMain WHERE (Content LIKE '%1%' OR SourceApp LIKE '%1%') ORDER BY Timestamp DESC LIMIT 50
+[2026-01-10 05:28:07] 全部标签查询成功，结果数: 50
+[2026-01-10 05:28:07] RefreshClipboardListView: 列表刷新完成 - 总项数=50, 已添加行数=50
