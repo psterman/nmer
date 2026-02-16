@@ -1,0 +1,6 @@
+# 本地/敏感数据与数据库（含 API Key/Token，勿提交）
+*.db
+Data/
+Clipboard.db
+CursorData.db
+CursorHelper.db
