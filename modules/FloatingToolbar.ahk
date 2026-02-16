@@ -49,16 +49,16 @@ global FloatingToolbarInitialMouseX := 0  ; 点击时的初始鼠标X坐标
 global FloatingToolbarInitialMouseY := 0  ; 点击时的初始鼠标Y坐标
 global FloatingToolbarMouseMoved := false  ; 鼠标是否移动
 
-; Cursor色系配色
+; Cursor色系配色 - 更暗的配色
 FloatingToolbarColors := {
-    Background: "1e1e1e",
-    Border: "3c3c3c",
-    Text: "cccccc",
+    Background: "0a0a0a",
+    Border: "333333",
+    Text: "f5f5f5",
     TextHover: "ffffff",
-    ButtonBg: "252526",
-    ButtonHover: "37373d",
+    ButtonBg: "1a1a1a",
+    ButtonHover: "2a2a2a",
     ButtonActive: "007acc",
-    ButtonBorder: "3c3c3c"
+    ButtonBorder: "333333"
 }
 
 ; ===================== 显示/隐藏悬浮窗 =====================
@@ -81,7 +81,7 @@ ShowFloatingToolbar() {
     ; [需求1] 从配置文件加载保存的位置
     LoadFloatingToolbarPosition()
 
-    ; 显示GUI（默认位置：屏幕右下角）
+    ; 显示GUI（默认位置：屏幕右上角）
     if (FloatingToolbarWindowX = 0 && FloatingToolbarWindowY = 0) {
         ; 获取屏幕尺寸
         ScreenWidth := SysGet(0)  ; SM_CXSCREEN
@@ -91,7 +91,7 @@ ShowFloatingToolbar() {
         ToolbarWidth := FloatingToolbarCalculateWidth()
         ToolbarHeight := FloatingToolbarCalculateHeight()
         FloatingToolbarWindowX := ScreenWidth - ToolbarWidth
-        FloatingToolbarWindowY := ScreenHeight - ToolbarHeight
+        FloatingToolbarWindowY := 0  ; 右上角，避免遮挡
     }
 
     ; 计算窗口宽度和高度
@@ -139,6 +139,20 @@ ToggleFloatingToolbar() {
     }
 }
 
+; ===================== 辅助函数 =====================
+; 根据 action 获取显示名称
+GetActionDisplayName(action) {
+    actionMap := Map(
+        "Search", "搜索",
+        "Explain", "解释",
+        "Record", "笔记",
+        "AIAssistant", "AI助手",
+        "Screenshot", "截图",
+        "Settings", "设置"
+    )
+    return actionMap.Has(action) ? actionMap[action] : action
+}
+
 ; ===================== 创建GUI =====================
 CreateFloatingToolbarGUI() {
     global FloatingToolbarGUI, FloatingToolbarColors
@@ -173,13 +187,13 @@ CreateFloatingToolbarGUI() {
         A_ScriptDir . "\images\toolbar_screenshot.png",
         A_ScriptDir . "\images\toolbar_settings.png"
     ]
-    
+
     ButtonConfigs := [
-        Map("text", "搜索", "iconPath", IconPaths[1], "action", "Search", "shortcut", "Caps+F"),
-        Map("text", "笔记", "iconPath", IconPaths[2], "action", "Record", "shortcut", "Caps+X"),
-        Map("text", "AI助手", "iconPath", IconPaths[3], "action", "AIAssistant", "shortcut", "Ctrl+Shift+B"),
-        Map("text", "截图", "iconPath", IconPaths[4], "action", "Screenshot", "shortcut", "Caps+T"),
-        Map("text", "设置", "iconPath", IconPaths[5], "action", "Settings", "shortcut", "Caps+Q")
+        Map("iconPath", IconPaths[1], "action", "Search", "shortcut", "Caps+F"),
+        Map("iconPath", IconPaths[2], "action", "Record", "shortcut", "Caps+X"),
+        Map("iconPath", IconPaths[3], "action", "AIAssistant", "shortcut", "Ctrl+Shift+B"),
+        Map("iconPath", IconPaths[4], "action", "Screenshot", "shortcut", "Caps+T"),
+        Map("iconPath", IconPaths[5], "action", "Settings", "shortcut", "Caps+Q")
     ]
     
     ; 按钮尺寸和间距（增大尺寸，应用缩放比例）
@@ -188,7 +202,7 @@ CreateFloatingToolbarGUI() {
     BaseButtonHeight := 35
     BaseButtonSpacing := 5
     BaseIconSize := 28  ; 图标大小（按钮内部，增大以显示更清晰的图片）
-    BaseStartX := 35  ; 从图标右侧开始
+    BaseStartX := 40  ; 从图标右侧开始，增加间距避免遮挡
     BaseStartY := 5
     
     ButtonWidth := Round(BaseButtonWidth * FloatingToolbarScale)
@@ -273,13 +287,15 @@ CreateFloatingToolbarGUI() {
                 " BackgroundTrans 0x200 vToolbarIcon_" . config["action"], 
                 iconPath)
         } else {
-            ; 如果图标文件不存在，使用文字作为后备
+            ; 如果图标文件不存在，使用 action 的第一个字符作为后备
+            actionText := config["action"]
+            displayChar := SubStr(actionText, 1, 1)
             iconPic := FloatingToolbarGUI.Add("Text", 
                 "x" . x . " y" . StartY . 
                 " w" . ButtonWidth . " h" . ButtonHeight . 
                 " Center 0x200 c" . FloatingToolbarColors.Text . 
                 " BackgroundTrans vToolbarIcon_" . config["action"], 
-                SubStr(config["text"], 1, 1))  ; 显示第一个字符
+                displayChar)
         }
         
         iconPicHwnd := iconPic.Hwnd
@@ -299,10 +315,12 @@ CreateFloatingToolbarGUI() {
         
         ; [核心修复] 使用原生 ToolTip 属性
         ; 格式：功能名称 (快捷键)
-        iconPic.ToolTip := config["text"] . " (" . config["shortcut"] . ")"
+        ; 根据 action 生成功能名称
+        actionName := GetActionDisplayName(config["action"])
+        iconPic.ToolTip := actionName . " (" . config["shortcut"] . ")"
         
         ; 绑定鼠标点击事件（使用图片控件）
-        iconPic.OnEvent("Click", OnToolbarButtonClick.Bind(iconPic, config["action"], iconPicHwnd, config["text"]))
+        iconPic.OnEvent("Click", OnToolbarButtonClick.Bind(iconPic, config["action"], iconPicHwnd, actionName))
         
         ; 存储按钮信息（用于悬停检测和tooltip）
         FloatingToolbarButtons[iconPicHwnd] := {
@@ -316,7 +334,7 @@ CreateFloatingToolbarGUI() {
             iconY: iconY,
             iconSize: currentIconSize,  ; 使用实际图标尺寸（搜索按钮更大）
             action: config["action"],
-            tooltip: config["text"],
+            tooltip: actionName,
             shortcut: config["shortcut"],
             iconPath: iconPath,
             isHovered: false  ; 悬停状态

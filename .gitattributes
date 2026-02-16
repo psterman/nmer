@@ -1,0 +1,2 @@
+# AHK 脚本使用 Windows 换行符，避免 LF/CRLF 警告
+*.ahk text eol=crlf
