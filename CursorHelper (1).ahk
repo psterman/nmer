@@ -376,6 +376,7 @@ global HotkeyQ := "q"  ; 打开配置面板
 global HotkeyZ := "z"  ; 语音输入
 global HotkeyF := "f"  ; 语音搜索
 global HotkeyT := "t"  ; 区域截图
+global PromptQuickCaptureHotkey := ""  ; Prompt Quick-Pad 选区采集，留空不注册；可在 CursorShortcut.ini [Settings] PromptQuickCaptureHotkey 配置
 ; 截图等待粘贴相关变量
 global ScreenshotWaiting := false  ; 是否正在等待粘贴截图
 global ScreenshotClipboard := ""  ; 保存的截图剪贴板内容
@@ -2766,6 +2767,8 @@ InitConfig() {
             HotkeyZ := IniRead(ConfigFile, "Hotkeys", "Z", DefaultHotkeyZ)
             HotkeyF := IniRead(ConfigFile, "Hotkeys", "F", "f")
             HotkeyT := IniRead(ConfigFile, "Hotkeys", "T", "t")
+            global PromptQuickCaptureHotkey
+            PromptQuickCaptureHotkey := IniRead(ConfigFile, "Settings", "PromptQuickCaptureHotkey", "")
             SearchEngine := IniRead(ConfigFile, "Settings", "SearchEngine", "deepseek")
             AutoLoadSelectedText := (IniRead(ConfigFile, "Settings", "AutoLoadSelectedText", "0") = "1")
             AutoUpdateVoiceInput := (IniRead(ConfigFile, "Settings", "AutoUpdateVoiceInput", "1") = "1")
@@ -2971,6 +2974,8 @@ InitConfig() {
             ClipboardPanelScreenIndex := DefaultClipboardPanelScreenIndex
             AutoStart := false
             VoiceSearchEnabledCategories := ["ai", "cli", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+            global PromptQuickCaptureHotkey
+            PromptQuickCaptureHotkey := ""
         }
     } catch as e {
         MsgBox("Error loading config: " . e.Message, "Error", "IconX")
@@ -3005,6 +3010,8 @@ InitConfig() {
         VoiceInputScreenIndex := DefaultVoiceInputScreenIndex
         CursorPanelScreenIndex := DefaultCursorPanelScreenIndex
         ClipboardPanelScreenIndex := DefaultClipboardPanelScreenIndex
+        global PromptQuickCaptureHotkey
+        PromptQuickCaptureHotkey := ""
     }
     
     ; 验证语言设置
@@ -3031,6 +3038,8 @@ ShowFloatingToolbar()
 LoadPromptTemplates()
 ; 同步提示词模板到数据库
 SyncPromptTemplatesToDB()
+; Prompt Quick-Pad：选区采集热键（需在 CursorShortcut.ini [Settings] 中设置 PromptQuickCaptureHotkey，如 ^!p）
+PromptQuickPad_RegisterCaptureHotkey()
 
 ; ===================== 剪贴板变化监听 =====================
 ; 注意：OnClipboardChange 必须在脚本启动时注册，确保在 InitConfig 之后定义
@@ -20906,6 +20915,9 @@ HandleClipboardListViewDoubleClick(lParam) {
 OnClipboardListViewWMNotify(wParam, lParam, Msg, Hwnd) {
     global ClipboardListViewHwnd, ClipboardListViewHighlightedRow, ClipboardListViewHighlightedCol
     global ClipboardCurrentTab, ClipboardManagerHwnd, ClipboardListView
+    
+    ; Prompt Quick-Pad（AIListPanel）ListView 双击/右键
+    try PromptQuickPad_OnWmNotify(wParam, lParam, Msg, Hwnd)
     
     ; 检查是否是剪贴板管理窗口的消息
     if (!ClipboardManagerHwnd || Hwnd != ClipboardManagerHwnd) {

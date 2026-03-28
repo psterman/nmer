@@ -1,49 +1,59 @@
 ; ======================================================================================================================
-; AI选择列表面板 - 显示所有AI搜索引擎供用户选择
-; 版本: 1.0.0
-; 功能: 
-;   - 显示SearchCenter中所有AI分类的搜索引擎
-;   - 每个列表项显示图标和名称
-;   - 鼠标悬浮和点击有动画效果
-;   - 点击后打开Cursor浏览器并加载对应AI，将剪贴板内容作为参数
-;   - 加载时显示提示
+; Prompt Quick-Pad（原 AI 助手入口）：提示词快捷记录与粘贴
+; 数据：A_ScriptDir "\prompts.json" 仅用户条目 [{title, tags, content, category?}]
+; 列表展示 = 设置中快捷三项 + PromptTemplates + json 合并
+; 对外保留：ShowAIListPanel / HideAIListPanel / InitAIListPanel 及 CursorHelper 使用的全局变量名
 ; ======================================================================================================================
 
 #Requires AutoHotkey v2.0
 
-; ===================== 全局变量 =====================
-global AIListPanelGUI := 0  ; AI列表面板GUI对象
-global AIListPanelIsVisible := false  ; 是否可见
-global AIListPanelItems := []  ; 列表项数组
-global AIListPanelHoveredIndex := 0  ; 当前悬浮的列表项索引
-global AIListPanelLoadingEngine := ""  ; 当前正在加载的引擎
-global AIListPanelIconOnlyMode := false  ; 是否只显示图标模式
-global AIListPanelDragging := false  ; 是否正在拖动
-global AIListPanelDragStartX := 0  ; 拖动起始X坐标
-global AIListPanelDragStartY := 0  ; 拖动起始Y坐标
-global AIListPanelWindowX := 0  ; 窗口X坐标（竖排模式）
-global AIListPanelWindowY := 0  ; 窗口Y坐标（竖排模式）
-global AIListPanelWindowW := 180  ; 窗口宽度（竖排模式）
-global AIListPanelWindowH := 400  ; 窗口高度（竖排模式）
-global AIListPanelIconModeX := 0  ; 窗口X坐标（横排模式）
-global AIListPanelIconModeY := 0  ; 窗口Y坐标（横排模式）
-global AIListPanelIconModeW := 400  ; 窗口宽度（横排模式）
-global AIListPanelIconModeH := 100  ; 窗口高度（横排模式）
-global AIListPanelLastWidth := 0  ; 上一次的宽度（用于判断是否需要重新计算高度）
-global AIListPanelLastRows := 0  ; 上一次的行数（用于判断是否需要重新计算高度）
-global AIListPanelTitleBar := 0  ; 标题栏控件（已隐藏）
-global AIListPanelToggleBtn := 0  ; 切换模式按钮控件
-global AIListPanelIsMinimized := false  ; 是否已最小化到边缘
-global AIListPanelSearchInput := 0  ; 搜索输入框控件
-global AIListPanelSearchBtn := 0  ; 搜索按钮控件
-global AIListPanelSelectedEngines := []  ; 选中的AI引擎列表
-global AIListPanelCheckboxes := Map()  ; 复选框控件映射（engineValue -> checkbox控件）
-global AIListPanelEnterHotkey := 0  ; 回车键快捷键对象
-global AIListPanelIsResizing := false  ; 是否正在调整大小（防止循环触发）
-global AIListPanelUserResizing := false  ; 用户是否正在手动调整大小
-global AIListPanelUserMoving := false  ; 用户是否正在手动移动窗口
+global AIListPanelGUI := 0
+global AIListPanelIsVisible := false
+global AIListPanelItems := []  ; 兼容保留（不再使用 AI 引擎项）
+global AIListPanelHoveredIndex := 0
+global AIListPanelDragging := false
+global AIListPanelDragStartX := 0
+global AIListPanelDragStartY := 0
+global AIListPanelWindowX := 0
+global AIListPanelWindowY := 0
+global AIListPanelWindowW := 520
+global AIListPanelWindowH := 480
+global AIListPanelIsMinimized := false
+global AIListPanelSearchInput := 0
+global AIListPanelEnterHotkey := 0
+global AIListPanelEscHotkey := 0
+global AIListPanelUserMoving := false
+global AIListPanelIsResizing := false
 
-; Cursor色系配色
+; 以下全局仅为兼容旧 ini 键与脚本中可能的引用，固定为「竖排」逻辑
+global AIListPanelIconOnlyMode := false
+global AIListPanelIconModeX := 0
+global AIListPanelIconModeY := 0
+global AIListPanelIconModeW := 400
+global AIListPanelIconModeH := 100
+global AIListPanelLastWidth := 0
+global AIListPanelLastRows := 0
+global AIListPanelTitleBar := 0
+global AIListPanelToggleBtn := 0
+global AIListPanelSearchBtn := 0
+global AIListPanelSelectedEngines := []
+global AIListPanelCheckboxes := Map()
+global AIListPanelUserResizing := false
+
+global PromptQuickPadData := []
+global PromptQuickPadFilteredIdx := []
+global PromptQuickPadListLV := 0
+global PromptQuickPadStatusText := 0
+global PromptQuickPadSearchDebounce := 0
+global PromptQuickPadCaptureHotkeyObj := 0
+global PromptQuickPadMergedSnapshot := []  ; 当前完整合并列表（与 FilteredIdx 下标对应）
+global PromptQuickPadSelectedCategory := "全部"
+global PromptQuickPadCategoryStrip := []  ; 分类标签控件，便于销毁
+global PromptQuickPadCategoryCtrlByName := Map()
+global PromptQuickPadLastCategorySig := ""
+global PromptQuickPadCategoryStripHeight := 32
+global PromptQuickPadDragBar := 0  ; 保留变量；已改用标准标题栏，不再创建拖动条
+
 AIListPanelColors := {
     Background: "1e1e1e",
     Border: "3c3c3c",
@@ -57,1441 +67,876 @@ AIListPanelColors := {
     LoadingText: "007acc"
 }
 
-; ===================== 显示/隐藏AI列表面板 =====================
-ShowAIListPanel() {
-    global AIListPanelGUI, AIListPanelIsVisible, AIListPanelIconOnlyMode
-    global AIListPanelIconModeX, AIListPanelIconModeY, AIListPanelIconModeW, AIListPanelIconModeH
-    global AIListPanelWindowX, AIListPanelWindowY, AIListPanelWindowW, AIListPanelWindowH
-    global FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY
-    
-    ; 调试信息
-    debugInfo := ""
-    
+PromptQuickPad_JsonPath() => A_ScriptDir . "\prompts.json"
+
+PromptQuickPad_TryGetText(Key, Fallback) {
+    try
+        return GetText(Key)
+    catch
+        return Fallback
+}
+
+PromptQuickPad_NormalizeEntry(m) {
+    if !(m is Map)
+        return Map("title", "", "tags", "", "content", "", "category", "", "hotkey", "")
+    t := m.Has("title") ? String(m["title"]) : m.Has("Title") ? String(m["Title"]) : ""
+    g := m.Has("tags") ? String(m["tags"]) : m.Has("Tags") ? String(m["Tags"]) : ""
+    c := m.Has("content") ? String(m["content"]) : m.Has("Content") ? String(m["Content"]) : ""
+    cat := m.Has("category") ? String(m["category"]) : m.Has("Category") ? String(m["Category"]) : ""
+    hk := m.Has("hotkey") ? String(m["hotkey"]) : m.Has("Hotkey") ? String(m["Hotkey"]) : ""
+    return Map("title", t, "tags", g, "content", c, "category", cat, "hotkey", hk)
+}
+
+PromptQuickPad_LoadFromDisk() {
+    global PromptQuickPadData
+    path := PromptQuickPad_JsonPath()
+    PromptQuickPadData := []
+    if !FileExist(path) {
+        try FileAppend("[]", path, "UTF-8")
+        return
+    }
     try {
-        if (AIListPanelIsVisible && AIListPanelGUI != 0) {
-            ; 如果已显示，则隐藏
-            HideAIListPanel()
+        raw := FileRead(path, "UTF-8")
+        parsed := Jxon_Load(raw)
+        if !(parsed is Array) {
+            PromptQuickPadData := []
             return
         }
-        
-        debugInfo .= "步骤1: 检查完成`n"
-        
-        ; 创建GUI
-        try {
-            CreateAIListPanelGUI()
-            debugInfo .= "步骤2: GUI创建成功`n"
-        } catch as err {
-            debugInfo .= "步骤2: GUI创建失败 - " . err.Message . "`n"
-            MsgBox("AI选择面板调试信息:`n`n" . debugInfo, "调试信息", "Iconx")
-            return
+        for item in parsed {
+            if item is Map
+                PromptQuickPadData.Push(PromptQuickPad_NormalizeEntry(item))
         }
-        
-        debugInfo .= "步骤3: 准备显示GUI`n"
-
-        ; 加载保存的位置和尺寸
-        LoadAIListPanelPosition()
-
-        ; 根据模式使用对应的位置变量
-        global AIListPanelIconOnlyMode, AIListPanelIconModeX, AIListPanelIconModeY
-        global AIListPanelIconModeW, AIListPanelIconModeH
-
-        if (AIListPanelIconOnlyMode) {
-            ; 横排模式：使用横排模式的位置
-            savedX := AIListPanelIconModeX
-            savedY := AIListPanelIconModeY
-            savedW := AIListPanelIconModeW
-            savedH := AIListPanelIconModeH
-        } else {
-            ; 竖排模式：使用竖排模式的位置
-            savedX := AIListPanelWindowX
-            savedY := AIListPanelWindowY
-            savedW := AIListPanelWindowW
-            savedH := AIListPanelWindowH
-        }
-
-        ; 优先使用保存的位置，如果没有保存位置才跟随工具栏
-        if (savedX != 0 && savedY != 0) {
-            ; 使用保存的位置
-            panelX := savedX
-            panelY := savedY
-            panelW := savedW > 0 ? savedW : (AIListPanelIconOnlyMode ? 400 : 180)
-            panelH := savedH > 0 ? savedH : (AIListPanelIconOnlyMode ? 100 : 400)
-            debugInfo .= "步骤4: 使用保存的位置`n"
-        } else {
-            ; 没有保存位置，尝试跟随工具栏
-            global FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY
-            if (FloatingToolbarGUI != 0) {
-                try {
-                    FloatingToolbarGUI.GetPos(&toolbarX, &toolbarY, &toolbarW, &toolbarH)
-                    ; 跟随工具栏位置，显示在工具栏上方
-                    panelX := toolbarX
-                    panelY := toolbarY - (AIListPanelIconOnlyMode ? AIListPanelIconModeH : AIListPanelWindowH)
-                    ; 如果超出屏幕上方，则显示在工具栏下方
-                    ScreenHeight := SysGet(1)
-                    if (panelY < 0) {
-                        panelY := toolbarY + toolbarH + 5
-                    }
-                    panelW := AIListPanelIconOnlyMode ? AIListPanelIconModeW : AIListPanelWindowW
-                    panelH := AIListPanelIconOnlyMode ? AIListPanelIconModeH : AIListPanelWindowH
-                    debugInfo .= "步骤4: 跟随工具栏位置`n"
-                } catch as err {
-                    debugInfo .= "步骤4: 工具栏位置获取失败 - " . err.Message . "`n"
-                    ; 使用默认位置
-                    ScreenWidth := SysGet(0)
-                    ScreenHeight := SysGet(1)
-                    panelW := AIListPanelIconOnlyMode ? AIListPanelIconModeW : AIListPanelWindowW
-                    panelH := AIListPanelIconOnlyMode ? AIListPanelIconModeH : AIListPanelWindowH
-                    panelX := (ScreenWidth - panelW) // 2
-                    panelY := (ScreenHeight - panelH) // 2
-                }
-            } else {
-                ; 没有工具栏，使用默认位置
-                ScreenWidth := SysGet(0)
-                ScreenHeight := SysGet(1)
-                panelW := AIListPanelIconOnlyMode ? AIListPanelIconModeW : AIListPanelWindowW
-                panelH := AIListPanelIconOnlyMode ? AIListPanelIconModeH : AIListPanelWindowH
-                panelX := (ScreenWidth - panelW) // 2
-                panelY := (ScreenHeight - panelH) // 2
-                debugInfo .= "步骤4: 使用默认位置`n"
-            }
-        }
-
-        ; 更新全局变量
-        if (AIListPanelIconOnlyMode) {
-            AIListPanelIconModeX := panelX
-            AIListPanelIconModeY := panelY
-            AIListPanelIconModeW := panelW
-            AIListPanelIconModeH := panelH
-        } else {
-            AIListPanelWindowX := panelX
-            AIListPanelWindowY := panelY
-            AIListPanelWindowW := panelW
-            AIListPanelWindowH := panelH
-        }
-        
-        debugInfo .= "步骤5: 准备显示窗口，位置: x=" . panelX . ", y=" . panelY . ", w=" . panelW . ", h=" . panelH . "`n"
-
-        ; 显示GUI
-        try {
-            if (AIListPanelGUI = 0) {
-                throw Error("GUI对象为空")
-            }
-            AIListPanelGUI.Show("x" . panelX . " y" . panelY . " w" . panelW . " h" . panelH)
-            AIListPanelIsVisible := true
-            debugInfo .= "步骤6: GUI显示成功`n"
-        } catch as err {
-            debugInfo .= "步骤6: GUI显示失败 - " . err.Message . "`n"
-            MsgBox("AI选择面板调试信息:`n`n" . debugInfo, "调试信息", "Iconx")
-            return
-        }
-        
-        debugInfo .= "步骤7: 启动悬停检测定时器`n"
-        
-        ; 启动定时器用于悬停效果检测和跟随工具栏
-        try {
-            SetTimer(AIListPanelCheckItemHover, 50)
-            SetTimer(AIListPanelFollowToolbar, 100)  ; 跟随悬浮工具栏移动
-            
-            ; 设置窗口级别的回车键快捷键（当窗口激活时）
-            global AIListPanelEnterHotkey, AIListPanelGUI
-            try {
-                ; 使用条件Hotkey，仅在AI面板窗口激活时生效
-                HotIfWinActive("ahk_id " . AIListPanelGUI.Hwnd)
-                AIListPanelEnterHotkey := Hotkey("Enter", OnAIListPanelSearch, "On")
-                HotIfWinActive()  ; 重置条件
-            } catch {
-                ; 如果设置失败，静默处理
-            }
-            
-            debugInfo .= "步骤8: 所有步骤完成`n"
-        } catch as err {
-            debugInfo .= "步骤8: 定时器启动失败 - " . err.Message . "`n"
-            MsgBox("AI选择面板调试信息:`n`n" . debugInfo, "调试信息", "Iconx")
-        }
-        
-    } catch as err {
-        debugInfo .= "发生未捕获的错误: " . err.Message . "`n"
-        debugInfo .= "错误位置: " . err.File . " 第 " . err.Line . " 行`n"
-        MsgBox("AI选择面板调试信息:`n`n" . debugInfo, "调试信息", "Iconx")
+    } catch {
+        PromptQuickPadData := []
     }
 }
 
-HideAIListPanel() {
-    global AIListPanelGUI, AIListPanelIsVisible, AIListPanelEnterHotkey
-    
-    if (AIListPanelGUI != 0) {
-        ; 保存位置和尺寸
-        SaveAIListPanelPosition()
-        
-        ; 移除回车键快捷键
+PromptQuickPad_SaveToDisk() {
+    global PromptQuickPadData
+    path := PromptQuickPad_JsonPath()
+    try {
+        clean := []
+        for item in PromptQuickPadData {
+            if !(item is Map)
+                continue
+            o := Map("title", item.Has("title") ? item["title"] : "", "tags", item.Has("tags") ? item["tags"] : "",
+                "content", item.Has("content") ? item["content"] : "")
+            if item.Has("category") && item["category"] != ""
+                o["category"] := item["category"]
+            if item.Has("hotkey") && item["hotkey"] != ""
+                o["hotkey"] := item["hotkey"]
+            clean.Push(o)
+        }
+        f := FileOpen(path, "w", "UTF-8")
+        if !f
+            return
+        f.Write(Jxon_Dump(clean))
+        f.Close()
+    } catch {
+    }
+}
+
+PromptQuickPad_TemplateExtraTags(T) {
+    parts := ""
+    fc := ""
+    ser := ""
+    try fc := T.FunctionCategory
+    try ser := T.Series
+    if fc != ""
+        parts .= fc
+    if ser != "" {
+        if parts != ""
+            parts .= ","
+        parts .= ser
+    }
+    return parts
+}
+
+; 合并：设置页三项快捷词 + PromptTemplates.ini 加载的全局模板 + prompts.json 用户项
+PromptQuickPad_BuildMergedList() {
+    global PromptQuickPadData, PromptTemplates
+    merged := []
+    global Prompt_Explain, Prompt_Refactor, Prompt_Optimize
+
+    capCat := "快捷操作"
+    if Trim(Prompt_Explain) != "" {
+        merged.Push(Map(
+            "title", PromptQuickPad_TryGetText("quick_action_type_explain", "解释代码"),
+            "category", capCat,
+            "tags", "",
+            "hotkey", "CapsLock+E",
+            "content", Prompt_Explain,
+            "source", "builtin",
+            "userIndex", 0
+        ))
+    }
+    if Trim(Prompt_Refactor) != "" {
+        merged.Push(Map(
+            "title", PromptQuickPad_TryGetText("quick_action_type_refactor", "重构代码"),
+            "category", capCat,
+            "tags", "",
+            "hotkey", "CapsLock+R",
+            "content", Prompt_Refactor,
+            "source", "builtin",
+            "userIndex", 0
+        ))
+    }
+    if Trim(Prompt_Optimize) != "" {
+        merged.Push(Map(
+            "title", PromptQuickPad_TryGetText("quick_action_type_optimize", "优化代码"),
+            "category", capCat,
+            "tags", "",
+            "hotkey", "CapsLock+O",
+            "content", Prompt_Optimize,
+            "source", "builtin",
+            "userIndex", 0
+        ))
+    }
+
+    if IsSet(PromptTemplates) && PromptTemplates is Array {
+        for T in PromptTemplates {
+            if !IsObject(T)
+                continue
+            title := ""
+            content := ""
+            cat := ""
+            tid := ""
+            try title := T.Title
+            try content := T.Content
+            try cat := T.Category
+            try tid := T.ID
+            if title = "" && content = ""
+                continue
+            merged.Push(Map(
+                "title", title,
+                "category", cat,
+                "tags", PromptQuickPad_TemplateExtraTags(T),
+                "hotkey", "",
+                "content", content,
+                "source", "template",
+                "templateId", tid,
+                "userIndex", 0
+            ))
+        }
+    }
+
+    idx := 0
+    for item in PromptQuickPadData {
+        idx++
+        e := PromptQuickPad_NormalizeEntry(item)
+        e["source"] := "json"
+        e["userIndex"] := idx
+        if !e.Has("category")
+            e["category"] := ""
+        if !e.Has("hotkey")
+            e["hotkey"] := ""
+        merged.Push(e)
+    }
+    return merged
+}
+
+PromptQuickPad_MakePreview(Text, MaxLen := 96) {
+    s := RegExReplace(Text, "[\r\n\t]+", " ")
+    s := Trim(s)
+    if StrLen(s) > MaxLen
+        s := SubStr(s, 1, MaxLen) . "…"
+    return s
+}
+
+PromptQuickPad_UniqueCategoryTabs(merged) {
+    hasUncat := false
+    m := Map()
+    for e in merged {
+        c := e.Has("category") ? e["category"] : ""
+        if c = ""
+            hasUncat := true
+        else
+            m[c] := true
+    }
+    out := ["全部"]
+    if hasUncat
+        out.Push("未分类")
+    blob := ""
+    for k in m {
+        if blob != ""
+            blob .= "`n"
+        blob .= k
+    }
+    if blob != "" {
+        blob := Sort(blob, "D`n")
+        for k in StrSplit(blob, "`n")
+            out.Push(k)
+    }
+    return out
+}
+
+PromptQuickPad_CategorySignature(cats) {
+    s := ""
+    for c in cats {
+        s .= c . "`n"
+    }
+    return s
+}
+
+PromptQuickPad_CategoryMatches(entry, Tab) {
+    if Tab = "" || Tab = "全部"
+        return true
+    raw := entry.Has("category") ? entry["category"] : ""
+    if Tab = "未分类"
+        return raw = ""
+    return raw = Tab
+}
+
+PromptQuickPad_ClearCategoryStrip() {
+    global PromptQuickPadCategoryStrip, PromptQuickPadCategoryCtrlByName
+    for c in PromptQuickPadCategoryStrip {
+        try c.Destroy()
+        catch {
+        }
+    }
+    PromptQuickPadCategoryStrip := []
+    PromptQuickPadCategoryCtrlByName := Map()
+}
+
+PromptQuickPad_StyleCategoryTabs() {
+    global PromptQuickPadCategoryCtrlByName, PromptQuickPadSelectedCategory, AIListPanelColors
+    for name, ctrl in PromptQuickPadCategoryCtrlByName {
+        active := (name = PromptQuickPadSelectedCategory)
+        bg := active ? AIListPanelColors.ItemActive : AIListPanelColors.ItemHover
+        tc := active ? AIListPanelColors.TextHover : AIListPanelColors.Text
         try {
-            if (AIListPanelEnterHotkey != 0) {
-                AIListPanelEnterHotkey.Off()
-            }
+            ctrl.Opt("Background" . bg . " c" . tc)
         } catch {
         }
-        
-        AIListPanelGUI.Hide()
+    }
+}
+
+PromptQuickPad_GetClientSize(hwnd, &cw, &ch) {
+    rect := Buffer(16, 0)
+    if !DllCall("GetClientRect", "ptr", hwnd, "ptr", rect)
+        return false
+    cw := NumGet(rect, 8, "int")
+    ch := NumGet(rect, 12, "int")
+    return true
+}
+
+; clientW/clientH 可传入 OnEvent("Size") 的客户端宽高；为 0 时用 GetClientRect
+PromptQuickPad_RelayoutMainControls(clientW := 0, clientH := 0) {
+    global AIListPanelGUI, AIListPanelSearchInput, PromptQuickPadListLV, PromptQuickPadStatusText
+    global PromptQuickPadCategoryStripHeight
+    if AIListPanelGUI = 0
+        return
+    if clientW <= 0 || clientH <= 0
+        PromptQuickPad_GetClientSize(AIListPanelGUI.Hwnd, &clientW, &clientH)
+    w := clientW
+    h := clientH
+    margin := 10
+    topPad := 10
+    searchH := 24
+    statusH := 44
+    bottomPad := 12
+    catBlock := PromptQuickPadCategoryStripHeight > 8 ? PromptQuickPadCategoryStripHeight : 36
+    searchY := topPad + catBlock + 10
+    if AIListPanelSearchInput != 0
+        AIListPanelSearchInput.Move(margin, searchY, w - margin * 2, searchH)
+    lvY := searchY + searchH + margin
+    lvH := h - lvY - statusH - bottomPad
+    if lvH < 80
+        lvH := 80
+    if PromptQuickPadListLV != 0 {
+        PromptQuickPadListLV.Move(margin, lvY, w - margin * 2, lvH)
+        try {
+            avail := w - margin * 2 - 120 - 72 - 88 - 8
+            if avail < 100
+                avail := 100
+            PromptQuickPadListLV.ModifyCol(4, avail)
+        } catch {
+        }
+    }
+    if PromptQuickPadStatusText != 0
+        PromptQuickPadStatusText.Move(margin, h - statusH - bottomPad, w - margin * 2, statusH)
+}
+
+PromptQuickPad_MakeCategoryHandler(CatName) {
+    return (Ctrl, *) => PromptQuickPad_ApplyCategoryFilter(CatName)
+}
+
+PromptQuickPad_ApplyCategoryFilter(CatName) {
+    global PromptQuickPadSelectedCategory
+    PromptQuickPadSelectedCategory := CatName
+    PromptQuickPad_StyleCategoryTabs()
+    merged := PromptQuickPad_BuildMergedList()
+    PromptQuickPad_FillListViewFromMerged(merged)
+    PromptQuickPad_RelayoutMainControls()
+}
+
+PromptQuickPad_RefreshCategoryStrip(merged) {
+    global AIListPanelGUI, PromptQuickPadLastCategorySig, PromptQuickPadSelectedCategory, AIListPanelColors
+    global PromptQuickPadCategoryStripHeight, PromptQuickPadCategoryStrip, PromptQuickPadCategoryCtrlByName
+    if AIListPanelGUI = 0
+        return
+    cats := PromptQuickPad_UniqueCategoryTabs(merged)
+    sig := PromptQuickPad_CategorySignature(cats)
+    if sig = PromptQuickPadLastCategorySig && PromptQuickPadCategoryStrip.Length > 0 {
+        PromptQuickPad_StyleCategoryTabs()
+        return
+    }
+    PromptQuickPadLastCategorySig := sig
+    PromptQuickPad_ClearCategoryStrip()
+    cw := 0
+    ch := 0
+    PromptQuickPad_GetClientSize(AIListPanelGUI.Hwnd, &cw, &ch)
+    if cw < 200
+        cw := 400
+    margin := 10
+    catY := 10
+    rowY := catY
+    x := margin
+    maxRight := cw - margin
+    chipH := 30
+    gapX := 10
+    gapY := 8
+    for cat in cats {
+        wch := Min(maxRight - margin, Max(52, StrLen(cat) * 9 + 28))
+        if x + wch > maxRight && x > margin {
+            x := margin
+            rowY += chipH + gapY
+        }
+        bg := (cat = PromptQuickPadSelectedCategory) ? AIListPanelColors.ItemActive : AIListPanelColors.ItemHover
+        tc := (cat = PromptQuickPadSelectedCategory) ? AIListPanelColors.TextHover : AIListPanelColors.Text
+        t := AIListPanelGUI.Add("Text", "x" . x . " y" . rowY . " w" . wch . " h" . chipH . " Center 0x200 Background" . bg . " c" . tc, cat)
+        t.SetFont("s10", "Segoe UI")
+        t.OnEvent("Click", PromptQuickPad_MakeCategoryHandler(cat))
+        PromptQuickPadCategoryStrip.Push(t)
+        PromptQuickPadCategoryCtrlByName[cat] := t
+        x += wch + gapX
+    }
+    PromptQuickPadCategoryStripHeight := (rowY - catY) + chipH + 10
+    PromptQuickPad_StyleCategoryTabs()
+}
+
+PromptQuickPad_ValidateSelectedCategory(merged) {
+    global PromptQuickPadSelectedCategory
+    cats := PromptQuickPad_UniqueCategoryTabs(merged)
+    ok := false
+    for c in cats {
+        if c = PromptQuickPadSelectedCategory {
+            ok := true
+            break
+        }
+    }
+    if !ok
+        PromptQuickPadSelectedCategory := "全部"
+}
+
+PromptQuickPad_MatchFilter(entry, needle) {
+    if needle = ""
+        return true
+    t := entry.Has("title") ? entry["title"] : ""
+    g := entry.Has("tags") ? entry["tags"] : ""
+    c := entry.Has("content") ? entry["content"] : ""
+    cat := entry.Has("category") ? entry["category"] : ""
+    hk := entry.Has("hotkey") ? entry["hotkey"] : ""
+    pv := PromptQuickPad_MakePreview(c, 200)
+    if SubStr(needle, 1, 1) = "/" {
+        endPos := InStr(needle, "/", , 2)
+        if endPos >= 2 {
+            pat := SubStr(needle, 2, endPos - 2)
+            opt := ""
+            rest := SubStr(needle, endPos + 1)
+            if (rest = "i" || SubStr(rest, 1, 1) = "i")
+                opt := "i)"
+            try {
+                return RegExMatch(t, opt . pat) || RegExMatch(g, opt . pat) || RegExMatch(cat, opt . pat)
+                    || RegExMatch(c, opt . pat) || RegExMatch(hk, opt . pat)
+            } catch {
+                return false
+            }
+        }
+    }
+    n := StrLower(needle)
+    return InStr(StrLower(t), n) || InStr(StrLower(g), n) || InStr(StrLower(cat), n) || InStr(StrLower(c), n)
+        || InStr(StrLower(hk), n) || InStr(StrLower(pv), n)
+}
+
+PromptQuickPad_FillListViewFromMerged(merged) {
+    global AIListPanelSearchInput, PromptQuickPadListLV, PromptQuickPadFilteredIdx, PromptQuickPadMergedSnapshot
+    global PromptQuickPadStatusText, PromptQuickPadData, PromptQuickPadSelectedCategory
+    if PromptQuickPadListLV = 0
+        return
+    needle := AIListPanelSearchInput != 0 ? Trim(AIListPanelSearchInput.Value) : ""
+    PromptQuickPadMergedSnapshot := merged
+    PromptQuickPadFilteredIdx := []
+    PromptQuickPadListLV.Delete()
+    row := 0
+    for index, entry in merged {
+        if !PromptQuickPad_CategoryMatches(entry, PromptQuickPadSelectedCategory)
+            continue
+        if !PromptQuickPad_MatchFilter(entry, needle)
+            continue
+        row++
+        ccol := entry.Has("category") ? entry["category"] : ""
+        hk := entry.Has("hotkey") ? entry["hotkey"] : ""
+        cont := entry.Has("content") ? entry["content"] : ""
+        prev := PromptQuickPad_MakePreview(cont)
+        PromptQuickPadListLV.Add("", entry["title"], ccol, hk, prev)
+        PromptQuickPadFilteredIdx.Push(index)
+    }
+    if PromptQuickPadStatusText != 0 {
+        catDisp := PromptQuickPadSelectedCategory
+        if StrLen(catDisp) > 18
+            catDisp := SubStr(catDisp, 1, 18) . "…"
+        PromptQuickPadStatusText.Value := "共 " . merged.Length . " 条 · prompts.json " . PromptQuickPadData.Length . " 条"
+            . "`n「" . catDisp . "」显示 " . row . " 条 · 双击行粘贴 · 右键编辑"
+    }
+}
+
+PromptQuickPad_RefreshListView(*) {
+    global PromptQuickPadListLV, PromptQuickPadData
+    if PromptQuickPadListLV = 0
+        return
+    merged := PromptQuickPad_BuildMergedList()
+    PromptQuickPad_ValidateSelectedCategory(merged)
+    PromptQuickPad_RefreshCategoryStrip(merged)
+    PromptQuickPad_FillListViewFromMerged(merged)
+    PromptQuickPad_RelayoutMainControls()
+}
+
+PromptQuickPad_OnSearchChange(*) {
+    global PromptQuickPadSearchDebounce
+    if PromptQuickPadSearchDebounce
+        SetTimer(PromptQuickPadSearchDebounce, 0)
+    PromptQuickPadSearchDebounce := PromptQuickPad_DebouncedRefresh
+    SetTimer(PromptQuickPadSearchDebounce, -80)
+}
+
+PromptQuickPad_DebouncedRefresh(*) {
+    global PromptQuickPadSearchDebounce
+    PromptQuickPadSearchDebounce := 0
+    PromptQuickPad_RefreshListView()
+}
+
+PromptQuickPad_GetFocusedRow() {
+    global PromptQuickPadListLV
+    if PromptQuickPadListLV = 0
+        return 0
+    r := PromptQuickPadListLV.GetNext(0, "Focused")
+    if r = 0
+        r := PromptQuickPadListLV.GetNext(0)
+    return r
+}
+
+PromptQuickPad_PasteRow(row) {
+    global PromptQuickPadFilteredIdx, PromptQuickPadMergedSnapshot
+    if row < 1 || row > PromptQuickPadFilteredIdx.Length
+        return
+    srcIdx := PromptQuickPadFilteredIdx[row]
+    if srcIdx < 1 || srcIdx > PromptQuickPadMergedSnapshot.Length
+        return
+    entry := PromptQuickPadMergedSnapshot[srcIdx]
+    content := entry.Has("content") ? entry["content"] : ""
+    if content = ""
+        return
+    A_Clipboard := ""
+    A_Clipboard := content
+    if !ClipWait(1.0) {
+        TrayTip("剪贴板写入失败", "Prompt Quick-Pad", "Iconx 1")
+        return
+    }
+    HideAIListPanel()
+    Sleep(50)
+    SendInput("^v")
+}
+
+PromptQuickPad_OnEnter(*) {
+    row := PromptQuickPad_GetFocusedRow()
+    if row > 0
+        PromptQuickPad_PasteRow(row)
+}
+
+PromptQuickPad_OnEsc(*) {
+    HideAIListPanel()
+}
+
+PromptQuickPad_OnDoubleClick(GuiCtrl, Item) {
+    if Item >= 1
+        PromptQuickPad_PasteRow(Item)
+}
+
+; ListView 右键/双击在部分环境下事件不可靠，用 WM_NOTIFY 兜底
+PromptQuickPad_ListViewHitItemOneBased(LV) {
+    if LV = 0
+        return 0
+    pt := Buffer(8, 0)
+    DllCall("GetCursorPos", "int*", &gx := 0, "int*", &gy := 0)
+    NumPut("int", gx, pt, 0)
+    NumPut("int", gy, pt, 4)
+    if !DllCall("ScreenToClient", "ptr", LV.Hwnd, "ptr", pt)
+        return 0
+    lx := NumGet(pt, 0, "int")
+    ly := NumGet(pt, 4, "int")
+    info := Buffer(24, 0)
+    NumPut("int", lx, info, 0)
+    NumPut("int", ly, info, 4)
+    SendMessage(0x1012, 0, info, LV)
+    idx := NumGet(info, 12, "int")
+    if idx < 0
+        return 0
+    return idx + 1
+}
+
+PromptQuickPad_OnWmNotify(wParam, lParam, msg, hwnd) {
+    global AIListPanelGUI, PromptQuickPadListLV
+    if AIListPanelGUI = 0 || PromptQuickPadListLV = 0
+        return
+    if hwnd != AIListPanelGUI.Hwnd
+        return
+    hwndFrom := NumGet(lParam, 0, "ptr")
+    if hwndFrom != PromptQuickPadListLV.Hwnd
+        return
+    code := NumGet(lParam, 2 * A_PtrSize, "int")
+    nmSize := A_PtrSize = 8 ? 24 : 12
+    iItem := NumGet(lParam, nmSize, "int")
+    if code = -3 {  ; NM_DBLCLK
+        if iItem >= 0
+            PromptQuickPad_PasteRow(iItem + 1)
+    } else if code = -5 {  ; NM_RCLICK
+        if iItem >= 0
+            PromptQuickPad_ShowRowContextMenu(iItem + 1)
+        else {
+            r := PromptQuickPad_ListViewHitItemOneBased(PromptQuickPadListLV)
+            if r > 0
+                PromptQuickPad_ShowRowContextMenu(r)
+        }
+    }
+}
+
+PromptQuickPad_ShowRowContextMenu(RowOneBased) {
+    global PromptQuickPadListLV
+    if RowOneBased < 1 || PromptQuickPadListLV = 0
+        return
+    try PromptQuickPadListLV.Modify(RowOneBased, "Select Vis")
+    catch {
+    }
+    m := Menu()
+    m.Add("编辑提示词", (*) => PromptQuickPad_EditItem(RowOneBased))
+    m.Add("删除", (*) => PromptQuickPad_DeleteItem(RowOneBased))
+    try {
+        DllCall("GetCursorPos", "int*", &mx := 0, "int*", &my := 0)
+        m.Show(mx, my)
+    } catch {
+        m.Show()
+    }
+}
+
+PromptQuickPad_ApplyListViewStyles() {
+    global PromptQuickPadListLV
+    if PromptQuickPadListLV = 0
+        return
+    LVM_SETEXTENDEDLISTVIEWSTYLE := 0x1000 + 54
+    ex := 0x20 | 0x8 | 0x10000  ; FULLROWSELECT | TRACKSELECT | DOUBLEBUFFER
+    try SendMessage(LVM_SETEXTENDEDLISTVIEWSTYLE, 0xFFFFFFFF, ex, , "ahk_id " . PromptQuickPadListLV.Hwnd)
+}
+
+PromptQuickPad_OnSize(GuiObj, MinMax, Width, Height) {
+    global AIListPanelWindowW, AIListPanelWindowH, AIListPanelIsResizing
+    if MinMax = -1
+        return
+    AIListPanelIsResizing := true
+    AIListPanelWindowW := Width
+    AIListPanelWindowH := Height
+    PromptQuickPad_RelayoutMainControls(Width, Height)
+    AIListPanelIsResizing := false
+    SaveAIListPanelPosition()
+}
+
+PromptQuickPad_LVContextMenu(GuiCtrl, Item, IsRightClick, X, Y) {
+    row := Item
+    if row < 1
+        row := PromptQuickPad_ListViewHitItemOneBased(GuiCtrl)
+    if row < 1
+        return
+    PromptQuickPad_ShowRowContextMenu(row)
+}
+
+PromptQuickPad_DeleteItem(row) {
+    global PromptQuickPadFilteredIdx, PromptQuickPadMergedSnapshot, PromptQuickPadData
+    if row < 1 || row > PromptQuickPadFilteredIdx.Length
+        return
+    mi := PromptQuickPadFilteredIdx[row]
+    if mi < 1 || mi > PromptQuickPadMergedSnapshot.Length
+        return
+    entry := PromptQuickPadMergedSnapshot[mi]
+    src := entry.Has("source") ? entry["source"] : ""
+    if src != "json" {
+        MsgBox("此项来自设置中的「快捷操作」或「提示词模板」，请在主界面 设置 → 提示词 中修改或删除。", "Prompt Quick-Pad", "Iconi")
+        return
+    }
+    if MsgBox("确定删除该条用户提示词？（仅移除 prompts.json 中的条目）", "Prompt Quick-Pad", "YesNo Icon?") != "Yes"
+        return
+    uix := entry.Has("userIndex") ? Integer(entry["userIndex"]) : 0
+    if uix >= 1 && uix <= PromptQuickPadData.Length {
+        PromptQuickPadData.RemoveAt(uix)
+        PromptQuickPad_SaveToDisk()
+        PromptQuickPad_RefreshListView()
+    }
+}
+
+PromptQuickPad_OpenReadOnlyViewer(Title, Content) {
+    global AIListPanelGUI, AIListPanelColors
+    opt := "+AlwaysOnTop +Resize"
+    if AIListPanelGUI
+        opt .= " +Owner" . AIListPanelGUI.Hwnd
+    g := Gui(opt, "查看 — " . (Title != "" ? Title : "内置/模板"))
+    g.BackColor := AIListPanelColors.Background
+    g.SetFont("s10 c" . AIListPanelColors.Text, "Segoe UI")
+    g.Add("Text", "x10 y8 w520 h20", "此为设置中的快捷词或模板，正文请在「设置 → 提示词」中修改。")
+    ed := g.Add("Edit", "x10 y32 w540 h300 Multi ReadOnly VScroll", Content)
+    ed.SetFont("s9", "Consolas")
+    g.Add("Button", "x10 y340 w100 h28 Default", "关闭").OnEvent("Click", (*) => g.Destroy())
+    g.OnEvent("Escape", (*) => g.Destroy())
+    g.Show()
+}
+
+PromptQuickPad_SaveEditContent(eg, ed, entry) {
+    entry["content"] := ed.Value
+    PromptQuickPad_SaveToDisk()
+    eg.Destroy()
+    PromptQuickPad_RefreshListView()
+}
+
+PromptQuickPad_EditItem(row) {
+    global PromptQuickPadFilteredIdx, PromptQuickPadMergedSnapshot, PromptQuickPadData, AIListPanelColors, AIListPanelGUI
+    if row < 1 || row > PromptQuickPadFilteredIdx.Length
+        return
+    mi := PromptQuickPadFilteredIdx[row]
+    if mi < 1 || mi > PromptQuickPadMergedSnapshot.Length
+        return
+    shell := PromptQuickPadMergedSnapshot[mi]
+    src := shell.Has("source") ? shell["source"] : ""
+    if src != "json" {
+        PromptQuickPad_OpenReadOnlyViewer(shell.Has("title") ? shell["title"] : "提示词", shell.Has("content") ? shell["content"] : "")
+        return
+    }
+    uix := shell.Has("userIndex") ? Integer(shell["userIndex"]) : 0
+    if uix < 1 || uix > PromptQuickPadData.Length
+        return
+    entry := PromptQuickPadData[uix]
+    opt := "+AlwaysOnTop"
+    if AIListPanelGUI != 0
+        opt .= " +Owner" . AIListPanelGUI.Hwnd
+    eg := Gui(opt, "编辑内容")
+    eg.BackColor := AIListPanelColors.Background
+    eg.SetFont("s10 c" . AIListPanelColors.Text, "Segoe UI")
+    ed := eg.Add("Edit", "x10 y10 w420 h260 Multi WantReturn VScroll", entry["content"])
+    ed.SetFont("s9", "Consolas")
+    eg.Add("Button", "x10 y280 w100 h28 Default", "保存").OnEvent("Click", (*) => PromptQuickPad_SaveEditContent(eg, ed, entry))
+    eg.Add("Button", "x120 y280 w100 h28", "取消").OnEvent("Click", (*) => eg.Destroy())
+    eg.OnEvent("Escape", (*) => eg.Destroy())
+    eg.Show()
+}
+
+ShowAIListPanel() {
+    global AIListPanelGUI, AIListPanelIsVisible
+    global AIListPanelWindowX, AIListPanelWindowY, AIListPanelWindowW, AIListPanelWindowH
+    global FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY
+    global AIListPanelEnterHotkey, AIListPanelEscHotkey, AIListPanelSearchInput
+
+    if AIListPanelIsVisible && AIListPanelGUI != 0 {
+        HideAIListPanel()
+        return
+    }
+
+    LoadAIListPanelPosition()
+
+    try {
+        CreateAIListPanelGUI()
+    } catch as err {
+        TrayTip("Prompt Quick-Pad 创建失败: " . err.Message, "错误", "Iconx 2")
+        return
+    }
+
+    savedX := AIListPanelWindowX
+    savedY := AIListPanelWindowY
+    savedW := AIListPanelWindowW
+    savedH := AIListPanelWindowH
+
+    if savedX != 0 && savedY != 0 {
+        panelX := savedX
+        panelY := savedY
+        panelW := savedW > 0 ? savedW : 520
+        panelH := savedH > 0 ? savedH : 480
+    } else if FloatingToolbarGUI != 0 {
+        try {
+            FloatingToolbarGUI.GetPos(&toolbarX, &toolbarY, &toolbarW, &toolbarH)
+            panelW := AIListPanelWindowW > 0 ? AIListPanelWindowW : 520
+            panelH := AIListPanelWindowH > 0 ? AIListPanelWindowH : 480
+            panelX := toolbarX
+            panelY := toolbarY - panelH
+            ScreenHeight := SysGet(1)
+            if panelY < 0
+                panelY := toolbarY + toolbarH + 5
+        } catch {
+            ScreenWidth := SysGet(0)
+            ScreenHeight := SysGet(1)
+            panelW := 520
+            panelH := 480
+            panelX := (ScreenWidth - panelW) // 2
+            panelY := (ScreenHeight - panelH) // 2
+        }
+    } else {
+        ScreenWidth := SysGet(0)
+        ScreenHeight := SysGet(1)
+        panelW := 520
+        panelH := 480
+        panelX := (ScreenWidth - panelW) // 2
+        panelY := (ScreenHeight - panelH) // 2
+    }
+
+    AIListPanelWindowX := panelX
+    AIListPanelWindowY := panelY
+    AIListPanelWindowW := panelW
+    AIListPanelWindowH := panelH
+
+    try {
+        AIListPanelGUI.Show("x" . panelX . " y" . panelY . " w" . panelW . " h" . panelH)
+        AIListPanelIsVisible := true
+    } catch as err {
+        TrayTip("显示失败: " . err.Message, "错误", "Iconx 2")
+        return
+    }
+
+    PromptQuickPad_RelayoutMainControls()
+    PromptQuickPad_RefreshListView()
+    SetTimer(AIListPanelFollowToolbar, 100)
+
+    try {
+        HotIfWinActive("ahk_id " . AIListPanelGUI.Hwnd)
+        AIListPanelEnterHotkey := Hotkey("Enter", PromptQuickPad_OnEnter, "On")
+        AIListPanelEscHotkey := Hotkey("Escape", PromptQuickPad_OnEsc, "On")
+        HotIfWinActive()
+    } catch {
+    }
+
+    if AIListPanelSearchInput != 0
+        AIListPanelSearchInput.Focus()
+}
+
+HideAIListPanel() {
+    global AIListPanelGUI, AIListPanelIsVisible, AIListPanelEnterHotkey, AIListPanelEscHotkey
+
+    if AIListPanelGUI != 0 {
+        try SaveAIListPanelPosition()
+        catch {
+        }
+        try {
+            HotIfWinActive("ahk_id " . AIListPanelGUI.Hwnd)
+            if AIListPanelEnterHotkey != 0 {
+                AIListPanelEnterHotkey.Off()
+                AIListPanelEnterHotkey := 0
+            }
+            if AIListPanelEscHotkey != 0 {
+                AIListPanelEscHotkey.Off()
+                AIListPanelEscHotkey := 0
+            }
+            HotIfWinActive()
+        } catch {
+            try HotIfWinActive()
+            catch {
+            }
+        }
+        try AIListPanelGUI.Hide()
+        catch {
+        }
         AIListPanelIsVisible := false
-        
-        ; 停止定时器
-        SetTimer(AIListPanelCheckItemHover, 0)
-        SetTimer(AIListPanelFollowToolbar, 0)  ; 停止跟随定时器
+        SetTimer(AIListPanelFollowToolbar, 0)
     }
 }
 
 ToggleAIListPanel() {
     global AIListPanelIsVisible
-    
-    if (AIListPanelIsVisible) {
+    if AIListPanelIsVisible
         HideAIListPanel()
-    } else {
+    else
         ShowAIListPanel()
-    }
 }
 
-; ===================== 创建GUI =====================
 CreateAIListPanelGUI() {
-    global AIListPanelGUI, AIListPanelColors, AIListPanelItems, AIListPanelCheckboxes
-    
-    ; 初始化复选框映射
-    AIListPanelCheckboxes := Map()
-    
-    ; 如果已存在，先销毁
-    if (AIListPanelGUI != 0) {
-        try {
-            AIListPanelGUI.Destroy()
-        } catch {
+    global AIListPanelGUI, AIListPanelColors, AIListPanelSearchInput
+    global PromptQuickPadListLV, PromptQuickPadStatusText, PromptQuickPadDragBar
+    global PromptQuickPadLastCategorySig
+
+    if AIListPanelGUI != 0 {
+        PromptQuickPad_ClearCategoryStrip()
+        try AIListPanelGUI.Destroy()
+        catch {
         }
     }
-    
-    ; 创建GUI（有边框、置顶、可调整大小）
-    ; 横排模式下禁用竖向拉伸，竖排模式下可以拉伸
-    resizeFlags := AIListPanelIconOnlyMode ? "+AlwaysOnTop +Resize -MaximizeBox +MinimizeBox" : "+AlwaysOnTop +Resize -MaximizeBox +MinimizeBox"
-    AIListPanelGUI := Gui(resizeFlags, "AI助手选择")
+    PromptQuickPadLastCategorySig := ""
+    PromptQuickPadDragBar := 0
+
+    PromptQuickPad_LoadFromDisk()
+
+    ; 标准标题栏：置顶、最小化、最大化、关闭（系统按钮）
+    AIListPanelGUI := Gui("+AlwaysOnTop +Resize +MinimizeBox +MaximizeBox +Caption +Border +MinSize440x460", "Prompt Quick-Pad")
     AIListPanelGUI.BackColor := AIListPanelColors.Background
     AIListPanelGUI.SetFont("s10 c" . AIListPanelColors.Text, "Segoe UI")
-    
-    ; 窗口事件
-    AIListPanelGUI.OnEvent("Close", OnAIListPanelClose)
-    AIListPanelGUI.OnEvent("Size", OnAIListPanelSize)
-    ; AutoHotkey v2 不支持 "Move" 事件，使用定时器跟踪位置
-    
-    ; 监听拖动消息
-    OnMessage(0x0201, AIListPanelWM_LBUTTONDOWN)  ; WM_LBUTTONDOWN
-    OnMessage(0x0200, AIListPanelWM_MOUSEMOVE)  ; WM_MOUSEMOVE
-    OnMessage(0x0202, AIListPanelWM_LBUTTONUP)  ; WM_LBUTTONUP
-    
-    ; 创建标题栏（可拖动，但默认隐藏）
-    global AIListPanelTitleBar, AIListPanelToggleBtn
-    AIListPanelTitleBar := AIListPanelGUI.Add("Text", 
-        "x0 y0 w" . AIListPanelWindowW . " h30 Center 0x200 Background" . AIListPanelColors.ItemBg . 
-        " c" . AIListPanelColors.TextHover, "")
-    AIListPanelTitleBar.SetFont("s11 Bold", "Segoe UI")
-    AIListPanelTitleBar.Visible := false  ; 默认隐藏标题栏
-    
-    ; 创建切换显示模式按钮（开关图标）- 放在搜索框左侧
-    global AIListPanelToggleBtn
-    AIListPanelToggleBtn := AIListPanelGUI.Add("Text", 
-        "x5 y5 w20 h20 Center 0x200 Background" . AIListPanelColors.ItemHover . 
-        " c" . AIListPanelColors.TextHover, AIListPanelIconOnlyMode ? "☰" : "☷")
-    AIListPanelToggleBtn.SetFont("s12", "Segoe UI")
-    try {
-        AIListPanelToggleBtn.OnEvent("Click", CreateToggleModeButtonHandler())
-    } catch as err {
-        MsgBox("切换按钮绑定失败: " . err.Message, "错误", "Iconx")
-    }
-    
-    ; 创建搜索输入框和按钮
-    global AIListPanelSearchInput, AIListPanelSearchBtn
-    ; 搜索框使用完整宽度，与搜索按钮相切
-    searchInputWidth := AIListPanelWindowW - 75  ; 完整宽度
+    AIListPanelGUI.OnEvent("Close", (*) => HideAIListPanel())
+    AIListPanelGUI.OnEvent("Size", PromptQuickPad_OnSize)
+
+    margin := 10
+    global AIListPanelWindowW, AIListPanelWindowH
+    initW := AIListPanelWindowW > 0 ? AIListPanelWindowW : 560
+    initH := AIListPanelWindowH > 0 ? AIListPanelWindowH : 520
+
     AIListPanelSearchInput := AIListPanelGUI.Add("Edit",
-        "x30 y5 w" . searchInputWidth . " h20 Background" . AIListPanelColors.ItemBg .
-        " c" . AIListPanelColors.Text, "")
+        "x" . margin . " y80 w" . (initW - margin * 2) . " h24 Background" . AIListPanelColors.ItemBg . " c" . AIListPanelColors.Text, "")
     AIListPanelSearchInput.SetFont("s9", "Segoe UI")
+    AIListPanelSearchInput.OnEvent("Change", PromptQuickPad_OnSearchChange)
 
-    ; 搜索按钮（紧跟在搜索框后面，相切）
-    searchBtnX := 30 + searchInputWidth + 5
-    AIListPanelSearchBtn := AIListPanelGUI.Add("Text",
-        "x" . searchBtnX . " y5 w40 h20 Center 0x200 Background" . AIListPanelColors.ItemHover .
-        " c" . AIListPanelColors.TextHover, "搜索")
-    AIListPanelSearchBtn.SetFont("s9", "Segoe UI")
-    AIListPanelSearchBtn.OnEvent("Click", OnAIListPanelSearch)
-    
-    ; 输入框内容变化时，显示/隐藏复选框
-    AIListPanelSearchInput.OnEvent("Change", OnAIListPanelSearchInputChange)
-    
-    ; 使用窗口级别的快捷键处理回车键（AutoHotkey v2的Edit控件不支持KeyDown事件）
-    ; 当输入框获得焦点时，回车键会触发搜索
-    
-    ; 获取所有AI分类的搜索引擎
-    debugInfo := ""
+    PromptQuickPadListLV := AIListPanelGUI.Add("ListView",
+        "x" . margin . " y120 w" . (initW - margin * 2) . " h200 Background" . AIListPanelColors.ItemBg . " c" . AIListPanelColors.Text . " Grid NoSortHdr",
+        ["标题", "分类", "快捷键", "预览"])
+    PromptQuickPadListLV.SetFont("s9", "Segoe UI")
+    PromptQuickPadListLV.OnEvent("DoubleClick", PromptQuickPad_OnDoubleClick)
+    PromptQuickPadListLV.OnEvent("ContextMenu", PromptQuickPad_LVContextMenu)
+
+    PromptQuickPadStatusText := AIListPanelGUI.Add("Text",
+        "x" . margin . " y" . (initH - 70) . " w" . (initW - margin * 2) . " h44 0x200 c" . AIListPanelColors.Text, "")
+
+    PromptQuickPad_ApplyListViewStyles()
     try {
-        debugInfo .= "步骤1: 开始获取AI引擎列表...`n"
-        
-        ; 直接尝试调用函数，如果不存在会抛出错误
-        AIEngines := GetSortedSearchEngines("ai")
-        debugInfo .= "步骤2: GetSortedSearchEngines调用成功`n"
-        debugInfo .= "步骤3: 返回类型: " . Type(AIEngines) . "`n"
-        
-        if (!IsObject(AIEngines)) {
-            throw Error("GetSortedSearchEngines返回的不是对象，类型: " . Type(AIEngines))
-        }
-        
-        debugInfo .= "步骤4: 确认返回的是对象`n"
-        
-        if (AIEngines.Length = 0) {
-            debugInfo .= "步骤5: AI引擎列表为空`n"
-            ; 如果没有AI引擎，显示提示
-            NoEnginesLabel := AIListPanelGUI.Add("Text", 
-                "x0 y5 w" . AIListPanelWindowW . " h370 Center 0x200 Background" . AIListPanelColors.Background . 
-                " c" . AIListPanelColors.Text, "暂无AI引擎")
-            MsgBox("AI选择面板调试信息:`n`n" . debugInfo, "调试信息", "Iconi")
-            return
-        }
-        
-        debugInfo .= "步骤5: 找到 " . AIEngines.Length . " 个AI引擎`n"
-    } catch as err {
-        ; 如果获取失败，显示错误提示和调试信息
-        debugInfo .= "错误: " . err.Message . "`n"
-        if (err.HasProp("File")) {
-            debugInfo .= "错误位置: " . err.File . " 第 " . err.Line . " 行`n"
-        }
-        if (err.Message = "This local variable has not been assigned a value.") {
-            debugInfo .= "`n提示: GetSortedSearchEngines函数可能未定义或未加载`n"
-            debugInfo .= "请确保主脚本已正确加载所有模块`n"
-        }
-        MsgBox("AI选择面板调试信息:`n`n" . debugInfo, "调试信息", "Iconx")
-        
-        ErrorLabel := AIListPanelGUI.Add("Text", 
-            "x0 y5 w" . AIListPanelWindowW . " h370 Center 0x200 Background" . AIListPanelColors.Background . 
-            " c" . AIListPanelColors.Text, "加载失败: " . err.Message)
-        return
-    }
-    
-    ; 清空列表项数组
-    AIListPanelItems := []
-    
-    ; 列表项尺寸
-    ItemHeight := 45
-    ItemPadding := 5
-    IconSize := 32
-    StartY := 30  ; 从搜索框下方开始（搜索框高度20 + 间距5 + 切换按钮区域5）
-    
-    ; 创建列表项
-    Loop AIEngines.Length {
-        index := A_Index
-        engine := AIEngines[index]
-        
-        if (!IsObject(engine) || !engine.HasProp("Value")) {
-            continue
-        }
-        
-        y := StartY + (index - 1) * ItemHeight
-        
-        ; 创建列表项背景
-        itemBg := AIListPanelGUI.Add("Text", 
-            "x0 y" . y . " w" . AIListPanelWindowW . " h" . ItemHeight . " Background" . AIListPanelColors.ItemBg . " 0x200", "")
-        
-        ; 获取图标路径
-        iconPath := GetSearchEngineIcon(engine.Value)
-        engineName := engine.HasProp("Name") ? engine.Name : engine.Value
-        
-        ; 创建复选框（默认隐藏，当输入框有内容时显示）
-        ; 复选框有背景色，在横排模式右上角更显眼
-        ; 增大尺寸到18x18，更容易点击
-        global AIListPanelCheckboxes
-        checkboxX := ItemPadding
-        checkboxY := y + (ItemHeight - 18) // 2
-        checkbox := AIListPanelGUI.Add("Checkbox",
-            "x" . checkboxX . " y" . checkboxY . " w18 h18 Background" . AIListPanelColors.ItemHover . " cWhite", "")
-        checkbox.Visible := false  ; 默认隐藏
-        checkbox.OnEvent("Click", CreateCheckboxClickHandler(engine.Value))
-        AIListPanelCheckboxes[engine.Value] := checkbox
-        
-        ; 创建图标
-        iconCtrl := 0
-        if (iconPath != "" && FileExist(iconPath)) {
-            try {
-                ; 计算图标位置（复选框右侧，垂直居中）
-                iconX := ItemPadding + 19  ; 复选框宽度18 + 间距1
-                iconY := y + (ItemHeight - IconSize) // 2
-                
-                ; 创建图标控件
-                iconCtrl := AIListPanelGUI.Add("Picture", 
-                    "x" . iconX . " y" . iconY . " w" . IconSize . " h" . IconSize . " 0x200", iconPath)
-                
-                ; 绑定点击事件和右键菜单（使用闭包创建处理函数）
-                try {
-                    clickHandler := CreateAIListItemClickHandler(engine.Value, engineName, index)
-                    contextMenuHandler := CreateAIListItemContextMenuHandler(engine.Value, engineName, index)
-                    if (!IsObject(clickHandler)) {
-                        throw Error("CreateAIListItemClickHandler返回的不是有效对象，类型: " . Type(clickHandler))
-                    }
-                    iconCtrl.OnEvent("Click", clickHandler)
-                    iconCtrl.OnEvent("ContextMenu", contextMenuHandler)
-                } catch as err {
-                    ; 如果绑定失败，显示调试信息
-                    errorMsg := "绑定图标事件失败:`n`n引擎: " . engineName . "`n错误: " . err.Message
-                    if (err.HasProp("File")) {
-                        errorMsg .= "`n错误位置: " . err.File . " 第 " . err.Line . " 行"
-                    }
-                    MsgBox(errorMsg, "调试信息", "Iconx")
-                }
-            } catch {
-                iconCtrl := 0
-            }
-        }
-        
-        ; 创建名称标签
-        nameX := ItemPadding + 19 + IconSize + ItemPadding  ; 复选框(18) + 间距(1) + 图标 + 间距
-        nameY := y + (ItemHeight - 20) // 2
-        nameLabel := AIListPanelGUI.Add("Text", 
-            "x" . nameX . " y" . nameY . " w" . (AIListPanelWindowW - nameX - ItemPadding) . " h20 Left 0x200" .
-            " c" . AIListPanelColors.Text . " BackgroundTrans", engineName)
-        nameLabel.SetFont("s10", "Segoe UI")
-        
-        ; 绑定点击事件和右键菜单（使用闭包创建处理函数）
-        try {
-            clickHandler := CreateAIListItemClickHandler(engine.Value, engineName, index)
-            contextMenuHandler := CreateAIListItemContextMenuHandler(engine.Value, engineName, index)
-            if (!IsObject(clickHandler)) {
-                throw Error("CreateAIListItemClickHandler返回的不是有效对象，类型: " . Type(clickHandler))
-            }
-            itemBg.OnEvent("Click", clickHandler)
-            itemBg.OnEvent("ContextMenu", contextMenuHandler)
-            nameLabel.OnEvent("Click", clickHandler)
-            nameLabel.OnEvent("ContextMenu", contextMenuHandler)
-        } catch as err {
-            ; 如果绑定失败，显示调试信息
-            errorMsg := "绑定事件失败:`n`n引擎: " . engineName . "`n错误: " . err.Message
-            if (err.HasProp("File")) {
-                errorMsg .= "`n错误位置: " . err.File . " 第 " . err.Line . " 行"
-            }
-            MsgBox(errorMsg, "调试信息", "Iconx")
-        }
-        
-        ; 存储列表项信息
-        AIListPanelItems.Push({
-            bg: itemBg,
-            icon: iconCtrl,
-            name: nameLabel,
-            checkbox: checkbox,
-            engineValue: engine.Value,
-            engineName: engineName,
-            index: index
-        })
-    }
-    
-}
-
-; ===================== 创建切换模式按钮处理函数 =====================
-CreateToggleModeButtonHandler() {
-    handler(*) {
-        ToggleAIListPanelIconMode()
-    }
-    return handler
-}
-
-; ===================== 创建复选框点击处理函数 =====================
-CreateCheckboxClickHandler(engineValue) {
-    handler(*) {
-        ToggleAISelection(engineValue)
-    }
-    return handler
-}
-
-; ===================== 创建列表项点击处理函数 =====================
-CreateAIListItemClickHandler(engineValue, engineName, index) {
-    ; 使用闭包函数捕获参数
-    handler(*) {
-        ; 新的交互逻辑：输入框有内容时，点击图标变成勾选；输入框为空时，不执行操作
-        OnAIListItemClick(engineValue, engineName, index)
-    }
-    return handler
-}
-
-; ===================== 创建列表项右键菜单处理函数 =====================
-CreateAIListItemContextMenuHandler(engineValue, engineName, index) {
-    handler(*) {
-        OnAIListItemContextMenu(engineValue, engineName, index)
-    }
-    return handler
-}
-
-; ===================== 列表项点击处理 =====================
-OnAIListItemClick(engineValue, engineName, index) {
-    global AIListPanelSearchInput
-    
-    ; 检查输入框是否有内容
-    if (AIListPanelSearchInput != 0) {
-        searchText := Trim(AIListPanelSearchInput.Value)
-        if (searchText != "") {
-            ; 输入框有内容时，点击图标变成勾选/取消勾选
-            ToggleAISelection(engineValue)
-            return
-        }
-    }
-    
-    ; 输入框为空时，不执行任何操作（或者可以保持原功能，根据需求）
-    ; 如果需要保持原功能，取消下面的注释
-    ; HideAIListPanel()
-    ; ShowAIListPanelLoadingTip(engineName)
-    ; OpenAIWithClipboard(engineValue, engineName)
-}
-
-; ===================== 列表项右键菜单处理 =====================
-OnAIListItemContextMenu(engineValue, engineName, index) {
-    ; 创建右键菜单
-    contextMenu := Menu()
-    contextMenu.Add("1. 浏览器打开", (*) => OpenAIInBrowser(engineValue, engineName))
-    contextMenu.Add("2. 编辑模式", (*) => ShowAIEditMode(engineValue))
-    contextMenu.Add("3. 提问" . engineName . "对应的AI", (*) => ShowAIInputDialog(engineValue, engineName))
-    
-    ; 显示菜单
-    contextMenu.Show()
-}
-
-; ===================== 在浏览器中打开AI =====================
-OpenAIInBrowser(engineValue, engineName) {
-    HideAIListPanel()
-    OpenAIInDefaultBrowser(engineValue, A_Clipboard)
-}
-
-; ===================== 显示AI编辑模式 =====================
-ShowAIEditMode(engineValue) {
-    ; TODO: 实现编辑模式，允许调整顺序和隐藏图标
-    TrayTip("提示", "编辑模式功能开发中", "Iconi 1")
-}
-
-; ===================== 显示AI输入对话框 =====================
-ShowAIInputDialog(engineValue, engineName) {
-    ; 创建输入对话框
-    inputGui := Gui("+AlwaysOnTop", "输入文字")
-    inputGui.BackColor := AIListPanelColors.Background
-    inputGui.SetFont("s10 c" . AIListPanelColors.Text, "Segoe UI")
-    
-    inputGui.Add("Text", "x10 y10 w200 h20", "请输入要搜索的内容：")
-    inputEdit := inputGui.Add("Edit", "x10 y35 w200 h80 Multi", "")
-    inputEdit.SetFont("s9", "Segoe UI")
-    
-    ; 确定按钮
-    okBtn := inputGui.Add("Button", "x10 y125 w90 h30 Default", "确定")
-    okBtn.OnEvent("Click", OnInputDialogOK.Bind(inputGui, inputEdit, engineValue))
-    
-    ; 取消按钮
-    cancelBtn := inputGui.Add("Button", "x120 y125 w90 h30", "取消")
-    cancelBtn.OnEvent("Click", (*) => inputGui.Destroy())
-    
-    inputGui.Show()
-}
-
-; ===================== 输入对话框确定按钮处理 =====================
-OnInputDialogOK(inputGui, inputEdit, engineValue, *) {
-    text := Trim(inputEdit.Value)
-    inputGui.Destroy()
-    if (text != "") {
-        HideAIListPanel()
-        OpenAIWithText(engineValue, text)
-    }
-}
-
-; ===================== 打开AI并带入剪贴板内容 =====================
-OpenAIWithClipboard(engineValue, engineName) {
-    try {
-        ; 保存当前剪贴板内容
-        oldClipboard := A_Clipboard
-        clipboardContent := Trim(A_Clipboard)
-        hasClipboardContent := (clipboardContent != "")
-        
-        ; 检查Cursor是否运行
-        if (!WinExist("ahk_exe Cursor.exe")) {
-            ; Cursor未运行，直接使用默认浏览器打开
-            OpenAIInDefaultBrowser(engineValue, clipboardContent)
-            return
-        }
-        
-        ; Cursor已运行，尝试使用Cursor浏览器
-        try {
-            ; 激活Cursor窗口
-            WinActivate("ahk_exe Cursor.exe")
-            WinWaitActive("ahk_exe Cursor.exe", , 3)
-            Sleep(400)
-            
-            if (!WinActive("ahk_exe Cursor.exe")) {
-                WinActivate("ahk_exe Cursor.exe")
-                Sleep(400)
-            }
-            
-            ; 发送Ctrl+Shift+B打开浏览器
-            SendInput("^+b")
-            Sleep(1200)
-            
-            ; 构建URL
-            if (hasClipboardContent) {
-                encodedContent := UriEncode(clipboardContent)
-                searchURL := BuildAIEngineURL(engineValue, encodedContent)
-            } else {
-                searchURL := BuildAIEngineURL(engineValue, "")
-            }
-            
-            ; 导航到URL
-            A_Clipboard := searchURL
-            Sleep(150)
-            
-            ; 聚焦地址栏并输入URL
-            SendInput("^l")
-            Sleep(300)
-            SendInput("^v")
-            Sleep(200)
-            SendInput("{Enter}")
-            
-            ; 如果URL不支持参数，等待页面加载后粘贴到输入框
-            if (hasClipboardContent && !AISupportsURLParams(engineValue)) {
-                Sleep(3000)  ; 等待页面加载
-                A_Clipboard := clipboardContent
-                Sleep(150)
-                SendInput("{Tab}")
-                Sleep(200)
-                SendInput("^v")
-                Sleep(300)
-                SendInput("{Enter}")
-            }
-            
-            ; 恢复剪贴板
-            Sleep(200)
-            A_Clipboard := oldClipboard
-            
-            ; 隐藏加载提示
-            HideAIListPanelLoadingTip()
-        } catch as err {
-            ; 如果Cursor浏览器打开失败，回退到默认浏览器
-            OpenAIInDefaultBrowser(engineValue, clipboardContent)
-        }
-    } catch as err {
-        ; 如果失败，使用默认浏览器
-        try {
-            OpenAIInDefaultBrowser(engineValue, clipboardContent)
-        } catch {
-            HideAIListPanelLoadingTip()
-            TrayTip("打开AI失败: " . err.Message, "错误", "Iconx 2")
-        }
-    }
-}
-
-; ===================== 构建AI引擎URL =====================
-BuildAIEngineURL(engineValue, encodedContent) {
-    baseURL := ""
-    
-    switch engineValue {
-        case "deepseek":
-            baseURL := "https://chat.deepseek.com/"
-            if (encodedContent != "") {
-                baseURL .= "?q=" . encodedContent
-            }
-        case "yuanbao":
-            baseURL := "https://yuanbao.tencent.com/"
-            if (encodedContent != "") {
-                baseURL .= "?q=" . encodedContent
-            }
-        case "doubao":
-            baseURL := "https://www.doubao.com/chat/"
-            if (encodedContent != "") {
-                baseURL .= "?q=" . encodedContent
-            }
-        case "zhipu":
-            baseURL := "https://chatglm.cn/main/search"
-            if (encodedContent != "") {
-                baseURL .= "?query=" . encodedContent
-            }
-        case "mita":
-            baseURL := "https://metaso.cn/"
-            if (encodedContent != "") {
-                baseURL .= "?q=" . encodedContent
-            }
-        case "wenxin":
-            baseURL := "https://yiyan.baidu.com/search"
-            if (encodedContent != "") {
-                baseURL .= "?query=" . encodedContent
-            }
-        case "qianwen":
-            baseURL := "https://tongyi.aliyun.com/qianwen/chat"
-            if (encodedContent != "") {
-                baseURL .= "?intent=chat&query=" . encodedContent
-            }
-        case "kimi":
-            baseURL := "https://kimi.moonshot.cn/_prefill_chat"
-            if (encodedContent != "") {
-                baseURL .= "?force_search=true&send_immediately=true&prefill_prompt=" . encodedContent
-            }
-        case "perplexity":
-            baseURL := "https://www.perplexity.ai/search"
-            if (encodedContent != "") {
-                baseURL .= "?intent=qa&q=" . encodedContent
-            }
-        case "copilot":
-            baseURL := "https://copilot.microsoft.com/chat"
-            if (encodedContent != "") {
-                baseURL .= "?q=" . encodedContent
-            }
-        case "chatgpt":
-            baseURL := "https://chat.openai.com/"
-            if (encodedContent != "") {
-                baseURL .= "?q=" . encodedContent
-            }
-        case "grok":
-            baseURL := "https://grok.com/"
-            if (encodedContent != "") {
-                baseURL .= "?q=" . encodedContent
-            }
-        case "you":
-            baseURL := "https://you.com/search"
-            if (encodedContent != "") {
-                baseURL .= "?q=" . encodedContent
-            }
-        case "claude":
-            baseURL := "https://claude.ai/new"
-            if (encodedContent != "") {
-                baseURL .= "?q=" . encodedContent
-            }
-        case "monica":
-            baseURL := "https://monica.so/answers/"
-            if (encodedContent != "") {
-                baseURL .= "?q=" . encodedContent
-            }
-        case "webpilot":
-            baseURL := "https://webpilot.ai/search"
-            if (encodedContent != "") {
-                baseURL .= "?q=" . encodedContent
-            }
-        default:
-            baseURL := "https://chat.deepseek.com/"
-            if (encodedContent != "") {
-                baseURL .= "?q=" . encodedContent
-            }
-    }
-    
-    return baseURL
-}
-
-; ===================== 检查AI是否支持URL参数 =====================
-AISupportsURLParams(engineValue) {
-    ; 某些AI不支持URL参数，需要在页面加载后手动输入
-    unsupportedEngines := ["chatgpt", "claude"]
-    ; 检查engineValue是否在unsupportedEngines数组中
-    for index, engine in unsupportedEngines {
-        if (engine = engineValue) {
-            return false
-        }
-    }
-    return true
-}
-
-; ===================== 使用默认浏览器打开AI =====================
-OpenAIInDefaultBrowser(engineValue, clipboardContent) {
-    try {
-        ; 构建URL
-        if (clipboardContent != "" && Trim(clipboardContent) != "") {
-            encodedContent := UriEncode(clipboardContent)
-            searchURL := BuildAIEngineURL(engineValue, encodedContent)
-        } else {
-            searchURL := BuildAIEngineURL(engineValue, "")
-        }
-        
-        ; 使用默认浏览器打开URL
-        Run(searchURL)
-        
-        ; 隐藏加载提示
-        HideAIListPanelLoadingTip()
-        
-        ; 显示提示信息（Cursor未运行时）
-        if (!WinExist("ahk_exe Cursor.exe")) {
-            engineDisplayName := GetAIEngineDisplayName(engineValue)
-            TrayTip("已在浏览器中打开 " . engineDisplayName, "AI助手", "Iconi 1")
-        }
-    } catch as err {
-        HideAIListPanelLoadingTip()
-        TrayTip("打开浏览器失败: " . err.Message, "错误", "Iconx 2")
-    }
-}
-
-; ===================== 获取AI引擎显示名称 =====================
-GetAIEngineDisplayName(engineValue) {
-    ; 根据引擎值返回显示名称
-    nameMap := Map(
-        "deepseek", "DeepSeek",
-        "yuanbao", "元宝",
-        "doubao", "豆包",
-        "zhipu", "智谱",
-        "mita", "秘塔",
-        "wenxin", "文心一言",
-        "qianwen", "通义千问",
-        "kimi", "Kimi",
-        "perplexity", "Perplexity",
-        "copilot", "Copilot",
-        "chatgpt", "ChatGPT",
-        "grok", "Grok",
-        "you", "You",
-        "claude", "Claude",
-        "monica", "Monica",
-        "webpilot", "WebPilot"
-    )
-    
-    return nameMap.Get(engineValue, engineValue)
-}
-
-; ===================== 显示加载提示 =====================
-ShowAIListPanelLoadingTip(engineName) {
-    global AIListPanelLoadingEngine
-    AIListPanelLoadingEngine := engineName
-    TrayTip("正在打开 " . engineName . "...", "AI助手", "Iconi 1")
-}
-
-; ===================== 隐藏加载提示 =====================
-HideAIListPanelLoadingTip() {
-    global AIListPanelLoadingEngine
-    AIListPanelLoadingEngine := ""
-    ToolTip()  ; 清除ToolTip
-}
-
-; ===================== 检测列表项悬停 =====================
-AIListPanelCheckItemHover() {
-    global AIListPanelGUI, AIListPanelItems, AIListPanelHoveredIndex, AIListPanelColors, AIListPanelIsVisible
-    
-    if (!AIListPanelIsVisible || AIListPanelGUI = 0) {
-        return
-    }
-    
-    try {
-        MouseGetPos(&mx, &my, &winHwnd, &ctrlHwnd, 2)
-        
-        ; 检查鼠标是否在面板窗口内
-        if (winHwnd != AIListPanelGUI.Hwnd) {
-            ; 鼠标不在窗口内，恢复所有项的颜色
-            if (AIListPanelHoveredIndex != 0) {
-                RestoreAIListItemColor(AIListPanelHoveredIndex)
-                AIListPanelHoveredIndex := 0
-            }
-            return
-        }
-        
-        ; 查找鼠标下的列表项
-        currentHover := 0
-        for index, item in AIListPanelItems {
-            if (IsObject(item) && item.HasProp("bg")) {
-                item.bg.GetPos(&itemX, &itemY, &itemW, &itemH)
-                if (mx >= itemX && mx <= itemX + itemW && my >= itemY && my <= itemY + itemH) {
-                    currentHover := index
-                    break
-                }
-            }
-        }
-        
-        ; 如果悬停状态改变
-        if (currentHover != AIListPanelHoveredIndex) {
-            ; 恢复旧项的颜色
-            if (AIListPanelHoveredIndex != 0) {
-                RestoreAIListItemColor(AIListPanelHoveredIndex)
-            }
-            
-            ; 高亮新项
-            if (currentHover != 0) {
-                HighlightAIListItem(currentHover)
-            }
-            
-            AIListPanelHoveredIndex := currentHover
-        }
+        PromptQuickPadListLV.ModifyCol(1, 120)
+        PromptQuickPadListLV.ModifyCol(2, 72)
+        PromptQuickPadListLV.ModifyCol(3, 88)
+        PromptQuickPadListLV.ModifyCol(4, initW - margin * 2 - 120 - 72 - 88 - 24)
     } catch {
     }
 }
 
-; ===================== 高亮列表项 =====================
-HighlightAIListItem(index) {
-    global AIListPanelItems, AIListPanelColors
-    
-    if (index > 0 && index <= AIListPanelItems.Length) {
-        item := AIListPanelItems[index]
-        if (IsObject(item) && item.HasProp("bg")) {
-            try {
-                item.bg.Opt("Background" . AIListPanelColors.ItemHover)
-                if (item.HasProp("name") && item.name != 0) {
-                    item.name.Opt("c" . AIListPanelColors.TextHover)
-                }
-            } catch {
-            }
-        }
-    }
-}
-
-; ===================== 恢复列表项颜色 =====================
-RestoreAIListItemColor(index) {
-    global AIListPanelItems, AIListPanelColors
-    
-    if (index > 0 && index <= AIListPanelItems.Length) {
-        item := AIListPanelItems[index]
-        if (IsObject(item) && item.HasProp("bg")) {
-            try {
-                item.bg.Opt("Background" . AIListPanelColors.ItemBg)
-                if (item.HasProp("name") && item.name != 0) {
-                    item.name.Opt("c" . AIListPanelColors.Text)
-                }
-            } catch {
-            }
-        }
-    }
-}
-
-; ===================== 窗口关闭事件 =====================
-OnAIListPanelClose(*) {
-    HideAIListPanel()
-}
-
-; ===================== 窗口大小改变事件 =====================
-OnAIListPanelSize(GuiObj, MinMax, Width, Height) {
-    global AIListPanelWindowW, AIListPanelWindowH, AIListPanelIconOnlyMode
-    global AIListPanelIconModeW, AIListPanelIconModeH, AIListPanelIsResizing
-
-    ; 防止循环触发
-    if (AIListPanelIsResizing) {
-        return
-    }
-
-    ; 根据模式保存不同的尺寸
-    if (AIListPanelIconOnlyMode) {
-        AIListPanelIconModeW := Width
-        AIListPanelIconModeH := Height
-    } else {
-        AIListPanelWindowW := Width
-        AIListPanelWindowH := Height
-    }
-
-    ; 只更新控件布局，不重新设置窗口大小（避免循环）
-    RefreshAIListPanelControls(Width)
-
-    ; 保存位置和尺寸
-    SaveAIListPanelPosition()
-}
-
-; ===================== 窗口移动事件 =====================
-; AutoHotkey v2 不支持 "Move" 事件，窗口位置通过定时器在 AIListPanelFollowToolbar 中更新
-
-; ===================== 拖动相关消息处理 =====================
-AIListPanelWM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
-    global AIListPanelGUI, AIListPanelDragging, AIListPanelDragStartX, AIListPanelDragStartY
-    global AIListPanelUserMoving
-
-    ; 检查是否是AI面板窗口
-    if (!AIListPanelGUI || AIListPanelGUI = 0 || hwnd != AIListPanelGUI.Hwnd) {
-        return  ; 返回，让其他窗口处理消息
-    }
-
-    try {
-        ; 检查是否点击在标题栏区域（y < 30），但不在按钮上
-        MouseGetPos(&mx, &my, &winHwnd, &ctrlHwnd, 2)
-
-        ; 确保鼠标在正确的窗口上
-        if (winHwnd != AIListPanelGUI.Hwnd) {
-            return
-        }
-
-        ; 检查是否点击在按钮上（如果是，不拖动）
-        global AIListPanelToggleBtn
-        if (AIListPanelToggleBtn != 0 && ctrlHwnd = AIListPanelToggleBtn.Hwnd) {
-            return  ; 点击在按钮上，不拖动
-        }
-
-        AIListPanelGUI.GetPos(&wx, &wy, &ww, &wh)
-        relX := mx - wx
-        relY := my - wy
-
-        ; 如果点击在窗口顶部区域（y < 30），开始拖动
-        if (relY >= 0 && relY <= 30 && relX >= 0 && relX <= ww - 30) {
-            AIListPanelDragging := true
-            AIListPanelUserMoving := true  ; 标记用户正在移动窗口
-            AIListPanelDragStartX := mx
-            AIListPanelDragStartY := my
-            PostMessage(0x00A1, 2, 0, AIListPanelGUI.Hwnd)  ; WM_NCLBUTTONDOWN, HTCAPTION
-        }
-    } catch {
-        ; 如果出错，返回让系统处理
-    }
-    
-    return  ; 返回，让消息继续传递
-}
-
-AIListPanelWM_MOUSEMOVE(wParam, lParam, msg, hwnd) {
-    global AIListPanelGUI, AIListPanelDragging
-    
-    ; 检查是否是AI面板窗口
-    if (!AIListPanelGUI || AIListPanelGUI = 0 || hwnd != AIListPanelGUI.Hwnd) {
-        return  ; 返回，让其他窗口处理消息
-    }
-    
-    ; 拖动处理由系统自动完成
-    return
-}
-
-AIListPanelWM_LBUTTONUP(wParam, lParam, msg, hwnd) {
-    global AIListPanelGUI, AIListPanelDragging, AIListPanelUserMoving
-
-    ; 检查是否是AI面板窗口
-    if (!AIListPanelGUI || AIListPanelGUI = 0 || hwnd != AIListPanelGUI.Hwnd) {
-        return  ; 返回，让其他窗口处理消息
-    }
-
-    ; 拖动结束，保存位置
-    if (AIListPanelDragging) {
-        SaveAIListPanelPosition()
-    }
-
-    AIListPanelDragging := false
-
-    ; 延迟1秒后重置用户移动标志（给用户时间松开鼠标）
-    SetTimer(() => (AIListPanelUserMoving := false), -1000)
-
-    return
-}
-
-; ===================== 切换图标模式 =====================
-ToggleAIListPanelIconMode(*) {
-    global AIListPanelIconOnlyMode, AIListPanelGUI, AIListPanelItems, AIListPanelToggleBtn
-    global AIListPanelWindowX, AIListPanelWindowY, AIListPanelWindowW, AIListPanelWindowH
-    global AIListPanelIconModeX, AIListPanelIconModeY, AIListPanelIconModeW, AIListPanelIconModeH
-    
-    ; 保存当前模式的位置和尺寸
-    if (AIListPanelGUI != 0) {
-        AIListPanelGUI.GetPos(&currentX, &currentY, &currentW, &currentH)
-        if (AIListPanelIconOnlyMode) {
-            ; 当前是横排模式，保存横排位置
-            AIListPanelIconModeX := currentX
-            AIListPanelIconModeY := currentY
-            AIListPanelIconModeW := currentW
-            AIListPanelIconModeH := currentH
-        } else {
-            ; 当前是竖排模式，保存竖排位置
-            AIListPanelWindowX := currentX
-            AIListPanelWindowY := currentY
-            AIListPanelWindowW := currentW
-            AIListPanelWindowH := currentH
-        }
-        SaveAIListPanelPosition()
-    }
-    
-    ; 切换模式
-    AIListPanelIconOnlyMode := !AIListPanelIconOnlyMode
-    
-    ; 更新切换按钮图标
-    if (AIListPanelToggleBtn != 0) {
-        AIListPanelToggleBtn.Text := AIListPanelIconOnlyMode ? "☰" : "☷"
-    }
-    
-    ; 加载对应模式的位置和尺寸
-    LoadAIListPanelPosition()
-    
-    ; 刷新布局（会自动应用保存的位置和尺寸）
-    ; 重置上一次的宽度和行数，确保切换模式后重新计算
-    global AIListPanelLastWidth, AIListPanelLastRows
-    AIListPanelLastWidth := 0
-    AIListPanelLastRows := 0
-    RefreshAIListPanelLayout()
-}
-
-; ===================== 刷新控件布局（不改变窗口大小）=====================
-RefreshAIListPanelControls(realTimeWidth := 0) {
-    global AIListPanelGUI, AIListPanelItems, AIListPanelIconOnlyMode
-    global AIListPanelWindowW, AIListPanelIconModeW
-    global AIListPanelSearchInput, AIListPanelSearchBtn, AIListPanelToggleBtn
-
-    if (!AIListPanelGUI || AIListPanelGUI = 0) {
-        return
-    }
-
-    ; 获取当前窗口大小
-    AIListPanelGUI.GetPos(&currentX, &currentY, &currentWidth, &currentHeight)
-
-    ; 列表项尺寸
-    ItemHeight := 45
-    ItemPadding := 5
-    IconSize := 32
-    SearchBarHeight := 30
-    Padding := 5
-
-    ; 使用传入的宽度或当前窗口宽度
-    if (realTimeWidth > 0) {
-        currentWidth := realTimeWidth
-    }
-
-    try {
-        if (AIListPanelIconOnlyMode) {
-            ; 图标模式：横向排列（增大图标区域以容纳复选框）
-            ItemSize := 60  ; 从50增大到60，给复选框更多空间
-            ItemsPerRow := Floor((currentWidth - Padding * 2) / ItemSize)
-            if (ItemsPerRow < 1) {
-                ItemsPerRow := 1
-            }
-
-            ; 更新搜索框和按钮位置
-            if (AIListPanelToggleBtn != 0) {
-                AIListPanelToggleBtn.Move(5, 5, , )
-            }
-            if (AIListPanelSearchInput != 0) {
-                AIListPanelSearchInput.Move(30, 5, currentWidth - 75, 20)
-            }
-            if (AIListPanelSearchBtn != 0) {
-                AIListPanelSearchBtn.Move(currentWidth - 45, 5, , )
-            }
-
-            ; 横向排列图标（从搜索栏下方开始）
-            for index, item in AIListPanelItems {
-                row := Floor((index - 1) / ItemsPerRow)
-                col := Mod(index - 1, ItemsPerRow)
-                itemX := Padding + col * ItemSize
-                itemY := SearchBarHeight + row * ItemSize
-
-                if (IsObject(item) && item.HasProp("bg") && item.bg != 0) {
-                    item.bg.Move(itemX, itemY, ItemSize, ItemSize)
-                }
-                ; 横排模式下复选框显示在图标右上角（如果搜索激活）
-                if (IsObject(item) && item.HasProp("checkbox") && item.checkbox != 0) {
-                    if (item.checkbox.Visible) {
-                        ; 复选框放在右上角，更容易看到和点击
-                        ; 复选框尺寸18x18，距离右边和上边各2px
-                        checkboxX := itemX + ItemSize - 20
-                        checkboxY := itemY + 2
-                        item.checkbox.Move(checkboxX, checkboxY, 18, 18)
-                    } else {
-                        ; 隐藏时移到外面，避免误触
-                        item.checkbox.Move(-100, -100, 18, 18)
-                    }
-                }
-                if (IsObject(item) && item.HasProp("icon") && item.icon != 0) {
-                    iconX := itemX + (ItemSize - IconSize) // 2
-                    iconY := itemY + (ItemSize - IconSize) // 2
-                    item.icon.Move(iconX, iconY, IconSize, IconSize)
-                }
-                if (IsObject(item) && item.HasProp("name") && item.name != 0) {
-                    item.name.Visible := false
-                }
-            }
-        } else {
-            ; 完整模式：纵向排列
-            ; 更新搜索框和按钮位置（搜索框使用完整宽度，与搜索按钮相切）
-            if (AIListPanelToggleBtn != 0) {
-                AIListPanelToggleBtn.Move(5, 5, , )
-            }
-            if (AIListPanelSearchInput != 0) {
-                ; 搜索框使用完整宽度：切换按钮(25) + 搜索框 + 间距(5) + 搜索按钮(40) + 边距(5)
-                searchInputWidth := currentWidth - 75  ; 完整宽度
-                AIListPanelSearchInput.Move(30, 5, searchInputWidth, 20)
-            }
-            if (AIListPanelSearchBtn != 0) {
-                ; 搜索按钮紧跟在搜索框后面（相切）
-                searchInputWidth := currentWidth - 75
-                searchBtnX := 30 + searchInputWidth + 5
-                AIListPanelSearchBtn.Move(searchBtnX, 5, , )
-            }
-
-            ; 纵向排列列表项
-            for index, item in AIListPanelItems {
-                y := SearchBarHeight + (index - 1) * ItemHeight
-
-                if (IsObject(item) && item.HasProp("bg") && item.bg != 0) {
-                    item.bg.Move(0, y, currentWidth, ItemHeight)
-                }
-                if (IsObject(item) && item.HasProp("checkbox") && item.checkbox != 0) {
-                    item.checkbox.Move(ItemPadding + 1, y + (ItemHeight - 18) // 2, 18, 18)
-                }
-                if (IsObject(item) && item.HasProp("icon") && item.icon != 0) {
-                    iconX := ItemPadding + 19  ; 复选框宽度18 + 间距1
-                    iconY := y + (ItemHeight - IconSize) // 2
-                    item.icon.Move(iconX, iconY, IconSize, IconSize)
-                }
-                if (IsObject(item) && item.HasProp("name") && item.name != 0) {
-                    nameX := ItemPadding + 19 + IconSize + ItemPadding  ; 复选框(18) + 间距(1) + 图标 + 间距
-                    nameY := y + (ItemHeight - 20) // 2
-                    item.name.Move(nameX, nameY, currentWidth - nameX - ItemPadding, 20)
-                    item.name.Visible := true
-                }
-            }
-        }
-    } catch {
-    }
-}
-
-; ===================== 刷新布局 =====================
-RefreshAIListPanelLayout(realTimeWidth := 0) {
-    global AIListPanelGUI, AIListPanelItems, AIListPanelIconOnlyMode
-    global AIListPanelWindowW, AIListPanelWindowH, AIListPanelIconModeW, AIListPanelIconModeH
-    global AIListPanelWindowX, AIListPanelWindowY, AIListPanelIconModeX, AIListPanelIconModeY
-    global AIListPanelSearchInput, AIListPanelSearchBtn, AIListPanelToggleBtn
-    global AIListPanelLastWidth, AIListPanelLastRows, AIListPanelIsResizing
-
-    if (!AIListPanelGUI || AIListPanelGUI = 0) {
-        return
-    }
-    
-    ; 列表项尺寸（与 CreateAIListPanelGUI 中保持一致）
-    ItemHeight := 45
-    ItemPadding := 5
-    IconSize := 32
-    SearchBarHeight := 30  ; 搜索栏区域高度
-    Padding := 5  ; 边距（两种模式都使用）
-    
-    try {
-        if (AIListPanelIconOnlyMode) {
-            ; 只显示图标模式：横向排列（增大图标区域以容纳复选框）
-            ItemSize := 60  ; 从50增大到60，给复选框更多空间
-
-            ; 优先使用实时传入的宽度参数，确保实时性
-            if (realTimeWidth > 0) {
-                currentWidth := realTimeWidth
-            } else {
-                ; 否则使用保存的宽度，如果没有则使用默认值
-                currentWidth := AIListPanelIconModeW > 0 ? AIListPanelIconModeW : 400
-            }
-
-            ; 自适应排列：计算每行能放几个图标，确保整齐排列
-            ItemsPerRow := Floor((currentWidth - Padding * 2) / ItemSize)  ; 计算每行能放几个
-            if (ItemsPerRow < 1) {
-                ItemsPerRow := 1
-            }
-
-            Rows := Ceil(AIListPanelItems.Length / ItemsPerRow)  ; 计算需要几行
-
-            ; 优化高度计算：仅在宽度改变导致行数变化时才重新计算高度
-            ; 如果宽度和行数都没变化，保持当前高度不变，避免抖动
-            needRecalculateHeight := false
-            if (currentWidth != AIListPanelLastWidth || Rows != AIListPanelLastRows) {
-                needRecalculateHeight := true
-                AIListPanelLastWidth := currentWidth
-                AIListPanelLastRows := Rows
-            }
-
-            newWidth := currentWidth
-            if (needRecalculateHeight) {
-                newHeight := SearchBarHeight + Rows * ItemSize + Padding  ; 搜索栏高度 + 图标行数 * 图标大小 + 底部边距
-            } else {
-                ; 如果不需要重新计算，使用当前高度
-                AIListPanelGUI.GetPos(, , , &currentHeight)
-                newHeight := currentHeight
-            }
-            
-            ; 更新窗口大小和位置（仅在需要时更新高度）
-            AIListPanelIsResizing := true
-            if (AIListPanelIconModeX > 0 || AIListPanelIconModeY > 0) {
-                if (needRecalculateHeight) {
-                    AIListPanelGUI.Move(AIListPanelIconModeX, AIListPanelIconModeY, newWidth, newHeight)
-                } else {
-                    ; 只更新宽度，保持高度不变
-                    AIListPanelGUI.Move(AIListPanelIconModeX, AIListPanelIconModeY, newWidth)
-                }
-            } else {
-                if (needRecalculateHeight) {
-                    AIListPanelGUI.Move(, , newWidth, newHeight)
-                } else {
-                    AIListPanelGUI.Move(, , newWidth)
-                }
-            }
-            AIListPanelIsResizing := false
-            AIListPanelIconModeW := newWidth
-            if (needRecalculateHeight) {
-                AIListPanelIconModeH := newHeight
-            }
-            
-            ; 更新搜索框和按钮位置
-            if (AIListPanelToggleBtn != 0) {
-                AIListPanelToggleBtn.Move(5, 5, , )
-            }
-            if (AIListPanelSearchInput != 0) {
-                AIListPanelSearchInput.Move(30, 5, newWidth - 75, 20)
-            }
-            if (AIListPanelSearchBtn != 0) {
-                AIListPanelSearchBtn.Move(newWidth - 45, 5, , )
-            }
-            
-            ; 隐藏标题栏
-            if (AIListPanelTitleBar != 0) {
-                AIListPanelTitleBar.Visible := false
-            }
-            
-            ; 横向排列图标（从搜索栏下方开始）- 自适应居中排列
-            ; 计算每行的实际宽度，如果图标数量少于每行最大值，则居中显示
-            actualItemsPerRow := ItemsPerRow
-            if (AIListPanelItems.Length < ItemsPerRow) {
-                actualItemsPerRow := AIListPanelItems.Length
-            }
-            
-            ; 计算居中偏移量（如果图标数量少于每行最大值）
-            centerOffset := 0
-            if (AIListPanelItems.Length < ItemsPerRow && ItemsPerRow > 1 && Rows == 1) {
-                totalWidth := actualItemsPerRow * ItemSize
-                availableWidth := currentWidth - Padding * 2
-                centerOffset := (availableWidth - totalWidth) // 2
-            }
-            
-            for index, item in AIListPanelItems {
-                row := Floor((index - 1) / ItemsPerRow)
-                col := Mod(index - 1, ItemsPerRow)
-                itemX := Padding + centerOffset + col * ItemSize
-                itemY := SearchBarHeight + row * ItemSize
-
-                if (IsObject(item) && item.HasProp("bg") && item.bg != 0) {
-                    item.bg.Move(itemX, itemY, ItemSize, ItemSize)
-                }
-                ; 横排模式下复选框显示在图标右上角（如果搜索激活）
-                if (IsObject(item) && item.HasProp("checkbox") && item.checkbox != 0) {
-                    if (item.checkbox.Visible) {
-                        ; 复选框放在右上角，更容易看到和点击
-                        ; 复选框尺寸18x18，距离右边和上边各2px
-                        checkboxX := itemX + ItemSize - 20
-                        checkboxY := itemY + 2
-                        item.checkbox.Move(checkboxX, checkboxY, 18, 18)
-                    } else {
-                        ; 隐藏时移到外面，避免误触
-                        item.checkbox.Move(-100, -100, 18, 18)
-                    }
-                }
-                if (IsObject(item) && item.HasProp("icon") && item.icon != 0) {
-                    iconX := itemX + (ItemSize - IconSize) // 2
-                    iconY := itemY + (ItemSize - IconSize) // 2
-                    item.icon.Move(iconX, iconY, IconSize, IconSize)
-                }
-                if (IsObject(item) && item.HasProp("name") && item.name != 0) {
-                    item.name.Visible := false
-                }
-            }
-        } else {
-            ; 完整模式：纵向排列，显示图标和名称
-            ; 使用保存的尺寸，如果没有则使用默认值
-            currentWidth := AIListPanelWindowW > 0 ? AIListPanelWindowW : 180
-            newWidth := currentWidth
-
-            ; 使用当前保存的高度（允许用户自由调整），如果没有则计算默认高度
-            if (AIListPanelWindowH > 0) {
-                ; 使用已保存的高度（用户可能已经调整过）
-                newHeight := AIListPanelWindowH
-                ; 确保高度不小于最小值
-                minHeight := SearchBarHeight + AIListPanelItems.Length * ItemHeight + Padding
-                if (newHeight < minHeight) {
-                    newHeight := minHeight
-                }
-            } else {
-                ; 首次显示，计算默认高度
-                newHeight := SearchBarHeight + AIListPanelItems.Length * ItemHeight + Padding
-            }
-            
-            ; 更新窗口大小和位置
-            AIListPanelIsResizing := true
-            if (AIListPanelWindowX > 0 || AIListPanelWindowY > 0) {
-                AIListPanelGUI.Move(AIListPanelWindowX, AIListPanelWindowY, newWidth, newHeight)
-            } else {
-                AIListPanelGUI.Move(, , newWidth, newHeight)
-            }
-            AIListPanelIsResizing := false
-            AIListPanelWindowW := newWidth
-            AIListPanelWindowH := newHeight
-            
-            ; 更新搜索框和按钮位置（竖排模式下搜索框使用完整宽度，与搜索按钮相切）
-            if (AIListPanelToggleBtn != 0) {
-                AIListPanelToggleBtn.Move(5, 5, , )
-            }
-            if (AIListPanelSearchInput != 0) {
-                ; 搜索框使用完整宽度：切换按钮(25) + 搜索框 + 间距(5) + 搜索按钮(40) + 边距(5)
-                searchInputWidth := newWidth - 75  ; 完整宽度
-                AIListPanelSearchInput.Move(30, 5, searchInputWidth, 20)
-            }
-            if (AIListPanelSearchBtn != 0) {
-                ; 搜索按钮紧跟在搜索框后面（相切）
-                searchInputWidth := newWidth - 75
-                searchBtnX := 30 + searchInputWidth + 5
-                AIListPanelSearchBtn.Move(searchBtnX, 5, , )
-            }
-            
-            ; 隐藏标题栏
-            if (AIListPanelTitleBar != 0) {
-                AIListPanelTitleBar.Visible := false
-            }
-            
-            ; 纵向排列（从搜索栏下方开始）
-            for index, item in AIListPanelItems {
-                y := SearchBarHeight + (index - 1) * ItemHeight
-                
-                if (IsObject(item) && item.HasProp("bg") && item.bg != 0) {
-                    item.bg.Move(0, y, newWidth, ItemHeight)
-                }
-                if (IsObject(item) && item.HasProp("checkbox") && item.checkbox != 0) {
-                    item.checkbox.Move(ItemPadding + 1, y + (ItemHeight - 18) // 2, 18, 18)
-                }
-                if (IsObject(item) && item.HasProp("icon") && item.icon != 0) {
-                    iconX := ItemPadding + 19  ; 复选框宽度18 + 间距1
-                    iconY := y + (ItemHeight - IconSize) // 2
-                    item.icon.Move(iconX, iconY, IconSize, IconSize)
-                }
-                if (IsObject(item) && item.HasProp("name") && item.name != 0) {
-                    nameX := ItemPadding + 19 + IconSize + ItemPadding  ; 复选框(18) + 间距(1) + 图标 + 间距
-                    nameY := y + (ItemHeight - 20) // 2
-                    item.name.Move(nameX, nameY, newWidth - nameX - ItemPadding, 20)
-                    item.name.Visible := true
-                }
-            }
-        }
-        
-        ; 保存位置和尺寸
-        SaveAIListPanelPosition()
-    } catch as err {
-        MsgBox("刷新布局失败: " . err.Message, "错误", "Iconx")
-    }
-}
-
-; ===================== 跟随悬浮工具栏移动（吸附逻辑） =====================
 AIListPanelFollowToolbar() {
     global AIListPanelGUI, AIListPanelIsVisible, FloatingToolbarGUI, FloatingToolbarIsVisible
-    global AIListPanelWindowW, AIListPanelWindowH, AIListPanelWindowX, AIListPanelWindowY
     global AIListPanelDragging, AIListPanelUserMoving
 
-    ; 如果面板不可见或工具栏不可见，不处理
-    if (!AIListPanelIsVisible || AIListPanelGUI = 0 || !FloatingToolbarIsVisible || FloatingToolbarGUI = 0) {
+    if !AIListPanelIsVisible || AIListPanelGUI = 0 || !FloatingToolbarIsVisible || FloatingToolbarGUI = 0
         return
-    }
+    if AIListPanelDragging || AIListPanelUserMoving
+        return
 
-    ; 如果正在拖动或用户刚刚拖动结束，不自动跟随（允许自由拖动）
-    if (AIListPanelDragging || AIListPanelUserMoving) {
-        return
-    }
-    
     try {
-        ; 获取工具栏位置
         FloatingToolbarGUI.GetPos(&toolbarX, &toolbarY, &toolbarW, &toolbarH)
-        
-        ; 获取面板当前位置
         AIListPanelGUI.GetPos(&panelX, &panelY, &panelW, &panelH)
-        
-        ; 计算工具栏的理想位置（工具栏上方）
         idealX := toolbarX
-        idealY := toolbarY - AIListPanelWindowH
-        
-        ; 如果超出屏幕上方，显示在工具栏下方
+        idealY := toolbarY - panelH
         ScreenHeight := SysGet(1)
-        if (idealY < 0) {
+        if idealY < 0
             idealY := toolbarY + toolbarH + 5
-        }
-        
-        ; 计算面板中心点到工具栏理想位置的距离
         panelCenterX := panelX + panelW // 2
         panelCenterY := panelY + panelH // 2
         idealCenterX := idealX + panelW // 2
         idealCenterY := idealY + panelH // 2
-        
-        distanceX := Abs(panelCenterX - idealCenterX)
-        distanceY := Abs(panelCenterY - idealCenterY)
-        
-        ; 吸附阈值：如果距离小于30像素，自动吸附到工具栏位置
-        snapThreshold := 30
-        
-        if (distanceX <= snapThreshold && distanceY <= snapThreshold) {
-            ; 靠近工具栏，自动吸附
-            if (panelX != idealX || panelY != idealY) {
+        if Abs(panelCenterX - idealCenterX) <= 30 && Abs(panelCenterY - idealCenterY) <= 30 {
+            if panelX != idealX || panelY != idealY {
                 AIListPanelGUI.Move(idealX, idealY)
                 AIListPanelWindowX := idealX
                 AIListPanelWindowY := idealY
@@ -1499,420 +944,156 @@ AIListPanelFollowToolbar() {
             }
         }
     } catch {
-        ; 如果出错，静默处理
     }
 }
 
-; ===================== 保存AI面板位置和尺寸 =====================
 SaveAIListPanelPosition() {
-    global AIListPanelGUI, AIListPanelIconOnlyMode
-    global AIListPanelWindowX, AIListPanelWindowY, AIListPanelWindowW, AIListPanelWindowH
-    global AIListPanelIconModeX, AIListPanelIconModeY, AIListPanelIconModeW, AIListPanelIconModeH
-    
-    if (AIListPanelGUI = 0) {
+    global AIListPanelGUI, AIListPanelWindowX, AIListPanelWindowY, AIListPanelWindowW, AIListPanelWindowH
+    if AIListPanelGUI = 0
         return
-    }
-    
     try {
-        ; 获取当前窗口位置和尺寸
         AIListPanelGUI.GetPos(&x, &y, &w, &h)
-        
-        ; 根据模式保存到不同的变量和配置文件
+        AIListPanelWindowX := x
+        AIListPanelWindowY := y
+        AIListPanelWindowW := w
+        AIListPanelWindowH := h
         ConfigFile := A_ScriptDir . "\CursorShortcut.ini"
-        
-        if (AIListPanelIconOnlyMode) {
-            ; 横排模式
-            AIListPanelIconModeX := x
-            AIListPanelIconModeY := y
-            AIListPanelIconModeW := w
-            AIListPanelIconModeH := h
-            
-            IniWrite(String(x), ConfigFile, "WindowPositions", "AIListPanel_IconMode_X")
-            IniWrite(String(y), ConfigFile, "WindowPositions", "AIListPanel_IconMode_Y")
-            IniWrite(String(w), ConfigFile, "WindowPositions", "AIListPanel_IconMode_W")
-            IniWrite(String(h), ConfigFile, "WindowPositions", "AIListPanel_IconMode_H")
-        } else {
-            ; 竖排模式
-            AIListPanelWindowX := x
-            AIListPanelWindowY := y
-            AIListPanelWindowW := w
-            AIListPanelWindowH := h
-            
-            IniWrite(String(x), ConfigFile, "WindowPositions", "AIListPanel_X")
-            IniWrite(String(y), ConfigFile, "WindowPositions", "AIListPanel_Y")
-            IniWrite(String(w), ConfigFile, "WindowPositions", "AIListPanel_W")
-            IniWrite(String(h), ConfigFile, "WindowPositions", "AIListPanel_H")
-        }
+        IniWrite(String(x), ConfigFile, "WindowPositions", "AIListPanel_X")
+        IniWrite(String(y), ConfigFile, "WindowPositions", "AIListPanel_Y")
+        IniWrite(String(w), ConfigFile, "WindowPositions", "AIListPanel_W")
+        IniWrite(String(h), ConfigFile, "WindowPositions", "AIListPanel_H")
     } catch {
-        ; 保存失败时静默处理
     }
 }
 
-; ===================== 加载AI面板位置和尺寸 =====================
 LoadAIListPanelPosition() {
-    global AIListPanelIconOnlyMode
     global AIListPanelWindowX, AIListPanelWindowY, AIListPanelWindowW, AIListPanelWindowH
-    global AIListPanelIconModeX, AIListPanelIconModeY, AIListPanelIconModeW, AIListPanelIconModeH
-    
     try {
         ConfigFile := A_ScriptDir . "\CursorShortcut.ini"
         ScreenWidth := SysGet(0)
         ScreenHeight := SysGet(1)
-        
-        if (AIListPanelIconOnlyMode) {
-            ; 横排模式：读取横排模式的位置和尺寸
-            savedX := IniRead(ConfigFile, "WindowPositions", "AIListPanel_IconMode_X", "")
-            savedY := IniRead(ConfigFile, "WindowPositions", "AIListPanel_IconMode_Y", "")
-            savedW := IniRead(ConfigFile, "WindowPositions", "AIListPanel_IconMode_W", "")
-            savedH := IniRead(ConfigFile, "WindowPositions", "AIListPanel_IconMode_H", "")
-            
-            if (savedX != "" && savedY != "" && savedX != "ERROR" && savedY != "ERROR") {
-                AIListPanelIconModeX := Integer(savedX)
-                AIListPanelIconModeY := Integer(savedY)
-                
-                if (savedW != "" && savedW != "ERROR") {
-                    AIListPanelIconModeW := Integer(savedW)
-                } else {
-                    AIListPanelIconModeW := 400  ; 默认宽度
-                }
-                if (savedH != "" && savedH != "ERROR") {
-                    AIListPanelIconModeH := Integer(savedH)
-                } else {
-                    AIListPanelIconModeH := 100  ; 默认高度
-                }
-                
-                ; 验证位置是否在屏幕范围内
-                if (AIListPanelIconModeX < 0 || AIListPanelIconModeX > ScreenWidth - AIListPanelIconModeW) {
-                    AIListPanelIconModeX := 0
-                }
-                if (AIListPanelIconModeY < 0 || AIListPanelIconModeY > ScreenHeight - AIListPanelIconModeH) {
-                    AIListPanelIconModeY := 0
-                }
-            } else {
-                AIListPanelIconModeX := 0
-                AIListPanelIconModeY := 0
-                AIListPanelIconModeW := 400
-                AIListPanelIconModeH := 100
-            }
-        } else {
-            ; 竖排模式：读取竖排模式的位置和尺寸
-            savedX := IniRead(ConfigFile, "WindowPositions", "AIListPanel_X", "")
-            savedY := IniRead(ConfigFile, "WindowPositions", "AIListPanel_Y", "")
-            savedW := IniRead(ConfigFile, "WindowPositions", "AIListPanel_W", "")
-            savedH := IniRead(ConfigFile, "WindowPositions", "AIListPanel_H", "")
-            
-            if (savedX != "" && savedY != "" && savedX != "ERROR" && savedY != "ERROR") {
-                AIListPanelWindowX := Integer(savedX)
-                AIListPanelWindowY := Integer(savedY)
-                
-                if (savedW != "" && savedW != "ERROR") {
-                    AIListPanelWindowW := Integer(savedW)
-                } else {
-                    AIListPanelWindowW := 180  ; 默认宽度
-                }
-                if (savedH != "" && savedH != "ERROR") {
-                    AIListPanelWindowH := Integer(savedH)
-                } else {
-                    AIListPanelWindowH := 400  ; 默认高度
-                }
-                
-                ; 验证位置是否在屏幕范围内
-                if (AIListPanelWindowX < 0 || AIListPanelWindowX > ScreenWidth - AIListPanelWindowW) {
-                    AIListPanelWindowX := 0
-                }
-                if (AIListPanelWindowY < 0 || AIListPanelWindowY > ScreenHeight - AIListPanelWindowH) {
-                    AIListPanelWindowY := 0
-                }
-            } else {
-                AIListPanelWindowX := 0
-                AIListPanelWindowY := 0
-                AIListPanelWindowW := 180
-                AIListPanelWindowH := 400
-            }
-        }
-    } catch {
-        ; 加载失败时使用默认值
-        if (AIListPanelIconOnlyMode) {
-            AIListPanelIconModeX := 0
-            AIListPanelIconModeY := 0
-            AIListPanelIconModeW := 400
-            AIListPanelIconModeH := 100
+        savedX := IniRead(ConfigFile, "WindowPositions", "AIListPanel_X", "")
+        savedY := IniRead(ConfigFile, "WindowPositions", "AIListPanel_Y", "")
+        savedW := IniRead(ConfigFile, "WindowPositions", "AIListPanel_W", "")
+        savedH := IniRead(ConfigFile, "WindowPositions", "AIListPanel_H", "")
+
+        if savedX != "" && savedY != "" && savedX != "ERROR" && savedY != "ERROR" {
+            AIListPanelWindowX := Integer(savedX)
+            AIListPanelWindowY := Integer(savedY)
+            AIListPanelWindowW := (savedW != "" && savedW != "ERROR") ? Integer(savedW) : 520
+            AIListPanelWindowH := (savedH != "" && savedH != "ERROR") ? Integer(savedH) : 480
         } else {
             AIListPanelWindowX := 0
             AIListPanelWindowY := 0
-            AIListPanelWindowW := 180
-            AIListPanelWindowH := 400
+            AIListPanelWindowW := 520
+            AIListPanelWindowH := 480
         }
+        if AIListPanelWindowW < 400
+            AIListPanelWindowW := 400
+        if AIListPanelWindowH < 400
+            AIListPanelWindowH := 400
+        if AIListPanelWindowX < 0 || AIListPanelWindowX > ScreenWidth - 50
+            AIListPanelWindowX := 0
+        if AIListPanelWindowY < 0 || AIListPanelWindowY > ScreenHeight - 50
+            AIListPanelWindowY := 0
+    } catch {
+        AIListPanelWindowX := 0
+        AIListPanelWindowY := 0
+        AIListPanelWindowW := 520
+        AIListPanelWindowH := 480
     }
 }
 
-; ===================== 隐藏到屏幕边缘 =====================
 MinimizeAIListPanelToEdge() {
-    global AIListPanelGUI, AIListPanelIsVisible, AIListPanelIsMinimized
-    global AIListPanelWindowX, AIListPanelWindowY, AIListPanelWindowW, AIListPanelWindowH
-    
-    if (!AIListPanelIsVisible || AIListPanelGUI = 0) {
+    global AIListPanelGUI, AIListPanelIsVisible, AIListPanelIsMinimized, AIListPanelWindowX, AIListPanelWindowY
+    if !AIListPanelIsVisible || AIListPanelGUI = 0
         return
-    }
-    
-    ; 获取当前窗口位置
     AIListPanelGUI.GetPos(&currentX, &currentY, &currentW, &currentH)
-    
-    ; 获取屏幕尺寸
     ScreenWidth := SysGet(0)
     ScreenHeight := SysGet(1)
-    
-    ; 计算到各边缘的距离，选择最近的边缘
     distLeft := currentX
     distRight := ScreenWidth - (currentX + currentW)
     distTop := currentY
     distBottom := ScreenHeight - (currentY + currentH)
-    
-    ; 找到最小距离
     minDist := distLeft
     targetX := 0
     targetY := currentY
-    
-    if (distRight < minDist) {
+    if distRight < minDist {
         minDist := distRight
         targetX := ScreenWidth - currentW
         targetY := currentY
     }
-    if (distTop < minDist) {
+    if distTop < minDist {
         minDist := distTop
         targetX := currentX
         targetY := 0
     }
-    if (distBottom < minDist) {
-        minDist := distBottom
+    if distBottom < minDist {
         targetX := currentX
         targetY := ScreenHeight - currentH
     }
-    
-    ; 移动到最近的边缘
     AIListPanelGUI.Move(targetX, targetY)
     AIListPanelWindowX := targetX
     AIListPanelWindowY := targetY
     AIListPanelIsMinimized := true
-    
-    ; 保存位置
     SaveAIListPanelPosition()
 }
 
-; ===================== 恢复AI面板 =====================
 RestoreAIListPanel() {
     global AIListPanelIsMinimized
     AIListPanelIsMinimized := false
-    ; 位置已保存，显示时会自动加载
 }
 
-; ===================== 输入框内容变化处理 =====================
-OnAIListPanelSearchInputChange(*) {
-    global AIListPanelSearchInput, AIListPanelCheckboxes, AIListPanelItems
-    
-    if (AIListPanelSearchInput = 0) {
-        return
-    }
-    
-    searchText := Trim(AIListPanelSearchInput.Value)
-    hasText := (searchText != "")
-    
-    ; 显示或隐藏所有复选框
-    for engineValue, checkbox in AIListPanelCheckboxes {
-        if (checkbox != 0) {
-            checkbox.Visible := hasText
-        }
-    }
-
-    ; 如果有文本，刷新控件布局以确保复选框在正确位置（特别是横排模式）
-    if (hasText) {
-        RefreshAIListPanelControls()
-    }
-
-    ; 如果没有文本，清除所有选择
-    if (!hasText) {
-        global AIListPanelSelectedEngines
-        AIListPanelSelectedEngines := []
-        RefreshAIListPanelSelection()
-        ; 也刷新布局，将隐藏的复选框移到外面
-        RefreshAIListPanelControls()
-    }
-}
-
-; 注意：AutoHotkey v2的Edit控件不支持KeyDown事件
-; 回车键功能通过窗口级别的Hotkey实现（在ShowAIListPanel中设置）
-
-; ===================== 搜索功能 =====================
-OnAIListPanelSearch(*) {
-    global AIListPanelSearchInput, AIListPanelSelectedEngines
-    
-    if (AIListPanelSearchInput = 0) {
-        return
-    }
-    
-    searchText := Trim(AIListPanelSearchInput.Value)
-    if (searchText = "") {
-        ; 如果没有搜索文本，清除选择
-        AIListPanelSelectedEngines := []
-        RefreshAIListPanelSelection()
-        TrayTip("提示", "请输入搜索内容", "Iconi 1")
-        return
-    }
-    
-    ; 执行搜索并打开选中的AI
-    if (AIListPanelSelectedEngines.Length > 0) {
-        OpenSelectedAIs(searchText)
-        ; 清空输入框
-        AIListPanelSearchInput.Value := ""
-    } else {
-        TrayTip("提示", "请先勾选AI图标进行多选", "Iconi 1")
-    }
-}
-
-; ===================== 打开选中的AI =====================
-OpenSelectedAIs(searchText := "") {
-    global AIListPanelSelectedEngines
-    
-    if (AIListPanelSelectedEngines.Length = 0) {
-        return
-    }
-    
-    ; 隐藏面板
-    HideAIListPanel()
-    
-    ; 为每个选中的AI打开浏览器
-    for index, engineValue in AIListPanelSelectedEngines {
-        if (searchText != "") {
-            ; 如果有搜索文本，使用搜索文本
-            OpenAIWithText(engineValue, searchText)
-        } else {
-            ; 否则使用剪贴板内容
-            OpenAIWithClipboard(engineValue, GetAIEngineDisplayName(engineValue))
-        }
-        ; 稍微延迟，避免同时打开太多窗口
-        if (index < AIListPanelSelectedEngines.Length) {
-            Sleep(200)
-        }
-    }
-    
-    ; 清空选择
-    AIListPanelSelectedEngines := []
-}
-
-; ===================== 使用文本打开AI =====================
-OpenAIWithText(engineValue, text) {
+; 复制当前选区，InputBox 标题/标签后追加到 prompts.json（由全局热键调用）
+PromptQuickPad_QuickCapture(*) {
+    oldClip := ClipboardAll()
     try {
-        ; 检查Cursor是否运行
-        if (!WinExist("ahk_exe Cursor.exe")) {
-            ; Cursor未运行，使用默认浏览器
-            OpenAIInDefaultBrowser(engineValue, text)
+        A_Clipboard := ""
+        SendInput("^c")
+        if !ClipWait(1.5) {
+            TrayTip("未获取到选中文本", "Prompt Quick-Pad", "Iconi 1")
             return
         }
-        
-        ; Cursor已运行，使用Cursor浏览器
-        WinActivate("ahk_exe Cursor.exe")
-        WinWaitActive("ahk_exe Cursor.exe", , 3)
-        Sleep(400)
-        
-        ; 发送Ctrl+Shift+B打开浏览器
-        SendInput("^+b")
-        Sleep(1200)
-        
-        ; 构建URL
-        encodedContent := UriEncode(text)
-        searchURL := BuildAIEngineURL(engineValue, encodedContent)
-        
-        ; 导航到URL
-        A_Clipboard := searchURL
-        Sleep(150)
-        SendInput("^l")
-        Sleep(300)
-        SendInput("^v")
-        Sleep(200)
-        SendInput("{Enter}")
-        
-        ; 如果URL不支持参数，等待页面加载后粘贴
-        if (!AISupportsURLParams(engineValue)) {
-            Sleep(3000)
-            A_Clipboard := text
-            Sleep(150)
-            SendInput("{Tab}")
-            Sleep(200)
-            SendInput("^v")
-            Sleep(300)
-            SendInput("{Enter}")
-        }
-    } catch as err {
-        ; 如果失败，使用默认浏览器
-        OpenAIInDefaultBrowser(engineValue, text)
+        text := A_Clipboard
+        ib := InputBox("条目显示名称：", "Prompt Quick-Pad", , "未命名")
+        if ib.Result != "OK"
+            return
+        title := Trim(ib.Value)
+        if title = ""
+            title := "未命名"
+        ib2 := InputBox("标签（可选，逗号分隔）：", "Prompt Quick-Pad", , "")
+        tags := ib2.Result = "OK" ? Trim(ib2.Value) : ""
+        PromptQuickPad_LoadFromDisk()
+        global PromptQuickPadData
+        PromptQuickPadData.Push(Map("title", title, "tags", tags, "content", text, "category", "", "hotkey", ""))
+        PromptQuickPad_SaveToDisk()
+        TrayTip("已保存到 prompts.json", "Prompt Quick-Pad", "Iconi 1")
+    } finally {
+        A_Clipboard := oldClip
     }
 }
 
-; ===================== 刷新选择状态 =====================
-RefreshAIListPanelSelection() {
-    global AIListPanelItems, AIListPanelSelectedEngines, AIListPanelColors, AIListPanelCheckboxes
-    
-    for index, item in AIListPanelItems {
-        if (IsObject(item) && item.HasProp("engineValue")) {
-            ; 检查是否被选中
-            isSelected := false
-            for idx, selectedValue in AIListPanelSelectedEngines {
-                if (selectedValue = item.engineValue) {
-                    isSelected := true
-                    break
-                }
-            }
-            
-            ; 更新复选框状态
-            if (item.HasProp("checkbox") && item.checkbox != 0) {
-                item.checkbox.Value := isSelected ? 1 : 0
-            }
-            
-            ; 更新背景色
-            if (isSelected) {
-                if (item.HasProp("bg") && item.bg != 0) {
-                    item.bg.Opt("Background" . AIListPanelColors.ItemActive)
-                }
-            } else {
-                if (item.HasProp("bg") && item.bg != 0) {
-                    item.bg.Opt("Background" . AIListPanelColors.ItemBg)
-                }
-            }
+; 由主脚本在加载配置后调用：根据 PromptQuickCaptureHotkey 注册/注销
+PromptQuickPad_RegisterCaptureHotkey() {
+    global PromptQuickPadCaptureHotkeyObj
+    global PromptQuickCaptureHotkey
+    if PromptQuickPadCaptureHotkeyObj != 0 {
+        try PromptQuickPadCaptureHotkeyObj.Off()
+        catch {
         }
+        PromptQuickPadCaptureHotkeyObj := 0
+    }
+    hk := Trim(PromptQuickCaptureHotkey)
+    if hk = ""
+        return
+    try {
+        PromptQuickPadCaptureHotkeyObj := Hotkey(hk, PromptQuickPad_QuickCapture, "On")
+    } catch as e {
+        TrayTip("Prompt 采集热键无效: " . hk . " — " . e.Message, "Prompt Quick-Pad", "Iconx 2")
     }
 }
 
-; ===================== 切换AI选择状态 =====================
-ToggleAISelection(engineValue) {
-    global AIListPanelSelectedEngines, AIListPanelCheckboxes
-    
-    ; 查找是否已选中
-    foundIndex := 0
-    for index, value in AIListPanelSelectedEngines {
-        if (value = engineValue) {
-            foundIndex := index
-            break
-        }
-    }
-    
-    if (foundIndex > 0) {
-        ; 取消选择
-        AIListPanelSelectedEngines.RemoveAt(foundIndex)
-        if (AIListPanelCheckboxes.Has(engineValue)) {
-            AIListPanelCheckboxes[engineValue].Value := 0
-        }
-    } else {
-        ; 添加选择
-        AIListPanelSelectedEngines.Push(engineValue)
-        if (AIListPanelCheckboxes.Has(engineValue)) {
-            AIListPanelCheckboxes[engineValue].Value := 1
-        }
-    }
-    
-    RefreshAIListPanelSelection()
-}
-
-; ===================== 初始化 =====================
 InitAIListPanel() {
-    ; 初始化完成，可以调用 ShowAIListPanel() 显示面板
 }
+
+; WM_NOTIFY 由主脚本 OnClipboardListViewWMNotify 转发到 PromptQuickPad_OnWmNotify（避免覆盖全局监听）

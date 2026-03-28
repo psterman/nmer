@@ -177,7 +177,7 @@ CreateFloatingToolbarGUI() {
     ButtonConfigs := [
         Map("text", "搜索", "iconPath", IconPaths[1], "action", "Search", "shortcut", "Caps+F"),
         Map("text", "记录", "iconPath", IconPaths[2], "action", "Record", "shortcut", "Caps+X"),
-        Map("text", "AI助手", "iconPath", IconPaths[3], "action", "AIAssistant", "shortcut", "Ctrl+Shift+B"),
+        Map("text", "提示词", "iconPath", IconPaths[3], "action", "AIAssistant", "shortcut", "Ctrl+Shift+B"),
         Map("text", "截图", "iconPath", IconPaths[4], "action", "Screenshot", "shortcut", "Caps+T"),
         Map("text", "设置", "iconPath", IconPaths[5], "action", "Settings", "shortcut", "Caps+Q")
     ]
