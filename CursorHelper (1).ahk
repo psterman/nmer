@@ -55,6 +55,7 @@ global MainScriptDir := A_ScriptDir
 ; ===================== 包含悬浮工具栏模块 =====================
 #Include modules\FloatingToolbar.ahk
 #Include modules\AIListPanel.ahk
+#Include modules\PromptQuickPadCapsLockB.ahk
 
 ; ===================== Everything API 封装 =====================
 ; Everything API 封装
@@ -377,6 +378,11 @@ global HotkeyZ := "z"  ; 语音输入
 global HotkeyF := "f"  ; 语音搜索
 global HotkeyT := "t"  ; 区域截图
 global PromptQuickCaptureHotkey := ""  ; Prompt Quick-Pad 选区采集，留空不注册；可在 CursorShortcut.ini [Settings] PromptQuickCaptureHotkey 配置
+global PromptQuickPad_CapsLockBSilent := false  ; CapsLock+B 静默入库（ini [PromptQuickPad] CapsLockBSilent=1）
+global PromptQuickPad_CapsLockBSilentToTemplate := false  ; 静默时写入模板库 PromptTemplates.ini（否则 prompts.json）
+global PromptQuickPad_CapsLockBDefaultTitle := "摘录"
+global PromptQuickPad_CapsLockBDefaultCategory := ""
+global PromptQuickPad_CapsLockBDefaultTags := ""
 ; 截图等待粘贴相关变量
 global ScreenshotWaiting := false  ; 是否正在等待粘贴截图
 global ScreenshotClipboard := ""  ; 保存的截图剪贴板内容
@@ -3022,6 +3028,7 @@ InitConfig() {
 
 ; 在InitConfig结束后加载模板
 InitConfig() ; 启动初始化
+PromptQuickPad_ReloadCapsLockBSettings()
 ; 初始化剪贴板数据库（在配置初始化后）
 InitClipboardDB()
 ; 初始化 Everything 服务（在数据库初始化后）
@@ -23131,6 +23138,21 @@ g:: {
     StartVoiceSearch()
 }
 
+; B 键：面板显示且批量键为 B 时走 BatchOperation；面板显示且非批量键则透传 b；面板未显示时打开 Prompt 采集窗
+b:: {
+    global BatchHotkey, CapsLock2
+    if GetPanelVisibleState() {
+        CapsLock2 := false
+        if StrLower(BatchHotkey) = "b" {
+            BatchOperation()
+            return
+        }
+        Send("b")
+        return
+    }
+    PromptQuickPad_HandleCapsLockB()
+}
+
 #HotIf  ; 结束 GetCapsLockState() 作用域，为 SearchCenter 专用热键让路
 
 ; ===================== SearchCenter 窗口热键（优先级最高）=====================
@@ -23402,21 +23424,7 @@ StopDynamicHotkeys() {
 }
 
 ; ===================== 面板显示时的动态快捷键 =====================
-; 当 CapsLock 按下且面板显示时，响应快捷键
-#HotIf GetCapsLockState() && GetPanelVisibleState()
-
-; B 键（批量）
-b:: {
-    global BatchHotkey, CapsLock2
-    CapsLock2 := false
-    if (StrLower(BatchHotkey) = "b") {
-        BatchOperation()
-    } else {
-        Send("b")
-    }
-}
-
-#HotIf
+; 注：CapsLock+B 批量逻辑已合并到上方 #HotIf GetCapsLockState() 的 b:: 中
 
 ; ===================== 自启动功能 =====================
 ; 设置开机自启动（使用注册表）
