@@ -28,6 +28,7 @@ A_TrayMenu.Delete()  ; 删除所有默认菜单项
 ; ===================== 包含 SQLite 数据库类 =====================
 ; 包含 lib 文件夹中的 Class_SQLiteDB.ahk（AHK v2 版本）
 #Include lib\Class_SQLiteDB.ahk
+#Include lib\Jxon.ahk
 
 ; ===================== 包含 OCR 模块 =====================
 ; 包含 lib 文件夹中的 OCR.ahk（用于识图取词功能）
@@ -58,6 +59,15 @@ global MainScriptDir := A_ScriptDir
 ; ===================== Everything API 封装 =====================
 ; Everything API 封装
 ; ===================== Everything API 封装 =====================
+; 节流用户提示，避免 DLL/IPC 失败时刷屏
+EverythingUserTipOnce(Message, CooldownMs := 90000) {
+    static LastTick := 0
+    if (LastTick != 0 && (A_TickCount - LastTick < CooldownMs))
+        return
+    LastTick := A_TickCount
+    try TrayTip(Message, "CursorHelper · Everything", "Icon! 2")
+}
+
 GetEverythingResults(keyword, maxResults := 30, includeFolders := true) {
     static evDll := A_ScriptDir "\lib\everything64.dll"
     static isInitialized := false
@@ -65,6 +75,7 @@ GetEverythingResults(keyword, maxResults := 30, includeFolders := true) {
     ; 1. 基础防护
     if (!FileExist(evDll)) {
         OutputDebug("AHK_DEBUG: 致命错误 - 找不到 everything64.dll")
+        EverythingUserTipOnce("未找到 lib\everything64.dll。请从 Everything SDK 复制 Everything64.dll 到脚本 lib 目录并重命名为 everything64.dll。")
         return []
     }
 
@@ -74,6 +85,7 @@ GetEverythingResults(keyword, maxResults := 30, includeFolders := true) {
         hModule := DllCall("LoadLibrary", "Str", evDll, "Ptr")
         if (!hModule) {
             OutputDebug("AHK_DEBUG: 无法加载 everything64.dll")
+            EverythingUserTipOnce("无法加载 lib\everything64.dll（位数或依赖是否与系统一致？）。")
             return []
         }
         isInitialized := true
@@ -101,10 +113,12 @@ GetEverythingResults(keyword, maxResults := 30, includeFolders := true) {
                 majorVer := DllCall(evDll "\Everything_GetMajorVersion", "UInt")
                 if (majorVer = 0) {
                     OutputDebug("AHK_DEBUG: Everything 服务启动失败，请手动启动 Everything.exe")
+                    EverythingUserTipOnce("Everything 未响应（IPC 失败）。请安装并启动 64 位 Everything.exe，并允许 SDK 连接。")
                     return []
                 }
             } catch as err {
                 OutputDebug("AHK_DEBUG: 无法启动 Everything: " . err.Message)
+                EverythingUserTipOnce("无法启动 Everything.exe: " . err.Message)
                 return []
             }
         } else {
@@ -113,6 +127,7 @@ GetEverythingResults(keyword, maxResults := 30, includeFolders := true) {
             majorVer := DllCall(evDll "\Everything_GetMajorVersion", "UInt")
             if (majorVer = 0) {
                 OutputDebug("AHK_DEBUG: Everything 进程存在但IPC连接失败")
+                EverythingUserTipOnce("Everything 进程在运行但 IPC 连接失败，请重启 Everything 或检查是否禁止了 SDK。")
                 return []
             }
         }
@@ -142,6 +157,7 @@ GetEverythingResults(keyword, maxResults := 30, includeFolders := true) {
         errCode := DllCall(evDll "\Everything_GetLastError", "UInt")
         OutputDebug("AHK_DEBUG: Everything 查询指令发送失败，错误码: " . errCode)
         ; 错误码说明: 0=OK, 1=内存错误, 2=IPC错误, 3=注册类失败, 4=创建窗口失败, 5=创建线程失败, 6=搜索词无效, 7=取消
+        EverythingUserTipOnce("Everything 查询失败，错误码: " . errCode . "（2 多为 IPC/未运行）。")
         return []
     }
 
@@ -466,8 +482,18 @@ global SearchCenterSearchEdit := 0  ; 搜索输入框控件
 global SearchCenterResultLV := 0  ; 搜索结果 ListView 控件
 global SearchCenterCategoryButtons := []  ; 分类标签按钮数组
 global SearchCenterSearchResults := []  ; 当前搜索结果数据
+global SearchCenterVisibleResults := []  ; 当前结果列表中实际可见的数据
 global SearchCenterEngineIcons := []  ; 搜索引擎图标控件数组
+global SearchCenterCLIOutputEdit := 0
+global SearchCenterCLIRunButton := 0
+global SearchCenterCLIClearButton := 0
+global SearchCenterCLIOpenButton := 0
+global CLIAgentPendingPrompts := Map()
+global CLIAgentPromptMonitorRunning := false
 global SearchCenterResultLimitDropdown := 0  ; 结果数量限制下拉菜单
+global SearchCenterResultLimitDDL_Hwnd := 0  ; 搜索中心结果过滤下拉框句柄
+global SearchCenterResultLimitDDL_ListHwnd := 0  ; 搜索中心结果过滤下拉列表句柄
+global SearchCenterResultLimitDDLBrush := 0  ; 搜索中心结果过滤下拉框画刷
 global SearchCenterEverythingLimit := 10  ; Everything 搜索的结果数量限制（默认10）
 global SearchCenterCurrentLimit := 50  ; 当前加载的数据量限制
 global SearchCenterHasMoreData := false  ; 是否还有更多数据
@@ -657,20 +683,16 @@ UpdateDefaultStartTabDDLBrush() {
 
 ; ===================== 更新搜索中心结果限制下拉菜单画刷 =====================
 UpdateSearchCenterResultLimitDDLBrush() {
-    global SearchCenterResultLimitDropdown, DDLBrush, UI_Colors, ThemeMode
+    global SearchCenterResultLimitDDL_Hwnd, SearchCenterResultLimitDDL_ListHwnd, SearchCenterResultLimitDDLBrush
 
     ; 如果下拉菜单未创建，直接返回
-    if (!SearchCenterResultLimitDropdown || SearchCenterResultLimitDropdown = 0) {
+    if (!SearchCenterResultLimitDDL_Hwnd || SearchCenterResultLimitDDL_Hwnd = 0) {
         return
     }
 
     try {
-        ; 根据主题模式设置颜色（使用 html.to.design 风格配色）
-        if (ThemeMode = "dark") {
-            ColorCode := "0x" . UI_Colors.DDLBg  ; html.to.design 风格背景
-        } else {
-            ColorCode := "0x" . UI_Colors.DDLBg  ; 亮色模式背景
-        }
+        ; 搜索中心下拉框固定使用白底，避免暗色主题下弹层出现黑块
+        ColorCode := "0xFFFFFF"
         RGBColor := Integer(ColorCode)
         ; 交换R和B字节（Windows使用BGR格式）
         R := (RGBColor & 0xFF0000) >> 16
@@ -679,23 +701,38 @@ UpdateSearchCenterResultLimitDDLBrush() {
         BGRColor := (B << 16) | (G << 8) | R
 
         ; 如果已有画刷，先删除
-        if (DDLBrush != 0) {
+        if (SearchCenterResultLimitDDLBrush != 0) {
             try {
-                DllCall("gdi32.dll\DeleteObject", "Ptr", DDLBrush)
+                DllCall("gdi32.dll\DeleteObject", "Ptr", SearchCenterResultLimitDDLBrush)
             } catch as err {
             }
         }
         ; 创建新的实心画刷
-        DDLBrush := DllCall("gdi32.dll\CreateSolidBrush", "UInt", BGRColor, "Ptr")
+        SearchCenterResultLimitDDLBrush := DllCall("gdi32.dll\CreateSolidBrush", "UInt", BGRColor, "Ptr")
 
         ; 强制刷新下拉菜单
         try {
-            DllCall("user32.dll\InvalidateRect", "Ptr", SearchCenterResultLimitDropdown, "Ptr", 0, "Int", 1)
-            DllCall("user32.dll\UpdateWindow", "Ptr", SearchCenterResultLimitDropdown)
+            DllCall("user32.dll\InvalidateRect", "Ptr", SearchCenterResultLimitDDL_Hwnd, "Ptr", 0, "Int", 1)
+            DllCall("user32.dll\UpdateWindow", "Ptr", SearchCenterResultLimitDDL_Hwnd)
         } catch as err {
         }
     } catch as err {
     }
+}
+
+CleanupSearchCenterResultLimitDDLBrush() {
+    global SearchCenterResultLimitDDLBrush, SearchCenterResultLimitDDL_Hwnd, SearchCenterResultLimitDDL_ListHwnd
+
+    try {
+        if (SearchCenterResultLimitDDLBrush != 0) {
+            DllCall("gdi32.dll\DeleteObject", "Ptr", SearchCenterResultLimitDDLBrush)
+            SearchCenterResultLimitDDLBrush := 0
+        }
+    } catch as err {
+    }
+
+    SearchCenterResultLimitDDL_Hwnd := 0
+    SearchCenterResultLimitDDL_ListHwnd := 0
 }
 
 ; ===================== 颜色混合辅助函数（模拟透明度效果）====================
@@ -1103,7 +1140,12 @@ GetText(Key) {
             "search_engine_xiaomapan", "小码盘",
             "search_engine_dashengpan", "大圣盘",
             "search_engine_miaosou", "秒搜",
+            "search_engine_cli_codex", "Codex",
+            "search_engine_cli_gemini", "Gemini",
+            "search_engine_cli_openclaw", "OpenClaw",
+            "search_engine_cli_qwen", "Qwen",
             "search_category_ai", "AI",
+            "search_category_cli", "CLI",
             "search_category_academic", "学术",
             "search_category_baidu", "百度",
             "search_category_image", "图片",
@@ -1545,7 +1587,12 @@ GetText(Key) {
             "search_engine_xiaomapan", "Xiaomapan",
             "search_engine_dashengpan", "Dashengpan",
             "search_engine_miaosou", "Miaosou",
+            "search_engine_cli_codex", "Codex",
+            "search_engine_cli_gemini", "Gemini",
+            "search_engine_cli_openclaw", "OpenClaw",
+            "search_engine_cli_qwen", "Qwen",
             "search_category_ai", "AI",
+            "search_category_cli", "CLI",
             "search_category_academic", "Academic",
             "search_category_baidu", "Baidu",
             "search_category_image", "Image",
@@ -2519,7 +2566,7 @@ InitConfig() {
         IniWrite("deepseek", ConfigFile, "Settings", "VoiceSearchSelectedEngines")  ; 保存默认选中的搜索引擎
         IniWrite("0", ConfigFile, "Settings", "AutoStart")  ; 默认不自启动
         ; 保存默认启用的搜索标签（默认全部启用）
-        DefaultEnabledCategories := "ai,academic,baidu,image,audio,video,book,price,medical,cloud"
+        DefaultEnabledCategories := "ai,cli,academic,baidu,image,audio,video,book,price,medical,cloud"
         IniWrite(DefaultEnabledCategories, ConfigFile, "Settings", "VoiceSearchEnabledCategories")
         
         IniWrite(DefaultPanelScreenIndex, ConfigFile, "Appearance", "ScreenIndex")
@@ -2741,7 +2788,7 @@ InitConfig() {
             
             ; 加载启用的搜索标签
             global VoiceSearchEnabledCategories
-            EnabledCategoriesStr := IniRead(ConfigFile, "Settings", "VoiceSearchEnabledCategories", "ai,academic,baidu,image,audio,video,book,price,medical,cloud")
+            EnabledCategoriesStr := IniRead(ConfigFile, "Settings", "VoiceSearchEnabledCategories", "ai,cli,academic,baidu,image,audio,video,book,price,medical,cloud")
             if (EnabledCategoriesStr != "") {
                 VoiceSearchEnabledCategories := []
                 CategoriesArray := StrSplit(EnabledCategoriesStr, ",")
@@ -2753,10 +2800,10 @@ InitConfig() {
                 }
                 ; 如果解析后为空，使用默认值
                 if (VoiceSearchEnabledCategories.Length = 0) {
-                    VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+                    VoiceSearchEnabledCategories := ["ai", "cli", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
                 }
             } else {
-                VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+                VoiceSearchEnabledCategories := ["ai", "cli", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
             }
             
             ; 应用自启动设置
@@ -2777,7 +2824,7 @@ InitConfig() {
             }
             
             ; 加载每个分类的搜索引擎选择状态
-            AllCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+            AllCategories := ["ai", "cli", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
             for Index, Category in AllCategories {
                 CategoryEnginesStr := IniRead(ConfigFile, "Settings", "VoiceSearchSelectedEngines_" . Category, "")
                 if (CategoryEnginesStr != "") {
@@ -2923,7 +2970,7 @@ InitConfig() {
             CursorPanelScreenIndex := DefaultCursorPanelScreenIndex
             ClipboardPanelScreenIndex := DefaultClipboardPanelScreenIndex
             AutoStart := false
-            VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+            VoiceSearchEnabledCategories := ["ai", "cli", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
         }
     } catch as e {
         MsgBox("Error loading config: " . e.Message, "Error", "IconX")
@@ -3569,6 +3616,140 @@ ExitFromMenu(*) {
     CleanUp()
 }
 
+; 关闭悬浮工具栏（与「隐藏/显示」切换不同：始终关闭）
+HideFloatingToolbarFromPopupMenu(*) {
+    global TrayMenuGUI
+    if (TrayMenuGUI != 0) {
+        try {
+            TrayMenuGUI.Destroy()
+            TrayMenuGUI := 0
+            SetTimer(CheckTrayMenuMousePosition, 0)
+            SetTimer(CloseTrayMenuIfClickedOutside, 0)
+        }
+    }
+    HideFloatingToolbar()
+}
+
+; 重启脚本（先关闭暗色弹出菜单）
+ReloadScriptFromPopupMenu(*) {
+    global TrayMenuGUI
+    if (TrayMenuGUI != 0) {
+        try {
+            TrayMenuGUI.Destroy()
+            TrayMenuGUI := 0
+            SetTimer(CheckTrayMenuMousePosition, 0)
+            SetTimer(CloseTrayMenuIfClickedOutside, 0)
+        }
+    }
+    Reload
+}
+
+; 与托盘/工具栏共用的暗色弹出菜单渲染（橙色图标+悬停，与 ShowCustomTrayMenu 一致）
+ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
+    global TrayMenuGUI, TrayMenuSelectedItem
+
+    if (TrayMenuGUI != 0) {
+        try {
+            TrayMenuGUI.Destroy()
+            SetTimer(CheckTrayMenuMousePosition, 0)
+            SetTimer(CloseTrayMenuIfClickedOutside, 0)
+        }
+    }
+
+    MenuWidth := 200
+    MenuItemHeight := 35
+    Padding := 10
+    MenuHeight := MenuItems.Length * MenuItemHeight + Padding * 2
+
+    ScreenWidth := SysGet(78)
+    ScreenHeight := SysGet(79)
+    if (posX < 10) {
+        posX := 10
+    } else if (posX + MenuWidth > ScreenWidth - 10) {
+        posX := ScreenWidth - MenuWidth - 10
+    }
+    if (posY < 10) {
+        posY := 10
+    } else if (posY + MenuHeight > ScreenHeight - 10) {
+        posY := ScreenHeight - MenuHeight - 10
+    }
+
+    TrayMenuGUI := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
+    TrayMenuGUI.BackColor := "1a1a1a"
+    TrayMenuGUI.Add("Text", "x0 y0 w" . MenuWidth . " h" . MenuHeight . " Background1a1a1a", "")
+
+    TrayMenuSelectedItem := 0
+    IconSize := 20
+    IconLeftMargin := Padding + 8
+    TextLeftMargin := IconLeftMargin + IconSize + 10
+
+    ClickHelper(act, *) {
+        act()
+    }
+
+    Loop MenuItems.Length {
+        Index := A_Index
+        Item := MenuItems[Index]
+        ItemY := Padding + (Index - 1) * MenuItemHeight
+        ItemBg := TrayMenuGUI.Add("Text", "x" . Padding . " y" . ItemY . " w" . (MenuWidth - Padding * 2) . " h" . MenuItemHeight . " Background1a1a1a vMenuItemBg" . Index, "")
+        ItemBg.OnEvent("Click", ClickHelper.Bind(Item.Action))
+        if (Item.HasProp("Icon") && Item.Icon != "") {
+            IconText := TrayMenuGUI.Add("Text", "x" . IconLeftMargin . " y" . ItemY . " w" . IconSize . " h" . MenuItemHeight . " Center 0x200 cff6600 BackgroundTrans vMenuItemIcon" . Index, Item.Icon)
+            IconText.SetFont("s14", "Segoe UI Symbol")
+            IconText.OnEvent("Click", ClickHelper.Bind(Item.Action))
+        }
+        ItemText := TrayMenuGUI.Add("Text", "x" . TextLeftMargin . " y" . ItemY . " w" . (MenuWidth - TextLeftMargin - Padding) . " h" . MenuItemHeight . " Left 0x200 cff6600 BackgroundTrans vMenuItemText" . Index, Item.Text)
+        ItemText.SetFont("s11", "Segoe UI")
+        ItemText.OnEvent("Click", ClickHelper.Bind(Item.Action))
+    }
+
+    TrayMenuGUI.Show("x" . posX . " y" . posY . " w" . MenuWidth . " h" . MenuHeight)
+    WinActivate("ahk_id " . TrayMenuGUI.Hwnd)
+    SetTimer(CheckTrayMenuMousePosition, 50)
+    SetTimer(CloseTrayMenuIfClickedOutside, 100)
+}
+
+; 悬浮工具栏（空白处/图标）右键：与托盘菜单同款样式，并含「关闭工具栏」「重启脚本」
+ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
+    global FloatingToolbarIsVisible
+
+    MenuWidth := 200
+    MenuItemHeight := 35
+    Padding := 10
+    MenuItems := []
+
+    if (FloatingToolbarIsVisible) {
+        MenuItems.Push({Text: "隐藏工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
+    } else {
+        MenuItems.Push({Text: "显示工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
+    }
+    MenuItems.Push({Text: "搜索中心", Action: ShowSearchCenterFromMenu, Icon: "●"})
+    MenuItems.Push({Text: "剪贴板", Action: ShowClipboardFromMenu, Icon: "▤"})
+    MenuItems.Push({Text: GetText("open_config_menu"), Action: ShowConfigFromMenu, Icon: "⚙"})
+    MenuItems.Push({Text: "关闭工具栏", Action: HideFloatingToolbarFromPopupMenu, Icon: "◼"})
+    MenuItems.Push({Text: "重启脚本", Action: ReloadScriptFromPopupMenu, Icon: "↻"})
+    MenuItems.Push({Text: GetText("exit_menu"), Action: ExitFromMenu, Icon: "✕"})
+
+    MenuHeight := MenuItems.Length * MenuItemHeight + Padding * 2
+    posX := anchorX - (MenuWidth // 2)
+    posY := anchorY - MenuHeight - 10
+
+    ScreenWidth := SysGet(78)
+    ScreenHeight := SysGet(79)
+    if (posX < 10) {
+        posX := 10
+    } else if (posX + MenuWidth > ScreenWidth - 10) {
+        posX := ScreenWidth - MenuWidth - 10
+    }
+    if (posY < 10) {
+        posY := anchorY + 10
+    } else if (posY + MenuHeight > ScreenHeight - 10) {
+        posY := ScreenHeight - MenuHeight - 10
+    }
+
+    ShowDarkStylePopupMenuAt(MenuItems, posX, posY)
+}
+
 ; ===================== 修复后的托盘菜单创建逻辑 =====================
 CreateTrayMenuGUI() {
     global TrayMenuGUI := Gui("+AlwaysOnTop -Caption +ToolWindow", "TrayMenu")
@@ -3596,133 +3777,45 @@ AddMenuButton(Text, CallbackFunc) {
 
 ; 创建自定义暗色托盘菜单（仅在右键点击托盘图标时激活）
 ShowCustomTrayMenu(ItemName := "", ItemPos := "", MyMenu := "") {
-    global TrayMenuGUI, FloatingToolbarIsVisible, TrayMenuSelectedItem
-    
-    ; 如果菜单已存在，先销毁
-    if (TrayMenuGUI != 0) {
-        try {
-            TrayMenuGUI.Destroy()
-            SetTimer(CheckTrayMenuMousePosition, 0)  ; 停止鼠标位置检查定时器
-            SetTimer(CloseTrayMenuIfClickedOutside, 0)  ; 停止外部点击检查定时器
-        }
-    }
-    
-    ; 菜单尺寸
+    global FloatingToolbarIsVisible
+
     MenuWidth := 200
     MenuItemHeight := 35
     Padding := 10
-    
-    ; 菜单项列表（显示所有菜单选项）
-    ; 每个菜单项包含：Text（文本）、Action（动作函数）、Icon（图标字符）
     MenuItems := []
-    
-    ; 第一个：切换显示/隐藏悬浮工具栏
+
     if (FloatingToolbarIsVisible) {
         MenuItems.Push({Text: "隐藏工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
     } else {
         MenuItems.Push({Text: "显示工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
     }
-    
-    ; 第二个：打开 CapsLock+F（搜索中心）
     MenuItems.Push({Text: "搜索中心", Action: ShowSearchCenterFromMenu, Icon: "●"})
-    
-    ; 第三个：打开 CapsLock+X（剪贴板）
     MenuItems.Push({Text: "剪贴板", Action: ShowClipboardFromMenu, Icon: "▤"})
-    
-    ; 第四个：打开 CapsLock+Q（配置）
     MenuItems.Push({Text: GetText("open_config_menu"), Action: ShowConfigFromMenu, Icon: "⚙"})
-    
-    ; 第五个：退出软件
+    MenuItems.Push({Text: "关闭工具栏", Action: HideFloatingToolbarFromPopupMenu, Icon: "◼"})
+    MenuItems.Push({Text: "重启脚本", Action: ReloadScriptFromPopupMenu, Icon: "↻"})
     MenuItems.Push({Text: GetText("exit_menu"), Action: ExitFromMenu, Icon: "✕"})
-    
-    ; 计算菜单高度
+
     MenuHeight := MenuItems.Length * MenuItemHeight + Padding * 2
-    
-    ; 获取鼠标位置（使用屏幕坐标模式）
     CoordMode("Mouse", "Screen")
     MouseGetPos(&mX, &mY)
-    
-    ; 优化弹出位置：菜单从图标上方弹出，避免被任务栏遮挡
-    ; 菜单宽度的一半作为水平偏移，菜单高度作为垂直偏移
     posX := mX - (MenuWidth // 2)
-    posY := mY - MenuHeight - 10  ; 在鼠标上方，留10像素间距
-    
-    ; 调整菜单位置，确保不会超出屏幕边界
-    ScreenWidth := SysGet(78)  ; SM_CXSCREEN
-    ScreenHeight := SysGet(79)  ; SM_CYSCREEN
-    
-    ; 水平边界检查
+    posY := mY - MenuHeight - 10
+
+    ScreenWidth := SysGet(78)
+    ScreenHeight := SysGet(79)
     if (posX < 10) {
         posX := 10
     } else if (posX + MenuWidth > ScreenWidth - 10) {
         posX := ScreenWidth - MenuWidth - 10
     }
-    
-    ; 垂直边界检查（如果上方空间不足，显示在下方）
     if (posY < 10) {
-        posY := mY + 10  ; 显示在鼠标下方
+        posY := mY + 10
     } else if (posY + MenuHeight > ScreenHeight - 10) {
         posY := ScreenHeight - MenuHeight - 10
     }
-    
-    ; 创建GUI（暗色主题）
-    TrayMenuGUI := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
-    TrayMenuGUI.BackColor := "1a1a1a"  ; 暗色系黑色背景
-    
-    ; 添加背景
-    Background := TrayMenuGUI.Add("Text", "x0 y0 w" . MenuWidth . " h" . MenuHeight . " Background1a1a1a", "")
-    
-    ; 添加所有菜单项
-    TrayMenuSelectedItem := 0
-    IconSize := 20  ; 图标大小
-    IconLeftMargin := Padding + 8  ; 图标左边距
-    TextLeftMargin := IconLeftMargin + IconSize + 10  ; 文本左边距（图标右侧）
-    
-    ; 定义一个点击处理帮助函数，用于绑定特定的 Action
-    ; 这个函数接收具体的 Action 函数作为参数 act，并返回一个新的回调函数
-    ; 这样可以确保每个按钮点击时使用的是创建该按钮时的 Action，而不是循环变量
-    ClickHelper(act, *) {
-        act()
-    }
 
-    Loop MenuItems.Length {
-        Index := A_Index
-        Item := MenuItems[Index]
-        ItemY := Padding + (Index - 1) * MenuItemHeight
-        
-        ; 菜单项背景（用于悬停效果）
-        ItemBg := TrayMenuGUI.Add("Text", "x" . Padding . " y" . ItemY . " w" . (MenuWidth - Padding * 2) . " h" . MenuItemHeight . " Background1a1a1a vMenuItemBg" . Index, "")
-        
-        ; === 核心修复点 ===
-        ; 使用 Bind 将当前的 Item.Action 绑定到 ClickHelper 的第一个参数
-        ; 这样就"锁定"了当前循环对应的函数，而不是引用循环变量 Item
-        ItemBg.OnEvent("Click", ClickHelper.Bind(Item.Action))
-        ; ==================
-        
-        ; 菜单项图标（橙色，Material扁平化风格）
-        if (Item.HasProp("Icon") && Item.Icon != "") {
-            IconText := TrayMenuGUI.Add("Text", "x" . IconLeftMargin . " y" . ItemY . " w" . IconSize . " h" . MenuItemHeight . " Center 0x200 cff6600 BackgroundTrans vMenuItemIcon" . Index, Item.Icon)
-            IconText.SetFont("s14", "Segoe UI Symbol")
-            ; 图标也绑定同样的事件
-            IconText.OnEvent("Click", ClickHelper.Bind(Item.Action))
-        }
-        
-        ; 菜单项文本（橙色）
-        ItemText := TrayMenuGUI.Add("Text", "x" . TextLeftMargin . " y" . ItemY . " w" . (MenuWidth - TextLeftMargin - Padding) . " h" . MenuItemHeight . " Left 0x200 cff6600 BackgroundTrans vMenuItemText" . Index, Item.Text)
-        ItemText.SetFont("s11", "Segoe UI")
-        ; 文本也绑定同样的事件
-        ItemText.OnEvent("Click", ClickHelper.Bind(Item.Action))
-    }
-    
-    ; 显示菜单并激活，确保点击别处能自动消失
-    TrayMenuGUI.Show("x" . posX . " y" . posY . " w" . MenuWidth . " h" . MenuHeight)
-    WinActivate("ahk_id " . TrayMenuGUI.Hwnd)
-    
-    ; 使用定时器检查鼠标位置以实现悬停效果
-    SetTimer(CheckTrayMenuMousePosition, 50)
-    
-    ; 点击菜单外区域关闭菜单
-    SetTimer(CloseTrayMenuIfClickedOutside, 100)
+    ShowDarkStylePopupMenuAt(MenuItems, posX, posY)
 }
 
 UpdateTrayMenu()  ; 初始化托盘菜单
@@ -6370,6 +6463,7 @@ CreateSearchCategoryConfigUI(ConfigGUI, X, Y, W, ParentControls) {
     ; 所有可用的标签
     AllCategories := [
         {Key: "ai", Text: GetText("search_category_ai")},
+        {Key: "cli", Text: GetText("search_category_cli")},
         {Key: "academic", Text: GetText("search_category_academic")},
         {Key: "baidu", Text: GetText("search_category_baidu")},
         {Key: "image", Text: GetText("search_category_image")},
@@ -6383,7 +6477,7 @@ CreateSearchCategoryConfigUI(ConfigGUI, X, Y, W, ParentControls) {
     
     ; 确保 VoiceSearchEnabledCategories 已初始化
     if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
-        global VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+        global VoiceSearchEnabledCategories := ["ai", "cli", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
     }
     
     ; 创建复选框（每行2个，参考单选按钮尺寸）
@@ -12242,26 +12336,30 @@ SearchAllDataSources(Keyword, DataTypes := [], MaxResults := 10, Offset := 0) {
         DataTypes := ["clipboard", "template", "config", "file", "hotkey", "function", "ui"]
     }
     
-    ; 并行搜索各个数据源
+    ; 并行搜索各个数据源（各分支独立 try/catch，避免某一源异常阻断后续含 file/Everything）
     for Index, DataType in DataTypes {
         TypeResults := []
-        
-        switch DataType {
-            case "clipboard":
-                ; 【关键】优先使用新的剪贴板数据库（ClipMain）
-                TypeResults := SearchClipboardHistory(Keyword, MaxResults, Offset)
-            case "template":
-                TypeResults := SearchPromptTemplates(Keyword, MaxResults, Offset)
-            case "config":
-                TypeResults := SearchConfigItems(Keyword, MaxResults, Offset)
-            case "file":
-                TypeResults := SearchFilePaths(Keyword, MaxResults, Offset)
-            case "hotkey":
-                TypeResults := SearchHotkeys(Keyword, MaxResults, Offset)
-            case "function":
-                TypeResults := SearchFunctions(Keyword, MaxResults, Offset)
-            case "ui":
-                TypeResults := SearchUITabs(Keyword, MaxResults, Offset)
+        try {
+            switch DataType {
+                case "clipboard":
+                    ; 【关键】优先使用新的剪贴板数据库（ClipMain）
+                    TypeResults := SearchClipboardHistory(Keyword, MaxResults, Offset)
+                case "template":
+                    TypeResults := SearchPromptTemplates(Keyword, MaxResults, Offset)
+                case "config":
+                    TypeResults := SearchConfigItems(Keyword, MaxResults, Offset)
+                case "file":
+                    TypeResults := SearchFilePaths(Keyword, MaxResults, Offset)
+                case "hotkey":
+                    TypeResults := SearchHotkeys(Keyword, MaxResults, Offset)
+                case "function":
+                    TypeResults := SearchFunctions(Keyword, MaxResults, Offset)
+                case "ui":
+                    TypeResults := SearchUITabs(Keyword, MaxResults, Offset)
+            }
+        } catch as err {
+            OutputDebug("AHK_DEBUG: SearchAllDataSources[" . DataType . "] 错误: " . err.Message)
+            TypeResults := []
         }
         
         if (TypeResults.Length > 0) {
@@ -12951,7 +13049,7 @@ IsFilePath(Path) {
 
 ; 搜索文件路径
 SearchFilePaths(Keyword, MaxResults := 10, Offset := 0) {
-    global ClipboardDB, global_ST
+    global ClipboardDB, global_ST, SearchCenterEverythingLimit
     Results := []
     
     ; 【修复】如果关键词为空，直接返回空结果
@@ -12959,10 +13057,8 @@ SearchFilePaths(Keyword, MaxResults := 10, Offset := 0) {
         return Results
     }
     
-    ; 【关键修复】参考CapsLock+F的实现：优先使用Everything64.dll进行文件搜索
-    ; 当关键词长度 > 1 时，使用Everything进行文件搜索
-    if (StrLen(Keyword) > 1) {
-        try {
+    ; 【关键修复】参考CapsLock+F的实现：优先使用Everything64.dll进行文件搜索（关键词非空即可，含单字符）
+    try {
             ; 调用GetEverythingResults获取文件搜索结果（增加 limit 以检测是否还有更多）
             ; 使用下拉菜单设置的结果数量限制（如果设置了，优先使用；否则使用 MaxResults）
             everythingLimit := SearchCenterEverythingLimit > 0 ? SearchCenterEverythingLimit : MaxResults
@@ -13123,10 +13219,10 @@ SearchFilePaths(Keyword, MaxResults := 10, Offset := 0) {
                 
                 Results.Push(ResultItem)
             }
-        } catch as err {
-            ; 如果Everything搜索失败，继续使用数据库搜索作为回退
-            OutputDebug("AHK_DEBUG: Everything DLL 搜索失败: " . err.Message)
-        }
+    } catch as err {
+        ; 如果Everything搜索失败，继续使用数据库搜索作为回退
+        OutputDebug("AHK_DEBUG: Everything DLL 搜索失败: " . err.Message)
+        EverythingUserTipOnce("文件搜索异常: " . err.Message)
     }
     
     ; 如果Everything搜索结果已满足需求，直接返回
@@ -14472,6 +14568,7 @@ OnMessage(0x0232, WM_EXITSIZEMOVE)
 WM_CTLCOLORLISTBOX(wParam, lParam, Msg, Hwnd) {
     global DefaultStartTabDDL_Hwnd, DDLBrush, UI_Colors, MoveGUIListBoxHwnd, MoveGUIListBoxBrush, MoveFromTemplateListBoxHwnd, MoveFromTemplateListBoxBrush
     global ClipboardListBoxHwnd, ClipboardListBoxBrush, ThemeMode
+    global SearchCenterResultLimitDDL_Hwnd, SearchCenterResultLimitDDLBrush
     
     try {
         ; 检查是否是剪贴板管理的ListBox
@@ -14530,6 +14627,14 @@ WM_CTLCOLORLISTBOX(wParam, lParam, Msg, Hwnd) {
                 return DDLBrush
             }
         }
+
+        if (SearchCenterResultLimitDDL_ListHwnd != 0 && lParam = SearchCenterResultLimitDDL_ListHwnd && SearchCenterResultLimitDDLBrush != 0) {
+            TextBGR := 0x000000
+            BgBGR := 0xFFFFFF
+            DllCall("gdi32.dll\SetTextColor", "Ptr", wParam, "UInt", TextBGR)
+            DllCall("gdi32.dll\SetBkColor", "Ptr", wParam, "UInt", BgBGR)
+            return SearchCenterResultLimitDDLBrush
+        }
         
         ; 检查是否是移动分类弹窗的ListBox
         if (MoveGUIListBoxHwnd != 0 && lParam = MoveGUIListBoxHwnd && MoveGUIListBoxBrush != 0) {
@@ -14566,6 +14671,7 @@ WM_CTLCOLORLISTBOX(wParam, lParam, Msg, Hwnd) {
 ; 处理ComboBox编辑框部分的背景色和文字颜色
 WM_CTLCOLOREDIT(wParam, lParam, Msg, Hwnd) {
     global DefaultStartTabDDL_Hwnd, DDLBrush, UI_Colors, ThemeMode
+    global SearchCenterResultLimitDDL_Hwnd, SearchCenterResultLimitDDLBrush
     
     try {
         ; 检查是否是默认启动页面下拉框的编辑框部分
@@ -14594,6 +14700,15 @@ WM_CTLCOLOREDIT(wParam, lParam, Msg, Hwnd) {
                 DllCall("gdi32.dll\SetBkColor", "Ptr", wParam, "UInt", BgBGR)
                 ; 返回画刷句柄
                 return DDLBrush
+            }
+        }
+
+        if (SearchCenterResultLimitDDL_Hwnd != 0 && SearchCenterResultLimitDDLBrush != 0) {
+            ParentHwnd := DllCall("user32.dll\GetParent", "Ptr", lParam, "Ptr")
+            if (ParentHwnd = SearchCenterResultLimitDDL_Hwnd) {
+                DllCall("gdi32.dll\SetTextColor", "Ptr", wParam, "UInt", 0x000000)
+                DllCall("gdi32.dll\SetBkColor", "Ptr", wParam, "UInt", 0xFFFFFF)
+                return SearchCenterResultLimitDDLBrush
             }
         }
     } catch as err {
@@ -16451,7 +16566,7 @@ SaveConfig(*) {
         IniWrite(EnabledCategoriesStr, ConfigFile, "Settings", "VoiceSearchEnabledCategories")
     } else {
         ; 如果为空，使用默认值
-        IniWrite("ai,academic,baidu,image,audio,video,book,price,medical,cloud", ConfigFile, "Settings", "VoiceSearchEnabledCategories")
+        IniWrite("ai,cli,academic,baidu,image,audio,video,book,price,medical,cloud", ConfigFile, "Settings", "VoiceSearchEnabledCategories")
     }
     
     ; 应用自启动设置
@@ -23031,6 +23146,11 @@ Enter:: {
     }
     global SearchCenterActiveArea, SearchCenterResultLV, SearchCenterSearchResults, SearchCenterSearchEdit
     
+    if (SearchCenterIsCLICategory() && (SearchCenterActiveArea = "input" || SearchCenterActiveArea = "category")) {
+        ExecuteSearchCenterCLICommand()
+        return
+    }
+    
     if (SearchCenterActiveArea = "listview") {
         ; 焦点在ListView：启动倒计时
         if (!SearchCenterResultLV || SearchCenterResultLV = 0) {
@@ -23050,7 +23170,10 @@ Enter:: {
         
         ; 获取选中项的内容并启动倒计时
         if (SelectedRow > 0 && SelectedRow <= SearchCenterSearchResults.Length) {
-            Item := SearchCenterSearchResults[SelectedRow]
+            Item := GetSearchCenterResultItemByRow(SelectedRow)
+            if (!IsObject(Item)) {
+                return
+            }
             Content := Item.HasProp("Content") ? Item.Content : Item.Title
             
             ; 启动倒计时前的准备（不显示提示，直接进入倒计时准备粘贴）
@@ -23443,6 +23566,7 @@ class GlobalSearchEngine {
 HandleSearchCenterUp() {
     global SearchCenterActiveArea, SearchCenterResultLV, SearchCenterSearchEdit, GuiID_SearchCenter, CapsLock2
     CapsLock2 := false
+    
     if (SearchCenterActiveArea = "category") {
         ; category (分类栏) -> ↑/W：向上切换分类
         SwitchSearchCenterCategory(-1)
@@ -23485,6 +23609,7 @@ HandleSearchCenterUp() {
 HandleSearchCenterDown() {
     global SearchCenterActiveArea, SearchCenterResultLV, SearchCenterSearchEdit, GuiID_SearchCenter, CapsLock2
     CapsLock2 := false
+    
     if (SearchCenterActiveArea = "category") {
         ; category (分类栏) -> ↓/S：切换到输入框
         SearchCenterActiveArea := "input"
@@ -23570,6 +23695,11 @@ HandleSearchCenterF() {
     ; 标记已处理按键，防止 CapsLock 切换状态
     CapsLock2 := false
     
+    if (SearchCenterIsCLICategory() && (SearchCenterActiveArea = "input" || SearchCenterActiveArea = "category")) {
+        ExecuteSearchCenterCLICommand()
+        return
+    }
+    
     if (SearchCenterActiveArea = "category" || SearchCenterActiveArea = "input") {
         ; 搜索引擎/输入框区域：执行搜索操作
         ExecuteSearchCenterBatchSearch()
@@ -23593,7 +23723,10 @@ HandleSearchCenterF() {
         
         ; 获取选中内容并立即启动倒计时
         if (SelectedRow > 0 && SelectedRow <= SearchCenterSearchResults.Length) {
-            Item := SearchCenterSearchResults[SelectedRow]
+            Item := GetSearchCenterResultItemByRow(SelectedRow)
+            if (!IsObject(Item)) {
+                return
+            }
             Content := Item.HasProp("Content") ? Item.Content : Item.Title
             
             ; 调用启动处理函数（封装了隐藏窗口和启动倒计时的逻辑）
@@ -23609,6 +23742,7 @@ SearchCenterListViewLaunchHandler(Content, Title) {
     ; 1. 彻底销毁搜索中心窗口，确保 CapsLock + F 逻辑完美重置
     try {
         if (GuiID_SearchCenter != 0 && IsObject(GuiID_SearchCenter)) {
+            CleanupSearchCenterResultLimitDDLBrush()
             GuiID_SearchCenter.Destroy()
             GuiID_SearchCenter := 0
         }
@@ -23985,10 +24119,14 @@ ShowSearchCenter() {
     global SearchCenterActiveArea, SearchCenterCurrentCategory
     global SearchCenterSearchEdit, SearchCenterResultLV, SearchCenterCategoryButtons
     global VoiceSearchEnabledCategories, SearchCenterAreaIndicator
+    global SearchCenterCLIOutputEdit
+    global SearchCenterCLIRunButton, SearchCenterCLIClearButton, SearchCenterCLIOpenButton
+    global SearchCenterResultLimitDDL_Hwnd, SearchCenterResultLimitDDL_ListHwnd
     
     ; 如果窗口已存在，先销毁
     if (GuiID_SearchCenter != 0) {
         try {
+            CleanupSearchCenterResultLimitDDLBrush()
             GuiID_SearchCenter.Destroy()
         } catch as err {
         }
@@ -24145,25 +24283,36 @@ ShowSearchCenter() {
     ; ========== 结果数量限制下拉菜单（搜索框左侧）==========
     DropdownX := Padding
     DropdownY := InputAreaY + (InputAreaHeight - 50) / 2
-    DropdownWidth := 80
+    DropdownWidth := 120
     DropdownHeight := 50
     
-    ; 创建下拉菜单选项（10, 20, 30, 50, 100, 200, 500）- 直接内联数组
+    ; 创建来源过滤下拉菜单
     ; R7 表示显示 7 行，确保所有选项可见
-    DropdownDefaultIndex := 1  ; 默认选择10（索引从1开始，10是第1个选项）
+    DropdownDefaultIndex := 1
 
     SearchCenterResultLimitDropdown := GuiID_SearchCenter.Add("DropDownList",
         "x" . DropdownX . " y" . DropdownY .
         " w" . DropdownWidth . " h" . DropdownHeight .
-        " R7" .  ; 显示 7 行，确保所有选项可见
-        " Background" . InputBgColor .
-        " c" . InputTextColor .
+        " R7" .
+        " BackgroundFFFFFF" .
+        " c000000" .
         " Choose" . DropdownDefaultIndex .
         " vSearchCenterResultLimitDropdown",
-        ["10", "20", "30", "50", "100", "200", "500"])
-
+        ["全部", "文件", "剪贴板", "模板", "配置", "快捷键", "功能"])
     SearchCenterResultLimitDropdown.SetFont("s14", "Segoe UI")
     SearchCenterResultLimitDropdown.OnEvent("Change", OnSearchCenterResultLimitChange)
+    try {
+        SearchCenterResultLimitDDL_Hwnd := SearchCenterResultLimitDropdown.Hwnd
+        ComboBoxInfoSize := (A_PtrSize = 8) ? 64 : 52
+        ComboBoxInfo := Buffer(ComboBoxInfoSize, 0)
+        NumPut("UInt", ComboBoxInfoSize, ComboBoxInfo, 0)
+        if (DllCall("user32.dll\GetComboBoxInfo", "Ptr", SearchCenterResultLimitDDL_Hwnd, "Ptr", ComboBoxInfo, "Int")) {
+            ListHwndOffset := 40 + A_PtrSize * 2
+            SearchCenterResultLimitDDL_ListHwnd := NumGet(ComboBoxInfo, ListHwndOffset, "Ptr")
+        }
+        SetTimer(UpdateSearchCenterResultLimitDDLBrush, -100)
+    } catch as err {
+    }
     
     ; ========== 搜索输入框（下拉菜单右侧）==========
     SearchEditX := DropdownX + DropdownWidth + 10  ; 下拉菜单右侧，间距10
@@ -24243,7 +24392,11 @@ ShowSearchCenter() {
     
     ; ========== 过滤标签按钮区域（橙色标签）==========
     FilterBarHeight := 40
-    FilterBarY := InputAreaY + InputAreaHeight + Padding + AreaIndicatorHeight + HintTextHeight + 10  ; 在提示文本下方
+    PreviewHeight := 120
+    PreviewGap := 12
+    ButtonHeight := 34
+    ButtonReservedHeight := SearchCenterIsCLICategory() ? (ButtonHeight + PreviewGap) : 0
+    FilterBarY := WindowHeight - Padding - PreviewHeight - ButtonReservedHeight - FilterBarHeight - PreviewGap
     FilterButtonHeight := 30
     FilterButtonSpacing := 8
     FilterStartX := Padding
@@ -24283,7 +24436,7 @@ ShowSearchCenter() {
             FilterBtn := GuiID_SearchCenter.Add("Text", "x" . CurrentFilterX . " y" . FilterButtonY . " w" . FilterButtonWidth . " h" . FilterButtonHeight . " Center 0x200 +c" . TextColor . " +Background" . BgColor . " vSearchCenterFilterBtn" . Index, FilterText)
             FilterBtn.SetFont("s10 Bold", "Segoe UI")
             FilterBtn.OnEvent("Click", CreateSearchCenterFilterClickHandler(FilterType))
-            FilterBtn.Visible := true  ; 【关键修复】确保标签按钮始终可见
+            FilterBtn.Visible := false
             ; 【关键修复】在按钮上存储 FilterType 属性，方便后续获取
             FilterBtn.FilterType := FilterType
             HoverBtnWithAnimation(FilterBtn, BgColor, IsSelected ? "0xFF8800" : ("0x" . UI_Colors.BtnHover))  ; 悬停时稍微亮一点
@@ -24294,8 +24447,8 @@ ShowSearchCenter() {
     }
     
     ; ========== 底部结果区 ==========
-    ResultAreaY := FilterBarY + FilterBarHeight + Padding  ; 过滤标签下方
-    ResultAreaHeight := WindowHeight - ResultAreaY - Padding - 5  ; 移除加载更多按钮后的空间
+    ResultAreaY := InputAreaY + InputAreaHeight + Padding + AreaIndicatorHeight + HintTextHeight + 10
+    ResultAreaHeight := FilterBarY - ResultAreaY - Padding
     
     ; 结果 ListView
     ResultLVX := Padding
@@ -24306,6 +24459,7 @@ ShowSearchCenter() {
     SearchCenterResultLV := GuiID_SearchCenter.Add("ListView", "x" . ResultLVX . " y" . ResultLVY . " w" . ResultLVWidth . " h" . ResultLVHeight . " Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " -Multi +ReadOnly vSearchResultLV", ["标题", "来源", "类型", "时间"])
     SearchCenterResultLV.SetFont("s10", "Segoe UI")
     SearchCenterResultLV.OnEvent("DoubleClick", OnSearchCenterResultDoubleClick)
+    SearchCenterResultLV.OnEvent("ItemSelect", OnSearchCenterResultItemSelect)
     ; 【关键修复】添加Focus事件处理：设置焦点区域为listview
     SearchCenterResultLV.OnEvent("Focus", (*) => (
         SearchCenterActiveArea := "listview",
@@ -24318,6 +24472,25 @@ ShowSearchCenter() {
     SearchCenterResultLV.ModifyCol(3, ResultLVWidth * 0.15)
     SearchCenterResultLV.ModifyCol(4, ResultLVWidth * 0.25)
     
+    ; ========== CLI 页面控件（仅在 cli 分类显示）==========
+    SearchCenterCLIRunButton := GuiID_SearchCenter.Add("Button", "x0 y0 w100 h32", "发送到 AI")
+    SearchCenterCLIRunButton.OnEvent("Click", ExecuteSearchCenterCLICommand)
+    
+    SearchCenterCLIClearButton := GuiID_SearchCenter.Add("Button", "x0 y0 w100 h32", "清空输入")
+    SearchCenterCLIClearButton.OnEvent("Click", ClearSearchCenterCLIOutput)
+    
+    SearchCenterCLIOpenButton := GuiID_SearchCenter.Add("Button", "x0 y0 w140 h32", "打开所选终端")
+    SearchCenterCLIOpenButton.OnEvent("Click", OpenSelectedCLIAgents)
+    
+    SearchCenterCLIOutputEdit := GuiID_SearchCenter.Add("Edit", "x0 y0 w100 h120 Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " +Multi -Wrap ReadOnly")
+    SearchCenterCLIOutputEdit.SetFont("s12", "Segoe UI")
+    SearchCenterCLIOutputEdit.OnEvent("Focus", (*) => (
+        SearchCenterActiveArea := "listview",
+        UpdateSearchCenterHighlight()
+    ))
+    
+    UpdateSearchCenterCLILayout(WindowWidth, WindowHeight)
+    
     
     ; 窗口关闭事件（ESC键关闭）
     GuiID_SearchCenter.OnEvent("Close", SearchCenterCloseHandler)
@@ -24327,15 +24500,20 @@ ShowSearchCenter() {
     
     ; 显示窗口（居中显示）
     GuiID_SearchCenter.Show("w" . WindowWidth . " h" . WindowHeight . " Center")
+    BringSearchCenterFilterButtonsToFront()
     
     ; 【关键修复】激活窗口并聚焦到输入框（参考CAPSLOCK+F的实现）
     WinActivate("ahk_id " . GuiID_SearchCenter.Hwnd)
     Sleep(100)
     try {
-        SearchCenterSearchEdit.Focus()
-        Sleep(100)
-        ; 切换到中文输入法
-        SwitchToChineseIMEForSearchCenter()
+        if (SearchCenterIsCLICategory()) {
+            FocusSearchCenterCLIInput()
+        } else {
+            SearchCenterSearchEdit.Focus()
+            Sleep(100)
+            ; 切换到中文输入法
+            SwitchToChineseIMEForSearchCenter()
+        }
     } catch as err {
         ; 忽略错误
     }
@@ -24343,6 +24521,7 @@ ShowSearchCenter() {
     ; 注意：Enter和ESC键热键已在文件顶部使用#HotIf IsSearchCenterActive()定义，无需在此注册
     
     ; 更新高亮显示
+    UpdateSearchCenterCategoryMode()
     UpdateSearchCenterHighlight()
     
     ; 刷新搜索引擎图标显示
@@ -24359,6 +24538,7 @@ GetSearchCenterCategories() {
     ; 所有可用的分类
     AllCategories := [
         {Key: "ai", Text: GetText("search_category_ai")},
+        {Key: "cli", Text: GetText("search_category_cli")},
         {Key: "academic", Text: GetText("search_category_academic")},
         {Key: "baidu", Text: GetText("search_category_baidu")},
         {Key: "image", Text: GetText("search_category_image")},
@@ -24372,7 +24552,7 @@ GetSearchCenterCategories() {
     
     ; 确保 VoiceSearchEnabledCategories 已初始化
     if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
-        VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+        VoiceSearchEnabledCategories := ["ai", "cli", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
     }
     
     ; 过滤出启用的分类
@@ -24389,6 +24569,667 @@ GetSearchCenterCategories() {
     }
     
     return EnabledCategories
+}
+
+GetSearchCenterCurrentCategoryKey() {
+    global SearchCenterCurrentCategory
+    Categories := GetSearchCenterCategories()
+    if (Categories.Length = 0 || SearchCenterCurrentCategory < 0 || SearchCenterCurrentCategory >= Categories.Length) {
+        return "ai"
+    }
+    return Categories[SearchCenterCurrentCategory + 1].Key
+}
+
+SearchCenterIsCLICategory() {
+    return (GetSearchCenterCurrentCategoryKey() = "cli")
+}
+
+SetSearchCenterControlVisible(Ctrl, IsVisible) {
+    if (!Ctrl || Ctrl = 0) {
+        return
+    }
+    try {
+        Ctrl.Visible := IsVisible
+    } catch {
+    }
+}
+
+SetSearchCenterEngineIconsVisible(IsVisible) {
+    global SearchCenterEngineIcons
+    if (!IsSet(SearchCenterEngineIcons) || !IsObject(SearchCenterEngineIcons)) {
+        return
+    }
+    for _, IconObj in SearchCenterEngineIcons {
+        if (!IsObject(IconObj)) {
+            continue
+        }
+        try {
+            if (IconObj.HasProp("Bg") && IconObj.Bg != 0) {
+                IconObj.Bg.Visible := IsVisible
+            }
+            if (IconObj.HasProp("Icon") && IconObj.Icon != 0) {
+                IconObj.Icon.Visible := IsVisible
+            }
+            if (IconObj.HasProp("NameLabel") && IconObj.NameLabel != 0) {
+                IconObj.NameLabel.Visible := IsVisible
+            }
+            if (IconObj.HasProp("Check") && IconObj.Check != 0) {
+                IconObj.Check.Visible := IsVisible
+            }
+        } catch {
+        }
+    }
+}
+
+GetSearchCenterCLIPrompt() {
+    return ""
+}
+
+GetSearchCenterCLIWelcomeText() {
+    return ""
+}
+
+EnsureSearchCenterCLISession() {
+    global SearchCenterCLIOutputEdit
+    if (!SearchCenterCLIOutputEdit || SearchCenterCLIOutputEdit = 0) {
+        return
+    }
+    try {
+        ; CLI 页使用普通多行输入框，无需初始化终端欢迎文本
+    } catch {
+    }
+}
+
+FocusSearchCenterCLIInput() {
+    global SearchCenterSearchEdit
+    if (!SearchCenterSearchEdit || SearchCenterSearchEdit = 0) {
+        return
+    }
+    try {
+        SearchCenterSearchEdit.Focus()
+        ControlSend("{End}", , SearchCenterSearchEdit)
+    } catch {
+    }
+}
+
+GetSearchCenterCurrentCLICommand() {
+    global SearchCenterSearchEdit
+    if (!SearchCenterSearchEdit || SearchCenterSearchEdit = 0) {
+        return ""
+    }
+    return Trim(SearchCenterSearchEdit.Value, " `t`r`n")
+}
+
+UpdateSearchCenterCLILayout(WindowWidth := 0, WindowHeight := 0) {
+    global GuiID_SearchCenter, SearchCenterCLIOutputEdit, SearchCenterResultLV, SearchCenterFilterButtons
+    global SearchCenterCLIRunButton, SearchCenterCLIClearButton, SearchCenterCLIOpenButton
+    global SearchCenterHintText
+    
+    if (!GuiID_SearchCenter || GuiID_SearchCenter = 0) {
+        return
+    }
+    if (WindowWidth <= 0 || WindowHeight <= 0) {
+        try {
+            GuiID_SearchCenter.GetClientPos(, , &WindowWidth, &WindowHeight)
+        } catch {
+            WindowWidth := 900
+            WindowHeight := 650
+        }
+    }
+    
+    Padding := 20
+    ContentTop := 325
+    if (SearchCenterHintText != 0) {
+        try {
+            ControlGetPos(&HintX, &HintY, &HintW, &HintH, SearchCenterHintText)
+            ContentTop := HintY + HintH + 54
+        } catch {
+            ContentTop := 325
+        }
+    }
+    IsCLI := SearchCenterIsCLICategory()
+    ContentWidth := WindowWidth - Padding * 2
+    ButtonWidth := 120
+    ButtonHeight := 34
+    ButtonGap := 12
+    FilterBarHeight := 40
+    OutputHeight := 120
+    PreviewGap := 12
+    if (IsCLI) {
+        ButtonY := WindowHeight - Padding - ButtonHeight
+        OutputY := ButtonY - OutputHeight - PreviewGap
+    } else {
+        ButtonY := WindowHeight - Padding - ButtonHeight
+        OutputY := WindowHeight - Padding - OutputHeight
+    }
+    FilterBarY := Max(ContentTop + 140, OutputY - FilterBarHeight - PreviewGap)
+    ResultY := ContentTop
+    ResultHeight := Max(120, FilterBarY - ResultY - PreviewGap)
+    
+    try SearchCenterCLIOutputEdit.Move(Padding, OutputY, ContentWidth, OutputHeight)
+    try SearchCenterResultLV.Move(Padding, ResultY, ContentWidth, ResultHeight)
+    MoveSearchCenterFilterButtons(FilterBarY, Padding)
+    if (IsCLI) {
+        try SearchCenterCLIRunButton.Move(Padding, ButtonY, ButtonWidth, ButtonHeight)
+        try SearchCenterCLIClearButton.Move(Padding + ButtonWidth + ButtonGap, ButtonY, ButtonWidth, ButtonHeight)
+        try SearchCenterCLIOpenButton.Move(Padding + (ButtonWidth + ButtonGap) * 2, ButtonY, 170, ButtonHeight)
+    }
+}
+
+BringSearchCenterFilterButtonsToFront() {
+    global SearchCenterFilterButtons
+
+    if (!IsSet(SearchCenterFilterButtons) || !IsObject(SearchCenterFilterButtons)) {
+        return
+    }
+
+    for _, FilterBtn in SearchCenterFilterButtons {
+        if (!FilterBtn || FilterBtn = 0) {
+            continue
+        }
+        try {
+            DllCall("SetWindowPos"
+                , "ptr", FilterBtn.Hwnd
+                , "ptr", 0
+                , "int", 0
+                , "int", 0
+                , "int", 0
+                , "int", 0
+                , "uint", 0x0013)
+            FilterBtn.Visible := false
+            FilterBtn.Redraw()
+        } catch {
+        }
+    }
+}
+
+MoveSearchCenterFilterButtons(FilterBarY, Padding := 20) {
+    global SearchCenterFilterButtons
+
+    if (!IsSet(SearchCenterFilterButtons) || !IsObject(SearchCenterFilterButtons)) {
+        return
+    }
+
+    FilterButtonHeight := 30
+    FilterButtonSpacing := 8
+    FilterButtonY := FilterBarY + 5
+    CurrentFilterX := Padding
+
+    for _, FilterBtn in SearchCenterFilterButtons {
+        if (!FilterBtn || FilterBtn = 0) {
+            continue
+        }
+        try {
+            FilterBtn.Visible := false
+            FilterText := FilterBtn.Text
+            FilterButtonWidth := Max(50, StrLen(FilterText) * 10 + 20)
+            FilterBtn.Move(CurrentFilterX, FilterButtonY, FilterButtonWidth, FilterButtonHeight)
+            CurrentFilterX += FilterButtonWidth + FilterButtonSpacing
+        } catch {
+        }
+    }
+
+    BringSearchCenterFilterButtonsToFront()
+}
+
+GetSearchCenterFilterDropdownLabel(FilterType := "") {
+    switch FilterType {
+        case "File":
+            return "文件"
+        case "clipboard":
+            return "剪贴板"
+        case "template":
+            return "模板"
+        case "config":
+            return "配置"
+        case "hotkey":
+            return "快捷键"
+        case "function":
+            return "功能"
+        default:
+            return "全部"
+    }
+}
+
+GetSearchCenterFilterDropdownIndex(FilterType := "") {
+    switch FilterType {
+        case "File":
+            return 2
+        case "clipboard":
+            return 3
+        case "template":
+            return 4
+        case "config":
+            return 5
+        case "hotkey":
+            return 6
+        case "function":
+            return 7
+        default:
+            return 1
+    }
+}
+
+GetSearchCenterFilterTypeFromDropdownLabel(FilterLabel := "") {
+    switch Trim(FilterLabel) {
+        case "文件":
+            return "File"
+        case "剪贴板":
+            return "clipboard"
+        case "模板":
+            return "template"
+        case "配置":
+            return "config"
+        case "快捷键":
+            return "hotkey"
+        case "功能":
+            return "function"
+        default:
+            return ""
+    }
+}
+
+GetSearchCenterFilterTypeFromDropdownIndex(FilterIndex := 1) {
+    switch Integer(FilterIndex) {
+        case 2:
+            return "File"
+        case 3:
+            return "clipboard"
+        case 4:
+            return "template"
+        case 5:
+            return "config"
+        case 6:
+            return "hotkey"
+        case 7:
+            return "function"
+        default:
+            return ""
+    }
+}
+
+GetSearchCenterDataTypesForFilter(FilterType := "") {
+    switch FilterType {
+        case "File":
+            return ["file"]
+        case "clipboard":
+            return ["clipboard"]
+        case "template":
+            return ["template"]
+        case "config":
+            return ["config"]
+        case "hotkey":
+            return ["hotkey"]
+        case "function":
+            return ["function"]
+        default:
+            return []
+    }
+}
+
+UpdateSearchCenterFilterDropdown() {
+    global SearchCenterResultLimitDropdown, SearchCenterFilterType
+
+    if (!IsSet(SearchCenterResultLimitDropdown) || !SearchCenterResultLimitDropdown) {
+        return
+    }
+
+    try SearchCenterResultLimitDropdown.Choose(GetSearchCenterFilterDropdownIndex(SearchCenterFilterType))
+}
+
+SyncSearchCenterFilterTypeFromDropdown() {
+    global SearchCenterResultLimitDropdown, SearchCenterFilterType
+
+    if (!IsSet(SearchCenterResultLimitDropdown) || !SearchCenterResultLimitDropdown) {
+        return SearchCenterFilterType
+    }
+
+    try {
+        SelectedText := SearchCenterResultLimitDropdown.Text
+        SearchCenterFilterType := GetSearchCenterFilterTypeFromDropdownLabel(SelectedText)
+    } catch {
+    }
+
+    return SearchCenterFilterType
+}
+
+UpdateSearchCenterCategoryMode() {
+    global SearchCenterResultLimitDropdown, SearchCenterSearchEdit, SearchCenterAreaIndicator
+    global SearchCenterHintText, SearchCenterResultLV, SearchCenterFilterButtons, SearchCenterActiveArea
+    global SearchCenterCLIOutputEdit
+    global SearchCenterCLIRunButton, SearchCenterCLIClearButton, SearchCenterCLIOpenButton
+
+    IsCLI := SearchCenterIsCLICategory()
+    
+    SetSearchCenterControlVisible(SearchCenterResultLimitDropdown, true)
+    SetSearchCenterControlVisible(SearchCenterSearchEdit, true)
+    SetSearchCenterControlVisible(SearchCenterResultLV, true)
+    SetSearchCenterControlVisible(SearchCenterAreaIndicator, true)
+    SetSearchCenterControlVisible(SearchCenterHintText, true)
+    for _, FilterBtn in SearchCenterFilterButtons {
+        SetSearchCenterControlVisible(FilterBtn, false)
+    }
+    SetSearchCenterEngineIconsVisible(true)
+    
+    SetSearchCenterControlVisible(SearchCenterCLIOutputEdit, true)
+    SetSearchCenterControlVisible(SearchCenterCLIRunButton, IsCLI)
+    SetSearchCenterControlVisible(SearchCenterCLIClearButton, IsCLI)
+    SetSearchCenterControlVisible(SearchCenterCLIOpenButton, IsCLI)
+    
+    if (IsCLI && SearchCenterActiveArea != "category" && SearchCenterActiveArea != "input" && SearchCenterActiveArea != "listview") {
+        SearchCenterActiveArea := "input"
+    }
+    if (IsCLI) {
+        UpdateSearchCenterCLIPreview()
+        FocusSearchCenterCLIInput()
+    }
+    UpdateSearchCenterFilterDropdown()
+    BringSearchCenterFilterButtonsToFront()
+}
+
+GetSearchCenterResultItemByRow(Row) {
+    global SearchCenterVisibleResults, SearchCenterSearchResults
+
+    if (IsSet(SearchCenterVisibleResults) && IsObject(SearchCenterVisibleResults) && Row > 0 && Row <= SearchCenterVisibleResults.Length) {
+        return SearchCenterVisibleResults[Row]
+    }
+    if (Row > 0 && Row <= SearchCenterSearchResults.Length) {
+        return SearchCenterSearchResults[Row]
+    }
+    return 0
+}
+
+BuildSearchCenterPreviewText(Item) {
+    if (!IsObject(Item)) {
+        return "当前未选中本地结果。`r`n`r`n在上方输入内容可实时过滤数据，选中列表项后会在这里显示详情预览。"
+    }
+
+    Title := Item.HasProp("Title") ? Item.Title : ""
+    Source := Item.HasProp("Source") ? Item.Source : ""
+    Content := Item.HasProp("Content") ? Item.Content : Title
+    DataType := ""
+    if (Item.HasProp("DataType") && Item.DataType != "") {
+        DataType := Item.DataType
+    } else if (Item.HasProp("OriginalDataType") && Item.OriginalDataType != "") {
+        DataType := Item.OriginalDataType
+    }
+    TimeText := Item.HasProp("Time") ? Item.Time : ""
+
+    PreviewText := "标题： " . Title
+    if (Source != "") {
+        PreviewText .= "`r`n来源： " . Source
+    }
+    if (DataType != "") {
+        PreviewText .= "`r`n类型： " . DataType
+    }
+    if (TimeText != "") {
+        PreviewText .= "`r`n时间： " . TimeText
+    }
+    PreviewText .= "`r`n`r`n内容预览：`r`n"
+    PreviewText .= Content
+    return PreviewText
+}
+
+UpdateSearchCenterCLIPreview(Row := 0) {
+    global SearchCenterCLIOutputEdit, SearchCenterResultLV
+
+    if (!SearchCenterCLIOutputEdit || SearchCenterCLIOutputEdit = 0) {
+        return
+    }
+
+    if (Row <= 0 && SearchCenterResultLV && SearchCenterResultLV != 0) {
+        try Row := SearchCenterResultLV.GetNext()
+    }
+
+    Item := GetSearchCenterResultItemByRow(Row)
+    PreviewText := BuildSearchCenterPreviewText(Item)
+    try SearchCenterCLIOutputEdit.Value := PreviewText
+}
+
+OnSearchCenterResultItemSelect(LV, Item, Selected) {
+    if (Selected) {
+        UpdateSearchCenterCLIPreview(Item)
+    }
+}
+
+AppendSearchCenterCLIOutput(Text, AddBlankLine := true) {
+    global SearchCenterCLIOutputEdit
+    if (!SearchCenterCLIOutputEdit || SearchCenterCLIOutputEdit = 0) {
+        return
+    }
+    ExistingText := ""
+    try ExistingText := SearchCenterCLIOutputEdit.Value
+    if (ExistingText != "") {
+        ExistingText .= "`r`n"
+    }
+    ExistingText .= Text
+    if (AddBlankLine) {
+        ExistingText .= "`r`n"
+    }
+    try {
+        SearchCenterCLIOutputEdit.Value := ExistingText
+    } catch {
+    }
+}
+
+RunEmbeddedPowerShellCommand(CommandText) {
+    PowerShellPath := A_WinDir . "\System32\WindowsPowerShell\v1.0\powershell.exe"
+    if (!FileExist(PowerShellPath)) {
+        throw Error("找不到 Windows PowerShell")
+    }
+    Shell := ComObject("WScript.Shell")
+    ExecObj := Shell.Exec('"' . PowerShellPath . '" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command -')
+    ExecObj.StdIn.WriteLine(CommandText)
+    ExecObj.StdIn.Close()
+    while (ExecObj.Status = 0) {
+        Sleep(50)
+    }
+    StdOut := ExecObj.StdOut.ReadAll()
+    StdErr := ExecObj.StdErr.ReadAll()
+    ResultText := StdOut
+    if (StdErr != "") {
+        if (ResultText != "") {
+            ResultText .= "`r`n"
+        }
+        ResultText .= StdErr
+    }
+    return Trim(ResultText, "`r`n")
+}
+
+GetGeminiAPIKey() {
+    Key := ""
+    try Key := Trim(EnvGet("GEMINI_API_KEY"))
+    if (Key != "") {
+        return Key
+    }
+
+    Key := ""
+    try Key := Trim(EnvGet("GOOGLE_API_KEY"))
+    if (Key != "") {
+        return Key
+    }
+
+    try {
+        global ConfigFile
+        if (IsSet(ConfigFile) && ConfigFile != "" && FileExist(ConfigFile)) {
+            Key := Trim(IniRead(ConfigFile, "API", "GeminiApiKey", ""))
+            if (Key != "") {
+                return Key
+            }
+        }
+    } catch {
+    }
+
+    return ""
+}
+
+ExtractGeminiResponseText(ResponseObj) {
+    try {
+        if (ResponseObj is Map && ResponseObj.Has("candidates")) {
+            Candidates := ResponseObj["candidates"]
+            if (Candidates is Array && Candidates.Length > 0) {
+                Candidate := Candidates[1]
+                if (Candidate is Map && Candidate.Has("content")) {
+                    Content := Candidate["content"]
+                    if (Content is Map && Content.Has("parts")) {
+                        Parts := Content["parts"]
+                        if (Parts is Array) {
+                            TextParts := []
+                            for _, Part in Parts {
+                                if (Part is Map && Part.Has("text")) {
+                                    TextParts.Push(String(Part["text"]))
+                                }
+                            }
+                            if (TextParts.Length > 0) {
+                                Combined := ""
+                                for Index, TextPart in TextParts {
+                                    if (Index > 1) {
+                                        Combined .= "`r`n"
+                                    }
+                                    Combined .= TextPart
+                                }
+                                return Combined
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } catch {
+    }
+    return ""
+}
+
+SaveHeadlessAIResponseToDB(ResponseText, Engine, PromptText := "", ModelName := "") {
+    global ClipboardDB
+
+    if (ResponseText = "") {
+        return false
+    }
+    if (!ClipboardDB || ClipboardDB = 0) {
+        InitClipboardDB()
+    }
+    if (!ClipboardDB || ClipboardDB = 0) {
+        return false
+    }
+
+    Meta := Map(
+        "mode", "headless_api",
+        "engine", Engine,
+        "model", ModelName,
+        "prompt", PromptText
+    )
+    MetaJson := StrReplace(Jxon_Dump(Meta), "'", "''")
+    EscapedResponse := StrReplace(ResponseText, "'", "''")
+    EscapedEngine := StrReplace(Engine, "'", "''")
+    EscapedModel := StrReplace(ModelName, "'", "''")
+
+    CharCount := StrLen(ResponseText)
+    CleanedText := Trim(RegExReplace(ResponseText, "\s+", " "))
+    WordCount := (CleanedText = "") ? 0 : StrSplit(CleanedText, A_Space).Length
+    SQL := "INSERT INTO ClipboardHistory " .
+           "(Content, DataType, SourceApp, SourceTitle, SourcePath, CharCount, WordCount, MetaData, Timestamp) VALUES (" .
+           "'" . EscapedResponse . "', " .
+           "'Text', " .
+           "'GeminiAPI', " .
+           "'Gemini Headless Response', " .
+           "'" . EscapedEngine . ":" . EscapedModel . "', " .
+           CharCount . ", " . WordCount . ", " .
+           "'" . MetaJson . "', " .
+           "datetime('now', 'localtime'))"
+    try {
+        return ClipboardDB.Exec(SQL)
+    } catch {
+        return false
+    }
+}
+
+TryGeminiHeadlessRequest(PromptText, &ResponseText := "", &ErrorText := "") {
+    ApiKey := GetGeminiAPIKey()
+    if (ApiKey = "") {
+        ErrorText := "未找到 GEMINI_API_KEY 或 GOOGLE_API_KEY"
+        return false
+    }
+
+    ModelName := "gemini-2.5-flash"
+    Url := "https://generativelanguage.googleapis.com/v1beta/models/" . ModelName . ":generateContent"
+    RequestBody := Map(
+        "contents", [
+            Map("role", "user", "parts", [Map("text", PromptText)])
+        ]
+    )
+    BodyText := Jxon_Dump(RequestBody)
+
+    try {
+        Http := ComObject("WinHttp.WinHttpRequest.5.1")
+        Http.Open("POST", Url, false)
+        Http.SetTimeouts(5000, 5000, 15000, 30000)
+        Http.SetRequestHeader("x-goog-api-key", ApiKey)
+        Http.SetRequestHeader("Content-Type", "application/json; charset=utf-8")
+        Http.Send(BodyText)
+
+        Status := Http.Status
+        RawResponse := Http.ResponseText
+        if (Status < 200 || Status >= 300) {
+            ErrorText := "Gemini API HTTP " . Status . ": " . RawResponse
+            return false
+        }
+
+        Parsed := Jxon_Load(RawResponse)
+        ResponseText := ExtractGeminiResponseText(Parsed)
+        if (ResponseText = "") {
+            ErrorText := "Gemini API 返回为空或无法解析"
+            return false
+        }
+
+        SaveHeadlessAIResponseToDB(ResponseText, "gemini_cli", PromptText, ModelName)
+        return true
+    } catch as err {
+        ErrorText := err.Message
+        return false
+    }
+}
+
+TryGeminiHeadlessDispatch(PromptText, AppendToPanel := true) {
+    ResponseText := ""
+    ErrorText := ""
+    if (!TryGeminiHeadlessRequest(PromptText, &ResponseText, &ErrorText)) {
+        return false
+    }
+
+    if (AppendToPanel) {
+        try {
+            AppendSearchCenterCLIOutput("Gemini > " . PromptText, true)
+            AppendSearchCenterCLIOutput(ResponseText, true)
+        } catch {
+        }
+    }
+
+    TrayTip("Gemini 已通过 Headless API 返回结果", "提示", "Iconi 1")
+    return true
+}
+
+ExecuteSearchCenterCLICommand(*) {
+    PromptText := GetSearchCenterCurrentCLICommand()
+    if (PromptText = "") {
+        TrayTip("请输入要发送给 AI 的内容", "提示", "Icon! 2")
+        return
+    }
+    
+    LaunchSelectedCLIAgents(PromptText)
+    FocusSearchCenterCLIInput()
+}
+
+ClearSearchCenterCLIOutput(*) {
+    global SearchCenterCLIOutputEdit, SearchCenterSearchEdit
+    if (SearchCenterCLIOutputEdit && SearchCenterCLIOutputEdit != 0) {
+        try SearchCenterCLIOutputEdit.Value := ""
+    }
+    if (SearchCenterSearchEdit && SearchCenterSearchEdit != 0) {
+        try SearchCenterSearchEdit.Value := ""
+    }
+    UpdateSearchCenterCLIPreview(0)
+    FocusSearchCenterCLIInput()
 }
 
 ; 创建分类点击处理器
@@ -24463,13 +25304,15 @@ UpdateSearchCenterFilterButtons() {
     } catch as err {
         OutputDebug("AHK_DEBUG: UpdateSearchCenterFilterButtons - Window redraw error: " . err.Message)
     }
+    UpdateSearchCenterFilterDropdown()
+    BringSearchCenterFilterButtonsToFront()
 }
 
 ; 搜索中心过滤标签点击处理函数
 SearchCenterFilterClickHandler(FilterType, *) {
     global SearchCenterFilterType, SearchCenterSearchResults, SearchCenterResultLV, UI_Colors
     global SearchCenterSearchEdit, SearchCenterEverythingLimit, SearchCenterCurrentLimit
-    
+
     OutputDebug("AHK_DEBUG: SearchCenterFilterClickHandler - FilterType: " . FilterType . ", Old SearchCenterFilterType: " . SearchCenterFilterType)
     
     ; 如果点击的是已选中的标签，则取消选中（显示全部）
@@ -24675,6 +25518,8 @@ SwitchSearchCenterCategory(Direction, DirectIndex := false) {
     
     ; 更新按钮样式
     UpdateSearchCenterHighlight()
+    UpdateSearchCenterCategoryMode()
+    UpdateSearchCenterCLILayout()
     
     ; 【关键修复】先刷新标签背景色，确保立即显示
     try {
@@ -24684,9 +25529,14 @@ SwitchSearchCenterCategory(Direction, DirectIndex := false) {
     } catch as err {
         ; 忽略刷新错误
     }
+    BringSearchCenterFilterButtonsToFront()
     
     ; 刷新搜索引擎图标显示
     RefreshSearchCenterEngineIcons()
+
+    if (SearchCenterIsCLICategory()) {
+        try ExecuteSearchCenterSearch()
+    }
     
     ; 确保激活状态在分类栏
     SearchCenterActiveArea := "category"
@@ -24721,6 +25571,7 @@ RestoreSearchCenterAreaIndicatorFont() {
 UpdateSearchCenterHighlight() {
     global SearchCenterActiveArea, SearchCenterCurrentCategory, SearchCenterCategoryButtons, SearchCenterSearchEdit, SearchCenterResultLV, UI_Colors, ThemeMode
     global SearchCenterSelectedEnginesByCategory, ConfigFile, SearchCenterHintText, GuiID_SearchCenter, SearchCenterAreaIndicator
+    global SearchCenterCLIOutputEdit
     
     ; 更新分类标签高亮
     Categories := GetSearchCenterCategories()
@@ -24811,6 +25662,13 @@ UpdateSearchCenterHighlight() {
         }
     }
     
+    if (SearchCenterCLIOutputEdit != 0) {
+        try {
+            SearchCenterCLIOutputEdit.Opt("+Background" . UI_Colors.InputBg)
+        } catch {
+        }
+    }
+    
     ; 更新ListView高亮（通过选中状态）
     if (SearchCenterResultLV != 0) {
         try {
@@ -24831,13 +25689,24 @@ UpdateSearchCenterHighlight() {
         try {
             ; 根据当前区域生成区域名称
             AreaName := ""
-            switch SearchCenterActiveArea {
-                case "category":
-                    AreaName := "📍 分类搜索"  ; 当前区域名称
-                case "input":
-                    AreaName := "✏️ 输入框"  ; 当前区域名称
-                case "listview":
-                    AreaName := "🔍 本地搜索"  ; 当前区域名称（搜索结果列表）
+            if (SearchCenterIsCLICategory()) {
+                switch SearchCenterActiveArea {
+                    case "category":
+                        AreaName := "CLI 分类"
+                    case "input":
+                        AreaName := "AI 对话"
+                    case "listview":
+                        AreaName := "本地结果"
+                }
+            } else {
+                switch SearchCenterActiveArea {
+                    case "category":
+                        AreaName := "📍 分类搜索"  ; 当前区域名称
+                    case "input":
+                        AreaName := "✏️ 输入框"  ; 当前区域名称
+                    case "listview":
+                        AreaName := "🔍 本地搜索"  ; 当前区域名称（搜索结果列表）
+                }
             }
             
             ; 更新区域名称文本（带动效：先放大高亮，然后恢复）
@@ -24867,13 +25736,24 @@ UpdateSearchCenterHighlight() {
             ; 根据当前区域生成详细的操作提示文本
             AreaHint := ""
             
-            switch SearchCenterActiveArea {
-                case "category":
-                    AreaHint := "您可以使用方向键或 CapsLock+WSAD 切换操作。向上可以切换分类，向下进入输入框，Enter 执行搜索"
-                case "input":
-                    AreaHint := "您可以使用方向键或 CapsLock+WSAD 切换操作。向上进入分类栏，向下查看本地搜索结果，Enter 执行搜索。向上实现向多个AI提问或者网络搜索，向下可以查看搜索本地提示词和剪贴板"
-                case "listview":
-                    AreaHint := "您可以使用方向键或 CapsLock+WSAD 切换操作。向上返回输入框，向下浏览结果，Enter 粘贴选中项。这里显示本地搜索的提示词和剪贴板历史"
+            if (SearchCenterIsCLICategory()) {
+                switch SearchCenterActiveArea {
+                    case "category":
+                        AreaHint := "当前是 CLI 页面。选择上方 AI，向下进入输入框，继续向下可查看本地结果和筛选标签。"
+                    case "input":
+                        AreaHint := "顶部输入框会实时过滤本地数据；Enter 发送给所选 AI，向下可浏览全部、文件、剪贴板等结果，底部区域显示选中项详情。"
+                    case "listview":
+                        AreaHint := "这里与 AI 页一致，显示本地检索结果。可用筛选标签切换全部、文件、剪贴板等数据，底部区域会预览当前选中项的详细内容。"
+                }
+            } else {
+                switch SearchCenterActiveArea {
+                    case "category":
+                        AreaHint := "您可以使用方向键或 CapsLock+WSAD 切换操作。向上可以切换分类，向下进入输入框，Enter 执行搜索"
+                    case "input":
+                        AreaHint := "您可以使用方向键或 CapsLock+WSAD 切换操作。向上进入分类栏，向下查看本地搜索结果，Enter 执行搜索。向上实现向多个AI提问或者网络搜索，向下可以查看搜索本地提示词和剪贴板"
+                    case "listview":
+                        AreaHint := "您可以使用方向键或 CapsLock+WSAD 切换操作。向上返回输入框，向下浏览结果，Enter 粘贴选中项。这里显示本地搜索的提示词和剪贴板历史"
+                }
             }
             
             ; 更新提示文本
@@ -24933,30 +25813,25 @@ UpdateSearchCenterHighlight() {
 
 ; ===================== 结果数量限制下拉菜单变化事件 =====================
 OnSearchCenterResultLimitChange(*) {
-    global SearchCenterResultLimitDropdown, SearchCenterEverythingLimit, SearchCenterSearchEdit, SearchCenterCurrentLimit
+    global SearchCenterResultLimitDropdown, SearchCenterSearchEdit, SearchCenterFilterType
     
-    ; 检查控件是否存在
     if (!IsSet(SearchCenterResultLimitDropdown) || !SearchCenterResultLimitDropdown) {
         return
     }
     
-    ; 获取选中的值
     try {
-        selectedText := SearchCenterResultLimitDropdown.Value
-        limitValue := Integer(selectedText)
-        SearchCenterEverythingLimit := limitValue
-        ; 【关键修复】下拉列表数字对应 listview 显示的数据上限
-        SearchCenterCurrentLimit := limitValue
+        selectedText := SearchCenterResultLimitDropdown.Text
+        SearchCenterFilterType := GetSearchCenterFilterTypeFromDropdownLabel(selectedText)
     } catch {
-        SearchCenterEverythingLimit := 10  ; 默认值
-        SearchCenterCurrentLimit := 10
+        SearchCenterFilterType := ""
     }
     
-    ; 如果搜索框有内容，重新搜索
-    if (IsSet(SearchCenterSearchEdit) && SearchCenterSearchEdit && SearchCenterSearchEdit.Value != "") {
-        ; 触发搜索（使用防抖）
+    UpdateSearchCenterFilterDropdown()
+    if (IsSet(SearchCenterSearchEdit) && SearchCenterSearchEdit && Trim(SearchCenterSearchEdit.Value) != "") {
         ExecuteSearchCenterSearch()
+        return
     }
+    RefreshSearchCenterResults()
 }
 
 ; 执行搜索中心搜索（带防抖）
@@ -24978,7 +25853,7 @@ ExecuteSearchCenterSearch(*) {
 ; 防抖后的实际搜索执行
 ; 加载默认模板到搜索中心
 LoadDefaultTemplates() {
-    global SearchCenterSearchResults, SearchCenterResultLV
+    global SearchCenterSearchResults, SearchCenterResultLV, SearchCenterVisibleResults
     
     ; 加载提示词模板作为默认内容
     global PromptTemplates
@@ -24997,15 +25872,7 @@ LoadDefaultTemplates() {
         })
     }
     
-    ; 渲染结果（包含类型列，使用中文类型名称）
-    SearchCenterResultLV.Opt("-Redraw")
-    for res in SearchCenterSearchResults {
-        ContentType := res.HasProp("DataType") ? res.DataType : "Template"
-        TypeDisplayName := GetContentTypeDisplayName(ContentType)
-        SearchCenterResultLV.Add(, res.Title, res.Source, TypeDisplayName, res.Time)
-    }
-    SearchCenterResultLV.ModifyCol(1, "AutoHdr")
-    SearchCenterResultLV.Opt("+Redraw")
+    RefreshSearchCenterResults()
     
     ; 【关键修复】确保标签按钮状态正确显示
     UpdateSearchCenterFilterButtons()
@@ -25016,8 +25883,9 @@ LoadDefaultTemplates() {
 ; 防抖后的实际搜索执行
 DebouncedSearchCenter(offset := 0) {
     global SearchCenterSearchResults, SearchCenterResultLV, SearchCenterSearchEdit
-    global SearchCenterCurrentLimit, SearchCenterHasMoreData
+    global SearchCenterCurrentLimit, SearchCenterHasMoreData, SearchCenterFilterType
     
+    SearchCenterFilterType := SyncSearchCenterFilterTypeFromDropdown()
     Keyword := Trim(SearchCenterSearchEdit.Value)
     
     ; 如果是新搜索（offset = 0），重置数据
@@ -25035,12 +25903,26 @@ DebouncedSearchCenter(offset := 0) {
     }
 
     OutputDebug("AHK_DEBUG: 开始搜索流程... (offset: " . offset . ", limit: " . SearchCenterCurrentLimit . ")")
+    OutputDebug("AHK_DEBUG: 当前来源过滤: " . SearchCenterFilterType)
 
     ; 2. 使用 SearchAllDataSources 搜索所有数据源（支持分页）
     ; 临时存储新加载的数据
     NewResults := []
     try {
-        AllDataResults := SearchAllDataSources(Keyword, [], SearchCenterCurrentLimit, offset)
+        FilterDataTypes := GetSearchCenterDataTypesForFilter(SearchCenterFilterType)
+        ; 非「全部」且当前不是仅「文件」过滤时，顺带检索磁盘（Everything），与剪贴板/模板等混排
+        if (FilterDataTypes.Length > 0) {
+            hasFileType := false
+            for _, dt in FilterDataTypes {
+                if (dt = "file") {
+                    hasFileType := true
+                    break
+                }
+            }
+            if (!hasFileType)
+                FilterDataTypes.Push("file")
+        }
+        AllDataResults := SearchAllDataSources(Keyword, FilterDataTypes, SearchCenterCurrentLimit, offset)
         
         ; 检查是否有更多数据
         SearchCenterHasMoreData := false
@@ -25171,11 +26053,13 @@ DebouncedSearchCenter(offset := 0) {
 
 ; 刷新搜索中心结果显示（应用过滤类型）
 RefreshSearchCenterResults() {
-    global SearchCenterSearchResults, SearchCenterResultLV, SearchCenterFilterType
+    global SearchCenterSearchResults, SearchCenterResultLV, SearchCenterFilterType, SearchCenterVisibleResults
     
     if (!SearchCenterResultLV || SearchCenterResultLV = 0) {
         return
     }
+
+    SearchCenterFilterType := SyncSearchCenterFilterTypeFromDropdown()
     
     ; 清空ListView
     SearchCenterResultLV.Opt("-Redraw")
@@ -25191,20 +26075,25 @@ RefreshSearchCenterResults() {
             ; 全部：显示所有结果
             ShouldInclude := true
         } else if (SearchCenterFilterType = "clipboard") {
-            ; 剪贴板：检查OriginalDataType是否为clipboard，或Source包含"剪贴板"
+            ; 剪贴板：检查OriginalDataType是否为clipboard，或Source包含"剪贴板"；并显示顺带检索的本地文件
             ShouldInclude := (res.HasProp("OriginalDataType") && res.OriginalDataType = "clipboard") || (res.HasProp("Source") && InStr(res.Source, "剪贴板") > 0)
+                || (res.HasProp("OriginalDataType") && res.OriginalDataType = "file")
         } else if (SearchCenterFilterType = "template") {
-            ; 提示词：检查OriginalDataType是否为template，或Source包含"模板"或"提示词"
+            ; 提示词：检查OriginalDataType是否为template，或Source包含"模板"或"提示词"；并显示顺带检索的本地文件
             ShouldInclude := (res.HasProp("OriginalDataType") && res.OriginalDataType = "template") || (res.HasProp("Source") && (InStr(res.Source, "模板") > 0 || InStr(res.Source, "提示词") > 0))
+                || (res.HasProp("OriginalDataType") && res.OriginalDataType = "file")
         } else if (SearchCenterFilterType = "config") {
-            ; 配置：检查OriginalDataType是否为config，或Source包含"配置"
+            ; 配置：检查OriginalDataType是否为config，或Source包含"配置"；并显示顺带检索的本地文件
             ShouldInclude := (res.HasProp("OriginalDataType") && res.OriginalDataType = "config") || (res.HasProp("Source") && InStr(res.Source, "配置") > 0)
+                || (res.HasProp("OriginalDataType") && res.OriginalDataType = "file")
         } else if (SearchCenterFilterType = "hotkey") {
-            ; 快捷键：检查OriginalDataType是否为hotkey，或Source包含"快捷键"
+            ; 快捷键：检查OriginalDataType是否为hotkey，或Source包含"快捷键"；并显示顺带检索的本地文件
             ShouldInclude := (res.HasProp("OriginalDataType") && res.OriginalDataType = "hotkey") || (res.HasProp("Source") && InStr(res.Source, "快捷键") > 0)
+                || (res.HasProp("OriginalDataType") && res.OriginalDataType = "file")
         } else if (SearchCenterFilterType = "function") {
-            ; 功能：检查OriginalDataType是否为function，或Source包含"功能"
+            ; 功能：检查OriginalDataType是否为function，或Source包含"功能"；并显示顺带检索的本地文件
             ShouldInclude := (res.HasProp("OriginalDataType") && res.OriginalDataType = "function") || (res.HasProp("Source") && InStr(res.Source, "功能") > 0)
+                || (res.HasProp("OriginalDataType") && res.OriginalDataType = "file")
         } else if (SearchCenterFilterType = "File") {
             ; 文件：检查OriginalDataType是否为file，或DataType为File，或Source包含"文件"
             ShouldInclude := (res.HasProp("OriginalDataType") && res.OriginalDataType = "file") || (res.HasProp("DataType") && res.DataType = "File") || (res.HasProp("Source") && InStr(res.Source, "文件") > 0)
@@ -25222,8 +26111,15 @@ RefreshSearchCenterResults() {
         SearchCenterResultLV.Add(, res.Title, res.Source, TypeDisplayName, res.Time)
     }
     
+    SearchCenterVisibleResults := FilteredResults
     SearchCenterResultLV.ModifyCol(1, "AutoHdr")
     SearchCenterResultLV.Opt("+Redraw")
+    if (SearchCenterResultLV.GetCount() > 0) {
+        SearchCenterResultLV.Modify(1, "Select Focus Vis")
+        UpdateSearchCenterCLIPreview(1)
+    } else {
+        UpdateSearchCenterCLIPreview(0)
+    }
     
     ; 【关键修复】刷新结果显示后，更新标签按钮样式以保持选中状态
     UpdateSearchCenterFilterButtons()
@@ -25232,10 +26128,13 @@ RefreshSearchCenterResults() {
 
 ; 搜索中心搜索结果双击事件
 OnSearchCenterResultDoubleClick(LV, Row) {
-    global SearchCenterSearchResults
+    global SearchCenterVisibleResults
 
-    if (Row > 0 && Row <= SearchCenterSearchResults.Length) {
-        Item := SearchCenterSearchResults[Row]
+    if (Row > 0 && Row <= SearchCenterVisibleResults.Length) {
+        Item := GetSearchCenterResultItemByRow(Row)
+        if (!IsObject(Item)) {
+            return
+        }
         Content := Item.HasProp("Content") ? Item.Content : Item.Title
         
         ; 检查数据类型（优先检查 DataType 字段，然后检查 Metadata）
@@ -25295,7 +26194,9 @@ OnSearchCenterSize(GuiObj, MinMax, Width, Height) {
     global GuiID_SearchCenter, SearchCenterResultLV, SearchCenterSearchEdit
     global SearchCenterAreaIndicator, SearchCenterHintText, SearchCenterResultLimitDropdown
     global SearchCenterFilterButtons
-    
+    global SearchCenterCLIOutputEdit
+    global SearchCenterCLIRunButton, SearchCenterCLIClearButton, SearchCenterCLIOpenButton
+
     if (GuiID_SearchCenter = 0 || GuiObj.Hwnd != GuiID_SearchCenter.Hwnd) {
         return
     }
@@ -25307,7 +26208,7 @@ OnSearchCenterSize(GuiObj, MinMax, Width, Height) {
     
     ; 常量定义（与 ShowSearchCenter 中保持一致）
     Padding := 20
-    DropdownWidth := 80
+    DropdownWidth := 120
     AreaIndicatorHeight := 25
     HintTextHeight := 40
     SearchEditHeight := 50
@@ -25346,60 +26247,17 @@ OnSearchCenterSize(GuiObj, MinMax, Width, Height) {
         }
     }
     
-    ; 【关键修复】计算过滤标签按钮区域的位置
-    FilterBarY := 0
-    if (SearchCenterHintText != 0) {
-        try {
-            ControlGetPos(&HintTextX, &HintTextY, &HintTextW, &HintTextH, SearchCenterHintText)
-            FilterBarY := HintTextY + HintTextHeight + 10  ; 提示文本下方10像素
-        } catch as err {
-            ; 如果获取失败，使用固定计算方式
-            ; CategoryBarY(20) + CategoryBarHeight(50) + EngineIconRowHeight(70) + Padding(20) + InputAreaHeight(70) + Padding(20) + AreaIndicatorHeight(25) + HintTextHeight(40) + 10 = 325
-            FilterBarY := 325
-        }
-    } else {
-        FilterBarY := 325
-    }
-    
-    ; 【关键修复】确保过滤标签按钮可见（在窗口大小改变时保持位置）
-    if (IsSet(SearchCenterFilterButtons) && IsObject(SearchCenterFilterButtons)) {
-        for Index, FilterBtn in SearchCenterFilterButtons {
-            if (FilterBtn != 0) {
-                try {
-                    FilterBtn.Visible := true  ; 确保标签按钮可见
-                } catch as err {
-                    ; 忽略错误
-                }
-            }
-        }
-    }
-    
-    ; 计算 ListView 的新位置和大小（考虑过滤标签按钮的高度）
-    ResultAreaY := FilterBarY + FilterBarHeight + Padding  ; 过滤标签下方
-    ResultLVX := Padding
-    ResultLVY := ResultAreaY
-    ResultLVWidth := Width - Padding * 2
-    ResultLVHeight := Height - ResultAreaY - Padding - 5
-    
-    ; 确保高度至少为 100 像素
-    if (ResultLVHeight < 100) {
-        ResultLVHeight := 100
-    }
-    
-    ; 调整 ListView 的大小和位置
+    UpdateSearchCenterCLILayout(Width, Height)
     if (SearchCenterResultLV != 0) {
         try {
-            SearchCenterResultLV.Move(ResultLVX, ResultLVY, ResultLVWidth, ResultLVHeight)
-            
-            ; 调整 ListView 列宽（保持比例：标题40%，来源20%，类型15%，时间25%）
-            SearchCenterResultLV.ModifyCol(1, ResultLVWidth * 0.4)
-            SearchCenterResultLV.ModifyCol(2, ResultLVWidth * 0.2)
-            SearchCenterResultLV.ModifyCol(3, ResultLVWidth * 0.15)
-            SearchCenterResultLV.ModifyCol(4, ResultLVWidth * 0.25)
+            SearchCenterResultLV.ModifyCol(1, (Width - Padding * 2) * 0.4)
+            SearchCenterResultLV.ModifyCol(2, (Width - Padding * 2) * 0.2)
+            SearchCenterResultLV.ModifyCol(3, (Width - Padding * 2) * 0.15)
+            SearchCenterResultLV.ModifyCol(4, (Width - Padding * 2) * 0.25)
         } catch as err {
-            ; 忽略错误
         }
     }
+    UpdateSearchCenterCategoryMode()
 }
 
 ; 搜索中心 Enter 键处理函数（检查窗口是否激活）
@@ -25445,6 +26303,7 @@ SearchCenterCloseHandler(*) {
     ; 销毁窗口
     if (GuiID_SearchCenter) {
         try {
+            CleanupSearchCenterResultLimitDDLBrush()
             GuiID_SearchCenter.Destroy()
             GuiID_SearchCenter := 0
         } catch as err {
@@ -25457,6 +26316,11 @@ SearchCenterCloseHandler(*) {
 ExecuteSearchCenterBatchSearch(*) {
     global SearchCenterSearchEdit, SearchCenterSelectedEngines, GuiID_SearchCenter
     global GlobalSearchStatement, SearchDebounceTimer
+    
+    if (SearchCenterIsCLICategory()) {
+        ExecuteSearchCenterCLICommand()
+        return
+    }
     
     ; 【并发同步】第一行代码：强制释放 Statement 句柄
     GlobalSearchEngine.ReleaseOldStatement()
@@ -25594,11 +26458,11 @@ RefreshSearchCenterEngineIcons() {
                 }
             } else {
                 ; 如果该分类没有保存的选择状态，初始化为空数组，让用户自己选择（支持多选）
-                SearchCenterSelectedEngines := []
+                SearchCenterSelectedEngines := (CategoryKey = "cli") ? ["codex_cli"] : []
             }
         } catch as err {
             ; 如果加载失败，初始化为空数组
-            SearchCenterSelectedEngines := []
+            SearchCenterSelectedEngines := (CategoryKey = "cli") ? ["codex_cli"] : []
         }
     }
     
@@ -29093,6 +29957,12 @@ GetAllSearchEngines() {
         {Name: GetText("search_engine_monica"), Value: "monica", Category: "ai"},
         {Name: GetText("search_engine_webpilot"), Value: "webpilot", Category: "ai"},
         
+        ; CLI类
+        {Name: GetText("search_engine_cli_codex"), Value: "codex_cli", Category: "cli"},
+        {Name: GetText("search_engine_cli_gemini"), Value: "gemini_cli", Category: "cli"},
+        {Name: GetText("search_engine_cli_openclaw"), Value: "openclaw_cli", Category: "cli"},
+        {Name: GetText("search_engine_cli_qwen"), Value: "qwen_cli", Category: "cli"},
+        
         ; 学术类
         {Name: GetText("search_engine_zhihu"), Value: "zhihu", Category: "academic"},
         {Name: GetText("search_engine_wechat_article"), Value: "wechat_article", Category: "academic"},
@@ -29335,7 +30205,12 @@ GetSearchEngineIcon(EngineValue) {
         "you", "You.png",
         "claude", "Claude.png",
         "monica", "Monica.png",
-        "webpilot", "WebPilot.png"
+        "webpilot", "WebPilot.png",
+        ; CLI类
+        "codex_cli", "codex.jpg",
+        "gemini_cli", "gemini.jpg",
+        "openclaw_cli", "openclaw.jpg",
+        "qwen_cli", "qwen.png"
         ; 注意：其他分类的搜索引擎如果没有对应的图标文件，会返回空字符串，使用文本显示
     )
     
@@ -29343,9 +30218,12 @@ GetSearchEngineIcon(EngineValue) {
     if (IconName != "") {
         ; 返回完整的图标路径
         ScriptDir := A_ScriptDir
-        IconPath := ScriptDir . "\aiicons\" . IconName
-        if (FileExist(IconPath)) {
-            return IconPath
+        IconDirs := [ScriptDir . "\aiicons", ScriptDir . "\images"]
+        for _, DirPath in IconDirs {
+            IconPath := DirPath . "\" . IconName
+            if (FileExist(IconPath)) {
+                return IconPath
+            }
         }
     }
     return ""  ; 如果图标不存在，返回空字符串
@@ -30112,7 +30990,7 @@ ShowVoiceSearchInputPanel() {
         VoiceSearchCurrentCategory := "ai"
     }
     if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
-        VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+        VoiceSearchEnabledCategories := ["ai", "cli", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
     }
     ; 【关键修复】确保 VoiceSearchSelectedEnginesByCategory 已初始化
     global VoiceSearchSelectedEnginesByCategory
@@ -30183,6 +31061,7 @@ ShowVoiceSearchInputPanel() {
     CategoryTabHeight := 28 + 15
     AllCategories := [
         {Key: "ai", Text: GetText("search_category_ai")},
+        {Key: "cli", Text: GetText("search_category_cli")},
         {Key: "academic", Text: GetText("search_category_academic")},
         {Key: "baidu", Text: GetText("search_category_baidu")},
         {Key: "image", Text: GetText("search_category_image")},
@@ -30195,7 +31074,7 @@ ShowVoiceSearchInputPanel() {
     ]
     
     if (!IsSet(VoiceSearchEnabledCategories) || !IsObject(VoiceSearchEnabledCategories)) {
-        VoiceSearchEnabledCategories := ["ai", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
+        VoiceSearchEnabledCategories := ["ai", "cli", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
     }
     
     Categories := []
@@ -30907,13 +31786,580 @@ ClearAllSearchEngineSelection(*) {
     } catch as err {
     }
     
-    ; 显示提示
-    TrayTip(GetText("cleared"), GetText("tip"), "Iconi 1")
+; 显示提示
+TrayTip(GetText("cleared"), GetText("tip"), "Iconi 1")
+}
+
+OpenAdminWindowsPowerShell() {
+    PowerShellPath := A_WinDir . "\System32\WindowsPowerShell\v1.0\powershell.exe"
+    if (!FileExist(PowerShellPath)) {
+        throw Error("找不到 Windows PowerShell")
+    }
+    Run('*RunAs "' . PowerShellPath . '"')
+}
+
+GetCLIAgentLaunchInfo(Engine) {
+    switch Engine {
+        case "codex_cli":
+            return {Name: GetText("search_engine_cli_codex"), Command: GetPreferredCLIExecutable("codex_cli")}
+        case "gemini_cli":
+            return {Name: GetText("search_engine_cli_gemini"), Command: GetPreferredCLIExecutable("gemini_cli")}
+        case "openclaw_cli":
+            return {Name: GetText("search_engine_cli_openclaw"), Command: GetPreferredCLIExecutable("openclaw_cli")}
+        case "qwen_cli":
+            return {Name: GetText("search_engine_cli_qwen"), Command: GetPreferredCLIExecutable("qwen_cli")}
+        default:
+            return 0
+    }
+}
+
+GetPreferredCLIExecutable(Engine) {
+    LocalAppDataDir := EnvGet("LOCALAPPDATA")
+    Candidates := []
+    switch Engine {
+        case "codex_cli":
+            Candidates := [
+                A_AppData . "\npm-global\codex.cmd",
+                A_AppData . "\npm\codex.cmd",
+                "codex.cmd"
+            ]
+        case "gemini_cli":
+            Candidates := [
+                A_AppData . "\npm\gemini.cmd",
+                A_AppData . "\npm-global\gemini.cmd",
+                "gemini.cmd"
+            ]
+        case "openclaw_cli":
+            Candidates := [
+                LocalAppDataDir . "\pnpm\openclaw.cmd",
+                A_AppData . "\npm\openclaw.cmd",
+                A_AppData . "\npm-global\openclaw.cmd",
+                "C:\Program Files\Qclaw\resources\cli\openclaw.cmd",
+                "openclaw.cmd"
+            ]
+        case "qwen_cli":
+            Candidates := [
+                A_AppData . "\npm-global\qwen.cmd",
+                A_AppData . "\npm\qwen.cmd",
+                "qwen.cmd"
+            ]
+        default:
+            return ""
+    }
+    
+    for _, Candidate in Candidates {
+        if (InStr(Candidate, "\") && FileExist(Candidate)) {
+            return Candidate
+        }
+    }
+    return Candidates.Length > 0 ? Candidates[Candidates.Length] : ""
+}
+
+GetCLIAgentWindowTitle(Engine) {
+    AgentInfo := GetCLIAgentLaunchInfo(Engine)
+    if (!AgentInfo || !IsObject(AgentInfo)) {
+        return ""
+    }
+    return "CursorHelper AI - " . AgentInfo.Name
+}
+
+FindCLIAgentWindow(Engine) {
+    WindowTitle := GetCLIAgentWindowTitle(Engine)
+    if (WindowTitle = "") {
+        return 0
+    }
+    return WinExist(WindowTitle)
+}
+
+GetCLIAgentInputControl(WindowHwnd) {
+    if (!WindowHwnd) {
+        return ""
+    }
+
+    try {
+        FocusedControl := ControlGetFocus("ahk_id " . WindowHwnd)
+        if (FocusedControl != "") {
+            return FocusedControl
+        }
+    } catch {
+    }
+
+    PreferredPatterns := [
+        "CASCADIA_HOSTING_WINDOW_CLASS",
+        "Windows.UI",
+        "TermControl",
+        "Terminal",
+        "Console",
+        "Chrome_WidgetWin"
+    ]
+
+    try {
+        Controls := WinGetControls("ahk_id " . WindowHwnd)
+        for _, Pattern in PreferredPatterns {
+            for _, ControlName in Controls {
+                if (InStr(ControlName, Pattern)) {
+                    return ControlName
+                }
+            }
+        }
+        if (Controls.Length > 0) {
+            return Controls[1]
+        }
+    } catch {
+    }
+
+    return ""
+}
+
+RestoreClipboardDeferred(ClipboardBackup, DelayMs := 10000) {
+    SetTimer((*) => (
+        A_Clipboard := ClipboardBackup
+    ), -DelayMs)
+}
+
+SendPromptToCLIAgentWindow(WindowHwnd, PromptText, Engine := "") {
+    if (!WindowHwnd || PromptText = "") {
+        return
+    }
+
+    try {
+        WinActivate("ahk_id " . WindowHwnd)
+        WinWaitActive("ahk_id " . WindowHwnd, , 3)
+        Sleep(180)
+
+        if (Engine = "codex_cli") {
+            SendText(PromptText)
+            Sleep(100)
+            Send("{Enter}")
+            return
+        }
+
+        if (Engine = "gemini_cli") {
+            ClipboardBackup := ""
+            HadClipboard := false
+            try {
+                ClipboardBackup := ClipboardAll()
+                HadClipboard := true
+            } catch {
+            }
+
+            try {
+                A_Clipboard := ""
+                Sleep(80)
+                A_Clipboard := PromptText
+                if (ClipWait(1.5)) {
+                    Send("^v")
+                    Sleep(180)
+                    Send("{Enter}")
+                    Sleep(120)
+                }
+            } finally {
+                try {
+                    if (HadClipboard) {
+                        RestoreClipboardDeferred(ClipboardBackup, 10000)
+                    }
+                } catch {
+                }
+            }
+            return
+        }
+
+        TargetControl := GetCLIAgentInputControl(WindowHwnd)
+
+        if (TargetControl != "") {
+            ControlSend("{Text}" . PromptText, TargetControl, "ahk_id " . WindowHwnd)
+            Sleep(120)
+            ControlSend("{Enter}", TargetControl, "ahk_id " . WindowHwnd)
+            return
+        }
+
+        ControlSend("{Text}" . PromptText, , "ahk_id " . WindowHwnd)
+        Sleep(120)
+        ControlSend("{Enter}", , "ahk_id " . WindowHwnd)
+    } catch {
+    }
+}
+
+GetWindowTextSafe(WindowHwnd) {
+    if (!WindowHwnd) {
+        return ""
+    }
+    try {
+        return WinGetText("ahk_id " . WindowHwnd)
+    } catch {
+        return ""
+    }
+}
+
+GeminiWindowNeedsAuth(WindowHwnd) {
+    WindowText := StrLower(GetWindowTextSafe(WindowHwnd))
+    if (WindowText = "") {
+        return true
+    }
+    AuthPatterns := [
+        "sign in",
+        "login",
+        "authenticate",
+        "authentication",
+        "browser",
+        "google account",
+        "continue in browser",
+        "waiting for authentication",
+        "open this url",
+        "open the following link"
+    ]
+    for _, Pattern in AuthPatterns {
+        if (InStr(WindowText, Pattern)) {
+            return true
+        }
+    }
+    return false
+}
+
+RegisterPendingCLIAgentPrompt(WindowHwnd, PromptText, Engine := "gemini_cli") {
+    global CLIAgentPendingPrompts, CLIAgentPromptMonitorRunning
+    
+    if (PromptText = "") {
+        return
+    }
+    
+    PendingKey := (Engine = "gemini_cli") ? ("gemini_cli_" . A_TickCount) : String(WindowHwnd)
+    CLIAgentPendingPrompts[PendingKey] := {
+        Hwnd: WindowHwnd,
+        Prompt: PromptText,
+        Engine: Engine,
+        CreatedAt: A_TickCount,
+        ProbeSent: false,
+        InputWakeSent: false,
+        LastWindowText: "",
+        ReadySeenCount: 0,
+        EmptyWindowTextRounds: 0,
+        FallbackMode: false
+    }
+    
+    if (!CLIAgentPromptMonitorRunning) {
+        CLIAgentPromptMonitorRunning := true
+        SetTimer(MonitorPendingCLIAgentPrompts, 500)
+    }
+}
+
+QueuePromptForCLIAgent(Engine, WindowHwnd, PromptText) {
+    AgentInfo := GetCLIAgentLaunchInfo(Engine)
+    if (!AgentInfo || !WindowHwnd || PromptText = "") {
+        return false
+    }
+    
+    if (Engine = "gemini_cli") {
+        RegisterPendingCLIAgentPrompt(WindowHwnd, PromptText, Engine)
+        TrayTip(AgentInfo.Name . " 正在等待终端就绪，准备好后会自动发送。", "提示", "Iconi 2")
+        return true
+    }
+    
+    if (Engine = "codex_cli") {
+        RegisterPendingCLIAgentPrompt(WindowHwnd, PromptText, Engine)
+        TrayTip(AgentInfo.Name . " 正在等待终端就绪，准备好后会自动发送。", "提示", "Iconi 2")
+        return true
+    }
+    
+    return false
+}
+
+DispatchPromptToCLIAgent(Engine, LaunchResult, PromptText) {
+    if (PromptText = "" || !IsObject(LaunchResult) || !LaunchResult.Hwnd) {
+        return
+    }
+    
+    if (Engine = "codex_cli") {
+        if (LaunchResult.IsNew) {
+            QueuePromptForCLIAgent(Engine, LaunchResult.Hwnd, PromptText)
+        } else {
+            SendPromptToCLIAgentWindow(LaunchResult.Hwnd, PromptText, Engine)
+        }
+        return
+    }
+    
+    if (Engine = "gemini_cli") {
+        if (LaunchResult.IsNew) {
+            QueuePromptForCLIAgent(Engine, LaunchResult.Hwnd, PromptText)
+            return
+        }
+        QueuePromptForCLIAgent(Engine, LaunchResult.Hwnd, PromptText)
+        return
+    } else if (LaunchResult.IsNew) {
+        AgentInfo := GetCLIAgentLaunchInfo(Engine)
+        if (AgentInfo && IsObject(AgentInfo)) {
+            TrayTip(AgentInfo.Name . " 已打开。首次启动可能需要认证或等待加载，准备好后再次点击发送。", "提示", "Iconi 2")
+        }
+        return
+    }
+    
+    SendPromptToCLIAgentWindow(LaunchResult.Hwnd, PromptText, Engine)
+}
+
+MonitorPendingCLIAgentPrompts() {
+    global CLIAgentPendingPrompts, CLIAgentPromptMonitorRunning
+    
+    if (!IsSet(CLIAgentPendingPrompts) || CLIAgentPendingPrompts.Count = 0) {
+        CLIAgentPromptMonitorRunning := false
+        SetTimer(MonitorPendingCLIAgentPrompts, 0)
+        return
+    }
+    
+    CompletedKeys := []
+    for Key, Pending in CLIAgentPendingPrompts {
+        if (!WinExist("ahk_id " . Pending.Hwnd)) {
+            CompletedKeys.Push(Key)
+            continue
+        }
+        
+        if ((A_TickCount - Pending.CreatedAt) > 90000) {
+            CompletedKeys.Push(Key)
+            AgentInfo := GetCLIAgentLaunchInfo(Pending.Engine)
+            AgentName := (AgentInfo && IsObject(AgentInfo)) ? AgentInfo.Name : Pending.Engine
+            TrayTip(AgentName . " 等待就绪超时，请完成启动后重新发送。", "提示", "Icon! 2")
+            continue
+        }
+        
+        if (Pending.Engine = "codex_cli" || Pending.Engine = "gemini_cli") {
+            RequiredDelay := (Pending.Engine = "gemini_cli") ? 15000 : 2500
+            if ((A_TickCount - Pending.CreatedAt) < RequiredDelay) {
+                continue
+            }
+            if (Pending.Engine = "gemini_cli") {
+                LatestGeminiWindow := FindCLIAgentWindow("gemini_cli")
+                if (LatestGeminiWindow) {
+                    Pending.Hwnd := LatestGeminiWindow
+                    CLIAgentPendingPrompts[Key] := Pending
+                }
+            }
+            SendPromptToCLIAgentWindow(Pending.Hwnd, Pending.Prompt, Pending.Engine)
+            CompletedKeys.Push(Key)
+            continue
+        }
+        
+        CurrentWindowText := GetWindowTextSafe(Pending.Hwnd)
+        if (CurrentWindowText = "") {
+            Pending.EmptyWindowTextRounds += 1
+            if (Pending.EmptyWindowTextRounds >= 20) {
+                Pending.FallbackMode := true
+            }
+            CLIAgentPendingPrompts[Key] := Pending
+        } else {
+            Pending.EmptyWindowTextRounds := 0
+            if (GeminiWindowNeedsAuth(Pending.Hwnd)) {
+                CLIAgentPendingPrompts[Key] := Pending
+                continue
+            }
+        }
+        
+        if (!Pending.FallbackMode && CurrentWindowText = "") {
+            continue
+        }
+        
+        if (!Pending.ProbeSent) {
+            try {
+                WinActivate("ahk_id " . Pending.Hwnd)
+                WinWaitActive("ahk_id " . Pending.Hwnd, , 3)
+                Sleep(200)
+                Send("{Enter}")
+                Pending.ProbeSent := true
+                Pending.CreatedAt := A_TickCount
+                Pending.LastWindowText := CurrentWindowText
+                Pending.ReadySeenCount := 0
+                CLIAgentPendingPrompts[Key] := Pending
+            } catch {
+            }
+            continue
+        }
+        
+        if (Pending.FallbackMode) {
+            if ((A_TickCount - Pending.CreatedAt) < 1800) {
+                CLIAgentPendingPrompts[Key] := Pending
+                continue
+            }
+            SendPromptToCLIAgentWindow(Pending.Hwnd, Pending.Prompt, Pending.Engine)
+            CompletedKeys.Push(Key)
+            continue
+        }
+        
+        if (CurrentWindowText != Pending.LastWindowText) {
+            Pending.LastWindowText := CurrentWindowText
+            Pending.ReadySeenCount := 1
+            CLIAgentPendingPrompts[Key] := Pending
+            continue
+        }
+        
+        Pending.ReadySeenCount += 1
+        CLIAgentPendingPrompts[Key] := Pending
+        if (Pending.ReadySeenCount < 3) {
+            continue
+        }
+        
+        Sleep(200)
+        SendPromptToCLIAgentWindow(Pending.Hwnd, Pending.Prompt, Pending.Engine)
+        CompletedKeys.Push(Key)
+    }
+    
+    for _, Key in CompletedKeys {
+        try CLIAgentPendingPrompts.Delete(Key)
+    }
+    
+    if (CLIAgentPendingPrompts.Count = 0) {
+        CLIAgentPromptMonitorRunning := false
+        SetTimer(MonitorPendingCLIAgentPrompts, 0)
+    }
+}
+
+OpenCLIAgentTerminal(Engine) {
+    AgentInfo := GetCLIAgentLaunchInfo(Engine)
+    if (!AgentInfo || !IsObject(AgentInfo)) {
+        throw Error("未配置该 CLI: " . Engine)
+    }
+    
+    ExistingWindow := FindCLIAgentWindow(Engine)
+    if (ExistingWindow) {
+        try {
+            WinActivate("ahk_id " . ExistingWindow)
+            WinWaitActive("ahk_id " . ExistingWindow, , 3)
+        } catch {
+        }
+        return {Hwnd: ExistingWindow, IsNew: false}
+    }
+    
+    PowerShellPath := A_WinDir . "\System32\WindowsPowerShell\v1.0\powershell.exe"
+    if (!FileExist(PowerShellPath)) {
+        throw Error("找不到 Windows PowerShell")
+    }
+    
+    EscapedTitle := StrReplace("CursorHelper AI - " . AgentInfo.Name, "'", "''")
+    EscapedWorkDir := StrReplace(A_ScriptDir, "'", "''")
+    EscapedCommand := StrReplace(AgentInfo.Command, "'", "''")
+    PowerShellCommand := "$Host.UI.RawUI.WindowTitle = '" . EscapedTitle . "'; Set-Location -LiteralPath '" . EscapedWorkDir . "'; & '" . EscapedCommand . "'"
+    CommandLine := '"' . PowerShellPath . '" -NoExit -ExecutionPolicy Bypass -Command "' . PowerShellCommand . '"'
+    Run(CommandLine, A_ScriptDir, , &TerminalPid)
+    WinWaitActive("ahk_pid " . TerminalPid, , 5)
+    return {Hwnd: WinExist("ahk_pid " . TerminalPid), IsNew: true}
+}
+
+InvokePythonCLIBridge(Engines, PromptText := "", Action := "send") {
+    if (!IsObject(Engines) || Engines.Length = 0) {
+        return false
+    }
+    
+    BridgeScript := A_ScriptDir . "\scripts\cli_window_bridge.py"
+    if (!FileExist(BridgeScript)) {
+        TrayTip("找不到 CLI Bridge 脚本: " . BridgeScript, "错误", "Iconx 2")
+        return false
+    }
+    
+    EnginesArg := ""
+    for Index, Engine in Engines {
+        if (Index > 1) {
+            EnginesArg .= ","
+        }
+        EnginesArg .= Engine
+    }
+    
+    CommandLine := 'python "' . BridgeScript . '" --action ' . Action . ' --engines "' . EnginesArg . '" --workdir "' . A_ScriptDir . '"'
+    PromptFile := ""
+    if (Action = "send") {
+        if (PromptText = "") {
+            return false
+        }
+        PromptFile := A_Temp . "\cursorhelper_cli_prompt_" . A_TickCount . ".txt"
+        try FileDelete(PromptFile)
+        FileAppend(PromptText, PromptFile, "UTF-8")
+        CommandLine .= ' --prompt-file "' . PromptFile . '"'
+    }
+    
+    try {
+        Run(CommandLine, A_ScriptDir, "Hide")
+        return true
+    } catch as err {
+        if (PromptFile != "") {
+            try FileDelete(PromptFile)
+        }
+        TrayTip("启动 CLI Bridge 失败: " . err.Message, "错误", "Iconx 2")
+        return false
+    }
+}
+
+ShouldUseNativeCLITerminal(Engine) {
+    return (Engine = "codex_cli")
+}
+
+LaunchSelectedCLIAgents(PromptText := "") {
+    global SearchCenterSelectedEngines
+    
+    if (!IsSet(SearchCenterSelectedEngines) || !IsObject(SearchCenterSelectedEngines) || SearchCenterSelectedEngines.Length = 0) {
+        TrayTip("请至少选择一个 CLI", "提示", "Icon! 2")
+        return
+    }
+    
+    NativeEngines := []
+    BridgeEngines := []
+    for _, Engine in SearchCenterSelectedEngines {
+        if (ShouldUseNativeCLITerminal(Engine)) {
+            NativeEngines.Push(Engine)
+        } else {
+            BridgeEngines.Push(Engine)
+        }
+    }
+    
+    ProcessedCount := 0
+    for Index, Engine in NativeEngines {
+        AgentInfo := GetCLIAgentLaunchInfo(Engine)
+        if (!AgentInfo || !IsObject(AgentInfo)) {
+            continue
+        }
+        try {
+            LaunchResult := OpenCLIAgentTerminal(Engine)
+            ProcessedCount += 1
+            if (PromptText != "") {
+                DispatchPromptToCLIAgent(Engine, LaunchResult, PromptText)
+            }
+            if (Index < NativeEngines.Length) {
+                Sleep(400)
+            }
+        } catch as err {
+            TrayTip("启动 " . AgentInfo.Name . " 失败: " . err.Message, "错误", "Iconx 2")
+        }
+    }
+    
+    if (BridgeEngines.Length > 0) {
+        Action := (PromptText = "") ? "open" : "send"
+        if (InvokePythonCLIBridge(BridgeEngines, PromptText, Action)) {
+            ProcessedCount += BridgeEngines.Length
+        }
+    }
+    
+    if (ProcessedCount > 0) {
+        if (PromptText = "") {
+            TrayTip("正在打开 " . ProcessedCount . " 个 AI 终端", "提示", "Iconi 1")
+        } else {
+            TrayTip("正在发送到 " . ProcessedCount . " 个 AI 终端", "提示", "Iconi 1")
+        }
+    }
+}
+
+OpenSelectedCLIAgents(*) {
+    LaunchSelectedCLIAgents("")
 }
 
 ; 发送语音搜索内容到浏览器
 SendVoiceSearchToBrowser(Content, Engine) {
     try {
+        AgentInfo := GetCLIAgentLaunchInfo(Engine)
+        if (AgentInfo && IsObject(AgentInfo)) {
+            if (ShouldUseNativeCLITerminal(Engine)) {
+                LaunchResult := OpenCLIAgentTerminal(Engine)
+                DispatchPromptToCLIAgent(Engine, LaunchResult, Content)
+            } else {
+                InvokePythonCLIBridge([Engine], Content, "send")
+            }
+            return
+        }
+
         ; URL编码搜索内容
         EncodedContent := UriEncode(Content)
         
