@@ -1,0 +1,143 @@
+{
+  "meta": {
+    "lastTouchedVersion": "2026.3.11",
+    "lastTouchedAt": "2026-03-23T13:47:10.848Z"
+  },
+  "wizard": {
+    "lastRunAt": "2026-03-13T00:37:42.356Z",
+    "lastRunVersion": "2026.3.11",
+    "lastRunCommand": "onboard",
+    "lastRunMode": "local"
+  },
+  "browser": {
+    "enabled": true,
+    "defaultProfile": "openclaw"
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "custom-customd4": {
+        "baseUrl": "https://coding.dashscope.aliyuncs.com/v1",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "qwen3.5-plus",
+            "name": "qwen3.5-plus"
+          }
+        ]
+      },
+      "custom-coding-dashscope-aliyuncs-com": {
+        "baseUrl": "https://coding.dashscope.aliyuncs.com/v1",
+        "apiKey": "sk-sp-b6b64c9d924240768c66a0f6862ceabc",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "qwen3.5-plus",
+            "name": "qwen3.5-plus (Custom Provider)",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 16000,
+            "maxTokens": 4096
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "custom-customd4/qwen3.5-plus",
+        "fallbacks": []
+      },
+      "models": {
+        "custom-coding-dashscope-aliyuncs-com/qwen3.5-plus": {}
+      },
+      "workspace": "C:\\Users\\Administrator\\.openclaw\\workspace",
+      "compaction": {
+        "mode": "safeguard"
+      }
+    }
+  },
+  "tools": {
+    "profile": "coding"
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true,
+    "ownerDisplay": "raw"
+  },
+  "session": {
+    "dmScope": "per-channel-peer"
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "dmPolicy": "pairing",
+      "botToken": "8483791549:AAH3g8eq7BQJLs5YmfrfEB62oRmKgyITlPM",
+      "allowFrom": [
+        "5080595345"
+      ],
+      "groupPolicy": "allowlist",
+      "streaming": "partial"
+    },
+    "feishu": {
+      "enabled": true,
+      "appId": "cli_a938eabac3b91cd2",
+      "appSecret": "3RJda80rhj6OAlxUrqBtihGwm3MCGWoC",
+      "botName": "openclaw",
+      "dmPolicy": "open",
+      "groupPolicy": "allowlist",
+      "streaming": "partial"
+    }
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "auth": {
+      "mode": "token",
+      "token": "qclaw-38dac73d3432aa808ee6a6800c70ef62"
+    },
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    }
+  },
+  "plugins": {
+    "entries": {
+      "telegram": {
+        "enabled": true
+      },
+      "feishu": {
+        "enabled": true
+      },
+      "openclaw-weixin": {
+        "enabled": true
+      }
+    },
+    "installs": {
+      "openclaw-weixin": {
+        "source": "npm",
+        "spec": "@tencent-weixin/openclaw-weixin",
+        "installPath": "C:\\Users\\Administrator\\.openclaw\\extensions\\openclaw-weixin",
+        "version": "1.0.3",
+        "resolvedName": "@tencent-weixin/openclaw-weixin",
+        "resolvedVersion": "1.0.3",
+        "resolvedSpec": "@tencent-weixin/openclaw-weixin@1.0.3",
+        "integrity": "sha512-TOo9rb5gt3ce3lJEulFT5Ta4/8ocWkR40wzM7lZ8OM3/fjTk3UHYeNjHmDcZlLeg93XYJKdVUFUEiujrf8zMYw==",
+        "shasum": "19f65f26d4af26a25f05cdd5f1dd3c687590f91c",
+        "resolvedAt": "2026-03-23T13:46:21.081Z",
+        "installedAt": "2026-03-23T13:46:54.957Z"
+      }
+    }
+  }
+}

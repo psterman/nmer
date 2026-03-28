@@ -1,67 +1,67 @@
 ; ======================================================================================================================
-; 悬浮工具栏 - 类似输入法的悬浮窗
-; 版本: 1.1.0
-; 功能: 
-;   - 类似输入法的悬浮长条窗口
-;   - 左键拖动
-;   - 右键弹出菜单关闭
-;   - 5个功能按钮：搜索、笔记、AI助手、截图、设置（使用图片图标）
-;   - Cursor色系配色
+; 鎮诞宸ュ叿鏍?- 绫讳技杈撳叆娉曠殑鎮诞绐?
+; 鐗堟湰: 1.1.0
+; 鍔熻兘: 
+;   - 绫讳技杈撳叆娉曠殑鎮诞闀挎潯绐楀彛
+;   - 宸﹂敭鎷栧姩
+;   - 鍙抽敭寮瑰嚭鑿滃崟鍏抽棴
+;   - 5涓姛鑳芥寜閽細鎼滅储銆佺瑪璁般€丄I鍔╂墜銆佹埅鍥俱€佽缃紙浣跨敤鍥剧墖鍥炬爣锛?
+;   - Cursor鑹茬郴閰嶈壊
 ; 
-; 图标文件要求：
-;   - 图标文件应放在 images 目录下
-;   - 文件命名（按顺序）：toolbar_search.png, toolbar_note.png, toolbar_ai.png, toolbar_screenshot.png, toolbar_settings.png
-;   - 推荐尺寸：16x16 或 20x20 像素，PNG格式，支持透明背景
-;   - 如果图标文件不存在，将使用文字作为后备显示
+; 鍥炬爣鏂囦欢瑕佹眰锛?
+;   - 鍥炬爣鏂囦欢搴旀斁鍦?images 鐩綍涓?
+;   - 鏂囦欢鍛藉悕锛堟寜椤哄簭锛夛細toolbar_search.png, toolbar_note.png, toolbar_ai.png, toolbar_screenshot.png, toolbar_settings.png
+;   - 鎺ㄨ崘灏哄锛?6x16 鎴?20x20 鍍忕礌锛孭NG鏍煎紡锛屾敮鎸侀€忔槑鑳屾櫙
+;   - 濡傛灉鍥炬爣鏂囦欢涓嶅瓨鍦紝灏嗕娇鐢ㄦ枃瀛椾綔涓哄悗澶囨樉绀?
 ; ======================================================================================================================
 
 #Requires AutoHotkey v2.0
 
-; 注意：此模块需要主脚本已包含 ClipboardHistoryPanel.ahk 模块
-; 如果函数不存在，将使用快捷键作为后备
+; 娉ㄦ剰锛氭妯″潡闇€瑕佷富鑴氭湰宸插寘鍚?ClipboardHistoryPanel.ahk 妯″潡
+; 濡傛灉鍑芥暟涓嶅瓨鍦紝灏嗕娇鐢ㄥ揩鎹烽敭浣滀负鍚庡
 
-; 加载 Gdip 库用于图片颜色滤镜效果
+; 鍔犺浇 Gdip 搴撶敤浜庡浘鐗囬鑹叉护闀滄晥鏋?
 #Include ..\lib\Gdip_All.ahk
 
-; ===================== 全局变量 =====================
-global FloatingToolbarGUI := 0  ; 悬浮窗GUI对象
-global FloatingToolbarIsVisible := false  ; 是否可见
-global FloatingToolbarDragging := false  ; 是否正在拖动
-global FloatingToolbarDragStartX := 0  ; 拖动起始X坐标
-global FloatingToolbarDragStartY := 0  ; 拖动起始Y坐标
-global FloatingToolbarWindowX := 0  ; 窗口X坐标
-global FloatingToolbarWindowY := 0  ; 窗口Y坐标
-global FloatingToolbarButtons := Map()  ; 存储按钮信息（用于悬停检测）
-global FloatingToolbarHoveredButton := 0  ; 当前悬停的按钮
-global FloatingToolbarClickedButton := 0  ; 当前点击的按钮
-global FloatingToolbarButtonDownTime := 0  ; 按钮按下时间（用于区分点击和拖动）
-global FloatingToolbarTooltipText := ""  ; Tooltip文本
-global FloatingToolbarTooltipTimer := 0  ; Tooltip定时器
-global FloatingToolbarIsMinimized := false  ; 是否已最小化到边缘
-global FloatingToolbarSelectedButton := 0  ; 当前选中的按钮（显示橙色点）
-global FloatingToolbarScale := 1.0  ; 工具栏缩放比例（1.0 = 100%）
-global FloatingToolbarMinScale := 0.7  ; 最小缩放比例（70%）
-global FloatingToolbarMaxScale := 1.5  ; 最大缩放比例（150%）
-global FloatingToolbarPressedButton := 0  ; 当前按下的按钮（用于下沉效果）
+; ===================== 鍏ㄥ眬鍙橀噺 =====================
+global FloatingToolbarGUI := 0  ; 鎮诞绐桮UI瀵硅薄
+global FloatingToolbarIsVisible := false  ; 鏄惁鍙
+global FloatingToolbarDragging := false  ; 鏄惁姝ｅ湪鎷栧姩
+global FloatingToolbarDragStartX := 0  ; 鎷栧姩璧峰X鍧愭爣
+global FloatingToolbarDragStartY := 0  ; 鎷栧姩璧峰Y鍧愭爣
+global FloatingToolbarWindowX := 0  ; 绐楀彛X鍧愭爣
+global FloatingToolbarWindowY := 0  ; 绐楀彛Y鍧愭爣
+global FloatingToolbarButtons := Map()  ; 瀛樺偍鎸夐挳淇℃伅锛堢敤浜庢偓鍋滄娴嬶級
+global FloatingToolbarHoveredButton := 0  ; 褰撳墠鎮仠鐨勬寜閽?
+global FloatingToolbarClickedButton := 0  ; 褰撳墠鐐瑰嚮鐨勬寜閽?
+global FloatingToolbarButtonDownTime := 0  ; 鎸夐挳鎸変笅鏃堕棿锛堢敤浜庡尯鍒嗙偣鍑诲拰鎷栧姩锛?
+global FloatingToolbarTooltipText := ""  ; Tooltip鏂囨湰
+global FloatingToolbarTooltipTimer := 0  ; Tooltip瀹氭椂鍣?
+global FloatingToolbarIsMinimized := false  ; 鏄惁宸叉渶灏忓寲鍒拌竟缂?
+global FloatingToolbarSelectedButton := 0  ; 褰撳墠閫変腑鐨勬寜閽紙鏄剧ず姗欒壊鐐癸級
+global FloatingToolbarScale := 1.0  ; 宸ュ叿鏍忕缉鏀炬瘮渚嬶紙1.0 = 100%锛?
+global FloatingToolbarMinScale := 0.7  ; 鏈€灏忕缉鏀炬瘮渚嬶紙70%锛?
+global FloatingToolbarMaxScale := 1.5  ; 鏈€澶х缉鏀炬瘮渚嬶紙150%锛?
+global FloatingToolbarPressedButton := 0  ; 褰撳墠鎸変笅鐨勬寜閽紙鐢ㄤ簬涓嬫矇鏁堟灉锛?
 global FloatingToolbarGdipToken := 0  ; Gdip token
-global FloatingToolbarGdipInitialized := false  ; Gdip是否已初始化
-global FloatingToolbarInitialMouseX := 0  ; 点击时的初始鼠标X坐标
-global FloatingToolbarInitialMouseY := 0  ; 点击时的初始鼠标Y坐标
-global FloatingToolbarMouseMoved := false  ; 鼠标是否移动
+global FloatingToolbarGdipInitialized := false  ; Gdip鏄惁宸插垵濮嬪寲
+global FloatingToolbarInitialMouseX := 0  ; 鐐瑰嚮鏃剁殑鍒濆榧犳爣X鍧愭爣
+global FloatingToolbarInitialMouseY := 0  ; 鐐瑰嚮鏃剁殑鍒濆榧犳爣Y鍧愭爣
+global FloatingToolbarMouseMoved := false  ; 榧犳爣鏄惁绉诲姩
 
-; Cursor色系配色 - 更暗的配色
+; Cursor鑹茬郴閰嶈壊
 FloatingToolbarColors := {
-    Background: "0a0a0a",
-    Border: "333333",
-    Text: "f5f5f5",
+    Background: "1e1e1e",
+    Border: "3c3c3c",
+    Text: "cccccc",
     TextHover: "ffffff",
-    ButtonBg: "1a1a1a",
-    ButtonHover: "2a2a2a",
+    ButtonBg: "252526",
+    ButtonHover: "37373d",
     ButtonActive: "007acc",
-    ButtonBorder: "333333"
+    ButtonBorder: "3c3c3c"
 }
 
-; ===================== 显示/隐藏悬浮窗 =====================
+; ===================== 鏄剧ず/闅愯棌鎮诞绐?=====================
 ShowFloatingToolbar() {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarWindowX, FloatingToolbarWindowY
 
@@ -69,41 +69,41 @@ ShowFloatingToolbar() {
         return
     }
 
-    ; 初始化Gdip（用于按钮特效）
+    ; 鍒濆鍖朑dip锛堢敤浜庢寜閽壒鏁堬級
     FloatingToolbarInitializeGdip()
 
-    ; 加载缩放比例
+    ; 鍔犺浇缂╂斁姣斾緥
     FloatingToolbarLoadScale()
 
-    ; 创建GUI
+    ; 鍒涘缓GUI
     CreateFloatingToolbarGUI()
 
-    ; [需求1] 从配置文件加载保存的位置
+    ; [闇€姹?] 浠庨厤缃枃浠跺姞杞戒繚瀛樼殑浣嶇疆
     LoadFloatingToolbarPosition()
 
-    ; 显示GUI（默认位置：屏幕右上角）
+    ; 鏄剧ずGUI锛堥粯璁や綅缃細灞忓箷鍙充笅瑙掞級
     if (FloatingToolbarWindowX = 0 && FloatingToolbarWindowY = 0) {
-        ; 获取屏幕尺寸
+        ; 鑾峰彇灞忓箷灏哄
         ScreenWidth := SysGet(0)  ; SM_CXSCREEN
         ScreenHeight := SysGet(1)  ; SM_CYSCREEN
 
-        ; 计算窗口宽度和高度（使用基础尺寸和缩放比例）
+        ; 璁＄畻绐楀彛瀹藉害鍜岄珮搴︼紙浣跨敤鍩虹灏哄鍜岀缉鏀炬瘮渚嬶級
         ToolbarWidth := FloatingToolbarCalculateWidth()
         ToolbarHeight := FloatingToolbarCalculateHeight()
         FloatingToolbarWindowX := ScreenWidth - ToolbarWidth
-        FloatingToolbarWindowY := 0  ; 右上角，避免遮挡
+        FloatingToolbarWindowY := ScreenHeight - ToolbarHeight
     }
 
-    ; 计算窗口宽度和高度
+    ; 璁＄畻绐楀彛瀹藉害鍜岄珮搴?
     ToolbarWidth := FloatingToolbarCalculateWidth()
     ToolbarHeight := FloatingToolbarCalculateHeight()
     FloatingToolbarGUI.Show("x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . ToolbarWidth . " h" . ToolbarHeight)
     FloatingToolbarIsVisible := true
 
-    ; 应用圆角边框（窗口显示后）
+    ; 搴旂敤鍦嗚杈规锛堢獥鍙ｆ樉绀哄悗锛?
     FloatingToolbarApplyRoundedCorners()
 
-    ; 启动定时器用于悬停效果检测和位置检查（优化频率为100ms）
+    ; 鍚姩瀹氭椂鍣ㄧ敤浜庢偓鍋滄晥鏋滄娴嬪拰浣嶇疆妫€鏌ワ紙浼樺寲棰戠巼涓?00ms锛?
     SetTimer(FloatingToolbarCheckButtonHover, 100)
     SetTimer(FloatingToolbarCheckWindowPosition, 100)
     SetTimer(FloatingToolbarCheckButtonDrag, 50)
@@ -113,18 +113,18 @@ HideFloatingToolbar() {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarWindowX, FloatingToolbarWindowY
 
     if (FloatingToolbarGUI != 0) {
-        ; [需求1] 保存当前位置到配置文件
+        ; [闇€姹?] 淇濆瓨褰撳墠浣嶇疆鍒伴厤缃枃浠?
         SaveFloatingToolbarPosition()
 
         FloatingToolbarGUI.Hide()
         FloatingToolbarIsVisible := false
 
-        ; 停止定时器
+        ; 鍋滄瀹氭椂鍣?
         SetTimer(FloatingToolbarCheckButtonHover, 0)
         SetTimer(FloatingToolbarCheckWindowPosition, 0)
         SetTimer(FloatingToolbarCheckButtonDrag, 0)
 
-        ; 清理Gdip资源
+        ; 娓呯悊Gdip璧勬簮
         FloatingToolbarShutdownGdip()
     }
 }
@@ -139,25 +139,11 @@ ToggleFloatingToolbar() {
     }
 }
 
-; ===================== 辅助函数 =====================
-; 根据 action 获取显示名称
-GetActionDisplayName(action) {
-    actionMap := Map(
-        "Search", "搜索",
-        "Explain", "解释",
-        "Record", "笔记",
-        "AIAssistant", "AI助手",
-        "Screenshot", "截图",
-        "Settings", "设置"
-    )
-    return actionMap.Has(action) ? actionMap[action] : action
-}
-
-; ===================== 创建GUI =====================
+; ===================== 鍒涘缓GUI =====================
 CreateFloatingToolbarGUI() {
     global FloatingToolbarGUI, FloatingToolbarColors
     
-    ; 如果已存在，先销毁
+    ; 濡傛灉宸插瓨鍦紝鍏堥攢姣?
     if (FloatingToolbarGUI != 0) {
         try {
             FloatingToolbarGUI.Destroy()
@@ -165,21 +151,21 @@ CreateFloatingToolbarGUI() {
         }
     }
     
-    ; 创建GUI（无边框、置顶、可拖动）
+    ; 鍒涘缓GUI锛堟棤杈规銆佺疆椤躲€佸彲鎷栧姩锛?
     FloatingToolbarGUI := Gui("+AlwaysOnTop -Caption +ToolWindow", "悬浮工具栏")
     FloatingToolbarGUI.BackColor := FloatingToolbarColors.Background
     FloatingToolbarGUI.SetFont("s10 c" . FloatingToolbarColors.Text, "Segoe UI")
     
-    ; 窗口事件
+    ; 绐楀彛浜嬩欢
     FloatingToolbarGUI.OnEvent("Close", OnFloatingToolbarClose)
     
-    ; 创建按钮容器（背景，缩小一倍）
-    ; 注意：不添加背景控件，让整个窗口都可以拖动
+    ; 鍒涘缓鎸夐挳瀹瑰櫒锛堣儗鏅紝缂╁皬涓€鍊嶏級
+    ; 娉ㄦ剰锛氫笉娣诲姞鑳屾櫙鎺т欢锛岃鏁翠釜绐楀彛閮藉彲浠ユ嫋鍔?
     ; ToolbarBg := FloatingToolbarGUI.Add("Text",
     ;     "x0 y0 w160 h25 Background" . FloatingToolbarColors.Background, "")
 
-    ; 按钮配置：搜索、笔记、AI助手、截图、设置（使用图片图标）
-    ; 图标文件路径（按顺序：搜索、笔记、AI、截图、设置）
+    ; 鎸夐挳閰嶇疆锛氭悳绱€佺瑪璁般€丄I鍔╂墜銆佹埅鍥俱€佽缃紙浣跨敤鍥剧墖鍥炬爣锛?
+    ; 鍥炬爣鏂囦欢璺緞锛堟寜椤哄簭锛氭悳绱€佺瑪璁般€丄I銆佹埅鍥俱€佽缃級
     IconPaths := [
         A_ScriptDir . "\images\toolbar_search.png",
         A_ScriptDir . "\images\toolbar_note.png",
@@ -187,23 +173,26 @@ CreateFloatingToolbarGUI() {
         A_ScriptDir . "\images\toolbar_screenshot.png",
         A_ScriptDir . "\images\toolbar_settings.png"
     ]
-
+    
     ButtonConfigs := [
-        Map("iconPath", IconPaths[1], "action", "Search", "shortcut", "Caps+F"),
-        Map("iconPath", IconPaths[2], "action", "Record", "shortcut", "Caps+X"),
-        Map("iconPath", IconPaths[3], "action", "AIAssistant", "shortcut", "Ctrl+Shift+B"),
-        Map("iconPath", IconPaths[4], "action", "Screenshot", "shortcut", "Caps+T"),
-        Map("iconPath", IconPaths[5], "action", "Settings", "shortcut", "Caps+Q")
+        Map("text", "搜索", "iconPath", IconPaths[1], "action", "Search", "shortcut", "Caps+F"),
+        Map("text", "记录", "iconPath", IconPaths[2], "action", "Record", "shortcut", "Caps+X"),
+        Map("text", "AI助手", "iconPath", IconPaths[3], "action", "AIAssistant", "shortcut", "Ctrl+Shift+B"),
+        Map("text", "截图", "iconPath", IconPaths[4], "action", "Screenshot", "shortcut", "Caps+T"),
+        Map("text", "设置", "iconPath", IconPaths[5], "action", "Settings", "shortcut", "Caps+Q")
     ]
     
-    ; 按钮尺寸和间距（增大尺寸，应用缩放比例）
+    ; 鎸夐挳灏哄鍜岄棿璺濓紙澧炲ぇ灏哄锛屽簲鐢ㄧ缉鏀炬瘮渚嬶級
     global FloatingToolbarScale
     BaseButtonWidth := 40
-    BaseButtonHeight := 35
+    BaseButtonHeight := 40
     BaseButtonSpacing := 5
-    BaseIconSize := 28  ; 图标大小（按钮内部，增大以显示更清晰的图片）
-    BaseStartX := 40  ; 从图标右侧开始，增加间距避免遮挡
-    BaseStartY := 5
+    BaseIconSize := 28  ; 鍥炬爣澶у皬锛堟寜閽唴閮紝澧炲ぇ浠ユ樉绀烘洿娓呮櫚鐨勫浘鐗囷級
+    BaseOuterPadding := 6
+    BaseIconGap := 6
+    BaseFavIconSize := 28
+    BaseStartX := BaseOuterPadding + BaseFavIconSize + BaseIconGap
+    BaseStartY := BaseOuterPadding
     
     ButtonWidth := Round(BaseButtonWidth * FloatingToolbarScale)
     ButtonHeight := Round(BaseButtonHeight * FloatingToolbarScale)
@@ -212,11 +201,11 @@ CreateFloatingToolbarGUI() {
     StartX := Round(BaseStartX * FloatingToolbarScale)
     StartY := Round(BaseStartY * FloatingToolbarScale)
     
-    ; 清空按钮信息
+    ; 娓呯┖鎸夐挳淇℃伅
     FloatingToolbarButtons := Map()
 
-    ; 添加favicon图标（左侧，使用缩放比例）
-    ; 尝试多个可能的路径
+    ; 娣诲姞favicon鍥炬爣锛堝乏渚э紝浣跨敤缂╂斁姣斾緥锛?
+    ; 灏濊瘯澶氫釜鍙兘鐨勮矾寰?
     FavIconPaths := [
         A_ScriptDir . "\favicon.ico",
         A_WorkingDir . "\favicon.ico",
@@ -230,10 +219,9 @@ CreateFloatingToolbarGUI() {
         }
     }
 
-    ; favicon基础尺寸和位置（应用缩放比例）
-    BaseFavIconSize := 28
-    BaseFavIconX := 5
-    BaseFavIconY := 5
+    ; favicon 基础尺寸与位置（应用缩放比例）
+    BaseFavIconX := BaseOuterPadding
+    BaseFavIconY := BaseStartY + Floor((BaseButtonHeight - BaseFavIconSize) / 2)
 
     FavIconSize := Round(BaseFavIconSize * FloatingToolbarScale)
     FavIconX := Round(BaseFavIconX * FloatingToolbarScale)
@@ -243,20 +231,21 @@ CreateFloatingToolbarGUI() {
         IconPic := FloatingToolbarGUI.Add("Picture",
             "x" . FavIconX . " y" . FavIconY . " w" . FavIconSize . " h" . FavIconSize . " 0x200",
             FavIconPath)
+        IconPic.OnEvent("ContextMenu", FloatingToolbarIconContextMenu)
     }
 
-    ; 创建按钮
+    ; 鍒涘缓鎸夐挳
     Loop ButtonConfigs.Length {
         index := A_Index
         config := ButtonConfigs[index]
         
         x := StartX + (index - 1) * (ButtonWidth + ButtonSpacing)
         
-        ; 检查图标文件是否存在
+        ; 妫€鏌ュ浘鏍囨枃浠舵槸鍚﹀瓨鍦?
         iconPath := config["iconPath"]
         if (!FileExist(iconPath)) {
-            ; 如果文件不存在，尝试其他可能的路径
-            actionLower := StrLower(config["action"])  ; 使用 StrLower 代替 LCase
+            ; 濡傛灉鏂囦欢涓嶅瓨鍦紝灏濊瘯鍏朵粬鍙兘鐨勮矾寰?
+            actionLower := StrLower(config["action"])  ; 浣跨敤 StrLower 浠ｆ浛 LCase
             altPaths := [
                 A_WorkingDir . "\images\toolbar_" . actionLower . ".png",
                 A_ScriptDir . "\..\images\toolbar_" . actionLower . ".png"
@@ -269,17 +258,17 @@ CreateFloatingToolbarGUI() {
             }
         }
         
-        ; 图标位置（居中显示）
-        ; 搜索按钮使用更大的图标尺寸
+        ; 鍥炬爣浣嶇疆锛堝眳涓樉绀猴級
+        ; 鎼滅储鎸夐挳浣跨敤鏇村ぇ鐨勫浘鏍囧昂瀵?
         currentIconSize := IconSize
         if (config["action"] = "Search") {
-            currentIconSize := Round(IconSize * 1.2)  ; 搜索按钮放大20%
+            currentIconSize := Round(IconSize * 1.2)  ; 鎼滅储鎸夐挳鏀惧ぇ20%
         }
         
-        iconX := x + (ButtonWidth - currentIconSize) / 2  ; 居中
-        iconY := StartY + (ButtonHeight - currentIconSize) / 2  ; 居中
+        iconX := x + (ButtonWidth - currentIconSize) / 2  ; 灞呬腑
+        iconY := StartY + (ButtonHeight - currentIconSize) / 2  ; 灞呬腑
         
-        ; 创建图片控件（直接作为可点击区域，使用0x200样式保持图片比例，避免压缩）
+        ; 鍒涘缓鍥剧墖鎺т欢锛堢洿鎺ヤ綔涓哄彲鐐瑰嚮鍖哄煙锛屼娇鐢?x200鏍峰紡淇濇寔鍥剧墖姣斾緥锛岄伩鍏嶅帇缂╋級
         if (FileExist(iconPath)) {
             iconPic := FloatingToolbarGUI.Add("Picture", 
                 "x" . iconX . " y" . iconY . 
@@ -287,42 +276,39 @@ CreateFloatingToolbarGUI() {
                 " BackgroundTrans 0x200 vToolbarIcon_" . config["action"], 
                 iconPath)
         } else {
-            ; 如果图标文件不存在，使用 action 的第一个字符作为后备
-            actionText := config["action"]
-            displayChar := SubStr(actionText, 1, 1)
+            ; 濡傛灉鍥炬爣鏂囦欢涓嶅瓨鍦紝浣跨敤鏂囧瓧浣滀负鍚庡
             iconPic := FloatingToolbarGUI.Add("Text", 
                 "x" . x . " y" . StartY . 
                 " w" . ButtonWidth . " h" . ButtonHeight . 
                 " Center 0x200 c" . FloatingToolbarColors.Text . 
                 " BackgroundTrans vToolbarIcon_" . config["action"], 
-                displayChar)
+                SubStr(config["text"], 1, 1))  ; 鏄剧ず绗竴涓瓧绗?
         }
         
         iconPicHwnd := iconPic.Hwnd
         
-        ; 创建选中指示器（橙色点）- 初始隐藏
-        dotSize := 5  ; 点的大小（稍微增大）
-        dotX := x + (ButtonWidth - dotSize) / 2  ; 居中
-        dotY := StartY + ButtonHeight - dotSize - 3  ; 图标下方
+        ; 鍒涘缓閫変腑鎸囩ず鍣紙姗欒壊鐐癸級- 鍒濆闅愯棌
+        dotSize := 5  ; 鐐圭殑澶у皬锛堢◢寰澶э級
+        dotX := x + (ButtonWidth - dotSize) / 2  ; 灞呬腑
+        dotY := StartY + ButtonHeight - dotSize - 3  ; 鍥炬爣涓嬫柟
         
         selectedDot := FloatingToolbarGUI.Add("Text", 
             "x" . dotX . " y" . dotY . 
             " w" . dotSize . " h" . dotSize . 
-            " BackgroundFF6600 cFF6600" .  ; 橙色
+            " BackgroundFF6600 cFF6600" .  ; 姗欒壊
             " vToolbarDot_" . config["action"], 
             "")
-        selectedDot.Visible := false  ; 初始隐藏
+        selectedDot.Visible := false  ; 鍒濆闅愯棌
         
-        ; [核心修复] 使用原生 ToolTip 属性
-        ; 格式：功能名称 (快捷键)
-        ; 根据 action 生成功能名称
-        actionName := GetActionDisplayName(config["action"])
-        iconPic.ToolTip := actionName . " (" . config["shortcut"] . ")"
+        ; [鏍稿績淇] 浣跨敤鍘熺敓 ToolTip 灞炴€?
+        ; 鏍煎紡锛氬姛鑳藉悕绉?(蹇嵎閿?
+        iconPic.ToolTip := config["text"] . " (" . config["shortcut"] . ")"
         
-        ; 绑定鼠标点击事件（使用图片控件）
-        iconPic.OnEvent("Click", OnToolbarButtonClick.Bind(iconPic, config["action"], iconPicHwnd, actionName))
+        ; 缁戝畾榧犳爣鐐瑰嚮浜嬩欢锛堜娇鐢ㄥ浘鐗囨帶浠讹級
+        iconPic.OnEvent("Click", OnToolbarButtonClick.Bind(iconPic, config["action"], iconPicHwnd, config["text"]))
+        iconPic.OnEvent("ContextMenu", FloatingToolbarIconContextMenu)
         
-        ; 存储按钮信息（用于悬停检测和tooltip）
+        ; 瀛樺偍鎸夐挳淇℃伅锛堢敤浜庢偓鍋滄娴嬪拰tooltip锛?
         FloatingToolbarButtons[iconPicHwnd] := {
             iconPic: iconPic,
             selectedDot: selectedDot,
@@ -332,31 +318,31 @@ CreateFloatingToolbarGUI() {
             h: ButtonHeight,
             iconX: iconX,
             iconY: iconY,
-            iconSize: currentIconSize,  ; 使用实际图标尺寸（搜索按钮更大）
+            iconSize: currentIconSize,  ; 浣跨敤瀹為檯鍥炬爣灏哄锛堟悳绱㈡寜閽洿澶э級
             action: config["action"],
-            tooltip: actionName,
+            tooltip: config["text"],
             shortcut: config["shortcut"],
             iconPath: iconPath,
-            isHovered: false  ; 悬停状态
+            isHovered: false  ; 鎮仠鐘舵€?
         }
     }
     
-    ; 为所有按钮添加拖动支持（通过定时器检测长按）
+    ; 涓烘墍鏈夋寜閽坊鍔犳嫋鍔ㄦ敮鎸侊紙閫氳繃瀹氭椂鍣ㄦ娴嬮暱鎸夛級
     SetTimer(FloatingToolbarCheckButtonDrag, 50)
     
-    ; 使用窗口事件处理拖动（更可靠）
+    ; 浣跨敤绐楀彛浜嬩欢澶勭悊鎷栧姩锛堟洿鍙潬锛?
     FloatingToolbarGUI.OnEvent("ContextMenu", OnFloatingToolbarContextMenu)
     
-    ; 监听 WM_LBUTTONDOWN 消息，实现整个窗口拖动
-    ; 注意：必须在GUI创建后注册消息监听
+    ; 鐩戝惉 WM_LBUTTONDOWN 娑堟伅锛屽疄鐜版暣涓獥鍙ｆ嫋鍔?
+    ; 娉ㄦ剰锛氬繀椤诲湪GUI鍒涘缓鍚庢敞鍐屾秷鎭洃鍚?
     OnMessage(0x0201, FloatingToolbarWM_LBUTTONDOWN)  ; WM_LBUTTONDOWN
     
-    ; 监听鼠标滚轮消息，实现缩放功能
+    ; 鐩戝惉榧犳爣婊氳疆娑堟伅锛屽疄鐜扮缉鏀惧姛鑳?
     OnMessage(0x020A, FloatingToolbarWM_MOUSEWHEEL)  ; WM_MOUSEWHEEL
 }
 
-; ===================== 圆角边框处理 =====================
-; 应用圆角边框到窗口
+; ===================== 鍦嗚杈规澶勭悊 =====================
+; 搴旂敤鍦嗚杈规鍒扮獥鍙?
 FloatingToolbarApplyRoundedCorners() {
     global FloatingToolbarGUI, FloatingToolbarScale
     
@@ -365,13 +351,13 @@ FloatingToolbarApplyRoundedCorners() {
     }
     
     try {
-        ; 获取窗口尺寸
+        ; 鑾峰彇绐楀彛灏哄
         FloatingToolbarGUI.GetPos(, , &winWidth, &winHeight)
         
-        ; 圆角半径（8px，应用缩放比例）
+        ; 鍦嗚鍗婂緞锛?px锛屽簲鐢ㄧ缉鏀炬瘮渚嬶級
         radius := Round(8 * FloatingToolbarScale)
         
-        ; 使用 CreateRoundRectRgn 创建圆角区域
+        ; 浣跨敤 CreateRoundRectRgn 鍒涘缓鍦嗚鍖哄煙
         ; CreateRoundRectRgn(left, top, right, bottom, widthEllipse, heightEllipse)
         hRgn := DllCall("CreateRoundRectRgn"
             , "Int", 0
@@ -383,83 +369,83 @@ FloatingToolbarApplyRoundedCorners() {
             , "Ptr")
         
         if (hRgn) {
-            ; 应用圆角区域到窗口
+            ; 搴旂敤鍦嗚鍖哄煙鍒扮獥鍙?
             DllCall("SetWindowRgn"
                 , "Ptr", FloatingToolbarGUI.Hwnd
                 , "Ptr", hRgn
-                , "Int", 1)  ; 1 = 重绘窗口
+                , "Int", 1)  ; 1 = 閲嶇粯绐楀彛
             
-            ; 注意：SetWindowRgn 会接管 hRgn 的所有权，不需要手动删除
+            ; 娉ㄦ剰锛歋etWindowRgn 浼氭帴绠?hRgn 鐨勬墍鏈夋潈锛屼笉闇€瑕佹墜鍔ㄥ垹闄?
         }
     } catch {
-        ; 如果设置圆角失败，静默处理
+        ; 濡傛灉璁剧疆鍦嗚澶辫触锛岄潤榛樺鐞?
     }
 }
 
-; ===================== WM_LBUTTONDOWN 消息处理（简化版） =====================
+; ===================== WM_LBUTTONDOWN 娑堟伅澶勭悊锛堢畝鍖栫増锛?=====================
 FloatingToolbarWM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
     global FloatingToolbarGUI, FloatingToolbarHoveredButton, FloatingToolbarButtons, FloatingToolbarClickedButton, FloatingToolbarButtonDownTime, FloatingToolbarDragging, FloatingToolbarColors
     
-    ; 检查是否是工具栏窗口
+    ; 妫€鏌ユ槸鍚︽槸宸ュ叿鏍忕獥鍙?
     if (!FloatingToolbarGUI || hwnd != FloatingToolbarGUI.Hwnd) {
         return
     }
     
-    ; 如果点击的是悬浮窗，且当前鼠标没有悬停在任何按钮上（即点击的是空白处）
+    ; 濡傛灉鐐瑰嚮鐨勬槸鎮诞绐楋紝涓斿綋鍓嶉紶鏍囨病鏈夋偓鍋滃湪浠讳綍鎸夐挳涓婏紙鍗崇偣鍑荤殑鏄┖鐧藉锛?
     if (FloatingToolbarHoveredButton = 0 && !FloatingToolbarDragging) {
-        ; 发送 0xA1 (WM_NCLBUTTONDOWN) 消息，参数 2 代表标题栏
-        ; 这样系统会自动接管拖动，操作起来非常顺滑
+        ; 鍙戦€?0xA1 (WM_NCLBUTTONDOWN) 娑堟伅锛屽弬鏁?2 浠ｈ〃鏍囬鏍?
+        ; 杩欐牱绯荤粺浼氳嚜鍔ㄦ帴绠℃嫋鍔紝鎿嶄綔璧锋潵闈炲父椤烘粦
         PostMessage(0x00A1, 2, 0, FloatingToolbarGUI.Hwnd)
         return
     }
     
-    ; 如果点击在按钮上，立即进入拖动模式（如果没有抬起鼠标）
+    ; 濡傛灉鐐瑰嚮鍦ㄦ寜閽笂锛岀珛鍗宠繘鍏ユ嫋鍔ㄦā寮忥紙濡傛灉娌℃湁鎶捣榧犳爣锛?
     if (FloatingToolbarHoveredButton != 0 && !FloatingToolbarDragging) {
-        ; 记录按下的按钮和时间
+        ; 璁板綍鎸変笅鐨勬寜閽拰鏃堕棿
         FloatingToolbarClickedButton := FloatingToolbarHoveredButton
         FloatingToolbarButtonDownTime := A_TickCount
         FloatingToolbarPressedButton := FloatingToolbarHoveredButton
         
-        ; 记录初始鼠标位置（用于检测是否移动）
+        ; 璁板綍鍒濆榧犳爣浣嶇疆锛堢敤浜庢娴嬫槸鍚︾Щ鍔級
         MouseGetPos(&initialX, &initialY)
         global FloatingToolbarInitialMouseX := initialX
         global FloatingToolbarInitialMouseY := initialY
         global FloatingToolbarMouseMoved := false
         
-        ; 应用下沉效果（坐标下移2px）
+        ; 搴旂敤涓嬫矇鏁堟灉锛堝潗鏍囦笅绉?px锛?
         FloatingToolbarApplyPressEffect(FloatingToolbarHoveredButton)
         
-        ; 【修改】立即进入拖动模式，而不是等待150ms
-        ; 如果鼠标没有移动就抬起，会在 FloatingToolbarCheckButtonDrag 中处理点击
-        ; 如果鼠标移动了，就执行拖动操作
+        ; 銆愪慨鏀广€戠珛鍗宠繘鍏ユ嫋鍔ㄦā寮忥紝鑰屼笉鏄瓑寰?50ms
+        ; 濡傛灉榧犳爣娌℃湁绉诲姩灏辨姮璧凤紝浼氬湪 FloatingToolbarCheckButtonDrag 涓鐞嗙偣鍑?
+        ; 濡傛灉榧犳爣绉诲姩浜嗭紝灏辨墽琛屾嫋鍔ㄦ搷浣?
     }
 }
 
 
-; ===================== 按钮点击处理 =====================
+; ===================== 鎸夐挳鐐瑰嚮澶勭悊 =====================
 OnToolbarButtonClick(iconPic, action, iconPicHwnd, tooltipText, *) {
     global FloatingToolbarDragging, FloatingToolbarSelectedButton, FloatingToolbarButtons, FloatingToolbarPressedButton
     
-    ; 如果正在拖动，不处理点击
+    ; 濡傛灉姝ｅ湪鎷栧姩锛屼笉澶勭悊鐐瑰嚮
     if (FloatingToolbarDragging) {
         return
     }
     
-    ; 恢复下沉效果（坐标恢复）
+    ; 鎭㈠涓嬫矇鏁堟灉锛堝潗鏍囨仮澶嶏級
     if (FloatingToolbarPressedButton != 0) {
         FloatingToolbarRemovePressEffect(FloatingToolbarPressedButton)
         FloatingToolbarPressedButton := 0
     }
     
-    ; 更新选中状态（显示橙色点）
-    ; 先隐藏所有点的选中状态
+    ; 鏇存柊閫変腑鐘舵€侊紙鏄剧ず姗欒壊鐐癸級
+    ; 鍏堥殣钘忔墍鏈夌偣鐨勯€変腑鐘舵€?
     for btnHwnd, btnInfo in FloatingToolbarButtons {
         if (btnInfo.HasProp("selectedDot")) {
             btnInfo.selectedDot.Visible := false
         }
     }
     
-    ; 显示当前按钮的选中点
+    ; 鏄剧ず褰撳墠鎸夐挳鐨勯€変腑鐐?
     if (FloatingToolbarButtons.Has(iconPicHwnd)) {
         if (FloatingToolbarButtons[iconPicHwnd].HasProp("selectedDot")) {
             FloatingToolbarButtons[iconPicHwnd].selectedDot.Visible := true
@@ -467,27 +453,27 @@ OnToolbarButtonClick(iconPic, action, iconPicHwnd, tooltipText, *) {
         FloatingToolbarSelectedButton := iconPicHwnd
     }
     
-    ; 直接执行动作
+    ; 鐩存帴鎵ц鍔ㄤ綔
     FloatingToolbarExecuteButtonAction(action, iconPicHwnd)
 }
 
-; 执行按钮动作
+; 鎵ц鎸夐挳鍔ㄤ綔
 FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
     global FloatingToolbarDragging
     
-    ; 如果正在拖动，不执行动作
+    ; 濡傛灉姝ｅ湪鎷栧姩锛屼笉鎵ц鍔ㄤ綔
     if (FloatingToolbarDragging) {
         return
     }
     
-    ; 执行对应的动作（直接调用窗口显示函数）
+    ; 鎵ц瀵瑰簲鐨勫姩浣滐紙鐩存帴璋冪敤绐楀彛鏄剧ず鍑芥暟锛?
     switch action {
         case "Search":
-            ; 直接显示搜索中心窗口
+            ; 鐩存帴鏄剧ず鎼滅储涓績绐楀彛
             try {
                 ShowSearchCenter()
             } catch as err {
-                ; 如果函数不存在或调用失败，发送快捷键作为后备
+                ; 濡傛灉鍑芥暟涓嶅瓨鍦ㄦ垨璋冪敤澶辫触锛屽彂閫佸揩鎹烽敭浣滀负鍚庡
                 SetCapsLockState("AlwaysOff")
                 Send("{CapsLock down}")
                 Sleep(30)
@@ -497,12 +483,12 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
                 SetCapsLockState("Off")
             }
         case "Record":
-            ; 显示剪贴板管理器窗口（clipboard.AHK）
-            ; 直接调用 ShowClipboardHistoryPanel 函数
+            ; 鏄剧ず鍓创鏉跨鐞嗗櫒绐楀彛锛坈lipboard.AHK锛?
+            ; 鐩存帴璋冪敤 ShowClipboardHistoryPanel 鍑芥暟
             try {
                 ShowClipboardHistoryPanel()
             } catch as err {
-                ; 如果函数不存在或调用失败，使用快捷键作为后备
+                ; 濡傛灉鍑芥暟涓嶅瓨鍦ㄦ垨璋冪敤澶辫触锛屼娇鐢ㄥ揩鎹烽敭浣滀负鍚庡
                 SetCapsLockState("AlwaysOff")
                 Sleep(30)
                 Send("{CapsLock down}")
@@ -514,19 +500,19 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
                 SetCapsLockState("Off")
             }
         case "AIAssistant":
-            ; 显示AI选择列表面板
+            ; 鏄剧ずAI閫夋嫨鍒楄〃闈㈡澘
             try {
                 ShowAIListPanel()
             } catch as err {
-                ; 如果AIListPanel模块未加载，使用默认行为
-                TrayTip("AI选择面板加载失败: " . err.Message, "错误", "Iconx 2")
+                ; 濡傛灉AIListPanel妯″潡鏈姞杞斤紝浣跨敤榛樿琛屼负
+                TrayTip("AI閫夋嫨闈㈡澘鍔犺浇澶辫触: " . err.Message, "閿欒", "Iconx 2")
             }
         case "Screenshot":
-            ; [需求2] 执行截图并弹出截图助手让用户选择
+            ; [闇€姹?] 鎵ц鎴浘骞跺脊鍑烘埅鍥惧姪鎵嬭鐢ㄦ埛閫夋嫨
             try {
                 ExecuteScreenshotWithMenu()
             } catch as err {
-                ; 如果函数不存在或调用失败，发送快捷键作为后备
+                ; 濡傛灉鍑芥暟涓嶅瓨鍦ㄦ垨璋冪敤澶辫触锛屽彂閫佸揩鎹烽敭浣滀负鍚庡
                 SetCapsLockState("AlwaysOff")
                 Send("{CapsLock down}")
                 Sleep(30)
@@ -536,11 +522,11 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
                 SetCapsLockState("Off")
             }
         case "Settings":
-            ; 显示配置面板（CapsLock+Q 对应的窗口）
+            ; 鏄剧ず閰嶇疆闈㈡澘锛圕apsLock+Q 瀵瑰簲鐨勭獥鍙ｏ級
             try {
                 ShowConfigGUI()
             } catch as err {
-                ; 如果函数不存在或调用失败，发送快捷键作为后备
+                ; 濡傛灉鍑芥暟涓嶅瓨鍦ㄦ垨璋冪敤澶辫触锛屽彂閫佸揩鎹烽敭浣滀负鍚庡
                 SetCapsLockState("AlwaysOff")
                 Send("{CapsLock down}")
                 Sleep(30)
@@ -552,30 +538,30 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
     }
 }
 
-; 检测按钮拖动（点击时如果没有抬起鼠标，默认是拖动操作）
+; 妫€娴嬫寜閽嫋鍔紙鐐瑰嚮鏃跺鏋滄病鏈夋姮璧烽紶鏍囷紝榛樿鏄嫋鍔ㄦ搷浣滐級
 FloatingToolbarCheckButtonDrag() {
     global FloatingToolbarGUI, FloatingToolbarButtons, FloatingToolbarDragging, FloatingToolbarButtonDownTime, FloatingToolbarClickedButton, FloatingToolbarIsVisible, FloatingToolbarColors, FloatingToolbarWindowX, FloatingToolbarWindowY
     global FloatingToolbarInitialMouseX, FloatingToolbarInitialMouseY, FloatingToolbarMouseMoved
     
-    ; 如果窗口不可见，不处理
+    ; 濡傛灉绐楀彛涓嶅彲瑙侊紝涓嶅鐞?
     if (!FloatingToolbarIsVisible || FloatingToolbarGUI = 0) {
         return
     }
     
-    ; 如果鼠标左键按下且按下了按钮
+    ; 濡傛灉榧犳爣宸﹂敭鎸変笅涓旀寜涓嬩簡鎸夐挳
     if (GetKeyState("LButton", "P") && FloatingToolbarClickedButton != 0) {
-        ; 【修改】立即检测鼠标是否移动，不需要等待150ms
+        ; 銆愪慨鏀广€戠珛鍗虫娴嬮紶鏍囨槸鍚︾Щ鍔紝涓嶉渶瑕佺瓑寰?50ms
         MouseGetPos(&mx, &my)
         
-        ; 检查鼠标是否从初始位置移动了（移动阈值：5像素）
+        ; 妫€鏌ラ紶鏍囨槸鍚︿粠鍒濆浣嶇疆绉诲姩浜嗭紙绉诲姩闃堝€硷細5鍍忕礌锛?
         if (FloatingToolbarInitialMouseX != 0 && FloatingToolbarInitialMouseY != 0) {
             if (Abs(mx - FloatingToolbarInitialMouseX) > 5 || Abs(my - FloatingToolbarInitialMouseY) > 5) {
-                ; 鼠标移动了，标记为已移动
+                ; 榧犳爣绉诲姩浜嗭紝鏍囪涓哄凡绉诲姩
                 FloatingToolbarMouseMoved := true
                 
-                ; 如果还没有进入拖动模式，立即进入拖动模式
+                ; 濡傛灉杩樻病鏈夎繘鍏ユ嫋鍔ㄦā寮忥紝绔嬪嵆杩涘叆鎷栧姩妯″紡
                 if (!FloatingToolbarDragging) {
-                    ; 恢复下沉效果
+                    ; 鎭㈠涓嬫矇鏁堟灉
                     global FloatingToolbarPressedButton
                     if (FloatingToolbarPressedButton != 0) {
                         FloatingToolbarRemovePressEffect(FloatingToolbarPressedButton)
@@ -585,54 +571,54 @@ FloatingToolbarCheckButtonDrag() {
                     FloatingToolbarDragging := true
                     FloatingToolbarClickedButton := 0
                     
-                    ; 使用标准的Windows拖动方法
+                    ; 浣跨敤鏍囧噯鐨刉indows鎷栧姩鏂规硶
                     FloatingToolbarGUI.GetPos(&winX, &winY)
                     FloatingToolbarWindowX := winX
                     FloatingToolbarWindowY := winY
                     PostMessage(0x00A1, 2, 0, FloatingToolbarGUI.Hwnd)  ; WM_NCLBUTTONDOWN, HTCAPTION
                     
-                    ; 启动定时器来检测拖动结束
+                    ; 鍚姩瀹氭椂鍣ㄦ潵妫€娴嬫嫋鍔ㄧ粨鏉?
                     SetTimer(FloatingToolbarCheckDragEnd, 50)
                 }
             }
         }
     } else {
-        ; 鼠标释放，检查是否是点击（不是拖动）
+        ; 榧犳爣閲婃斁锛屾鏌ユ槸鍚︽槸鐐瑰嚮锛堜笉鏄嫋鍔級
         if (FloatingToolbarClickedButton != 0 && !FloatingToolbarDragging) {
-            ; 如果鼠标没有移动，执行点击操作
+            ; 濡傛灉榧犳爣娌℃湁绉诲姩锛屾墽琛岀偣鍑绘搷浣?
             if (!FloatingToolbarMouseMoved) {
-                ; 恢复下沉效果
+                ; 鎭㈠涓嬫矇鏁堟灉
                 global FloatingToolbarPressedButton
                 if (FloatingToolbarPressedButton != 0) {
                     FloatingToolbarRemovePressEffect(FloatingToolbarPressedButton)
                     FloatingToolbarPressedButton := 0
                 }
                 
-                ; 获取按钮信息并执行动作
+                ; 鑾峰彇鎸夐挳淇℃伅骞舵墽琛屽姩浣?
                 if (FloatingToolbarButtons.Has(FloatingToolbarClickedButton)) {
                     buttonInfo := FloatingToolbarButtons[FloatingToolbarClickedButton]
                     action := buttonInfo.action
                     
-                    ; 更新选中状态（显示橙色点）
+                    ; 鏇存柊閫変腑鐘舵€侊紙鏄剧ず姗欒壊鐐癸級
                     global FloatingToolbarSelectedButton
-                    ; 先隐藏所有点的选中状态
+                    ; 鍏堥殣钘忔墍鏈夌偣鐨勯€変腑鐘舵€?
                     for btnHwnd, btn in FloatingToolbarButtons {
                         if (btn.HasProp("selectedDot")) {
                             btn.selectedDot.Visible := false
                         }
                     }
-                    ; 显示当前按钮的选中点
+                    ; 鏄剧ず褰撳墠鎸夐挳鐨勯€変腑鐐?
                     if (buttonInfo.HasProp("selectedDot")) {
                         buttonInfo.selectedDot.Visible := true
                     }
                     FloatingToolbarSelectedButton := FloatingToolbarClickedButton
                     
-                    ; 执行动作
+                    ; 鎵ц鍔ㄤ綔
                     FloatingToolbarExecuteButtonAction(action, FloatingToolbarClickedButton)
                 }
             }
             
-            ; 重置状态
+            ; 閲嶇疆鐘舵€?
             FloatingToolbarClickedButton := 0
             FloatingToolbarInitialMouseX := 0
             FloatingToolbarInitialMouseY := 0
@@ -641,49 +627,49 @@ FloatingToolbarCheckButtonDrag() {
     }
 }
 
-; ===================== 按钮悬停效果（ID检测版 + 双重保险） =====================
+; ===================== 鎸夐挳鎮仠鏁堟灉锛圛D妫€娴嬬増 + 鍙岄噸淇濋櫓锛?=====================
 FloatingToolbarCheckButtonHover() {
     global FloatingToolbarGUI, FloatingToolbarButtons, FloatingToolbarHoveredButton, FloatingToolbarColors, FloatingToolbarDragging, FloatingToolbarIsVisible
     
-    static LastHovered := 0  ; 记录上一次悬停的按钮
+    static LastHovered := 0  ; 璁板綍涓婁竴娆℃偓鍋滅殑鎸夐挳
     
-    ; 1. 基础检查：窗口不存在或不可见则退出
+    ; 1. 鍩虹妫€鏌ワ細绐楀彛涓嶅瓨鍦ㄦ垨涓嶅彲瑙佸垯閫€鍑?
     if (!FloatingToolbarIsVisible || FloatingToolbarGUI = 0) {
         return
     }
     
-    ; 2. 防干扰：正在拖动时，强制清除提示并退出
+    ; 2. 闃插共鎵帮細姝ｅ湪鎷栧姩鏃讹紝寮哄埗娓呴櫎鎻愮ず骞堕€€鍑?
     if (FloatingToolbarDragging) {
         ToolTip()
         return
     }
     
     try {
-        ; [方法1] 使用控件句柄检测（最准确）
+        ; [鏂规硶1] 浣跨敤鎺т欢鍙ユ焺妫€娴嬶紙鏈€鍑嗙‘锛?
         MouseGetPos(&mx, &my, &winHwnd, &ctrlHwnd, 2)
         
-        ; 3. 检查：鼠标是否还在悬浮窗内？
+        ; 3. 妫€鏌ワ細榧犳爣鏄惁杩樺湪鎮诞绐楀唴锛?
         if (winHwnd != FloatingToolbarGUI.Hwnd) {
-            ; 鼠标跑出去了
+            ; 榧犳爣璺戝嚭鍘讳簡
             if (LastHovered != 0) {
                 FloatingToolbarRestoreButtonColor(LastHovered)
-                ToolTip() ; 清除提示
+                ToolTip() ; 娓呴櫎鎻愮ず
                 LastHovered := 0
                 FloatingToolbarHoveredButton := 0
             }
             return
         }
         
-        ; 4. 检查：鼠标下的控件，是不是我们的按钮之一？
+        ; 4. 妫€鏌ワ細榧犳爣涓嬬殑鎺т欢锛屾槸涓嶆槸鎴戜滑鐨勬寜閽箣涓€锛?
         currentHover := 0
         currentHoverInfo := 0
         
-        ; 首先尝试通过控件句柄检测
+        ; 棣栧厛灏濊瘯閫氳繃鎺т欢鍙ユ焺妫€娴?
         if (ctrlHwnd && FloatingToolbarButtons.Has(ctrlHwnd)) {
             currentHover := ctrlHwnd
             currentHoverInfo := FloatingToolbarButtons[ctrlHwnd]
         } 
-        ; [双重保险] 如果控件句柄检测失败，使用坐标检测作为备选
+        ; [鍙岄噸淇濋櫓] 濡傛灉鎺т欢鍙ユ焺妫€娴嬪け璐ワ紝浣跨敤鍧愭爣妫€娴嬩綔涓哄閫?
         else {
             FloatingToolbarGUI.GetPos(&wx, &wy)
             relX := mx - wx
@@ -698,74 +684,74 @@ FloatingToolbarCheckButtonHover() {
             }
         }
         
-        ; 5. 状态机：只有当状态发生改变时（从A移到B，或从无移到有）才执行操作
+        ; 5. 鐘舵€佹満锛氬彧鏈夊綋鐘舵€佸彂鐢熸敼鍙樻椂锛堜粠A绉诲埌B锛屾垨浠庢棤绉诲埌鏈夛級鎵嶆墽琛屾搷浣?
         if (currentHover != LastHovered) {
             
-            ; A. 把旧的（上一个）按钮颜色恢复原样
+            ; A. 鎶婃棫鐨勶紙涓婁竴涓級鎸夐挳棰滆壊鎭㈠鍘熸牱
             if (LastHovered != 0) {
                 FloatingToolbarRestoreButtonColor(LastHovered)
             }
             
-            ; B. 处理新状态
+            ; B. 澶勭悊鏂扮姸鎬?
             if (currentHover != 0) {
-                ; === 鼠标移入了按钮 ===
+                ; === 榧犳爣绉诲叆浜嗘寜閽?===
 
-                ; 1. 悬停动效（图标放大效果 + 亮度增强）
+                ; 1. 鎮仠鍔ㄦ晥锛堝浘鏍囨斁澶ф晥鏋?+ 浜害澧炲己锛?
                 try {
                     if (currentHoverInfo.HasProp("iconPic") && currentHoverInfo.HasProp("iconSize")) {
                         iconPic := currentHoverInfo.iconPic
                         if (Type(iconPic) != "Text") {
-                            ; 图片控件：放大效果（从28放大到32）
+                            ; 鍥剧墖鎺т欢锛氭斁澶ф晥鏋滐紙浠?8鏀惧ぇ鍒?2锛?
                             hoverIconSize := currentHoverInfo.iconSize + 4
-                            hoverIconX := currentHoverInfo.iconX - 2  ; 居中调整
+                            hoverIconX := currentHoverInfo.iconX - 2  ; 灞呬腑璋冩暣
                             hoverIconY := currentHoverInfo.iconY - 2
                             iconPic.Move(hoverIconX, hoverIconY, hoverIconSize, hoverIconSize)
                             currentHoverInfo.isHovered := true
 
-                            ; 应用亮度增强特效
+                            ; 搴旂敤浜害澧炲己鐗规晥
                             FloatingToolbarApplyHoverBrightness(iconPic, currentHoverInfo)
                         } else {
-                            ; 文字后备：改变文字颜色
+                            ; 鏂囧瓧鍚庡锛氭敼鍙樻枃瀛楅鑹?
                             iconPic.Opt("c" . FloatingToolbarColors.TextHover)
                         }
                     }
                 } catch as err {
-                    ; 调试：显示悬停错误
+                    ; 璋冭瘯锛氭樉绀烘偓鍋滈敊璇?
                     ToolTip("Hover Effect Error: " . err.Message)
                 }
 
-                ; 2. 弹出提示词（小白帮助）
+                ; 2. 寮瑰嚭鎻愮ず璇嶏紙灏忕櫧甯姪锛?
                 action := currentHoverInfo.action
                 tipText := GetButtonTip(action)
-                ToolTip(tipText) ; 默认在鼠标旁边显示，最符合直觉
+                ToolTip(tipText) ; 榛樿鍦ㄩ紶鏍囨梺杈规樉绀猴紝鏈€绗﹀悎鐩磋
 
             } else {
-                ; === 鼠标在悬浮窗上，但不在按钮上（比如空隙） ===
-                ToolTip() ; 清除提示
+                ; === 榧犳爣鍦ㄦ偓娴獥涓婏紝浣嗕笉鍦ㄦ寜閽笂锛堟瘮濡傜┖闅欙級 ===
+                ToolTip() ; 娓呴櫎鎻愮ず
             }
             
-            ; 更新状态
+            ; 鏇存柊鐘舵€?
             LastHovered := currentHover
             FloatingToolbarHoveredButton := currentHover
         }
         
     } catch as err {
-        ; 容错处理，显示错误信息便于调试
+        ; 瀹归敊澶勭悊锛屾樉绀洪敊璇俊鎭究浜庤皟璇?
         ; ToolTip("Error: " . err.Message)
     }
 }
 
-; [新增辅助函数] 专门用来恢复按钮颜色和动效，让主逻辑更清晰（透明背景，无按钮）
+; [鏂板杈呭姪鍑芥暟] 涓撻棬鐢ㄦ潵鎭㈠鎸夐挳棰滆壊鍜屽姩鏁堬紝璁╀富閫昏緫鏇存竻鏅帮紙閫忔槑鑳屾櫙锛屾棤鎸夐挳锛?
 FloatingToolbarRestoreButtonColor(btnHwnd) {
     global FloatingToolbarButtons, FloatingToolbarColors
     if (FloatingToolbarButtons.Has(btnHwnd)) {
         try {
-            ; 恢复图标大小和位置（悬停动效还原）
+            ; 鎭㈠鍥炬爣澶у皬鍜屼綅缃紙鎮仠鍔ㄦ晥杩樺師锛?
             if (FloatingToolbarButtons[btnHwnd].HasProp("iconPic") && FloatingToolbarButtons[btnHwnd].HasProp("isHovered")) {
                 if (FloatingToolbarButtons[btnHwnd].isHovered) {
                     iconPic := FloatingToolbarButtons[btnHwnd].iconPic
                     if (Type(iconPic) != "Text") {
-                        ; 恢复原始大小和位置
+                        ; 鎭㈠鍘熷澶у皬鍜屼綅缃?
                         iconPic.Move(
                             FloatingToolbarButtons[btnHwnd].iconX,
                             FloatingToolbarButtons[btnHwnd].iconY,
@@ -774,15 +760,15 @@ FloatingToolbarRestoreButtonColor(btnHwnd) {
                         )
                         FloatingToolbarButtons[btnHwnd].isHovered := false
                         
-                        ; 恢复原始亮度（移除颜色滤镜）
+                        ; 鎭㈠鍘熷浜害锛堢Щ闄ら鑹叉护闀滐級
                         FloatingToolbarRemoveHoverBrightness(iconPic, FloatingToolbarButtons[btnHwnd])
                     } else {
-                        ; 文字后备：恢复文字颜色
+                        ; 鏂囧瓧鍚庡锛氭仮澶嶆枃瀛楅鑹?
                         iconPic.Opt("c" . FloatingToolbarColors.Text)
                     }
                 }
             } else if (FloatingToolbarButtons[btnHwnd].HasProp("iconPic")) {
-                ; 如果没有isHovered属性，检查是否是文字后备
+                ; 濡傛灉娌℃湁isHovered灞炴€э紝妫€鏌ユ槸鍚︽槸鏂囧瓧鍚庡
                 iconPic := FloatingToolbarButtons[btnHwnd].iconPic
                 if (Type(iconPic) = "Text") {
                     iconPic.Opt("c" . FloatingToolbarColors.Text)
@@ -792,8 +778,8 @@ FloatingToolbarRestoreButtonColor(btnHwnd) {
     }
 }
 
-; ===================== 按钮动效函数 =====================
-; 应用按下下沉效果
+; ===================== 鎸夐挳鍔ㄦ晥鍑芥暟 =====================
+; 搴旂敤鎸変笅涓嬫矇鏁堟灉
 FloatingToolbarApplyPressEffect(btnHwnd) {
     global FloatingToolbarButtons
     if (FloatingToolbarButtons.Has(btnHwnd)) {
@@ -802,23 +788,23 @@ FloatingToolbarApplyPressEffect(btnHwnd) {
             if (btnInfo.HasProp("iconPic")) {
                 iconPic := btnInfo.iconPic
                 if (Type(iconPic) != "Text") {
-                    ; 下沉效果：坐标下移2px
-                    ; 获取当前坐标（考虑悬停状态）
+                    ; 涓嬫矇鏁堟灉锛氬潗鏍囦笅绉?px
+                    ; 鑾峰彇褰撳墠鍧愭爣锛堣€冭檻鎮仠鐘舵€侊級
                     currentX := btnInfo.iconX
                     currentY := btnInfo.iconY
                     currentSize := btnInfo.iconSize
                     
                     if (btnInfo.isHovered) {
-                        ; 如果正在悬停，使用悬停后的坐标和大小
+                        ; 濡傛灉姝ｅ湪鎮仠锛屼娇鐢ㄦ偓鍋滃悗鐨勫潗鏍囧拰澶у皬
                         currentX := currentX - 2
                         currentY := currentY - 2
                         currentSize := currentSize + 4
                     }
                     
-                    ; 应用下沉：坐标下移2px
+                    ; 搴旂敤涓嬫矇锛氬潗鏍囦笅绉?px
                     iconPic.Move(currentX + 2, currentY + 2, currentSize, currentSize)
                     
-                    ; 应用点击着色效果（橙色调）
+                    ; 搴旂敤鐐瑰嚮鐫€鑹叉晥鏋滐紙姗欒壊璋冿級
                     FloatingToolbarApplyClickColor(iconPic, btnInfo)
                 }
             }
@@ -827,7 +813,7 @@ FloatingToolbarApplyPressEffect(btnHwnd) {
     }
 }
 
-; 移除按下下沉效果
+; 绉婚櫎鎸変笅涓嬫矇鏁堟灉
 FloatingToolbarRemovePressEffect(btnHwnd) {
     global FloatingToolbarButtons
     if (FloatingToolbarButtons.Has(btnHwnd)) {
@@ -836,22 +822,22 @@ FloatingToolbarRemovePressEffect(btnHwnd) {
             if (btnInfo.HasProp("iconPic")) {
                 iconPic := btnInfo.iconPic
                 if (Type(iconPic) != "Text") {
-                    ; 恢复坐标（考虑悬停状态）
+                    ; 鎭㈠鍧愭爣锛堣€冭檻鎮仠鐘舵€侊級
                     currentX := btnInfo.iconX
                     currentY := btnInfo.iconY
                     currentSize := btnInfo.iconSize
                     
                     if (btnInfo.isHovered) {
-                        ; 如果正在悬停，使用悬停后的坐标和大小
+                        ; 濡傛灉姝ｅ湪鎮仠锛屼娇鐢ㄦ偓鍋滃悗鐨勫潗鏍囧拰澶у皬
                         currentX := currentX - 2
                         currentY := currentY - 2
                         currentSize := currentSize + 4
                     }
                     
-                    ; 恢复原始位置
+                    ; 鎭㈠鍘熷浣嶇疆
                     iconPic.Move(currentX, currentY, currentSize, currentSize)
                     
-                    ; 恢复颜色（如果正在悬停，恢复悬停亮度；否则恢复原始）
+                    ; 鎭㈠棰滆壊锛堝鏋滄鍦ㄦ偓鍋滐紝鎭㈠鎮仠浜害锛涘惁鍒欐仮澶嶅師濮嬶級
                     if (btnInfo.isHovered) {
                         FloatingToolbarApplyHoverBrightness(iconPic, btnInfo)
                     } else {
@@ -864,7 +850,7 @@ FloatingToolbarRemovePressEffect(btnHwnd) {
     }
 }
 
-; ===================== Gdip 初始化和清理 =====================
+; ===================== Gdip 鍒濆鍖栧拰娓呯悊 =====================
 FloatingToolbarInitializeGdip() {
     global FloatingToolbarGdipToken, FloatingToolbarGdipInitialized
 
@@ -878,7 +864,7 @@ FloatingToolbarShutdownGdip() {
     global FloatingToolbarGdipToken, FloatingToolbarGdipInitialized, FloatingToolbarButtons
 
     if (FloatingToolbarGdipInitialized) {
-        ; 清理所有按钮的Gdip资源
+        ; 娓呯悊鎵€鏈夋寜閽殑Gdip璧勬簮
         for btnHwnd, btnInfo in FloatingToolbarButtons {
             FloatingToolbarCleanupButtonGdip(btnInfo)
         }
@@ -890,17 +876,17 @@ FloatingToolbarShutdownGdip() {
 
 FloatingToolbarCleanupButtonGdip(btnInfo) {
     try {
-        ; 清理悬停状态图片
+        ; 娓呯悊鎮仠鐘舵€佸浘鐗?
         if (btnInfo.HasProp("hoverBitmap") && btnInfo.hoverBitmap != 0) {
             Gdip_DisposeImage(btnInfo.hoverBitmap)
             btnInfo.hoverBitmap := 0
         }
-        ; 清理按下状态图片
+        ; 娓呯悊鎸変笅鐘舵€佸浘鐗?
         if (btnInfo.HasProp("pressBitmap") && btnInfo.pressBitmap != 0) {
             Gdip_DisposeImage(btnInfo.pressBitmap)
             btnInfo.pressBitmap := 0
         }
-        ; 清理临时文件
+        ; 娓呯悊涓存椂鏂囦欢
         if (btnInfo.HasProp("hoverFile") && btnInfo.hoverFile != "" && FileExist(btnInfo.hoverFile)) {
             FileDelete(btnInfo.hoverFile)
             btnInfo.hoverFile := ""
@@ -913,9 +899,9 @@ FloatingToolbarCleanupButtonGdip(btnInfo) {
     }
 }
 
-; ===================== 悬停和点击特效 =====================
+; ===================== 鎮仠鍜岀偣鍑荤壒鏁?=====================
 
-; 应用悬停亮度增强效果
+; 搴旂敤鎮仠浜害澧炲己鏁堟灉
 FloatingToolbarApplyHoverBrightness(iconPic, btnInfo) {
     global FloatingToolbarGdipInitialized
 
@@ -924,32 +910,32 @@ FloatingToolbarApplyHoverBrightness(iconPic, btnInfo) {
     }
 
     try {
-        ; 如果还没有生成悬停图片，生成并缓存
+        ; 濡傛灉杩樻病鏈夌敓鎴愭偓鍋滃浘鐗囷紝鐢熸垚骞剁紦瀛?
         if (!btnInfo.HasProp("hoverFile") || btnInfo.hoverFile = "" || !FileExist(btnInfo.hoverFile)) {
             FloatingToolbarCreateHoverImage(btnInfo)
         }
 
-        ; 应用悬停图片（使用WM_SETICON消息更新）
+        ; 搴旂敤鎮仠鍥剧墖锛堜娇鐢╓M_SETICON娑堟伅鏇存柊锛?
         if (btnInfo.HasProp("hoverFile") && btnInfo.hoverFile != "" && FileExist(btnInfo.hoverFile)) {
-            ; 使用SendMessage更新图片（更可靠的方法）
+            ; 浣跨敤SendMessage鏇存柊鍥剧墖锛堟洿鍙潬鐨勬柟娉曪級
             iconPic.Opt("+BackgroundTrans")
             SendMessage(0x0172, 0, 0, iconPic.Hwnd)  ; STM_SETIMAGE = 0x0172
             iconPic.Value := btnInfo.hoverFile
         }
     } catch as err {
-        ; 调试：显示错误信息
+        ; 璋冭瘯锛氭樉绀洪敊璇俊鎭?
         ; ToolTip("Hover Error: " . err.Message)
     }
 }
 
-; 移除悬停亮度效果
+; 绉婚櫎鎮仠浜害鏁堟灉
 FloatingToolbarRemoveHoverBrightness(iconPic, btnInfo) {
     if (Type(iconPic) = "Text") {
         return
     }
 
     try {
-        ; 恢复原始图片
+        ; 鎭㈠鍘熷鍥剧墖
         if (btnInfo.HasProp("iconPath") && btnInfo.iconPath != "" && FileExist(btnInfo.iconPath)) {
             iconPic.Value := btnInfo.iconPath
         }
@@ -958,7 +944,7 @@ FloatingToolbarRemoveHoverBrightness(iconPic, btnInfo) {
     }
 }
 
-; 应用点击着色效果
+; 搴旂敤鐐瑰嚮鐫€鑹叉晥鏋?
 FloatingToolbarApplyClickColor(iconPic, btnInfo) {
     global FloatingToolbarGdipInitialized
 
@@ -967,12 +953,12 @@ FloatingToolbarApplyClickColor(iconPic, btnInfo) {
     }
 
     try {
-        ; 如果还没有生成按下图片，生成并缓存
+        ; 濡傛灉杩樻病鏈夌敓鎴愭寜涓嬪浘鐗囷紝鐢熸垚骞剁紦瀛?
         if (!btnInfo.HasProp("pressFile") || btnInfo.pressFile = "" || !FileExist(btnInfo.pressFile)) {
             FloatingToolbarCreatePressImage(btnInfo)
         }
 
-        ; 应用按下图片
+        ; 搴旂敤鎸変笅鍥剧墖
         if (btnInfo.HasProp("pressFile") && btnInfo.pressFile != "" && FileExist(btnInfo.pressFile)) {
             iconPic.Opt("+BackgroundTrans")
             iconPic.Value := btnInfo.pressFile
@@ -982,7 +968,7 @@ FloatingToolbarApplyClickColor(iconPic, btnInfo) {
     }
 }
 
-; 创建悬停状态图片（亮度增强 - 使用叠加白色半透明层实现）
+; 鍒涘缓鎮仠鐘舵€佸浘鐗囷紙浜害澧炲己 - 浣跨敤鍙犲姞鐧借壊鍗婇€忔槑灞傚疄鐜帮級
 FloatingToolbarCreateHoverImage(btnInfo) {
     global FloatingToolbarGdipToken
 
@@ -991,33 +977,33 @@ FloatingToolbarCreateHoverImage(btnInfo) {
             return
         }
 
-        ; 加载原始图片
+        ; 鍔犺浇鍘熷鍥剧墖
         pBitmap := Gdip_CreateBitmapFromFile(btnInfo.iconPath)
         if (!pBitmap) {
             return
         }
 
-        ; 获取图片尺寸
+        ; 鑾峰彇鍥剧墖灏哄
         width := Gdip_GetImageWidth(pBitmap)
         height := Gdip_GetImageHeight(pBitmap)
 
-        ; 创建新的位图用于处理
+        ; 鍒涘缓鏂扮殑浣嶅浘鐢ㄤ簬澶勭悊
         pProcessedBitmap := Gdip_CloneBitmapArea(pBitmap, 0, 0, width, height)
 
-        ; 获取Graphics
+        ; 鑾峰彇Graphics
         pGraphics := Gdip_GraphicsFromImage(pProcessedBitmap)
 
-        ; 添加白色半透明叠加层（模拟亮度增加效果）
-        ; 25% 透明度的白色
+        ; 娣诲姞鐧借壊鍗婇€忔槑鍙犲姞灞傦紙妯℃嫙浜害澧炲姞鏁堟灉锛?
+        ; 25% 閫忔槑搴︾殑鐧借壊
         pBrush := Gdip_BrushCreateSolid(0x40FFFFFF)
         Gdip_FillRectangle(pGraphics, pBrush, 0, 0, width, height)
         Gdip_DeleteBrush(pBrush)
 
-        ; 清理资源
+        ; 娓呯悊璧勬簮
         Gdip_DeleteGraphics(pGraphics)
         Gdip_DisposeImage(pBitmap)
 
-        ; 保存到临时文件
+        ; 淇濆瓨鍒颁复鏃舵枃浠?
         tempDir := A_Temp . "\FloatingToolbar"
         if (!DirExist(tempDir)) {
             DirCreate(tempDir)
@@ -1026,13 +1012,13 @@ FloatingToolbarCreateHoverImage(btnInfo) {
         Gdip_SaveBitmapToFile(pProcessedBitmap, hoverFile, 100)
         Gdip_DisposeImage(pProcessedBitmap)
 
-        ; 存储到按钮信息
+        ; 瀛樺偍鍒版寜閽俊鎭?
         btnInfo.hoverFile := hoverFile
     } catch {
     }
 }
 
-; 创建按下状态图片（变暗 + 橙色叠加）
+; 鍒涘缓鎸変笅鐘舵€佸浘鐗囷紙鍙樻殫 + 姗欒壊鍙犲姞锛?
 FloatingToolbarCreatePressImage(btnInfo) {
     global FloatingToolbarGdipToken
 
@@ -1041,40 +1027,40 @@ FloatingToolbarCreatePressImage(btnInfo) {
             return
         }
 
-        ; 加载原始图片
+        ; 鍔犺浇鍘熷鍥剧墖
         pBitmap := Gdip_CreateBitmapFromFile(btnInfo.iconPath)
         if (!pBitmap) {
             return
         }
 
-        ; 获取图片尺寸
+        ; 鑾峰彇鍥剧墖灏哄
         width := Gdip_GetImageWidth(pBitmap)
         height := Gdip_GetImageHeight(pBitmap)
 
-        ; 创建新的位图用于处理
+        ; 鍒涘缓鏂扮殑浣嶅浘鐢ㄤ簬澶勭悊
         pProcessedBitmap := Gdip_CloneBitmapArea(pBitmap, 0, 0, width, height)
 
-        ; 获取Graphics
+        ; 鑾峰彇Graphics
         pGraphics := Gdip_GraphicsFromImage(pProcessedBitmap)
 
-        ; 先绘制原始图片
+        ; 鍏堢粯鍒跺師濮嬪浘鐗?
         Gdip_DrawImage(pGraphics, pBitmap, 0, 0, width, height)
 
-        ; 添加黑色半透明叠加层（变暗效果 - 40%透明度的黑色）
+        ; 娣诲姞榛戣壊鍗婇€忔槑鍙犲姞灞傦紙鍙樻殫鏁堟灉 - 40%閫忔槑搴︾殑榛戣壊锛?
         pBrushDark := Gdip_BrushCreateSolid(0x66000000)
         Gdip_FillRectangle(pGraphics, pBrushDark, 0, 0, width, height)
         Gdip_DeleteBrush(pBrushDark)
 
-        ; 添加橙色半透明叠加（增强点击反馈 - 25%透明度的橙色）
+        ; 娣诲姞姗欒壊鍗婇€忔槑鍙犲姞锛堝寮虹偣鍑诲弽棣?- 25%閫忔槑搴︾殑姗欒壊锛?
         pBrushOrange := Gdip_BrushCreateSolid(0x40FF6600)
         Gdip_FillRectangle(pGraphics, pBrushOrange, 0, 0, width, height)
         Gdip_DeleteBrush(pBrushOrange)
 
-        ; 清理资源
+        ; 娓呯悊璧勬簮
         Gdip_DeleteGraphics(pGraphics)
         Gdip_DisposeImage(pBitmap)
 
-        ; 保存到临时文件
+        ; 淇濆瓨鍒颁复鏃舵枃浠?
         tempDir := A_Temp . "\FloatingToolbar"
         if (!DirExist(tempDir)) {
             DirCreate(tempDir)
@@ -1083,120 +1069,120 @@ FloatingToolbarCreatePressImage(btnInfo) {
         Gdip_SaveBitmapToFile(pProcessedBitmap, pressFile, 100)
         Gdip_DisposeImage(pProcessedBitmap)
 
-        ; 存储到按钮信息
+        ; 瀛樺偍鍒版寜閽俊鎭?
         btnInfo.pressFile := pressFile
     } catch {
     }
 }
 
-; ===================== 背景区域拖动处理 =====================
+; ===================== 鑳屾櫙鍖哄煙鎷栧姩澶勭悊 =====================
 OnToolbarBgClick(*) {
     global FloatingToolbarGUI, FloatingToolbarDragging, FloatingToolbarDragStartX, FloatingToolbarDragStartY, FloatingToolbarWindowX, FloatingToolbarWindowY
     
-    ; 检查是否在按钮区域（按钮区域不拖动）
+    ; 妫€鏌ユ槸鍚﹀湪鎸夐挳鍖哄煙锛堟寜閽尯鍩熶笉鎷栧姩锛?
     MouseGetPos(&mx, &my)
     FloatingToolbarGUI.GetPos(&winX, &winY)
     
-    ; 计算相对于窗口的坐标
+    ; 璁＄畻鐩稿浜庣獥鍙ｇ殑鍧愭爣
     wx := mx - winX
     wy := my - winY
     
-    ; 检查是否在按钮区域内（更新坐标以适应新尺寸）
-    ; 按钮区域：StartX 到 StartX + (ButtonWidth * 5) + (ButtonSpacing * 4)
-    buttonAreaStartX := 35
-    buttonAreaEndX := 35 + (40 * 5) + (5 * 4)
+    ; 妫€鏌ユ槸鍚﹀湪鎸夐挳鍖哄煙鍐咃紙鏇存柊鍧愭爣浠ラ€傚簲鏂板昂瀵革級
+    ; 鎸夐挳鍖哄煙锛歋tartX 鍒?StartX + (ButtonWidth * 5) + (ButtonSpacing * 4)
+    buttonAreaStartX := 40
+    buttonAreaEndX := 40 + (40 * 5) + (5 * 4)
     buttonAreaStartY := 5
     buttonAreaEndY := 5 + 35
     if (wx >= buttonAreaStartX && wx <= buttonAreaEndX && wy >= buttonAreaStartY && wy <= buttonAreaEndY) {
-        ; 在按钮区域内，不拖动（按钮有自己的拖动处理）
+        ; 鍦ㄦ寜閽尯鍩熷唴锛屼笉鎷栧姩锛堟寜閽湁鑷繁鐨勬嫋鍔ㄥ鐞嗭級
         return
     }
     
-    ; 检查是否在图标区域内（图标区域：x5-33, y5-33）
+    ; 妫€鏌ユ槸鍚﹀湪鍥炬爣鍖哄煙鍐咃紙鍥炬爣鍖哄煙锛歺5-33, y5-33锛?
     if (wx >= 5 && wx <= 33 && wy >= 5 && wy <= 33) {
-        ; 在图标区域内，不拖动
+        ; 鍦ㄥ浘鏍囧尯鍩熷唴锛屼笉鎷栧姩
         return
     }
     
-    ; 开始拖动
+    ; 寮€濮嬫嫋鍔?
     FloatingToolbarDragging := true
     FloatingToolbarDragStartX := mx
     FloatingToolbarDragStartY := my
     FloatingToolbarWindowX := winX
     FloatingToolbarWindowY := winY
     
-    ; 使用标准的Windows拖动方法
+    ; 浣跨敤鏍囧噯鐨刉indows鎷栧姩鏂规硶
     PostMessage(0x00A1, 2, 0, FloatingToolbarGUI.Hwnd)  ; WM_NCLBUTTONDOWN, HTCAPTION
     
-    ; 启动定时器来检测拖动结束
+    ; 鍚姩瀹氭椂鍣ㄦ潵妫€娴嬫嫋鍔ㄧ粨鏉?
     SetTimer(FloatingToolbarCheckDragEnd, 50)
 }
 
-; 检测拖动结束
+; 妫€娴嬫嫋鍔ㄧ粨鏉?
 FloatingToolbarCheckDragEnd() {
     global FloatingToolbarDragging, FloatingToolbarWindowX, FloatingToolbarWindowY
     
-    ; 如果鼠标左键释放，停止拖动并触发磁吸检查
+    ; 濡傛灉榧犳爣宸﹂敭閲婃斁锛屽仠姝㈡嫋鍔ㄥ苟瑙﹀彂纾佸惛妫€鏌?
     if (!GetKeyState("LButton", "P")) {
         FloatingToolbarDragging := false
         SetTimer(FloatingToolbarCheckDragEnd, 0)
         
-        ; 立即触发位置检查和磁吸效果
+        ; 绔嬪嵆瑙﹀彂浣嶇疆妫€鏌ュ拰纾佸惛鏁堟灉
         FloatingToolbarCheckWindowPosition()
     }
 }
 
-; 拖动结束后的边界检查和位置更新（使用定时器）
+; 鎷栧姩缁撴潫鍚庣殑杈圭晫妫€鏌ュ拰浣嶇疆鏇存柊锛堜娇鐢ㄥ畾鏃跺櫒锛?
 FloatingToolbarCheckWindowPosition() {
     global FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY, FloatingToolbarDragging, FloatingToolbarIsVisible
     
-    ; 如果窗口不可见，不处理
+    ; 濡傛灉绐楀彛涓嶅彲瑙侊紝涓嶅鐞?
     if (!FloatingToolbarIsVisible || FloatingToolbarGUI = 0) {
         return
     }
     
-    ; 如果正在拖动，不处理
+    ; 濡傛灉姝ｅ湪鎷栧姩锛屼笉澶勭悊
     if (FloatingToolbarDragging) {
         return
     }
     
-    ; 如果鼠标左键释放，检查边界并调整位置
+    ; 濡傛灉榧犳爣宸﹂敭閲婃斁锛屾鏌ヨ竟鐣屽苟璋冩暣浣嶇疆
     if (!GetKeyState("LButton", "P")) {
         try {
             FloatingToolbarGUI.GetPos(&newX, &newY)
             FloatingToolbarWindowX := newX
             FloatingToolbarWindowY := newY
             
-            ; 获取屏幕尺寸
+            ; 鑾峰彇灞忓箷灏哄
             ScreenWidth := SysGet(0)
             ScreenHeight := SysGet(1)
             adjustedX := newX
             adjustedY := newY
             
-            ; 磁吸距离阈值（30像素）
+            ; 纾佸惛璺濈闃堝€硷紙30鍍忕礌锛?
             snapDistance := 30
-            windowWidth := 180  ; [需求3] 更新窗口宽度
-            windowHeight := 25
+            windowWidth := FloatingToolbarCalculateWidth()
+            windowHeight := FloatingToolbarCalculateHeight()
             
-            ; 磁吸到左边缘
+            ; 纾佸惛鍒板乏杈圭紭
             if (adjustedX < snapDistance) {
                 adjustedX := 0
             }
-            ; 磁吸到右边缘
+            ; 纾佸惛鍒板彸杈圭紭
             else if (adjustedX + windowWidth > ScreenWidth - snapDistance) {
                 adjustedX := ScreenWidth - windowWidth
             }
             
-            ; 磁吸到上边缘
+            ; 纾佸惛鍒颁笂杈圭紭
             if (adjustedY < snapDistance) {
                 adjustedY := 0
             }
-            ; 磁吸到下边缘
+            ; 纾佸惛鍒颁笅杈圭紭
             else if (adjustedY + windowHeight > ScreenHeight - snapDistance) {
                 adjustedY := ScreenHeight - windowHeight
             }
             
-            ; 边界检查（防止超出屏幕）
+            ; 杈圭晫妫€鏌ワ紙闃叉瓒呭嚭灞忓箷锛?
             if (adjustedX < 0) {
                 adjustedX := 0
             }
@@ -1210,69 +1196,42 @@ FloatingToolbarCheckWindowPosition() {
                 adjustedY := ScreenHeight - windowHeight
             }
             
-            ; 如果位置需要调整，更新窗口位置
+            ; 濡傛灉浣嶇疆闇€瑕佽皟鏁达紝鏇存柊绐楀彛浣嶇疆
             if (adjustedX != newX || adjustedY != newY) {
                 FloatingToolbarGUI.Move(adjustedX, adjustedY)
                 FloatingToolbarWindowX := adjustedX
                 FloatingToolbarWindowY := adjustedY
             }
             
-            ; [需求1] 位置变化时保存到配置文件
+            ; [闇€姹?] 浣嶇疆鍙樺寲鏃朵繚瀛樺埌閰嶇疆鏂囦欢
             SaveFloatingToolbarPosition()
         } catch {
         }
     }
 }
 
-; ===================== 右键菜单事件 =====================
-OnFloatingToolbarContextMenu(*) {
-    ShowFloatingToolbarContextMenu()
-}
-
-; ===================== 右键菜单 =====================
-ShowFloatingToolbarContextMenu() {
-    global FloatingToolbarGUI
-    
-    ; 创建上下文菜单
-    contextMenu := Menu()
-    contextMenu.Add("关闭", OnFloatingToolbarMenuClose)
-    contextMenu.Add()  ; 分隔线
-    contextMenu.Add("重启脚本", OnFloatingToolbarMenuRestart)
-    
-    ; [需求6] 调整菜单位置：显示在悬浮工具栏上方，避免遮挡
-    FloatingToolbarGUI.GetPos(&wx, &wy, &ww, &wh)
+; 悬浮工具栏右键统一弹出（空白区与图标、favicon 共用）
+FloatingToolbarShowUnifiedPopupAtCursor(*) {
+    CoordMode("Mouse", "Screen")
     MouseGetPos(&mx, &my)
-    
-    ; 如果鼠标在工具栏下方，菜单显示在工具栏上方
-    ; 否则显示在鼠标位置
-    if (my > wy + wh) {
-        menuX := wx + ww / 2
-        menuY := wy - 5
-    } else {
-        menuX := mx
-        menuY := my
-    }
-    
-    ; 显示菜单
-    contextMenu.Show(menuX, menuY)
+    ShowFloatingToolbarUnifiedContextMenu(mx, my)
 }
 
-OnFloatingToolbarMenuRestart(*) {
-    ; 重启脚本
-    Reload
+OnFloatingToolbarContextMenu(*) {
+    FloatingToolbarShowUnifiedPopupAtCursor()
 }
 
-OnFloatingToolbarMenuClose(*) {
-    HideFloatingToolbar()
+FloatingToolbarIconContextMenu(*) {
+    FloatingToolbarShowUnifiedPopupAtCursor()
 }
 
-; ===================== 窗口关闭事件 =====================
+; ===================== 绐楀彛鍏抽棴浜嬩欢 =====================
 OnFloatingToolbarClose(*) {
     HideFloatingToolbar()
 }
 
-; ===================== 位置保存和加载 =====================
-; [需求1] 保存悬浮工具栏位置到配置文件
+; ===================== 浣嶇疆淇濆瓨鍜屽姞杞?=====================
+; [闇€姹?] 淇濆瓨鎮诞宸ュ叿鏍忎綅缃埌閰嶇疆鏂囦欢
 SaveFloatingToolbarPosition() {
     global FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY
     
@@ -1281,111 +1240,116 @@ SaveFloatingToolbarPosition() {
     }
     
     try {
-        ; 获取当前窗口位置
+        ; 鑾峰彇褰撳墠绐楀彛浣嶇疆
         FloatingToolbarGUI.GetPos(&x, &y)
         FloatingToolbarWindowX := x
         FloatingToolbarWindowY := y
         
-        ; 保存到配置文件（使用主脚本的配置文件路径）
+        ; 淇濆瓨鍒伴厤缃枃浠讹紙浣跨敤涓昏剼鏈殑閰嶇疆鏂囦欢璺緞锛?
         ConfigFile := A_ScriptDir . "\CursorShortcut.ini"
         IniWrite(String(x), ConfigFile, "WindowPositions", "FloatingToolbar_X")
         IniWrite(String(y), ConfigFile, "WindowPositions", "FloatingToolbar_Y")
     } catch {
-        ; 保存失败时静默处理
+        ; 淇濆瓨澶辫触鏃堕潤榛樺鐞?
     }
 }
 
-; ===================== 计算工具栏宽度和高度 =====================
+; ===================== 璁＄畻宸ュ叿鏍忓搴﹀拰楂樺害 =====================
 FloatingToolbarCalculateWidth() {
     global FloatingToolbarScale
-    BaseStartX := 35
+    BaseOuterPadding := 6
+    BaseFavIconSize := 28
+    BaseIconGap := 6
+    BaseStartX := BaseOuterPadding + BaseFavIconSize + BaseIconGap
     BaseButtonWidth := 40
     BaseButtonSpacing := 5
+    pad := Round(BaseOuterPadding * FloatingToolbarScale)
     StartX := Round(BaseStartX * FloatingToolbarScale)
     ButtonWidth := Round(BaseButtonWidth * FloatingToolbarScale)
     ButtonSpacing := Round(BaseButtonSpacing * FloatingToolbarScale)
-    return StartX + (ButtonWidth * 5) + (ButtonSpacing * 4) + Round(10 * FloatingToolbarScale)
+    ; 最后一枚按钮右边缘 + 与左侧对称的外边距（不再使用超大 BaseRightPadding / 屏幕比例最小宽度）
+    LastRight := StartX + 5 * ButtonWidth + 4 * ButtonSpacing
+    return LastRight + pad
 }
-
 FloatingToolbarCalculateHeight() {
     global FloatingToolbarScale
-    BaseStartY := 5
-    BaseButtonHeight := 35
-    StartY := Round(BaseStartY * FloatingToolbarScale)
+    BaseOuterPadding := 6
+    BaseButtonHeight := 40
+    padY := Round(BaseOuterPadding * FloatingToolbarScale)
     ButtonHeight := Round(BaseButtonHeight * FloatingToolbarScale)
-    return StartY + ButtonHeight + Round(10 * FloatingToolbarScale)
+    return padY * 2 + ButtonHeight
 }
 
-; ===================== 鼠标滚轮缩放处理 =====================
+; ===================== 榧犳爣婊氳疆缂╂斁澶勭悊 =====================
 FloatingToolbarWM_MOUSEWHEEL(wParam, lParam, msg, hwnd) {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarScale, FloatingToolbarMinScale, FloatingToolbarMaxScale, FloatingToolbarWindowX, FloatingToolbarWindowY
 
-    ; 检查窗口是否可见
     if (!FloatingToolbarIsVisible || !FloatingToolbarGUI) {
         return
     }
 
-    ; 检查鼠标是否在工具栏窗口内（使用MouseGetPos检测）
-    MouseGetPos(&mx, &my, &winHwnd)
-    if (winHwnd != FloatingToolbarGUI.Hwnd) {
+    ; 只要鼠标位于工具栏矩形内，就允许滚轮调整大小
+    MouseGetPos(&mx, &my)
+    FloatingToolbarGUI.GetPos(&wx, &wy, &ww, &wh)
+    if (mx < wx || mx > wx + ww || my < wy || my > wy + wh) {
         return
     }
     
-    ; 获取滚轮方向（wParam的高16位包含滚轮增量）
-    ; 正数 = 向上滚动（放大），负数 = 向下滚动（缩小）
+    ; 鑾峰彇婊氳疆鏂瑰悜锛坵Param鐨勯珮16浣嶅寘鍚粴杞閲忥級
+    ; 姝ｆ暟 = 鍚戜笂婊氬姩锛堟斁澶э級锛岃礋鏁?= 鍚戜笅婊氬姩锛堢缉灏忥級
     wheelDelta := (wParam >> 16) & 0xFFFF
     if (wheelDelta > 0x7FFF) {
         wheelDelta := wheelDelta - 0x10000
     }
     
-    ; 计算新的缩放比例（每次滚动调整15%，提高缩放效率）
+    ; 璁＄畻鏂扮殑缂╂斁姣斾緥锛堟瘡娆℃粴鍔ㄨ皟鏁?5%锛屾彁楂樼缉鏀炬晥鐜囷級
     scaleStep := 0.15
     newScale := FloatingToolbarScale
     
     if (wheelDelta > 0) {
-        ; 向上滚动，放大
+        ; 鍚戜笂婊氬姩锛屾斁澶?
         newScale := FloatingToolbarScale + scaleStep
         if (newScale > FloatingToolbarMaxScale) {
             newScale := FloatingToolbarMaxScale
         }
     } else {
-        ; 向下滚动，缩小
+        ; 鍚戜笅婊氬姩锛岀缉灏?
         newScale := FloatingToolbarScale - scaleStep
         if (newScale < FloatingToolbarMinScale) {
             newScale := FloatingToolbarMinScale
         }
     }
     
-    ; 如果缩放比例发生变化，重新创建工具栏
+    ; 濡傛灉缂╂斁姣斾緥鍙戠敓鍙樺寲锛岄噸鏂板垱寤哄伐鍏锋爮
     if (newScale != FloatingToolbarScale) {
-        ; 获取当前窗口位置和尺寸
+        ; 鑾峰彇褰撳墠绐楀彛浣嶇疆鍜屽昂瀵?
         FloatingToolbarGUI.GetPos(&oldX, &oldY, &oldWidth, &oldHeight)
         
-        ; 获取鼠标在窗口内的相对位置（相对于窗口左上角）
+        ; 鑾峰彇榧犳爣鍦ㄧ獥鍙ｅ唴鐨勭浉瀵逛綅缃紙鐩稿浜庣獥鍙ｅ乏涓婅锛?
         MouseGetPos(&mouseScreenX, &mouseScreenY)
         mouseRelX := mouseScreenX - oldX
         mouseRelY := mouseScreenY - oldY
         
-        ; 计算鼠标位置在窗口中的比例（0.0 到 1.0）
+        ; 璁＄畻榧犳爣浣嶇疆鍦ㄧ獥鍙ｄ腑鐨勬瘮渚嬶紙0.0 鍒?1.0锛?
         mouseRatioX := oldWidth > 0 ? mouseRelX / oldWidth : 0.5
         mouseRatioY := oldHeight > 0 ? mouseRelY / oldHeight : 0.5
         
-        ; 更新缩放比例
+        ; 鏇存柊缂╂斁姣斾緥
         FloatingToolbarScale := newScale
         
-        ; 重新创建GUI（应用新的缩放比例）
+        ; 閲嶆柊鍒涘缓GUI锛堝簲鐢ㄦ柊鐨勭缉鏀炬瘮渚嬶級
         CreateFloatingToolbarGUI()
         
-        ; 重新计算窗口尺寸
+        ; 閲嶆柊璁＄畻绐楀彛灏哄
         ToolbarWidth := FloatingToolbarCalculateWidth()
         ToolbarHeight := FloatingToolbarCalculateHeight()
         
-        ; 计算新窗口位置，使得鼠标位置对应的点在缩放前后保持不变
-        ; 新窗口的左上角位置 = 鼠标屏幕位置 - 鼠标在新窗口中的相对位置
+        ; 璁＄畻鏂扮獥鍙ｄ綅缃紝浣垮緱榧犳爣浣嶇疆瀵瑰簲鐨勭偣鍦ㄧ缉鏀惧墠鍚庝繚鎸佷笉鍙?
+        ; 鏂扮獥鍙ｇ殑宸︿笂瑙掍綅缃?= 榧犳爣灞忓箷浣嶇疆 - 榧犳爣鍦ㄦ柊绐楀彛涓殑鐩稿浣嶇疆
         newX := mouseScreenX - Round(mouseRatioX * ToolbarWidth)
         newY := mouseScreenY - Round(mouseRatioY * ToolbarHeight)
         
-        ; 边界检查（防止窗口超出屏幕）
+        ; 杈圭晫妫€鏌ワ紙闃叉绐楀彛瓒呭嚭灞忓箷锛?
         ScreenWidth := SysGet(0)
         ScreenHeight := SysGet(1)
         if (newX < 0) {
@@ -1401,25 +1365,25 @@ FloatingToolbarWM_MOUSEWHEEL(wParam, lParam, msg, hwnd) {
             newY := ScreenHeight - ToolbarHeight
         }
         
-        ; 更新窗口位置
+        ; 鏇存柊绐楀彛浣嶇疆
         FloatingToolbarWindowX := newX
         FloatingToolbarWindowY := newY
         
-        ; 显示窗口（使用新位置和新尺寸）
+        ; 鏄剧ず绐楀彛锛堜娇鐢ㄦ柊浣嶇疆鍜屾柊灏哄锛?
         FloatingToolbarGUI.Show("x" . newX . " y" . newY . " w" . ToolbarWidth . " h" . ToolbarHeight)
         
-        ; 重新应用圆角边框（窗口尺寸改变后）
+        ; 閲嶆柊搴旂敤鍦嗚杈规锛堢獥鍙ｅ昂瀵告敼鍙樺悗锛?
         FloatingToolbarApplyRoundedCorners()
         
-        ; 保存缩放比例和位置到配置文件
+        ; 淇濆瓨缂╂斁姣斾緥鍜屼綅缃埌閰嶇疆鏂囦欢
         FloatingToolbarSaveScale()
         SaveFloatingToolbarPosition()
     }
     
-    return 0  ; 表示已处理消息
+    return 0  ; 琛ㄧず宸插鐞嗘秷鎭?
 }
 
-; ===================== 保存和加载缩放比例 =====================
+; ===================== 淇濆瓨鍜屽姞杞界缉鏀炬瘮渚?=====================
 FloatingToolbarSaveScale() {
     global FloatingToolbarScale
     try {
@@ -1436,7 +1400,7 @@ FloatingToolbarLoadScale() {
         savedScale := IniRead(ConfigFile, "FloatingToolbar", "Scale", "1.0")
         if (savedScale != "" && savedScale != "ERROR") {
             scaleValue := Float(savedScale)
-            ; 确保缩放比例在有效范围内
+            ; 纭繚缂╂斁姣斾緥鍦ㄦ湁鏁堣寖鍥村唴
             if (scaleValue >= FloatingToolbarMinScale && scaleValue <= FloatingToolbarMaxScale) {
                 FloatingToolbarScale := scaleValue
             }
@@ -1445,27 +1409,27 @@ FloatingToolbarLoadScale() {
     }
 }
 
-; [需求1] 从配置文件加载悬浮工具栏位置
+; [闇€姹?] 浠庨厤缃枃浠跺姞杞芥偓娴伐鍏锋爮浣嶇疆
 LoadFloatingToolbarPosition() {
     global FloatingToolbarWindowX, FloatingToolbarWindowY
     
     try {
         ConfigFile := A_ScriptDir . "\CursorShortcut.ini"
         
-        ; 读取保存的位置
+        ; 璇诲彇淇濆瓨鐨勪綅缃?
         savedX := IniRead(ConfigFile, "WindowPositions", "FloatingToolbar_X", "")
         savedY := IniRead(ConfigFile, "WindowPositions", "FloatingToolbar_Y", "")
         
-        ; 如果读取成功且值有效，使用保存的位置
+        ; 濡傛灉璇诲彇鎴愬姛涓斿€兼湁鏁堬紝浣跨敤淇濆瓨鐨勪綅缃?
         if (savedX != "" && savedY != "" && savedX != "ERROR" && savedY != "ERROR") {
             FloatingToolbarWindowX := Integer(savedX)
             FloatingToolbarWindowY := Integer(savedY)
             
-            ; 验证位置是否在屏幕范围内
+            ; 楠岃瘉浣嶇疆鏄惁鍦ㄥ睆骞曡寖鍥村唴
             ScreenWidth := SysGet(0)
             ScreenHeight := SysGet(1)
             
-            ; 计算窗口宽度和高度
+            ; 璁＄畻绐楀彛瀹藉害鍜岄珮搴?
             ToolbarWidth := FloatingToolbarCalculateWidth()
             ToolbarHeight := FloatingToolbarCalculateHeight()
             if (FloatingToolbarWindowX < 0 || FloatingToolbarWindowX > ScreenWidth - ToolbarWidth) {
@@ -1476,14 +1440,14 @@ LoadFloatingToolbarPosition() {
             }
         }
     } catch {
-        ; 加载失败时使用默认位置
+        ; 鍔犺浇澶辫触鏃朵娇鐢ㄩ粯璁や綅缃?
         FloatingToolbarWindowX := 0
         FloatingToolbarWindowY := 0
     }
 }
 
-; ===================== 初始化 =====================
-; ===================== 隐藏到屏幕边缘 =====================
+; ===================== 鍒濆鍖?=====================
+; ===================== 闅愯棌鍒板睆骞曡竟缂?=====================
 MinimizeFloatingToolbarToEdge() {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarIsMinimized
     global FloatingToolbarWindowX, FloatingToolbarWindowY
@@ -1492,20 +1456,20 @@ MinimizeFloatingToolbarToEdge() {
         return
     }
     
-    ; 获取当前窗口位置
+    ; 鑾峰彇褰撳墠绐楀彛浣嶇疆
     FloatingToolbarGUI.GetPos(&currentX, &currentY, &currentW, &currentH)
     
-    ; 获取屏幕尺寸
+    ; 鑾峰彇灞忓箷灏哄
     ScreenWidth := SysGet(0)
     ScreenHeight := SysGet(1)
     
-    ; 计算到各边缘的距离，选择最近的边缘
+    ; 璁＄畻鍒板悇杈圭紭鐨勮窛绂伙紝閫夋嫨鏈€杩戠殑杈圭紭
     distLeft := currentX
     distRight := ScreenWidth - (currentX + currentW)
     distTop := currentY
     distBottom := ScreenHeight - (currentY + currentH)
     
-    ; 找到最小距离
+    ; 鎵惧埌鏈€灏忚窛绂?
     minDist := distLeft
     targetX := 0
     targetY := currentY
@@ -1526,41 +1490,41 @@ MinimizeFloatingToolbarToEdge() {
         targetY := ScreenHeight - currentH
     }
     
-    ; 移动到最近的边缘
+    ; 绉诲姩鍒版渶杩戠殑杈圭紭
     FloatingToolbarGUI.Move(targetX, targetY)
     FloatingToolbarWindowX := targetX
     FloatingToolbarWindowY := targetY
     FloatingToolbarIsMinimized := true
     
-    ; 保存位置
+    ; 淇濆瓨浣嶇疆
     SaveFloatingToolbarPosition()
 }
 
-; ===================== 恢复悬浮工具栏 =====================
+; ===================== 鎭㈠鎮诞宸ュ叿鏍?=====================
 RestoreFloatingToolbar() {
     global FloatingToolbarIsMinimized
     FloatingToolbarIsMinimized := false
-    ; 位置已保存，显示时会自动加载
+    ; 浣嶇疆宸蹭繚瀛橈紝鏄剧ず鏃朵細鑷姩鍔犺浇
 }
 
 InitFloatingToolbar() {
-    ; 初始化完成，可以调用 ShowFloatingToolbar() 显示悬浮窗
+    ; 鍒濆鍖栧畬鎴愶紝鍙互璋冪敤 ShowFloatingToolbar() 鏄剧ず鎮诞绐?
 }
 
-; ===================== 根据按钮action获取提示文字 =====================
+; ===================== 鏍规嵁鎸夐挳action鑾峰彇鎻愮ず鏂囧瓧 =====================
 GetButtonTip(action) {
-    ; 根据按钮的action类型返回对应的提示文字
+    ; 鏍规嵁鎸夐挳鐨刟ction绫诲瀷杩斿洖瀵瑰簲鐨勬彁绀烘枃瀛?
     switch action {
         case "Search":
-            return "搜索记录 (Caps + F)"
+            return "鎼滅储璁板綍 (Caps + F)"
         case "Record":
-            return "剪贴板历史 (Caps + X)"
+            return "鍓创鏉垮巻鍙?(Caps + X)"
         case "AIAssistant":
-            return "AI助手 (Ctrl+Shift+B)"
+            return "AI鍔╂墜 (Ctrl+Shift+B)"
         case "Screenshot":
-            return "屏幕截图 (Caps + T)"
+            return "灞忓箷鎴浘 (Caps + T)"
         case "Settings":
-            return "系统设置 (Caps + Q)"
+            return "绯荤粺璁剧疆 (Caps + Q)"
         default:
             return ""
     }
