@@ -3937,6 +3937,8 @@ global CapsLockPressTime := 0
     
     ; 记录按下时间
     CapsLockPressTime := A_TickCount
+    ; 双击判定：两次 CapsLock 触发间隔在 300ms 内
+    IsCapsDoubleClick := (InStr(A_PriorHotkey, "CapsLock") && A_TimeSincePriorHotkey > 0 && A_TimeSincePriorHotkey <= 300)
     
     ; 如果正在语音输入或语音搜索，处理暂停/恢复逻辑
     global VoiceInputActive, VoiceSearchActive
@@ -4000,29 +4002,18 @@ global CapsLockPressTime := 0
     ; 2. CapsLock释放后，由释放逻辑清除
     ; SetTimer(ClearCapsLock2Timer, -300)  ; 已移除
     
-    ; 设置定时器：长按指定时间后自动显示面板（不在语音输入时）
-    ; 使用配置的长按时间（秒转换为毫秒）
-    HoldTimeMs := Round(CapsLockHoldTimeSeconds * 1000)
-    ; 确保时间在合理范围内（100ms到5000ms）
-    if (HoldTimeMs < 100) {
-        HoldTimeMs := 100
-    } else if (HoldTimeMs > 5000) {
-        HoldTimeMs := 5000
-    }
-    SetTimer(ShowPanelTimer, -HoldTimeMs)
-    
     ; 等待 CapsLock 释放
     KeyWait("CapsLock")
     
-    ; 停止所有定时器（ClearCapsLock2Timer已不再使用，但保留停止调用以避免潜在问题）
-    ; SetTimer(ClearCapsLock2Timer, 0)  ; 已移除ClearCapsLock2Timer定时器
-    SetTimer(ShowPanelTimer, 0)
-    
-    ; 【修复】检查面板是否已显示（如果已显示，说明是长按，不应该切换大小写）
-    ; 如果面板已显示，说明是长按触发的，不应该切换大小写
-    if (PanelVisible) {
-        ; 面板已显示，说明是长按，恢复初始状态（保持按下前的状态）
-        SetCapsLockState(InitialCapsLockState)
+    ; 双击 CapsLock：快捷面板开关（已开则关，已关则开），并撤销第一次单击对大小写状态的切换
+    if (CapsLock2 && IsCapsDoubleClick) {
+        if (PanelVisible) {
+            HideCursorPanel()
+        } else {
+            ShowCursorPanel()
+        }
+        ; 当前 InitialCapsLockState 已是第一次单击后的状态，取反即可回到双击前
+        SetCapsLockState(!InitialCapsLockState)
         ; 延迟清除 CapsLock 变量，给快捷键处理函数足够的时间
         SetTimer(ClearCapsLockTimer, -100)
         CapsLock2 := false

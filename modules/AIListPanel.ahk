@@ -646,8 +646,7 @@ PromptQuickPad_ClearCaptureDraft(*) {
 PromptQuickPad_OpenCaptureDraft(initialText := "", forceExpand := true) {
     global AIListPanelIsVisible, AIListPanelGUI, PromptQuickPad_PendingCaptureText
     PromptQuickPad_PendingCaptureText := initialText
-    if !AIListPanelIsVisible || AIListPanelGUI = 0
-        ShowAIListPanel(true)
+    ShowAIListPanel(true, true)
     PromptQuickPad_SetCaptureChromeVisible(true, false)
     if forceExpand
         PromptQuickPad_SetCaptureExpanded(true, false)
@@ -677,6 +676,7 @@ PromptQuickPad_RelayoutMainControls(clientW := 0, clientH := 0) {
     global PromptQuickPadLblDraftTags, PromptQuickPad_edDraftTags, PromptQuickPad_chkCaptureSilent, PromptQuickPad_chkCaptureSilentTpl
     global PromptQuickPadLblDraftBody, PromptQuickPad_edDraftContent, PromptQuickPad_btnDraftLoad, PromptQuickPad_btnDraftSave
     global PromptQuickPad_btnDraftClear, PromptQuickPadLblListFilter
+    global PromptQuickPadBtnImport, PromptQuickPadBtnExport, PromptQuickPadBtnPinTop, PromptQuickPadBtnJsonHelp
     if AIListPanelGUI = 0
         return
     if clientW <= 0 || clientH <= 0
@@ -691,14 +691,6 @@ PromptQuickPad_RelayoutMainControls(clientW := 0, clientH := 0) {
     linkBarH := PromptQuickPad_LinkBarHeight > 8 ? PromptQuickPad_LinkBarHeight : 22
     catBlock := PromptQuickPadCategoryStripHeight > 8 ? PromptQuickPadCategoryStripHeight : 36
     belowCat := topPad + catBlock + 6
-    if PromptQuickPadBtnImport != 0
-        PromptQuickPadBtnImport.Move(margin, belowCat)
-    if PromptQuickPadBtnExport != 0
-        PromptQuickPadBtnExport.Move(margin + 52, belowCat)
-    if PromptQuickPadBtnPinTop != 0
-        PromptQuickPadBtnPinTop.Move(margin + 100, belowCat)
-    if PromptQuickPadBtnJsonHelp != 0
-        PromptQuickPadBtnJsonHelp.Move(margin + 182, belowCat)
     hdrW := w - margin * 2
     toggleH := 22
     searchY := belowCat + linkBarH + 8
@@ -772,7 +764,13 @@ PromptQuickPad_RelayoutMainControls(clientW := 0, clientH := 0) {
     if AIListPanelSearchInput != 0
         AIListPanelSearchInput.Move(margin, searchY, w - margin * 2, searchH)
     lvY := searchY + searchH + margin
-    lvH := h - lvY - statusH - bottomPad
+    linkY := h - bottomPad - linkBarH
+    if linkY < 0
+        linkY := 0
+    statusY := linkY - 6 - statusH
+    if statusY < lvY + 40
+        statusY := lvY + 40
+    lvH := statusY - lvY - margin
     if lvH < 80
         lvH := 80
     if PromptQuickPadListLV != 0 {
@@ -786,7 +784,15 @@ PromptQuickPad_RelayoutMainControls(clientW := 0, clientH := 0) {
         }
     }
     if PromptQuickPadStatusText != 0
-        PromptQuickPadStatusText.Move(margin, h - statusH - bottomPad, w - margin * 2, statusH)
+        PromptQuickPadStatusText.Move(margin, statusY, w - margin * 2, statusH)
+    if PromptQuickPadBtnImport != 0
+        PromptQuickPadBtnImport.Move(margin, linkY)
+    if PromptQuickPadBtnExport != 0
+        PromptQuickPadBtnExport.Move(margin + 52, linkY)
+    if PromptQuickPadBtnPinTop != 0
+        PromptQuickPadBtnPinTop.Move(margin + 100, linkY)
+    if PromptQuickPadBtnJsonHelp != 0
+        PromptQuickPadBtnJsonHelp.Move(margin + 182, linkY)
 }
 
 PromptQuickPad_MakeCategoryHandler(CatName) {
@@ -1384,11 +1390,95 @@ PromptQuickPad_OpenReadOnlyViewer(Title, Content) {
     g.Show()
 }
 
+PromptQuickPad_SaveBuiltinPrompt(KeyName, NewContent) {
+    global Prompt_Explain, Prompt_Refactor, Prompt_Optimize
+    cfg := A_ScriptDir . "\CursorShortcut.ini"
+    if KeyName = "Explain" {
+        Prompt_Explain := NewContent
+        try IniWrite(NewContent, cfg, "Settings", "Prompt_Explain")
+        catch {
+        }
+        try IniWrite(NewContent, cfg, "Prompts", "Explain")
+        catch {
+        }
+        return
+    }
+    if KeyName = "Refactor" {
+        Prompt_Refactor := NewContent
+        try IniWrite(NewContent, cfg, "Settings", "Prompt_Refactor")
+        catch {
+        }
+        try IniWrite(NewContent, cfg, "Prompts", "Refactor")
+        catch {
+        }
+        return
+    }
+    if KeyName = "Optimize" {
+        Prompt_Optimize := NewContent
+        try IniWrite(NewContent, cfg, "Settings", "Prompt_Optimize")
+        catch {
+        }
+        try IniWrite(NewContent, cfg, "Prompts", "Optimize")
+        catch {
+        }
+    }
+}
+
+PromptQuickPad_SaveTemplateContent(TemplateID, NewTitle, NewCategory, NewContent) {
+    global PromptTemplates
+    for idx, T in PromptTemplates {
+        try tid := T.ID
+        catch
+            tid := ""
+        if tid != TemplateID
+            continue
+        try T.Title := NewTitle
+        catch {
+        }
+        try T.Category := NewCategory
+        catch {
+        }
+        try T.Content := NewContent
+        catch {
+        }
+        PromptTemplates[idx] := T
+        try SavePromptTemplates()
+        catch {
+        }
+        try RefreshPromptListView()
+        catch {
+        }
+        return true
+    }
+    return false
+}
+
 PromptQuickPad_SaveEditContent(eg, ed, entry) {
     entry["content"] := ed.Value
     PromptQuickPad_SaveToDisk()
     eg.Destroy()
     PromptQuickPad_RefreshListView()
+}
+
+PromptQuickPad_SaveBuiltinEdit(eg, ed, keyName) {
+    PromptQuickPad_SaveBuiltinPrompt(keyName, ed.Value)
+    eg.Destroy()
+    PromptQuickPad_RefreshListView()
+}
+
+PromptQuickPad_SaveTemplateEdit(eg, titleEd, catEd, bodyEd, templateId) {
+    title := Trim(titleEd.Value)
+    cat := Trim(catEd.Value)
+    if title = ""
+        title := "未命名模板"
+    if cat = ""
+        cat := "未分类"
+    if PromptQuickPad_SaveTemplateContent(templateId, title, cat, bodyEd.Value) {
+        eg.Destroy()
+        PromptQuickPad_RefreshListView()
+        return
+    }
+    MsgBox("未找到要保存的模板。", "Prompt Quick-Pad", "Iconx")
 }
 
 PromptQuickPad_EditItem(row) {
@@ -1400,29 +1490,137 @@ PromptQuickPad_EditItem(row) {
         return
     shell := PromptQuickPadMergedSnapshot[mi]
     src := shell.Has("source") ? shell["source"] : ""
-    if src != "json" {
-        PromptQuickPad_OpenReadOnlyViewer(shell.Has("title") ? shell["title"] : "提示词", shell.Has("content") ? shell["content"] : "")
-        return
-    }
-    uix := shell.Has("userIndex") ? Integer(shell["userIndex"]) : 0
-    if uix < 1 || uix > PromptQuickPadData.Length
-        return
-    entry := PromptQuickPadData[uix]
     opt := "+AlwaysOnTop"
     if AIListPanelGUI != 0
         opt .= " +Owner" . AIListPanelGUI.Hwnd
-    eg := Gui(opt, "编辑内容")
+    if src = "json" {
+        uix := shell.Has("userIndex") ? Integer(shell["userIndex"]) : 0
+        if uix < 1 || uix > PromptQuickPadData.Length
+            return
+        entry := PromptQuickPadData[uix]
+        eg := Gui(opt, "编辑内容")
+        eg.BackColor := AIListPanelColors.Background
+        eg.SetFont("s10 c" . AIListPanelColors.Text, "Segoe UI")
+        ed := eg.Add("Edit", "x10 y10 w420 h260 Multi WantReturn VScroll", entry["content"])
+        ed.SetFont("s9", "Consolas")
+        eg.Add("Button", "x10 y280 w100 h28 Default", "保存").OnEvent("Click", (*) => PromptQuickPad_SaveEditContent(eg, ed, entry))
+        eg.Add("Button", "x120 y280 w100 h28", "取消").OnEvent("Click", (*) => eg.Destroy())
+        eg.OnEvent("Escape", (*) => eg.Destroy())
+        eg.Show()
+        return
+    }
+    if src = "builtin" {
+        title := shell.Has("title") ? shell["title"] : "快捷提示词"
+        content := shell.Has("content") ? shell["content"] : ""
+        builtinKey := ""
+        hk := shell.Has("hotkey") ? shell["hotkey"] : ""
+        if hk = "CapsLock+E"
+            builtinKey := "Explain"
+        else if hk = "CapsLock+R"
+            builtinKey := "Refactor"
+        else if hk = "CapsLock+O"
+            builtinKey := "Optimize"
+        if builtinKey = "" {
+            PromptQuickPad_OpenReadOnlyViewer(title, content)
+            return
+        }
+        eg := Gui(opt, "编辑全局提示词")
+        eg.BackColor := AIListPanelColors.Background
+        eg.SetFont("s10 c" . AIListPanelColors.Text, "Segoe UI")
+        eg.Add("Text", "x10 y10 w420 h22", title . "（修改后同步到 设置）")
+        ed := eg.Add("Edit", "x10 y38 w420 h232 Multi WantReturn VScroll", content)
+        ed.SetFont("s9", "Consolas")
+        eg.Add("Button", "x10 y282 w100 h28 Default", "保存").OnEvent("Click", (*) => PromptQuickPad_SaveBuiltinEdit(eg, ed, builtinKey))
+        eg.Add("Button", "x120 y282 w100 h28", "取消").OnEvent("Click", (*) => eg.Destroy())
+        eg.OnEvent("Escape", (*) => eg.Destroy())
+        eg.Show()
+        return
+    }
+    if src = "template" {
+        templateId := shell.Has("templateId") ? shell["templateId"] : ""
+        title := shell.Has("title") ? shell["title"] : ""
+        category := shell.Has("category") ? shell["category"] : ""
+        content := shell.Has("content") ? shell["content"] : ""
+        eg := Gui(opt, "编辑模板")
+        eg.BackColor := AIListPanelColors.Background
+        eg.SetFont("s10 c" . AIListPanelColors.Text, "Segoe UI")
+        eg.Add("Text", "x10 y10 w60 h22", "标题")
+        titleEd := eg.Add("Edit", "x80 y10 w350 h22", title)
+        eg.Add("Text", "x10 y40 w60 h22", "分类")
+        catEd := eg.Add("Edit", "x80 y40 w350 h22", category)
+        eg.Add("Text", "x10 y70 w60 h22", "正文")
+        bodyEd := eg.Add("Edit", "x10 y94 w420 h180 Multi WantReturn VScroll", content)
+        bodyEd.SetFont("s9", "Consolas")
+        eg.Add("Button", "x10 y286 w100 h28 Default", "保存").OnEvent("Click", (*) => PromptQuickPad_SaveTemplateEdit(eg, titleEd, catEd, bodyEd, templateId))
+        eg.Add("Button", "x120 y286 w100 h28", "取消").OnEvent("Click", (*) => eg.Destroy())
+        eg.OnEvent("Escape", (*) => eg.Destroy())
+        eg.Show()
+        return
+    }
+    eg := Gui(opt, "查看内容")
     eg.BackColor := AIListPanelColors.Background
     eg.SetFont("s10 c" . AIListPanelColors.Text, "Segoe UI")
-    ed := eg.Add("Edit", "x10 y10 w420 h260 Multi WantReturn VScroll", entry["content"])
+    ed := eg.Add("Edit", "x10 y10 w420 h260 Multi ReadOnly VScroll", shell.Has("content") ? shell["content"] : "")
     ed.SetFont("s9", "Consolas")
-    eg.Add("Button", "x10 y280 w100 h28 Default", "保存").OnEvent("Click", (*) => PromptQuickPad_SaveEditContent(eg, ed, entry))
-    eg.Add("Button", "x120 y280 w100 h28", "取消").OnEvent("Click", (*) => eg.Destroy())
+    eg.Add("Button", "x10 y280 w100 h28 Default", "关闭").OnEvent("Click", (*) => eg.Destroy())
     eg.OnEvent("Escape", (*) => eg.Destroy())
     eg.Show()
 }
 
-ShowAIListPanel(openForCapture := false) {
+PromptQuickPad_CenterAndMaximizeOnActiveMonitor() {
+    global AIListPanelGUI, AIListPanelWindowX, AIListPanelWindowY, AIListPanelWindowW, AIListPanelWindowH
+    if AIListPanelGUI = 0
+        return
+    mx := 0, my := 0
+    try MouseGetPos(&mx, &my)
+    monCount := 1
+    try monCount := MonitorGetCount()
+    targetMon := 1
+    try targetMon := MonitorGetPrimary()
+    Loop monCount {
+        try {
+            MonitorGetWorkArea(A_Index, &ml, &mt, &mr, &mb)
+            if mx >= ml && mx < mr && my >= mt && my < mb {
+                targetMon := A_Index
+                break
+            }
+        } catch {
+        }
+    }
+    try MonitorGetWorkArea(targetMon, &left, &top, &right, &bottom)
+    catch {
+        left := 0
+        top := 0
+        right := SysGet(0)
+        bottom := SysGet(1)
+    }
+    workW := right - left
+    workH := bottom - top
+    normalW := AIListPanelWindowW > 0 ? AIListPanelWindowW : 560
+    normalH := AIListPanelWindowH > 0 ? AIListPanelWindowH : 560
+    if normalW < 440
+        normalW := 440
+    if normalH < 460
+        normalH := 460
+    if normalW > workW
+        normalW := workW
+    if normalH > workH
+        normalH := workH
+    centerX := left + (workW - normalW) // 2
+    centerY := top + (workH - normalH) // 2
+    AIListPanelWindowX := centerX
+    AIListPanelWindowY := centerY
+    AIListPanelWindowW := normalW
+    AIListPanelWindowH := normalH
+    try AIListPanelGUI.Show("x" . centerX . " y" . centerY . " w" . normalW . " h" . normalH)
+    catch {
+    }
+    try WinMaximize("ahk_id " . AIListPanelGUI.Hwnd)
+    catch {
+    }
+}
+
+ShowAIListPanel(openForCapture := false, forceCenterMaximize := false) {
     global AIListPanelGUI, AIListPanelIsVisible
     global AIListPanelWindowX, AIListPanelWindowY, AIListPanelWindowW, AIListPanelWindowH
     global FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY
@@ -1431,6 +1629,16 @@ ShowAIListPanel(openForCapture := false) {
     global PromptQuickPad_CaptureChromeVisible
 
     if AIListPanelIsVisible && AIListPanelGUI != 0 {
+        if forceCenterMaximize {
+            try WinRestore("ahk_id " . AIListPanelGUI.Hwnd)
+            catch {
+            }
+            PromptQuickPad_CenterAndMaximizeOnActiveMonitor()
+            try WinActivate("ahk_id " . AIListPanelGUI.Hwnd)
+            catch {
+            }
+            return
+        }
         HideAIListPanel()
         return
     }
@@ -1499,6 +1707,9 @@ ShowAIListPanel(openForCapture := false) {
 
     try {
         AIListPanelGUI.Show("x" . panelX . " y" . panelY . " w" . panelW . " h" . panelH)
+        if forceCenterMaximize {
+            PromptQuickPad_CenterAndMaximizeOnActiveMonitor()
+        }
         AIListPanelIsVisible := true
     } catch as err {
         TrayTip("显示失败: " . err.Message, "错误", "Iconx 2")
@@ -1565,7 +1776,20 @@ ToggleAIListPanel() {
 }
 
 ShowPromptQuickPadListOnly() {
-    ShowAIListPanel(false)
+    global AIListPanelIsVisible, AIListPanelGUI, AIListPanelSearchInput
+    ShowAIListPanel(true, true)
+    if !AIListPanelIsVisible || AIListPanelGUI = 0
+        return
+    ; 悬浮工具栏 Prompt：显示同款折叠栏，但默认保持收起
+    PromptQuickPad_SetCaptureExpanded(false, false)
+    PromptQuickPad_UpdateCaptureToggleText()
+    PromptQuickPad_ApplyCaptureControlsVisibility()
+    PromptQuickPad_RelayoutMainControls()
+    if AIListPanelSearchInput != 0 {
+        try AIListPanelSearchInput.Focus()
+        catch {
+        }
+    }
 }
 
 CreateAIListPanelGUI() {
@@ -1611,17 +1835,20 @@ CreateAIListPanelGUI() {
     initW := AIListPanelWindowW > 0 ? AIListPanelWindowW : 560
     initH := AIListPanelWindowH > 0 ? AIListPanelWindowH : 520
 
-    PromptQuickPadBtnImport := AIListPanelGUI.Add("Text", "x" . margin . " y54 w40 h18 +0x100 c" . AIListPanelColors.AccentOrange, "导入")
+    linkInitY := initH - 34
+    if linkInitY < 54
+        linkInitY := 54
+    PromptQuickPadBtnImport := AIListPanelGUI.Add("Text", "x" . margin . " y" . linkInitY . " w40 h18 +0x100 c" . AIListPanelColors.AccentOrange, "导入")
     PromptQuickPadBtnImport.SetFont("s9 underline", "Segoe UI")
     PromptQuickPadBtnImport.OnEvent("Click", PromptQuickPad_DoImport)
-    PromptQuickPadBtnExport := AIListPanelGUI.Add("Text", "x" . (margin + 52) . " y54 w40 h18 +0x100 c" . AIListPanelColors.AccentOrange, "导出")
+    PromptQuickPadBtnExport := AIListPanelGUI.Add("Text", "x" . (margin + 52) . " y" . linkInitY . " w40 h18 +0x100 c" . AIListPanelColors.AccentOrange, "导出")
     PromptQuickPadBtnExport.SetFont("s9 underline", "Segoe UI")
     PromptQuickPadBtnExport.OnEvent("Click", PromptQuickPad_DoExport)
-    PromptQuickPadBtnPinTop := AIListPanelGUI.Add("Text", "x" . (margin + 100) . " y54 w72 h18 +0x100 c" . AIListPanelColors.AccentOrange, "")
+    PromptQuickPadBtnPinTop := AIListPanelGUI.Add("Text", "x" . (margin + 100) . " y" . linkInitY . " w72 h18 +0x100 c" . AIListPanelColors.AccentOrange, "")
     PromptQuickPadBtnPinTop.SetFont("s9 underline", "Segoe UI")
     PromptQuickPadBtnPinTop.OnEvent("Click", PromptQuickPad_TogglePinTop)
     PromptQuickPad_RefreshPinTopLabel()
-    PromptQuickPadBtnJsonHelp := AIListPanelGUI.Add("Text", "x" . (margin + 182) . " y54 w130 h18 +0x100 c" . AIListPanelColors.AccentOrange, "JSON 格式说明")
+    PromptQuickPadBtnJsonHelp := AIListPanelGUI.Add("Text", "x" . (margin + 182) . " y" . linkInitY . " w130 h18 +0x100 c" . AIListPanelColors.AccentOrange, "JSON 格式说明")
     PromptQuickPadBtnJsonHelp.SetFont("s9 underline", "Segoe UI")
     PromptQuickPadBtnJsonHelp.OnEvent("Click", PromptQuickPad_ShowJsonFormatHelp)
 
