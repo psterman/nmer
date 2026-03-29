@@ -959,7 +959,7 @@ PromptQuickPad_GetFocusedRow() {
 }
 
 PromptQuickPad_PasteRow(row) {
-    global PromptQuickPadFilteredIdx, PromptQuickPadMergedSnapshot, PromptQuickPad_PasteTargetHwnd, AIListPanelGUI, FloatingToolbarGUI
+    global PromptQuickPadFilteredIdx, PromptQuickPadMergedSnapshot
     if row < 1 || row > PromptQuickPadFilteredIdx.Length
         return
     srcIdx := PromptQuickPadFilteredIdx[row]
@@ -969,30 +969,22 @@ PromptQuickPad_PasteRow(row) {
     content := entry.Has("content") ? entry["content"] : ""
     if content = ""
         return
-    target := PromptQuickPad_PasteTargetHwnd
-    if FloatingToolbarGUI && target = FloatingToolbarGUI.Hwnd
-        target := 0
-    A_Clipboard := ""
-    A_Clipboard := content
+    try A_Clipboard := ""
+    catch {
+    }
+    try A_Clipboard := content
+    catch {
+        TrayTip("复制失败", "Prompt Quick-Pad", "Iconx 1")
+        return
+    }
     if !ClipWait(2.0) {
         TrayTip("剪贴板写入失败", "Prompt Quick-Pad", "Iconx 1")
         return
     }
-    HideAIListPanel()
-    if target && DllCall("IsWindow", "ptr", target) {
-        if !AIListPanelGUI || target != AIListPanelGUI.Hwnd {
-            try DllCall("AllowSetForegroundWindow", "uint", 0xFFFFFFFF)
-            catch {
-            }
-            try {
-                WinActivate("ahk_id " . target)
-                WinWaitActive("ahk_id " . target, , 0.45)
-            } catch {
-            }
-        }
+    try HideAIListPanel()
+    catch {
     }
-    Sleep(90)
-    SendInput("^v")
+    TrayTip("已复制提示词，请粘贴", "Prompt Quick-Pad", "Iconi 1")
 }
 
 PromptQuickPad_OnEnter(*) {
