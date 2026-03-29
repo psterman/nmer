@@ -17,7 +17,7 @@ global AIListPanelDragStartY := 0
 global AIListPanelWindowX := 0
 global AIListPanelWindowY := 0
 global AIListPanelWindowW := 520
-global AIListPanelWindowH := 560
+global AIListPanelWindowH := 480
 global AIListPanelIsMinimized := false
 global AIListPanelSearchInput := 0
 global AIListPanelEnterHotkey := 0
@@ -62,24 +62,6 @@ global PromptQuickPad_PinTop := true
 global PromptQuickPad_LinkBarHeight := 22
 global PromptQuickPadCtxMenuGUI := 0
 global PromptQuickPadCtxMenuSel := 0
-global PromptQuickPad_CaptureChromeVisible := false
-global PromptQuickPad_CaptureExpanded := false
-global PromptQuickPadCaptureToggle := 0
-global PromptQuickPadLblDraftTitle := 0
-global PromptQuickPad_edDraftTitle := 0
-global PromptQuickPadLblDraftCat := 0
-global PromptQuickPad_cbDraftCategory := 0
-global PromptQuickPadLblDraftTags := 0
-global PromptQuickPad_edDraftTags := 0
-global PromptQuickPad_chkCaptureSilent := 0
-global PromptQuickPad_chkCaptureSilentTpl := 0
-global PromptQuickPadLblDraftBody := 0
-global PromptQuickPad_edDraftContent := 0
-global PromptQuickPad_btnDraftLoad := 0
-global PromptQuickPad_btnDraftSave := 0
-global PromptQuickPad_btnDraftClear := 0
-global PromptQuickPadLblListFilter := 0
-global PromptQuickPad_PendingCaptureText := ""
 
 AIListPanelColors := {
     Background: "1e1e1e",
@@ -361,322 +343,10 @@ PromptQuickPad_GetClientSize(hwnd, &cw, &ch) {
     return true
 }
 
-PromptQuickPad_ResetCaptureDraftRefs() {
-    global PromptQuickPadCaptureToggle, PromptQuickPadLblDraftTitle, PromptQuickPad_edDraftTitle
-    global PromptQuickPadLblDraftCat, PromptQuickPad_cbDraftCategory, PromptQuickPadLblDraftTags, PromptQuickPad_edDraftTags
-    global PromptQuickPad_chkCaptureSilent, PromptQuickPad_chkCaptureSilentTpl
-    global PromptQuickPadLblDraftBody, PromptQuickPad_edDraftContent
-    global PromptQuickPad_btnDraftLoad, PromptQuickPad_btnDraftSave, PromptQuickPad_btnDraftClear
-    global PromptQuickPadLblListFilter
-    PromptQuickPadCaptureToggle := 0
-    PromptQuickPadLblDraftTitle := 0
-    PromptQuickPad_edDraftTitle := 0
-    PromptQuickPadLblDraftCat := 0
-    PromptQuickPad_cbDraftCategory := 0
-    PromptQuickPadLblDraftTags := 0
-    PromptQuickPad_edDraftTags := 0
-    PromptQuickPad_chkCaptureSilent := 0
-    PromptQuickPad_chkCaptureSilentTpl := 0
-    PromptQuickPadLblDraftBody := 0
-    PromptQuickPad_edDraftContent := 0
-    PromptQuickPad_btnDraftLoad := 0
-    PromptQuickPad_btnDraftSave := 0
-    PromptQuickPad_btnDraftClear := 0
-    PromptQuickPadLblListFilter := 0
-}
-
-PromptQuickPad_LoadCaptureExpandedFromIni() {
-    global PromptQuickPad_CaptureExpanded
-    cfg := A_ScriptDir . "\CursorShortcut.ini"
-    try
-        PromptQuickPad_CaptureExpanded := (IniRead(cfg, "PromptQuickPad", "CapturePanelExpanded", "1") = "1")
-    catch
-        PromptQuickPad_CaptureExpanded := true
-}
-
-PromptQuickPad_SaveCaptureExpandedToIni() {
-    global PromptQuickPad_CaptureExpanded
-    cfg := A_ScriptDir . "\CursorShortcut.ini"
-    try IniWrite(PromptQuickPad_CaptureExpanded ? "1" : "0", cfg, "PromptQuickPad", "CapturePanelExpanded")
-    catch {
-    }
-}
-
-PromptQuickPad_UpdateCaptureToggleText() {
-    global PromptQuickPadCaptureToggle, PromptQuickPad_CaptureExpanded
-    if PromptQuickPadCaptureToggle = 0
-        return
-    try PromptQuickPadCaptureToggle.Text := PromptQuickPad_CaptureExpanded ? "▼ 摘录 / 采集（点击收起）" : "▶ 摘录 / 采集（点击展开）"
-    catch {
-    }
-}
-
-PromptQuickPad_ApplyCaptureControlsVisibility() {
-    global PromptQuickPad_CaptureExpanded, PromptQuickPad_CaptureChromeVisible
-    global PromptQuickPadCaptureToggle
-    global PromptQuickPadLblDraftTitle, PromptQuickPad_edDraftTitle, PromptQuickPadLblDraftCat, PromptQuickPad_cbDraftCategory
-    global PromptQuickPadLblDraftTags, PromptQuickPad_edDraftTags, PromptQuickPad_chkCaptureSilent, PromptQuickPad_chkCaptureSilentTpl
-    global PromptQuickPadLblDraftBody, PromptQuickPad_edDraftContent, PromptQuickPad_btnDraftLoad, PromptQuickPad_btnDraftSave
-    global PromptQuickPad_btnDraftClear, PromptQuickPadLblListFilter
-    draftVis := PromptQuickPad_CaptureChromeVisible && PromptQuickPad_CaptureExpanded
-    if PromptQuickPadCaptureToggle != 0 {
-        try PromptQuickPadCaptureToggle.Visible := PromptQuickPad_CaptureChromeVisible
-        catch {
-        }
-    }
-    for ctrl in [
-        PromptQuickPadLblDraftTitle, PromptQuickPad_edDraftTitle, PromptQuickPadLblDraftCat, PromptQuickPad_cbDraftCategory,
-        PromptQuickPadLblDraftTags, PromptQuickPad_edDraftTags, PromptQuickPad_chkCaptureSilent, PromptQuickPad_chkCaptureSilentTpl,
-        PromptQuickPadLblDraftBody, PromptQuickPad_edDraftContent, PromptQuickPad_btnDraftLoad, PromptQuickPad_btnDraftSave,
-        PromptQuickPad_btnDraftClear, PromptQuickPadLblListFilter
-    ] {
-        if ctrl = 0
-            continue
-        try ctrl.Visible := draftVis
-        catch {
-        }
-    }
-}
-
-PromptQuickPad_SetCaptureChromeVisible(vis, doRelayout := true) {
-    global PromptQuickPad_CaptureChromeVisible
-    PromptQuickPad_CaptureChromeVisible := vis
-    PromptQuickPad_ApplyCaptureControlsVisibility()
-    if doRelayout
-        PromptQuickPad_RelayoutMainControls()
-}
-
-PromptQuickPad_OnCaptureToggleClick(*) {
-    global PromptQuickPad_CaptureExpanded
-    PromptQuickPad_CaptureExpanded := !PromptQuickPad_CaptureExpanded
-    PromptQuickPad_SaveCaptureExpandedToIni()
-    PromptQuickPad_UpdateCaptureToggleText()
-    PromptQuickPad_ApplyCaptureControlsVisibility()
-    PromptQuickPad_RelayoutMainControls()
-}
-
-PromptQuickPad_SetCaptureExpanded(expanded, saveIni := true) {
-    global PromptQuickPad_CaptureExpanded
-    PromptQuickPad_CaptureExpanded := expanded
-    if saveIni
-        PromptQuickPad_SaveCaptureExpandedToIni()
-    PromptQuickPad_UpdateCaptureToggleText()
-    PromptQuickPad_ApplyCaptureControlsVisibility()
-}
-
-PromptQuickPad_BuildDraftCategoryChoices() {
-    merged := PromptQuickPad_BuildMergedList()
-    tabs := PromptQuickPad_UniqueCategoryTabs(merged)
-    choices := ["未分类"]
-    seen := Map("未分类", true)
-    for t in tabs {
-        if t = "" || t = "全部" || t = "未分类"
-            continue
-        if seen.Has(t)
-            continue
-        seen[t] := true
-        choices.Push(t)
-    }
-    return choices
-}
-
-PromptQuickPad_RefreshDraftCategoryCombo() {
-    global PromptQuickPad_cbDraftCategory
-    if PromptQuickPad_cbDraftCategory = 0
-        return
-    cur := ""
-    try cur := Trim(PromptQuickPad_cbDraftCategory.Text)
-    catch {
-    }
-    try PromptQuickPad_cbDraftCategory.Delete()
-    catch {
-    }
-    try PromptQuickPad_cbDraftCategory.Add(PromptQuickPad_BuildDraftCategoryChoices())
-    catch {
-    }
-    try PromptQuickPad_cbDraftCategory.Text := (cur = "" ? "未分类" : cur)
-    catch {
-    }
-}
-
-PromptQuickPad_DraftCategoryTextToSave() {
-    global PromptQuickPad_cbDraftCategory
-    if PromptQuickPad_cbDraftCategory = 0
-        return ""
-    try cat := Trim(PromptQuickPad_cbDraftCategory.Text)
-    catch
-        return ""
-    return cat = "未分类" ? "" : cat
-}
-
-PromptQuickPad_WriteDefaultsFromCaptureDraft() {
-    global PromptQuickPad_edDraftTitle, PromptQuickPad_edDraftTags, PromptQuickPad_CapsLockBDefaultTitle
-    global PromptQuickPad_CapsLockBDefaultCategory, PromptQuickPad_CapsLockBDefaultTags
-    if PromptQuickPad_edDraftTitle = 0
-        return
-    title := Trim(PromptQuickPad_edDraftTitle.Value)
-    if title = ""
-        title := "摘录"
-    tags := PromptQuickPad_edDraftTags != 0 ? Trim(PromptQuickPad_edDraftTags.Value) : ""
-    cat := PromptQuickPad_DraftCategoryTextToSave()
-    PromptQuickPad_CapsLockBDefaultTitle := title
-    PromptQuickPad_CapsLockBDefaultCategory := cat
-    PromptQuickPad_CapsLockBDefaultTags := tags
-    cfg := A_ScriptDir . "\CursorShortcut.ini"
-    try {
-        IniWrite(title, cfg, "PromptQuickPad", "CapsLockBDefaultTitle")
-        IniWrite(cat, cfg, "PromptQuickPad", "CapsLockBDefaultCategory")
-        IniWrite(tags, cfg, "PromptQuickPad", "CapsLockBDefaultTags")
-    } catch {
-    }
-}
-
-PromptQuickPad_OnCaptureSilentChange(GuiCtrlObj, *) {
-    global PromptQuickPad_CapsLockBSilent
-    try PromptQuickPad_CapsLockBSilent := GuiCtrlObj.Value = 1
-    catch
-        return
-    cfg := A_ScriptDir . "\CursorShortcut.ini"
-    try IniWrite(PromptQuickPad_CapsLockBSilent ? "1" : "0", cfg, "PromptQuickPad", "CapsLockBSilent")
-    catch {
-    }
-    if PromptQuickPad_CapsLockBSilent
-        PromptQuickPad_WriteDefaultsFromCaptureDraft()
-}
-
-PromptQuickPad_OnCaptureSilentTplChange(GuiCtrlObj, *) {
-    global PromptQuickPad_CapsLockBSilentToTemplate
-    try PromptQuickPad_CapsLockBSilentToTemplate := GuiCtrlObj.Value = 1
-    catch
-        return
-    cfg := A_ScriptDir . "\CursorShortcut.ini"
-    try IniWrite(PromptQuickPad_CapsLockBSilentToTemplate ? "1" : "0", cfg, "PromptQuickPad", "CapsLockBSilentToTemplate")
-    catch {
-    }
-}
-
-PromptQuickPad_SyncCaptureDraftFromIni() {
-    global PromptQuickPad_edDraftTitle, PromptQuickPad_edDraftTags, PromptQuickPad_cbDraftCategory
-    global PromptQuickPad_chkCaptureSilent, PromptQuickPad_chkCaptureSilentTpl
-    global PromptQuickPad_CapsLockBDefaultTitle, PromptQuickPad_CapsLockBDefaultCategory, PromptQuickPad_CapsLockBDefaultTags
-    global PromptQuickPad_CapsLockBSilent, PromptQuickPad_CapsLockBSilentToTemplate
-    PromptQuickPad_ReloadCapsLockBSettings()
-    if PromptQuickPad_edDraftTitle != 0
-        PromptQuickPad_edDraftTitle.Value := PromptQuickPad_CapsLockBDefaultTitle
-    if PromptQuickPad_edDraftTags != 0
-        PromptQuickPad_edDraftTags.Value := PromptQuickPad_CapsLockBDefaultTags
-    if PromptQuickPad_cbDraftCategory != 0
-        PromptQuickPad_cbDraftCategory.Text := (Trim(PromptQuickPad_CapsLockBDefaultCategory) = "" ? "未分类" : Trim(PromptQuickPad_CapsLockBDefaultCategory))
-    if PromptQuickPad_chkCaptureSilent != 0
-        PromptQuickPad_chkCaptureSilent.Value := PromptQuickPad_CapsLockBSilent ? 1 : 0
-    if PromptQuickPad_chkCaptureSilentTpl != 0
-        PromptQuickPad_chkCaptureSilentTpl.Value := PromptQuickPad_CapsLockBSilentToTemplate ? 1 : 0
-}
-
-PromptQuickPad_FillCaptureDraftContent(initialText := "") {
-    global PromptQuickPad_edDraftContent
-    if PromptQuickPad_edDraftContent = 0
-        return
-    PromptQuickPad_edDraftContent.Value := initialText
-    try PromptQuickPad_edDraftContent.Focus()
-    catch {
-    }
-}
-
-PromptQuickPad_FlushPendingCaptureDraft(*) {
-    global PromptQuickPad_PendingCaptureText, PromptQuickPad_edDraftContent
-    if PromptQuickPad_edDraftContent = 0
-        return
-    want := Trim(PromptQuickPad_PendingCaptureText, " `t`r`n")
-    if want = ""
-        return
-    if Trim(PromptQuickPad_edDraftContent.Value, " `t`r`n") = want
-        return
-    PromptQuickPad_FillCaptureDraftContent(PromptQuickPad_PendingCaptureText)
-}
-
-PromptQuickPad_LoadDraftFromListSelection(*) {
-    global PromptQuickPad_edDraftTitle, PromptQuickPad_cbDraftCategory, PromptQuickPad_edDraftTags, PromptQuickPad_edDraftContent
-    global PromptQuickPadFilteredIdx, PromptQuickPadMergedSnapshot, PromptQuickPadListLV
-    if PromptQuickPadListLV = 0
-        return
-    row := PromptQuickPadListLV.GetNext(0, "Focused")
-    if row < 1
-        row := PromptQuickPadListLV.GetNext(0)
-    if row < 1 || row > PromptQuickPadFilteredIdx.Length
-        return
-    mi := PromptQuickPadFilteredIdx[row]
-    if mi < 1 || mi > PromptQuickPadMergedSnapshot.Length
-        return
-    entry := PromptQuickPadMergedSnapshot[mi]
-    if !(entry is Map)
-        return
-    if PromptQuickPad_edDraftTitle != 0
-        PromptQuickPad_edDraftTitle.Value := entry.Has("title") ? entry["title"] : ""
-    if PromptQuickPad_cbDraftCategory != 0
-        PromptQuickPad_cbDraftCategory.Text := (entry.Has("category") && entry["category"] != "" ? entry["category"] : "未分类")
-    if PromptQuickPad_edDraftTags != 0
-        PromptQuickPad_edDraftTags.Value := entry.Has("tags") ? entry["tags"] : ""
-    if PromptQuickPad_edDraftContent != 0
-        PromptQuickPad_edDraftContent.Value := entry.Has("content") ? entry["content"] : ""
-}
-
-PromptQuickPad_SaveDraftToJson(*) {
-    global PromptQuickPad_edDraftTitle, PromptQuickPad_edDraftTags, PromptQuickPad_edDraftContent, PromptQuickPadData
-    title := PromptQuickPad_edDraftTitle != 0 ? Trim(PromptQuickPad_edDraftTitle.Value) : ""
-    if title = ""
-        title := "未命名"
-    tags := PromptQuickPad_edDraftTags != 0 ? Trim(PromptQuickPad_edDraftTags.Value) : ""
-    body := PromptQuickPad_edDraftContent != 0 ? Trim(PromptQuickPad_edDraftContent.Value, " `t`r`n") : ""
-    if body = "" {
-        TrayTip("正文不能为空", "Prompt Quick-Pad", "Icon! 1")
-        return
-    }
-    PromptQuickPad_LoadFromDisk()
-    PromptQuickPadData.Push(PromptQuickPad_NormalizeEntry(Map("title", title, "tags", tags, "content", body, "category", PromptQuickPad_DraftCategoryTextToSave(), "hotkey", "")))
-    PromptQuickPad_SaveToDisk()
-    PromptQuickPad_RefreshListView()
-}
-
-PromptQuickPad_ClearCaptureDraft(*) {
-    PromptQuickPad_SyncCaptureDraftFromIni()
-    PromptQuickPad_FillCaptureDraftContent("")
-}
-
-PromptQuickPad_OpenCaptureDraft(initialText := "", forceExpand := true) {
-    global AIListPanelIsVisible, AIListPanelGUI, PromptQuickPad_PendingCaptureText
-    PromptQuickPad_PendingCaptureText := initialText
-    if !AIListPanelIsVisible || AIListPanelGUI = 0
-        ShowAIListPanel(true)
-    PromptQuickPad_SetCaptureChromeVisible(true, false)
-    if forceExpand
-        PromptQuickPad_SetCaptureExpanded(true, false)
-    PromptQuickPad_SyncCaptureDraftFromIni()
-    PromptQuickPad_RefreshDraftCategoryCombo()
-    PromptQuickPad_UpdateCaptureToggleText()
-    PromptQuickPad_ApplyCaptureControlsVisibility()
-    PromptQuickPad_RelayoutMainControls()
-    PromptQuickPad_RefreshListView()
-    PromptQuickPad_FillCaptureDraftContent(initialText)
-    if Trim(initialText, " `t`r`n") != ""
-        SetTimer(PromptQuickPad_FlushPendingCaptureDraft, -60)
-    try ControlFocus(PromptQuickPad_edDraftContent)
-    catch {
-    }
-    try WinActivate("ahk_id " . AIListPanelGUI.Hwnd)
-    catch {
-    }
-}
-
 ; clientW/clientH 可传入 OnEvent("Size") 的客户端宽高；为 0 时用 GetClientRect
 PromptQuickPad_RelayoutMainControls(clientW := 0, clientH := 0) {
     global AIListPanelGUI, AIListPanelSearchInput, PromptQuickPadListLV, PromptQuickPadStatusText
     global PromptQuickPadCategoryStripHeight
-    global PromptQuickPad_CaptureChromeVisible, PromptQuickPad_CaptureExpanded, PromptQuickPadCaptureToggle
-    global PromptQuickPadLblDraftTitle, PromptQuickPad_edDraftTitle, PromptQuickPadLblDraftCat, PromptQuickPad_cbDraftCategory
-    global PromptQuickPadLblDraftTags, PromptQuickPad_edDraftTags, PromptQuickPad_chkCaptureSilent, PromptQuickPad_chkCaptureSilentTpl
-    global PromptQuickPadLblDraftBody, PromptQuickPad_edDraftContent, PromptQuickPad_btnDraftLoad, PromptQuickPad_btnDraftSave
-    global PromptQuickPad_btnDraftClear, PromptQuickPadLblListFilter
     if AIListPanelGUI = 0
         return
     if clientW <= 0 || clientH <= 0
@@ -685,7 +355,7 @@ PromptQuickPad_RelayoutMainControls(clientW := 0, clientH := 0) {
     h := clientH
     margin := 10
     topPad := 10
-    searchH := 22
+    searchH := 24
     statusH := 44
     bottomPad := 12
     linkBarH := PromptQuickPad_LinkBarHeight > 8 ? PromptQuickPad_LinkBarHeight : 22
@@ -699,76 +369,7 @@ PromptQuickPad_RelayoutMainControls(clientW := 0, clientH := 0) {
         PromptQuickPadBtnPinTop.Move(margin + 100, belowCat)
     if PromptQuickPadBtnJsonHelp != 0
         PromptQuickPadBtnJsonHelp.Move(margin + 182, belowCat)
-    hdrW := w - margin * 2
-    toggleH := 22
     searchY := belowCat + linkBarH + 8
-    if PromptQuickPad_CaptureChromeVisible {
-        capTop := belowCat + linkBarH + 2
-        if PromptQuickPadCaptureToggle != 0
-            PromptQuickPadCaptureToggle.Move(margin, capTop, hdrW, toggleH)
-        searchY := capTop + toggleH + 6
-        if PromptQuickPad_CaptureExpanded {
-            rowH := 22
-            lblW := 72
-            edX := margin + lblW + 8
-            edW := w - margin - edX
-            if edW < 100
-                edW := 100
-            y := searchY
-            if PromptQuickPadLblDraftTitle != 0
-                PromptQuickPadLblDraftTitle.Move(margin, y, lblW, rowH)
-            if PromptQuickPad_edDraftTitle != 0
-                PromptQuickPad_edDraftTitle.Move(edX, y, edW, rowH)
-            y += rowH + 6
-            if PromptQuickPadLblDraftCat != 0
-                PromptQuickPadLblDraftCat.Move(margin, y, lblW, rowH)
-            if PromptQuickPad_cbDraftCategory != 0
-                PromptQuickPad_cbDraftCategory.Move(edX, y, edW, rowH)
-            y += rowH + 6
-            if PromptQuickPadLblDraftTags != 0
-                PromptQuickPadLblDraftTags.Move(margin, y, lblW, rowH)
-            if PromptQuickPad_edDraftTags != 0
-                PromptQuickPad_edDraftTags.Move(edX, y, edW, rowH)
-            y += rowH + 8
-            chkH := 36
-            halfW := Floor((hdrW - 8) / 2)
-            if hdrW < 440 {
-                if PromptQuickPad_chkCaptureSilent != 0
-                    PromptQuickPad_chkCaptureSilent.Move(margin, y, hdrW, chkH)
-                y += chkH + 4
-                if PromptQuickPad_chkCaptureSilentTpl != 0
-                    PromptQuickPad_chkCaptureSilentTpl.Move(margin, y, hdrW, chkH)
-                y += chkH + 8
-            } else {
-                if PromptQuickPad_chkCaptureSilent != 0
-                    PromptQuickPad_chkCaptureSilent.Move(margin, y, halfW, chkH)
-                if PromptQuickPad_chkCaptureSilentTpl != 0
-                    PromptQuickPad_chkCaptureSilentTpl.Move(margin + halfW + 8, y, halfW, chkH)
-                y += chkH + 8
-            }
-            if PromptQuickPadLblDraftBody != 0
-                PromptQuickPadLblDraftBody.Move(margin, y, hdrW, 18)
-            y += 22
-            bodyH := Min(180, Max(90, Round(h * 0.18)))
-            if PromptQuickPad_edDraftContent != 0
-                PromptQuickPad_edDraftContent.Move(margin, y, hdrW, bodyH)
-            y += bodyH + 8
-            btnW := Floor((hdrW - 20) / 3)
-            if btnW < 90
-                btnW := 90
-            if PromptQuickPad_btnDraftLoad != 0
-                PromptQuickPad_btnDraftLoad.Move(margin, y, btnW, 28)
-            if PromptQuickPad_btnDraftSave != 0
-                PromptQuickPad_btnDraftSave.Move(margin + btnW + 10, y, btnW, 28)
-            if PromptQuickPad_btnDraftClear != 0
-                PromptQuickPad_btnDraftClear.Move(margin + (btnW + 10) * 2, y, btnW, 28)
-            y += 36
-            if PromptQuickPadLblListFilter != 0
-                PromptQuickPadLblListFilter.Move(margin, y, hdrW, 18)
-            y += 22
-            searchY := y
-        }
-    }
     if AIListPanelSearchInput != 0
         AIListPanelSearchInput.Move(margin, searchY, w - margin * 2, searchH)
     lvY := searchY + searchH + margin
@@ -1430,23 +1031,19 @@ PromptQuickPad_EditItem(row) {
     eg.Show()
 }
 
-ShowAIListPanel(openForCapture := false) {
+ShowAIListPanel() {
     global AIListPanelGUI, AIListPanelIsVisible
     global AIListPanelWindowX, AIListPanelWindowY, AIListPanelWindowW, AIListPanelWindowH
     global FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY
     global AIListPanelEnterHotkey, AIListPanelEscHotkey, AIListPanelSearchInput
     global PromptQuickPad_PasteTargetHwnd
-    global PromptQuickPad_CaptureChromeVisible
+
+    PromptQuickPad_PasteTargetHwnd := DllCall("GetForegroundWindow", "ptr")
 
     if AIListPanelIsVisible && AIListPanelGUI != 0 {
         HideAIListPanel()
         return
     }
-
-    PromptQuickPad_CaptureChromeVisible := openForCapture
-    prevHwnd := DllCall("GetForegroundWindow", "ptr")
-    if prevHwnd && !PromptQuickPad_CapsB_IsOurGuiWindow(prevHwnd)
-        PromptQuickPad_PasteTargetHwnd := prevHwnd
 
     LoadAIListPanelPosition()
 
@@ -1472,12 +1069,12 @@ ShowAIListPanel(openForCapture := false) {
         panelX := savedX
         panelY := savedY
         panelW := savedW > 0 ? savedW : 520
-        panelH := savedH > 0 ? savedH : 560
+        panelH := savedH > 0 ? savedH : 480
     } else if FloatingToolbarGUI != 0 {
         try {
             FloatingToolbarGUI.GetPos(&toolbarX, &toolbarY, &toolbarW, &toolbarH)
             panelW := AIListPanelWindowW > 0 ? AIListPanelWindowW : 520
-            panelH := AIListPanelWindowH > 0 ? AIListPanelWindowH : 560
+            panelH := AIListPanelWindowH > 0 ? AIListPanelWindowH : 480
             panelX := toolbarX
             panelY := toolbarY - panelH
             ScreenHeight := SysGet(1)
@@ -1487,7 +1084,7 @@ ShowAIListPanel(openForCapture := false) {
             ScreenWidth := SysGet(0)
             ScreenHeight := SysGet(1)
             panelW := 520
-            panelH := 560
+            panelH := 480
             panelX := (ScreenWidth - panelW) // 2
             panelY := (ScreenHeight - panelH) // 2
         }
@@ -1495,7 +1092,7 @@ ShowAIListPanel(openForCapture := false) {
         ScreenWidth := SysGet(0)
         ScreenHeight := SysGet(1)
         panelW := 520
-        panelH := 560
+        panelH := 480
         panelX := (ScreenWidth - panelW) // 2
         panelY := (ScreenHeight - panelH) // 2
     }
@@ -1513,8 +1110,7 @@ ShowAIListPanel(openForCapture := false) {
         return
     }
 
-    if !openForCapture
-        PromptQuickPad_SetCaptureChromeVisible(false, false)
+    PromptQuickPad_RelayoutMainControls()
     PromptQuickPad_RefreshListView()
     SetTimer(AIListPanelFollowToolbar, 100)
 
@@ -1526,12 +1122,12 @@ ShowAIListPanel(openForCapture := false) {
     } catch {
     }
 
-    if !openForCapture && AIListPanelSearchInput != 0
+    if AIListPanelSearchInput != 0
         AIListPanelSearchInput.Focus()
 }
 
 HideAIListPanel() {
-    global AIListPanelGUI, AIListPanelIsVisible, AIListPanelEnterHotkey, AIListPanelEscHotkey, PromptQuickPad_CaptureChromeVisible
+    global AIListPanelGUI, AIListPanelIsVisible, AIListPanelEnterHotkey, AIListPanelEscHotkey
 
     PromptQuickPad_DestroyCtxMenu()
 
@@ -1559,7 +1155,6 @@ HideAIListPanel() {
         catch {
         }
         AIListPanelIsVisible := false
-        PromptQuickPad_CaptureChromeVisible := false
         SetTimer(AIListPanelFollowToolbar, 0)
     }
 }
@@ -1569,11 +1164,7 @@ ToggleAIListPanel() {
     if AIListPanelIsVisible
         HideAIListPanel()
     else
-        ShowAIListPanel(false)
-}
-
-ShowPromptQuickPadListOnly() {
-    ShowAIListPanel(false)
+        ShowAIListPanel()
 }
 
 CreateAIListPanelGUI() {
@@ -1581,12 +1172,6 @@ CreateAIListPanelGUI() {
     global PromptQuickPadListLV, PromptQuickPadStatusText, PromptQuickPadDragBar
     global PromptQuickPadLastCategorySig
     global PromptQuickPadBtnImport, PromptQuickPadBtnExport, PromptQuickPadBtnJsonHelp, PromptQuickPadBtnPinTop
-    global PromptQuickPadCaptureToggle, PromptQuickPadLblDraftTitle, PromptQuickPad_edDraftTitle
-    global PromptQuickPadLblDraftCat, PromptQuickPad_cbDraftCategory, PromptQuickPadLblDraftTags, PromptQuickPad_edDraftTags
-    global PromptQuickPad_chkCaptureSilent, PromptQuickPad_chkCaptureSilentTpl
-    global PromptQuickPadLblDraftBody, PromptQuickPad_edDraftContent
-    global PromptQuickPad_btnDraftLoad, PromptQuickPad_btnDraftSave, PromptQuickPad_btnDraftClear
-    global PromptQuickPadLblListFilter, PromptQuickPad_CaptureChromeVisible
 
     PromptQuickPad_LoadPinFromIni()
 
@@ -1598,10 +1183,8 @@ CreateAIListPanelGUI() {
     }
     PromptQuickPadLastCategorySig := ""
     PromptQuickPadDragBar := 0
-    PromptQuickPad_ResetCaptureDraftRefs()
 
     PromptQuickPad_LoadFromDisk()
-    PromptQuickPad_LoadCaptureExpandedFromIni()
 
     ; 标准标题栏；置顶可由链接「置顶·开/关」切换并写入 ini
     topOpt := PromptQuickPad_PinTop ? "+AlwaysOnTop" : "-AlwaysOnTop"
@@ -1633,62 +1216,10 @@ CreateAIListPanelGUI() {
     PromptQuickPadBtnJsonHelp.SetFont("s9 underline", "Segoe UI")
     PromptQuickPadBtnJsonHelp.OnEvent("Click", PromptQuickPad_ShowJsonFormatHelp)
 
-    capOpts := PromptQuickPad_CaptureChromeVisible ? "" : " Hidden"
-    lblW0 := 72
-    edX0 := margin + lblW0 + 8
-    edW0 := initW - margin - edX0
-    if edW0 < 100
-        edW0 := 100
-    y0 := 200
-    PromptQuickPadCaptureToggle := AIListPanelGUI.Add("Text",
-        "x" . margin . " y" . y0 . " w" . (initW - margin * 2) . " h22 Center 0x200 +0x100 Background363636 cffffff" . capOpts, "")
-    PromptQuickPadCaptureToggle.SetFont("s8", "Segoe UI")
-    PromptQuickPadCaptureToggle.OnEvent("Click", PromptQuickPad_OnCaptureToggleClick)
-    PromptQuickPad_UpdateCaptureToggleText()
-    y0 += 28
-    PromptQuickPadLblDraftTitle := AIListPanelGUI.Add("Text", "x" . margin . " y" . y0 . " w" . lblW0 . " h22 c" . AIListPanelColors.Text . capOpts, "标题")
-    PromptQuickPad_edDraftTitle := AIListPanelGUI.Add("Edit", "x" . edX0 . " y" . y0 . " w" . edW0 . " h22" . capOpts, "")
-    PromptQuickPad_edDraftTitle.SetFont("s9", "Segoe UI")
-    y0 += 28
-    PromptQuickPadLblDraftCat := AIListPanelGUI.Add("Text", "x" . margin . " y" . y0 . " w" . lblW0 . " h22 c" . AIListPanelColors.Text . capOpts, "分类")
-    PromptQuickPad_cbDraftCategory := AIListPanelGUI.Add("ComboBox", "x" . edX0 . " y" . y0 . " w" . edW0 . " h120" . capOpts, PromptQuickPad_BuildDraftCategoryChoices())
-    PromptQuickPad_cbDraftCategory.SetFont("s9", "Segoe UI")
-    y0 += 28
-    PromptQuickPadLblDraftTags := AIListPanelGUI.Add("Text", "x" . margin . " y" . y0 . " w" . lblW0 . " h22 c" . AIListPanelColors.Text . capOpts, "标签")
-    PromptQuickPad_edDraftTags := AIListPanelGUI.Add("Edit", "x" . edX0 . " y" . y0 . " w" . edW0 . " h22" . capOpts, "")
-    PromptQuickPad_edDraftTags.SetFont("s9", "Segoe UI")
-    y0 += 30
-    PromptQuickPad_chkCaptureSilent := AIListPanelGUI.Add("Checkbox", "x" . margin . " y" . y0 . " w220 h36" . capOpts,
-        "静默 CapsLock+B（勾选时把标题/分类/标签写入 ini）")
-    PromptQuickPad_chkCaptureSilent.SetFont("s8", "Segoe UI")
-    PromptQuickPad_chkCaptureSilentTpl := AIListPanelGUI.Add("Checkbox", "x" . (margin + 230) . " y" . y0 . " w280 h36" . capOpts,
-        "静默时写入模板库，否则写入 prompts.json")
-    PromptQuickPad_chkCaptureSilentTpl.SetFont("s8", "Segoe UI")
-    y0 += 42
-    PromptQuickPadLblDraftBody := AIListPanelGUI.Add("Text", "x" . margin . " y" . y0 . " w120 h18 c" . AIListPanelColors.Text . capOpts, "正文")
-    y0 += 22
-    PromptQuickPad_edDraftContent := AIListPanelGUI.Add("Edit", "x" . margin . " y" . y0 . " w" . (initW - margin * 2) . " h120 Multi VScroll WantReturn" . capOpts, "")
-    PromptQuickPad_edDraftContent.SetFont("s9", "Consolas")
-    y0 += 128
-    PromptQuickPad_btnDraftLoad := AIListPanelGUI.Add("Button", "x" . margin . " y" . y0 . " w100 h28" . capOpts, "载入所选")
-    PromptQuickPad_btnDraftLoad.OnEvent("Click", PromptQuickPad_LoadDraftFromListSelection)
-    PromptQuickPad_btnDraftSave := AIListPanelGUI.Add("Button", "x" . (margin + 110) . " y" . y0 . " w100 h28" . capOpts, "保存")
-    PromptQuickPad_btnDraftSave.OnEvent("Click", PromptQuickPad_SaveDraftToJson)
-    PromptQuickPad_btnDraftClear := AIListPanelGUI.Add("Button", "x" . (margin + 220) . " y" . y0 . " w100 h28" . capOpts, "清空")
-    PromptQuickPad_btnDraftClear.OnEvent("Click", PromptQuickPad_ClearCaptureDraft)
-    y0 += 36
-    PromptQuickPadLblListFilter := AIListPanelGUI.Add("Text", "x" . margin . " y" . y0 . " w120 h18 c888888" . capOpts, "列表搜索")
-    PromptQuickPadLblListFilter.SetFont("s8", "Segoe UI")
-
-    PromptQuickPad_chkCaptureSilent.OnEvent("Click", PromptQuickPad_OnCaptureSilentChange)
-    PromptQuickPad_chkCaptureSilentTpl.OnEvent("Click", PromptQuickPad_OnCaptureSilentTplChange)
-    PromptQuickPad_SyncCaptureDraftFromIni()
-    PromptQuickPad_ApplyCaptureControlsVisibility()
-
     ; -Theme 后 Background/c 在多数系统上才稳定；失败则降级为系统默认外观
     try {
         AIListPanelSearchInput := AIListPanelGUI.Add("Edit",
-            "x" . margin . " y486 w" . (initW - margin * 2) . " h22 -Theme Background" . AIListPanelColors.ItemBg . " c" . AIListPanelColors.Text, "")
+            "x" . margin . " y80 w" . (initW - margin * 2) . " h24 -Theme Background" . AIListPanelColors.ItemBg . " c" . AIListPanelColors.Text, "")
     } catch {
         AIListPanelSearchInput := AIListPanelGUI.Add("Edit",
             "x" . margin . " y80 w" . (initW - margin * 2) . " h24", "")
@@ -1697,8 +1228,8 @@ CreateAIListPanelGUI() {
     AIListPanelSearchInput.OnEvent("Change", PromptQuickPad_OnSearchChange)
 
     lvCols := ["标题", "分类", "快捷键", "预览"]
-    lvOptsFull := "x" . margin . " y514 w" . (initW - margin * 2) . " h200 -Theme Background" . AIListPanelColors.ItemBg . " c" . AIListPanelColors.Text . " Grid NoSortHdr"
-    lvOptsPlain := "x" . margin . " y514 w" . (initW - margin * 2) . " h200 Grid NoSortHdr"
+    lvOptsFull := "x" . margin . " y120 w" . (initW - margin * 2) . " h200 -Theme Background" . AIListPanelColors.ItemBg . " c" . AIListPanelColors.Text . " Grid NoSortHdr"
+    lvOptsPlain := "x" . margin . " y120 w" . (initW - margin * 2) . " h200 Grid NoSortHdr"
     try {
         PromptQuickPadListLV := AIListPanelGUI.Add("ListView", lvOptsFull, lvCols)
     } catch {
@@ -1787,17 +1318,17 @@ LoadAIListPanelPosition() {
             AIListPanelWindowX := Integer(savedX)
             AIListPanelWindowY := Integer(savedY)
             AIListPanelWindowW := (savedW != "" && savedW != "ERROR") ? Integer(savedW) : 520
-            AIListPanelWindowH := (savedH != "" && savedH != "ERROR") ? Integer(savedH) : 560
+            AIListPanelWindowH := (savedH != "" && savedH != "ERROR") ? Integer(savedH) : 480
         } else {
             AIListPanelWindowX := 0
             AIListPanelWindowY := 0
             AIListPanelWindowW := 520
-            AIListPanelWindowH := 560
+            AIListPanelWindowH := 480
         }
         if AIListPanelWindowW < 400
             AIListPanelWindowW := 400
-        if AIListPanelWindowH < 520
-            AIListPanelWindowH := 520
+        if AIListPanelWindowH < 400
+            AIListPanelWindowH := 400
         if AIListPanelWindowX < 0 || AIListPanelWindowX > ScreenWidth - 50
             AIListPanelWindowX := 0
         if AIListPanelWindowY < 0 || AIListPanelWindowY > ScreenHeight - 50
@@ -1806,7 +1337,7 @@ LoadAIListPanelPosition() {
         AIListPanelWindowX := 0
         AIListPanelWindowY := 0
         AIListPanelWindowW := 520
-        AIListPanelWindowH := 560
+        AIListPanelWindowH := 480
     }
 }
 
@@ -1850,7 +1381,7 @@ RestoreAIListPanel() {
     AIListPanelIsMinimized := false
 }
 
-; 复制当前选区并打开收录区
+; 复制当前选区，InputBox 标题/标签后追加到 prompts.json（由全局热键调用）
 PromptQuickPad_QuickCapture(*) {
     oldClip := ClipboardAll()
     try {
@@ -1860,7 +1391,20 @@ PromptQuickPad_QuickCapture(*) {
             TrayTip("未获取到选中文本", "Prompt Quick-Pad", "Iconi 1")
             return
         }
-        PromptQuickPad_OpenCaptureDraft(A_Clipboard, true)
+        text := A_Clipboard
+        ib := InputBox("条目显示名称：", "Prompt Quick-Pad", , "未命名")
+        if ib.Result != "OK"
+            return
+        title := Trim(ib.Value)
+        if title = ""
+            title := "未命名"
+        ib2 := InputBox("标签（可选，逗号分隔）：", "Prompt Quick-Pad", , "")
+        tags := ib2.Result = "OK" ? Trim(ib2.Value) : ""
+        PromptQuickPad_LoadFromDisk()
+        global PromptQuickPadData
+        PromptQuickPadData.Push(Map("title", title, "tags", tags, "content", text, "category", "", "hotkey", ""))
+        PromptQuickPad_SaveToDisk()
+        TrayTip("已保存到 prompts.json", "Prompt Quick-Pad", "Iconi 1")
     } finally {
         A_Clipboard := oldClip
     }

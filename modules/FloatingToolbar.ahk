@@ -500,9 +500,9 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
                 SetCapsLockState("Off")
             }
         case "AIAssistant":
-            ; 鏄剧ずAI閫夋嫨鍒楄〃闈㈡澘
+            ; Prompt Quick-Pad：仅列表/搜索；摘录区仅 CapsLock+B（见 ShowPromptQuickPadListOnly）
             try {
-                ShowAIListPanel()
+                ShowPromptQuickPadListOnly()
             } catch as err {
                 ; 濡傛灉AIListPanel妯″潡鏈姞杞斤紝浣跨敤榛樿琛屼负
                 TrayTip("AI閫夋嫨闈㈡澘鍔犺浇澶辫触: " . err.Message, "閿欒", "Iconx 2")
