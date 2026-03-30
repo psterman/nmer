@@ -1,4 +1,4 @@
-; ===================== msg =====================
+﻿; ===================== msg =====================
 
 global pToken := Gdip_Startup()
 if (!pToken) {
@@ -69,6 +69,76 @@ EverythingUserTipOnce(Message, CooldownMs := 90000) {
     try TrayTip(Message, "CursorHelper · Everything", "Icon! 2")
 }
 
+ResolveEverythingExePath() {
+    candidates := []
+    candidates.Push(A_ScriptDir "\Everything64.exe")
+    candidates.Push(A_ScriptDir "\Everything.exe")
+    candidates.Push(A_ProgramFiles "\Everything\Everything64.exe")
+    candidates.Push(A_ProgramFiles "\Everything\Everything.exe")
+    candidates.Push(A_ProgramFiles "\voidtools\Everything\Everything64.exe")
+    candidates.Push(A_ProgramFiles "\voidtools\Everything\Everything.exe")
+
+    try {
+        pf86 := EnvGet("ProgramFiles(x86)")
+        if (pf86 != "") {
+            candidates.Push(pf86 "\Everything\Everything64.exe")
+            candidates.Push(pf86 "\Everything\Everything.exe")
+            candidates.Push(pf86 "\voidtools\Everything\Everything64.exe")
+            candidates.Push(pf86 "\voidtools\Everything\Everything.exe")
+        }
+    }
+
+    for _, p in candidates {
+        if (p != "" && FileExist(p))
+            return p
+    }
+    return ""
+}
+
+GetEverythingPID(&ProcessName := "", Require64 := false) {
+    names := Require64 ? ["Everything64.exe"] : ["Everything64.exe", "Everything.exe"]
+    for _, n in names {
+        pid := ProcessExist(n)
+        if (pid) {
+            ProcessName := n
+            return pid
+        }
+    }
+    ProcessName := ""
+    return 0
+}
+
+TryStartEverything(&StartedFrom := "") {
+    runningName := ""
+    require64 := (A_PtrSize = 8)
+    if (GetEverythingPID(&runningName, require64)) {
+        StartedFrom := "already-running"
+        return true
+    }
+
+    exePath := ResolveEverythingExePath()
+    if (exePath = "") {
+        StartedFrom := "not-found"
+        return false
+    }
+
+    try {
+        Run('"' . exePath . '" -startup', , "Hide")
+        Sleep(1800)
+    } catch {
+        StartedFrom := "launch-failed"
+        return false
+    }
+
+    if (GetEverythingPID(&runningName, require64)) {
+        StartedFrom := exePath
+        return true
+    }
+
+    StartedFrom := "started-but-not-detected"
+    return false
+}
+
 GetEverythingResults(keyword, maxResults := 30, includeFolders := true) {
     static evDll := A_ScriptDir "\lib\everything64.dll"
     static isInitialized := false
@@ -98,28 +168,21 @@ GetEverythingResults(keyword, maxResults := 30, includeFolders := true) {
     if (majorVer = 0) {
         errCode := DllCall(evDll "\Everything_GetLastError", "UInt")
         OutputDebug("AHK_DEBUG: Everything IPC 连接失败，错误码: " . errCode . " (2=未运行)")
-        ; 尝试启动 Everything（带重试机制）
-        if (!ProcessExist("Everything.exe")) {
-            OutputDebug("AHK_DEBUG: Everything.exe 未运行，尝试启动...")
-            try {
-                ; 优先尝试从脚本目录启动
-                EverythingPath := A_ScriptDir "\Everything.exe"
-                if (FileExist(EverythingPath)) {
-                    Run(EverythingPath . " -startup", , "Hide")
-                } else {
-                    Run("Everything.exe -startup", , "Hide")
-                }
-                Sleep(2000)  ; 等待启动，增加等待时间
-                ; 重试检查版本
-                majorVer := DllCall(evDll "\Everything_GetMajorVersion", "UInt")
-                if (majorVer = 0) {
-                    OutputDebug("AHK_DEBUG: Everything 服务启动失败，请手动启动 Everything.exe")
-                    EverythingUserTipOnce("Everything 未响应（IPC 失败）。请安装并启动 64 位 Everything.exe，并允许 SDK 连接。")
-                    return []
-                }
-            } catch as err {
-                OutputDebug("AHK_DEBUG: 无法启动 Everything: " . err.Message)
-                EverythingUserTipOnce("无法启动 Everything.exe: " . err.Message)
+        ; 尝试启动 Everything（优先 64 位）
+        runningName := ""
+        require64 := (A_PtrSize = 8)
+        if (!GetEverythingPID(&runningName, require64)) {
+            startedFrom := ""
+            if (!TryStartEverything(&startedFrom)) {
+                OutputDebug("AHK_DEBUG: 无法启动 Everything, 来源: " . startedFrom)
+                EverythingUserTipOnce("无法启动 Everything。请确认根目录存在 Everything64.exe（64位）并使用与脚本同等权限运行。")
+                return []
+            }
+            majorVer := DllCall(evDll "\Everything_GetMajorVersion", "UInt")
+            if (majorVer = 0) {
+                errCode := DllCall(evDll "\Everything_GetLastError", "UInt")
+                OutputDebug("AHK_DEBUG: Everything 启动后 IPC 仍失败, 错误码: " . errCode)
+                EverythingUserTipOnce("Everything 已启动但 IPC 仍失败。请确认 Everything 与脚本权限一致，且已启用 SDK IPC。")
                 return []
             }
         } else {
@@ -128,7 +191,7 @@ GetEverythingResults(keyword, maxResults := 30, includeFolders := true) {
             majorVer := DllCall(evDll "\Everything_GetMajorVersion", "UInt")
             if (majorVer = 0) {
                 OutputDebug("AHK_DEBUG: Everything 进程存在但IPC连接失败")
-                EverythingUserTipOnce("Everything 进程在运行但 IPC 连接失败，请重启 Everything 或检查是否禁止了 SDK。")
+                EverythingUserTipOnce("Everything 进程在运行但 IPC 连接失败。请确保 Everything 与脚本权限一致（都普通或都管理员），并检查是否禁用了 SDK IPC。")
                 return []
             }
         }
@@ -222,47 +285,20 @@ GetEverythingResults(keyword, maxResults := 30, includeFolders := true) {
 
 ; 检查并启动 Everything 服务
 InitEverythingService() {
-    ; 检查 Everything.exe 是否在运行
-    EverythingPID := ProcessExist("Everything.exe")
+    runningName := ""
+    require64 := (A_PtrSize = 8)
+    EverythingPID := GetEverythingPID(&runningName, require64)
     if (!EverythingPID) {
-        ; Everything 未运行，尝试启动
-        EverythingPath := A_ScriptDir "\Everything.exe"
-        if (FileExist(EverythingPath)) {
-            try {
-                Run(EverythingPath . " -startup", , "Hide")
-                Sleep(2000)  ; 增加等待时间，确保服务完全启动
-                OutputDebug("AHK_DEBUG: Everything 服务已启动: " . EverythingPath)
-                
-                ; 验证启动是否成功
-                EverythingPID := ProcessExist("Everything.exe")
-                if (EverythingPID) {
-                    OutputDebug("AHK_DEBUG: Everything 服务启动成功 (PID: " . EverythingPID . ")")
-                } else {
-                    OutputDebug("AHK_DEBUG: Everything 服务启动失败，进程未找到")
-                }
-            } catch as err {
-                OutputDebug("AHK_DEBUG: 启动 Everything 服务失败: " . err.Message)
-            }
+        startedFrom := ""
+        if (TryStartEverything(&startedFrom)) {
+            runningName := ""
+            EverythingPID := GetEverythingPID(&runningName, require64)
+            OutputDebug("AHK_DEBUG: Everything 服务启动成功: " . startedFrom . " (PID: " . EverythingPID . ")")
         } else {
-            ; 尝试从系统路径启动
-            try {
-                Run("Everything.exe -startup", , "Hide")
-                Sleep(2000)  ; 增加等待时间
-                OutputDebug("AHK_DEBUG: 从系统路径启动 Everything 服务")
-                
-                ; 验证启动是否成功
-                EverythingPID := ProcessExist("Everything.exe")
-                if (EverythingPID) {
-                    OutputDebug("AHK_DEBUG: Everything 服务启动成功 (PID: " . EverythingPID . ")")
-                } else {
-                    OutputDebug("AHK_DEBUG: Everything 服务启动失败，进程未找到")
-                }
-            } catch as err {
-                OutputDebug("AHK_DEBUG: 无法启动 Everything 服务: " . err.Message)
-            }
+            OutputDebug("AHK_DEBUG: 启动 Everything 服务失败: " . startedFrom)
         }
     } else {
-        OutputDebug("AHK_DEBUG: Everything 服务已在运行 (PID: " . EverythingPID . ")")
+        OutputDebug("AHK_DEBUG: Everything 服务已在运行: " . runningName . " (PID: " . EverythingPID . ")")
         
         ; 验证IPC连接是否正常
         static evDll := A_ScriptDir "\lib\everything64.dll"
@@ -305,7 +341,9 @@ Everything_Init() {
         errCode := DllCall(evDll "\Everything_GetLastError", "UInt")
         OutputDebug("AHK_DEBUG: Everything_Init - IPC 连接失败，错误码: " . errCode)
         ; 尝试启动 Everything
-        if (!ProcessExist("Everything.exe")) {
+        runningName := ""
+        require64 := (A_PtrSize = 8)
+        if (!GetEverythingPID(&runningName, require64)) {
             InitEverythingService()
             Sleep(1000)  ; 等待启动
             ; 再次检查
@@ -321,17 +359,7 @@ Everything_Init() {
     return true
 }
 
-; ===================== 管理员权限检查 =====================
-; 如果脚本不是以管理员权限运行，则重新以管理员权限启动
-if (!A_IsAdmin) {
-    try {
-        ; 使用 RunAs 以管理员权限重新运行脚本
-        Run('*RunAs "' . A_ScriptFullPath . '"')
-        ExitApp()
-    } catch as e {
-        MsgBox("无法以管理员权限运行脚本。某些功能可能无法正常工作。`n错误: " . e.Message, "警告", "Icon!")
-    }
-}
+; 已移除强制管理员自提权，避免与 Everything 产生权限不一致导致 IPC 失败。
 
 ; 全局变量（v2用Class/全局变量管理）
 global CapsLockDownTime := 0
@@ -501,7 +529,7 @@ global SearchCenterResultLimitDropdown := 0  ; 结果数量限制下拉菜单
 global SearchCenterResultLimitDDL_Hwnd := 0  ; 搜索中心结果过滤下拉框句柄
 global SearchCenterResultLimitDDL_ListHwnd := 0  ; 搜索中心结果过滤下拉列表句柄
 global SearchCenterResultLimitDDLBrush := 0  ; 搜索中心结果过滤下拉框画刷
-global SearchCenterEverythingLimit := 10  ; Everything 搜索的结果数量限制（默认10）
+global SearchCenterEverythingLimit := 50  ; Everything 搜索的结果数量限制（默认50）
 global SearchCenterCurrentLimit := 50  ; 当前加载的数据量限制
 global SearchCenterHasMoreData := false  ; 是否还有更多数据
 global SearchCenterSelectedEngines := []  ; 搜索中心选中的搜索引擎（支持多选）
@@ -24299,17 +24327,18 @@ ShowSearchCenter() {
     
     ; 创建来源过滤下拉菜单
     ; R7 表示显示 7 行，确保所有选项可见
-    DropdownDefaultIndex := 1
+    DropdownOptions := ["10", "20", "50", "100", "200"]
+    DropdownDefaultIndex := GetSearchCenterLimitDropdownIndex(SearchCenterCurrentLimit)
 
     SearchCenterResultLimitDropdown := GuiID_SearchCenter.Add("DropDownList",
         "x" . DropdownX . " y" . DropdownY .
         " w" . DropdownWidth . " h" . DropdownHeight .
-        " R7" .
+        " R6" .
         " BackgroundFFFFFF" .
         " c000000" .
         " Choose" . DropdownDefaultIndex .
         " vSearchCenterResultLimitDropdown",
-        ["全部", "文件", "剪贴板", "模板", "配置", "快捷键", "功能"])
+        DropdownOptions)
     SearchCenterResultLimitDropdown.SetFont("s14", "Segoe UI")
     SearchCenterResultLimitDropdown.OnEvent("Change", OnSearchCenterResultLimitChange)
     try {
@@ -24339,7 +24368,7 @@ ShowSearchCenter() {
     SearchCenterSearchEdit.SetFont("s16", "Segoe UI")
     
     ; 初始化 Everything 搜索限制值
-    SearchCenterEverythingLimit := 10
+    SearchCenterEverythingLimit := SearchCenterCurrentLimit
     
     ; 完全移除边框容器，不再使用
     SearchCenterInputContainer := 0
@@ -24407,7 +24436,8 @@ ShowSearchCenter() {
     PreviewGap := 12
     ButtonHeight := 34
     ButtonReservedHeight := SearchCenterIsCLICategory() ? (ButtonHeight + PreviewGap) : 0
-    FilterBarY := WindowHeight - Padding - PreviewHeight - ButtonReservedHeight - FilterBarHeight - PreviewGap
+    ; 过滤标签栏固定放在搜索结果框上方，而不是绝对贴底
+    FilterBarY := HintTextY + HintTextHeight + 10
     FilterButtonHeight := 30
     FilterButtonSpacing := 8
     FilterStartX := Padding
@@ -24447,7 +24477,7 @@ ShowSearchCenter() {
             FilterBtn := GuiID_SearchCenter.Add("Text", "x" . CurrentFilterX . " y" . FilterButtonY . " w" . FilterButtonWidth . " h" . FilterButtonHeight . " Center 0x200 +c" . TextColor . " +Background" . BgColor . " vSearchCenterFilterBtn" . Index, FilterText)
             FilterBtn.SetFont("s10 Bold", "Segoe UI")
             FilterBtn.OnEvent("Click", CreateSearchCenterFilterClickHandler(FilterType))
-            FilterBtn.Visible := false
+            FilterBtn.Visible := true
             ; 【关键修复】在按钮上存储 FilterType 属性，方便后续获取
             FilterBtn.FilterType := FilterType
             HoverBtnWithAnimation(FilterBtn, BgColor, IsSelected ? "0xFF8800" : ("0x" . UI_Colors.BtnHover))  ; 悬停时稍微亮一点
@@ -24458,8 +24488,8 @@ ShowSearchCenter() {
     }
     
     ; ========== 底部结果区 ==========
-    ResultAreaY := InputAreaY + InputAreaHeight + Padding + AreaIndicatorHeight + HintTextHeight + 10
-    ResultAreaHeight := FilterBarY - ResultAreaY - Padding
+    ResultAreaY := FilterBarY + FilterBarHeight + 8
+    ResultAreaHeight := Max(120, WindowHeight - Padding - PreviewHeight - ButtonReservedHeight - PreviewGap - ResultAreaY)
     
     ; 结果 ListView
     ResultLVX := Padding
@@ -24671,7 +24701,7 @@ GetSearchCenterCurrentCLICommand() {
     return Trim(SearchCenterSearchEdit.Value, " `t`r`n")
 }
 
-UpdateSearchCenterCLILayout(WindowWidth := 0, WindowHeight := 0) {
+UpdateSearchCenterCLILayout(WindowWidth := 0, WindowHeight := 0, KeepFilterTop := true) {
     global GuiID_SearchCenter, SearchCenterCLIOutputEdit, SearchCenterResultLV, SearchCenterFilterButtons
     global SearchCenterCLIRunButton, SearchCenterCLIClearButton, SearchCenterCLIOpenButton
     global SearchCenterHintText
@@ -24693,7 +24723,7 @@ UpdateSearchCenterCLILayout(WindowWidth := 0, WindowHeight := 0) {
     if (SearchCenterHintText != 0) {
         try {
             ControlGetPos(&HintX, &HintY, &HintW, &HintH, SearchCenterHintText)
-            ContentTop := HintY + HintH + 54
+            ContentTop := HintY + HintH + 12
         } catch {
             ContentTop := 325
         }
@@ -24713,13 +24743,14 @@ UpdateSearchCenterCLILayout(WindowWidth := 0, WindowHeight := 0) {
         ButtonY := WindowHeight - Padding - ButtonHeight
         OutputY := WindowHeight - Padding - OutputHeight
     }
-    FilterBarY := Max(ContentTop + 140, OutputY - FilterBarHeight - PreviewGap)
-    ResultY := ContentTop
-    ResultHeight := Max(120, FilterBarY - ResultY - PreviewGap)
+    ; 过滤标签栏始终贴在结果列表上方
+    FilterBarY := ContentTop
+    ResultY := FilterBarY + FilterBarHeight + 8
+    ResultHeight := Max(120, OutputY - ResultY - PreviewGap)
     
     try SearchCenterCLIOutputEdit.Move(Padding, OutputY, ContentWidth, OutputHeight)
     try SearchCenterResultLV.Move(Padding, ResultY, ContentWidth, ResultHeight)
-    MoveSearchCenterFilterButtons(FilterBarY, Padding)
+    MoveSearchCenterFilterButtons(FilterBarY, Padding, KeepFilterTop)
     if (IsCLI) {
         try SearchCenterCLIRunButton.Move(Padding, ButtonY, ButtonWidth, ButtonHeight)
         try SearchCenterCLIClearButton.Move(Padding + ButtonWidth + ButtonGap, ButtonY, ButtonWidth, ButtonHeight)
@@ -24747,14 +24778,14 @@ BringSearchCenterFilterButtonsToFront() {
                 , "int", 0
                 , "int", 0
                 , "uint", 0x0013)
-            FilterBtn.Visible := false
+            FilterBtn.Visible := true
             FilterBtn.Redraw()
         } catch {
         }
     }
 }
 
-MoveSearchCenterFilterButtons(FilterBarY, Padding := 20) {
+MoveSearchCenterFilterButtons(FilterBarY, Padding := 20, KeepTop := true) {
     global SearchCenterFilterButtons
 
     if (!IsSet(SearchCenterFilterButtons) || !IsObject(SearchCenterFilterButtons)) {
@@ -24771,7 +24802,7 @@ MoveSearchCenterFilterButtons(FilterBarY, Padding := 20) {
             continue
         }
         try {
-            FilterBtn.Visible := false
+            FilterBtn.Visible := true
             FilterText := FilterBtn.Text
             FilterButtonWidth := Max(50, StrLen(FilterText) * 10 + 20)
             FilterBtn.Move(CurrentFilterX, FilterButtonY, FilterButtonWidth, FilterButtonHeight)
@@ -24780,7 +24811,9 @@ MoveSearchCenterFilterButtons(FilterBarY, Padding := 20) {
         }
     }
 
-    BringSearchCenterFilterButtonsToFront()
+    if (KeepTop) {
+        BringSearchCenterFilterButtonsToFront()
+    }
 }
 
 GetSearchCenterFilterDropdownLabel(FilterType := "") {
@@ -24878,29 +24911,45 @@ GetSearchCenterDataTypesForFilter(FilterType := "") {
     }
 }
 
+GetSearchCenterLimitFromDropdownText(LimitText := "") {
+    Text := Trim(LimitText)
+    Value := Integer(Text)
+    if (Value <= 0) {
+        return 50
+    }
+    return Value
+}
+
+GetSearchCenterLimitDropdownIndex(LimitValue := 50) {
+    Value := Integer(LimitValue)
+    switch Value {
+        case 10:
+            return 1
+        case 20:
+            return 2
+        case 50:
+            return 3
+        case 100:
+            return 4
+        case 200:
+            return 5
+        default:
+            return 3
+    }
+}
+
 UpdateSearchCenterFilterDropdown() {
-    global SearchCenterResultLimitDropdown, SearchCenterFilterType
+    global SearchCenterResultLimitDropdown, SearchCenterCurrentLimit
 
     if (!IsSet(SearchCenterResultLimitDropdown) || !SearchCenterResultLimitDropdown) {
         return
     }
 
-    try SearchCenterResultLimitDropdown.Choose(GetSearchCenterFilterDropdownIndex(SearchCenterFilterType))
+    try SearchCenterResultLimitDropdown.Choose(GetSearchCenterLimitDropdownIndex(SearchCenterCurrentLimit))
 }
 
 SyncSearchCenterFilterTypeFromDropdown() {
-    global SearchCenterResultLimitDropdown, SearchCenterFilterType
-
-    if (!IsSet(SearchCenterResultLimitDropdown) || !SearchCenterResultLimitDropdown) {
-        return SearchCenterFilterType
-    }
-
-    try {
-        SelectedText := SearchCenterResultLimitDropdown.Text
-        SearchCenterFilterType := GetSearchCenterFilterTypeFromDropdownLabel(SelectedText)
-    } catch {
-    }
-
+    global SearchCenterFilterType
     return SearchCenterFilterType
 }
 
@@ -24918,7 +24967,7 @@ UpdateSearchCenterCategoryMode() {
     SetSearchCenterControlVisible(SearchCenterAreaIndicator, true)
     SetSearchCenterControlVisible(SearchCenterHintText, true)
     for _, FilterBtn in SearchCenterFilterButtons {
-        SetSearchCenterControlVisible(FilterBtn, false)
+        SetSearchCenterControlVisible(FilterBtn, !IsCLI)
     }
     SetSearchCenterEngineIconsVisible(true)
     
@@ -25340,7 +25389,7 @@ SearchCenterFilterClickHandler(FilterType, *) {
     UpdateSearchCenterFilterButtons()
     
     ; 【关键修复】如果点击的是"文件"标签且有搜索关键词，使用 everything64.dll 搜索本地数据
-    if (FilterType = "File" && IsSet(SearchCenterSearchEdit) && SearchCenterSearchEdit && SearchCenterSearchEdit.Value != "") {
+    if (SearchCenterFilterType = "File" && IsSet(SearchCenterSearchEdit) && SearchCenterSearchEdit && SearchCenterSearchEdit.Value != "") {
         Keyword := Trim(SearchCenterSearchEdit.Value)
         if (StrLen(Keyword) > 0) {
             ; 使用 everything64.dll 搜索文件
@@ -25350,7 +25399,7 @@ SearchCenterFilterClickHandler(FilterType, *) {
                 SearchCenterResultLV.Delete()
                 
                 ; 获取下拉列表设置的限制值
-                everythingLimit := SearchCenterEverythingLimit > 0 ? SearchCenterEverythingLimit : 50
+                everythingLimit := SearchCenterEverythingLimit > 0 ? SearchCenterEverythingLimit : SearchCenterCurrentLimit
                 EverythingResults := GetEverythingResults(Keyword, everythingLimit, true)  ; 包含文件夹
                 
                 ; 将 Everything 搜索结果转换为统一格式并添加到搜索结果
@@ -25824,7 +25873,8 @@ UpdateSearchCenterHighlight() {
 
 ; ===================== 结果数量限制下拉菜单变化事件 =====================
 OnSearchCenterResultLimitChange(*) {
-    global SearchCenterResultLimitDropdown, SearchCenterSearchEdit, SearchCenterFilterType
+    global SearchCenterResultLimitDropdown, SearchCenterSearchEdit
+    global SearchCenterCurrentLimit, SearchCenterEverythingLimit
     
     if (!IsSet(SearchCenterResultLimitDropdown) || !SearchCenterResultLimitDropdown) {
         return
@@ -25832,10 +25882,16 @@ OnSearchCenterResultLimitChange(*) {
     
     try {
         selectedText := SearchCenterResultLimitDropdown.Text
-        SearchCenterFilterType := GetSearchCenterFilterTypeFromDropdownLabel(selectedText)
+        newLimit := GetSearchCenterLimitFromDropdownText(selectedText)
     } catch {
-        SearchCenterFilterType := ""
+        newLimit := 50
     }
+
+    if (newLimit <= 0)
+        newLimit := 50
+
+    SearchCenterCurrentLimit := newLimit
+    SearchCenterEverythingLimit := newLimit
     
     UpdateSearchCenterFilterDropdown()
     if (IsSet(SearchCenterSearchEdit) && SearchCenterSearchEdit && Trim(SearchCenterSearchEdit.Value) != "") {
@@ -25896,14 +25952,13 @@ DebouncedSearchCenter(offset := 0) {
     global SearchCenterSearchResults, SearchCenterResultLV, SearchCenterSearchEdit
     global SearchCenterCurrentLimit, SearchCenterHasMoreData, SearchCenterFilterType
     
-    SearchCenterFilterType := SyncSearchCenterFilterTypeFromDropdown()
+    ; 下拉仅控制结果数量，不覆盖过滤标签状态
     Keyword := Trim(SearchCenterSearchEdit.Value)
     
     ; 如果是新搜索（offset = 0），重置数据
     if (offset = 0) {
         SearchCenterSearchResults := []
         SearchCenterResultLV.Delete()
-        SearchCenterCurrentLimit := 50  ; 重置限制
     }
     
     if (Keyword == "") {
@@ -26070,7 +26125,7 @@ RefreshSearchCenterResults() {
         return
     }
 
-    SearchCenterFilterType := SyncSearchCenterFilterTypeFromDropdown()
+    ; 下拉仅控制结果数量，不覆盖过滤标签状态
     
     ; 清空ListView
     SearchCenterResultLV.Opt("-Redraw")
@@ -26086,25 +26141,20 @@ RefreshSearchCenterResults() {
             ; 全部：显示所有结果
             ShouldInclude := true
         } else if (SearchCenterFilterType = "clipboard") {
-            ; 剪贴板：检查OriginalDataType是否为clipboard，或Source包含"剪贴板"；并显示顺带检索的本地文件
+            ; 严格过滤：仅显示剪贴板来源
             ShouldInclude := (res.HasProp("OriginalDataType") && res.OriginalDataType = "clipboard") || (res.HasProp("Source") && InStr(res.Source, "剪贴板") > 0)
-                || (res.HasProp("OriginalDataType") && res.OriginalDataType = "file")
         } else if (SearchCenterFilterType = "template") {
-            ; 提示词：检查OriginalDataType是否为template，或Source包含"模板"或"提示词"；并显示顺带检索的本地文件
+            ; 严格过滤：仅显示模板/提示词来源
             ShouldInclude := (res.HasProp("OriginalDataType") && res.OriginalDataType = "template") || (res.HasProp("Source") && (InStr(res.Source, "模板") > 0 || InStr(res.Source, "提示词") > 0))
-                || (res.HasProp("OriginalDataType") && res.OriginalDataType = "file")
         } else if (SearchCenterFilterType = "config") {
-            ; 配置：检查OriginalDataType是否为config，或Source包含"配置"；并显示顺带检索的本地文件
+            ; 严格过滤：仅显示配置来源
             ShouldInclude := (res.HasProp("OriginalDataType") && res.OriginalDataType = "config") || (res.HasProp("Source") && InStr(res.Source, "配置") > 0)
-                || (res.HasProp("OriginalDataType") && res.OriginalDataType = "file")
         } else if (SearchCenterFilterType = "hotkey") {
-            ; 快捷键：检查OriginalDataType是否为hotkey，或Source包含"快捷键"；并显示顺带检索的本地文件
+            ; 严格过滤：仅显示快捷键来源
             ShouldInclude := (res.HasProp("OriginalDataType") && res.OriginalDataType = "hotkey") || (res.HasProp("Source") && InStr(res.Source, "快捷键") > 0)
-                || (res.HasProp("OriginalDataType") && res.OriginalDataType = "file")
         } else if (SearchCenterFilterType = "function") {
-            ; 功能：检查OriginalDataType是否为function，或Source包含"功能"；并显示顺带检索的本地文件
+            ; 严格过滤：仅显示功能来源
             ShouldInclude := (res.HasProp("OriginalDataType") && res.OriginalDataType = "function") || (res.HasProp("Source") && InStr(res.Source, "功能") > 0)
-                || (res.HasProp("OriginalDataType") && res.OriginalDataType = "file")
         } else if (SearchCenterFilterType = "File") {
             ; 文件：检查OriginalDataType是否为file，或DataType为File，或Source包含"文件"
             ShouldInclude := (res.HasProp("OriginalDataType") && res.OriginalDataType = "file") || (res.HasProp("DataType") && res.DataType = "File") || (res.HasProp("Source") && InStr(res.Source, "文件") > 0)
@@ -26258,7 +26308,19 @@ OnSearchCenterSize(GuiObj, MinMax, Width, Height) {
         }
     }
     
-    UpdateSearchCenterCLILayout(Width, Height)
+    static InLayout := false
+    if (InLayout) {
+        return
+    }
+    InLayout := true
+    
+    try {
+        if (SearchCenterResultLV != 0) {
+            SearchCenterResultLV.Opt("-Redraw")
+        }
+        
+        ; 缩放过程只做必要重排，避免每帧置顶导致抖动
+        UpdateSearchCenterCLILayout(Width, Height, false)
     if (SearchCenterResultLV != 0) {
         try {
             SearchCenterResultLV.ModifyCol(1, (Width - Padding * 2) * 0.4)
@@ -26268,7 +26330,12 @@ OnSearchCenterSize(GuiObj, MinMax, Width, Height) {
         } catch as err {
         }
     }
-    UpdateSearchCenterCategoryMode()
+    } finally {
+        if (SearchCenterResultLV != 0) {
+            try SearchCenterResultLV.Opt("+Redraw")
+        }
+        InLayout := false
+    }
 }
 
 ; 搜索中心 Enter 键处理函数（检查窗口是否激活）
@@ -34017,3 +34084,4 @@ SaveScreenshotToFile() {
 }
 
 OnExit(ExitFunc)
+

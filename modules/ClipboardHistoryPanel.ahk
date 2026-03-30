@@ -39,6 +39,9 @@ global HistoryIconCache := Map()  ; 图标缓存（避免重复提取）
 global HistoryCurrentLimit := 50  ; 当前加载的数据量限制
 global HistoryHasMoreData := false  ; 是否还有更多数据
 global HistoryResultLimitDropdown := 0  ; 结果数量限制下拉菜单
+global HistoryResultLimitDDL_Hwnd := 0  ; 记录面板结果数量下拉框句柄
+global HistoryResultLimitDDL_ListHwnd := 0  ; 记录面板结果数量下拉列表句柄
+global HistoryResultLimitDDLBrush := 0  ; 记录面板结果数量下拉框画刷
 ; HistoryEverythingLimit 已废弃，统一使用 HistoryCurrentLimit
 
 ; 暗黑模式配色（Cursor色系）
@@ -131,11 +134,13 @@ ToggleClipboardHistoryPanel() {
 ; ===================== 创建 GUI =====================
 CreateHistoryPanelGUI() {
     global GuiID_ClipboardHistory, HistoryListView, HistorySearchEdit, HistoryStatusBarText, HistoryBottomArea
+    global HistoryResultLimitDDL_Hwnd, HistoryResultLimitDDL_ListHwnd, HistoryResultLimitDDLBrush
     global HistoryColors, HistoryTagButtons, HistorySelectedTag
     
     ; 如果已存在，先销毁
     if (GuiID_ClipboardHistory != 0) {
         try {
+            Func("CleanupHistoryResultLimitDDLBrush").Call()
             GuiID_ClipboardHistory.Destroy()
         }
     }
@@ -175,6 +180,19 @@ CreateHistoryPanelGUI() {
     
     HistoryResultLimitDropdown.SetFont("s10", "Segoe UI")
     HistoryResultLimitDropdown.OnEvent("Change", OnHistoryResultLimitChange)
+    try {
+        HistoryResultLimitDDL_Hwnd := HistoryResultLimitDropdown.Hwnd
+        ComboBoxInfoSize := (A_PtrSize = 8) ? 64 : 52
+        ComboBoxInfo := Buffer(ComboBoxInfoSize, 0)
+        NumPut("UInt", ComboBoxInfoSize, ComboBoxInfo, 0)
+        if (DllCall("user32.dll\GetComboBoxInfo", "Ptr", HistoryResultLimitDDL_Hwnd, "Ptr", ComboBoxInfo, "Int")) {
+            ListHwndOffset := 40 + A_PtrSize * 2
+            HistoryResultLimitDDL_ListHwnd := NumGet(ComboBoxInfo, ListHwndOffset, "Ptr")
+        }
+        Func("UpdateHistoryResultLimitDDLBrush").Call()
+        SetTimer(Func("UpdateHistoryResultLimitDDLBrush"), -100)
+    } catch as err {
+    }
     
     ; ========== 搜索框（下拉菜单右侧）==========
     SearchBoxX := DropdownX + DropdownWidth + 10  ; 下拉菜单右侧，间距10
