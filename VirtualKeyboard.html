@@ -1,871 +1,926 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VirtualKeyboard</title>
+<title>VK KeyBinder</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600&display=swap');
+/* ── Reset & Variables ─────────────────────────────────────────────────── */
+:root {
+  --bg:        #0a0a0a;
+  --surface:   #141414;
+  --surface2:  #1a1a1a;
+  --surface3:  #202020;
+  --border:    #2e2e2e;
+  --border2:   #3a3a3a;
+  --orange:    #e67e22;
+  --orange-dk: #d35400;
+  --orange-lt: #f39c12;
+  --cyan:      #00d4ff;
+  --text:      #f0f0f0;
+  --text-dim:  #888;
+  --text-xs:   #555;
+  --glow:      0 0 8px #e67e2288, 0 0 18px #e67e2244;
+  --glow-hot:  0 0 12px #e67e22cc, 0 0 30px #e67e2266;
+  --glow-cyan: 0 0 8px #00d4ff88, 0 0 18px #00d4ff44;
+  --font:      "Fira Code", "Consolas", "Courier New", monospace;
+  --font-ui:   "Segoe UI", system-ui, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  overflow: hidden;
+  user-select: none;
+}
+/* scan-line overlay */
+body::after {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(0,0,0,.12) 2px, rgba(0,0,0,.12) 4px
+  );
+}
 
-  :root {
-    --bg:        #0a0a0a;
-    --surface:   #1a1a1a;
-    --surface2:  #222222;
-    --border:    #333333;
-    --orange:    #e67e22;
-    --orange-dk: #d35400;
-    --orange-lt: #f39c12;
-    --text:      #f5f5f5;
-    --text-dim:  #888888;
-    --glow:      0 0 8px #e67e2288, 0 0 18px #e67e2244;
-    --glow-hot:  0 0 10px #e67e22cc, 0 0 28px #e67e2266, 0 0 48px #e67e2222;
-    --font:      "Fira Code", "Consolas", "Courier New", monospace;
-  }
+/* ── Layout ────────────────────────────────────────────────────────────── */
+#root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+#hud {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 14px;
+  height: 38px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+#keyboard-zone {
+  flex-shrink: 0;
+  padding: 8px 10px 6px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+#bottom-zone {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+#sidebar {
+  flex-shrink: 0;
+  width: 180px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 8px 0;
+}
+#cmd-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+/* ── HUD ────────────────────────────────────────────────────────────────── */
+#hud-icon {
+  color: var(--orange);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-shadow: var(--glow);
+  flex-shrink: 0;
+}
+#hud-status {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 300;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#hud-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--border2);
+  flex-shrink: 0;
+  transition: background .3s, box-shadow .3s;
+}
+#hud-dot.on {
+  background: var(--orange);
+  box-shadow: var(--glow);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
+#hud-save {
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  padding: 2px 10px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: color .15s, border-color .15s, box-shadow .15s;
+}
+#hud-save:hover { color: var(--orange); border-color: var(--orange); box-shadow: var(--glow); }
 
-  html, body {
-    width: 100%; height: 100%;
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font);
-    overflow: hidden;
-    user-select: none;
-  }
+/* ── Keyboard ───────────────────────────────────────────────────────────── */
+#keyboard { display: flex; flex-direction: column; gap: 4px; }
+.kr { display: flex; gap: 4px; }
+.k {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column;
+  height: 38px; min-width: 38px;
+  padding: 0 4px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  border-bottom: 3px solid #1a1a1a;
+  font-family: var(--font);
+  font-size: 10px; font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background .1s, border-color .1s, box-shadow .1s, color .1s, transform .05s;
+  flex-shrink: 0; line-height: 1.2;
+}
+.k .sub {
+  font-size: 8px; color: var(--text-xs); font-weight: 300;
+}
+.k .map-label {
+  font-size: 7px; color: var(--orange);
+  position: absolute; bottom: 1px; left: 1px; right: 1px;
+  text-align: center; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; pointer-events: none; line-height: 1;
+}
+.k:hover {
+  background: #222; border-color: var(--border2);
+  color: var(--text); z-index: 2;
+}
+.k.bound {
+  border-color: var(--orange) !important;
+  color: var(--orange) !important;
+  animation: breath 3s ease-in-out infinite;
+}
+@keyframes breath {
+  0%,100% { box-shadow: 0 0 4px #e67e2244; }
+  50%      { box-shadow: var(--glow-hot); }
+}
+.k.recording-target {
+  border-color: var(--cyan) !important;
+  box-shadow: var(--glow-cyan) !important;
+  color: var(--cyan) !important;
+  animation: none !important;
+}
+.k:active, .k.pressed {
+  background: #2a1a00;
+  border-bottom-width: 1px;
+  transform: translateY(2px);
+}
+/* special widths */
+.k-bks  { min-width: 70px; }
+.k-tab  { min-width: 58px; }
+.k-caps { min-width: 68px; }
+.k-enter{ min-width: 78px; }
+.k-lsh  { min-width: 90px; }
+.k-rsh  { min-width: 90px; }
+.k-ctrl { min-width: 56px; }
+.k-alt  { min-width: 52px; }
+.k-spc  { flex: 1; }
+.k-win  { min-width: 48px; }
+.k-fn   { min-width: 38px; font-size: 9px; }
+.k-f    { flex: 1; font-size: 9px; }
+/* caps-lock dot */
+.k-caps::after {
+  content:''; position:absolute; top:4px; right:4px;
+  width:4px; height:4px; border-radius:50%;
+  background: var(--border);
+}
+.k-caps.caps-on::after { background: var(--orange); box-shadow: var(--glow); }
 
-  /* ── SVG scan-line overlay ── */
-  body::before {
-    content: '';
-    position: fixed; inset: 0; pointer-events: none; z-index: 999;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0,0,0,.18) 2px,
-      rgba(0,0,0,.18) 4px
-    );
-  }
+/* ── Sidebar ────────────────────────────────────────────────────────────── */
+.sidebar-section { padding: 6px 10px 2px; }
+.sidebar-section-title {
+  font-size: 9px; letter-spacing: 2px; color: var(--text-xs);
+  text-transform: uppercase; margin-bottom: 4px;
+}
+.sidebar-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 10px 5px 16px;
+  font-size: 12px; font-family: var(--font-ui);
+  color: var(--text-dim);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background .1s, color .1s;
+  border-left: 2px solid transparent;
+}
+.sidebar-item:hover { background: #1e1e1e; color: var(--text); }
+.sidebar-item.active {
+  background: #1e1200;
+  color: var(--orange);
+  border-left-color: var(--orange);
+}
+.sidebar-item.all { padding-left: 10px; font-weight: 600; }
 
-  /* ── top HUD bar ── */
-  #hud {
-    display: flex; align-items: center; gap: 12px;
-    padding: 6px 14px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    height: 38px;
-  }
-  #hud-icon {
-    color: var(--orange);
-    font-size: 13px;
-    letter-spacing: 1px;
-    text-shadow: var(--glow);
-    flex-shrink: 0;
-  }
-  #hud-msg {
-    flex: 1;
-    font-size: 12px;
-    color: var(--text-dim);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-weight: 300;
-  }
-  #hud-key {
-    font-size: 12px;
-    color: var(--orange);
-    background: #e67e2211;
-    border: 1px solid #e67e2244;
-    border-radius: 4px;
-    padding: 1px 8px;
-    min-width: 80px;
-    text-align: center;
-    transition: all .15s;
-  }
-  #hud-key.active {
-    color: var(--bg);
-    background: var(--orange);
-    border-color: var(--orange);
-    box-shadow: var(--glow);
-  }
+/* ── Command Panel ──────────────────────────────────────────────────────── */
+#cmd-search-bar {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+#cmd-search {
+  flex: 1;
+  font-family: var(--font);
+  font-size: 11px;
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 4px 10px;
+  outline: none;
+  transition: border-color .15s;
+}
+#cmd-search:focus { border-color: var(--orange); }
+#cmd-search::placeholder { color: var(--text-xs); }
+#cmd-count {
+  font-size: 10px; color: var(--text-xs);
+  flex-shrink: 0; min-width: 60px; text-align: right;
+}
+#cmd-list-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+/* scrollbar */
+#cmd-list-wrapper::-webkit-scrollbar { width: 6px; }
+#cmd-list-wrapper::-webkit-scrollbar-track { background: var(--bg); }
+#cmd-list-wrapper::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
-  /* ── keyboard wrapper ── */
-  #keyboard {
-    padding: 10px 12px 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
-
-  /* ── keyboard row ── */
-  .kr {
-    display: flex;
-    gap: 5px;
-  }
-
-  /* ── base key ── */
-  .k {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    height: 44px;
-    min-width: 44px;
-    padding: 0 6px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    border-bottom: 3px solid #2a2a2a;
-    font-family: var(--font);
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--text);
-    cursor: pointer;
-    transition: background .1s, border-color .1s, box-shadow .1s, transform .05s;
-    flex-shrink: 0;
-    line-height: 1.2;
-  }
-  .k .sub {
-    font-size: 9px;
-    color: var(--text-dim);
-    font-weight: 300;
-  }
-  .k:hover {
-    background: #2a2a2a;
-    border-color: var(--orange);
-    box-shadow: var(--glow);
-    color: var(--orange);
-    z-index: 2;
-  }
-  .k:active, .k.pressed {
-    background: var(--orange-dk);
-    border-color: var(--orange-lt);
-    border-bottom-width: 1px;
-    transform: translateY(2px);
-    box-shadow: var(--glow-hot);
-    color: #fff;
-  }
-
-  /* ── special-width keys ── */
-  .k-backspace { min-width: 86px; }
-  .k-tab       { min-width: 68px; }
-  .k-caps      { min-width: 80px; }
-  .k-enter     { min-width: 92px; }
-  .k-lshift    { min-width: 106px; }
-  .k-rshift    { min-width: 106px; }
-  .k-lctrl     { min-width: 68px; }
-  .k-rctrl     { min-width: 68px; }
-  .k-lalt      { min-width: 64px; }
-  .k-ralt      { min-width: 64px; }
-  .k-space     { flex: 1; }
-  .k-win       { min-width: 56px; }
-  .k-menu      { min-width: 56px; }
-  .k-fn        { min-width: 48px; font-size: 10px; }
-  .k-f         { flex: 1; font-size: 10px; }
-
-  /* caps-lock indicator */
-  .k-caps::after {
-    content: '';
-    position: absolute;
-    top: 5px; right: 6px;
-    width: 5px; height: 5px;
-    border-radius: 50%;
-    background: var(--border);
-    transition: background .2s, box-shadow .2s;
-  }
-  .k-caps.capslock-on::after {
-    background: var(--orange);
-    box-shadow: var(--glow);
-  }
-
-  /* ── status bar ── */
-  #statusbar {
-    display: flex; align-items: center; gap: 8px;
-    padding: 4px 14px;
-    border-top: 1px solid var(--border);
-    background: var(--surface);
-    font-size: 10px;
-    color: var(--text-dim);
-    height: 26px;
-  }
-  #status-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: var(--border);
-    flex-shrink: 0;
-    transition: background .3s, box-shadow .3s;
-  }
-  #status-dot.connected {
-    background: var(--orange);
-    box-shadow: var(--glow);
-    animation: pulse 2s ease-in-out infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: .5; }
-  }
-  #status-text { flex: 1; }
-  #status-count { color: var(--orange-lt); font-size: 9px; }
-
-  /* ── corner decoration SVG ── */
-  .corner-svg {
-    position: fixed;
-    opacity: .12;
-    pointer-events: none;
-  }
-  .corner-svg.tl { top: 0; left: 0; }
-  .corner-svg.br { bottom: 0; right: 0; transform: rotate(180deg); }
-
-  /* ── key state: active (bound) — orange breathe ── */
-  .k.active {
-    border-color: var(--orange) !important;
-    box-shadow: 0 0 6px #e67e2255;
-    animation: breath 3s ease-in-out infinite;
-  }
-  @keyframes breath {
-    0%,100% { box-shadow: 0 0 6px #e67e2255; }
-    50%      { box-shadow: var(--glow-hot);   }
-  }
-
-  /* ── key state: mapping (being assigned) — cyan glow ── */
-  .k.mapping {
-    border-color: #00d4ff !important;
-    box-shadow: 0 0 12px #00d4ffaa !important;
-    color: #00d4ff !important;
-    animation: none !important;
-  }
-
-  /* ── map-label: tiny command label inside a bound key ── */
-  .k .map-label {
-    font-size: 7px;
-    color: var(--orange);
-    position: absolute;
-    bottom: 2px;
-    left: 2px; right: 2px;
-    text-align: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    pointer-events: none;
-    letter-spacing: 0;
-    font-weight: 400;
-  }
-  .k.mapping .map-label { color: #00d4ff; }
-
-  /* ── mode toggle button (in HUD) ── */
-  #mode-btn {
-    font-family: var(--font);
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-dim);
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 2px 10px;
-    cursor: pointer;
-    letter-spacing: 1px;
-    transition: color .15s, border-color .15s, box-shadow .15s;
-    flex-shrink: 0;
-  }
-  #mode-btn:hover {
-    color: var(--orange);
-    border-color: var(--orange);
-    box-shadow: var(--glow);
-  }
-  body.edit-mode #mode-btn {
-    color: #00d4ff;
-    border-color: #00d4ff;
-    box-shadow: 0 0 8px #00d4ff66;
-  }
-  /* edit-mode: dim all keys slightly so active/mapping stand out */
-  body.edit-mode .k:not(.mapping):not(.active) {
-    opacity: .65;
-  }
+.cmd-group-header {
+  padding: 6px 14px 4px;
+  font-size: 9px; letter-spacing: 2px; color: var(--text-xs);
+  text-transform: uppercase;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 1;
+}
+.cmd-row {
+  display: flex; align-items: center;
+  padding: 0 14px;
+  height: 40px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  cursor: default;
+  transition: background .1s;
+}
+.cmd-row:hover { background: #111; }
+.cmd-row.has-binding { background: #0e0c00; }
+.cmd-row.has-binding:hover { background: #161000; }
+.cmd-row.recording {
+  background: #1a0e00 !important;
+  animation: rec-pulse 1s ease-in-out infinite;
+}
+@keyframes rec-pulse {
+  0%,100% { background: #1a0e00; }
+  50%      { background: #2a1800; }
+}
+.cmd-name {
+  flex: 1;
+  color: var(--text);
+  font-family: var(--font-ui);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cmd-row.recording .cmd-name {
+  color: var(--orange);
+}
+.cmd-key {
+  min-width: 140px;
+  font-family: var(--font);
+  font-size: 10px;
+  color: var(--text-dim);
+  text-align: right;
+  padding-right: 12px;
+}
+.cmd-row.has-binding .cmd-key {
+  color: var(--orange-lt);
+}
+.cmd-row.recording .cmd-key {
+  color: var(--cyan);
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+.cmd-actions {
+  display: flex; gap: 4px; align-items: center;
+  flex-shrink: 0;
+}
+.btn-icon {
+  font-size: 13px;
+  color: var(--text-xs);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: color .1s, border-color .1s;
+}
+.btn-icon:hover { color: var(--orange); border-color: var(--border2); }
+.btn-icon.danger:hover { color: #e74c3c; border-color: #e74c3c66; }
+.btn-icon.active-rec {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  box-shadow: var(--glow-cyan);
+}
 </style>
 </head>
 <body>
+<div id="root">
 
-<!-- corner decorations -->
-<svg class="corner-svg tl" width="80" height="80" viewBox="0 0 80 80">
-  <polyline points="0,40 0,0 40,0" fill="none" stroke="#e67e22" stroke-width="1.5"/>
-  <polyline points="0,60 0,0 60,0" fill="none" stroke="#e67e22" stroke-width=".5"/>
-  <circle cx="0" cy="0" r="3" fill="#e67e22"/>
-</svg>
-<svg class="corner-svg br" width="80" height="80" viewBox="0 0 80 80">
-  <polyline points="0,40 0,0 40,0" fill="none" stroke="#e67e22" stroke-width="1.5"/>
-  <polyline points="0,60 0,0 60,0" fill="none" stroke="#e67e22" stroke-width=".5"/>
-  <circle cx="0" cy="0" r="3" fill="#e67e22"/>
-</svg>
-
-<!-- HUD bar -->
-<div id="hud">
-  <span id="hud-icon">[ VK ]</span>
-  <span id="hud-msg">Ready — waiting for AHK host...</span>
-  <span id="hud-key">—</span>
-  <button id="mode-btn" title="切换 执行/配置 模式">[ EXEC ]</button>
-</div>
-
-<!-- keyboard -->
-<div id="keyboard">
-
-  <!-- Row 0: Esc + F keys -->
-  <div class="kr">
-    <div class="k k-fn" data-key="Escape" data-code="Escape">Esc</div>
-    <div style="min-width:16px"></div>
-    <div class="k k-f" data-key="F1"  data-code="F1">F1</div>
-    <div class="k k-f" data-key="F2"  data-code="F2">F2</div>
-    <div class="k k-f" data-key="F3"  data-code="F3">F3</div>
-    <div class="k k-f" data-key="F4"  data-code="F4">F4</div>
-    <div style="min-width:8px"></div>
-    <div class="k k-f" data-key="F5"  data-code="F5">F5</div>
-    <div class="k k-f" data-key="F6"  data-code="F6">F6</div>
-    <div class="k k-f" data-key="F7"  data-code="F7">F7</div>
-    <div class="k k-f" data-key="F8"  data-code="F8">F8</div>
-    <div style="min-width:8px"></div>
-    <div class="k k-f" data-key="F9"  data-code="F9">F9</div>
-    <div class="k k-f" data-key="F10" data-code="F10">F10</div>
-    <div class="k k-f" data-key="F11" data-code="F11">F11</div>
-    <div class="k k-f" data-key="F12" data-code="F12">F12</div>
-    <div style="min-width:8px"></div>
-    <div class="k k-fn" data-key="PrintScreen" data-code="PrintScreen" title="PrtSc">Prt</div>
-    <div class="k k-fn" data-key="ScrollLock"  data-code="ScrollLock"  title="Scroll Lock">Scr</div>
-    <div class="k k-fn" data-key="Pause"        data-code="Pause"       title="Pause">Brk</div>
+  <!-- ── HUD ─────────────────────────────────────────────────────────── -->
+  <div id="hud">
+    <span id="hud-icon">[ VK KEYBINDER ]</span>
+    <span id="hud-status">正在连接 AHK...</span>
+    <div id="hud-dot"></div>
   </div>
 
-  <!-- Row 1: Numbers -->
-  <div class="kr">
-    <div class="k" data-key="`" data-code="Backquote"><span>`</span><span class="sub">~</span></div>
-    <div class="k" data-key="1" data-code="Digit1"><span>1</span><span class="sub">!</span></div>
-    <div class="k" data-key="2" data-code="Digit2"><span>2</span><span class="sub">@</span></div>
-    <div class="k" data-key="3" data-code="Digit3"><span>3</span><span class="sub">#</span></div>
-    <div class="k" data-key="4" data-code="Digit4"><span>4</span><span class="sub">$</span></div>
-    <div class="k" data-key="5" data-code="Digit5"><span>5</span><span class="sub">%</span></div>
-    <div class="k" data-key="6" data-code="Digit6"><span>6</span><span class="sub">^</span></div>
-    <div class="k" data-key="7" data-code="Digit7"><span>7</span><span class="sub">&amp;</span></div>
-    <div class="k" data-key="8" data-code="Digit8"><span>8</span><span class="sub">*</span></div>
-    <div class="k" data-key="9" data-code="Digit9"><span>9</span><span class="sub">(</span></div>
-    <div class="k" data-key="0" data-code="Digit0"><span>0</span><span class="sub">)</span></div>
-    <div class="k" data-key="-" data-code="Minus"><span>-</span><span class="sub">_</span></div>
-    <div class="k" data-key="=" data-code="Equal"><span>=</span><span class="sub">+</span></div>
-    <div class="k k-backspace" data-key="Backspace" data-code="Backspace">⌫ Back</div>
-  </div>
+  <!-- ── Keyboard ─────────────────────────────────────────────────────── -->
+  <div id="keyboard-zone">
+    <div id="keyboard">
 
-  <!-- Row 2: QWERTY -->
-  <div class="kr">
-    <div class="k k-tab" data-key="Tab" data-code="Tab">Tab ⇥</div>
-    <div class="k" data-key="q" data-code="KeyQ">Q</div>
-    <div class="k" data-key="w" data-code="KeyW">W</div>
-    <div class="k" data-key="e" data-code="KeyE">E</div>
-    <div class="k" data-key="r" data-code="KeyR">R</div>
-    <div class="k" data-key="t" data-code="KeyT">T</div>
-    <div class="k" data-key="y" data-code="KeyY">Y</div>
-    <div class="k" data-key="u" data-code="KeyU">U</div>
-    <div class="k" data-key="i" data-code="KeyI">I</div>
-    <div class="k" data-key="o" data-code="KeyO">O</div>
-    <div class="k" data-key="p" data-code="KeyP">P</div>
-    <div class="k" data-key="[" data-code="BracketLeft"><span>[</span><span class="sub">{</span></div>
-    <div class="k" data-key="]" data-code="BracketRight"><span>]</span><span class="sub">}</span></div>
-    <div class="k" data-key="\" data-code="Backslash"><span>\</span><span class="sub">|</span></div>
-  </div>
+      <!-- Row 0: Esc + F keys -->
+      <div class="kr">
+        <div class="k k-fn" data-ahkkey="Escape">Esc</div>
+        <div style="min-width:14px"></div>
+        <div class="k k-f" data-ahkkey="F1">F1</div>
+        <div class="k k-f" data-ahkkey="F2">F2</div>
+        <div class="k k-f" data-ahkkey="F3">F3</div>
+        <div class="k k-f" data-ahkkey="F4">F4</div>
+        <div style="min-width:7px"></div>
+        <div class="k k-f" data-ahkkey="F5">F5</div>
+        <div class="k k-f" data-ahkkey="F6">F6</div>
+        <div class="k k-f" data-ahkkey="F7">F7</div>
+        <div class="k k-f" data-ahkkey="F8">F8</div>
+        <div style="min-width:7px"></div>
+        <div class="k k-f" data-ahkkey="F9">F9</div>
+        <div class="k k-f" data-ahkkey="F10">F10</div>
+        <div class="k k-f" data-ahkkey="F11">F11</div>
+        <div class="k k-f" data-ahkkey="F12">F12</div>
+        <div style="min-width:7px"></div>
+        <div class="k k-fn" data-ahkkey="PrintScreen">Prt</div>
+        <div class="k k-fn" data-ahkkey="ScrollLock">Scr</div>
+        <div class="k k-fn" data-ahkkey="Pause">Brk</div>
+      </div>
 
-  <!-- Row 3: ASDF -->
-  <div class="kr">
-    <div class="k k-caps" data-key="CapsLock" data-code="CapsLock">Caps ⇪</div>
-    <div class="k" data-key="a" data-code="KeyA">A</div>
-    <div class="k" data-key="s" data-code="KeyS">S</div>
-    <div class="k" data-key="d" data-code="KeyD">D</div>
-    <div class="k" data-key="f" data-code="KeyF">F</div>
-    <div class="k" data-key="g" data-code="KeyG">G</div>
-    <div class="k" data-key="h" data-code="KeyH">H</div>
-    <div class="k" data-key="j" data-code="KeyJ">J</div>
-    <div class="k" data-key="k" data-code="KeyK">K</div>
-    <div class="k" data-key="l" data-code="KeyL">L</div>
-    <div class="k" data-key=";" data-code="Semicolon"><span>;</span><span class="sub">:</span></div>
-    <div class="k" data-key="'" data-code="Quote"><span>'</span><span class="sub">"</span></div>
-    <div class="k k-enter" data-key="Enter" data-code="Enter">Enter ↵</div>
-  </div>
+      <!-- Row 1: Numbers -->
+      <div class="kr">
+        <div class="k" data-ahkkey="``"><span>`</span><span class="sub">~</span></div>
+        <div class="k" data-ahkkey="1"><span>1</span><span class="sub">!</span></div>
+        <div class="k" data-ahkkey="2"><span>2</span><span class="sub">@</span></div>
+        <div class="k" data-ahkkey="3"><span>3</span><span class="sub">#</span></div>
+        <div class="k" data-ahkkey="4"><span>4</span><span class="sub">$</span></div>
+        <div class="k" data-ahkkey="5"><span>5</span><span class="sub">%</span></div>
+        <div class="k" data-ahkkey="6"><span>6</span><span class="sub">^</span></div>
+        <div class="k" data-ahkkey="7"><span>7</span><span class="sub">&amp;</span></div>
+        <div class="k" data-ahkkey="8"><span>8</span><span class="sub">*</span></div>
+        <div class="k" data-ahkkey="9"><span>9</span><span class="sub">(</span></div>
+        <div class="k" data-ahkkey="0"><span>0</span><span class="sub">)</span></div>
+        <div class="k" data-ahkkey="-"><span>-</span><span class="sub">_</span></div>
+        <div class="k" data-ahkkey="="><span>=</span><span class="sub">+</span></div>
+        <div class="k k-bks" data-ahkkey="Backspace">⌫ Bks</div>
+      </div>
 
-  <!-- Row 4: ZXCV -->
-  <div class="kr">
-    <div class="k k-lshift" data-key="Shift" data-code="ShiftLeft">⇧ Shift</div>
-    <div class="k" data-key="z" data-code="KeyZ">Z</div>
-    <div class="k" data-key="x" data-code="KeyX">X</div>
-    <div class="k" data-key="c" data-code="KeyC">C</div>
-    <div class="k" data-key="v" data-code="KeyV">V</div>
-    <div class="k" data-key="b" data-code="KeyB">B</div>
-    <div class="k" data-key="n" data-code="KeyN">N</div>
-    <div class="k" data-key="m" data-code="KeyM">M</div>
-    <div class="k" data-key="," data-code="Comma"><span>,</span><span class="sub">&lt;</span></div>
-    <div class="k" data-key="." data-code="Period"><span>.</span><span class="sub">&gt;</span></div>
-    <div class="k" data-key="/" data-code="Slash"><span>/</span><span class="sub">?</span></div>
-    <div class="k k-rshift" data-key="Shift" data-code="ShiftRight">Shift ⇧</div>
-  </div>
+      <!-- Row 2: QWERTY -->
+      <div class="kr">
+        <div class="k k-tab" data-ahkkey="Tab">Tab ⇥</div>
+        <div class="k" data-ahkkey="q">Q</div>
+        <div class="k" data-ahkkey="w">W</div>
+        <div class="k" data-ahkkey="e">E</div>
+        <div class="k" data-ahkkey="r">R</div>
+        <div class="k" data-ahkkey="t">T</div>
+        <div class="k" data-ahkkey="y">Y</div>
+        <div class="k" data-ahkkey="u">U</div>
+        <div class="k" data-ahkkey="i">I</div>
+        <div class="k" data-ahkkey="o">O</div>
+        <div class="k" data-ahkkey="p">P</div>
+        <div class="k" data-ahkkey="["><span>[</span><span class="sub">{</span></div>
+        <div class="k" data-ahkkey="]"><span>]</span><span class="sub">}</span></div>
+        <div class="k" data-ahkkey="\"><span>\</span><span class="sub">|</span></div>
+      </div>
 
-  <!-- Row 5: Bottom -->
-  <div class="kr">
-    <div class="k k-lctrl"  data-key="Control" data-code="ControlLeft">Ctrl</div>
-    <div class="k k-win"    data-key="Meta"    data-code="MetaLeft">⊞ Win</div>
-    <div class="k k-lalt"   data-key="Alt"     data-code="AltLeft">Alt</div>
-    <div class="k k-space"  data-key=" "       data-code="Space">SPACE</div>
-    <div class="k k-ralt"   data-key="Alt"     data-code="AltRight">Alt</div>
-    <div class="k k-win"    data-key="Meta"    data-code="MetaRight">⊞ Win</div>
-    <div class="k k-menu"   data-key="ContextMenu" data-code="ContextMenu">≡ Menu</div>
-    <div class="k k-rctrl"  data-key="Control" data-code="ControlRight">Ctrl</div>
-    <div style="min-width:8px"></div>
-    <div class="k k-fn" data-key="Insert"    data-code="Insert">Ins</div>
-    <div class="k k-fn" data-key="Home"      data-code="Home">Home</div>
-    <div class="k k-fn" data-key="PageUp"    data-code="PageUp">PgUp</div>
-    <div style="min-width:4px"></div>
-    <div class="k k-fn" data-key="ArrowUp"   data-code="ArrowUp">▲</div>
-  </div>
+      <!-- Row 3: ASDF -->
+      <div class="kr">
+        <div class="k k-caps" data-ahkkey="CapsLock">Caps ⇪</div>
+        <div class="k" data-ahkkey="a">A</div>
+        <div class="k" data-ahkkey="s">S</div>
+        <div class="k" data-ahkkey="d">D</div>
+        <div class="k" data-ahkkey="f">F</div>
+        <div class="k" data-ahkkey="g">G</div>
+        <div class="k" data-ahkkey="h">H</div>
+        <div class="k" data-ahkkey="j">J</div>
+        <div class="k" data-ahkkey="k">K</div>
+        <div class="k" data-ahkkey="l">L</div>
+        <div class="k" data-ahkkey=";"><span>;</span><span class="sub">:</span></div>
+        <div class="k" data-ahkkey="'"><span>'</span><span class="sub">"</span></div>
+        <div class="k k-enter" data-ahkkey="Enter">Enter ↵</div>
+      </div>
 
-  <!-- Row 6: Arrow keys -->
-  <div class="kr" style="justify-content: flex-end; padding-right: 0;">
-    <div style="flex:1"></div>
-    <div class="k k-fn" data-key="Delete"    data-code="Delete">Del</div>
-    <div class="k k-fn" data-key="End"       data-code="End">End</div>
-    <div class="k k-fn" data-key="PageDown"  data-code="PageDown">PgDn</div>
-    <div style="min-width:4px"></div>
-    <div class="k k-fn" data-key="ArrowLeft" data-code="ArrowLeft">◀</div>
-    <div class="k k-fn" data-key="ArrowDown" data-code="ArrowDown">▼</div>
-    <div class="k k-fn" data-key="ArrowRight"data-code="ArrowRight">▶</div>
-  </div>
+      <!-- Row 4: ZXCV -->
+      <div class="kr">
+        <div class="k k-lsh" data-ahkkey="LShift">⇧ Shift</div>
+        <div class="k" data-ahkkey="z">Z</div>
+        <div class="k" data-ahkkey="x">X</div>
+        <div class="k" data-ahkkey="c">C</div>
+        <div class="k" data-ahkkey="v">V</div>
+        <div class="k" data-ahkkey="b">B</div>
+        <div class="k" data-ahkkey="n">N</div>
+        <div class="k" data-ahkkey="m">M</div>
+        <div class="k" data-ahkkey=","><span>,</span><span class="sub">&lt;</span></div>
+        <div class="k" data-ahkkey="."><span>.</span><span class="sub">&gt;</span></div>
+        <div class="k" data-ahkkey="/"><span>/</span><span class="sub">?</span></div>
+        <div class="k k-rsh" data-ahkkey="RShift">Shift ⇧</div>
+      </div>
 
-</div>
+      <!-- Row 5: Bottom -->
+      <div class="kr">
+        <div class="k k-ctrl" data-ahkkey="LCtrl">Ctrl</div>
+        <div class="k k-win"  data-ahkkey="LWin">⊞</div>
+        <div class="k k-alt"  data-ahkkey="LAlt">Alt</div>
+        <div class="k k-spc"  data-ahkkey="Space">SPACE</div>
+        <div class="k k-alt"  data-ahkkey="RAlt">Alt</div>
+        <div class="k k-win"  data-ahkkey="RWin">⊞</div>
+        <div class="k k-win"  data-ahkkey="AppsKey">≡</div>
+        <div class="k k-ctrl" data-ahkkey="RCtrl">Ctrl</div>
+        <div style="min-width:7px"></div>
+        <div class="k k-fn" data-ahkkey="Insert">Ins</div>
+        <div class="k k-fn" data-ahkkey="Home">Home</div>
+        <div class="k k-fn" data-ahkkey="PgUp">PgUp</div>
+        <div style="min-width:4px"></div>
+        <div class="k k-fn" data-ahkkey="Up">▲</div>
+      </div>
 
-<!-- status bar -->
-<div id="statusbar">
-  <div id="status-dot"></div>
-  <span id="status-text">Disconnected</span>
-  <span id="status-count">events: 0</span>
-</div>
+      <!-- Row 6: Arrows -->
+      <div class="kr" style="justify-content:flex-end;">
+        <div style="flex:1"></div>
+        <div class="k k-fn" data-ahkkey="Delete">Del</div>
+        <div class="k k-fn" data-ahkkey="End">End</div>
+        <div class="k k-fn" data-ahkkey="PgDn">PgDn</div>
+        <div style="min-width:4px"></div>
+        <div class="k k-fn" data-ahkkey="Left">◀</div>
+        <div class="k k-fn" data-ahkkey="Down">▼</div>
+        <div class="k k-fn" data-ahkkey="Right">▶</div>
+      </div>
 
-<!-- ── Mapping Panel (floating editor) ─────────────────────────────────── -->
-<div id="mapping-panel" class="mp-hidden">
-  <div id="mp-header">
-    <span id="mp-title">ASSIGN KEY</span>
-    <span id="mp-code-badge">—</span>
-  </div>
-  <div class="mp-row">
-    <label class="mp-lbl">LABEL</label>
-    <input id="mp-label" type="text" maxlength="10" placeholder="自定义名称（最多10字）" autocomplete="off" spellcheck="false">
-  </div>
-  <div class="mp-row">
-    <label class="mp-lbl">CMD</label>
-    <select id="mp-cmd">
-      <option value="EXIT_APP">EXIT_APP — 退出程序</option>
-      <option value="SHOW_VK">SHOW_VK — 显示键盘</option>
-      <option value="HIDE_VK">HIDE_VK — 隐藏键盘</option>
-      <option value="RESET_VK">RESET_VK — 重置键盘</option>
-    </select>
-  </div>
-  <div id="mp-actions">
-    <button id="mp-confirm" class="mp-btn mp-ok">✓ 确认</button>
-    <button id="mp-clear"   class="mp-btn mp-del">✕ 解绑</button>
-    <button id="mp-cancel"  class="mp-btn mp-dim">✕ 取消</button>
-  </div>
-</div>
+    </div><!-- #keyboard -->
+  </div><!-- #keyboard-zone -->
 
-<style>
-  /* ── mapping panel ── */
-  #mapping-panel {
-    position: fixed;
-    top: 50px; left: 50%;
-    transform: translateX(-50%);
-    z-index: 1000;
-    min-width: 320px;
-    background: #141414;
-    border: 1px solid #00d4ff66;
-    border-radius: 6px;
-    box-shadow: 0 0 24px #00d4ff44, 0 4px 32px #000a;
-    padding: 14px 18px 12px;
-    font-family: var(--font);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  #mapping-panel.mp-hidden { display: none; }
+  <!-- ── Bottom: Sidebar + Command Panel ─────────────────────────────── -->
+  <div id="bottom-zone">
 
-  #mp-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    border-bottom: 1px solid #00d4ff33;
-    padding-bottom: 8px;
-  }
-  #mp-title {
-    font-size: 11px;
-    font-weight: 600;
-    color: #00d4ff;
-    letter-spacing: 2px;
-    text-shadow: 0 0 8px #00d4ffaa;
-  }
-  #mp-code-badge {
-    font-size: 11px;
-    color: var(--orange);
-    background: #e67e2218;
-    border: 1px solid #e67e2244;
-    border-radius: 3px;
-    padding: 1px 8px;
-    letter-spacing: 0.5px;
-  }
+    <!-- Sidebar -->
+    <div id="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">分类</div>
+      </div>
+      <div id="sidebar-list"></div>
+    </div>
 
-  .mp-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .mp-lbl {
-    font-size: 10px;
-    color: var(--text-dim);
-    letter-spacing: 1px;
-    min-width: 40px;
-    text-align: right;
-  }
-  #mp-label, #mp-cmd {
-    flex: 1;
-    font-family: var(--font);
-    font-size: 11px;
-    background: #1e1e1e;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--text);
-    padding: 4px 8px;
-    outline: none;
-    transition: border-color .15s;
-  }
-  #mp-label:focus, #mp-cmd:focus {
-    border-color: #00d4ff;
-    box-shadow: 0 0 6px #00d4ff44;
-  }
-  #mp-cmd option {
-    background: #1e1e1e;
-  }
+    <!-- Command Panel -->
+    <div id="cmd-panel">
+      <div id="cmd-search-bar">
+        <input id="cmd-search" type="text" placeholder="搜索命令..." autocomplete="off" spellcheck="false">
+        <span id="cmd-count">0 个命令</span>
+      </div>
+      <div id="cmd-list-wrapper">
+        <div id="cmd-list"></div>
+      </div>
+    </div>
 
-  #mp-actions {
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-    padding-top: 2px;
-  }
-  .mp-btn {
-    font-family: var(--font);
-    font-size: 11px;
-    font-weight: 600;
-    padding: 4px 14px;
-    border-radius: 4px;
-    border: 1px solid;
-    cursor: pointer;
-    letter-spacing: 0.5px;
-    transition: background .1s, box-shadow .1s;
-  }
-  .mp-ok  { color: var(--orange); border-color: var(--orange); background: #e67e2211; }
-  .mp-ok:hover  { background: var(--orange); color: #000; box-shadow: var(--glow); }
-  .mp-del { color: #e74c3c; border-color: #e74c3c88; background: #e74c3c11; }
-  .mp-del:hover { background: #e74c3c; color: #fff; }
-  .mp-dim { color: var(--text-dim); border-color: var(--border); background: transparent; }
-  .mp-dim:hover { color: var(--text); border-color: var(--text-dim); }
-</style>
+  </div><!-- #bottom-zone -->
+</div><!-- #root -->
 
 <script>
-// ── State ──────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════════════════════════
 const state = {
-  connected:  false,
-  capsLock:   false,
-  eventCount: 0,
-  pressedKeys: new Set(),
-  // ── mapping system ──
-  mode:       'exec',   // 'exec' | 'edit'
-  jsKeyMap:   {},       // code -> { label, command }
-  editingKey: null,     // code currently open in mapping panel
+  connected:   false,
+  categories:  [],          // [ { id, name, commands:[cmdId,...] } ]
+  commands:    {},          // cmdId -> { name, desc }
+  bindings:    {},          // cmdId -> { ahkKey, displayKey }
+  ahkKeyIndex: {},          // ahkKey -> cmdId  (reverse)
+  filter:      'all',       // 'all' | categoryId
+  search:      '',
+  recording:   null,        // cmdId being recorded
 };
 
-// ── DOM refs ───────────────────────────────────────────────────────────────
-const hudMsg    = document.getElementById('hud-msg');
-const hudKey    = document.getElementById('hud-key');
-const statusDot = document.getElementById('status-dot');
-const statusTxt = document.getElementById('status-text');
-const statusCnt = document.getElementById('status-count');
-const modeBtn   = document.getElementById('mode-btn');
-const mpPanel   = document.getElementById('mapping-panel');
-const mpCode    = document.getElementById('mp-code-badge');
-const mpLabel   = document.getElementById('mp-label');
-const mpCmd     = document.getElementById('mp-cmd');
-
-// ── Utility ────────────────────────────────────────────────────────────────
-function setStatus(connected, text) {
-  state.connected = connected;
-  statusDot.className = connected ? 'connected' : '';
-  statusTxt.textContent = text || (connected ? 'Connected to AHK' : 'Disconnected');
+// ═══════════════════════════════════════════════════════════════════════════
+// Utility
+// ═══════════════════════════════════════════════════════════════════════════
+function postToAhk(obj) {
+  if (window.chrome && window.chrome.webview)
+    window.chrome.webview.postMessage(obj);
 }
 
-function setHudMsg(msg) {
-  hudMsg.textContent = msg;
-}
-
-function flashHudKey(label) {
-  hudKey.textContent = label;
-  hudKey.classList.add('active');
-  clearTimeout(hudKey._t);
-  hudKey._t = setTimeout(() => hudKey.classList.remove('active'), 600);
-}
-
-function incCount() {
-  state.eventCount++;
-  statusCnt.textContent = 'events: ' + state.eventCount;
-}
-
-// ── Mode management ────────────────────────────────────────────────────────
-function setMode(mode) {
-  state.mode = mode;
-  const isEdit = mode === 'edit';
-  modeBtn.textContent = isEdit ? '[ CONFIG ]' : '[ EXEC ]';
-  document.body.classList.toggle('edit-mode', isEdit);
-  if (!isEdit) closeMappingPanel();
-  updateHudMode();
-}
-
-function updateHudMode() {
-  const bound = Object.keys(state.jsKeyMap).length;
-  if (state.mode === 'edit') {
-    if (state.editingKey) {
-      const bound2 = state.jsKeyMap[state.editingKey];
-      setHudMsg(
-        'MODE: CONFIG | SELECTED: ' + state.editingKey +
-        (bound2 ? ' | CURRENT: ' + bound2.command : ' | UNBOUND')
-      );
-    } else {
-      setHudMsg('MODE: CONFIG — click a key to assign a command');
-    }
-  } else {
-    setHudMsg('MODE: EXEC | ACTIVE: ' + bound + ' key' + (bound !== 1 ? 's' : ''));
+function setHud(msg, connected) {
+  document.getElementById('hud-status').textContent = msg;
+  if (connected !== undefined) {
+    state.connected = connected;
+    document.getElementById('hud-dot').className = connected ? 'on' : '';
   }
 }
 
-// ── Key map rendering ──────────────────────────────────────────────────────
-function renderKeyMap() {
+// AHK key string -> KeyboardEvent.code (for keyboard highlight)
+// e.g. "q" -> "KeyQ",  "Escape" -> "Escape",  "F5" -> "F5"
+function ahkKeyToDataKey(ahkKey) {
+  // strip modifiers
+  const base = ahkKey.replace(/[\^!+]/g, '');
+  if (/^[a-z]$/.test(base)) return 'Key' + base.toUpperCase();
+  if (/^[0-9]$/.test(base)) return 'Digit' + base;
+  return base; // Escape, F1..F12, Space, etc.
+}
+
+// KeyboardEvent -> AHK hotkey string
+function buildAhkKey(e) {
+  const mods = (e.ctrlKey ? '^' : '') + (e.altKey ? '!' : '') + (e.shiftKey ? '+' : '');
+  const base  = keyCodeToAhkBase(e.code);
+  return mods + base;
+}
+
+function buildDisplayKey(e) {
+  const parts = [];
+  if (e.ctrlKey)  parts.push('Ctrl');
+  if (e.altKey)   parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  parts.push(keyCodeToDisplay(e.code));
+  return parts.join('+');
+}
+
+function keyCodeToAhkBase(code) {
+  if (/^Key([A-Z])$/.test(code)) return code.slice(3).toLowerCase();
+  if (/^Digit([0-9])$/.test(code)) return code.slice(5);
+  const map = {
+    Escape:'Escape', Enter:'Enter', Space:'Space', Tab:'Tab',
+    Backspace:'Backspace', Delete:'Delete', Insert:'Insert',
+    Home:'Home', End:'End', PageUp:'PgUp', PageDown:'PgDn',
+    ArrowUp:'Up', ArrowDown:'Down', ArrowLeft:'Left', ArrowRight:'Right',
+    F1:'F1', F2:'F2', F3:'F3', F4:'F4', F5:'F5', F6:'F6',
+    F7:'F7', F8:'F8', F9:'F9', F10:'F10', F11:'F11', F12:'F12',
+    Minus:'-', Equal:'=', BracketLeft:'[', BracketRight:']',
+    Backslash:'\\', Semicolon:';', Quote:"'", Backquote:'``',
+    Comma:',', Period:'.', Slash:'/',
+    PrintScreen:'PrintScreen', ScrollLock:'ScrollLock', Pause:'Pause',
+    CapsLock:'CapsLock',
+    ShiftLeft:'LShift', ShiftRight:'RShift',
+    ControlLeft:'LCtrl', ControlRight:'RCtrl',
+    AltLeft:'LAlt', AltRight:'RAlt',
+    MetaLeft:'LWin', MetaRight:'RWin',
+    ContextMenu:'AppsKey',
+  };
+  return map[code] || code;
+}
+
+function keyCodeToDisplay(code) {
+  if (/^Key([A-Z])$/.test(code)) return code.slice(3);
+  if (/^Digit([0-9])$/.test(code)) return code.slice(5);
+  const map = {
+    Escape:'Esc', Enter:'Enter', Space:'Space', Tab:'Tab',
+    Backspace:'Bks', Delete:'Del', Insert:'Ins',
+    Home:'Home', End:'End', PageUp:'PgUp', PageDown:'PgDn',
+    ArrowUp:'↑', ArrowDown:'↓', ArrowLeft:'←', ArrowRight:'→',
+    F1:'F1', F2:'F2', F3:'F3', F4:'F4', F5:'F5', F6:'F6',
+    F7:'F7', F8:'F8', F9:'F9', F10:'F10', F11:'F11', F12:'F12',
+    Minus:'-', Equal:'=',
+  };
+  return map[code] || code;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AHK → JS message handler
+// ═══════════════════════════════════════════════════════════════════════════
+function handleAhkMessage(msg) {
+  switch (msg.type) {
+    case 'init':
+      handleInit(msg);
+      break;
+    case 'bindingUpdated':
+      handleBindingUpdated(msg);
+      break;
+    case 'setHud':
+      setHud(msg.message);
+      break;
+    default:
+      console.warn('[VK] Unknown AHK msg:', msg.type);
+  }
+}
+
+function handleInit(msg) {
+  state.categories = msg.categories || [];
+  state.commands   = msg.commands   || {};
+  state.bindings   = msg.bindings   || {};
+
+  // build reverse index ahkKey -> cmdId
+  state.ahkKeyIndex = {};
+  for (const [cmdId, b] of Object.entries(state.bindings)) {
+    if (b.ahkKey) state.ahkKeyIndex[b.ahkKey] = cmdId;
+  }
+
+  renderSidebar();
+  renderCommandList();
+  renderKeyboardLabels();
+  setHud('已连接 · ' + Object.keys(state.bindings).length + ' 个绑定', true);
+}
+
+function handleBindingUpdated(msg) {
+  const { commandId, ahkKey, displayKey } = msg;
+
+  // remove old ahkKey from index
+  if (state.bindings[commandId]?.ahkKey)
+    delete state.ahkKeyIndex[state.bindings[commandId].ahkKey];
+
+  if (ahkKey) {
+    // if this ahkKey was assigned to another cmd, clear that
+    const oldCmd = state.ahkKeyIndex[ahkKey];
+    if (oldCmd && oldCmd !== commandId) {
+      state.bindings[oldCmd] = { ahkKey: '', displayKey: '' };
+    }
+    state.bindings[commandId]   = { ahkKey, displayKey };
+    state.ahkKeyIndex[ahkKey]   = commandId;
+  } else {
+    delete state.bindings[commandId];
+  }
+
+  renderCommandList();
+  renderKeyboardLabels();
+  const bound = Object.keys(state.bindings).filter(k => state.bindings[k]?.ahkKey).length;
+  setHud('已连接 · ' + bound + ' 个绑定');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Render: Sidebar
+// ═══════════════════════════════════════════════════════════════════════════
+function renderSidebar() {
+  const list = document.getElementById('sidebar-list');
+  list.innerHTML = '';
+
+  const all = mkEl('div', 'sidebar-item all' + (state.filter === 'all' ? ' active' : ''), '全部');
+  all.addEventListener('click', () => { state.filter = 'all'; renderSidebar(); renderCommandList(); });
+  list.appendChild(all);
+
+  for (const cat of state.categories) {
+    const item = mkEl('div', 'sidebar-item' + (state.filter === cat.id ? ' active' : ''), cat.name);
+    item.addEventListener('click', () => { state.filter = cat.id; renderSidebar(); renderCommandList(); });
+    list.appendChild(item);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Render: Command List
+// ═══════════════════════════════════════════════════════════════════════════
+function renderCommandList() {
+  const container = document.getElementById('cmd-list');
+  const search    = state.search.toLowerCase();
+  container.innerHTML = '';
+  let total = 0;
+
+  const visibleCats = state.filter === 'all'
+    ? state.categories
+    : state.categories.filter(c => c.id === state.filter);
+
+  for (const cat of visibleCats) {
+    const visibleCmds = cat.commands.filter(cmdId => {
+      const cmd = state.commands[cmdId];
+      if (!cmd) return false;
+      if (!search) return true;
+      return cmd.name.includes(search) || cmdId.includes(search) ||
+             (cmd.desc && cmd.desc.includes(search));
+    });
+    if (visibleCmds.length === 0) continue;
+
+    const hdr = mkEl('div', 'cmd-group-header', cat.name);
+    container.appendChild(hdr);
+
+    for (const cmdId of visibleCmds) {
+      container.appendChild(makeCmdRow(cmdId));
+      total++;
+    }
+  }
+
+  document.getElementById('cmd-count').textContent = total + ' 个命令';
+}
+
+function makeCmdRow(cmdId) {
+  const cmd     = state.commands[cmdId] || { name: cmdId, desc: '' };
+  const binding = state.bindings[cmdId];
+  const hasBind = !!(binding?.ahkKey);
+  const isRec   = state.recording === cmdId;
+
+  const row = document.createElement('div');
+  row.className = 'cmd-row' + (hasBind ? ' has-binding' : '') + (isRec ? ' recording' : '');
+  row.dataset.cmdId = cmdId;
+
+  // name + desc tooltip
+  const nameEl = mkEl('div', 'cmd-name', cmd.name);
+  if (cmd.desc) nameEl.title = cmd.desc;
+
+  // key display
+  const keyEl = mkEl('div', 'cmd-key',
+    isRec ? '⏺ 请按下新快捷键...' :
+    hasBind ? binding.displayKey : '—');
+
+  // action buttons
+  const actions = document.createElement('div');
+  actions.className = 'cmd-actions';
+
+  const editBtn = document.createElement('button');
+  editBtn.className = 'btn-icon' + (isRec ? ' active-rec' : '');
+  editBtn.title     = isRec ? '取消录制' : '录制快捷键';
+  editBtn.textContent = isRec ? '⏹' : '✎';
+  editBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (isRec) stopRecording();
+    else       startRecording(cmdId);
+  });
+
+  const clearBtn = document.createElement('button');
+  clearBtn.className   = 'btn-icon danger';
+  clearBtn.title       = '清除绑定';
+  clearBtn.textContent = '✕';
+  clearBtn.style.display = hasBind ? '' : 'none';
+  clearBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    postToAhk({ type: 'clearBinding', commandId: cmdId });
+  });
+
+  const testBtn = document.createElement('button');
+  testBtn.className   = 'btn-icon';
+  testBtn.title       = '测试执行';
+  testBtn.textContent = '▶';
+  testBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    postToAhk({ type: 'executeCommand', commandId: cmdId });
+  });
+
+  actions.append(editBtn, clearBtn, testBtn);
+  row.append(nameEl, keyEl, actions);
+  return row;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Render: Keyboard Labels
+// ═══════════════════════════════════════════════════════════════════════════
+function renderKeyboardLabels() {
+  // clear all
   document.querySelectorAll('.k').forEach(el => {
-    const code  = el.dataset.code;
-    const entry = state.jsKeyMap[code];
-    el.classList.toggle('active', !!entry);
-    // create/update the tiny label inside the key
+    el.classList.remove('bound');
+    const lbl = el.querySelector('.map-label');
+    if (lbl) lbl.textContent = '';
+  });
+
+  for (const [cmdId, b] of Object.entries(state.bindings)) {
+    if (!b?.ahkKey) continue;
+    // plain ahkKey (no modifier prefix): find key element by data-ahkkey
+    const baseKey = b.ahkKey.replace(/[\^!+]/g, '');
+    const el = document.querySelector(`.k[data-ahkkey="${CSS.escape(baseKey)}"]`);
+    if (!el) continue;
+
+    el.classList.add('bound');
     let lbl = el.querySelector('.map-label');
     if (!lbl) {
       lbl = document.createElement('div');
       lbl.className = 'map-label';
       el.appendChild(lbl);
     }
-    lbl.textContent = entry ? entry.label : '';
-  });
-  updateHudMode();
-}
-
-// ── Mapping panel ──────────────────────────────────────────────────────────
-function openMappingPanel(code) {
-  state.editingKey = code;
-  const entry = state.jsKeyMap[code];
-  mpCode.textContent   = code;
-  mpLabel.value        = entry ? entry.label   : '';
-  mpCmd.value          = entry ? entry.command : 'EXIT_APP';
-  mpPanel.classList.remove('mp-hidden');
-  // highlight the selected key
-  document.querySelectorAll('.k.mapping').forEach(e => e.classList.remove('mapping'));
-  findKeyEl(code)?.classList.add('mapping');
-  updateHudMode();
-  mpLabel.focus();
-}
-
-function closeMappingPanel() {
-  state.editingKey = null;
-  mpPanel.classList.add('mp-hidden');
-  document.querySelectorAll('.k.mapping').forEach(e => e.classList.remove('mapping'));
-  updateHudMode();
-}
-
-// ── Key element lookup ─────────────────────────────────────────────────────
-function findKeyEl(code) {
-  return document.querySelector(`.k[data-code="${code}"]`);
-}
-
-function highlightKey(code, durationMs = 400) {
-  const el = findKeyEl(code);
-  if (!el) return;
-  el.classList.add('pressed');
-  setTimeout(() => el.classList.remove('pressed'), durationMs);
-}
-
-// ── Post message to AHK ────────────────────────────────────────────────────
-function postToAhk(obj) {
-  if (window.chrome && window.chrome.webview) {
-    // postMessage(object) — WebView2 序列化对象为 JSON；AHK 侧用 WebMessageAsJson 读取
-    window.chrome.webview.postMessage(obj);
-    incCount();
+    const cmdName = state.commands[cmdId]?.name || cmdId;
+    lbl.textContent = cmdName.length > 6 ? cmdName.slice(0, 5) + '…' : cmdName;
   }
 }
 
-// ── Handle click on a key ──────────────────────────────────────────────────
-function onKeyClick(el) {
-  const key  = el.dataset.key;
-  const code = el.dataset.code;
+// ═══════════════════════════════════════════════════════════════════════════
+// Recording
+// ═══════════════════════════════════════════════════════════════════════════
+function startRecording(cmdId) {
+  if (state.recording) stopRecording();
+  state.recording = cmdId;
+  renderCommandList();
+  // highlight corresponding key on keyboard if already bound
+  if (state.bindings[cmdId]?.ahkKey) {
+    const baseKey = state.bindings[cmdId].ahkKey.replace(/[\^!+]/g, '');
+    document.querySelector(`.k[data-ahkkey="${CSS.escape(baseKey)}"]`)
+      ?.classList.add('recording-target');
+  }
+  setHud('MODE: CONFIG | RECORDING: ' + (state.commands[cmdId]?.name || cmdId));
+  document.addEventListener('keydown', onRecordKeydown);
+}
 
-  // ── edit mode: open assignment panel ──
-  if (state.mode === 'edit') {
-    openMappingPanel(code);
+function stopRecording() {
+  document.removeEventListener('keydown', onRecordKeydown);
+  document.querySelectorAll('.k.recording-target').forEach(e => e.classList.remove('recording-target'));
+  state.recording = null;
+  renderCommandList();
+  const bound = Object.values(state.bindings).filter(b => b?.ahkKey).length;
+  setHud('已连接 · ' + bound + ' 个绑定');
+}
+
+function onRecordKeydown(e) {
+  // ignore lone modifier keys
+  if (['Control','Shift','Alt','Meta'].includes(e.key)) return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  const cmdId     = state.recording;
+  const ahkKey    = buildAhkKey(e);
+  const displayKey = buildDisplayKey(e);
+
+  if (!ahkKey || ahkKey === 'Escape') {
+    stopRecording();
     return;
   }
 
-  // ── exec mode ──
-  if (code === 'CapsLock') {
-    state.capsLock = !state.capsLock;
-    el.classList.toggle('capslock-on', state.capsLock);
-  }
-
-  flashHudKey(key === ' ' ? 'Space' : (key.length === 1 ? key.toUpperCase() : key));
-  highlightKey(code, 300);
-
-  postToAhk({
-    type:      'keyPress',
-    key:       key,
-    code:      code,
-    capsLock:  state.capsLock,
-    timestamp: Date.now()
-  });
+  stopRecording();
+  postToAhk({ type: 'bindKey', commandId: cmdId, ahkKey, displayKey });
 }
 
-// ── Physical keyboard events ───────────────────────────────────────────────
-document.addEventListener('keydown', (e) => {
-  if (state.pressedKeys.has(e.code)) return;
-  state.pressedKeys.add(e.code);
-  highlightKey(e.code, 200);
-  if (e.code === 'CapsLock') {
-    state.capsLock = !state.capsLock;
-    const el = findKeyEl('CapsLock');
-    if (el) el.classList.toggle('capslock-on', state.capsLock);
-  }
-  postToAhk({ type: 'keyDown', key: e.key, code: e.code, timestamp: Date.now() });
-});
-document.addEventListener('keyup', (e) => {
-  state.pressedKeys.delete(e.code);
-  postToAhk({ type: 'keyUp', key: e.key, code: e.code, timestamp: Date.now() });
-});
-
-// ── Attach click listeners ─────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// Keyboard key click (exec mode: highlight + flash)
+// ═══════════════════════════════════════════════════════════════════════════
 document.querySelectorAll('.k').forEach(el => {
-  el.addEventListener('click', () => onKeyClick(el));
+  el.addEventListener('click', () => {
+    const ahkKey = el.dataset.ahkkey;
+    if (!ahkKey) return;
+    const cmdId = state.ahkKeyIndex[ahkKey];
+    if (cmdId) {
+      // scroll command list to that row
+      const row = document.querySelector(`.cmd-row[data-cmd-id="${cmdId}"]`);
+      row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    el.classList.add('pressed');
+    setTimeout(() => el.classList.remove('pressed'), 180);
+  });
 });
 
-// ── AHK → JS message handler ───────────────────────────────────────────────
-/**
- * Supported incoming message types from AHK:
- *
- *   { type: "highlight",  code: "KeyA",       duration: 500 }
- *   { type: "setStatus",  text: "...",         connected: true }
- *   { type: "setHud",     message: "..." }
- *   { type: "reset" }
- *   { type: "setCapsLock",value: true }
- */
-function handleAhkMessage(msg) {
-  switch (msg.type) {
-    case 'highlight':
-      highlightKey(msg.code, msg.duration ?? 400);
-      flashHudKey(msg.code);
-      break;
+// ═══════════════════════════════════════════════════════════════════════════
+// Search
+// ═══════════════════════════════════════════════════════════════════════════
+document.getElementById('cmd-search').addEventListener('input', (e) => {
+  state.search = e.target.value;
+  renderCommandList();
+});
 
-    case 'setStatus':
-      setStatus(msg.connected ?? true, msg.text);
-      break;
-
-    case 'setHud':
-      setHudMsg(msg.message ?? '');
-      break;
-
-    case 'reset':
-      state.pressedKeys.clear();
-      document.querySelectorAll('.k.pressed').forEach(el => el.classList.remove('pressed'));
-      state.capsLock = false;
-      document.querySelectorAll('.k-caps').forEach(el => el.classList.remove('capslock-on'));
-      break;
-
-    case 'setCapsLock':
-      state.capsLock = !!msg.value;
-      document.querySelectorAll('.k-caps').forEach(el =>
-        el.classList.toggle('capslock-on', state.capsLock));
-      break;
-
-    case 'loadMap':
-      // AHK pushed full key map: { "Escape": { label, command }, ... }
-      state.jsKeyMap = msg.map || {};
-      renderKeyMap();
-      break;
-
-    default:
-      console.warn('[VK] Unknown AHK msg type:', msg.type);
-  }
-}
-
-// ── WebView2 message listener ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// WebView2 bridge
+// ═══════════════════════════════════════════════════════════════════════════
 if (window.chrome && window.chrome.webview) {
-  // AHK 用 PostWebMessageAsJson(jsonStr) 发送，e.data 已是反序列化的 JS 对象
   window.chrome.webview.addEventListener('message', (e) => {
     try {
-      const msg = (typeof e.data === 'string') ? JSON.parse(e.data) : e.data;
+      const msg = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
       handleAhkMessage(msg);
     } catch (err) {
       console.error('[VK] Parse error:', err, e.data);
     }
   });
-
-  // Notify AHK that the page is ready
-  postToAhk({ type: 'ready', timestamp: Date.now() });
-  setStatus(true, 'Connected to AHK');
+  postToAhk({ type: 'ready' });
+  setHud('正在加载命令数据...');
 } else {
-  // Running in a plain browser (dev/preview mode)
-  setStatus(false, 'Preview mode (no AHK)');
-  setHudMsg('Preview mode — open via VirtualKeyboard.ahk to connect with AHK');
-
-  // Expose a mock for testing in browser devtools:
-  // simulateAhk({ type: "highlight", code: "KeyA" })
-  window.simulateAhk = (obj) => handleAhkMessage(obj);
+  // browser preview mode
+  setHud('预览模式（无 AHK 连接）', false);
+  window.simulateInit = () => handleAhkMessage({
+    type: 'init',
+    categories: [
+      { id:'system', name:'系统', commands:['sys_exit','sys_show_vk'] },
+      { id:'window', name:'窗口', commands:['win_min','win_close'] }
+    ],
+    commands: {
+      sys_exit:    { name:'退出程序',     desc:'退出脚本' },
+      sys_show_vk: { name:'显示虚拟键盘', desc:'显示键盘窗口' },
+      win_min:     { name:'最小化窗口',   desc:'最小化' },
+      win_close:   { name:'关闭窗口',     desc:'关闭' },
+    },
+    bindings: {
+      sys_exit:    { ahkKey:'Escape', displayKey:'Esc' },
+      sys_show_vk: { ahkKey:'^+k',   displayKey:'Ctrl+Shift+K' },
+    }
+  });
 }
 
-// ── Mode button ────────────────────────────────────────────────────────────
-modeBtn.addEventListener('click', () => {
-  setMode(state.mode === 'exec' ? 'edit' : 'exec');
-});
-
-// ── Mapping panel buttons ──────────────────────────────────────────────────
-document.getElementById('mp-confirm').addEventListener('click', () => {
-  const code    = state.editingKey;
-  if (!code) return;
-  const label   = mpLabel.value.trim() || mpCmd.value.split(' ')[0];
-  const command = mpCmd.value;
-  // optimistic update in JS before AHK replies
-  state.jsKeyMap[code] = { label, command };
-  renderKeyMap();
-  postToAhk({ type: 'saveMapping', code, label, command });
-  closeMappingPanel();
-});
-
-document.getElementById('mp-clear').addEventListener('click', () => {
-  const code = state.editingKey;
-  if (!code) return;
-  delete state.jsKeyMap[code];
-  renderKeyMap();
-  postToAhk({ type: 'clearMapping', code });
-  closeMappingPanel();
-});
-
-document.getElementById('mp-cancel').addEventListener('click', () => {
-  closeMappingPanel();
-});
-
-// Close panel on Escape key
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !mpPanel.classList.contains('mp-hidden')) {
-    e.preventDefault();
-    closeMappingPanel();
-  }
-});
+// ═══════════════════════════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════════════════════════
+function mkEl(tag, cls, text) {
+  const el = document.createElement(tag);
+  if (cls)  el.className   = cls;
+  if (text !== undefined) el.textContent = text;
+  return el;
+}
 </script>
 </body>
 </html>

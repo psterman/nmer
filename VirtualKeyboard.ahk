@@ -1,6 +1,5 @@
 ; ===========================================================================
-; VirtualKeyboard.ahk
-; 橙+黑极客风 WebView2 虚拟键盘宿主脚本
+; VirtualKeyboard.ahk  —  Premiere 风格快捷键绑定工具
 ; AHK v2 | 依赖: lib\WebView2.ahk, lib\Jxon.ahk
 ; ===========================================================================
 #Requires AutoHotkey v2.0
@@ -9,139 +8,296 @@
 #Include lib\WebView2.ahk
 #Include lib\Jxon.ahk
 
-; ---------------------------------------------------------------------------
-; 全局句柄
-; ---------------------------------------------------------------------------
-global g_VK_Gui      := 0       ; Gui 对象
-global g_VK_WV2      := 0       ; WebView2.Core 对象
-global g_VK_Ctrl     := 0       ; WebView2.Controller 对象
-global g_VK_Ready    := false    ; WebView 就绪标志
+; ===========================================================================
+; 全局变量
+; ===========================================================================
+global g_JsonPath        := A_ScriptDir "\Commands.json"
+global g_Commands        := Map()   ; 完整 JSON：Categories / CommandList / Bindings
+global g_Bindings        := Map()   ; ahkKey -> commandId
+global g_InverseBindings := Map()   ; commandId -> ahkKey
+global g_HotkeyBound     := Map()   ; ahkKey -> 1（已绑定标记）
+global g_VK_Gui          := 0
+global g_VK_WV2          := 0
+global g_VK_Ctrl         := 0
+global g_VK_Ready        := false
 
-; ---------------------------------------------------------------------------
-; 按键映射表
-; ---------------------------------------------------------------------------
-global g_KeyMap      := Map()   ; code -> Map("label","...","command","...")
-global g_HotkeyBound := Map()   ; code -> 1，记录已动态绑定的 Hotkey
-
-; ---------------------------------------------------------------------------
-; 入口：直接运行时启动键盘
-; ---------------------------------------------------------------------------
+; ===========================================================================
+; 入口
+; ===========================================================================
 VK_Init()
 
 VK_Init() {
     global g_VK_Gui
 
-    ; ── 无边框主窗口 ────────────────────────────────────────────────────
-    g_VK_Gui := Gui("+AlwaysOnTop -Caption +Resize -DPIScale", "VirtualKeyboard")
+    ; ── 读取数据 & 绑定热键 ──────────────────────────────────────────────
+    _LoadCommands()
+    _ApplyAllBindings()
+
+    ; ── 无边框主窗口 ─────────────────────────────────────────────────────
+    g_VK_Gui := Gui("+AlwaysOnTop -Caption +Resize -DPIScale", "VK KeyBinder")
     g_VK_Gui.BackColor := "0a0a0a"
     g_VK_Gui.MarginX := 0
     g_VK_Gui.MarginY := 0
 
     ; ── 自制标题栏（30px 高，可拖动） ──────────────────────────────────
-    TitleH    := 30
-    WinW      := 900
-    BtnW      := 24
-    BtnPad    := 4
+    WinW   := 1100
+    TitleH := 30
+    BtnW   := 24
+    BtnPad := 4
 
-    ; 标题栏背景（透明占位 Text，充当拖动热区）
     TitleBg := g_VK_Gui.Add("Text",
         "x0 y0 w" . (WinW - BtnW*2 - BtnPad*3) . " h" . TitleH . " Background1a1a1a", "")
     TitleBg.OnEvent("Click", _TitleDrag)
 
-    ; 标题文字
     TitleLbl := g_VK_Gui.Add("Text",
-        "x12 y7 w280 h18 ce67e22 Background1a1a1a", "[ VIRTUAL KEYBOARD ]")
+        "x12 y7 w320 h18 ce67e22 Background1a1a1a", "[ VK KEYBINDER ]")
     TitleLbl.SetFont("s9 Bold", "Consolas")
     TitleLbl.OnEvent("Click", _TitleDrag)
 
-    ; 最小化按钮
-    MinX := WinW - BtnW*2 - BtnPad*2
+    MinX   := WinW - BtnW*2 - BtnPad*2
     MinBtn := g_VK_Gui.Add("Text",
         "x" . MinX . " y7 w" . BtnW . " h18 Center cf5f5f5 Background1a1a1a", "─")
     MinBtn.SetFont("s10", "Segoe UI")
     MinBtn.OnEvent("Click", (*) => WinMinimize(g_VK_Gui.Hwnd))
 
-    ; 关闭按钮
-    CloseX := WinW - BtnW - BtnPad
+    CloseX   := WinW - BtnW - BtnPad
     CloseBtn := g_VK_Gui.Add("Text",
         "x" . CloseX . " y7 w" . BtnW . " h18 Center cf5f5f5 Background1a1a1a", "✕")
     CloseBtn.SetFont("s10", "Segoe UI")
     CloseBtn.OnEvent("Click", (*) => VK_Hide())
 
-    ; ── 显示窗口 ────────────────────────────────────────────────────────
-    g_VK_Gui.Show("w" . WinW . " h340 NoActivate")
+    ; ── 显示窗口 ─────────────────────────────────────────────────────────
+    g_VK_Gui.Show("w" . WinW . " h700 NoActivate")
     g_VK_Gui.OnEvent("Close", (*) => VK_Hide())
     g_VK_Gui.OnEvent("Size",  _OnGuiResize)
 
-    ; ── 初始化 WebView2（异步回调） ─────────────────────────────────────
+    ; ── 初始化 WebView2 ─────────────────────────────────────────────────
     WebView2.create(g_VK_Gui.Hwnd, _OnWV2Created)
 
-    ; ── 系统托盘 ────────────────────────────────────────────────────────
+    ; ── 系统托盘 ─────────────────────────────────────────────────────────
     A_TrayMenu.Delete()
     A_TrayMenu.Add("显示键盘",  (*) => VK_Show())
     A_TrayMenu.Add("隐藏键盘",  (*) => VK_Hide())
-    A_TrayMenu.Add("重置键盘",  (*) => VK_Reset())
     A_TrayMenu.Add()
     A_TrayMenu.Add("退出",      (*) => ExitApp())
     A_TrayMenu.Default := "显示键盘"
+}
 
-    ; 初始化默认键映射（加载 WebView 后会通过 ready 消息推送给 JS）
-    _InitDefaultKeyMap()
+; ===========================================================================
+; 数据层：读取 / 保存 Commands.json
+; ===========================================================================
+
+; ---------------------------------------------------------------------------
+; 从 Commands.json 读取并填充 g_Commands / g_Bindings / g_InverseBindings
+; ---------------------------------------------------------------------------
+_LoadCommands() {
+    global g_Commands, g_Bindings, g_InverseBindings, g_JsonPath
+
+    g_Bindings        := Map()
+    g_InverseBindings := Map()
+
+    if !FileExist(g_JsonPath) {
+        OutputDebug("[VK] Commands.json not found: " . g_JsonPath)
+        return
+    }
+
+    try {
+        raw      := FileRead(g_JsonPath, "UTF-8")
+        g_Commands := Jxon_Load(raw)
+    } catch as e {
+        OutputDebug("[VK] JSON parse error: " . e.Message)
+        return
+    }
+
+    if !(g_Commands is Map) || !g_Commands.Has("Bindings")
+        return
+
+    bindings := g_Commands["Bindings"]
+    if bindings is Map {
+        for ahkKey, cmdId in bindings {
+            g_Bindings[ahkKey]        := cmdId
+            g_InverseBindings[cmdId]  := ahkKey
+        }
+    }
+    OutputDebug("[VK] Loaded " . g_Bindings.Count . " binding(s)")
 }
 
 ; ---------------------------------------------------------------------------
-; 默认映射初始化（在 VK_Init 末尾调用）
+; 将 g_Bindings 写回 Commands.json（覆盖 Bindings 字段）
 ; ---------------------------------------------------------------------------
-_InitDefaultKeyMap() {
-    global g_KeyMap
-    g_KeyMap["Escape"] := Map("label", "退出", "command", "EXIT_APP")
-    _BindAllHotkeys()
+_SaveBindings() {
+    global g_Commands, g_Bindings, g_JsonPath
+
+    ; 更新内存结构中的 Bindings 字段
+    newBindings := Map()
+    for ahkKey, cmdId in g_Bindings
+        newBindings[ahkKey] := cmdId
+    g_Commands["Bindings"] := newBindings
+
+    ; 手工序列化（Jxon_Dump 不支持深度嵌套 Map，这里自行构造）
+    json := _SerializeCommands()
+    try FileDelete(g_JsonPath)
+    try FileAppend(json, g_JsonPath, "UTF-8")
+    OutputDebug("[VK] Commands.json saved")
 }
 
 ; ---------------------------------------------------------------------------
-; WebView2 Controller 就绪回调
+; 将 g_Commands 序列化回 JSON 字符串
 ; ---------------------------------------------------------------------------
+_SerializeCommands() {
+    global g_Commands
+
+    ; ── Categories ───────────────────────────────────────────────────────
+    catArr  := g_Commands["Categories"]
+    catJson := "["
+    sep1    := ""
+    loop catArr.Length {
+        cat    := catArr[A_Index]
+        catId  := _JsonStr(cat["id"])
+        catNm  := _JsonStr(cat["name"])
+        cmds   := cat["commands"]
+        cmdArr := "["
+        sep2   := ""
+        loop cmds.Length {
+            cmdArr .= sep2 . _JsonStr(cmds[A_Index])
+            sep2   := ","
+        }
+        cmdArr .= "]"
+        catJson .= sep1 . '{"id":' . catId . ',"name":' . catNm . ',"commands":' . cmdArr . '}'
+        sep1    := ","
+    }
+    catJson .= "]"
+
+    ; ── CommandList ──────────────────────────────────────────────────────
+    cmdList := g_Commands["CommandList"]
+    clJson  := "{"
+    sep3    := ""
+    for cmdId, v in cmdList {
+        nm   := _JsonStr(v["name"])
+        desc := _JsonStr(v["desc"])
+        fn   := _JsonStr(v["fn"])
+        clJson .= sep3 . _JsonStr(cmdId) . ':{"name":' . nm . ',"desc":' . desc . ',"fn":' . fn . '}'
+        sep3   := ","
+    }
+    clJson .= "}"
+
+    ; ── Bindings ─────────────────────────────────────────────────────────
+    bJson := "{"
+    sep4  := ""
+    for ahkKey, cmdId in g_Commands["Bindings"] {
+        bJson .= sep4 . _JsonStr(ahkKey) . ":" . _JsonStr(cmdId)
+        sep4  := ","
+    }
+    bJson .= "}"
+
+    return '{"Categories":' . catJson . ',"CommandList":' . clJson . ',"Bindings":' . bJson . '}'
+}
+
+; ---------------------------------------------------------------------------
+; JSON 字符串转义辅助
+; ---------------------------------------------------------------------------
+_JsonStr(s) {
+    s := StrReplace(s, "\",  "\\")
+    s := StrReplace(s, '"',  '\"')
+    s := StrReplace(s, "`n", "\n")
+    s := StrReplace(s, "`r", "\r")
+    s := StrReplace(s, "`t", "\t")
+    return '"' . s . '"'
+}
+
+; ===========================================================================
+; 热键层：绑定 / 解绑 / 执行
+; ===========================================================================
+
+_BindKey(ahkKey, cmdId) {
+    global g_HotkeyBound
+    ; 先解绑旧的（如果存在）
+    if g_HotkeyBound.Has(ahkKey)
+        try Hotkey(ahkKey, "Off")
+    fn := _MakeCmdFn(cmdId)
+    try {
+        Hotkey(ahkKey, fn, "On")
+        g_HotkeyBound[ahkKey] := 1
+        OutputDebug("[VK] Bound: " . ahkKey . " -> " . cmdId)
+    } catch as e {
+        OutputDebug("[VK] Hotkey error (" . ahkKey . "): " . e.Message)
+    }
+}
+
+_MakeCmdFn(cmdId) {
+    return (*) => _ExecuteCommand(cmdId)
+}
+
+_UnbindKey(ahkKey) {
+    global g_HotkeyBound
+    if g_HotkeyBound.Has(ahkKey) {
+        try Hotkey(ahkKey, "Off")
+        g_HotkeyBound.Delete(ahkKey)
+        OutputDebug("[VK] Unbound: " . ahkKey)
+    }
+}
+
+_ApplyAllBindings() {
+    global g_Bindings
+    for ahkKey, cmdId in g_Bindings
+        _BindKey(ahkKey, cmdId)
+}
+
+_ExecuteCommand(cmdId) {
+    global g_Commands
+    if !g_Commands.Has("CommandList") || !g_Commands["CommandList"].Has(cmdId) {
+        OutputDebug("[VK] Unknown command: " . cmdId)
+        return
+    }
+    fn := g_Commands["CommandList"][cmdId]["fn"]
+    switch fn {
+        case "EXIT_APP":     ExitApp()
+        case "SHOW_VK":      VK_Show()
+        case "HIDE_VK":      VK_Hide()
+        case "RESET_VK":     VK_SendToWeb('{"type":"reset"}')
+        case "WIN_MIN":      try WinMinimize("A")
+        case "WIN_CLOSE":    try WinClose("A")
+        case "CURSOR_OPEN":  OutputDebug("[VK] CURSOR_OPEN: hook here")
+        case "CURSOR_CLOSE": OutputDebug("[VK] CURSOR_CLOSE: hook here")
+        default:             OutputDebug("[VK] Unhandled fn: " . fn)
+    }
+}
+
+; ===========================================================================
+; WebView2 初始化
+; ===========================================================================
+
 _OnWV2Created(ctrl) {
     global g_VK_WV2, g_VK_Ctrl
 
     g_VK_Ctrl := ctrl
     g_VK_WV2  := ctrl.CoreWebView2
 
-    ; 某些 WebView2 Runtime/接口组合上，设置 DefaultBackgroundColor 会报 0x80070057
-    ; 这里做兼容性保护：失败时忽略，不影响主流程。
     try g_VK_Ctrl.DefaultBackgroundColor := 0xFF0A0A0A
 
-    ; 设置 WebView 区域偏移标题栏
     _ApplyWV2Bounds()
 
-    ; 配置 Settings
     s := g_VK_WV2.Settings
     s.AreDefaultContextMenusEnabled := false
     s.IsStatusBarEnabled            := false
-    s.AreDevToolsEnabled            := true   ; 开发阶段保留，上线可改为 false
+    s.AreDevToolsEnabled            := true
 
-    ; 注册 JS→AHK 消息监听
     g_VK_WV2.add_WebMessageReceived(_OnWebMessage)
 
-    ; 加载 HTML（优先使用外部文件，便于修改；文件不存在则内嵌备用页）
     htmlPath := A_ScriptDir "\VirtualKeyboard.html"
-    if FileExist(htmlPath) {
+    if FileExist(htmlPath)
         g_VK_WV2.Navigate("file:///" . StrReplace(htmlPath, "\", "/"))
-    } else {
-        g_VK_WV2.NavigateToString(_GetFallbackHtml())
-    }
+    else
+        g_VK_WV2.NavigateToString(_FallbackHtml())
 }
 
-; ---------------------------------------------------------------------------
-; 设置 WebView2 控件区域（标题栏以下）
-; ---------------------------------------------------------------------------
 _ApplyWV2Bounds() {
     global g_VK_Gui, g_VK_Ctrl
     if !g_VK_Ctrl
         return
     TitleH := 30
     WinGetClientPos(, , &cw, &ch, g_VK_Gui.Hwnd)
-    rc := WebView2.RECT()
+    rc        := WebView2.RECT()
     rc.left   := 0
     rc.top    := TitleH
     rc.right  := cw
@@ -149,321 +305,244 @@ _ApplyWV2Bounds() {
     g_VK_Ctrl.Bounds := rc
 }
 
-; ---------------------------------------------------------------------------
-; 窗口大小变化 → 同步 WebView2 区域
-; ---------------------------------------------------------------------------
 _OnGuiResize(GuiObj, MinMax, Width, Height) {
-    if MinMax = -1  ; 最小化时不处理
+    if MinMax = -1
         return
     _ApplyWV2Bounds()
 }
 
-; ---------------------------------------------------------------------------
-; 标题栏拖动（发送 WM_NCLBUTTONDOWN / HTCAPTION）
-; ---------------------------------------------------------------------------
 _TitleDrag(*) {
     global g_VK_Gui
     PostMessage(0x00A1, 2, 0, , g_VK_Gui.Hwnd)
 }
 
-; ---------------------------------------------------------------------------
-; JS → AHK 消息处理
-; ---------------------------------------------------------------------------
+; ===========================================================================
+; 消息分发：JS → AHK
+; ===========================================================================
+
 _OnWebMessage(sender, args) {
     global g_VK_Ready
 
-    ; WebMessageAsJson 直接返回 JS postMessage(obj) 序列化后的 JSON 字符串
     jsonStr := args.WebMessageAsJson
-
     try {
         msg := Jxon_Load(jsonStr)
     } catch {
         OutputDebug("[VK] JSON parse error: " . jsonStr)
         return
     }
-
     if !(msg is Map) || !msg.Has("type")
         return
 
     switch msg["type"] {
+        ; ── 页面就绪：推送初始化数据 ───────────────────────────────────
         case "ready":
             g_VK_Ready := true
             OutputDebug("[VK] WebView ready")
-            VK_SendToWeb('{"type":"setStatus","connected":true,"text":"AHK connected"}')
-            ; 推送当前键映射给 JS
-            _PushKeyMap()
+            _PushInit()
 
-        case "keyPress":
-            ; exec 模式：如果该键有映射则执行命令，否则走原始处理
-            key  := msg.Has("key")  ? msg["key"]  : ""
-            code := msg.Has("code") ? msg["code"] : ""
-            OutputDebug("[VK] keyPress  key=" . key . "  code=" . code)
-            if g_KeyMap.Has(code)
-                _ExecuteCommand(g_KeyMap[code]["command"])
-            else
-                _HandleVirtualKey(key, code, msg)
-
-        case "keyDown":
-            OutputDebug("[VK] keyDown  code=" . (msg.Has("code") ? msg["code"] : "?"))
-
-        case "keyUp":
-            OutputDebug("[VK] keyUp  code=" . (msg.Has("code") ? msg["code"] : "?"))
-
-        case "saveMapping":
-            ; 保存/更新绑定（含冲突解除）
-            if !msg.Has("code") || !msg.Has("label") || !msg.Has("command")
+        ; ── JS 录制到新按键，要求保存绑定 ─────────────────────────────
+        case "bindKey":
+            if !msg.Has("commandId") || !msg.Has("ahkKey")
                 return
-            _SaveMapping(msg["code"], msg["label"], msg["command"])
+            cmdId      := msg["commandId"]
+            ahkKey     := msg["ahkKey"]
+            displayKey := msg.Has("displayKey") ? msg["displayKey"] : ahkKey
+            _DoBindKey(cmdId, ahkKey, displayKey)
 
-        case "clearMapping":
-            ; 解除绑定
-            if msg.Has("code")
-                _ClearMapping(msg["code"])
+        ; ── 清除某命令的绑定 ────────────────────────────────────────────
+        case "clearBinding":
+            if msg.Has("commandId")
+                _DoClearBinding(msg["commandId"])
+
+        ; ── 前端发起测试执行 ────────────────────────────────────────────
+        case "executeCommand":
+            if msg.Has("commandId")
+                _ExecuteCommand(msg["commandId"])
 
         default:
-            OutputDebug("[VK] Unknown msg type: " . msg["type"])
+            OutputDebug("[VK] Unknown msg: " . msg["type"])
     }
 }
 
 ; ---------------------------------------------------------------------------
-; 虚拟按键处理（无映射时的默认行为）
+; 绑定处理（含冲突解除）
 ; ---------------------------------------------------------------------------
-_HandleVirtualKey(key, code, msgObj) {
-    VK_SetHudMessage("AHK recv: " . code)
-    ; 取消注释让虚拟键盘真正发送按键：
-    ; if (StrLen(key) = 1)
-    ;     SendInput("{" . key . "}")
-}
+_DoBindKey(cmdId, ahkKey, displayKey) {
+    global g_Bindings, g_InverseBindings
 
-; ---------------------------------------------------------------------------
-; 命令执行器
-; ---------------------------------------------------------------------------
-_ExecuteCommand(command) {
-    switch command {
-        case "EXIT_APP":  ExitApp()
-        case "SHOW_VK":   VK_Show()
-        case "HIDE_VK":   VK_Hide()
-        case "RESET_VK":  VK_Reset()
-        default:
-            OutputDebug("[VK] Unknown command: " . command)
+    ; 1. 如果该 cmdId 已绑定其他键，先解除
+    if g_InverseBindings.Has(cmdId) {
+        oldKey := g_InverseBindings[cmdId]
+        if oldKey != ahkKey {
+            _UnbindKey(oldKey)
+            g_Bindings.Delete(oldKey)
+        }
     }
+    ; 2. 如果该 ahkKey 已被其他 cmdId 占用，先解除
+    if g_Bindings.Has(ahkKey) {
+        oldCmd := g_Bindings[ahkKey]
+        if oldCmd != cmdId
+            g_InverseBindings.Delete(oldCmd)
+    }
+
+    ; 3. 写入新绑定
+    g_Bindings[ahkKey]        := cmdId
+    g_InverseBindings[cmdId]  := ahkKey
+    _BindKey(ahkKey, cmdId)
+    _SaveBindings()
+
+    ; 4. 推送更新给 JS
+    escaped := StrReplace(StrReplace(displayKey, "\", "\\"), '"', '\"')
+    VK_SendToWeb('{"type":"bindingUpdated","commandId":"' . cmdId
+        . '","ahkKey":"'     . ahkKey
+        . '","displayKey":"' . escaped . '"}')
+    OutputDebug("[VK] bindKey: " . cmdId . " = " . ahkKey)
 }
 
 ; ---------------------------------------------------------------------------
-; KeyboardEvent.code → AHK Hotkey 键名
+; 清除绑定
 ; ---------------------------------------------------------------------------
-_CodeToAhkKey(code) {
-    static tbl := Map(
-        "Escape",       "Escape",
-        "Enter",        "Enter",
-        "Space",        "Space",
-        "Tab",          "Tab",
-        "Backspace",    "Backspace",
-        "CapsLock",     "CapsLock",
-        "Delete",       "Delete",
-        "Insert",       "Insert",
-        "Home",         "Home",
-        "End",          "End",
-        "PageUp",       "PgUp",
-        "PageDown",     "PgDn",
-        "PrintScreen",  "PrintScreen",
-        "ScrollLock",   "ScrollLock",
-        "Pause",        "Pause",
-        "ShiftLeft",    "LShift",
-        "ShiftRight",   "RShift",
-        "ControlLeft",  "LCtrl",
-        "ControlRight", "RCtrl",
-        "AltLeft",      "LAlt",
-        "AltRight",     "RAlt",
-        "MetaLeft",     "LWin",
-        "MetaRight",    "RWin",
-        "ContextMenu",  "AppsKey",
-        "ArrowUp",      "Up",
-        "ArrowDown",    "Down",
-        "ArrowLeft",    "Left",
-        "ArrowRight",   "Right",
-        "F1","F1",  "F2","F2",  "F3","F3",  "F4","F4",
-        "F5","F5",  "F6","F6",  "F7","F7",  "F8","F8",
-        "F9","F9",  "F10","F10","F11","F11","F12","F12",
-        "KeyA","a", "KeyB","b", "KeyC","c", "KeyD","d",
-        "KeyE","e", "KeyF","f", "KeyG","g", "KeyH","h",
-        "KeyI","i", "KeyJ","j", "KeyK","k", "KeyL","l",
-        "KeyM","m", "KeyN","n", "KeyO","o", "KeyP","p",
-        "KeyQ","q", "KeyR","r", "KeyS","s", "KeyT","t",
-        "KeyU","u", "KeyV","v", "KeyW","w", "KeyX","x",
-        "KeyY","y", "KeyZ","z",
-        "Digit0","0","Digit1","1","Digit2","2","Digit3","3",
-        "Digit4","4","Digit5","5","Digit6","6","Digit7","7",
-        "Digit8","8","Digit9","9",
-        "Minus",        "-",
-        "Equal",        "=",
-        "BracketLeft",  "[",
-        "BracketRight", "]",
-        "Backslash",    "\",
-        "Semicolon",    ";",
-        "Quote",        "'",
-        "Backquote",    "``",
-        "Comma",        ",",
-        "Period",       ".",
-        "Slash",        "/"
-    )
-    return tbl.Has(code) ? tbl[code] : ""
-}
+_DoClearBinding(cmdId) {
+    global g_Bindings, g_InverseBindings
 
-; ---------------------------------------------------------------------------
-; 热键绑定辅助
-; ---------------------------------------------------------------------------
-_BindHotkey(code) {
-    global g_KeyMap, g_HotkeyBound
-    ahkKey := _CodeToAhkKey(code)
-    if !ahkKey || !g_KeyMap.Has(code)
+    if !g_InverseBindings.Has(cmdId)
         return
-    cmd := g_KeyMap[code]["command"]
-    ; 用闭包固定 cmd 值
-    fn := _MakeCmdFn(cmd)
-    try Hotkey(ahkKey, fn, "On")
-    g_HotkeyBound[code] := 1
-    OutputDebug("[VK] Hotkey bound: " . ahkKey . " -> " . cmd)
-}
+    ahkKey := g_InverseBindings[cmdId]
+    _UnbindKey(ahkKey)
+    g_Bindings.Delete(ahkKey)
+    g_InverseBindings.Delete(cmdId)
+    _SaveBindings()
 
-_MakeCmdFn(cmd) {
-    return (*) => _ExecuteCommand(cmd)
-}
-
-_UnbindHotkey(code) {
-    global g_HotkeyBound
-    ahkKey := _CodeToAhkKey(code)
-    if ahkKey && g_HotkeyBound.Has(code) {
-        try Hotkey(ahkKey, "Off")
-        OutputDebug("[VK] Hotkey unbound: " . ahkKey)
-    }
-    g_HotkeyBound.Delete(code)
-}
-
-_BindAllHotkeys() {
-    global g_KeyMap
-    for code in g_KeyMap
-        _BindHotkey(code)
-}
-
-; ---------------------------------------------------------------------------
-; 映射保存 / 清除（含冲突处理）
-; ---------------------------------------------------------------------------
-_SaveMapping(code, label, command) {
-    global g_KeyMap
-    ; 冲突解除：同一 command 已绑定其他 code → 先清除
-    toDelete := []
-    for k, v in g_KeyMap {
-        if (k != code && v["command"] = command)
-            toDelete.Push(k)
-    }
-    for k in toDelete {
-        g_KeyMap.Delete(k)
-        _UnbindHotkey(k)
-    }
-    g_KeyMap[code] := Map("label", label, "command", command)
-    _BindHotkey(code)
-    _PushKeyMap()
-    OutputDebug("[VK] Mapping saved: " . code . " -> " . command)
-}
-
-_ClearMapping(code) {
-    global g_KeyMap
-    g_KeyMap.Delete(code)
-    _UnbindHotkey(code)
-    _PushKeyMap()
-    OutputDebug("[VK] Mapping cleared: " . code)
-}
-
-; ---------------------------------------------------------------------------
-; 将 g_KeyMap 序列化为 JSON 并推送到 WebView
-; ---------------------------------------------------------------------------
-_PushKeyMap() {
-    global g_KeyMap
-    json := '{"type":"loadMap","map":{'
-    sep  := ""
-    for code, v in g_KeyMap {
-        lbl := StrReplace(StrReplace(v["label"], "\", "\\"), '"', '\"')
-        cmd := StrReplace(v["command"], '"', '\"')
-        json .= sep . '"' . code . '":{"label":"' . lbl . '","command":"' . cmd . '"}'
-        sep := ","
-    }
-    json .= "}}"
-    VK_SendToWeb(json)
+    VK_SendToWeb('{"type":"bindingUpdated","commandId":"' . cmdId
+        . '","ahkKey":"","displayKey":""}')
+    OutputDebug("[VK] clearBinding: " . cmdId)
 }
 
 ; ===========================================================================
-; ── 公共 API（可供其他模块 #Include 后调用）─────────────────────────────────
+; _PushInit：构造初始化消息发给 JS
 ; ===========================================================================
 
-/**
- * 显示虚拟键盘窗口
- */
+_PushInit() {
+    global g_Commands, g_InverseBindings
+
+    if !g_Commands.Has("Categories") {
+        OutputDebug("[VK] Commands not loaded")
+        return
+    }
+
+    ; ── categories ────────────────────────────────────────────────────────
+    catArr  := g_Commands["Categories"]
+    catJson := "["
+    sep     := ""
+    loop catArr.Length {
+        cat  := catArr[A_Index]
+        cmds := cat["commands"]
+        cArr := "["
+        cs   := ""
+        loop cmds.Length {
+            cArr .= cs . _JsonStr(cmds[A_Index])
+            cs   := ","
+        }
+        cArr   .= "]"
+        catJson .= sep . '{"id":' . _JsonStr(cat["id"]) . ',"name":' . _JsonStr(cat["name"]) . ',"commands":' . cArr . '}'
+        sep     := ","
+    }
+    catJson .= "]"
+
+    ; ── commands ──────────────────────────────────────────────────────────
+    cmdList := g_Commands["CommandList"]
+    clJson  := "{"
+    sep2    := ""
+    for cmdId, v in cmdList {
+        nm   := _JsonStr(v["name"])
+        desc := _JsonStr(v["desc"])
+        clJson .= sep2 . _JsonStr(cmdId) . ':{"name":' . nm . ',"desc":' . desc . '}'
+        sep2   := ","
+    }
+    clJson .= "}"
+
+    ; ── bindings (commandId -> {ahkKey, displayKey}) ──────────────────────
+    bJson := "{"
+    sep3  := ""
+    for cmdId, ahkKey in g_InverseBindings {
+        dk    := _AhkKeyToDisplay(ahkKey)
+        esc   := StrReplace(StrReplace(dk, "\", "\\"), '"', '\"')
+        bJson .= sep3 . _JsonStr(cmdId) . ':{"ahkKey":' . _JsonStr(ahkKey) . ',"displayKey":"' . esc . '"}'
+        sep3  := ","
+    }
+    bJson .= "}"
+
+    payload := '{"type":"init","categories":' . catJson
+            . ',"commands":'  . clJson
+            . ',"bindings":'  . bJson . '}'
+    VK_SendToWeb(payload)
+    OutputDebug("[VK] init pushed")
+}
+
+; ---------------------------------------------------------------------------
+; AHK hotkey 字符串 → 人类可读（"^+k" → "Ctrl+Shift+K"）
+; ---------------------------------------------------------------------------
+_AhkKeyToDisplay(ahkKey) {
+    display := ""
+    key     := ahkKey
+    if InStr(key, "^") {
+        display .= "Ctrl+"
+        key     := StrReplace(key, "^", "")
+    }
+    if InStr(key, "!") {
+        display .= "Alt+"
+        key     := StrReplace(key, "!", "")
+    }
+    if InStr(key, "+") {
+        display .= "Shift+"
+        key     := StrReplace(key, "+", "")
+    }
+    ; 首字母大写
+    if StrLen(key) = 1
+        key := Format("{:U}", key)
+    static specialMap := Map(
+        "Escape","Esc","Enter","Enter","Space","Space","Tab","Tab",
+        "Backspace","Bks","Delete","Del","Insert","Ins",
+        "Home","Home","End","End","PgUp","PgUp","PgDn","PgDn",
+        "Up","↑","Down","↓","Left","←","Right","→",
+        "LShift","LShift","RShift","RShift",
+        "LCtrl","LCtrl","RCtrl","RCtrl",
+        "LAlt","LAlt","RAlt","RAlt",
+        "LWin","Win","RWin","Win","AppsKey","Menu",
+        "PrintScreen","PrtSc","ScrollLock","ScrLk","Pause","Pause"
+    )
+    if specialMap.Has(key)
+        key := specialMap[key]
+    return display . key
+}
+
+; ===========================================================================
+; 公共 API
+; ===========================================================================
+
 VK_Show() {
     global g_VK_Gui
     if g_VK_Gui
         g_VK_Gui.Show("NoActivate")
 }
 
-/**
- * 隐藏虚拟键盘窗口
- */
 VK_Hide() {
     global g_VK_Gui
     if g_VK_Gui
         g_VK_Gui.Hide()
 }
 
-/**
- * 向 WebView 发送任意 JSON 字符串（AHK → JS）
- * JS 侧通过 window.chrome.webview.addEventListener('message', e => e.data) 接收，
- * e.data 是已反序列化的对象（非字符串）。
- *
- * @param {String} jsonStr  合法的 JSON 字符串，例如 '{"type":"highlight","code":"KeyA"}'
- */
 VK_SendToWeb(jsonStr) {
     global g_VK_WV2, g_VK_Ready
     if g_VK_WV2 && g_VK_Ready
         g_VK_WV2.PostWebMessageAsJson(jsonStr)
 }
 
-/**
- * 高亮键盘上指定按键
- * @param {String} keyCode   KeyboardEvent.code，如 "KeyA"、"Space"、"Enter"
- * @param {Integer} durationMs  高亮持续时间（毫秒），默认 400
- */
-VK_HighlightKey(keyCode, durationMs := 400) {
-    VK_SendToWeb('{"type":"highlight","code":"' . keyCode . '","duration":' . durationMs . '}')
-}
+; ===========================================================================
+; 快捷键（全局控制）
+; ===========================================================================
 
-/**
- * 设置键盘 HUD 消息文字
- * @param {String} text  要显示的消息
- */
-VK_SetHudMessage(text) {
-    escaped := StrReplace(StrReplace(text, "\", "\\"), '"', '\"')
-    VK_SendToWeb('{"type":"setHud","message":"' . escaped . '"}')
-}
-
-/**
- * 重置键盘视觉状态（清除所有高亮 & CapsLock 指示灯）
- */
-VK_Reset() {
-    VK_SendToWeb('{"type":"reset"}')
-}
-
-/**
- * 同步 CapsLock 状态指示灯
- * @param {Integer} isOn  1 = 亮灯，0 = 熄灯
- */
-VK_SetCapsLock(isOn) {
-    VK_SendToWeb('{"type":"setCapsLock","value":' . (isOn ? "true" : "false") . '}')
-}
-
-; ---------------------------------------------------------------------------
-; 快捷键
-; ---------------------------------------------------------------------------
-; Ctrl+Shift+K  切换显示/隐藏
+; Ctrl+Shift+K  切换显示/隐藏（保持不硬编码业务逻辑，仅控制窗口本身）
 ^+k:: {
     global g_VK_Gui
     if !g_VK_Gui
@@ -474,26 +553,18 @@ VK_SetCapsLock(isOn) {
         VK_Show()
 }
 
-; Ctrl+Shift+H  演示：高亮 H 键
-^+h:: VK_HighlightKey("KeyH", 800)
+; ===========================================================================
+; 备用 HTML
+; ===========================================================================
 
-; Ctrl+Shift+R  演示：重置键盘
-^+r:: VK_Reset()
-
-; ---------------------------------------------------------------------------
-; 备用内嵌 HTML（VirtualKeyboard.html 文件丢失时使用）
-; ---------------------------------------------------------------------------
-_GetFallbackHtml() {
+_FallbackHtml() {
     return (
         '<!DOCTYPE html><html><head><meta charset="UTF-8"></head>'
         '<body style="background:#0a0a0a;color:#e67e22;font-family:Consolas,monospace;'
         'display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">'
-        '<div style="text-align:center;">'
-        '<div style="font-size:28px;margin-bottom:16px;'
-        'text-shadow:0 0 10px #e67e22;">[ VK ]</div>'
-        '<div style="font-size:13px;color:#888;">VirtualKeyboard.html not found</div>'
-        '<div style="font-size:11px;color:#555;margin-top:8px;">'
-        'Place VirtualKeyboard.html next to this script</div>'
+        '<div style="text-align:center;"><div style="font-size:28px;margin-bottom:16px;'
+        'text-shadow:0 0 10px #e67e22;">[ VK KEYBINDER ]</div>'
+        '<div style="color:#888;font-size:13px;">VirtualKeyboard.html not found</div>'
         '</div></body></html>'
     )
 }
