@@ -10,6 +10,8 @@ global gShellIcon_SeqByCtx := Map()
 global gShellIcon_Batch := 3
 global gShellIcon_DiskDir := ""
 global gShellIcon_DiskEnabled := false
+; 进程名 → 已解析的 .exe 完整路径（空字符串表示已尝试但失败）
+global AppPathCache := Map()
 
 ShellIcon_GetCtx(ctxName := "cfg") {
     global gShellIcon_Ctx
@@ -76,6 +78,27 @@ ShellIcon_ResolvePathFromSearchItem(Item) {
             fp := Item.Metadata["FilePath"]
             if (fp != "")
                 return ShellIcon_NormalizePath(String(fp))
+        }
+    } catch {
+    }
+    ; 剪贴板：SourcePath 为可执行文件，或从 SourceApp 解析真实 .exe 路径
+    try {
+        if (Item.HasProp("OriginalDataType") && Item.OriginalDataType = "clipboard") {
+            if (Item.HasProp("Metadata") && IsObject(Item.Metadata)) {
+                if (Item.Metadata.Has("SourcePath") && Item.Metadata["SourcePath"] != "") {
+                    sp := ShellIcon_NormalizePath(String(Item.Metadata["SourcePath"]))
+                    if (sp != "" && ShellIcon_IsExecutablePathLike(sp))
+                        return sp
+                }
+                if (Item.Metadata.Has("SourceApp") && Item.Metadata["SourceApp"] != "") {
+                    sa := String(Item.Metadata["SourceApp"])
+                    if (ShellIcon_IsExecutablePathLike(sa))
+                        return ShellIcon_NormalizePath(sa)
+                    rp := ResolveAppExecutablePath(sa)
+                    if (rp != "" && FileExist(rp))
+                        return rp
+                }
+            }
         }
     } catch {
     }
@@ -482,6 +505,154 @@ ShellIcon_ProcessQueueTick(*) {
 
 ShellIcon_GetPlaceholderIndex(ctxName := "cfg") {
     return ShellIcon_GetCtx(ctxName).phGeneric
+}
+
+; --- 按进程名解析磁盘上的 .exe 路径（注册表 App Paths → 运行中窗口 → WMI）---
+ShellIcon_NormalizeProcessName(procName) {
+    if (procName = "")
+        return ""
+    s := Trim(String(procName))
+    if (s = "" || s = "Unknown")
+        return ""
+    SplitPath(s, &name, &dir, &ext, &nameNoExt)
+    if (dir != "" && name != "")
+        s := name
+    else if (name != "")
+        s := name
+    s := StrLower(s)
+    if !InStr(s, ".exe")
+        s .= ".exe"
+    return s
+}
+
+ShellIcon_IsExecutablePathLike(p) {
+    p := ShellIcon_NormalizePath(String(p))
+    if (p = "" || p = "Unknown")
+        return false
+    if DirExist(p)
+        return false
+    if !FileExist(p)
+        return false
+    SplitPath(p, , , &ext)
+    ext := StrLower(ext)
+    return ext = "exe" || ext = "lnk" || ext = "com"
+}
+
+ShellIcon_ParseAppPathsRegValue(v) {
+    v := Trim(String(v))
+    if (v = "")
+        return ""
+    if (SubStr(v, 1, 1) = '"') {
+        p2 := InStr(v, '"', , 2)
+        if (p2 > 2)
+            v := SubStr(v, 2, p2 - 2)
+    } else if InStr(v, " ") && InStr(v, ".exe") {
+        pos := InStr(v, ".exe", , 0)
+        if (pos)
+            v := SubStr(v, 1, pos + 3)
+    }
+    return ShellIcon_NormalizePath(v)
+}
+
+ShellIcon_TryRegAppPaths(exeName) {
+    keys := [
+        "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\" . exeName,
+        "HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\" . exeName,
+        "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\" . exeName
+    ]
+    for k in keys {
+        try {
+            raw := RegRead(k)
+            cand := ShellIcon_ParseAppPathsRegValue(raw)
+            if (cand != "" && ShellIcon_IsExecutablePathLike(cand))
+                return cand
+        } catch {
+        }
+    }
+    return ""
+}
+
+ShellIcon_QueryWmiExecutablePath(normExe) {
+    try {
+        wsvc := ComObjGet("winmgmts:\\.\\root\\cimv2")
+        q := "SELECT ExecutablePath FROM Win32_Process WHERE Name='" . StrReplace(normExe, "'", "''") . "'"
+        col := wsvc.ExecQuery(q)
+        if !IsObject(col)
+            return ""
+        for obj in col {
+            try {
+                ep := obj.ExecutablePath
+                if (ep = "")
+                    continue
+                ep := ShellIcon_NormalizePath(String(ep))
+                if (ep != "" && ShellIcon_IsExecutablePathLike(ep))
+                    return ep
+            } catch {
+            }
+        }
+    } catch {
+    }
+    return ""
+}
+
+ShellIcon_AppPathCachePut(key, path) {
+    global AppPathCache
+    AppPathCache[key] := path
+    return path
+}
+
+; 对外：由进程名（如 chrome.exe）解析本机可执行文件路径；结果写入 AppPathCache
+ResolveAppExecutablePath(procName) {
+    global AppPathCache
+    norm := ShellIcon_NormalizeProcessName(procName)
+    if (norm = "")
+        return ""
+    ck := "app:" norm
+    if AppPathCache.Has(ck)
+        return AppPathCache[ck]
+
+    p := ShellIcon_TryRegAppPaths(norm)
+    if (p != "")
+        return ShellIcon_AppPathCachePut(ck, p)
+
+    try {
+        lst := WinGetList("ahk_exe " norm)
+        Loop lst.Length {
+            hwnd := lst[A_Index]
+            path := WinGetProcessPath(hwnd)
+            path := ShellIcon_NormalizePath(String(path))
+            if (path != "" && ShellIcon_IsExecutablePathLike(path))
+                return ShellIcon_AppPathCachePut(ck, path)
+        }
+    } catch {
+    }
+
+    p := ShellIcon_QueryWmiExecutablePath(norm)
+    if (p != "")
+        return ShellIcon_AppPathCachePut(ck, p)
+
+    return ShellIcon_AppPathCachePut(ck, "")
+}
+
+; 对外：提取进程对应图标 HICON（调用方负责不泄漏；通常经 GetIconIndex 路径更省事）
+GetHIconByProcessName(procName) {
+    p := ResolveAppExecutablePath(procName)
+    if (p = "" || !FileExist(p))
+        return 0
+    return ShellIcon_ExtractHIcon(p, true)
+}
+
+; 供 UI 显示：由进程名生成简短友好名（如 Chrome）
+ShellIcon_FriendlyNameFromExe(procName) {
+    n := ShellIcon_NormalizeProcessName(procName)
+    if (n = "")
+        return ""
+    base := n
+    if (StrLen(n) > 4 && SubStr(n, -4) = ".exe")
+        base := SubStr(n, 1, StrLen(n) - 4)
+    if (base = "")
+        return ""
+    return StrUpper(SubStr(base, 1, 1)) . StrLower(SubStr(base, 2))
 }
 
 ShellIcon_Init() {

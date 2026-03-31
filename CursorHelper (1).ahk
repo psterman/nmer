@@ -532,6 +532,7 @@ global SearchCenterResultLimitDDL_Hwnd := 0  ; 搜索中心结果过滤下拉框
 global SearchCenterResultLimitDDL_ListHwnd := 0  ; 搜索中心结果过滤下拉列表句柄
 global SearchCenterResultLimitDDLBrush := 0  ; 搜索中心结果过滤下拉框画刷
 global SearchCenterEverythingLimit := 50  ; Everything 搜索的结果数量限制（默认50）
+global FileClassifierUserTrustRoots := []  ; 用户自定义高信任路径前缀（可选，供 FileClassifier.GetPathTrustMultiplier 使用）
 global SearchCenterCurrentLimit := 50  ; 当前加载的数据量限制
 global SearchCenterHasMoreData := false  ; 是否还有更多数据
 global SearchCenterSelectedEngines := []  ; 搜索中心选中的搜索引擎（支持多选）
@@ -13142,6 +13143,24 @@ FzyScore(query, target) {
     return score
 }
 
+ComputeSearchItemFinalScore(Item, Keyword, path) {
+    fs := FzyScore(Keyword, path)
+    Item.FzyBase := fs
+    tr := Item.HasProp("PathTrust") ? Item.PathTrust : 1.0
+    b := Item.HasProp("BonusTotal") ? Item.BonusTotal : 0.0
+    p := Item.HasProp("PenaltyTotal") ? Item.PenaltyTotal : 0.0
+    Item.FinalScore := fs * tr + b - p
+    Item.FzyScore := Item.FinalScore
+    Item.FzyCategoryBonus := b - p
+    if (Item.HasProp("Metadata") && IsObject(Item.Metadata)) {
+        try {
+            Item.Metadata["FzyScore"] := Item.FinalScore
+            Item.Metadata["FzyBase"] := fs
+        } catch {
+        }
+    }
+}
+
 SortSearchResultsByFzy(&Results, Keyword) {
     if (Results.Length = 0 || StrLen(Keyword) < 1)
         return
@@ -13150,21 +13169,15 @@ SortSearchResultsByFzy(&Results, Keyword) {
         path := Item.HasProp("Preview") ? Item.Preview : (Item.HasProp("Content") ? Item.Content : "")
         if (path = "" && Item.HasProp("Metadata") && IsObject(Item.Metadata) && Item.Metadata.Has("FilePath"))
             path := Item.Metadata["FilePath"]
-        fs := FzyScore(Keyword, path)
-        if (Item.HasProp("FzyCategoryBonus"))
-            fs += Item.FzyCategoryBonus
-        Item.FzyScore := fs
-        if (Item.HasProp("Metadata") && IsObject(Item.Metadata)) {
-            try Item.Metadata["FzyScore"] := fs
-        }
+        ComputeSearchItemFinalScore(Item, Keyword, path)
         Item._FzyStableIdx := A_Index
     }
     Results.Sort(FzyScoreResultItemStableCompare)
 }
 
 FzyScoreResultItemStableCompare(a, b, *) {
-    sa := a.HasProp("FzyScore") ? a.FzyScore : -1e30
-    sb := b.HasProp("FzyScore") ? b.FzyScore : -1e30
+    sa := a.HasProp("FinalScore") ? a.FinalScore : (a.HasProp("FzyScore") ? a.FzyScore : -1e30)
+    sb := b.HasProp("FinalScore") ? b.FinalScore : (b.HasProp("FzyScore") ? b.FzyScore : -1e30)
     if (Abs(sa - sb) > 1e-9) {
         diff := sb - sa
         return diff > 0 ? 1 : (diff < 0 ? -1 : 0)
@@ -13207,7 +13220,67 @@ SearchCenterOtherRelevance(Keyword, item) {
         sc += 90.0
     if (InStr(content, kw))
         sc += 40.0
+    ; 剪贴板：关键词命中来源进程名或友好名时提高排序
+    try {
+        if (item.HasProp("OriginalDataType") && item.OriginalDataType = "clipboard") {
+            if (item.HasProp("Metadata") && IsObject(item.Metadata) && item.Metadata.Has("SourceApp")) {
+                sa := StrLower(String(item.Metadata["SourceApp"]))
+                fr := StrLower(ShellIcon_FriendlyNameFromExe(item.Metadata["SourceApp"]))
+                if (InStr(sa, kw) || (fr != "" && InStr(fr, kw)))
+                    sc += 95.0
+            }
+        }
+    } catch {
+    }
     return sc
+}
+
+; 搜索中心：扁平化后根据关键词与 SourceApp 对齐展示标题/副标题（排序前调用）
+SyncIdentityToResultItem(&item, Keyword) {
+    kw := Trim(Keyword)
+    if (kw = "")
+        return
+    kwLower := StrLower(kw)
+    if (!(item.HasProp("OriginalDataType") && item.OriginalDataType = "clipboard"))
+        return
+    if (!item.HasProp("Metadata") || !IsObject(item.Metadata))
+        return
+    sa := item.Metadata.Has("SourceApp") ? String(item.Metadata["SourceApp"]) : ""
+    if (sa = "" || sa = "Unknown")
+        return
+    content := item.HasProp("Content") ? String(item.Content) : ""
+    hitContent := InStr(StrLower(content), kwLower)
+    friendly := ShellIcon_FriendlyNameFromExe(sa)
+    if (friendly = "")
+        friendly := sa
+    hitApp := InStr(StrLower(sa), kwLower) || InStr(StrLower(friendly), kwLower)
+    if (hitApp && !hitContent) {
+        zh := (SubStr(A_Language, 1, 2) = "zh")
+        prefix := zh ? "[来自 " . friendly . "] " : "[From " . friendly . "] "
+        dt := ""
+        if (item.HasProp("DisplayTitle") && item.DisplayTitle != "")
+            dt := item.DisplayTitle
+        else if (item.HasProp("Title") && item.Title != "")
+            dt := item.Title
+        else
+            dt := SubStr(content, 1, 220)
+        if (SubStr(dt, 1, StrLen(prefix)) != prefix && !InStr(dt, "[来自 ") && !InStr(dt, "[From "))
+            item.DisplayTitle := prefix . dt
+    }
+    timeFmt := item.HasProp("Time") ? item.Time : ""
+    if (timeFmt = "" && item.Metadata.Has("TimeFormatted")) {
+        try timeFmt := String(item.Metadata["TimeFormatted"])
+    }
+    charCount := 0
+    try {
+        if (item.Metadata.Has("CharCount"))
+            charCount := Integer(item.Metadata["CharCount"])
+    } catch {
+    }
+    sub := friendly . " › " . timeFmt
+    if (charCount > 0)
+        sub := friendly . " · " . charCount . " 字 › " . timeFmt
+    item.DisplaySubtitle := sub
 }
 
 SearchCenterOtherCompare(a, b, *) {
@@ -13222,7 +13295,7 @@ SearchCenterOtherCompare(a, b, *) {
     return ia - ib
 }
 
-; 搜索中心混排：Everything 文件置顶并按 FzyScore；剪贴板/配置/模板等排在后面并按标题相关度
+; 搜索中心混排：文件类 FinalScore = Fzy×Trust + Bonus − Penalty；父目录折叠；Top9 分类配额
 SortSearchCenterMergedResults(&items, Keyword) {
     if (items.Length = 0 || StrLen(Keyword) < 1)
         return
@@ -13235,25 +13308,25 @@ SortSearchCenterMergedResults(&items, Keyword) {
             otherArr.Push(item)
     }
     if (fileArr.Length > 0) {
+        kwLower := StrLower(Keyword)
         Loop fileArr.Length {
             p := fileArr[A_Index].HasProp("Content") ? fileArr[A_Index].Content : ""
-            fs := FzyScore(Keyword, p)
-            if (fileArr[A_Index].HasProp("FzyCategoryBonus"))
-                fs += fileArr[A_Index].FzyCategoryBonus
-            fileArr[A_Index].FzyScore := fs
+            ComputeSearchItemFinalScore(fileArr[A_Index], Keyword, p)
             fileArr[A_Index]._FzyStableIdx := A_Index
+            try {
+                if (p != "" && FileExist(p) && !DirExist(p)) {
+                    SplitPath(p, &fn)
+                    fnl := StrLower(fn)
+                    stem := StrReplace(fnl, ".exe", "")
+                    if (fnl = kwLower || fnl = kwLower . ".exe" || stem = kwLower)
+                        fileArr[A_Index].FinalScore += 45.0
+                }
+            } catch {
+            }
         }
         try fileArr.Sort(FzyScoreResultItemStableCompare)
         try FileClassifier.ApplyParentDirectoryCollapse(&fileArr)
-        Loop fileArr.Length {
-            p := fileArr[A_Index].HasProp("Content") ? fileArr[A_Index].Content : ""
-            fs := FzyScore(Keyword, p)
-            if (fileArr[A_Index].HasProp("FzyCategoryBonus"))
-                fs += fileArr[A_Index].FzyCategoryBonus
-            fileArr[A_Index].FzyScore := fs
-            fileArr[A_Index]._FzyStableIdx := A_Index
-        }
-        try fileArr.Sort(FzyScoreResultItemStableCompare)
+        try FileClassifier.ApplyTop9CategoryQuota(&fileArr)
     }
     if (otherArr.Length > 0) {
         Loop otherArr.Length {
@@ -21218,9 +21291,27 @@ HandleClipboardListViewDoubleClick(lParam) {
 OnClipboardListViewWMNotify(wParam, lParam, Msg, Hwnd) {
     global ClipboardListViewHwnd, ClipboardListViewHighlightedRow, ClipboardListViewHighlightedCol
     global ClipboardCurrentTab, ClipboardManagerHwnd, ClipboardListView
+    global GuiID_SearchCenter, SearchCenterResultLV
     
     ; Prompt Quick-Pad（AIListPanel）ListView 双击/右键
     try PromptQuickPad_OnWmNotify(wParam, lParam, Msg, Hwnd)
+    
+    ; 搜索中心：NM_CUSTOMDRAW 路径列（iSubItem=2）副标题灰色
+    try {
+        if (GuiID_SearchCenter && Hwnd = GuiID_SearchCenter.Hwnd && SearchCenterResultLV) {
+            scHwnd := SearchCenterResultLV.Hwnd
+            HwndFrom := NumGet(lParam, 0, "Ptr")
+            if (HwndFrom = scHwnd) {
+                Code := NumGet(lParam, A_PtrSize * 2, "Int")
+                if (Code = -12) {
+                    r := SearchCenterListViewCustomDraw(lParam)
+                    if (r != "")
+                        return r
+                }
+            }
+        }
+    } catch {
+    }
     
     ; 检查是否是剪贴板管理窗口的消息
     if (!ClipboardManagerHwnd || Hwnd != ClipboardManagerHwnd) {
@@ -21340,6 +21431,58 @@ OnClipboardListViewWMNotify(wParam, lParam, Msg, Hwnd) {
     }
     
     return  ; 不处理，让系统继续默认处理
+}
+
+; ===================== 搜索中心 ListView：路径列（副标题）灰色文字 =====================
+SearchCenterListViewCustomDraw(lParam) {
+    global UI_Colors, ThemeMode
+    try {
+        if (A_PtrSize = 8) {
+            dwDrawStageOffset := 24
+            NMCUSTOMDRAWSize := 80
+        } else {
+            dwDrawStageOffset := 12
+            NMCUSTOMDRAWSize := 48
+        }
+        clrTextOffset := NMCUSTOMDRAWSize
+        clrTextBkOffset := NMCUSTOMDRAWSize + 4
+        iSubItemOffset := NMCUSTOMDRAWSize + 8
+        dwDrawStage := NumGet(lParam, dwDrawStageOffset, "UInt")
+        CDDS_PREPAINT := 0x00000001
+        CDDS_ITEMPREPAINT := 0x00010001
+        CDDS_SUBITEMPREPAINT := 0x00030001
+        CDRF_DODEFAULT := 0x00000000
+        ; WinUser.h: NOTIFYITEMDRAW=0x40（预绘后接收行）, NOTIFYSUBITEMDRAW=0x20（行绘后接收列）；勿用 0x04（CDRF_SKIPDEFAULT 会跳过默认绘制导致列表空白）
+        CDRF_NOTIFYITEMDRAW := 0x00000040
+        CDRF_NOTIFYSUBITEMDRAW := 0x00000020
+        CDRF_NEWFONT := 0x00000002
+        if (dwDrawStage = CDDS_PREPAINT)
+            return CDRF_NOTIFYITEMDRAW
+        if (dwDrawStage = CDDS_ITEMPREPAINT)
+            return CDRF_NOTIFYSUBITEMDRAW
+        if (dwDrawStage = CDDS_SUBITEMPREPAINT) {
+            iSubItem := NumGet(lParam, iSubItemOffset, "Int")
+            ; 第 3 列（索引 2）：路径/副标题 — 灰色
+            if (iSubItem = 2) {
+                NumPut("UInt", 0x00808080, lParam, clrTextOffset)
+                return CDRF_NEWFONT
+            }
+            try {
+                TextColorStr := UI_Colors.Text
+                R := Integer("0x" . SubStr(TextColorStr, 1, 2))
+                G := Integer("0x" . SubStr(TextColorStr, 3, 2))
+                B := Integer("0x" . SubStr(TextColorStr, 5, 2))
+                DefaultTextColor := (B << 16) | (G << 8) | R
+            } catch {
+                DefaultTextColor := (ThemeMode = "dark") ? 0x00FFFFFF : 0x00000000
+            }
+            NumPut("UInt", DefaultTextColor, lParam, clrTextOffset)
+            return CDRF_NEWFONT
+        }
+        return CDRF_DODEFAULT
+    } catch {
+        return ""
+    }
 }
 
 ; ===================== 处理 ListView 自定义绘制（NM_CUSTOMDRAW） =====================
@@ -24780,7 +24923,7 @@ ShowSearchCenter() {
     ResultLVWidth := WindowWidth - Padding * 2
     ResultLVHeight := ResultAreaHeight
     
-    SearchCenterResultLV := GuiID_SearchCenter.Add("ListView", "x" . ResultLVX . " y" . ResultLVY . " w" . ResultLVWidth . " h" . ResultLVHeight . " Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " -Multi +ReadOnly vSearchResultLV", ["", "标题", "来源", "类型", "时间"])
+    SearchCenterResultLV := GuiID_SearchCenter.Add("ListView", "x" . ResultLVX . " y" . ResultLVY . " w" . ResultLVWidth . " h" . ResultLVHeight . " Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " -Multi +ReadOnly vSearchResultLV", ["", "标题", "路径", "类型", "时间"])
     SearchCenterResultLV.SetFont("s10", "Segoe UI")
     SearchCenterResultLV.OnEvent("DoubleClick", OnSearchCenterResultDoubleClick)
     SearchCenterResultLV.OnEvent("ItemSelect", OnSearchCenterResultItemSelect)
@@ -26341,6 +26484,18 @@ DebouncedSearchCenter(offset := 0) {
                         ResultItem.SubCategory := Item.SubCategory
                     if (Item.HasProp("CategoryColor") && Item.CategoryColor != "")
                         ResultItem.CategoryColor := Item.CategoryColor
+                    if (Item.HasProp("PathTrust"))
+                        ResultItem.PathTrust := Item.PathTrust
+                    if (Item.HasProp("BonusTotal"))
+                        ResultItem.BonusTotal := Item.BonusTotal
+                    if (Item.HasProp("PenaltyTotal"))
+                        ResultItem.PenaltyTotal := Item.PenaltyTotal
+                    if (Item.HasProp("FzyBase"))
+                        ResultItem.FzyBase := Item.FzyBase
+                    if (Item.HasProp("FinalScore"))
+                        ResultItem.FinalScore := Item.FinalScore
+                    if (Item.HasProp("QuotaCategory"))
+                        ResultItem.QuotaCategory := Item.QuotaCategory
                     
                     ; 如果是新搜索，追加到总结果；如果是加载更多，只追加到新结果
                     if (offset = 0) {
@@ -26353,6 +26508,18 @@ DebouncedSearchCenter(offset := 0) {
         }
     } catch as err {
         OutputDebug("AHK_DEBUG: SearchAllDataSources 报错: " . err.Message)
+    }
+
+    ; 身份化：标题前缀与副标题（排序前）
+    if (offset = 0 && SearchCenterSearchResults.Length > 0 && StrLen(Keyword) > 0) {
+        try {
+            Loop SearchCenterSearchResults.Length {
+                scItem := SearchCenterSearchResults[A_Index]
+                SyncIdentityToResultItem(&scItem, Keyword)
+            }
+        } catch as errId {
+            OutputDebug("AHK_DEBUG: SyncIdentityToResultItem: " . errId.Message)
+        }
     }
 
     ; 文件（Everything）置顶 + Fzy 精准加权；其余来源排在后面
