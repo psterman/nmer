@@ -15,6 +15,14 @@ $Host.UI.RawUI.WindowTitle = $Title
 Set-Location -LiteralPath $Workdir
 New-Item -ItemType Directory -Force -Path $QueueDir | Out-Null
 
+. (Join-Path $PSScriptRoot "gemini_env.ps1")
+Import-GeminiEnvironmentLikeInteractiveTerminal
+Apply-GeminiCliEnvironment -Root $Workdir
+
+# Qwen Code 无头模式：首次 -p 创建会话；后续 --continue -p 延续同项目会话（多轮连续提问）
+# --yolo 自动批准工具/编辑，避免卡在交互审批导致 PowerShell worker 无法回到队列循环、后续 .txt 永远不处理
+$script:QwenHeadlessSessionStarted = $false
+
 $OpenClawStateDir = Join-Path $Workdir "cache\openclaw-state"
 $OpenClawConfigPath = Join-Path $OpenClawStateDir "config.json"
 $OpenClawAgentDir = Join-Path $OpenClawStateDir "agents\main\agent"
@@ -420,6 +428,11 @@ function Invoke-AgentPrompt {
 
     switch ($CurrentEngine) {
         "gemini_cli" {
+            Apply-GeminiCliEnvironment -Root $Workdir
+            Sync-GeminiApiKeyFromGoogleIfNeeded
+            if (-not $env:GEMINI_API_KEY -or -not $env:GEMINI_API_KEY.Trim()) {
+                Write-Host "[gemini_cli] 缺少 GEMINI_API_KEY：请在项目根 .env 写入 GEMINI_API_KEY=... 或 GOOGLE_API_KEY=...，或设置系统环境变量 / cache\gemini_api_key.txt" -ForegroundColor Red
+            }
             & $Executable -p $Prompt
             break
         }
@@ -428,7 +441,12 @@ function Invoke-AgentPrompt {
             break
         }
         "qwen_cli" {
-            & $Executable -p $Prompt
+            if ($script:QwenHeadlessSessionStarted) {
+                & $Executable --continue -p $Prompt --yolo
+            } else {
+                & $Executable -p $Prompt --yolo
+                $script:QwenHeadlessSessionStarted = $true
+            }
             break
         }
         "openclaw_cli" {

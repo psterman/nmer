@@ -1,0 +1,22 @@
+{
+  "entries": {
+    "C:\\Users\\Administrator\\Desktop\\小c\\cache\\openclaw-state\\config.json": {
+      "lastKnownGood": {
+        "hash": "7ecc594c6e724423d5ad1c0ff7459acb8270e7199e068c0f78b10d55c6148c31",
+        "bytes": 6677,
+        "mtimeMs": 1774795547219.5276,
+        "ctimeMs": 1774795547222.5205,
+        "dev": "1275235742",
+        "ino": "562949953537584",
+        "mode": 438,
+        "nlink": 1,
+        "uid": 0,
+        "gid": 0,
+        "hasMeta": true,
+        "gatewayMode": "local",
+        "observedAt": "2026-03-31T10:31:25.942Z"
+      },
+      "lastObservedSuspiciousSignature": null
+    }
+  }
+}

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 import ctypes.wintypes as wintypes
+import os
 import shutil
 import subprocess
 import sys
@@ -36,6 +37,20 @@ def find_executable(engine: str) -> str:
         resolved = shutil.which(candidate)
         if resolved:
             return resolved
+    if os.name == "nt":
+        appdata = os.environ.get("APPDATA", "")
+        local = os.environ.get("LOCALAPPDATA", "")
+        npm_dirs = [
+            Path(appdata) / "npm",
+            Path(appdata) / "npm-global",
+            Path(local) / "npm",
+            Path(local) / "npm-global",
+        ]
+        for candidate in AGENTS[engine]["executables"]:
+            for root in npm_dirs:
+                p = root / candidate
+                if p.is_file():
+                    return str(p.resolve())
     raise FileNotFoundError(f"cannot resolve executable for {engine}")
 
 

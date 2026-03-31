@@ -23613,11 +23613,24 @@ Esc:: {
     ; Enter 键：根据焦点区域执行不同操作，或加速倒计时
 Enter:: {
     global IsCountdownActive
+    global GuiID_SearchCenter, SearchCenterSearchEdit
     if (IsCountdownActive) {
         ExecuteCountdownAction()
         return
     }
     global SearchCenterActiveArea, SearchCenterResultLV, SearchCenterSearchResults, SearchCenterSearchEdit
+    
+    ; CLI：焦点在顶部输入框时一律发送（避免 ActiveArea 仍为 listview 等导致 Enter 未触发 CLI）
+    if (SearchCenterIsCLICategory() && SearchCenterSearchEdit != 0 && GuiID_SearchCenter != 0) {
+        try {
+            Fh := ControlGetFocus("ahk_id " . GuiID_SearchCenter.Hwnd)
+            if (Fh && Fh = SearchCenterSearchEdit.Hwnd) {
+                ExecuteSearchCenterCLICommand()
+                return
+            }
+        } catch {
+        }
+    }
     
     if (SearchCenterIsCLICategory() && (SearchCenterActiveArea = "input" || SearchCenterActiveArea = "category")) {
         ExecuteSearchCenterCLICommand()
@@ -24203,7 +24216,6 @@ SearchCenterListViewLaunchHandler(Content, Title) {
         if (GuiID_SearchCenter != 0 && IsObject(GuiID_SearchCenter)) {
             CleanupSearchCenterResultLimitDDLBrush()
             GuiID_SearchCenter.Destroy()
-            GuiID_SearchCenter := 0
         }
         ; 2. 释放数据库资源，防止占用
         if (IsSet(global_ST) && IsObject(global_ST) && global_ST.HasProp("Free")) {
@@ -24215,6 +24227,8 @@ SearchCenterListViewLaunchHandler(Content, Title) {
         }
     } catch as err {
     }
+    GuiID_SearchCenter := 0
+    SearchCenterInvalidateGuiControlRefs()
     
     ; 3. 启动倒计时功能
     StartActionCountdown(Content, Title)
@@ -24591,6 +24605,7 @@ ShowSearchCenter() {
         } catch as err {
         }
         GuiID_SearchCenter := 0
+        SearchCenterInvalidateGuiControlRefs()
     }
     
     ; 初始化状态
@@ -25171,14 +25186,20 @@ UpdateSearchCenterCLILayout(WindowWidth := 0, WindowHeight := 0, KeepFilterTop :
         ButtonY := WindowHeight - Padding - ButtonHeight
         OutputY := WindowHeight - Padding - OutputHeight
     }
-    ; 过滤标签栏始终贴在结果列表上方
+    ; 过滤标签栏始终在列表上方，必须预留 FilterBarHeight；否则 ListView 上移会遮挡「全部/文件/…」标签（且 ListView 后创建会盖住 z-order）
     FilterBarY := ContentTop
     ResultY := FilterBarY + FilterBarHeight + 8
-    ResultHeight := Max(120, OutputY - ResultY - PreviewGap)
+    AvailableSpace := OutputY - ResultY - PreviewGap
+    if (AvailableSpace < 0) {
+        AvailableSpace := 0
+    }
+    ; 不可用 Max(120, 可用高度)：当可用不足 120 时强行 120 会侵入预览区
+    ResultHeight := AvailableSpace
     
     try SearchCenterCLIOutputEdit.Move(Padding, OutputY, ContentWidth, OutputHeight)
     try SearchCenterResultLV.Move(Padding, ResultY, ContentWidth, ResultHeight)
     MoveSearchCenterFilterButtons(FilterBarY, Padding, KeepFilterTop)
+    BringSearchCenterFilterButtonsToFront()
     if (IsCLI) {
         try SearchCenterCLIRunButton.Move(Padding, ButtonY, ButtonWidth, ButtonHeight)
         try SearchCenterCLIClearButton.Move(Padding + ButtonWidth + ButtonGap, ButtonY, ButtonWidth, ButtonHeight)
@@ -25395,7 +25416,8 @@ UpdateSearchCenterCategoryMode() {
     SetSearchCenterControlVisible(SearchCenterAreaIndicator, true)
     SetSearchCenterControlVisible(SearchCenterHintText, true)
     for _, FilterBtn in SearchCenterFilterButtons {
-        SetSearchCenterControlVisible(FilterBtn, !IsCLI)
+        ; CLI 页同样需要本地结果分类筛选，与 AI 页一致显示过滤标签
+        SetSearchCenterControlVisible(FilterBtn, true)
     }
     SetSearchCenterEngineIconsVisible(true)
     
@@ -26534,16 +26556,39 @@ DebouncedSearchCenter(offset := 0) {
     OutputDebug("AHK_DEBUG: 搜索中心刷新完成，总结果: " . SearchCenterSearchResults.Length . ", 还有更多: " . (SearchCenterHasMoreData ? "是" : "否"))
 }
 
+; Destroy 之后必须清空控件引用，否则异步 RefreshSearchCenterResults 仍持有旧 Gui.Control 会报 “control is destroyed”
+SearchCenterInvalidateGuiControlRefs() {
+    global SearchCenterSearchEdit, SearchCenterResultLV, SearchCenterCLIOutputEdit
+    global SearchCenterAreaIndicator, SearchCenterHintText, SearchCenterResultLimitDropdown
+    SearchCenterSearchEdit := 0
+    SearchCenterResultLV := 0
+    SearchCenterCLIOutputEdit := 0
+    SearchCenterAreaIndicator := 0
+    SearchCenterHintText := 0
+    SearchCenterResultLimitDropdown := 0
+}
+
 ; 刷新搜索中心结果显示（应用过滤类型）
 RefreshSearchCenterResults() {
     global SearchCenterSearchResults, SearchCenterResultLV, SearchCenterFilterType, SearchCenterVisibleResults
+    global GuiID_SearchCenter
     
+    if (!GuiID_SearchCenter || GuiID_SearchCenter = 0) {
+        return
+    }
+    try {
+        if (!GuiID_SearchCenter.HasProp("Hwnd") || !WinExist("ahk_id " . GuiID_SearchCenter.Hwnd)) {
+            return
+        }
+    } catch {
+        return
+    }
     if (!SearchCenterResultLV || SearchCenterResultLV = 0) {
         return
     }
 
     ; 下拉仅控制结果数量，不覆盖过滤标签状态
-    
+    try {
     ; 清空ListView
     SearchCenterResultLV.Opt("-Redraw")
     SearchCenterResultLV.Delete()
@@ -26619,6 +26664,9 @@ RefreshSearchCenterResults() {
     
     ; 【关键修复】刷新结果显示后，更新标签按钮样式以保持选中状态
     UpdateSearchCenterFilterButtons()
+    } catch as err {
+        OutputDebug("AHK_DEBUG: RefreshSearchCenterResults: " . err.Message)
+    }
 }
 
 
@@ -26823,10 +26871,11 @@ SearchCenterCloseHandler(*) {
         try {
             CleanupSearchCenterResultLimitDDLBrush()
             GuiID_SearchCenter.Destroy()
-            GuiID_SearchCenter := 0
         } catch as err {
             ; 忽略错误
         }
+        GuiID_SearchCenter := 0
+        SearchCenterInvalidateGuiControlRefs()
     }
 }
 
@@ -27178,7 +27227,14 @@ ToggleSearchCenterEngine(EngineValue, Index) {
     FoundIndex := ArrayContainsValue(SearchCenterSelectedEngines, EngineValue)
     IsSelected := (FoundIndex = 0)  ; 如果没找到，说明要选中
     
-    if (FoundIndex > 0) {
+    if (CategoryKey = "cli") {
+        ; CLI 终端只能发往一个：多选会导致 codex 在 Native 队列里先于 qwen 打开，用户只选 Qwen 时仍会激活 Codex
+        if (FoundIndex > 0) {
+            SearchCenterSelectedEngines.RemoveAt(FoundIndex)
+        } else {
+            SearchCenterSelectedEngines := [EngineValue]
+        }
+    } else if (FoundIndex > 0) {
         ; 取消选中
         SearchCenterSelectedEngines.RemoveAt(FoundIndex)
     } else {
@@ -27208,6 +27264,12 @@ ToggleSearchCenterEngine(EngineValue, Index) {
         IniWrite(CategoryEnginesStr, ConfigFile, "Settings", "SearchCenterSelectedEngines_" . CategoryKey)
     } catch as e {
         ; 忽略保存错误，不影响功能
+    }
+    
+    ; CLI 单选后必须重绘全部图标，否则其它 CLI 的勾号仍会残留
+    if (CategoryKey = "cli") {
+        RefreshSearchCenterEngineIcons()
+        return
     }
     
     ; 【优化】只更新当前图标的选中状态，避免重新创建所有图标导致闪烁
@@ -32331,6 +32393,55 @@ GetCLIAgentLaunchInfo(Engine) {
     }
 }
 
+; 使用 where.exe 解析 PATH 中的可执行文件，返回首个存在的完整路径
+TryResolveExecutableViaWhere(WhereExe, Name) {
+    if (Name = "" || !FileExist(WhereExe)) {
+        return ""
+    }
+    try {
+        Shell := ComObject("WScript.Shell")
+        Exec := Shell.Exec('"' . WhereExe . '" "' . Name . '"')
+        while (Exec.Status = 0) {
+            Sleep(20)
+        }
+        Out := Exec.StdOut.ReadAll()
+        for Line in StrSplit(Out, "`n", "`r") {
+            L := Trim(Line)
+            if (L = "" || InStr(L, "INFO:") = 1) {
+                continue
+            }
+            if (FileExist(L)) {
+                return L
+            }
+        }
+    } catch {
+    }
+    return ""
+}
+
+; 将裸名（如 codex.cmd）解析为 PATH 或 where.exe 找到的完整路径，避免 PowerShell 中 & 'codex.cmd' 因不在 PATH 而失败
+ResolveBareCLIExecutableInPath(ExecutableName) {
+    if (ExecutableName = "" || InStr(ExecutableName, "\")) {
+        return ExecutableName
+    }
+    if (FileExist(A_ScriptDir . "\" . ExecutableName)) {
+        return A_ScriptDir . "\" . ExecutableName
+    }
+    WhereExe := A_WinDir . "\System32\where.exe"
+    R := TryResolveExecutableViaWhere(WhereExe, ExecutableName)
+    if (R != "") {
+        return R
+    }
+    Base := StrReplace(StrReplace(ExecutableName, ".cmd", ""), ".exe", "")
+    if (Base != "" && Base != ExecutableName) {
+        R := TryResolveExecutableViaWhere(WhereExe, Base)
+        if (R != "") {
+            return R
+        }
+    }
+    return ExecutableName
+}
+
 GetPreferredCLIExecutable(Engine) {
     LocalAppDataDir := EnvGet("LOCALAPPDATA")
     Candidates := []
@@ -32339,6 +32450,8 @@ GetPreferredCLIExecutable(Engine) {
             Candidates := [
                 A_AppData . "\npm-global\codex.cmd",
                 A_AppData . "\npm\codex.cmd",
+                LocalAppDataDir . "\npm\codex.cmd",
+                LocalAppDataDir . "\npm-global\codex.cmd",
                 "codex.cmd"
             ]
         case "gemini_cli":
@@ -32359,6 +32472,8 @@ GetPreferredCLIExecutable(Engine) {
             Candidates := [
                 A_AppData . "\npm-global\qwen.cmd",
                 A_AppData . "\npm\qwen.cmd",
+                LocalAppDataDir . "\npm\qwen.cmd",
+                LocalAppDataDir . "\npm-global\qwen.cmd",
                 "qwen.cmd"
             ]
         default:
@@ -32370,15 +32485,33 @@ GetPreferredCLIExecutable(Engine) {
             return Candidate
         }
     }
-    return Candidates.Length > 0 ? Candidates[Candidates.Length] : ""
+    Last := Candidates.Length > 0 ? Candidates[Candidates.Length] : ""
+    Resolved := ResolveBareCLIExecutableInPath(Last)
+    ; 仍未解析出磁盘路径时无法安全启动（避免 PowerShell 中 & 'codex.cmd' 报错）
+    if (Resolved != "" && !InStr(Resolved, "\") && !InStr(Resolved, "/")) {
+        return ""
+    }
+    return Resolved
 }
 
 GetCLIAgentWindowTitle(Engine) {
-    AgentInfo := GetCLIAgentLaunchInfo(Engine)
-    if (!AgentInfo || !IsObject(AgentInfo)) {
-        return ""
+    ; 必须与 scripts/cli_window_bridge.py 中 AGENTS 的英文 name 一致，否则无法匹配队列终端窗口标题
+    switch Engine {
+        case "codex_cli":
+            return "CursorHelper AI - Codex"
+        case "gemini_cli":
+            return "CursorHelper AI - Gemini"
+        case "openclaw_cli":
+            return "CursorHelper AI - OpenClaw"
+        case "qwen_cli":
+            return "CursorHelper AI - Qwen"
+        default:
+            AgentInfo := GetCLIAgentLaunchInfo(Engine)
+            if (!AgentInfo || !IsObject(AgentInfo)) {
+                return ""
+            }
+            return "CursorHelper AI - " . AgentInfo.Name
     }
-    return "CursorHelper AI - " . AgentInfo.Name
 }
 
 FindCLIAgentWindow(Engine) {
@@ -32443,7 +32576,7 @@ SendPromptToCLIAgentWindow(WindowHwnd, PromptText, Engine := "") {
     try {
         WinActivate("ahk_id " . WindowHwnd)
         WinWaitActive("ahk_id " . WindowHwnd, , 3)
-        Sleep(180)
+        Sleep((Engine = "qwen_cli" || Engine = "gemini_cli") ? 400 : 180)
 
         if (Engine = "codex_cli") {
             SendText(PromptText)
@@ -32452,32 +32585,27 @@ SendPromptToCLIAgentWindow(WindowHwnd, PromptText, Engine := "") {
             return
         }
 
-        if (Engine = "gemini_cli") {
-            ClipboardBackup := ""
-            HadClipboard := false
-            try {
-                ClipboardBackup := ClipboardAll()
-                HadClipboard := true
-            } catch {
+        ; Qwen / Gemini TUI：Ctrl+V 往往无效；优先对终端子控件 ControlSend {Text}（与 Windows Terminal 兼容），否则回退 SendText
+        if (Engine = "qwen_cli" || Engine = "gemini_cli") {
+            TargetCtl := GetCLIAgentInputControl(WindowHwnd)
+            if (TargetCtl != "") {
+                try ControlFocus(TargetCtl, "ahk_id " . WindowHwnd)
+                Sleep(150)
             }
-
             try {
-                A_Clipboard := ""
-                Sleep(80)
-                A_Clipboard := PromptText
-                if (ClipWait(1.5)) {
-                    Send("^v")
-                    Sleep(180)
-                    Send("{Enter}")
+                if (TargetCtl != "") {
+                    ControlSend("{Text}" . PromptText, TargetCtl, "ahk_id " . WindowHwnd)
+                    Sleep(80)
+                    ControlSend("{Enter}", TargetCtl, "ahk_id " . WindowHwnd)
+                } else {
+                    SendText(PromptText)
                     Sleep(120)
+                    Send("{Enter}")
                 }
-            } finally {
-                try {
-                    if (HadClipboard) {
-                        RestoreClipboardDeferred(ClipboardBackup, 10000)
-                    }
-                } catch {
-                }
+            } catch {
+                SendText(PromptText)
+                Sleep(120)
+                Send("{Enter}")
             }
             return
         }
@@ -32541,7 +32669,7 @@ RegisterPendingCLIAgentPrompt(WindowHwnd, PromptText, Engine := "gemini_cli") {
         return
     }
     
-    PendingKey := (Engine = "gemini_cli") ? ("gemini_cli_" . A_TickCount) : String(WindowHwnd)
+    PendingKey := String(WindowHwnd)
     CLIAgentPendingPrompts[PendingKey] := {
         Hwnd: WindowHwnd,
         Prompt: PromptText,
@@ -32579,6 +32707,12 @@ QueuePromptForCLIAgent(Engine, WindowHwnd, PromptText) {
         return true
     }
     
+    if (Engine = "qwen_cli") {
+        RegisterPendingCLIAgentPrompt(WindowHwnd, PromptText, Engine)
+        TrayTip(AgentInfo.Name . " 正在等待终端就绪，准备好后会自动发送。", "提示", "Iconi 2")
+        return true
+    }
+    
     return false
 }
 
@@ -32596,12 +32730,21 @@ DispatchPromptToCLIAgent(Engine, LaunchResult, PromptText) {
         return
     }
     
+    if (Engine = "qwen_cli") {
+        if (LaunchResult.IsNew) {
+            QueuePromptForCLIAgent(Engine, LaunchResult.Hwnd, PromptText)
+        } else {
+            SendPromptToCLIAgentWindow(LaunchResult.Hwnd, PromptText, Engine)
+        }
+        return
+    }
+    
     if (Engine = "gemini_cli") {
         if (LaunchResult.IsNew) {
             QueuePromptForCLIAgent(Engine, LaunchResult.Hwnd, PromptText)
-            return
+        } else {
+            SendPromptToCLIAgentWindow(LaunchResult.Hwnd, PromptText, Engine)
         }
-        QueuePromptForCLIAgent(Engine, LaunchResult.Hwnd, PromptText)
         return
     } else if (LaunchResult.IsNew) {
         AgentInfo := GetCLIAgentLaunchInfo(Engine)
@@ -32638,8 +32781,8 @@ MonitorPendingCLIAgentPrompts() {
             continue
         }
         
-        if (Pending.Engine = "codex_cli" || Pending.Engine = "gemini_cli") {
-            RequiredDelay := (Pending.Engine = "gemini_cli") ? 15000 : 2500
+        if (Pending.Engine = "codex_cli" || Pending.Engine = "gemini_cli" || Pending.Engine = "qwen_cli") {
+            RequiredDelay := (Pending.Engine = "gemini_cli" || Pending.Engine = "qwen_cli") ? 4000 : 2500
             if ((A_TickCount - Pending.CreatedAt) < RequiredDelay) {
                 continue
             }
@@ -32733,6 +32876,9 @@ OpenCLIAgentTerminal(Engine) {
     if (!AgentInfo || !IsObject(AgentInfo)) {
         throw Error("未配置该 CLI: " . Engine)
     }
+    if (AgentInfo.Command = "") {
+        throw Error("找不到 " . AgentInfo.Name . " 可执行文件。请安装 CLI（例如 npm 全局安装）或将其加入系统 PATH。")
+    }
     
     ExistingWindow := FindCLIAgentWindow(Engine)
     if (ExistingWindow) {
@@ -32749,7 +32895,25 @@ OpenCLIAgentTerminal(Engine) {
         throw Error("找不到 Windows PowerShell")
     }
     
-    EscapedTitle := StrReplace("CursorHelper AI - " . AgentInfo.Name, "'", "''")
+    WinTitleStr := GetCLIAgentWindowTitle(Engine)
+    if (WinTitleStr = "") {
+        WinTitleStr := "CursorHelper AI - " . AgentInfo.Name
+    }
+    ; Gemini：与 Qwen 一样走原生交互终端；启动前由 gemini_native_terminal.ps1 加载 .env / 注册表等（与队列 worker 共用 gemini_env.ps1）
+    if (Engine = "gemini_cli") {
+        NativeScript := A_ScriptDir . "\scripts\gemini_native_terminal.ps1"
+        if (!FileExist(NativeScript)) {
+            throw Error("找不到 Gemini 启动脚本: " . NativeScript)
+        }
+        EscapedTitle := StrReplace(WinTitleStr, "'", "''")
+        EscapedWorkDir := StrReplace(A_ScriptDir, "'", "''")
+        EscapedExe := StrReplace(AgentInfo.Command, "'", "''")
+        CommandLine := '"' . PowerShellPath . '" -NoExit -ExecutionPolicy Bypass -File "' . NativeScript . '" -Title "' . EscapedTitle . '" -Workdir "' . EscapedWorkDir . '" -Executable "' . EscapedExe . '"'
+        Run(CommandLine, A_ScriptDir, , &TerminalPid)
+        WinWaitActive("ahk_pid " . TerminalPid, , 5)
+        return {Hwnd: WinExist("ahk_pid " . TerminalPid), IsNew: true}
+    }
+    EscapedTitle := StrReplace(WinTitleStr, "'", "''")
     EscapedWorkDir := StrReplace(A_ScriptDir, "'", "''")
     EscapedCommand := StrReplace(AgentInfo.Command, "'", "''")
     PowerShellCommand := "$Host.UI.RawUI.WindowTitle = '" . EscapedTitle . "'; Set-Location -LiteralPath '" . EscapedWorkDir . "'; & '" . EscapedCommand . "'"
@@ -32759,51 +32923,79 @@ OpenCLIAgentTerminal(Engine) {
     return {Hwnd: WinExist("ahk_pid " . TerminalPid), IsNew: true}
 }
 
+; 通过 PowerShell 启动 cli_queue_worker.ps1（与 Python 版 bridge 等价），不依赖系统已安装 python
 InvokePythonCLIBridge(Engines, PromptText := "", Action := "send") {
+    global A_ScriptDir
     if (!IsObject(Engines) || Engines.Length = 0) {
-        return false
+        return 0
     }
-    
-    BridgeScript := A_ScriptDir . "\scripts\cli_window_bridge.py"
-    if (!FileExist(BridgeScript)) {
-        TrayTip("找不到 CLI Bridge 脚本: " . BridgeScript, "错误", "Iconx 2")
-        return false
+    if (Action = "send" && PromptText = "") {
+        return 0
     }
-    
-    EnginesArg := ""
-    for Index, Engine in Engines {
-        if (Index > 1) {
-            EnginesArg .= ","
+    WorkerScript := A_ScriptDir . "\scripts\cli_queue_worker.ps1"
+    if (!FileExist(WorkerScript)) {
+        TrayTip("找不到 CLI 队列脚本: " . WorkerScript, "错误", "Iconx 2")
+        return 0
+    }
+    PowerShellPath := A_WinDir . "\System32\WindowsPowerShell\v1.0\powershell.exe"
+    if (!FileExist(PowerShellPath)) {
+        TrayTip("找不到 Windows PowerShell", "错误", "Iconx 2")
+        return 0
+    }
+    OkCount := 0
+    for _, Engine in Engines {
+        AgentInfo := GetCLIAgentLaunchInfo(Engine)
+        if (!AgentInfo || !IsObject(AgentInfo) || AgentInfo.Command = "") {
+            TrayTip("未找到 " . Engine . " 的可执行文件，请先安装 CLI 或配置 PATH", "错误", "Iconx 2")
+            continue
         }
-        EnginesArg .= Engine
-    }
-    
-    CommandLine := 'python "' . BridgeScript . '" --action ' . Action . ' --engines "' . EnginesArg . '" --workdir "' . A_ScriptDir . '"'
-    PromptFile := ""
-    if (Action = "send") {
-        if (PromptText = "") {
-            return false
+        Title := GetCLIAgentWindowTitle(Engine)
+        if (Title = "") {
+            continue
         }
-        PromptFile := A_Temp . "\cursorhelper_cli_prompt_" . A_TickCount . ".txt"
-        try FileDelete(PromptFile)
-        FileAppend(PromptText, PromptFile, "UTF-8")
-        CommandLine .= ' --prompt-file "' . PromptFile . '"'
-    }
-    
-    try {
-        Run(CommandLine, A_ScriptDir, "Hide")
-        return true
-    } catch as err {
-        if (PromptFile != "") {
-            try FileDelete(PromptFile)
+        QueueDir := A_ScriptDir . "\cache\cli_queue\" . Engine
+        try DirCreate(QueueDir)
+        Hwnd := FindCLIAgentWindow(Engine)
+        if (!Hwnd) {
+            CmdLine := '"' . PowerShellPath . '" -NoExit -ExecutionPolicy Bypass -File "' . WorkerScript . '"'
+            CmdLine .= ' -Engine "' . Engine . '" -Title "' . Title . '" -Workdir "' . A_ScriptDir . '" -QueueDir "' . QueueDir . '" -Executable "' . AgentInfo.Command . '"'
+            try {
+                Run(CmdLine, A_ScriptDir)
+            } catch as err {
+                TrayTip("启动 " . AgentInfo.Name . " 失败: " . err.Message, "错误", "Iconx 2")
+                continue
+            }
+            Deadline := A_TickCount + 12000
+            while (A_TickCount < Deadline) {
+                Hwnd := FindCLIAgentWindow(Engine)
+                if (Hwnd) {
+                    break
+                }
+                Sleep(250)
+            }
         }
-        TrayTip("启动 CLI Bridge 失败: " . err.Message, "错误", "Iconx 2")
-        return false
+        if (!Hwnd) {
+            TrayTip("超时：未检测到 " . AgentInfo.Name . " 终端窗口", "错误", "Iconx 2")
+            continue
+        }
+        if (Action = "send") {
+            PromptFile := QueueDir . "\" . A_TickCount . "_" . Random(1, 999999) . ".txt"
+            try FileAppend(PromptText, PromptFile, "UTF-8")
+        }
+        try {
+            WinActivate("ahk_id " . Hwnd)
+            WinWaitActive("ahk_id " . Hwnd, , 2)
+        } catch {
+        }
+        OkCount += 1
+        Sleep(150)
     }
+    return OkCount
 }
 
+; 直接 PowerShell 里 & qwen.cmd / codex.cmd / gemini（无参即交互式），用户可在终端内连续输入；队列 worker 仅用于 openclaw 等非原生 CLI
 ShouldUseNativeCLITerminal(Engine) {
-    return (Engine = "codex_cli")
+    return (Engine = "codex_cli" || Engine = "qwen_cli" || Engine = "gemini_cli")
 }
 
 LaunchSelectedCLIAgents(PromptText := "") {
@@ -32846,8 +33038,9 @@ LaunchSelectedCLIAgents(PromptText := "") {
     
     if (BridgeEngines.Length > 0) {
         Action := (PromptText = "") ? "open" : "send"
-        if (InvokePythonCLIBridge(BridgeEngines, PromptText, Action)) {
-            ProcessedCount += BridgeEngines.Length
+        BridgeOk := InvokePythonCLIBridge(BridgeEngines, PromptText, Action)
+        if (BridgeOk > 0) {
+            ProcessedCount += BridgeOk
         }
     }
     
