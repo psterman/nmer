@@ -1,4 +1,4 @@
-﻿; ===================== msg =====================
+; ===================== msg =====================
 
 global pToken := Gdip_Startup()
 if (!pToken) {
@@ -51,6 +51,8 @@ global MainScriptDir := A_ScriptDir
 ; ===================== 包含新的剪贴板管理器模块 =====================
 #Include modules\ClipboardFTS5.ahk
 #Include modules\ClipboardHistoryPanel.ahk
+#Include modules\ShellIconCache.ahk
+#Include modules\FileClassifier.ahk
 
 ; ===================== 包含悬浮工具栏模块 =====================
 #Include modules\FloatingToolbar.ahk
@@ -539,9 +541,11 @@ global SearchCenterAreaIndicator := 0  ; 搜索中心区域指示器控件（动
 global SearchCenterInputContainer := 0  ; 搜索中心输入框边框容器控件（Material Design风格）
 global SearchCenterFilterType := ""  ; 搜索中心当前过滤类型（空字符串表示全部）
 global SearchCenterFilterButtons := []  ; 搜索中心过滤标签按钮数组
+global SearchCenterFilterButtonMap := Map()  ; 搜索中心过滤标签按钮映射（FilterType -> 控件）
 global GlobalSearchStatement := 0  ; 全局搜索 Statement 对象（用于熔断机制）
 global global_ST := 0  ; 全局 Statement 句柄（终极闭环管理）
-global SearchDebounceTimer := 0  ; 搜索防抖定时器
+global SearchDebounceTimer := 0  ; 配置面板/快捷面板搜索防抖（与搜索中心分离，避免互相覆盖）
+global SearchCenterDebounceTimer := 0  ; 搜索中心 CapsLock+F 专用防抖
 ; 圆环倒计时模块
 global LaunchDelaySeconds := 3.0  ; 倒计时时长（秒）
 global IsCountdownActive := false  ; 倒计时是否激活
@@ -590,7 +594,6 @@ global SearchResultsCache := Map()  ; 搜索结果缓存
 global SearchLastKeyword := ""  ; 上次搜索关键词
 global SearchCurrentFilterType := ""  ; 当前过滤类型（空字符串表示全部）
 global SearchTypeFilterButtons := []  ; 类型过滤按钮数组
-global SearchDebounceTimer := 0  ; 搜索防抖定时器
 ; 窗口拖动状态跟踪（用于防止拖动时组件闪烁）
 global WindowDragging := false  ; 是否正在拖动窗口
 global DraggingTimers := Map()  ; 存储拖动时需要暂停的定时器 {TimerName: TimerID}
@@ -13062,6 +13065,248 @@ SearchConfigItems(Keyword, MaxResults := 10, Offset := 0) {
     return Results
 }
 
+; ===================== Fzy 风格子序列打分（纯 InStr/SubStr，无外部 DLL）=====================
+; 子序列不匹配返回 -100；否则首字/边界/CamelCase/连续/Gap/路径深度加权汇总
+FzyScore(query, target) {
+    if (StrLen(query) = 0 || StrLen(target) = 0)
+        return 0
+    qL := StrLower(query)
+    tL := StrLower(target)
+    lenQ := StrLen(qL)
+    lenT := StrLen(tL)
+    pos := []
+    start := 1
+    Loop lenQ {
+        ch := SubStr(qL, A_Index, 1)
+        found := InStr(tL, ch, false, start)
+        if (!found)
+            return -100
+        pos.Push(found)
+        start := found + 1
+    }
+    slashCount := 0
+    Loop lenT {
+        if (SubStr(target, A_Index, 1) = "\")
+            slashCount += 1
+    }
+    score := 0.0
+    ; 精准：整段关键词在路径中连续出现（比子序列更贴近「打什么搜什么」）
+    if (InStr(tL, qL))
+        score += 480.0
+    ; 精准：路径以关键词开头（前缀匹配）
+    if (StrLen(qL) <= lenT && SubStr(tL, 1, lenQ) = qL)
+        score += 220.0
+    ; 精准：仅看最后一段文件名（用户多搜文件名而非盘符路径）
+    fnSeg := target
+    Loop {
+        p := InStr(fnSeg, "\")
+        if (!p)
+            break
+        fnSeg := SubStr(fnSeg, p + 1)
+    }
+    fnL := StrLower(fnSeg)
+    if (fnL = qL)
+        score += 420.0
+    else if (StrLen(qL) <= StrLen(fnL) && SubStr(fnL, 1, lenQ) = qL)
+        score += 260.0
+    else if (InStr(fnL, qL))
+        score += 140.0
+    ; 首字：第一次命中在 target 第 1 位
+    if (pos[1] = 1)
+        score += 100
+    for k, p in pos {
+        curCh := SubStr(target, p, 1)
+        if (p > 1) {
+            prevCh := SubStr(target, p - 1, 1)
+            oPrev := Ord(prevCh)
+            ; 词首/边界：分隔符后匹配
+            if (prevCh = "\" || prevCh = "/" || prevCh = "_" || prevCh = "-" || prevCh = "." || prevCh = " ")
+                score += 80
+            ; CamelCase：小写后跟大写
+            oCur := Ord(curCh)
+            if (oCur >= 65 && oCur <= 90 && oPrev >= 97 && oPrev <= 122)
+                score += 60
+        }
+        if (k > 1) {
+            prevP := pos[k - 1]
+            gap := p - prevP - 1
+            score -= 2 * gap
+            ; 连续性：与前一次命中相邻
+            if (p = prevP + 1)
+                score += 50
+        }
+    }
+    ; 路径深度：总长与反斜杠越多略扣分，浅层路径优先
+    score -= StrLen(target) * 0.02
+    score -= slashCount * 1.0
+    return score
+}
+
+SortSearchResultsByFzy(&Results, Keyword) {
+    if (Results.Length = 0 || StrLen(Keyword) < 1)
+        return
+    Loop Results.Length {
+        Item := Results[A_Index]
+        path := Item.HasProp("Preview") ? Item.Preview : (Item.HasProp("Content") ? Item.Content : "")
+        if (path = "" && Item.HasProp("Metadata") && IsObject(Item.Metadata) && Item.Metadata.Has("FilePath"))
+            path := Item.Metadata["FilePath"]
+        fs := FzyScore(Keyword, path)
+        if (Item.HasProp("FzyCategoryBonus"))
+            fs += Item.FzyCategoryBonus
+        Item.FzyScore := fs
+        if (Item.HasProp("Metadata") && IsObject(Item.Metadata)) {
+            try Item.Metadata["FzyScore"] := fs
+        }
+        Item._FzyStableIdx := A_Index
+    }
+    Results.Sort(FzyScoreResultItemStableCompare)
+}
+
+FzyScoreResultItemStableCompare(a, b, *) {
+    sa := a.HasProp("FzyScore") ? a.FzyScore : -1e30
+    sb := b.HasProp("FzyScore") ? b.FzyScore : -1e30
+    if (Abs(sa - sb) > 1e-9) {
+        diff := sb - sa
+        return diff > 0 ? 1 : (diff < 0 ? -1 : 0)
+    }
+    ia := a.HasProp("_FzyStableIdx") ? a._FzyStableIdx : 0
+    ib := b.HasProp("_FzyStableIdx") ? b._FzyStableIdx : 0
+    return ia - ib
+}
+
+FinalizeSearchFilePathsResults(&Results, Keyword) {
+    if (Results.Length = 0 || StrLen(Keyword) < 1)
+        return
+    try {
+        FileClassifier.ProcessResults(&Results, Keyword)
+    } catch as err {
+        OutputDebug("AHK_DEBUG: FileClassifier.ProcessResults 失败: " . err.Message)
+    }
+    try {
+        SortSearchResultsByFzy(&Results, Keyword)
+    } catch as err {
+        ; 排序失败时保留 Everything 返回顺序，避免整段文件结果丢失
+        OutputDebug("AHK_DEBUG: FzyScore 排序失败，保留原始顺序: " . err.Message)
+    }
+    ; 父目录折叠仅在 SortSearchCenterMergedResults 中执行一次（排序后），避免与扁平化结果重复扣分
+}
+
+; 搜索中心：非文件条目的简单相关度（标题/内容含关键词），用于排在文件结果之后时内部排序
+SearchCenterOtherRelevance(Keyword, item) {
+    if (StrLen(Keyword) < 1)
+        return 0.0
+    kw := StrLower(Keyword)
+    title := item.HasProp("Title") ? StrLower(item.Title) : ""
+    content := item.HasProp("Content") ? StrLower(item.Content) : ""
+    sc := 0.0
+    if (title = kw)
+        sc += 300.0
+    else if (StrLen(kw) <= StrLen(title) && SubStr(title, 1, StrLen(kw)) = kw)
+        sc += 180.0
+    else if (InStr(title, kw))
+        sc += 90.0
+    if (InStr(content, kw))
+        sc += 40.0
+    return sc
+}
+
+SearchCenterOtherCompare(a, b, *) {
+    sa := a.HasProp("SearchCenterScore") ? a.SearchCenterScore : 0.0
+    sb := b.HasProp("SearchCenterScore") ? b.SearchCenterScore : 0.0
+    if (Abs(sa - sb) > 1e-9) {
+        diff := sb - sa
+        return diff > 0 ? 1 : (diff < 0 ? -1 : 0)
+    }
+    ia := a.HasProp("_scIdx") ? a._scIdx : 0
+    ib := b.HasProp("_scIdx") ? b._scIdx : 0
+    return ia - ib
+}
+
+; 搜索中心混排：Everything 文件置顶并按 FzyScore；剪贴板/配置/模板等排在后面并按标题相关度
+SortSearchCenterMergedResults(&items, Keyword) {
+    if (items.Length = 0 || StrLen(Keyword) < 1)
+        return
+    fileArr := []
+    otherArr := []
+    for item in items {
+        if (item.HasProp("OriginalDataType") && item.OriginalDataType = "file")
+            fileArr.Push(item)
+        else
+            otherArr.Push(item)
+    }
+    if (fileArr.Length > 0) {
+        Loop fileArr.Length {
+            p := fileArr[A_Index].HasProp("Content") ? fileArr[A_Index].Content : ""
+            fs := FzyScore(Keyword, p)
+            if (fileArr[A_Index].HasProp("FzyCategoryBonus"))
+                fs += fileArr[A_Index].FzyCategoryBonus
+            fileArr[A_Index].FzyScore := fs
+            fileArr[A_Index]._FzyStableIdx := A_Index
+        }
+        try fileArr.Sort(FzyScoreResultItemStableCompare)
+        try FileClassifier.ApplyParentDirectoryCollapse(&fileArr)
+        Loop fileArr.Length {
+            p := fileArr[A_Index].HasProp("Content") ? fileArr[A_Index].Content : ""
+            fs := FzyScore(Keyword, p)
+            if (fileArr[A_Index].HasProp("FzyCategoryBonus"))
+                fs += fileArr[A_Index].FzyCategoryBonus
+            fileArr[A_Index].FzyScore := fs
+            fileArr[A_Index]._FzyStableIdx := A_Index
+        }
+        try fileArr.Sort(FzyScoreResultItemStableCompare)
+    }
+    if (otherArr.Length > 0) {
+        Loop otherArr.Length {
+            otherArr[A_Index].SearchCenterScore := SearchCenterOtherRelevance(Keyword, otherArr[A_Index])
+            otherArr[A_Index]._scIdx := A_Index
+        }
+        try otherArr.Sort(SearchCenterOtherCompare)
+    }
+    items.Length := 0
+    for x in fileArr
+        items.Push(x)
+    for x in otherArr
+        items.Push(x)
+}
+
+SearchResultItemIsFileLike(Item) {
+    if (Item.HasProp("DataType")) {
+        dt := Item.DataType
+        if (dt = "file" || dt = "folder")
+            return true
+    }
+    if (Item.HasProp("Source")) {
+        s := Item.Source
+        if (s = "文件" || s = "文件夹" || s = "文件路径")
+            return true
+    }
+    return false
+}
+
+BubbleSortSearchItemsByTimestampDesc(&arr) {
+    if (arr.Length <= 1)
+        return
+    Loop arr.Length - 1 {
+        i := A_Index
+        Loop arr.Length - i {
+            j := A_Index + i
+            TimeI := arr[i].HasProp("Timestamp") ? arr[i].Timestamp : ""
+            TimeJ := arr[j].HasProp("Timestamp") ? arr[j].Timestamp : ""
+            if (TimeI = "" && TimeJ != "") {
+                temp := arr[i]
+                arr[i] := arr[j]
+                arr[j] := temp
+            } else if (TimeI != "" && TimeJ != "") {
+                if (StrCompare(TimeJ, TimeI) > 0) {
+                    temp := arr[i]
+                    arr[i] := arr[j]
+                    arr[j] := temp
+                }
+            }
+        }
+    }
+}
+
 ; 判断是否为文件路径
 IsFilePath(Path) {
     ; 检查Windows路径格式（C:\、\\server\等）
@@ -13098,6 +13343,14 @@ SearchFilePaths(Keyword, MaxResults := 10, Offset := 0) {
             ; 使用下拉菜单设置的结果数量限制（如果设置了，优先使用；否则使用 MaxResults）
             everythingLimit := SearchCenterEverythingLimit > 0 ? SearchCenterEverythingLimit : MaxResults
             EverythingResults := GetEverythingResults(Keyword, everythingLimit + Offset + 1, true)  ; 包含文件夹
+            ; 若 IPC 已通但暂无结果，尝试启动 Everything 客户端后再查一次（常见：未常驻）
+            if (EverythingResults.Length = 0) {
+                startedEv := ""
+                if (TryStartEverything(&startedEv)) {
+                    Sleep(400)
+                    EverythingResults := GetEverythingResults(Keyword, everythingLimit + Offset + 1, true)
+                }
+            }
             
             ; 跳过 offset 数量的结果（修复：使用数组切片而不是单个元素）
             if (Offset > 0 && EverythingResults.Length > Offset) {
@@ -13262,11 +13515,13 @@ SearchFilePaths(Keyword, MaxResults := 10, Offset := 0) {
     
     ; 如果Everything搜索结果已满足需求，直接返回
     if (Results.Length >= MaxResults) {
+        FinalizeSearchFilePathsResults(&Results, Keyword)
         return Results
     }
     
     ; 回退到数据库搜索：从剪贴板历史中提取文件路径（作为补充）
     if (!ClipboardDB || ClipboardDB = 0) {
+        FinalizeSearchFilePathsResults(&Results, Keyword)
         return Results
     }
     
@@ -13288,6 +13543,7 @@ SearchFilePaths(Keyword, MaxResults := 10, Offset := 0) {
     ST := ""
     try {
         if (!ClipboardDB.Prepare(SQL, &ST)) {
+            FinalizeSearchFilePathsResults(&Results, Keyword)
             return Results
         }
         
@@ -13296,6 +13552,7 @@ SearchFilePaths(Keyword, MaxResults := 10, Offset := 0) {
         
         ; 检查ST是否是有效的Statement对象
         if (!IsObject(ST) || !ST.HasProp("Bind")) {
+            FinalizeSearchFilePathsResults(&Results, Keyword)
             return Results
         }
         
@@ -13303,16 +13560,20 @@ SearchFilePaths(Keyword, MaxResults := 10, Offset := 0) {
         ; 限制数量为剩余需要的数量
         RemainingCount := MaxResults - Count
         if (RemainingCount <= 0) {
+            FinalizeSearchFilePathsResults(&Results, Keyword)
             return Results
         }
         
         if (!ST.Bind(1, "Text", "%" . KeywordLower . "%")) {
+            FinalizeSearchFilePathsResults(&Results, Keyword)
             return Results
         }
         if (!ST.Bind(2, "Text", "file://%" . KeywordLower . "%")) {
+            FinalizeSearchFilePathsResults(&Results, Keyword)
             return Results
         }
         if (!ST.Bind(3, "Int", RemainingCount * 2)) {
+            FinalizeSearchFilePathsResults(&Results, Keyword)
             return Results
         }
         
@@ -13375,6 +13636,7 @@ SearchFilePaths(Keyword, MaxResults := 10, Offset := 0) {
         }
     }
     
+    FinalizeSearchFilePathsResults(&Results, Keyword)
     return Results
 }
 
@@ -13715,15 +13977,17 @@ CreateSearchTab(ConfigGUI, X, Y, W, H) {
     ; ListView - 使用新列结构：内容、来源、时间
     ListViewHeight := H - (YPos - Y) - 30
     ListViewTextColor := (ThemeMode = "dark") ? "FFFFFF" : UI_Colors.Text
-    global SearchResultsListView := ConfigGUI.Add("ListView", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h" . ListViewHeight . " vSearchResultsListView Background" . UI_Colors.InputBg . " c" . ListViewTextColor . " -Multi +ReadOnly", ["内容", "来源", "时间"])
+    ; Report 模式（默认）：第 1 列为图标占位（空标题），勿用 +Icon 控件选项以免切换为大图标视图
+    global SearchResultsListView := ConfigGUI.Add("ListView", "x" . (X + 30) . " y" . YPos . " w" . (W - 60) . " h" . ListViewHeight . " vSearchResultsListView Background" . UI_Colors.InputBg . " c" . ListViewTextColor . " -Multi +ReadOnly", ["", "内容", "来源", "时间"])
     SearchResultsListView.SetFont("s10 c" . ListViewTextColor, "Segoe UI")
     SearchResultsListView.OnEvent("DoubleClick", OnSearchResultDoubleClick)
     SearchTabControls.Push(SearchResultsListView)
     
-    ; 设置列宽
-    SearchResultsListView.ModifyCol(1, 400)  ; 内容
-    SearchResultsListView.ModifyCol(2, 100)  ; 来源
-    SearchResultsListView.ModifyCol(3, 150)  ; 时间
+    ; 列宽：第 1 列仅图标（与 ShellIconCache 中 48~64px 图协调）
+    SearchResultsListView.ModifyCol(1, 36)
+    SearchResultsListView.ModifyCol(2, 380)  ; 内容
+    SearchResultsListView.ModifyCol(3, 100)  ; 来源
+    SearchResultsListView.ModifyCol(4, 150)  ; 时间
 }
 
 ; ===================== 创建类型过滤按钮 =====================
@@ -13909,50 +14173,51 @@ RefreshSearchResultsListView(SearchResults, FilterType := "") {
         }
     }
     
-    ; 按时间倒序排列（Everything式体验）
-    ; 使用自定义排序：按Timestamp字段排序，Timestamp越大越新
-    if (AllItems.Length > 1) {
-        ; 冒泡排序：按时间戳倒序排列
-        Loop AllItems.Length - 1 {
-            i := A_Index
-            Loop AllItems.Length - i {
-                j := A_Index + i
-                
-                ; 获取时间戳进行比较
-                TimeI := AllItems[i].HasProp("Timestamp") ? AllItems[i].Timestamp : ""
-                TimeJ := AllItems[j].HasProp("Timestamp") ? AllItems[j].Timestamp : ""
-                
-                ; 如果时间戳为空，放到后面
-                if (TimeI = "" && TimeJ != "") {
-                    ; i的时间戳为空，j有，交换位置
-                    temp := AllItems[i]
-                    AllItems[i] := AllItems[j]
-                    AllItems[j] := temp
-                } else if (TimeI != "" && TimeJ != "") {
-                    ; 两个都有时间戳，比较大小
-                    ; 时间戳格式：YYYY-MM-DD HH:MM:SS，字符串比较可以正确排序
-                    ; StrCompare 返回：TimeJ > TimeI 时返回正数，TimeJ < TimeI 时返回负数
-                    if (StrCompare(TimeJ, TimeI) > 0) {
-                        ; j的时间戳更大（更新），交换位置（倒序排列，最新的在前）
-                        temp := AllItems[i]
-                        AllItems[i] := AllItems[j]
-                        AllItems[j] := temp
-                    }
-                }
-            }
-        }
+    ; 排序：有关键词时文件类按 FzyScore 降序（与 Everything 重排一致），其余按时间；ListView 仅展示 Top 9
+    SearchKeyword := ""
+    try {
+        if (SearchHistoryEdit)
+            SearchKeyword := SearchHistoryEdit.Value
+    } catch {
+        SearchKeyword := ""
     }
+    if (SearchKeyword != "" && AllItems.Length > 0) {
+        fileItems := []
+        otherItems := []
+        for Item in AllItems {
+            if (SearchResultItemIsFileLike(Item))
+                fileItems.Push(Item)
+            else
+                otherItems.Push(Item)
+        }
+        if (fileItems.Length > 0)
+            SortSearchResultsByFzy(&fileItems, SearchKeyword)
+        if (otherItems.Length > 1)
+            BubbleSortSearchItemsByTimestampDesc(&otherItems)
+        AllItems := []
+        for x in fileItems
+            AllItems.Push(x)
+        for x in otherItems
+            AllItems.Push(x)
+    } else if (AllItems.Length > 1) {
+        BubbleSortSearchItemsByTimestampDesc(&AllItems)
+    }
+    DisplayLimit := Min(9, AllItems.Length)
     
     ; 将排序后的结果添加到ListView
     try {
-        for Index, Item in AllItems {
-            AddSearchResultItem(SearchResultsListView, Item)
+        Loop DisplayLimit {
+            AddSearchResultItem(SearchResultsListView, AllItems[A_Index])
         }
         
         ; 自动调整列宽（3列：内容、来源、时间）
-        SearchResultsListView.ModifyCol(1, "AutoHdr")
+        SearchResultsListView.ModifyCol(1, 36)
         SearchResultsListView.ModifyCol(2, "AutoHdr")
         SearchResultsListView.ModifyCol(3, "AutoHdr")
+        SearchResultsListView.ModifyCol(4, "AutoHdr")
+        
+        ; 异步补全系统图标（Top 9）
+        UpdateIcons(AllItems, DisplayLimit, SearchResultsListView, "cfg")
     } catch as err {
         ; 如果添加失败，可能控件已被销毁，忽略错误
     }
@@ -13966,6 +14231,7 @@ RefreshSearchResultsListView(SearchResults, FilterType := "") {
 
 ; ===================== 添加搜索结果项到ListView =====================
 AddSearchResultItem(ListView, Item) {
+    global SearchResultsListView
     ; 检查ListView是否有效
     if (!ListView) {
         return
@@ -13980,12 +14246,23 @@ AddSearchResultItem(ListView, Item) {
     }
     
     try {
-        ; 新列结构：内容 | 来源 | 时间
+        ; 新列结构：内容 | 来源 | 时间（首列图标由 ShellIconCache 异步更新）
         Content := Item.HasProp("Preview") ? Item.Preview : (Item.HasProp("Content") ? Item.Content : Item.Title)
         Source := Item.HasProp("Source") ? Item.Source : (Item.HasProp("DataTypeName") ? Item.DataTypeName : "")
         TimeStr := Item.HasProp("TimeFormatted") ? Item.TimeFormatted : (Item.HasProp("Timestamp") ? Item.Timestamp : "")
         
-        ListView.Add("", Content, Source, TimeStr)
+        ; GuiControl 勿用 = 比较同一控件（v2 下可能不相等）；本函数仅用于搜索 ListView
+        iconOpt := ""
+        try {
+            if (ShellIcon_EnsureImageList(ListView, "cfg"))
+                iconOpt := "Icon" . ShellIcon_GetPlaceholderIndex("cfg")
+        } catch {
+        }
+        ; 第 1 列留空仅显示图标，文本从第 2 列开始
+        if (iconOpt != "")
+            ListView.Add(iconOpt, "", Content, Source, TimeStr)
+        else
+            ListView.Add("", "", Content, Source, TimeStr)
         
         ; 保存结果项数据到ListView行数据（通过行索引关联）
         RowIndex := ListView.GetCount()
@@ -24158,6 +24435,7 @@ ShowSearchCenter() {
     global SearchCenterActiveArea, SearchCenterCurrentCategory
     global SearchCenterSearchEdit, SearchCenterResultLV, SearchCenterCategoryButtons
     global VoiceSearchEnabledCategories, SearchCenterAreaIndicator
+    global SearchCenterFilterButtons, SearchCenterFilterType, SearchCenterFilterButtonMap
     global SearchCenterCLIOutputEdit
     global SearchCenterCLIRunButton, SearchCenterCLIClearButton, SearchCenterCLIOpenButton
     global SearchCenterResultLimitDDL_Hwnd, SearchCenterResultLimitDDL_ListHwnd
@@ -24445,6 +24723,7 @@ ShowSearchCenter() {
     
     ; 初始化过滤标签按钮数组
     SearchCenterFilterButtons := []
+    SearchCenterFilterButtonMap := Map()
     SearchCenterFilterType := ""  ; 默认显示全部
     
     ; 过滤标签配置：全部、文件、剪贴板、提示词、配置、快捷键、功能
@@ -24467,21 +24746,25 @@ ShowSearchCenter() {
         TextWidth := StrLen(FilterText) * 10 + 20  ; 估算宽度
         FilterButtonWidth := Max(50, TextWidth)  ; 最小宽度50
         
-            ; 根据是否选中设置背景色（选中为橙色，未选中为默认背景）
+            ; 参考记录面板：统一标签激活与未激活配色
             IsSelected := (SearchCenterFilterType = FilterType)
-            ; 【修复】添加 0x 前缀，确保十六进制颜色被正确识别
-            BgColor := IsSelected ? "0xFF6600" : ("0x" . UI_Colors.Sidebar)  ; 橙色 0xFF6600
-            TextColor := IsSelected ? "0xFFFFFF" : ("0x" . UI_Colors.Text)  ; 白色文字 0xFFFFFF
+            TagBg := UI_Colors.Sidebar
+            TagBgActive := "e67e22"
+            TagText := UI_Colors.TextDim
+            TagTextActive := "ffffff"
+            BgColor := IsSelected ? TagBgActive : TagBg
+            TextColor := IsSelected ? TagTextActive : TagText
 
             ; 【关键修复】在按钮对象上存储 FilterType，方便后续获取
-            FilterBtn := GuiID_SearchCenter.Add("Text", "x" . CurrentFilterX . " y" . FilterButtonY . " w" . FilterButtonWidth . " h" . FilterButtonHeight . " Center 0x200 +c" . TextColor . " +Background" . BgColor . " vSearchCenterFilterBtn" . Index, FilterText)
+            FilterBtn := GuiID_SearchCenter.Add("Text", "x" . CurrentFilterX . " y" . FilterButtonY . " w" . FilterButtonWidth . " h" . FilterButtonHeight . " Center 0x200 +0x100 c" . TextColor . " Background" . BgColor . " vSearchCenterFilterBtn" . Index, FilterText)
             FilterBtn.SetFont("s10 Bold", "Segoe UI")
             FilterBtn.OnEvent("Click", CreateSearchCenterFilterClickHandler(FilterType))
             FilterBtn.Visible := true
             ; 【关键修复】在按钮上存储 FilterType 属性，方便后续获取
             FilterBtn.FilterType := FilterType
-            HoverBtnWithAnimation(FilterBtn, BgColor, IsSelected ? "0xFF8800" : ("0x" . UI_Colors.BtnHover))  ; 悬停时稍微亮一点
+            HoverBtnWithAnimation(FilterBtn, BgColor, TagBgActive)
         SearchCenterFilterButtons.Push(FilterBtn)
+        SearchCenterFilterButtonMap[FilterType] := FilterBtn
         
         ; 更新下一个按钮的X坐标
         CurrentFilterX += FilterButtonWidth + FilterButtonSpacing
@@ -24497,7 +24780,7 @@ ShowSearchCenter() {
     ResultLVWidth := WindowWidth - Padding * 2
     ResultLVHeight := ResultAreaHeight
     
-    SearchCenterResultLV := GuiID_SearchCenter.Add("ListView", "x" . ResultLVX . " y" . ResultLVY . " w" . ResultLVWidth . " h" . ResultLVHeight . " Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " -Multi +ReadOnly vSearchResultLV", ["标题", "来源", "类型", "时间"])
+    SearchCenterResultLV := GuiID_SearchCenter.Add("ListView", "x" . ResultLVX . " y" . ResultLVY . " w" . ResultLVWidth . " h" . ResultLVHeight . " Background" . UI_Colors.InputBg . " c" . UI_Colors.Text . " -Multi +ReadOnly vSearchResultLV", ["", "标题", "来源", "类型", "时间"])
     SearchCenterResultLV.SetFont("s10", "Segoe UI")
     SearchCenterResultLV.OnEvent("DoubleClick", OnSearchCenterResultDoubleClick)
     SearchCenterResultLV.OnEvent("ItemSelect", OnSearchCenterResultItemSelect)
@@ -24507,11 +24790,13 @@ ShowSearchCenter() {
         UpdateSearchCenterHighlight()
     ))
     
-    ; 设置列宽（4列：标题40%，来源20%，类型15%，时间25%）
-    SearchCenterResultLV.ModifyCol(1, ResultLVWidth * 0.4)
-    SearchCenterResultLV.ModifyCol(2, ResultLVWidth * 0.2)
-    SearchCenterResultLV.ModifyCol(3, ResultLVWidth * 0.15)
-    SearchCenterResultLV.ModifyCol(4, ResultLVWidth * 0.25)
+    ; 5 列：图标列固定宽度，其余按剩余宽度比例
+    SearchCenterResultLV.ModifyCol(1, 36)
+    restW := ResultLVWidth - 36
+    SearchCenterResultLV.ModifyCol(2, restW * 0.4)
+    SearchCenterResultLV.ModifyCol(3, restW * 0.2)
+    SearchCenterResultLV.ModifyCol(4, restW * 0.15)
+    SearchCenterResultLV.ModifyCol(5, restW * 0.25)
     
     ; ========== CLI 页面控件（仅在 cli 分类显示）==========
     SearchCenterCLIRunButton := GuiID_SearchCenter.Add("Button", "x0 y0 w100 h32", "发送到 AI")
@@ -25305,7 +25590,7 @@ CreateSearchCenterFilterClickHandler(FilterType) {
 ; ===================== 更新搜索中心过滤标签按钮样式 =====================
 ; 【参考 ClipboardHistoryPanel 的实现】
 UpdateSearchCenterFilterButtons() {
-    global SearchCenterFilterButtons, SearchCenterFilterType, UI_Colors, GuiID_SearchCenter
+    global SearchCenterFilterButtons, SearchCenterFilterButtonMap, SearchCenterFilterType, UI_Colors, GuiID_SearchCenter
     
     if (!IsSet(SearchCenterFilterButtons) || !IsObject(SearchCenterFilterButtons)) {
         return
@@ -25313,7 +25598,36 @@ UpdateSearchCenterFilterButtons() {
     
     OutputDebug("AHK_DEBUG: UpdateSearchCenterFilterButtons - SearchCenterFilterType: " . SearchCenterFilterType)
     
-    ; 遍历所有标签按钮
+    ; 优先使用映射表（与记录面板同思路：类型驱动样式）
+    if (IsSet(SearchCenterFilterButtonMap) && IsObject(SearchCenterFilterButtonMap) && SearchCenterFilterButtonMap.Count > 0) {
+        for BtnType, FilterBtn in SearchCenterFilterButtonMap {
+            try {
+                IsSelected := (SearchCenterFilterType = BtnType)
+                TagBg := UI_Colors.Sidebar
+                TagBgActive := "e67e22"
+                TagText := UI_Colors.TextDim
+                TagTextActive := "ffffff"
+                BgColor := IsSelected ? TagBgActive : TagBg
+                TextColor := IsSelected ? TagTextActive : TagText
+
+                FilterBtn.Opt("+Background" . BgColor)
+                FilterBtn.SetFont("s10 c" . TextColor . " Bold", "Segoe UI")
+                try {
+                    hoverFunc := HoverBtnWithAnimation
+                    if (IsSet(hoverFunc)) {
+                        HoverBtnWithAnimation(FilterBtn, BgColor, TagBgActive)
+                    }
+                } catch {
+                }
+                try FilterBtn.Redraw()
+            } catch as err {
+                OutputDebug("AHK_DEBUG: UpdateSearchCenterFilterButtons(map) - Error: " . err.Message)
+            }
+        }
+        return
+    }
+
+    ; 回退：遍历数组
     for Index, FilterBtn in SearchCenterFilterButtons {
         try {
             ; 从按钮对象上获取 FilterType
@@ -25342,36 +25656,48 @@ UpdateSearchCenterFilterButtons() {
             IsSelected := (SearchCenterFilterType = BtnType)
             OutputDebug("AHK_DEBUG: UpdateSearchCenterFilterButtons - Index: " . Index . ", BtnType: " . BtnType . ", IsSelected: " . IsSelected)
             
-            ; 【修复】添加 0x 前缀，确保十六进制颜色被正确识别
-            BgColor := IsSelected ? "0xFF6600" : ("0x" . UI_Colors.Sidebar)  ; 橙色 0xFF6600（激活状态）
-            TextColor := IsSelected ? "0xFFFFFF" : ("0x" . UI_Colors.Text)  ; 选中时白色文字 0xFFFFFF
+            TagBg := UI_Colors.Sidebar
+            TagBgActive := "e67e22"
+            TagText := UI_Colors.TextDim
+            TagTextActive := "ffffff"
+            BgColor := IsSelected ? TagBgActive : TagBg
+            TextColor := IsSelected ? TagTextActive : TagText
 
             ; 更新按钮样式（参考 ClipboardHistoryPanel 的实现方式）
-            ; 【修复】使用 C 选项设置文本颜色，Background 设置背景色
-            FilterBtn.Opt("c" . TextColor . " Background" . BgColor)
-            FilterBtn.SetFont("s10 Bold c" . TextColor, "Segoe UI")
+            FilterBtn.Opt("+Background" . BgColor)
+            FilterBtn.SetFont("s10 c" . TextColor . " Bold", "Segoe UI")
+            try {
+                hoverFunc := HoverBtnWithAnimation
+                if (IsSet(hoverFunc)) {
+                    HoverBtnWithAnimation(FilterBtn, BgColor, TagBgActive)
+                }
+            } catch {
+            }
         } catch as err {
             OutputDebug("AHK_DEBUG: UpdateSearchCenterFilterButtons - Error: " . err.Message)
         }
     }
-    
-    ; 【关键修复】在所有按钮样式更新后，强制刷新窗口
-    try {
-        if (GuiID_SearchCenter && IsObject(GuiID_SearchCenter) && GuiID_SearchCenter.HasProp("Hwnd")) {
-            WinRedraw(GuiID_SearchCenter.Hwnd)
-            Sleep(10)
-        }
-    } catch as err {
-        OutputDebug("AHK_DEBUG: UpdateSearchCenterFilterButtons - Window redraw error: " . err.Message)
-    }
-    UpdateSearchCenterFilterDropdown()
-    BringSearchCenterFilterButtonsToFront()
 }
 
 ; 搜索中心过滤标签点击处理函数
 SearchCenterFilterClickHandler(FilterType, *) {
-    global SearchCenterFilterType, SearchCenterSearchResults, SearchCenterResultLV, UI_Colors
+    global SearchCenterFilterType, SearchCenterSearchResults, SearchCenterResultLV, UI_Colors, GuiID_SearchCenter
     global SearchCenterSearchEdit, SearchCenterEverythingLimit, SearchCenterCurrentLimit
+
+    ; 兼容“全部”标签空字符串绑定场景：若首参是控件对象，则从控件属性读取 FilterType
+    if (IsObject(FilterType)) {
+        try {
+            if (FilterType.HasProp("FilterType")) {
+                FilterType := FilterType.FilterType
+            } else {
+                FilterType := ""
+            }
+        } catch {
+            FilterType := ""
+        }
+    }
+    if (!IsSet(FilterType))
+        FilterType := ""
 
     OutputDebug("AHK_DEBUG: SearchCenterFilterClickHandler - FilterType: " . FilterType . ", Old SearchCenterFilterType: " . SearchCenterFilterType)
     
@@ -25387,113 +25713,12 @@ SearchCenterFilterClickHandler(FilterType, *) {
     
     ; 【关键修复】使用统一的更新函数更新按钮样式
     UpdateSearchCenterFilterButtons()
-    
-    ; 【关键修复】如果点击的是"文件"标签且有搜索关键词，使用 everything64.dll 搜索本地数据
-    if (SearchCenterFilterType = "File" && IsSet(SearchCenterSearchEdit) && SearchCenterSearchEdit && SearchCenterSearchEdit.Value != "") {
-        Keyword := Trim(SearchCenterSearchEdit.Value)
-        if (StrLen(Keyword) > 0) {
-            ; 使用 everything64.dll 搜索文件
-            try {
-                ; 清空当前搜索结果，重新搜索
-                SearchCenterSearchResults := []
-                SearchCenterResultLV.Delete()
-                
-                ; 获取下拉列表设置的限制值
-                everythingLimit := SearchCenterEverythingLimit > 0 ? SearchCenterEverythingLimit : SearchCenterCurrentLimit
-                EverythingResults := GetEverythingResults(Keyword, everythingLimit, true)  ; 包含文件夹
-                
-                ; 将 Everything 搜索结果转换为统一格式并添加到搜索结果
-                for index, result in EverythingResults {
-                    if (Type(result) = "Map") {
-                        path := result["Path"]
-                        isDirectory := result["IsDirectory"]
-                        fileSize := result.Has("Size") ? result["Size"] : 0
-                        dateModified := result.Has("DateModified") ? result["DateModified"] : 0
-                        
-                        SplitPath(path, &FileName, &DirPath, &Ext, &NameNoExt)
-                        
-                        ; 格式化文件大小
-                        sizeStr := ""
-                        if (!isDirectory && fileSize > 0) {
-                            if (fileSize < 1024) {
-                                sizeStr := fileSize . " B"
-                            } else if (fileSize < 1048576) {
-                                sizeStr := Round(fileSize / 1024, 2) . " KB"
-                            } else if (fileSize < 1073741824) {
-                                sizeStr := Round(fileSize / 1048576, 2) . " MB"
-                            } else {
-                                sizeStr := Round(fileSize / 1073741824, 2) . " GB"
-                            }
-                        }
-                        
-                        ; 格式化修改日期
-                        dateStr := ""
-                        if (dateModified > 0) {
-                            try {
-                                fileTime := Buffer(8)
-                                NumPut("Int64", dateModified, fileTime)
-                                localFileTime := Buffer(8)
-                                if (DllCall("FileTimeToLocalFileTime", "Ptr", fileTime.Ptr, "Ptr", localFileTime.Ptr)) {
-                                    systemTime := Buffer(16)
-                                    if (DllCall("FileTimeToSystemTime", "Ptr", localFileTime.Ptr, "Ptr", systemTime.Ptr)) {
-                                        year := NumGet(systemTime, 0, "UShort")
-                                        month := NumGet(systemTime, 2, "UShort")
-                                        day := NumGet(systemTime, 4, "UShort")
-                                        hour := NumGet(systemTime, 6, "UShort")
-                                        minute := NumGet(systemTime, 8, "UShort")
-                                        dateStr := Format("{:04d}-{:02d}-{:02d} {:02d}:{:02d}", year, month, day, hour, minute)
-                                    }
-                                }
-                            } catch {
-                                dateStr := ""
-                            }
-                        }
-                        
-                        ; 构建副标题
-                        subTitleParts := []
-                        if (DirPath != "") {
-                            subTitleParts.Push(DirPath)
-                        }
-                        if (isDirectory) {
-                            subTitleParts.Push("文件夹")
-                        } else {
-                            if (Ext != "") {
-                                subTitleParts.Push(Ext)
-                            } else {
-                                subTitleParts.Push("文件")
-                            }
-                        }
-                        if (sizeStr != "") {
-                            subTitleParts.Push(sizeStr)
-                        }
-                        if (dateStr != "") {
-                            subTitleParts.Push(dateStr)
-                        }
-                        subTitle := ""
-                        for i, part in subTitleParts {
-                            if (i > 1) {
-                                subTitle .= " · "
-                            }
-                            subTitle .= part
-                        }
-                        
-                        ResultItem := {
-                            Title: FileName,
-                            Content: path,
-                            Source: isDirectory ? "文件夹" : "文件",
-                            DataType: "File",
-                            OriginalDataType: "file",
-                            Time: dateStr,
-                            ID: path
-                        }
-                        
-                        SearchCenterSearchResults.Push(ResultItem)
-                    }
-                }
-            } catch as err {
-                OutputDebug("AHK_DEBUG: 文件标签点击搜索失败: " . err.Message)
-            }
+    BringSearchCenterFilterButtonsToFront()
+    try {
+        if (GuiID_SearchCenter && IsObject(GuiID_SearchCenter) && GuiID_SearchCenter.HasProp("Hwnd")) {
+            WinRedraw(GuiID_SearchCenter.Hwnd)
         }
+    } catch {
     }
     
     ; 刷新搜索结果列表（根据过滤类型过滤）
@@ -25904,17 +26129,17 @@ OnSearchCenterResultLimitChange(*) {
 ; 执行搜索中心搜索（带防抖）
 ExecuteSearchCenterSearch(*) {
     global SearchCenterSearchEdit, SearchCenterResultLV, SearchCenterSearchResults
-    global SearchDebounceTimer
+    global SearchCenterDebounceTimer
     
-    ; 取消之前的防抖定时器
-    if (SearchDebounceTimer != 0) {
-        SetTimer(SearchDebounceTimer, 0)
-        SearchDebounceTimer := 0
+    ; 取消之前的防抖定时器（专用定时器，避免与配置面板 SearchDebounceTimer 互相覆盖）
+    if (SearchCenterDebounceTimer != 0) {
+        SetTimer(SearchCenterDebounceTimer, 0)
+        SearchCenterDebounceTimer := 0
     }
     
     ; 设置新的防抖定时器（150ms 延迟）
-    SearchDebounceTimer := (*) => DebouncedSearchCenter(0)  ; 新搜索，offset = 0
-    SetTimer(SearchDebounceTimer, -150)
+    SearchCenterDebounceTimer := (*) => DebouncedSearchCenter(0)  ; 新搜索，offset = 0
+    SetTimer(SearchCenterDebounceTimer, -150)
 }
 
 ; 防抖后的实际搜索执行
@@ -26017,9 +26242,11 @@ DebouncedSearchCenter(offset := 0) {
                         TimeDisplay := ""
                     }
                     
-                    ; 生成标题
+                    ; 生成标题（文件类优先友好 DisplayTitle）
                     TitleText := ""
-                    if (Item.HasProp("Title") && Item.Title != "") {
+                    if (Item.HasProp("DisplayTitle") && Item.DisplayTitle != "") {
+                        TitleText := Item.DisplayTitle
+                    } else if (Item.HasProp("Title") && Item.Title != "") {
                         TitleText := Item.Title
                     } else if (Item.HasProp("Content") && Item.Content != "") {
                         TitleText := SubStr(Item.Content, 1, 50)
@@ -26096,6 +26323,24 @@ DebouncedSearchCenter(offset := 0) {
                         ID: Item.HasProp("ID") ? Item.ID : "",
                         OriginalDataType: DataType
                     }
+                    if (Item.HasProp("Metadata") && IsObject(Item.Metadata))
+                        ResultItem.Metadata := Item.Metadata
+                    if (Item.HasProp("DisplayTitle") && Item.DisplayTitle != "")
+                        ResultItem.DisplayTitle := Item.DisplayTitle
+                    if (Item.HasProp("Category") && Item.Category != "")
+                        ResultItem.Category := Item.Category
+                    if (Item.HasProp("TypeHint") && Item.TypeHint != "")
+                        ResultItem.TypeHint := Item.TypeHint
+                    if (Item.HasProp("FzyCategoryBonus"))
+                        ResultItem.FzyCategoryBonus := Item.FzyCategoryBonus
+                    if (Item.HasProp("DisplayPath") && Item.DisplayPath != "")
+                        ResultItem.DisplayPath := Item.DisplayPath
+                    if (Item.HasProp("DisplaySubtitle") && Item.DisplaySubtitle != "")
+                        ResultItem.DisplaySubtitle := Item.DisplaySubtitle
+                    if (Item.HasProp("SubCategory") && Item.SubCategory != "")
+                        ResultItem.SubCategory := Item.SubCategory
+                    if (Item.HasProp("CategoryColor") && Item.CategoryColor != "")
+                        ResultItem.CategoryColor := Item.CategoryColor
                     
                     ; 如果是新搜索，追加到总结果；如果是加载更多，只追加到新结果
                     if (offset = 0) {
@@ -26108,6 +26353,11 @@ DebouncedSearchCenter(offset := 0) {
         }
     } catch as err {
         OutputDebug("AHK_DEBUG: SearchAllDataSources 报错: " . err.Message)
+    }
+
+    ; 文件（Everything）置顶 + Fzy 精准加权；其余来源排在后面
+    if (offset = 0 && SearchCenterSearchResults.Length > 0) {
+        try SortSearchCenterMergedResults(&SearchCenterSearchResults, Keyword)
     }
 
     ; 3. 【关键修复】统一渲染到界面（使用中文类型名称）
@@ -26165,15 +26415,33 @@ RefreshSearchCenterResults() {
         }
     }
     
-    ; 添加过滤后的结果到ListView（包含类型列，使用中文类型名称）
+    ; 添加过滤后的结果到ListView（第 1 列图标，第 2 列起为标题/来源/类型/时间）
     for index, res in FilteredResults {
         ContentType := res.HasProp("DataType") ? res.DataType : "Text"
         TypeDisplayName := GetContentTypeDisplayName(ContentType)
-        SearchCenterResultLV.Add(, res.Title, res.Source, TypeDisplayName, res.Time)
+        if (res.HasProp("OriginalDataType") && res.OriginalDataType = "file" && res.HasProp("Category") && res.Category != "")
+            try TypeDisplayName := FileClassifier.GetCategoryDisplayName(res.Category)
+        iconOpt := ""
+        try {
+            if (ShellIcon_EnsureImageList(SearchCenterResultLV, "sc"))
+                iconOpt := "Icon" . ShellIcon_GetPlaceholderIndex("sc")
+        } catch {
+        }
+        rowTitle := (res.HasProp("DisplayTitle") && res.DisplayTitle != "") ? res.DisplayTitle : res.Title
+        rowSubtitle := (res.HasProp("DisplaySubtitle") && res.DisplaySubtitle != "") ? res.DisplaySubtitle : res.Source
+        if (iconOpt != "")
+            SearchCenterResultLV.Add(iconOpt, "", rowTitle, rowSubtitle, TypeDisplayName, res.Time)
+        else
+            SearchCenterResultLV.Add("", "", rowTitle, rowSubtitle, TypeDisplayName, res.Time)
     }
     
     SearchCenterVisibleResults := FilteredResults
-    SearchCenterResultLV.ModifyCol(1, "AutoHdr")
+    SearchCenterResultLV.ModifyCol(1, 36)
+    SearchCenterResultLV.ModifyCol(2, "AutoHdr")
+    SearchCenterResultLV.ModifyCol(3, "AutoHdr")
+    SearchCenterResultLV.ModifyCol(4, "AutoHdr")
+    SearchCenterResultLV.ModifyCol(5, "AutoHdr")
+    try UpdateIcons(SearchCenterVisibleResults, SearchCenterVisibleResults.Length, SearchCenterResultLV, "sc")
     SearchCenterResultLV.Opt("+Redraw")
     if (SearchCenterResultLV.GetCount() > 0) {
         SearchCenterResultLV.Modify(1, "Select Focus Vis")
@@ -26206,19 +26474,21 @@ OnSearchCenterResultDoubleClick(LV, Row) {
             DataType := Item.Metadata["DataType"]
         }
         
-        ; 根据类型执行不同操作
-        if (DataType = "file") {
-            ; 文件类型：打开文件
+        ; 根据类型执行不同操作（搜索中心扁平化后 DataType 可能为 File/Folder 或 OriginalDataType=file）
+        origDt := Item.HasProp("OriginalDataType") ? Item.OriginalDataType : ""
+        isFileLike := (DataType = "file" || DataType = "File" || DataType = "Folder" || origDt = "file")
+        if (isFileLike) {
+            ; 文件类型：打开文件或文件夹
             FilePath := Content
             try {
-                if (FileExist(FilePath)) {
+                if (FileExist(FilePath) || DirExist(FilePath)) {
                     Run(FilePath)
-                    TrayTip("已打开文件", Item.Title, "Iconi 1")
+                    TrayTip("已打开", Item.Title, "Iconi 1")
                 } else {
-                    TrayTip("文件不存在", FilePath, "Iconx 2")
+                    TrayTip("路径不存在", FilePath, "Iconx 2")
                 }
             } catch as err {
-                TrayTip("打开文件失败", err.Message, "Iconx 2")
+                TrayTip("打开失败", err.Message, "Iconx 2")
             }
         } else if (DataType = "Link") {
             ; 链接类型：直接打开浏览器
@@ -26323,10 +26593,13 @@ OnSearchCenterSize(GuiObj, MinMax, Width, Height) {
         UpdateSearchCenterCLILayout(Width, Height, false)
     if (SearchCenterResultLV != 0) {
         try {
-            SearchCenterResultLV.ModifyCol(1, (Width - Padding * 2) * 0.4)
-            SearchCenterResultLV.ModifyCol(2, (Width - Padding * 2) * 0.2)
-            SearchCenterResultLV.ModifyCol(3, (Width - Padding * 2) * 0.15)
-            SearchCenterResultLV.ModifyCol(4, (Width - Padding * 2) * 0.25)
+            innerW := Width - Padding * 2
+            SearchCenterResultLV.ModifyCol(1, 36)
+            restW := innerW - 36
+            SearchCenterResultLV.ModifyCol(2, restW * 0.4)
+            SearchCenterResultLV.ModifyCol(3, restW * 0.2)
+            SearchCenterResultLV.ModifyCol(4, restW * 0.15)
+            SearchCenterResultLV.ModifyCol(5, restW * 0.25)
         } catch as err {
         }
     }
@@ -26393,7 +26666,7 @@ SearchCenterCloseHandler(*) {
 ; 执行搜索中心批量搜索（按Enter键时）
 ExecuteSearchCenterBatchSearch(*) {
     global SearchCenterSearchEdit, SearchCenterSelectedEngines, GuiID_SearchCenter
-    global GlobalSearchStatement, SearchDebounceTimer
+    global GlobalSearchStatement, SearchCenterDebounceTimer
     
     if (SearchCenterIsCLICategory()) {
         ExecuteSearchCenterCLICommand()
@@ -26403,10 +26676,10 @@ ExecuteSearchCenterBatchSearch(*) {
     ; 【并发同步】第一行代码：强制释放 Statement 句柄
     GlobalSearchEngine.ReleaseOldStatement()
     
-    ; 取消搜索防抖定时器
-    if (SearchDebounceTimer != 0) {
-        SetTimer(SearchDebounceTimer, 0)
-        SearchDebounceTimer := 0
+    ; 取消搜索中心防抖定时器
+    if (SearchCenterDebounceTimer != 0) {
+        SetTimer(SearchCenterDebounceTimer, 0)
+        SearchCenterDebounceTimer := 0
     }
     
     ; 获取搜索关键词
@@ -26839,16 +27112,16 @@ ToggleSearchCenterEngine(EngineValue, Index) {
 ; 一键并发打开搜索引擎
 OpenSearchGroupEngines() {
     global SearchCenterCurrentGroup, SearchCenterSearchEdit, GuiID_SearchCenter
-    global GlobalSearchStatement, SearchDebounceTimer
+    global GlobalSearchStatement, SearchCenterDebounceTimer
     
     ; 【并发同步】第一行代码：强制释放 Statement 句柄并关闭窗口
     ; 确保浏览器弹出的瞬间，SQLite 数据库连接已安全归还
     GlobalSearchEngine.ReleaseOldStatement()
     
-    ; 取消搜索防抖定时器
-    if (SearchDebounceTimer != 0) {
-        SetTimer(SearchDebounceTimer, 0)
-        SearchDebounceTimer := 0
+    ; 取消搜索中心防抖定时器
+    if (SearchCenterDebounceTimer != 0) {
+        SetTimer(SearchCenterDebounceTimer, 0)
+        SearchCenterDebounceTimer := 0
     }
     
     ; 关闭搜索中心窗口（可选，根据需求决定是否关闭）
