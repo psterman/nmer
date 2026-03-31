@@ -7,24 +7,30 @@
 <style>
 /* ── Reset & Variables ─────────────────────────────────────────────────── */
 :root {
-  --bg:        #0a0a0a;
-  --surface:   #141414;
-  --surface2:  #1a1a1a;
-  --surface3:  #202020;
-  --border:    #2e2e2e;
-  --border2:   #3a3a3a;
-  --orange:    #e67e22;
-  --orange-dk: #d35400;
-  --orange-lt: #f39c12;
-  --cyan:      #00d4ff;
-  --text:      #f0f0f0;
-  --text-dim:  #888;
-  --text-xs:   #555;
-  --glow:      0 0 8px #e67e2288, 0 0 18px #e67e2244;
-  --glow-hot:  0 0 12px #e67e22cc, 0 0 30px #e67e2266;
-  --glow-cyan: 0 0 8px #00d4ff88, 0 0 18px #00d4ff44;
-  --font:      "Fira Code", "Consolas", "Courier New", monospace;
-  --font-ui:   "Segoe UI", system-ui, sans-serif;
+  --bg:           #0a0a0a;
+  --surface:      #141414;
+  --surface2:     #1a1a1a;
+  --surface3:     #202020;
+  --border:       #2e2e2e;
+  --border2:      #3a3a3a;
+  --orange:       #e67e22;
+  --orange-dk:    #d35400;
+  --orange-lt:    #f39c12;
+  --cyan:         #00d4ff;
+  --text:         #f0f0f0;
+  --text-dim:     #888;
+  --text-xs:      #555;
+  --glow:         0 0 8px #e67e2288, 0 0 18px #e67e2244;
+  --glow-hot:     0 0 12px #e67e22cc, 0 0 30px #e67e2266;
+  --glow-cyan:    0 0 8px #00d4ff88, 0 0 18px #00d4ff44;
+  --font:         "Fira Code", "Consolas", "Courier New", monospace;
+  --font-ui:      "Segoe UI", system-ui, sans-serif;
+  /* ── Cyberpunk palette ─── */
+  --matrix-green: #00ff41;
+  --warning-gold: #ffcc00;
+  --deep-black:   #0a0a0a;
+  --glow-green:   0 0 8px #00ff4188, 0 0 18px #00ff4144;
+  --glow-gold:    0 0 8px #ffcc0088, 0 0 18px #ffcc0044;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
@@ -64,15 +70,18 @@ body::after {
   padding: 8px 10px 6px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
+  overflow-x: auto;
 }
 #bottom-zone {
   flex: 1;
   display: flex;
   overflow: hidden;
+  min-height: 0;
 }
 #sidebar {
   flex-shrink: 0;
   width: 180px;
+  min-width: 0;
   background: var(--surface);
   border-right: 1px solid var(--border);
   overflow-y: auto;
@@ -80,11 +89,99 @@ body::after {
 }
 #cmd-panel {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: var(--bg);
 }
+/* ── Layout Toggle Button ──────────────────────────────────────────────── */
+#layout-toggle {
+  font-family: var(--font);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, box-shadow .15s;
+  flex-shrink: 0;
+}
+#layout-toggle:hover { color: var(--matrix-green); border-color: var(--matrix-green); box-shadow: var(--glow-green); }
+#layout-toggle.native {
+  color: var(--matrix-green);
+  border-color: var(--matrix-green);
+  box-shadow: var(--glow-green);
+}
+
+/* ── Conflict Modal ────────────────────────────────────────────────────── */
+#conflict-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 8888;
+  background: rgba(0,0,0,.75);
+  backdrop-filter: blur(2px);
+  align-items: center; justify-content: center;
+}
+#conflict-overlay.visible { display: flex; animation: fadeIn .15s ease; }
+@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+#conflict-modal {
+  background: var(--surface2);
+  border: 1px solid var(--warning-gold);
+  border-top-width: 3px;
+  box-shadow: var(--glow-gold), 0 8px 40px rgba(0,0,0,.8);
+  border-radius: 6px;
+  padding: 24px 28px 20px;
+  min-width: 380px; max-width: 480px;
+  font-family: var(--font);
+}
+#conflict-modal .modal-title {
+  font-size: 11px;
+  letter-spacing: 2px;
+  font-weight: 700;
+  color: var(--warning-gold);
+  text-shadow: var(--glow-gold);
+  margin-bottom: 14px;
+}
+#conflict-modal .modal-body {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-dim);
+  font-family: var(--font-ui);
+  margin-bottom: 20px;
+}
+#conflict-modal .modal-body strong {
+  color: var(--text);
+  font-family: var(--font);
+}
+#conflict-modal .modal-actions {
+  display: flex; gap: 10px; justify-content: flex-end;
+}
+.modal-btn {
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 5px 18px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: box-shadow .15s, color .15s;
+  border: 1px solid;
+}
+.modal-btn.confirm {
+  color: var(--warning-gold);
+  border-color: var(--warning-gold);
+  background: #1a1200;
+}
+.modal-btn.confirm:hover { box-shadow: var(--glow-gold); }
+.modal-btn.cancel {
+  color: var(--text-dim);
+  border-color: var(--border2);
+  background: transparent;
+}
+.modal-btn.cancel:hover { color: var(--text); border-color: var(--border2); }
 
 /* ── HUD ────────────────────────────────────────────────────────────────── */
 #hud-icon {
@@ -156,7 +253,7 @@ body::after {
   font-size: 8px; color: var(--text-xs); font-weight: 300;
 }
 .k .map-label {
-  font-size: 7px; color: var(--orange);
+  font-size: 7px; color: var(--matrix-green);
   position: absolute; bottom: 1px; left: 1px; right: 1px;
   text-align: center; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; pointer-events: none; line-height: 1;
@@ -166,13 +263,13 @@ body::after {
   color: var(--text); z-index: 2;
 }
 .k.bound {
-  border-color: var(--orange) !important;
-  color: var(--orange) !important;
+  border-bottom-color: var(--matrix-green) !important;
+  color: var(--matrix-green) !important;
   animation: breath 3s ease-in-out infinite;
 }
 @keyframes breath {
-  0%,100% { box-shadow: 0 0 4px #e67e2244; }
-  50%      { box-shadow: var(--glow-hot); }
+  0%,100% { box-shadow: 0 0 4px #00ff4122; }
+  50%      { box-shadow: var(--glow-green); }
 }
 .k.recording-target {
   border-color: var(--cyan) !important;
@@ -242,11 +339,12 @@ body::after {
   transition: background .1s, color .1s;
   border-left: 2px solid transparent;
 }
-.sidebar-item:hover { background: #1e1e1e; color: var(--text); }
+.sidebar-item:hover { background: #0d1f10; color: var(--matrix-green); }
 .sidebar-item.active {
-  background: #1e1200;
-  color: var(--orange);
-  border-left-color: var(--orange);
+  background: #071409;
+  color: var(--matrix-green);
+  border-left-color: var(--matrix-green);
+  text-shadow: 0 0 6px #00ff4155;
 }
 .sidebar-item.all { padding-left: 10px; font-weight: 600; }
 
@@ -270,8 +368,13 @@ body::after {
   outline: none;
   transition: border-color .15s;
 }
-#cmd-search:focus { border-color: var(--orange); }
-#cmd-search::placeholder { color: var(--text-xs); }
+#cmd-search:focus {
+  border-color: var(--matrix-green);
+  box-shadow: 0 0 0 1px #00ff4133, 0 0 10px #00ff4122;
+  color: var(--text);
+}
+#cmd-search::placeholder { color: var(--text-xs); transition: color .2s; }
+#cmd-search:focus::placeholder { color: var(--border2); }
 #cmd-count {
   font-size: 10px; color: var(--text-xs);
   flex-shrink: 0; min-width: 60px; text-align: right;
@@ -284,7 +387,8 @@ body::after {
 /* scrollbar */
 #cmd-list-wrapper::-webkit-scrollbar { width: 6px; }
 #cmd-list-wrapper::-webkit-scrollbar-track { background: var(--bg); }
-#cmd-list-wrapper::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+#cmd-list-wrapper::-webkit-scrollbar-thumb { background: #1e3a22; border-radius: 3px; }
+#cmd-list-wrapper::-webkit-scrollbar-thumb:hover { background: #00ff4144; }
 .no-command-found {
   padding: 28px 14px;
   text-align: center;
@@ -385,6 +489,7 @@ body::after {
     <span id="hud-icon">[ VK KEYBINDER ]</span>
     <span id="hud-status">正在连接 AHK...</span>
     <div id="hud-dot"></div>
+    <button id="layout-toggle" title="切换 ScanCode 物理键适配模式（防止 IME 干扰）">STANDARD</button>
   </div>
 
   <!-- ── Keyboard ─────────────────────────────────────────────────────── -->
@@ -540,6 +645,21 @@ body::after {
     </div>
 
   </div><!-- #bottom-zone -->
+
+  <!-- ── Conflict Modal ──────────────────────────────────────────────── -->
+  <div id="conflict-overlay">
+    <div id="conflict-modal">
+      <div class="modal-title">[ CONFLICT DETECTED ]</div>
+      <div class="modal-body" id="conflict-body">
+        该快捷键已被占用。
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn cancel"  id="conflict-cancel">取消</button>
+        <button class="modal-btn confirm" id="conflict-confirm">覆盖</button>
+      </div>
+    </div>
+  </div>
+
 </div><!-- #root -->
 
 <script>
@@ -557,6 +677,7 @@ const state = {
   recording:   null,        // cmdId being recorded
   activeMods:  { ctrl:false, alt:false, shift:false },
   lastFilteredCmdIds: [],
+  nativeLayout: false,      // ScanCode 物理键适配模式
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -671,6 +792,13 @@ function handleAhkMessage(msg) {
       } else {
         stopRecording(false);
       }
+      break;
+    case 'confirmConflict':
+      handleConfirmConflict(msg);
+      break;
+    case 'layoutMode':
+      state.nativeLayout = !!msg.native;
+      updateLayoutToggleUI();
       break;
     default:
       console.warn('[VK] Unknown AHK msg:', msg.type);
@@ -918,6 +1046,65 @@ function triggerKeyRipple(ahkKey) {
   el.classList.add('ripple');
   setTimeout(() => el.classList.remove('ripple'), 820);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Conflict Modal
+// ═══════════════════════════════════════════════════════════════════════════
+function handleConfirmConflict(msg) {
+  const { commandId, displayKey, conflictCmdName } = msg;
+  const cmdName = state.commands[commandId]?.name || commandId;
+  document.getElementById('conflict-body').innerHTML =
+    `<strong>${displayKey}</strong> 已分配给 <strong>${conflictCmdName}</strong>。<br>` +
+    `是否将其改为 <strong>${cmdName}</strong> 的快捷键？`;
+
+  const overlay = document.getElementById('conflict-overlay');
+  overlay.classList.add('visible');
+
+  document.getElementById('conflict-confirm').onclick = () => {
+    closeConflictModal();
+    postToAhk({ type: 'resolveConflict', confirm: true });
+  };
+  document.getElementById('conflict-cancel').onclick = () => {
+    closeConflictModal();
+    postToAhk({ type: 'resolveConflict', confirm: false });
+    const bound = Object.values(state.bindings).filter(b => b?.ahkKey).length;
+    setHud('已连接 · ' + bound + ' 个绑定');
+  };
+}
+
+function closeConflictModal() {
+  document.getElementById('conflict-overlay').classList.remove('visible');
+}
+
+// close on overlay click
+document.getElementById('conflict-overlay').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) {
+    closeConflictModal();
+    postToAhk({ type: 'resolveConflict', confirm: false });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Layout Toggle (ScanCode mode)
+// ═══════════════════════════════════════════════════════════════════════════
+function updateLayoutToggleUI() {
+  const btn = document.getElementById('layout-toggle');
+  if (state.nativeLayout) {
+    btn.textContent = 'NATIVE';
+    btn.classList.add('native');
+    btn.title = '当前：ScanCode 物理键模式（点击切换回标准模式）';
+  } else {
+    btn.textContent = 'STANDARD';
+    btn.classList.remove('native');
+    btn.title = '切换 ScanCode 物理键适配模式（防止 IME 干扰）';
+  }
+}
+
+document.getElementById('layout-toggle').addEventListener('click', () => {
+  state.nativeLayout = !state.nativeLayout;
+  updateLayoutToggleUI();
+  postToAhk({ type: 'setLayoutMode', native: state.nativeLayout });
+});
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Recording

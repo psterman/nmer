@@ -23,6 +23,8 @@ global g_VK_Ready        := false
 global g_ModState        := Map("ctrl", false, "alt", false, "shift", false)
 global g_RecordCtx       := Map("active", false, "commandId", "")
 global g_RecordHook      := 0
+global g_PendingConflict := Map()   ; 待确认的冲突绑定
+global g_UseScanCode     := false   ; 是否使用 ScanCode 物理键模式
 
 ; ===========================================================================
 ; 入口
@@ -142,6 +144,8 @@ _SaveBindings() {
     try FileDelete(g_JsonPath)
     try FileAppend(json, g_JsonPath, "UTF-8")
     OutputDebug("[VK] Commands.json saved")
+    ; 通知其他脚本（如 CursorHelper）重载配置
+    NotifyScript("CursorHelper", '{"type":"bindingsReloaded"}')
 }
 
 ; ---------------------------------------------------------------------------
@@ -368,6 +372,23 @@ _OnWebMessage(sender, args) {
             if msg.Has("commandId")
                 _ExecuteCommand(msg["commandId"])
 
+        ; ── 冲突确认响应 ─────────────────────────────────────────────
+        case "resolveConflict":
+            if g_PendingConflict.Has("cmdId") {
+                if msg.Has("confirm") && msg["confirm"]
+                    _DoBindKey(g_PendingConflict["cmdId"],
+                               g_PendingConflict["ahkKey"],
+                               g_PendingConflict["displayKey"])
+                g_PendingConflict := Map()
+            }
+            VK_SendToWeb('{"type":"recordHint","active":false}')
+
+        ; ── 键位适配模式切换 ─────────────────────────────────────────
+        case "setLayoutMode":
+            g_UseScanCode := msg.Has("native") && msg["native"]
+            VK_SendToWeb('{"type":"layoutMode","native":' . (g_UseScanCode ? "true" : "false") . '}')
+            OutputDebug("[VK] ScanCode mode: " . (g_UseScanCode ? "on" : "off"))
+
         default:
             OutputDebug("[VK] Unknown msg: " . msg["type"])
     }
@@ -483,13 +504,20 @@ _EndRecord() {
 }
 
 _OnRecordKeyDown(ih, vk, sc) {
-    global g_RecordCtx
+    global g_RecordCtx, g_Bindings, g_Commands, g_PendingConflict, g_UseScanCode
     if !g_RecordCtx["active"]
         return
 
-    keyName := GetKeyName(Format("vk{:x}sc{:x}", vk, sc))
-    ; 仅修饰键本身不作为绑定终值
-    if _IsModifierOnlyKey(keyName)
+    ; ScanCode 模式：通过物理键位映射，绕过 IME 干扰
+    if g_UseScanCode {
+        keyName := _GetKeyFromSC(sc)
+        if !keyName
+            keyName := GetKeyName(Format("vk{:x}sc{:x}", vk, sc))
+    } else {
+        keyName := GetKeyName(Format("vk{:x}sc{:x}", vk, sc))
+    }
+
+    if !keyName || _IsModifierOnlyKey(keyName)
         return
 
     isCtrl  := GetKeyState("Ctrl", "P")
@@ -499,10 +527,33 @@ _OnRecordKeyDown(ih, vk, sc) {
     if !ahkKey
         return
 
-    cmdId := g_RecordCtx["commandId"]
-    _EndRecord()
-
+    cmdId      := g_RecordCtx["commandId"]
     displayKey := _ToDisplayKey(ahkKey)
+
+    ; 冲突检测：该 ahkKey 已被另一命令占用
+    if g_Bindings.Has(ahkKey) {
+        conflictId := g_Bindings[ahkKey]
+        if conflictId != cmdId {
+            g_PendingConflict["cmdId"]      := cmdId
+            g_PendingConflict["ahkKey"]     := ahkKey
+            g_PendingConflict["displayKey"] := displayKey
+            g_PendingConflict["conflictId"] := conflictId
+            _EndRecord()
+            conflictName := (g_Commands.Has("CommandList") && g_Commands["CommandList"].Has(conflictId))
+                ? g_Commands["CommandList"][conflictId]["name"] : conflictId
+            escDk   := StrReplace(StrReplace(displayKey,   "\", "\\"), '"', '\"')
+            escName := StrReplace(StrReplace(conflictName, "\", "\\"), '"', '\"')
+            VK_SendToWeb('{"type":"confirmConflict","commandId":"'   . cmdId
+                . '","ahkKey":"'          . ahkKey
+                . '","displayKey":"'      . escDk
+                . '","conflictCmdId":"'   . conflictId
+                . '","conflictCmdName":"' . escName . '"}')
+            OutputDebug("[VK] conflict: " . ahkKey . " -> " . conflictId . " vs " . cmdId)
+            return
+        }
+    }
+
+    _EndRecord()
     _DoBindKey(cmdId, ahkKey, displayKey)
     VK_SendToWeb('{"type":"recordHint","active":false,"commandId":"' . cmdId . '"}')
     OutputDebug("[VK] record captured: " . cmdId . " => " . ahkKey)
@@ -557,6 +608,44 @@ _KeyNameToAhkBase(keyName) {
 
 _ToDisplayKey(ahkKey) {
     return _AhkKeyToDisplay(ahkKey)
+}
+
+; ---------------------------------------------------------------------------
+; ScanCode → 标准 AHK 键名（物理键位，IME 无关）
+; 覆盖主键盘区 + F 键区；扩展键（方向/导航）回落到 GetKeyName
+; ---------------------------------------------------------------------------
+_GetKeyFromSC(sc) {
+    static scMap := Map(
+        ; Esc + F 行
+        0x01,"Escape",
+        0x3B,"F1",  0x3C,"F2",  0x3D,"F3",  0x3E,"F4",
+        0x3F,"F5",  0x40,"F6",  0x41,"F7",  0x42,"F8",
+        0x43,"F9",  0x44,"F10", 0x57,"F11", 0x58,"F12",
+        ; 数字行
+        0x29,"``",  0x02,"1", 0x03,"2", 0x04,"3", 0x05,"4",
+        0x06,"5",   0x07,"6", 0x08,"7", 0x09,"8", 0x0A,"9",
+        0x0B,"0",   0x0C,"-", 0x0D,"=", 0x0E,"Backspace",
+        ; QWERTY 行
+        0x0F,"Tab",
+        0x10,"q", 0x11,"w", 0x12,"e", 0x13,"r", 0x14,"t",
+        0x15,"y", 0x16,"u", 0x17,"i", 0x18,"o", 0x19,"p",
+        0x1A,"[", 0x1B,"]", 0x2B,"\",
+        ; ASDF 行
+        0x3A,"CapsLock",
+        0x1E,"a", 0x1F,"s", 0x20,"d", 0x21,"f", 0x22,"g",
+        0x23,"h", 0x24,"j", 0x25,"k", 0x26,"l",
+        0x27,";", 0x28,"'", 0x1C,"Enter",
+        ; ZXCV 行
+        0x2A,"LShift",
+        0x2C,"z", 0x2D,"x", 0x2E,"c", 0x2F,"v", 0x30,"b",
+        0x31,"n", 0x32,"m", 0x33,",", 0x34,".", 0x35,"/",
+        0x36,"RShift",
+        ; 底行
+        0x1D,"LCtrl", 0x38,"LAlt", 0x39,"Space",
+        ; 其他
+        0x37,"PrintScreen", 0x46,"ScrollLock", 0x45,"Pause"
+    )
+    return scMap.Has(sc) ? scMap[sc] : ""
 }
 
 ; ===========================================================================
@@ -677,6 +766,38 @@ VK_SendToWeb(jsonStr) {
     global g_VK_WV2, g_VK_Ready
     if g_VK_WV2 && g_VK_Ready
         g_VK_WV2.PostWebMessageAsJson(jsonStr)
+}
+
+; ---------------------------------------------------------------------------
+; 跨脚本通知：向目标 AHK 窗口发送 WM_COPYDATA JSON 消息
+; 对方需注册 OnMessage(0x4A, handler) 来接收
+; 接收示例（在 CursorHelper.ahk 中添加）：
+;   OnMessage(0x4A, _OnVkCopyData)
+;   _OnVkCopyData(wParam, lParam, *) {
+;       sz  := NumGet(lParam+4, "UInt")
+;       ptr := NumGet(lParam+8, "Ptr")
+;       json := StrGet(ptr, sz, "UTF-8")
+;       ; 解析 json 并处理 bindingsReloaded 等事件
+;   }
+; ---------------------------------------------------------------------------
+NotifyScript(targetTitle, payload) {
+    hwnd := WinExist(targetTitle . " ahk_class AutoHotkey")
+    if !hwnd
+        return false
+    strBuf := Buffer(StrPut(payload, "UTF-8"))
+    StrPut(payload, strBuf, "UTF-8")
+    ; COPYDATASTRUCT: dwData(4) + cbData(4) + lpData(ptr)
+    cds := Buffer(4 + 4 + A_PtrSize, 0)
+    NumPut("UInt", 1,           cds, 0)   ; dwData
+    NumPut("UInt", strBuf.Size, cds, 4)   ; cbData
+    NumPut("Ptr",  strBuf.Ptr,  cds, 8)   ; lpData
+    try {
+        SendMessage(0x4A, 0, cds.Ptr, , "ahk_id " . hwnd)
+        OutputDebug("[VK] NotifyScript -> " . targetTitle)
+        return true
+    } catch {
+        return false
+    }
 }
 
 ; ===========================================================================
