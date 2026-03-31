@@ -527,6 +527,12 @@ global SearchCenterCLIClearButton := 0
 global SearchCenterCLIOpenButton := 0
 global CLIAgentPendingPrompts := Map()
 global CLIAgentPromptMonitorRunning := false
+; Gemini 就绪：由「非登录态 + 窗口文本连续稳定」判定，非固定秒数；可按机器/习惯改下列参数（Monitor 轮询 500ms）
+global CLIGeminiReadyMinMs := 2500
+global CLIGeminiStablePollsRequired := 4
+global CLIGeminiForceSendAfterMs := 55000
+; Windows Terminal 等宿主下 WinGetText 常为空，需「无文本」回退；此前达到该时长后才开始计 EmptyPolls
+global CLIGeminiNoTextMinMs := 8000
 global SearchCenterResultLimitDropdown := 0  ; 结果数量限制下拉菜单
 global SearchCenterResultLimitDDL_Hwnd := 0  ; 搜索中心结果过滤下拉框句柄
 global SearchCenterResultLimitDDL_ListHwnd := 0  ; 搜索中心结果过滤下拉列表句柄
@@ -32639,8 +32645,9 @@ GetWindowTextSafe(WindowHwnd) {
 
 GeminiWindowNeedsAuth(WindowHwnd) {
     WindowText := StrLower(GetWindowTextSafe(WindowHwnd))
+    ; 文本尚不可读时不当作「仍在登录页」，避免永远不发（终端刚启动时常短暂为空）
     if (WindowText = "") {
-        return true
+        return false
     }
     AuthPatterns := [
         "sign in",
@@ -32652,7 +32659,10 @@ GeminiWindowNeedsAuth(WindowHwnd) {
         "continue in browser",
         "waiting for authentication",
         "open this url",
-        "open the following link"
+        "open the following link",
+        "登录",
+        "在浏览器",
+        "verify it"
     ]
     for _, Pattern in AuthPatterns {
         if (InStr(WindowText, Pattern)) {
@@ -32680,7 +32690,10 @@ RegisterPendingCLIAgentPrompt(WindowHwnd, PromptText, Engine := "gemini_cli") {
         LastWindowText: "",
         ReadySeenCount: 0,
         EmptyWindowTextRounds: 0,
-        FallbackMode: false
+        FallbackMode: false,
+        GeminiLastText: "",
+        GeminiStableRounds: 0,
+        GeminiEmptyPolls: 0
     }
     
     if (!CLIAgentPromptMonitorRunning) {
@@ -32697,7 +32710,7 @@ QueuePromptForCLIAgent(Engine, WindowHwnd, PromptText) {
     
     if (Engine = "gemini_cli") {
         RegisterPendingCLIAgentPrompt(WindowHwnd, PromptText, Engine)
-        TrayTip(AgentInfo.Name . " 正在等待终端就绪，准备好后会自动发送。", "提示", "Iconi 2")
+        TrayTip(AgentInfo.Name . " 正在等待终端就绪（登录完成后界面稳定即发送）。", "提示", "Iconi 2")
         return true
     }
     
@@ -32759,6 +32772,7 @@ DispatchPromptToCLIAgent(Engine, LaunchResult, PromptText) {
 
 MonitorPendingCLIAgentPrompts() {
     global CLIAgentPendingPrompts, CLIAgentPromptMonitorRunning
+    global CLIGeminiReadyMinMs, CLIGeminiStablePollsRequired, CLIGeminiForceSendAfterMs, CLIGeminiNoTextMinMs
     
     if (!IsSet(CLIAgentPendingPrompts) || CLIAgentPendingPrompts.Count = 0) {
         CLIAgentPromptMonitorRunning := false
@@ -32773,7 +32787,8 @@ MonitorPendingCLIAgentPrompts() {
             continue
         }
         
-        if ((A_TickCount - Pending.CreatedAt) > 90000) {
+        MaxWaitMs := (Pending.Engine = "gemini_cli") ? 120000 : 90000
+        if ((A_TickCount - Pending.CreatedAt) > MaxWaitMs) {
             CompletedKeys.Push(Key)
             AgentInfo := GetCLIAgentLaunchInfo(Pending.Engine)
             AgentName := (AgentInfo && IsObject(AgentInfo)) ? AgentInfo.Name : Pending.Engine
@@ -32781,17 +32796,77 @@ MonitorPendingCLIAgentPrompts() {
             continue
         }
         
-        if (Pending.Engine = "codex_cli" || Pending.Engine = "gemini_cli" || Pending.Engine = "qwen_cli") {
-            RequiredDelay := (Pending.Engine = "gemini_cli" || Pending.Engine = "qwen_cli") ? 4000 : 2500
-            if ((A_TickCount - Pending.CreatedAt) < RequiredDelay) {
+        ; Gemini：登录态阻塞；有 WinGetText 时按文本稳定；无文本（Windows Terminal 常见）则按 EmptyPolls 回退，否则会永远不发送
+        if (Pending.Engine = "gemini_cli") {
+            LatestGeminiWindow := FindCLIAgentWindow("gemini_cli")
+            if (LatestGeminiWindow) {
+                Pending.Hwnd := LatestGeminiWindow
+            }
+            Hwnd := Pending.Hwnd
+            if (!Hwnd || !WinExist("ahk_id " . Hwnd)) {
+                CLIAgentPendingPrompts[Key] := Pending
                 continue
             }
-            if (Pending.Engine = "gemini_cli") {
-                LatestGeminiWindow := FindCLIAgentWindow("gemini_cli")
-                if (LatestGeminiWindow) {
-                    Pending.Hwnd := LatestGeminiWindow
+            if (GeminiWindowNeedsAuth(Hwnd)) {
+                Pending.GeminiStableRounds := 0
+                Pending.GeminiLastText := ""
+                Pending.GeminiEmptyPolls := 0
+                CLIAgentPendingPrompts[Key] := Pending
+                continue
+            }
+            CurrentText := GetWindowTextSafe(Hwnd)
+            Elapsed := A_TickCount - Pending.CreatedAt
+            if (Elapsed < CLIGeminiReadyMinMs) {
+                Pending.GeminiLastText := CurrentText
+                Pending.GeminiStableRounds := 1
+                Pending.GeminiEmptyPolls := 0
+                CLIAgentPendingPrompts[Key] := Pending
+                continue
+            }
+            if (CurrentText = "") {
+                if (Elapsed < CLIGeminiNoTextMinMs) {
+                    Pending.GeminiStableRounds := 0
+                    Pending.GeminiLastText := ""
+                    Pending.GeminiEmptyPolls := 0
                     CLIAgentPendingPrompts[Key] := Pending
+                    continue
                 }
+                Pending.GeminiLastText := ""
+                Pending.GeminiStableRounds := 0
+                Pending.GeminiEmptyPolls += 1
+                CLIAgentPendingPrompts[Key] := Pending
+                NoTextReady := (Pending.GeminiEmptyPolls >= CLIGeminiStablePollsRequired)
+                ForceSend := (CLIGeminiForceSendAfterMs > 0 && Elapsed >= CLIGeminiForceSendAfterMs)
+                if (NoTextReady || ForceSend) {
+                    SendPromptToCLIAgentWindow(Pending.Hwnd, Pending.Prompt, Pending.Engine)
+                    CompletedKeys.Push(Key)
+                }
+                continue
+            }
+            Pending.GeminiEmptyPolls := 0
+            if (CurrentText = Pending.GeminiLastText) {
+                Pending.GeminiStableRounds += 1
+            } else {
+                Pending.GeminiLastText := CurrentText
+                Pending.GeminiStableRounds := 1
+            }
+            CLIAgentPendingPrompts[Key] := Pending
+            StableReady := (Pending.GeminiStableRounds >= CLIGeminiStablePollsRequired)
+            ForceSend := false
+            if (CLIGeminiForceSendAfterMs > 0 && Elapsed >= CLIGeminiForceSendAfterMs) {
+                ForceSend := true
+            }
+            if (StableReady || ForceSend) {
+                SendPromptToCLIAgentWindow(Pending.Hwnd, Pending.Prompt, Pending.Engine)
+                CompletedKeys.Push(Key)
+            }
+            continue
+        }
+        
+        if (Pending.Engine = "codex_cli" || Pending.Engine = "qwen_cli") {
+            RequiredDelay := (Pending.Engine = "qwen_cli") ? 4000 : 2500
+            if ((A_TickCount - Pending.CreatedAt) < RequiredDelay) {
+                continue
             }
             SendPromptToCLIAgentWindow(Pending.Hwnd, Pending.Prompt, Pending.Engine)
             CompletedKeys.Push(Key)
