@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VirtualKeyboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg:        #0a0a0a;
+    --surface:   #1a1a1a;
+    --surface2:  #222222;
+    --border:    #333333;
+    --orange:    #e67e22;
+    --orange-dk: #d35400;
+    --orange-lt: #f39c12;
+    --text:      #f5f5f5;
+    --text-dim:  #888888;
+    --glow:      0 0 8px #e67e2288, 0 0 18px #e67e2244;
+    --glow-hot:  0 0 10px #e67e22cc, 0 0 28px #e67e2266, 0 0 48px #e67e2222;
+    --font:      "Fira Code", "Consolas", "Courier New", monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── SVG scan-line overlay ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; pointer-events: none; z-index: 999;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,.18) 2px,
+      rgba(0,0,0,.18) 4px
+    );
+  }
+
+  /* ── top HUD bar ── */
+  #hud {
+    display: flex; align-items: center; gap: 12px;
+    padding: 6px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    height: 38px;
+  }
+  #hud-icon {
+    color: var(--orange);
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-shadow: var(--glow);
+    flex-shrink: 0;
+  }
+  #hud-msg {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 300;
+  }
+  #hud-key {
+    font-size: 12px;
+    color: var(--orange);
+    background: #e67e2211;
+    border: 1px solid #e67e2244;
+    border-radius: 4px;
+    padding: 1px 8px;
+    min-width: 80px;
+    text-align: center;
+    transition: all .15s;
+  }
+  #hud-key.active {
+    color: var(--bg);
+    background: var(--orange);
+    border-color: var(--orange);
+    box-shadow: var(--glow);
+  }
+
+  /* ── keyboard wrapper ── */
+  #keyboard {
+    padding: 10px 12px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  /* ── keyboard row ── */
+  .kr {
+    display: flex;
+    gap: 5px;
+  }
+
+  /* ── base key ── */
+  .k {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    height: 44px;
+    min-width: 44px;
+    padding: 0 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    border-bottom: 3px solid #2a2a2a;
+    font-family: var(--font);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+    transition: background .1s, border-color .1s, box-shadow .1s, transform .05s;
+    flex-shrink: 0;
+    line-height: 1.2;
+  }
+  .k .sub {
+    font-size: 9px;
+    color: var(--text-dim);
+    font-weight: 300;
+  }
+  .k:hover {
+    background: #2a2a2a;
+    border-color: var(--orange);
+    box-shadow: var(--glow);
+    color: var(--orange);
+    z-index: 2;
+  }
+  .k:active, .k.pressed {
+    background: var(--orange-dk);
+    border-color: var(--orange-lt);
+    border-bottom-width: 1px;
+    transform: translateY(2px);
+    box-shadow: var(--glow-hot);
+    color: #fff;
+  }
+
+  /* ── special-width keys ── */
+  .k-backspace { min-width: 86px; }
+  .k-tab       { min-width: 68px; }
+  .k-caps      { min-width: 80px; }
+  .k-enter     { min-width: 92px; }
+  .k-lshift    { min-width: 106px; }
+  .k-rshift    { min-width: 106px; }
+  .k-lctrl     { min-width: 68px; }
+  .k-rctrl     { min-width: 68px; }
+  .k-lalt      { min-width: 64px; }
+  .k-ralt      { min-width: 64px; }
+  .k-space     { flex: 1; }
+  .k-win       { min-width: 56px; }
+  .k-menu      { min-width: 56px; }
+  .k-fn        { min-width: 48px; font-size: 10px; }
+  .k-f         { flex: 1; font-size: 10px; }
+
+  /* caps-lock indicator */
+  .k-caps::after {
+    content: '';
+    position: absolute;
+    top: 5px; right: 6px;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background .2s, box-shadow .2s;
+  }
+  .k-caps.capslock-on::after {
+    background: var(--orange);
+    box-shadow: var(--glow);
+  }
+
+  /* ── status bar ── */
+  #statusbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    font-size: 10px;
+    color: var(--text-dim);
+    height: 26px;
+  }
+  #status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--border);
+    flex-shrink: 0;
+    transition: background .3s, box-shadow .3s;
+  }
+  #status-dot.connected {
+    background: var(--orange);
+    box-shadow: var(--glow);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: .5; }
+  }
+  #status-text { flex: 1; }
+  #status-count { color: var(--orange-lt); font-size: 9px; }
+
+  /* ── corner decoration SVG ── */
+  .corner-svg {
+    position: fixed;
+    opacity: .12;
+    pointer-events: none;
+  }
+  .corner-svg.tl { top: 0; left: 0; }
+  .corner-svg.br { bottom: 0; right: 0; transform: rotate(180deg); }
+
+  /* ── key state: active (bound) — orange breathe ── */
+  .k.active {
+    border-color: var(--orange) !important;
+    box-shadow: 0 0 6px #e67e2255;
+    animation: breath 3s ease-in-out infinite;
+  }
+  @keyframes breath {
+    0%,100% { box-shadow: 0 0 6px #e67e2255; }
+    50%      { box-shadow: var(--glow-hot);   }
+  }
+
+  /* ── key state: mapping (being assigned) — cyan glow ── */
+  .k.mapping {
+    border-color: #00d4ff !important;
+    box-shadow: 0 0 12px #00d4ffaa !important;
+    color: #00d4ff !important;
+    animation: none !important;
+  }
+
+  /* ── map-label: tiny command label inside a bound key ── */
+  .k .map-label {
+    font-size: 7px;
+    color: var(--orange);
+    position: absolute;
+    bottom: 2px;
+    left: 2px; right: 2px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+    letter-spacing: 0;
+    font-weight: 400;
+  }
+  .k.mapping .map-label { color: #00d4ff; }
+
+  /* ── mode toggle button (in HUD) ── */
+  #mode-btn {
+    font-family: var(--font);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 10px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: color .15s, border-color .15s, box-shadow .15s;
+    flex-shrink: 0;
+  }
+  #mode-btn:hover {
+    color: var(--orange);
+    border-color: var(--orange);
+    box-shadow: var(--glow);
+  }
+  body.edit-mode #mode-btn {
+    color: #00d4ff;
+    border-color: #00d4ff;
+    box-shadow: 0 0 8px #00d4ff66;
+  }
+  /* edit-mode: dim all keys slightly so active/mapping stand out */
+  body.edit-mode .k:not(.mapping):not(.active) {
+    opacity: .65;
+  }
+</style>
+</head>
+<body>
+
+<!-- corner decorations -->
+<svg class="corner-svg tl" width="80" height="80" viewBox="0 0 80 80">
+  <polyline points="0,40 0,0 40,0" fill="none" stroke="#e67e22" stroke-width="1.5"/>
+  <polyline points="0,60 0,0 60,0" fill="none" stroke="#e67e22" stroke-width=".5"/>
+  <circle cx="0" cy="0" r="3" fill="#e67e22"/>
+</svg>
+<svg class="corner-svg br" width="80" height="80" viewBox="0 0 80 80">
+  <polyline points="0,40 0,0 40,0" fill="none" stroke="#e67e22" stroke-width="1.5"/>
+  <polyline points="0,60 0,0 60,0" fill="none" stroke="#e67e22" stroke-width=".5"/>
+  <circle cx="0" cy="0" r="3" fill="#e67e22"/>
+</svg>
+
+<!-- HUD bar -->
+<div id="hud">
+  <span id="hud-icon">[ VK ]</span>
+  <span id="hud-msg">Ready — waiting for AHK host...</span>
+  <span id="hud-key">—</span>
+  <button id="mode-btn" title="切换 执行/配置 模式">[ EXEC ]</button>
+</div>
+
+<!-- keyboard -->
+<div id="keyboard">
+
+  <!-- Row 0: Esc + F keys -->
+  <div class="kr">
+    <div class="k k-fn" data-key="Escape" data-code="Escape">Esc</div>
+    <div style="min-width:16px"></div>
+    <div class="k k-f" data-key="F1"  data-code="F1">F1</div>
+    <div class="k k-f" data-key="F2"  data-code="F2">F2</div>
+    <div class="k k-f" data-key="F3"  data-code="F3">F3</div>
+    <div class="k k-f" data-key="F4"  data-code="F4">F4</div>
+    <div style="min-width:8px"></div>
+    <div class="k k-f" data-key="F5"  data-code="F5">F5</div>
+    <div class="k k-f" data-key="F6"  data-code="F6">F6</div>
+    <div class="k k-f" data-key="F7"  data-code="F7">F7</div>
+    <div class="k k-f" data-key="F8"  data-code="F8">F8</div>
+    <div style="min-width:8px"></div>
+    <div class="k k-f" data-key="F9"  data-code="F9">F9</div>
+    <div class="k k-f" data-key="F10" data-code="F10">F10</div>
+    <div class="k k-f" data-key="F11" data-code="F11">F11</div>
+    <div class="k k-f" data-key="F12" data-code="F12">F12</div>
+    <div style="min-width:8px"></div>
+    <div class="k k-fn" data-key="PrintScreen" data-code="PrintScreen" title="PrtSc">Prt</div>
+    <div class="k k-fn" data-key="ScrollLock"  data-code="ScrollLock"  title="Scroll Lock">Scr</div>
+    <div class="k k-fn" data-key="Pause"        data-code="Pause"       title="Pause">Brk</div>
+  </div>
+
+  <!-- Row 1: Numbers -->
+  <div class="kr">
+    <div class="k" data-key="`" data-code="Backquote"><span>`</span><span class="sub">~</span></div>
+    <div class="k" data-key="1" data-code="Digit1"><span>1</span><span class="sub">!</span></div>
+    <div class="k" data-key="2" data-code="Digit2"><span>2</span><span class="sub">@</span></div>
+    <div class="k" data-key="3" data-code="Digit3"><span>3</span><span class="sub">#</span></div>
+    <div class="k" data-key="4" data-code="Digit4"><span>4</span><span class="sub">$</span></div>
+    <div class="k" data-key="5" data-code="Digit5"><span>5</span><span class="sub">%</span></div>
+    <div class="k" data-key="6" data-code="Digit6"><span>6</span><span class="sub">^</span></div>
+    <div class="k" data-key="7" data-code="Digit7"><span>7</span><span class="sub">&amp;</span></div>
+    <div class="k" data-key="8" data-code="Digit8"><span>8</span><span class="sub">*</span></div>
+    <div class="k" data-key="9" data-code="Digit9"><span>9</span><span class="sub">(</span></div>
+    <div class="k" data-key="0" data-code="Digit0"><span>0</span><span class="sub">)</span></div>
+    <div class="k" data-key="-" data-code="Minus"><span>-</span><span class="sub">_</span></div>
+    <div class="k" data-key="=" data-code="Equal"><span>=</span><span class="sub">+</span></div>
+    <div class="k k-backspace" data-key="Backspace" data-code="Backspace">⌫ Back</div>
+  </div>
+
+  <!-- Row 2: QWERTY -->
+  <div class="kr">
+    <div class="k k-tab" data-key="Tab" data-code="Tab">Tab ⇥</div>
+    <div class="k" data-key="q" data-code="KeyQ">Q</div>
+    <div class="k" data-key="w" data-code="KeyW">W</div>
+    <div class="k" data-key="e" data-code="KeyE">E</div>
+    <div class="k" data-key="r" data-code="KeyR">R</div>
+    <div class="k" data-key="t" data-code="KeyT">T</div>
+    <div class="k" data-key="y" data-code="KeyY">Y</div>
+    <div class="k" data-key="u" data-code="KeyU">U</div>
+    <div class="k" data-key="i" data-code="KeyI">I</div>
+    <div class="k" data-key="o" data-code="KeyO">O</div>
+    <div class="k" data-key="p" data-code="KeyP">P</div>
+    <div class="k" data-key="[" data-code="BracketLeft"><span>[</span><span class="sub">{</span></div>
+    <div class="k" data-key="]" data-code="BracketRight"><span>]</span><span class="sub">}</span></div>
+    <div class="k" data-key="\" data-code="Backslash"><span>\</span><span class="sub">|</span></div>
+  </div>
+
+  <!-- Row 3: ASDF -->
+  <div class="kr">
+    <div class="k k-caps" data-key="CapsLock" data-code="CapsLock">Caps ⇪</div>
+    <div class="k" data-key="a" data-code="KeyA">A</div>
+    <div class="k" data-key="s" data-code="KeyS">S</div>
+    <div class="k" data-key="d" data-code="KeyD">D</div>
+    <div class="k" data-key="f" data-code="KeyF">F</div>
+    <div class="k" data-key="g" data-code="KeyG">G</div>
+    <div class="k" data-key="h" data-code="KeyH">H</div>
+    <div class="k" data-key="j" data-code="KeyJ">J</div>
+    <div class="k" data-key="k" data-code="KeyK">K</div>
+    <div class="k" data-key="l" data-code="KeyL">L</div>
+    <div class="k" data-key=";" data-code="Semicolon"><span>;</span><span class="sub">:</span></div>
+    <div class="k" data-key="'" data-code="Quote"><span>'</span><span class="sub">"</span></div>
+    <div class="k k-enter" data-key="Enter" data-code="Enter">Enter ↵</div>
+  </div>
+
+  <!-- Row 4: ZXCV -->
+  <div class="kr">
+    <div class="k k-lshift" data-key="Shift" data-code="ShiftLeft">⇧ Shift</div>
+    <div class="k" data-key="z" data-code="KeyZ">Z</div>
+    <div class="k" data-key="x" data-code="KeyX">X</div>
+    <div class="k" data-key="c" data-code="KeyC">C</div>
+    <div class="k" data-key="v" data-code="KeyV">V</div>
+    <div class="k" data-key="b" data-code="KeyB">B</div>
+    <div class="k" data-key="n" data-code="KeyN">N</div>
+    <div class="k" data-key="m" data-code="KeyM">M</div>
+    <div class="k" data-key="," data-code="Comma"><span>,</span><span class="sub">&lt;</span></div>
+    <div class="k" data-key="." data-code="Period"><span>.</span><span class="sub">&gt;</span></div>
+    <div class="k" data-key="/" data-code="Slash"><span>/</span><span class="sub">?</span></div>
+    <div class="k k-rshift" data-key="Shift" data-code="ShiftRight">Shift ⇧</div>
+  </div>
+
+  <!-- Row 5: Bottom -->
+  <div class="kr">
+    <div class="k k-lctrl"  data-key="Control" data-code="ControlLeft">Ctrl</div>
+    <div class="k k-win"    data-key="Meta"    data-code="MetaLeft">⊞ Win</div>
+    <div class="k k-lalt"   data-key="Alt"     data-code="AltLeft">Alt</div>
+    <div class="k k-space"  data-key=" "       data-code="Space">SPACE</div>
+    <div class="k k-ralt"   data-key="Alt"     data-code="AltRight">Alt</div>
+    <div class="k k-win"    data-key="Meta"    data-code="MetaRight">⊞ Win</div>
+    <div class="k k-menu"   data-key="ContextMenu" data-code="ContextMenu">≡ Menu</div>
+    <div class="k k-rctrl"  data-key="Control" data-code="ControlRight">Ctrl</div>
+    <div style="min-width:8px"></div>
+    <div class="k k-fn" data-key="Insert"    data-code="Insert">Ins</div>
+    <div class="k k-fn" data-key="Home"      data-code="Home">Home</div>
+    <div class="k k-fn" data-key="PageUp"    data-code="PageUp">PgUp</div>
+    <div style="min-width:4px"></div>
+    <div class="k k-fn" data-key="ArrowUp"   data-code="ArrowUp">▲</div>
+  </div>
+
+  <!-- Row 6: Arrow keys -->
+  <div class="kr" style="justify-content: flex-end; padding-right: 0;">
+    <div style="flex:1"></div>
+    <div class="k k-fn" data-key="Delete"    data-code="Delete">Del</div>
+    <div class="k k-fn" data-key="End"       data-code="End">End</div>
+    <div class="k k-fn" data-key="PageDown"  data-code="PageDown">PgDn</div>
+    <div style="min-width:4px"></div>
+    <div class="k k-fn" data-key="ArrowLeft" data-code="ArrowLeft">◀</div>
+    <div class="k k-fn" data-key="ArrowDown" data-code="ArrowDown">▼</div>
+    <div class="k k-fn" data-key="ArrowRight"data-code="ArrowRight">▶</div>
+  </div>
+
+</div>
+
+<!-- status bar -->
+<div id="statusbar">
+  <div id="status-dot"></div>
+  <span id="status-text">Disconnected</span>
+  <span id="status-count">events: 0</span>
+</div>
+
+<!-- ── Mapping Panel (floating editor) ─────────────────────────────────── -->
+<div id="mapping-panel" class="mp-hidden">
+  <div id="mp-header">
+    <span id="mp-title">ASSIGN KEY</span>
+    <span id="mp-code-badge">—</span>
+  </div>
+  <div class="mp-row">
+    <label class="mp-lbl">LABEL</label>
+    <input id="mp-label" type="text" maxlength="10" placeholder="自定义名称（最多10字）" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="mp-row">
+    <label class="mp-lbl">CMD</label>
+    <select id="mp-cmd">
+      <option value="EXIT_APP">EXIT_APP — 退出程序</option>
+      <option value="SHOW_VK">SHOW_VK — 显示键盘</option>
+      <option value="HIDE_VK">HIDE_VK — 隐藏键盘</option>
+      <option value="RESET_VK">RESET_VK — 重置键盘</option>
+    </select>
+  </div>
+  <div id="mp-actions">
+    <button id="mp-confirm" class="mp-btn mp-ok">✓ 确认</button>
+    <button id="mp-clear"   class="mp-btn mp-del">✕ 解绑</button>
+    <button id="mp-cancel"  class="mp-btn mp-dim">✕ 取消</button>
+  </div>
+</div>
+
+<style>
+  /* ── mapping panel ── */
+  #mapping-panel {
+    position: fixed;
+    top: 50px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    min-width: 320px;
+    background: #141414;
+    border: 1px solid #00d4ff66;
+    border-radius: 6px;
+    box-shadow: 0 0 24px #00d4ff44, 0 4px 32px #000a;
+    padding: 14px 18px 12px;
+    font-family: var(--font);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  #mapping-panel.mp-hidden { display: none; }
+
+  #mp-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid #00d4ff33;
+    padding-bottom: 8px;
+  }
+  #mp-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #00d4ff;
+    letter-spacing: 2px;
+    text-shadow: 0 0 8px #00d4ffaa;
+  }
+  #mp-code-badge {
+    font-size: 11px;
+    color: var(--orange);
+    background: #e67e2218;
+    border: 1px solid #e67e2244;
+    border-radius: 3px;
+    padding: 1px 8px;
+    letter-spacing: 0.5px;
+  }
+
+  .mp-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .mp-lbl {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    min-width: 40px;
+    text-align: right;
+  }
+  #mp-label, #mp-cmd {
+    flex: 1;
+    font-family: var(--font);
+    font-size: 11px;
+    background: #1e1e1e;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 4px 8px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  #mp-label:focus, #mp-cmd:focus {
+    border-color: #00d4ff;
+    box-shadow: 0 0 6px #00d4ff44;
+  }
+  #mp-cmd option {
+    background: #1e1e1e;
+  }
+
+  #mp-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding-top: 2px;
+  }
+  .mp-btn {
+    font-family: var(--font);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 14px;
+    border-radius: 4px;
+    border: 1px solid;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: background .1s, box-shadow .1s;
+  }
+  .mp-ok  { color: var(--orange); border-color: var(--orange); background: #e67e2211; }
+  .mp-ok:hover  { background: var(--orange); color: #000; box-shadow: var(--glow); }
+  .mp-del { color: #e74c3c; border-color: #e74c3c88; background: #e74c3c11; }
+  .mp-del:hover { background: #e74c3c; color: #fff; }
+  .mp-dim { color: var(--text-dim); border-color: var(--border); background: transparent; }
+  .mp-dim:hover { color: var(--text); border-color: var(--text-dim); }
+</style>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const state = {
+  connected:  false,
+  capsLock:   false,
+  eventCount: 0,
+  pressedKeys: new Set(),
+  // ── mapping system ──
+  mode:       'exec',   // 'exec' | 'edit'
+  jsKeyMap:   {},       // code -> { label, command }
+  editingKey: null,     // code currently open in mapping panel
+};
+
+// ── DOM refs ───────────────────────────────────────────────────────────────
+const hudMsg    = document.getElementById('hud-msg');
+const hudKey    = document.getElementById('hud-key');
+const statusDot = document.getElementById('status-dot');
+const statusTxt = document.getElementById('status-text');
+const statusCnt = document.getElementById('status-count');
+const modeBtn   = document.getElementById('mode-btn');
+const mpPanel   = document.getElementById('mapping-panel');
+const mpCode    = document.getElementById('mp-code-badge');
+const mpLabel   = document.getElementById('mp-label');
+const mpCmd     = document.getElementById('mp-cmd');
+
+// ── Utility ────────────────────────────────────────────────────────────────
+function setStatus(connected, text) {
+  state.connected = connected;
+  statusDot.className = connected ? 'connected' : '';
+  statusTxt.textContent = text || (connected ? 'Connected to AHK' : 'Disconnected');
+}
+
+function setHudMsg(msg) {
+  hudMsg.textContent = msg;
+}
+
+function flashHudKey(label) {
+  hudKey.textContent = label;
+  hudKey.classList.add('active');
+  clearTimeout(hudKey._t);
+  hudKey._t = setTimeout(() => hudKey.classList.remove('active'), 600);
+}
+
+function incCount() {
+  state.eventCount++;
+  statusCnt.textContent = 'events: ' + state.eventCount;
+}
+
+// ── Mode management ────────────────────────────────────────────────────────
+function setMode(mode) {
+  state.mode = mode;
+  const isEdit = mode === 'edit';
+  modeBtn.textContent = isEdit ? '[ CONFIG ]' : '[ EXEC ]';
+  document.body.classList.toggle('edit-mode', isEdit);
+  if (!isEdit) closeMappingPanel();
+  updateHudMode();
+}
+
+function updateHudMode() {
+  const bound = Object.keys(state.jsKeyMap).length;
+  if (state.mode === 'edit') {
+    if (state.editingKey) {
+      const bound2 = state.jsKeyMap[state.editingKey];
+      setHudMsg(
+        'MODE: CONFIG | SELECTED: ' + state.editingKey +
+        (bound2 ? ' | CURRENT: ' + bound2.command : ' | UNBOUND')
+      );
+    } else {
+      setHudMsg('MODE: CONFIG — click a key to assign a command');
+    }
+  } else {
+    setHudMsg('MODE: EXEC | ACTIVE: ' + bound + ' key' + (bound !== 1 ? 's' : ''));
+  }
+}
+
+// ── Key map rendering ──────────────────────────────────────────────────────
+function renderKeyMap() {
+  document.querySelectorAll('.k').forEach(el => {
+    const code  = el.dataset.code;
+    const entry = state.jsKeyMap[code];
+    el.classList.toggle('active', !!entry);
+    // create/update the tiny label inside the key
+    let lbl = el.querySelector('.map-label');
+    if (!lbl) {
+      lbl = document.createElement('div');
+      lbl.className = 'map-label';
+      el.appendChild(lbl);
+    }
+    lbl.textContent = entry ? entry.label : '';
+  });
+  updateHudMode();
+}
+
+// ── Mapping panel ──────────────────────────────────────────────────────────
+function openMappingPanel(code) {
+  state.editingKey = code;
+  const entry = state.jsKeyMap[code];
+  mpCode.textContent   = code;
+  mpLabel.value        = entry ? entry.label   : '';
+  mpCmd.value          = entry ? entry.command : 'EXIT_APP';
+  mpPanel.classList.remove('mp-hidden');
+  // highlight the selected key
+  document.querySelectorAll('.k.mapping').forEach(e => e.classList.remove('mapping'));
+  findKeyEl(code)?.classList.add('mapping');
+  updateHudMode();
+  mpLabel.focus();
+}
+
+function closeMappingPanel() {
+  state.editingKey = null;
+  mpPanel.classList.add('mp-hidden');
+  document.querySelectorAll('.k.mapping').forEach(e => e.classList.remove('mapping'));
+  updateHudMode();
+}
+
+// ── Key element lookup ─────────────────────────────────────────────────────
+function findKeyEl(code) {
+  return document.querySelector(`.k[data-code="${code}"]`);
+}
+
+function highlightKey(code, durationMs = 400) {
+  const el = findKeyEl(code);
+  if (!el) return;
+  el.classList.add('pressed');
+  setTimeout(() => el.classList.remove('pressed'), durationMs);
+}
+
+// ── Post message to AHK ────────────────────────────────────────────────────
+function postToAhk(obj) {
+  if (window.chrome && window.chrome.webview) {
+    // postMessage(object) — WebView2 序列化对象为 JSON；AHK 侧用 WebMessageAsJson 读取
+    window.chrome.webview.postMessage(obj);
+    incCount();
+  }
+}
+
+// ── Handle click on a key ──────────────────────────────────────────────────
+function onKeyClick(el) {
+  const key  = el.dataset.key;
+  const code = el.dataset.code;
+
+  // ── edit mode: open assignment panel ──
+  if (state.mode === 'edit') {
+    openMappingPanel(code);
+    return;
+  }
+
+  // ── exec mode ──
+  if (code === 'CapsLock') {
+    state.capsLock = !state.capsLock;
+    el.classList.toggle('capslock-on', state.capsLock);
+  }
+
+  flashHudKey(key === ' ' ? 'Space' : (key.length === 1 ? key.toUpperCase() : key));
+  highlightKey(code, 300);
+
+  postToAhk({
+    type:      'keyPress',
+    key:       key,
+    code:      code,
+    capsLock:  state.capsLock,
+    timestamp: Date.now()
+  });
+}
+
+// ── Physical keyboard events ───────────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (state.pressedKeys.has(e.code)) return;
+  state.pressedKeys.add(e.code);
+  highlightKey(e.code, 200);
+  if (e.code === 'CapsLock') {
+    state.capsLock = !state.capsLock;
+    const el = findKeyEl('CapsLock');
+    if (el) el.classList.toggle('capslock-on', state.capsLock);
+  }
+  postToAhk({ type: 'keyDown', key: e.key, code: e.code, timestamp: Date.now() });
+});
+document.addEventListener('keyup', (e) => {
+  state.pressedKeys.delete(e.code);
+  postToAhk({ type: 'keyUp', key: e.key, code: e.code, timestamp: Date.now() });
+});
+
+// ── Attach click listeners ─────────────────────────────────────────────────
+document.querySelectorAll('.k').forEach(el => {
+  el.addEventListener('click', () => onKeyClick(el));
+});
+
+// ── AHK → JS message handler ───────────────────────────────────────────────
+/**
+ * Supported incoming message types from AHK:
+ *
+ *   { type: "highlight",  code: "KeyA",       duration: 500 }
+ *   { type: "setStatus",  text: "...",         connected: true }
+ *   { type: "setHud",     message: "..." }
+ *   { type: "reset" }
+ *   { type: "setCapsLock",value: true }
+ */
+function handleAhkMessage(msg) {
+  switch (msg.type) {
+    case 'highlight':
+      highlightKey(msg.code, msg.duration ?? 400);
+      flashHudKey(msg.code);
+      break;
+
+    case 'setStatus':
+      setStatus(msg.connected ?? true, msg.text);
+      break;
+
+    case 'setHud':
+      setHudMsg(msg.message ?? '');
+      break;
+
+    case 'reset':
+      state.pressedKeys.clear();
+      document.querySelectorAll('.k.pressed').forEach(el => el.classList.remove('pressed'));
+      state.capsLock = false;
+      document.querySelectorAll('.k-caps').forEach(el => el.classList.remove('capslock-on'));
+      break;
+
+    case 'setCapsLock':
+      state.capsLock = !!msg.value;
+      document.querySelectorAll('.k-caps').forEach(el =>
+        el.classList.toggle('capslock-on', state.capsLock));
+      break;
+
+    case 'loadMap':
+      // AHK pushed full key map: { "Escape": { label, command }, ... }
+      state.jsKeyMap = msg.map || {};
+      renderKeyMap();
+      break;
+
+    default:
+      console.warn('[VK] Unknown AHK msg type:', msg.type);
+  }
+}
+
+// ── WebView2 message listener ──────────────────────────────────────────────
+if (window.chrome && window.chrome.webview) {
+  // AHK 用 PostWebMessageAsJson(jsonStr) 发送，e.data 已是反序列化的 JS 对象
+  window.chrome.webview.addEventListener('message', (e) => {
+    try {
+      const msg = (typeof e.data === 'string') ? JSON.parse(e.data) : e.data;
+      handleAhkMessage(msg);
+    } catch (err) {
+      console.error('[VK] Parse error:', err, e.data);
+    }
+  });
+
+  // Notify AHK that the page is ready
+  postToAhk({ type: 'ready', timestamp: Date.now() });
+  setStatus(true, 'Connected to AHK');
+} else {
+  // Running in a plain browser (dev/preview mode)
+  setStatus(false, 'Preview mode (no AHK)');
+  setHudMsg('Preview mode — open via VirtualKeyboard.ahk to connect with AHK');
+
+  // Expose a mock for testing in browser devtools:
+  // simulateAhk({ type: "highlight", code: "KeyA" })
+  window.simulateAhk = (obj) => handleAhkMessage(obj);
+}
+
+// ── Mode button ────────────────────────────────────────────────────────────
+modeBtn.addEventListener('click', () => {
+  setMode(state.mode === 'exec' ? 'edit' : 'exec');
+});
+
+// ── Mapping panel buttons ──────────────────────────────────────────────────
+document.getElementById('mp-confirm').addEventListener('click', () => {
+  const code    = state.editingKey;
+  if (!code) return;
+  const label   = mpLabel.value.trim() || mpCmd.value.split(' ')[0];
+  const command = mpCmd.value;
+  // optimistic update in JS before AHK replies
+  state.jsKeyMap[code] = { label, command };
+  renderKeyMap();
+  postToAhk({ type: 'saveMapping', code, label, command });
+  closeMappingPanel();
+});
+
+document.getElementById('mp-clear').addEventListener('click', () => {
+  const code = state.editingKey;
+  if (!code) return;
+  delete state.jsKeyMap[code];
+  renderKeyMap();
+  postToAhk({ type: 'clearMapping', code });
+  closeMappingPanel();
+});
+
+document.getElementById('mp-cancel').addEventListener('click', () => {
+  closeMappingPanel();
+});
+
+// Close panel on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !mpPanel.classList.contains('mp-hidden')) {
+    e.preventDefault();
+    closeMappingPanel();
+  }
+});
+</script>
+</body>
+</html>
