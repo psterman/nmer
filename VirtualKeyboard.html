@@ -180,6 +180,26 @@ body::after {
   color: var(--cyan) !important;
   animation: none !important;
 }
+.k.mod-active {
+  border-color: #35ff88 !important;
+  color: #35ff88 !important;
+  box-shadow: 0 0 10px #35ff8899 !important;
+}
+.k.slot-occupied {
+  background: #2c1500;
+  border-color: var(--orange) !important;
+}
+.k.slot-available {
+  background: transparent;
+  border-color: #6e3f16 !important;
+}
+.k.ripple {
+  animation: ripplePulse 0.8s ease-out;
+}
+@keyframes ripplePulse {
+  0%   { box-shadow: 0 0 0 0 #e67e22aa; }
+  100% { box-shadow: 0 0 0 22px #e67e2200; }
+}
 .k:active, .k.pressed {
   background: #2a1a00;
   border-bottom-width: 1px;
@@ -265,6 +285,13 @@ body::after {
 #cmd-list-wrapper::-webkit-scrollbar { width: 6px; }
 #cmd-list-wrapper::-webkit-scrollbar-track { background: var(--bg); }
 #cmd-list-wrapper::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+.no-command-found {
+  padding: 28px 14px;
+  text-align: center;
+  color: var(--text-xs);
+  font-size: 12px;
+  letter-spacing: 2px;
+}
 
 .cmd-group-header {
   padding: 6px 14px 4px;
@@ -340,6 +367,13 @@ body::after {
   color: var(--cyan);
   border-color: var(--cyan);
   box-shadow: var(--glow-cyan);
+}
+#keyboard-zone.fade-switch .k .map-label {
+  animation: fadeSwitch .1s linear;
+}
+@keyframes fadeSwitch {
+  0% { opacity: .2; }
+  100% { opacity: 1; }
 }
 </style>
 </head>
@@ -521,6 +555,8 @@ const state = {
   filter:      'all',       // 'all' | categoryId
   search:      '',
   recording:   null,        // cmdId being recorded
+  activeMods:  { ctrl:false, alt:false, shift:false },
+  lastFilteredCmdIds: [],
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -618,6 +654,24 @@ function handleAhkMessage(msg) {
     case 'setHud':
       setHud(msg.message);
       break;
+    case 'modifierState':
+      state.activeMods = {
+        ctrl: !!msg.ctrl,
+        alt: !!msg.alt,
+        shift: !!msg.shift,
+      };
+      renderModifierKeys();
+      renderKeyboardSlots();
+      break;
+    case 'recordHint':
+      if (msg.active) {
+        state.recording = msg.commandId || state.recording;
+        renderCommandList();
+        setHud('MODE: CONFIG | SELECTED: ' + state.recording + ' | PRESS NEXT KEY');
+      } else {
+        stopRecording(false);
+      }
+      break;
     default:
       console.warn('[VK] Unknown AHK msg:', msg.type);
   }
@@ -636,7 +690,8 @@ function handleInit(msg) {
 
   renderSidebar();
   renderCommandList();
-  renderKeyboardLabels();
+  renderKeyboardSlots();
+  renderModifierKeys();
   setHud('已连接 · ' + Object.keys(state.bindings).length + ' 个绑定', true);
 }
 
@@ -660,7 +715,8 @@ function handleBindingUpdated(msg) {
   }
 
   renderCommandList();
-  renderKeyboardLabels();
+  renderKeyboardSlots();
+  renderModifierKeys();
   const bound = Object.keys(state.bindings).filter(k => state.bindings[k]?.ahkKey).length;
   setHud('已连接 · ' + bound + ' 个绑定');
 }
@@ -696,13 +752,16 @@ function renderCommandList() {
     ? state.categories
     : state.categories.filter(c => c.id === state.filter);
 
+  state.lastFilteredCmdIds = [];
   for (const cat of visibleCats) {
     const visibleCmds = cat.commands.filter(cmdId => {
       const cmd = state.commands[cmdId];
       if (!cmd) return false;
       if (!search) return true;
-      return cmd.name.includes(search) || cmdId.includes(search) ||
-             (cmd.desc && cmd.desc.includes(search));
+      const name = (cmd.name || '').toLowerCase();
+      const id   = cmdId.toLowerCase();
+      const desc = (cmd.desc || '').toLowerCase();
+      return name.includes(search) || id.includes(search) || desc.includes(search);
     });
     if (visibleCmds.length === 0) continue;
 
@@ -711,11 +770,19 @@ function renderCommandList() {
 
     for (const cmdId of visibleCmds) {
       container.appendChild(makeCmdRow(cmdId));
+      state.lastFilteredCmdIds.push(cmdId);
       total++;
     }
   }
 
   document.getElementById('cmd-count').textContent = total + ' 个命令';
+  if (total === 0) {
+    container.appendChild(mkEl('div', 'no-command-found', '[NO COMMAND FOUND]'));
+  } else if (total === 1) {
+    const onlyId = state.lastFilteredCmdIds[0];
+    const binding = state.bindings[onlyId];
+    if (binding?.ahkKey) triggerKeyRipple(binding.ahkKey);
+  }
 }
 
 function makeCmdRow(cmdId) {
@@ -778,31 +845,78 @@ function makeCmdRow(cmdId) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Render: Keyboard Labels
 // ═══════════════════════════════════════════════════════════════════════════
-function renderKeyboardLabels() {
-  // clear all
+function renderKeyboardSlots() {
+  const zone = document.getElementById('keyboard-zone');
+  zone.classList.remove('fade-switch');
+  void zone.offsetWidth;
+  zone.classList.add('fade-switch');
+  setTimeout(() => zone.classList.remove('fade-switch'), 120);
+
+  const prefix = getActivePrefix();
   document.querySelectorAll('.k').forEach(el => {
-    el.classList.remove('bound');
-    const lbl = el.querySelector('.map-label');
-    if (lbl) lbl.textContent = '';
-  });
-
-  for (const [cmdId, b] of Object.entries(state.bindings)) {
-    if (!b?.ahkKey) continue;
-    // plain ahkKey (no modifier prefix): find key element by data-ahkkey
-    const baseKey = b.ahkKey.replace(/[\^!+]/g, '');
-    const el = document.querySelector(`.k[data-ahkkey="${CSS.escape(baseKey)}"]`);
-    if (!el) continue;
-
-    el.classList.add('bound');
-    let lbl = el.querySelector('.map-label');
-    if (!lbl) {
-      lbl = document.createElement('div');
-      lbl.className = 'map-label';
-      el.appendChild(lbl);
+    const baseKey = el.dataset.ahkkey;
+    if (!baseKey) return;
+    const lbl = ensureMapLabel(el);
+    el.classList.remove('bound', 'slot-occupied', 'slot-available');
+    lbl.textContent = '';
+    if (isModifierBaseKey(baseKey)) return;
+    const lookup = prefix + baseKey;
+    const cmdId = state.ahkKeyIndex[lookup];
+    if (cmdId) {
+      el.classList.add('bound', 'slot-occupied');
+      const cmdName = state.commands[cmdId]?.name || cmdId;
+      lbl.textContent = cmdName.length > 6 ? cmdName.slice(0, 5) + '…' : cmdName;
+    } else {
+      el.classList.add('slot-available');
     }
-    const cmdName = state.commands[cmdId]?.name || cmdId;
-    lbl.textContent = cmdName.length > 6 ? cmdName.slice(0, 5) + '…' : cmdName;
+  });
+}
+
+function ensureMapLabel(el) {
+  let lbl = el.querySelector('.map-label');
+  if (!lbl) {
+    lbl = document.createElement('div');
+    lbl.className = 'map-label';
+    el.appendChild(lbl);
   }
+  return lbl;
+}
+
+function isModifierBaseKey(baseKey) {
+  return ['LCtrl','RCtrl','LAlt','RAlt','LShift','RShift','Ctrl','Alt','Shift'].includes(baseKey);
+}
+
+function getActivePrefix() {
+  return (state.activeMods.ctrl ? '^' : '')
+      +  (state.activeMods.alt ? '!' : '')
+      +  (state.activeMods.shift ? '+' : '');
+}
+
+function renderModifierKeys() {
+  const mod = state.activeMods;
+  document.querySelectorAll('.k.mod-active').forEach(el => el.classList.remove('mod-active'));
+  if (mod.ctrl) {
+    document.querySelectorAll('.k[data-ahkkey="LCtrl"], .k[data-ahkkey="RCtrl"]')
+      .forEach(el => el.classList.add('mod-active'));
+  }
+  if (mod.alt) {
+    document.querySelectorAll('.k[data-ahkkey="LAlt"], .k[data-ahkkey="RAlt"]')
+      .forEach(el => el.classList.add('mod-active'));
+  }
+  if (mod.shift) {
+    document.querySelectorAll('.k[data-ahkkey="LShift"], .k[data-ahkkey="RShift"]')
+      .forEach(el => el.classList.add('mod-active'));
+  }
+}
+
+function triggerKeyRipple(ahkKey) {
+  const base = ahkKey.replace(/[\^!+]/g, '');
+  const el = document.querySelector(`.k[data-ahkkey="${CSS.escape(base)}"]`);
+  if (!el) return;
+  el.classList.remove('ripple');
+  void el.offsetWidth;
+  el.classList.add('ripple');
+  setTimeout(() => el.classList.remove('ripple'), 820);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -819,35 +933,17 @@ function startRecording(cmdId) {
       ?.classList.add('recording-target');
   }
   setHud('MODE: CONFIG | RECORDING: ' + (state.commands[cmdId]?.name || cmdId));
-  document.addEventListener('keydown', onRecordKeydown);
+  postToAhk({ type: 'startRecord', commandId: cmdId });
 }
 
-function stopRecording() {
-  document.removeEventListener('keydown', onRecordKeydown);
+function stopRecording(restoreHud = true) {
   document.querySelectorAll('.k.recording-target').forEach(e => e.classList.remove('recording-target'));
   state.recording = null;
   renderCommandList();
-  const bound = Object.values(state.bindings).filter(b => b?.ahkKey).length;
-  setHud('已连接 · ' + bound + ' 个绑定');
-}
-
-function onRecordKeydown(e) {
-  // ignore lone modifier keys
-  if (['Control','Shift','Alt','Meta'].includes(e.key)) return;
-  e.preventDefault();
-  e.stopPropagation();
-
-  const cmdId     = state.recording;
-  const ahkKey    = buildAhkKey(e);
-  const displayKey = buildDisplayKey(e);
-
-  if (!ahkKey || ahkKey === 'Escape') {
-    stopRecording();
-    return;
+  if (restoreHud) {
+    const bound = Object.values(state.bindings).filter(b => b?.ahkKey).length;
+    setHud('已连接 · ' + bound + ' 个绑定');
   }
-
-  stopRecording();
-  postToAhk({ type: 'bindKey', commandId: cmdId, ahkKey, displayKey });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

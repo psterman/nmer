@@ -20,6 +20,9 @@ global g_VK_Gui          := 0
 global g_VK_WV2          := 0
 global g_VK_Ctrl         := 0
 global g_VK_Ready        := false
+global g_ModState        := Map("ctrl", false, "alt", false, "shift", false)
+global g_RecordCtx       := Map("active", false, "commandId", "")
+global g_RecordHook      := 0
 
 ; ===========================================================================
 ; 入口
@@ -339,6 +342,7 @@ _OnWebMessage(sender, args) {
             g_VK_Ready := true
             OutputDebug("[VK] WebView ready")
             _PushInit()
+            _PushModifierState()
 
         ; ── JS 录制到新按键，要求保存绑定 ─────────────────────────────
         case "bindKey":
@@ -348,6 +352,11 @@ _OnWebMessage(sender, args) {
             ahkKey     := msg["ahkKey"]
             displayKey := msg.Has("displayKey") ? msg["displayKey"] : ahkKey
             _DoBindKey(cmdId, ahkKey, displayKey)
+
+        ; ── 前端请求开始录制：由 AHK InputHook 捕获组合键 ─────────────────
+        case "startRecord":
+            if msg.Has("commandId")
+                _BeginRecord(msg["commandId"])
 
         ; ── 清除某命令的绑定 ────────────────────────────────────────────
         case "clearBinding":
@@ -416,6 +425,138 @@ _DoClearBinding(cmdId) {
     VK_SendToWeb('{"type":"bindingUpdated","commandId":"' . cmdId
         . '","ahkKey":"","displayKey":""}')
     OutputDebug("[VK] clearBinding: " . cmdId)
+}
+
+; ===========================================================================
+; 修饰键实时同步
+; ===========================================================================
+
+_UpdateModifierState() {
+    global g_ModState
+    g_ModState["ctrl"]  := GetKeyState("Ctrl", "P")
+    g_ModState["alt"]   := GetKeyState("Alt", "P")
+    g_ModState["shift"] := GetKeyState("Shift", "P")
+    _PushModifierState()
+}
+
+_PushModifierState() {
+    global g_ModState
+    VK_SendToWeb(
+        '{"type":"modifierState","ctrl":'  . (g_ModState["ctrl"]  ? "true" : "false")
+      . ',"alt":'                           . (g_ModState["alt"]   ? "true" : "false")
+      . ',"shift":'                         . (g_ModState["shift"] ? "true" : "false")
+      . '}'
+    )
+}
+
+; ===========================================================================
+; InputHook 录制链路
+; ===========================================================================
+
+_BeginRecord(commandId) {
+    global g_RecordHook, g_RecordCtx
+
+    ; 先停止旧录制
+    try _EndRecord()
+
+    g_RecordCtx["active"]    := true
+    g_RecordCtx["commandId"] := commandId
+
+    ih := InputHook("V")
+    ih.KeyOpt("{All}", "E")
+    ih.OnKeyDown := _OnRecordKeyDown
+    g_RecordHook := ih
+    ih.Start()
+
+    VK_SendToWeb('{"type":"recordHint","active":true,"commandId":"' . commandId . '"}')
+    OutputDebug("[VK] record start: " . commandId)
+}
+
+_EndRecord() {
+    global g_RecordHook, g_RecordCtx
+    if IsObject(g_RecordHook) {
+        try g_RecordHook.Stop()
+    }
+    g_RecordHook := 0
+    g_RecordCtx["active"]    := false
+    g_RecordCtx["commandId"] := ""
+}
+
+_OnRecordKeyDown(ih, vk, sc) {
+    global g_RecordCtx
+    if !g_RecordCtx["active"]
+        return
+
+    keyName := GetKeyName(Format("vk{:x}sc{:x}", vk, sc))
+    ; 仅修饰键本身不作为绑定终值
+    if _IsModifierOnlyKey(keyName)
+        return
+
+    isCtrl  := GetKeyState("Ctrl", "P")
+    isAlt   := GetKeyState("Alt", "P")
+    isShift := GetKeyState("Shift", "P")
+    ahkKey  := _NormalizeToAhkHotkey(keyName, isCtrl, isAlt, isShift)
+    if !ahkKey
+        return
+
+    cmdId := g_RecordCtx["commandId"]
+    _EndRecord()
+
+    displayKey := _ToDisplayKey(ahkKey)
+    _DoBindKey(cmdId, ahkKey, displayKey)
+    VK_SendToWeb('{"type":"recordHint","active":false,"commandId":"' . cmdId . '"}')
+    OutputDebug("[VK] record captured: " . cmdId . " => " . ahkKey)
+}
+
+_IsModifierOnlyKey(keyName) {
+    return keyName = "Ctrl"
+        || keyName = "Alt"
+        || keyName = "Shift"
+        || keyName = "LControl"
+        || keyName = "RControl"
+        || keyName = "LAlt"
+        || keyName = "RAlt"
+        || keyName = "LShift"
+        || keyName = "RShift"
+}
+
+_NormalizeToAhkHotkey(keyName, isCtrl, isAlt, isShift) {
+    mods := (isCtrl ? "^" : "") . (isAlt ? "!" : "") . (isShift ? "+" : "")
+    base := _KeyNameToAhkBase(keyName)
+    if !base
+        return ""
+    return mods . base
+}
+
+_KeyNameToAhkBase(keyName) {
+    ; 单字符
+    if StrLen(keyName) = 1 {
+        if RegExMatch(keyName, "^[A-Z]$")
+            return Format("{:L}", keyName)
+        return keyName
+    }
+    static map := Map(
+        "Escape","Escape","Esc","Escape",
+        "Enter","Enter","Tab","Tab","Space","Space",
+        "Backspace","Backspace","CapsLock","CapsLock",
+        "Delete","Delete","Del","Delete","Insert","Insert","Ins","Insert",
+        "Home","Home","End","End","PgUp","PgUp","PgDn","PgDn",
+        "Up","Up","Down","Down","Left","Left","Right","Right",
+        "PrintScreen","PrintScreen","ScrollLock","ScrollLock","Pause","Pause",
+        "AppsKey","AppsKey","LWin","LWin","RWin","RWin",
+        "NumpadDiv","NumpadDiv","NumpadMult","NumpadMult","NumpadSub","NumpadSub","NumpadAdd","NumpadAdd","NumpadEnter","NumpadEnter",
+        "NumpadDot","NumpadDot","NumpadIns","Numpad0","NumpadEnd","Numpad1","NumpadDown","Numpad2","NumpadPgDn","Numpad3",
+        "NumpadLeft","Numpad4","NumpadClear","Numpad5","NumpadRight","Numpad6","NumpadHome","Numpad7","NumpadUp","Numpad8","NumpadPgUp","Numpad9"
+    )
+    if RegExMatch(keyName, "^F([1-9]|1[0-2])$")
+        return keyName
+    if map.Has(keyName)
+        return map[keyName]
+    return ""
+}
+
+_ToDisplayKey(ahkKey) {
+    return _AhkKeyToDisplay(ahkKey)
 }
 
 ; ===========================================================================
@@ -552,6 +693,14 @@ VK_SendToWeb(jsonStr) {
     else
         VK_Show()
 }
+
+; 修饰键实时状态监听（不拦截按键）
+~Ctrl::    _UpdateModifierState()
+~Ctrl Up:: _UpdateModifierState()
+~Alt::     _UpdateModifierState()
+~Alt Up::  _UpdateModifierState()
+~Shift::   _UpdateModifierState()
+~Shift Up::_UpdateModifierState()
 
 ; ===========================================================================
 ; 备用 HTML
