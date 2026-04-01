@@ -52,6 +52,7 @@ global MainScriptDir := A_ScriptDir
 ; ===================== 包含新的剪贴板管理器模块 =====================
 #Include modules\ClipboardFTS5.ahk
 #Include modules\ClipboardHistoryPanel.ahk
+#Include modules\ClipboardPanelCore.ahk
 #Include modules\ShellIconCache.ahk
 #Include modules\FileClassifier.ahk
 
@@ -3089,6 +3090,8 @@ InitEverythingService()
 InitClipboardFTS5DB()
 ; 初始化粘贴板历史面板
 InitClipboardHistoryPanel()
+; 初始化 WebView2 剪贴板面板
+CP_Init()
 ; 初始化悬浮工具栏
 InitFloatingToolbar()
 ; 显示悬浮工具栏（随主脚本运行）
@@ -3654,7 +3657,7 @@ ShowSearchCenterFromMenu(*) {
 ; 显示剪贴板历史面板
 ShowClipboardFromMenu(*) {
     global TrayMenuGUI
-    ShowClipboardHistoryPanel()
+    CP_Show()
     ; 关闭菜单
     if (TrayMenuGUI != 0) {
         try {
@@ -3825,7 +3828,7 @@ CreateTrayMenuGUI() {
     TrayMenuGUI.SetFont("s10 cWhite", "Microsoft YaHei")
 
     ; 重点：直接在这里定义按钮，不要在循环里定义，或者确保闭包正确
-    AddMenuButton("📋 剪贴板管理", (*) => ShowClipboardHistoryPanel())
+    AddMenuButton("📋 剪贴板管理", (*) => CP_Show())
     AddMenuButton("🖼️ 截图助手", (*) => ExecuteScreenshot())
     AddMenuButton("⚙️ 隐藏工具栏", (*) => ToggleFloatingToolbar())
     
@@ -14610,7 +14613,7 @@ ExecuteFunction(FunctionName) {
             ExecutePrompt("Optimize")
         case "剪贴板管理":
             ; 打开粘贴板面板
-            ShowClipboardHistoryPanel()
+            CP_Show()
         case "模板管理":
             ; 跳转到模板管理标签页
             SwitchTab("prompts")
@@ -24123,7 +24126,7 @@ HandleDynamicHotkey(PressedKey, ActionType) {
                 CapsLockPaste()
             case "X":
                 CapsLock2 := false
-                ShowClipboardHistoryPanel()
+                CP_Show()
             case "E":
                 CapsLock2 := false
                 ExecutePrompt("Explain")
@@ -24571,7 +24574,7 @@ ExecuteQuickActionByType(Type) {
         case "Paste":
             CapsLockPaste()
         case "Clipboard":
-            ShowClipboardHistoryPanel()
+            CP_Show()
         case "Voice":
             StartVoiceInput()
         case "Split":

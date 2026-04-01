@@ -262,10 +262,9 @@ CreateHistoryPanelGUI() {
         
         ; 添加悬停效果（如果 HoverBtnWithAnimation 函数可用）
         try {
-            hoverFunc := HoverBtnWithAnimation
-            if (IsSet(hoverFunc)) {
-                HoverBtnWithAnimation(tagButton, BgColor, HistoryColors.TagBgActive)
-            }
+            _hoverFn := %"HoverBtnWithAnimation"%
+            if (_hoverFn is Func)
+                _hoverFn.Call(tagButton, BgColor, HistoryColors.TagBgActive)
         } catch {
             ; 如果函数不可用，忽略错误
         }
@@ -1777,10 +1776,9 @@ UpdateHistoryTagButtons() {
             
             ; 更新悬停效果（如果 HoverBtnWithAnimation 函数可用）
             try {
-                hoverFunc := HoverBtnWithAnimation
-                if (IsSet(hoverFunc)) {
-                    HoverBtnWithAnimation(button, BgColor, HistoryColors.TagBgActive)
-                }
+                _hoverFn := %"HoverBtnWithAnimation"%
+                if (_hoverFn is Func)
+                    _hoverFn.Call(button, BgColor, HistoryColors.TagBgActive)
             } catch {
                 ; 如果函数不可用，忽略错误
             }

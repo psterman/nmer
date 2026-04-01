@@ -260,7 +260,7 @@ _ClipboardFTS5_GetEverythingResults(keyword, maxResults := 10, includeFolders :=
     ; 使用 try-catch 安全地尝试调用主脚本函数
     try {
         ; 直接调用函数，如果函数不存在会抛出异常
-        result := GetEverythingResults(keyword, maxResults, includeFolders)
+        result := (%"GetEverythingResults"%).Call(keyword, maxResults, includeFolders)
         if (IsObject(result)) {
             return result
         }
