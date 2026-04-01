@@ -494,6 +494,9 @@ body::after {
 /* ANSI 风格加宽键（与主键区 flex 配合） */
 .k-bks  { flex: 2.25 1 0 !important; min-width: 34px; }
 .k-tab  { flex: 1.55 1 0 !important; min-width: 38px; }
+.pt-tabs { display: flex; gap: 6px; margin: 4px 0 8px; flex-wrap: wrap; }
+.pt-tab { padding: 4px 10px; border: 1px solid #333; border-radius: 6px; color: #bbb; background: #171717; cursor: pointer; font-size: 12px; }
+.pt-tab.active { color: #ff8c2a; border-color: #ff8c2a; }
 .k-caps { flex: 1.65 1 0 !important; min-width: 42px; }
 .k-enter{ flex: 2.15 1 0 !important; min-width: 48px; }
 .k-lsh  { flex: 2.05 1 0 !important; min-width: 52px; }
@@ -877,6 +880,7 @@ const state = {
   suggestedBindings: {},    // cmdId -> 单键（CursorHelper CapsLock+ 默认）
   suggestedByKey: {},       // 单键 -> cmdId（无修饰时用于键帽提示）
   filter:      'all',       // 'all' | categoryId
+  promptTplTab: '基础',      // 提示词右侧 6 标签
   search:      '',
   recording:   null,        // cmdId being recorded
   focusedCmdId: null,       // 当前右侧选中的命令（聚焦模式）
@@ -1115,6 +1119,17 @@ function renderCommandList() {
   container.innerHTML = '';
   let total = 0;
 
+  if (state.filter === 'prompt_templates') {
+    const ptCats = ['基础', '专业', '改错', '优化', '解释', '重构'];
+    const tabs = mkEl('div', 'pt-tabs', '');
+    for (const c of ptCats) {
+      const t = mkEl('div', 'pt-tab' + (state.promptTplTab === c ? ' active' : ''), c);
+      t.addEventListener('click', () => { state.promptTplTab = c; renderCommandList(); });
+      tabs.appendChild(t);
+    }
+    container.appendChild(tabs);
+  }
+
   const visibleCats = state.filter === 'all'
     ? state.categories
     : state.categories.filter(c => c.id === state.filter);
@@ -1124,6 +1139,9 @@ function renderCommandList() {
     const visibleCmds = cat.commands.filter(cmdId => {
       const cmd = state.commands[cmdId];
       if (!cmd) return false;
+      if (state.filter === 'prompt_templates') {
+        if ((cmd.ptCategory || '基础') !== state.promptTplTab) return false;
+      }
       if (!search) return true;
       const name = (cmd.name || '').toLowerCase();
       const id   = cmdId.toLowerCase();
@@ -1132,8 +1150,10 @@ function renderCommandList() {
     });
     if (visibleCmds.length === 0) continue;
 
-    const hdr = mkEl('div', 'cmd-group-header', cat.name);
-    container.appendChild(hdr);
+    if (state.filter !== 'prompt_templates') {
+      const hdr = mkEl('div', 'cmd-group-header', cat.name);
+      container.appendChild(hdr);
+    }
 
     for (const cmdId of visibleCmds) {
       container.appendChild(makeCmdRow(cmdId));

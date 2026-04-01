@@ -183,8 +183,11 @@ _VK_StripDynamicPromptCommands() {
         return
     newCats := []
     for cat in cats {
-        if cat is Map && cat.Has("id") && cat["id"] = "prompt_templates"
-            continue
+        if cat is Map && cat.Has("id") {
+            cid := cat["id"]
+            if (cid = "prompt_templates" || SubStr(cid, 1, 11) = "prompt_tpl_")
+                continue
+        }
         newCats.Push(cat)
     }
     g_Commands["Categories"] := newCats
@@ -212,18 +215,67 @@ _VK_MergePromptTemplateCommands() {
         return
 
     cmdIds := []
+    seenTpl := Map()
     for Template in PromptTemplates {
-        if !IsObject(Template) || !Template.HasProp("ID") || Template.ID = ""
+        if !IsObject(Template)
             continue
-        cmdId := "pt_" . Template.ID
-        name := Template.HasProp("Title") && Template.Title != "" ? Template.Title : Template.ID
+        tplId := ""
+        tplTitle := ""
+        tplCat := ""
+        tplSeries := ""
+        if (Template is Map) {
+            tplId := Template.Get("ID", "")
+            tplTitle := Template.Get("Title", "")
+            tplCat := Template.Get("Category", "")
+            tplSeries := Template.Get("Series", "")
+        } else {
+            if (Template.HasProp("ID"))
+                tplId := Template.ID
+            if (Template.HasProp("Title"))
+                tplTitle := Template.Title
+            if (Template.HasProp("Category"))
+                tplCat := Template.Category
+            if (Template.HasProp("Series"))
+                tplSeries := Template.Series
+        }
+        if (tplId = "")
+            continue
+        if seenTpl.Has(tplId)
+            continue
+        seenTpl[tplId] := true
+        cmdId := "pt_" . tplId
+        name := (tplTitle != "") ? tplTitle : tplId
         desc := "发送到 Cursor 聊天（可在虚拟键盘中绑定快捷键）"
-        g_Commands["CommandList"][cmdId] := Map("name", name, "desc", desc, "fn", "PT_RUN")
+        ptCategory := "基础"
+        tcat := Trim(tplCat)
+        tseries := Trim(tplSeries)
+        switch tcat {
+            case "专业":
+                ptCategory := "专业"
+            case "改错":
+                ptCategory := "改错"
+            case "优化":
+                ptCategory := "优化"
+            case "解释":
+                ptCategory := "解释"
+            case "重构":
+                ptCategory := "重构"
+            default:
+                switch tseries {
+                    case "Professional":
+                        ptCategory := "专业"
+                    case "BugFix":
+                        ptCategory := "改错"
+                    case "Basic":
+                        ptCategory := "基础"
+                    default:
+                        ptCategory := "基础"
+                }
+        }
+        g_Commands["CommandList"][cmdId] := Map("name", name, "desc", desc, "fn", "PT_RUN", "ptCategory", ptCategory)
         cmdIds.Push(cmdId)
     }
-    if cmdIds.Length = 0
-        return
-    g_Commands["Categories"].Push(Map("id", "prompt_templates", "name", "提示词模板", "commands", cmdIds))
+    g_Commands["Categories"].Push(Map("id", "prompt_templates", "name", "提示词", "commands", cmdIds))
 }
 
 _VK_RefreshPromptTemplateCommands() {
@@ -865,7 +917,8 @@ _PushInit() {
         nm := _JsonStr(v["name"])
         desc := _JsonStr(v["desc"])
         fn := v.Has("fn") ? _JsonStr(v["fn"]) : '""'
-        clJson .= sep2 . _JsonStr(cmdId) . ':{"name":' . nm . ',"desc":' . desc . ',"fn":' . fn . '}'
+        ptCategory := v.Has("ptCategory") ? _JsonStr(v["ptCategory"]) : '""'
+        clJson .= sep2 . _JsonStr(cmdId) . ':{"name":' . nm . ',"desc":' . desc . ',"fn":' . fn . ',"ptCategory":' . ptCategory . '}'
         sep2 := ","
     }
     clJson .= "}"
