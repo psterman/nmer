@@ -542,33 +542,13 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
     }
 }
 
-; 启动或前台显示 VirtualKeyboard.ahk（窗口标题见 VirtualKeyboard.ahk 内 Gui）
+; 同进程虚拟键盘（VirtualKeyboardCore）；懒加载并切换显示/隐藏
 FloatingToolbarActivateVirtualKeyboard() {
-    vkScript := A_ScriptDir . "\VirtualKeyboard.ahk"
-    if (!FileExist(vkScript)) {
-        try {
-            TrayTip("未找到 VirtualKeyboard.ahk: " . vkScript, "虚拟键盘", "Iconx 2")
-        } catch {
-        }
-        return
-    }
-    ; 已运行时显示并激活（避免 #SingleInstance 再次 Run 重启脚本）
-    vkWin := "VK KeyBinder ahk_class AutoHotkeyGUI"
-    if (!WinExist(vkWin))
-        vkWin := "VK KeyBinder"
-    if (WinExist(vkWin)) {
-        try {
-            WinShow(vkWin)
-            WinActivate(vkWin)
-        } catch {
-        }
-        return
-    }
     try {
-        Run('"' . A_AhkPath . '" "' . vkScript . '"', A_ScriptDir)
+        VK_ToggleEmbedded()
     } catch as err {
         try {
-            TrayTip("启动虚拟键盘失败: " . err.Message, "虚拟键盘", "Iconx 2")
+            TrayTip("虚拟键盘不可用: " . err.Message, "虚拟键盘", "Iconx 2")
         } catch {
         }
     }

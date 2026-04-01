@@ -29,6 +29,7 @@ A_TrayMenu.Delete()  ; 删除所有默认菜单项
 ; 包含 lib 文件夹中的 Class_SQLiteDB.ahk（AHK v2 版本）
 #Include lib\Class_SQLiteDB.ahk
 #Include lib\Jxon.ahk
+#Include lib\WebView2.ahk
 
 ; ===================== 包含 OCR 模块 =====================
 ; 包含 lib 文件夹中的 OCR.ahk（用于识图取词功能）
@@ -2260,6 +2261,8 @@ SavePromptTemplates() {
     
     ; 同步到数据库
     SyncPromptTemplatesToDB()
+
+    try VK_OnPromptTemplatesSaved()
 }
 
 ; 根据ID获取模板
@@ -5603,6 +5606,14 @@ ExecutePrompt(Type, TemplateID := "") {
     } catch as e {
         MsgBox("执行失败: " . e.Message)
     }
+}
+
+; 虚拟键盘 / 外部 vkExec：按模板 ID 走与 Explain 相同的 Cursor 发送流程
+ExecutePromptByTemplateId(TemplateID) {
+    if (TemplateID = "") {
+        return
+    }
+    ExecutePrompt("Explain", TemplateID)
 }
 
 ; ===================== 分割代码功能 =====================
@@ -23800,34 +23811,16 @@ p:: {
 
 #HotIf  ; 结束 IsSearchCenterActive() && GetCapsLockState() 作用域
 
-; ===================== 激活快捷操作按钮 =====================
-ActivateQuickActionButton(Index) {
-    global QuickActionButtons, PanelVisible, CapsLock2
-    
-    ; 检查面板是否显示
-    if (!PanelVisible) {
-        return
-    }
-    
-    ; 检查索引是否有效
-    if (Index < 1 || Index > QuickActionButtons.Length) {
-        return
-    }
-    
-    ; 获取按钮配置
-    Button := QuickActionButtons[Index]
-    if (!IsObject(Button) || !Button.HasProp("Type")) {
-        return
-    }
-    
-    ; 隐藏面板
+; ===================== 快捷操作（设置「快捷按钮」同款，可从任意上下文调用）=====================
+ExecuteQuickActionByType(Type) {
+    global CapsLock2, PanelVisible
+
     CapsLock2 := false
     if (PanelVisible) {
         HideCursorPanel()
     }
-    
-    ; 执行对应的操作
-    switch Button.Type {
+
+    switch Type {
         case "Explain":
             ExecutePrompt("Explain")
         case "Refactor":
@@ -23849,24 +23842,55 @@ ActivateQuickActionButton(Index) {
         case "Batch":
             BatchOperation()
         case "CommandPalette":
-            ExecuteCursorShortcut("^+p")  ; Ctrl + Shift + P
+            ExecuteCursorShortcut("^+p")
         case "Terminal":
-            ExecuteCursorShortcut("^+``")  ; Ctrl + Shift + `
+            ExecuteCursorShortcut("^+``")
         case "GlobalSearch":
-            ExecuteCursorShortcut("^+f")  ; Ctrl + Shift + F
+            ExecuteCursorShortcut("^+f")
         case "Explorer":
-            ExecuteCursorShortcut("^+e")  ; Ctrl + Shift + E
+            ExecuteCursorShortcut("^+e")
         case "SourceControl":
-            ExecuteCursorShortcut("^+g")  ; Ctrl + Shift + G
+            ExecuteCursorShortcut("^+g")
         case "Extensions":
-            ExecuteCursorShortcut("^+x")  ; Ctrl + Shift + X
+            ExecuteCursorShortcut("^+x")
         case "Browser":
-            ExecuteCursorShortcut("^+b")  ; Ctrl + Shift + B
+            ExecuteCursorShortcut("^+b")
         case "Settings":
-            ExecuteCursorShortcut("^+j")  ; Ctrl + Shift + J
+            ExecuteCursorShortcut("^+j")
         case "CursorSettings":
-            ExecuteCursorShortcut("^,")  ; Ctrl + ,
+            ExecuteCursorShortcut("^,")
     }
+}
+
+; 按槽位执行当前 ini 配置的快捷按钮（虚拟键盘 ch_1–ch_5 等，无需先打开面板）
+ExecuteQuickActionSlot(Index) {
+    global QuickActionButtons
+
+    if (Index < 1 || Index > QuickActionButtons.Length) {
+        return
+    }
+    Button := QuickActionButtons[Index]
+    if (!IsObject(Button) || !Button.HasProp("Type")) {
+        return
+    }
+    ExecuteQuickActionByType(Button.Type)
+}
+
+; ===================== 激活快捷操作按钮（仅面板显示时 CapsLock+1–5）=====================
+ActivateQuickActionButton(Index) {
+    global QuickActionButtons, PanelVisible
+
+    if (!PanelVisible) {
+        return
+    }
+    if (Index < 1 || Index > QuickActionButtons.Length) {
+        return
+    }
+    Button := QuickActionButtons[Index]
+    if (!IsObject(Button) || !Button.HasProp("Type")) {
+        return
+    }
+    ExecuteQuickActionByType(Button.Type)
 }
 
 ; ===================== 动态快捷键处理 =====================
@@ -33372,6 +33396,7 @@ ExitFunc(ExitReason, ExitCode) {
             ; 忽略关闭错误
         }
     }
+    try VK_OnHostExit()
 }
 
 ; ===================== 截图助手预览窗 =====================
@@ -34791,7 +34816,9 @@ SaveScreenshotToFile() {
     }
 }
 
-; ========== VirtualKeyboard：WM_COPYDATA 互操作（vkExec / bindingsReloaded）==========
+; ========== VirtualKeyboard：同进程 Core + 对外 WM_COPYDATA（独立 VK 进程）==========
+#Include modules\VirtualKeyboardExecCmd.ahk
+#Include modules\VirtualKeyboardCore.ahk
 #Include modules\VirtualKeyboardInterop.ahk
 
 OnExit(ExitFunc)

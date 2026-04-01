@@ -31,6 +31,42 @@
       "commands": ["ch_1", "ch_2", "ch_3", "ch_4", "ch_5"]
     },
     {
+      "id": "quickaction_capslock_mapping",
+      "name": "快捷按钮 · 映射到 CapsLock 分类（去重）",
+      "commands": [
+        "ch_e",
+        "ch_r",
+        "ch_o",
+        "ch_q",
+        "ch_c",
+        "ch_v",
+        "ch_x",
+        "ch_z",
+        "ch_b",
+        "ch_1",
+        "ch_2",
+        "ch_3",
+        "ch_4",
+        "ch_5"
+      ]
+    },
+    {
+      "id": "quickaction_extended",
+      "name": "快捷按钮 · 扩展动作（独有）",
+      "commands": [
+        "qa_split",
+        "qa_command_palette",
+        "qa_terminal",
+        "qa_global_search",
+        "qa_explorer",
+        "qa_source_control",
+        "qa_extensions",
+        "qa_browser",
+        "qa_settings",
+        "qa_cursor_settings"
+      ]
+    },
+    {
       "id": "cursor",
       "name": "光标助手",
       "commands": ["cursor_open", "cursor_close"]
@@ -154,27 +190,77 @@
     },
     "ch_1": {
       "name": "快捷按钮 1",
-      "desc": "CursorHelper：CapsLock+1，面板内第 1 个快捷按钮",
+      "desc": "CapsLock+1（需面板）/ VK ch_1：执行第1槽配置（在设置→快捷操作按钮配置）",
       "fn": "CH_RUN"
     },
     "ch_2": {
       "name": "快捷按钮 2",
-      "desc": "CursorHelper：CapsLock+2",
+      "desc": "CapsLock+2（需面板）/ VK ch_2：执行第2槽配置（在设置→快捷操作按钮配置）",
       "fn": "CH_RUN"
     },
     "ch_3": {
       "name": "快捷按钮 3",
-      "desc": "CursorHelper：CapsLock+3",
+      "desc": "CapsLock+3（需面板）/ VK ch_3：执行第3槽配置（在设置→快捷操作按钮配置）",
       "fn": "CH_RUN"
     },
     "ch_4": {
       "name": "快捷按钮 4",
-      "desc": "CursorHelper：CapsLock+4",
+      "desc": "CapsLock+4（需面板）/ VK ch_4：执行第4槽配置（在设置→快捷操作按钮配置）",
       "fn": "CH_RUN"
     },
     "ch_5": {
       "name": "快捷按钮 5",
-      "desc": "CursorHelper：CapsLock+5",
+      "desc": "CapsLock+5（需面板）/ VK ch_5：执行第5槽配置（在设置→快捷操作按钮配置）",
+      "fn": "CH_RUN"
+    },
+    "qa_split": {
+      "name": "拆分代码",
+      "desc": "快捷按钮独有：Split（拆分代码，不等同于 CapsLock+S 方向键）",
+      "fn": "CH_RUN"
+    },
+    "qa_command_palette": {
+      "name": "命令面板",
+      "desc": "Cursor：Ctrl+Shift+P",
+      "fn": "CH_RUN"
+    },
+    "qa_terminal": {
+      "name": "终端",
+      "desc": "Cursor：Ctrl+Shift+`",
+      "fn": "CH_RUN"
+    },
+    "qa_global_search": {
+      "name": "全局搜索",
+      "desc": "Cursor：Ctrl+Shift+F",
+      "fn": "CH_RUN"
+    },
+    "qa_explorer": {
+      "name": "资源管理器",
+      "desc": "Cursor：Ctrl+Shift+E",
+      "fn": "CH_RUN"
+    },
+    "qa_source_control": {
+      "name": "源代码管理",
+      "desc": "Cursor：Ctrl+Shift+G",
+      "fn": "CH_RUN"
+    },
+    "qa_extensions": {
+      "name": "扩展",
+      "desc": "Cursor：Ctrl+Shift+X",
+      "fn": "CH_RUN"
+    },
+    "qa_browser": {
+      "name": "简单浏览器",
+      "desc": "Cursor：Ctrl+Shift+B",
+      "fn": "CH_RUN"
+    },
+    "qa_settings": {
+      "name": "VS Code 设置",
+      "desc": "Cursor：Ctrl+Shift+J",
+      "fn": "CH_RUN"
+    },
+    "qa_cursor_settings": {
+      "name": "Cursor 设置",
+      "desc": "Cursor：Ctrl+,",
       "fn": "CH_RUN"
     },
     "cursor_open": {
