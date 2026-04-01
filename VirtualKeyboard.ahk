@@ -204,7 +204,22 @@ _SerializeCommands() {
     }
     bJson .= "}"
 
-    return '{"Categories":' . catJson . ',"CommandList":' . clJson . ',"Bindings":' . bJson . '}'
+    ; ── SuggestedBindings（cmdId -> 单键，与 CursorHelper CapsLock+ 对应，仅 UI 提示，不注册全局热键） ──
+    sbJson := "{"
+    sepS   := ""
+    if g_Commands.Has("SuggestedBindings") {
+        sbMap := g_Commands["SuggestedBindings"]
+        if sbMap is Map {
+            for cmdId, key in sbMap {
+                sbJson .= sepS . _JsonStr(cmdId) . ":" . _JsonStr(key)
+                sepS   := ","
+            }
+        }
+    }
+    sbJson .= "}"
+
+    return '{"Categories":' . catJson . ',"CommandList":' . clJson . ',"Bindings":' . bJson
+        . ',"SuggestedBindings":' . sbJson . '}'
 }
 
 ; ---------------------------------------------------------------------------
@@ -273,6 +288,9 @@ _ExecuteCommand(cmdId) {
         case "WIN_CLOSE":    try WinClose("A")
         case "CURSOR_OPEN":  OutputDebug("[VK] CURSOR_OPEN: hook here")
         case "CURSOR_CLOSE": OutputDebug("[VK] CURSOR_CLOSE: hook here")
+        case "CH_RUN":
+            if !NotifyScript("CursorHelper", '{"type":"vkExec","cmdId":"' . cmdId . '"}')
+                OutputDebug("[VK] CH_RUN " . cmdId . " — CursorHelper 未运行或未处理 vkExec")
         default:             OutputDebug("[VK] Unhandled fn: " . fn)
     }
 }
@@ -784,10 +802,25 @@ _PushInit() {
     for cmdId, v in cmdList {
         nm   := _JsonStr(v["name"])
         desc := _JsonStr(v["desc"])
-        clJson .= sep2 . _JsonStr(cmdId) . ':{"name":' . nm . ',"desc":' . desc . '}'
+        fn   := v.Has("fn") ? _JsonStr(v["fn"]) : '""'
+        clJson .= sep2 . _JsonStr(cmdId) . ':{"name":' . nm . ',"desc":' . desc . ',"fn":' . fn . '}'
         sep2   := ","
     }
     clJson .= "}"
+
+    ; ── suggestedBindings ─────────────────────────────────────────────────
+    sbJson := "{"
+    sepSb  := ""
+    if g_Commands.Has("SuggestedBindings") {
+        sbMap := g_Commands["SuggestedBindings"]
+        if sbMap is Map {
+            for sid, skey in sbMap {
+                sbJson .= sepSb . _JsonStr(sid) . ":" . _JsonStr(skey)
+                sepSb  := ","
+            }
+        }
+    }
+    sbJson .= "}"
 
     ; ── bindings (commandId -> {ahkKey, displayKey}) ──────────────────────
     bJson := "{"
@@ -802,7 +835,8 @@ _PushInit() {
 
     payload := '{"type":"init","categories":' . catJson
             . ',"commands":'  . clJson
-            . ',"bindings":'  . bJson . '}'
+            . ',"bindings":'  . bJson
+            . ',"suggestedBindings":' . sbJson . '}'
     VK_SendToWeb(payload)
     OutputDebug("[VK] init pushed")
 }

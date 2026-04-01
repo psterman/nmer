@@ -1,1 +1,218 @@
-﻿{"Categories":[{"id":"system","name":"系统","commands":["sys_exit","sys_show_vk","sys_hide_vk","sys_reset_vk"]},{"id":"window","name":"窗口","commands":["win_min","win_close"]},{"id":"cursor","name":"光标助手","commands":["cursor_open","cursor_close"]}],"CommandList":{"cursor_close":{"name":"关闭光标面板","desc":"隐藏光标助手面板","fn":"CURSOR_CLOSE"},"cursor_open":{"name":"打开光标面板","desc":"显示光标助手面板","fn":"CURSOR_OPEN"},"sys_exit":{"name":"退出程序","desc":"退出 CursorHelper 脚本","fn":"EXIT_APP"},"sys_hide_vk":{"name":"隐藏虚拟键盘","desc":"关闭虚拟键盘窗口","fn":"HIDE_VK"},"sys_reset_vk":{"name":"重置键盘","desc":"清除所有高亮状态","fn":"RESET_VK"},"sys_show_vk":{"name":"显示虚拟键盘","desc":"打开虚拟键盘窗口","fn":"SHOW_VK"},"win_close":{"name":"关闭窗口","desc":"关闭当前活动窗口","fn":"WIN_CLOSE"},"win_min":{"name":"最小化窗口","desc":"最小化当前活动窗口","fn":"WIN_MIN"}},"Bindings":{"Escape":"sys_exit"}}
+{
+  "Categories": [
+    {
+      "id": "system",
+      "name": "系统",
+      "commands": ["sys_exit", "sys_show_vk", "sys_hide_vk", "sys_reset_vk"]
+    },
+    {
+      "id": "window",
+      "name": "窗口",
+      "commands": ["win_min", "win_close"]
+    },
+    {
+      "id": "ch_clipboard_ai",
+      "name": "CapsLock · 剪贴板与 AI",
+      "commands": ["ch_c", "ch_v", "ch_x", "ch_e", "ch_r", "ch_o"]
+    },
+    {
+      "id": "ch_panel",
+      "name": "CapsLock · 面板与工具",
+      "commands": ["ch_q", "ch_z", "ch_f", "ch_g", "ch_b", "ch_t", "ch_p"]
+    },
+    {
+      "id": "ch_wasd",
+      "name": "CapsLock · 方向 WASD",
+      "commands": ["ch_w", "ch_s", "ch_a", "ch_d"]
+    },
+    {
+      "id": "ch_quick",
+      "name": "CapsLock · 快捷按钮 1–5",
+      "commands": ["ch_1", "ch_2", "ch_3", "ch_4", "ch_5"]
+    },
+    {
+      "id": "cursor",
+      "name": "光标助手",
+      "commands": ["cursor_open", "cursor_close"]
+    }
+  ],
+  "CommandList": {
+    "sys_exit": {
+      "name": "退出程序",
+      "desc": "退出 VirtualKeyboard / 宿主脚本（默认绑定见 Bindings）",
+      "fn": "EXIT_APP"
+    },
+    "sys_show_vk": {
+      "name": "显示虚拟键盘",
+      "desc": "打开虚拟键盘窗口",
+      "fn": "SHOW_VK"
+    },
+    "sys_hide_vk": {
+      "name": "隐藏虚拟键盘",
+      "desc": "关闭虚拟键盘窗口",
+      "fn": "HIDE_VK"
+    },
+    "sys_reset_vk": {
+      "name": "重置键盘高亮",
+      "desc": "清除键帽高亮状态",
+      "fn": "RESET_VK"
+    },
+    "win_min": {
+      "name": "最小化窗口",
+      "desc": "最小化当前活动窗口",
+      "fn": "WIN_MIN"
+    },
+    "win_close": {
+      "name": "关闭窗口",
+      "desc": "关闭当前活动窗口",
+      "fn": "WIN_CLOSE"
+    },
+    "ch_c": {
+      "name": "连续复制",
+      "desc": "CursorHelper：CapsLock+C，连续复制",
+      "fn": "CH_RUN"
+    },
+    "ch_v": {
+      "name": "合并粘贴",
+      "desc": "CursorHelper：CapsLock+V",
+      "fn": "CH_RUN"
+    },
+    "ch_x": {
+      "name": "剪贴板管理",
+      "desc": "CursorHelper：CapsLock+X，打开剪贴板管理面板",
+      "fn": "CH_RUN"
+    },
+    "ch_e": {
+      "name": "AI 解释",
+      "desc": "CursorHelper：CapsLock+E，Explain",
+      "fn": "CH_RUN"
+    },
+    "ch_r": {
+      "name": "AI 重构",
+      "desc": "CursorHelper：CapsLock+R，Refactor",
+      "fn": "CH_RUN"
+    },
+    "ch_o": {
+      "name": "AI 优化",
+      "desc": "CursorHelper：CapsLock+O，Optimize",
+      "fn": "CH_RUN"
+    },
+    "ch_q": {
+      "name": "打开配置",
+      "desc": "CursorHelper：CapsLock+Q，配置面板",
+      "fn": "CH_RUN"
+    },
+    "ch_z": {
+      "name": "语音输入",
+      "desc": "CursorHelper：CapsLock+Z",
+      "fn": "CH_RUN"
+    },
+    "ch_f": {
+      "name": "搜索中心 / 语音搜索",
+      "desc": "CursorHelper：CapsLock+F（搜索中心、倒计时等）",
+      "fn": "CH_RUN"
+    },
+    "ch_g": {
+      "name": "语音搜索面板",
+      "desc": "CursorHelper：CapsLock+G，StartVoiceSearch",
+      "fn": "CH_RUN"
+    },
+    "ch_b": {
+      "name": "批量 / Prompt 采集",
+      "desc": "CursorHelper：CapsLock+B（面板内批量或 PromptQuickPad）",
+      "fn": "CH_RUN"
+    },
+    "ch_t": {
+      "name": "截图与智能菜单",
+      "desc": "CursorHelper：CapsLock+T，截图智能菜单",
+      "fn": "CH_RUN"
+    },
+    "ch_p": {
+      "name": "区域截图",
+      "desc": "CursorHelper：CapsLock+P，区域截图到 Cursor",
+      "fn": "CH_RUN"
+    },
+    "ch_w": {
+      "name": "方向 上",
+      "desc": "CursorHelper：CapsLock+W → ↑",
+      "fn": "CH_RUN"
+    },
+    "ch_s": {
+      "name": "方向 下",
+      "desc": "CursorHelper：CapsLock+S → ↓",
+      "fn": "CH_RUN"
+    },
+    "ch_a": {
+      "name": "方向 左",
+      "desc": "CursorHelper：CapsLock+A → ←",
+      "fn": "CH_RUN"
+    },
+    "ch_d": {
+      "name": "方向 右",
+      "desc": "CursorHelper：CapsLock+D → →",
+      "fn": "CH_RUN"
+    },
+    "ch_1": {
+      "name": "快捷按钮 1",
+      "desc": "CursorHelper：CapsLock+1，面板内第 1 个快捷按钮",
+      "fn": "CH_RUN"
+    },
+    "ch_2": {
+      "name": "快捷按钮 2",
+      "desc": "CursorHelper：CapsLock+2",
+      "fn": "CH_RUN"
+    },
+    "ch_3": {
+      "name": "快捷按钮 3",
+      "desc": "CursorHelper：CapsLock+3",
+      "fn": "CH_RUN"
+    },
+    "ch_4": {
+      "name": "快捷按钮 4",
+      "desc": "CursorHelper：CapsLock+4",
+      "fn": "CH_RUN"
+    },
+    "ch_5": {
+      "name": "快捷按钮 5",
+      "desc": "CursorHelper：CapsLock+5",
+      "fn": "CH_RUN"
+    },
+    "cursor_open": {
+      "name": "打开光标面板",
+      "desc": "显示光标助手面板（占位，由宿主实现）",
+      "fn": "CURSOR_OPEN"
+    },
+    "cursor_close": {
+      "name": "关闭光标面板",
+      "desc": "隐藏光标助手面板（占位，由宿主实现）",
+      "fn": "CURSOR_CLOSE"
+    }
+  },
+  "Bindings": {
+    "Escape": "sys_exit"
+  },
+  "SuggestedBindings": {
+    "ch_c": "c",
+    "ch_v": "v",
+    "ch_x": "x",
+    "ch_e": "e",
+    "ch_r": "r",
+    "ch_o": "o",
+    "ch_q": "q",
+    "ch_z": "z",
+    "ch_f": "f",
+    "ch_g": "g",
+    "ch_b": "b",
+    "ch_t": "t",
+    "ch_p": "p",
+    "ch_w": "w",
+    "ch_s": "s",
+    "ch_a": "a",
+    "ch_d": "d",
+    "ch_1": "1",
+    "ch_2": "2",
+    "ch_3": "3",
+    "ch_4": "4",
+    "ch_5": "5"
+  }
+}

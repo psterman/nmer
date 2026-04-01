@@ -466,6 +466,10 @@ body::after {
   background: transparent;
   border-color: #6e3f16 !important;
 }
+.k.slot-suggested.slot-occupied {
+  border-color: #5a5a5a !important;
+  border-style: dashed;
+}
 .k.ripple {
   animation: ripplePulse 0.8s ease-out;
 }
@@ -863,9 +867,11 @@ body::after {
 const state = {
   connected:   false,
   categories:  [],          // [ { id, name, commands:[cmdId,...] } ]
-  commands:    {},          // cmdId -> { name, desc }
+  commands:    {},          // cmdId -> { name, desc, fn? }
   bindings:    {},          // cmdId -> { ahkKey, displayKey }
   ahkKeyIndex: {},          // ahkKey -> cmdId  (reverse)
+  suggestedBindings: {},    // cmdId -> 单键（CursorHelper CapsLock+ 默认）
+  suggestedByKey: {},       // 单键 -> cmdId（无修饰时用于键帽提示）
   filter:      'all',       // 'all' | categoryId
   search:      '',
   recording:   null,        // cmdId being recorded
@@ -1014,22 +1020,40 @@ function handleAhkMessage(msg) {
   }
 }
 
+function displayKeyForCmd(cmdId) {
+  const b = state.bindings[cmdId];
+  if (b?.ahkKey) return b.displayKey || b.ahkKey;
+  const sk = state.suggestedBindings[cmdId];
+  if (sk) {
+    const u = (sk.length === 1 && /[a-zA-Z]/.test(sk)) ? sk.toUpperCase() : sk;
+    return 'CapsLock+' + u;
+  }
+  return '—';
+}
+
 function handleInit(msg) {
   state.categories = msg.categories || [];
   state.commands   = msg.commands   || {};
   state.bindings   = msg.bindings   || {};
+  state.suggestedBindings = msg.suggestedBindings || {};
 
-  // build reverse index ahkKey -> cmdId
+  // build reverse index ahkKey -> cmdId（真实绑定）
   state.ahkKeyIndex = {};
   for (const [cmdId, b] of Object.entries(state.bindings)) {
     if (b.ahkKey) state.ahkKeyIndex[b.ahkKey] = cmdId;
+  }
+  // 单键 -> cmdId（与 CursorHelper 默认 CapsLock+ 一致，仅作键帽提示）
+  state.suggestedByKey = {};
+  for (const [cmdId, key] of Object.entries(state.suggestedBindings)) {
+    if (key && !state.suggestedByKey[key]) state.suggestedByKey[key] = cmdId;
   }
 
   renderSidebar();
   renderCommandList();
   renderKeyboardSlots();
   renderModifierKeys();
-  setHud('已连接 · ' + Object.keys(state.bindings).length + ' 个绑定', true);
+  const n = Object.keys(state.bindings).filter((id) => state.bindings[id]?.ahkKey).length;
+  setHud('已连接 · ' + n + ' 个绑定', true);
 }
 
 function handleBindingUpdated(msg) {
@@ -1119,13 +1143,16 @@ function renderCommandList() {
     const onlyId = state.lastFilteredCmdIds[0];
     const binding = state.bindings[onlyId];
     if (binding?.ahkKey) triggerKeyRipple(binding.ahkKey);
+    else if (state.suggestedBindings[onlyId]) triggerKeyRipple(state.suggestedBindings[onlyId]);
   }
 }
 
 function makeCmdRow(cmdId) {
   const cmd     = state.commands[cmdId] || { name: cmdId, desc: '' };
   const binding = state.bindings[cmdId];
-  const hasBind = !!(binding?.ahkKey);
+  const hasReal = !!(binding?.ahkKey);
+  const hasSuggested = !!(state.suggestedBindings[cmdId]);
+  const hasBind = hasReal || hasSuggested;
   const isRec   = state.recording === cmdId;
 
   const row = document.createElement('div');
@@ -1138,8 +1165,7 @@ function makeCmdRow(cmdId) {
 
   // key display
   const keyEl = mkEl('div', 'cmd-key',
-    isRec ? '⏺ 请按下新快捷键...' :
-    hasBind ? binding.displayKey : '—');
+    isRec ? '⏺ 请按下新快捷键...' : displayKeyForCmd(cmdId));
 
   // action buttons
   const actions = document.createElement('div');
@@ -1159,7 +1185,7 @@ function makeCmdRow(cmdId) {
   clearBtn.className   = 'btn-icon danger';
   clearBtn.title       = '清除绑定';
   clearBtn.textContent = '✕';
-  clearBtn.style.display = hasBind ? '' : 'none';
+  clearBtn.style.display = hasReal ? '' : 'none';
   clearBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     postToAhk({ type: 'clearBinding', commandId: cmdId });
@@ -1194,13 +1220,16 @@ function renderKeyboardSlots() {
     const baseKey = el.dataset.ahkkey;
     if (!baseKey) return;
     const lbl = ensureMapLabel(el);
-    el.classList.remove('bound', 'slot-occupied', 'slot-available');
+    el.classList.remove('bound', 'slot-occupied', 'slot-available', 'slot-suggested');
     lbl.textContent = '';
     if (isModifierBaseKey(baseKey)) return;
     const lookup = prefix + baseKey;
-    const cmdId = state.ahkKeyIndex[lookup];
+    let cmdId = state.ahkKeyIndex[lookup];
+    if (!cmdId && prefix === '') cmdId = state.suggestedByKey[baseKey];
     if (cmdId) {
+      const hasReal = !!(state.bindings[cmdId]?.ahkKey);
       el.classList.add('bound', 'slot-occupied');
+      if (!hasReal) el.classList.add('slot-suggested');
       const cmdName = state.commands[cmdId]?.name || cmdId;
       lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
     } else {
@@ -1406,18 +1435,22 @@ if (window.chrome && window.chrome.webview) {
     type: 'init',
     categories: [
       { id:'system', name:'系统', commands:['sys_exit','sys_show_vk'] },
+      { id:'ch_clipboard_ai', name:'CapsLock · 剪贴板与 AI', commands:['ch_c','ch_e'] },
       { id:'window', name:'窗口', commands:['win_min','win_close'] }
     ],
     commands: {
       sys_exit:    { name:'退出程序',     desc:'退出脚本' },
       sys_show_vk: { name:'显示虚拟键盘', desc:'显示键盘窗口' },
+      ch_c:        { name:'连续复制',     desc:'预览' },
+      ch_e:        { name:'AI 解释',      desc:'预览' },
       win_min:     { name:'最小化窗口',   desc:'最小化' },
       win_close:   { name:'关闭窗口',     desc:'关闭' },
     },
     bindings: {
       sys_exit:    { ahkKey:'Escape', displayKey:'Esc' },
       sys_show_vk: { ahkKey:'^+k',   displayKey:'Ctrl+Shift+K' },
-    }
+    },
+    suggestedBindings: { ch_c: 'c', ch_e: 'e' },
   });
 }
 

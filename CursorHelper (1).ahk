@@ -34791,5 +34791,8 @@ SaveScreenshotToFile() {
     }
 }
 
+; ========== VirtualKeyboard：WM_COPYDATA 互操作（vkExec / bindingsReloaded）==========
+#Include modules\VirtualKeyboardInterop.ahk
+
 OnExit(ExitFunc)
 
