@@ -2733,7 +2733,7 @@ InitConfig() {
     try {
         if FileExist(ConfigFile) {
             ; 兼容旧配置格式，优先读取新格式
-            CursorPath := IniRead(ConfigFile, "Settings", "CursorPath", IniRead(ConfigFile, "General", "CursorPath", DefaultCursorPath))
+            CursorPath := NormalizeWindowsPath(IniRead(ConfigFile, "Settings", "CursorPath", IniRead(ConfigFile, "General", "CursorPath", DefaultCursorPath)))
             AISleepTime := Integer(IniRead(ConfigFile, "Settings", "AISleepTime", IniRead(ConfigFile, "General", "AISleepTime", DefaultAISleepTime)))
             ; 读取CapsLock长按时间（秒），如果未设置则使用默认值
             if (!IsSet(DefaultCapsLockHoldTimeSeconds)) {
@@ -13426,6 +13426,20 @@ IsFilePath(Path) {
     return false
 }
 
+NormalizeWindowsPath(path) {
+    p := Trim(path)
+    if (p = "")
+        return p
+    ; 统一分隔符，去掉多余反斜杠（保留 UNC 前缀）
+    p := StrReplace(p, "/", "\")
+    if (RegExMatch(p, "^\\\\[^\\]+\\[^\\]+")) {
+        p := "\\" . RegExReplace(SubStr(p, 3), "\\{2,}", "\")
+    } else {
+        p := RegExReplace(p, "\\{2,}", "\")
+    }
+    return p
+}
+
 ; 搜索文件路径
 SearchFilePaths(Keyword, MaxResults := 10, Offset := 0) {
     global ClipboardDB, global_ST, SearchCenterEverythingLimit
@@ -16237,7 +16251,7 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
             errorMsg := "payload 无效"
             return false
         }
-        NewCursorPath := Trim(payload.Get("cursorPath", ""))
+        NewCursorPath := NormalizeWindowsPath(payload.Get("cursorPath", ""))
         if (NewCursorPath = "") {
             errorMsg := "Cursor Path 不能为空"
             return false
@@ -17510,7 +17524,7 @@ SaveConfig(*) {
     }
     
     ; 更新全局变量
-    global CursorPath := CursorPathEdit ? CursorPathEdit.Value : ""
+    global CursorPath := NormalizeWindowsPath(CursorPathEdit ? CursorPathEdit.Value : "")
     global AISleepTime := AISleepTimeEdit.Value
     ; 【修复】确保CapsLock长按时间正确保存：优先使用编辑框的值，如果为空则使用当前全局变量的值（不重置为默认值）
     if (CapsLockHoldTimeEdit && CapsLockHoldTimeEdit.Value != "") {
