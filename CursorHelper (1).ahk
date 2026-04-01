@@ -4063,8 +4063,7 @@ global CapsLockPressTime := 0
         } else {
             ShowCursorPanel()
         }
-        ; 当前 InitialCapsLockState 已是第一次单击后的状态，取反即可回到双击前
-        SetCapsLockState(!InitialCapsLockState)
+        ; 双击时保持系统原生 CapsLock 状态流转，不额外改写大小写状态
         ; 延迟清除 CapsLock 变量，给快捷键处理函数足够的时间
         SetTimer(ClearCapsLockTimer, -100)
         CapsLock2 := false
@@ -4075,14 +4074,12 @@ global CapsLockPressTime := 0
     ; 如果 CapsLock2 为 false (说明使用了 CapsLock + [Key] 功能)，则恢复初始状态，防止误切换
     ; 如果 CapsLock2 为 true (说明没有使用任何功能)，则切换大小写状态
     if (!CapsLock2) {
-        ; 使用了功能，强制恢复到按下前的状态，防止状态改变
-        ; 【关键修复】确保恢复初始状态，这样输入法可以正常切换
-        SetCapsLockState(InitialCapsLockState)
+        ; 组合键场景统一落到 Off，避免卡在大写导致输入法切换困难
+        SetCapsLockState("Off")
         ; 延迟清除 CapsLock 变量，给快捷键处理函数足够的时间
         SetTimer(ClearCapsLockTimer, -100)
     } else {
-        ; 没有使用功能，切换状态（短按 CapsLock 的正常行为）
-        SetCapsLockState(!InitialCapsLockState)
+        ; 没有使用功能：交给系统原生 CapsLock 单击切换，不做二次改写
         CapsLock := false
     }
     
@@ -24453,7 +24450,8 @@ $d::HandleSearchCenterRight() ; CapsLock+D = →，完全复刻方向键行为
 
 ; F 键：在倒计时期间加速执行
 $f:: {
-    global IsCountdownActive
+    global IsCountdownActive, CapsLock2
+    CapsLock2 := false
     if (IsCountdownActive) {
         ExecuteCountdownAction()
     } else {
