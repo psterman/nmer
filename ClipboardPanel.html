@@ -115,6 +115,7 @@ body::after {
   border-right: 1px solid var(--border);
   scrollbar-width: thin;
   scrollbar-color: var(--border2) transparent;
+  scrollbar-gutter: stable;
 }
 #list-panel::-webkit-scrollbar { width: 5px; }
 #list-panel::-webkit-scrollbar-track { background: transparent; }
@@ -189,9 +190,23 @@ body::after {
 }
 mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding: 0 1px; }
 
-#list-loading {
-  text-align: center; padding: 16px;
+/* 触底加载哨兵：仅用于 IntersectionObserver，不占交互 */
+.load-sentinel {
+  height: 2px;
+  width: 100%;
+  flex-shrink: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+.list-loading-hint {
+  text-align: center; padding: 12px 12px 16px;
   font-family: var(--font); font-size: 11px; color: var(--text-xs);
+}
+/* Raycast：底部可滚入的留白区（非内容，仅撑高 scrollHeight） */
+.list-scroll-cushion {
+  width: 100%;
+  flex-shrink: 0;
+  pointer-events: none;
 }
 #list-empty {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -281,8 +296,39 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
   background: var(--surface2); border-top: 1px solid var(--border);
   font-family: var(--font); font-size: 10px; color: var(--text-xs);
 }
-#status-left { display: flex; gap: 12px; }
+#status-left { display: flex; gap: 12px; align-items: center; }
 #status-right { display: flex; gap: 8px; }
+#continuous-paste-toggle {
+  cursor: pointer; user-select: none;
+  padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border);
+  color: var(--text-dim); font-size: 10px;
+}
+#continuous-paste-toggle.on {
+  border-color: var(--orange); color: var(--orange);
+  box-shadow: var(--glow);
+}
+
+/* Context menu (Raycast-style) */
+#context-menu {
+  position: fixed; z-index: 300;
+  min-width: 220px; max-width: 320px;
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 8px; padding: 4px 0;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.65), var(--glow);
+  display: none;
+}
+#context-menu.visible { display: block; }
+.ctx-item {
+  padding: 9px 14px; font-size: 13px; color: var(--text);
+  cursor: pointer; user-select: none;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.ctx-item:hover:not(.disabled) { background: linear-gradient(90deg, rgba(230,126,34,0.18), transparent); }
+.ctx-item.disabled { opacity: 0.35; pointer-events: none; cursor: default; }
+.ctx-item .ctx-hint { font-family: var(--font); font-size: 10px; color: var(--text-xs); }
+.ctx-sep { height: 1px; background: var(--border); margin: 4px 10px; }
+.ctx-item.toggle.on .ctx-check { color: var(--orange); }
+.ctx-item.toggle:not(.on) .ctx-check { opacity: 0.25; }
 </style>
 </head>
 <body>
@@ -304,6 +350,7 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
     </select>
     <div id="search-hints">
       <span class="hint-tag">1-9 粘贴</span>
+      <span class="hint-tag">近底预加载</span>
       <span class="hint-tag">Ctrl+K 动作</span>
       <span class="hint-tag">Esc 关闭</span>
     </div>
@@ -327,6 +374,7 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
   <div id="status-bar">
     <div id="status-left">
       <span id="status-total">0 条记录</span>
+      <span id="continuous-paste-toggle" title="开启后粘贴/复制不关闭面板">持续粘贴</span>
     </div>
     <div id="status-right">
       <span>&#9650;&#9660; 导航</span>
@@ -334,6 +382,19 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
       <span>Ctrl+D 删除</span>
     </div>
   </div>
+</div>
+
+<!-- Right-click context menu -->
+<div id="context-menu" aria-hidden="true">
+  <div class="ctx-item" data-ctx="paste"><span>粘贴</span><span class="ctx-hint">Enter</span></div>
+  <div class="ctx-item" data-ctx="copyToClipboard"><span>复制到剪贴板</span></div>
+  <div class="ctx-item" data-ctx="pastePlain"><span>粘贴纯文本</span></div>
+  <div class="ctx-item" data-ctx="pasteWithNewline"><span>粘贴并换行</span></div>
+  <div class="ctx-item" data-ctx="pin"><span>置顶</span></div>
+  <div class="ctx-item" data-ctx="pastePath" id="ctx-paste-path"><span>粘贴路径</span></div>
+  <div class="ctx-item" data-ctx="delete"><span>删除</span><span class="ctx-hint">Ctrl+D</span></div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item toggle" data-ctx="toggleContinuous" id="ctx-toggle-continuous"><span class="ctx-check">✓</span><span>持续粘贴（不关闭窗口）</span></div>
 </div>
 
 <!-- Action Panel Overlay -->
@@ -381,10 +442,99 @@ const state = {
   loading: false,
   actionPanelOpen: false,
   actionIndex: 0,
-  previewCache: {}
+  previewCache: {},
+  continuousPaste: false,
+  ctxMenuVisible: false,
+  /** 上次分页完成后的时间戳，防止贴底连续触发 loadMore */
+  loadMoreCooldownUntil: 0
 };
 
 const PAGE_SIZE = 20;
+const LOAD_MORE_COOLDOWN_MS = 420;
+/**
+ * Raycast 风格提前加载：扩大 root 底部相交区域，哨兵尚未滚进视口时即可触发（约提前一屏内开始拉取）。
+ * 单位：px，仅底部扩张（与 CSS margin 一致：上 右 下 左）。
+ */
+const LOAD_MORE_PREFETCH_ROOT_MARGIN = '0px 0px 360px 0px';
+/** 滚动兜底：距列表底部不足此像素时尝试加载（与 IO 互补，避免部分 WebView2 下 IO 不触发） */
+const SCROLL_PREFETCH_FROM_BOTTOM_PX = 380;
+/** Raycast：列表最底部留白，增加可滚动空间（视觉与滚动条行程） */
+const LIST_BOTTOM_CUSHION_PX = 80;
+/**
+ * 分页追加后若贴在绝对底部，略上移 scrollTop（滚动条会「跳」一下），用户可继续向下滚，不会顶死。
+ */
+const LIST_BOTTOM_SLACK_PX = 56;
+
+/** @type {IntersectionObserver | null} */
+let loadMoreObserver = null;
+/** @type {number} */
+let listScrollRaf = 0;
+
+function disconnectLoadMoreObserver() {
+  if (loadMoreObserver) {
+    loadMoreObserver.disconnect();
+    loadMoreObserver = null;
+  }
+}
+
+/**
+ * Raycast：避免 scrollTop 钉在 maxScroll（滚动条拇指顶死、无法再继续向下滚）。
+ * 在仍有可滚空间时，把位置设在 maxScroll - slack。
+ */
+function applyRaycastBottomScrollSlack(panel) {
+  if (!panel) return;
+  const maxScroll = panel.scrollHeight - panel.clientHeight;
+  if (maxScroll <= 0) return;
+  const slack = Math.min(LIST_BOTTOM_SLACK_PX, Math.max(12, Math.floor(maxScroll * 0.12)));
+  if (panel.scrollTop > maxScroll - slack) {
+    panel.scrollTop = Math.max(0, maxScroll - slack);
+  }
+}
+
+/** 用户滚动接近底部时预取下一页（仅在有滚动事件时评估，不自动连发）；到底时施加 Raycast 式底部 slack */
+function onListPanelScrollPrefetch() {
+  if (listScrollRaf) return;
+  listScrollRaf = requestAnimationFrame(() => {
+    listScrollRaf = 0;
+    const panel = document.getElementById('list-panel');
+    if (!panel) return;
+    const dist = panel.scrollHeight - panel.scrollTop - panel.clientHeight;
+    if (state.hasMore && !state.loading && Date.now() >= state.loadMoreCooldownUntil) {
+      if (dist <= SCROLL_PREFETCH_FROM_BOTTOM_PX) requestLoadMore();
+    }
+    if (dist <= 1 && panel.scrollHeight > panel.clientHeight + 20) {
+      applyRaycastBottomScrollSlack(panel);
+    }
+  });
+}
+
+function requestLoadMore() {
+  if (!state.hasMore || state.loading) return;
+  if (Date.now() < state.loadMoreCooldownUntil) return;
+  state.loading = true;
+  postToAhk({ type: 'loadMore', offset: state.currentOffset });
+  renderList({ preserveScroll: true });
+}
+
+function setupLoadMoreObserver() {
+  disconnectLoadMoreObserver();
+  const panel = document.getElementById('list-panel');
+  const sent = document.getElementById('load-sentinel');
+  if (!panel || !sent || !state.hasMore || state.loading) return;
+
+  loadMoreObserver = new IntersectionObserver((entries) => {
+    const e = entries[0];
+    if (!e || !e.isIntersecting) return;
+    if (!state.hasMore || state.loading) return;
+    if (Date.now() < state.loadMoreCooldownUntil) return;
+    requestLoadMore();
+  }, {
+    root: panel,
+    rootMargin: LOAD_MORE_PREFETCH_ROOT_MARGIN,
+    threshold: 0
+  });
+  loadMoreObserver.observe(sent);
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AHK Bridge
@@ -395,16 +545,101 @@ function postToAhk(obj) {
   }
 }
 
+/** 粘贴/复制类操作是否保持面板打开（持续粘贴模式） */
+function keepOpenFlag() {
+  return !!state.continuousPaste;
+}
+
+function itemHasPastePath(it) {
+  if (!it) return false;
+  const sp = (it.sourcePath || '').trim();
+  if (sp) return true;
+  const c = (it.content || '').trim();
+  if (!c || /[\r\n]/.test(c)) return false;
+  return /^([a-zA-Z]:\\|\\\\)/.test(c);
+}
+
+function updateContinuousPasteUI() {
+  const bar = document.getElementById('continuous-paste-toggle');
+  const ctxT = document.getElementById('ctx-toggle-continuous');
+  if (bar) {
+    bar.classList.toggle('on', state.continuousPaste);
+    bar.textContent = state.continuousPaste ? '持续粘贴 · 开' : '持续粘贴';
+  }
+  if (ctxT) ctxT.classList.toggle('on', state.continuousPaste);
+}
+
+function toggleContinuousPaste() {
+  state.continuousPaste = !state.continuousPaste;
+  updateContinuousPasteUI();
+}
+
+function hideContextMenu() {
+  const menu = document.getElementById('context-menu');
+  if (menu) {
+    menu.classList.remove('visible');
+    menu.setAttribute('aria-hidden', 'true');
+  }
+  state.ctxMenuVisible = false;
+}
+
+function showContextMenu(clientX, clientY) {
+  const menu = document.getElementById('context-menu');
+  if (!menu) return;
+  const item = state.items[state.selectedIndex];
+  const pathEl = document.getElementById('ctx-paste-path');
+  if (pathEl) {
+    if (itemHasPastePath(item)) pathEl.classList.remove('disabled');
+    else pathEl.classList.add('disabled');
+  }
+  updateContinuousPasteUI();
+  menu.classList.add('visible');
+  menu.setAttribute('aria-hidden', 'false');
+  state.ctxMenuVisible = true;
+  menu.style.left = clientX + 'px';
+  menu.style.top = clientY + 'px';
+  requestAnimationFrame(() => {
+    const r = menu.getBoundingClientRect();
+    const vw = window.innerWidth, vh = window.innerHeight;
+    let nx = r.left, ny = r.top;
+    if (r.right > vw - 8) nx = vw - r.width - 8;
+    if (r.bottom > vh - 8) ny = vh - r.height - 8;
+    if (nx < 8) nx = 8;
+    if (ny < 8) ny = 8;
+    menu.style.left = nx + 'px';
+    menu.style.top = ny + 'px';
+  });
+}
+
+function runCtxAction(act, id) {
+  const k = keepOpenFlag();
+  switch (act) {
+    case 'paste': postToAhk({ type: 'paste', id, keepOpen: k }); break;
+    case 'copyToClipboard': postToAhk({ type: 'copyToClipboard', id, keepOpen: k }); break;
+    case 'pastePlain': postToAhk({ type: 'pastePlain', id, keepOpen: k }); break;
+    case 'pasteWithNewline': postToAhk({ type: 'pasteWithNewline', id, keepOpen: k }); break;
+    case 'pastePath': postToAhk({ type: 'pastePath', id, keepOpen: k }); break;
+    case 'pin': postToAhk({ type: 'pin', id }); break;
+    case 'delete': postToAhk({ type: 'delete', id }); break;
+    default: break;
+  }
+}
+
 function handleAhkMessage(msg) {
   switch (msg.type) {
     case 'init':
     case 'searchResult':
       state.items = msg.items || [];
-      state.total = msg.total || state.items.length;
-      state.hasMore = msg.hasMore !== false && state.items.length >= PAGE_SIZE;
+      if (msg.total != null && msg.total >= 0) {
+        state.total = msg.total;
+      } else {
+        state.total = state.items.length;
+      }
+      state.hasMore = state.items.length < state.total;
       state.currentOffset = state.items.length;
       state.selectedIndex = 0;
       state.previewCache = {};
+      state.loadMoreCooldownUntil = 0;
       renderList();
       updateStatus();
       if (state.items.length > 0) {
@@ -417,14 +652,20 @@ function handleAhkMessage(msg) {
     case 'moreItems':
       if (msg.items && msg.items.length > 0) {
         state.items = state.items.concat(msg.items);
-        state.hasMore = msg.hasMore !== false && msg.items.length >= PAGE_SIZE;
+        if (msg.total != null && msg.total >= 0) {
+          state.total = msg.total;
+        }
+        state.hasMore = state.items.length < state.total;
         state.currentOffset = state.items.length;
-        renderList();
+        state.loading = false;
+        state.loadMoreCooldownUntil = Date.now() + LOAD_MORE_COOLDOWN_MS;
+        renderList({ preserveScroll: true });
         updateStatus();
       } else {
         state.hasMore = false;
+        state.loading = false;
+        renderList({ preserveScroll: true });
       }
-      state.loading = false;
       break;
 
     case 'preview':
@@ -438,6 +679,8 @@ function handleAhkMessage(msg) {
 
     case 'deleted':
       state.items = state.items.filter(it => it.id !== msg.id);
+      if (state.total > 0) state.total = Math.max(0, state.total - 1);
+      state.hasMore = state.items.length < state.total;
       delete state.previewCache[msg.id];
       if (state.selectedIndex >= state.items.length) {
         state.selectedIndex = Math.max(0, state.items.length - 1);
@@ -452,7 +695,7 @@ function handleAhkMessage(msg) {
       for (const it of state.items) {
         if (it.id === msg.id) { it.isFavorite = msg.state; break; }
       }
-      renderList();
+      renderList({ preserveScroll: true });
       break;
 
     case 'close':
@@ -464,10 +707,20 @@ function handleAhkMessage(msg) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Render List
 // ═══════════════════════════════════════════════════════════════════════════
-function renderList() {
+/** @param {{ preserveScroll?: boolean }} [opts] */
+function renderList(opts) {
+  opts = opts || {};
+  const preserveScroll = !!opts.preserveScroll;
   const panel = document.getElementById('list-panel');
+  let prevTop = 0;
+  let prevH = 0;
+  if (preserveScroll && panel) {
+    prevTop = panel.scrollTop;
+    prevH = panel.scrollHeight;
+  }
 
   if (state.items.length === 0) {
+    disconnectLoadMoreObserver();
     panel.innerHTML =
       '<div id="list-empty">' +
         '<div class="empty-icon">&#128203;</div>' +
@@ -509,8 +762,12 @@ function renderList() {
   }
 
   if (state.hasMore) {
-    html += '<div id="list-loading">&#8230; 加载更多 &#8230;</div>';
+    html += '<div id="load-sentinel" class="load-sentinel" aria-hidden="true"></div>';
+    if (state.loading) {
+      html += '<div class="list-loading-hint">加载中…</div>';
+    }
   }
+  html += '<div class="list-scroll-cushion" aria-hidden="true" style="height:' + LIST_BOTTOM_CUSHION_PX + 'px"></div>';
 
   panel.innerHTML = html;
 
@@ -518,19 +775,30 @@ function renderList() {
     el.addEventListener('click', () => {
       selectItem(parseInt(el.dataset.index));
     });
+    el.addEventListener('contextmenu', (ev) => {
+      ev.preventDefault();
+      const idx = parseInt(el.dataset.index);
+      selectItem(idx);
+      showContextMenu(ev.clientX, ev.clientY);
+    });
     el.addEventListener('dblclick', () => {
       const idx = parseInt(el.dataset.index);
       selectItem(idx);
       const item = state.items[idx];
-      if (item) postToAhk({ type: 'paste', id: item.id });
+      if (item) postToAhk({ type: 'paste', id: item.id, keepOpen: keepOpenFlag() });
     });
   });
   panel.querySelectorAll('.quick-btn').forEach(el => {
     el.addEventListener('click', () => handleQuickAction(el.dataset.quick));
   });
 
-  const activeEl = panel.querySelector('.clip-item.active');
-  if (activeEl) activeEl.scrollIntoView({ block: 'nearest' });
+  if (preserveScroll && panel.scrollHeight > 0) {
+    const dh = panel.scrollHeight - prevH;
+    panel.scrollTop = prevTop + Math.max(0, dh);
+    applyRaycastBottomScrollSlack(panel);
+  }
+
+  requestAnimationFrame(() => setupLoadMoreObserver());
 }
 
 function handleQuickAction(action) {
@@ -542,7 +810,12 @@ function handleQuickAction(action) {
     return;
   }
   if (!state.selectedId) return;
-  postToAhk({ type: action, id: state.selectedId });
+  const k = keepOpenFlag();
+  if (action === 'paste' || action === 'copyPlain') {
+    postToAhk({ type: action, id: state.selectedId, keepOpen: k });
+  } else {
+    postToAhk({ type: action, id: state.selectedId });
+  }
 }
 
 function typeBadge(dt) {
@@ -652,9 +925,10 @@ function executeAction(action) {
   if (!state.selectedId && state.items.length === 0) return;
   const id = state.selectedId || state.items[0].id;
 
+  const k = keepOpenFlag();
   switch (action) {
-    case 'paste':     postToAhk({ type: 'paste', id: id }); break;
-    case 'copyPlain': postToAhk({ type: 'copyPlain', id: id }); break;
+    case 'paste':     postToAhk({ type: 'paste', id: id, keepOpen: k }); break;
+    case 'copyPlain': postToAhk({ type: 'copyPlain', id: id, keepOpen: k }); break;
     case 'pin':       postToAhk({ type: 'pin', id: id }); break;
     case 'delete':    postToAhk({ type: 'delete', id: id }); break;
   }
@@ -671,6 +945,12 @@ document.querySelectorAll('.action-item').forEach(el => {
 // Keyboard
 // ═══════════════════════════════════════════════════════════════════════════
 document.addEventListener('keydown', (e) => {
+  if (state.ctxMenuVisible && e.key === 'Escape') {
+    e.preventDefault();
+    hideContextMenu();
+    return;
+  }
+
   // Action panel open: handle navigation within it
   if (state.actionPanelOpen) {
     const actions = document.querySelectorAll('.action-item');
@@ -715,7 +995,7 @@ document.addEventListener('keydown', (e) => {
     const idx = parseInt(e.key) - 1;
     if (idx < state.items.length) {
       e.preventDefault();
-      postToAhk({ type: 'pasteByIndex', index: idx });
+      postToAhk({ type: 'pasteByIndex', index: idx, keepOpen: keepOpenFlag() });
       return;
     }
   }
@@ -730,7 +1010,7 @@ document.addEventListener('keydown', (e) => {
   // Enter: paste selected
   if (e.key === 'Enter') {
     e.preventDefault();
-    if (state.selectedId) postToAhk({ type: 'paste', id: state.selectedId });
+    if (state.selectedId) postToAhk({ type: 'paste', id: state.selectedId, keepOpen: keepOpenFlag() });
     return;
   }
 
@@ -771,16 +1051,9 @@ function triggerSearch() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Infinite scroll
+// 分页：Raycast 式提前加载 — 大 rootMargin + 哨兵 IO；滚动近底 rAF 兜底（scroll 仅随用户滚轮/触控）
 // ═══════════════════════════════════════════════════════════════════════════
-document.getElementById('list-panel').addEventListener('scroll', (e) => {
-  const el = e.target;
-  if (state.hasMore && !state.loading &&
-      el.scrollTop + el.clientHeight >= el.scrollHeight - 50) {
-    state.loading = true;
-    postToAhk({ type: 'loadMore', offset: state.currentOffset });
-  }
-});
+document.getElementById('list-panel').addEventListener('scroll', onListPanelScrollPrefetch, { passive: true });
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Status
@@ -824,6 +1097,37 @@ function relativeTime(timeStr) {
     return timeStr.substring(5, 16);
   } catch { return timeStr; }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Context menu & 持续粘贴
+// ═══════════════════════════════════════════════════════════════════════════
+const cpToggle = document.getElementById('continuous-paste-toggle');
+if (cpToggle) cpToggle.addEventListener('click', () => toggleContinuousPaste());
+
+const ctxMenu = document.getElementById('context-menu');
+if (ctxMenu) {
+  ctxMenu.addEventListener('click', (e) => {
+    const row = e.target.closest('.ctx-item');
+    if (!row || row.classList.contains('disabled')) return;
+    e.stopPropagation();
+    const act = row.dataset.ctx;
+    if (act === 'toggleContinuous') {
+      toggleContinuousPaste();
+      hideContextMenu();
+      return;
+    }
+    if (!state.selectedId) return;
+    hideContextMenu();
+    runCtxAction(act, state.selectedId);
+  });
+}
+
+document.addEventListener('click', (e) => {
+  if (!state.ctxMenuVisible) return;
+  if (!e.target.closest('#context-menu')) hideContextMenu();
+}, true);
+
+updateContinuousPasteUI();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // WebView2 Bridge Init

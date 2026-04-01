@@ -73,6 +73,11 @@ CP_Show() {
 
     OnMessage(0x0006, _CP_WM_ACTIVATE)
 
+    ; 缓解 WebView2 在「先 Hide 再 Show」宿主上的黑屏：显示后立即刷新合成层
+    _CP_RefreshWebViewComposition()
+    SetTimer(_CP_RefreshWebViewComposition, -120)
+    SetTimer(_CP_RefreshWebViewComposition, -380)
+
     if g_CP_Ready
         _CP_PushInitialData()
 
@@ -143,6 +148,7 @@ _CP_OnWV2Created(ctrl) {
     g_CP_WV2 := ctrl.CoreWebView2
 
     try g_CP_Ctrl.DefaultBackgroundColor := 0xFF0A0A0A
+    try g_CP_Ctrl.IsVisible := true
 
     _CP_ApplyBounds()
 
@@ -152,6 +158,7 @@ _CP_OnWV2Created(ctrl) {
     s.AreDevToolsEnabled := true
 
     g_CP_WV2.add_WebMessageReceived(_CP_OnWebMessage)
+    try g_CP_WV2.add_NavigationCompleted(_CP_OnNavigationCompleted)
 
     htmlPath := A_ScriptDir "\ClipboardPanel.html"
     if FileExist(htmlPath)
@@ -171,6 +178,34 @@ _CP_ApplyBounds() {
     rc.right := cw
     rc.bottom := ch
     g_CP_Ctrl.Bounds := rc
+}
+
+; WebView2 已知问题：父窗口在隐藏状态下创建 Controller 时，首次显示可能黑屏/不合成。
+; 参考: https://github.com/MicrosoftEdge/WebView2Feedback/issues/1077
+; 在面板 Show 后及导航完成后重新应用 Bounds 并 NotifyParentWindowPositionChanged。
+_CP_RefreshWebViewComposition(*) {
+    global g_CP_Ctrl, g_CP_Gui, g_CP_Visible
+    if !g_CP_Visible || !g_CP_Ctrl || !g_CP_Gui
+        return
+    try {
+        _CP_ApplyBounds()
+        g_CP_Ctrl.NotifyParentWindowPositionChanged()
+    } catch as err {
+        OutputDebug("[CP] RefreshWebViewComposition: " . err.Message)
+    }
+}
+
+_CP_OnNavigationCompleted(sender, args) {
+    global g_CP_Visible
+    if !g_CP_Visible
+        return
+    try ok := args.IsSuccess
+    catch {
+        ok := true
+    }
+    if !ok
+        return
+    _CP_RefreshWebViewComposition()
 }
 
 _CP_OnGuiResize(GuiObj, MinMax, Width, Height) {
@@ -213,11 +248,11 @@ _CP_OnWebMessage(sender, args) {
 
         case "paste":
             if msg.Has("id")
-                _CP_DoPaste(msg["id"])
+                _CP_DoPaste(msg["id"], _CP_MsgKeepOpen(msg))
 
         case "pasteByIndex":
             if msg.Has("index")
-                _CP_DoPasteByIndex(msg["index"])
+                _CP_DoPasteByIndex(msg["index"], _CP_MsgKeepOpen(msg))
 
         case "delete":
             if msg.Has("id")
@@ -229,10 +264,26 @@ _CP_OnWebMessage(sender, args) {
 
         case "copyPlain":
             if msg.Has("id")
-                _CP_DoCopyPlain(msg["id"])
+                _CP_DoCopyPlain(msg["id"], _CP_MsgKeepOpen(msg))
+
+        case "copyToClipboard":
+            if msg.Has("id")
+                _CP_DoCopyToClipboard(msg["id"], _CP_MsgKeepOpen(msg))
+
+        case "pastePlain":
+            if msg.Has("id")
+                _CP_DoPastePlain(msg["id"], _CP_MsgKeepOpen(msg))
+
+        case "pasteWithNewline":
+            if msg.Has("id")
+                _CP_DoPasteWithNewline(msg["id"], _CP_MsgKeepOpen(msg))
+
+        case "pastePath":
+            if msg.Has("id")
+                _CP_DoPastePath(msg["id"], _CP_MsgKeepOpen(msg))
 
         case "loadMore":
-            offset := msg.Has("offset") ? msg["offset"] : 0
+            offset := msg.Has("offset") ? Integer(msg["offset"]) : 0
             _CP_DoLoadMore(offset)
 
         case "getPreview":
@@ -254,14 +305,20 @@ _CP_PushInitialData() {
     g_CP_FilterType := "all"
     items := _CP_LoadItems("", g_CP_FilterType, 0, 20)
     total := _CP_GetTotalCount("", g_CP_FilterType)
-    json := _CP_BuildItemsJson("init", items, total, items.Length >= 20)
+    hasMore := (items.Length < total)
+    json := _CP_BuildItemsJson("init", items, total, hasMore)
     CP_SendToWeb(json)
 }
 
 _CP_DoLoadMore(offset) {
     global g_CP_LastKeyword, g_CP_FilterType
+    offset := Integer(offset)
+    if offset < 0
+        offset := 0
     items := _CP_LoadItems(g_CP_LastKeyword, g_CP_FilterType, offset, 20)
-    json := _CP_BuildItemsJson("moreItems", items, 0, items.Length >= 20)
+    total := _CP_GetTotalCount(g_CP_LastKeyword, g_CP_FilterType)
+    hasMore := (offset + items.Length) < total
+    json := _CP_BuildItemsJson("moreItems", items, total, hasMore)
     CP_SendToWeb(json)
 }
 
@@ -287,7 +344,8 @@ _CP_ExecuteSearch(keyword, filterType := "all") {
     filterType := _CP_NormalizeFilterType(filterType)
     items := _CP_LoadItems(keyword, filterType, 0, 20)
     total := _CP_GetTotalCount(keyword, filterType)
-    json := _CP_BuildItemsJson("searchResult", items, total, items.Length >= 20)
+    hasMore := (items.Length < total)
+    json := _CP_BuildItemsJson("searchResult", items, total, hasMore)
     CP_SendToWeb(json)
 }
 
@@ -298,6 +356,13 @@ _CP_LoadItems(keyword := "", filterType := "all", offset := 0, limit := 20) {
     if !ClipboardFTS5DB || ClipboardFTS5DB = 0
         return []
 
+    offset := Integer(offset)
+    limit := Integer(limit)
+    if offset < 0
+        offset := 0
+    if limit < 1
+        limit := 20
+
     results := []
     try {
         selectFields := _CP_BuildSelectFields()
@@ -307,7 +372,8 @@ _CP_LoadItems(keyword := "", filterType := "all", offset := 0, limit := 20) {
         SQL := "SELECT " . selectFields . " FROM ClipMain"
         if whereClause != ""
             SQL .= " WHERE " . whereClause
-        SQL .= " ORDER BY IsFavorite DESC, " . orderBy . " DESC LIMIT " . limit . " OFFSET " . offset
+        ; ID DESC 作为稳定 tie-breaker，避免相同时间戳下 OFFSET 分页漏行/重复
+        SQL .= " ORDER BY IsFavorite DESC, " . orderBy . " DESC, ID DESC LIMIT " . limit . " OFFSET " . offset
 
         table := ""
         if ClipboardFTS5DB.GetTable(SQL, &table) {
@@ -359,6 +425,7 @@ _CP_BuildSelectFields() {
     global ClipboardFTS5DB
     hasLastCopyTime := false
     hasIconPath := false
+    hasSourcePath := false
 
     try {
         table := ""
@@ -370,6 +437,8 @@ _CP_BuildSelectFields() {
                         hasLastCopyTime := true
                     if colName = "IconPath"
                         hasIconPath := true
+                    if colName = "SourcePath"
+                        hasSourcePath := true
                 }
             }
         }
@@ -385,6 +454,10 @@ _CP_BuildSelectFields() {
         fields .= ", IconPath"
     else
         fields .= ", '' AS IconPath"
+    if hasSourcePath
+        fields .= ", SourcePath"
+    else
+        fields .= ", '' AS SourcePath"
 
     return fields
 }
@@ -475,7 +548,7 @@ _CP_JoinConditions(conditions) {
 
 _CP_RowToMap(row, columnIndexMap) {
     item := Map()
-    for key in ["ID", "Content", "SourceApp", "DataType", "CharCount", "Timestamp", "ImagePath", "IsFavorite", "LastCopyTime", "IconPath"] {
+    for key in ["ID", "Content", "SourceApp", "DataType", "CharCount", "Timestamp", "ImagePath", "IsFavorite", "LastCopyTime", "IconPath", "SourcePath"] {
         item[key] := columnIndexMap.Has(key) ? row[columnIndexMap[key]] : ""
     }
     return item
@@ -505,6 +578,7 @@ _CP_ItemToJson(item) {
     imagePath := item.Has("ImagePath") ? item["ImagePath"] : ""
     isFavorite := item.Has("IsFavorite") ? item["IsFavorite"] : 0
     iconPath := item.Has("IconPath") ? item["IconPath"] : ""
+    sourcePath := item.Has("SourcePath") ? item["SourcePath"] : ""
 
     json := '{"id":' . id
     json .= ',"content":' . _CP_JsonStr(content)
@@ -515,6 +589,7 @@ _CP_ItemToJson(item) {
     json .= ',"imagePath":' . _CP_JsonStr(imagePath)
     json .= ',"isFavorite":' . (isFavorite ? 1 : 0)
     json .= ',"iconPath":' . _CP_JsonStr(iconPath)
+    json .= ',"sourcePath":' . _CP_JsonStr(sourcePath)
     json .= '}'
     return json
 }
@@ -530,35 +605,94 @@ _CP_JsonStr(val) {
     return '"' . val . '"'
 }
 
+_CP_MsgKeepOpen(msg) {
+    if !(msg is Map) || !msg.Has("keepOpen")
+        return false
+    v := msg["keepOpen"]
+    return v = true || v = 1 || v = "true"
+}
+
+_CP_MaybeHide(keepOpen) {
+    if !keepOpen
+        CP_Hide()
+}
+
+_CP_GetClipRow(id) {
+    global ClipboardFTS5DB
+    row := Map("content", "", "dataType", "", "imagePath", "", "sourcePath", "")
+    if !ClipboardFTS5DB || ClipboardFTS5DB = 0
+        return row
+    try {
+        selectFields := _CP_BuildSelectFields()
+        SQL := "SELECT " . selectFields . " FROM ClipMain WHERE ID = " . id
+        table := ""
+        if ClipboardFTS5DB.GetTable(SQL, &table) {
+            if table.HasRows && table.Rows.Length > 0 {
+                columnIndexMap := Map()
+                if table.HasNames && table.ColumnNames.Length > 0 {
+                    Loop table.ColumnNames.Length
+                        columnIndexMap[table.ColumnNames[A_Index]] := A_Index
+                }
+                item := _CP_RowToMap(table.Rows[1], columnIndexMap)
+                row["content"] := item.Has("Content") ? item["Content"] : ""
+                row["dataType"] := item.Has("DataType") ? item["DataType"] : ""
+                row["imagePath"] := item.Has("ImagePath") ? item["ImagePath"] : ""
+                row["sourcePath"] := item.Has("SourcePath") ? item["SourcePath"] : ""
+            }
+        }
+    } catch as err {
+        OutputDebug("[CP] GetClipRow error: " . err.Message)
+    }
+    return row
+}
+
+_CP_StripHtml(s) {
+    if s = ""
+        return ""
+    r := RegExReplace(s, "<[^>]+>", "")
+    r := StrReplace(r, "&nbsp;", " ")
+    r := StrReplace(r, "&amp;", "&")
+    r := StrReplace(r, "&lt;", "<")
+    r := StrReplace(r, "&gt;", ">")
+    r := StrReplace(r, "&quot;", '"')
+    r := StrReplace(r, "&#39;", "'")
+    return Trim(r)
+}
+
+_CP_ResolvePastePath(content, sourcePath) {
+    sourcePath := Trim(sourcePath)
+    if sourcePath != "" && FileExist(sourcePath)
+        return sourcePath
+    c := Trim(content)
+    if c = ""
+        return ""
+    if InStr(c, "`n") || InStr(c, "`r")
+        return ""
+    if FileExist(c)
+        return c
+    return ""
+}
+
 ; ===================== 操作：粘贴 =====================
-_CP_DoPaste(id) {
+_CP_DoPaste(id, keepOpen := false) {
     global ClipboardFTS5DB
 
     if !ClipboardFTS5DB || ClipboardFTS5DB = 0
         return
 
     try {
-        content := ""
-        dataType := ""
-        imagePath := ""
-
-        SQL := "SELECT Content, DataType, ImagePath FROM ClipMain WHERE ID = " . id
-        table := ""
-        if ClipboardFTS5DB.GetTable(SQL, &table) {
-            if table.HasRows && table.Rows.Length > 0 {
-                content := table.Rows[1][1]
-                dataType := table.Rows[1][2]
-                imagePath := table.Rows[1][3]
-            }
-        }
-
+        row := _CP_GetClipRow(id)
+        content := row["content"]
+        dataType := row["dataType"]
+        imagePath := row["imagePath"]
         if content = "" && imagePath = ""
             return
 
-        CP_Hide()
-        Sleep(50)
+        _CP_MaybeHide(keepOpen)
+        Sleep(keepOpen ? 30 : 50)
 
-        if dataType = "Image" && imagePath != "" && FileExist(imagePath) {
+        dt := StrLower(dataType)
+        if (dt = "image" || dt = "screenshot") && imagePath != "" && FileExist(imagePath) {
             _CP_PasteImage(imagePath)
         } else {
             A_Clipboard := content
@@ -570,15 +704,15 @@ _CP_DoPaste(id) {
     }
 }
 
-_CP_DoPasteByIndex(index) {
-    global g_CP_LastKeyword
-    items := _CP_LoadItems(g_CP_LastKeyword, 0, 20)
+_CP_DoPasteByIndex(index, keepOpen := false) {
+    global g_CP_LastKeyword, g_CP_FilterType
+    items := _CP_LoadItems(g_CP_LastKeyword, g_CP_FilterType, 0, 20)
     idx := index + 1
     if idx > items.Length
         return
     id := items[idx].Has("ID") ? items[idx]["ID"] : 0
     if id > 0
-        _CP_DoPaste(id)
+        _CP_DoPaste(id, keepOpen)
 }
 
 _CP_PasteImage(imagePath) {
@@ -649,23 +783,126 @@ _CP_DoPin(id) {
 }
 
 ; ===================== 操作：纯文本复制 =====================
-_CP_DoCopyPlain(id) {
+_CP_DoCopyPlain(id, keepOpen := false) {
     global ClipboardFTS5DB
 
     if !ClipboardFTS5DB || ClipboardFTS5DB = 0
         return
 
     try {
-        SQL := "SELECT Content FROM ClipMain WHERE ID = " . id
-        table := ""
-        if ClipboardFTS5DB.GetTable(SQL, &table) {
-            if table.HasRows && table.Rows.Length > 0 {
-                A_Clipboard := table.Rows[1][1]
-            }
-        }
-        CP_Hide()
+        row := _CP_GetClipRow(id)
+        if row["content"] != ""
+            A_Clipboard := row["content"]
+        _CP_MaybeHide(keepOpen)
     } catch as err {
         OutputDebug("[CP] DoCopyPlain error: " . err.Message)
+    }
+}
+
+; ===================== 操作：复制到剪贴板（不发送粘贴） =====================
+_CP_DoCopyToClipboard(id, keepOpen := false) {
+    global ClipboardFTS5DB
+    if !ClipboardFTS5DB || ClipboardFTS5DB = 0
+        return
+    try {
+        row := _CP_GetClipRow(id)
+        content := row["content"]
+        dataType := row["dataType"]
+        imagePath := row["imagePath"]
+        if content = "" && imagePath = ""
+            return
+        dt := StrLower(dataType)
+        if (dt = "image" || dt = "screenshot") && imagePath != "" && FileExist(imagePath) {
+            pBitmap := (%"Gdip_CreateBitmapFromFile"%).Call(imagePath)
+            if (!pBitmap || pBitmap = 0) {
+                pBitmap := (%"ImagePut"%).Call("Bitmap", imagePath)
+                if (!pBitmap || pBitmap = "") {
+                    OutputDebug("[CP] CopyToClipboard: cannot load image")
+                    return
+                }
+                (%"Gdip_SetBitmapToClipboard"%).Call(pBitmap)
+                (%"ImageDestroy"%).Call(pBitmap)
+            } else {
+                (%"Gdip_SetBitmapToClipboard"%).Call(pBitmap)
+                (%"Gdip_DisposeImage"%).Call(pBitmap)
+            }
+        } else {
+            A_Clipboard := content
+        }
+        _CP_MaybeHide(keepOpen)
+    } catch as err {
+        OutputDebug("[CP] DoCopyToClipboard error: " . err.Message)
+    }
+}
+
+; ===================== 操作：粘贴纯文本（去 HTML 标签） =====================
+_CP_DoPastePlain(id, keepOpen := false) {
+    global ClipboardFTS5DB
+    if !ClipboardFTS5DB || ClipboardFTS5DB = 0
+        return
+    try {
+        row := _CP_GetClipRow(id)
+        dt := StrLower(row["dataType"] . "")
+        if dt = "image" || dt = "screenshot" {
+            _CP_DoPaste(id, keepOpen)
+            return
+        }
+        plain := _CP_StripHtml(row["content"] . "")
+        if plain = ""
+            return
+        _CP_MaybeHide(keepOpen)
+        Sleep(keepOpen ? 30 : 50)
+        A_Clipboard := plain
+        Sleep(30)
+        Send("^v")
+    } catch as err {
+        OutputDebug("[CP] DoPastePlain error: " . err.Message)
+    }
+}
+
+; ===================== 操作：粘贴并换行 =====================
+_CP_DoPasteWithNewline(id, keepOpen := false) {
+    global ClipboardFTS5DB
+    if !ClipboardFTS5DB || ClipboardFTS5DB = 0
+        return
+    try {
+        row := _CP_GetClipRow(id)
+        dt := StrLower(row["dataType"] . "")
+        if dt = "image" || dt = "screenshot" {
+            _CP_DoPaste(id, keepOpen)
+            return
+        }
+        content := row["content"] . ""
+        if content = ""
+            return
+        txt := RTrim(content, "`r`n") . "`r`n"
+        _CP_MaybeHide(keepOpen)
+        Sleep(keepOpen ? 30 : 50)
+        A_Clipboard := txt
+        Sleep(30)
+        Send("^v")
+    } catch as err {
+        OutputDebug("[CP] DoPasteWithNewline error: " . err.Message)
+    }
+}
+
+; ===================== 操作：粘贴路径 =====================
+_CP_DoPastePath(id, keepOpen := false) {
+    global ClipboardFTS5DB
+    if !ClipboardFTS5DB || ClipboardFTS5DB = 0
+        return
+    try {
+        row := _CP_GetClipRow(id)
+        path := _CP_ResolvePastePath(row["content"] . "", row["sourcePath"] . "")
+        if path = ""
+            return
+        _CP_MaybeHide(keepOpen)
+        Sleep(keepOpen ? 30 : 50)
+        A_Clipboard := path
+        Sleep(30)
+        Send("^v")
+    } catch as err {
+        OutputDebug("[CP] DoPastePath error: " . err.Message)
     }
 }
 
