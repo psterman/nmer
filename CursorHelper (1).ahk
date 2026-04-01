@@ -386,6 +386,11 @@ global CustomIconPath := ""  ; 用户自定义图标路径
 ; CapsLock+ 方案的核心变量
 global CapsLock := false
 global GuiID_ConfigGUI := 0  ; 配置面板单例
+global UseWebViewSettings := true  ; 首期设置页 WebView 开关（可回退原生 GUI）
+global ConfigWebViewMode := false
+global ConfigWV2Ctrl := 0
+global ConfigWV2 := 0
+global ConfigWV2Ready := false
 global DefaultStartTabDDL_Hwnd := 0  ; 默认启动页面下拉框句柄
 global DefaultStartTabDDL_Hwnd_ForTimer := 0  ; 默认启动页面下拉框句柄（用于定时器）
 global DDLBrush := 0  ; 下拉列表背景画刷
@@ -408,6 +413,7 @@ global HotkeyQ := "q"  ; 打开配置面板
 global HotkeyZ := "z"  ; 语音输入
 global HotkeyF := "f"  ; 语音搜索
 global HotkeyT := "t"  ; 区域截图
+global HotkeyP := "p"  ; 截图粘贴
 global PromptQuickCaptureHotkey := ""  ; Prompt Quick-Pad 选区采集，留空不注册；可在 CursorShortcut.ini [Settings] PromptQuickCaptureHotkey 配置
 global PromptQuickPad_CapsLockBSilent := false  ; CapsLock+B 静默入库（ini [PromptQuickPad] CapsLockBSilent=1）
 global PromptQuickPad_CapsLockBSilentToTemplate := false  ; 静默时写入模板库 PromptTemplates.ini（否则 prompts.json）
@@ -2618,6 +2624,7 @@ InitConfig() {
         IniWrite(DefaultEnabledCategories, ConfigFile, "Settings", "VoiceSearchEnabledCategories")
         
         IniWrite(DefaultPanelScreenIndex, ConfigFile, "Appearance", "ScreenIndex")
+        IniWrite(DefaultPanelScreenIndex, ConfigFile, "Appearance", "PopupScreenIndex")
         IniWrite(DefaultFunctionPanelPos, ConfigFile, "Appearance", "FunctionPanelPos")
         IniWrite(DefaultConfigPanelPos, ConfigFile, "Appearance", "ConfigPanelPos")
         IniWrite(DefaultClipboardPanelPos, ConfigFile, "Appearance", "ClipboardPanelPos")
@@ -2814,6 +2821,7 @@ InitConfig() {
             HotkeyZ := IniRead(ConfigFile, "Hotkeys", "Z", DefaultHotkeyZ)
             HotkeyF := IniRead(ConfigFile, "Hotkeys", "F", "f")
             HotkeyT := IniRead(ConfigFile, "Hotkeys", "T", "t")
+            HotkeyP := IniRead(ConfigFile, "Hotkeys", "P", "p")
             global PromptQuickCaptureHotkey
             PromptQuickCaptureHotkey := IniRead(ConfigFile, "Settings", "PromptQuickCaptureHotkey", "")
             SearchEngine := IniRead(ConfigFile, "Settings", "SearchEngine", "deepseek")
@@ -2937,15 +2945,16 @@ InitConfig() {
                 }
             }
             
-            PanelScreenIndex := Integer(IniRead(ConfigFile, "Appearance", "ScreenIndex", DefaultPanelScreenIndex))
+            UnifiedPopupScreenIndex := Integer(IniRead(ConfigFile, "Appearance", "PopupScreenIndex", IniRead(ConfigFile, "Appearance", "ScreenIndex", DefaultPanelScreenIndex)))
+            PanelScreenIndex := UnifiedPopupScreenIndex
             FunctionPanelPos := IniRead(ConfigFile, "Appearance", "FunctionPanelPos", DefaultFunctionPanelPos)
             ConfigPanelPos := IniRead(ConfigFile, "Appearance", "ConfigPanelPos", DefaultConfigPanelPos)
             ClipboardPanelPos := IniRead(ConfigFile, "Appearance", "ClipboardPanelPos", DefaultClipboardPanelPos)
-            ConfigPanelScreenIndex := Integer(IniRead(ConfigFile, "Advanced", "ConfigPanelScreenIndex", DefaultConfigPanelScreenIndex))
-            MsgBoxScreenIndex := Integer(IniRead(ConfigFile, "Advanced", "MsgBoxScreenIndex", DefaultMsgBoxScreenIndex))
-            VoiceInputScreenIndex := Integer(IniRead(ConfigFile, "Advanced", "VoiceInputScreenIndex", DefaultVoiceInputScreenIndex))
-            CursorPanelScreenIndex := Integer(IniRead(ConfigFile, "Advanced", "CursorPanelScreenIndex", DefaultCursorPanelScreenIndex))
-            ClipboardPanelScreenIndex := Integer(IniRead(ConfigFile, "Advanced", "ClipboardPanelScreenIndex", DefaultClipboardPanelScreenIndex))
+            ConfigPanelScreenIndex := UnifiedPopupScreenIndex
+            MsgBoxScreenIndex := UnifiedPopupScreenIndex
+            VoiceInputScreenIndex := UnifiedPopupScreenIndex
+            CursorPanelScreenIndex := UnifiedPopupScreenIndex
+            ClipboardPanelScreenIndex := UnifiedPopupScreenIndex
             
             ; 加载快捷操作按钮配置
             QuickActionButtons := []
@@ -15725,7 +15734,12 @@ ShowConfigGUI() {
     global CursorPath, AISleepTime, Prompt_Explain, Prompt_Refactor, Prompt_Optimize
     global SplitHotkey, BatchHotkey, ConfigFile, Language
     global PanelScreenIndex, PanelPosition, ConfigPanelScreenIndex
-    global UI_Colors, GuiID_ConfigGUI, GuiID_ClipboardManager
+    global UI_Colors, GuiID_ConfigGUI, GuiID_ClipboardManager, UseWebViewSettings
+
+    if (UseWebViewSettings) {
+        ShowConfigWebViewGUI()
+        return
+    }
     
     ; 单例模式:如果配置面板已存在,直接激活
     if (GuiID_ConfigGUI != 0) {
@@ -15986,6 +16000,614 @@ ShowConfigGUI() {
     WinActivate(ConfigGUI.Hwnd)
     
     ; 【移除滚动功能】不再启用配置面板的滚轮热键（已移除滚动条）
+}
+
+ShowConfigWebViewGUI() {
+    global GuiID_ConfigGUI, GuiID_ClipboardManager, ConfigWebViewMode, ConfigWV2Ready
+    global ConfigWV2Ctrl, ConfigWV2, ConfigPanelScreenIndex
+    ; 单例
+    if (GuiID_ConfigGUI != 0) {
+        try {
+            WinActivate(GuiID_ConfigGUI.Hwnd)
+            return
+        } catch {
+            GuiID_ConfigGUI := 0
+        }
+    }
+    ; 一次只显示一个面板
+    if (GuiID_ClipboardManager != 0) {
+        try {
+            GuiID_ClipboardManager.Destroy()
+            GuiID_ClipboardManager := 0
+        } catch {
+            GuiID_ClipboardManager := 0
+        }
+    }
+
+    ConfigGUI := Gui("+Resize -MaximizeBox", GetText("config_title"))
+    ConfigGUI.BackColor := "0a0a0a"
+
+    ScreenInfo := GetScreenInfo(ConfigPanelScreenIndex)
+    WinW := Max(980, Round(ScreenInfo.Width * 0.80))
+    WinH := Max(680, Round(ScreenInfo.Height * 0.80))
+    PosX := ScreenInfo.Left + Round((ScreenInfo.Width - WinW) / 2)
+    PosY := ScreenInfo.Top + Round((ScreenInfo.Height - WinH) / 2)
+
+    GuiID_ConfigGUI := ConfigGUI
+    ConfigWebViewMode := true
+    ConfigWV2Ready := false
+    ConfigWV2Ctrl := 0
+    ConfigWV2 := 0
+
+    ConfigGUI.OnEvent("Close", (*) => CloseConfigGUI())
+    ConfigGUI.OnEvent("Escape", (*) => CloseConfigGUI())
+    ConfigGUI.OnEvent("Size", ConfigWebView_OnSize)
+    ConfigGUI.Show("w" . WinW . " h" . WinH . " x" . PosX . " y" . PosY)
+
+    WebView2.create(ConfigGUI.Hwnd, ConfigWebView_OnCreated)
+}
+
+ConfigWebView_OnCreated(ctrl) {
+    global ConfigWV2Ctrl, ConfigWV2, GuiID_ConfigGUI
+    ConfigWV2Ctrl := ctrl
+    ConfigWV2 := ctrl.CoreWebView2
+    try ConfigWV2Ctrl.DefaultBackgroundColor := 0xFF0A0A0A
+    s := ConfigWV2.Settings
+    s.AreDefaultContextMenusEnabled := false
+    s.IsStatusBarEnabled := false
+    s.AreDevToolsEnabled := true
+    ConfigWV2.add_WebMessageReceived(ConfigWebView_OnMessage)
+    ConfigWebView_ApplyBounds()
+    htmlPath := A_ScriptDir "\SettingsPanel.html"
+    if FileExist(htmlPath)
+        ConfigWV2.Navigate("file:///" . StrReplace(htmlPath, "\", "/"))
+    else
+        ConfigWV2.NavigateToString("<html><body style='background:#0a0a0a;color:#eee;font-family:Segoe UI'>SettingsPanel.html not found</body></html>")
+}
+
+ConfigWebView_OnSize(*) {
+    ConfigWebView_ApplyBounds()
+}
+
+ConfigWebView_ApplyBounds() {
+    global GuiID_ConfigGUI, ConfigWV2Ctrl
+    if !GuiID_ConfigGUI || !ConfigWV2Ctrl
+        return
+    WinGetClientPos(, , &cw, &ch, GuiID_ConfigGUI.Hwnd)
+    rc := WebView2.RECT()
+    rc.left := 0
+    rc.top := 0
+    rc.right := cw
+    rc.bottom := ch
+    ConfigWV2Ctrl.Bounds := rc
+}
+
+ConfigWebView_Send(msgMap) {
+    global ConfigWV2, ConfigWV2Ready
+    if !ConfigWV2 || !ConfigWV2Ready
+        return
+    try ConfigWV2.PostWebMessageAsJson(Jxon_Dump(msgMap))
+}
+
+JoinArray(arr, sep := ",") {
+    if !(arr is Array) || arr.Length = 0
+        return ""
+    out := ""
+    for idx, item in arr {
+        if (idx > 1)
+            out .= sep
+        out .= item
+    }
+    return out
+}
+
+ConfigWebView_BuildInitData() {
+    global CursorPath, CapsLockHoldTimeSeconds, AutoStart, DefaultStartTab
+    global ThemeMode, FunctionPanelPos, ConfigPanelScreenIndex, ConfigPanelPos, ClipboardPanelPos, PanelScreenIndex
+    global Prompt_Explain, Prompt_Refactor, Prompt_Optimize
+    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, SplitHotkey, BatchHotkey, HotkeyT, HotkeyF, HotkeyP
+    global PromptQuickCaptureHotkey, QuickActionButtons
+    global Language, AISleepTime, LaunchDelaySeconds, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex, ClipboardPanelScreenIndex
+    global SearchEngine, AutoLoadSelectedText, AutoUpdateVoiceInput, VoiceSearchEnabledCategories, VoiceSearchSelectedEngines
+    monitorCount := 1
+    try monitorCount := MonitorGetCount()
+    catch
+        monitorCount := 1
+    popupScreenIndex := PanelScreenIndex
+    if (popupScreenIndex < 1)
+        popupScreenIndex := 1
+    if (popupScreenIndex > monitorCount)
+        popupScreenIndex := monitorCount
+    hotkeys := Map(
+        "ESC", HotkeyESC, "C", HotkeyC, "V", HotkeyV, "X", HotkeyX, "E", HotkeyE, "R", HotkeyR, "O", HotkeyO,
+        "Q", HotkeyQ, "Z", HotkeyZ, "S", SplitHotkey, "B", BatchHotkey, "T", HotkeyT, "F", HotkeyF, "P", HotkeyP
+    )
+    qa := []
+    for item in QuickActionButtons {
+        qaType := "Explain"
+        qaHotkey := "e"
+        if (item is Map) {
+            qaType := item.Get("Type", qaType)
+            qaHotkey := item.Get("Hotkey", qaHotkey)
+        } else if (IsObject(item)) {
+            if item.HasProp("Type")
+                qaType := item.Type
+            if item.HasProp("Hotkey")
+                qaHotkey := item.Hotkey
+        }
+        qa.Push(Map("type", qaType, "hotkey", qaHotkey))
+    }
+    cats := []
+    for c in VoiceSearchEnabledCategories
+        cats.Push(c)
+    selectedCsv := ""
+    if (IsSet(VoiceSearchSelectedEngines) && VoiceSearchSelectedEngines.Length > 0)
+        selectedCsv := JoinArray(VoiceSearchSelectedEngines, ",")
+    promptTemplateSummary := []
+    if (IsSet(PromptTemplates) && PromptTemplates is Array) {
+        for t in PromptTemplates {
+            tid := ""
+            ttitle := ""
+            tcat := ""
+            if (t is Map) {
+                tid := t.Get("ID", "")
+                ttitle := t.Get("Title", "")
+                tcat := t.Get("Category", t.Get("FunctionCategory", ""))
+            } else if (IsObject(t)) {
+                if t.HasProp("ID")
+                    tid := t.ID
+                if t.HasProp("Title")
+                    ttitle := t.Title
+                if t.HasProp("Category")
+                    tcat := t.Category
+                else if t.HasProp("FunctionCategory")
+                    tcat := t.FunctionCategory
+            }
+            tcontent := ""
+            if (t is Map)
+                tcontent := t.Get("Content", "")
+            else if (IsObject(t) && t.HasProp("Content"))
+                tcontent := t.Content
+            promptTemplateSummary.Push(Map("id", tid, "title", ttitle, "category", tcat, "content", tcontent))
+        }
+    }
+    defaultTemplates := Map(
+        "Explain", DefaultTemplateIDs.Has("Explain") ? DefaultTemplateIDs["Explain"] : "",
+        "Refactor", DefaultTemplateIDs.Has("Refactor") ? DefaultTemplateIDs["Refactor"] : "",
+        "Optimize", DefaultTemplateIDs.Has("Optimize") ? DefaultTemplateIDs["Optimize"] : ""
+    )
+    return Map(
+        "cursorPath", CursorPath,
+        "capslockHoldTimeSeconds", CapsLockHoldTimeSeconds,
+        "autoStart", AutoStart,
+        "defaultStartTab", DefaultStartTab,
+        "themeMode", ThemeMode,
+        "popupScreenIndex", popupScreenIndex,
+        "monitorCount", monitorCount,
+        "functionPanelPos", FunctionPanelPos,
+        "configPanelScreenIndex", ConfigPanelScreenIndex,
+        "configPanelPos", ConfigPanelPos,
+        "clipboardPanelPos", ClipboardPanelPos,
+        "panelScreenIndex", PanelScreenIndex,
+        "promptExplain", Prompt_Explain,
+        "promptRefactor", Prompt_Refactor,
+        "promptOptimize", Prompt_Optimize,
+        "promptTemplateSummary", promptTemplateSummary,
+        "defaultTemplates", defaultTemplates,
+        "hotkeys", hotkeys,
+        "promptQuickCaptureHotkey", PromptQuickCaptureHotkey,
+        "quickActions", qa,
+        "language", Language,
+        "aiSleepTime", AISleepTime,
+        "launchDelaySeconds", LaunchDelaySeconds,
+        "msgBoxScreenIndex", MsgBoxScreenIndex,
+        "voiceInputScreenIndex", VoiceInputScreenIndex,
+        "cursorPanelScreenIndex", CursorPanelScreenIndex,
+        "clipboardPanelScreenIndex", ClipboardPanelScreenIndex,
+        "searchEngine", SearchEngine,
+        "autoLoadSelectedText", AutoLoadSelectedText,
+        "autoUpdateVoiceInput", AutoUpdateVoiceInput,
+        "voiceSearchEnabledCategories", cats,
+        "voiceSearchSelectedEnginesCsv", selectedCsv
+    )
+}
+
+ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
+    global CursorPath, CapsLockHoldTimeSeconds, AutoStart, DefaultStartTab
+    global ThemeMode, FunctionPanelPos, ConfigPanelScreenIndex, ConfigPanelPos, ClipboardPanelPos, PanelScreenIndex
+    global Prompt_Explain, Prompt_Refactor, Prompt_Optimize
+    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, SplitHotkey, BatchHotkey, HotkeyT, HotkeyF, HotkeyP
+    global PromptQuickCaptureHotkey, QuickActionButtons
+    global Language, AISleepTime, LaunchDelaySeconds, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex, ClipboardPanelScreenIndex
+    global SearchEngine, AutoLoadSelectedText, AutoUpdateVoiceInput, VoiceSearchEnabledCategories, VoiceSearchSelectedEngines
+    global ConfigFile
+
+    try {
+        if !(payload is Map) {
+            errorMsg := "payload 无效"
+            return false
+        }
+        NewCursorPath := Trim(payload.Get("cursorPath", ""))
+        if (NewCursorPath = "") {
+            errorMsg := "Cursor Path 不能为空"
+            return false
+        }
+        NewHold := Float(payload.Get("capslockHoldTimeSeconds", 0.5))
+        if (NewHold < 0.1 || NewHold > 5.0) {
+            errorMsg := "CapsLock Hold Time 超出范围"
+            return false
+        }
+        NewAutoStart := payload.Get("autoStart", false) ? true : false
+        NewDefaultTab := payload.Get("defaultStartTab", "general")
+        validTabs := Map("general",1, "appearance",1, "prompts",1, "hotkeys",1, "advanced",1, "search",1)
+        if !validTabs.Has(NewDefaultTab)
+            NewDefaultTab := "general"
+        NewTheme := payload.Get("themeMode", "dark")
+        if (NewTheme != "dark" && NewTheme != "light")
+            NewTheme := "dark"
+        NewPanelPos := payload.Get("functionPanelPos", "center")
+        validPos := Map("center",1, "top-left",1, "top-right",1, "bottom-left",1, "bottom-right",1)
+        if !validPos.Has(NewPanelPos)
+            NewPanelPos := "center"
+        monitorCount := 1
+        try monitorCount := MonitorGetCount()
+        catch
+            monitorCount := 1
+        NewPopupScreen := Integer(payload.Get("popupScreenIndex", payload.Get("panelScreenIndex", 1)))
+        if (NewPopupScreen < 1)
+            NewPopupScreen := 1
+        if (NewPopupScreen > monitorCount)
+            NewPopupScreen := monitorCount
+        NewConfigPanelPos := payload.Get("configPanelPos", "center")
+        if !validPos.Has(NewConfigPanelPos)
+            NewConfigPanelPos := "center"
+        NewClipboardPanelPos := payload.Get("clipboardPanelPos", "center")
+        if !validPos.Has(NewClipboardPanelPos)
+            NewClipboardPanelPos := "center"
+        NewPromptExplain := payload.Get("promptExplain", "")
+        NewPromptRefactor := payload.Get("promptRefactor", "")
+        NewPromptOptimize := payload.Get("promptOptimize", "")
+        NewLanguage := payload.Get("language", "zh")
+        if (NewLanguage != "zh" && NewLanguage != "en")
+            NewLanguage := "zh"
+        NewAiSleepTime := Integer(payload.Get("aiSleepTime", 200))
+        if (NewAiSleepTime < 50)
+            NewAiSleepTime := 50
+        NewLaunchDelay := Float(payload.Get("launchDelaySeconds", 3.0))
+        if (NewLaunchDelay < 0.5)
+            NewLaunchDelay := 0.5
+        if (NewLaunchDelay > 10.0)
+            NewLaunchDelay := 10.0
+        NewSearchEngine := Trim(payload.Get("searchEngine", "deepseek"))
+        if (NewSearchEngine = "")
+            NewSearchEngine := "deepseek"
+        NewAutoLoad := payload.Get("autoLoadSelectedText", false) ? true : false
+        NewAutoUpdate := payload.Get("autoUpdateVoiceInput", true) ? true : false
+        NewCaptureHotkey := Trim(payload.Get("promptQuickCaptureHotkey", ""))
+        NewVoiceEngineCsv := Trim(payload.Get("voiceSearchSelectedEnginesCsv", ""))
+        NewVoiceCats := []
+        if (payload.Has("voiceSearchEnabledCategories") && payload["voiceSearchEnabledCategories"] is Array) {
+            for c in payload["voiceSearchEnabledCategories"] {
+                if (c != "")
+                    NewVoiceCats.Push(c)
+            }
+        }
+        if (NewVoiceCats.Length = 0)
+            NewVoiceCats := ["ai","cli","academic","baidu","image","audio","video","book","price","medical","cloud"]
+        NewQuickActions := []
+        if (payload.Has("quickActions") && payload["quickActions"] is Array) {
+            for item in payload["quickActions"] {
+                if (item is Map) {
+                    qaType := item.Get("type", "Explain")
+                    qaHotkey := item.Get("hotkey", "")
+                    NewQuickActions.Push(Map("Type", qaType, "Hotkey", qaHotkey))
+                }
+            }
+        }
+        while (NewQuickActions.Length < 5)
+            NewQuickActions.Push(Map("Type", "Explain", "Hotkey", "e"))
+        while (NewQuickActions.Length > 5)
+            NewQuickActions.Pop()
+        hkMap := payload.Get("hotkeys", Map())
+        hkGet(Key, Def) {
+            if (hkMap is Map && hkMap.Has(Key))
+                return Trim(hkMap[Key])
+            return Def
+        }
+        NewHotkeyESC := hkGet("ESC", HotkeyESC)
+        NewHotkeyC := hkGet("C", HotkeyC)
+        NewHotkeyV := hkGet("V", HotkeyV)
+        NewHotkeyX := hkGet("X", HotkeyX)
+        NewHotkeyE := hkGet("E", HotkeyE)
+        NewHotkeyR := hkGet("R", HotkeyR)
+        NewHotkeyO := hkGet("O", HotkeyO)
+        NewHotkeyQ := hkGet("Q", HotkeyQ)
+        NewHotkeyZ := hkGet("Z", HotkeyZ)
+        NewSplitHotkey := hkGet("S", SplitHotkey)
+        NewBatchHotkey := hkGet("B", BatchHotkey)
+        NewHotkeyT := hkGet("T", HotkeyT)
+        NewHotkeyF := hkGet("F", HotkeyF)
+        NewHotkeyP := hkGet("P", HotkeyP)
+
+        CursorPath := NewCursorPath
+        CapsLockHoldTimeSeconds := NewHold
+        AutoStart := NewAutoStart
+        DefaultStartTab := NewDefaultTab
+        FunctionPanelPos := NewPanelPos
+        ConfigPanelPos := NewConfigPanelPos
+        ClipboardPanelPos := NewClipboardPanelPos
+        PanelScreenIndex := NewPopupScreen
+        ConfigPanelScreenIndex := NewPopupScreen
+        Prompt_Explain := NewPromptExplain
+        Prompt_Refactor := NewPromptRefactor
+        Prompt_Optimize := NewPromptOptimize
+        HotkeyESC := NewHotkeyESC
+        HotkeyC := NewHotkeyC
+        HotkeyV := NewHotkeyV
+        HotkeyX := NewHotkeyX
+        HotkeyE := NewHotkeyE
+        HotkeyR := NewHotkeyR
+        HotkeyO := NewHotkeyO
+        HotkeyQ := NewHotkeyQ
+        HotkeyZ := NewHotkeyZ
+        SplitHotkey := NewSplitHotkey
+        BatchHotkey := NewBatchHotkey
+        HotkeyT := NewHotkeyT
+        HotkeyF := NewHotkeyF
+        HotkeyP := NewHotkeyP
+        PromptQuickCaptureHotkey := NewCaptureHotkey
+        QuickActionButtons := NewQuickActions
+        Language := NewLanguage
+        AISleepTime := NewAiSleepTime
+        LaunchDelaySeconds := NewLaunchDelay
+        MsgBoxScreenIndex := NewPopupScreen
+        VoiceInputScreenIndex := NewPopupScreen
+        CursorPanelScreenIndex := NewPopupScreen
+        ClipboardPanelScreenIndex := NewPopupScreen
+        SearchEngine := NewSearchEngine
+        AutoLoadSelectedText := NewAutoLoad
+        AutoUpdateVoiceInput := NewAutoUpdate
+        VoiceSearchEnabledCategories := NewVoiceCats
+        VoiceSearchSelectedEngines := []
+        if (NewVoiceEngineCsv != "") {
+            for item in StrSplit(NewVoiceEngineCsv, ",") {
+                v := Trim(item)
+                if (v != "")
+                    VoiceSearchSelectedEngines.Push(v)
+            }
+        }
+        if (VoiceSearchSelectedEngines.Length = 0)
+            VoiceSearchSelectedEngines.Push("deepseek")
+        ApplyTheme(NewTheme)
+
+        IniWrite(CursorPath, ConfigFile, "Settings", "CursorPath")
+        IniWrite(String(AISleepTime), ConfigFile, "Settings", "AISleepTime")
+        IniWrite(String(CapsLockHoldTimeSeconds), ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
+        IniWrite(String(LaunchDelaySeconds), ConfigFile, "Settings", "LaunchDelaySeconds")
+        IniWrite(Language, ConfigFile, "Settings", "Language")
+        IniWrite(Prompt_Explain, ConfigFile, "Settings", "Prompt_Explain")
+        IniWrite(Prompt_Refactor, ConfigFile, "Settings", "Prompt_Refactor")
+        IniWrite(Prompt_Optimize, ConfigFile, "Settings", "Prompt_Optimize")
+        IniWrite(AutoStart ? "1" : "0", ConfigFile, "Settings", "AutoStart")
+        IniWrite(DefaultStartTab, ConfigFile, "Settings", "DefaultStartTab")
+        IniWrite(ThemeMode, ConfigFile, "Settings", "ThemeMode")
+        IniWrite(PromptQuickCaptureHotkey, ConfigFile, "Settings", "PromptQuickCaptureHotkey")
+        IniWrite(SearchEngine, ConfigFile, "Settings", "SearchEngine")
+        IniWrite(AutoLoadSelectedText ? "1" : "0", ConfigFile, "Settings", "AutoLoadSelectedText")
+        IniWrite(AutoUpdateVoiceInput ? "1" : "0", ConfigFile, "Settings", "AutoUpdateVoiceInput")
+        IniWrite(JoinArray(VoiceSearchEnabledCategories, ","), ConfigFile, "Settings", "VoiceSearchEnabledCategories")
+        IniWrite(JoinArray(VoiceSearchSelectedEngines, ","), ConfigFile, "Settings", "VoiceSearchSelectedEngines")
+        IniWrite(HotkeyESC, ConfigFile, "Hotkeys", "ESC")
+        IniWrite(HotkeyC, ConfigFile, "Hotkeys", "C")
+        IniWrite(HotkeyV, ConfigFile, "Hotkeys", "V")
+        IniWrite(HotkeyX, ConfigFile, "Hotkeys", "X")
+        IniWrite(HotkeyE, ConfigFile, "Hotkeys", "E")
+        IniWrite(HotkeyR, ConfigFile, "Hotkeys", "R")
+        IniWrite(HotkeyO, ConfigFile, "Hotkeys", "O")
+        IniWrite(HotkeyQ, ConfigFile, "Hotkeys", "Q")
+        IniWrite(HotkeyZ, ConfigFile, "Hotkeys", "Z")
+        IniWrite(SplitHotkey, ConfigFile, "Hotkeys", "Split")
+        IniWrite(BatchHotkey, ConfigFile, "Hotkeys", "Batch")
+        IniWrite(HotkeyT, ConfigFile, "Hotkeys", "T")
+        IniWrite(HotkeyF, ConfigFile, "Hotkeys", "F")
+        IniWrite(HotkeyP, ConfigFile, "Hotkeys", "P")
+        IniWrite("5", ConfigFile, "QuickActions", "ButtonCount")
+        Loop 5 {
+            idx := A_Index
+            btnType := "Explain"
+            btnHotkey := "e"
+            btn := QuickActionButtons[idx]
+            if (btn is Map) {
+                btnType := btn.Get("Type", btnType)
+                btnHotkey := btn.Get("Hotkey", btnHotkey)
+            } else if (IsObject(btn)) {
+                if btn.HasProp("Type")
+                    btnType := btn.Type
+                if btn.HasProp("Hotkey")
+                    btnHotkey := btn.Hotkey
+            }
+            IniWrite(btnType, ConfigFile, "QuickActions", "Button" . idx . "Type")
+            IniWrite(btnHotkey, ConfigFile, "QuickActions", "Button" . idx . "Hotkey")
+        }
+        IniWrite(PanelScreenIndex, ConfigFile, "Appearance", "ScreenIndex")
+        IniWrite(PanelScreenIndex, ConfigFile, "Appearance", "PopupScreenIndex")
+        IniWrite(FunctionPanelPos, ConfigFile, "Appearance", "FunctionPanelPos")
+        IniWrite(ConfigPanelPos, ConfigFile, "Appearance", "ConfigPanelPos")
+        IniWrite(ClipboardPanelPos, ConfigFile, "Appearance", "ClipboardPanelPos")
+        IniWrite(ConfigPanelScreenIndex, ConfigFile, "Advanced", "ConfigPanelScreenIndex")
+        IniWrite(MsgBoxScreenIndex, ConfigFile, "Advanced", "MsgBoxScreenIndex")
+        IniWrite(VoiceInputScreenIndex, ConfigFile, "Advanced", "VoiceInputScreenIndex")
+        IniWrite(CursorPanelScreenIndex, ConfigFile, "Advanced", "CursorPanelScreenIndex")
+        IniWrite(ClipboardPanelScreenIndex, ConfigFile, "Advanced", "ClipboardPanelScreenIndex")
+        SetAutoStart(AutoStart)
+        PromptQuickPad_RegisterCaptureHotkey()
+        return true
+    } catch as err {
+        errorMsg := "保存失败: " . err.Message
+        return false
+    }
+}
+
+ConfigWebView_OnMessage(sender, args) {
+    global ConfigWV2Ready, UseWebViewSettings
+    jsonStr := args.WebMessageAsJson
+    try {
+        msg := Jxon_Load(jsonStr)
+    } catch {
+        return
+    }
+    if !(msg is Map) || !msg.Has("type")
+        return
+    switch msg["type"] {
+        case "ready":
+            ConfigWV2Ready := true
+            ConfigWebView_Send(Map("type", "initData", "payload", ConfigWebView_BuildInitData()))
+        case "browseCursorPath":
+            selected := FileSelect("1", A_ScriptDir, "选择 Cursor.exe", "Executable (*.exe)")
+            if (selected = "")
+                selected := ""
+            ConfigWebView_Send(Map("type", "browseCursorPathResult", "path", selected))
+        case "saveSettings":
+            payload := msg.Get("payload", Map())
+            err := ""
+            ok := ConfigWebView_ValidateAndApply(payload, &err)
+            ConfigWebView_Send(Map("type", "saveResult", "ok", ok, "error", err))
+            if ok
+                CloseConfigGUI()
+        case "invokeAction":
+            action := msg.Get("action", "")
+            payload := msg.Get("payload", Map())
+            ok := true
+            err := ""
+            try {
+                switch action {
+                    case "installCursorChinese":
+                        InstallCursorChinese()
+                    case "exportConfig":
+                        ExportConfig()
+                    case "importConfig":
+                        ImportConfig()
+                    case "resetToDefaults":
+                        ResetToDefaults()
+                    case "importPromptTemplates":
+                        ImportPromptTemplates()
+                    case "exportPromptTemplates":
+                        ExportPromptTemplates()
+                    case "reloadPromptTemplates":
+                        LoadPromptTemplates()
+                    case "promptTemplateUpsert":
+                        WebViewPromptTemplateUpsert(payload)
+                    case "promptTemplateDelete":
+                        WebViewPromptTemplateDelete(payload)
+                    case "promptTemplateSetDefault":
+                        WebViewPromptTemplateSetDefault(payload)
+                    case "openLegacySettings":
+                        try {
+                            CloseConfigGUI()
+                        } catch {
+                        }
+                        OpenLegacyConfigGUI()
+                    case "openLegacyTab":
+                        targetTab := msg.Get("tab", "general")
+                        try {
+                            CloseConfigGUI()
+                        } catch {
+                        }
+                        OpenLegacyConfigGUI(targetTab)
+                    case "openCompareSettings":
+                        ; 保留当前 WebView，同时再打开一份原版设置页用于对照
+                        OpenLegacyConfigGUI()
+                    default:
+                        ok := false
+                        err := "未知操作: " . action
+                }
+            } catch as e {
+                ok := false
+                err := e.Message
+            }
+            ConfigWebView_Send(Map("type", "actionResult", "ok", ok, "error", err))
+            if ok
+                ConfigWebView_Send(Map("type", "initData", "payload", ConfigWebView_BuildInitData()))
+        case "cancel":
+            CloseConfigGUI()
+    }
+}
+
+OpenLegacyConfigGUI(targetTab := "") {
+    global UseWebViewSettings
+    UseWebViewSettings := false
+    try {
+        ShowConfigGUI()
+        if (targetTab != "") {
+            SetTimer((*) => SwitchTab(targetTab), -200)
+        }
+    } finally {
+        SetTimer((*) => (UseWebViewSettings := true), -300)
+    }
+}
+
+WebViewPromptTemplateUpsert(payload) {
+    global PromptTemplates, TemplateIndexByArrayIndex
+    if !(payload is Map)
+        throw Error("模板数据无效")
+    tId := Trim(payload.Get("id", ""))
+    tTitle := Trim(payload.Get("title", ""))
+    tCategory := Trim(payload.Get("category", ""))
+    tContent := payload.Get("content", "")
+    if (tTitle = "" || tContent = "")
+        throw Error("模板标题和内容不能为空")
+    if (tCategory = "")
+        tCategory := "自定义"
+    if (tId != "" && TemplateIndexByArrayIndex.Has(tId)) {
+        idx := TemplateIndexByArrayIndex[tId]
+        old := PromptTemplates[idx]
+        old.Title := tTitle
+        old.Category := tCategory
+        old.Content := tContent
+        PromptTemplates[idx] := old
+    } else {
+        if (tId = "")
+            tId := "template_" . A_TickCount
+        newTpl := { ID: tId, Title: tTitle, Content: tContent, Icon: "", Category: tCategory }
+        PromptTemplates.Push(newTpl)
+    }
+    InvalidateTemplateCache()
+    SavePromptTemplates()
+}
+
+WebViewPromptTemplateDelete(payload) {
+    global PromptTemplates, DefaultTemplateIDs, TemplateIndexByArrayIndex
+    if !(payload is Map)
+        throw Error("模板数据无效")
+    tId := Trim(payload.Get("id", ""))
+    if (tId = "")
+        throw Error("模板ID不能为空")
+    for _, did in DefaultTemplateIDs {
+        if (did = tId)
+            throw Error("默认模板不能删除")
+    }
+    if !TemplateIndexByArrayIndex.Has(tId)
+        throw Error("模板不存在")
+    idx := TemplateIndexByArrayIndex[tId]
+    PromptTemplates.RemoveAt(idx)
+    InvalidateTemplateCache()
+    SavePromptTemplates()
+}
+
+WebViewPromptTemplateSetDefault(payload) {
+    global DefaultTemplateIDs, TemplateIndexByID
+    if !(payload is Map)
+        throw Error("默认模板参数无效")
+    tId := Trim(payload.Get("id", ""))
+    tType := Trim(payload.Get("type", ""))
+    if (tId = "" || tType = "")
+        throw Error("默认模板参数不完整")
+    if !TemplateIndexByID.Has(tId)
+        throw Error("模板不存在")
+    if (tType != "Explain" && tType != "Refactor" && tType != "Optimize")
+        throw Error("默认模板类型无效")
+    DefaultTemplateIDs[tType] := tId
+    SavePromptTemplates()
 }
 
 ; ===================== 配置面板滚动消息处理 =====================
@@ -16443,6 +17065,7 @@ SaveVoiceInputPosition() {
 CloseConfigGUI() {
     global GuiID_ConfigGUI, CapsLockHoldTimeEdit, CapsLockHoldTimeSeconds, ConfigFile
     global DDLBrush, DefaultStartTabDDL_Hwnd
+    global ConfigWebViewMode, ConfigWV2Ctrl, ConfigWV2, ConfigWV2Ready
     static IsClosing := false  ; 防重复点击标志
     
     ; 如果正在关闭，直接返回
@@ -16452,6 +17075,28 @@ CloseConfigGUI() {
     
     ; 如果窗口已经不存在，直接返回
     if (GuiID_ConfigGUI = 0) {
+        return
+    }
+
+    ; WebView 设置页关闭路径（首期改造）
+    if (ConfigWebViewMode) {
+        try {
+            TempGUI := GuiID_ConfigGUI
+            GuiID_ConfigGUI := 0
+            if (ConfigWV2Ctrl)
+                ConfigWV2Ctrl := 0
+            if (ConfigWV2)
+                ConfigWV2 := 0
+            ConfigWV2Ready := false
+            ConfigWebViewMode := false
+            TempGUI.Destroy()
+        } catch {
+            GuiID_ConfigGUI := 0
+            ConfigWV2Ctrl := 0
+            ConfigWV2 := 0
+            ConfigWV2Ready := false
+            ConfigWebViewMode := false
+        }
         return
     }
     

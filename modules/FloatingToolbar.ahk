@@ -172,7 +172,7 @@ CreateFloatingToolbarGUI() {
         A_ScriptDir . "\images\toolbar_ai.png",
         A_ScriptDir . "\images\toolbar_screenshot.png",
         A_ScriptDir . "\images\toolbar_settings.png",
-        A_ScriptDir . "\images\toolbar_virtualkeyboard.png"
+        A_ScriptDir . "\images\toolbar_shortcut.png"
     ]
     
     ButtonConfigs := [
@@ -525,18 +525,7 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
             }
         case "Settings":
             ; 鏄剧ず閰嶇疆闈㈡澘锛圕apsLock+Q 瀵瑰簲鐨勭獥鍙ｏ級
-            try {
-                ShowConfigGUI()
-            } catch as err {
-                ; 濡傛灉鍑芥暟涓嶅瓨鍦ㄦ垨璋冪敤澶辫触锛屽彂閫佸揩鎹烽敭浣滀负鍚庡
-                SetCapsLockState("AlwaysOff")
-                Send("{CapsLock down}")
-                Sleep(30)
-                Send("q")
-                Sleep(30)
-                Send("{CapsLock up}")
-                SetCapsLockState("Off")
-            }
+            FloatingToolbarOpenSettings()
         case "VirtualKeyboard":
             FloatingToolbarActivateVirtualKeyboard()
     }
@@ -551,6 +540,37 @@ FloatingToolbarActivateVirtualKeyboard() {
             TrayTip("虚拟键盘不可用: " . err.Message, "虚拟键盘", "Iconx 2")
         } catch {
         }
+    }
+}
+
+; 统一设置页入口：优先 WebView 设置页，其次原生设置页，最后快捷键兜底
+FloatingToolbarOpenSettings() {
+    ; 1) 优先调用 WebView 设置页入口（第二期目标）
+    try {
+        if IsSet(ShowConfigWebViewGUI) {
+            ShowConfigWebViewGUI()
+            return
+        }
+    } catch {
+    }
+    ; 2) 兼容原有总入口
+    try {
+        if IsSet(ShowConfigGUI) {
+            ShowConfigGUI()
+            return
+        }
+    } catch {
+    }
+    ; 3) 最后兜底为快捷键
+    try {
+        SetCapsLockState("AlwaysOff")
+        Send("{CapsLock down}")
+        Sleep(30)
+        Send("q")
+        Sleep(30)
+        Send("{CapsLock up}")
+        SetCapsLockState("Off")
+    } catch {
     }
 }
 
