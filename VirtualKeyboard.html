@@ -302,6 +302,15 @@ body::after {
   border-bottom-width: 1px;
   transform: translateY(2px);
 }
+/* 系统全局按键实时高亮（由 AHK InputHook 推送） */
+.k.key-live {
+  background: #2a1a00;
+  border-bottom-width: 1px;
+  transform: translateY(2px);
+  box-shadow: var(--glow-cyan);
+  border-color: var(--cyan) !important;
+  color: var(--cyan) !important;
+}
 /* special widths */
 .k-bks  { min-width: 70px; }
 .k-tab  { min-width: 58px; }
@@ -783,6 +792,21 @@ function handleAhkMessage(msg) {
       };
       renderModifierKeys();
       renderKeyboardSlots();
+      break;
+    case 'keyPreview': {
+      const base = msg.base;
+      const phase = msg.phase;
+      if (!base) break;
+      const el = document.querySelector(`.k[data-ahkkey="${CSS.escape(base)}"]`);
+      if (!el) break;
+      if (phase === 'down')
+        el.classList.add('key-live');
+      else if (phase === 'up')
+        el.classList.remove('key-live');
+      break;
+    }
+    case 'keyPreviewClear':
+      document.querySelectorAll('.k.key-live').forEach((e) => e.classList.remove('key-live'));
       break;
     case 'recordHint':
       if (msg.active) {

@@ -5,12 +5,12 @@
 ;   - 绫讳技杈撳叆娉曠殑鎮诞闀挎潯绐楀彛
 ;   - 宸﹂敭鎷栧姩
 ;   - 鍙抽敭寮瑰嚭鑿滃崟鍏抽棴
-;   - 5涓姛鑳芥寜閽細鎼滅储銆佺瑪璁般€丄I鍔╂墜銆佹埅鍥俱€佽缃紙浣跨敤鍥剧墖鍥炬爣锛?
+;   - 6涓姛鑳芥寜閽細鎼滅储銆佺瑪璁般€丄I鍔╂墜銆佹埅鍥俱€佽缃紙浣跨敤鍥剧墖鍥炬爣锛?
 ;   - Cursor鑹茬郴閰嶈壊
 ; 
 ; 鍥炬爣鏂囦欢瑕佹眰锛?
 ;   - 鍥炬爣鏂囦欢搴旀斁鍦?images 鐩綍涓?
-;   - 鏂囦欢鍛藉悕锛堟寜椤哄簭锛夛細toolbar_search.png, toolbar_note.png, toolbar_ai.png, toolbar_screenshot.png, toolbar_settings.png
+;   - 鏂囦欢鍛藉悕锛堟寜椤哄簭锛夛細toolbar_search.png, toolbar_note.png, toolbar_ai.png, toolbar_screenshot.png, toolbar_settings.png, toolbar_virtualkeyboard.png
 ;   - 鎺ㄨ崘灏哄锛?6x16 鎴?20x20 鍍忕礌锛孭NG鏍煎紡锛屾敮鎸侀€忔槑鑳屾櫙
 ;   - 濡傛灉鍥炬爣鏂囦欢涓嶅瓨鍦紝灏嗕娇鐢ㄦ枃瀛椾綔涓哄悗澶囨樉绀?
 ; ======================================================================================================================
@@ -171,7 +171,8 @@ CreateFloatingToolbarGUI() {
         A_ScriptDir . "\images\toolbar_note.png",
         A_ScriptDir . "\images\toolbar_ai.png",
         A_ScriptDir . "\images\toolbar_screenshot.png",
-        A_ScriptDir . "\images\toolbar_settings.png"
+        A_ScriptDir . "\images\toolbar_settings.png",
+        A_ScriptDir . "\images\toolbar_virtualkeyboard.png"
     ]
     
     ButtonConfigs := [
@@ -179,7 +180,8 @@ CreateFloatingToolbarGUI() {
         Map("text", "记录", "iconPath", IconPaths[2], "action", "Record", "shortcut", "Caps+X"),
         Map("text", "提示词", "iconPath", IconPaths[3], "action", "AIAssistant", "shortcut", "Ctrl+Shift+B"),
         Map("text", "截图", "iconPath", IconPaths[4], "action", "Screenshot", "shortcut", "Caps+T"),
-        Map("text", "设置", "iconPath", IconPaths[5], "action", "Settings", "shortcut", "Caps+Q")
+        Map("text", "设置", "iconPath", IconPaths[5], "action", "Settings", "shortcut", "Caps+Q"),
+        Map("text", "键盘", "iconPath", IconPaths[6], "action", "VirtualKeyboard", "shortcut", "Ctrl+Shift+K")
     ]
     
     ; 鎸夐挳灏哄鍜岄棿璺濓紙澧炲ぇ灏哄锛屽簲鐢ㄧ缉鏀炬瘮渚嬶級
@@ -535,6 +537,40 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
                 Send("{CapsLock up}")
                 SetCapsLockState("Off")
             }
+        case "VirtualKeyboard":
+            FloatingToolbarActivateVirtualKeyboard()
+    }
+}
+
+; 启动或前台显示 VirtualKeyboard.ahk（窗口标题见 VirtualKeyboard.ahk 内 Gui）
+FloatingToolbarActivateVirtualKeyboard() {
+    vkScript := A_ScriptDir . "\VirtualKeyboard.ahk"
+    if (!FileExist(vkScript)) {
+        try {
+            TrayTip("未找到 VirtualKeyboard.ahk: " . vkScript, "虚拟键盘", "Iconx 2")
+        } catch {
+        }
+        return
+    }
+    ; 已运行时显示并激活（避免 #SingleInstance 再次 Run 重启脚本）
+    vkWin := "VK KeyBinder ahk_class AutoHotkeyGUI"
+    if (!WinExist(vkWin))
+        vkWin := "VK KeyBinder"
+    if (WinExist(vkWin)) {
+        try {
+            WinShow(vkWin)
+            WinActivate(vkWin)
+        } catch {
+        }
+        return
+    }
+    try {
+        Run('"' . A_AhkPath . '" "' . vkScript . '"', A_ScriptDir)
+    } catch as err {
+        try {
+            TrayTip("启动虚拟键盘失败: " . err.Message, "虚拟键盘", "Iconx 2")
+        } catch {
+        }
     }
 }
 
@@ -1088,9 +1124,9 @@ OnToolbarBgClick(*) {
     wy := my - winY
     
     ; 妫€鏌ユ槸鍚﹀湪鎸夐挳鍖哄煙鍐咃紙鏇存柊鍧愭爣浠ラ€傚簲鏂板昂瀵革級
-    ; 鎸夐挳鍖哄煙锛歋tartX 鍒?StartX + (ButtonWidth * 5) + (ButtonSpacing * 4)
+    ; 鎸夐挳鍖哄煙锛歋tartX 鍒?StartX + (ButtonWidth * 6) + (ButtonSpacing * 5)
     buttonAreaStartX := 40
-    buttonAreaEndX := 40 + (40 * 5) + (5 * 4)
+    buttonAreaEndX := 40 + (40 * 6) + (5 * 5)
     buttonAreaStartY := 5
     buttonAreaEndY := 5 + 35
     if (wx >= buttonAreaStartX && wx <= buttonAreaEndX && wy >= buttonAreaStartY && wy <= buttonAreaEndY) {
@@ -1268,7 +1304,7 @@ FloatingToolbarCalculateWidth() {
     ButtonWidth := Round(BaseButtonWidth * FloatingToolbarScale)
     ButtonSpacing := Round(BaseButtonSpacing * FloatingToolbarScale)
     ; 最后一枚按钮右边缘 + 与左侧对称的外边距（不再使用超大 BaseRightPadding / 屏幕比例最小宽度）
-    LastRight := StartX + 5 * ButtonWidth + 4 * ButtonSpacing
+    LastRight := StartX + 6 * ButtonWidth + 5 * ButtonSpacing
     return LastRight + pad
 }
 FloatingToolbarCalculateHeight() {
@@ -1525,6 +1561,8 @@ GetButtonTip(action) {
             return "灞忓箷鎴浘 (Caps + T)"
         case "Settings":
             return "绯荤粺璁剧疆 (Caps + Q)"
+        case "VirtualKeyboard":
+            return "虚拟键盘 (Ctrl+Shift+K)"
         default:
             return ""
     }

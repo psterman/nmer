@@ -25,6 +25,7 @@ global g_RecordCtx       := Map("active", false, "commandId", "")
 global g_RecordHook      := 0
 global g_PendingConflict := Map()   ; 待确认的冲突绑定
 global g_UseScanCode     := false   ; 是否使用 ScanCode 物理键模式
+global g_VK_PreviewHook  := 0       ; 全局按键预览 InputHook（不拦截按键）
 
 ; ===========================================================================
 ; 入口
@@ -347,6 +348,7 @@ _OnWebMessage(sender, args) {
             OutputDebug("[VK] WebView ready")
             _PushInit()
             _PushModifierState()
+            _StartKeyPreviewHook()
 
         ; ── JS 录制到新按键，要求保存绑定 ─────────────────────────────
         case "bindKey":
@@ -446,6 +448,81 @@ _DoClearBinding(cmdId) {
     VK_SendToWeb('{"type":"bindingUpdated","commandId":"' . cmdId
         . '","ahkKey":"","displayKey":""}')
     OutputDebug("[VK] clearBinding: " . cmdId)
+}
+
+; ===========================================================================
+; 全局按键预览（任意焦点下高亮键帽，不拦截输入）
+; ===========================================================================
+
+_VkJsonStr(s) {
+    s := StrReplace(s, "\", "\\")
+    s := StrReplace(s, '"', '\"')
+    return s
+}
+
+; 将 vk/sc 映射为与 VirtualKeyboard.html 中 data-ahkkey 一致的字符串
+_VkScToDataAhkBase(vk, sc) {
+    global g_UseScanCode
+    if g_UseScanCode {
+        kn := _GetKeyFromSC(sc)
+        if kn = ""
+            kn := GetKeyName(Format("vk{:x}sc{:x}", vk, sc))
+    } else {
+        kn := GetKeyName(Format("vk{:x}sc{:x}", vk, sc))
+    }
+    if kn = "" || _IsModifierOnlyKey(kn)
+        return ""
+    base := _KeyNameToAhkBase(kn)
+    if base = ""
+        return ""
+    ; HTML 中反引号键使用 data-ahkkey="``"（双引号内成对 `` 表示字面 `）
+    if (base = "``")
+        base := "````"
+    return base
+}
+
+_OnVkPreviewKeyDown(ih, vk, sc) {
+    global g_VK_Ready
+    if !g_VK_Ready
+        return
+    base := _VkScToDataAhkBase(vk, sc)
+    if base = ""
+        return
+    VK_SendToWeb('{"type":"keyPreview","phase":"down","base":"' . _VkJsonStr(base) . '"}')
+}
+
+_OnVkPreviewKeyUp(ih, vk, sc) {
+    global g_VK_Ready
+    if !g_VK_Ready
+        return
+    base := _VkScToDataAhkBase(vk, sc)
+    if base = ""
+        return
+    VK_SendToWeb('{"type":"keyPreview","phase":"up","base":"' . _VkJsonStr(base) . '"}')
+}
+
+_StartKeyPreviewHook() {
+    global g_VK_PreviewHook
+    if IsObject(g_VK_PreviewHook)
+        return
+    ; V: 透传按键到前台；L0: 不收集文本缓冲区
+    ; 必须 KeyOpt {All} N：否则 OnKeyDown/OnKeyUp 不会对「产生文本」的键触发（仅 NotifyNonText 对非文本键有效）
+    ih := InputHook("V L0")
+    ih.KeyOpt("{All}", "N")
+    ih.OnKeyDown := _OnVkPreviewKeyDown
+    ih.OnKeyUp := _OnVkPreviewKeyUp
+    g_VK_PreviewHook := ih
+    ih.Start()
+    OutputDebug("[VK] key preview hook on")
+}
+
+_StopKeyPreviewHook() {
+    global g_VK_PreviewHook
+    if IsObject(g_VK_PreviewHook) {
+        try g_VK_PreviewHook.Stop()
+        g_VK_PreviewHook := 0
+        OutputDebug("[VK] key preview hook off")
+    }
 }
 
 ; ===========================================================================
@@ -586,7 +663,7 @@ _KeyNameToAhkBase(keyName) {
             return Format("{:L}", keyName)
         return keyName
     }
-    static map := Map(
+    static keyNameMap := Map(
         "Escape","Escape","Esc","Escape",
         "Enter","Enter","Tab","Tab","Space","Space",
         "Backspace","Backspace","CapsLock","CapsLock",
@@ -601,8 +678,8 @@ _KeyNameToAhkBase(keyName) {
     )
     if RegExMatch(keyName, "^F([1-9]|1[0-2])$")
         return keyName
-    if map.Has(keyName)
-        return map[keyName]
+    if keyNameMap.Has(keyName)
+        return keyNameMap[keyName]
     return ""
 }
 
@@ -752,12 +829,17 @@ _AhkKeyToDisplay(ahkKey) {
 
 VK_Show() {
     global g_VK_Gui
-    if g_VK_Gui
+    if g_VK_Gui {
         g_VK_Gui.Show("NoActivate")
+        _StartKeyPreviewHook()
+        VK_SendToWeb('{"type":"keyPreviewClear"}')
+    }
 }
 
 VK_Hide() {
     global g_VK_Gui
+    VK_SendToWeb('{"type":"keyPreviewClear"}')
+    _StopKeyPreviewHook()
     if g_VK_Gui
         g_VK_Gui.Hide()
 }
@@ -803,6 +885,13 @@ NotifyScript(targetTitle, payload) {
 ; ===========================================================================
 ; 快捷键（全局控制）
 ; ===========================================================================
+
+OnExit (*) => _VkOnAppExit()
+
+_VkOnAppExit(*) {
+    _StopKeyPreviewHook()
+    _EndRecord()
+}
 
 ; Ctrl+Shift+K  切换显示/隐藏（保持不硬编码业务逻辑，仅控制窗口本身）
 ^+k:: {
