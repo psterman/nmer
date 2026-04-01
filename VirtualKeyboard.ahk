@@ -26,6 +26,7 @@ global g_RecordHook      := 0
 global g_PendingConflict := Map()   ; 待确认的冲突绑定
 global g_UseScanCode     := false   ; 是否使用 ScanCode 物理键模式
 global g_VK_PreviewHook  := 0       ; 全局按键预览 InputHook（不拦截按键）
+global g_VK_TitleH       := 44      ; 标题栏高度（与 _ApplyWV2Bounds 一致）
 
 ; ===========================================================================
 ; 入口
@@ -45,35 +46,40 @@ VK_Init() {
     g_VK_Gui.MarginX := 0
     g_VK_Gui.MarginY := 0
 
-    ; ── 自制标题栏（30px 高，可拖动） ──────────────────────────────────
-    WinW   := 1100
-    TitleH := 30
-    BtnW   := 24
-    BtnPad := 4
+    ; ── 自制标题栏（可拖动）；窗口默认按工作区约 90%×86%，键帽在 HTML 内再整体缩放 ──
+    ScreenW := SysGet(0)
+    ScreenH := SysGet(1)
+    ; 主显示器工作区约 94%×90%，上下限防止过小或超出常见屏
+    WinW := Max(1100, Min(Round(ScreenW * 0.94), 2100))
+    WinH := Max(720, Min(Round(ScreenH * 0.90), 1260))
+    TitleH := g_VK_TitleH
+    BtnW   := 32
+    BtnPad := 8
+    TitleBtnY := Max(8, (TitleH - 22) // 2)
 
     TitleBg := g_VK_Gui.Add("Text",
         "x0 y0 w" . (WinW - BtnW*2 - BtnPad*3) . " h" . TitleH . " Background1a1a1a", "")
     TitleBg.OnEvent("Click", _TitleDrag)
 
     TitleLbl := g_VK_Gui.Add("Text",
-        "x12 y7 w320 h18 ce67e22 Background1a1a1a", "[ VK KEYBINDER ]")
-    TitleLbl.SetFont("s9 Bold", "Consolas")
+        "x16 y" . TitleBtnY . " w400 h22 ce67e22 Background1a1a1a", "[ VK KEYBINDER ]")
+    TitleLbl.SetFont("s11 Bold", "Consolas")
     TitleLbl.OnEvent("Click", _TitleDrag)
 
     MinX   := WinW - BtnW*2 - BtnPad*2
     MinBtn := g_VK_Gui.Add("Text",
-        "x" . MinX . " y7 w" . BtnW . " h18 Center cf5f5f5 Background1a1a1a", "─")
-    MinBtn.SetFont("s10", "Segoe UI")
+        "x" . MinX . " y" . TitleBtnY . " w" . BtnW . " h22 Center cf5f5f5 Background1a1a1a", "─")
+    MinBtn.SetFont("s11", "Segoe UI")
     MinBtn.OnEvent("Click", (*) => WinMinimize(g_VK_Gui.Hwnd))
 
     CloseX   := WinW - BtnW - BtnPad
     CloseBtn := g_VK_Gui.Add("Text",
-        "x" . CloseX . " y7 w" . BtnW . " h18 Center cf5f5f5 Background1a1a1a", "✕")
-    CloseBtn.SetFont("s10", "Segoe UI")
+        "x" . CloseX . " y" . TitleBtnY . " w" . BtnW . " h22 Center cf5f5f5 Background1a1a1a", "✕")
+    CloseBtn.SetFont("s11", "Segoe UI")
     CloseBtn.OnEvent("Click", (*) => VK_Hide())
 
     ; ── 显示窗口 ─────────────────────────────────────────────────────────
-    g_VK_Gui.Show("w" . WinW . " h700 NoActivate")
+    g_VK_Gui.Show("w" . WinW . " h" . WinH . " NoActivate")
     g_VK_Gui.OnEvent("Close", (*) => VK_Hide())
     g_VK_Gui.OnEvent("Size",  _OnGuiResize)
 
@@ -300,14 +306,13 @@ _OnWV2Created(ctrl) {
 }
 
 _ApplyWV2Bounds() {
-    global g_VK_Gui, g_VK_Ctrl
+    global g_VK_Gui, g_VK_Ctrl, g_VK_TitleH
     if !g_VK_Ctrl
         return
-    TitleH := 30
     WinGetClientPos(, , &cw, &ch, g_VK_Gui.Hwnd)
     rc        := WebView2.RECT()
     rc.left   := 0
-    rc.top    := TitleH
+    rc.top    := g_VK_TitleH
     rc.right  := cw
     rc.bottom := ch
     g_VK_Ctrl.Bounds := rc
@@ -363,6 +368,9 @@ _OnWebMessage(sender, args) {
         case "startRecord":
             if msg.Has("commandId")
                 _BeginRecord(msg["commandId"])
+
+        case "cancelRecord":
+            _EndRecord()
 
         ; ── 清除某命令的绑定 ────────────────────────────────────────────
         case "clearBinding":
@@ -554,30 +562,43 @@ _PushModifierState() {
 _BeginRecord(commandId) {
     global g_RecordHook, g_RecordCtx
 
-    ; 先停止旧录制
-    try _EndRecord()
+    ; 先结束上一段录制（不恢复预览钩子，下面会统一处理）
+    try _EndRecord(false)
 
     g_RecordCtx["active"]    := true
     g_RecordCtx["commandId"] := commandId
 
-    ih := InputHook("V")
-    ih.KeyOpt("{All}", "E")
+    ; 录制时暂停全局按键预览，避免与录制用 InputHook 叠栈争抢
+    _StopKeyPreviewHook()
+
+    ; V L0：透传且不收集文本。
+    ; {All} NV：N=对字母/数字等文本键也触发 OnKeyDown；V=不拦截按键。
+    ; 注意：若使用 KeyOpt("{All}","E") 而不对修饰键做 -E，则按下 Ctrl/Alt/Shift 会立刻作为「结束键」终止 Input，
+    ;       会话结束后再按字母将无法捕获（表现为「一直卡在录制」）。此处不用 E，在 _OnRecordKeyDown 里手动 Stop。
+    ih := InputHook("V L0")
+    ih.KeyOpt("{All}", "NV")
+    ih.NotifyNonText := true
     ih.OnKeyDown := _OnRecordKeyDown
     g_RecordHook := ih
-    ih.Start()
+    try ih.Start()
+    catch as e
+        TrayTip("录制钩子启动失败: " . e.Message, "VirtualKeyboard", "Iconx 2")
 
     VK_SendToWeb('{"type":"recordHint","active":true,"commandId":"' . commandId . '"}')
     OutputDebug("[VK] record start: " . commandId)
 }
 
-_EndRecord() {
-    global g_RecordHook, g_RecordCtx
+; restartPreview：录制结束或冲突结束后是否重新启动按键预览钩子（退出进程时不要启动）
+_EndRecord(restartPreview := true) {
+    global g_RecordHook, g_RecordCtx, g_VK_Ready
     if IsObject(g_RecordHook) {
         try g_RecordHook.Stop()
     }
     g_RecordHook := 0
     g_RecordCtx["active"]    := false
     g_RecordCtx["commandId"] := ""
+    if restartPreview && g_VK_Ready
+        _StartKeyPreviewHook()
 }
 
 _OnRecordKeyDown(ih, vk, sc) {
@@ -890,7 +911,7 @@ OnExit (*) => _VkOnAppExit()
 
 _VkOnAppExit(*) {
     _StopKeyPreviewHook()
-    _EndRecord()
+    _EndRecord(false)
 }
 
 ; Ctrl+Shift+K  切换显示/隐藏（保持不硬编码业务逻辑，仅控制窗口本身）

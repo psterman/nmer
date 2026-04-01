@@ -31,6 +31,11 @@
   --deep-black:   #0a0a0a;
   --glow-green:   0 0 8px #00ff4188, 0 0 18px #00ff4144;
   --glow-gold:    0 0 8px #ffcc0088, 0 0 18px #ffcc0044;
+  /* 整页 UI 缩放：略小可避免键盘区出现纵向滚动条，仍保持清晰可读 */
+  --vk-ui-scale: 1.5;
+  /* 下方分类/搜索/列表：以 12px 为参考略缩小 */
+  --vk-panel-font: 11px;
+  --vk-panel-font-sm: 10px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
@@ -52,10 +57,15 @@ body::after {
 }
 
 /* ── Layout ────────────────────────────────────────────────────────────── */
+/* 逻辑尺寸缩小后再 scale，使键帽/文字在视口内约放大 --vk-ui 倍且不裁切 */
 #root {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  width: calc(100% / var(--vk-ui-scale));
+  min-height: calc(100% / var(--vk-ui-scale));
+  height: calc(100% / var(--vk-ui-scale));
+  transform: scale(var(--vk-ui-scale));
+  transform-origin: top left;
 }
 #hud {
   flex-shrink: 0;
@@ -65,27 +75,32 @@ body::after {
   background: var(--surface2);
   border-bottom: 1px solid var(--border);
 }
+/* 键盘区按内容高度；下方设置区占满剩余空间（非 50/50） */
 #keyboard-zone {
-  flex-shrink: 0;
-  padding: 8px 10px 6px;
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 2px 8px 2px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
-  overflow-x: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 #bottom-zone {
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 0;
   display: flex;
   overflow: hidden;
-  min-height: 0;
 }
 #sidebar {
   flex-shrink: 0;
-  width: 180px;
+  width: 160px;
   min-width: 0;
   background: var(--surface);
   border-right: 1px solid var(--border);
   overflow-y: auto;
-  padding: 8px 0;
+  padding: 6px 0;
+  font-size: var(--vk-panel-font);
 }
 #cmd-panel {
   flex: 1;
@@ -94,6 +109,7 @@ body::after {
   flex-direction: column;
   overflow: hidden;
   background: var(--bg);
+  font-size: var(--vk-panel-font);
 }
 /* ── Layout Toggle Button ──────────────────────────────────────────────── */
 #layout-toggle {
@@ -229,34 +245,194 @@ body::after {
 }
 #hud-save:hover { color: var(--orange); border-color: var(--orange); box-shadow: var(--glow); }
 
-/* ── Keyboard ───────────────────────────────────────────────────────────── */
-#keyboard { display: flex; flex-direction: column; gap: 4px; }
-.kr { display: flex; gap: 4px; }
+/* ── Keyboard：标准 87 键 TKL — Grid 左 6 行 + 右轨跨行（比例键帽，非正方形） ── */
+#keyboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--kb-rail-width);
+  grid-template-rows: repeat(6, auto);
+  column-gap: 5px;
+  /* 行距约为原 3px 的 1/3（缩短三分之二） */
+  row-gap: 1px;
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: hidden;
+  align-items: start;
+  --kb-rail-width: 112px;
+  --kb-arrow-w: 30px;
+  --kb-key-h: 26px;
+}
+.kb-grid-left { grid-column: 1; min-width: 0; }
+.kb-grid-r1 { grid-row: 1; }
+.kb-grid-r2 { grid-row: 2; }
+.kb-grid-r3 { grid-row: 3; }
+.kb-grid-r4 { grid-row: 4; }
+.kb-grid-r5 { grid-row: 5; }
+.kb-grid-r6 { grid-row: 6; }
+.kb-main-strip {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2px;
+  align-items: stretch;
+  width: 100%;
+}
+.kb-main-left-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  width: 100%;
+}
+.kb-main-left-col > .kr {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+}
+/* 右轨：占满左侧 6 行高度，内容从上往下紧凑排列（消除「中空」大缝） */
+.kb-right-rail-stack {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  min-width: 0;
+  align-self: stretch;
+  justify-content: flex-start;
+}
+.kb-rail-prt {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2px;
+  width: 100%;
+}
+.kb-rail-prt > .k {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 2px;
+  font-size: 7px;
+}
+.kb-nav-cluster {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+}
+.kb-nav-cluster .kr {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2px;
+  width: 100%;
+}
+.kb-nav-cluster .kr-nav > .k {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 2px;
+  font-size: 7px;
+}
+/* 上键单独一行，与下方 ▼ 同宽对齐 → 倒 T */
+.kr-nav-up {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.kr-nav-up .k {
+  flex: 0 0 var(--kb-arrow-w);
+  width: var(--kb-arrow-w);
+  min-width: var(--kb-arrow-w);
+  max-width: var(--kb-arrow-w);
+  padding: 0 1px;
+}
+.kr-nav.kr-arrows {
+  justify-content: center;
+  gap: 2px;
+}
+.kr-nav.kr-arrows > .k {
+  flex: 0 0 var(--kb-arrow-w);
+  width: var(--kb-arrow-w);
+  min-width: var(--kb-arrow-w);
+  max-width: var(--kb-arrow-w);
+  padding: 0 1px;
+}
+/* 左侧主键区：行内按比例拉伸（典型机械键盘 TKL），统一行高 --kb-key-h */
+.kb-main-strip > .k,
+.kb-main-left-col > .kr > .k {
+  flex: 1 1 0;
+  min-width: 12px;
+}
+.kr-gap {
+  flex: 0 0 auto !important;
+  width: 6px;
+  min-width: 6px;
+  pointer-events: none;
+}
 .k {
   position: relative;
-  display: flex; align-items: center; justify-content: center;
-  flex-direction: column;
-  height: 38px; min-width: 38px;
-  padding: 0 4px;
+  display: block;
+  height: var(--kb-key-h, 26px);
+  min-height: var(--kb-key-h, 26px);
+  min-width: 16px;
+  padding: 2px 4px 3px;
   background: var(--surface2);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  border-bottom: 3px solid #1a1a1a;
+  border-radius: 3px;
+  border-bottom: 2px solid #1a1a1a;
   font-family: var(--font);
-  font-size: 10px; font-weight: 500;
+  font-size: 8px; font-weight: 500;
   color: var(--text-dim);
   cursor: pointer;
   transition: background .1s, border-color .1s, box-shadow .1s, color .1s, transform .05s;
-  flex-shrink: 0; line-height: 1.2;
+  flex-shrink: 1;
+  line-height: 1.15;
 }
-.k .sub {
-  font-size: 8px; color: var(--text-xs); font-weight: 300;
+/* 物理键符：右下小字，为上方自定义命令名让位 */
+.k .k-face {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  left: 4px;
+  text-align: right;
+  font-size: 6px;
+  font-weight: 500;
+  line-height: 1;
+  color: #fff !important;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.k .k-face .sub {
+  font-size: 5px;
+  color: #fff !important;
+  font-weight: 300;
 }
 .k .map-label {
-  font-size: 7px; color: var(--matrix-green);
-  position: absolute; bottom: 1px; left: 1px; right: 1px;
-  text-align: center; overflow: hidden; text-overflow: ellipsis;
-  white-space: nowrap; pointer-events: none; line-height: 1;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: 2px;
+  bottom: auto;
+  text-align: center;
+  font-size: 7px;
+  font-weight: 600;
+  color: var(--matrix-green);
+  line-height: 1.15;
+  max-height: calc(100% - 11px);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  word-break: break-word;
+  pointer-events: none;
+}
+.k .map-label:empty {
+  display: none;
+}
+.kb-right-rail-stack .k .map-label {
+  font-size: 6px;
+  max-height: calc(100% - 9px);
 }
 .k:hover {
   background: #222; border-color: var(--border2);
@@ -311,37 +487,37 @@ body::after {
   border-color: var(--cyan) !important;
   color: var(--cyan) !important;
 }
-/* special widths */
-.k-bks  { min-width: 70px; }
-.k-tab  { min-width: 58px; }
-.k-caps { min-width: 68px; }
-.k-enter{ min-width: 78px; }
-.k-lsh  { min-width: 90px; }
-.k-rsh  { min-width: 90px; }
-.k-ctrl { min-width: 56px; }
-.k-alt  { min-width: 52px; }
-.k-spc  { flex: 1; }
-.k-win  { min-width: 48px; }
-.k-fn   { min-width: 38px; font-size: 9px; }
-.k-f    { flex: 1; font-size: 9px; }
+/* ANSI 风格加宽键（与主键区 flex 配合） */
+.k-bks  { flex: 2.25 1 0 !important; min-width: 34px; }
+.k-tab  { flex: 1.55 1 0 !important; min-width: 38px; }
+.k-caps { flex: 1.65 1 0 !important; min-width: 42px; }
+.k-enter{ flex: 2.15 1 0 !important; min-width: 48px; }
+.k-lsh  { flex: 2.05 1 0 !important; min-width: 52px; }
+.k-rsh  { flex: 2.05 1 0 !important; min-width: 52px; }
+.k-ctrl { flex: 1.25 1 0 !important; min-width: 36px; }
+.k-alt  { flex: 1.15 1 0 !important; min-width: 34px; }
+.k-spc  { flex: 6.25 1 0 !important; min-width: 120px; }
+.k-win  { flex: 1.05 1 0 !important; min-width: 32px; }
+.k-fn   { flex: 1 1 0 !important; min-width: 22px; font-size: 7px; }
+.k-f    { flex: 1 1 0 !important; font-size: 7px; }
 /* caps-lock dot */
 .k-caps::after {
-  content:''; position:absolute; top:4px; right:4px;
-  width:4px; height:4px; border-radius:50%;
+  content:''; position:absolute; top:2px; right:2px;
+  width:3px; height:3px; border-radius:50%;
   background: var(--border);
 }
 .k-caps.caps-on::after { background: var(--orange); box-shadow: var(--glow); }
 
 /* ── Sidebar ────────────────────────────────────────────────────────────── */
-.sidebar-section { padding: 6px 10px 2px; }
+.sidebar-section { padding: 4px 8px 2px; }
 .sidebar-section-title {
-  font-size: 9px; letter-spacing: 2px; color: var(--text-xs);
-  text-transform: uppercase; margin-bottom: 4px;
+  font-size: var(--vk-panel-font-sm); letter-spacing: 1px; color: var(--text-xs);
+  text-transform: uppercase; margin-bottom: 2px;
 }
 .sidebar-item {
-  display: flex; align-items: center; gap: 6px;
-  padding: 5px 10px 5px 16px;
-  font-size: 12px; font-family: var(--font-ui);
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px 8px 4px 12px;
+  font-size: var(--vk-panel-font); font-family: var(--font-ui);
   color: var(--text-dim);
   cursor: pointer;
   border-radius: 3px;
@@ -360,20 +536,20 @@ body::after {
 /* ── Command Panel ──────────────────────────────────────────────────────── */
 #cmd-search-bar {
   flex-shrink: 0;
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 14px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
 #cmd-search {
   flex: 1;
   font-family: var(--font);
-  font-size: 11px;
+  font-size: var(--vk-panel-font);
   background: var(--surface3);
   border: 1px solid var(--border2);
   border-radius: 4px;
   color: var(--text);
-  padding: 4px 10px;
+  padding: 3px 8px;
   outline: none;
   transition: border-color .15s;
 }
@@ -385,8 +561,8 @@ body::after {
 #cmd-search::placeholder { color: var(--text-xs); transition: color .2s; }
 #cmd-search:focus::placeholder { color: var(--border2); }
 #cmd-count {
-  font-size: 10px; color: var(--text-xs);
-  flex-shrink: 0; min-width: 60px; text-align: right;
+  font-size: var(--vk-panel-font-sm); color: var(--text-xs);
+  flex-shrink: 0; min-width: 52px; text-align: right;
 }
 #cmd-list-wrapper {
   flex: 1;
@@ -399,16 +575,16 @@ body::after {
 #cmd-list-wrapper::-webkit-scrollbar-thumb { background: #1e3a22; border-radius: 3px; }
 #cmd-list-wrapper::-webkit-scrollbar-thumb:hover { background: #00ff4144; }
 .no-command-found {
-  padding: 28px 14px;
+  padding: 16px 10px;
   text-align: center;
   color: var(--text-xs);
-  font-size: 12px;
-  letter-spacing: 2px;
+  font-size: var(--vk-panel-font);
+  letter-spacing: 1px;
 }
 
 .cmd-group-header {
-  padding: 6px 14px 4px;
-  font-size: 9px; letter-spacing: 2px; color: var(--text-xs);
+  padding: 4px 10px 3px;
+  font-size: var(--vk-panel-font-sm); letter-spacing: 1px; color: var(--text-xs);
   text-transform: uppercase;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -416,10 +592,10 @@ body::after {
 }
 .cmd-row {
   display: flex; align-items: center;
-  padding: 0 14px;
-  height: 40px;
+  padding: 0 10px;
+  height: 32px;
   border-bottom: 1px solid var(--border);
-  font-size: 12px;
+  font-size: var(--vk-panel-font);
   cursor: default;
   transition: background .1s;
 }
@@ -444,9 +620,9 @@ body::after {
   color: var(--orange);
 }
 .cmd-key {
-  min-width: 140px;
+  min-width: 100px;
   font-family: var(--font);
-  font-size: 10px;
+  font-size: var(--vk-panel-font-sm);
   color: var(--text-dim);
   text-align: right;
   padding-right: 12px;
@@ -464,12 +640,12 @@ body::after {
   flex-shrink: 0;
 }
 .btn-icon {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-xs);
   background: transparent;
   border: 1px solid transparent;
   border-radius: 3px;
-  width: 24px; height: 24px;
+  width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   transition: color .1s, border-color .1s;
@@ -505,32 +681,28 @@ body::after {
   <div id="keyboard-zone">
     <div id="keyboard">
 
-      <!-- Row 0: Esc + F keys -->
-      <div class="kr">
+      <!-- Row 1：Esc + F1–F12（左侧占满 grid 第 1 行） -->
+      <div class="kb-main-strip kb-grid-left kb-grid-r1">
         <div class="k k-fn" data-ahkkey="Escape">Esc</div>
-        <div style="min-width:14px"></div>
+        <div class="kr-gap" aria-hidden="true"></div>
         <div class="k k-f" data-ahkkey="F1">F1</div>
         <div class="k k-f" data-ahkkey="F2">F2</div>
         <div class="k k-f" data-ahkkey="F3">F3</div>
         <div class="k k-f" data-ahkkey="F4">F4</div>
-        <div style="min-width:7px"></div>
+        <div class="kr-gap" style="width:4px;min-width:4px" aria-hidden="true"></div>
         <div class="k k-f" data-ahkkey="F5">F5</div>
         <div class="k k-f" data-ahkkey="F6">F6</div>
         <div class="k k-f" data-ahkkey="F7">F7</div>
         <div class="k k-f" data-ahkkey="F8">F8</div>
-        <div style="min-width:7px"></div>
+        <div class="kr-gap" style="width:4px;min-width:4px" aria-hidden="true"></div>
         <div class="k k-f" data-ahkkey="F9">F9</div>
         <div class="k k-f" data-ahkkey="F10">F10</div>
         <div class="k k-f" data-ahkkey="F11">F11</div>
         <div class="k k-f" data-ahkkey="F12">F12</div>
-        <div style="min-width:7px"></div>
-        <div class="k k-fn" data-ahkkey="PrintScreen">Prt</div>
-        <div class="k k-fn" data-ahkkey="ScrollLock">Scr</div>
-        <div class="k k-fn" data-ahkkey="Pause">Brk</div>
       </div>
 
-      <!-- Row 1: Numbers -->
-      <div class="kr">
+      <!-- Row 2: Numbers -->
+      <div class="kb-main-strip kb-grid-left kb-grid-r2">
         <div class="k" data-ahkkey="``"><span>`</span><span class="sub">~</span></div>
         <div class="k" data-ahkkey="1"><span>1</span><span class="sub">!</span></div>
         <div class="k" data-ahkkey="2"><span>2</span><span class="sub">@</span></div>
@@ -547,8 +719,8 @@ body::after {
         <div class="k k-bks" data-ahkkey="Backspace">⌫ Bks</div>
       </div>
 
-      <!-- Row 2: QWERTY -->
-      <div class="kr">
+      <!-- Row 3: QWERTY -->
+      <div class="kb-main-strip kb-grid-left kb-grid-r3">
         <div class="k k-tab" data-ahkkey="Tab">Tab ⇥</div>
         <div class="k" data-ahkkey="q">Q</div>
         <div class="k" data-ahkkey="w">W</div>
@@ -565,8 +737,8 @@ body::after {
         <div class="k" data-ahkkey="\"><span>\</span><span class="sub">|</span></div>
       </div>
 
-      <!-- Row 3: ASDF -->
-      <div class="kr">
+      <!-- Row 4: ASDF -->
+      <div class="kb-main-strip kb-grid-left kb-grid-r4">
         <div class="k k-caps" data-ahkkey="CapsLock">Caps ⇪</div>
         <div class="k" data-ahkkey="a">A</div>
         <div class="k" data-ahkkey="s">S</div>
@@ -582,8 +754,8 @@ body::after {
         <div class="k k-enter" data-ahkkey="Enter">Enter ↵</div>
       </div>
 
-      <!-- Row 4: ZXCV -->
-      <div class="kr">
+      <!-- Row 5: ZXCV -->
+      <div class="kb-main-strip kb-grid-left kb-grid-r5">
         <div class="k k-lsh" data-ahkkey="LShift">⇧ Shift</div>
         <div class="k" data-ahkkey="z">Z</div>
         <div class="k" data-ahkkey="x">X</div>
@@ -598,34 +770,47 @@ body::after {
         <div class="k k-rsh" data-ahkkey="RShift">Shift ⇧</div>
       </div>
 
-      <!-- Row 5: Bottom -->
-      <div class="kr">
-        <div class="k k-ctrl" data-ahkkey="LCtrl">Ctrl</div>
-        <div class="k k-win"  data-ahkkey="LWin">⊞</div>
-        <div class="k k-alt"  data-ahkkey="LAlt">Alt</div>
-        <div class="k k-spc"  data-ahkkey="Space">SPACE</div>
-        <div class="k k-alt"  data-ahkkey="RAlt">Alt</div>
-        <div class="k k-win"  data-ahkkey="RWin">⊞</div>
-        <div class="k k-win"  data-ahkkey="AppsKey">≡</div>
-        <div class="k k-ctrl" data-ahkkey="RCtrl">Ctrl</div>
-        <div style="min-width:7px"></div>
-        <div class="k k-fn" data-ahkkey="Insert">Ins</div>
-        <div class="k k-fn" data-ahkkey="Home">Home</div>
-        <div class="k k-fn" data-ahkkey="PgUp">PgUp</div>
-        <div style="min-width:4px"></div>
-        <div class="k k-fn" data-ahkkey="Up">▲</div>
+      <!-- Row 6：底行主键区 -->
+      <div class="kb-main-left-col kb-grid-left kb-grid-r6">
+        <div class="kr">
+          <div class="k k-ctrl" data-ahkkey="LCtrl">Ctrl</div>
+          <div class="k k-win"  data-ahkkey="LWin">⊞</div>
+          <div class="k k-alt"  data-ahkkey="LAlt">Alt</div>
+          <div class="k k-spc"  data-ahkkey="Space">SPACE</div>
+          <div class="k k-alt"  data-ahkkey="RAlt">Alt</div>
+          <div class="k k-win"  data-ahkkey="RWin">⊞</div>
+          <div class="k k-win"  data-ahkkey="AppsKey">≡</div>
+          <div class="k k-ctrl" data-ahkkey="RCtrl">Ctrl</div>
+        </div>
       </div>
 
-      <!-- Row 6: Arrows -->
-      <div class="kr" style="justify-content:flex-end;">
-        <div style="flex:1"></div>
-        <div class="k k-fn" data-ahkkey="Delete">Del</div>
-        <div class="k k-fn" data-ahkkey="End">End</div>
-        <div class="k k-fn" data-ahkkey="PgDn">PgDn</div>
-        <div style="min-width:4px"></div>
-        <div class="k k-fn" data-ahkkey="Left">◀</div>
-        <div class="k k-fn" data-ahkkey="Down">▼</div>
-        <div class="k k-fn" data-ahkkey="Right">▶</div>
+      <!-- 右轨单列跨 6 行：Prt→Ins 行→Del 行→▲→◀▼▶（倒 T） -->
+      <div class="kb-right-rail-stack" aria-label="功能键与导航键">
+        <div class="kr kb-rail-prt">
+          <div class="k k-fn" data-ahkkey="PrintScreen">Prt</div>
+          <div class="k k-fn" data-ahkkey="ScrollLock">Scr</div>
+          <div class="k k-fn" data-ahkkey="Pause">Brk</div>
+        </div>
+        <div class="kb-nav-cluster">
+          <div class="kr kr-nav">
+            <div class="k k-fn" data-ahkkey="Insert">Ins</div>
+            <div class="k k-fn" data-ahkkey="Home">Home</div>
+            <div class="k k-fn" data-ahkkey="PgUp">PgUp</div>
+          </div>
+          <div class="kr kr-nav">
+            <div class="k k-fn" data-ahkkey="Delete">Del</div>
+            <div class="k k-fn" data-ahkkey="End">End</div>
+            <div class="k k-fn" data-ahkkey="PgDn">PgDn</div>
+          </div>
+          <div class="kr kr-nav kr-nav-up">
+            <div class="k k-fn" data-ahkkey="Up">▲</div>
+          </div>
+          <div class="kr kr-nav kr-arrows">
+            <div class="k k-fn" data-ahkkey="Left">◀</div>
+            <div class="k k-fn" data-ahkkey="Down">▼</div>
+            <div class="k k-fn" data-ahkkey="Right">▶</div>
+          </div>
+        </div>
       </div>
 
     </div><!-- #keyboard -->
@@ -1017,14 +1202,28 @@ function renderKeyboardSlots() {
     if (cmdId) {
       el.classList.add('bound', 'slot-occupied');
       const cmdName = state.commands[cmdId]?.name || cmdId;
-      lbl.textContent = cmdName.length > 6 ? cmdName.slice(0, 5) + '…' : cmdName;
+      lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
     } else {
       el.classList.add('slot-available');
     }
   });
 }
 
+function ensureKeyFace(el) {
+  if (el.querySelector(':scope > .k-face')) return;
+  const mapLabel = el.querySelector('.map-label');
+  const wrap = document.createElement('span');
+  wrap.className = 'k-face';
+  while (el.firstChild) {
+    if (el.firstChild === mapLabel) break;
+    wrap.appendChild(el.firstChild);
+  }
+  if (wrap.childNodes.length)
+    el.insertBefore(wrap, el.firstChild);
+}
+
 function ensureMapLabel(el) {
+  ensureKeyFace(el);
   let lbl = el.querySelector('.map-label');
   if (!lbl) {
     lbl = document.createElement('div');
@@ -1149,8 +1348,11 @@ function startRecording(cmdId) {
 
 function stopRecording(restoreHud = true) {
   document.querySelectorAll('.k.recording-target').forEach(e => e.classList.remove('recording-target'));
+  const wasRecording = state.recording != null;
   state.recording = null;
   renderCommandList();
+  if (wasRecording)
+    postToAhk({ type: 'cancelRecord' });
   if (restoreHud) {
     const bound = Object.values(state.bindings).filter(b => b?.ahkKey).length;
     setHud('已连接 · ' + bound + ' 个绑定');
