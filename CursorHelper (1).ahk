@@ -3078,6 +3078,8 @@ InitConfig() {
 
 ; 在InitConfig结束后加载模板
 InitConfig() ; 启动初始化
+; 启动时统一归一化 CapsLock 状态，避免继承系统残留 On 状态导致后续组合键流程反复恢复为大写
+SetCapsLockState("Off")
 PromptQuickPad_ReloadCapsLockBSettings()
 ; 初始化剪贴板数据库（在配置初始化后）
 InitClipboardDB()
@@ -3976,9 +3978,8 @@ global CapsLockPressTime := 0
     ; 必须在任何可能改变CAPSLOCK状态的操作之前记录
     local InitialCapsLockState := GetKeyState("CapsLock", "T")
     
-    ; 【关键修复】立即禁用CAPSLOCK的物理状态改变，防止大写锁定一直生效
-    ; 这样可以确保在按下CAPSLOCK时，不会触发大写锁定状态
-    SetCapsLockState("Off")
+    ; 不在按下时强制改写状态，保留系统原生切换时序
+    ; 单击由原生行为 + 释放分支共同保证，组合键分支仍按 CapsLock2 回滚状态
     
     ; 标记 CapsLock 已按下
     CapsLock := true
@@ -24305,7 +24306,9 @@ t:: {
 
 ; F 键：激活搜索中心或执行区域内操作
 f:: {
-    global IsCountdownActive
+    global IsCountdownActive, CapsLock2
+    ; 标记已使用组合键，避免 CapsLock 释放时走“单击切换大小写”分支
+    CapsLock2 := false
     ; 如果倒计时正在进行，按下 F 立即加速执行（发射内容）
     if (IsCountdownActive) {
         ExecuteCountdownAction()
@@ -24323,6 +24326,9 @@ f:: {
 
 ; G 键激活语音搜索面板
 g:: {
+    global CapsLock2
+    ; 与 CapsLock+F 一致：明确标记组合键已消费，避免释放时误切换大小写状态
+    CapsLock2 := false
     ; CapsLock+G 激活原来的语音搜索面板
     StartVoiceSearch()
 }
