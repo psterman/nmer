@@ -16109,6 +16109,7 @@ ConfigWebView_BuildInitData() {
     global PromptQuickCaptureHotkey, QuickActionButtons
     global Language, AISleepTime, LaunchDelaySeconds, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex, ClipboardPanelScreenIndex
     global SearchEngine, AutoLoadSelectedText, AutoUpdateVoiceInput, VoiceSearchEnabledCategories, VoiceSearchSelectedEngines
+    global ConfigFile
     monitorCount := 1
     try monitorCount := MonitorGetCount()
     catch
@@ -16176,6 +16177,14 @@ ConfigWebView_BuildInitData() {
         "Refactor", DefaultTemplateIDs.Has("Refactor") ? DefaultTemplateIDs["Refactor"] : "",
         "Optimize", DefaultTemplateIDs.Has("Optimize") ? DefaultTemplateIDs["Optimize"] : ""
     )
+    cursorRules := Map(
+        "general", IniRead(ConfigFile, "CursorRules", "general", ""),
+        "web", IniRead(ConfigFile, "CursorRules", "web", ""),
+        "miniprogram", IniRead(ConfigFile, "CursorRules", "miniprogram", ""),
+        "android", IniRead(ConfigFile, "CursorRules", "android", ""),
+        "ios", IniRead(ConfigFile, "CursorRules", "ios", ""),
+        "python", IniRead(ConfigFile, "CursorRules", "python", "")
+    )
     return Map(
         "cursorPath", CursorPath,
         "capslockHoldTimeSeconds", CapsLockHoldTimeSeconds,
@@ -16192,6 +16201,7 @@ ConfigWebView_BuildInitData() {
         "promptExplain", Prompt_Explain,
         "promptRefactor", Prompt_Refactor,
         "promptOptimize", Prompt_Optimize,
+        "cursorRules", cursorRules,
         "promptTemplateSummary", promptTemplateSummary,
         "defaultTemplates", defaultTemplates,
         "hotkeys", hotkeys,
@@ -16267,6 +16277,21 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         NewPromptExplain := payload.Get("promptExplain", "")
         NewPromptRefactor := payload.Get("promptRefactor", "")
         NewPromptOptimize := payload.Get("promptOptimize", "")
+        NewCursorRules := Map(
+            "general", IniRead(ConfigFile, "CursorRules", "general", ""),
+            "web", IniRead(ConfigFile, "CursorRules", "web", ""),
+            "miniprogram", IniRead(ConfigFile, "CursorRules", "miniprogram", ""),
+            "android", IniRead(ConfigFile, "CursorRules", "android", ""),
+            "ios", IniRead(ConfigFile, "CursorRules", "ios", ""),
+            "python", IniRead(ConfigFile, "CursorRules", "python", "")
+        )
+        if (payload.Has("cursorRules") && payload["cursorRules"] is Map) {
+            crPayload := payload["cursorRules"]
+            for k in ["general","web","miniprogram","android","ios","python"] {
+                if crPayload.Has(k)
+                    NewCursorRules[k] := crPayload.Get(k, "")
+            }
+        }
         NewLanguage := payload.Get("language", "zh")
         if (NewLanguage != "zh" && NewLanguage != "en")
             NewLanguage := "zh"
@@ -16397,6 +16422,12 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         IniWrite(AutoUpdateVoiceInput ? "1" : "0", ConfigFile, "Settings", "AutoUpdateVoiceInput")
         IniWrite(JoinArray(VoiceSearchEnabledCategories, ","), ConfigFile, "Settings", "VoiceSearchEnabledCategories")
         IniWrite(JoinArray(VoiceSearchSelectedEngines, ","), ConfigFile, "Settings", "VoiceSearchSelectedEngines")
+        IniWrite(NewCursorRules["general"], ConfigFile, "CursorRules", "general")
+        IniWrite(NewCursorRules["web"], ConfigFile, "CursorRules", "web")
+        IniWrite(NewCursorRules["miniprogram"], ConfigFile, "CursorRules", "miniprogram")
+        IniWrite(NewCursorRules["android"], ConfigFile, "CursorRules", "android")
+        IniWrite(NewCursorRules["ios"], ConfigFile, "CursorRules", "ios")
+        IniWrite(NewCursorRules["python"], ConfigFile, "CursorRules", "python")
         IniWrite(HotkeyESC, ConfigFile, "Hotkeys", "ESC")
         IniWrite(HotkeyC, ConfigFile, "Hotkeys", "C")
         IniWrite(HotkeyV, ConfigFile, "Hotkeys", "V")

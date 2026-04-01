@@ -89,10 +89,12 @@
       customPromptCategories: [],
       promptsSearchComposing: false,
       creatingPromptTemplate: false,
+      cursorRulesTab: "general",
       data: {
         cursorPath: "", capslockHoldTimeSeconds: 0.5, autoStart: false, defaultStartTab: "general",
         themeMode: "dark", popupScreenIndex: 1, monitorCount: 1,
         promptExplain: "", promptRefactor: "", promptOptimize: "",
+        cursorRules: { general:"", web:"", miniprogram:"", android:"", ios:"", python:"" },
         promptTemplateSummary: [], defaultTemplates: { Explain: "", Refactor: "", Optimize: "" },
         hotkeys: { ESC:"Esc", C:"c", V:"v", X:"x", E:"e", R:"r", O:"o", Q:"q", Z:"z", S:"s", B:"b", T:"t", F:"f", P:"p" },
         promptQuickCaptureHotkey: "",
@@ -123,7 +125,16 @@
     }
     function readGeneral(d){ d.cursorPath = document.getElementById("cursorPath")?.value.trim() ?? d.cursorPath; d.capslockHoldTimeSeconds = Number(document.getElementById("holdTime")?.value ?? d.capslockHoldTimeSeconds); d.autoStart = !!document.getElementById("autoStart")?.checked; d.defaultStartTab = document.getElementById("defaultStartTab")?.value ?? d.defaultStartTab; return d; }
     function readAppearance(d){ d.themeMode = document.getElementById("themeMode")?.value ?? d.themeMode; d.popupScreenIndex = Number(document.getElementById("popupScreenIndex")?.value ?? d.popupScreenIndex); return d; }
-    function readPrompts(d){ d.promptExplain = document.getElementById("promptExplain")?.value ?? d.promptExplain; d.promptRefactor = document.getElementById("promptRefactor")?.value ?? d.promptRefactor; d.promptOptimize = document.getElementById("promptOptimize")?.value ?? d.promptOptimize; return d; }
+    function readPrompts(d){
+      d.promptExplain = document.getElementById("promptExplain")?.value ?? d.promptExplain;
+      d.promptRefactor = document.getElementById("promptRefactor")?.value ?? d.promptRefactor;
+      d.promptOptimize = document.getElementById("promptOptimize")?.value ?? d.promptOptimize;
+      const cr = { ...(d.cursorRules || {}) };
+      const ruleEl = document.getElementById("cursorRuleContent");
+      if (ruleEl) cr[state.cursorRulesTab] = ruleEl.value ?? "";
+      d.cursorRules = cr;
+      return d;
+    }
     function readHotkeys(d){
       const hk = { ...d.hotkeys };
       HOTKEY_KEYS.forEach(k => { const el = document.getElementById("hk_" + k); if (el) hk[k] = el.value.trim(); });
@@ -190,7 +201,7 @@
           : (filtered.find(t => t.id === state.selectedPromptTemplateId) || filtered[0] || null);
         const catTabs = allCats.map(c => `<button class="subtab-btn ${state.promptsCategoryTab === c ? "active" : ""}" data-prompt-cat="${esc(c)}">${esc(c)}</button>`).join("");
         const listRows = filtered.map(t => `<div class="list-row ${selected?.id === t.id ? "active" : ""}" data-prompt-id="${esc(t.id)}"><div>${esc(t.title || t.id)}</div><div>${esc((t.content || "").replace(/\s+/g, " ").slice(0, 96))}</div></div>`).join("");
-        panel.innerHTML = `<div class="card"><div class="subtabs"><button class="subtab-btn ${state.promptsMainTab === "templateManager" ? "active" : ""}" data-prompt-main="templateManager">模板管理</button><button class="subtab-btn ${state.promptsMainTab === "cursorRules" ? "active" : ""}" data-prompt-main="cursorRules">cursor规则</button></div>${state.promptsMainTab === "templateManager" ? `<div class="search-row"><div class="inline"><input id="promptSearchKeyword" type="text" placeholder="搜索模板关键词（自动匹配全部模板）" value="${esc(state.promptsSearchKeyword)}"><button class="btn" id="btnPromptSearchClear">清空</button></div></div><div class="subtabs">${catTabs}</div><div class="prompt-grid"><div class="list-panel"><div class="list-head"><div>名称</div><div>内容</div></div><div class="list-body">${listRows || `<div class="list-row"><div>-</div><div>未匹配到模板</div></div>`}</div></div><div><div class="compact-row"><div class="label">模板标题</div><input id="promptTplTitle" type="text" value="${esc(selected?.title || "")}"></div><div class="compact-row"><div class="label">模板分类</div><div class="inline"><select id="promptTplCategory">${options(allCats, (selected?.category || state.promptsCategoryTab))}</select><button class="btn" id="btnAddCategory">新建分类</button><button class="btn" id="btnDeleteCategory">删除分类</button></div></div><div class="label">模板内容</div><div class="editor-toolbar"><button class="btn" data-editor-action="bold">加粗</button><button class="btn" data-editor-action="code">代码</button><button class="btn" data-editor-action="quote">引用</button><button class="btn" data-editor-action="ul">列表</button><button class="btn" data-editor-action="undo">撤销</button><button class="btn" data-editor-action="redo">重做</button><button class="btn" data-editor-action="clear">清空</button></div><textarea id="promptTplContent" style="min-height:260px;">${esc(selected?.content || "")}</textarea><div class="inline" style="margin-top:8px;"><button class="btn" id="btnTplNew">新建模板</button><button class="btn" id="btnTplSave">保存模板</button><button class="btn" id="btnTplDelete">删除模板</button></div><div class="inline" style="margin-top:8px;"><button class="btn" id="btnImportTpl">导入模板</button><button class="btn" id="btnExportTpl">导出模板</button><button class="btn" id="btnReloadTpl">重载模板</button><button class="btn" id="btnOpenLegacyPrompts">原版模板管理</button></div></div></div>` : `<div class="title">cursor规则</div><div class="label">解释提示词</div><textarea id="promptExplain">${esc(d.promptExplain)}</textarea><div class="label" style="margin-top:8px;">重构提示词</div><textarea id="promptRefactor">${esc(d.promptRefactor)}</textarea><div class="label" style="margin-top:8px;">优化提示词</div><textarea id="promptOptimize">${esc(d.promptOptimize)}</textarea><div class="hint">该分区保留原有三类规则提示词，便于和旧版对照。</div>`}</div>`;
+        panel.innerHTML = `<div class="card"><div class="subtabs"><button class="subtab-btn ${state.promptsMainTab === "templateManager" ? "active" : ""}" data-prompt-main="templateManager">模板管理</button><button class="subtab-btn ${state.promptsMainTab === "cursorRules" ? "active" : ""}" data-prompt-main="cursorRules">cursor规则</button></div>${state.promptsMainTab === "templateManager" ? `<div class="search-row"><div class="inline"><input id="promptSearchKeyword" type="text" placeholder="搜索模板关键词（自动匹配全部模板）" value="${esc(state.promptsSearchKeyword)}"><button class="btn" id="btnPromptSearchClear">清空</button></div></div><div class="subtabs">${catTabs}</div><div class="prompt-grid"><div class="list-panel"><div class="list-head"><div>名称</div><div>内容</div></div><div class="list-body">${listRows || `<div class="list-row"><div>-</div><div>未匹配到模板</div></div>`}</div></div><div><div class="compact-row"><div class="label">模板标题</div><input id="promptTplTitle" type="text" value="${esc(selected?.title || "")}"></div><div class="compact-row"><div class="label">模板分类</div><div class="inline"><select id="promptTplCategory">${options(allCats, (selected?.category || state.promptsCategoryTab))}</select><button class="btn" id="btnAddCategory">新建分类</button><button class="btn" id="btnDeleteCategory">删除分类</button></div></div><div class="label">模板内容</div><div class="editor-toolbar"><button class="btn" data-editor-action="bold">加粗</button><button class="btn" data-editor-action="code">代码</button><button class="btn" data-editor-action="quote">引用</button><button class="btn" data-editor-action="ul">列表</button><button class="btn" data-editor-action="undo">撤销</button><button class="btn" data-editor-action="redo">重做</button><button class="btn" data-editor-action="clear">清空</button></div><textarea id="promptTplContent" style="min-height:260px;">${esc(selected?.content || "")}</textarea><div class="inline" style="margin-top:8px;"><button class="btn" id="btnTplNew">新建模板</button><button class="btn" id="btnTplSave">保存模板</button><button class="btn" id="btnTplDelete">删除模板</button></div><div class="inline" style="margin-top:8px;"><button class="btn" id="btnImportTpl">导入模板</button><button class="btn" id="btnExportTpl">导出模板</button><button class="btn" id="btnReloadTpl">重载模板</button><button class="btn" id="btnOpenLegacyPrompts">原版模板管理</button></div></div></div>` : (() => { const ruleTabs = [{k:"general",n:"通用规则"},{k:"web",n:"网页开发"},{k:"miniprogram",n:"小程序"},{k:"android",n:"安卓App"},{k:"ios",n:"iOS App"},{k:"python",n:"Python"}]; const tabHtml = ruleTabs.map(t => `<button class="subtab-btn ${state.cursorRulesTab===t.k?"active":""}" data-rule-tab="${t.k}">${t.n}</button>`).join(""); const content = d.cursorRules?.[state.cursorRulesTab] || ""; return `<div class="title">Cursor规则</div><div class="subtabs">${tabHtml}</div><div class="label">规则内容</div><textarea id="cursorRuleContent" style="min-height:320px;">${esc(content)}</textarea><div class="inline" style="margin-top:8px;"><button class="btn" id="btnCursorRulesCopy">复制规则</button><button class="btn" id="btnOpenLegacyPrompts">打开原版规则设置</button></div>`; })()}</div>`;
         document.querySelectorAll("[data-prompt-main]").forEach(el => el.addEventListener("click", () => { state.promptsMainTab = el.getAttribute("data-prompt-main"); render(); }));
         if (state.promptsMainTab === "templateManager") {
           const searchEl = document.getElementById("promptSearchKeyword");
@@ -290,6 +301,22 @@
           document.getElementById("btnImportTpl").addEventListener("click", () => post({ type: "invokeAction", action: "importPromptTemplates" }));
           document.getElementById("btnExportTpl").addEventListener("click", () => post({ type: "invokeAction", action: "exportPromptTemplates" }));
           document.getElementById("btnReloadTpl").addEventListener("click", () => post({ type: "invokeAction", action: "reloadPromptTemplates" }));
+          document.getElementById("btnOpenLegacyPrompts").addEventListener("click", () => post({ type: "invokeAction", action: "openLegacyTab", tab: "prompts" }));
+        } else if (state.promptsMainTab === "cursorRules") {
+          document.querySelectorAll("[data-rule-tab]").forEach(el => el.addEventListener("click", () => {
+            state.data = readFromUI();
+            state.cursorRulesTab = el.getAttribute("data-rule-tab");
+            render();
+          }));
+          document.getElementById("btnCursorRulesCopy").addEventListener("click", async () => {
+            const text = document.getElementById("cursorRuleContent")?.value || "";
+            try {
+              await navigator.clipboard.writeText(text);
+              setStatus("规则已复制", "ok");
+            } catch {
+              setStatus("复制失败", "err");
+            }
+          });
           document.getElementById("btnOpenLegacyPrompts").addEventListener("click", () => post({ type: "invokeAction", action: "openLegacyTab", tab: "prompts" }));
         }
       } else if (state.activeTab === "hotkeys") {
