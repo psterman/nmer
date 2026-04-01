@@ -606,6 +606,10 @@ body::after {
 .cmd-row:hover { background: #111; }
 .cmd-row.has-binding { background: #0e0c00; }
 .cmd-row.has-binding:hover { background: #161000; }
+.cmd-row.active-focus {
+  outline: 1px solid #e67e2288;
+  background: #1a1300 !important;
+}
 .cmd-row.recording {
   background: #1a0e00 !important;
   animation: rec-pulse 1s ease-in-out infinite;
@@ -875,6 +879,8 @@ const state = {
   filter:      'all',       // 'all' | categoryId
   search:      '',
   recording:   null,        // cmdId being recorded
+  focusedCmdId: null,       // 当前右侧选中的命令（聚焦模式）
+  focusedMods: null,        // 聚焦命令要求的修饰键（来自 ahkKey 的 ^ ! +）
   activeMods:  { ctrl:false, alt:false, shift:false },
   lastFilteredCmdIds: [],
   nativeLayout: false,      // ScanCode 物理键适配模式
@@ -1156,8 +1162,17 @@ function makeCmdRow(cmdId) {
   const isRec   = state.recording === cmdId;
 
   const row = document.createElement('div');
-  row.className = 'cmd-row' + (hasBind ? ' has-binding' : '') + (isRec ? ' recording' : '');
+  const isFocused = state.focusedCmdId === cmdId;
+  row.className = 'cmd-row' + (hasBind ? ' has-binding' : '') + (isRec ? ' recording' : '') + (isFocused ? ' active-focus' : '');
   row.dataset.cmdId = cmdId;
+  row.addEventListener('click', () => {
+    state.focusedCmdId = cmdId;
+    renderCommandList();
+    renderKeyboardSlots();
+    renderModifierKeys();
+    const key = state.bindings[cmdId]?.ahkKey || state.suggestedBindings[cmdId] || '';
+    if (key) triggerKeyRipple(key);
+  });
 
   // name + desc tooltip
   const nameEl = mkEl('div', 'cmd-name', cmd.name);
@@ -1216,6 +1231,18 @@ function renderKeyboardSlots() {
   setTimeout(() => zone.classList.remove('fade-switch'), 120);
 
   const prefix = getActivePrefix();
+  const focusCmdId = state.focusedCmdId;
+  const focusAKey = focusCmdId
+    ? (state.bindings[focusCmdId]?.ahkKey || state.suggestedBindings[focusCmdId] || '')
+    : '';
+  state.focusedMods = focusAKey
+    ? {
+        ctrl: focusAKey.includes('^'),
+        alt: focusAKey.includes('!'),
+        shift: focusAKey.includes('+'),
+      }
+    : null;
+  const focusLookup = focusAKey.replace(/[\^!+]/g, '');
   document.querySelectorAll('.k').forEach(el => {
     const baseKey = el.dataset.ahkkey;
     if (!baseKey) return;
@@ -1223,6 +1250,15 @@ function renderKeyboardSlots() {
     el.classList.remove('bound', 'slot-occupied', 'slot-available', 'slot-suggested');
     lbl.textContent = '';
     if (isModifierBaseKey(baseKey)) return;
+    // 命令聚焦模式：仅展示当前命令对应快捷键，其它键位全部清空
+    if (focusCmdId) {
+      if (baseKey === focusLookup) {
+        el.classList.add('bound', 'slot-occupied');
+        const cmdName = state.commands[focusCmdId]?.name || focusCmdId;
+        lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
+      }
+      return;
+    }
     const lookup = prefix + baseKey;
     let cmdId = state.ahkKeyIndex[lookup];
     if (!cmdId && prefix === '') cmdId = state.suggestedByKey[baseKey];
@@ -1236,6 +1272,15 @@ function renderKeyboardSlots() {
       el.classList.add('slot-available');
     }
   });
+}
+
+function clearCommandFocus() {
+  if (!state.focusedCmdId) return;
+  state.focusedCmdId = null;
+  state.focusedMods = null;
+  renderCommandList();
+  renderKeyboardSlots();
+  renderModifierKeys();
 }
 
 function ensureKeyFace(el) {
@@ -1274,17 +1319,23 @@ function getActivePrefix() {
 
 function renderModifierKeys() {
   const mod = state.activeMods;
+  const fmod = state.focusedMods || { ctrl:false, alt:false, shift:false };
   document.querySelectorAll('.k.mod-active').forEach(el => el.classList.remove('mod-active'));
-  if (mod.ctrl) {
+  if (mod.ctrl || fmod.ctrl) {
     document.querySelectorAll('.k[data-ahkkey="LCtrl"], .k[data-ahkkey="RCtrl"]')
       .forEach(el => el.classList.add('mod-active'));
   }
-  if (mod.alt) {
+  if (mod.alt || fmod.alt) {
     document.querySelectorAll('.k[data-ahkkey="LAlt"], .k[data-ahkkey="RAlt"]')
       .forEach(el => el.classList.add('mod-active'));
   }
-  if (mod.shift) {
+  if (mod.shift || fmod.shift) {
     document.querySelectorAll('.k[data-ahkkey="LShift"], .k[data-ahkkey="RShift"]')
+      .forEach(el => el.classList.add('mod-active'));
+  }
+  // 聚焦模式下显式提示 CapsLock 前缀
+  if (state.focusedCmdId) {
+    document.querySelectorAll('.k[data-ahkkey="CapsLock"]')
       .forEach(el => el.classList.add('mod-active'));
   }
 }
@@ -1412,6 +1463,14 @@ document.querySelectorAll('.k').forEach(el => {
 document.getElementById('cmd-search').addEventListener('input', (e) => {
   state.search = e.target.value;
   renderCommandList();
+});
+
+// 点击空白区域：退出命令聚焦模式，恢复全量高亮展示
+document.getElementById('cmd-list-wrapper').addEventListener('click', (e) => {
+  if (!e.target.closest('.cmd-row')) clearCommandFocus();
+});
+document.getElementById('sidebar-list').addEventListener('click', (e) => {
+  if (!e.target.closest('.sidebar-item')) clearCommandFocus();
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

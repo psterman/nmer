@@ -121,6 +121,8 @@ _LoadCommands() {
     if !(g_Commands is Map) || !g_Commands.Has("Bindings")
         return
 
+    _VK_MergeSuggestedBindings()
+
     bindings := g_Commands["Bindings"]
     if bindings is Map {
         for ahkKey, cmdId in bindings {
@@ -129,6 +131,47 @@ _LoadCommands() {
         }
     }
     OutputDebug("[VK] Loaded " . g_Bindings.Count . " binding(s)")
+}
+
+; 将 SuggestedBindings 合并进 Bindings（不覆盖用户已有绑定）
+; 目的：首次使用时不再只显示 Escape 一项，内置 ch_* 能直接体现为已绑定
+_VK_MergeSuggestedBindings() {
+    global g_Commands
+    if !g_Commands.Has("Bindings") || !(g_Commands["Bindings"] is Map)
+        g_Commands["Bindings"] := Map()
+    if !g_Commands.Has("SuggestedBindings") || !(g_Commands["SuggestedBindings"] is Map)
+        return
+    if !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+        return
+
+    bindings := g_Commands["Bindings"]
+    suggest := g_Commands["SuggestedBindings"]
+    cmdList := g_Commands["CommandList"]
+
+    usedKeys := Map()
+    boundCmd := Map()
+    for ahkKey, cmdId in bindings {
+        usedKeys[ahkKey] := true
+        boundCmd[cmdId] := true
+    }
+
+    changed := false
+    for cmdId, key in suggest {
+        if !cmdList.Has(cmdId)
+            continue
+        if (cmdId = "sys_exit")
+            continue
+        if boundCmd.Has(cmdId)
+            continue
+        if usedKeys.Has(key)
+            continue
+        bindings[key] := cmdId
+        usedKeys[key] := true
+        boundCmd[cmdId] := true
+        changed := true
+    }
+    if changed
+        OutputDebug("[VK] merged SuggestedBindings into Bindings")
 }
 
 _VK_StripDynamicPromptCommands() {
