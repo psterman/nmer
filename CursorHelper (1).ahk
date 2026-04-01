@@ -2840,7 +2840,7 @@ InitConfig() {
                 CustomIconPath := ""
             }
             ; 验证值是否有效，如果无效则使用默认值
-            if (DefaultStartTab != "general" && DefaultStartTab != "appearance" && DefaultStartTab != "prompts" && DefaultStartTab != "hotkeys" && DefaultStartTab != "advanced") {
+            if (DefaultStartTab != "general" && DefaultStartTab != "appearance" && DefaultStartTab != "prompts" && DefaultStartTab != "hotkeys" && DefaultStartTab != "advanced" && DefaultStartTab != "search") {
                 DefaultStartTab := "general"
             }
             
@@ -4464,13 +4464,24 @@ ShowCursorPanel() {
     ; 按钮区域起始位置：ListView下方（即使ListView初始隐藏，也要预留空间）
     ButtonY := MoreBtnY + MoreBtnHeight + 20
     for Index, Button in QuickActionButtons {
+        BtnType := ""
+        BtnHotkey := ""
+        if (Button is Map) {
+            BtnType := Button.Get("Type", "")
+            BtnHotkey := Button.Get("Hotkey", "")
+        } else if (IsObject(Button)) {
+            if Button.HasProp("Type")
+                BtnType := Button.Type
+            if Button.HasProp("Hotkey")
+                BtnHotkey := Button.Hotkey
+        }
         ; 获取按钮文本和功能
         ButtonText := ""
         ButtonAction := (*) => {}
         
         ; 获取基础文本（不包含快捷键）
         BaseText := ""
-        switch Button.Type {
+        switch BtnType {
             case "Explain":
                 BaseText := GetText("explain_code")
                 ButtonAction := (*) => ExecutePrompt("Explain")
@@ -4533,8 +4544,8 @@ ShowCursorPanel() {
         ; 替换快捷键（将默认快捷键替换为配置的快捷键）
         ; 例如："解释代码 (E)" -> "解释代码 (e)"（如果配置的是e）
         ; 如果 Hotkey 为空（新增的 Cursor 快捷键选项），不显示快捷键
-        if (Button.Hotkey != "") {
-            HotkeyUpper := StrUpper(Button.Hotkey)
+        if (BtnHotkey != "") {
+            HotkeyUpper := StrUpper(BtnHotkey)
             ; 尝试替换常见的默认快捷键
             ButtonText := StrReplace(BaseText, " (E)", " (" . HotkeyUpper . ")")
             ButtonText := StrReplace(ButtonText, " (R)", " (" . HotkeyUpper . ")")
@@ -4562,7 +4573,7 @@ ShowCursorPanel() {
         
         ; 获取按钮对应的说明文字
         ButtonDesc := ""
-        switch Button.Type {
+        switch BtnType {
             case "Explain":
                 ButtonDesc := GetText("hotkey_e_desc")
             case "Refactor":
@@ -4632,7 +4643,13 @@ ShowCursorPanel() {
     ; 初始显示第一个按钮的说明（如果有按钮）
     if (QuickActionButtons.Length > 0) {
         FirstButtonDesc := ""
-        switch QuickActionButtons[1].Type {
+        firstType := ""
+        firstBtn := QuickActionButtons[1]
+        if (firstBtn is Map)
+            firstType := firstBtn.Get("Type", "")
+        else if (IsObject(firstBtn) && firstBtn.HasProp("Type"))
+            firstType := firstBtn.Type
+        switch firstType {
             case "Explain":
                 FirstButtonDesc := GetText("hotkey_e_desc")
             case "Refactor":
@@ -6312,10 +6329,16 @@ CreateQuickActionConfigUI(ConfigGUI, X, Y, W, ParentControls) {
         DescW := W - (DescX - X) - 10
         DescH := 40  ; 增加高度，确保多行文字能完整显示
         
+        BtnType := ""
+        if (Button is Map)
+            BtnType := Button.Get("Type", "")
+        else if (IsObject(Button) && Button.HasProp("Type"))
+            BtnType := Button.Type
+
         ; 获取当前选中类型的说明
         CurrentDesc := ""
         for TypeIndex, ActionType in ActionTypes {
-            if (Button.Type = ActionType.Type) {
+            if (BtnType = ActionType.Type) {
                 CurrentDesc := ActionType.Desc
                 break
             }
@@ -6346,7 +6369,7 @@ CreateQuickActionConfigUI(ConfigGUI, X, Y, W, ParentControls) {
         
         ; 先确定当前选中的类型索引
         for TypeIndex, ActionType in ActionTypes {
-            if (Button.Type = ActionType.Type) {
+            if (BtnType = ActionType.Type) {
                 SelectedTypeIndex := TypeIndex
                 break
             }
@@ -16517,8 +16540,6 @@ ConfigWebView_OnMessage(sender, args) {
             err := ""
             ok := ConfigWebView_ValidateAndApply(payload, &err)
             ConfigWebView_Send(Map("type", "saveResult", "ok", ok, "error", err))
-            if ok
-                CloseConfigGUI()
         case "invokeAction":
             action := msg.Get("action", "")
             payload := msg.Get("payload", Map())
@@ -17677,8 +17698,19 @@ SaveConfig(*) {
     ButtonCount := QuickActionButtons.Length
     IniWrite(ButtonCount, ConfigFile, "QuickActions", "ButtonCount")
     for Index, Button in QuickActionButtons {
-        IniWrite(Button.Type, ConfigFile, "QuickActions", "Button" . Index . "Type")
-        IniWrite(Button.Hotkey, ConfigFile, "QuickActions", "Button" . Index . "Hotkey")
+        btnType := "Explain"
+        btnHotkey := "e"
+        if (Button is Map) {
+            btnType := Button.Get("Type", btnType)
+            btnHotkey := Button.Get("Hotkey", btnHotkey)
+        } else if (IsObject(Button)) {
+            if Button.HasProp("Type")
+                btnType := Button.Type
+            if Button.HasProp("Hotkey")
+                btnHotkey := Button.Hotkey
+        }
+        IniWrite(btnType, ConfigFile, "QuickActions", "Button" . Index . "Type")
+        IniWrite(btnHotkey, ConfigFile, "QuickActions", "Button" . Index . "Hotkey")
     }
     
     ; 保存自定义图标路径
@@ -23974,13 +24006,24 @@ HandleDynamicHotkey(PressedKey, ActionType) {
     ; 首先检查是否匹配快捷操作按钮配置的快捷键
     if (PanelVisible && QuickActionButtons.Length > 0) {
         for Index, Button in QuickActionButtons {
-            if (StrLower(Button.Hotkey) = KeyLower) {
+            btnType := ""
+            btnHotkey := ""
+            if (Button is Map) {
+                btnType := Button.Get("Type", "")
+                btnHotkey := Button.Get("Hotkey", "")
+            } else if (IsObject(Button)) {
+                if Button.HasProp("Type")
+                    btnType := Button.Type
+                if Button.HasProp("Hotkey")
+                    btnHotkey := Button.Hotkey
+            }
+            if (StrLower(btnHotkey) = KeyLower) {
                 ; 匹配到快捷操作按钮（CapsLock2已在上面清除）
                 ; 立即隐藏面板
                 if (PanelVisible) {
                     HideCursorPanel()
                 }
-                switch Button.Type {
+                switch btnType {
                     case "Explain":
                         ExecutePrompt("Explain")
                     case "Refactor":
@@ -24560,10 +24603,14 @@ ExecuteQuickActionSlot(Index) {
         return
     }
     Button := QuickActionButtons[Index]
-    if (!IsObject(Button) || !Button.HasProp("Type")) {
+    btnType := ""
+    if (Button is Map)
+        btnType := Button.Get("Type", "")
+    else if (IsObject(Button) && Button.HasProp("Type"))
+        btnType := Button.Type
+    if (btnType = "")
         return
-    }
-    ExecuteQuickActionByType(Button.Type)
+    ExecuteQuickActionByType(btnType)
 }
 
 ; ===================== 激活快捷操作按钮（仅面板显示时 CapsLock+1–5）=====================
@@ -24577,10 +24624,14 @@ ActivateQuickActionButton(Index) {
         return
     }
     Button := QuickActionButtons[Index]
-    if (!IsObject(Button) || !Button.HasProp("Type")) {
+    btnType := ""
+    if (Button is Map)
+        btnType := Button.Get("Type", "")
+    else if (IsObject(Button) && Button.HasProp("Type"))
+        btnType := Button.Type
+    if (btnType = "")
         return
-    }
-    ExecuteQuickActionByType(Button.Type)
+    ExecuteQuickActionByType(btnType)
 }
 
 ; ===================== 动态快捷键处理 =====================
@@ -31491,12 +31542,12 @@ GetSearchEngineIcon(EngineValue) {
     IconMap := Map(
         ; AI类
         "deepseek", "DeepSeek.png",
-        "yuanbao", "元宝.png",
-        "doubao", "豆包.png",
-        "zhipu", "智谱.png",
-        "mita", "秘塔.png",
-        "wenxin", "文心一言.png",
-        "qianwen", "通义千问.png",
+        "yuanbao", "yuanbao.png",
+        "doubao", "doubao.png",
+        "zhipu", "zhipu.png",
+        "mita", "mita.png",
+        "wenxin", "wenxin.png",
+        "qianwen", "qwen.png",
         "kimi", "Kimi.png",
         "perplexity", "Perplexity.png",
         "copilot", "Copilot.png",

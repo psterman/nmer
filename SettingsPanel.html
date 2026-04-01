@@ -9,6 +9,7 @@
       --bg: #0a0a0a; --surface: #141414; --surface2: #1a1a1a; --surface3: #202020;
       --border: #2e2e2e; --border2: #3a3a3a; --orange: #e67e22;
       --text: #f0f0f0; --text-dim: #9a9a9a; --text-xs: #666; --success: #00ff41; --danger: #e74c3c;
+      --row-hover: #1f1f1f; --row-active: #2a1b0d; --row-active-text: #f0f0f0;
       --glow: 0 0 8px #e67e2288, 0 0 18px #e67e2244;
       --font: "Segoe UI", system-ui, sans-serif;
     }
@@ -37,7 +38,7 @@
     .btn.primary { background: #2a1605; border-color: var(--orange); color: var(--orange); }
     .btn.primary:hover { box-shadow: var(--glow); }
     .hint { font-size: 11px; color: var(--text-xs); margin-top: 4px; }
-    #footer { height: 54px; border-top: 1px solid var(--border); background: var(--surface2); display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 0 14px; }
+    #footer { display: none; }
     .ok { color: var(--success); } .err { color: var(--danger); }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .qa-row { display: grid; grid-template-columns: 70px 1fr 130px; gap: 8px; margin-bottom: 8px; }
@@ -52,12 +53,18 @@
     .list-head { background: var(--surface2); color: var(--text-dim); font-size: 12px; border-bottom: 1px solid var(--border); }
     .list-body { overflow: visible; }
     .list-row { cursor: pointer; border-bottom: 1px solid var(--border); font-size: 12px; }
-    .list-row:hover { background: #1f1f1f; }
-    .list-row.active { background: #2a1b0d; border-left: 2px solid var(--orange); }
+    .list-row:hover { background: var(--row-hover); }
+    .list-row.active { background: var(--row-active); border-left: 2px solid var(--orange); color: var(--row-active-text); }
     .compact-row { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 8px; margin-bottom: 8px; }
     .editor-toolbar { display: flex; gap: 6px; margin: 6px 0 8px; flex-wrap: wrap; }
     .editor-toolbar .btn { height: 28px; padding: 0 10px; font-size: 12px; }
     .search-row { margin-bottom: 8px; }
+    .multi-dd { position: relative; }
+    .multi-dd-btn { width: 100%; height: 34px; border: 1px solid var(--border2); border-radius: 6px; background: var(--surface3); color: var(--text); text-align: left; padding: 0 10px; cursor: pointer; }
+    .multi-dd-panel { position: absolute; z-index: 20; top: 38px; left: 0; right: 0; border: 1px solid var(--border2); border-radius: 6px; background: var(--surface2); padding: 8px; display: none; max-height: 260px; overflow: auto; }
+    .multi-dd.open .multi-dd-panel { display: block; }
+    .multi-dd-item { display: flex; align-items: center; gap: 8px; padding: 6px 4px; font-size: 12px; }
+    .multi-dd-item img { width: 16px; height: 16px; border-radius: 3px; object-fit: cover; border: 1px solid var(--border2); }
   </style>
 </head>
 <body>
@@ -78,6 +85,30 @@
   </div>
   <script>
     const ALL_CATEGORIES = ["ai","cli","academic","baidu","image","audio","video","book","price","medical","cloud"];
+    const DEFAULT_AI_ENGINES = [
+      { id:"deepseek", icon:"aiicons/DeepSeek.png", label:"DeepSeek" },
+      { id:"yuanbao", icon:"aiicons/yuanbao.png", label:"元宝" },
+      { id:"doubao", icon:"aiicons/doubao.png", label:"豆包" },
+      { id:"zhipu", icon:"aiicons/zhipu.png", label:"智谱" },
+      { id:"mita", icon:"aiicons/mita.png", label:"秘塔" },
+      { id:"wenxin", icon:"aiicons/wenxin.png", label:"文心一言" },
+      { id:"qianwen", icon:"aiicons/DeepSeek.png", label:"千问" },
+      { id:"kimi", icon:"aiicons/Kimi.png", label:"Kimi" },
+      { id:"perplexity", icon:"aiicons/Perplexity.png", label:"Perplexity" },
+      { id:"copilot", icon:"aiicons/Copilot.png", label:"Copilot" },
+      { id:"chatgpt", icon:"aiicons/ChatGPT.png", label:"ChatGPT" },
+      { id:"grok", icon:"aiicons/Grok.png", label:"Grok" },
+      { id:"you", icon:"aiicons/You.png", label:"You" },
+      { id:"claude", icon:"aiicons/Claude.png", label:"Claude" },
+      { id:"monica", icon:"aiicons/Monica.png", label:"Monica" },
+      { id:"webpilot", icon:"aiicons/WebPilot.png", label:"WebPilot" }
+    ];
+    const CLI_ENGINES = [
+      { id:"codex", icon:"aiicons/ChatGPT.png", label:"Codex" },
+      { id:"gemini", icon:"aiicons/DeepSeek.png", label:"Gemini" },
+      { id:"openclaw", icon:"aiicons/Claude.png", label:"OpenClaw" },
+      { id:"qwen", icon:"aiicons/qwen.png", label:"Qwen" }
+    ];
     const ACTION_TYPES = ["Explain","Refactor","Optimize","Config","Copy","Paste","Clipboard","Voice","Split","Batch","CommandPalette","Terminal","GlobalSearch","Explorer","SourceControl","Extensions","Browser","Settings","CursorSettings"];
     const HOTKEY_KEYS = ["ESC","C","V","X","E","R","O","Q","Z","S","B","T","F","P"];
     const state = {
@@ -109,6 +140,20 @@
     const setStatus = (text, cls = "") => { const el = document.getElementById("status"); el.textContent = text; el.className = cls; };
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[ch]));
     const checked = (v) => v ? "checked" : "";
+    let autoSaveTimer = 0;
+    let suppressAutoSave = false;
+    function scheduleAutoSave(delay = 250){
+      if (suppressAutoSave) return;
+      if (autoSaveTimer) clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(() => {
+        const d = readFromUI();
+        const err = validate(d);
+        if (err) return setStatus(err, "err");
+        setStatus("自动保存中...");
+        post({ type: "saveSettings", payload: d });
+      }, delay);
+    }
+    function bindAutoSaveControls(){}
     function loadCustomCategories(){
       try {
         const raw = localStorage.getItem("settings.prompts.customCategories");
@@ -149,25 +194,83 @@
       d.quickActions = qa;
       return d;
     }
-    function readAdvanced(d){ d.language = document.getElementById("language")?.value ?? d.language; d.aiSleepTime = Number(document.getElementById("aiSleepTime")?.value ?? d.aiSleepTime); d.launchDelaySeconds = Number(document.getElementById("launchDelaySeconds")?.value ?? d.launchDelaySeconds); return d; }
-    function readSearch(d){ d.searchEngine = document.getElementById("searchEngine")?.value ?? d.searchEngine; d.autoLoadSelectedText = !!document.getElementById("autoLoadSelectedText")?.checked; d.autoUpdateVoiceInput = !!document.getElementById("autoUpdateVoiceInput")?.checked; d.voiceSearchSelectedEnginesCsv = document.getElementById("voiceSearchSelectedEnginesCsv")?.value.trim() ?? d.voiceSearchSelectedEnginesCsv; const cats = []; ALL_CATEGORIES.forEach(c => { if (document.getElementById("cat_" + c)?.checked) cats.push(c); }); d.voiceSearchEnabledCategories = cats; return d; }
+    function readAdvanced(d){
+      d.language = document.getElementById("language")?.value ?? d.language;
+      const aiSleepSeconds = Number(document.getElementById("aiSleepTimeSeconds")?.value ?? (Number(d.aiSleepTime) / 1000));
+      d.aiSleepTime = Math.max(0.05, aiSleepSeconds) * 1000;
+      d.launchDelaySeconds = Number(document.getElementById("launchDelaySeconds")?.value ?? d.launchDelaySeconds);
+      return d;
+    }
+    function csvToArr(v){ return String(v || "").split(",").map(s => s.trim()).filter(Boolean); }
+    function arrToCsv(arr){ return (arr || []).join(","); }
+    function readSearch(d){
+      const selectedDefault = Array.from(document.querySelectorAll('[data-engine-target="default"]:checked')).map(el => el.value);
+      const selectedAiCli = Array.from(document.querySelectorAll('[data-engine-target="ai-cli"]:checked')).map(el => el.value);
+      d.searchEngine = arrToCsv(selectedDefault);
+      d.voiceSearchSelectedEnginesCsv = arrToCsv(selectedAiCli);
+      d.autoLoadSelectedText = !!document.getElementById("autoLoadSelectedText")?.checked;
+      d.autoUpdateVoiceInput = !!document.getElementById("autoUpdateVoiceInput")?.checked;
+      const cats = [];
+      ALL_CATEGORIES.forEach(c => { if (document.getElementById("cat_" + c)?.checked) cats.push(c); });
+      d.voiceSearchEnabledCategories = cats;
+      return d;
+    }
     function readFromUI() { let d = { ...state.data, hotkeys: { ...state.data.hotkeys }, quickActions: [...state.data.quickActions], voiceSearchEnabledCategories: [...state.data.voiceSearchEnabledCategories] }; d = readGeneral(d); d = readAppearance(d); d = readPrompts(d); d = readHotkeys(d); d = readAdvanced(d); d = readSearch(d); return d; }
     function selectOpt(id, val){ const el = document.getElementById(id); if (el) el.value = val; }
     function options(items, selected){ return items.map(v => `<option value="${esc(v)}"${v===selected?" selected":""}>${esc(v)}</option>`).join(""); }
+    function optionsKV(items, selected){ return items.map(it => `<option value="${esc(it.value)}"${it.value===selected?" selected":""}>${esc(it.label)}</option>`).join(""); }
+    function applyWebTheme(mode){
+      const root = document.documentElement;
+      if (mode === "light") {
+        root.style.setProperty("--bg", "#f4f5f7");
+        root.style.setProperty("--surface", "#ffffff");
+        root.style.setProperty("--surface2", "#f3f4f6");
+        root.style.setProperty("--surface3", "#ffffff");
+        root.style.setProperty("--border", "#d7dce2");
+        root.style.setProperty("--border2", "#c9d0d9");
+        root.style.setProperty("--text", "#1f2937");
+        root.style.setProperty("--text-dim", "#4b5563");
+        root.style.setProperty("--text-xs", "#6b7280");
+        root.style.setProperty("--row-hover", "#eef2f7");
+        root.style.setProperty("--row-active", "#fff1e6");
+        root.style.setProperty("--row-active-text", "#7a3e00");
+      } else {
+        root.style.setProperty("--bg", "#0a0a0a");
+        root.style.setProperty("--surface", "#141414");
+        root.style.setProperty("--surface2", "#1a1a1a");
+        root.style.setProperty("--surface3", "#202020");
+        root.style.setProperty("--border", "#2e2e2e");
+        root.style.setProperty("--border2", "#3a3a3a");
+        root.style.setProperty("--text", "#f0f0f0");
+        root.style.setProperty("--text-dim", "#9a9a9a");
+        root.style.setProperty("--text-xs", "#666666");
+        root.style.setProperty("--row-hover", "#1f1f1f");
+        root.style.setProperty("--row-active", "#2a1b0d");
+        root.style.setProperty("--row-active-text", "#f0f0f0");
+      }
+    }
     function render() {
       const d = state.data; const panel = document.getElementById("panel");
-      const defaultTabOpts = ["general","appearance","prompts","hotkeys","advanced","search"];
+      applyWebTheme(d.themeMode || "dark");
+      const defaultTabOpts = [
+        { value:"general", label:"通用设置" },
+        { value:"appearance", label:"外观设置" },
+        { value:"prompts", label:"提示词设置" },
+        { value:"hotkeys", label:"快捷键设置" },
+        { value:"advanced", label:"高级设置" },
+        { value:"search", label:"搜索设置" }
+      ];
       const monitorCount = Math.max(1, Number(d.monitorCount || 1));
-      const screenOpts = Array.from({ length: monitorCount }, (_, i) => String(i + 1));
+      const screenOpts = Array.from({ length: monitorCount }, (_, i) => ({ value: String(i + 1), label: `显示器${i + 1}` }));
       const qaRows = d.quickActions.map((q, i) => `<div class="qa-row"><div class="label">#${i+1}</div><select id="qaType${i+1}">${options(ACTION_TYPES,q.type)}</select><input id="qaHotkey${i+1}" type="text" value="${esc(q.hotkey)}"></div>`).join("");
       const hotkeyRows = HOTKEY_KEYS.map(k => `<div class="row"><div class="label">快捷键 ${k}</div><input id="hk_${k}" type="text" value="${esc(d.hotkeys[k] || "")}"></div>`).join("");
       const catRows = ALL_CATEGORIES.map(c => `<label class="tag"><input id="cat_${c}" type="checkbox" ${checked((d.voiceSearchEnabledCategories||[]).includes(c))}> ${esc(c)}</label>`).join("");
       if (state.activeTab === "general") {
-        panel.innerHTML = `<div class="card"><div class="title">通用设置</div><div class="row"><div class="label">Cursor 路径</div><div class="inline"><input id="cursorPath" type="text" value="${esc(d.cursorPath)}"><button class="btn" id="browsePath">浏览</button></div></div><div class="row"><div class="label">CapsLock 长按时间 (0.1 - 5.0)</div><input id="holdTime" type="number" min="0.1" max="5.0" step="0.1" value="${esc(d.capslockHoldTimeSeconds)}"></div><div class="row"><div class="label">开机自启动</div><div><input id="autoStart" type="checkbox" ${checked(d.autoStart)}></div></div><div class="row"><div class="label">默认启动页</div><select id="defaultStartTab">${options(defaultTabOpts,d.defaultStartTab)}</select></div><div class="row"><div class="label">安装中文 Cursor</div><div><button class="btn" id="btnInstallChinese">安装 Cursor 中文版</button></div></div></div>`;
+        panel.innerHTML = `<div class="card"><div class="title">通用设置</div><div class="row"><div class="label">Cursor 路径</div><div class="inline"><input id="cursorPath" type="text" value="${esc(d.cursorPath)}"><button class="btn" id="browsePath">浏览</button></div></div><div class="row"><div class="label">CapsLock 长按时间 (0.1 - 5.0)</div><input id="holdTime" type="number" min="0.1" max="5.0" step="0.1" value="${esc(d.capslockHoldTimeSeconds)}"></div><div class="row"><div class="label">开机自启动</div><div><input id="autoStart" type="checkbox" ${checked(d.autoStart)}></div></div><div class="row"><div class="label">默认启动页</div><select id="defaultStartTab">${optionsKV(defaultTabOpts,d.defaultStartTab)}</select></div><div class="row"><div class="label">安装中文 Cursor</div><div><button class="btn" id="btnInstallChinese">安装 Cursor 中文版</button></div></div></div>`;
         document.getElementById("browsePath").addEventListener("click", () => post({ type: "browseCursorPath" }));
         document.getElementById("btnInstallChinese").addEventListener("click", () => post({ type: "invokeAction", action: "installCursorChinese" }));
       } else if (state.activeTab === "appearance") {
-        panel.innerHTML = `<div class="card"><div class="title">外观设置</div><div class="row"><div class="label">主题模式</div><select id="themeMode">${options(["dark","light"],d.themeMode)}</select></div><div class="row"><div class="label">弹窗屏幕</div><select id="popupScreenIndex">${options(screenOpts, String(d.popupScreenIndex || 1))}</select></div><div class="hint">已自动识别显示器数量：${esc(monitorCount)}。此设置会应用到所有弹窗并固定保存。</div></div>`;
+        panel.innerHTML = `<div class="card"><div class="title">外观设置</div><div class="row"><div class="label">主题模式</div><select id="themeMode">${optionsKV([{value:"dark",label:"深色"},{value:"light",label:"浅色"}],d.themeMode)}</select></div><div class="row"><div class="label">弹窗位置</div><select id="popupScreenIndex">${optionsKV(screenOpts, String(d.popupScreenIndex || 1))}</select></div><div class="hint">已自动识别显示器数量：${esc(monitorCount)}。此设置会应用到所有弹窗并固定保存。</div></div>`;
       } else if (state.activeTab === "prompts") {
         const fixedCategories = ["基础","专业","改错","优化","解释","重构"];
         const tplAll = d.promptTemplateSummary || [];
@@ -201,7 +304,7 @@
           : (filtered.find(t => t.id === state.selectedPromptTemplateId) || filtered[0] || null);
         const catTabs = allCats.map(c => `<button class="subtab-btn ${state.promptsCategoryTab === c ? "active" : ""}" data-prompt-cat="${esc(c)}">${esc(c)}</button>`).join("");
         const listRows = filtered.map(t => `<div class="list-row ${selected?.id === t.id ? "active" : ""}" data-prompt-id="${esc(t.id)}"><div>${esc(t.title || t.id)}</div><div>${esc((t.content || "").replace(/\s+/g, " ").slice(0, 96))}</div></div>`).join("");
-        panel.innerHTML = `<div class="card"><div class="subtabs"><button class="subtab-btn ${state.promptsMainTab === "templateManager" ? "active" : ""}" data-prompt-main="templateManager">模板管理</button><button class="subtab-btn ${state.promptsMainTab === "cursorRules" ? "active" : ""}" data-prompt-main="cursorRules">cursor规则</button></div>${state.promptsMainTab === "templateManager" ? `<div class="search-row"><div class="inline"><input id="promptSearchKeyword" type="text" placeholder="搜索模板关键词（自动匹配全部模板）" value="${esc(state.promptsSearchKeyword)}"><button class="btn" id="btnPromptSearchClear">清空</button></div></div><div class="subtabs">${catTabs}</div><div class="prompt-grid"><div class="list-panel"><div class="list-head"><div>名称</div><div>内容</div></div><div class="list-body">${listRows || `<div class="list-row"><div>-</div><div>未匹配到模板</div></div>`}</div></div><div><div class="compact-row"><div class="label">模板标题</div><input id="promptTplTitle" type="text" value="${esc(selected?.title || "")}"></div><div class="compact-row"><div class="label">模板分类</div><div class="inline"><select id="promptTplCategory">${options(allCats, (selected?.category || state.promptsCategoryTab))}</select><button class="btn" id="btnAddCategory">新建分类</button><button class="btn" id="btnDeleteCategory">删除分类</button></div></div><div class="label">模板内容</div><div class="editor-toolbar"><button class="btn" data-editor-action="bold">加粗</button><button class="btn" data-editor-action="code">代码</button><button class="btn" data-editor-action="quote">引用</button><button class="btn" data-editor-action="ul">列表</button><button class="btn" data-editor-action="undo">撤销</button><button class="btn" data-editor-action="redo">重做</button><button class="btn" data-editor-action="clear">清空</button></div><textarea id="promptTplContent" style="min-height:260px;">${esc(selected?.content || "")}</textarea><div class="inline" style="margin-top:8px;"><button class="btn" id="btnTplNew">新建模板</button><button class="btn" id="btnTplSave">保存模板</button><button class="btn" id="btnTplDelete">删除模板</button></div><div class="inline" style="margin-top:8px;"><button class="btn" id="btnImportTpl">导入模板</button><button class="btn" id="btnExportTpl">导出模板</button><button class="btn" id="btnReloadTpl">重载模板</button><button class="btn" id="btnOpenLegacyPrompts">原版模板管理</button></div></div></div>` : (() => { const ruleTabs = [{k:"general",n:"通用规则"},{k:"web",n:"网页开发"},{k:"miniprogram",n:"小程序"},{k:"android",n:"安卓App"},{k:"ios",n:"iOS App"},{k:"python",n:"Python"}]; const tabHtml = ruleTabs.map(t => `<button class="subtab-btn ${state.cursorRulesTab===t.k?"active":""}" data-rule-tab="${t.k}">${t.n}</button>`).join(""); const content = d.cursorRules?.[state.cursorRulesTab] || ""; return `<div class="title">Cursor规则配置</div><div class="hint">根据开发类型配置规则，让 AI 更精准理解项目上下文，减少无效对话与返工。</div><div class="title" style="margin-top:10px;">📋 复制位置</div><div class="hint">在 Cursor 中按 Ctrl+Shift+P 打开命令面板，输入 <code>rules</code> 或 <code>cursor rules</code>，选择 Open Cursor Rules，粘贴到 <code>.cursorrules</code> 文件。</div><div class="title" style="margin-top:10px;">💡 使用方法</div><div class="hint">1. 选择下方开发类型标签 2. 编辑或粘贴规则 3. 点击复制规则 4. 粘贴保存到 Cursor 规则文件 5. 重启 Cursor 生效。</div><div class="subtabs" style="margin-top:10px;">${tabHtml}</div><div class="label">规则内容</div><textarea id="cursorRuleContent" style="min-height:320px;">${esc(content)}</textarea><div class="inline" style="margin-top:8px;"><button class="btn" id="btnCursorRulesCopy">复制规则</button><button class="btn" id="btnOpenLegacyPrompts">打开原版规则设置</button></div>`; })()}</div>`;
+        panel.innerHTML = `<div class="card"><div class="subtabs"><button class="subtab-btn ${state.promptsMainTab === "templateManager" ? "active" : ""}" data-prompt-main="templateManager">模板管理</button><button class="subtab-btn ${state.promptsMainTab === "cursorRules" ? "active" : ""}" data-prompt-main="cursorRules">cursor规则</button></div>${state.promptsMainTab === "templateManager" ? `<div class="search-row"><div class="inline"><input id="promptSearchKeyword" data-nosave="1" type="text" placeholder="搜索模板关键词（自动匹配全部模板）" value="${esc(state.promptsSearchKeyword)}"><button class="btn" id="btnPromptSearchClear">清空</button></div></div><div class="subtabs">${catTabs}</div><div class="prompt-grid"><div class="list-panel"><div class="list-head"><div>名称</div><div>内容</div></div><div class="list-body">${listRows || `<div class="list-row"><div>-</div><div>未匹配到模板</div></div>`}</div></div><div><div class="compact-row"><div class="label">模板标题</div><input id="promptTplTitle" type="text" value="${esc(selected?.title || "")}"></div><div class="compact-row"><div class="label">模板分类</div><div class="inline"><select id="promptTplCategory">${options(allCats, (selected?.category || state.promptsCategoryTab))}</select><button class="btn" id="btnAddCategory">新建分类</button><button class="btn" id="btnDeleteCategory">删除分类</button></div></div><div class="label">模板内容</div><div class="editor-toolbar"><button class="btn" data-editor-action="bold">加粗</button><button class="btn" data-editor-action="code">代码</button><button class="btn" data-editor-action="quote">引用</button><button class="btn" data-editor-action="ul">列表</button><button class="btn" data-editor-action="undo">撤销</button><button class="btn" data-editor-action="redo">重做</button><button class="btn" data-editor-action="clear">清空</button></div><textarea id="promptTplContent" style="min-height:260px;">${esc(selected?.content || "")}</textarea><div class="inline" style="margin-top:8px;"><button class="btn" id="btnTplNew">新建模板</button><button class="btn" id="btnTplSave">保存模板</button><button class="btn" id="btnTplDelete">删除模板</button></div><div class="inline" style="margin-top:8px;"><button class="btn" id="btnImportTpl">导入模板</button><button class="btn" id="btnExportTpl">导出模板</button><button class="btn" id="btnReloadTpl">重载模板</button><button class="btn" id="btnOpenLegacyPrompts">原版模板管理</button></div></div></div>` : (() => { const ruleTabs = [{k:"general",n:"通用规则"},{k:"web",n:"网页开发"},{k:"miniprogram",n:"小程序"},{k:"android",n:"安卓App"},{k:"ios",n:"iOS App"},{k:"python",n:"Python"}]; const tabHtml = ruleTabs.map(t => `<button class="subtab-btn ${state.cursorRulesTab===t.k?"active":""}" data-rule-tab="${t.k}">${t.n}</button>`).join(""); const content = d.cursorRules?.[state.cursorRulesTab] || ""; return `<div class="title">Cursor规则配置</div><div class="hint">根据开发类型配置规则，让 AI 更精准理解项目上下文，减少无效对话与返工。</div><div class="title" style="margin-top:10px;">📋 复制位置</div><div class="hint">在 Cursor 中按 Ctrl+Shift+P 打开命令面板，输入 <code>rules</code> 或 <code>cursor rules</code>，选择 Open Cursor Rules，粘贴到 <code>.cursorrules</code> 文件。</div><div class="title" style="margin-top:10px;">💡 使用方法</div><div class="hint">1. 选择下方开发类型标签 2. 编辑或粘贴规则 3. 点击复制规则 4. 粘贴保存到 Cursor 规则文件 5. 重启 Cursor 生效。</div><div class="subtabs" style="margin-top:10px;">${tabHtml}</div><div class="label">规则内容</div><textarea id="cursorRuleContent" style="min-height:320px;">${esc(content)}</textarea><div class="inline" style="margin-top:8px;"><button class="btn" id="btnCursorRulesCopy">复制规则</button><button class="btn" id="btnOpenLegacyPrompts">打开原版规则设置</button></div>`; })()}</div>`;
         document.querySelectorAll("[data-prompt-main]").forEach(el => el.addEventListener("click", () => { state.promptsMainTab = el.getAttribute("data-prompt-main"); render(); }));
         if (state.promptsMainTab === "templateManager") {
           const searchEl = document.getElementById("promptSearchKeyword");
@@ -323,14 +426,33 @@
         panel.innerHTML = `<div class="card"><div class="title">快捷键设置</div>${hotkeyRows}<div class="row"><div class="label">Prompt 快速采集热键</div><input id="promptQuickCaptureHotkey" type="text" value="${esc(d.promptQuickCaptureHotkey)}"></div></div><div class="card"><div class="title">快速操作按钮 (5)</div>${qaRows}<div class="inline"><button class="btn" id="btnOpenLegacyHotkeys">打开原版快捷键设置</button></div></div>`;
         document.getElementById("btnOpenLegacyHotkeys").addEventListener("click", () => post({ type: "invokeAction", action: "openLegacyTab", tab: "hotkeys" }));
       } else if (state.activeTab === "advanced") {
-        panel.innerHTML = `<div class="card"><div class="title">高级设置</div><div class="row"><div class="label">界面语言</div><select id="language">${options(["zh","en"],d.language)}</select></div><div class="row"><div class="label">AI 等待时间 (ms)</div><input id="aiSleepTime" type="number" min="50" max="10000" step="10" value="${esc(d.aiSleepTime)}"></div><div class="row"><div class="label">启动延迟 (秒)</div><input id="launchDelaySeconds" type="number" min="0.5" max="10" step="0.1" value="${esc(d.launchDelaySeconds)}"></div><div class="hint">弹窗屏幕位置已统一到“外观设置 > 弹窗屏幕”。</div></div><div class="card"><div class="title">配置管理</div><div class="inline"><button class="btn" id="btnExportCfg">导出配置</button><button class="btn" id="btnImportCfg">导入配置</button><button class="btn" id="btnResetCfg">重置默认</button></div></div>`;
+        panel.innerHTML = `<div class="card"><div class="title">高级设置</div><div class="row"><div class="label">界面语言</div><select id="language">${optionsKV([{value:"zh",label:"中文"},{value:"en",label:"英文"}],d.language)}</select></div><div class="row"><div class="label">AI 等待时间 (秒)</div><input id="aiSleepTimeSeconds" type="number" min="0.05" max="10" step="0.05" value="${esc((Number(d.aiSleepTime || 200) / 1000).toFixed(2).replace(/\.?0+$/,""))}"></div><div class="row"><div class="label">启动延迟 (秒)</div><input id="launchDelaySeconds" type="number" min="0.5" max="10" step="0.1" value="${esc(d.launchDelaySeconds)}"></div><div class="hint">弹窗位置已统一到“外观设置 > 弹窗位置”。</div></div><div class="card"><div class="title">配置管理</div><div class="inline"><button class="btn" id="btnExportCfg">导出配置</button><button class="btn" id="btnImportCfg">导入配置</button><button class="btn" id="btnResetCfg">重置默认</button></div></div>`;
         document.getElementById("btnExportCfg").addEventListener("click", () => post({ type: "invokeAction", action: "exportConfig" }));
         document.getElementById("btnImportCfg").addEventListener("click", () => post({ type: "invokeAction", action: "importConfig" }));
         document.getElementById("btnResetCfg").addEventListener("click", () => post({ type: "invokeAction", action: "resetToDefaults" }));
       } else {
-        panel.innerHTML = `<div class="card"><div class="title">搜索设置</div><div class="row"><div class="label">默认搜索引擎</div><input id="searchEngine" type="text" value="${esc(d.searchEngine)}"></div><div class="row"><div class="label">语音搜索引擎 (CSV)</div><input id="voiceSearchSelectedEnginesCsv" type="text" value="${esc(d.voiceSearchSelectedEnginesCsv)}"></div><div class="row"><div class="label">自动加载选中文本</div><div><input id="autoLoadSelectedText" type="checkbox" ${checked(d.autoLoadSelectedText)}></div></div><div class="row"><div class="label">自动更新语音输入</div><div><input id="autoUpdateVoiceInput" type="checkbox" ${checked(d.autoUpdateVoiceInput)}></div></div><div class="label">启用分类</div><div class="tag-wrap">${catRows}</div><div class="inline" style="margin-top:8px;"><button class="btn" id="btnOpenLegacySearch">打开原版搜索设置</button></div></div>`;
+        const selectedDefault = csvToArr(d.searchEngine || "deepseek");
+        const selectedAiCli = csvToArr(d.voiceSearchSelectedEnginesCsv || "codex");
+        const defaultSummary = selectedDefault.length ? selectedDefault.join(", ") : "请选择搜索引擎";
+        const aiCliSummary = selectedAiCli.length ? selectedAiCli.join(", ") : "请选择 AI/CLI 搜索引擎";
+        const defaultOptions = DEFAULT_AI_ENGINES.map(e => `<label class="multi-dd-item"><input type="checkbox" data-engine-target="default" value="${esc(e.id)}" ${checked(selectedDefault.includes(e.id))}> <img src="${esc(e.icon)}" alt="${esc(e.label)}"><span>${esc(e.label)}</span></label>`).join("");
+        const aiCliOptions = CLI_ENGINES.map(e => `<label class="multi-dd-item"><input type="checkbox" data-engine-target="ai-cli" value="${esc(e.id)}" ${checked(selectedAiCli.includes(e.id))}> <img src="${esc(e.icon)}" alt="${esc(e.label)}"><span>${esc(e.label)}</span></label>`).join("");
+        panel.innerHTML = `<div class="card"><div class="title">搜索设置</div><div class="row"><div class="label">默认搜索引擎（多选）</div><div class="multi-dd" id="ddDefaultEngine"><button type="button" class="multi-dd-btn" id="btnDefaultEngine">${esc(defaultSummary)}</button><div class="multi-dd-panel">${defaultOptions}</div></div></div><div class="row"><div class="label">AI/CLI 搜索引擎（多选）</div><div class="multi-dd" id="ddAiCliEngine"><button type="button" class="multi-dd-btn" id="btnAiCliEngine">${esc(aiCliSummary)}</button><div class="multi-dd-panel">${aiCliOptions}</div></div></div><div class="row"><div class="label">自动加载选中文本</div><div><input id="autoLoadSelectedText" type="checkbox" ${checked(d.autoLoadSelectedText)}></div></div><div class="row"><div class="label">自动更新语音输入</div><div><input id="autoUpdateVoiceInput" type="checkbox" ${checked(d.autoUpdateVoiceInput)}></div></div><div class="label">启用分类</div><div class="tag-wrap">${catRows}</div><div class="inline" style="margin-top:8px;"><button class="btn" id="btnOpenLegacySearch">打开原版搜索设置</button></div></div>`;
+        const bindDropdown = (wrapId, btnId, target) => {
+          const wrap = document.getElementById(wrapId);
+          const btn = document.getElementById(btnId);
+          btn.addEventListener("click", () => wrap.classList.toggle("open"));
+          wrap.querySelectorAll(`input[data-engine-target="${target}"]`).forEach(chk => chk.addEventListener("change", () => {
+            const vals = Array.from(wrap.querySelectorAll(`input[data-engine-target="${target}"]:checked`)).map(el => el.value);
+            btn.textContent = vals.length ? vals.join(", ") : (target === "default" ? "请选择搜索引擎" : "请选择 AI/CLI 搜索引擎");
+          }));
+          document.addEventListener("click", (e) => { if (!wrap.contains(e.target)) wrap.classList.remove("open"); });
+        };
+        bindDropdown("ddDefaultEngine", "btnDefaultEngine", "default");
+        bindDropdown("ddAiCliEngine", "btnAiCliEngine", "ai-cli");
         document.getElementById("btnOpenLegacySearch").addEventListener("click", () => post({ type: "invokeAction", action: "openLegacyTab", tab: "search" }));
       }
+      bindAutoSaveControls();
     }
     function validate(d) {
       if (!d.cursorPath) return "Cursor 路径不能为空";
@@ -345,6 +467,23 @@
       return "";
     }
     document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => { state.data = readFromUI(); state.activeTab = btn.dataset.tab; document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active")); btn.classList.add("active"); render(); }));
+    const panelRoot = document.getElementById("panel");
+    panelRoot.addEventListener("input", (e) => {
+      const t = e.target;
+      if (!t || !(t.matches?.("input,textarea,select"))) return;
+      if (t.dataset?.nosave === "1") return;
+      scheduleAutoSave();
+    });
+    panelRoot.addEventListener("change", (e) => {
+      const t = e.target;
+      if (!t || !(t.matches?.("input,textarea,select"))) return;
+      if (t.id === "themeMode") {
+        state.data.themeMode = t.value;
+        applyWebTheme(t.value);
+      }
+      if (t.dataset?.nosave === "1") return;
+      scheduleAutoSave(50);
+    });
     document.getElementById("btn-open-legacy").addEventListener("click", () => post({ type: "invokeAction", action: "openLegacySettings" }));
     document.getElementById("btn-open-compare").addEventListener("click", () => post({ type: "invokeAction", action: "openCompareSettings" }));
     document.getElementById("btn-cancel").addEventListener("click", () => post({ type: "cancel" }));
@@ -352,12 +491,20 @@
     function handleHostMessage(msg) {
       if (!msg || !msg.type) return;
       if (msg.type === "initData") {
+        suppressAutoSave = true;
         state.data = { ...state.data, ...(msg.payload || {}), hotkeys: { ...state.data.hotkeys, ...((msg.payload || {}).hotkeys || {}) }, quickActions: (msg.payload?.quickActions?.length ? msg.payload.quickActions : state.data.quickActions) };
+        const startTab = (msg.payload || {}).defaultStartTab;
+        const validStartTabs = new Set(["general","appearance","prompts","hotkeys","advanced","search"]);
+        if (startTab && validStartTabs.has(startTab)) {
+          state.activeTab = startTab;
+          document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === startTab));
+        }
         const ids = (state.data.promptTemplateSummary || []).map(t => t.id);
         if (state.selectedPromptTemplateId && !ids.includes(state.selectedPromptTemplateId))
           state.selectedPromptTemplateId = "";
         render();
         setStatus("已连接", "ok");
+        setTimeout(() => { suppressAutoSave = false; }, 0);
         return;
       }
       if (msg.type === "browseCursorPathResult" && msg.path) { state.data.cursorPath = msg.path; render(); return; }
