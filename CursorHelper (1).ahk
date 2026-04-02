@@ -16,8 +16,7 @@ DetectHiddenWindows(true)
 CoordMode("Mouse", "Screen")
 CoordMode("Pixel", "Screen")
 CoordMode("ToolTip", "Screen")
-; 设置托盘图标
-TraySetIcon("favicon.ico")
+; 托盘图标在 #Include Gdip_All 之后用 TrySetTrayIconHighQuality() 设置（支持 牛马.png → 256×256 HICON，通知不糊）
 
 ; ===================== 彻底禁用原生托盘菜单 =====================
 ; 清空并禁用 AHK 默认的右键响应
@@ -45,6 +44,90 @@ A_TrayMenu.Delete()  ; 删除所有默认菜单项
 ; ===================== 包含 ImagePut 库 =====================
 ; 包含 lib 文件夹中的 ImagePut.ahk（用于简化图片处理，提高性能和功能）
 #Include lib\ImagePut.ahk
+
+; ---------- 托盘图标：优先用 牛马.png 经 GDI+ 生成 256×256 HICON（Windows 通知/托盘放大仍清晰）----------
+Gdip_CreateTrayHIconFromPngFile(pngPath, size := 256) {
+    pBitmap := Gdip_CreateBitmapFromFile(pngPath)
+    if !pBitmap
+        return 0
+    sw := Gdip_GetImageWidth(pBitmap), sh := Gdip_GetImageHeight(pBitmap)
+    if (sw < 1 || sh < 1) {
+        Gdip_DisposeImage(pBitmap)
+        return 0
+    }
+    pNew := Gdip_CreateBitmap(size, size)
+    G := Gdip_GraphicsFromImage(pNew)
+    Gdip_SetInterpolationMode(G, 7)
+    Gdip_DrawImage(G, pBitmap, 0, 0, size, size, 0, 0, sw, sh)
+    Gdip_DeleteGraphics(G)
+    Gdip_DisposeImage(pBitmap)
+    hIcon := Gdip_CreateHICONFromBitmap(pNew)
+    Gdip_DisposeImage(pNew)
+    return hIcon
+}
+
+TrySetTrayIconHighQuality() {
+    global CustomIconPath
+    ; 用户自定义：PNG 走 GDI+，ICO 直接加载
+    if (IsSet(CustomIconPath) && CustomIconPath != "" && FileExist(CustomIconPath)) {
+        if RegExMatch(CustomIconPath, "i)\.png$") {
+            try {
+                h := Gdip_CreateTrayHIconFromPngFile(CustomIconPath)
+                if h {
+                    TraySetIcon(h)
+                    DllCall("DestroyIcon", "ptr", h)
+                    return
+                }
+            }
+        } else {
+            try {
+                TraySetIcon(CustomIconPath)
+                return
+            }
+        }
+    }
+    icoNiu := A_ScriptDir "\牛马.ico"
+    pngNiu := A_ScriptDir "\牛马.png"
+    if FileExist(icoNiu) {
+        try {
+            TraySetIcon(icoNiu)
+            return
+        }
+    }
+    if FileExist(pngNiu) {
+        try {
+            h := Gdip_CreateTrayHIconFromPngFile(pngNiu)
+            if h {
+                TraySetIcon(h)
+                DllCall("DestroyIcon", "ptr", h)
+                return
+            }
+        }
+    }
+    chIco := A_ScriptDir "\cursor_helper.ico"
+    if FileExist(chIco) {
+        try {
+            TraySetIcon(chIco)
+            return
+        }
+    }
+    if FileExist(A_ScriptDir "\favicon.ico")
+        try TraySetIcon(A_ScriptDir "\favicon.ico")
+}
+
+ResolveDefaultUiIconPath() {
+    global CustomIconPath
+    if (IsSet(CustomIconPath) && CustomIconPath != "" && FileExist(CustomIconPath))
+        return CustomIconPath
+    if FileExist(A_ScriptDir "\牛马.png")
+        return A_ScriptDir "\牛马.png"
+    return A_ScriptDir "\favicon.ico"
+}
+
+; 须在 TrySetTrayIconHighQuality 之前初始化（否则 IsSet/读取 顺序异常）
+global CustomIconPath := ""
+
+TrySetTrayIconHighQuality()
 
 ; ===================== 定义主脚本目录（供模块使用）=====================
 global MainScriptDir := A_ScriptDir
@@ -383,7 +466,7 @@ global CursorPanelShowMoreBtn := 0  ; 快捷操作面板"更多"按钮
 global CursorPanelSearchDebounceTimer := 0  ; 快捷操作面板搜索防抖定时器
 global ConfigFile := A_ScriptDir "\CursorShortcut.ini"
 global TrayIconPath := A_ScriptDir "\cursor_helper.ico"
-global CustomIconPath := ""  ; 用户自定义图标路径
+; CustomIconPath 已在 TrySetTrayIconHighQuality 之前初始化为 ""
 ; CapsLock+ 方案的核心变量
 global CapsLock := false
 global GuiID_ConfigGUI := 0  ; 配置面板单例
@@ -2840,6 +2923,7 @@ InitConfig() {
             } else {
                 CustomIconPath := ""
             }
+            TrySetTrayIconHighQuality()
             ; 验证值是否有效，如果无效则使用默认值
             if (DefaultStartTab != "general" && DefaultStartTab != "appearance" && DefaultStartTab != "prompts" && DefaultStartTab != "hotkeys" && DefaultStartTab != "advanced" && DefaultStartTab != "search") {
                 DefaultStartTab := "general"
@@ -15843,7 +15927,7 @@ ShowConfigGUI() {
     IconX := 10
     IconY := 10  ; 客户区顶部（标题栏下方）
     ; 优先使用用户自定义图标
-    IconPath := (CustomIconPath != "" && FileExist(CustomIconPath)) ? CustomIconPath : (A_ScriptDir "\favicon.ico")
+    IconPath := ResolveDefaultUiIconPath()
     if (FileExist(IconPath)) {
         global SearchIcon := ConfigGUI.Add("Picture", "x" . IconX . " y" . IconY . " w" . IconSize . " h" . IconSize . " BackgroundTrans vConfigIcon", IconPath)
         SearchIcon.OnEvent("Click", (*) => ChangeCustomIcon())
@@ -17329,23 +17413,9 @@ SaveIconConfig() {
     }
 }
 
-; 更新托盘图标
+; 更新托盘图标（与启动时一致：PNG 经 GDI+ 转 HICON，避免通知里放大发糊）
 UpdateTrayIcon() {
-    global CustomIconPath
-    
-    IconPath := (CustomIconPath != "" && FileExist(CustomIconPath)) ? CustomIconPath : (A_ScriptDir "\favicon.ico")
-    
-    if (FileExist(IconPath)) {
-        try {
-            TraySetIcon(IconPath)
-        } catch as err {
-            ; 如果设置失败，尝试使用默认图标
-            try {
-                TraySetIcon(A_ScriptDir "\favicon.ico")
-            } catch as err {
-            }
-        }
-    }
+    TrySetTrayIconHighQuality()
 }
 
 ; ===================== 保存配置函数 =====================
@@ -32495,7 +32565,7 @@ ShowVoiceSearchInputPanel() {
     IconY := YPos
     ; 优先使用用户自定义图标
     global CustomIconPath
-    IconPath := (CustomIconPath != "" && FileExist(CustomIconPath)) ? CustomIconPath : (A_ScriptDir "\favicon.ico")
+    IconPath := ResolveDefaultUiIconPath()
     if (FileExist(IconPath)) {
         VoiceSearchIcon := GuiID_VoiceInput.Add("Picture", "x" . IconX . " y" . IconY . " w" . IconSize . " h" . IconSize . " 0x200", IconPath)
     }

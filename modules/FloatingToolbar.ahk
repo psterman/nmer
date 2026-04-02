@@ -209,7 +209,9 @@ CreateFloatingToolbarGUI() {
     ; 娣诲姞favicon鍥炬爣锛堝乏渚э紝浣跨敤缂╂斁姣斾緥锛?
     ; 灏濊瘯澶氫釜鍙兘鐨勮矾寰?
     FavIconPaths := [
+        A_ScriptDir . "\牛马.png",
         A_ScriptDir . "\favicon.ico",
+        A_WorkingDir . "\牛马.png",
         A_WorkingDir . "\favicon.ico",
         A_ScriptDir . "\..\favicon.ico"
     ]
