@@ -7,6 +7,10 @@
 
 #Include lib\WebView2.ahk
 #Include lib\Jxon.ahk
+; 独立进程未 #Include VirtualKeyboardExecCmd；提供占位，供 Core 内直接调用（避免 Func("VK_ExecCursorHelperCmd") 在函数不存在时抛错）
+VK_ExecCursorHelperCmd(cmdId) {
+    OutputDebug("[VK] 独立 VK 无 CursorHelper CH_RUN 实现: " . cmdId)
+}
 #Include modules\VirtualKeyboardCore.ahk
 
 VK_Init(false)

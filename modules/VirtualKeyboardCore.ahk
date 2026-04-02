@@ -19,6 +19,11 @@ global g_PendingConflict := Map()
 global g_UseScanCode := false
 global g_VK_PreviewHook := 0
 global g_VK_TitleH := 44
+; 双击修饰键：^^ / ++ / !!（与 Hotkey() 不兼容，由专用 InputHook 处理）
+global g_VK_DblModIH := 0
+global g_VK_DblModLast := Map("ctrl", 0, "shift", 0, "alt", 0)
+global g_VK_RecordDblModLast := Map("ctrl", 0, "shift", 0, "alt", 0)
+global g_VK_DblModIntervalMs := 400
 
 VK_EnsureInit(embedded := true) {
     global g_VK_Gui
@@ -29,6 +34,7 @@ VK_EnsureInit(embedded := true) {
 
 VK_OnHostExit(*) {
     _StopKeyPreviewHook()
+    _StopDoubleModifierHook()
     _EndRecord(false)
 }
 
@@ -45,6 +51,7 @@ VK_Init(embedded := false) {
     _VK_RefreshPromptTemplateCommands()
     if !embedded
         _ApplyAllBindings()
+    _EnsureDoubleModifierHook()
 
     ScreenW := SysGet(0)
     ScreenH := SysGet(1)
@@ -388,6 +395,8 @@ _JsonStr(s) {
 
 _BindKey(ahkKey, cmdId) {
     global g_HotkeyBound
+    if (ahkKey = "^^" || ahkKey = "++" || ahkKey = "!!")
+        return
     if g_HotkeyBound.Has(ahkKey)
         try Hotkey(ahkKey, "Off")
     fn := _MakeCmdFn(cmdId)
@@ -406,6 +415,8 @@ _MakeCmdFn(cmdId) {
 
 _UnbindKey(ahkKey) {
     global g_HotkeyBound
+    if (ahkKey = "^^" || ahkKey = "++" || ahkKey = "!!")
+        return
     if g_HotkeyBound.Has(ahkKey) {
         try Hotkey(ahkKey, "Off")
         g_HotkeyBound.Delete(ahkKey)
@@ -459,12 +470,8 @@ _ExecuteCommand(cmdId) {
             OutputDebug("[VK] CURSOR_CLOSE: hook here")
         case "CH_RUN":
             if g_VK_Embedded {
-                ; 定义在 VirtualKeyboardExecCmd.ahk；用 Func 避免静态分析把标识符当成未赋值局部变量
-                chRun := Func("VK_ExecCursorHelperCmd")
-                if chRun
-                    chRun.Call(cmdId)
-                else
-                    OutputDebug("[VK] CH_RUN embedded but VK_ExecCursorHelperCmd not included")
+                ; 实现由 VirtualKeyboardExecCmd.ahk（CursorHelper）或 VirtualKeyboard.ahk 内 stub 提供；勿用 Func("…")（未定义时会抛 TargetError）
+                VK_ExecCursorHelperCmd(cmdId)
             } else if !NotifyScript("CursorHelper", '{"type":"vkExec","cmdId":"' . cmdId . '"}')
                 OutputDebug("[VK] CH_RUN " . cmdId . " — CursorHelper 未运行或未处理 vkExec")
         case "PT_RUN":
@@ -488,6 +495,8 @@ _OnWV2Created(ctrl) {
     s.AreDefaultContextMenusEnabled := false
     s.IsStatusBarEnabled := false
     s.AreDevToolsEnabled := true
+    ; 避免 Alt 与浏览器快捷键/菜单栏逻辑抢焦点，否则虚拟键上 Alt 双击常收不到 dblclick
+    try s.AreBrowserAcceleratorKeysEnabled := false
 
     g_VK_WV2.add_WebMessageReceived(_OnWebMessage)
 
@@ -523,7 +532,7 @@ _TitleDrag(*) {
 }
 
 _OnWebMessage(sender, args) {
-    global g_VK_Ready
+    global g_VK_Ready, g_PendingConflict, g_UseScanCode
 
     jsonStr := args.WebMessageAsJson
     try {
@@ -614,6 +623,7 @@ _DoBindKey(cmdId, ahkKey, displayKey) {
         . '","ahkKey":"' . ahkKey
         . '","displayKey":"' . escaped . '"}')
     OutputDebug("[VK] bindKey: " . cmdId . " = " . ahkKey)
+    _EnsureDoubleModifierHook()
 }
 
 _DoClearBinding(cmdId) {
@@ -627,6 +637,7 @@ _DoClearBinding(cmdId) {
     g_Bindings.Delete(ahkKey)
     g_InverseBindings.Delete(cmdId)
     _SaveBindings()
+    _EnsureDoubleModifierHook()
 
     VK_SendToWeb('{"type":"bindingUpdated","commandId":"' . cmdId
         . '","ahkKey":"","displayKey":""}')
@@ -700,6 +711,78 @@ _StopKeyPreviewHook() {
     }
 }
 
+_EnsureDoubleModifierHook() {
+    global g_Bindings, g_VK_DblModIH, g_VK_DblModLast
+    need := g_Bindings.Has("^^") || g_Bindings.Has("++") || g_Bindings.Has("!!")
+    if !need {
+        _StopDoubleModifierHook()
+        return
+    }
+    if IsObject(g_VK_DblModIH)
+        return
+    ih := InputHook("V L0")
+    ih.KeyOpt("{All}", "N")
+    ih.OnKeyUp := _OnVkDblModUp
+    g_VK_DblModIH := ih
+    try ih.Start()
+    catch as e
+        OutputDebug("[VK] double modifier hook start failed: " . e.Message)
+    g_VK_DblModLast["ctrl"] := 0
+    g_VK_DblModLast["shift"] := 0
+    g_VK_DblModLast["alt"] := 0
+    OutputDebug("[VK] double modifier hook on")
+}
+
+_StopDoubleModifierHook() {
+    global g_VK_DblModIH, g_VK_DblModLast
+    if IsObject(g_VK_DblModIH) {
+        try g_VK_DblModIH.Stop()
+        g_VK_DblModIH := 0
+        OutputDebug("[VK] double modifier hook off")
+    }
+    g_VK_DblModLast["ctrl"] := 0
+    g_VK_DblModLast["shift"] := 0
+    g_VK_DblModLast["alt"] := 0
+}
+
+_VkModifierGroupFromKeyName(keyName) {
+    if keyName = "LControl" || keyName = "RControl" || keyName = "Ctrl"
+        || keyName = "LCtrl" || keyName = "RCtrl"
+        return "ctrl"
+    if keyName = "LShift" || keyName = "RShift" || keyName = "Shift"
+        return "shift"
+    if keyName = "LAlt" || keyName = "RAlt" || keyName = "Alt"
+        return "alt"
+    return ""
+}
+
+_OnVkDblModUp(ih, vk, sc) {
+    global g_Bindings, g_VK_DblModLast, g_VK_DblModIntervalMs, g_UseScanCode, g_RecordCtx
+    if g_RecordCtx.Has("active") && g_RecordCtx["active"]
+        return
+    if g_UseScanCode {
+        keyName := _GetKeyFromSC(sc)
+        if !keyName
+            keyName := GetKeyName(Format("vk{:x}sc{:x}", vk, sc))
+    } else {
+        keyName := GetKeyName(Format("vk{:x}sc{:x}", vk, sc))
+    }
+    if keyName = ""
+        return
+    grp := _VkModifierGroupFromKeyName(keyName)
+    if grp = ""
+        return
+    now := A_TickCount
+    prev := g_VK_DblModLast[grp]
+    if (prev > 0 && now - prev < g_VK_DblModIntervalMs) {
+        g_VK_DblModLast[grp] := 0
+        dblKey := grp = "ctrl" ? "^^" : grp = "shift" ? "++" : "!!"
+        if g_Bindings.Has(dblKey)
+            _ExecuteCommand(g_Bindings[dblKey])
+    } else
+        g_VK_DblModLast[grp] := now
+}
+
 _UpdateModifierState() {
     global g_ModState
     g_ModState["ctrl"] := GetKeyState("Ctrl", "P")
@@ -719,19 +802,23 @@ _PushModifierState() {
 }
 
 _BeginRecord(commandId) {
-    global g_RecordHook, g_RecordCtx
+    global g_RecordHook, g_RecordCtx, g_VK_RecordDblModLast
 
     try _EndRecord(false)
 
     g_RecordCtx["active"] := true
     g_RecordCtx["commandId"] := commandId
+    g_VK_RecordDblModLast["ctrl"] := 0
+    g_VK_RecordDblModLast["shift"] := 0
+    g_VK_RecordDblModLast["alt"] := 0
 
     _StopKeyPreviewHook()
 
     ih := InputHook("V L0")
-    ih.KeyOpt("{All}", "NV")
+    ih.KeyOpt("{All}", "N")
     ih.NotifyNonText := true
     ih.OnKeyDown := _OnRecordKeyDown
+    ih.OnKeyUp := _OnRecordKeyUp
     g_RecordHook := ih
     try ih.Start()
     catch as e
@@ -739,6 +826,67 @@ _BeginRecord(commandId) {
 
     VK_SendToWeb('{"type":"recordHint","active":true,"commandId":"' . commandId . '"}')
     OutputDebug("[VK] record start: " . commandId)
+}
+
+_OnRecordKeyUp(ih, vk, sc) {
+    global g_RecordCtx, g_Bindings, g_Commands, g_PendingConflict, g_UseScanCode
+    global g_VK_RecordDblModLast, g_VK_DblModIntervalMs
+    if !g_RecordCtx["active"]
+        return
+
+    if g_UseScanCode {
+        keyName := _GetKeyFromSC(sc)
+        if !keyName
+            keyName := GetKeyName(Format("vk{:x}sc{:x}", vk, sc))
+    } else {
+        keyName := GetKeyName(Format("vk{:x}sc{:x}", vk, sc))
+    }
+
+    if keyName = ""
+        return
+
+    if !_IsModifierOnlyKey(keyName)
+        return
+
+    grp := _VkModifierGroupFromKeyName(keyName)
+    if grp = ""
+        return
+
+    now := A_TickCount
+    prev := g_VK_RecordDblModLast[grp]
+    if (prev > 0 && now - prev < g_VK_DblModIntervalMs) {
+        g_VK_RecordDblModLast[grp] := 0
+        dbl := grp = "ctrl" ? "^^" : grp = "shift" ? "++" : "!!"
+        cmdId := g_RecordCtx["commandId"]
+        displayKey := _ToDisplayKey(dbl)
+        if g_Bindings.Has(dbl) {
+            conflictId := g_Bindings[dbl]
+            if conflictId != cmdId {
+                g_PendingConflict["cmdId"] := cmdId
+                g_PendingConflict["ahkKey"] := dbl
+                g_PendingConflict["displayKey"] := displayKey
+                g_PendingConflict["conflictId"] := conflictId
+                _EndRecord()
+                conflictName := (g_Commands.Has("CommandList") && g_Commands["CommandList"].Has(conflictId))
+                    ? g_Commands["CommandList"][conflictId]["name"] : conflictId
+                escDk := StrReplace(StrReplace(displayKey, "\", "\\"), '"', '\"')
+                escName := StrReplace(StrReplace(conflictName, "\", "\\"), '"', '\"')
+                VK_SendToWeb('{"type":"confirmConflict","commandId":"' . cmdId
+                    . '","ahkKey":"' . dbl
+                    . '","displayKey":"' . escDk
+                    . '","conflictCmdId":"' . conflictId
+                    . '","conflictCmdName":"' . escName . '"}')
+                OutputDebug("[VK] conflict: " . dbl . " -> " . conflictId . " vs " . cmdId)
+                return
+            }
+        }
+        _EndRecord()
+        _DoBindKey(cmdId, dbl, displayKey)
+        VK_SendToWeb('{"type":"recordHint","active":false,"commandId":"' . cmdId . '"}')
+        OutputDebug("[VK] record captured: " . cmdId . " => " . dbl)
+        return
+    }
+    g_VK_RecordDblModLast[grp] := now
 }
 
 _EndRecord(restartPreview := true) {
@@ -755,6 +903,7 @@ _EndRecord(restartPreview := true) {
 
 _OnRecordKeyDown(ih, vk, sc) {
     global g_RecordCtx, g_Bindings, g_Commands, g_PendingConflict, g_UseScanCode
+    global g_VK_RecordDblModLast
     if !g_RecordCtx["active"]
         return
 
@@ -766,8 +915,17 @@ _OnRecordKeyDown(ih, vk, sc) {
         keyName := GetKeyName(Format("vk{:x}sc{:x}", vk, sc))
     }
 
-    if !keyName || _IsModifierOnlyKey(keyName)
+    if keyName = ""
         return
+
+    if !_IsModifierOnlyKey(keyName) {
+        g_VK_RecordDblModLast["ctrl"] := 0
+        g_VK_RecordDblModLast["shift"] := 0
+        g_VK_RecordDblModLast["alt"] := 0
+    } else {
+        ; 修饰键按下时不处理，等待 KeyUp；这里只需确保非修饰键清零时间戳
+        return
+    }
 
     isCtrl := GetKeyState("Ctrl", "P")
     isAlt := GetKeyState("Alt", "P")
@@ -813,10 +971,27 @@ _IsModifierOnlyKey(keyName) {
         || keyName = "Shift"
         || keyName = "LControl"
         || keyName = "RControl"
+        || keyName = "LCtrl"
+        || keyName = "RCtrl"
         || keyName = "LAlt"
         || keyName = "RAlt"
         || keyName = "LShift"
         || keyName = "RShift"
+}
+
+_VkRecordModifierDoubleTap(keyName) {
+    global g_VK_RecordDblModLast, g_VK_DblModIntervalMs
+    grp := _VkModifierGroupFromKeyName(keyName)
+    if grp = ""
+        return ""
+    now := A_TickCount
+    prev := g_VK_RecordDblModLast[grp]
+    if (prev > 0 && now - prev < g_VK_DblModIntervalMs) {
+        g_VK_RecordDblModLast[grp] := 0
+        return grp = "ctrl" ? "^^" : grp = "shift" ? "++" : "!!"
+    }
+    g_VK_RecordDblModLast[grp] := now
+    return ""
 }
 
 _NormalizeToAhkHotkey(keyName, isCtrl, isAlt, isShift) {
@@ -955,6 +1130,12 @@ _PushInit() {
 }
 
 _AhkKeyToDisplay(ahkKey) {
+    if (ahkKey = "^^")
+        return "Double Ctrl"
+    if (ahkKey = "++")
+        return "Double Shift"
+    if (ahkKey = "!!")
+        return "Double Alt"
     display := ""
     key := ahkKey
     if InStr(key, "^") {

@@ -1262,14 +1262,38 @@ function renderKeyboardSlots() {
         shift: focusAKey.includes('+'),
       }
     : null;
-  const focusLookup = focusAKey.replace(/[\^!+]/g, '');
+  const focusLookup = /^(\^\^|\+\+|!!)$/.test(focusAKey) ? focusAKey : focusAKey.replace(/[\^!+]/g, '');
   document.querySelectorAll('.k').forEach(el => {
     const baseKey = el.dataset.ahkkey;
     if (!baseKey) return;
     const lbl = ensureMapLabel(el);
     el.classList.remove('bound', 'slot-occupied', 'slot-available', 'slot-suggested');
     lbl.textContent = '';
-    if (isModifierBaseKey(baseKey)) return;
+    if (isModifierBaseKey(baseKey)) {
+      if (focusCmdId) {
+        if (/^(\^\^|\+\+|!!)$/.test(focusAKey)) {
+          const keys = doubleAhkToKeys(focusAKey);
+          if (keys.includes(baseKey)) {
+            el.classList.add('bound', 'slot-occupied');
+            const cmdName = state.commands[focusCmdId]?.name || focusCmdId;
+            lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
+          }
+        }
+        return;
+      }
+      const dbl = modifierToDoubleAhkKey(baseKey);
+      if (dbl) {
+        const cmdId = state.ahkKeyIndex[dbl];
+        if (cmdId) {
+          const hasReal = !!(state.bindings[cmdId]?.ahkKey);
+          el.classList.add('bound', 'slot-occupied');
+          if (!hasReal) el.classList.add('slot-suggested');
+          const cmdName = state.commands[cmdId]?.name || cmdId;
+          lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
+        }
+      }
+      return;
+    }
     // 命令聚焦模式：仅展示当前命令对应快捷键，其它键位全部清空
     if (focusCmdId) {
       if (baseKey === focusLookup) {
@@ -1331,6 +1355,21 @@ function isModifierBaseKey(baseKey) {
   return ['LCtrl','RCtrl','LAlt','RAlt','LShift','RShift','Ctrl','Alt','Shift'].includes(baseKey);
 }
 
+/** 物理键 → 双击修饰键绑定键（与 AHK 一致：^^ / ++ / !!） */
+function modifierToDoubleAhkKey(baseKey) {
+  if (baseKey === 'LCtrl' || baseKey === 'RCtrl') return '^^';
+  if (baseKey === 'LShift' || baseKey === 'RShift') return '++';
+  if (baseKey === 'LAlt' || baseKey === 'RAlt') return '!!';
+  return '';
+}
+
+function doubleAhkToKeys(ahk) {
+  if (ahk === '^^') return ['LCtrl', 'RCtrl'];
+  if (ahk === '++') return ['LShift', 'RShift'];
+  if (ahk === '!!') return ['LAlt', 'RAlt'];
+  return [];
+}
+
 function getActivePrefix() {
   return (state.activeMods.ctrl ? '^' : '')
       +  (state.activeMods.alt ? '!' : '')
@@ -1361,13 +1400,27 @@ function renderModifierKeys() {
 }
 
 function triggerKeyRipple(ahkKey) {
+  const runRipple = (el) => {
+    if (!el) return;
+    el.classList.remove('ripple');
+    void el.offsetWidth;
+    el.classList.add('ripple');
+    setTimeout(() => el.classList.remove('ripple'), 820);
+  };
+  if (ahkKey === '^^') {
+    document.querySelectorAll('.k[data-ahkkey="LCtrl"], .k[data-ahkkey="RCtrl"]').forEach(runRipple);
+    return;
+  }
+  if (ahkKey === '++') {
+    document.querySelectorAll('.k[data-ahkkey="LShift"], .k[data-ahkkey="RShift"]').forEach(runRipple);
+    return;
+  }
+  if (ahkKey === '!!') {
+    document.querySelectorAll('.k[data-ahkkey="LAlt"], .k[data-ahkkey="RAlt"]').forEach(runRipple);
+    return;
+  }
   const base = ahkKey.replace(/[\^!+]/g, '');
-  const el = document.querySelector(`.k[data-ahkkey="${CSS.escape(base)}"]`);
-  if (!el) return;
-  el.classList.remove('ripple');
-  void el.offsetWidth;
-  el.classList.add('ripple');
-  setTimeout(() => el.classList.remove('ripple'), 820);
+  runRipple(document.querySelector(`.k[data-ahkkey="${CSS.escape(base)}"]`));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1438,9 +1491,16 @@ function startRecording(cmdId) {
   renderCommandList();
   // highlight corresponding key on keyboard if already bound
   if (state.bindings[cmdId]?.ahkKey) {
-    const baseKey = state.bindings[cmdId].ahkKey.replace(/[\^!+]/g, '');
-    document.querySelector(`.k[data-ahkkey="${CSS.escape(baseKey)}"]`)
-      ?.classList.add('recording-target');
+    const ak = state.bindings[cmdId].ahkKey;
+    if (ak === '^^' || ak === '++' || ak === '!!') {
+      doubleAhkToKeys(ak).forEach((k) => {
+        document.querySelector(`.k[data-ahkkey="${CSS.escape(k)}"]`)?.classList.add('recording-target');
+      });
+    } else {
+      const baseKey = ak.replace(/[\^!+]/g, '');
+      document.querySelector(`.k[data-ahkkey="${CSS.escape(baseKey)}"]`)
+        ?.classList.add('recording-target');
+    }
   }
   setHud('MODE: CONFIG | RECORDING: ' + (state.commands[cmdId]?.name || cmdId));
   postToAhk({ type: 'startRecord', commandId: cmdId });
@@ -1461,19 +1521,59 @@ function stopRecording(restoreHud = true) {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Keyboard key click (exec mode: highlight + flash)
+// WebView2 下 Alt 键上原生 dblclick 常被浏览器加速器逻辑吞掉，改用两次 click 间隔判定（与 AHK 400ms 同量级）
 // ═══════════════════════════════════════════════════════════════════════════
+const VK_ALT_DBL_MS = 400;
+let vkLastAltTapAt = 0;
+
+function tryExecuteDoubleAltFromClick(ahkKey, el, e) {
+  if (ahkKey !== 'LAlt' && ahkKey !== 'RAlt') return false;
+  const now = Date.now();
+  if (vkLastAltTapAt > 0 && (now - vkLastAltTapAt) < VK_ALT_DBL_MS) {
+    vkLastAltTapAt = 0;
+    e.preventDefault();
+    e.stopPropagation();
+    const cmdId = state.ahkKeyIndex['!!'];
+    if (cmdId) {
+      postToAhk({ type: 'executeCommand', commandId: cmdId });
+      triggerKeyRipple('!!');
+      document.querySelector(`.cmd-row[data-cmd-id="${cmdId}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    el.classList.add('pressed');
+    setTimeout(() => el.classList.remove('pressed'), 180);
+    return true;
+  }
+  vkLastAltTapAt = now;
+  return false;
+}
+
 document.querySelectorAll('.k').forEach(el => {
-  el.addEventListener('click', () => {
+  el.addEventListener('click', (e) => {
     const ahkKey = el.dataset.ahkkey;
     if (!ahkKey) return;
+    if (tryExecuteDoubleAltFromClick(ahkKey, el, e)) return;
     const cmdId = state.ahkKeyIndex[ahkKey];
     if (cmdId) {
-      // scroll command list to that row
       const row = document.querySelector(`.cmd-row[data-cmd-id="${cmdId}"]`);
       row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
     el.classList.add('pressed');
     setTimeout(() => el.classList.remove('pressed'), 180);
+  });
+  el.addEventListener('dblclick', (e) => {
+    const ahkKey = el.dataset.ahkkey;
+    if (!ahkKey) return;
+    if (ahkKey === 'LAlt' || ahkKey === 'RAlt') return;
+    const dbl = modifierToDoubleAhkKey(ahkKey);
+    if (!dbl) return;
+    e.preventDefault();
+    const cmdId = state.ahkKeyIndex[dbl];
+    if (!cmdId) return;
+    postToAhk({ type: 'executeCommand', commandId: cmdId });
+    triggerKeyRipple(dbl);
+    const row = document.querySelector(`.cmd-row[data-cmd-id="${cmdId}"]`);
+    row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
 });
 
