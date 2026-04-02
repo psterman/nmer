@@ -142,6 +142,7 @@ global MainScriptDir := A_ScriptDir
 ; ===================== 包含悬浮工具栏模块 =====================
 #Include modules\FloatingToolbar.ahk
 #Include modules\AIListPanel.ahk
+#Include modules\PromptQuickPadCore.ahk
 #Include modules\PromptQuickPadCapsLockB.ahk
 
 ; ===================== Everything API 封装 =====================

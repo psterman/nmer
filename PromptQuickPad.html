@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prompt Quick-Pad</title>
+<style>
+:root {
+  --bg: #1e1e1e;
+  --surface: #252526;
+  --surface2: #2d2d30;
+  --border: #3c3c3c;
+  --orange: #ff9933;
+  --orange-dk: #e67e22;
+  --text: #cccccc;
+  --text-dim: #888;
+  --text-xs: #666;
+  --font-ui: "Segoe UI", system-ui, sans-serif;
+  --font-mono: Consolas, "Courier New", monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  overflow: hidden;
+  user-select: none;
+}
+#root {
+  display: flex; flex-direction: column;
+  width: 100%; height: 100%;
+}
+#toolbar {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+#search-input {
+  flex: 1; min-width: 120px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 13px;
+  outline: none;
+}
+#search-input:focus { border-color: var(--orange-dk); }
+#cat-strip {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  max-height: 72px;
+  overflow-y: auto;
+}
+.cat-chip {
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  background: #363636;
+  color: var(--text);
+}
+.cat-chip.on {
+  background: #ff7700;
+  color: #fff;
+  font-weight: bold;
+}
+#capture-panel {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: #1a1a1a;
+}
+#capture-toggle {
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--orange);
+  background: #363636;
+  text-align: center;
+}
+#capture-body {
+  padding: 8px 10px;
+  display: none;
+}
+#capture-body.expanded { display: block; }
+.capture-row { margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+.capture-row label { width: 56px; flex-shrink: 0; font-size: 12px; color: var(--text-dim); }
+.capture-row input, .capture-row select, .capture-row textarea {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: var(--font-ui);
+}
+#cap-body { min-height: 100px; resize: vertical; font-family: var(--font-mono); }
+.capture-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.capture-actions button {
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.capture-actions button:hover { border-color: var(--orange-dk); }
+.chk-row { display: flex; gap: 16px; font-size: 11px; align-items: center; margin: 6px 0; }
+.chk-row input { width: auto; }
+#main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+#list-panel {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+}
+.pqp-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #2a2a2a;
+}
+.pqp-item:hover { background: var(--surface); }
+.pqp-item.active {
+  background: rgba(255, 119, 0, 0.15);
+  border-left: 3px solid var(--orange-dk);
+}
+.pqp-item .meta {
+  flex: 1; min-width: 0;
+}
+.pqp-item .title { font-weight: 600; color: #fff; margin-bottom: 2px; }
+.pqp-item .sub { font-size: 11px; color: var(--text-dim); }
+.pqp-item .preview {
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 4px;
+}
+.pqp-item .src {
+  flex-shrink: 0;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #333;
+  color: var(--text-xs);
+}
+#preview-panel {
+  flex: 0 0 38%;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  background: #181818;
+}
+#preview-meta { padding: 8px; font-size: 11px; color: var(--text-dim); border-bottom: 1px solid var(--border); }
+#preview-content {
+  flex: 1;
+  overflow: auto;
+  padding: 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+#status-bar {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+  border-top: 1px solid var(--border);
+  background: var(--surface2);
+  white-space: pre-wrap;
+}
+#link-bar {
+  flex-shrink: 0;
+  display: flex; gap: 12px; flex-wrap: wrap;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-top: 1px solid var(--border);
+}
+#link-bar a {
+  color: var(--orange);
+  cursor: pointer;
+  text-decoration: underline;
+}
+#ctx-menu {
+  position: fixed;
+  z-index: 10000;
+  background: #1a1a1a;
+  border: 1px solid var(--border);
+  min-width: 140px;
+  display: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,.5);
+}
+#ctx-menu .mi { padding: 8px 12px; cursor: pointer; font-size: 12px; }
+#ctx-menu .mi:hover { background: var(--orange-dk); color: #fff; }
+#help-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.58);
+  padding: 24px;
+}
+#help-modal.open { display: flex; }
+#help-card {
+  width: min(760px, 100%);
+  max-height: min(82vh, 760px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, #252526 0%, #1a1a1b 100%);
+  box-shadow: 0 20px 54px rgba(0,0,0,.45);
+}
+#help-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: #2a2a2d;
+}
+#help-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+#help-close {
+  border: 1px solid var(--border);
+  background: #333;
+  color: var(--text);
+  padding: 6px 10px;
+  cursor: pointer;
+}
+#help-close:hover { border-color: var(--orange-dk); color: #fff; }
+#help-desc {
+  padding: 12px 16px 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+#help-body {
+  margin: 12px 16px 16px;
+  padding: 14px;
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--border);
+  background: #171717;
+  color: #ddd;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  user-select: text;
+}
+mark { background: var(--orange-dk); color: #000; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div id="toolbar">
+    <input type="text" id="search-input" placeholder="列表搜索…" autocomplete="off" spellcheck="false">
+    <span style="font-size:11px;color:var(--text-xs)">Enter 粘贴 · Esc 关闭 · 1-9 快速粘贴</span>
+  </div>
+  <div id="cat-strip"></div>
+  <div id="capture-panel">
+    <div id="capture-toggle">▶ 摘录 / 采集（点击展开）</div>
+    <div id="capture-body">
+      <div class="capture-row"><label>标题</label><input id="cap-title" type="text"></div>
+      <div class="capture-row"><label>分类</label><select id="cap-cat"></select></div>
+      <div class="capture-row"><label>标签</label><input id="cap-tags" type="text"></div>
+      <div class="chk-row">
+        <label><input type="checkbox" id="cap-silent"> 静默 CapsLock+B</label>
+        <label><input type="checkbox" id="cap-silent-tpl"> 静默写入模板库</label>
+      </div>
+      <div class="capture-row" style="align-items:flex-start"><label>正文</label><textarea id="cap-body"></textarea></div>
+      <div class="capture-actions">
+        <button type="button" id="btn-load-sel">载入所选</button>
+        <button type="button" id="btn-save-cap">保存</button>
+        <button type="button" id="btn-clear-cap">清空</button>
+      </div>
+    </div>
+  </div>
+  <div id="main">
+    <div id="list-panel"></div>
+    <div id="preview-panel">
+      <div id="preview-meta"></div>
+      <div id="preview-content">选择一项查看正文</div>
+    </div>
+  </div>
+  <div id="status-bar"></div>
+  <div id="link-bar">
+    <a id="lnk-import">导入</a>
+    <a id="lnk-export">导出</a>
+    <a id="lnk-pin">置顶·开</a>
+    <a id="lnk-json">JSON 格式说明</a>
+  </div>
+</div>
+<div id="ctx-menu"></div>
+<div id="help-modal" aria-hidden="true">
+  <div id="help-card" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div id="help-head">
+      <div id="help-title">prompts.json 格式说明</div>
+      <button type="button" id="help-close">关闭</button>
+    </div>
+    <div id="help-desc">下面是 `prompts.json` 的结构说明。导入和导出都使用这套用户条目格式。</div>
+    <div id="help-body"></div>
+  </div>
+</div>
+<script>
+const state = {
+  items: [],
+  selectedIndex: 0,
+  selectedMergedIndex: 0,
+  keyword: '',
+  category: '全部',
+  captureExpanded: false,
+  helpOpen: false
+};
+
+function postToAhk(obj) {
+  if (window.chrome && window.chrome.webview)
+    window.chrome.webview.postMessage(obj);
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function highlight(s, kw) {
+  if (!kw || !s) return escapeHtml(s);
+  try {
+    const re = new RegExp('(' + kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    return escapeHtml(s).replace(re, '<mark>$1</mark>');
+  } catch { return escapeHtml(s); }
+}
+
+function renderCategories(cats, sel) {
+  const el = document.getElementById('cat-strip');
+  el.innerHTML = '';
+  (cats || []).forEach(c => {
+    const chip = document.createElement('span');
+    chip.className = 'cat-chip' + (c === sel ? ' on' : '');
+    chip.textContent = c;
+    chip.onclick = () => {
+      state.category = c;
+      postToAhk({ type: 'setCategory', category: c });
+    };
+    el.appendChild(chip);
+  });
+}
+
+function renderList() {
+  const panel = document.getElementById('list-panel');
+  const kw = state.keyword;
+  panel.innerHTML = '';
+  state.items.forEach((it, i) => {
+    const row = document.createElement('div');
+    row.className = 'pqp-item' + (i === state.selectedIndex ? ' active' : '');
+    row.dataset.idx = i;
+    row.dataset.merged = it.mergedIndex;
+    const src = (it.source || '');
+    row.innerHTML = '<div class="meta">'
+      + '<div class="title">' + highlight(it.title || '', kw) + '</div>'
+      + '<div class="sub">' + escapeHtml(it.category || '') + ' · ' + escapeHtml(it.hotkey || '') + '</div>'
+      + '<div class="preview">' + highlight(it.preview || '', kw) + '</div></div>'
+      + '<span class="src">' + escapeHtml(src) + '</span>';
+    row.onclick = () => selectItem(i);
+    row.ondblclick = (e) => { e.preventDefault(); doPaste(); };
+    row.oncontextmenu = (e) => { e.preventDefault(); showCtx(e.clientX, e.clientY, it.mergedIndex); };
+    panel.appendChild(row);
+  });
+  if (state.items.length && state.selectedIndex >= state.items.length)
+    state.selectedIndex = 0;
+  updatePreview();
+}
+
+function selectItem(i) {
+  state.selectedIndex = i;
+  const it = state.items[i];
+  state.selectedMergedIndex = it ? it.mergedIndex : 0;
+  document.querySelectorAll('.pqp-item').forEach((el, j) => {
+    el.classList.toggle('active', j === i);
+  });
+  updatePreview();
+}
+
+function updatePreview() {
+  const it = state.items[state.selectedIndex];
+  const meta = document.getElementById('preview-meta');
+  const content = document.getElementById('preview-content');
+  if (!it) {
+    meta.textContent = '';
+    content.textContent = '选择一项查看正文';
+    return;
+  }
+  meta.textContent = (it.title || '') + ' · ' + (it.category || '') + ' · merged #' + it.mergedIndex;
+  content.textContent = (it.content !== undefined && it.content !== '') ? it.content : '(空正文)';
+}
+
+function handleAhkMessage(msg) {
+  if (!msg || !msg.type) return;
+  switch (msg.type) {
+    case 'init':
+    case 'searchResult':
+      state.items = msg.items || [];
+      state.keyword = msg.keyword || '';
+      document.getElementById('search-input').value = state.keyword;
+      state.category = msg.selectedCategory || '全部';
+      if (msg.categories)
+        renderCategories(msg.categories, state.category);
+      document.getElementById('status-bar').textContent = msg.statusLine || '';
+      if (msg.pinTop !== undefined) {
+        document.getElementById('lnk-pin').textContent = msg.pinTop ? '置顶·开' : '置顶·关';
+      }
+      if (msg.captureDraft) {
+        const d = msg.captureDraft;
+        document.getElementById('cap-title').value = d.title || '';
+        fillCatSelect(msg.categories || [], d.category || '未分类');
+        document.getElementById('cap-tags').value = d.tags || '';
+        document.getElementById('cap-silent').checked = !!d.silent;
+        document.getElementById('cap-silent-tpl').checked = !!d.silentTpl;
+      }
+      if (msg.captureVisible !== undefined) {
+        document.getElementById('capture-panel').style.display = msg.captureVisible ? 'block' : 'none';
+      }
+      if (msg.captureExpanded !== undefined) {
+        state.captureExpanded = !!msg.captureExpanded;
+        syncCaptureUi();
+      }
+      state.selectedIndex = 0;
+      renderList();
+      break;
+    case 'captureOpen':
+      document.getElementById('capture-panel').style.display = 'block';
+      state.captureExpanded = !!msg.expanded;
+      syncCaptureUi();
+      if (msg.text !== undefined)
+        document.getElementById('cap-body').value = msg.text;
+      break;
+    case 'captureDraftFill':
+      document.getElementById('cap-title').value = msg.title || '';
+      document.getElementById('cap-tags').value = msg.tags || '';
+      document.getElementById('cap-body').value = msg.body || '';
+      fillCatSelect(state._lastCats || ['全部'], msg.category || '未分类');
+      break;
+    case 'jsonHelpOpen':
+      openHelpModal(msg.body || '');
+      break;
+    default:
+      break;
+  }
+}
+
+function fillCatSelect(cats, current) {
+  const sel = document.getElementById('cap-cat');
+  sel.innerHTML = '';
+  const set = new Set(['未分类']);
+  (cats || []).forEach(c => { if (c && c !== '全部') set.add(c); });
+  set.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c;
+    o.textContent = c;
+    sel.appendChild(o);
+  });
+  sel.value = current && [...set].includes(current) ? current : '未分类';
+}
+
+function syncCaptureUi() {
+  const body = document.getElementById('capture-body');
+  const t = document.getElementById('capture-toggle');
+  if (state.captureExpanded) {
+    body.classList.add('expanded');
+    t.textContent = '▼ 摘录 / 采集（点击收起）';
+  } else {
+    body.classList.remove('expanded');
+    t.textContent = '▶ 摘录 / 采集（点击展开）';
+  }
+}
+
+document.getElementById('capture-toggle').addEventListener('click', () => {
+  state.captureExpanded = !state.captureExpanded;
+  syncCaptureUi();
+});
+
+function doPaste() {
+  const it = state.items[state.selectedIndex];
+  if (!it) return;
+  postToAhk({ type: 'paste', mergedIndex: it.mergedIndex });
+}
+
+function getSelectedCaptureItem() {
+  if (state.items[state.selectedIndex])
+    return state.items[state.selectedIndex];
+  if (state.items.length > 0) {
+    state.selectedIndex = 0;
+    state.selectedMergedIndex = state.items[0].mergedIndex || 0;
+    renderList();
+    return state.items[0];
+  }
+  return null;
+}
+
+function showCtx(x, y, mergedIndex) {
+  const m = document.getElementById('ctx-menu');
+  m.innerHTML = [
+    { t: '粘贴', a: 'paste' },
+    { t: '编辑', a: 'edit' },
+    { t: '查看', a: 'view' },
+    { t: '删除', a: 'delete' }
+  ].map(o => '<div class="mi" data-a="' + o.a + '" data-m="' + mergedIndex + '">' + o.t + '</div>').join('');
+  m.style.left = x + 'px';
+  m.style.top = y + 'px';
+  m.style.display = 'block';
+  m.onclick = (ev) => {
+    const mi = ev.target.closest('.mi');
+    if (!mi) return;
+    const a = mi.dataset.a;
+    const merg = parseInt(mi.dataset.m, 10);
+    m.style.display = 'none';
+    postToAhk({ type: a, mergedIndex: merg });
+  };
+}
+document.addEventListener('click', () => { document.getElementById('ctx-menu').style.display = 'none'; });
+
+function openHelpModal(body) {
+  document.getElementById('help-body').textContent = body || '';
+  state.helpOpen = true;
+  const modal = document.getElementById('help-modal');
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeHelpModal() {
+  state.helpOpen = false;
+  const modal = document.getElementById('help-modal');
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+document.getElementById('help-close').addEventListener('click', closeHelpModal);
+document.getElementById('help-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'help-modal')
+    closeHelpModal();
+});
+
+document.getElementById('search-input').addEventListener('input', (e) => {
+  state.keyword = e.target.value.trim();
+  postToAhk({ type: 'search', keyword: state.keyword, category: state.category || '全部' });
+});
+
+document.getElementById('lnk-import').onclick = () => postToAhk({ type: 'import' });
+document.getElementById('lnk-export').onclick = () => postToAhk({ type: 'export' });
+document.getElementById('lnk-json').onclick = () => postToAhk({ type: 'jsonHelp' });
+document.getElementById('lnk-pin').onclick = () => postToAhk({ type: 'togglePinTop' });
+
+document.getElementById('btn-save-cap').onclick = () => {
+  postToAhk({
+    type: 'captureSave',
+    title: document.getElementById('cap-title').value,
+    category: document.getElementById('cap-cat').value,
+    tags: document.getElementById('cap-tags').value,
+    body: document.getElementById('cap-body').value
+  });
+};
+document.getElementById('btn-load-sel').onclick = () => {
+  const it = getSelectedCaptureItem();
+  if (!it) return;
+  postToAhk({ type: 'captureLoadSelected', mergedIndex: it.mergedIndex });
+};
+document.getElementById('btn-clear-cap').onclick = () => {
+  document.getElementById('cap-title').value = '';
+  document.getElementById('cap-tags').value = '';
+  document.getElementById('cap-body').value = '';
+  postToAhk({ type: 'captureClear' });
+};
+
+function syncSilentFromDom() {
+  postToAhk({
+    type: 'captureSilentSync',
+    silent: document.getElementById('cap-silent').checked,
+    silentTpl: document.getElementById('cap-silent-tpl').checked
+  });
+}
+document.getElementById('cap-silent').addEventListener('change', syncSilentFromDom);
+document.getElementById('cap-silent-tpl').addEventListener('change', syncSilentFromDom);
+
+document.addEventListener('keydown', (e) => {
+  if (state.helpOpen && e.key === 'Escape') {
+    e.preventDefault();
+    closeHelpModal();
+    return;
+  }
+  if (e.key === 'Escape') {
+    postToAhk({ type: 'requestHide' });
+    return;
+  }
+  if (e.key === 'Enter' && e.target.id !== 'cap-body' && e.target.id !== 'search-input') {
+    e.preventDefault();
+    doPaste();
+    return;
+  }
+  const n = parseInt(e.key, 10);
+  if (n >= 1 && n <= 9 && !e.ctrlKey && !e.altKey && e.target.id !== 'search-input') {
+    const i = n - 1;
+    if (state.items[i]) {
+      postToAhk({ type: 'pasteByIndex', index: i });
+    }
+  }
+});
+
+if (window.chrome && window.chrome.webview) {
+  window.chrome.webview.addEventListener('message', (e) => {
+    try {
+      const msg = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+      if (msg.categories)
+        state._lastCats = msg.categories;
+      handleAhkMessage(msg);
+    } catch (err) { console.error(err); }
+  });
+  postToAhk({ type: 'ready' });
+} else {
+  document.getElementById('status-bar').textContent = '预览模式（无 AHK）';
+}
+</script>
+</body>
+</html>

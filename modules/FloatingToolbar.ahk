@@ -5,12 +5,12 @@
 ;   - 绫讳技杈撳叆娉曠殑鎮诞闀挎潯绐楀彛
 ;   - 宸﹂敭鎷栧姩
 ;   - 鍙抽敭寮瑰嚭鑿滃崟鍏抽棴
-;   - 6涓姛鑳芥寜閽細鎼滅储銆佺瑪璁般€丄I鍔╂墜銆佹埅鍥俱€佽缃紙浣跨敤鍥剧墖鍥炬爣锛?
+;   - 7 个功能按钮：搜索、记录、提示词、新提示词、截图、设置、键盘（使用图片图标）
 ;   - Cursor鑹茬郴閰嶈壊
 ; 
 ; 鍥炬爣鏂囦欢瑕佹眰锛?
 ;   - 鍥炬爣鏂囦欢搴旀斁鍦?images 鐩綍涓?
-;   - 鏂囦欢鍛藉悕锛堟寜椤哄簭锛夛細toolbar_search.png, toolbar_note.png, toolbar_ai.png, toolbar_screenshot.png, toolbar_settings.png, toolbar_virtualkeyboard.png
+;   - 文件命名（按顺序）：toolbar_search.png … toolbar_prompt_new.png（新提示词，可缺省则显示「新」）
 ;   - 鎺ㄨ崘灏哄锛?6x16 鎴?20x20 鍍忕礌锛孭NG鏍煎紡锛屾敮鎸侀€忔槑鑳屾櫙
 ;   - 濡傛灉鍥炬爣鏂囦欢涓嶅瓨鍦紝灏嗕娇鐢ㄦ枃瀛椾綔涓哄悗澶囨樉绀?
 ; ======================================================================================================================
@@ -172,13 +172,15 @@ CreateFloatingToolbarGUI() {
         A_ScriptDir . "\images\toolbar_ai.png",
         A_ScriptDir . "\images\toolbar_screenshot.png",
         A_ScriptDir . "\images\toolbar_settings.png",
-        A_ScriptDir . "\images\toolbar_shortcut.png"
+        A_ScriptDir . "\images\toolbar_shortcut.png",
+        A_ScriptDir . "\images\toolbar_prompt_new.png"
     ]
     
     ButtonConfigs := [
         Map("text", "搜索", "iconPath", IconPaths[1], "action", "Search", "shortcut", "Caps+F"),
         Map("text", "记录", "iconPath", IconPaths[2], "action", "Record", "shortcut", "Caps+X"),
         Map("text", "提示词", "iconPath", IconPaths[3], "action", "AIAssistant", "shortcut", "Ctrl+Shift+B"),
+        Map("text", "新提示词", "iconPath", IconPaths[7], "action", "PromptNew", "shortcut", "摘录区"),
         Map("text", "截图", "iconPath", IconPaths[4], "action", "Screenshot", "shortcut", "Caps+T"),
         Map("text", "设置", "iconPath", IconPaths[5], "action", "Settings", "shortcut", "Caps+Q"),
         Map("text", "键盘", "iconPath", IconPaths[6], "action", "VirtualKeyboard", "shortcut", "Ctrl+Shift+K")
@@ -192,7 +194,7 @@ CreateFloatingToolbarGUI() {
     BaseIconSize := 28  ; 鍥炬爣澶у皬锛堟寜閽唴閮紝澧炲ぇ浠ユ樉绀烘洿娓呮櫚鐨勫浘鐗囷級
     BaseOuterPadding := 6
     BaseIconGap := 6
-    BaseFavIconSize := 28
+    BaseFavIconSize := 64
     BaseStartX := BaseOuterPadding + BaseFavIconSize + BaseIconGap
     BaseStartY := BaseOuterPadding
     
@@ -510,6 +512,13 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
             } catch as err {
                 ; 濡傛灉AIListPanel妯″潡鏈姞杞斤紝浣跨敤榛樿琛屼负
                 TrayTip("AI閫夋嫨闈㈡澘鍔犺浇澶辫触: " . err.Message, "閿欒", "Iconx 2")
+            }
+        case "PromptNew":
+            ; 打开 Prompt Quick-Pad 并展开摘录区，便于新建/粘贴入库
+            try {
+                PromptQuickPad_OpenCaptureDraft("", true)
+            } catch as err {
+                TrayTip("新提示词: " . err.Message, "Prompt Quick-Pad", "Iconx 2")
             }
         case "Screenshot":
             ; [闇€姹?] 鎵ц鎴浘骞跺脊鍑烘埅鍥惧姪鎵嬭鐢ㄦ埛閫夋嫨
@@ -1296,7 +1305,7 @@ SaveFloatingToolbarPosition() {
 FloatingToolbarCalculateWidth() {
     global FloatingToolbarScale
     BaseOuterPadding := 6
-    BaseFavIconSize := 28
+    BaseFavIconSize := 64
     BaseIconGap := 6
     BaseStartX := BaseOuterPadding + BaseFavIconSize + BaseIconGap
     BaseButtonWidth := 40
@@ -1305,8 +1314,9 @@ FloatingToolbarCalculateWidth() {
     StartX := Round(BaseStartX * FloatingToolbarScale)
     ButtonWidth := Round(BaseButtonWidth * FloatingToolbarScale)
     ButtonSpacing := Round(BaseButtonSpacing * FloatingToolbarScale)
-    ; 最后一枚按钮右边缘 + 与左侧对称的外边距（不再使用超大 BaseRightPadding / 屏幕比例最小宽度）
-    LastRight := StartX + 6 * ButtonWidth + 5 * ButtonSpacing
+    ; 最后一枚按钮右边缘 + 与左侧对称的外边距（与 ButtonConfigs 数量一致）
+    btnCount := 7
+    LastRight := StartX + btnCount * ButtonWidth + (btnCount - 1) * ButtonSpacing
     return LastRight + pad
 }
 FloatingToolbarCalculateHeight() {
@@ -1559,6 +1569,8 @@ GetButtonTip(action) {
             return "鍓创鏉垮巻鍙?(Caps + X)"
         case "AIAssistant":
             return "AI鍔╂墜 (Ctrl+Shift+B)"
+        case "PromptNew":
+            return "新提示词（摘录区）"
         case "Screenshot":
             return "灞忓箷鎴浘 (Caps + T)"
         case "Settings":

@@ -1,6 +1,27 @@
 ; CapsLock+B：静默入库 或 打开 Prompt Quick-Pad 内「摘录/采集」区（逻辑在 AIListPanel.ahk）
 #Requires AutoHotkey v2.0
 
+; 跨模块全局变量默认值（用于抑制单文件 LSP 误报；运行时会被主脚本真实值覆盖）
+global AIListPanelGUI := 0
+global FloatingToolbarGUI := 0
+global GuiID_ConfigGUI := 0
+global GuiID_ClipboardManager := 0
+global PromptTemplates := []
+global TemplateIndexByID := Map()
+global TemplateIndexByTitle := Map()
+global TemplateIndexByArrayIndex := Map()
+global AIListPanelIsVisible := false
+global PromptQuickPadData := []
+
+_PQPCB_CallExternal(funcName, args*) {
+    try {
+        return (%funcName%)(args*)
+    } catch as err {
+        OutputDebug("[PQP-CapsB] external call failed: " . funcName . " - " . err.Message)
+    }
+    return ""
+}
+
 PromptQuickPad_ReloadCapsLockBSettings() {
     global PromptQuickPad_CapsLockBSilent, PromptQuickPad_CapsLockBSilentToTemplate, PromptQuickPad_CapsLockBDefaultTitle
     global PromptQuickPad_CapsLockBDefaultCategory, PromptQuickPad_CapsLockBDefaultTags
@@ -20,6 +41,9 @@ PromptQuickPad_CapsB_IsOurGuiWindow(hwnd) {
         return false
     global AIListPanelGUI, FloatingToolbarGUI, GuiID_ConfigGUI, GuiID_ClipboardManager
     try {
+        pqpHwnd := _PQPCB_CallExternal("PQP_GetGuiHwnd")
+        if pqpHwnd && hwnd = pqpHwnd
+            return true
         if AIListPanelGUI && hwnd = AIListPanelGUI.Hwnd
             return true
         if FloatingToolbarGUI && hwnd = FloatingToolbarGUI.Hwnd
@@ -136,17 +160,17 @@ PromptQuickPad_AppendCapsLockBToTemplateLibrary(content) {
     Key := NewTemplate.Category . "|" . NewTemplate.Title
     TemplateIndexByTitle[Key] := NewTemplate
     TemplateIndexByArrayIndex[NewID] := PromptTemplates.Length
-    InvalidateTemplateCache()
+    _PQPCB_CallExternal("InvalidateTemplateCache")
     try {
-        SavePromptTemplates()
+        _PQPCB_CallExternal("SavePromptTemplates")
     } catch as err {
         TrayTip("保存模板库失败：" . err.Message, "Prompt Quick-Pad", "Iconx 1")
         return false
     }
     if AIListPanelIsVisible
-        PromptQuickPad_RefreshListView()
+        _PQPCB_CallExternal("PromptQuickPad_RefreshListView")
     try
-        RefreshPromptListView()
+        _PQPCB_CallExternal("RefreshPromptListView")
     catch {
     }
     tip := "已静默保存到模板库（PromptTemplates.ini）"
@@ -176,18 +200,22 @@ PromptQuickPad_HandleCapsLockB() {
             PromptQuickPad_AppendCapsLockBToTemplateLibrary(t)
             return
         }
-        PromptQuickPad_LoadFromDisk()
+        _PQPCB_CallExternal("PromptQuickPad_LoadFromDisk")
         title := Trim(PromptQuickPad_CapsLockBDefaultTitle)
         if title = ""
             title := "摘录"
         cat := Trim(PromptQuickPad_CapsLockBDefaultCategory)
         tags := Trim(PromptQuickPad_CapsLockBDefaultTags)
-        PromptQuickPadData.Push(PromptQuickPad_NormalizeEntry(Map("title", title, "tags", tags, "content", t, "category", cat, "hotkey", "")))
-        PromptQuickPad_SaveToDisk()
+        normalized := _PQPCB_CallExternal("PromptQuickPad_NormalizeEntry", Map("title", title, "tags", tags, "content", t, "category", cat, "hotkey", ""))
+        if normalized is Map
+            PromptQuickPadData.Push(normalized)
+        else
+            PromptQuickPadData.Push(Map("title", title, "tags", tags, "content", t, "category", cat, "hotkey", ""))
+        _PQPCB_CallExternal("PromptQuickPad_SaveToDisk")
         if AIListPanelIsVisible
-            PromptQuickPad_RefreshListView()
+            _PQPCB_CallExternal("PromptQuickPad_RefreshListView")
         TrayTip("已静默保存到用户库（prompts.json）", "Prompt Quick-Pad", "Iconi 1")
         return
     }
-    PromptQuickPad_OpenCaptureDraft(t, true)
+    _PQPCB_CallExternal("PromptQuickPad_OpenCaptureDraft", t, true)
 }
