@@ -270,6 +270,112 @@ html, body {
   white-space: pre-wrap;
   user-select: text;
 }
+.item-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.62);
+  padding: 24px;
+}
+.item-modal.open { display: flex; }
+.item-card {
+  width: min(860px, 100%);
+  max-height: min(86vh, 820px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, #252526 0%, #171718 100%);
+  box-shadow: 0 22px 60px rgba(0,0,0,.48);
+}
+.item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: #2a2a2d;
+}
+.item-title-wrap { min-width: 0; }
+.item-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+.item-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.item-close {
+  border: 1px solid var(--border);
+  background: #333;
+  color: var(--text);
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.item-close:hover { border-color: var(--orange-dk); color: #fff; }
+.item-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 14px 16px 0;
+}
+.item-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.item-field.wide { grid-column: 1 / -1; }
+.item-field label {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.item-field input,
+.item-field select,
+.item-field textarea {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: var(--font-ui);
+}
+.item-field textarea {
+  min-height: 280px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  line-height: 1.6;
+}
+.item-field input[readonly],
+.item-field select[disabled],
+.item-field textarea[readonly] {
+  background: #1b1b1b;
+  color: #ddd;
+}
+.item-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 16px 16px;
+}
+.item-actions button {
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  background: #333;
+  color: var(--text);
+  cursor: pointer;
+}
+.item-actions button.primary {
+  background: #c96d18;
+  border-color: #d47721;
+  color: #fff;
+}
+.item-actions button:hover { border-color: var(--orange-dk); }
 mark { background: var(--orange-dk); color: #000; }
 </style>
 </head>
@@ -324,6 +430,39 @@ mark { background: var(--orange-dk); color: #000; }
     <div id="help-body"></div>
   </div>
 </div>
+<div id="item-modal" class="item-modal" aria-hidden="true">
+  <div class="item-card" role="dialog" aria-modal="true" aria-labelledby="item-modal-title">
+    <div class="item-head">
+      <div class="item-title-wrap">
+        <div id="item-modal-title" class="item-title">查看内容</div>
+        <div id="item-modal-sub" class="item-sub"></div>
+      </div>
+      <button type="button" id="item-modal-close" class="item-close">关闭</button>
+    </div>
+    <div class="item-form">
+      <div id="item-field-title-wrap" class="item-field">
+        <label for="item-edit-title">标题</label>
+        <input id="item-edit-title" type="text">
+      </div>
+      <div id="item-field-category-wrap" class="item-field">
+        <label for="item-edit-category">分类</label>
+        <select id="item-edit-category"></select>
+      </div>
+      <div id="item-field-tags-wrap" class="item-field wide">
+        <label for="item-edit-tags">标签</label>
+        <input id="item-edit-tags" type="text">
+      </div>
+      <div class="item-field wide">
+        <label for="item-edit-content">正文</label>
+        <textarea id="item-edit-content"></textarea>
+      </div>
+    </div>
+    <div class="item-actions">
+      <button type="button" id="item-modal-cancel">取消</button>
+      <button type="button" id="item-modal-save" class="primary">保存</button>
+    </div>
+  </div>
+</div>
 <script>
 const state = {
   items: [],
@@ -332,12 +471,18 @@ const state = {
   keyword: '',
   category: '全部',
   captureExpanded: false,
-  helpOpen: false
+  helpOpen: false,
+  itemModalOpen: false,
+  itemModal: null
 };
 
 function postToAhk(obj) {
   if (window.chrome && window.chrome.webview)
     window.chrome.webview.postMessage(obj);
+}
+
+function sendAction(type, extra = {}) {
+  postToAhk({ type, ...extra });
 }
 
 function escapeHtml(s) {
@@ -385,7 +530,7 @@ function renderList() {
       + '<span class="src">' + escapeHtml(src) + '</span>';
     row.onclick = () => selectItem(i);
     row.ondblclick = (e) => { e.preventDefault(); doPaste(); };
-    row.oncontextmenu = (e) => { e.preventDefault(); showCtx(e.clientX, e.clientY, it.mergedIndex); };
+    row.oncontextmenu = (e) => { e.preventDefault(); showCtxMenu(e.clientX, e.clientY, it.mergedIndex); };
     panel.appendChild(row);
   });
   if (state.items.length && state.selectedIndex >= state.items.length)
@@ -465,6 +610,9 @@ function handleAhkMessage(msg) {
     case 'jsonHelpOpen':
       openHelpModal(msg.body || '');
       break;
+    case 'itemModalOpen':
+      openItemModal(msg);
+      break;
     default:
       break;
   }
@@ -472,6 +620,20 @@ function handleAhkMessage(msg) {
 
 function fillCatSelect(cats, current) {
   const sel = document.getElementById('cap-cat');
+  sel.innerHTML = '';
+  const set = new Set(['未分类']);
+  (cats || []).forEach(c => { if (c && c !== '全部') set.add(c); });
+  set.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c;
+    o.textContent = c;
+    sel.appendChild(o);
+  });
+  sel.value = current && [...set].includes(current) ? current : '未分类';
+}
+
+function fillItemCategorySelect(cats, current) {
+  const sel = document.getElementById('item-edit-category');
   sel.innerHTML = '';
   const set = new Set(['未分类']);
   (cats || []).forEach(c => { if (c && c !== '全部') set.add(c); });
@@ -504,7 +666,7 @@ document.getElementById('capture-toggle').addEventListener('click', () => {
 function doPaste() {
   const it = state.items[state.selectedIndex];
   if (!it) return;
-  postToAhk({ type: 'paste', mergedIndex: it.mergedIndex });
+  sendAction('paste', { mergedIndex: it.mergedIndex });
 }
 
 function getSelectedCaptureItem() {
@@ -541,6 +703,31 @@ function showCtx(x, y, mergedIndex) {
 }
 document.addEventListener('click', () => { document.getElementById('ctx-menu').style.display = 'none'; });
 
+function showCtxMenu(x, y, mergedIndex) {
+  const m = document.getElementById('ctx-menu');
+  m.innerHTML = '';
+  [
+    { t: '粘贴', a: 'paste' },
+    { t: '编辑', a: 'edit' },
+    { t: '查看', a: 'view' },
+    { t: '删除', a: 'delete' }
+  ].forEach(o => {
+    const item = document.createElement('div');
+    item.className = 'mi';
+    item.textContent = o.t;
+    item.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      m.style.display = 'none';
+      sendAction(o.a, { mergedIndex });
+    });
+    m.appendChild(item);
+  });
+  m.style.left = x + 'px';
+  m.style.top = y + 'px';
+  m.style.display = 'block';
+}
+
 function openHelpModal(body) {
   document.getElementById('help-body').textContent = body || '';
   state.helpOpen = true;
@@ -560,6 +747,57 @@ document.getElementById('help-close').addEventListener('click', closeHelpModal);
 document.getElementById('help-modal').addEventListener('click', (e) => {
   if (e.target.id === 'help-modal')
     closeHelpModal();
+});
+
+function openItemModal(msg) {
+  state.itemModal = msg || {};
+  state.itemModalOpen = true;
+  document.getElementById('item-modal-title').textContent = msg.mode === 'edit' ? '编辑内容' : '查看内容';
+  document.getElementById('item-modal-sub').textContent = [msg.source || '', msg.hotkey || '', msg.category || ''].filter(Boolean).join(' · ');
+  document.getElementById('item-edit-title').value = msg.title || '';
+  fillItemCategorySelect(state._lastCats || ['全部'], msg.category || '未分类');
+  document.getElementById('item-edit-tags').value = msg.tags || '';
+  document.getElementById('item-edit-content').value = msg.content || '';
+  const readOnly = !msg.editable;
+  document.getElementById('item-edit-title').readOnly = readOnly || !msg.allowTitle;
+  document.getElementById('item-edit-category').disabled = readOnly || !msg.allowCategory;
+  document.getElementById('item-edit-tags').readOnly = readOnly || !msg.allowTags;
+  document.getElementById('item-edit-content').readOnly = readOnly;
+  document.getElementById('item-field-title-wrap').style.display = (msg.allowTitle || readOnly) ? 'flex' : 'none';
+  document.getElementById('item-field-category-wrap').style.display = (msg.allowCategory || readOnly) ? 'flex' : 'none';
+  document.getElementById('item-field-tags-wrap').style.display = (msg.allowTags || (msg.tags || '') !== '' || readOnly) ? 'flex' : 'none';
+  document.getElementById('item-modal-save').style.display = msg.editable ? 'inline-flex' : 'none';
+  document.getElementById('item-modal-cancel').textContent = msg.editable ? '取消' : '关闭';
+  const modal = document.getElementById('item-modal');
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeItemModal() {
+  state.itemModalOpen = false;
+  state.itemModal = null;
+  const modal = document.getElementById('item-modal');
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+document.getElementById('item-modal-close').addEventListener('click', closeItemModal);
+document.getElementById('item-modal-cancel').addEventListener('click', closeItemModal);
+document.getElementById('item-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'item-modal')
+    closeItemModal();
+});
+document.getElementById('item-modal-save').addEventListener('click', () => {
+  if (!state.itemModal || !state.itemModalOpen || !state.itemModal.editable)
+    return;
+  sendAction('itemEditSave', {
+    mergedIndex: state.itemModal.mergedIndex,
+    title: document.getElementById('item-edit-title').value,
+    category: document.getElementById('item-edit-category').value,
+    tags: document.getElementById('item-edit-tags').value,
+    content: document.getElementById('item-edit-content').value
+  });
+  closeItemModal();
 });
 
 document.getElementById('search-input').addEventListener('input', (e) => {
@@ -603,14 +841,57 @@ function syncSilentFromDom() {
 document.getElementById('cap-silent').addEventListener('change', syncSilentFromDom);
 document.getElementById('cap-silent-tpl').addEventListener('change', syncSilentFromDom);
 
+document.getElementById('search-input').addEventListener('input', (e) => {
+  state.keyword = e.target.value.trim();
+  sendAction('search', { keyword: state.keyword, category: state.category || '鍏ㄩ儴' });
+});
+
+document.getElementById('lnk-import').onclick = () => sendAction('import');
+document.getElementById('lnk-export').onclick = () => sendAction('export');
+document.getElementById('lnk-json').onclick = () => sendAction('jsonHelp');
+document.getElementById('lnk-pin').onclick = () => sendAction('togglePinTop');
+
+document.getElementById('btn-save-cap').onclick = (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  sendAction('captureSave', {
+    title: document.getElementById('cap-title').value,
+    category: document.getElementById('cap-cat').value,
+    tags: document.getElementById('cap-tags').value,
+    body: document.getElementById('cap-body').value
+  });
+};
+
+document.getElementById('btn-load-sel').onclick = (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  const it = getSelectedCaptureItem();
+  if (!it) return;
+  sendAction('captureLoadSelected', { mergedIndex: it.mergedIndex });
+};
+
+document.getElementById('btn-clear-cap').onclick = (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  document.getElementById('cap-title').value = '';
+  document.getElementById('cap-tags').value = '';
+  document.getElementById('cap-body').value = '';
+  sendAction('captureClear');
+};
+
 document.addEventListener('keydown', (e) => {
+  if (state.itemModalOpen && e.key === 'Escape') {
+    e.preventDefault();
+    closeItemModal();
+    return;
+  }
   if (state.helpOpen && e.key === 'Escape') {
     e.preventDefault();
     closeHelpModal();
     return;
   }
   if (e.key === 'Escape') {
-    postToAhk({ type: 'requestHide' });
+    sendAction('requestHide');
     return;
   }
   if (e.key === 'Enter' && e.target.id !== 'cap-body' && e.target.id !== 'search-input') {
@@ -622,7 +903,7 @@ document.addEventListener('keydown', (e) => {
   if (n >= 1 && n <= 9 && !e.ctrlKey && !e.altKey && e.target.id !== 'search-input') {
     const i = n - 1;
     if (state.items[i]) {
-      postToAhk({ type: 'pasteByIndex', index: i });
+      sendAction('pasteByIndex', { index: i });
     }
   }
 });
@@ -636,7 +917,7 @@ if (window.chrome && window.chrome.webview) {
       handleAhkMessage(msg);
     } catch (err) { console.error(err); }
   });
-  postToAhk({ type: 'ready' });
+  sendAction('ready');
 } else {
   document.getElementById('status-bar').textContent = '预览模式（无 AHK）';
 }

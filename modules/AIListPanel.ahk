@@ -262,6 +262,8 @@ PromptQuickPad_ProcessWebMessage(msg) {
             PromptQuickPad_ClearCaptureDraftWeb()
         case "captureSilentSync":
             PromptQuickPad_SyncSilentFromWeb(msg)
+        case "itemEditSave":
+            PromptQuickPad_SaveItemEditFromWeb(msg)
         default:
             OutputDebug("[PQP] Unknown web msg: " . msg["type"])
     }
@@ -405,6 +407,10 @@ PromptQuickPad_EditItemByMergedIndex(mi) {
     if mi < 1 || mi > merged.Length
         return
     shell := merged[mi]
+    if PromptQuickPad_ShouldUseWebView() && PQP_IsReady() {
+        PromptQuickPad_OpenEditWeb(shell, mi)
+        return
+    }
     PromptQuickPad_EditEntry(shell)
 }
 
@@ -415,6 +421,10 @@ PromptQuickPad_ViewItemByMergedIndex(mi) {
     shell := merged[mi]
     title := shell.Has("title") ? shell["title"] : ""
     content := shell.Has("content") ? shell["content"] : ""
+    if PromptQuickPad_ShouldUseWebView() && PQP_IsReady() {
+        PromptQuickPad_OpenViewWeb(shell, mi)
+        return
+    }
     PromptQuickPad_OpenReadOnlyViewer(title, content)
 }
 
@@ -1863,6 +1873,49 @@ PromptQuickPad_OpenReadOnlyViewer(Title, Content) {
     g.Show()
 }
 
+PromptQuickPad_OpenViewWeb(shell, mergedIndex) {
+    payload := Map(
+        "type", "itemModalOpen",
+        "mode", "view",
+        "mergedIndex", mergedIndex,
+        "source", shell.Has("source") ? shell["source"] : "",
+        "title", shell.Has("title") ? shell["title"] : "",
+        "category", shell.Has("category") ? shell["category"] : "",
+        "tags", shell.Has("tags") ? shell["tags"] : "",
+        "hotkey", shell.Has("hotkey") ? shell["hotkey"] : "",
+        "content", shell.Has("content") ? shell["content"] : "",
+        "editable", false
+    )
+    try PQP_SendToWeb(Jxon_Dump(payload))
+    catch {
+    }
+}
+
+PromptQuickPad_OpenEditWeb(shell, mergedIndex) {
+    src := shell.Has("source") ? shell["source"] : ""
+    allowTitle := (src = "json" || src = "template")
+    allowCategory := (src = "json" || src = "template")
+    allowTags := (src = "json")
+    payload := Map(
+        "type", "itemModalOpen",
+        "mode", "edit",
+        "mergedIndex", mergedIndex,
+        "source", src,
+        "title", shell.Has("title") ? shell["title"] : "",
+        "category", shell.Has("category") ? shell["category"] : "",
+        "tags", shell.Has("tags") ? shell["tags"] : "",
+        "hotkey", shell.Has("hotkey") ? shell["hotkey"] : "",
+        "content", shell.Has("content") ? shell["content"] : "",
+        "editable", true,
+        "allowTitle", allowTitle,
+        "allowCategory", allowCategory,
+        "allowTags", allowTags
+    )
+    try PQP_SendToWeb(Jxon_Dump(payload))
+    catch {
+    }
+}
+
 PromptQuickPad_SaveBuiltinPrompt(KeyName, NewContent) {
     global Prompt_Explain, Prompt_Refactor, Prompt_Optimize
     cfg := A_ScriptDir . "\CursorShortcut.ini"
@@ -1952,6 +2005,64 @@ PromptQuickPad_SaveTemplateEdit(eg, titleEd, catEd, bodyEd, templateId) {
         return
     }
     MsgBox("未找到要保存的模板。", "Prompt Quick-Pad", "Iconx")
+}
+
+PromptQuickPad_SaveItemEditFromWeb(msg) {
+    mergedIndex := msg.Has("mergedIndex") ? Integer(msg["mergedIndex"]) : 0
+    merged := PromptQuickPad_BuildMergedList()
+    if mergedIndex < 1 || mergedIndex > merged.Length
+        return
+    shell := merged[mergedIndex]
+    src := shell.Has("source") ? shell["source"] : ""
+    title := msg.Has("title") ? Trim(String(msg["title"])) : ""
+    category := msg.Has("category") ? Trim(String(msg["category"])) : ""
+    tags := msg.Has("tags") ? Trim(String(msg["tags"])) : ""
+    content := msg.Has("content") ? String(msg["content"]) : ""
+
+    if src = "json" {
+        global PromptQuickPadData
+        uix := shell.Has("userIndex") ? Integer(shell["userIndex"]) : 0
+        if uix < 1 || uix > PromptQuickPadData.Length
+            return
+        if title = ""
+            title := "未命名"
+        PromptQuickPadData[uix] := PromptQuickPad_NormalizeEntry(Map(
+            "title", title,
+            "tags", tags,
+            "content", content,
+            "category", category,
+            "hotkey", shell.Has("hotkey") ? shell["hotkey"] : ""
+        ))
+        PromptQuickPad_SaveToDisk()
+        PromptQuickPad_RefreshListView()
+        return
+    }
+
+    if src = "builtin" {
+        hk := shell.Has("hotkey") ? shell["hotkey"] : ""
+        builtinKey := ""
+        if hk = "CapsLock+E"
+            builtinKey := "Explain"
+        else if hk = "CapsLock+R"
+            builtinKey := "Refactor"
+        else if hk = "CapsLock+O"
+            builtinKey := "Optimize"
+        if builtinKey = ""
+            return
+        PromptQuickPad_SaveBuiltinPrompt(builtinKey, content)
+        PromptQuickPad_RefreshListView()
+        return
+    }
+
+    if src = "template" {
+        templateId := shell.Has("templateId") ? shell["templateId"] : ""
+        if title = ""
+            title := "未命名模板"
+        if category = ""
+            category := "未分类"
+        if PromptQuickPad_SaveTemplateContent(templateId, title, category, content)
+            PromptQuickPad_RefreshListView()
+    }
 }
 
 PromptQuickPad_EditEntry(shell) {
