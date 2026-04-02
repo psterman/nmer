@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>搜索中心</title>
+<style>
+:root {
+  --bg: #111315;
+  --panel: #171a1e;
+  --panel-2: #1f2429;
+  --border: #313941;
+  --text: #e7ebef;
+  --muted: #93a0ad;
+  --accent: #ff8d2a;
+  --accent-2: #ffb347;
+  --shadow: 0 18px 42px rgba(0, 0, 0, 0.35);
+  --font-ui: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  --font-mono: Consolas, "Cascadia Mono", monospace;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at top right, rgba(255,141,42,.08), transparent 26%), linear-gradient(180deg, #0f1113 0%, #15181c 100%);
+  color: var(--text);
+  font-family: var(--font-ui);
+  overflow: hidden;
+}
+button, input, select, textarea { font: inherit; }
+#app {
+  display: grid;
+  grid-template-rows: auto auto auto auto 1fr auto;
+  width: 100%;
+  height: 100%;
+  gap: 12px;
+  padding: 16px;
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0)), var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+#topbar { padding: 14px; }
+#search {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 0 14px;
+  outline: none;
+}
+#search:focus, #limit:focus { border-color: var(--accent); }
+#limit {
+  width: 104px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 0 10px;
+  outline: none;
+}
+#status {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+#categories,
+#engines,
+#filters {
+  display: flex;
+  gap: 8px;
+  overflow: auto hidden;
+  padding: 6px;
+}
+#categories::-webkit-scrollbar,
+#engines::-webkit-scrollbar,
+#filters::-webkit-scrollbar,
+#result-list::-webkit-scrollbar,
+#preview::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+#categories::-webkit-scrollbar-thumb,
+#engines::-webkit-scrollbar-thumb,
+#filters::-webkit-scrollbar-thumb,
+#result-list::-webkit-scrollbar-thumb,
+#preview::-webkit-scrollbar-thumb {
+  background: #3a434d;
+  border-radius: 999px;
+}
+#category-card, #engine-card, #filter-card { padding: 8px; }
+.chip, .engine-chip, .filter-chip {
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--muted);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: .16s ease;
+}
+.chip {
+  padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.chip.active, .filter-chip.active, .engine-chip.active {
+  background: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
+  border-color: rgba(255,179,71,.5);
+  color: #fff;
+}
+.chip .count {
+  min-width: 22px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  color: inherit;
+  font-size: 11px;
+  text-align: center;
+}
+.engine-chip {
+  min-width: 128px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.engine-chip img, .engine-fallback {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex: 0 0 auto;
+}
+.engine-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #303842;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.engine-chip .label {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.filter-chip {
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+#actionbar {
+  display: flex;
+  gap: 10px;
+  padding: 0 6px;
+}
+#layout {
+  display: grid;
+  grid-template-columns: minmax(380px, 1.1fr) minmax(320px, .9fr);
+  gap: 12px;
+  min-height: 0;
+}
+#results-card, #preview-card {
+  min-height: 0;
+  overflow: hidden;
+}
+#results-head, #preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,.02);
+}
+.head-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+.head-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+#result-list {
+  height: calc(100% - 59px);
+  overflow: auto;
+  padding: 8px;
+}
+.result-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: .14s ease;
+}
+.result-item + .result-item { margin-top: 8px; }
+.result-item:hover {
+  background: rgba(255,255,255,.03);
+  border-color: rgba(255,255,255,.05);
+}
+.result-item.active {
+  background: linear-gradient(180deg, rgba(255,141,42,.16), rgba(255,141,42,.06));
+  border-color: rgba(255,179,71,.45);
+}
+.result-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+.result-sub {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.result-preview {
+  margin-top: 10px;
+  color: #ccd5dd;
+  font-size: 12px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.result-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 92px;
+}
+.pill {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #2a3239;
+  color: #d7dee6;
+  font-size: 11px;
+}
+.time {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+}
+#preview {
+  height: calc(100% - 59px);
+  overflow: auto;
+  padding: 16px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  line-height: 1.65;
+  font-size: 12px;
+  color: #d6dde5;
+}
+#footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.btn {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: .16s ease;
+}
+.btn:hover { border-color: rgba(255,179,71,.45); }
+.btn.primary {
+  background: linear-gradient(180deg, #ff9b38, #e5791e);
+  color: #101214;
+  border-color: rgba(255,179,71,.7);
+  font-weight: 700;
+}
+.btn.ghost { background: transparent; }
+.empty {
+  padding: 22px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+mark {
+  background: rgba(255,179,71,.9);
+  color: #111;
+  padding: 0 2px;
+  border-radius: 3px;
+}
+@media (max-width: 980px) {
+  #layout { grid-template-columns: 1fr; }
+  #preview-card { min-height: 240px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar" class="card bar">
+    <input id="search" type="text" placeholder="搜索本地结果，或直接作为网络搜索 / CLI 提示词发送">
+    <select id="limit">
+      <option value="10">10 条</option>
+      <option value="20">20 条</option>
+      <option value="50">50 条</option>
+      <option value="100">100 条</option>
+      <option value="200">200 条</option>
+    </select>
+    <div id="status">准备中...</div>
+  </div>
+
+  <div id="category-card" class="card">
+    <div id="categories"></div>
+  </div>
+
+  <div id="engine-card" class="card">
+    <div id="engines"></div>
+  </div>
+
+  <div class="bar">
+    <div id="filter-card" class="card" style="flex:1;min-width:0;">
+      <div id="filters"></div>
+    </div>
+    <div id="actionbar">
+      <button id="btn-run" class="btn primary">并发搜索</button>
+      <button id="btn-open-cli" class="btn">打开所选终端</button>
+      <button id="btn-close" class="btn ghost">关闭</button>
+    </div>
+  </div>
+
+  <div id="layout">
+    <div id="results-card" class="card">
+      <div id="results-head">
+        <div>
+          <div class="head-title">本地结果</div>
+          <div class="head-sub">Everything / 剪贴板 / 模板 / 配置 / 快捷键 混排</div>
+        </div>
+        <div class="head-sub" id="result-count">0 条</div>
+      </div>
+      <div id="result-list"></div>
+    </div>
+    <div id="preview-card" class="card">
+      <div id="preview-head">
+        <div>
+          <div class="head-title">预览</div>
+          <div class="head-sub" id="preview-meta">未选中结果</div>
+        </div>
+      </div>
+      <div id="preview">当前未选中本地结果。
+
+在上方输入内容可实时过滤数据，点击列表项后会在这里显示详细预览。</div>
+    </div>
+  </div>
+
+  <div id="footer">
+    <div>Enter 执行主操作 · Esc 关闭 · 双击结果立即处理</div>
+    <div id="footer-hint">WebView2 模式</div>
+  </div>
+</div>
+
+<script>
+const state = {
+  keyword: "",
+  limit: 50,
+  categories: [],
+  currentCategoryKey: "ai",
+  engines: [],
+  selectedEngines: [],
+  filters: [],
+  filterType: "",
+  results: [],
+  isCliCategory: false,
+  statusLine: "",
+  selectedRow: 1
+};
+
+function postToAhk(obj) {
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.postMessage(obj);
+  }
+}
+
+function escapeHtml(text) {
+  if (text === null || text === undefined) return "";
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function highlight(text, keyword) {
+  const safe = escapeHtml(text);
+  if (!keyword) return safe;
+  try {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp("(" + escaped + ")", "ig");
+    return safe.replace(re, "<mark>$1</mark>");
+  } catch {
+    return safe;
+  }
+}
+
+function renderCategories() {
+  const wrap = document.getElementById("categories");
+  wrap.innerHTML = "";
+  state.categories.forEach((cat) => {
+    const el = document.createElement("button");
+    el.className = "chip" + (cat.key === state.currentCategoryKey ? " active" : "");
+    el.innerHTML = "<span>" + escapeHtml(cat.text) + "</span><span class=\"count\">" + (cat.selectedCount || 0) + "</span>";
+    el.onclick = () => postToAhk({ type: "setCategory", category: cat.key });
+    wrap.appendChild(el);
+  });
+}
+
+function renderEngines() {
+  const wrap = document.getElementById("engines");
+  wrap.innerHTML = "";
+  state.engines.forEach((engine) => {
+    const active = state.selectedEngines.includes(engine.value);
+    const el = document.createElement("button");
+    el.className = "engine-chip" + (active ? " active" : "");
+    const icon = engine.iconUrl
+      ? "<img src=\"" + engine.iconUrl + "\" alt=\"\">"
+      : "<span class=\"engine-fallback\">" + escapeHtml((engine.name || "?").slice(0, 1).toUpperCase()) + "</span>";
+    el.innerHTML = icon + "<span class=\"label\">" + escapeHtml(engine.name) + "</span>";
+    el.onclick = () => postToAhk({ type: "toggleEngine", engine: engine.value });
+    wrap.appendChild(el);
+  });
+}
+
+function renderFilters() {
+  const wrap = document.getElementById("filters");
+  wrap.innerHTML = "";
+  state.filters.forEach((filter) => {
+    const el = document.createElement("button");
+    el.className = "filter-chip" + (filter.key === state.filterType ? " active" : "");
+    el.textContent = filter.text;
+    el.onclick = () => postToAhk({ type: "setFilter", filterType: filter.key });
+    wrap.appendChild(el);
+  });
+}
+
+function renderResults() {
+  const list = document.getElementById("result-list");
+  list.innerHTML = "";
+
+  if (!state.results.length) {
+    list.innerHTML = "<div class=\"empty\">暂无结果。<br>你可以在上方输入关键词搜索本地内容，或选择引擎后执行网络搜索 / CLI 发送。</div>";
+    renderPreview();
+    return;
+  }
+
+  if (state.selectedRow < 1 || state.selectedRow > state.results.length) {
+    state.selectedRow = 1;
+  }
+
+  state.results.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "result-item" + (item.row === state.selectedRow ? " active" : "");
+    row.innerHTML =
+      "<div>" +
+        "<div class=\"result-title\">" + highlight(item.title, state.keyword) + "</div>" +
+        "<div class=\"result-sub\">" + escapeHtml(item.subtitle || "") + "</div>" +
+        "<div class=\"result-preview\">" + highlight(item.preview || "", state.keyword) + "</div>" +
+      "</div>" +
+      "<div class=\"result-meta\">" +
+        "<span class=\"pill\">" + escapeHtml(item.type || "") + "</span>" +
+        "<span class=\"time\">" + escapeHtml(item.time || "") + "</span>" +
+      "</div>";
+    row.onclick = () => {
+      state.selectedRow = item.row;
+      renderResults();
+    };
+    row.ondblclick = () => {
+      postToAhk({ type: "activateResult", row: item.row });
+    };
+    list.appendChild(row);
+  });
+
+  renderPreview();
+}
+
+function renderPreview() {
+  const preview = document.getElementById("preview");
+  const meta = document.getElementById("preview-meta");
+  const item = state.results.find((entry) => entry.row === state.selectedRow);
+  if (!item) {
+    meta.textContent = "未选中结果";
+    preview.textContent = "当前未选中本地结果。\n\n在上方输入内容可实时过滤数据，点击列表项后会在这里显示详细预览。";
+    return;
+  }
+  meta.textContent = [item.source || item.subtitle || "", item.type || "", item.time || ""].filter(Boolean).join(" · ");
+  preview.textContent = item.previewText || item.content || item.title || "";
+}
+
+function applyState(payload) {
+  state.keyword = payload.keyword || "";
+  state.limit = payload.limit || 50;
+  state.categories = payload.categories || [];
+  state.currentCategoryKey = payload.currentCategoryKey || "ai";
+  state.engines = payload.engines || [];
+  state.selectedEngines = payload.selectedEngines || [];
+  state.filters = payload.filters || [];
+  state.filterType = payload.filterType || "";
+  state.results = payload.results || [];
+  state.isCliCategory = !!payload.isCliCategory;
+  state.statusLine = payload.statusLine || "";
+
+  const wasSelected = state.selectedRow;
+  if (!state.results.some((item) => item.row === wasSelected)) {
+    state.selectedRow = state.results.length ? state.results[0].row : 1;
+  }
+
+  document.getElementById("search").value = state.keyword;
+  document.getElementById("limit").value = String(state.limit);
+  document.getElementById("status").textContent = state.statusLine || "已同步";
+  document.getElementById("result-count").textContent = String(state.results.length) + " 条";
+  document.getElementById("btn-run").textContent = state.isCliCategory ? "发送到 AI" : "并发搜索";
+  document.getElementById("btn-open-cli").style.display = state.isCliCategory ? "inline-flex" : "none";
+  document.getElementById("footer-hint").textContent = state.isCliCategory
+    ? "CLI 分类：输入内容后可直接发送到选中的终端"
+    : "网络分类：输入内容后会并发打开选中的搜索引擎";
+
+  renderCategories();
+  renderEngines();
+  renderFilters();
+  renderResults();
+}
+
+document.getElementById("search").addEventListener("input", (event) => {
+  state.keyword = event.target.value;
+  postToAhk({ type: "search", keyword: state.keyword });
+});
+
+document.getElementById("limit").addEventListener("change", (event) => {
+  postToAhk({ type: "setLimit", limit: Number(event.target.value) || 50 });
+});
+
+document.getElementById("btn-run").addEventListener("click", () => {
+  const prompt = document.getElementById("search").value;
+  if (state.isCliCategory) {
+    postToAhk({ type: "cliSend", prompt });
+  } else {
+    postToAhk({ type: "batchSearch" });
+  }
+});
+
+document.getElementById("btn-open-cli").addEventListener("click", () => {
+  postToAhk({ type: "cliOpen" });
+});
+
+document.getElementById("btn-close").addEventListener("click", () => {
+  postToAhk({ type: "close" });
+});
+
+document.addEventListener("keydown", (event) => {
+  const activeTag = document.activeElement ? document.activeElement.tagName : "";
+  const isTyping = activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT";
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    postToAhk({ type: "close" });
+    return;
+  }
+
+  if (event.key === "Enter" && document.activeElement && document.activeElement.id === "search") {
+    event.preventDefault();
+    const prompt = document.getElementById("search").value;
+    if (state.isCliCategory) {
+      postToAhk({ type: "cliSend", prompt });
+    } else {
+      postToAhk({ type: "batchSearch" });
+    }
+    return;
+  }
+
+  if (isTyping) return;
+
+  if (event.key === "ArrowDown" && state.results.length) {
+    event.preventDefault();
+    const current = state.results.findIndex((item) => item.row === state.selectedRow);
+    const next = Math.min(state.results.length - 1, Math.max(0, current + 1));
+    state.selectedRow = state.results[next].row;
+    renderResults();
+  }
+
+  if (event.key === "ArrowUp" && state.results.length) {
+    event.preventDefault();
+    const current = state.results.findIndex((item) => item.row === state.selectedRow);
+    const next = Math.max(0, (current < 0 ? 0 : current) - 1);
+    state.selectedRow = state.results[next].row;
+    renderResults();
+  }
+
+  if (event.key === "Enter" && state.results.length) {
+    event.preventDefault();
+    postToAhk({ type: "activateResult", row: state.selectedRow });
+  }
+});
+
+if (window.chrome && window.chrome.webview) {
+  window.chrome.webview.addEventListener("message", (event) => {
+    const payload = event.data;
+    if (!payload || !payload.type) return;
+    if (payload.type === "init" || payload.type === "state") {
+      applyState(payload);
+    }
+  });
+  postToAhk({ type: "ready" });
+}
+</script>
+</body>
+</html>

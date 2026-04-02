@@ -143,6 +143,7 @@ global MainScriptDir := A_ScriptDir
 #Include modules\FloatingToolbar.ahk
 #Include modules\AIListPanel.ahk
 #Include modules\PromptQuickPadCore.ahk
+#Include modules\SearchCenterWebViewCore.ahk
 #Include modules\PromptQuickPadCapsLockB.ahk
 
 ; ===================== Everything API 封装 =====================
@@ -3997,6 +3998,12 @@ GetPanelVisibleState() {
 ; 【修复】加强检查逻辑，确保窗口确实存在且激活，避免误判
 IsSearchCenterActive() {
     global GuiID_SearchCenter
+    try {
+        if (SearchCenter_ShouldUseWebView()) {
+            return false
+        }
+    } catch {
+    }
     if (!GuiID_SearchCenter || GuiID_SearchCenter = 0)
         return false
     ; 【关键修复】使用 .Hwnd 属性获取窗口句柄
@@ -25437,6 +25444,10 @@ InitGDI() {
 ; ===================== 搜索中心窗口 =====================
 ; 显示搜索中心窗口（无边框，带分类标签栏）
 ShowSearchCenter() {
+    if (SearchCenter_ShouldUseWebView()) {
+        SCWV_Show()
+        return
+    }
     global GuiID_SearchCenter, UI_Colors, ThemeMode
     global SearchCenterActiveArea, SearchCenterCurrentCategory
     global SearchCenterSearchEdit, SearchCenterResultLV, SearchCenterCategoryButtons
@@ -35641,4 +35652,3 @@ SaveScreenshotToFile() {
 #Include modules\VirtualKeyboardInterop.ahk
 
 OnExit(ExitFunc)
-
