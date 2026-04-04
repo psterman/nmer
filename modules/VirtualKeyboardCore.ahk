@@ -12,6 +12,7 @@ global g_VK_Gui := 0
 global g_VK_WV2 := 0
 global g_VK_Ctrl := 0
 global g_VK_Ready := false
+global g_VK_FocusPending := false
 global g_ModState := Map("ctrl", false, "alt", false, "shift", false)
 global g_RecordCtx := Map("active", false, "commandId", "")
 global g_RecordHook := 0
@@ -499,12 +500,31 @@ _OnWV2Created(ctrl) {
     try s.AreBrowserAcceleratorKeysEnabled := false
 
     g_VK_WV2.add_WebMessageReceived(_OnWebMessage)
+    try g_VK_WV2.add_NavigationCompleted(_VK_OnNavigationCompleted)
 
     htmlPath := A_ScriptDir "\VirtualKeyboard.html"
-    if FileExist(htmlPath)
-        g_VK_WV2.Navigate("file:///" . StrReplace(htmlPath, "\", "/"))
-    else
+    try ApplyUnifiedWebViewAssets(g_VK_WV2)
+    if FileExist(htmlPath) {
+        try {
+            html := FileRead(htmlPath, "UTF-8")
+            g_VK_WV2.NavigateToString(html)
+        } catch {
+            g_VK_WV2.Navigate("file:///" . StrReplace(htmlPath, "\", "/"))
+        }
+    } else {
         g_VK_WV2.NavigateToString(_FallbackHtml())
+    }
+}
+
+_VK_OnNavigationCompleted(sender, args) {
+    try ok := args.IsSuccess
+    catch
+        ok := true
+    if ok
+        return
+    try {
+        sender.NavigateToString("<!doctype html><html><body style='background:#111;color:#eee;font-family:Segoe UI;padding:16px'>VK 页面加载失败。请重启脚本后重试。</body></html>")
+    }
 }
 
 _ApplyWV2Bounds() {
@@ -541,16 +561,21 @@ _OnWebMessage(sender, args) {
         OutputDebug("[VK] JSON parse error: " . jsonStr)
         return
     }
-    if !(msg is Map) || !msg.Has("type")
+    if !(msg is Map)
+        return
+    action := msg.Has("type") ? msg["type"] : (msg.Has("action") ? msg["action"] : "")
+    if (action = "")
         return
 
-    switch msg["type"] {
+    switch action {
         case "ready":
             g_VK_Ready := true
             OutputDebug("[VK] WebView ready")
             _PushInit()
             _PushModifierState()
             _StartKeyPreviewHook()
+            if g_VK_FocusPending
+                _VK_RequestFocusInput()
 
         case "bindKey":
             if !msg.Has("commandId") || !msg.Has("ahkKey")
@@ -1174,6 +1199,8 @@ VK_Show() {
         g_VK_Gui.Show("NoActivate")
         _StartKeyPreviewHook()
         VK_SendToWeb('{"type":"keyPreviewClear"}')
+        OnMessage(0x0006, _VK_WM_ACTIVATE)
+        _VK_RequestFocusInput()
     }
 }
 
@@ -1181,6 +1208,7 @@ VK_Hide() {
     global g_VK_Gui
     VK_SendToWeb('{"type":"keyPreviewClear"}')
     _StopKeyPreviewHook()
+    OnMessage(0x0006, _VK_WM_ACTIVATE, 0)
     if g_VK_Gui
         g_VK_Gui.Hide()
 }
@@ -1200,7 +1228,25 @@ VK_ToggleEmbedded() {
 VK_SendToWeb(jsonStr) {
     global g_VK_WV2, g_VK_Ready
     if g_VK_WV2 && g_VK_Ready
-        g_VK_WV2.PostWebMessageAsJson(jsonStr)
+        WebView_QueueJson(g_VK_WV2, jsonStr)
+}
+
+_VK_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
+    global g_VK_Gui
+    if !g_VK_Gui
+        return
+    if (hwnd = g_VK_Gui.Hwnd && (wParam & 0xFFFF) = 0)
+        SetTimer(VK_Hide, -50)
+}
+
+_VK_RequestFocusInput() {
+    global g_VK_WV2, g_VK_Ready, g_VK_FocusPending
+    if g_VK_WV2 && g_VK_Ready {
+        WebView_QueueJson(g_VK_WV2, '{"type":"focus_input"}')
+        g_VK_FocusPending := false
+        return
+    }
+    g_VK_FocusPending := true
 }
 
 NotifyScript(targetTitle, payload) {

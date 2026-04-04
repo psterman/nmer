@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
@@ -35,7 +35,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 .nav .btn{width:100%;margin:0;padding:14px 16px;font-size:13px;text-align:left;border-radius:8px;min-height:52px;display:flex;align-items:center;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.04);color:var(--txt);transition:.2s}.nav .btn:hover{border-color:rgba(0,255,65,.5);background:rgba(0,255,65,.08)}.nav .btn.on{border-color:var(--green);background:linear-gradient(135deg,rgba(230,57,70,.25),rgba(0,255,65,.2));color:var(--green);box-shadow:0 0 20px rgba(0,255,65,.15)}
 .view{position:fixed;left:var(--main-left);right:var(--main-right);bottom:76px;z-index:55;width:max-content;margin-left:auto;margin-right:auto;border:1px solid rgba(255,255,255,.26);border-radius:999px;padding:9px 14px;font-size:12px;color:#edf7ff;background:linear-gradient(135deg,rgba(230,57,70,.26),rgba(0,255,65,.14));cursor:pointer;font-family:"JetBrains Mono",monospace;letter-spacing:.08em;transition:.2s}.view:hover{border-color:rgba(0,255,65,.7);transform:translateY(-1px)}
 .boot{position:fixed;inset:0;z-index:70;display:grid;place-items:center;background:rgba(6,8,12,.94);transition:opacity .25s}.boot.hide{opacity:0;pointer-events:none}.boot .box{width:min(90vw,420px);border:1px solid var(--line);border-radius:12px;background:rgba(8,13,22,.7);padding:18px;text-align:center}.boot .t{color:var(--green);letter-spacing:.1em}.boot .s{margin-top:8px}.bar{margin-top:12px;height:6px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden}.bar i{display:block;width:42%;height:100%;background:linear-gradient(90deg,var(--red),var(--green));animation:load 1.2s ease-in-out infinite}
-/* 鏌ョ湅璇︽儏 tab 鍐呭祵椤碉紙鍘熸偓娴袱鏍忓唴瀹癸級 */
+/* 閺屻儳婀呯拠锔藉剰 tab 閸愬懎绁垫い纰夌礄閸樼喐鍋撳ù顔昏⒈閺嶅繐鍞寸€圭櫢绱?*/
 .detail-view{position:fixed;top:var(--top-header-height);left:var(--main-left);right:var(--main-right);bottom:var(--console-bottom-height);z-index:20;background:var(--bg);display:none;flex-direction:column;padding:24px 18px;overflow:auto}.detail-view.active{display:flex}
 .detail-view-layout{display:flex;gap:20px;flex:1;min-height:0;max-width:1200px;margin:0 auto;width:100%}
 .detail-view-left,.detail-view-right{background:rgba(8,13,22,.66);border:1px solid rgba(255,255,255,.22);border-radius:12px;backdrop-filter:blur(12px);padding:14px;overflow:auto}
@@ -51,7 +51,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}@keyframes pulse{0%,100%{filter:drop-shadow(0 0 24px rgba(230,57,70,.26))}50%{filter:drop-shadow(0 0 34px rgba(230,57,70,.48))}}@keyframes ring{0%,100%{transform:scale(1);opacity:.72}50%{transform:scale(1.022);opacity:1}}@keyframes load{0%{transform:translateX(-120%)}55%{transform:translateX(170%)}100%{transform:translateX(170%)}}
 @media(max-width:900px){.card{width:min(42vw,200px);min-height:88px}}
 @media(max-width:700px){.anchor{width:min(62vw,320px)}.card{width:min(58vw,200px);min-height:82px}.view{bottom:calc(var(--console-bottom-height) + 16px);font-size:11px}.nav{bottom:12px}.btn{font-size:11px;padding:8px 12px}}
-/* top-header 涓€姣斾竴澶嶅埢 stats2.html */
+/* top-header 娑撯偓濮ｆ柧绔存径宥呭煝 stats2.html */
 .top-header{position:fixed;top:0;left:0;right:0;z-index:90;display:flex;justify-content:space-between;align-items:center;padding:10px 20px;background:rgba(10,10,10,.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06);box-shadow:none;pointer-events:auto}
 .top-header-left{display:flex;align-items:center;gap:20px}
 .top-header-title{display:flex;flex-direction:column}
@@ -70,7 +70,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 .lang-flag-btn:hover:not(.active){opacity:.9;transform:scale(1.15)}
 .lang-flag-btn:hover.active{border:3px solid var(--green);transform:scale(1.15);box-shadow:0 0 20px rgba(0,255,65,.8),0 0 40px rgba(0,255,65,.4),inset 0 0 25px rgba(0,255,65,.15)}
 @media(max-width:768px){.top-header{padding:8px 12px;flex-direction:column;align-items:flex-start;gap:8px}.top-header-left{width:100%}.top-header-right{width:100%;justify-content:space-between}.top-header-title h1{font-size:18px}.top-header-title p{font-size:8px}.top-header-card{padding:6px 10px}.top-header-card-label{font-size:8px}.top-header-card-value{font-size:10px}}
-/* Command Console (HUD) - 鑱婂ぉ瀵硅瘽妗?*/
+/* Command Console (HUD) - 閼卞﹤銇夌€电鐦藉?*/
 #command-console{position:fixed;top:var(--top-header-height);right:0;bottom:0;width:380px;z-index:45;display:flex;flex-direction:column;min-height:0;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;background:rgba(6,8,12,.82);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(0,255,65,.4);border-right:none;border-radius:12px 0 0 12px;box-shadow:0 0 30px rgba(0,255,65,.1),inset 0 0 40px rgba(0,0,0,.2);pointer-events:auto;transition:width .3s ease}
 #command-console .console-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(0,255,65,.2);font-family:'JetBrains Mono',monospace;flex-shrink:0}
 #command-console .console-title{font-size:10px;color:var(--green);letter-spacing:.2em;display:flex;align-items:center;gap:6px}
@@ -80,7 +80,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 #status-indicator.offline{color:var(--red);border-color:rgba(230,57,70,.3);background:rgba(230,57,70,.08);animation:blink 1.5s infinite}
 #status-indicator.connecting{color:#ffd700;border-color:rgba(255,215,0,.3);background:rgba(255,215,0,.08)}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
-/* Token 杈撳叆鍖?*/
+/* Token 鏉堟挸鍙嗛崠?*/
 #token-panel{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.2);flex-shrink:0;display:none;flex-direction:column;gap:6px;max-height:min(34vh,280px);overflow:auto;overscroll-behavior:contain}
 #token-panel.show{display:flex}
 #token-panel label{font-size:9px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase}
@@ -93,7 +93,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 #token-hint{font-size:9px;color:var(--dim);line-height:1.4}
 #token-hint a{color:var(--green);text-decoration:none}
 #token-hint a:hover{text-decoration:underline}
-/* 甯?token 鐨勫璇濋摼鎺ュ尯锛氫究浜庡垎鏋愰〉鐢ㄦ埛澶嶅埗鍚庤嚜鍔ㄧ櫥褰?*/
+/* 鐢?token 閻ㄥ嫬顕拠婵嬫懠閹恒儱灏敍姘┒娴滃骸鍨庨弸鎰般€夐悽銊﹀煕婢跺秴鍩楅崥搴ゅ殰閸斻劎娅ヨぐ?*/
 #token-link-box{margin-top:8px;padding:8px 10px;background:rgba(0,255,65,.06);border:1px solid rgba(0,255,65,.25);border-radius:6px;display:none;flex-direction:column;gap:6px}
 #token-link-box.show{display:flex}
 #token-link-box .label{font-size:9px;color:var(--green);letter-spacing:.08em;text-transform:uppercase}
@@ -109,7 +109,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 .token-fetch-status.err{color:var(--red)}
 #btn-open-dialogue{padding:5px 10px;font-size:9px;font-weight:700;color:var(--green);background:rgba(0,255,65,.12);border:1px solid rgba(0,255,65,.35);border-radius:4px;cursor:pointer;white-space:nowrap}
 #btn-open-dialogue:hover{background:rgba(0,255,65,.2)}
-/* 娑堟伅鍘嗗彶鍖?*/
+/* 濞戝牊浼呴崢鍡楀蕉閸?*/
 .chat-history-bar{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;min-height:40px;font-family:'JetBrains Mono',monospace}
 .chat-history-bar label{font-size:10px;color:var(--dim);letter-spacing:.06em;white-space:nowrap}
 .chat-history-bar select{flex:1;min-width:0;font-size:11px;padding:4px 8px;background:rgba(0,0,0,.3);border:1px solid rgba(0,255,65,.25);border-radius:4px;color:var(--txt);cursor:pointer}
@@ -136,7 +136,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 #chat-history-content .msg.ai .msg-role{color:var(--dim);text-align:left}
 #chat-history-content .msg.sys .msg-body{font-size:10px;color:rgba(143,165,190,.6);font-family:'JetBrains Mono',monospace;font-style:italic}
 #chat-history-content .msg.err .msg-body{color:rgba(230,57,70,.9);font-size:10px;font-family:'JetBrains Mono',monospace}
-/* 绯荤粺/鎻℃墜/蹇冭烦绛夋姌鍙犲尯锛氶粯璁ゆ敹璧凤紝鐐瑰嚮灞曞紑 */
+/* 缁崵绮?閹烩剝澧?韫囧啳鐑︾粵澶嬪閸欑姴灏敍姘剁帛鐠併倖鏁圭挧鍑ょ礉閻愮懓鍤仦鏇炵磻 */
 .msg-sys-group{margin-bottom:10px;border:1px solid rgba(255,255,255,.1);border-radius:6px;overflow:hidden;background:rgba(0,0,0,.2)}
 .msg-sys-group-header{font-size:10px;color:var(--dim);padding:6px 10px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;letter-spacing:.06em}
 .msg-sys-group-header:hover{background:rgba(255,255,255,.04);color:rgba(143,165,190,.9)}
@@ -146,12 +146,12 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 .msg-sys-group.collapsed .msg-sys-group-body{display:none}
 .msg-sys-line{font-size:10px;color:rgba(143,165,190,.7);padding:3px 10px;border-bottom:1px solid rgba(255,255,255,.04);font-family:'JetBrains Mono',monospace;line-height:1.4}
 .msg-sys-line.err{color:rgba(230,57,70,.85)}
-/* 鐢ㄦ埛涓?AI 娑堟伅閲嶇偣灞曠ず */
+/* 閻劍鍩涙稉?AI 濞戝牊浼呴柌宥囧仯鐏炴洜銇?*/
 #chat-history-content .msg.user .msg-body{color:rgba(0,255,65,.95);background:rgba(0,255,65,.08);border-right:3px solid rgba(0,255,65,.5);border-left:none;padding:8px 12px;border-radius:8px 0 0 8px}
 #chat-history-content .msg.ai .msg-body{color:#e0e8f0;background:rgba(255,255,255,.06);border-left:3px solid rgba(255,255,255,.25);padding:8px 12px;border-radius:0 8px 8px 0}
-#chat-history-content .msg.ai .msg-body.streaming::after{content:"鈻?;animation:cursor-blink .7s infinite;color:var(--green)}
+#chat-history-content .msg.ai .msg-body.streaming::after{content:"閳?;animation:cursor-blink .7s infinite;color:var(--green)}
 @keyframes cursor-blink{0%,100%{opacity:1}50%{opacity:0}}
-/* AI 鏍稿績鍥炲锛氭憳瑕?+ 灞曞紑/澶嶅埗锛屼究浜庣簿鍑嗗璇?*/
+/* AI 閺嶇绺鹃崶鐐差槻閿涙碍鎲崇憰?+ 鐏炴洖绱?婢跺秴鍩楅敍灞肩┒娴滃海绨块崙鍡楊嚠鐠?*/
 #chat-history-content .msg.ai .msg-core{font-weight:600;color:rgba(255,255,255,.95);margin-bottom:6px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08);line-height:1.5}
 #chat-history-content .msg.ai .msg-body.has-core .msg-full{display:none}
 #chat-history-content .msg.ai .msg-body.has-core.expanded .msg-core{border-bottom:none;margin-bottom:4px}
@@ -159,7 +159,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 #chat-history-content .msg.ai .msg-actions{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
 #chat-history-content .msg.ai .msg-actions button{font-size:9px;padding:3px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:var(--dim);cursor:pointer;font-family:'JetBrains Mono',monospace}
 #chat-history-content .msg.ai .msg-actions button:hover{color:var(--green);border-color:rgba(0,255,65,.4)}
-/* 杈撳叆鍖?*/
+/* 鏉堟挸鍙嗛崠?*/
 #command-console .console-input-area{display:flex;flex-direction:column;gap:0;border-top:1px solid rgba(0,255,65,.15);flex-shrink:0}
 #console-toolbar{display:flex;align-items:center;gap:6px;padding:6px 12px;background:rgba(0,0,0,.2)}
 #btn-toggle-token{font-size:9px;color:var(--dim);background:transparent;border:1px solid rgba(255,255,255,.12);border-radius:4px;padding:3px 8px;cursor:pointer;letter-spacing:.06em;transition:.2s;font-family:'JetBrains Mono',monospace}
@@ -178,8 +178,8 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 #btn-send:hover{transform:scale(1.04);box-shadow:0 0 20px rgba(230,57,70,.5)}
 #btn-send:active{transform:scale(.97)}
 #btn-send:disabled{opacity:.35;cursor:not-allowed;transform:none}
-/* 缃戝叧鎵弿/鍒囨崲锛氬浐瀹氬湪 OPENCLAW CHAT 涓嬫柟锛屽缁堝彲瑙?*/
-/* 瀹炴椂浼氳瘽宸︿晶锛氱綉鍏虫壂鎻?鍒囨崲锛堢畝绾︼級 */
+/* 缂冩垵鍙ч幍顐ｅ伎/閸掑洦宕查敍姘祼鐎规艾婀?OPENCLAW CHAT 娑撳鏌熼敍灞筋潗缂佸牆褰茬憴?*/
+/* 鐎圭偞妞傛导姘崇樈瀹革缚鏅堕敍姘辩秹閸忚櫕澹傞幓?閸掑洦宕查敍鍫㈢暆缁撅讣绱?*/
 .live-gateway-compact{flex-shrink:0;padding:8px 12px 10px;border-bottom:1px solid var(--line);background:rgba(0,0,0,.22);display:flex;flex-direction:column;gap:6px}
 .live-gw-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .live-gw-eyebrow{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--green);font-family:'JetBrains Mono',monospace;flex-shrink:0}
@@ -198,7 +198,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 .live-gw-status.err{color:rgba(230,57,70,.9)}
 @media(max-width:900px){#command-console{width:320px}}
 @media(max-width:700px){:root{--console-bottom-height:340px}#command-console{left:0;right:0;width:100%;border-radius:0;border-left:none;border-top:1px solid rgba(0,255,65,.4);top:auto;bottom:0;height:340px}#chat-history{min-height:min(28vh,140px)}}
-/* API 宓屽叆闈㈡澘锛堝唴鑱斾簬鑱婂ぉ鎺у埗鍙帮級 */
+/* API 瀹撳苯鍙嗛棃銏℃緲閿涘牆鍞撮懕鏂剧艾閼卞﹤銇夐幒褍鍩楅崣甯礆 */
 #api-panel{padding:8px 12px;border-bottom:1px solid rgba(255,215,0,.2);background:rgba(0,0,0,.25);flex-shrink:0;display:none;flex-direction:column;gap:6px;max-height:min(34vh,260px);overflow:auto;overscroll-behavior:contain}
 #api-panel.show{display:flex}
 #api-panel-title{font-size:9px;color:#ffd700;letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;justify-content:space-between}
@@ -216,7 +216,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 .mgmt-section-title{font-size:9px;color:var(--green);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}
 .api-btns-mgmt{display:flex;flex-wrap:wrap;gap:4px}
 
-/* 鈹€鈹€ Live View 鈹€鈹€ */
+/* 閳光偓閳光偓 Live View 閳光偓閳光偓 */
 .live-view{position:fixed;top:var(--top-header-height);left:var(--main-left);right:var(--main-right);bottom:var(--console-bottom-height);z-index:20;background:var(--bg);display:none;flex-direction:column;padding:56px 0 0 0}
 .live-view.active{display:flex}
 .live-layout{display:grid;grid-template-columns:280px 1fr;height:100%;min-height:0;gap:0}
@@ -270,7 +270,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 .live-detail-loading{font-size:11px;color:var(--dim);padding:8px 0}
 .live-action-btn{background:transparent;border:1px solid var(--line);color:var(--dim);padding:3px 8px;border-radius:4px;cursor:pointer;font-size:12px;transition:color .2s,border-color .2s}
 .live-action-btn:hover{color:var(--green);border-color:var(--green)}
-/* 瀹炴椂鍚庡彴锛氭柊鎵嬩笁鐗堝潡 */
+/* 鐎圭偞妞傞崥搴″酱閿涙碍鏌婇幍瀣╃瑏閻楀牆娼?*/
 .live-quick-blocks{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);flex-shrink:0;background:rgba(0,0,0,.15)}
 .live-block{border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(255,255,255,.03);overflow:hidden}
 .live-block-title{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--green);margin:0;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.08)}
@@ -298,28 +298,28 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 </style>
 </head>
 <body>
-<!-- 椤堕儴鍥哄畾 Header锛堜竴姣斾竴澶嶅埢 stats2.html锛?-->
+<!-- 妞ゅ爼鍎撮崶鍝勭暰 Header閿涘牅绔村В鏂剧婢跺秴鍩?stats2.html閿?-->
 <header class="top-header" role="banner">
   <div class="top-header-left">
     <div class="top-header-title">
-      <h1><span class="text-white" id="top-title">OpenClaw 鏁版嵁鎶ュ憡</span></h1>
+      <h1><span class="text-white" id="top-title">OpenClaw 閺佺増宓侀幎銉ユ啞</span></h1>
       <p id="top-sub">Telemetry Uplink: Active // Source: OpenClaw_Nexus</p>
     </div>
   </div>
   <div class="top-header-right">
     <div class="top-header-card">
-      <a href="index.html" target="_blank" rel="noopener noreferrer" class="top-header-nav-link" id="link-report" title="浣撴鎶ュ憡">浣撴鎶ュ憡</a>
+      <a href="index.html" target="_blank" rel="noopener noreferrer" class="top-header-nav-link" id="link-report" title="娴ｆ挻顥呴幎銉ユ啞">娴ｆ挻顥呴幎銉ユ啞</a>
     </div>
     <div class="top-header-card">
-      <a href="stats2.html" target="_blank" rel="noopener noreferrer" class="top-header-nav-link" id="link-stats" title="PK鍦板浘">PK鍦板浘</a>
+      <a href="stats2.html" target="_blank" rel="noopener noreferrer" class="top-header-nav-link" id="link-stats" title="PK閸︽澘娴?>PK閸︽澘娴?/a>
     </div>
     <div class="lang-flag-wrap">
-      <button type="button" id="btn-lang-zh" class="lang-flag-btn active" title="涓枃" aria-label="涓枃" data-lang="zh">
-        <img src="images/zh.png" alt="涓枃" onerror="this.style.display='none';var s=this.nextElementSibling;if(s)s.style.display='block'" />
+      <button type="button" id="btn-lang-zh" class="lang-flag-btn active" title="娑擃厽鏋? aria-label="娑擃厽鏋? data-lang="zh">
+        <img src="https://app.local/assets/images/zh.png" alt="娑擃厽鏋? onerror="this.style.display='none';var s=this.nextElementSibling;if(s)s.style.display='block'" />
         <svg class="flag-svg" style="display:none;width:100%;height:100%" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><rect width="32" height="32" fill="#de2910"/><path fill="#ffde00" d="M8 6l1.2 1.8L11 7l-1.7 2 .4 1.8L8 9.5 5.3 11l.4-1.8L4 7l1.8-1.2L8 6zm0 8l1.2 1.8 1.8-1.2-1.7 2 .4 1.8L8 17.5 5.3 19l.4-1.8L4 15l1.8-1.2L8 15zm8-10l1.5 1 1.5-1v2l-1.5 1 1.5 1v2l-1.5-1-1.5 1v-2l1.5-1-1.5-1V4z"/></svg>
       </button>
       <button type="button" id="btn-lang-en" class="lang-flag-btn" title="English" aria-label="English" data-lang="en">
-        <img src="images/us.png" alt="English" onerror="this.style.display='none';var s=this.nextElementSibling;if(s)s.style.display='block'" />
+        <img src="https://app.local/assets/images/us.png" alt="English" onerror="this.style.display='none';var s=this.nextElementSibling;if(s)s.style.display='block'" />
         <svg class="flag-svg" style="display:none;width:100%;height:100%" viewBox="0 0 32 22" xmlns="http://www.w3.org/2000/svg"><path fill="#bf0a30" d="M0 0h32v1.7H0V0zm0 3.4h32v1.7H0V3.4zm0 3.4h32v1.7H0v-1.7zm0 3.4h32v1.7H0v-1.7zm0 3.4h32v1.7H0v-1.7zm0 3.4h32v1.7H0v-1.7zm0 3.4h32V22H0v-1.7z"/><path fill="#fff" d="M0 1.7h32v1.7H0V1.7zm0 3.4h32v1.7H0V5.1zm0 3.4h32v1.7H0V6.8zm0 3.4h32v1.7H0v-1.7zm0 3.4h32v1.7H0v-1.7zm0 3.4h32v1.7H0v-1.7z"/><path fill="#002868" d="M0 0h12.8v11.9H0z"/><path fill="#fff" d="M6.4 3l.6 1 1-.3-.5 1 .5 1-1.1-.4-.6 1V5.2L5 5.6l1-.3-.6-1 1.1.4L6.4 3z"/></svg>
       </button>
     </div>
@@ -344,12 +344,12 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 <!-- Live Backend View -->
 <div id="live-view" class="live-view" aria-hidden="true">
   <div class="live-layout">
-    <!-- 宸︼細浼氳瘽鍒楄〃 -->
+    <!-- 瀹革讣绱版导姘崇樈閸掓銆?-->
     <aside class="live-sessions-panel">
       <div class="live-panel-header">
-        <span class="live-panel-title" id="live-sessions-title">瀹炴椂浼氳瘽</span>
+        <span class="live-panel-title" id="live-sessions-title">鐎圭偞妞傛导姘崇樈</span>
         <div class="live-panel-actions">
-          <button type="button" class="live-action-btn" id="live-refresh-btn" title="鍒锋柊">&#8635;</button>
+          <button type="button" class="live-action-btn" id="live-refresh-btn" title="閸掗攱鏌?>&#8635;</button>
           <span class="live-status-dot" id="live-status-dot"></span>
         </div>
       </div>
@@ -366,7 +366,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
           <select id="gateway-preset" class="live-gw-select-preset" aria-label="Preset">
             <option value="default">18789</option>
             <option value="qclaw">18790</option>
-            <option value="custom">鈥?/option>
+            <option value="custom">閳?/option>
           </select>
           <input type="number" id="gateway-custom-port" class="live-gw-port-input hidden" min="1" max="65535" placeholder="" inputmode="numeric" aria-label="Port" />
           <button type="button" class="live-action-btn live-btn-sm" id="btn-gateway-apply"></button>
@@ -374,78 +374,78 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
         <div id="gateway-inline-status" class="live-gw-status" aria-live="polite"></div>
       </div>
       <div class="live-sessions-list" id="live-sessions-list">
-        <div class="live-empty" id="live-sessions-empty">绛夊緟 Gateway 杩炴帴...</div>
+        <div class="live-empty" id="live-sessions-empty">缁涘绶?Gateway 鏉╃偞甯?..</div>
       </div>
     </aside>
-    <!-- 鍙筹細閫変腑浼氳瘽璇︽儏 + 蹇嵎鐘舵€?-->
+    <!-- 閸欑绱伴柅澶夎厬娴兼俺鐦界拠锔藉剰 + 韫囶偅宓庨悩鑸碘偓?-->
     <div class="live-main-panel">
-      <!-- 椤堕儴锛氬揩鎹风姸鎬佹潯 -->
+      <!-- 妞ゅ爼鍎撮敍姘彥閹归濮搁幀浣规蒋 -->
       <div class="live-status-bar" id="live-status-bar">
         <div class="live-stat-item"><span class="live-stat-label" id="lbl-gw-status">Gateway</span><span class="live-stat-value" id="live-gw-status">--</span></div>
-        <div class="live-stat-item"><span class="live-stat-label" id="lbl-gw-health">鍋ュ悍</span><span class="live-stat-value" id="live-gw-health">--</span></div>
+        <div class="live-stat-item"><span class="live-stat-label" id="lbl-gw-health">閸嬨儱鎮?/span><span class="live-stat-value" id="live-gw-health">--</span></div>
         <div class="live-stat-item live-stat-gw-actions">
-          <button type="button" class="live-action-btn live-btn-sm" id="live-gw-restart-btn" title="閲嶅惎缃戝叧">閲嶅惎缃戝叧</button>
+          <button type="button" class="live-action-btn live-btn-sm" id="live-gw-restart-btn" title="闁插秴鎯庣純鎴濆彠">闁插秴鎯庣純鎴濆彠</button>
         </div>
-        <div class="live-stat-item"><span class="live-stat-label" id="lbl-presence">鍦ㄧ嚎瀹炰緥</span><span class="live-stat-value" id="live-presence">--</span></div>
-        <div class="live-stat-item"><span class="live-stat-label" id="lbl-sess-cnt">浼氳瘽鏁?/span><span class="live-stat-value" id="live-sess-cnt">--</span></div>
-        <div class="live-stat-item"><span class="live-stat-label" id="lbl-task-cnt">浠诲姟</span><span class="live-stat-value" id="live-task-cnt">--</span></div>
-        <div class="live-stat-item"><span class="live-stat-label" id="lbl-usage">鎴愭湰</span><span class="live-stat-value" id="live-usage">--</span></div>
+        <div class="live-stat-item"><span class="live-stat-label" id="lbl-presence">閸︺劎鍤庣€圭偘绶?/span><span class="live-stat-value" id="live-presence">--</span></div>
+        <div class="live-stat-item"><span class="live-stat-label" id="lbl-sess-cnt">娴兼俺鐦介弫?/span><span class="live-stat-value" id="live-sess-cnt">--</span></div>
+        <div class="live-stat-item"><span class="live-stat-label" id="lbl-task-cnt">娴犺濮?/span><span class="live-stat-value" id="live-task-cnt">--</span></div>
+        <div class="live-stat-item"><span class="live-stat-label" id="lbl-usage">閹存劖婀?/span><span class="live-stat-value" id="live-usage">--</span></div>
       </div>
-      <!-- 鐢ㄩ噺鏄庣粏锛歍oken 鎬婚噺 / 杈撳叆 / 杈撳嚭 -->
+      <!-- 閻劑鍣洪弰搴ｇ矎閿涙瓖oken 閹鍣?/ 鏉堟挸鍙?/ 鏉堟挸鍤?-->
       <div class="live-usage-detail" id="live-usage-detail">
-        <span class="live-usage-detail-label" id="lbl-token-total">Token 鎬婚噺</span><span class="live-usage-detail-value" id="live-token-total">--</span>
+        <span class="live-usage-detail-label" id="lbl-token-total">Token 閹鍣?/span><span class="live-usage-detail-value" id="live-token-total">--</span>
         <span class="live-usage-detail-sep">|</span>
-        <span class="live-usage-detail-label" id="lbl-token-in">杈撳叆</span><span class="live-usage-detail-value" id="live-token-in">--</span>
+        <span class="live-usage-detail-label" id="lbl-token-in">鏉堟挸鍙?/span><span class="live-usage-detail-value" id="live-token-in">--</span>
         <span class="live-usage-detail-sep">|</span>
-        <span class="live-usage-detail-label" id="lbl-token-out">杈撳嚭</span><span class="live-usage-detail-value" id="live-token-out">--</span>
+        <span class="live-usage-detail-label" id="lbl-token-out">鏉堟挸鍤?/span><span class="live-usage-detail-value" id="live-token-out">--</span>
       </div>
-      <!-- 鏂版墜鍏抽敭涓夌増鍧楋細鐪侀挶 / 鏂逛究 / 瀹炵敤 -->
+      <!-- 閺傜増澧滈崗鎶芥暛娑撳澧楅崸妤嬬窗閻線鎸?/ 閺傞€涚┒ / 鐎圭偟鏁?-->
       <div class="live-quick-blocks" id="live-quick-blocks">
         <section class="live-block live-block-save" aria-labelledby="live-block-save-title">
-          <h3 class="live-block-title" id="live-block-save-title">鐪侀挶</h3>
+          <h3 class="live-block-title" id="live-block-save-title">閻線鎸?/h3>
           <div class="live-block-content">
             <div class="live-usage-row">
-              <span class="live-block-label" id="lbl-block-usage">鐢ㄩ噺</span>
+              <span class="live-block-label" id="lbl-block-usage">閻劑鍣?/span>
               <span id="live-block-usage" class="live-block-value">--</span>
-              <button type="button" class="live-action-btn live-btn-icon" id="live-refresh-usage" title="鍒锋柊鐢ㄩ噺">&#8635;</button>
+              <button type="button" class="live-action-btn live-btn-icon" id="live-refresh-usage" title="閸掗攱鏌婇悽銊╁櫤">&#8635;</button>
             </div>
             <div class="live-models-row">
-              <span class="live-block-label" id="lbl-block-models">妯″瀷</span>
+              <span class="live-block-label" id="lbl-block-models">濡€崇€?/span>
               <div id="live-models-list" class="live-models-list">--</div>
-              <button type="button" class="live-action-btn live-btn-sm" id="live-refresh-models">鍒锋柊妯″瀷</button>
+              <button type="button" class="live-action-btn live-btn-sm" id="live-refresh-models">閸掗攱鏌婂Ο鈥崇€?/button>
             </div>
           </div>
         </section>
         <section class="live-block live-block-easy" aria-labelledby="live-block-easy-title">
-          <h3 class="live-block-title" id="live-block-easy-title">鏂逛究</h3>
+          <h3 class="live-block-title" id="live-block-easy-title">閺傞€涚┒</h3>
           <div class="live-block-content">
             <div class="live-conn-row">
-              <span class="live-block-label" id="lbl-block-conn">杩炴帴</span>
+              <span class="live-block-label" id="lbl-block-conn">鏉╃偞甯?/span>
               <span id="live-conn-status" class="live-conn-status">--</span>
             </div>
             <div class="live-link-actions">
-              <button type="button" class="live-action-btn live-btn-primary" id="live-fetch-link">鑾峰彇瀵硅瘽閾炬帴</button>
-              <button type="button" class="live-action-btn" id="live-copy-link" style="display:none">澶嶅埗閾炬帴</button>
+              <button type="button" class="live-action-btn live-btn-primary" id="live-fetch-link">閼惧嘲褰囩€电鐦介柧鐐复</button>
+              <button type="button" class="live-action-btn" id="live-copy-link" style="display:none">婢跺秴鍩楅柧鐐复</button>
             </div>
-            <input type="text" id="live-dialogue-url" class="live-dialogue-url" readonly placeholder="" aria-label="瀵硅瘽閾炬帴" />
+            <input type="text" id="live-dialogue-url" class="live-dialogue-url" readonly placeholder="" aria-label="鐎电鐦介柧鐐复" />
           </div>
         </section>
         <section class="live-block live-block-use" aria-labelledby="live-block-use-title">
-          <h3 class="live-block-title" id="live-block-use-title">瀹炵敤</h3>
+          <h3 class="live-block-title" id="live-block-use-title">鐎圭偟鏁?/h3>
           <div class="live-block-content">
             <div class="live-gw-row">
               <span class="live-block-label" id="lbl-block-gw">Gateway</span>
               <span id="live-block-gw" class="live-block-value">--</span>
             </div>
-            <p class="live-block-hint" id="live-block-use-hint">宸︿晶涓轰細璇濆垪琛紝閫変竴鏉″彲鐪嬭鎯?/p>
-            <a href="#" id="live-open-chat" class="live-action-btn live-btn-primary live-btn-link" target="_blank" rel="noopener">鎵撳紑鑱婂ぉ</a>
+            <p class="live-block-hint" id="live-block-use-hint">瀹革缚鏅舵稉杞扮窗鐠囨繂鍨悰顭掔礉闁绔撮弶鈥冲讲閻顕涢幆?/p>
+            <a href="#" id="live-open-chat" class="live-action-btn live-btn-primary live-btn-link" target="_blank" rel="noopener">閹垫挸绱戦懕濠傘亯</a>
           </div>
         </section>
       </div>
-      <!-- 浼氳瘽璇︽儏 / Chat 鍘嗗彶 -->
+      <!-- 娴兼俺鐦界拠锔藉剰 / Chat 閸樺棗褰?-->
       <div class="live-session-detail" id="live-session-detail">
         <div class="live-detail-placeholder" id="live-detail-placeholder">
-          <p id="live-select-hint">鈫?閫夋嫨涓€鏉′細璇濇煡鐪嬭鎯?/p>
+          <p id="live-select-hint">閳?闁瀚ㄦ稉鈧弶鈥茬窗鐠囨繃鐓￠惇瀣嚊閹?/p>
         </div>
         <div class="live-detail-content" id="live-detail-content" style="display:none">
           <div class="live-detail-header">
@@ -453,7 +453,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
               <span class="live-detail-key" id="live-detail-key"></span>
               <span class="live-detail-status" id="live-detail-status"></span>
             </div>
-            <button type="button" class="live-action-btn" id="live-detail-close" title="鍏抽棴璇︽儏">鉁?/button>
+            <button type="button" class="live-action-btn" id="live-detail-close" title="閸忔娊妫寸拠锔藉剰">閴?/button>
           </div>
           <div class="live-chat-history" id="live-chat-history"></div>
         </div>
@@ -479,12 +479,12 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 <div class="boot" id="boot"><div class="box"><p class="t">OpenClaw Bootstrap</p><p class="s" id="status">Loading session payload...</p><div class="bar"><i></i></div></div></div>
 <div class="card-modal" id="card-modal" aria-hidden="true" role="dialog" aria-labelledby="card-modal-title">
   <div class="card-modal-box" style="position:relative">
-    <button type="button" class="card-modal-close" id="card-modal-close" aria-label="鍏抽棴">&times;</button>
-    <h2 class="card-modal-title" id="card-modal-title">鎸囨爣璇存槑</h2>
-    <div class="card-modal-section"><h4 id="card-help-source-label">鏁版嵁鏉ユ簮</h4><p id="card-help-source"></p></div>
-    <div class="card-modal-section"><h4 id="card-help-analysis-label">鏁板€煎垎鏋?/h4><p id="card-help-analysis"></p></div>
-    <div class="card-modal-section"><h4 id="card-help-calc-label">璁＄畻鏂规硶</h4><p id="card-help-calc"></p></div>
-    <div class="card-modal-section"><h4 id="card-help-trait-label">涓讳汉鐗圭偣</h4><p id="card-help-trait"></p></div>
+    <button type="button" class="card-modal-close" id="card-modal-close" aria-label="閸忔娊妫?>&times;</button>
+    <h2 class="card-modal-title" id="card-modal-title">閹稿洦鐖ｇ拠瀛樻</h2>
+    <div class="card-modal-section"><h4 id="card-help-source-label">閺佺増宓侀弶銉︾爱</h4><p id="card-help-source"></p></div>
+    <div class="card-modal-section"><h4 id="card-help-analysis-label">閺佹澘鈧厧鍨庨弸?/h4><p id="card-help-analysis"></p></div>
+    <div class="card-modal-section"><h4 id="card-help-calc-label">鐠侊紕鐣婚弬瑙勭《</h4><p id="card-help-calc"></p></div>
+    <div class="card-modal-section"><h4 id="card-help-trait-label">娑撹姹夐悧鍦仯</h4><p id="card-help-trait"></p></div>
   </div>
 </div>
 <div id="command-console">
@@ -493,68 +493,68 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
     <span id="status-indicator" class="offline" aria-live="polite">OFFLINE</span>
   </div>
   <div id="token-panel">
-    <label>GATEWAY TOKEN锛堜粠浠ょ墝鍖朥RL涓幏鍙栵級</label>
+    <label>GATEWAY TOKEN閿涘牅绮犳禒銈囧閸栨湧RL娑擃叀骞忛崣鏍电礆</label>
     <div id="token-input-row">
-      <input type="password" id="token-input" placeholder="粘贴 token 或留空（本地模式）" autocomplete="off" />
-      <button type="button" id="btn-token-save">杩炴帴</button>
+      <input type="password" id="token-input" placeholder="绮樿创 token 鎴栫暀绌猴紙鏈湴妯″紡锛? autocomplete="off" />
+      <button type="button" id="btn-token-save">鏉╃偞甯?/button>
     </div>
-    <div id="token-hint">鍚庡彴閫氳繃<strong>璇诲彇鏈湴鏂囦欢</strong>锛堝 <code>.openclaw/gateway-token</code>銆?code>OPENCLAW_TOKEN_FILE</code>锛夋垨<strong>鎵ц openclaw dashboard --no-open</strong> 瑙ｆ瀽杈撳嚭涓殑 token锛岀粍鍚堟垚甯?token 鐨勫璇濋〉 URL銆傜偣鍑汇€岃幏鍙栧璇濋摼鎺ャ€嶅悗鍗冲彲澶嶅埗鎴栫洿鎺ユ墦寮€锛屽疄鐜拌嚜鍔ㄧ櫥褰曘€?br>涔熷彲鎵嬪姩绮樿创 token 鍒颁笂鏂硅緭鍏ユ鍚庣偣鍑昏繛鎺ャ€?br><strong>Gateway 绔彛</strong>浼氬湪鎵撳紑椤甸潰鏃惰嚜鍔ㄦ帰娴嬶紙骞惰浣忎笂娆℃垚鍔熺鍙ｏ級锛涜嫢缃戝叧鎹簡绔彛锛屽彲浣跨敤 <code>?gwPort=绔彛鍙?/code>銆?code>?gateway=127.0.0.1:绔彛</code>銆佹垨杩藉姞鎺㈡祴鍒楄〃 <code>?gwProbePorts=19900,19901</code>锛屼篃鍙湪鎺у埗鍙版墽琛?<code>OpenClawGateway.setPort(绔彛);ClawController.reconnect()</code>銆?strong>鍙屽紑 OpenClaw</strong>锛堝 qclaw 鍦?18790锛夛細鎵撳紑 <code>openclaw2.html?profile=qclaw</code> 鎴?<code>?qclaw=1</code> / <code>?gwPort=18790</code>锛屾垨鎺у埗鍙?<code>OpenClawGateway.setGatewayProfile('qclaw');ClawController.reconnect()</code>銆傝嫢鏇捐璁扮鍙ｏ紝鍙竻闄?<code>localStorage</code> 閿?<code>openclaw2_gateway_port</code> 鍚庡埛鏂般€?/div>
+    <div id="token-hint">閸氬骸褰撮柅姘崇箖<strong>鐠囪褰囬張顒€婀撮弬鍥︽</strong>閿涘牆顩?<code>.openclaw/gateway-token</code>閵?code>OPENCLAW_TOKEN_FILE</code>閿涘鍨?strong>閹笛嗩攽 openclaw dashboard --no-open</strong> 鐟欙絾鐎芥潏鎾冲毉娑擃厾娈?token閿涘瞼绮嶉崥鍫熷灇鐢?token 閻ㄥ嫬顕拠婵嬨€?URL閵嗗倻鍋ｉ崙姹団偓宀冨箯閸欐牕顕拠婵嬫懠閹恒儯鈧秴鎮楅崡鍐插讲婢跺秴鍩楅幋鏍纯閹恒儲澧﹀鈧敍灞界杽閻滄媽鍤滈崝銊ф瑜版洏鈧?br>娑旂喎褰查幍瀣З缁鍒?token 閸掗绗傞弬纭呯翻閸忋儲顢嬮崥搴ｅ仯閸戞槒绻涢幒銉ｂ偓?br><strong>Gateway 缁旑垰褰?/strong>娴兼艾婀幍鎾崇磻妞ょ敻娼伴弮鎯板殰閸斻劍甯板ù瀣剁礄楠炴儼顔囨担蹇庣瑐濞嗏剝鍨氶崝鐔侯伂閸欙綇绱氶敍娑滃缂冩垵鍙ч幑顫啊缁旑垰褰涢敍灞藉讲娴ｈ法鏁?<code>?gwPort=缁旑垰褰涢崣?/code>閵?code>?gateway=127.0.0.1:缁旑垰褰?/code>閵嗕焦鍨ㄦ潻钘夊閹恒垺绁撮崚妤勩€?<code>?gwProbePorts=19900,19901</code>閿涘奔绡冮崣顖氭躬閹貉冨煑閸欑増澧界悰?<code>OpenClawGateway.setPort(缁旑垰褰?;ClawController.reconnect()</code>閵?strong>閸欏苯绱?OpenClaw</strong>閿涘牆顩?qclaw 閸?18790閿涘绱伴幍鎾崇磻 <code>openclaw2.html?profile=qclaw</code> 閹?<code>?qclaw=1</code> / <code>?gwPort=18790</code>閿涘本鍨ㄩ幒褍鍩楅崣?<code>OpenClawGateway.setGatewayProfile('qclaw');ClawController.reconnect()</code>閵嗗倽瀚㈤弴鎹愵嚖鐠佹壆顏崣锝忕礉閸欘垱绔婚梽?<code>localStorage</code> 闁?<code>openclaw2_gateway_port</code> 閸氬骸鍩涢弬鑸偓?/div>
     <div id="token-fetch-row" style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <button type="button" id="btn-fetch-dialogue-link">鑾峰彇瀵硅瘽閾炬帴</button>
+      <button type="button" id="btn-fetch-dialogue-link">閼惧嘲褰囩€电鐦介柧鐐复</button>
       <span id="token-fetch-status" class="token-fetch-status"></span>
     </div>
-    <div id="token-link-box" aria-label="带 Token 的对话链接">
-      <span class="label">自动登录对话链接（由本地文件或 openclaw dashboard --no-open 获取）</span>
+    <div id="token-link-box" aria-label="甯?Token 鐨勫璇濋摼鎺?>
+      <span class="label">鑷姩鐧诲綍瀵硅瘽閾炬帴锛堢敱鏈湴鏂囦欢鎴?openclaw dashboard --no-open 鑾峰彇锛?/span>
       <div id="token-link-row">
-        <input type="text" id="token-link-url" readonly aria-label="瀵硅瘽閾炬帴" />
-        <button type="button" id="btn-copy-link">澶嶅埗閾炬帴</button>
-        <button type="button" id="btn-open-dialogue">鎵撳紑瀵硅瘽</button>
+        <input type="text" id="token-link-url" readonly aria-label="鐎电鐦介柧鐐复" />
+        <button type="button" id="btn-copy-link">婢跺秴鍩楅柧鐐复</button>
+        <button type="button" id="btn-open-dialogue">閹垫挸绱戠€电鐦?/button>
       </div>
     </div>
   </div>
-  <!-- API 鎺у埗闈㈡澘 + 绠＄悊鍛戒护锛堝€熼壌 Control Center 鎬濊矾锛氭€昏/浼氳瘽/浠诲姟/瀹℃壒/鍛樺伐/閫氶亾锛岃嚜鏈夊疄鐜帮級 -->
+  <!-- API 閹貉冨煑闂堛垺婢?+ 缁狅紕鎮婇崨鎴掓姢閿涘牆鈧喖澹?Control Center 閹繆鐭鹃敍姘偓鏄忣潔/娴兼俺鐦?娴犺濮?鐎光剝澹?閸涙ê浼?闁岸浜鹃敍宀冨殰閺堝鐤勯悳甯礆 -->
   <div id="api-panel">
-    <div id="api-panel-title">API 鎺у埗闈㈡澘 <span id="api-panel-subtitle"></span></div>
+    <div id="api-panel-title">API 閹貉冨煑闂堛垺婢?<span id="api-panel-subtitle"></span></div>
     <div id="api-btns">
-      <button type="button" class="api-btn" data-action="status">鐘舵€?/button>
-      <button type="button" class="api-btn" data-action="health">鍋ュ悍</button>
-      <button type="button" class="api-btn" data-action="sessions">浼氳瘽</button>
-      <button type="button" class="api-btn" data-action="heartbeat">蹇冭烦</button>
-      <button type="button" class="api-btn" data-action="models">妯″瀷</button>
-      <button type="button" class="api-btn" data-action="config">閰嶇疆</button>
+      <button type="button" class="api-btn" data-action="status">閻樿埖鈧?/button>
+      <button type="button" class="api-btn" data-action="health">閸嬨儱鎮?/button>
+      <button type="button" class="api-btn" data-action="sessions">娴兼俺鐦?/button>
+      <button type="button" class="api-btn" data-action="heartbeat">韫囧啳鐑?/button>
+      <button type="button" class="api-btn" data-action="models">濡€崇€?/button>
+      <button type="button" class="api-btn" data-action="config">闁板秶鐤?/button>
     </div>
     <div id="mgmt-section" class="mgmt-section">
-      <div class="mgmt-section-title" id="mgmt-section-title">绠＄悊鍛戒护</div>
+      <div class="mgmt-section-title" id="mgmt-section-title">缁狅紕鎮婇崨鎴掓姢</div>
       <div id="api-btns-mgmt" class="api-btns-mgmt">
-        <button type="button" class="api-btn" data-action="tasks">浠诲姟</button>
-        <button type="button" class="api-btn" data-action="projects">椤圭洰</button>
-        <button type="button" class="api-btn" data-action="approvals">瀹℃壒</button>
-        <button type="button" class="api-btn" data-action="presence">鍦ㄧ嚎鑺傜偣</button>
-        <button type="button" class="api-btn" data-action="channels">閫氶亾</button>
-        <button type="button" class="api-btn" data-action="usage">鐢ㄩ噺</button>
+        <button type="button" class="api-btn" data-action="tasks">娴犺濮?/button>
+        <button type="button" class="api-btn" data-action="projects">妞ゅ湱娲?/button>
+        <button type="button" class="api-btn" data-action="approvals">鐎光剝澹?/button>
+        <button type="button" class="api-btn" data-action="presence">閸︺劎鍤庨懞鍌滃仯</button>
+        <button type="button" class="api-btn" data-action="channels">闁岸浜?/button>
+        <button type="button" class="api-btn" data-action="usage">閻劑鍣?/button>
       </div>
     </div>
     <div id="api-result"></div>
   </div>
   <div class="chat-history-bar">
-    <label for="chat-load-session" id="chat-load-session-label">鍔犺浇浼氳瘽</label>
-    <select id="chat-load-session" aria-label="閫夋嫨浼氳瘽鍔犺浇鍒板璇濆尯"><option value="">閫夋嫨浼氳瘽鈥?/option></select>
+    <label for="chat-load-session" id="chat-load-session-label">閸旂姾娴囨导姘崇樈</label>
+    <select id="chat-load-session" aria-label="闁瀚ㄦ导姘崇樈閸旂姾娴囬崚鏉款嚠鐠囨繂灏?><option value="">闁瀚ㄦ导姘崇樈閳?/option></select>
   </div>
   <div id="chat-history">
-    <div class="chat-agents-tabs" id="chat-agents-tabs" role="tablist" aria-label="浼氳瘽鍒楄〃" data-empty-text="鏆傛棤浼氳瘽鏍囩"></div>
-    <div id="chat-history-content" role="log" aria-label="Chat history" data-empty-text="杩炴帴鍚庢垨鍔犺浇浼氳瘽鍚庯紝杩欓噷浼氭樉绀鸿亰澶╄褰曘€?></div>
+    <div class="chat-agents-tabs" id="chat-agents-tabs" role="tablist" aria-label="娴兼俺鐦介崚妤勩€? data-empty-text="閺嗗倹妫ゆ导姘崇樈閺嶅洨顒?></div>
+    <div id="chat-history-content" role="log" aria-label="Chat history" data-empty-text="鏉╃偞甯撮崥搴㈠灗閸旂姾娴囨导姘崇樈閸氬函绱濇潻娆撳櫡娴兼碍妯夌粈楦夸喊婢垛晞顔囪ぐ鏇樷偓?></div>
   </div>
   <div class="console-input-area">
     <div id="console-toolbar">
-      <button type="button" id="btn-toggle-token">馃攽 TOKEN</button>
-      <button type="button" id="btn-clear">鉁?娓呯┖</button>
-      <button type="button" id="btn-toggle-api">鈿?API</button>
+      <button type="button" id="btn-toggle-token">棣冩斀 TOKEN</button>
+      <button type="button" id="btn-clear">閴?濞撳懐鈹?/button>
+      <button type="button" id="btn-toggle-api">閳?API</button>
       <span class="toolbar-spacer"></span>
-      <button type="button" id="btn-reconnect">鈫?閲嶈繛</button>
+      <button type="button" id="btn-reconnect">閳?闁插秷绻?/button>
     </div>
     <div class="console-input-row">
-      <textarea id="command-input" placeholder="杈撳叆娑堟伅锛孍nter 鍙戦€侊紝Shift+Enter 鎹㈣" autocomplete="off" aria-label="Chat input" rows="1"></textarea>
-      <button type="button" id="btn-send" aria-label="Send">鍙戦€?/button>
+      <textarea id="command-input" placeholder="鏉堟挸鍙嗗☉鍫熶紖閿涘瓖nter 閸欐垿鈧緤绱漇hift+Enter 閹广垼顢? autocomplete="off" aria-label="Chat input" rows="1"></textarea>
+      <button type="button" id="btn-send" aria-label="Send">閸欐垿鈧?/button>
     </div>
   </div>
 </div>
@@ -562,11 +562,11 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;ba
 (()=>{
 const $=id=>document.getElementById(id),orbit=$("orbit"),sub=$("sub"),nav=$("nav"),time=$("time"),ax=$("ax"),ay=$("ay"),cl=$("cl"),pl=$("pupil-l"),pr=$("pupil-r"),oc=$("oc"),reactor=$("reactor"),radar=$("radar"),wc=$("wc"),list=$("list"),boot=$("boot"),status=$("status");
 const state={themes:[],payload:{},metrics:null,idx:0,anim:false,lastWheel:0,dir:1,open:false,lang:(localStorage.getItem("openclaw2_lang")||"zh").replace(/^en$/i,"en").replace(/^zh$/i,"zh")||"zh"};
-/** OpenClaw Gateway 鍦板潃锛氶粯璁ゆ湰鏈虹鍙ｏ紱绔彛鍙樺寲鏃跺彲閫氳繃 ?gwPort= / ?gateway= 鎸囧畾锛屾垨鑷姩鎺㈡祴甯歌绔彛骞跺啓鍏?localStorage */
+/** OpenClaw Gateway 閸︽澘娼冮敍姘剁帛鐠併倖婀伴張铏诡伂閸欙綇绱辩粩顖氬經閸欐ê瀵查弮璺哄讲闁俺绻??gwPort= / ?gateway= 閹稿洤鐣鹃敍灞惧灗閼奉亜濮╅幒銏＄ゴ鐢瓕顫嗙粩顖氬經楠炶泛鍟撻崗?localStorage */
 const OpenClawGateway=(function(){
   const LS_PORT='openclaw2_gateway_port';
   const LS_HOST='openclaw2_gateway_host';
-  /** 鍙屽紑 OpenClaw 鏃讹細qclaw 甯哥敤 18790锛岄粯璁ゅ疄渚嬪父鐢?18789 */
+  /** 閸欏苯绱?OpenClaw 閺冭绱皅claw 鐢摜鏁?18790閿涘矂绮拋銈呯杽娓氬鐖堕悽?18789 */
   const LS_PROFILE='openclaw2_gateway_profile';
   const LS_RECENT_PORTS='openclaw2_gateway_recent_ports';
   const QCLAW_PORT=18790;
@@ -713,7 +713,7 @@ const OpenClawGateway=(function(){
     saveRecentPort(n);
     refreshSubtitle();
   }
-  /** 鎺у埗鍙帮細OpenClawGateway.setGatewayProfile('qclaw') 鍥哄畾 qclaw:18790锛?default' 娓呴櫎閰嶇疆妗?*/
+  /** 閹貉冨煑閸欏府绱癘penClawGateway.setGatewayProfile('qclaw') 閸ュ搫鐣?qclaw:18790閿?default' 濞撳懘娅庨柊宥囩枂濡?*/
   function setGatewayProfile(name){
     const p=String(name||'').toLowerCase();
     if(p==='qclaw'){
@@ -729,7 +729,7 @@ const OpenClawGateway=(function(){
     refreshSubtitle();
   }
   function getDisplay(){return getHost()+':'+getPort();}
-  /** 浠?localhost 鎵撳紑寮€鍙戞湇椤甸潰鏃讹紝fetch 鐩磋繛 127.0.0.1:缃戝叧绔彛浼氳Е鍙?CORS锛涙敼涓鸿蛋 Vite 鍚屾簮浠ｇ悊 /__openclaw/{port}/ */
+  /** 娴?localhost 閹垫挸绱戝鈧崣鎴炴箛妞ょ敻娼伴弮璁圭礉fetch 閻╃绻?127.0.0.1:缂冩垵鍙х粩顖氬經娴兼俺袝閸?CORS閿涙稒鏁兼稉楦胯泲 Vite 閸氬本绨禒锝囨倞 /__openclaw/{port}/ */
   function useDevHttpProxy(){
     try{
       const h=window.location.hostname;
@@ -767,7 +767,7 @@ const OpenClawGateway=(function(){
         const r=await fetch(base+path,Object.assign({method:'GET',mode:'cors',signal:ac.signal},opts));
         clearTimeout(tid);
         if(r.ok)return 2;
-        /* 浠?401/403 瑙嗕负銆屾湁鏈嶅姟涓斿彲鑳介渶閴存潈銆嶏紱404/405 鍦ㄤ换鎰忓崰浣嶆湇鍔′笂澶父瑙侊紝浼氳鍒や负缃戝叧鍦ㄧ嚎鑰岄攣姝婚敊璇鍙?*/
+        /* 娴?401/403 鐟欏棔璐熼妴灞炬箒閺堝秴濮熸稉鏂垮讲閼充粙娓堕柎瀛樻綀閵嗗稄绱?04/405 閸︺劋鎹㈤幇蹇撳窗娴ｅ秵婀囬崝鈥茬瑐婢额亜鐖剁憴渚婄礉娴兼俺顕ら崚銈勮礋缂冩垵鍙ч崷銊у殠閼板矂鏀ｅ濠氭晩鐠囶垳顏崣?*/
         if(r.status===401||r.status===403)return 1;
       }catch(_){}
       return 0;
@@ -783,7 +783,7 @@ const OpenClawGateway=(function(){
       clearTimeout(tid);
       if(r.ok)return true;
     }catch(_){}
-    /* 宸茬Щ闄?no-cors GET /锛氫换鎰?HTTP 鏈嶅姟閮戒細銆屾垚鍔熴€嶏紝瀵艰嚧璇€夌鍙ｏ紙渚嬪绌虹鍙ｆ垨闈欐€佺珯锛?*/
+    /* 瀹歌尙些闂?no-cors GET /閿涙矮鎹㈤幇?HTTP 閺堝秴濮熼柈鎴掔窗閵嗗本鍨氶崝鐔粹偓宥忕礉鐎佃壈鍤х拠顖炩偓澶岊伂閸欙綇绱欐笟瀣洤缁岃櫣顏崣锝嗗灗闂堟瑦鈧胶鐝敍?*/
     return false;
   }
   async function probeGatewayInstance(port){
@@ -933,7 +933,7 @@ const OpenClawGateway=(function(){
     refreshSubtitle();
     return getPort();
   }
-  /** 杩斿洖鍒楄〃涓疄闄呭搷搴?OpenClaw 鎺㈡祴璺緞鐨勭鍙ｏ紙鍙瀹炰緥鍚屾椂鍦ㄧ嚎锛?*/
+  /** 鏉╂柨娲栭崚妤勩€冩稉顓炵杽闂勫懎鎼锋惔?OpenClaw 閹恒垺绁寸捄顖氱窞閻ㄥ嫮顏崣锝忕礄閸欘垰顦跨€圭偘绶ラ崥灞炬閸︺劎鍤庨敍?*/
   async function scanOnlineGatewayPorts(){
     const candidates=buildProbeCandidates();
     const online=[];
@@ -946,66 +946,66 @@ const OpenClawGateway=(function(){
   return{getHost,setHost,getPort,setPort,setGatewayProfile,getDisplay,httpBase,wsBase,autoDetectPort,scanOnlineGatewayPorts,probePort,probeGatewayInstance,refreshSubtitle,useDevHttpProxy,DEFAULT_PORT,DEFAULT_HOST,QCLAW_PORT,LS_PROFILE,buildProbeCandidates,chooseBestInstance,describePort,getProfileForPort};
 })();
 try{window.OpenClawGateway=OpenClawGateway;}catch(_){}
-// 鍒濆灞曠ず鐢辨帰娴?璇诲彇 localStorage 鍚庣殑鍔ㄦ€佺綉鍏冲湴鍧€鍐冲畾
+// 閸掓繂顫愮仦鏇犮仛閻㈣鲸甯板ù?鐠囪褰?localStorage 閸氬海娈戦崝銊︹偓浣虹秹閸忓啿婀撮崸鈧崘鍐茬暰
 OpenClawGateway.refreshSubtitle();
 const i18n={
   zh:{
-    noData:"鏆傛棤鏁版嵁",
+    noData:"閺嗗倹妫ら弫鐗堝祦",
     heroTitle:"OpenClaw",
-    viewDetails:"[鏌ョ湅璇︽儏]",
-    close:"鍏抽棴",
-    sysGroupHeader:"绯荤粺涓庤繛鎺?,
-    signalPanels:"淇″彿闈㈡澘",
-    radar:"鑳藉姏闆疯揪",
-    wordCloud:"璇嶄簯",
-    sessionList:"浼氳瘽鍒楄〃",
-    bootTitle:"OpenClaw 鍚姩涓?,
-    statusLoading:"姝ｅ湪鍔犺浇鏈湴鏁版嵁鈥?,
-    statusFetch:"姝ｅ湪鎷夊彇浜戠鏁版嵁鈥?,
-    statusProcess:"姝ｅ湪澶勭悊鐢诲儚涓庡崱鐗団€?,
-    statusOnline:"宸插氨缁?,
-    statusFailed:"鍔犺浇澶辫触锛屼娇鐢ㄧ┖鏁版嵁銆?,
-    topTitle:"OpenClaw 鏁版嵁鎶ュ憡",
-    topSub:"閬ユ祴涓婅: 娲昏穬 // 鏉ユ簮: OpenClaw_Nexus",
-    linkReport:"浣撴鎶ュ憡",
-    linkStats:"PK鍦板浘",
-    hudTerminal:"鏁版嵁缁堢",
-    levelMap:{S:"浼犺 OpenClaw",A:"涓撲笟 OpenClaw",B:"杩涢樁 OpenClaw",C:"鍒濈骇 OpenClaw",D:"OpenClaw 鏂版墜"},
-    workRhythmMap:{"night-owl":"澶滅尗瀛?,morning:"鏃╄捣",afternoon:"涓嬪崍妗?,evening:"澶滈棿妗?,unknown:"鏈煡"},
-    tokenSourceMap:{thinking:"鍩轰簬鎬濊€冧及绠?,messages:"鍩轰簬娑堟伅浼扮畻","sessions.json":"sessions.json",usage:"鍘熷鐢ㄩ噺",estimate:"浼扮畻"},
-    partialDataHint:"缂哄皯 exitCode",
-    dataSourceTitle:"鏁版嵁鏉ユ簮",
-    dataSourceDesc:"浠ヤ笅鎸囨爣鏉ヨ嚜 openclawPortrait 涓?sessions.json 鐨勬眹鎬汇€俆oken/缂撳瓨/妯″瀷/娓犻亾/鏃堕棿/鎶€鑳?宸ュ叿/涓婁笅鏂?蹇冭烦/鐘舵€佸強 System Prompt 缁熻鍦ㄤ笂浼?sessions.json 鏃跺嚭鑷鏂囦欢銆?,
-    dataSourcePayloadHint:"銆愯鏄庛€戝綋鍓嶅姞杞藉埌鐨?OpenClaw 鍒嗘瀽杞借嵎涓嶅畬鏁达紙鐢诲儚 dimensions銆乧omposite 涓庝細璇濇眹鎬?openclawSessionsSummary 澶氫负绌猴級锛屽洜姝ゅぇ閲忓崱鐗囦細鏄剧ず銆屾殏鏃犳暟鎹€嶆垨 0鈥斺€旇繖鏄己鏁版嵁鐨勮〃鐜帮紝涓嶆槸椤甸潰娓叉煋鏁呴殰銆傚鐞嗘柟寮忥細鈶?鍦ㄧ珯鍐呬富娴佺▼閫夋嫨 OpenClaw 寮曟搸瀹屾垚涓€娆″垎鏋愶紙浼氬啓鍏?localStorage 閿?vibe_openclaw_analysis_cache锛屽惈 openclawPortrait 绛夛級锛涒憽 淇濊瘉鏈満 Gateway 鑳介€氳繃 /api/openclaw/latest 绛夎繑鍥炰笂杩扮粨鏋勭殑 JSON锛坣pm run dev 浼氬璺緞鍥炴簮锛夛紱鈶?鎴栧皢鍚堣 JSON 瀛樹负 ~/.openclaw/last_analysis_data.json 渚涘紑鍙戞湇璇诲彇銆傛寜 F12 鍙湪鎺у埗鍙版煡鐪?[openclaw2] 杞借嵎璇婃柇鏃ュ織銆?,
-    cardModalLabels:{source:"鏁版嵁鏉ユ簮",analysis:"鏁板€煎垎鏋?,calculation:"璁＄畻鏂规硶",ownerTrait:"涓讳汉鐗圭偣"},
+    viewDetails:"[閺屻儳婀呯拠锔藉剰]",
+    close:"閸忔娊妫?,
+    sysGroupHeader:"缁崵绮烘稉搴ょ箾閹?,
+    signalPanels:"娣団€冲娇闂堛垺婢?,
+    radar:"閼宠棄濮忛梿鐤彧",
+    wordCloud:"鐠囧秳绨?,
+    sessionList:"娴兼俺鐦介崚妤勩€?,
+    bootTitle:"OpenClaw 閸氼垰濮╂稉?,
+    statusLoading:"濮濓絽婀崝鐘烘祰閺堫剙婀撮弫鐗堝祦閳?,
+    statusFetch:"濮濓絽婀幏澶婂絿娴滄垹顏弫鐗堝祦閳?,
+    statusProcess:"濮濓絽婀径鍕倞閻㈣鍎氭稉搴″幢閻楀洠鈧?,
+    statusOnline:"瀹告彃姘ㄧ紒?,
+    statusFailed:"閸旂姾娴囨径杈Е閿涘奔濞囬悽銊р敄閺佺増宓侀妴?,
+    topTitle:"OpenClaw 閺佺増宓侀幎銉ユ啞",
+    topSub:"闁儲绁存稉濠咁攽: 濞叉槒绌?// 閺夈儲绨? OpenClaw_Nexus",
+    linkReport:"娴ｆ挻顥呴幎銉ユ啞",
+    linkStats:"PK閸︽澘娴?,
+    hudTerminal:"閺佺増宓佺紒鍫㈩伂",
+    levelMap:{S:"娴肩姾顕?OpenClaw",A:"娑撴挷绗?OpenClaw",B:"鏉╂盯妯?OpenClaw",C:"閸掓繄楠?OpenClaw",D:"OpenClaw 閺傜増澧?},
+    workRhythmMap:{"night-owl":"婢舵粎灏楃€?,morning:"閺冣晞鎹?,afternoon:"娑撳宕嶅?,evening:"婢舵粓妫垮?,unknown:"閺堫亞鐓?},
+    tokenSourceMap:{thinking:"閸╄桨绨幀婵娾偓鍐у強缁?,messages:"閸╄桨绨☉鍫熶紖娴兼壆鐣?,"sessions.json":"sessions.json",usage:"閸樼喎顫愰悽銊╁櫤",estimate:"娴兼壆鐣?},
+    partialDataHint:"缂傚搫鐨?exitCode",
+    dataSourceTitle:"閺佺増宓侀弶銉︾爱",
+    dataSourceDesc:"娴犮儰绗呴幐鍥ㄧ垼閺夈儴鍤?openclawPortrait 娑?sessions.json 閻ㄥ嫭鐪归幀姹団偓淇唎ken/缂傛挸鐡?濡€崇€?濞撶娀浜?閺冨爼妫?閹垛偓閼?瀹搞儱鍙?娑撳﹣绗呴弬?韫囧啳鐑?閻樿埖鈧礁寮?System Prompt 缂佺喕顓搁崷銊ょ瑐娴?sessions.json 閺冭泛鍤懛顏囶嚉閺傚洣娆㈤妴?,
+    dataSourcePayloadHint:"閵嗘劘顕╅弰搴涒偓鎴濈秼閸撳秴濮炴潪钘夊煂閻?OpenClaw 閸掑棙鐎芥潪鍊熷祹娑撳秴鐣弫杈剧礄閻㈣鍎?dimensions閵嗕恭omposite 娑撳簼绱扮拠婵囩湽閹?openclawSessionsSummary 婢舵矮璐熺粚鐚寸礆閿涘苯娲滃銈呫亣闁插繐宕遍悧鍥︾窗閺勫墽銇氶妴灞炬畯閺冪姵鏆熼幑顔衡偓宥嗗灗 0閳ユ柡鈧棁绻栭弰顖滃繁閺佺増宓侀惃鍕€冮悳甯礉娑撳秵妲告い鐢告桨濞撳弶鐓嬮弫鍛存閵嗗倸顦╅悶鍡樻煙瀵骏绱伴埗?閸︺劎鐝崘鍛瘜濞翠胶鈻奸柅澶嬪 OpenClaw 瀵洘鎼哥€瑰本鍨氭稉鈧▎鈥冲瀻閺嬫劧绱欐导姘晸閸?localStorage 闁?vibe_openclaw_analysis_cache閿涘苯鎯?openclawPortrait 缁涘绱氶敍娑掓喗 娣囨繆鐦夐張顒佹簚 Gateway 閼充粙鈧俺绻?/api/openclaw/latest 缁涘绻戦崶鐐扮瑐鏉╂壆绮ㄩ弸鍕畱 JSON閿涘潱pm run dev 娴兼艾顦跨捄顖氱窞閸ョ偞绨敍澶涚幢閳?閹存牕鐨㈤崥鍫ｎ潐 JSON 鐎涙ü璐?~/.openclaw/last_analysis_data.json 娓氭稑绱戦崣鎴炴箛鐠囪褰囬妴鍌涘瘻 F12 閸欘垰婀幒褍鍩楅崣鐗堢叀閻?[openclaw2] 鏉炲€熷祹鐠囧﹥鏌囬弮銉ョ箶閵?,
+    cardModalLabels:{source:"閺佺増宓侀弶銉︾爱",analysis:"閺佹澘鈧厧鍨庨弸?,calculation:"鐠侊紕鐣婚弬瑙勭《",ownerTrait:"娑撹姹夐悧鍦仯"},
     cardHelp:[
-      [{source:"openclawPortrait.dimensions.toolSkillHeat.topTools 涓?taskHabit.topSkills銆乻essions.skills 姹囨€?,analysis:"灞曠ず OpenClaw 鏈€甯歌Е鍙戠殑宸ュ叿涓庢妧鑳藉叧閿瘝锛屽弽鏄犱娇鐢ㄥ亸濂戒笌鑳藉姏渚ч噸銆?,calculation:"浠?topTools/topSkills 鍙栧墠 3 椤癸紝鎸夋潈閲嶅幓閲嶅悗鎷兼帴銆?,ownerTrait:"鍙互鐪嬪嚭浣犳槸鍋忋€屽伐鍏锋祦銆嶈繕鏄€屾妧鑳芥祦銆峅penClaw 鐢ㄦ埛锛屼互鍙婂綋鍓嶉樁娈垫渶椤烘墜鐨勮兘鍔涙爣绛俱€?},{source:"portrait.composite.level 涓?composite.score",analysis:"绛夌骇鐢?composite 鍒嗘暟鏄犲皠涓?S/A/B/C/D锛屽搴旀帓琛屾娈典綅銆?,calculation:"level 鍙栬嚜鐢诲儚锛況ank 涓?L1锝濴5锛堟寜 score鈮?0/70/80/90 鍒嗘锛夈€?,ownerTrait:"浼犺 OpenClaw(S)鍒版柊鎵?D)锛屼竴鐪肩湅鍑轰綘鍦ㄦ帓琛屾鐨勬浣嶃€?},{source:"portrait.composite.score",analysis:"缁煎悎鑳藉姏鍒嗭紝鏁村悎娑堣€椼€佹ā鍨嬨€佸伐鍏枫€佷範鎯€佸仴搴风瓑缁村害銆?,calculation:"0锝?00 鐨勬暣鏁帮紝鐢辩敾鍍?composite 鐩存帴鍙栨暣銆?,ownerTrait:"鍒嗘暟瓒婇珮璇存槑鏁翠綋 OpenClaw 鑳藉姏瓒婂潎琛°€佽秺寮恒€?},{source:"portrait.dimensions 鍚勭淮搴?score锛歝onsumptionCost銆乵odelPreference銆乼oolSkillHeat",analysis:"涓夌淮鑳藉姏鍚戦噺锛屽垎鍒〃绀虹畻鍔涙秷鑰椼€佹ā鍨嬩娇鐢ㄣ€佸伐鍏疯皟鐢ㄤ笂鐨勫緱鍒嗐€?,calculation:"鍚?dimension 鐨?score 瀛楁鍙栨暣锛屾牸寮忎负 娑堣€?妯″瀷/宸ュ叿銆?,ownerTrait:"鍙湅鍑轰綘鍦ㄣ€岀儳 Token銆嶃€岀敤妯″瀷銆嶃€岀帺宸ュ叿銆嶄笂鐨勪晶閲嶇偣銆?},{source:"portrait.dimensions.taskHabit.workRhythm",analysis:"宸ヤ綔鑺傚绫诲瀷锛氬鐚瓙銆佹棭璧枫€佷笅鍗堟。銆佸闂存。绛夈€?,calculation:"habit.workRhythm 鍘熷鍊硷紝缁?workRhythmMap 缈昏瘧涓轰腑鏂囨爣绛俱€?,ownerTrait:"鍙嶆槧 OpenClaw 鐨勬椿璺冩椂娈靛亸濂斤紝鏄鐚瓙杩樻槸鏃╄捣鍨嬨€?},{source:"portrait.dimensions.taskHabit.peakHours",analysis:"娲昏穬楂樺嘲鏃舵锛堝皬鏃讹級锛屽鐢ㄤ簬涓?workRhythm 閰嶅悎鐞嗚В銆?,calculation:"habit.peakHours 鍙栧墠 3 涓?hour 鎷兼帴銆?,ownerTrait:"鐪嬪嚭浣犱竴澶╀腑绮惧姏鏈€闆嗕腑鐨勬椂闂寸偣銆?},{source:"portrait.dimensions.taskHabit.activeHours",analysis:"缁熻鎰忎箟涓婄殑娲昏穬灏忔椂鏁般€?,calculation:"habit.activeHours 鐩存帴灞曠ず銆?,ownerTrait:"鏁板€艰秺楂樿鏄庡湪鏃堕棿缁村害涓婃姇鍏ヨ秺澶氥€?},{source:"portrait.dimensions.taskHabit.score",analysis:"涔犳儻缁村害寰楀垎锛岀患鍚堣妭濂忋€佸嘲鍊笺€佹椿璺冨害绛夈€?,calculation:"taskHabit.score 鍙栨暣銆?,ownerTrait:"涔犳儻鍒嗛珮璇存槑浣跨敤鑺傚绋冲畾銆佸彲棰勬祴銆?},{source:"portrait.dimensions.stabilityHealth.score",analysis:"鍋ュ悍/绋冲畾鎬у緱鍒嗭紝涓庢垚鍔熺巼銆佸紓甯镐腑鏂巼鐩稿叧銆?,calculation:"stabilityHealth.score 鍙栨暣銆?,ownerTrait:"鍋ュ悍鍒嗛珮璇存槑浼氳瘽绋冲畾銆佸紓甯稿皯锛孫penClaw銆屼綋璐ㄣ€嶅ソ銆?}],
-      [{source:"portrait.dimensions.consumptionCost.totalTokens 涓?sessions.token 姹囨€?,analysis:"鎬?Token 娑堣€楋紝浼樺厛鐢ㄧ敾鍍忥紝缂哄垯鐢?input+output 鎴?totalTokensSum銆?,calculation:"portraitTotalTokens>0 鍙栫敾鍍忥紱鍚﹀垯鍙?sessions 鐨?totalTokensSum 鎴?input+output 涔嬪拰銆?,ownerTrait:"鐪嬪嚭 OpenClaw銆屽悆浜嗗灏戙€嶇畻鍔涳紝鐢ㄩ噺澶ц鏄庝换鍔￠噸鎴栨ā鍨嬬敤寰楃寷銆?},{source:"sessions.token.inputTokensSum / outputTokensSum",analysis:"杈撳叆涓庤緭鍑?Token 鐨勫垎鍒眹鎬汇€?,calculation:"sessions.token 瀵瑰簲瀛楁鐩存帴姹傚拰銆?,ownerTrait:"杈撳叆澶氬亸銆岃闀挎枃/闀夸笂涓嬫枃銆嶏紝杈撳嚭澶氬亸銆岀敓鎴愬銆嶃€?},{source:"consumption.cacheHitRate 鎴?sessions 鐨?cacheRead/input 姣斾緥",analysis:"缂撳瓨鍛戒腑鐜囷紝瓒婇珮璇存槑閲嶅涓婁笅鏂囧埄鐢ㄨ秺濂姐€?,calculation:"鐢诲儚鏈?cacheHitRate 鍒欑敤锛涘惁鍒?cacheReadSum/inputTokensSum*100%銆?,ownerTrait:"鍛戒腑鐜囬珮璇存槑 OpenClaw 浼氥€岀渷鐫€鍚冦€嶏紝閲嶅鍐呭灏戦噸澶嶇畻銆?},{source:"portrait.consumptionCost.totalCostUSD 鎴?sessions.cost.totalCostUsd",analysis:"浼扮畻鎴栧疄闄呮秷鑰楃殑缇庡厓鎴愭湰銆?,calculation:"浼樺厛鐢诲儚 totalCostUSD锛屽惁鍒?sessions.cost銆?,ownerTrait:"鍙嶆槧浣犲湪 Cursor/API 涓婄殑鑺辫垂閲忕骇銆?},{source:"sessions.token.contextTokensMax 鎴栫敾鍍忕瓑浠峰瓧娈?,analysis:"涓婁笅鏂囩獥鍙ｄ娇鐢ㄤ笂闄愶紙Token 鏁帮級銆?,calculation:"token.contextTokensMax 鎴?sessions 瀵瑰簲瀛楁銆?,ownerTrait:"绐楀彛瓒婂ぇ锛孫penClaw 鑳姐€屼竴娆＄湅瀹屻€嶇殑鍐呭瓒婂銆?},{source:"sessions.cache.cacheReadSum",analysis:"缂撳瓨璇诲彇鎬婚噺銆?,calculation:"sessions.cache.cacheReadSum銆?,ownerTrait:"璇诲緱澶氳鏄庣紦瀛樺埄鐢ㄥ厖鍒嗐€?},{source:"sessions.cache.cacheWriteSum",analysis:"缂撳瓨鍐欏叆鎬婚噺銆?,calculation:"sessions.cache.cacheWriteSum銆?,ownerTrait:"鍐欏緱澶氳鏄庢湁澶ч噺鍙鐢ㄤ笂涓嬫枃琚紦瀛樸€?},{source:"sessions.token.totalTokensSum 鎴?input+output",analysis:"浼氳瘽渚?Token 鍚堣銆?,calculation:"totalTokensSum 鎴?inputTokensSum+outputTokensSum銆?,ownerTrait:"涓庣敾鍍忔€?Token 瀵圭収锛屽彲鍒ゆ柇鏁版嵁鏄惁涓€鑷淬€?},{source:"portrait.consumptionCost.tokenSource / usedEstimate",analysis:"Token 鏁版嵁鏉ユ簮锛氬師濮嬬敤閲忋€佷及绠?娑堟伅/鎬濊€?銆乻essions.json銆?,calculation:"consumption.tokenSource 鎴?usedEstimate 鎺ㄥ鐨勬爣绛俱€?,ownerTrait:"浜嗚В鏁板€兼槸瀹炴祴杩樻槸浼扮畻锛屼究浜庤В璇诲彲淇″害銆?}],
-      [{source:"portrait.dimensions.modelPreference.dominantModelId 涓?sessions.model",analysis:"浣跨敤鍗犳瘮鏈€楂樼殑妯″瀷 ID銆?,calculation:"dominantModelId 闈?unknown 鍒欑敤锛屽惁鍒?sessions.model 鎴?openclaw-default銆?,ownerTrait:"鐪嬪嚭 OpenClaw銆屼富绮€嶆槸鍝釜妯″瀷銆?},{source:"portrait.modelPreference.uniqueModelCount / totalModelCalls",analysis:"浣跨敤杩囩殑涓嶅悓妯″瀷鏁颁笌鎬昏皟鐢ㄦ鏁般€?,calculation:"uniqueModelCount 涓?totalModelCalls 鐩存帴灞曠ず銆?,ownerTrait:"妯″瀷绉嶇被澶氳鏄庝綘鍦ㄥ妯″瀷闂村垏鎹紱鎬昏皟鐢ㄥ璇存槑璇锋眰棰戠箒銆?},{source:"portrait.toolSkillHeat.topTools[0] 鎴?sessions.tools.toolNames",analysis:"璋冪敤鏈€澶氱殑宸ュ叿鍚嶃€?,calculation:"topTools[0].toolName 鎴?toolNames[0]銆?,ownerTrait:"鏈€椤烘墜宸ュ叿鍙嶆槧浣犵殑涓诲姏宸ヤ綔娴侊紙濡?search銆乧odebase锛夈€?},{source:"portrait.toolSkillHeat.toolCallsTotal 鎴?sessions.tools.sessionsWithTools",analysis:"娑夊強宸ュ叿璋冪敤鐨勪細璇濇暟鎴栨€昏皟鐢ㄦ鏁般€?,calculation:"toolCallsTotal 鎴?sessionsWithTools銆?,ownerTrait:"鏁板€奸珮璇存槑浣犲父渚濊禆宸ュ叿瀹屾垚浠诲姟銆?},{source:"sessions.model.modelProvider",analysis:"妯″瀷鎻愪緵鍟嗐€?,calculation:"sessions.model.modelProvider銆?,ownerTrait:"鐪嬪嚭 OpenClaw 鎺ョ殑鏄摢瀹躲€岀伯浠撱€嶃€?},{source:"sessions.model.model",analysis:"浼氳瘽涓褰曠殑妯″瀷 ID銆?,calculation:"sessions.model.model銆?,ownerTrait:"涓?dominant 瀵圭収鍙湅鏄惁涓€鑷淬€?},{source:"portrait.toolSkillHeat.toolKinds 鎴?toolNames.length",analysis:"浣跨敤杩囩殑宸ュ叿绉嶇被鏁般€?,calculation:"toolHeat.toolKinds 鎴?toolNames 闀垮害銆?,ownerTrait:"绉嶇被澶氳鏄庝綘銆屽伐鍏烽摼銆嶄赴瀵屻€?},{source:"topTools[0].count 鎴?sessions 宸ュ叿鐩稿叧璁℃暟",analysis:"鏈€甯哥敤宸ュ叿鐨勮皟鐢ㄦ鏁版垨浼氳瘽鍐呭伐鍏锋潯鐩暟銆?,calculation:"topTools[0].count 鎴?entriesCount銆?,ownerTrait:"鐪嬪嚭浣犲鍗曚竴宸ュ叿鐨勪緷璧栫▼搴︺€?}],
-      [{source:"portrait.dimensions.stabilityHealth.score",analysis:"鍋ュ悍缁村害寰楀垎銆?,calculation:"stabilityHealth.score 鍙栨暣銆?,ownerTrait:"鏁翠綋浼氳瘽绋冲畾鎬т笌銆屼綋璐ㄣ€嶃€?},{source:"portrait.health.successRate 鎴?sessions.status.successRate",analysis:"浼氳瘽鎴愬姛鐜囷紙鏃犲紓甯哥粨鏉熺殑姣斾緥锛夈€?,calculation:"鏈?successBase 鐢?health.successRate锛涘惁鍒?status.successRate锛涘啀鍚﹀垯 (sessions-aborted)/sessions銆?,ownerTrait:"鎴愬姛鐜囬珮璇存槑 OpenClaw 璺戜换鍔″緢灏戝崐璺穿銆?},{source:"portrait.health.abnormalInterruptionRate 鎴?status.abnormalInterruptionRate",analysis:"寮傚父涓柇鐜囥€?,calculation:"鐢诲儚鎴?status 鐨勫紓甯哥巼 * 100銆?,ownerTrait:"鐜囦綆璇存槑杩愯绋冲畾锛屽皯鏈夋剰澶栦腑鏂€?},{source:"sessions.lastActiveAt / updatedAt 鎴?heartbeat.lastHeartbeatSentAt",analysis:"鏈€杩戜竴娆℃椿璺冩椂闂淬€?,calculation:"lastActiveAt 鎴?updatedAt 鎴?lastHeartbeatSentAt銆?,ownerTrait:"鐪嬪嚭 OpenClaw 鏈€杩戞槸鍚﹁繕鍦ㄣ€屽姩銆嶃€?},{source:"sessions.sessionCount",analysis:"浼氳瘽鎬绘暟銆?,calculation:"sessions.sessionCount 鎴?legacy.work_days銆?,ownerTrait:"浼氳瘽澶氳鏄庝娇鐢ㄩ娆￠珮銆佹牱鏈冻銆?},{source:"sessions.channel.lastChannel",analysis:"鏈€杩戜娇鐢ㄧ殑娓犻亾銆?,calculation:"channel.lastChannel 鏁扮粍鎷兼帴銆?,ownerTrait:"鐪嬪嚭浣犱粠鍝釜鍏ュ彛鐢?Cursor銆?},{source:"sessions.channel.originProvider / originSurface",analysis:"璇锋眰鏉ユ簮鎻愪緵鍟嗕笌鐣岄潰銆?,calculation:"originProvider 涓?originSurface 鎷兼帴銆?,ownerTrait:"鍖哄垎 IDE銆乄eb銆丄PI 绛夋潵婧愩€?},{source:"ClawController.rpcCall('tasks.list') 鎴?HTTP GET /api/tasks锛涚紦瀛?openclawTasksSummary.scheduled_tasks_count",analysis:"褰撳墠 Gateway 涓婂凡閰嶇疆鐨勫畾鏃?鍛ㄦ湡浠诲姟鏉℃暟锛坈ron銆乮nterval銆乻chedule 绛夛級銆?,calculation:"浼樺厛鐢ㄥ搷搴斿瓧娈?scheduled_tasks_count锛涘惁鍒欏 tasks 鍒楄〃閫愰」鍒ゅ畾 schedule/cron/interval銆?,ownerTrait:"鏉℃暟澶氳鏄庤嚜鍔ㄥ寲宸ヤ綔娴佸銆佸悗鍙颁緥琛屼换鍔￠噸銆?}],
-      [{source:"sessions.channel.lastChannel",analysis:"鏈€杩戞笭閬撱€?,calculation:"channel.lastChannel 鎷兼帴銆?,ownerTrait:"鍚屽仴搴蜂富棰樻笭閬撱€?},{source:"sessions.token.contextTokensMax",analysis:"涓婁笅鏂?Token 涓婇檺銆?,calculation:"鍚屼笂銆?,ownerTrait:"鍚岀畻鍔涗富棰樸€?},{source:"sessions.injectedWorkspaceFilesCount",analysis:"娉ㄥ叆宸ヤ綔鍖虹殑鏂囦欢鏁般€?,calculation:"sessions 瀵瑰簲瀛楁銆?,ownerTrait:"鐪嬪嚭浣犵粰 AI 寮€浜嗗灏戙€屽伐浣滃尯瑙嗛噹銆嶃€?},{source:"sessions.cache.cacheReadSum / cacheWriteSum",analysis:"缂撳瓨璇?鍐欍€?,calculation:"鍚屼笂銆?,ownerTrait:"鍚岀畻鍔涗富棰樸€?},{source:"sessions.lastActiveAt / updatedAt",analysis:"鏈€杩戞椿璺冦€?,calculation:"鍚屼笂銆?,ownerTrait:"鍚屽仴搴蜂富棰樸€?},{source:"sessions.model.modelProvider",analysis:"妯″瀷鎻愪緵鍟嗐€?,calculation:"鍚屼笂銆?,ownerTrait:"鍚屾ā鍨嬩笌宸ュ叿銆?},{source:"sessions.systemPromptChars 鎴?systemPromptReport",analysis:"绯荤粺鎻愮ず璇嶅瓧绗︽暟銆?,calculation:"sessions 瀵瑰簲瀛楁銆?,ownerTrait:"绯荤粺鎻愮ず闀胯鏄庝綘瀹氬埗浜嗚緝澶氥€屼汉璁俱€嶆垨瑙勫垯銆?},{source:"tasks.list / openclawTasksSummary锛堜笌銆屽仴搴蜂笌鐘舵€併€嶅悓婧愶級",analysis:"瀹氭椂浠诲姟鏁伴噺銆?,calculation:"scheduled_tasks_count 鎴栧浠诲姟鍒楄〃瑙ｆ瀽銆?,ownerTrait:"鍚屽仴搴蜂富棰樺畾鏃朵换鍔″崱鐗囥€?},{source:"sessions.heartbeat.lastHeartbeatText",analysis:"鏈€杩戜竴娆″績璺虫枃鏈憳瑕併€?,calculation:"lastHeartbeatText 鎴柇 60 瀛椼€?,ownerTrait:"鍙瑙佸皬铏炬渶杩戝湪銆屽康鍙ㄣ€嶄粈涔堢姸鎬併€?}]
+      [{source:"openclawPortrait.dimensions.toolSkillHeat.topTools 娑?taskHabit.topSkills閵嗕够essions.skills 濮瑰洦鈧?,analysis:"鐏炴洜銇?OpenClaw 閺堚偓鐢瓕袝閸欐垹娈戝銉ュ徔娑撳孩濡ч懗钘夊彠闁款喛鐦濋敍灞藉冀閺勭姳濞囬悽銊ヤ焊婵傛垝绗岄懗钘夊娓氀囧櫢閵?,calculation:"娴?topTools/topSkills 閸欐牕澧?3 妞ょ櫢绱濋幐澶嬫綀闁插秴骞撻柌宥呮倵閹峰吋甯撮妴?,ownerTrait:"閸欘垯浜掗惇瀣毉娴ｇ姵妲搁崑蹇嬧偓灞戒紣閸忛攱绁﹂妴宥堢箷閺勵垬鈧本濡ч懗鑺ョウ閵嗗硡penClaw 閻劍鍩涢敍灞间簰閸欏﹤缍嬮崜宥夋▉濞堝灚娓舵い鐑樺閻ㄥ嫯鍏橀崝娑欑垼缁涗勘鈧?},{source:"portrait.composite.level 娑?composite.score",analysis:"缁涘楠囬悽?composite 閸掑棙鏆熼弰鐘茬殸娑?S/A/B/C/D閿涘苯顕惔鏃€甯撶悰灞绢渷濞堝吀缍呴妴?,calculation:"level 閸欐牞鍤滈悽璇插剼閿涙硜ank 娑?L1閿濇看5閿涘牊瀵?score閳?0/70/80/90 閸掑棙顔岄敍澶堚偓?,ownerTrait:"娴肩姾顕?OpenClaw(S)閸掔増鏌婇幍?D)閿涘奔绔撮惇鑲╂箙閸戣桨缍橀崷銊﹀笓鐞涘本顪侀惃鍕唽娴ｅ秲鈧?},{source:"portrait.composite.score",analysis:"缂佺厧鎮庨懗钘夊閸掑棴绱濋弫鏉戞値濞戝牐鈧ぜ鈧焦膩閸ㄥ鈧礁浼愰崗鏋偓浣风瘎閹垬鈧礁浠存惔椋庣搼缂佹潙瀹抽妴?,calculation:"0閿?00 閻ㄥ嫭鏆ｉ弫甯礉閻㈣京鏁鹃崓?composite 閻╁瓨甯撮崣鏍ㄦ殻閵?,ownerTrait:"閸掑棙鏆熺搾濠囩彯鐠囧瓨妲戦弫缈犵秼 OpenClaw 閼宠棄濮忕搾濠傛綆鐞浡扳偓浣界Ш瀵亽鈧?},{source:"portrait.dimensions 閸氬嫮娣惔?score閿涙瓭onsumptionCost閵嗕沟odelPreference閵嗕辜oolSkillHeat",analysis:"娑撳娣懗钘夊閸氭垿鍣洪敍灞藉瀻閸掝偉銆冪粈铏圭暬閸旀稒绉烽懓妞尖偓浣鼓侀崹瀣╁▏閻劊鈧礁浼愰崗鐤殶閻劋绗傞惃鍕繁閸掑棎鈧?,calculation:"閸?dimension 閻?score 鐎涙顔岄崣鏍ㄦ殻閿涘本鐗稿蹇庤礋 濞戝牐鈧?濡€崇€?瀹搞儱鍙块妴?,ownerTrait:"閸欘垳婀呴崙杞扮稑閸︺劊鈧瞼鍎?Token閵嗗秲鈧瞼鏁ゅΟ鈥崇€烽妴宥冣偓宀€甯哄銉ュ徔閵嗗秳绗傞惃鍕櫠闁插秶鍋ｉ妴?},{source:"portrait.dimensions.taskHabit.workRhythm",analysis:"瀹搞儰缍旈懞鍌氼殧缁鐎烽敍姘檨閻氼偄鐡欓妴浣规－鐠ф灚鈧椒绗呴崡鍫熴€傞妴浣割檨闂傚瓨銆傜粵澶堚偓?,calculation:"habit.workRhythm 閸樼喎顫愰崐纭风礉缂?workRhythmMap 缂堟槒鐦ф稉杞拌厬閺傚洦鐖ｇ粵淇扁偓?,ownerTrait:"閸欏秵妲?OpenClaw 閻ㄥ嫭妞跨捄鍐╂濞堥潧浜告總鏂ょ礉閺勵垰顧侀悮顐㈢摍鏉╂ɑ妲搁弮鈺勬崳閸ㄥ鈧?},{source:"portrait.dimensions.taskHabit.peakHours",analysis:"濞叉槒绌妯哄槻閺冭埖顔岄敍鍫濈毈閺冭绱氶敍灞筋樋閻劋绨稉?workRhythm 闁板秴鎮庨悶鍡毿掗妴?,calculation:"habit.peakHours 閸欐牕澧?3 娑?hour 閹峰吋甯撮妴?,ownerTrait:"閻鍤担鐘辩婢垛晙鑵戠划鎯у閺堚偓闂嗗棔鑵戦惃鍕闂傚鍋ｉ妴?},{source:"portrait.dimensions.taskHabit.activeHours",analysis:"缂佺喕顓搁幇蹇庣疅娑撳﹦娈戝ú鏄忕┈鐏忓繑妞傞弫鑸偓?,calculation:"habit.activeHours 閻╁瓨甯寸仦鏇犮仛閵?,ownerTrait:"閺佹澘鈧壈绉烘妯款嚛閺勫骸婀弮鍫曟？缂佹潙瀹虫稉濠冨閸忋儴绉烘径姘モ偓?},{source:"portrait.dimensions.taskHabit.score",analysis:"娑旂姵鍎荤紒鏉戝瀵版鍨庨敍宀€鎮ｉ崥鍫ｅΝ婵傚繈鈧礁鍢查崐绗衡偓浣规た鐠哄啫瀹崇粵澶堚偓?,calculation:"taskHabit.score 閸欐牗鏆ｉ妴?,ownerTrait:"娑旂姵鍎婚崚鍡涚彯鐠囧瓨妲戞担璺ㄦ暏閼哄倸顨旂粙鍐茬暰閵嗕礁褰叉０鍕ゴ閵?},{source:"portrait.dimensions.stabilityHealth.score",analysis:"閸嬨儱鎮?缁嬪啿鐣鹃幀褍绶遍崚鍡礉娑撳孩鍨氶崝鐔哄芳閵嗕礁绱撶敮闀愯厬閺傤厾宸奸惄绋垮彠閵?,calculation:"stabilityHealth.score 閸欐牗鏆ｉ妴?,ownerTrait:"閸嬨儱鎮嶉崚鍡涚彯鐠囧瓨妲戞导姘崇樈缁嬪啿鐣鹃妴浣哥磽鐢鐨敍瀛玴enClaw閵嗗奔缍嬬拹銊ｂ偓宥呫偨閵?}],
+      [{source:"portrait.dimensions.consumptionCost.totalTokens 娑?sessions.token 濮瑰洦鈧?,analysis:"閹?Token 濞戝牐鈧绱濇导妯哄帥閻劎鏁鹃崓蹇ョ礉缂傚搫鍨悽?input+output 閹?totalTokensSum閵?,calculation:"portraitTotalTokens>0 閸欐牜鏁鹃崓蹇ョ幢閸氾箑鍨崣?sessions 閻?totalTokensSum 閹?input+output 娑斿鎷伴妴?,ownerTrait:"閻鍤?OpenClaw閵嗗苯鎮嗘禍鍡楊樋鐏忔垯鈧秶鐣婚崝娑崇礉閻劑鍣烘径褑顕╅弰搴濇崲閸旓繝鍣搁幋鏍侀崹瀣暏瀵版瀵烽妴?},{source:"sessions.token.inputTokensSum / outputTokensSum",analysis:"鏉堟挸鍙嗘稉搴ょ翻閸?Token 閻ㄥ嫬鍨庨崚顐ｇ湽閹眹鈧?,calculation:"sessions.token 鐎电懓绨茬€涙顔岄惄瀛樺复濮瑰倸鎷伴妴?,ownerTrait:"鏉堟挸鍙嗘径姘焊閵嗗矁顕伴梹鎸庢瀮/闂€澶哥瑐娑撳鏋冮妴宥忕礉鏉堟挸鍤径姘焊閵嗗瞼鏁撻幋鎰樋閵嗗秲鈧?},{source:"consumption.cacheHitRate 閹?sessions 閻?cacheRead/input 濮ｆ柧绶?,analysis:"缂傛挸鐡ㄩ崨鎴掕厬閻滃浄绱濈搾濠囩彯鐠囧瓨妲戦柌宥咁槻娑撳﹣绗呴弬鍥у焺閻劏绉烘總濮愨偓?,calculation:"閻㈣鍎氶張?cacheHitRate 閸掓瑧鏁ら敍娑樻儊閸?cacheReadSum/inputTokensSum*100%閵?,ownerTrait:"閸涙垝鑵戦悳鍥彯鐠囧瓨妲?OpenClaw 娴兼哎鈧瞼娓烽惈鈧崥鍐︹偓宥忕礉闁插秴顦查崘鍛啇鐏忔垿鍣告径宥囩暬閵?},{source:"portrait.consumptionCost.totalCostUSD 閹?sessions.cost.totalCostUsd",analysis:"娴兼壆鐣婚幋鏍х杽闂勫懏绉烽懓妤冩畱缂囧骸鍘撻幋鎰拱閵?,calculation:"娴兼ê鍘涢悽璇插剼 totalCostUSD閿涘苯鎯侀崚?sessions.cost閵?,ownerTrait:"閸欏秵妲ф担鐘叉躬 Cursor/API 娑撳﹦娈戦懞杈瀭闁插繒楠囬妴?},{source:"sessions.token.contextTokensMax 閹存牜鏁鹃崓蹇曠搼娴犲嘲鐡у▓?,analysis:"娑撳﹣绗呴弬鍥╃崶閸欙絼濞囬悽銊ょ瑐闂勬劧绱橳oken 閺佸府绱氶妴?,calculation:"token.contextTokensMax 閹?sessions 鐎电懓绨茬€涙顔岄妴?,ownerTrait:"缁愭褰涚搾濠傘亣閿涘penClaw 閼冲鈧奔绔村▎锛勬箙鐎瑰被鈧秶娈戦崘鍛啇鐡掑﹤顦块妴?},{source:"sessions.cache.cacheReadSum",analysis:"缂傛挸鐡ㄧ拠璇插絿閹鍣洪妴?,calculation:"sessions.cache.cacheReadSum閵?,ownerTrait:"鐠囪绶辨径姘愁嚛閺勫海绱︾€涙ê鍩勯悽銊ュ帠閸掑棎鈧?},{source:"sessions.cache.cacheWriteSum",analysis:"缂傛挸鐡ㄩ崘娆忓弳閹鍣洪妴?,calculation:"sessions.cache.cacheWriteSum閵?,ownerTrait:"閸愭瑥绶辨径姘愁嚛閺勫孩婀佹径褔鍣洪崣顖氼槻閻劋绗傛稉瀣瀮鐞氼偆绱︾€涙ǜ鈧?},{source:"sessions.token.totalTokensSum 閹?input+output",analysis:"娴兼俺鐦芥笟?Token 閸氬牐顓搁妴?,calculation:"totalTokensSum 閹?inputTokensSum+outputTokensSum閵?,ownerTrait:"娑撳海鏁鹃崓蹇斺偓?Token 鐎靛湱鍙庨敍灞藉讲閸掋倖鏌囬弫鐗堝祦閺勵垰鎯佹稉鈧懛娣偓?},{source:"portrait.consumptionCost.tokenSource / usedEstimate",analysis:"Token 閺佺増宓侀弶銉︾爱閿涙艾甯慨瀣暏闁插繈鈧椒鍙婄粻?濞戝牊浼?閹繆鈧?閵嗕够essions.json閵?,calculation:"consumption.tokenSource 閹?usedEstimate 閹恒劌顕遍惃鍕垼缁涗勘鈧?,ownerTrait:"娴滃棜袙閺佹澘鈧吋妲哥€圭偞绁存潻妯绘Ц娴兼壆鐣婚敍灞肩┒娴滃氦袙鐠囪褰叉穱鈥冲閵?}],
+      [{source:"portrait.dimensions.modelPreference.dominantModelId 娑?sessions.model",analysis:"娴ｈ法鏁ら崡鐘崇槷閺堚偓妤傛娈戝Ο鈥崇€?ID閵?,calculation:"dominantModelId 闂?unknown 閸掓瑧鏁ら敍灞芥儊閸?sessions.model 閹?openclaw-default閵?,ownerTrait:"閻鍤?OpenClaw閵嗗奔瀵岀划顔衡偓宥嗘Ц閸濐亙閲滃Ο鈥崇€烽妴?},{source:"portrait.modelPreference.uniqueModelCount / totalModelCalls",analysis:"娴ｈ法鏁ゆ潻鍥╂畱娑撳秴鎮撳Ο鈥崇€烽弫棰佺瑢閹槒鐨熼悽銊︻偧閺佽埇鈧?,calculation:"uniqueModelCount 娑?totalModelCalls 閻╁瓨甯寸仦鏇犮仛閵?,ownerTrait:"濡€崇€风粔宥囪婢舵俺顕╅弰搴濈稑閸︺劌顦垮Ο鈥崇€烽梻鏉戝瀼閹诡澁绱遍幀鏄忕殶閻劌顦跨拠瀛樻鐠囬攱鐪版０鎴犵畳閵?},{source:"portrait.toolSkillHeat.topTools[0] 閹?sessions.tools.toolNames",analysis:"鐠嬪啰鏁ら張鈧径姘辨畱瀹搞儱鍙块崥宥冣偓?,calculation:"topTools[0].toolName 閹?toolNames[0]閵?,ownerTrait:"閺堚偓妞ょ儤澧滃銉ュ徔閸欏秵妲ф担鐘垫畱娑撹濮忓銉ょ稊濞翠緤绱欐俊?search閵嗕恭odebase閿涘鈧?},{source:"portrait.toolSkillHeat.toolCallsTotal 閹?sessions.tools.sessionsWithTools",analysis:"濞戝寮峰銉ュ徔鐠嬪啰鏁ら惃鍕窗鐠囨繃鏆熼幋鏍ㄢ偓鏄忕殶閻劍顐奸弫鑸偓?,calculation:"toolCallsTotal 閹?sessionsWithTools閵?,ownerTrait:"閺佹澘鈧ジ鐝拠瀛樻娴ｇ姴鐖舵笟婵婄瀹搞儱鍙跨€瑰本鍨氭禒璇插閵?},{source:"sessions.model.modelProvider",analysis:"濡€崇€烽幓鎰返閸熷棎鈧?,calculation:"sessions.model.modelProvider閵?,ownerTrait:"閻鍤?OpenClaw 閹恒儳娈戦弰顖氭憿鐎硅翰鈧瞼浼禒鎾扁偓宥冣偓?},{source:"sessions.model.model",analysis:"娴兼俺鐦芥稉顓☆唶瑜版洜娈戝Ο鈥崇€?ID閵?,calculation:"sessions.model.model閵?,ownerTrait:"娑?dominant 鐎靛湱鍙庨崣顖滄箙閺勵垰鎯佹稉鈧懛娣偓?},{source:"portrait.toolSkillHeat.toolKinds 閹?toolNames.length",analysis:"娴ｈ法鏁ゆ潻鍥╂畱瀹搞儱鍙跨粔宥囪閺佽埇鈧?,calculation:"toolHeat.toolKinds 閹?toolNames 闂€鍨閵?,ownerTrait:"缁夊秶琚径姘愁嚛閺勫簼缍橀妴灞戒紣閸忕兘鎽奸妴宥勮荡鐎靛被鈧?},{source:"topTools[0].count 閹?sessions 瀹搞儱鍙块惄绋垮彠鐠佲剝鏆?,analysis:"閺堚偓鐢摜鏁ゅ銉ュ徔閻ㄥ嫯鐨熼悽銊︻偧閺佺増鍨ㄦ导姘崇樈閸愬懎浼愰崗閿嬫蒋閻╊喗鏆熼妴?,calculation:"topTools[0].count 閹?entriesCount閵?,ownerTrait:"閻鍤担鐘差嚠閸楁洑绔村銉ュ徔閻ㄥ嫪绶风挧鏍柤鎼达负鈧?}],
+      [{source:"portrait.dimensions.stabilityHealth.score",analysis:"閸嬨儱鎮嶇紒鏉戝瀵版鍨庨妴?,calculation:"stabilityHealth.score 閸欐牗鏆ｉ妴?,ownerTrait:"閺佺繝缍嬫导姘崇樈缁嬪啿鐣鹃幀褌绗岄妴灞肩秼鐠愩劊鈧秲鈧?},{source:"portrait.health.successRate 閹?sessions.status.successRate",analysis:"娴兼俺鐦介幋鎰閻滃浄绱欓弮鐘茬磽鐢摜绮ㄩ弶鐔烘畱濮ｆ柧绶ラ敍澶堚偓?,calculation:"閺?successBase 閻?health.successRate閿涙稑鎯侀崚?status.successRate閿涙稑鍟€閸氾箑鍨?(sessions-aborted)/sessions閵?,ownerTrait:"閹存劕濮涢悳鍥彯鐠囧瓨妲?OpenClaw 鐠烘垳鎹㈤崝鈥崇发鐏忔垵宕愮捄顖氱┛閵?},{source:"portrait.health.abnormalInterruptionRate 閹?status.abnormalInterruptionRate",analysis:"瀵倸鐖舵稉顓熸焽閻滃洢鈧?,calculation:"閻㈣鍎氶幋?status 閻ㄥ嫬绱撶敮鍝ュ芳 * 100閵?,ownerTrait:"閻滃洣缍嗙拠瀛樻鏉╂劘顢戠粙鍐茬暰閿涘苯鐨張澶嬪壈婢舵牔鑵戦弬顓溾偓?},{source:"sessions.lastActiveAt / updatedAt 閹?heartbeat.lastHeartbeatSentAt",analysis:"閺堚偓鏉╂垳绔村▎鈩冩た鐠哄啯妞傞梻娣偓?,calculation:"lastActiveAt 閹?updatedAt 閹?lastHeartbeatSentAt閵?,ownerTrait:"閻鍤?OpenClaw 閺堚偓鏉╂垶妲搁崥锕佺箷閸︺劊鈧苯濮╅妴宥冣偓?},{source:"sessions.sessionCount",analysis:"娴兼俺鐦介幀缁樻殶閵?,calculation:"sessions.sessionCount 閹?legacy.work_days閵?,ownerTrait:"娴兼俺鐦芥径姘愁嚛閺勫簼濞囬悽銊╊暥濞嗭繝鐝妴浣圭壉閺堫剝鍐婚妴?},{source:"sessions.channel.lastChannel",analysis:"閺堚偓鏉╂垳濞囬悽銊ф畱濞撶娀浜鹃妴?,calculation:"channel.lastChannel 閺佹壆绮嶉幏鍏煎复閵?,ownerTrait:"閻鍤担鐘辩矤閸濐亙閲滈崗銉ュ經閻?Cursor閵?},{source:"sessions.channel.originProvider / originSurface",analysis:"鐠囬攱鐪伴弶銉︾爱閹绘劒绶甸崯鍡曠瑢閻ｅ矂娼伴妴?,calculation:"originProvider 娑?originSurface 閹峰吋甯撮妴?,ownerTrait:"閸栧搫鍨?IDE閵嗕箘eb閵嗕竸PI 缁涘娼靛┃鎰┾偓?},{source:"ClawController.rpcCall('tasks.list') 閹?HTTP GET /api/tasks閿涙稓绱︾€?openclawTasksSummary.scheduled_tasks_count",analysis:"瑜版挸澧?Gateway 娑撳﹤鍑￠柊宥囩枂閻ㄥ嫬鐣鹃弮?閸涖劍婀℃禒璇插閺夆剝鏆熼敍鍧坮on閵嗕巩nterval閵嗕够chedule 缁涘绱氶妴?,calculation:"娴兼ê鍘涢悽銊ユ惙鎼存柨鐡у▓?scheduled_tasks_count閿涙稑鎯侀崚娆忣嚠 tasks 閸掓銆冮柅鎰般€嶉崚銈呯暰 schedule/cron/interval閵?,ownerTrait:"閺夆剝鏆熸径姘愁嚛閺勫氦鍤滈崝銊ュ瀹搞儰缍斿ù浣割樋閵嗕礁鎮楅崣棰佺伐鐞涘奔鎹㈤崝锟犲櫢閵?}],
+      [{source:"sessions.channel.lastChannel",analysis:"閺堚偓鏉╂垶绗柆鎾扁偓?,calculation:"channel.lastChannel 閹峰吋甯撮妴?,ownerTrait:"閸氬苯浠存惔铚傚瘜妫版ɑ绗柆鎾扁偓?},{source:"sessions.token.contextTokensMax",analysis:"娑撳﹣绗呴弬?Token 娑撳﹪妾洪妴?,calculation:"閸氬奔绗傞妴?,ownerTrait:"閸氬瞼鐣婚崝娑楀瘜妫版ǜ鈧?},{source:"sessions.injectedWorkspaceFilesCount",analysis:"濞夈劌鍙嗗銉ょ稊閸栬櫣娈戦弬鍥︽閺佽埇鈧?,calculation:"sessions 鐎电懓绨茬€涙顔岄妴?,ownerTrait:"閻鍤担鐘电舶 AI 瀵偓娴滃棗顦跨亸鎴欌偓灞戒紣娴ｆ粌灏憴鍡涘櫣閵嗗秲鈧?},{source:"sessions.cache.cacheReadSum / cacheWriteSum",analysis:"缂傛挸鐡ㄧ拠?閸愭瑣鈧?,calculation:"閸氬奔绗傞妴?,ownerTrait:"閸氬瞼鐣婚崝娑楀瘜妫版ǜ鈧?},{source:"sessions.lastActiveAt / updatedAt",analysis:"閺堚偓鏉╂垶妞跨捄鍐︹偓?,calculation:"閸氬奔绗傞妴?,ownerTrait:"閸氬苯浠存惔铚傚瘜妫版ǜ鈧?},{source:"sessions.model.modelProvider",analysis:"濡€崇€烽幓鎰返閸熷棎鈧?,calculation:"閸氬奔绗傞妴?,ownerTrait:"閸氬本膩閸ㄥ绗屽銉ュ徔閵?},{source:"sessions.systemPromptChars 閹?systemPromptReport",analysis:"缁崵绮洪幓鎰仛鐠囧秴鐡х粭锔芥殶閵?,calculation:"sessions 鐎电懓绨茬€涙顔岄妴?,ownerTrait:"缁崵绮洪幓鎰仛闂€鑳嚛閺勫簼缍樼€规艾鍩楁禍鍡氱窛婢舵哎鈧奔姹夌拋淇扁偓宥嗗灗鐟欏嫬鍨妴?},{source:"tasks.list / openclawTasksSummary閿涘牅绗岄妴灞戒淮鎼磋渹绗岄悩鑸碘偓浣碘偓宥呮倱濠ф劧绱?,analysis:"鐎规碍妞傛禒璇插閺佷即鍣洪妴?,calculation:"scheduled_tasks_count 閹存牕顕禒璇插閸掓銆冪憴锝嗙€介妴?,ownerTrait:"閸氬苯浠存惔铚傚瘜妫版ê鐣鹃弮鏈垫崲閸斺€冲幢閻楀洢鈧?},{source:"sessions.heartbeat.lastHeartbeatText",analysis:"閺堚偓鏉╂垳绔村▎鈥崇妇鐠鸿櫕鏋冮張顒佹喅鐟曚降鈧?,calculation:"lastHeartbeatText 閹搭亝鏌?60 鐎涙ぜ鈧?,ownerTrait:"閸欘垳顎勭憴浣哥毈閾忕偓娓舵潻鎴濇躬閵嗗苯搴烽崣銊ｂ偓宥勭矆娑斿牏濮搁幀浣碘偓?}]
     ],
-    radarLabels:["娑堣€?,"妯″瀷","宸ュ叿","涔犳儻","鍋ュ悍","缁煎悎"],
-    rowLabels:["浼氳瘽鏁?,"杈撳叆Token","杈撳嚭Token","Token鎬婚噺","缂撳瓨璇?鍐?,"妯″瀷鎻愪緵鍟?,"妯″瀷","鏈€杩戞笭閬?,"鏉ユ簮","鏈€杩戞椿璺?,"涓婁笅鏂囦笂闄?,"宸ュ叿绉嶇被鏁?,"浣跨敤宸ュ叿浼氳瘽鏁?,"宸ュ叿鍚?,"蹇冭烦鏃堕棿","蹇冭烦鍐呭","瀹氭椂浠诲姟鏁伴噺","systemSent","compactionCount","绯荤粺鎻愮ず瀛楁暟","娉ㄥ叆宸ヤ綔鍖烘枃浠?,"鎶€鑳?],
-    themeNames:["鏍稿績淇″彿","绠楀姏娑堣€?,"妯″瀷涓庡伐鍏?,"鍋ュ悍涓庣姸鎬?,"浼氳瘽鏍稿績","瀹炴椂鍚庡彴","鏌ョ湅璇︽儏"],
-    gatewaySwitchLabel:"棰勮绔彛",
+    radarLabels:["濞戝牐鈧?,"濡€崇€?,"瀹搞儱鍙?,"娑旂姵鍎?,"閸嬨儱鎮?,"缂佺厧鎮?],
+    rowLabels:["娴兼俺鐦介弫?,"鏉堟挸鍙員oken","鏉堟挸鍤璗oken","Token閹鍣?,"缂傛挸鐡ㄧ拠?閸?,"濡€崇€烽幓鎰返閸?,"濡€崇€?,"閺堚偓鏉╂垶绗柆?,"閺夈儲绨?,"閺堚偓鏉╂垶妞跨捄?,"娑撳﹣绗呴弬鍥︾瑐闂?,"瀹搞儱鍙跨粔宥囪閺?,"娴ｈ法鏁ゅ銉ュ徔娴兼俺鐦介弫?,"瀹搞儱鍙块崥?,"韫囧啳鐑﹂弮鍫曟？","韫囧啳鐑﹂崘鍛啇","鐎规碍妞傛禒璇插閺佷即鍣?,"systemSent","compactionCount","缁崵绮洪幓鎰仛鐎涙鏆?,"濞夈劌鍙嗗銉ょ稊閸栫儤鏋冩禒?,"閹垛偓閼?],
+    themeNames:["閺嶇绺炬穱鈥冲娇","缁犳濮忓☉鍫ｂ偓?,"濡€崇€锋稉搴′紣閸?,"閸嬨儱鎮嶆稉搴ｅЦ閹?,"娴兼俺鐦介弽绋跨妇","鐎圭偞妞傞崥搴″酱","閺屻儳婀呯拠锔藉剰"],
+    gatewaySwitchLabel:"妫板嫯顔曠粩顖氬經",
     gatewayOptDefault:"18789",
     gatewayOptQclaw:"18790",
-    gatewayOptCustom:"鑷畾涔?,
-    gatewayApply:"搴旂敤骞堕噸杩?,
-    gatewayProbe:"鎵弿鍦ㄧ嚎绔彛锛堟帰娴嬪垪琛ㄥ唴澶氬疄渚嬶級",
-    gatewayProbeShort:"鎵弿",
-    gatewayApplyShort:"搴旂敤",
-    gatewayPortPlaceholder:"绔彛",
-    gatewayDiscoveredLabel:"妫€娴嬪埌鐨勫疄渚?,
-    gatewayDiscoveredPlaceholder:"鎵弿鍚庨€夋嫨瀹炰緥鈥?,
-    gatewayInlineTitle:"缃戝叧",
+    gatewayOptCustom:"閼奉亜鐣炬稊?,
+    gatewayApply:"鎼存梻鏁ら獮鍫曞櫢鏉?,
+    gatewayProbe:"閹殿偅寮块崷銊у殠缁旑垰褰涢敍鍫熷赴濞村鍨悰銊ュ敶婢舵艾鐤勬笟瀣剁礆",
+    gatewayProbeShort:"閹殿偅寮?,
+    gatewayApplyShort:"鎼存梻鏁?,
+    gatewayPortPlaceholder:"缁旑垰褰?,
+    gatewayDiscoveredLabel:"濡偓濞村鍩岄惃鍕杽娓?,
+    gatewayDiscoveredPlaceholder:"閹殿偅寮块崥搴ㄢ偓澶嬪鐎圭偘绶ラ垾?,
+    gatewayInlineTitle:"缂冩垵鍙?,
     themes:[
-      [{t:"OpenClaw 鏈€鐖辩敤鐨勫叧閿瘝",d:"宸ュ叿涓庢妧鑳芥縺娲讳俊鍙?},{t:"绛夌骇璇勫畾",d:null},{t:"缁煎悎鑳藉姏鍊?,d:"缁煎悎寰楀垎"},{t:"鑳藉姏鍚戦噺",d:"娑堣€?妯″瀷/宸ュ叿"},{t:"宸ヤ綔鑺傚",d:null},{t:"宄板€兼椂娈?,d:null},{t:"娲昏穬鏃堕暱",d:null},{t:"涔犳儻鍒?,d:"taskHabit.score"},{t:"鍋ュ悍鍒?,d:"stabilityHealth.score"}],
-      [{t:"OpenClaw Token 鎬婚噺",d:"鐢诲儚+浼氳瘽姹囨€?},{t:"杈撳叆/杈撳嚭",d:null},{t:"缂撳瓨鍛戒腑鐜?,d:null},{t:"鑺辫垂(缇庡厓)",d:"consumption.totalCostUSD"},{t:"涓婁笅鏂囩獥鍙?,d:"token.contextTokensMax"},{t:"缂撳瓨璇诲彇",d:"cacheReadSum"},{t:"缂撳瓨鍐欏叆",d:"cacheWriteSum"},{t:"Token鍚堣",d:"totalTokensSum"},{t:"鏁版嵁鏉ユ簮",d:null}],
-      [{t:"OpenClaw 鏈€甯哥敤鐨勬ā鍨?,d:null},{t:"妯″瀷鍒嗗竷",d:"涓嶅悓妯″瀷/鎬昏皟鐢?},{t:"鏈€椤烘墜宸ュ叿",d:null},{t:"宸ュ叿璋冪敤",d:null},{t:"妯″瀷鎻愪緵鍟?,d:null},{t:"妯″瀷ID",d:"model id"},{t:"宸ュ叿绉嶇被鏁?,d:null},{t:"宸ュ叿璋冪敤娆℃暟",d:null}],
-      [{t:"鍋ュ悍鍒?,d:"stabilityHealth.score"},{t:"鎴愬姛鐜?,d:"鍋ュ悍/鐘舵€佹垚鍔熺巼"},{t:"寮傚父涓柇鐜?,d:null},{t:"鏈€杩戞椿璺?,d:"sessions.updatedAt / heartbeat"},{t:"宸ヤ綔閲?,d:null},{t:"娓犻亾",d:null},{t:"鏉ユ簮",d:null},{t:"瀹氭椂浠诲姟鏁伴噺",d:"tasks.list + HEARTBEAT.md锛屾潯鏁颁笌鎽樿"}],
-      [{t:"娓犻亾",d:null},{t:"涓婁笅鏂嘥oken",d:"token.contextTokensMax"},{t:"娉ㄥ叆宸ヤ綔鍖烘枃浠?,d:null},{t:"缂撳瓨璇?鍐?,d:"sessions.cache"},{t:"鏈€杩戞椿璺?,d:"sessions.updatedAt"},{t:"妯″瀷鎻愪緵鍟?,d:null},{t:"绯荤粺鎻愮ず瀛楁暟",d:null},{t:"瀹氭椂浠诲姟",d:"scheduled_tasks_count"},{t:"蹇冭烦鎽樿",d:null}]
+      [{t:"OpenClaw 閺堚偓閻栬京鏁ら惃鍕彠闁款喛鐦?,d:"瀹搞儱鍙挎稉搴㈠Η閼宠姤绺哄ú璁充繆閸?},{t:"缁涘楠囩拠鍕暰",d:null},{t:"缂佺厧鎮庨懗钘夊閸?,d:"缂佺厧鎮庡妤€鍨?},{t:"閼宠棄濮忛崥鎴﹀櫤",d:"濞戝牐鈧?濡€崇€?瀹搞儱鍙?},{t:"瀹搞儰缍旈懞鍌氼殧",d:null},{t:"瀹勬澘鈧吋妞傚▓?,d:null},{t:"濞叉槒绌弮鍫曟毐",d:null},{t:"娑旂姵鍎婚崚?,d:"taskHabit.score"},{t:"閸嬨儱鎮嶉崚?,d:"stabilityHealth.score"}],
+      [{t:"OpenClaw Token 閹鍣?,d:"閻㈣鍎?娴兼俺鐦藉Ч鍥ㄢ偓?},{t:"鏉堟挸鍙?鏉堟挸鍤?,d:null},{t:"缂傛挸鐡ㄩ崨鎴掕厬閻?,d:null},{t:"閼鸿精鍨?缂囧骸鍘?",d:"consumption.totalCostUSD"},{t:"娑撳﹣绗呴弬鍥╃崶閸?,d:"token.contextTokensMax"},{t:"缂傛挸鐡ㄧ拠璇插絿",d:"cacheReadSum"},{t:"缂傛挸鐡ㄩ崘娆忓弳",d:"cacheWriteSum"},{t:"Token閸氬牐顓?,d:"totalTokensSum"},{t:"閺佺増宓侀弶銉︾爱",d:null}],
+      [{t:"OpenClaw 閺堚偓鐢摜鏁ら惃鍕侀崹?,d:null},{t:"濡€崇€烽崚鍡楃",d:"娑撳秴鎮撳Ο鈥崇€?閹槒鐨熼悽?},{t:"閺堚偓妞ょ儤澧滃銉ュ徔",d:null},{t:"瀹搞儱鍙跨拫鍐暏",d:null},{t:"濡€崇€烽幓鎰返閸?,d:null},{t:"濡€崇€稩D",d:"model id"},{t:"瀹搞儱鍙跨粔宥囪閺?,d:null},{t:"瀹搞儱鍙跨拫鍐暏濞嗏剝鏆?,d:null}],
+      [{t:"閸嬨儱鎮嶉崚?,d:"stabilityHealth.score"},{t:"閹存劕濮涢悳?,d:"閸嬨儱鎮?閻樿埖鈧焦鍨氶崝鐔哄芳"},{t:"瀵倸鐖舵稉顓熸焽閻?,d:null},{t:"閺堚偓鏉╂垶妞跨捄?,d:"sessions.updatedAt / heartbeat"},{t:"瀹搞儰缍旈柌?,d:null},{t:"濞撶娀浜?,d:null},{t:"閺夈儲绨?,d:null},{t:"鐎规碍妞傛禒璇插閺佷即鍣?,d:"tasks.list + HEARTBEAT.md閿涘本娼弫棰佺瑢閹芥顩?}],
+      [{t:"濞撶娀浜?,d:null},{t:"娑撳﹣绗呴弬鍢ken",d:"token.contextTokensMax"},{t:"濞夈劌鍙嗗銉ょ稊閸栫儤鏋冩禒?,d:null},{t:"缂傛挸鐡ㄧ拠?閸?,d:"sessions.cache"},{t:"閺堚偓鏉╂垶妞跨捄?,d:"sessions.updatedAt"},{t:"濡€崇€烽幓鎰返閸?,d:null},{t:"缁崵绮洪幓鎰仛鐎涙鏆?,d:null},{t:"鐎规碍妞傛禒璇插",d:"scheduled_tasks_count"},{t:"韫囧啳鐑﹂幗妯款洣",d:null}]
     ]
   },
   en:{
@@ -1035,10 +1035,10 @@ const i18n={
     partialDataHint:"Partial data",
     dataSourceTitle:"Data source",
     dataSourceDesc:"Metrics below are from openclawPortrait and sessions.json. Token/cache/model/channel/time/skills/tools/context/heartbeat/status and system prompt stats come from sessions.json when uploaded.",
-    dataSourcePayloadHint:"Note: The payload is incomplete (missing rich openclawPortrait / openclawSessionsSummary), so many cards show 鈥淣o data鈥?or zero 鈥?expected, not a rendering bug. Fix: run OpenClaw analysis from the main app (writes localStorage key vibe_openclaw_analysis_cache), or expose JSON from Gateway (/api/openclaw/latest, etc.), or place data in ~/.openclaw/last_analysis_data.json. Check the console for [openclaw2] diagnostics.",
+    dataSourcePayloadHint:"Note: The payload is incomplete (missing rich openclawPortrait / openclawSessionsSummary), so many cards show 閳ユ罚o data閳?or zero 閳?expected, not a rendering bug. Fix: run OpenClaw analysis from the main app (writes localStorage key vibe_openclaw_analysis_cache), or expose JSON from Gateway (/api/openclaw/latest, etc.), or place data in ~/.openclaw/last_analysis_data.json. Check the console for [openclaw2] diagnostics.",
     cardModalLabels:{source:"Data source",analysis:"Value analysis",calculation:"How it's calculated",ownerTrait:"What it says about you"},
     cardHelp:[
-      [{source:"openclawPortrait.dimensions.toolSkillHeat.topTools, taskHabit.topSkills, sessions.skills",analysis:"Top 3 tools/skills by usage; reflects your preference and focus.",calculation:"Merge topTools/topSkills, dedupe by weight, join top 3.",ownerTrait:"Shows whether you're tool-heavy or skill-heavy, and your main capability tags."},{source:"portrait.composite.level and composite.score",analysis:"Level S/A/B/C/D maps to rank tier.",calculation:"level from portrait; rank L1鈥揕5 by score thresholds 60/70/80/90.",ownerTrait:"From Legendary Shrimper to Shrimp Newbie at a glance."},{source:"portrait.composite.score",analysis:"Composite ability score across consumption, model, tool, habit, health.",calculation:"Integer 0鈥?00 from portrait.composite.",ownerTrait:"Higher = more balanced, stronger overall usage."},{source:"portrait.dimensions scores: consumptionCost, modelPreference, toolSkillHeat",analysis:"Three scores: consumption / model / tool.",calculation:"Each dimension score rounded; format cons/model/tool.",ownerTrait:"Shows where you burn tokens, use models, and call tools most."},{source:"portrait.dimensions.taskHabit.workRhythm",analysis:"Work rhythm type: night-owl, morning, afternoon, evening.",calculation:"habit.workRhythm mapped via workRhythmMap.",ownerTrait:"Reveals when you're most active."},{source:"portrait.dimensions.taskHabit.peakHours",analysis:"Peak activity hours.",calculation:"First 3 hour values from habit.peakHours.",ownerTrait:"When your 'shrimp power' peaks."},{source:"portrait.dimensions.taskHabit.activeHours",analysis:"Active hours count.",calculation:"habit.activeHours.",ownerTrait:"Higher = more time invested."},{source:"portrait.dimensions.taskHabit.score",analysis:"Habit dimension score.",calculation:"taskHabit.score rounded.",ownerTrait:"Stable, predictable rhythm."},{source:"portrait.dimensions.stabilityHealth.score",analysis:"Health/stability score.",calculation:"stabilityHealth.score rounded.",ownerTrait:"Higher = fewer crashes, healthier sessions."}],
+      [{source:"openclawPortrait.dimensions.toolSkillHeat.topTools, taskHabit.topSkills, sessions.skills",analysis:"Top 3 tools/skills by usage; reflects your preference and focus.",calculation:"Merge topTools/topSkills, dedupe by weight, join top 3.",ownerTrait:"Shows whether you're tool-heavy or skill-heavy, and your main capability tags."},{source:"portrait.composite.level and composite.score",analysis:"Level S/A/B/C/D maps to rank tier.",calculation:"level from portrait; rank L1閳ユ彆5 by score thresholds 60/70/80/90.",ownerTrait:"From Legendary Shrimper to Shrimp Newbie at a glance."},{source:"portrait.composite.score",analysis:"Composite ability score across consumption, model, tool, habit, health.",calculation:"Integer 0閳?00 from portrait.composite.",ownerTrait:"Higher = more balanced, stronger overall usage."},{source:"portrait.dimensions scores: consumptionCost, modelPreference, toolSkillHeat",analysis:"Three scores: consumption / model / tool.",calculation:"Each dimension score rounded; format cons/model/tool.",ownerTrait:"Shows where you burn tokens, use models, and call tools most."},{source:"portrait.dimensions.taskHabit.workRhythm",analysis:"Work rhythm type: night-owl, morning, afternoon, evening.",calculation:"habit.workRhythm mapped via workRhythmMap.",ownerTrait:"Reveals when you're most active."},{source:"portrait.dimensions.taskHabit.peakHours",analysis:"Peak activity hours.",calculation:"First 3 hour values from habit.peakHours.",ownerTrait:"When your 'shrimp power' peaks."},{source:"portrait.dimensions.taskHabit.activeHours",analysis:"Active hours count.",calculation:"habit.activeHours.",ownerTrait:"Higher = more time invested."},{source:"portrait.dimensions.taskHabit.score",analysis:"Habit dimension score.",calculation:"taskHabit.score rounded.",ownerTrait:"Stable, predictable rhythm."},{source:"portrait.dimensions.stabilityHealth.score",analysis:"Health/stability score.",calculation:"stabilityHealth.score rounded.",ownerTrait:"Higher = fewer crashes, healthier sessions."}],
       [{source:"portrait.consumptionCost.totalTokens and sessions.token",analysis:"Total tokens; portrait preferred, else sessions sum.",calculation:"portrait totalTokens if >0 else totalTokensSum or input+output.",ownerTrait:"How much 'food' your shrimp consumed."},{source:"sessions.token.inputTokensSum / outputTokensSum",analysis:"Input vs output token sums.",calculation:"From sessions.token.",ownerTrait:"Input-heavy = long context; output-heavy = lots of generation."},{source:"consumption.cacheHitRate or cacheRead/input ratio",analysis:"Cache hit rate.",calculation:"Portrait cacheHitRate or (cacheReadSum/inputTokensSum)*100%.",ownerTrait:"Higher = better reuse of context."},{source:"portrait.consumptionCost.totalCostUSD or sessions.cost",analysis:"Estimated or actual USD cost.",calculation:"Portrait or sessions.cost.totalCostUsd.",ownerTrait:"Spend level on Cursor/API."},{source:"sessions.token.contextTokensMax",analysis:"Context window cap (tokens).",calculation:"token.contextTokensMax.",ownerTrait:"Larger = more context per request."},{source:"sessions.cache.cacheReadSum",analysis:"Cache read total.",calculation:"sessions.cache.cacheReadSum.",ownerTrait:"More reads = good cache use."},{source:"sessions.cache.cacheWriteSum",analysis:"Cache write total.",calculation:"sessions.cache.cacheWriteSum.",ownerTrait:"More writes = more cached context."},{source:"sessions.token.totalTokensSum or input+output",analysis:"Session-side token sum.",calculation:"totalTokensSum or sum of input+output.",ownerTrait:"Cross-check with portrait total."},{source:"portrait.consumptionCost.tokenSource / usedEstimate",analysis:"Token source: usage, estimate (messages/thinking), sessions.json.",calculation:"From consumption.tokenSource or usedEstimate.",ownerTrait:"Tells you if value is measured or estimated."}],
       [{source:"portrait.modelPreference.dominantModelId and sessions.model",analysis:"Dominant model ID by usage.",calculation:"dominantModelId or sessions.model or openclaw-default.",ownerTrait:"Your shrimp's main 'diet' model."},{source:"portrait.modelPreference.uniqueModelCount / totalModelCalls",analysis:"Distinct models used and total calls.",calculation:"Direct from modelPreference.",ownerTrait:"More models = more switching; more calls = busier."},{source:"portrait.toolSkillHeat.topTools[0] or sessions.tools.toolNames",analysis:"Most-used tool name.",calculation:"topTools[0].toolName or toolNames[0].",ownerTrait:"Your go-to tool (e.g. search, codebase)."},{source:"portrait.toolSkillHeat.toolCallsTotal or sessions.tools.sessionsWithTools",analysis:"Sessions with tool calls or total tool calls.",calculation:"toolCallsTotal or sessionsWithTools.",ownerTrait:"Higher = you rely on tools a lot."},{source:"sessions.model.modelProvider",analysis:"Model provider.",calculation:"sessions.model.modelProvider.",ownerTrait:"Which 'warehouse' your shrimp uses."},{source:"sessions.model.model",analysis:"Model ID in sessions.",calculation:"sessions.model.model.",ownerTrait:"Compare with dominant."},{source:"portrait.toolSkillHeat.toolKinds or toolNames.length",analysis:"Number of distinct tools used.",calculation:"toolHeat.toolKinds or toolNames.length.",ownerTrait:"More kinds = richer toolchain."},{source:"topTools[0].count or sessions tool count",analysis:"Top tool call count.",calculation:"topTools[0].count or entriesCount.",ownerTrait:"How dependent you are on one tool."}],
       [{source:"portrait.stabilityHealth.score",analysis:"Health dimension score.",calculation:"stabilityHealth.score rounded.",ownerTrait:"Overall session stability."},{source:"portrait.health.successRate or sessions.status.successRate",analysis:"Session success rate.",calculation:"health.successRate if successBase>0 else status.successRate or (sessions-aborted)/sessions.",ownerTrait:"Higher = fewer runs ending badly."},{source:"portrait.health.abnormalInterruptionRate or status",analysis:"Abnormal interruption rate.",calculation:"From health or status * 100.",ownerTrait:"Lower = more stable runs."},{source:"sessions.lastActiveAt / updatedAt or heartbeat",analysis:"Last active time.",calculation:"lastActiveAt or updatedAt or lastHeartbeatSentAt.",ownerTrait:"When your shrimp was last active."},{source:"sessions.sessionCount",analysis:"Total sessions.",calculation:"sessionCount or legacy.work_days.",ownerTrait:"More sessions = more usage, better sample."},{source:"sessions.channel.lastChannel",analysis:"Last channel used.",calculation:"channel.lastChannel joined.",ownerTrait:"Which entry point you use."},{source:"sessions.channel.originProvider / originSurface",analysis:"Request origin provider and surface.",calculation:"Origin fields concatenated.",ownerTrait:"IDE vs Web vs API."},{source:"ClawController.rpcCall('tasks.list') or HTTP GET /api/tasks; cache openclawTasksSummary.scheduled_tasks_count",analysis:"Count of scheduled/recurring tasks on the Gateway (cron, interval, schedule, etc.).",calculation:"Prefer scheduled_tasks_count from the response; else infer from the tasks list (schedule/cron/interval fields).",ownerTrait:"Higher = more automated workflows running in the background."}],
@@ -1057,7 +1057,7 @@ const i18n={
     gatewayApplyShort:"Apply",
     gatewayPortPlaceholder:"Port",
     gatewayDiscoveredLabel:"Detected instances",
-    gatewayDiscoveredPlaceholder:"Scan, then pick鈥?,
+    gatewayDiscoveredPlaceholder:"Scan, then pick閳?,
     gatewayInlineTitle:"Gateway",
     themes:[
       [{t:"Top 3 Keywords",d:"Tool + skill activation signals"},{t:"Rank Grade",d:null},{t:"Core Ability",d:"composite score"},{t:"Capability Vector",d:"consumption / model / tool"},{t:"Work Rhythm",d:null},{t:"Peak Hours",d:null},{t:"Active Hours",d:null},{t:"Habit Score",d:"taskHabit.score"},{t:"Health Score",d:"stabilityHealth.score"}],
@@ -1100,7 +1100,7 @@ function pickPayload(raw){
   return null;
 }
 function localPayload(){
-  /** 涓?main.js VIBE_OPENCLAW_CACHE 涓€鑷达細涓绘祦绋?OpenClaw 鍒嗘瀽鍙啓姝ゅ锛屼笉鍐欏叆 openclaw_analysis_data銆?*/
+  /** 娑?main.js VIBE_OPENCLAW_CACHE 娑撯偓閼疯揪绱版稉缁樼ウ缁?OpenClaw 閸掑棙鐎介崣顏勫晸濮濄倕顦╅敍灞肩瑝閸愭瑥鍙?openclaw_analysis_data閵?*/
   for(const [s,k] of [[localStorage,"vibe_openclaw_analysis_cache"],[sessionStorage,"openclaw_analysis_data"],[localStorage,"openclaw_analysis_data"],[localStorage,"last_analysis_data"]]){
     try{const r=s.getItem(k);if(!r)continue;const d=JSON.parse(r),p=pickPayload(d);if(p)return p;if(d&&(d.stats||d.statistics))return {legacyStats:d.stats||d.statistics||{},updatedAt:d.updatedAt||d.createdAt||""};}catch{}
   }
@@ -1110,7 +1110,7 @@ function localPayload(){
   }catch{}
   return {};
 }
-/** 涓?Gateway tasks.list / HTTP 杩斿洖瀵归綈锛氬睍寮€ result銆乸ayload銆乨ata锛堝彲澶氫竴灞?ok 鍖呰锛?*/
+/** 娑?Gateway tasks.list / HTTP 鏉╂柨娲栫€靛綊缍堥敍姘潔瀵偓 result閵嗕垢ayload閵嗕龚ata閿涘牆褰叉径姘鐏?ok 閸栧懓顥婇敍?*/
 function normalizeTasksRpcPayload(raw){
   let v=raw;
   for(let depth=0;depth<8;depth++){
@@ -1160,7 +1160,7 @@ function countOpenClawScheduledTasks(taskList){
   }
   return n;
 }
-/** 鍗曟潯浠诲姟鍦ㄥ崱鐗囦笂灞曠ず鐨勭煭鏍囩锛堜緵鍋ュ悍涓婚銆屽畾鏃朵换鍔°€嶅崱鐗囷級 */
+/** 閸楁洘娼禒璇插閸︺劌宕遍悧鍥︾瑐鐏炴洜銇氶惃鍕叚閺嶅洨顒烽敍鍫滅返閸嬨儱鎮嶆稉濠氼暯閵嗗苯鐣鹃弮鏈垫崲閸斅扳偓宥呭幢閻楀浄绱?*/
 function taskRecordLabel(t){
   if(!t||typeof t!=='object')return '';
   const name=t.name||t.title||t.label||t.taskName||t.id||t.taskId||t.key||t.slug;
@@ -1171,7 +1171,7 @@ function taskRecordLabel(t){
   if(typeof t.cron==='string'&&t.cron)return t.cron.slice(0,64);
   return '';
 }
-/** 浠?tasks.list / HTTP 浠诲姟鍒楄〃涓瓫鍑哄畾鏃朵换鍔″苟鍙栧睍绀烘枃妗?*/
+/** 娴?tasks.list / HTTP 娴犺濮熼崚妤勩€冩稉顓犵摣閸戝搫鐣鹃弮鏈垫崲閸斺€宠嫙閸欐牕鐫嶇粈鐑樻瀮濡?*/
 function extractScheduledTaskLabelsFromGatewayRaw(raw){
   try{
     const list=extractTasksListFromGatewayValue(raw);
@@ -1227,7 +1227,7 @@ function extractTasksListFromGatewayValue(v){
   if(Array.isArray(v.data))return v.data;
   return [];
 }
-/** 浼樺厛浣跨敤鏈嶅姟绔粰鍑虹殑瀹氭椂浠诲姟鏉℃暟 */
+/** 娴兼ê鍘涙担璺ㄦ暏閺堝秴濮熺粩顖滅舶閸戣櫣娈戠€规碍妞傛禒璇插閺夆剝鏆?*/
 function pickScheduledCountFromGatewayObject(v){
   if(!v||typeof v!=='object')return null;
   const tskEarly=v.tasks&&typeof v.tasks==='object'&&!Array.isArray(v.tasks)?v.tasks:null;
@@ -1273,14 +1273,14 @@ function pickTotalTaskCountFromGatewayObject(v,listLen){
   }
   return listLen;
 }
-/** API 鎶?0 浣嗗垪琛ㄩ噷浠嶈兘绛涘嚭瀹氭椂浠诲姟鏃讹紝浠ュ垪琛ㄤ负鍑?*/
+/** API 閹?0 娴ｅ棗鍨悰銊╁櫡娴犲秷鍏樼粵娑樺毉鐎规碍妞傛禒璇插閺冭绱濇禒銉ュ灙鐞涖劋璐熼崙?*/
 function mergeScheduledCounts(fromApi,scheduledFromList){
   if(fromApi!=null&&fromApi>0)return fromApi;
   if(scheduledFromList>0)return scheduledFromList;
   if(fromApi!=null)return fromApi;
   return scheduledFromList;
 }
-/** 浠庤浇鑽锋垨 localStorage 缂撳瓨璇诲彇涓婃缁熻鐨勫畾鏃朵换鍔℃潯鏁?*/
+/** 娴犲氦娴囬懡閿嬪灗 localStorage 缂傛挸鐡ㄧ拠璇插絿娑撳﹥顐肩紒鐔活吀閻ㄥ嫬鐣鹃弮鏈垫崲閸斺剝娼弫?*/
 function readScheduledTasksCountFromPayload(payload){
   const p=payload||{};
   const ts=p.openclawTasksSummary||{};
@@ -1352,7 +1352,7 @@ function persistLiveTaskSummary(tasksRes){
     try{localStorage.setItem('openclaw2_scheduled_tasks_cache',String(scheduled));}catch{}
   }catch{}
 }
-/** HTTP GET Gateway /tasks銆?api/tasks锛堜笌 openclaw-monitor 涓€鑷达級锛涜法鍩熸椂浠呯敤 query token锛岄伩鍏嶈Е鍙?CORS 棰勬澶辫触 */
+/** HTTP GET Gateway /tasks閵?api/tasks閿涘牅绗?openclaw-monitor 娑撯偓閼疯揪绱氶敍娑滄硶閸╃喐妞傛禒鍛暏 query token閿涘矂浼╅崗宥埿曢崣?CORS 妫板嫭顥呮径杈Е */
 async function fetchGatewayScheduledTaskRollupViaHttp(){
   const token=typeof ClawController!=='undefined'&&ClawController&&ClawController.getSavedToken?ClawController.getSavedToken():null;
   if(!token||typeof fetch!=='function'||typeof OpenClawGateway==='undefined'||!OpenClawGateway.httpBase)return null;
@@ -1382,7 +1382,7 @@ async function fetchGatewayScheduledTaskRollupViaHttp(){
   return null;
 }
 /**
- * 鎸?OpenClaw 鏂囨。锛欻EARTBEAT.md 涓┖鏂囦欢鎴栦粎 # 娉ㄩ噴鍒欒烦杩囧績璺筹紱闈炴敞閲婅瑙嗕负涓€鏉°€屽懆鏈熸鏌ヤ换鍔°€嶃€? * 鍙傝€冿細https://open-claw.bot/docs/cli/reference/templates/heartbeat/
+ * 閹?OpenClaw 閺傚洦銆傞敍娆籈ARTBEAT.md 娑擃厾鈹栭弬鍥︽閹存牔绮?# 濞夈劑鍣撮崚娆掔儲鏉╁洤绺剧捄绛圭幢闂堢偞鏁為柌濠咁攽鐟欏棔璐熸稉鈧弶掳鈧苯鎳嗛張鐔割梾閺屻儰鎹㈤崝掳鈧秲鈧? * 閸欏倽鈧喛绱癶ttps://open-claw.bot/docs/cli/reference/templates/heartbeat/
  */
 function parseHeartbeatMdTasks(md){
   if(md==null||typeof md!=='string')return{count:0,tasks:[],empty:true,responseOnly:false};
@@ -1427,7 +1427,7 @@ function extractHeartbeatMdTextFromUnknown(obj,depth){
   if(inner&&typeof inner==='object'&&inner!==obj)return extractHeartbeatMdTextFromUnknown(inner,depth+1);
   return null;
 }
-/** 娣卞害鎵弿 RPC 杩斿洖涓枒浼?HEARTBEAT 姝ｆ枃鐨勯暱瀛楃涓诧紙鍏煎鏈煡瀛楁鍚嶏級 */
+/** 濞ｅ崬瀹抽幍顐ｅ伎 RPC 鏉╂柨娲栨稉顓犳瀿娴?HEARTBEAT 濮濓絾鏋冮惃鍕毐鐎涙顑佹稉璇х礄閸忕厧顔愰張顏嗙叀鐎涙顔岄崥宥忕礆 */
 function deepFindHeartbeatMarkdownString(obj,depth){
   if(obj==null||depth>14)return null;
   if(typeof obj==='string'){
@@ -1455,7 +1455,7 @@ function deepFindHeartbeatMarkdownString(obj,depth){
   }
   return null;
 }
-/** 浠庡凡涓婁紶鐨?sessions 鎽樿閲岃В鏋愬績璺虫枃鏈紙缃戝叧鏈毚闇茶鏂囦欢鏃朵粛鍙湁鎽樿锛?*/
+/** 娴犲骸鍑℃稉濠佺炊閻?sessions 閹芥顩﹂柌宀冃掗弸鎰妇鐠鸿櫕鏋冮張顒婄礄缂冩垵鍙ч張顏呮瘹闂囪尪顕伴弬鍥︽閺冩湹绮涢崣顖涙箒閹芥顩﹂敍?*/
 function parseHeartbeatFromSessionPayload(payload){
   try{
     const sess=(payload&&payload.openclawSessionsSummary)||{};
@@ -1469,7 +1469,7 @@ function parseHeartbeatFromSessionPayload(payload){
     return{count:parsed.count,tasks:parsed.tasks||[],source:'sessions.heartbeat'};
   }catch{return null;}
 }
-/** 閫氳繃 Gateway 鎷夊彇宸ヤ綔鍖?HEARTBEAT.md锛堝 RPC/HTTP 璺緞鍏煎锛?*/
+/** 闁俺绻?Gateway 閹峰褰囧銉ょ稊閸?HEARTBEAT.md閿涘牆顦?RPC/HTTP 鐠侯垰绶為崗鐓庮啇閿?*/
 async function fetchHeartbeatMdTasksFromGateway(){
   if(typeof ClawController==='undefined'||!ClawController||!ClawController.authenticated||typeof ClawController.rpcCall!=='function')return null;
   const rpcAttempts=[
@@ -1566,7 +1566,7 @@ function startOpenclawHeartbeatStatsSync(){
 try{window.startOpenclawHeartbeatStatsSync=startOpenclawHeartbeatStatsSync;window.stopOpenclawHeartbeatStatsSync=stopOpenclawHeartbeatStatsSync;}catch{}
 async function workerPayload(){
   const paths=["api/openclaw/latest","api/openclaw/latest_analysis","api/analysis/latest","api/latest_analysis","api/openclaw/portrait"];
-  /** 浠呰姹傘€屽綋鍓嶉〉闈㈡簮銆嶄笅鐨勪笂杩拌矾寰勶紙濡?localhost:3000 鐢?Vite 妗ユ帴鍒版湰鏈?Gateway锛夈€傞粯璁?Cloudflare Worker 鏍瑰湴鍧€鏈疄鐜?/api/openclaw/*锛岃疆璇細浜х敓 404锛屾晠涓嶅啀鑷姩璇锋眰 getApiEndpoint()銆?*/
+  /** 娴犲懓顕Ч鍌樷偓灞界秼閸撳秹銆夐棃銏＄爱閵嗗秳绗呴惃鍕瑐鏉╂媽鐭惧鍕剁礄婵?localhost:3000 閻?Vite 濡椼儲甯撮崚鐗堟拱閺?Gateway閿涘鈧倿绮拋?Cloudflare Worker 閺嶇懓婀撮崸鈧張顏勭杽閻?/api/openclaw/*閿涘矁鐤嗙拠顫窗娴溠呮晸 404閿涘本鏅犳稉宥呭晙閼奉亜濮╃拠閿嬬湴 getApiEndpoint()閵?*/
   const origins=[];
   const o0=base(window.location.origin);
   if(o0)origins.push(o0);
@@ -1620,10 +1620,10 @@ const gwLbl=typeof window!=='undefined'&&Array.isArray(window.__openclawSchedule
 let hbCountEffective=null;
 if(hbReadOk&&hbCnt!==null)hbCountEffective=hbCnt;
 else if(sessHb&&Number.isFinite(sessHb.count))hbCountEffective=sessHb.count;
-const hbBlock=hbLinesEffective.length?hbLinesEffective.slice(0,8).map(s=>String(s).slice(0,80)).join(' 路 '):'';
-const gwBlock=gwLbl.length?gwLbl.slice(0,10).map(s=>String(s).slice(0,80)).join(' 路 '):'';
+const hbBlock=hbLinesEffective.length?hbLinesEffective.slice(0,8).map(s=>String(s).slice(0,80)).join(' 璺?'):'';
+const gwBlock=gwLbl.length?gwLbl.slice(0,10).map(s=>String(s).slice(0,80)).join(' 璺?'):'';
 let scheduledTasksNum;
-/* 宸茶繛 Gateway 涓旀眹鎬诲彲淇℃椂浼樺厛 tasks.list锛涙湭缃俊鐨?0锛堣В鏋愮┖/澶辫触锛変笉鍘嬪埗 HEARTBEAT 涓庣紦瀛?*/
+/* 瀹歌尪绻?Gateway 娑撴梹鐪归幀璇插讲娣団剝妞傛导妯哄帥 tasks.list閿涙稒婀純顔讳繆閻?0閿涘牐袙閺嬫劗鈹?婢惰精瑙﹂敍澶夌瑝閸樺鍩?HEARTBEAT 娑撳海绱︾€?*/
 if(liveSched!=null)scheduledTasksNum=liveSched;
 else if(hbCountEffective!==null)scheduledTasksNum=hbCountEffective;
 else scheduledTasksNum=scheduledFromPayload;
@@ -1645,17 +1645,17 @@ const uniq=[],seen=new Set();kws.forEach(i=>{const k=String(i.word);if(!seen.has
 const topKeywords=uniq.slice(0,3).map(i=>i.word),cloud=uniq.length?uniq:[{word:topModel,weight:12},{word:topTool,weight:10},{word:levelMap[level]||level,weight:8}];
 const last=sess.lastActiveAt||sess.updatedAt||heartbeatS.lastHeartbeatSentAt||payload.updatedAt||"",ctx=N(tokenS.contextTokensMax,0)||N(sess.contextTokensMax,0);
 const rowLabels=(typeof L!=="undefined"&&i18n[L]&&i18n[L].rowLabels)?i18n[L].rowLabels:["Session Count","Token Input","Token Output","Token Total","Cache Read / Write","Model Provider","Model","Last Channel","Origin","Last Active","Context Tokens Max","Tools Schema Count","Tools Sessions","Tool Names","Heartbeat","Heartbeat Text","Scheduled tasks","systemSent","compactionCount","systemPromptChars","workspaceInjectedFiles","skills"];
-const no=(typeof L!=="undefined"&&i18n[L])?i18n[L].noData:"鏆傛棤鏁版嵁";
+const no=(typeof L!=="undefined"&&i18n[L])?i18n[L].noData:"閺嗗倹妫ら弫鐗堝祦";
 const rows=[[rowLabels[0],fmt(sessCnt)],[rowLabels[1],fmt(inTok)],[rowLabels[2],fmt(outTok)],[rowLabels[3],fmt(sumTok)],[rowLabels[4],`${fmt(cRead)} / ${fmt(cWrite)}`],[rowLabels[5],modelS.modelProvider||"--"],[rowLabels[6],modelS.model||"--"],[rowLabels[7],(channelS.lastChannel||[]).join(", ")||"--"],[rowLabels[8],`${(channelS.originProvider||[]).join(', ')||'--'} / ${(channelS.originSurface||[]).join(', ')||'--'}`],[rowLabels[9],dts(last)],[rowLabels[10],fmt(ctx)],[rowLabels[11],fmt(N(toolsS.entriesCount,0))],[rowLabels[12],fmt(N(toolsS.sessionsWithTools,0))],[rowLabels[13],toolNames.slice(0,8).join(', ')||legacyTools.slice(0,8).join(', ')||"--"],[rowLabels[14],dts(heartbeatS.lastHeartbeatSentAt)],[rowLabels[15],heartbeatS.lastHeartbeatText?String(heartbeatS.lastHeartbeatText).slice(0,80):"--"],[rowLabels[16],scheduledTasksDisplay],[rowLabels[17],fmt(N(statusS.systemSentCount,0))],[rowLabels[18],fmt(N(statusS.compactionCountSum,0))],[rowLabels[19],fmt(N(sess.systemPromptChars,0))],[rowLabels[20],fmt(N(sess.injectedWorkspaceFilesCount,0))],[rowLabels[21],skillsS.slice(0,12).join(', ')||"--"]];
 return {composite:Math.round(N(comp.score,0)),level,levelName:(typeof L!=="undefined"&&i18n[L]&&i18n[L].levelMap&&i18n[L].levelMap[level])?i18n[L].levelMap[level]:levelMap[level]||level,tokenSourceLabel,usedEstimate,partialDataHint,rhythmLabel,rank:`L${N(comp.score,0)>=90?'5':N(comp.score,0)>=80?'4':N(comp.score,0)>=70?'3':N(comp.score,0)>=60?'2':'1'}`,cons:Math.round(N(consumption.score,0)),model:Math.round(N(modelDim.score,0)),tool:Math.round(N(toolHeat.score,0)),habit:Math.round(N(habit.score,0)),health:Math.round(N(health.score,0)),topKeywords,cloud,tokens:totalTok>0?fmt(totalTok):no,cacheHit:cacheHit>0?pct(cacheHit,1,no):no,cost:money(cost,no),cacheRead:fmt(cRead),cacheWrite:fmt(cWrite),inTok:fmt(inTok),outTok:fmt(outTok),sumTok:fmt(sumTok),topModel,modelShare:pct(modelShare),modelSpread:`${fmt(N(modelDim.uniqueModelCount,0))}/${fmt(N(modelDim.totalModelCalls,0))}`,topTool,topToolCount:fmt(topToolCount),toolCalls:fmt(toolCalls),toolKinds:fmt(toolKinds),rhythm:habit.workRhythm||"unknown",rhythmLabel,peak,active:fmt(N(habit.activeHours,0)),success:Number.isFinite(success)?pct(success,0,no):no,abnormal:pct(abnormal,0,no),sessCnt:fmt(sessCnt),last:dts(last),ctx:fmt(ctx),provider:modelS.modelProvider||"--",modelRaw:modelS.model||"--",channel:(channelS.lastChannel||[]).join(', ')||"--",origin:`${(channelS.originProvider||[]).join(', ')||'--'} / ${(channelS.originSurface||[]).join(', ')||'--'}`,injected:fmt(N(sess.injectedWorkspaceFilesCount,0)),spChars:fmt(N(sess.systemPromptChars,0)),heartbeatText:heartbeatS.lastHeartbeatText?String(heartbeatS.lastHeartbeatText).slice(0,60):"--",scheduledTasksCount:scheduledTasksDisplay,healthScheduledTasksCard:scheduledTasksDisplay,gatewayScheduledTasksPreview:gwBlock,heartbeatTasksPreview:hbBlock,heartbeatFromFile:hbReadOk||!!sessHb,rows,radar:[Math.max(0,Math.min(100,Math.round(N(consumption.score,0)))),Math.max(0,Math.min(100,Math.round(N(modelDim.score,0)))),Math.max(0,Math.min(100,Math.round(N(toolHeat.score,0)))),Math.max(0,Math.min(100,Math.round(N(habit.score,0)))),Math.max(0,Math.min(100,Math.round(N(health.score,0)))),Math.max(0,Math.min(100,Math.round(N(comp.score,0))))]};
 }
-function getCardDesc(i,j,m,L){const g=i18n[L];if(!g||!g.themes[i]||!g.themes[i][j])return"";const d=g.themes[i][j].d;if(d)return d;if(i===0&&j===4)return L==="zh"?`楂樺嘲 ${m.peak} 路 娲昏穬 ${m.active}`:`peak ${m.peak} 路 active ${m.active}`;if(i===1&&j===1)return L==="zh"?`鍚堣 ${m.sumTok}`:`total ${m.sumTok}`;if(i===1&&j===2)return L==="zh"?`璇?${m.cacheRead} / 鍐?${m.cacheWrite}`:`read ${m.cacheRead} / write ${m.cacheWrite}`;if(i===2&&j===0)return `share ${m.modelShare}`;if(i===2&&j===1)return L==="zh"?"涓嶅悓妯″瀷/鎬昏皟鐢?:`unique / total calls`;if(i===2&&j===2)return `count ${m.topToolCount}`;if(i===2&&j===3)return L==="zh"?`宸ュ叿绉嶇被 ${m.toolKinds}`:`tool kinds ${m.toolKinds}`;if(i===2&&j===4)return `raw model: ${m.modelRaw}`;if(i===3&&j===4)return `channel ${m.channel}`;if(i===4&&j===0)return m.origin;if(i===4&&j===2)return L==="zh"?`绯荤粺鎻愮ず瀛楁暟 ${m.spChars}`:`system prompt chars ${m.spChars}`;if(i===4&&j===3)return "sessions.cache";if(i===4&&j===4)return "sessions.updatedAt";return "";}
+function getCardDesc(i,j,m,L){const g=i18n[L];if(!g||!g.themes[i]||!g.themes[i][j])return"";const d=g.themes[i][j].d;if(d)return d;if(i===0&&j===4)return L==="zh"?`妤傛ê鍢?${m.peak} 璺?濞叉槒绌?${m.active}`:`peak ${m.peak} 璺?active ${m.active}`;if(i===1&&j===1)return L==="zh"?`閸氬牐顓?${m.sumTok}`:`total ${m.sumTok}`;if(i===1&&j===2)return L==="zh"?`鐠?${m.cacheRead} / 閸?${m.cacheWrite}`:`read ${m.cacheRead} / write ${m.cacheWrite}`;if(i===2&&j===0)return `share ${m.modelShare}`;if(i===2&&j===1)return L==="zh"?"娑撳秴鎮撳Ο鈥崇€?閹槒鐨熼悽?:`unique / total calls`;if(i===2&&j===2)return `count ${m.topToolCount}`;if(i===2&&j===3)return L==="zh"?`瀹搞儱鍙跨粔宥囪 ${m.toolKinds}`:`tool kinds ${m.toolKinds}`;if(i===2&&j===4)return `raw model: ${m.modelRaw}`;if(i===3&&j===4)return `channel ${m.channel}`;if(i===4&&j===0)return m.origin;if(i===4&&j===2)return L==="zh"?`缁崵绮洪幓鎰仛鐎涙鏆?${m.spChars}`:`system prompt chars ${m.spChars}`;if(i===4&&j===3)return "sessions.cache";if(i===4&&j===4)return "sessions.updatedAt";return "";}
 function themes(m,L){L=L||state.lang;const top3=m.topKeywords&&m.topKeywords.length?m.topKeywords.join(' / '):'--';const g=i18n[L],names=g.themeNames,themesArr=g.themes;
-const c0=[{t:themesArr[0][0].t,v:top3,d:themesArr[0][0].d||"Tool + skill activation signals"},{t:themesArr[0][1].t,v:`${m.rank} 路 ${m.level}`,d:g.levelMap[m.level]||m.levelName},{t:themesArr[0][2].t,v:fmt(m.composite),d:themesArr[0][2].d||"composite score"},{t:themesArr[0][3].t,v:`${m.cons} / ${m.model} / ${m.tool}`,d:themesArr[0][3].d||"consumption / model / tool"},{t:themesArr[0][4].t,v:m.rhythmLabel||m.rhythm,d:getCardDesc(0,4,m,L)},{t:themesArr[0][5].t,v:m.peak,d:themesArr[0][5].d||""},{t:themesArr[0][6].t,v:m.active,d:themesArr[0][6].d||""},{t:themesArr[0][7].t,v:fmt(m.habit),d:themesArr[0][7].d||""},{t:themesArr[0][8].t,v:fmt(m.health),d:themesArr[0][8].d||""}];
-const c1=[{t:themesArr[1][0].t,v:m.tokens,d:(themesArr[1][0].d||"portrait + sessions summary")+(m.tokenSourceLabel?" 路 "+m.tokenSourceLabel:"")},{t:themesArr[1][1].t,v:`${m.inTok} / ${m.outTok}`,d:getCardDesc(1,1,m,L)},{t:themesArr[1][2].t,v:m.cacheHit,d:getCardDesc(1,2,m,L)},{t:themesArr[1][3].t,v:m.cost,d:themesArr[1][3].d||"consumption.totalCostUSD"},{t:themesArr[1][4].t,v:m.ctx,d:themesArr[1][4].d||"token.contextTokensMax"},{t:themesArr[1][5].t,v:m.cacheRead,d:themesArr[1][5].d||""},{t:themesArr[1][6].t,v:m.cacheWrite,d:themesArr[1][6].d||""},{t:themesArr[1][7].t,v:m.sumTok,d:themesArr[1][7].d||""},{t:themesArr[1][8].t,v:m.tokenSourceLabel||"--",d:themesArr[1][8].d||""}];
+const c0=[{t:themesArr[0][0].t,v:top3,d:themesArr[0][0].d||"Tool + skill activation signals"},{t:themesArr[0][1].t,v:`${m.rank} 璺?${m.level}`,d:g.levelMap[m.level]||m.levelName},{t:themesArr[0][2].t,v:fmt(m.composite),d:themesArr[0][2].d||"composite score"},{t:themesArr[0][3].t,v:`${m.cons} / ${m.model} / ${m.tool}`,d:themesArr[0][3].d||"consumption / model / tool"},{t:themesArr[0][4].t,v:m.rhythmLabel||m.rhythm,d:getCardDesc(0,4,m,L)},{t:themesArr[0][5].t,v:m.peak,d:themesArr[0][5].d||""},{t:themesArr[0][6].t,v:m.active,d:themesArr[0][6].d||""},{t:themesArr[0][7].t,v:fmt(m.habit),d:themesArr[0][7].d||""},{t:themesArr[0][8].t,v:fmt(m.health),d:themesArr[0][8].d||""}];
+const c1=[{t:themesArr[1][0].t,v:m.tokens,d:(themesArr[1][0].d||"portrait + sessions summary")+(m.tokenSourceLabel?" 璺?"+m.tokenSourceLabel:"")},{t:themesArr[1][1].t,v:`${m.inTok} / ${m.outTok}`,d:getCardDesc(1,1,m,L)},{t:themesArr[1][2].t,v:m.cacheHit,d:getCardDesc(1,2,m,L)},{t:themesArr[1][3].t,v:m.cost,d:themesArr[1][3].d||"consumption.totalCostUSD"},{t:themesArr[1][4].t,v:m.ctx,d:themesArr[1][4].d||"token.contextTokensMax"},{t:themesArr[1][5].t,v:m.cacheRead,d:themesArr[1][5].d||""},{t:themesArr[1][6].t,v:m.cacheWrite,d:themesArr[1][6].d||""},{t:themesArr[1][7].t,v:m.sumTok,d:themesArr[1][7].d||""},{t:themesArr[1][8].t,v:m.tokenSourceLabel||"--",d:themesArr[1][8].d||""}];
 const c2=[{t:themesArr[2][0].t,v:m.topModel,d:getCardDesc(2,0,m,L)},{t:themesArr[2][1].t,v:m.modelSpread,d:getCardDesc(2,1,m,L)},{t:themesArr[2][2].t,v:m.topTool,d:getCardDesc(2,2,m,L)},{t:themesArr[2][3].t,v:m.toolCalls,d:getCardDesc(2,3,m,L)},{t:themesArr[2][4].t,v:m.provider,d:getCardDesc(2,4,m,L)},{t:themesArr[2][5].t,v:m.modelRaw,d:themesArr[2][5].d||""},{t:themesArr[2][6].t,v:m.toolKinds,d:themesArr[2][6].d||""},{t:themesArr[2][7].t,v:m.topToolCount,d:themesArr[2][7].d||""}];
-const c3=[{t:themesArr[3][0].t,v:fmt(m.health),d:themesArr[3][0].d||"stabilityHealth.score"},{t:themesArr[3][1].t,v:m.success,d:(themesArr[3][1].d||"health.successRate / status.successRate")+(m.partialDataHint?" 路 "+m.partialDataHint:"")},{t:themesArr[3][2].t,v:m.abnormal,d:themesArr[3][2].d||"health.abnormalInterruptionRate"},{t:themesArr[3][3].t,v:m.last,d:themesArr[3][3].d||"sessions.updatedAt / heartbeat"},{t:themesArr[3][4].t,v:`${m.sessCnt} ${L==="zh"?"娆′細璇?:"sessions"}`,d:getCardDesc(3,4,m,L)},{t:themesArr[3][5].t,v:m.channel,d:themesArr[3][5].d||""},{t:themesArr[3][6].t,v:m.origin,d:themesArr[3][6].d||""},{t:themesArr[3][7].t,v:m.healthScheduledTasksCard||m.scheduledTasksCount,d:themesArr[3][7].d||""}];
-const c4=[{t:themesArr[4][0].t,v:m.channel,d:getCardDesc(4,0,m,L)},{t:themesArr[4][1].t,v:m.ctx,d:themesArr[4][1].d||"token.contextTokensMax"},{t:themesArr[4][2].t,v:m.injected,d:getCardDesc(4,2,m,L)},{t:themesArr[4][3].t,v:`${m.cacheRead} / ${m.cacheWrite}`,d:getCardDesc(4,3,m,L)},{t:themesArr[4][4].t,v:m.last,d:getCardDesc(4,4,m,L)},{t:themesArr[4][5].t,v:m.provider,d:themesArr[4][5].d||""},{t:themesArr[4][6].t,v:m.spChars,d:themesArr[4][6].d||""},{t:themesArr[4][7].t,v:m.scheduledTasksCount,d:themesArr[4][7].d||""},{t:themesArr[4][8].t,v:(m.heartbeatText||"--").slice(0,50)+(m.heartbeatText&&m.heartbeatText.length>50?"鈥?:""),d:themesArr[4][8].d||""}];
+const c3=[{t:themesArr[3][0].t,v:fmt(m.health),d:themesArr[3][0].d||"stabilityHealth.score"},{t:themesArr[3][1].t,v:m.success,d:(themesArr[3][1].d||"health.successRate / status.successRate")+(m.partialDataHint?" 璺?"+m.partialDataHint:"")},{t:themesArr[3][2].t,v:m.abnormal,d:themesArr[3][2].d||"health.abnormalInterruptionRate"},{t:themesArr[3][3].t,v:m.last,d:themesArr[3][3].d||"sessions.updatedAt / heartbeat"},{t:themesArr[3][4].t,v:`${m.sessCnt} ${L==="zh"?"濞嗏€茬窗鐠?:"sessions"}`,d:getCardDesc(3,4,m,L)},{t:themesArr[3][5].t,v:m.channel,d:themesArr[3][5].d||""},{t:themesArr[3][6].t,v:m.origin,d:themesArr[3][6].d||""},{t:themesArr[3][7].t,v:m.healthScheduledTasksCard||m.scheduledTasksCount,d:themesArr[3][7].d||""}];
+const c4=[{t:themesArr[4][0].t,v:m.channel,d:getCardDesc(4,0,m,L)},{t:themesArr[4][1].t,v:m.ctx,d:themesArr[4][1].d||"token.contextTokensMax"},{t:themesArr[4][2].t,v:m.injected,d:getCardDesc(4,2,m,L)},{t:themesArr[4][3].t,v:`${m.cacheRead} / ${m.cacheWrite}`,d:getCardDesc(4,3,m,L)},{t:themesArr[4][4].t,v:m.last,d:getCardDesc(4,4,m,L)},{t:themesArr[4][5].t,v:m.provider,d:themesArr[4][5].d||""},{t:themesArr[4][6].t,v:m.spChars,d:themesArr[4][6].d||""},{t:themesArr[4][7].t,v:m.scheduledTasksCount,d:themesArr[4][7].d||""},{t:themesArr[4][8].t,v:(m.heartbeatText||"--").slice(0,50)+(m.heartbeatText&&m.heartbeatText.length>50?"閳?:""),d:themesArr[4][8].d||""}];
 return [{n:names[0],c:c0},{n:names[1],c:c1},{n:names[2],c:c2},{n:names[3],c:c3},{n:names[4],c:c4},{n:names[5],c:[]},{n:names[6],c:[]}];}
 function renderCloud(words){wc.innerHTML='';const pal=['#00ff41','#f4f8ff','#9fd3ff','#ff9c9c','#ffd28a'];words.forEach((it,i)=>{const s=document.createElement('span');const w=Math.max(6,Math.min(28,N(it.weight,10)));s.textContent=String(it.word||'--');s.style.fontSize=`${10+w}px`;s.style.color=pal[i%pal.length];s.style.borderColor=i%2===0?'rgba(0,255,65,.34)':'rgba(230,57,70,.34)';wc.appendChild(s);});}
 function drawRadar(scores,L){L=L||state.lang;const ctx=radar.getContext('2d'),r=window.devicePixelRatio||1,size=Math.min(radar.clientWidth||380,380);radar.width=Math.floor(size*r);radar.height=Math.floor(size*r);radar.style.width=`${size}px`;radar.style.height=`${size}px`;ctx.setTransform(r,0,0,r,0,0);ctx.clearRect(0,0,size,size);const labels=(i18n[L]&&i18n[L].radarLabels)||['Consumption','Model','Tool','Habit','Health','Composite'],c={x:size/2,y:size/2},rad=size*.34,p=labels.length;for(let k=1;k<=5;k++){ctx.beginPath();for(let i=0;i<p;i++){const a=Math.PI*2*i/p-Math.PI/2,rr=rad*k/5,x=c.x+Math.cos(a)*rr,y=c.y+Math.sin(a)*rr;i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.closePath();ctx.strokeStyle='rgba(255,255,255,.16)';ctx.stroke();}
@@ -1669,7 +1669,7 @@ function cardNode(data,i,t,themeIdx){const c=document.createElement('article');c
 function openCardModal(themeIdx,cardIdx){const L=state.lang;const help=i18n[L].cardHelp;const labels=i18n[L].cardModalLabels;if(!help||!help[themeIdx]||!help[themeIdx][cardIdx])return;const h=help[themeIdx][cardIdx];const th=state.themes[themeIdx];const cardTitle=th&&th.c&&th.c[cardIdx]?th.c[cardIdx].t:"";const modal=$("card-modal");if(!modal)return;modal.querySelector("#card-modal-title").textContent=cardTitle;$("card-help-source").textContent=h.source||"--";$("card-help-analysis").textContent=h.analysis||"--";$("card-help-calc").textContent=h.calculation||"--";$("card-help-trait").textContent=h.ownerTrait||"--";$("card-help-source-label").textContent=labels.source;$("card-help-analysis-label").textContent=labels.analysis;$("card-help-calc-label").textContent=labels.calculation;$("card-help-trait-label").textContent=labels.ownerTrait;modal.classList.add("open");modal.setAttribute("aria-hidden","false");}
 function closeCardModal(){const modal=$("card-modal");if(modal){modal.classList.remove("open");modal.setAttribute("aria-hidden","true");}}
 function escapeHtml(s){if(s==null)return'';const t=String(s);const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
-/** 鍘绘帀缃戝叧甯歌鐨?{ ok, data } / { success, data } 澶栧眰锛屼究浜庣粺涓€瑙ｆ瀽 */
+/** 閸樼粯甯€缂冩垵鍙х敮姝岊潌閻?{ ok, data } / { success, data } 婢舵牕鐪伴敍灞肩┒娴滃海绮烘稉鈧憴锝嗙€?*/
 function unwrapGatewaySessionEnvelope(raw){
   let v=raw;
   for(let i=0;i<8;i++){
@@ -1758,7 +1758,7 @@ async function fetchGatewaySessionsData(){
   if(lastErr)return{source:'error',data:null,error:lastErr};
   return{source:'none',data:null,error:null};
 }
-/* ===== LiveController: 瀹炴椂鍚庡彴鏍囩鏁版嵁杞涓庢覆鏌?===== */
+/* ===== LiveController: 鐎圭偞妞傞崥搴″酱閺嶅洨顒烽弫鐗堝祦鏉烆喛顕楁稉搴㈣閺?===== */
 const LiveController={
   pollTimer:null,
   detailTimer:null,
@@ -1783,25 +1783,25 @@ const LiveController={
     return extractSessionsListFromGatewayValue(data);
   },
 
-  /* 鈹€鈹€ 鍚姩杞 鈹€鈹€ */
+  /* 閳光偓閳光偓 閸氼垰濮╂潪顔款嚄 閳光偓閳光偓 */
   start(){
     this.stop();
-    this._setSessionsHint(this._lang()==='zh'?'姝ｅ湪鍔犺浇浼氳瘽鈥?:'Loading sessions鈥?);
+    this._setSessionsHint(this._lang()==='zh'?'濮濓絽婀崝鐘烘祰娴兼俺鐦介垾?:'Loading sessions閳?);
     this._updateStatusDot(ClawController&&ClawController.authenticated?'connected':'idle');
     this._pollAll();
     this.pollTimer=setInterval(()=>this._pollAll(),this.POLL_INTERVAL);
   },
 
-  /* 鈹€鈹€ 鍋滄杞 鈹€鈹€ */
+  /* 閳光偓閳光偓 閸嬫粍顒涙潪顔款嚄 閳光偓閳光偓 */
   stop(){
     if(this.pollTimer){clearInterval(this.pollTimer);this.pollTimer=null;}
     if(this.detailTimer){clearInterval(this.detailTimer);this.detailTimer=null;}
   },
 
-  /* 鈹€鈹€ 涓€娆℃€ф媺鍙栨墍鏈夋憳瑕侊紙鍚?models 渚涚渷閽辩増鍧楋級 鈹€鈹€ */
+  /* 閳光偓閳光偓 娑撯偓濞嗏剝鈧勫閸欐牗澧嶉張澶嬫喅鐟曚緤绱欓崥?models 娓氭稓娓烽柦杈╁閸ф绱?閳光偓閳光偓 */
   async _pollAll(){
     const $=id=>document.getElementById(id);
-    /* 鏃犺鏄惁宸茶璇侀兘鍏堟洿鏂般€屾柟渚裤€嶇増鍧楄繛鎺ョ姸鎬?*/
+    /* 閺冪姾顔戦弰顖氭儊瀹歌尪顓荤拠渚€鍏橀崗鍫熸纯閺傝埇鈧本鏌熸笟瑁も偓宥囧閸ф绻涢幒銉уЦ閹?*/
     this._updateQuickBlocks(null,null,null);
     if(!ClawController||!ClawController.authenticated){
       if(this._isVisible())this.showOffline();
@@ -1826,13 +1826,13 @@ const LiveController={
         const L=this._lang();
         const fallbackMain={sessions:[{sessionKey:'main',key:'main',id:'main',status:'active',updatedAt:new Date().toISOString()}]};
         sessionJustAutoSelected=!!this._renderSessionList(fallbackMain);
-        let msg=L==='zh'?'宸茶繛鎺ワ紝浣嗙綉鍏虫湭杩斿洖鍙垪涓剧殑浼氳瘽鍒楄〃銆傚凡鏄剧ず榛樿浼氳瘽 main锛堜笌鍙充晶鑱婂ぉ鍙戦€侀粯璁や竴鑷达級锛屽彲鐐瑰嚮灏濊瘯鍔犺浇鍘嗗彶銆?:'Connected, but no session list from the gateway. Showing default session main (same as chat send).';
+        let msg=L==='zh'?'瀹歌尪绻涢幒銉礉娴ｅ棛缍夐崗铏弓鏉╂柨娲栭崣顖氬灙娑撳墽娈戞导姘崇樈閸掓銆冮妴鍌氬嚒閺勫墽銇氭妯款吇娴兼俺鐦?main閿涘牅绗岄崣鍏呮櫠閼卞﹤銇夐崣鎴︹偓渚€绮拋銈勭閼疯揪绱氶敍灞藉讲閻愮懓鍤亸婵婄槸閸旂姾娴囬崢鍡楀蕉閵?:'Connected, but no session list from the gateway. Showing default session main (same as chat send).';
         if(sessRes.status==='rejected'&&sessRes.reason)msg+=' '+((sessRes.reason&&sessRes.reason.message)||String(sessRes.reason));
         else if(sessPack&&sessPack.error)msg+=' '+((sessPack.error&&sessPack.error.message)||String(sessPack.error));
-        else if(sessPack&&sessPack.source==='none')msg+=L==='zh'?' 甯歌鍘熷洜锛氱綉鍏虫湭瀹炵幇 sessions 鍒椾妇 RPC/REST锛屾垨杩斿洖 JSON 褰㈡€佷笌瑙ｆ瀽鍣ㄤ笉鍏煎銆?:' Common causes: no sessions list API, or an unsupported JSON shape.';
+        else if(sessPack&&sessPack.source==='none')msg+=L==='zh'?' 鐢瓕顫嗛崢鐔锋礈閿涙氨缍夐崗铏弓鐎圭偟骞?sessions 閸掓ぞ濡?RPC/REST閿涘本鍨ㄦ潻鏂挎礀 JSON 瑜般垺鈧椒绗岀憴锝嗙€介崳銊ょ瑝閸忕厧顔愰妴?:' Common causes: no sessions list API, or an unsupported JSON shape.';
         this._setSessionsHint(msg);
       }
-      /* 鍚屼竴浼氳瘽宸查€夋椂鐢辨澶勬媺鍙栨渶鏂?chat.history锛坃selectSession 宸蹭細鍔犺浇锛岄伩鍏嶉噸澶嶏級 */
+      /* 閸氬奔绔存导姘崇樈瀹告煡鈧妞傞悽杈劃婢跺嫭濯洪崣鏍ㄦ付閺?chat.history閿涘潈selectSession 瀹歌弓绱伴崝鐘烘祰閿涘矂浼╅崗宥夊櫢婢跺稄绱?*/
       if(this.selectedKey&&!sessionJustAutoSelected&&ClawController&&ClawController.authenticated&&sessPack&&sessPack.data){
         void this._loadSessionDetail(this.selectedKey);
       }
@@ -1862,7 +1862,7 @@ const LiveController={
       this._updateStatusDot('connected');
     }catch(e){
       this._updateStatusDot('error');
-      this._setSessionsHint((this._lang()==='zh'?'浼氳瘽鍔犺浇澶辫触锛?:'Failed to load sessions: ')+(e&&e.message?e.message:String(e)));
+      this._setSessionsHint((this._lang()==='zh'?'娴兼俺鐦介崝鐘烘祰婢惰精瑙﹂敍?:'Failed to load sessions: ')+(e&&e.message?e.message:String(e)));
     }
   },
 
@@ -1885,7 +1885,7 @@ const LiveController={
     if(state.idx===6)refreshDetails();
   },
 
-  /* 鈹€鈹€ 鏇存柊椤堕儴鐘舵€佹潯 鈹€鈹€ */
+  /* 閳光偓閳光偓 閺囧瓨鏌婃い鍫曞劥閻樿埖鈧焦娼?閳光偓閳光偓 */
   _updateStatusBar(statusRes,healthRes,sessRes,tasksRes,usageRes,presRes){
     const $=id=>document.getElementById(id);
     const L=this._lang();
@@ -1901,7 +1901,7 @@ const LiveController={
       if(healthRes&&healthRes.status==='fulfilled'&&healthRes.value){
         const h=healthRes.value;
         const ok=h&&(h.ok===true||h.healthy===true||h.status==='ok'||(typeof h.status==='string'&&h.status.toLowerCase()==='healthy'));
-        healthTxt=ok?(L==='zh'?'姝ｅ父':'OK'):(L==='zh'?'寮傚父':'Error');
+        healthTxt=ok?(L==='zh'?'濮濓絽鐖?:'OK'):(L==='zh'?'瀵倸鐖?:'Error');
         healthClass=ok?'health-ok':'health-err';
       }
       healthEl.textContent=healthTxt;
@@ -1929,7 +1929,7 @@ const LiveController={
     }
   },
 
-  /* 鈹€鈹€ 鏇存柊鐢ㄩ噺鏄庣粏锛圱oken 鎬婚噺 / 杈撳叆 / 杈撳嚭锛?鈹€鈹€ */
+  /* 閳光偓閳光偓 閺囧瓨鏌婇悽銊╁櫤閺勫海绮忛敍鍦眔ken 閹鍣?/ 鏉堟挸鍙?/ 鏉堟挸鍤敍?閳光偓閳光偓 */
   _updateUsageDetail(usageRes){
     const $=id=>document.getElementById(id);
     const fmt=n=>n!=null&&Number.isFinite(Number(n))?(Number(n)>=1e6?(Number(n)/1e6).toFixed(1)+'M':Number(n)>=1e3?(Number(n)/1e3).toFixed(1)+'K':String(Number(n))):'--';
@@ -1945,49 +1945,49 @@ const LiveController={
     if(outEl)outEl.textContent=fmt(v.output??v.outputTokens);
   },
 
-  /* 鈹€鈹€ 鏇存柊鏂版墜涓夌増鍧楋細鐪侀挶 / 鏂逛究 / 瀹炵敤 鈹€鈹€ */
+  /* 閳光偓閳光偓 閺囧瓨鏌婇弬鐗堝娑撳澧楅崸妤嬬窗閻線鎸?/ 閺傞€涚┒ / 鐎圭偟鏁?閳光偓閳光偓 */
   _updateQuickBlocks(statusRes,usageRes,modelsRes){
     const $=id=>document.getElementById(id);
     const L=this._lang();
-    /* 鏂逛究锛氳繛鎺ョ姸鎬?*/
+    /* 閺傞€涚┒閿涙俺绻涢幒銉уЦ閹?*/
     const connEl=$('live-conn-status');
     if(connEl){
       let connTxt='--';
       let connClass='offline';
       if(ClawController){
-        if(ClawController.authenticated){connTxt=L==='zh'?'宸茶繛鎺?:'Linked';connClass='linked';}
-        else if(ClawController.ws&&ClawController.ws.readyState===WebSocket.CONNECTING){connTxt=L==='zh'?'杩炴帴涓?:'Connecting';connClass='connecting';}
-        else{connTxt=L==='zh'?'鏈繛鎺?:'Offline';connClass='offline';}
+        if(ClawController.authenticated){connTxt=L==='zh'?'瀹歌尪绻涢幒?:'Linked';connClass='linked';}
+        else if(ClawController.ws&&ClawController.ws.readyState===WebSocket.CONNECTING){connTxt=L==='zh'?'鏉╃偞甯存稉?:'Connecting';connClass='connecting';}
+        else{connTxt=L==='zh'?'閺堫亣绻涢幒?:'Offline';connClass='offline';}
       }
       connEl.textContent=connTxt;
       connEl.className='live-conn-status '+connClass;
     }
-    /* 瀹炵敤锛欸ateway */
+    /* 鐎圭偟鏁ら敍娆竌teway */
     const gwBlockEl=$('live-block-gw');
     if(gwBlockEl){
       let gwTxt='--';
       if(statusRes&&statusRes.status==='fulfilled'&&statusRes.value){const s=statusRes.value;gwTxt=s.status||s.state||'OK';}
       gwBlockEl.textContent=gwTxt;
     }
-    /* 鐪侀挶锛氱敤閲?*/
+    /* 閻線鎸堕敍姘辨暏闁?*/
     const usageBlockEl=$('live-block-usage');
     if(usageBlockEl){
       let uc='--';
       if(usageRes&&usageRes.status==='fulfilled'&&usageRes.value){const v=usageRes.value;uc=v.totalCostUSD!=null?`$${Number(v.totalCostUSD).toFixed(4)}`:v.cost||'?';}
       usageBlockEl.textContent=uc;
     }
-    /* 鐪侀挶锛氭ā鍨嬪垪琛?*/
+    /* 閻線鎸堕敍姘侀崹瀣灙鐞?*/
     const modelsEl=$('live-models-list');
     if(modelsEl){
       if(modelsRes&&modelsRes.status==='fulfilled'&&modelsRes.value){
         const list=Array.isArray(modelsRes.value)?modelsRes.value:(Array.isArray(modelsRes.value&&modelsRes.value.models)?modelsRes.value.models:[]);
-        if(list.length)modelsEl.textContent=list.slice(0,12).map(m=>typeof m==='string'?m:(m.id||m.name||m.model||'')).filter(Boolean).join(', ')+(list.length>12?' 鈥?:'');
-        else modelsEl.textContent=L==='zh'?'鏆傛棤':'None';
+        if(list.length)modelsEl.textContent=list.slice(0,12).map(m=>typeof m==='string'?m:(m.id||m.name||m.model||'')).filter(Boolean).join(', ')+(list.length>12?' 閳?:'');
+        else modelsEl.textContent=L==='zh'?'閺嗗倹妫?:'None';
       }else modelsEl.textContent='--';
     }
   },
 
-  /* 鈹€鈹€ 娓叉煋浼氳瘽鍒楄〃 鈹€鈹€ */
+  /* 閳光偓閳光偓 濞撳弶鐓嬫导姘崇樈閸掓銆?閳光偓閳光偓 */
   _renderSessionList(data){
     const container=document.getElementById('live-sessions-list');
     const emptyEl=document.getElementById('live-sessions-empty');
@@ -1997,7 +1997,7 @@ const LiveController={
     this._lastSessionsList=sessions;
     if(!sessions.length){
       container.innerHTML='';
-      if(emptyEl){container.appendChild(emptyEl);emptyEl.style.display='block';emptyEl.textContent=this._lang()==='zh'?'鏆傛棤浼氳瘽鏁版嵁':'No sessions';}
+      if(emptyEl){container.appendChild(emptyEl);emptyEl.style.display='block';emptyEl.textContent=this._lang()==='zh'?'閺嗗倹妫ゆ导姘崇樈閺佺増宓?:'No sessions';}
       return false;
     }
     if(emptyEl)emptyEl.style.display='none';
@@ -2018,13 +2018,13 @@ const LiveController={
     const loadLabel=document.getElementById('chat-load-session-label');
     if(loadSelect){
       const L=this._lang();
-      if(loadLabel)loadLabel.textContent=L==='zh'?'鍔犺浇浼氳瘽':'Load session';
-      loadSelect.innerHTML='<option value="">'+(L==='zh'?'閫夋嫨浼氳瘽鈥?:'Select session鈥?)+'</option>';
+      if(loadLabel)loadLabel.textContent=L==='zh'?'閸旂姾娴囨导姘崇樈':'Load session';
+      loadSelect.innerHTML='<option value="">'+(L==='zh'?'闁瀚ㄦ导姘崇樈閳?:'Select session閳?)+'</option>';
       sessions.forEach(s=>{
         const key=s.sessionKey||s.key||s.id||'unknown';
         const opt=document.createElement('option');
         opt.value=key;
-        opt.textContent=key.length>36?key.slice(0,36)+'鈥?:key;
+        opt.textContent=key.length>36?key.slice(0,36)+'閳?:key;
         loadSelect.appendChild(opt);
       });
       const lastKey=typeof localStorage!=='undefined'?localStorage.getItem('openclaw2_lastSessionKey'):null;
@@ -2032,14 +2032,14 @@ const LiveController={
       const currentKey=this.selectedKey&&sessions.some(s=>String(s.sessionKey||s.key||s.id)===String(this.selectedKey))?this.selectedKey:null;
       if(toSelect){
         loadSelect.value=currentKey||toSelect;
-        /* 浠呴娆℃垨褰撳墠閫変腑宸蹭笉鍦ㄥ垪琛ㄦ椂鍒囨崲閫変腑锛涘悓涓€浼氳瘽鐢?_pollAll 鏈熬 _loadSessionDetail 鍒锋柊 */
+        /* 娴犲懘顩诲▎鈩冨灗瑜版挸澧犻柅澶夎厬瀹歌弓绗夐崷銊ュ灙鐞涖劍妞傞崚鍥ㄥ床闁鑵戦敍娑樻倱娑撯偓娴兼俺鐦介悽?_pollAll 閺堫偄鐔?_loadSessionDetail 閸掗攱鏌?*/
         if(!currentKey)this._selectSession(toSelect,null);
       }
       if(typeof window.renderChatAgentTabs==='function')window.renderChatAgentTabs(sessions,(currentKey||toSelect)||null);
       return!currentKey&&!!toSelect;
     }
     if(sessions.length){
-      /* 鏃?chat-load-session 鏃朵粛瑕侀娆℃墦寮€璇︽儏 */
+      /* 閺?chat-load-session 閺冩湹绮涚憰渚€顩诲▎鈩冨ⅵ瀵偓鐠囷附鍎?*/
       const lastKey=typeof localStorage!=='undefined'?localStorage.getItem('openclaw2_lastSessionKey'):null;
       const toSelect=lastKey&&sessions.some(s=>(s.sessionKey||s.key||s.id)===''+lastKey)?lastKey:(sessions[0]&&(sessions[0].sessionKey||sessions[0].key||sessions[0].id));
       const currentKey=this.selectedKey&&sessions.some(s=>String(s.sessionKey||s.key||s.id)===String(this.selectedKey))?this.selectedKey:null;
@@ -2051,7 +2051,7 @@ const LiveController={
     return false;
   },
 
-  /* 鈹€鈹€ 閫変腑涓€鏉′細璇?鈹€鈹€ */
+  /* 閳光偓閳光偓 闁鑵戞稉鈧弶鈥茬窗鐠?閳光偓閳光偓 */
   _selectSession(key,itemEl){
     this.selectedKey=key;
     try{localStorage.setItem('openclaw2_lastSessionKey',key);}catch(e){}
@@ -2063,7 +2063,7 @@ const LiveController={
     this._loadSessionDetail(key);
   },
 
-  /* 鈹€鈹€ 鍔犺浇浼氳瘽璇︽儏锛氭瑕?+ 灏濊瘯 chat.history 鎷夊彇鏈€杩戝璇濆唴瀹逛笌妯″瀷 鈹€鈹€ */
+  /* 閳光偓閳光偓 閸旂姾娴囨导姘崇樈鐠囷附鍎忛敍姘洤鐟?+ 鐏忔繆鐦?chat.history 閹峰褰囬張鈧潻鎴濐嚠鐠囨繂鍞寸€归€涚瑢濡€崇€?閳光偓閳光偓 */
   async _loadSessionDetail(key){
     const seq=++this._detailLoadSeq;
     const detailContent=document.getElementById('live-detail-content');
@@ -2079,7 +2079,7 @@ const LiveController={
     if(statusEl)statusEl.textContent=session?(session.status||session.state||(session.active?'active':'idle')):'--';
     if(!historyEl)return;
     const L=this._lang();
-    historyEl.innerHTML='<div class="live-detail-loading" id="live-detail-loading">'+(L==='zh'?'鍔犺浇瀵硅瘽鈥?:'Loading chat鈥?)+'</div>';
+    historyEl.innerHTML='<div class="live-detail-loading" id="live-detail-loading">'+(L==='zh'?'閸旂姾娴囩€电鐦介垾?:'Loading chat閳?)+'</div>';
     let messages=[];
     let historyErr=null;
     if(ClawController&&ClawController.authenticated){
@@ -2093,11 +2093,11 @@ const LiveController={
     const loadingEl=document.getElementById('live-detail-loading');
     if(loadingEl)loadingEl.remove();
     if(!session){
-      historyEl.innerHTML=`<div style="color:var(--dim);font-size:11px;padding:8px">${L==='zh'?'鏈壘鍒拌浼氳瘽':'Session not found'}</div>`;
+      historyEl.innerHTML=`<div style="color:var(--dim);font-size:11px;padding:8px">${L==='zh'?'閺堫亝澹橀崚鎷岊嚉娴兼俺鐦?:'Session not found'}</div>`;
       if(messages.length){
         const list=document.createElement('div');
         list.className='live-chat-messages';
-        list.setAttribute('aria-label',L==='zh'?'鏈€杩戝璇?:'Recent messages');
+        list.setAttribute('aria-label',L==='zh'?'閺堚偓鏉╂垵顕拠?:'Recent messages');
         messages.forEach(m=>{
           const role=(m.role||m.type||'').toLowerCase();
           const isUser=role==='user';
@@ -2105,7 +2105,7 @@ const LiveController={
           const modelHint=m.model?` <span class="live-msg-model">${m.model}</span>`:'';
           const div=document.createElement('div');
           div.className='live-msg '+(isUser?'user-msg':'ai-msg');
-          div.innerHTML=`<div class="live-msg-role">${isUser?(L==='zh'?'鐢ㄦ埛':'User'):(L==='zh'?'鍔╂墜':'Assistant')}${modelHint}</div><div class="live-msg-bubble">${escapeHtml(content)}</div>`;
+          div.innerHTML=`<div class="live-msg-role">${isUser?(L==='zh'?'閻劍鍩?:'User'):(L==='zh'?'閸斺晜澧?:'Assistant')}${modelHint}</div><div class="live-msg-bubble">${escapeHtml(content)}</div>`;
           list.appendChild(div);
         });
         historyEl.appendChild(list);
@@ -2114,9 +2114,9 @@ const LiveController={
     }
     const modelName=session.model||session.modelId||session.defaultModel||'--';
     const rows=[];
-    rows.push({k:L==='zh'?'妯″瀷':'Model',v:modelName});
-    if(session.updatedAt||session.createdAt)rows.push({k:L==='zh'?'鏇存柊鏃堕棿':'Updated',v:new Date(session.updatedAt||session.createdAt).toLocaleString()});
-    if(session.createdAt&&session.updatedAt!==session.createdAt)rows.push({k:L==='zh'?'鍒涘缓鏃堕棿':'Created',v:new Date(session.createdAt).toLocaleString()});
+    rows.push({k:L==='zh'?'濡€崇€?:'Model',v:modelName});
+    if(session.updatedAt||session.createdAt)rows.push({k:L==='zh'?'閺囧瓨鏌婇弮鍫曟？':'Updated',v:new Date(session.updatedAt||session.createdAt).toLocaleString()});
+    if(session.createdAt&&session.updatedAt!==session.createdAt)rows.push({k:L==='zh'?'閸掓稑缂撻弮鍫曟？':'Created',v:new Date(session.createdAt).toLocaleString()});
     if(session.usage&&(session.usage.totalTokens!=null||session.usage.input!=null))rows.push({k:L==='zh'?'Token':'Tokens',v:[session.usage.totalTokens,session.usage.input,session.usage.output].filter(x=>x!=null).join(' / ')||'--'});
     Object.keys(session).filter(x=>!['sessionKey','key','id','status','state','active','updatedAt','createdAt','lastActivity','model','modelId','defaultModel','usage'].includes(x)).slice(0,8).forEach(k=>{const v=session[k];if(v!=null&&typeof v!=='object')rows.push({k,v:String(v)});});
     let html=`<div class="live-detail-summary" style="margin-bottom:12px;padding:10px;background:rgba(255,255,255,.04);border-radius:8px;font-size:11px;color:var(--dim);">`;
@@ -2126,7 +2126,7 @@ const LiveController={
     if(messages.length){
       const list=document.createElement('div');
       list.className='live-chat-messages';
-      list.setAttribute('aria-label',L==='zh'?'鏈€杩戝璇?:'Recent messages');
+      list.setAttribute('aria-label',L==='zh'?'閺堚偓鏉╂垵顕拠?:'Recent messages');
       messages.forEach(m=>{
         const role=(m.role||m.type||'').toLowerCase();
         const isUser=role==='user';
@@ -2134,25 +2134,25 @@ const LiveController={
         const modelHint=m.model?` <span class="live-msg-model">${m.model}</span>`:'';
         const div=document.createElement('div');
         div.className='live-msg '+(isUser?'user-msg':'ai-msg');
-        div.innerHTML=`<div class="live-msg-role">${isUser?(L==='zh'?'鐢ㄦ埛':'User'):(L==='zh'?'鍔╂墜':'Assistant')}${modelHint}</div><div class="live-msg-bubble">${escapeHtml(content)}</div>`;
+        div.innerHTML=`<div class="live-msg-role">${isUser?(L==='zh'?'閻劍鍩?:'User'):(L==='zh'?'閸斺晜澧?:'Assistant')}${modelHint}</div><div class="live-msg-bubble">${escapeHtml(content)}</div>`;
         list.appendChild(div);
       });
       historyEl.appendChild(list);
     }else{
       const p=document.createElement('p');
       p.style.cssText='font-size:11px;color:var(--dim);margin:0;';
-      let t=L==='zh'?'鏃犲璇濊褰曟垨鎺ュ彛涓嶅彲鐢ㄣ€?:'No messages or API unavailable.';
+      let t=L==='zh'?'閺冪姴顕拠婵婎唶瑜版洘鍨ㄩ幒銉ュ經娑撳秴褰查悽銊ｂ偓?:'No messages or API unavailable.';
       if(historyErr){
         const em=(historyErr&&historyErr.message)?String(historyErr.message):String(historyErr);
         t+=' '+em;
-        if(/missing scope|operator\.write|operator\.read/i.test(em))t+=L==='zh'?' 锛坈onnect 宸茶姹?operator.read/write锛岃鍏堛€屸喓 閲嶈繛銆嶏紱浠嶅け璐ュ垯鎹?Token锛?:' (Reconnect; renew token if needed.)';
+        if(/missing scope|operator\.write|operator\.read/i.test(em))t+=L==='zh'?' 閿涘潏onnect 瀹歌尪顕Ч?operator.read/write閿涘矁顕崗鍫涒偓灞稿枔 闁插秷绻涢妴宥忕幢娴犲秴銇戠拹銉ュ灟閹?Token閿?:' (Reconnect; renew token if needed.)';
       }
       p.textContent=t;
       historyEl.appendChild(p);
     }
   },
 
-  /* 鈹€鈹€ 鐘舵€佺偣 鈹€鈹€ */
+  /* 閳光偓閳光偓 閻樿埖鈧胶鍋?閳光偓閳光偓 */
   _updateStatusDot(state){
     const dot=document.getElementById('live-status-dot');
     if(!dot)return;
@@ -2161,7 +2161,7 @@ const LiveController={
     else if(state==='error')dot.classList.add('error');
   },
 
-  /* 鈹€鈹€ 鏃?Gateway 鏃舵樉绀烘彁绀?鈹€鈹€ */
+  /* 閳光偓閳光偓 閺?Gateway 閺冭埖妯夌粈鐑樺絹缁€?閳光偓閳光偓 */
   showOffline(){
     const container=document.getElementById('live-sessions-list');
     const emptyEl=document.getElementById('live-sessions-empty');
@@ -2169,14 +2169,14 @@ const LiveController={
     if(emptyEl){
       const g=typeof OpenClawGateway!=='undefined'&&OpenClawGateway&&typeof OpenClawGateway.getDisplay==='function'?OpenClawGateway.getDisplay():'';
       emptyEl.style.display='block';
-      emptyEl.textContent=L==='zh'?('鏈繛鎺?Gateway锛岃鍏堣繛鎺?+(g?' '+g:'')):('Gateway not connected. Please connect to'+(g?' '+g:''));
+      emptyEl.textContent=L==='zh'?('閺堫亣绻涢幒?Gateway閿涘矁顕崗鍫ｇ箾閹?+(g?' '+g:'')):('Gateway not connected. Please connect to'+(g?' '+g:''));
     }
     const gwEl=document.getElementById('live-gw-status');
-    if(gwEl)gwEl.textContent=L==='zh'?'鏈繛鎺?:'Offline';
+    if(gwEl)gwEl.textContent=L==='zh'?'閺堫亣绻涢幒?:'Offline';
     const healthEl=document.getElementById('live-gw-health');
     if(healthEl){healthEl.textContent='--';healthEl.className='live-stat-value';}
     const gwBlockEl=document.getElementById('live-block-gw');
-    if(gwBlockEl)gwBlockEl.textContent=L==='zh'?'鏈繛鎺?:'Offline';
+    if(gwBlockEl)gwBlockEl.textContent=L==='zh'?'閺堫亣绻涢幒?:'Offline';
     this._updateUsageDetail(null);
     this._updateQuickBlocks(null,null,null);
     this._updateStatusDot('error');
@@ -2194,40 +2194,40 @@ const LiveController={
     }
   },
 
-  /* 鈹€鈹€ 鏇存柊鏍囩璇█ 鈹€鈹€ */
+  /* 閳光偓閳光偓 閺囧瓨鏌婇弽鍥╊劮鐠囶叀鈻?閳光偓閳光偓 */
   updateLabels(L){
     const map={
-      'live-sessions-title':{'zh':'瀹炴椂浼氳瘽','en':'Live Sessions'},
+      'live-sessions-title':{'zh':'鐎圭偞妞傛导姘崇樈','en':'Live Sessions'},
       'lbl-gw-status':{'zh':'Gateway','en':'Gateway'},
-      'lbl-gw-health':{'zh':'鍋ュ悍','en':'Health'},
-      'live-gw-restart-btn':{'zh':'閲嶅惎缃戝叧','en':'Restart gateway'},
-      'lbl-token-total':{'zh':'Token 鎬婚噺','en':'Total tokens'},
-      'lbl-token-in':{'zh':'杈撳叆','en':'Input'},
-      'lbl-token-out':{'zh':'杈撳嚭','en':'Output'},
-      'lbl-sess-cnt':{'zh':'浼氳瘽鏁?,'en':'Sessions'},
-      'lbl-task-cnt':{'zh':'浠诲姟','en':'Tasks'},
-      'lbl-usage':{'zh':'鐢ㄩ噺','en':'Usage'},
-      'lbl-presence':{'zh':'鍦ㄧ嚎瀹炰緥','en':'Online'},
-      'live-sessions-empty':{'zh':'绛夊緟 Gateway 杩炴帴...','en':'Waiting for Gateway...'},
-      'live-select-hint':{'zh':'鈫?閫夋嫨涓€鏉′細璇濇煡鐪嬭鎯?,'en':'鈫?Select a session to view details'},
-      'live-block-save-title':{'zh':'鐪侀挶','en':'Save $'},
-      'live-block-easy-title':{'zh':'鏂逛究','en':'Convenience'},
-      'live-block-use-title':{'zh':'瀹炵敤','en':'Practical'},
-      'lbl-block-usage':{'zh':'鐢ㄩ噺','en':'Usage'},
-      'lbl-block-models':{'zh':'妯″瀷','en':'Models'},
-      'lbl-block-conn':{'zh':'杩炴帴','en':'Connection'},
+      'lbl-gw-health':{'zh':'閸嬨儱鎮?,'en':'Health'},
+      'live-gw-restart-btn':{'zh':'闁插秴鎯庣純鎴濆彠','en':'Restart gateway'},
+      'lbl-token-total':{'zh':'Token 閹鍣?,'en':'Total tokens'},
+      'lbl-token-in':{'zh':'鏉堟挸鍙?,'en':'Input'},
+      'lbl-token-out':{'zh':'鏉堟挸鍤?,'en':'Output'},
+      'lbl-sess-cnt':{'zh':'娴兼俺鐦介弫?,'en':'Sessions'},
+      'lbl-task-cnt':{'zh':'娴犺濮?,'en':'Tasks'},
+      'lbl-usage':{'zh':'閻劑鍣?,'en':'Usage'},
+      'lbl-presence':{'zh':'閸︺劎鍤庣€圭偘绶?,'en':'Online'},
+      'live-sessions-empty':{'zh':'缁涘绶?Gateway 鏉╃偞甯?..','en':'Waiting for Gateway...'},
+      'live-select-hint':{'zh':'閳?闁瀚ㄦ稉鈧弶鈥茬窗鐠囨繃鐓￠惇瀣嚊閹?,'en':'閳?Select a session to view details'},
+      'live-block-save-title':{'zh':'閻線鎸?,'en':'Save $'},
+      'live-block-easy-title':{'zh':'閺傞€涚┒','en':'Convenience'},
+      'live-block-use-title':{'zh':'鐎圭偟鏁?,'en':'Practical'},
+      'lbl-block-usage':{'zh':'閻劑鍣?,'en':'Usage'},
+      'lbl-block-models':{'zh':'濡€崇€?,'en':'Models'},
+      'lbl-block-conn':{'zh':'鏉╃偞甯?,'en':'Connection'},
       'lbl-block-gw':{'zh':'Gateway','en':'Gateway'},
-      'live-refresh-models':{'zh':'鍒锋柊妯″瀷','en':'Refresh models'},
-      'live-fetch-link':{'zh':'鑾峰彇瀵硅瘽閾炬帴','en':'Get dialogue link'},
-      'live-copy-link':{'zh':'澶嶅埗閾炬帴','en':'Copy link'},
-      'live-block-use-hint':{'zh':'宸︿晶涓轰細璇濆垪琛紝閫変竴鏉″彲鐪嬭鎯?,'en':'Sessions on the left; select one for details'},
-      'live-open-chat':{'zh':'鎵撳紑鑱婂ぉ','en':'Open chat'}
+      'live-refresh-models':{'zh':'閸掗攱鏌婂Ο鈥崇€?,'en':'Refresh models'},
+      'live-fetch-link':{'zh':'閼惧嘲褰囩€电鐦介柧鐐复','en':'Get dialogue link'},
+      'live-copy-link':{'zh':'婢跺秴鍩楅柧鐐复','en':'Copy link'},
+      'live-block-use-hint':{'zh':'瀹革缚鏅舵稉杞扮窗鐠囨繂鍨悰顭掔礉闁绔撮弶鈥冲讲閻顕涢幆?,'en':'Sessions on the left; select one for details'},
+      'live-open-chat':{'zh':'閹垫挸绱戦懕濠傘亯','en':'Open chat'}
     };
     Object.entries(map).forEach(([id,texts])=>{const el=document.getElementById(id);if(el)el.textContent=texts[L]||texts['zh'];});
   }
 };
 
-/* 缁戝畾瀹炴椂瑙嗗浘 close / 鍒锋柊 / 涓夌増鍧楁寜閽?*/
+/* 缂佹垵鐣剧€圭偞妞傜憴鍡楁禈 close / 閸掗攱鏌?/ 娑撳澧楅崸妤佸瘻闁?*/
 (function(){
   const $=id=>document.getElementById(id);
   const closeBtn=document.getElementById('live-detail-close');
@@ -2246,65 +2246,65 @@ const LiveController={
       else LiveController.showOffline();
     }
   });
-  /* 閲嶅惎缃戝叧 */
+  /* 闁插秴鎯庣純鎴濆彠 */
   const gwRestartBtn=$('live-gw-restart-btn');
   const GW_RESTART_CMD='openclaw gateway restart';
   if(gwRestartBtn)gwRestartBtn.addEventListener('click',async ()=>{
     gwRestartBtn.classList.add('loading');
     const L=state.lang==='zh';
-    /* 1) 灏濊瘯缃戝叧 HTTP 閲嶅惎锛堜笉渚濊禆 npm run dev锛涜嫢缃戝叧鎻愪緵 /api/restart 鎴?/restart 鍒欑敓鏁堬級 */
+    /* 1) 鐏忔繆鐦純鎴濆彠 HTTP 闁插秴鎯庨敍鍫滅瑝娓氭繆绂?npm run dev閿涙稖瀚㈢純鎴濆彠閹绘劒绶?/api/restart 閹?/restart 閸掓瑧鏁撻弫鍫礆 */
     for(const path of['/api/restart','/restart','/api/gateway-restart']){
       try{
         const r=await fetch(OpenClawGateway.httpBase()+path,{method:'POST',headers:{'Content-Type':'application/json'},mode:'cors'});
         const body=await r.json().catch(()=>({}));
         if(r.ok&&(body&&(body.ok===true||body.success===true))){
           gwRestartBtn.classList.remove('loading');
-          alert(L?'缃戝叧閲嶅惎鎸囦护宸插彂閫侊紝璇风◢鍊欒繛鎺ユ仮澶?:'Gateway restart sent. Reconnect in a moment.');
+          alert(L?'缂冩垵鍙ч柌宥呮儙閹稿洣鎶ゅ鎻掑絺闁緤绱濈拠椋庘棦閸婃瑨绻涢幒銉︿划婢?:'Gateway restart sent. Reconnect in a moment.');
           return;
         }
       }catch(_){}
     }
-    /* 2) 鍚屾簮寮€鍙戞湇鍔℃墽琛屽懡浠よ锛堥渶 npm run dev锛?*/
+    /* 2) 閸氬本绨鈧崣鎴炴箛閸斺剝澧界悰灞芥嚒娴犮倛顢戦敍鍫ユ付 npm run dev閿?*/
     try{
       const r=await fetch(window.location.origin+'/api/gateway-restart',{method:'POST',headers:{'Content-Type':'application/json'}});
       const body=await r.json().catch(()=>({}));
       if(r.ok&&body&&body.ok){
         gwRestartBtn.classList.remove('loading');
-        alert(L?'宸查€氳繃鏈湴鍛戒护鎵ц openclaw gateway restart锛岀綉鍏崇害鍑犵鍚庢仮澶?:'openclaw gateway restart executed. Gateway will be back in a few seconds.');
+        alert(L?'瀹告煡鈧俺绻冮張顒€婀撮崨鎴掓姢閹笛嗩攽 openclaw gateway restart閿涘瞼缍夐崗宕囧閸戠姷顫楅崥搴划婢?:'openclaw gateway restart executed. Gateway will be back in a few seconds.');
         return;
       }
       if(r.status!==404&&body&&!body.ok){
         gwRestartBtn.classList.remove('loading');
-        alert(L?'鎵ц澶辫触: '+(body.error||''):'Failed: '+(body.error||''));
+        alert(L?'閹笛嗩攽婢惰精瑙? '+(body.error||''):'Failed: '+(body.error||''));
         return;
       }
     }catch(_){}
-    /* 3) 缃戝叧 WebSocket RPC */
+    /* 3) 缂冩垵鍙?WebSocket RPC */
     if(ClawController&&ClawController.authenticated){
       try{
         await ClawController.rpcCall('gateway.restart',{});
         gwRestartBtn.classList.remove('loading');
-        alert(L?'閲嶅惎鎸囦护宸插彂閫?:'Restart command sent');
+        alert(L?'闁插秴鎯庨幐鍥︽姢瀹告彃褰傞柅?:'Restart command sent');
         return;
       }catch(e){
         try{
           await ClawController.rpcCall('lifecycle.restart',{});
           gwRestartBtn.classList.remove('loading');
-          alert(L?'閲嶅惎鎸囦护宸插彂閫?:'Restart command sent');
+          alert(L?'闁插秴鎯庨幐鍥︽姢瀹告彃褰傞柅?:'Restart command sent');
           return;
         }catch(e2){}
       }
     }
     gwRestartBtn.classList.remove('loading');
-    const msg=L?'鏃犳硶杩滅▼閲嶅惎銆傝鍦ㄦ湰鏈虹粓绔墽琛屼互涓嬪懡浠わ紙鍙偣鍑诲鍒讹級锛?:'Cannot restart remotely. Run this in your terminal (click to copy):';
-    const copied=L?'宸插鍒讹紝璇峰埌缁堢绮樿创骞跺洖杞?:'Copied. Paste in terminal and press Enter.';
+    const msg=L?'閺冪姵纭舵潻婊呪柤闁插秴鎯庨妴鍌濐嚞閸︺劍婀伴張铏圭矒缁旑垱澧界悰灞间簰娑撳鎳℃禒銈忕礄閸欘垳鍋ｉ崙璇差槻閸掕绱氶敍?:'Cannot restart remotely. Run this in your terminal (click to copy):';
+    const copied=L?'瀹告彃顦查崚璁圭礉鐠囧嘲鍩岀紒鍫㈩伂缁鍒涢獮璺烘礀鏉?:'Copied. Paste in terminal and press Enter.';
     const copyAndAlert=()=>{
       navigator.clipboard&&navigator.clipboard.writeText(GW_RESTART_CMD).then(()=>alert(msg+'\n\n'+GW_RESTART_CMD+'\n\n'+copied)).catch(()=>alert(msg+'\n\n'+GW_RESTART_CMD));
     };
     if(navigator.clipboard)copyAndAlert();
     else alert(msg+'\n\n'+GW_RESTART_CMD);
   });
-  /* 鐪侀挶锛氬埛鏂扮敤閲?*/
+  /* 閻線鎸堕敍姘煕閺傛壆鏁ら柌?*/
   const btnRefreshUsage=$('live-refresh-usage');
   if(btnRefreshUsage)btnRefreshUsage.addEventListener('click',async ()=>{
     if(!ClawController||!ClawController.authenticated)return;
@@ -2317,7 +2317,7 @@ const LiveController={
     }catch(_){}
     finally{btnRefreshUsage.classList.remove('loading');}
   });
-  /* 鐪侀挶锛氬埛鏂版ā鍨?*/
+  /* 閻線鎸堕敍姘煕閺傜増膩閸?*/
   const btnRefreshModels=$('live-refresh-models');
   if(btnRefreshModels)btnRefreshModels.addEventListener('click',async ()=>{
     if(!ClawController||!ClawController.authenticated)return;
@@ -2327,11 +2327,11 @@ const LiveController={
       const list=Array.isArray(res)?res:(Array.isArray(res&&res.models)?res.models:[]);
       const L=state.lang||'zh';
       const modelsEl=$('live-models-list');
-      if(modelsEl)modelsEl.textContent=list.length?list.slice(0,12).map(m=>typeof m==='string'?m:(m.id||m.name||m.model||'')).filter(Boolean).join(', ')+(list.length>12?' 鈥?:''):(L==='zh'?'鏆傛棤':'None');
+      if(modelsEl)modelsEl.textContent=list.length?list.slice(0,12).map(m=>typeof m==='string'?m:(m.id||m.name||m.model||'')).filter(Boolean).join(', ')+(list.length>12?' 閳?:''):(L==='zh'?'閺嗗倹妫?:'None');
     }catch(_){}
     finally{btnRefreshModels.classList.remove('loading');}
   });
-  /* 鏂逛究锛氳幏鍙栧璇濋摼鎺?*/
+  /* 閺傞€涚┒閿涙俺骞忛崣鏍ь嚠鐠囨繈鎽奸幒?*/
   async function fetchDialogueLinkForLive(){
     try{
       const r0=await fetch(window.location.origin+'/api/dialogue-token',{cache:'no-store'});
@@ -2355,17 +2355,17 @@ const LiveController={
       if(copyBtn)copyBtn.style.display=url?'inline-block':'none';
     }finally{btnFetchLink.classList.remove('loading');}
   });
-  /* 鏂逛究锛氬鍒堕摼鎺?*/
+  /* 閺傞€涚┒閿涙艾顦查崚鍫曟懠閹?*/
   const btnCopyLink=$('live-copy-link');
   if(btnCopyLink)btnCopyLink.addEventListener('click',()=>{
     const urlInp=$('live-dialogue-url');const url=urlInp&&urlInp.value?urlInp.value.trim():'';
     if(!url)return;
     navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>{
-      btnCopyLink.textContent=state.lang==='zh'?'宸插鍒?:'Copied';
-      setTimeout(()=>{btnCopyLink.textContent=state.lang==='zh'?'澶嶅埗閾炬帴':'Copy link';},2000);
+      btnCopyLink.textContent=state.lang==='zh'?'瀹告彃顦查崚?:'Copied';
+      setTimeout(()=>{btnCopyLink.textContent=state.lang==='zh'?'婢跺秴鍩楅柧鐐复':'Copy link';},2000);
     }).catch(()=>{});
   });
-  /* 瀹炵敤锛氭墦寮€鑱婂ぉ锛堟柊鏍囩锛?*/
+  /* 鐎圭偟鏁ら敍姘ⅵ瀵偓閼卞﹤銇夐敍鍫熸煀閺嶅洨顒烽敍?*/
   const linkOpenChat=$('live-open-chat');
   if(linkOpenChat)linkOpenChat.addEventListener('click',function(e){
     e.preventDefault();
@@ -2377,9 +2377,9 @@ const LiveController={
   });
 })();
 
-/* 鐬冲瓟 #pupil-l / #pupil-r 闂儊 r 11->15->11锛屽彂閫?鍥炶溅鏃惰Е鍙?*/
+/* 閻啿鐡?#pupil-l / #pupil-r 闂傤亞鍎?r 11->15->11閿涘苯褰傞柅?閸ョ偠婧呴弮鎯靶曢崣?*/
 function blinkEyes(){if(!pl||!pr)return;const open=()=>{pl.setAttribute('r','15');pr.setAttribute('r','15');};const close=()=>{pl.setAttribute('r','11');pr.setAttribute('r','11');};open();setTimeout(close,100);setTimeout(()=>{open();setTimeout(close,100);},200);}
-/* ===== ClawController: 瀹屾暣鑱婂ぉ鎺у埗鍣?===== */
+/* ===== ClawController: 鐎瑰本鏆ｉ懕濠傘亯閹貉冨煑閸?===== */
 const ClawController={
   ws:null,
   msgId:0,
@@ -2395,11 +2395,11 @@ const ClawController={
   _pendingNonce:'',
   _instanceId:null,
   _connectSending:false,
-  /* 鏈璇佹秷鎭檺娴侊細鏈€澶氭樉绀?鏉★紝涔嬪悗鎶樺彔 */
+  /* 閺堫亣顓荤拠浣圭Х閹垶妾哄ù渚婄窗閺堚偓婢舵碍妯夌粈?閺夆槄绱濇稊瀣倵閹舵ê褰?*/
   unauthMsgCount:0,
   maxUnauthDisplay:3,
 
-  /* 鈹€鈹€鈹€鈹€鈹€ 鑾峰彇 token 鈹€鈹€鈹€鈹€鈹€ */
+  /* 閳光偓閳光偓閳光偓閳光偓閳光偓 閼惧嘲褰?token 閳光偓閳光偓閳光偓閳光偓閳光偓 */
   getSavedToken(){
     const keys=['openclaw_gatewayToken','openclaw_token','maca_token'];
     for(const k of keys){
@@ -2433,9 +2433,9 @@ const ClawController={
     return hit.length?hit:desired;
   },
 
-  /* 鈹€鈹€鈹€鈹€鈹€ UI 杈呭姪 鈹€鈹€鈹€鈹€鈹€ */
-  /* 浠?AI 姝ｆ枃涓彁鍙栥€屾牳蹇冧竴鍙ャ€嶏細棣栨鎴栧墠 200 瀛楋紝鐢ㄤ簬绮惧噯瀵硅瘽 */
-  /* 娴佸紡缁撴潫鍚庡皢 AI 姘旀场鏀逛负銆屾牳蹇冩憳瑕?+ 灞曞紑鍏ㄦ枃銆嶇粨鏋?*/
+  /* 閳光偓閳光偓閳光偓閳光偓閳光偓 UI 鏉堝懎濮?閳光偓閳光偓閳光偓閳光偓閳光偓 */
+  /* 娴?AI 濮濓絾鏋冩稉顓熷絹閸欐牓鈧本鐗宠箛鍐х閸欍儯鈧稄绱版＃鏍唽閹存牕澧?200 鐎涙绱濋悽銊ょ艾缁儳鍣€电鐦?*/
+  /* 濞翠礁绱＄紒鎾存将閸氬骸鐨?AI 濮樻梹鍦洪弨閫涜礋閵嗗本鐗宠箛鍐╂喅鐟?+ 鐏炴洖绱戦崗銊︽瀮閵嗗秶绮ㄩ弸?*/
   _finalizeAiMsg(bodyEl){
     if(!bodyEl||bodyEl.classList.contains('has-core'))return;
     const text=(bodyEl.textContent||'').trim();
@@ -2450,14 +2450,14 @@ const ClawController={
     actions.className='msg-actions';
     const btnExpand=document.createElement('button');
     btnExpand.type='button';
-    btnExpand.textContent='灞曞紑鍏ㄦ枃';
-    btnExpand.addEventListener('click',()=>{bodyEl.classList.toggle('expanded');btnExpand.textContent=bodyEl.classList.contains('expanded')?'鏀惰捣':'灞曞紑鍏ㄦ枃';});
+    btnExpand.textContent='鐏炴洖绱戦崗銊︽瀮';
+    btnExpand.addEventListener('click',()=>{bodyEl.classList.toggle('expanded');btnExpand.textContent=bodyEl.classList.contains('expanded')?'閺€鎯版崳':'鐏炴洖绱戦崗銊︽瀮';});
     const btnCopy=document.createElement('button');
     btnCopy.type='button';
-    btnCopy.textContent='澶嶅埗鍥炲';
+    btnCopy.textContent='婢跺秴鍩楅崶鐐差槻';
     btnCopy.addEventListener('click',()=>{
       const fullText=bodyEl.querySelector('.msg-full').textContent||bodyEl.querySelector('.msg-core').textContent;
-      navigator.clipboard&&navigator.clipboard.writeText(fullText).then(()=>{btnCopy.textContent='宸插鍒?;setTimeout(()=>btnCopy.textContent='澶嶅埗鍥炲',1500);}).catch(()=>{});
+      navigator.clipboard&&navigator.clipboard.writeText(fullText).then(()=>{btnCopy.textContent='瀹告彃顦查崚?;setTimeout(()=>btnCopy.textContent='婢跺秴鍩楅崶鐐差槻',1500);}).catch(()=>{});
     });
     actions.appendChild(btnExpand);actions.appendChild(btnCopy);
     bodyEl.appendChild(actions);
@@ -2467,11 +2467,11 @@ const ClawController={
     if(!t)return {core:'',full:''};
     const maxCore=200;
     const firstLineEnd=t.indexOf('\n');
-    if(firstLineEnd===-1)return t.length<=maxCore?{core:t,full:''}:{core:t.slice(0,maxCore)+'鈥?,full:t};
+    if(firstLineEnd===-1)return t.length<=maxCore?{core:t,full:''}:{core:t.slice(0,maxCore)+'閳?,full:t};
     const firstLine=t.slice(0,firstLineEnd).trim();
     if(firstLine.length<=maxCore&&t.length<=maxCore+50)return {core:firstLine,full:''};
     if(firstLine.length<=maxCore)return {core:firstLine,full:t};
-    return {core:firstLine.slice(0,maxCore)+'鈥?,full:t};
+    return {core:firstLine.slice(0,maxCore)+'閳?,full:t};
   },
   _extractDisplayText(v){
     if(v==null)return '';
@@ -2498,7 +2498,7 @@ const ClawController={
       header.setAttribute('tabindex','0');
       const L=state.lang||'zh';
       const t=i18n[L];
-      header.textContent=(t&&t.sysGroupHeader?t.sysGroupHeader:(L==='zh'?'绯荤粺涓庤繛鎺?:'System & connection'))+' (0)';
+      header.textContent=(t&&t.sysGroupHeader?t.sysGroupHeader:(L==='zh'?'缁崵绮烘稉搴ょ箾閹?:'System & connection'))+' (0)';
       header.addEventListener('click',()=>{
         group.classList.toggle('collapsed');
         this._updateSysGroupHeader(group);
@@ -2518,7 +2518,7 @@ const ClawController={
     const n=body?body.children.length:0;
     const L=state.lang||'zh';
     const t=i18n[L];
-    const label=t&&t.sysGroupHeader?t.sysGroupHeader:(L==='zh'?'绯荤粺涓庤繛鎺?:'System & connection');
+    const label=t&&t.sysGroupHeader?t.sysGroupHeader:(L==='zh'?'缁崵绮烘稉搴ょ箾閹?:'System & connection');
     const h=group.querySelector('.msg-sys-group-header');
     if(h)h.textContent=label+' ('+n+')';
   },
@@ -2556,14 +2556,14 @@ const ClawController={
         actions.className='msg-actions';
         const btnExpand=document.createElement('button');
         btnExpand.type='button';
-        btnExpand.textContent='灞曞紑鍏ㄦ枃';
-        btnExpand.addEventListener('click',()=>{bodyEl.classList.toggle('expanded');btnExpand.textContent=bodyEl.classList.contains('expanded')?'鏀惰捣':'灞曞紑鍏ㄦ枃';});
+        btnExpand.textContent='鐏炴洖绱戦崗銊︽瀮';
+        btnExpand.addEventListener('click',()=>{bodyEl.classList.toggle('expanded');btnExpand.textContent=bodyEl.classList.contains('expanded')?'閺€鎯版崳':'鐏炴洖绱戦崗銊︽瀮';});
         const btnCopy=document.createElement('button');
         btnCopy.type='button';
-        btnCopy.textContent='澶嶅埗鍥炲';
+        btnCopy.textContent='婢跺秴鍩楅崶鐐差槻';
         btnCopy.addEventListener('click',()=>{
           const fullText=bodyEl.querySelector('.msg-full').textContent||bodyEl.querySelector('.msg-core').textContent;
-          navigator.clipboard&&navigator.clipboard.writeText(fullText).then(()=>{btnCopy.textContent='宸插鍒?;setTimeout(()=>btnCopy.textContent='澶嶅埗鍥炲',1500);}).catch(()=>{});
+          navigator.clipboard&&navigator.clipboard.writeText(fullText).then(()=>{btnCopy.textContent='瀹告彃顦查崚?;setTimeout(()=>btnCopy.textContent='婢跺秴鍩楅崶鐐差槻',1500);}).catch(()=>{});
         });
         actions.appendChild(btnExpand);actions.appendChild(btnCopy);
         bodyEl.appendChild(actions);
@@ -2581,13 +2581,13 @@ const ClawController={
   },
   setStatus(s){
     const el=$("status-indicator");if(!el)return;
-    const map={linked:['LINKED','linked'],offline:['OFFLINE','offline'],connecting:['CONNECTING鈥?,'connecting']};
+    const map={linked:['LINKED','linked'],offline:['OFFLINE','offline'],connecting:['CONNECTING閳?,'connecting']};
     const [txt,cls]=map[s]||['OFFLINE','offline'];
     el.textContent=txt;
     el.className=cls;
   },
   clearHistory(){const el=$("chat-history-content");if(el){el.innerHTML='';this.unauthMsgCount=0;}},
-  /** 浠?chat.history 鎺ュ彛鍝嶅簲涓В鏋愬嚭 messages 鏁扮粍锛堝吋瀹瑰绉嶅悗绔繑鍥炵粨鏋勶級 */
+  /** 娴?chat.history 閹恒儱褰涢崫宥呯安娑擃叀袙閺嬫劕鍤?messages 閺佹壆绮嶉敍鍫濆悑鐎圭懓顦跨粔宥呮倵缁旑垵绻戦崶鐐电波閺嬪嫸绱?*/
   getMessagesFromHistoryResponse(res){
     if(!res)return [];
     if(Array.isArray(res))return res;
@@ -2601,7 +2601,7 @@ const ClawController={
     if(Array.isArray(res.result))return res.result;
     return [];
   },
-  /** 浠庡崟鏉℃秷鎭腑鎻愬彇灞曠ず鐢ㄦ枃鏈紙鍏煎 content 瀛楃涓层€乧ontent 鏁扮粍 parts銆乼ext銆乵essage 绛夛級 */
+  /** 娴犲骸宕熼弶鈩冪Х閹垯鑵戦幓鎰絿鐏炴洜銇氶悽銊︽瀮閺堫剨绱欓崗鐓庮啇 content 鐎涙顑佹稉灞傗偓涔ntent 閺佹壆绮?parts閵嗕辜ext閵嗕沟essage 缁涘绱?*/
   _getMessageDisplayText(m){
     if(!m)return '';
     const c=m.content;
@@ -2619,7 +2619,7 @@ const ClawController={
     if(typeof single==='object'&&single!==null&&(single.text||single.content))return (single.text||single.content).trim();
     return '';
   },
-  /** 灏嗗疄鏃跺悗鍙版煇浼氳瘽鐨勫璇濆巻鍙叉槧灏勫埌鍙充晶 chat-history锛堝厛娓呯┖鍐嶆寜鏉¤拷鍔?user/ai锛?*/
+  /** 鐏忓棗鐤勯弮璺烘倵閸欑増鐓囨导姘崇樈閻ㄥ嫬顕拠婵嗗坊閸欏弶妲х亸鍕煂閸欏厖鏅?chat-history閿涘牆鍘涘〒鍛敄閸愬秵瀵滈弶陇鎷烽崝?user/ai閿?*/
   syncHistoryFromMessages(messages,sessionKey,historyError){
     const el=$("chat-history-content");if(!el)return;
     this.clearHistory();
@@ -2629,11 +2629,11 @@ const ClawController={
       if(em)this.appendMsg('err',em);
       if(/missing scope|operator\.write|operator\.read/i.test(em)){
         this.appendMsg('sys',L==='zh'
-          ?'璇风偣銆屸喓 閲嶈繛銆嶄互鐢ㄦ柊鐨?scopes 閲嶆柊鎻℃墜锛涜嫢浠嶆彁绀虹己 scope锛岃鎹㈠彂甯?operator.read / operator.write 鐨?Gateway Token銆?
+          ?'鐠囬鍋ｉ妴灞稿枔 闁插秷绻涢妴宥勪簰閻劍鏌婇惃?scopes 闁插秵鏌婇幓鈩冨閿涙稖瀚㈡禒宥嗗絹缁€铏瑰繁 scope閿涘矁顕幑銏犲絺鐢?operator.read / operator.write 閻?Gateway Token閵?
           :'Click Reconnect to re-handshake; if scope errors persist, use a token granting operator.read and operator.write.');
       }
     }else if(sessionKey){
-      this.appendMsg('sys',(L==='zh'?'宸插姞杞戒細璇濄€?+sessionKey+'銆嶇殑瀵硅瘽鍘嗗彶':'Loaded chat history for session "'+sessionKey+'"'));
+      this.appendMsg('sys',(L==='zh'?'瀹告彃濮炴潪鎴掔窗鐠囨縿鈧?+sessionKey+'閵嗗秶娈戠€电鐦介崢鍡楀蕉':'Loaded chat history for session "'+sessionKey+'"'));
     }
     if(!Array.isArray(messages)||!messages.length)return;
     messages.forEach(m=>{
@@ -2653,10 +2653,10 @@ const ClawController={
     if(btn)btn.disabled=!on;
   },
 
-  /* 鈹€鈹€鈹€鈹€鈹€ 璁惧韬唤锛圗d25519 via crypto.subtle锛宭ocalStorage 鎸佷箙鍖栵級 鈹€鈹€鈹€鈹€鈹€ */
+  /* 閳光偓閳光偓閳光偓閳光偓閳光偓 鐠佹儳顦煬顐″敜閿涘湕d25519 via crypto.subtle閿涘ocalStorage 閹镐椒绠欓崠鏍电礆 閳光偓閳光偓閳光偓閳光偓閳光偓 */
   _DEVICE_KEY:'openclaw-device-identity-v1',
 
-  /* 鐢熸垚 UUID锛堝畨鍏?闈炲畨鍏ㄥ潎鍙級 */
+  /* 閻㈢喐鍨?UUID閿涘牆鐣ㄩ崗?闂堢偛鐣ㄩ崗銊ユ綆閸欘垽绱?*/
   _uuid(){
     try{if(crypto&&crypto.randomUUID)return crypto.randomUUID();}catch{}
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{
@@ -2664,25 +2664,25 @@ const ClawController={
     });
   },
 
-  /* Uint8Array 鈫?base64url */
+  /* Uint8Array 閳?base64url */
   _b64u(buf){
     return btoa(String.fromCharCode(...new Uint8Array(buf)))
       .replaceAll('+','-').replaceAll('/','_').replaceAll('=','');
   },
-  /* base64url 鈫?Uint8Array */
+  /* base64url 閳?Uint8Array */
   _fromb64u(s){
     const b=s.replaceAll('-','+').replaceAll('_','/');
     const pad=b+'='.repeat((4-b.length%4)%4);
     return Uint8Array.from(atob(pad),c=>c.charCodeAt(0));
   },
-  /* Uint8Array 鈫?hex */
+  /* Uint8Array 閳?hex */
   _hex(buf){return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');},
 
-  /* 鑾峰彇鎴栧垱寤鸿澶囧瘑閽ュ锛圗d25519锛屾寔涔呭寲鍒?localStorage锛?*/
+  /* 閼惧嘲褰囬幋鏍у灡瀵ら缚顔曟径鍥х槕闁姐儱顕敍鍦梔25519閿涘本瀵旀稊鍛閸?localStorage閿?*/
   async _getOrCreateDeviceIdentity(){
     const subtle=crypto&&crypto.subtle;
     if(!subtle)return null;
-    /* 灏濊瘯璇诲彇宸插瓨韬唤 */
+    /* 鐏忔繆鐦拠璇插絿瀹告彃鐡ㄩ煬顐″敜 */
     try{
       const raw=localStorage.getItem(this._DEVICE_KEY);
       if(raw){
@@ -2694,12 +2694,12 @@ const ClawController={
         }
       }
     }catch{}
-    /* 鍒涘缓鏂板瘑閽ュ */
+    /* 閸掓稑缂撻弬鏉跨槕闁姐儱顕?*/
     try{
       const kp=await subtle.generateKey({name:'Ed25519'},true,['sign','verify']);
       const pubJwk=await subtle.exportKey('jwk',kp.publicKey);
       const privJwk=await subtle.exportKey('jwk',kp.privateKey);
-      /* deviceId = SHA-256(raw public key bytes) as hex锛屼笌瀹樻柟涓€鑷?*/
+      /* deviceId = SHA-256(raw public key bytes) as hex閿涘奔绗岀€规ɑ鏌熸稉鈧懛?*/
       const pubRaw=await subtle.exportKey('raw',kp.publicKey);
       const hashBuf=await subtle.digest('SHA-256',pubRaw);
       const deviceId=this._hex(hashBuf);
@@ -2714,14 +2714,14 @@ const ClawController={
     }
   },
 
-  /* 鏋勫缓绛惧悕杞借嵎锛坴2 鏍煎紡锛屼笌瀹樻柟瀹屽叏涓€鑷达級骞剁鍚?*/
+  /* 閺嬪嫬缂撶粵鎯ф倳鏉炲€熷祹閿涘澊2 閺嶇厧绱￠敍灞肩瑢鐎规ɑ鏌熺€瑰苯鍙忔稉鈧懛杈剧礆楠炲墎顒烽崥?*/
   async _signDevice(identity,nonce,token,role,scopes){
     const subtle=crypto.subtle;
     const signedAtMs=Date.now();
-    /* 瀵煎嚭 public key bytes 鈫?base64url锛堜綔涓?publicKey 瀛楁锛?*/
+    /* 鐎电厧鍤?public key bytes 閳?base64url閿涘牅缍旀稉?publicKey 鐎涙顔岄敍?*/
     const pubRaw=await subtle.exportKey('raw',identity.publicKey);
     const publicKeyB64u=this._b64u(pubRaw);
-    /* 绛惧悕杞借嵎锛歷2|deviceId|clientId|clientMode|role|scopes|signedAtMs|token|nonce */
+    /* 缁涙儳鎮曟潪鍊熷祹閿涙2|deviceId|clientId|clientMode|role|scopes|signedAtMs|token|nonce */
     const payload=[
       'v2',
       identity.deviceId,
@@ -2744,16 +2744,16 @@ const ClawController={
     };
   },
 
-  /* 鈹€鈹€鈹€鈹€鈹€ 鍙戦€?connect 璇锋眰锛堝畬鏁磋澶囩鍚嶏紝涓庡畼鏂瑰崗璁畬鍏ㄤ竴鑷达級 鈹€鈹€鈹€鈹€鈹€ */
+  /* 閳光偓閳光偓閳光偓閳光偓閳光偓 閸欐垿鈧?connect 鐠囬攱鐪伴敍鍫濈暚閺佺顔曟径鍥╊劮閸氬稄绱濇稉搴＄暭閺傜懓宕楃拋顔肩暚閸忋劋绔撮懛杈剧礆 閳光偓閳光偓閳光偓閳光偓閳光偓 */
   async sendConnectRequest(){
-    /* 闃查噸鍏?*/
+    /* 闂冩煡鍣搁崗?*/
     if(this._connectSending)return;
     this._connectSending=true;
     if(!this._instanceId)this._instanceId=this._uuid();
 
     const savedToken=this.getSavedToken();
 
-    /* 浣跨敤 "webchat" 瀹㈡埛绔?id锛堟棤闇€璁惧绛惧悕锛夛紝閫氳繃 gateway token 璁よ瘉 */
+    /* 娴ｈ法鏁?"webchat" 鐎广垺鍩涚粩?id閿涘牊妫ら棁鈧拋鎯ь槵缁涙儳鎮曢敍澶涚礉闁俺绻?gateway token 鐠併倛鐦?*/
     const params={
       minProtocol:3,
       maxProtocol:3,
@@ -2765,7 +2765,7 @@ const ClawController={
         instanceId:this._instanceId
       },
       role:'operator',
-      /* 浼樺厛涓?JWT 鍐呭疄闄?scopes 姹傚苟闆嗭紝閬垮厤 token 鏃犳硶 admin/pairing 鏃舵暣浣撴嫆缁濓紱chat.history 闇€ operator.read */
+      /* 娴兼ê鍘涙稉?JWT 閸愬懎鐤勯梽?scopes 濮瑰倸鑻熼梿鍡礉闁灝鍘?token 閺冪姵纭?admin/pairing 閺冭埖鏆ｆ担鎾村珕缂佹繐绱眂hat.history 闂団偓 operator.read */
       scopes:this._connectScopesForToken(savedToken),
       caps:[],
       userAgent:(typeof navigator!=='undefined'&&navigator.userAgent)||'',
@@ -2774,37 +2774,37 @@ const ClawController={
     if(savedToken)params.auth={token:savedToken};
 
     const connectMsg={type:'req',id:'connect-'+(++this.msgId),method:'connect',params};
-    console.log('[ClawCtrl] sendConnectRequest token=',savedToken?savedToken.substring(0,8)+'鈥?:'none');
+    console.log('[ClawCtrl] sendConnectRequest token=',savedToken?savedToken.substring(0,8)+'閳?:'none');
     try{
       this.ws.send(JSON.stringify(connectMsg));
-      this.appendMsg('sys','鍙戦€佽璇佽姹?(token: '+(savedToken?savedToken.substring(0,8)+'鈥?:'鏃?'));
+      this.appendMsg('sys','閸欐垿鈧浇顓荤拠浣筋嚞濮?(token: '+(savedToken?savedToken.substring(0,8)+'閳?:'閺?'));
     }catch(e){
-      this.appendMsg('err','鍙戦€佽璇佽姹傚け璐? '+e.message);
+      this.appendMsg('err','閸欐垿鈧浇顓荤拠浣筋嚞濮瑰倸銇戠拹? '+e.message);
     }finally{
       this._connectSending=false;
     }
   },
 
-  /* 鈹€鈹€鈹€鈹€鈹€ 璁よ瘉鎻℃墜澶勭悊 鈹€鈹€鈹€鈹€鈹€ */
+  /* 閳光偓閳光偓閳光偓閳光偓閳光偓 鐠併倛鐦夐幓鈩冨婢跺嫮鎮?閳光偓閳光偓閳光偓閳光偓閳光偓 */
   handleHandshake(msg){
     const p=msg.payload||msg.params||msg.result||{};
     const ev=msg.event||msg.type||msg.method||'';
 
-    /* 1. connect.challenge 鈫?鏀跺埌鎸戞垬锛屽洖澶?connect */
+    /* 1. connect.challenge 閳?閺€璺哄煂閹告垶鍨敍灞芥礀婢?connect */
     if(ev==='connect.challenge'){
       clearTimeout(this.handshakeTimeout);
       this.challengeReceived=true;clearTimeout(this._challengeTimeout);
       const nonce=p.nonce||'';
-      this._pendingNonce=nonce;  /* 淇濆瓨 nonce 渚涚鍚嶄娇鐢?*/
-      this._connectSending=false; /* 閲嶇疆闃查噸鍏ユ爣蹇楋紝鍏佽鏈鍙戦€?*/
-      this.appendMsg('sys','鏀跺埌鎸戞垬 (nonce: '+nonce.substring(0,8)+(nonce.length>8?'鈥?:'')+')');
-      this.sendConnectRequest().catch(e=>this.appendMsg('err','璁よ瘉鍙戦€佸け璐? '+e.message));
+      this._pendingNonce=nonce;  /* 娣囨繂鐡?nonce 娓氭稓顒烽崥宥勫▏閻?*/
+      this._connectSending=false; /* 闁插秶鐤嗛梼鏌ュ櫢閸忋儲鐖ｈ箛妤嬬礉閸忎浇顔忛張顒侇偧閸欐垿鈧?*/
+      this.appendMsg('sys','閺€璺哄煂閹告垶鍨?(nonce: '+nonce.substring(0,8)+(nonce.length>8?'閳?:'')+')');
+      this.sendConnectRequest().catch(e=>this.appendMsg('err','鐠併倛鐦夐崣鎴︹偓浣搞亼鐠? '+e.message));
       return;
     }
 
-    /* 2. JSON-RPC connect 鍝嶅簲锛坕d 浠?connect- 寮€澶达級*/
+    /* 2. JSON-RPC connect 閸濆秴绨查敍鍧昫 娴?connect- 瀵偓婢惰揪绱?/
     if(typeof msg.id==='string'&&msg.id.startsWith('connect-')){
-      /* 鍏煎涓ょ鏍煎紡锛?         1) {error: {...}}
+      /* 閸忕厧顔愭稉銈囶潚閺嶇厧绱￠敍?         1) {error: {...}}
          2) {ok:false,error:{...}} */
       if(msg.error||msg.ok===false){
         const errObj=msg.error||{};
@@ -2812,10 +2812,10 @@ const ClawController={
         const code=errObj.code||'';
         const isPairing=errMsg.toLowerCase().includes('pairing')||code==='PAIRING_REQUIRED';
         if(isPairing){
-          this.appendMsg('sys','璁惧闇€閰嶅瀹℃壒锛佽鍦?'+OpenClawGateway.httpBase()+' 鍚庡彴鎵瑰噯锛岀劧鍚庣偣鍑汇€屸喓 閲嶈繛銆嶃€?);
+          this.appendMsg('sys','鐠佹儳顦棁鈧柊宥咁嚠鐎光剝澹掗敍浣筋嚞閸?'+OpenClawGateway.httpBase()+' 閸氬骸褰撮幍鐟板櫙閿涘瞼鍔ч崥搴ｅ仯閸戞眹鈧备鍠?闁插秷绻涢妴宥冣偓?);
         }else{
-          this.appendMsg('err','璁よ瘉澶辫触: '+errMsg);
-          this.appendMsg('sys','璇风‘璁?Token 姝ｇ‘锛屾垨鐣欑┖灏濊瘯鏈湴妯″紡锛堝鏈嶅姟鍣ㄥ凡閰嶇疆 trusted-proxy锛夈€?);
+          this.appendMsg('err','鐠併倛鐦夋径杈Е: '+errMsg);
+          this.appendMsg('sys','鐠囬鈥樼拋?Token 濮濓絿鈥橀敍灞惧灗閻ｆ瑧鈹栫亸婵婄槸閺堫剙婀村Ο鈥崇础閿涘牆顩ч張宥呭閸ｃ劌鍑￠柊宥囩枂 trusted-proxy閿涘鈧?);
         }
         this.authenticated=false;
         this.setStatus('offline');
@@ -2824,7 +2824,7 @@ const ClawController={
         try{this.ws.close();}catch{}
         return;
       }
-      /* 鍏煎涓ょ鎴愬姛鏍煎紡锛?         1) {result:{...}}
+      /* 閸忕厧顔愭稉銈囶潚閹存劕濮涢弽鐓庣础閿?         1) {result:{...}}
          2) {ok:true,payload:{...}} */
       if(msg.result!==undefined||msg.ok===true){
         const data=msg.result!==undefined?msg.result:(msg.payload||{});
@@ -2835,20 +2835,20 @@ const ClawController={
       }
     }
 
-    /* 3. hello-ok 鏍煎紡锛堟棫鐗堬級 */
+    /* 3. hello-ok 閺嶇厧绱￠敍鍫熸＋閻楀牞绱?*/
     if(ev==='hello-ok'||(msg.result&&!msg.error&&this.challengeReceived)){
       this._onAuthSuccess(p);
       return;
     }
 
-    /* 4. hello-error 鏍煎紡锛堟棫鐗堬級 */
+    /* 4. hello-error 閺嶇厧绱￠敍鍫熸＋閻楀牞绱?*/
     if(ev==='hello-error'||ev==='pairing.required'){
       const errMsg=p.message||'Auth error';
       const isPairing=ev==='pairing.required'||errMsg.toLowerCase().includes('pairing');
       if(isPairing){
-        this.appendMsg('sys','璁惧闇€閰嶅瀹℃壒锛佽鍦?'+OpenClawGateway.httpBase()+' 鍚庡彴鎵瑰噯锛岀劧鍚庣偣鍑汇€屸喓 閲嶈繛銆嶃€?);
+        this.appendMsg('sys','鐠佹儳顦棁鈧柊宥咁嚠鐎光剝澹掗敍浣筋嚞閸?'+OpenClawGateway.httpBase()+' 閸氬骸褰撮幍鐟板櫙閿涘瞼鍔ч崥搴ｅ仯閸戞眹鈧备鍠?闁插秷绻涢妴宥冣偓?);
       }else{
-        this.appendMsg('err','璁よ瘉澶辫触: '+errMsg);
+        this.appendMsg('err','鐠併倛鐦夋径杈Е: '+errMsg);
       }
       this.authenticated=false;
       this.setStatus('offline');
@@ -2873,7 +2873,7 @@ const ClawController={
     const methods=(r.methods||[]).length;
     const events=(r.events||[]).length;
     this.showTokenPanel(false);
-    this.appendMsg('sys','鉁?璁よ瘉鎴愬姛'+(methods?' (methods: '+methods+', events: '+events+')':''));
+    this.appendMsg('sys','閴?鐠併倛鐦夐幋鎰'+(methods?' (methods: '+methods+', events: '+events+')':''));
     if(typeof window.refreshChatLoadSession==='function')window.refreshChatLoadSession();
     if(typeof window.startOpenclawHeartbeatStatsSync==='function')window.startOpenclawHeartbeatStatsSync();
     if(typeof LiveController!=='undefined'&&LiveController&&typeof LiveController._isVisible==='function'&&LiveController._isVisible()){
@@ -2886,16 +2886,16 @@ const ClawController={
     return this.supportedMethods.includes(method);
   },
 
-  /* 鈹€鈹€鈹€鈹€鈹€ 澶勭悊鏀跺埌鐨勬秷鎭?鈹€鈹€鈹€鈹€鈹€ */
+  /* 閳光偓閳光偓閳光偓閳光偓閳光偓 婢跺嫮鎮婇弨璺哄煂閻ㄥ嫭绉烽幁?閳光偓閳光偓閳光偓閳光偓閳光偓 */
   handleMessage(raw){
     let msg;
-    try{msg=JSON.parse(raw);}catch(e){this.appendMsg('err','娑堟伅瑙ｆ瀽澶辫触: '+e.message);return;}
+    try{msg=JSON.parse(raw);}catch(e){this.appendMsg('err','濞戝牊浼呯憴锝嗙€芥径杈Е: '+e.message);return;}
 
     console.log('[ClawCtrl] rx:', JSON.stringify(msg).substring(0,300));
 
     const ev=msg.event||msg.type||msg.method||'';
 
-    /* 鎻℃墜闃舵娑堟伅璺敱 */
+    /* 閹烩剝澧滈梼鑸殿唽濞戝牊浼呯捄顖滄暠 */
     const isHandshake=
       ev==='connect.challenge'||
       ev==='hello-ok'||ev==='hello-error'||ev==='pairing.required'||
@@ -2903,7 +2903,7 @@ const ClawController={
 
     if(isHandshake){this.handleHandshake(msg);return;}
 
-    /* RPC 鍝嶅簲璺敱锛堥潪鎻℃墜鐨?id 璇锋眰锛?*/
+    /* RPC 閸濆秴绨茬捄顖滄暠閿涘牓娼幓鈩冨閻?id 鐠囬攱鐪伴敍?*/
     if(msg.id&&this._rpcPending&&this._rpcPending[msg.id]){
       const p=this._rpcPending[msg.id];
       delete this._rpcPending[msg.id];
@@ -2918,21 +2918,21 @@ const ClawController={
     }
 
     if(!this.authenticated){
-      /* 杩囨护蹇冭烦/tick锛屽彧缁熻璁℃暟锛涘叾浠栨湭璁よ瘉娑堟伅闄愰噺鏄剧ず */
+      /* 鏉╁洦鎶よ箛鍐儲/tick閿涘苯褰х紒鐔活吀鐠佲剝鏆熼敍娑樺従娴犳牗婀拋銈堢槈濞戝牊浼呴梽鎰板櫤閺勫墽銇?*/
       const silent=['health','tick','ping','pong'];
       if(silent.includes(ev))return;
       this.unauthMsgCount++;
       if(this.unauthMsgCount<=this.maxUnauthDisplay){
-        const shortMsg=raw.length>180?raw.substring(0,180)+'鈥?:raw;
-        this.appendMsg('sys','[鏈璇乚 '+shortMsg);
+        const shortMsg=raw.length>180?raw.substring(0,180)+'閳?:raw;
+        this.appendMsg('sys','[閺堫亣顓荤拠涔?'+shortMsg);
       }else if(this.unauthMsgCount===this.maxUnauthDisplay+1){
-        this.appendMsg('sys','[鏈璇佹秷鎭繃澶氾紝宸查潤榛樸€傝妫€鏌?Token 鍚庨噸杩瀅');
+        this.appendMsg('sys','[閺堫亣顓荤拠浣圭Х閹垵绻冩径姘剧礉瀹告煡娼ゆ妯糕偓鍌濐嚞濡偓閺?Token 閸氬酣鍣告潻鐎?);
       }
       return;
     }
 
-    /* 宸茶璇佸悗鐨勬秷鎭鐞?*/
-    /* 浜嬩欢鎺ㄩ€侊細event 瀛楁澶勭悊 */
+    /* 瀹歌尪顓荤拠浣告倵閻ㄥ嫭绉烽幁顖氼槱閻?*/
+    /* 娴滃娆㈤幒銊┾偓渚婄窗event 鐎涙顔屾径鍕倞 */
     if(ev==='event'||ev==='push'||ev==='notification'){
       const payload=msg.payload||msg.params||{};
       const evType=payload.event||payload.type||'';
@@ -2948,7 +2948,7 @@ const ClawController={
       return;
     }
 
-    /* 鑱婂ぉ娑堟伅鍝嶅簲锛坰treaming锛?*/
+    /* 閼卞﹤銇夊☉鍫熶紖閸濆秴绨查敍鍧皌reaming閿?*/
     const respPayload=msg.payload||(msg.result&&typeof msg.result==='object'?msg.result:null);
     if((ev==='response'||ev==='chat.response'||msg.result!==undefined)&&respPayload){
       const text=this._extractDisplayText(respPayload.text||respPayload.content||respPayload.message||'');
@@ -2974,7 +2974,7 @@ const ClawController={
       return;
     }
 
-    /* 鍏朵粬浜嬩欢锛氳嫢鍚?text/content 鍒欐寜 AI 鍥炲灞曠ず锛屽惁鍒欓潪 ping/pong/tick/health 鎵嶈鍏?sys */
+    /* 閸忔湹绮禍瀣╂閿涙俺瀚㈤崥?text/content 閸掓瑦瀵?AI 閸ョ偛顦茬仦鏇犮仛閿涘苯鎯侀崚娆撴姜 ping/pong/tick/health 閹靛秷顔囬崗?sys */
     const restPayload=msg.payload||msg.params||{};
     const restText=this._extractDisplayText(restPayload.text||restPayload.content||restPayload.message||'');
     if(restText){
@@ -2987,11 +2987,11 @@ const ClawController={
     }
   },
 
-  /* 鈹€鈹€鈹€鈹€鈹€ 杩炴帴 鈹€鈹€鈹€鈹€鈹€ */
+  /* 閳光偓閳光偓閳光偓閳光偓閳光偓 鏉╃偞甯?閳光偓閳光偓閳光偓閳光偓閳光偓 */
   connect(tokenOverride){
     if(this.ws&&(this.ws.readyState===WebSocket.OPEN||this.ws.readyState===WebSocket.CONNECTING))return;
     if(this.retryCount>=this.maxRetry){
-      this.appendMsg('err','宸茶揪鏈€澶ч噸璇曟鏁?'+this.maxRetry+'娆?锛岃鎵嬪姩鐐瑰嚮銆屸喓 閲嶈繛銆嶆垨妫€鏌?Token銆?);
+      this.appendMsg('err','瀹歌尪鎻張鈧径褔鍣哥拠鏇燁偧閺?'+this.maxRetry+'濞?閿涘矁顕幍瀣З閻愮懓鍤妴灞稿枔 闁插秷绻涢妴宥嗗灗濡偓閺?Token閵?);
       this.setStatus('offline');this.showTokenPanel(true);return;
     }
     if(tokenOverride!==undefined){
@@ -3008,35 +3008,34 @@ const ClawController={
     this.setInputEnabled(false);
 
     const savedTok=this.getSavedToken();
-    /* 濮嬬粓鐩磋繛 openclaw 鏈嶅姟锛圵ebSocket 鏃犲悓婧愰檺鍒讹級
-       token 鍚屾椂鏀惧湪 URL query 鍜?connect 娑堟伅鐨?auth.token 涓紝纭繚鍙岄€氶亾璁よ瘉 */
+    /* 婵绮撻惄纾嬬箾 openclaw 閺堝秴濮熼敍鍦礶bSocket 閺冪姴鎮撳┃鎰版閸掕绱?       token 閸氬本妞傞弨鎯ф躬 URL query 閸?connect 濞戝牊浼呴惃?auth.token 娑擃叏绱濈涵顔荤箽閸欏矂鈧岸浜剧拋銈堢槈 */
     const wsBase=OpenClawGateway.wsBase();
     const qp=[];
     if(savedTok)qp.push('token='+encodeURIComponent(savedTok));
     const wsUrl=wsBase+(qp.length?'?'+qp.join('&'):'');
 
-    this.appendMsg('sys',(savedTok?'杩炴帴涓?(token: '+savedTok.substring(0,10)+'鈥?':'杩炴帴涓紙鏃爐oken锛?)+' [绗?+(this.retryCount+1)+'娆');
+    this.appendMsg('sys',(savedTok?'鏉╃偞甯存稉?(token: '+savedTok.substring(0,10)+'閳?':'鏉╃偞甯存稉顓ㄧ礄閺冪垚oken閿?)+' [缁?+(this.retryCount+1)+'濞嗩摚');
 
     try{
       this.ws=new WebSocket(wsUrl);
 
-      /* 鎻℃墜瓒呮椂 12s */
+      /* 閹烩剝澧滅搾鍛 12s */
       this.handshakeTimeout=setTimeout(()=>{
         if(!this.authenticated&&this.ws){
-          this.appendMsg('err','鎻℃墜瓒呮椂锛?2s锛夛紝鏈嶅姟鍙兘鏈繍琛屾垨 Token 閿欒銆?);
+          this.appendMsg('err','閹烩剝澧滅搾鍛閿?2s閿涘绱濋張宥呭閸欘垵鍏橀張顏囩箥鐞涘本鍨?Token 闁挎瑨顕ら妴?);
           this.ws.close();
         }
       },12000);
 
       this.ws.onopen=()=>{
-        this.appendMsg('sys','WebSocket 宸茶繛鎺?);
+        this.appendMsg('sys','WebSocket 瀹歌尪绻涢幒?);
         this._pendingNonce='';
         this._connectSending=false;
-        /* 绛夊緟 challenge锛?00ms 瓒呮椂锛夛紝鍏煎鏍囧噯妯″紡鍜?trusted-proxy 妯″紡 */
+        /* 缁涘绶?challenge閿?00ms 鐡掑懏妞傞敍澶涚礉閸忕厧顔愰弽鍥у櫙濡€崇础閸?trusted-proxy 濡€崇础 */
         this._challengeTimeout=setTimeout(()=>{
           if(!this.challengeReceived&&this.ws&&this.ws.readyState===WebSocket.OPEN){
-            this.appendMsg('sys','鏈敹鍒版寫鎴橈紝灏濊瘯 trusted-proxy 妯″紡...');
-            this.sendConnectRequest().catch(e=>this.appendMsg('err','璁よ瘉澶辫触锛?+e.message));
+            this.appendMsg('sys','閺堫亝鏁归崚鐗堝閹存﹫绱濈亸婵婄槸 trusted-proxy 濡€崇础...');
+            this.sendConnectRequest().catch(e=>this.appendMsg('err','鐠併倛鐦夋径杈Е閿?+e.message));
           }
         },500);
       };
@@ -3047,7 +3046,7 @@ const ClawController={
       this.ws.onerror=(e)=>{
         console.error('[ClawCtrl] ws error', e);
         this.setStatus('offline');
-        this.appendMsg('err','WebSocket 杩炴帴閿欒锛岃纭 OpenClaw 鏈嶅姟杩愯浜?'+OpenClawGateway.getDisplay());
+        this.appendMsg('err','WebSocket 鏉╃偞甯撮柨娆掝嚖閿涘矁顕涵顔款吇 OpenClaw 閺堝秴濮熸潻鎰攽娴?'+OpenClawGateway.getDisplay());
       };
 
       this.ws.onclose=(e)=>{
@@ -3057,17 +3056,17 @@ const ClawController={
         this.setStatus('offline');
         this.setInputEnabled(false);
         if(this.currentAiEl){this.currentAiEl.classList.remove('streaming');this.currentAiEl=null;this.currentMsgId=null;}
-        const reason=e.reason||'杩炴帴鍏抽棴';
+        const reason=e.reason||'鏉╃偞甯撮崗鎶芥４';
         const isAuthFail=(e.code===1008||reason.toLowerCase().includes('auth')||reason.toLowerCase().includes('token')||reason.toLowerCase().includes('unauthorized'));
-        this.appendMsg('sys','鏂紑 (code: '+e.code+(reason?' 路 '+reason.substring(0,60):'')+')');
+        this.appendMsg('sys','閺傤厼绱?(code: '+e.code+(reason?' 璺?'+reason.substring(0,60):'')+')');
         if(isAuthFail){
           this.retryCount=this.maxRetry;
           this.showTokenPanel(true);
-          this.appendMsg('sys','Token 璁よ瘉澶辫触銆傝閲嶆柊杈撳叆姝ｇ‘鐨?Gateway Token銆?);
+          this.appendMsg('sys','Token 鐠併倛鐦夋径杈Е閵嗗倽顕柌宥嗘煀鏉堟挸鍙嗗锝団€橀惃?Gateway Token閵?);
         }else if(this.retryCount<this.maxRetry){
           this.retryCount++;
           const delay=Math.min(2000*this.retryCount,10000);
-          this.appendMsg('sys','灏嗗湪 '+(delay/1000).toFixed(0)+'s 鍚庤嚜鍔ㄩ噸杩炩€?);
+          this.appendMsg('sys','鐏忓棗婀?'+(delay/1000).toFixed(0)+'s 閸氬氦鍤滈崝銊╁櫢鏉╃偐鈧?);
           this.retryTimer=setTimeout(()=>this.connect(),delay);
         }
         if(typeof LiveController!=='undefined'&&LiveController&&typeof LiveController._isVisible==='function'&&LiveController._isVisible()){
@@ -3076,12 +3075,12 @@ const ClawController={
       };
     }catch(e){
       this.setStatus('offline');
-      this.appendMsg('err','鏃犳硶寤虹珛 WebSocket: '+e.message);
+      this.appendMsg('err','閺冪姵纭跺铏圭彌 WebSocket: '+e.message);
       this.retryCount++;
     }
   },
 
-  /* 鈹€鈹€鈹€鈹€鈹€ 鎵嬪姩閲嶈繛 鈹€鈹€鈹€鈹€鈹€ */
+  /* 閳光偓閳光偓閳光偓閳光偓閳光偓 閹靛濮╅柌宥堢箾 閳光偓閳光偓閳光偓閳光偓閳光偓 */
   reconnect(){
     clearTimeout(this.retryTimer);
     this.retryCount=0;
@@ -3089,21 +3088,21 @@ const ClawController={
     this.connect();
   },
 
-  /* 鈹€鈹€鈹€鈹€鈹€ Token 闈㈡澘寮€鍏?鈹€鈹€鈹€鈹€鈹€ */
+  /* 閳光偓閳光偓閳光偓閳光偓閳光偓 Token 闂堛垺婢樺鈧崗?閳光偓閳光偓閳光偓閳光偓閳光偓 */
   showTokenPanel(show){
     const panel=$("token-panel");
     if(panel)panel.classList.toggle('show',show);
   },
 
-  /* 鈹€鈹€鈹€鈹€鈹€ 鍙戦€佽亰澶╂秷鎭?鈹€鈹€鈹€鈹€鈹€ */
+  /* 閳光偓閳光偓閳光偓閳光偓閳光偓 閸欐垿鈧浇浜版径鈺傜Х閹?閳光偓閳光偓閳光偓閳光偓閳光偓 */
   sendMessage(text){
     const t=(text||'').trim();if(!t)return;
     if(!this.ws||this.ws.readyState!==WebSocket.OPEN){
-      this.appendMsg('err','鏈繛鎺ワ紝姝ｅ湪灏濊瘯閲嶈繛鈥?);
+      this.appendMsg('err','閺堫亣绻涢幒銉礉濮濓絽婀亸婵婄槸闁插秷绻涢垾?);
       this.reconnect();return;
     }
     if(!this.authenticated){
-      this.appendMsg('err','灏氭湭璁よ瘉锛岃绛夊緟杩炴帴鎴栭噸鏂板～鍐?Token銆?);return;
+      this.appendMsg('err','鐏忔碍婀拋銈堢槈閿涘矁顕粵澶婄窡鏉╃偞甯撮幋鏍櫢閺傛澘锝為崘?Token閵?);return;
     }
     blinkEyes();
     this.appendMsg('user',t);
@@ -3111,7 +3110,7 @@ const ClawController={
     try{
       const msgId='msg-'+(++this.msgId);
       this.currentMsgId=msgId;
-      /* OpenClaw Gateway chat.send API 鏍煎紡 */
+      /* OpenClaw Gateway chat.send API 閺嶇厧绱?*/
       const msg={
         type:'req',
         id:msgId,
@@ -3124,11 +3123,11 @@ const ClawController={
       };
       this.ws.send(JSON.stringify(msg));
     }catch(e){
-      this.appendMsg('err','鍙戦€佸け璐? '+e.message);
+      this.appendMsg('err','閸欐垿鈧礁銇戠拹? '+e.message);
     }
   },
 
-  /* 鈹€鈹€鈹€鈹€鈹€ HTTP API 璋冪敤锛堝閫夛紝鐩存帴璋冪敤鍚庡彴 REST 绔偣锛?鈹€鈹€鈹€鈹€鈹€ */
+  /* 閳光偓閳光偓閳光偓閳光偓閳光偓 HTTP API 鐠嬪啰鏁ら敍鍫濐槵闁绱濋惄瀛樺复鐠嬪啰鏁ら崥搴″酱 REST 缁旑垳鍋ｉ敍?閳光偓閳光偓閳光偓閳光偓閳光偓 */
   async apiRequest(endpoint, options={}){
     const token=this.getSavedToken();
     const url=OpenClawGateway.httpBase()+endpoint;
@@ -3147,11 +3146,11 @@ const ClawController={
     return resp.json().catch(()=>resp.text());
   },
 
-  /* 鈹€鈹€鈹€鈹€鈹€ 閫氳繃 WebSocket JSON-RPC 璋冪敤鍚庡彴鏂规硶 鈹€鈹€鈹€鈹€鈹€ */
+  /* 閳光偓閳光偓閳光偓閳光偓閳光偓 闁俺绻?WebSocket JSON-RPC 鐠嬪啰鏁ら崥搴″酱閺傝纭?閳光偓閳光偓閳光偓閳光偓閳光偓 */
   rpcCall(method, params={}){
     return new Promise((resolve,reject)=>{
       if(!this.ws||this.ws.readyState!==WebSocket.OPEN||!this.authenticated){
-        reject(new Error('鏈繛鎺?));return;
+        reject(new Error('閺堫亣绻涢幒?));return;
       }
       const id='rpc-'+(++this.msgId);
       const timeout=setTimeout(()=>{
@@ -3237,7 +3236,7 @@ function bind(){
   if(cardModalClose)cardModalClose.addEventListener("click",closeCardModal);
   document.addEventListener("keydown",e=>{if(e.key==="Escape"&&cardModal&&cardModal.classList.contains("open"))closeCardModal();});
 
-  /* 鈹€鈹€ 鑱婂ぉ杈撳叆 鈹€鈹€ */
+  /* 閳光偓閳光偓 閼卞﹤銇夋潏鎾冲弳 閳光偓閳光偓 */
   const cmdInput=$("command-input"),btnSend=$("btn-send");
   function doSend(){if(!cmdInput)return;const v=cmdInput.value.trim();if(!v)return;ClawController.sendMessage(v);cmdInput.value='';cmdInput.style.height='42px';}
   if(cmdInput){
@@ -3253,7 +3252,7 @@ function bind(){
   }
   if(btnSend)btnSend.addEventListener('click',doSend);
 
-  /* 鈹€鈹€ 浠?URL hash 鎴?query 璇诲彇骞朵繚瀛?Token锛堜笌瀹樻柟 Dashboard 鍏煎锛?鈹€鈹€ */
+  /* 閳光偓閳光偓 娴?URL hash 閹?query 鐠囪褰囬獮鏈电箽鐎?Token閿涘牅绗岀€规ɑ鏌?Dashboard 閸忕厧顔愰敍?閳光偓閳光偓 */
   (function(){
     const hash=window.location.hash||'', search=window.location.search||'';
     const fromHash=hash.match(/(?:^#?|\?|&)token=([^&]+)/);
@@ -3268,7 +3267,7 @@ function bind(){
     }
   })();
 
-  /* 鈹€鈹€ 瀵硅瘽閾炬帴锛氶€氳繃 /api/dialogue-token 浠庢湰鍦版枃浠舵垨 openclaw dashboard --no-open 鑾峰彇 token 骞剁粍鍚?URL 鈹€鈹€ */
+  /* 閳光偓閳光偓 鐎电鐦介柧鐐复閿涙岸鈧俺绻?/api/dialogue-token 娴犲孩婀伴崷鐗堟瀮娴犺埖鍨?openclaw dashboard --no-open 閼惧嘲褰?token 楠炲墎绮嶉崥?URL 閳光偓閳光偓 */
   function showDialogueLinkBox(url){
     const box=$("token-link-box"),urlInp=$("token-link-url"),btnCopy=$("btn-copy-link"),btnOpen=$("btn-open-dialogue");
     if(!box||!urlInp)return;
@@ -3278,8 +3277,8 @@ function bind(){
       if(btnCopy){
         btnCopy.onclick=function(){
           navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>{
-            btnCopy.textContent='宸插鍒?;btnCopy.classList.add('copied');
-            setTimeout(()=>{btnCopy.textContent='澶嶅埗閾炬帴';btnCopy.classList.remove('copied');},2000);
+            btnCopy.textContent='瀹告彃顦查崚?;btnCopy.classList.add('copied');
+            setTimeout(()=>{btnCopy.textContent='婢跺秴鍩楅柧鐐复';btnCopy.classList.remove('copied');},2000);
           }).catch(()=>{});
         };
       }
@@ -3292,7 +3291,7 @@ function bind(){
   async function fetchDialogueLink(){
     const btn=$("btn-fetch-dialogue-link");
     if(btn)btn.classList.add('loading');
-    setFetchStatus('姝ｅ湪浠庢湰鍦版枃浠舵垨 openclaw 鍛戒护鑾峰彇 token鈥?,false);
+    setFetchStatus('濮濓絽婀禒搴㈡拱閸︾増鏋冩禒鑸靛灗 openclaw 閸涙垝鎶ら懢宄板絿 token閳?,false);
     try{
       const base=window.location.origin;
       const r=await fetch(base+'/api/dialogue-token',{cache:'no-store'});
@@ -3300,13 +3299,13 @@ function bind(){
       if(body&&body.ok&&body.dialogueUrl){
         if(body.token){try{localStorage.setItem('openclaw_gatewayToken',body.token);}catch{}}
         showDialogueLinkBox(body.dialogueUrl);
-        setFetchStatus('宸茶幏鍙栵紙鏉ユ簮: '+(body.source==='file'?'鏈湴鏂囦欢':'dashboard 鍛戒护')+'锛?,false);
+        setFetchStatus('瀹歌尪骞忛崣鏍电礄閺夈儲绨? '+(body.source==='file'?'閺堫剙婀撮弬鍥︽':'dashboard 閸涙垝鎶?)+'閿?,false);
       }else{
-        setFetchStatus(body&&body.error?body.error:'鏃犳硶鑾峰彇瀵硅瘽閾炬帴',true);
+        setFetchStatus(body&&body.error?body.error:'閺冪姵纭堕懢宄板絿鐎电鐦介柧鐐复',true);
         showDialogueLinkBox('');
       }
     }catch(e){
-      setFetchStatus('璇锋眰澶辫触: '+(e&&e.message)+'銆傝纭繚鍦ㄦ湰鏈鸿繍琛屽紑鍙戞湇鍔″櫒 (npm run dev) 浠ヤ娇鐢ㄦ鍔熻兘銆?,true);
+      setFetchStatus('鐠囬攱鐪版径杈Е: '+(e&&e.message)+'閵嗗倽顕涵顔荤箽閸︺劍婀伴張楦跨箥鐞涘苯绱戦崣鎴炴箛閸斺€虫珤 (npm run dev) 娴犮儰濞囬悽銊︻劃閸旂喕鍏橀妴?,true);
       showDialogueLinkBox('');
     }finally{
       if(btn)btn.classList.remove('loading');
@@ -3315,25 +3314,25 @@ function bind(){
   const btnFetchLink=$("btn-fetch-dialogue-link");
   if(btnFetchLink)btnFetchLink.addEventListener('click',fetchDialogueLink);
 
-  /* 鈹€鈹€ 鑷姩鑾峰彇骞跺～鍏?Token锛堝弬鑰?token_optimization.js锛夛細鍒嗘瀽瀹岀粨鏋滃悗鎵撳紑鏈〉鏃犻渶鎵嬪姩濉啓 鈹€鈹€ */
+  /* 閳光偓閳光偓 閼奉亜濮╅懢宄板絿楠炶泛锝為崗?Token閿涘牆寮懓?token_optimization.js閿涘绱伴崚鍡樼€界€瑰瞼绮ㄩ弸婊冩倵閹垫挸绱戦張顒勩€夐弮鐘绘付閹靛濮╂繅顐㈠晸 閳光偓閳光偓 */
   async function autoFetchToken(){
     const statusEl=$("token-fetch-status");
     const setAutoStatus=(msg,isErr)=>{if(statusEl){statusEl.textContent=msg||'';statusEl.className='token-fetch-status'+(isErr?' err':'');}};
-    setAutoStatus('姝ｅ湪鑷姩鑾峰彇 Token鈥?,false);
+    setAutoStatus('濮濓絽婀懛顏勫З閼惧嘲褰?Token閳?,false);
     try{
-      /* 鏂规硶 1锛氬紑鍙戞湇鍔″櫒 /api/dialogue-token锛堣鏈湴鏂囦欢鎴?openclaw dashboard锛?*/
+      /* 閺傝纭?1閿涙艾绱戦崣鎴炴箛閸斺€虫珤 /api/dialogue-token閿涘牐顕伴張顒€婀撮弬鍥︽閹?openclaw dashboard閿?*/
       try{
         const r0=await fetch(window.location.origin+'/api/dialogue-token',{cache:'no-store'});
         const body0=await r0.json().catch(()=>({}));
         if(body0&&body0.ok&&body0.token){
           try{localStorage.setItem('openclaw_gatewayToken',body0.token);}catch{}
-          setAutoStatus('鉁?Token 宸茶幏鍙栵紙'+(body0.source==='file'?'鏈湴鏂囦欢':'dashboard')+'锛?,false);
-          const inp=$("token-input");if(inp)inp.value=body0.token.substring(0,10)+'鈥?;
+          setAutoStatus('閴?Token 瀹歌尪骞忛崣鏍电礄'+(body0.source==='file'?'閺堫剙婀撮弬鍥︽':'dashboard')+'閿?,false);
+          const inp=$("token-input");if(inp)inp.value=body0.token.substring(0,10)+'閳?;
           if(body0.dialogueUrl)showDialogueLinkBox(body0.dialogueUrl);
           return body0.token;
         }
       }catch(_){}
-      /* 鏂规硶 2锛氱粡鍚屾簮浠ｇ悊璁块棶 Gateway锛堣嫢缃戝叧鏆撮湶 /api/dialogue-token锛?*/
+      /* 閺傝纭?2閿涙氨绮￠崥灞剧爱娴狅絿鎮婄拋鍧楁６ Gateway閿涘牐瀚㈢純鎴濆彠閺嗘挳婀?/api/dialogue-token閿?*/
       try{
         const r=await fetch(OpenClawGateway.httpBase()+'/api/dialogue-token',{
           method:'POST',
@@ -3344,15 +3343,15 @@ function bind(){
           const body=await r.json().catch(()=>({}));
           if(body&&body.ok&&body.token){
             try{localStorage.setItem('openclaw_gatewayToken',body.token);}catch{}
-            setAutoStatus('鉁?Token 宸茶幏鍙栵紙Gateway锛?,false);
-            const inp=$("token-input");if(inp)inp.value=body.token.substring(0,10)+'鈥?;
+            setAutoStatus('閴?Token 瀹歌尪骞忛崣鏍电礄Gateway閿?,false);
+            const inp=$("token-input");if(inp)inp.value=body.token.substring(0,10)+'閳?;
             return body.token;
           }
         }
       }catch(_){}
-      throw new Error('鏈幏鍙栧埌 Token');
+      throw new Error('閺堫亣骞忛崣鏍у煂 Token');
     }catch(e){
-      setAutoStatus('鉁?鑷姩鑾峰彇澶辫触: '+(e&&e.message?e.message:String(e)),true);
+      setAutoStatus('閴?閼奉亜濮╅懢宄板絿婢惰精瑙? '+(e&&e.message?e.message:String(e)),true);
       return null;
     }
   }
@@ -3365,7 +3364,7 @@ function bind(){
     return window.location.origin+base+'#token='+encodeURIComponent(tok);
   }
 
-  /* 鈹€鈹€ Token 闈㈡澘 鈹€鈹€ */
+  /* 閳光偓閳光偓 Token 闂堛垺婢?閳光偓閳光偓 */
   const btnToggleToken=$("btn-toggle-token");
   if(btnToggleToken)btnToggleToken.addEventListener('click',()=>{
     const panel=$("token-panel");
@@ -3375,21 +3374,21 @@ function bind(){
   if(btnTokenSave)btnTokenSave.addEventListener('click',()=>{
     const inp=$("token-input");
     const tok=(inp?inp.value:'').trim();
-    /* 鍏堜繚瀛?token锛屽啀 reconnect锛堝彧璋冪敤涓€娆★紝閬垮厤鍙岄噸杩炴帴锛?*/
+    /* 閸忓牅绻氱€?token閿涘苯鍟€ reconnect閿涘牆褰х拫鍐暏娑撯偓濞嗏槄绱濋柆鍨帳閸欏矂鍣告潻鐐村复閿?*/
     if(tok){
       try{localStorage.setItem('openclaw_gatewayToken',tok);}catch{}
-      ClawController.appendMsg('sys','Token 宸蹭繚瀛橈紝姝ｅ湪閲嶆柊杩炴帴鈥?);
+      ClawController.appendMsg('sys','Token 瀹歌弓绻氱€涙﹫绱濆锝呮躬闁插秵鏌婃潻鐐村复閳?);
     }else{
       try{localStorage.removeItem('openclaw_gatewayToken');}catch{}
-      ClawController.appendMsg('sys','浠ユ湰鍦版ā寮忛噸鏂拌繛鎺モ€?);
+      ClawController.appendMsg('sys','娴犮儲婀伴崷鐗埬佸蹇涘櫢閺傛媽绻涢幒銉⑩偓?);
     }
     if(tok&&typeof showDialogueLinkBox==='function')showDialogueLinkBox(buildDialogueUrlFromSaved());
     const panel=$("token-panel");
     if(panel)panel.classList.remove('show');
-    ClawController.reconnect(); /* 鍙皟鐢ㄤ竴娆★紝reconnect 鍐呴儴浼氳 localStorage 涓殑 token */
+    ClawController.reconnect(); /* 閸欘亣鐨熼悽銊ょ濞嗏槄绱漴econnect 閸愬懘鍎存导姘愁嚢 localStorage 娑擃厾娈?token */
   });
 
-  /* 鈹€鈹€ agent 鏍囩鏍忥細娓叉煋鍙垏鎹㈢殑浼氳瘽鏍囩锛岀偣鍑诲嵆鍔犺浇璇ヤ細璇濊亰澶╄褰?鈹€鈹€ */
+  /* 閳光偓閳光偓 agent 閺嶅洨顒烽弽蹇ョ窗濞撳弶鐓嬮崣顖氬瀼閹广垻娈戞导姘崇樈閺嶅洨顒烽敍宀€鍋ｉ崙璇插祮閸旂姾娴囩拠銉ょ窗鐠囨繆浜版径鈺勵唶瑜?閳光偓閳光偓 */
   window.renderChatAgentTabs=function(sessions,activeKey){
     const tabsEl=$("chat-agents-tabs");
     if(!tabsEl)return;
@@ -3401,7 +3400,7 @@ function bind(){
       tab.type='button';
       tab.className='agent-tab'+(key===(activeKey||'').trim()?' active':'');
       tab.dataset.key=key;
-      tab.textContent=key.length>24?key.slice(0,24)+'鈥?:key;
+      tab.textContent=key.length>24?key.slice(0,24)+'閳?:key;
       tab.title=key;
       tab.setAttribute('role','tab');
       tab.addEventListener('click',function(){
@@ -3449,19 +3448,19 @@ function bind(){
     const sel=$("chat-load-session");
     const lab=$("chat-load-session-label");
     const L=state.lang||'zh';
-    if(lab)lab.textContent=L==='zh'?'鍔犺浇浼氳瘽':'Load session';
+    if(lab)lab.textContent=L==='zh'?'閸旂姾娴囨导姘崇樈':'Load session';
     if(!sel)return;
     try{
       const res=await fetchGatewaySessionsData();
       let sessions=extractSessionsListFromGatewayValue(res&&res.data);
       if(!sessions.length&&res&&(res.source==='none'||res.source==='error'))sessions=[{sessionKey:'main',key:'main',id:'main',status:'active'}];
       sessions=sessions.slice().sort((a,b)=>(new Date(b.updatedAt||b.createdAt||0)).getTime()-(new Date(a.updatedAt||a.createdAt||0)).getTime());
-      sel.innerHTML='<option value="">'+(L==='zh'?'閫夋嫨浼氳瘽鈥?:'Select session鈥?)+'</option>';
+      sel.innerHTML='<option value="">'+(L==='zh'?'闁瀚ㄦ导姘崇樈閳?:'Select session閳?)+'</option>';
       sessions.forEach(s=>{
         const key=s.sessionKey||s.key||s.id||'unknown';
         const opt=document.createElement('option');
         opt.value=key;
-        opt.textContent=key.length>36?key.slice(0,36)+'鈥?:key;
+        opt.textContent=key.length>36?key.slice(0,36)+'閳?:key;
         sel.appendChild(opt);
       });
       if(typeof window.renderChatAgentTabs==='function')window.renderChatAgentTabs(sessions,null);
@@ -3478,18 +3477,18 @@ function bind(){
     }catch(e){}
   };
 
-  /* 鈹€鈹€ 娓呯┖ 鈹€鈹€ */
+  /* 閳光偓閳光偓 濞撳懐鈹?閳光偓閳光偓 */
   const btnClear=$("btn-clear");
   if(btnClear)btnClear.addEventListener('click',()=>ClawController.clearHistory());
 
-  /* 鈹€鈹€ 鎵嬪姩閲嶈繛锛堝厛鑷姩鎺㈡祴绔彛锛岄€傞厤缃戝叧闅忔満绔彛锛?鈹€鈹€ */
+  /* 閳光偓閳光偓 閹靛濮╅柌宥堢箾閿涘牆鍘涢懛顏勫З閹恒垺绁寸粩顖氬經閿涘矂鈧倿鍘ょ純鎴濆彠闂呭繑婧€缁旑垰褰涢敍?閳光偓閳光偓 */
   const btnReconn=$("btn-reconnect");
   if(btnReconn)btnReconn.addEventListener('click',async ()=>{
     try{await OpenClawGateway.autoDetectPort();}catch(_){}
     ClawController.reconnect();
   });
 
-  /* 鈹€鈹€ API 鎺у埗闈㈡澘 鈹€鈹€ */
+  /* 閳光偓閳光偓 API 閹貉冨煑闂堛垺婢?閳光偓閳光偓 */
   const btnToggleApi=$("btn-toggle-api");
   const apiPanel=$("api-panel");
   const apiResult=$("api-result");
@@ -3511,7 +3510,7 @@ function bind(){
     st.className='live-gw-status show '+(isOk===false?'err':'ok');
   }
 
-  /* API 鎸夐挳鏄犲皠鍒?RPC 鏂规硶锛堝€熼壌 Control Center 鎬濊矾锛氭€昏/浼氳瘽/浠诲姟/瀹℃壒/鍛樺伐/閫氶亾锛岃嚜鏈夊疄鐜帮級 */
+  /* API 閹稿鎸抽弰鐘茬殸閸?RPC 閺傝纭堕敍鍫濃偓鐔煎 Control Center 閹繆鐭鹃敍姘偓鏄忣潔/娴兼俺鐦?娴犺濮?鐎光剝澹?閸涙ê浼?闁岸浜鹃敍宀冨殰閺堝鐤勯悳甯礆 */
   const apiActionMap={
     status:  {rpc:'status',            http:null},
     health:  {rpc:'health',            http:null},
@@ -3530,24 +3529,24 @@ function bind(){
   async function runApiAction(action){
     const map=apiActionMap[action];
     if(!map)return;
-    /* 璁剧疆 loading 鐘舵€?*/
+    /* 鐠佸墽鐤?loading 閻樿埖鈧?*/
     const btn=apiPanel?apiPanel.querySelector('[data-action="'+action+'"]'):null;
     if(btn)btn.classList.add('loading');
-    if(apiResult){apiResult.textContent='璇锋眰涓€?;apiResult.className='show';}
+    if(apiResult){apiResult.textContent='鐠囬攱鐪版稉顓涒偓?;apiResult.className='show';}
     try{
       let result;
       if(ClawController.authenticated&&ClawController.ws&&ClawController.ws.readyState===WebSocket.OPEN){
-        /* 浼樺厛浣跨敤 WebSocket RPC */
+        /* 娴兼ê鍘涙担璺ㄦ暏 WebSocket RPC */
         result=await ClawController.rpcCall(map.rpc,{});
       }else{
-        /* 闄嶇骇涓?HTTP API */
+        /* 闂勫秶楠囨稉?HTTP API */
         const endpoint=map.http||('/api/'+map.rpc.replace(/\./g,'/'));
         result=await ClawController.apiRequest(endpoint);
       }
       const text=typeof result==='string'?result:JSON.stringify(result,null,2);
-      showApiResult(text.substring(0,600)+(text.length>600?'\n鈥?鎴柇)':''),true);
+      showApiResult(text.substring(0,600)+(text.length>600?'\n閳?閹搭亝鏌?':''),true);
     }catch(e){
-      showApiResult('閿欒: '+e.message,false);
+      showApiResult('闁挎瑨顕? '+e.message,false);
     }finally{
       if(btn)btn.classList.remove('loading');
     }
@@ -3575,10 +3574,10 @@ function bind(){
     });
   }
 
-  /* 绠＄悊鍛戒护鍖烘枃妗堥殢璇█鏇存柊锛堜緵 applyLang 璋冪敤锛?*/
+  /* 缁狅紕鎮婇崨鎴掓姢閸栫儤鏋冨鍫ユ鐠囶叀鈻堥弴瀛樻煀閿涘牅绶?applyLang 鐠嬪啰鏁ら敍?*/
   function updateMgmtLabels(){
     const L=state.lang;
-    const t=L==='zh'?{title:'绠＄悊鍛戒护',tasks:'浠诲姟',projects:'椤圭洰',approvals:'瀹℃壒',presence:'鍦ㄧ嚎鑺傜偣',channels:'閫氶亾',usage:'鐢ㄩ噺'}
+    const t=L==='zh'?{title:'缁狅紕鎮婇崨鎴掓姢',tasks:'娴犺濮?,projects:'妞ゅ湱娲?,approvals:'鐎光剝澹?,presence:'閸︺劎鍤庨懞鍌滃仯',channels:'闁岸浜?,usage:'閻劑鍣?}
       :{title:'Management',tasks:'Tasks',projects:'Projects',approvals:'Approvals',presence:'Presence',channels:'Channels',usage:'Usage'};
     const titleEl=document.getElementById('mgmt-section-title');
     if(titleEl)titleEl.textContent=t.title;
@@ -3591,16 +3590,16 @@ function bind(){
   window.updateMgmtLabels=updateMgmtLabels;
   if(document.getElementById('mgmt-section'))updateMgmtLabels();
 
-  /* 鈹€鈹€ API 闈㈡澘锛氱綉鍏崇鍙ｅ垏鎹?+ 鎵弿澶氬疄渚?+ 妫€娴嬬粨鏋滀笅鎷夊垏鎹?鈹€鈹€ */
+  /* 閳光偓閳光偓 API 闂堛垺婢橀敍姘辩秹閸忓磭顏崣锝呭瀼閹?+ 閹殿偅寮挎径姘杽娓?+ 濡偓濞村绮ㄩ弸婊€绗呴幏澶婂瀼閹?閳光偓閳光偓 */
   window.__lastDiscoveredGateways=window.__lastDiscoveredGateways||[];
   function formatGatewayInstanceLabel(instance,L){
     if(!instance)return '';
     const bits=[instance.endpoint||((instance.host||OpenClawGateway.getHost())+':'+instance.port)];
     if(instance.profileLabel&&instance.profileLabel!=='custom')bits.push(instance.profileLabel);
-    if(instance.current)bits.push(L==='zh'?'褰撳墠':'current');
-    if(instance.requiresAuth)bits.push(L==='zh'?'闇€璁よ瘉':'auth');
+    if(instance.current)bits.push(L==='zh'?'瑜版挸澧?:'current');
+    if(instance.requiresAuth)bits.push(L==='zh'?'闂団偓鐠併倛鐦?:'auth');
     else if(Number.isFinite(instance.latencyMs))bits.push(instance.latencyMs+'ms');
-    return bits.join(' 路 ');
+    return bits.join(' 璺?');
   }
   function summarizeGatewayInstances(instances,L){
     return (Array.isArray(instances)?instances:[]).map(item=>formatGatewayInstanceLabel(item,L)).join('\n');
@@ -3661,7 +3660,7 @@ function bind(){
     fillDiscoveredGatewaysSelect();
     if(opts.reconnect!==false)ClawController.reconnect();
     const L=state.lang||'zh';
-    const okMsg=(L==='zh'?'已切换到 ':'Switched to ')+OpenClawGateway.getDisplay();
+    const okMsg=(L==='zh'?'宸插垏鎹㈠埌 ':'Switched to ')+OpenClawGateway.getDisplay();
     showGatewayNotify(okMsg,true);
     showApiResult(okMsg,true);
     return true;
@@ -3733,7 +3732,7 @@ function bind(){
       }
       const n=parseInt(inp&&inp.value||'',10);
       if(!Number.isFinite(n)||n<1||n>65535){
-        const err=L==='zh'?'请输入有效端口 (1-65535)':'Invalid port (1-65535)';
+        const err=L==='zh'?'璇疯緭鍏ユ湁鏁堢鍙?(1-65535)':'Invalid port (1-65535)';
         showGatewayNotify(err,false);
         showApiResult(err,false);
         return;
@@ -3744,19 +3743,19 @@ function bind(){
   if(gwProbe){
     gwProbe.addEventListener('click',async ()=>{
       const L=state.lang||'zh';
-      const scanning=L==='zh'?'正在扫描...':'Scanning...';
+      const scanning=L==='zh'?'姝ｅ湪鎵弿...':'Scanning...';
       showGatewayNotify(scanning,true);
       showApiResult(scanning,true);
       try{
         const online=await OpenClawGateway.scanOnlineGatewayPorts();
         fillDiscoveredGatewaysSelect(online);
         if(online.length){
-          const msg=(L==='zh'?'已发现在线 OpenClaw 实例：':'Detected live OpenClaw instances:')+'\n'+summarizeGatewayInstances(online,L);
+          const msg=(L==='zh'?'宸插彂鐜板湪绾?OpenClaw 瀹炰緥锛?:'Detected live OpenClaw instances:')+'\n'+summarizeGatewayInstances(online,L);
           showGatewayNotify(msg,true);
           showApiResult(msg,true);
           syncGatewayPresetFromPort();
         }else{
-          const fail=L==='zh'?'未发现在线 OpenClaw，可通过 ?gwProbePorts=端口1,端口2 扩展扫描列表':'No OpenClaw found. Add ?gwProbePorts=port1,port2 to extend the scan list';
+          const fail=L==='zh'?'鏈彂鐜板湪绾?OpenClaw锛屽彲閫氳繃 ?gwProbePorts=绔彛1,绔彛2 鎵╁睍鎵弿鍒楄〃':'No OpenClaw found. Add ?gwProbePorts=port1,port2 to extend the scan list';
           showGatewayNotify(fail,false);
           showApiResult(fail,false);
         }
@@ -3780,12 +3779,12 @@ function bind(){
   updateGatewaySwitchUi(state.lang);
   setTimeout(()=>{if(typeof refreshDiscoveredGatewaysAsync==='function')void refreshDiscoveredGatewaysAsync();},1200);
 
-  /* 鈹€鈹€ 璇█鍒囨崲 鈹€鈹€ */
+  /* 閳光偓閳光偓 鐠囶叀鈻堥崚鍥ㄥ床 閳光偓閳光偓 */
   const btnZh=$("btn-lang-zh"),btnEn=$("btn-lang-en");
   if(btnZh)btnZh.addEventListener('click',()=>{const L='zh';state.metrics=processStats(state.payload||{},L);state.themes=themes(state.metrics,L);mountNav();renderTheme(state.idx);refreshDetails();applyLang(L);});
   if(btnEn)btnEn.addEventListener('click',()=>{const L='en';state.metrics=processStats(state.payload||{},L);state.themes=themes(state.metrics,L);mountNav();renderTheme(state.idx);refreshDetails();applyLang(L);});
 
-  /* 鈹€鈹€ 鍒濆鍖栬繛鎺ワ細鍏堟帰娴?Gateway 绔彛锛屽啀鏃?token 鏃惰嚜鍔ㄨ幏鍙栧悗杩炴帴 鈹€鈹€ */
+  /* 閳光偓閳光偓 閸掓繂顫愰崠鏍箾閹恒儻绱伴崗鍫熷赴濞?Gateway 缁旑垰褰涢敍灞藉晙閺?token 閺冩儼鍤滈崝銊ㄥ箯閸欐牕鎮楁潻鐐村复 閳光偓閳光偓 */
   (async function startConnect(){
     try{await OpenClawGateway.autoDetectPort();}catch(_){}
     try{await refreshDiscoveredGatewaysAsync();}catch(_){}
@@ -3797,21 +3796,23 @@ function bind(){
       const tok=await autoFetchToken();
       ClawController.connect();
       if(tok){
-        ClawController.appendMsg('sys','Token 宸茶嚜鍔ㄥ～鍏咃紝姝ｅ湪杩炴帴鈥?);
+        ClawController.appendMsg('sys','Token 瀹歌尪鍤滈崝銊ワ綖閸忓拑绱濆锝呮躬鏉╃偞甯撮垾?);
         var statusEl=$("token-fetch-status");if(statusEl)statusEl.textContent='';
       }
     }catch(_){ClawController.connect();}
   })();
 }
 const setStatus=t=>status.textContent=t,hideBoot=()=>boot.classList.add('hide');
-async function bootstrap(){const L=state.lang;setStatus(i18n[L].statusLoading);const local=localPayload();setStatus(i18n[L].statusFetch);const remote=await workerPayload();state.payload=score(remote)>score(local)?remote:local;try{if(state.payload&&Object.keys(state.payload).length)sessionStorage.setItem('openclaw_analysis_data',JSON.stringify(state.payload));}catch{}setStatus(i18n[L].statusProcess);state.metrics=processStats(state.payload||{},L);state.themes=themes(state.metrics,L);try{const sc=score(state.payload||{}),pk=state.payload||{},hasP=!!(pk.openclawPortrait&&Object.keys(pk.openclawPortrait).length),hasS=!!(pk.openclawSessionsSummary&&Object.keys(pk.openclawSessionsSummary).length);console.info('[openclaw2] 杞借嵎璇婃柇 quality=%s portrait=%s sessions=%s keys=%s',sc,hasP,hasS,Object.keys(pk).join(','));}catch{}}
+async function bootstrap(){const L=state.lang;setStatus(i18n[L].statusLoading);const local=localPayload();setStatus(i18n[L].statusFetch);const remote=await workerPayload();state.payload=score(remote)>score(local)?remote:local;try{if(state.payload&&Object.keys(state.payload).length)sessionStorage.setItem('openclaw_analysis_data',JSON.stringify(state.payload));}catch{}setStatus(i18n[L].statusProcess);state.metrics=processStats(state.payload||{},L);state.themes=themes(state.metrics,L);try{const sc=score(state.payload||{}),pk=state.payload||{},hasP=!!(pk.openclawPortrait&&Object.keys(pk.openclawPortrait).length),hasS=!!(pk.openclawSessionsSummary&&Object.keys(pk.openclawSessionsSummary).length);console.info('[openclaw2] 鏉炲€熷祹鐠囧﹥鏌?quality=%s portrait=%s sessions=%s keys=%s',sc,hasP,hasS,Object.keys(pk).join(','));}catch{}}
 async function init(){applyLang(state.lang);bind();tick();setInterval(tick,1000);setInterval(()=>{if(Math.random()>.82){pl.setAttribute('r','14');pr.setAttribute('r','14');setTimeout(()=>{pl.setAttribute('r','11');pr.setAttribute('r','11')},110)}},2800);await bootstrap();mountNav();renderTheme(state.idx);refreshDetails();setStatus(i18n[state.lang].statusOnline);setTimeout(hideBoot,220);applyLang(state.lang);}
-function applyLang(L){state.lang=L;try{localStorage.setItem("openclaw2_lang",L);}catch{}const t=i18n[L];if(!t)return;$("top-title").textContent=t.topTitle;$("top-sub").textContent=t.topSub;const heroTitle=$("hero-title");if(heroTitle)heroTitle.textContent=t.heroTitle;$("link-report").textContent=t.linkReport;$("link-report").title=t.linkReport;$("link-stats").textContent=t.linkStats;$("link-stats").title=t.linkStats;$("boot").querySelector(".t").textContent=t.bootTitle;const dv=$("detail-view");if(dv){const sigTitle=$("detail-view-signal-title"),sessTitle=$("detail-view-session-title");if(sigTitle)sigTitle.textContent=t.signalPanels;if(sessTitle)sessTitle.textContent=t.sessionList;const leftBlks=dv.querySelectorAll(".detail-view-left .blk .pt");if(leftBlks[0])leftBlks[0].textContent=t.radar;if(leftBlks[1])leftBlks[1].textContent=t.wordCloud;}const dsTitle=$("data-source-title"),dsDesc=$("data-source-desc");if(dsTitle&&t.dataSourceTitle)dsTitle.textContent=t.dataSourceTitle;if(dsDesc&&t.dataSourceDesc){let txt=t.dataSourceDesc;try{if(state.metrics&&typeof score==="function"&&t.dataSourcePayloadHint&&score(state.payload||{})<4)txt=txt+"\n\n"+t.dataSourcePayloadHint;}catch{}dsDesc.textContent=txt;}const tabsEl=$("chat-agents-tabs"),histEl=$("chat-history-content");if(tabsEl)tabsEl.setAttribute("data-empty-text",L==="zh"?"鏆傛棤浼氳瘽鏍囩":"No session tabs yet");if(histEl)histEl.setAttribute("data-empty-text",L==="zh"?"杩炴帴鍚庢垨鍔犺浇浼氳瘽鍚庯紝杩欓噷浼氭樉绀鸿亰澶╄褰曘€?:"Chat history will appear here after connection or session load.");const sg=histEl&&histEl.querySelector(".msg-sys-group");if(sg&&typeof ClawController!=="undefined"&&ClawController._updateSysGroupHeader)ClawController._updateSysGroupHeader(sg);const bzh=$("btn-lang-zh"),ben=$("btn-lang-en");if(bzh)bzh.classList.toggle("active",L==="zh");if(ben)ben.classList.toggle("active",L==="en");document.documentElement.lang=L==="zh"?"zh-CN":"en";if(typeof window.updateMgmtLabels==="function")window.updateMgmtLabels();if(typeof window.updateGatewaySwitchUi==="function")window.updateGatewaySwitchUi(L);if(typeof LiveController!=="undefined")LiveController.updateLabels(L);}
-init().catch(()=>{const L=state.lang;sub.textContent=L==="zh"?"鏁版嵁绂荤嚎":"DATA OFFLINE";setStatus(i18n[L].statusFailed);state.metrics=processStats({},L);state.themes=themes(state.metrics,L);mountNav();renderTheme(state.idx);refreshDetails();setTimeout(hideBoot,320);applyLang(L);});
+function applyLang(L){state.lang=L;try{localStorage.setItem("openclaw2_lang",L);}catch{}const t=i18n[L];if(!t)return;$("top-title").textContent=t.topTitle;$("top-sub").textContent=t.topSub;const heroTitle=$("hero-title");if(heroTitle)heroTitle.textContent=t.heroTitle;$("link-report").textContent=t.linkReport;$("link-report").title=t.linkReport;$("link-stats").textContent=t.linkStats;$("link-stats").title=t.linkStats;$("boot").querySelector(".t").textContent=t.bootTitle;const dv=$("detail-view");if(dv){const sigTitle=$("detail-view-signal-title"),sessTitle=$("detail-view-session-title");if(sigTitle)sigTitle.textContent=t.signalPanels;if(sessTitle)sessTitle.textContent=t.sessionList;const leftBlks=dv.querySelectorAll(".detail-view-left .blk .pt");if(leftBlks[0])leftBlks[0].textContent=t.radar;if(leftBlks[1])leftBlks[1].textContent=t.wordCloud;}const dsTitle=$("data-source-title"),dsDesc=$("data-source-desc");if(dsTitle&&t.dataSourceTitle)dsTitle.textContent=t.dataSourceTitle;if(dsDesc&&t.dataSourceDesc){let txt=t.dataSourceDesc;try{if(state.metrics&&typeof score==="function"&&t.dataSourcePayloadHint&&score(state.payload||{})<4)txt=txt+"\n\n"+t.dataSourcePayloadHint;}catch{}dsDesc.textContent=txt;}const tabsEl=$("chat-agents-tabs"),histEl=$("chat-history-content");if(tabsEl)tabsEl.setAttribute("data-empty-text",L==="zh"?"閺嗗倹妫ゆ导姘崇樈閺嶅洨顒?:"No session tabs yet");if(histEl)histEl.setAttribute("data-empty-text",L==="zh"?"鏉╃偞甯撮崥搴㈠灗閸旂姾娴囨导姘崇樈閸氬函绱濇潻娆撳櫡娴兼碍妯夌粈楦夸喊婢垛晞顔囪ぐ鏇樷偓?:"Chat history will appear here after connection or session load.");const sg=histEl&&histEl.querySelector(".msg-sys-group");if(sg&&typeof ClawController!=="undefined"&&ClawController._updateSysGroupHeader)ClawController._updateSysGroupHeader(sg);const bzh=$("btn-lang-zh"),ben=$("btn-lang-en");if(bzh)bzh.classList.toggle("active",L==="zh");if(ben)ben.classList.toggle("active",L==="en");document.documentElement.lang=L==="zh"?"zh-CN":"en";if(typeof window.updateMgmtLabels==="function")window.updateMgmtLabels();if(typeof window.updateGatewaySwitchUi==="function")window.updateGatewaySwitchUi(L);if(typeof LiveController!=="undefined")LiveController.updateLabels(L);}
+init().catch(()=>{const L=state.lang;sub.textContent=L==="zh"?"閺佺増宓佺粋鑽ゅ殠":"DATA OFFLINE";setStatus(i18n[L].statusFailed);state.metrics=processStats({},L);state.themes=themes(state.metrics,L);mountNav();renderTheme(state.idx);refreshDetails();setTimeout(hideBoot,320);applyLang(L);});
 })();
 </script>
 </body>
 </html>
+
+
 
 
 

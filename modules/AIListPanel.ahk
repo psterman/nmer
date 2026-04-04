@@ -201,7 +201,7 @@ PromptQuickPad_PushDataToWeb(msgType := "init") {
         "captureExpanded", PromptQuickPad_CaptureExpanded ? true : false,
         "captureDraft", draftMap
     )
-    try PQP_SendToWeb(Jxon_Dump(payload))
+    try PQP_SendToWeb(payload)
     catch {
     }
 }
@@ -215,7 +215,7 @@ PQP_SendCaptureOpen(initialText := "", expanded := true) {
         "expanded", expanded ? true : false,
         "chromeVisible", PromptQuickPad_CaptureChromeVisible ? true : false
     )
-    try PQP_SendToWeb(Jxon_Dump(m))
+    try PQP_SendToWeb(m)
     catch {
     }
 }
@@ -308,7 +308,7 @@ PromptQuickPad_SaveDraftFromWeb(msg) {
     PromptQuickPad_SaveToDisk()
     PromptQuickPad_RefreshListView()
     m := Map("type", "captureDraftFill", "title", title, "category", cat, "tags", tags, "body", body)
-    try PQP_SendToWeb(Jxon_Dump(m))
+    try PQP_SendToWeb(m)
     catch {
     }
     TrayTip("已保存到 prompts.json", "Prompt Quick-Pad", "Iconi 1")
@@ -343,7 +343,7 @@ PromptQuickPad_LoadDraftFromMergedIndex(mi) {
     m := Map("type", "captureDraftFill", "title", PromptQuickPad_CapsLockBDefaultTitle,
         "category", (Trim(PromptQuickPad_CapsLockBDefaultCategory) = "" ? "未分类" : PromptQuickPad_CapsLockBDefaultCategory),
         "tags", PromptQuickPad_CapsLockBDefaultTags, "body", body)
-    try PQP_SendToWeb(Jxon_Dump(m))
+    try PQP_SendToWeb(m)
     catch {
     }
 }
@@ -1886,7 +1886,7 @@ PromptQuickPad_OpenViewWeb(shell, mergedIndex) {
         "content", shell.Has("content") ? shell["content"] : "",
         "editable", false
     )
-    try PQP_SendToWeb(Jxon_Dump(payload))
+    try PQP_SendToWeb(payload)
     catch {
     }
 }
@@ -1911,7 +1911,7 @@ PromptQuickPad_OpenEditWeb(shell, mergedIndex) {
         "allowCategory", allowCategory,
         "allowTags", allowTags
     )
-    try PQP_SendToWeb(Jxon_Dump(payload))
+    try PQP_SendToWeb(payload)
     catch {
     }
 }
@@ -2863,7 +2863,7 @@ PromptQuickPad_ShowJsonFormatHelp(*) {
             "type", "jsonHelpOpen",
             "body", PromptQuickPad_GetJsonHelpBody()
         )
-        try PQP_SendToWeb(Jxon_Dump(payload))
+        try PQP_SendToWeb(payload)
         catch {
         }
         return

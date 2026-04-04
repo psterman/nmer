@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -477,8 +477,10 @@ const state = {
 };
 
 function postToAhk(obj) {
-  if (window.chrome && window.chrome.webview)
+  if (window.chrome && window.chrome.webview) {
+    if (obj && !obj.action && obj.type) obj.action = obj.type;
     window.chrome.webview.postMessage(obj);
+  }
 }
 
 function sendAction(type, extra = {}) {
@@ -564,6 +566,11 @@ function updatePreview() {
 function handleAhkMessage(msg) {
   if (!msg || !msg.type) return;
   switch (msg.type) {
+    case 'focus_input': {
+      const input = document.getElementById('search-input');
+      if (input) input.focus();
+      break;
+    }
     case 'init':
     case 'searchResult':
       state.items = msg.items || [];
@@ -800,37 +807,6 @@ document.getElementById('item-modal-save').addEventListener('click', () => {
   closeItemModal();
 });
 
-document.getElementById('search-input').addEventListener('input', (e) => {
-  state.keyword = e.target.value.trim();
-  postToAhk({ type: 'search', keyword: state.keyword, category: state.category || '全部' });
-});
-
-document.getElementById('lnk-import').onclick = () => postToAhk({ type: 'import' });
-document.getElementById('lnk-export').onclick = () => postToAhk({ type: 'export' });
-document.getElementById('lnk-json').onclick = () => postToAhk({ type: 'jsonHelp' });
-document.getElementById('lnk-pin').onclick = () => postToAhk({ type: 'togglePinTop' });
-
-document.getElementById('btn-save-cap').onclick = () => {
-  postToAhk({
-    type: 'captureSave',
-    title: document.getElementById('cap-title').value,
-    category: document.getElementById('cap-cat').value,
-    tags: document.getElementById('cap-tags').value,
-    body: document.getElementById('cap-body').value
-  });
-};
-document.getElementById('btn-load-sel').onclick = () => {
-  const it = getSelectedCaptureItem();
-  if (!it) return;
-  postToAhk({ type: 'captureLoadSelected', mergedIndex: it.mergedIndex });
-};
-document.getElementById('btn-clear-cap').onclick = () => {
-  document.getElementById('cap-title').value = '';
-  document.getElementById('cap-tags').value = '';
-  document.getElementById('cap-body').value = '';
-  postToAhk({ type: 'captureClear' });
-};
-
 function syncSilentFromDom() {
   postToAhk({
     type: 'captureSilentSync',
@@ -841,9 +817,17 @@ function syncSilentFromDom() {
 document.getElementById('cap-silent').addEventListener('change', syncSilentFromDom);
 document.getElementById('cap-silent-tpl').addEventListener('change', syncSilentFromDom);
 
+let searchDebounceTimer = 0;
+function triggerSearch() {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    sendAction('search', { keyword: state.keyword, category: state.category || '全部' });
+  }, 150);
+}
+
 document.getElementById('search-input').addEventListener('input', (e) => {
   state.keyword = e.target.value.trim();
-  sendAction('search', { keyword: state.keyword, category: state.category || '鍏ㄩ儴' });
+  triggerSearch();
 });
 
 document.getElementById('lnk-import').onclick = () => sendAction('import');

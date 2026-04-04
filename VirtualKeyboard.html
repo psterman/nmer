@@ -894,8 +894,10 @@ const state = {
 // Utility
 // ═══════════════════════════════════════════════════════════════════════════
 function postToAhk(obj) {
-  if (window.chrome && window.chrome.webview)
+  if (window.chrome && window.chrome.webview) {
+    if (obj && !obj.action && obj.type) obj.action = obj.type;
     window.chrome.webview.postMessage(obj);
+  }
 }
 
 function setHud(msg, connected) {
@@ -976,6 +978,11 @@ function keyCodeToDisplay(code) {
 // ═══════════════════════════════════════════════════════════════════════════
 function handleAhkMessage(msg) {
   switch (msg.type) {
+    case 'focus_input': {
+      const input = document.getElementById('cmd-search');
+      if (input) input.focus();
+      break;
+    }
     case 'init':
       handleInit(msg);
       break;

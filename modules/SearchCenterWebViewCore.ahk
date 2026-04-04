@@ -6,6 +6,7 @@ global g_SCWV_WV2 := 0
 global g_SCWV_Ready := false
 global g_SCWV_Visible := false
 global g_SCWV_SearchTimer := 0
+global g_SCWV_FocusPending := false
 global SearchCenterWebKeyword := ""
 
 SearchCenter_ShouldUseWebView() {
@@ -45,6 +46,9 @@ SCWV_Init() {
     g_SCWV_Gui.Show("w1180 h760 Hide")
 
     WebView2.create(g_SCWV_Gui.Hwnd, SCWV_OnCreated)
+
+    _SCWV_EnsureCurrentCategoryState()
+    _SCWV_EnsureSearchDataReady()
 }
 
 SCWV_OnCreated(ctrl) {
@@ -130,9 +134,6 @@ SCWV_Show() {
     if !g_SCWV_Gui
         SCWV_Init()
 
-    _SCWV_EnsureCurrentCategoryState()
-    _SCWV_EnsureSearchDataReady()
-
     GuiID_SearchCenter := g_SCWV_Gui
 
     if g_SCWV_Visible {
@@ -154,6 +155,7 @@ SCWV_Show() {
         SetTimer(SCWV_DeferredPush, -250)
 
     SetTimer(SCWV_FocusDeferred, -80)
+    SCWV_RequestFocusInput()
 }
 
 SCWV_DeferredPush(*) {
@@ -175,6 +177,16 @@ SCWV_FocusDeferred(*) {
     if g_SCWV_Visible && g_SCWV_Gui {
         try WinActivate("ahk_id " . g_SCWV_Gui.Hwnd)
     }
+}
+
+SCWV_RequestFocusInput() {
+    global g_SCWV_WV2, g_SCWV_Ready, g_SCWV_FocusPending
+    if g_SCWV_WV2 && g_SCWV_Ready {
+        WebView_QueueJson(g_SCWV_WV2, '{"type":"focus_input"}')
+        g_SCWV_FocusPending := false
+        return
+    }
+    g_SCWV_FocusPending := true
 }
 
 SCWV_Hide(PersistSelection := true) {
@@ -211,8 +223,12 @@ SCWV_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
 SCWV_PostJson(jsonStr) {
     global g_SCWV_WV2, g_SCWV_Ready
 
-    if g_SCWV_WV2 && g_SCWV_Ready
-        g_SCWV_WV2.PostWebMessageAsJson(jsonStr)
+    if !(g_SCWV_WV2 && g_SCWV_Ready)
+        return
+    if (IsObject(jsonStr))
+        WebView_QueuePayload(g_SCWV_WV2, jsonStr)
+    else
+        WebView_QueueJson(g_SCWV_WV2, jsonStr)
 }
 
 SCWV_OnWebMessage(sender, args) {
@@ -229,17 +245,24 @@ SCWV_OnWebMessage(sender, args) {
             return
         }
     }
-    if !(msg is Map) || !msg.Has("type")
+    if !(msg is Map)
         return
 
-    switch msg["type"] {
+    action := msg.Has("type") ? msg["type"] : (msg.Has("action") ? msg["action"] : "")
+    if (action = "")
+        return
+
+    switch action {
         case "ready":
             global g_SCWV_Ready
             g_SCWV_Ready := true
             SCWV_PushState("init")
+            if g_SCWV_FocusPending
+                SCWV_RequestFocusInput()
         case "search":
             keyword := msg.Has("keyword") ? String(msg["keyword"]) : ""
-            SCWV_QueueSearch(keyword)
+            _SCWV_PerformSearch(keyword)
+            SCWV_PushState("state")
         case "setCategory":
             if msg.Has("category")
                 _SCWV_SetCategoryByKey(String(msg["category"]))
@@ -257,6 +280,12 @@ SCWV_OnWebMessage(sender, args) {
             SearchCenterCurrentLimit := val
             SearchCenterEverythingLimit := val
             _SCWV_PerformSearch(SearchCenterWebKeyword)
+            SCWV_PushState("state")
+        case "loadMore":
+            offset := msg.Has("offset") ? Integer(msg["offset"]) : 0
+            if (offset < 0)
+                offset := 0
+            _SCWV_PerformSearch(SearchCenterWebKeyword, offset)
             SCWV_PushState("state")
         case "toggleEngine":
             if msg.Has("engine")
@@ -460,6 +489,11 @@ _SCWV_PerformSearch(keyword, offset := 0) {
         OutputDebug("SCWV search error: " . err.Message)
     }
 
+    if (offset > 0 && NewResults.Length > 0) {
+        for _, item in NewResults
+            SearchCenterSearchResults.Push(item)
+    }
+
     if (offset = 0 && SearchCenterSearchResults.Length > 0 && StrLen(keyword) > 0) {
         try {
             Loop SearchCenterSearchResults.Length {
@@ -526,6 +560,7 @@ _SCWV_GetFilteredResults() {
 
 SCWV_PushState(msgType := "state") {
     global SearchCenterWebKeyword, SearchCenterCurrentLimit, SearchCenterSelectedEngines, SearchCenterFilterType
+    global SearchCenterHasMoreData
 
     if !SearchCenter_ShouldUseWebView()
         return
@@ -574,10 +609,12 @@ SCWV_PushState(msgType := "state") {
         "statusLine", status,
         "isCliCategory", (currentCategoryKey = "cli") ? true : false,
         "canRun", Trim(SearchCenterWebKeyword) != "",
-        "canOpenCli", (currentCategoryKey = "cli") ? true : false
+        "canOpenCli", (currentCategoryKey = "cli") ? true : false,
+        "hasMore", SearchCenterHasMoreData ? true : false,
+        "total", results.Length
     )
 
-    try SCWV_PostJson(Jxon_Dump(payload))
+    try SCWV_PostJson(payload)
 }
 
 _SCWV_BuildFilterPayload() {
@@ -630,7 +667,7 @@ _SCWV_PathToWebAssetUrl(path) {
     scriptRootWithSlash := scriptRoot . "/"
     if (SubStr(normalized, 1, StrLen(scriptRootWithSlash)) = scriptRootWithSlash) {
         relativePath := SubStr(normalized, StrLen(scriptRootWithSlash) + 1)
-        return BuildAppLocalUrl(relativePath)
+        return BuildAppAssetUrl(relativePath)
     }
 
     return ""

@@ -14,6 +14,7 @@ global g_CP_SearchTimer := 0
 global g_CP_LastKeyword := ""
 global g_CP_FilterType := "all"
 global g_CP_TitleH := 0
+global g_CP_FocusPending := false
 
 ; ══════════════════════════════════════════════════════════════════════════
 ; _CP_LSP_Hints — 永远不被调用；仅让语言服务器看到外部符号的赋值语句，
@@ -82,6 +83,7 @@ CP_Show() {
         _CP_PushInitialData()
 
     SetTimer(_CP_FocusDeferred, -80)
+    CP_RequestFocusInput()
 }
 
 _CP_FocusDeferred() {
@@ -104,6 +106,16 @@ CP_Hide() {
     g_CP_Visible := false
     if g_CP_Gui
         g_CP_Gui.Hide()
+}
+
+CP_RequestFocusInput() {
+    global g_CP_WV2, g_CP_Ready, g_CP_FocusPending
+    if g_CP_WV2 && g_CP_Ready {
+        WebView_QueueJson(g_CP_WV2, '{"type":"focus_input"}')
+        g_CP_FocusPending := false
+        return
+    }
+    g_CP_FocusPending := true
 }
 
 CP_Toggle() {
@@ -214,8 +226,12 @@ _CP_OnGuiResize(GuiObj, MinMax, Width, Height) {
 ; ===================== AHK ↔ JS 通信 =====================
 CP_SendToWeb(jsonStr) {
     global g_CP_WV2, g_CP_Ready
-    if g_CP_WV2 && g_CP_Ready
-        g_CP_WV2.PostWebMessageAsJson(jsonStr)
+    if g_CP_WV2 && g_CP_Ready {
+        if (IsObject(jsonStr))
+            WebView_QueuePayload(g_CP_WV2, jsonStr)
+        else
+            WebView_QueueJson(g_CP_WV2, jsonStr)
+    }
 }
 
 _CP_OnWebMessage(sender, args) {
@@ -228,15 +244,20 @@ _CP_OnWebMessage(sender, args) {
         OutputDebug("[CP] JSON parse error: " . jsonStr)
         return
     }
-    if !(msg is Map) || !msg.Has("type")
+    if !(msg is Map)
+        return
+    action := msg.Has("type") ? msg["type"] : (msg.Has("action") ? msg["action"] : "")
+    if (action = "")
         return
 
-    switch msg["type"] {
+    switch action {
         case "ready":
             g_CP_Ready := true
             OutputDebug("[CP] WebView ready")
             if g_CP_Visible
                 _CP_PushInitialData()
+            if g_CP_FocusPending
+                CP_RequestFocusInput()
 
         case "search":
             keyword := msg.Has("keyword") ? msg["keyword"] : ""
@@ -291,7 +312,7 @@ _CP_OnWebMessage(sender, args) {
             CP_Hide()
 
         default:
-            OutputDebug("[CP] Unknown msg type: " . msg["type"])
+            OutputDebug("[CP] Unknown msg type: " . action)
     }
 }
 
@@ -300,7 +321,7 @@ _CP_PushInitialData() {
     global g_CP_LastKeyword, g_CP_FilterType
     g_CP_LastKeyword := ""
     g_CP_FilterType := "all"
-    items := _CP_LoadItems("", g_CP_FilterType, 0, 20)
+    items := _CP_LoadItems("", g_CP_FilterType, 0, 30)
     total := _CP_GetTotalCount("", g_CP_FilterType)
     hasMore := (items.Length < total)
     json := _CP_BuildItemsJson("init", items, total, hasMore)
@@ -312,7 +333,7 @@ _CP_DoLoadMore(offset) {
     offset := Integer(offset)
     if offset < 0
         offset := 0
-    items := _CP_LoadItems(g_CP_LastKeyword, g_CP_FilterType, offset, 20)
+    items := _CP_LoadItems(g_CP_LastKeyword, g_CP_FilterType, offset, 30)
     total := _CP_GetTotalCount(g_CP_LastKeyword, g_CP_FilterType)
     hasMore := (offset + items.Length) < total
     json := _CP_BuildItemsJson("moreItems", items, total, hasMore)
@@ -339,7 +360,7 @@ _CP_ExecuteSearch(keyword, filterType := "all") {
     global g_CP_SearchTimer
     g_CP_SearchTimer := 0
     filterType := _CP_NormalizeFilterType(filterType)
-    items := _CP_LoadItems(keyword, filterType, 0, 20)
+    items := _CP_LoadItems(keyword, filterType, 0, 30)
     total := _CP_GetTotalCount(keyword, filterType)
     hasMore := (items.Length < total)
     json := _CP_BuildItemsJson("searchResult", items, total, hasMore)
@@ -347,7 +368,7 @@ _CP_ExecuteSearch(keyword, filterType := "all") {
 }
 
 ; ===================== 数据库查询 =====================
-_CP_LoadItems(keyword := "", filterType := "all", offset := 0, limit := 20) {
+_CP_LoadItems(keyword := "", filterType := "all", offset := 0, limit := 30) {
     global ClipboardFTS5DB
 
     if !ClipboardFTS5DB || ClipboardFTS5DB = 0
@@ -358,7 +379,7 @@ _CP_LoadItems(keyword := "", filterType := "all", offset := 0, limit := 20) {
     if offset < 0
         offset := 0
     if limit < 1
-        limit := 20
+        limit := 30
 
     results := []
     try {

@@ -449,7 +449,7 @@ const state = {
   loadMoreCooldownUntil: 0
 };
 
-const PAGE_SIZE = 20;
+  const PAGE_SIZE = 30;
 const LOAD_MORE_COOLDOWN_MS = 420;
 /**
  * Raycast 风格提前加载：扩大 root 底部相交区域，哨兵尚未滚进视口时即可触发（约提前一屏内开始拉取）。
@@ -541,6 +541,7 @@ function setupLoadMoreObserver() {
 // ═══════════════════════════════════════════════════════════════════════════
 function postToAhk(obj) {
   if (window.chrome && window.chrome.webview) {
+    if (obj && !obj.action && obj.type) obj.action = obj.type;
     window.chrome.webview.postMessage(obj);
   }
 }
@@ -627,6 +628,11 @@ function runCtxAction(act, id) {
 
 function handleAhkMessage(msg) {
   switch (msg.type) {
+    case 'focus_input': {
+      const input = document.getElementById('search-input');
+      if (input) input.focus();
+      break;
+    }
     case 'init':
     case 'searchResult':
       state.items = msg.items || [];
@@ -1046,8 +1052,12 @@ document.getElementById('filter-select').addEventListener('change', (e) => {
   triggerSearch();
 });
 
+let searchDebounceTimer = 0;
 function triggerSearch() {
-  postToAhk({ type: 'search', keyword: state.keyword, filterType: state.filterType });
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    postToAhk({ type: 'search', keyword: state.keyword, filterType: state.filterType });
+  }, 150);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

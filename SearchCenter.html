@@ -319,8 +319,9 @@ mark {
     <input id="search" type="text" placeholder="搜索本地结果，或直接作为网络搜索 / CLI 提示词发送">
     <select id="limit">
       <option value="10">10 条</option>
-      <option value="20">20 条</option>
-      <option value="50">50 条</option>
+        <option value="20">20 条</option>
+        <option value="30">30 条</option>
+        <option value="50">50 条</option>
       <option value="100">100 条</option>
       <option value="200">200 条</option>
     </select>
@@ -379,7 +380,7 @@ mark {
 <script>
 const state = {
   keyword: "",
-  limit: 50,
+  limit: 30,
   categories: [],
   currentCategoryKey: "ai",
   engines: [],
@@ -387,6 +388,9 @@ const state = {
   filters: [],
   filterType: "",
   results: [],
+  hasMore: false,
+  loading: false,
+  loadMoreCooldownUntil: 0,
   isCliCategory: false,
   statusLine: "",
   selectedRow: 1
@@ -394,6 +398,7 @@ const state = {
 
 function postToAhk(obj) {
   if (window.chrome && window.chrome.webview) {
+    if (obj && !obj.action && obj.type) obj.action = obj.type;
     window.chrome.webview.postMessage(obj);
   }
 }
@@ -461,6 +466,7 @@ function renderFilters() {
 function renderResults() {
   const list = document.getElementById("result-list");
   list.innerHTML = "";
+  disconnectLoadMoreObserver();
 
   if (!state.results.length) {
     list.innerHTML = "<div class=\"empty\">暂无结果。<br>你可以在上方输入关键词搜索本地内容，或选择引擎后执行网络搜索 / CLI 发送。</div>";
@@ -495,6 +501,16 @@ function renderResults() {
     list.appendChild(row);
   });
 
+  if (state.hasMore) {
+    const sent = document.createElement("div");
+    sent.id = "load-sentinel";
+    sent.style.height = "2px";
+    sent.style.width = "100%";
+    sent.style.pointerEvents = "none";
+    list.appendChild(sent);
+    setupLoadMoreObserver();
+  }
+
   renderPreview();
 }
 
@@ -521,6 +537,8 @@ function applyState(payload) {
   state.filters = payload.filters || [];
   state.filterType = payload.filterType || "";
   state.results = payload.results || [];
+  state.hasMore = !!payload.hasMore;
+  state.loading = false;
   state.isCliCategory = !!payload.isCliCategory;
   state.statusLine = payload.statusLine || "";
 
@@ -545,9 +563,45 @@ function applyState(payload) {
   renderResults();
 }
 
+let searchDebounceTimer = 0;
+function triggerSearch() {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    postToAhk({ type: "search", keyword: state.keyword });
+  }, 150);
+}
+
+let loadMoreObserver = null;
+function disconnectLoadMoreObserver() {
+  if (loadMoreObserver) {
+    loadMoreObserver.disconnect();
+    loadMoreObserver = null;
+  }
+}
+
+function requestLoadMore() {
+  if (!state.hasMore || state.loading) return;
+  if (Date.now() < state.loadMoreCooldownUntil) return;
+  state.loading = true;
+  state.loadMoreCooldownUntil = Date.now() + 350;
+  postToAhk({ type: "loadMore", offset: state.results.length });
+}
+
+function setupLoadMoreObserver() {
+  const list = document.getElementById("result-list");
+  const sent = document.getElementById("load-sentinel");
+  if (!list || !sent || !state.hasMore) return;
+  loadMoreObserver = new IntersectionObserver((entries) => {
+    const e = entries[0];
+    if (!e || !e.isIntersecting) return;
+    requestLoadMore();
+  }, { root: list, rootMargin: "0px 0px 320px 0px", threshold: 0 });
+  loadMoreObserver.observe(sent);
+}
+
 document.getElementById("search").addEventListener("input", (event) => {
   state.keyword = event.target.value;
-  postToAhk({ type: "search", keyword: state.keyword });
+  triggerSearch();
 });
 
 document.getElementById("limit").addEventListener("change", (event) => {
@@ -620,6 +674,11 @@ if (window.chrome && window.chrome.webview) {
   window.chrome.webview.addEventListener("message", (event) => {
     const payload = event.data;
     if (!payload || !payload.type) return;
+    if (payload.type === "focus_input") {
+      const input = document.getElementById("search");
+      if (input) input.focus();
+      return;
+    }
     if (payload.type === "init" || payload.type === "state") {
       applyState(payload);
     }

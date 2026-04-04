@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -136,7 +136,10 @@
         voiceSearchSelectedEnginesCsv: "deepseek"
       }
     };
-    const post = (msg) => window.chrome?.webview?.postMessage(msg);
+    const post = (msg) => {
+      if (msg && !msg.action && msg.type) msg.action = msg.type;
+      window.chrome?.webview?.postMessage(msg);
+    };
     const setStatus = (text, cls = "") => { const el = document.getElementById("status"); el.textContent = text; el.className = cls; };
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[ch]));
     const checked = (v) => v ? "checked" : "";
@@ -268,7 +271,7 @@
       if (state.activeTab === "general") {
         panel.innerHTML = `<div class="card"><div class="title">通用设置</div><div class="row"><div class="label">Cursor 路径</div><div class="inline"><input id="cursorPath" type="text" value="${esc(d.cursorPath)}"><button class="btn" id="browsePath">浏览</button></div></div><div class="row"><div class="label">CapsLock 长按时间 (0.1 - 5.0)</div><input id="holdTime" type="number" min="0.1" max="5.0" step="0.1" value="${esc(d.capslockHoldTimeSeconds)}"></div><div class="row"><div class="label">开机自启动</div><div><input id="autoStart" type="checkbox" ${checked(d.autoStart)}></div></div><div class="row"><div class="label">默认启动页</div><select id="defaultStartTab">${optionsKV(defaultTabOpts,d.defaultStartTab)}</select></div><div class="row"><div class="label">安装中文 Cursor</div><div><button class="btn" id="btnInstallChinese">安装 Cursor 中文版</button></div></div></div>`;
         document.getElementById("browsePath").addEventListener("click", () => post({ type: "browseCursorPath" }));
-        document.getElementById("btnInstallChinese").addEventListener("click", () => post({ type: "invokeAction", action: "installCursorChinese" }));
+        document.getElementById("btnInstallChinese").addEventListener("click", () => post({ type: "invokeAction", op: "installCursorChinese" }));
       } else if (state.activeTab === "appearance") {
         panel.innerHTML = `<div class="card"><div class="title">外观设置</div><div class="row"><div class="label">主题模式</div><select id="themeMode">${optionsKV([{value:"dark",label:"深色"},{value:"light",label:"浅色"}],d.themeMode)}</select></div><div class="row"><div class="label">弹窗位置</div><select id="popupScreenIndex">${optionsKV(screenOpts, String(d.popupScreenIndex || 1))}</select></div><div class="hint">已自动识别显示器数量：${esc(monitorCount)}。此设置会应用到所有弹窗并固定保存。</div></div>`;
       } else if (state.activeTab === "prompts") {
@@ -380,7 +383,7 @@
               return render();
             }
             for (const item of inCat) {
-              post({ type: "invokeAction", action: "promptTemplateUpsert", payload: { id: item.id, title: item.title || item.id, category: "基础", content: item.content || "" } });
+              post({ type: "invokeAction", op: "promptTemplateUpsert", payload: { id: item.id, title: item.title || item.id, category: "基础", content: item.content || "" } });
             }
             state.customPromptCategories = (state.customPromptCategories || []).filter(c => c !== category);
             saveCustomCategories();
@@ -394,17 +397,17 @@
             render();
           });
           document.getElementById("btnTplSave").addEventListener("click", () => {
-            post({ type: "invokeAction", action: "promptTemplateUpsert", payload: { id: state.selectedPromptTemplateId || "", title: document.getElementById("promptTplTitle").value.trim(), category: document.getElementById("promptTplCategory").value.trim(), content: document.getElementById("promptTplContent").value } });
+            post({ type: "invokeAction", op: "promptTemplateUpsert", payload: { id: state.selectedPromptTemplateId || "", title: document.getElementById("promptTplTitle").value.trim(), category: document.getElementById("promptTplCategory").value.trim(), content: document.getElementById("promptTplContent").value } });
             state.creatingPromptTemplate = false;
           });
           document.getElementById("btnTplDelete").addEventListener("click", () => {
             if (!state.selectedPromptTemplateId) return setStatus("请先选择模板", "err");
-            post({ type: "invokeAction", action: "promptTemplateDelete", payload: { id: state.selectedPromptTemplateId } });
+            post({ type: "invokeAction", op: "promptTemplateDelete", payload: { id: state.selectedPromptTemplateId } });
           });
-          document.getElementById("btnImportTpl").addEventListener("click", () => post({ type: "invokeAction", action: "importPromptTemplates" }));
-          document.getElementById("btnExportTpl").addEventListener("click", () => post({ type: "invokeAction", action: "exportPromptTemplates" }));
-          document.getElementById("btnReloadTpl").addEventListener("click", () => post({ type: "invokeAction", action: "reloadPromptTemplates" }));
-          document.getElementById("btnOpenLegacyPrompts").addEventListener("click", () => post({ type: "invokeAction", action: "openLegacyTab", tab: "prompts" }));
+          document.getElementById("btnImportTpl").addEventListener("click", () => post({ type: "invokeAction", op: "importPromptTemplates" }));
+          document.getElementById("btnExportTpl").addEventListener("click", () => post({ type: "invokeAction", op: "exportPromptTemplates" }));
+          document.getElementById("btnReloadTpl").addEventListener("click", () => post({ type: "invokeAction", op: "reloadPromptTemplates" }));
+          document.getElementById("btnOpenLegacyPrompts").addEventListener("click", () => post({ type: "invokeAction", op: "openLegacyTab", tab: "prompts" }));
         } else if (state.promptsMainTab === "cursorRules") {
           document.querySelectorAll("[data-rule-tab]").forEach(el => el.addEventListener("click", () => {
             state.data = readFromUI();
@@ -420,16 +423,16 @@
               setStatus("复制失败", "err");
             }
           });
-          document.getElementById("btnOpenLegacyPrompts").addEventListener("click", () => post({ type: "invokeAction", action: "openLegacyTab", tab: "prompts" }));
+          document.getElementById("btnOpenLegacyPrompts").addEventListener("click", () => post({ type: "invokeAction", op: "openLegacyTab", tab: "prompts" }));
         }
       } else if (state.activeTab === "hotkeys") {
         panel.innerHTML = `<div class="card"><div class="title">快捷键设置</div>${hotkeyRows}<div class="row"><div class="label">Prompt 快速采集热键</div><input id="promptQuickCaptureHotkey" type="text" value="${esc(d.promptQuickCaptureHotkey)}"></div></div><div class="card"><div class="title">快速操作按钮 (5)</div>${qaRows}<div class="inline"><button class="btn" id="btnOpenLegacyHotkeys">打开原版快捷键设置</button></div></div>`;
-        document.getElementById("btnOpenLegacyHotkeys").addEventListener("click", () => post({ type: "invokeAction", action: "openLegacyTab", tab: "hotkeys" }));
+        document.getElementById("btnOpenLegacyHotkeys").addEventListener("click", () => post({ type: "invokeAction", op: "openLegacyTab", tab: "hotkeys" }));
       } else if (state.activeTab === "advanced") {
         panel.innerHTML = `<div class="card"><div class="title">高级设置</div><div class="row"><div class="label">界面语言</div><select id="language">${optionsKV([{value:"zh",label:"中文"},{value:"en",label:"英文"}],d.language)}</select></div><div class="row"><div class="label">AI 等待时间 (秒)</div><input id="aiSleepTimeSeconds" type="number" min="0.05" max="10" step="0.05" value="${esc((Number(d.aiSleepTime || 200) / 1000).toFixed(2).replace(/\.?0+$/,""))}"></div><div class="row"><div class="label">启动延迟 (秒)</div><input id="launchDelaySeconds" type="number" min="0.5" max="10" step="0.1" value="${esc(d.launchDelaySeconds)}"></div><div class="hint">弹窗位置已统一到“外观设置 > 弹窗位置”。</div></div><div class="card"><div class="title">配置管理</div><div class="inline"><button class="btn" id="btnExportCfg">导出配置</button><button class="btn" id="btnImportCfg">导入配置</button><button class="btn" id="btnResetCfg">重置默认</button></div></div>`;
-        document.getElementById("btnExportCfg").addEventListener("click", () => post({ type: "invokeAction", action: "exportConfig" }));
-        document.getElementById("btnImportCfg").addEventListener("click", () => post({ type: "invokeAction", action: "importConfig" }));
-        document.getElementById("btnResetCfg").addEventListener("click", () => post({ type: "invokeAction", action: "resetToDefaults" }));
+        document.getElementById("btnExportCfg").addEventListener("click", () => post({ type: "invokeAction", op: "exportConfig" }));
+        document.getElementById("btnImportCfg").addEventListener("click", () => post({ type: "invokeAction", op: "importConfig" }));
+        document.getElementById("btnResetCfg").addEventListener("click", () => post({ type: "invokeAction", op: "resetToDefaults" }));
       } else {
         const selectedDefault = csvToArr(d.searchEngine || "deepseek");
         const selectedAiCli = csvToArr(d.voiceSearchSelectedEnginesCsv || "codex");
@@ -450,7 +453,7 @@
         };
         bindDropdown("ddDefaultEngine", "btnDefaultEngine", "default");
         bindDropdown("ddAiCliEngine", "btnAiCliEngine", "ai-cli");
-        document.getElementById("btnOpenLegacySearch").addEventListener("click", () => post({ type: "invokeAction", action: "openLegacyTab", tab: "search" }));
+        document.getElementById("btnOpenLegacySearch").addEventListener("click", () => post({ type: "invokeAction", op: "openLegacyTab", tab: "search" }));
       }
       bindAutoSaveControls();
     }
@@ -484,8 +487,8 @@
       if (t.dataset?.nosave === "1") return;
       scheduleAutoSave(50);
     });
-    document.getElementById("btn-open-legacy").addEventListener("click", () => post({ type: "invokeAction", action: "openLegacySettings" }));
-    document.getElementById("btn-open-compare").addEventListener("click", () => post({ type: "invokeAction", action: "openCompareSettings" }));
+    document.getElementById("btn-open-legacy").addEventListener("click", () => post({ type: "invokeAction", op: "openLegacySettings" }));
+    document.getElementById("btn-open-compare").addEventListener("click", () => post({ type: "invokeAction", op: "openCompareSettings" }));
     document.getElementById("btn-cancel").addEventListener("click", () => post({ type: "cancel" }));
     document.getElementById("btn-save").addEventListener("click", () => { const d = readFromUI(); const err = validate(d); if (err) return setStatus(err, "err"); post({ type: "saveSettings", payload: d }); });
     function handleHostMessage(msg) {
@@ -512,7 +515,7 @@
       if (msg.type === "actionResult") { setStatus(msg.ok ? "操作成功" : (msg.error || "操作失败"), msg.ok ? "ok" : "err"); }
     }
     loadCustomCategories();
-    if (window.chrome && window.chrome.webview) { window.chrome.webview.addEventListener("message", e => { const data = typeof e.data === "string" ? JSON.parse(e.data) : e.data; handleHostMessage(data); }); post({ type: "ready" }); setStatus("正在连接..."); } else { render(); setStatus("预览模式"); }
+    if (window.chrome && window.chrome.webview) { window.chrome.webview.addEventListener("message", e => { const data = typeof e.data === "string" ? JSON.parse(e.data) : e.data; handleHostMessage(data); }); render(); post({ type: "ready" }); setStatus("正在连接..."); } else { render(); setStatus("预览模式"); }
   </script>
 </body>
 </html>

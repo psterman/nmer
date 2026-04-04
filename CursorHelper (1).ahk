@@ -481,6 +481,8 @@ global ConfigWebViewPreloaded := false
 global UnifiedAssetsHost := "app.local"
 global UnifiedAssetsRoot := A_ScriptDir
 global UnifiedAssetsAccessKind := 0  ; COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW
+global WebViewMsgQueue := []
+global WebViewMsgQueueActive := false
 global WebViewWarmupQueue := []
 global WebViewWarmupIndex := 0
 global WebViewWarmupStarted := false
@@ -637,9 +639,9 @@ global SearchCenterResultLimitDropdown := 0  ; 结果数量限制下拉菜单
 global SearchCenterResultLimitDDL_Hwnd := 0  ; 搜索中心结果过滤下拉框句柄
 global SearchCenterResultLimitDDL_ListHwnd := 0  ; 搜索中心结果过滤下拉列表句柄
 global SearchCenterResultLimitDDLBrush := 0  ; 搜索中心结果过滤下拉框画刷
-global SearchCenterEverythingLimit := 50  ; Everything 搜索的结果数量限制（默认50）
+global SearchCenterEverythingLimit := 30  ; Everything 搜索的结果数量限制（默认30）
 global FileClassifierUserTrustRoots := []  ; 用户自定义高信任路径前缀（可选，供 FileClassifier.GetPathTrustMultiplier 使用）
-global SearchCenterCurrentLimit := 50  ; 当前加载的数据量限制
+global SearchCenterCurrentLimit := 30  ; 当前加载的数据量限制
 global SearchCenterHasMoreData := false  ; 是否还有更多数据
 global SearchCenterSelectedEngines := []  ; 搜索中心选中的搜索引擎（支持多选）
 global SearchCenterSelectedEnginesByCategory := Map()  ; 每个分类的搜索引擎选择状态（分类Key -> 引擎数组）
@@ -3179,9 +3181,69 @@ BuildAppLocalUrl(relativePath) {
     return "https://" . UnifiedAssetsHost . "/" . normalized
 }
 
+BuildAppAssetUrl(relativePath) {
+    normalized := StrReplace(relativePath, "\", "/")
+    if (SubStr(normalized, 1, 1) = "/")
+        normalized := SubStr(normalized, 2)
+    if (SubStr(normalized, 1, 7) = "assets/")
+        return BuildAppLocalUrl(normalized)
+    return BuildAppLocalUrl("assets/" . normalized)
+}
+
 ApplyUnifiedWebViewAssets(wv2) {
     global UnifiedAssetsHost, UnifiedAssetsRoot, UnifiedAssetsAccessKind
     try wv2.SetVirtualHostNameToFolderMapping(UnifiedAssetsHost, UnifiedAssetsRoot, UnifiedAssetsAccessKind)
+}
+
+WebView_DumpJson(payload) {
+    try return Jxon_Dump(payload)
+    catch as err {
+        OutputDebug("[WebView] Jxon_Dump failed: " . err.Message)
+        return ""
+    }
+}
+
+WebView_QueueJson(wv2, jsonStr) {
+    global WebViewMsgQueue
+    if !wv2 || jsonStr = ""
+        return
+    WebViewMsgQueue.Push(Map("wv2", wv2, "json", jsonStr))
+    _WebView_QueueKick()
+}
+
+WebView_QueuePayload(wv2, payload) {
+    global WebViewMsgQueue
+    if !wv2
+        return
+    WebViewMsgQueue.Push(Map("wv2", wv2, "payload", payload))
+    _WebView_QueueKick()
+}
+
+_WebView_QueueKick() {
+    global WebViewMsgQueueActive
+    if WebViewMsgQueueActive
+        return
+    WebViewMsgQueueActive := true
+    SetTimer(_WebView_QueueFlush, -10)
+}
+
+_WebView_QueueFlush(*) {
+    global WebViewMsgQueue, WebViewMsgQueueActive
+    if (WebViewMsgQueue.Length = 0) {
+        WebViewMsgQueueActive := false
+        return
+    }
+    item := WebViewMsgQueue.RemoveAt(1)
+    jsonStr := ""
+    if (item.Has("json")) {
+        jsonStr := item["json"]
+    } else if (item.Has("payload")) {
+        jsonStr := WebView_DumpJson(item["payload"])
+    }
+    if (jsonStr != "") {
+        try item["wv2"].PostWebMessageAsJson(jsonStr)
+    }
+    SetTimer(_WebView_QueueFlush, -10)
 }
 
 _WarmupConfigWebView(*) {
@@ -3204,7 +3266,7 @@ _RunWebViewWarmupStep(*) {
         SetTimer(_RunWebViewWarmupStep, -350)
 }
 
-StartWebViewWarmup(*) {
+Global_InitAllPanels(*) {
     global WebViewWarmupQueue, WebViewWarmupIndex, WebViewWarmupStarted
 
     if WebViewWarmupStarted
@@ -3212,9 +3274,13 @@ StartWebViewWarmup(*) {
 
     WebViewWarmupStarted := true
     WebViewWarmupIndex := 0
-    WebViewWarmupQueue := [CP_Init, PQP_Init, SCWV_Init]
+    WebViewWarmupQueue := [CP_Init, PQP_Init, SCWV_Init, VK_EnsureInit.Bind(true)]
     SetTimer(_RunWebViewWarmupStep, -10)
     SetTimer(_WarmupConfigWebView, -5000)
+}
+
+StartWebViewWarmup(*) {
+    Global_InitAllPanels()
 }
 
 InitConfig() ; 启动初始化
@@ -3230,7 +3296,7 @@ InitClipboardFTS5DB()
 ; 初始化粘贴板历史面板
 InitClipboardHistoryPanel()
 ; 初始化 WebView2 剪贴板面板
-SetTimer(StartWebViewWarmup, -1200)
+SetTimer(Global_InitAllPanels, -1200)
 ; 初始化悬浮工具栏
 InitFloatingToolbar()
 ; 显示悬浮工具栏（随主脚本运行）
@@ -16248,10 +16314,32 @@ ConfigWebView_OnCreated(ctrl) {
     s.IsStatusBarEnabled := false
     s.AreDevToolsEnabled := true
     ConfigWV2.add_WebMessageReceived(ConfigWebView_OnMessage)
+    try ConfigWV2.add_NavigationCompleted(ConfigWebView_OnNavigationCompleted)
     ConfigWebView_ApplyBounds()
     try ApplyUnifiedWebViewAssets(ConfigWV2)
-    ConfigWV2.Navigate(BuildAppLocalUrl("SettingsPanel.html"))
+    try {
+        htmlPath := A_ScriptDir "\SettingsPanel.html"
+        if FileExist(htmlPath) {
+            html := FileRead(htmlPath, "UTF-8")
+            ConfigWV2.NavigateToString(html)
+        } else {
+            ConfigWV2.Navigate(BuildAppLocalUrl("SettingsPanel.html"))
+        }
+    } catch {
+        ConfigWV2.Navigate(BuildAppLocalUrl("SettingsPanel.html"))
+    }
     ConfigWebViewPreloaded := true
+}
+
+ConfigWebView_OnNavigationCompleted(sender, args) {
+    try ok := args.IsSuccess
+    catch
+        ok := true
+    if ok
+        return
+    try {
+        sender.NavigateToString("<!doctype html><html><body style='background:#111;color:#eee;font-family:Segoe UI;padding:16px'>设置面板页面加载失败。请重启脚本后重试。</body></html>")
+    }
 }
 
 ConfigWebView_OnSize(*) {
@@ -16290,7 +16378,7 @@ ConfigWebView_Send(msgMap) {
     global ConfigWV2, ConfigWV2Ready
     if !ConfigWV2 || !ConfigWV2Ready
         return
-    try ConfigWV2.PostWebMessageAsJson(Jxon_Dump(msgMap))
+    WebView_QueuePayload(ConfigWV2, msgMap)
 }
 
 JoinArray(arr, sep := ",") {
@@ -16313,7 +16401,7 @@ ConfigWebView_BuildInitData() {
     global PromptQuickCaptureHotkey, QuickActionButtons
     global Language, AISleepTime, LaunchDelaySeconds, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex, ClipboardPanelScreenIndex
     global SearchEngine, AutoLoadSelectedText, AutoUpdateVoiceInput, VoiceSearchEnabledCategories, VoiceSearchSelectedEngines
-    global ConfigFile
+    global ConfigFile, DefaultTemplateIDs, PromptTemplates
     monitorCount := 1
     try monitorCount := MonitorGetCount()
     catch
@@ -16376,10 +16464,11 @@ ConfigWebView_BuildInitData() {
             promptTemplateSummary.Push(Map("id", tid, "title", ttitle, "category", tcat, "content", tcontent))
         }
     }
+    templateIds := (IsSet(DefaultTemplateIDs) && DefaultTemplateIDs is Map) ? DefaultTemplateIDs : Map()
     defaultTemplates := Map(
-        "Explain", DefaultTemplateIDs.Has("Explain") ? DefaultTemplateIDs["Explain"] : "",
-        "Refactor", DefaultTemplateIDs.Has("Refactor") ? DefaultTemplateIDs["Refactor"] : "",
-        "Optimize", DefaultTemplateIDs.Has("Optimize") ? DefaultTemplateIDs["Optimize"] : ""
+        "Explain", templateIds.Has("Explain") ? templateIds["Explain"] : "",
+        "Refactor", templateIds.Has("Refactor") ? templateIds["Refactor"] : "",
+        "Optimize", templateIds.Has("Optimize") ? templateIds["Optimize"] : ""
     )
     cursorRules := Map(
         "general", IniRead(ConfigFile, "CursorRules", "general", ""),
@@ -16424,6 +16513,49 @@ ConfigWebView_BuildInitData() {
         "voiceSearchEnabledCategories", cats,
         "voiceSearchSelectedEnginesCsv", selectedCsv
     )
+}
+
+ConfigWebView_BuildInitDataSafe() {
+    try {
+        return ConfigWebView_BuildInitData()
+    } catch as err {
+        OutputDebug("[ConfigWebView] BuildInitData failed: " . err.Message)
+        return Map(
+            "cursorPath", "",
+            "capslockHoldTimeSeconds", 0.5,
+            "autoStart", false,
+            "defaultStartTab", "general",
+            "themeMode", "dark",
+            "popupScreenIndex", 1,
+            "monitorCount", 1,
+            "functionPanelPos", "center",
+            "configPanelScreenIndex", 1,
+            "configPanelPos", "center",
+            "clipboardPanelPos", "center",
+            "panelScreenIndex", 1,
+            "promptExplain", "",
+            "promptRefactor", "",
+            "promptOptimize", "",
+            "cursorRules", Map("general","", "web","", "miniprogram","", "android","", "ios","", "python",""),
+            "promptTemplateSummary", [],
+            "defaultTemplates", Map("Explain","", "Refactor","", "Optimize",""),
+            "hotkeys", Map("ESC","", "C","", "V","", "X","", "E","", "R","", "O","", "Q","", "Z","", "S","", "B","", "T","", "F","", "P",""),
+            "promptQuickCaptureHotkey", "",
+            "quickActions", [Map("type","Explain","hotkey","e"), Map("type","Refactor","hotkey","r"), Map("type","Optimize","hotkey","o"), Map("type","Config","hotkey","q"), Map("type","Explain","hotkey","e")],
+            "language", "zh",
+            "aiSleepTime", 200,
+            "launchDelaySeconds", 3.0,
+            "msgBoxScreenIndex", 1,
+            "voiceInputScreenIndex", 1,
+            "cursorPanelScreenIndex", 1,
+            "clipboardPanelScreenIndex", 1,
+            "searchEngine", "deepseek",
+            "autoLoadSelectedText", false,
+            "autoUpdateVoiceInput", true,
+            "voiceSearchEnabledCategories", ["ai","cli","academic","baidu","image","audio","video","book","price","medical","cloud"],
+            "voiceSearchSelectedEnginesCsv", "deepseek"
+        )
+    }
 }
 
 ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
@@ -16691,12 +16823,15 @@ ConfigWebView_OnMessage(sender, args) {
     } catch {
         return
     }
-    if !(msg is Map) || !msg.Has("type")
+    if !(msg is Map)
         return
-    switch msg["type"] {
+    action := msg.Has("type") ? msg["type"] : (msg.Has("action") ? msg["action"] : "")
+    if (action = "")
+        return
+    switch action {
         case "ready":
             ConfigWV2Ready := true
-            ConfigWebView_Send(Map("type", "initData", "payload", ConfigWebView_BuildInitData()))
+            ConfigWebView_Send(Map("type", "initData", "payload", ConfigWebView_BuildInitDataSafe()))
         case "browseCursorPath":
             selected := FileSelect("1", A_ScriptDir, "选择 Cursor.exe", "Executable (*.exe)")
             if (selected = "")
@@ -16708,12 +16843,12 @@ ConfigWebView_OnMessage(sender, args) {
             ok := ConfigWebView_ValidateAndApply(payload, &err)
             ConfigWebView_Send(Map("type", "saveResult", "ok", ok, "error", err))
         case "invokeAction":
-            action := msg.Get("action", "")
+            op := msg.Get("op", msg.Get("action", ""))
             payload := msg.Get("payload", Map())
             ok := true
             err := ""
             try {
-                switch action {
+                switch op {
                     case "installCursorChinese":
                         InstallCursorChinese()
                     case "exportConfig":
@@ -16752,7 +16887,7 @@ ConfigWebView_OnMessage(sender, args) {
                         OpenLegacyConfigGUI()
                     default:
                         ok := false
-                        err := "未知操作: " . action
+                        err := "未知操作: " . op
                 }
             } catch as e {
                 ok := false
@@ -16760,7 +16895,7 @@ ConfigWebView_OnMessage(sender, args) {
             }
             ConfigWebView_Send(Map("type", "actionResult", "ok", ok, "error", err))
             if ok
-                ConfigWebView_Send(Map("type", "initData", "payload", ConfigWebView_BuildInitData()))
+                ConfigWebView_Send(Map("type", "initData", "payload", ConfigWebView_BuildInitDataSafe()))
         case "cancel":
             CloseConfigGUI()
     }

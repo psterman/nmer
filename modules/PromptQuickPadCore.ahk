@@ -13,6 +13,7 @@ global g_PQP_Visible := false
 global g_PQP_SearchTimer := 0
 global g_PQP_LastKeyword := ""
 global g_PQP_LastCategory := "全部"
+global g_PQP_FocusPending := false
 
 ; 依赖的外部符号（来自 AIListPanel.ahk / 主脚本，运行时已加载）
 global PromptQuickPad_PinTop := true
@@ -167,8 +168,12 @@ _PQP_RefreshWebViewComposition(*) {
 ; ===================== AHK ↔ JS =====================
 PQP_SendToWeb(jsonStr) {
     global g_PQP_WV2, g_PQP_Ready
-    if g_PQP_WV2 && g_PQP_Ready
-        g_PQP_WV2.PostWebMessageAsJson(jsonStr)
+    if g_PQP_WV2 && g_PQP_Ready {
+        if (IsObject(jsonStr))
+            WebView_QueuePayload(g_PQP_WV2, jsonStr)
+        else
+            WebView_QueueJson(g_PQP_WV2, jsonStr)
+    }
 }
 
 _PQP_OnWebMessage(sender, args) {
@@ -186,15 +191,20 @@ _PQP_OnWebMessage(sender, args) {
             return
         }
     }
-    if !(msg is Map) || !msg.Has("type")
+    if !(msg is Map)
+        return
+    action := msg.Has("type") ? msg["type"] : (msg.Has("action") ? msg["action"] : "")
+    if (action = "")
         return
 
-    switch msg["type"] {
+    switch action {
         case "ready":
             global g_PQP_Ready
             g_PQP_Ready := true
             if PQP_IsVisible()
                 _PQP_CallExternal("PromptQuickPad_PushDataToWeb", "init")
+            if g_PQP_FocusPending
+                PQP_RequestFocusInput()
 
         case "search":
             keyword := msg.Has("keyword") ? msg["keyword"] : ""
@@ -269,6 +279,7 @@ PQP_Show() {
         SetTimer(_PQP_DeferredShowPush, -400)
 
     SetTimer(_PQP_FocusDeferred, -80)
+    PQP_RequestFocusInput()
 }
 
 global _PQP_ShowPushRetries := 0
@@ -306,6 +317,16 @@ PQP_Hide() {
     if g_PQP_Gui {
         try g_PQP_Gui.Hide()
     }
+}
+
+PQP_RequestFocusInput() {
+    global g_PQP_WV2, g_PQP_Ready, g_PQP_FocusPending
+    if g_PQP_WV2 && g_PQP_Ready {
+        WebView_QueueJson(g_PQP_WV2, '{"type":"focus_input"}')
+        g_PQP_FocusPending := false
+        return
+    }
+    g_PQP_FocusPending := true
 }
 
 _PQP_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
