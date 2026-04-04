@@ -129,7 +129,7 @@ SCWV_RefreshComposition(*) {
 }
 
 SCWV_Show() {
-    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_Ready, GuiID_SearchCenter
+    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_Ready, g_SCWV_Ctrl, GuiID_SearchCenter
 
     if !g_SCWV_Gui
         SCWV_Init()
@@ -138,6 +138,7 @@ SCWV_Show() {
 
     if g_SCWV_Visible {
         try WinActivate("ahk_id " . g_SCWV_Gui.Hwnd)
+        WebView2_MoveFocusProgrammatic(g_SCWV_Ctrl)
         return
     }
 
@@ -172,10 +173,11 @@ SCWV_DeferredPush(*) {
 }
 
 SCWV_FocusDeferred(*) {
-    global g_SCWV_Gui, g_SCWV_Visible
+    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_Ctrl
 
     if g_SCWV_Visible && g_SCWV_Gui {
         try WinActivate("ahk_id " . g_SCWV_Gui.Hwnd)
+        WebView2_MoveFocusProgrammatic(g_SCWV_Ctrl)
     }
 }
 

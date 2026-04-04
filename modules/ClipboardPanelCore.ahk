@@ -58,13 +58,14 @@ CP_Init() {
 
 ; ===================== 显示 / 隐藏 =====================
 CP_Show() {
-    global g_CP_Gui, g_CP_Visible, g_CP_Ready
+    global g_CP_Gui, g_CP_Visible, g_CP_Ready, g_CP_Ctrl
 
     if !g_CP_Gui
         CP_Init()
 
     if g_CP_Visible {
         try WinActivate(g_CP_Gui.Hwnd)
+        WebView2_MoveFocusProgrammatic(g_CP_Ctrl)
         return
     }
 
@@ -87,9 +88,10 @@ CP_Show() {
 }
 
 _CP_FocusDeferred() {
-    global g_CP_Gui, g_CP_Visible
+    global g_CP_Gui, g_CP_Visible, g_CP_Ctrl
     if g_CP_Visible && g_CP_Gui {
         try WinActivate(g_CP_Gui.Hwnd)
+        WebView2_MoveFocusProgrammatic(g_CP_Ctrl)
     }
 }
 

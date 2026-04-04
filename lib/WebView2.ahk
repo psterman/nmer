@@ -2234,6 +2234,17 @@ class WebView2 {
 	static WEB_RESOURCE_REQUEST_SOURCE_KINDS := { NONE: 0, DOCUMENT: 1, SHARED_WORKER: 2, SERVICE_WORKER: 4, ALL: 0Xffffffff }
 	;#endregion
 }
+
+; 将输入焦点移入 WebView2（配合宿主 WinActivate / 页内 focus 使用）
+WebView2_MoveFocusProgrammatic(ctrl) {
+	if !ctrl
+		return
+	try ctrl.MoveFocus(WebView2.MOVE_FOCUS_REASON.PROGRAMMATIC)
+	catch as e {
+		OutputDebug("[WebView2] MoveFocus programmatic: " . e.Message)
+	}
+}
+
 CoTaskMem_String(ptr) {
 	s := StrGet(ptr), DllCall('ole32\CoTaskMemFree', 'ptr', ptr)
 	return s

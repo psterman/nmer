@@ -330,6 +330,7 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
 .ctx-item.toggle.on .ctx-check { color: var(--orange); }
 .ctx-item.toggle:not(.on) .ctx-check { opacity: 0.25; }
 </style>
+<script src="https://app.local/assets/js/BasePanel.js"></script>
 </head>
 <body>
 
@@ -427,6 +428,17 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
 </div>
 
 <script>
+if (typeof BasePanel === 'undefined') {
+  window.BasePanel = {
+    PROTO_VERSION: 1,
+    postToAhk(obj) {
+      if (window.chrome && window.chrome.webview) {
+        if (obj && !obj.action && obj.type) obj.action = obj.type;
+        window.chrome.webview.postMessage(obj);
+      }
+    }
+  };
+}
 // ═══════════════════════════════════════════════════════════════════════════
 // State
 // ═══════════════════════════════════════════════════════════════════════════
@@ -537,14 +549,9 @@ function setupLoadMoreObserver() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// AHK Bridge
+// AHK Bridge（实现见 app.local BasePanel.js）
 // ═══════════════════════════════════════════════════════════════════════════
-function postToAhk(obj) {
-  if (window.chrome && window.chrome.webview) {
-    if (obj && !obj.action && obj.type) obj.action = obj.type;
-    window.chrome.webview.postMessage(obj);
-  }
-}
+const postToAhk = (obj) => BasePanel.postToAhk(obj);
 
 /** 粘贴/复制类操作是否保持面板打开（持续粘贴模式） */
 function keepOpenFlag() {

@@ -63,7 +63,7 @@ VK_Init(embedded := false) {
     BtnPad := 8
     TitleBtnY := Max(8, (TitleH - 22) // 2)
 
-    guiOpts := "+AlwaysOnTop -Caption +Resize -DPIScale"
+    guiOpts := "+AlwaysOnTop -Caption +Resize -DPIScale +ToolWindow" . _VK_OwnerGuiOpt()
     g_VK_Gui := Gui(guiOpts, "VK KeyBinder")
     g_VK_Gui.BackColor := "0a0a0a"
     g_VK_Gui.MarginX := 0
@@ -104,6 +104,46 @@ VK_Init(embedded := false) {
         A_TrayMenu.Add()
         A_TrayMenu.Add("退出", (*) => ExitApp())
         A_TrayMenu.Default := "显示键盘"
+    }
+}
+
+; 悬浮工具栏已创建时挂 Owner，减少任务栏独立图标（无工具栏则仅 ToolWindow）
+_VK_OwnerGuiOpt() {
+    ownerOpt := ""
+    try {
+        global FloatingToolbarGUI
+        if IsSet(FloatingToolbarGUI) && IsObject(FloatingToolbarGUI) {
+            oh := FloatingToolbarGUI.Hwnd
+            if oh
+                ownerOpt := " +Owner" . oh
+        }
+    } catch as e {
+        OutputDebug("[VK] OwnerGuiOpt: " . e.Message)
+    }
+    return ownerOpt
+}
+
+; 嵌入：优先 https://app.local/VirtualKeyboard.html；独立进程：仅 FileRead / file://
+_VK_NavigateMainHtml(htmlPath) {
+    global g_VK_WV2, g_VK_Embedded
+    if !g_VK_WV2 || !FileExist(htmlPath)
+        return
+    if g_VK_Embedded {
+        try {
+            g_VK_WV2.Navigate(BuildAppLocalUrl("VirtualKeyboard.html"))
+            return
+        } catch as e {
+            OutputDebug("[VK] Navigate app.local failed, fallback: " . e.Message)
+        }
+    }
+    try {
+        html := FileRead(htmlPath, "UTF-8")
+        g_VK_WV2.NavigateToString(html)
+    } catch as e {
+        try g_VK_WV2.Navigate("file:///" . StrReplace(htmlPath, "\", "/"))
+        catch as e2 {
+            OutputDebug("[VK] file:// navigate failed: " . e2.Message)
+        }
     }
 }
 
@@ -489,6 +529,7 @@ _OnWV2Created(ctrl) {
     g_VK_WV2 := ctrl.CoreWebView2
 
     try g_VK_Ctrl.DefaultBackgroundColor := 0xFF0A0A0A
+    try g_VK_Ctrl.IsVisible := true
 
     _ApplyWV2Bounds()
 
@@ -504,26 +545,26 @@ _OnWV2Created(ctrl) {
 
     htmlPath := A_ScriptDir "\VirtualKeyboard.html"
     try ApplyUnifiedWebViewAssets(g_VK_WV2)
-    if FileExist(htmlPath) {
-        try {
-            html := FileRead(htmlPath, "UTF-8")
-            g_VK_WV2.NavigateToString(html)
-        } catch {
-            g_VK_WV2.Navigate("file:///" . StrReplace(htmlPath, "\", "/"))
-        }
-    } else {
+    if FileExist(htmlPath)
+        _VK_NavigateMainHtml(htmlPath)
+    else
         g_VK_WV2.NavigateToString(_FallbackHtml())
-    }
 }
 
 _VK_OnNavigationCompleted(sender, args) {
     try ok := args.IsSuccess
-    catch
+    catch as e
         ok := true
-    if ok
+    if ok {
+        ; WebView2：宿主曾隐藏时导航完成后可能仍黑屏，需刷新合成（与 ClipboardPanel 一致）
+        if _VK_HostWindowVisible()
+            _VK_RefreshWebViewComposition()
         return
+    }
     try {
         sender.NavigateToString("<!doctype html><html><body style='background:#111;color:#eee;font-family:Segoe UI;padding:16px'>VK 页面加载失败。请重启脚本后重试。</body></html>")
+    } catch as e {
+        OutputDebug("[VK] fallback NavigateToString failed: " . e.Message)
     }
 }
 
@@ -531,13 +572,53 @@ _ApplyWV2Bounds() {
     global g_VK_Gui, g_VK_Ctrl, g_VK_TitleH
     if !g_VK_Ctrl
         return
-    WinGetClientPos(, , &cw, &ch, g_VK_Gui.Hwnd)
+    cw := 0
+    ch := 0
+    try g_VK_Gui.GetClientPos(, , &cw, &ch)
+    catch
+        try WinGetClientPos(, , &cw, &ch, g_VK_Gui.Hwnd)
+    ; 隐藏预加载阶段可能拿到 0 尺寸，回退到窗口尺寸兜底
+    if (cw <= 0 || ch <= g_VK_TitleH) {
+        try WinGetPos(, , &ww, &wh, "ahk_id " . g_VK_Gui.Hwnd)
+        if (ww > 0 && wh > 0) {
+            cw := ww
+            ch := wh
+        }
+    }
+    if (cw <= 0 || ch <= g_VK_TitleH)
+        return
     rc := WebView2.RECT()
     rc.left := 0
     rc.top := g_VK_TitleH
     rc.right := cw
     rc.bottom := ch
     g_VK_Ctrl.Bounds := rc
+}
+
+; WebView2 已知问题：父窗口在隐藏状态下创建 Controller 时，首次 Show 可能黑屏/不合成。
+; 参考: https://github.com/MicrosoftEdge/WebView2Feedback/issues/1077
+_VK_RefreshWebViewComposition(*) {
+    global g_VK_Ctrl, g_VK_Gui
+    if !g_VK_Ctrl || !g_VK_Gui
+        return
+    try {
+        _ApplyWV2Bounds()
+        g_VK_Ctrl.NotifyParentWindowPositionChanged()
+    } catch as e {
+        OutputDebug("[VK] RefreshWebViewComposition: " . e.Message)
+    }
+}
+
+_VK_HostWindowVisible() {
+    global g_VK_Gui
+    if !g_VK_Gui
+        return false
+    return WinExist("ahk_id " . g_VK_Gui.Hwnd) && (WinGetStyle("ahk_id " . g_VK_Gui.Hwnd) & 0x10000000)
+}
+
+_VK_DeferredMoveFocus(*) {
+    global g_VK_Ctrl
+    WebView2_MoveFocusProgrammatic(g_VK_Ctrl)
 }
 
 _OnGuiResize(GuiObj, MinMax, Width, Height) {
@@ -1194,12 +1275,22 @@ _AhkKeyToDisplay(ahkKey) {
 }
 
 VK_Show() {
-    global g_VK_Gui
+    global g_VK_Gui, g_VK_Ready
     if g_VK_Gui {
         g_VK_Gui.Show("NoActivate")
+        ; 预加载隐藏态创建时，首次显示需刷新布局与合成层（缓解 WebView2 黑屏）
+        _VK_RefreshWebViewComposition()
+        SetTimer(_VK_RefreshWebViewComposition, -30)
+        SetTimer(_VK_RefreshWebViewComposition, -120)
+        SetTimer(_VK_RefreshWebViewComposition, -380)
+        ; 某些场景下前端列表状态会丢失，显示时补发一次初始化数据
+        if g_VK_Ready
+            _PushInit()
         _StartKeyPreviewHook()
         VK_SendToWeb('{"type":"keyPreviewClear"}')
         OnMessage(0x0006, _VK_WM_ACTIVATE)
+        WebView2_MoveFocusProgrammatic(g_VK_Ctrl)
+        SetTimer(_VK_DeferredMoveFocus, -50)
         _VK_RequestFocusInput()
     }
 }

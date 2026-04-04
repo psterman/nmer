@@ -243,7 +243,7 @@ _PQP_ExecuteSearch(*) {
 
 ; ===================== 显示 / 隐藏 =====================
 PQP_Show() {
-    global g_PQP_Gui, g_PQP_Visible, g_PQP_Ready
+    global g_PQP_Gui, g_PQP_Visible, g_PQP_Ready, g_PQP_Ctrl
     global AIListPanelWindowX, AIListPanelWindowY, AIListPanelWindowW, AIListPanelWindowH
 
     if !g_PQP_Gui
@@ -251,6 +251,7 @@ PQP_Show() {
 
     if g_PQP_Visible {
         try WinActivate(g_PQP_Gui.Hwnd)
+        WebView2_MoveFocusProgrammatic(g_PQP_Ctrl)
         return
     }
 
@@ -298,9 +299,10 @@ _PQP_DeferredShowPush(*) {
 }
 
 _PQP_FocusDeferred(*) {
-    global g_PQP_Gui, g_PQP_Visible
+    global g_PQP_Gui, g_PQP_Visible, g_PQP_Ctrl
     if g_PQP_Visible && g_PQP_Gui {
         try WinActivate(g_PQP_Gui.Hwnd)
+        WebView2_MoveFocusProgrammatic(g_PQP_Ctrl)
     }
 }
 
