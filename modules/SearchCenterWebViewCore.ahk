@@ -8,6 +8,8 @@ global g_SCWV_Visible := false
 global g_SCWV_SearchTimer := 0
 global g_SCWV_FocusPending := false
 global SearchCenterWebKeyword := ""
+global g_SCWV_OutsidePrevLBtn := false
+global g_SCWV_OutsidePrevRBtn := false
 
 SearchCenter_ShouldUseWebView() {
     return true
@@ -141,6 +143,7 @@ SCWV_Show() {
         try WinActivate("ahk_id " . g_SCWV_Gui.Hwnd)
         WebView2_MoveFocusProgrammatic(g_SCWV_Ctrl)
         SetTimer(_SCWV_DeferredMoveFocus100, -100)
+        SCWV_ArmClickOutsideMonitor()
         return
     }
 
@@ -161,6 +164,47 @@ SCWV_Show() {
     SetTimer(_SCWV_DeferredMoveFocus100, -100)
     SetTimer(SCWV_FocusDeferred, -80)
     SCWV_RequestFocusInput()
+    SCWV_ArmClickOutsideMonitor()
+}
+
+SCWV_StopClickOutsideMonitor() {
+    global g_SCWV_OutsidePrevLBtn, g_SCWV_OutsidePrevRBtn
+    SetTimer(SCWV_CheckClickOutside, 0)
+    g_SCWV_OutsidePrevLBtn := false
+    g_SCWV_OutsidePrevRBtn := false
+}
+
+SCWV_ArmClickOutsideMonitor() {
+    global g_SCWV_OutsidePrevLBtn, g_SCWV_OutsidePrevRBtn
+    g_SCWV_OutsidePrevLBtn := GetKeyState("LButton", "P")
+    g_SCWV_OutsidePrevRBtn := GetKeyState("RButton", "P")
+    SetTimer(SCWV_CheckClickOutside, 25)
+}
+
+SCWV_CheckClickOutside(*) {
+    global g_SCWV_Gui, g_SCWV_Visible
+    global g_SCWV_OutsidePrevLBtn, g_SCWV_OutsidePrevRBtn
+
+    if !g_SCWV_Visible || !g_SCWV_Gui {
+        SCWV_StopClickOutsideMonitor()
+        return
+    }
+
+    lDown := GetKeyState("LButton", "P")
+    rDown := GetKeyState("RButton", "P")
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&mx, &my)
+    try {
+        WinGetPos(&wx, &wy, &ww, &wh, "ahk_id " . g_SCWV_Gui.Hwnd)
+        outside := (mx < wx || mx > wx + ww || my < wy || my > wy + wh)
+        if (outside && ((lDown && !g_SCWV_OutsidePrevLBtn) || (rDown && !g_SCWV_OutsidePrevRBtn))) {
+            SCWV_Hide(true)
+            return
+        }
+    } catch {
+    }
+    g_SCWV_OutsidePrevLBtn := lDown
+    g_SCWV_OutsidePrevRBtn := rDown
 }
 
 _SCWV_DeferredMoveFocus100(*) {
@@ -203,6 +247,8 @@ SCWV_RequestFocusInput() {
 
 SCWV_Hide(PersistSelection := true) {
     global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_SearchTimer, GuiID_SearchCenter
+
+    SCWV_StopClickOutsideMonitor()
 
     if PersistSelection
         _SCWV_SaveCurrentCategorySelection()
@@ -936,5 +982,24 @@ SearchCenter_RunQueryWithKeyword(keyword) {
     SCWV_Show()
     _SCWV_PerformSearch(SearchCenterWebKeyword)
     SCWV_PushState("state")
+    SCWV_RequestFocusInput()
+}
+
+; 选区感应：仅填充输入框文本（不执行搜索），然后打开搜索中心
+SearchCenter_SetInputText(keyword) {
+    global SearchCenterWebKeyword, g_SCWV_WV2, g_SCWV_Ready
+
+    keyword := Trim(String(keyword))
+    if (keyword = "")
+        return
+
+    SearchCenterWebKeyword := keyword
+
+    SCWV_Init()
+    SCWV_Show()
+    
+    if (g_SCWV_WV2 && g_SCWV_Ready) {
+        WebView_QueuePayload(g_SCWV_WV2, Map("type", "set_input", "keyword", keyword))
+    }
     SCWV_RequestFocusInput()
 }

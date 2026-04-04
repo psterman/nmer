@@ -2719,6 +2719,7 @@ InitConfig() {
         IniWrite("1", ConfigFile, "SelectionSense", "ShowMenu")
         IniWrite("55", ConfigFile, "SelectionSense", "CopyDelayMs")
         IniWrite("0", ConfigFile, "SelectionSense", "RequireIBeam")
+        IniWrite("0", ConfigFile, "SelectionSense", "ReactToFilePaths")
         ; 保存默认启用的搜索标签（默认全部启用）
         DefaultEnabledCategories := "ai,cli,academic,baidu,image,audio,video,book,price,medical,cloud"
         IniWrite(DefaultEnabledCategories, ConfigFile, "Settings", "VoiceSearchEnabledCategories")
@@ -3279,7 +3280,7 @@ Global_InitAllPanels(*) {
 
     WebViewWarmupStarted := true
     WebViewWarmupIndex := 0
-    WebViewWarmupQueue := [CP_Init, PQP_Init, SCWV_Init, VK_EnsureInit.Bind(true)]
+    WebViewWarmupQueue := [CP_Init, PQP_Init, SCWV_Init, SelectionSense_WarmupMenuHost, VK_EnsureInit.Bind(true)]
     SetTimer(_RunWebViewWarmupStep, -10)
     SetTimer(_WarmupConfigWebView, -5000)
 }

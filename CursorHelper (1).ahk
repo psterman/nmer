@@ -145,6 +145,7 @@ global MainScriptDir := A_ScriptDir
 #Include modules\PromptQuickPadCore.ahk
 #Include modules\SearchCenterWebViewCore.ahk
 #Include modules\PromptQuickPadCapsLockB.ahk
+#Include modules\SelectionSenseCore.ahk
 
 ; ===================== Everything API 封装 =====================
 ; Everything API 封装
@@ -3274,7 +3275,7 @@ Global_InitAllPanels(*) {
 
     WebViewWarmupStarted := true
     WebViewWarmupIndex := 0
-    WebViewWarmupQueue := [CP_Init, PQP_Init, SCWV_Init, VK_EnsureInit.Bind(true)]
+    WebViewWarmupQueue := [CP_Init, PQP_Init, SCWV_Init, SelectionSense_WarmupMenuHost, VK_EnsureInit.Bind(true)]
     SetTimer(_RunWebViewWarmupStep, -10)
     SetTimer(_WarmupConfigWebView, -5000)
 }
@@ -3307,6 +3308,8 @@ LoadPromptTemplates()
 SyncPromptTemplatesToDB()
 ; Prompt Quick-Pad：选区采集热键（需在 CursorShortcut.ini [Settings] 中设置 PromptQuickCaptureHotkey，如 ^!p）
 PromptQuickPad_RegisterCaptureHotkey()
+; 初始化选区感应模块（选中文本弹出菜单）
+SelectionSense_Init()
 
 ; ===================== 剪贴板变化监听 =====================
 ; 注意：OnClipboardChange 必须在脚本启动时注册，确保在 InitConfig 之后定义

@@ -745,6 +745,16 @@ if (window.chrome && window.chrome.webview) {
       if (input) input.focus();
       return;
     }
+    if (payload.type === "set_input") {
+      const input = document.getElementById("search");
+      if (input) {
+        state.keyword = payload.keyword || "";
+        input.value = state.keyword;
+        input.focus();
+        input.select();
+      }
+      return;
+    }
     if (payload.type === "init" || payload.type === "state") {
       applyState(payload);
     }

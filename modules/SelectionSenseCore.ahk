@@ -1,5 +1,6 @@
 #Requires AutoHotkey v2.0
 ; 选区感应：~LButton Up + IBeam + Ctrl+C，联动工具栏 WebView 与选区菜单（依赖主脚本的 WebView2 / Jxon / BuildAppLocalUrl 等）
+; 默认忽略「整段为 Windows 路径/多行路径」的剪贴板（资源管理器选文件），见 [SelectionSense] ReactToFilePaths
 
 global g_SelSense_Enabled := true
 global g_SelSense_ShowMenu := true
@@ -17,6 +18,9 @@ global g_SelSense_MenuWV2 := 0
 global g_SelSense_MenuReady := false
 global g_SelSense_MenuVisible := false
 global g_SelSense_PendingText := ""
+global g_SelSense_OutsidePrevLBtn := false
+global g_SelSense_OutsidePrevRBtn := false
+global g_SelSense_ReactToFilePaths := false
 
 SelectionSense_GetLastSelectedText() {
     global g_SelSense_LastFullText, g_SelSense_LastTick
@@ -41,18 +45,22 @@ SelectionSense_OnToolbarSearchClick() {
 
 SelectionSense_LoadIni() {
     global g_SelSense_Enabled, g_SelSense_ShowMenu, g_SelSense_CopyDelayMs, g_SelSense_RequireIBeam
+    global g_SelSense_ReactToFilePaths
     cfg := (IsSet(ConfigFile) && ConfigFile != "") ? ConfigFile : (A_ScriptDir "\CursorShortcut.ini")
     try {
         g_SelSense_Enabled := (IniRead(cfg, "SelectionSense", "Enable", "1") != "0")
         g_SelSense_ShowMenu := (IniRead(cfg, "SelectionSense", "ShowMenu", "1") != "0")
-        g_SelSense_CopyDelayMs := Integer(IniRead(cfg, "SelectionSense", "CopyDelayMs", "55"))
+        g_SelSense_CopyDelayMs := Integer(IniRead(cfg, "SelectionSense", "CopyDelayMs", "40"))
         ; Cursor/VS Code/Electron 常用自定义文本光标，GetCursor 往往不等于系统 IDC_IBEAM，默认不要求 I 形光标
         g_SelSense_RequireIBeam := (IniRead(cfg, "SelectionSense", "RequireIBeam", "0") = "1")
+        ; 0=在资源管理器等选中文件得到的路径文本时不弹窗、不联动工具栏；1=与普通选中文本相同
+        g_SelSense_ReactToFilePaths := (IniRead(cfg, "SelectionSense", "ReactToFilePaths", "0") = "1")
     } catch {
         g_SelSense_Enabled := true
         g_SelSense_ShowMenu := true
-        g_SelSense_CopyDelayMs := 55
+        g_SelSense_CopyDelayMs := 40
         g_SelSense_RequireIBeam := false
+        g_SelSense_ReactToFilePaths := false
     }
     if (g_SelSense_CopyDelayMs < 20)
         g_SelSense_CopyDelayMs := 20
@@ -107,6 +115,37 @@ SelectionSense_IsIBeamCursor() {
     return (h = ibeam)
 }
 
+SelectionSense_LineLooksLikeWindowsPath(line) {
+    L := Trim(line)
+    if (L = "")
+        return false
+    if (SubStr(L, 1, 1) = '"' && SubStr(L, -1) = '"') && (StrLen(L) >= 2)
+        L := Trim(SubStr(L, 2, StrLen(L) - 2))
+    if RegExMatch(L, "i)^[A-Za-z]:[/\\]")
+        return true
+    if RegExMatch(L, "^\\\\[^\\]+\\")
+        return true
+    if RegExMatch(L, "i)^file:///[A-Za-z]:[/\\]")
+        return true
+    if RegExMatch(L, "i)^file://[^/\\s]+[/\\]")
+        return true
+    return false
+}
+
+; 剪贴板为多行时：仅当每一非空行都像路径时视为「文件路径选区」（资源管理器复制多文件等）
+SelectionSense_TextLooksLikeWindowsPaths(text) {
+    nonempty := 0
+    for line in StrSplit(text, "`n", "`r") {
+        L := Trim(line)
+        if (L = "")
+            continue
+        nonempty++
+        if !SelectionSense_LineLooksLikeWindowsPath(L)
+            return false
+    }
+    return (nonempty >= 1)
+}
+
 SelectionSense_OnLButtonUp(*) {
     global g_SelSense_Enabled, g_SelSense_RequireIBeam
     if !g_SelSense_Enabled
@@ -121,6 +160,7 @@ SelectionSense_OnLButtonUp(*) {
 SelectionSense_ProcessDeferred(*) {
     global g_SelSense_Enabled, g_SelSense_CopyDelayMs, g_SelSense_LastClipSig, g_SelSense_LastFireTick
     global g_SelSense_LastFullText, g_SelSense_LastTick, g_SelSense_ShowMenu, g_SelSense_PendingText
+    global g_SelSense_ReactToFilePaths
 
     if !g_SelSense_Enabled
         return
@@ -160,6 +200,9 @@ SelectionSense_ProcessDeferred(*) {
     }
     text := Trim(text, " `t`r`n")
     if (text = "")
+        return
+
+    if !g_SelSense_ReactToFilePaths && SelectionSense_TextLooksLikeWindowsPaths(text)
         return
 
     sig := StrLen(text) . ":" . SubStr(text, 1, 24)
@@ -260,7 +303,7 @@ SelectionSense_OnMenuWebMessage(sender, args) {
     if (typ = "selection_menu_search") {
         SelectionSense_HideMenu()
         if (Trim(txt) != "")
-            SearchCenter_RunQueryWithKeyword(txt)
+            SearchCenter_SetInputText(txt)
         return
     }
     if (typ = "selection_menu_ai") {
@@ -286,6 +329,7 @@ SelectionSense_ShowMenuNearCursor() {
     static menuShowRetries := 0
     global g_SelSense_MenuGui, g_SelSense_MenuVisible, g_SelSense_PendingText
     global g_SelSense_MenuAnchorX, g_SelSense_MenuAnchorY, g_SelSense_MenuCtrl
+    global g_SelSense_OutsidePrevLBtn, g_SelSense_OutsidePrevRBtn
 
     SelectionSense_EnsureMenuHost()
     if !g_SelSense_MenuGui
@@ -295,7 +339,7 @@ SelectionSense_ShowMenuNearCursor() {
     if !g_SelSense_MenuCtrl {
         menuShowRetries++
         if (menuShowRetries < 50)
-            SetTimer(SelectionSense_ShowMenuNearCursor, -120)
+            SetTimer(SelectionSense_ShowMenuNearCursor, -70)
         else
             menuShowRetries := 0
         return
@@ -322,10 +366,13 @@ SelectionSense_ShowMenuNearCursor() {
 
     try g_SelSense_MenuGui.Show("x" . x . " y" . y . " w" . w . " h" . h . " NoActivate")
     g_SelSense_MenuVisible := true
+    g_SelSense_OutsidePrevLBtn := GetKeyState("LButton", "P")
+    g_SelSense_OutsidePrevRBtn := GetKeyState("RButton", "P")
     SelectionSense_ApplyMenuBounds()
     try g_SelSense_MenuCtrl.NotifyParentWindowPositionChanged()
 
-    SetTimer(SelectionSense_DeferredPushMenuText, -120)
+    SetTimer(SelectionSense_DeferredPushMenuText, -80)
+    SetTimer(SelectionSense_CheckClickOutside, 25)
 }
 
 SelectionSense_DeferredPushMenuText(*) {
@@ -335,18 +382,59 @@ SelectionSense_DeferredPushMenuText(*) {
     if g_SelSense_MenuReady
         SelectionSense_PushMenuText(g_SelSense_PendingText)
     else
-        SetTimer(SelectionSense_DeferredPushMenuText, -160)
+        SetTimer(SelectionSense_DeferredPushMenuText, -100)
+}
+
+SelectionSense_CheckClickOutside(*) {
+    global g_SelSense_MenuGui, g_SelSense_MenuVisible
+    global g_SelSense_OutsidePrevLBtn, g_SelSense_OutsidePrevRBtn
+
+    if !g_SelSense_MenuVisible {
+        SetTimer(SelectionSense_CheckClickOutside, 0)
+        return
+    }
+
+    if !g_SelSense_MenuGui {
+        SetTimer(SelectionSense_CheckClickOutside, 0)
+        return
+    }
+
+    lDown := GetKeyState("LButton", "P")
+    rDown := GetKeyState("RButton", "P")
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&mx, &my)
+    try {
+        WinGetPos(&wx, &wy, &ww, &wh, "ahk_id " . g_SelSense_MenuGui.Hwnd)
+        outside := (mx < wx || mx > wx + ww || my < wy || my > wy + wh)
+        ; 用「刚按下」边沿检测，避免 25~50ms 轮询错过极短的左键点击
+        if (outside && ((lDown && !g_SelSense_OutsidePrevLBtn) || (rDown && !g_SelSense_OutsidePrevRBtn))) {
+            SelectionSense_HideMenu()
+            return
+        }
+    } catch {
+    }
+    g_SelSense_OutsidePrevLBtn := lDown
+    g_SelSense_OutsidePrevRBtn := rDown
 }
 
 SelectionSense_HideMenu() {
     global g_SelSense_MenuGui, g_SelSense_MenuVisible
+    global g_SelSense_OutsidePrevLBtn, g_SelSense_OutsidePrevRBtn
+    SetTimer(SelectionSense_CheckClickOutside, 0)
     g_SelSense_MenuVisible := false
+    g_SelSense_OutsidePrevLBtn := false
+    g_SelSense_OutsidePrevRBtn := false
     try FloatingToolbar_NotifySelectionClear()
     catch {
     }
     if g_SelSense_MenuGui {
         try g_SelSense_MenuGui.Hide()
     }
+}
+
+; 与剪贴板/搜索中心等一并预热，首次选区弹出不必再等 WebView2 创建
+SelectionSense_WarmupMenuHost(*) {
+    SelectionSense_EnsureMenuHost()
 }
 
 SelectionSense_Init() {
