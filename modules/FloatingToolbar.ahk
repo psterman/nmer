@@ -306,6 +306,17 @@ FloatingToolbar_OnWebMessage(sender, args) {
         ShowFloatingToolbarUnifiedContextMenu(x, y)
         return
     }
+    
+    ; ==================== SuperHub 按钮矩形上报 ====================
+    if (typ = "button_rects") {
+        if msg.Has("rects") {
+            rects := msg["rects"]
+            if (rects is Map) {
+                Hub_UpdateButtonRects(rects)
+            }
+        }
+        return
+    }
 }
 
 ; ===================== 执行按钮动作 =====================
@@ -729,6 +740,75 @@ FloatingToolbar_NotifySelectionClear() {
     if !(g_FTB_WV2 && g_FTB_WV2_Ready)
         return
     try WebView_QueuePayload(g_FTB_WV2, Map("type", "SELECTION_CLEAR"))
+    catch {
+    }
+}
+
+; ==================== SuperHub 引力场联动 ====================
+
+FloatingToolbar_RequestButtonRects() {
+    global g_FTB_WV2, g_FTB_WV2_Ready
+    
+    if !(g_FTB_WV2 && g_FTB_WV2_Ready)
+        return
+    
+    try WebView_QueuePayload(g_FTB_WV2, Map("type", "request_button_rects"))
+    catch {
+    }
+}
+
+FloatingToolbar_SetGravity(btnId, dist) {
+    global g_FTB_WV2, g_FTB_WV2_Ready, g_Hub_GravityThreshold
+    
+    if !(g_FTB_WV2 && g_FTB_WV2_Ready)
+        return
+    
+    maxDist := IsSet(g_Hub_GravityThreshold) ? g_Hub_GravityThreshold : 100
+    
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&mx, &my)
+    
+    try WebView_QueuePayload(g_FTB_WV2, Map(
+        "type", "set_gravity",
+        "btnId", btnId,
+        "dist", dist,
+        "maxDist", maxDist,
+        "capsuleX", mx,
+        "capsuleY", my
+    ))
+    catch {
+    }
+}
+
+FloatingToolbar_ClearGravity() {
+    global g_FTB_WV2, g_FTB_WV2_Ready
+    
+    if !(g_FTB_WV2 && g_FTB_WV2_Ready)
+        return
+    
+    try WebView_QueuePayload(g_FTB_WV2, Map("type", "clear_gravity"))
+    catch {
+    }
+}
+
+FloatingToolbar_TriggerFusion(btnId) {
+    global g_FTB_WV2, g_FTB_WV2_Ready
+    
+    if !(g_FTB_WV2 && g_FTB_WV2_Ready)
+        return
+    
+    try WebView_QueuePayload(g_FTB_WV2, Map("type", "fusion_feedback", "btnId", btnId))
+    catch {
+    }
+}
+
+FloatingToolbar_UpdateTether(x, y) {
+    global g_FTB_WV2, g_FTB_WV2_Ready
+    
+    if !(g_FTB_WV2 && g_FTB_WV2_Ready)
+        return
+    
+    try WebView_QueuePayload(g_FTB_WV2, Map("type", "update_tether", "x", x, "y", y))
     catch {
     }
 }

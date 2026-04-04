@@ -169,9 +169,142 @@ html, body {
 #btn-search[title]:hover::after {
   display: none;
 }
+
+/* ==================== SuperHub 引力场系统 ==================== */
+
+/* 引力场 CSS 变量 */
+.btn {
+  --pull-x: 0;
+  --pull-y: 0;
+  --gravity-intensity: 0;
+}
+
+.btn.gravity-active {
+  transform: translate(calc(var(--pull-x) * 1px), calc(var(--pull-y) * 1px)) scale(calc(1 + var(--gravity-intensity) * 0.15));
+  filter: brightness(calc(1 + var(--gravity-intensity) * 0.4));
+  transition: transform 0.1s ease-out, filter 0.1s ease-out;
+}
+
+.btn.gravity-active::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 16px;
+  background: radial-gradient(circle, rgba(0, 255, 65, calc(var(--gravity-intensity) * 0.3)) 0%, transparent 70%);
+  pointer-events: none;
+  animation: gravity-glow 0.6s ease-in-out infinite;
+}
+
+@keyframes gravity-glow {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+/* 融合冲击波 */
+.btn.fusion-feedback {
+  animation: fusion-shockwave 0.5s ease-out forwards;
+}
+
+.btn.fusion-feedback::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--matrix);
+  transform: translate(-50%, -50%);
+  animation: shockwave-ring 0.5s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes fusion-shockwave {
+  0% { transform: scale(1); }
+  20% { transform: scale(0.85); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+@keyframes shockwave-ring {
+  0% {
+    width: 20px;
+    height: 20px;
+    opacity: 1;
+    border-width: 3px;
+  }
+  100% {
+    width: 80px;
+    height: 80px;
+    opacity: 0;
+    border-width: 1px;
+  }
+}
+
+/* 能量纽带 SVG 层 */
+#tether-layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1000;
+  overflow: visible;
+}
+
+#tether-path {
+  fill: none;
+  stroke: url(#tether-gradient);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+#tether-path.visible {
+  opacity: 1;
+  animation: tether-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes tether-pulse {
+  0%, 100% { stroke-width: 2; filter: drop-shadow(0 0 4px rgba(0, 255, 65, 0.5)); }
+  50% { stroke-width: 3; filter: drop-shadow(0 0 8px rgba(0, 255, 65, 0.8)); }
+}
+
+/* 能量粒子 */
+.tether-particle {
+  position: fixed;
+  width: 4px;
+  height: 4px;
+  background: var(--matrix);
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 0 0 6px var(--matrix);
+  animation: particle-flow 0.6s linear infinite;
+}
+
+@keyframes particle-flow {
+  0% { opacity: 0; transform: scale(0); }
+  20% { opacity: 1; transform: scale(1); }
+  80% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0); }
+}
 </style>
 </head>
 <body>
+<!-- 能量纽带 SVG 层 -->
+<svg id="tether-layer">
+  <defs>
+    <linearGradient id="tether-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00ff41;stop-opacity:0.3" />
+      <stop offset="50%" style="stop-color:#00ff41;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00ff41;stop-opacity:0.3" />
+    </linearGradient>
+  </defs>
+  <path id="tether-path" d="" />
+</svg>
+
 <div id="strip">
   <div id="favicon">
     <img id="favicon-img" src="https://appcursorhelper/favicon.ico" alt="logo" width="52" height="52">
@@ -338,11 +471,130 @@ html, body {
     onDrop(e);
   });
 
+  // ==================== SuperHub 引力场系统 ====================
+  var btnAi = document.getElementById("btn-ai");
+  var tetherPath = document.getElementById("tether-path");
+  var tetherLayer = document.getElementById("tether-layer");
+  var gravityState = {
+    active: false,
+    targetBtn: null,
+    capsulePos: { x: 0, y: 0 },
+    particles: []
+  };
+
+  // 上报按钮矩形（屏幕坐标）
+  function reportButtonRects() {
+    var rects = {};
+    buttons.forEach(function(btn) {
+      var r = btn.getBoundingClientRect();
+      rects[btn.id] = {
+        x: window.screenX + r.left,
+        y: window.screenY + r.top,
+        w: r.width,
+        h: r.height
+      };
+    });
+    postToAhk({ type: "button_rects", rects: rects });
+  }
+
+  // 设置引力场状态
+  function setGravity(btnId, dist, maxDist) {
+    var btn = document.getElementById(btnId);
+    if (!btn) return;
+
+    var intensity = Math.max(0, 1 - dist / maxDist);
+    
+    buttons.forEach(function(b) {
+      if (b.id === btnId) {
+        b.classList.add("gravity-active");
+        b.style.setProperty("--gravity-intensity", intensity.toFixed(2));
+        
+        var pullStrength = intensity * 5;
+        var angle = Math.atan2(
+          gravityState.capsulePos.y - (b.getBoundingClientRect().top + b.getBoundingClientRect().height / 2 + window.screenY),
+          gravityState.capsulePos.x - (b.getBoundingClientRect().left + b.getBoundingClientRect().width / 2 + window.screenX)
+        );
+        b.style.setProperty("--pull-x", (Math.cos(angle) * pullStrength).toFixed(1));
+        b.style.setProperty("--pull-y", (Math.sin(angle) * pullStrength).toFixed(1));
+      } else {
+        b.classList.remove("gravity-active");
+        b.style.setProperty("--gravity-intensity", "0");
+        b.style.setProperty("--pull-x", "0");
+        b.style.setProperty("--pull-y", "0");
+      }
+    });
+
+    gravityState.active = true;
+    gravityState.targetBtn = btn;
+  }
+
+  // 清除引力场
+  function clearGravity() {
+    buttons.forEach(function(b) {
+      b.classList.remove("gravity-active");
+      b.style.setProperty("--gravity-intensity", "0");
+      b.style.setProperty("--pull-x", "0");
+      b.style.setProperty("--pull-y", "0");
+    });
+    gravityState.active = false;
+    gravityState.targetBtn = null;
+    hideTether();
+  }
+
+  // 绘制能量纽带
+  function drawTether(startX, startY, endX, endY) {
+    var midX = (startX + endX) / 2;
+    var midY = Math.min(startY, endY) - 30;
+    
+    var d = "M " + startX + " " + startY + 
+            " Q " + midX + " " + midY + " " + endX + " " + endY;
+    
+    tetherPath.setAttribute("d", d);
+    tetherPath.classList.add("visible");
+  }
+
+  function hideTether() {
+    tetherPath.classList.remove("visible");
+  }
+
+  // 更新纽带位置
+  function updateTether(capsuleX, capsuleY) {
+    gravityState.capsulePos.x = capsuleX;
+    gravityState.capsulePos.y = capsuleY;
+    
+    if (gravityState.active && gravityState.targetBtn) {
+      var r = gravityState.targetBtn.getBoundingClientRect();
+      var btnCenterX = r.left + r.width / 2;
+      var btnCenterY = r.top + r.height / 2;
+      
+      var localCapsuleX = capsuleX - window.screenX;
+      var localCapsuleY = capsuleY - window.screenY;
+      
+      drawTether(localCapsuleX, localCapsuleY, btnCenterX, btnCenterY);
+    }
+  }
+
+  // 融合反馈动画
+  function triggerFusionFeedback(btnId) {
+    var btn = document.getElementById(btnId);
+    if (!btn) return;
+    
+    btn.classList.add("fusion-feedback");
+    
+    setTimeout(function() {
+      btn.classList.remove("fusion-feedback");
+    }, 500);
+    
+    clearGravity();
+  }
+
   // 接收 AHK 消息
   if (window.chrome && window.chrome.webview) {
     window.chrome.webview.addEventListener("message", function (ev) {
       var d = ev.data;
       if (!d || !d.type) return;
+      
+      // 原有消息处理
       if (d.type === "SELECTION_CHANGE") {
         setSearchPulse(true);
         return;
@@ -356,7 +608,6 @@ html, body {
         setSearchPulse(false);
         return;
       }
-      // 缩放仅由 AHK 调整宿主窗口；勿对 body 再 transform，否则与窗口尺寸叠加会裁切右侧按钮。
       if (d.type === "set_scale") {
         return;
       }
@@ -370,10 +621,45 @@ html, body {
         setSelected(d.action || "");
         return;
       }
+      
+      // SuperHub 新消息处理
+      if (d.type === "request_button_rects") {
+        reportButtonRects();
+        return;
+      }
+      if (d.type === "set_gravity") {
+        setGravity(d.btnId, d.dist || 100, d.maxDist || 100);
+        if (d.capsuleX !== undefined && d.capsuleY !== undefined) {
+          updateTether(d.capsuleX, d.capsuleY);
+        }
+        return;
+      }
+      if (d.type === "clear_gravity") {
+        clearGravity();
+        return;
+      }
+      if (d.type === "update_tether") {
+        if (d.x !== undefined && d.y !== undefined) {
+          updateTether(d.x, d.y);
+        }
+        return;
+      }
+      if (d.type === "fusion_feedback") {
+        triggerFusionFeedback(d.btnId);
+        return;
+      }
     });
   }
 
+  // 窗口 resize 时重新上报按钮位置
+  window.addEventListener("resize", function() {
+    setTimeout(reportButtonRects, 100);
+  });
+
   postToAhk({ type: "toolbar_ready" });
+  
+  // 延迟上报初始按钮位置
+  setTimeout(reportButtonRects, 200);
 })();
 </script>
 </body>

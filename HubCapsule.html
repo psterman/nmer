@@ -1,0 +1,1169 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>HubCapsule</title>
+<style>
+:root {
+  --capsule-bg: rgba(17, 22, 33, 0.26);
+  --capsule-border: rgba(255, 255, 255, 0.18);
+  --capsule-border-strong: rgba(255, 170, 82, 0.5);
+  --text: #f4f7ff;
+  --text-muted: #a8b2c8;
+  --accent: #ff9a2f;
+  --accent-soft: rgba(255, 154, 47, 0.22);
+  --accent-glow: rgba(255, 154, 47, 0.45);
+  --ease: 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  /* 与宿主 WebView 实色背景一致，避免透明区域与旧版 TransColor 叠加穿透 */
+  background: #1a1a1a;
+  overflow: hidden;
+  color: var(--text);
+  font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+}
+
+/* 整窗可接系统拖放：必须为 auto，否则 padding 区无法收到 dragover/drop */
+#host {
+  width: 100%;
+  height: 100%;
+  padding: 14px 14px 18px;
+  pointer-events: auto;
+  box-sizing: border-box;
+}
+
+#capsule {
+  pointer-events: auto;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 178px;
+  border-radius: 24px;
+  border: 1px solid var(--capsule-border);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02) 28%, rgba(0, 0, 0, 0.1) 100%),
+    var(--capsule-bg);
+  backdrop-filter: blur(18px) saturate(165%);
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
+  box-shadow:
+    0 22px 46px rgba(0, 0, 0, 0.34),
+    0 0 24px rgba(255, 154, 47, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: open-flow 380ms cubic-bezier(0.2, 1, 0.3, 1);
+  transition: transform var(--ease), border-color var(--ease), box-shadow var(--ease), width var(--ease), opacity var(--ease);
+}
+
+/* 胶囊透明度由 JS applyVisualState 按「仅预览 / 拖动或已入栈」设置，避免与已有卡片冲突 */
+
+@keyframes open-flow {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.72);
+    filter: blur(8px);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(0) scale(1.06);
+    filter: blur(0);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+#capsule.dragging {
+  transition: none;
+  border-color: var(--capsule-border-strong);
+  box-shadow:
+    0 30px 64px rgba(0, 0, 0, 0.52),
+    0 0 42px rgba(255, 154, 47, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+#capsule.resizing {
+  transition: none;
+  border-color: var(--capsule-border-strong);
+}
+
+#capsule.gravity-active {
+  border-color: var(--capsule-border-strong);
+}
+
+#capsule.collision-hit {
+  box-shadow:
+    0 0 0 2px rgba(255, 154, 47, 0.55),
+    0 26px 54px rgba(0, 0, 0, 0.48),
+    0 0 36px rgba(255, 154, 47, 0.28);
+}
+
+/* 仅预览且无堆叠卡片时：胶囊壳不拦截点击，空白区穿透到 #host，由脚本通知 AHK 立即关闭 */
+#capsule.selection-active:not(.has-content) {
+  pointer-events: none;
+}
+#capsule.selection-active:not(.has-content) #header,
+#capsule.selection-active:not(.has-content) #preview-card,
+#capsule.selection-active:not(.has-content) #action-bar,
+#capsule.selection-active:not(.has-content) #resize-handle {
+  pointer-events: auto;
+}
+
+#capsule.is-docked {
+  width: 74px;
+  min-width: 74px;
+  max-width: 74px;
+}
+
+#capsule.is-docked #main,
+#capsule.is-docked #action-bar,
+#capsule.is-docked #stack-display {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(12px);
+}
+
+#capsule.is-docked #dock-beacon {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+#dock-beacon {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 30%, #ffd3a1, #ff9a2f 58%, #ff7f12);
+  box-shadow: 0 0 16px var(--accent-glow), 0 0 34px rgba(255, 154, 47, 0.32);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.72);
+  pointer-events: none;
+  transition: opacity var(--ease), transform var(--ease);
+}
+
+#dock-beacon::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border: 1px solid rgba(255, 154, 47, 0.35);
+  border-radius: 999px;
+  animation: beacon-ripple 1.6s ease-out infinite;
+}
+
+@keyframes beacon-ripple {
+  0% { transform: scale(0.82); opacity: 0.78; }
+  100% { transform: scale(1.75); opacity: 0; }
+}
+
+#main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  min-height: 0;
+  flex: 1;
+  transition: opacity var(--ease), transform var(--ease);
+}
+
+#header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 26px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+#drag-handle {
+  width: 40px;
+  height: 6px;
+  border-radius: 999px;
+  margin-right: 8px;
+  background: linear-gradient(90deg, rgba(255,255,255,.15), rgba(255,186,119,.75), rgba(255,255,255,.15));
+  box-shadow: 0 0 10px rgba(255,154,47,.35);
+  flex-shrink: 0;
+}
+
+#header-left {
+  display: inline-flex;
+  align-items: center;
+}
+
+#header:active { cursor: grabbing; }
+
+#header-title {
+  font-size: 11px;
+  letter-spacing: 1.3px;
+  color: #ffd3a1;
+  font-weight: 700;
+  text-shadow: 0 0 12px rgba(255, 154, 47, 0.34);
+}
+
+#header-count {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #241000;
+  background: linear-gradient(145deg, #ffbc73, #ff9124);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(255, 154, 47, 0.45);
+}
+
+#preview-card {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(20, 27, 40, 0.48);
+  padding: 10px 11px;
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+}
+
+#preview-card.selection-hint {
+  cursor: grab;
+}
+
+#preview-card.selection-hint:active {
+  cursor: grabbing;
+}
+
+#preview {
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 52px;
+  overflow: hidden;
+  color: #edf2ff;
+  word-break: break-word;
+}
+
+#preview-card.preview-pulse::after {
+  content: "";
+  position: absolute;
+  inset: -18px;
+  background: radial-gradient(circle at center, rgba(255, 178, 93, 0.4), transparent 62%);
+  opacity: 0;
+  pointer-events: none;
+  animation: preview-bloom 560ms ease-out;
+}
+
+#preview-card.selection-hint:not(.draft-drag-active) #preview {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#preview-card.selection-hint:not(.draft-drag-active) {
+  animation: hint-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes hint-glow {
+  0%, 100% { box-shadow: inset 0 0 0 1px rgba(255,154,47,0.08); }
+  50% { box-shadow: inset 0 0 0 1px rgba(255,154,47,0.45); }
+}
+
+@keyframes preview-bloom {
+  0% { opacity: 0.9; transform: scale(0.6); }
+  100% { opacity: 0; transform: scale(1.28); }
+}
+
+#draft-chip {
+  margin-top: 8px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px dashed rgba(255, 193, 132, 0.74);
+  color: #ffddb7;
+  font-size: 11px;
+  background: rgba(255, 154, 47, 0.15);
+  cursor: grab;
+  user-select: none;
+  display: none;
+}
+
+#draft-chip.show { display: inline-flex; align-items: center; }
+#draft-chip:active { cursor: grabbing; }
+#draft-chip { touch-action: none; }
+
+#stack-display {
+  margin-top: 2px;
+  flex: 1;
+  min-height: 72px;
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(14, 19, 30, 0.34);
+  padding: 10px;
+  perspective: 1000px;
+  transition: opacity var(--ease), transform var(--ease);
+  scrollbar-gutter: stable;
+}
+
+#stack-display.stack-pop {
+  animation: stack-pop .28s ease-out;
+}
+
+@keyframes stack-pop {
+  0% { transform: scale(.985); box-shadow: inset 0 0 0 1px rgba(255,154,47,.0); }
+  50% { transform: scale(1.01); box-shadow: inset 0 0 0 1px rgba(255,154,47,.55); }
+  100% { transform: scale(1); box-shadow: inset 0 0 0 1px rgba(255,154,47,.0); }
+}
+
+#stack-display::-webkit-scrollbar { width: 8px; }
+#stack-display::-webkit-scrollbar-track { background: rgba(255,255,255,0.06); border-radius: 8px; }
+#stack-display::-webkit-scrollbar-thumb { background: rgba(255, 170, 95, 0.55); border-radius: 8px; }
+#stack-display::-webkit-scrollbar-thumb:hover { background: rgba(255, 170, 95, 0.75); }
+
+#stack-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  padding-top: 20px;
+}
+
+#stack-list {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stack-card {
+  position: relative;
+  width: 100%;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(31, 40, 56, 0.58);
+  box-shadow: 0 7px 22px rgba(0, 0, 0, 0.38);
+  padding: 9px 10px;
+  transform-origin: center top;
+  transition: transform var(--ease), opacity var(--ease), border-color var(--ease);
+}
+
+.stack-card:hover { border-color: rgba(255, 186, 119, 0.55); }
+
+.stack-card-text {
+  font-size: 12px;
+  color: #eef3ff;
+  line-height: 1.35;
+  max-height: 33px;
+  overflow: hidden;
+}
+
+.stack-card-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 107, 107, 0.24);
+  color: #ffd7d7;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--ease), transform var(--ease);
+}
+
+.stack-card:hover .stack-card-remove { opacity: 1; }
+.stack-card-remove:hover { transform: scale(1.1); }
+
+#ctx-menu {
+  position: fixed;
+  z-index: 99999;
+  min-width: 132px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(18, 24, 36, 0.94);
+  box-shadow: 0 16px 34px rgba(0,0,0,0.34);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  padding: 6px;
+  display: none;
+}
+
+#ctx-menu.open { display: block; }
+
+.ctx-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.ctx-item:hover { background: rgba(255,154,47,0.14); }
+
+#resize-handle {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background:
+    linear-gradient(135deg, transparent 45%, rgba(255,255,255,0.16) 45%, rgba(255,255,255,0.16) 55%, transparent 55%),
+    linear-gradient(135deg, transparent 62%, rgba(255,170,95,0.75) 62%, rgba(255,170,95,0.75) 72%, transparent 72%);
+  opacity: 0.85;
+}
+
+#action-bar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 12px 11px;
+}
+
+.action-btn {
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(21, 28, 42, 0.5);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--ease), border-color var(--ease), box-shadow var(--ease), background var(--ease);
+}
+
+.action-btn:hover {
+  border-color: rgba(255, 193, 132, 0.72);
+  background: rgba(255, 154, 47, 0.14);
+  box-shadow: 0 0 14px rgba(255, 154, 47, 0.24);
+}
+
+.action-btn:active { transform: scale(0.97); }
+
+#gravity-tip {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+  background: rgba(255, 154, 47, 0.2);
+  border: 1px solid rgba(255, 154, 47, 0.45);
+  color: #ffdcb2;
+  font-size: 10px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ease);
+}
+
+#gravity-tip.visible { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="ctx-menu">
+  <button class="ctx-item" type="button" data-act="copy">Copy</button>
+  <button class="ctx-item" type="button" data-act="remove">Remove</button>
+  <button class="ctx-item" type="button" data-act="clear">Clear All</button>
+</div>
+<div id="host">
+  <div id="capsule" role="region" aria-label="Hub Capsule">
+    <div id="dock-beacon"></div>
+    <div id="gravity-tip">靠近目标</div>
+
+    <div id="main">
+      <div id="header" data-drag-handle="1">
+        <div id="header-left">
+          <div id="drag-handle"></div>
+          <div id="header-title">HUB CAPSULE</div>
+        </div>
+        <div id="header-count">0</div>
+      </div>
+
+      <div id="preview-card">
+        <div id="preview">等待选中文本...</div>
+        <div id="draft-chip">从 Cursor 等窗口把选中文本拖入本窗口任意处松手，即可加入卡片（约 80% 不透明）</div>
+      </div>
+
+      <div id="stack-display">
+        <div id="stack-empty">选中内容会按卡片堆叠在这里</div>
+        <div id="stack-list"></div>
+      </div>
+    </div>
+
+    <div id="action-bar">
+      <button type="button" class="action-btn" id="btnSearch">搜索</button>
+      <button type="button" class="action-btn" id="btnAi">AI</button>
+      <button type="button" class="action-btn" id="btnClear">清空</button>
+    </div>
+    <div id="resize-handle" title="Resize"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const state = {
+    segments: [],
+    drag: null,
+    draftDrag: null,
+    pendingDraft: '',
+    docked: false,
+    gravityActive: false,
+    collisionBtn: '',
+    actionPinned: false,
+    justDragged: false
+  };
+  let externalDragDepth = 0;
+
+  const capsule = document.getElementById('capsule');
+  const host = document.getElementById('host');
+  const header = document.getElementById('header');
+  const preview = document.getElementById('preview');
+  const previewCard = document.getElementById('preview-card');
+  const draftChip = document.getElementById('draft-chip');
+  const stackDisplay = document.getElementById('stack-display');
+  const headerCount = document.getElementById('header-count');
+  const stackEmpty = document.getElementById('stack-empty');
+  const stackList = document.getElementById('stack-list');
+  const gravityTip = document.getElementById('gravity-tip');
+  const btnSearch = document.getElementById('btnSearch');
+  const btnAi = document.getElementById('btnAi');
+  const btnClear = document.getElementById('btnClear');
+  const resizeHandle = document.getElementById('resize-handle');
+  const ctxMenu = document.getElementById('ctx-menu');
+
+  function postToAhk(obj) {
+    try {
+      if (!obj || typeof obj !== 'object') return;
+      if (!obj.action && obj.type) obj.action = obj.type;
+      if (window.chrome && window.chrome.webview)
+        window.chrome.webview.postMessage(obj);
+    } catch (_) {}
+  }
+
+  function escapeHtml(text) {
+    const d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
+  }
+
+  function compactText(text) {
+    return String(text || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function mergedText() {
+    return state.segments.join('\n\n');
+  }
+
+  function activeText() {
+    const merged = mergedText();
+    if (merged && state.pendingDraft) return merged + '\n\n' + state.pendingDraft;
+    return merged || state.pendingDraft || '';
+  }
+
+  function syncSegments() {
+    postToAhk({ type: 'hub_segments_sync', segments: state.segments.slice() });
+    try {
+      localStorage.setItem('hub_capsule_segments', JSON.stringify(state.segments));
+    } catch (_) {}
+  }
+
+  function loadPersistedSegments() {
+    try {
+      const raw = localStorage.getItem('hub_capsule_segments');
+      if (!raw) return;
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr))
+        state.segments = arr.map((item) => compactText(item)).filter(Boolean);
+    } catch (_) {}
+  }
+
+  function hideContextMenu() {
+    ctxMenu.classList.remove('open');
+    ctxMenu.removeAttribute('data-index');
+  }
+
+  function applyVisualState() {
+    const hasDraft = !!state.pendingDraft;
+    const hasContent = state.segments.length > 0;
+    const draggingDraft = !!state.draftDrag || externalDragDepth > 0;
+    capsule.classList.toggle('selection-active', hasDraft && !draggingDraft);
+    capsule.classList.toggle('has-content', hasContent);
+    capsule.classList.toggle('draft-dragging', draggingDraft);
+
+    // 规则：仅有未提交的选区预览且未在拖动 → 20%；拖动预览中 / 已有卡片 → 80%；空窗 → 不强制
+    if (hasDraft && !draggingDraft) {
+      capsule.style.setProperty('opacity', '0.2', 'important');
+    } else if (draggingDraft || hasContent) {
+      capsule.style.setProperty('opacity', '0.8', 'important');
+    } else {
+      capsule.style.removeProperty('opacity');
+    }
+
+    previewCard.classList.toggle('selection-hint', hasDraft);
+  }
+
+  function updatePreview() {
+    const src = state.pendingDraft !== ''
+      ? state.pendingDraft
+      : (state.segments.length ? state.segments[state.segments.length - 1] : '');
+    const text = compactText(src);
+    preview.textContent = text ? (text.length > 120 ? text.slice(0, 120) + '...' : text) : '等待选中文本...';
+    draftChip.classList.toggle('show', !!state.pendingDraft);
+    headerCount.textContent = String(state.segments.length);
+  }
+
+  function renderStack() {
+    stackList.innerHTML = '';
+    const visible = state.segments.slice(-4).reverse();
+
+    if (!visible.length) {
+      stackEmpty.style.display = 'block';
+      return;
+    }
+
+    stackEmpty.style.display = 'none';
+
+    visible.forEach((text, idx) => {
+      const card = document.createElement('div');
+      card.className = 'stack-card';
+      const z = 10 - idx;
+      const scale = 1 - idx * 0.025;
+      const rot = idx * 1.6;
+      card.style.zIndex = String(z);
+      card.style.transform = `translateZ(${-idx * 18}px) scale(${scale}) rotateX(${rot}deg)`;
+      card.style.marginTop = '0';
+      card.dataset.realIndex = String(state.segments.length - 1 - idx);
+
+      const t = compactText(text);
+      const short = t.length > 84 ? t.slice(0, 84) + '...' : t;
+      card.innerHTML =
+        `<div class="stack-card-text">${escapeHtml(short)}</div>` +
+        `<button class="stack-card-remove" type="button" data-remove-index="${card.dataset.realIndex}" aria-label="删除">×</button>`;
+
+      stackList.appendChild(card);
+    });
+  }
+
+  function refreshAll() {
+    updatePreview();
+    renderStack();
+    applyVisualState();
+  }
+
+  function pushSegment(text) {
+    const t = compactText(text);
+    if (!t) return;
+    state.segments.push(t);
+    state.pendingDraft = '';
+    refreshAll();
+    syncSegments();
+    stackDisplay.classList.remove('stack-pop');
+    void stackDisplay.offsetWidth;
+    stackDisplay.classList.add('stack-pop');
+  }
+
+  function clearAll() {
+    state.segments = [];
+    refreshAll();
+    syncSegments();
+    postToAhk({ type: 'hub_cleared' });
+  }
+
+  function removeAt(i) {
+    if (i < 0 || i >= state.segments.length) return;
+    state.segments.splice(i, 1);
+    refreshAll();
+    syncSegments();
+  }
+
+  function setDocked(on) {
+    state.docked = !!on;
+    capsule.classList.toggle('is-docked', state.docked);
+  }
+
+  function setGravity(active, name) {
+    state.gravityActive = !!active;
+    capsule.classList.toggle('gravity-active', state.gravityActive);
+    if (state.gravityActive) {
+      gravityTip.textContent = name ? `吸附: ${name}` : '靠近目标';
+      gravityTip.classList.add('visible');
+    } else {
+      gravityTip.classList.remove('visible');
+    }
+  }
+
+  function setCollision(active, btnId) {
+    state.collisionBtn = active ? String(btnId || '') : '';
+    capsule.classList.toggle('collision-hit', !!active);
+  }
+
+  function setDraftPreview(text) {
+    const t = compactText(text);
+    if (!t) return;
+    state.pendingDraft = t;
+    refreshAll();
+    previewCard.classList.remove('preview-pulse');
+    void previewCard.offsetWidth;
+    previewCard.classList.add('preview-pulse');
+  }
+
+  function beginResize(e) {
+    if (e.button !== 0) return;
+    const rect = capsule.getBoundingClientRect();
+    state.resize = {
+      pointerId: e.pointerId,
+      startX: e.screenX,
+      startY: e.screenY,
+      startW: rect.width,
+      startH: rect.height
+    };
+    capsule.classList.add('resizing');
+    postToAhk({ type: 'hub_resize_start', width: Math.round(rect.width), height: Math.round(rect.height) });
+    window.addEventListener('pointermove', onResizeMove);
+    window.addEventListener('pointerup', endResize);
+    window.addEventListener('pointercancel', endResize);
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function onResizeMove(e) {
+    if (!state.resize || state.resize.pointerId !== e.pointerId) return;
+    const width = Math.max(280, Math.round(state.resize.startW + (e.screenX - state.resize.startX)));
+    const height = Math.max(220, Math.round(state.resize.startH + (e.screenY - state.resize.startY)));
+    postToAhk({ type: 'hub_resize_move', width, height });
+  }
+
+  function endResize(e) {
+    if (!state.resize || state.resize.pointerId !== e.pointerId) return;
+    const width = Math.max(280, Math.round(state.resize.startW + (e.screenX - state.resize.startX)));
+    const height = Math.max(220, Math.round(state.resize.startH + (e.screenY - state.resize.startY)));
+    capsule.classList.remove('resizing');
+    postToAhk({ type: 'hub_resize_end', width, height });
+    window.removeEventListener('pointermove', onResizeMove);
+    window.removeEventListener('pointerup', endResize);
+    window.removeEventListener('pointercancel', endResize);
+    state.resize = null;
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function beginDrag(e) {
+    if (e.button !== 0) return;
+    const badTarget = e.target.closest('button');
+    if (badTarget) return;
+
+    const rect = capsule.getBoundingClientRect();
+    state.drag = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+      moved: false
+    };
+
+    state.justDragged = false;
+    capsule.classList.add('dragging');
+    postToAhk({ type: 'hub_mousedown', x: e.screenX, y: e.screenY });
+    postToAhk({ type: 'hub_drag_start' });
+    window.addEventListener('pointermove', onDragMove);
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+  }
+
+  function onDragMove(e) {
+    if (!state.drag) return;
+    if (state.drag.pointerId !== e.pointerId) return;
+    const dx = Math.abs(e.clientX - state.drag.startX);
+    const dy = Math.abs(e.clientY - state.drag.startY);
+    if (dx > 3 || dy > 3) {
+      state.drag.moved = true;
+      state.justDragged = true;
+    }
+    postToAhk({
+      type: 'hub_drag_move',
+      x: e.screenX,
+      y: e.screenY,
+      offsetX: state.drag.offsetX,
+      offsetY: state.drag.offsetY
+    });
+  }
+
+  function endDrag(e) {
+    if (!state.drag) return;
+    if (state.drag.pointerId !== e.pointerId) return;
+    state.drag = null;
+    capsule.classList.remove('dragging');
+    postToAhk({ type: 'hub_drag_end', x: e.screenX, y: e.screenY });
+    window.removeEventListener('pointermove', onDragMove);
+    window.removeEventListener('pointerup', endDrag);
+    window.removeEventListener('pointercancel', endDrag);
+    setTimeout(() => { state.justDragged = false; }, 0);
+  }
+
+  function onFusion(action) {
+    if (!state.segments.length) return;
+    capsule.style.transition = 'transform 160ms ease, opacity 160ms ease';
+    capsule.style.transform = 'scale(1.04)';
+    capsule.style.opacity = '0.84';
+    setTimeout(() => {
+      postToAhk({ type: 'hub_fusion_complete', action: String(action || ''), text: mergedText() });
+      capsule.style.transform = '';
+      capsule.style.removeProperty('opacity');
+      applyVisualState();
+    }, 170);
+  }
+
+  header.addEventListener('pointerdown', beginDrag);
+  resizeHandle.addEventListener('pointerdown', beginResize);
+
+  capsule.addEventListener('click', (e) => {
+    if (state.justDragged) return;
+    if (e.target.closest('#action-bar')) return;
+    state.actionPinned = !state.actionPinned;
+    capsule.classList.toggle('actions-open', state.actionPinned);
+  });
+
+  stackList.addEventListener('click', (e) => {
+    const rm = e.target.closest('[data-remove-index]');
+    if (!rm) return;
+    const i = parseInt(rm.getAttribute('data-remove-index'), 10);
+    if (!Number.isNaN(i)) removeAt(i);
+    e.stopPropagation();
+  });
+
+  stackList.addEventListener('contextmenu', (e) => {
+    const card = e.target.closest('.stack-card');
+    if (!card) return;
+    e.preventDefault();
+    ctxMenu.dataset.index = card.dataset.realIndex || '';
+    ctxMenu.style.left = `${e.clientX}px`;
+    ctxMenu.style.top = `${e.clientY}px`;
+    ctxMenu.classList.add('open');
+  });
+
+  ctxMenu.addEventListener('click', (e) => {
+    const item = e.target.closest('.ctx-item');
+    if (!item) return;
+    const idx = Number(ctxMenu.dataset.index);
+    switch (item.dataset.act) {
+      case 'copy':
+        if (Number.isInteger(idx) && state.segments[idx] != null)
+          postToAhk({ type: 'hub_copy', text: state.segments[idx] });
+        break;
+      case 'remove':
+        if (Number.isInteger(idx))
+          removeAt(idx);
+        break;
+      case 'clear':
+        clearAll();
+        break;
+    }
+    hideContextMenu();
+  });
+
+  document.addEventListener('pointerdown', (e) => {
+    if (!e.target.closest('#ctx-menu'))
+      hideContextMenu();
+  });
+
+  btnSearch.addEventListener('click', () => {
+    const text = activeText() || mergedText();
+    if (!text) {
+      previewCard.classList.remove('preview-pulse');
+      void previewCard.offsetWidth;
+      previewCard.classList.add('preview-pulse');
+      return;
+    }
+    postToAhk({ type: 'hub_search', text });
+  });
+
+  btnAi.addEventListener('click', () => {
+    const text = activeText() || mergedText();
+    if (!text) {
+      previewCard.classList.remove('preview-pulse');
+      void previewCard.offsetWidth;
+      previewCard.classList.add('preview-pulse');
+      return;
+    }
+    postToAhk({ type: 'hub_ai', text });
+  });
+
+  btnClear.addEventListener('click', clearAll);
+
+  const DRAFT_DRAG_MIN_PX = 6;
+
+  function removeDraftDragListeners(moveFn, upFn) {
+    document.removeEventListener('mousemove', moveFn, true);
+    document.removeEventListener('mouseup', upFn, true);
+    document.removeEventListener('pointermove', moveFn, true);
+    document.removeEventListener('pointerup', upFn, true);
+    document.removeEventListener('pointercancel', upFn, true);
+  }
+
+  function beginDraftDrag(e) {
+    if (state.draftDrag || !state.pendingDraft) return;
+    if (e.button !== undefined && e.button !== 0) return;
+
+    const ghost = document.createElement('div');
+    ghost.style.position = 'fixed';
+    ghost.style.zIndex = '99999';
+    ghost.style.pointerEvents = 'none';
+    ghost.style.maxWidth = '300px';
+    ghost.style.padding = '6px 12px';
+    ghost.style.borderRadius = '999px';
+    ghost.style.border = '1px dashed rgba(255,193,132,.8)';
+    ghost.style.background = 'rgba(255,154,47,.22)';
+    ghost.style.color = '#ffe6cc';
+    ghost.style.fontSize = '11px';
+    ghost.style.boxShadow = '0 6px 16px rgba(0,0,0,.35)';
+    ghost.textContent = '松手加入卡片';
+    document.body.appendChild(ghost);
+
+    state.draftDrag = {
+      ghost,
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+      finished: false
+    };
+    previewCard.classList.add('draft-drag-active');
+    applyVisualState();
+
+    function onDraftMove(ev) {
+      if (!state.draftDrag || state.draftDrag.finished) return;
+      if (ev.type === 'mousemove' && ev.buttons !== undefined && ev.buttons !== 1) return;
+      const dx = ev.clientX - state.draftDrag.startX;
+      const dy = ev.clientY - state.draftDrag.startY;
+      if (Math.hypot(dx, dy) >= DRAFT_DRAG_MIN_PX) state.draftDrag.moved = true;
+      ghost.style.left = (ev.clientX + 12) + 'px';
+      ghost.style.top = (ev.clientY + 12) + 'px';
+    }
+
+    function onDraftUp(ev) {
+      if (!state.draftDrag || state.draftDrag.finished) return;
+      if (ev.button !== undefined && ev.button !== 0) return;
+      state.draftDrag.finished = true;
+      removeDraftDragListeners(onDraftMove, onDraftUp);
+
+      const g = state.draftDrag.ghost;
+      const textToCommit = state.pendingDraft;
+      if (state.draftDrag.moved && textToCommit) pushSegment(textToCommit);
+
+      if (g && g.parentNode) g.parentNode.removeChild(g);
+      state.draftDrag = null;
+      previewCard.classList.remove('draft-drag-active');
+      applyVisualState();
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+
+    document.addEventListener('mousemove', onDraftMove, true);
+    document.addEventListener('mouseup', onDraftUp, true);
+    document.addEventListener('pointermove', onDraftMove, true);
+    document.addEventListener('pointerup', onDraftUp, true);
+    document.addEventListener('pointercancel', onDraftUp, true);
+
+    onDraftMove(e);
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function clearExternalDropVisual() {
+    externalDragDepth = 0;
+    applyVisualState();
+  }
+
+  let externalDragLeaveTimer = null;
+
+  function bumpExternalDragVisual() {
+    if (externalDragLeaveTimer) {
+      clearTimeout(externalDragLeaveTimer);
+      externalDragLeaveTimer = null;
+    }
+    if (externalDragDepth < 1) {
+      externalDragDepth = 1;
+      applyVisualState();
+    }
+  }
+
+  function scheduleExternalDragEnd() {
+    if (externalDragLeaveTimer) clearTimeout(externalDragLeaveTimer);
+    externalDragLeaveTimer = setTimeout(() => {
+      externalDragLeaveTimer = null;
+      externalDragDepth = 0;
+      applyVisualState();
+    }, 160);
+  }
+
+  function readExternalDropText(e) {
+    const dt = e && e.dataTransfer;
+    if (!dt) return '';
+    const types = ['text/plain', 'Text', 'text/uri-list'];
+    for (let i = 0; i < types.length; i++) {
+      try {
+        const raw = dt.getData(types[i]);
+        if (raw && String(raw).trim()) {
+          let t = String(raw).replace(/\r\n/g, '\n').trim();
+          if (types[i] === 'text/uri-list') t = t.split('\n')[0].trim();
+          return compactText(t);
+        }
+      } catch (_) {}
+    }
+    try {
+      const html = dt.getData('text/html');
+      if (html && html.trim()) {
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        const t = (div.textContent || '').trim();
+        if (t) return compactText(t);
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  /** 整页 WebView 作为拖放目标：从 Cursor 等外部窗口拖入即加入卡片 */
+  /** 点击 #host 留白区（含从胶囊穿透的空白）立即通知 AHK 关闭，避免仅预览时整窗矩形误判为「内部」 */
+  function installDismissOnHostPadding() {
+    if (!host) return;
+    host.addEventListener('pointerdown', (e) => {
+      if (e.target !== host) return;
+      if (e.button !== 0 && e.button !== 2) return;
+      postToAhk({ type: 'selection_menu_dismiss' });
+    }, true);
+  }
+
+  /** 整页 WebView 作为拖放目标：从 Cursor 等外部窗口拖入即加入卡片 */
+  function installGlobalDropTarget() {
+    document.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      bumpExternalDragVisual();
+    }, true);
+
+    document.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      try {
+        e.dataTransfer.dropEffect = 'copy';
+      } catch (_) {}
+      bumpExternalDragVisual();
+    }, true);
+
+    document.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      scheduleExternalDragEnd();
+    }, true);
+
+    document.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (externalDragLeaveTimer) {
+        clearTimeout(externalDragLeaveTimer);
+        externalDragLeaveTimer = null;
+      }
+      externalDragDepth = 0;
+      const dropped = readExternalDropText(e);
+      if (dropped) {
+        pushSegment(dropped);
+      } else if (state.pendingDraft) {
+        pushSegment(state.pendingDraft);
+      }
+      applyVisualState();
+    }, true);
+  }
+
+  /* WebView2 下 mouse 事件比 pointer 更稳定：捕获阶段监听，避免被内部吞掉 */
+  previewCard.addEventListener('mousedown', (e) => {
+    if (!state.pendingDraft || e.button !== 0) return;
+    if (e.target.closest('button')) return;
+    beginDraftDrag(e);
+  }, true);
+
+  previewCard.addEventListener('pointerdown', (e) => {
+    if (!state.pendingDraft || e.button !== 0) return;
+    if (e.pointerType === 'mouse') return;
+    if (e.target.closest('button')) return;
+    beginDraftDrag(e);
+  }, true);
+
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.addEventListener('message', (event) => {
+      let d = event.data;
+      if (typeof d === 'string') {
+        try { d = JSON.parse(d); } catch (_) { return; }
+      }
+      if (!d || !d.type) return;
+
+      switch (d.type) {
+        case 'push_segment':
+          pushSegment(d.text);
+          break;
+        case 'hub_preview_selection':
+          setDraftPreview(d.text);
+          break;
+        case 'selection_menu_init':
+          setDraftPreview(d.text);
+          break;
+        case 'clear_segments':
+          clearAll();
+          break;
+        case 'hub_restore_segments':
+          state.segments = Array.isArray(d.segments) ? d.segments.map((item) => compactText(item)).filter(Boolean) : [];
+          refreshAll();
+          syncSegments();
+          break;
+        case 'get_segments':
+          postToAhk({ type: 'hub_segments_data', segments: state.segments.slice(), merged: mergedText() });
+          break;
+        case 'set_dock':
+          setDocked(true);
+          break;
+        case 'undock':
+          setDocked(false);
+          break;
+        case 'gravity_update':
+          setGravity(!!d.active, d.targetName || '');
+          break;
+        case 'hub_collision_feedback':
+          setCollision(!!d.active, d.buttonId || '');
+          break;
+        case 'fusion_trigger':
+          onFusion(d.action || '');
+          break;
+        case 'hub_dismiss_reset':
+          state.pendingDraft = '';
+          hideContextMenu();
+          refreshAll();
+          break;
+      }
+    });
+  }
+
+  loadPersistedSegments();
+  refreshAll();
+  syncSegments();
+  installDismissOnHostPadding();
+  installGlobalDropTarget();
+  postToAhk({ type: 'hub_ready' });
+  postToAhk({ type: 'selection_menu_ready' });
+})();
+</script>
+</body>
+</html>

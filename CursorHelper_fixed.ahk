@@ -2720,6 +2720,7 @@ InitConfig() {
         IniWrite("55", ConfigFile, "SelectionSense", "CopyDelayMs")
         IniWrite("0", ConfigFile, "SelectionSense", "RequireIBeam")
         IniWrite("0", ConfigFile, "SelectionSense", "ReactToFilePaths")
+        IniWrite("1", ConfigFile, "SelectionSense", "UseHubCapsule")
         ; 保存默认启用的搜索标签（默认全部启用）
         DefaultEnabledCategories := "ai,cli,academic,baidu,image,audio,video,book,price,medical,cloud"
         IniWrite(DefaultEnabledCategories, ConfigFile, "Settings", "VoiceSearchEnabledCategories")
