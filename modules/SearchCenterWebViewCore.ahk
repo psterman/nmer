@@ -10,6 +10,11 @@ global g_SCWV_FocusPending := false
 global SearchCenterWebKeyword := ""
 global g_SCWV_OutsidePrevLBtn := false
 global g_SCWV_OutsidePrevRBtn := false
+global g_SCWV_HasSavedGeom := false
+global g_SCWV_SavedX := 0
+global g_SCWV_SavedY := 0
+global g_SCWV_SavedW := 1320
+global g_SCWV_SavedH := 840
 
 SearchCenter_ShouldUseWebView() {
     return true
@@ -18,6 +23,18 @@ SearchCenter_ShouldUseWebView() {
 SCWV_IsVisible() {
     global g_SCWV_Visible
     return g_SCWV_Visible
+}
+
+SCWV_IsForegroundActive() {
+    global g_SCWV_Gui, g_SCWV_Visible
+    if !g_SCWV_Visible || !g_SCWV_Gui
+        return false
+    try {
+        h := g_SCWV_Gui.Hwnd
+        return WinExist("ahk_id " . h) && WinActive("ahk_id " . h)
+    } catch as e {
+        return false
+    }
 }
 
 SCWV_GetGui() {
@@ -33,6 +50,114 @@ SCWV_GetGuiHwnd() {
     return 0
 }
 
+SCWV_LoadGeometryFromIni() {
+    global g_SCWV_HasSavedGeom, g_SCWV_SavedX, g_SCWV_SavedY, g_SCWV_SavedW, g_SCWV_SavedH
+    cfg := (IsSet(ConfigFile) && ConfigFile != "") ? ConfigFile : (A_ScriptDir "\CursorShortcut.ini")
+    try {
+        sx := IniRead(cfg, "SearchCenterWebView", "WinX", "")
+        sy := IniRead(cfg, "SearchCenterWebView", "WinY", "")
+        sw := IniRead(cfg, "SearchCenterWebView", "WinW", "")
+        sh := IniRead(cfg, "SearchCenterWebView", "WinH", "")
+        if (sx = "" || sy = "" || sw = "" || sh = "") {
+            g_SCWV_HasSavedGeom := false
+            return
+        }
+        iw := Integer(sw)
+        ih := Integer(sh)
+        if (iw < 900 || ih < 620) {
+            g_SCWV_HasSavedGeom := false
+            return
+        }
+        g_SCWV_SavedX := Integer(sx)
+        g_SCWV_SavedY := Integer(sy)
+        g_SCWV_SavedW := iw
+        g_SCWV_SavedH := ih
+        g_SCWV_HasSavedGeom := true
+    } catch as e {
+        g_SCWV_HasSavedGeom := false
+    }
+}
+
+SCWV_DefaultWinSize(&w, &h) {
+    ScreenW := SysGet(0)
+    ScreenH := SysGet(1)
+    w := Max(1040, Min(Round(ScreenW * 0.88), 1580))
+    h := Max(700, Min(Round(ScreenH * 0.84), 980))
+}
+
+SCWV_ClampRectToWorkArea(&x, &y, &w, &h) {
+    w := Max(900, w)
+    h := Max(620, h)
+    idx := MonitorGetPrimary()
+    if !idx
+        return
+    MonitorGetWorkArea(idx, &wl, &wt, &wr, &wb)
+    if (x + w > wr)
+        x := wr - w
+    if (y + h > wb)
+        y := wb - h
+    if (x < wl)
+        x := wl
+    if (y < wt)
+        y := wt
+    if (x + w > wr)
+        x := Max(wl, wr - w)
+    if (y + h > wb)
+        y := Max(wt, wb - h)
+}
+
+SCWV_ComputePlacementRect(&x, &y, &w, &h) {
+    global g_SCWV_HasSavedGeom, g_SCWV_SavedX, g_SCWV_SavedY, g_SCWV_SavedW, g_SCWV_SavedH
+    SCWV_LoadGeometryFromIni()
+    if (g_SCWV_HasSavedGeom) {
+        x := g_SCWV_SavedX
+        y := g_SCWV_SavedY
+        w := g_SCWV_SavedW
+        h := g_SCWV_SavedH
+        SCWV_ClampRectToWorkArea(&x, &y, &w, &h)
+    } else {
+        SCWV_DefaultWinSize(&w, &h)
+        ScreenW := SysGet(0)
+        ScreenH := SysGet(1)
+        x := (ScreenW - w) // 2
+        y := (ScreenH - h) // 2
+        SCWV_ClampRectToWorkArea(&x, &y, &w, &h)
+    }
+}
+
+SCWV_SaveGeometry() {
+    global g_SCWV_Gui, g_SCWV_HasSavedGeom, g_SCWV_SavedX, g_SCWV_SavedY, g_SCWV_SavedW, g_SCWV_SavedH
+    if !g_SCWV_Gui
+        return
+    hwnd := 0
+    try hwnd := g_SCWV_Gui.Hwnd
+    catch as e {
+        return
+    }
+    if !hwnd || !WinExist("ahk_id " . hwnd)
+        return
+    try {
+        WinGetPos(&wx, &wy, &ww, &wh, "ahk_id " . hwnd)
+        cfg := (IsSet(ConfigFile) && ConfigFile != "") ? ConfigFile : (A_ScriptDir "\CursorShortcut.ini")
+        IniWrite(String(wx), cfg, "SearchCenterWebView", "WinX")
+        IniWrite(String(wy), cfg, "SearchCenterWebView", "WinY")
+        IniWrite(String(ww), cfg, "SearchCenterWebView", "WinW")
+        IniWrite(String(wh), cfg, "SearchCenterWebView", "WinH")
+        g_SCWV_SavedX := wx
+        g_SCWV_SavedY := wy
+        g_SCWV_SavedW := ww
+        g_SCWV_SavedH := wh
+        g_SCWV_HasSavedGeom := true
+    } catch as e {
+    }
+}
+
+SCWV_DebouncedSaveGeometry(*) {
+    global g_SCWV_Visible, g_SCWV_Gui
+    if (g_SCWV_Visible && g_SCWV_Gui)
+        SCWV_SaveGeometry()
+}
+
 SCWV_Init() {
     global g_SCWV_Gui
 
@@ -40,18 +165,19 @@ SCWV_Init() {
         return
 
     ; 无系统标题栏：页面内顶栏拖动（dragHost → WM_NCLBUTTONDOWN）；保留 +Owner，不加 ToolWindow 以免任务栏/Alt+Tab 行为突变
-    g_SCWV_Gui := Gui("+AlwaysOnTop +Resize +MinSize760x540 -Caption -DPIScale +Owner", "搜索中心")
+    g_SCWV_Gui := Gui("+AlwaysOnTop +Resize +MinSize900x620 -Caption -DPIScale +Owner", "搜索中心")
     g_SCWV_Gui.BackColor := "1b1b1d"
     g_SCWV_Gui.MarginX := 0
     g_SCWV_Gui.MarginY := 0
     g_SCWV_Gui.OnEvent("Close", SCWV_OnGuiClose)
     g_SCWV_Gui.OnEvent("Size", SCWV_OnGuiResize)
-    g_SCWV_Gui.Show("w1180 h760 Hide")
+
+    SCWV_ComputePlacementRect(&ix, &iy, &iw, &ih)
+    g_SCWV_Gui.Show("x" . ix . " y" . iy . " w" . iw . " h" . ih . " Hide")
 
     WebView2.create(g_SCWV_Gui.Hwnd, SCWV_OnCreated)
 
     _SCWV_EnsureCurrentCategoryState()
-    _SCWV_EnsureSearchDataReady()
 }
 
 SCWV_OnCreated(ctrl) {
@@ -82,9 +208,12 @@ SCWV_OnGuiClose(*) {
 }
 
 SCWV_OnGuiResize(GuiObj, MinMax, Width, Height) {
+    global g_SCWV_Visible
     if (MinMax = -1)
         return
     SCWV_ApplyBounds()
+    if g_SCWV_Visible
+        SetTimer(SCWV_DebouncedSaveGeometry, -450)
 }
 
 SCWV_OnNavigationCompleted(sender, args) {
@@ -147,18 +276,23 @@ SCWV_Show() {
         return
     }
 
-    g_SCWV_Gui.Show("w1180 h760 Center")
+    SCWV_ComputePlacementRect(&sx, &sy, &sw, &sh)
+    try g_SCWV_Gui.Move(sx, sy, sw, sh)
+    g_SCWV_Gui.Show()
     g_SCWV_Visible := true
     OnMessage(0x0006, SCWV_WM_ACTIVATE)
 
     SCWV_RefreshComposition()
+    SetTimer(SCWV_RefreshComposition, -50)
     SetTimer(SCWV_RefreshComposition, -120)
-    SetTimer(SCWV_RefreshComposition, -380)
+    SetTimer(SCWV_RefreshComposition, -280)
+    SetTimer(SCWV_RefreshComposition, -520)
+    SetTimer(SCWV_RefreshComposition, -900)
 
     if g_SCWV_Ready
         SCWV_PushState("init")
     else
-        SetTimer(SCWV_DeferredPush, -250)
+        SetTimer(SCWV_DeferredPush, -120)
 
     WebView2_MoveFocusProgrammatic(g_SCWV_Ctrl)
     SetTimer(_SCWV_DeferredMoveFocus100, -100)
@@ -222,7 +356,7 @@ SCWV_DeferredPush(*) {
     if g_SCWV_Ready {
         SCWV_PushState("init")
     } else {
-        SetTimer(SCWV_DeferredPush, -350)
+        SetTimer(SCWV_DeferredPush, -220)
     }
 }
 
@@ -257,6 +391,10 @@ SCWV_Hide(PersistSelection := true) {
         SetTimer(g_SCWV_SearchTimer, 0)
         g_SCWV_SearchTimer := 0
     }
+
+    SetTimer(SCWV_DebouncedSaveGeometry, 0)
+    if g_SCWV_Visible && g_SCWV_Gui
+        SCWV_SaveGeometry()
 
     g_SCWV_Visible := false
     OnMessage(0x0006, SCWV_WM_ACTIVATE, 0)
@@ -321,9 +459,12 @@ SCWV_OnWebMessage(sender, args) {
         case "ready":
             global g_SCWV_Ready
             g_SCWV_Ready := true
+            _SCWV_EnsureSearchDataReady()
             SCWV_PushState("init")
             if g_SCWV_FocusPending
                 SCWV_RequestFocusInput()
+            if g_SCWV_Visible
+                SetTimer(SCWV_RefreshComposition, -60)
         case "search":
             keyword := msg.Has("keyword") ? String(msg["keyword"]) : ""
             _SCWV_PerformSearch(keyword)
@@ -398,8 +539,10 @@ _SCWV_FireSearch(*) {
 
 _SCWV_PerformSearch(keyword, offset := 0) {
     global SearchCenterSearchResults, SearchCenterCurrentLimit, SearchCenterHasMoreData, SearchCenterFilterType
+    global SearchCenterWebKeyword
 
     keyword := Trim(String(keyword))
+    SearchCenterWebKeyword := keyword
 
     if (offset = 0)
         SearchCenterSearchResults := []

@@ -3281,7 +3281,7 @@ Global_InitAllPanels(*) {
 
     WebViewWarmupStarted := true
     WebViewWarmupIndex := 0
-    WebViewWarmupQueue := [CP_Init, PQP_Init, SCWV_Init, SelectionSense_WarmupMenuHost, VK_EnsureInit.Bind(true)]
+    WebViewWarmupQueue := [SCWV_Init, CP_Init, PQP_Init, SelectionSense_WarmupMenuHost, VK_EnsureInit.Bind(true)]
     SetTimer(_RunWebViewWarmupStep, -10)
     SetTimer(_WarmupConfigWebView, -5000)
 }
@@ -24578,7 +24578,8 @@ HandleDynamicHotkey(PressedKey, ActionType) {
 ; ===================== 面板快捷键 =====================
 ; 当 CapsLock 按下时，响应快捷键（采用 CapsLock+ 方案）
 ; 注意：在 AutoHotkey v2 中，需要使用函数来检查变量
-#HotIf GetCapsLockState()
+; WebView 剪贴板/搜索中心前台时勿劫持组合键，否则输入框无法输入
+#HotIf GetCapsLockState() && !CP_IsForeground() && !SCWV_IsForegroundActive()
 
 ; ESC 关闭面板
 Esc:: {
@@ -24858,8 +24859,8 @@ Esc:: {
 #HotIf  ; 结束倒计时作用域
 
 ; ===================== 全局 CapsLock 热键（优先级较低）=====================
-; 【作用域】CapsLock 按下时全局生效（SearchCenter 除外，因为上面已经定义了更具体的热键）
-#HotIf GetCapsLockState()
+; 【作用域】CapsLock 按下时全局生效（WebView 搜索中心/剪贴板前台时除外，避免抢走 WASD）
+#HotIf GetCapsLockState() && !CP_IsForeground() && !SCWV_IsForegroundActive()
 
 ; W 键映射为 Up（上方向键）- 全局生效（SearchCenter 中会被上面的专用热键覆盖）
 w:: {

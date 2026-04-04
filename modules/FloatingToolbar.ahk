@@ -334,7 +334,7 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
                 SetCapsLockState("Off")
             }
         case "Record":
-            try ShowClipboardHistoryPanel()
+            try CP_Show()
             catch as err {
                 SetCapsLockState("AlwaysOff")
                 Sleep(30)
@@ -823,7 +823,7 @@ GetButtonTip(action) {
         case "Search":
             return "搜索记录 (Caps + F)"
         case "Record":
-            return "剪贴板历史 (Caps + X)"
+            return "剪贴板历史 (CapsLock+X)"
         case "AIAssistant":
             return "AI助手 (Ctrl+Shift+B)"
         case "PromptNew":

@@ -65,6 +65,26 @@ body::after {
   backdrop-filter: blur(25px);
 }
 
+/* 无边框宿主：顶栏拖动（与搜索中心 dragHost 一致） */
+.chrome-drag {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 6px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.chrome-drag:active { cursor: grabbing; }
+
 /* ── Search bar ─────────────────────────────────────────────────────── */
 #search-bar {
   flex-shrink: 0;
@@ -80,6 +100,8 @@ body::after {
   flex: 1; background: transparent; border: none; outline: none;
   color: var(--text); font-family: var(--font-ui); font-size: 14px;
   caret-color: var(--orange);
+  user-select: text;
+  -webkit-user-select: text;
 }
 #search-input::placeholder { color: var(--text-xs); }
 #filter-select {
@@ -92,6 +114,8 @@ body::after {
   padding: 4px 8px;
   border-radius: 4px;
   outline: none;
+  user-select: text;
+  -webkit-user-select: text;
 }
 #search-hints {
   display: flex; gap: 8px; flex-shrink: 0;
@@ -337,6 +361,7 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
 <div class="scanner-line"></div>
 
 <div id="root">
+  <div class="chrome-drag" id="chrome-drag" title="拖动窗口">剪贴板历史</div>
   <!-- Search Bar -->
   <div id="search-bar">
     <span id="search-icon">&#128269;</span>
@@ -956,6 +981,22 @@ document.querySelectorAll('.action-item').forEach(el => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Search debounce（须在 keydown 之前，供 Enter 立即刷新）
+// ═══════════════════════════════════════════════════════════════════════════
+let searchDebounceTimer = 0;
+function triggerSearch() {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    postToAhk({ type: 'search', keyword: state.keyword, filterType: state.filterType });
+  }, 320);
+}
+function flushSearchNow() {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = 0;
+  postToAhk({ type: 'search', keyword: state.keyword, filterType: state.filterType });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Keyboard
 // ═══════════════════════════════════════════════════════════════════════════
 document.addEventListener('keydown', (e) => {
@@ -1004,9 +1045,12 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // 1-9: paste by index (even when search input focused)
-  if (!e.ctrlKey && !e.altKey && e.key >= '1' && e.key <= '9') {
-    const idx = parseInt(e.key) - 1;
+  const searchInput = document.getElementById('search-input');
+  const typingInSearch = searchInput && document.activeElement === searchInput;
+
+  // 1-9: 快捷粘贴；在搜索框内输入数字时必须交给输入框，否则会 paste 并关面板
+  if (!typingInSearch && !e.ctrlKey && !e.altKey && e.key >= '1' && e.key <= '9') {
+    const idx = parseInt(e.key, 10) - 1;
     if (idx < state.items.length) {
       e.preventDefault();
       postToAhk({ type: 'pasteByIndex', index: idx, keepOpen: keepOpenFlag() });
@@ -1021,29 +1065,32 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // Enter: paste selected
+  // Enter：在搜索框内立即执行搜索；否则粘贴当前选中项
   if (e.key === 'Enter') {
     e.preventDefault();
+    if (typingInSearch) {
+      flushSearchNow();
+      return;
+    }
     if (state.selectedId) postToAhk({ type: 'paste', id: state.selectedId, keepOpen: keepOpenFlag() });
     return;
   }
 
-  // ArrowUp / ArrowDown: navigate list
-  if (e.key === 'ArrowUp') {
+  // ArrowUp / ArrowDown: navigate list（搜索框聚焦时不劫持，避免干扰 IME/光标）
+  if (!typingInSearch && e.key === 'ArrowUp') {
     e.preventDefault();
     if (state.selectedIndex > 0) selectItem(state.selectedIndex - 1);
     return;
   }
-  if (e.key === 'ArrowDown') {
+  if (!typingInSearch && e.key === 'ArrowDown') {
     e.preventDefault();
     if (state.selectedIndex < state.items.length - 1) selectItem(state.selectedIndex + 1);
     return;
   }
 
   // Any other printable key: focus search if not already
-  const input = document.getElementById('search-input');
-  if (document.activeElement !== input && e.key.length === 1 && !e.ctrlKey && !e.altKey) {
-    input.focus();
+  if (document.activeElement !== searchInput && e.key.length === 1 && !e.ctrlKey && !e.altKey) {
+    searchInput.focus();
   }
 });
 
@@ -1059,14 +1106,6 @@ document.getElementById('filter-select').addEventListener('change', (e) => {
   state.filterType = e.target.value || 'all';
   triggerSearch();
 });
-
-let searchDebounceTimer = 0;
-function triggerSearch() {
-  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
-  searchDebounceTimer = setTimeout(() => {
-    postToAhk({ type: 'search', keyword: state.keyword, filterType: state.filterType });
-  }, 150);
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 分页：Raycast 式提前加载 — 大 rootMargin + 哨兵 IO；滚动近底 rAF 兜底（scroll 仅随用户滚轮/触控）
@@ -1146,6 +1185,17 @@ document.addEventListener('click', (e) => {
 }, true);
 
 updateContinuousPasteUI();
+
+(function initChromeDrag() {
+  const dragEl = document.getElementById('chrome-drag');
+  if (!dragEl) return;
+  dragEl.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    if (window.chrome && window.chrome.webview)
+      window.chrome.webview.postMessage({ type: 'dragHost' });
+  });
+})();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // WebView2 Bridge Init

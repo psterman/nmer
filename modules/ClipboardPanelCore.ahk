@@ -15,6 +15,7 @@ global g_CP_LastKeyword := ""
 global g_CP_FilterType := "all"
 global g_CP_TitleH := 0
 global g_CP_FocusPending := false
+global g_CP_WM_ActivateHideCallback := 0
 
 ; ══════════════════════════════════════════════════════════════════════════
 ; _CP_LSP_Hints — 永远不被调用；仅让语言服务器看到外部符号的赋值语句，
@@ -57,6 +58,18 @@ CP_Init() {
 }
 
 ; ===================== 显示 / 隐藏 =====================
+CP_IsForeground() {
+    global g_CP_Gui, g_CP_Visible
+    if !g_CP_Visible || !g_CP_Gui
+        return false
+    try {
+        h := g_CP_Gui.Hwnd
+        return WinExist("ahk_id " . h) && WinActive("ahk_id " . h)
+    } catch as e {
+        return false
+    }
+}
+
 CP_Show() {
     global g_CP_Gui, g_CP_Visible, g_CP_Ready, g_CP_Ctrl
 
@@ -71,8 +84,9 @@ CP_Show() {
     }
 
     _CP_CenterWindow()
-    g_CP_Gui.Show("NoActivate")
+    g_CP_Gui.Show()
     g_CP_Visible := true
+    try WinActivate("ahk_id " . g_CP_Gui.Hwnd)
 
     OnMessage(0x0006, _CP_WM_ACTIVATE)
 
@@ -105,7 +119,12 @@ _CP_FocusDeferred() {
 }
 
 CP_Hide() {
-    global g_CP_Gui, g_CP_Visible, g_CP_SearchTimer
+    global g_CP_Gui, g_CP_Visible, g_CP_SearchTimer, g_CP_WM_ActivateHideCallback
+
+    if g_CP_WM_ActivateHideCallback {
+        SetTimer(g_CP_WM_ActivateHideCallback, 0)
+        g_CP_WM_ActivateHideCallback := 0
+    }
 
     if g_CP_SearchTimer {
         SetTimer(g_CP_SearchTimer, 0)
@@ -138,14 +157,39 @@ CP_Toggle() {
 }
 
 ; ===================== WM_ACTIVATE 自动隐藏 =====================
+; WebView2 将焦点移入编辑区时，宿主可能短暂收到 WA_INACTIVE，短定时器会误关面板。
 _CP_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
-    global g_CP_Gui, g_CP_Visible
+    global g_CP_Gui, g_CP_Visible, g_CP_WM_ActivateHideCallback
 
     if !g_CP_Visible || !g_CP_Gui
         return
+    if (hwnd != g_CP_Gui.Hwnd)
+        return
 
-    if (hwnd = g_CP_Gui.Hwnd && (wParam & 0xFFFF) = 0)
-        SetTimer(CP_Hide, -50)
+    if g_CP_WM_ActivateHideCallback {
+        SetTimer(g_CP_WM_ActivateHideCallback, 0)
+        g_CP_WM_ActivateHideCallback := 0
+    }
+
+    wp := wParam & 0xFFFF
+    if (wp = 0) {
+        g_CP_WM_ActivateHideCallback := _CP_DeferredHideIfStillInactive.Bind()
+        SetTimer(g_CP_WM_ActivateHideCallback, -380)
+    }
+}
+
+_CP_DeferredHideIfStillInactive(*) {
+    global g_CP_Gui, g_CP_Visible, g_CP_WM_ActivateHideCallback
+    g_CP_WM_ActivateHideCallback := 0
+    if !g_CP_Visible || !g_CP_Gui
+        return
+    try {
+        if WinActive("ahk_id " . g_CP_Gui.Hwnd)
+            return
+    } catch as e {
+        return
+    }
+    CP_Hide()
 }
 
 ; ===================== 窗口居中 =====================
@@ -245,6 +289,15 @@ CP_SendToWeb(jsonStr) {
     }
 }
 
+_CP_BeginHostDrag(*) {
+    global g_CP_Gui
+    if !g_CP_Gui
+        return
+    try PostMessage(0xA1, 2,,, "ahk_id " . g_CP_Gui.Hwnd)  ; WM_NCLBUTTONDOWN HTCAPTION
+    catch as e {
+    }
+}
+
 _CP_OnWebMessage(sender, args) {
     global g_CP_Ready, g_CP_Visible
 
@@ -262,6 +315,9 @@ _CP_OnWebMessage(sender, args) {
         return
 
     switch action {
+        case "dragHost":
+            _CP_BeginHostDrag()
+
         case "ready":
             g_CP_Ready := true
             OutputDebug("[CP] WebView ready")
