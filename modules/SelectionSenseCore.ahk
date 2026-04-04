@@ -23,6 +23,11 @@ global g_SelSense_OutsidePrevRBtn := false
 global g_SelSense_ReactToFilePaths := false
 ; Outside-dismiss: same click's LButton Up still runs SelectionSense; skip ProcessDeferred ~520ms.
 global g_SelSense_LastOutsideDismissTick := 0
+; Require a real drag gesture before probing selection to avoid false triggers on plain clicks.
+global g_SelSense_DownX := 0
+global g_SelSense_DownY := 0
+global g_SelSense_DownValid := false
+global g_SelSense_MinSelectDragPx := 4
 
 ; ==================== SuperHub 鎵╁睍鍙橀噺 ====================
 global g_Hub_UseHubCapsule := true
@@ -273,13 +278,37 @@ SelectionSense_TextLooksLikeWindowsPaths(text) {
 
 SelectionSense_OnLButtonUp(*) {
     global g_SelSense_Enabled, g_SelSense_RequireIBeam
+    global g_SelSense_DownX, g_SelSense_DownY, g_SelSense_DownValid, g_SelSense_MinSelectDragPx
     if !g_SelSense_Enabled
+        return
+    if !g_SelSense_DownValid
+        return
+    g_SelSense_DownValid := false
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&upX, &upY)
+    if (Abs(upX - g_SelSense_DownX) < g_SelSense_MinSelectDragPx && Abs(upY - g_SelSense_DownY) < g_SelSense_MinSelectDragPx)
         return
     if SelectionSense_CursorOverOurUi()
         return
     if g_SelSense_RequireIBeam && !SelectionSense_IsIBeamCursor()
         return
     SetTimer(SelectionSense_ProcessDeferred, -1)
+}
+
+SelectionSense_OnLButtonDown(*) {
+    global g_SelSense_Enabled
+    global g_SelSense_DownX, g_SelSense_DownY, g_SelSense_DownValid
+    if !g_SelSense_Enabled {
+        g_SelSense_DownValid := false
+        return
+    }
+    if SelectionSense_CursorOverOurUi() {
+        g_SelSense_DownValid := false
+        return
+    }
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&g_SelSense_DownX, &g_SelSense_DownY)
+    g_SelSense_DownValid := true
 }
 
 SelectionSense_ProcessDeferred(*) {
@@ -773,10 +802,13 @@ SelectionSense_WarmupMenuHost(*) {
 SelectionSense_Init() {
     SelectionSense_LoadIni()
     global g_SelSense_Enabled
-    if g_SelSense_Enabled
+    if g_SelSense_Enabled {
+        Hotkey("~*LButton", SelectionSense_OnLButtonDown, "On")
         Hotkey("~*LButton Up", SelectionSense_OnLButtonUp, "On")
-    else
+    } else {
+        Hotkey("~*LButton", SelectionSense_OnLButtonDown, "Off")
         Hotkey("~*LButton Up", SelectionSense_OnLButtonUp, "Off")
+    }
 }
 
 ; ==================== SuperHub 鍑芥暟 ====================
