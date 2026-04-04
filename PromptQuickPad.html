@@ -378,6 +378,7 @@ html, body {
 .item-actions button:hover { border-color: var(--orange-dk); }
 mark { background: var(--orange-dk); color: #000; }
 </style>
+<script src="https://app.local/assets/js/BasePanel.js"></script>
 </head>
 <body>
 <div id="root">
@@ -464,6 +465,18 @@ mark { background: var(--orange-dk); color: #000; }
   </div>
 </div>
 <script>
+if (typeof BasePanel === 'undefined') {
+  window.BasePanel = {
+    PROTO_VERSION: 1,
+    postToAhk(obj) {
+      if (!window.chrome || !window.chrome.webview) return;
+      const src = (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : {};
+      const p = Object.assign({ v: 1, timestamp: Date.now() }, src);
+      if (p.action === undefined && p.type !== undefined) p.action = p.type;
+      window.chrome.webview.postMessage(p);
+    }
+  };
+}
 const state = {
   items: [],
   selectedIndex: 0,
@@ -476,12 +489,7 @@ const state = {
   itemModal: null
 };
 
-function postToAhk(obj) {
-  if (window.chrome && window.chrome.webview) {
-    if (obj && !obj.action && obj.type) obj.action = obj.type;
-    window.chrome.webview.postMessage(obj);
-  }
-}
+const postToAhk = (obj) => BasePanel.postToAhk(obj);
 
 function sendAction(type, extra = {}) {
   postToAhk({ type, ...extra });

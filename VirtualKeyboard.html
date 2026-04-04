@@ -676,6 +676,7 @@ body::after {
   100% { opacity: 1; }
 }
 </style>
+<script src="https://app.local/assets/js/BasePanel.js"></script>
 </head>
 <body>
 <div id="root">
@@ -868,6 +869,18 @@ body::after {
 </div><!-- #root -->
 
 <script>
+if (typeof BasePanel === 'undefined') {
+  window.BasePanel = {
+    PROTO_VERSION: 1,
+    postToAhk(obj) {
+      if (!window.chrome || !window.chrome.webview) return;
+      const src = (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : {};
+      const p = Object.assign({ v: 1, timestamp: Date.now() }, src);
+      if (p.action === undefined && p.type !== undefined) p.action = p.type;
+      window.chrome.webview.postMessage(p);
+    }
+  };
+}
 // ═══════════════════════════════════════════════════════════════════════════
 // State
 // ═══════════════════════════════════════════════════════════════════════════
@@ -891,14 +904,9 @@ const state = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Utility
+// Utility（AHK 桥接见 app.local BasePanel.js）
 // ═══════════════════════════════════════════════════════════════════════════
-function postToAhk(obj) {
-  if (window.chrome && window.chrome.webview) {
-    if (obj && !obj.action && obj.type) obj.action = obj.type;
-    window.chrome.webview.postMessage(obj);
-  }
-}
+const postToAhk = (obj) => BasePanel.postToAhk(obj);
 
 function setHud(msg, connected) {
   document.getElementById('hud-status').textContent = msg;

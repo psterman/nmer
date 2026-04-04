@@ -25,6 +25,9 @@ global g_VK_DblModIH := 0
 global g_VK_DblModLast := Map("ctrl", 0, "shift", 0, "alt", 0)
 global g_VK_RecordDblModLast := Map("ctrl", 0, "shift", 0, "alt", 0)
 global g_VK_DblModIntervalMs := 400
+; app.local 导航：Navigate 常不抛错，失败在 NavigationCompleted；用于触发一次磁盘 NavigateToString 回退
+global g_VK_ExpectAppLocalNavigationResult := false
+global g_VK_TriedDiskAfterAppLocalFail := false
 
 VK_EnsureInit(embedded := true) {
     global g_VK_Gui
@@ -125,21 +128,39 @@ _VK_OwnerGuiOpt() {
 
 ; 嵌入：优先 https://app.local/VirtualKeyboard.html；独立进程：仅 FileRead / file://
 _VK_NavigateMainHtml(htmlPath) {
-    global g_VK_WV2, g_VK_Embedded
+    global g_VK_WV2, g_VK_Embedded, g_VK_ExpectAppLocalNavigationResult
     if !g_VK_WV2 || !FileExist(htmlPath)
         return
     if g_VK_Embedded {
         try {
             g_VK_WV2.Navigate(BuildAppLocalUrl("VirtualKeyboard.html"))
+            g_VK_ExpectAppLocalNavigationResult := true
             return
         } catch as e {
             OutputDebug("[VK] Navigate app.local failed, fallback: " . e.Message)
         }
     }
-    try {
-        html := FileRead(htmlPath, "UTF-8")
-        g_VK_WV2.NavigateToString(html)
-    } catch as e {
+    _VK_NavigateToStringFromDisk(htmlPath)
+}
+
+_VK_ReadVirtualKeyboardHtml(htmlPath) {
+    try return FileRead(htmlPath, "UTF-8")
+    catch as e {
+        OutputDebug("[VK] FileRead html: " . e.Message)
+        return ""
+    }
+}
+
+_VK_NavigateToStringFromDisk(htmlPath) {
+    global g_VK_WV2
+    if !g_VK_WV2 || !FileExist(htmlPath)
+        return
+    html := _VK_ReadVirtualKeyboardHtml(htmlPath)
+    if html = ""
+        return
+    try g_VK_WV2.NavigateToString(html)
+    catch as e {
+        OutputDebug("[VK] NavigateToString disk: " . e.Message)
         try g_VK_WV2.Navigate("file:///" . StrReplace(htmlPath, "\", "/"))
         catch as e2 {
             OutputDebug("[VK] file:// navigate failed: " . e2.Message)
@@ -523,10 +544,12 @@ _ExecuteCommand(cmdId) {
 }
 
 _OnWV2Created(ctrl) {
-    global g_VK_WV2, g_VK_Ctrl
+    global g_VK_WV2, g_VK_Ctrl, g_VK_ExpectAppLocalNavigationResult, g_VK_TriedDiskAfterAppLocalFail
 
     g_VK_Ctrl := ctrl
     g_VK_WV2 := ctrl.CoreWebView2
+    g_VK_ExpectAppLocalNavigationResult := false
+    g_VK_TriedDiskAfterAppLocalFail := false
 
     try g_VK_Ctrl.DefaultBackgroundColor := 0xFF0A0A0A
     try g_VK_Ctrl.IsVisible := true
@@ -552,15 +575,39 @@ _OnWV2Created(ctrl) {
 }
 
 _VK_OnNavigationCompleted(sender, args) {
+    global g_VK_ExpectAppLocalNavigationResult, g_VK_TriedDiskAfterAppLocalFail
     try ok := args.IsSuccess
     catch as e
         ok := true
     if ok {
+        g_VK_ExpectAppLocalNavigationResult := false
         ; WebView2：宿主曾隐藏时导航完成后可能仍黑屏，需刷新合成（与 ClipboardPanel 一致）
         if _VK_HostWindowVisible()
             _VK_RefreshWebViewComposition()
         return
     }
+    htmlPath := A_ScriptDir "\VirtualKeyboard.html"
+    if g_VK_ExpectAppLocalNavigationResult && !g_VK_TriedDiskAfterAppLocalFail && FileExist(htmlPath) {
+        g_VK_ExpectAppLocalNavigationResult := false
+        g_VK_TriedDiskAfterAppLocalFail := true
+        OutputDebug("[VK] app.local navigation failed (IsSuccess=0), falling back to disk HTML")
+        try {
+            diskHtml := _VK_ReadVirtualKeyboardHtml(htmlPath)
+            if diskHtml != ""
+                sender.NavigateToString(diskHtml)
+            else
+                throw Error("empty disk html")
+        } catch as e {
+            OutputDebug("[VK] disk fallback failed: " . e.Message)
+            try {
+                sender.NavigateToString("<!doctype html><html><body style='background:#111;color:#eee;font-family:Segoe UI;padding:16px'>VK 页面加载失败。请重启脚本后重试。</body></html>")
+            } catch as e2 {
+                OutputDebug("[VK] fallback NavigateToString failed: " . e2.Message)
+            }
+        }
+        return
+    }
+    g_VK_ExpectAppLocalNavigationResult := false
     try {
         sender.NavigateToString("<!doctype html><html><body style='background:#111;color:#eee;font-family:Segoe UI;padding:16px'>VK 页面加载失败。请重启脚本后重试。</body></html>")
     } catch as e {
@@ -1290,7 +1337,7 @@ VK_Show() {
         VK_SendToWeb('{"type":"keyPreviewClear"}')
         OnMessage(0x0006, _VK_WM_ACTIVATE)
         WebView2_MoveFocusProgrammatic(g_VK_Ctrl)
-        SetTimer(_VK_DeferredMoveFocus, -50)
+        SetTimer(_VK_DeferredMoveFocus, -100)
         _VK_RequestFocusInput()
     }
 }

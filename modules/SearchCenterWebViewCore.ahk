@@ -139,6 +139,7 @@ SCWV_Show() {
     if g_SCWV_Visible {
         try WinActivate("ahk_id " . g_SCWV_Gui.Hwnd)
         WebView2_MoveFocusProgrammatic(g_SCWV_Ctrl)
+        SetTimer(_SCWV_DeferredMoveFocus100, -100)
         return
     }
 
@@ -155,8 +156,16 @@ SCWV_Show() {
     else
         SetTimer(SCWV_DeferredPush, -250)
 
+    WebView2_MoveFocusProgrammatic(g_SCWV_Ctrl)
+    SetTimer(_SCWV_DeferredMoveFocus100, -100)
     SetTimer(SCWV_FocusDeferred, -80)
     SCWV_RequestFocusInput()
+}
+
+_SCWV_DeferredMoveFocus100(*) {
+    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_Ctrl
+    if g_SCWV_Visible && g_SCWV_Gui
+        WebView2_MoveFocusProgrammatic(g_SCWV_Ctrl)
 }
 
 SCWV_DeferredPush(*) {

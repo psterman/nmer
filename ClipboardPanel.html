@@ -432,10 +432,11 @@ if (typeof BasePanel === 'undefined') {
   window.BasePanel = {
     PROTO_VERSION: 1,
     postToAhk(obj) {
-      if (window.chrome && window.chrome.webview) {
-        if (obj && !obj.action && obj.type) obj.action = obj.type;
-        window.chrome.webview.postMessage(obj);
-      }
+      if (!window.chrome || !window.chrome.webview) return;
+      const src = (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : {};
+      const p = Object.assign({ v: 1, timestamp: Date.now() }, src);
+      if (p.action === undefined && p.type !== undefined) p.action = p.type;
+      window.chrome.webview.postMessage(p);
     }
   };
 }

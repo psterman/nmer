@@ -66,6 +66,7 @@
     .multi-dd-item { display: flex; align-items: center; gap: 8px; padding: 6px 4px; font-size: 12px; }
     .multi-dd-item img { width: 16px; height: 16px; border-radius: 3px; object-fit: cover; border: 1px solid var(--border2); }
   </style>
+  <script src="https://app.local/assets/js/BasePanel.js"></script>
 </head>
 <body>
   <div id="app">
@@ -84,6 +85,18 @@
     </section>
   </div>
   <script>
+    if (typeof BasePanel === 'undefined') {
+      window.BasePanel = {
+        PROTO_VERSION: 1,
+        postToAhk(obj) {
+          if (!window.chrome?.webview) return;
+          const src = (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : {};
+          const p = Object.assign({ v: 1, timestamp: Date.now() }, src);
+          if (p.action === undefined && p.type !== undefined) p.action = p.type;
+          window.chrome.webview.postMessage(p);
+        }
+      };
+    }
     const ALL_CATEGORIES = ["ai","cli","academic","baidu","image","audio","video","book","price","medical","cloud"];
     const DEFAULT_AI_ENGINES = [
       { id:"deepseek", icon:"https://app.local/aiicons/DeepSeek.png", label:"DeepSeek" },
@@ -136,10 +149,7 @@
         voiceSearchSelectedEnginesCsv: "deepseek"
       }
     };
-    const post = (msg) => {
-      if (msg && !msg.action && msg.type) msg.action = msg.type;
-      window.chrome?.webview?.postMessage(msg);
-    };
+    const post = (msg) => BasePanel.postToAhk(msg);
     const setStatus = (text, cls = "") => { const el = document.getElementById("status"); el.textContent = text; el.className = cls; };
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[ch]));
     const checked = (v) => v ? "checked" : "";

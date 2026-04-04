@@ -66,6 +66,7 @@ CP_Show() {
     if g_CP_Visible {
         try WinActivate(g_CP_Gui.Hwnd)
         WebView2_MoveFocusProgrammatic(g_CP_Ctrl)
+        SetTimer(_CP_DeferredMoveFocus100, -100)
         return
     }
 
@@ -83,8 +84,16 @@ CP_Show() {
     if g_CP_Ready
         _CP_PushInitialData()
 
+    WebView2_MoveFocusProgrammatic(g_CP_Ctrl)
+    SetTimer(_CP_DeferredMoveFocus100, -100)
     SetTimer(_CP_FocusDeferred, -80)
     CP_RequestFocusInput()
+}
+
+_CP_DeferredMoveFocus100(*) {
+    global g_CP_Gui, g_CP_Visible, g_CP_Ctrl
+    if g_CP_Visible && g_CP_Gui
+        WebView2_MoveFocusProgrammatic(g_CP_Ctrl)
 }
 
 _CP_FocusDeferred() {

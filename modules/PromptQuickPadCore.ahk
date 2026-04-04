@@ -252,6 +252,7 @@ PQP_Show() {
     if g_PQP_Visible {
         try WinActivate(g_PQP_Gui.Hwnd)
         WebView2_MoveFocusProgrammatic(g_PQP_Ctrl)
+        SetTimer(_PQP_DeferredMoveFocus100, -100)
         return
     }
 
@@ -279,8 +280,16 @@ PQP_Show() {
     else
         SetTimer(_PQP_DeferredShowPush, -400)
 
+    WebView2_MoveFocusProgrammatic(g_PQP_Ctrl)
+    SetTimer(_PQP_DeferredMoveFocus100, -100)
     SetTimer(_PQP_FocusDeferred, -80)
     PQP_RequestFocusInput()
+}
+
+_PQP_DeferredMoveFocus100(*) {
+    global g_PQP_Gui, g_PQP_Visible, g_PQP_Ctrl
+    if g_PQP_Visible && g_PQP_Gui
+        WebView2_MoveFocusProgrammatic(g_PQP_Ctrl)
 }
 
 global _PQP_ShowPushRetries := 0

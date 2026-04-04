@@ -10,6 +10,7 @@
   function normalizePayload(obj) {
     if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
     var payload = Object.assign({ v: PROTO }, obj);
+    payload.timestamp = Date.now();
     if (payload.action === undefined && payload.type !== undefined)
       payload.action = payload.type;
     return payload;

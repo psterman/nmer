@@ -15979,6 +15979,29 @@ SetWindowScrollInfo(Hwnd, ScrollWidth, ScrollHeight, VisibleWidth, VisibleHeight
 }
 
 ; ===================== 配置面板函数 =====================
+; 旧版 ListView 剪贴板：先 Hide，失败再 Destroy
+SafeHideLegacyClipboardManager(*) {
+    global GuiID_ClipboardManager
+    if (GuiID_ClipboardManager = 0)
+        return
+    try {
+        GuiID_ClipboardManager.Hide()
+    } catch as e {
+        try GuiID_ClipboardManager.Destroy()
+        catch as e2 {
+        }
+        GuiID_ClipboardManager := 0
+    }
+}
+
+; 打开设置前收起剪贴板（WebView + 旧版 ListView），以 Hide 为主、避免无谓 Destroy
+HideClipboardPanelsForConfigConflict(*) {
+    try CP_Hide()
+    catch as e {
+    }
+    SafeHideLegacyClipboardManager()
+}
+
 ShowConfigGUI() {
     global CursorPath, AISleepTime, Prompt_Explain, Prompt_Refactor, Prompt_Optimize
     global SplitHotkey, BatchHotkey, ConfigFile, Language
@@ -16001,16 +16024,8 @@ ShowConfigGUI() {
         }
     }
     
-    ; 关闭剪贴板面板（确保一次只激活一个面板）
-    if (GuiID_ClipboardManager != 0) {
-        try {
-            GuiID_ClipboardManager.Destroy()
-            GuiID_ClipboardManager := 0
-        } catch as err {
-            GuiID_ClipboardManager := 0
-        }
-    }
-    
+    HideClipboardPanelsForConfigConflict()
+
     ; 清空全局控件数组，防止残留
     global GeneralTabControls := []
     global AppearanceTabControls := []
@@ -16282,15 +16297,7 @@ ShowConfigWebViewGUI() {
     ConfigWebView_CreateHost()
     if !GuiID_ConfigGUI
         return
-    ; 一次只显示一个面板
-    if (GuiID_ClipboardManager != 0) {
-        try {
-            GuiID_ClipboardManager.Destroy()
-            GuiID_ClipboardManager := 0
-        } catch {
-            GuiID_ClipboardManager := 0
-        }
-    }
+    HideClipboardPanelsForConfigConflict()
 
     ScreenInfo := GetScreenInfo(ConfigPanelScreenIndex)
     WinW := Max(980, Round(ScreenInfo.Width * 0.80))
@@ -16305,6 +16312,8 @@ ShowConfigWebViewGUI() {
     SetTimer(ConfigWebView_RefreshWebViewComposition, -30)
     SetTimer(ConfigWebView_RefreshWebViewComposition, -120)
     SetTimer(ConfigWebView_RefreshWebViewComposition, -380)
+    SetTimer(ConfigWebView_RefreshRasterizationScale, -50)
+    SetTimer(ConfigWebView_RefreshRasterizationScale, -150)
     SetTimer(ConfigWebView_FocusDeferred, -80)
 }
 
@@ -16380,6 +16389,19 @@ ConfigWebView_RefreshWebViewComposition(*) {
         ConfigWV2Ctrl.NotifyParentWindowPositionChanged()
     } catch as e {
         OutputDebug("[ConfigWV2] RefreshWebViewComposition: " . e.Message)
+    }
+}
+
+; 触发 RasterizationScale 写回，缓解高 DPI / -DPIScale 下偶发模糊
+ConfigWebView_RefreshRasterizationScale(*) {
+    global ConfigWV2Ctrl
+    if !ConfigWV2Ctrl
+        return
+    try {
+        sc := ConfigWV2Ctrl.RasterizationScale
+        ConfigWV2Ctrl.RasterizationScale := sc
+    } catch as e {
+        OutputDebug("[ConfigWV2] RefreshRasterizationScale: " . e.Message)
     }
 }
 
@@ -18651,15 +18673,16 @@ CloseClipboardManager(*) {
                 ; 忽略保存列宽错误
             }
             
-            GuiID_ClipboardManager.Destroy()
-            GuiID_ClipboardManager := 0
+            SafeHideLegacyClipboardManager()
         }
         
-        ; 清理 ListView 相关状态
-        ClipboardListViewHwnd := 0
-        ClipboardListViewHighlightedRow := 0
-        ClipboardListViewHighlightedCol := 0
-        ClipboardManagerHwnd := 0
+        ; 仅在实际 Destroy 后清理控件 HWND；Hide 保留实例时控件仍有效
+        if (GuiID_ClipboardManager = 0) {
+            ClipboardListViewHwnd := 0
+            ClipboardListViewHighlightedRow := 0
+            ClipboardListViewHighlightedCol := 0
+            ClipboardManagerHwnd := 0
+        }
         
         ; 销毁高亮覆盖层
         DestroyClipboardHighlightOverlay()
@@ -18677,13 +18700,43 @@ CloseClipboardManager(*) {
 
 ShowClipboardManager() {
     global ClipboardHistory, GuiID_ClipboardManager, ClipboardPanelScreenIndex, ClipboardPanelPos
-    global UI_Colors, GuiID_ConfigGUI
+    global UI_Colors, GuiID_ConfigGUI, ClipboardCurrentTab, ClipboardManagerHwnd
     
-    ; 如果面板已存在，先销毁
-    if (GuiID_ClipboardManager != 0) {
-        try {
-            GuiID_ClipboardManager.Destroy()
+    ; 若已有隐藏实例则直接显示，避免无谓 Destroy 与重建
+    if (GuiID_ClipboardManager != 0 && IsObject(GuiID_ClipboardManager) && GuiID_ClipboardManager.HasProp("Hwnd") && WinExist("ahk_id " . GuiID_ClipboardManager.Hwnd)) {
+        if (GuiID_ConfigGUI != 0) {
+            try {
+                GuiID_ConfigGUI.Destroy()
+                GuiID_ConfigGUI := 0
+            } catch as err {
+                GuiID_ConfigGUI := 0
+            }
         }
+        DefaultWidth := 800
+        DefaultHeight := 600
+        WindowName := "📋 " . GetText("clipboard_manager")
+        RestoredPos := RestoreWindowPosition(WindowName, DefaultWidth, DefaultHeight)
+        if (RestoredPos.X = -1 || RestoredPos.Y = -1) {
+            ScreenInfo := GetScreenInfo(ClipboardPanelScreenIndex)
+            Pos := GetPanelPosition(ScreenInfo, RestoredPos.Width, RestoredPos.Height, ClipboardPanelPos)
+            RestoredPos.X := Pos.X
+            RestoredPos.Y := Pos.Y
+        }
+        GuiID_ClipboardManager.Show("w" . RestoredPos.Width . " h" . RestoredPos.Height . " x" . RestoredPos.X . " y" . RestoredPos.Y)
+        ClipboardManagerHwnd := GuiID_ClipboardManager.Hwnd
+        if (ClipboardCurrentTab = "CapsLockC")
+            SetTimer(() => CreateClipboardHighlightOverlay(), -50)
+        WinSetAlwaysOnTop(1, GuiID_ClipboardManager.Hwnd)
+        WinActivate(GuiID_ClipboardManager.Hwnd)
+        Sleep(100)
+        SetTimer(RefreshClipboardListAfterShow, -150)
+        return
+    }
+    if (GuiID_ClipboardManager != 0) {
+        try GuiID_ClipboardManager.Destroy()
+        catch as e {
+        }
+        GuiID_ClipboardManager := 0
     }
     
     ; 关闭配置面板（确保一次只激活一个面板）
