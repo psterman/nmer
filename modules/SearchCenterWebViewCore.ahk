@@ -916,3 +916,25 @@ _SCWV_ActivateResultRow(Row) {
         TrayTip("粘贴失败", err.Message, "Iconx 2")
     }
 }
+
+; 选区感应 / 拖放：写入关键词、打开搜索中心并执行搜索（供工具栏 WebView、SelectionSense）
+SearchCenter_RunQueryWithKeyword(keyword) {
+    global SearchCenterWebKeyword, g_SCWV_SearchTimer
+
+    keyword := Trim(String(keyword))
+    if (keyword = "")
+        return
+
+    SearchCenterWebKeyword := keyword
+
+    if g_SCWV_SearchTimer {
+        SetTimer(g_SCWV_SearchTimer, 0)
+        g_SCWV_SearchTimer := 0
+    }
+
+    SCWV_Init()
+    SCWV_Show()
+    _SCWV_PerformSearch(SearchCenterWebKeyword)
+    SCWV_PushState("state")
+    SCWV_RequestFocusInput()
+}

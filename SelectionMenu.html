@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>选区</title>
+<style>
+:root {
+  --bg: #0a0a0a;
+  --matrix: #00ff41;
+  --ease: 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  color: var(--matrix);
+  font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  overflow: hidden;
+}
+#app {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  height: 100%;
+}
+#preview {
+  font-size: 11px;
+  color: rgba(0, 255, 65, 0.75);
+  line-height: 1.35;
+  max-height: 36px;
+  overflow: hidden;
+  word-break: break-all;
+  border-bottom: 1px solid rgba(0, 255, 65, 0.2);
+  padding-bottom: 8px;
+  margin-bottom: 2px;
+}
+.btn {
+  border: 1px solid rgba(0, 255, 65, 0.45);
+  background: rgba(0, 255, 65, 0.08);
+  color: var(--matrix);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--ease), border-color var(--ease), transform var(--ease);
+}
+.btn:hover {
+  background: rgba(0, 255, 65, 0.18);
+  border-color: var(--matrix);
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn.secondary {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #aaa;
+  background: rgba(255, 255, 255, 0.04);
+}
+.btn.secondary:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ddd;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="preview"></div>
+  <button class="btn" type="button" id="btnSearch">搜索</button>
+  <button class="btn" type="button" id="btnAi">AI</button>
+  <button class="btn secondary" type="button" id="btnCancel">取消</button>
+</div>
+<script>
+(function () {
+  let fullText = "";
+
+  function postToAhk(obj) {
+    try {
+      if (window.chrome && window.chrome.webview)
+        window.chrome.webview.postMessage(obj);
+    } catch (e) {}
+  }
+
+  function setPreview(t) {
+    fullText = t || "";
+    const el = document.getElementById("preview");
+    const show = fullText.length > 90 ? fullText.slice(0, 90) + "…" : fullText;
+    el.textContent = show || "（无文本）";
+  }
+
+  document.getElementById("btnSearch").onclick = function () {
+    postToAhk({ type: "selection_menu_search", text: fullText });
+  };
+  document.getElementById("btnAi").onclick = function () {
+    postToAhk({ type: "selection_menu_ai", text: fullText });
+  };
+  document.getElementById("btnCancel").onclick = function () {
+    postToAhk({ type: "selection_menu_dismiss" });
+  };
+
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.addEventListener("message", function (ev) {
+      const d = ev.data;
+      if (!d || d.type !== "selection_menu_init") return;
+      setPreview(d.text || "");
+    });
+  }
+
+  postToAhk({ type: "selection_menu_ready" });
+})();
+</script>
+</body>
+</html>

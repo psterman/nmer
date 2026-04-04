@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>悬浮工具栏</title>
+<style>
+:root {
+  --bg: #0a0a0a;
+  --surface: #1e1e1e;
+  --border: #3c3c3c;
+  --matrix: #00ff41;
+  --orange: #ff6600;
+  --text: #cccccc;
+  --ease: 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  overflow: hidden;
+  font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#strip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px;
+  height: 100%;
+  width: 100%;
+  background: var(--bg);
+  border-radius: 8px;
+}
+#favicon {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+}
+#favicon:active { cursor: grabbing; }
+#favicon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+#buttons {
+  display: flex;
+  gap: 5px;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+}
+.btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform var(--ease), filter var(--ease), box-shadow var(--ease), background var(--ease);
+  position: relative;
+  background: transparent;
+}
+.btn img, .btn svg {
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+  transition: transform 0.35s linear;
+}
+.btn:hover {
+  filter: brightness(1.35);
+  background: rgba(255, 255, 255, 0.06);
+}
+.btn:active {
+  transform: scale(0.92);
+}
+.btn .dot {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--orange);
+  opacity: 0;
+  transition: opacity var(--ease);
+}
+.btn.selected .dot {
+  opacity: 1;
+}
+
+/* 搜索按钮特殊状态 */
+#btn-search.pulse {
+  animation: breathe 1.6s ease-in-out infinite;
+  box-shadow: 0 0 14px rgba(0, 255, 65, 0.45), 0 0 28px rgba(0, 255, 65, 0.2);
+}
+#btn-search.drag-over {
+  transform: scale(0.88);
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.65);
+}
+#btn-search.loading svg, #btn-search.loading img {
+  animation: spin 0.7s linear infinite;
+}
+@keyframes breathe {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(0,255,65,0.35)); }
+  50% { filter: drop-shadow(0 0 14px rgba(0,255,65,0.85)); }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 气泡提示 */
+#bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--matrix);
+  background: rgba(10, 10, 10, 0.92);
+  border: 1px solid rgba(0, 255, 65, 0.45);
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ease);
+  z-index: 100;
+}
+#btn-search.pulse #bubble {
+  opacity: 1;
+}
+
+/* 工具提示 */
+.btn[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--text);
+  background: #252526;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  white-space: nowrap;
+  z-index: 99;
+}
+#btn-search[title]:hover::after {
+  display: none;
+}
+</style>
+</head>
+<body>
+<div id="strip">
+  <div id="favicon">
+    <img id="favicon-img" src="https://appcursorhelper/favicon.ico" alt="logo" width="52" height="52">
+  </div>
+  <div id="buttons">
+    <div class="btn" id="btn-search" data-action="Search" title="搜索 (Caps+F)">
+      <div id="bubble">[Drag Me] · Caps+F</div>
+      <svg viewBox="0 0 24 24" fill="none" stroke="#00ff41" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+    </div>
+    <div class="btn" id="btn-record" data-action="Record" title="记录 (Caps+X)">
+      <img src="https://appcursorhelper/images/toolbar_note.png" alt="记录" onerror="this.outerHTML='<svg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'#ff6600\' stroke-width=\'2\'><rect x=\'3\' y=\'3\' width=\'18\' height=\'18\' rx=\'2\'/><line x1=\'7\' y1=\'8\' x2=\'17\' y2=\'8\'/><line x1=\'7\' y1=\'12\' x2=\'17\' y2=\'12\'/><line x1=\'7\' y1=\'16\' x2=\'13\' y2=\'16\'/></svg>'">
+    </div>
+    <div class="btn" id="btn-ai" data-action="AIAssistant" title="提示词 (Ctrl+Shift+B)">
+      <img src="https://appcursorhelper/images/toolbar_ai.png" alt="AI" onerror="this.outerHTML='<svg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'#ff6600\' stroke-width=\'2\'><circle cx=\'12\' cy=\'12\' r=\'3\'/><path d=\'M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83\'/></svg>'">
+    </div>
+    <div class="btn" id="btn-prompt-new" data-action="PromptNew" title="新提示词 (摘录区)">
+      <img src="https://appcursorhelper/images/toolbar_prompt_new.png" alt="新" onerror="this.outerHTML='<span style=\'color:#ff6600;font-weight:bold;font-size:16px\'>新</span>'">
+    </div>
+    <div class="btn" id="btn-screenshot" data-action="Screenshot" title="截图 (Caps+T)">
+      <img src="https://appcursorhelper/images/toolbar_screenshot.png" alt="截图" onerror="this.outerHTML='<svg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'#ff6600\' stroke-width=\'2\'><rect x=\'3\' y=\'3\' width=\'18\' height=\'18\' rx=\'2\'/><circle cx=\'12\' cy=\'12\' r=\'3\'/></svg>'">
+    </div>
+    <div class="btn" id="btn-settings" data-action="Settings" title="设置 (Caps+Q)">
+      <img src="https://appcursorhelper/images/toolbar_settings.png" alt="设置" onerror="this.outerHTML='<svg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'#ff6600\' stroke-width=\'2\'><circle cx=\'12\' cy=\'12\' r=\'3\'/><path d=\'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z\'/></svg>'">
+    </div>
+    <div class="btn" id="btn-keyboard" data-action="VirtualKeyboard" title="键盘 (Ctrl+Shift+K)">
+      <img src="https://appcursorhelper/images/toolbar_shortcut.png" alt="键盘" onerror="this.outerHTML='<svg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'#ff6600\' stroke-width=\'2\'><rect x=\'2\' y=\'4\' width=\'20\' height=\'16\' rx=\'2\'/><line x1=\'6\' y1=\'8\' x2=\'6\' y2=\'8\'/><line x1=\'10\' y1=\'8\' x2=\'10\' y2=\'8\'/><line x1=\'14\' y1=\'8\' x2=\'14\' y2=\'8\'/><line x1=\'18\' y1=\'8\' x2=\'18\' y2=\'8\'/><line x1=\'6\' y1=\'12\' x2=\'6\' y2=\'12\'/><line x1=\'18\' y1=\'12\' x2=\'18\' y2=\'12\'/><line x1=\'8\' y1=\'16\' x2=\'16\' y2=\'16\'/></svg>'">
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var strip = document.getElementById("strip");
+  var favicon = document.getElementById("favicon");
+  var buttons = document.querySelectorAll(".btn");
+  var btnSearch = document.getElementById("btn-search");
+  var selectedAction = "";
+
+  function postToAhk(obj) {
+    try {
+      if (window.chrome && window.chrome.webview)
+        window.chrome.webview.postMessage(obj);
+    } catch (e) {}
+  }
+
+  function setSelected(action) {
+    selectedAction = action;
+    buttons.forEach(function (b) {
+      b.classList.toggle("selected", b.dataset.action === action);
+    });
+  }
+
+  function setSearchPulse(on) {
+    btnSearch.classList.toggle("pulse", !!on);
+  }
+
+  function setSearchDragOver(on) {
+    btnSearch.classList.toggle("drag-over", !!on);
+  }
+
+  function setSearchLoading(on) {
+    btnSearch.classList.toggle("loading", !!on);
+  }
+
+  // 按钮点击
+  buttons.forEach(function (btn) {
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var action = btn.dataset.action;
+      setSelected(action);
+      if (action === "Search") {
+        postToAhk({ type: "toolbar_search_click" });
+      } else {
+        postToAhk({ type: "toolbar_action", action: action });
+      }
+    });
+  });
+
+  // 空白区拖动整窗（含 #buttons 右侧留白；排除各 .btn）
+  function maybeStartDrag(e) {
+    if (e.button !== 0) return;
+    var t = e.target;
+    if (t.closest && t.closest(".btn")) return;
+    e.preventDefault();
+    postToAhk({ type: "drag_host" });
+  }
+  strip.addEventListener("mousedown", maybeStartDrag);
+
+  // 滚轮缩放
+  strip.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    postToAhk({ type: "wheel", delta: e.deltaY > 0 ? -1 : 1 });
+  }, { passive: false });
+
+  // 右键菜单
+  strip.addEventListener("contextmenu", function (e) {
+    e.preventDefault();
+    postToAhk({ type: "context_menu", x: e.screenX, y: e.screenY });
+  });
+
+  // 拖放：搜索按钮
+  async function readDropTextAsync(dt) {
+    if (!dt) return "";
+    try {
+      if (dt.items && dt.items.length) {
+        for (var i = 0; i < dt.items.length; i++) {
+          var it = dt.items[i];
+          if (it.kind !== "string") continue;
+          var s = await new Promise(function (res) {
+            try {
+              it.getAsString(function (x) { res(x || ""); });
+            } catch (e2) {
+              res("");
+            }
+          });
+          if (s && String(s).trim()) return String(s).trim();
+        }
+      }
+      return (dt.getData("text/plain") || dt.getData("Text") || dt.getData("text/uri-list") || "").trim();
+    } catch (e) {
+      return "";
+    }
+  }
+
+  async function onDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setSearchDragOver(false);
+    var t = await readDropTextAsync(e.dataTransfer);
+    t = (t || "").trim();
+    if (!t && e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length)
+      t = (e.dataTransfer.files[0].name || "").trim();
+    if (!t) return;
+    setSearchLoading(true);
+    postToAhk({ type: "drop_search", text: t });
+  }
+
+  function onDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    } catch (e2) {}
+    setSearchDragOver(true);
+  }
+
+  function onDragLeave(e) {
+    if (!btnSearch.contains(e.relatedTarget))
+      setSearchDragOver(false);
+  }
+
+  btnSearch.addEventListener("dragenter", function (e) { e.preventDefault(); });
+  btnSearch.addEventListener("dragover", onDragOver);
+  btnSearch.addEventListener("dragleave", onDragLeave);
+  btnSearch.addEventListener("drop", onDrop);
+
+  // 全局拖放兜底
+  document.body.addEventListener("dragover", function (e) { e.preventDefault(); });
+  document.body.addEventListener("drop", function (e) {
+    e.preventDefault();
+    if (e.target === btnSearch || btnSearch.contains(e.target)) return;
+    onDrop(e);
+  });
+
+  // 接收 AHK 消息
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.addEventListener("message", function (ev) {
+      var d = ev.data;
+      if (!d || !d.type) return;
+      if (d.type === "SELECTION_CHANGE") {
+        setSearchPulse(true);
+        return;
+      }
+      if (d.type === "SELECTION_CLEAR") {
+        setSearchPulse(false);
+        return;
+      }
+      if (d.type === "drop_done") {
+        setSearchLoading(false);
+        setSearchPulse(false);
+        return;
+      }
+      // 缩放仅由 AHK 调整宿主窗口；勿对 body 再 transform，否则与窗口尺寸叠加会裁切右侧按钮。
+      if (d.type === "set_scale") {
+        return;
+      }
+      if (d.type === "set_logo") {
+        var u = d.url || "";
+        var im = document.getElementById("favicon-img");
+        if (im && u) im.src = u;
+        return;
+      }
+      if (d.type === "set_selected") {
+        setSelected(d.action || "");
+        return;
+      }
+    });
+  }
+
+  postToAhk({ type: "toolbar_ready" });
+})();
+</script>
+</body>
+</html>

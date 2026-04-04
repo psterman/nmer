@@ -3996,6 +3996,8 @@ ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
 
     if (FloatingToolbarIsVisible) {
         MenuItems.Push({Text: "隐藏工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
+        MenuItems.Push({Text: "最小化到边缘", Action: MinimizeFloatingToolbarToEdge, Icon: "⊏"})
+        MenuItems.Push({Text: "重置大小", Action: FloatingToolbarResetScale, Icon: "⤢"})
     } else {
         MenuItems.Push({Text: "显示工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
     }
@@ -4062,6 +4064,8 @@ ShowCustomTrayMenu(ItemName := "", ItemPos := "", MyMenu := "") {
 
     if (FloatingToolbarIsVisible) {
         MenuItems.Push({Text: "隐藏工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
+        MenuItems.Push({Text: "最小化到边缘", Action: MinimizeFloatingToolbarToEdge, Icon: "⊏"})
+        MenuItems.Push({Text: "重置大小", Action: FloatingToolbarResetScale, Icon: "⤢"})
     } else {
         MenuItems.Push({Text: "显示工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
     }

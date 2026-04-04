@@ -144,6 +144,7 @@ global MainScriptDir := A_ScriptDir
 #Include modules\AIListPanel.ahk
 #Include modules\PromptQuickPadCore.ahk
 #Include modules\SearchCenterWebViewCore.ahk
+#Include modules\SelectionSenseCore.ahk
 #Include modules\PromptQuickPadCapsLockB.ahk
 
 ; ===================== Everything API 封装 =====================
@@ -2714,6 +2715,10 @@ InitConfig() {
         IniWrite("1", ConfigFile, "Settings", "AutoUpdateVoiceInput")
         IniWrite("deepseek", ConfigFile, "Settings", "VoiceSearchSelectedEngines")  ; 保存默认选中的搜索引擎
         IniWrite("0", ConfigFile, "Settings", "AutoStart")  ; 默认不自启动
+        IniWrite("1", ConfigFile, "SelectionSense", "Enable")
+        IniWrite("1", ConfigFile, "SelectionSense", "ShowMenu")
+        IniWrite("55", ConfigFile, "SelectionSense", "CopyDelayMs")
+        IniWrite("0", ConfigFile, "SelectionSense", "RequireIBeam")
         ; 保存默认启用的搜索标签（默认全部启用）
         DefaultEnabledCategories := "ai,cli,academic,baidu,image,audio,video,book,price,medical,cloud"
         IniWrite(DefaultEnabledCategories, ConfigFile, "Settings", "VoiceSearchEnabledCategories")
@@ -3301,6 +3306,7 @@ SetTimer(Global_InitAllPanels, -1200)
 InitFloatingToolbar()
 ; 显示悬浮工具栏（随主脚本运行）
 ShowFloatingToolbar()
+SelectionSense_Init()
 ; 加载提示词模板系统（在配置初始化后）
 LoadPromptTemplates()
 ; 同步提示词模板到数据库
@@ -3996,6 +4002,8 @@ ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
 
     if (FloatingToolbarIsVisible) {
         MenuItems.Push({Text: "隐藏工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
+        MenuItems.Push({Text: "最小化到边缘", Action: MinimizeFloatingToolbarToEdge, Icon: "⊏"})
+        MenuItems.Push({Text: "重置大小", Action: FloatingToolbarResetScale, Icon: "⤢"})
     } else {
         MenuItems.Push({Text: "显示工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
     }
@@ -4062,6 +4070,8 @@ ShowCustomTrayMenu(ItemName := "", ItemPos := "", MyMenu := "") {
 
     if (FloatingToolbarIsVisible) {
         MenuItems.Push({Text: "隐藏工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
+        MenuItems.Push({Text: "最小化到边缘", Action: MinimizeFloatingToolbarToEdge, Icon: "⊏"})
+        MenuItems.Push({Text: "重置大小", Action: FloatingToolbarResetScale, Icon: "⤢"})
     } else {
         MenuItems.Push({Text: "显示工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
     }
