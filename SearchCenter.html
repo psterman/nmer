@@ -31,12 +31,37 @@ html, body {
 button, input, select, textarea { font: inherit; }
 #app {
   display: grid;
-  grid-template-rows: auto auto auto auto 1fr auto;
+  grid-template-rows: auto auto auto auto auto 1fr auto;
   width: 100%;
   height: 100%;
   gap: 12px;
-  padding: 16px;
+  padding: 14px 26px 18px;
 }
+.chrome-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  margin: -6px -10px 2px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.06);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.chrome-drag {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  cursor: grab;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.chrome-drag:active { cursor: grabbing; }
 .bar {
   display: flex;
   align-items: center;
@@ -49,7 +74,7 @@ button, input, select, textarea { font: inherit; }
   border-radius: 16px;
   box-shadow: var(--shadow);
 }
-#topbar { padding: 14px; }
+#topbar { padding: 14px 18px; }
 #search {
   flex: 1;
   min-width: 0;
@@ -81,9 +106,9 @@ button, input, select, textarea { font: inherit; }
 #engines,
 #filters {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   overflow: auto hidden;
-  padding: 6px;
+  padding: 8px 10px;
 }
 #categories::-webkit-scrollbar,
 #engines::-webkit-scrollbar,
@@ -101,7 +126,7 @@ button, input, select, textarea { font: inherit; }
   background: #3a434d;
   border-radius: 999px;
 }
-#category-card, #engine-card, #filter-card { padding: 8px; }
+#category-card, #engine-card, #filter-card { padding: 10px 12px; }
 .chip, .engine-chip, .filter-chip {
   border: 1px solid var(--border);
   background: var(--panel-2);
@@ -132,17 +157,28 @@ button, input, select, textarea { font: inherit; }
   text-align: center;
 }
 .engine-chip {
-  min-width: 128px;
-  padding: 10px 12px;
+  min-width: 64px;
+  max-width: 92px;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  border-radius: 14px;
+}
+.engine-chip .engine-icon-wrap {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  flex: 0 0 auto;
 }
 .engine-chip img, .engine-fallback {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
   flex: 0 0 auto;
+  display: block;
 }
 .engine-fallback {
   display: inline-flex;
@@ -150,15 +186,23 @@ button, input, select, textarea { font: inherit; }
   justify-content: center;
   background: #303842;
   color: #fff;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
 }
 .engine-chip .label {
-  min-width: 0;
-  white-space: nowrap;
+  width: 100%;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--muted);
+  white-space: normal;
+  word-break: break-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
+.engine-chip.active .label { color: #fff; }
 .filter-chip {
   padding: 8px 12px;
   white-space: nowrap;
@@ -166,12 +210,13 @@ button, input, select, textarea { font: inherit; }
 #actionbar {
   display: flex;
   gap: 10px;
-  padding: 0 6px;
+  padding: 0 4px 0 8px;
+  flex-shrink: 0;
 }
 #layout {
   display: grid;
   grid-template-columns: minmax(380px, 1.1fr) minmax(320px, .9fr);
-  gap: 12px;
+  gap: 16px;
   min-height: 0;
 }
 #results-card, #preview-card {
@@ -182,8 +227,8 @@ button, input, select, textarea { font: inherit; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 14px 16px;
+  gap: 12px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--border);
   background: rgba(255,255,255,.02);
 }
@@ -198,7 +243,7 @@ button, input, select, textarea { font: inherit; }
 #result-list {
   height: calc(100% - 59px);
   overflow: auto;
-  padding: 8px;
+  padding: 10px 12px 12px;
 }
 .result-item {
   display: grid;
@@ -261,7 +306,7 @@ button, input, select, textarea { font: inherit; }
 #preview {
   height: calc(100% - 59px);
   overflow: auto;
-  padding: 16px;
+  padding: 16px 18px 18px;
   white-space: pre-wrap;
   word-break: break-word;
   font-family: var(--font-mono);
@@ -274,7 +319,7 @@ button, input, select, textarea { font: inherit; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 6px;
+  padding: 4px 4px 0;
   font-size: 12px;
   color: var(--muted);
 }
@@ -316,6 +361,9 @@ mark {
 </head>
 <body>
 <div id="app">
+  <header id="chrome-header" class="chrome-header">
+    <div class="chrome-drag" id="chrome-drag" title="拖动窗口">搜索中心</div>
+  </header>
   <div id="topbar" class="card bar">
     <input id="search" type="text" placeholder="搜索本地结果，或直接作为网络搜索 / CLI 提示词发送">
     <select id="limit">
@@ -451,8 +499,8 @@ function renderEngines() {
     const el = document.createElement("button");
     el.className = "engine-chip" + (active ? " active" : "");
     const icon = engine.iconUrl
-      ? "<img src=\"" + engine.iconUrl + "\" alt=\"\">"
-      : "<span class=\"engine-fallback\">" + escapeHtml((engine.name || "?").slice(0, 1).toUpperCase()) + "</span>";
+      ? "<span class=\"engine-icon-wrap\"><img src=\"" + engine.iconUrl + "\" alt=\"\"></span>"
+      : "<span class=\"engine-icon-wrap\"><span class=\"engine-fallback\">" + escapeHtml((engine.name || "?").slice(0, 1).toUpperCase()) + "</span></span>";
     el.innerHTML = icon + "<span class=\"label\">" + escapeHtml(engine.name) + "</span>";
     el.onclick = () => postToAhk({ type: "toggleEngine", engine: engine.value });
     wrap.appendChild(el);
@@ -632,6 +680,16 @@ document.getElementById("btn-open-cli").addEventListener("click", () => {
 document.getElementById("btn-close").addEventListener("click", () => {
   postToAhk({ type: "close" });
 });
+
+(function initChromeDrag() {
+  const dragEl = document.getElementById("chrome-drag");
+  if (!dragEl) return;
+  dragEl.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    postToAhk({ type: "dragHost" });
+  });
+})();
 
 document.addEventListener("keydown", (event) => {
   const activeTag = document.activeElement ? document.activeElement.tagName : "";

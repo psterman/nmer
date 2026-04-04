@@ -37,7 +37,8 @@ SCWV_Init() {
     if g_SCWV_Gui
         return
 
-    g_SCWV_Gui := Gui("+AlwaysOnTop +Resize +MinSize760x540 +MinimizeBox +MaximizeBox +Caption -DPIScale +Owner", "搜索中心")
+    ; 无系统标题栏：页面内顶栏拖动（dragHost → WM_NCLBUTTONDOWN）；保留 +Owner，不加 ToolWindow 以免任务栏/Alt+Tab 行为突变
+    g_SCWV_Gui := Gui("+AlwaysOnTop +Resize +MinSize760x540 -Caption -DPIScale +Owner", "搜索中心")
     g_SCWV_Gui.BackColor := "1b1b1d"
     g_SCWV_Gui.MarginX := 0
     g_SCWV_Gui.MarginY := 0
@@ -242,6 +243,13 @@ SCWV_PostJson(jsonStr) {
         WebView_QueueJson(g_SCWV_WV2, jsonStr)
 }
 
+SCWV_BeginHostDrag(*) {
+    global g_SCWV_Gui
+    if !g_SCWV_Gui
+        return
+    try PostMessage(0xA1, 2,,, "ahk_id " . g_SCWV_Gui.Hwnd)  ; WM_NCLBUTTONDOWN HTCAPTION
+}
+
 SCWV_OnWebMessage(sender, args) {
     jsonStr := args.WebMessageAsJson
     try {
@@ -314,6 +322,8 @@ SCWV_OnWebMessage(sender, args) {
             _SCWV_ActivateResultRow(row)
         case "close":
             SCWV_Hide(true)
+        case "dragHost":
+            SCWV_BeginHostDrag()
     }
 }
 
