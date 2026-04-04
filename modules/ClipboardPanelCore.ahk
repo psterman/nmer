@@ -43,7 +43,7 @@ CP_Init() {
     WinW := Max(820, Min(Round(ScreenW * 0.48), 1100))
     WinH := Max(500, Min(Round(ScreenH * 0.55), 720))
 
-    g_CP_Gui := Gui("+AlwaysOnTop -Caption -DPIScale +ToolWindow", "ClipboardPanel")
+    g_CP_Gui := Gui("+AlwaysOnTop -Caption -DPIScale +ToolWindow +Owner", "ClipboardPanel")
     g_CP_Gui.BackColor := "0a0a0a"
     g_CP_Gui.MarginX := 0
     g_CP_Gui.MarginY := 0
@@ -160,11 +160,8 @@ _CP_OnWV2Created(ctrl) {
     g_CP_WV2.add_WebMessageReceived(_CP_OnWebMessage)
     try g_CP_WV2.add_NavigationCompleted(_CP_OnNavigationCompleted)
 
-    htmlPath := A_ScriptDir "\ClipboardPanel.html"
-    if FileExist(htmlPath)
-        g_CP_WV2.Navigate("file:///" . StrReplace(htmlPath, "\", "/"))
-    else
-        OutputDebug("[CP] ClipboardPanel.html not found: " . htmlPath)
+    try ApplyUnifiedWebViewAssets(g_CP_WV2)
+    g_CP_WV2.Navigate(BuildAppLocalUrl("ClipboardPanel.html"))
 }
 
 _CP_ApplyBounds() {

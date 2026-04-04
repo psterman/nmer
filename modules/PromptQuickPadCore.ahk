@@ -80,7 +80,7 @@ PQP_Init() {
     global PromptQuickPad_PinTop
     topOpt := PromptQuickPad_PinTop ? "+AlwaysOnTop" : "-AlwaysOnTop"
 
-    g_PQP_Gui := Gui(topOpt . " +Resize +MinSize440x460 +MinimizeBox +MaximizeBox +Caption -DPIScale", "Prompt Quick-Pad")
+    g_PQP_Gui := Gui(topOpt . " +Resize +MinSize440x460 +MinimizeBox +MaximizeBox +Caption -DPIScale +Owner", "Prompt Quick-Pad")
     g_PQP_Gui.BackColor := "1e1e1e"
     g_PQP_Gui.MarginX := 0
     g_PQP_Gui.MarginY := 0
@@ -113,11 +113,8 @@ _PQP_OnWV2Created(ctrl) {
     g_PQP_WV2.add_WebMessageReceived(_PQP_OnWebMessage)
     try g_PQP_WV2.add_NavigationCompleted(_PQP_OnNavigationCompleted)
 
-    htmlPath := A_ScriptDir "\PromptQuickPad.html"
-    if FileExist(htmlPath)
-        g_PQP_WV2.Navigate("file:///" . StrReplace(htmlPath, "\", "/"))
-    else
-        OutputDebug("[PQP] PromptQuickPad.html not found: " . htmlPath)
+    try ApplyUnifiedWebViewAssets(g_PQP_WV2)
+    g_PQP_WV2.Navigate(BuildAppLocalUrl("PromptQuickPad.html"))
 }
 
 _PQP_ApplyBounds() {
@@ -260,6 +257,7 @@ PQP_Show() {
 
     try g_PQP_Gui.Show("x" . panelX . " y" . panelY . " w" . panelW . " h" . panelH . " NoActivate")
     g_PQP_Visible := true
+    OnMessage(0x0006, _PQP_WM_ACTIVATE)
 
     _PQP_RefreshWebViewComposition()
     SetTimer(_PQP_RefreshWebViewComposition, -120)
@@ -304,9 +302,18 @@ PQP_Hide() {
     }
 
     g_PQP_Visible := false
+    OnMessage(0x0006, _PQP_WM_ACTIVATE, 0)
     if g_PQP_Gui {
         try g_PQP_Gui.Hide()
     }
+}
+
+_PQP_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
+    global g_PQP_Gui, g_PQP_Visible
+    if !g_PQP_Visible || !g_PQP_Gui
+        return
+    if (hwnd = g_PQP_Gui.Hwnd && (wParam & 0xFFFF) = 0)
+        SetTimer(PQP_Hide, -50)
 }
 
 PQP_ApplyPinTopFromIni() {

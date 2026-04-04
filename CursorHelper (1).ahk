@@ -477,6 +477,13 @@ global ConfigWebViewMode := false
 global ConfigWV2Ctrl := 0
 global ConfigWV2 := 0
 global ConfigWV2Ready := false
+global ConfigWebViewPreloaded := false
+global UnifiedAssetsHost := "app.local"
+global UnifiedAssetsRoot := A_ScriptDir
+global UnifiedAssetsAccessKind := 0  ; COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW
+global WebViewWarmupQueue := []
+global WebViewWarmupIndex := 0
+global WebViewWarmupStarted := false
 global DefaultStartTabDDL_Hwnd := 0  ; 默认启动页面下拉框句柄
 global DefaultStartTabDDL_Hwnd_ForTimer := 0  ; 默认启动页面下拉框句柄（用于定时器）
 global DDLBrush := 0  ; 下拉列表背景画刷
@@ -3164,6 +3171,52 @@ InitConfig() {
 }
 
 ; 在InitConfig结束后加载模板
+BuildAppLocalUrl(relativePath) {
+    global UnifiedAssetsHost
+    normalized := StrReplace(relativePath, "\", "/")
+    if (SubStr(normalized, 1, 1) = "/")
+        normalized := SubStr(normalized, 2)
+    return "https://" . UnifiedAssetsHost . "/" . normalized
+}
+
+ApplyUnifiedWebViewAssets(wv2) {
+    global UnifiedAssetsHost, UnifiedAssetsRoot, UnifiedAssetsAccessKind
+    try wv2.SetVirtualHostNameToFolderMapping(UnifiedAssetsHost, UnifiedAssetsRoot, UnifiedAssetsAccessKind)
+}
+
+_WarmupConfigWebView(*) {
+    global UseWebViewSettings
+    if !UseWebViewSettings
+        return
+    try ConfigWebView_CreateHost()
+}
+
+_RunWebViewWarmupStep(*) {
+    global WebViewWarmupQueue, WebViewWarmupIndex
+    if (WebViewWarmupIndex >= WebViewWarmupQueue.Length)
+        return
+
+    WebViewWarmupIndex += 1
+    initFn := WebViewWarmupQueue[WebViewWarmupIndex]
+    try initFn.Call()
+
+    if (WebViewWarmupIndex < WebViewWarmupQueue.Length)
+        SetTimer(_RunWebViewWarmupStep, -350)
+}
+
+StartWebViewWarmup(*) {
+    global WebViewWarmupQueue, WebViewWarmupIndex, WebViewWarmupStarted
+
+    if WebViewWarmupStarted
+        return
+
+    WebViewWarmupStarted := true
+    WebViewWarmupIndex := 0
+    WebViewWarmupQueue := [CP_Init, PQP_Init, SCWV_Init]
+    SetTimer(_RunWebViewWarmupStep, -10)
+    SetTimer(_WarmupConfigWebView, -5000)
+}
+
 InitConfig() ; 启动初始化
 ; 启动时统一归一化 CapsLock 状态，避免继承系统残留 On 状态导致后续组合键流程反复恢复为大写
 SetCapsLockState("Off")
@@ -3177,7 +3230,7 @@ InitClipboardFTS5DB()
 ; 初始化粘贴板历史面板
 InitClipboardHistoryPanel()
 ; 初始化 WebView2 剪贴板面板
-CP_Init()
+SetTimer(StartWebViewWarmup, -1200)
 ; 初始化悬浮工具栏
 InitFloatingToolbar()
 ; 显示悬浮工具栏（随主脚本运行）
@@ -15864,7 +15917,7 @@ ShowConfigGUI() {
     global CursorPath, AISleepTime, Prompt_Explain, Prompt_Refactor, Prompt_Optimize
     global SplitHotkey, BatchHotkey, ConfigFile, Language
     global PanelScreenIndex, PanelPosition, ConfigPanelScreenIndex
-    global UI_Colors, GuiID_ConfigGUI, GuiID_ClipboardManager, UseWebViewSettings
+    global UI_Colors, GuiID_ConfigGUI, GuiID_ClipboardManager, UseWebViewSettings, ConfigWebViewMode
 
     if (UseWebViewSettings) {
         ShowConfigWebViewGUI()
@@ -15872,7 +15925,7 @@ ShowConfigGUI() {
     }
     
     ; 单例模式:如果配置面板已存在,直接激活
-    if (GuiID_ConfigGUI != 0) {
+    if (GuiID_ConfigGUI != 0 && !ConfigWebViewMode) {
         try {
             WinActivate(GuiID_ConfigGUI.Hwnd)
             return
@@ -16132,18 +16185,37 @@ ShowConfigGUI() {
     ; 【移除滚动功能】不再启用配置面板的滚轮热键（已移除滚动条）
 }
 
+ConfigWebView_CreateHost() {
+    global GuiID_ConfigGUI, ConfigWebViewMode, ConfigWV2Ready, ConfigWebViewPreloaded
+    global ConfigWV2Ctrl, ConfigWV2
+
+    if (GuiID_ConfigGUI != 0)
+        return
+
+    ConfigGUI := Gui("+Resize -MaximizeBox +Owner", GetText("config_title"))
+    ConfigGUI.BackColor := "0a0a0a"
+
+    GuiID_ConfigGUI := ConfigGUI
+    ConfigWebViewMode := true
+    ConfigWV2Ready := false
+    ConfigWV2Ctrl := 0
+    ConfigWV2 := 0
+    ConfigWebViewPreloaded := false
+
+    ConfigGUI.OnEvent("Close", (*) => CloseConfigGUI())
+    ConfigGUI.OnEvent("Escape", (*) => CloseConfigGUI())
+    ConfigGUI.OnEvent("Size", ConfigWebView_OnSize)
+    ConfigGUI.Show("w980 h680 Hide")
+
+    WebView2.create(ConfigGUI.Hwnd, ConfigWebView_OnCreated)
+}
+
 ShowConfigWebViewGUI() {
-    global GuiID_ConfigGUI, GuiID_ClipboardManager, ConfigWebViewMode, ConfigWV2Ready
-    global ConfigWV2Ctrl, ConfigWV2, ConfigPanelScreenIndex
+    global GuiID_ConfigGUI, GuiID_ClipboardManager, ConfigPanelScreenIndex
     ; 单例
-    if (GuiID_ConfigGUI != 0) {
-        try {
-            WinActivate(GuiID_ConfigGUI.Hwnd)
-            return
-        } catch {
-            GuiID_ConfigGUI := 0
-        }
-    }
+    ConfigWebView_CreateHost()
+    if !GuiID_ConfigGUI
+        return
     ; 一次只显示一个面板
     if (GuiID_ClipboardManager != 0) {
         try {
@@ -16154,31 +16226,20 @@ ShowConfigWebViewGUI() {
         }
     }
 
-    ConfigGUI := Gui("+Resize -MaximizeBox", GetText("config_title"))
-    ConfigGUI.BackColor := "0a0a0a"
-
     ScreenInfo := GetScreenInfo(ConfigPanelScreenIndex)
     WinW := Max(980, Round(ScreenInfo.Width * 0.80))
     WinH := Max(680, Round(ScreenInfo.Height * 0.80))
     PosX := ScreenInfo.Left + Round((ScreenInfo.Width - WinW) / 2)
     PosY := ScreenInfo.Top + Round((ScreenInfo.Height - WinH) / 2)
 
-    GuiID_ConfigGUI := ConfigGUI
-    ConfigWebViewMode := true
-    ConfigWV2Ready := false
-    ConfigWV2Ctrl := 0
-    ConfigWV2 := 0
-
-    ConfigGUI.OnEvent("Close", (*) => CloseConfigGUI())
-    ConfigGUI.OnEvent("Escape", (*) => CloseConfigGUI())
-    ConfigGUI.OnEvent("Size", ConfigWebView_OnSize)
-    ConfigGUI.Show("w" . WinW . " h" . WinH . " x" . PosX . " y" . PosY)
-
-    WebView2.create(ConfigGUI.Hwnd, ConfigWebView_OnCreated)
+    GuiID_ConfigGUI.Show("w" . WinW . " h" . WinH . " x" . PosX . " y" . PosY)
+    OnMessage(0x0006, ConfigWebView_WM_ACTIVATE)
+    ConfigWebView_ApplyBounds()
+    SetTimer(ConfigWebView_FocusDeferred, -80)
 }
 
 ConfigWebView_OnCreated(ctrl) {
-    global ConfigWV2Ctrl, ConfigWV2, GuiID_ConfigGUI
+    global ConfigWV2Ctrl, ConfigWV2, GuiID_ConfigGUI, ConfigWebViewPreloaded
     ConfigWV2Ctrl := ctrl
     ConfigWV2 := ctrl.CoreWebView2
     try ConfigWV2Ctrl.DefaultBackgroundColor := 0xFF0A0A0A
@@ -16188,11 +16249,9 @@ ConfigWebView_OnCreated(ctrl) {
     s.AreDevToolsEnabled := true
     ConfigWV2.add_WebMessageReceived(ConfigWebView_OnMessage)
     ConfigWebView_ApplyBounds()
-    htmlPath := A_ScriptDir "\SettingsPanel.html"
-    if FileExist(htmlPath)
-        ConfigWV2.Navigate("file:///" . StrReplace(htmlPath, "\", "/"))
-    else
-        ConfigWV2.NavigateToString("<html><body style='background:#0a0a0a;color:#eee;font-family:Segoe UI'>SettingsPanel.html not found</body></html>")
+    try ApplyUnifiedWebViewAssets(ConfigWV2)
+    ConfigWV2.Navigate(BuildAppLocalUrl("SettingsPanel.html"))
+    ConfigWebViewPreloaded := true
 }
 
 ConfigWebView_OnSize(*) {
@@ -16210,6 +16269,21 @@ ConfigWebView_ApplyBounds() {
     rc.right := cw
     rc.bottom := ch
     ConfigWV2Ctrl.Bounds := rc
+}
+
+ConfigWebView_FocusDeferred(*) {
+    global GuiID_ConfigGUI
+    if GuiID_ConfigGUI {
+        try WinActivate(GuiID_ConfigGUI.Hwnd)
+    }
+}
+
+ConfigWebView_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
+    global GuiID_ConfigGUI, ConfigWebViewMode
+    if !ConfigWebViewMode || !GuiID_ConfigGUI
+        return
+    if (hwnd = GuiID_ConfigGUI.Hwnd && (wParam & 0xFFFF) = 0)
+        SetTimer(CloseConfigGUI, -50)
 }
 
 ConfigWebView_Send(msgMap) {
@@ -17240,21 +17314,9 @@ CloseConfigGUI() {
     ; WebView 设置页关闭路径（首期改造）
     if (ConfigWebViewMode) {
         try {
-            TempGUI := GuiID_ConfigGUI
-            GuiID_ConfigGUI := 0
-            if (ConfigWV2Ctrl)
-                ConfigWV2Ctrl := 0
-            if (ConfigWV2)
-                ConfigWV2 := 0
-            ConfigWV2Ready := false
-            ConfigWebViewMode := false
-            TempGUI.Destroy()
+            OnMessage(0x0006, ConfigWebView_WM_ACTIVATE, 0)
+            GuiID_ConfigGUI.Hide()
         } catch {
-            GuiID_ConfigGUI := 0
-            ConfigWV2Ctrl := 0
-            ConfigWV2 := 0
-            ConfigWV2Ready := false
-            ConfigWebViewMode := false
         }
         return
     }

@@ -36,7 +36,7 @@ SCWV_Init() {
     if g_SCWV_Gui
         return
 
-    g_SCWV_Gui := Gui("+AlwaysOnTop +Resize +MinSize760x540 +MinimizeBox +MaximizeBox +Caption -DPIScale", "搜索中心")
+    g_SCWV_Gui := Gui("+AlwaysOnTop +Resize +MinSize760x540 +MinimizeBox +MaximizeBox +Caption -DPIScale +Owner", "搜索中心")
     g_SCWV_Gui.BackColor := "1b1b1d"
     g_SCWV_Gui.MarginX := 0
     g_SCWV_Gui.MarginY := 0
@@ -66,9 +66,8 @@ SCWV_OnCreated(ctrl) {
     g_SCWV_WV2.add_WebMessageReceived(SCWV_OnWebMessage)
     try g_SCWV_WV2.add_NavigationCompleted(SCWV_OnNavigationCompleted)
 
-    htmlPath := A_ScriptDir "\SearchCenter.html"
-    if FileExist(htmlPath)
-        g_SCWV_WV2.Navigate("file:///" . StrReplace(htmlPath, "\", "/"))
+    try ApplyUnifiedWebViewAssets(g_SCWV_WV2)
+    g_SCWV_WV2.Navigate(BuildAppLocalUrl("SearchCenter.html"))
 }
 
 SCWV_OnGuiClose(*) {
@@ -143,6 +142,7 @@ SCWV_Show() {
 
     g_SCWV_Gui.Show("w1180 h760 Center")
     g_SCWV_Visible := true
+    OnMessage(0x0006, SCWV_WM_ACTIVATE)
 
     SCWV_RefreshComposition()
     SetTimer(SCWV_RefreshComposition, -120)
@@ -189,12 +189,23 @@ SCWV_Hide(PersistSelection := true) {
     }
 
     g_SCWV_Visible := false
+    OnMessage(0x0006, SCWV_WM_ACTIVATE, 0)
     GuiID_SearchCenter := 0
     SearchCenterInvalidateGuiControlRefs()
 
     if g_SCWV_Gui {
         try g_SCWV_Gui.Hide()
     }
+}
+
+SCWV_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
+    global g_SCWV_Gui, g_SCWV_Visible
+
+    if !g_SCWV_Visible || !g_SCWV_Gui
+        return
+
+    if (hwnd = g_SCWV_Gui.Hwnd && (wParam & 0xFFFF) = 0)
+        SetTimer(() => SCWV_Hide(true), -50)
 }
 
 SCWV_PostJson(jsonStr) {
@@ -603,17 +614,26 @@ _SCWV_BuildEnginePayload(CategoryKey) {
         payload.Push(Map(
             "name", engine.Name,
             "value", engine.Value,
-            "iconUrl", _SCWV_PathToFileUrl(iconPath)
+            "iconUrl", _SCWV_PathToWebAssetUrl(iconPath)
         ))
     }
     return payload
 }
 
-_SCWV_PathToFileUrl(path) {
+_SCWV_PathToWebAssetUrl(path) {
     p := Trim(path)
     if (p = "" || !FileExist(p))
         return ""
-    return "file:///" . StrReplace(p, "\", "/")
+
+    scriptRoot := StrReplace(A_ScriptDir, "\", "/")
+    normalized := StrReplace(p, "\", "/")
+    scriptRootWithSlash := scriptRoot . "/"
+    if (SubStr(normalized, 1, StrLen(scriptRootWithSlash)) = scriptRootWithSlash) {
+        relativePath := SubStr(normalized, StrLen(scriptRootWithSlash) + 1)
+        return BuildAppLocalUrl(relativePath)
+    }
+
+    return ""
 }
 
 _SCWV_CopyArray(arr) {
