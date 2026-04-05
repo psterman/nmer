@@ -85,6 +85,11 @@ InitClipboardFTS5DB() {
                 hasIconPath := false
                 hasLastCopyTime := false
                 hasCopyCount := false
+                hasSourceUrl := false
+                hasImageFormat := false
+                hasImageWidth := false
+                hasImageHeight := false
+                hasFileSize := false
                 
                 if (table.HasRows && table.Rows.Length > 0) {
                     Loop table.Rows.Length {
@@ -102,29 +107,51 @@ InitClipboardFTS5DB() {
                         if (columnName = "CopyCount") {
                             hasCopyCount := true
                         }
+                        if (columnName = "SourceUrl") {
+                            hasSourceUrl := true
+                        }
+                        if (columnName = "ImageFormat") {
+                            hasImageFormat := true
+                        }
+                        if (columnName = "ImageWidth") {
+                            hasImageWidth := true
+                        }
+                        if (columnName = "ImageHeight") {
+                            hasImageHeight := true
+                        }
+                        if (columnName = "FileSize") {
+                            hasFileSize := true
+                        }
                     }
                 }
                 
                 ; 添加缺失的字段（确保执行成功）
                 if (!hasSourcePath) {
-                    if (!ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN SourcePath TEXT")) {
-                        ; 如果失败，记录错误但不中断
-                    }
+                    ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN SourcePath TEXT")
                 }
                 if (!hasIconPath) {
-                    if (!ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN IconPath TEXT")) {
-                        ; 如果失败，记录错误但不中断
-                    }
+                    ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN IconPath TEXT")
                 }
                 if (!hasLastCopyTime) {
-                    if (!ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN LastCopyTime DATETIME DEFAULT (datetime('now', 'localtime'))")) {
-                        ; 如果失败，记录错误但不中断
-                    }
+                    ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN LastCopyTime DATETIME DEFAULT (datetime('now', 'localtime'))")
                 }
                 if (!hasCopyCount) {
-                    if (!ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN CopyCount INTEGER DEFAULT 1")) {
-                        ; 如果失败，记录错误但不中断
-                    }
+                    ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN CopyCount INTEGER DEFAULT 1")
+                }
+                if (!hasSourceUrl) {
+                    ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN SourceUrl TEXT")
+                }
+                if (!hasImageFormat) {
+                    ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN ImageFormat TEXT")
+                }
+                if (!hasImageWidth) {
+                    ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN ImageWidth INTEGER")
+                }
+                if (!hasImageHeight) {
+                    ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN ImageHeight INTEGER")
+                }
+                if (!hasFileSize) {
+                    ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN FileSize INTEGER")
                 }
             }
         } catch {
@@ -629,6 +656,59 @@ ClassifyContentType(content) {
     return "Text"
 }
 
+_ClipboardFTS5_IsImagePathOrUrl(value) {
+    s := Trim(String(value))
+    s := Trim(s, "'")
+    s := Trim(s, '"')
+    if (s = "")
+        return false
+    if RegExMatch(s, "i)^https?://\S+\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?\S*)?$")
+        return true
+    if RegExMatch(s, "i)^www\.\S+\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?\S*)?$")
+        return true
+    if RegExMatch(s, "i)^([A-Z]:\\|\\\\).+\.(png|jpg|jpeg|gif|webp|bmp|svg)$")
+        return true
+    return false
+}
+
+; 剪贴板为「单行 https 图链」时（无扩展名或常见图床路径），按图片记录以便列表与预览
+_ClipboardFTS5_IsLikelyRemoteImageUrl(value) {
+    s := Trim(String(value), " `t`r`n")
+    if (s = "" || InStr(s, "`n") || InStr(s, "`r"))
+        return false
+    if !RegExMatch(s, "i)^https?://\S+$")
+        return false
+    if RegExMatch(s, "i)\.(png|jpe?g|gif|webp|bmp|svg)(\?\S*)?($|#)")
+        return true
+    if RegExMatch(s, "i)/(image|img|photo|pics|pictures?|media|attachments|upload|avatar|cdn)/")
+        return true
+    return false
+}
+
+_ClipboardFTS5_ExtractImageRef(content) {
+    s := Trim(String(content), " `t`r`n")
+    if (s = "")
+        return ""
+    if _ClipboardFTS5_IsImagePathOrUrl(s)
+        return s
+    ; 正则里需要同时匹配 ' 与 "，用 Chr 拼接避免引号/转义被 AHK 解析器误判
+    ap := Chr(39), dq := Chr(34)
+    imgSrcPat := "i)<img\b[^>]*\bsrc\s*=\s*[" . ap . dq . "]([^" . ap . dq . "]+)[" . ap . dq . "]"
+    if RegExMatch(s, imgSrcPat, &m)
+        return m[1]
+    return ""
+}
+
+_ClipboardFTS5_GetClipboardHtmlImageRef() {
+    try {
+        clip := WinClip()
+        html := clip.GetHtml()
+        return _ClipboardFTS5_ExtractImageRef(html)
+    } catch {
+        return ""
+    }
+}
+
 ; ===================== 计算文本统计 =====================
 ; 计算字符数和词数
 CalculateTextStats(content) {
@@ -701,15 +781,13 @@ GenerateThumbnail(pBitmap, thumbSize := 64) {
         ; 清理图形对象
         Gdip_DeleteGraphics(pGraphics)
         
-        ; 使用 ImagePut 保存为 WebP 格式（体积更小，适合缩略图）
-        ; 对于缩略图，使用较高压缩率以进一步减小体积
-        TempFile := A_Temp "\clipboard_thumb_" A_TickCount ".webp"
+        ; 统一存为 JPG：与 ClipboardPanelCore._CP_ThumbnailToDataUrl 的 data:image/jpeg 前缀一致
+        ; （若用 WebP 字节却标成 jpeg，WebView 中列表缩略图会解码失败）
+        TempFile := A_Temp "\clipboard_thumb_" A_TickCount ".jpg"
         try {
-            ImagePut("File", pThumbBitmap, TempFile, 80)  ; 80% 质量，缩略图不需要太高画质
+            ImagePut("File", pThumbBitmap, TempFile, 85)
         } catch {
-            ; 如果 WebP 失败，回退到 JPG
-            TempFile := A_Temp "\clipboard_thumb_" A_TickCount ".jpg"
-            ImagePut("File", pThumbBitmap, TempFile, 85)  ; 85% 质量
+            return ""
         }
         
         ; 清理位图
@@ -815,6 +893,15 @@ SaveToClipboardFTS5(content, SourceApp := "Unknown", detectedType := "") {
         } else {
             dataType := ClassifyContentType(content)
         }
+
+        imageRef := _ClipboardFTS5_ExtractImageRef(content)
+        if (imageRef = "")
+            imageRef := _ClipboardFTS5_GetClipboardHtmlImageRef()
+        if (imageRef != "") {
+            dataType := "Image"
+        }
+        escapedImageRef := StrReplace(imageRef, "'", "''")
+        escapedImageRef := StrReplace(escapedImageRef, "\", "\\")
         
         ; 计算统计信息
         stats := CalculateTextStats(content)
@@ -901,6 +988,11 @@ SaveToClipboardFTS5(content, SourceApp := "Unknown", detectedType := "") {
             if (hasIconPath) {
                 SQL .= ", IconPath = '" . escapedIconPath . "'"
             }
+            SQL .= ", DataType = '" . dataType . "'"
+            SQL .= ", CharCount = " . charCount
+            if (imageRef != "") {
+                SQL .= ", ImagePath = '" . escapedImageRef . "'"
+            }
             SQL .= " WHERE ID = " . existingID
         } else {
             ; 插入新记录（动态构建字段列表）
@@ -911,7 +1003,7 @@ SaveToClipboardFTS5(content, SourceApp := "Unknown", detectedType := "") {
             if (hasIconPath) {
                 SQL .= ", IconPath"
             }
-            SQL .= ", DataType, CharCount, Timestamp"
+            SQL .= ", DataType, CharCount, ImagePath, Timestamp"
             if (hasLastCopyTime) {
                 SQL .= ", LastCopyTime"
             }
@@ -925,7 +1017,7 @@ SaveToClipboardFTS5(content, SourceApp := "Unknown", detectedType := "") {
             if (hasIconPath) {
                 SQL .= ", '" . escapedIconPath . "'"
             }
-            SQL .= ", '" . dataType . "', " . charCount . ", datetime('now', 'localtime')"
+            SQL .= ", '" . dataType . "', " . charCount . ", '" . escapedImageRef . "', datetime('now', 'localtime')"
             if (hasLastCopyTime) {
                 SQL .= ", datetime('now', 'localtime')"
             }
@@ -1021,8 +1113,13 @@ CaptureClipboardTextToFTS5(SourceApp) {
             return false
         }
 
-        ; 分类内容类型
+        ; 分类内容类型（纯 https 图链按 Image 存，并写入 ImagePath 供 WebView 预览）
         dataType := ClassifyContentType(content)
+        imagePathForRow := ""
+        if (_ClipboardFTS5_IsLikelyRemoteImageUrl(content)) {
+            dataType := "Image"
+            imagePathForRow := Trim(content, " `t`r`n")
+        }
         DebugLog("内容类型: " . dataType)
 
         ; 计算统计信息
@@ -1031,8 +1128,11 @@ CaptureClipboardTextToFTS5(SourceApp) {
         DebugLog("字符数: " . charCount)
 
         ; 插入到主表
-        SQL := "INSERT INTO ClipMain (Content, SourceApp, DataType, CharCount, Timestamp) " .
-               "VALUES (?, ?, ?, ?, datetime('now', 'localtime'))"
+        SQL := imagePathForRow != ""
+            ? "INSERT INTO ClipMain (Content, SourceApp, DataType, CharCount, ImagePath, Timestamp) " .
+              "VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'))"
+            : "INSERT INTO ClipMain (Content, SourceApp, DataType, CharCount, Timestamp) " .
+              "VALUES (?, ?, ?, ?, datetime('now', 'localtime'))"
         DebugLog("准备SQL语句")
 
         stmt := ""
@@ -1046,6 +1146,8 @@ CaptureClipboardTextToFTS5(SourceApp) {
         stmt.Bind(2, SourceApp)
         stmt.Bind(3, dataType)
         stmt.Bind(4, charCount)
+        if (imagePathForRow != "")
+            stmt.Bind(5, imagePathForRow)
         DebugLog("参数绑定完成")
 
         if (!stmt.Step()) {
@@ -1068,7 +1170,8 @@ CaptureClipboardTextToFTS5(SourceApp) {
 }
 
 ; ===================== 采集图片到数据库（使用 ImagePut 优化） =====================
-CaptureClipboardImageToFTS5(SourceApp) {
+; SourceUrl: 网页复制图片时的原始 URL（可选）
+CaptureClipboardImageToFTS5(SourceApp, SourceUrl := "") {
     global ClipboardFTS5DB
     
     try {
@@ -1080,30 +1183,34 @@ CaptureClipboardImageToFTS5(SourceApp) {
         }
         
         ; 使用 ImagePutBitmap 直接从剪贴板获取位图（自动处理所有格式）
-        ; ImagePut 会自动检测并转换剪贴板中的任何图片格式，无需手动判断
         pBitmap := ImagePutBitmap(A_Clipboard)
         
         if (!pBitmap || pBitmap = "") {
             return false
         }
         
-        ; 生成唯一文件名（使用 WebP 格式以减少缓存体积，通常比 PNG 小 25-35%）
+        ; 获取图片尺寸
+        dims := ImageDimensions(pBitmap)
+        imgWidth := dims[1]
+        imgHeight := dims[2]
+        
+        ; 生成唯一文件名（使用 WebP 格式以减少缓存体积）
         timestamp := FormatTime(, "yyyyMMddHHmmss")
         imageFileName := "IMG_" . timestamp . "_" . A_TickCount . ".webp"
         imagePath := CacheDir "\" . imageFileName
+        imageFormat := "webp"
         
-        ; 使用 ImagePut 保存为 WebP 格式（高质量，体积更小）
-        ; WebP 格式在保持高质量的同时显著减少文件大小，适合长期存储
+        ; 使用 ImagePut 保存为 WebP 格式
         try {
-            ImagePut("File", pBitmap, imagePath, 90)  ; 90% 质量，平衡文件大小和画质
+            ImagePut("File", pBitmap, imagePath, 90)
         } catch as err {
             ; 如果 WebP 保存失败，回退到 PNG 格式
             try {
                 imageFileName := "IMG_" . timestamp . "_" . A_TickCount . ".png"
                 imagePath := CacheDir "\" . imageFileName
+                imageFormat := "png"
                 ImagePut("File", pBitmap, imagePath)
             } catch as err2 {
-                ; 如果保存失败，清理资源并返回
                 ImageDestroy(pBitmap)
                 return false
             }
@@ -1112,42 +1219,117 @@ CaptureClipboardImageToFTS5(SourceApp) {
         ; 生成缩略图（Base64）
         thumbnailBase64 := GenerateThumbnail(pBitmap)
         
-        ; 清理位图资源（使用 ImagePut 的统一清理函数）
+        ; 清理位图资源
         ImageDestroy(pBitmap)
         
-        ; 插入到数据库
-        SQL := "INSERT INTO ClipMain (Content, SourceApp, DataType, CharCount, ImagePath, ThumbnailData, Timestamp) " .
-               "VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))"
+        ; 获取文件大小
+        fileSize := 0
+        try fileSize := FileGetSize(imagePath)
+        
+        ; 插入到数据库（含新字段）
+        SQL := "INSERT INTO ClipMain (Content, SourceApp, DataType, CharCount, ImagePath, ThumbnailData, " .
+               "SourceUrl, ImageFormat, ImageWidth, ImageHeight, FileSize, Timestamp) " .
+               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))"
         
         stmt := ""
         if (!ClipboardFTS5DB.Prepare(SQL, &stmt)) {
             return false
         }
         
-        ; Content 字段存储图片路径（便于检索）
         stmt.Bind(1, imagePath)
         stmt.Bind(2, SourceApp)
         stmt.Bind(3, "Image")
-        stmt.Bind(4, 0)  ; 图片没有字符数
+        stmt.Bind(4, 0)
         stmt.Bind(5, imagePath)
-        
-        ; 绑定缩略图数据（Base64 字符串）
-        if (thumbnailBase64 != "") {
-            stmt.Bind(6, thumbnailBase64)
-        } else {
-            stmt.Bind(6, "")
-        }
+        stmt.Bind(6, thumbnailBase64 != "" ? thumbnailBase64 : "")
+        stmt.Bind(7, SourceUrl)
+        stmt.Bind(8, imageFormat)
+        stmt.Bind(9, imgWidth)
+        stmt.Bind(10, imgHeight)
+        stmt.Bind(11, fileSize)
         
         if (!stmt.Step()) {
             stmt.Free()
             return false
         }
         
-        rowid := ClipboardFTS5DB.LastInsertRowID()
         stmt.Free()
-        
         return true
         
+    } catch as err {
+        return false
+    }
+}
+
+; ===================== 采集本地图片文件到数据库 =====================
+; 用于资源管理器复制文件时，将图片文件直接记录（不复制位图）
+CaptureImageFileToFTS5(filePath, SourceApp) {
+    global ClipboardFTS5DB
+    
+    if (!ClipboardFTS5DB || ClipboardFTS5DB = 0)
+        return false
+    if (!FileExist(filePath))
+        return false
+    
+    ; 检查是否为图片扩展名
+    SplitPath(filePath, , , &ext)
+    ext := StrLower(ext)
+    if !RegExMatch(ext, "^(png|jpe?g|gif|webp|bmp|ico|svg)$")
+        return false
+    
+    try {
+        ; 获取文件大小
+        fileSize := 0
+        try fileSize := FileGetSize(filePath)
+        
+        ; 获取图片尺寸
+        imgWidth := 0
+        imgHeight := 0
+        pBitmap := 0
+        try {
+            pBitmap := Gdip_CreateBitmapFromFile(filePath)
+            if (pBitmap && pBitmap > 0) {
+                Gdip_GetImageDimensions(pBitmap, &imgWidth, &imgHeight)
+            }
+        } catch {
+        }
+        
+        ; 生成缩略图
+        thumbnailBase64 := ""
+        if (pBitmap && pBitmap > 0) {
+            try thumbnailBase64 := GenerateThumbnail(pBitmap)
+            Gdip_DisposeImage(pBitmap)
+        }
+        
+        ; 图片格式
+        imageFormat := ext = "jpeg" ? "jpg" : ext
+        
+        ; 插入数据库
+        SQL := "INSERT INTO ClipMain (Content, SourceApp, DataType, CharCount, ImagePath, ThumbnailData, " .
+               "ImageFormat, ImageWidth, ImageHeight, FileSize, Timestamp) " .
+               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))"
+        
+        stmt := ""
+        if (!ClipboardFTS5DB.Prepare(SQL, &stmt))
+            return false
+        
+        stmt.Bind(1, filePath)
+        stmt.Bind(2, SourceApp)
+        stmt.Bind(3, "Image")
+        stmt.Bind(4, 0)
+        stmt.Bind(5, filePath)
+        stmt.Bind(6, thumbnailBase64)
+        stmt.Bind(7, imageFormat)
+        stmt.Bind(8, imgWidth)
+        stmt.Bind(9, imgHeight)
+        stmt.Bind(10, fileSize)
+        
+        if (!stmt.Step()) {
+            stmt.Free()
+            return false
+        }
+        stmt.Free()
+        return true
     } catch as err {
         return false
     }

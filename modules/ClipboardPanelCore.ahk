@@ -17,6 +17,25 @@ global g_CP_TitleH := 0
 global g_CP_FocusPending := false
 global g_CP_WM_ActivateHideCallback := 0
 
+_CP_HasClipMainColumn(colName) {
+    global ClipboardFTS5DB
+    if !ClipboardFTS5DB || ClipboardFTS5DB = 0
+        return false
+    try {
+        table := ""
+        if ClipboardFTS5DB.GetTable("PRAGMA table_info(ClipMain)", &table) {
+            if table.HasRows && table.Rows.Length > 0 {
+                Loop table.Rows.Length {
+                    if (table.Rows[A_Index][2] = colName)
+                        return true
+                }
+            }
+        }
+    } catch {
+    }
+    return false
+}
+
 ; ══════════════════════════════════════════════════════════════════════════
 ; _CP_LSP_Hints — 永远不被调用；仅让语言服务器看到外部符号的赋值语句，
 ;                 从而消除 "never assigned" 静态分析警告。
@@ -367,6 +386,10 @@ _CP_OnWebMessage(sender, args) {
             if msg.Has("id")
                 _CP_DoPastePath(msg["id"], _CP_MsgKeepOpen(msg))
 
+        case "ocrImage":
+            if msg.Has("id")
+                _CP_DoOcrImage(msg["id"], _CP_MsgKeepOpen(msg))
+
         case "loadMore":
             offset := msg.Has("offset") ? Integer(msg["offset"]) : 0
             _CP_DoLoadMore(offset)
@@ -511,6 +534,12 @@ _CP_BuildSelectFields() {
     hasLastCopyTime := false
     hasIconPath := false
     hasSourcePath := false
+    hasThumbnailData := false
+    hasSourceUrl := false
+    hasImageFormat := false
+    hasImageWidth := false
+    hasImageHeight := false
+    hasFileSize := false
 
     try {
         table := ""
@@ -524,6 +553,18 @@ _CP_BuildSelectFields() {
                         hasIconPath := true
                     if colName = "SourcePath"
                         hasSourcePath := true
+                    if colName = "ThumbnailData"
+                        hasThumbnailData := true
+                    if colName = "SourceUrl"
+                        hasSourceUrl := true
+                    if colName = "ImageFormat"
+                        hasImageFormat := true
+                    if colName = "ImageWidth"
+                        hasImageWidth := true
+                    if colName = "ImageHeight"
+                        hasImageHeight := true
+                    if colName = "FileSize"
+                        hasFileSize := true
                 }
             }
         }
@@ -543,6 +584,30 @@ _CP_BuildSelectFields() {
         fields .= ", SourcePath"
     else
         fields .= ", '' AS SourcePath"
+    if hasThumbnailData
+        fields .= ", ThumbnailData"
+    else
+        fields .= ", '' AS ThumbnailData"
+    if hasSourceUrl
+        fields .= ", SourceUrl"
+    else
+        fields .= ", '' AS SourceUrl"
+    if hasImageFormat
+        fields .= ", ImageFormat"
+    else
+        fields .= ", '' AS ImageFormat"
+    if hasImageWidth
+        fields .= ", ImageWidth"
+    else
+        fields .= ", 0 AS ImageWidth"
+    if hasImageHeight
+        fields .= ", ImageHeight"
+    else
+        fields .= ", 0 AS ImageHeight"
+    if hasFileSize
+        fields .= ", FileSize"
+    else
+        fields .= ", 0 AS FileSize"
 
     return fields
 }
@@ -572,6 +637,8 @@ _CP_BuildWhereClause(keyword, filterType := "all") {
     conditions := []
     if filterType = "favorite"
         conditions.Push("IsFavorite = 1")
+    else if filterType = "image"
+        conditions.Push("(LOWER(DataType) = 'image' OR LOWER(DataType) = 'screenshot')")
     else if filterType != "all"
         conditions.Push("LOWER(DataType) = '" . filterType . "'")
 
@@ -633,7 +700,7 @@ _CP_JoinConditions(conditions) {
 
 _CP_RowToMap(row, columnIndexMap) {
     item := Map()
-    for key in ["ID", "Content", "SourceApp", "DataType", "CharCount", "Timestamp", "ImagePath", "IsFavorite", "LastCopyTime", "IconPath", "SourcePath"] {
+    for key in ["ID", "Content", "SourceApp", "DataType", "CharCount", "Timestamp", "ImagePath", "IsFavorite", "LastCopyTime", "IconPath", "SourcePath", "ThumbnailData", "SourceUrl", "ImageFormat", "ImageWidth", "ImageHeight", "FileSize"] {
         item[key] := columnIndexMap.Has(key) ? row[columnIndexMap[key]] : ""
     }
     return item
@@ -664,6 +731,8 @@ _CP_ItemToJson(item) {
     isFavorite := item.Has("IsFavorite") ? item["IsFavorite"] : 0
     iconPath := item.Has("IconPath") ? item["IconPath"] : ""
     sourcePath := item.Has("SourcePath") ? item["SourcePath"] : ""
+    thumbnailData := item.Has("ThumbnailData") ? item["ThumbnailData"] : ""
+    thumbDataUrl := _CP_ThumbnailToDataUrl(thumbnailData)
 
     json := '{"id":' . id
     json .= ',"content":' . _CP_JsonStr(content)
@@ -675,6 +744,7 @@ _CP_ItemToJson(item) {
     json .= ',"isFavorite":' . (isFavorite ? 1 : 0)
     json .= ',"iconPath":' . _CP_JsonStr(iconPath)
     json .= ',"sourcePath":' . _CP_JsonStr(sourcePath)
+    json .= ',"thumbDataUrl":' . _CP_JsonStr(thumbDataUrl)
     json .= '}'
     return json
 }
@@ -992,6 +1062,136 @@ _CP_DoPastePath(id, keepOpen := false) {
 }
 
 ; ===================== 操作：获取预览 =====================
+_CP_MimeFromImageExt(ext) {
+    ext := StrLower(Trim(String(ext), "."))
+    switch ext {
+        case "jpg", "jpeg":
+            return "image/jpeg"
+        case "png":
+            return "image/png"
+        case "gif":
+            return "image/gif"
+        case "webp":
+            return "image/webp"
+        case "bmp":
+            return "image/bmp"
+        default:
+            return "application/octet-stream"
+    }
+}
+
+; WebView2 常拦截 file:// 本地图，用 data: 最稳；ImagePut 失败时再读文件原始字节
+_CP_LocalFileRawBase64DataUrl(path) {
+    p := Trim(String(path))
+    if (p = "" || !FileExist(p))
+        return ""
+    try {
+        SplitPath(p, , , &ext)
+        mime := _CP_MimeFromImageExt(ext)
+        buf := FileRead(p, "RAW")
+        if !IsObject(buf) || buf.Size = 0
+            return ""
+        b64 := Base64Encode(buf)
+        if (b64 = "")
+            return ""
+        return "data:" . mime . ";base64," . b64
+    } catch as err {
+        OutputDebug("[CP] LocalFileRawBase64DataUrl error: " . err.Message)
+        return ""
+    }
+}
+
+_CP_ImagePathToDataUrl(imagePath) {
+    p := Trim(String(imagePath))
+    if (p = "" || !FileExist(p))
+        return ""
+    try {
+        u := (%"ImagePut"%).Call("URI", p, "png")
+        if (u != "" && SubStr(u, 1, 5) = "data:")
+            return u
+    } catch as err {
+        OutputDebug("[CP] ImagePathToDataUrl ImagePut: " . err.Message)
+    }
+    return _CP_LocalFileRawBase64DataUrl(p)
+}
+
+_CP_ThumbnailToDataUrl(thumbnailData) {
+    if !thumbnailData || thumbnailData = ""
+        return ""
+    return "data:image/jpeg;base64," . thumbnailData
+}
+
+_CP_GetImageInfo(imagePath) {
+    info := Map("width", 0, "height", 0, "fileSize", 0, "fileName", "")
+    p := Trim(String(imagePath))
+    if (p = "" || !FileExist(p))
+        return info
+    try SplitPath(p, &fileName)
+    catch
+        fileName := ""
+    info["fileName"] := fileName
+    try info["fileSize"] := FileGetSize(p)
+    catch
+        info["fileSize"] := 0
+    try {
+        pBitmap := (%"Gdip_CreateBitmapFromFile"%).Call(p)
+        if pBitmap {
+            imgWidth := 0
+            imgHeight := 0
+            (%"Gdip_GetImageDimensions"%).Call(pBitmap, &imgWidth, &imgHeight)
+            info["width"] := imgWidth
+            info["height"] := imgHeight
+            (%"Gdip_DisposeImage"%).Call(pBitmap)
+        }
+    } catch as err {
+        OutputDebug("[CP] GetImageInfo error: " . err.Message)
+    }
+    return info
+}
+
+_CP_FormatBytes(bytes) {
+    if !IsNumber(bytes)
+        return ""
+    if (bytes < 1024)
+        return bytes . " B"
+    if (bytes < 1048576)
+        return Round(bytes / 1024, 2) . " KB"
+    if (bytes < 1073741824)
+        return Round(bytes / 1048576, 2) . " MB"
+    return Round(bytes / 1073741824, 2) . " GB"
+}
+
+_CP_DoOcrImage(id, keepOpen := false) {
+    row := _CP_GetClipRow(id)
+    dt := StrLower(row["dataType"] . "")
+    imagePath := row["imagePath"] . ""
+    if ((dt != "image" && dt != "screenshot") || imagePath = "" || !FileExist(imagePath)) {
+        TrayTip("OCR", "当前项目不是有效图片", "Iconx 1")
+        return
+    }
+    try {
+        result := OCR.FromFile(imagePath)
+        text := ""
+        try text := result.Text
+        catch {
+            text := ""
+        }
+        text := Trim(text)
+        if (text = "") {
+            TrayTip("OCR", "未识别到文本", "Iconi 1")
+            return
+        }
+        A_Clipboard := text
+        try ShowExtractedTextWindow(text)
+        catch {
+            MsgBox(text, "图片 OCR")
+        }
+        _CP_MaybeHide(keepOpen)
+    } catch as err {
+        TrayTip("OCR", "识别失败: " . err.Message, "Iconx 1")
+    }
+}
+
 _CP_DoGetPreview(id) {
     global ClipboardFTS5DB
 
@@ -1018,16 +1218,60 @@ _CP_DoGetPreview(id) {
                 charCount := item.Has("CharCount") ? item["CharCount"] : 0
                 sortTime := item.Has("LastCopyTime") ? item["LastCopyTime"] : ""
                 imagePath := item.Has("ImagePath") ? item["ImagePath"] : ""
+                thumbnailData := item.Has("ThumbnailData") ? item["ThumbnailData"] : ""
+                thumbDataUrl := _CP_ThumbnailToDataUrl(thumbnailData)
+                imageDataUrl := ""
+                ip := Trim(String(imagePath))
+                if ((StrLower(dataType) = "image" || StrLower(dataType) = "screenshot") && ip != "") {
+                    if RegExMatch(ip, "i)^https?://") {
+                        ; 网页图片：由前端直接用 URL 加载，不转 data:
+                        imageDataUrl := ""
+                    } else if FileExist(ip) {
+                        imageDataUrl := _CP_ImagePathToDataUrl(ip)
+                        if (imageDataUrl = "" && thumbDataUrl != "")
+                            imageDataUrl := thumbDataUrl
+                    }
+                }
+                imageInfo := _CP_GetImageInfo(imagePath)
+
+                ; 获取新字段
+                sourceUrl := item.Has("SourceUrl") ? item["SourceUrl"] : ""
+                imageFormat := item.Has("ImageFormat") ? item["ImageFormat"] : ""
+                dbImageWidth := item.Has("ImageWidth") ? item["ImageWidth"] : 0
+                dbImageHeight := item.Has("ImageHeight") ? item["ImageHeight"] : 0
+                dbFileSize := item.Has("FileSize") ? item["FileSize"] : 0
+
+                ; 优先使用数据库中的元信息，fallback 到动态获取
+                finalWidth := dbImageWidth ? dbImageWidth : imageInfo["width"]
+                finalHeight := dbImageHeight ? dbImageHeight : imageInfo["height"]
+                finalFileSize := dbFileSize ? dbFileSize : imageInfo["fileSize"]
+
+                ; 图片格式：优先数据库，否则从文件扩展名推断
+                if (imageFormat = "" && imagePath != "") {
+                    SplitPath(imagePath, , , &ext)
+                    imageFormat := StrLower(ext)
+                }
 
                 json := '{"type":"preview","id":' . id
                 json .= ',"content":' . _CP_JsonStr(content)
                 json .= ',"dataType":' . _CP_JsonStr(dataType)
                 json .= ',"imagePath":' . _CP_JsonStr(imagePath)
+                json .= ',"imageDataUrl":' . _CP_JsonStr(imageDataUrl)
+                json .= ',"thumbDataUrl":' . _CP_JsonStr(thumbDataUrl)
+                json .= ',"sourceUrl":' . _CP_JsonStr(sourceUrl)
+                json .= ',"imageFormat":' . _CP_JsonStr(imageFormat)
                 json .= ',"meta":{'
                 json .= '"charCount":' . (charCount ? charCount : StrLen(content))
                 json .= ',"sourceApp":' . _CP_JsonStr(sourceApp)
                 json .= ',"time":' . _CP_JsonStr(sortTime)
                 json .= ',"dataType":' . _CP_JsonStr(dataType)
+                json .= ',"imageWidth":' . finalWidth
+                json .= ',"imageHeight":' . finalHeight
+                json .= ',"fileSize":' . finalFileSize
+                json .= ',"fileSizeText":' . _CP_JsonStr(_CP_FormatBytes(finalFileSize))
+                json .= ',"fileName":' . _CP_JsonStr(imageInfo["fileName"])
+                json .= ',"sourceUrl":' . _CP_JsonStr(sourceUrl)
+                json .= ',"imageFormat":' . _CP_JsonStr(imageFormat)
                 json .= '}}'
 
                 CP_SendToWeb(json)

@@ -144,8 +144,8 @@ global MainScriptDir := A_ScriptDir
 #Include modules\AIListPanel.ahk
 #Include modules\PromptQuickPadCore.ahk
 #Include modules\SearchCenterWebViewCore.ahk
-#Include modules\PromptQuickPadCapsLockB.ahk
 #Include modules\SelectionSenseCore.ahk
+#Include modules\PromptQuickPadCapsLockB.ahk
 
 ; ===================== Everything API 封装 =====================
 ; Everything API 封装
@@ -3275,7 +3275,7 @@ Global_InitAllPanels(*) {
 
     WebViewWarmupStarted := true
     WebViewWarmupIndex := 0
-    WebViewWarmupQueue := [CP_Init, PQP_Init, SCWV_Init, SelectionSense_WarmupMenuHost, VK_EnsureInit.Bind(true)]
+    WebViewWarmupQueue := [CP_Init, PQP_Init, SCWV_Init, VK_EnsureInit.Bind(true)]
     SetTimer(_RunWebViewWarmupStep, -10)
     SetTimer(_WarmupConfigWebView, -5000)
 }
@@ -3302,14 +3302,13 @@ SetTimer(Global_InitAllPanels, -1200)
 InitFloatingToolbar()
 ; 显示悬浮工具栏（随主脚本运行）
 ShowFloatingToolbar()
+SelectionSense_Init()
 ; 加载提示词模板系统（在配置初始化后）
 LoadPromptTemplates()
 ; 同步提示词模板到数据库
 SyncPromptTemplatesToDB()
 ; Prompt Quick-Pad：选区采集热键（需在 CursorShortcut.ini [Settings] 中设置 PromptQuickCaptureHotkey，如 ^!p）
 PromptQuickPad_RegisterCaptureHotkey()
-; 初始化选区感应模块（选中文本弹出菜单）
-SelectionSense_Init()
 
 ; ===================== 剪贴板变化监听 =====================
 ; 注意：OnClipboardChange 必须在脚本启动时注册，确保在 InitConfig 之后定义
@@ -30509,9 +30508,6 @@ ProcessOCRTextPreserveLayout(Text) {
     ; 2. 去除 HTML 标签
     Text := RemoveHTMLTags(Text)
     
-    ; 2b. Windows OCR 常在相邻汉字间插入空格，保留换行前提下去掉
-    Text := RemoveSpacesBetweenChinese(Text)
-    
     ; 3. 去除多余的空格（但保留换行和基本布局）
     ; 去除行首行尾空格
     Lines := StrSplit(Text, "`n")
@@ -30758,11 +30754,31 @@ ExtractTextAutoFlow() {
     }
 }
 
-; 去除中文字符之间的空格（Windows.Media.Ocr 常在汉字间插入空格/全角空格）
+; 去除中文字符之间的空格
 RemoveSpacesBetweenChinese(Text) {
-    ; CJK 统一汉字 + 扩展 A；匹配其间半角/全角空白（含连续多个）
-    Han := "\x{3400}-\x{4dbf}\x{4e00}-\x{9fff}"
-    return RegExReplace(Text, "(?<=[" Han "])[\x{20}\x{3000}]+(?=[" Han "])", "")
+    ; 简单的实现：遍历文本，如果遇到中文字符-空格-中文字符的模式，删除空格
+    Result := ""
+    TextLen := StrLen(Text)
+    
+    Loop TextLen {
+        CurrentChar := SubStr(Text, A_Index, 1)
+        NextChar := (A_Index < TextLen) ? SubStr(Text, A_Index + 1, 1) : ""
+        PrevChar := (A_Index > 1) ? SubStr(Text, A_Index - 1, 1) : ""
+        
+        ; 检查是否是中文字符（Unicode 范围：\u4e00-\u9fff）
+        IsChinese := (Ord(CurrentChar) >= 0x4E00 && Ord(CurrentChar) <= 0x9FFF)
+        IsPrevChinese := (PrevChar != "" && Ord(PrevChar) >= 0x4E00 && Ord(PrevChar) <= 0x9FFF)
+        IsNextChinese := (NextChar != "" && Ord(NextChar) >= 0x4E00 && Ord(NextChar) <= 0x9FFF)
+        
+        ; 如果是空格，且前后都是中文，则跳过（不添加到结果）
+        if (CurrentChar = " " && IsPrevChinese && IsNextChinese) {
+            continue
+        }
+        
+        Result .= CurrentChar
+    }
+    
+    return Result
 }
 
 ; ===================== 文本净化功能 =====================
@@ -35733,9 +35749,6 @@ ExecuteScreenshotOCR() {
             return
         }
         
-        cleanedText := FixOCREncodingErrors(cleanedText)
-        cleanedText := RemoveSpacesBetweenChinese(cleanedText)
-        
         ; 显示OCR结果
         OCRResultGui := Gui("+AlwaysOnTop -Caption")
         OCRResultGui.BackColor := UI_Colors.Background
@@ -35834,9 +35847,6 @@ PasteScreenshotAsText() {
             TrayTip("错误", "未识别到文字", "Iconx 2")
             return
         }
-
-        recognizedText := FixOCREncodingErrors(recognizedText)
-        recognizedText := RemoveSpacesBetweenChinese(recognizedText)
 
         ; 将识别结果复制到剪贴板
         A_Clipboard := recognizedText

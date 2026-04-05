@@ -173,7 +173,6 @@ FloatingToolbar_ApplyWebViewBounds() {
     }
 }
 
-; 虚拟主机 URL（与脚本目录相对），供 WebView 加载牛马/logo 等（避免手写中文路径在 HTML 里失效）
 FloatingToolbar_GetLogoAppUrl() {
     if !IsSet(BuildAppLocalUrl)
         return ""
@@ -205,21 +204,8 @@ FloatingToolbar_PushLogoToWeb(*) {
     if (url = "")
         return
     try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_logo", "url", url))
-    catch {
+    catch as _e {
     }
-}
-
-; WebView 内发起拖动时延迟投递，并 ReleaseCapture，避免子窗口吞掉标题栏拖动
-FloatingToolbar_PostDragHost(*) {
-    global FloatingToolbarGUI, FloatingToolbarDragging
-    if !FloatingToolbarGUI
-        return
-    try DllCall("user32\ReleaseCapture")
-    catch {
-    }
-    FloatingToolbarDragging := true
-    PostMessage(0x00A1, 2, 0, FloatingToolbarGUI.Hwnd)
-    SetTimer(FloatingToolbarCheckDragEnd, 50)
 }
 
 FloatingToolbar_OnWebMessage(sender, args) {
@@ -245,6 +231,7 @@ FloatingToolbar_OnWebMessage(sender, args) {
         g_FTB_WV2_Ready := true
         FloatingToolbar_ApplyWebViewBounds()
         SetTimer(FloatingToolbar_PushLogoToWeb, -10)
+        try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_scale", "scale", FloatingToolbarScale))
         if (g_FTB_PendingSelection != "") {
             pv := SubStr(String(g_FTB_PendingSelection), 1, 220)
             try WebView_QueuePayload(g_FTB_WV2, Map("type", "SELECTION_CHANGE", "preview", pv))
@@ -288,8 +275,12 @@ FloatingToolbar_OnWebMessage(sender, args) {
     }
 
     if (typ = "drag_host") {
-        if FloatingToolbarGUI
-            SetTimer(FloatingToolbar_PostDragHost, -1)
+        if FloatingToolbarGUI {
+            global FloatingToolbarDragging
+            FloatingToolbarDragging := true
+            PostMessage(0x00A1, 2, 0, FloatingToolbarGUI.Hwnd)
+            SetTimer(FloatingToolbarCheckDragEnd, 50)
+        }
         return
     }
 
@@ -304,17 +295,6 @@ FloatingToolbar_OnWebMessage(sender, args) {
         x := msg.Has("x") ? Integer(msg["x"]) : 0
         y := msg.Has("y") ? Integer(msg["y"]) : 0
         ShowFloatingToolbarUnifiedContextMenu(x, y)
-        return
-    }
-    
-    ; ==================== SuperHub 按钮矩形上报 ====================
-    if (typ = "button_rects") {
-        if msg.Has("rects") {
-            rects := msg["rects"]
-            if (rects is Map) {
-                Hub_UpdateButtonRects(rects)
-            }
-        }
         return
     }
 }
@@ -334,7 +314,7 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
                 SetCapsLockState("Off")
             }
         case "Record":
-            try CP_Show()
+            try ShowClipboardHistoryPanel()
             catch as err {
                 SetCapsLockState("AlwaysOff")
                 Sleep(30)
@@ -352,20 +332,9 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
                 TrayTip("AI选择面板加载失败: " . err.Message, "错误", "Iconx 2")
             }
         case "PromptNew":
-            try PromptQuickPad_OpenCaptureDraft("", true)
+            try SelectionSense_OpenHubCapsuleFromToolbar()
             catch as err {
-                TrayTip("新提示词: " . err.Message, "Prompt Quick-Pad", "Iconx 2")
-            }
-        case "HubCapsule":
-            try SelectionSense_ActivateHubCapsule()
-            catch as err {
-                ; Fallback: open SelectionSense host directly when helper entry is unavailable.
-                try {
-                    SelectionSense_ShowMenuNearCursor()
-                    return
-                } catch {
-                }
-                try TrayTip("HubCapsule 打开失败: " . err.Message, "HubCapsule", "Iconx 2")
+                try TrayTip("无法打开 HubCapsule（需包含 SelectionSenseCore.ahk）: " . err.Message, "新", "Iconx 2")
                 catch {
                 }
             }
@@ -447,7 +416,7 @@ FloatingToolbarWM_MOUSEWHEEL(wParam, lParam, msg, hwnd) {
 
 FloatingToolbarApplyWheelDelta(delta) {
     global FloatingToolbarGUI, FloatingToolbarScale, FloatingToolbarMinScale, FloatingToolbarMaxScale
-    global FloatingToolbarWindowX, FloatingToolbarWindowY
+    global FloatingToolbarWindowX, FloatingToolbarWindowY, g_FTB_WV2
 
     scaleStep := 0.15
     newScale := FloatingToolbarScale
@@ -495,6 +464,10 @@ FloatingToolbarApplyWheelDelta(delta) {
         FloatingToolbarGUI.Move(newX, newY, ToolbarWidth, ToolbarHeight)
         FloatingToolbarApplyRoundedCorners()
         FloatingToolbar_ApplyWebViewBounds()
+
+        if g_FTB_WV2 {
+            try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_scale", "scale", newScale))
+        }
 
         FloatingToolbarSaveScale()
         SaveFloatingToolbarPosition()
@@ -572,7 +545,7 @@ FloatingToolbarCheckWindowPosition() {
 ; 右键菜单由主脚本 ShowFloatingToolbarUnifiedContextMenu 提供（深色弹窗样式），避免与 #Include 冲突。
 
 FloatingToolbarResetScale() {
-    global FloatingToolbarScale, FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY
+    global FloatingToolbarScale, FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY, g_FTB_WV2
 
     FloatingToolbarScale := 1.0
     ToolbarWidth := FloatingToolbarCalculateWidth()
@@ -581,6 +554,10 @@ FloatingToolbarResetScale() {
     FloatingToolbarGUI.Move(FloatingToolbarWindowX, FloatingToolbarWindowY, ToolbarWidth, ToolbarHeight)
     FloatingToolbarApplyRoundedCorners()
     FloatingToolbar_ApplyWebViewBounds()
+
+    if g_FTB_WV2 {
+        try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_scale", "scale", 1.0))
+    }
 
     FloatingToolbarSaveScale()
     SaveFloatingToolbarPosition()
@@ -671,8 +648,7 @@ FloatingToolbarLoadScale() {
 ; ===================== 计算工具栏宽度和高度 =====================
 FloatingToolbarCalculateWidth() {
     global FloatingToolbarScale
-    ; 6+52+5+7*40+6*5+6 ≈ 385，留余量避免 DPI/取整裁切
-    BaseWidth := 400
+    BaseWidth := 380
     return Round(BaseWidth * FloatingToolbarScale)
 }
 
@@ -757,75 +733,6 @@ FloatingToolbar_NotifySelectionClear() {
     }
 }
 
-; ==================== SuperHub 引力场联动 ====================
-
-FloatingToolbar_RequestButtonRects() {
-    global g_FTB_WV2, g_FTB_WV2_Ready
-    
-    if !(g_FTB_WV2 && g_FTB_WV2_Ready)
-        return
-    
-    try WebView_QueuePayload(g_FTB_WV2, Map("type", "request_button_rects"))
-    catch {
-    }
-}
-
-FloatingToolbar_SetGravity(btnId, dist) {
-    global g_FTB_WV2, g_FTB_WV2_Ready, g_Hub_GravityThreshold
-    
-    if !(g_FTB_WV2 && g_FTB_WV2_Ready)
-        return
-    
-    maxDist := IsSet(g_Hub_GravityThreshold) ? g_Hub_GravityThreshold : 100
-    
-    CoordMode("Mouse", "Screen")
-    MouseGetPos(&mx, &my)
-    
-    try WebView_QueuePayload(g_FTB_WV2, Map(
-        "type", "set_gravity",
-        "btnId", btnId,
-        "dist", dist,
-        "maxDist", maxDist,
-        "capsuleX", mx,
-        "capsuleY", my
-    ))
-    catch {
-    }
-}
-
-FloatingToolbar_ClearGravity() {
-    global g_FTB_WV2, g_FTB_WV2_Ready
-    
-    if !(g_FTB_WV2 && g_FTB_WV2_Ready)
-        return
-    
-    try WebView_QueuePayload(g_FTB_WV2, Map("type", "clear_gravity"))
-    catch {
-    }
-}
-
-FloatingToolbar_TriggerFusion(btnId) {
-    global g_FTB_WV2, g_FTB_WV2_Ready
-    
-    if !(g_FTB_WV2 && g_FTB_WV2_Ready)
-        return
-    
-    try WebView_QueuePayload(g_FTB_WV2, Map("type", "fusion_feedback", "btnId", btnId))
-    catch {
-    }
-}
-
-FloatingToolbar_UpdateTether(x, y) {
-    global g_FTB_WV2, g_FTB_WV2_Ready
-    
-    if !(g_FTB_WV2 && g_FTB_WV2_Ready)
-        return
-    
-    try WebView_QueuePayload(g_FTB_WV2, Map("type", "update_tether", "x", x, "y", y))
-    catch {
-    }
-}
-
 ; ===================== 初始化 =====================
 InitFloatingToolbar() {
 }
@@ -836,11 +743,11 @@ GetButtonTip(action) {
         case "Search":
             return "搜索记录 (Caps + F)"
         case "Record":
-            return "剪贴板历史 (CapsLock+X)"
+            return "剪贴板历史 (Caps + X)"
         case "AIAssistant":
             return "AI助手 (Ctrl+Shift+B)"
         case "PromptNew":
-            return "新提示词（摘录区）"
+            return "HubCapsule 摘录 / 新提示词"
         case "Screenshot":
             return "屏幕截图 (Caps + T)"
         case "Settings":

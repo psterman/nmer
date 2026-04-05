@@ -1,4 +1,4 @@
-﻿; ===================== msg =====================
+; ===================== msg =====================
 
 global pToken := Gdip_Startup()
 if (!pToken) {
@@ -2719,8 +2719,6 @@ InitConfig() {
         IniWrite("1", ConfigFile, "SelectionSense", "ShowMenu")
         IniWrite("55", ConfigFile, "SelectionSense", "CopyDelayMs")
         IniWrite("0", ConfigFile, "SelectionSense", "RequireIBeam")
-        IniWrite("0", ConfigFile, "SelectionSense", "ReactToFilePaths")
-        IniWrite("1", ConfigFile, "SelectionSense", "UseHubCapsule")
         ; 保存默认启用的搜索标签（默认全部启用）
         DefaultEnabledCategories := "ai,cli,academic,baidu,image,audio,video,book,price,medical,cloud"
         IniWrite(DefaultEnabledCategories, ConfigFile, "Settings", "VoiceSearchEnabledCategories")
@@ -3281,7 +3279,7 @@ Global_InitAllPanels(*) {
 
     WebViewWarmupStarted := true
     WebViewWarmupIndex := 0
-    WebViewWarmupQueue := [SCWV_Init, CP_Init, PQP_Init, SelectionSense_WarmupMenuHost, VK_EnsureInit.Bind(true)]
+    WebViewWarmupQueue := [CP_Init, PQP_Init, SCWV_Init, VK_EnsureInit.Bind(true)]
     SetTimer(_RunWebViewWarmupStep, -10)
     SetTimer(_WarmupConfigWebView, -5000)
 }
@@ -24578,8 +24576,7 @@ HandleDynamicHotkey(PressedKey, ActionType) {
 ; ===================== 面板快捷键 =====================
 ; 当 CapsLock 按下时，响应快捷键（采用 CapsLock+ 方案）
 ; 注意：在 AutoHotkey v2 中，需要使用函数来检查变量
-; WebView 剪贴板/搜索中心前台时勿劫持组合键，否则输入框无法输入
-#HotIf GetCapsLockState() && !CP_IsForeground() && !SCWV_IsForegroundActive()
+#HotIf GetCapsLockState()
 
 ; ESC 关闭面板
 Esc:: {
@@ -24859,8 +24856,8 @@ Esc:: {
 #HotIf  ; 结束倒计时作用域
 
 ; ===================== 全局 CapsLock 热键（优先级较低）=====================
-; 【作用域】CapsLock 按下时全局生效（WebView 搜索中心/剪贴板前台时除外，避免抢走 WASD）
-#HotIf GetCapsLockState() && !CP_IsForeground() && !SCWV_IsForegroundActive()
+; 【作用域】CapsLock 按下时全局生效（SearchCenter 除外，因为上面已经定义了更具体的热键）
+#HotIf GetCapsLockState()
 
 ; W 键映射为 Up（上方向键）- 全局生效（SearchCenter 中会被上面的专用热键覆盖）
 w:: {
@@ -30515,9 +30512,6 @@ ProcessOCRTextPreserveLayout(Text) {
     ; 2. 去除 HTML 标签
     Text := RemoveHTMLTags(Text)
     
-    ; 2b. Windows OCR 常在相邻汉字间插入空格，保留换行前提下去掉
-    Text := RemoveSpacesBetweenChinese(Text)
-    
     ; 3. 去除多余的空格（但保留换行和基本布局）
     ; 去除行首行尾空格
     Lines := StrSplit(Text, "`n")
@@ -30764,11 +30758,31 @@ ExtractTextAutoFlow() {
     }
 }
 
-; 去除中文字符之间的空格（Windows.Media.Ocr 常在汉字间插入空格/全角空格）
+; 去除中文字符之间的空格
 RemoveSpacesBetweenChinese(Text) {
-    ; CJK 统一汉字 + 扩展 A；匹配其间半角/全角空白（含连续多个）
-    Han := "\x{3400}-\x{4dbf}\x{4e00}-\x{9fff}"
-    return RegExReplace(Text, "(?<=[" Han "])[\x{20}\x{3000}]+(?=[" Han "])", "")
+    ; 简单的实现：遍历文本，如果遇到中文字符-空格-中文字符的模式，删除空格
+    Result := ""
+    TextLen := StrLen(Text)
+    
+    Loop TextLen {
+        CurrentChar := SubStr(Text, A_Index, 1)
+        NextChar := (A_Index < TextLen) ? SubStr(Text, A_Index + 1, 1) : ""
+        PrevChar := (A_Index > 1) ? SubStr(Text, A_Index - 1, 1) : ""
+        
+        ; 检查是否是中文字符（Unicode 范围：\u4e00-\u9fff）
+        IsChinese := (Ord(CurrentChar) >= 0x4E00 && Ord(CurrentChar) <= 0x9FFF)
+        IsPrevChinese := (PrevChar != "" && Ord(PrevChar) >= 0x4E00 && Ord(PrevChar) <= 0x9FFF)
+        IsNextChinese := (NextChar != "" && Ord(NextChar) >= 0x4E00 && Ord(NextChar) <= 0x9FFF)
+        
+        ; 如果是空格，且前后都是中文，则跳过（不添加到结果）
+        if (CurrentChar = " " && IsPrevChinese && IsNextChinese) {
+            continue
+        }
+        
+        Result .= CurrentChar
+    }
+    
+    return Result
 }
 
 ; ===================== 文本净化功能 =====================
@@ -35739,9 +35753,6 @@ ExecuteScreenshotOCR() {
             return
         }
         
-        cleanedText := FixOCREncodingErrors(cleanedText)
-        cleanedText := RemoveSpacesBetweenChinese(cleanedText)
-        
         ; 显示OCR结果
         OCRResultGui := Gui("+AlwaysOnTop -Caption")
         OCRResultGui.BackColor := UI_Colors.Background
@@ -35840,9 +35851,6 @@ PasteScreenshotAsText() {
             TrayTip("错误", "未识别到文字", "Iconx 2")
             return
         }
-
-        recognizedText := FixOCREncodingErrors(recognizedText)
-        recognizedText := RemoveSpacesBetweenChinese(recognizedText)
 
         ; 将识别结果复制到剪贴板
         A_Clipboard := recognizedText

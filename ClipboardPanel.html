@@ -182,11 +182,48 @@ body::after {
   border-radius: 4px; object-fit: contain;
   background: var(--surface); padding: 2px;
 }
+.clip-item .thumb {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, #262626, #151515);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.clip-item .thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 .clip-item .app-icon-placeholder {
   flex-shrink: 0; width: 22px; height: 22px;
   border-radius: 4px; background: var(--surface);
   display: flex; align-items: center; justify-content: center;
   font-size: 12px; color: var(--text-xs);
+}
+.clip-item .summary.image-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  white-space: normal;
+  overflow: hidden;
+}
+.clip-item .summary.image-summary .main-line,
+.clip-item .summary.image-summary .sub-line {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.clip-item .summary.image-summary .sub-line {
+  font-size: 11px;
+  color: var(--text-dim);
 }
 .clip-item .summary {
   flex: 1; min-width: 0;
@@ -255,6 +292,13 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
 .meta-item { display: flex; align-items: center; gap: 4px; }
 .meta-label { color: var(--text-xs); }
 .meta-value { color: var(--cyan); }
+.meta-value.source-url {
+  max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  cursor: help;
+}
+.meta-value.image-format {
+  text-transform: uppercase; font-weight: 600;
+}
 #preview-body {
   flex: 1; padding: 14px 16px; overflow-y: auto; overflow-x: hidden;
   scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
@@ -269,6 +313,15 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
 #preview-body img {
   max-width: 100%; border-radius: 6px;
   border: 1px solid var(--border);
+}
+.preview-image-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.preview-image-caption {
+  font-size: 12px;
+  color: var(--text-dim);
 }
 #preview-empty {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -418,6 +471,7 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
   <div class="ctx-item" data-ctx="pasteWithNewline"><span>粘贴并换行</span></div>
   <div class="ctx-item" data-ctx="pin"><span>置顶</span></div>
   <div class="ctx-item" data-ctx="pastePath" id="ctx-paste-path"><span>粘贴路径</span></div>
+  <div class="ctx-item" data-ctx="ocrImage" id="ctx-ocr-image"><span>图片 OCR</span></div>
   <div class="ctx-item" data-ctx="delete"><span>删除</span><span class="ctx-hint">Ctrl+D</span></div>
   <div class="ctx-sep"></div>
   <div class="ctx-item toggle" data-ctx="toggleContinuous" id="ctx-toggle-continuous"><span class="ctx-check">✓</span><span>持续粘贴（不关闭窗口）</span></div>
@@ -442,6 +496,11 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
         <span class="act-icon">&#128204;</span>
         <span class="act-label">切换置顶</span>
         <span class="act-key">P</span>
+      </div>
+      <div class="action-item" data-action="ocrImage">
+        <span class="act-icon">&#128269;</span>
+        <span class="act-label">图片 OCR</span>
+        <span class="act-key">O</span>
       </div>
       <div class="action-item" data-action="delete">
         <span class="act-icon">&#128465;</span>
@@ -593,6 +652,88 @@ function itemHasPastePath(it) {
   return /^([a-zA-Z]:\\|\\\\)/.test(c);
 }
 
+function itemIsImage(it) {
+  if (!it || !it.dataType) return false;
+  const t = String(it.dataType).toLowerCase();
+  return t === 'image' || t === 'screenshot';
+}
+
+function looksLikeImageRef(value) {
+  const s = String(value || '').trim();
+  if (!s) return false;
+  if (/^https?:\/\/\S+\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?\S*)?$/i.test(s)) return true;
+  if (/^www\.\S+\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?\S*)?$/i.test(s)) return true;
+  if (/^([a-zA-Z]:\\|\\\\).+\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(s)) return true;
+  if (/<img\b[^>]*\bsrc=/i.test(s)) return true;
+  return false;
+}
+
+function extractImageRef(value) {
+  const s = String(value || '').trim();
+  if (!s) return '';
+  if (looksLikeImageRef(s) && !/<img\b/i.test(s)) return s;
+  const m = s.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i);
+  return m ? m[1] : '';
+}
+
+function itemCanPreviewAsImage(it) {
+  if (itemIsImage(it)) return true;
+  return !!extractImageRef((it && (it.imagePath || it.content)) || '');
+}
+
+function toFileUrl(path) {
+  let p = String(path || '').trim();
+  if (!p) return '';
+  p = p.replace(/\\/g, '/');
+  if (/^[a-zA-Z]:\//.test(p)) p = '/' + p;
+  return encodeURI('file://' + p);
+}
+
+function resolveImageSrc(path) {
+  const p = String(path || '').trim();
+  if (!p) return '';
+  if (/^(data:|https?:\/\/|blob:)/i.test(p)) return p;
+  if (/^www\./i.test(p)) return 'https://' + p;
+  return toFileUrl(p);
+}
+
+function formatBytes(bytes) {
+  const n = Number(bytes || 0);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(2).replace(/\.00$/, '') + ' KB';
+  if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(2).replace(/\.00$/, '') + ' MB';
+  return (n / (1024 * 1024 * 1024)).toFixed(2).replace(/\.00$/, '') + ' GB';
+}
+
+/** 列表/预览共用的图片引用：优先 ImagePath，再解析 content 中的 img/src 或裸图 URL */
+function primaryImageRefForItem(it) {
+  if (!it) return '';
+  const ip = String(it.imagePath || '').trim();
+  if (ip) return ip;
+  const ex = extractImageRef(it.content || '');
+  if (ex) return ex;
+  if (itemIsImage(it)) {
+    const c = String(it.content || '').trim();
+    if (/^https?:\/\/\S+/i.test(c)) return c;
+  }
+  return '';
+}
+
+function getImageSummary(it) {
+  const path = String(primaryImageRefForItem(it) || '').trim();
+  if (path) {
+    try {
+      const u = new URL(path);
+      const seg = u.pathname.split('/').filter(Boolean);
+      return seg.length ? seg[seg.length - 1] : (u.hostname || 'Image');
+    } catch (e) { /* 本地路径 */ }
+    const parts = path.split(/[\\/]/);
+    return parts[parts.length - 1] || 'Image';
+  }
+  return 'Image Preview';
+}
+
 function updateContinuousPasteUI() {
   const bar = document.getElementById('continuous-paste-toggle');
   const ctxT = document.getElementById('ctx-toggle-continuous');
@@ -622,9 +763,14 @@ function showContextMenu(clientX, clientY) {
   if (!menu) return;
   const item = state.items[state.selectedIndex];
   const pathEl = document.getElementById('ctx-paste-path');
+  const ocrEl = document.getElementById('ctx-ocr-image');
   if (pathEl) {
     if (itemHasPastePath(item)) pathEl.classList.remove('disabled');
     else pathEl.classList.add('disabled');
+  }
+  if (ocrEl) {
+    if (itemIsImage(item)) ocrEl.classList.remove('disabled');
+    else ocrEl.classList.add('disabled');
   }
   updateContinuousPasteUI();
   menu.classList.add('visible');
@@ -653,6 +799,7 @@ function runCtxAction(act, id) {
     case 'pastePlain': postToAhk({ type: 'pastePlain', id, keepOpen: k }); break;
     case 'pasteWithNewline': postToAhk({ type: 'pasteWithNewline', id, keepOpen: k }); break;
     case 'pastePath': postToAhk({ type: 'pastePath', id, keepOpen: k }); break;
+    case 'ocrImage': postToAhk({ type: 'ocrImage', id, keepOpen: true }); break;
     case 'pin': postToAhk({ type: 'pin', id }); break;
     case 'delete': postToAhk({ type: 'delete', id }); break;
     default: break;
@@ -781,22 +928,36 @@ function renderList(opts) {
     const idx = i < 9 ? (i + 1) : '';
     const idxClass = i < 9 ? 'idx' : 'idx no-num';
     const badge = typeBadge(it.dataType);
-    const summary = escapeHtml(truncate(it.content || '', 120));
+    const isImage = itemCanPreviewAsImage(it);
+    const summary = escapeHtml(truncate(isImage ? getImageSummary(it) : (it.content || ''), 120));
     const highlighted = state.keyword ? highlightMatch(summary, state.keyword) : summary;
     const timeStr = it.sortTime ? relativeTime(it.sortTime) : '';
 
     html += '<div class="clip-item' + (isActive ? ' active' : '') + '" data-index="' + i + '">';
     html += '<span class="' + idxClass + '">' + idx + '</span>';
 
-    if (it.iconPath) {
+    if (isImage && (it.thumbDataUrl || primaryImageRefForItem(it))) {
+      const src = it.thumbDataUrl || resolveImageSrc(primaryImageRefForItem(it));
+      html += '<div class="thumb"><img src="' + escapeHtml(src) + '" alt="image preview" onerror="this.parentElement.outerHTML=\'<div class=&quot;app-icon-placeholder&quot;>' + typeIcon(it.dataType) + '</div>\'"></div>';
+    } else if (it.iconPath) {
       html += '<img class="app-icon" src="file:///' + it.iconPath.replace(/\\/g, '/') + '" onerror="this.style.display=\'none\'">';
     } else {
       html += '<div class="app-icon-placeholder">' + typeIcon(it.dataType) + '</div>';
     }
 
-    html += '<span class="summary">' + badge + highlighted + '</span>';
+    if (isImage) {
+      const sub = [];
+      if (it.sourceApp) sub.push(escapeHtml(it.sourceApp));
+      if (timeStr) sub.push(escapeHtml(timeStr));
+      html += '<span class="summary image-summary">';
+      html += '<span class="main-line">' + badge + highlighted + '</span>';
+      html += '<span class="sub-line">' + (sub.join(' · ') || 'Clipboard Image') + '</span>';
+      html += '</span>';
+    } else {
+      html += '<span class="summary">' + badge + highlighted + '</span>';
+    }
     if (it.isFavorite) html += '<span class="pin-icon">&#9733;</span>';
-    html += '<span class="time-hint">' + timeStr + '</span>';
+    if (!isImage) html += '<span class="time-hint">' + timeStr + '</span>';
     html += '</div>';
   }
 
@@ -877,7 +1038,7 @@ function typeIcon(dt) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Render Preview
+// Render Preview（本地图用 data:，网页图用 https URL；缩略图作兜底）
 // ═══════════════════════════════════════════════════════════════════════════
 function renderPreview(data) {
   const metaEl = document.getElementById('preview-meta');
@@ -886,7 +1047,7 @@ function renderPreview(data) {
   let metaHtml = '';
   if (data.meta) {
     if (data.meta.charCount != null) {
-      metaHtml += '<div class="meta-item"><span class="meta-label">字符</span><span class="meta-value">' + data.meta.charCount + '</span></div>';
+      metaHtml += '<div class="meta-item"><span class="meta-label">瀛楃</span><span class="meta-value">' + data.meta.charCount + '</span></div>';
     }
     if (data.meta.sourceApp) {
       metaHtml += '<div class="meta-item"><span class="meta-label">来源</span><span class="meta-value">' + escapeHtml(data.meta.sourceApp) + '</span></div>';
@@ -894,8 +1055,33 @@ function renderPreview(data) {
     if (data.meta.time) {
       metaHtml += '<div class="meta-item"><span class="meta-label">时间</span><span class="meta-value">' + escapeHtml(data.meta.time) + '</span></div>';
     }
-    if (data.meta.dataType) {
-      metaHtml += '<div class="meta-item"><span class="meta-label">类型</span><span class="meta-value">' + escapeHtml(data.meta.dataType) + '</span></div>';
+    if (data.meta.imageFormat || data.imageFormat) {
+      const fmt = String(data.meta.imageFormat || data.imageFormat || '').toUpperCase();
+      if (fmt) {
+        metaHtml += '<div class="meta-item"><span class="meta-label">格式</span><span class="meta-value image-format">' + escapeHtml(fmt) + '</span></div>';
+      }
+    }
+    if (data.meta.imageWidth && data.meta.imageHeight) {
+      metaHtml += '<div class="meta-item"><span class="meta-label">尺寸</span><span class="meta-value">' + data.meta.imageWidth + ' × ' + data.meta.imageHeight + '</span></div>';
+    }
+    if (data.meta.fileSizeText || data.meta.fileSize) {
+      metaHtml += '<div class="meta-item"><span class="meta-label">大小</span><span class="meta-value">' + escapeHtml(data.meta.fileSizeText || formatBytes(data.meta.fileSize)) + '</span></div>';
+    }
+    if (data.meta.fileName) {
+      metaHtml += '<div class="meta-item"><span class="meta-label">文件</span><span class="meta-value">' + escapeHtml(data.meta.fileName) + '</span></div>';
+    }
+    if (data.meta.sourceUrl || data.sourceUrl) {
+      const srcUrl = String(data.meta.sourceUrl || data.sourceUrl || '').trim();
+      if (srcUrl) {
+        let displayUrl = srcUrl;
+        try {
+          const u = new URL(srcUrl);
+          displayUrl = u.hostname + (u.pathname.length > 20 ? u.pathname.slice(0, 20) + '...' : u.pathname);
+        } catch (e) {
+          displayUrl = srcUrl.length > 40 ? srcUrl.slice(0, 40) + '...' : srcUrl;
+        }
+        metaHtml += '<div class="meta-item"><span class="meta-label">网址</span><span class="meta-value source-url" title="' + escapeHtml(srcUrl) + '">' + escapeHtml(displayUrl) + '</span></div>';
+      }
     }
   }
   metaEl.innerHTML = metaHtml;
@@ -903,8 +1089,15 @@ function renderPreview(data) {
   bodyEl.className = 'fade-in';
   setTimeout(() => { bodyEl.className = ''; }, 200);
 
-  if (data.dataType && (data.dataType.toLowerCase() === 'image' || data.dataType.toLowerCase() === 'screenshot') && data.imagePath) {
-    bodyEl.innerHTML = '<img src="file:///' + data.imagePath.replace(/\\/g, '/') + '" onerror="this.alt=\'图片加载失败\'">';
+  let fallbackImageRef = extractImageRef(data.imagePath || data.content);
+  const rawRef = String(data.imagePath || data.content || '').trim();
+  if (!fallbackImageRef && /^https?:\/\/\S+/i.test(rawRef)) fallbackImageRef = rawRef;
+  if (itemCanPreviewAsImage(data) && (data.imageDataUrl || data.thumbDataUrl || fallbackImageRef)) {
+    const src = data.imageDataUrl || data.thumbDataUrl || resolveImageSrc(fallbackImageRef);
+    const caption = data.meta && data.meta.fileName
+      ? '<div class="preview-image-caption">' + escapeHtml(data.meta.fileName) + '</div>'
+      : '';
+    bodyEl.innerHTML = '<div class="preview-image-wrap"><img src="' + escapeHtml(src) + '" onerror="this.alt=\'鍥剧墖鍔犺浇澶辫触\'">' + caption + '</div>';
   } else {
     bodyEl.innerHTML = '<pre>' + escapeHtml(data.content || '') + '</pre>';
   }
@@ -969,6 +1162,7 @@ function executeAction(action) {
     case 'paste':     postToAhk({ type: 'paste', id: id, keepOpen: k }); break;
     case 'copyPlain': postToAhk({ type: 'copyPlain', id: id, keepOpen: k }); break;
     case 'pin':       postToAhk({ type: 'pin', id: id }); break;
+    case 'ocrImage':  postToAhk({ type: 'ocrImage', id: id, keepOpen: true }); break;
     case 'delete':    postToAhk({ type: 'delete', id: id }); break;
   }
 }
@@ -1027,7 +1221,7 @@ document.addEventListener('keydown', (e) => {
       executeAction(actions[state.actionIndex].dataset.action); return;
     }
     // Quick keys in action panel
-    const keyMap = { 'c': 'copyPlain', 'p': 'pin', 'd': 'delete' };
+    const keyMap = { 'c': 'copyPlain', 'p': 'pin', 'o': 'ocrImage', 'd': 'delete' };
     if (keyMap[e.key.toLowerCase()]) {
       e.preventDefault(); executeAction(keyMap[e.key.toLowerCase()]); return;
     }
