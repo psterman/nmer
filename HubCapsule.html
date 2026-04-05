@@ -713,7 +713,7 @@ html, body {
 
   const state = {
     segments: [],
-    copyTriggerMode: 'double',
+    copyTriggerMode: 'single',
     drag: null,
     draftDrag: null,
     pendingDraft: '',
@@ -776,8 +776,37 @@ html, body {
     return d.innerHTML;
   }
 
+  function normalizePreviewText(input) {
+    if (input == null) return '';
+    if (typeof input === 'string' || typeof input === 'number' || typeof input === 'boolean') {
+      return String(input);
+    }
+    if (Array.isArray(input)) {
+      return input
+        .map((item) => normalizePreviewText(item))
+        .filter(Boolean)
+        .join(' ');
+    }
+    if (typeof input === 'object') {
+      if (typeof input.text === 'string' || typeof input.text === 'number' || typeof input.text === 'boolean')
+        return String(input.text);
+      if (typeof input.content === 'string' || typeof input.content === 'number' || typeof input.content === 'boolean')
+        return String(input.content);
+      if (typeof input.preview === 'string' || typeof input.preview === 'number' || typeof input.preview === 'boolean')
+        return String(input.preview);
+      if (Array.isArray(input.items))
+        return normalizePreviewText(input.items);
+      try {
+        return JSON.stringify(input);
+      } catch (_) {
+        return '';
+      }
+    }
+    return '';
+  }
+
   function compactText(text) {
-    return String(text || '').replace(/\s+/g, ' ').trim();
+    return normalizePreviewText(text).replace(/\s+/g, ' ').trim();
   }
 
   function asCard(item) {
@@ -1686,19 +1715,19 @@ html, body {
 
       switch (d.type) {
         case 'push_segment':
-          pushSegment(d.text);
+          pushSegment(normalizePreviewText(d.text));
           break;
         case 'hub_preview_selection':
           if (d.imagePath || d.imageDataUrl)
             setImagePreview(d.imagePath || '', d.imageDataUrl || '');
           else
-            setDraftPreview(d.text);
+            setDraftPreview(normalizePreviewText(d.text));
           break;
         case 'selection_menu_init':
           if (d.imagePath || d.imageDataUrl)
             setImagePreview(d.imagePath || '', d.imageDataUrl || '');
           else
-            setDraftPreview(d.text);
+            setDraftPreview(normalizePreviewText(d.text));
           break;
         case 'hub_preview_image':
           setImagePreview(d.imagePath || '', d.imageDataUrl || '');
@@ -1746,7 +1775,7 @@ html, body {
   }
 
   loadPersistedSegments();
-  setCopyTriggerMode('double');
+  setCopyTriggerMode('single');
   refreshAll();
   syncSegments();
   installDismissOnHostPadding();

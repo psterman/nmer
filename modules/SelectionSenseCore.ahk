@@ -34,6 +34,7 @@ global g_SelSense_HubDragRefWinY := 0
 global g_SelSense_UserCopyInProgress := false
 global g_SelSense_UserCopyEndTick := 0
 global g_SelSense_DoubleCopyHub_LastTick := 0
+global g_SelSense_HubCopyTriggerMode := "single"
 
 SelectionSense_HubDragClampToVirtual(&nx, &ny, ww, hh) {
     ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
@@ -131,13 +132,15 @@ SelectionSense_OnToolbarSearchClick() {
 }
 
 SelectionSense_LoadIni() {
-    global g_SelSense_Enabled, g_SelSense_CopyDelayMs, g_SelSense_RequireIBeam, g_SelSense_ClipWaitSec
+    global g_SelSense_Enabled, g_SelSense_CopyDelayMs, g_SelSense_RequireIBeam, g_SelSense_ClipWaitSec, g_SelSense_HubCopyTriggerMode
     cfg := (IsSet(ConfigFile) && ConfigFile != "") ? ConfigFile : (A_ScriptDir "\CursorShortcut.ini")
     try {
         g_SelSense_Enabled := (IniRead(cfg, "SelectionSense", "Enable", "1") != "0")
         g_SelSense_CopyDelayMs := Integer(IniRead(cfg, "SelectionSense", "CopyDelayMs", "55"))
         ; Cursor/VS Code/Electron 常用自定义文本光标，GetCursor 往往不等于系统 IDC_IBEAM，默认不要求 I 形光标
         g_SelSense_RequireIBeam := (IniRead(cfg, "SelectionSense", "RequireIBeam", "0") = "1")
+        mode := Trim(StrLower(IniRead(cfg, "SelectionSense", "HubCopyTriggerMode", "single")))
+        g_SelSense_HubCopyTriggerMode := (mode = "double") ? "double" : "single"
         w := IniRead(cfg, "SelectionSense", "ClipWaitSec", "")
         if (w != "" && w != "ERROR") {
             f := Float(w)
@@ -148,11 +151,20 @@ SelectionSense_LoadIni() {
         g_SelSense_Enabled := true
         g_SelSense_CopyDelayMs := 55
         g_SelSense_RequireIBeam := false
+        g_SelSense_HubCopyTriggerMode := "single"
     }
     if (g_SelSense_CopyDelayMs < 20)
         g_SelSense_CopyDelayMs := 20
     if (g_SelSense_CopyDelayMs > 200)
         g_SelSense_CopyDelayMs := 200
+}
+
+SelectionSense_SetHubCopyTriggerMode(mode) {
+    global g_SelSense_HubCopyTriggerMode
+    m := Trim(StrLower(String(mode)))
+    g_SelSense_HubCopyTriggerMode := (m = "double") ? "double" : "single"
+    cfg := (IsSet(ConfigFile) && ConfigFile != "") ? ConfigFile : (A_ScriptDir "\CursorShortcut.ini")
+    try IniWrite(g_SelSense_HubCopyTriggerMode, cfg, "SelectionSense", "HubCopyTriggerMode")
 }
 
 SelectionSense_IsKnownGuiRoot(hwnd) {
@@ -411,8 +423,9 @@ SelectionSense_OnMenuWebMessage(sender, args) {
 
     typ := msg.Has("type") ? String(msg["type"]) : ""
     if (typ = "selection_menu_ready") {
-        global g_SelSense_MenuReady, g_SelSense_MenuVisible, g_SelSense_PendingText
+        global g_SelSense_MenuReady, g_SelSense_MenuVisible, g_SelSense_PendingText, g_SelSense_HubCopyTriggerMode, g_SelSense_MenuWV2
         g_SelSense_MenuReady := true
+        try WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_preview_state", "copyTriggerMode", g_SelSense_HubCopyTriggerMode))
         if g_SelSense_MenuVisible
             SelectionSense_PushMenuText(g_SelSense_PendingText)
         return
@@ -449,6 +462,13 @@ SelectionSense_OnMenuWebMessage(sender, args) {
         try PromptQuickPad_OpenCaptureDraft(t2, true)
         catch {
         }
+        return
+    }
+    if (typ = "hub_set_copy_trigger_mode") {
+        global g_SelSense_HubCopyTriggerMode, g_SelSense_MenuWV2
+        mode := msg.Has("mode") ? String(msg["mode"]) : "single"
+        SelectionSense_SetHubCopyTriggerMode(mode)
+        try WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_preview_state", "copyTriggerMode", g_SelSense_HubCopyTriggerMode))
         return
     }
     if (typ = "hub_resize_start") {
@@ -522,6 +542,32 @@ SelectionSense_PushMenuText(text) {
     if !(g_SelSense_MenuWV2 && g_SelSense_MenuReady)
         return
     WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "selection_menu_init", "text", String(text)))
+}
+
+SelectionSense_PushHubPreviewText(text) {
+    global g_SelSense_MenuWV2, g_SelSense_MenuReady, g_SelSense_PendingText
+    t := Trim(String(text), " `t`r`n")
+    if (t = "")
+        return
+    g_SelSense_PendingText := t
+    if !(g_SelSense_MenuWV2 && g_SelSense_MenuReady)
+        return
+    WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_preview_selection", "text", t))
+}
+
+SelectionSense_RefreshHubPreviewAfterCopyTick(*) {
+    global g_SelSense_LastFullText, g_SelSense_LastTick, g_SelSense_LastClipSig, g_SelSense_LastFireTick
+    if !SelectionSense_HubCapsuleHostIsOpen()
+        return
+    text := ""
+    try text := Trim(String(A_Clipboard), " `t`r`n")
+    if (text = "")
+        return
+    g_SelSense_LastFullText := text
+    g_SelSense_LastTick := A_TickCount
+    g_SelSense_LastClipSig := StrLen(text) . ":" . SubStr(text, 1, 24)
+    g_SelSense_LastFireTick := A_TickCount
+    SelectionSense_PushHubPreviewText(text)
 }
 
 SelectionSense_ShowMenuNearCursor() {
@@ -707,17 +753,25 @@ SelectionSense_HideMenu() {
 }
 
 SelectionSense_OnUserCopy(*) {
-    global g_SelSense_UserCopyInProgress, g_SelSense_UserCopyEndTick, g_SelSense_DoubleCopyHub_LastTick
+    global g_SelSense_UserCopyInProgress, g_SelSense_UserCopyEndTick, g_SelSense_DoubleCopyHub_LastTick, g_SelSense_HubCopyTriggerMode
 
     g_SelSense_UserCopyInProgress := true
     g_SelSense_UserCopyEndTick := A_TickCount
     SetTimer(SelectionSense_ClearUserCopyFlag, -780)
 
-    ; Cursor 内双击 Ctrl+C：打开 Hub（已打开且为 HubCapsule 时不处理）
+    ; Hub 已打开时，新复制内容直接替换预览区，而不是沿用首次打开时的旧内容
     if !SelectionSense_IsCursorEditorActive()
         return
-    if SelectionSense_HubCapsuleHostIsOpen()
+    if SelectionSense_HubCapsuleHostIsOpen() {
+        SetTimer(SelectionSense_RefreshHubPreviewAfterCopyTick, -140)
         return
+    }
+
+    if (g_SelSense_HubCopyTriggerMode = "single") {
+        g_SelSense_DoubleCopyHub_LastTick := 0
+        SetTimer(SelectionSense_OpenHubAfterDoubleCopyTick, -140)
+        return
+    }
 
     now := A_TickCount
     winMs := 520

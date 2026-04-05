@@ -730,7 +730,8 @@ FloatingToolbarCalculateWidth() {
 
 FloatingToolbarCalculateHeight() {
     global FloatingToolbarScale
-    BaseHeight := 52
+    ; HTML 结构为 52px logo + 上下各 6px padding，因此基准高度必须是 64
+    BaseHeight := 64
     return Round(BaseHeight * FloatingToolbarScale)
 }
 

@@ -4030,6 +4030,12 @@ ReloadScriptFromPopupMenu(*) {
             SetTimer(CloseTrayMenuIfClickedOutside, 0)
         }
     }
+    try FloatingToolbarSaveScale()
+    catch {
+    }
+    try SaveFloatingToolbarPosition()
+    catch {
+    }
     Reload
 }
 

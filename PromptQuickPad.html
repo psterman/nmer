@@ -40,6 +40,21 @@ html, body {
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
+#toolbar-close {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: #333;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+#toolbar-close:hover { border-color: var(--orange-dk); color: #fff; }
 #search-input {
   flex: 1; min-width: 120px;
   background: var(--surface);
@@ -385,6 +400,7 @@ mark { background: var(--orange-dk); color: #000; }
   <div id="toolbar">
     <input type="text" id="search-input" placeholder="列表搜索…" autocomplete="off" spellcheck="false">
     <span style="font-size:11px;color:var(--text-xs)">Enter 粘贴 · Esc 关闭 · 1-9 快速粘贴</span>
+    <button type="button" id="toolbar-close" title="关闭">×</button>
   </div>
   <div id="cat-strip"></div>
   <div id="capture-panel">
@@ -490,6 +506,9 @@ const state = {
 };
 
 const postToAhk = (obj) => BasePanel.postToAhk(obj);
+document.getElementById('toolbar-close').addEventListener('click', () => {
+  postToAhk({ type: 'requestHide' });
+});
 
 function sendAction(type, extra = {}) {
   postToAhk({ type, ...extra });
