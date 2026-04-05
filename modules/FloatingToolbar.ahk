@@ -10,6 +10,14 @@
 
 #Requires AutoHotkey v2.0
 
+; 多显示器虚拟桌面包围盒（SM_XVIRTUALSCREEN 76–79）
+ScreenVirtual_GetBounds(&outL, &outT, &outW, &outH) {
+    outL := SysGet(76)
+    outT := SysGet(77)
+    outW := SysGet(78)
+    outH := SysGet(79)
+}
+
 ; ===================== 全局变量 =====================
 global FloatingToolbarGUI := 0
 global FloatingToolbarIsVisible := false
@@ -24,6 +32,7 @@ global FloatingToolbarIsMinimized := false
 global g_FTB_WV2_Ctrl := 0
 global g_FTB_WV2 := 0
 global g_FTB_WV2_Ready := false
+global g_FTB_WV2_FrameReady := false
 global g_FTB_PendingSelection := ""
 
 ; ===================== 显示/隐藏悬浮窗 =====================
@@ -39,12 +48,11 @@ ShowFloatingToolbar() {
     LoadFloatingToolbarPosition()
 
     if (FloatingToolbarWindowX = 0 && FloatingToolbarWindowY = 0) {
-        ScreenWidth := SysGet(0)
-        ScreenHeight := SysGet(1)
+        ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
         ToolbarWidth := FloatingToolbarCalculateWidth()
         ToolbarHeight := FloatingToolbarCalculateHeight()
-        FloatingToolbarWindowX := ScreenWidth - ToolbarWidth
-        FloatingToolbarWindowY := ScreenHeight - ToolbarHeight
+        FloatingToolbarWindowX := vl + vw - ToolbarWidth
+        FloatingToolbarWindowY := vt + vh - ToolbarHeight
     }
 
     ToolbarWidth := FloatingToolbarCalculateWidth()
@@ -87,6 +95,7 @@ CreateFloatingToolbarGUI() {
         g_FTB_WV2_Ctrl := 0
         g_FTB_WV2 := 0
         g_FTB_WV2_Ready := false
+        g_FTB_WV2_FrameReady := false
         g_FTB_PendingSelection := ""
         try FloatingToolbarGUI.Destroy()
         catch {
@@ -100,6 +109,36 @@ CreateFloatingToolbarGUI() {
     OnMessage(0x020A, FloatingToolbarWM_MOUSEWHEEL)
 
     WebView2.create(FloatingToolbarGUI.Hwnd, FloatingToolbar_OnWebViewCreated)
+}
+
+FloatingToolbar_FlushPendingSelectionIfReady() {
+    global g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_WV2_FrameReady, g_FTB_PendingSelection
+    if !(g_FTB_WV2 && g_FTB_WV2_Ready && g_FTB_WV2_FrameReady)
+        return
+    if (g_FTB_PendingSelection = "")
+        return
+    pv := SubStr(String(g_FTB_PendingSelection), 1, 220)
+    try WebView_QueuePayload(g_FTB_WV2, Map("type", "SELECTION_CHANGE", "preview", pv))
+    catch as _e {
+        return
+    }
+    g_FTB_PendingSelection := ""
+}
+
+FloatingToolbar_OnNavigationStarting(sender, args) {
+    global g_FTB_WV2_FrameReady
+    g_FTB_WV2_FrameReady := false
+}
+
+FloatingToolbar_OnNavigationCompleted(sender, args) {
+    global g_FTB_WV2_FrameReady
+    ok := false
+    try ok := args.IsSuccess
+    catch as _e {
+        ok := false
+    }
+    g_FTB_WV2_FrameReady := !!ok
+    FloatingToolbar_FlushPendingSelectionIfReady()
 }
 
 ; ===================== 圆角边框处理 =====================
@@ -133,13 +172,14 @@ FloatingToolbarApplyRoundedCorners() {
 
 ; ===================== WebView2 回调 =====================
 FloatingToolbar_OnWebViewCreated(ctrl) {
-    global g_FTB_WV2_Ctrl, g_FTB_WV2, g_FTB_WV2_Ready
+    global g_FTB_WV2_Ctrl, g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_WV2_FrameReady
 
     g_FTB_WV2_Ctrl := ctrl
     g_FTB_WV2 := ctrl.CoreWebView2
     g_FTB_WV2_Ready := false
+    g_FTB_WV2_FrameReady := false
 
-    try ctrl.DefaultBackgroundColor := 0xFF0A0A0A
+    try ctrl.DefaultBackgroundColor := 0
     try ctrl.IsVisible := true
 
     FloatingToolbar_ApplyWebViewBounds()
@@ -149,6 +189,8 @@ FloatingToolbar_OnWebViewCreated(ctrl) {
     s.IsStatusBarEnabled := false
     s.AreDevToolsEnabled := false
 
+    g_FTB_WV2.add_NavigationStarting(FloatingToolbar_OnNavigationStarting)
+    g_FTB_WV2.add_NavigationCompleted(FloatingToolbar_OnNavigationCompleted)
     g_FTB_WV2.add_WebMessageReceived(FloatingToolbar_OnWebMessage)
     try ApplyUnifiedWebViewAssets(g_FTB_WV2)
     g_FTB_WV2.Navigate(BuildAppLocalUrl("FloatingToolbarStrip.html"))
@@ -209,7 +251,7 @@ FloatingToolbar_PushLogoToWeb(*) {
 }
 
 FloatingToolbar_OnWebMessage(sender, args) {
-    global g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_PendingSelection, FloatingToolbarGUI, FloatingToolbarScale
+    global g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_WV2_FrameReady, g_FTB_PendingSelection, FloatingToolbarGUI, FloatingToolbarScale
 
     jsonStr := args.WebMessageAsJson
     try msg := Jxon_Load(jsonStr)
@@ -232,11 +274,7 @@ FloatingToolbar_OnWebMessage(sender, args) {
         FloatingToolbar_ApplyWebViewBounds()
         SetTimer(FloatingToolbar_PushLogoToWeb, -10)
         try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_scale", "scale", FloatingToolbarScale))
-        if (g_FTB_PendingSelection != "") {
-            pv := SubStr(String(g_FTB_PendingSelection), 1, 220)
-            try WebView_QueuePayload(g_FTB_WV2, Map("type", "SELECTION_CHANGE", "preview", pv))
-            g_FTB_PendingSelection := ""
-        }
+        FloatingToolbar_FlushPendingSelectionIfReady()
         return
     }
 
@@ -447,16 +485,17 @@ FloatingToolbarApplyWheelDelta(delta) {
         newX := mouseScreenX - Round(mouseRatioX * ToolbarWidth)
         newY := mouseScreenY - Round(mouseRatioY * ToolbarHeight)
 
-        ScreenWidth := SysGet(0)
-        ScreenHeight := SysGet(1)
-        if (newX < 0)
-            newX := 0
-        if (newY < 0)
-            newY := 0
-        if (newX + ToolbarWidth > ScreenWidth)
-            newX := ScreenWidth - ToolbarWidth
-        if (newY + ToolbarHeight > ScreenHeight)
-            newY := ScreenHeight - ToolbarHeight
+        ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
+        vr := vl + vw
+        vb := vt + vh
+        if (newX < vl)
+            newX := vl
+        if (newY < vt)
+            newY := vt
+        if (newX + ToolbarWidth > vr)
+            newX := vr - ToolbarWidth
+        if (newY + ToolbarHeight > vb)
+            newY := vb - ToolbarHeight
 
         FloatingToolbarWindowX := newX
         FloatingToolbarWindowY := newY
@@ -501,8 +540,9 @@ FloatingToolbarCheckWindowPosition() {
             FloatingToolbarWindowX := newX
             FloatingToolbarWindowY := newY
 
-            ScreenWidth := SysGet(0)
-            ScreenHeight := SysGet(1)
+            ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
+            vr := vl + vw
+            vb := vt + vh
             adjustedX := newX
             adjustedY := newY
 
@@ -510,24 +550,24 @@ FloatingToolbarCheckWindowPosition() {
             windowWidth := FloatingToolbarCalculateWidth()
             windowHeight := FloatingToolbarCalculateHeight()
 
-            if (adjustedX < snapDistance)
-                adjustedX := 0
-            else if (adjustedX + windowWidth > ScreenWidth - snapDistance)
-                adjustedX := ScreenWidth - windowWidth
+            if (adjustedX < vl + snapDistance)
+                adjustedX := vl
+            else if (adjustedX + windowWidth > vr - snapDistance)
+                adjustedX := vr - windowWidth
 
-            if (adjustedY < snapDistance)
-                adjustedY := 0
-            else if (adjustedY + windowHeight > ScreenHeight - snapDistance)
-                adjustedY := ScreenHeight - windowHeight
+            if (adjustedY < vt + snapDistance)
+                adjustedY := vt
+            else if (adjustedY + windowHeight > vb - snapDistance)
+                adjustedY := vb - windowHeight
 
-            if (adjustedX < 0)
-                adjustedX := 0
-            if (adjustedY < 0)
-                adjustedY := 0
-            if (adjustedX + windowWidth > ScreenWidth)
-                adjustedX := ScreenWidth - windowWidth
-            if (adjustedY + windowHeight > ScreenHeight)
-                adjustedY := ScreenHeight - windowHeight
+            if (adjustedX < vl)
+                adjustedX := vl
+            if (adjustedY < vt)
+                adjustedY := vt
+            if (adjustedX + windowWidth > vr)
+                adjustedX := vr - windowWidth
+            if (adjustedY + windowHeight > vb)
+                adjustedY := vb - windowHeight
 
             if (adjustedX != newX || adjustedY != newY) {
                 FloatingToolbarGUI.Move(adjustedX, adjustedY)
@@ -605,15 +645,16 @@ LoadFloatingToolbarPosition() {
             FloatingToolbarWindowX := Integer(savedX)
             FloatingToolbarWindowY := Integer(savedY)
 
-            ScreenWidth := SysGet(0)
-            ScreenHeight := SysGet(1)
+            ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
+            vr := vl + vw
+            vb := vt + vh
             ToolbarWidth := FloatingToolbarCalculateWidth()
             ToolbarHeight := FloatingToolbarCalculateHeight()
 
-            if (FloatingToolbarWindowX < 0 || FloatingToolbarWindowX > ScreenWidth - ToolbarWidth)
-                FloatingToolbarWindowX := 0
-            if (FloatingToolbarWindowY < 0 || FloatingToolbarWindowY > ScreenHeight - ToolbarHeight)
-                FloatingToolbarWindowY := 0
+            if (FloatingToolbarWindowX < vl || FloatingToolbarWindowX > vr - ToolbarWidth)
+                FloatingToolbarWindowX := vl
+            if (FloatingToolbarWindowY < vt || FloatingToolbarWindowY > vb - ToolbarHeight)
+                FloatingToolbarWindowY := vt
         }
     } catch {
         FloatingToolbarWindowX := 0
@@ -668,32 +709,33 @@ MinimizeFloatingToolbarToEdge() {
 
     FloatingToolbarGUI.GetPos(&currentX, &currentY, &currentW, &currentH)
 
-    ScreenWidth := SysGet(0)
-    ScreenHeight := SysGet(1)
+    ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
+    vr := vl + vw
+    vb := vt + vh
 
-    distLeft := currentX
-    distRight := ScreenWidth - (currentX + currentW)
-    distTop := currentY
-    distBottom := ScreenHeight - (currentY + currentH)
+    distLeft := currentX - vl
+    distRight := vr - (currentX + currentW)
+    distTop := currentY - vt
+    distBottom := vb - (currentY + currentH)
 
     minDist := distLeft
-    targetX := 0
+    targetX := vl
     targetY := currentY
 
     if (distRight < minDist) {
         minDist := distRight
-        targetX := ScreenWidth - currentW
+        targetX := vr - currentW
         targetY := currentY
     }
     if (distTop < minDist) {
         minDist := distTop
         targetX := currentX
-        targetY := 0
+        targetY := vt
     }
     if (distBottom < minDist) {
         minDist := distBottom
         targetX := currentX
-        targetY := ScreenHeight - currentH
+        targetY := vb - currentH
     }
 
     FloatingToolbarGUI.Move(targetX, targetY)
@@ -711,25 +753,32 @@ RestoreFloatingToolbar() {
 
 ; ===================== 选区感应联动 =====================
 FloatingToolbar_NotifySelectionChange(fullText) {
-    global g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_PendingSelection
+    global g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_WV2_FrameReady, g_FTB_PendingSelection
 
-    pv := SubStr(String(fullText), 1, 220)
-    if !(g_FTB_WV2 && g_FTB_WV2_Ready) {
+    if !g_FTB_WV2 {
         g_FTB_PendingSelection := String(fullText)
         return
     }
+    if !(g_FTB_WV2_Ready && g_FTB_WV2_FrameReady) {
+        g_FTB_PendingSelection := String(fullText)
+        return
+    }
+    pv := SubStr(String(fullText), 1, 220)
     try WebView_QueuePayload(g_FTB_WV2, Map("type", "SELECTION_CHANGE", "preview", pv))
-    catch {
+    catch as _e {
+        g_FTB_PendingSelection := String(fullText)
+        return
     }
 }
 
 FloatingToolbar_NotifySelectionClear() {
-    global g_FTB_WV2, g_FTB_WV2_Ready
+    global g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_WV2_FrameReady, g_FTB_PendingSelection
 
-    if !(g_FTB_WV2 && g_FTB_WV2_Ready)
+    g_FTB_PendingSelection := ""
+    if !(g_FTB_WV2 && g_FTB_WV2_Ready && g_FTB_WV2_FrameReady)
         return
     try WebView_QueuePayload(g_FTB_WV2, Map("type", "SELECTION_CLEAR"))
-    catch {
+    catch as _e {
     }
 }
 

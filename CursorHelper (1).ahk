@@ -141,6 +141,7 @@ global MainScriptDir := A_ScriptDir
 
 ; ===================== 包含悬浮工具栏模块 =====================
 #Include modules\FloatingToolbar.ahk
+#Include modules\GravityPump.ahk
 #Include modules\AIListPanel.ahk
 #Include modules\PromptQuickPadCore.ahk
 #Include modules\SearchCenterWebViewCore.ahk
@@ -3302,6 +3303,7 @@ SetTimer(Global_InitAllPanels, -1200)
 InitFloatingToolbar()
 ; 显示悬浮工具栏（随主脚本运行）
 ShowFloatingToolbar()
+GravityPump_Register()
 SelectionSense_Init()
 ; 加载提示词模板系统（在配置初始化后）
 LoadPromptTemplates()

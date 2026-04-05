@@ -33,6 +33,11 @@ html, body {
   width: 100%;
   background: var(--bg);
   border-radius: 8px;
+  opacity: 0;
+  transition: opacity 0.14s ease-out;
+}
+#strip.strip-visible {
+  opacity: 1;
 }
 #favicon {
   width: 52px;
@@ -360,6 +365,18 @@ html, body {
       }
     });
   }
+
+  function revealStripOnce() {
+    if (revealStripOnce._done) return;
+    revealStripOnce._done = true;
+    strip.classList.add("strip-visible");
+  }
+
+  if (document.readyState === "complete")
+    revealStripOnce();
+  else
+    window.addEventListener("load", revealStripOnce, { once: true });
+  setTimeout(revealStripOnce, 2200);
 
   postToAhk({ type: "toolbar_ready" });
 })();

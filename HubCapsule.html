@@ -1259,6 +1259,51 @@ html, body {
   });
 
   const DRAFT_DRAG_MIN_PX = 6;
+  const DRAFT_HOLD_MS = 320;
+
+  function pointInStackDisplay(clientX, clientY) {
+    if (!stackDisplay) return false;
+    const r = stackDisplay.getBoundingClientRect();
+    return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+  }
+
+  function clearDraftHoldTimer(dd) {
+    if (dd && dd.holdTimerId) {
+      clearTimeout(dd.holdTimerId);
+      dd.holdTimerId = 0;
+    }
+  }
+
+  /** 提交前幽灵飞入堆叠区 */
+  function animateGhostToStackThen(ghost, callback) {
+    if (!ghost || !ghost.parentNode) {
+      try { if (callback) callback(); } catch (_) {}
+      return;
+    }
+    const r = stackDisplay.getBoundingClientRect();
+    const tx = r.left + r.width / 2 - 48;
+    const ty = r.top + Math.min(56, Math.max(20, r.height / 2));
+    ghost.style.transition = 'left 0.3s cubic-bezier(0.22,1,0.36,1), top 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.28s ease-out, transform 0.3s cubic-bezier(0.22,1,0.36,1)';
+    ghost.style.transform = 'scale(0.82)';
+    requestAnimationFrame(() => {
+      ghost.style.left = tx + 'px';
+      ghost.style.top = ty + 'px';
+      ghost.style.opacity = '0.18';
+    });
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      ghost.removeEventListener('transitionend', onEnd);
+      try { if (callback) callback(); } catch (_) {}
+      if (ghost.parentNode) ghost.parentNode.removeChild(ghost);
+    }
+    function onEnd(e) {
+      if (e.propertyName === 'opacity' || e.propertyName === 'left') finish();
+    }
+    ghost.addEventListener('transitionend', onEnd);
+    setTimeout(finish, 400);
+  }
 
   function removeDraftDragListeners(moveFn, upFn) {
     document.removeEventListener('mousemove', moveFn, true);
@@ -1292,8 +1337,13 @@ html, body {
       startX: e.clientX,
       startY: e.clientY,
       moved: false,
-      finished: false
+      finished: false,
+      holdTimerId: 0
     };
+    state.draftDrag.holdTimerId = setTimeout(() => {
+      if (!state.draftDrag || state.draftDrag.finished) return;
+      state.draftDrag.moved = true;
+    }, DRAFT_HOLD_MS);
     previewCard.classList.add('draft-drag-active');
     applyVisualState();
 
@@ -1310,17 +1360,29 @@ html, body {
     function onDraftUp(ev) {
       if (!state.draftDrag || state.draftDrag.finished) return;
       if (ev.button !== undefined && ev.button !== 0) return;
-      state.draftDrag.finished = true;
+      const dd = state.draftDrag;
+      const moved = dd.moved;
+      const g = dd.ghost;
+      const textToCommit = state.pendingDraft;
+      clearDraftHoldTimer(dd);
+      dd.finished = true;
       removeDraftDragListeners(onDraftMove, onDraftUp);
 
-      const g = state.draftDrag.ghost;
-      const textToCommit = state.pendingDraft;
-      if (state.draftDrag.moved && textToCommit) pushSegment(textToCommit);
+      const inStack = pointInStackDisplay(ev.clientX, ev.clientY);
+      const shouldCommit = !!textToCommit && (moved || inStack);
 
-      if (g && g.parentNode) g.parentNode.removeChild(g);
       state.draftDrag = null;
       previewCard.classList.remove('draft-drag-active');
-      applyVisualState();
+
+      if (shouldCommit) {
+        animateGhostToStackThen(g, () => {
+          pushSegment(textToCommit);
+          applyVisualState();
+        });
+      } else {
+        if (g && g.parentNode) g.parentNode.removeChild(g);
+        applyVisualState();
+      }
       ev.preventDefault();
       ev.stopPropagation();
     }
@@ -1360,8 +1422,13 @@ html, body {
       startX: e.clientX,
       startY: e.clientY,
       moved: false,
-      finished: false
+      finished: false,
+      holdTimerId: 0
     };
+    state.draftDrag.holdTimerId = setTimeout(() => {
+      if (!state.draftDrag || state.draftDrag.finished) return;
+      state.draftDrag.moved = true;
+    }, DRAFT_HOLD_MS);
     previewCard.classList.add('draft-drag-active');
     applyVisualState();
 
@@ -1378,17 +1445,30 @@ html, body {
     function onDraftUp(ev) {
       if (!state.draftDrag || state.draftDrag.finished) return;
       if (ev.button !== undefined && ev.button !== 0) return;
-      state.draftDrag.finished = true;
+      const dd = state.draftDrag;
+      const moved = dd.moved;
+      const g = dd.ghost;
+      const pPath = state.pendingImagePath;
+      const pData = state.pendingImageDataUrl;
+      clearDraftHoldTimer(dd);
+      dd.finished = true;
       removeDraftDragListeners(onDraftMove, onDraftUp);
 
-      const g = state.draftDrag.ghost;
-      if (state.draftDrag.moved)
-        pushImageSegment(state.pendingImagePath, state.pendingImageDataUrl);
+      const inStack = pointInStackDisplay(ev.clientX, ev.clientY);
+      const shouldCommit = (moved || inStack) && (pPath || pData);
 
-      if (g && g.parentNode) g.parentNode.removeChild(g);
       state.draftDrag = null;
       previewCard.classList.remove('draft-drag-active');
-      applyVisualState();
+
+      if (shouldCommit) {
+        animateGhostToStackThen(g, () => {
+          pushImageSegment(pPath, pData);
+          applyVisualState();
+        });
+      } else {
+        if (g && g.parentNode) g.parentNode.removeChild(g);
+        applyVisualState();
+      }
       ev.preventDefault();
       ev.stopPropagation();
     }
@@ -1542,6 +1622,24 @@ html, body {
     if (e.pointerType === 'mouse') return;
     if (e.target.closest('button')) return;
     beginDraftDrag(e);
+  }, true);
+
+  function tryBeginDraftFromPreviewCard(e) {
+    if (e.button !== 0) return;
+    if (e.target.closest('button')) return;
+    if (e.target.closest('#draft-chip')) return;
+    if (e.target.closest('#external-drop-hint')) return;
+    if (hasPendingImage()) return;
+    if (!state.pendingDraft) return;
+    if (window.getSelection && String(window.getSelection().toString()).trim()) return;
+    if (e.target === previewImage || (previewImage && previewImage.contains(e.target))) return;
+    beginDraftDrag(e);
+  }
+
+  previewCard.addEventListener('mousedown', tryBeginDraftFromPreviewCard, true);
+  previewCard.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return;
+    tryBeginDraftFromPreviewCard(e);
   }, true);
 
   previewImage.addEventListener('mousedown', (e) => {

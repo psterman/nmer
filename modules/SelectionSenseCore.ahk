@@ -1,6 +1,6 @@
 #Requires AutoHotkey v2.0
-; 选区感应：~LButton Up + ^c 更新选区与工具栏；不再弹出 SelectionMenu。
-; HubCapsule 仅：工具栏「新」或「左键按住并拖动超过阈值」且当前确有选区时打开。
+; 选区感应：~LButton Up + ^c 仅更新工具栏（FloatingToolbar_NotifySelectionChange），不打开 Hub。
+; HubCapsule 仅：工具栏「新」或「左键按下后移动超过 DragThresholdPx」且确有选区时打开。
 
 global g_SelSense_Enabled := true
 global g_SelSense_CopyDelayMs := 55
@@ -28,6 +28,49 @@ global g_SelSense_DragSX := 0
 global g_SelSense_DragSY := 0
 global g_SelSense_DragMaxAgeMs := 10000
 global g_SelSense_DragThresholdPx := 12
+global g_SelSense_ClipWaitSec := 0.45
+global g_SelSense_HubMousedownX := 0
+global g_SelSense_HubMousedownY := 0
+global g_SelSense_HubDragActive := false
+global g_SelSense_HubDragRefPtrX := 0
+global g_SelSense_HubDragRefPtrY := 0
+global g_SelSense_HubDragRefWinX := 0
+global g_SelSense_HubDragRefWinY := 0
+
+SelectionSense_HubDragClampToVirtual(&nx, &ny, ww, hh) {
+    ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
+    vr := vl + vw
+    vb := vt + vh
+    if (nx < vl)
+        nx := vl
+    if (ny < vt)
+        ny := vt
+    if (nx + ww > vr)
+        nx := vr - ww
+    if (ny + hh > vb)
+        ny := vb - hh
+}
+
+SelectionSense_HubDragApplyBoundsNotify() {
+    global g_SelSense_MenuCtrl
+    SelectionSense_ApplyMenuBounds()
+    try g_SelSense_MenuCtrl.NotifyParentWindowPositionChanged()
+    catch as _e {
+    }
+}
+
+SelectionSense_CopyDelayMsEffective() {
+    global g_SelSense_CopyDelayMs
+    base := g_SelSense_CopyDelayMs
+    extra := 0
+    try {
+        exe := StrLower(WinGetProcessName("A"))
+        if InStr(exe, "cursor") || InStr(exe, "code") || InStr(exe, "electron")
+            extra := 35
+    } catch as _e {
+    }
+    return base + extra
+}
 
 SelectionSense_GetLastSelectedText() {
     global g_SelSense_LastFullText, g_SelSense_LastTick
@@ -51,13 +94,26 @@ SelectionSense_OnToolbarSearchClick() {
 }
 
 SelectionSense_LoadIni() {
-    global g_SelSense_Enabled, g_SelSense_CopyDelayMs, g_SelSense_RequireIBeam
+    global g_SelSense_Enabled, g_SelSense_CopyDelayMs, g_SelSense_RequireIBeam, g_SelSense_ClipWaitSec
+    global g_SelSense_DragThresholdPx
     cfg := (IsSet(ConfigFile) && ConfigFile != "") ? ConfigFile : (A_ScriptDir "\CursorShortcut.ini")
     try {
         g_SelSense_Enabled := (IniRead(cfg, "SelectionSense", "Enable", "1") != "0")
         g_SelSense_CopyDelayMs := Integer(IniRead(cfg, "SelectionSense", "CopyDelayMs", "55"))
         ; Cursor/VS Code/Electron 常用自定义文本光标，GetCursor 往往不等于系统 IDC_IBEAM，默认不要求 I 形光标
         g_SelSense_RequireIBeam := (IniRead(cfg, "SelectionSense", "RequireIBeam", "0") = "1")
+        w := IniRead(cfg, "SelectionSense", "ClipWaitSec", "")
+        if (w != "" && w != "ERROR") {
+            f := Float(w)
+            if (f >= 0.1 && f <= 2.0)
+                g_SelSense_ClipWaitSec := f
+        }
+        dt := IniRead(cfg, "SelectionSense", "DragThresholdPx", "")
+        if (dt != "" && dt != "ERROR") {
+            di := Integer(dt)
+            if (di >= 4 && di <= 80)
+                g_SelSense_DragThresholdPx := di
+        }
     } catch as _e {
         g_SelSense_Enabled := true
         g_SelSense_CopyDelayMs := 55
@@ -180,7 +236,7 @@ SelectionSense_DragPoll(*) {
 }
 
 SelectionSense_VerifySelectionAndOpenHubFromDrag() {
-    global g_SelSense_Enabled, g_SelSense_CopyDelayMs, g_SelSense_MenuVisible
+    global g_SelSense_Enabled, g_SelSense_MenuVisible
     global g_SelSense_LastFullText, g_SelSense_LastTick, g_SelSense_LastClipSig, g_SelSense_LastFireTick
     if !g_SelSense_Enabled || g_SelSense_MenuVisible
         return
@@ -197,7 +253,11 @@ SelectionSense_VerifySelectionAndOpenHubFromDrag() {
         }
         return
     }
-    Sleep(g_SelSense_CopyDelayMs)
+    Sleep(SelectionSense_CopyDelayMsEffective())
+    global g_SelSense_ClipWaitSec
+    try ClipWait(g_SelSense_ClipWaitSec)
+    catch as _e {
+    }
     got := ""
     try got := A_Clipboard
     catch as _e {
@@ -241,27 +301,31 @@ SelectionSense_ProcessDeferred(*) {
         try {
             if (clipSaved != "")
                 Clipboard := clipSaved
-        } catch {
+        } catch as _e {
         }
         return
     }
 
-    Sleep(g_SelSense_CopyDelayMs)
+    Sleep(SelectionSense_CopyDelayMsEffective())
+    global g_SelSense_ClipWaitSec
+    try ClipWait(g_SelSense_ClipWaitSec)
+    catch as _e {
+    }
     got := ""
     try got := A_Clipboard
-    catch {
+    catch as _e {
         got := ""
     }
 
     try {
         if (clipSaved != "")
             Clipboard := clipSaved
-    } catch {
+    } catch as _e {
     }
 
     text := ""
     try text := String(got)
-    catch {
+    catch as _e {
         text := ""
     }
     text := Trim(text, " `t`r`n")
@@ -293,7 +357,9 @@ SelectionSense_EnsureMenuHost() {
 
     global g_SelSense_MenuW, g_SelSense_MenuH
     ; +Resize：HubCapsule 右下角拖条依赖 AHK 同步宿主宽高（hub_resize_move / hub_resize_end）
+    ; 勿用 +E0x80000：未调用 SetLayeredWindowAttributes 时 WS_EX_LAYERED 会导致 WebView2 无法命中鼠标
     g_SelSense_MenuGui := Gui("+AlwaysOnTop -Caption +ToolWindow +Resize +MinSize200x160 -DPIScale", "SelectionMenuHost")
+    g_SelSense_MenuGui.BackColor := "1a1a1a"
     g_SelSense_MenuGui.MarginX := 0
     g_SelSense_MenuGui.MarginY := 0
     g_SelSense_MenuGui.Show("w" . g_SelSense_MenuW . " h" . g_SelSense_MenuH . " Hide")
@@ -309,7 +375,7 @@ SelectionSense_OnMenuWebViewCreated(ctrl) {
     g_SelSense_MenuWV2 := ctrl.CoreWebView2
     g_SelSense_MenuReady := false
 
-    try ctrl.DefaultBackgroundColor := 0xFF0A0A0A
+    try ctrl.DefaultBackgroundColor := 0
     try ctrl.IsVisible := true
 
     SelectionSense_ApplyMenuBounds()
@@ -427,6 +493,59 @@ SelectionSense_OnMenuWebMessage(sender, args) {
             SelectionSense_ApplyMenuOuterSize(nw, nh)
         return
     }
+    if (typ = "hub_mousedown") {
+        global g_SelSense_HubMousedownX, g_SelSense_HubMousedownY
+        g_SelSense_HubMousedownX := msg.Has("x") ? Integer(msg["x"]) : 0
+        g_SelSense_HubMousedownY := msg.Has("y") ? Integer(msg["y"]) : 0
+        return
+    }
+    if (typ = "hub_drag_start") {
+        global g_SelSense_MenuGui, g_SelSense_MenuCtrl, g_SelSense_HubDragActive
+        global g_SelSense_HubDragRefPtrX, g_SelSense_HubDragRefPtrY, g_SelSense_HubDragRefWinX, g_SelSense_HubDragRefWinY
+        global g_SelSense_HubMousedownX, g_SelSense_HubMousedownY
+        if !g_SelSense_MenuGui
+            return
+        px := msg.Has("x") ? Integer(msg["x"]) : 0
+        py := msg.Has("y") ? Integer(msg["y"]) : 0
+        if (px = 0 && py = 0) {
+            px := g_SelSense_HubMousedownX
+            py := g_SelSense_HubMousedownY
+        }
+        if (px = 0 && py = 0) {
+            CoordMode("Mouse", "Screen")
+            MouseGetPos(&px, &py)
+        }
+        g_SelSense_MenuGui.GetPos(&wx, &wy, &ww, &hh)
+        g_SelSense_HubDragRefPtrX := px
+        g_SelSense_HubDragRefPtrY := py
+        g_SelSense_HubDragRefWinX := wx
+        g_SelSense_HubDragRefWinY := wy
+        g_SelSense_HubDragActive := true
+        return
+    }
+    if (typ = "hub_drag_move") {
+        global g_SelSense_MenuGui, g_SelSense_MenuCtrl, g_SelSense_HubDragActive
+        global g_SelSense_HubDragRefPtrX, g_SelSense_HubDragRefPtrY, g_SelSense_HubDragRefWinX, g_SelSense_HubDragRefWinY
+        if !g_SelSense_HubDragActive || !g_SelSense_MenuGui
+            return
+        px := msg.Has("x") ? Integer(msg["x"]) : 0
+        py := msg.Has("y") ? Integer(msg["y"]) : 0
+        if (px = 0 && py = 0)
+            return
+        nx := g_SelSense_HubDragRefWinX + (px - g_SelSense_HubDragRefPtrX)
+        ny := g_SelSense_HubDragRefWinY + (py - g_SelSense_HubDragRefPtrY)
+        g_SelSense_MenuGui.GetPos(, , &ww, &hh)
+        SelectionSense_HubDragClampToVirtual(&nx, &ny, ww, hh)
+        try g_SelSense_MenuGui.Move(nx, ny)
+        SelectionSense_HubDragApplyBoundsNotify()
+        return
+    }
+    if (typ = "hub_drag_end") {
+        global g_SelSense_HubDragActive
+        g_SelSense_HubDragActive := false
+        SelectionSense_HubDragApplyBoundsNotify()
+        return
+    }
 }
 
 SelectionSense_PushMenuText(text) {
@@ -449,7 +568,7 @@ SelectionSense_ShowMenuNearCursor() {
     if !g_SelSense_MenuCtrl {
         menuShowRetries++
         if (menuShowRetries < 50)
-            SetTimer(SelectionSense_ShowMenuNearCursor, -120)
+            SetTimer(SelectionSense_ShowMenuNearCursor, -55)
         else
             menuShowRetries := 0
         return
@@ -468,27 +587,42 @@ SelectionSense_ShowMenuNearCursor() {
     my := g_SelSense_MenuAnchorY
     x := mx + 8
     y := my + 8
-    ScreenW := SysGet(0)
-    ScreenH := SysGet(1)
-    if (x + w > ScreenW - 4)
-        x := ScreenW - w - 4
-    if (y + h > ScreenH - 4)
-        y := ScreenH - h - 4
-    if (x < 4)
-        x := 4
-    if (y < 4)
-        y := 4
+    ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
+    vr := vl + vw
+    vb := vt + vh
+    if (x + w > vr - 4)
+        x := vr - w - 4
+    if (y + h > vb - 4)
+        y := vb - h - 4
+    if (x < vl + 4)
+        x := vl + 4
+    if (y < vt + 4)
+        y := vt + 4
 
-    showOpt := g_SelSense_MenuActivateOnShow ? "" : " NoActivate"
+    doActivate := g_SelSense_MenuActivateOnShow
+    showOpt := doActivate ? "" : " NoActivate"
     try g_SelSense_MenuGui.Show("x" . x . " y" . y . " w" . w . " h" . h . showOpt)
     g_SelSense_MenuVisible := true
     g_SelSense_MenuActivateOnShow := false
     SelectionSense_ApplyMenuBounds()
     try g_SelSense_MenuCtrl.NotifyParentWindowPositionChanged()
-    if showOpt = ""
+    if doActivate {
         try WinActivate("ahk_id " . g_SelSense_MenuGui.Hwnd)
+        try g_SelSense_MenuCtrl.MoveFocus(WebView2.MOVE_FOCUS_REASON.PROGRAMMATIC)
+        SetTimer(SelectionSense_MenuNudgeWebViewFocus, -180)
+    }
 
-    SetTimer(SelectionSense_DeferredPushMenuText, -120)
+    SetTimer(SelectionSense_DeferredPushMenuText, -45)
+}
+
+SelectionSense_MenuNudgeWebViewFocus(*) {
+    global g_SelSense_MenuVisible, g_SelSense_MenuGui, g_SelSense_MenuCtrl
+    if !(g_SelSense_MenuVisible && g_SelSense_MenuGui && g_SelSense_MenuCtrl)
+        return
+    try WinActivate("ahk_id " . g_SelSense_MenuGui.Hwnd)
+    try g_SelSense_MenuCtrl.MoveFocus(WebView2.MOVE_FOCUS_REASON.PROGRAMMATIC)
+    catch as _e {
+    }
 }
 
 ; 悬浮工具栏「新」：打开 HubCapsule（若有近期选区则带入预览）
@@ -540,14 +674,14 @@ SelectionSense_DeferredPushMenuText(*) {
     if g_SelSense_MenuReady
         SelectionSense_PushMenuText(g_SelSense_PendingText)
     else
-        SetTimer(SelectionSense_DeferredPushMenuText, -160)
+        SetTimer(SelectionSense_DeferredPushMenuText, -80)
 }
 
 SelectionSense_HideMenu() {
     global g_SelSense_MenuGui, g_SelSense_MenuVisible
     g_SelSense_MenuVisible := false
     try FloatingToolbar_NotifySelectionClear()
-    catch {
+    catch as _e {
     }
     if g_SelSense_MenuGui {
         try g_SelSense_MenuGui.Hide()
