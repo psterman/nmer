@@ -269,7 +269,7 @@ PQP_Show() {
 
     try g_PQP_Gui.Show("x" . panelX . " y" . panelY . " w" . panelW . " h" . panelH . " NoActivate")
     g_PQP_Visible := true
-    OnMessage(0x0006, _PQP_WM_ACTIVATE)
+    WMActivateChain_Register(_PQP_WM_ACTIVATE)
 
     _PQP_RefreshWebViewComposition()
     SetTimer(_PQP_RefreshWebViewComposition, -120)
@@ -324,7 +324,7 @@ PQP_Hide() {
     }
 
     g_PQP_Visible := false
-    OnMessage(0x0006, _PQP_WM_ACTIVATE, 0)
+    WMActivateChain_Unregister(_PQP_WM_ACTIVATE)
     if g_PQP_Gui {
         try g_PQP_Gui.Hide()
     }

@@ -1666,7 +1666,8 @@ html, body {
     const selected = getSelectedTextInsideCapsule();
     if (selected) {
       postToAhk({ type: 'hub_copy', text: selected });
-      e.preventDefault();
+      /* 不可 preventDefault：否则 WebView 不会把选区写入系统剪贴板，外部编辑器无法粘贴。
+         AHK 侧若未处理 hub_copy，原先等于只拦掉默认复制。 */
       return;
     }
     if (hasPendingImage()) {

@@ -1335,7 +1335,7 @@ VK_Show() {
             _PushInit()
         _StartKeyPreviewHook()
         VK_SendToWeb('{"type":"keyPreviewClear"}')
-        OnMessage(0x0006, _VK_WM_ACTIVATE)
+        WMActivateChain_Register(_VK_WM_ACTIVATE)
         WebView2_MoveFocusProgrammatic(g_VK_Ctrl)
         SetTimer(_VK_DeferredMoveFocus, -100)
         _VK_RequestFocusInput()
@@ -1346,7 +1346,7 @@ VK_Hide() {
     global g_VK_Gui
     VK_SendToWeb('{"type":"keyPreviewClear"}')
     _StopKeyPreviewHook()
-    OnMessage(0x0006, _VK_WM_ACTIVATE, 0)
+    WMActivateChain_Unregister(_VK_WM_ACTIVATE)
     if g_VK_Gui
         g_VK_Gui.Hide()
 }

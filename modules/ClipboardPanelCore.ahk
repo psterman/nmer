@@ -107,7 +107,7 @@ CP_Show() {
     g_CP_Visible := true
     try WinActivate("ahk_id " . g_CP_Gui.Hwnd)
 
-    OnMessage(0x0006, _CP_WM_ACTIVATE)
+    WMActivateChain_Register(_CP_WM_ACTIVATE)
 
     ; 缓解 WebView2 在「先 Hide 再 Show」宿主上的黑屏：显示后立即刷新合成层
     _CP_RefreshWebViewComposition()
@@ -150,7 +150,7 @@ CP_Hide() {
         g_CP_SearchTimer := 0
     }
 
-    OnMessage(0x0006, _CP_WM_ACTIVATE, 0)
+    WMActivateChain_Unregister(_CP_WM_ACTIVATE)
 
     g_CP_Visible := false
     if g_CP_Gui

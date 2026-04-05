@@ -27,6 +27,10 @@ global FloatingToolbarScale := 1.0
 global FloatingToolbarMinScale := 0.7
 global FloatingToolbarMaxScale := 1.5
 global FloatingToolbarDragging := false
+global FloatingToolbar_DragOriginScreenX := 0
+global FloatingToolbar_DragOriginScreenY := 0
+global FloatingToolbar_DragOriginWinX := 0
+global FloatingToolbar_DragOriginWinY := 0
 global FloatingToolbarIsMinimized := false
 
 global g_FTB_WV2_Ctrl := 0
@@ -313,12 +317,19 @@ FloatingToolbar_OnWebMessage(sender, args) {
     }
 
     if (typ = "drag_host") {
-        if FloatingToolbarGUI {
-            global FloatingToolbarDragging
-            FloatingToolbarDragging := true
-            PostMessage(0x00A1, 2, 0, FloatingToolbarGUI.Hwnd)
-            SetTimer(FloatingToolbarCheckDragEnd, 50)
+        global FloatingToolbarGUI, FloatingToolbarDragging
+        global FloatingToolbar_DragOriginScreenX, FloatingToolbar_DragOriginScreenY
+        global FloatingToolbar_DragOriginWinX, FloatingToolbar_DragOriginWinY
+        if !FloatingToolbarGUI
+            return
+        try FloatingToolbarGUI.GetPos(&FloatingToolbar_DragOriginWinX, &FloatingToolbar_DragOriginWinY)
+        catch as _e {
+            return
         }
+        CoordMode("Mouse", "Screen")
+        MouseGetPos(&FloatingToolbar_DragOriginScreenX, &FloatingToolbar_DragOriginScreenY)
+        FloatingToolbarDragging := true
+        SetTimer(FloatingToolbar_DoDrag, 10)
         return
     }
 
@@ -352,17 +363,20 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
                 SetCapsLockState("Off")
             }
         case "Record":
-            try ShowClipboardHistoryPanel()
+            try CP_Show()
             catch as err {
-                SetCapsLockState("AlwaysOff")
-                Sleep(30)
-                Send("{CapsLock down}")
-                Sleep(30)
-                Send("x")
-                Sleep(30)
-                Send("{CapsLock up}")
-                Sleep(30)
-                SetCapsLockState("Off")
+                try ShowClipboardHistoryPanel()
+                catch as err2 {
+                    SetCapsLockState("AlwaysOff")
+                    Sleep(30)
+                    Send("{CapsLock down}")
+                    Sleep(30)
+                    Send("x")
+                    Sleep(30)
+                    Send("{CapsLock up}")
+                    Sleep(30)
+                    SetCapsLockState("Off")
+                }
             }
         case "AIAssistant":
             try ShowPromptQuickPadListOnly()
@@ -513,15 +527,43 @@ FloatingToolbarApplyWheelDelta(delta) {
     }
 }
 
-; ===================== 拖动检测 =====================
-FloatingToolbarCheckDragEnd() {
-    global FloatingToolbarDragging, FloatingToolbarWindowX, FloatingToolbarWindowY
+; ===================== 拖动（WebView2 客户区 PostMessage HTCAPTION 不可靠，用手动 Move）=====================
+FloatingToolbar_DoDrag(*) {
+    global FloatingToolbarGUI, FloatingToolbarDragging, FloatingToolbarWindowX, FloatingToolbarWindowY
+    global FloatingToolbar_DragOriginScreenX, FloatingToolbar_DragOriginScreenY
+    global FloatingToolbar_DragOriginWinX, FloatingToolbar_DragOriginWinY
 
-    if (!GetKeyState("LButton", "P")) {
-        FloatingToolbarDragging := false
-        SetTimer(FloatingToolbarCheckDragEnd, 0)
-        FloatingToolbarCheckWindowPosition()
+    if !(FloatingToolbarDragging && FloatingToolbarGUI) {
+        SetTimer(FloatingToolbar_DoDrag, 0)
+        return
     }
+    if !GetKeyState("LButton", "P") {
+        FloatingToolbarDragging := false
+        SetTimer(FloatingToolbar_DoDrag, 0)
+        FloatingToolbarCheckWindowPosition()
+        SaveFloatingToolbarPosition()
+        return
+    }
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&mx, &my)
+    newX := FloatingToolbar_DragOriginWinX + (mx - FloatingToolbar_DragOriginScreenX)
+    newY := FloatingToolbar_DragOriginWinY + (my - FloatingToolbar_DragOriginScreenY)
+    ToolbarWidth := FloatingToolbarCalculateWidth()
+    ToolbarHeight := FloatingToolbarCalculateHeight()
+    ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
+    vr := vl + vw
+    vb := vt + vh
+    if (newX < vl)
+        newX := vl
+    if (newY < vt)
+        newY := vt
+    if (newX + ToolbarWidth > vr)
+        newX := vr - ToolbarWidth
+    if (newY + ToolbarHeight > vb)
+        newY := vb - ToolbarHeight
+    try FloatingToolbarGUI.Move(newX, newY)
+    FloatingToolbarWindowX := newX
+    FloatingToolbarWindowY := newY
 }
 
 ; ===================== 窗口位置检查与磁吸 =====================
@@ -792,7 +834,7 @@ GetButtonTip(action) {
         case "Search":
             return "搜索记录 (Caps + F)"
         case "Record":
-            return "剪贴板历史 (Caps + X)"
+            return "新剪贴板 (WebView)"
         case "AIAssistant":
             return "AI助手 (Ctrl+Shift+B)"
         case "PromptNew":

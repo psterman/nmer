@@ -1,4 +1,4 @@
-﻿; ===================== msg =====================
+; ===================== msg =====================
 
 global pToken := Gdip_Startup()
 if (!pToken) {
@@ -131,6 +131,9 @@ TrySetTrayIconHighQuality()
 
 ; ===================== 定义主脚本目录（供模块使用）=====================
 global MainScriptDir := A_ScriptDir
+
+; ===================== WM_ACTIVATE 链（须在任意 OnMessage(0x0006) 模块之前）=====================
+#Include modules\WMActivateChain.ahk
 
 ; ===================== 包含新的剪贴板管理器模块 =====================
 #Include modules\ClipboardFTS5.ahk
@@ -16314,7 +16317,7 @@ ShowConfigWebViewGUI() {
     PosY := ScreenInfo.Top + Round((ScreenInfo.Height - WinH) / 2)
 
     GuiID_ConfigGUI.Show("w" . WinW . " h" . WinH . " x" . PosX . " y" . PosY)
-    OnMessage(0x0006, ConfigWebView_WM_ACTIVATE)
+    WMActivateChain_Register(ConfigWebView_WM_ACTIVATE)
     ConfigWebView_ApplyBounds()
     ConfigWebView_RefreshWebViewComposition()
     SetTimer(ConfigWebView_RefreshWebViewComposition, -30)
@@ -17511,7 +17514,7 @@ CloseConfigGUI() {
     ; WebView 设置页关闭路径（首期改造）
     if (ConfigWebViewMode) {
         try {
-            OnMessage(0x0006, ConfigWebView_WM_ACTIVATE, 0)
+            WMActivateChain_Unregister(ConfigWebView_WM_ACTIVATE)
             GuiID_ConfigGUI.Hide()
         } catch {
         }

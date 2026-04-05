@@ -11,6 +11,7 @@
 VK_ExecCursorHelperCmd(cmdId) {
     OutputDebug("[VK] 独立 VK 无 CursorHelper CH_RUN 实现: " . cmdId)
 }
+#Include modules\WMActivateChain.ahk
 #Include modules\VirtualKeyboardCore.ahk
 
 VK_Init(false)

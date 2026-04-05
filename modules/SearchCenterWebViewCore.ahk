@@ -146,7 +146,7 @@ SCWV_Show() {
 
     g_SCWV_Gui.Show("w1180 h760 Center")
     g_SCWV_Visible := true
-    OnMessage(0x0006, SCWV_WM_ACTIVATE)
+    WMActivateChain_Register(SCWV_WM_ACTIVATE)
 
     SCWV_RefreshComposition()
     SetTimer(SCWV_RefreshComposition, -120)
@@ -213,7 +213,7 @@ SCWV_Hide(PersistSelection := true) {
     }
 
     g_SCWV_Visible := false
-    OnMessage(0x0006, SCWV_WM_ACTIVATE, 0)
+    WMActivateChain_Unregister(SCWV_WM_ACTIVATE)
     GuiID_SearchCenter := 0
     SearchCenterInvalidateGuiControlRefs()
 
@@ -351,9 +351,13 @@ _SCWV_FireSearch(*) {
 }
 
 _SCWV_PerformSearch(keyword, offset := 0) {
-    global SearchCenterSearchResults, SearchCenterCurrentLimit, SearchCenterHasMoreData, SearchCenterFilterType
+    global SearchCenterSearchResults, SearchCenterCurrentLimit, SearchCenterHasMoreData, SearchCenterFilterType, SearchCenterWebKeyword
 
     keyword := Trim(String(keyword))
+    ; 前端 debounce 后发 {type:search} 时只传 keyword 进本函数，未写回 SearchCenterWebKeyword；
+    ; SCWV_PushState 仍用旧全局（常为空），applyState 会把 #search 设成空串 → 输入被清空、选区丢失无法复制。
+    if (offset = 0)
+        SearchCenterWebKeyword := keyword
 
     if (offset = 0)
         SearchCenterSearchResults := []

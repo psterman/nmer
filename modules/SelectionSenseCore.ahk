@@ -1,6 +1,6 @@
 #Requires AutoHotkey v2.0
-; 选区感应：~LButton Up + ^c 仅更新工具栏（FloatingToolbar_NotifySelectionChange），不打开 Hub。
-; HubCapsule 仅：工具栏「新」或「左键按下后移动超过 DragThresholdPx」且确有选区时打开。
+; 选区感应：~LButton Up 后模拟 ^c 仅更新工具栏（FloatingToolbar_NotifySelectionChange），不打开 Hub。
+; HubCapsule：工具栏「新」、Cursor 内双击 Ctrl+C（全局 ~^c）、或 Hub 页内快捷键；选中文本不再拖选自动弹出。
 
 global g_SelSense_Enabled := true
 global g_SelSense_CopyDelayMs := 55
@@ -23,11 +23,6 @@ global g_SelSense_NextNavPage := ""
 global g_SelSense_MenuActivateOnShow := false
 ; 工具栏打开 Hub 后 WebView 停在 HubCapsule；选中文本应回到 SelectionMenu，否则会误用大窗口页
 global g_SelSense_MenuShowingHub := false
-global g_SelSense_DragArmed := false
-global g_SelSense_DragSX := 0
-global g_SelSense_DragSY := 0
-global g_SelSense_DragMaxAgeMs := 10000
-global g_SelSense_DragThresholdPx := 12
 global g_SelSense_ClipWaitSec := 0.45
 global g_SelSense_HubMousedownX := 0
 global g_SelSense_HubMousedownY := 0
@@ -36,6 +31,9 @@ global g_SelSense_HubDragRefPtrX := 0
 global g_SelSense_HubDragRefPtrY := 0
 global g_SelSense_HubDragRefWinX := 0
 global g_SelSense_HubDragRefWinY := 0
+global g_SelSense_UserCopyInProgress := false
+global g_SelSense_UserCopyEndTick := 0
+global g_SelSense_DoubleCopyHub_LastTick := 0
 
 SelectionSense_HubDragClampToVirtual(&nx, &ny, ww, hh) {
     ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
@@ -56,6 +54,45 @@ SelectionSense_HubDragApplyBoundsNotify() {
     SelectionSense_ApplyMenuBounds()
     try g_SelSense_MenuCtrl.NotifyParentWindowPositionChanged()
     catch as _e {
+    }
+}
+
+SelectionSense_HubCapsule_IniPath() {
+    return (IsSet(ConfigFile) && ConfigFile != "") ? ConfigFile : (A_ScriptDir "\CursorShortcut.ini")
+}
+
+SelectionSense_HubCapsule_ReadSavedPos(&outX, &outY, &outOk) {
+    outOk := false
+    outX := 0
+    outY := 0
+    cfg := SelectionSense_HubCapsule_IniPath()
+    try {
+        xs := IniRead(cfg, "WindowPositions", "HubCapsule_X", "")
+        ys := IniRead(cfg, "WindowPositions", "HubCapsule_Y", "")
+        if (xs = "" || xs = "ERROR" || ys = "" || ys = "ERROR")
+            return
+        xi := Integer(xs)
+        yi := Integer(ys)
+        if (Abs(xi) > 40000 || Abs(yi) > 40000)
+            return
+        outX := xi
+        outY := yi
+        outOk := true
+    } catch as _e {
+        outOk := false
+    }
+}
+
+SelectionSense_HubCapsule_WriteSavedPos() {
+    global g_SelSense_MenuGui, g_SelSense_MenuShowingHub
+    if !(g_SelSense_MenuGui && g_SelSense_MenuShowingHub)
+        return
+    try {
+        g_SelSense_MenuGui.GetPos(&px, &py)
+        cfg := SelectionSense_HubCapsule_IniPath()
+        IniWrite(px, cfg, "WindowPositions", "HubCapsule_X")
+        IniWrite(py, cfg, "WindowPositions", "HubCapsule_Y")
+    } catch as _e {
     }
 }
 
@@ -95,7 +132,6 @@ SelectionSense_OnToolbarSearchClick() {
 
 SelectionSense_LoadIni() {
     global g_SelSense_Enabled, g_SelSense_CopyDelayMs, g_SelSense_RequireIBeam, g_SelSense_ClipWaitSec
-    global g_SelSense_DragThresholdPx
     cfg := (IsSet(ConfigFile) && ConfigFile != "") ? ConfigFile : (A_ScriptDir "\CursorShortcut.ini")
     try {
         g_SelSense_Enabled := (IniRead(cfg, "SelectionSense", "Enable", "1") != "0")
@@ -107,12 +143,6 @@ SelectionSense_LoadIni() {
             f := Float(w)
             if (f >= 0.1 && f <= 2.0)
                 g_SelSense_ClipWaitSec := f
-        }
-        dt := IniRead(cfg, "SelectionSense", "DragThresholdPx", "")
-        if (dt != "" && dt != "ERROR") {
-            di := Integer(dt)
-            if (di >= 4 && di <= 80)
-                g_SelSense_DragThresholdPx := di
         }
     } catch as _e {
         g_SelSense_Enabled := true
@@ -173,7 +203,6 @@ SelectionSense_IsIBeamCursor() {
 }
 
 SelectionSense_OnLButtonUp(*) {
-    SelectionSense_StopDragPoll()
     global g_SelSense_Enabled, g_SelSense_RequireIBeam
     if !g_SelSense_Enabled
         return
@@ -184,113 +213,16 @@ SelectionSense_OnLButtonUp(*) {
     SetTimer(SelectionSense_ProcessDeferred, -1)
 }
 
-SelectionSense_StopDragPoll(*) {
-    global g_SelSense_DragArmed
-    g_SelSense_DragArmed := false
-    SetTimer(SelectionSense_DragPoll, 0)
-}
-
-SelectionSense_OnLButtonDownDragArm(*) {
-    global g_SelSense_Enabled, g_SelSense_DragArmed, g_SelSense_DragSX, g_SelSense_DragSY
-    global g_SelSense_MenuVisible, g_SelSense_LastTick, g_SelSense_DragMaxAgeMs
-    if !g_SelSense_Enabled
-        return
-    if g_SelSense_MenuVisible
-        return
-    if SelectionSense_CursorOverOurUi()
-        return
-    if (Trim(SelectionSense_GetLastSelectedText()) = "")
-        return
-    if (g_SelSense_LastTick = 0 || (A_TickCount - g_SelSense_LastTick > g_SelSense_DragMaxAgeMs))
-        return
-    CoordMode("Mouse", "Screen")
-    MouseGetPos(&g_SelSense_DragSX, &g_SelSense_DragSY)
-    g_SelSense_DragArmed := true
-    SetTimer(SelectionSense_DragPoll, 15)
-}
-
-SelectionSense_DragPoll(*) {
-    global g_SelSense_DragArmed, g_SelSense_DragSX, g_SelSense_DragSY, g_SelSense_DragThresholdPx
-    if !g_SelSense_DragArmed {
-        SetTimer(SelectionSense_DragPoll, 0)
-        return
-    }
-    if !GetKeyState("LButton", "P") {
-        SelectionSense_StopDragPoll()
-        return
-    }
-    if SelectionSense_CursorOverOurUi() {
-        SelectionSense_StopDragPoll()
-        return
-    }
-    CoordMode("Mouse", "Screen")
-    MouseGetPos(&x, &y)
-    dx := x - g_SelSense_DragSX
-    dy := y - g_SelSense_DragSY
-    thr := g_SelSense_DragThresholdPx
-    if (dx * dx + dy * dy < thr * thr)
-        return
-    g_SelSense_DragArmed := false
-    SetTimer(SelectionSense_DragPoll, 0)
-    SelectionSense_VerifySelectionAndOpenHubFromDrag()
-}
-
-SelectionSense_VerifySelectionAndOpenHubFromDrag() {
-    global g_SelSense_Enabled, g_SelSense_MenuVisible
-    global g_SelSense_LastFullText, g_SelSense_LastTick, g_SelSense_LastClipSig, g_SelSense_LastFireTick
-    if !g_SelSense_Enabled || g_SelSense_MenuVisible
-        return
-    if SelectionSense_CursorOverOurUi()
-        return
-    clipSaved := ""
-    try clipSaved := ClipboardAll()
-    try Send("^c")
-    catch as e {
-        try {
-            if (clipSaved != "")
-                Clipboard := clipSaved
-        } catch as _e {
-        }
-        return
-    }
-    Sleep(SelectionSense_CopyDelayMsEffective())
-    global g_SelSense_ClipWaitSec
-    try ClipWait(g_SelSense_ClipWaitSec)
-    catch as _e {
-    }
-    got := ""
-    try got := A_Clipboard
-    catch as _e {
-        got := ""
-    }
-    try {
-        if (clipSaved != "")
-            Clipboard := clipSaved
-    } catch as _e {
-    }
-    text := ""
-    try text := String(got)
-    catch as _e {
-        text := ""
-    }
-    text := Trim(text, " `t`r`n")
-    if (text = "")
-        return
-    g_SelSense_LastFullText := text
-    g_SelSense_LastTick := A_TickCount
-    g_SelSense_LastClipSig := StrLen(text) . ":" . SubStr(text, 1, 24)
-    g_SelSense_LastFireTick := A_TickCount
-    FloatingToolbar_NotifySelectionChange(text)
-    SelectionSense_OpenHubCapsuleFromToolbar(false)
-}
-
 SelectionSense_ProcessDeferred(*) {
     global g_SelSense_Enabled, g_SelSense_CopyDelayMs, g_SelSense_LastClipSig, g_SelSense_LastFireTick
-    global g_SelSense_LastFullText, g_SelSense_LastTick
+    global g_SelSense_LastFullText, g_SelSense_LastTick, g_SelSense_UserCopyInProgress, g_SelSense_UserCopyEndTick
 
     if !g_SelSense_Enabled
         return
     if SelectionSense_CursorOverOurUi()
+        return
+    ; 用户主动 Ctrl+C 后一段时间内跳过模拟 ^c，避免与编辑器内复制/粘贴抢剪贴板
+    if (g_SelSense_UserCopyInProgress || (A_TickCount - g_SelSense_UserCopyEndTick < 950))
         return
 
     clipSaved := ""
@@ -315,12 +247,6 @@ SelectionSense_ProcessDeferred(*) {
     try got := A_Clipboard
     catch as _e {
         got := ""
-    }
-
-    try {
-        if (clipSaved != "")
-            Clipboard := clipSaved
-    } catch as _e {
     }
 
     text := ""
@@ -330,12 +256,21 @@ SelectionSense_ProcessDeferred(*) {
     }
     text := Trim(text, " `t`r`n")
     if (text = "") {
+        ; 未读到选区：尽量恢复复制前的剪贴板，避免一次失败的 ^c 污染
+        try {
+            if (clipSaved != "")
+                Clipboard := clipSaved
+        } catch as _e {
+        }
         SelectionSense_ClearLastSelected()
         try FloatingToolbar_NotifySelectionClear()
         catch as _e {
         }
         return
     }
+
+    ; 成功读到选区时：保留当前剪贴板（即本次 ^c 的内容），勿还原 clipSaved。
+    ; 否则用户无法在 Cursor 等编辑器里粘贴刚选中的文本，且 Electron 下易表现为剪贴板被清空/异常。
 
     sig := StrLen(text) . ":" . SubStr(text, 1, 24)
     if (sig = g_SelSense_LastClipSig && (A_TickCount - g_SelSense_LastFireTick < 400))
@@ -544,6 +479,7 @@ SelectionSense_OnMenuWebMessage(sender, args) {
         global g_SelSense_HubDragActive
         g_SelSense_HubDragActive := false
         SelectionSense_HubDragApplyBoundsNotify()
+        SelectionSense_HubCapsule_WriteSavedPos()
         return
     }
 }
@@ -575,7 +511,7 @@ SelectionSense_ShowMenuNearCursor() {
     }
     menuShowRetries := 0
 
-    global g_SelSense_MenuW, g_SelSense_MenuH, g_SelSense_MenuActivateOnShow
+    global g_SelSense_MenuW, g_SelSense_MenuH, g_SelSense_MenuActivateOnShow, g_SelSense_MenuShowingHub
     w := g_SelSense_MenuW
     h := g_SelSense_MenuH
     if (w < 200)
@@ -583,10 +519,19 @@ SelectionSense_ShowMenuNearCursor() {
     if (h < 160)
         h := 200
     CoordMode("Mouse", "Screen")
-    mx := g_SelSense_MenuAnchorX
-    my := g_SelSense_MenuAnchorY
-    x := mx + 8
-    y := my + 8
+    sx := sy := 0
+    savedOk := false
+    if (g_SelSense_MenuShowingHub && w >= 350)
+        SelectionSense_HubCapsule_ReadSavedPos(&sx, &sy, &savedOk)
+    if savedOk {
+        x := sx
+        y := sy
+    } else {
+        mx := g_SelSense_MenuAnchorX
+        my := g_SelSense_MenuAnchorY
+        x := mx + 8
+        y := my + 8
+    }
     ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
     vr := vl + vw
     vb := vt + vh
@@ -625,17 +570,54 @@ SelectionSense_MenuNudgeWebViewFocus(*) {
     }
 }
 
+SelectionSense_IsCursorEditorActive() {
+    try {
+        return StrLower(WinGetProcessName("A")) = "cursor.exe"
+    } catch as _e {
+        return false
+    }
+}
+
+; Hub 已显示且当前为 HubCapsule 页时，双击 Ctrl+C 不再重复 Navigate/抢焦点
+SelectionSense_HubCapsuleHostIsOpen() {
+    global g_SelSense_MenuVisible, g_SelSense_MenuShowingHub
+    return !!(g_SelSense_MenuVisible && g_SelSense_MenuShowingHub)
+}
+
+SelectionSense_OpenHubAfterDoubleCopyTick(*) {
+    global g_SelSense_LastFullText, g_SelSense_LastTick, g_SelSense_LastClipSig, g_SelSense_LastFireTick
+    text := ""
+    try text := Trim(String(A_Clipboard), " `t`r`n")
+    if (text != "") {
+        g_SelSense_LastFullText := text
+        g_SelSense_LastTick := A_TickCount
+        g_SelSense_LastClipSig := StrLen(text) . ":" . SubStr(text, 1, 24)
+        g_SelSense_LastFireTick := A_TickCount
+        try FloatingToolbar_NotifySelectionChange(text)
+        catch as _e {
+        }
+    }
+    SelectionSense_OpenHubCapsuleFromToolbar(false, text)
+}
+
 ; 悬浮工具栏「新」：打开 HubCapsule（若有近期选区则带入预览）
-; useToolbarAnchor：true 时优先锚在工具栏上方；false 为划词拖动打开，锚在鼠标位置
-SelectionSense_OpenHubCapsuleFromToolbar(useToolbarAnchor := true) {
+; useToolbarAnchor：true 时优先锚在工具栏上方；false 时锚在鼠标（供热键等）
+; pendingTextOverride：非空时直接作为待推送预览（双击 Ctrl+C 时用剪贴板，避免仅依赖 LButton 选区缓存）
+SelectionSense_OpenHubCapsuleFromToolbar(useToolbarAnchor := true, pendingTextOverride := "") {
     global g_SelSense_MenuW, g_SelSense_MenuH, g_SelSense_MenuGui, g_SelSense_MenuWV2, g_SelSense_MenuCtrl
     global g_SelSense_MenuReady, g_SelSense_PendingText, g_SelSense_MenuAnchorX, g_SelSense_MenuAnchorY
     global g_SelSense_NextNavPage, g_SelSense_MenuActivateOnShow, FloatingToolbarGUI, g_SelSense_MenuShowingHub
+    global g_SelSense_DoubleCopyHub_LastTick
 
+    g_SelSense_DoubleCopyHub_LastTick := 0
     g_SelSense_MenuW := 420
     g_SelSense_MenuH := 560
     g_SelSense_MenuActivateOnShow := true
-    g_SelSense_PendingText := Trim(SelectionSense_GetLastSelectedText())
+    ov := Trim(String(pendingTextOverride))
+    if (ov != "")
+        g_SelSense_PendingText := ov
+    else
+        g_SelSense_PendingText := Trim(SelectionSense_GetLastSelectedText())
 
     anchored := false
     if (useToolbarAnchor && IsSet(FloatingToolbarGUI) && FloatingToolbarGUI) {
@@ -678,7 +660,10 @@ SelectionSense_DeferredPushMenuText(*) {
 }
 
 SelectionSense_HideMenu() {
-    global g_SelSense_MenuGui, g_SelSense_MenuVisible
+    global g_SelSense_MenuGui, g_SelSense_MenuVisible, g_SelSense_MenuShowingHub, g_SelSense_DoubleCopyHub_LastTick
+    if (g_SelSense_MenuGui && g_SelSense_MenuVisible && g_SelSense_MenuShowingHub)
+        SelectionSense_HubCapsule_WriteSavedPos()
+    g_SelSense_DoubleCopyHub_LastTick := 0
     g_SelSense_MenuVisible := false
     try FloatingToolbar_NotifySelectionClear()
     catch as _e {
@@ -688,14 +673,42 @@ SelectionSense_HideMenu() {
     }
 }
 
+SelectionSense_OnUserCopy(*) {
+    global g_SelSense_UserCopyInProgress, g_SelSense_UserCopyEndTick, g_SelSense_DoubleCopyHub_LastTick
+
+    g_SelSense_UserCopyInProgress := true
+    g_SelSense_UserCopyEndTick := A_TickCount
+    SetTimer(SelectionSense_ClearUserCopyFlag, -780)
+
+    ; Cursor 内双击 Ctrl+C：打开 Hub（已打开且为 HubCapsule 时不处理）
+    if !SelectionSense_IsCursorEditorActive()
+        return
+    if SelectionSense_HubCapsuleHostIsOpen()
+        return
+
+    now := A_TickCount
+    winMs := 520
+    if (g_SelSense_DoubleCopyHub_LastTick > 0 && (now - g_SelSense_DoubleCopyHub_LastTick) <= winMs) {
+        g_SelSense_DoubleCopyHub_LastTick := 0
+        SetTimer(SelectionSense_OpenHubAfterDoubleCopyTick, -140)
+    } else {
+        g_SelSense_DoubleCopyHub_LastTick := now
+    }
+}
+
+SelectionSense_ClearUserCopyFlag(*) {
+    global g_SelSense_UserCopyInProgress
+    g_SelSense_UserCopyInProgress := false
+}
+
 SelectionSense_Init() {
     SelectionSense_LoadIni()
     global g_SelSense_Enabled
     if g_SelSense_Enabled {
         Hotkey("~*LButton Up", SelectionSense_OnLButtonUp, "On")
-        Hotkey("~*LButton", SelectionSense_OnLButtonDownDragArm, "On")
+        Hotkey("~^c", SelectionSense_OnUserCopy, "On")
     } else {
         Hotkey("~*LButton Up", SelectionSense_OnLButtonUp, "Off")
-        Hotkey("~*LButton", SelectionSense_OnLButtonDownDragArm, "Off")
+        Hotkey("~^c", SelectionSense_OnUserCopy, "Off")
     }
 }
