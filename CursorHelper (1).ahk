@@ -3634,45 +3634,52 @@ ProcessClipboardChange() {
             if (ClipboardDB && ClipboardDB != 0) {
                 SaveToDB(content, dataType, SourceApp, SourceTitle, SourcePath, charCount, wordCount)
             }
+        }
 
-            ; 保存到新的FTS5数据库系统（用于新的剪贴板管理器）
-            ; 当 Type=1（文本）时，自动获取当前活动窗口的进程名作为 SourceApp，并调用 SaveToClipboardFTS5
-            if (ClipboardFTS5DB && ClipboardFTS5DB != 0) {
-                if (clipImageFiles != "") {
-                    if ClipboardFTS5_ImportDroppedImageFiles(clipImageFiles, SourceApp)
-                        try CP_NotifyClipboardUpdated()
-                } else if (Type = 1) {
-                    ; 单行本地图片路径：走文件入库（JPG/PNG 等与资源管理器「复制」一致）
+        ; ===== FTS5 新剪贴板面板入库（Raycast 风格：按剪贴板格式独立检测，不依赖 Type） =====
+        if (ClipboardFTS5DB && ClipboardFTS5DB != 0) {
+            ftsOk := false
+
+            ; 优先级 1：CF_HDROP 文件拖放（资源管理器复制文件）
+            if (clipImageFiles != "") {
+                ftsOk := ClipboardFTS5_ImportDroppedImageFiles(clipImageFiles, SourceApp)
+            }
+
+            ; 优先级 2：文本内容非空 → 走文本入库（SaveToClipboardFTS5 内部识别图片 URL/路径）
+            if (!ftsOk && content != "") {
+                if (dataType != "Image") {
                     localImg := ClipboardFTS5_SingleLocalImagePathFromText(content)
                     if (localImg != "") {
-                        if CaptureImageFileToFTS5(localImg, SourceApp)
-                            try CP_NotifyClipboardUpdated()
+                        ftsOk := CaptureImageFileToFTS5(localImg, SourceApp)
                     } else {
-                        if SaveToClipboardFTS5(content, SourceApp)
-                            try CP_NotifyClipboardUpdated()
+                        ftsOk := SaveToClipboardFTS5(content, SourceApp)
                     }
-                } else if (Type = 2) {
-                    ftsOk := false
-                    ; 先处理 CF_HDROP：JPG 常无合成位图，仅 PNG 可能带 DIB，不能单靠 CaptureClipboardImageToFTS5
-                    if (clipImageFiles != "")
-                        ftsOk := ClipboardFTS5_ImportDroppedImageFiles(clipImageFiles, SourceApp)
-                    if !ftsOk && CaptureClipboardImageToFTS5(SourceApp)
-                        ftsOk := true
-                    if ftsOk
-                        try CP_NotifyClipboardUpdated()
                 }
-                
-                ; 如果 ClipboardHistoryPanel 已显示，自动刷新数据
-                try {
-                    ; 检查面板是否已显示（通过全局变量）
-                    global HistoryIsVisible
-                    if (IsSet(HistoryIsVisible) && HistoryIsVisible) {
-                        ; 延迟刷新，确保数据已写入数据库
-                        SetTimer(() => RefreshHistoryData(), -300)
-                    }
-                } catch {
-                    ; 如果函数不存在或面板未加载，忽略错误（避免影响主功能）
+            }
+
+            ; 优先级 3：文本为空或为刚才后台保存的位图 → 浏览器/应用纯图片复制（CF_DIB=8, CF_BITMAP=2）
+            if (!ftsOk) {
+                if (DllCall("IsClipboardFormatAvailable", "UInt", 8)
+                    || DllCall("IsClipboardFormatAvailable", "UInt", 2)) {
+                    
+                    ; 尝试获取图片源地址（适用于从浏览器中复制图片）
+                    sourceUrl := ""
+                    try sourceUrl := _ClipboardFTS5_GetClipboardHtmlImageRef()
+                    
+                    ftsOk := CaptureClipboardImageToFTS5(SourceApp, sourceUrl)
                 }
+            }
+
+            if (ftsOk)
+                try CP_NotifyClipboardUpdated()
+
+            ; 如果 ClipboardHistoryPanel 已显示，自动刷新数据
+            try {
+                global HistoryIsVisible
+                if (IsSet(HistoryIsVisible) && HistoryIsVisible) {
+                    SetTimer(() => RefreshHistoryData(), -300)
+                }
+            } catch {
             }
         }
     } catch as err {

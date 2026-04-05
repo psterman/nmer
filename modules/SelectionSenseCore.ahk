@@ -202,14 +202,46 @@ SelectionSense_IsIBeamCursor() {
     return (h = ibeam)
 }
 
+global g_SelSense_LButtonDownX := 0
+global g_SelSense_LButtonDownY := 0
+global g_SelSense_LButtonDownTick := 0
+global g_SelSense_LButtonClicks := 0
+
+SelectionSense_OnLButtonDown(*) {
+    global g_SelSense_LButtonDownX, g_SelSense_LButtonDownY, g_SelSense_LButtonDownTick, g_SelSense_LButtonClicks
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&g_SelSense_LButtonDownX, &g_SelSense_LButtonDownY)
+    if (A_TickCount - g_SelSense_LButtonDownTick < 400) {
+        g_SelSense_LButtonClicks += 1
+    } else {
+        g_SelSense_LButtonClicks := 1
+    }
+    g_SelSense_LButtonDownTick := A_TickCount
+}
+
 SelectionSense_OnLButtonUp(*) {
     global g_SelSense_Enabled, g_SelSense_RequireIBeam
+    global g_SelSense_LButtonDownX, g_SelSense_LButtonDownY, g_SelSense_LButtonClicks, g_SelSense_LButtonDownTick
     if !g_SelSense_Enabled
         return
     if SelectionSense_CursorOverOurUi()
         return
     if g_SelSense_RequireIBeam && !SelectionSense_IsIBeamCursor()
         return
+        
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&upX, &upY)
+    distX := Abs(upX - g_SelSense_LButtonDownX)
+    distY := Abs(upY - g_SelSense_LButtonDownY)
+    
+    isDrag := (distX > 3 || distY > 3)
+    isMultiClick := (g_SelSense_LButtonClicks >= 2 && (A_TickCount - g_SelSense_LButtonDownTick < 400))
+    
+    if !(isDrag || isMultiClick) {
+        try FloatingToolbar_NotifySelectionClear()
+        return
+    }
+
     SetTimer(SelectionSense_ProcessDeferred, -1)
 }
 
@@ -228,6 +260,7 @@ SelectionSense_ProcessDeferred(*) {
     clipSaved := ""
     try clipSaved := ClipboardAll()
 
+    A_Clipboard := ""
     try Send("^c")
     catch as e {
         try {
@@ -705,9 +738,11 @@ SelectionSense_Init() {
     SelectionSense_LoadIni()
     global g_SelSense_Enabled
     if g_SelSense_Enabled {
+        Hotkey("~*LButton", SelectionSense_OnLButtonDown, "On")
         Hotkey("~*LButton Up", SelectionSense_OnLButtonUp, "On")
         Hotkey("~^c", SelectionSense_OnUserCopy, "On")
     } else {
+        Hotkey("~*LButton", SelectionSense_OnLButtonDown, "Off")
         Hotkey("~*LButton Up", SelectionSense_OnLButtonUp, "Off")
         Hotkey("~^c", SelectionSense_OnUserCopy, "Off")
     }

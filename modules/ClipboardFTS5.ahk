@@ -1262,36 +1262,51 @@ CaptureClipboardTextToFTS5(SourceApp) {
     }
 }
 
-; 从剪贴板尽量取位图：A_Clipboard → ClipboardAll → WinClip DIB（Chrome/Edge 复制图片兼容）
+; 从剪贴板尽量取位图：Gdip → WinClip DIB → ImagePut（安全优先，避免 VTABLE 崩溃）
 _ClipboardFTS5_ObtainBitmapFromClipboard(&pBitmap, &disposeWithGdip) {
     pBitmap := 0
     disposeWithGdip := false
+
+    ; 1. 最安全：Gdip_CreateBitmapFromClipboard（SaveClipboardImage 已验证可靠，绝不崩溃）
     try {
-        pBitmap := ImagePutBitmap(A_Clipboard)
-    } catch as err {
+        pBitmap := Gdip_CreateBitmapFromClipboard()
+        if (pBitmap && pBitmap > 0) {
+            disposeWithGdip := true
+            return true
+        }
+    } catch {
         pBitmap := 0
     }
-    if (!pBitmap || pBitmap = "") {
-        try {
-            pBitmap := ImagePutBitmap(ClipboardAll())
-        } catch as err {
-            pBitmap := 0
+
+    ; 2. WinClip DIB → Gdip（Chrome/Edge 复制图片兼容）
+    try {
+        wc := WinClip()
+        hbm := wc.iGetBitmap()
+        if (hbm) {
+            pBitmap := Gdip_CreateBitmapFromHBITMAP(hbm)
+            if (pBitmap && pBitmap > 0)
+                disposeWithGdip := true
+            DllCall("DeleteObject", "ptr", hbm)
+            if (pBitmap && pBitmap > 0)
+                return true
         }
+    } catch {
+        pBitmap := 0
     }
-    if (!pBitmap || pBitmap = "") {
-        try {
-            wc := WinClip()
-            hbm := wc.iGetBitmap()
-            if (hbm) {
-                pBitmap := Gdip_CreateBitmapFromHBITMAP(hbm)
-                if (pBitmap && pBitmap > 0)
-                    disposeWithGdip := true
-                DllCall("DeleteObject", "ptr", hbm)
-            }
-        } catch as err {
-            pBitmap := 0
+
+    ; 3. ImagePutBitmap：仅 A_Clipboard 非空时尝试（空字符串会导致 VTABLE 崩溃）
+    try {
+        clipText := A_Clipboard
+        if (clipText != "" && StrLen(clipText) > 0) {
+            pBitmap := ImagePutBitmap(clipText)
+            disposeWithGdip := false
+            if (pBitmap && pBitmap != "" && pBitmap > 0)
+                return true
         }
+    } catch {
+        pBitmap := 0
     }
+
     return (pBitmap && pBitmap != "" && pBitmap > 0)
 }
 
@@ -1353,40 +1368,61 @@ CaptureClipboardImageToFTS5(SourceApp, SourceUrl := "") {
         if !_ClipboardFTS5_ObtainBitmapFromClipboard(&pBitmap, &disposeGdip)
             return false
         
-        ; 获取图片尺寸
-        dims := ImageDimensions(pBitmap)
-        imgWidth := dims[1]
-        imgHeight := dims[2]
+        ; 获取图片尺寸：GDI+ 位图用 Gdip 函数（安全），ImagePut 位图用 ImagePut 函数
+        imgWidth := 0, imgHeight := 0
+        if (disposeGdip) {
+            Gdip_GetImageDimensions(pBitmap, &imgWidth, &imgHeight)
+        } else {
+            dims := ImageDimensions(pBitmap)
+            imgWidth := dims[1]
+            imgHeight := dims[2]
+        }
         
-        ; 生成唯一文件名（使用 WebP 格式以减少缓存体积）
+        ; 生成唯一文件名
         timestamp := FormatTime(, "yyyyMMddHHmmss")
-        imageFileName := "IMG_" . timestamp . "_" . A_TickCount . ".webp"
-        imagePath := CacheDir "\" . imageFileName
-        imageFormat := "webp"
-        
-        ; 使用 ImagePut 保存为 WebP 格式
-        try {
-            ImagePut("File", pBitmap, imagePath, 90)
-        } catch as err {
-            ; 如果 WebP 保存失败，回退到 PNG 格式
-            try {
-                imageFileName := "IMG_" . timestamp . "_" . A_TickCount . ".png"
-                imagePath := CacheDir "\" . imageFileName
-                imageFormat := "png"
-                ImagePut("File", pBitmap, imagePath)
-            } catch as err2 {
+
+        if (disposeGdip) {
+            ; GDI+ 位图：使用 Gdip 保存为 PNG（安全，绝不崩溃）
+            imageFileName := "IMG_" . timestamp . "_" . A_TickCount . ".png"
+            imagePath := CacheDir "\" . imageFileName
+            imageFormat := "png"
+            Gdip_SaveBitmapToFile(pBitmap, imagePath)
+            if (!FileExist(imagePath)) {
                 _ClipboardFTS5_DisposeClipboardBitmap(pBitmap, disposeGdip)
                 return false
+            }
+        } else {
+            ; ImagePut 位图：优先 WebP，失败回退 PNG
+            imageFileName := "IMG_" . timestamp . "_" . A_TickCount . ".webp"
+            imagePath := CacheDir "\" . imageFileName
+            imageFormat := "webp"
+            try {
+                ImagePut("File", pBitmap, imagePath, 90)
+            } catch as err {
+                try {
+                    imageFileName := "IMG_" . timestamp . "_" . A_TickCount . ".png"
+                    imagePath := CacheDir "\" . imageFileName
+                    imageFormat := "png"
+                    ImagePut("File", pBitmap, imagePath)
+                } catch as err2 {
+                    _ClipboardFTS5_DisposeClipboardBitmap(pBitmap, disposeGdip)
+                    return false
+                }
             }
         }
         
         thumbFileName := "TH_" . timestamp . "_" . A_TickCount . ".jpg"
         thumbPath := ThumbsDir "\" . thumbFileName
-        if (!ClipboardFTS5_SaveJpegThumbMaxWidth(pBitmap, thumbPath, 300, 82))
+        try {
+            if (!ClipboardFTS5_SaveJpegThumbMaxWidth(pBitmap, thumbPath, 300, 82))
+                thumbPath := ""
+        } catch {
             thumbPath := ""
+        }
         
         ; 生成小缩略图 Base64（列表兜底，避免虚拟路径未映射时无图）
-        thumbnailBase64 := GenerateThumbnail(pBitmap)
+        thumbnailBase64 := ""
+        try thumbnailBase64 := GenerateThumbnail(pBitmap)
         
         ; 清理位图资源
         _ClipboardFTS5_DisposeClipboardBitmap(pBitmap, disposeGdip)
