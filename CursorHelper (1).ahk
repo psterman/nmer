@@ -3645,9 +3645,16 @@ ProcessClipboardChange() {
                 ftsOk := ClipboardFTS5_ImportDroppedImageFiles(clipImageFiles, SourceApp)
             }
 
-            ; 优先级 2：文本内容非空 → 走文本入库（SaveToClipboardFTS5 内部识别图片 URL/路径）
+            ; 优先级 2：内容非空
+            ; - Image：优先按本地图片文件入库（兼容 Type=2 时 SaveClipboardImage 返回路径）
+            ; - 其它：走文本入库（SaveToClipboardFTS5 内部识别图片 URL/路径）
             if (!ftsOk && content != "") {
-                if (dataType != "Image") {
+                if (dataType = "Image") {
+                    localImg := ClipboardFTS5_SingleLocalImagePathFromText(content)
+                    if (localImg != "") {
+                        ftsOk := CaptureImageFileToFTS5(localImg, SourceApp)
+                    }
+                } else {
                     localImg := ClipboardFTS5_SingleLocalImagePathFromText(content)
                     if (localImg != "") {
                         ftsOk := CaptureImageFileToFTS5(localImg, SourceApp)
@@ -3655,6 +3662,13 @@ ProcessClipboardChange() {
                         ftsOk := SaveToClipboardFTS5(content, SourceApp)
                     }
                 }
+            }
+
+            ; 优先级 2.5：已判定为图片但仍未入库，直接尝试剪贴板位图采集
+            if (!ftsOk && dataType = "Image") {
+                sourceUrl := ""
+                try sourceUrl := _ClipboardFTS5_GetClipboardHtmlImageRef()
+                ftsOk := CaptureClipboardImageToFTS5(SourceApp, sourceUrl)
             }
 
             ; 优先级 3：文本为空或为刚才后台保存的位图 → 浏览器/应用纯图片复制（CF_DIB=8, CF_BITMAP=2）

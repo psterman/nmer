@@ -948,7 +948,7 @@ _CP_MaybeHide(keepOpen) {
 
 _CP_GetClipRow(id) {
     global ClipboardFTS5DB
-    row := Map("content", "", "dataType", "", "imagePath", "", "sourcePath", "")
+    row := Map("content", "", "dataType", "", "imagePath", "", "sourcePath", "", "thumbnailData", "")
     if !ClipboardFTS5DB || ClipboardFTS5DB = 0
         return row
     try {
@@ -967,6 +967,7 @@ _CP_GetClipRow(id) {
                 row["dataType"] := item.Has("DataType") ? item["DataType"] : ""
                 row["imagePath"] := item.Has("ImagePath") ? item["ImagePath"] : ""
                 row["sourcePath"] := item.Has("SourcePath") ? item["SourcePath"] : ""
+                row["thumbnailData"] := item.Has("ThumbnailData") ? item["ThumbnailData"] : ""
             }
         }
     } catch as err {
@@ -1014,15 +1015,26 @@ _CP_DoPaste(id, keepOpen := false) {
         content := row["content"]
         dataType := row["dataType"]
         imagePath := row["imagePath"]
+        thumbnailData := row["thumbnailData"]
         if content = "" && imagePath = ""
-            return
+            if Trim(thumbnailData . "") = ""
+                return
 
         _CP_MaybeHide(keepOpen)
         Sleep(keepOpen ? 30 : 50)
 
         dt := StrLower(dataType)
-        if (dt = "image" || dt = "screenshot") && imagePath != "" && FileExist(imagePath) {
-            _CP_PasteImage(imagePath)
+        if (dt = "image" || dt = "screenshot") {
+            if _CP_SetClipboardImageFromRow(row) {
+                Sleep(50)
+                Send("^v")
+                return
+            }
+            if (content = "")
+                return
+            A_Clipboard := content
+            Sleep(30)
+            Send("^v")
         } else {
             A_Clipboard := content
             Sleep(30)
@@ -1065,6 +1077,47 @@ _CP_PasteImage(imagePath) {
         Send("^v")
     } catch as err {
         OutputDebug("[CP] PasteImage error: " . err.Message)
+    }
+}
+
+_CP_SetClipboardImageFromRow(row) {
+    try {
+        imagePath := Trim(row["imagePath"] . "")
+        if (imagePath != "" && FileExist(imagePath)) {
+            pBitmap := (%"Gdip_CreateBitmapFromFile"%).Call(imagePath)
+            if (!pBitmap || pBitmap = 0) {
+                pBitmap := (%"ImagePut"%).Call("Bitmap", imagePath)
+                if (!pBitmap || pBitmap = "") {
+                    OutputDebug("[CP] SetClipboardImageFromRow: cannot load image file")
+                    return false
+                }
+                (%"Gdip_SetBitmapToClipboard"%).Call(pBitmap)
+                (%"ImageDestroy"%).Call(pBitmap)
+            } else {
+                (%"Gdip_SetBitmapToClipboard"%).Call(pBitmap)
+                (%"Gdip_DisposeImage"%).Call(pBitmap)
+            }
+            return true
+        }
+
+        b64 := Trim(row["thumbnailData"] . "")
+        if (b64 = "")
+            return false
+
+        pBitmap := (%"ImagePut"%).Call("Bitmap", b64)
+        if (!pBitmap || pBitmap = "") {
+            pBitmap := (%"ImagePut"%).Call("Bitmap", "data:image/jpeg;base64," . b64)
+        }
+        if (!pBitmap || pBitmap = "") {
+            OutputDebug("[CP] SetClipboardImageFromRow: cannot decode base64 image")
+            return false
+        }
+        (%"Gdip_SetBitmapToClipboard"%).Call(pBitmap)
+        (%"ImageDestroy"%).Call(pBitmap)
+        return true
+    } catch as err {
+        OutputDebug("[CP] SetClipboardImageFromRow error: " . err.Message)
+        return false
     }
 }
 
@@ -1138,22 +1191,16 @@ _CP_DoCopyToClipboard(id, keepOpen := false) {
         content := row["content"]
         dataType := row["dataType"]
         imagePath := row["imagePath"]
+        thumbnailData := row["thumbnailData"]
         if content = "" && imagePath = ""
-            return
+            if Trim(thumbnailData . "") = ""
+                return
         dt := StrLower(dataType)
-        if (dt = "image" || dt = "screenshot") && imagePath != "" && FileExist(imagePath) {
-            pBitmap := (%"Gdip_CreateBitmapFromFile"%).Call(imagePath)
-            if (!pBitmap || pBitmap = 0) {
-                pBitmap := (%"ImagePut"%).Call("Bitmap", imagePath)
-                if (!pBitmap || pBitmap = "") {
-                    OutputDebug("[CP] CopyToClipboard: cannot load image")
+        if (dt = "image" || dt = "screenshot") {
+            if !_CP_SetClipboardImageFromRow(row) {
+                if (content = "")
                     return
-                }
-                (%"Gdip_SetBitmapToClipboard"%).Call(pBitmap)
-                (%"ImageDestroy"%).Call(pBitmap)
-            } else {
-                (%"Gdip_SetBitmapToClipboard"%).Call(pBitmap)
-                (%"Gdip_DisposeImage"%).Call(pBitmap)
+                A_Clipboard := content
             }
         } else {
             A_Clipboard := content
