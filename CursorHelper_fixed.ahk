@@ -30515,6 +30515,9 @@ ProcessOCRTextPreserveLayout(Text) {
     ; 2. 去除 HTML 标签
     Text := RemoveHTMLTags(Text)
     
+    ; 2b. Windows OCR 常在相邻汉字间插入空格，保留换行前提下去掉
+    Text := RemoveSpacesBetweenChinese(Text)
+    
     ; 3. 去除多余的空格（但保留换行和基本布局）
     ; 去除行首行尾空格
     Lines := StrSplit(Text, "`n")
@@ -30761,31 +30764,11 @@ ExtractTextAutoFlow() {
     }
 }
 
-; 去除中文字符之间的空格
+; 去除中文字符之间的空格（Windows.Media.Ocr 常在汉字间插入空格/全角空格）
 RemoveSpacesBetweenChinese(Text) {
-    ; 简单的实现：遍历文本，如果遇到中文字符-空格-中文字符的模式，删除空格
-    Result := ""
-    TextLen := StrLen(Text)
-    
-    Loop TextLen {
-        CurrentChar := SubStr(Text, A_Index, 1)
-        NextChar := (A_Index < TextLen) ? SubStr(Text, A_Index + 1, 1) : ""
-        PrevChar := (A_Index > 1) ? SubStr(Text, A_Index - 1, 1) : ""
-        
-        ; 检查是否是中文字符（Unicode 范围：\u4e00-\u9fff）
-        IsChinese := (Ord(CurrentChar) >= 0x4E00 && Ord(CurrentChar) <= 0x9FFF)
-        IsPrevChinese := (PrevChar != "" && Ord(PrevChar) >= 0x4E00 && Ord(PrevChar) <= 0x9FFF)
-        IsNextChinese := (NextChar != "" && Ord(NextChar) >= 0x4E00 && Ord(NextChar) <= 0x9FFF)
-        
-        ; 如果是空格，且前后都是中文，则跳过（不添加到结果）
-        if (CurrentChar = " " && IsPrevChinese && IsNextChinese) {
-            continue
-        }
-        
-        Result .= CurrentChar
-    }
-    
-    return Result
+    ; CJK 统一汉字 + 扩展 A；匹配其间半角/全角空白（含连续多个）
+    Han := "\x{3400}-\x{4dbf}\x{4e00}-\x{9fff}"
+    return RegExReplace(Text, "(?<=[" Han "])[\x{20}\x{3000}]+(?=[" Han "])", "")
 }
 
 ; ===================== 文本净化功能 =====================
@@ -35756,6 +35739,9 @@ ExecuteScreenshotOCR() {
             return
         }
         
+        cleanedText := FixOCREncodingErrors(cleanedText)
+        cleanedText := RemoveSpacesBetweenChinese(cleanedText)
+        
         ; 显示OCR结果
         OCRResultGui := Gui("+AlwaysOnTop -Caption")
         OCRResultGui.BackColor := UI_Colors.Background
@@ -35854,6 +35840,9 @@ PasteScreenshotAsText() {
             TrayTip("错误", "未识别到文字", "Iconx 2")
             return
         }
+
+        recognizedText := FixOCREncodingErrors(recognizedText)
+        recognizedText := RemoveSpacesBetweenChinese(recognizedText)
 
         ; 将识别结果复制到剪贴板
         A_Clipboard := recognizedText

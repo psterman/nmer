@@ -18,19 +18,23 @@ global g_SelSense_MenuWV2 := 0
 global g_SelSense_MenuReady := false
 global g_SelSense_MenuVisible := false
 global g_SelSense_PendingText := ""
+global g_SelSense_PendingImagePath := ""
+global g_SelSense_PendingImageDataUrl := ""
 global g_SelSense_OutsidePrevLBtn := false
 global g_SelSense_OutsidePrevRBtn := false
 global g_SelSense_ReactToFilePaths := false
 ; Outside-dismiss: same click's LButton Up still runs SelectionSense; skip ProcessDeferred ~520ms.
 global g_SelSense_LastOutsideDismissTick := 0
-; Require a real drag gesture before probing selection to avoid false triggers on plain clicks.
-global g_SelSense_DownX := 0
-global g_SelSense_DownY := 0
-global g_SelSense_DownValid := false
-global g_SelSense_MinSelectDragPx := 4
+global g_SelSense_ClipboardHookInstalled := false
+global g_SelSense_ClipboardDebounceTimer := 0
+global g_SelSense_LastCopyHotkeyTick := 0
+global g_SelSense_DoubleCopyWindowMs := 420
+global g_SelSense_ClipboardTriggerEnabled := false
+global g_SelSense_CopyTriggerMode := "double" ; single | double
 
 ; ==================== SuperHub 鎵╁睍鍙橀噺 ====================
 global g_Hub_UseHubCapsule := true
+global g_Hub_PreviewEnabled := true
 global g_Hub_Segments := []
 global g_Hub_IsDragging := false
 global g_Hub_DragTimer := 0
@@ -164,9 +168,110 @@ SelectionSense_OnToolbarSearchClick() {
         ShowSearchCenter()
 }
 
+SelectionSense_ActivateHubCapsule(seedText := "") {
+    global g_Hub_UseHubCapsule, g_SelSense_PendingText, g_SelSense_PendingImagePath, g_SelSense_PendingImageDataUrl
+    global g_SelSense_MenuAnchorX, g_SelSense_MenuAnchorY, g_SelSense_MenuVisible
+    if !g_Hub_UseHubCapsule
+        return
+    seed := Trim(String(seedText))
+    if (seed != "") {
+        g_SelSense_PendingText := seed
+        g_SelSense_PendingImagePath := ""
+        g_SelSense_PendingImageDataUrl := ""
+    } else {
+        SelectionSense_SetPendingPreviewFromClipboard()
+    }
+    if g_SelSense_MenuVisible {
+        SelectionSense_PushHubPreviewState()
+        SetTimer(SelectionSense_DeferredPushMenuText, -1)
+        return
+    }
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&g_SelSense_MenuAnchorX, &g_SelSense_MenuAnchorY)
+    SelectionSense_ShowMenuNearCursor()
+    SelectionSense_PushHubPreviewState()
+}
+
+SelectionSense_SetPendingPreviewFromClipboard() {
+    global g_SelSense_PendingText, g_SelSense_PendingImagePath, g_SelSense_PendingImageDataUrl
+    global g_SelSense_LastFullText, g_SelSense_LastTick
+    g_SelSense_PendingText := ""
+    g_SelSense_PendingImagePath := ""
+    g_SelSense_PendingImageDataUrl := ""
+
+    got := ""
+    try got := A_Clipboard
+    catch {
+        got := ""
+    }
+    text := ""
+    try text := String(got)
+    catch {
+        text := ""
+    }
+    text := Trim(text, " `t`r`n")
+    if (text != "") {
+        g_SelSense_PendingText := text
+        g_SelSense_LastFullText := text
+        g_SelSense_LastTick := A_TickCount
+        return true
+    }
+
+    img := SelectionSense_CaptureClipboardImagePreview()
+    imgPath := img.Has("path") ? String(img["path"]) : ""
+    imgDataUrl := img.Has("dataUrl") ? String(img["dataUrl"]) : ""
+    if (imgPath != "" || imgDataUrl != "") {
+        g_SelSense_PendingImagePath := imgPath
+        g_SelSense_PendingImageDataUrl := imgDataUrl
+        return true
+    }
+    return false
+}
+
+SelectionSense_PushHubPreviewState() {
+    global g_Hub_UseHubCapsule, g_SelSense_MenuWV2, g_SelSense_MenuReady, g_Hub_PreviewEnabled
+    global g_SelSense_CopyTriggerMode
+    if !g_Hub_UseHubCapsule
+        return
+    if !(g_SelSense_MenuWV2 && g_SelSense_MenuReady)
+        return
+    try WebView_QueuePayload(g_SelSense_MenuWV2, Map(
+        "type", "hub_preview_state",
+        "enabled", g_Hub_PreviewEnabled ? true : false,
+        "copyTriggerMode", g_SelSense_CopyTriggerMode
+    ))
+}
+
+SelectionSense_SetHubPreviewEnabled(enabled, persist := true, hideWhenOff := true) {
+    global g_Hub_PreviewEnabled
+    g_Hub_PreviewEnabled := !!enabled
+    if persist {
+        cfg := (IsSet(ConfigFile) && ConfigFile != "") ? ConfigFile : (A_ScriptDir "\CursorShortcut.ini")
+        try IniWrite(g_Hub_PreviewEnabled ? "1" : "0", cfg, "SelectionSense", "HubPreviewEnabled")
+    }
+    if (!g_Hub_PreviewEnabled && hideWhenOff) {
+        try SelectionSense_HideMenu()
+    }
+    SelectionSense_PushHubPreviewState()
+}
+
+SelectionSense_SetCopyTriggerMode(mode, persist := true) {
+    global g_SelSense_CopyTriggerMode
+    m := StrLower(Trim(String(mode)))
+    if (m != "single" && m != "double")
+        m := "double"
+    g_SelSense_CopyTriggerMode := m
+    if persist {
+        cfg := (IsSet(ConfigFile) && ConfigFile != "") ? ConfigFile : (A_ScriptDir "\CursorShortcut.ini")
+        try IniWrite(g_SelSense_CopyTriggerMode, cfg, "SelectionSense", "CopyTriggerMode")
+    }
+    SelectionSense_PushHubPreviewState()
+}
+
 SelectionSense_LoadIni() {
     global g_SelSense_Enabled, g_SelSense_ShowMenu, g_SelSense_CopyDelayMs, g_SelSense_RequireIBeam
     global g_SelSense_ReactToFilePaths, g_Hub_UseHubCapsule
+    global g_Hub_PreviewEnabled, g_SelSense_DoubleCopyWindowMs, g_SelSense_ClipboardTriggerEnabled, g_SelSense_CopyTriggerMode
     cfg := (IsSet(ConfigFile) && ConfigFile != "") ? ConfigFile : (A_ScriptDir "\CursorShortcut.ini")
     try {
         g_SelSense_Enabled := (IniRead(cfg, "SelectionSense", "Enable", "1") != "0")
@@ -175,6 +280,10 @@ SelectionSense_LoadIni() {
         g_SelSense_RequireIBeam := (IniRead(cfg, "SelectionSense", "RequireIBeam", "0") = "1")
         g_SelSense_ReactToFilePaths := (IniRead(cfg, "SelectionSense", "ReactToFilePaths", "0") = "1")
         g_Hub_UseHubCapsule := (IniRead(cfg, "SelectionSense", "UseHubCapsule", "1") = "1")
+        g_Hub_PreviewEnabled := (IniRead(cfg, "SelectionSense", "HubPreviewEnabled", "1") = "1")
+        g_SelSense_DoubleCopyWindowMs := Integer(IniRead(cfg, "SelectionSense", "DoubleCopyWindowMs", "420"))
+        g_SelSense_ClipboardTriggerEnabled := (IniRead(cfg, "SelectionSense", "EnableClipboardTrigger", "0") = "1")
+        g_SelSense_CopyTriggerMode := StrLower(Trim(IniRead(cfg, "SelectionSense", "CopyTriggerMode", "double")))
     } catch {
         g_SelSense_Enabled := true
         g_SelSense_ShowMenu := true
@@ -182,11 +291,21 @@ SelectionSense_LoadIni() {
         g_SelSense_RequireIBeam := false
         g_SelSense_ReactToFilePaths := false
         g_Hub_UseHubCapsule := true
+        g_Hub_PreviewEnabled := true
+        g_SelSense_DoubleCopyWindowMs := 420
+        g_SelSense_ClipboardTriggerEnabled := false
+        g_SelSense_CopyTriggerMode := "double"
     }
     if (g_SelSense_CopyDelayMs < 20)
         g_SelSense_CopyDelayMs := 20
     if (g_SelSense_CopyDelayMs > 200)
         g_SelSense_CopyDelayMs := 200
+    if (g_SelSense_DoubleCopyWindowMs < 250)
+        g_SelSense_DoubleCopyWindowMs := 250
+    if (g_SelSense_DoubleCopyWindowMs > 1000)
+        g_SelSense_DoubleCopyWindowMs := 1000
+    if (g_SelSense_CopyTriggerMode != "single" && g_SelSense_CopyTriggerMode != "double")
+        g_SelSense_CopyTriggerMode := "double"
     Hub_LoadGeometryFromIni()
 }
 
@@ -276,45 +395,67 @@ SelectionSense_TextLooksLikeWindowsPaths(text) {
     return (nonempty >= 1)
 }
 
-SelectionSense_OnLButtonUp(*) {
-    global g_SelSense_Enabled, g_SelSense_RequireIBeam
-    global g_SelSense_DownX, g_SelSense_DownY, g_SelSense_DownValid, g_SelSense_MinSelectDragPx
+SelectionSense_OnCopyHotkey(*) {
+    global g_SelSense_Enabled, g_SelSense_RequireIBeam, g_SelSense_CopyDelayMs, g_SelSense_LastCopyHotkeyTick
+    global g_SelSense_DoubleCopyWindowMs, g_Hub_PreviewEnabled, g_SelSense_CopyTriggerMode
     if !g_SelSense_Enabled
         return
-    if !g_SelSense_DownValid
-        return
-    g_SelSense_DownValid := false
-    CoordMode("Mouse", "Screen")
-    MouseGetPos(&upX, &upY)
-    if (Abs(upX - g_SelSense_DownX) < g_SelSense_MinSelectDragPx && Abs(upY - g_SelSense_DownY) < g_SelSense_MinSelectDragPx)
+    if !g_Hub_PreviewEnabled
         return
     if SelectionSense_CursorOverOurUi()
         return
     if g_SelSense_RequireIBeam && !SelectionSense_IsIBeamCursor()
         return
-    SetTimer(SelectionSense_ProcessDeferred, -1)
+    if (g_SelSense_CopyTriggerMode = "single") {
+        SetTimer(SelectionSense_ProcessDeferred, -g_SelSense_CopyDelayMs)
+        return
+    }
+    nowTick := A_TickCount
+    if (g_SelSense_LastCopyHotkeyTick > 0 && (nowTick - g_SelSense_LastCopyHotkeyTick) <= g_SelSense_DoubleCopyWindowMs) {
+        g_SelSense_LastCopyHotkeyTick := 0
+        ; second Ctrl+C confirmed, now process clipboard for preview
+        SetTimer(SelectionSense_ProcessDeferred, -g_SelSense_CopyDelayMs)
+        return
+    }
+    g_SelSense_LastCopyHotkeyTick := nowTick
 }
 
-SelectionSense_OnLButtonDown(*) {
-    global g_SelSense_Enabled
-    global g_SelSense_DownX, g_SelSense_DownY, g_SelSense_DownValid
-    if !g_SelSense_Enabled {
-        g_SelSense_DownValid := false
+SelectionSense_OnClipboardChanged(type) {
+    global g_SelSense_Enabled, g_SelSense_CopyDelayMs
+    global g_SelSense_ClipboardDebounceTimer, g_SelSense_LastCopyHotkeyTick, g_SelSense_ClipboardTriggerEnabled
+    global g_Hub_PreviewEnabled
+    ; 1 = text
+    if (type != 1)
         return
-    }
-    if SelectionSense_CursorOverOurUi() {
-        g_SelSense_DownValid := false
+    if !g_SelSense_Enabled
         return
+    if !g_Hub_PreviewEnabled
+        return
+    if !g_SelSense_ClipboardTriggerEnabled
+        return
+    ; Same copy already handled by Ctrl+C hotkey path.
+    if ((A_TickCount - g_SelSense_LastCopyHotkeyTick) < 260)
+        return
+
+    if g_SelSense_ClipboardDebounceTimer {
+        try SetTimer(g_SelSense_ClipboardDebounceTimer, 0)
+        g_SelSense_ClipboardDebounceTimer := 0
     }
-    CoordMode("Mouse", "Screen")
-    MouseGetPos(&g_SelSense_DownX, &g_SelSense_DownY)
-    g_SelSense_DownValid := true
+    fn := SelectionSense_ProcessDeferredFromClipboard.Bind()
+    g_SelSense_ClipboardDebounceTimer := fn
+    SetTimer(fn, -g_SelSense_CopyDelayMs)
+}
+
+SelectionSense_ProcessDeferredFromClipboard(*) {
+    global g_SelSense_ClipboardDebounceTimer
+    g_SelSense_ClipboardDebounceTimer := 0
+    SelectionSense_ProcessDeferred()
 }
 
 SelectionSense_ProcessDeferred(*) {
-    global g_SelSense_Enabled, g_SelSense_CopyDelayMs, g_SelSense_LastClipSig, g_SelSense_LastFireTick
-    global g_SelSense_LastFullText, g_SelSense_LastTick, g_SelSense_ShowMenu, g_SelSense_PendingText
-    global g_SelSense_ReactToFilePaths
+    global g_SelSense_Enabled, g_SelSense_LastClipSig, g_SelSense_LastFireTick
+    global g_SelSense_LastFullText, g_SelSense_LastTick, g_SelSense_ShowMenu, g_SelSense_PendingText, g_SelSense_PendingImagePath, g_SelSense_PendingImageDataUrl
+    global g_SelSense_ReactToFilePaths, g_Hub_UseHubCapsule, g_Hub_PreviewEnabled
 
     if !g_SelSense_Enabled
         return
@@ -324,30 +465,10 @@ SelectionSense_ProcessDeferred(*) {
     if (g_SelSense_LastOutsideDismissTick && (A_TickCount - g_SelSense_LastOutsideDismissTick) < 520)
         return
 
-    clipSaved := ""
-    try clipSaved := ClipboardAll()
-
-    try Send("^c")
-    catch as e {
-        try {
-            if (clipSaved != "")
-                Clipboard := clipSaved
-        } catch {
-        }
-        return
-    }
-
-    Sleep(g_SelSense_CopyDelayMs)
     got := ""
     try got := A_Clipboard
     catch {
         got := ""
-    }
-
-    try {
-        if (clipSaved != "")
-            Clipboard := clipSaved
-    } catch {
     }
 
     text := ""
@@ -356,8 +477,23 @@ SelectionSense_ProcessDeferred(*) {
         text := ""
     }
     text := Trim(text, " `t`r`n")
-    if (text = "")
+    if (text = "") {
+        img := SelectionSense_CaptureClipboardImagePreview()
+        imgPath := img.Has("path") ? String(img["path"]) : ""
+        imgDataUrl := img.Has("dataUrl") ? String(img["dataUrl"]) : ""
+        if (imgPath = "" && imgDataUrl = "")
+            return
+        if (g_SelSense_ShowMenu && (!g_Hub_UseHubCapsule || g_Hub_PreviewEnabled)) {
+            g_SelSense_PendingText := ""
+            g_SelSense_PendingImagePath := imgPath
+            g_SelSense_PendingImageDataUrl := imgDataUrl
+            CoordMode("Mouse", "Screen")
+            global g_SelSense_MenuAnchorX, g_SelSense_MenuAnchorY
+            MouseGetPos(&g_SelSense_MenuAnchorX, &g_SelSense_MenuAnchorY)
+            SelectionSense_ShowMenuNearCursor()
+        }
         return
+    }
 
     if !g_SelSense_ReactToFilePaths && SelectionSense_TextLooksLikeWindowsPaths(text)
         return
@@ -374,13 +510,42 @@ SelectionSense_ProcessDeferred(*) {
 
     FloatingToolbar_NotifySelectionChange(text)
 
-    if g_SelSense_ShowMenu {
+    if (g_SelSense_ShowMenu && (!g_Hub_UseHubCapsule || g_Hub_PreviewEnabled)) {
         g_SelSense_PendingText := text
+        g_SelSense_PendingImagePath := ""
+        g_SelSense_PendingImageDataUrl := ""
         CoordMode("Mouse", "Screen")
         global g_SelSense_MenuAnchorX, g_SelSense_MenuAnchorY
         MouseGetPos(&g_SelSense_MenuAnchorX, &g_SelSense_MenuAnchorY)
         SelectionSense_ShowMenuNearCursor()
     }
+}
+
+SelectionSense_CaptureClipboardImagePreview() {
+    hasDib := false
+    hasBmp := false
+    try hasDib := !!DllCall("IsClipboardFormatAvailable", "UInt", 8, "Int")
+    try hasBmp := !!DllCall("IsClipboardFormatAvailable", "UInt", 2, "Int")
+    if (!hasDib && !hasBmp)
+        return Map("path", "", "dataUrl", "")
+
+    pBitmap := 0
+    try pBitmap := (%"Gdip_CreateBitmapFromClipboard"%).Call()
+    catch {
+        pBitmap := 0
+    }
+    if (!pBitmap || pBitmap = 0)
+        return Map("path", "", "dataUrl", "")
+
+    dir := A_Temp "\CursorHubPreview"
+    try DirCreate(dir)
+    path := dir "\hub_preview_" . A_Now . "_" . A_TickCount . ".png"
+    ok := false
+    try ok := ((%"Gdip_SaveBitmapToFile"%).Call(pBitmap, path) = 0)
+    dataUrl := ""
+    try dataUrl := (%"ImagePut"%).Call("URI", pBitmap, "png")
+    try (%"Gdip_DisposeImage"%).Call(pBitmap)
+    return Map("path", ok ? path : "", "dataUrl", String(dataUrl))
 }
 
 SelectionSense_OnMenuGuiSize(*) {
@@ -514,6 +679,7 @@ SelectionSense_OnMenuWebMessage(sender, args) {
         g_SelSense_MenuReady := true
         if (g_Hub_Segments.Length > 0)
             WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_restore_segments", "segments", g_Hub_Segments))
+        SelectionSense_PushHubPreviewState()
         ; 入栈仅由 selection_menu_ready 触发 DeferredPush，避免与 hub_ready 重复调度
         return
     }
@@ -612,6 +778,13 @@ SelectionSense_OnMenuWebMessage(sender, args) {
         return
     }
 
+    if (typ = "hub_copy_image") {
+        p := msg.Has("imagePath") ? String(msg["imagePath"]) : ""
+        if (Trim(p) != "")
+            Hub_CopyImageToClipboardByPath(p)
+        return
+    }
+
     if (typ = "hub_segments_sync") {
         global g_Hub_Segments
         g_Hub_Segments := []
@@ -623,6 +796,41 @@ SelectionSense_OnMenuWebMessage(sender, args) {
             }
         }
         return
+    }
+
+    if (typ = "hub_set_preview_enabled") {
+        enabled := msg.Has("enabled") ? !!msg["enabled"] : true
+        SelectionSense_SetHubPreviewEnabled(enabled, true, !enabled)
+        return
+    }
+
+    if (typ = "hub_set_copy_trigger_mode") {
+        mode := msg.Has("mode") ? String(msg["mode"]) : "double"
+        SelectionSense_SetCopyTriggerMode(mode, true)
+        return
+    }
+}
+
+Hub_CopyImageToClipboardByPath(imagePath) {
+    p := Trim(String(imagePath))
+    if (p = "" || !FileExist(p))
+        return
+    try {
+        pBitmap := (%"Gdip_CreateBitmapFromFile"%).Call(p)
+        if (!pBitmap || pBitmap = 0) {
+            pBitmap := (%"ImagePut"%).Call("Bitmap", p)
+            if (!pBitmap || pBitmap = "") {
+                OutputDebug("[Hub] CopyImage: cannot load image " . p)
+                return
+            }
+            (%"Gdip_SetBitmapToClipboard"%).Call(pBitmap)
+            (%"ImageDestroy"%).Call(pBitmap)
+        } else {
+            (%"Gdip_SetBitmapToClipboard"%).Call(pBitmap)
+            (%"Gdip_DisposeImage"%).Call(pBitmap)
+        }
+    } catch as err {
+        OutputDebug("[Hub] CopyImage error: " . err.Message)
     }
 }
 
@@ -637,12 +845,12 @@ SelectionSense_PushMenuText(text) {
         WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "selection_menu_init", "text", String(text)))
 }
 
-SelectionSense_PreviewMenuText(text) {
+SelectionSense_PreviewMenuText(text, imagePath := "", imageDataUrl := "") {
     global g_SelSense_MenuWV2, g_SelSense_MenuReady, g_Hub_UseHubCapsule
     if !(g_SelSense_MenuWV2 && g_SelSense_MenuReady)
         return
     if g_Hub_UseHubCapsule
-        WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_preview_selection", "text", String(text)))
+        WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_preview_selection", "text", String(text), "imagePath", String(imagePath), "imageDataUrl", String(imageDataUrl)))
     else
         WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "selection_menu_init", "text", String(text)))
 }
@@ -682,6 +890,19 @@ SelectionSense_ShowMenuNearCursor() {
         w := g_Hub_SavedW
         h := g_Hub_SavedH
         Hub_ClampHubWindowToWorkArea(&x, &y, &w, &h)
+    } else if g_Hub_UseHubCapsule {
+        ; keep current geometry if host already has a valid size/position
+        try {
+            WinGetPos(&cx, &cy, &cw, &ch, "ahk_id " . g_SelSense_MenuGui.Hwnd)
+            if (cw >= 280 && ch >= 220) {
+                x := cx
+                y := cy
+                w := cw
+                h := ch
+                Hub_ClampHubWindowToWorkArea(&x, &y, &w, &h)
+            }
+        } catch {
+        }
     } else {
         ScreenW := SysGet(0)
         ScreenH := SysGet(1)
@@ -701,24 +922,30 @@ SelectionSense_ShowMenuNearCursor() {
     g_SelSense_OutsidePrevRBtn := GetKeyState("RButton", "P")
     SelectionSense_ApplyMenuBounds()
     try g_SelSense_MenuCtrl.NotifyParentWindowPositionChanged()
+    SelectionSense_PushHubPreviewState()
 
     SetTimer(SelectionSense_DeferredPushMenuText, -80)
     SetTimer(SelectionSense_CheckClickOutside, g_Hub_UseHubCapsule ? 10 : 25)
 }
 
 SelectionSense_DeferredPushMenuText(*) {
-    global g_SelSense_PendingText, g_SelSense_MenuReady, g_SelSense_MenuWV2, g_Hub_UseHubCapsule
+    global g_SelSense_PendingText, g_SelSense_PendingImagePath, g_SelSense_PendingImageDataUrl, g_SelSense_MenuReady, g_SelSense_MenuWV2, g_Hub_UseHubCapsule
     if !g_SelSense_MenuWV2
         return
     if g_SelSense_MenuReady {
-        if (Trim(String(g_SelSense_PendingText)) != "") {
+        pendingText := Trim(String(g_SelSense_PendingText))
+        pendingImage := Trim(String(g_SelSense_PendingImagePath))
+        pendingImageDataUrl := String(g_SelSense_PendingImageDataUrl)
+        if (pendingText != "" || pendingImage != "") {
             ; Hub锛氫粎棰勮锛堢獥鍙?20%锛夛紝鍏ュ崱鐗囬渶鍦ㄧ綉椤甸〉鍐呮嫋鍔ㄧ‘璁わ紱鏃ц彍鍗曚粛涓€姝ュ叆鏍?
             if g_Hub_UseHubCapsule {
-                SelectionSense_PreviewMenuText(g_SelSense_PendingText)
+                SelectionSense_PreviewMenuText(pendingText, pendingImage, pendingImageDataUrl)
             } else {
                 SelectionSense_PushMenuText(g_SelSense_PendingText)
             }
             g_SelSense_PendingText := ""
+            g_SelSense_PendingImagePath := ""
+            g_SelSense_PendingImageDataUrl := ""
         }
     } else
         SetTimer(SelectionSense_DeferredPushMenuText, -100)
@@ -770,7 +997,7 @@ SelectionSense_CheckClickOutside(*) {
 SelectionSense_HideMenu(fromOutside := false) {
     global g_SelSense_MenuGui, g_SelSense_MenuVisible
     global g_SelSense_OutsidePrevLBtn, g_SelSense_OutsidePrevRBtn
-    global g_Hub_UseHubCapsule, g_SelSense_MenuWV2
+    global g_Hub_UseHubCapsule, g_SelSense_MenuWV2, g_SelSense_PendingImagePath, g_SelSense_PendingImageDataUrl
     global g_SelSense_LastOutsideDismissTick
     if (fromOutside && g_SelSense_MenuVisible)
         g_SelSense_LastOutsideDismissTick := A_TickCount
@@ -784,6 +1011,8 @@ SelectionSense_HideMenu(fromOutside := false) {
     if (g_SelSense_MenuVisible && g_Hub_UseHubCapsule)
         Hub_SaveGeometry()
     g_SelSense_MenuVisible := false
+    g_SelSense_PendingImagePath := ""
+    g_SelSense_PendingImageDataUrl := ""
     g_SelSense_OutsidePrevLBtn := false
     g_SelSense_OutsidePrevRBtn := false
     try FloatingToolbar_NotifySelectionClear()
@@ -801,13 +1030,15 @@ SelectionSense_WarmupMenuHost(*) {
 
 SelectionSense_Init() {
     SelectionSense_LoadIni()
-    global g_SelSense_Enabled
+    global g_SelSense_Enabled, g_SelSense_ClipboardHookInstalled
+    if !g_SelSense_ClipboardHookInstalled {
+        OnClipboardChange(SelectionSense_OnClipboardChanged, 1)
+        g_SelSense_ClipboardHookInstalled := true
+    }
     if g_SelSense_Enabled {
-        Hotkey("~*LButton", SelectionSense_OnLButtonDown, "On")
-        Hotkey("~*LButton Up", SelectionSense_OnLButtonUp, "On")
+        Hotkey("~^c", SelectionSense_OnCopyHotkey, "On")
     } else {
-        Hotkey("~*LButton", SelectionSense_OnLButtonDown, "Off")
-        Hotkey("~*LButton Up", SelectionSense_OnLButtonUp, "Off")
+        Hotkey("~^c", SelectionSense_OnCopyHotkey, "Off")
     }
 }
 
@@ -1121,4 +1352,3 @@ Hub_UpdateButtonRects(rects) {
     global g_FTB_ButtonRects
     g_FTB_ButtonRects := rects
 }
-

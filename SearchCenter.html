@@ -10,6 +10,9 @@
   --panel: #171a1e;
   --panel-2: #1f2429;
   --border: #313941;
+  --glass-edge: rgba(255,255,255,.28);
+  --glass-edge-soft: rgba(255,255,255,.08);
+  --glass-warm: rgba(255,171,92,.2);
   --text: #e7ebef;
   --muted: #93a0ad;
   --accent: #ff8d2a;
@@ -32,7 +35,7 @@ html, body {
 button, input, select, textarea { font: inherit; }
 #app {
   display: grid;
-  grid-template-rows: auto auto auto auto auto 1fr auto;
+  grid-template-rows: auto auto auto 1fr auto auto auto;
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -40,6 +43,7 @@ button, input, select, textarea { font: inherit; }
   padding: 14px 26px 18px;
 }
 .chrome-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -47,11 +51,14 @@ button, input, select, textarea { font: inherit; }
   margin: -6px -10px 2px;
   padding: 6px 12px;
   border-radius: 12px;
-  background: rgba(255,255,255,.03);
-  border: 1px solid rgba(255,255,255,.06);
+  background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.01)), rgba(26,31,38,.45);
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.22);
   user-select: none;
   -webkit-user-select: none;
+  cursor: grab;
 }
+.chrome-header:active { cursor: grabbing; }
 .chrome-drag {
   flex: 1;
   text-align: center;
@@ -71,10 +78,26 @@ button, input, select, textarea { font: inherit; }
   min-width: 0;
 }
 .card {
+  position: relative;
+  overflow: hidden;
   background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0)), var(--panel);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255,255,255,.12);
   border-radius: 16px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.12);
+}
+.card::after,
+.chrome-header::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--glass-edge), var(--glass-edge-soft) 45%, var(--glass-warm));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.72;
 }
 #topbar { padding: 14px 18px; }
 #search {
@@ -366,36 +389,13 @@ mark {
   <header id="chrome-header" class="chrome-header">
     <div class="chrome-drag" id="chrome-drag" title="拖动窗口">搜索中心</div>
   </header>
-  <div id="topbar" class="card bar">
-    <input id="search" type="text" placeholder="搜索本地结果，或直接作为网络搜索 / CLI 提示词发送">
-    <select id="limit">
-      <option value="10">10 条</option>
-        <option value="20">20 条</option>
-        <option value="30">30 条</option>
-        <option value="50">50 条</option>
-      <option value="100">100 条</option>
-      <option value="200">200 条</option>
-    </select>
-    <div id="status">准备中...</div>
-  </div>
 
   <div id="category-card" class="card">
     <div id="categories"></div>
   </div>
 
   <div id="engine-card" class="card">
-    <div id="engines"></div>
-  </div>
-
-  <div class="bar">
-    <div id="filter-card" class="card" style="flex:1;min-width:0;">
-      <div id="filters"></div>
-    </div>
-    <div id="actionbar">
-      <button id="btn-run" class="btn primary">并发搜索</button>
-      <button id="btn-open-cli" class="btn">打开所选终端</button>
-      <button id="btn-close" class="btn ghost">关闭</button>
-    </div>
+    <div id="engines">    </div>
   </div>
 
   <div id="layout">
@@ -418,7 +418,31 @@ mark {
       </div>
       <div id="preview">当前未选中本地结果。
 
-在上方输入内容可实时过滤数据，点击列表项后会在这里显示详细预览。</div>
+在输入框中输入内容可实时过滤数据，点击列表项后会在这里显示详细预览。</div>
+    </div>
+  </div>
+
+  <div id="topbar" class="card bar">
+    <input id="search" type="text" placeholder="搜索本地结果，或直接作为网络搜索 / CLI 提示词发送">
+    <select id="limit">
+      <option value="10">10 条</option>
+        <option value="20">20 条</option>
+        <option value="30">30 条</option>
+        <option value="50">50 条</option>
+      <option value="100">100 条</option>
+      <option value="200">200 条</option>
+    </select>
+    <div id="status">准备中...</div>
+  </div>
+
+  <div class="bar">
+    <div id="filter-card" class="card" style="flex:1;min-width:0;">
+      <div id="filters"></div>
+    </div>
+    <div id="actionbar">
+      <button id="btn-run" class="btn primary">并发搜索</button>
+      <button id="btn-open-cli" class="btn">打开所选终端</button>
+      <button id="btn-close" class="btn ghost">关闭</button>
     </div>
   </div>
 
@@ -527,7 +551,7 @@ function renderResults() {
   disconnectLoadMoreObserver();
 
   if (!state.results.length) {
-    list.innerHTML = "<div class=\"empty\">暂无结果。<br>你可以在上方输入关键词搜索本地内容，或选择引擎后执行网络搜索 / CLI 发送。</div>";
+    list.innerHTML = "<div class=\"empty\">暂无结果。<br>你可以在输入框输入关键词搜索本地内容，或选择引擎后执行网络搜索 / CLI 发送。</div>";
     renderPreview();
     return;
   }
@@ -578,7 +602,7 @@ function renderPreview() {
   const item = state.results.find((entry) => entry.row === state.selectedRow);
   if (!item) {
     meta.textContent = "未选中结果";
-    preview.textContent = "当前未选中本地结果。\n\n在上方输入内容可实时过滤数据，点击列表项后会在这里显示详细预览。";
+    preview.textContent = "当前未选中本地结果。\n\n在输入框中输入内容可实时过滤数据，点击列表项后会在这里显示详细预览。";
     return;
   }
   meta.textContent = [item.source || item.subtitle || "", item.type || "", item.time || ""].filter(Boolean).join(" · ");
@@ -687,13 +711,23 @@ document.getElementById("btn-close").addEventListener("click", () => {
 });
 
 (function initChromeDrag() {
-  const dragEl = document.getElementById("chrome-drag");
-  if (!dragEl) return;
-  dragEl.addEventListener("mousedown", (e) => {
+  const dragHost = document.getElementById("chrome-header");
+  const dragTitle = document.getElementById("chrome-drag");
+  const startHostDrag = (e) => {
     if (e.button !== 0) return;
     e.preventDefault();
     postToAhk({ type: "dragHost" });
-  });
+  };
+  const bindDragStart = (el) => {
+    if (!el) return;
+    if (window.PointerEvent) {
+      el.addEventListener("pointerdown", startHostDrag);
+    } else {
+      el.addEventListener("mousedown", startHostDrag);
+    }
+  };
+  bindDragStart(dragHost);
+  if (dragTitle && dragTitle !== dragHost) bindDragStart(dragTitle);
 })();
 
 document.addEventListener("keydown", (event) => {

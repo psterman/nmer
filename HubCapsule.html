@@ -124,6 +124,7 @@ html, body {
 }
 
 #capsule.is-docked #main,
+#capsule.is-docked #trigger-bar,
 #capsule.is-docked #action-bar,
 #capsule.is-docked #stack-display {
   opacity: 0;
@@ -250,6 +251,8 @@ html, body {
   overflow: hidden;
   color: #edf2ff;
   word-break: break-word;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 #preview-card.preview-pulse::after {
@@ -263,8 +266,8 @@ html, body {
 }
 
 #preview-card.selection-hint:not(.draft-drag-active) #preview {
-  user-select: none;
-  -webkit-user-select: none;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 #preview-card.selection-hint:not(.draft-drag-active) {
@@ -363,8 +366,50 @@ html, body {
   font-size: 12px;
   color: #eef3ff;
   line-height: 1.35;
-  max-height: 33px;
-  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.stack-card-image {
+  display: block;
+  width: 100%;
+  max-height: 96px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+#preview-image-wrap {
+  display: none;
+}
+
+#preview-image-wrap.show {
+  display: block;
+}
+
+#preview-image {
+  display: block;
+  max-width: 100%;
+  max-height: 120px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  cursor: grab;
+}
+
+#preview-image:active { cursor: grabbing; }
+
+#preview-copy-image {
+  margin-top: 8px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 154, 47, 0.16);
+  color: #ffe7cf;
+  font-size: 11px;
+  cursor: pointer;
 }
 
 .stack-card-remove {
@@ -437,6 +482,29 @@ html, body {
   padding: 0 12px 11px;
 }
 
+#trigger-bar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  padding: 0 12px 8px;
+}
+
+.trigger-btn {
+  height: 28px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(20, 26, 38, 0.5);
+  color: #d8e0f5;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.trigger-btn.is-active {
+  border-color: rgba(255, 193, 132, 0.78);
+  background: rgba(255, 154, 47, 0.2);
+  color: #fff1e1;
+}
+
 .action-btn {
   height: 34px;
   border-radius: 10px;
@@ -498,6 +566,10 @@ html, body {
 
       <div id="preview-card">
         <div id="preview">等待选中文本...</div>
+        <div id="preview-image-wrap">
+          <img id="preview-image" alt="预览图片">
+          <button type="button" id="preview-copy-image">复制图片预览</button>
+        </div>
         <div id="draft-chip">从 Cursor 等窗口把选中文本拖入本窗口任意处松手，即可加入卡片（约 80% 不透明）</div>
       </div>
 
@@ -505,6 +577,10 @@ html, body {
         <div id="stack-empty">选中内容会按卡片堆叠在这里</div>
         <div id="stack-list"></div>
       </div>
+    </div>
+
+    <div id="trigger-bar">
+      <button type="button" class="trigger-btn" id="btnTriggerMode">触发：双击 Ctrl+C</button>
     </div>
 
     <div id="action-bar">
@@ -522,9 +598,12 @@ html, body {
 
   const state = {
     segments: [],
+    copyTriggerMode: 'double',
     drag: null,
     draftDrag: null,
     pendingDraft: '',
+    pendingImagePath: '',
+    pendingImageDataUrl: '',
     docked: false,
     gravityActive: false,
     collisionBtn: '',
@@ -538,6 +617,9 @@ html, body {
   const header = document.getElementById('header');
   const preview = document.getElementById('preview');
   const previewCard = document.getElementById('preview-card');
+  const previewImageWrap = document.getElementById('preview-image-wrap');
+  const previewImage = document.getElementById('preview-image');
+  const previewCopyImage = document.getElementById('preview-copy-image');
   const draftChip = document.getElementById('draft-chip');
   const stackDisplay = document.getElementById('stack-display');
   const headerCount = document.getElementById('header-count');
@@ -547,8 +629,13 @@ html, body {
   const btnSearch = document.getElementById('btnSearch');
   const btnAi = document.getElementById('btnAi');
   const btnClear = document.getElementById('btnClear');
+  const btnTriggerMode = document.getElementById('btnTriggerMode');
   const resizeHandle = document.getElementById('resize-handle');
   const ctxMenu = document.getElementById('ctx-menu');
+
+  previewImage.addEventListener('error', () => {
+    previewImage.alt = '图片预览加载失败';
+  });
 
   function postToAhk(obj) {
     try {
@@ -569,18 +656,76 @@ html, body {
     return String(text || '').replace(/\s+/g, ' ').trim();
   }
 
+  function asCard(item) {
+    if (item && typeof item === 'object') {
+      if (item.kind === 'image')
+        return { kind: 'image', imagePath: String(item.imagePath || '').trim(), imageDataUrl: String(item.imageDataUrl || '').trim() };
+      return { kind: 'text', text: compactText(item.text || '') };
+    }
+    const t = compactText(item);
+    return t ? { kind: 'text', text: t } : null;
+  }
+
+  function textSegments() {
+    return state.segments
+      .map((it) => asCard(it))
+      .filter((it) => it && it.kind === 'text' && it.text)
+      .map((it) => it.text);
+  }
+
   function mergedText() {
-    return state.segments.join('\n\n');
+    return textSegments().join('\n\n');
   }
 
   function activeText() {
+    const selected = getSelectedTextInsideCapsule();
+    if (selected) return selected;
     const merged = mergedText();
     if (merged && state.pendingDraft) return merged + '\n\n' + state.pendingDraft;
     return merged || state.pendingDraft || '';
   }
 
+  function hasPendingImage() {
+    return !!(state.pendingImagePath || state.pendingImageDataUrl);
+  }
+
+  function getSelectedTextInsideCapsule() {
+    try {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount < 1 || sel.isCollapsed) return '';
+      const range = sel.getRangeAt(0);
+      if (!capsule.contains(range.commonAncestorContainer)) return '';
+      return String(sel.toString() || '').trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function copyCurrentPreviewImage() {
+    if (!hasPendingImage()) return;
+    postToAhk({
+      type: 'hub_copy_image',
+      imagePath: state.pendingImagePath || '',
+      imageDataUrl: state.pendingImageDataUrl || ''
+    });
+  }
+
+  function toFileUrl(path) {
+    let p = String(path || '').trim();
+    if (!p) return '';
+    p = p.replace(/\\/g, '/');
+    if (/^[a-zA-Z]:\//.test(p)) p = '/' + p;
+    return encodeURI('file://' + p);
+  }
+
+  function setCopyTriggerMode(mode) {
+    const m = String(mode || '').toLowerCase() === 'single' ? 'single' : 'double';
+    state.copyTriggerMode = m;
+    btnTriggerMode.textContent = m === 'single' ? '触发：Ctrl+C' : '触发：双击 Ctrl+C';
+  }
+
   function syncSegments() {
-    postToAhk({ type: 'hub_segments_sync', segments: state.segments.slice() });
+    postToAhk({ type: 'hub_segments_sync', segments: textSegments() });
     try {
       localStorage.setItem('hub_capsule_segments', JSON.stringify(state.segments));
     } catch (_) {}
@@ -591,8 +736,11 @@ html, body {
       const raw = localStorage.getItem('hub_capsule_segments');
       if (!raw) return;
       const arr = JSON.parse(raw);
-      if (Array.isArray(arr))
-        state.segments = arr.map((item) => compactText(item)).filter(Boolean);
+      if (Array.isArray(arr)) {
+        state.segments = arr
+          .map((item) => asCard(item))
+          .filter((item) => item && ((item.kind === 'text' && item.text) || (item.kind === 'image' && (item.imagePath || item.imageDataUrl))));
+      }
     } catch (_) {}
   }
 
@@ -602,7 +750,7 @@ html, body {
   }
 
   function applyVisualState() {
-    const hasDraft = !!state.pendingDraft;
+    const hasDraft = !!state.pendingDraft || hasPendingImage();
     const hasContent = state.segments.length > 0;
     const draggingDraft = !!state.draftDrag || externalDragDepth > 0;
     capsule.classList.toggle('selection-active', hasDraft && !draggingDraft);
@@ -622,6 +770,18 @@ html, body {
   }
 
   function updatePreview() {
+    const showingImage = hasPendingImage();
+    previewImageWrap.classList.toggle('show', showingImage);
+    preview.style.display = showingImage ? 'none' : 'block';
+
+    if (showingImage) {
+      previewImage.src = state.pendingImageDataUrl || (state.pendingImagePath ? toFileUrl(state.pendingImagePath) : '');
+      previewImage.title = state.pendingImagePath || '剪贴板图片预览';
+      draftChip.classList.remove('show');
+      headerCount.textContent = String(state.segments.length);
+      return;
+    }
+
     const src = state.pendingDraft !== ''
       ? state.pendingDraft
       : (state.segments.length ? state.segments[state.segments.length - 1] : '');
@@ -642,7 +802,9 @@ html, body {
 
     stackEmpty.style.display = 'none';
 
-    visible.forEach((text, idx) => {
+    visible.forEach((rawItem, idx) => {
+      const item = asCard(rawItem);
+      if (!item) return;
       const card = document.createElement('div');
       card.className = 'stack-card';
       const z = 10 - idx;
@@ -652,12 +814,19 @@ html, body {
       card.style.transform = `translateZ(${-idx * 18}px) scale(${scale}) rotateX(${rot}deg)`;
       card.style.marginTop = '0';
       card.dataset.realIndex = String(state.segments.length - 1 - idx);
+      card.dataset.kind = item.kind;
 
-      const t = compactText(text);
-      const short = t.length > 84 ? t.slice(0, 84) + '...' : t;
-      card.innerHTML =
-        `<div class="stack-card-text">${escapeHtml(short)}</div>` +
-        `<button class="stack-card-remove" type="button" data-remove-index="${card.dataset.realIndex}" aria-label="删除">×</button>`;
+      if (item.kind === 'image') {
+        const src = item.imageDataUrl || (item.imagePath ? toFileUrl(item.imagePath) : '');
+        card.innerHTML =
+          `<img class="stack-card-image" src="${escapeHtml(src)}" alt="图片卡片">` +
+          `<button class="stack-card-remove" type="button" data-remove-index="${card.dataset.realIndex}" aria-label="删除">×</button>`;
+      } else {
+        const t = compactText(item.text);
+        card.innerHTML =
+          `<div class="stack-card-text">${escapeHtml(t)}</div>` +
+          `<button class="stack-card-remove" type="button" data-remove-index="${card.dataset.realIndex}" aria-label="删除">×</button>`;
+      }
 
       stackList.appendChild(card);
     });
@@ -672,8 +841,25 @@ html, body {
   function pushSegment(text) {
     const t = compactText(text);
     if (!t) return;
-    state.segments.push(t);
+    state.segments.push({ kind: 'text', text: t });
     state.pendingDraft = '';
+    state.pendingImagePath = '';
+    state.pendingImageDataUrl = '';
+    refreshAll();
+    syncSegments();
+    stackDisplay.classList.remove('stack-pop');
+    void stackDisplay.offsetWidth;
+    stackDisplay.classList.add('stack-pop');
+  }
+
+  function pushImageSegment(imagePath, imageDataUrl) {
+    const p = String(imagePath || '').trim();
+    const d = String(imageDataUrl || '').trim();
+    if (!p && !d) return;
+    state.segments.push({ kind: 'image', imagePath: p, imageDataUrl: d });
+    state.pendingDraft = '';
+    state.pendingImagePath = '';
+    state.pendingImageDataUrl = '';
     refreshAll();
     syncSegments();
     stackDisplay.classList.remove('stack-pop');
@@ -683,6 +869,9 @@ html, body {
 
   function clearAll() {
     state.segments = [];
+    state.pendingImagePath = '';
+    state.pendingImageDataUrl = '';
+    state.pendingDraft = '';
     refreshAll();
     syncSegments();
     postToAhk({ type: 'hub_cleared' });
@@ -719,7 +908,22 @@ html, body {
   function setDraftPreview(text) {
     const t = compactText(text);
     if (!t) return;
+    state.pendingImagePath = '';
+    state.pendingImageDataUrl = '';
     state.pendingDraft = t;
+    refreshAll();
+    previewCard.classList.remove('preview-pulse');
+    void previewCard.offsetWidth;
+    previewCard.classList.add('preview-pulse');
+  }
+
+  function setImagePreview(imagePath, imageDataUrl) {
+    const p = String(imagePath || '').trim();
+    const d = String(imageDataUrl || '').trim();
+    if (!p && !d) return;
+    state.pendingDraft = '';
+    state.pendingImagePath = p;
+    state.pendingImageDataUrl = d;
     refreshAll();
     previewCard.classList.remove('preview-pulse');
     void previewCard.offsetWidth;
@@ -821,7 +1025,7 @@ html, body {
   }
 
   function onFusion(action) {
-    if (!state.segments.length) return;
+    if (!mergedText()) return;
     capsule.style.transition = 'transform 160ms ease, opacity 160ms ease';
     capsule.style.transform = 'scale(1.04)';
     capsule.style.opacity = '0.84';
@@ -839,6 +1043,7 @@ html, body {
   capsule.addEventListener('click', (e) => {
     if (state.justDragged) return;
     if (e.target.closest('#action-bar')) return;
+    if (getSelectedTextInsideCapsule()) return;
     state.actionPinned = !state.actionPinned;
     capsule.classList.toggle('actions-open', state.actionPinned);
   });
@@ -865,10 +1070,14 @@ html, body {
     const item = e.target.closest('.ctx-item');
     if (!item) return;
     const idx = Number(ctxMenu.dataset.index);
+    const seg = Number.isInteger(idx) ? asCard(state.segments[idx]) : null;
     switch (item.dataset.act) {
       case 'copy':
-        if (Number.isInteger(idx) && state.segments[idx] != null)
-          postToAhk({ type: 'hub_copy', text: state.segments[idx] });
+        if (seg && seg.kind === 'image') {
+          postToAhk({ type: 'hub_copy_image', imagePath: seg.imagePath || '', imageDataUrl: seg.imageDataUrl || '' });
+        } else if (seg && seg.kind === 'text') {
+          postToAhk({ type: 'hub_copy', text: seg.text || '' });
+        }
         break;
       case 'remove':
         if (Number.isInteger(idx))
@@ -909,6 +1118,14 @@ html, body {
   });
 
   btnClear.addEventListener('click', clearAll);
+  btnTriggerMode.addEventListener('click', () => {
+    const next = state.copyTriggerMode === 'single' ? 'double' : 'single';
+    setCopyTriggerMode(next);
+    postToAhk({ type: 'hub_set_copy_trigger_mode', mode: next });
+  });
+  previewCopyImage.addEventListener('click', () => {
+    copyCurrentPreviewImage();
+  });
 
   const DRAFT_DRAG_MIN_PX = 6;
 
@@ -968,6 +1185,74 @@ html, body {
       const g = state.draftDrag.ghost;
       const textToCommit = state.pendingDraft;
       if (state.draftDrag.moved && textToCommit) pushSegment(textToCommit);
+
+      if (g && g.parentNode) g.parentNode.removeChild(g);
+      state.draftDrag = null;
+      previewCard.classList.remove('draft-drag-active');
+      applyVisualState();
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+
+    document.addEventListener('mousemove', onDraftMove, true);
+    document.addEventListener('mouseup', onDraftUp, true);
+    document.addEventListener('pointermove', onDraftMove, true);
+    document.addEventListener('pointerup', onDraftUp, true);
+    document.addEventListener('pointercancel', onDraftUp, true);
+
+    onDraftMove(e);
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function beginImageDraftDrag(e) {
+    if (state.draftDrag || !hasPendingImage()) return;
+    if (e.button !== undefined && e.button !== 0) return;
+
+    const ghost = document.createElement('div');
+    ghost.style.position = 'fixed';
+    ghost.style.zIndex = '99999';
+    ghost.style.pointerEvents = 'none';
+    ghost.style.maxWidth = '300px';
+    ghost.style.padding = '6px 12px';
+    ghost.style.borderRadius = '999px';
+    ghost.style.border = '1px dashed rgba(255,193,132,.8)';
+    ghost.style.background = 'rgba(255,154,47,.22)';
+    ghost.style.color = '#ffe6cc';
+    ghost.style.fontSize = '11px';
+    ghost.style.boxShadow = '0 6px 16px rgba(0,0,0,.35)';
+    ghost.textContent = '松手加入图片卡片';
+    document.body.appendChild(ghost);
+
+    state.draftDrag = {
+      ghost,
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+      finished: false
+    };
+    previewCard.classList.add('draft-drag-active');
+    applyVisualState();
+
+    function onDraftMove(ev) {
+      if (!state.draftDrag || state.draftDrag.finished) return;
+      if (ev.type === 'mousemove' && ev.buttons !== undefined && ev.buttons !== 1) return;
+      const dx = ev.clientX - state.draftDrag.startX;
+      const dy = ev.clientY - state.draftDrag.startY;
+      if (Math.hypot(dx, dy) >= DRAFT_DRAG_MIN_PX) state.draftDrag.moved = true;
+      ghost.style.left = (ev.clientX + 12) + 'px';
+      ghost.style.top = (ev.clientY + 12) + 'px';
+    }
+
+    function onDraftUp(ev) {
+      if (!state.draftDrag || state.draftDrag.finished) return;
+      if (ev.button !== undefined && ev.button !== 0) return;
+      state.draftDrag.finished = true;
+      removeDraftDragListeners(onDraftMove, onDraftUp);
+
+      const g = state.draftDrag.ghost;
+      if (state.draftDrag.moved)
+        pushImageSegment(state.pendingImagePath, state.pendingImageDataUrl);
 
       if (g && g.parentNode) g.parentNode.removeChild(g);
       state.draftDrag = null;
@@ -1082,6 +1367,8 @@ html, body {
       const dropped = readExternalDropText(e);
       if (dropped) {
         pushSegment(dropped);
+      } else if (hasPendingImage()) {
+        pushImageSegment(state.pendingImagePath, state.pendingImageDataUrl);
       } else if (state.pendingDraft) {
         pushSegment(state.pendingDraft);
       }
@@ -1090,17 +1377,50 @@ html, body {
   }
 
   /* WebView2 下 mouse 事件比 pointer 更稳定：捕获阶段监听，避免被内部吞掉 */
-  previewCard.addEventListener('mousedown', (e) => {
+  draftChip.addEventListener('mousedown', (e) => {
     if (!state.pendingDraft || e.button !== 0) return;
     if (e.target.closest('button')) return;
     beginDraftDrag(e);
   }, true);
 
-  previewCard.addEventListener('pointerdown', (e) => {
+  draftChip.addEventListener('pointerdown', (e) => {
     if (!state.pendingDraft || e.button !== 0) return;
     if (e.pointerType === 'mouse') return;
     if (e.target.closest('button')) return;
     beginDraftDrag(e);
+  }, true);
+
+  previewImage.addEventListener('mousedown', (e) => {
+    if (!hasPendingImage() || e.button !== 0) return;
+    beginImageDraftDrag(e);
+  }, true);
+
+  previewImage.addEventListener('pointerdown', (e) => {
+    if (!hasPendingImage() || e.button !== 0) return;
+    if (e.pointerType === 'mouse') return;
+    beginImageDraftDrag(e);
+  }, true);
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      hideContextMenu();
+      postToAhk({ type: 'selection_menu_dismiss' });
+      e.preventDefault();
+      return;
+    }
+    const isCopy = (e.key === 'c' || e.key === 'C') && (e.ctrlKey || e.metaKey);
+    if (!isCopy) return;
+
+    const selected = getSelectedTextInsideCapsule();
+    if (selected) {
+      postToAhk({ type: 'hub_copy', text: selected });
+      e.preventDefault();
+      return;
+    }
+    if (hasPendingImage()) {
+      copyCurrentPreviewImage();
+      e.preventDefault();
+    }
   }, true);
 
   if (window.chrome && window.chrome.webview) {
@@ -1116,21 +1436,35 @@ html, body {
           pushSegment(d.text);
           break;
         case 'hub_preview_selection':
-          setDraftPreview(d.text);
+          if (d.imagePath || d.imageDataUrl)
+            setImagePreview(d.imagePath || '', d.imageDataUrl || '');
+          else
+            setDraftPreview(d.text);
           break;
         case 'selection_menu_init':
-          setDraftPreview(d.text);
+          if (d.imagePath || d.imageDataUrl)
+            setImagePreview(d.imagePath || '', d.imageDataUrl || '');
+          else
+            setDraftPreview(d.text);
+          break;
+        case 'hub_preview_image':
+          setImagePreview(d.imagePath || '', d.imageDataUrl || '');
+          break;
+        case 'hub_preview_state':
+          setCopyTriggerMode(d.copyTriggerMode || 'double');
           break;
         case 'clear_segments':
           clearAll();
           break;
         case 'hub_restore_segments':
-          state.segments = Array.isArray(d.segments) ? d.segments.map((item) => compactText(item)).filter(Boolean) : [];
+          state.segments = Array.isArray(d.segments)
+            ? d.segments.map((item) => asCard(item)).filter((item) => item && item.kind === 'text' && item.text)
+            : [];
           refreshAll();
           syncSegments();
           break;
         case 'get_segments':
-          postToAhk({ type: 'hub_segments_data', segments: state.segments.slice(), merged: mergedText() });
+          postToAhk({ type: 'hub_segments_data', segments: textSegments(), merged: mergedText() });
           break;
         case 'set_dock':
           setDocked(true);
@@ -1149,6 +1483,8 @@ html, body {
           break;
         case 'hub_dismiss_reset':
           state.pendingDraft = '';
+          state.pendingImagePath = '';
+          state.pendingImageDataUrl = '';
           hideContextMenu();
           refreshAll();
           break;
@@ -1157,6 +1493,7 @@ html, body {
   }
 
   loadPersistedSegments();
+  setCopyTriggerMode('double');
   refreshAll();
   syncSegments();
   installDismissOnHostPadding();

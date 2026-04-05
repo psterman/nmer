@@ -356,6 +356,19 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
             catch as err {
                 TrayTip("新提示词: " . err.Message, "Prompt Quick-Pad", "Iconx 2")
             }
+        case "HubCapsule":
+            try SelectionSense_ActivateHubCapsule()
+            catch as err {
+                ; Fallback: open SelectionSense host directly when helper entry is unavailable.
+                try {
+                    SelectionSense_ShowMenuNearCursor()
+                    return
+                } catch {
+                }
+                try TrayTip("HubCapsule 打开失败: " . err.Message, "HubCapsule", "Iconx 2")
+                catch {
+                }
+            }
         case "Screenshot":
             try ExecuteScreenshotWithMenu()
             catch as err {
