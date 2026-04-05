@@ -249,6 +249,77 @@ body::after {
   flex-shrink: 0; font-family: var(--font); font-size: 10px;
   color: var(--text-xs);
 }
+
+/* Raycast 风格：图片条目流体卡片（缩略图经 https://clip.local/Thumbs/ 加载） */
+.clip-item.clip-item-image-card {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 14px;
+}
+.clip-item.clip-item-image-card .image-card-row {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.clip-item.clip-item-image-card .image-card-thumb-wrap {
+  flex-shrink: 0;
+  width: min(42vw, 200px);
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  position: relative;
+  content-visibility: auto;
+  contain-intrinsic-size: 200px 112px;
+}
+.clip-item.clip-item-image-card .image-card-thumb-wrap img.card-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+.clip-item.clip-item-image-card .image-card-overlay {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 6px 8px 5px;
+  font-size: 10px;
+  font-family: var(--font);
+  color: rgba(255,255,255,0.92);
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,0.78));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.clip-item.clip-item-image-card .image-card-overlay .dim {
+  letter-spacing: 0.02em;
+}
+.clip-item.clip-item-image-card .image-card-app-ico {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  object-fit: contain;
+  background: rgba(10,10,10,0.55);
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 2px;
+  pointer-events: none;
+}
+.clip-item.clip-item-image-card .summary.image-summary {
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+}
 mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding: 0 1px; }
 
 /* 触底加载哨兵：仅用于 IntersectionObserver，不占交互 */
@@ -431,6 +502,7 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
       <span class="hint-tag">1-9 粘贴</span>
       <span class="hint-tag">近底预加载</span>
       <span class="hint-tag">Ctrl+K 动作</span>
+      <span class="hint-tag">Space 大图</span>
       <span class="hint-tag">Esc 关闭</span>
     </div>
   </div>
@@ -459,6 +531,7 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
       <span>&#9650;&#9660; 导航</span>
       <span>Enter 粘贴</span>
       <span>Ctrl+D 删除</span>
+      <span>拖出图片 → 文件拖放</span>
     </div>
   </div>
 </div>
@@ -543,7 +616,8 @@ const state = {
   continuousPaste: false,
   ctxMenuVisible: false,
   /** 上次分页完成后的时间戳，防止贴底连续触发 loadMore */
-  loadMoreCooldownUntil: 0
+  loadMoreCooldownUntil: 0,
+  peekSpaceDown: false
 };
 
   const PAGE_SIZE = 30;
@@ -695,6 +769,43 @@ function resolveImageSrc(path) {
   if (/^(data:|https?:\/\/|blob:)/i.test(p)) return p;
   if (/^www\./i.test(p)) return 'https://' + p;
   return toFileUrl(p);
+}
+
+/** 本地磁盘图片路径（可拖放 / Space 预览 / FileDrop） */
+function localImageDiskPath(it) {
+  if (!it) return '';
+  const ip = String(it.imagePath || '').trim();
+  if (!ip || /^https?:\/\//i.test(ip)) return '';
+  if (/^([a-zA-Z]:\\|\\\\)/.test(ip)) return ip;
+  return '';
+}
+
+/** 列表缩略图：优先 Base64，其次 clip.local 虚拟路径，最后 file/https
+ * 说明：
+ * - WebView2 对 file:/// 本地图和虚拟主机映射偶发失败时，会显示破损图。
+ * - 复制图片入库时已经持久化了 ThumbnailData，因此列表优先吃稳定的 data URL。
+ */
+function thumbUrlForItem(it) {
+  if (!it) return '';
+  if (it.thumbDataUrl) return it.thumbDataUrl;
+  const vu = String(it.thumbVirtualUrl || '').trim();
+  if (vu) return vu;
+  return resolveImageSrc(primaryImageRefForItem(it));
+}
+
+function imageCardFallbackSrc(it) {
+  if (!it) return '';
+  const vu = String(it.thumbVirtualUrl || '').trim();
+  if (vu) return vu;
+  return resolveImageSrc(primaryImageRefForItem(it));
+}
+
+function imageDimLabel(it) {
+  if (!it) return '';
+  const w = Number(it.imageWidth) || 0;
+  const h = Number(it.imageHeight) || 0;
+  if (w > 0 && h > 0) return w + '×' + h;
+  return '';
 }
 
 function formatBytes(bytes) {
@@ -932,33 +1043,52 @@ function renderList(opts) {
     const summary = escapeHtml(truncate(isImage ? getImageSummary(it) : (it.content || ''), 120));
     const highlighted = state.keyword ? highlightMatch(summary, state.keyword) : summary;
     const timeStr = it.sortTime ? relativeTime(it.sortTime) : '';
+    const dragPath = localImageDiskPath(it);
+    const dimStr = escapeHtml(imageDimLabel(it));
+    const thumbSrc = thumbUrlForItem(it);
 
-    html += '<div class="clip-item' + (isActive ? ' active' : '') + '" data-index="' + i + '">';
-    html += '<span class="' + idxClass + '">' + idx + '</span>';
-
-    if (isImage && (it.thumbDataUrl || primaryImageRefForItem(it))) {
-      const src = it.thumbDataUrl || resolveImageSrc(primaryImageRefForItem(it));
-      html += '<div class="thumb"><img src="' + escapeHtml(src) + '" alt="image preview" onerror="this.parentElement.outerHTML=\'<div class=&quot;app-icon-placeholder&quot;>' + typeIcon(it.dataType) + '</div>\'"></div>';
-    } else if (it.iconPath) {
-      html += '<img class="app-icon" src="file:///' + it.iconPath.replace(/\\/g, '/') + '" onerror="this.style.display=\'none\'">';
-    } else {
-      html += '<div class="app-icon-placeholder">' + typeIcon(it.dataType) + '</div>';
-    }
-
-    if (isImage) {
+    if (isImage && (thumbSrc || primaryImageRefForItem(it))) {
+      const src = thumbSrc || resolveImageSrc(primaryImageRefForItem(it));
+      const iconSrc = it.iconPath ? 'file:///' + String(it.iconPath).replace(/\\/g, '/') : '';
+      html += '<div class="clip-item clip-item-image-card' + (isActive ? ' active' : '') + '" data-index="' + i + '"'
+        + (dragPath ? ' draggable="true" data-drag-path="' + escapeHtml(dragPath) + '"' : ' draggable="false"')
+        + '>';
+      html += '<div class="image-card-row">';
+      html += '<span class="' + idxClass + '">' + idx + '</span>';
+      html += '<div class="image-card-thumb-wrap">';
+      html += '<img class="card-thumb" loading="lazy" decoding="async" fetchpriority="low" src="' + escapeHtml(src) + '" alt="" '
+        + 'onerror="this.onerror=null;var s=\'' + escapeHtml(imageCardFallbackSrc(it)) + '\';if(s&&this.src!==s){this.src=s;}else{this.style.opacity=\'0.35\';this.alt=\'缩略图加载失败\';}">';
+      if (iconSrc) {
+        html += '<img class="image-card-app-ico" src="' + escapeHtml(iconSrc) + '" alt="" onerror="this.style.display=\'none\'">';
+      }
+      html += '<div class="image-card-overlay">';
+      html += '<span class="dim">' + (dimStr || 'IMG') + '</span>';
+      if (timeStr) html += '<span class="dim">' + escapeHtml(timeStr) + '</span>';
+      html += '</div></div>';
       const sub = [];
       if (it.sourceApp) sub.push(escapeHtml(it.sourceApp));
-      if (timeStr) sub.push(escapeHtml(timeStr));
+      if (timeStr && !dimStr) sub.push(escapeHtml(timeStr));
       html += '<span class="summary image-summary">';
       html += '<span class="main-line">' + badge + highlighted + '</span>';
       html += '<span class="sub-line">' + (sub.join(' · ') || 'Clipboard Image') + '</span>';
       html += '</span>';
+      if (it.isFavorite) html += '<span class="pin-icon">&#9733;</span>';
+      html += '</div></div>';
     } else {
+      html += '<div class="clip-item' + (isActive ? ' active' : '') + '" data-index="' + i + '">';
+      html += '<span class="' + idxClass + '">' + idx + '</span>';
+
+      if (it.iconPath) {
+        html += '<img class="app-icon" src="file:///' + it.iconPath.replace(/\\/g, '/') + '" onerror="this.style.display=\'none\'">';
+      } else {
+        html += '<div class="app-icon-placeholder">' + typeIcon(it.dataType) + '</div>';
+      }
+
       html += '<span class="summary">' + badge + highlighted + '</span>';
+      if (it.isFavorite) html += '<span class="pin-icon">&#9733;</span>';
+      html += '<span class="time-hint">' + timeStr + '</span>';
+      html += '</div>';
     }
-    if (it.isFavorite) html += '<span class="pin-icon">&#9733;</span>';
-    if (!isImage) html += '<span class="time-hint">' + timeStr + '</span>';
-    html += '</div>';
   }
 
   if (state.hasMore) {
@@ -987,6 +1117,16 @@ function renderList(opts) {
       const item = state.items[idx];
       if (item) postToAhk({ type: 'paste', id: item.id, keepOpen: keepOpenFlag() });
     });
+    const dp = el.getAttribute('data-drag-path');
+    if (dp) {
+      el.addEventListener('dragstart', (ev) => {
+        try {
+          ev.dataTransfer.effectAllowed = 'copy';
+          ev.dataTransfer.setData('text/plain', dp);
+        } catch (err) { /* ignore */ }
+        postToAhk({ type: 'setClipboardFileDrop', path: dp });
+      });
+    }
   });
   panel.querySelectorAll('.quick-btn').forEach(el => {
     el.addEventListener('click', () => handleQuickAction(el.dataset.quick));
@@ -1047,7 +1187,7 @@ function renderPreview(data) {
   let metaHtml = '';
   if (data.meta) {
     if (data.meta.charCount != null) {
-      metaHtml += '<div class="meta-item"><span class="meta-label">瀛楃</span><span class="meta-value">' + data.meta.charCount + '</span></div>';
+      metaHtml += '<div class="meta-item"><span class="meta-label">字符</span><span class="meta-value">' + data.meta.charCount + '</span></div>';
     }
     if (data.meta.sourceApp) {
       metaHtml += '<div class="meta-item"><span class="meta-label">来源</span><span class="meta-value">' + escapeHtml(data.meta.sourceApp) + '</span></div>';
@@ -1097,7 +1237,7 @@ function renderPreview(data) {
     const caption = data.meta && data.meta.fileName
       ? '<div class="preview-image-caption">' + escapeHtml(data.meta.fileName) + '</div>'
       : '';
-    bodyEl.innerHTML = '<div class="preview-image-wrap"><img src="' + escapeHtml(src) + '" onerror="this.alt=\'鍥剧墖鍔犺浇澶辫触\'">' + caption + '</div>';
+    bodyEl.innerHTML = '<div class="preview-image-wrap"><img loading="lazy" src="' + escapeHtml(src) + '" onerror="this.alt=\'图片加载失败\'">' + caption + '</div>';
   } else {
     bodyEl.innerHTML = '<pre>' + escapeHtml(data.content || '') + '</pre>';
   }
@@ -1270,6 +1410,19 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
+  /* Space：按住预览本地原图（AHK 无边框窗），松开关闭 */
+  if (!state.actionPanelOpen && !state.ctxMenuVisible && !typingInSearch && e.code === 'Space') {
+    if (!e.repeat) {
+      const it = state.items[state.selectedIndex];
+      if (it && itemIsImage(it) && localImageDiskPath(it)) {
+        e.preventDefault();
+        state.peekSpaceDown = true;
+        postToAhk({ type: 'imagePeek', show: true, id: it.id });
+        return;
+      }
+    }
+  }
+
   // ArrowUp / ArrowDown: navigate list（搜索框聚焦时不劫持，避免干扰 IME/光标）
   if (!typingInSearch && e.key === 'ArrowUp') {
     e.preventDefault();
@@ -1284,7 +1437,15 @@ document.addEventListener('keydown', (e) => {
 
   // Any other printable key: focus search if not already
   if (document.activeElement !== searchInput && e.key.length === 1 && !e.ctrlKey && !e.altKey) {
+    if (e.key === ' ') return;
     searchInput.focus();
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'Space' && state.peekSpaceDown) {
+    state.peekSpaceDown = false;
+    postToAhk({ type: 'imagePeek', show: false });
   }
 });
 

@@ -232,7 +232,7 @@ SelectionSense_ProcessDeferred(*) {
     catch as e {
         try {
             if (clipSaved != "")
-                Clipboard := clipSaved
+                A_Clipboard := clipSaved
         } catch as _e {
         }
         return
@@ -259,7 +259,7 @@ SelectionSense_ProcessDeferred(*) {
         ; 未读到选区：尽量恢复复制前的剪贴板，避免一次失败的 ^c 污染
         try {
             if (clipSaved != "")
-                Clipboard := clipSaved
+                A_Clipboard := clipSaved
         } catch as _e {
         }
         SelectionSense_ClearLastSelected()

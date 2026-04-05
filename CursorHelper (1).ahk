@@ -3504,6 +3504,36 @@ OnClipboardChangeHandler(Type) {
     SetTimer(ClipboardChangeDebounceTimer, -300)  ; 300毫秒后执行
 }
 
+GetClipboardFileDropList() {
+    fileList := ""
+    cfHDrop := 15
+    if !DllCall("OpenClipboard", "Ptr", 0)
+        return ""
+    try {
+        hDrop := DllCall("GetClipboardData", "UInt", cfHDrop, "Ptr")
+        if !hDrop
+            return ""
+        fileCount := DllCall("Shell32\DragQueryFileW", "Ptr", hDrop, "UInt", 0xFFFFFFFF, "Ptr", 0, "UInt", 0, "UInt")
+        if (fileCount < 1)
+            return ""
+        Loop fileCount {
+            pathLen := DllCall("Shell32\DragQueryFileW", "Ptr", hDrop, "UInt", A_Index - 1, "Ptr", 0, "UInt", 0, "UInt")
+            if (pathLen < 1)
+                continue
+            buf := Buffer((pathLen + 1) * 2, 0)
+            readLen := DllCall("Shell32\DragQueryFileW", "Ptr", hDrop, "UInt", A_Index - 1, "Ptr", buf.Ptr, "UInt", pathLen + 1, "UInt")
+            if (readLen < 1)
+                continue
+            onePath := StrGet(buf, "UTF-16")
+            if (onePath != "")
+                fileList .= (fileList = "" ? "" : "`n") . onePath
+        }
+    } finally {
+        DllCall("CloseClipboard")
+    }
+    return fileList
+}
+
 ; ===================== 处理剪贴板变化（防抖后的实际处理函数）=====================
 ProcessClipboardChange() {
     global ClipboardDB, ClipboardFTS5DB, PendingClipboardType, PendingClipboardContent
@@ -3528,10 +3558,31 @@ ProcessClipboardChange() {
         }
 
         dataType := "Text", content := "", charCount := 0, wordCount := 0
+        clipImageFiles := GetClipboardFileDropList()  ; 先统一检查 CF_HDROP，避免资源管理器复制图片文件被误判成文本
 
         if (Type = 1) { ; 文本
-            raw := A_Clipboard
-            content := Trim(raw, " `t`r`n")
+            ; 防抖延迟内剪贴板可能被其它程序改写，优先用 OnClipboardChange 瞬间快照
+            raw := ""
+            if (PendingClipboardContent != "")
+                raw := PendingClipboardContent
+            else {
+                try raw := A_Clipboard
+                catch
+                    raw := ""
+            }
+            content := ClipboardFTS5_NormalizeCapturedText(raw)
+            ; 其它进程占用剪贴板时 A_Clipboard 可能短暂为空，短重试
+            if (content = "") {
+                Loop 6 {
+                    Sleep(35)
+                    try raw := A_Clipboard
+                    catch
+                        raw := ""
+                    content := ClipboardFTS5_NormalizeCapturedText(raw)
+                    if (content != "")
+                        break
+                }
+            }
             charCount := StrLen(content)
             wordCount := StrSplit(RegExReplace(content, "[^\w\s]+", ""), " ").Length
 
@@ -3543,11 +3594,28 @@ ProcessClipboardChange() {
             else if RegExMatch(content, "[\{\}\[\]\(\);]|=>|:=|function|const|import")
                 dataType := "Code"
 
+            if (clipImageFiles != "") {
+                dataType := "File"
+                content := clipImageFiles
+                charCount := StrLen(content)
+                FileLines := StrSplit(content, "`n")
+                wordCount := FileLines.Length
+            }
+
         } else if (Type = 2) { ; 图片或文件
-            ClipboardObj := WinClip()
-            if (files := ClipboardObj.GetFiles()) {
+            files := clipImageFiles
+            if (files = "") {
+                try {
+                    ClipboardObj := WinClip()
+                    files := ClipboardObj.GetFiles()
+                } catch {
+                    files := ""
+                }
+            }
+            if (files) {
                 dataType := "File"
                 content := files
+                clipImageFiles := files
                 charCount := StrLen(content)
                 FileLines := StrSplit(files, "`n")
                 wordCount := FileLines.Length
@@ -3570,11 +3638,28 @@ ProcessClipboardChange() {
             ; 保存到新的FTS5数据库系统（用于新的剪贴板管理器）
             ; 当 Type=1（文本）时，自动获取当前活动窗口的进程名作为 SourceApp，并调用 SaveToClipboardFTS5
             if (ClipboardFTS5DB && ClipboardFTS5DB != 0) {
-                if (Type = 1) {
-                    ; 使用 SaveToClipboardFTS5 函数，自动处理单引号转义
-                    SaveToClipboardFTS5(content, SourceApp)
+                if (clipImageFiles != "") {
+                    if ClipboardFTS5_ImportDroppedImageFiles(clipImageFiles, SourceApp)
+                        try CP_NotifyClipboardUpdated()
+                } else if (Type = 1) {
+                    ; 单行本地图片路径：走文件入库（JPG/PNG 等与资源管理器「复制」一致）
+                    localImg := ClipboardFTS5_SingleLocalImagePathFromText(content)
+                    if (localImg != "") {
+                        if CaptureImageFileToFTS5(localImg, SourceApp)
+                            try CP_NotifyClipboardUpdated()
+                    } else {
+                        if SaveToClipboardFTS5(content, SourceApp)
+                            try CP_NotifyClipboardUpdated()
+                    }
                 } else if (Type = 2) {
-                    CaptureClipboardImageToFTS5(SourceApp)
+                    ftsOk := false
+                    ; 先处理 CF_HDROP：JPG 常无合成位图，仅 PNG 可能带 DIB，不能单靠 CaptureClipboardImageToFTS5
+                    if (clipImageFiles != "")
+                        ftsOk := ClipboardFTS5_ImportDroppedImageFiles(clipImageFiles, SourceApp)
+                    if !ftsOk && CaptureClipboardImageToFTS5(SourceApp)
+                        ftsOk := true
+                    if ftsOk
+                        try CP_NotifyClipboardUpdated()
                 }
                 
                 ; 如果 ClipboardHistoryPanel 已显示，自动刷新数据

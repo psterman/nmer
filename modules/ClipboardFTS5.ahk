@@ -90,11 +90,15 @@ InitClipboardFTS5DB() {
                 hasImageWidth := false
                 hasImageHeight := false
                 hasFileSize := false
+                hasThumbPath := false
                 
                 if (table.HasRows && table.Rows.Length > 0) {
                     Loop table.Rows.Length {
                         row := table.Rows[A_Index]
                         columnName := row[2]  ; 列名在第2列
+                        if (columnName = "ThumbPath") {
+                            hasThumbPath := true
+                        }
                         if (columnName = "SourcePath") {
                             hasSourcePath := true
                         }
@@ -152,6 +156,9 @@ InitClipboardFTS5DB() {
                 }
                 if (!hasFileSize) {
                     ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN FileSize INTEGER")
+                }
+                if (!hasThumbPath) {
+                    ClipboardFTS5DB.Exec("ALTER TABLE ClipMain ADD COLUMN ThumbPath TEXT")
                 }
             }
         } catch {
@@ -656,46 +663,82 @@ ClassifyContentType(content) {
     return "Text"
 }
 
+; 剪贴板文本规范化：去 BOM、首尾空白（避免「复制地址」带不可见字符导致无法匹配）
+ClipboardFTS5_NormalizeCapturedText(s) {
+    s := Trim(String(s), " `t`r`n")
+    if (s = "")
+        return s
+    if (SubStr(s, 1, 1) = Chr(0xFEFF))
+        s := SubStr(s, 2)
+    if (StrLen(s) >= 3 && SubStr(s, 1, 3) = Chr(0xEF) Chr(0xBB) Chr(0xBF))
+        s := SubStr(s, 4)
+    return Trim(s, " `t`r`n")
+}
+
 _ClipboardFTS5_IsImagePathOrUrl(value) {
-    s := Trim(String(value))
+    s := ClipboardFTS5_NormalizeCapturedText(value)
     s := Trim(s, "'")
     s := Trim(s, '"')
     if (s = "")
         return false
-    if RegExMatch(s, "i)^https?://\S+\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?\S*)?$")
+    ; 允许 URL 带 query 与 fragment（论坛/图床常见）
+    if RegExMatch(s, "i)^https?://\S+\.(png|jpg|jpeg|gif|webp|bmp|svg|ico)(\?\S*)?(#\S*)?$")
         return true
-    if RegExMatch(s, "i)^www\.\S+\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?\S*)?$")
+    if RegExMatch(s, "i)^www\.\S+\.(png|jpg|jpeg|gif|webp|bmp|svg|ico)(\?\S*)?(#\S*)?$")
         return true
-    if RegExMatch(s, "i)^([A-Z]:\\|\\\\).+\.(png|jpg|jpeg|gif|webp|bmp|svg)$")
+    if RegExMatch(s, "i)^([A-Z]:\\|\\\\).+\.(png|jpg|jpeg|gif|webp|bmp|svg|ico)$")
         return true
     return false
 }
 
 ; 剪贴板为「单行 https 图链」时（无扩展名或常见图床路径），按图片记录以便列表与预览
 _ClipboardFTS5_IsLikelyRemoteImageUrl(value) {
-    s := Trim(String(value), " `t`r`n")
+    s := ClipboardFTS5_NormalizeCapturedText(value)
     if (s = "" || InStr(s, "`n") || InStr(s, "`r"))
         return false
     if !RegExMatch(s, "i)^https?://\S+$")
         return false
-    if RegExMatch(s, "i)\.(png|jpe?g|gif|webp|bmp|svg)(\?\S*)?($|#)")
+    if RegExMatch(s, "i)\.(png|jpe?g|gif|webp|bmp|svg|ico)(\?\S*)?($|#)")
         return true
-    if RegExMatch(s, "i)/(image|img|photo|pics|pictures?|media|attachments|upload|avatar|cdn)/")
+    if RegExMatch(s, "i)/(image|img|photo|pics|pictures?|media|attachments|upload|avatar|cdn|templates|static|assets)/")
         return true
     return false
 }
 
 _ClipboardFTS5_ExtractImageRef(content) {
-    s := Trim(String(content), " `t`r`n")
+    s := ClipboardFTS5_NormalizeCapturedText(content)
     if (s = "")
         return ""
     if _ClipboardFTS5_IsImagePathOrUrl(s)
         return s
+    ; 尖括号包裹：<https://...>
+    if RegExMatch(s, "i)^<\s*(https?://[^>\s]+)\s*>$", &m) {
+        t := Trim(m[1])
+        if _ClipboardFTS5_IsImagePathOrUrl(t)
+            return t
+    }
+    ; BBCode：[img]https://...[/img]
+    if RegExMatch(s, "i)^\[img\]\s*(\S+?)\s*\[/img\]\s*$", &m) {
+        t := Trim(m[1])
+        if _ClipboardFTS5_IsImagePathOrUrl(t)
+            return t
+    }
+    ; Markdown：![任意](url)
+    if RegExMatch(s, "i)^!\[[^\]]*\]\(\s*([^)]+?)\s*\)\s*$", &m) {
+        t := Trim(m[1])
+        t := Trim(t, "'")
+        t := Trim(t, Chr(34))
+        if _ClipboardFTS5_IsImagePathOrUrl(t)
+            return t
+    }
     ; 正则里需要同时匹配 ' 与 "，用 Chr 拼接避免引号/转义被 AHK 解析器误判
     ap := Chr(39), dq := Chr(34)
     imgSrcPat := "i)<img\b[^>]*\bsrc\s*=\s*[" . ap . dq . "]([^" . ap . dq . "]+)[" . ap . dq . "]"
-    if RegExMatch(s, imgSrcPat, &m)
-        return m[1]
+    if RegExMatch(s, imgSrcPat, &m) {
+        t := Trim(m[1])
+        if _ClipboardFTS5_IsImagePathOrUrl(t)
+            return t
+    }
     return ""
 }
 
@@ -812,6 +855,49 @@ GenerateThumbnail(pBitmap, thumbSize := 64) {
     }
 }
 
+; 将位图按最大宽度（默认 300px）等比缩放后保存为 JPG（供 WebView2 虚拟域名加载列表缩略图）
+ClipboardFTS5_SaveJpegThumbMaxWidth(pBitmap, destPath, maxWidth := 300, quality := 82) {
+    if (!pBitmap || pBitmap <= 0 || destPath = "")
+        return false
+    try {
+        dims := ImageDimensions(pBitmap)
+        width := dims[1]
+        height := dims[2]
+        if (width <= 0 || height <= 0)
+            return false
+        if (width <= maxWidth) {
+            thumbW := width
+            thumbH := height
+        } else {
+            scale := maxWidth / width
+            thumbW := Round(width * scale)
+            thumbH := Round(height * scale)
+        }
+        pThumbBitmap := Gdip_CreateBitmap(thumbW, thumbH)
+        if (!pThumbBitmap || pThumbBitmap <= 0)
+            return false
+        pGraphics := Gdip_GraphicsFromImage(pThumbBitmap)
+        if (!pGraphics || pGraphics <= 0) {
+            Gdip_DisposeImage(pThumbBitmap)
+            return false
+        }
+        Gdip_SetInterpolationMode(pGraphics, 7)
+        Gdip_SetSmoothingMode(pGraphics, 4)
+        Gdip_DrawImage(pGraphics, pBitmap, 0, 0, thumbW, thumbH, 0, 0, width, height)
+        Gdip_DeleteGraphics(pGraphics)
+        try {
+            ImagePut("File", pThumbBitmap, destPath, quality)
+        } catch as err {
+            Gdip_DisposeImage(pThumbBitmap)
+            return false
+        }
+        ImageDestroy(pThumbBitmap)
+        return FileExist(destPath)
+    } catch as err {
+        return false
+    }
+}
+
 ; ===================== Base64 编码辅助函数 =====================
 ; 简单的 Base64 编码实现（适用于二进制数据）
 Base64Encode(data) {
@@ -865,6 +951,10 @@ SaveToClipboardFTS5(content, SourceApp := "Unknown", detectedType := "") {
         if (content = "" || StrLen(content) = 0) {
             return false
         }
+        content := ClipboardFTS5_NormalizeCapturedText(content)
+        if (content = "") {
+            return false
+        }
         
         ; 转义单引号（将单引号替换为双单引号）
         escapedContent := StrReplace(content, "'", "''")
@@ -897,6 +987,8 @@ SaveToClipboardFTS5(content, SourceApp := "Unknown", detectedType := "") {
         imageRef := _ClipboardFTS5_ExtractImageRef(content)
         if (imageRef = "")
             imageRef := _ClipboardFTS5_GetClipboardHtmlImageRef()
+        if (imageRef = "" && _ClipboardFTS5_IsLikelyRemoteImageUrl(content))
+            imageRef := ClipboardFTS5_NormalizeCapturedText(content)
         if (imageRef != "") {
             dataType := "Image"
         }
@@ -1053,9 +1145,10 @@ CaptureClipboardToFTS5() {
     }
     
     try {
-        ; 检查剪贴板是否有内容
-        if (!DllCall("IsClipboardFormatAvailable", "UInt", 1) && !DllCall("IsClipboardFormatAvailable", "UInt", 8)) {
-            ; 既没有文本也没有图片
+        ; 检查剪贴板是否有内容（文本 / DIB / CF_BITMAP）
+        if (!DllCall("IsClipboardFormatAvailable", "UInt", 1)
+            && !DllCall("IsClipboardFormatAvailable", "UInt", 8)
+            && !DllCall("IsClipboardFormatAvailable", "UInt", 2)) {
             return false
         }
         
@@ -1067,9 +1160,9 @@ CaptureClipboardToFTS5() {
             SourceApp := "Unknown"
         }
         
-        ; 优先检查图片
-        if (DllCall("IsClipboardFormatAvailable", "UInt", 8)) {
-            ; 剪贴板中有图片（CF_DIB = 8）
+        ; 优先检查图片（CF_DIB=8，CF_BITMAP=2）
+        if (DllCall("IsClipboardFormatAvailable", "UInt", 8)
+            || DllCall("IsClipboardFormatAvailable", "UInt", 2)) {
             return CaptureClipboardImageToFTS5(SourceApp)
         }
         
@@ -1106,7 +1199,7 @@ CaptureClipboardTextToFTS5(SourceApp) {
         DebugLog("数据库连接正常")
 
         ; 获取剪贴板文本
-        content := A_Clipboard
+        content := ClipboardFTS5_NormalizeCapturedText(A_Clipboard)
         DebugLog("剪贴板内容长度: " . StrLen(content))
         if (content = "" || StrLen(content) = 0) {
             DebugLog("剪贴板内容为空")
@@ -1169,6 +1262,75 @@ CaptureClipboardTextToFTS5(SourceApp) {
     }
 }
 
+; 从剪贴板尽量取位图：A_Clipboard → ClipboardAll → WinClip DIB（Chrome/Edge 复制图片兼容）
+_ClipboardFTS5_ObtainBitmapFromClipboard(&pBitmap, &disposeWithGdip) {
+    pBitmap := 0
+    disposeWithGdip := false
+    try {
+        pBitmap := ImagePutBitmap(A_Clipboard)
+    } catch as err {
+        pBitmap := 0
+    }
+    if (!pBitmap || pBitmap = "") {
+        try {
+            pBitmap := ImagePutBitmap(ClipboardAll())
+        } catch as err {
+            pBitmap := 0
+        }
+    }
+    if (!pBitmap || pBitmap = "") {
+        try {
+            wc := WinClip()
+            hbm := wc.iGetBitmap()
+            if (hbm) {
+                pBitmap := Gdip_CreateBitmapFromHBITMAP(hbm)
+                if (pBitmap && pBitmap > 0)
+                    disposeWithGdip := true
+                DllCall("DeleteObject", "ptr", hbm)
+            }
+        } catch as err {
+            pBitmap := 0
+        }
+    }
+    return (pBitmap && pBitmap != "" && pBitmap > 0)
+}
+
+_ClipboardFTS5_DisposeClipboardBitmap(pBitmap, disposeWithGdip) {
+    if !pBitmap || pBitmap = "" || pBitmap <= 0
+        return
+    if disposeWithGdip
+        Gdip_DisposeImage(pBitmap)
+    else
+        ImageDestroy(pBitmap)
+}
+
+; 资源管理器 CF_HDROP 多行路径：逐条尝试图片入库
+ClipboardFTS5_ImportDroppedImageFiles(fileListText, SourceApp) {
+    if (fileListText = "")
+        return false
+    anyOk := false
+    Loop parse, fileListText, "`n", "`r" {
+        fp := Trim(A_LoopField)
+        if (fp = "" || !FileExist(fp))
+            continue
+        if CaptureImageFileToFTS5(fp, SourceApp)
+            anyOk := true
+    }
+    return anyOk
+}
+
+; 单行本地图片绝对路径（复制文件时 A_Clipboard 常为单路径）
+ClipboardFTS5_SingleLocalImagePathFromText(content) {
+    s := ClipboardFTS5_NormalizeCapturedText(content)
+    if (s = "" || InStr(s, "`n") || InStr(s, "`r"))
+        return ""
+    if !RegExMatch(s, "i)^([a-z]:\\|\\\\).+\.(png|jpe?g|gif|webp|bmp|svg|ico)$")
+        return ""
+    if !FileExist(s)
+        return ""
+    return s
+}
+
 ; ===================== 采集图片到数据库（使用 ImagePut 优化） =====================
 ; SourceUrl: 网页复制图片时的原始 URL（可选）
 CaptureClipboardImageToFTS5(SourceApp, SourceUrl := "") {
@@ -1178,16 +1340,18 @@ CaptureClipboardImageToFTS5(SourceApp, SourceUrl := "") {
         ; 创建缓存目录（使用主脚本目录）
         ScriptDir := (IsSet(MainScriptDir) ? MainScriptDir : A_ScriptDir)
         CacheDir := ScriptDir "\Cache\Images"
+        ThumbsDir := ScriptDir "\Cache\Thumbs"
         if (!DirExist(CacheDir)) {
             DirCreate(CacheDir)
         }
-        
-        ; 使用 ImagePutBitmap 直接从剪贴板获取位图（自动处理所有格式）
-        pBitmap := ImagePutBitmap(A_Clipboard)
-        
-        if (!pBitmap || pBitmap = "") {
-            return false
+        if (!DirExist(ThumbsDir)) {
+            DirCreate(ThumbsDir)
         }
+        
+        pBitmap := 0
+        disposeGdip := false
+        if !_ClipboardFTS5_ObtainBitmapFromClipboard(&pBitmap, &disposeGdip)
+            return false
         
         ; 获取图片尺寸
         dims := ImageDimensions(pBitmap)
@@ -1211,25 +1375,30 @@ CaptureClipboardImageToFTS5(SourceApp, SourceUrl := "") {
                 imageFormat := "png"
                 ImagePut("File", pBitmap, imagePath)
             } catch as err2 {
-                ImageDestroy(pBitmap)
+                _ClipboardFTS5_DisposeClipboardBitmap(pBitmap, disposeGdip)
                 return false
             }
         }
         
-        ; 生成缩略图（Base64）
+        thumbFileName := "TH_" . timestamp . "_" . A_TickCount . ".jpg"
+        thumbPath := ThumbsDir "\" . thumbFileName
+        if (!ClipboardFTS5_SaveJpegThumbMaxWidth(pBitmap, thumbPath, 300, 82))
+            thumbPath := ""
+        
+        ; 生成小缩略图 Base64（列表兜底，避免虚拟路径未映射时无图）
         thumbnailBase64 := GenerateThumbnail(pBitmap)
         
         ; 清理位图资源
-        ImageDestroy(pBitmap)
+        _ClipboardFTS5_DisposeClipboardBitmap(pBitmap, disposeGdip)
         
         ; 获取文件大小
         fileSize := 0
         try fileSize := FileGetSize(imagePath)
         
-        ; 插入到数据库（含新字段）
-        SQL := "INSERT INTO ClipMain (Content, SourceApp, DataType, CharCount, ImagePath, ThumbnailData, " .
+        ; 插入到数据库（含新字段与磁盘缩略图路径）
+        SQL := "INSERT INTO ClipMain (Content, SourceApp, DataType, CharCount, ImagePath, ThumbPath, ThumbnailData, " .
                "SourceUrl, ImageFormat, ImageWidth, ImageHeight, FileSize, Timestamp) " .
-               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))"
+               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))"
         
         stmt := ""
         if (!ClipboardFTS5DB.Prepare(SQL, &stmt)) {
@@ -1241,12 +1410,13 @@ CaptureClipboardImageToFTS5(SourceApp, SourceUrl := "") {
         stmt.Bind(3, "Image")
         stmt.Bind(4, 0)
         stmt.Bind(5, imagePath)
-        stmt.Bind(6, thumbnailBase64 != "" ? thumbnailBase64 : "")
-        stmt.Bind(7, SourceUrl)
-        stmt.Bind(8, imageFormat)
-        stmt.Bind(9, imgWidth)
-        stmt.Bind(10, imgHeight)
-        stmt.Bind(11, fileSize)
+        stmt.Bind(6, thumbPath != "" ? thumbPath : "")
+        stmt.Bind(7, thumbnailBase64 != "" ? thumbnailBase64 : "")
+        stmt.Bind(8, SourceUrl)
+        stmt.Bind(9, imageFormat)
+        stmt.Bind(10, imgWidth)
+        stmt.Bind(11, imgHeight)
+        stmt.Bind(12, fileSize)
         
         if (!stmt.Step()) {
             stmt.Free()
@@ -1278,36 +1448,63 @@ CaptureImageFileToFTS5(filePath, SourceApp) {
         return false
     
     try {
+        ScriptDir := (IsSet(MainScriptDir) ? MainScriptDir : A_ScriptDir)
+        ThumbsDir := ScriptDir "\Cache\Thumbs"
+        if (!DirExist(ThumbsDir))
+            DirCreate(ThumbsDir)
+        
         ; 获取文件大小
         fileSize := 0
         try fileSize := FileGetSize(filePath)
         
-        ; 获取图片尺寸
+        ; 获取图片尺寸（Gdip 对部分 JPG 解码失败时用 ImagePut 兜底）
         imgWidth := 0
         imgHeight := 0
         pBitmap := 0
+        fromImagePut := false
         try {
             pBitmap := Gdip_CreateBitmapFromFile(filePath)
-            if (pBitmap && pBitmap > 0) {
+            if (pBitmap && pBitmap > 0)
                 Gdip_GetImageDimensions(pBitmap, &imgWidth, &imgHeight)
+        } catch as err {
+            pBitmap := 0
+        }
+        if (!pBitmap || pBitmap <= 0) {
+            try {
+                pBitmap := ImagePutBitmap(filePath)
+                if (pBitmap && pBitmap != "") {
+                    fromImagePut := true
+                    dims := ImageDimensions(pBitmap)
+                    imgWidth := dims[1]
+                    imgHeight := dims[2]
+                }
+            } catch as err2 {
+                pBitmap := 0
             }
-        } catch {
         }
         
-        ; 生成缩略图
+        thumbPath := ""
         thumbnailBase64 := ""
         if (pBitmap && pBitmap > 0) {
+            timestamp := FormatTime(, "yyyyMMddHHmmss")
+            thumbFileName := "THF_" . timestamp . "_" . A_TickCount . ".jpg"
+            thumbPath := ThumbsDir "\" . thumbFileName
+            if (!ClipboardFTS5_SaveJpegThumbMaxWidth(pBitmap, thumbPath, 300, 82))
+                thumbPath := ""
             try thumbnailBase64 := GenerateThumbnail(pBitmap)
-            Gdip_DisposeImage(pBitmap)
+            if fromImagePut
+                ImageDestroy(pBitmap)
+            else
+                Gdip_DisposeImage(pBitmap)
         }
         
         ; 图片格式
         imageFormat := ext = "jpeg" ? "jpg" : ext
         
         ; 插入数据库
-        SQL := "INSERT INTO ClipMain (Content, SourceApp, DataType, CharCount, ImagePath, ThumbnailData, " .
+        SQL := "INSERT INTO ClipMain (Content, SourceApp, DataType, CharCount, ImagePath, ThumbPath, ThumbnailData, " .
                "ImageFormat, ImageWidth, ImageHeight, FileSize, Timestamp) " .
-               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))"
+               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))"
         
         stmt := ""
         if (!ClipboardFTS5DB.Prepare(SQL, &stmt))
@@ -1318,11 +1515,12 @@ CaptureImageFileToFTS5(filePath, SourceApp) {
         stmt.Bind(3, "Image")
         stmt.Bind(4, 0)
         stmt.Bind(5, filePath)
-        stmt.Bind(6, thumbnailBase64)
-        stmt.Bind(7, imageFormat)
-        stmt.Bind(8, imgWidth)
-        stmt.Bind(9, imgHeight)
-        stmt.Bind(10, fileSize)
+        stmt.Bind(6, thumbPath != "" ? thumbPath : "")
+        stmt.Bind(7, thumbnailBase64)
+        stmt.Bind(8, imageFormat)
+        stmt.Bind(9, imgWidth)
+        stmt.Bind(10, imgHeight)
+        stmt.Bind(11, fileSize)
         
         if (!stmt.Step()) {
             stmt.Free()

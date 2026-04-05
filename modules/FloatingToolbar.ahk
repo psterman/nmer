@@ -363,19 +363,12 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
                 SetCapsLockState("Off")
             }
         case "Record":
+            ; 仅打开新剪贴板（WebView2 + ClipMain/FTS5），不回退旧 ListView 面板
             try CP_Show()
             catch as err {
-                try ShowClipboardHistoryPanel()
-                catch as err2 {
-                    SetCapsLockState("AlwaysOff")
-                    Sleep(30)
-                    Send("{CapsLock down}")
-                    Sleep(30)
-                    Send("x")
-                    Sleep(30)
-                    Send("{CapsLock up}")
-                    Sleep(30)
-                    SetCapsLockState("Off")
+                try TrayTip("新剪贴板", "无法打开 WebView 剪贴板: " . err.Message, "Iconx 1")
+                catch {
+                    OutputDebug("[FloatingToolbar] CP_Show failed: " . err.Message)
                 }
             }
         case "AIAssistant":
@@ -834,7 +827,7 @@ GetButtonTip(action) {
         case "Search":
             return "搜索记录 (Caps + F)"
         case "Record":
-            return "新剪贴板 (WebView)"
+            return "新剪贴板 (WebView2 · FTS5)"
         case "AIAssistant":
             return "AI助手 (Ctrl+Shift+B)"
         case "PromptNew":

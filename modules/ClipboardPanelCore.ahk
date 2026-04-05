@@ -16,6 +16,125 @@ global g_CP_FilterType := "all"
 global g_CP_TitleH := 0
 global g_CP_FocusPending := false
 global g_CP_WM_ActivateHideCallback := 0
+global g_CP_PeekGui := 0
+
+_CP_ClipCacheRoot() {
+    return (IsSet(MainScriptDir) ? MainScriptDir : A_ScriptDir) "\Cache"
+}
+
+; SQLite / Map 中空串或非数字不可直接 Integer()（v2 会抛错）
+_CP_SafeInt(val, default := 0) {
+    if (Type(val) = "Integer")
+        return val
+    s := Trim(String(val))
+    if (s = "")
+        return default
+    try {
+        return Integer(s)
+    } catch as err {
+        return default
+    }
+}
+
+_CP_ThumbPathToVirtualUrl(thumbPath) {
+    p := Trim(String(thumbPath))
+    if (p = "" || !FileExist(p))
+        return ""
+    root := _CP_ClipCacheRoot()
+    if (StrLen(p) < StrLen(root) + 2)
+        return ""
+    if (StrLower(SubStr(p, 1, StrLen(root))) != StrLower(root))
+        return ""
+    rel := SubStr(p, StrLen(root) + 2)
+    return "https://clip.local/" . StrReplace(rel, "\", "/")
+}
+
+_CP_SetClipboardFileDrop(filePath) {
+    p := Trim(String(filePath))
+    if (p = "" || !FileExist(p))
+        return false
+    cfHDrop := 15
+    sizeDf := 20
+    nChars := StrPut(p, "UTF-16")
+    if (nChars < 2)
+        return false
+    total := sizeDf + nChars * 2 + 2
+    hMem := DllCall("GlobalAlloc", "UInt", 0x42, "Ptr", total, "Ptr")
+    if !hMem
+        return false
+    ptr := DllCall("GlobalLock", "Ptr", hMem, "Ptr")
+    if !ptr {
+        DllCall("GlobalFree", "Ptr", hMem)
+        return false
+    }
+    NumPut("UInt", sizeDf, ptr, 0)
+    NumPut("Int64", 0, ptr, 4)
+    NumPut("UInt", 0, ptr, 12)
+    NumPut("UInt", 1, ptr, 16)
+    cw := StrPut(p, ptr + sizeDf, "UTF-16")
+    NumPut("UShort", 0, ptr, sizeDf + cw * 2)
+    DllCall("GlobalUnlock", "Ptr", hMem)
+    if !DllCall("OpenClipboard", "Ptr", 0) {
+        DllCall("GlobalFree", "Ptr", hMem)
+        return false
+    }
+    DllCall("EmptyClipboard", "Ptr")
+    if !DllCall("SetClipboardData", "UInt", cfHDrop, "Ptr", hMem, "Ptr") {
+        DllCall("CloseClipboard", "Ptr")
+        DllCall("GlobalFree", "Ptr", hMem)
+        return false
+    }
+    DllCall("CloseClipboard", "Ptr")
+    return true
+}
+
+_CP_ImagePeekHide(*) {
+    global g_CP_PeekGui
+    if g_CP_PeekGui {
+        try g_CP_PeekGui.Destroy()
+        g_CP_PeekGui := 0
+    }
+}
+
+_CP_ImagePeekShow(imagePath) {
+    global g_CP_PeekGui
+    p := Trim(String(imagePath))
+    if (p = "" || !FileExist(p))
+        return
+    _CP_ImagePeekHide()
+    info := _CP_GetImageInfo(p)
+    iw := info["width"]
+    ih := info["height"]
+    if (iw < 1 || ih < 1)
+        return
+    sw := SysGet(0)
+    sh := SysGet(1)
+    maxW := Floor(sw * 0.92)
+    maxH := Floor(sh * 0.92)
+    scale := Min(1, Min(maxW / iw, maxH / ih))
+    dw := Max(1, Round(iw * scale))
+    dh := Max(1, Round(ih * scale))
+    g_CP_PeekGui := Gui("+AlwaysOnTop -Caption +ToolWindow", "ClipboardPeek")
+    g_CP_PeekGui.MarginX := 0
+    g_CP_PeekGui.MarginY := 0
+    g_CP_PeekGui.BackColor := "000000"
+    g_CP_PeekGui.Add("Picture", "w" . dw . " h" . dh, p)
+    g_CP_PeekGui.OnEvent("Close", _CP_ImagePeekHide)
+    x := (sw - dw) // 2
+    y := (sh - dh) // 2
+    g_CP_PeekGui.Show("x" . x . " y" . y . " NoActivate")
+}
+
+_CP_ImagePeekShowById(id) {
+    row := _CP_GetClipRow(id)
+    path := Trim(row["imagePath"] . "")
+    dt := StrLower(row["dataType"] . "")
+    if (dt != "image" && dt != "screenshot")
+        return
+    if (path = "" || RegExMatch(path, "i)^https?://"))
+        return
+    _CP_ImagePeekShow(path)
+}
 
 _CP_HasClipMainColumn(colName) {
     global ClipboardFTS5DB
@@ -150,6 +269,8 @@ CP_Hide() {
         g_CP_SearchTimer := 0
     }
 
+    _CP_ImagePeekHide()
+
     WMActivateChain_Unregister(_CP_WM_ACTIVATE)
 
     g_CP_Visible := false
@@ -247,6 +368,10 @@ _CP_OnWV2Created(ctrl) {
     try g_CP_WV2.add_NavigationCompleted(_CP_OnNavigationCompleted)
 
     try ApplyUnifiedWebViewAssets(g_CP_WV2)
+    cacheRoot := _CP_ClipCacheRoot()
+    if !DirExist(cacheRoot)
+        DirCreate(cacheRoot)
+    try g_CP_WV2.SetVirtualHostNameToFolderMapping("clip.local", cacheRoot, WebView2.HOST_RESOURCE_ACCESS_KIND.ALLOW)
     g_CP_WV2.Navigate(BuildAppLocalUrl("ClipboardPanel.html"))
 }
 
@@ -398,6 +523,18 @@ _CP_OnWebMessage(sender, args) {
             if msg.Has("id")
                 _CP_DoGetPreview(msg["id"])
 
+        case "imagePeek":
+            show := msg.Has("show") && (msg["show"] = true || msg["show"] = 1 || msg["show"] = "true")
+            if show {
+                if msg.Has("id")
+                    _CP_ImagePeekShowById(msg["id"])
+            } else
+                _CP_ImagePeekHide()
+
+        case "setClipboardFileDrop":
+            if msg.Has("path")
+                _CP_SetClipboardFileDrop(msg["path"])
+
         case "requestHide":
             CP_Hide()
 
@@ -416,6 +553,24 @@ _CP_PushInitialData() {
     hasMore := (items.Length < total)
     json := _CP_BuildItemsJson("init", items, total, hasMore)
     CP_SendToWeb(json)
+}
+
+; 外部 OnClipboardChange 写入 ClipMain 后调用：面板已显示时刷新列表（保留当前搜索词与筛选）
+CP_NotifyClipboardUpdated() {
+    global g_CP_Visible, g_CP_Ready, g_CP_LastKeyword, g_CP_FilterType
+    if !g_CP_Visible || !g_CP_Ready
+        return
+    try {
+        kw := g_CP_LastKeyword
+        ft := g_CP_FilterType
+        items := _CP_LoadItems(kw, ft, 0, 30)
+        total := _CP_GetTotalCount(kw, ft)
+        hasMore := (items.Length < total)
+        json := _CP_BuildItemsJson("init", items, total, hasMore)
+        CP_SendToWeb(json)
+    } catch as err {
+        OutputDebug("[CP] NotifyClipboardUpdated: " . err.Message)
+    }
 }
 
 _CP_DoLoadMore(offset) {
@@ -540,6 +695,7 @@ _CP_BuildSelectFields() {
     hasImageWidth := false
     hasImageHeight := false
     hasFileSize := false
+    hasThumbPath := false
 
     try {
         table := ""
@@ -565,6 +721,8 @@ _CP_BuildSelectFields() {
                         hasImageHeight := true
                     if colName = "FileSize"
                         hasFileSize := true
+                    if colName = "ThumbPath"
+                        hasThumbPath := true
                 }
             }
         }
@@ -608,6 +766,10 @@ _CP_BuildSelectFields() {
         fields .= ", FileSize"
     else
         fields .= ", 0 AS FileSize"
+    if hasThumbPath
+        fields .= ", ThumbPath"
+    else
+        fields .= ", '' AS ThumbPath"
 
     return fields
 }
@@ -639,6 +801,9 @@ _CP_BuildWhereClause(keyword, filterType := "all") {
         conditions.Push("IsFavorite = 1")
     else if filterType = "image"
         conditions.Push("(LOWER(DataType) = 'image' OR LOWER(DataType) = 'screenshot')")
+    else if filterType = "url"
+        ; 纯链接 +「图片地址」类（DataType 为 Image 且 ImagePath 为 http(s)）
+        conditions.Push("(LOWER(DataType) = 'link' OR (LOWER(DataType) = 'image' AND LOWER(IFNULL(ImagePath, '')) LIKE 'http%'))")
     else if filterType != "all"
         conditions.Push("LOWER(DataType) = '" . filterType . "'")
 
@@ -700,7 +865,7 @@ _CP_JoinConditions(conditions) {
 
 _CP_RowToMap(row, columnIndexMap) {
     item := Map()
-    for key in ["ID", "Content", "SourceApp", "DataType", "CharCount", "Timestamp", "ImagePath", "IsFavorite", "LastCopyTime", "IconPath", "SourcePath", "ThumbnailData", "SourceUrl", "ImageFormat", "ImageWidth", "ImageHeight", "FileSize"] {
+    for key in ["ID", "Content", "SourceApp", "DataType", "CharCount", "Timestamp", "ImagePath", "IsFavorite", "LastCopyTime", "IconPath", "SourcePath", "ThumbnailData", "SourceUrl", "ImageFormat", "ImageWidth", "ImageHeight", "FileSize", "ThumbPath"] {
         item[key] := columnIndexMap.Has(key) ? row[columnIndexMap[key]] : ""
     }
     return item
@@ -733,6 +898,11 @@ _CP_ItemToJson(item) {
     sourcePath := item.Has("SourcePath") ? item["SourcePath"] : ""
     thumbnailData := item.Has("ThumbnailData") ? item["ThumbnailData"] : ""
     thumbDataUrl := _CP_ThumbnailToDataUrl(thumbnailData)
+    thumbPath := item.Has("ThumbPath") ? item["ThumbPath"] : ""
+    thumbVirtualUrl := _CP_ThumbPathToVirtualUrl(thumbPath)
+    imgW := item.Has("ImageWidth") ? _CP_SafeInt(item["ImageWidth"]) : 0
+    imgH := item.Has("ImageHeight") ? _CP_SafeInt(item["ImageHeight"]) : 0
+    fSize := item.Has("FileSize") ? _CP_SafeInt(item["FileSize"]) : 0
 
     json := '{"id":' . id
     json .= ',"content":' . _CP_JsonStr(content)
@@ -745,6 +915,10 @@ _CP_ItemToJson(item) {
     json .= ',"iconPath":' . _CP_JsonStr(iconPath)
     json .= ',"sourcePath":' . _CP_JsonStr(sourcePath)
     json .= ',"thumbDataUrl":' . _CP_JsonStr(thumbDataUrl)
+    json .= ',"thumbVirtualUrl":' . _CP_JsonStr(thumbVirtualUrl)
+    json .= ',"imageWidth":' . imgW
+    json .= ',"imageHeight":' . imgH
+    json .= ',"fileSize":' . fSize
     json .= '}'
     return json
 }
