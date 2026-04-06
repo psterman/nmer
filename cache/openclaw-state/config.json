@@ -248,7 +248,10 @@
     "mode": "local",
     "bind": "loopback",
     "controlUi": {
-      "allowInsecureAuth": true
+      "allowInsecureAuth": true,
+      "allowedOrigins": [
+        "https://app.local"
+      ]
     },
     "auth": {
       "mode": "token",

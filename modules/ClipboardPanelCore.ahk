@@ -900,6 +900,15 @@ _CP_ItemToJson(item) {
     thumbDataUrl := _CP_ThumbnailToDataUrl(thumbnailData)
     thumbPath := item.Has("ThumbPath") ? item["ThumbPath"] : ""
     thumbVirtualUrl := _CP_ThumbPathToVirtualUrl(thumbPath)
+    imageDataUrl := ""
+    ip := Trim(String(imagePath))
+    dtLower := StrLower(String(dataType))
+    if ((dtLower = "image" || dtLower = "screenshot") && ip != "") {
+        if !RegExMatch(ip, "i)^https?://") {
+            if FileExist(ip)
+                imageDataUrl := _CP_ImagePathToDataUrl(ip)
+        }
+    }
     imgW := item.Has("ImageWidth") ? _CP_SafeInt(item["ImageWidth"]) : 0
     imgH := item.Has("ImageHeight") ? _CP_SafeInt(item["ImageHeight"]) : 0
     fSize := item.Has("FileSize") ? _CP_SafeInt(item["FileSize"]) : 0
@@ -914,6 +923,7 @@ _CP_ItemToJson(item) {
     json .= ',"isFavorite":' . (isFavorite ? 1 : 0)
     json .= ',"iconPath":' . _CP_JsonStr(iconPath)
     json .= ',"sourcePath":' . _CP_JsonStr(sourcePath)
+    json .= ',"imageDataUrl":' . _CP_JsonStr(imageDataUrl)
     json .= ',"thumbDataUrl":' . _CP_JsonStr(thumbDataUrl)
     json .= ',"thumbVirtualUrl":' . _CP_JsonStr(thumbVirtualUrl)
     json .= ',"imageWidth":' . imgW

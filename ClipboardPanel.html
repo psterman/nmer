@@ -890,6 +890,7 @@ function localImageDiskPath(it) {
  */
 function thumbUrlForItem(it) {
   if (!it) return '';
+  if (it.imageDataUrl) return it.imageDataUrl;
   if (it.thumbDataUrl) return it.thumbDataUrl;
   const vu = String(it.thumbVirtualUrl || '').trim();
   if (vu) return vu;
@@ -898,6 +899,7 @@ function thumbUrlForItem(it) {
 
 function imageCardFallbackSrc(it) {
   if (!it) return '';
+  if (it.imageDataUrl) return it.imageDataUrl;
   const vu = String(it.thumbVirtualUrl || '').trim();
   if (vu) return vu;
   return resolveImageSrc(primaryImageRefForItem(it));

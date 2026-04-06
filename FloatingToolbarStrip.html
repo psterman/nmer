@@ -217,7 +217,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       siliconflow: { label: '硅基流动', transport: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', model: 'Qwen/Qwen2.5-7B-Instruct', models: ['Qwen/Qwen2.5-7B-Instruct', 'deepseek-ai/DeepSeek-V3', 'THUDM/glm-4-9b-chat'] },
       minimax: { label: 'MiniMax', transport: 'openai', baseUrl: 'https://api.minimax.chat/v1', model: 'MiniMax-Text-01', models: ['MiniMax-Text-01', 'MiniMax-M1', 'abab6.5s-chat'] },
       zhipu: { label: '智谱', transport: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-plus', models: ['glm-4-plus', 'glm-4-air', 'glm-4-flash'] },
-      llama: { label: 'Llama', transport: 'openai', baseUrl: 'https://openrouter.ai/api/v1', model: 'meta-llama/llama-3.1-8b-instruct:free', models: ['meta-llama/llama-3.1-8b-instruct:free', 'meta-llama/llama-3.1-70b-instruct', 'meta-llama/llama-4-maverick'] }
+      llama: { label: 'Llama', transport: 'openai', baseUrl: 'https://openrouter.ai/api/v1', model: 'meta-llama/llama-3.1-8b-instruct:free', models: ['meta-llama/llama-3.1-8b-instruct:free', 'meta-llama/llama-3.1-70b-instruct', 'meta-llama/llama-4-maverick'] },
+      openclaw: { label: 'OpenClaw', transport: 'openclaw', baseUrl: 'http://127.0.0.1:18789', model: 'gateway', models: ['gateway'] }
     },
     ICON_PRIMARY = 'aiicons/',
     ICON_SECOND = 'lib/images/',
@@ -248,7 +249,12 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       siliconflow: { keyLabel: '硅基流动 API Key', keyPlaceholder: '硅基流动密钥', keyHint: '单独保存在「硅基流动」槽位。' },
       minimax: { keyLabel: 'MiniMax API Key', keyPlaceholder: 'MiniMax 密钥', keyHint: '单独保存在「MiniMax」槽位。' },
       zhipu: { keyLabel: '智谱 API Key', keyPlaceholder: '智谱开放平台密钥', keyHint: '单独保存在「智谱」槽位（与 GLM BigModel 可填不同密钥）。' },
-      llama: { keyLabel: 'OpenRouter API Key', keyPlaceholder: 'sk-or-...', keyHint: 'OpenRouter 密钥；单独保存在「Llama」槽位。' }
+      llama: { keyLabel: 'OpenRouter API Key', keyPlaceholder: 'sk-or-...', keyHint: 'OpenRouter 密钥；单独保存在「Llama」槽位。' },
+      openclaw: {
+        keyLabel: 'Gateway Token',
+        keyPlaceholder: '与 openclaw dashboard 中 token 一致',
+        keyHint: '也可留空，仅把带 #token= 的完整控制台地址填在 Base URL；走本机 WebSocket，与 OpenAI HTTP 无关。'
+      }
     },
     PROMPT_BUILTIN = [
       { id: '_ahk', name: '默认 · AHK / 自动化', text: SP },
@@ -321,7 +327,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   var state = {
     drawer: false,
     settings: false,
-    sending: false,
+    sendingBySession: {},
     needSetup: false,
     nspick: false,
     apiKeys: {},
@@ -726,6 +732,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     addBtn.setAttribute('title', '选择 AI 新建对话');
     addBtn.setAttribute('aria-label', '选择 AI 新建对话');
     sessionTabsEl.appendChild(addBtn);
+    refreshSendUi();
   }
 
   function emptyState() {
@@ -795,6 +802,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     rebuildMsgList();
     renderSessionTabs();
     updateNeedSetup();
+    refreshSendUi();
   }
 
   function fillNewSessionGrid() {
@@ -939,6 +947,30 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     chatStatus.className = 'st' + (m === 'error' ? ' error' : m === 'success' ? ' success' : '');
   }
 
+  function isSessionSending(id) {
+    if (!id) return false;
+    return !!(state.sendingBySession && state.sendingBySession[id]);
+  }
+
+  function refreshSendUi() {
+    var sid = state.activeSessionId || (activeSession() && activeSession().id) || '';
+    var sending = isSessionSending(sid);
+    send.disabled = sending;
+    send.textContent = sending ? '发送中...' : '发送消息';
+  }
+
+  function setSessionSending(id, v) {
+    if (!id) return;
+    if (!state.sendingBySession) state.sendingBySession = {};
+    if (v) state.sendingBySession[id] = true;
+    else delete state.sendingBySession[id];
+    refreshSendUi();
+  }
+
+  function cstatForSession(sid, t, m) {
+    if (state.activeSessionId === sid) cstat(t, m);
+  }
+
   function sstat(t, m) {
     cfgStatus.textContent = t;
     cfgStatus.className = 'st' + (m === 'error' ? ' error' : m === 'success' ? ' success' : '');
@@ -1078,7 +1110,12 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 
   function hint(pid) {
     var p = P[pid] || P.openai,
-      m = { openai: 'OpenAI 兼容 chat/completions', anthropic: 'Anthropic messages 接口', gemini: 'Gemini generateContent 接口' };
+      m = {
+        openai: 'OpenAI 兼容 chat/completions',
+        anthropic: 'Anthropic messages 接口',
+        gemini: 'Gemini generateContent 接口',
+        openclaw: 'OpenClaw Gateway WebSocket（connect + chat.send）'
+      };
     ph.textContent =
       p.label +
       ' 默认走 ' +
@@ -1102,6 +1139,25 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     return ((state.apiKeys && state.apiKeys[pid]) || '').trim();
   }
 
+  function openClawEndpointFromCfg(cfg) {
+    var raw = (cfg.baseUrl || '').trim();
+    var token = (cfg.apiKey || '').trim();
+    var host = '127.0.0.1';
+    var port = 18789;
+    try {
+      var u = new URL(raw.indexOf('://') >= 0 ? raw : 'http://' + raw);
+      host = u.hostname || host;
+      if (u.port) port = parseInt(u.port, 10) || port;
+      if (u.hash && u.hash.indexOf('token=') >= 0) {
+        var sp = new URLSearchParams(u.hash.replace(/^#/, '?'));
+        var ht = (sp.get('token') || '').trim();
+        if (ht) token = ht;
+      }
+    } catch (e) {}
+    if (!token || !host) return { ok: false };
+    return { ok: true, host: host, port: port, token: token };
+  }
+
   function updateNeedSetup() {
     var s = activeSession();
     if (!s) {
@@ -1112,6 +1168,10 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     var url = (s.baseUrl || '').trim() || baseUrl.value.trim() || p.baseUrl;
     var m = (s.model || '').trim() || model.value.trim();
     var k = getApiKeyForProvider(s.provider);
+    if (p.transport === 'openclaw') {
+      state.needSetup = !openClawEndpointFromCfg({ baseUrl: url, apiKey: k, provider: s.provider }).ok;
+      return;
+    }
     state.needSetup = !k || !url || !m;
   }
 
@@ -1151,6 +1211,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     sstat(state.needSetup ? '首次使用请先完成 API 设置。' : '配置与对话已从本地恢复。', state.needSetup ? '' : 'success');
     renderSessionTabs();
     rebuildMsgList();
+    refreshSendUi();
   }
 
   function saveCfg(ok) {
@@ -1344,35 +1405,371 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     return c;
   }
 
+  function ocExtractText(v) {
+    if (v == null) return '';
+    if (typeof v === 'object') return String(v.text || v.content || v.message || '').trim();
+    var s = String(v).trim();
+    if (!s) return '';
+    try {
+      var o = JSON.parse(s);
+      if (o && typeof o === 'object') return String(o.text || o.content || o.message || s).trim();
+    } catch (e) {}
+    return s;
+  }
+
+  function ocCollectTextDeep(v, out) {
+    if (v == null) return;
+    if (typeof v === 'string') {
+      var t = v.trim();
+      if (t) out.push(t);
+      return;
+    }
+    if (Array.isArray(v)) {
+      for (var i = 0; i < v.length; i++) ocCollectTextDeep(v[i], out);
+      return;
+    }
+    if (typeof v === 'object') {
+      if (typeof v.text === 'string' && v.text.trim()) out.push(v.text.trim());
+      if (typeof v.message === 'string' && v.message.trim()) out.push(v.message.trim());
+      if (typeof v.content === 'string' && v.content.trim()) out.push(v.content.trim());
+      if (v.content && typeof v.content !== 'string') ocCollectTextDeep(v.content, out);
+      if (v.parts) ocCollectTextDeep(v.parts, out);
+      if (v.output_text) ocCollectTextDeep(v.output_text, out);
+    }
+  }
+
+  /** OpenClaw broadcast("chat", payload)：正文在 message.content[].text，而非旧版 response.text */
+  function ocExtractChatEventPayload(pl) {
+    if (!pl || typeof pl !== 'object') return '';
+    if (pl.state === 'error') return '';
+    var msg = pl.message;
+    if (msg == null) return '';
+    if (typeof msg === 'string') return String(msg).trim();
+    var acc = [];
+    ocCollectTextDeep(msg, acc);
+    if (acc.length) return acc.join('\n').trim();
+    acc = [];
+    ocCollectTextDeep(pl, acc);
+    if (acc.length) return acc.join('\n').trim();
+    return ocExtractText(msg) || ocExtractText(pl);
+  }
+
+  async function reqOpenClaw(cfg) {
+    var ep = openClawEndpointFromCfg(cfg);
+    if (!ep.ok) throw new Error('缺少 Gateway Token：请填写密钥，或将带 #token= 的控制台地址填入 Base URL。');
+    var wsUrl = 'ws://' + ep.host + ':' + ep.port + '/?token=' + encodeURIComponent(ep.token);
+    var h = activeSession() ? activeSession().history : [];
+    var last = h[h.length - 1];
+    if (!last || last.role !== 'user') throw new Error('内部错误：缺少用户消息。');
+    var msgText = last.content;
+    if (cfg.systemPrompt && h.length === 1) {
+      msgText = '【系统提示】\n' + cfg.systemPrompt + '\n\n' + msgText;
+    }
+    var sid = activeSession() ? String(activeSession().id || 's') : 'default';
+    var sessionKey = 'niuma-' + sid.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 48);
+    var instanceId = 'niuma-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
+
+    return new Promise(function (resolve, reject) {
+      var ws;
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch (e) {
+        reject(new Error('无法建立 WebSocket：' + (e && e.message ? e.message : String(e))));
+        return;
+      }
+      var seq = 0;
+      var settled = false;
+      var authenticated = false;
+      var challengeReceived = false;
+      var connectSent = false;
+      var chatMsgId = '';
+      var pendingText = '';
+      var finalizeTimer = null;
+      var hardTimeout = setTimeout(function () {
+        settleReject(new Error('OpenClaw 响应超时（45s）。'));
+      }, 45000);
+
+      function cleanup() {
+        clearTimeout(hardTimeout);
+        if (finalizeTimer) clearTimeout(finalizeTimer);
+      }
+
+      function settleResolve(val) {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        try {
+          ws.close();
+        } catch (e) {}
+        resolve(val);
+      }
+
+      function settleReject(err) {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        try {
+          ws.close();
+        } catch (e) {}
+        reject(err);
+      }
+
+      function armFinalize() {
+        if (finalizeTimer) clearTimeout(finalizeTimer);
+        finalizeTimer = setTimeout(function () {
+          var t = pendingText.trim();
+          if (t) settleResolve(t);
+          else settleReject(new Error('响应中没有可显示的内容。'));
+        }, 1200);
+      }
+
+      function fail(err) {
+        settleReject(err);
+      }
+
+      function okDone() {
+        var t = pendingText.trim();
+        if (t) settleResolve(t);
+        else settleReject(new Error('响应中没有可显示的内容。'));
+      }
+
+      function sendConnectOnce() {
+        if (connectSent) return;
+        connectSent = true;
+        seq += 1;
+        var cid = 'connect-' + seq;
+        var params = {
+          minProtocol: 3,
+          maxProtocol: 3,
+          client: {
+            /* 须与 Gateway 的 openclaw-control-ui 一致：webchat id 会在无设备身份时被 clearUnboundScopes 清空 scopes，导致 chat.send 报 missing scope: operator.write */
+            id: 'openclaw-control-ui',
+            version: 'niuma',
+            platform: typeof navigator !== 'undefined' ? navigator.platform || 'web' : 'web',
+            mode: 'webchat',
+            instanceId: instanceId
+          },
+          role: 'operator',
+          scopes: ['operator.admin', 'operator.approvals', 'operator.pairing', 'operator.read', 'operator.write'],
+          caps: [],
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent || '' : '',
+          locale: typeof navigator !== 'undefined' ? navigator.language || 'zh-CN' : 'zh-CN',
+          auth: { token: ep.token }
+        };
+        try {
+          ws.send(JSON.stringify({ type: 'req', id: cid, method: 'connect', params: params }));
+        } catch (e) {
+          fail(new Error('发送认证请求失败：' + (e && e.message ? e.message : String(e))));
+        }
+      }
+
+      function sendChatMsg() {
+        seq += 1;
+        chatMsgId = 'msg-' + seq;
+        try {
+          ws.send(
+            JSON.stringify({
+              type: 'req',
+              id: chatMsgId,
+              method: 'chat.send',
+              params: {
+                message: msgText,
+                idempotencyKey: chatMsgId,
+                sessionKey: sessionKey
+              }
+            })
+          );
+        } catch (e) {
+          fail(new Error('发送对话失败：' + (e && e.message ? e.message : String(e))));
+        }
+      }
+
+      function onFrame(msg) {
+        var ev = msg.event || msg.type || msg.method || '';
+
+        if (ev === 'connect.challenge') {
+          challengeReceived = true;
+          connectSent = false;
+          sendConnectOnce();
+          return;
+        }
+
+        if (typeof msg.id === 'string' && msg.id.indexOf('connect-') === 0) {
+          if (msg.error || msg.ok === false) {
+            var em = (msg.error && msg.error.message) || 'Gateway 认证失败';
+            fail(new Error(String(em)));
+            return;
+          }
+          if (msg.result !== undefined || msg.ok === true) {
+            authenticated = true;
+            sendChatMsg();
+          }
+          return;
+        }
+
+        if (!authenticated && ev === 'hello-ok') {
+          authenticated = true;
+          sendChatMsg();
+          return;
+        }
+
+        if (!authenticated) return;
+
+        /* chat.send 先返回 type:res（仅 started），助手正文由 broadcast("chat") 推送 */
+        if (msg.type === 'res' && msg.id === chatMsgId) {
+          if (msg.error || msg.ok === false) {
+            var er0 = (msg.error && msg.error.message) || JSON.stringify(msg.error || {});
+            fail(new Error(String(er0)));
+            return;
+          }
+          return;
+        }
+
+        if (msg.id === chatMsgId && msg.error && msg.type !== 'res') {
+          var er = (msg.error && msg.error.message) || JSON.stringify(msg.error);
+          fail(new Error(String(er)));
+          return;
+        }
+
+        if (msg.type === 'event' && msg.event === 'chat' && msg.payload) {
+          var pl = msg.payload;
+          if (pl.state === 'error') {
+            fail(new Error(String(pl.errorMessage || 'OpenClaw 对话出错')));
+            return;
+          }
+          var chatTxt = ocExtractChatEventPayload(pl);
+          if (chatTxt) pendingText = chatTxt;
+          if (pl.state === 'final') {
+            if (!pendingText.trim()) {
+              var fallback = ocExtractText(pl.errorMessage || pl.stopReason || '');
+              if (fallback) pendingText = fallback;
+            }
+            okDone();
+            return;
+          }
+          if (pl.state === 'delta' && chatTxt) armFinalize();
+          return;
+        }
+
+        if (msg.type === 'event' && msg.event === 'chat.side_result' && msg.payload) {
+          var side = msg.payload;
+          var st = ocExtractText(side.text || side.message || side.content || '');
+          if (!st && side.btw && typeof side.btw.question === 'string') st = side.btw.question.trim();
+          if (st) {
+            pendingText = st;
+            armFinalize();
+          }
+          return;
+        }
+
+        var respPayload = msg.payload || (msg.result !== undefined && typeof msg.result === 'object' ? msg.result : null);
+        var isResp = ev === 'response' || ev === 'chat.response' || (msg.id === chatMsgId && respPayload);
+
+        if (isResp && respPayload) {
+          var piece = ocExtractText(respPayload.text || respPayload.content || respPayload.message || '');
+          if (piece) pendingText += piece;
+          if (respPayload.done || respPayload.finish_reason || respPayload.finished) {
+            okDone();
+            return;
+          }
+          if (piece) armFinalize();
+          return;
+        }
+
+        if (ev === 'error' || msg.error) {
+          var emsg = ocExtractText((msg.payload && msg.payload.message) || (msg.error && msg.error.message) || msg.error);
+          fail(new Error(emsg || '服务端错误'));
+          return;
+        }
+
+        var rest = msg.payload || msg.params || {};
+        var rt = ocExtractText(rest.text || rest.content || rest.message || '');
+        if (rt && msg.id === chatMsgId) {
+          pendingText += rt;
+          armFinalize();
+        }
+      }
+
+      ws.onmessage = function (e) {
+        var msg;
+        try {
+          msg = JSON.parse(e.data);
+        } catch (ex) {
+          return;
+        }
+        try {
+          onFrame(msg);
+        } catch (ex2) {
+          fail(new Error(ex2 && ex2.message ? ex2.message : String(ex2)));
+        }
+      };
+
+      ws.onopen = function () {
+        setTimeout(function () {
+          if (!authenticated && !challengeReceived) sendConnectOnce();
+        }, 450);
+      };
+
+      ws.onerror = function () {
+        settleReject(new Error('WebSocket 错误（请确认 OpenClaw Gateway 已在本机 ' + ep.host + ':' + ep.port + ' 运行）。'));
+      };
+
+      ws.onclose = function (e) {
+        if (settled) return;
+        if (authenticated && pendingText.trim()) {
+          settleResolve(pendingText.trim());
+          return;
+        }
+        settleReject(new Error('连接已关闭（code ' + e.code + '）。'));
+      };
+    });
+  }
+
   async function sendChat() {
-    if (state.sending) return;
+    var s = activeSession();
+    if (!s || !s.id) return;
+    var sid = s.id;
+    if (isSessionSending(sid)) {
+      cstatForSession(sid, '该标签仍在等待上一次响应，请稍候。', 'error');
+      return;
+    }
     var text = input.value.trim();
     if (!text) return;
     saveCfg(false);
     var cfg = buildSendCfg();
-    if (!cfg || !cfg.apiKey || !cfg.baseUrl || !cfg.model) {
-      cstat('请先在设置里填写 API Key、Base URL 和 Model。', 'error');
+    if (!cfg || !cfg.baseUrl || !cfg.model) {
+      cstatForSession(sid, '请先在设置里填写 Base URL 和 Model。', 'error');
+      setSettings(true);
+      return;
+    }
+    var p0 = P[cfg.provider] || P.openai;
+    if (p0.transport !== 'openclaw' && !cfg.apiKey) {
+      cstatForSession(sid, '请先在设置里填写 API Key、Base URL 和 Model。', 'error');
+      setSettings(true);
+      return;
+    }
+    if (p0.transport === 'openclaw' && !openClawEndpointFromCfg(cfg).ok) {
+      cstatForSession(sid, 'OpenClaw：请在「Gateway Token」填写 token，或将带 #token= 的完整控制台地址填入 Base URL。', 'error');
       setSettings(true);
       return;
     }
     add('user', text);
     input.value = '';
-    state.sending = true;
-    send.disabled = true;
-    cstat('正在请求模型响应...');
+    setSessionSending(sid, true);
+    cstatForSession(sid, '正在请求模型响应...');
     try {
       var p = P[cfg.provider] || P.openai,
         content = '';
       if (p.transport === 'anthropic') content = await reqClaude(cfg);
       else if (p.transport === 'gemini') content = await reqGemini(cfg);
+      else if (p.transport === 'openclaw') content = await reqOpenClaw(cfg);
       else content = await reqOpenAI(cfg);
       add('assistant', content);
-      cstat('响应完成。', 'success');
+      cstatForSession(sid, '响应完成。', 'success');
     } catch (err) {
-      cstat('请求失败：' + (err && err.message ? err.message : '未知错误'), 'error');
+      cstatForSession(sid, '请求失败：' + (err && err.message ? err.message : '未知错误'), 'error');
     } finally {
-      state.sending = false;
-      send.disabled = false;
+      setSessionSending(sid, false);
     }
   }
 
