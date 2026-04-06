@@ -25,6 +25,12 @@ global g_VK_DblModIH := 0
 global g_VK_DblModLast := Map("ctrl", 0, "shift", 0, "alt", 0)
 global g_VK_RecordDblModLast := Map("ctrl", 0, "shift", 0, "alt", 0)
 global g_VK_DblModIntervalMs := 400
+global g_VK_SeqIH := 0
+global g_VK_SeqLast := Map("key", "", "tick", 0)
+global g_VK_SequenceIntervalMs := 400
+global g_RecordPendingKey := ""
+global g_RecordPendingTick := 0
+global g_RecordFinalizeToken := 0
 ; app.local 导航：Navigate 常不抛错，失败在 NavigationCompleted；用于触发一次磁盘 NavigateToString 回退
 global g_VK_ExpectAppLocalNavigationResult := false
 global g_VK_TriedDiskAfterAppLocalFail := false
@@ -39,6 +45,7 @@ VK_EnsureInit(embedded := true) {
 VK_OnHostExit(*) {
     _StopKeyPreviewHook()
     _StopDoubleModifierHook()
+    _StopSequenceHook()
     _EndRecord(false)
 }
 
@@ -168,6 +175,111 @@ _VK_NavigateToStringFromDisk(htmlPath) {
     }
 }
 
+_VK_BuiltinCommandCatalog() {
+    return [
+        Map("id", "system_core", "name", "系统与窗口", "commands", [
+            Map("id", "sys_exit", "name", "退出程序", "desc", "退出 VirtualKeyboard / 宿主脚本", "fn", "EXIT_APP", "suggested", "Escape"),
+            Map("id", "sys_show_vk", "name", "显示虚拟键盘", "desc", "打开 VK KeyBinder 窗口", "fn", "SHOW_VK"),
+            Map("id", "sys_hide_vk", "name", "隐藏虚拟键盘", "desc", "关闭 VK KeyBinder 窗口", "fn", "HIDE_VK"),
+            Map("id", "sys_reset_vk", "name", "重置键盘高亮", "desc", "清除虚拟键盘上的高亮状态", "fn", "RESET_VK"),
+            Map("id", "win_min", "name", "最小化窗口", "desc", "最小化当前活动窗口", "fn", "WIN_MIN"),
+            Map("id", "win_close", "name", "关闭窗口", "desc", "关闭当前活动窗口", "fn", "WIN_CLOSE")
+        ]),
+        Map("id", "capslock_ai_clipboard", "name", "CapsLock · AI / 剪贴板", "commands", [
+            Map("id", "ch_c", "name", "连续复制", "desc", "CapsLock+C：连续复制选区", "fn", "CH_RUN", "suggested", "c"),
+            Map("id", "ch_v", "name", "合并粘贴", "desc", "CapsLock+V：合并并粘贴已复制内容", "fn", "CH_RUN", "suggested", "v"),
+            Map("id", "ch_x", "name", "剪贴板管理", "desc", "CapsLock+X：打开剪贴板管理面板", "fn", "CH_RUN", "suggested", "x"),
+            Map("id", "ch_e", "name", "AI 解释", "desc", "CapsLock+E：解释所选内容", "fn", "CH_RUN", "suggested", "e"),
+            Map("id", "ch_r", "name", "AI 重构", "desc", "CapsLock+R：重构所选内容", "fn", "CH_RUN", "suggested", "r"),
+            Map("id", "ch_o", "name", "AI 优化", "desc", "CapsLock+O：优化所选内容", "fn", "CH_RUN", "suggested", "o")
+        ]),
+        Map("id", "capslock_panel_tools", "name", "CapsLock · 面板 / 工具", "commands", [
+            Map("id", "ch_q", "name", "打开配置", "desc", "CapsLock+Q：打开设置面板", "fn", "CH_RUN", "suggested", "q"),
+            Map("id", "ch_z", "name", "语音输入", "desc", "CapsLock+Z：开始或停止语音输入", "fn", "CH_RUN", "suggested", "z"),
+            Map("id", "ch_f", "name", "搜索中心 / 语音搜索", "desc", "CapsLock+F：打开搜索中心或语音搜索", "fn", "CH_RUN", "suggested", "f"),
+            Map("id", "ch_g", "name", "语音搜索面板", "desc", "CapsLock+G：直接启动语音搜索面板", "fn", "CH_RUN", "suggested", "g"),
+            Map("id", "ch_b", "name", "Prompt / 批量入口", "desc", "CapsLock+B：Prompt Quick-Pad 或批量操作入口", "fn", "CH_RUN", "suggested", "b"),
+            Map("id", "ch_t", "name", "截图智能菜单", "desc", "CapsLock+T：截图后弹出智能菜单", "fn", "CH_RUN", "suggested", "t"),
+            Map("id", "ch_p", "name", "区域截图粘贴", "desc", "CapsLock+P：区域截图并粘贴到 Cursor", "fn", "CH_RUN", "suggested", "p")
+        ]),
+        Map("id", "capslock_navigation", "name", "CapsLock · 导航 / 槽位", "commands", [
+            Map("id", "ch_w", "name", "方向上", "desc", "CapsLock+W：发送方向上", "fn", "CH_RUN", "suggested", "w"),
+            Map("id", "ch_s", "name", "方向下", "desc", "CapsLock+S：发送方向下", "fn", "CH_RUN", "suggested", "s"),
+            Map("id", "ch_a", "name", "方向左", "desc", "CapsLock+A：发送方向左", "fn", "CH_RUN", "suggested", "a"),
+            Map("id", "ch_d", "name", "方向右", "desc", "CapsLock+D：发送方向右", "fn", "CH_RUN", "suggested", "d"),
+            Map("id", "ch_1", "name", "快捷槽位 1", "desc", "执行快捷操作槽位 1", "fn", "CH_RUN", "suggested", "1"),
+            Map("id", "ch_2", "name", "快捷槽位 2", "desc", "执行快捷操作槽位 2", "fn", "CH_RUN", "suggested", "2"),
+            Map("id", "ch_3", "name", "快捷槽位 3", "desc", "执行快捷操作槽位 3", "fn", "CH_RUN", "suggested", "3"),
+            Map("id", "ch_4", "name", "快捷槽位 4", "desc", "执行快捷操作槽位 4", "fn", "CH_RUN", "suggested", "4"),
+            Map("id", "ch_5", "name", "快捷槽位 5", "desc", "执行快捷操作槽位 5", "fn", "CH_RUN", "suggested", "5")
+        ]),
+        Map("id", "quick_action_basic", "name", "快捷动作 · 基础动作", "commands", [
+            Map("id", "qa_explain", "name", "快捷动作 / 解释", "desc", "执行 Quick Action: Explain", "fn", "CH_RUN"),
+            Map("id", "qa_refactor", "name", "快捷动作 / 重构", "desc", "执行 Quick Action: Refactor", "fn", "CH_RUN"),
+            Map("id", "qa_optimize", "name", "快捷动作 / 优化", "desc", "执行 Quick Action: Optimize", "fn", "CH_RUN"),
+            Map("id", "qa_config", "name", "快捷动作 / 设置", "desc", "执行 Quick Action: Config", "fn", "CH_RUN"),
+            Map("id", "qa_copy", "name", "快捷动作 / 连续复制", "desc", "执行 Quick Action: Copy", "fn", "CH_RUN"),
+            Map("id", "qa_paste", "name", "快捷动作 / 合并粘贴", "desc", "执行 Quick Action: Paste", "fn", "CH_RUN"),
+            Map("id", "qa_clipboard", "name", "快捷动作 / 剪贴板管理", "desc", "执行 Quick Action: Clipboard", "fn", "CH_RUN"),
+            Map("id", "qa_voice", "name", "快捷动作 / 语音输入", "desc", "执行 Quick Action: Voice", "fn", "CH_RUN"),
+            Map("id", "qa_split", "name", "快捷动作 / 分割代码", "desc", "执行 Quick Action: Split", "fn", "CH_RUN"),
+            Map("id", "qa_batch", "name", "快捷动作 / 批量操作", "desc", "执行 Quick Action: Batch", "fn", "CH_RUN")
+        ]),
+        Map("id", "quick_action_cursor", "name", "快捷动作 · Cursor 面板", "commands", [
+            Map("id", "qa_command_palette", "name", "命令面板", "desc", "Cursor: Ctrl+Shift+P", "fn", "CH_RUN"),
+            Map("id", "qa_terminal", "name", "终端", "desc", "Cursor: Ctrl+Shift+``", "fn", "CH_RUN"),
+            Map("id", "qa_global_search", "name", "全局搜索", "desc", "Cursor: Ctrl+Shift+F", "fn", "CH_RUN"),
+            Map("id", "qa_explorer", "name", "资源管理器", "desc", "Cursor: Ctrl+Shift+E", "fn", "CH_RUN"),
+            Map("id", "qa_source_control", "name", "源代码管理", "desc", "Cursor: Ctrl+Shift+G", "fn", "CH_RUN"),
+            Map("id", "qa_extensions", "name", "扩展", "desc", "Cursor: Ctrl+Shift+X", "fn", "CH_RUN"),
+            Map("id", "qa_browser", "name", "简单浏览器", "desc", "Cursor: Ctrl+Shift+B", "fn", "CH_RUN"),
+            Map("id", "qa_settings", "name", "VS Code 设置", "desc", "Cursor: Ctrl+Shift+J", "fn", "CH_RUN"),
+            Map("id", "qa_cursor_settings", "name", "Cursor 设置", "desc", "Cursor: Ctrl+,", "fn", "CH_RUN")
+        ]),
+        Map("id", "prompt_quickpad", "name", "Prompt Quick-Pad", "commands", [
+            Map("id", "pqp_capture", "name", "选区快速采集", "desc", "执行 Prompt Quick-Pad 的选区采集动作", "fn", "CH_RUN")
+        ]),
+        Map("id", "cursor_panel", "name", "光标助手", "commands", [
+            Map("id", "cursor_open", "name", "打开光标面板", "desc", "显示光标助手面板", "fn", "CURSOR_OPEN"),
+            Map("id", "cursor_close", "name", "关闭光标面板", "desc", "隐藏光标助手面板", "fn", "CURSOR_CLOSE")
+        ])
+    ]
+}
+
+_VK_SyncBuiltinCommands() {
+    global g_Commands
+    if !(g_Commands is Map)
+        g_Commands := Map()
+    if !g_Commands.Has("Bindings") || !(g_Commands["Bindings"] is Map)
+        g_Commands["Bindings"] := Map()
+
+    catalog := _VK_BuiltinCommandCatalog()
+    cmdList := Map()
+    cats := []
+    suggested := Map()
+
+    for cat in catalog {
+        defs := cat["commands"]
+        cmdIds := []
+        for def in defs {
+            cmdId := def["id"]
+            cmdIds.Push(cmdId)
+            cmdList[cmdId] := Map(
+                "name", def["name"],
+                "desc", def["desc"],
+                "fn", def["fn"]
+            )
+            if def.Has("suggested") && def["suggested"] != ""
+                suggested[cmdId] := def["suggested"]
+        }
+        cats.Push(Map("id", cat["id"], "name", cat["name"], "commands", cmdIds))
+    }
+
+    g_Commands["CommandList"] := cmdList
+    g_Commands["Categories"] := cats
+    g_Commands["SuggestedBindings"] := suggested
+}
+
 _LoadCommands() {
     global g_Commands, g_Bindings, g_InverseBindings, g_JsonPath
 
@@ -187,14 +299,18 @@ _LoadCommands() {
         return
     }
 
-    if !(g_Commands is Map) || !g_Commands.Has("Bindings")
+    if !(g_Commands is Map)
         return
+
+    _VK_SyncBuiltinCommands()
 
     _VK_MergeSuggestedBindings()
 
     bindings := g_Commands["Bindings"]
     if bindings is Map {
         for ahkKey, cmdId in bindings {
+            if !g_Commands["CommandList"].Has(cmdId)
+                continue
             g_Bindings[ahkKey] := cmdId
             g_InverseBindings[cmdId] := ahkKey
         }
@@ -457,7 +573,7 @@ _JsonStr(s) {
 
 _BindKey(ahkKey, cmdId) {
     global g_HotkeyBound
-    if (ahkKey = "^^" || ahkKey = "++" || ahkKey = "!!")
+    if _VkIsRuntimeHookKey(ahkKey)
         return
     if g_HotkeyBound.Has(ahkKey)
         try Hotkey(ahkKey, "Off")
@@ -477,7 +593,7 @@ _MakeCmdFn(cmdId) {
 
 _UnbindKey(ahkKey) {
     global g_HotkeyBound
-    if (ahkKey = "^^" || ahkKey = "++" || ahkKey = "!!")
+    if _VkIsRuntimeHookKey(ahkKey)
         return
     if g_HotkeyBound.Has(ahkKey) {
         try Hotkey(ahkKey, "Off")
@@ -490,6 +606,8 @@ _ApplyAllBindings() {
     global g_Bindings
     for ahkKey, cmdId in g_Bindings
         _BindKey(ahkKey, cmdId)
+    _EnsureDoubleModifierHook()
+    _EnsureSequenceHook()
 }
 
 _VkRunPromptTemplate(cmdId) {
@@ -777,6 +895,7 @@ _DoBindKey(cmdId, ahkKey, displayKey) {
         . '","displayKey":"' . escaped . '"}')
     OutputDebug("[VK] bindKey: " . cmdId . " = " . ahkKey)
     _EnsureDoubleModifierHook()
+    _EnsureSequenceHook()
 }
 
 _DoClearBinding(cmdId) {
@@ -791,6 +910,7 @@ _DoClearBinding(cmdId) {
     g_InverseBindings.Delete(cmdId)
     _SaveBindings()
     _EnsureDoubleModifierHook()
+    _EnsureSequenceHook()
 
     VK_SendToWeb('{"type":"bindingUpdated","commandId":"' . cmdId
         . '","ahkKey":"","displayKey":""}')
@@ -862,6 +982,66 @@ _StopKeyPreviewHook() {
         g_VK_PreviewHook := 0
         OutputDebug("[VK] key preview hook off")
     }
+}
+
+_VkIsSequenceKey(ahkKey) {
+    return (SubStr(ahkKey, 1, 4) = "seq:")
+}
+
+_VkIsRuntimeHookKey(ahkKey) {
+    return (ahkKey = "^^" || ahkKey = "++" || ahkKey = "!!" || _VkIsSequenceKey(ahkKey))
+}
+
+_VkBuildSequenceKey(firstKey, secondKey) {
+    return "seq:" . firstKey . "||" . secondKey
+}
+
+_VkParseSequenceKey(ahkKey) {
+    if !_VkIsSequenceKey(ahkKey)
+        return []
+    body := SubStr(ahkKey, 5)
+    pos := InStr(body, "||")
+    if (pos <= 0)
+        return []
+    return [SubStr(body, 1, pos - 1), SubStr(body, pos + 2)]
+}
+
+_EnsureSequenceHook() {
+    global g_Bindings, g_VK_SeqIH, g_VK_SeqLast
+    need := false
+    for ahkKey, cmdId in g_Bindings {
+        if _VkIsSequenceKey(ahkKey) {
+            need := true
+            break
+        }
+    }
+    if !need {
+        _StopSequenceHook()
+        return
+    }
+    if IsObject(g_VK_SeqIH)
+        return
+    ih := InputHook("V L0")
+    ih.KeyOpt("{All}", "N")
+    ih.OnKeyDown := _OnVkSequenceKeyDown
+    g_VK_SeqIH := ih
+    try ih.Start()
+    catch as e
+        OutputDebug("[VK] sequence hook start failed: " . e.Message)
+    g_VK_SeqLast["key"] := ""
+    g_VK_SeqLast["tick"] := 0
+    OutputDebug("[VK] sequence hook on")
+}
+
+_StopSequenceHook() {
+    global g_VK_SeqIH, g_VK_SeqLast
+    if IsObject(g_VK_SeqIH) {
+        try g_VK_SeqIH.Stop()
+        g_VK_SeqIH := 0
+        OutputDebug("[VK] sequence hook off")
+    }
+    g_VK_SeqLast["key"] := ""
+    g_VK_SeqLast["tick"] := 0
 }
 
 _EnsureDoubleModifierHook() {
@@ -936,6 +1116,45 @@ _OnVkDblModUp(ih, vk, sc) {
         g_VK_DblModLast[grp] := now
 }
 
+_VkNormalizePressedHotkey(vk, sc) {
+    global g_UseScanCode
+    if g_UseScanCode {
+        keyName := _GetKeyFromSC(sc)
+        if !keyName
+            keyName := GetKeyName(Format("vk{:x}sc{:x}", vk, sc))
+    } else {
+        keyName := GetKeyName(Format("vk{:x}sc{:x}", vk, sc))
+    }
+    if (keyName = "" || _IsModifierOnlyKey(keyName))
+        return ""
+    isCtrl := GetKeyState("Ctrl", "P")
+    isAlt := GetKeyState("Alt", "P")
+    isShift := GetKeyState("Shift", "P")
+    return _NormalizeToAhkHotkey(keyName, isCtrl, isAlt, isShift)
+}
+
+_OnVkSequenceKeyDown(ih, vk, sc) {
+    global g_Bindings, g_VK_SeqLast, g_VK_SequenceIntervalMs, g_RecordCtx
+    if g_RecordCtx.Has("active") && g_RecordCtx["active"]
+        return
+    ahkKey := _VkNormalizePressedHotkey(vk, sc)
+    if ahkKey = ""
+        return
+    now := A_TickCount
+    prevKey := g_VK_SeqLast["key"]
+    prevTick := g_VK_SeqLast["tick"]
+    if (prevKey != "" && prevTick > 0 && now - prevTick < g_VK_SequenceIntervalMs) {
+        seqKey := _VkBuildSequenceKey(prevKey, ahkKey)
+        g_VK_SeqLast["key"] := ""
+        g_VK_SeqLast["tick"] := 0
+        if g_Bindings.Has(seqKey)
+            _ExecuteCommand(g_Bindings[seqKey])
+        return
+    }
+    g_VK_SeqLast["key"] := ahkKey
+    g_VK_SeqLast["tick"] := now
+}
+
 _UpdateModifierState() {
     global g_ModState
     g_ModState["ctrl"] := GetKeyState("Ctrl", "P")
@@ -956,6 +1175,7 @@ _PushModifierState() {
 
 _BeginRecord(commandId) {
     global g_RecordHook, g_RecordCtx, g_VK_RecordDblModLast
+    global g_RecordPendingKey, g_RecordPendingTick, g_RecordFinalizeToken
 
     try _EndRecord(false)
 
@@ -964,6 +1184,9 @@ _BeginRecord(commandId) {
     g_VK_RecordDblModLast["ctrl"] := 0
     g_VK_RecordDblModLast["shift"] := 0
     g_VK_RecordDblModLast["alt"] := 0
+    g_RecordPendingKey := ""
+    g_RecordPendingTick := 0
+    g_RecordFinalizeToken += 1
 
     _StopKeyPreviewHook()
 
@@ -982,7 +1205,7 @@ _BeginRecord(commandId) {
 }
 
 _OnRecordKeyUp(ih, vk, sc) {
-    global g_RecordCtx, g_Bindings, g_Commands, g_PendingConflict, g_UseScanCode
+    global g_RecordCtx, g_UseScanCode
     global g_VK_RecordDblModLast, g_VK_DblModIntervalMs
     if !g_RecordCtx["active"]
         return
@@ -1010,33 +1233,7 @@ _OnRecordKeyUp(ih, vk, sc) {
     if (prev > 0 && now - prev < g_VK_DblModIntervalMs) {
         g_VK_RecordDblModLast[grp] := 0
         dbl := grp = "ctrl" ? "^^" : grp = "shift" ? "++" : "!!"
-        cmdId := g_RecordCtx["commandId"]
-        displayKey := _ToDisplayKey(dbl)
-        if g_Bindings.Has(dbl) {
-            conflictId := g_Bindings[dbl]
-            if conflictId != cmdId {
-                g_PendingConflict["cmdId"] := cmdId
-                g_PendingConflict["ahkKey"] := dbl
-                g_PendingConflict["displayKey"] := displayKey
-                g_PendingConflict["conflictId"] := conflictId
-                _EndRecord()
-                conflictName := (g_Commands.Has("CommandList") && g_Commands["CommandList"].Has(conflictId))
-                    ? g_Commands["CommandList"][conflictId]["name"] : conflictId
-                escDk := StrReplace(StrReplace(displayKey, "\", "\\"), '"', '\"')
-                escName := StrReplace(StrReplace(conflictName, "\", "\\"), '"', '\"')
-                VK_SendToWeb('{"type":"confirmConflict","commandId":"' . cmdId
-                    . '","ahkKey":"' . dbl
-                    . '","displayKey":"' . escDk
-                    . '","conflictCmdId":"' . conflictId
-                    . '","conflictCmdName":"' . escName . '"}')
-                OutputDebug("[VK] conflict: " . dbl . " -> " . conflictId . " vs " . cmdId)
-                return
-            }
-        }
-        _EndRecord()
-        _DoBindKey(cmdId, dbl, displayKey)
-        VK_SendToWeb('{"type":"recordHint","active":false,"commandId":"' . cmdId . '"}')
-        OutputDebug("[VK] record captured: " . cmdId . " => " . dbl)
+        _VkFinalizeRecordedHotkey(dbl)
         return
     }
     g_VK_RecordDblModLast[grp] := now
@@ -1044,19 +1241,23 @@ _OnRecordKeyUp(ih, vk, sc) {
 
 _EndRecord(restartPreview := true) {
     global g_RecordHook, g_RecordCtx, g_VK_Ready
+    global g_RecordPendingKey, g_RecordPendingTick, g_RecordFinalizeToken
     if IsObject(g_RecordHook) {
         try g_RecordHook.Stop()
     }
     g_RecordHook := 0
     g_RecordCtx["active"] := false
     g_RecordCtx["commandId"] := ""
+    g_RecordPendingKey := ""
+    g_RecordPendingTick := 0
+    g_RecordFinalizeToken += 1
     if restartPreview && g_VK_Ready
         _StartKeyPreviewHook()
 }
 
 _OnRecordKeyDown(ih, vk, sc) {
-    global g_RecordCtx, g_Bindings, g_Commands, g_PendingConflict, g_UseScanCode
-    global g_VK_RecordDblModLast
+    global g_RecordCtx, g_UseScanCode, g_RecordPendingKey, g_RecordPendingTick
+    global g_RecordFinalizeToken, g_VK_RecordDblModLast, g_VK_SequenceIntervalMs
     if !g_RecordCtx["active"]
         return
 
@@ -1087,6 +1288,45 @@ _OnRecordKeyDown(ih, vk, sc) {
     if !ahkKey
         return
 
+    now := A_TickCount
+    if (g_RecordPendingKey != "" && g_RecordPendingTick > 0 && now - g_RecordPendingTick < g_VK_SequenceIntervalMs) {
+        pendingKey := g_RecordPendingKey
+        g_RecordPendingKey := ""
+        g_RecordPendingTick := 0
+        g_RecordFinalizeToken += 1
+        _VkFinalizeRecordedHotkey(_VkBuildSequenceKey(pendingKey, ahkKey))
+        return
+    }
+
+    g_RecordPendingKey := ahkKey
+    g_RecordPendingTick := now
+    token := g_RecordFinalizeToken + 1
+    g_RecordFinalizeToken := token
+    SetTimer(_VkMakeRecordFinalizeTimer(token), -g_VK_SequenceIntervalMs)
+}
+
+_VkMakeRecordFinalizeTimer(token) {
+    return (*) => _VkFinalizePendingRecord(token)
+}
+
+_VkFinalizePendingRecord(token) {
+    global g_RecordCtx, g_RecordPendingKey, g_RecordPendingTick, g_RecordFinalizeToken
+    if (token != g_RecordFinalizeToken)
+        return
+    if !(g_RecordCtx.Has("active") && g_RecordCtx["active"])
+        return
+    if (g_RecordPendingKey = "")
+        return
+    ahkKey := g_RecordPendingKey
+    g_RecordPendingKey := ""
+    g_RecordPendingTick := 0
+    _VkFinalizeRecordedHotkey(ahkKey)
+}
+
+_VkFinalizeRecordedHotkey(ahkKey) {
+    global g_RecordCtx, g_Bindings, g_Commands, g_PendingConflict
+    if !(g_RecordCtx.Has("active") && g_RecordCtx["active"])
+        return
     cmdId := g_RecordCtx["commandId"]
     displayKey := _ToDisplayKey(ahkKey)
 
@@ -1283,6 +1523,16 @@ _PushInit() {
 }
 
 _AhkKeyToDisplay(ahkKey) {
+    if _VkIsSequenceKey(ahkKey) {
+        parts := _VkParseSequenceKey(ahkKey)
+        if (parts.Length >= 2) {
+            firstPart := _AhkKeyToDisplay(parts[1])
+            secondPart := _AhkKeyToDisplay(parts[2])
+            if (parts[1] = parts[2])
+                return firstPart . " twice"
+            return firstPart . " then " . secondPart
+        }
+    }
     if (ahkKey = "^^")
         return "Double Ctrl"
     if (ahkKey = "++")
@@ -1319,6 +1569,20 @@ _AhkKeyToDisplay(ahkKey) {
     if specialMap.Has(key)
         key := specialMap[key]
     return display . key
+}
+
+; 供宿主判断 VK 窗口是否已显示（例如托盘「显示键盘」已打开时，长按 CapsLock 松手不应误隐藏）
+VK_IsHostVisible() {
+    global g_VK_Gui
+    if !IsObject(g_VK_Gui)
+        return false
+    try {
+        if !WinExist("ahk_id " . g_VK_Gui.Hwnd)
+            return false
+        return !!(WinGetStyle("ahk_id " . g_VK_Gui.Hwnd) & 0x10000000)
+    } catch as e {
+        return false
+    }
 }
 
 VK_Show() {

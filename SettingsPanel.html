@@ -135,7 +135,7 @@
       creatingPromptTemplate: false,
       cursorRulesTab: "general",
       data: {
-        cursorPath: "", capslockHoldTimeSeconds: 0.5, autoStart: false, defaultStartTab: "general",
+        cursorPath: "", capslockHoldTimeSeconds: 0.5, capsLockHoldVkEnabled: true, autoStart: false, defaultStartTab: "general",
         themeMode: "dark", popupScreenIndex: 1, monitorCount: 1,
         promptExplain: "", promptRefactor: "", promptOptimize: "",
         cursorRules: { general:"", web:"", miniprogram:"", android:"", ios:"", python:"" },
@@ -197,6 +197,8 @@
       const hk = { ...d.hotkeys };
       HOTKEY_KEYS.forEach(k => { const el = document.getElementById("hk_" + k); if (el) hk[k] = el.value.trim(); });
       d.hotkeys = hk;
+      const elVkHold = document.getElementById("capsLockHoldVkEnabled");
+      if (elVkHold) d.capsLockHoldVkEnabled = !!elVkHold.checked;
       d.promptQuickCaptureHotkey = document.getElementById("promptQuickCaptureHotkey")?.value.trim() ?? d.promptQuickCaptureHotkey;
       const qa = [];
       for (let i = 1; i <= 5; i++) {
@@ -436,7 +438,7 @@
           document.getElementById("btnOpenLegacyPrompts").addEventListener("click", () => post({ type: "invokeAction", op: "openLegacyTab", tab: "prompts" }));
         }
       } else if (state.activeTab === "hotkeys") {
-        panel.innerHTML = `<div class="card"><div class="title">快捷键设置</div>${hotkeyRows}<div class="row"><div class="label">Prompt 快速采集热键</div><input id="promptQuickCaptureHotkey" type="text" value="${esc(d.promptQuickCaptureHotkey)}"></div></div><div class="card"><div class="title">快速操作按钮 (5)</div>${qaRows}<div class="inline"><button class="btn" id="btnOpenLegacyHotkeys">打开原版快捷键设置</button></div></div>`;
+        panel.innerHTML = `<div class="card"><div class="title">快捷键设置</div><div class="row"><div class="label">长按 CapsLock 打开 VK 快捷键面板</div><div><input id="capsLockHoldVkEnabled" type="checkbox" ${checked(d.capsLockHoldVkEnabled !== false && d.capsLockHoldVkEnabled !== 0)}></div></div><div class="hint" style="margin:-4px 0 10px 0;">开启后，按住 CapsLock 达到「通用设置」中的长按时间即弹出 KeyBinder，松开 CapsLock 后关闭；关闭本项后仍可从托盘菜单打开虚拟键盘。</div>${hotkeyRows}<div class="row"><div class="label">Prompt 快速采集热键</div><input id="promptQuickCaptureHotkey" type="text" value="${esc(d.promptQuickCaptureHotkey)}"></div></div><div class="card"><div class="title">快速操作按钮 (5)</div>${qaRows}<div class="inline"><button class="btn" id="btnOpenLegacyHotkeys">打开原版快捷键设置</button></div></div>`;
         document.getElementById("btnOpenLegacyHotkeys").addEventListener("click", () => post({ type: "invokeAction", op: "openLegacyTab", tab: "hotkeys" }));
       } else if (state.activeTab === "advanced") {
         panel.innerHTML = `<div class="card"><div class="title">高级设置</div><div class="row"><div class="label">界面语言</div><select id="language">${optionsKV([{value:"zh",label:"中文"},{value:"en",label:"英文"}],d.language)}</select></div><div class="row"><div class="label">AI 等待时间 (秒)</div><input id="aiSleepTimeSeconds" type="number" min="0.05" max="10" step="0.05" value="${esc((Number(d.aiSleepTime || 200) / 1000).toFixed(2).replace(/\.?0+$/,""))}"></div><div class="row"><div class="label">启动延迟 (秒)</div><input id="launchDelaySeconds" type="number" min="0.5" max="10" step="0.1" value="${esc(d.launchDelaySeconds)}"></div><div class="hint">弹窗位置已统一到“外观设置 > 弹窗位置”。</div></div><div class="card"><div class="title">配置管理</div><div class="inline"><button class="btn" id="btnExportCfg">导出配置</button><button class="btn" id="btnImportCfg">导入配置</button><button class="btn" id="btnResetCfg">重置默认</button></div></div>`;

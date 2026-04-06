@@ -2,391 +2,152 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Floating Toolbar</title>
 <style>
-:root {
-  --bg: #0a0a0a;
-  --surface: #1e1e1e;
-  --border: #3c3c3c;
-  --matrix: #00ff41;
-  --orange: #ff6600;
-  --text: #cccccc;
-  --ease: 0.2s cubic-bezier(0.22, 1, 0.36, 1);
-  --ui-scale: 1;
-  --strip-gap: calc(5px * var(--ui-scale));
-  --strip-pad: calc(6px * var(--ui-scale));
-  --favicon-size: calc(52px * var(--ui-scale));
-  --btn-size: calc(40px * var(--ui-scale));
-  --icon-size: calc(24px * var(--ui-scale));
-  --radius: calc(8px * var(--ui-scale));
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html, body {
-  width: 100%;
-  height: 100%;
-  background: var(--bg);
-  overflow: hidden;
-  font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
-  user-select: none;
-  -webkit-user-select: none;
-}
-#strip {
-  display: flex;
-  align-items: center;
-  gap: var(--strip-gap);
-  padding: var(--strip-pad);
-  height: 100%;
-  width: 100%;
-  background: var(--bg);
-  border-radius: var(--radius);
-}
-#favicon {
-  width: var(--favicon-size);
-  height: var(--favicon-size);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: grab;
-}
-#favicon:active { cursor: grabbing; }
-#favicon img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  pointer-events: none;
-}
-#buttons {
-  display: flex;
-  gap: var(--strip-gap);
-  flex: 1;
-  min-width: 0;
-}
-.btn {
-  width: var(--btn-size);
-  height: var(--btn-size);
-  min-width: var(--btn-size);
-  min-height: var(--btn-size);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: transform var(--ease), filter var(--ease), box-shadow var(--ease), background var(--ease);
-  position: relative;
-  background: transparent;
-  overflow: visible;
-}
-.btn img, .btn svg {
-  width: var(--icon-size);
-  height: var(--icon-size);
-  flex-shrink: 0;
-  pointer-events: none;
-  transition: transform 0.35s linear;
-  overflow: visible;
-}
-.btn:hover {
-  filter: brightness(1.35);
-  background: rgba(255, 255, 255, 0.06);
-}
-.btn:active {
-  transform: scale(0.92);
-}
-.btn .dot {
-  position: absolute;
-  bottom: 3px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--orange);
-  opacity: 0;
-  transition: opacity var(--ease);
-}
-.btn.selected .dot {
-  opacity: 1;
-}
-#btn-search.pulse {
-  animation: breathe 1.6s ease-in-out infinite;
-  box-shadow: 0 0 14px rgba(255, 102, 0, 0.45), 0 0 28px rgba(255, 102, 0, 0.2);
-}
-#btn-search.drag-over {
-  transform: scale(0.88);
-  box-shadow: 0 0 20px rgba(255, 102, 0, 0.65);
-}
-#btn-search.loading svg, #btn-search.loading img {
-  animation: spin 0.7s linear infinite;
-}
-@keyframes breathe {
-  0%, 100% { filter: drop-shadow(0 0 4px rgba(255,102,0,0.4)); }
-  50% { filter: drop-shadow(0 0 14px rgba(255,140,60,0.9)); }
-}
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-#bubble {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 6px);
-  transform: translateX(-50%);
-  padding: calc(3px * var(--ui-scale)) calc(8px * var(--ui-scale));
-  font-size: calc(10px * var(--ui-scale));
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--matrix);
-  background: rgba(10, 10, 10, 0.92);
-  border: 1px solid rgba(0, 255, 65, 0.45);
-  border-radius: 6px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--ease);
-  z-index: 100;
-}
-#btn-search.pulse #bubble {
-  opacity: 1;
-}
+:root{--bg:#0a0a0a;--panel:rgba(18,18,18,.92);--panel2:rgba(22,22,22,.96);--orange:#ff6600;--text:#e8e8e8;--muted:#9b9b9b;--ui:1;--ease:.2s cubic-bezier(.22,1,.36,1);--de:.32s ease-in-out}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:transparent;font:14px "Segoe UI","Microsoft YaHei UI",sans-serif;color:var(--text);user-select:none;-webkit-user-select:none}
+button,input,textarea,select{font:inherit}
+#app{position:relative;width:100%;height:100%}
+body.drawer-open{background:rgba(0,0,0,.02)}
+#collapsedRoot{display:flex;flex-direction:row;align-items:center;height:100%;width:100%;gap:calc(8px * var(--ui));padding:calc(6px * var(--ui)) calc(8px * var(--ui));background:var(--bg);border-radius:calc(10px * var(--ui))}
+body.drawer-open #collapsedRoot{display:none!important}
+#drawerRoot{display:none;position:absolute;inset:0;flex-direction:column;min-height:0}
+body.drawer-open #drawerRoot{display:flex!important}
+#stage{flex:1;display:flex;flex-direction:row;min-height:0;position:relative}
+#backdrop{position:absolute;inset:0;z-index:1;background:transparent}
+#panel{position:relative;z-index:2;flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--panel);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-left:1px solid rgba(255,102,0,.35);box-shadow:-12px 0 40px rgba(0,0,0,.35)}
+#resizeGrip{position:absolute;left:0;top:0;bottom:0;width:10px;z-index:30;cursor:ew-resize;background:linear-gradient(90deg,rgba(255,102,0,.28),transparent);opacity:.6}
+#resizeGrip:hover{opacity:1}
+.hdr{flex-shrink:0;display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid rgba(255,102,0,.15);background:linear-gradient(180deg,rgba(255,102,0,.06),transparent);cursor:grab}
+.hdr:active{cursor:grabbing}
+.t1{font-size:15px;font-weight:700}
+.t2{margin-top:3px;font-size:11px;color:var(--muted)}
+.icons{display:flex;gap:8px}
+.ib{width:34px;height:34px;border:1px solid rgba(255,102,0,.28);border-radius:10px;background:rgba(255,255,255,.04);color:var(--orange);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all var(--ease)}
+.ib:hover{background:rgba(255,102,0,.12);border-color:rgba(255,102,0,.6)}
+#main{flex:1;min-height:0;display:flex;flex-direction:column}
+#msgs{flex:1;min-height:0;overflow:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px}
+#msgs::-webkit-scrollbar,.sbody::-webkit-scrollbar{width:8px}
+#msgs::-webkit-scrollbar-thumb,.sbody::-webkit-scrollbar-thumb{background:rgba(255,102,0,.28);border-radius:99px}
+#empty{padding:14px;border:1px dashed rgba(255,102,0,.25);border-radius:14px;color:var(--muted);background:rgba(255,255,255,.03);line-height:1.6;font-size:13px}
+.m{max-width:92%;border-radius:14px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.04);overflow:hidden;align-self:flex-start}
+.m.user{align-self:flex-end;background:rgba(255,102,0,.12);border-color:rgba(255,102,0,.22)}
+.mh{display:flex;justify-content:space-between;gap:12px;padding:8px 12px 6px;font-size:11px;color:var(--muted);border-bottom:1px solid rgba(255,255,255,.05)}
+.mb{padding:10px 12px 12px;line-height:1.7;font-size:13px;user-select:text;-webkit-user-select:text}
+.mb pre{margin-top:10px;border:1px solid rgba(255,102,0,.14);border-radius:12px;background:rgba(8,8,8,.95);overflow:auto}
+.mb pre code{display:block;padding:12px;font:12px/1.65 Consolas,"JetBrains Mono",monospace}
+.hl-comment{color:#6a9955}.hl-string{color:#ce9178}.hl-number{color:#b5cea8}.hl-keyword{color:#ff9b52}.hl-builtins{color:#4fc1ff}.hl-var{color:#dcdcaa}
+#cmp{flex-shrink:0;padding:12px 16px 14px;border-top:1px solid rgba(255,102,0,.15);background:linear-gradient(180deg,rgba(255,255,255,.02),transparent)}
+#input{width:100%;min-height:96px;resize:vertical;border:1px solid rgba(255,102,0,.2);border-radius:14px;background:rgba(8,8,8,.72);color:var(--text);padding:10px 12px;outline:none;user-select:text;-webkit-user-select:text}
+#composerFooter{display:flex;flex-direction:row;align-items:flex-end;gap:12px;margin-top:10px}
+.drawer-toolbar{flex:1;display:flex;flex-direction:row;align-items:center;gap:calc(6px * var(--ui));min-width:0;background:transparent;padding:0}
+#sendWrap{flex-shrink:0;display:flex;align-items:flex-end}
+.st{font-size:12px;color:var(--muted)}.st.error{color:#ff7a59}.st.success{color:#4ed08b}
+.btn1{min-height:42px;padding:0 18px;border-radius:12px;border:1px solid rgba(255,102,0,.3);cursor:pointer;font-weight:700;background:linear-gradient(180deg,#ff7d26,#ff6600);color:#111;transition:all var(--ease)}
+.btn1:disabled{opacity:.45;cursor:not-allowed}
+.btn2,.btn3{height:38px;padding:0 14px;border-radius:10px;border:1px solid rgba(255,102,0,.22);cursor:pointer;background:rgba(255,255,255,.04);color:var(--text)}
+#chatStatusRow{margin-top:8px}
+.logo-btn{flex-shrink:0;width:calc(42px * var(--ui));height:calc(42px * var(--ui));border:1px solid rgba(255,102,0,.35);border-radius:calc(10px * var(--ui));background:rgba(255,255,255,.04);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:4px;transition:all var(--ease)}
+.logo-btn:hover{background:rgba(255,102,0,.1);box-shadow:0 0 0 1px rgba(255,102,0,.4)}
+.logo-img{width:100%;height:100%;object-fit:contain;pointer-events:none;transform:scale(calc(.92 * var(--ui)));transform-origin:center}
+.icon-btns{display:flex;flex-direction:row;align-items:center;gap:calc(5px * var(--ui));flex:1;min-width:0;flex-wrap:nowrap;overflow-x:auto}
+.icon-btns::-webkit-scrollbar{height:4px}
+.tb{width:calc(40px * var(--ui));height:calc(40px * var(--ui));display:flex;align-items:center;justify-content:center;border-radius:calc(8px * var(--ui));cursor:pointer;position:relative;transition:all var(--ease);color:#ff6600;background:transparent;flex-shrink:0}
+.tb svg{width:calc(24px * var(--ui));height:calc(24px * var(--ui));pointer-events:none}
+.tb:hover{filter:brightness(1.3);background:rgba(255,255,255,.06)}
+.tb .dot{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--orange);opacity:0}
+.tb.selected .dot{opacity:1}
+.tb[data-action=Search].pulse{animation:breathe 1.6s ease-in-out infinite;box-shadow:0 0 12px rgba(255,102,0,.4)}
+.tb[data-action=Search].drag-over{transform:scale(.9)}
+.tb[data-action=Search].loading svg{animation:spin .7s linear infinite}
+.bubble{position:absolute;left:50%;bottom:calc(100% + 5px);transform:translateX(-50%);padding:2px 7px;font-size:10px;font-weight:600;color:#00ff41;background:rgba(10,10,10,.92);border:1px solid rgba(0,255,65,.4);border-radius:5px;white-space:nowrap;opacity:0;pointer-events:none}
+.tb[data-action=Search].pulse .bubble{opacity:1}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+#settings{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity var(--de);z-index:40}
+body.settings-open #settings{opacity:1;pointer-events:auto}
+.sbg{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.sd{position:absolute;top:14px;right:14px;bottom:14px;left:14px;max-width:560px;margin-left:auto;background:var(--panel2);border:1px solid rgba(255,102,0,.28);border-radius:18px;display:flex;flex-direction:column}
+.sh{padding:14px 16px 12px;border-bottom:1px solid rgba(255,102,0,.15);display:flex;justify-content:space-between;align-items:center}
+.sbt{font-size:15px;font-weight:700}
+.sbt2{margin-top:3px;font-size:11px;color:var(--muted)}
+.sbody{flex:1;overflow:auto;padding:14px 16px;display:grid;gap:12px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fld{display:grid;gap:6px}
+.fld label{font-size:11px;color:var(--muted)}
+.ctl{width:100%;min-height:40px;border:1px solid rgba(255,102,0,.18);border-radius:10px;background:rgba(255,255,255,.04);color:var(--text);padding:8px 10px;outline:none}
+textarea.ctl{min-height:100px;resize:vertical}
+.hint{padding:10px 12px;border:1px solid rgba(255,102,0,.14);border-radius:12px;background:rgba(255,255,255,.03);color:var(--muted);font-size:11px;line-height:1.55}
+.sf{padding:12px 16px 14px;border-top:1px solid rgba(255,102,0,.15);display:flex;justify-content:space-between;gap:12px;align-items:center}
+#ftb-toolbar-tpl{display:none}
 </style>
 </head>
 <body>
-<div id="strip">
-  <div id="favicon">
-    <img id="favicon-img" src="https://appcursorhelper/favicon.ico" alt="logo" width="52" height="52">
-  </div>
-  <div id="buttons">
-    <div class="btn" id="btn-search" data-action="Search" title="搜索 (Caps+F)">
-      <div id="bubble">[Drag Me] · Caps+F</div>
-      <svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="7"/>
-        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-    </div>
-    <div class="btn" id="btn-record" data-action="Record" title="新剪贴板 (WebView2 · FTS5)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2"/>
-        <line x1="7" y1="8" x2="17" y2="8"/>
-        <line x1="7" y1="12" x2="17" y2="12"/>
-        <line x1="7" y1="16" x2="13" y2="16"/>
-      </svg>
-    </div>
-    <div class="btn" id="btn-ai" data-action="AIAssistant" title="提示词 (Ctrl+Shift+B)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-      </svg>
-    </div>
-    <div class="btn" id="btn-prompt-new" data-action="PromptNew" title="新提示词 (摘录区)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 5v14M5 12h14"/>
-        <rect x="3" y="3" width="18" height="18" rx="4" opacity="0.35"/>
-      </svg>
-    </div>
-    <div class="btn" id="btn-screenshot" data-action="Screenshot" title="截图 (Caps+T)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2"/>
-        <circle cx="12" cy="12" r="3"/>
-      </svg>
-    </div>
-    <div class="btn" id="btn-settings" data-action="Settings" title="设置 (Caps+Q)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-      </svg>
-    </div>
-    <div class="btn" id="btn-keyboard" data-action="VirtualKeyboard" title="键盘 (Ctrl+Shift+K)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2" y="4" width="20" height="16" rx="2"/>
-        <line x1="6" y1="8" x2="6" y2="8"/>
-        <line x1="10" y1="8" x2="10" y2="8"/>
-        <line x1="14" y1="8" x2="14" y2="8"/>
-        <line x1="18" y1="8" x2="18" y2="8"/>
-        <line x1="6" y1="12" x2="6" y2="12"/>
-        <line x1="18" y1="12" x2="18" y2="12"/>
-        <line x1="8" y1="16" x2="16" y2="16"/>
-      </svg>
-    </div>
-  </div>
+<div id="app">
+<template id="ftb-toolbar-tpl">
+<div class="tb" data-action="Search" title="搜索"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><div class="bubble">Selection Ready</div><span class="dot"></span></div>
+<div class="tb" data-action="Record" title="记录"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="#ff6600" stroke="none"/></svg><span class="dot"></span></div>
+<div class="tb" data-action="Prompt" title="提示词"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><path d="M12 3c4.97 0 9 3.58 9 8 0 1.8-.67 3.47-1.8 4.82L20 21l-5.02-1.67A10.53 10.53 0 0 1 12 20c-4.97 0-9-3.58-9-8s4.03-9 9-9Z"/></svg><span class="dot"></span></div>
+<div class="tb" data-action="NewPrompt" title="新提示词"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span class="dot"></span></div>
+<div class="tb" data-action="Screenshot" title="截图"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><path d="M4 7h4l2-2h4l2 2h4v12H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span class="dot"></span></div>
+<div class="tb" data-action="Settings" title="设置"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="dot"></span></div>
+<div class="tb" data-action="VirtualKeyboard" title="键盘"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/></svg><span class="dot"></span></div>
+</template>
+<div id="collapsedRoot">
+<button type="button" class="logo-btn" data-logo-toggle title="牛马 / NiuMa Chat"><img class="logo-img" alt="" /></button>
+<div id="collapsedBtns" class="icon-btns"></div>
+</div>
+<div id="drawerRoot">
+<div id="stage">
+<div id="backdrop"></div>
+<aside id="panel">
+<div id="resizeGrip" title="拖动调整宽度"></div>
+<header class="hdr">
+<div><div class="t1">NiuMa Chat</div><div class="t2">Markdown · AHK v2 高亮</div></div>
+<div class="icons">
+<button class="ib" id="chat-settings" type="button">设</button>
+<button class="ib" id="drawer-close" type="button">关</button>
+</div>
+</header>
+<div id="main">
+<section id="msgs"><div id="empty">首次使用请点「设」完成 API。展开后工具条在输入框下方、发送按钮左侧。</div></section>
+<section id="cmp">
+<textarea id="input" placeholder="输入消息，Ctrl+Enter 发送"></textarea>
+<div id="composerFooter">
+<div class="drawer-toolbar">
+<button type="button" class="logo-btn" data-logo-toggle title="收起"><img class="logo-img" alt="" /></button>
+<div id="drawerBtns" class="icon-btns"></div>
+</div>
+<div id="sendWrap"><button class="btn1" id="send" type="button">发送消息</button></div>
+</div>
+<div id="chatStatusRow"><div class="st" id="chat-status">就绪</div></div>
+</section>
+</div>
+<div id="settings" aria-hidden="true">
+<div class="sbg"></div>
+<section class="sd">
+<header class="sh"><div><div class="sbt">API 设置</div><div class="sbt2">保存在本机 localStorage</div></div><button class="ib" id="settings-close" type="button">关</button></header>
+<div class="sbody">
+<div class="row"><div class="fld"><label for="provider">服务商</label><select id="provider" class="ctl"></select></div><div class="fld"><label for="modelPreset">模型预设</label><select id="modelPreset" class="ctl"></select></div></div>
+<div class="fld"><label for="apiKey">API Key</label><input id="apiKey" class="ctl" type="password" autocomplete="off" placeholder="API Key"></div>
+<div class="fld"><label for="baseUrl">Base URL</label><input id="baseUrl" class="ctl" type="text" autocomplete="off"></div>
+<div class="fld"><label for="model">Model</label><input id="model" class="ctl" type="text" autocomplete="off"></div>
+<div class="fld"><label for="systemPrompt">System Prompt</label><textarea id="systemPrompt" class="ctl"></textarea></div>
+<div class="hint" id="providerHint"></div>
+</div>
+<footer class="sf"><div class="st" id="config-status"></div><div style="display:flex;gap:8px;"><button class="btn2" id="resetCfg" type="button">重置</button><button class="btn3" id="saveCfg" type="button">完成</button></div></footer>
+</section>
+</div>
+</aside>
+</div>
+</div>
 </div>
 <script>
-(function () {
-  var strip = document.getElementById("strip");
-  var favicon = document.getElementById("favicon");
-  var buttons = document.querySelectorAll(".btn");
-  var btnSearch = document.getElementById("btn-search");
-  var selectedAction = "";
-
-  function postToAhk(obj) {
-    try {
-      if (window.chrome && window.chrome.webview)
-        window.chrome.webview.postMessage(obj);
-    } catch (e) {}
-  }
-
-  function setSelected(action) {
-    selectedAction = action;
-    buttons.forEach(function (b) {
-      b.classList.toggle("selected", b.dataset.action === action);
-    });
-  }
-
-  function setSearchPulse(on) {
-    btnSearch.classList.toggle("pulse", !!on);
-  }
-
-  function setSearchDragOver(on) {
-    btnSearch.classList.toggle("drag-over", !!on);
-  }
-
-  function setSearchLoading(on) {
-    btnSearch.classList.toggle("loading", !!on);
-  }
-
-  function applyScale(scale) {
-    var s = Number(scale);
-    if (!isFinite(s) || s <= 0) s = 1;
-    document.documentElement.style.setProperty("--ui-scale", String(s));
-  }
-
-  buttons.forEach(function (btn) {
-    btn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      var action = btn.dataset.action;
-      setSelected(action);
-      if (action === "Search") {
-        postToAhk({ type: "toolbar_search_click" });
-      } else {
-        postToAhk({ type: "toolbar_action", action: action });
-      }
-    });
-  });
-
-  var lastDragHostMs = 0;
-  function postDragHostOnce() {
-    var t = Date.now();
-    if (t - lastDragHostMs < 40) return;
-    lastDragHostMs = t;
-    postToAhk({ type: "drag_host" });
-  }
-  function dragHostIfHandle(e) {
-    if (e.button !== 0) return;
-    if (e.target === strip || (favicon && favicon.contains(e.target)))
-      postDragHostOnce();
-  }
-  strip.addEventListener("pointerdown", dragHostIfHandle, true);
-  if (favicon)
-    favicon.addEventListener("mousedown", dragHostIfHandle, true);
-
-  strip.addEventListener("wheel", function (e) {
-    e.preventDefault();
-    postToAhk({ type: "wheel", delta: e.deltaY > 0 ? -1 : 1 });
-  }, { passive: false });
-
-  strip.addEventListener("contextmenu", function (e) {
-    e.preventDefault();
-    postToAhk({ type: "context_menu", x: e.screenX, y: e.screenY });
-  });
-
-  async function readDropTextAsync(dt) {
-    if (!dt) return "";
-    try {
-      if (dt.items && dt.items.length) {
-        for (var i = 0; i < dt.items.length; i++) {
-          var it = dt.items[i];
-          if (it.kind !== "string") continue;
-          var s = await new Promise(function (res) {
-            try {
-              it.getAsString(function (x) { res(x || ""); });
-            } catch (e2) {
-              res("");
-            }
-          });
-          if (s && String(s).trim()) return String(s).trim();
-        }
-      }
-      return (dt.getData("text/plain") || dt.getData("Text") || dt.getData("text/uri-list") || "").trim();
-    } catch (e) {
-      return "";
-    }
-  }
-
-  async function onDrop(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    setSearchDragOver(false);
-    var t = await readDropTextAsync(e.dataTransfer);
-    t = (t || "").trim();
-    if (!t && e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length)
-      t = (e.dataTransfer.files[0].name || "").trim();
-    if (!t) return;
-    setSearchLoading(true);
-    postToAhk({ type: "drop_search", text: t });
-  }
-
-  function onDragOver(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
-    } catch (e2) {}
-    setSearchDragOver(true);
-  }
-
-  function onDragLeave(e) {
-    if (!btnSearch.contains(e.relatedTarget))
-      setSearchDragOver(false);
-  }
-
-  btnSearch.addEventListener("dragenter", function (e) { e.preventDefault(); });
-  btnSearch.addEventListener("dragover", onDragOver);
-  btnSearch.addEventListener("dragleave", onDragLeave);
-  btnSearch.addEventListener("drop", onDrop);
-
-  document.body.addEventListener("dragover", function (e) { e.preventDefault(); });
-  document.body.addEventListener("drop", function (e) {
-    e.preventDefault();
-    if (e.target === btnSearch || btnSearch.contains(e.target)) return;
-    onDrop(e);
-  });
-
-  if (window.chrome && window.chrome.webview) {
-    window.chrome.webview.addEventListener("message", function (ev) {
-      var d = ev.data;
-      if (!d || !d.type) return;
-      if (d.type === "SELECTION_CHANGE") {
-        setSearchPulse(true);
-        return;
-      }
-      if (d.type === "SELECTION_CLEAR") {
-        setSearchPulse(false);
-        return;
-      }
-      if (d.type === "drop_done") {
-        setSearchLoading(false);
-        setSearchPulse(false);
-        return;
-      }
-      if (d.type === "set_scale") {
-        applyScale(d.scale || 1);
-        return;
-      }
-      if (d.type === "set_logo") {
-        var u = d.url || "";
-        var im = document.getElementById("favicon-img");
-        if (im && u) im.src = u;
-        return;
-      }
-      if (d.type === "set_selected") {
-        setSelected(d.action || "");
-        return;
-      }
-    });
-  }
-
-  applyScale(1);
-  postToAhk({ type: "toolbar_ready" });
+(function(){
+var LS='niuma_chat_drawer_config_v2',LEGACY_LS='niuma_chat_drawer_config_v1',SP='你是一个擅长 AHK v2、自动化脚本和桌面工作流的助手。',P={openai:{label:'OpenAI',transport:'openai',baseUrl:'https://api.openai.com/v1',model:'gpt-4.1-mini',models:['gpt-4.1-mini','gpt-4.1','gpt-4o-mini','gpt-4o']},kimi:{label:'Kimi',transport:'openai',baseUrl:'https://api.moonshot.cn/v1',model:'moonshot-v1-8k',models:['moonshot-v1-8k','moonshot-v1-32k','kimi-k2-0711-preview']},qwen:{label:'Qwen',transport:'openai',baseUrl:'https://dashscope.aliyuncs.com/compatible-mode/v1',model:'qwen-plus',models:['qwen-plus','qwen-turbo','qwen-max','qwen3-coder-plus']},deepseek:{label:'DeepSeek',transport:'openai',baseUrl:'https://api.deepseek.com/v1',model:'deepseek-chat',models:['deepseek-chat','deepseek-reasoner']},claude:{label:'Claude',transport:'anthropic',baseUrl:'https://api.anthropic.com',model:'claude-3-5-sonnet-latest',models:['claude-3-5-sonnet-latest','claude-3-7-sonnet-latest','claude-3-5-haiku-latest']},gemini:{label:'Gemini',transport:'gemini',baseUrl:'https://generativelanguage.googleapis.com/v1beta',model:'gemini-2.5-flash',models:['gemini-2.5-flash','gemini-2.5-pro','gemini-2.0-flash']},glm:{label:'GLM',transport:'openai',baseUrl:'https://open.bigmodel.cn/api/paas/v4',model:'glm-4-plus',models:['glm-4-plus','glm-4-air','glm-4-flash']},siliconflow:{label:'硅基流动',transport:'openai',baseUrl:'https://api.siliconflow.cn/v1',model:'Qwen/Qwen2.5-7B-Instruct',models:['Qwen/Qwen2.5-7B-Instruct','deepseek-ai/DeepSeek-V3','THUDM/glm-4-9b-chat']},minimax:{label:'MiniMax',transport:'openai',baseUrl:'https://api.minimax.chat/v1',model:'MiniMax-Text-01',models:['MiniMax-Text-01','MiniMax-M1','abab6.5s-chat']},zhipu:{label:'智谱',transport:'openai',baseUrl:'https://open.bigmodel.cn/api/paas/v4',model:'glm-4-plus',models:['glm-4-plus','glm-4-air','glm-4-flash']},llama:{label:'Llama',transport:'openai',baseUrl:'https://openrouter.ai/api/v1',model:'meta-llama/llama-3.1-8b-instruct:free',models:['meta-llama/llama-3.1-8b-instruct:free','meta-llama/llama-3.1-70b-instruct','meta-llama/llama-4-maverick']}};function $(id){return document.getElementById(id)}var _tpl=$('ftb-toolbar-tpl');var _th=_tpl?_tpl.innerHTML:'';$('collapsedBtns').innerHTML=_th;$('drawerBtns').innerHTML=_th;var stage=$('stage'),backdrop=$('backdrop'),panel=$('panel'),dclose=$('drawer-close'),chatSet=$('chat-settings'),msgs=$('msgs'),empty=$('empty'),input=$('input'),send=$('send'),chatStatus=$('chat-status'),settings=$('settings'),sbg=document.querySelector('.sbg'),sclose=$('settings-close'),ssave=$('saveCfg'),cfgStatus=$('config-status'),ph=$('providerHint'),provider=$('provider'),apiKey=$('apiKey'),baseUrl=$('baseUrl'),model=$('model'),modelPreset=$('modelPreset'),systemPrompt=$('systemPrompt'),resetCfg=$('resetCfg'),collapsedRoot=$('collapsedRoot'),resizeGrip=$('resizeGrip'),btns=document.querySelectorAll('.tb');function searchEls(){return document.querySelectorAll('.tb[data-action=Search]')}var state={drawer:false,settings:false,sending:false,needSetup:false,history:[]};function post(m){try{window.chrome&&window.chrome.webview&&window.chrome.webview.postMessage(m)}catch(e){}}function sel(a){document.querySelectorAll('.tb').forEach(function(b){b.classList.toggle('selected',b.dataset.action===a)})}function pulse(v){searchEls().forEach(function(el){el.classList.toggle('pulse',!!v)})}function dragOver(v){searchEls().forEach(function(el){el.classList.toggle('drag-over',!!v)})}function loading(v){searchEls().forEach(function(el){el.classList.toggle('loading',!!v)})}function scale(v){v=Number(v);if(!isFinite(v)||v<=0)v=1;document.documentElement.style.setProperty('--ui',String(v))}function setDrawer(v){state.drawer=!!v;document.body.classList.toggle('drawer-open',state.drawer);stage.setAttribute('aria-hidden',state.drawer?'false':'true');panel.setAttribute('aria-hidden',state.drawer?'false':'true');post({type:'drawer_state',open:state.drawer});if(!state.drawer){setSettings(false);return}if(state.needSetup)setSettings(true)}function setSettings(v){state.settings=!!v;document.body.classList.toggle('settings-open',state.settings);settings.setAttribute('aria-hidden',state.settings?'false':'true')}function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;')}function ahk(code){var h=esc(code);h=h.replace(/(^|\n)(\s*;.*)/g,function(m,p1,p2){return p1+'<span class=\"hl-comment\">'+p2+'</span>'});h=h.replace(/(\"(?:[^\"\\]|\\.)*\")/g,'<span class=\"hl-string\">$1</span>');h=h.replace(/('(?:[^'\\]|\\.)*')/g,'<span class=\"hl-string\">$1</span>');h=h.replace(/\b(\d+(?:\.\d+)?)\b/g,'<span class=\"hl-number\">$1</span>');h=h.replace(/\b(global|local|static|if|else|try|catch|return|switch|case|default|for|while|loop|break|continue|class|extends|throw)\b/g,'<span class=\"hl-keyword\">$1</span>');h=h.replace(/\b(Map|Array|Gui|Error|Integer|Float|String|Trim|Format|RegExMatch|SetTimer|Send|Sleep|FileRead|FileAppend|IniRead|IniWrite)\b/g,'<span class=\"hl-builtins\">$1</span>');h=h.replace(/\b([A-Za-z_][A-Za-z0-9_]*)\b(?=\s*:=)/g,'<span class=\"hl-var\">$1</span>');return h}function inline(t){var h=esc(t);h=h.replace(/`([^`]+)`/g,'<code class=\"inline\">$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\*([^*]+)\*/g,'<em>$1</em>').replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href=\"$2\" target=\"_blank\" rel=\"noreferrer\">$1</a>');return h}function md(src){src=String(src||'').replace(/\r\n/g,'\n');var out=[],rx=/```(\w+)?\n([\s\S]*?)```/g,last=0,m;while((m=rx.exec(src))){if(m.index>last)out.push({t:'text',c:src.slice(last,m.index)});out.push({t:'code',l:(m[1]||'').toLowerCase(),c:m[2]});last=rx.lastIndex}if(last<src.length)out.push({t:'text',c:src.slice(last)});return out.map(function(b){if(b.t==='code'){var hi=(b.l==='ahk'||b.l==='autohotkey'||b.l==='autohotkeyv2')?ahk(b.c):esc(b.c);return '<pre><code>'+hi+'</code></pre>'}return b.c.split(/\n{2,}/).map(function(chunk){var t=chunk.trim();if(!t)return'';if(/^\s*>\s?/.test(t))return '<blockquote>'+inline(t.replace(/^\s*>\s?/gm,'').replace(/\n/g,'<br>'))+'</blockquote>';if(/^\s*[-*]\s+/m.test(t)){var items=t.split('\n').map(function(line){return line.replace(/^\s*[-*]\s+/,'').trim()}).filter(Boolean);return '<ul>'+items.map(function(i){return '<li>'+inline(i)+'</li>'}).join('')+'</ul>'}if(/^#{1,3}\s+/.test(t)){var lv=t.match(/^#+/)[0].length,cl=t.replace(/^#{1,3}\s+/,'');return '<h'+lv+'>'+inline(cl)+'</h'+lv+'>'}return '<p>'+inline(t.replace(/\n/g,'<br>'))+'</p>'}).join('')}).join('')}function emptyState(){empty.style.display=state.history.length?'none':''}function add(role,content){state.history.push({role:role,content:content});emptyState();var w=document.createElement('article');w.className='m '+role;var title=role==='user'?'User':'Assistant';w.innerHTML='<div class=\"mh\"><span>'+title+'</span><span>'+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</span></div><div class=\"mb\">'+md(content)+'</div>';msgs.appendChild(w);msgs.scrollTop=msgs.scrollHeight}function cstat(t,m){chatStatus.textContent=t;chatStatus.className='st'+(m==='error'?' error':m==='success'?' success':'')}function sstat(t,m){cfgStatus.textContent=t;cfgStatus.className='st'+(m==='error'?' error':m==='success'?' success':'')}function fillProviders(){provider.innerHTML=Object.keys(P).map(function(k){return '<option value=\"'+k+'\">'+P[k].label+'</option>'}).join('')}function fillModels(pid,sel){var p=P[pid]||P.openai,o=['<option value=\"\">手动输入</option>'];(p.models||[]).forEach(function(m){o.push('<option value=\"'+esc(m)+'\">'+esc(m)+'</option>')});modelPreset.innerHTML=o.join('');modelPreset.value=sel&&p.models.indexOf(sel)>=0?sel:''}function hint(pid){var p=P[pid]||P.openai,m={openai:'OpenAI 兼容 chat/completions',anthropic:'Anthropic messages 接口',gemini:'Gemini generateContent 接口'};ph.textContent=p.label+' 默认走 '+(m[p.transport]||p.transport)+'。如你使用中转站、反向代理或私有网关，也可以直接覆盖 Base URL 和 Model。'}function applyProvider(pid,keep){var p=P[pid]||P.openai;provider.value=pid;fillModels(pid,model.value.trim());hint(pid);if(!keep||!baseUrl.value.trim())baseUrl.value=p.baseUrl;if(!keep||!model.value.trim())model.value=p.model;if(!systemPrompt.value.trim())systemPrompt.value=SP}function loadCfg(){var d={};try{d=JSON.parse(localStorage.getItem(LS)||localStorage.getItem(LEGACY_LS)||'{}')||{}}catch(e){d={}}var pid=d.provider&&P[d.provider]?d.provider:'openai';provider.value=pid;apiKey.value=d.apiKey||'';baseUrl.value=d.baseUrl||'';model.value=d.model||'';systemPrompt.value=d.systemPrompt||SP;applyProvider(pid,true);fillModels(pid,model.value.trim());state.needSetup=!apiKey.value.trim()||!baseUrl.value.trim()||!model.value.trim();sstat(state.needSetup?'首次使用请先完成 API 设置。':'配置已从本地恢复。',state.needSetup?'':'success')}function saveCfg(ok){var pid=provider.value&&P[provider.value]?provider.value:'openai',d={provider:pid,apiKey:apiKey.value.trim(),baseUrl:baseUrl.value.trim(),model:model.value.trim(),systemPrompt:systemPrompt.value.trim()||SP};localStorage.setItem(LS,JSON.stringify(d));state.needSetup=!d.apiKey||!d.baseUrl||!d.model;sstat(ok?'设置已保存到本地。':'配置会自动保存到本地。',ok?'success':'');return d}function reset(){localStorage.removeItem(LS);localStorage.removeItem(LEGACY_LS);apiKey.value='';baseUrl.value='';model.value='';systemPrompt.value=SP;applyProvider('openai',false);fillModels('openai',model.value.trim());state.needSetup=true;sstat('已重置为默认配置，请重新填写 API Key。','');setSettings(true)}
+function oaUrl(u){u=String(u||'').replace(/\/+$/,'');if(/\/chat\/completions$/i.test(u))return u;if(/\/v\d+(?:\.\d+)?$/i.test(u))return u+'/chat/completions';return u+'/chat/completions'}function claudeUrl(u){u=String(u||'').replace(/\/+$/,'');if(/\/v1\/messages$/i.test(u))return u;if(/\/v1$/i.test(u))return u+'/messages';return u+'/v1/messages'}function geminiUrl(u,m,k){u=String(u||'').replace(/\/+$/,'');var p='/models/'+encodeURIComponent(m)+':generateContent?key='+encodeURIComponent(k);if(/\/v1beta$/i.test(u)||/\/v1$/i.test(u))return u+p;return u+'/v1beta'+p}function norm(c){if(typeof c==='string')return c;if(Array.isArray(c))return c.map(function(p){if(typeof p==='string')return p;if(p&&typeof p.text==='string')return p.text;return''}).join('\n').trim();return''}function oaMsgs(cfg){var m=[];if(cfg.systemPrompt)m.push({role:'system',content:cfg.systemPrompt});state.history.forEach(function(i){m.push({role:i.role,content:i.content})});return m}function claudeMsgs(){return state.history.map(function(i){return{role:i.role==='assistant'?'assistant':'user',content:i.content}})}function geminiMsgs(){return state.history.map(function(i){return{role:i.role==='assistant'?'model':'user',parts:[{text:i.content}]}})}async function reqOpenAI(cfg){var h={'Content-Type':'application/json','Authorization':'Bearer '+cfg.apiKey};if(cfg.provider==='llama'){h['HTTP-Referer']='https://niuma.local';h['X-Title']='FloatingToolbarStrip'}var r=await fetch(oaUrl(cfg.baseUrl),{method:'POST',headers:h,body:JSON.stringify({model:cfg.model,messages:oaMsgs(cfg),temperature:.7})});if(!r.ok)throw new Error('HTTP '+r.status+': '+await r.text());var d=await r.json(),c='';try{c=norm(d.choices[0].message.content)}catch(e){c=''}if(!c)throw new Error('响应中没有可显示的内容。');return c}async function reqClaude(cfg){var r=await fetch(claudeUrl(cfg.baseUrl),{method:'POST',headers:{'Content-Type':'application/json','x-api-key':cfg.apiKey,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:cfg.model,system:cfg.systemPrompt||'',max_tokens:2048,messages:claudeMsgs()})});if(!r.ok)throw new Error('HTTP '+r.status+': '+await r.text());var d=await r.json(),c='';try{c=(d.content||[]).map(function(p){return p&&p.type==='text'?(p.text||''):''}).join('\n').trim()}catch(e){c=''}if(!c)throw new Error('响应中没有可显示的内容。');return c}async function reqGemini(cfg){var body={contents:geminiMsgs(),generationConfig:{temperature:.7}};if(cfg.systemPrompt)body.systemInstruction={parts:[{text:cfg.systemPrompt}]};var r=await fetch(geminiUrl(cfg.baseUrl,cfg.model,cfg.apiKey),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('HTTP '+r.status+': '+await r.text());var d=await r.json(),c='';try{var parts=(((d.candidates||[])[0]||{}).content||{}).parts||[];c=parts.map(function(p){return p&&typeof p.text==='string'?p.text:''}).join('\n').trim()}catch(e){c=''}if(!c)throw new Error('响应中没有可显示的内容。');return c}async function sendChat(){if(state.sending)return;var text=input.value.trim();if(!text)return;var cfg=saveCfg(false);if(!cfg.apiKey||!cfg.baseUrl||!cfg.model){cstat('请先在设置里填写 API Key、Base URL 和 Model。','error');setSettings(true);return}add('user',text);input.value='';state.sending=true;send.disabled=true;cstat('正在请求模型响应...');try{var p=P[cfg.provider]||P.openai,content='';if(p.transport==='anthropic')content=await reqClaude(cfg);else if(p.transport==='gemini')content=await reqGemini(cfg);else content=await reqOpenAI(cfg);add('assistant',content);cstat('响应完成。','success')}catch(err){cstat('请求失败：'+(err&&err.message?err.message:'未知错误'),'error')}finally{state.sending=false;send.disabled=false}}document.getElementById('app').addEventListener('click',function(e){var b=e.target.closest('.tb');if(!b)return;e.stopPropagation();var a=b.dataset.action;if(!a)return;sel(a);if(a==='Search')post({type:'toolbar_search_click'});else post({type:'toolbar_action',action:a})});document.querySelectorAll('[data-logo-toggle]').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();setDrawer(!state.drawer)})});dclose.addEventListener('click',function(){setDrawer(false)});chatSet.addEventListener('click',function(){setSettings(true)});backdrop.addEventListener('click',function(e){if(e.target===backdrop)setDrawer(false)});stage.addEventListener('click',function(e){if(e.target===stage)setDrawer(false)});sbg.addEventListener('click',function(){setSettings(false)});sclose.addEventListener('click',function(){setSettings(false)});ssave.addEventListener('click',function(){saveCfg(true);setSettings(false)});send.addEventListener('click',sendChat);input.addEventListener('keydown',function(e){if(e.key==='Enter'&&e.ctrlKey){e.preventDefault();sendChat()}});provider.addEventListener('change',function(){applyProvider(provider.value,false);fillModels(provider.value,model.value.trim());saveCfg(false)});modelPreset.addEventListener('change',function(){if(modelPreset.value){model.value=modelPreset.value;saveCfg(false)}});[apiKey,baseUrl,model,systemPrompt].forEach(function(el){el.addEventListener('input',function(){saveCfg(false)})});resetCfg.addEventListener('click',reset);var dragT=0;function dragHost(){var t=Date.now();if(t-dragT<40)return;dragT=t;post({type:'drag_host'})}collapsedRoot.addEventListener('pointerdown',function(e){if(e.button!==0)return;var t=e.target;if(t.closest('.tb')||t.closest('.logo-btn'))return;if(t===collapsedRoot||t.closest('.icon-btns'))dragHost()},true);collapsedRoot.addEventListener('wheel',function(e){e.preventDefault();post({type:'wheel',delta:e.deltaY>0?-1:1})},{passive:false});collapsedRoot.addEventListener('contextmenu',function(e){e.preventDefault();post({type:'context_menu',x:e.screenX,y:e.screenY})});var hdr=document.querySelector('.hdr');if(hdr){hdr.addEventListener('pointerdown',function(e){if(e.button!==0)return;var t=e.target;if(t.closest('.ib')||t.closest('button'))return;dragHost()},true);}async function readDrop(dt){if(!dt)return'';try{if(dt.items&&dt.items.length){for(var i=0;i<dt.items.length;i++){var it=dt.items[i];if(it.kind!=='string')continue;var s=await new Promise(function(res){try{it.getAsString(function(x){res(x||'')})}catch(e2){res('')}});if(s&&String(s).trim())return String(s).trim()}}return(dt.getData('text/plain')||dt.getData('Text')||dt.getData('text/uri-list')||'').trim()}catch(e){return''}}async function onDrop(e){e.preventDefault();e.stopPropagation();dragOver(false);var t=await readDrop(e.dataTransfer);if(!t&&e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length)t=(e.dataTransfer.files[0].name||'').trim();if(!t)return;loading(true);post({type:'drop_search',text:t})}function onDragOver(e){e.preventDefault();e.stopPropagation();try{if(e.dataTransfer)e.dataTransfer.dropEffect='copy'}catch(e2){}dragOver(true)}function onDragLeave(e){var rt=e.relatedTarget,ok=false;if(rt)searchEls().forEach(function(s){if(s.contains(rt))ok=true});if(!ok)dragOver(false)}function bindSearchDnD(){searchEls().forEach(function(search){search.addEventListener('dragenter',function(e){e.preventDefault()});search.addEventListener('dragover',onDragOver);search.addEventListener('dragleave',onDragLeave);search.addEventListener('drop',onDrop)})}bindSearchDnD();document.body.addEventListener('dragover',function(e){e.preventDefault()});document.body.addEventListener('drop',function(e){e.preventDefault();var onS=false;searchEls().forEach(function(s){if(e.target===s||s.contains(e.target))onS=true});if(onS)return;onDrop(e)});if(window.chrome&&window.chrome.webview){window.chrome.webview.addEventListener('message',function(ev){var d=ev.data;if(!d||!d.type)return;if(d.type==='SELECTION_CHANGE'){pulse(true);return}if(d.type==='SELECTION_CLEAR'){pulse(false);return}if(d.type==='drop_done'){loading(false);pulse(false);return}if(d.type==='set_scale'){scale(d.scale||1);return}if(d.type==='set_logo'){var u=d.url||'';if(u)document.querySelectorAll('.logo-img').forEach(function(im){im.src=u});return}if(d.type==='set_selected')sel(d.action||'')})}var rz=false,rzX=0,rzW=0;if(resizeGrip){resizeGrip.addEventListener('pointerdown',function(e){if(e.button!==0)return;rz=true;rzX=e.clientX;rzW=document.documentElement.clientWidth;try{resizeGrip.setPointerCapture(e.pointerId)}catch(x){}});resizeGrip.addEventListener('pointermove',function(e){if(!rz)return;var nw=Math.max(380,Math.min(1200,rzW+(rzX-e.clientX)));post({type:'drawer_resize',width:nw})});resizeGrip.addEventListener('pointerup',function(e){if(rz){rz=false;post({type:'drawer_resize_done'});try{resizeGrip.releasePointerCapture(e.pointerId)}catch(x){}}});resizeGrip.addEventListener('pointercancel',function(){if(rz){rz=false;post({type:'drawer_resize_done'})}})}fillProviders();loadCfg();scale(1);emptyState();post({type:'toolbar_ready'})
 })();
 </script>
 </body>

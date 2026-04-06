@@ -499,6 +499,7 @@ global MoveGUIListBoxBrush := 0  ; 移动分类弹窗ListBox画刷
 global MoveFromTemplateListBoxHwnd := 0  ; 从模板移动弹窗ListBox句柄
 global MoveFromTemplateListBoxBrush := 0  ; 从模板移动弹窗ListBox画刷
 global CapsLock2 := false  ; 是否使用过 CapsLock+ 功能标记，使用过会清除这个变量
+global VKHoldVisible := false  ; 是否由长按 CapsLock 暂时显示 VK
 ; 动态快捷键映射（默认值）
 global SplitHotkey := "s"
 global BatchHotkey := "b"
@@ -547,7 +548,8 @@ global ClipboardMenuHotkeysRegistered := false  ; 热键是否已注册
 ; 配置变量
 global CursorPath := ""
 global AISleepTime := 15000
-global CapsLockHoldTimeSeconds := 0.5  ; CapsLock长按时间（秒），默认0.5秒
+global CapsLockHoldTimeSeconds := 0.5  ; 长按达到该秒数后显示 VK KeyBinder，松手隐藏（若本窗口原已打开则松手不隐藏）
+global CapsLockHoldVkEnabled := true  ; 是否启用长按 CapsLock 弹出 VK KeyBinder（设置中心 / ini：CapsLockHoldVkEnabled）
 global Prompt_Explain := ""
 global Prompt_Refactor := ""
 global Prompt_Optimize := ""
@@ -1021,7 +1023,7 @@ GetText(Key) {
             "cursor_path", "Cursor 路径:",
             "browse", "浏览...",
             "capslock_hold_time", "CapsLock 长按时间 (秒):",
-            "capslock_hold_time_hint", "设置长按 CapsLock 键多少秒后弹出快捷操作面板，范围：0.1-5.0 秒，默认：0.5 秒",
+            "capslock_hold_time_hint", "长按 CapsLock 达到该时长后显示 VK KeyBinder 快捷键设置界面，松开 CapsLock 后自动隐藏。范围：0.1–5.0 秒，默认 0.5。若已通过托盘打开键盘，松手不会关闭该窗口。",
             "capslock_hold_time_error", "CapsLock 长按时间必须在 0.1 到 5.0 秒之间",
             "ai_wait_time", "AI 响应等待时间 (毫秒):",
             "countdown_delay", "倒计时延迟时间 (秒):",
@@ -1469,7 +1471,7 @@ GetText(Key) {
             "cursor_path", "Cursor Path:",
             "browse", "Browse...",
             "capslock_hold_time", "CapsLock Hold Time (seconds):",
-            "capslock_hold_time_hint", "Set how many seconds to hold CapsLock before opening the quick action panel. Range: 0.1-5.0 seconds, Default: 0.5 seconds",
+            "capslock_hold_time_hint", "Hold CapsLock for this long to show the VK KeyBinder shortcut UI; it hides when you release CapsLock. Range: 0.1–5.0 s, default 0.5. If VK was already opened from the tray, releasing CapsLock will not close it.",
             "capslock_hold_time_error", "CapsLock hold time must be between 0.1 and 5.0 seconds",
             "ai_wait_time", "AI Response Wait Time (ms):",
             "explain_prompt", "Explain Code Prompt:",
@@ -2719,6 +2721,7 @@ InitConfig() {
         IniWrite("1", ConfigFile, "Settings", "AutoUpdateVoiceInput")
         IniWrite("deepseek", ConfigFile, "Settings", "VoiceSearchSelectedEngines")  ; 保存默认选中的搜索引擎
         IniWrite("0", ConfigFile, "Settings", "AutoStart")  ; 默认不自启动
+        IniWrite("1", ConfigFile, "Settings", "CapsLockHoldVkEnabled")  ; 默认启用长按 CapsLock → VK KeyBinder
         ; 保存默认启用的搜索标签（默认全部启用）
         DefaultEnabledCategories := "ai,cli,academic,baidu,image,audio,video,book,price,medical,cloud"
         IniWrite(DefaultEnabledCategories, ConfigFile, "Settings", "VoiceSearchEnabledCategories")
@@ -2750,7 +2753,7 @@ InitConfig() {
     }
 
     ; 3. 加载配置（v2的IniRead返回值更直观）
-    global CursorPath, AISleepTime, CapsLockHoldTimeSeconds, Prompt_Explain, Prompt_Refactor, Prompt_Optimize, SplitHotkey, BatchHotkey, PanelScreenIndex, Language
+    global CursorPath, AISleepTime, CapsLockHoldTimeSeconds, CapsLockHoldVkEnabled, Prompt_Explain, Prompt_Refactor, Prompt_Optimize, SplitHotkey, BatchHotkey, PanelScreenIndex, Language
     global FunctionPanelPos, ConfigPanelPos, ClipboardPanelPos
     global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyT
     global ConfigPanelScreenIndex, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex, ClipboardPanelScreenIndex
@@ -2928,6 +2931,9 @@ InitConfig() {
             AutoLoadSelectedText := (IniRead(ConfigFile, "Settings", "AutoLoadSelectedText", "0") = "1")
             AutoUpdateVoiceInput := (IniRead(ConfigFile, "Settings", "AutoUpdateVoiceInput", "1") = "1")
             AutoStart := (IniRead(ConfigFile, "Settings", "AutoStart", "0") = "1")
+            global CapsLockHoldVkEnabled
+            CapsLockHoldVkEnabled := (IniRead(ConfigFile, "Settings", "CapsLockHoldVkEnabled", "1") = "1")
+            IniWrite(CapsLockHoldVkEnabled ? "1" : "0", ConfigFile, "Settings", "CapsLockHoldVkEnabled")
             global DefaultStartTab
             DefaultStartTab := IniRead(ConfigFile, "Settings", "DefaultStartTab", "general")
             ; 读取自定义图标路径
@@ -3130,6 +3136,8 @@ InitConfig() {
             CursorPanelScreenIndex := DefaultCursorPanelScreenIndex
             ClipboardPanelScreenIndex := DefaultClipboardPanelScreenIndex
             AutoStart := false
+            global CapsLockHoldVkEnabled
+            CapsLockHoldVkEnabled := true
             VoiceSearchEnabledCategories := ["ai", "cli", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
             global PromptQuickCaptureHotkey
             PromptQuickCaptureHotkey := ""
@@ -4272,7 +4280,11 @@ ClearCapsLockTimer(*) {
 
 ShowPanelTimer(*) {
     global CapsLock, CapsLock2, PanelVisible, VoiceInputActive, VoiceSearchActive, VoiceSearchSelecting
-    ; 如果正在语音输入、语音搜索或选择搜索引擎，不显示快捷操作面板
+    global VKHoldVisible, CapsLockHoldVkEnabled
+    local wasVkVisible := false
+    if (!CapsLockHoldVkEnabled)
+        return
+    ; 如果正在语音输入、语音搜索或选择搜索引擎，不显示 VK KeyBinder
     if (VoiceInputActive || VoiceSearchActive || VoiceSearchSelecting) {
         return
     }
@@ -4284,10 +4296,19 @@ ShowPanelTimer(*) {
     if (!GetKeyState("CapsLock", "P")) {
         return
     }
-    ; 如果CapsLock仍然按下且面板未显示，则显示面板
-    if (CapsLock && !PanelVisible) {
-        ShowCursorPanel()
+    ; 长按达到阈值：显示 VK KeyBinder（若托盘已打开则不再标记为「长按临时显示」）
+    if (!CapsLock || VKHoldVisible)
+        return
+    try {
+        VK_EnsureInit(true)
+        wasVkVisible := VK_IsHostVisible()
+    } catch as e {
+        wasVkVisible := false
     }
+    if (wasVkVisible)
+        return
+    try VK_Show()
+    VKHoldVisible := true
 }
 
 ; 记录 CapsLock 按下时间
@@ -4296,6 +4317,7 @@ global CapsLockPressTime := 0
 ; 采用 CapsLock+ 方案：使用 ~ 前缀保留原始功能，通过标记变量控制行为
 ~CapsLock:: {
     global CapsLock, CapsLock2, IsCommandMode, PanelVisible, VoiceInputActive, VoiceSearchActive, VoiceInputMethod, VoiceInputPaused, CapsLockHoldTimeSeconds
+    global VKHoldVisible, CapsLockHoldVkEnabled
     
     ; 确保全局变量已初始化
     if (!IsSet(PanelVisible)) {
@@ -4389,9 +4411,22 @@ global CapsLockPressTime := 0
     ; 1. 用户按了组合键（如CapsLock+C），由组合键处理函数清除
     ; 2. CapsLock释放后，由释放逻辑清除
     ; SetTimer(ClearCapsLock2Timer, -300)  ; 已移除
-    
+
+    ; 长按达到 CapsLockHoldTimeSeconds 后由 ShowPanelTimer 显示 VK KeyBinder（可设置中心关闭）
+    if (CapsLockHoldVkEnabled) {
+        HoldTimeMs := Round(CapsLockHoldTimeSeconds * 1000)
+        if (HoldTimeMs < 50)
+            HoldTimeMs := 50
+        SetTimer(ShowPanelTimer, -HoldTimeMs)
+    }
+
     ; 等待 CapsLock 释放
     KeyWait("CapsLock")
+    SetTimer(ShowPanelTimer, 0)  ; 取消未触发的长按检测
+    if (VKHoldVisible) {
+        try VK_Hide()
+        VKHoldVisible := false
+    }
     
     ; 双击 CapsLock：快捷面板开关（已开则关，已关则开），并撤销第一次单击对大小写状态的切换
     if (CapsLock2 && IsCapsDoubleClick) {
@@ -4423,8 +4458,7 @@ global CapsLockPressTime := 0
     ; 清除标记
     CapsLock2 := false
     
-    ; 【修改】长按 CapsLock 松手后，面板保持显示，直到用户按关闭按钮或 ESC 键退出
-    ; 不再自动隐藏面板
+    ; 长按期间弹出的 VK KeyBinder 已在松手时隐藏（VKHoldVisible 为真时）
     IsCommandMode := false
 }
 
@@ -16571,7 +16605,7 @@ JoinArray(arr, sep := ",") {
 }
 
 ConfigWebView_BuildInitData() {
-    global CursorPath, CapsLockHoldTimeSeconds, AutoStart, DefaultStartTab
+    global CursorPath, CapsLockHoldTimeSeconds, CapsLockHoldVkEnabled, AutoStart, DefaultStartTab
     global ThemeMode, FunctionPanelPos, ConfigPanelScreenIndex, ConfigPanelPos, ClipboardPanelPos, PanelScreenIndex
     global Prompt_Explain, Prompt_Refactor, Prompt_Optimize
     global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, SplitHotkey, BatchHotkey, HotkeyT, HotkeyF, HotkeyP
@@ -16658,6 +16692,7 @@ ConfigWebView_BuildInitData() {
     return Map(
         "cursorPath", CursorPath,
         "capslockHoldTimeSeconds", CapsLockHoldTimeSeconds,
+        "capsLockHoldVkEnabled", CapsLockHoldVkEnabled,
         "autoStart", AutoStart,
         "defaultStartTab", DefaultStartTab,
         "themeMode", ThemeMode,
@@ -16700,6 +16735,7 @@ ConfigWebView_BuildInitDataSafe() {
         return Map(
             "cursorPath", "",
             "capslockHoldTimeSeconds", 0.5,
+            "capsLockHoldVkEnabled", true,
             "autoStart", false,
             "defaultStartTab", "general",
             "themeMode", "dark",
@@ -16736,7 +16772,7 @@ ConfigWebView_BuildInitDataSafe() {
 }
 
 ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
-    global CursorPath, CapsLockHoldTimeSeconds, AutoStart, DefaultStartTab
+    global CursorPath, CapsLockHoldTimeSeconds, CapsLockHoldVkEnabled, AutoStart, DefaultStartTab
     global ThemeMode, FunctionPanelPos, ConfigPanelScreenIndex, ConfigPanelPos, ClipboardPanelPos, PanelScreenIndex
     global Prompt_Explain, Prompt_Refactor, Prompt_Optimize
     global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, SplitHotkey, BatchHotkey, HotkeyT, HotkeyF, HotkeyP
@@ -16761,6 +16797,9 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
             return false
         }
         NewAutoStart := payload.Get("autoStart", false) ? true : false
+        NewCapsLockHoldVk := CapsLockHoldVkEnabled
+        if (payload.Has("capsLockHoldVkEnabled"))
+            NewCapsLockHoldVk := payload["capsLockHoldVkEnabled"] ? true : false
         NewDefaultTab := payload.Get("defaultStartTab", "general")
         validTabs := Map("general",1, "appearance",1, "prompts",1, "hotkeys",1, "advanced",1, "search",1)
         if !validTabs.Has(NewDefaultTab)
@@ -16869,6 +16908,7 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
 
         CursorPath := NewCursorPath
         CapsLockHoldTimeSeconds := NewHold
+        CapsLockHoldVkEnabled := NewCapsLockHoldVk
         AutoStart := NewAutoStart
         DefaultStartTab := NewDefaultTab
         FunctionPanelPos := NewPanelPos
@@ -16921,6 +16961,7 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         IniWrite(CursorPath, ConfigFile, "Settings", "CursorPath")
         IniWrite(String(AISleepTime), ConfigFile, "Settings", "AISleepTime")
         IniWrite(String(CapsLockHoldTimeSeconds), ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
+        IniWrite(CapsLockHoldVkEnabled ? "1" : "0", ConfigFile, "Settings", "CapsLockHoldVkEnabled")
         IniWrite(String(LaunchDelaySeconds), ConfigFile, "Settings", "LaunchDelaySeconds")
         IniWrite(Language, ConfigFile, "Settings", "Language")
         IniWrite(Prompt_Explain, ConfigFile, "Settings", "Prompt_Explain")
@@ -24516,6 +24557,18 @@ HandleDynamicHotkey(PressedKey, ActionType) {
                         ExecutePrompt("Optimize")
                     case "Config":
                         ShowConfigGUI()
+                    case "Copy":
+                        CapsLockCopy()
+                    case "Paste":
+                        CapsLockPaste()
+                    case "Clipboard":
+                        CP_Show()
+                    case "Voice":
+                        StartVoiceInput()
+                    case "Split":
+                        SplitCode()
+                    case "Batch":
+                        BatchOperation()
                     case "CommandPalette":
                         ExecuteCursorShortcut("^+p")  ; Ctrl + Shift + P
                     case "Terminal":
@@ -24553,6 +24606,7 @@ HandleDynamicHotkey(PressedKey, ActionType) {
         case "Z": ConfigKey := StrLower(HotkeyZ)
         case "F": ConfigKey := StrLower(HotkeyF)
         case "T": ConfigKey := StrLower(HotkeyT)
+        case "P": ConfigKey := StrLower(HotkeyP)
     }
     
     ; 如果按键匹配配置的快捷键，执行操作

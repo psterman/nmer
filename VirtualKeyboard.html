@@ -1028,7 +1028,7 @@ function handleAhkMessage(msg) {
       if (msg.active) {
         state.recording = msg.commandId || state.recording;
         renderCommandList();
-        setHud('MODE: CONFIG | SELECTED: ' + state.recording + ' | PRESS NEXT KEY');
+        setHud('MODE: CONFIG | SELECTED: ' + state.recording + ' | PRESS KEY OR DOUBLE-TAP');
       } else {
         stopRecording(false);
       }
@@ -1215,7 +1215,7 @@ function makeCmdRow(cmdId) {
 
   // key display
   const keyEl = mkEl('div', 'cmd-key',
-    isRec ? '⏺ 请按下新快捷键...' : displayKeyForCmd(cmdId));
+    isRec ? '⏺ 请按下快捷键，连按两次可录制序列...' : displayKeyForCmd(cmdId));
 
   // action buttons
   const actions = document.createElement('div');
@@ -1517,7 +1517,7 @@ function startRecording(cmdId) {
         ?.classList.add('recording-target');
     }
   }
-  setHud('MODE: CONFIG | RECORDING: ' + (state.commands[cmdId]?.name || cmdId));
+  setHud('MODE: CONFIG | RECORDING: ' + (state.commands[cmdId]?.name || cmdId) + ' | SINGLE OR DOUBLE-TAP');
   postToAhk({ type: 'startRecord', commandId: cmdId });
 }
 

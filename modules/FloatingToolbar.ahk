@@ -1,16 +1,11 @@
-; ======================================================================================================================
-; 悬浮工具栏 - WebView2 全量重构版
-; 版本: 2.0.0
-; 功能:
-;   - 整条工具栏由单个 WebView2 渲染，统一赛博绿/橙配色
-;   - 左键拖动整窗、滚轮缩放、右键菜单
-;   - 7 个功能按钮：搜索、记录、提示词、新提示词、截图、设置、键盘
-;   - 搜索按钮支持选区感应呼吸动画和拖放搜索
-; ======================================================================================================================
+﻿; ======================================================================================================================
+; 鎮诞宸ュ叿鏍?- WebView2 鍏ㄩ噺閲嶆瀯鐗?; 鐗堟湰: 2.0.0
+; 鍔熻兘:
+;   - 鏁存潯宸ュ叿鏍忕敱鍗曚釜 WebView2 娓叉煋锛岀粺涓€璧涘崥缁?姗欓厤鑹?;   - 宸﹂敭鎷栧姩鏁寸獥銆佹粴杞缉鏀俱€佸彸閿彍鍗?;   - 7 涓姛鑳芥寜閽細鎼滅储銆佽褰曘€佹彁绀鸿瘝銆佹柊鎻愮ず璇嶃€佹埅鍥俱€佽缃€侀敭鐩?;   - 鎼滅储鎸夐挳鏀寔閫夊尯鎰熷簲鍛煎惛鍔ㄧ敾鍜屾嫋鏀炬悳绱?; ======================================================================================================================
 
 #Requires AutoHotkey v2.0
 
-; 多显示器虚拟桌面包围盒（SM_XVIRTUALSCREEN 76–79）
+; 澶氭樉绀哄櫒铏氭嫙妗岄潰鍖呭洿鐩掞紙SM_XVIRTUALSCREEN 76鈥?9锛?
 ScreenVirtual_GetBounds(&outL, &outT, &outW, &outH) {
     outL := SysGet(76)
     outT := SysGet(77)
@@ -18,7 +13,7 @@ ScreenVirtual_GetBounds(&outL, &outT, &outW, &outH) {
     outH := SysGet(79)
 }
 
-; ===================== 全局变量 =====================
+; ===================== 鍏ㄥ眬鍙橀噺 =====================
 global FloatingToolbarGUI := 0
 global FloatingToolbarIsVisible := false
 global FloatingToolbarWindowX := 0
@@ -32,6 +27,11 @@ global FloatingToolbar_DragOriginScreenY := 0
 global FloatingToolbar_DragOriginWinX := 0
 global FloatingToolbar_DragOriginWinY := 0
 global FloatingToolbarIsMinimized := false
+global FloatingToolbarChatDrawerOpen := false
+global FloatingToolbarChatDrawerWidth := 620
+global FloatingToolbarChatDrawerHeight := 720
+global FloatingToolbarLastClosedX := 0
+global FloatingToolbarLastClosedY := 0
 
 global g_FTB_WV2_Ctrl := 0
 global g_FTB_WV2 := 0
@@ -39,7 +39,7 @@ global g_FTB_WV2_Ready := false
 global g_FTB_WV2_FrameReady := false
 global g_FTB_PendingSelection := ""
 
-; ===================== 显示/隐藏悬浮窗 =====================
+; ===================== 鏄剧ず/闅愯棌鎮诞绐?=====================
 ShowFloatingToolbar() {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarWindowX, FloatingToolbarWindowY
 
@@ -91,7 +91,7 @@ ToggleFloatingToolbar() {
     }
 }
 
-; ===================== 创建GUI =====================
+; ===================== 鍒涘缓GUI =====================
 CreateFloatingToolbarGUI() {
     global FloatingToolbarGUI, g_FTB_WV2_Ctrl, g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_PendingSelection
 
@@ -106,7 +106,7 @@ CreateFloatingToolbarGUI() {
         }
     }
 
-    FloatingToolbarGUI := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale", "悬浮工具栏")
+    FloatingToolbarGUI := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale", "Floating Toolbar")
     FloatingToolbarGUI.BackColor := "0a0a0a"
     FloatingToolbarGUI.OnEvent("Close", OnFloatingToolbarClose)
 
@@ -145,7 +145,7 @@ FloatingToolbar_OnNavigationCompleted(sender, args) {
     FloatingToolbar_FlushPendingSelectionIfReady()
 }
 
-; ===================== 圆角边框处理 =====================
+; ===================== 鍦嗚杈规澶勭悊 =====================
 FloatingToolbarApplyRoundedCorners() {
     global FloatingToolbarGUI, FloatingToolbarScale
 
@@ -174,7 +174,7 @@ FloatingToolbarApplyRoundedCorners() {
     }
 }
 
-; ===================== WebView2 回调 =====================
+; ===================== WebView2 鍥炶皟 =====================
 FloatingToolbar_OnWebViewCreated(ctrl) {
     global g_FTB_WV2_Ctrl, g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_WV2_FrameReady
 
@@ -346,9 +346,153 @@ FloatingToolbar_OnWebMessage(sender, args) {
         ShowFloatingToolbarUnifiedContextMenu(x, y)
         return
     }
+
+    if (typ = "drawer_state") {
+        open := msg.Has("open") && !!msg["open"]
+        FloatingToolbarSetChatDrawerState(open)
+        return
+    }
+
+    if (typ = "drawer_resize") {
+        w := msg.Has("width") ? Integer(msg["width"]) : 0
+        if (w > 0)
+            FloatingToolbar_ApplyDrawerClientWidth(w)
+        return
+    }
+
+    if (typ = "drawer_resize_done") {
+        FloatingToolbarSaveDrawerWidth()
+        SaveFloatingToolbarPosition()
+        return
+    }
 }
 
-; ===================== 执行按钮动作 =====================
+; 按 WebView 客户区 CSS 像素宽度调整抽屉（保持窗口右缘不动）
+FloatingToolbar_ApplyDrawerClientWidth(clientW) {
+    global FloatingToolbarGUI, FloatingToolbarChatDrawerOpen, FloatingToolbarChatDrawerWidth
+    global FloatingToolbarScale, FloatingToolbarWindowX, FloatingToolbarWindowY
+
+    if (!FloatingToolbarGUI || !FloatingToolbarChatDrawerOpen)
+        return
+    sc := FloatingToolbarScale
+    if (sc < 0.01)
+        sc := 1.0
+    logical := Round(clientW / sc)
+    if (logical < 380)
+        logical := 380
+    if (logical > 1200)
+        logical := 1200
+    FloatingToolbarChatDrawerWidth := logical
+    newW := FloatingToolbarCalculateWidth()
+    newH := FloatingToolbarCalculateHeight()
+    try FloatingToolbarGUI.GetPos(&gx, &gy, &gw, &gh)
+    catch as _e {
+        gx := FloatingToolbarWindowX
+        gy := FloatingToolbarWindowY
+        gw := newW
+        gh := newH
+    }
+    rightEdge := gx + gw
+    newX := rightEdge - newW
+    ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
+    vr := vl + vw
+    if (newX < vl)
+        newX := vl
+    if (newX + newW > vr)
+        newX := vr - newW
+    FloatingToolbarWindowX := newX
+    try FloatingToolbarGUI.Move(newX, gy, newW, newH)
+    catch as _e2 {
+    }
+    FloatingToolbarApplyRoundedCorners()
+    FloatingToolbar_ApplyWebViewBounds()
+}
+
+FloatingToolbarSaveDrawerWidth() {
+    global FloatingToolbarChatDrawerWidth, ConfigFile
+    try {
+        if !IsSet(ConfigFile) || ConfigFile = ""
+            ConfigFile := A_ScriptDir . "\CursorShortcut.ini"
+        IniWrite(String(FloatingToolbarChatDrawerWidth), ConfigFile, "FloatingToolbar", "ChatDrawerWidth")
+    } catch as _e {
+    }
+}
+
+FloatingToolbarLoadDrawerWidth() {
+    global FloatingToolbarChatDrawerWidth, ConfigFile
+    try {
+        if !IsSet(ConfigFile) || ConfigFile = ""
+            ConfigFile := A_ScriptDir . "\CursorShortcut.ini"
+        v := IniRead(ConfigFile, "FloatingToolbar", "ChatDrawerWidth", "620")
+        iv := Integer(v)
+        if (iv >= 380 && iv <= 1200)
+            FloatingToolbarChatDrawerWidth := iv
+    } catch as _e {
+    }
+}
+
+FloatingToolbarSetChatDrawerState(open) {
+    global FloatingToolbarGUI, FloatingToolbarChatDrawerOpen
+    global FloatingToolbarWindowX, FloatingToolbarWindowY, FloatingToolbarIsVisible
+    global FloatingToolbarLastClosedX, FloatingToolbarLastClosedY
+
+    open := !!open
+    if (!FloatingToolbarGUI || !FloatingToolbarIsVisible)
+        return
+
+    try FloatingToolbarGUI.GetPos(&oldX, &oldY, &oldW, &oldH)
+    catch {
+        oldX := FloatingToolbarWindowX
+        oldY := FloatingToolbarWindowY
+        oldW := FloatingToolbarCalculateWidth()
+        oldH := FloatingToolbarCalculateHeight()
+    }
+
+    if (open && !FloatingToolbarChatDrawerOpen) {
+        FloatingToolbarLastClosedX := oldX
+        FloatingToolbarLastClosedY := oldY
+    }
+
+    FloatingToolbarChatDrawerOpen := open
+    newW := FloatingToolbarCalculateWidth()
+    newH := FloatingToolbarCalculateHeight()
+
+    ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
+    vr := vl + vw
+    vb := vt + vh
+    rightEdge := oldX + oldW
+
+    if (open) {
+        newX := rightEdge - newW
+        newY := vt
+    } else {
+        if (FloatingToolbarLastClosedX != 0 || FloatingToolbarLastClosedY != 0) {
+            newX := FloatingToolbarLastClosedX
+            newY := FloatingToolbarLastClosedY
+        } else {
+            newX := rightEdge - newW
+            newY := vb - newH
+        }
+    }
+
+    if (newX < vl)
+        newX := vl
+    if (newY < vt)
+        newY := vt
+    if (newX + newW > vr)
+        newX := vr - newW
+    if (newY + newH > vb)
+        newY := vb - newH
+
+    FloatingToolbarWindowX := newX
+    FloatingToolbarWindowY := newY
+    FloatingToolbarGUI.Move(newX, newY, newW, newH)
+    FloatingToolbarApplyRoundedCorners()
+    FloatingToolbar_ApplyWebViewBounds()
+    SaveFloatingToolbarPosition()
+}
+
+; ===================== 鎵ц鎸夐挳鍔ㄤ綔 =====================
 FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
     switch action {
         case "Search":
@@ -363,23 +507,23 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
                 SetCapsLockState("Off")
             }
         case "Record":
-            ; 仅打开新剪贴板（WebView2 + ClipMain/FTS5），不回退旧 ListView 面板
+            ; 浠呮墦寮€鏂板壀璐存澘锛圵ebView2 + ClipMain/FTS5锛夛紝涓嶅洖閫€鏃?ListView 闈㈡澘
             try CP_Show()
             catch as err {
-                try TrayTip("新剪贴板", "无法打开 WebView 剪贴板: " . err.Message, "Iconx 1")
+                try TrayTip("鏂板壀璐存澘", "鏃犳硶鎵撳紑 WebView 鍓创鏉? " . err.Message, "Iconx 1")
                 catch {
                     OutputDebug("[FloatingToolbar] CP_Show failed: " . err.Message)
                 }
             }
-        case "AIAssistant":
+        case "AIAssistant", "Prompt":
             try ShowPromptQuickPadListOnly()
             catch as err {
-                TrayTip("AI选择面板加载失败: " . err.Message, "错误", "Iconx 2")
+                TrayTip("AI閫夋嫨闈㈡澘鍔犺浇澶辫触: " . err.Message, "閿欒", "Iconx 2")
             }
-        case "PromptNew":
+        case "PromptNew", "NewPrompt":
             try SelectionSense_OpenHubCapsuleFromToolbar()
             catch as err {
-                try TrayTip("无法打开 HubCapsule（需包含 SelectionSenseCore.ahk）: " . err.Message, "新", "Iconx 2")
+                try TrayTip("Unable to open HubCapsule (SelectionSenseCore.ahk is required): " . err.Message, "Error", "Iconx 2")
                 catch {
                 }
             }
@@ -404,7 +548,7 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
 FloatingToolbarActivateVirtualKeyboard() {
     try VK_ToggleEmbedded()
     catch as err {
-        try TrayTip("虚拟键盘不可用: " . err.Message, "虚拟键盘", "Iconx 2")
+        try TrayTip("铏氭嫙閿洏涓嶅彲鐢? " . err.Message, "铏氭嫙閿洏", "Iconx 2")
         catch {
         }
     }
@@ -437,11 +581,14 @@ FloatingToolbarOpenSettings() {
     }
 }
 
-; ===================== 滚轮缩放处理 =====================
+; ===================== 婊氳疆缂╂斁澶勭悊 =====================
 FloatingToolbarWM_MOUSEWHEEL(wParam, lParam, msg, hwnd) {
-    global FloatingToolbarGUI, FloatingToolbarIsVisible
+    global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarChatDrawerOpen
 
     if (!FloatingToolbarIsVisible || !FloatingToolbarGUI)
+        return
+    ; 抽屉展开时由页面内滚动，不在此用滚轮缩放整窗
+    if (FloatingToolbarChatDrawerOpen)
         return
 
     MouseGetPos(&mx, &my)
@@ -520,7 +667,7 @@ FloatingToolbarApplyWheelDelta(delta) {
     }
 }
 
-; ===================== 拖动（WebView2 客户区 PostMessage HTCAPTION 不可靠，用手动 Move）=====================
+; ===================== 鎷栧姩锛圵ebView2 瀹㈡埛鍖?PostMessage HTCAPTION 涓嶅彲闈狅紝鐢ㄦ墜鍔?Move锛?====================
 FloatingToolbar_DoDrag(*) {
     global FloatingToolbarGUI, FloatingToolbarDragging, FloatingToolbarWindowX, FloatingToolbarWindowY
     global FloatingToolbar_DragOriginScreenX, FloatingToolbar_DragOriginScreenY
@@ -559,7 +706,7 @@ FloatingToolbar_DoDrag(*) {
     FloatingToolbarWindowY := newY
 }
 
-; ===================== 窗口位置检查与磁吸 =====================
+; ===================== 绐楀彛浣嶇疆妫€鏌ヤ笌纾佸惛 =====================
 FloatingToolbarCheckWindowPosition() {
     global FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY, FloatingToolbarDragging, FloatingToolbarIsVisible
 
@@ -617,8 +764,7 @@ FloatingToolbarCheckWindowPosition() {
     }
 }
 
-; 右键菜单由主脚本 ShowFloatingToolbarUnifiedContextMenu 提供（深色弹窗样式），避免与 #Include 冲突。
-
+; 鍙抽敭鑿滃崟鐢变富鑴氭湰 ShowFloatingToolbarUnifiedContextMenu 鎻愪緵锛堟繁鑹插脊绐楁牱寮忥級锛岄伩鍏嶄笌 #Include 鍐茬獊銆?
 FloatingToolbarResetScale() {
     global FloatingToolbarScale, FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY, g_FTB_WV2
 
@@ -644,20 +790,26 @@ OnFloatingToolbarContextMenu(*) {
     ShowFloatingToolbarUnifiedContextMenu(mx, my)
 }
 
-; ===================== 窗口关闭事件 =====================
+; ===================== 绐楀彛鍏抽棴浜嬩欢 =====================
 OnFloatingToolbarClose(*) {
     HideFloatingToolbar()
 }
 
-; ===================== 位置保存和加载 =====================
+; ===================== 浣嶇疆淇濆瓨鍜屽姞杞?=====================
 SaveFloatingToolbarPosition() {
     global FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY
+    global FloatingToolbarChatDrawerOpen, FloatingToolbarLastClosedX, FloatingToolbarLastClosedY
 
     if (FloatingToolbarGUI = 0)
         return
 
     try {
-        FloatingToolbarGUI.GetPos(&x, &y)
+        if (FloatingToolbarChatDrawerOpen && (FloatingToolbarLastClosedX != 0 || FloatingToolbarLastClosedY != 0)) {
+            x := FloatingToolbarLastClosedX
+            y := FloatingToolbarLastClosedY
+        } else {
+            FloatingToolbarGUI.GetPos(&x, &y)
+        }
         FloatingToolbarWindowX := x
         FloatingToolbarWindowY := y
 
@@ -697,7 +849,7 @@ LoadFloatingToolbarPosition() {
     }
 }
 
-; ===================== 缩放保存和加载 =====================
+; ===================== 缂╂斁淇濆瓨鍜屽姞杞?=====================
 FloatingToolbarSaveScale() {
     global FloatingToolbarScale
     try {
@@ -719,23 +871,30 @@ FloatingToolbarLoadScale() {
         }
     } catch {
     }
+    FloatingToolbarLoadDrawerWidth()
 }
 
-; ===================== 计算工具栏宽度和高度 =====================
+; ===================== 璁＄畻宸ュ叿鏍忓搴﹀拰楂樺害 =====================
 FloatingToolbarCalculateWidth() {
-    global FloatingToolbarScale
+    global FloatingToolbarScale, FloatingToolbarChatDrawerOpen, FloatingToolbarChatDrawerWidth
     BaseWidth := 380
+    if (FloatingToolbarChatDrawerOpen)
+        return Round(Max(BaseWidth, FloatingToolbarChatDrawerWidth) * FloatingToolbarScale)
     return Round(BaseWidth * FloatingToolbarScale)
 }
 
 FloatingToolbarCalculateHeight() {
-    global FloatingToolbarScale
-    ; HTML 结构为 52px logo + 上下各 6px padding，因此基准高度必须是 64
+    global FloatingToolbarScale, FloatingToolbarChatDrawerOpen, FloatingToolbarChatDrawerHeight
+    ; HTML 缁撴瀯涓?52px logo + 涓婁笅鍚?6px padding锛屽洜姝ゅ熀鍑嗛珮搴﹀繀椤绘槸 64
     BaseHeight := 64
+    if FloatingToolbarChatDrawerOpen {
+        ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
+        return vh
+    }
     return Round(BaseHeight * FloatingToolbarScale)
 }
 
-; ===================== 最小化到屏幕边缘 =====================
+; ===================== 鏈€灏忓寲鍒板睆骞曡竟缂?=====================
 MinimizeFloatingToolbarToEdge() {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarIsMinimized
     global FloatingToolbarWindowX, FloatingToolbarWindowY
@@ -787,7 +946,7 @@ RestoreFloatingToolbar() {
     FloatingToolbarIsMinimized := false
 }
 
-; ===================== 选区感应联动 =====================
+; ===================== 閫夊尯鎰熷簲鑱斿姩 =====================
 FloatingToolbar_NotifySelectionChange(fullText) {
     global g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_WV2_FrameReady, g_FTB_PendingSelection
 
@@ -818,28 +977,30 @@ FloatingToolbar_NotifySelectionClear() {
     }
 }
 
-; ===================== 初始化 =====================
+; ===================== 鍒濆鍖?=====================
 InitFloatingToolbar() {
 }
 
-; ===================== 根据按钮action获取提示文字 =====================
+; ===================== 鏍规嵁鎸夐挳action鑾峰彇鎻愮ず鏂囧瓧 =====================
 GetButtonTip(action) {
     switch action {
         case "Search":
-            return "搜索记录 (Caps + F)"
+            return "鎼滅储璁板綍 (Caps + F)"
         case "Record":
-            return "新剪贴板 (WebView2 · FTS5)"
+            return "鏂板壀璐存澘 (WebView2 路 FTS5)"
         case "AIAssistant":
-            return "AI助手 (Ctrl+Shift+B)"
+            return "AI鍔╂墜 (Ctrl+Shift+B)"
         case "PromptNew":
-            return "HubCapsule 摘录 / 新提示词"
+            return "HubCapsule 鎽樺綍 / 鏂版彁绀鸿瘝"
         case "Screenshot":
-            return "屏幕截图 (Caps + T)"
+            return "灞忓箷鎴浘 (Caps + T)"
         case "Settings":
-            return "系统设置 (Caps + Q)"
+            return "绯荤粺璁剧疆 (Caps + Q)"
         case "VirtualKeyboard":
-            return "虚拟键盘 (Ctrl+Shift+K)"
+            return "铏氭嫙閿洏 (Ctrl+Shift+K)"
         default:
             return ""
     }
 }
+
+

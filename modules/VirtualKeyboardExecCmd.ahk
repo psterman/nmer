@@ -71,6 +71,24 @@ VK_ExecCursorHelperCmd(cmdId) {
                 ExecuteQuickActionSlot(5)
             case "qa_split":
                 ExecuteQuickActionByType("Split")
+            case "qa_batch":
+                ExecuteQuickActionByType("Batch")
+            case "qa_explain":
+                ExecuteQuickActionByType("Explain")
+            case "qa_refactor":
+                ExecuteQuickActionByType("Refactor")
+            case "qa_optimize":
+                ExecuteQuickActionByType("Optimize")
+            case "qa_config":
+                ExecuteQuickActionByType("Config")
+            case "qa_copy":
+                ExecuteQuickActionByType("Copy")
+            case "qa_paste":
+                ExecuteQuickActionByType("Paste")
+            case "qa_clipboard":
+                ExecuteQuickActionByType("Clipboard")
+            case "qa_voice":
+                ExecuteQuickActionByType("Voice")
             case "qa_command_palette":
                 ExecuteQuickActionByType("CommandPalette")
             case "qa_terminal":
@@ -89,6 +107,8 @@ VK_ExecCursorHelperCmd(cmdId) {
                 ExecuteQuickActionByType("Settings")
             case "qa_cursor_settings":
                 ExecuteQuickActionByType("CursorSettings")
+            case "pqp_capture":
+                PromptQuickPad_QuickCapture()
             default:
                 if (SubStr(cmdId, 1, 3) = "pt_") {
                     runPt := Func("ExecutePromptByTemplateId")
