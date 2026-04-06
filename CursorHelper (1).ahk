@@ -29699,6 +29699,11 @@ ExecuteScreenshotWithMenu() {
             UpdateDebugStep(DebugGui, 4, "等待状态已设置", true)
         }
         
+        ; 记录剪贴板序列号并清空剪贴板，确保后续能检测到“新截图”
+        ClipboardSeqBeforeShot := DllCall("GetClipboardSequenceNumber", "UInt")
+        A_Clipboard := ""
+        Sleep(80)
+
         ; 使用 Windows 10/11 的截图工具（Win+Shift+S）
         if (DebugGui) {
             UpdateDebugStep(DebugGui, 5, "发送 Win+Shift+S 启动截图工具...", false)
@@ -29742,8 +29747,12 @@ ExecuteScreenshotWithMenu() {
             Sleep(WaitInterval)
             ElapsedTime += WaitInterval
             
-            ; 检查剪贴板是否包含图片
+            ; 先检测剪贴板序列号变化，再严格要求“图片格式可用”，避免把非图片当成截图成功
             try {
+                ClipboardSeqNow := DllCall("GetClipboardSequenceNumber", "UInt")
+                if (ClipboardSeqNow = ClipboardSeqBeforeShot) {
+                    continue
+                }
                 if (DllCall("OpenClipboard", "Ptr", 0)) {
                     ; 检查是否包含位图格式
                     if (DllCall("IsClipboardFormatAvailable", "UInt", 2)) {  ; CF_BITMAP = 2
@@ -29792,6 +29801,10 @@ ExecuteScreenshotWithMenu() {
             try {
                 if (DebugGui) {
                     UpdateDebugStep(DebugGui, 10, "调用 ClipboardAll() 保存截图...", false)
+                }
+                ; 再次确认当前剪贴板确实是图片，防止竞争条件导致保存到非图片数据
+                if (GetClipboardType() != "image") {
+                    throw Error("当前剪贴板不是图片数据")
                 }
                 ScreenshotClipboard := ClipboardAll()
                 
@@ -31127,6 +31140,11 @@ ExecuteScreenshot() {
         ; 启动等待粘贴模式
         ScreenshotWaiting := true
         
+        ; 记录剪贴板序列号并清空剪贴板，确保只识别这次截图写入
+        ClipboardSeqBeforeShot := DllCall("GetClipboardSequenceNumber", "UInt")
+        A_Clipboard := ""
+        Sleep(80)
+
         ; 使用 Windows 10/11 的截图工具（Win+Shift+S）
         ; 这会打开截图工具，用户选择区域后，截图会自动保存到剪贴板
         Send("#+{s}")
@@ -31149,8 +31167,12 @@ ExecuteScreenshot() {
             Sleep(WaitInterval)
             ElapsedTime += WaitInterval
             
-            ; 检查剪贴板是否包含图片（通过检查剪贴板格式）
+            ; 优先检测剪贴板序列号变化，再严格要求图片格式，避免误判
             try {
+                ClipboardSeqNow := DllCall("GetClipboardSequenceNumber", "UInt")
+                if (ClipboardSeqNow = ClipboardSeqBeforeShot) {
+                    continue
+                }
                 ; 打开剪贴板进行检查
                 if (DllCall("OpenClipboard", "Ptr", 0)) {
                     ; 检查是否包含位图格式
@@ -31188,6 +31210,10 @@ ExecuteScreenshot() {
             ; 保存截图到全局变量（使用 ClipboardAll 保存完整图片数据）
             ; 注意：必须在恢复旧剪贴板之前保存
             try {
+                ; 再次确认当前剪贴板确实是图片
+                if (GetClipboardType() != "image") {
+                    throw Error("当前剪贴板不是图片数据")
+                }
                 ; 在 AutoHotkey v2 中，使用 ClipboardAll() 获取数据对象
                 ScreenshotClipboard := ClipboardAll()
                 
@@ -34690,6 +34716,22 @@ ExitFunc(ExitReason, ExitCode) {
 
 ; ===================== 截图助手预览窗 =====================
 
+SafeGdipDisposeImage(pBitmap) {
+    if (!pBitmap || pBitmap = 0)
+        return
+    try Gdip_DisposeImage(pBitmap)
+    catch {
+    }
+}
+
+SafeGdipDeleteGraphics(pGraphics) {
+    if (!pGraphics || pGraphics = 0)
+        return
+    try Gdip_DeleteGraphics(pGraphics)
+    catch {
+    }
+}
+
 ; 显示截图助手预览窗
 ShowScreenshotEditor(DebugGui := 0) {
     global GuiID_ScreenshotEditor, ScreenshotClipboard, UI_Colors, ThemeMode
@@ -34824,26 +34866,41 @@ ShowScreenshotEditor(DebugGui := 0) {
             UpdateDebugStep(DebugGui, 19, "pBitmap 验证通过: " . pBitmap, true)
         }
         
-        ; 获取位图尺寸（确保变量在使用前被正确初始化）
+        ; 获取位图尺寸（先用 Gdip_All 封装，失败再 DllCall 兜底）
         if (DebugGui) {
             UpdateDebugStep(DebugGui, 22, "获取位图尺寸...", false)
         }
-        result := DllCall("gdiplus\GdipGetImageWidth", "Ptr", pBitmap, "UInt*", &ImgWidth := 0)
-        if (result != 0 || !ImgWidth || ImgWidth = 0) {
-            TrayTip("错误", "无法获取位图宽度", "Iconx 2")
-            Gdip_DisposeImage(pBitmap)
+        ImgWidth := 0
+        ImgHeight := 0
+        SizeGetOk := false
+        ; 某些系统下截图写入剪贴板存在短暂延迟，给一次重试窗口提升稳定性
+        Loop 2 {
             try {
-                Gdip_Shutdown(pToken)
+                ImgWidth := Gdip_GetImageWidth(pBitmap)
+                ImgHeight := Gdip_GetImageHeight(pBitmap)
+                SizeGetOk := (ImgWidth > 0 && ImgHeight > 0)
             } catch as e {
-                ; 忽略关闭错误
+                SizeGetOk := false
             }
-            return
+
+            if (!SizeGetOk) {
+                try {
+                    resultW := DllCall("gdiplus\GdipGetImageWidth", "Ptr", pBitmap, "UInt*", &ImgWidth)
+                    resultH := DllCall("gdiplus\GdipGetImageHeight", "Ptr", pBitmap, "UInt*", &ImgHeight)
+                    SizeGetOk := (resultW = 0 && resultH = 0 && ImgWidth > 0 && ImgHeight > 0)
+                } catch as e {
+                    SizeGetOk := false
+                }
+            }
+
+            if (SizeGetOk)
+                break
+            Sleep(80)
         }
-        
-        result := DllCall("gdiplus\GdipGetImageHeight", "Ptr", pBitmap, "UInt*", &ImgHeight := 0)
-        if (result != 0 || !ImgHeight || ImgHeight = 0) {
-            TrayTip("错误", "无法获取位图高度", "Iconx 2")
-            Gdip_DisposeImage(pBitmap)
+
+        if (!SizeGetOk) {
+            TrayTip("错误", "无法获取位图尺寸（截图数据可能无效）", "Iconx 2")
+            SafeGdipDisposeImage(pBitmap)
             try {
                 Gdip_Shutdown(pToken)
             } catch as e {
@@ -34864,7 +34921,7 @@ ShowScreenshotEditor(DebugGui := 0) {
         ; 验证计算出的尺寸有效
         if (PreviewWidth <= 0 || PreviewHeight <= 0) {
             TrayTip("错误", "预览尺寸计算失败", "Iconx 2")
-            Gdip_DisposeImage(pBitmap)
+            SafeGdipDisposeImage(pBitmap)
             try {
                 Gdip_Shutdown(pToken)
             } catch as e {
@@ -34877,7 +34934,7 @@ ShowScreenshotEditor(DebugGui := 0) {
         result := DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", PreviewWidth, "Int", PreviewHeight, "Int", 0, "UInt", 0x26200A, "Ptr", 0, "Ptr*", &pPreviewBitmap := 0)
         if (result != 0 || !pPreviewBitmap || pPreviewBitmap = 0) {
             TrayTip("错误", "无法创建预览位图", "Iconx 2")
-            Gdip_DisposeImage(pBitmap)
+            SafeGdipDisposeImage(pBitmap)
             try {
                 Gdip_Shutdown(pToken)
             } catch as e {
@@ -34890,8 +34947,8 @@ ShowScreenshotEditor(DebugGui := 0) {
         result := DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", pPreviewBitmap, "Ptr*", &pGraphics := 0)
         if (result != 0 || !pGraphics || pGraphics = 0) {
             TrayTip("错误", "无法获取图形上下文", "Iconx 2")
-            Gdip_DisposeImage(pPreviewBitmap)
-            Gdip_DisposeImage(pBitmap)
+            SafeGdipDisposeImage(pPreviewBitmap)
+            SafeGdipDisposeImage(pBitmap)
             try {
                 Gdip_Shutdown(pToken)
             } catch as e {
@@ -34905,9 +34962,9 @@ ShowScreenshotEditor(DebugGui := 0) {
         result := DllCall("gdiplus\GdipDrawImageRect", "Ptr", pGraphics, "Ptr", pBitmap, "Float", 0, "Float", 0, "Float", PreviewWidth, "Float", PreviewHeight)
         if (result != 0) {
             TrayTip("错误", "无法绘制预览图像", "Iconx 2")
-            Gdip_DeleteGraphics(pGraphics)
-            Gdip_DisposeImage(pPreviewBitmap)
-            Gdip_DisposeImage(pBitmap)
+            SafeGdipDeleteGraphics(pGraphics)
+            SafeGdipDisposeImage(pPreviewBitmap)
+            SafeGdipDisposeImage(pBitmap)
             try {
                 Gdip_Shutdown(pToken)
             } catch as e {
@@ -34957,9 +35014,9 @@ ShowScreenshotEditor(DebugGui := 0) {
             }
         } catch as e {
             TrayTip("错误", "保存预览图片失败: " . e.Message, "Iconx 2")
-            Gdip_DeleteGraphics(pGraphics)
-            Gdip_DisposeImage(pPreviewBitmap)
-            Gdip_DisposeImage(pBitmap)
+            SafeGdipDeleteGraphics(pGraphics)
+            SafeGdipDisposeImage(pPreviewBitmap)
+            SafeGdipDisposeImage(pBitmap)
             try {
                 Gdip_Shutdown(pToken)
             } catch as e {

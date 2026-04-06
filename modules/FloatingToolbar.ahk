@@ -94,6 +94,7 @@ ToggleFloatingToolbar() {
 ; ===================== 鍒涘缓GUI =====================
 CreateFloatingToolbarGUI() {
     global FloatingToolbarGUI, g_FTB_WV2_Ctrl, g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_PendingSelection
+    global WebView2
 
     if (FloatingToolbarGUI != 0) {
         g_FTB_WV2_Ctrl := 0
@@ -493,6 +494,21 @@ FloatingToolbarSetChatDrawerState(open) {
 }
 
 ; ===================== 鎵ц鎸夐挳鍔ㄤ綔 =====================
+; WebView2 WebMessageReceived 须尽快返回；ExecuteScreenshotWithMenu 含长 Sleep 与剪贴板轮询，
+; 在回调内同步调用会阻塞 WebView 消息泵，导致工具栏卡死且截图助手无法弹出。
+FloatingToolbar_DeferredScreenshot(*) {
+    try ExecuteScreenshotWithMenu()
+    catch as err {
+        SetCapsLockState("AlwaysOff")
+        Send("{CapsLock down}")
+        Sleep(30)
+        Send("t")
+        Sleep(30)
+        Send("{CapsLock up}")
+        SetCapsLockState("Off")
+    }
+}
+
 FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
     switch action {
         case "Search":
@@ -528,16 +544,9 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
                 }
             }
         case "Screenshot":
-            try ExecuteScreenshotWithMenu()
-            catch as err {
-                SetCapsLockState("AlwaysOff")
-                Send("{CapsLock down}")
-                Sleep(30)
-                Send("t")
-                Sleep(30)
-                Send("{CapsLock up}")
-                SetCapsLockState("Off")
-            }
+            ; 不可在 WebView2 WebMessageReceived 回调里同步执行：ExecuteScreenshotWithMenu
+            ; 含长时间 Sleep/剪贴板轮询，会阻塞 WebView 消息泵，导致工具栏卡死且截图窗体无法显示。
+            SetTimer(FloatingToolbar_DeferredScreenshot, -1)
         case "Settings":
             FloatingToolbarOpenSettings()
         case "VirtualKeyboard":
