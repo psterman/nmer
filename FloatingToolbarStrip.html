@@ -77,11 +77,56 @@ body.settings-open #settings{opacity:1;pointer-events:auto}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .fld{display:grid;gap:6px}
 .fld label{font-size:11px;color:var(--muted)}
-.ctl{width:100%;min-height:40px;border:1px solid rgba(255,102,0,.18);border-radius:10px;background:rgba(255,255,255,.04);color:var(--text);padding:8px 10px;outline:none}
+.ctl{width:100%;min-height:40px;border:1px solid rgba(255,102,0,.22);border-radius:10px;background:#101010;color:var(--text);padding:8px 10px;outline:none}
+select.ctl{cursor:pointer;appearance:auto;background-color:#101010;color:var(--text)}
+select.ctl option,select.ctl optgroup{background-color:#141414;color:var(--text)}
 textarea.ctl{min-height:100px;resize:vertical}
 .hint{padding:10px 12px;border:1px solid rgba(255,102,0,.14);border-radius:12px;background:rgba(255,255,255,.03);color:var(--muted);font-size:11px;line-height:1.55}
+.hint.mini{padding:6px 8px;font-size:10px;margin-top:4px}
+.prompt-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+.prompt-tools .ctl{max-width:min(100%,220px)}
+.prompt-tools .btn3{flex-shrink:0}
+.dd{position:relative}
+.dd-wrap{position:relative}
+.dd-btn{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:7px 10px;border:1px solid rgba(255,102,0,.22);border-radius:10px;background:#101010;color:var(--text);cursor:pointer;text-align:left;font:inherit}
+.dd-btn:hover{border-color:rgba(255,102,0,.45)}
+.dd-icon{width:22px;height:22px;flex-shrink:0;object-fit:contain}
+.dd-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.dd-chev{flex-shrink:0;color:var(--muted);font-size:10px}
+.dd-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);max-height:min(50vh,260px);overflow-y:auto;z-index:50;background:#1a1a1a;border:1px solid rgba(255,102,0,.28);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.45);padding:4px 0}
+.dd-menu[hidden]{display:none!important}
+.dd-item{display:flex;align-items:center;gap:8px;width:calc(100% - 8px);margin:0 4px;border:none;border-radius:8px;background:transparent;color:var(--text);padding:8px 10px;cursor:pointer;text-align:left;font:inherit}
+.dd-item:hover,.dd-item.dd-active{background:rgba(255,102,0,.14)}
+.dd-item .dd-icon{width:22px;height:22px}
+.fld-dd .dd{margin-top:4px}
+.vh-select{position:absolute;opacity:0;pointer-events:none;width:0;height:0;overflow:hidden;border:none;padding:0;margin:0}
 .sf{padding:12px 16px 14px;border-top:1px solid rgba(255,102,0,.15);display:flex;justify-content:space-between;gap:12px;align-items:center}
 #ftb-toolbar-tpl{display:none}
+.session-tabs{display:flex;flex-wrap:nowrap;gap:5px;padding:8px 10px 10px;border-bottom:1px solid rgba(255,102,0,.12);overflow-x:auto;flex-shrink:0;align-items:center;background:rgba(0,0,0,.12)}
+.session-tabs::-webkit-scrollbar{height:4px}
+.stab{flex-shrink:0;display:inline-flex;align-items:center;gap:5px;max-width:104px;padding:5px 6px 5px 7px;border-radius:10px;border:1px solid rgba(255,102,0,.2);background:rgba(255,255,255,.04);cursor:pointer;font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden}
+.stab:hover{background:rgba(255,102,0,.1)}
+.stab.active{border-color:rgba(255,102,0,.55);background:rgba(255,102,0,.14);color:var(--orange)}
+.stab-ico{display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:8px;flex-shrink:0;background:rgba(0,0,0,.25);padding:2px}
+.stab-ico-img{width:18px;height:18px;display:block;object-fit:contain}
+.stab-t{overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:56px;font-weight:600}
+.stab-x{flex-shrink:0;width:18px;height:18px;border:none;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0;display:flex;align-items:center;justify-content:center}
+.stab-x:hover{color:#ff7a59;background:rgba(255,255,255,.08)}
+.stab-add{flex-shrink:0;width:32px;height:32px;padding:0;border-radius:10px;border:1px dashed rgba(255,102,0,.35);background:transparent;color:var(--orange);cursor:pointer;font-size:18px;font-weight:600;line-height:1;display:flex;align-items:center;justify-content:center}
+.stab-add:hover{background:rgba(255,102,0,.08)}
+#newSessionPick{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity var(--de);z-index:42}
+body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
+.nsbg{position:absolute;inset:0;background:rgba(0,0,0,.5)}
+.ns-panel{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(380px,calc(100% - 28px));max-height:min(440px,72vh);background:var(--panel2);border:1px solid rgba(255,102,0,.28);border-radius:18px;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(0,0,0,.45)}
+.nsh{padding:12px 14px;border-bottom:1px solid rgba(255,102,0,.15);display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.nst{font-size:14px;font-weight:700}
+.nst2{font-size:11px;color:var(--muted);margin-top:3px}
+.ns-grid{flex:1;overflow:auto;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ns-item{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px;border:1px solid rgba(255,102,0,.2);border-radius:12px;background:rgba(255,255,255,.04);cursor:pointer;color:var(--text)}
+.ns-item:hover{background:rgba(255,102,0,.12);border-color:rgba(255,102,0,.45)}
+.ns-item .stab-ico{width:40px;height:40px;border-radius:12px;padding:4px}
+.ns-item .stab-ico-img{width:28px;height:28px}
+.ns-lab{font-size:11px;font-weight:600;text-align:center;line-height:1.25;word-break:break-all}
 </style>
 </head>
 <body>
@@ -107,10 +152,13 @@ textarea.ctl{min-height:100px;resize:vertical}
 <header class="hdr">
 <div><div class="t1">NiuMa Chat</div><div class="t2">Markdown · AHK v2 高亮</div></div>
 <div class="icons">
+<button class="ib" id="chat-export-md" type="button" title="导出当前对话 Markdown">MD</button>
+<button class="ib" id="chat-export-json" type="button" title="导出当前对话 JSON">J</button>
 <button class="ib" id="chat-settings" type="button">设</button>
 <button class="ib" id="drawer-close" type="button">关</button>
 </div>
 </header>
+<div id="sessionTabs" class="session-tabs" role="tablist" aria-label="对话标签"></div>
 <div id="main">
 <section id="msgs"><div id="empty">首次使用请点「设」完成 API。展开后工具条在输入框下方、发送按钮左侧。</div></section>
 <section id="cmp">
@@ -130,14 +178,22 @@ textarea.ctl{min-height:100px;resize:vertical}
 <section class="sd">
 <header class="sh"><div><div class="sbt">API 设置</div><div class="sbt2">保存在本机 localStorage</div></div><button class="ib" id="settings-close" type="button">关</button></header>
 <div class="sbody">
-<div class="row"><div class="fld"><label for="provider">服务商</label><select id="provider" class="ctl"></select></div><div class="fld"><label for="modelPreset">模型预设</label><select id="modelPreset" class="ctl"></select></div></div>
-<div class="fld"><label for="apiKey">API Key</label><input id="apiKey" class="ctl" type="password" autocomplete="off" placeholder="API Key"></div>
+<div class="row"><div class="fld fld-dd"><label for="providerDdBtn">服务商</label><div class="dd" id="providerDd"><div class="dd-wrap"><button type="button" class="dd-btn" id="providerDdBtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="providerDdMenu"><img id="providerDdIcon" class="dd-icon" alt="" /><span id="providerDdLabel" class="dd-label"></span><span class="dd-chev" aria-hidden="true">▾</span></button><div class="dd-menu" id="providerDdMenu" role="listbox" hidden></div></div><select id="provider" class="ctl vh-select" tabindex="-1" aria-hidden="true"></select></div></div><div class="fld fld-dd"><label for="modelDdBtn">模型预设</label><div class="dd" id="modelDd"><div class="dd-wrap"><button type="button" class="dd-btn" id="modelDdBtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="modelDdMenu"><img id="modelDdIcon" class="dd-icon" alt="" /><span id="modelDdLabel" class="dd-label"></span><span class="dd-chev" aria-hidden="true">▾</span></button><div class="dd-menu" id="modelDdMenu" role="listbox" hidden></div></div><select id="modelPreset" class="ctl vh-select" tabindex="-1" aria-hidden="true"></select></div></div></div>
+<div class="fld"><label for="apiKey" id="apiKeyLabel">API Key</label><input id="apiKey" class="ctl" type="password" autocomplete="off" placeholder="API Key"><div class="hint mini" id="apiKeyKeyHint" style="display:none"></div></div>
 <div class="fld"><label for="baseUrl">Base URL</label><input id="baseUrl" class="ctl" type="text" autocomplete="off"></div>
 <div class="fld"><label for="model">Model</label><input id="model" class="ctl" type="text" autocomplete="off"></div>
-<div class="fld"><label for="systemPrompt">System Prompt</label><textarea id="systemPrompt" class="ctl"></textarea></div>
+<div class="fld"><label for="systemPrompt">System Prompt</label><div class="prompt-tools"><select id="promptBuiltin" class="ctl"></select><button type="button" class="btn3" id="promptTplApply">应用到上方</button><button type="button" class="btn3" id="promptImportBtn">从文件导入</button><input type="file" id="promptImportFile" accept=".txt,.md,.json,text/plain" style="display:none" /></div><textarea id="systemPrompt" class="ctl"></textarea></div>
 <div class="hint" id="providerHint"></div>
+<div class="hint">各服务商 API Key 分槽保存、互不覆盖；多标签对话在本地长期保存。记录很多时请用标题栏「MD / J」导出备份。</div>
 </div>
 <footer class="sf"><div class="st" id="config-status"></div><div style="display:flex;gap:8px;"><button class="btn2" id="resetCfg" type="button">重置</button><button class="btn3" id="saveCfg" type="button">完成</button></div></footer>
+</section>
+</div>
+<div id="newSessionPick" aria-hidden="true">
+<div class="nsbg" id="newSessionPickBg"></div>
+<section class="ns-panel">
+<header class="nsh"><div><div class="nst">新对话</div><div class="nst2">选择要使用的 AI（各标签独立上下文）</div></div><button class="ib" id="newSessionPickClose" type="button">关</button></header>
+<div id="newSessionGrid" class="ns-grid"></div>
 </section>
 </div>
 </aside>
@@ -145,9 +201,1552 @@ textarea.ctl{min-height:100px;resize:vertical}
 </div>
 </div>
 <script>
-(function(){
-var LS='niuma_chat_drawer_config_v2',LEGACY_LS='niuma_chat_drawer_config_v1',SP='你是一个擅长 AHK v2、自动化脚本和桌面工作流的助手。',P={openai:{label:'OpenAI',transport:'openai',baseUrl:'https://api.openai.com/v1',model:'gpt-4.1-mini',models:['gpt-4.1-mini','gpt-4.1','gpt-4o-mini','gpt-4o']},kimi:{label:'Kimi',transport:'openai',baseUrl:'https://api.moonshot.cn/v1',model:'moonshot-v1-8k',models:['moonshot-v1-8k','moonshot-v1-32k','kimi-k2-0711-preview']},qwen:{label:'Qwen',transport:'openai',baseUrl:'https://dashscope.aliyuncs.com/compatible-mode/v1',model:'qwen-plus',models:['qwen-plus','qwen-turbo','qwen-max','qwen3-coder-plus']},deepseek:{label:'DeepSeek',transport:'openai',baseUrl:'https://api.deepseek.com/v1',model:'deepseek-chat',models:['deepseek-chat','deepseek-reasoner']},claude:{label:'Claude',transport:'anthropic',baseUrl:'https://api.anthropic.com',model:'claude-3-5-sonnet-latest',models:['claude-3-5-sonnet-latest','claude-3-7-sonnet-latest','claude-3-5-haiku-latest']},gemini:{label:'Gemini',transport:'gemini',baseUrl:'https://generativelanguage.googleapis.com/v1beta',model:'gemini-2.5-flash',models:['gemini-2.5-flash','gemini-2.5-pro','gemini-2.0-flash']},glm:{label:'GLM',transport:'openai',baseUrl:'https://open.bigmodel.cn/api/paas/v4',model:'glm-4-plus',models:['glm-4-plus','glm-4-air','glm-4-flash']},siliconflow:{label:'硅基流动',transport:'openai',baseUrl:'https://api.siliconflow.cn/v1',model:'Qwen/Qwen2.5-7B-Instruct',models:['Qwen/Qwen2.5-7B-Instruct','deepseek-ai/DeepSeek-V3','THUDM/glm-4-9b-chat']},minimax:{label:'MiniMax',transport:'openai',baseUrl:'https://api.minimax.chat/v1',model:'MiniMax-Text-01',models:['MiniMax-Text-01','MiniMax-M1','abab6.5s-chat']},zhipu:{label:'智谱',transport:'openai',baseUrl:'https://open.bigmodel.cn/api/paas/v4',model:'glm-4-plus',models:['glm-4-plus','glm-4-air','glm-4-flash']},llama:{label:'Llama',transport:'openai',baseUrl:'https://openrouter.ai/api/v1',model:'meta-llama/llama-3.1-8b-instruct:free',models:['meta-llama/llama-3.1-8b-instruct:free','meta-llama/llama-3.1-70b-instruct','meta-llama/llama-4-maverick']}};function $(id){return document.getElementById(id)}var _tpl=$('ftb-toolbar-tpl');var _th=_tpl?_tpl.innerHTML:'';$('collapsedBtns').innerHTML=_th;$('drawerBtns').innerHTML=_th;var stage=$('stage'),backdrop=$('backdrop'),panel=$('panel'),dclose=$('drawer-close'),chatSet=$('chat-settings'),msgs=$('msgs'),empty=$('empty'),input=$('input'),send=$('send'),chatStatus=$('chat-status'),settings=$('settings'),sbg=document.querySelector('.sbg'),sclose=$('settings-close'),ssave=$('saveCfg'),cfgStatus=$('config-status'),ph=$('providerHint'),provider=$('provider'),apiKey=$('apiKey'),baseUrl=$('baseUrl'),model=$('model'),modelPreset=$('modelPreset'),systemPrompt=$('systemPrompt'),resetCfg=$('resetCfg'),collapsedRoot=$('collapsedRoot'),resizeGrip=$('resizeGrip'),btns=document.querySelectorAll('.tb');function searchEls(){return document.querySelectorAll('.tb[data-action=Search]')}var state={drawer:false,settings:false,sending:false,needSetup:false,history:[]};function post(m){try{window.chrome&&window.chrome.webview&&window.chrome.webview.postMessage(m)}catch(e){}}function sel(a){document.querySelectorAll('.tb').forEach(function(b){b.classList.toggle('selected',b.dataset.action===a)})}function pulse(v){searchEls().forEach(function(el){el.classList.toggle('pulse',!!v)})}function dragOver(v){searchEls().forEach(function(el){el.classList.toggle('drag-over',!!v)})}function loading(v){searchEls().forEach(function(el){el.classList.toggle('loading',!!v)})}function scale(v){v=Number(v);if(!isFinite(v)||v<=0)v=1;document.documentElement.style.setProperty('--ui',String(v))}function setDrawer(v){state.drawer=!!v;document.body.classList.toggle('drawer-open',state.drawer);stage.setAttribute('aria-hidden',state.drawer?'false':'true');panel.setAttribute('aria-hidden',state.drawer?'false':'true');post({type:'drawer_state',open:state.drawer});if(!state.drawer){setSettings(false);return}if(state.needSetup)setSettings(true)}function setSettings(v){state.settings=!!v;document.body.classList.toggle('settings-open',state.settings);settings.setAttribute('aria-hidden',state.settings?'false':'true')}function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;')}function ahk(code){var h=esc(code);h=h.replace(/(^|\n)(\s*;.*)/g,function(m,p1,p2){return p1+'<span class=\"hl-comment\">'+p2+'</span>'});h=h.replace(/(\"(?:[^\"\\]|\\.)*\")/g,'<span class=\"hl-string\">$1</span>');h=h.replace(/('(?:[^'\\]|\\.)*')/g,'<span class=\"hl-string\">$1</span>');h=h.replace(/\b(\d+(?:\.\d+)?)\b/g,'<span class=\"hl-number\">$1</span>');h=h.replace(/\b(global|local|static|if|else|try|catch|return|switch|case|default|for|while|loop|break|continue|class|extends|throw)\b/g,'<span class=\"hl-keyword\">$1</span>');h=h.replace(/\b(Map|Array|Gui|Error|Integer|Float|String|Trim|Format|RegExMatch|SetTimer|Send|Sleep|FileRead|FileAppend|IniRead|IniWrite)\b/g,'<span class=\"hl-builtins\">$1</span>');h=h.replace(/\b([A-Za-z_][A-Za-z0-9_]*)\b(?=\s*:=)/g,'<span class=\"hl-var\">$1</span>');return h}function inline(t){var h=esc(t);h=h.replace(/`([^`]+)`/g,'<code class=\"inline\">$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\*([^*]+)\*/g,'<em>$1</em>').replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href=\"$2\" target=\"_blank\" rel=\"noreferrer\">$1</a>');return h}function md(src){src=String(src||'').replace(/\r\n/g,'\n');var out=[],rx=/```(\w+)?\n([\s\S]*?)```/g,last=0,m;while((m=rx.exec(src))){if(m.index>last)out.push({t:'text',c:src.slice(last,m.index)});out.push({t:'code',l:(m[1]||'').toLowerCase(),c:m[2]});last=rx.lastIndex}if(last<src.length)out.push({t:'text',c:src.slice(last)});return out.map(function(b){if(b.t==='code'){var hi=(b.l==='ahk'||b.l==='autohotkey'||b.l==='autohotkeyv2')?ahk(b.c):esc(b.c);return '<pre><code>'+hi+'</code></pre>'}return b.c.split(/\n{2,}/).map(function(chunk){var t=chunk.trim();if(!t)return'';if(/^\s*>\s?/.test(t))return '<blockquote>'+inline(t.replace(/^\s*>\s?/gm,'').replace(/\n/g,'<br>'))+'</blockquote>';if(/^\s*[-*]\s+/m.test(t)){var items=t.split('\n').map(function(line){return line.replace(/^\s*[-*]\s+/,'').trim()}).filter(Boolean);return '<ul>'+items.map(function(i){return '<li>'+inline(i)+'</li>'}).join('')+'</ul>'}if(/^#{1,3}\s+/.test(t)){var lv=t.match(/^#+/)[0].length,cl=t.replace(/^#{1,3}\s+/,'');return '<h'+lv+'>'+inline(cl)+'</h'+lv+'>'}return '<p>'+inline(t.replace(/\n/g,'<br>'))+'</p>'}).join('')}).join('')}function emptyState(){empty.style.display=state.history.length?'none':''}function add(role,content){state.history.push({role:role,content:content});emptyState();var w=document.createElement('article');w.className='m '+role;var title=role==='user'?'User':'Assistant';w.innerHTML='<div class=\"mh\"><span>'+title+'</span><span>'+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</span></div><div class=\"mb\">'+md(content)+'</div>';msgs.appendChild(w);msgs.scrollTop=msgs.scrollHeight}function cstat(t,m){chatStatus.textContent=t;chatStatus.className='st'+(m==='error'?' error':m==='success'?' success':'')}function sstat(t,m){cfgStatus.textContent=t;cfgStatus.className='st'+(m==='error'?' error':m==='success'?' success':'')}function fillProviders(){provider.innerHTML=Object.keys(P).map(function(k){return '<option value=\"'+k+'\">'+P[k].label+'</option>'}).join('')}function fillModels(pid,sel){var p=P[pid]||P.openai,o=['<option value=\"\">手动输入</option>'];(p.models||[]).forEach(function(m){o.push('<option value=\"'+esc(m)+'\">'+esc(m)+'</option>')});modelPreset.innerHTML=o.join('');modelPreset.value=sel&&p.models.indexOf(sel)>=0?sel:''}function hint(pid){var p=P[pid]||P.openai,m={openai:'OpenAI 兼容 chat/completions',anthropic:'Anthropic messages 接口',gemini:'Gemini generateContent 接口'};ph.textContent=p.label+' 默认走 '+(m[p.transport]||p.transport)+'。如你使用中转站、反向代理或私有网关，也可以直接覆盖 Base URL 和 Model。'}function applyProvider(pid,keep){var p=P[pid]||P.openai;provider.value=pid;fillModels(pid,model.value.trim());hint(pid);if(!keep||!baseUrl.value.trim())baseUrl.value=p.baseUrl;if(!keep||!model.value.trim())model.value=p.model;if(!systemPrompt.value.trim())systemPrompt.value=SP}function loadCfg(){var d={};try{d=JSON.parse(localStorage.getItem(LS)||localStorage.getItem(LEGACY_LS)||'{}')||{}}catch(e){d={}}var pid=d.provider&&P[d.provider]?d.provider:'openai';provider.value=pid;apiKey.value=d.apiKey||'';baseUrl.value=d.baseUrl||'';model.value=d.model||'';systemPrompt.value=d.systemPrompt||SP;applyProvider(pid,true);fillModels(pid,model.value.trim());state.needSetup=!apiKey.value.trim()||!baseUrl.value.trim()||!model.value.trim();sstat(state.needSetup?'首次使用请先完成 API 设置。':'配置已从本地恢复。',state.needSetup?'':'success')}function saveCfg(ok){var pid=provider.value&&P[provider.value]?provider.value:'openai',d={provider:pid,apiKey:apiKey.value.trim(),baseUrl:baseUrl.value.trim(),model:model.value.trim(),systemPrompt:systemPrompt.value.trim()||SP};localStorage.setItem(LS,JSON.stringify(d));state.needSetup=!d.apiKey||!d.baseUrl||!d.model;sstat(ok?'设置已保存到本地。':'配置会自动保存到本地。',ok?'success':'');return d}function reset(){localStorage.removeItem(LS);localStorage.removeItem(LEGACY_LS);apiKey.value='';baseUrl.value='';model.value='';systemPrompt.value=SP;applyProvider('openai',false);fillModels('openai',model.value.trim());state.needSetup=true;sstat('已重置为默认配置，请重新填写 API Key。','');setSettings(true)}
-function oaUrl(u){u=String(u||'').replace(/\/+$/,'');if(/\/chat\/completions$/i.test(u))return u;if(/\/v\d+(?:\.\d+)?$/i.test(u))return u+'/chat/completions';return u+'/chat/completions'}function claudeUrl(u){u=String(u||'').replace(/\/+$/,'');if(/\/v1\/messages$/i.test(u))return u;if(/\/v1$/i.test(u))return u+'/messages';return u+'/v1/messages'}function geminiUrl(u,m,k){u=String(u||'').replace(/\/+$/,'');var p='/models/'+encodeURIComponent(m)+':generateContent?key='+encodeURIComponent(k);if(/\/v1beta$/i.test(u)||/\/v1$/i.test(u))return u+p;return u+'/v1beta'+p}function norm(c){if(typeof c==='string')return c;if(Array.isArray(c))return c.map(function(p){if(typeof p==='string')return p;if(p&&typeof p.text==='string')return p.text;return''}).join('\n').trim();return''}function oaMsgs(cfg){var m=[];if(cfg.systemPrompt)m.push({role:'system',content:cfg.systemPrompt});state.history.forEach(function(i){m.push({role:i.role,content:i.content})});return m}function claudeMsgs(){return state.history.map(function(i){return{role:i.role==='assistant'?'assistant':'user',content:i.content}})}function geminiMsgs(){return state.history.map(function(i){return{role:i.role==='assistant'?'model':'user',parts:[{text:i.content}]}})}async function reqOpenAI(cfg){var h={'Content-Type':'application/json','Authorization':'Bearer '+cfg.apiKey};if(cfg.provider==='llama'){h['HTTP-Referer']='https://niuma.local';h['X-Title']='FloatingToolbarStrip'}var r=await fetch(oaUrl(cfg.baseUrl),{method:'POST',headers:h,body:JSON.stringify({model:cfg.model,messages:oaMsgs(cfg),temperature:.7})});if(!r.ok)throw new Error('HTTP '+r.status+': '+await r.text());var d=await r.json(),c='';try{c=norm(d.choices[0].message.content)}catch(e){c=''}if(!c)throw new Error('响应中没有可显示的内容。');return c}async function reqClaude(cfg){var r=await fetch(claudeUrl(cfg.baseUrl),{method:'POST',headers:{'Content-Type':'application/json','x-api-key':cfg.apiKey,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:cfg.model,system:cfg.systemPrompt||'',max_tokens:2048,messages:claudeMsgs()})});if(!r.ok)throw new Error('HTTP '+r.status+': '+await r.text());var d=await r.json(),c='';try{c=(d.content||[]).map(function(p){return p&&p.type==='text'?(p.text||''):''}).join('\n').trim()}catch(e){c=''}if(!c)throw new Error('响应中没有可显示的内容。');return c}async function reqGemini(cfg){var body={contents:geminiMsgs(),generationConfig:{temperature:.7}};if(cfg.systemPrompt)body.systemInstruction={parts:[{text:cfg.systemPrompt}]};var r=await fetch(geminiUrl(cfg.baseUrl,cfg.model,cfg.apiKey),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('HTTP '+r.status+': '+await r.text());var d=await r.json(),c='';try{var parts=(((d.candidates||[])[0]||{}).content||{}).parts||[];c=parts.map(function(p){return p&&typeof p.text==='string'?p.text:''}).join('\n').trim()}catch(e){c=''}if(!c)throw new Error('响应中没有可显示的内容。');return c}async function sendChat(){if(state.sending)return;var text=input.value.trim();if(!text)return;var cfg=saveCfg(false);if(!cfg.apiKey||!cfg.baseUrl||!cfg.model){cstat('请先在设置里填写 API Key、Base URL 和 Model。','error');setSettings(true);return}add('user',text);input.value='';state.sending=true;send.disabled=true;cstat('正在请求模型响应...');try{var p=P[cfg.provider]||P.openai,content='';if(p.transport==='anthropic')content=await reqClaude(cfg);else if(p.transport==='gemini')content=await reqGemini(cfg);else content=await reqOpenAI(cfg);add('assistant',content);cstat('响应完成。','success')}catch(err){cstat('请求失败：'+(err&&err.message?err.message:'未知错误'),'error')}finally{state.sending=false;send.disabled=false}}document.getElementById('app').addEventListener('click',function(e){var b=e.target.closest('.tb');if(!b)return;e.stopPropagation();var a=b.dataset.action;if(!a)return;sel(a);if(a==='Search')post({type:'toolbar_search_click'});else post({type:'toolbar_action',action:a})});document.querySelectorAll('[data-logo-toggle]').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();setDrawer(!state.drawer)})});dclose.addEventListener('click',function(){setDrawer(false)});chatSet.addEventListener('click',function(){setSettings(true)});backdrop.addEventListener('click',function(e){if(e.target===backdrop)setDrawer(false)});stage.addEventListener('click',function(e){if(e.target===stage)setDrawer(false)});sbg.addEventListener('click',function(){setSettings(false)});sclose.addEventListener('click',function(){setSettings(false)});ssave.addEventListener('click',function(){saveCfg(true);setSettings(false)});send.addEventListener('click',sendChat);input.addEventListener('keydown',function(e){if(e.key==='Enter'&&e.ctrlKey){e.preventDefault();sendChat()}});provider.addEventListener('change',function(){applyProvider(provider.value,false);fillModels(provider.value,model.value.trim());saveCfg(false)});modelPreset.addEventListener('change',function(){if(modelPreset.value){model.value=modelPreset.value;saveCfg(false)}});[apiKey,baseUrl,model,systemPrompt].forEach(function(el){el.addEventListener('input',function(){saveCfg(false)})});resetCfg.addEventListener('click',reset);var dragT=0;function dragHost(){var t=Date.now();if(t-dragT<40)return;dragT=t;post({type:'drag_host'})}collapsedRoot.addEventListener('pointerdown',function(e){if(e.button!==0)return;var t=e.target;if(t.closest('.tb')||t.closest('.logo-btn'))return;if(t===collapsedRoot||t.closest('.icon-btns'))dragHost()},true);collapsedRoot.addEventListener('wheel',function(e){e.preventDefault();post({type:'wheel',delta:e.deltaY>0?-1:1})},{passive:false});collapsedRoot.addEventListener('contextmenu',function(e){e.preventDefault();post({type:'context_menu',x:e.screenX,y:e.screenY})});var hdr=document.querySelector('.hdr');if(hdr){hdr.addEventListener('pointerdown',function(e){if(e.button!==0)return;var t=e.target;if(t.closest('.ib')||t.closest('button'))return;dragHost()},true);}async function readDrop(dt){if(!dt)return'';try{if(dt.items&&dt.items.length){for(var i=0;i<dt.items.length;i++){var it=dt.items[i];if(it.kind!=='string')continue;var s=await new Promise(function(res){try{it.getAsString(function(x){res(x||'')})}catch(e2){res('')}});if(s&&String(s).trim())return String(s).trim()}}return(dt.getData('text/plain')||dt.getData('Text')||dt.getData('text/uri-list')||'').trim()}catch(e){return''}}async function onDrop(e){e.preventDefault();e.stopPropagation();dragOver(false);var t=await readDrop(e.dataTransfer);if(!t&&e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length)t=(e.dataTransfer.files[0].name||'').trim();if(!t)return;loading(true);post({type:'drop_search',text:t})}function onDragOver(e){e.preventDefault();e.stopPropagation();try{if(e.dataTransfer)e.dataTransfer.dropEffect='copy'}catch(e2){}dragOver(true)}function onDragLeave(e){var rt=e.relatedTarget,ok=false;if(rt)searchEls().forEach(function(s){if(s.contains(rt))ok=true});if(!ok)dragOver(false)}function bindSearchDnD(){searchEls().forEach(function(search){search.addEventListener('dragenter',function(e){e.preventDefault()});search.addEventListener('dragover',onDragOver);search.addEventListener('dragleave',onDragLeave);search.addEventListener('drop',onDrop)})}bindSearchDnD();document.body.addEventListener('dragover',function(e){e.preventDefault()});document.body.addEventListener('drop',function(e){e.preventDefault();var onS=false;searchEls().forEach(function(s){if(e.target===s||s.contains(e.target))onS=true});if(onS)return;onDrop(e)});if(window.chrome&&window.chrome.webview){window.chrome.webview.addEventListener('message',function(ev){var d=ev.data;if(!d||!d.type)return;if(d.type==='SELECTION_CHANGE'){pulse(true);return}if(d.type==='SELECTION_CLEAR'){pulse(false);return}if(d.type==='drop_done'){loading(false);pulse(false);return}if(d.type==='set_scale'){scale(d.scale||1);return}if(d.type==='set_logo'){var u=d.url||'';if(u)document.querySelectorAll('.logo-img').forEach(function(im){im.src=u});return}if(d.type==='set_selected')sel(d.action||'')})}var rz=false,rzX=0,rzW=0;if(resizeGrip){resizeGrip.addEventListener('pointerdown',function(e){if(e.button!==0)return;rz=true;rzX=e.clientX;rzW=document.documentElement.clientWidth;try{resizeGrip.setPointerCapture(e.pointerId)}catch(x){}});resizeGrip.addEventListener('pointermove',function(e){if(!rz)return;var nw=Math.max(380,Math.min(1200,rzW+(rzX-e.clientX)));post({type:'drawer_resize',width:nw})});resizeGrip.addEventListener('pointerup',function(e){if(rz){rz=false;post({type:'drawer_resize_done'});try{resizeGrip.releasePointerCapture(e.pointerId)}catch(x){}}});resizeGrip.addEventListener('pointercancel',function(){if(rz){rz=false;post({type:'drawer_resize_done'})}})}fillProviders();loadCfg();scale(1);emptyState();post({type:'toolbar_ready'})
+(function () {
+  var LS = 'niuma_chat_drawer_config_v2',
+    LEGACY_LS = 'niuma_chat_drawer_config_v1',
+    SESSIONS_LS = 'niuma_chat_sessions_v1',
+    SP = '你是一个擅长 AHK v2、自动化脚本和桌面工作流的助手。',
+    P = {
+      openai: { label: 'OpenAI', transport: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', models: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini', 'gpt-4o'] },
+      kimi: { label: 'Kimi', transport: 'openai', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'kimi-k2-0711-preview'] },
+      qwen: { label: 'Qwen', transport: 'openai', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus', models: ['qwen-plus', 'qwen-turbo', 'qwen-max', 'qwen3-coder-plus'] },
+      deepseek: { label: 'DeepSeek', transport: 'openai', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', models: ['deepseek-chat', 'deepseek-reasoner'] },
+      claude: { label: 'Claude', transport: 'anthropic', baseUrl: 'https://api.anthropic.com', model: 'claude-3-5-sonnet-latest', models: ['claude-3-5-sonnet-latest', 'claude-3-7-sonnet-latest', 'claude-3-5-haiku-latest'] },
+      gemini: { label: 'Gemini', transport: 'gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-2.5-flash', models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'] },
+      glm: { label: 'GLM', transport: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-plus', models: ['glm-4-plus', 'glm-4-air', 'glm-4-flash'] },
+      siliconflow: { label: '硅基流动', transport: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', model: 'Qwen/Qwen2.5-7B-Instruct', models: ['Qwen/Qwen2.5-7B-Instruct', 'deepseek-ai/DeepSeek-V3', 'THUDM/glm-4-9b-chat'] },
+      minimax: { label: 'MiniMax', transport: 'openai', baseUrl: 'https://api.minimax.chat/v1', model: 'MiniMax-Text-01', models: ['MiniMax-Text-01', 'MiniMax-M1', 'abab6.5s-chat'] },
+      zhipu: { label: '智谱', transport: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-plus', models: ['glm-4-plus', 'glm-4-air', 'glm-4-flash'] },
+      llama: { label: 'Llama', transport: 'openai', baseUrl: 'https://openrouter.ai/api/v1', model: 'meta-llama/llama-3.1-8b-instruct:free', models: ['meta-llama/llama-3.1-8b-instruct:free', 'meta-llama/llama-3.1-70b-instruct', 'meta-llama/llama-4-maverick'] }
+    },
+    ICON_PRIMARY = 'aiicons/',
+    ICON_SECOND = 'lib/images/',
+    ICON_FALLBACK = 'lib/images/chat-ai-fallback.svg',
+    PROVIDER_ICON_EXTS = ['.png', '.jpg', '.jpeg', '.svg', '.webp'],
+    PROVIDER_ICON_BASES = {
+      openai: ['ChatGPT', 'chatgpt', 'openai'],
+      kimi: ['kimi', 'Kimi', 'moonshot'],
+      qwen: ['qwen', 'Qwen'],
+      deepseek: ['DeepSeek', 'deepseek'],
+      claude: ['Claude', 'claude'],
+      gemini: ['gemini', 'Gemini'],
+      glm: ['glm', 'GLM'],
+      siliconflow: ['siliconflow', '硅基流动'],
+      minimax: ['minimax', 'MiniMax'],
+      zhipu: ['zhipu', 'Zhipu'],
+      llama: ['openrouter', 'OpenRouter', 'llama'],
+      openclaw: ['openclaw', 'OpenClaw']
+    },
+    KEYMETA = {
+      openai: { keyLabel: 'OpenAI API Key', keyPlaceholder: 'sk-...', keyHint: '仅保存到「OpenAI」槽位；与 Kimi、DeepSeek 等密钥互不覆盖。' },
+      kimi: { keyLabel: 'Kimi（Moonshot）API Key', keyPlaceholder: 'Moonshot 密钥', keyHint: 'Authorization: Bearer；单独保存在「Kimi」槽位。' },
+      qwen: { keyLabel: 'DashScope API Key', keyPlaceholder: '阿里云百炼 / DashScope', keyHint: '通义千问兼容 OpenAI 接口；密钥仅存「Qwen」槽位。' },
+      deepseek: { keyLabel: 'DeepSeek API Key', keyPlaceholder: 'DeepSeek 密钥', keyHint: '单独保存在「DeepSeek」槽位。' },
+      claude: { keyLabel: 'Anthropic API Key', keyPlaceholder: 'sk-ant-...', keyHint: '请求头 x-api-key；单独保存在「Claude」槽位（与 OpenAI 密钥不同）。' },
+      gemini: { keyLabel: 'Google AI API Key', keyPlaceholder: 'AIza...', keyHint: '密钥以 query 参数 key= 传递；单独保存在「Gemini」槽位。' },
+      glm: { keyLabel: '智谱 BigModel API Key', keyPlaceholder: 'BigModel 密钥', keyHint: '与「智谱」槽位分离保存；均为 OpenAI 兼容但密钥不同。' },
+      siliconflow: { keyLabel: '硅基流动 API Key', keyPlaceholder: '硅基流动密钥', keyHint: '单独保存在「硅基流动」槽位。' },
+      minimax: { keyLabel: 'MiniMax API Key', keyPlaceholder: 'MiniMax 密钥', keyHint: '单独保存在「MiniMax」槽位。' },
+      zhipu: { keyLabel: '智谱 API Key', keyPlaceholder: '智谱开放平台密钥', keyHint: '单独保存在「智谱」槽位（与 GLM BigModel 可填不同密钥）。' },
+      llama: { keyLabel: 'OpenRouter API Key', keyPlaceholder: 'sk-or-...', keyHint: 'OpenRouter 密钥；单独保存在「Llama」槽位。' }
+    },
+    PROMPT_BUILTIN = [
+      { id: '_ahk', name: '默认 · AHK / 自动化', text: SP },
+      { id: '_empty', name: '空（不设系统提示）', text: '' },
+      { id: '_code', name: '代码审查', text: '你是严谨的代码审查助手。指出问题、风险与可改进处，给出具体修改建议，避免空话。' },
+      { id: '_zh', name: '简明中文助手', text: '请用简明、准确的中文回答。需要时分条说明；不确定处请标明假设。' },
+      { id: '_en', name: 'Concise English', text: 'You are a concise technical assistant. Answer clearly; use bullet points when helpful.' }
+    ];
+
+  function $(id) {
+    return document.getElementById(id);
+  }
+
+  var _tpl = $('ftb-toolbar-tpl');
+  var _th = _tpl ? _tpl.innerHTML : '';
+  $('collapsedBtns').innerHTML = _th;
+  $('drawerBtns').innerHTML = _th;
+
+  var stage = $('stage'),
+    backdrop = $('backdrop'),
+    panel = $('panel'),
+    dclose = $('drawer-close'),
+    chatSet = $('chat-settings'),
+    chatExportMd = $('chat-export-md'),
+    chatExportJson = $('chat-export-json'),
+    sessionTabsEl = $('sessionTabs'),
+    msgs = $('msgs'),
+    empty = $('empty'),
+    input = $('input'),
+    send = $('send'),
+    chatStatus = $('chat-status'),
+    settings = $('settings'),
+    sbg = document.querySelector('.sbg'),
+    sclose = $('settings-close'),
+    ssave = $('saveCfg'),
+    cfgStatus = $('config-status'),
+    ph = $('providerHint'),
+    provider = $('provider'),
+    apiKey = $('apiKey'),
+    baseUrl = $('baseUrl'),
+    model = $('model'),
+    modelPreset = $('modelPreset'),
+    systemPrompt = $('systemPrompt'),
+    apiKeyLabel = $('apiKeyLabel'),
+    apiKeyKeyHint = $('apiKeyKeyHint'),
+    promptBuiltin = $('promptBuiltin'),
+    promptTplApply = $('promptTplApply'),
+    promptImportBtn = $('promptImportBtn'),
+    promptImportFile = $('promptImportFile'),
+    providerDdBtn = $('providerDdBtn'),
+    providerDdMenu = $('providerDdMenu'),
+    providerDdIcon = $('providerDdIcon'),
+    providerDdLabel = $('providerDdLabel'),
+    modelDdBtn = $('modelDdBtn'),
+    modelDdMenu = $('modelDdMenu'),
+    modelDdIcon = $('modelDdIcon'),
+    modelDdLabel = $('modelDdLabel'),
+    resetCfg = $('resetCfg'),
+    collapsedRoot = $('collapsedRoot'),
+    resizeGrip = $('resizeGrip'),
+    newSessionPick = $('newSessionPick'),
+    newSessionPickBg = $('newSessionPickBg'),
+    newSessionPickClose = $('newSessionPickClose'),
+    newSessionGrid = $('newSessionGrid');
+
+  function searchEls() {
+    return document.querySelectorAll('.tb[data-action=Search]');
+  }
+
+  var state = {
+    drawer: false,
+    settings: false,
+    sending: false,
+    needSetup: false,
+    nspick: false,
+    apiKeys: {},
+    sessions: [],
+    activeSessionId: ''
+  };
+
+  function post(m) {
+    try {
+      if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage) window.chrome.webview.postMessage(m);
+    } catch (e) {}
+  }
+
+  function sel(a) {
+    document.querySelectorAll('.tb').forEach(function (b) {
+      b.classList.toggle('selected', b.dataset.action === a);
+    });
+  }
+
+  function pulse(v) {
+    searchEls().forEach(function (el) {
+      el.classList.toggle('pulse', !!v);
+    });
+  }
+
+  function dragOver(v) {
+    searchEls().forEach(function (el) {
+      el.classList.toggle('drag-over', !!v);
+    });
+  }
+
+  function loading(v) {
+    searchEls().forEach(function (el) {
+      el.classList.toggle('loading', !!v);
+    });
+  }
+
+  function scale(v) {
+    v = Number(v);
+    if (!isFinite(v) || v <= 0) v = 1;
+    document.documentElement.style.setProperty('--ui', String(v));
+  }
+
+  function setDrawer(v) {
+    state.drawer = !!v;
+    document.body.classList.toggle('drawer-open', state.drawer);
+    stage.setAttribute('aria-hidden', state.drawer ? 'false' : 'true');
+    panel.setAttribute('aria-hidden', state.drawer ? 'false' : 'true');
+    post({ type: 'drawer_state', open: state.drawer });
+    if (!state.drawer) {
+      setSettings(false);
+      setNspick(false);
+      return;
+    }
+    if (state.needSetup) setSettings(true);
+  }
+
+  function setNspick(v) {
+    state.nspick = !!v;
+    document.body.classList.toggle('nspick-open', state.nspick);
+    if (newSessionPick) newSessionPick.setAttribute('aria-hidden', state.nspick ? 'false' : 'true');
+  }
+
+  function setSettings(v) {
+    state.settings = !!v;
+    if (state.settings) setNspick(false);
+    document.body.classList.toggle('settings-open', state.settings);
+    settings.setAttribute('aria-hidden', state.settings ? 'false' : 'true');
+    if (state.settings) {
+      syncProviderDdUi();
+      syncModelDdUi();
+    }
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function ahk(code) {
+    var h = esc(code);
+    h = h.replace(/(^|\n)(\s*;.*)/g, function (m, p1, p2) {
+      return p1 + '<span class="hl-comment">' + p2 + '</span>';
+    });
+    h = h.replace(/("(?:[^"\\]|\\.)*")/g, '<span class="hl-string">$1</span>');
+    h = h.replace(/('(?:[^'\\]|\\.)*')/g, '<span class="hl-string">$1</span>');
+    h = h.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="hl-number">$1</span>');
+    h = h.replace(/\b(global|local|static|if|else|try|catch|return|switch|case|default|for|while|loop|break|continue|class|extends|throw)\b/g, '<span class="hl-keyword">$1</span>');
+    h = h.replace(/\b(Map|Array|Gui|Error|Integer|Float|String|Trim|Format|RegExMatch|SetTimer|Send|Sleep|FileRead|FileAppend|IniRead|IniWrite)\b/g, '<span class="hl-builtins">$1</span>');
+    h = h.replace(/\b([A-Za-z_][A-Za-z0-9_]*)\b(?=\s*:=)/g, '<span class="hl-var">$1</span>');
+    return h;
+  }
+
+  function inline(t) {
+    var h = esc(t);
+    h = h.replace(/`([^`]+)`/g, '<code class="inline">$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+    return h;
+  }
+
+  function md(src) {
+    src = String(src || '').replace(/\r\n/g, '\n');
+    var out = [],
+      rx = /```(\w+)?\n([\s\S]*?)```/g,
+      last = 0,
+      m;
+    while ((m = rx.exec(src))) {
+      if (m.index > last) out.push({ t: 'text', c: src.slice(last, m.index) });
+      out.push({ t: 'code', l: (m[1] || '').toLowerCase(), c: m[2] });
+      last = rx.lastIndex;
+    }
+    if (last < src.length) out.push({ t: 'text', c: src.slice(last) });
+    return out
+      .map(function (b) {
+        if (b.t === 'code') {
+          var hi = b.l === 'ahk' || b.l === 'autohotkey' || b.l === 'autohotkeyv2' ? ahk(b.c) : esc(b.c);
+          return '<pre><code>' + hi + '</code></pre>';
+        }
+        return b.c
+          .split(/\n{2,}/)
+          .map(function (chunk) {
+            var t = chunk.trim();
+            if (!t) return '';
+            if (/^\s*>\s?/.test(t)) return '<blockquote>' + inline(t.replace(/^\s*>\s?/gm, '').replace(/\n/g, '<br>')) + '</blockquote>';
+            if (/^\s*[-*]\s+/m.test(t)) {
+              var items = t
+                .split('\n')
+                .map(function (line) {
+                  return line.replace(/^\s*[-*]\s+/, '').trim();
+                })
+                .filter(Boolean);
+              return '<ul>' + items.map(function (i) { return '<li>' + inline(i) + '</li>'; }).join('') + '</ul>';
+            }
+            if (/^#{1,3}\s+/.test(t)) {
+              var lv = t.match(/^#+/)[0].length,
+                cl = t.replace(/^#{1,3}\s+/, '');
+              return '<h' + lv + '>' + inline(cl) + '</h' + lv + '>';
+            }
+            return '<p>' + inline(t.replace(/\n/g, '<br>')) + '</p>';
+          })
+          .join('');
+      })
+      .join('');
+  }
+
+  function genId() {
+    return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  function activeSession() {
+    var list = state.sessions,
+      id = state.activeSessionId;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === id) return list[i];
+    }
+    return list[0] || null;
+  }
+
+  function persistSessions() {
+    try {
+      localStorage.setItem(
+        SESSIONS_LS,
+        JSON.stringify({ v: 1, activeSessionId: state.activeSessionId, sessions: state.sessions })
+      );
+    } catch (e) {
+      cstat('本地存储可能已满，请导出后删除部分对话标签。', 'error');
+    }
+  }
+
+  function loadSessions() {
+    var raw = null;
+    try {
+      raw = localStorage.getItem(SESSIONS_LS);
+    } catch (e) {}
+    state.sessions = [];
+    state.activeSessionId = '';
+    if (!raw) return;
+    var data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      return;
+    }
+    if (!data || !Array.isArray(data.sessions)) return;
+    state.sessions = data.sessions.map(function (s) {
+      var pid = s.provider && P[s.provider] ? s.provider : 'openai';
+      return {
+        id: s.id || genId(),
+        provider: pid,
+        model: s.model || '',
+        baseUrl: s.baseUrl || '',
+        history: Array.isArray(s.history)
+          ? s.history.map(function (m) {
+              return {
+                role: m.role === 'assistant' ? 'assistant' : 'user',
+                content: String(m.content || ''),
+                ts: m.ts || ''
+              };
+            })
+          : []
+      };
+    });
+    state.activeSessionId = data.activeSessionId || (state.sessions[0] && state.sessions[0].id) || '';
+  }
+
+  function createSessionFromForm() {
+    var pid = provider.value && P[provider.value] ? provider.value : 'openai';
+    var p = P[pid] || P.openai;
+    return {
+      id: genId(),
+      provider: pid,
+      model: model.value.trim() || p.model,
+      baseUrl: baseUrl.value.trim(),
+      history: []
+    };
+  }
+
+  function ensureSessions() {
+    if (state.sessions.length === 0) {
+      var s = createSessionFromForm();
+      state.sessions.push(s);
+      state.activeSessionId = s.id;
+      persistSessions();
+    } else if (!state.activeSessionId || !activeSession()) {
+      state.activeSessionId = state.sessions[0].id;
+    }
+  }
+
+  function syncFormFromSession(s) {
+    if (!s) return;
+    var pid = s.provider && P[s.provider] ? s.provider : 'openai';
+    provider.value = pid;
+    fillModels(pid, s.model);
+    var p = P[pid] || P.openai;
+    model.value = s.model || p.model;
+    baseUrl.value = (s.baseUrl || '').trim() || p.baseUrl;
+    hint(pid);
+    apiKey.value = (state.apiKeys && state.apiKeys[pid]) || '';
+    refreshApiKeyField(pid);
+    provider.dataset.prevProv = pid;
+    syncProviderDdUi();
+  }
+
+  function syncSessionFromForm(s) {
+    if (!s) return;
+    var pid = provider.value && P[provider.value] ? provider.value : 'openai';
+    var p = P[pid] || P.openai;
+    s.provider = pid;
+    s.model = model.value.trim() || p.model;
+    s.baseUrl = baseUrl.value.trim();
+  }
+
+  function providerIconUrlList(pid) {
+    pid = pid && P[pid] ? pid : 'openai';
+    var bases = PROVIDER_ICON_BASES[pid];
+    if (!bases || !bases.length) bases = [pid];
+    var list = [];
+    bases.forEach(function (base) {
+      PROVIDER_ICON_EXTS.forEach(function (ext) {
+        list.push(ICON_SECOND + base + ext);
+      });
+    });
+    list.push(ICON_PRIMARY + pid + '.svg');
+    list.push(ICON_SECOND + pid + '.svg');
+    list.push(ICON_FALLBACK);
+    var seen = {},
+      out = [];
+    list.forEach(function (u) {
+      if (!seen[u]) {
+        seen[u] = 1;
+        out.push(u);
+      }
+    });
+    return out;
+  }
+
+  function bindProviderIconImg(img, pid, extraClass) {
+    img.alt = '';
+    img.loading = 'lazy';
+    img.className = 'stab-ico-img' + (extraClass ? ' ' + extraClass : '');
+    var urls = providerIconUrlList(pid);
+    var idx = 0;
+    img.onerror = function () {
+      idx += 1;
+      if (idx < urls.length) {
+        this.src = urls[idx];
+      } else {
+        this.onerror = null;
+      }
+    };
+    img.removeAttribute('src');
+    img.src = urls[0];
+  }
+
+  function refreshApiKeyField(pid) {
+    var km = KEYMETA[pid] || {},
+      lab = apiKeyLabel,
+      kh = apiKeyKeyHint;
+    if (lab) lab.textContent = km.keyLabel || 'API Key';
+    apiKey.placeholder = km.keyPlaceholder || '填写密钥';
+    if (kh) {
+      if (km.keyHint) {
+        kh.textContent = km.keyHint;
+        kh.style.display = '';
+      } else {
+        kh.textContent = '';
+        kh.style.display = 'none';
+      }
+    }
+  }
+
+  function migrateApiKeysFromStorage(d) {
+    state.apiKeys = {};
+    if (d.apiKeys && typeof d.apiKeys === 'object') {
+      Object.keys(d.apiKeys).forEach(function (k) {
+        if (d.apiKeys[k] != null) state.apiKeys[k] = String(d.apiKeys[k]);
+      });
+    }
+    if (!Object.keys(state.apiKeys).length && d.apiKey) {
+      var lk = d.provider && P[d.provider] ? d.provider : 'openai';
+      state.apiKeys[lk] = String(d.apiKey);
+    }
+  }
+
+  function fillPromptBuiltinSelect() {
+    if (!promptBuiltin) return;
+    var opts = '<option value="">— 内置模版 —</option>';
+    PROMPT_BUILTIN.forEach(function (t) {
+      opts += '<option value="' + esc(t.id) + '">' + esc(t.name) + '</option>';
+    });
+    promptBuiltin.innerHTML = opts;
+    promptBuiltin.value = '';
+  }
+
+  function applySelectedPromptBuiltin() {
+    if (!promptBuiltin || !promptBuiltin.value) {
+      sstat('请先在列表中选择一个内置模版。', 'error');
+      return;
+    }
+    var id = promptBuiltin.value,
+      found = null;
+    for (var i = 0; i < PROMPT_BUILTIN.length; i++) {
+      if (PROMPT_BUILTIN[i].id === id) {
+        found = PROMPT_BUILTIN[i];
+        break;
+      }
+    }
+    if (!found) return;
+    systemPrompt.value = found.text;
+    saveCfg(false);
+    sstat('已应用模版：' + found.name, 'success');
+  }
+
+  function shortModel(m) {
+    m = String(m || '').trim();
+    if (!m) return '…';
+    var tail = m.replace(/^.*\//, '');
+    if (tail.length > 9) return tail.slice(0, 7) + '…';
+    return tail;
+  }
+
+  function tabTitleForSession(s) {
+    var pl = (P[s.provider] || {}).label || s.provider || '';
+    return pl + ' · ' + shortModel(s.model);
+  }
+
+  function renderSessionTabs() {
+    if (!sessionTabsEl) return;
+    sessionTabsEl.innerHTML = '';
+    state.sessions.forEach(function (s) {
+      var wrap = document.createElement('div');
+      wrap.className = 'stab' + (s.id === state.activeSessionId ? ' active' : '');
+      wrap.setAttribute('role', 'tab');
+      wrap.dataset.sessionId = s.id;
+      wrap.setAttribute('title', tabTitleForSession(s));
+      var ico = document.createElement('span');
+      ico.className = 'stab-ico';
+      ico.setAttribute('aria-hidden', 'true');
+      var im = document.createElement('img');
+      bindProviderIconImg(im, s.provider);
+      ico.appendChild(im);
+      var t = document.createElement('span');
+      t.className = 'stab-t';
+      t.textContent = shortModel(s.model);
+      var x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'stab-x';
+      x.setAttribute('aria-label', '关闭标签');
+      x.textContent = '×';
+      x.setAttribute('data-close-session', s.id);
+      wrap.appendChild(ico);
+      wrap.appendChild(t);
+      wrap.appendChild(x);
+      sessionTabsEl.appendChild(wrap);
+    });
+    var addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'stab-add';
+    addBtn.id = 'sessionTabAdd';
+    addBtn.textContent = '+';
+    addBtn.setAttribute('title', '选择 AI 新建对话');
+    addBtn.setAttribute('aria-label', '选择 AI 新建对话');
+    sessionTabsEl.appendChild(addBtn);
+  }
+
+  function emptyState() {
+    var s = activeSession();
+    empty.style.display = s && s.history.length ? 'none' : '';
+  }
+
+  function appendMessageDom(role, content, ts) {
+    var w = document.createElement('article');
+    w.className = 'm ' + role;
+    var title = role === 'user' ? 'User' : 'Assistant';
+    var timeStr = ts
+      ? (function () {
+          try {
+            return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          } catch (e) {
+            return '';
+          }
+        })()
+      : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    w.innerHTML =
+      '<div class="mh"><span>' +
+      title +
+      '</span><span>' +
+      timeStr +
+      '</span></div><div class="mb">' +
+      md(content) +
+      '</div>';
+    msgs.appendChild(w);
+  }
+
+  function rebuildMsgList() {
+    msgs.querySelectorAll('article.m').forEach(function (n) {
+      n.remove();
+    });
+    var s = activeSession();
+    if (!s) {
+      emptyState();
+      return;
+    }
+    s.history.forEach(function (item) {
+      appendMessageDom(item.role, item.content, item.ts);
+    });
+    emptyState();
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function add(role, content) {
+    var s = activeSession();
+    if (!s) return;
+    var ts = new Date().toISOString();
+    s.history.push({ role: role, content: content, ts: ts });
+    persistSessions();
+    emptyState();
+    appendMessageDom(role, content, ts);
+    msgs.scrollTop = msgs.scrollHeight;
+    renderSessionTabs();
+  }
+
+  function switchSession(id) {
+    if (id === state.activeSessionId) return;
+    var cur = activeSession();
+    syncSessionFromForm(cur);
+    persistSessions();
+    state.activeSessionId = id;
+    syncFormFromSession(activeSession());
+    rebuildMsgList();
+    renderSessionTabs();
+    updateNeedSetup();
+  }
+
+  function fillNewSessionGrid() {
+    if (!newSessionGrid) return;
+    newSessionGrid.innerHTML = '';
+    Object.keys(P).forEach(function (k) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ns-item';
+      btn.dataset.pickProvider = k;
+      var ico = document.createElement('span');
+      ico.className = 'stab-ico';
+      ico.setAttribute('aria-hidden', 'true');
+      var im = document.createElement('img');
+      bindProviderIconImg(im, k);
+      ico.appendChild(im);
+      var lab = document.createElement('span');
+      lab.className = 'ns-lab';
+      lab.textContent = P[k].label;
+      btn.appendChild(ico);
+      btn.appendChild(lab);
+      newSessionGrid.appendChild(btn);
+    });
+  }
+
+  function openNewSessionPick() {
+    setSettings(false);
+    setNspick(true);
+    fillNewSessionGrid();
+  }
+
+  function closeNewSessionPick() {
+    setNspick(false);
+  }
+
+  function createSessionWithProvider(pid) {
+    if (!pid || !P[pid]) return;
+    var cur = activeSession();
+    syncSessionFromForm(cur);
+    saveCfg(false);
+    var p = P[pid];
+    var s = {
+      id: genId(),
+      provider: pid,
+      model: p.model,
+      baseUrl: p.baseUrl,
+      history: []
+    };
+    state.sessions.push(s);
+    state.activeSessionId = s.id;
+    persistSessions();
+    syncFormFromSession(s);
+    rebuildMsgList();
+    renderSessionTabs();
+    updateNeedSetup();
+    closeNewSessionPick();
+    cstat('已打开「' + p.label + '」新对话', 'success');
+  }
+
+  function removeSession(id) {
+    if (state.sessions.length <= 1) {
+      cstat('至少保留一个对话标签。', 'error');
+      return;
+    }
+    var cur = activeSession();
+    if (cur && cur.id === id) syncSessionFromForm(cur);
+    var idx = -1;
+    for (var i = 0; i < state.sessions.length; i++) {
+      if (state.sessions[i].id === id) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx < 0) return;
+    state.sessions.splice(idx, 1);
+    if (state.activeSessionId === id) {
+      state.activeSessionId = state.sessions[Math.max(0, idx - 1)].id;
+      syncFormFromSession(activeSession());
+      rebuildMsgList();
+    }
+    persistSessions();
+    renderSessionTabs();
+  }
+
+  function downloadBlob(filename, text, mime) {
+    var blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function exportMarkdown() {
+    var s = activeSession();
+    if (!s || !s.history.length) {
+      cstat('当前标签没有消息可导出。', 'error');
+      return;
+    }
+    syncSessionFromForm(s);
+    var lines = [];
+    lines.push('# NiuMa Chat 导出');
+    lines.push('');
+    lines.push('- 服务商: ' + ((P[s.provider] || {}).label || s.provider));
+    lines.push('- 模型: ' + s.model);
+    lines.push('- 导出时间: ' + new Date().toLocaleString());
+    lines.push('');
+    s.history.forEach(function (m) {
+      lines.push('## ' + (m.role === 'user' ? '用户' : '助手') + ' · ' + (m.ts || ''));
+      lines.push('');
+      lines.push(m.content);
+      lines.push('');
+    });
+    downloadBlob('niuma-chat-' + s.id + '.md', lines.join('\n'), 'text/markdown;charset=utf-8');
+    cstat('已导出 Markdown。', 'success');
+  }
+
+  function exportJson() {
+    var s = activeSession();
+    if (!s || !s.history.length) {
+      cstat('当前标签没有消息可导出。', 'error');
+      return;
+    }
+    syncSessionFromForm(s);
+    var payload = {
+      exportedAt: new Date().toISOString(),
+      session: {
+        id: s.id,
+        provider: s.provider,
+        providerLabel: (P[s.provider] || {}).label || s.provider,
+        model: s.model,
+        baseUrl: s.baseUrl,
+        history: s.history
+      }
+    };
+    downloadBlob('niuma-chat-' + s.id + '.json', JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+    cstat('已导出 JSON。', 'success');
+  }
+
+  function cstat(t, m) {
+    chatStatus.textContent = t;
+    chatStatus.className = 'st' + (m === 'error' ? ' error' : m === 'success' ? ' success' : '');
+  }
+
+  function sstat(t, m) {
+    cfgStatus.textContent = t;
+    cfgStatus.className = 'st' + (m === 'error' ? ' error' : m === 'success' ? ' success' : '');
+  }
+
+  function fillProviders() {
+    provider.innerHTML = Object.keys(P)
+      .map(function (k) {
+        return '<option value="' + k + '">' + P[k].label + '</option>';
+      })
+      .join('');
+    buildProviderDdMenu();
+    syncProviderDdUi();
+  }
+
+  function buildProviderDdMenu() {
+    if (!providerDdMenu) return;
+    providerDdMenu.innerHTML = '';
+    Object.keys(P).forEach(function (k) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dd-item';
+      b.setAttribute('role', 'option');
+      b.dataset.value = k;
+      var im = document.createElement('img');
+      bindProviderIconImg(im, k, 'dd-icon');
+      var sp = document.createElement('span');
+      sp.className = 'dd-label';
+      sp.textContent = P[k].label;
+      b.appendChild(im);
+      b.appendChild(sp);
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        provider.value = k;
+        var ev = new Event('change', { bubbles: true });
+        provider.dispatchEvent(ev);
+        closeProviderDd();
+      });
+      providerDdMenu.appendChild(b);
+    });
+  }
+
+  function syncProviderDdUi() {
+    var k = provider.value && P[provider.value] ? provider.value : 'openai';
+    var p = P[k] || P.openai;
+    if (providerDdLabel) providerDdLabel.textContent = p.label;
+    if (providerDdIcon) bindProviderIconImg(providerDdIcon, k, 'dd-icon');
+    if (providerDdMenu) {
+      providerDdMenu.querySelectorAll('.dd-item').forEach(function (el) {
+        el.classList.toggle('dd-active', el.dataset.value === k);
+      });
+    }
+  }
+
+  function closeProviderDd() {
+    if (providerDdMenu) providerDdMenu.hidden = true;
+    if (providerDdBtn) providerDdBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function closeModelDd() {
+    if (modelDdMenu) modelDdMenu.hidden = true;
+    if (modelDdBtn) modelDdBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleProviderDd() {
+    if (!providerDdMenu) return;
+    var open = providerDdMenu.hidden;
+    closeModelDd();
+    providerDdMenu.hidden = !open;
+    if (providerDdBtn) providerDdBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  function toggleModelDd() {
+    if (!modelDdMenu) return;
+    var open = modelDdMenu.hidden;
+    closeProviderDd();
+    modelDdMenu.hidden = !open;
+    if (modelDdBtn) modelDdBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  function fillModels(pid, sel) {
+    var p = P[pid] || P.openai,
+      o = ['<option value="">手动输入</option>'];
+    (p.models || []).forEach(function (m) {
+      o.push('<option value="' + esc(m) + '">' + esc(m) + '</option>');
+    });
+    modelPreset.innerHTML = o.join('');
+    modelPreset.value = sel && p.models.indexOf(sel) >= 0 ? sel : '';
+    buildModelDdMenu(pid);
+    syncModelDdUi();
+  }
+
+  function buildModelDdMenu(pid) {
+    if (!modelDdMenu) return;
+    var p = P[pid] || P.openai;
+    modelDdMenu.innerHTML = '';
+    function addItem(val, label) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dd-item';
+      b.setAttribute('role', 'option');
+      b.dataset.value = val;
+      var im = document.createElement('img');
+      bindProviderIconImg(im, pid, 'dd-icon');
+      var sp = document.createElement('span');
+      sp.className = 'dd-label';
+      sp.textContent = label;
+      b.appendChild(im);
+      b.appendChild(sp);
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        modelPreset.value = val;
+        if (val) model.value = val;
+        modelPreset.dispatchEvent(new Event('change', { bubbles: true }));
+        closeModelDd();
+      });
+      modelDdMenu.appendChild(b);
+    }
+    addItem('', '手动输入');
+    (p.models || []).forEach(function (m) {
+      addItem(m, m);
+    });
+  }
+
+  function syncModelDdUi() {
+    var k = provider.value && P[provider.value] ? provider.value : 'openai';
+    var mp = modelPreset.value;
+    var label = mp ? mp : '手动输入';
+    if (modelDdLabel) modelDdLabel.textContent = label;
+    if (modelDdIcon) bindProviderIconImg(modelDdIcon, k, 'dd-icon');
+    if (modelDdMenu) {
+      modelDdMenu.querySelectorAll('.dd-item').forEach(function (el) {
+        el.classList.toggle('dd-active', el.dataset.value === mp);
+      });
+    }
+  }
+
+  function hint(pid) {
+    var p = P[pid] || P.openai,
+      m = { openai: 'OpenAI 兼容 chat/completions', anthropic: 'Anthropic messages 接口', gemini: 'Gemini generateContent 接口' };
+    ph.textContent =
+      p.label +
+      ' 默认走 ' +
+      (m[p.transport] || p.transport) +
+      '。如你使用中转站、反向代理或私有网关，也可以直接覆盖 Base URL 和 Model。';
+  }
+
+  function applyProvider(pid, keep) {
+    var p = P[pid] || P.openai;
+    provider.value = pid;
+    fillModels(pid, model.value.trim());
+    hint(pid);
+    if (!keep || !baseUrl.value.trim()) baseUrl.value = p.baseUrl;
+    if (!keep || !model.value.trim()) model.value = p.model;
+    if (!systemPrompt.value.trim()) systemPrompt.value = SP;
+    syncProviderDdUi();
+  }
+
+  function getApiKeyForProvider(pid) {
+    pid = pid && P[pid] ? pid : 'openai';
+    return ((state.apiKeys && state.apiKeys[pid]) || '').trim();
+  }
+
+  function updateNeedSetup() {
+    var s = activeSession();
+    if (!s) {
+      state.needSetup = true;
+      return;
+    }
+    var p = P[s.provider] || P.openai;
+    var url = (s.baseUrl || '').trim() || baseUrl.value.trim() || p.baseUrl;
+    var m = (s.model || '').trim() || model.value.trim();
+    var k = getApiKeyForProvider(s.provider);
+    state.needSetup = !k || !url || !m;
+  }
+
+  function loadCfg() {
+    var d = {};
+    try {
+      d = JSON.parse(localStorage.getItem(LS) || localStorage.getItem(LEGACY_LS) || '{}') || {};
+    } catch (e) {
+      d = {};
+    }
+    migrateApiKeysFromStorage(d);
+    systemPrompt.value = Object.prototype.hasOwnProperty.call(d, 'systemPrompt') ? String(d.systemPrompt) : SP;
+
+    loadSessions();
+
+    if (state.sessions.length === 0) {
+      var pid = d.provider && P[d.provider] ? d.provider : 'openai';
+      provider.value = pid;
+      applyProvider(pid, true);
+      if (d.baseUrl) baseUrl.value = d.baseUrl;
+      if (d.model) model.value = d.model;
+      fillModels(pid, model.value.trim());
+      var s0 = createSessionFromForm();
+      state.sessions = [s0];
+      state.activeSessionId = s0.id;
+      persistSessions();
+      apiKey.value = state.apiKeys[pid] || '';
+      refreshApiKeyField(pid);
+      provider.dataset.prevProv = pid;
+    } else {
+      ensureSessions();
+      syncFormFromSession(activeSession());
+      fillModels(provider.value, model.value.trim());
+    }
+
+    updateNeedSetup();
+    sstat(state.needSetup ? '首次使用请先完成 API 设置。' : '配置与对话已从本地恢复。', state.needSetup ? '' : 'success');
+    renderSessionTabs();
+    rebuildMsgList();
+  }
+
+  function saveCfg(ok) {
+    var cur = activeSession();
+    syncSessionFromForm(cur);
+    var pid = provider.value && P[provider.value] ? provider.value : 'openai';
+    if (!state.apiKeys) state.apiKeys = {};
+    state.apiKeys[pid] = apiKey.value.trim();
+    var d = {
+      provider: pid,
+      apiKeys: state.apiKeys,
+      baseUrl: baseUrl.value.trim(),
+      model: model.value.trim(),
+      systemPrompt: systemPrompt.value.trim()
+    };
+    localStorage.setItem(LS, JSON.stringify(d));
+    persistSessions();
+    updateNeedSetup();
+    sstat(ok ? '设置已保存到本地。' : '配置会自动保存到本地。', ok ? 'success' : '');
+    renderSessionTabs();
+    return d;
+  }
+
+  function reset() {
+    localStorage.removeItem(LS);
+    localStorage.removeItem(LEGACY_LS);
+    localStorage.removeItem(SESSIONS_LS);
+    state.apiKeys = {};
+    apiKey.value = '';
+    systemPrompt.value = SP;
+    applyProvider('openai', false);
+    fillModels('openai', model.value.trim());
+    refreshApiKeyField('openai');
+    state.sessions = [];
+    state.activeSessionId = '';
+    loadCfg();
+    state.needSetup = true;
+    sstat('已重置：各服务商密钥与对话已清空，请分别填写。', '');
+    setSettings(true);
+  }
+
+  function buildSendCfg() {
+    var s = activeSession();
+    if (!s) return null;
+    syncSessionFromForm(s);
+    var pid = s.provider && P[s.provider] ? s.provider : 'openai';
+    var p = P[pid] || P.openai;
+    var bu = (s.baseUrl || '').trim() || p.baseUrl;
+    return {
+      provider: pid,
+      model: (s.model || '').trim() || p.model,
+      baseUrl: bu,
+      apiKey: getApiKeyForProvider(pid),
+      systemPrompt: systemPrompt.value.trim()
+    };
+  }
+
+  function oaUrl(u) {
+    u = String(u || '').replace(/\/+$/, '');
+    if (/\/chat\/completions$/i.test(u)) return u;
+    if (/\/v\d+(?:\.\d+)?$/i.test(u)) return u + '/chat/completions';
+    return u + '/chat/completions';
+  }
+
+  function claudeUrl(u) {
+    u = String(u || '').replace(/\/+$/, '');
+    if (/\/v1\/messages$/i.test(u)) return u;
+    if (/\/v1$/i.test(u)) return u + '/messages';
+    return u + '/v1/messages';
+  }
+
+  function geminiUrl(u, m, k) {
+    u = String(u || '').replace(/\/+$/, '');
+    var p = '/models/' + encodeURIComponent(m) + ':generateContent?key=' + encodeURIComponent(k);
+    if (/\/v1beta$/i.test(u) || /\/v1$/i.test(u)) return u + p;
+    return u + '/v1beta' + p;
+  }
+
+  function norm(c) {
+    if (typeof c === 'string') return c;
+    if (Array.isArray(c))
+      return c
+        .map(function (p) {
+          if (typeof p === 'string') return p;
+          if (p && typeof p.text === 'string') return p.text;
+          return '';
+        })
+        .join('\n')
+        .trim();
+    return '';
+  }
+
+  function oaMsgs(cfg) {
+    var m = [];
+    if (cfg.systemPrompt) m.push({ role: 'system', content: cfg.systemPrompt });
+    var h = activeSession() ? activeSession().history : [];
+    h.forEach(function (i) {
+      m.push({ role: i.role, content: i.content });
+    });
+    return m;
+  }
+
+  function claudeMsgs() {
+    var h = activeSession() ? activeSession().history : [];
+    return h.map(function (i) {
+      return { role: i.role === 'assistant' ? 'assistant' : 'user', content: i.content };
+    });
+  }
+
+  function geminiMsgs() {
+    var h = activeSession() ? activeSession().history : [];
+    return h.map(function (i) {
+      return { role: i.role === 'assistant' ? 'model' : 'user', parts: [{ text: i.content }] };
+    });
+  }
+
+  async function reqOpenAI(cfg) {
+    var h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + cfg.apiKey };
+    if (cfg.provider === 'llama') {
+      h['HTTP-Referer'] = 'https://niuma.local';
+      h['X-Title'] = 'FloatingToolbarStrip';
+    }
+    var r = await fetch(oaUrl(cfg.baseUrl), {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify({ model: cfg.model, messages: oaMsgs(cfg), temperature: 0.7 })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()));
+    var d = await r.json(),
+      c = '';
+    try {
+      c = norm(d.choices[0].message.content);
+    } catch (e) {
+      c = '';
+    }
+    if (!c) throw new Error('响应中没有可显示的内容。');
+    return c;
+  }
+
+  async function reqClaude(cfg) {
+    var r = await fetch(claudeUrl(cfg.baseUrl), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': cfg.apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: cfg.model,
+        system: cfg.systemPrompt || '',
+        max_tokens: 2048,
+        messages: claudeMsgs()
+      })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()));
+    var d = await r.json(),
+      c = '';
+    try {
+      c = (d.content || [])
+        .map(function (p) {
+          return p && p.type === 'text' ? p.text || '' : '';
+        })
+        .join('\n')
+        .trim();
+    } catch (e) {
+      c = '';
+    }
+    if (!c) throw new Error('响应中没有可显示的内容。');
+    return c;
+  }
+
+  async function reqGemini(cfg) {
+    var body = { contents: geminiMsgs(), generationConfig: { temperature: 0.7 } };
+    if (cfg.systemPrompt) body.systemInstruction = { parts: [{ text: cfg.systemPrompt }] };
+    var r = await fetch(geminiUrl(cfg.baseUrl, cfg.model, cfg.apiKey), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()));
+    var d = await r.json(),
+      c = '';
+    try {
+      var parts = (((d.candidates || [])[0] || {}).content || {}).parts || [];
+      c = parts
+        .map(function (p) {
+          return p && typeof p.text === 'string' ? p.text : '';
+        })
+        .join('\n')
+        .trim();
+    } catch (e) {
+      c = '';
+    }
+    if (!c) throw new Error('响应中没有可显示的内容。');
+    return c;
+  }
+
+  async function sendChat() {
+    if (state.sending) return;
+    var text = input.value.trim();
+    if (!text) return;
+    saveCfg(false);
+    var cfg = buildSendCfg();
+    if (!cfg || !cfg.apiKey || !cfg.baseUrl || !cfg.model) {
+      cstat('请先在设置里填写 API Key、Base URL 和 Model。', 'error');
+      setSettings(true);
+      return;
+    }
+    add('user', text);
+    input.value = '';
+    state.sending = true;
+    send.disabled = true;
+    cstat('正在请求模型响应...');
+    try {
+      var p = P[cfg.provider] || P.openai,
+        content = '';
+      if (p.transport === 'anthropic') content = await reqClaude(cfg);
+      else if (p.transport === 'gemini') content = await reqGemini(cfg);
+      else content = await reqOpenAI(cfg);
+      add('assistant', content);
+      cstat('响应完成。', 'success');
+    } catch (err) {
+      cstat('请求失败：' + (err && err.message ? err.message : '未知错误'), 'error');
+    } finally {
+      state.sending = false;
+      send.disabled = false;
+    }
+  }
+
+  document.getElementById('app').addEventListener('click', function (e) {
+    var b = e.target.closest('.tb');
+    if (!b) return;
+    e.stopPropagation();
+    var a = b.dataset.action;
+    if (!a) return;
+    sel(a);
+    if (a === 'Search') post({ type: 'toolbar_search_click' });
+    else post({ type: 'toolbar_action', action: a });
+  });
+
+  document.querySelectorAll('[data-logo-toggle]').forEach(function (el) {
+    el.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setDrawer(!state.drawer);
+    });
+  });
+
+  dclose.addEventListener('click', function () {
+    setDrawer(false);
+  });
+
+  chatSet.addEventListener('click', function () {
+    provider.dataset.prevProv = provider.value;
+    setSettings(true);
+  });
+
+  if (chatExportMd) chatExportMd.addEventListener('click', exportMarkdown);
+  if (chatExportJson) chatExportJson.addEventListener('click', exportJson);
+
+  if (promptTplApply) promptTplApply.addEventListener('click', applySelectedPromptBuiltin);
+  if (promptImportBtn && promptImportFile) {
+    promptImportBtn.addEventListener('click', function () {
+      promptImportFile.click();
+    });
+  }
+  if (promptImportFile) {
+    promptImportFile.addEventListener('change', function () {
+      var f = this.files && this.files[0];
+      if (!f) return;
+      var rd = new FileReader();
+      rd.onload = function () {
+        systemPrompt.value = String(rd.result || '');
+        saveCfg(false);
+        sstat('已从文件导入：' + f.name, 'success');
+      };
+      rd.onerror = function () {
+        sstat('读取文件失败。', 'error');
+      };
+      rd.readAsText(f);
+      this.value = '';
+    });
+  }
+
+  if (newSessionPickBg) newSessionPickBg.addEventListener('click', closeNewSessionPick);
+  if (newSessionPickClose) newSessionPickClose.addEventListener('click', closeNewSessionPick);
+  if (newSessionPick) {
+    newSessionPick.addEventListener('click', function (e) {
+      var item = e.target.closest('.ns-item');
+      if (item && item.dataset.pickProvider) createSessionWithProvider(item.dataset.pickProvider);
+    });
+  }
+
+  if (sessionTabsEl) {
+    sessionTabsEl.addEventListener('click', function (e) {
+      var xbtn = e.target.closest('[data-close-session]');
+      if (xbtn) {
+        e.stopPropagation();
+        removeSession(xbtn.getAttribute('data-close-session'));
+        return;
+      }
+      if (e.target.id === 'sessionTabAdd' || e.target.closest('#sessionTabAdd')) {
+        openNewSessionPick();
+        return;
+      }
+      var stab = e.target.closest('.stab');
+      if (stab && stab.dataset.sessionId) switchSession(stab.dataset.sessionId);
+    });
+  }
+
+  backdrop.addEventListener('click', function (e) {
+    if (e.target === backdrop) setDrawer(false);
+  });
+
+  stage.addEventListener('click', function (e) {
+    if (e.target === stage) setDrawer(false);
+  });
+
+  sbg.addEventListener('click', function () {
+    setSettings(false);
+  });
+
+  sclose.addEventListener('click', function () {
+    setSettings(false);
+  });
+
+  ssave.addEventListener('click', function () {
+    saveCfg(true);
+    setSettings(false);
+  });
+
+  send.addEventListener('click', sendChat);
+
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.ctrlKey) {
+      e.preventDefault();
+      sendChat();
+    }
+  });
+
+  provider.addEventListener('focus', function () {
+    this.dataset.prevProv = this.value;
+  });
+
+  provider.addEventListener('change', function () {
+    var prev = this.dataset.prevProv;
+    if (prev && P[prev]) {
+      if (!state.apiKeys) state.apiKeys = {};
+      state.apiKeys[prev] = apiKey.value.trim();
+    }
+    applyProvider(provider.value, false);
+    apiKey.value = (state.apiKeys && state.apiKeys[provider.value]) || '';
+    refreshApiKeyField(provider.value);
+    this.dataset.prevProv = provider.value;
+    syncSessionFromForm(activeSession());
+    persistSessions();
+    renderSessionTabs();
+    saveCfg(false);
+    closeProviderDd();
+  });
+
+  modelPreset.addEventListener('change', function () {
+    if (modelPreset.value) {
+      model.value = modelPreset.value;
+    }
+    syncModelDdUi();
+    syncSessionFromForm(activeSession());
+    persistSessions();
+    renderSessionTabs();
+    saveCfg(false);
+  });
+
+  if (providerDdBtn) {
+    providerDdBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      toggleProviderDd();
+    });
+  }
+  if (modelDdBtn) {
+    modelDdBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      toggleModelDd();
+    });
+  }
+  document.addEventListener('click', function (e) {
+    if (e.target.closest && (e.target.closest('#providerDd') || e.target.closest('#modelDd'))) return;
+    closeProviderDd();
+    closeModelDd();
+  });
+
+  [apiKey, baseUrl, model, systemPrompt].forEach(function (el) {
+    el.addEventListener('input', function () {
+      saveCfg(false);
+    });
+  });
+
+  resetCfg.addEventListener('click', reset);
+
+  var dragT = 0;
+
+  function dragHost() {
+    var t = Date.now();
+    if (t - dragT < 40) return;
+    dragT = t;
+    post({ type: 'drag_host' });
+  }
+
+  collapsedRoot.addEventListener(
+    'pointerdown',
+    function (e) {
+      if (e.button !== 0) return;
+      var t = e.target;
+      if (t.closest('.tb') || t.closest('.logo-btn')) return;
+      if (t === collapsedRoot || t.closest('.icon-btns')) dragHost();
+    },
+    true
+  );
+
+  collapsedRoot.addEventListener(
+    'wheel',
+    function (e) {
+      e.preventDefault();
+      post({ type: 'wheel', delta: e.deltaY > 0 ? -1 : 1 });
+    },
+    { passive: false }
+  );
+
+  collapsedRoot.addEventListener('contextmenu', function (e) {
+    e.preventDefault();
+    post({ type: 'context_menu', x: e.screenX, y: e.screenY });
+  });
+
+  var hdr = document.querySelector('.hdr');
+  if (hdr) {
+    hdr.addEventListener(
+      'pointerdown',
+      function (e) {
+        if (e.button !== 0) return;
+        var t = e.target;
+        if (t.closest('.ib') || t.closest('button')) return;
+        dragHost();
+      },
+      true
+    );
+  }
+
+  async function readDrop(dt) {
+    if (!dt) return '';
+    try {
+      if (dt.items && dt.items.length) {
+        for (var i = 0; i < dt.items.length; i++) {
+          var it = dt.items[i];
+          if (it.kind !== 'string') continue;
+          var s = await new Promise(function (res) {
+            try {
+              it.getAsString(function (x) {
+                res(x || '');
+              });
+            } catch (e2) {
+              res('');
+            }
+          });
+          if (s && String(s).trim()) return String(s).trim();
+        }
+      }
+      return (dt.getData('text/plain') || dt.getData('Text') || dt.getData('text/uri-list') || '').trim();
+    } catch (e) {
+      return '';
+    }
+  }
+
+  async function onDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragOver(false);
+    var t = await readDrop(e.dataTransfer);
+    if (!t && e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) t = (e.dataTransfer.files[0].name || '').trim();
+    if (!t) return;
+    loading(true);
+    post({ type: 'drop_search', text: t });
+  }
+
+  function onDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    } catch (e2) {}
+    dragOver(true);
+  }
+
+  function onDragLeave(e) {
+    var rt = e.relatedTarget,
+      ok = false;
+    if (rt)
+      searchEls().forEach(function (s) {
+        if (s.contains(rt)) ok = true;
+      });
+    if (!ok) dragOver(false);
+  }
+
+  function bindSearchDnD() {
+    searchEls().forEach(function (search) {
+      search.addEventListener('dragenter', function (e) {
+        e.preventDefault();
+      });
+      search.addEventListener('dragover', onDragOver);
+      search.addEventListener('dragleave', onDragLeave);
+      search.addEventListener('drop', onDrop);
+    });
+  }
+
+  bindSearchDnD();
+
+  document.body.addEventListener('dragover', function (e) {
+    e.preventDefault();
+  });
+
+  document.body.addEventListener('drop', function (e) {
+    e.preventDefault();
+    var onS = false;
+    searchEls().forEach(function (s) {
+      if (e.target === s || s.contains(e.target)) onS = true;
+    });
+    if (onS) return;
+    onDrop(e);
+  });
+
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.addEventListener('message', function (ev) {
+      var d = ev.data;
+      if (!d || !d.type) return;
+      if (d.type === 'SELECTION_CHANGE') {
+        pulse(true);
+        return;
+      }
+      if (d.type === 'SELECTION_CLEAR') {
+        pulse(false);
+        return;
+      }
+      if (d.type === 'drop_done') {
+        loading(false);
+        pulse(false);
+        return;
+      }
+      if (d.type === 'set_scale') {
+        scale(d.scale || 1);
+        return;
+      }
+      if (d.type === 'set_logo') {
+        var u = d.url || '';
+        if (u)
+          document.querySelectorAll('.logo-img').forEach(function (im) {
+            im.src = u;
+          });
+        return;
+      }
+      if (d.type === 'set_selected') sel(d.action || '');
+    });
+  }
+
+  var rz = false,
+    rzX = 0,
+    rzW = 0;
+  if (resizeGrip) {
+    resizeGrip.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0) return;
+      rz = true;
+      rzX = e.clientX;
+      rzW = document.documentElement.clientWidth;
+      try {
+        resizeGrip.setPointerCapture(e.pointerId);
+      } catch (x) {}
+    });
+    resizeGrip.addEventListener('pointermove', function (e) {
+      if (!rz) return;
+      var nw = Math.max(380, Math.min(1200, rzW + (rzX - e.clientX)));
+      post({ type: 'drawer_resize', width: nw });
+    });
+    resizeGrip.addEventListener('pointerup', function (e) {
+      if (rz) {
+        rz = false;
+        post({ type: 'drawer_resize_done' });
+        try {
+          resizeGrip.releasePointerCapture(e.pointerId);
+        } catch (x) {}
+      }
+    });
+    resizeGrip.addEventListener('pointercancel', function () {
+      if (rz) {
+        rz = false;
+        post({ type: 'drawer_resize_done' });
+      }
+    });
+  }
+
+  fillProviders();
+  fillPromptBuiltinSelect();
+  loadCfg();
+  scale(1);
+  post({ type: 'toolbar_ready' });
 })();
 </script>
 </body>
