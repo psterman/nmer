@@ -269,6 +269,15 @@ SelectionSense_ProcessDeferred(*) {
     if (g_SelSense_UserCopyInProgress || (A_TickCount - g_SelSense_UserCopyEndTick < 950))
         return
 
+    ; 关闭选区自动复制：不再模拟 ^c，也不干预剪贴板
+    SelectionSense_ClearLastSelected()
+    try FloatingToolbar_NotifySelectionClear()
+    catch as _e {
+    }
+    return
+}
+
+/*
     clipSaved := ""
     try clipSaved := ClipboardAll()
 
@@ -328,6 +337,7 @@ SelectionSense_ProcessDeferred(*) {
 
     FloatingToolbar_NotifySelectionChange(text)
 }
+*/
 
 SelectionSense_EnsureMenuHost() {
     global g_SelSense_MenuGui, g_SelSense_MenuCtrl, g_SelSense_MenuWV2, g_SelSense_MenuReady
@@ -716,15 +726,16 @@ SelectionSense_OpenHubCapsuleFromToolbar(useToolbarAnchor := true, pendingTextOv
     }
 
     if (g_SelSense_MenuGui && g_SelSense_MenuWV2) {
-        g_SelSense_MenuReady := false
-        g_SelSense_NextNavPage := ""
-        try g_SelSense_MenuWV2.Navigate(BuildAppLocalUrl("HubCapsule.html"))
-        g_SelSense_MenuShowingHub := true
+        if !g_SelSense_MenuShowingHub {
+            g_SelSense_MenuReady := false
+            g_SelSense_NextNavPage := ""
+            try g_SelSense_MenuWV2.Navigate(BuildAppLocalUrl("HubCapsule.html"))
+            g_SelSense_MenuShowingHub := true
+        }
     } else {
         g_SelSense_NextNavPage := "HubCapsule.html"
         SelectionSense_EnsureMenuHost()
     }
-
     SelectionSense_ShowMenuNearCursor()
 }
 
@@ -749,6 +760,21 @@ SelectionSense_HideMenu() {
     }
     if g_SelSense_MenuGui {
         try g_SelSense_MenuGui.Hide()
+    }
+}
+
+SelectionSense_PrewarmHubCapsule() {
+    global g_SelSense_MenuGui, g_SelSense_MenuWV2, g_SelSense_MenuReady
+    global g_SelSense_NextNavPage, g_SelSense_MenuShowingHub
+
+    if (g_SelSense_MenuGui && g_SelSense_MenuWV2) {
+        g_SelSense_MenuReady := false
+        g_SelSense_NextNavPage := ""
+        try g_SelSense_MenuWV2.Navigate(BuildAppLocalUrl("HubCapsule.html"))
+        g_SelSense_MenuShowingHub := true
+    } else {
+        g_SelSense_NextNavPage := "HubCapsule.html"
+        SelectionSense_EnsureMenuHost()
     }
 }
 
@@ -800,4 +826,5 @@ SelectionSense_Init() {
         Hotkey("~*LButton Up", SelectionSense_OnLButtonUp, "Off")
         Hotkey("~^c", SelectionSense_OnUserCopy, "Off")
     }
+    try SelectionSense_PrewarmHubCapsule()
 }

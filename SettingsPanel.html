@@ -503,6 +503,11 @@
     document.getElementById("btn-open-compare").addEventListener("click", () => post({ type: "invokeAction", op: "openCompareSettings" }));
     document.getElementById("btn-cancel").addEventListener("click", () => post({ type: "cancel" }));
     document.getElementById("btn-save").addEventListener("click", () => { const d = readFromUI(); const err = validate(d); if (err) return setStatus(err, "err"); post({ type: "saveSettings", payload: d }); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      post({ type: "cancel" });
+    });
     function handleHostMessage(msg) {
       if (!msg || !msg.type) return;
       if (msg.type === "initData") {
@@ -512,7 +517,7 @@
         const validStartTabs = new Set(["general","appearance","prompts","hotkeys","advanced","search"]);
         if (startTab && validStartTabs.has(startTab)) {
           state.activeTab = startTab;
-          document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === startTab));
+          document.querySelectorAll(".tab-Nbtn").forEach(b => b.classList.toggle("active", b.dataset.tab === startTab));
         }
         const ids = (state.data.promptTemplateSummary || []).map(t => t.id);
         if (state.selectedPromptTemplateId && !ids.includes(state.selectedPromptTemplateId))

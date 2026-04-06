@@ -1,4 +1,4 @@
-﻿; ======================================================================================================================
+; ======================================================================================================================
 ; 鎮诞宸ュ叿鏍?- WebView2 鍏ㄩ噺閲嶆瀯鐗?; 鐗堟湰: 2.0.0
 ; 鍔熻兘:
 ;   - 鏁存潯宸ュ叿鏍忕敱鍗曚釜 WebView2 娓叉煋锛岀粺涓€璧涘崥缁?姗欓厤鑹?;   - 宸﹂敭鎷栧姩鏁寸獥銆佹粴杞缉鏀俱€佸彸閿彍鍗?;   - 7 涓姛鑳芥寜閽細鎼滅储銆佽褰曘€佹彁绀鸿瘝銆佹柊鎻愮ず璇嶃€佹埅鍥俱€佽缃€侀敭鐩?;   - 鎼滅储鎸夐挳鏀寔閫夊尯鎰熷簲鍛煎惛鍔ㄧ敾鍜屾嫋鏀炬悳绱?; ======================================================================================================================
@@ -38,17 +38,24 @@ global g_FTB_WV2 := 0
 global g_FTB_WV2_Ready := false
 global g_FTB_WV2_FrameReady := false
 global g_FTB_PendingSelection := ""
+global g_FTB_UI_Ready := false
+global g_FTB_WaitingUiFinishedReveal := false
 
 ; ===================== 鏄剧ず/闅愯棌鎮诞绐?=====================
 ShowFloatingToolbar() {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarWindowX, FloatingToolbarWindowY
+    global g_FTB_UI_Ready, g_FTB_WaitingUiFinishedReveal
 
     if (FloatingToolbarIsVisible && FloatingToolbarGUI != 0) {
         return
     }
 
     FloatingToolbarLoadScale()
-    CreateFloatingToolbarGUI()
+
+    if (FloatingToolbarGUI = 0) {
+        CreateFloatingToolbarGUI()
+    }
+
     LoadFloatingToolbarPosition()
 
     if (FloatingToolbarWindowX = 0 && FloatingToolbarWindowY = 0) {
@@ -61,9 +68,18 @@ ShowFloatingToolbar() {
 
     ToolbarWidth := FloatingToolbarCalculateWidth()
     ToolbarHeight := FloatingToolbarCalculateHeight()
-    FloatingToolbarGUI.Show("x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . ToolbarWidth . " h" . ToolbarHeight)
-    FloatingToolbarIsVisible := true
 
+    if (g_FTB_UI_Ready) {
+        FloatingToolbarGUI.Show("x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . ToolbarWidth . " h" . ToolbarHeight)
+        FloatingToolbarIsVisible := true
+        FloatingToolbarApplyRoundedCorners()
+        FloatingToolbar_ApplyWebViewBounds()
+        SetTimer(FloatingToolbarCheckWindowPosition, 100)
+        return
+    }
+
+    FloatingToolbarGUI.Show("x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . ToolbarWidth . " h" . ToolbarHeight . " Hide")
+    g_FTB_WaitingUiFinishedReveal := true
     FloatingToolbarApplyRoundedCorners()
     FloatingToolbar_ApplyWebViewBounds()
 
@@ -71,10 +87,11 @@ ShowFloatingToolbar() {
 }
 
 HideFloatingToolbar() {
-    global FloatingToolbarGUI, FloatingToolbarIsVisible
+    global FloatingToolbarGUI, FloatingToolbarIsVisible, g_FTB_WaitingUiFinishedReveal
 
     if (FloatingToolbarGUI != 0) {
         SaveFloatingToolbarPosition()
+        g_FTB_WaitingUiFinishedReveal := false
         FloatingToolbarGUI.Hide()
         FloatingToolbarIsVisible := false
         SetTimer(FloatingToolbarCheckWindowPosition, 0)
@@ -94,6 +111,7 @@ ToggleFloatingToolbar() {
 ; ===================== 鍒涘缓GUI =====================
 CreateFloatingToolbarGUI() {
     global FloatingToolbarGUI, g_FTB_WV2_Ctrl, g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_PendingSelection
+    global g_FTB_UI_Ready, g_FTB_WaitingUiFinishedReveal
     global WebView2
 
     if (FloatingToolbarGUI != 0) {
@@ -102,12 +120,15 @@ CreateFloatingToolbarGUI() {
         g_FTB_WV2_Ready := false
         g_FTB_WV2_FrameReady := false
         g_FTB_PendingSelection := ""
+        g_FTB_UI_Ready := false
+        g_FTB_WaitingUiFinishedReveal := false
         try FloatingToolbarGUI.Destroy()
-        catch {
+        catch as _e {
         }
     }
 
-    FloatingToolbarGUI := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale", "Floating Toolbar")
+    FloatingToolbarGUI := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x02000000", "Floating Toolbar")
+    ; 与 FloatingToolbarStrip 工具栏底色 #0a0a0a 一致，避免圆角外缘露色
     FloatingToolbarGUI.BackColor := "0a0a0a"
     FloatingToolbarGUI.OnEvent("Close", OnFloatingToolbarClose)
 
@@ -147,31 +168,17 @@ FloatingToolbar_OnNavigationCompleted(sender, args) {
 }
 
 ; ===================== 鍦嗚杈规澶勭悊 =====================
+; 不再使用 GDI CreateRoundRectRgn 裁剪宿主窗口：整数像素圆角易产生锯齿，
+; 圆角与描边由 WebView 内 SVG/CSS 抗锯齿绘制；宿主保持矩形窗口，BackColor 与工具栏底同色即可。
 FloatingToolbarApplyRoundedCorners() {
-    global FloatingToolbarGUI, FloatingToolbarScale
+    global FloatingToolbarGUI
 
     if (FloatingToolbarGUI = 0) {
         return
     }
 
-    try {
-        FloatingToolbarGUI.GetPos(, , &winWidth, &winHeight)
-        radius := Round(10 * FloatingToolbarScale)
-        hRgn := DllCall("CreateRoundRectRgn"
-            , "Int", 0
-            , "Int", 0
-            , "Int", winWidth
-            , "Int", winHeight
-            , "Int", radius * 2
-            , "Int", radius * 2
-            , "Ptr")
-        if (hRgn) {
-            DllCall("SetWindowRgn"
-                , "Ptr", FloatingToolbarGUI.Hwnd
-                , "Ptr", hRgn
-                , "Int", 1)
-        }
-    } catch {
+    try DllCall("SetWindowRgn", "Ptr", FloatingToolbarGUI.Hwnd, "Ptr", 0, "Int", 1)
+    catch {
     }
 }
 
@@ -184,7 +191,8 @@ FloatingToolbar_OnWebViewCreated(ctrl) {
     g_FTB_WV2_Ready := false
     g_FTB_WV2_FrameReady := false
 
-    try ctrl.DefaultBackgroundColor := 0
+    ; 与工具栏底色 #0a0a0a 一致，避免透明时透出异色再闪内容
+    try ctrl.DefaultBackgroundColor := 0xFF0A0A0A
     try ctrl.IsVisible := true
 
     FloatingToolbar_ApplyWebViewBounds()
@@ -283,6 +291,43 @@ FloatingToolbar_OnWebMessage(sender, args) {
         return
     }
 
+    if (typ = "UI_FINISHED") {
+        global FloatingToolbarIsVisible, FloatingToolbarWindowX, FloatingToolbarWindowY
+        global g_FTB_UI_Ready, g_FTB_WaitingUiFinishedReveal
+
+        if !FloatingToolbarGUI
+            return
+
+        g_FTB_UI_Ready := true
+
+        if !g_FTB_WaitingUiFinishedReveal
+            return
+
+        g_FTB_WaitingUiFinishedReveal := false
+
+        tw := FloatingToolbarCalculateWidth()
+        th := FloatingToolbarCalculateHeight()
+        try FloatingToolbarGUI.Move(FloatingToolbarWindowX, FloatingToolbarWindowY, tw, th)
+        catch as _e {
+        }
+
+        okAnim := false
+        try okAnim := DllCall("user32\AnimateWindow", "Ptr", FloatingToolbarGUI.Hwnd, "UInt", 200, "UInt", 0x20010, "Int")
+        catch as _e2 {
+            okAnim := false
+        }
+        if !okAnim {
+            try FloatingToolbarGUI.Show("x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . tw . " h" . th)
+            catch as _e3 {
+            }
+        }
+
+        FloatingToolbarIsVisible := true
+        FloatingToolbarApplyRoundedCorners()
+        FloatingToolbar_ApplyWebViewBounds()
+        return
+    }
+
     if (typ = "toolbar_action") {
         action := msg.Has("action") ? String(msg["action"]) : ""
         if (action != "")
@@ -330,7 +375,8 @@ FloatingToolbar_OnWebMessage(sender, args) {
         CoordMode("Mouse", "Screen")
         MouseGetPos(&FloatingToolbar_DragOriginScreenX, &FloatingToolbar_DragOriginScreenY)
         FloatingToolbarDragging := true
-        SetTimer(FloatingToolbar_DoDrag, 10)
+        ; 更高频率轮询鼠标，拖动更跟手（WebView2 内拖动依赖宿主轮询）
+        SetTimer(FloatingToolbar_DoDrag, 1)
         return
     }
 
@@ -497,8 +543,17 @@ FloatingToolbarSetChatDrawerState(open) {
 ; WebView2 WebMessageReceived 须尽快返回；ExecuteScreenshotWithMenu 含长 Sleep 与剪贴板轮询，
 ; 在回调内同步调用会阻塞 WebView 消息泵，导致工具栏卡死且截图助手无法弹出。
 FloatingToolbar_DeferredScreenshot(*) {
-    try ExecuteScreenshotWithMenu()
-    catch as err {
+    global FloatingToolbarIsVisible
+
+    wasVisible := !!FloatingToolbarIsVisible
+
+    try {
+        if (wasVisible) {
+            HideFloatingToolbar()
+            Sleep(120)
+        }
+        ExecuteScreenshotWithMenu()
+    } catch as err {
         SetCapsLockState("AlwaysOff")
         Send("{CapsLock down}")
         Sleep(30)
@@ -506,6 +561,9 @@ FloatingToolbar_DeferredScreenshot(*) {
         Sleep(30)
         Send("{CapsLock up}")
         SetCapsLockState("Off")
+    } finally {
+        if (wasVisible)
+            SetTimer(ShowFloatingToolbar, -120)
     }
 }
 

@@ -1,0 +1,109 @@
+﻿[2026-04-06 20:42:17] ExecuteScreenshotWithMenu: start
+[2026-04-06 20:42:49] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 20:49:25] ExecuteScreenshotWithMenu: start
+[2026-04-06 20:49:57] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 20:50:17] ExecuteScreenshotWithMenu: start
+[2026-04-06 20:50:49] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 20:54:24] ExecuteScreenshotWithMenu: start
+[2026-04-06 20:54:55] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 20:55:16] ExecuteScreenshotWithMenu: start
+[2026-04-06 20:55:48] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 20:59:59] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:00:01] ExecuteScreenshotWithMenu: screenshot taken, begin post-process
+[2026-04-06 21:00:02] ExecuteScreenshotWithMenu: calling ShowScreenshotEditor
+[2026-04-06 21:00:02] ShowScreenshotEditor: start
+[2026-04-06 21:00:03] ExecuteScreenshotWithMenu: ShowScreenshotEditor returned
+[2026-04-06 21:00:12] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:00:34] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:01:06] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 21:01:24] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:01:58] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:02:17] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:02:49] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 21:03:05] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 21:03:34] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:04:06] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 21:06:37] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:07:09] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 21:08:43] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:09:01] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:09:32] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 21:11:43] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:12:15] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 21:28:57] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:29:29] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 21:30:55] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:31:28] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 21:36:06] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:36:47] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 21:44:52] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:45:19] ExecuteScreenshotWithMenu: screenshot taken, begin post-process
+[2026-04-06 21:45:21] ExecuteScreenshotWithMenu: calling ShowScreenshotEditor
+[2026-04-06 21:45:21] ShowScreenshotEditor: start
+[2026-04-06 21:45:22] ShowScreenshotEditor: editor shown hwnd=26939604 screen=1 x=560 y=297 w=800 h=485
+[2026-04-06 21:45:22] ShowScreenshotEditor: toolbar shown hwnd=23793982 x=560 y=792 w=560 h=50
+[2026-04-06 21:45:22] ExecuteScreenshotWithMenu: ShowScreenshotEditor returned
+[2026-04-06 21:45:33] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:45:50] ExecuteScreenshotWithMenu: image detected via ClipWait seq=5672
+[2026-04-06 21:45:50] ExecuteScreenshotWithMenu: screenshot taken, begin post-process
+[2026-04-06 21:45:52] ExecuteScreenshotWithMenu: calling ShowScreenshotEditor
+[2026-04-06 21:45:52] ShowScreenshotEditor: start
+[2026-04-06 21:45:52] ShowScreenshotEditor: editor shown hwnd=266828 screen=1 x=560 y=325 w=800 h=430
+[2026-04-06 21:45:52] ShowScreenshotEditor: toolbar shown hwnd=45551396 x=560 y=765 w=560 h=50
+[2026-04-06 21:45:52] ExecuteScreenshotWithMenu: ShowScreenshotEditor returned
+[2026-04-06 21:46:00] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:46:10] ExecuteScreenshotWithMenu: image detected via ClipWait seq=5708
+[2026-04-06 21:46:10] ExecuteScreenshotWithMenu: screenshot taken, begin post-process
+[2026-04-06 21:46:12] ExecuteScreenshotWithMenu: calling ShowScreenshotEditor
+[2026-04-06 21:46:12] ShowScreenshotEditor: start
+[2026-04-06 21:46:12] ShowScreenshotEditor: editor shown hwnd=21369196 screen=1 x=560 y=447 w=800 h=186
+[2026-04-06 21:46:12] ShowScreenshotEditor: toolbar shown hwnd=7672306 x=560 y=643 w=560 h=50
+[2026-04-06 21:46:12] ExecuteScreenshotWithMenu: ShowScreenshotEditor returned
+[2026-04-06 21:55:31] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:55:38] ExecuteScreenshotWithMenu: system snip ui not detected within 5s, abort waiting
+[2026-04-06 21:55:38] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 21:55:58] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:56:09] ExecuteScreenshotWithMenu: system snip ui not detected within 5s, abort waiting
+[2026-04-06 21:56:09] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 21:58:01] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:58:14] ExecuteScreenshotWithMenu: system snip ui not detected within 5s, fallback to clipboard-only detection
+[2026-04-06 21:59:09] ExecuteScreenshotWithMenu: start
+[2026-04-06 21:59:20] ExecuteScreenshotWithMenu: system snip ui not detected within 5s, fallback to clipboard-only detection
+[2026-04-06 22:00:12] ExecuteScreenshotWithMenu: timeout/cancel
+[2026-04-06 22:00:41] ExecuteScreenshotWithMenu: start
+[2026-04-06 22:00:52] ExecuteScreenshotWithMenu: system snip ui not detected within 5s, fallback to clipboard-only detection
+[2026-04-06 22:01:14] ExecuteScreenshotWithMenu: screenshot taken, begin post-process
+[2026-04-06 22:01:16] ExecuteScreenshotWithMenu: calling ShowScreenshotEditor
+[2026-04-06 22:01:16] ShowScreenshotEditor: start
+[2026-04-06 22:01:16] ShowScreenshotEditor: editor shown hwnd=20515096 screen=1 x=560 y=361 w=800 h=357
+[2026-04-06 22:01:16] ShowScreenshotEditor: toolbar shown hwnd=31264422 x=560 y=728 w=560 h=50
+[2026-04-06 22:01:16] ExecuteScreenshotWithMenu: ShowScreenshotEditor returned
+[2026-04-06 22:04:20] ExecuteScreenshotWithMenu: start
+[2026-04-06 22:04:26] ExecuteScreenshotWithMenu: system snip ui not detected within 5s, fallback to clipboard-only detection
+[2026-04-06 22:04:31] ExecuteScreenshotWithMenu: image detected via sequence+format seq=5872
+[2026-04-06 22:04:31] ExecuteScreenshotWithMenu: screenshot taken, begin post-process
+[2026-04-06 22:04:33] ExecuteScreenshotWithMenu: calling ShowScreenshotEditor
+[2026-04-06 22:04:33] ShowScreenshotEditor: start
+[2026-04-06 22:04:33] ShowScreenshotEditor: editor shown hwnd=49742162 screen=1 x=560 y=424 w=800 h=232
+[2026-04-06 22:04:34] ShowScreenshotEditor: toolbar shown hwnd=4460388 x=560 y=666 w=560 h=50
+[2026-04-06 22:04:34] ExecuteScreenshotWithMenu: ShowScreenshotEditor returned
+[2026-04-06 22:05:07] ExecuteScreenshotWithMenu: start
+[2026-04-06 22:05:14] ExecuteScreenshotWithMenu: system snip ui not detected within 5s, fallback to clipboard-only detection
+[2026-04-06 22:05:14] ExecuteScreenshotWithMenu: image detected via sequence+format seq=5916
+[2026-04-06 22:05:14] ExecuteScreenshotWithMenu: screenshot taken, begin post-process
+[2026-04-06 22:05:16] ExecuteScreenshotWithMenu: calling ShowScreenshotEditor
+[2026-04-06 22:05:16] ShowScreenshotEditor: start
+[2026-04-06 22:05:16] ShowScreenshotEditor: editor shown hwnd=70323964 screen=1 x=560 y=261 w=800 h=558
+[2026-04-06 22:05:16] ShowScreenshotEditor: toolbar shown hwnd=7016952 x=560 y=829 w=560 h=50
+[2026-04-06 22:05:16] ExecuteScreenshotWithMenu: ShowScreenshotEditor returned
+[2026-04-06 22:10:06] ExecuteScreenshotWithMenu: start
+[2026-04-06 22:10:12] ExecuteScreenshotWithMenu: system snip ui not detected within 5s, fallback to clipboard-only detection
+[2026-04-06 22:10:17] ExecuteScreenshotWithMenu: image detected via sequence+format seq=5980
+[2026-04-06 22:10:17] ExecuteScreenshotWithMenu: screenshot taken, begin post-process
+[2026-04-06 22:10:18] ExecuteScreenshotWithMenu: calling ShowScreenshotEditor
+[2026-04-06 22:10:18] ShowScreenshotEditor: start
+[2026-04-06 22:10:19] ShowScreenshotEditor: editor shown hwnd=1773672 screen=1 x=592 y=225 w=736 h=630
+[2026-04-06 22:10:19] ShowScreenshotEditor: toolbar shown hwnd=42209186 x=592 y=865 w=560 h=50
+[2026-04-06 22:10:19] ExecuteScreenshotWithMenu: ShowScreenshotEditor returned
+[2026-04-06 22:10:33] ExecuteScreenshotWithMenu: start
+[2026-04-06 22:10:39] ExecuteScreenshotWithMenu: system snip ui not detected within 5s, fallback to clipboard-only detection
