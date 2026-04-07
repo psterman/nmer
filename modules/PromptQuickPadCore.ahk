@@ -10,6 +10,7 @@ global g_PQP_WV2 := 0
 global g_PQP_Ctrl := 0
 global g_PQP_Ready := false
 global g_PQP_Visible := false
+global g_PQP_LastShown := 0
 global g_PQP_SearchTimer := 0
 global g_PQP_LastKeyword := ""
 global g_PQP_LastCategory := "全部"
@@ -243,7 +244,7 @@ _PQP_ExecuteSearch(*) {
 
 ; ===================== 显示 / 隐藏 =====================
 PQP_Show() {
-    global g_PQP_Gui, g_PQP_Visible, g_PQP_Ready, g_PQP_Ctrl
+    global g_PQP_Gui, g_PQP_Visible, g_PQP_Ready, g_PQP_Ctrl, g_PQP_LastShown
     global AIListPanelWindowX, AIListPanelWindowY, AIListPanelWindowW, AIListPanelWindowH
 
     if !g_PQP_Gui
@@ -269,6 +270,7 @@ PQP_Show() {
 
     try g_PQP_Gui.Show("x" . panelX . " y" . panelY . " w" . panelW . " h" . panelH . " NoActivate")
     g_PQP_Visible := true
+    g_PQP_LastShown := A_TickCount
     WMActivateChain_Register(_PQP_WM_ACTIVATE)
 
     _PQP_RefreshWebViewComposition()
@@ -315,8 +317,27 @@ _PQP_FocusDeferred(*) {
     }
 }
 
+; WM_ACTIVATE 延迟关闭（命名定时器，PQP_Hide 内取消，避免与工具栏二次点击竞态）
+_PQP_WMDeactivateHideTick(*) {
+    global g_PQP_Gui, g_PQP_Visible
+    if !g_PQP_Visible || !g_PQP_Gui
+        return
+    try {
+        if (FloatingToolbar_IsForegroundToolbarOrChild())
+            return
+    } catch {
+    }
+    PQP_Hide()
+}
+
 PQP_Hide() {
     global g_PQP_Gui, g_PQP_Visible, g_PQP_SearchTimer
+
+    SetTimer(_PQP_WMDeactivateHideTick, 0)
+    SetTimer(_PQP_RefreshWebViewComposition, 0)
+    SetTimer(_PQP_DeferredMoveFocus100, 0)
+    SetTimer(_PQP_FocusDeferred, 0)
+    SetTimer(_PQP_DeferredShowPush, 0)
 
     if g_PQP_SearchTimer {
         SetTimer(g_PQP_SearchTimer, 0)
@@ -341,11 +362,19 @@ PQP_RequestFocusInput() {
 }
 
 _PQP_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
-    global g_PQP_Gui, g_PQP_Visible
+    global g_PQP_Gui, g_PQP_Visible, g_PQP_LastShown
     if !g_PQP_Visible || !g_PQP_Gui
         return
-    if (hwnd = g_PQP_Gui.Hwnd && (wParam & 0xFFFF) = 0)
-        SetTimer(PQP_Hide, -50)
+    if (hwnd = g_PQP_Gui.Hwnd && (wParam & 0xFFFF) = 0) {
+        try {
+            if (FloatingToolbar_IsForegroundToolbarOrChild())
+                return
+        } catch {
+        }
+        if (g_PQP_LastShown && (A_TickCount - g_PQP_LastShown < 500))
+            return
+        SetTimer(_PQP_WMDeactivateHideTick, -50)
+    }
 }
 
 PQP_ApplyPinTopFromIni() {

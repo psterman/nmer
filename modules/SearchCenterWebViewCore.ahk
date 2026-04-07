@@ -5,6 +5,7 @@ global g_SCWV_Ctrl := 0
 global g_SCWV_WV2 := 0
 global g_SCWV_Ready := false
 global g_SCWV_Visible := false
+global g_SCWV_LastShown := 0  ; SCWV_Show 后宽限期，避免点击悬浮条失焦立刻 Hide 与二次点击抢跑
 global g_SCWV_SearchTimer := 0
 global g_SCWV_FocusPending := false
 global SearchCenterWebKeyword := ""
@@ -130,7 +131,7 @@ SCWV_RefreshComposition(*) {
 }
 
 SCWV_Show() {
-    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_Ready, g_SCWV_Ctrl, GuiID_SearchCenter
+    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_Ready, g_SCWV_Ctrl, GuiID_SearchCenter, g_SCWV_LastShown
 
     if !g_SCWV_Gui
         SCWV_Init()
@@ -146,6 +147,7 @@ SCWV_Show() {
 
     g_SCWV_Gui.Show("w1180 h760 Center")
     g_SCWV_Visible := true
+    g_SCWV_LastShown := A_TickCount
     WMActivateChain_Register(SCWV_WM_ACTIVATE)
 
     SCWV_RefreshComposition()
@@ -204,6 +206,13 @@ SCWV_RequestFocusInput() {
 SCWV_Hide(PersistSelection := true) {
     global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_SearchTimer, GuiID_SearchCenter
 
+    ; 取消 WM_ACTIVATE 延迟关闭，避免用户已在工具栏同步 Hide 后 50ms 又执行一次 Hide/副作用
+    SetTimer(SCWV_WMDeactivateHideTick, 0)
+    SetTimer(SCWV_DeferredPush, 0)
+    SetTimer(SCWV_RefreshComposition, 0)
+    SetTimer(_SCWV_DeferredMoveFocus100, 0)
+    SetTimer(SCWV_FocusDeferred, 0)
+
     if PersistSelection
         _SCWV_SaveCurrentCategorySelection()
 
@@ -222,14 +231,36 @@ SCWV_Hide(PersistSelection := true) {
     }
 }
 
+; 失焦后延迟关闭（命名定时器，便于 SCWV_Hide 取消，避免与工具栏二次点击竞态）
+SCWV_WMDeactivateHideTick(*) {
+    global g_SCWV_Visible, g_SCWV_Gui
+    if !g_SCWV_Visible || !g_SCWV_Gui
+        return
+    try {
+        if (FloatingToolbar_IsForegroundToolbarOrChild())
+            return
+    } catch {
+    }
+    SCWV_Hide(true)
+}
+
 SCWV_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
-    global g_SCWV_Gui, g_SCWV_Visible
+    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_LastShown
 
     if !g_SCWV_Visible || !g_SCWV_Gui
         return
 
-    if (hwnd = g_SCWV_Gui.Hwnd && (wParam & 0xFFFF) = 0)
-        SetTimer(() => SCWV_Hide(true), -50)
+    if (hwnd = g_SCWV_Gui.Hwnd && (wParam & 0xFFFF) = 0) {
+        ; 用户点击同进程悬浮工具栏切换关闭时，前台常在 WebView 子 HWND 上，须识别宿主链，勿抢先 Hide
+        try {
+            if (FloatingToolbar_IsForegroundToolbarOrChild())
+                return
+        } catch {
+        }
+        if (g_SCWV_LastShown && (A_TickCount - g_SCWV_LastShown < 500))
+            return
+        SetTimer(SCWV_WMDeactivateHideTick, -50)
+    }
 }
 
 SCWV_PostJson(jsonStr) {

@@ -13,6 +13,7 @@ global g_VK_WV2 := 0
 global g_VK_Ctrl := 0
 global g_VK_Ready := false
 global g_VK_FocusPending := false
+global g_VK_LastShown := 0
 global g_ModState := Map("ctrl", false, "alt", false, "shift", false)
 global g_RecordCtx := Map("active", false, "commandId", "")
 global g_RecordHook := 0
@@ -1586,9 +1587,10 @@ VK_IsHostVisible() {
 }
 
 VK_Show() {
-    global g_VK_Gui, g_VK_Ready
+    global g_VK_Gui, g_VK_Ready, g_VK_LastShown
     if g_VK_Gui {
         g_VK_Gui.Show("NoActivate")
+        g_VK_LastShown := A_TickCount
         ; 预加载隐藏态创建时，首次显示需刷新布局与合成层（缓解 WebView2 黑屏）
         _VK_RefreshWebViewComposition()
         SetTimer(_VK_RefreshWebViewComposition, -30)
@@ -1634,11 +1636,19 @@ VK_SendToWeb(jsonStr) {
 }
 
 _VK_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
-    global g_VK_Gui
+    global g_VK_Gui, g_VK_LastShown
     if !g_VK_Gui
         return
-    if (hwnd = g_VK_Gui.Hwnd && (wParam & 0xFFFF) = 0)
+    if (hwnd = g_VK_Gui.Hwnd && (wParam & 0xFFFF) = 0) {
+        try {
+            if (FloatingToolbar_IsForegroundToolbarOrChild())
+                return
+        } catch {
+        }
+        if (g_VK_LastShown && (A_TickCount - g_VK_LastShown < 500))
+            return
         SetTimer(VK_Hide, -50)
+    }
 }
 
 _VK_RequestFocusInput() {

@@ -483,6 +483,7 @@ global ConfigWV2Ctrl := 0
 global ConfigWV2 := 0
 global ConfigWV2Ready := false
 global ConfigWebViewPreloaded := false
+global g_ConfigWebView_LastShown := 0  ; ShowConfigWebViewGUI 后时间戳，WM_ACTIVATE 宽限期避免刚显示即被关
 global UnifiedAssetsHost := "app.local"
 global UnifiedAssetsRoot := A_ScriptDir
 global UnifiedAssetsAccessKind := 0  ; COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW
@@ -16481,7 +16482,7 @@ ConfigWebView_CreateHost() {
 }
 
 ShowConfigWebViewGUI() {
-    global GuiID_ConfigGUI, GuiID_ClipboardManager, ConfigPanelScreenIndex
+    global GuiID_ConfigGUI, GuiID_ClipboardManager, ConfigPanelScreenIndex, g_ConfigWebView_LastShown
     ; 单例
     ConfigWebView_CreateHost()
     if !GuiID_ConfigGUI
@@ -16495,6 +16496,7 @@ ShowConfigWebViewGUI() {
     PosY := ScreenInfo.Top + Round((ScreenInfo.Height - WinH) / 2)
 
     GuiID_ConfigGUI.Show("w" . WinW . " h" . WinH . " x" . PosX . " y" . PosY)
+    g_ConfigWebView_LastShown := A_TickCount
     WMActivateChain_Register(ConfigWebView_WM_ACTIVATE)
     ConfigWebView_ApplyBounds()
     ConfigWebView_RefreshWebViewComposition()
@@ -16610,11 +16612,20 @@ ConfigWebView_FocusDeferred(*) {
 }
 
 ConfigWebView_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
-    global GuiID_ConfigGUI, ConfigWebViewMode
+    global GuiID_ConfigGUI, ConfigWebViewMode, g_ConfigWebView_LastShown
     if !ConfigWebViewMode || !GuiID_ConfigGUI
         return
-    if (hwnd = GuiID_ConfigGUI.Hwnd && (wParam & 0xFFFF) = 0)
+    if (hwnd = GuiID_ConfigGUI.Hwnd && (wParam & 0xFFFF) = 0) {
+        try {
+            if (FloatingToolbar_IsForegroundToolbarOrChild())
+                return
+        } catch {
+        }
+        ; 刚 Show 后短时间内可能收到失焦（与置顶悬浮条抢焦点），勿立即关闭
+        if (g_ConfigWebView_LastShown && (A_TickCount - g_ConfigWebView_LastShown < 500))
+            return
         SetTimer(CloseConfigGUI, -50)
+    }
 }
 
 ConfigWebView_Send(msgMap) {

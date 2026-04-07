@@ -619,25 +619,59 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
     }
 }
 
+; 延后一帧处理搜索切换：让 WM_ACTIVATE / 延迟 Hide 与 postMessage 顺序稳定，避免「先关后立即又打开」
+FloatingToolbar_SearchToggleDeferred(*) {
+    global GuiID_SearchCenter
+    try {
+        h := SCWV_GetGuiHwnd()
+        if (h && WinExist("ahk_id " . h) && (WinGetStyle("ahk_id " . h) & 0x10000000)) {
+            SCWV_Hide(true)
+            return
+        }
+    } catch {
+    }
+    try {
+        if (SCWV_IsVisible()) {
+            SCWV_Hide(true)
+            return
+        }
+    } catch {
+    }
+    try {
+        if (GuiID_SearchCenter != 0 && (!IsSet(SearchCenter_ShouldUseWebView) || !SearchCenter_ShouldUseWebView())) {
+            SearchCenterCloseHandler()
+            return
+        }
+    } catch {
+    }
+    FloatingToolbarExecuteButtonAction("Search", 0)
+}
+
+FloatingToolbar_PromptToggleDeferred(*) {
+    global g_PQP_Gui
+    try {
+        if (g_PQP_Gui && WinExist("ahk_id " . g_PQP_Gui.Hwnd) && (WinGetStyle("ahk_id " . g_PQP_Gui.Hwnd) & 0x10000000)) {
+            PQP_Hide()
+            return
+        }
+    } catch {
+    }
+    try {
+        if (PQP_IsVisible()) {
+            PQP_Hide()
+            return
+        }
+    } catch {
+    }
+    FloatingToolbarExecuteButtonAction("Prompt", 0)
+}
+
 FloatingToolbarToggleButtonAction(action) {
-    global GuiID_SearchCenter, GuiID_ConfigGUI
+    global GuiID_SearchCenter, GuiID_ConfigGUI, ConfigWebViewMode, GuiID_ScreenshotEditor, g_PQP_Gui
     switch action {
         case "Search":
-            try {
-                if (IsSet(SCWV_IsVisible) && SCWV_IsVisible()) {
-                    SCWV_Hide(true)
-                    return
-                }
-            } catch {
-            }
-            try {
-                if (GuiID_SearchCenter != 0) {
-                    SearchCenterCloseHandler()
-                    return
-                }
-            } catch {
-            }
-            FloatingToolbarExecuteButtonAction(action, 0)
+            SetTimer(FloatingToolbar_SearchToggleDeferred, -1)
+            return
         case "Record":
             try {
                 if (IsSet(g_CP_Visible) && g_CP_Visible) {
@@ -648,27 +682,95 @@ FloatingToolbarToggleButtonAction(action) {
             }
             FloatingToolbarExecuteButtonAction(action, 0)
         case "AIAssistant", "Prompt":
-            try {
-                if (PQP_IsVisible()) {
-                    PQP_Hide()
-                    return
-                }
-            } catch {
-            }
-            FloatingToolbarExecuteButtonAction(action, 0)
+            ; 延后一帧：与 WM_ACTIVATE 延迟 Hide、postMessage 顺序对齐，减少「有时关不掉 / 关掉又弹回」
+            SetTimer(FloatingToolbar_PromptToggleDeferred, -1)
+            return
         case "Settings":
+            ; WebView 设置：关闭时仅 Hide，GuiID_ConfigGUI 仍非 0，必须按「是否可见」切换，否则会无法再次打开
             try {
                 if (GuiID_ConfigGUI != 0) {
-                    CloseConfigGUI()
+                    cfgVisible := false
+                    if (ConfigWebViewMode) {
+                        try cfgVisible := ConfigWebView_HostWindowVisible()
+                        catch {
+                            cfgVisible := false
+                        }
+                    } else {
+                        try {
+                            cfgVisible := WinExist("ahk_id " . GuiID_ConfigGUI.Hwnd)
+                                && (WinGetStyle("ahk_id " . GuiID_ConfigGUI.Hwnd) & 0x10000000)
+                        } catch {
+                            cfgVisible := false
+                        }
+                    }
+                    if (cfgVisible) {
+                        CloseConfigGUI()
+                        return
+                    }
+                }
+            } catch {
+            }
+            FloatingToolbarExecuteButtonAction(action, 0)
+        case "NewPrompt":
+            try {
+                if (IsSet(SelectionSense_HubCapsuleHostIsOpen) && SelectionSense_HubCapsuleHostIsOpen()) {
+                    SelectionSense_HideMenu()
                     return
                 }
             } catch {
             }
             FloatingToolbarExecuteButtonAction(action, 0)
+        case "Screenshot":
+            try {
+                if (IsObject(GuiID_ScreenshotEditor)) {
+                    CloseScreenshotEditor()
+                    return
+                }
+            } catch {
+            }
+            FloatingToolbarExecuteButtonAction(action, 0)
+        case "VirtualKeyboard":
+            ; VK_ToggleEmbedded 依赖可见性；失焦自动 Hide 后需与 VK_IsHostVisible 一致，见 VirtualKeyboardCore 宽限期
+            try {
+                if (VK_IsHostVisible()) {
+                    VK_Hide()
+                    return
+                }
+            } catch {
+            }
+            try {
+                VK_ToggleEmbedded()
+            } catch as err {
+                try TrayTip("虚拟键盘不可用: " . err.Message, "虚拟键盘", "Iconx 2")
+                catch {
+                }
+            }
         default:
-            ; 其他动作维持原行为（如 Screenshot、VirtualKeyboard 自身已有切换语义）
             FloatingToolbarExecuteButtonAction(action, 0)
     }
+}
+
+; 前台 HWND 是否为悬浮工具栏或其子窗口（点击工具栏内 WebView 时 WinGetID("A") 常不是宿主 Hwnd）
+FloatingToolbar_IsForegroundToolbarOrChild() {
+    global FloatingToolbarGUI
+    if !FloatingToolbarGUI
+        return false
+    fg := 0
+    try fg := WinGetID("A")
+    catch {
+        return false
+    }
+    tb := FloatingToolbarGUI.Hwnd
+    hw := fg
+    Loop 40 {
+        if (hw = tb)
+            return true
+        np := DllCall("user32\GetParent", "Ptr", hw, "Ptr")
+        if !np
+            break
+        hw := np
+    }
+    return false
 }
 
 FloatingToolbarActivateVirtualKeyboard() {
