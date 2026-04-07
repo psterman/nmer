@@ -348,7 +348,7 @@ SelectionSense_EnsureMenuHost() {
     global g_SelSense_MenuW, g_SelSense_MenuH
     ; +Resize：HubCapsule 右下角拖条依赖 AHK 同步宿主宽高（hub_resize_move / hub_resize_end）
     ; 勿用 +E0x80000：未调用 SetLayeredWindowAttributes 时 WS_EX_LAYERED 会导致 WebView2 无法命中鼠标
-    g_SelSense_MenuGui := Gui("+AlwaysOnTop -Caption +ToolWindow +Resize +MinSize200x160 -DPIScale", "SelectionMenuHost")
+    g_SelSense_MenuGui := Gui("+AlwaysOnTop +Resize +MinSize200x160 +MinimizeBox +MaximizeBox -DPIScale", "SelectionMenuHost")
     g_SelSense_MenuGui.BackColor := "1a1a1a"
     g_SelSense_MenuGui.MarginX := 0
     g_SelSense_MenuGui.MarginY := 0

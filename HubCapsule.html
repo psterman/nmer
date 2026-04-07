@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -261,6 +261,7 @@ html, body {
   user-select: none;
   touch-action: none;
 }
+body.native-titlebar #header { display: none; }
 
 #drag-handle {
   width: 40px;
@@ -652,7 +653,7 @@ html, body {
 #gravity-tip.visible { opacity: 1; }
 </style>
 </head>
-<body>
+<body class="native-titlebar">
 <div id="ctx-menu">
   <button class="ctx-item" type="button" data-act="copy">Copy</button>
   <button class="ctx-item" type="button" data-act="remove">Remove</button>
@@ -664,7 +665,7 @@ html, body {
     <div id="gravity-tip">靠近目标</div>
 
     <div id="main">
-      <div id="header" data-drag-handle="1">
+      <div id="header" class="window-titlebar" data-drag-handle="1">
         <div id="header-left">
           <div id="drag-handle"></div>
           <div id="header-title">HUB CAPSULE</div>

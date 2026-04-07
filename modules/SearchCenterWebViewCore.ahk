@@ -38,8 +38,8 @@ SCWV_Init() {
     if g_SCWV_Gui
         return
 
-    ; 无系统标题栏：页面内顶栏拖动（dragHost → WM_NCLBUTTONDOWN）；保留 +Owner，不加 ToolWindow 以免任务栏/Alt+Tab 行为突变
-    g_SCWV_Gui := Gui("+AlwaysOnTop +Resize +MinSize760x540 -Caption -DPIScale +Owner", "搜索中心")
+    ; 使用 Windows 原生标题栏与系统窗口按钮（最小化/最大化/关闭）
+    g_SCWV_Gui := Gui("+AlwaysOnTop +Resize +MinSize760x540 +MinimizeBox +MaximizeBox -DPIScale +Owner", "搜索中心")
     g_SCWV_Gui.BackColor := "1b1b1d"
     g_SCWV_Gui.MarginX := 0
     g_SCWV_Gui.MarginY := 0
@@ -293,6 +293,28 @@ SCWV_BeginHostDrag(*) {
     try PostMessage(0xA1, 2,,, "ahk_id " . g_SCWV_Gui.Hwnd)  ; WM_NCLBUTTONDOWN HTCAPTION
 }
 
+SCWV_MinimizeHost(*) {
+    global g_SCWV_Gui
+    if !g_SCWV_Gui
+        return
+    try WinMinimize("ahk_id " . g_SCWV_Gui.Hwnd)
+}
+
+SCWV_ToggleMaximizeHost(*) {
+    global g_SCWV_Gui
+    if !g_SCWV_Gui
+        return
+    hwndExpr := "ahk_id " . g_SCWV_Gui.Hwnd
+    try {
+        state := WinGetMinMax(hwndExpr)
+        if (state = 1) {
+            WinRestore(hwndExpr)
+        } else {
+            WinMaximize(hwndExpr)
+        }
+    }
+}
+
 SCWV_OnWebMessage(sender, args) {
     jsonStr := args.WebMessageAsJson
     try {
@@ -367,6 +389,10 @@ SCWV_OnWebMessage(sender, args) {
             SCWV_Hide(true)
         case "dragHost":
             SCWV_BeginHostDrag()
+        case "windowMinimize":
+            SCWV_MinimizeHost()
+        case "windowToggleMaximize":
+            SCWV_ToggleMaximizeHost()
     }
 }
 

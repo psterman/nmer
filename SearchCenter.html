@@ -42,6 +42,9 @@ button, input, select, textarea { font: inherit; }
   gap: 12px;
   padding: 14px 26px 18px;
 }
+#chrome-header {
+  display: none;
+}
 .chrome-header {
   position: relative;
   display: flex;
@@ -71,6 +74,36 @@ button, input, select, textarea { font: inherit; }
   border-radius: 8px;
 }
 .chrome-drag:active { cursor: grabbing; }
+.chrome-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.chrome-btn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.chrome-btn:hover {
+  border-color: rgba(255,179,71,.5);
+  background: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
+  color: #fff;
+}
+.chrome-btn.close:hover {
+  border-color: rgba(255,122,122,.6);
+  background: linear-gradient(180deg, rgba(255,122,122,.22), rgba(255,122,122,.12));
+}
 .bar {
   display: flex;
   align-items: center;
@@ -386,8 +419,13 @@ mark {
 </head>
 <body>
 <div id="app">
-  <header id="chrome-header" class="chrome-header">
+    <header id="chrome-header" class="chrome-header window-titlebar">
     <div class="chrome-drag" id="chrome-drag" title="拖动窗口">搜索中心</div>
+    <div class="chrome-controls">
+      <button type="button" id="chrome-minimize" class="chrome-btn" title="Minimize">-</button>
+      <button type="button" id="chrome-maximize" class="chrome-btn" title="Maximize">[]</button>
+      <button type="button" id="chrome-close" class="chrome-btn close" title="Close">X</button>
+    </div>
   </header>
 
   <div id="category-card" class="card">
@@ -710,10 +748,30 @@ document.getElementById("btn-close").addEventListener("click", () => {
   postToAhk({ type: "close" });
 });
 
+const chromeCloseBtn = document.getElementById("chrome-close");
+const chromeMinimizeBtn = document.getElementById("chrome-minimize");
+const chromeMaximizeBtn = document.getElementById("chrome-maximize");
+if (chromeMinimizeBtn) {
+  chromeMinimizeBtn.addEventListener("click", () => {
+    postToAhk({ type: "windowMinimize" });
+  });
+}
+if (chromeMaximizeBtn) {
+  chromeMaximizeBtn.addEventListener("click", () => {
+    postToAhk({ type: "windowToggleMaximize" });
+  });
+}
+if (chromeCloseBtn) {
+  chromeCloseBtn.addEventListener("click", () => {
+    postToAhk({ type: "close" });
+  });
+}
+
 (function initChromeDrag() {
   const dragHost = document.getElementById("chrome-header");
   const dragTitle = document.getElementById("chrome-drag");
   const startHostDrag = (e) => {
+    if (e.target && e.target.closest(".chrome-btn")) return;
     if (e.button !== 0) return;
     e.preventDefault();
     postToAhk({ type: "dragHost" });
@@ -803,3 +861,4 @@ if (window.chrome && window.chrome.webview) {
 </script>
 </body>
 </html>
+

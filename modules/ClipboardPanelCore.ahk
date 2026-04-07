@@ -183,7 +183,7 @@ CP_Init() {
     WinW := Max(820, Min(Round(ScreenW * 0.48), 1100))
     WinH := Max(500, Min(Round(ScreenH * 0.55), 720))
 
-    g_CP_Gui := Gui("+AlwaysOnTop -Caption -DPIScale +ToolWindow +Owner", "ClipboardPanel")
+    g_CP_Gui := Gui("+AlwaysOnTop +Resize +MinimizeBox +MaximizeBox -DPIScale +Owner", "ClipboardPanel")
     g_CP_Gui.BackColor := "0a0a0a"
     g_CP_Gui.MarginX := 0
     g_CP_Gui.MarginY := 0

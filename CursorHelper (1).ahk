@@ -16229,7 +16229,7 @@ ShowConfigGUI() {
     global GeneralSubTabControls := Map()
     
     ; 创建配置 GUI（使用原生标题栏）
-    ConfigGUI := Gui("+Resize -MaximizeBox", GetText("config_title"))
+    ConfigGUI := Gui("+Resize +MinimizeBox +MaximizeBox", GetText("config_title"))
     ConfigGUI.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
     ConfigGUI.BackColor := UI_Colors.Background
     
@@ -16466,7 +16466,7 @@ ConfigWebView_CreateHost() {
     if (GuiID_ConfigGUI != 0)
         return
 
-    ConfigGUI := Gui("+Resize -MaximizeBox +Owner", GetText("config_title"))
+    ConfigGUI := Gui("+Resize +MinimizeBox +MaximizeBox +Owner", GetText("config_title"))
     ConfigGUI.BackColor := "0a0a0a"
 
     GuiID_ConfigGUI := ConfigGUI

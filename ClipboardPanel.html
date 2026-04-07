@@ -84,6 +84,7 @@ body::after {
   -webkit-user-select: none;
 }
 .chrome-drag:active { cursor: grabbing; }
+body.native-titlebar .chrome-drag { display: none; }
 .chrome-drag::after,
 #search-bar::after,
 #list-panel::after,
@@ -571,12 +572,12 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
 </style>
 <script src="https://app.local/assets/js/BasePanel.js"></script>
 </head>
-<body>
+<body class="native-titlebar">
 
 <div class="scanner-line"></div>
 
 <div id="root">
-  <div class="chrome-drag" id="chrome-drag" title="拖动窗口">
+  <div class="chrome-drag window-titlebar" id="chrome-drag" title="拖动窗口">
     <span style="width:26px;height:26px;flex-shrink:0"></span>
     <div class="chrome-title">剪贴板历史</div>
     <button type="button" id="chrome-close" class="chrome-close" title="关闭">×</button>
