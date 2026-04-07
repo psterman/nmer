@@ -36,6 +36,9 @@ global g_VK_SequenceIntervalMs := 400
 global g_RecordPendingKey := ""
 global g_RecordPendingTick := 0
 global g_RecordFinalizeToken := 0
+global g_VK_FloatGui := 0
+global FloatingToolbarGUI := 0
+global g_VK_FloatPinned := []
 ; app.local 导航：Navigate 常不抛错，失败在 NavigationCompleted；用于触发一次磁盘 NavigateToString 回退
 global g_VK_ExpectAppLocalNavigationResult := false
 global g_VK_TriedDiskAfterAppLocalFail := false
@@ -53,6 +56,9 @@ VK_OnHostExit(*) {
     _StopDoubleModifierHook()
     _StopSequenceHook()
     _EndRecord(false)
+    global g_VK_FloatGui
+    if IsObject(g_VK_FloatGui)
+        try g_VK_FloatGui.Destroy()
 }
 
 VK_Init(embedded := false) {
@@ -312,6 +318,8 @@ _LoadCommands() {
 
     _VK_MergeSuggestedBindings()
     _VK_EnsureDashboardStorage()
+    _VK_SyncFloatPinnedFromStorage()
+    _VK_RenderGlobalFloatPanel()
 
     bindings := g_Commands["Bindings"]
     if bindings is Map {
@@ -530,7 +538,10 @@ _VK_EnsureDashboardStorage() {
                 normalized.Push(Map(
                     "commandId", cmdId,
                     "sourceAhkKey", item.Has("sourceAhkKey") ? item["sourceAhkKey"] : "",
-                    "sourceDisplayKey", item.Has("sourceDisplayKey") ? item["sourceDisplayKey"] : ""
+                    "sourceDisplayKey", item.Has("sourceDisplayKey") ? item["sourceDisplayKey"] : "",
+                    "customTitle", item.Has("customTitle") ? item["customTitle"] : "",
+                    "customNote", item.Has("customNote") ? item["customNote"] : "",
+                    "customShortcut", item.Has("customShortcut") ? item["customShortcut"] : ""
                 ))
                 continue
             }
@@ -538,6 +549,23 @@ _VK_EnsureDashboardStorage() {
         normalized.Push("")
     }
     g_Commands["DashboardConfig"] := normalized
+
+    rawPinned := (g_Commands.Has("DashboardPinned") && g_Commands["DashboardPinned"] is Array)
+        ? g_Commands["DashboardPinned"]
+        : []
+    pinned := []
+    seen := Map()
+    for cmdId in rawPinned {
+        if (cmdId = "")
+            continue
+        if cmdList && !cmdList.Has(cmdId)
+            continue
+        if seen.Has(cmdId)
+            continue
+        seen[cmdId] := true
+        pinned.Push(cmdId)
+    }
+    g_Commands["DashboardPinned"] := pinned
 }
 
 _VK_DashboardConfigJson() {
@@ -550,7 +578,10 @@ _VK_DashboardConfigJson() {
         if (item is Map) && item.Has("commandId") && item["commandId"] != "" {
             json .= sep . '{"commandId":' . _JsonStr(item["commandId"])
                 . ',"sourceAhkKey":' . _JsonStr(item.Has("sourceAhkKey") ? item["sourceAhkKey"] : "")
-                . ',"sourceDisplayKey":' . _JsonStr(item.Has("sourceDisplayKey") ? item["sourceDisplayKey"] : "") . '}'
+                . ',"sourceDisplayKey":' . _JsonStr(item.Has("sourceDisplayKey") ? item["sourceDisplayKey"] : "")
+                . ',"customTitle":' . _JsonStr(item.Has("customTitle") ? item["customTitle"] : "")
+                . ',"customNote":' . _JsonStr(item.Has("customNote") ? item["customNote"] : "")
+                . ',"customShortcut":' . _JsonStr(item.Has("customShortcut") ? item["customShortcut"] : "") . '}'
         } else {
             json .= sep . "null"
         }
@@ -584,7 +615,10 @@ _VK_StoreDashboardFromWeb(msg) {
                     cfg.Push(Map(
                         "commandId", cmdId,
                         "sourceAhkKey", item.Has("sourceAhkKey") ? item["sourceAhkKey"] : "",
-                        "sourceDisplayKey", item.Has("sourceDisplayKey") ? item["sourceDisplayKey"] : ""
+                        "sourceDisplayKey", item.Has("sourceDisplayKey") ? item["sourceDisplayKey"] : "",
+                        "customTitle", item.Has("customTitle") ? item["customTitle"] : "",
+                        "customNote", item.Has("customNote") ? item["customNote"] : "",
+                        "customShortcut", item.Has("customShortcut") ? item["customShortcut"] : ""
                     ))
                     continue
                 }
@@ -595,6 +629,132 @@ _VK_StoreDashboardFromWeb(msg) {
     }
 
     _SaveBindings()
+}
+
+_VK_DashboardPinnedJson() {
+    global g_Commands
+    _VK_EnsureDashboardStorage()
+    arr := g_Commands["DashboardPinned"]
+    json := "["
+    sep := ""
+    for cmdId in arr {
+        json .= sep . _JsonStr(cmdId)
+        sep := ","
+    }
+    json .= "]"
+    return json
+}
+
+_VK_HasPinnedCommand(cmdId) {
+    global g_VK_FloatPinned
+    for v in g_VK_FloatPinned {
+        if (v = cmdId)
+            return true
+    }
+    return false
+}
+
+_VK_SyncFloatPinnedFromStorage() {
+    global g_Commands, g_VK_FloatPinned
+    _VK_EnsureDashboardStorage()
+    g_VK_FloatPinned := []
+    for cmdId in g_Commands["DashboardPinned"]
+        g_VK_FloatPinned.Push(cmdId)
+}
+
+_VK_SaveFloatPinnedToStorage() {
+    global g_Commands, g_VK_FloatPinned
+    g_Commands["DashboardPinned"] := []
+    for cmdId in g_VK_FloatPinned
+        g_Commands["DashboardPinned"].Push(cmdId)
+    _SaveBindings()
+}
+
+_VK_FloatDrag(*) {
+    global g_VK_FloatGui
+    if !IsObject(g_VK_FloatGui)
+        return
+    PostMessage(0x00A1, 2, 0, , "ahk_id " . g_VK_FloatGui.Hwnd)
+}
+
+_VK_MakeFloatExecFn(cmdId) {
+    return (*) => _ExecuteCommand(cmdId)
+}
+
+_VK_MakeFloatRemoveFn(cmdId) {
+    return (*) => _VK_UnpinCommand(cmdId)
+}
+
+_VK_RenderGlobalFloatPanel() {
+    global g_VK_FloatGui, g_VK_FloatPinned, g_Commands, FloatingToolbarGUI
+
+    if !(g_VK_FloatPinned is Array) || g_VK_FloatPinned.Length = 0 {
+        if IsObject(g_VK_FloatGui)
+            try g_VK_FloatGui.Hide()
+        return
+    }
+
+    if IsObject(g_VK_FloatGui) {
+        try g_VK_FloatGui.Destroy()
+        g_VK_FloatGui := 0
+        FloatingToolbarGUI := 0
+    }
+
+    g_VK_FloatGui := Gui("+AlwaysOnTop -Caption +ToolWindow +Border", "VK Global Float")
+    FloatingToolbarGUI := g_VK_FloatGui
+    g_VK_FloatGui.BackColor := "111111"
+    g_VK_FloatGui.MarginX := 8
+    g_VK_FloatGui.MarginY := 8
+
+    header := g_VK_FloatGui.Add("Text", "x8 y8 w184 h20 cE67E22 BackgroundTrans", "GLOBAL FLOAT")
+    header.SetFont("s9 Bold", "Consolas")
+    header.OnEvent("Click", _VK_FloatDrag)
+
+    y := 32
+    for cmdId in g_VK_FloatPinned {
+        if !g_Commands.Has("CommandList") || !g_Commands["CommandList"].Has(cmdId)
+            continue
+        name := g_Commands["CommandList"][cmdId]["name"]
+        btn := g_VK_FloatGui.Add("Button", "x8 y" . y . " w160 h28", name)
+        btn.SetFont("s9", "Microsoft YaHei UI")
+        btn.OnEvent("Click", _VK_MakeFloatExecFn(cmdId))
+
+        rm := g_VK_FloatGui.Add("Text", "x172 y" . (y + 4) . " w16 h20 Center cFFB680 BackgroundTrans", "x")
+        rm.SetFont("s10 Bold", "Consolas")
+        rm.OnEvent("Click", _VK_MakeFloatRemoveFn(cmdId))
+        y += 32
+    }
+
+    sw := SysGet(0)
+    x := Max(8, sw - 210)
+    g_VK_FloatGui.Show("NoActivate AutoSize x" . x . " y120")
+}
+
+_VK_PinCommand(cmdId) {
+    global g_Commands, g_VK_FloatPinned
+    if (cmdId = "")
+        return
+    if !g_Commands.Has("CommandList") || !g_Commands["CommandList"].Has(cmdId)
+        return
+    if _VK_HasPinnedCommand(cmdId)
+        return
+    g_VK_FloatPinned.Push(cmdId)
+    _VK_SaveFloatPinnedToStorage()
+    _VK_RenderGlobalFloatPanel()
+}
+
+_VK_UnpinCommand(cmdId) {
+    global g_VK_FloatPinned
+    if !(g_VK_FloatPinned is Array) || g_VK_FloatPinned.Length = 0
+        return
+    next := []
+    for v in g_VK_FloatPinned {
+        if (v != cmdId)
+            next.Push(v)
+    }
+    g_VK_FloatPinned := next
+    _VK_SaveFloatPinnedToStorage()
+    _VK_RenderGlobalFloatPanel()
 }
 
 _SerializeCommands() {
@@ -660,11 +820,13 @@ _SerializeCommands() {
     _VK_EnsureDashboardStorage()
     dashLayoutJson := _JsonStr(g_Commands["DashboardLayout"])
     dashCfgJson := _VK_DashboardConfigJson()
+    dashPinnedJson := _VK_DashboardPinnedJson()
 
     return '{"Categories":' . catJson . ',"CommandList":' . clJson . ',"Bindings":' . bJson
         . ',"SuggestedBindings":' . sbJson
         . ',"DashboardLayout":' . dashLayoutJson
-        . ',"DashboardConfig":' . dashCfgJson . '}'
+        . ',"DashboardConfig":' . dashCfgJson
+        . ',"DashboardPinned":' . dashPinnedJson . '}'
 }
 
 _JsonStr(s) {
@@ -986,6 +1148,14 @@ _OnWebMessage(sender, args) {
         case "dashboardAdd", "dashboardMove", "dashboardRemove", "dashboardConfig":
             _VK_StoreDashboardFromWeb(msg)
             OutputDebug("[VK] Dashboard sync: " . action)
+        case "dashboardPin":
+            if msg.Has("commandId")
+                _VK_PinCommand(msg["commandId"])
+            OutputDebug("[VK] Dashboard pin: " . (msg.Has("commandId") ? msg["commandId"] : ""))
+        case "dashboardUnpin":
+            if msg.Has("commandId")
+                _VK_UnpinCommand(msg["commandId"])
+            OutputDebug("[VK] Dashboard unpin: " . (msg.Has("commandId") ? msg["commandId"] : ""))
 
         default:
             OutputDebug("[VK] Unknown msg: " . msg["type"])
@@ -1816,6 +1986,7 @@ _PushInit() {
     _VK_EnsureDashboardStorage()
     dashLayout := _JsonStr(g_Commands["DashboardLayout"])
     dashCfg := _VK_DashboardConfigJson()
+    dashPinned := _VK_DashboardPinnedJson()
 
     payload := '{"type":"init","categories":' . catJson
         . ',"commands":' . clJson
@@ -1826,7 +1997,8 @@ _PushInit() {
         . ',"lastActionCurrentKey":' . lastActionCurrentKey
         . ',"quickBindActive":' . quickBindActive
         . ',"dashboardLayout":' . dashLayout
-        . ',"dashboardConfig":' . dashCfg . '}'
+        . ',"dashboardConfig":' . dashCfg
+        . ',"dashboardPinned":' . dashPinned . '}'
     VK_SendToWeb(payload)
     OutputDebug("[VK] init pushed")
 }
@@ -1954,7 +2126,12 @@ _VK_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
         return
     if (hwnd = g_VK_Gui.Hwnd && (wParam & 0xFFFF) = 0) {
         try {
-            if (FloatingToolbar_IsForegroundToolbarOrChild())
+            if IsSet(FloatingToolbar_IsForegroundToolbarOrChild) && FloatingToolbar_IsForegroundToolbarOrChild()
+                return
+        } catch {
+        }
+        try {
+            if _VK_IsForegroundGlobalFloat()
                 return
         } catch {
         }
@@ -1963,6 +2140,28 @@ _VK_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
             return
         SetTimer(VK_Hide, -50)
     }
+}
+
+_VK_IsForegroundGlobalFloat() {
+    global g_VK_FloatGui
+    if !IsObject(g_VK_FloatGui)
+        return false
+    fg := 0
+    try fg := WinGetID("A")
+    catch {
+        return false
+    }
+    tb := g_VK_FloatGui.Hwnd
+    hw := fg
+    Loop 40 {
+        if (hw = tb)
+            return true
+        np := DllCall("user32\GetParent", "Ptr", hw, "Ptr")
+        if !np
+            break
+        hw := np
+    }
+    return false
 }
 
 _VK_RequestFocusInput() {

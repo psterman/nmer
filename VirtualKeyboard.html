@@ -856,34 +856,16 @@ body::after {
   background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0));
   pointer-events: none;
 }
-.dashboard-item-top {
+.dashboard-item {
   display: flex;
-  justify-content: flex-end;
-  min-height: 14px;
-}
-.dashboard-item-hint {
-  max-width: 100%;
-  padding: 2px 5px;
-  border: 1px solid rgba(255,190,120,.35);
-  border-radius: 999px;
-  color: #ffd9b0;
-  background: rgba(17,10,4,.72);
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: .2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 100%;
+  padding: 4px;
 }
 .dashboard-item-main {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 6px;
+  width: 100%;
 }
 .dashboard-item-icon {
   min-width: 28px;
@@ -903,14 +885,13 @@ body::after {
 .dashboard-item-label {
   width: 100%;
   color: var(--text);
-  font-size: 11px;
   font-weight: 700;
-  line-height: 1.25;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
   overflow: hidden;
-  word-break: break-word;
+  text-overflow: ellipsis;
+  font-size: clamp(10px, 1.2vw, 14px);
 }
 .dashboard-item-tooltip {
   position: absolute;
@@ -963,9 +944,8 @@ body::after {
   border-radius: 7px;
 }
 #dashboard-grid.layout-multi .dashboard-item-label {
-  font-size: 8px;
-  line-height: 1.15;
-  -webkit-line-clamp: 3;
+  font-size: clamp(8px, 0.9vw, 10px);
+  line-height: 1.1;
 }
 #dashboard-grid.layout-multi .dashboard-item-hint {
   font-size: 7px;
@@ -1011,7 +991,7 @@ body::after {
 #dashboard-context-menu {
   position: fixed;
   display: none;
-  min-width: 140px;
+  min-width: 168px;
   background: #121212;
   border: 1px solid var(--orange);
   border-radius: 8px;
@@ -1034,6 +1014,127 @@ body::after {
 .dashboard-menu-item:hover {
   background: #2a1a00;
   color: var(--orange-lt);
+}
+.dashboard-menu-item:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+  background: transparent;
+  color: #9a8a74;
+}
+#dashboard-float-dock {
+  position: fixed;
+  right: 10px;
+  top: 90px;
+  z-index: 11500;
+  display: none;
+  flex-direction: column;
+  gap: 7px;
+  max-width: 180px;
+}
+.dashboard-float-btn {
+  border: 1px solid rgba(255,150,64,.5);
+  background: linear-gradient(180deg, rgba(28,15,5,.92), rgba(8,8,8,.95));
+  color: #ffe8ca;
+  border-radius: 10px;
+  padding: 7px 9px;
+  cursor: pointer;
+  font-size: 11px;
+  text-align: left;
+  box-shadow: 0 0 18px rgba(255,137,26,.2), 0 0 0 1px rgba(255,180,96,.16) inset;
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.dashboard-float-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255,190,120,.75);
+  box-shadow: 0 0 24px rgba(255,137,26,.32), 0 0 0 1px rgba(255,198,126,.28) inset;
+}
+.dashboard-float-btn .float-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 6px;
+  border-radius: 7px;
+  background: rgba(255,160,64,.22);
+  font-weight: 800;
+  font-size: 10px;
+}
+.dashboard-float-btn .float-name {
+  display: inline;
+  font-weight: 700;
+}
+#dashboard-overwrite-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.62);
+  backdrop-filter: blur(2px);
+  z-index: 13000;
+}
+#dashboard-overwrite-overlay.visible { display: flex; animation: fadeIn .15s ease; }
+#dashboard-overwrite-modal {
+  width: min(460px, calc(100vw - 36px));
+  background: linear-gradient(180deg, #151515, #0d0d0d);
+  border: 1px solid #e67e22;
+  border-radius: 14px;
+  box-shadow: 0 0 0 1px rgba(255,176,89,.12) inset, 0 18px 48px rgba(0,0,0,.55), 0 0 34px rgba(230,126,34,.26);
+  padding: 16px;
+}
+#dashboard-overwrite-modal .modal-title { margin-bottom: 10px; }
+#dashboard-overwrite-modal .modal-body {
+  color: #f3e2c9;
+  font-size: 14px;
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+#dashboard-overwrite-modal .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+#dashboard-edit-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.62);
+  backdrop-filter: blur(2px);
+  z-index: 13100;
+}
+#dashboard-edit-overlay.visible { display: flex; animation: fadeIn .15s ease; }
+#dashboard-edit-modal {
+  width: min(500px, calc(100vw - 34px));
+  border: 1px solid #e67e22;
+  border-radius: 14px;
+  padding: 16px;
+  background: linear-gradient(180deg, #151515, #0d0d0d);
+  box-shadow: 0 0 0 1px rgba(255,176,89,.12) inset, 0 18px 48px rgba(0,0,0,.55), 0 0 34px rgba(230,126,34,.26);
+}
+.dashboard-edit-field { margin-bottom: 10px; }
+.dashboard-edit-label {
+  display: block;
+  color: #e8b984;
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+.dashboard-edit-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(255,160,74,.45);
+  background: rgba(18,12,8,.82);
+  color: #f8ead5;
+  border-radius: 9px;
+  padding: 7px 9px;
+  outline: none;
+  font-size: 13px;
+}
+.dashboard-edit-input:focus {
+  border-color: rgba(255,184,112,.95);
+  box-shadow: 0 0 0 1px rgba(255,184,112,.22) inset, 0 0 16px rgba(255,130,30,.24);
 }
 </style>
 <script src="https://app.local/assets/js/BasePanel.js"></script>
@@ -1203,8 +1304,45 @@ body::after {
     <div id="dashboard-grid" class="layout-multi"></div>
   </div>
   <div id="dashboard-context-menu" role="menu" aria-label="宫格右键菜单">
-    <button class="dashboard-menu-item" data-menu-action="remove" type="button">移除当前动作</button>
-    <button class="dashboard-menu-item" data-menu-action="placeholder" type="button">更多功能（预留）</button>
+    <button class="dashboard-menu-item" data-menu-action="paste" type="button">粘贴</button>
+    <button class="dashboard-menu-item" data-menu-action="remove" type="button">删除</button>
+    <button class="dashboard-menu-item" data-menu-action="edit" type="button">编辑</button>
+    <button class="dashboard-menu-item" data-menu-action="copy" type="button">复制</button>
+    <button class="dashboard-menu-item" data-menu-action="cut" type="button">剪切</button>
+    <button class="dashboard-menu-item" data-menu-action="pin" type="button">全局悬浮</button>
+  </div>
+  <div id="dashboard-float-dock" aria-label="悬浮快捷动作"></div>
+
+  <div id="dashboard-overwrite-overlay" aria-modal="true" role="dialog" aria-label="覆盖确认">
+    <div id="dashboard-overwrite-modal">
+      <div class="modal-title">[ DASHBOARD OVERWRITE ]</div>
+      <div class="modal-body" id="dashboard-overwrite-body">目标宫格已有动作，是否覆盖？</div>
+      <div class="modal-actions">
+        <button class="modal-btn cancel" id="dashboard-overwrite-cancel" type="button">取消</button>
+        <button class="modal-btn confirm" id="dashboard-overwrite-confirm" type="button">覆盖</button>
+      </div>
+    </div>
+  </div>
+  <div id="dashboard-edit-overlay" aria-modal="true" role="dialog" aria-label="编辑宫格动作">
+    <div id="dashboard-edit-modal">
+      <div class="modal-title">[ DASHBOARD EDIT ]</div>
+      <div class="dashboard-edit-field">
+        <label class="dashboard-edit-label" for="dashboard-edit-title">标题</label>
+        <input id="dashboard-edit-title" class="dashboard-edit-input" type="text" maxlength="40" placeholder="显示名称">
+      </div>
+      <div class="dashboard-edit-field">
+        <label class="dashboard-edit-label" for="dashboard-edit-note">备注</label>
+        <input id="dashboard-edit-note" class="dashboard-edit-input" type="text" maxlength="80" placeholder="补充说明">
+      </div>
+      <div class="dashboard-edit-field">
+        <label class="dashboard-edit-label" for="dashboard-edit-shortcut">快捷键显示</label>
+        <input id="dashboard-edit-shortcut" class="dashboard-edit-input" type="text" maxlength="32" placeholder="例如 Ctrl+A">
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn cancel" id="dashboard-edit-cancel" type="button">取消</button>
+        <button class="modal-btn confirm" id="dashboard-edit-save" type="button">保存</button>
+      </div>
+    </div>
   </div>
 
   <!-- ── Bottom: Sidebar + Command Panel ─────────────────────────────── -->
@@ -1288,6 +1426,11 @@ const state = {
   dashboardDragActive: false,
   draggedDashboardItem: null,
   dragPreviewEl: null,
+  dashboardMenuSlotIndex: -1,
+  dashboardClipboard: null,
+  dashboardPinned: [],
+  dashboardOverwriteResolver: null,
+  dashboardEditResolver: null,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1619,7 +1762,14 @@ function slotsForLayout(layout) {
 function normalizeDashboardItem(item) {
   if (!item) return null;
   if (typeof item === 'string') {
-    return state.commands[item] ? { commandId: item, sourceAhkKey: '', sourceDisplayKey: '' } : null;
+    return state.commands[item] ? {
+      commandId: item,
+      sourceAhkKey: '',
+      sourceDisplayKey: '',
+      customTitle: '',
+      customNote: '',
+      customShortcut: '',
+    } : null;
   }
   const commandId = item.commandId || item.cmdId || '';
   if (!commandId || !state.commands[commandId]) return null;
@@ -1627,6 +1777,9 @@ function normalizeDashboardItem(item) {
     commandId,
     sourceAhkKey: item.sourceAhkKey || item.ahkKey || '',
     sourceDisplayKey: item.sourceDisplayKey || item.displayKey || '',
+    customTitle: item.customTitle || item.title || '',
+    customNote: item.customNote || item.note || '',
+    customShortcut: item.customShortcut || item.shortcut || '',
   };
 }
 
@@ -1650,6 +1803,9 @@ function serializeDashboardConfig() {
       commandId: item.commandId,
       sourceAhkKey: item.sourceAhkKey || '',
       sourceDisplayKey: item.sourceDisplayKey || '',
+      customTitle: item.customTitle || '',
+      customNote: item.customNote || '',
+      customShortcut: item.customShortcut || '',
     };
   });
 }
@@ -1773,6 +1929,9 @@ function dashboardItemFromElement(el) {
     commandId: el?.dataset?.cmdId || '',
     sourceAhkKey: el?.dataset?.sourceAhkKey || '',
     sourceDisplayKey: el?.dataset?.sourceDisplayKey || '',
+    customTitle: el?.dataset?.customTitle || '',
+    customNote: el?.dataset?.customNote || '',
+    customShortcut: el?.dataset?.customShortcut || '',
   });
 }
 
@@ -1791,33 +1950,37 @@ function decorateDashboardItem(el, itemLike) {
   const item = normalizeDashboardItem(itemLike);
   if (!item) return;
   const cmd = state.commands[item.commandId] || {};
-  const name = cmd.name || item.commandId;
-  const hint = item.sourceDisplayKey || ahkKeyToDisplayString(item.sourceAhkKey) || displayKeyForCmd(item.commandId);
+  const baseName = cmd.name || item.commandId;
+  const name = item.customTitle || baseName;
+  const hint = item.customShortcut || item.sourceDisplayKey || ahkKeyToDisplayString(item.sourceAhkKey) || displayKeyForCmd(item.commandId);
+  const note = item.customNote || '';
   el.className = 'dashboard-item';
   el.dataset.cmdId = item.commandId;
   el.dataset.sourceAhkKey = item.sourceAhkKey || '';
   el.dataset.sourceDisplayKey = item.sourceDisplayKey || hint || '';
+  el.dataset.customTitle = item.customTitle || '';
+  el.dataset.customNote = item.customNote || '';
+  el.dataset.customShortcut = item.customShortcut || '';
   el.removeAttribute('data-ahkkey');
   el.removeAttribute('data-hotkey');
   el.removeAttribute('data-key');
   el.innerHTML = '';
 
-  const top = mkEl('div', 'dashboard-item-top');
-  const hintEl = mkEl('span', 'dashboard-item-hint', hint || '—');
-  top.appendChild(hintEl);
-
   const main = mkEl('div', 'dashboard-item-main');
-  const icon = mkEl('div', 'dashboard-item-icon', buildDashboardGlyph(name));
   const label = mkEl('div', 'dashboard-item-label', name);
-  main.append(icon, label);
+  main.append(label);
 
   const tooltip = mkEl('div', 'dashboard-item-tooltip');
   const tooltipName = mkEl('span', 'dashboard-tooltip-name', name);
   const tooltipHint = mkEl('span', 'dashboard-tooltip-hint', hint || '未记录来源按键');
   tooltip.append(tooltipName, tooltipHint);
+  if (note) {
+    const tooltipNote = mkEl('span', 'dashboard-tooltip-hint', note);
+    tooltip.append(tooltipNote);
+  }
 
-  el.append(top, main, tooltip);
-  el.title = `${name}${hint ? ` (${hint})` : ''}`;
+  el.append(main, tooltip);
+  el.title = `${name}${hint ? ` (${hint})` : ''}${note ? ` - ${note}` : ''}`;
 }
 
 function slotIndexFromEl(el) {
@@ -1906,6 +2069,157 @@ function applyDashboardItemToSlot(toIndex, itemLike, fromIndex = -1) {
     }
     postDashboardAdd(item, toIndex);
   }
+  return true;
+}
+
+function swapDashboardSlots(fromIndex, toIndex) {
+  const cfg = ensureDashboardStateSize();
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return false;
+  if (fromIndex >= cfg.length || toIndex >= cfg.length) return false;
+  const fromItem = normalizeDashboardItem(cfg[fromIndex]);
+  const toItem = normalizeDashboardItem(cfg[toIndex]);
+  if (!fromItem) return false;
+
+  cfg[toIndex] = fromItem;
+  cfg[fromIndex] = toItem || null;
+  renderDashboardSlot(getDashboardSlotEl(toIndex), cfg[toIndex], toIndex);
+  renderDashboardSlot(getDashboardSlotEl(fromIndex), cfg[fromIndex], fromIndex);
+  postDashboardMove(fromItem, fromIndex, toIndex);
+  return true;
+}
+
+function getDashboardItemAt(index) {
+  const cfg = ensureDashboardStateSize();
+  if (index < 0 || index >= cfg.length) return null;
+  return normalizeDashboardItem(cfg[index]);
+}
+
+function closeDashboardContextMenu() {
+  const menu = document.getElementById('dashboard-context-menu');
+  if (!menu) return;
+  menu.classList.remove('open');
+  state.dashboardMenuSlotIndex = -1;
+}
+
+function openDashboardContextMenu(x, y, slotIndex) {
+  const menu = document.getElementById('dashboard-context-menu');
+  if (!menu) return;
+  state.dashboardMenuSlotIndex = slotIndex;
+  const slotItem = getDashboardItemAt(slotIndex);
+  const hasItem = !!slotItem;
+  const hasClip = !!normalizeDashboardItem(state.dashboardClipboard);
+  menu.querySelectorAll('.dashboard-menu-item').forEach((btn) => {
+    const action = btn.dataset.menuAction || '';
+    btn.disabled = (action !== 'paste') && !hasItem;
+    if (action === 'paste') btn.disabled = !hasClip;
+  });
+  menu.classList.add('open');
+  const maxX = window.innerWidth - menu.offsetWidth - 6;
+  const maxY = window.innerHeight - menu.offsetHeight - 6;
+  menu.style.left = `${Math.max(6, Math.min(x + 6, maxX))}px`;
+  menu.style.top = `${Math.max(6, Math.min(y + 6, maxY))}px`;
+}
+
+function closeDashboardEditModal(result) {
+  const overlay = document.getElementById('dashboard-edit-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('visible');
+  const resolver = state.dashboardEditResolver;
+  state.dashboardEditResolver = null;
+  if (resolver) resolver(result || null);
+}
+
+function openDashboardEditModal(item) {
+  const normalized = normalizeDashboardItem(item);
+  if (!normalized) return Promise.resolve(null);
+  const overlay = document.getElementById('dashboard-edit-overlay');
+  const titleInput = document.getElementById('dashboard-edit-title');
+  const noteInput = document.getElementById('dashboard-edit-note');
+  const shortcutInput = document.getElementById('dashboard-edit-shortcut');
+  const cmd = state.commands[normalized.commandId] || {};
+  titleInput.value = normalized.customTitle || cmd.name || normalized.commandId;
+  noteInput.value = normalized.customNote || '';
+  shortcutInput.value = normalized.customShortcut || normalized.sourceDisplayKey || '';
+  overlay.classList.add('visible');
+  titleInput.focus();
+  titleInput.select();
+  return new Promise((resolve) => {
+    state.dashboardEditResolver = resolve;
+  });
+}
+
+function patchDashboardItemAt(index, patch, notify = true) {
+  const cfg = ensureDashboardStateSize();
+  if (index < 0 || index >= cfg.length) return false;
+  const existing = normalizeDashboardItem(cfg[index]);
+  if (!existing) return false;
+  const next = normalizeDashboardItem(Object.assign({}, existing, patch || {}));
+  if (!next) return false;
+  cfg[index] = next;
+  renderDashboardSlot(getDashboardSlotEl(index), next, index);
+  if (notify) postToAhk(buildDashboardBridgePayload('dashboardConfig'));
+  return true;
+}
+
+async function pasteDashboardClipboardToSlot(slotIndex) {
+  const clip = normalizeDashboardItem(state.dashboardClipboard);
+  if (!clip) return false;
+  const existing = getDashboardItemAt(slotIndex);
+  if (existing && existing.commandId !== clip.commandId) {
+    const confirm = await confirmDashboardOverwrite(existing, clip);
+    if (!confirm) return false;
+  }
+  applyDashboardItemToSlot(slotIndex, clip, -1);
+  setHud(`已粘贴：${state.commands[clip.commandId]?.name || clip.commandId}`);
+  return true;
+}
+
+function renderDashboardFloatDock() {
+  return;
+}
+
+function pinDashboardItem(itemLike) {
+  const item = normalizeDashboardItem(itemLike);
+  if (!item) return;
+  postToAhk({
+    type: 'dashboardPin',
+    commandId: item.commandId,
+    sourceAhkKey: item.sourceAhkKey || '',
+    sourceDisplayKey: item.sourceDisplayKey || '',
+  });
+  setHud(`已加入全局悬浮：${state.commands[item.commandId]?.name || item.commandId}`);
+}
+
+function closeDashboardOverwriteModal(result) {
+  const overlay = document.getElementById('dashboard-overwrite-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('visible');
+  const resolver = state.dashboardOverwriteResolver;
+  state.dashboardOverwriteResolver = null;
+  if (resolver) resolver(!!result);
+}
+
+function confirmDashboardOverwrite(existingItem, incomingItem) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('dashboard-overwrite-overlay');
+    const body = document.getElementById('dashboard-overwrite-body');
+    const oldName = state.commands[existingItem?.commandId || '']?.name || existingItem?.commandId || '未知动作';
+    const newName = state.commands[incomingItem?.commandId || '']?.name || incomingItem?.commandId || '未知动作';
+    body.innerHTML = `<strong>${oldName}</strong> 已在该宫格中。<br>是否覆盖为 <strong>${newName}</strong>？`;
+    state.dashboardOverwriteResolver = resolve;
+    overlay.classList.add('visible');
+  });
+}
+
+async function handleKeyboardDropToSlot(toIndex) {
+  const incoming = normalizeDashboardItem(state.draggedDashboardItem);
+  if (!incoming) return false;
+  const existing = getDashboardItemAt(toIndex);
+  if (existing && existing.commandId !== incoming.commandId) {
+    const confirm = await confirmDashboardOverwrite(existing, incoming);
+    if (!confirm) return false;
+  }
+  applyDashboardItemToSlot(toIndex, incoming, -1);
   return true;
 }
 
@@ -2023,21 +2337,121 @@ function initDashboardDrag() {
     if (!container.contains(ev.relatedTarget)) syncDashboardDropCue(false);
   });
   container.addEventListener('drop', (ev) => {
+    if (ev.defaultPrevented) return;
     if (!state.draggedDashboardItem) return;
     ev.preventDefault();
     const slot = ev.target.closest('.dashboard-slot');
     const toIndex = slotIndexFromEl(slot);
-    if (toIndex >= 0) applyDashboardItemToSlot(toIndex, state.draggedDashboardItem, -1);
-    endDashboardDragState();
+    if (toIndex >= 0) {
+      handleKeyboardDropToSlot(toIndex).finally(() => endDashboardDragState());
+    } else {
+      endDashboardDragState();
+    }
   });
 
   grid.addEventListener('contextmenu', (ev) => {
-    const targetItem = ev.target.closest('.dashboard-item');
-    if (!targetItem) return;
+    const slot = ev.target.closest('.dashboard-slot');
+    if (!slot) return;
     ev.preventDefault();
-    const slot = targetItem.closest('.dashboard-slot');
     const index = slotIndexFromEl(slot);
-    removeDashboardItemAt(index, true);
+    openDashboardContextMenu(ev.pageX, ev.pageY, index);
+  });
+
+  const menu = document.getElementById('dashboard-context-menu');
+  menu.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.dashboard-menu-item');
+    if (!btn) return;
+    const action = btn.dataset.menuAction || '';
+    const slotIndex = state.dashboardMenuSlotIndex;
+    const item = getDashboardItemAt(slotIndex);
+    closeDashboardContextMenu();
+    if (action === 'paste') {
+      pasteDashboardClipboardToSlot(slotIndex);
+      return;
+    }
+    if (!item) return;
+    if (action === 'remove') {
+      removeDashboardItemAt(slotIndex, true);
+      return;
+    }
+    if (action === 'edit') {
+      openDashboardEditModal(item).then((data) => {
+        if (!data) return;
+        patchDashboardItemAt(slotIndex, {
+          customTitle: data.title,
+          customNote: data.note,
+          customShortcut: data.shortcut,
+        }, true);
+      });
+      return;
+    }
+    if (action === 'copy') {
+      state.dashboardClipboard = item;
+      setHud(`已复制宫格动作：${state.commands[item.commandId]?.name || item.commandId}`);
+      return;
+    }
+    if (action === 'cut') {
+      state.dashboardClipboard = item;
+      removeDashboardItemAt(slotIndex, true);
+      setHud(`已剪切宫格动作：${state.commands[item.commandId]?.name || item.commandId}`);
+      return;
+    }
+    if (action === 'pin') {
+      pinDashboardItem(item);
+    }
+  });
+
+  document.addEventListener('click', (ev) => {
+    if (!menu.classList.contains('open')) return;
+    if (ev.target.closest('#dashboard-context-menu')) return;
+    closeDashboardContextMenu();
+  });
+  window.addEventListener('resize', closeDashboardContextMenu);
+  document.addEventListener('scroll', closeDashboardContextMenu, true);
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') {
+      closeDashboardContextMenu();
+      if (state.dashboardOverwriteResolver) closeDashboardOverwriteModal(false);
+      if (state.dashboardEditResolver) closeDashboardEditModal(null);
+    }
+  });
+
+  const overwriteOverlay = document.getElementById('dashboard-overwrite-overlay');
+  document.getElementById('dashboard-overwrite-confirm').addEventListener('click', () => {
+    closeDashboardOverwriteModal(true);
+  });
+  document.getElementById('dashboard-overwrite-cancel').addEventListener('click', () => {
+    closeDashboardOverwriteModal(false);
+  });
+  overwriteOverlay.addEventListener('click', (ev) => {
+    if (ev.target === overwriteOverlay) closeDashboardOverwriteModal(false);
+  });
+
+  const editOverlay = document.getElementById('dashboard-edit-overlay');
+  const editTitle = document.getElementById('dashboard-edit-title');
+  const editNote = document.getElementById('dashboard-edit-note');
+  const editShortcut = document.getElementById('dashboard-edit-shortcut');
+  const collectEditForm = () => ({
+    title: (editTitle.value || '').trim(),
+    note: (editNote.value || '').trim(),
+    shortcut: (editShortcut.value || '').trim(),
+  });
+  document.getElementById('dashboard-edit-save').addEventListener('click', () => {
+    closeDashboardEditModal(collectEditForm());
+  });
+  document.getElementById('dashboard-edit-cancel').addEventListener('click', () => {
+    closeDashboardEditModal(null);
+  });
+  editOverlay.addEventListener('click', (ev) => {
+    if (ev.target === editOverlay) closeDashboardEditModal(null);
+  });
+  [editTitle, editNote, editShortcut].forEach((input) => {
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        closeDashboardEditModal(collectEditForm());
+      }
+    });
   });
 
   keyboard.addEventListener('dragstart', (ev) => {
@@ -2089,8 +2503,8 @@ function initDashboardDrag() {
     const toIndex = slotIndexFromEl(slot);
     if (toIndex < 0) return;
     ev.preventDefault();
-    applyDashboardItemToSlot(toIndex, state.draggedDashboardItem, -1);
-    endDashboardDragState();
+    ev.stopPropagation();
+    handleKeyboardDropToSlot(toIndex).finally(() => endDashboardDragState());
   });
 
   const bindSlotSortable = (slot) => {
@@ -2125,8 +2539,8 @@ function initDashboardDrag() {
           endDashboardDragState();
           return;
         }
-
-        applyDashboardItemToSlot(toIndex, item, fromIndex);
+        const swapped = swapDashboardSlots(fromIndex, toIndex);
+        if (!swapped) applyDashboardItemToSlot(toIndex, item, fromIndex);
       },
       onUpdate: (evt) => {
         const toIndex = slotIndexFromEl(evt.to);
@@ -2147,6 +2561,7 @@ function initDashboardDrag() {
   });
   mo.observe(grid, { childList: true });
 
+  renderDashboardFloatDock();
   dashboardInited = true;
 }
 

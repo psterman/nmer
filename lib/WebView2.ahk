@@ -119,6 +119,11 @@ class WebView2 {
 		}
 		static handler(this, err, result := '') {
 			this := ObjFromPtrAddRef(NumGet(this, A_PtrSize, 'ptr'))
+			; 0x80004004: operation aborted (common during shutdown/navigation)
+			if err && err = 0x80004004 {
+				(this.resolve)(result)
+				return
+			}
 			if err && (!result || err !== 0x80070057)
 				(this.reject)(OSError(err))
 			else

@@ -41,6 +41,7 @@ global g_FTB_PendingSelection := ""
 global g_FTB_UI_Ready := false
 global g_FTB_WaitingUiFinishedReveal := false
 global g_FTB_ScreenshotDeferLastTick := 0  ; 防抖：WebView 短时双发 postMessage 会排队两次 Deferred，避免第二次再跑完整截图助手流程
+global g_FTB_WV2_CreateRetry := 0
 
 ; ===================== 鏄剧ず/闅愯棌鎮诞绐?=====================
 ShowFloatingToolbar() {
@@ -52,9 +53,8 @@ ShowFloatingToolbar() {
     }
     ; 竞态：首次 Show 用 Show+Hide 等待 WebView UI_FINISHED 动画 reveal 期间 FloatingToolbarIsVisible 仍为 false，
     ; 若此时再次进入（如截图恢复 + 其它路径），会二次 LoadFloatingToolbarPosition/Show，出现双动画与悬浮条大位移。
-    if (FloatingToolbarGUI != 0 && g_FTB_WaitingUiFinishedReveal) {
-        return
-    }
+    if (FloatingToolbarGUI != 0 && g_FTB_WaitingUiFinishedReveal)
+        g_FTB_WaitingUiFinishedReveal := false
 
     FloatingToolbarLoadScale()
 
@@ -75,17 +75,9 @@ ShowFloatingToolbar() {
     ToolbarWidth := FloatingToolbarCalculateWidth()
     ToolbarHeight := FloatingToolbarCalculateHeight()
 
-    if (g_FTB_UI_Ready) {
-        FloatingToolbarGUI.Show("x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . ToolbarWidth . " h" . ToolbarHeight)
-        FloatingToolbarIsVisible := true
-        FloatingToolbarApplyRoundedCorners()
-        FloatingToolbar_ApplyWebViewBounds()
-        SetTimer(FloatingToolbarCheckWindowPosition, 100)
-        return
-    }
-
-    FloatingToolbarGUI.Show("x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . ToolbarWidth . " h" . ToolbarHeight . " Hide")
-    g_FTB_WaitingUiFinishedReveal := true
+    FloatingToolbarGUI.Show("x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . ToolbarWidth . " h" . ToolbarHeight . " NoActivate")
+    FloatingToolbarIsVisible := true
+    g_FTB_WaitingUiFinishedReveal := false
     FloatingToolbarApplyRoundedCorners()
     FloatingToolbar_ApplyWebViewBounds()
 
@@ -117,8 +109,9 @@ ToggleFloatingToolbar() {
 ; ===================== 鍒涘缓GUI =====================
 CreateFloatingToolbarGUI() {
     global FloatingToolbarGUI, g_FTB_WV2_Ctrl, g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_PendingSelection
-    global g_FTB_UI_Ready, g_FTB_WaitingUiFinishedReveal
+    global g_FTB_UI_Ready, g_FTB_WaitingUiFinishedReveal, g_FTB_WV2_CreateRetry
     global WebView2
+    g_FTB_WV2_CreateRetry := 0
 
     if (FloatingToolbarGUI != 0) {
         g_FTB_WV2_Ctrl := 0
@@ -128,6 +121,7 @@ CreateFloatingToolbarGUI() {
         g_FTB_PendingSelection := ""
         g_FTB_UI_Ready := false
         g_FTB_WaitingUiFinishedReveal := false
+        g_FTB_WV2_CreateRetry := 0
         try FloatingToolbarGUI.Destroy()
         catch as _e {
         }
@@ -190,8 +184,14 @@ FloatingToolbarApplyRoundedCorners() {
 
 ; ===================== WebView2 鍥炶皟 =====================
 FloatingToolbar_OnWebViewCreated(ctrl) {
-    global g_FTB_WV2_Ctrl, g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_WV2_FrameReady
+    global g_FTB_WV2_Ctrl, g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_WV2_FrameReady, g_FTB_WV2_CreateRetry
 
+    if !IsObject(ctrl) || !ctrl.HasProp("CoreWebView2") {
+        OutputDebug("[FTB] WebView2 create failed: invalid controller")
+        FloatingToolbar_RetryCreateWebView()
+        return
+    }
+    g_FTB_WV2_CreateRetry := 0
     g_FTB_WV2_Ctrl := ctrl
     g_FTB_WV2 := ctrl.CoreWebView2
     g_FTB_WV2_Ready := false
@@ -232,6 +232,16 @@ FloatingToolbar_ApplyWebViewBounds() {
         g_FTB_WV2_Ctrl.NotifyParentWindowPositionChanged()
     } catch {
     }
+}
+
+FloatingToolbar_RetryCreateWebView() {
+    global FloatingToolbarGUI, g_FTB_WV2_CreateRetry
+    if !FloatingToolbarGUI
+        return
+    if (g_FTB_WV2_CreateRetry >= 3)
+        return
+    g_FTB_WV2_CreateRetry += 1
+    SetTimer((*) => WebView2.create(FloatingToolbarGUI.Hwnd, FloatingToolbar_OnWebViewCreated), -200)
 }
 
 FloatingToolbar_GetLogoAppUrl() {
