@@ -702,8 +702,173 @@ body::after {
   0% { opacity: .2; }
   100% { opacity: 1; }
 }
+
+/* ── Dashboard Grid (Orange/Black) ─────────────────────────────────────── */
+#dashboard-container {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  padding: 10px 12px 12px;
+  background: linear-gradient(180deg, rgba(20,20,20,.92), rgba(10,10,10,.96));
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+#dashboard-title {
+  font-family: var(--font);
+  font-size: 10px;
+  letter-spacing: 2.2px;
+  color: var(--text-dim);
+  margin: 0 0 10px 2px;
+  text-shadow: 0 0 10px rgba(230,126,34,.18);
+}
+#dashboard-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+#dashboard-layout-switch {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.dashboard-layout-btn {
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  background: #171717;
+  color: var(--text-dim);
+  font-family: var(--font);
+  font-size: 10px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: .12s ease;
+}
+.dashboard-layout-btn:hover {
+  color: var(--orange-lt);
+  border-color: var(--orange);
+}
+.dashboard-layout-btn.active {
+  color: var(--orange-lt);
+  border-color: var(--orange);
+  box-shadow: var(--glow);
+}
+#dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--dashboard-cols, 4), minmax(0, 1fr));
+  gap: clamp(6px, .65vw, 10px);
+  height: auto;
+  overflow: visible;
+  padding-right: 0;
+  align-content: start;
+  justify-content: stretch;
+}
+#dashboard-grid::-webkit-scrollbar { width: 6px; }
+#dashboard-grid::-webkit-scrollbar-track { background: transparent; }
+#dashboard-grid::-webkit-scrollbar-thumb {
+  background: rgba(230,126,34,.35);
+  border-radius: 6px;
+}
+#dashboard-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(243,156,18,.65);
+}
+#dashboard-grid.layout-1 { --dashboard-cols: 10; }
+#dashboard-grid.layout-2 { --dashboard-cols: 10; }
+#dashboard-grid.layout-multi { --dashboard-cols: 20; }
+.dashboard-slot {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  min-width: 0;
+  min-height: 0;
+  border: 1px dashed rgba(230,126,34,.55);
+  border-radius: 10px;
+  background: radial-gradient(90% 90% at 15% 10%, rgba(230,126,34,.10), rgba(0,0,0,0) 55%),
+              linear-gradient(180deg, rgba(20,20,20,.68), rgba(10,10,10,.84));
+  box-shadow: 0 0 0 1px rgba(0,0,0,.35) inset;
+  overflow: hidden;
+  transition: border-color .12s ease, box-shadow .12s ease, background .12s ease, transform .12s ease;
+}
+.dashboard-slot::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(230,126,34,.18), rgba(0,0,0,0) 42%);
+  opacity: 0;
+  transition: opacity .12s ease;
+  pointer-events: none;
+}
+.dashboard-slot:hover {
+  border-color: rgba(243,156,18,.95);
+  box-shadow: var(--glow), 0 0 0 1px rgba(243,156,18,.28) inset;
+  transform: translateY(-1px);
+}
+.dashboard-slot:hover::after { opacity: .55; }
+.dashboard-slot.sortable-ghost {
+  opacity: .65;
+  border-style: solid;
+  border-color: rgba(0,212,255,.55);
+}
+.dashboard-slot.sortable-chosen {
+  box-shadow: var(--glow-hot), 0 0 0 1px rgba(230,126,34,.35) inset;
+}
+.dashboard-item {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: .3px;
+  color: var(--text);
+  background: radial-gradient(120% 120% at 20% 15%, rgba(0,0,0,.0), rgba(0,0,0,.28) 55%),
+              linear-gradient(180deg, rgba(230,126,34,.22), rgba(0,0,0,.0));
+  cursor: grab;
+  user-select: none;
+}
+#dashboard-grid.layout-1 .dashboard-item { font-size: 12px; padding: 8px; }
+#dashboard-grid.layout-2 .dashboard-item { font-size: 11px; padding: 7px; }
+#dashboard-grid.layout-multi .dashboard-item { font-size: 9px; padding: 4px; }
+.dashboard-item:active { cursor: grabbing; }
+.dashboard-item[data-cmd-id=""] { opacity: .75; }
+#dashboard-context-menu {
+  position: fixed;
+  display: none;
+  min-width: 140px;
+  background: #121212;
+  border: 1px solid var(--orange);
+  border-radius: 8px;
+  box-shadow: var(--glow-hot), 0 8px 22px rgba(0, 0, 0, .45);
+  padding: 6px;
+  z-index: 12000;
+}
+#dashboard-context-menu.open { display: block; }
+.dashboard-menu-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.dashboard-menu-item:hover {
+  background: #2a1a00;
+  color: var(--orange-lt);
+}
 </style>
 <script src="https://app.local/assets/js/BasePanel.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 </head>
 <body>
 <div id="root">
@@ -855,6 +1020,23 @@ body::after {
 
     </div><!-- #keyboard -->
   </div><!-- #keyboard-zone -->
+
+  <!-- ── Dashboard Grid (Drag & Drop) ──────────────────────────────────── -->
+  <div id="dashboard-container" aria-label="快捷动作面板">
+    <div id="dashboard-toolbar">
+      <div id="dashboard-title">DASHBOARD</div>
+      <div id="dashboard-layout-switch" aria-label="宫格布局切换">
+        <button class="dashboard-layout-btn" data-layout="1" type="button">1宫格</button>
+        <button class="dashboard-layout-btn" data-layout="2" type="button">2宫格</button>
+        <button class="dashboard-layout-btn active" data-layout="multi" type="button">多宫格</button>
+      </div>
+    </div>
+    <div id="dashboard-grid" class="layout-multi"></div>
+  </div>
+  <div id="dashboard-context-menu" role="menu" aria-label="宫格右键菜单">
+    <button class="dashboard-menu-item" data-menu-action="remove" type="button">移除当前动作</button>
+    <button class="dashboard-menu-item" data-menu-action="placeholder" type="button">更多功能（预留）</button>
+  </div>
 
   <!-- ── Bottom: Sidebar + Command Panel ─────────────────────────────── -->
   <div id="bottom-zone">
@@ -1199,6 +1381,7 @@ function handleInit(msg) {
   renderKeyboardSlots();
   renderModifierKeys();
   updateHudSnapshot(true);
+  initDashboardDrag();
 }
 
 function handleBindingUpdated(msg) {
@@ -1230,6 +1413,218 @@ function handleBindingUpdated(msg) {
       state.lastActionCurrentKey = '';
   }
   updateHudSnapshot();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Dashboard (Drag & Drop)
+//  - Drag source: bound keyboard keys (#keyboard .k.bound) as clones
+//  - Drop target: dashboard slots (CSS grid), one item per slot
+//  - Notify AHK: dashboardAdd / dashboardMove
+// ═══════════════════════════════════════════════════════════════════════════
+let dashboardInited = false;
+let dashboardLayout = 'multi';
+let dashboardContextTarget = null;
+
+function slotsForLayout(layout) {
+  if (String(layout) === 'multi') return 60; // 3行 * 20列
+  const n = Number(layout);
+  if (n === 1) return 10;  // 1行 * 10列
+  if (n === 2) return 20;  // 2行 * 10列
+  return 60;
+}
+
+function ensureDashboardSlots() {
+  const grid = document.getElementById('dashboard-grid');
+  if (!grid) return;
+  const oldItems = Array.from(grid.querySelectorAll('.dashboard-item')).map((it) => {
+    return { cmdId: it.dataset.cmdId || '', text: it.textContent || '' };
+  });
+  const need = slotsForLayout(dashboardLayout);
+  grid.innerHTML = '';
+  for (let i = 0; i < need; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'dashboard-slot';
+    slot.dataset.slotIndex = String(i);
+    const old = oldItems[i];
+    if (old && old.cmdId) {
+      const item = document.createElement('div');
+      decorateDashboardItem(item, old.cmdId);
+      if (!old.cmdId && old.text) item.textContent = old.text;
+      slot.appendChild(item);
+    }
+    grid.appendChild(slot);
+  }
+}
+
+function applyDashboardLayout(layout) {
+  const grid = document.getElementById('dashboard-grid');
+  if (!grid) return;
+  const isMulti = String(layout) === 'multi';
+  const n = Number(layout);
+  dashboardLayout = isMulti ? 'multi' : ([1, 2].includes(n) ? n : 'multi');
+  grid.classList.remove('layout-1', 'layout-2', 'layout-multi');
+  grid.classList.add(`layout-${dashboardLayout}`);
+  ensureDashboardSlots();
+  document.querySelectorAll('.dashboard-layout-btn').forEach((btn) => {
+    btn.classList.toggle('active', String(btn.dataset.layout) === String(dashboardLayout));
+  });
+}
+
+function cmdIdFromKeyEl(keyEl) {
+  const baseKey = keyEl?.dataset?.ahkkey || '';
+  if (!baseKey) return '';
+  if (isModifierBaseKey(baseKey)) {
+    const dbl = modifierToDoubleAhkKey(baseKey);
+    return dbl ? (state.ahkKeyIndex[dbl] || '') : '';
+  }
+  const lookup = getActivePrefix() + baseKey;
+  let cmdId = state.ahkKeyIndex[lookup] || '';
+  if (!cmdId && getActivePrefix() === '') cmdId = state.suggestedByKey[baseKey] || '';
+  return cmdId;
+}
+
+function decorateDashboardItem(el, cmdId) {
+  const name = (cmdId && state.commands[cmdId]?.name) ? state.commands[cmdId].name : (cmdId || '未绑定');
+  el.className = 'dashboard-item';
+  el.innerHTML = '';
+  el.textContent = name;
+  el.dataset.cmdId = cmdId || '';
+  el.removeAttribute('data-ahkkey');
+  el.removeAttribute('data-hotkey');
+  el.removeAttribute('data-key');
+}
+
+function slotIndexFromEl(el) {
+  const n = Number(el?.dataset?.slotIndex);
+  return Number.isFinite(n) ? n : -1;
+}
+
+function postDashboardAdd(commandId, toIndex) {
+  if (!commandId || toIndex < 0) return;
+  postToAhk({ type: 'dashboardAdd', commandId, toIndex });
+}
+
+function postDashboardMove(commandId, fromIndex, toIndex) {
+  if (!commandId || fromIndex < 0 || toIndex < 0) return;
+  if (fromIndex === toIndex) return;
+  postToAhk({ type: 'dashboardMove', commandId, fromIndex, toIndex });
+}
+
+function closeDashboardContextMenu() {
+  const menu = document.getElementById('dashboard-context-menu');
+  if (!menu) return;
+  menu.classList.remove('open');
+  dashboardContextTarget = null;
+}
+
+function openDashboardContextMenu(ev, targetItem) {
+  const menu = document.getElementById('dashboard-context-menu');
+  if (!menu || !targetItem) return;
+  dashboardContextTarget = targetItem;
+  menu.style.left = `${ev.clientX}px`;
+  menu.style.top = `${ev.clientY}px`;
+  menu.classList.add('open');
+}
+
+function initDashboardDrag() {
+  if (dashboardInited) return;
+  if (typeof Sortable === 'undefined') {
+    console.warn('[VK] Sortable.js not loaded');
+    return;
+  }
+  ensureDashboardSlots();
+  const keyboard = document.getElementById('keyboard');
+  const grid = document.getElementById('dashboard-grid');
+  if (!keyboard || !grid) return;
+  applyDashboardLayout(dashboardLayout);
+
+  document.querySelectorAll('.dashboard-layout-btn').forEach((btn) => {
+    btn.addEventListener('click', () => applyDashboardLayout(btn.dataset.layout));
+  });
+
+  grid.addEventListener('contextmenu', (ev) => {
+    const targetItem = ev.target.closest('.dashboard-item');
+    if (!targetItem) return;
+    ev.preventDefault();
+    openDashboardContextMenu(ev, targetItem);
+  });
+  document.addEventListener('click', () => closeDashboardContextMenu());
+  document.getElementById('dashboard-context-menu')?.addEventListener('click', (ev) => {
+    const actionEl = ev.target.closest('.dashboard-menu-item');
+    if (!actionEl || !dashboardContextTarget) return;
+    const action = actionEl.dataset.menuAction || '';
+    if (action === 'remove') {
+      const slot = dashboardContextTarget.closest('.dashboard-slot');
+      const cmdId = dashboardContextTarget.dataset.cmdId || '';
+      dashboardContextTarget.remove();
+      // 预留后续与 AHK 的删除同步消息
+      if (slot) {
+        const idx = slotIndexFromEl(slot);
+        postToAhk({ type: 'dashboardRemove', commandId: cmdId, fromIndex: idx });
+      }
+    }
+    closeDashboardContextMenu();
+  });
+
+  // Source: keyboard (clone only)
+  new Sortable(keyboard, {
+    group: { name: 'actions', pull: 'clone', put: false },
+    sort: false,
+    animation: 120,
+    draggable: '.k.bound, .k.slot-occupied',
+    filter: '.k:not(.bound):not(.slot-occupied)',
+    onClone: (evt) => {
+      const src = evt.item;
+      const clone = evt.clone;
+      const cmdId = cmdIdFromKeyEl(src);
+      decorateDashboardItem(clone, cmdId);
+    },
+  });
+
+  const bindSlotSortable = (slot) => {
+    if (!slot || slot.dataset.sortableBound === '1') return;
+    slot.dataset.sortableBound = '1';
+    new Sortable(slot, {
+      group: { name: 'actions', pull: true, put: true },
+      animation: 140,
+      draggable: '.dashboard-item',
+      onAdd: (evt) => {
+        const toSlot = evt.to;
+        const fromSlot = evt.from;
+        const toIndex = slotIndexFromEl(toSlot);
+        const fromIndex = slotIndexFromEl(fromSlot);
+
+        // enforce 1 item per slot (keep newly added one)
+        Array.from(toSlot.querySelectorAll('.dashboard-item')).forEach((it) => {
+          if (it !== evt.item) it.remove();
+        });
+
+        let cmdId = evt.item?.dataset?.cmdId || '';
+        if (!cmdId && evt.item) {
+          // fallback: if something weird got dropped, try interpret it as key
+          cmdId = cmdIdFromKeyEl(evt.item);
+        }
+        decorateDashboardItem(evt.item, cmdId);
+
+        if (fromIndex >= 0) postDashboardMove(cmdId, fromIndex, toIndex);
+        else postDashboardAdd(cmdId, toIndex);
+      },
+      onUpdate: (evt) => {
+        const toIndex = slotIndexFromEl(evt.to);
+        const fromIndex = slotIndexFromEl(evt.from);
+        const cmdId = evt.item?.dataset?.cmdId || '';
+        if (cmdId && toIndex >= 0 && fromIndex >= 0) postDashboardMove(cmdId, fromIndex, toIndex);
+      },
+    });
+  };
+  grid.querySelectorAll('.dashboard-slot').forEach(bindSlotSortable);
+
+  const mo = new MutationObserver(() => {
+    grid.querySelectorAll('.dashboard-slot').forEach(bindSlotSortable);
+  });
+  mo.observe(grid, { childList: true });
+
+  dashboardInited = true;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

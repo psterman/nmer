@@ -1792,6 +1792,7 @@ VK_Show() {
     global g_VK_Gui, g_VK_Ready, g_VK_LastShown
     if g_VK_Gui {
         g_VK_Gui.Show("NoActivate")
+        try WinMaximize("ahk_id " . g_VK_Gui.Hwnd)
         g_VK_LastShown := A_TickCount
         ; 预加载隐藏态创建时，首次显示需刷新布局与合成层（缓解 WebView2 黑屏）
         _VK_RefreshWebViewComposition()
