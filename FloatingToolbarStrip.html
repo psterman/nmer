@@ -1462,6 +1462,13 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       if (typeof v.message === 'string' && v.message.trim()) out.push(v.message.trim());
       if (typeof v.content === 'string' && v.content.trim()) out.push(v.content.trim());
       if (v.content && typeof v.content !== 'string') ocCollectTextDeep(v.content, out);
+      if (v.delta) ocCollectTextDeep(v.delta, out);
+      if (v.output) ocCollectTextDeep(v.output, out);
+      if (v.response) ocCollectTextDeep(v.response, out);
+      if (v.result) ocCollectTextDeep(v.result, out);
+      if (v.data) ocCollectTextDeep(v.data, out);
+      if (v.payload) ocCollectTextDeep(v.payload, out);
+      if (v.message && typeof v.message !== 'string') ocCollectTextDeep(v.message, out);
       if (v.parts) ocCollectTextDeep(v.parts, out);
       if (v.output_text) ocCollectTextDeep(v.output_text, out);
     }
@@ -1471,8 +1478,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   function ocExtractChatEventPayload(pl) {
     if (!pl || typeof pl !== 'object') return '';
     if (pl.state === 'error') return '';
-    var msg = pl.message;
-    if (msg == null) return '';
+    var msg = pl.message || pl.data || pl.response || pl.result || pl.output || pl.delta || pl.payload;
+    if (msg == null) msg = pl;
     if (typeof msg === 'string') return String(msg).trim();
     var acc = [];
     ocCollectTextDeep(msg, acc);

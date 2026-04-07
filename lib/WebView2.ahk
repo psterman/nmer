@@ -9,6 +9,13 @@
  ***********************************************************************/
 class WebView2 {
 	static create(hwnd := -3, callback?, createdEnvironment := 0, dataDir := '', edgeRuntime := '', options := 0, dllPathOrFuncPtr := 'WebView2Loader.dll') {
+		if !options {
+			try {
+				global WebView2DefaultOptions
+				if IsSet(WebView2DefaultOptions) && WebView2DefaultOptions
+					options := WebView2DefaultOptions
+			}
+		}
 		p := createdEnvironment ? createdEnvironment.CreateCoreWebView2ControllerAsync(hwnd) :
 			this.CreateControllerAsync(hwnd, options, dataDir, edgeRuntime, dllPathOrFuncPtr)
 		if !IsSet(callback)

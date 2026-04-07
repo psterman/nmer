@@ -486,6 +486,8 @@ global ConfigWebViewPreloaded := false
 global UnifiedAssetsHost := "app.local"
 global UnifiedAssetsRoot := A_ScriptDir
 global UnifiedAssetsAccessKind := 0  ; COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW
+; Allow WebView2 to open ws:// from https://app.local (OpenClaw Gateway is local ws).
+global WebView2DefaultOptions := { AdditionalBrowserArguments: "--allow-running-insecure-content" }
 global WebViewMsgQueue := []
 global WebViewMsgQueueActive := false
 global WebViewWarmupQueue := []
