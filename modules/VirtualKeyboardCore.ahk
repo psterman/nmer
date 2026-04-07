@@ -1,4 +1,4 @@
-; VirtualKeyboard 核心（供 CursorHelper #Include 或独立 VirtualKeyboard.ahk #Include）
+﻿; VirtualKeyboard 核心（供 CursorHelper #Include 或独立 VirtualKeyboard.ahk #Include）
 ; 依赖：调用方已 #Include lib\WebView2.ahk 与 lib\Jxon.ahk
 ; 嵌入 CursorHelper 时：#Include modules\VirtualKeyboardExecCmd.ahk 须在本文件之前
 
@@ -25,6 +25,8 @@ global g_VK_QuickBindHook := 0
 global g_VK_QuickBindArmed := false
 global g_VK_QuickBindConsumed := false
 global g_VK_TitleH := 44
+global g_VK_IsAdmin := A_IsAdmin
+global g_VK_AdminWarning := ""
 ; 双击修饰键：^^ / ++ / !!（与 Hotkey() 不兼容，由专用 InputHook 处理）
 global g_VK_DblModIH := 0
 global g_VK_DblModLast := Map("ctrl", 0, "shift", 0, "alt", 0)
@@ -61,13 +63,15 @@ VK_OnHostExit(*) {
 }
 
 VK_Init(embedded := false) {
-    global g_VK_Gui, g_VK_Embedded, g_JsonPath
+    global g_VK_Gui, g_VK_Embedded, g_JsonPath, g_VK_IsAdmin, g_VK_AdminWarning
 
     if g_VK_Gui
         return
 
     g_VK_Embedded := embedded
     g_JsonPath := A_ScriptDir "\Commands.json"
+    g_VK_IsAdmin := !!A_IsAdmin
+    g_VK_AdminWarning := g_VK_IsAdmin ? "" : "Warning: running without admin privileges. Hotkeys may not work in elevated windows (e.g. Task Manager)."
 
     _LoadCommands()
     _VK_RefreshPromptTemplateCommands()
@@ -838,16 +842,21 @@ _JsonStr(s) {
 _BindKey(ahkKey, cmdId) {
     global g_HotkeyBound
     if _VkIsRuntimeHookKey(ahkKey)
-        return
+        return true
     if g_HotkeyBound.Has(ahkKey)
-        try Hotkey(ahkKey, "Off")
+        _VK_ReleaseBoundHotkey(ahkKey)
     fn := _MakeCmdFn(cmdId)
     try {
         Hotkey(ahkKey, fn, "On")
         g_HotkeyBound[ahkKey] := 1
         OutputDebug("[VK] Bound: " . ahkKey . " -> " . cmdId)
+        return true
     } catch as e {
         OutputDebug("[VK] Hotkey error (" . ahkKey . "): " . e.Message)
+        VK_SendToWeb('{"type":"bind_error","commandId":' . _JsonStr(cmdId)
+            . ',"ahkKey":' . _JsonStr(ahkKey)
+            . ',"message":' . _JsonStr(e.Message) . '}')
+        return false
     }
 }
 
@@ -859,11 +868,19 @@ _UnbindKey(ahkKey) {
     global g_HotkeyBound
     if _VkIsRuntimeHookKey(ahkKey)
         return
-    if g_HotkeyBound.Has(ahkKey) {
-        try Hotkey(ahkKey, "Off")
-        g_HotkeyBound.Delete(ahkKey)
+    hadBound := g_HotkeyBound.Has(ahkKey)
+    _VK_ReleaseBoundHotkey(ahkKey)
+    if hadBound
         OutputDebug("[VK] Unbound: " . ahkKey)
-    }
+}
+
+_VK_ReleaseBoundHotkey(ahkKey) {
+    global g_HotkeyBound
+    if (ahkKey = "" || _VkIsRuntimeHookKey(ahkKey))
+        return
+    try Hotkey(ahkKey, "Off")
+    if g_HotkeyBound.Has(ahkKey)
+        g_HotkeyBound.Delete(ahkKey)
 }
 
 _ApplyAllBindings() {
@@ -1162,25 +1179,29 @@ _OnWebMessage(sender, args) {
 _DoBindKey(cmdId, ahkKey, displayKey) {
     global g_Bindings, g_InverseBindings, g_VK_Embedded
 
-    if g_InverseBindings.Has(cmdId) {
-        oldKey := g_InverseBindings[cmdId]
-        if oldKey != ahkKey {
-            if !g_VK_Embedded
-                _UnbindKey(oldKey)
-            g_Bindings.Delete(oldKey)
+    oldKey := g_InverseBindings.Has(cmdId) ? g_InverseBindings[cmdId] : ""
+    oldCmd := g_Bindings.Has(ahkKey) ? g_Bindings[ahkKey] : ""
+
+    if !g_VK_Embedded {
+        ; 先彻底释放旧键，再尝试注册新键，避免 Hotkey 注册冲突。
+        if (oldKey != "")
+            _VK_ReleaseBoundHotkey(oldKey)
+        if !_BindKey(ahkKey, cmdId) {
+            if (oldKey != "" && oldKey != ahkKey)
+                _BindKey(oldKey, cmdId)
+            return false
         }
     }
-    if g_Bindings.Has(ahkKey) {
-        oldCmd := g_Bindings[ahkKey]
-        if oldCmd != cmdId
-            g_InverseBindings.Delete(oldCmd)
-    }
+
+    if (oldKey != "" && oldKey != ahkKey)
+        g_Bindings.Delete(oldKey)
+    if (oldCmd != "" && oldCmd != cmdId)
+        g_InverseBindings.Delete(oldCmd)
 
     g_Bindings[ahkKey] := cmdId
     g_InverseBindings[cmdId] := ahkKey
-    if !g_VK_Embedded
-        _BindKey(ahkKey, cmdId)
-    else
+
+    if g_VK_Embedded
         _VK_SyncEmbeddedCapslockHotkeys()
     _SaveBindings()
 
@@ -1191,6 +1212,7 @@ _DoBindKey(cmdId, ahkKey, displayKey) {
     OutputDebug("[VK] bindKey: " . cmdId . " = " . ahkKey)
     _EnsureDoubleModifierHook()
     _EnsureSequenceHook()
+    return true
 }
 
 _DoClearBinding(cmdId) {
@@ -1404,7 +1426,10 @@ _VK_OnQuickBindKeyDown(ih, vk, sc) {
         return
     displayKey := _ToDisplayKey(ahkKey)
     g_VK_QuickBindConsumed := true
-    _DoBindKey(g_LastExecutedCmdId, ahkKey, displayKey)
+    if !_DoBindKey(g_LastExecutedCmdId, ahkKey, displayKey) {
+        g_VK_QuickBindConsumed := false
+        return
+    }
     cmdName := _VK_GetCommandName(g_LastExecutedCmdId)
     escName := StrReplace(StrReplace(cmdName, "\", "\\"), '"', '\"')
     escDisp := StrReplace(StrReplace(displayKey, "\", "\\"), '"', '\"')
@@ -1912,7 +1937,7 @@ _GetKeyFromSC(sc) {
 }
 
 _PushInit() {
-    global g_Commands, g_InverseBindings, g_LastExecutedCmdId, g_VK_QuickBindArmed, g_VK_QuickBindConsumed
+    global g_Commands, g_InverseBindings, g_LastExecutedCmdId, g_VK_QuickBindArmed, g_VK_QuickBindConsumed, g_VK_IsAdmin, g_VK_AdminWarning
 
     if !g_Commands.Has("Categories") {
         OutputDebug("[VK] Commands not loaded")
@@ -1984,6 +2009,8 @@ _PushInit() {
     dashLayout := _JsonStr(g_Commands["DashboardLayout"])
     dashCfg := _VK_DashboardConfigJson()
     dashPinned := _VK_DashboardPinnedJson()
+    adminWarning := _JsonStr(g_VK_AdminWarning)
+    isAdmin := g_VK_IsAdmin ? "true" : "false"
 
     payload := '{"type":"init","categories":' . catJson
         . ',"commands":' . clJson
@@ -1993,6 +2020,8 @@ _PushInit() {
         . ',"lastActionName":' . lastActionName
         . ',"lastActionCurrentKey":' . lastActionCurrentKey
         . ',"quickBindActive":' . quickBindActive
+        . ',"isAdmin":' . isAdmin
+        . ',"adminWarning":' . adminWarning
         . ',"dashboardLayout":' . dashLayout
         . ',"dashboardConfig":' . dashCfg
         . ',"dashboardPinned":' . dashPinned . '}'
