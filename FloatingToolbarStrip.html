@@ -2835,7 +2835,9 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   post({ type: 'toolbar_ready' });
   requestAnimationFrame(function () {
     requestAnimationFrame(function () {
-      post({ type: 'UI_FINISHED' });
+      setTimeout(function () {
+        post({ type: 'UI_FINISHED' });
+      }, 16);
     });
   });
 })();

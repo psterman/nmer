@@ -44,17 +44,56 @@ global g_FTB_ScreenshotDeferLastTick := 0  ; 防抖：WebView 短时双发 postM
 global g_FTB_WV2_CreateRetry := 0
 
 ; ===================== 鏄剧ず/闅愯棌鎮诞绐?=====================
+; 首次/重建 WebView 后：先全透明占位，等页面 post UI_FINISHED 再不透明显示，避免未渲染完就露出黑白底。
+; 隐藏后再打开且 WebView 仍在：直接显示，不再等待。
+FloatingToolbar_FinishReveal() {
+    global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarWindowX, FloatingToolbarWindowY
+    global g_FTB_WaitingUiFinishedReveal
+
+    if !FloatingToolbarGUI
+        return
+
+    g_FTB_WaitingUiFinishedReveal := false
+    SetTimer(FloatingToolbar_ForceRevealIfStuck, 0)
+
+    tw := FloatingToolbarCalculateWidth()
+    th := FloatingToolbarCalculateHeight()
+    try FloatingToolbarGUI.Move(FloatingToolbarWindowX, FloatingToolbarWindowY, tw, th)
+    catch {
+    }
+    try WinSetTransparent(255, "ahk_id " . FloatingToolbarGUI.Hwnd)
+    catch {
+    }
+    try FloatingToolbarGUI.Show("x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . tw . " h" . th . " NoActivate")
+    catch {
+    }
+
+    FloatingToolbarIsVisible := true
+    FloatingToolbarApplyRoundedCorners()
+    FloatingToolbar_ApplyWebViewBounds()
+    SetTimer(FloatingToolbarCheckWindowPosition, 100)
+}
+
+FloatingToolbar_ForceRevealIfStuck() {
+    global g_FTB_WaitingUiFinishedReveal
+    if !g_FTB_WaitingUiFinishedReveal
+        return
+    OutputDebug("[FTB] UI_FINISHED timeout: force reveal")
+    FloatingToolbar_FinishReveal()
+}
+
 ShowFloatingToolbar() {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarWindowX, FloatingToolbarWindowY
-    global g_FTB_UI_Ready, g_FTB_WaitingUiFinishedReveal
+    global g_FTB_UI_Ready, g_FTB_WaitingUiFinishedReveal, g_FTB_WV2_Ready
 
     if (FloatingToolbarIsVisible && FloatingToolbarGUI != 0) {
         return
     }
-    ; 竞态：首次 Show 用 Show+Hide 等待 WebView UI_FINISHED 动画 reveal 期间 FloatingToolbarIsVisible 仍为 false，
-    ; 若此时再次进入（如截图恢复 + 其它路径），会二次 LoadFloatingToolbarPosition/Show，出现双动画与悬浮条大位移。
-    if (FloatingToolbarGUI != 0 && g_FTB_WaitingUiFinishedReveal)
+    ; 若上次仍在「等 UI_FINISHED」，先取消超时定时器，避免重复 reveal
+    if (FloatingToolbarGUI != 0 && g_FTB_WaitingUiFinishedReveal) {
         g_FTB_WaitingUiFinishedReveal := false
+        SetTimer(FloatingToolbar_ForceRevealIfStuck, 0)
+    }
 
     FloatingToolbarLoadScale()
 
@@ -76,12 +115,26 @@ ShowFloatingToolbar() {
     ToolbarHeight := FloatingToolbarCalculateHeight()
 
     FloatingToolbarGUI.Show("x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . ToolbarWidth . " h" . ToolbarHeight . " NoActivate")
-    FloatingToolbarIsVisible := true
-    g_FTB_WaitingUiFinishedReveal := false
+
+    ; WebView 已就绪且页面至少完成过一次 UI_FINISHED：直接显示（避免隐藏后再开仍等一帧）
+    if (g_FTB_WV2_Ready && g_FTB_UI_Ready) {
+        try WinSetTransparent(255, "ahk_id " . FloatingToolbarGUI.Hwnd)
+        catch {
+        }
+        FloatingToolbar_FinishReveal()
+        return
+    }
+
+    ; 首次加载或重建：全透明直到 HTML 发 UI_FINISHED（去掉 AnimateWindow 淡入，避免黑白闪动）
+    try WinSetTransparent(0, "ahk_id " . FloatingToolbarGUI.Hwnd)
+    catch {
+    }
+    g_FTB_WaitingUiFinishedReveal := true
+    FloatingToolbarIsVisible := false
     FloatingToolbarApplyRoundedCorners()
     FloatingToolbar_ApplyWebViewBounds()
-
-    SetTimer(FloatingToolbarCheckWindowPosition, 100)
+    SetTimer(FloatingToolbar_ForceRevealIfStuck, 0)
+    SetTimer(FloatingToolbar_ForceRevealIfStuck, -4500)
 }
 
 HideFloatingToolbar() {
@@ -90,6 +143,10 @@ HideFloatingToolbar() {
     if (FloatingToolbarGUI != 0) {
         SaveFloatingToolbarPosition()
         g_FTB_WaitingUiFinishedReveal := false
+        SetTimer(FloatingToolbar_ForceRevealIfStuck, 0)
+        try WinSetTransparent(255, "ahk_id " . FloatingToolbarGUI.Hwnd)
+        catch {
+        }
         FloatingToolbarGUI.Hide()
         FloatingToolbarIsVisible := false
         SetTimer(FloatingToolbarCheckWindowPosition, 0)
@@ -319,28 +376,8 @@ FloatingToolbar_OnWebMessage(sender, args) {
         if !g_FTB_WaitingUiFinishedReveal
             return
 
-        g_FTB_WaitingUiFinishedReveal := false
-
-        tw := FloatingToolbarCalculateWidth()
-        th := FloatingToolbarCalculateHeight()
-        try FloatingToolbarGUI.Move(FloatingToolbarWindowX, FloatingToolbarWindowY, tw, th)
-        catch as _e {
-        }
-
-        okAnim := false
-        try okAnim := DllCall("user32\AnimateWindow", "Ptr", FloatingToolbarGUI.Hwnd, "UInt", 200, "UInt", 0x20010, "Int")
-        catch as _e2 {
-            okAnim := false
-        }
-        if !okAnim {
-            try FloatingToolbarGUI.Show("x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . tw . " h" . th)
-            catch as _e3 {
-            }
-        }
-
-        FloatingToolbarIsVisible := true
-        FloatingToolbarApplyRoundedCorners()
-        FloatingToolbar_ApplyWebViewBounds()
+        ; 不再使用 AnimateWindow(AW_BLEND)，避免黑白渐变闪屏；由 FloatingToolbar_FinishReveal 一次性不透明显示
+        FloatingToolbar_FinishReveal()
         return
     }
 
