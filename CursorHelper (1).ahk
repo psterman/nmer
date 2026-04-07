@@ -34822,9 +34822,9 @@ CheckInterferingClipboardTools() {
 CloseAllScreenshotWindows() {
     global GuiID_ScreenshotEditor, GuiID_ScreenshotToolbar, GuiID_ScreenshotButton, ScreenshotButtonVisible
 
-    ; 先关闭我们自己的截图相关窗口
+    ; 先关闭我们自己的截图相关窗口（仅当全局为真实 Gui 对象时，避免误把整数当窗口关闭）
     try {
-        if (GuiID_ScreenshotEditor && GuiID_ScreenshotEditor != 0) {
+        if (IsObject(GuiID_ScreenshotEditor)) {
             CloseScreenshotEditor()
         }
     } catch as e {
@@ -34888,7 +34888,7 @@ ShowScreenshotEditor(DebugGui := 0) {
         if (DebugGui) {
             UpdateDebugStep(DebugGui, 15, "检查预览窗是否已存在...", false)
         }
-        if (GuiID_ScreenshotEditor && (GuiID_ScreenshotEditor != 0)) {
+        if (IsObject(GuiID_ScreenshotEditor)) {
             if (DebugGui) {
                 UpdateDebugStep(DebugGui, 15, "发现旧的预览窗，正在关闭并清理资源...", false)
             }
@@ -35133,9 +35133,11 @@ ShowScreenshotEditor(DebugGui := 0) {
         global ScreenshotEditorImgHeight := ImgHeight
         
         ; 创建GUI（可拖动窗口）
-        GuiID_ScreenshotEditor := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
-        GuiID_ScreenshotEditor.BackColor := UI_Colors.Background
-        GuiID_ScreenshotEditor.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
+        ; 使用局部 EditorGui 构建，最后再赋给全局 GuiID_ScreenshotEditor，避免构建过程中
+        ; 全局被其它逻辑清空或未绑定导致 .Show 对整数 0 调用。
+        EditorGui := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
+        EditorGui.BackColor := UI_Colors.Background
+        EditorGui.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
         
         ; 窗口尺寸（仅预览区域，工具栏独立悬浮）
         ; 消除黑边：窗口宽度等于图片宽度，高度等于标题栏+图片高度
@@ -35144,7 +35146,7 @@ ShowScreenshotEditor(DebugGui := 0) {
         WindowHeight := TitleBarHeight + PreviewHeight
         
         ; 标题栏（可拖动）
-        global ScreenshotEditorTitleBar := GuiID_ScreenshotEditor.Add("Text", "x0 y0 w" . (WindowWidth - 40) . " h" . TitleBarHeight . " Center Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text, "📷 截图助手")
+        global ScreenshotEditorTitleBar := EditorGui.Add("Text", "x0 y0 w" . (WindowWidth - 40) . " h" . TitleBarHeight . " Center Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text, "📷 截图助手")
         ScreenshotEditorTitleBar.SetFont("s11 Bold", "Segoe UI")
         ; 添加拖动功能（Text控件只支持Click事件）
         ScreenshotEditorTitleBar.OnEvent("Click", ScreenshotEditorDragWindow)
@@ -35174,7 +35176,7 @@ ShowScreenshotEditor(DebugGui := 0) {
             }
             return
         }
-        PreviewPic := GuiID_ScreenshotEditor.Add("Picture", "x0 y" . PreviewY . " w" . PreviewWidth . " h" . PreviewHeight, TempImagePath)
+        PreviewPic := EditorGui.Add("Picture", "x0 y" . PreviewY . " w" . PreviewWidth . " h" . PreviewHeight, TempImagePath)
         
         ; 为图片控件添加拖动功能（Picture控件支持Click事件）
         global ScreenshotEditorIsDraggingWindow := false
@@ -35265,14 +35267,17 @@ ShowScreenshotEditor(DebugGui := 0) {
         
         ; [关闭] 按钮（在标题栏右侧，最后创建以确保在最上层）
         if (!ScreenshotEditorCloseBtn || ScreenshotEditorCloseBtn = 0) {
-            global ScreenshotEditorCloseBtn := GuiID_ScreenshotEditor.Add("Text", "x" . (WindowWidth - 40) . " y0 w40 h" . TitleBarHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnDanger, "✕")
+            global ScreenshotEditorCloseBtn := EditorGui.Add("Text", "x" . (WindowWidth - 40) . " y0 w40 h" . TitleBarHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnDanger, "✕")
             ScreenshotEditorCloseBtn.SetFont("s12", "Segoe UI")
             ScreenshotEditorCloseBtn.OnEvent("Click", (*) => CloseScreenshotEditor())
             HoverBtnWithAnimation(ScreenshotEditorCloseBtn, UI_Colors.BtnDanger, UI_Colors.BtnDangerHover)
         }
         
         ; 添加键盘事件
-        GuiID_ScreenshotEditor.OnEvent("Escape", (*) => CloseScreenshotEditor())
+        EditorGui.OnEvent("Escape", (*) => CloseScreenshotEditor())
+        
+        ; 与全局同步：此后 CloseScreenshotEditor / 同步工具栏等依赖 GuiID_ScreenshotEditor
+        GuiID_ScreenshotEditor := EditorGui
         
         ; 计算窗口位置（屏幕居中）
         ScreenInfo := GetScreenInfo(1)
@@ -35288,11 +35293,9 @@ ShowScreenshotEditor(DebugGui := 0) {
         WindowWidth := Integer(WindowWidth)
         WindowHeight := Integer(WindowHeight)
         
-        ; 显示主窗口前，先关闭所有截图相关窗口
-        CloseAllScreenshotWindows()
-        
-        ; 额外等待一下确保窗口关闭
-        Sleep(200)
+        ; 注意：不可在此处调用 CloseAllScreenshotWindows() —— 该函数会 CloseScreenshotEditor()，
+        ; 刚创建的 GuiID_ScreenshotEditor 会被销毁，随后 .Show() 会对整数 0 调用而报错。
+        ; 旧预览窗已在函数开头关闭；系统截图工具由调用方在 ShowScreenshotEditor 之前已处理。
         
         ; 强制激活桌面，确保我们的窗口能显示在最前面
         try {
@@ -35304,15 +35307,16 @@ ShowScreenshotEditor(DebugGui := 0) {
         if (DebugGui) {
             UpdateDebugStep(DebugGui, 23, "显示截图助手窗口...", false)
         }
-        GuiID_ScreenshotEditor.Show("w" . WindowWidth . " h" . WindowHeight . " x" . WindowX . " y" . WindowY)
+        ; 使用局部 EditorGui 调用 Show，避免全局变量在极少数情况下非对象时崩溃
+        EditorGui.Show("w" . WindowWidth . " h" . WindowHeight . " x" . WindowX . " y" . WindowY)
         
         ; 激活窗口并确保在最前面
         try {
-            WinActivate("ahk_id " . GuiID_ScreenshotEditor.Hwnd)
+            WinActivate("ahk_id " . EditorGui.Hwnd)
             Sleep(50)
             ; 确保窗口获得焦点
-            WinSetAlwaysOnTop("On", "ahk_id " . GuiID_ScreenshotEditor.Hwnd)
-            WinSetAlwaysOnTop("Off", "ahk_id " . GuiID_ScreenshotEditor.Hwnd)
+            WinSetAlwaysOnTop("On", "ahk_id " . EditorGui.Hwnd)
+            WinSetAlwaysOnTop("Off", "ahk_id " . EditorGui.Hwnd)
         } catch as e {
         }
         
@@ -35336,13 +35340,13 @@ ShowScreenshotEditor(DebugGui := 0) {
         ; 再次激活主窗口确保它在最前面
         Sleep(50)
         try {
-            WinActivate("ahk_id " . GuiID_ScreenshotEditor.Hwnd)
+            WinActivate("ahk_id " . EditorGui.Hwnd)
         } catch as e {
         }
         
         ; 使用原生 Windows API 确保窗口置顶并激活
         try {
-            hwnd := GuiID_ScreenshotEditor.Hwnd
+            hwnd := EditorGui.Hwnd
             ; 强制将窗口置顶并激活
             DllCall("SetWindowPos", "Ptr", hwnd, "Ptr", -1, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0001 | 0x0004)
             DllCall("SetForegroundWindow", "Ptr", hwnd)
@@ -35742,11 +35746,9 @@ CloseScreenshotEditor() {
         }
         
         ; 销毁GUI（安全处理Gui对象）
-        if (GuiID_ScreenshotEditor && (GuiID_ScreenshotEditor != 0)) {
+        if (IsObject(GuiID_ScreenshotEditor)) {
             try {
-                if (IsObject(GuiID_ScreenshotEditor)) {
-                    GuiID_ScreenshotEditor.Destroy()
-                }
+                GuiID_ScreenshotEditor.Destroy()
             } catch as e {
                 ; 忽略销毁错误
             }

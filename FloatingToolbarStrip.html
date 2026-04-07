@@ -220,6 +220,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   var LS = 'niuma_chat_drawer_config_v2',
     LEGACY_LS = 'niuma_chat_drawer_config_v1',
     SESSIONS_LS = 'niuma_chat_sessions_v1',
+    NIUMA_HISTORY_LS = 'niuma_chat_history_v1',
+    NIUMA_HISTORY_API = '/api/niuma/history',
     SP = '你是一个擅长 AHK v2、自动化脚本和桌面工作流的助手。',
     P = {
       openai: { label: 'OpenAI', transport: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', models: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini', 'gpt-4o'] },
@@ -345,9 +347,12 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     sendingBySession: {},
     needSetup: false,
     nspick: false,
+    activeAction: '',
     apiKeys: {},
     sessions: [],
-    activeSessionId: ''
+    activeSessionId: '',
+    niumaHistoryStore: { version: 1, sessions: {}, updatedAt: null },
+    niumaHistoryLoaded: false
   };
   var toolbarVisibleSynced = false;
   var toolbarRevealTimer = 0;
@@ -371,6 +376,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   }
 
   function sel(a) {
+    state.activeAction = String(a || '');
     document.querySelectorAll('.tb').forEach(function (b) {
       b.classList.toggle('selected', b.dataset.action === a);
     });
@@ -516,6 +522,157 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     return list[0] || null;
   }
 
+  function normalizeRole(role) {
+    var r = String(role || '').toLowerCase().trim();
+    if (r === 'assistant' || r === 'ai') return 'assistant';
+    if (r === 'human' || r === 'user') return 'user';
+    return '';
+  }
+
+  function ensureIsoTime(ts) {
+    if (!ts) return new Date().toISOString();
+    var t = new Date(ts);
+    if (isNaN(t.getTime())) return new Date().toISOString();
+    return t.toISOString();
+  }
+
+  function normalizeHistoryItem(m) {
+    if (!m || typeof m !== 'object') return null;
+    var role = normalizeRole(m.role || m.type || m.actor);
+    if (!role) return null;
+    var content = String(m.content != null ? m.content : m.text != null ? m.text : m.message != null ? m.message : '').trim();
+    if (!content) return null;
+    return { role: role, content: content, ts: ensureIsoTime(m.ts || m.timestamp || m.createdAt || m.updatedAt) };
+  }
+
+  function historyItemKey(m) {
+    var sec = '';
+    try {
+      sec = Math.floor(new Date(m.ts || 0).getTime() / 1000) || '';
+    } catch (e) {}
+    return [m.role || '', m.content || '', sec].join('|');
+  }
+
+  function mergeHistoryList(base, extra) {
+    var out = [],
+      seen = {};
+    (Array.isArray(base) ? base : []).forEach(function (m) {
+      var n = normalizeHistoryItem(m);
+      if (!n) return;
+      var k = historyItemKey(n);
+      if (seen[k]) return;
+      seen[k] = 1;
+      out.push(n);
+    });
+    (Array.isArray(extra) ? extra : []).forEach(function (m) {
+      var n = normalizeHistoryItem(m);
+      if (!n) return;
+      var k = historyItemKey(n);
+      if (seen[k]) return;
+      seen[k] = 1;
+      out.push(n);
+    });
+    return out;
+  }
+
+  function getOpenClawSessionKey(s) {
+    if (s) {
+      var own = String(s.gatewaySessionKey || '').trim();
+      if (own) return own;
+    }
+    try {
+      var lk = String(localStorage.getItem('openclaw2_lastSessionKey') || '').trim();
+      if (lk) return lk;
+    } catch (e) {}
+    return 'main';
+  }
+
+  function historyStoreKeyForSession(s) {
+    if (!s) return '';
+    if (s.provider === 'openclaw') return 'openclaw:' + getOpenClawSessionKey(s);
+    return 'local:' + String(s.id || '');
+  }
+
+  function loadNiumaHistoryStoreFromLocal() {
+    var raw = null;
+    try {
+      raw = localStorage.getItem(NIUMA_HISTORY_LS);
+    } catch (e) {}
+    if (!raw) return { version: 1, sessions: {}, updatedAt: null };
+    try {
+      var obj = JSON.parse(raw);
+      if (!obj || typeof obj !== 'object') throw new Error('invalid');
+      if (!obj.sessions || typeof obj.sessions !== 'object') obj.sessions = {};
+      return obj;
+    } catch (e2) {
+      return { version: 1, sessions: {}, updatedAt: null };
+    }
+  }
+
+  function saveNiumaHistoryStoreToLocal() {
+    try {
+      localStorage.setItem(NIUMA_HISTORY_LS, JSON.stringify(state.niumaHistoryStore || { version: 1, sessions: {}, updatedAt: null }));
+    } catch (e) {}
+  }
+
+  function pushSessionHistoryToStore(s) {
+    if (!s) return;
+    if (!state.niumaHistoryStore || typeof state.niumaHistoryStore !== 'object') state.niumaHistoryStore = { version: 1, sessions: {}, updatedAt: null };
+    if (!state.niumaHistoryStore.sessions || typeof state.niumaHistoryStore.sessions !== 'object') state.niumaHistoryStore.sessions = {};
+    var key = historyStoreKeyForSession(s);
+    if (!key) return;
+    var merged = mergeHistoryList(state.niumaHistoryStore.sessions[key] || [], s.history || []);
+    state.niumaHistoryStore.sessions[key] = merged.slice(-400);
+    state.niumaHistoryStore.updatedAt = new Date().toISOString();
+    saveNiumaHistoryStoreToLocal();
+    fetch(NIUMA_HISTORY_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: state.niumaHistoryStore })
+    }).catch(function () {});
+  }
+
+  function pullStoreHistoryToSession(s) {
+    if (!s) return;
+    if (!state.niumaHistoryStore || !state.niumaHistoryStore.sessions) return;
+    var key = historyStoreKeyForSession(s);
+    if (!key) return;
+    var arr = state.niumaHistoryStore.sessions[key];
+    if ((!Array.isArray(arr) || !arr.length) && s.provider === 'openclaw') {
+      var sk = getOpenClawSessionKey(s);
+      var collected = [];
+      state.sessions.forEach(function (x) {
+        if (!x || x.id === s.id || x.provider !== 'openclaw') return;
+        if (getOpenClawSessionKey(x) !== sk) return;
+        collected = mergeHistoryList(collected, x.history || []);
+      });
+      arr = collected;
+    }
+    if (!Array.isArray(arr) || !arr.length) return;
+    s.history = mergeHistoryList(s.history || [], arr).slice(-400);
+  }
+
+  function loadNiumaHistoryStore() {
+    state.niumaHistoryStore = loadNiumaHistoryStoreFromLocal();
+    state.niumaHistoryLoaded = true;
+    fetch(NIUMA_HISTORY_API, { method: 'GET', cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('history api');
+        return r.json();
+      })
+      .then(function (body) {
+        var data = body && body.data ? body.data : body;
+        if (!data || typeof data !== 'object' || !data.sessions || typeof data.sessions !== 'object') return;
+        if (!state.niumaHistoryStore.sessions || typeof state.niumaHistoryStore.sessions !== 'object') state.niumaHistoryStore.sessions = {};
+        Object.keys(data.sessions).forEach(function (k) {
+          state.niumaHistoryStore.sessions[k] = mergeHistoryList(state.niumaHistoryStore.sessions[k] || [], data.sessions[k] || []).slice(-400);
+        });
+        state.niumaHistoryStore.updatedAt = data.updatedAt || state.niumaHistoryStore.updatedAt || new Date().toISOString();
+        saveNiumaHistoryStoreToLocal();
+      })
+      .catch(function () {});
+  }
+
   function persistSessions() {
     try {
       localStorage.setItem(
@@ -544,19 +701,23 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     if (!data || !Array.isArray(data.sessions)) return;
     state.sessions = data.sessions.map(function (s) {
       var pid = s.provider && P[s.provider] ? s.provider : 'openai';
+      var gk = String(s.gatewaySessionKey || '').trim();
       return {
         id: s.id || genId(),
         provider: pid,
         model: s.model || '',
         baseUrl: s.baseUrl || '',
+        gatewaySessionKey: pid === 'openclaw' ? gk || 'main' : '',
         history: Array.isArray(s.history)
           ? s.history.map(function (m) {
+              var n = normalizeHistoryItem(m);
+              if (!n) return null;
               return {
-                role: m.role === 'assistant' ? 'assistant' : 'user',
-                content: String(m.content || ''),
-                ts: m.ts || ''
+                role: n.role,
+                content: n.content,
+                ts: n.ts
               };
-            })
+            }).filter(Boolean)
           : []
       };
     });
@@ -571,6 +732,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       provider: pid,
       model: model.value.trim() || p.model,
       baseUrl: baseUrl.value.trim(),
+      gatewaySessionKey: pid === 'openclaw' ? 'main' : '',
       history: []
     };
   }
@@ -608,6 +770,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     s.provider = pid;
     s.model = model.value.trim() || p.model;
     s.baseUrl = baseUrl.value.trim();
+    if (pid !== 'openclaw') s.gatewaySessionKey = '';
+    else if (!String(s.gatewaySessionKey || '').trim()) s.gatewaySessionKey = 'main';
   }
 
   function providerIconUrlList(pid) {
@@ -813,10 +977,13 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     var s = activeSession();
     if (!s) return;
     var ts = new Date().toISOString();
-    s.history.push({ role: role, content: content, ts: ts });
+    var n = normalizeHistoryItem({ role: role, content: content, ts: ts });
+    if (!n) return;
+    s.history.push(n);
     persistSessions();
+    pushSessionHistoryToStore(s);
     emptyState();
-    appendMessageDom(role, content, ts);
+    appendMessageDom(n.role, n.content, n.ts);
     msgs.scrollTop = msgs.scrollHeight;
     renderSessionTabs();
   }
@@ -825,13 +992,17 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     if (id === state.activeSessionId) return;
     var cur = activeSession();
     syncSessionFromForm(cur);
+    pushSessionHistoryToStore(cur);
     persistSessions();
     state.activeSessionId = id;
-    syncFormFromSession(activeSession());
+    var target = activeSession();
+    pullStoreHistoryToSession(target);
+    syncFormFromSession(target);
     rebuildMsgList();
     renderSessionTabs();
     updateNeedSetup();
     refreshSendUi();
+    if (target && target.provider === 'openclaw') hydrateOpenClawHistoryForSession(target, false);
   }
 
   function fillNewSessionGrid() {
@@ -878,10 +1049,12 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       provider: pid,
       model: p.model,
       baseUrl: p.baseUrl,
+      gatewaySessionKey: pid === 'openclaw' ? getOpenClawSessionKey(null) : '',
       history: []
     };
     state.sessions.push(s);
     state.activeSessionId = s.id;
+    pullStoreHistoryToSession(s);
     persistSessions();
     syncFormFromSession(s);
     rebuildMsgList();
@@ -889,6 +1062,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     updateNeedSetup();
     closeNewSessionPick();
     cstat('已打开「' + p.label + '」新对话', 'success');
+    if (pid === 'openclaw') hydrateOpenClawHistoryForSession(s, true);
   }
 
   function removeSession(id) {
@@ -1213,6 +1387,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     }
     migrateApiKeysFromStorage(d);
     systemPrompt.value = Object.prototype.hasOwnProperty.call(d, 'systemPrompt') ? String(d.systemPrompt) : SP;
+    loadNiumaHistoryStore();
 
     loadSessions();
 
@@ -1232,15 +1407,24 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       provider.dataset.prevProv = pid;
     } else {
       ensureSessions();
+      state.sessions.forEach(function (sx) {
+        pullStoreHistoryToSession(sx);
+      });
       syncFormFromSession(activeSession());
       fillModels(provider.value, model.value.trim());
     }
+
+    state.sessions.forEach(function (sx) {
+      pushSessionHistoryToStore(sx);
+    });
 
     updateNeedSetup();
     sstat(state.needSetup ? '首次使用请先完成 API 设置。' : '配置与对话已从本地恢复。', state.needSetup ? '' : 'success');
     renderSessionTabs();
     rebuildMsgList();
     refreshSendUi();
+    var sAct = activeSession();
+    if (sAct && sAct.provider === 'openclaw') hydrateOpenClawHistoryForSession(sAct, false);
   }
 
   function saveCfg(ok) {
@@ -1490,6 +1674,179 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     return ocExtractText(msg) || ocExtractText(pl);
   }
 
+  function extractGatewayHistoryMessages(res) {
+    if (!res) return [];
+    if (Array.isArray(res)) return res;
+    if (Array.isArray(res.messages)) return res.messages;
+    if (Array.isArray(res.history)) return res.history;
+    if (Array.isArray(res.data)) return res.data;
+    if (Array.isArray(res.items)) return res.items;
+    if (res.result && typeof res.result === 'object') return extractGatewayHistoryMessages(res.result);
+    if (res.data && typeof res.data === 'object') return extractGatewayHistoryMessages(res.data);
+    if (res.payload && typeof res.payload === 'object') return extractGatewayHistoryMessages(res.payload);
+    return [];
+  }
+
+  function mapGatewayHistoryItem(m) {
+    if (!m || typeof m !== 'object') return null;
+    var role = normalizeRole(m.role || m.type || m.actor);
+    if (!role) return null;
+    var content = ocExtractText(m.content || m.text || m.message || m.body || '');
+    content = String(content || '').trim();
+    if (!content) return null;
+    return { role: role, content: content, ts: ensureIsoTime(m.ts || m.timestamp || m.createdAt || m.updatedAt) };
+  }
+
+  function openClawRpc(cfg, method, params, timeoutMs) {
+    var ep = openClawEndpointFromCfg(cfg);
+    if (!ep.ok) return Promise.reject(new Error('Gateway token missing'));
+    var wsUrl = 'ws://' + ep.host + ':' + ep.port + '/?token=' + encodeURIComponent(ep.token);
+    var to = Math.max(3000, Number(timeoutMs) || 12000);
+    return new Promise(function (resolve, reject) {
+      var ws;
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch (e) {
+        reject(e);
+        return;
+      }
+      var done = false,
+        seq = 0,
+        connected = false,
+        connectSent = false,
+        rpcId = '';
+      var timer = setTimeout(function () {
+        finishErr(new Error('OpenClaw RPC timeout: ' + method));
+      }, to);
+
+      function finishOk(val) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        try {
+          ws.close();
+        } catch (e) {}
+        resolve(val);
+      }
+      function finishErr(err) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        try {
+          ws.close();
+        } catch (e) {}
+        reject(err);
+      }
+      function sendConnect() {
+        if (connectSent) return;
+        connectSent = true;
+        seq += 1;
+        var cid = 'connect-' + seq;
+        ws.send(
+          JSON.stringify({
+            type: 'req',
+            id: cid,
+            method: 'connect',
+            params: {
+              minProtocol: 3,
+              maxProtocol: 3,
+              client: { id: 'openclaw-control-ui', version: 'niuma', platform: 'web', mode: 'webchat', instanceId: 'niuma-rpc-' + Date.now() },
+              role: 'operator',
+              scopes: ['operator.admin', 'operator.approvals', 'operator.pairing', 'operator.read', 'operator.write'],
+              caps: [],
+              auth: { token: ep.token }
+            }
+          })
+        );
+      }
+      function sendRpc() {
+        if (!connected || rpcId) return;
+        seq += 1;
+        rpcId = 'rpc-' + seq;
+        ws.send(JSON.stringify({ type: 'req', id: rpcId, method: method, params: params || {} }));
+      }
+      ws.onopen = function () {
+        sendConnect();
+      };
+      ws.onerror = function () {
+        finishErr(new Error('OpenClaw websocket error'));
+      };
+      ws.onclose = function () {
+        if (!done) finishErr(new Error('OpenClaw websocket closed'));
+      };
+      ws.onmessage = function (e) {
+        var msg = null;
+        try {
+          msg = JSON.parse(e.data);
+        } catch (ex) {
+          return;
+        }
+        var ev = msg.event || msg.type || msg.method || '';
+        if (ev === 'connect.challenge') {
+          connectSent = false;
+          sendConnect();
+          return;
+        }
+        if (typeof msg.id === 'string' && msg.id.indexOf('connect-') === 0) {
+          if (msg.error || msg.ok === false) {
+            finishErr(new Error((msg.error && msg.error.message) || 'connect failed'));
+            return;
+          }
+          connected = true;
+          sendRpc();
+          return;
+        }
+        if (!connected && ev === 'hello-ok') {
+          connected = true;
+          sendRpc();
+          return;
+        }
+        if (rpcId && msg.id === rpcId) {
+          if (msg.error || msg.ok === false) {
+            finishErr(new Error((msg.error && msg.error.message) || 'rpc failed'));
+            return;
+          }
+          var body = msg.result !== undefined ? msg.result : msg.payload !== undefined ? msg.payload : msg;
+          finishOk(body);
+        }
+      };
+    });
+  }
+
+  async function hydrateOpenClawHistoryForSession(s, force) {
+    if (!s || s.provider !== 'openclaw') return;
+    if (s._historyHydrating) return;
+    if (s._historyHydrated && !force) return;
+    s._historyHydrating = true;
+    try {
+      pullStoreHistoryToSession(s);
+      if (s.id === state.activeSessionId) rebuildMsgList();
+      var cfg = {
+        provider: s.provider,
+        baseUrl: (s.baseUrl || '').trim() || (P.openclaw && P.openclaw.baseUrl) || '',
+        apiKey: getApiKeyForProvider('openclaw')
+      };
+      var ep = openClawEndpointFromCfg(cfg);
+      if (ep.ok) {
+        var sk = getOpenClawSessionKey(s);
+        s.gatewaySessionKey = sk;
+        try {
+          localStorage.setItem('openclaw2_lastSessionKey', sk);
+        } catch (e0) {}
+        var rpcRes = await openClawRpc(cfg, 'chat.history', { sessionKey: sk, limit: 100 }, 10000);
+        var gw = extractGatewayHistoryMessages(rpcRes).map(mapGatewayHistoryItem).filter(Boolean);
+        if (gw.length) s.history = mergeHistoryList(gw, s.history || []).slice(-400);
+      }
+      pushSessionHistoryToStore(s);
+      persistSessions();
+      if (s.id === state.activeSessionId) rebuildMsgList();
+      s._historyHydrated = true;
+    } catch (e) {
+    } finally {
+      s._historyHydrating = false;
+    }
+  }
+
   async function reqOpenClaw(cfg) {
     var ep = openClawEndpointFromCfg(cfg);
     if (!ep.ok) throw new Error('缺少 Gateway Token：请填写密钥，或将带 #token= 的控制台地址填入 Base URL。');
@@ -1501,8 +1858,12 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     if (cfg.systemPrompt && h.length === 1) {
       msgText = '【系统提示】\n' + cfg.systemPrompt + '\n\n' + msgText;
     }
-    var sid = activeSession() ? String(activeSession().id || 's') : 'default';
-    var sessionKey = 'niuma-' + sid.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 48);
+    var s0 = activeSession();
+    var sessionKey = getOpenClawSessionKey(s0);
+    if (s0) s0.gatewaySessionKey = sessionKey;
+    try {
+      localStorage.setItem('openclaw2_lastSessionKey', sessionKey);
+    } catch (e) {}
     var instanceId = 'niuma-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
 
     return new Promise(function (resolve, reject) {
@@ -1825,9 +2186,9 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     e.stopPropagation();
     var a = b.dataset.action;
     if (!a) return;
+    a = String(a);
     sel(a);
-    if (a === 'Search') post({ type: 'toolbar_search_click' });
-    else post({ type: 'toolbar_action', action: a });
+    post({ type: 'toolbar_toggle_action', action: a });
   });
 
   document.querySelectorAll('[data-logo-toggle]').forEach(function (el) {
@@ -2083,10 +2444,18 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     { passive: false }
   );
 
-  collapsedRoot.addEventListener('contextmenu', function (e) {
+  function openHostContextMenuFromEvent(e) {
+    if (!e) return;
     e.preventDefault();
+    e.stopPropagation();
     post({ type: 'context_menu', x: e.screenX, y: e.screenY });
-  });
+  }
+
+  /* 右键菜单在折叠态/抽屉态都可触发（之前只绑定 collapsedRoot，打开 niuma chat 后会失效） */
+  var appRoot = $('app');
+  if (appRoot) {
+    appRoot.addEventListener('contextmenu', openHostContextMenuFromEvent, true);
+  }
 
   var hdr = document.querySelector('.hdr');
 

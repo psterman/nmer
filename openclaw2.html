@@ -2398,6 +2398,14 @@ const ClawController={
   /* 閺堫亣顓荤拠浣圭Х閹垶妾哄ù渚婄窗閺堚偓婢舵碍妯夌粈?閺夆槄绱濇稊瀣倵閹舵ê褰?*/
   unauthMsgCount:0,
   maxUnauthDisplay:3,
+  activeSessionKey:'main',
+  historyStore:null,
+  historyLoaded:false,
+  historyLoadPromise:null,
+  historySaveTimer:null,
+  historyApi:'/api/niuma/history',
+  historyLocalStorageKey:'niuma_chat_history_v1',
+  historyMaxPerSession:400,
 
   /* 閳光偓閳光偓閳光偓閳光偓閳光偓 閼惧嘲褰?token 閳光偓閳光偓閳光偓閳光偓閳光偓 */
   getSavedToken(){
@@ -2522,6 +2530,185 @@ const ClawController={
     const h=group.querySelector('.msg-sys-group-header');
     if(h)h.textContent=label+' ('+n+')';
   },
+  _normalizeRole(role){
+    const r=String(role||'').toLowerCase().trim();
+    if(r==='assistant'||r==='ai')return 'ai';
+    if(r==='human'||r==='user')return 'user';
+    return '';
+  },
+  _toTimestampMs(v){
+    if(v==null)return null;
+    if(typeof v==='number'&&Number.isFinite(v))return v>1e12?v:Math.floor(v*1000);
+    const t=Date.parse(String(v));
+    return Number.isFinite(t)?t:null;
+  },
+  _historyMessageKey(msg){
+    const ts=(msg&&msg.timestamp!=null&&Number.isFinite(msg.timestamp))?Math.floor(msg.timestamp/1000):'';
+    return [msg.role||'',msg.content||'',ts].join('|');
+  },
+  _normalizeHistoryMessage(raw, fallbackRole=''){
+    if(!raw||typeof raw!=='object')raw={content:raw};
+    const role=this._normalizeRole(raw.role||raw.type||raw.actor||fallbackRole);
+    if(!role)return null;
+    const text=this._extractDisplayText(raw.content!=null?raw.content:(raw.text!=null?raw.text:(raw.message!=null?raw.message:raw.body)));
+    if(!text)return null;
+    const ts=this._toTimestampMs(raw.timestamp!=null?raw.timestamp:(raw.ts!=null?raw.ts:(raw.createdAt!=null?raw.createdAt:raw.updatedAt)));
+    return {role,content:text,timestamp:ts};
+  },
+  _normalizeHistoryList(list){
+    if(!Array.isArray(list))return [];
+    const out=[];
+    list.forEach(item=>{
+      const n=this._normalizeHistoryMessage(item);
+      if(n)out.push(n);
+    });
+    return out;
+  },
+  getActiveSessionKey(preferred=''){
+    const p=String(preferred||'').trim();
+    if(p)return p;
+    const sel=$("chat-load-session");
+    if(sel&&String(sel.value||'').trim())return String(sel.value).trim();
+    try{
+      const k=localStorage.getItem('openclaw2_lastSessionKey');
+      if(k&&k.trim())return k.trim();
+    }catch{}
+    return this.activeSessionKey||'main';
+  },
+  setActiveSessionKey(key){
+    const k=this.getActiveSessionKey(key);
+    this.activeSessionKey=k;
+    try{localStorage.setItem('openclaw2_lastSessionKey',k);}catch{}
+    return k;
+  },
+  _sanitizeHistoryStore(raw){
+    const obj=(raw&&typeof raw==='object')?raw:{};
+    const sessions=(obj.sessions&&typeof obj.sessions==='object')?obj.sessions:{};
+    const normalized={version:1,sessions:{},updatedAt:obj.updatedAt||null};
+    Object.keys(sessions).forEach(k=>{
+      const key=String(k||'').trim();
+      if(!key)return;
+      const list=this._normalizeHistoryList(sessions[k]);
+      if(list.length)normalized.sessions[key]=list.slice(-this.historyMaxPerSession);
+    });
+    return normalized;
+  },
+  _loadHistoryStoreFromLocalStorage(){
+    try{
+      const raw=localStorage.getItem(this.historyLocalStorageKey);
+      if(!raw)return {version:1,sessions:{},updatedAt:null};
+      return this._sanitizeHistoryStore(JSON.parse(raw));
+    }catch{
+      return {version:1,sessions:{},updatedAt:null};
+    }
+  },
+  _saveHistoryStoreToLocalStorage(doc){
+    try{localStorage.setItem(this.historyLocalStorageKey,JSON.stringify(doc||{version:1,sessions:{},updatedAt:new Date().toISOString()}));}catch{}
+  },
+  async _loadHistoryStoreFromApi(){
+    const url=(window.location.origin||'')+this.historyApi;
+    const ac=new AbortController();
+    const tm=setTimeout(()=>ac.abort(),450);
+    const res=await fetch(url,{method:'GET',cache:'no-store',signal:ac.signal}).finally(()=>clearTimeout(tm));
+    if(!res.ok)throw new Error('history api '+res.status);
+    const body=await res.json().catch(()=>({}));
+    return this._sanitizeHistoryStore(body&&body.data?body.data:body);
+  },
+  async _saveHistoryStoreToApi(doc){
+    const url=(window.location.origin||'')+this.historyApi;
+    await fetch(url,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({data:doc})
+    });
+  },
+  async ensureHistoryStore(){
+    if(this.historyLoaded&&this.historyStore)return this.historyStore;
+    if(this.historyLoadPromise)return this.historyLoadPromise;
+    this.historyLoadPromise=(async()=>{
+      const local=this._loadHistoryStoreFromLocalStorage();
+      this.historyStore=this._sanitizeHistoryStore(local);
+      this.historyLoaded=true;
+      this._saveHistoryStoreToLocalStorage(this.historyStore);
+      this._loadHistoryStoreFromApi().then(remote=>{
+        const merged=this._sanitizeHistoryStore(remote);
+        if(!merged||!merged.sessions)return;
+        const target=this.historyStore||{version:1,sessions:{},updatedAt:null};
+        Object.keys(merged.sessions).forEach(k=>{
+          const base=this._normalizeHistoryList((target.sessions&&target.sessions[k])||[]);
+          const extra=this._normalizeHistoryList(merged.sessions[k]||[]);
+          const seen=new Set(base.map(x=>this._historyMessageKey(x)));
+          extra.forEach(m=>{
+            const hk=this._historyMessageKey(m);
+            if(!seen.has(hk)){seen.add(hk);base.push(m);}
+          });
+          target.sessions[k]=base.slice(-this.historyMaxPerSession);
+        });
+        target.updatedAt=merged.updatedAt||target.updatedAt||new Date().toISOString();
+        this.historyStore=target;
+        this._saveHistoryStoreToLocalStorage(this.historyStore);
+      }).catch(()=>{});
+      return this.historyStore;
+    })().finally(()=>{this.historyLoadPromise=null;});
+    return this.historyLoadPromise;
+  },
+  _schedulePersistHistoryStore(){
+    if(!this.historyStore)return;
+    this.historyStore.updatedAt=new Date().toISOString();
+    this._saveHistoryStoreToLocalStorage(this.historyStore);
+    clearTimeout(this.historySaveTimer);
+    this.historySaveTimer=setTimeout(()=>{
+      this._saveHistoryStoreToApi(this.historyStore).catch(()=>{});
+    },260);
+  },
+  async readLocalSessionHistory(sessionKey){
+    const key=this.getActiveSessionKey(sessionKey);
+    const store=await this.ensureHistoryStore();
+    return this._normalizeHistoryList(store.sessions[key]||[]);
+  },
+  async writeLocalSessionHistory(sessionKey,messages){
+    const key=this.getActiveSessionKey(sessionKey);
+    const store=await this.ensureHistoryStore();
+    store.sessions[key]=this._normalizeHistoryList(messages).slice(-this.historyMaxPerSession);
+    this._schedulePersistHistoryStore();
+    return store.sessions[key];
+  },
+  async mergeGatewayHistory(sessionKey,gatewayMessages){
+    const key=this.getActiveSessionKey(sessionKey);
+    const localMessages=await this.readLocalSessionHistory(key);
+    const gwMessages=this._normalizeHistoryList(gatewayMessages||[]);
+    const merged=[];
+    const seen=new Set();
+    [...gwMessages,...localMessages].forEach(item=>{
+      const k=this._historyMessageKey(item);
+      if(seen.has(k))return;
+      seen.add(k);
+      merged.push(item);
+    });
+    await this.writeLocalSessionHistory(key,merged);
+    return merged;
+  },
+  rememberLocalMessage(role,text,sessionKey){
+    const normalized=this._normalizeHistoryMessage({role,content:text,timestamp:Date.now()},role);
+    if(!normalized)return;
+    const key=this.getActiveSessionKey(sessionKey);
+    this.ensureHistoryStore().then(store=>{
+      const list=this._normalizeHistoryList(store.sessions[key]||[]);
+      const msgKey=this._historyMessageKey(normalized);
+      const exists=list.some(x=>this._historyMessageKey(x)===msgKey);
+      if(!exists)list.push(normalized);
+      store.sessions[key]=list.slice(-this.historyMaxPerSession);
+      this._schedulePersistHistoryStore();
+    }).catch(()=>{});
+  },
+  async loadLocalSessionIntoView(sessionKey){
+    const key=this.setActiveSessionKey(sessionKey);
+    const list=await this.readLocalSessionHistory(key);
+    this.clearHistory();
+    list.forEach(m=>{
+      if(m.role==='user'||m.role==='ai')this.appendMsg(m.role,m.content,false);
+    });
+  },
   appendMsg(role, text, streaming=false){
     const el=$("chat-history-content");if(!el)return null;
     if(role==='sys'||role==='err'){
@@ -2620,10 +2807,11 @@ const ClawController={
     return '';
   },
   /** 鐏忓棗鐤勯弮璺烘倵閸欑増鐓囨导姘崇樈閻ㄥ嫬顕拠婵嗗坊閸欏弶妲х亸鍕煂閸欏厖鏅?chat-history閿涘牆鍘涘〒鍛敄閸愬秵瀵滈弶陇鎷烽崝?user/ai閿?*/
-  syncHistoryFromMessages(messages,sessionKey,historyError){
+  async syncHistoryFromMessages(messages,sessionKey,historyError){
     const el=$("chat-history-content");if(!el)return;
     this.clearHistory();
     const L=state.lang||'zh';
+    const activeKey=this.setActiveSessionKey(sessionKey);
     if(historyError){
       const em=(historyError&&historyError.message)?String(historyError.message):String(historyError||'');
       if(em)this.appendMsg('err',em);
@@ -2632,18 +2820,17 @@ const ClawController={
           ?'鐠囬鍋ｉ妴灞稿枔 闁插秷绻涢妴宥勪簰閻劍鏌婇惃?scopes 闁插秵鏌婇幓鈩冨閿涙稖瀚㈡禒宥嗗絹缁€铏瑰繁 scope閿涘矁顕幑銏犲絺鐢?operator.read / operator.write 閻?Gateway Token閵?
           :'Click Reconnect to re-handshake; if scope errors persist, use a token granting operator.read and operator.write.');
       }
-    }else if(sessionKey){
-      this.appendMsg('sys',(L==='zh'?'瀹告彃濮炴潪鎴掔窗鐠囨縿鈧?+sessionKey+'閵嗗秶娈戠€电鐦介崢鍡楀蕉':'Loaded chat history for session "'+sessionKey+'"'));
+    }else if(activeKey){
+      this.appendMsg('sys',(L==='zh'?'瀹告彃濮炴潪鎴掔窗鐠囨縿鈧?+activeKey+'閵嗗秶娈戠€电鐦介崢鍡楀蕉':'Loaded chat history for session "'+activeKey+'"'));
     }
-    if(!Array.isArray(messages)||!messages.length)return;
-    messages.forEach(m=>{
-      let role=(m.role||m.type||m.actor||'').toLowerCase().trim();
-      if(role==='assistant')role='ai';
-      if(role==='human')role='user';
-      if(role!=='user'&&role!=='ai')return;
-      const raw=this._getMessageDisplayText(m);
-      const content=raw?this._extractDisplayText(raw):'';
-      if(content)this.appendMsg(role,content,false);
+    let merged=[];
+    try{
+      merged=await this.mergeGatewayHistory(activeKey,Array.isArray(messages)?messages:[]);
+    }catch{
+      merged=this._normalizeHistoryList(Array.isArray(messages)?messages:[]);
+    }
+    merged.forEach(m=>{
+      if(m.role==='user'||m.role==='ai')this.appendMsg(m.role,m.content,false);
     });
     el.scrollTop=el.scrollHeight;
   },
@@ -2873,6 +3060,7 @@ const ClawController={
     const methods=(r.methods||[]).length;
     const events=(r.events||[]).length;
     this.showTokenPanel(false);
+    this.setActiveSessionKey(this.getActiveSessionKey());
     this.appendMsg('sys','閴?鐠併倛鐦夐幋鎰'+(methods?' (methods: '+methods+', events: '+events+')':''));
     if(typeof window.refreshChatLoadSession==='function')window.refreshChatLoadSession();
     if(typeof window.startOpenclawHeartbeatStatsSync==='function')window.startOpenclawHeartbeatStatsSync();
@@ -2939,6 +3127,7 @@ const ClawController={
       const aiText=this._extractDisplayText(payload.text||payload.content||payload.message||'');
       if(aiText){
         this.appendMsg('ai',aiText,false);
+        this.rememberLocalMessage('ai',aiText,this.getActiveSessionKey());
         return;
       }
       const silent2=['health','tick','ping','pong','heartbeat'];
@@ -2956,13 +3145,24 @@ const ClawController={
         if(text)this.currentAiEl.textContent+=text;
         const el=$("chat-history-content");if(el)el.scrollTop=el.scrollHeight;
         if(respPayload.done||respPayload.finish_reason||respPayload.finished){
+          const finalText=(this.currentAiEl.textContent||'').trim();
           this._finalizeAiMsg(this.currentAiEl);
           this.currentAiEl.classList.remove('streaming');
+          if(finalText)this.rememberLocalMessage('ai',finalText,this.getActiveSessionKey());
           this.currentAiEl=null;this.currentMsgId=null;
         }
       }else if(text){
         this.currentMsgId=msg.id||null;
         this.currentAiEl=this.appendMsg('ai',text,true);
+        if(respPayload.done||respPayload.finish_reason||respPayload.finished){
+          const finalText=(this.currentAiEl&&this.currentAiEl.textContent?this.currentAiEl.textContent:'').trim();
+          if(this.currentAiEl){
+            this._finalizeAiMsg(this.currentAiEl);
+            this.currentAiEl.classList.remove('streaming');
+          }
+          if(finalText)this.rememberLocalMessage('ai',finalText,this.getActiveSessionKey());
+          this.currentAiEl=null;this.currentMsgId=null;
+        }
       }
       return;
     }
@@ -2979,6 +3179,7 @@ const ClawController={
     const restText=this._extractDisplayText(restPayload.text||restPayload.content||restPayload.message||'');
     if(restText){
       this.appendMsg('ai',restText,false);
+      this.rememberLocalMessage('ai',restText,this.getActiveSessionKey());
       return;
     }
     const silentEvs=['ping','pong','tick','health','heartbeat'];
@@ -3097,6 +3298,7 @@ const ClawController={
   /* 閳光偓閳光偓閳光偓閳光偓閳光偓 閸欐垿鈧浇浜版径鈺傜Х閹?閳光偓閳光偓閳光偓閳光偓閳光偓 */
   sendMessage(text){
     const t=(text||'').trim();if(!t)return;
+    const sessionKey=this.setActiveSessionKey(this.getActiveSessionKey());
     if(!this.ws||this.ws.readyState!==WebSocket.OPEN){
       this.appendMsg('err','閺堫亣绻涢幒銉礉濮濓絽婀亸婵婄槸闁插秷绻涢垾?);
       this.reconnect();return;
@@ -3106,6 +3308,7 @@ const ClawController={
     }
     blinkEyes();
     this.appendMsg('user',t);
+    this.rememberLocalMessage('user',t,sessionKey);
     this.currentAiEl=null;this.currentMsgId=null;
     try{
       const msgId='msg-'+(++this.msgId);
@@ -3118,7 +3321,7 @@ const ClawController={
         params:{
           message:t,
           idempotencyKey:msgId,
-          sessionKey:'main'
+          sessionKey:sessionKey
         }
       };
       this.ws.send(JSON.stringify(msg));
@@ -3406,6 +3609,7 @@ function bind(){
       tab.addEventListener('click',function(){
         const k=(this.dataset.key||'').trim();
         if(!k)return;
+        ClawController.setActiveSessionKey(k);
         const sel=$("chat-load-session");
         if(sel)sel.value=k;
         tabsEl.querySelectorAll('.agent-tab').forEach(t=>t.classList.toggle('active',t.dataset.key===k));
@@ -3428,6 +3632,7 @@ function bind(){
     const key=(this.value||'').trim();
     if(!key)return;
     if(!ClawController){return;}
+    ClawController.setActiveSessionKey(key);
     if(typeof LiveController!=='undefined'&&state.idx===LIVE_IDX){
       LiveController._selectSession(key,null);
       try{localStorage.setItem('openclaw2_lastSessionKey',key);}catch(e){}
@@ -3467,14 +3672,22 @@ function bind(){
       const lastKey=typeof localStorage!=='undefined'?localStorage.getItem('openclaw2_lastSessionKey'):null;
       if(lastKey&&sessions.some(s=>(s.sessionKey||s.key||s.id)===''+lastKey)){
         sel.value=lastKey;
+        ClawController.setActiveSessionKey(lastKey);
         try{
           const hist=await ClawController.rpcCall('chat.history',{sessionKey:lastKey,limit:100});
           const messages=ClawController.getMessagesFromHistoryResponse?ClawController.getMessagesFromHistoryResponse(hist):(Array.isArray(hist&&hist.messages)?hist.messages:[]);
           ClawController.syncHistoryFromMessages(messages,lastKey);
           if(typeof window.renderChatAgentTabs==='function')window.renderChatAgentTabs(sessions,lastKey);
         }catch(e){ClawController.syncHistoryFromMessages([],lastKey,e);}
-      }else if(typeof window.renderChatAgentTabs==='function')window.renderChatAgentTabs(sessions,null);
-    }catch(e){}
+      }else{
+        ClawController.setActiveSessionKey(ClawController.getActiveSessionKey('main'));
+        if(typeof window.renderChatAgentTabs==='function')window.renderChatAgentTabs(sessions,null);
+      }
+    }catch(e){
+      try{
+        await ClawController.loadLocalSessionIntoView(ClawController.getActiveSessionKey());
+      }catch(_){}
+    }
   };
 
   /* 閳光偓閳光偓 濞撳懐鈹?閳光偓閳光偓 */

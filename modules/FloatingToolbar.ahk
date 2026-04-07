@@ -335,6 +335,13 @@ FloatingToolbar_OnWebMessage(sender, args) {
         return
     }
 
+    if (typ = "toolbar_toggle_action") {
+        action := msg.Has("action") ? String(msg["action"]) : ""
+        if (action != "")
+            FloatingToolbarToggleButtonAction(action)
+        return
+    }
+
     if (typ = "toolbar_search_click") {
         try Func("SelectionSense_OnToolbarSearchClick").Call()
         catch {
@@ -609,6 +616,58 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
             FloatingToolbarOpenSettings()
         case "VirtualKeyboard":
             FloatingToolbarActivateVirtualKeyboard()
+    }
+}
+
+FloatingToolbarToggleButtonAction(action) {
+    global GuiID_SearchCenter, GuiID_ConfigGUI
+    switch action {
+        case "Search":
+            try {
+                if (IsSet(SCWV_IsVisible) && SCWV_IsVisible()) {
+                    SCWV_Hide(true)
+                    return
+                }
+            } catch {
+            }
+            try {
+                if (GuiID_SearchCenter != 0) {
+                    SearchCenterCloseHandler()
+                    return
+                }
+            } catch {
+            }
+            FloatingToolbarExecuteButtonAction(action, 0)
+        case "Record":
+            try {
+                if (IsSet(g_CP_Visible) && g_CP_Visible) {
+                    CP_Hide()
+                    return
+                }
+            } catch {
+            }
+            FloatingToolbarExecuteButtonAction(action, 0)
+        case "AIAssistant", "Prompt":
+            try {
+                if (PQP_IsVisible()) {
+                    PQP_Hide()
+                    return
+                }
+            } catch {
+            }
+            FloatingToolbarExecuteButtonAction(action, 0)
+        case "Settings":
+            try {
+                if (GuiID_ConfigGUI != 0) {
+                    CloseConfigGUI()
+                    return
+                }
+            } catch {
+            }
+            FloatingToolbarExecuteButtonAction(action, 0)
+        default:
+            ; 其他动作维持原行为（如 Screenshot、VirtualKeyboard 自身已有切换语义）
+            FloatingToolbarExecuteButtonAction(action, 0)
     }
 }
 
