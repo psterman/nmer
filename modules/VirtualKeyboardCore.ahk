@@ -37,7 +37,6 @@ global g_RecordPendingKey := ""
 global g_RecordPendingTick := 0
 global g_RecordFinalizeToken := 0
 global g_VK_FloatGui := 0
-global FloatingToolbarGUI := 0
 global g_VK_FloatPinned := []
 ; app.local 导航：Navigate 常不抛错，失败在 NavigationCompleted；用于触发一次磁盘 NavigateToString 回退
 global g_VK_ExpectAppLocalNavigationResult := false
@@ -686,7 +685,7 @@ _VK_MakeFloatRemoveFn(cmdId) {
 }
 
 _VK_RenderGlobalFloatPanel() {
-    global g_VK_FloatGui, g_VK_FloatPinned, g_Commands, FloatingToolbarGUI
+    global g_VK_FloatGui, g_VK_FloatPinned, g_Commands
 
     if !(g_VK_FloatPinned is Array) || g_VK_FloatPinned.Length = 0 {
         if IsObject(g_VK_FloatGui)
@@ -697,11 +696,9 @@ _VK_RenderGlobalFloatPanel() {
     if IsObject(g_VK_FloatGui) {
         try g_VK_FloatGui.Destroy()
         g_VK_FloatGui := 0
-        FloatingToolbarGUI := 0
     }
 
     g_VK_FloatGui := Gui("+AlwaysOnTop -Caption +ToolWindow +Border", "VK Global Float")
-    FloatingToolbarGUI := g_VK_FloatGui
     g_VK_FloatGui.BackColor := "111111"
     g_VK_FloatGui.MarginX := 8
     g_VK_FloatGui.MarginY := 8

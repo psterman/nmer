@@ -842,14 +842,17 @@ FloatingToolbarOpenSettings() {
 FloatingToolbarWM_MOUSEWHEEL(wParam, lParam, msg, hwnd) {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarChatDrawerOpen
 
-    if (!FloatingToolbarIsVisible || !FloatingToolbarGUI)
+    if (!FloatingToolbarIsVisible || !IsObject(FloatingToolbarGUI) || !(FloatingToolbarGUI is Gui))
         return
     ; 抽屉展开时由页面内滚动，不在此用滚轮缩放整窗
     if (FloatingToolbarChatDrawerOpen)
         return
 
     MouseGetPos(&mx, &my)
-    FloatingToolbarGUI.GetPos(&wx, &wy, &ww, &wh)
+    try FloatingToolbarGUI.GetPos(&wx, &wy, &ww, &wh)
+    catch {
+        return
+    }
     if (mx < wx || mx > wx + ww || my < wy || my > wy + wh)
         return
 
@@ -866,6 +869,11 @@ FloatingToolbarWM_MOUSEWHEEL(wParam, lParam, msg, hwnd) {
 FloatingToolbarApplyWheelDelta(delta) {
     global FloatingToolbarGUI, FloatingToolbarScale, FloatingToolbarMinScale, FloatingToolbarMaxScale
     global FloatingToolbarWindowX, FloatingToolbarWindowY, g_FTB_WV2
+
+    ; 必须与 modules\FloatingToolbar.ahk 中 CreateFloatingToolbarGUI 创建的 Gui 一致；
+    ; VirtualKeyboardCore 曾误用同名全局，会导致此处为 Integer 而非 Gui。
+    if !IsObject(FloatingToolbarGUI) || !(FloatingToolbarGUI is Gui)
+        return
 
     scaleStep := 0.15
     newScale := FloatingToolbarScale
