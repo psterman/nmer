@@ -311,6 +311,7 @@ _LoadCommands() {
     _VK_SyncBuiltinCommands()
 
     _VK_MergeSuggestedBindings()
+    _VK_EnsureDashboardStorage()
 
     bindings := g_Commands["Bindings"]
     if bindings is Map {
@@ -506,6 +507,96 @@ _SaveBindings() {
         NotifyScript("CursorHelper", '{"type":"bindingsReloaded"}')
 }
 
+_VK_EnsureDashboardStorage() {
+    global g_Commands
+    if !(g_Commands is Map)
+        return
+
+    if !g_Commands.Has("DashboardLayout") || g_Commands["DashboardLayout"] = ""
+        g_Commands["DashboardLayout"] := "multi"
+
+    rawCfg := (g_Commands.Has("DashboardConfig") && g_Commands["DashboardConfig"] is Array)
+        ? g_Commands["DashboardConfig"]
+        : []
+    cmdList := (g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map)
+        ? g_Commands["CommandList"]
+        : 0
+
+    normalized := []
+    for item in rawCfg {
+        if (item is Map) && item.Has("commandId") {
+            cmdId := item["commandId"]
+            if (cmdId != "" && (!cmdList || cmdList.Has(cmdId))) {
+                normalized.Push(Map(
+                    "commandId", cmdId,
+                    "sourceAhkKey", item.Has("sourceAhkKey") ? item["sourceAhkKey"] : "",
+                    "sourceDisplayKey", item.Has("sourceDisplayKey") ? item["sourceDisplayKey"] : ""
+                ))
+                continue
+            }
+        }
+        normalized.Push("")
+    }
+    g_Commands["DashboardConfig"] := normalized
+}
+
+_VK_DashboardConfigJson() {
+    global g_Commands
+    _VK_EnsureDashboardStorage()
+    cfg := g_Commands["DashboardConfig"]
+    json := "["
+    sep := ""
+    for item in cfg {
+        if (item is Map) && item.Has("commandId") && item["commandId"] != "" {
+            json .= sep . '{"commandId":' . _JsonStr(item["commandId"])
+                . ',"sourceAhkKey":' . _JsonStr(item.Has("sourceAhkKey") ? item["sourceAhkKey"] : "")
+                . ',"sourceDisplayKey":' . _JsonStr(item.Has("sourceDisplayKey") ? item["sourceDisplayKey"] : "") . '}'
+        } else {
+            json .= sep . "null"
+        }
+        sep := ","
+    }
+    json .= "]"
+    return json
+}
+
+_VK_StoreDashboardFromWeb(msg) {
+    global g_Commands
+    if !(msg is Map)
+        return
+
+    _VK_EnsureDashboardStorage()
+
+    if msg.Has("layout") && msg["layout"] != ""
+        g_Commands["DashboardLayout"] := msg["layout"]
+    if msg.Has("dashboardLayout") && msg["dashboardLayout"] != ""
+        g_Commands["DashboardLayout"] := msg["dashboardLayout"]
+
+    if msg.Has("dashboardConfig") && (msg["dashboardConfig"] is Array) {
+        cfg := []
+        cmdList := (g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map)
+            ? g_Commands["CommandList"]
+            : 0
+        for item in msg["dashboardConfig"] {
+            if (item is Map) && item.Has("commandId") {
+                cmdId := item["commandId"]
+                if (cmdId != "" && (!cmdList || cmdList.Has(cmdId))) {
+                    cfg.Push(Map(
+                        "commandId", cmdId,
+                        "sourceAhkKey", item.Has("sourceAhkKey") ? item["sourceAhkKey"] : "",
+                        "sourceDisplayKey", item.Has("sourceDisplayKey") ? item["sourceDisplayKey"] : ""
+                    ))
+                    continue
+                }
+            }
+            cfg.Push("")
+        }
+        g_Commands["DashboardConfig"] := cfg
+    }
+
+    _SaveBindings()
+}
+
 _SerializeCommands() {
     global g_Commands
 
@@ -566,8 +657,14 @@ _SerializeCommands() {
     }
     sbJson .= "}"
 
+    _VK_EnsureDashboardStorage()
+    dashLayoutJson := _JsonStr(g_Commands["DashboardLayout"])
+    dashCfgJson := _VK_DashboardConfigJson()
+
     return '{"Categories":' . catJson . ',"CommandList":' . clJson . ',"Bindings":' . bJson
-        . ',"SuggestedBindings":' . sbJson . '}'
+        . ',"SuggestedBindings":' . sbJson
+        . ',"DashboardLayout":' . dashLayoutJson
+        . ',"DashboardConfig":' . dashCfgJson . '}'
 }
 
 _JsonStr(s) {
@@ -885,6 +982,10 @@ _OnWebMessage(sender, args) {
             g_UseScanCode := msg.Has("native") && msg["native"]
             VK_SendToWeb('{"type":"layoutMode","native":' . (g_UseScanCode ? "true" : "false") . '}')
             OutputDebug("[VK] ScanCode mode: " . (g_UseScanCode ? "on" : "off"))
+
+        case "dashboardAdd", "dashboardMove", "dashboardRemove", "dashboardConfig":
+            _VK_StoreDashboardFromWeb(msg)
+            OutputDebug("[VK] Dashboard sync: " . action)
 
         default:
             OutputDebug("[VK] Unknown msg: " . msg["type"])
@@ -1712,6 +1813,9 @@ _PushInit() {
     if (g_LastExecutedCmdId != "" && g_InverseBindings.Has(g_LastExecutedCmdId))
         lacKeyDisp := _AhkKeyToDisplay(g_InverseBindings[g_LastExecutedCmdId])
     lastActionCurrentKey := _JsonStr(lacKeyDisp)
+    _VK_EnsureDashboardStorage()
+    dashLayout := _JsonStr(g_Commands["DashboardLayout"])
+    dashCfg := _VK_DashboardConfigJson()
 
     payload := '{"type":"init","categories":' . catJson
         . ',"commands":' . clJson
@@ -1720,7 +1824,9 @@ _PushInit() {
         . ',"lastActionId":' . lastActionId
         . ',"lastActionName":' . lastActionName
         . ',"lastActionCurrentKey":' . lastActionCurrentKey
-        . ',"quickBindActive":' . quickBindActive . '}'
+        . ',"quickBindActive":' . quickBindActive
+        . ',"dashboardLayout":' . dashLayout
+        . ',"dashboardConfig":' . dashCfg . '}'
     VK_SendToWeb(payload)
     OutputDebug("[VK] init pushed")
 }

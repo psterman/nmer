@@ -793,6 +793,10 @@ body::after {
   overflow: hidden;
   transition: border-color .12s ease, box-shadow .12s ease, background .12s ease, transform .12s ease;
 }
+.dashboard-slot.is-empty {
+  background: radial-gradient(90% 90% at 15% 10%, rgba(230,126,34,.08), rgba(0,0,0,0) 55%),
+              linear-gradient(180deg, rgba(18,18,18,.72), rgba(8,8,8,.9));
+}
 .dashboard-slot::after {
   content: '';
   position: absolute; inset: 0;
@@ -807,6 +811,14 @@ body::after {
   transform: translateY(-1px);
 }
 .dashboard-slot:hover::after { opacity: .55; }
+#dashboard-container.drop-active .dashboard-slot.is-empty {
+  animation: dashboardSlotBreath 1.5s ease-in-out infinite;
+  border-color: rgba(243,156,18,.82);
+  box-shadow: 0 0 0 1px rgba(243,156,18,.26) inset, 0 0 18px rgba(230,126,34,.22);
+}
+#dashboard-container.drop-active .dashboard-slot.is-empty::after {
+  opacity: .48;
+}
 .dashboard-slot.sortable-ghost {
   opacity: .65;
   border-style: solid;
@@ -819,24 +831,181 @@ body::after {
   width: 100%;
   height: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px;
-  text-align: center;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
+  padding: 8px;
+  text-align: left;
   font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: .3px;
   color: var(--text);
-  background: radial-gradient(120% 120% at 20% 15%, rgba(0,0,0,.0), rgba(0,0,0,.28) 55%),
-              linear-gradient(180deg, rgba(230,126,34,.22), rgba(0,0,0,.0));
+  background:
+    radial-gradient(120% 120% at 18% 14%, rgba(255,183,77,.14), rgba(0,0,0,0) 38%),
+    linear-gradient(180deg, rgba(230,126,34,.24), rgba(0,0,0,.08));
   cursor: grab;
   user-select: none;
+  position: relative;
 }
-#dashboard-grid.layout-1 .dashboard-item { font-size: 12px; padding: 8px; }
-#dashboard-grid.layout-2 .dashboard-item { font-size: 11px; padding: 7px; }
-#dashboard-grid.layout-multi .dashboard-item { font-size: 9px; padding: 4px; }
+.dashboard-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0));
+  pointer-events: none;
+}
+.dashboard-item-top {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 14px;
+}
+.dashboard-item-hint {
+  max-width: 100%;
+  padding: 2px 5px;
+  border: 1px solid rgba(255,190,120,.35);
+  border-radius: 999px;
+  color: #ffd9b0;
+  background: rgba(17,10,4,.72);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: .2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dashboard-item-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+}
+.dashboard-item-icon {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(255,164,64,.28), rgba(98,44,0,.34));
+  box-shadow: 0 0 0 1px rgba(255,182,106,.2) inset, 0 0 16px rgba(230,126,34,.16);
+  color: #fff1dc;
+  font-size: 13px;
+  font-family: var(--font);
+  letter-spacing: .6px;
+}
+.dashboard-item-label {
+  width: 100%;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+.dashboard-item-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%) translateY(4px);
+  min-width: 120px;
+  max-width: 220px;
+  padding: 7px 9px;
+  border: 1px solid rgba(255,180,106,.42);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(28,16,8,.96), rgba(10,10,10,.98));
+  color: #fff0dd;
+  box-shadow: 0 10px 26px rgba(0,0,0,.42), 0 0 20px rgba(230,126,34,.18);
+  font-size: 11px;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .14s ease, transform .14s ease;
+  z-index: 8;
+}
+.dashboard-item:hover .dashboard-item-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.dashboard-tooltip-name {
+  display: block;
+  font-weight: 800;
+  color: #fff6ea;
+}
+.dashboard-tooltip-hint {
+  display: block;
+  margin-top: 4px;
+  color: #ffcc98;
+  font-size: 10px;
+}
+#dashboard-grid.layout-1 .dashboard-item { padding: 8px; }
+#dashboard-grid.layout-1 .dashboard-item-icon { min-width: 30px; min-height: 30px; font-size: 14px; }
+#dashboard-grid.layout-1 .dashboard-item-label { font-size: 11px; }
+#dashboard-grid.layout-2 .dashboard-item { padding: 7px; }
+#dashboard-grid.layout-2 .dashboard-item-icon { min-width: 28px; min-height: 28px; font-size: 13px; }
+#dashboard-grid.layout-2 .dashboard-item-label { font-size: 10px; }
+#dashboard-grid.layout-multi .dashboard-item { padding: 4px; }
+#dashboard-grid.layout-multi .dashboard-item-main { gap: 3px; }
+#dashboard-grid.layout-multi .dashboard-item-icon {
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0 5px;
+  font-size: 10px;
+  border-radius: 7px;
+}
+#dashboard-grid.layout-multi .dashboard-item-label {
+  font-size: 8px;
+  line-height: 1.15;
+  -webkit-line-clamp: 3;
+}
+#dashboard-grid.layout-multi .dashboard-item-hint {
+  font-size: 7px;
+  padding: 2px 4px;
+}
+.dashboard-drag-ghost {
+  opacity: .62 !important;
+  border-color: rgba(255,172,74,.95) !important;
+  background: linear-gradient(180deg, rgba(255,156,40,.4), rgba(68,26,0,.24)) !important;
+  box-shadow: 0 0 24px rgba(255,132,24,.42), 0 0 0 1px rgba(255,196,124,.36) inset !important;
+  transform: scale(1.1) !important;
+}
+.dashboard-drag-chosen {
+  box-shadow: 0 0 28px rgba(255,137,26,.32), 0 0 0 1px rgba(255,186,112,.3) inset !important;
+}
+.dashboard-item.dashboard-dragging {
+  transform: scale(1.04);
+}
+.k.dashboard-dragging {
+  transform: none !important;
+}
+.k.drag-invalid {
+  animation: invalidKeyShake .26s ease;
+  box-shadow: 0 0 0 1px rgba(255,78,78,.35) inset, 0 0 18px rgba(255,64,64,.42) !important;
+}
+.k.drag-invalid::after {
+  opacity: .38;
+  background: radial-gradient(circle at center, rgba(255,84,84,.35), rgba(255,84,84,0) 70%);
+}
+@keyframes dashboardSlotBreath {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-1px) scale(1.03); }
+}
+@keyframes invalidKeyShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-2px); }
+  40% { transform: translateX(2px); }
+  60% { transform: translateX(-1px); }
+  80% { transform: translateX(1px); }
+}
 .dashboard-item:active { cursor: grabbing; }
 .dashboard-item[data-cmd-id=""] { opacity: .75; }
 #dashboard-context-menu {
@@ -1115,6 +1284,10 @@ const state = {
   lastActionName: '',
   lastActionCurrentKey: '',
   quickBindActive: false,
+  dashboardConfig: [],
+  dashboardDragActive: false,
+  draggedDashboardItem: null,
+  dragPreviewEl: null,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1280,6 +1453,9 @@ function handleAhkMessage(msg) {
     case 'init':
       handleInit(msg);
       break;
+    case 'dashboardConfig':
+      applyDashboardConfig(msg.dashboardConfig, msg.dashboardLayout || dashboardLayout);
+      break;
     case 'bindingUpdated':
       handleBindingUpdated(msg);
       break;
@@ -1376,6 +1552,8 @@ function handleInit(msg) {
     if (key && !state.suggestedByKey[key]) state.suggestedByKey[key] = cmdId;
   }
 
+  applyDashboardConfig(msg.dashboardConfig || [], msg.dashboardLayout || dashboardLayout);
+
   renderSidebar();
   renderCommandList();
   renderKeyboardSlots();
@@ -1417,81 +1595,229 @@ function handleBindingUpdated(msg) {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Dashboard (Drag & Drop)
-//  - Drag source: bound keyboard keys (#keyboard .k.bound) as clones
-//  - Drop target: dashboard slots (CSS grid), one item per slot
-//  - Notify AHK: dashboardAdd / dashboardMove
+//  - Drag source: keyboard keys, but payload is always commandId
+//  - Drop target: dashboard slots (one item per slot)
+//  - Notify AHK with normalized dashboardConfig snapshots
 // ═══════════════════════════════════════════════════════════════════════════
 let dashboardInited = false;
 let dashboardLayout = 'multi';
-let dashboardContextTarget = null;
+
+function resolveDashboardLayout(layout) {
+  if (String(layout) === '1' || Number(layout) === 1) return 1;
+  if (String(layout) === '2' || Number(layout) === 2) return 2;
+  return 'multi';
+}
 
 function slotsForLayout(layout) {
-  if (String(layout) === 'multi') return 60; // 3行 * 20列
-  const n = Number(layout);
-  if (n === 1) return 10;  // 1行 * 10列
-  if (n === 2) return 20;  // 2行 * 10列
+  const resolved = resolveDashboardLayout(layout);
+  if (resolved === 'multi') return 60; // 3行 * 20列
+  if (resolved === 1) return 10;       // 1行 * 10列
+  if (resolved === 2) return 20;       // 2行 * 10列
   return 60;
 }
 
-function ensureDashboardSlots() {
-  const grid = document.getElementById('dashboard-grid');
-  if (!grid) return;
-  const oldItems = Array.from(grid.querySelectorAll('.dashboard-item')).map((it) => {
-    return { cmdId: it.dataset.cmdId || '', text: it.textContent || '' };
-  });
-  const need = slotsForLayout(dashboardLayout);
-  grid.innerHTML = '';
-  for (let i = 0; i < need; i++) {
-    const slot = document.createElement('div');
-    slot.className = 'dashboard-slot';
-    slot.dataset.slotIndex = String(i);
-    const old = oldItems[i];
-    if (old && old.cmdId) {
-      const item = document.createElement('div');
-      decorateDashboardItem(item, old.cmdId);
-      if (!old.cmdId && old.text) item.textContent = old.text;
-      slot.appendChild(item);
-    }
-    grid.appendChild(slot);
+function normalizeDashboardItem(item) {
+  if (!item) return null;
+  if (typeof item === 'string') {
+    return state.commands[item] ? { commandId: item, sourceAhkKey: '', sourceDisplayKey: '' } : null;
   }
+  const commandId = item.commandId || item.cmdId || '';
+  if (!commandId || !state.commands[commandId]) return null;
+  return {
+    commandId,
+    sourceAhkKey: item.sourceAhkKey || item.ahkKey || '',
+    sourceDisplayKey: item.sourceDisplayKey || item.displayKey || '',
+  };
 }
 
-function applyDashboardLayout(layout) {
+function normalizeDashboardConfig(rawConfig, layoutHint) {
+  const layout = resolveDashboardLayout(rawConfig?.layout || rawConfig?.mode || layoutHint);
+  const slotCount = slotsForLayout(layout);
+  const slots = Array.from({ length: slotCount }, () => null);
+  const rawSlots = Array.isArray(rawConfig)
+    ? rawConfig
+    : (Array.isArray(rawConfig?.slots) ? rawConfig.slots : []);
+  rawSlots.slice(0, slotCount).forEach((item, index) => {
+    slots[index] = normalizeDashboardItem(item);
+  });
+  return { layout, slots };
+}
+
+function serializeDashboardConfig() {
+  return ensureDashboardStateSize().map((item) => {
+    if (!item) return null;
+    return {
+      commandId: item.commandId,
+      sourceAhkKey: item.sourceAhkKey || '',
+      sourceDisplayKey: item.sourceDisplayKey || '',
+    };
+  });
+}
+
+function ensureDashboardStateSize(layoutHint) {
+  const slotCount = slotsForLayout(layoutHint || dashboardLayout);
+  if (!Array.isArray(state.dashboardConfig)) state.dashboardConfig = [];
+  const next = Array.from({ length: slotCount }, (_, index) => normalizeDashboardItem(state.dashboardConfig[index]));
+  state.dashboardConfig = next;
+  return next;
+}
+
+function applyDashboardConfig(rawConfig, layoutHint) {
+  const normalized = normalizeDashboardConfig(rawConfig, layoutHint || dashboardLayout);
+  dashboardLayout = normalized.layout;
+  state.dashboardConfig = normalized.slots;
+  syncDashboardLayoutUI();
+  ensureDashboardSlots();
+}
+
+function syncDashboardLayoutUI() {
   const grid = document.getElementById('dashboard-grid');
   if (!grid) return;
-  const isMulti = String(layout) === 'multi';
-  const n = Number(layout);
-  dashboardLayout = isMulti ? 'multi' : ([1, 2].includes(n) ? n : 'multi');
   grid.classList.remove('layout-1', 'layout-2', 'layout-multi');
   grid.classList.add(`layout-${dashboardLayout}`);
-  ensureDashboardSlots();
   document.querySelectorAll('.dashboard-layout-btn').forEach((btn) => {
     btn.classList.toggle('active', String(btn.dataset.layout) === String(dashboardLayout));
   });
 }
 
-function cmdIdFromKeyEl(keyEl) {
-  const baseKey = keyEl?.dataset?.ahkkey || '';
+function applyDashboardLayout(layout) {
+  dashboardLayout = resolveDashboardLayout(layout);
+  ensureDashboardStateSize(dashboardLayout);
+  syncDashboardLayoutUI();
+  ensureDashboardSlots();
+  if (dashboardInited) {
+    postToAhk(buildDashboardBridgePayload('dashboardConfig'));
+  }
+}
+
+function getCommandByElement(el) {
+  const baseKey = el?.dataset?.ahkkey || '';
   if (!baseKey) return '';
   if (isModifierBaseKey(baseKey)) {
     const dbl = modifierToDoubleAhkKey(baseKey);
     return dbl ? (state.ahkKeyIndex[dbl] || '') : '';
   }
-  const lookup = getActivePrefix() + baseKey;
-  let cmdId = state.ahkKeyIndex[lookup] || '';
-  if (!cmdId && getActivePrefix() === '') cmdId = state.suggestedByKey[baseKey] || '';
-  return cmdId;
+  const ahkKey = getActivePrefix() + baseKey;
+  return state.ahkKeyIndex[ahkKey] || '';
 }
 
-function decorateDashboardItem(el, cmdId) {
-  const name = (cmdId && state.commands[cmdId]?.name) ? state.commands[cmdId].name : (cmdId || '未绑定');
+function ahkBaseToDisplay(baseKey) {
+  if (!baseKey) return '—';
+  if (baseKey.length === 1) return baseKey.toUpperCase();
+  const map = {
+    Escape: 'Esc',
+    Enter: 'Enter',
+    Space: 'Space',
+    Tab: 'Tab',
+    Backspace: 'Bks',
+    Delete: 'Del',
+    Insert: 'Ins',
+    Home: 'Home',
+    End: 'End',
+    PgUp: 'PgUp',
+    PgDn: 'PgDn',
+    Up: 'Up',
+    Down: 'Down',
+    Left: 'Left',
+    Right: 'Right',
+    LCtrl: 'Ctrl',
+    RCtrl: 'Ctrl',
+    LAlt: 'Alt',
+    RAlt: 'Alt',
+    LShift: 'Shift',
+    RShift: 'Shift',
+  };
+  return map[baseKey] || baseKey;
+}
+
+function ahkKeyToDisplayString(ahkKey) {
+  if (!ahkKey) return '—';
+  if (ahkKey === '^^') return 'Double Ctrl';
+  if (ahkKey === '++') return 'Double Shift';
+  if (ahkKey === '!!') return 'Double Alt';
+  let key = ahkKey;
+  const parts = [];
+  if (key.includes('^')) {
+    parts.push('Ctrl');
+    key = key.replace(/\^/g, '');
+  }
+  if (key.includes('!')) {
+    parts.push('Alt');
+    key = key.replace(/!/g, '');
+  }
+  if (key.includes('+')) {
+    parts.push('Shift');
+    key = key.replace(/\+/g, '');
+  }
+  parts.push(ahkBaseToDisplay(key));
+  return parts.join('+');
+}
+
+function getCommandMetaByElement(el) {
+  const commandId = getCommandByElement(el);
+  if (!commandId) return null;
+  const baseKey = el?.dataset?.ahkkey || '';
+  if (!baseKey) return null;
+  const sourceAhkKey = isModifierBaseKey(baseKey)
+    ? modifierToDoubleAhkKey(baseKey)
+    : (getActivePrefix() + baseKey);
+  return {
+    commandId,
+    sourceAhkKey,
+    sourceDisplayKey: ahkKeyToDisplayString(sourceAhkKey),
+  };
+}
+
+function dashboardItemFromElement(el) {
+  return normalizeDashboardItem({
+    commandId: el?.dataset?.cmdId || '',
+    sourceAhkKey: el?.dataset?.sourceAhkKey || '',
+    sourceDisplayKey: el?.dataset?.sourceDisplayKey || '',
+  });
+}
+
+function buildDashboardGlyph(name) {
+  const clean = String(name || '').replace(/\s+/g, '');
+  const cn = clean.match(/[\u4e00-\u9fff]/g);
+  if (cn && cn.length >= 2) return cn.slice(0, 2).join('');
+  if (cn && cn.length === 1) return cn[0];
+  const words = clean.match(/[A-Za-z0-9]+/g) || [];
+  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return clean.slice(0, 2) || 'GO';
+}
+
+function decorateDashboardItem(el, itemLike) {
+  const item = normalizeDashboardItem(itemLike);
+  if (!item) return;
+  const cmd = state.commands[item.commandId] || {};
+  const name = cmd.name || item.commandId;
+  const hint = item.sourceDisplayKey || ahkKeyToDisplayString(item.sourceAhkKey) || displayKeyForCmd(item.commandId);
   el.className = 'dashboard-item';
-  el.innerHTML = '';
-  el.textContent = name;
-  el.dataset.cmdId = cmdId || '';
+  el.dataset.cmdId = item.commandId;
+  el.dataset.sourceAhkKey = item.sourceAhkKey || '';
+  el.dataset.sourceDisplayKey = item.sourceDisplayKey || hint || '';
   el.removeAttribute('data-ahkkey');
   el.removeAttribute('data-hotkey');
   el.removeAttribute('data-key');
+  el.innerHTML = '';
+
+  const top = mkEl('div', 'dashboard-item-top');
+  const hintEl = mkEl('span', 'dashboard-item-hint', hint || '—');
+  top.appendChild(hintEl);
+
+  const main = mkEl('div', 'dashboard-item-main');
+  const icon = mkEl('div', 'dashboard-item-icon', buildDashboardGlyph(name));
+  const label = mkEl('div', 'dashboard-item-label', name);
+  main.append(icon, label);
+
+  const tooltip = mkEl('div', 'dashboard-item-tooltip');
+  const tooltipName = mkEl('span', 'dashboard-tooltip-name', name);
+  const tooltipHint = mkEl('span', 'dashboard-tooltip-hint', hint || '未记录来源按键');
+  tooltip.append(tooltipName, tooltipHint);
+
+  el.append(top, main, tooltip);
+  el.title = `${name}${hint ? ` (${hint})` : ''}`;
 }
 
 function slotIndexFromEl(el) {
@@ -1499,31 +1825,173 @@ function slotIndexFromEl(el) {
   return Number.isFinite(n) ? n : -1;
 }
 
-function postDashboardAdd(commandId, toIndex) {
-  if (!commandId || toIndex < 0) return;
-  postToAhk({ type: 'dashboardAdd', commandId, toIndex });
+function getDashboardSlotEl(index) {
+  return document.querySelector(`.dashboard-slot[data-slot-index="${index}"]`);
 }
 
-function postDashboardMove(commandId, fromIndex, toIndex) {
-  if (!commandId || fromIndex < 0 || toIndex < 0) return;
-  if (fromIndex === toIndex) return;
-  postToAhk({ type: 'dashboardMove', commandId, fromIndex, toIndex });
+function renderDashboardSlot(slot, item, index) {
+  if (!slot) return;
+  slot.dataset.slotIndex = String(index);
+  slot.innerHTML = '';
+  slot.classList.toggle('is-empty', !item);
+  slot.title = item ? '' : '拖拽命令到此处';
+  if (item) {
+    const el = document.createElement('div');
+    decorateDashboardItem(el, item);
+    slot.appendChild(el);
+  }
 }
 
-function closeDashboardContextMenu() {
-  const menu = document.getElementById('dashboard-context-menu');
-  if (!menu) return;
-  menu.classList.remove('open');
-  dashboardContextTarget = null;
+function cleanupDashboardDragPreview() {
+  if (state.dragPreviewEl?.parentNode) {
+    state.dragPreviewEl.parentNode.removeChild(state.dragPreviewEl);
+  }
+  state.dragPreviewEl = null;
 }
 
-function openDashboardContextMenu(ev, targetItem) {
-  const menu = document.getElementById('dashboard-context-menu');
-  if (!menu || !targetItem) return;
-  dashboardContextTarget = targetItem;
-  menu.style.left = `${ev.clientX}px`;
-  menu.style.top = `${ev.clientY}px`;
-  menu.classList.add('open');
+function createDashboardDragPreview(itemLike) {
+  cleanupDashboardDragPreview();
+  const preview = document.createElement('div');
+  preview.style.position = 'fixed';
+  preview.style.left = '-9999px';
+  preview.style.top = '-9999px';
+  preview.style.width = dashboardLayout === 'multi' ? '94px' : '118px';
+  preview.style.height = dashboardLayout === 'multi' ? '94px' : '118px';
+  preview.style.pointerEvents = 'none';
+  preview.style.zIndex = '99999';
+  preview.className = 'dashboard-slot';
+  preview.classList.remove('is-empty');
+
+  const item = document.createElement('div');
+  decorateDashboardItem(item, itemLike);
+  item.classList.add('dashboard-drag-ghost');
+  preview.appendChild(item);
+
+  document.body.appendChild(preview);
+  state.dragPreviewEl = preview;
+  return preview;
+}
+
+function syncKeyboardDraggableState() {
+  document.querySelectorAll('.k').forEach((el) => {
+    const isDraggable = el.classList.contains('bound') || el.classList.contains('slot-occupied');
+    el.draggable = isDraggable;
+    if (isDraggable) {
+      el.setAttribute('draggable', 'true');
+    } else {
+      el.removeAttribute('draggable');
+    }
+  });
+}
+
+function applyDashboardItemToSlot(toIndex, itemLike, fromIndex = -1) {
+  const item = normalizeDashboardItem(itemLike);
+  const cfg = ensureDashboardStateSize();
+  if (!item || toIndex < 0 || toIndex >= cfg.length) return false;
+
+  const priorTarget = cfg[toIndex];
+  if (fromIndex >= 0 && fromIndex < cfg.length && fromIndex !== toIndex) {
+    cfg[fromIndex] = null;
+    renderDashboardSlot(getDashboardSlotEl(fromIndex), null, fromIndex);
+  }
+
+  cfg[toIndex] = item;
+  renderDashboardSlot(getDashboardSlotEl(toIndex), item, toIndex);
+
+  if (fromIndex >= 0 && fromIndex !== toIndex) {
+    postDashboardMove(item, fromIndex, toIndex);
+  } else {
+    if (priorTarget?.commandId && priorTarget.commandId !== item.commandId) {
+      postDashboardRemove(priorTarget, toIndex);
+    }
+    postDashboardAdd(item, toIndex);
+  }
+  return true;
+}
+
+function ensureDashboardSlots() {
+  const grid = document.getElementById('dashboard-grid');
+  if (!grid) return;
+  const cfg = ensureDashboardStateSize();
+  const need = cfg.length;
+  if (grid.children.length !== need) {
+    grid.innerHTML = '';
+    for (let i = 0; i < need; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'dashboard-slot';
+      grid.appendChild(slot);
+    }
+  }
+  Array.from(grid.children).forEach((slot, index) => {
+    renderDashboardSlot(slot, cfg[index], index);
+  });
+}
+
+function syncDashboardDropCue(active) {
+  const container = document.getElementById('dashboard-container');
+  if (!container) return;
+  container.classList.toggle('drop-active', !!active && state.dashboardDragActive);
+}
+
+function buildDashboardBridgePayload(type, extra) {
+  return Object.assign({
+    type,
+    layout: dashboardLayout,
+    dashboardConfig: serializeDashboardConfig(),
+  }, extra || {});
+}
+
+function postDashboardAdd(item, toIndex) {
+  if (!item?.commandId || toIndex < 0) return;
+  postToAhk(buildDashboardBridgePayload('dashboardAdd', {
+    commandId: item.commandId,
+    toIndex,
+    sourceAhkKey: item.sourceAhkKey || '',
+    sourceDisplayKey: item.sourceDisplayKey || '',
+  }));
+}
+
+function postDashboardMove(item, fromIndex, toIndex) {
+  if (!item?.commandId || fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
+  postToAhk(buildDashboardBridgePayload('dashboardMove', {
+    commandId: item.commandId,
+    fromIndex,
+    toIndex,
+    sourceAhkKey: item.sourceAhkKey || '',
+    sourceDisplayKey: item.sourceDisplayKey || '',
+  }));
+}
+
+function postDashboardRemove(item, fromIndex) {
+  if (!item?.commandId || fromIndex < 0) return;
+  postToAhk(buildDashboardBridgePayload('dashboardRemove', {
+    commandId: item.commandId,
+    fromIndex,
+  }));
+}
+
+function flashInvalidKeyDrag(keyEl) {
+  if (!keyEl) return;
+  keyEl.classList.remove('drag-invalid');
+  void keyEl.offsetWidth;
+  keyEl.classList.add('drag-invalid');
+  setTimeout(() => keyEl.classList.remove('drag-invalid'), 280);
+}
+
+function removeDashboardItemAt(index, notify = true) {
+  const cfg = ensureDashboardStateSize();
+  const removed = cfg[index];
+  if (!removed) return;
+  cfg[index] = null;
+  renderDashboardSlot(getDashboardSlotEl(index), null, index);
+  if (notify) postDashboardRemove(removed, index);
+}
+
+function endDashboardDragState() {
+  state.dashboardDragActive = false;
+  state.draggedDashboardItem = null;
+  cleanupDashboardDragPreview();
+  syncDashboardDropCue(false);
 }
 
 function initDashboardDrag() {
@@ -1532,53 +2000,97 @@ function initDashboardDrag() {
     console.warn('[VK] Sortable.js not loaded');
     return;
   }
-  ensureDashboardSlots();
   const keyboard = document.getElementById('keyboard');
   const grid = document.getElementById('dashboard-grid');
-  if (!keyboard || !grid) return;
+  const container = document.getElementById('dashboard-container');
+  if (!keyboard || !grid || !container) return;
+
   applyDashboardLayout(dashboardLayout);
 
   document.querySelectorAll('.dashboard-layout-btn').forEach((btn) => {
     btn.addEventListener('click', () => applyDashboardLayout(btn.dataset.layout));
   });
 
+  container.addEventListener('dragenter', () => {
+    if (state.dashboardDragActive) syncDashboardDropCue(true);
+  });
+  container.addEventListener('dragover', (ev) => {
+    if (!state.dashboardDragActive) return;
+    ev.preventDefault();
+    syncDashboardDropCue(true);
+  });
+  container.addEventListener('dragleave', (ev) => {
+    if (!container.contains(ev.relatedTarget)) syncDashboardDropCue(false);
+  });
+  container.addEventListener('drop', (ev) => {
+    if (!state.draggedDashboardItem) return;
+    ev.preventDefault();
+    const slot = ev.target.closest('.dashboard-slot');
+    const toIndex = slotIndexFromEl(slot);
+    if (toIndex >= 0) applyDashboardItemToSlot(toIndex, state.draggedDashboardItem, -1);
+    endDashboardDragState();
+  });
+
   grid.addEventListener('contextmenu', (ev) => {
     const targetItem = ev.target.closest('.dashboard-item');
     if (!targetItem) return;
     ev.preventDefault();
-    openDashboardContextMenu(ev, targetItem);
-  });
-  document.addEventListener('click', () => closeDashboardContextMenu());
-  document.getElementById('dashboard-context-menu')?.addEventListener('click', (ev) => {
-    const actionEl = ev.target.closest('.dashboard-menu-item');
-    if (!actionEl || !dashboardContextTarget) return;
-    const action = actionEl.dataset.menuAction || '';
-    if (action === 'remove') {
-      const slot = dashboardContextTarget.closest('.dashboard-slot');
-      const cmdId = dashboardContextTarget.dataset.cmdId || '';
-      dashboardContextTarget.remove();
-      // 预留后续与 AHK 的删除同步消息
-      if (slot) {
-        const idx = slotIndexFromEl(slot);
-        postToAhk({ type: 'dashboardRemove', commandId: cmdId, fromIndex: idx });
-      }
-    }
-    closeDashboardContextMenu();
+    const slot = targetItem.closest('.dashboard-slot');
+    const index = slotIndexFromEl(slot);
+    removeDashboardItemAt(index, true);
   });
 
-  // Source: keyboard (clone only)
-  new Sortable(keyboard, {
-    group: { name: 'actions', pull: 'clone', put: false },
-    sort: false,
-    animation: 120,
-    draggable: '.k.bound, .k.slot-occupied',
-    filter: '.k:not(.bound):not(.slot-occupied)',
-    onClone: (evt) => {
-      const src = evt.item;
-      const clone = evt.clone;
-      const cmdId = cmdIdFromKeyEl(src);
-      decorateDashboardItem(clone, cmdId);
-    },
+  keyboard.addEventListener('dragstart', (ev) => {
+    const keyEl = ev.target.closest('.k');
+    if (!keyEl) return;
+    const meta = getCommandMetaByElement(keyEl);
+    if (!meta) {
+      ev.preventDefault();
+      flashInvalidKeyDrag(keyEl);
+      return;
+    }
+    state.draggedDashboardItem = meta;
+    state.dashboardDragActive = true;
+    syncDashboardDropCue(true);
+    keyEl.classList.add('dashboard-drag-source');
+
+    if (ev.dataTransfer) {
+      ev.dataTransfer.effectAllowed = 'copy';
+      ev.dataTransfer.dropEffect = 'copy';
+      ev.dataTransfer.setData('text/plain', meta.commandId);
+      const preview = createDashboardDragPreview(meta);
+      ev.dataTransfer.setDragImage(preview, preview.offsetWidth / 2, preview.offsetHeight / 2);
+    }
+  });
+
+  keyboard.addEventListener('dragend', (ev) => {
+    const keyEl = ev.target.closest('.k');
+    if (keyEl) keyEl.classList.remove('dashboard-drag-source');
+    endDashboardDragState();
+  });
+
+  keyboard.addEventListener('mousedown', (ev) => {
+    const keyEl = ev.target.closest('.k:not(.bound):not(.slot-occupied)');
+    if (!keyEl) return;
+    flashInvalidKeyDrag(keyEl);
+  });
+
+  grid.addEventListener('dragover', (ev) => {
+    if (!state.draggedDashboardItem) return;
+    const slot = ev.target.closest('.dashboard-slot');
+    if (!slot) return;
+    ev.preventDefault();
+    syncDashboardDropCue(true);
+  });
+
+  grid.addEventListener('drop', (ev) => {
+    if (!state.draggedDashboardItem) return;
+    const slot = ev.target.closest('.dashboard-slot');
+    const toIndex = slotIndexFromEl(slot);
+    if (toIndex < 0) return;
+    ev.preventDefault();
+    applyDashboardItemToSlot(toIndex, state.draggedDashboardItem, -1);
+    endDashboardDragState();
   });
 
   const bindSlotSortable = (slot) => {
@@ -1587,38 +2099,49 @@ function initDashboardDrag() {
     new Sortable(slot, {
       group: { name: 'actions', pull: true, put: true },
       animation: 140,
+      forceFallback: true,
+      fallbackOnBody: true,
+      fallbackTolerance: 3,
       draggable: '.dashboard-item',
+      ghostClass: 'dashboard-drag-ghost',
+      chosenClass: 'dashboard-drag-chosen',
+      dragClass: 'dashboard-dragging',
+      onStart: () => {
+        state.dashboardDragActive = true;
+      },
       onAdd: (evt) => {
         const toSlot = evt.to;
         const fromSlot = evt.from;
         const toIndex = slotIndexFromEl(toSlot);
         const fromIndex = slotIndexFromEl(fromSlot);
 
-        // enforce 1 item per slot (keep newly added one)
         Array.from(toSlot.querySelectorAll('.dashboard-item')).forEach((it) => {
           if (it !== evt.item) it.remove();
         });
 
-        let cmdId = evt.item?.dataset?.cmdId || '';
-        if (!cmdId && evt.item) {
-          // fallback: if something weird got dropped, try interpret it as key
-          cmdId = cmdIdFromKeyEl(evt.item);
+        const item = dashboardItemFromElement(evt.item);
+        if (!item) {
+          evt.item.remove();
+          endDashboardDragState();
+          return;
         }
-        decorateDashboardItem(evt.item, cmdId);
 
-        if (fromIndex >= 0) postDashboardMove(cmdId, fromIndex, toIndex);
-        else postDashboardAdd(cmdId, toIndex);
+        applyDashboardItemToSlot(toIndex, item, fromIndex);
       },
       onUpdate: (evt) => {
         const toIndex = slotIndexFromEl(evt.to);
         const fromIndex = slotIndexFromEl(evt.from);
-        const cmdId = evt.item?.dataset?.cmdId || '';
-        if (cmdId && toIndex >= 0 && fromIndex >= 0) postDashboardMove(cmdId, fromIndex, toIndex);
+        const item = dashboardItemFromElement(evt.item);
+        if (!item || toIndex < 0 || fromIndex < 0) return;
+        postDashboardMove(item, fromIndex, toIndex);
+      },
+      onEnd: () => {
+        endDashboardDragState();
       },
     });
   };
-  grid.querySelectorAll('.dashboard-slot').forEach(bindSlotSortable);
 
+  grid.querySelectorAll('.dashboard-slot').forEach(bindSlotSortable);
   const mo = new MutationObserver(() => {
     grid.querySelectorAll('.dashboard-slot').forEach(bindSlotSortable);
   });
@@ -1851,6 +2374,7 @@ function renderKeyboardSlots() {
       el.classList.add('slot-available');
     }
   });
+  syncKeyboardDraggableState();
 }
 
 function clearCommandFocus() {
@@ -2163,6 +2687,14 @@ if (window.chrome && window.chrome.webview) {
       sys_show_vk: { ahkKey:'^+k',   displayKey:'Ctrl+Shift+K' },
     },
     suggestedBindings: { ch_c: 'c', ch_e: 'e' },
+    dashboardLayout: 'multi',
+    dashboardConfig: [
+      { commandId:'sys_exit', sourceAhkKey:'Escape', sourceDisplayKey:'Esc' },
+      { commandId:'ch_c', sourceAhkKey:'c', sourceDisplayKey:'C' },
+      { commandId:'ch_e', sourceAhkKey:'e', sourceDisplayKey:'E' },
+      null,
+      { commandId:'win_min', sourceAhkKey:'^m', sourceDisplayKey:'Ctrl+M' },
+    ],
   });
 }
 

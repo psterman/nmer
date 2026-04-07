@@ -12,7 +12,7 @@ button,input,textarea,select{font:inherit}
 #app{position:relative;width:100%;height:100%;background:var(--toolbar-bg)}
 body.drawer-open{background:var(--toolbar-bg)}
 /* 标准圆角矩形：CSS border-radius 各向一致，避免 SVG 非等比拉伸成“药丸/鼓边” */
-#collapsedRoot{position:relative;display:flex;flex-direction:row;align-items:center;height:100%;width:100%;gap:calc(8px * var(--ui));padding:calc(6px * var(--ui)) calc(8px * var(--ui));background:var(--toolbar-bg);background-clip:padding-box;border-radius:calc(10px * var(--ui));border:1px solid rgba(255,102,0,.48);box-shadow:0 0 0 1px rgba(255,102,0,.12),0 0 12px rgba(255,102,0,.2),0 0 24px rgba(255,102,0,.1);opacity:0;visibility:hidden;transition:opacity .12s ease,visibility .12s ease;isolation:isolate;transform:translateZ(0);animation:ftbChromePulse 3s ease-in-out infinite}
+#collapsedRoot{position:relative;display:flex;flex-direction:row;align-items:center;height:100%;width:100%;gap:calc(8px * var(--ui));padding:calc(6px * var(--ui)) calc(8px * var(--ui));background:var(--toolbar-bg);background-clip:padding-box;border-radius:calc(10px * var(--ui));border:none;box-shadow:none;opacity:0;visibility:hidden;transition:opacity .12s ease,visibility .12s ease;isolation:isolate;transform:translateZ(0)}
 /* 仅用户悬停/按下/内部聚焦时：轻盈内发光（平时关闭，避免误以为是黑边） */
 #collapsedRoot::after{content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .22s ease;box-shadow:none}
 #collapsedRoot:hover::after,#collapsedRoot:active::after,#collapsedRoot:focus-within::after{opacity:1;animation:ftbInnerBreath 2.6s ease-in-out infinite}
