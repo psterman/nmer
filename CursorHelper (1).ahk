@@ -529,6 +529,9 @@ global ScreenshotWaiting := false  ; 是否正在等待粘贴截图
 global ScreenshotImageDetected := false  ; OnClipboardChange 检测到截图图片
 global ScreenshotClipboard := ""  ; 保存的截图剪贴板内容
 global ScreenshotCheckTimer := 0  ; 截图检测定时器
+global g_ExecuteScreenshotWithMenuBusy := false  ; 防重复进入截图流程（避免双重助手/工具栏）
+global FloatingToolbar_ScheduleRestoreAfterScreenshot := false  ; 从悬浮条发起截图时，在助手显示前恢复工具栏
+global g_ShowScreenshotEditorInFlight := false  ; 防止 ShowScreenshotEditor 在 Sleep/剪贴板等待期间被重入导致两次建窗
 global GuiID_ScreenshotButton := 0  ; 截图悬浮按钮 GUI ID
 global ScreenshotButtonVisible := false  ; 截图按钮是否可见
 global ScreenshotPanelX := -1  ; 截图面板 X 坐标（-1 表示使用默认居中位置）
@@ -4196,7 +4199,7 @@ CreateTrayMenuGUI() {
 
     ; 重点：直接在这里定义按钮，不要在循环里定义，或者确保闭包正确
     AddMenuButton("📋 剪贴板管理", (*) => CP_Show())
-    AddMenuButton("🖼️ 截图助手", (*) => ExecuteScreenshot())
+    AddMenuButton("🖼️ 截图助手", (*) => ExecuteScreenshotWithMenu())
     AddMenuButton("⚙️ 隐藏工具栏", (*) => ToggleFloatingToolbar())
     
     TrayMenuGUI.Add("Text", "w140 h1 BackgroundWhite 0x7") ; 分割线
@@ -29689,11 +29692,33 @@ SendVoiceInputToCursor(Content) {
 global GuiID_ClipboardSmartMenu := 0  ; 智能菜单 GUI ID
 global ScreenshotOldClipboard := ""  ; 保存截图前的剪贴板内容
 
+; 从悬浮条隐藏工具栏后发起截图时，在剪贴板就绪、显示助手前恢复悬浮条（避免与 finally 延迟 Show 重复导致双开/偏移）
+ScreenshotFlowRestoreFloatingToolbarIfNeeded() {
+    global FloatingToolbar_ScheduleRestoreAfterScreenshot
+    if (FloatingToolbar_ScheduleRestoreAfterScreenshot) {
+        FloatingToolbar_ScheduleRestoreAfterScreenshot := false
+        try ShowFloatingToolbar()
+        catch as _e {
+        }
+    }
+}
+
 ; 执行截图并等待完成后弹出智能菜单
-ExecuteScreenshotWithMenu() {
+; fromFloatingDeferred: 为 true 时表示 FloatingToolbar_DeferredScreenshot 已在 Hide/Sleep 前原子地占用了 g_ExecuteScreenshotWithMenuBusy，此处不得因 busy 而 return
+ExecuteScreenshotWithMenu(fromFloatingDeferred := false) {
     global CursorPath, AISleepTime, ScreenshotWaiting, ScreenshotClipboard, ScreenshotOldClipboard
     global PanelVisible
-    
+    global g_ExecuteScreenshotWithMenuBusy, FloatingToolbar_ScheduleRestoreAfterScreenshot
+    ; 与热键/定时器线程竞态：Sleep 让出执行权前 busy 检查与赋值须原子化；Deferred 路径在 Sleep 前预占 busy，避免第二次 Deferred 叠加入口
+    prevCrit := Critical("On")
+    if (g_ExecuteScreenshotWithMenuBusy && !fromFloatingDeferred) {
+        Critical(prevCrit)
+        return
+    }
+    if (!fromFloatingDeferred)
+        g_ExecuteScreenshotWithMenuBusy := true
+    Critical(prevCrit)
+    try {
     ; 初始化 DebugGui 变量
     DebugGui := 0
     
@@ -29889,6 +29914,7 @@ ExecuteScreenshotWithMenu() {
                         ; 忽略销毁错误
                     }
                 }
+                ScreenshotFlowRestoreFloatingToolbarIfNeeded()
                 return
             }
             
@@ -29911,23 +29937,15 @@ ExecuteScreenshotWithMenu() {
                 UpdateDebugStep(DebugGui, 12, "等待状态已清除", true)
             }
             
-            ; 等待截图工具完全关闭，避免窗口阻挡用户截图
+            ; 等待截图工具关闭后再恢复悬浮条并打开助手（避免与延迟 Show 重复导致双开/位置偏移）
             if (DebugGui) {
                 UpdateDebugStep(DebugGui, 13, "等待截图工具关闭...", false)
             }
-            ; 等待1秒，确保截图工具已完全关闭
-            Sleep(1000)
-            
-            ; 尝试等待截图工具窗口关闭（最多等待2秒）
-            ; 使用更广泛的窗口检测和处理
+            Sleep(400)
             CloseAllScreenshotWindows()
-            
-            ; 额外等待确保所有截图相关窗口都已关闭
+            Sleep(150)
             Sleep(200)
-            
-            ; 再等待500ms，确保截图工具完全退出
-            Sleep(500)
-            
+            ScreenshotFlowRestoreFloatingToolbarIfNeeded()
             ; 弹出截图助手预览窗（替代智能菜单）
             if (DebugGui) {
                 UpdateDebugStep(DebugGui, 13, "调用 ShowScreenshotEditor() 显示助手窗口...", false)
@@ -29967,6 +29985,7 @@ ExecuteScreenshotWithMenu() {
             if (DebugGui) {
                 SetTimer(DestroyDebugGui.Bind(DebugGui), -2000)
             }
+            ScreenshotFlowRestoreFloatingToolbarIfNeeded()
         }
     } catch as e {
         if (DebugGui) {
@@ -29980,6 +29999,10 @@ ExecuteScreenshotWithMenu() {
         if (DebugGui) {
             SetTimer(DestroyDebugGui.Bind(DebugGui), -3000)
         }
+        ScreenshotFlowRestoreFloatingToolbarIfNeeded()
+    }
+    } finally {
+        g_ExecuteScreenshotWithMenuBusy := false
     }
 }
 
@@ -34880,6 +34903,7 @@ ShowScreenshotEditor(DebugGui := 0) {
     global GuiID_ScreenshotEditor, ScreenshotClipboard, UI_Colors, ThemeMode
     global ScreenshotEditorBitmap, ScreenshotEditorGraphics, ScreenshotEditorImagePath
     global ScreenshotEditorMode
+    global g_ShowScreenshotEditorInFlight
     
     ; 初始化局部变量
     pToken := 0
@@ -34890,6 +34914,13 @@ ShowScreenshotEditor(DebugGui := 0) {
     pPreviewBitmap := 0
     pGraphics := 0
     
+    prevCrit := Critical("On")
+    if (g_ShowScreenshotEditorInFlight) {
+        Critical(prevCrit)
+        return
+    }
+    g_ShowScreenshotEditorInFlight := true
+    Critical(prevCrit)
     try {
         if (DebugGui) {
             UpdateDebugStep(DebugGui, 14, "ShowScreenshotEditor: 开始执行...", false)
@@ -35383,6 +35414,8 @@ ShowScreenshotEditor(DebugGui := 0) {
         ; 显示详细的错误诊断信息
         ShowScreenshotErrorDiagnostics(e)
         CloseScreenshotEditor()
+    } finally {
+        g_ShowScreenshotEditorInFlight := false
     }
 }
 

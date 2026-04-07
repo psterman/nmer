@@ -40,6 +40,7 @@ global g_FTB_WV2_FrameReady := false
 global g_FTB_PendingSelection := ""
 global g_FTB_UI_Ready := false
 global g_FTB_WaitingUiFinishedReveal := false
+global g_FTB_ScreenshotDeferLastTick := 0  ; 防抖：WebView 短时双发 postMessage 会排队两次 Deferred，避免第二次再跑完整截图助手流程
 
 ; ===================== 鏄剧ず/闅愯棌鎮诞绐?=====================
 ShowFloatingToolbar() {
@@ -47,6 +48,11 @@ ShowFloatingToolbar() {
     global g_FTB_UI_Ready, g_FTB_WaitingUiFinishedReveal
 
     if (FloatingToolbarIsVisible && FloatingToolbarGUI != 0) {
+        return
+    }
+    ; 竞态：首次 Show 用 Show+Hide 等待 WebView UI_FINISHED 动画 reveal 期间 FloatingToolbarIsVisible 仍为 false，
+    ; 若此时再次进入（如截图恢复 + 其它路径），会二次 LoadFloatingToolbarPosition/Show，出现双动画与悬浮条大位移。
+    if (FloatingToolbarGUI != 0 && g_FTB_WaitingUiFinishedReveal) {
         return
     }
 
@@ -550,28 +556,41 @@ FloatingToolbarSetChatDrawerState(open) {
 ; WebView2 WebMessageReceived 须尽快返回；ExecuteScreenshotWithMenu 含长 Sleep 与剪贴板轮询，
 ; 在回调内同步调用会阻塞 WebView 消息泵，导致工具栏卡死且截图助手无法弹出。
 FloatingToolbar_DeferredScreenshot(*) {
-    global FloatingToolbarIsVisible
+    global FloatingToolbarIsVisible, FloatingToolbar_ScheduleRestoreAfterScreenshot, g_ExecuteScreenshotWithMenuBusy
+    global g_FTB_ScreenshotDeferLastTick
+
+    ; 防抖：同一操作 1500ms 内只接受一次（截图流程耗时长，完成后也需阻止重复触发）
+    if (g_FTB_ScreenshotDeferLastTick && (A_TickCount - g_FTB_ScreenshotDeferLastTick < 1500))
+        return
+    g_FTB_ScreenshotDeferLastTick := A_TickCount
+
+    prevCrit := Critical("On")
+    if (g_ExecuteScreenshotWithMenuBusy) {
+        Critical(prevCrit)
+        return
+    }
+    g_ExecuteScreenshotWithMenuBusy := true
+    Critical(prevCrit)
 
     wasVisible := !!FloatingToolbarIsVisible
+    FloatingToolbar_ScheduleRestoreAfterScreenshot := wasVisible
 
     try {
         if (wasVisible) {
             HideFloatingToolbar()
             Sleep(120)
         }
-        ExecuteScreenshotWithMenu()
+        ExecuteScreenshotWithMenu(true)
+        ; 截图流程完成后刷新防抖时间戳，阻止后续 1.5 秒内的重复触发
+        g_FTB_ScreenshotDeferLastTick := A_TickCount
     } catch as err {
-        SetCapsLockState("AlwaysOff")
-        Send("{CapsLock down}")
-        Sleep(30)
-        Send("t")
-        Sleep(30)
-        Send("{CapsLock up}")
-        SetCapsLockState("Off")
-    } finally {
-        if (wasVisible)
-            SetTimer(ShowFloatingToolbar, -120)
+        ; Hide/Sleep 在 ExecuteScreenshotWithMenu 之前失败时，预占的 busy 不会由后者 finally 清除
+        g_ExecuteScreenshotWithMenuBusy := false
+        try OutputDebug("[FloatingToolbar] DeferredScreenshot: " . err.Message)
+        catch {
+        }
     }
+    ; 悬浮条在 ExecuteScreenshotWithMenu 内剪贴板就绪后、ShowScreenshotEditor 前统一恢复，避免 finally 再延迟 Show 造成双重显示与位置偏移
 }
 
 FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
