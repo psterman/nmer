@@ -1,11 +1,11 @@
-ï»¿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VK KeyBinder</title>
 <style>
-/* â”€â”€ Reset & Variables â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ©¤©¤ Reset & Variables ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ */
 :root {
   --bg:           #0a0a0a;
   --surface:      #141414;
@@ -25,22 +25,22 @@
   --glow-cyan:    0 0 8px #00d4ff88, 0 0 18px #00d4ff44;
   --font:         "Fira Code", "Consolas", "Courier New", monospace;
   --font-ui:      "Segoe UI", system-ui, sans-serif;
-  /* â”€â”€ Cyberpunk palette â”€â”€â”€ */
+  /* ©¤©¤ Cyberpunk palette ©¤©¤©¤ */
   --matrix-green: #00ff41;
   --warning-gold: #ffcc00;
   --deep-black:   #0a0a0a;
   --glow-green:   0 0 8px #00ff4188, 0 0 18px #00ff4144;
   --glow-gold:    0 0 8px #ffcc0088, 0 0 18px #ffcc0044;
-  /* æ•´é¡µ UI ç¼©æ”¾ï¼šç•¥å°å¯é¿å…é”®ç›˜åŒºå‡ºç°çºµå‘æ»šåŠ¨æ¡ï¼Œä»ä¿æŒæ¸…æ™°å¯è¯» */
+  /* ÕûÒ³ UI Ëõ·Å£ºÂÔĞ¡¿É±ÜÃâ¼üÅÌÇø³öÏÖ×İÏò¹ö¶¯Ìõ£¬ÈÔ±£³ÖÇåÎú¿É¶Á */
   --vk-ui-scale: 1.5;
-  /* ä¸‹æ–¹åˆ†ç±»/æœç´¢/åˆ—è¡¨ï¼šä»¥ 12px ä¸ºå‚è€ƒç•¥ç¼©å° */
+  /* ÏÂ·½·ÖÀà/ËÑË÷/ÁĞ±í£ºÒÔ 12px Îª²Î¿¼ÂÔËõĞ¡ */
   --vk-panel-font: 11px;
   --vk-panel-font-sm: 10px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
   width: 100%; height: 100%;
-  background: var(--bg);
+  background: radial-gradient(circle at top right, rgba(230,126,34,.08), transparent 28%), linear-gradient(180deg, #090b0d 0%, #101317 100%);
   color: var(--text);
   font-family: var(--font);
   overflow: hidden;
@@ -56,8 +56,8 @@ body::after {
   );
 }
 
-/* â”€â”€ Layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-/* é€»è¾‘å°ºå¯¸ç¼©å°åå† scaleï¼Œä½¿é”®å¸½/æ–‡å­—åœ¨è§†å£å†…çº¦æ”¾å¤§ --vk-ui å€ä¸”ä¸è£åˆ‡ */
+/* ©¤©¤ Layout ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ */
+/* Âß¼­³ß´çËõĞ¡ºóÔÙ scale£¬Ê¹¼üÃ±/ÎÄ×ÖÔÚÊÓ¿ÚÄÚÔ¼·Å´ó --vk-ui ±¶ÇÒ²»²ÃÇĞ */
 #root {
   display: flex;
   flex-direction: column;
@@ -68,14 +68,35 @@ body::after {
   transform-origin: top left;
 }
 #hud {
+  position: relative;
   flex-shrink: 0;
-  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
-  padding: 6px 14px 8px;
-  min-height: 38px;
-  background: var(--surface2);
-  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 8px;
+  min-height: 42px;
+  margin: 6px 8px 4px;
+  border: 1px solid rgba(255,170,94,.28);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,171,92,.05), rgba(255,171,92,0)), var(--surface2);
+  box-shadow: 0 10px 24px rgba(0,0,0,.36);
+  overflow: hidden;
 }
-/* é”®ç›˜åŒºæŒ‰å†…å®¹é«˜åº¦ï¼›ä¸‹æ–¹è®¾ç½®åŒºå æ»¡å‰©ä½™ç©ºé—´ï¼ˆé 50/50ï¼‰ */
+#hud::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(255,178,108,.28), rgba(255,154,82,.1) 46%, rgba(255,171,92,.16));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: .72;
+}
+/* ¼üÅÌÇø°´ÄÚÈİ¸ß¶È£»ÏÂ·½ÉèÖÃÇøÕ¼ÂúÊ£Óà¿Õ¼ä£¨·Ç 50/50£© */
 #keyboard-zone {
   flex: 0 0 auto;
   min-height: 0;
@@ -111,17 +132,17 @@ body::after {
   background: var(--bg);
   font-size: var(--vk-panel-font);
 }
-/* â”€â”€ Layout Toggle Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ©¤©¤ Layout Toggle Button ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ */
 #layout-toggle {
   font-family: var(--font);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 1.5px;
+  letter-spacing: 1.1px;
   color: var(--text-dim);
-  background: transparent;
+  background: var(--surface3);
   border: 1px solid var(--border2);
-  border-radius: 3px;
-  padding: 2px 8px;
+  border-radius: 999px;
+  padding: 4px 10px;
   cursor: pointer;
   transition: color .15s, border-color .15s, box-shadow .15s;
   flex-shrink: 0;
@@ -133,7 +154,7 @@ body::after {
   box-shadow: var(--glow-green);
 }
 
-/* â”€â”€ Conflict Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ©¤©¤ Conflict Modal ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ */
 #conflict-overlay {
   display: none;
   position: fixed; inset: 0; z-index: 8888;
@@ -199,7 +220,7 @@ body::after {
 }
 .modal-btn.cancel:hover { color: var(--text); border-color: var(--border2); }
 
-/* â”€â”€ HUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ©¤©¤ HUD ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ */
 #hud-icon {
   color: var(--orange);
   font-size: 11px;
@@ -272,13 +293,13 @@ body::after {
 }
 #hud-save:hover { color: var(--orange); border-color: var(--orange); box-shadow: var(--glow); }
 
-/* â”€â”€ Keyboardï¼šæ ‡å‡† 87 é”® TKL â€” Grid å·¦ 6 è¡Œ + å³è½¨è·¨è¡Œï¼ˆæ¯”ä¾‹é”®å¸½ï¼Œéæ­£æ–¹å½¢ï¼‰ â”€â”€ */
+/* ©¤©¤ Keyboard£º±ê×¼ 87 ¼ü TKL ¡ª Grid ×ó 6 ĞĞ + ÓÒ¹ì¿çĞĞ£¨±ÈÀı¼üÃ±£¬·ÇÕı·½ĞÎ£© ©¤©¤ */
 #keyboard {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--kb-rail-width);
   grid-template-rows: repeat(6, auto);
   column-gap: 5px;
-  /* è¡Œè·çº¦ä¸ºåŸ 3px çš„ 1/3ï¼ˆç¼©çŸ­ä¸‰åˆ†ä¹‹äºŒï¼‰ */
+  /* ĞĞ¾àÔ¼ÎªÔ­ 3px µÄ 1/3£¨Ëõ¶ÌÈı·ÖÖ®¶ş£© */
   row-gap: 1px;
   flex: 0 0 auto;
   min-height: 0;
@@ -316,7 +337,7 @@ body::after {
   width: 100%;
   min-width: 0;
 }
-/* å³è½¨ï¼šå æ»¡å·¦ä¾§ 6 è¡Œé«˜åº¦ï¼Œå†…å®¹ä»ä¸Šå¾€ä¸‹ç´§å‡‘æ’åˆ—ï¼ˆæ¶ˆé™¤ã€Œä¸­ç©ºã€å¤§ç¼ï¼‰ */
+/* ÓÒ¹ì£ºÕ¼Âú×ó²à 6 ĞĞ¸ß¶È£¬ÄÚÈİ´ÓÉÏÍùÏÂ½ô´ÕÅÅÁĞ£¨Ïû³ı¡¸ÖĞ¿Õ¡¹´ó·ì£© */
 .kb-right-rail-stack {
   grid-column: 2;
   grid-row: 1 / -1;
@@ -358,7 +379,7 @@ body::after {
   padding: 0 2px;
   font-size: 7px;
 }
-/* ä¸Šé”®å•ç‹¬ä¸€è¡Œï¼Œä¸ä¸‹æ–¹ â–¼ åŒå®½å¯¹é½ â†’ å€’ T */
+/* ÉÏ¼üµ¥¶ÀÒ»ĞĞ£¬ÓëÏÂ·½ ¨‹ Í¬¿í¶ÔÆë ¡ú µ¹ T */
 .kr-nav-up {
   display: flex;
   justify-content: center;
@@ -382,7 +403,7 @@ body::after {
   max-width: var(--kb-arrow-w);
   padding: 0 1px;
 }
-/* å·¦ä¾§ä¸»é”®åŒºï¼šè¡Œå†…æŒ‰æ¯”ä¾‹æ‹‰ä¼¸ï¼ˆå…¸å‹æœºæ¢°é”®ç›˜ TKLï¼‰ï¼Œç»Ÿä¸€è¡Œé«˜ --kb-key-h */
+/* ×ó²àÖ÷¼üÇø£ºĞĞÄÚ°´±ÈÀıÀ­Éì£¨µäĞÍ»úĞµ¼üÅÌ TKL£©£¬Í³Ò»ĞĞ¸ß --kb-key-h */
 .kb-main-strip > .k,
 .kb-main-left-col > .kr > .k {
   flex: 1 1 0;
@@ -413,7 +434,7 @@ body::after {
   flex-shrink: 1;
   line-height: 1.15;
 }
-/* ç‰©ç†é”®ç¬¦ï¼šå³ä¸‹å°å­—ï¼Œä¸ºä¸Šæ–¹è‡ªå®šä¹‰å‘½ä»¤åè®©ä½ */
+/* ÎïÀí¼ü·û£ºÓÒÏÂĞ¡×Ö£¬ÎªÉÏ·½×Ô¶¨ÒåÃüÁîÃûÈÃÎ» */
 .k .k-face {
   position: absolute;
   right: 2px;
@@ -509,7 +530,7 @@ body::after {
   border-bottom-width: 1px;
   transform: translateY(2px);
 }
-/* ç³»ç»Ÿå…¨å±€æŒ‰é”®å®æ—¶é«˜äº®ï¼ˆç”± AHK InputHook æ¨é€ï¼‰ */
+/* ÏµÍ³È«¾Ö°´¼üÊµÊ±¸ßÁÁ£¨ÓÉ AHK InputHook ÍÆËÍ£© */
 .k.key-live {
   background: #2a1a00;
   border-bottom-width: 1px;
@@ -518,7 +539,7 @@ body::after {
   border-color: var(--cyan) !important;
   color: var(--cyan) !important;
 }
-/* ANSI é£æ ¼åŠ å®½é”®ï¼ˆä¸ä¸»é”®åŒº flex é…åˆï¼‰ */
+/* ANSI ·ç¸ñ¼Ó¿í¼ü£¨ÓëÖ÷¼üÇø flex ÅäºÏ£© */
 .k-bks  { flex: 2.25 1 0 !important; min-width: 34px; }
 .k-tab  { flex: 1.55 1 0 !important; min-width: 38px; }
 .pt-tabs { display: flex; gap: 6px; margin: 4px 0 8px; flex-wrap: wrap; }
@@ -542,7 +563,7 @@ body::after {
 }
 .k-caps.caps-on::after { background: var(--orange); box-shadow: var(--glow); }
 
-/* â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ©¤©¤ Sidebar ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ */
 .sidebar-section { padding: 4px 8px 2px; }
 .sidebar-section-title {
   font-size: var(--vk-panel-font-sm); letter-spacing: 1px; color: var(--text-xs);
@@ -567,7 +588,7 @@ body::after {
 }
 .sidebar-item.all { padding-left: 10px; font-weight: 600; }
 
-/* â”€â”€ Command Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ©¤©¤ Command Panel ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ */
 #cmd-search-bar {
   flex-shrink: 0;
   display: flex; align-items: center; gap: 6px;
@@ -703,7 +724,7 @@ body::after {
   100% { opacity: 1; }
 }
 
-/* â”€â”€ Dashboard Grid (Orange/Black) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ©¤©¤ Dashboard Grid (Orange/Black) ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ */
 #dashboard-container {
   flex: 0 0 auto;
   height: auto;
@@ -1143,20 +1164,20 @@ body::after {
 <body>
 <div id="root">
 
-  <!-- â”€â”€ HUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <!-- ©¤©¤ HUD ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ -->
   <div id="hud">
     <span id="hud-icon">[ VK KEYBINDER ]</span>
-    <span id="hud-status">æ­£åœ¨è¿æ¥ AHK...</span>
+    <span id="hud-status">ÕıÔÚÁ¬½Ó AHK...</span>
     <div id="hud-dot"></div>
-    <button id="layout-toggle" title="åˆ‡æ¢ ScanCode ç‰©ç†é”®é€‚é…æ¨¡å¼ï¼ˆé˜²æ­¢ IME å¹²æ‰°ï¼‰">STANDARD</button>
+    <button id="layout-toggle" title="ÇĞ»» ScanCode ÎïÀí¼üÊÊÅäÄ£Ê½£¨·ÀÖ¹ IME ¸ÉÈÅ£©">STANDARD</button>
     <div id="hud-hint" aria-live="polite"></div>
   </div>
 
-  <!-- â”€â”€ Keyboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <!-- ©¤©¤ Keyboard ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ -->
   <div id="keyboard-zone">
     <div id="keyboard">
 
-      <!-- Row 1ï¼šEsc + F1â€“F12ï¼ˆå·¦ä¾§å æ»¡ grid ç¬¬ 1 è¡Œï¼‰ -->
+      <!-- Row 1£ºEsc + F1¨CF12£¨×ó²àÕ¼Âú grid µÚ 1 ĞĞ£© -->
       <div class="kb-main-strip kb-grid-left kb-grid-r1">
         <div class="k k-fn" data-ahkkey="Escape">Esc</div>
         <div class="kr-gap" aria-hidden="true"></div>
@@ -1191,12 +1212,12 @@ body::after {
         <div class="k" data-ahkkey="0"><span>0</span><span class="sub">)</span></div>
         <div class="k" data-ahkkey="-"><span>-</span><span class="sub">_</span></div>
         <div class="k" data-ahkkey="="><span>=</span><span class="sub">+</span></div>
-        <div class="k k-bks" data-ahkkey="Backspace">âŒ« Bks</div>
+        <div class="k k-bks" data-ahkkey="Backspace">? Bks</div>
       </div>
 
       <!-- Row 3: QWERTY -->
       <div class="kb-main-strip kb-grid-left kb-grid-r3">
-        <div class="k k-tab" data-ahkkey="Tab">Tab â‡¥</div>
+        <div class="k k-tab" data-ahkkey="Tab">Tab ?</div>
         <div class="k" data-ahkkey="q">Q</div>
         <div class="k" data-ahkkey="w">W</div>
         <div class="k" data-ahkkey="e">E</div>
@@ -1214,7 +1235,7 @@ body::after {
 
       <!-- Row 4: ASDF -->
       <div class="kb-main-strip kb-grid-left kb-grid-r4">
-        <div class="k k-caps" data-ahkkey="CapsLock">Caps â‡ª</div>
+        <div class="k k-caps" data-ahkkey="CapsLock">Caps ?</div>
         <div class="k" data-ahkkey="a">A</div>
         <div class="k" data-ahkkey="s">S</div>
         <div class="k" data-ahkkey="d">D</div>
@@ -1226,12 +1247,12 @@ body::after {
         <div class="k" data-ahkkey="l">L</div>
         <div class="k" data-ahkkey=";"><span>;</span><span class="sub">:</span></div>
         <div class="k" data-ahkkey="'"><span>'</span><span class="sub">"</span></div>
-        <div class="k k-enter" data-ahkkey="Enter">Enter â†µ</div>
+        <div class="k k-enter" data-ahkkey="Enter">Enter ?</div>
       </div>
 
       <!-- Row 5: ZXCV -->
       <div class="kb-main-strip kb-grid-left kb-grid-r5">
-        <div class="k k-lsh" data-ahkkey="LShift">â‡§ Shift</div>
+        <div class="k k-lsh" data-ahkkey="LShift">? Shift</div>
         <div class="k" data-ahkkey="z">Z</div>
         <div class="k" data-ahkkey="x">X</div>
         <div class="k" data-ahkkey="c">C</div>
@@ -1242,25 +1263,25 @@ body::after {
         <div class="k" data-ahkkey=","><span>,</span><span class="sub">&lt;</span></div>
         <div class="k" data-ahkkey="."><span>.</span><span class="sub">&gt;</span></div>
         <div class="k" data-ahkkey="/"><span>/</span><span class="sub">?</span></div>
-        <div class="k k-rsh" data-ahkkey="RShift">Shift â‡§</div>
+        <div class="k k-rsh" data-ahkkey="RShift">Shift ?</div>
       </div>
 
-      <!-- Row 6ï¼šåº•è¡Œä¸»é”®åŒº -->
+      <!-- Row 6£ºµ×ĞĞÖ÷¼üÇø -->
       <div class="kb-main-left-col kb-grid-left kb-grid-r6">
         <div class="kr">
           <div class="k k-ctrl" data-ahkkey="LCtrl">Ctrl</div>
-          <div class="k k-win"  data-ahkkey="LWin">âŠ</div>
+          <div class="k k-win"  data-ahkkey="LWin">?</div>
           <div class="k k-alt"  data-ahkkey="LAlt">Alt</div>
           <div class="k k-spc"  data-ahkkey="Space">SPACE</div>
           <div class="k k-alt"  data-ahkkey="RAlt">Alt</div>
-          <div class="k k-win"  data-ahkkey="RWin">âŠ</div>
-          <div class="k k-win"  data-ahkkey="AppsKey">â‰¡</div>
+          <div class="k k-win"  data-ahkkey="RWin">?</div>
+          <div class="k k-win"  data-ahkkey="AppsKey">¡Ô</div>
           <div class="k k-ctrl" data-ahkkey="RCtrl">Ctrl</div>
         </div>
       </div>
 
-      <!-- å³è½¨å•åˆ—è·¨ 6 è¡Œï¼šPrtâ†’Ins è¡Œâ†’Del è¡Œâ†’â–²â†’â—€â–¼â–¶ï¼ˆå€’ Tï¼‰ -->
-      <div class="kb-right-rail-stack" aria-label="åŠŸèƒ½é”®ä¸å¯¼èˆªé”®">
+      <!-- ÓÒ¹ìµ¥ÁĞ¿ç 6 ĞĞ£ºPrt¡úIns ĞĞ¡úDel ĞĞ¡ú¡ø¡ú?¨‹?£¨µ¹ T£© -->
+      <div class="kb-right-rail-stack" aria-label="¹¦ÄÜ¼üÓëµ¼º½¼ü">
         <div class="kr kb-rail-prt">
           <div class="k k-fn" data-ahkkey="PrintScreen">Prt</div>
           <div class="k k-fn" data-ahkkey="ScrollLock">Scr</div>
@@ -1278,12 +1299,12 @@ body::after {
             <div class="k k-fn" data-ahkkey="PgDn">PgDn</div>
           </div>
           <div class="kr kr-nav kr-nav-up">
-            <div class="k k-fn" data-ahkkey="Up">â–²</div>
+            <div class="k k-fn" data-ahkkey="Up">¡ø</div>
           </div>
           <div class="kr kr-nav kr-arrows">
-            <div class="k k-fn" data-ahkkey="Left">â—€</div>
-            <div class="k k-fn" data-ahkkey="Down">â–¼</div>
-            <div class="k k-fn" data-ahkkey="Right">â–¶</div>
+            <div class="k k-fn" data-ahkkey="Left">?</div>
+            <div class="k k-fn" data-ahkkey="Down">¨‹</div>
+            <div class="k k-fn" data-ahkkey="Right">?</div>
           </div>
         </div>
       </div>
@@ -1291,67 +1312,67 @@ body::after {
     </div><!-- #keyboard -->
   </div><!-- #keyboard-zone -->
 
-  <!-- â”€â”€ Dashboard Grid (Drag & Drop) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-  <div id="dashboard-container" aria-label="å¿«æ·åŠ¨ä½œé¢æ¿">
+  <!-- ©¤©¤ Dashboard Grid (Drag & Drop) ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ -->
+  <div id="dashboard-container" aria-label="¿ì½İ¶¯×÷Ãæ°å">
     <div id="dashboard-toolbar">
       <div id="dashboard-title">DASHBOARD</div>
-      <div id="dashboard-layout-switch" aria-label="å®«æ ¼å¸ƒå±€åˆ‡æ¢">
-        <button class="dashboard-layout-btn" data-layout="1" type="button">1å®«æ ¼</button>
-        <button class="dashboard-layout-btn" data-layout="2" type="button">2å®«æ ¼</button>
-        <button class="dashboard-layout-btn active" data-layout="multi" type="button">å¤šå®«æ ¼</button>
+      <div id="dashboard-layout-switch" aria-label="¹¬¸ñ²¼¾ÖÇĞ»»">
+        <button class="dashboard-layout-btn" data-layout="1" type="button">1¹¬¸ñ</button>
+        <button class="dashboard-layout-btn" data-layout="2" type="button">2¹¬¸ñ</button>
+        <button class="dashboard-layout-btn active" data-layout="multi" type="button">¶à¹¬¸ñ</button>
       </div>
     </div>
     <div id="dashboard-grid" class="layout-multi"></div>
   </div>
-  <div id="dashboard-context-menu" role="menu" aria-label="å®«æ ¼å³é”®èœå•">
-    <button class="dashboard-menu-item" data-menu-action="paste" type="button">ç²˜è´´</button>
-    <button class="dashboard-menu-item" data-menu-action="remove" type="button">åˆ é™¤</button>
-    <button class="dashboard-menu-item" data-menu-action="edit" type="button">ç¼–è¾‘</button>
-    <button class="dashboard-menu-item" data-menu-action="copy" type="button">å¤åˆ¶</button>
-    <button class="dashboard-menu-item" data-menu-action="cut" type="button">å‰ªåˆ‡</button>
-    <button class="dashboard-menu-item" data-menu-action="pin" type="button">å…¨å±€æ‚¬æµ®</button>
+  <div id="dashboard-context-menu" role="menu" aria-label="¹¬¸ñÓÒ¼ü²Ëµ¥">
+    <button class="dashboard-menu-item" data-menu-action="paste" type="button">Õ³Ìù</button>
+    <button class="dashboard-menu-item" data-menu-action="remove" type="button">É¾³ı</button>
+    <button class="dashboard-menu-item" data-menu-action="edit" type="button">±à¼­</button>
+    <button class="dashboard-menu-item" data-menu-action="copy" type="button">¸´ÖÆ</button>
+    <button class="dashboard-menu-item" data-menu-action="cut" type="button">¼ôÇĞ</button>
+    <button class="dashboard-menu-item" data-menu-action="pin" type="button">È«¾ÖĞü¸¡</button>
   </div>
-  <div id="dashboard-float-dock" aria-label="æ‚¬æµ®å¿«æ·åŠ¨ä½œ"></div>
+  <div id="dashboard-float-dock" aria-label="Ğü¸¡¿ì½İ¶¯×÷"></div>
 
-  <div id="dashboard-overwrite-overlay" aria-modal="true" role="dialog" aria-label="è¦†ç›–ç¡®è®¤">
+  <div id="dashboard-overwrite-overlay" aria-modal="true" role="dialog" aria-label="¸²¸ÇÈ·ÈÏ">
     <div id="dashboard-overwrite-modal">
       <div class="modal-title">[ DASHBOARD OVERWRITE ]</div>
-      <div class="modal-body" id="dashboard-overwrite-body">ç›®æ ‡å®«æ ¼å·²æœ‰åŠ¨ä½œï¼Œæ˜¯å¦è¦†ç›–ï¼Ÿ</div>
+      <div class="modal-body" id="dashboard-overwrite-body">Ä¿±ê¹¬¸ñÒÑÓĞ¶¯×÷£¬ÊÇ·ñ¸²¸Ç£¿</div>
       <div class="modal-actions">
-        <button class="modal-btn cancel" id="dashboard-overwrite-cancel" type="button">å–æ¶ˆ</button>
-        <button class="modal-btn confirm" id="dashboard-overwrite-confirm" type="button">è¦†ç›–</button>
+        <button class="modal-btn cancel" id="dashboard-overwrite-cancel" type="button">È¡Ïû</button>
+        <button class="modal-btn confirm" id="dashboard-overwrite-confirm" type="button">¸²¸Ç</button>
       </div>
     </div>
   </div>
-  <div id="dashboard-edit-overlay" aria-modal="true" role="dialog" aria-label="ç¼–è¾‘å®«æ ¼åŠ¨ä½œ">
+  <div id="dashboard-edit-overlay" aria-modal="true" role="dialog" aria-label="±à¼­¹¬¸ñ¶¯×÷">
     <div id="dashboard-edit-modal">
       <div class="modal-title">[ DASHBOARD EDIT ]</div>
       <div class="dashboard-edit-field">
-        <label class="dashboard-edit-label" for="dashboard-edit-title">æ ‡é¢˜</label>
-        <input id="dashboard-edit-title" class="dashboard-edit-input" type="text" maxlength="40" placeholder="æ˜¾ç¤ºåç§°">
+        <label class="dashboard-edit-label" for="dashboard-edit-title">±êÌâ</label>
+        <input id="dashboard-edit-title" class="dashboard-edit-input" type="text" maxlength="40" placeholder="ÏÔÊ¾Ãû³Æ">
       </div>
       <div class="dashboard-edit-field">
-        <label class="dashboard-edit-label" for="dashboard-edit-note">å¤‡æ³¨</label>
-        <input id="dashboard-edit-note" class="dashboard-edit-input" type="text" maxlength="80" placeholder="è¡¥å……è¯´æ˜">
+        <label class="dashboard-edit-label" for="dashboard-edit-note">±¸×¢</label>
+        <input id="dashboard-edit-note" class="dashboard-edit-input" type="text" maxlength="80" placeholder="²¹³äËµÃ÷">
       </div>
       <div class="dashboard-edit-field">
-        <label class="dashboard-edit-label" for="dashboard-edit-shortcut">å¿«æ·é”®æ˜¾ç¤º</label>
-        <input id="dashboard-edit-shortcut" class="dashboard-edit-input" type="text" maxlength="32" placeholder="ä¾‹å¦‚ Ctrl+A">
+        <label class="dashboard-edit-label" for="dashboard-edit-shortcut">¿ì½İ¼üÏÔÊ¾</label>
+        <input id="dashboard-edit-shortcut" class="dashboard-edit-input" type="text" maxlength="32" placeholder="ÀıÈç Ctrl+A">
       </div>
       <div class="modal-actions">
-        <button class="modal-btn cancel" id="dashboard-edit-cancel" type="button">å–æ¶ˆ</button>
-        <button class="modal-btn confirm" id="dashboard-edit-save" type="button">ä¿å­˜</button>
+        <button class="modal-btn cancel" id="dashboard-edit-cancel" type="button">È¡Ïû</button>
+        <button class="modal-btn confirm" id="dashboard-edit-save" type="button">±£´æ</button>
       </div>
     </div>
   </div>
 
-  <!-- â”€â”€ Bottom: Sidebar + Command Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <!-- ©¤©¤ Bottom: Sidebar + Command Panel ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ -->
   <div id="bottom-zone">
 
     <!-- Sidebar -->
     <div id="sidebar">
       <div class="sidebar-section">
-        <div class="sidebar-section-title">åˆ†ç±»</div>
+        <div class="sidebar-section-title">·ÖÀà</div>
       </div>
       <div id="sidebar-list"></div>
     </div>
@@ -1359,8 +1380,8 @@ body::after {
     <!-- Command Panel -->
     <div id="cmd-panel">
       <div id="cmd-search-bar">
-        <input id="cmd-search" type="text" placeholder="æœç´¢å‘½ä»¤..." autocomplete="off" spellcheck="false">
-        <span id="cmd-count">0 ä¸ªå‘½ä»¤</span>
+        <input id="cmd-search" type="text" placeholder="ËÑË÷ÃüÁî..." autocomplete="off" spellcheck="false">
+        <span id="cmd-count">0 ¸öÃüÁî</span>
       </div>
       <div id="cmd-list-wrapper">
         <div id="cmd-list"></div>
@@ -1369,16 +1390,16 @@ body::after {
 
   </div><!-- #bottom-zone -->
 
-  <!-- â”€â”€ Conflict Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <!-- ©¤©¤ Conflict Modal ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ -->
   <div id="conflict-overlay">
     <div id="conflict-modal">
       <div class="modal-title">[ CONFLICT DETECTED ]</div>
       <div class="modal-body" id="conflict-body">
-        è¯¥å¿«æ·é”®å·²è¢«å ç”¨ã€‚
+        ¸Ã¿ì½İ¼üÒÑ±»Õ¼ÓÃ¡£
       </div>
       <div class="modal-actions">
-        <button class="modal-btn cancel"  id="conflict-cancel">å–æ¶ˆ</button>
-        <button class="modal-btn confirm" id="conflict-confirm">è¦†ç›–</button>
+        <button class="modal-btn cancel"  id="conflict-cancel">È¡Ïû</button>
+        <button class="modal-btn confirm" id="conflict-confirm">¸²¸Ç</button>
       </div>
     </div>
   </div>
@@ -1398,26 +1419,26 @@ if (typeof BasePanel === 'undefined') {
     }
   };
 }
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 // State
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 const state = {
   connected:   false,
   categories:  [],          // [ { id, name, commands:[cmdId,...] } ]
   commands:    {},          // cmdId -> { name, desc, fn? }
   bindings:    {},          // cmdId -> { ahkKey, displayKey }
   ahkKeyIndex: {},          // ahkKey -> cmdId  (reverse)
-  suggestedBindings: {},    // cmdId -> å•é”®ï¼ˆCursorHelper CapsLock+ é»˜è®¤ï¼‰
-  suggestedByKey: {},       // å•é”® -> cmdIdï¼ˆæ— ä¿®é¥°æ—¶ç”¨äºé”®å¸½æç¤ºï¼‰
+  suggestedBindings: {},    // cmdId -> µ¥¼ü£¨CursorHelper CapsLock+ Ä¬ÈÏ£©
+  suggestedByKey: {},       // µ¥¼ü -> cmdId£¨ÎŞĞŞÊÎÊ±ÓÃÓÚ¼üÃ±ÌáÊ¾£©
   filter:      'all',       // 'all' | categoryId
-  promptTplTab: 'åŸºç¡€',      // æç¤ºè¯å³ä¾§ 6 æ ‡ç­¾
+  promptTplTab: '»ù´¡',      // ÌáÊ¾´ÊÓÒ²à 6 ±êÇ©
   search:      '',
   recording:   null,        // cmdId being recorded
-  focusedCmdId: null,       // å½“å‰å³ä¾§é€‰ä¸­çš„å‘½ä»¤ï¼ˆèšç„¦æ¨¡å¼ï¼‰
-  focusedMods: null,        // èšç„¦å‘½ä»¤è¦æ±‚çš„ä¿®é¥°é”®ï¼ˆæ¥è‡ª ahkKey çš„ ^ ! +ï¼‰
+  focusedCmdId: null,       // µ±Ç°ÓÒ²àÑ¡ÖĞµÄÃüÁî£¨¾Û½¹Ä£Ê½£©
+  focusedMods: null,        // ¾Û½¹ÃüÁîÒªÇóµÄĞŞÊÎ¼ü£¨À´×Ô ahkKey µÄ ^ ! +£©
   activeMods:  { ctrl:false, alt:false, shift:false },
   lastFilteredCmdIds: [],
-  nativeLayout: false,      // ScanCode ç‰©ç†é”®é€‚é…æ¨¡å¼
+  nativeLayout: false,      // ScanCode ÎïÀí¼üÊÊÅäÄ£Ê½
   lastActionId: '',
   lastActionName: '',
   lastActionCurrentKey: '',
@@ -1433,9 +1454,9 @@ const state = {
   dashboardEditResolver: null,
 };
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Utilityï¼ˆAHK æ¡¥æ¥è§ app.local BasePanel.jsï¼‰
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
+// Utility£¨AHK ÇÅ½Ó¼û app.local BasePanel.js£©
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 const postToAhk = (obj) => BasePanel.postToAhk(obj);
 
 function setHud(msg, connected) {
@@ -1484,25 +1505,25 @@ function renderHudHint() {
   const curKey = state.lastActionCurrentKey || '';
   let curLine = '';
   if (curKey) {
-    curLine = '<br><span class="hud-hint-sub">å½“å‰å¿«æ·é”®ï¼š<code>' + escapeHtml(curKey) + '</code>ï¼ˆæ–°æŒ‰ä¸€é”®å°†<span class="hud-hint-warn">è¦†ç›–</span>ä¸ºè¯¥é”®ï¼‰</span>';
+    curLine = '<br><span class="hud-hint-sub">µ±Ç°¿ì½İ¼ü£º<code>' + escapeHtml(curKey) + '</code>£¨ĞÂ°´Ò»¼ü½«<span class="hud-hint-warn">¸²¸Ç</span>Îª¸Ã¼ü£©</span>';
   }
   if (id) {
     el.innerHTML =
-      '<span class="hud-hint-main">ä¸Šä¸€åŠ¨ä½œï¼š</span><b>' + escapeHtml(name || id) + '</b> <code>' + escapeHtml(id) + '</code>'
+      '<span class="hud-hint-main">ÉÏÒ»¶¯×÷£º</span><b>' + escapeHtml(name || id) + '</b> <code>' + escapeHtml(id) + '</code>'
       + curLine
-      + '<br><span class="hud-hint-sub">æ“ä½œè¯´æ˜ï¼šè¯·<strong>ç›´æ¥æŒ‰ä¸‹</strong>è¦ç»‘å®šçš„ç‰©ç†é”®ï¼ˆä¸è¦åªæŒ‰ Ctrl / Alt / Shiftï¼‰ã€‚å¯å…ˆåœ¨å¤–éƒ¨ç”¨ä¸€æ¬¡ CapsLock+åŠŸèƒ½é”®ï¼ˆä¼šè®°å…¥ã€Œä¸Šä¸€åŠ¨ä½œã€ï¼‰ï¼Œæˆ–åœ¨æœ¬åˆ—è¡¨ä¸­ç‚¹å‡»ã€Œæ‰§è¡Œã€ï¼Œå†<strong>é•¿æŒ‰ CapsLock</strong>æ‰“å¼€æœ¬ç•Œé¢å®Œæˆç»‘å®šã€‚</span>';
+      + '<br><span class="hud-hint-sub">²Ù×÷ËµÃ÷£ºÇë<strong>Ö±½Ó°´ÏÂ</strong>Òª°ó¶¨µÄÎïÀí¼ü£¨²»ÒªÖ»°´ Ctrl / Alt / Shift£©¡£¿ÉÏÈÔÚÍâ²¿ÓÃÒ»´Î CapsLock+¹¦ÄÜ¼ü£¨»á¼ÇÈë¡¸ÉÏÒ»¶¯×÷¡¹£©£¬»òÔÚ±¾ÁĞ±íÖĞµã»÷¡¸Ö´ĞĞ¡¹£¬ÔÙ<strong>³¤°´ CapsLock</strong>´ò¿ª±¾½çÃæÍê³É°ó¶¨¡£</span>';
   } else {
     el.innerHTML =
-      '<span class="hud-hint-main">å½“å‰æ²¡æœ‰å¯ç»‘å®šçš„ã€Œä¸Šä¸€åŠ¨ä½œã€ã€‚</span>'
-      + '<br><span class="hud-hint-sub">è¯·å…ˆï¼šâ‘  åœ¨ä»»æ„çª—å£ä½¿ç”¨ä¸€æ¬¡ CapsLock+å­—æ¯ï¼ˆå¦‚ C / V / Eã€WASDã€F / G / Bã€1â€“5 é¢æ¿æ§½ä½ç­‰ï¼‰ï¼Œæˆ– â‘¡ åœ¨æœ¬é¡µå¯¹æŸæ¡å‘½ä»¤ç‚¹ã€Œæ‰§è¡Œã€ã€‚æˆåŠŸæ‰§è¡Œåè„šæœ¬ä¼šè®°å½•å¯¹åº”å‘½ä»¤ IDï¼Œå†é•¿æŒ‰ CapsLock æ‰“å¼€æ­¤å¤„å³å¯æŒ‰ä¸€é”®ç»‘å®šã€‚</span>';
+      '<span class="hud-hint-main">µ±Ç°Ã»ÓĞ¿É°ó¶¨µÄ¡¸ÉÏÒ»¶¯×÷¡¹¡£</span>'
+      + '<br><span class="hud-hint-sub">ÇëÏÈ£º¢Ù ÔÚÈÎÒâ´°¿ÚÊ¹ÓÃÒ»´Î CapsLock+×ÖÄ¸£¨Èç C / V / E¡¢WASD¡¢F / G / B¡¢1¨C5 Ãæ°å²ÛÎ»µÈ£©£¬»ò ¢Ú ÔÚ±¾Ò³¶ÔÄ³ÌõÃüÁîµã¡¸Ö´ĞĞ¡¹¡£³É¹¦Ö´ĞĞºó½Å±¾»á¼ÇÂ¼¶ÔÓ¦ÃüÁî ID£¬ÔÙ³¤°´ CapsLock ´ò¿ª´Ë´¦¼´¿É°´Ò»¼ü°ó¶¨¡£</span>';
   }
 }
 
-/** åˆ·æ–°é¡¶æ ä¸»è¡Œ + å³æ—¶ç»‘å®šè¯´æ˜ï¼ˆconnected ä»…åœ¨æ˜¾å¼ä¼ å…¥æ—¶æ”¹ç»¿ç‚¹ï¼‰ */
+/** Ë¢ĞÂ¶¥À¸Ö÷ĞĞ + ¼´Ê±°ó¶¨ËµÃ÷£¨connected ½öÔÚÏÔÊ½´«ÈëÊ±¸ÄÂÌµã£© */
 function updateHudSnapshot(connected) {
   const n = Object.keys(state.bindings).filter((k) => state.bindings[k]?.ahkKey).length;
-  let line1 = 'å·²è¿æ¥ Â· ' + n + ' ä¸ªç»‘å®š';
-  if (state.quickBindActive) line1 += ' Â· å³æ—¶ç»‘å®šå·²å¼€å¯';
+  let line1 = 'ÒÑÁ¬½Ó ¡¤ ' + n + ' ¸ö°ó¶¨';
+  if (state.quickBindActive) line1 += ' ¡¤ ¼´Ê±°ó¶¨ÒÑ¿ªÆô';
   setHud(line1, connected);
   renderHudHint();
 }
@@ -1575,7 +1596,7 @@ function keyCodeToDisplay(code) {
     Escape:'Esc', Enter:'Enter', Space:'Space', Tab:'Tab',
     Backspace:'Bks', Delete:'Del', Insert:'Ins',
     Home:'Home', End:'End', PageUp:'PgUp', PageDown:'PgDn',
-    ArrowUp:'â†‘', ArrowDown:'â†“', ArrowLeft:'â†', ArrowRight:'â†’',
+    ArrowUp:'¡ü', ArrowDown:'¡ı', ArrowLeft:'¡û', ArrowRight:'¡ú',
     F1:'F1', F2:'F2', F3:'F3', F4:'F4', F5:'F5', F6:'F6',
     F7:'F7', F8:'F8', F9:'F9', F10:'F10', F11:'F11', F12:'F12',
     Minus:'-', Equal:'=',
@@ -1583,9 +1604,9 @@ function keyCodeToDisplay(code) {
   return map[code] || code;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// AHK â†’ JS message handler
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
+// AHK ¡ú JS message handler
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 function handleAhkMessage(msg) {
   switch (msg.type) {
     case 'focus_input': {
@@ -1646,9 +1667,9 @@ function handleAhkMessage(msg) {
       updateHudSnapshot();
       break;
     case 'bind_success': {
-      const cmdName = msg.commandName || msg.commandId || 'åŠ¨ä½œ';
+      const cmdName = msg.commandName || msg.commandId || '¶¯×÷';
       const disp = msg.displayKey || msg.ahkKey || '';
-      flashBindSuccessHud('ç»‘å®šæˆåŠŸï¼š' + cmdName + (disp ? ' â† ' + disp : ''));
+      flashBindSuccessHud('°ó¶¨³É¹¦£º' + cmdName + (disp ? ' ¡û ' + disp : ''));
       break;
     }
     case 'confirmConflict':
@@ -1671,7 +1692,7 @@ function displayKeyForCmd(cmdId) {
     const u = (sk.length === 1 && /[a-zA-Z]/.test(sk)) ? sk.toUpperCase() : sk;
     return 'CapsLock+' + u;
   }
-  return 'â€”';
+  return '¡ª';
 }
 
 function handleInit(msg) {
@@ -1684,12 +1705,12 @@ function handleInit(msg) {
   state.lastActionCurrentKey = msg.lastActionCurrentKey || '';
   state.quickBindActive = !!msg.quickBindActive;
 
-  // build reverse index ahkKey -> cmdIdï¼ˆçœŸå®ç»‘å®šï¼‰
+  // build reverse index ahkKey -> cmdId£¨ÕæÊµ°ó¶¨£©
   state.ahkKeyIndex = {};
   for (const [cmdId, b] of Object.entries(state.bindings)) {
     if (b.ahkKey) state.ahkKeyIndex[b.ahkKey] = cmdId;
   }
-  // å•é”® -> cmdIdï¼ˆä¸ CursorHelper é»˜è®¤ CapsLock+ ä¸€è‡´ï¼Œä»…ä½œé”®å¸½æç¤ºï¼‰
+  // µ¥¼ü -> cmdId£¨Óë CursorHelper Ä¬ÈÏ CapsLock+ Ò»ÖÂ£¬½ö×÷¼üÃ±ÌáÊ¾£©
   state.suggestedByKey = {};
   for (const [cmdId, key] of Object.entries(state.suggestedBindings)) {
     if (key && !state.suggestedByKey[key]) state.suggestedByKey[key] = cmdId;
@@ -1736,12 +1757,12 @@ function handleBindingUpdated(msg) {
   updateHudSnapshot();
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 // Dashboard (Drag & Drop)
 //  - Drag source: keyboard keys, but payload is always commandId
 //  - Drop target: dashboard slots (one item per slot)
 //  - Notify AHK with normalized dashboardConfig snapshots
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 let dashboardInited = false;
 let dashboardLayout = 'multi';
 
@@ -1753,9 +1774,9 @@ function resolveDashboardLayout(layout) {
 
 function slotsForLayout(layout) {
   const resolved = resolveDashboardLayout(layout);
-  if (resolved === 'multi') return 60; // 3è¡Œ * 20åˆ—
-  if (resolved === 1) return 10;       // 1è¡Œ * 10åˆ—
-  if (resolved === 2) return 20;       // 2è¡Œ * 10åˆ—
+  if (resolved === 'multi') return 60; // 3ĞĞ * 20ÁĞ
+  if (resolved === 1) return 10;       // 1ĞĞ * 10ÁĞ
+  if (resolved === 2) return 20;       // 2ĞĞ * 10ÁĞ
   return 60;
 }
 
@@ -1858,7 +1879,7 @@ function getCommandByElement(el) {
 }
 
 function ahkBaseToDisplay(baseKey) {
-  if (!baseKey) return 'â€”';
+  if (!baseKey) return '¡ª';
   if (baseKey.length === 1) return baseKey.toUpperCase();
   const map = {
     Escape: 'Esc',
@@ -1887,7 +1908,7 @@ function ahkBaseToDisplay(baseKey) {
 }
 
 function ahkKeyToDisplayString(ahkKey) {
-  if (!ahkKey) return 'â€”';
+  if (!ahkKey) return '¡ª';
   if (ahkKey === '^^') return 'Double Ctrl';
   if (ahkKey === '++') return 'Double Shift';
   if (ahkKey === '!!') return 'Double Alt';
@@ -1972,7 +1993,7 @@ function decorateDashboardItem(el, itemLike) {
 
   const tooltip = mkEl('div', 'dashboard-item-tooltip');
   const tooltipName = mkEl('span', 'dashboard-tooltip-name', name);
-  const tooltipHint = mkEl('span', 'dashboard-tooltip-hint', hint || 'æœªè®°å½•æ¥æºæŒ‰é”®');
+  const tooltipHint = mkEl('span', 'dashboard-tooltip-hint', hint || 'Î´¼ÇÂ¼À´Ô´°´¼ü');
   tooltip.append(tooltipName, tooltipHint);
   if (note) {
     const tooltipNote = mkEl('span', 'dashboard-tooltip-hint', note);
@@ -1997,7 +2018,7 @@ function renderDashboardSlot(slot, item, index) {
   slot.dataset.slotIndex = String(index);
   slot.innerHTML = '';
   slot.classList.toggle('is-empty', !item);
-  slot.title = item ? '' : 'æ‹–æ‹½å‘½ä»¤åˆ°æ­¤å¤„';
+  slot.title = item ? '' : 'ÍÏ×§ÃüÁîµ½´Ë´¦';
   if (item) {
     const el = document.createElement('div');
     decorateDashboardItem(el, item);
@@ -2170,7 +2191,7 @@ async function pasteDashboardClipboardToSlot(slotIndex) {
     if (!confirm) return false;
   }
   applyDashboardItemToSlot(slotIndex, clip, -1);
-  setHud(`å·²ç²˜è´´ï¼š${state.commands[clip.commandId]?.name || clip.commandId}`);
+  setHud(`ÒÑÕ³Ìù£º${state.commands[clip.commandId]?.name || clip.commandId}`);
   return true;
 }
 
@@ -2187,7 +2208,7 @@ function pinDashboardItem(itemLike) {
     sourceAhkKey: item.sourceAhkKey || '',
     sourceDisplayKey: item.sourceDisplayKey || '',
   });
-  setHud(`å·²åŠ å…¥å…¨å±€æ‚¬æµ®ï¼š${state.commands[item.commandId]?.name || item.commandId}`);
+  setHud(`ÒÑ¼ÓÈëÈ«¾ÖĞü¸¡£º${state.commands[item.commandId]?.name || item.commandId}`);
 }
 
 function closeDashboardOverwriteModal(result) {
@@ -2203,9 +2224,9 @@ function confirmDashboardOverwrite(existingItem, incomingItem) {
   return new Promise((resolve) => {
     const overlay = document.getElementById('dashboard-overwrite-overlay');
     const body = document.getElementById('dashboard-overwrite-body');
-    const oldName = state.commands[existingItem?.commandId || '']?.name || existingItem?.commandId || 'æœªçŸ¥åŠ¨ä½œ';
-    const newName = state.commands[incomingItem?.commandId || '']?.name || incomingItem?.commandId || 'æœªçŸ¥åŠ¨ä½œ';
-    body.innerHTML = `<strong>${oldName}</strong> å·²åœ¨è¯¥å®«æ ¼ä¸­ã€‚<br>æ˜¯å¦è¦†ç›–ä¸º <strong>${newName}</strong>ï¼Ÿ`;
+    const oldName = state.commands[existingItem?.commandId || '']?.name || existingItem?.commandId || 'Î´Öª¶¯×÷';
+    const newName = state.commands[incomingItem?.commandId || '']?.name || incomingItem?.commandId || 'Î´Öª¶¯×÷';
+    body.innerHTML = `<strong>${oldName}</strong> ÒÑÔÚ¸Ã¹¬¸ñÖĞ¡£<br>ÊÇ·ñ¸²¸ÇÎª <strong>${newName}</strong>£¿`;
     state.dashboardOverwriteResolver = resolve;
     overlay.classList.add('visible');
   });
@@ -2387,13 +2408,13 @@ function initDashboardDrag() {
     }
     if (action === 'copy') {
       state.dashboardClipboard = item;
-      setHud(`å·²å¤åˆ¶å®«æ ¼åŠ¨ä½œï¼š${state.commands[item.commandId]?.name || item.commandId}`);
+      setHud(`ÒÑ¸´ÖÆ¹¬¸ñ¶¯×÷£º${state.commands[item.commandId]?.name || item.commandId}`);
       return;
     }
     if (action === 'cut') {
       state.dashboardClipboard = item;
       removeDashboardItemAt(slotIndex, true);
-      setHud(`å·²å‰ªåˆ‡å®«æ ¼åŠ¨ä½œï¼š${state.commands[item.commandId]?.name || item.commandId}`);
+      setHud(`ÒÑ¼ôÇĞ¹¬¸ñ¶¯×÷£º${state.commands[item.commandId]?.name || item.commandId}`);
       return;
     }
     if (action === 'pin') {
@@ -2565,14 +2586,14 @@ function initDashboardDrag() {
   dashboardInited = true;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 // Render: Sidebar
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 function renderSidebar() {
   const list = document.getElementById('sidebar-list');
   list.innerHTML = '';
 
-  const all = mkEl('div', 'sidebar-item all' + (state.filter === 'all' ? ' active' : ''), 'å…¨éƒ¨');
+  const all = mkEl('div', 'sidebar-item all' + (state.filter === 'all' ? ' active' : ''), 'È«²¿');
   all.addEventListener('click', () => { state.filter = 'all'; renderSidebar(); renderCommandList(); });
   list.appendChild(all);
 
@@ -2583,9 +2604,9 @@ function renderSidebar() {
   }
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 // Render: Command List
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 function renderCommandList() {
   const container = document.getElementById('cmd-list');
   const search    = state.search.toLowerCase();
@@ -2593,7 +2614,7 @@ function renderCommandList() {
   let total = 0;
 
   if (state.filter === 'prompt_templates') {
-    const ptCats = ['åŸºç¡€', 'ä¸“ä¸š', 'æ”¹é”™', 'ä¼˜åŒ–', 'è§£é‡Š', 'é‡æ„'];
+    const ptCats = ['»ù´¡', '×¨Òµ', '¸Ä´í', 'ÓÅ»¯', '½âÊÍ', 'ÖØ¹¹'];
     const tabs = mkEl('div', 'pt-tabs', '');
     for (const c of ptCats) {
       const t = mkEl('div', 'pt-tab' + (state.promptTplTab === c ? ' active' : ''), c);
@@ -2613,7 +2634,7 @@ function renderCommandList() {
       const cmd = state.commands[cmdId];
       if (!cmd) return false;
       if (state.filter === 'prompt_templates') {
-        if ((cmd.ptCategory || 'åŸºç¡€') !== state.promptTplTab) return false;
+        if ((cmd.ptCategory || '»ù´¡') !== state.promptTplTab) return false;
       }
       if (!search) return true;
       const name = (cmd.name || '').toLowerCase();
@@ -2635,7 +2656,7 @@ function renderCommandList() {
     }
   }
 
-  document.getElementById('cmd-count').textContent = total + ' ä¸ªå‘½ä»¤';
+  document.getElementById('cmd-count').textContent = total + ' ¸öÃüÁî';
   if (total === 0) {
     container.appendChild(mkEl('div', 'no-command-found', '[NO COMMAND FOUND]'));
   } else if (total === 1) {
@@ -2673,7 +2694,7 @@ function makeCmdRow(cmdId) {
 
   // key display
   const keyEl = mkEl('div', 'cmd-key',
-    isRec ? 'âº è¯·æŒ‰ä¸‹å¿«æ·é”®ï¼Œè¿æŒ‰ä¸¤æ¬¡å¯å½•åˆ¶åºåˆ—...' : displayKeyForCmd(cmdId));
+    isRec ? '? Çë°´ÏÂ¿ì½İ¼ü£¬Á¬°´Á½´Î¿ÉÂ¼ÖÆĞòÁĞ...' : displayKeyForCmd(cmdId));
 
   // action buttons
   const actions = document.createElement('div');
@@ -2681,8 +2702,8 @@ function makeCmdRow(cmdId) {
 
   const editBtn = document.createElement('button');
   editBtn.className = 'btn-icon' + (isRec ? ' active-rec' : '');
-  editBtn.title     = isRec ? 'å–æ¶ˆå½•åˆ¶' : 'å½•åˆ¶å¿«æ·é”®';
-  editBtn.textContent = isRec ? 'â¹' : 'âœ';
+  editBtn.title     = isRec ? 'È¡ÏûÂ¼ÖÆ' : 'Â¼ÖÆ¿ì½İ¼ü';
+  editBtn.textContent = isRec ? '?' : '?';
   editBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (isRec) stopRecording();
@@ -2691,8 +2712,8 @@ function makeCmdRow(cmdId) {
 
   const clearBtn = document.createElement('button');
   clearBtn.className   = 'btn-icon danger';
-  clearBtn.title       = 'æ¸…é™¤ç»‘å®š';
-  clearBtn.textContent = 'âœ•';
+  clearBtn.title       = 'Çå³ı°ó¶¨';
+  clearBtn.textContent = '?';
   clearBtn.style.display = hasReal ? '' : 'none';
   clearBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -2701,8 +2722,8 @@ function makeCmdRow(cmdId) {
 
   const testBtn = document.createElement('button');
   testBtn.className   = 'btn-icon';
-  testBtn.title       = 'æµ‹è¯•æ‰§è¡Œ';
-  testBtn.textContent = 'â–¶';
+  testBtn.title       = '²âÊÔÖ´ĞĞ';
+  testBtn.textContent = '?';
   testBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     postToAhk({ type: 'executeCommand', commandId: cmdId });
@@ -2713,9 +2734,9 @@ function makeCmdRow(cmdId) {
   return row;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 // Render: Keyboard Labels
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 function renderKeyboardSlots() {
   const zone = document.getElementById('keyboard-zone');
   zone.classList.remove('fade-switch');
@@ -2749,7 +2770,7 @@ function renderKeyboardSlots() {
           if (keys.includes(baseKey)) {
             el.classList.add('bound', 'slot-occupied');
             const cmdName = state.commands[focusCmdId]?.name || focusCmdId;
-            lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + 'â€¦' : cmdName;
+            lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '¡­' : cmdName;
           }
         }
         return;
@@ -2762,17 +2783,17 @@ function renderKeyboardSlots() {
           el.classList.add('bound', 'slot-occupied');
           if (!hasReal) el.classList.add('slot-suggested');
           const cmdName = state.commands[cmdId]?.name || cmdId;
-          lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + 'â€¦' : cmdName;
+          lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '¡­' : cmdName;
         }
       }
       return;
     }
-    // å‘½ä»¤èšç„¦æ¨¡å¼ï¼šä»…å±•ç¤ºå½“å‰å‘½ä»¤å¯¹åº”å¿«æ·é”®ï¼Œå…¶å®ƒé”®ä½å…¨éƒ¨æ¸…ç©º
+    // ÃüÁî¾Û½¹Ä£Ê½£º½öÕ¹Ê¾µ±Ç°ÃüÁî¶ÔÓ¦¿ì½İ¼ü£¬ÆäËü¼üÎ»È«²¿Çå¿Õ
     if (focusCmdId) {
       if (baseKey === focusLookup) {
         el.classList.add('bound', 'slot-occupied');
         const cmdName = state.commands[focusCmdId]?.name || focusCmdId;
-        lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + 'â€¦' : cmdName;
+        lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '¡­' : cmdName;
       }
       return;
     }
@@ -2784,7 +2805,7 @@ function renderKeyboardSlots() {
       el.classList.add('bound', 'slot-occupied');
       if (!hasReal) el.classList.add('slot-suggested');
       const cmdName = state.commands[cmdId]?.name || cmdId;
-      lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + 'â€¦' : cmdName;
+      lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '¡­' : cmdName;
     } else {
       el.classList.add('slot-available');
     }
@@ -2829,7 +2850,7 @@ function isModifierBaseKey(baseKey) {
   return ['LCtrl','RCtrl','LAlt','RAlt','LShift','RShift','Ctrl','Alt','Shift'].includes(baseKey);
 }
 
-/** ç‰©ç†é”® â†’ åŒå‡»ä¿®é¥°é”®ç»‘å®šé”®ï¼ˆä¸ AHK ä¸€è‡´ï¼š^^ / ++ / !!ï¼‰ */
+/** ÎïÀí¼ü ¡ú Ë«»÷ĞŞÊÎ¼ü°ó¶¨¼ü£¨Óë AHK Ò»ÖÂ£º^^ / ++ / !!£© */
 function modifierToDoubleAhkKey(baseKey) {
   if (baseKey === 'LCtrl' || baseKey === 'RCtrl') return '^^';
   if (baseKey === 'LShift' || baseKey === 'RShift') return '++';
@@ -2866,7 +2887,7 @@ function renderModifierKeys() {
     document.querySelectorAll('.k[data-ahkkey="LShift"], .k[data-ahkkey="RShift"]')
       .forEach(el => el.classList.add('mod-active'));
   }
-  // èšç„¦æ¨¡å¼ä¸‹æ˜¾å¼æç¤º CapsLock å‰ç¼€
+  // ¾Û½¹Ä£Ê½ÏÂÏÔÊ½ÌáÊ¾ CapsLock Ç°×º
   if (state.focusedCmdId) {
     document.querySelectorAll('.k[data-ahkkey="CapsLock"]')
       .forEach(el => el.classList.add('mod-active'));
@@ -2897,15 +2918,15 @@ function triggerKeyRipple(ahkKey) {
   runRipple(document.querySelector(`.k[data-ahkkey="${CSS.escape(base)}"]`));
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 // Conflict Modal
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 function handleConfirmConflict(msg) {
   const { commandId, displayKey, conflictCmdName } = msg;
   const cmdName = state.commands[commandId]?.name || commandId;
   document.getElementById('conflict-body').innerHTML =
-    `<strong>${displayKey}</strong> å·²åˆ†é…ç»™ <strong>${conflictCmdName}</strong>ã€‚<br>` +
-    `æ˜¯å¦å°†å…¶æ”¹ä¸º <strong>${cmdName}</strong> çš„å¿«æ·é”®ï¼Ÿ`;
+    `<strong>${displayKey}</strong> ÒÑ·ÖÅä¸ø <strong>${conflictCmdName}</strong>¡£<br>` +
+    `ÊÇ·ñ½«Æä¸ÄÎª <strong>${cmdName}</strong> µÄ¿ì½İ¼ü£¿`;
 
   const overlay = document.getElementById('conflict-overlay');
   overlay.classList.add('visible');
@@ -2934,19 +2955,19 @@ document.getElementById('conflict-overlay').addEventListener('click', (e) => {
   }
 });
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 // Layout Toggle (ScanCode mode)
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 function updateLayoutToggleUI() {
   const btn = document.getElementById('layout-toggle');
   if (state.nativeLayout) {
     btn.textContent = 'NATIVE';
     btn.classList.add('native');
-    btn.title = 'å½“å‰ï¼šScanCode ç‰©ç†é”®æ¨¡å¼ï¼ˆç‚¹å‡»åˆ‡æ¢å›æ ‡å‡†æ¨¡å¼ï¼‰';
+    btn.title = 'µ±Ç°£ºScanCode ÎïÀí¼üÄ£Ê½£¨µã»÷ÇĞ»»»Ø±ê×¼Ä£Ê½£©';
   } else {
     btn.textContent = 'STANDARD';
     btn.classList.remove('native');
-    btn.title = 'åˆ‡æ¢ ScanCode ç‰©ç†é”®é€‚é…æ¨¡å¼ï¼ˆé˜²æ­¢ IME å¹²æ‰°ï¼‰';
+    btn.title = 'ÇĞ»» ScanCode ÎïÀí¼üÊÊÅäÄ£Ê½£¨·ÀÖ¹ IME ¸ÉÈÅ£©';
   }
 }
 
@@ -2956,9 +2977,9 @@ document.getElementById('layout-toggle').addEventListener('click', () => {
   postToAhk({ type: 'setLayoutMode', native: state.nativeLayout });
 });
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 // Recording
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 function startRecording(cmdId) {
   if (state.recording) stopRecording();
   state.recording = cmdId;
@@ -2991,10 +3012,10 @@ function stopRecording(restoreHud = true) {
     updateHudSnapshot();
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 // Keyboard key click (exec mode: highlight + flash)
-// WebView2 ä¸‹ Alt é”®ä¸ŠåŸç”Ÿ dblclick å¸¸è¢«æµè§ˆå™¨åŠ é€Ÿå™¨é€»è¾‘åæ‰ï¼Œæ”¹ç”¨ä¸¤æ¬¡ click é—´éš”åˆ¤å®šï¼ˆä¸ AHK 400ms åŒé‡çº§ï¼‰
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// WebView2 ÏÂ Alt ¼üÉÏÔ­Éú dblclick ³£±»ä¯ÀÀÆ÷¼ÓËÙÆ÷Âß¼­ÍÌµô£¬¸ÄÓÃÁ½´Î click ¼ä¸ôÅĞ¶¨£¨Óë AHK 400ms Í¬Á¿¼¶£©
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 const VK_ALT_DBL_MS = 400;
 let vkLastAltTapAt = 0;
 
@@ -3049,15 +3070,15 @@ document.querySelectorAll('.k').forEach(el => {
   });
 });
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 // Search
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 document.getElementById('cmd-search').addEventListener('input', (e) => {
   state.search = e.target.value;
   renderCommandList();
 });
 
-// ç‚¹å‡»ç©ºç™½åŒºåŸŸï¼šé€€å‡ºå‘½ä»¤èšç„¦æ¨¡å¼ï¼Œæ¢å¤å…¨é‡é«˜äº®å±•ç¤º
+// µã»÷¿Õ°×ÇøÓò£ºÍË³öÃüÁî¾Û½¹Ä£Ê½£¬»Ö¸´È«Á¿¸ßÁÁÕ¹Ê¾
 document.getElementById('cmd-list-wrapper').addEventListener('click', (e) => {
   if (!e.target.closest('.cmd-row')) clearCommandFocus();
 });
@@ -3065,9 +3086,9 @@ document.getElementById('sidebar-list').addEventListener('click', (e) => {
   if (!e.target.closest('.sidebar-item')) clearCommandFocus();
 });
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 // WebView2 bridge
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 if (window.chrome && window.chrome.webview) {
   window.chrome.webview.addEventListener('message', (e) => {
     try {
@@ -3078,24 +3099,24 @@ if (window.chrome && window.chrome.webview) {
     }
   });
   postToAhk({ type: 'ready' });
-  setHud('æ­£åœ¨åŠ è½½å‘½ä»¤æ•°æ®...');
+  setHud('ÕıÔÚ¼ÓÔØÃüÁîÊı¾İ...');
 } else {
   // browser preview mode
-  setHud('é¢„è§ˆæ¨¡å¼ï¼ˆæ—  AHK è¿æ¥ï¼‰', false);
+  setHud('Ô¤ÀÀÄ£Ê½£¨ÎŞ AHK Á¬½Ó£©', false);
   window.simulateInit = () => handleAhkMessage({
     type: 'init',
     categories: [
-      { id:'system', name:'ç³»ç»Ÿ', commands:['sys_exit','sys_show_vk'] },
-      { id:'ch_clipboard_ai', name:'CapsLock Â· å‰ªè´´æ¿ä¸ AI', commands:['ch_c','ch_e'] },
-      { id:'window', name:'çª—å£', commands:['win_min','win_close'] }
+      { id:'system', name:'ÏµÍ³', commands:['sys_exit','sys_show_vk'] },
+      { id:'ch_clipboard_ai', name:'CapsLock ¡¤ ¼ôÌù°åÓë AI', commands:['ch_c','ch_e'] },
+      { id:'window', name:'´°¿Ú', commands:['win_min','win_close'] }
     ],
     commands: {
-      sys_exit:    { name:'é€€å‡ºç¨‹åº',     desc:'é€€å‡ºè„šæœ¬' },
-      sys_show_vk: { name:'æ˜¾ç¤ºè™šæ‹Ÿé”®ç›˜', desc:'æ˜¾ç¤ºé”®ç›˜çª—å£' },
-      ch_c:        { name:'è¿ç»­å¤åˆ¶',     desc:'é¢„è§ˆ' },
-      ch_e:        { name:'AI è§£é‡Š',      desc:'é¢„è§ˆ' },
-      win_min:     { name:'æœ€å°åŒ–çª—å£',   desc:'æœ€å°åŒ–' },
-      win_close:   { name:'å…³é—­çª—å£',     desc:'å…³é—­' },
+      sys_exit:    { name:'ÍË³ö³ÌĞò',     desc:'ÍË³ö½Å±¾' },
+      sys_show_vk: { name:'ÏÔÊ¾ĞéÄâ¼üÅÌ', desc:'ÏÔÊ¾¼üÅÌ´°¿Ú' },
+      ch_c:        { name:'Á¬Ğø¸´ÖÆ',     desc:'Ô¤ÀÀ' },
+      ch_e:        { name:'AI ½âÊÍ',      desc:'Ô¤ÀÀ' },
+      win_min:     { name:'×îĞ¡»¯´°¿Ú',   desc:'×îĞ¡»¯' },
+      win_close:   { name:'¹Ø±Õ´°¿Ú',     desc:'¹Ø±Õ' },
     },
     bindings: {
       sys_exit:    { ahkKey:'Escape', displayKey:'Esc' },
@@ -3113,9 +3134,9 @@ if (window.chrome && window.chrome.webview) {
   });
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 // Helpers
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T¨T
 function mkEl(tag, cls, text) {
   const el = document.createElement(tag);
   if (cls)  el.className   = cls;
