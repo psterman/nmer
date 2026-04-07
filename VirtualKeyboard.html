@@ -69,9 +69,9 @@ body::after {
 }
 #hud {
   flex-shrink: 0;
-  display: flex; align-items: center; gap: 10px;
-  padding: 0 14px;
-  height: 38px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 6px 14px 8px;
+  min-height: 38px;
   background: var(--surface2);
   border-bottom: 1px solid var(--border);
 }
@@ -217,6 +217,33 @@ body::after {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+#hud-status.success {
+  color: #7ef0ae;
+  text-shadow: 0 0 8px rgba(72, 196, 125, .5);
+}
+#hud-hint {
+  flex-basis: 100%;
+  order: 10;
+  margin: 0;
+  padding: 6px 0 2px;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-dim);
+  line-height: 1.5;
+  display: none;
+}
+#hud-hint code {
+  font-family: Consolas, ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--orange);
+  background: #1a1a1a;
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+#hud-hint .hud-hint-main { color: var(--text); font-weight: 600; }
+#hud-hint .hud-hint-sub { color: var(--text-dim); }
+#hud-hint .hud-hint-warn { color: #e67e22; }
 #hud-dot {
   width: 7px; height: 7px;
   border-radius: 50%;
@@ -687,6 +714,7 @@ body::after {
     <span id="hud-status">正在连接 AHK...</span>
     <div id="hud-dot"></div>
     <button id="layout-toggle" title="切换 ScanCode 物理键适配模式（防止 IME 干扰）">STANDARD</button>
+    <div id="hud-hint" aria-live="polite"></div>
   </div>
 
   <!-- ── Keyboard ─────────────────────────────────────────────────────── -->
@@ -901,6 +929,10 @@ const state = {
   activeMods:  { ctrl:false, alt:false, shift:false },
   lastFilteredCmdIds: [],
   nativeLayout: false,      // ScanCode 物理键适配模式
+  lastActionId: '',
+  lastActionName: '',
+  lastActionCurrentKey: '',
+  quickBindActive: false,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -914,6 +946,78 @@ function setHud(msg, connected) {
     state.connected = connected;
     document.getElementById('hud-dot').className = connected ? 'on' : '';
   }
+}
+
+function escapeHtml(s) {
+  if (s == null || s === '') return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+function syncLastActionCurrentKeyFromBindings() {
+  const id = state.lastActionId;
+  if (!id) {
+    state.lastActionCurrentKey = '';
+    return;
+  }
+  const b = state.bindings[id];
+  if (b && b.ahkKey)
+    state.lastActionCurrentKey = b.displayKey || b.ahkKey;
+}
+
+function renderHudHint() {
+  const el = document.getElementById('hud-hint');
+  if (!el) return;
+  if (state.recording) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  if (!state.quickBindActive) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  el.style.display = 'block';
+  syncLastActionCurrentKeyFromBindings();
+  const id = state.lastActionId || '';
+  const name = state.lastActionName || '';
+  const curKey = state.lastActionCurrentKey || '';
+  let curLine = '';
+  if (curKey) {
+    curLine = '<br><span class="hud-hint-sub">当前快捷键：<code>' + escapeHtml(curKey) + '</code>（新按一键将<span class="hud-hint-warn">覆盖</span>为该键）</span>';
+  }
+  if (id) {
+    el.innerHTML =
+      '<span class="hud-hint-main">上一动作：</span><b>' + escapeHtml(name || id) + '</b> <code>' + escapeHtml(id) + '</code>'
+      + curLine
+      + '<br><span class="hud-hint-sub">操作说明：请<strong>直接按下</strong>要绑定的物理键（不要只按 Ctrl / Alt / Shift）。可先在外部用一次 CapsLock+功能键（会记入「上一动作」），或在本列表中点击「执行」，再<strong>长按 CapsLock</strong>打开本界面完成绑定。</span>';
+  } else {
+    el.innerHTML =
+      '<span class="hud-hint-main">当前没有可绑定的「上一动作」。</span>'
+      + '<br><span class="hud-hint-sub">请先：① 在任意窗口使用一次 CapsLock+字母（如 C / V / E、WASD、F / G / B、1–5 面板槽位等），或 ② 在本页对某条命令点「执行」。成功执行后脚本会记录对应命令 ID，再长按 CapsLock 打开此处即可按一键绑定。</span>';
+  }
+}
+
+/** 刷新顶栏主行 + 即时绑定说明（connected 仅在显式传入时改绿点） */
+function updateHudSnapshot(connected) {
+  const n = Object.keys(state.bindings).filter((k) => state.bindings[k]?.ahkKey).length;
+  let line1 = '已连接 · ' + n + ' 个绑定';
+  if (state.quickBindActive) line1 += ' · 即时绑定已开启';
+  setHud(line1, connected);
+  renderHudHint();
+}
+
+function flashBindSuccessHud(message) {
+  const hud = document.getElementById('hud-status');
+  if (!hud) return;
+  hud.classList.add('success');
+  setHud(message);
+  setTimeout(() => {
+    hud.classList.remove('success');
+    updateHudSnapshot();
+  }, 700);
 }
 
 // AHK key string -> KeyboardEvent.code (for keyboard highlight)
@@ -1033,6 +1137,19 @@ function handleAhkMessage(msg) {
         stopRecording(false);
       }
       break;
+    case 'quickBindState':
+      state.lastActionId = msg.lastActionId || '';
+      state.lastActionName = msg.lastActionName || '';
+      state.lastActionCurrentKey = msg.lastActionCurrentKey || '';
+      state.quickBindActive = !!msg.quickBindActive;
+      updateHudSnapshot();
+      break;
+    case 'bind_success': {
+      const cmdName = msg.commandName || msg.commandId || '动作';
+      const disp = msg.displayKey || msg.ahkKey || '';
+      flashBindSuccessHud('绑定成功：' + cmdName + (disp ? ' ← ' + disp : ''));
+      break;
+    }
     case 'confirmConflict':
       handleConfirmConflict(msg);
       break;
@@ -1061,6 +1178,10 @@ function handleInit(msg) {
   state.commands   = msg.commands   || {};
   state.bindings   = msg.bindings   || {};
   state.suggestedBindings = msg.suggestedBindings || {};
+  state.lastActionId = msg.lastActionId || '';
+  state.lastActionName = msg.lastActionName || '';
+  state.lastActionCurrentKey = msg.lastActionCurrentKey || '';
+  state.quickBindActive = !!msg.quickBindActive;
 
   // build reverse index ahkKey -> cmdId（真实绑定）
   state.ahkKeyIndex = {};
@@ -1077,8 +1198,7 @@ function handleInit(msg) {
   renderCommandList();
   renderKeyboardSlots();
   renderModifierKeys();
-  const n = Object.keys(state.bindings).filter((id) => state.bindings[id]?.ahkKey).length;
-  setHud('已连接 · ' + n + ' 个绑定', true);
+  updateHudSnapshot(true);
 }
 
 function handleBindingUpdated(msg) {
@@ -1103,8 +1223,13 @@ function handleBindingUpdated(msg) {
   renderCommandList();
   renderKeyboardSlots();
   renderModifierKeys();
-  const bound = Object.keys(state.bindings).filter(k => state.bindings[k]?.ahkKey).length;
-  setHud('已连接 · ' + bound + ' 个绑定');
+  if (commandId === state.lastActionId) {
+    if (ahkKey)
+      state.lastActionCurrentKey = displayKey || ahkKey;
+    else
+      state.lastActionCurrentKey = '';
+  }
+  updateHudSnapshot();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1458,8 +1583,7 @@ function handleConfirmConflict(msg) {
   document.getElementById('conflict-cancel').onclick = () => {
     closeConflictModal();
     postToAhk({ type: 'resolveConflict', confirm: false });
-    const bound = Object.values(state.bindings).filter(b => b?.ahkKey).length;
-    setHud('已连接 · ' + bound + ' 个绑定');
+    updateHudSnapshot();
   };
 }
 
@@ -1472,6 +1596,7 @@ document.getElementById('conflict-overlay').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) {
     closeConflictModal();
     postToAhk({ type: 'resolveConflict', confirm: false });
+    updateHudSnapshot();
   }
 });
 
@@ -1528,10 +1653,8 @@ function stopRecording(restoreHud = true) {
   renderCommandList();
   if (wasRecording)
     postToAhk({ type: 'cancelRecord' });
-  if (restoreHud) {
-    const bound = Object.values(state.bindings).filter(b => b?.ahkKey).length;
-    setHud('已连接 · ' + bound + ' 个绑定');
-  }
+  if (restoreHud)
+    updateHudSnapshot();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

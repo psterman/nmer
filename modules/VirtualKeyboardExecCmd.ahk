@@ -3,28 +3,39 @@
 
 VK_ExecCursorHelperCmd(cmdId) {
     global CapsLock, CapsLock2, BatchHotkey, IsCountdownActive
+    global g_LastExecutedCmdId
     prevCaps := CapsLock
     CapsLock := true
+    executed := false
     try {
         switch cmdId {
             case "ch_c":
                 HandleDynamicHotkey("c", "C")
+                executed := true
             case "ch_v":
                 HandleDynamicHotkey("v", "V")
+                executed := true
             case "ch_x":
                 HandleDynamicHotkey("x", "X")
+                executed := true
             case "ch_e":
                 HandleDynamicHotkey("e", "E")
+                executed := true
             case "ch_r":
                 HandleDynamicHotkey("r", "R")
+                executed := true
             case "ch_o":
                 HandleDynamicHotkey("o", "O")
+                executed := true
             case "ch_q":
                 HandleDynamicHotkey("q", "Q")
+                executed := true
             case "ch_z":
                 HandleDynamicHotkey("z", "Z")
+                executed := true
             case "ch_t":
                 HandleDynamicHotkey("t", "T")
+                executed := true
             case "ch_f":
                 if (IsCountdownActive) {
                     ExecuteCountdownAction()
@@ -33,8 +44,10 @@ VK_ExecCursorHelperCmd(cmdId) {
                 } else {
                     ShowSearchCenter()
                 }
+                executed := true
             case "ch_g":
                 StartVoiceSearch()
+                executed := true
             case "ch_b":
                 if (GetPanelVisibleState()) {
                     CapsLock2 := false
@@ -45,83 +58,140 @@ VK_ExecCursorHelperCmd(cmdId) {
                 } else {
                     PromptQuickPad_HandleCapsLockB()
                 }
+                executed := true
             case "ch_p":
                 HandleDynamicHotkey("p", "P")
+                executed := true
             case "ch_w":
                 CapsLock2 := false
                 Send("{Up}")
+                executed := true
             case "ch_s":
                 CapsLock2 := false
                 Send("{Down}")
+                executed := true
             case "ch_a":
                 CapsLock2 := false
                 Send("{Left}")
+                executed := true
             case "ch_d":
                 CapsLock2 := false
                 Send("{Right}")
+                executed := true
             case "ch_1":
                 ExecuteQuickActionSlot(1)
+                executed := true
             case "ch_2":
                 ExecuteQuickActionSlot(2)
+                executed := true
             case "ch_3":
                 ExecuteQuickActionSlot(3)
+                executed := true
             case "ch_4":
                 ExecuteQuickActionSlot(4)
+                executed := true
             case "ch_5":
                 ExecuteQuickActionSlot(5)
+                executed := true
             case "qa_split":
                 ExecuteQuickActionByType("Split")
+                executed := true
             case "qa_batch":
                 ExecuteQuickActionByType("Batch")
+                executed := true
             case "qa_explain":
                 ExecuteQuickActionByType("Explain")
+                executed := true
             case "qa_refactor":
                 ExecuteQuickActionByType("Refactor")
+                executed := true
             case "qa_optimize":
                 ExecuteQuickActionByType("Optimize")
+                executed := true
             case "qa_config":
                 ExecuteQuickActionByType("Config")
+                executed := true
             case "qa_copy":
                 ExecuteQuickActionByType("Copy")
+                executed := true
             case "qa_paste":
                 ExecuteQuickActionByType("Paste")
+                executed := true
             case "qa_clipboard":
                 ExecuteQuickActionByType("Clipboard")
+                executed := true
             case "qa_voice":
                 ExecuteQuickActionByType("Voice")
+                executed := true
             case "qa_command_palette":
                 ExecuteQuickActionByType("CommandPalette")
+                executed := true
             case "qa_terminal":
                 ExecuteQuickActionByType("Terminal")
+                executed := true
             case "qa_global_search":
                 ExecuteQuickActionByType("GlobalSearch")
+                executed := true
             case "qa_explorer":
                 ExecuteQuickActionByType("Explorer")
+                executed := true
             case "qa_source_control":
                 ExecuteQuickActionByType("SourceControl")
+                executed := true
             case "qa_extensions":
                 ExecuteQuickActionByType("Extensions")
+                executed := true
             case "qa_browser":
                 ExecuteQuickActionByType("Browser")
+                executed := true
             case "qa_settings":
                 ExecuteQuickActionByType("Settings")
+                executed := true
             case "qa_cursor_settings":
                 ExecuteQuickActionByType("CursorSettings")
+                executed := true
             case "pqp_capture":
                 PromptQuickPad_QuickCapture()
+                executed := true
             default:
                 if (SubStr(cmdId, 1, 3) = "pt_") {
                     runPt := Func("ExecutePromptByTemplateId")
-                    if runPt
+                    if runPt {
                         runPt.Call(SubStr(cmdId, 4))
-                    else
+                        executed := true
+                    } else
                         OutputDebug("[VK-Exec] pt_* 需要 CursorHelper")
                 } else
                     OutputDebug("[VK-Exec] unknown cmdId: " . cmdId)
+        }
+        if executed {
+            g_LastExecutedCmdId := cmdId
+            try _VK_PushQuickBindState()
         }
     } catch as e {
         OutputDebug("[VK-Exec] error: " . e.Message)
     } finally {
         CapsLock := prevCaps
     }
+}
+
+; 供 CursorHelper 内 CapsLock+ 热键与面板快捷按钮调用：与虚拟键盘「上一动作 / 即时绑定」共用同一变量
+VK_NoteLastExecutedId(cmdId) {
+    global g_LastExecutedCmdId
+    if (cmdId = "")
+        return
+    g_LastExecutedCmdId := cmdId
+    try _VK_PushQuickBindState()
+}
+
+VK_NoteLastChFromCapsLockKey(keyLower) {
+    static m := Map(
+        "c", "ch_c", "v", "ch_v", "x", "ch_x", "e", "ch_e", "r", "ch_r",
+        "o", "ch_o", "q", "ch_q", "z", "ch_z", "t", "ch_t", "p", "ch_p",
+        "w", "ch_w", "s", "ch_s", "a", "ch_a", "d", "ch_d",
+        "f", "ch_f", "g", "ch_g", "b", "ch_b"
+    )
+    kl := StrLower(keyLower)
+    if m.Has(kl)
+        VK_NoteLastExecutedId(m[kl])
 }

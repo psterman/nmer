@@ -24820,70 +24820,78 @@ c:: {
         CapsLock := true
     }
     
-    if (!HandleDynamicHotkey("c", "C")) {
-        ; 如果没有匹配到配置的快捷键，发送原始按键
+    if (HandleDynamicHotkey("c", "C"))
+        VK_NoteLastChFromCapsLockKey("c")
+    else
         Send("c")
-    }
 }
 
 ; V 键合并粘贴
 v:: {
-    if (!HandleDynamicHotkey("v", "V")) {
+    if (HandleDynamicHotkey("v", "V"))
+        VK_NoteLastChFromCapsLockKey("v")
+    else
         Send("v")
-    }
 }
 
 ; X 键打开剪贴板管理面板（新的 FTS5 剪贴板管理器）
 x:: {
-    if (!HandleDynamicHotkey("x", "X")) {
+    if (HandleDynamicHotkey("x", "X"))
+        VK_NoteLastChFromCapsLockKey("x")
+    else
         Send("x")
-    }
 }
 
 ; E 键执行解释
 e:: {
-    if (!HandleDynamicHotkey("e", "E")) {
+    if (HandleDynamicHotkey("e", "E"))
+        VK_NoteLastChFromCapsLockKey("e")
+    else
         Send("e")
-    }
 }
 
 ; R 键执行重构
 r:: {
-    if (!HandleDynamicHotkey("r", "R")) {
+    if (HandleDynamicHotkey("r", "R"))
+        VK_NoteLastChFromCapsLockKey("r")
+    else
         Send("r")
-    }
 }
 
 ; O 键执行优化
 o:: {
-    if (!HandleDynamicHotkey("o", "O")) {
+    if (HandleDynamicHotkey("o", "O"))
+        VK_NoteLastChFromCapsLockKey("o")
+    else
         Send("o")
-    }
 }
 
 ; Q 键打开配置面板
 q:: {
-    if (!HandleDynamicHotkey("q", "Q")) {
+    if (HandleDynamicHotkey("q", "Q"))
+        VK_NoteLastChFromCapsLockKey("q")
+    else
         Send("q")
-    }
 }
 
 ; Z 键语音输入（切换模式）
 z:: {
-    if (!HandleDynamicHotkey("z", "Z")) {
+    if (HandleDynamicHotkey("z", "Z"))
+        VK_NoteLastChFromCapsLockKey("z")
+    else
         Send("z")
-    }
 }
 
 ; T 键执行截图并弹出智能菜单
 t:: {
     ; 添加调试信息
     TrayTip("调试", "CapsLock+T 被触发", "Iconi 1")
-    if (!HandleDynamicHotkey("t", "T")) {
+    if (HandleDynamicHotkey("t", "T")) {
+        TrayTip("调试", "HandleDynamicHotkey 返回 true，已处理", "Iconi 1")
+        VK_NoteLastChFromCapsLockKey("t")
+    } else {
         TrayTip("调试", "HandleDynamicHotkey 返回 false，发送原始按键", "Iconi 1")
         Send("t")
-    } else {
-        TrayTip("调试", "HandleDynamicHotkey 返回 true，已处理", "Iconi 1")
     }
 }
 
@@ -24895,15 +24903,18 @@ f:: {
     ; 如果倒计时正在进行，按下 F 立即加速执行（发射内容）
     if (IsCountdownActive) {
         ExecuteCountdownAction()
+        VK_NoteLastChFromCapsLockKey("f")
         return
     }
     
     ; 如果 SearchCenter 窗口已激活，执行区域内操作逻辑
     if (IsSearchCenterActive()) {
         HandleSearchCenterF()
+        VK_NoteLastChFromCapsLockKey("f")
     } else {
         ; 否则激活搜索中心窗口
         ShowSearchCenter()
+        VK_NoteLastChFromCapsLockKey("f")
     }
 }
 
@@ -24914,6 +24925,7 @@ g:: {
     CapsLock2 := false
     ; CapsLock+G 激活原来的语音搜索面板
     StartVoiceSearch()
+    VK_NoteLastChFromCapsLockKey("g")
 }
 
 ; B 键：面板显示且批量键为 B 时走 BatchOperation；面板显示且非批量键则透传 b；面板未显示时打开 Prompt 采集窗
@@ -24923,12 +24935,14 @@ b:: {
         CapsLock2 := false
         if StrLower(BatchHotkey) = "b" {
             BatchOperation()
+            VK_NoteLastChFromCapsLockKey("b")
             return
         }
         Send("b")
         return
     }
     PromptQuickPad_HandleCapsLockB()
+    VK_NoteLastChFromCapsLockKey("b")
 }
 
 #HotIf  ; 结束 GetCapsLockState() 作用域，为 SearchCenter 专用热键让路
@@ -25077,6 +25091,7 @@ w:: {
     global CapsLock2
     CapsLock2 := false
     Send("{Up}")
+    VK_NoteLastChFromCapsLockKey("w")
 }
 
 ; S 键映射为 Down（下方向键）- 全局生效（SearchCenter 中会被上面的专用热键覆盖）
@@ -25084,6 +25099,7 @@ s:: {
     global CapsLock2
     CapsLock2 := false
     Send("{Down}")
+    VK_NoteLastChFromCapsLockKey("s")
 }
 
 ; A 键映射为 Left（左方向键）- 全局生效（SearchCenter 中会被上面的专用热键覆盖）
@@ -25091,6 +25107,7 @@ a:: {
     global CapsLock2
     CapsLock2 := false
     Send("{Left}")
+    VK_NoteLastChFromCapsLockKey("a")
 }
 
 ; D 键映射为 Right（右方向键）- 全局生效（SearchCenter 中会被上面的专用热键覆盖）
@@ -25098,13 +25115,15 @@ d:: {
     global CapsLock2
     CapsLock2 := false
     Send("{Right}")
+    VK_NoteLastChFromCapsLockKey("d")
 }
 
 ; P 键区域截图
 p:: {
-    if (!HandleDynamicHotkey("p", "P")) {
+    if (HandleDynamicHotkey("p", "P"))
+        VK_NoteLastChFromCapsLockKey("p")
+    else
         Send("p")
-    }
 }
 
 ; 1-5 键激活对应顺序的快捷操作按钮
@@ -25201,6 +25220,7 @@ ExecuteQuickActionSlot(Index) {
     if (btnType = "")
         return
     ExecuteQuickActionByType(btnType)
+    VK_NoteLastExecutedId("ch_" . Index)
 }
 
 ; ===================== 激活快捷操作按钮（仅面板显示时 CapsLock+1–5）=====================
@@ -25222,6 +25242,7 @@ ActivateQuickActionButton(Index) {
     if (btnType = "")
         return
     ExecuteQuickActionByType(btnType)
+    VK_NoteLastExecutedId("ch_" . Index)
 }
 
 ; ===================== 动态快捷键处理 =====================

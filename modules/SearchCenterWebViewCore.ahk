@@ -241,6 +241,12 @@ SCWV_WMDeactivateHideTick(*) {
             return
     } catch {
     }
+    ; 长按 CapsLock 打开的 VK 会抢 WebView 焦点；若仍自动 Hide 搜索中心，会引发焦点风暴并表现为 VK「闪退」
+    try {
+        if VK_IsHostVisible()
+            return
+    } catch {
+    }
     SCWV_Hide(true)
 }
 
@@ -254,6 +260,12 @@ SCWV_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
         ; 用户点击同进程悬浮工具栏切换关闭时，前台常在 WebView 子 HWND 上，须识别宿主链，勿抢先 Hide
         try {
             if (FloatingToolbar_IsForegroundToolbarOrChild())
+                return
+        } catch {
+        }
+        ; 虚拟键盘已显示时，失焦常因焦点进 VK 的 WebView2，勿关闭搜索中心（否则连带搞乱 VK）
+        try {
+            if VK_IsHostVisible()
                 return
         } catch {
         }

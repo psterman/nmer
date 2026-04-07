@@ -20,6 +20,10 @@ global g_RecordHook := 0
 global g_PendingConflict := Map()
 global g_UseScanCode := false
 global g_VK_PreviewHook := 0
+global g_LastExecutedCmdId := ""
+global g_VK_QuickBindHook := 0
+global g_VK_QuickBindArmed := false
+global g_VK_QuickBindConsumed := false
 global g_VK_TitleH := 44
 ; 双击修饰键：^^ / ++ / !!（与 Hotkey() 不兼容，由专用 InputHook 处理）
 global g_VK_DblModIH := 0
@@ -45,6 +49,7 @@ VK_EnsureInit(embedded := true) {
 
 VK_OnHostExit(*) {
     _StopKeyPreviewHook()
+    _VK_StopQuickBindHook()
     _StopDoubleModifierHook()
     _StopSequenceHook()
     _EndRecord(false)
@@ -282,7 +287,7 @@ _VK_SyncBuiltinCommands() {
 }
 
 _LoadCommands() {
-    global g_Commands, g_Bindings, g_InverseBindings, g_JsonPath
+    global g_Commands, g_Bindings, g_InverseBindings, g_JsonPath, g_VK_Embedded
 
     g_Bindings := Map()
     g_InverseBindings := Map()
@@ -316,6 +321,8 @@ _LoadCommands() {
             g_InverseBindings[cmdId] := ahkKey
         }
     }
+    if g_VK_Embedded
+        _VK_SyncEmbeddedCapslockHotkeys()
     OutputDebug("[VK] Loaded " . g_Bindings.Count . " binding(s)")
 }
 
@@ -623,42 +630,59 @@ _VkRunPromptTemplate(cmdId) {
 }
 
 _ExecuteCommand(cmdId) {
-    global g_Commands, g_VK_Embedded
+    global g_Commands, g_VK_Embedded, g_LastExecutedCmdId
     if !g_Commands.Has("CommandList") || !g_Commands["CommandList"].Has(cmdId) {
         OutputDebug("[VK] Unknown command: " . cmdId)
         return
     }
+    executed := false
     fn := g_Commands["CommandList"][cmdId]["fn"]
     switch fn {
         case "EXIT_APP":
+            executed := true
             if g_VK_Embedded
                 VK_Hide()
             else
                 ExitApp()
         case "SHOW_VK":
             VK_Show()
+            executed := true
         case "HIDE_VK":
             VK_Hide()
+            executed := true
         case "RESET_VK":
             VK_SendToWeb('{"type":"reset"}')
+            executed := true
         case "WIN_MIN":
             try WinMinimize("A")
+            executed := true
         case "WIN_CLOSE":
             try WinClose("A")
+            executed := true
         case "CURSOR_OPEN":
             OutputDebug("[VK] CURSOR_OPEN: hook here")
+            executed := true
         case "CURSOR_CLOSE":
             OutputDebug("[VK] CURSOR_CLOSE: hook here")
+            executed := true
         case "CH_RUN":
             if g_VK_Embedded {
                 ; 实现由 VirtualKeyboardExecCmd.ahk（CursorHelper）或 VirtualKeyboard.ahk 内 stub 提供；勿用 Func("…")（未定义时会抛 TargetError）
                 VK_ExecCursorHelperCmd(cmdId)
+                executed := true
             } else if !NotifyScript("CursorHelper", '{"type":"vkExec","cmdId":"' . cmdId . '"}')
                 OutputDebug("[VK] CH_RUN " . cmdId . " — CursorHelper 未运行或未处理 vkExec")
+            else
+                executed := true
         case "PT_RUN":
             _VkRunPromptTemplate(cmdId)
+            executed := true
         default:
             OutputDebug("[VK] Unhandled fn: " . fn)
+    }
+    if executed {
+        g_LastExecutedCmdId := cmdId
+        _VK_PushQuickBindState()
     }
 }
 
@@ -888,6 +912,8 @@ _DoBindKey(cmdId, ahkKey, displayKey) {
     g_InverseBindings[cmdId] := ahkKey
     if !g_VK_Embedded
         _BindKey(ahkKey, cmdId)
+    else
+        _VK_SyncEmbeddedCapslockHotkeys()
     _SaveBindings()
 
     escaped := StrReplace(StrReplace(displayKey, "\", "\\"), '"', '\"')
@@ -909,6 +935,8 @@ _DoClearBinding(cmdId) {
         _UnbindKey(ahkKey)
     g_Bindings.Delete(ahkKey)
     g_InverseBindings.Delete(cmdId)
+    if g_VK_Embedded
+        _VK_SyncEmbeddedCapslockHotkeys()
     _SaveBindings()
     _EnsureDoubleModifierHook()
     _EnsureSequenceHook()
@@ -916,6 +944,54 @@ _DoClearBinding(cmdId) {
     VK_SendToWeb('{"type":"bindingUpdated","commandId":"' . cmdId
         . '","ahkKey":"","displayKey":""}')
     OutputDebug("[VK] clearBinding: " . cmdId)
+}
+
+_VK_ToEmbeddedHotkeyValue(ahkKey, isEsc := false) {
+    if (ahkKey = "" || _VkIsRuntimeHookKey(ahkKey))
+        return ""
+    ; HandleDynamicHotkey 目前只支持无修饰单键；带 ^ ! + 的绑定不映射到 CapsLock+ 变量
+    if (InStr(ahkKey, "^") || InStr(ahkKey, "!") || InStr(ahkKey, "+"))
+        return ""
+    base := ahkKey
+    if isEsc {
+        if (base = "Escape" || base = "Esc")
+            return "Esc"
+        return ""
+    }
+    if (StrLen(base) = 1)
+        return StrLower(base)
+    return ""
+}
+
+_VK_SyncEmbeddedCapslockHotkeys() {
+    global g_InverseBindings
+    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyT, HotkeyF, HotkeyP
+
+    escVal := g_InverseBindings.Has("sys_exit") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["sys_exit"], true) : ""
+    cVal := g_InverseBindings.Has("ch_c") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_c"]) : ""
+    vVal := g_InverseBindings.Has("ch_v") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_v"]) : ""
+    xVal := g_InverseBindings.Has("ch_x") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_x"]) : ""
+    eVal := g_InverseBindings.Has("ch_e") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_e"]) : ""
+    rVal := g_InverseBindings.Has("ch_r") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_r"]) : ""
+    oVal := g_InverseBindings.Has("ch_o") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_o"]) : ""
+    qVal := g_InverseBindings.Has("ch_q") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_q"]) : ""
+    zVal := g_InverseBindings.Has("ch_z") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_z"]) : ""
+    tVal := g_InverseBindings.Has("ch_t") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_t"]) : ""
+    fVal := g_InverseBindings.Has("ch_f") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_f"]) : ""
+    pVal := g_InverseBindings.Has("ch_p") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_p"]) : ""
+
+    HotkeyESC := escVal
+    HotkeyC := cVal
+    HotkeyV := vVal
+    HotkeyX := xVal
+    HotkeyE := eVal
+    HotkeyR := rVal
+    HotkeyO := oVal
+    HotkeyQ := qVal
+    HotkeyZ := zVal
+    HotkeyT := tVal
+    HotkeyF := fVal
+    HotkeyP := pVal
 }
 
 _VkJsonStr(s) {
@@ -983,6 +1059,120 @@ _StopKeyPreviewHook() {
         g_VK_PreviewHook := 0
         OutputDebug("[VK] key preview hook off")
     }
+}
+
+_VK_GetCommandName(cmdId) {
+    global g_Commands
+    if (cmdId = "")
+        return ""
+    if !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+        return cmdId
+    cmdList := g_Commands["CommandList"]
+    if !cmdList.Has(cmdId)
+        return cmdId
+    cmd := cmdList[cmdId]
+    if (cmd is Map) && cmd.Has("name") && cmd["name"] != ""
+        return cmd["name"]
+    return cmdId
+}
+
+_VK_IsQuickBindAllowedWindow() {
+    global g_VK_Gui
+    if !g_VK_Gui
+        return false
+    try {
+        if !WinExist("ahk_id " . g_VK_Gui.Hwnd)
+            return false
+        if !(WinGetStyle("ahk_id " . g_VK_Gui.Hwnd) & 0x10000000)
+            return false
+        fg := WinExist("A")
+        if !fg
+            return false
+        if (fg = g_VK_Gui.Hwnd)
+            return true
+        ; 焦点在 WebView2 子 HWND 时，前台不是 Gui 本身，用根窗口比对
+        root := DllCall("user32\GetAncestor", "ptr", fg, "uint", 2, "ptr")
+        return (root = g_VK_Gui.Hwnd)
+    } catch {
+        return false
+    }
+}
+
+_VK_PushQuickBindState() {
+    global g_LastExecutedCmdId, g_VK_QuickBindArmed, g_VK_QuickBindConsumed, g_InverseBindings
+    cmdId := g_LastExecutedCmdId
+    cmdName := _VK_GetCommandName(cmdId)
+    escName := StrReplace(StrReplace(cmdName, "\", "\\"), '"', '\"')
+    escId := StrReplace(StrReplace(cmdId, "\", "\\"), '"', '\"')
+    active := (g_VK_QuickBindArmed && !g_VK_QuickBindConsumed) ? "true" : "false"
+    curDisp := ""
+    if (cmdId != "" && g_InverseBindings.Has(cmdId))
+        curDisp := _AhkKeyToDisplay(g_InverseBindings[cmdId])
+    escCur := StrReplace(StrReplace(curDisp, "\", "\\"), '"', '\"')
+    VK_SendToWeb('{"type":"quickBindState","lastActionId":"' . escId . '","lastActionName":"' . escName
+        . '","quickBindActive":' . active . ',"lastActionCurrentKey":"' . escCur . '"}')
+}
+
+_VK_OnQuickBindKeyDown(ih, vk, sc) {
+    global g_VK_QuickBindArmed, g_VK_QuickBindConsumed, g_LastExecutedCmdId, g_RecordCtx
+    if !g_VK_QuickBindArmed || g_VK_QuickBindConsumed
+        return
+    if (g_RecordCtx.Has("active") && g_RecordCtx["active"])
+        return
+    ; 长按 CapsLock 打开 VK 时 CapsLock 一直处于按下；Hook 启动后会立刻收到其 KeyDown。
+    ; 若此时已有「上一动作」会误走即时绑定并 VK_Hide，表现为「一闪就关」。
+    if (vk = 0x14)
+        return
+    if !_VK_IsQuickBindAllowedWindow()
+        return
+    ahkKey := _VkNormalizePressedHotkey(vk, sc)
+    if ahkKey = ""
+        return
+    if (g_LastExecutedCmdId = "") {
+        VK_SendToWeb('{"type":"setHud","message":"无可绑定动作：请先触发一个功能"}')
+        return
+    }
+    if !_VK_GetCommandName(g_LastExecutedCmdId)
+        return
+    displayKey := _ToDisplayKey(ahkKey)
+    g_VK_QuickBindConsumed := true
+    _DoBindKey(g_LastExecutedCmdId, ahkKey, displayKey)
+    cmdName := _VK_GetCommandName(g_LastExecutedCmdId)
+    escName := StrReplace(StrReplace(cmdName, "\", "\\"), '"', '\"')
+    escDisp := StrReplace(StrReplace(displayKey, "\", "\\"), '"', '\"')
+    escCmdId := StrReplace(StrReplace(g_LastExecutedCmdId, "\", "\\"), '"', '\"')
+    escAhk := StrReplace(StrReplace(ahkKey, "\", "\\"), '"', '\"')
+    VK_SendToWeb('{"type":"bind_success","commandId":"' . escCmdId . '","commandName":"' . escName . '","ahkKey":"' . escAhk . '","displayKey":"' . escDisp . '"}')
+    _VK_StopQuickBindHook()
+    SetTimer(VK_Hide, -50)
+}
+
+_VK_StartQuickBindHook() {
+    global g_VK_QuickBindHook, g_VK_QuickBindArmed, g_VK_QuickBindConsumed
+    _VK_StopQuickBindHook()
+    ih := InputHook("V L0")
+    ih.KeyOpt("{All}", "N")
+    ih.OnKeyDown := _VK_OnQuickBindKeyDown
+    g_VK_QuickBindHook := ih
+    g_VK_QuickBindConsumed := false
+    g_VK_QuickBindArmed := true
+    try ih.Start()
+    catch as e {
+        g_VK_QuickBindArmed := false
+        g_VK_QuickBindHook := 0
+        OutputDebug("[VK] quick bind hook start failed: " . e.Message)
+    }
+    _VK_PushQuickBindState()
+}
+
+_VK_StopQuickBindHook() {
+    global g_VK_QuickBindHook, g_VK_QuickBindArmed, g_VK_QuickBindConsumed
+    if IsObject(g_VK_QuickBindHook) {
+        try g_VK_QuickBindHook.Stop()
+        g_VK_QuickBindHook := 0
+    }
+    g_VK_QuickBindArmed := false
+    g_VK_QuickBindConsumed := false
 }
 
 _VkIsSequenceKey(ahkKey) {
@@ -1454,7 +1644,7 @@ _GetKeyFromSC(sc) {
 }
 
 _PushInit() {
-    global g_Commands, g_InverseBindings
+    global g_Commands, g_InverseBindings, g_LastExecutedCmdId, g_VK_QuickBindArmed, g_VK_QuickBindConsumed
 
     if !g_Commands.Has("Categories") {
         OutputDebug("[VK] Commands not loaded")
@@ -1515,10 +1705,22 @@ _PushInit() {
     }
     bJson .= "}"
 
+    lastActionId := _JsonStr(g_LastExecutedCmdId)
+    lastActionName := _JsonStr(_VK_GetCommandName(g_LastExecutedCmdId))
+    quickBindActive := (g_VK_QuickBindArmed && !g_VK_QuickBindConsumed) ? "true" : "false"
+    lacKeyDisp := ""
+    if (g_LastExecutedCmdId != "" && g_InverseBindings.Has(g_LastExecutedCmdId))
+        lacKeyDisp := _AhkKeyToDisplay(g_InverseBindings[g_LastExecutedCmdId])
+    lastActionCurrentKey := _JsonStr(lacKeyDisp)
+
     payload := '{"type":"init","categories":' . catJson
         . ',"commands":' . clJson
         . ',"bindings":' . bJson
-        . ',"suggestedBindings":' . sbJson . '}'
+        . ',"suggestedBindings":' . sbJson
+        . ',"lastActionId":' . lastActionId
+        . ',"lastActionName":' . lastActionName
+        . ',"lastActionCurrentKey":' . lastActionCurrentKey
+        . ',"quickBindActive":' . quickBindActive . '}'
     VK_SendToWeb(payload)
     OutputDebug("[VK] init pushed")
 }
@@ -1596,15 +1798,18 @@ VK_Show() {
         SetTimer(_VK_RefreshWebViewComposition, -30)
         SetTimer(_VK_RefreshWebViewComposition, -120)
         SetTimer(_VK_RefreshWebViewComposition, -380)
+        _StartKeyPreviewHook()
+        ; 须先于 _PushInit：否则 init 里 quickBindActive 仍为 false，前端不显示即时绑定提示
+        _VK_StartQuickBindHook()
         ; 某些场景下前端列表状态会丢失，显示时补发一次初始化数据
         if g_VK_Ready
             _PushInit()
-        _StartKeyPreviewHook()
         VK_SendToWeb('{"type":"keyPreviewClear"}')
         WMActivateChain_Register(_VK_WM_ACTIVATE)
         WebView2_MoveFocusProgrammatic(g_VK_Ctrl)
         SetTimer(_VK_DeferredMoveFocus, -100)
         _VK_RequestFocusInput()
+        ; 不再 WinActivate：会与 Cursor/WebView 抢焦点，触发 WM_ACTIVATE 失活链，导致快捷键设置窗「闪一下就被 _VK_WM_ACTIVATE 关掉」
     }
 }
 
@@ -1612,6 +1817,7 @@ VK_Hide() {
     global g_VK_Gui
     VK_SendToWeb('{"type":"keyPreviewClear"}')
     _StopKeyPreviewHook()
+    _VK_StopQuickBindHook()
     WMActivateChain_Unregister(_VK_WM_ACTIVATE)
     if g_VK_Gui
         g_VK_Gui.Hide()
@@ -1645,7 +1851,8 @@ _VK_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
                 return
         } catch {
         }
-        if (g_VK_LastShown && (A_TickCount - g_VK_LastShown < 500))
+        ; 显示后一段时间内焦点可能在宿主/子控件间切换，勿误判为「用户点到外面」而立刻隐藏
+        if (g_VK_LastShown && (A_TickCount - g_VK_LastShown < 2000))
             return
         SetTimer(VK_Hide, -50)
     }
