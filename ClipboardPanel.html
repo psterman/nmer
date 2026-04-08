@@ -253,11 +253,7 @@ body.native-titlebar .chrome-drag { display: none; }
   justify-content: space-between;
   gap: 6px;
 }
-.cal-title {
-  color: #ffcf98;
-  font-size: 12px;
-  font-weight: 600;
-}
+.cal-title { display: none; }
 .cal-ym {
   display: inline-flex;
   align-items: center;
@@ -807,8 +803,8 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
     <div id="search-hints">
       <span class="hint-tag">1-9 粘贴</span>
       <span class="hint-tag">近底预加载</span>
-      <span class="hint-tag">Ctrl+K 动作</span>
-      <span class="hint-tag">Space 大图</span>
+      <span class="hint-tag">Ctrl+K 快捷键</span>
+      <span class="hint-tag">长按 Space 快速翻页</span>
       <span class="hint-tag">Esc 关闭</span>
     </div>
   </div>
@@ -857,35 +853,35 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
   <div class="ctx-item toggle" data-ctx="toggleContinuous" id="ctx-toggle-continuous"><span class="ctx-check">✓</span><span>持续粘贴（不关闭窗口）</span></div>
 </div>
 
-<!-- Action Panel Overlay -->
+<!-- Shortcuts Panel Overlay -->
 <div id="action-overlay">
   <div id="action-panel">
-    <div id="action-title">Actions</div>
+    <div id="action-title">快捷键</div>
     <div id="action-list">
-      <div class="action-item" data-action="paste">
-        <span class="act-icon">&#128203;</span>
-        <span class="act-label">粘贴</span>
+      <div class="action-item" data-shortcut="1">
+        <span class="act-icon">&#9000;</span>
+        <span class="act-label">粘贴当前选中项</span>
         <span class="act-key">Enter</span>
       </div>
-      <div class="action-item" data-action="copyPlain">
-        <span class="act-icon">&#128196;</span>
-        <span class="act-label">纯文本复制</span>
-        <span class="act-key">C</span>
+      <div class="action-item" data-shortcut="2">
+        <span class="act-icon">&#8597;</span>
+        <span class="act-label">上下选择结果</span>
+        <span class="act-key">↑ / ↓</span>
       </div>
-      <div class="action-item" data-action="pin">
-        <span class="act-icon">&#128204;</span>
-        <span class="act-label">切换置顶</span>
-        <span class="act-key">P</span>
+      <div class="action-item" data-shortcut="3">
+        <span class="act-icon">#</span>
+        <span class="act-label">数字键快速粘贴</span>
+        <span class="act-key">1-9</span>
       </div>
-      <div class="action-item" data-action="ocrImage">
-        <span class="act-icon">&#128269;</span>
-        <span class="act-label">图片 OCR</span>
-        <span class="act-key">O</span>
+      <div class="action-item" data-shortcut="4">
+        <span class="act-icon">&#9208;</span>
+        <span class="act-label">长按快速翻页</span>
+        <span class="act-key">Space</span>
       </div>
-      <div class="action-item" data-action="delete">
+      <div class="action-item" data-shortcut="5">
         <span class="act-icon">&#128465;</span>
-        <span class="act-label">删除</span>
-        <span class="act-key">D</span>
+        <span class="act-label">删除当前选中项</span>
+        <span class="act-key">Ctrl+D</span>
       </div>
     </div>
   </div>
@@ -951,6 +947,7 @@ const LIST_BOTTOM_SLACK_PX = 56;
 let loadMoreObserver = null;
 /** @type {number} */
 let listScrollRaf = 0;
+let spaceFlipTimer = 0;
 
 function disconnectLoadMoreObserver() {
   if (loadMoreObserver) {
@@ -1815,24 +1812,13 @@ function updateActionHighlight() {
 
 function executeAction(action) {
   closeActionPanel();
-  if (!state.selectedId && state.items.length === 0) return;
-  const id = state.selectedId || state.items[0].id;
-
-  const k = keepOpenFlag();
-  switch (action) {
-    case 'paste':     postToAhk({ type: 'paste', id: id, keepOpen: k }); break;
-    case 'copyPlain': postToAhk({ type: 'copyPlain', id: id, keepOpen: k }); break;
-    case 'pin':       postToAhk({ type: 'pin', id: id }); break;
-    case 'ocrImage':  postToAhk({ type: 'ocrImage', id: id, keepOpen: true }); break;
-    case 'delete':    postToAhk({ type: 'delete', id: id }); break;
-  }
 }
 
 document.getElementById('action-overlay').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeActionPanel();
 });
 document.querySelectorAll('.action-item').forEach(el => {
-  el.addEventListener('click', () => executeAction(el.dataset.action));
+  el.addEventListener('click', () => closeActionPanel());
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1906,7 +1892,7 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // Ctrl+K: open action panel
+  // Ctrl+K: open shortcuts panel
   if (e.ctrlKey && e.key.toLowerCase() === 'k') {
     e.preventDefault(); toggleActionPanel(); return;
   }
@@ -1948,17 +1934,19 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  /* Space：按住预览本地原图（AHK 无边框窗），松开关闭 */
+  /* Space：长按快速翻页（按住持续向下选中） */
   if (!state.actionPanelOpen && !state.ctxMenuVisible && !typingInSearch && e.code === 'Space') {
-    if (!e.repeat) {
-      const it = state.items[state.selectedIndex];
-      if (it && itemIsImage(it) && localImageDiskPath(it)) {
-        e.preventDefault();
-        state.peekSpaceDown = true;
-        postToAhk({ type: 'imagePeek', show: true, id: it.id });
-        return;
-      }
+    e.preventDefault();
+    if (!state.peekSpaceDown) {
+      state.peekSpaceDown = true;
+      if (spaceFlipTimer) clearInterval(spaceFlipTimer);
+      spaceFlipTimer = setInterval(() => {
+        if (!state.peekSpaceDown || !state.items.length) return;
+        const next = Math.min(state.items.length - 1, state.selectedIndex + 1);
+        if (next !== state.selectedIndex) selectItem(next);
+      }, 120);
     }
+    return;
   }
 
   // ArrowUp / ArrowDown: navigate list（搜索框聚焦时不劫持，避免干扰 IME/光标）
@@ -1983,7 +1971,10 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('keyup', (e) => {
   if (e.code === 'Space' && state.peekSpaceDown) {
     state.peekSpaceDown = false;
-    postToAhk({ type: 'imagePeek', show: false });
+    if (spaceFlipTimer) {
+      clearInterval(spaceFlipTimer);
+      spaceFlipTimer = 0;
+    }
   }
 });
 
