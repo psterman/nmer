@@ -469,6 +469,11 @@ body.native-titlebar #header { display: none; }
   transition: transform var(--ease), opacity var(--ease), border-color var(--ease);
 }
 
+.stack-card.is-selected {
+  border-color: rgba(255, 170, 82, 0.78);
+  box-shadow: 0 0 0 2px rgba(255, 154, 47, 0.22), 0 7px 22px rgba(0, 0, 0, 0.38);
+}
+
 .stack-card:hover { border-color: rgba(255, 186, 119, 0.55); }
 
 .stack-card-text {
@@ -724,7 +729,8 @@ body.native-titlebar #header { display: none; }
     gravityActive: false,
     collisionBtn: '',
     actionPinned: false,
-    justDragged: false
+    justDragged: false,
+    selectedIndex: -1
   };
   let externalDragDepth = 0;
 
@@ -974,6 +980,9 @@ body.native-titlebar #header { display: none; }
       card.style.marginTop = '0';
       card.dataset.realIndex = String(state.segments.length - 1 - idx);
       card.dataset.kind = item.kind;
+      if (Number(card.dataset.realIndex) === state.selectedIndex) {
+        card.classList.add('is-selected');
+      }
 
       if (item.kind === 'image') {
         const src = item.imageDataUrl || (item.imagePath ? toFileUrl(item.imagePath) : '');
@@ -1004,8 +1013,10 @@ body.native-titlebar #header { display: none; }
     state.pendingDraft = '';
     state.pendingImagePath = '';
     state.pendingImageDataUrl = '';
+    state.selectedIndex = state.segments.length - 1;
     refreshAll();
     syncSegments();
+    postToAhk({ type: 'hub_stack_selected', text: t, index: state.selectedIndex });
     stackDisplay.classList.remove('stack-pop');
     void stackDisplay.offsetWidth;
     stackDisplay.classList.add('stack-pop');
@@ -1019,6 +1030,7 @@ body.native-titlebar #header { display: none; }
     state.pendingDraft = '';
     state.pendingImagePath = '';
     state.pendingImageDataUrl = '';
+    state.selectedIndex = state.segments.length - 1;
     refreshAll();
     syncSegments();
     stackDisplay.classList.remove('stack-pop');
@@ -1031,16 +1043,24 @@ body.native-titlebar #header { display: none; }
     state.pendingImagePath = '';
     state.pendingImageDataUrl = '';
     state.pendingDraft = '';
+    state.selectedIndex = -1;
     refreshAll();
     syncSegments();
+    postToAhk({ type: 'hub_stack_selected', text: '', index: -1 });
     postToAhk({ type: 'hub_cleared' });
   }
 
   function removeAt(i) {
     if (i < 0 || i >= state.segments.length) return;
+    const removedSelected = (state.selectedIndex === i);
     state.segments.splice(i, 1);
+    if (state.selectedIndex === i) state.selectedIndex = -1;
+    if (state.selectedIndex > i) state.selectedIndex -= 1;
     refreshAll();
     syncSegments();
+    if (removedSelected) {
+      postToAhk({ type: 'hub_stack_selected', text: '', index: -1 });
+    }
   }
 
   function setDocked(on) {
@@ -1216,6 +1236,21 @@ body.native-titlebar #header { display: none; }
     if (!Number.isNaN(i)) removeAt(i);
     e.stopPropagation();
   });
+
+  stackList.addEventListener('pointerdown', (e) => {
+    const card = e.target.closest('.stack-card');
+    if (!card) return;
+    const realIndex = Number(card.dataset.realIndex || '-1');
+    if (!Number.isFinite(realIndex) || realIndex < 0) return;
+    const item = asCard(state.segments[realIndex]);
+    state.selectedIndex = realIndex;
+    refreshAll();
+    if (item && item.kind === 'text') {
+      postToAhk({ type: 'hub_stack_selected', text: item.text || '', index: realIndex });
+    } else {
+      postToAhk({ type: 'hub_stack_selected', text: '', index: realIndex });
+    }
+  }, true);
 
   stackList.addEventListener('contextmenu', (e) => {
     const card = e.target.closest('.stack-card');

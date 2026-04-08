@@ -519,6 +519,15 @@ global HotkeyF := "f"  ; 语音搜索
 global HotkeyT := "t"  ; 区域截图
 global HotkeyP := "p"  ; 截图粘贴
 global PromptQuickCaptureHotkey := ""  ; Prompt Quick-Pad 选区采集，留空不注册；可在 CursorShortcut.ini [Settings] PromptQuickCaptureHotkey 配置
+global CursorShortcut_CommandPalette := "^+p"
+global CursorShortcut_Terminal := "^+``"
+global CursorShortcut_GlobalSearch := "^+f"
+global CursorShortcut_Explorer := "^+e"
+global CursorShortcut_SourceControl := "^+g"
+global CursorShortcut_Extensions := "^+x"
+global CursorShortcut_Browser := "^+b"
+global CursorShortcut_Settings := "^+j"
+global CursorShortcut_CursorSettings := "^,"
 global PromptQuickPad_CapsLockBSilent := false  ; CapsLock+B 静默入库（ini [PromptQuickPad] CapsLockBSilent=1）
 global PromptQuickPad_CapsLockBSilentToTemplate := false  ; 静默时写入模板库 PromptTemplates.ini（否则 prompts.json）
 global PromptQuickPad_CapsLockBDefaultTitle := "摘录"
@@ -2687,6 +2696,15 @@ InitConfig() {
     DefaultHotkeyO := "o"
     DefaultHotkeyQ := "q"
     DefaultHotkeyZ := "z"
+    DefaultCursorShortcut_CommandPalette := "^+p"
+    DefaultCursorShortcut_Terminal := "^+``"
+    DefaultCursorShortcut_GlobalSearch := "^+f"
+    DefaultCursorShortcut_Explorer := "^+e"
+    DefaultCursorShortcut_SourceControl := "^+g"
+    DefaultCursorShortcut_Extensions := "^+x"
+    DefaultCursorShortcut_Browser := "^+b"
+    DefaultCursorShortcut_Settings := "^+j"
+    DefaultCursorShortcut_CursorSettings := "^,"
     DefaultPanelScreenIndex := 1
     DefaultPanelPosition := "center"
     DefaultFunctionPanelPos := "center"
@@ -2724,6 +2742,15 @@ InitConfig() {
         IniWrite("f", ConfigFile, "Hotkeys", "F")
         IniWrite("p", ConfigFile, "Hotkeys", "P")
         IniWrite("deepseek", ConfigFile, "Settings", "SearchEngine")
+        IniWrite(DefaultCursorShortcut_CommandPalette, ConfigFile, "Settings", "CursorShortcut_CommandPalette")
+        IniWrite(DefaultCursorShortcut_Terminal, ConfigFile, "Settings", "CursorShortcut_Terminal")
+        IniWrite(DefaultCursorShortcut_GlobalSearch, ConfigFile, "Settings", "CursorShortcut_GlobalSearch")
+        IniWrite(DefaultCursorShortcut_Explorer, ConfigFile, "Settings", "CursorShortcut_Explorer")
+        IniWrite(DefaultCursorShortcut_SourceControl, ConfigFile, "Settings", "CursorShortcut_SourceControl")
+        IniWrite(DefaultCursorShortcut_Extensions, ConfigFile, "Settings", "CursorShortcut_Extensions")
+        IniWrite(DefaultCursorShortcut_Browser, ConfigFile, "Settings", "CursorShortcut_Browser")
+        IniWrite(DefaultCursorShortcut_Settings, ConfigFile, "Settings", "CursorShortcut_Settings")
+        IniWrite(DefaultCursorShortcut_CursorSettings, ConfigFile, "Settings", "CursorShortcut_CursorSettings")
         IniWrite("0", ConfigFile, "Settings", "AutoLoadSelectedText")
         IniWrite("1", ConfigFile, "Settings", "AutoUpdateVoiceInput")
         IniWrite("deepseek", ConfigFile, "Settings", "VoiceSearchSelectedEngines")  ; 保存默认选中的搜索引擎
@@ -2934,6 +2961,18 @@ InitConfig() {
             HotkeyP := IniRead(ConfigFile, "Hotkeys", "P", "p")
             global PromptQuickCaptureHotkey
             PromptQuickCaptureHotkey := IniRead(ConfigFile, "Settings", "PromptQuickCaptureHotkey", "")
+            global CursorShortcut_CommandPalette, CursorShortcut_Terminal, CursorShortcut_GlobalSearch
+            global CursorShortcut_Explorer, CursorShortcut_SourceControl, CursorShortcut_Extensions
+            global CursorShortcut_Browser, CursorShortcut_Settings, CursorShortcut_CursorSettings
+            CursorShortcut_CommandPalette := IniRead(ConfigFile, "Settings", "CursorShortcut_CommandPalette", "^+p")
+            CursorShortcut_Terminal := IniRead(ConfigFile, "Settings", "CursorShortcut_Terminal", "^+``")
+            CursorShortcut_GlobalSearch := IniRead(ConfigFile, "Settings", "CursorShortcut_GlobalSearch", "^+f")
+            CursorShortcut_Explorer := IniRead(ConfigFile, "Settings", "CursorShortcut_Explorer", "^+e")
+            CursorShortcut_SourceControl := IniRead(ConfigFile, "Settings", "CursorShortcut_SourceControl", "^+g")
+            CursorShortcut_Extensions := IniRead(ConfigFile, "Settings", "CursorShortcut_Extensions", "^+x")
+            CursorShortcut_Browser := IniRead(ConfigFile, "Settings", "CursorShortcut_Browser", "^+b")
+            CursorShortcut_Settings := IniRead(ConfigFile, "Settings", "CursorShortcut_Settings", "^+j")
+            CursorShortcut_CursorSettings := IniRead(ConfigFile, "Settings", "CursorShortcut_CursorSettings", "^,")
             SearchEngine := IniRead(ConfigFile, "Settings", "SearchEngine", "deepseek")
             AutoLoadSelectedText := (IniRead(ConfigFile, "Settings", "AutoLoadSelectedText", "0") = "1")
             AutoUpdateVoiceInput := (IniRead(ConfigFile, "Settings", "AutoUpdateVoiceInput", "1") = "1")
@@ -3237,6 +3276,15 @@ WebView_QueuePayload(wv2, payload) {
         return
     WebViewMsgQueue.Push(Map("wv2", wv2, "payload", payload))
     _WebView_QueueKick()
+}
+
+FuncExists(fnName) {
+    try {
+        Func(fnName)
+        return true
+    } catch as _e {
+        return false
+    }
 }
 
 _WebView_QueueKick() {
@@ -4919,31 +4967,31 @@ ShowCursorPanel() {
                 ButtonAction := (*) => BatchOperation()
             case "CommandPalette":
                 BaseText := GetText("quick_action_type_command_palette")
-                ButtonAction := (*) => ExecuteCursorShortcut("^+p")
+                ButtonAction := (*) => ExecuteCursorShortcut(GetCursorActionShortcut("CommandPalette"))
             case "Terminal":
                 BaseText := GetText("quick_action_type_terminal")
-                ButtonAction := (*) => ExecuteCursorShortcut("^+``")
+                ButtonAction := (*) => ExecuteCursorShortcut(GetCursorActionShortcut("Terminal"))
             case "GlobalSearch":
                 BaseText := GetText("quick_action_type_global_search")
-                ButtonAction := (*) => ExecuteCursorShortcut("^+f")
+                ButtonAction := (*) => ExecuteCursorShortcut(GetCursorActionShortcut("GlobalSearch"))
             case "Explorer":
                 BaseText := GetText("quick_action_type_explorer")
-                ButtonAction := (*) => ExecuteCursorShortcut("^+e")
+                ButtonAction := (*) => ExecuteCursorShortcut(GetCursorActionShortcut("Explorer"))
             case "SourceControl":
                 BaseText := GetText("quick_action_type_source_control")
-                ButtonAction := (*) => ExecuteCursorShortcut("^+g")
+                ButtonAction := (*) => ExecuteCursorShortcut(GetCursorActionShortcut("SourceControl"))
             case "Extensions":
                 BaseText := GetText("quick_action_type_extensions")
-                ButtonAction := (*) => ExecuteCursorShortcut("^+x")
+                ButtonAction := (*) => ExecuteCursorShortcut(GetCursorActionShortcut("Extensions"))
             case "Browser":
                 BaseText := GetText("quick_action_type_browser")
-                ButtonAction := (*) => ExecuteCursorShortcut("^+b")
+                ButtonAction := (*) => ExecuteCursorShortcut(GetCursorActionShortcut("Browser"))
             case "Settings":
                 BaseText := GetText("quick_action_type_settings")
-                ButtonAction := (*) => ExecuteCursorShortcut("^+j")
+                ButtonAction := (*) => ExecuteCursorShortcut(GetCursorActionShortcut("Settings"))
             case "CursorSettings":
                 BaseText := GetText("quick_action_type_cursor_settings")
-                ButtonAction := (*) => ExecuteCursorShortcut("^,")
+                ButtonAction := (*) => ExecuteCursorShortcut(GetCursorActionShortcut("CursorSettings"))
         }
         
         ; 替换快捷键（将默认快捷键替换为配置的快捷键）
@@ -5854,6 +5902,60 @@ ExecuteCursorShortcut(Shortcut) {
         Send(Shortcut)
     } catch as e {
         TrayTip("执行快捷键失败: " . e.Message, GetText("error"), "Iconx 2")
+    }
+}
+
+GetCursorActionShortcut(ActionType) {
+    global CursorShortcut_CommandPalette, CursorShortcut_Terminal, CursorShortcut_GlobalSearch
+    global CursorShortcut_Explorer, CursorShortcut_SourceControl, CursorShortcut_Extensions
+    global CursorShortcut_Browser, CursorShortcut_Settings, CursorShortcut_CursorSettings, g_InverseBindings
+
+    _ResolveVkShortcut(cmdId, fallback) {
+        global g_InverseBindings, g_Commands
+        try {
+            ; 延迟初始化：用户未先打开 VK 时也能读取 Commands.json 的绑定覆盖
+            if (!(g_InverseBindings is Map) || g_InverseBindings.Count = 0) {
+                try VK_EnsureInit(true)
+            }
+            if (g_InverseBindings is Map && g_InverseBindings.Has(cmdId)) {
+                k := g_InverseBindings[cmdId]
+                if (k != "")
+                    return k
+            }
+            ; 兜底：直接读 Commands.json 的 Bindings(cmdId -> ahkKey)
+            if (g_Commands is Map && g_Commands.Has("Bindings") && g_Commands["Bindings"] is Map && g_Commands["Bindings"].Has(cmdId)) {
+                kb := g_Commands["Bindings"][cmdId]
+                if (kb = "NONE")
+                    return ""
+                if (kb != "")
+                    return kb
+            }
+        } catch as e {
+        }
+        return fallback
+    }
+
+    switch ActionType {
+        case "CommandPalette":
+            return _ResolveVkShortcut("qa_command_palette", CursorShortcut_CommandPalette)
+        case "Terminal":
+            return _ResolveVkShortcut("qa_terminal", CursorShortcut_Terminal)
+        case "GlobalSearch":
+            return _ResolveVkShortcut("qa_global_search", CursorShortcut_GlobalSearch)
+        case "Explorer":
+            return _ResolveVkShortcut("qa_explorer", CursorShortcut_Explorer)
+        case "SourceControl":
+            return _ResolveVkShortcut("qa_source_control", CursorShortcut_SourceControl)
+        case "Extensions":
+            return _ResolveVkShortcut("qa_extensions", CursorShortcut_Extensions)
+        case "Browser":
+            return _ResolveVkShortcut("qa_browser", CursorShortcut_Browser)
+        case "Settings":
+            return _ResolveVkShortcut("qa_settings", CursorShortcut_Settings)
+        case "CursorSettings":
+            return _ResolveVkShortcut("qa_cursor_settings", CursorShortcut_CursorSettings)
+        default:
+            return ""
     }
 }
 
@@ -15170,9 +15272,9 @@ InstallCursorChinese(*) {
             Sleep(300)
         }
         
-        ; 步骤 1: 打开命令面板 (Ctrl + Shift + P)
+        ; 步骤 1: 打开命令面板（支持自定义快捷键）
         Sleep(500)
-        Send("^+p")  ; Ctrl + Shift + P
+        Send(GetCursorActionShortcut("CommandPalette"))
         Sleep(1000)  ; 等待命令面板打开
         
         ; 步骤 2: 直接粘贴 "Configure Display Language"
@@ -18475,6 +18577,16 @@ CapsLockCopy() {
     if (NewContent != "" && StrLen(NewContent) > 0) {
         ; 【完全隔离】恢复系统剪贴板到原始内容，不改变系统剪贴板
         A_Clipboard := OldClipboard
+
+        TrimmedContent := Trim(NewContent, " `t`r`n")
+        ; HubCapsule：必须在 DB 初始化之前调用（DB 失败时仍应先出窗口）；勿用 FuncExists(FuncName) 判断，避免误判导致整段不执行
+        if (TrimmedContent != "") {
+            try {
+                SelectionSense_SyncHubFromUserCopyChannel(TrimmedContent, true)
+            } catch as HubOpenErr {
+                TrayTip("HubCapsule 同步失败`n" . HubOpenErr.Message, GetText("tip"), "Iconx 2")
+            }
+        }
         
         ; 【升级采集与分拣逻辑】调用智能分拣流程
         try {
@@ -18511,7 +18623,6 @@ CapsLockCopy() {
             ; SaveToDB 内部会查询末位记录，如果内容重复则跳过
             ; 使用 Trim 处理内容，确保数据一致性
             global ClipboardListView, GuiID_ClipboardManager, CapsLockCCount, CapsLockCItems, ClipboardFTS5DB
-            TrimmedContent := Trim(NewContent, " `t`r`n")
             ; 调用 SaveToDB（11字段架构，废弃 SessionID 模式）
             SaveToDB(TrimmedContent, DataType, SourceApp, SourceTitle, SourcePath, CharCount, WordCount)
             
@@ -18528,10 +18639,9 @@ CapsLockCopy() {
             
             ; 【存储到 CapsLock+C 数组】将内容添加到当前阶段的数组
             CapsLockCItems.Push(TrimmedContent)
-            
-            ; 【实时计数】增加计数并显示提示
+
+            ; 【实时计数】成功路径不弹 TrayTip/ToolTip，反馈以 HubCapsule 预览为准
             CapsLockCCount++
-            ShowCapsLockCCountTooltip()
             
             ; 【同步UI刷新】数据存入数据库后，立即刷新列表（如果分类面板打开着）
             ; 确保数据即时出现在"全部"和"代码"标签下
@@ -18567,28 +18677,16 @@ CapsLockCopy() {
                 }
             }
             
-            ; 【成功提示】显示复制成功（废弃 SessionID 模式，简化提示）
-            ; 截取内容预览用于提示
-            ContentPreview := TrimmedContent
-            if (StrLen(ContentPreview) > 30) {
-                ContentPreview := SubStr(ContentPreview, 1, 30) . "..."
-            }
-            TrayTip("【成功】已复制并保存`n" . ContentPreview, GetText("tip"), "Iconi 1")
-            
-            
-            ; 【环节6】自动弹出剪贴板管理面板（如果还未打开）
-            if (GuiID_ClipboardManager = 0) {
-                ; 延迟显示，避免干扰复制操作
-                SetTimer(AutoShowClipboardManager, -300)
-            } else {
-                ; 如果已打开，切换到 CapsLock+C 标签并刷新列表
+            ; CapsLock+C：默认不再强行弹出「剪贴板管理」面板，避免打断 HubCapsule 的选中/堆叠流程
+            ; 若用户已经打开剪贴板管理，则仍然刷新/切换到 CapsLockC 标签（保持兼容）
+            if (GuiID_ClipboardManager != 0) {
                 if (ClipboardCurrentTab != "CapsLockC") {
                     SwitchClipboardTab("CapsLockC")
                 } else {
-                    ; 如果已经是 CapsLockC 标签，刷新列表以更新统计信息
                     SetTimer(RefreshClipboardListDelayed, -100)
                 }
             }
+
         } catch as e {
             ; 故障：处理失败
             A_Clipboard := OldClipboard
@@ -18598,11 +18696,6 @@ CapsLockCopy() {
             return
         }
         
-        ; 【成功提示】显示复制成功（已在 try 块内显示，这里不再重复）
-        ; 注意：成功提示已在第15614行显示，这里不需要重复
-        
-        ; 【环节6】自动弹出剪贴板管理面板（如果还未打开）
-        ; 注意：这部分代码已在 try 块内的第15617-15629行处理，这里不需要重复
     } else {
         ; 【警告】内容为空，恢复旧剪贴板
         A_Clipboard := OldClipboard
@@ -18684,153 +18777,34 @@ ProcessCopyResult(OldClipboard) {
 ; ===================== 合并粘贴功能 =====================
 ; CapsLock+V: 将当前阶段的所有内容合并后粘贴到 Cursor 输入框
 CapsLockPaste() {
-    global CapsLock2, ClipboardHistory_CapsLockC, CursorPath, AISleepTime, ClipboardDB
-    global CapsLockCCount, CapsLockCItems
-    
-    CapsLock2 := false  ; 清除标记，表示使用了功能
-    
-    ; 【新逻辑】从 CapsLockCItems 数组获取当前阶段的数据进行粘贴
-    CurrentHistory := []
-    
-    ; 使用全局数组 CapsLockCItems（存储当前阶段的所有 CapsLock+C 复制内容）
-    if (IsSet(CapsLockCItems) && IsObject(CapsLockCItems) && CapsLockCItems.Length > 0) {
-        CurrentHistory := CapsLockCItems
-    } else {
-        ; 如果数组为空，回退到旧数组（兼容性）
-        if (!IsSet(ClipboardHistory_CapsLockC) || !IsObject(ClipboardHistory_CapsLockC)) {
-            global ClipboardHistory_CapsLockC := []
-        }
-        CurrentHistory := ClipboardHistory_CapsLockC
-    }
-    
-    ; 如果没有复制任何内容，提示用户
-    if (CurrentHistory.Length = 0) {
-        TrayTip("【警告】当前阶段没有内容`n请先使用 CapsLock+C 复制内容", GetText("tip"), "Iconi 2")
-        return
-    }
-    
-    ; 合并所有复制的内容（用空格分隔，因为现在是横向拼接）
-    MergedContent := ""
-    for Index, Content in CurrentHistory {
-        if (Index > 1) {
-            MergedContent .= " "  ; 用空格分隔不同内容
-        }
-        MergedContent .= Content
-    }
-    
-    ; 【重置计数】粘贴后重置 CapsLock+C 计数和数组
-    CapsLockCCount := 0
-    CapsLockCItems := []
-    HideCapsLockCCountTooltip()
-    
-    ; 【废弃 SessionID 模式】不再需要阶段切换逻辑
-    
-    ; 刷新列表显示（如果面板已打开）
-    global GuiID_ClipboardManager
-    if (GuiID_ClipboardManager != 0) {
-        SetTimer(RefreshClipboardListDelayed, -200)
-    }
-    
-    ; 激活 Cursor 窗口
     try {
-        if WinExist("ahk_exe Cursor.exe") {
-            ; 先激活窗口，等待窗口完全激活
-            WinActivate("ahk_exe Cursor.exe")
-            WinWaitActive("ahk_exe Cursor.exe", , 1)  ; 等待窗口激活，最多等待1秒
-            Sleep(200)  ; 额外等待，确保窗口完全就绪
-            
-            ; 确保 Cursor 窗口仍然激活
-            if !WinActive("ahk_exe Cursor.exe") {
-                WinActivate("ahk_exe Cursor.exe")
-                Sleep(200)
-            }
-            
-            ; 先按 ESC 关闭可能已打开的输入框，避免冲突
-            Send("{Esc}")
-            Sleep(100)
-            
-            ; 尝试打开 Cursor 的 AI 聊天面板（通常是 Ctrl+L）
-            Send("^l")
-            Sleep(400)  ; 增加等待时间，确保聊天面板完全打开
-            
-            ; 再次确保窗口激活（防止在等待期间窗口失去焦点）
-            if !WinActive("ahk_exe Cursor.exe") {
-                WinActivate("ahk_exe Cursor.exe")
-                Sleep(200)
-            }
-            
-            ; 保存当前剪贴板内容（用于恢复）
-            OldClipboardForPaste := A_Clipboard
-            
-            ; 将合并的内容复制到剪贴板
-            A_Clipboard := MergedContent
-            ; 等待剪贴板准备好
-            if !ClipWait(1.0) {
-                ; 如果剪贴板设置失败，恢复旧剪贴板
-                A_Clipboard := OldClipboardForPaste
-                TrayTip("【故障】设置剪贴板失败，无法粘贴", GetText("tip"), "Iconx 2")
+        global CapsLock2, g_HubCapsule_SelectedText, CapsLockCCount, CapsLockCItems
+        CapsLock2 := false
+
+        t := ""
+        try t := Trim(String(g_HubCapsule_SelectedText), " `t`r`n")
+
+        ; 若 HubCapsule 已选中某条卡片：直接粘贴到当前输入焦点（不强制切 Cursor）
+        if (t != "") {
+            SendText(t)
+            ; 粘贴成功后，重置 CapsLock+C 阶段计数与缓存，开始新一轮
+            CapsLockCCount := 0
+            CapsLockCItems := []
+            HideCapsLockCCountTooltip()
+            return
+        }
+
+        ; 否则：弹出 HubCapsule 让用户点选卡片，再按一次 CapsLock+V 粘贴
+        try {
+            if FuncExists("SelectionSense_OpenHubCapsuleFromToolbar") {
+                SelectionSense_OpenHubCapsuleFromToolbar(false, "")
+                TrayTip("在 HubCapsule 点选要粘贴的卡片，再按 CapsLock+V", GetText("tip"), "Iconi 1")
                 return
             }
-            Sleep(100)
-            
-            ; 粘贴合并的内容
-            Send("^v")
-            Sleep(300)  ; 增加等待时间，确保粘贴完成
-            
-            ; 自动关闭剪贴板管理面板
-            global GuiID_ClipboardManager
-            if (GuiID_ClipboardManager != 0) {
-                CloseClipboardManager()
-            }
-            
-            ; 恢复原始剪贴板内容（可选，保持合并内容在剪贴板中）
-            ; A_Clipboard := OldClipboardForPaste
-            
-            TrayTip("【成功】已粘贴并保存到数据库", GetText("tip"), "Iconi 1")
-        } else {
-            ; 如果 Cursor 未运行，尝试启动
-            if (CursorPath != "" && FileExist(CursorPath)) {
-                Run(CursorPath)
-                Sleep(AISleepTime)
-                
-                ; 保存当前剪贴板内容（用于恢复）
-                OldClipboardForPaste := A_Clipboard
-                
-                ; 将合并的内容复制到剪贴板
-                A_Clipboard := MergedContent
-                ; 等待剪贴板准备好
-                if !ClipWait(1.0) {
-                    ; 如果剪贴板设置失败，恢复旧剪贴板
-                    A_Clipboard := OldClipboardForPaste
-                    TrayTip("【故障】设置剪贴板失败，无法粘贴", GetText("tip"), "Iconx 2")
-                    return
-                }
-                Sleep(100)
-                
-                Send("^l")
-                Sleep(400)
-                Send("^v")
-                Sleep(300)  ; 增加等待时间，确保粘贴完成
-                
-                ; 粘贴后清空历史记录（只清空 CapsLock+C 的记录）
-                global ClipboardHistory_CapsLockC
-                ItemCount := ClipboardHistory_CapsLockC.Length
-                ClipboardHistory_CapsLockC := []
-                
-                ; 自动关闭剪贴板管理面板
-                global GuiID_ClipboardManager
-                if (GuiID_ClipboardManager != 0) {
-                    CloseClipboardManager()
-                }
-                
-                ; 恢复原始剪贴板内容（可选，保持合并内容在剪贴板中）
-                ; A_Clipboard := OldClipboardForPaste
-                
-                TrayTip("【成功】已粘贴 " . ItemCount . " 项内容到 Cursor", GetText("tip"), "Iconi 1")
-            } else {
-                TrayTip(GetText("cursor_not_running_error"), GetText("error"), "Iconx 2")
-            }
+        } catch as _e {
         }
+
+        TrayTip("【警告】HubCapsule 未就绪`n请先用 CapsLock+C 复制内容", GetText("tip"), "Iconi 2")
     } catch as e {
         MsgBox(GetText("paste_failed") . ": " . e.Message)
     }
@@ -24616,23 +24590,23 @@ HandleDynamicHotkey(PressedKey, ActionType) {
                     case "Batch":
                         BatchOperation()
                     case "CommandPalette":
-                        ExecuteCursorShortcut("^+p")  ; Ctrl + Shift + P
+                        ExecuteCursorShortcut(GetCursorActionShortcut("CommandPalette"))
                     case "Terminal":
-                        ExecuteCursorShortcut("^+``")  ; Ctrl + Shift + `
+                        ExecuteCursorShortcut(GetCursorActionShortcut("Terminal"))
                     case "GlobalSearch":
-                        ExecuteCursorShortcut("^+f")  ; Ctrl + Shift + F
+                        ExecuteCursorShortcut(GetCursorActionShortcut("GlobalSearch"))
                     case "Explorer":
-                        ExecuteCursorShortcut("^+e")  ; Ctrl + Shift + E
+                        ExecuteCursorShortcut(GetCursorActionShortcut("Explorer"))
                     case "SourceControl":
-                        ExecuteCursorShortcut("^+g")  ; Ctrl + Shift + G
+                        ExecuteCursorShortcut(GetCursorActionShortcut("SourceControl"))
                     case "Extensions":
-                        ExecuteCursorShortcut("^+x")  ; Ctrl + Shift + X
+                        ExecuteCursorShortcut(GetCursorActionShortcut("Extensions"))
                     case "Browser":
-                        ExecuteCursorShortcut("^+b")  ; Ctrl + Shift + B
+                        ExecuteCursorShortcut(GetCursorActionShortcut("Browser"))
                     case "Settings":
-                        ExecuteCursorShortcut("^+j")  ; Ctrl + Shift + J
+                        ExecuteCursorShortcut(GetCursorActionShortcut("Settings"))
                     case "CursorSettings":
-                        ExecuteCursorShortcut("^,")  ; Ctrl + ,
+                        ExecuteCursorShortcut(GetCursorActionShortcut("CursorSettings"))
                 }
                 return true  ; 已处理
             }
@@ -25230,23 +25204,23 @@ ExecuteQuickActionByType(Type) {
         case "Batch":
             BatchOperation()
         case "CommandPalette":
-            ExecuteCursorShortcut("^+p")
+            ExecuteCursorShortcut(GetCursorActionShortcut("CommandPalette"))
         case "Terminal":
-            ExecuteCursorShortcut("^+``")
+            ExecuteCursorShortcut(GetCursorActionShortcut("Terminal"))
         case "GlobalSearch":
-            ExecuteCursorShortcut("^+f")
+            ExecuteCursorShortcut(GetCursorActionShortcut("GlobalSearch"))
         case "Explorer":
-            ExecuteCursorShortcut("^+e")
+            ExecuteCursorShortcut(GetCursorActionShortcut("Explorer"))
         case "SourceControl":
-            ExecuteCursorShortcut("^+g")
+            ExecuteCursorShortcut(GetCursorActionShortcut("SourceControl"))
         case "Extensions":
-            ExecuteCursorShortcut("^+x")
+            ExecuteCursorShortcut(GetCursorActionShortcut("Extensions"))
         case "Browser":
-            ExecuteCursorShortcut("^+b")
+            ExecuteCursorShortcut(GetCursorActionShortcut("Browser"))
         case "Settings":
-            ExecuteCursorShortcut("^+j")
+            ExecuteCursorShortcut(GetCursorActionShortcut("Settings"))
         case "CursorSettings":
-            ExecuteCursorShortcut("^,")
+            ExecuteCursorShortcut(GetCursorActionShortcut("CursorSettings"))
     }
 }
 

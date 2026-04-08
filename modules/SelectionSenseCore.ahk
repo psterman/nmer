@@ -35,6 +35,11 @@ global g_SelSense_UserCopyInProgress := false
 global g_SelSense_UserCopyEndTick := 0
 global g_SelSense_DoubleCopyHub_LastTick := 0
 global g_SelSense_HubCopyTriggerMode := "single"
+; HubCapsule：堆叠选择/推送（供 CapsLock+C/V）
+global g_HubCapsule_SelectedText := ""
+global g_SelSense_PendingHubSegments := []  ; Hub 未 ready 时暂存待 push 的文本段
+; 与主脚本 CapsLockCopy 共用：Send(^c) 期间为 true，~^c 须跳过以免读到恢复后的旧剪贴板
+global CapsLockCopyInProgress := false
 
 SelectionSense_HubDragClampToVirtual(&nx, &ny, ww, hh) {
     ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
@@ -82,6 +87,20 @@ SelectionSense_HubCapsule_ReadSavedPos(&outX, &outY, &outOk) {
     } catch as _e {
         outOk := false
     }
+}
+
+; 保存的左上角 + 当前窗口尺寸是否仍落在虚拟屏幕内（避免多显示器/分辨率变化后窗口“在屏外”）
+SelectionSense_HubSavedRectIsOnScreen(sx, sy, ww, hh) {
+    if (ww < 1 || hh < 1)
+        return false
+    ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
+    vr := vl + vw
+    vb := vt + vh
+    if (sx >= vr || sx + ww <= vl)
+        return false
+    if (sy >= vb || sy + hh <= vt)
+        return false
+    return true
 }
 
 SelectionSense_HubCapsule_WriteSavedPos() {
@@ -434,13 +453,35 @@ SelectionSense_OnMenuWebMessage(sender, args) {
     typ := msg.Has("type") ? String(msg["type"]) : ""
     if (typ = "selection_menu_ready") {
         global g_SelSense_MenuReady, g_SelSense_MenuVisible, g_SelSense_PendingText, g_SelSense_HubCopyTriggerMode, g_SelSense_MenuWV2
+        global g_SelSense_PendingHubSegments, g_SelSense_MenuShowingHub
         g_SelSense_MenuReady := true
         try WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_preview_state", "copyTriggerMode", g_SelSense_HubCopyTriggerMode))
-        if g_SelSense_MenuVisible
+        ; 注意：SelectionMenu / HubCapsule 都会发 selection_menu_ready。
+        ; 只有当前页为 HubCapsule 时，才允许 flush 待推送段落，否则会“发到错误页面”导致丢失。
+        if g_SelSense_MenuShowingHub
+            SelectionSense_HubCapsule_FlushPendingSegments()
+        if g_SelSense_MenuVisible {
             SelectionSense_PushMenuText(g_SelSense_PendingText)
+            ; HubCapsule：再发 hub_preview，避免仅 selection_menu_init 在竞态下未命中
+            if g_SelSense_MenuShowingHub && Trim(String(g_SelSense_PendingText)) != ""
+                SelectionSense_PushHubPreviewText(g_SelSense_PendingText)
+        }
         return
     }
+    if (typ = "hub_ready") {
+        ; HubCapsule 明确就绪：补发待推送段落
+        SelectionSense_HubCapsule_FlushPendingSegments()
+        return
+    }
+
     txt := msg.Has("text") ? String(msg["text"]) : ""
+
+    if (typ = "hub_stack_selected") {
+        global g_HubCapsule_SelectedText
+        t2 := msg.Has("text") ? String(msg["text"]) : ""
+        g_HubCapsule_SelectedText := t2
+        return
+    }
 
     if (typ = "selection_menu_search") {
         SelectionSense_HideMenu()
@@ -547,6 +588,81 @@ SelectionSense_OnMenuWebMessage(sender, args) {
     }
 }
 
+SelectionSense_HubCapsule_FlushPendingSegments() {
+    global g_SelSense_MenuWV2, g_SelSense_MenuReady, g_SelSense_MenuShowingHub, g_SelSense_PendingHubSegments
+    if !(g_SelSense_MenuWV2 && g_SelSense_MenuReady && g_SelSense_MenuShowingHub)
+        return
+    try {
+        if (g_SelSense_PendingHubSegments is Array) && (g_SelSense_PendingHubSegments.Length > 0) {
+            for _, seg in g_SelSense_PendingHubSegments {
+                if (Trim(String(seg)) != "")
+                    WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "push_segment", "text", String(seg)))
+            }
+            g_SelSense_PendingHubSegments := []
+        }
+    } catch as _e {
+    }
+}
+
+; ===================== HubCapsule：从外部推送一段文本入栈 =====================
+; 设计：HubCapsule 可能被预热但未 ready，先缓存，待 selection_menu_ready 再补发。
+SelectionSense_HubCapsule_PushSegmentText(text) {
+    global g_SelSense_MenuGui, g_SelSense_MenuWV2, g_SelSense_MenuReady, g_SelSense_MenuShowingHub
+    global g_SelSense_PendingHubSegments, g_SelSense_NextNavPage
+
+    t := Trim(String(text), " `t`r`n")
+    if (t = "")
+        return false
+
+    ; 需求：CapsLock+C 复制后要“看得见”——确保 HubCapsule 宿主窗口会被拉起显示（WebView 未就绪会自动重试）
+    try {
+        global g_SelSense_MenuW, g_SelSense_MenuH, g_SelSense_MenuActivateOnShow, g_SelSense_MenuAnchorX, g_SelSense_MenuAnchorY
+        g_SelSense_MenuW := 420
+        g_SelSense_MenuH := 560
+        g_SelSense_MenuActivateOnShow := true
+        CoordMode("Mouse", "Screen")
+        MouseGetPos(&g_SelSense_MenuAnchorX, &g_SelSense_MenuAnchorY)
+    } catch as _e {
+    }
+
+    ; 确保 WebView/页面至少存在且导航到 HubCapsule
+    try {
+        if !(g_SelSense_MenuGui && g_SelSense_MenuWV2) {
+            g_SelSense_NextNavPage := "HubCapsule.html"
+            SelectionSense_EnsureMenuHost()
+        } else if !g_SelSense_MenuShowingHub {
+            g_SelSense_MenuReady := false
+            g_SelSense_NextNavPage := ""
+            try g_SelSense_MenuWV2.Navigate(BuildAppLocalUrl("HubCapsule.html"))
+            g_SelSense_MenuShowingHub := true
+        }
+    } catch as _e {
+    }
+
+    ; 只有「ready 且当前页确实是 HubCapsule」才允许直接推送。
+    ; 否则消息可能发到 SelectionMenu.html 被忽略，从而表现为“只进剪贴板，不进 Hub”。
+    try {
+        if (g_SelSense_MenuWV2 && g_SelSense_MenuReady && g_SelSense_MenuShowingHub) {
+            WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "push_segment", "text", t))
+            ; 确保窗口可见（若控件未就绪，该函数内部会 SetTimer 重试）
+            try SelectionSense_ShowMenuNearCursor()
+            return true
+        }
+    } catch as _e {
+    }
+
+    try {
+        if !(g_SelSense_PendingHubSegments is Array)
+            g_SelSense_PendingHubSegments := []
+        g_SelSense_PendingHubSegments.Push(t)
+        ; 先把窗口拉出来；待 hub_ready/selection_menu_ready 时 flush 入栈
+        try SelectionSense_ShowMenuNearCursor()
+    } catch as _e {
+    }
+    ; WebView 未 ready 时仅入队，返回 false 便于调用方再补发预览/二次 Show
+    return false
+}
+
 SelectionSense_PushMenuText(text) {
     global g_SelSense_MenuWV2, g_SelSense_MenuReady
     if !(g_SelSense_MenuWV2 && g_SelSense_MenuReady)
@@ -563,6 +679,19 @@ SelectionSense_PushHubPreviewText(text) {
     if !(g_SelSense_MenuWV2 && g_SelSense_MenuReady)
         return
     WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_preview_selection", "text", t))
+}
+
+; CapsLock+C 等：页面/WebView 可能晚于 Show，延迟再推一次预览并确保窗口在前台
+SelectionSense_HubCapsule_ResyncAfterCapsLockCopy(text) {
+    t := Trim(String(text), " `t`r`n")
+    if (t = "")
+        return
+    global g_SelSense_PendingText
+    g_SelSense_PendingText := t
+    SelectionSense_PushHubPreviewText(t)
+    try SelectionSense_ShowMenuNearCursor()
+    catch as _e {
+    }
 }
 
 SelectionSense_RefreshHubPreviewAfterCopyTick(*) {
@@ -582,6 +711,7 @@ SelectionSense_RefreshHubPreviewAfterCopyTick(*) {
 
 SelectionSense_ShowMenuNearCursor() {
     static menuShowRetries := 0
+    static hubWvWarned := false
     global g_SelSense_MenuGui, g_SelSense_MenuVisible, g_SelSense_PendingText
     global g_SelSense_MenuAnchorX, g_SelSense_MenuAnchorY, g_SelSense_MenuCtrl
 
@@ -589,13 +719,18 @@ SelectionSense_ShowMenuNearCursor() {
     if !g_SelSense_MenuGui
         return
 
-    ; WebView2.create 异步：控件未就绪时延迟重试，避免空白菜单
+    ; WebView2.create 异步：控件未就绪时延迟重试，避免空白菜单（冷启动可能 >3s）
     if !g_SelSense_MenuCtrl {
         menuShowRetries++
-        if (menuShowRetries < 50)
+        if (menuShowRetries < 180)
             SetTimer(SelectionSense_ShowMenuNearCursor, -55)
-        else
+        else {
             menuShowRetries := 0
+            if !hubWvWarned {
+                hubWvWarned := true
+                try TrayTip("HubCapsule 未能创建 WebView2 控件`n请确认已安装 WebView2 Runtime，并重启脚本。", "SelectionMenuHost", "Iconx 2")
+            }
+        }
         return
     }
     menuShowRetries := 0
@@ -612,6 +747,8 @@ SelectionSense_ShowMenuNearCursor() {
     savedOk := false
     if (g_SelSense_MenuShowingHub && w >= 350)
         SelectionSense_HubCapsule_ReadSavedPos(&sx, &sy, &savedOk)
+    if savedOk && !SelectionSense_HubSavedRectIsOnScreen(sx, sy, w, h)
+        savedOk := false
     if savedOk {
         x := sx
         y := sy
@@ -636,6 +773,7 @@ SelectionSense_ShowMenuNearCursor() {
     doActivate := g_SelSense_MenuActivateOnShow
     showOpt := doActivate ? "" : " NoActivate"
     try g_SelSense_MenuGui.Show("x" . x . " y" . y . " w" . w . " h" . h . showOpt)
+    try WinShow("ahk_id " . g_SelSense_MenuGui.Hwnd)
     g_SelSense_MenuVisible := true
     g_SelSense_MenuActivateOnShow := false
     SelectionSense_ApplyMenuBounds()
@@ -673,20 +811,34 @@ SelectionSense_HubCapsuleHostIsOpen() {
     return !!(g_SelSense_MenuVisible && g_SelSense_MenuShowingHub)
 }
 
-SelectionSense_OpenHubAfterDoubleCopyTick(*) {
+; 与 ~^c 打开的 Hub 完全一致：可传 overrideText（CapsLock+C 用），空则从 A_Clipboard 读
+; alsoPushSegment：仅 CapsLock+C 需要把内容压入堆叠卡片时再为 true
+SelectionSense_SyncHubFromUserCopyChannel(overrideText := "", alsoPushSegment := false) {
     global g_SelSense_LastFullText, g_SelSense_LastTick, g_SelSense_LastClipSig, g_SelSense_LastFireTick
-    text := ""
-    try text := Trim(String(A_Clipboard), " `t`r`n")
-    if (text != "") {
-        g_SelSense_LastFullText := text
-        g_SelSense_LastTick := A_TickCount
-        g_SelSense_LastClipSig := StrLen(text) . ":" . SubStr(text, 1, 24)
-        g_SelSense_LastFireTick := A_TickCount
-        try FloatingToolbar_NotifySelectionChange(text)
-        catch as _e {
-        }
+    text := Trim(String(overrideText), " `t`r`n")
+    if (text = "") {
+        try text := Trim(String(A_Clipboard), " `t`r`n")
+    }
+    if (text = "")
+        return
+
+    g_SelSense_LastFullText := text
+    g_SelSense_LastTick := A_TickCount
+    g_SelSense_LastClipSig := StrLen(text) . ":" . SubStr(text, 1, 24)
+    g_SelSense_LastFireTick := A_TickCount
+    try FloatingToolbar_NotifySelectionChange(text)
+    catch as _e {
     }
     SelectionSense_OpenHubCapsuleFromToolbar(false, text)
+    SelectionSense_PushHubPreviewText(text)
+    if (alsoPushSegment)
+        SelectionSense_HubCapsule_PushSegmentText(text)
+    SetTimer(SelectionSense_HubCapsule_ResyncAfterCapsLockCopy.Bind(text), -250)
+    SetTimer(SelectionSense_HubCapsule_ResyncAfterCapsLockCopy.Bind(text), -850)
+}
+
+SelectionSense_OpenHubAfterDoubleCopyTick(*) {
+    SelectionSense_SyncHubFromUserCopyChannel("", false)
 }
 
 ; 悬浮工具栏「新」：打开 HubCapsule（若有近期选区则带入预览）
@@ -780,6 +932,11 @@ SelectionSense_PrewarmHubCapsule() {
 
 SelectionSense_OnUserCopy(*) {
     global g_SelSense_UserCopyInProgress, g_SelSense_UserCopyEndTick, g_SelSense_DoubleCopyHub_LastTick, g_SelSense_HubCopyTriggerMode
+
+    ; CapsLock+C 内部 Send(^c) 会触发本钩子：此时剪贴板稍后会被恢复，不能排队 OpenHub（否则会读到旧剪贴板）
+    global CapsLockCopyInProgress
+    if (CapsLockCopyInProgress)
+        return
 
     g_SelSense_UserCopyInProgress := true
     g_SelSense_UserCopyEndTick := A_TickCount
