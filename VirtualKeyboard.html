@@ -709,6 +709,14 @@ body::after {
   outline: 1px solid #e67e2288;
   background: #1a1300 !important;
 }
+.cmd-row.flash-jump {
+  animation: cmd-jump-flash .55s ease-out;
+}
+@keyframes cmd-jump-flash {
+  0%   { box-shadow: 0 0 0 0 rgba(230,126,34,.0); background: #2a1a00; }
+  35%  { box-shadow: 0 0 0 2px rgba(230,126,34,.5); background: #322000; }
+  100% { box-shadow: 0 0 0 0 rgba(230,126,34,.0); background: #1a1300; }
+}
 .cmd-row.recording {
   background: #1a0e00 !important;
   animation: rec-pulse 1s ease-in-out infinite;
@@ -2849,6 +2857,42 @@ function renderCommandList() {
   }
 }
 
+function findCategoryIdByCommand(cmdId) {
+  for (const cat of state.categories || []) {
+    if (Array.isArray(cat.commands) && cat.commands.includes(cmdId))
+      return cat.id;
+  }
+  return '';
+}
+
+function focusCommandById(cmdId) {
+  if (!cmdId || !state.commands[cmdId]) return false;
+  const catId = findCategoryIdByCommand(cmdId);
+  if (catId) {
+    state.filter = catId;
+    if (catId === 'prompt_templates')
+      state.promptTplTab = state.commands[cmdId]?.ptCategory || '基础';
+  } else {
+    state.filter = 'all';
+  }
+  state.focusedCmdId = cmdId;
+  renderSidebar();
+  renderCommandList();
+  renderKeyboardSlots();
+  renderModifierKeys();
+  const row = document.querySelector(`.cmd-row[data-cmd-id="${CSS.escape(cmdId)}"]`);
+  if (row) {
+    row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    row.classList.remove('flash-jump');
+    void row.offsetWidth;
+    row.classList.add('flash-jump');
+    setTimeout(() => row.classList.remove('flash-jump'), 620);
+  }
+  const key = state.bindings[cmdId]?.explicitNone ? '' : (state.bindings[cmdId]?.ahkKey || state.suggestedBindings[cmdId] || '');
+  if (key) triggerKeyRipple(key);
+  return true;
+}
+
 function makeCmdRow(cmdId) {
   const cmd     = state.commands[cmdId] || { name: cmdId, desc: '' };
   const binding = state.bindings[cmdId];
@@ -2960,6 +3004,7 @@ function renderKeyboardSlots() {
   document.querySelectorAll('.k').forEach(el => {
     const baseKey = el.dataset.ahkkey;
     if (!baseKey) return;
+    el.dataset.mappedCmdId = '';
     const lbl = ensureMapLabel(el);
     el.classList.remove('bound', 'slot-occupied', 'slot-available', 'slot-suggested');
     lbl.textContent = '';
@@ -2969,6 +3014,7 @@ function renderKeyboardSlots() {
           const keys = doubleAhkToKeys(focusAKey);
           if (keys.includes(baseKey)) {
             el.classList.add('bound', 'slot-occupied');
+            el.dataset.mappedCmdId = focusCmdId;
             const cmdName = state.commands[focusCmdId]?.name || focusCmdId;
             lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
           }
@@ -2981,6 +3027,7 @@ function renderKeyboardSlots() {
         if (cmdId) {
           const hasReal = !!(state.bindings[cmdId]?.ahkKey);
           el.classList.add('bound', 'slot-occupied');
+          el.dataset.mappedCmdId = cmdId;
           if (!hasReal) el.classList.add('slot-suggested');
           const cmdName = state.commands[cmdId]?.name || cmdId;
           lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
@@ -2992,6 +3039,7 @@ function renderKeyboardSlots() {
     if (focusCmdId) {
       if (baseKey === focusLookup) {
         el.classList.add('bound', 'slot-occupied');
+        el.dataset.mappedCmdId = focusCmdId;
         const cmdName = state.commands[focusCmdId]?.name || focusCmdId;
         lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
       }
@@ -3003,6 +3051,7 @@ function renderKeyboardSlots() {
     if (cmdId) {
       const hasReal = !!(state.bindings[cmdId]?.ahkKey);
       el.classList.add('bound', 'slot-occupied');
+      el.dataset.mappedCmdId = cmdId;
       if (!hasReal) el.classList.add('slot-suggested');
       const cmdName = state.commands[cmdId]?.name || cmdId;
       lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
@@ -3239,8 +3288,7 @@ function tryExecuteDoubleAltFromClick(ahkKey, el, e) {
     if (cmdId) {
       postToAhk({ type: 'executeCommand', commandId: cmdId });
       triggerKeyRipple('!!');
-      document.querySelector(`.cmd-row[data-cmd-id="${cmdId}"]`)
-        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      focusCommandById(cmdId);
     }
     el.classList.add('pressed');
     setTimeout(() => el.classList.remove('pressed'), 180);
@@ -3255,11 +3303,8 @@ document.querySelectorAll('.k').forEach(el => {
     const ahkKey = el.dataset.ahkkey;
     if (!ahkKey) return;
     if (tryExecuteDoubleAltFromClick(ahkKey, el, e)) return;
-    const cmdId = state.ahkKeyIndex[ahkKey];
-    if (cmdId) {
-      const row = document.querySelector(`.cmd-row[data-cmd-id="${cmdId}"]`);
-      row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
+    const mappedCmdId = el.dataset.mappedCmdId || state.ahkKeyIndex[ahkKey] || '';
+    if (mappedCmdId) focusCommandById(mappedCmdId);
     el.classList.add('pressed');
     setTimeout(() => el.classList.remove('pressed'), 180);
   });
@@ -3274,8 +3319,7 @@ document.querySelectorAll('.k').forEach(el => {
     if (!cmdId) return;
     postToAhk({ type: 'executeCommand', commandId: cmdId });
     triggerKeyRipple(dbl);
-    const row = document.querySelector(`.cmd-row[data-cmd-id="${cmdId}"]`);
-    row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    focusCommandById(cmdId);
   });
 });
 
