@@ -895,6 +895,17 @@ body::after {
 #dashboard-container.layout-2 {
   padding: 4px 10px 6px;
 }
+#dashboard-container.layout-1 {
+  padding: 4px 10px 6px;
+}
+#dashboard-container.layout-1 #dashboard-toolbar {
+  margin-bottom: 4px;
+}
+#dashboard-container.layout-1 #dashboard-title {
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  margin-bottom: 0;
+}
 #dashboard-container.layout-2 #dashboard-toolbar {
   margin-bottom: 4px;
 }
@@ -966,6 +977,16 @@ body::after {
 #dashboard-grid.layout-1 { --dashboard-cols: 10; }
 #dashboard-grid.layout-2 { --dashboard-cols: 10; }
 #dashboard-grid.layout-multi { --dashboard-cols: 20; }
+#dashboard-grid.layout-1 {
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  justify-content: stretch;
+  gap: 4px;
+}
+#dashboard-grid.layout-1 .dashboard-slot {
+  aspect-ratio: auto;
+  height: clamp(26px, 3.4vh, 38px);
+  border-radius: 7px;
+}
 #dashboard-grid.layout-2 {
   grid-template-columns: repeat(10, minmax(0, 1fr));
   justify-content: stretch;
@@ -1126,9 +1147,19 @@ body::after {
   color: #ffcc98;
   font-size: 10px;
 }
-#dashboard-grid.layout-1 .dashboard-item { padding: 8px; }
-#dashboard-grid.layout-1 .dashboard-item-icon { min-width: 30px; min-height: 30px; font-size: 14px; }
-#dashboard-grid.layout-1 .dashboard-item-label { font-size: 11px; }
+#dashboard-grid.layout-1 .dashboard-item { padding: 2px 4px; }
+#dashboard-grid.layout-1 .dashboard-item-icon { min-width: 24px; min-height: 24px; font-size: 11px; border-radius: 7px; }
+#dashboard-grid.layout-1 .dashboard-item-label {
+  font-size: 9px;
+  line-height: 1.05;
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: clip;
+  word-break: break-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
 #dashboard-grid.layout-2 .dashboard-item { padding: 7px; }
 #dashboard-grid.layout-2 .dashboard-item-icon { min-width: 28px; min-height: 28px; font-size: 13px; }
 #dashboard-grid.layout-2 .dashboard-item-label { font-size: 10px; }
@@ -1701,17 +1732,16 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
-const SCENARIO_ORDER = ['ai', 'search', 'favorites', 'chat', 'clipboard', 'prompts', 'drafts', 'screenshot', 'settings', 'other'];
+const SCENARIO_ORDER = ['ai', 'search', 'clipboard', 'prompts', 'scratchpad', 'screenshot', 'settings', 'hotkeys'];
 const SCENARIO_META = {
-  ai:         { name: 'AI 助手',      icon: 'fa-robot',             color: '#58c7ff' },
-  search:     { name: '搜索导航',    icon: 'fa-magnifying-glass',  color: '#6ee7b7' },
-  favorites:  { name: '收藏常用',    icon: 'fa-star',              color: '#fbbf24' },
-  chat:       { name: '对话发送',    icon: 'fa-comments',          color: '#a78bfa' },
-  clipboard:  { name: '剪贴操作',    icon: 'fa-clipboard',         color: '#34d399' },
-  prompts:    { name: '提示词',      icon: 'fa-lightbulb',         color: '#f59e0b' },
-  drafts:     { name: '草稿本',      icon: 'fa-note-sticky',       color: '#f97316' },
-  screenshot: { name: '截图图像',    icon: 'fa-camera',            color: '#22d3ee' },
-  settings:   { name: '设置管理',    icon: 'fa-gear',              color: '#94a3b8' },
+  ai:         { name: '🤖 牛马 AI',   icon: 'fa-robot',             color: '#00d4ff' },
+  search:     { name: '🔍 搜索中心', icon: 'fa-magnifying-glass',  color: '#6ee7b7' },
+  clipboard:  { name: '📋 剪贴板',   icon: 'fa-clipboard',         color: '#34d399' },
+  prompts:    { name: '💡 提示词',   icon: 'fa-lightbulb',         color: '#f59e0b' },
+  scratchpad: { name: '📝 草稿本',   icon: 'fa-note-sticky',       color: '#f97316' },
+  screenshot: { name: '📸 智能截图', icon: 'fa-camera',            color: '#22d3ee' },
+  settings:   { name: '⚙️ 设置中心', icon: 'fa-gear',              color: '#94a3b8' },
+  hotkeys:    { name: '⌨️ 快捷键',   icon: 'fa-keyboard',          color: '#e67e22' },
   other:      { name: '其他',        icon: 'fa-toolbox',           color: '#9ca3af' },
 };
 
@@ -1797,14 +1827,13 @@ function classifyScenarioIdForCategory(cat) {
   const text = `${cat?.id || ''} ${cat?.name || ''}`.toLowerCase();
   if (/(clip|clipboard|copy|paste|剪贴|复制|粘贴)/.test(text)) return 'clipboard';
   if (/(prompt|template|提示词|模板)/.test(text)) return 'prompts';
-  if (/(chat|talk|message|send|对话|发送)/.test(text)) return 'chat';
   if (/(ai|gpt|llm|解释|改写|翻译)/.test(text)) return 'ai';
   if (/(search|find|query|搜|查|检索)/.test(text)) return 'search';
-  if (/(star|favorite|bookmark|收藏)/.test(text)) return 'favorites';
-  if (/(draft|note|memo|草稿|笔记)/.test(text)) return 'drafts';
+  if (/(scratchpad|draft|note|memo|草稿|笔记)/.test(text)) return 'scratchpad';
   if (/(screen|shot|capture|image|截图|图像|ocr)/.test(text)) return 'screenshot';
+  if (/(hotkey|shortcut|快捷键)/.test(text)) return 'hotkeys';
   if (/(setting|config|option|mode|system|window|admin|绑定|设置|配置|窗口|系统)/.test(text)) return 'settings';
-  return 'other';
+  return 'settings';
 }
 
 function classifyTabName(cat) {
@@ -1871,11 +1900,11 @@ function buildScenariosFromCategories() {
 
   const looseCommands = Object.keys(state.commands || {}).filter(cmdId => !used.has(cmdId));
   if (looseCommands.length) {
-    const scenario = ensureScenario('other');
-    const tabId = 'other:all';
-    scenario.tabs.push({ id: tabId, name: '通用操作', commands: looseCommands });
+    const scenario = ensureScenario('settings');
+    const tabId = 'settings:all';
+    scenario.tabs.push({ id: tabId, name: '未分类', commands: looseCommands });
     for (const cmdId of looseCommands) {
-      if (!commandRoutes[cmdId]) commandRoutes[cmdId] = { scenarioId: 'other', tabId };
+      if (!commandRoutes[cmdId]) commandRoutes[cmdId] = { scenarioId: 'settings', tabId };
     }
   }
 
@@ -2691,8 +2720,16 @@ function createDashboardDragPreview(itemLike) {
   preview.style.position = 'fixed';
   preview.style.left = '-9999px';
   preview.style.top = '-9999px';
-  preview.style.width = dashboardLayout === 'multi' ? '94px' : '118px';
-  preview.style.height = dashboardLayout === 'multi' ? '94px' : '118px';
+  if (dashboardLayout === 'multi') {
+    preview.style.width = '94px';
+    preview.style.height = '94px';
+  } else if (dashboardLayout === 2 || String(dashboardLayout) === '2') {
+    preview.style.width = '122px';
+    preview.style.height = '34px';
+  } else {
+    preview.style.width = '132px';
+    preview.style.height = '38px';
+  }
   preview.style.pointerEvents = 'none';
   preview.style.zIndex = '99999';
   preview.className = 'dashboard-slot';
@@ -3889,30 +3926,69 @@ if (window.chrome && window.chrome.webview) {
   window.simulateInit = () => handleAhkMessage({
     type: 'init',
     categories: [
-      { id:'system', name:'系统', commands:['sys_exit','sys_show_vk'] },
-      { id:'ch_clipboard_ai', name:'CapsLock · 剪贴板与 AI', commands:['ch_c','ch_e'] },
-      { id:'window', name:'窗口', commands:['win_min','win_close'] }
+      { id:'ai',         name:'🤖 牛马 AI',      commands:['ch_e','ai_refactor','ai_translate'] },
+      { id:'search',     name:'🔍 搜索中心',    commands:['search_global','search_google','search_history'] },
+      { id:'clipboard',  name:'📋 剪贴板',      commands:['ch_c','cb_list','cb_clear'] },
+      { id:'prompts',    name:'💡 提示词',      commands:['pt_common','pt_save'] },
+      { id:'scratchpad', name:'📝 草稿本',      commands:['sp_new','sp_open'] },
+      { id:'screenshot', name:'📸 智能截图',    commands:['sc_capture','sc_ocr','sc_folder'] },
+      { id:'settings',   name:'⚙️ 设置中心',    commands:['sys_show_vk','sys_reload'] },
+      { id:'hotkeys',    name:'⌨️ 快捷键',      commands:['sys_exit'] },
     ],
     commands: {
-      sys_exit:    { name:'退出程序',     desc:'退出脚本' },
-      sys_show_vk: { name:'显示虚拟键盘', desc:'显示键盘窗口' },
-      ch_c:        { name:'连续复制',     desc:'预览' },
-      ch_e:        { name:'AI 解释',      desc:'预览' },
-      win_min:     { name:'最小化窗口',   desc:'最小化' },
-      win_close:   { name:'关闭窗口',     desc:'关闭' },
+      ch_e:          { name:'AI 帮我读',      desc:'选中文字，让 AI 解释含义',       iconClass:'fa-robot' },
+      ai_refactor:   { name:'AI 帮我改',      desc:'优化句子结构，让表达更清晰',      iconClass:'fa-wand-magic-sparkles' },
+      ai_translate:  { name:'AI 帮我译',      desc:'把内容翻译成你指定的语言',        iconClass:'fa-language' },
+      search_global: { name:'全局秒搜',       desc:'一键搜索本机文件和历史结果',      iconClass:'fa-earth-asia' },
+      search_google: { name:'上网查一下',     desc:'用浏览器直接搜索当前关键词',      iconClass:'fa-globe' },
+      search_history:{ name:'查找历史',       desc:'快速回看你之前搜过什么',         iconClass:'fa-clock-rotate-left' },
+      ch_c:          { name:'超级连续复制',    desc:'像存钱一样把多段文字存入库',      iconClass:'fa-copy' },
+      cb_list:       { name:'打开剪贴仓库',    desc:'查看并复用所有历史复制内容',      iconClass:'fa-clipboard-list' },
+      cb_clear:      { name:'清空剪贴仓库',    desc:'删除当前保存的全部剪贴记录',      iconClass:'fa-trash-can' },
+      pt_common:     { name:'常用提示词',      desc:'打开高频提示词模板快速套用',      iconClass:'fa-lightbulb' },
+      pt_save:       { name:'保存为提示词',    desc:'把当前内容一键保存成模板',       iconClass:'fa-floppy-disk' },
+      sp_new:        { name:'新建草稿',       desc:'立刻开一页临时记录，不怕丢',      iconClass:'fa-pen-to-square' },
+      sp_open:       { name:'打开草稿本',      desc:'继续编辑你之前保存的草稿',       iconClass:'fa-book-open' },
+      sc_capture:    { name:'智能截图',       desc:'快速圈选屏幕并保存画面',         iconClass:'fa-camera' },
+      sc_ocr:        { name:'图中取词',       desc:'截图并自动识别文字',            iconClass:'fa-file-lines' },
+      sc_folder:     { name:'打开截图目录',    desc:'直接打开截图保存位置',          iconClass:'fa-folder-open' },
+      sys_show_vk:   { name:'显示键盘面板',    desc:'呼出虚拟键盘和快捷操作面板',      iconClass:'fa-keyboard' },
+      sys_reload:    { name:'一键重载',       desc:'刷新助手配置并重新加载模块',      iconClass:'fa-rotate-right' },
+      sys_exit:      { name:'彻底退出',       desc:'关闭所有辅助进程',              iconClass:'fa-power-off' },
     },
     bindings: {
       sys_exit:    { ahkKey:'Escape', displayKey:'Esc' },
       sys_show_vk: { ahkKey:'^+k',   displayKey:'Ctrl+Shift+K' },
     },
-    suggestedBindings: { ch_c: 'c', ch_e: 'e' },
+    suggestedBindings: {
+      ch_e: 'e',
+      ai_refactor: 'r',
+      ai_translate: 't',
+      search_global: 'f',
+      search_google: 'g',
+      search_history: 'h',
+      ch_c: 'c',
+      cb_list: 'v',
+      cb_clear: 'x',
+      pt_common: 'p',
+      pt_save: 's',
+      sp_new: 'n',
+      sp_open: 'o',
+      sc_capture: 'a',
+      sc_ocr: 'q',
+      sc_folder: 'd',
+      sys_reload: '^r',
+    },
     dashboardLayout: 'multi',
     dashboardConfig: [
-      { commandId:'sys_exit', sourceAhkKey:'Escape', sourceDisplayKey:'Esc' },
-      { commandId:'ch_c', sourceAhkKey:'c', sourceDisplayKey:'C' },
       { commandId:'ch_e', sourceAhkKey:'e', sourceDisplayKey:'E' },
-      null,
-      { commandId:'win_min', sourceAhkKey:'^m', sourceDisplayKey:'Ctrl+M' },
+      { commandId:'search_global', sourceAhkKey:'f', sourceDisplayKey:'F' },
+      { commandId:'ch_c', sourceAhkKey:'c', sourceDisplayKey:'C' },
+      { commandId:'pt_common', sourceAhkKey:'p', sourceDisplayKey:'P' },
+      { commandId:'sp_new', sourceAhkKey:'n', sourceDisplayKey:'N' },
+      { commandId:'sc_capture', sourceAhkKey:'a', sourceDisplayKey:'A' },
+      { commandId:'sys_show_vk', sourceAhkKey:'^+k', sourceDisplayKey:'Ctrl+Shift+K' },
+      { commandId:'sys_exit', sourceAhkKey:'Escape', sourceDisplayKey:'Esc' },
     ],
   });
 }
