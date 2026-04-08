@@ -7,6 +7,11 @@ global g_JsonPath := ""
 global g_Commands := Map()
 global g_Bindings := Map()
 global g_InverseBindings := Map()
+; Bindings persistence (Commands.json):
+; - g_Commands["Bindings"] = Map(cmdId -> ahkKey | "NONE")
+; Runtime effective bindings (for Hotkey registration):
+; - g_Bindings = Map(effectiveAhkKey -> cmdId)
+; - g_InverseBindings = Map(cmdId -> effectiveAhkKey)
 global g_HotkeyBound := Map()
 global g_VK_Gui := 0
 global g_VK_WV2 := 0
@@ -319,64 +324,155 @@ _LoadCommands() {
 
     _VK_SyncBuiltinCommands()
 
-    _VK_MergeSuggestedBindings()
+    _VK_MigrateBindingsFormatIfNeeded()
+    _VK_NormalizeBindingsOverrides()
+    _VK_RebuildEffectiveBindings()
     _VK_EnsureDashboardStorage()
     _VK_SyncFloatPinnedFromStorage()
     _VK_RenderGlobalFloatPanel()
-
-    bindings := g_Commands["Bindings"]
-    if bindings is Map {
-        for ahkKey, cmdId in bindings {
-            if !g_Commands["CommandList"].Has(cmdId)
-                continue
-            g_Bindings[ahkKey] := cmdId
-            g_InverseBindings[cmdId] := ahkKey
-        }
-    }
     if g_VK_Embedded
         _VK_SyncEmbeddedCapslockHotkeys()
     OutputDebug("[VK] Loaded " . g_Bindings.Count . " binding(s)")
 }
 
-; 将 SuggestedBindings 合并进 Bindings（不覆盖用户已有绑定）
-; 目的：首次使用时不再只显示 Escape 一项，内置 ch_* 能直接体现为已绑定
-_VK_MergeSuggestedBindings() {
+; Detect and migrate old Bindings format:
+; - Old: Bindings = Map(ahkKey -> cmdId)
+; - New: Bindings = Map(cmdId -> ahkKey | "NONE")
+_VK_MigrateBindingsFormatIfNeeded() {
     global g_Commands
-    if !g_Commands.Has("Bindings") || !(g_Commands["Bindings"] is Map)
+    if !(g_Commands is Map)
+        return
+    if !g_Commands.Has("Bindings") || !(g_Commands["Bindings"] is Map) {
         g_Commands["Bindings"] := Map()
+        return
+    }
+    if !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+        return
+
+    cmdList := g_Commands["CommandList"]
+    b := g_Commands["Bindings"]
+
+    keyIsCmd := 0
+    valIsCmd := 0
+    sampled := 0
+    for k, v in b {
+        sampled += 1
+        if cmdList.Has(k)
+            keyIsCmd += 1
+        if cmdList.Has(v)
+            valIsCmd += 1
+        if sampled >= 20
+            break
+    }
+    ; Heuristic: if values look like cmdId more than keys, it's old format.
+    if (valIsCmd > keyIsCmd) {
+        newB := Map()
+        for ahkKey, cmdId in b {
+            if (cmdId = "" || !cmdList.Has(cmdId))
+                continue
+            newB[cmdId] := ahkKey
+        }
+        g_Commands["Bindings"] := newB
+        OutputDebug("[VK] Migrated Bindings format (ahkKey->cmdId) -> (cmdId->ahkKey)")
+    }
+}
+
+; Normalize user overrides:
+; - Remove overrides that are identical to SuggestedBindings (treat as "never set" so UI shows as suggested).
+; - Drop empty-string overrides.
+_VK_NormalizeBindingsOverrides() {
+    global g_Commands
+    if !(g_Commands is Map)
+        return
+    if !g_Commands.Has("Bindings") || !(g_Commands["Bindings"] is Map)
+        return
     if !g_Commands.Has("SuggestedBindings") || !(g_Commands["SuggestedBindings"] is Map)
+        return
+
+    b := g_Commands["Bindings"]
+    s := g_Commands["SuggestedBindings"]
+
+    toDel := []
+    for cmdId, v in b {
+        if (v = "NONE")
+            continue
+        key := Trim(v)
+        if (key = "") {
+            toDel.Push(cmdId)
+            continue
+        }
+        if s.Has(cmdId) && s[cmdId] = key {
+            toDel.Push(cmdId)
+            continue
+        }
+    }
+    for cmdId in toDel
+        b.Delete(cmdId)
+}
+
+; Rebuild effective runtime bindings from overrides + SuggestedBindings.
+; Rules:
+; - overrides[cmdId] == "NONE": disabled
+; - overrides[cmdId] exists and non-empty: user custom
+; - overrides[cmdId] missing: fallback to SuggestedBindings[cmdId]
+; - Custom wins; suggested only fills when cmdId not in overrides and key not already used.
+_VK_RebuildEffectiveBindings(overrides := 0) {
+    global g_Commands, g_Bindings, g_InverseBindings
+    g_Bindings := Map()
+    g_InverseBindings := Map()
+
+    if !(g_Commands is Map)
         return
     if !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
         return
 
-    bindings := g_Commands["Bindings"]
-    suggest := g_Commands["SuggestedBindings"]
     cmdList := g_Commands["CommandList"]
+    suggest := (g_Commands.Has("SuggestedBindings") && g_Commands["SuggestedBindings"] is Map) ? g_Commands["SuggestedBindings"] : Map()
+    if !(overrides is Map)
+        overrides := (g_Commands.Has("Bindings") && g_Commands["Bindings"] is Map) ? g_Commands["Bindings"] : Map()
 
-    usedKeys := Map()
-    boundCmd := Map()
-    for ahkKey, cmdId in bindings {
-        usedKeys[ahkKey] := true
-        boundCmd[cmdId] := true
+    used := Map()
+
+    ; Pass 1: user overrides
+    for cmdId, v in overrides {
+        if !cmdList.Has(cmdId)
+            continue
+        if (v = "NONE")
+            continue
+        key := Trim(v)
+        if (key = "")
+            continue
+        if used.Has(key)
+            continue
+        g_Bindings[key] := cmdId
+        g_InverseBindings[cmdId] := key
+        used[key] := cmdId
     }
 
-    changed := false
+    ; Pass 2: suggested defaults for commands without overrides (and not disabled)
     for cmdId, key in suggest {
         if !cmdList.Has(cmdId)
             continue
-        if (cmdId = "sys_exit")
+        if overrides.Has(cmdId)
             continue
-        if boundCmd.Has(cmdId)
+        sk := Trim(key)
+        if (sk = "")
             continue
-        if usedKeys.Has(key)
+        if used.Has(sk)
             continue
-        bindings[key] := cmdId
-        usedKeys[key] := true
-        boundCmd[cmdId] := true
-        changed := true
+        g_Bindings[sk] := cmdId
+        g_InverseBindings[cmdId] := sk
+        used[sk] := cmdId
     }
-    if changed
-        OutputDebug("[VK] merged SuggestedBindings into Bindings")
+}
+
+; 将 SuggestedBindings 合并进 Bindings（不覆盖用户已有绑定）
+; 目的：首次使用时不再只显示 Escape 一项，内置 ch_* 能直接体现为已绑定
+_VK_MergeSuggestedBindings() {
+    ; Legacy function (kept for backward compatibility of older calls).
+    ; Bindings are now stored as cmdId -> (ahkKey|"NONE"), and SuggestedBindings are applied at runtime
+    ; by _VK_RebuildEffectiveBindings().
+    return
 }
 
 _VK_StripDynamicPromptCommands() {
@@ -503,12 +599,11 @@ VK_OnPromptTemplatesSaved(*) {
 }
 
 _SaveBindings() {
-    global g_Commands, g_Bindings, g_JsonPath, g_VK_Embedded
-
-    newBindings := Map()
-    for ahkKey, cmdId in g_Bindings
-        newBindings[ahkKey] := cmdId
-    g_Commands["Bindings"] := newBindings
+    global g_Commands, g_JsonPath, g_VK_Embedded
+    if !(g_Commands is Map)
+        return
+    if !g_Commands.Has("Bindings") || !(g_Commands["Bindings"] is Map)
+        g_Commands["Bindings"] := Map()
 
     json := _SerializeCommands()
     try FileDelete(g_JsonPath)
@@ -799,9 +894,12 @@ _SerializeCommands() {
 
     bJson := "{"
     sep4 := ""
-    for ahkKey, cmdId in g_Commands["Bindings"] {
-        bJson .= sep4 . _JsonStr(ahkKey) . ":" . _JsonStr(cmdId)
-        sep4 := ","
+    ; Bindings: cmdId -> ahkKey | "NONE"
+    if g_Commands.Has("Bindings") && g_Commands["Bindings"] is Map {
+        for cmdId, v in g_Commands["Bindings"] {
+            bJson .= sep4 . _JsonStr(cmdId) . ":" . _JsonStr(v)
+            sep4 := ","
+        }
     }
     bJson .= "}"
 
@@ -1140,6 +1238,13 @@ _OnWebMessage(sender, args) {
             if msg.Has("commandId")
                 _DoClearBinding(msg["commandId"])
 
+        case "reset_single":
+            if msg.Has("commandId")
+                _DoResetSingle(msg["commandId"])
+
+        case "reset_all":
+            _DoResetAll()
+
         case "executeCommand":
             if msg.Has("commandId")
                 _ExecuteCommand(msg["commandId"])
@@ -1177,63 +1282,172 @@ _OnWebMessage(sender, args) {
 }
 
 _DoBindKey(cmdId, ahkKey, displayKey) {
-    global g_Bindings, g_InverseBindings, g_VK_Embedded
+    global g_Commands
+    if !(g_Commands is Map)
+        return false
+    if !g_Commands.Has("Bindings") || !(g_Commands["Bindings"] is Map)
+        g_Commands["Bindings"] := Map()
 
-    oldKey := g_InverseBindings.Has(cmdId) ? g_InverseBindings[cmdId] : ""
-    oldCmd := g_Bindings.Has(ahkKey) ? g_Bindings[ahkKey] : ""
+    oldOverrides := g_Commands["Bindings"]
+    newOverrides := Map()
+    for k, v in oldOverrides
+        newOverrides[k] := v
 
-    if !g_VK_Embedded {
-        ; 先彻底释放旧键，再尝试注册新键，避免 Hotkey 注册冲突。
-        if (oldKey != "")
-            _VK_ReleaseBoundHotkey(oldKey)
-        if !_BindKey(ahkKey, cmdId) {
-            if (oldKey != "" && oldKey != ahkKey)
-                _BindKey(oldKey, cmdId)
-            return false
+    ; Ensure uniqueness among user overrides: steal the key from any other cmd that used it.
+    removed := []
+    for otherCmd, v in newOverrides {
+        if (otherCmd != cmdId && v = ahkKey) {
+            newOverrides.Delete(otherCmd)
+            removed.Push(otherCmd)
         }
     }
+    newOverrides[cmdId] := ahkKey
 
-    if (oldKey != "" && oldKey != ahkKey)
-        g_Bindings.Delete(oldKey)
-    if (oldCmd != "" && oldCmd != cmdId)
-        g_InverseBindings.Delete(oldCmd)
-
-    g_Bindings[ahkKey] := cmdId
-    g_InverseBindings[cmdId] := ahkKey
-
-    if g_VK_Embedded
-        _VK_SyncEmbeddedCapslockHotkeys()
-    _SaveBindings()
+    if !_VK_ApplyOverrides(newOverrides)
+        return false
 
     escaped := StrReplace(StrReplace(displayKey, "\", "\\"), '"', '\"')
     VK_SendToWeb('{"type":"bindingUpdated","commandId":"' . cmdId
         . '","ahkKey":"' . ahkKey
         . '","displayKey":"' . escaped . '"}')
+    for otherCmd in removed {
+        VK_SendToWeb('{"type":"bindingUpdated","commandId":"' . otherCmd
+            . '","deleted":true}')
+    }
     OutputDebug("[VK] bindKey: " . cmdId . " = " . ahkKey)
-    _EnsureDoubleModifierHook()
-    _EnsureSequenceHook()
     return true
 }
 
 _DoClearBinding(cmdId) {
-    global g_Bindings, g_InverseBindings, g_VK_Embedded
-
-    if !g_InverseBindings.Has(cmdId)
+    global g_Commands
+    if !(g_Commands is Map)
         return
-    ahkKey := g_InverseBindings[cmdId]
-    if !g_VK_Embedded
-        _UnbindKey(ahkKey)
-    g_Bindings.Delete(ahkKey)
-    g_InverseBindings.Delete(cmdId)
+    if !g_Commands.Has("Bindings") || !(g_Commands["Bindings"] is Map)
+        g_Commands["Bindings"] := Map()
+    oldOverrides := g_Commands["Bindings"]
+    newOverrides := Map()
+    for k, v in oldOverrides
+        newOverrides[k] := v
+    newOverrides[cmdId] := "NONE"
+
+    if !_VK_ApplyOverrides(newOverrides)
+        return
+
+    VK_SendToWeb('{"type":"bindingUpdated","commandId":"' . cmdId
+        . '","ahkKey":"","displayKey":"","explicitNone":true}')
+    OutputDebug("[VK] clearBinding(NONE): " . cmdId)
+}
+
+_DoResetSingle(cmdId) {
+    global g_Commands
+    if !(g_Commands is Map)
+        return
+    if !g_Commands.Has("Bindings") || !(g_Commands["Bindings"] is Map)
+        g_Commands["Bindings"] := Map()
+    oldOverrides := g_Commands["Bindings"]
+    if !oldOverrides.Has(cmdId)
+        return
+
+    newOverrides := Map()
+    for k, v in oldOverrides
+        newOverrides[k] := v
+    newOverrides.Delete(cmdId)
+
+    if !_VK_ApplyOverrides(newOverrides)
+        return
+
+    VK_SendToWeb('{"type":"bindingUpdated","commandId":"' . cmdId . '","deleted":true}')
+    OutputDebug("[VK] reset_single: " . cmdId)
+}
+
+_DoResetAll() {
+    newOverrides := Map()
+    if !_VK_ApplyOverrides(newOverrides)
+        return
+    ; Full refresh to make UI consistent after a bulk reset.
+    _PushInit()
+    OutputDebug("[VK] reset_all")
+}
+
+; Apply new overrides with hotkey rebind. If any physical hotkey bind fails, roll back.
+_VK_ApplyOverrides(newOverrides) {
+    global g_Commands, g_Bindings, g_InverseBindings, g_HotkeyBound, g_VK_Embedded
+
+    if !(g_Commands is Map)
+        return false
+    if !(newOverrides is Map)
+        newOverrides := Map()
+
+    ; Snapshot old runtime bindings
+    oldEffective := Map()
+    for k, v in g_Bindings
+        oldEffective[k] := v
+    oldInverse := Map()
+    for k, v in g_InverseBindings
+        oldInverse[k] := v
+
+    ; Snapshot old overrides (for rollback)
+    oldOverrides := (g_Commands.Has("Bindings") && g_Commands["Bindings"] is Map) ? g_Commands["Bindings"] : Map()
+    snapOldOverrides := Map()
+    for k, v in oldOverrides
+        snapOldOverrides[k] := v
+
+    ; Build new effective (do not commit yet)
+    _VK_RebuildEffectiveBindings(newOverrides)
+    newEffective := Map()
+    for k, v in g_Bindings
+        newEffective[k] := v
+    newInverse := Map()
+    for k, v in g_InverseBindings
+        newInverse[k] := v
+
+    ; Restore old runtime maps before hotkey ops
+    g_Bindings := oldEffective
+    g_InverseBindings := oldInverse
+
+    if !g_VK_Embedded {
+        ; Before registering new keys, always try to turn off old keys.
+        keys := []
+        for k, _ in g_HotkeyBound
+            keys.Push(k)
+        for k in keys
+            _VK_ReleaseBoundHotkey(k)
+
+        ok := true
+        for ahkKey, cmdId in newEffective {
+            if !_BindKey(ahkKey, cmdId) {
+                ok := false
+                break
+            }
+        }
+        if !ok {
+            ; Rollback: unbind newly bound keys, rebind old effective set.
+            keys2 := []
+            for k, _ in g_HotkeyBound
+                keys2.Push(k)
+            for k in keys2
+                _VK_ReleaseBoundHotkey(k)
+            for ahkKey, cmdId in oldEffective
+                _BindKey(ahkKey, cmdId)
+
+            ; Restore old overrides + effective maps
+            g_Commands["Bindings"] := snapOldOverrides
+            _VK_RebuildEffectiveBindings(snapOldOverrides)
+            return false
+        }
+    }
+
+    ; Commit overrides + runtime maps
+    g_Commands["Bindings"] := newOverrides
+    g_Bindings := newEffective
+    g_InverseBindings := newInverse
+
     if g_VK_Embedded
         _VK_SyncEmbeddedCapslockHotkeys()
     _SaveBindings()
     _EnsureDoubleModifierHook()
     _EnsureSequenceHook()
-
-    VK_SendToWeb('{"type":"bindingUpdated","commandId":"' . cmdId
-        . '","ahkKey":"","displayKey":""}')
-    OutputDebug("[VK] clearBinding: " . cmdId)
+    return true
 }
 
 _VK_ToEmbeddedHotkeyValue(ahkKey, isEsc := false) {
@@ -1990,11 +2204,25 @@ _PushInit() {
 
     bJson := "{"
     sep3 := ""
-    for cmdId, ahkKey in g_InverseBindings {
-        dk := _AhkKeyToDisplay(ahkKey)
-        esc := StrReplace(StrReplace(dk, "\", "\\"), '"', '\"')
-        bJson .= sep3 . _JsonStr(cmdId) . ':{"ahkKey":' . _JsonStr(ahkKey) . ',"displayKey":"' . esc . '"}'
-        sep3 := ","
+    ; User overrides only (cmdId -> { ahkKey, displayKey, explicitNone? })
+    if g_Commands.Has("Bindings") && g_Commands["Bindings"] is Map {
+        bMap := g_Commands["Bindings"]
+        for cmdId, v in bMap {
+            if !cmdList.Has(cmdId)
+                continue
+            if (v = "NONE") {
+                bJson .= sep3 . _JsonStr(cmdId) . ':{"ahkKey":"","displayKey":"","explicitNone":true}'
+                sep3 := ","
+                continue
+            }
+            key := Trim(v)
+            if (key = "")
+                continue
+            dk := _AhkKeyToDisplay(key)
+            esc := StrReplace(StrReplace(dk, "\", "\\"), '"', '\"')
+            bJson .= sep3 . _JsonStr(cmdId) . ':{"ahkKey":' . _JsonStr(key) . ',"displayKey":"' . esc . '"}'
+            sep3 := ","
+        }
     }
     bJson .= "}"
 

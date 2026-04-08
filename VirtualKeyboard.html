@@ -154,6 +154,23 @@ body::after {
   box-shadow: var(--glow-green);
 }
 
+/* ── Global Reset Button ───────────────────────────────────────────────── */
+#reset-all {
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  color: var(--text-dim);
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, box-shadow .15s;
+  flex-shrink: 0;
+}
+#reset-all:hover { color: var(--orange); border-color: var(--orange); box-shadow: 0 0 0 1px rgba(230,126,34,.18) inset, 0 0 18px rgba(230,126,34,.22); }
+
 /* ── Conflict Modal ────────────────────────────────────────────────────── */
 #conflict-overlay {
   display: none;
@@ -705,9 +722,9 @@ body::after {
   text-align: right;
   padding-right: 12px;
 }
-.cmd-row.has-binding .cmd-key {
-  color: var(--orange-lt);
-}
+.cmd-row.binding-custom .cmd-key { color: var(--orange-lt); }
+.cmd-row.binding-suggested .cmd-key { color: #8b8b8b; }
+.cmd-row.binding-none .cmd-key { color: #666; }
 .cmd-row.recording .cmd-key {
   color: var(--cyan);
   animation: blink 1s step-end infinite;
@@ -1216,6 +1233,7 @@ body::after {
     <span id="hud-status">正在连接 AHK...</span>
     <div id="hud-dot"></div>
     <button id="layout-toggle" title="切换 ScanCode 物理键适配模式（防止 IME 干扰）">STANDARD</button>
+    <button id="reset-all" title="全局重置（恢复出厂设置）">全局重置</button>
     <div id="hud-hint" aria-live="polite"></div>
     <div id="admin-warning" role="alert"></div>
   </div>
@@ -1543,8 +1561,21 @@ function syncLastActionCurrentKeyFromBindings() {
     return;
   }
   const b = state.bindings[id];
-  if (b && b.ahkKey)
+  if (b?.explicitNone) {
+    state.lastActionCurrentKey = '';
+    return;
+  }
+  if (b?.ahkKey) {
     state.lastActionCurrentKey = b.displayKey || b.ahkKey;
+    return;
+  }
+  const sk = state.suggestedBindings[id];
+  if (sk) {
+    const u = (sk.length === 1 && /[a-zA-Z]/.test(sk)) ? sk.toUpperCase() : sk;
+    state.lastActionCurrentKey = 'CapsLock+' + u;
+    return;
+  }
+  state.lastActionCurrentKey = '';
 }
 
 function renderHudHint() {
@@ -1772,6 +1803,7 @@ function handleAhkMessage(msg) {
 
 function displayKeyForCmd(cmdId) {
   const b = state.bindings[cmdId];
+  if (b?.explicitNone) return '';
   if (b?.ahkKey) return b.displayKey || b.ahkKey;
   const sk = state.suggestedBindings[cmdId];
   if (sk) {
@@ -1779,6 +1811,21 @@ function displayKeyForCmd(cmdId) {
     return 'CapsLock+' + u;
   }
   return '—';
+}
+
+function rebuildIndexes() {
+  // build reverse index ahkKey -> cmdId（真实绑定：用户自定义）
+  state.ahkKeyIndex = {};
+  for (const [cmdId, b] of Object.entries(state.bindings)) {
+    if (b?.ahkKey) state.ahkKeyIndex[b.ahkKey] = cmdId;
+  }
+  // 单键 -> cmdId（建议值，仅作键帽提示；如果用户已自定义或显式清空，则不再展示建议值）
+  state.suggestedByKey = {};
+  for (const [cmdId, key] of Object.entries(state.suggestedBindings)) {
+    const b = state.bindings[cmdId];
+    if (b && (b.ahkKey || b.explicitNone)) continue;
+    if (key && !state.suggestedByKey[key]) state.suggestedByKey[key] = cmdId;
+  }
 }
 
 function handleInit(msg) {
@@ -1793,16 +1840,7 @@ function handleInit(msg) {
   state.isAdmin = msg.isAdmin !== false;
   state.adminWarning = msg.adminWarning || '';
 
-  // build reverse index ahkKey -> cmdId（真实绑定）
-  state.ahkKeyIndex = {};
-  for (const [cmdId, b] of Object.entries(state.bindings)) {
-    if (b.ahkKey) state.ahkKeyIndex[b.ahkKey] = cmdId;
-  }
-  // 单键 -> cmdId（与 CursorHelper 默认 CapsLock+ 一致，仅作键帽提示）
-  state.suggestedByKey = {};
-  for (const [cmdId, key] of Object.entries(state.suggestedBindings)) {
-    if (key && !state.suggestedByKey[key]) state.suggestedByKey[key] = cmdId;
-  }
+  rebuildIndexes();
 
   applyDashboardConfig(msg.dashboardConfig || [], msg.dashboardLayout || dashboardLayout);
 
@@ -1818,30 +1856,25 @@ function handleInit(msg) {
 function handleBindingUpdated(msg) {
   const { commandId, ahkKey, displayKey } = msg;
 
-  // remove old ahkKey from index
-  if (state.bindings[commandId]?.ahkKey)
-    delete state.ahkKeyIndex[state.bindings[commandId].ahkKey];
+  if (!commandId) return;
 
-  if (ahkKey) {
-    // if this ahkKey was assigned to another cmd, clear that
-    const oldCmd = state.ahkKeyIndex[ahkKey];
-    if (oldCmd && oldCmd !== commandId) {
-      state.bindings[oldCmd] = { ahkKey: '', displayKey: '' };
-    }
-    state.bindings[commandId]   = { ahkKey, displayKey };
-    state.ahkKeyIndex[ahkKey]   = commandId;
+  if (msg.deleted) {
+    delete state.bindings[commandId];
+  } else if (msg.explicitNone) {
+    state.bindings[commandId] = { ahkKey: '', displayKey: '', explicitNone: true };
+  } else if (ahkKey) {
+    state.bindings[commandId] = { ahkKey, displayKey: displayKey || '' };
   } else {
+    // Fallback: treat empty as deleting user override (so it falls back to suggested).
     delete state.bindings[commandId];
   }
 
+  rebuildIndexes();
   renderCommandList();
   renderKeyboardSlots();
   renderModifierKeys();
   if (commandId === state.lastActionId) {
-    if (ahkKey)
-      state.lastActionCurrentKey = displayKey || ahkKey;
-    else
-      state.lastActionCurrentKey = '';
+    syncLastActionCurrentKeyFromBindings();
   }
   updateHudSnapshot();
 }
@@ -2756,6 +2789,7 @@ function renderCommandList() {
   } else if (total === 1) {
     const onlyId = state.lastFilteredCmdIds[0];
     const binding = state.bindings[onlyId];
+    if (binding?.explicitNone) return;
     if (binding?.ahkKey) triggerKeyRipple(binding.ahkKey);
     else if (state.suggestedBindings[onlyId]) triggerKeyRipple(state.suggestedBindings[onlyId]);
   }
@@ -2764,21 +2798,27 @@ function renderCommandList() {
 function makeCmdRow(cmdId) {
   const cmd     = state.commands[cmdId] || { name: cmdId, desc: '' };
   const binding = state.bindings[cmdId];
+  const isNone = !!(binding?.explicitNone);
   const hasReal = !!(binding?.ahkKey);
-  const hasSuggested = !!(state.suggestedBindings[cmdId]);
+  const hasSuggested = !!(state.suggestedBindings[cmdId]) && !hasReal && !isNone;
   const hasBind = hasReal || hasSuggested;
   const isRec   = state.recording === cmdId;
 
   const row = document.createElement('div');
   const isFocused = state.focusedCmdId === cmdId;
-  row.className = 'cmd-row' + (hasBind ? ' has-binding' : '') + (isRec ? ' recording' : '') + (isFocused ? ' active-focus' : '');
+  row.className = 'cmd-row'
+    + (hasBind ? ' has-binding' : '')
+    + (isRec ? ' recording' : '')
+    + (isFocused ? ' active-focus' : '')
+    + (hasReal ? ' binding-custom' : hasSuggested ? ' binding-suggested' : isNone ? ' binding-none' : '');
   row.dataset.cmdId = cmdId;
   row.addEventListener('click', () => {
     state.focusedCmdId = cmdId;
     renderCommandList();
     renderKeyboardSlots();
     renderModifierKeys();
-    const key = state.bindings[cmdId]?.ahkKey || state.suggestedBindings[cmdId] || '';
+    const b = state.bindings[cmdId];
+    const key = b?.explicitNone ? '' : (b?.ahkKey || state.suggestedBindings[cmdId] || '');
     if (key) triggerKeyRipple(key);
   });
 
@@ -2806,12 +2846,22 @@ function makeCmdRow(cmdId) {
 
   const clearBtn = document.createElement('button');
   clearBtn.className   = 'btn-icon danger';
-  clearBtn.title       = '清除绑定';
+  clearBtn.title       = '清空按键（显式禁用）';
   clearBtn.textContent = '清';
-  clearBtn.style.display = hasReal ? '' : 'none';
+  clearBtn.style.display = (!isRec && (hasReal || hasSuggested)) ? '' : 'none';
   clearBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     postToAhk({ type: 'clearBinding', commandId: cmdId });
+  });
+
+  const resetBtn = document.createElement('button');
+  resetBtn.className   = 'btn-icon';
+  resetBtn.title       = '重置为建议值';
+  resetBtn.textContent = '复';
+  resetBtn.style.display = binding ? '' : 'none';
+  resetBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    postToAhk({ type: 'reset_single', commandId: cmdId });
   });
 
   const testBtn = document.createElement('button');
@@ -2823,7 +2873,7 @@ function makeCmdRow(cmdId) {
     postToAhk({ type: 'executeCommand', commandId: cmdId });
   });
 
-  actions.append(editBtn, clearBtn, testBtn);
+  actions.append(editBtn, clearBtn, resetBtn, testBtn);
   row.append(nameEl, keyEl, actions);
   return row;
 }
@@ -2841,7 +2891,9 @@ function renderKeyboardSlots() {
   const prefix = getActivePrefix();
   const focusCmdId = state.focusedCmdId;
   const focusAKey = focusCmdId
-    ? (state.bindings[focusCmdId]?.ahkKey || state.suggestedBindings[focusCmdId] || '')
+    ? (state.bindings[focusCmdId]?.explicitNone
+        ? ''
+        : (state.bindings[focusCmdId]?.ahkKey || state.suggestedBindings[focusCmdId] || ''))
     : '';
   state.focusedMods = focusAKey
     ? {
@@ -3069,6 +3121,15 @@ document.getElementById('layout-toggle').addEventListener('click', () => {
   state.nativeLayout = !state.nativeLayout;
   updateLayoutToggleUI();
   postToAhk({ type: 'setLayoutMode', native: state.nativeLayout });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Global Reset
+// ═══════════════════════════════════════════════════════════════════════════
+document.getElementById('reset-all')?.addEventListener('click', () => {
+  const ok = confirm('确定要恢复所有出厂设置吗？这将清空您所有的自定义快捷键且不可撤销。');
+  if (!ok) return;
+  postToAhk({ type: 'reset_all' });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
