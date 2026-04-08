@@ -813,10 +813,10 @@ body::after {
   overflow: hidden;
 }
 #dashboard-container.layout-2 {
-  padding: 6px 10px 8px;
+  padding: 4px 10px 6px;
 }
 #dashboard-container.layout-2 #dashboard-toolbar {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 #dashboard-container.layout-2 #dashboard-title {
   font-size: 9px;
@@ -887,12 +887,13 @@ body::after {
 #dashboard-grid.layout-2 { --dashboard-cols: 10; }
 #dashboard-grid.layout-multi { --dashboard-cols: 20; }
 #dashboard-grid.layout-2 {
-  --dashboard-slot-size-2: clamp(34px, 4.8vw, 56px);
-  grid-template-columns: repeat(10, var(--dashboard-slot-size-2));
-  justify-content: start;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  justify-content: stretch;
   gap: 4px;
 }
 #dashboard-grid.layout-2 .dashboard-slot {
+  aspect-ratio: auto;
+  height: clamp(24px, 3.2vh, 34px);
   border-radius: 7px;
 }
 .dashboard-slot {
@@ -1052,11 +1053,18 @@ body::after {
 #dashboard-grid.layout-2 .dashboard-item-icon { min-width: 28px; min-height: 28px; font-size: 13px; }
 #dashboard-grid.layout-2 .dashboard-item-label { font-size: 10px; }
 #dashboard-grid.layout-2 .dashboard-item {
-  padding: 2px;
+  padding: 2px 3px;
 }
 #dashboard-grid.layout-2 .dashboard-item-label {
   font-size: 8px;
   line-height: 1.05;
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: clip;
+  word-break: break-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
 }
 #dashboard-grid.layout-multi .dashboard-item { padding: 4px; }
 #dashboard-grid.layout-multi .dashboard-item-main { gap: 3px; }
