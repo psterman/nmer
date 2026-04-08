@@ -33,6 +33,7 @@ body.drawer-open #drawerRoot{display:flex!important}
 .icons{display:flex;gap:8px}
 .ib{width:34px;height:34px;border:1px solid rgba(255,102,0,.28);border-radius:10px;background:rgba(255,255,255,.04);color:var(--orange);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all var(--ease)}
 .ib:hover{background:rgba(255,102,0,.12);border-color:rgba(255,102,0,.6)}
+.ib svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 #main{flex:1;min-height:0;display:flex;flex-direction:column;min-width:0}
 #msgs{flex:1;min-height:0;min-width:0;overflow:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px;align-items:stretch}
 #msgs > #empty{flex-shrink:0}
@@ -169,10 +170,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 <header class="hdr">
 <div><div class="t1">NiuMa Chat</div><div class="t2">Markdown · AHK v2 高亮</div></div>
 <div class="icons">
-<button class="ib" id="chat-export-md" type="button" title="导出当前对话 Markdown">MD</button>
-<button class="ib" id="chat-export-json" type="button" title="导出当前对话 JSON">J</button>
-<button class="ib" id="chat-settings" type="button">设</button>
-<button class="ib" id="drawer-close" type="button">关</button>
+<button class="ib" id="chat-settings" type="button" title="打开设置" aria-label="打开设置"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.82-.33 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.82.33l-.06.06A2 2 0 1 1 4.37 17l.06-.06a1.7 1.7 0 0 0 .33-1.82 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.33-1.82l-.06-.06A2 2 0 1 1 7.03 4.4l.06.06a1.7 1.7 0 0 0 1.82.33h.01a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.5h.01a1.7 1.7 0 0 0 1.82-.33l.06-.06A2 2 0 1 1 19.63 7l-.06.06a1.7 1.7 0 0 0-.33 1.82v.01a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+<button class="ib" id="drawer-close" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
 </div>
 </header>
 <div id="sessionTabs" class="session-tabs" role="tablist" aria-label="对话标签"></div>
@@ -193,7 +192,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 <div id="settings" aria-hidden="true">
 <div class="sbg"></div>
 <section class="sd">
-<header class="sh"><div><div class="sbt">API 设置</div><div class="sbt2">保存在本机 localStorage</div></div><button class="ib" id="settings-close" type="button">关</button></header>
+<header class="sh"><div><div class="sbt">API 设置</div><div class="sbt2">保存在本机 localStorage</div></div><button class="ib" id="settings-close" type="button" title="关闭设置" aria-label="关闭设置"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
 <div class="sbody">
 <div class="row"><div class="fld fld-dd"><label for="providerDdBtn">服务商</label><div class="dd" id="providerDd"><div class="dd-wrap"><button type="button" class="dd-btn" id="providerDdBtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="providerDdMenu"><img id="providerDdIcon" class="dd-icon" alt="" /><span id="providerDdLabel" class="dd-label"></span><span class="dd-chev" aria-hidden="true">▾</span></button><div class="dd-menu" id="providerDdMenu" role="listbox" hidden></div></div><select id="provider" class="ctl vh-select" tabindex="-1" aria-hidden="true"></select></div></div><div class="fld fld-dd"><label for="modelDdBtn">模型预设</label><div class="dd" id="modelDd"><div class="dd-wrap"><button type="button" class="dd-btn" id="modelDdBtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="modelDdMenu"><img id="modelDdIcon" class="dd-icon" alt="" /><span id="modelDdLabel" class="dd-label"></span><span class="dd-chev" aria-hidden="true">▾</span></button><div class="dd-menu" id="modelDdMenu" role="listbox" hidden></div></div><select id="modelPreset" class="ctl vh-select" tabindex="-1" aria-hidden="true"></select></div></div></div>
 <div class="fld"><label for="apiKey" id="apiKeyLabel">API Key</label><input id="apiKey" class="ctl" type="password" autocomplete="off" placeholder="API Key"><div class="hint mini" id="apiKeyKeyHint" style="display:none"></div></div>
@@ -201,7 +200,11 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 <div class="fld"><label for="model">Model</label><input id="model" class="ctl" type="text" autocomplete="off"></div>
 <div class="fld"><label for="systemPrompt">System Prompt</label><div class="prompt-tools"><select id="promptBuiltin" class="ctl"></select><button type="button" class="btn3" id="promptTplApply">应用到上方</button><button type="button" class="btn3" id="promptImportBtn">从文件导入</button><input type="file" id="promptImportFile" accept=".txt,.md,.json,text/plain" style="display:none" /></div><textarea id="systemPrompt" class="ctl"></textarea></div>
 <div class="hint" id="providerHint"></div>
-<div class="hint">各服务商 API Key 分槽保存、互不覆盖；多标签对话在本地长期保存。记录很多时请用标题栏「MD / J」导出备份。</div>
+<div class="hint">各服务商 API Key 分槽保存、互不覆盖；多标签对话在本地长期保存。记录很多时可在下方导出备份。</div>
+<div class="row" style="display:flex;gap:8px;align-items:center;justify-content:flex-start;">
+  <button class="btn2" id="chat-export-md" type="button" title="导出当前对话 Markdown">导出 Markdown</button>
+  <button class="btn2" id="chat-export-json" type="button" title="导出当前对话 JSON">导出 JSON</button>
+</div>
 </div>
 <footer class="sf"><div class="st" id="config-status"></div><div style="display:flex;gap:8px;"><button class="btn2" id="resetCfg" type="button">重置</button><button class="btn3" id="saveCfg" type="button">完成</button></div></footer>
 </section>
@@ -209,7 +212,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 <div id="newSessionPick" aria-hidden="true">
 <div class="nsbg" id="newSessionPickBg"></div>
 <section class="ns-panel">
-<header class="nsh"><div><div class="nst">新对话</div><div class="nst2">选择要使用的 AI（各标签独立上下文）</div></div><button class="ib" id="newSessionPickClose" type="button">关</button></header>
+<header class="nsh"><div><div class="nst">新对话</div><div class="nst2">选择要使用的 AI（各标签独立上下文）</div></div><button class="ib" id="newSessionPickClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
 <div id="newSessionGrid" class="ns-grid"></div>
 </section>
 </div>
@@ -236,7 +239,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       siliconflow: { label: '硅基流动', transport: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', model: 'Qwen/Qwen2.5-7B-Instruct', models: ['Qwen/Qwen2.5-7B-Instruct', 'deepseek-ai/DeepSeek-V3', 'THUDM/glm-4-9b-chat'] },
       minimax: { label: 'MiniMax', transport: 'openai', baseUrl: 'https://api.minimax.chat/v1', model: 'MiniMax-Text-01', models: ['MiniMax-Text-01', 'MiniMax-M1', 'abab6.5s-chat'] },
       zhipu: { label: '智谱', transport: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-plus', models: ['glm-4-plus', 'glm-4-air', 'glm-4-flash'] },
-      llama: { label: 'Llama', transport: 'openai', baseUrl: 'https://openrouter.ai/api/v1', model: 'meta-llama/llama-3.1-8b-instruct:free', models: ['meta-llama/llama-3.1-8b-instruct:free', 'meta-llama/llama-3.1-70b-instruct', 'meta-llama/llama-4-maverick'] },
+      ollama: { label: 'Ollama', transport: 'openai', baseUrl: 'http://127.0.0.1:11434/v1', model: 'llama3.1:8b', models: ['llama3.1:8b', 'qwen2.5:7b', 'deepseek-r1:7b', 'gemma3:4b'] },
       openclaw: { label: 'OpenClaw', transport: 'openclaw', baseUrl: 'http://127.0.0.1:18789', model: 'gateway', models: ['gateway'] }
     },
     ICON_PRIMARY = 'aiicons/',
@@ -254,7 +257,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       siliconflow: ['siliconflow', '硅基流动'],
       minimax: ['minimax', 'MiniMax'],
       zhipu: ['zhipu', 'Zhipu'],
-      llama: ['openrouter', 'OpenRouter', 'llama'],
+      ollama: ['ollama', 'Ollama'],
       openclaw: ['openclaw', 'OpenClaw']
     },
     KEYMETA = {
@@ -268,7 +271,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       siliconflow: { keyLabel: '硅基流动 API Key', keyPlaceholder: '硅基流动密钥', keyHint: '单独保存在「硅基流动」槽位。' },
       minimax: { keyLabel: 'MiniMax API Key', keyPlaceholder: 'MiniMax 密钥', keyHint: '单独保存在「MiniMax」槽位。' },
       zhipu: { keyLabel: '智谱 API Key', keyPlaceholder: '智谱开放平台密钥', keyHint: '单独保存在「智谱」槽位（与 GLM BigModel 可填不同密钥）。' },
-      llama: { keyLabel: 'OpenRouter API Key', keyPlaceholder: 'sk-or-...', keyHint: 'OpenRouter 密钥；单独保存在「Llama」槽位。' },
+      ollama: { keyLabel: 'Ollama API Key（可选）', keyPlaceholder: '本地默认可留空', keyHint: '本地 Ollama 默认无需 API Key；如启用鉴权可在此填写。' },
       openclaw: {
         keyLabel: 'Gateway Token',
         keyPlaceholder: '与 openclaw dashboard 中 token 一致',
@@ -285,6 +288,12 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 
   function $(id) {
     return document.getElementById(id);
+  }
+
+  function normalizeProviderId(pid) {
+    pid = String(pid || '').trim();
+    if (pid === 'llama') return 'ollama';
+    return pid;
   }
 
   var _tpl = $('ftb-toolbar-tpl');
@@ -732,7 +741,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     }
     if (!data || !Array.isArray(data.sessions)) return;
     state.sessions = data.sessions.map(function (s) {
-      var pid = s.provider && P[s.provider] ? s.provider : 'openai';
+      var sp = normalizeProviderId(s.provider);
+      var pid = sp && P[sp] ? sp : 'openai';
       var gk = String(s.gatewaySessionKey || '').trim();
       return {
         id: s.id || genId(),
@@ -757,7 +767,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   }
 
   function createSessionFromForm() {
-    var pid = provider.value && P[provider.value] ? provider.value : 'openai';
+    var pv = normalizeProviderId(provider.value);
+    var pid = pv && P[pv] ? pv : 'openai';
     var p = P[pid] || P.openai;
     return {
       id: genId(),
@@ -782,7 +793,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 
   function syncFormFromSession(s) {
     if (!s) return;
-    var pid = s.provider && P[s.provider] ? s.provider : 'openai';
+    var sp = normalizeProviderId(s.provider);
+    var pid = sp && P[sp] ? sp : 'openai';
     provider.value = pid;
     fillModels(pid, s.model);
     var p = P[pid] || P.openai;
@@ -797,7 +809,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 
   function syncSessionFromForm(s) {
     if (!s) return;
-    var pid = provider.value && P[provider.value] ? provider.value : 'openai';
+    var pv = normalizeProviderId(provider.value);
+    var pid = pv && P[pv] ? pv : 'openai';
     var p = P[pid] || P.openai;
     s.provider = pid;
     s.model = model.value.trim() || p.model;
@@ -869,11 +882,13 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     state.apiKeys = {};
     if (d.apiKeys && typeof d.apiKeys === 'object') {
       Object.keys(d.apiKeys).forEach(function (k) {
-        if (d.apiKeys[k] != null) state.apiKeys[k] = String(d.apiKeys[k]);
+        var nk = normalizeProviderId(k);
+        if (d.apiKeys[k] != null) state.apiKeys[nk] = String(d.apiKeys[k]);
       });
     }
     if (!Object.keys(state.apiKeys).length && d.apiKey) {
-      var lk = d.provider && P[d.provider] ? d.provider : 'openai';
+      var dp = normalizeProviderId(d.provider);
+      var lk = dp && P[dp] ? dp : 'openai';
       state.apiKeys[lk] = String(d.apiKey);
     }
   }
@@ -1257,7 +1272,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   }
 
   function syncProviderDdUi() {
-    var k = provider.value && P[provider.value] ? provider.value : 'openai';
+    var pv = normalizeProviderId(provider.value);
+    var k = pv && P[pv] ? pv : 'openai';
     var p = P[k] || P.openai;
     if (providerDdLabel) providerDdLabel.textContent = p.label;
     if (providerDdIcon) bindProviderIconImg(providerDdIcon, k, 'dd-icon');
@@ -1339,7 +1355,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   }
 
   function syncModelDdUi() {
-    var k = provider.value && P[provider.value] ? provider.value : 'openai';
+    var pv = normalizeProviderId(provider.value);
+    var k = pv && P[pv] ? pv : 'openai';
     var mp = modelPreset.value;
     var label = mp ? mp : '手动输入';
     if (modelDdLabel) modelDdLabel.textContent = label;
@@ -1359,14 +1376,17 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
         gemini: 'Gemini generateContent 接口',
         openclaw: 'OpenClaw Gateway WebSocket（connect + chat.send）'
       };
+    var transportLabel = pid === 'ollama' ? '本地 Ollama（OpenAI 兼容 chat/completions）' : (m[p.transport] || p.transport);
     ph.textContent =
       p.label +
       ' 默认走 ' +
-      (m[p.transport] || p.transport) +
+      transportLabel +
       '。如你使用中转站、反向代理或私有网关，也可以直接覆盖 Base URL 和 Model。';
   }
 
   function applyProvider(pid, keep) {
+    pid = normalizeProviderId(pid);
+    if (!(pid && P[pid])) pid = 'openai';
     var p = P[pid] || P.openai;
     provider.value = pid;
     fillModels(pid, model.value.trim());
@@ -1378,6 +1398,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   }
 
   function getApiKeyForProvider(pid) {
+    pid = normalizeProviderId(pid);
     pid = pid && P[pid] ? pid : 'openai';
     return ((state.apiKeys && state.apiKeys[pid]) || '').trim();
   }
@@ -1407,12 +1428,17 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       state.needSetup = true;
       return;
     }
-    var p = P[s.provider] || P.openai;
+    var sp = normalizeProviderId(s.provider);
+    var p = P[sp] || P.openai;
     var url = (s.baseUrl || '').trim() || baseUrl.value.trim() || p.baseUrl;
     var m = (s.model || '').trim() || model.value.trim();
-    var k = getApiKeyForProvider(s.provider);
+    var k = getApiKeyForProvider(sp);
     if (p.transport === 'openclaw') {
-      state.needSetup = !openClawEndpointFromCfg({ baseUrl: url, apiKey: k, provider: s.provider }).ok;
+      state.needSetup = !openClawEndpointFromCfg({ baseUrl: url, apiKey: k, provider: sp }).ok;
+      return;
+    }
+    if (sp === 'ollama') {
+      state.needSetup = !url || !m;
       return;
     }
     state.needSetup = !k || !url || !m;
@@ -1432,7 +1458,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     loadSessions();
 
     if (state.sessions.length === 0) {
-      var pid = d.provider && P[d.provider] ? d.provider : 'openai';
+      var dp = normalizeProviderId(d.provider);
+      var pid = dp && P[dp] ? dp : 'openai';
       provider.value = pid;
       applyProvider(pid, true);
       if (d.baseUrl) baseUrl.value = d.baseUrl;
@@ -1464,13 +1491,14 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     rebuildMsgList();
     refreshSendUi();
     var sAct = activeSession();
-    if (sAct && sAct.provider === 'openclaw') hydrateOpenClawHistoryForSession(sAct, false);
+    if (sAct && normalizeProviderId(sAct.provider) === 'openclaw') hydrateOpenClawHistoryForSession(sAct, false);
   }
 
   function saveCfg(ok) {
     var cur = activeSession();
     syncSessionFromForm(cur);
-    var pid = provider.value && P[provider.value] ? provider.value : 'openai';
+    var pv = normalizeProviderId(provider.value);
+    var pid = pv && P[pv] ? pv : 'openai';
     if (!state.apiKeys) state.apiKeys = {};
     state.apiKeys[pid] = apiKey.value.trim();
     var d = {
@@ -1510,7 +1538,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     var s = activeSession();
     if (!s) return null;
     syncSessionFromForm(s);
-    var pid = s.provider && P[s.provider] ? s.provider : 'openai';
+    var sp = normalizeProviderId(s.provider);
+    var pid = sp && P[sp] ? sp : 'openai';
     var p = P[pid] || P.openai;
     var bu = (s.baseUrl || '').trim() || p.baseUrl;
     return {
@@ -1582,11 +1611,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   }
 
   async function reqOpenAI(cfg) {
-    var h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + cfg.apiKey };
-    if (cfg.provider === 'llama') {
-      h['HTTP-Referer'] = 'https://niuma.local';
-      h['X-Title'] = 'FloatingToolbarStrip';
-    }
+    var h = { 'Content-Type': 'application/json' };
+    if (cfg.apiKey) h.Authorization = 'Bearer ' + cfg.apiKey;
     var r = await fetch(oaUrl(cfg.baseUrl), {
       method: 'POST',
       headers: h,
@@ -2323,7 +2349,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       return;
     }
     var p0 = P[cfg.provider] || P.openai;
-    if (p0.transport !== 'openclaw' && !cfg.apiKey) {
+    if (p0.transport !== 'openclaw' && cfg.provider !== 'ollama' && !cfg.apiKey) {
       cstatForSession(sid, '请先在设置里填写 API Key、Base URL 和 Model。', 'error');
       setSettings(true);
       return;
@@ -2488,15 +2514,16 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   });
 
   provider.addEventListener('change', function () {
-    var prev = this.dataset.prevProv;
+    var prev = normalizeProviderId(this.dataset.prevProv);
     if (prev && P[prev]) {
       if (!state.apiKeys) state.apiKeys = {};
       state.apiKeys[prev] = apiKey.value.trim();
     }
-    applyProvider(provider.value, false);
-    apiKey.value = (state.apiKeys && state.apiKeys[provider.value]) || '';
-    refreshApiKeyField(provider.value);
-    this.dataset.prevProv = provider.value;
+    var nextPid = normalizeProviderId(provider.value);
+    applyProvider(nextPid, false);
+    apiKey.value = (state.apiKeys && state.apiKeys[nextPid]) || '';
+    refreshApiKeyField(nextPid);
+    this.dataset.prevProv = nextPid;
     syncSessionFromForm(activeSession());
     persistSessions();
     renderSessionTabs();

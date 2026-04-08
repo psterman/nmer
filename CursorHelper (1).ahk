@@ -502,6 +502,7 @@ global MoveGUIListBoxBrush := 0  ; 移动分类弹窗ListBox画刷
 global MoveFromTemplateListBoxHwnd := 0  ; 从模板移动弹窗ListBox句柄
 global MoveFromTemplateListBoxBrush := 0  ; 从模板移动弹窗ListBox画刷
 global CapsLock2 := false  ; 是否使用过 CapsLock+ 功能标记，使用过会清除这个变量
+global CapsLockInitialStateForChord := false  ; 记录按下 CapsLock 前状态，供组合键快速恢复
 global VKHoldVisible := false  ; 是否由长按 CapsLock 暂时显示 VK
 ; 动态快捷键映射（默认值）
 global SplitHotkey := "s"
@@ -4357,6 +4358,11 @@ ClearCapsLock2Timer(*) {
     global CapsLock2 := false
 }
 
+RestoreCapsLockAfterChord(*) {
+    global CapsLockInitialStateForChord
+    try SetCapsLockState(CapsLockInitialStateForChord ? "On" : "Off")
+}
+
 ; 延迟清除 CapsLock 变量的函数
 ClearCapsLockTimer(*) {
     global CapsLock := false
@@ -4399,8 +4405,9 @@ ShowPanelTimer(*) {
 global CapsLockPressTime := 0
 
 ; 采用 CapsLock+ 方案：使用 ~ 前缀保留原始功能，通过标记变量控制行为
-~CapsLock:: {
+CapsLock:: {
     global CapsLock, CapsLock2, IsCommandMode, PanelVisible, VoiceInputActive, VoiceSearchActive, VoiceInputMethod, VoiceInputPaused, CapsLockHoldTimeSeconds
+    global CapsLockInitialStateForChord
     global VKHoldVisible, CapsLockHoldVkEnabled
     
     ; 确保全局变量已初始化
@@ -4420,6 +4427,7 @@ global CapsLockPressTime := 0
     ; 【关键修复】记录初始状态，必须在按下时立即记录，用于最后的恢复/切换逻辑
     ; 必须在任何可能改变CAPSLOCK状态的操作之前记录
     local InitialCapsLockState := GetKeyState("CapsLock", "T")
+    CapsLockInitialStateForChord := InitialCapsLockState
     
     ; 不在按下时强制改写状态，保留系统原生切换时序
     ; 单击由原生行为 + 释放分支共同保证，组合键分支仍按 CapsLock2 回滚状态
@@ -4530,12 +4538,13 @@ global CapsLockPressTime := 0
     ; 如果 CapsLock2 为 false (说明使用了 CapsLock + [Key] 功能)，则恢复初始状态，防止误切换
     ; 如果 CapsLock2 为 true (说明没有使用任何功能)，则切换大小写状态
     if (!CapsLock2) {
-        ; 组合键场景统一落到 Off，避免卡在大写导致输入法切换困难
-        SetCapsLockState("Off")
+        ; 组合键场景：恢复按下前状态，避免误改写用户原有 CapsLock 状态
+        SetCapsLockState(InitialCapsLockState)
         ; 延迟清除 CapsLock 变量，给快捷键处理函数足够的时间
         SetTimer(ClearCapsLockTimer, -100)
     } else {
-        ; 没有使用功能：交给系统原生 CapsLock 单击切换，不做二次改写
+        ; 没有使用功能：手动执行一次 CapsLock 单击切换（当前热键已拦截原生行为）
+        SetCapsLockState(InitialCapsLockState ? "Off" : "On")
         CapsLock := false
     }
     
@@ -24545,6 +24554,7 @@ HandleDynamicHotkey(PressedKey, ActionType) {
     SetTimer(ShowPanelTimer, 0)  ; 停止ShowPanelTimer定时器
     ; 清除CapsLock2标记，防止面板被激活
     CapsLock2 := false
+    RestoreCapsLockAfterChord()
     
     ; 将按键转换为小写进行比较（ESC特殊处理）
     KeyLower := StrLower(PressedKey)
@@ -24898,6 +24908,7 @@ f:: {
         return
     ; 标记已使用组合键，避免 CapsLock 释放时走“单击切换大小写”分支
     CapsLock2 := false
+    RestoreCapsLockAfterChord()
     ; 如果倒计时正在进行，按下 F 立即加速执行（发射内容）
     if (IsCountdownActive) {
         ExecuteCountdownAction()
@@ -24923,6 +24934,7 @@ g:: {
         return
     ; 与 CapsLock+F 一致：明确标记组合键已消费，避免释放时误切换大小写状态
     CapsLock2 := false
+    RestoreCapsLockAfterChord()
     ; CapsLock+G 激活原来的语音搜索面板
     StartVoiceSearch()
     VK_NoteLastChFromCapsLockKey("g")
@@ -24933,8 +24945,10 @@ b:: {
     global BatchHotkey, CapsLock2
     if (VirtualKeyboard_HandleKey("b"))
         return
+    RestoreCapsLockAfterChord()
     if GetPanelVisibleState() {
         CapsLock2 := false
+        RestoreCapsLockAfterChord()
         if StrLower(BatchHotkey) = "b" {
             BatchOperation()
             VK_NoteLastChFromCapsLockKey("b")
@@ -25094,6 +25108,7 @@ w:: {
     if (VirtualKeyboard_HandleKey("w"))
         return
     CapsLock2 := false
+    RestoreCapsLockAfterChord()
     Send("{Up}")
     VK_NoteLastChFromCapsLockKey("w")
 }
@@ -25104,6 +25119,7 @@ s:: {
     if (VirtualKeyboard_HandleKey("s"))
         return
     CapsLock2 := false
+    RestoreCapsLockAfterChord()
     Send("{Down}")
     VK_NoteLastChFromCapsLockKey("s")
 }
@@ -25114,6 +25130,7 @@ a:: {
     if (VirtualKeyboard_HandleKey("a"))
         return
     CapsLock2 := false
+    RestoreCapsLockAfterChord()
     Send("{Left}")
     VK_NoteLastChFromCapsLockKey("a")
 }
@@ -25124,6 +25141,7 @@ d:: {
     if (VirtualKeyboard_HandleKey("d"))
         return
     CapsLock2 := false
+    RestoreCapsLockAfterChord()
     Send("{Right}")
     VK_NoteLastChFromCapsLockKey("d")
 }

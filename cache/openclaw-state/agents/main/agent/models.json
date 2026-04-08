@@ -20,6 +20,7 @@
           },
           "contextWindow": 1000000,
           "maxTokens": 65536,
+          "api": "openai-completions",
           "compat": {
             "supportsUsageInStreaming": true
           }
@@ -39,6 +40,7 @@
           },
           "contextWindow": 262144,
           "maxTokens": 65536,
+          "api": "openai-completions",
           "compat": {
             "supportsUsageInStreaming": true
           }
@@ -58,6 +60,7 @@
           },
           "contextWindow": 262144,
           "maxTokens": 65536,
+          "api": "openai-completions",
           "compat": {
             "supportsUsageInStreaming": true
           }
@@ -77,6 +80,7 @@
           },
           "contextWindow": 1000000,
           "maxTokens": 65536,
+          "api": "openai-completions",
           "compat": {
             "supportsUsageInStreaming": true
           }
@@ -96,6 +100,7 @@
           },
           "contextWindow": 1000000,
           "maxTokens": 65536,
+          "api": "openai-completions",
           "compat": {
             "supportsUsageInStreaming": true
           }
@@ -115,6 +120,7 @@
           },
           "contextWindow": 202752,
           "maxTokens": 16384,
+          "api": "openai-completions",
           "compat": {
             "supportsUsageInStreaming": true
           }
@@ -134,6 +140,7 @@
           },
           "contextWindow": 202752,
           "maxTokens": 16384,
+          "api": "openai-completions",
           "compat": {
             "supportsUsageInStreaming": true
           }
@@ -154,6 +161,7 @@
           },
           "contextWindow": 262144,
           "maxTokens": 32768,
+          "api": "openai-completions",
           "compat": {
             "supportsUsageInStreaming": true
           }

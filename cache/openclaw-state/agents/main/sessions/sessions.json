@@ -1,9 +1,9 @@
 {
   "agent:main:main": {
-    "sessionId": "72a12369-66d0-411a-a9db-ca0ce2c9419d",
-    "updatedAt": 1775347561704,
+    "sessionId": "7cd19208-6aa0-4e49-ae2d-f49849939bbb",
+    "updatedAt": 1775644535287,
     "skillsSnapshot": {
-      "prompt": "\n\nThe following skills provide specialized instructions for specific tasks.\nUse the read tool to load a skill's file when the task matches its description.\nWhen a skill file references a relative path, resolve it against the skill directory (parent of SKILL.md / dirname of the path) and use that absolute path in tool commands.\n\n<available_skills>\n  <skill>\n    <name>feishu-doc</name>\n    <description>Feishu document read/write operations. Activate when user mentions Feishu docs, cloud docs, or docx links.\n</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\dist\\extensions\\feishu\\skills\\feishu-doc\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>feishu-drive</name>\n    <description>Feishu cloud storage file management. Activate when user mentions cloud space, folders, drive.\n</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\dist\\extensions\\feishu\\skills\\feishu-drive\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>feishu-perm</name>\n    <description>Feishu permission management for documents and files. Activate when user mentions sharing, permissions, collaborators.\n</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\dist\\extensions\\feishu\\skills\\feishu-perm\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>feishu-wiki</name>\n    <description>Feishu knowledge base navigation. Activate when user mentions knowledge base, wiki, or wiki links.\n</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\dist\\extensions\\feishu\\skills\\feishu-wiki\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>coding-agent</name>\n    <description>Delegate coding tasks to Codex, Claude Code, or Pi agents via background process. Use when: (1) building/creating new features or apps, (2) reviewing PRs (spawn in temp dir), (3) refactoring large codebases, (4) iterative coding that needs file exploration. NOT for: simple one-liner fixes (just edit), reading code (use read tool), thread-bound ACP harness requests in chat (for example spawn/run Codex or Claude Code in a Discord thread; use sessions_spawn with runtime:&quot;acp&quot;), or any work in ~/clawd workspace (never spawn agents here). Claude Code: use --print --permission-mode bypassPermissions (no PTY). Codex/Pi/OpenCode: pty:true required.</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\skills\\coding-agent\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>gemini</name>\n    <description>Gemini CLI for one-shot Q&amp;A, summaries, and generation.</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\skills\\gemini\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>healthcheck</name>\n    <description>Host security hardening and risk-tolerance configuration for OpenClaw deployments. Use when a user asks for security audits, firewall/SSH/update hardening, risk posture, exposure review, OpenClaw cron scheduling for periodic checks, or version status checks on a machine running OpenClaw (laptop, workstation, Pi, VPS).</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\skills\\healthcheck\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>node-connect</name>\n    <description>Diagnose OpenClaw node connection and pairing failures for Android, iOS, and macOS companion apps. Use when QR/setup code/manual connect fails, local Wi-Fi works but VPS/tailnet does not, or errors mention pairing required, unauthorized, bootstrap token invalid or expired, gateway.bind, gateway.remote.url, Tailscale, or plugins.entries.device-pair.config.publicUrl.</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\skills\\node-connect\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>skill-creator</name>\n    <description>Create, edit, improve, or audit AgentSkills. Use when creating a new skill from scratch or when asked to improve, review, audit, tidy up, or clean up an existing skill or SKILL.md file. Also use when editing or restructuring a skill directory (moving files to references/ or scripts/, removing stale content, validating against the AgentSkills spec). Triggers on phrases like &quot;create a skill&quot;, &quot;author a skill&quot;, &quot;tidy up a skill&quot;, &quot;improve this skill&quot;, &quot;review the skill&quot;, &quot;clean up the skill&quot;, &quot;audit the skill&quot;.</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\skills\\skill-creator\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>weather</name>\n    <description>Get current weather and forecasts via wttr.in or Open-Meteo. Use when: user asks about weather, temperature, or forecasts for any location. NOT for: historical weather data, severe weather alerts, or detailed meteorological analysis. No API key needed.</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\skills\\weather\\SKILL.md</location>\n  </skill>\n</available_skills>",
+      "prompt": "\n\nThe following skills provide specialized instructions for specific tasks.\nUse the read tool to load a skill's file when the task matches its description.\nWhen a skill file references a relative path, resolve it against the skill directory (parent of SKILL.md / dirname of the path) and use that absolute path in tool commands.\n\n<available_skills>\n  <skill>\n    <name>feishu-doc</name>\n    <description>Feishu document read/write operations. Activate when user mentions Feishu docs, cloud docs, or docx links.\n</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\dist\\extensions\\feishu\\skills\\feishu-doc\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>feishu-drive</name>\n    <description>Feishu cloud storage file management. Activate when user mentions cloud space, folders, drive.\n</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\dist\\extensions\\feishu\\skills\\feishu-drive\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>feishu-perm</name>\n    <description>Feishu permission management for documents and files. Activate when user mentions sharing, permissions, collaborators.\n</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\dist\\extensions\\feishu\\skills\\feishu-perm\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>feishu-wiki</name>\n    <description>Feishu knowledge base navigation. Activate when user mentions knowledge base, wiki, or wiki links.\n</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\dist\\extensions\\feishu\\skills\\feishu-wiki\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>coding-agent</name>\n    <description>Delegate coding tasks to Codex, Claude Code, or Pi agents via background process. Use when: (1) building/creating new features or apps, (2) reviewing PRs (spawn in temp dir), (3) refactoring large codebases, (4) iterative coding that needs file exploration. NOT for: simple one-liner fixes (just edit), reading code (use read tool), thread-bound ACP harness requests in chat (for example spawn/run Codex or Claude Code in a Discord thread; use sessions_spawn with runtime:&quot;acp&quot;), or any work in ~/clawd workspace (never spawn agents here). Claude Code: use --print --permission-mode bypassPermissions (no PTY). Codex/Pi/OpenCode: pty:true required.</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\skills\\coding-agent\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>gemini</name>\n    <description>Gemini CLI for one-shot Q&amp;A, summaries, and generation.</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\skills\\gemini\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>gh-issues</name>\n    <description>Fetch GitHub issues, spawn sub-agents to implement fixes and open PRs, then monitor and address PR review comments. Usage: /gh-issues [owner/repo] [--label bug] [--limit 5] [--milestone v1.0] [--assignee @me] [--fork user/repo] [--watch] [--interval 5] [--reviews-only] [--cron] [--dry-run] [--model glm-5] [--notify-channel -1002381931352]</description>\n    <location>~/.openclaw\\workspace\\skills\\gh-issues\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>github</name>\n    <description>Interact with GitHub using the `gh` CLI. Use `gh issue`, `gh pr`, `gh run`, and `gh api` for issues, PRs, CI runs, and advanced queries.</description>\n    <location>~/.openclaw\\workspace\\skills\\github\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>healthcheck</name>\n    <description>Host security hardening and risk-tolerance configuration for OpenClaw deployments. Use when a user asks for security audits, firewall/SSH/update hardening, risk posture, exposure review, OpenClaw cron scheduling for periodic checks, or version status checks on a machine running OpenClaw (laptop, workstation, Pi, VPS).</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\skills\\healthcheck\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>node-connect</name>\n    <description>Diagnose OpenClaw node connection and pairing failures for Android, iOS, and macOS companion apps. Use when QR/setup code/manual connect fails, local Wi-Fi works but VPS/tailnet does not, or errors mention pairing required, unauthorized, bootstrap token invalid or expired, gateway.bind, gateway.remote.url, Tailscale, or plugins.entries.device-pair.config.publicUrl.</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\skills\\node-connect\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>skill-creator</name>\n    <description>Create, edit, improve, or audit AgentSkills. Use when creating a new skill from scratch or when asked to improve, review, audit, tidy up, or clean up an existing skill or SKILL.md file. Also use when editing or restructuring a skill directory (moving files to references/ or scripts/, removing stale content, validating against the AgentSkills spec). Triggers on phrases like &quot;create a skill&quot;, &quot;author a skill&quot;, &quot;tidy up a skill&quot;, &quot;improve this skill&quot;, &quot;review the skill&quot;, &quot;clean up the skill&quot;, &quot;audit the skill&quot;.</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\skills\\skill-creator\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>weather</name>\n    <description>Get current weather and forecasts via wttr.in or Open-Meteo. Use when: user asks about weather, temperature, or forecasts for any location. NOT for: historical weather data, severe weather alerts, or detailed meteorological analysis. No API key needed.</description>\n    <location>~/AppData\\Roaming\\npm\\node_modules\\openclaw\\skills\\weather\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>docker-essentials</name>\n    <description>Essential Docker commands and workflows for container management, image operations, and debugging.</description>\n    <location>~/.openclaw\\workspace\\skills\\docker-essentials\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>docker-manager</name>\n    <description>Docker 容器管理。查看、启动、停止、删除容器，监控资源使用，查看日志。适合运维和开发。</description>\n    <location>~/.openclaw\\workspace\\skills\\docker-manager\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>docker-sandbox</name>\n    <description>Create and manage Docker sandboxed VM environments for safe agent execution. Use when running untrusted code, exploring packages, or isolating agent workloads. Supports Claude, Codex, Copilot, Gemini, and Kiro agents with network proxy controls.</description>\n    <location>~/.openclaw\\workspace\\skills\\docker-sandbox\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>feishu-toolkit</name>\n    <description>Complete Feishu (Lark) integration toolkit for AI agents. Read/write documents,  fetch chat history, send files &amp; screenshots, manage permissions, and create  scheduled reminders. Supports Wiki, Docs, Sheets, Bitable, and IM operations. Triggers: &quot;飞书&quot;, &quot;feishu&quot;, &quot;lark&quot;, &quot;读文档&quot;, &quot;群聊记录&quot;, &quot;发文件&quot;,  &quot;截屏发飞书&quot;, &quot;文档权限&quot;, &quot;定时提醒&quot;.\n</description>\n    <location>~/.openclaw\\workspace\\skills\\feishu-toolkit\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>findskills</name>\n    <description>智能搜索和发现 OpenClaw 技能，支持中英双语，多来源搜索</description>\n    <location>~/.openclaw\\workspace\\skills\\findskills\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>memory-never-forget</name>\n    <description>Memory system v3.1: Atkinson-Shiffrin temporal layering + 4-type taxonomy (User/Feedback/Project/Reference) + auto-extract + Dream consolidation + memory drift handling. Merges cognitive psychology with Claude Code&apos;s memory architecture.</description>\n    <location>~/.openclaw\\workspace\\skills\\memory-never-forget\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>summarize-pro</name>\n    <description>When user asks to summarize text, articles, documents, meetings, emails, YouTube transcripts, books, PDFs, reports, conversations, or any long content. Also handles bullet points, key takeaways, action items, TL;DR, ELI5, executive summaries, chapter summaries, comparison summaries, translation summaries, thread summaries, and custom-length summaries. 20-feature AI summarizer with multiple formats, languages, and export options. All processing happens locally — NO external API calls, NO network requests, NO data sent to any server.</description>\n    <location>~/.openclaw\\workspace\\skills\\summarize-pro\\SKILL.md</location>\n  </skill>\n  <skill>\n    <name>system-monitor-pro</name>\n    <description>Real-time OpenClaw system monitoring with beautiful terminal UI. CPU, memory, disk, GPU, Gateway, cron jobs, model quota, and multi-machine support. Works on macOS and Linux.</description>\n    <location>~/.openclaw\\workspace\\skills\\system-monitor-pro\\SKILL.md</location>\n  </skill>\n</available_skills>",
       "skills": [
         {
           "name": "feishu-doc"
@@ -26,6 +26,14 @@
           "requiredEnv": []
         },
         {
+          "name": "gh-issues",
+          "primaryEnv": "GH_TOKEN",
+          "requiredEnv": []
+        },
+        {
+          "name": "github"
+        },
+        {
           "name": "healthcheck"
         },
         {
@@ -37,6 +45,31 @@
         {
           "name": "weather",
           "requiredEnv": []
+        },
+        {
+          "name": "docker-essentials"
+        },
+        {
+          "name": "docker-manager"
+        },
+        {
+          "name": "docker-sandbox"
+        },
+        {
+          "name": "feishu-toolkit"
+        },
+        {
+          "name": "findskills",
+          "requiredEnv": []
+        },
+        {
+          "name": "memory-never-forget"
+        },
+        {
+          "name": "summarize-pro"
+        },
+        {
+          "name": "system-monitor-pro"
         }
       ],
       "resolvedSkills": [
@@ -125,6 +158,34 @@
           "disableModelInvocation": false
         },
         {
+          "name": "gh-issues",
+          "description": "Fetch GitHub issues, spawn sub-agents to implement fixes and open PRs, then monitor and address PR review comments. Usage: /gh-issues [owner/repo] [--label bug] [--limit 5] [--milestone v1.0] [--assignee @me] [--fork user/repo] [--watch] [--interval 5] [--reviews-only] [--cron] [--dry-run] [--model glm-5] [--notify-channel -1002381931352]",
+          "filePath": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\gh-issues\\SKILL.md",
+          "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\gh-issues",
+          "sourceInfo": {
+            "path": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\gh-issues\\SKILL.md",
+            "source": "openclaw-workspace",
+            "scope": "temporary",
+            "origin": "top-level",
+            "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\gh-issues"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "github",
+          "description": "Interact with GitHub using the `gh` CLI. Use `gh issue`, `gh pr`, `gh run`, and `gh api` for issues, PRs, CI runs, and advanced queries.",
+          "filePath": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\github\\SKILL.md",
+          "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\github",
+          "sourceInfo": {
+            "path": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\github\\SKILL.md",
+            "source": "openclaw-workspace",
+            "scope": "temporary",
+            "origin": "top-level",
+            "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\github"
+          },
+          "disableModelInvocation": false
+        },
+        {
           "name": "healthcheck",
           "description": "Host security hardening and risk-tolerance configuration for OpenClaw deployments. Use when a user asks for security audits, firewall/SSH/update hardening, risk posture, exposure review, OpenClaw cron scheduling for periodic checks, or version status checks on a machine running OpenClaw (laptop, workstation, Pi, VPS).",
           "filePath": "C:\\Users\\Administrator\\AppData\\Roaming\\npm\\node_modules\\openclaw\\skills\\healthcheck\\SKILL.md",
@@ -179,6 +240,118 @@
             "baseDir": "C:\\Users\\Administrator\\AppData\\Roaming\\npm\\node_modules\\openclaw\\skills\\weather"
           },
           "disableModelInvocation": false
+        },
+        {
+          "name": "docker-essentials",
+          "description": "Essential Docker commands and workflows for container management, image operations, and debugging.",
+          "filePath": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\docker-essentials\\SKILL.md",
+          "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\docker-essentials",
+          "sourceInfo": {
+            "path": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\docker-essentials\\SKILL.md",
+            "source": "openclaw-workspace",
+            "scope": "temporary",
+            "origin": "top-level",
+            "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\docker-essentials"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "docker-manager",
+          "description": "Docker 容器管理。查看、启动、停止、删除容器，监控资源使用，查看日志。适合运维和开发。",
+          "filePath": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\docker-manager\\SKILL.md",
+          "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\docker-manager",
+          "sourceInfo": {
+            "path": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\docker-manager\\SKILL.md",
+            "source": "openclaw-workspace",
+            "scope": "temporary",
+            "origin": "top-level",
+            "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\docker-manager"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "docker-sandbox",
+          "description": "Create and manage Docker sandboxed VM environments for safe agent execution. Use when running untrusted code, exploring packages, or isolating agent workloads. Supports Claude, Codex, Copilot, Gemini, and Kiro agents with network proxy controls.",
+          "filePath": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\docker-sandbox\\SKILL.md",
+          "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\docker-sandbox",
+          "sourceInfo": {
+            "path": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\docker-sandbox\\SKILL.md",
+            "source": "openclaw-workspace",
+            "scope": "temporary",
+            "origin": "top-level",
+            "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\docker-sandbox"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "feishu-toolkit",
+          "description": "Complete Feishu (Lark) integration toolkit for AI agents. Read/write documents,  fetch chat history, send files & screenshots, manage permissions, and create  scheduled reminders. Supports Wiki, Docs, Sheets, Bitable, and IM operations. Triggers: \"飞书\", \"feishu\", \"lark\", \"读文档\", \"群聊记录\", \"发文件\",  \"截屏发飞书\", \"文档权限\", \"定时提醒\".\n",
+          "filePath": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\feishu-toolkit\\SKILL.md",
+          "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\feishu-toolkit",
+          "sourceInfo": {
+            "path": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\feishu-toolkit\\SKILL.md",
+            "source": "openclaw-workspace",
+            "scope": "temporary",
+            "origin": "top-level",
+            "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\feishu-toolkit"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "findskills",
+          "description": "智能搜索和发现 OpenClaw 技能，支持中英双语，多来源搜索",
+          "filePath": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\findskills\\SKILL.md",
+          "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\findskills",
+          "sourceInfo": {
+            "path": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\findskills\\SKILL.md",
+            "source": "openclaw-workspace",
+            "scope": "temporary",
+            "origin": "top-level",
+            "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\findskills"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "memory-never-forget",
+          "description": "Memory system v3.1: Atkinson-Shiffrin temporal layering + 4-type taxonomy (User/Feedback/Project/Reference) + auto-extract + Dream consolidation + memory drift handling. Merges cognitive psychology with Claude Code's memory architecture.",
+          "filePath": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\memory-never-forget\\SKILL.md",
+          "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\memory-never-forget",
+          "sourceInfo": {
+            "path": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\memory-never-forget\\SKILL.md",
+            "source": "openclaw-workspace",
+            "scope": "temporary",
+            "origin": "top-level",
+            "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\memory-never-forget"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "summarize-pro",
+          "description": "When user asks to summarize text, articles, documents, meetings, emails, YouTube transcripts, books, PDFs, reports, conversations, or any long content. Also handles bullet points, key takeaways, action items, TL;DR, ELI5, executive summaries, chapter summaries, comparison summaries, translation summaries, thread summaries, and custom-length summaries. 20-feature AI summarizer with multiple formats, languages, and export options. All processing happens locally — NO external API calls, NO network requests, NO data sent to any server.",
+          "filePath": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\summarize-pro\\SKILL.md",
+          "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\summarize-pro",
+          "sourceInfo": {
+            "path": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\summarize-pro\\SKILL.md",
+            "source": "openclaw-workspace",
+            "scope": "temporary",
+            "origin": "top-level",
+            "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\summarize-pro"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "system-monitor-pro",
+          "description": "Real-time OpenClaw system monitoring with beautiful terminal UI. CPU, memory, disk, GPU, Gateway, cron jobs, model quota, and multi-machine support. Works on macOS and Linux.",
+          "filePath": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\system-monitor-pro\\SKILL.md",
+          "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\system-monitor-pro",
+          "sourceInfo": {
+            "path": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\system-monitor-pro\\SKILL.md",
+            "source": "openclaw-workspace",
+            "scope": "temporary",
+            "origin": "top-level",
+            "baseDir": "C:\\Users\\Administrator\\.openclaw\\workspace\\skills\\system-monitor-pro"
+          },
+          "disableModelInvocation": false
         }
       ],
       "version": 0
@@ -190,8 +363,8 @@
     "abortedLastRun": false,
     "systemPromptReport": {
       "source": "run",
-      "generatedAt": 1775347552601,
-      "sessionId": "72a12369-66d0-411a-a9db-ca0ce2c9419d",
+      "generatedAt": 1775644532816,
+      "sessionId": "7cd19208-6aa0-4e49-ae2d-f49849939bbb",
       "sessionKey": "agent:main:main",
       "provider": "modelstudio",
       "model": "qwen3.5-plus",
@@ -210,9 +383,9 @@
         "sandboxed": false
       },
       "systemPrompt": {
-        "chars": 27869,
+        "chars": 31728,
         "projectContextChars": 13384,
-        "nonProjectContextChars": 14485
+        "nonProjectContextChars": 18344
       },
       "injectedWorkspaceFiles": [
         {
@@ -273,7 +446,7 @@
         }
       ],
       "skills": {
-        "promptChars": 4896,
+        "promptChars": 8777,
         "entries": [
           {
             "name": "feishu-doc",
@@ -300,6 +473,14 @@
             "blockChars": 225
           },
           {
+            "name": "gh-issues",
+            "blockChars": 490
+          },
+          {
+            "name": "github",
+            "blockChars": 280
+          },
+          {
             "name": "healthcheck",
             "blockChars": 495
           },
@@ -314,6 +495,38 @@
           {
             "name": "weather",
             "blockChars": 420
+          },
+          {
+            "name": "docker-essentials",
+            "blockChars": 264
+          },
+          {
+            "name": "docker-manager",
+            "blockChars": 206
+          },
+          {
+            "name": "docker-sandbox",
+            "blockChars": 405
+          },
+          {
+            "name": "feishu-toolkit",
+            "blockChars": 573
+          },
+          {
+            "name": "findskills",
+            "blockChars": 184
+          },
+          {
+            "name": "memory-never-forget",
+            "blockChars": 412
+          },
+          {
+            "name": "summarize-pro",
+            "blockChars": 695
+          },
+          {
+            "name": "system-monitor-pro",
+            "blockChars": 342
           }
         ]
       },

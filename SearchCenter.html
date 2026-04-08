@@ -35,7 +35,7 @@ html, body {
 button, input, select, textarea { font: inherit; }
 #app {
   display: grid;
-  grid-template-rows: auto auto auto 1fr auto auto auto;
+  grid-template-rows: auto auto auto 1fr auto;
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -132,22 +132,65 @@ button, input, select, textarea { font: inherit; }
   pointer-events: none;
   opacity: 0.72;
 }
-#topbar { padding: 14px 18px; }
+#search-bar {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 18px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0)), var(--panel);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.12);
+}
+#search-icon-inline {
+  color: var(--accent);
+  font-size: 16px;
+  flex-shrink: 0;
+}
 #search {
-  flex: 1;
+  width: 100%;
+  display: block;
   min-width: 0;
   height: 44px;
+  background: var(--panel-2);
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--panel-2);
   color: var(--text);
   padding: 0 14px;
   outline: none;
+  caret-color: var(--accent);
+  user-select: text;
+  -webkit-user-select: text;
 }
+#search::placeholder { color: #6f7d8b; }
 #search:focus, #limit:focus { border-color: var(--accent); }
+.search-input-wrap {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+}
+.search-status-inline {
+  margin-top: 6px;
+  padding-left: 2px;
+  font-size: 11px;
+  color: #7f8a95;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px 8px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
 #limit {
-  width: 104px;
-  height: 44px;
+  width: 122px;
+  height: 36px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--panel-2);
@@ -155,14 +198,27 @@ button, input, select, textarea { font: inherit; }
   padding: 0 10px;
   outline: none;
 }
-#status {
-  font-size: 12px;
-  color: var(--muted);
-  white-space: nowrap;
+.search-actions .btn {
+  height: 36px;
+  padding: 0 12px;
+}
+#results-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+#head-filters {
+  min-width: 0;
+}
+#filters {
+  display: flex;
+  gap: 8px;
+  overflow: auto hidden;
+  padding: 2px 0;
 }
 #categories,
-#engines,
-#filters {
+#engines {
   display: flex;
   gap: 10px;
   overflow: auto hidden;
@@ -185,6 +241,12 @@ button, input, select, textarea { font: inherit; }
   border-radius: 999px;
 }
 #category-card, #engine-card, #filter-card { padding: 10px 12px; }
+#tag-card {
+  padding: 10px 12px;
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 10px;
+}
 .chip, .engine-chip, .filter-chip {
   border: 1px solid var(--border);
   background: var(--panel-2);
@@ -262,14 +324,9 @@ button, input, select, textarea { font: inherit; }
 }
 .engine-chip.active .label { color: #fff; }
 .filter-chip {
-  padding: 8px 12px;
+  padding: 5px 10px;
+  font-size: 11px;
   white-space: nowrap;
-}
-#actionbar {
-  display: flex;
-  gap: 10px;
-  padding: 0 4px 0 8px;
-  flex-shrink: 0;
 }
 #layout {
   display: grid;
@@ -302,18 +359,20 @@ button, input, select, textarea { font: inherit; }
   height: calc(100% - 59px);
   overflow: auto;
   padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
 }
 .result-item {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 10px;
-  padding: 14px;
+  gap: 8px;
+  padding: 9px 10px;
   border: 1px solid transparent;
-  border-radius: 14px;
+  border-radius: 10px;
   cursor: pointer;
   transition: .14s ease;
 }
-.result-item + .result-item { margin-top: 8px; }
+.result-item + .result-item { margin-top: 5px; }
 .result-item:hover {
   background: rgba(255,255,255,.03);
   border-color: rgba(255,255,255,.05);
@@ -323,22 +382,22 @@ button, input, select, textarea { font: inherit; }
   border-color: rgba(255,179,71,.45);
 }
 .result-title {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   color: #fff;
 }
 .result-sub {
-  margin-top: 6px;
-  font-size: 12px;
+  margin-top: 3px;
+  font-size: 11px;
   color: var(--muted);
 }
 .result-preview {
-  margin-top: 10px;
+  margin-top: 4px;
   color: #ccd5dd;
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 11px;
+  line-height: 1.35;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -350,14 +409,14 @@ button, input, select, textarea { font: inherit; }
   min-width: 92px;
 }
 .pill {
-  padding: 5px 9px;
+  padding: 3px 7px;
   border-radius: 999px;
   background: #2a3239;
   color: #d7dee6;
-  font-size: 11px;
+  font-size: 10px;
 }
 .time {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--muted);
   text-align: right;
 }
@@ -403,6 +462,48 @@ button, input, select, textarea { font: inherit; }
   padding: 22px;
   color: var(--muted);
   line-height: 1.7;
+  min-height: 72px;
+}
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1 1 auto;
+}
+.skeleton-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.04);
+  background: rgba(255,255,255,.015);
+}
+.sk-line {
+  height: 9px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(255,255,255,.06), rgba(255,255,255,.12), rgba(255,255,255,.06));
+  background-size: 220% 100%;
+  animation: sk-shimmer 1.3s linear infinite;
+}
+.sk-line + .sk-line { margin-top: 5px; }
+.sk-line.w1 { width: 64%; }
+.sk-line.w2 { width: 44%; }
+.sk-line.w3 { width: 78%; }
+.sk-meta {
+  width: 64px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(255,255,255,.06), rgba(255,255,255,.12), rgba(255,255,255,.06));
+  background-size: 220% 100%;
+  animation: sk-shimmer 1.3s linear infinite;
+}
+.preview-empty {
+  min-height: 100%;
+}
+@keyframes sk-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
 }
 mark {
   background: rgba(255,179,71,.9);
@@ -428,12 +529,31 @@ mark {
     </div>
   </header>
 
-  <div id="category-card" class="card">
+  <div id="tag-card" class="card">
     <div id="categories"></div>
+    <div id="engines">    </div>
   </div>
 
-  <div id="engine-card" class="card">
-    <div id="engines">    </div>
+  <div id="search-bar" class="card">
+    <span id="search-icon-inline">&#128269;</span>
+    <div class="search-input-wrap">
+      <input id="search" type="text" placeholder="搜索本地结果，或直接作为网络搜索 / CLI 提示词发送">
+      <div id="status" class="search-status-inline">准备中...</div>
+    </div>
+    <div class="search-actions">
+      <select id="limit">
+        <option value="10">10 条</option>
+          <option value="20">20 条</option>
+          <option value="30">30 条</option>
+          <option value="50">50 条</option>
+        <option value="100">100 条</option>
+        <option value="200">200 条</option>
+        <option value="500">全部搜索结果</option>
+      </select>
+      <button id="btn-run" class="btn primary">搜索</button>
+      <button id="btn-web-search" class="btn">网页搜索</button>
+      <button id="btn-open-cli" class="btn">打开所选终端</button>
+    </div>
   </div>
 
   <div id="layout">
@@ -441,8 +561,8 @@ mark {
       <div id="results-head">
         <div>
           <div class="head-title">本地结果</div>
-          <div class="head-sub">Everything / 剪贴板 / 模板 / 配置 / 快捷键 混排</div>
         </div>
+        <div id="head-filters"><div id="filters"></div></div>
         <div class="head-sub" id="result-count">0 条</div>
       </div>
       <div id="result-list"></div>
@@ -457,30 +577,6 @@ mark {
       <div id="preview">当前未选中本地结果。
 
 在输入框中输入内容可实时过滤数据，点击列表项后会在这里显示详细预览。</div>
-    </div>
-  </div>
-
-  <div id="topbar" class="card bar">
-    <input id="search" type="text" placeholder="搜索本地结果，或直接作为网络搜索 / CLI 提示词发送">
-    <select id="limit">
-      <option value="10">10 条</option>
-        <option value="20">20 条</option>
-        <option value="30">30 条</option>
-        <option value="50">50 条</option>
-      <option value="100">100 条</option>
-      <option value="200">200 条</option>
-    </select>
-    <div id="status">准备中...</div>
-  </div>
-
-  <div class="bar">
-    <div id="filter-card" class="card" style="flex:1;min-width:0;">
-      <div id="filters"></div>
-    </div>
-    <div id="actionbar">
-      <button id="btn-run" class="btn primary">并发搜索</button>
-      <button id="btn-open-cli" class="btn">打开所选终端</button>
-      <button id="btn-close" class="btn ghost">关闭</button>
     </div>
   </div>
 
@@ -589,7 +685,9 @@ function renderResults() {
   disconnectLoadMoreObserver();
 
   if (!state.results.length) {
-    list.innerHTML = "<div class=\"empty\">暂无结果。<br>你可以在输入框输入关键词搜索本地内容，或选择引擎后执行网络搜索 / CLI 发送。</div>";
+    list.innerHTML =
+      "<div class=\"empty\">暂无结果。<br>你可以在输入框输入关键词搜索本地内容，或选择引擎后执行网络搜索 / CLI 发送。</div>" +
+      buildSkeletonListHtml(7);
     renderPreview();
     return;
   }
@@ -621,6 +719,10 @@ function renderResults() {
     list.appendChild(row);
   });
 
+  if (state.results.length < 7) {
+    list.insertAdjacentHTML("beforeend", buildSkeletonListHtml(7 - state.results.length));
+  }
+
   if (state.hasMore) {
     const sent = document.createElement("div");
     sent.id = "load-sentinel";
@@ -640,11 +742,22 @@ function renderPreview() {
   const item = state.results.find((entry) => entry.row === state.selectedRow);
   if (!item) {
     meta.textContent = "未选中结果";
-    preview.textContent = "当前未选中本地结果。\n\n在输入框中输入内容可实时过滤数据，点击列表项后会在这里显示详细预览。";
+    preview.innerHTML =
+      "<div class=\"preview-empty\">当前未选中本地结果。<br><br>在输入框中输入内容可实时过滤数据，点击列表项后会在这里显示详细预览。<br><br>" +
+      "<div class=\"sk-line w1\"></div><div class=\"sk-line w3\"></div><div class=\"sk-line w2\"></div></div>";
     return;
   }
   meta.textContent = [item.source || item.subtitle || "", item.type || "", item.time || ""].filter(Boolean).join(" · ");
   preview.textContent = item.previewText || item.content || item.title || "";
+}
+
+function buildSkeletonListHtml(count) {
+  let html = "<div class=\"skeleton-list\" aria-hidden=\"true\">";
+  for (let i = 0; i < count; i += 1) {
+    html += "<div class=\"skeleton-item\"><div><div class=\"sk-line w1\"></div><div class=\"sk-line w2\"></div><div class=\"sk-line w3\"></div></div><div class=\"sk-meta\"></div></div>";
+  }
+  html += "</div>";
+  return html;
 }
 
 function applyState(payload) {
@@ -671,7 +784,7 @@ function applyState(payload) {
   document.getElementById("limit").value = String(state.limit);
   document.getElementById("status").textContent = state.statusLine || "已同步";
   document.getElementById("result-count").textContent = String(state.results.length) + " 条";
-  document.getElementById("btn-run").textContent = state.isCliCategory ? "发送到 AI" : "并发搜索";
+  document.getElementById("btn-run").textContent = "搜索";
   document.getElementById("btn-open-cli").style.display = state.isCliCategory ? "inline-flex" : "none";
   document.getElementById("footer-hint").textContent = state.isCliCategory
     ? "CLI 分类：输入内容后可直接发送到选中的终端"
@@ -732,20 +845,16 @@ document.getElementById("limit").addEventListener("change", (event) => {
 });
 
 document.getElementById("btn-run").addEventListener("click", () => {
-  const prompt = document.getElementById("search").value;
-  if (state.isCliCategory) {
-    postToAhk({ type: "cliSend", prompt });
-  } else {
-    postToAhk({ type: "batchSearch" });
-  }
+  const keyword = document.getElementById("search").value;
+  postToAhk({ type: "search", keyword });
+});
+
+document.getElementById("btn-web-search").addEventListener("click", () => {
+  postToAhk({ type: "webSearch" });
 });
 
 document.getElementById("btn-open-cli").addEventListener("click", () => {
   postToAhk({ type: "cliOpen" });
-});
-
-document.getElementById("btn-close").addEventListener("click", () => {
-  postToAhk({ type: "close" });
 });
 
 const chromeCloseBtn = document.getElementById("chrome-close");
@@ -800,12 +909,8 @@ document.addEventListener("keydown", (event) => {
 
   if (event.key === "Enter" && document.activeElement && document.activeElement.id === "search") {
     event.preventDefault();
-    const prompt = document.getElementById("search").value;
-    if (state.isCliCategory) {
-      postToAhk({ type: "cliSend", prompt });
-    } else {
-      postToAhk({ type: "batchSearch" });
-    }
+    const keyword = document.getElementById("search").value;
+    postToAhk({ type: "search", keyword });
     return;
   }
 

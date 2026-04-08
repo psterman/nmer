@@ -226,6 +226,7 @@
         }
       },
       "groupPolicy": "allowlist",
+      "groupAllowFrom": ["5080595345"],
       "streaming": "partial"
     },
     "feishu": {

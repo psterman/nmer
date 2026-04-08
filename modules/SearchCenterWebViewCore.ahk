@@ -146,6 +146,7 @@ SCWV_Show() {
     }
 
     g_SCWV_Gui.Show("w1180 h760 Center")
+    try WinMaximize("ahk_id " . g_SCWV_Gui.Hwnd)
     g_SCWV_Visible := true
     g_SCWV_LastShown := A_TickCount
     WMActivateChain_Register(SCWV_WM_ACTIVATE)
@@ -376,6 +377,8 @@ SCWV_OnWebMessage(sender, args) {
                 _SCWV_ToggleEngine(String(msg["engine"]))
             SCWV_PushState("state")
         case "batchSearch":
+            _SCWV_BatchSearch()
+        case "webSearch":
             _SCWV_BatchSearch()
         case "cliSend":
             prompt := msg.Has("prompt") ? String(msg["prompt"]) : ""
@@ -714,7 +717,7 @@ SCWV_PushState(msgType := "state") {
 _SCWV_BuildFilterPayload() {
     return [
         Map("key", "", "text", "全部"),
-        Map("key", "File", "text", "文件"),
+        Map("key", "File", "text", "文本"),
         Map("key", "clipboard", "text", "剪贴板"),
         Map("key", "template", "text", "提示词"),
         Map("key", "config", "text", "配置"),
@@ -833,8 +836,32 @@ _SCWV_LoadSelectedEngines(CategoryKey) {
     } catch {
     }
 
-    if (Engines.Length = 0 && CategoryKey = "cli")
-        Engines := ["codex_cli"]
+    ; 兼容旧版本：清除历史默认项（含 openclaw/codex_cli），避免自动选中
+    if (Engines.Length = 1) {
+        legacy := StrLower(Trim(Engines[1]))
+        if (legacy = "codex_cli" || legacy = "openclaw" || legacy = "openclaw_cli")
+            Engines := []
+    }
+
+    ; 仅保留当前分类中有效的引擎值，防止跨分类残留导致计数异常（例如 AI 显示 1）
+    valid := Map()
+    try {
+        for _, engine in GetSortedSearchEngines(CategoryKey) {
+            ev := engine.HasProp("Value") ? String(engine.Value) : ""
+            if (ev != "")
+                valid[ev] := true
+        }
+    } catch {
+    }
+    filtered := []
+    for _, ev in Engines {
+        v := String(ev)
+        if (v != "" && valid.Has(v))
+            filtered.Push(v)
+    }
+    Engines := filtered
+
+    ; CLI 分类不再设置默认引擎，必须由用户手动选择后才生效
 
     SearchCenterSelectedEnginesByCategory[CategoryKey] := _SCWV_CopyArray(Engines)
     return Engines
