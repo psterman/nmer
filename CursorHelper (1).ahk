@@ -5955,28 +5955,12 @@ ExecuteCursorShortcut(Shortcut) {
 GetCursorActionShortcut(ActionType) {
     global CursorShortcut_CommandPalette, CursorShortcut_Terminal, CursorShortcut_GlobalSearch
     global CursorShortcut_Explorer, CursorShortcut_SourceControl, CursorShortcut_Extensions
-    global CursorShortcut_Browser, CursorShortcut_Settings, CursorShortcut_CursorSettings, g_InverseBindings
+    global CursorShortcut_Browser, CursorShortcut_Settings, CursorShortcut_CursorSettings
 
     _ResolveVkShortcut(cmdId, fallback) {
-        global g_InverseBindings, g_Commands
         try {
-            ; 延迟初始化：用户未先打开 VK 时也能读取 Commands.json 的绑定覆盖
-            if (!(g_InverseBindings is Map) || g_InverseBindings.Count = 0) {
-                try VK_EnsureInit(true)
-            }
-            if (g_InverseBindings is Map && g_InverseBindings.Has(cmdId)) {
-                k := g_InverseBindings[cmdId]
-                if (k != "")
-                    return k
-            }
-            ; 兜底：直接读 Commands.json 的 Bindings(cmdId -> ahkKey)
-            if (g_Commands is Map && g_Commands.Has("Bindings") && g_Commands["Bindings"] is Map && g_Commands["Bindings"].Has(cmdId)) {
-                kb := g_Commands["Bindings"][cmdId]
-                if (kb = "NONE")
-                    return ""
-                if (kb != "")
-                    return kb
-            }
+            ; Always resolve to Cursor native shortcut target, not user trigger key.
+            return CursorShortcutMapper_GetNativeShortcutByVkCommand(cmdId, fallback)
         } catch as e {
         }
         return fallback

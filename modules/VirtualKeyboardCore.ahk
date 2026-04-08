@@ -1,6 +1,7 @@
 ﻿; VirtualKeyboard 核心（供 CursorHelper #Include 或独立 VirtualKeyboard.ahk #Include）
 ; 依赖：调用方已 #Include lib\WebView2.ahk 与 lib\Jxon.ahk
 ; 嵌入 CursorHelper 时：#Include modules\VirtualKeyboardExecCmd.ahk 须在本文件之前
+#Include *i CursorShortcutMapper.ahk
 
 global g_VK_Embedded := false
 global g_JsonPath := ""
@@ -15,6 +16,8 @@ global g_InverseBindings := Map()
 global g_HotkeyBound := Map()
 ; 嵌入模式：CapsLock 下由 HotIf(GetCapsLockState)+Hotkey() 动态挂载的键（重载前须 Off）
 global g_VK_CapsLockDynHotkeys := []
+; 嵌入模式：仅在 Cursor 窗口激活时生效的动态热键（qa_* 原生命令映射）
+global g_VK_EmbeddedScopedHotkeys := []
 global g_VK_Gui := 0
 global g_VK_WV2 := 0
 global g_VK_Ctrl := 0
@@ -65,6 +68,7 @@ VK_OnHostExit(*) {
     _StopDoubleModifierHook()
     _StopSequenceHook()
     _EndRecord(false)
+    _VK_UnregisterEmbeddedScopedHotkeys()
     global g_VK_FloatGui
     if IsObject(g_VK_FloatGui)
         try g_VK_FloatGui.Destroy()
@@ -326,6 +330,8 @@ _LoadCommands() {
         return
 
     _VK_SyncBuiltinCommands()
+    ; Sync cursor-native mapping layer (catalog + user_keymap) into runtime bindings.
+    try CursorShortcutMapper_SyncUserKeymapToCommands(g_Commands)
 
     _VK_MigrateBindingsFormatIfNeeded()
     _VK_NormalizeBindingsOverrides()
@@ -611,6 +617,7 @@ _SaveBindings() {
     json := _SerializeCommands()
     try FileDelete(g_JsonPath)
     try FileAppend(json, g_JsonPath, "UTF-8")
+    try CursorShortcutMapper_CompileAndPersist()
     OutputDebug("[VK] Commands.json saved")
     if !g_VK_Embedded
         NotifyScript("CursorHelper", '{"type":"bindingsReloaded"}')
@@ -1122,6 +1129,10 @@ _VkCapsLockHotIfCb(*) {
     return GetCapsLockState()
 }
 
+_VkCursorWinHotIfCb(*) {
+    return !!WinActive("ahk_exe Cursor.exe")
+}
+
 ; 宿主 #HotIf GetCapsLockState() 下已静态定义的键，避免与动态 Hotkey 重复 variant
 _VK_IsHostStaticCapsHotkeyKey(ahkKey) {
     if ahkKey = ""
@@ -1151,6 +1162,50 @@ _VK_UnregisterCapsLockDispatchHotkeys() {
             OutputDebug("[VK] CapsLock dyn off " . hk . ": " . e.Message)
     }
     g_VK_CapsLockDynHotkeys := []
+}
+
+_VK_UnregisterEmbeddedScopedHotkeys() {
+    global g_VK_EmbeddedScopedHotkeys
+    for hk in g_VK_EmbeddedScopedHotkeys {
+        try Hotkey(hk, "Off")
+        catch as e
+            OutputDebug("[VK] Embedded scoped off " . hk . ": " . e.Message)
+    }
+    g_VK_EmbeddedScopedHotkeys := []
+}
+
+_VK_RegisterEmbeddedScopedHotkeys() {
+    global g_VK_Embedded, g_Bindings, g_VK_EmbeddedScopedHotkeys
+    _VK_UnregisterEmbeddedScopedHotkeys()
+    if !g_VK_Embedded
+        return
+
+    try {
+        HotIf(_VkCursorWinHotIfCb)
+        for ahkKey, cmdId in g_Bindings {
+            if _VkIsRuntimeHookKey(ahkKey)
+                continue
+            if !CursorShortcutMapper_IsCursorVkCommand(cmdId)
+                continue
+            ; Scoped mapping is for user-defined combo keys; avoid stealing plain typing keys.
+            if !(InStr(ahkKey, "^") || InStr(ahkKey, "!") || InStr(ahkKey, "+") || InStr(ahkKey, "#"))
+                continue
+            try {
+                Hotkey(ahkKey, VkEmbeddedScopedHotkeyHandler, "On")
+                g_VK_EmbeddedScopedHotkeys.Push(ahkKey)
+            } catch as e
+                OutputDebug("[VK] Embedded scoped on " . ahkKey . ": " . e.Message)
+        }
+    } finally {
+        HotIf()
+    }
+}
+
+VkEmbeddedScopedHotkeyHandler(*) {
+    th := A_ThisHotkey
+    if th = ""
+        return
+    VirtualKeyboard_HandleKey(th)
 }
 
 _VK_RegisterCapsLockDispatchHotkeys() {
@@ -1445,6 +1500,7 @@ _DoBindKey(cmdId, ahkKey, displayKey) {
         VK_SendToWeb('{"type":"bindingUpdated","commandId":"' . otherCmd
             . '","deleted":true}')
     }
+    try CursorShortcutMapper_UpdateUserByVkCommand(cmdId, ahkKey, true, true)
     OutputDebug("[VK] bindKey: " . cmdId . " = " . ahkKey)
     return true
 }
@@ -1466,6 +1522,7 @@ _DoClearBinding(cmdId) {
 
     VK_SendToWeb('{"type":"bindingUpdated","commandId":"' . cmdId
         . '","ahkKey":"","displayKey":"","explicitNone":true}')
+    try CursorShortcutMapper_UpdateUserByVkCommand(cmdId, "", false, true)
     OutputDebug("[VK] clearBinding(NONE): " . cmdId)
 }
 
@@ -1488,6 +1545,7 @@ _DoResetSingle(cmdId) {
         return
 
     VK_SendToWeb('{"type":"bindingUpdated","commandId":"' . cmdId . '","deleted":true}')
+    try CursorShortcutMapper_UpdateUserByVkCommand(cmdId, "", false, true)
     OutputDebug("[VK] reset_single: " . cmdId)
 }
 
@@ -1495,6 +1553,7 @@ _DoResetAll() {
     newOverrides := Map()
     if !_VK_ApplyOverrides(newOverrides)
         return
+    try CursorShortcutMapper_ResetAllUserShortcuts()
     ; Full refresh to make UI consistent after a bulk reset.
     _PushInit()
     OutputDebug("[VK] reset_all")
@@ -1628,6 +1687,7 @@ _VK_SyncEmbeddedCapslockHotkeys() {
     HotkeyF := fVal
     HotkeyP := pVal
     _VK_RegisterCapsLockDispatchHotkeys()
+    _VK_RegisterEmbeddedScopedHotkeys()
 }
 
 _VkJsonStr(s) {
@@ -2661,3 +2721,7 @@ _FallbackHtml() {
             . '</div></body></html>'
     )
 }
+
+
+
+
