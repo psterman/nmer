@@ -1056,17 +1056,17 @@ body::after {
   padding: 2px 4px;
 }
 .dashboard-drag-ghost {
-  opacity: .62 !important;
-  border-color: rgba(255,172,74,.95) !important;
-  background: linear-gradient(180deg, rgba(255,156,40,.4), rgba(68,26,0,.24)) !important;
-  box-shadow: 0 0 24px rgba(255,132,24,.42), 0 0 0 1px rgba(255,196,124,.36) inset !important;
-  transform: scale(1.1) !important;
+  opacity: .92 !important;
+  border-color: rgba(255,172,74,.55) !important;
+  background: linear-gradient(180deg, rgba(255,156,40,.16), rgba(68,26,0,.10)) !important;
+  box-shadow: 0 4px 14px rgba(255,132,24,.16), 0 0 0 1px rgba(255,196,124,.20) inset !important;
+  transform: none !important;
 }
 .dashboard-drag-chosen {
-  box-shadow: 0 0 28px rgba(255,137,26,.32), 0 0 0 1px rgba(255,186,112,.3) inset !important;
+  box-shadow: 0 2px 10px rgba(255,137,26,.14), 0 0 0 1px rgba(255,186,112,.2) inset !important;
 }
 .dashboard-item.dashboard-dragging {
-  transform: scale(1.04);
+  transform: none;
 }
 .k.dashboard-dragging {
   transform: none !important;
@@ -2057,14 +2057,31 @@ function applyDashboardLayout(layout) {
 }
 
 function getCommandByElement(el) {
+  const mappedCmdId = el?.dataset?.mappedCmdId || '';
+  if (mappedCmdId) return mappedCmdId;
   const baseKey = el?.dataset?.ahkkey || '';
   if (!baseKey) return '';
   if (isModifierBaseKey(baseKey)) {
     const dbl = modifierToDoubleAhkKey(baseKey);
     return dbl ? (state.ahkKeyIndex[dbl] || '') : '';
   }
-  const ahkKey = getActivePrefix() + baseKey;
-  return state.ahkKeyIndex[ahkKey] || '';
+  const activeKey = getActivePrefix() + baseKey;
+  if (state.ahkKeyIndex[activeKey]) return state.ahkKeyIndex[activeKey];
+  if (state.ahkKeyIndex[baseKey]) return state.ahkKeyIndex[baseKey];
+
+  // 回退：允许从“任意修饰组合”的已绑定命令反查（避免仅当前前缀可拖）
+  for (const [cmdId, b] of Object.entries(state.bindings || {})) {
+    const ak = b?.ahkKey || '';
+    if (!ak || /^(\^\^|\+\+|!!)$/.test(ak)) continue;
+    const base = ak.replace(/[\^!+]/g, '');
+    if (base === baseKey) return cmdId;
+  }
+  for (const [cmdId, ak] of Object.entries(state.suggestedBindings || {})) {
+    if (!ak || /^(\^\^|\+\+|!!)$/.test(ak)) continue;
+    const base = String(ak).replace(/[\^!+]/g, '');
+    if (base === baseKey) return cmdId;
+  }
+  return '';
 }
 
 function ahkBaseToDisplay(baseKey) {
@@ -2124,9 +2141,16 @@ function getCommandMetaByElement(el) {
   if (!commandId) return null;
   const baseKey = el?.dataset?.ahkkey || '';
   if (!baseKey) return null;
-  const sourceAhkKey = isModifierBaseKey(baseKey)
-    ? modifierToDoubleAhkKey(baseKey)
-    : (getActivePrefix() + baseKey);
+  let sourceAhkKey = el?.dataset?.mappedAhkKey || '';
+  if (!sourceAhkKey) {
+    if (isModifierBaseKey(baseKey))
+      sourceAhkKey = modifierToDoubleAhkKey(baseKey);
+    else {
+      const explicit = state.bindings?.[commandId]?.ahkKey || '';
+      const suggested = state.suggestedBindings?.[commandId] || '';
+      sourceAhkKey = explicit || suggested || (getActivePrefix() + baseKey);
+    }
+  }
   return {
     commandId,
     sourceAhkKey,
@@ -2247,7 +2271,7 @@ function createDashboardDragPreview(itemLike) {
 
 function syncKeyboardDraggableState() {
   document.querySelectorAll('.k').forEach((el) => {
-    const isDraggable = el.classList.contains('bound') || el.classList.contains('slot-occupied');
+    const isDraggable = !!getCommandMetaByElement(el);
     el.draggable = isDraggable;
     if (isDraggable) {
       el.setAttribute('draggable', 'true');
@@ -2694,9 +2718,10 @@ function initDashboardDrag() {
   });
 
   keyboard.addEventListener('mousedown', (ev) => {
-    const keyEl = ev.target.closest('.k:not(.bound):not(.slot-occupied)');
+    const keyEl = ev.target.closest('.k');
     if (!keyEl) return;
-    flashInvalidKeyDrag(keyEl);
+    if (!getCommandMetaByElement(keyEl))
+      flashInvalidKeyDrag(keyEl);
   });
 
   grid.addEventListener('dragover', (ev) => {
@@ -2722,9 +2747,11 @@ function initDashboardDrag() {
     slot.dataset.sortableBound = '1';
     new Sortable(slot, {
       group: { name: 'actions', pull: true, put: true },
-      animation: 140,
-      forceFallback: true,
-      fallbackOnBody: true,
+      animation: 90,
+      easing: 'cubic-bezier(0.2,0,0,1)',
+      swapThreshold: 0.62,
+      invertSwap: true,
+      forceFallback: false,
       fallbackTolerance: 3,
       draggable: '.dashboard-item',
       ghostClass: 'dashboard-drag-ghost',
@@ -3005,6 +3032,7 @@ function renderKeyboardSlots() {
     const baseKey = el.dataset.ahkkey;
     if (!baseKey) return;
     el.dataset.mappedCmdId = '';
+    el.dataset.mappedAhkKey = '';
     const lbl = ensureMapLabel(el);
     el.classList.remove('bound', 'slot-occupied', 'slot-available', 'slot-suggested');
     lbl.textContent = '';
@@ -3015,6 +3043,7 @@ function renderKeyboardSlots() {
           if (keys.includes(baseKey)) {
             el.classList.add('bound', 'slot-occupied');
             el.dataset.mappedCmdId = focusCmdId;
+            el.dataset.mappedAhkKey = focusAKey;
             const cmdName = state.commands[focusCmdId]?.name || focusCmdId;
             lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
           }
@@ -3028,6 +3057,7 @@ function renderKeyboardSlots() {
           const hasReal = !!(state.bindings[cmdId]?.ahkKey);
           el.classList.add('bound', 'slot-occupied');
           el.dataset.mappedCmdId = cmdId;
+          el.dataset.mappedAhkKey = dbl;
           if (!hasReal) el.classList.add('slot-suggested');
           const cmdName = state.commands[cmdId]?.name || cmdId;
           lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
@@ -3040,6 +3070,7 @@ function renderKeyboardSlots() {
       if (baseKey === focusLookup) {
         el.classList.add('bound', 'slot-occupied');
         el.dataset.mappedCmdId = focusCmdId;
+        el.dataset.mappedAhkKey = focusAKey;
         const cmdName = state.commands[focusCmdId]?.name || focusCmdId;
         lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
       }
@@ -3052,6 +3083,7 @@ function renderKeyboardSlots() {
       const hasReal = !!(state.bindings[cmdId]?.ahkKey);
       el.classList.add('bound', 'slot-occupied');
       el.dataset.mappedCmdId = cmdId;
+      el.dataset.mappedAhkKey = lookup;
       if (!hasReal) el.classList.add('slot-suggested');
       const cmdName = state.commands[cmdId]?.name || cmdId;
       lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
