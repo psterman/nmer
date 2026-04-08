@@ -4358,9 +4358,39 @@ ClearCapsLock2Timer(*) {
     global CapsLock2 := false
 }
 
+; 将“切换态”布尔值统一写成 SetCapsLockState 接受的字面量，避免与 v1/v2 对 0/1 的兼容差异
+CapsLock_ApplyLogicalState(isOn) {
+    try SetCapsLockState(isOn ? "On" : "Off")
+}
+
 RestoreCapsLockAfterChord(*) {
     global CapsLockInitialStateForChord
-    try SetCapsLockState(CapsLockInitialStateForChord ? "On" : "Off")
+    CapsLock_ApplyLogicalState(CapsLockInitialStateForChord)
+}
+
+; 组合键触发时用户往往仍按住物理 CapsLock：松手瞬间驱动可能再次翻转逻辑大写，WebView/IME 已聚焦会表现为输入框“默认大写”。
+; 在打开搜索中心等需要立即输入的场景，延迟多次恢复到按下 CapsLock 前的逻辑状态（与 RestoreCapsLockAfterChord 一致）。
+CapsLock_DeferredNormalize_Tick(*) {
+    global CapsLockInitialStateForChord
+    try CapsLock_ApplyLogicalState(CapsLockInitialStateForChord)
+}
+
+CapsLock_ScheduleNormalizeAfterChord() {
+    SetTimer(CapsLock_DeferredNormalize_Tick, -40)
+    SetTimer(CapsLock_DeferredNormalize_Tick, -120)
+    SetTimer(CapsLock_DeferredNormalize_Tick, -350)
+    SetTimer(CapsLock_DeferredNormalize_Tick, -800)
+}
+
+; 搜索中心 WebView 打开后：在 CapsLock 与焦点稳定后再多次尝试切换中文，减少「有时整句中文、有时英文小写」的竞态
+SearchCenter_IMEStabilizeTick(*) {
+    try SwitchToChineseIMEForSearchCenter()
+}
+
+SearchCenter_ScheduleIMEStabilize() {
+    SetTimer(SearchCenter_IMEStabilizeTick, -160)
+    SetTimer(SearchCenter_IMEStabilizeTick, -420)
+    SetTimer(SearchCenter_IMEStabilizeTick, -950)
 }
 
 ; 延迟清除 CapsLock 变量的函数
@@ -4404,7 +4434,13 @@ ShowPanelTimer(*) {
 ; 记录 CapsLock 按下时间
 global CapsLockPressTime := 0
 
-; 采用 CapsLock+ 方案：使用 ~ 前缀保留原始功能，通过标记变量控制行为
+; ===================== CapsLock+ 与原生单击共存（当前脚本采用的做法，请勿混用其它方案）=====================
+; 1) 本热键为「无 ~ 的 CapsLock::」：拦截系统对 CapsLock 的默认处理，由下面 KeyWait 释放分支统一收尾。
+; 2) 纯单击：未触发 CapsLock+ 功能（CapsLock2 仍为 true）时，在松手处用 InitialCapsLockState 手动翻转一次，等价于原生单击切换大写。
+; 3) 组合键：任一 CapsLock+ 字母会先 Clear CapsLock2，并在 HandleDynamicHotkey / 各字母分支里 RestoreCapsLockAfterChord，
+;    松手时若 CapsLock2 为 false 则 SetCapsLockState 回到按下前的逻辑状态，避免组合键误开大写。
+; 4) GetCapsLockState() 使用 变量 CapsLock OR 物理按下，是为「按住 CapsLock 再按第二键」仍能匹配 #HotIf；与逻辑大写灯不同步时以 Restore 为准。
+; ============================================================================================
 CapsLock:: {
     global CapsLock, CapsLock2, IsCommandMode, PanelVisible, VoiceInputActive, VoiceSearchActive, VoiceInputMethod, VoiceInputPaused, CapsLockHoldTimeSeconds
     global CapsLockInitialStateForChord
@@ -4490,7 +4526,7 @@ CapsLock:: {
         }
         
         ; 【关键修复】恢复CAPSLOCK状态到按下前的状态，确保输入法可以正常切换
-        SetCapsLockState(InitialCapsLockState)
+        CapsLock_ApplyLogicalState(InitialCapsLockState)
         CapsLock := false
         CapsLock2 := false
         return
@@ -4539,12 +4575,12 @@ CapsLock:: {
     ; 如果 CapsLock2 为 true (说明没有使用任何功能)，则切换大小写状态
     if (!CapsLock2) {
         ; 组合键场景：恢复按下前状态，避免误改写用户原有 CapsLock 状态
-        SetCapsLockState(InitialCapsLockState)
+        CapsLock_ApplyLogicalState(InitialCapsLockState)
         ; 延迟清除 CapsLock 变量，给快捷键处理函数足够的时间
         SetTimer(ClearCapsLockTimer, -100)
     } else {
         ; 没有使用功能：手动执行一次 CapsLock 单击切换（当前热键已拦截原生行为）
-        SetCapsLockState(InitialCapsLockState ? "Off" : "On")
+        CapsLock_ApplyLogicalState(!InitialCapsLockState)
         CapsLock := false
     }
     
@@ -26427,6 +26463,8 @@ ShowSearchCenter() {
     } catch as err {
         ; 忽略错误
     }
+    try CapsLock_ScheduleNormalizeAfterChord()
+    try SearchCenter_ScheduleIMEStabilize()
     
     ; 注意：Enter和ESC键热键已在文件顶部使用#HotIf IsSearchCenterActive()定义，无需在此注册
     
@@ -34742,11 +34780,51 @@ SwitchToChineseIME(*) {
     }
 }
 
+; 对指定窗口尝试 IMM 中文模式 + 简体键盘布局（WebView 焦点常在子 HWND 上，需多候选）
+ApplyChineseIMEConversionToHwnd(RootHwnd) {
+    if (!RootHwnd)
+        return
+    fg := DllCall("user32\GetForegroundWindow", "Ptr")
+    candidates := [RootHwnd]
+    if (fg && fg != RootHwnd)
+        candidates.Push(fg)
+    hIMC := 0
+    releaseHwnd := RootHwnd
+    for _, hwndTry in candidates {
+        hIMC := DllCall("imm32\ImmGetContext", "Ptr", hwndTry, "Ptr")
+        if (hIMC) {
+            releaseHwnd := hwndTry
+            break
+        }
+    }
+    if (hIMC) {
+        DllCall("imm32\ImmGetConversionStatus", "Ptr", hIMC, "UInt*", &ConversionMode := 0, "UInt*", &SentenceMode := 0)
+        ; IME_CMODE_NATIVE：中文输入；并清除 CHARCODE(0x20)，减少符号/编码类异常态
+        ConversionMode := (ConversionMode | 0x0001) & ~0x0020
+        DllCall("imm32\ImmSetConversionStatus", "Ptr", hIMC, "UInt", ConversionMode, "UInt", SentenceMode)
+        DllCall("imm32\ImmReleaseContext", "Ptr", releaseHwnd, "Ptr", hIMC)
+    }
+    try {
+        hKL := DllCall("user32\LoadKeyboardLayout", "Str", "00000804", "UInt", 0x00000001, "Ptr")
+        if (hKL)
+            PostMessage(0x0050, 0x0001, hKL, , , "ahk_id " . RootHwnd)
+    } catch as err {
+    }
+}
+
 ; 切换到中文输入法（用于搜索中心窗口）
 SwitchToChineseIMEForSearchCenter(*) {
     try {
         global GuiID_SearchCenter, SearchCenterSearchEdit
-        if (GuiID_SearchCenter && SearchCenterSearchEdit) {
+        ActiveHwnd := 0
+        if (SearchCenter_ShouldUseWebView()) {
+            try SCWV_FocusForIME()
+            Sleep(100)
+            if (IsObject(GuiID_SearchCenter) && GuiID_SearchCenter.HasProp("Hwnd"))
+                ActiveHwnd := GuiID_SearchCenter.Hwnd
+            if (!ActiveHwnd)
+                ActiveHwnd := WinGetID("A")
+        } else if (GuiID_SearchCenter && SearchCenterSearchEdit) {
             WinActivate("ahk_id " . GuiID_SearchCenter.Hwnd)
             Sleep(50)
             SearchCenterSearchEdit.Focus()
@@ -34755,28 +34833,9 @@ SwitchToChineseIMEForSearchCenter(*) {
         } else {
             ActiveHwnd := WinGetID("A")
         }
-        
-        if (!ActiveHwnd) {
+        if (!ActiveHwnd)
             return
-        }
-        
-        ; 使用 Windows IME API 切换到中文输入法
-        hIMC := DllCall("imm32\ImmGetContext", "Ptr", ActiveHwnd, "Ptr")
-        if (hIMC) {
-            DllCall("imm32\ImmGetConversionStatus", "Ptr", hIMC, "UInt*", &ConversionMode := 0, "UInt*", &SentenceMode := 0)
-            ConversionMode := ConversionMode | 0x0001  ; IME_CMODE_NATIVE
-            DllCall("imm32\ImmSetConversionStatus", "Ptr", hIMC, "UInt", ConversionMode, "UInt", SentenceMode)
-            DllCall("imm32\ImmReleaseContext", "Ptr", ActiveHwnd, "Ptr", hIMC)
-        }
-        
-        ; 尝试切换到中文键盘布局
-        try {
-            hKL := DllCall("user32\LoadKeyboardLayout", "Str", "00000804", "UInt", 0x00000001, "Ptr")
-            if (hKL) {
-                PostMessage(0x0050, 0x0001, hKL, , , "ahk_id " . ActiveHwnd)
-            }
-        } catch as err {
-        }
+        ApplyChineseIMEConversionToHwnd(ActiveHwnd)
     } catch as err {
     }
 }

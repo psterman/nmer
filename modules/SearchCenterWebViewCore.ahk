@@ -117,6 +117,20 @@ SCWV_ApplyBounds() {
     g_SCWV_Ctrl.Bounds := rc
 }
 
+; WebView 内联输入依赖宿主激活 + WebView 取焦，IMM/TSF 才能稳定附着（否则表现为有时中文、有时英文小写）
+SCWV_FocusForIME(*) {
+    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_Ctrl, g_SCWV_WV2, g_SCWV_Ready
+    if !g_SCWV_Visible || !g_SCWV_Gui || !g_SCWV_Ctrl
+        return
+    try {
+        WinActivate("ahk_id " . g_SCWV_Gui.Hwnd)
+        WebView2_MoveFocusProgrammatic(g_SCWV_Ctrl)
+        if g_SCWV_Ready && g_SCWV_WV2
+            WebView_QueueJson(g_SCWV_WV2, '{"type":"focus_input"}')
+    } catch {
+    }
+}
+
 SCWV_RefreshComposition(*) {
     global g_SCWV_Gui, g_SCWV_Ctrl, g_SCWV_Visible
 
@@ -142,6 +156,8 @@ SCWV_Show() {
         try WinActivate("ahk_id " . g_SCWV_Gui.Hwnd)
         WebView2_MoveFocusProgrammatic(g_SCWV_Ctrl)
         SetTimer(_SCWV_DeferredMoveFocus100, -100)
+        try CapsLock_ScheduleNormalizeAfterChord()
+        try SearchCenter_ScheduleIMEStabilize()
         return
     }
 
@@ -164,6 +180,8 @@ SCWV_Show() {
     SetTimer(_SCWV_DeferredMoveFocus100, -100)
     SetTimer(SCWV_FocusDeferred, -80)
     SCWV_RequestFocusInput()
+    try CapsLock_ScheduleNormalizeAfterChord()
+    try SearchCenter_ScheduleIMEStabilize()
 }
 
 _SCWV_DeferredMoveFocus100(*) {
