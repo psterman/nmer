@@ -598,7 +598,7 @@ body.native-titlebar #header { display: none; }
 
 #trigger-bar {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 0 12px 8px;
 }
@@ -701,7 +701,8 @@ body.native-titlebar #header { display: none; }
     </div>
 
     <div id="trigger-bar">
-      <button type="button" class="trigger-btn" id="btnTriggerMode">触发：双击 Ctrl+C</button>
+      <button type="button" class="trigger-btn" id="btnTriggerCapslock">触发：CapsLock+C</button>
+      <button type="button" class="trigger-btn" id="btnTriggerDoubleCtrl">触发：双击 Ctrl+C</button>
     </div>
 
     <div id="action-bar">
@@ -719,7 +720,7 @@ body.native-titlebar #header { display: none; }
 
   const state = {
     segments: [],
-    copyTriggerMode: 'single',
+    copyTriggerMode: 'capslock',
     drag: null,
     draftDrag: null,
     pendingDraft: '',
@@ -752,7 +753,8 @@ body.native-titlebar #header { display: none; }
   const btnSearch = document.getElementById('btnSearch');
   const btnAi = document.getElementById('btnAi');
   const btnClear = document.getElementById('btnClear');
-  const btnTriggerMode = document.getElementById('btnTriggerMode');
+  const btnTriggerCapslock = document.getElementById('btnTriggerCapslock');
+  const btnTriggerDoubleCtrl = document.getElementById('btnTriggerDoubleCtrl');
   const resizeHandle = document.getElementById('resize-handle');
   const ctxMenu = document.getElementById('ctx-menu');
   const btnCloseHub = document.getElementById('btnCloseHub');
@@ -879,9 +881,19 @@ body.native-titlebar #header { display: none; }
   }
 
   function setCopyTriggerMode(mode) {
-    const m = String(mode || '').toLowerCase() === 'single' ? 'single' : 'double';
+    const raw = String(mode || '').toLowerCase();
+    const m = (raw === 'double') ? 'double' : 'capslock';
     state.copyTriggerMode = m;
-    btnTriggerMode.textContent = m === 'single' ? '触发：Ctrl+C' : '触发：双击 Ctrl+C';
+    btnTriggerCapslock.classList.toggle('is-active', m === 'capslock');
+    btnTriggerDoubleCtrl.classList.toggle('is-active', m === 'double');
+  }
+
+  function selectedCardText() {
+    if (!Number.isInteger(state.selectedIndex) || state.selectedIndex < 0 || state.selectedIndex >= state.segments.length)
+      return '';
+    const item = asCard(state.segments[state.selectedIndex]);
+    if (!item || item.kind !== 'text') return '';
+    return compactText(item.text || '');
   }
 
   function syncSegments() {
@@ -1238,6 +1250,7 @@ body.native-titlebar #header { display: none; }
   });
 
   stackList.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('[data-remove-index]')) return;
     const card = e.target.closest('.stack-card');
     if (!card) return;
     const realIndex = Number(card.dataset.realIndex || '-1');
@@ -1292,7 +1305,7 @@ body.native-titlebar #header { display: none; }
   });
 
   btnSearch.addEventListener('click', () => {
-    const text = activeText() || mergedText();
+    const text = selectedCardText() || activeText() || mergedText();
     if (!text) {
       previewCard.classList.remove('preview-pulse');
       void previewCard.offsetWidth;
@@ -1314,10 +1327,13 @@ body.native-titlebar #header { display: none; }
   });
 
   btnClear.addEventListener('click', clearAll);
-  btnTriggerMode.addEventListener('click', () => {
-    const next = state.copyTriggerMode === 'single' ? 'double' : 'single';
-    setCopyTriggerMode(next);
-    postToAhk({ type: 'hub_set_copy_trigger_mode', mode: next });
+  btnTriggerCapslock.addEventListener('click', () => {
+    setCopyTriggerMode('capslock');
+    postToAhk({ type: 'hub_set_copy_trigger_mode', mode: 'capslock' });
+  });
+  btnTriggerDoubleCtrl.addEventListener('click', () => {
+    setCopyTriggerMode('double');
+    postToAhk({ type: 'hub_set_copy_trigger_mode', mode: 'double' });
   });
   previewCopyImage.addEventListener('click', () => {
     copyCurrentPreviewImage();
@@ -1769,7 +1785,7 @@ body.native-titlebar #header { display: none; }
           setImagePreview(d.imagePath || '', d.imageDataUrl || '');
           break;
         case 'hub_preview_state':
-          setCopyTriggerMode(d.copyTriggerMode || 'double');
+          setCopyTriggerMode(d.copyTriggerMode || 'capslock');
           break;
         case 'clear_segments':
           clearAll();
@@ -1811,7 +1827,7 @@ body.native-titlebar #header { display: none; }
   }
 
   loadPersistedSegments();
-  setCopyTriggerMode('single');
+  setCopyTriggerMode('capslock');
   refreshAll();
   syncSegments();
   installDismissOnHostPadding();

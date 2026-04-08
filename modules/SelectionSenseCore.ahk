@@ -34,7 +34,7 @@ global g_SelSense_HubDragRefWinY := 0
 global g_SelSense_UserCopyInProgress := false
 global g_SelSense_UserCopyEndTick := 0
 global g_SelSense_DoubleCopyHub_LastTick := 0
-global g_SelSense_HubCopyTriggerMode := "single"
+global g_SelSense_HubCopyTriggerMode := "capslock"
 ; HubCapsule：堆叠选择/推送（供 CapsLock+C/V）
 global g_HubCapsule_SelectedText := ""
 global g_SelSense_PendingHubSegments := []  ; Hub 未 ready 时暂存待 push 的文本段
@@ -158,8 +158,9 @@ SelectionSense_LoadIni() {
         g_SelSense_CopyDelayMs := Integer(IniRead(cfg, "SelectionSense", "CopyDelayMs", "55"))
         ; Cursor/VS Code/Electron 常用自定义文本光标，GetCursor 往往不等于系统 IDC_IBEAM，默认不要求 I 形光标
         g_SelSense_RequireIBeam := (IniRead(cfg, "SelectionSense", "RequireIBeam", "0") = "1")
-        mode := Trim(StrLower(IniRead(cfg, "SelectionSense", "HubCopyTriggerMode", "single")))
-        g_SelSense_HubCopyTriggerMode := (mode = "double") ? "double" : "single"
+        mode := Trim(StrLower(IniRead(cfg, "SelectionSense", "HubCopyTriggerMode", "capslock")))
+        ; 兼容旧值 single：迁移到 capslock
+        g_SelSense_HubCopyTriggerMode := (mode = "double") ? "double" : "capslock"
         w := IniRead(cfg, "SelectionSense", "ClipWaitSec", "")
         if (w != "" && w != "ERROR") {
             f := Float(w)
@@ -170,7 +171,7 @@ SelectionSense_LoadIni() {
         g_SelSense_Enabled := true
         g_SelSense_CopyDelayMs := 55
         g_SelSense_RequireIBeam := false
-        g_SelSense_HubCopyTriggerMode := "single"
+        g_SelSense_HubCopyTriggerMode := "capslock"
     }
     if (g_SelSense_CopyDelayMs < 20)
         g_SelSense_CopyDelayMs := 20
@@ -181,7 +182,7 @@ SelectionSense_LoadIni() {
 SelectionSense_SetHubCopyTriggerMode(mode) {
     global g_SelSense_HubCopyTriggerMode
     m := Trim(StrLower(String(mode)))
-    g_SelSense_HubCopyTriggerMode := (m = "double") ? "double" : "single"
+    g_SelSense_HubCopyTriggerMode := (m = "double") ? "double" : "capslock"
     cfg := (IsSet(ConfigFile) && ConfigFile != "") ? ConfigFile : (A_ScriptDir "\CursorShortcut.ini")
     try IniWrite(g_SelSense_HubCopyTriggerMode, cfg, "SelectionSense", "HubCopyTriggerMode")
 }
@@ -517,7 +518,7 @@ SelectionSense_OnMenuWebMessage(sender, args) {
     }
     if (typ = "hub_set_copy_trigger_mode") {
         global g_SelSense_HubCopyTriggerMode, g_SelSense_MenuWV2
-        mode := msg.Has("mode") ? String(msg["mode"]) : "single"
+        mode := msg.Has("mode") ? String(msg["mode"]) : "capslock"
         SelectionSense_SetHubCopyTriggerMode(mode)
         try WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_preview_state", "copyTriggerMode", g_SelSense_HubCopyTriggerMode))
         return
@@ -950,9 +951,9 @@ SelectionSense_OnUserCopy(*) {
         return
     }
 
-    if (g_SelSense_HubCopyTriggerMode = "single") {
+    ; 触发模式为 CapsLock+C 时，普通 Ctrl+C 不负责“打开”Hub（Hub 已打开时仍允许刷新预览）
+    if (g_SelSense_HubCopyTriggerMode != "double") {
         g_SelSense_DoubleCopyHub_LastTick := 0
-        SetTimer(SelectionSense_OpenHubAfterDoubleCopyTick, -140)
         return
     }
 

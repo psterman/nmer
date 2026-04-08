@@ -18579,8 +18579,9 @@ CapsLockCopy() {
         A_Clipboard := OldClipboard
 
         TrimmedContent := Trim(NewContent, " `t`r`n")
-        ; HubCapsule：必须在 DB 初始化之前调用（DB 失败时仍应先出窗口）；勿用 FuncExists(FuncName) 判断，避免误判导致整段不执行
-        if (TrimmedContent != "") {
+        ; HubCapsule 触发方式：仅在「CapsLock+C 模式」下由本分支打开（DB 失败时仍应先出窗口）
+        global g_SelSense_HubCopyTriggerMode
+        if (TrimmedContent != "" && g_SelSense_HubCopyTriggerMode = "capslock") {
             try {
                 SelectionSense_SyncHubFromUserCopyChannel(TrimmedContent, true)
             } catch as HubOpenErr {
@@ -18640,9 +18641,10 @@ CapsLockCopy() {
             ; 【存储到 CapsLock+C 数组】将内容添加到当前阶段的数组
             CapsLockCItems.Push(TrimmedContent)
 
-            ; 【实时计数】成功路径不弹 TrayTip/ToolTip，反馈以 HubCapsule 预览为准
+            ; 【实时计数】鼠标旁 ToolTip：已复制 N 条（与 HubCapsule 预览并存）
             CapsLockCCount++
-            
+            ShowCapsLockCCountTooltip()
+
             ; 【同步UI刷新】数据存入数据库后，立即刷新列表（如果分类面板打开着）
             ; 确保数据即时出现在"全部"和"代码"标签下
             if (GuiID_ClipboardManager != 0) {
