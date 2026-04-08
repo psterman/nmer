@@ -31,6 +31,7 @@ global g_LastExecutedCmdId := ""
 global g_VK_QuickBindHook := 0
 global g_VK_QuickBindArmed := false
 global g_VK_QuickBindConsumed := false
+global g_VK_NextShowFromCapsLockHold := false
 global g_VK_TitleH := 44
 global g_VK_IsAdmin := A_IsAdmin
 global g_VK_AdminWarning := ""
@@ -2462,9 +2463,17 @@ VK_IsHostVisible() {
     }
 }
 
+; 标记下一次 VK_Show 是否由「长按 CapsLock」触发（仅该入口开启上一动作即时绑定）
+VK_MarkNextShowFromCapsLockHold(enabled := true) {
+    global g_VK_NextShowFromCapsLockHold
+    g_VK_NextShowFromCapsLockHold := !!enabled
+}
+
 VK_Show() {
-    global g_VK_Gui, g_VK_Ready, g_VK_LastShown
+    global g_VK_Gui, g_VK_Ready, g_VK_LastShown, g_VK_NextShowFromCapsLockHold
     if g_VK_Gui {
+        openFromCapsHold := g_VK_NextShowFromCapsLockHold
+        g_VK_NextShowFromCapsLockHold := false
         g_VK_Gui.Show("NoActivate")
         try WinMaximize("ahk_id " . g_VK_Gui.Hwnd)
         g_VK_LastShown := A_TickCount
@@ -2474,8 +2483,12 @@ VK_Show() {
         SetTimer(_VK_RefreshWebViewComposition, -120)
         SetTimer(_VK_RefreshWebViewComposition, -380)
         _StartKeyPreviewHook()
+        ; 仅在「长按 CapsLock 临时调起」时开启上一动作即时绑定，其他入口（托盘/按钮）保持关闭。
         ; 须先于 _PushInit：否则 init 里 quickBindActive 仍为 false，前端不显示即时绑定提示
-        _VK_StartQuickBindHook()
+        if (openFromCapsHold)
+            _VK_StartQuickBindHook()
+        else
+            _VK_StopQuickBindHook()
         ; 某些场景下前端列表状态会丢失，显示时补发一次初始化数据
         if g_VK_Ready
             _PushInit()

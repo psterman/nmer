@@ -4427,6 +4427,8 @@ ShowPanelTimer(*) {
     }
     if (wasVkVisible)
         return
+    ; 仅长按 CapsLock 调起 VK 时，才允许进入「复制/绑定上一个动作」模式
+    try VK_MarkNextShowFromCapsLockHold(true)
     try VK_Show()
     VKHoldVisible := true
 }

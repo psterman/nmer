@@ -153,6 +153,26 @@ body::after {
   border-color: var(--matrix-green);
   box-shadow: var(--glow-green);
 }
+#layout-help {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  color: #d8b07a;
+  background: rgba(36, 24, 12, .65);
+  border: 1px solid rgba(230,126,34,.35);
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, box-shadow .15s, background .15s;
+  flex-shrink: 0;
+}
+#layout-help:hover {
+  color: #ffd4a6;
+  border-color: rgba(230,126,34,.8);
+  box-shadow: 0 0 0 1px rgba(230,126,34,.25) inset, 0 0 12px rgba(230,126,34,.22);
+  background: rgba(50, 31, 16, .78);
+}
 
 /* ── Global Reset Button ───────────────────────────────────────────────── */
 #reset-all {
@@ -1253,6 +1273,7 @@ body::after {
     <span id="hud-status">正在连接 AHK...</span>
     <div id="hud-dot"></div>
     <button id="layout-toggle" title="切换 ScanCode 物理键适配模式（防止 IME 干扰）">STANDARD</button>
+    <button id="layout-help" title="按键识别异常时，快速切换到兼容模式">识别异常？</button>
     <button id="reset-all" title="全局重置（恢复出厂设置）">全局重置</button>
     <div id="vk-host-mode-hint" aria-live="polite"></div>
     <div id="hud-hint" aria-live="polite"></div>
@@ -1544,6 +1565,16 @@ const state = {
   embeddedHost: true,
 };
 
+const mismatchDetector = {
+  lastWebBase: '',
+  lastWebTick: 0,
+  lastAhkBase: '',
+  lastAhkTick: 0,
+  mismatchCount: 0,
+  lastMismatchTick: 0,
+  promptCooldownUntil: 0,
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Utility（AHK 桥接见 app.local BasePanel.js）
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1754,6 +1785,85 @@ function keyCodeToDisplay(code) {
   return map[code] || code;
 }
 
+function isModifierOnlyAhkBase(base) {
+  return base === 'LShift' || base === 'RShift'
+    || base === 'LCtrl' || base === 'RCtrl'
+    || base === 'LAlt' || base === 'RAlt'
+    || base === 'LWin' || base === 'RWin'
+    || base === 'CapsLock';
+}
+
+function normalizeCompareBase(base) {
+  if (!base) return '';
+  const map = {
+    LShift: 'Shift', RShift: 'Shift',
+    LCtrl: 'Ctrl', RCtrl: 'Ctrl',
+    LAlt: 'Alt', RAlt: 'Alt',
+    LWin: 'Win', RWin: 'Win',
+    PgUp: 'PageUp', PgDn: 'PageDown',
+  };
+  return map[base] || base;
+}
+
+function maybePromptAutoFallback() {
+  const now = Date.now();
+  if (state.nativeLayout) return;
+  if (mismatchDetector.mismatchCount < 3) return;
+  if (now < mismatchDetector.promptCooldownUntil) return;
+  mismatchDetector.promptCooldownUntil = now + 15000;
+
+  const ok = confirm('已检测到输入法/布局干扰，是否自动切换到兼容模式（NATIVE）？');
+  if (ok) {
+    state.nativeLayout = true;
+    updateLayoutToggleUI();
+    postToAhk({ type: 'setLayoutMode', native: true });
+    setHud('已切换到兼容模式（NATIVE）');
+    mismatchDetector.mismatchCount = 0;
+  } else {
+    setHud('已保持当前模式；可点「识别异常？」手动切换', state.connected);
+  }
+}
+
+function checkLayoutMismatch() {
+  const webTick = mismatchDetector.lastWebTick;
+  const ahkTick = mismatchDetector.lastAhkTick;
+  if (!webTick || !ahkTick) return;
+  if (Math.abs(webTick - ahkTick) > 140) return;
+
+  const webBase = normalizeCompareBase(mismatchDetector.lastWebBase);
+  const ahkBase = normalizeCompareBase(mismatchDetector.lastAhkBase);
+  if (!webBase || !ahkBase) return;
+
+  const now = Date.now();
+  if (webBase === ahkBase) {
+    mismatchDetector.mismatchCount = 0;
+    return;
+  }
+  if (now - mismatchDetector.lastMismatchTick < 5000)
+    mismatchDetector.mismatchCount += 1;
+  else
+    mismatchDetector.mismatchCount = 1;
+  mismatchDetector.lastMismatchTick = now;
+  maybePromptAutoFallback();
+}
+
+function trackWebKeyDown(e) {
+  if (!e || e.isComposing || e.repeat) return;
+  const base = keyCodeToAhkBase(e.code || '');
+  if (!base || isModifierOnlyAhkBase(base)) return;
+  mismatchDetector.lastWebBase = base;
+  mismatchDetector.lastWebTick = Date.now();
+  checkLayoutMismatch();
+}
+
+function trackAhkPreview(base, phase) {
+  if (phase !== 'down') return;
+  if (!base || isModifierOnlyAhkBase(base)) return;
+  mismatchDetector.lastAhkBase = base;
+  mismatchDetector.lastAhkTick = Date.now();
+  checkLayoutMismatch();
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // AHK → JS message handler
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1789,6 +1899,7 @@ function handleAhkMessage(msg) {
       const base = msg.base;
       const phase = msg.phase;
       if (!base) break;
+      trackAhkPreview(base, phase);
       const el = document.querySelector(`.k[data-ahkkey="${CSS.escape(base)}"]`);
       if (!el) break;
       if (phase === 'down')
@@ -3241,14 +3352,23 @@ document.getElementById('conflict-overlay').addEventListener('click', (e) => {
 // ═══════════════════════════════════════════════════════════════════════════
 function updateLayoutToggleUI() {
   const btn = document.getElementById('layout-toggle');
+  const helpBtn = document.getElementById('layout-help');
   if (state.nativeLayout) {
     btn.textContent = 'NATIVE';
     btn.classList.add('native');
     btn.title = '当前：ScanCode 物理键模式（点击切换回标准模式）';
+    if (helpBtn) {
+      helpBtn.textContent = '兼容模式中';
+      helpBtn.title = '当前已在兼容模式';
+    }
   } else {
     btn.textContent = 'STANDARD';
     btn.classList.remove('native');
     btn.title = '切换 ScanCode 物理键适配模式（防止 IME 干扰）';
+    if (helpBtn) {
+      helpBtn.textContent = '识别异常？';
+      helpBtn.title = '按键识别异常时，快速切换到兼容模式';
+    }
   }
 }
 
@@ -3256,6 +3376,19 @@ document.getElementById('layout-toggle').addEventListener('click', () => {
   state.nativeLayout = !state.nativeLayout;
   updateLayoutToggleUI();
   postToAhk({ type: 'setLayoutMode', native: state.nativeLayout });
+});
+
+document.getElementById('layout-help')?.addEventListener('click', () => {
+  if (state.nativeLayout) {
+    setHud('当前已在兼容模式（NATIVE）', state.connected);
+    return;
+  }
+  const ok = confirm('检测到按键识别异常时，建议切换到兼容模式（NATIVE）。现在切换吗？');
+  if (!ok) return;
+  state.nativeLayout = true;
+  updateLayoutToggleUI();
+  postToAhk({ type: 'setLayoutMode', native: true });
+  setHud('已切换到兼容模式（NATIVE）');
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3362,6 +3495,10 @@ document.getElementById('cmd-search').addEventListener('input', (e) => {
   state.search = e.target.value;
   renderCommandList();
 });
+
+document.addEventListener('keydown', (e) => {
+  trackWebKeyDown(e);
+}, true);
 
 // 点击空白区域：退出命令聚焦模式，恢复全量高亮展示
 document.getElementById('cmd-list-wrapper').addEventListener('click', (e) => {
