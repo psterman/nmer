@@ -441,6 +441,33 @@ FloatingToolbar_OnWebMessage(sender, args) {
         return
     }
 
+    if (typ = "drop_action") {
+        action := msg.Has("action") ? Trim(String(msg["action"])) : "Search"
+        t := msg.Has("text") ? Trim(String(msg["text"])) : ""
+        if (t != "") {
+            try {
+                switch action {
+                    case "Search":
+                        SearchCenter_RunQueryWithKeyword(t)
+                    case "Prompt", "NewPrompt", "Record":
+                        PromptQuickPad_OpenCaptureDraft(t, true)
+                    default:
+                        ; 未定义输入面板的图标统一回退到搜索中心
+                        SearchCenter_RunQueryWithKeyword(t)
+                }
+            } catch {
+            }
+        }
+        if g_FTB_WV2 {
+            try {
+                WebView_QueuePayload(g_FTB_WV2, Map("type", "drop_done"))
+                WebView_QueuePayload(g_FTB_WV2, Map("type", "SELECTION_CLEAR"))
+            } catch {
+            }
+        }
+        return
+    }
+
     if (typ = "drag_host") {
         global FloatingToolbarGUI, FloatingToolbarDragging
         global FloatingToolbar_DragOriginScreenX, FloatingToolbar_DragOriginScreenY

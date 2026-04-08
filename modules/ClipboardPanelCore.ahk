@@ -13,6 +13,7 @@ global g_CP_Visible := false
 global g_CP_SearchTimer := 0
 global g_CP_LastKeyword := ""
 global g_CP_FilterType := "all"
+global g_CP_TimeRange := "all"  ; all | day | week | month | date:YYYY-MM-DD
 global g_CP_TitleH := 0
 global g_CP_FocusPending := false
 global g_CP_WM_ActivateHideCallback := 0
@@ -183,7 +184,7 @@ CP_Init() {
     WinW := Max(820, Min(Round(ScreenW * 0.48), 1100))
     WinH := Max(500, Min(Round(ScreenH * 0.55), 720))
 
-    g_CP_Gui := Gui("+AlwaysOnTop +Resize +MinimizeBox +MaximizeBox -DPIScale +Owner", "ClipboardPanel")
+    g_CP_Gui := Gui("+AlwaysOnTop +Resize +MinimizeBox +MaximizeBox -DPIScale +Owner", "剪贴板")
     g_CP_Gui.BackColor := "0a0a0a"
     g_CP_Gui.MarginX := 0
     g_CP_Gui.MarginY := 0
@@ -223,6 +224,7 @@ CP_Show() {
 
     _CP_CenterWindow()
     g_CP_Gui.Show()
+    try WinMaximize("ahk_id " . g_CP_Gui.Hwnd)
     g_CP_Visible := true
     try WinActivate("ahk_id " . g_CP_Gui.Hwnd)
 
@@ -473,6 +475,9 @@ _CP_OnWebMessage(sender, args) {
         case "search":
             keyword := msg.Has("keyword") ? msg["keyword"] : ""
             filterType := msg.Has("filterType") ? msg["filterType"] : "all"
+            timeRange := msg.Has("timeRange") ? msg["timeRange"] : "all"
+            global g_CP_TimeRange
+            g_CP_TimeRange := _CP_NormalizeTimeRange(timeRange)
             _CP_DebouncedSearch(keyword, filterType)
 
         case "paste":
@@ -514,6 +519,8 @@ _CP_OnWebMessage(sender, args) {
         case "ocrImage":
             if msg.Has("id")
                 _CP_DoOcrImage(msg["id"], _CP_MsgKeepOpen(msg))
+        case "screenshotToOcr":
+            _CP_DoScreenshotToOcr(_CP_MsgKeepOpen(msg))
 
         case "loadMore":
             offset := msg.Has("offset") ? Integer(msg["offset"]) : 0
@@ -545,9 +552,10 @@ _CP_OnWebMessage(sender, args) {
 
 ; ===================== 数据推送 =====================
 _CP_PushInitialData() {
-    global g_CP_LastKeyword, g_CP_FilterType
+    global g_CP_LastKeyword, g_CP_FilterType, g_CP_TimeRange
     g_CP_LastKeyword := ""
     g_CP_FilterType := "all"
+    g_CP_TimeRange := "all"
     items := _CP_LoadItems("", g_CP_FilterType, 0, 30)
     total := _CP_GetTotalCount("", g_CP_FilterType)
     hasMore := (items.Length < total)
@@ -791,6 +799,39 @@ _CP_GetOrderField() {
     return "Timestamp"
 }
 
+_CP_NormalizeTimeRange(tr) {
+    tr := StrLower(Trim(String(tr)))
+    if (tr = "" || tr = "all")
+        return "all"
+    if (tr = "day" || tr = "week" || tr = "month")
+        return tr
+    if (SubStr(tr, 1, 5) = "date:") {
+        ds := SubStr(tr, 6)
+        if RegExMatch(ds, "^\d{4}-\d{2}-\d{2}$")
+            return "date:" . ds
+    }
+    return "all"
+}
+
+_CP_AppendTimeConditions(&conditions) {
+    global g_CP_TimeRange
+    tr := _CP_NormalizeTimeRange(g_CP_TimeRange)
+    if (tr = "all")
+        return
+    col := "datetime(COALESCE(LastCopyTime, Timestamp))"
+    if (tr = "day")
+        conditions.Push(col . " >= datetime('now', '-1 day', 'localtime')")
+    else if (tr = "week")
+        conditions.Push(col . " >= datetime('now', '-7 day', 'localtime')")
+    else if (tr = "month")
+        conditions.Push(col . " >= datetime('now', '-30 day', 'localtime')")
+    else if (SubStr(tr, 1, 5) = "date:") {
+        ds := SubStr(tr, 6)
+        if RegExMatch(ds, "^\d{4}-\d{2}-\d{2}$")
+            conditions.Push("date(COALESCE(LastCopyTime, Timestamp)) = '" . StrReplace(ds, "'", "''") . "'")
+    }
+}
+
 _CP_BuildWhereClause(keyword, filterType := "all") {
     global ClipboardFTS5DB
     keyword := Trim(keyword)
@@ -806,6 +847,8 @@ _CP_BuildWhereClause(keyword, filterType := "all") {
         conditions.Push("(LOWER(DataType) = 'link' OR (LOWER(DataType) = 'image' AND LOWER(IFNULL(ImagePath, '')) LIKE 'http%'))")
     else if filterType != "all"
         conditions.Push("LOWER(DataType) = '" . filterType . "'")
+
+    _CP_AppendTimeConditions(&conditions)
 
     if keyword = ""
         return conditions.Length > 0 ? _CP_JoinConditions(conditions) : ""
@@ -1420,6 +1463,16 @@ _CP_DoOcrImage(id, keepOpen := false) {
         _CP_MaybeHide(keepOpen)
     } catch as err {
         TrayTip("OCR", "识别失败: " . err.Message, "Iconx 1")
+    }
+}
+
+_CP_DoScreenshotToOcr(keepOpen := false) {
+    try {
+        ; 复用现有截图智能流程（含 OCR 能力入口）
+        ExecuteScreenshotWithMenu()
+        _CP_MaybeHide(keepOpen)
+    } catch as err {
+        TrayTip("OCR", "截图 OCR 失败: " . err.Message, "Iconx 1")
     }
 }
 

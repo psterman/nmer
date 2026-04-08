@@ -71,6 +71,7 @@ body.drawer-open #drawerRoot{display:flex!important}
 .tb.selected .dot{opacity:1}
 .tb[data-action=Search].pulse{animation:breathe 1.6s ease-in-out infinite;box-shadow:0 0 12px rgba(255,102,0,.4)}
 .tb[data-action=Search].drag-over{transform:scale(.9)}
+.tb.drag-over{transform:scale(.92);background:rgba(255,102,0,.12);box-shadow:0 0 0 1px rgba(255,102,0,.35)}
 .tb[data-action=Search].loading svg{animation:spin .7s linear infinite}
 .bubble{position:absolute;left:50%;bottom:calc(100% + 5px);transform:translateX(-50%);padding:2px 7px;font-size:10px;font-weight:600;color:#00ff41;background:rgba(10,10,10,.92);border:1px solid rgba(0,255,65,.4);border-radius:5px;white-space:nowrap;opacity:0;pointer-events:none}
 .tb[data-action=Search].pulse .bubble{opacity:1}
@@ -348,6 +349,9 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     newSessionPickClose = $('newSessionPickClose'),
     newSessionGrid = $('newSessionGrid');
 
+  function tbEls() {
+    return document.querySelectorAll('.tb[data-action]');
+  }
   function searchEls() {
     return document.querySelectorAll('.tb[data-action=Search]');
   }
@@ -2705,15 +2709,22 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     }
   }
 
+  function findDropActionTarget(e) {
+    var n = e && e.target ? e.target.closest('.tb[data-action]') : null;
+    if (n && n.getAttribute) return n.getAttribute('data-action') || 'Search';
+    return 'Search';
+  }
+
   async function onDrop(e) {
     e.preventDefault();
     e.stopPropagation();
-    dragOver(false);
+    var action = findDropActionTarget(e);
+    tbEls().forEach(function (el) { el.classList.remove('drag-over'); });
     var t = await readDrop(e.dataTransfer);
     if (!t && e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) t = (e.dataTransfer.files[0].name || '').trim();
     if (!t) return;
     loading(true);
-    post({ type: 'drop_search', text: t });
+    post({ type: 'drop_action', action: action, text: t });
   }
 
   function onDragOver(e) {
@@ -2722,7 +2733,9 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     try {
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
     } catch (e2) {}
-    dragOver(true);
+    var action = findDropActionTarget(e);
+    tbEls().forEach(function (el) { el.classList.toggle('drag-over', (el.getAttribute('data-action') || '') === action); });
+    if (String(action || '').toLowerCase() === 'search') dragOver(true);
   }
 
   function onDragLeave(e) {
@@ -2732,11 +2745,14 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       searchEls().forEach(function (s) {
         if (s.contains(rt)) ok = true;
       });
-    if (!ok) dragOver(false);
+    if (!ok) {
+      dragOver(false);
+      tbEls().forEach(function (el) { el.classList.remove('drag-over'); });
+    }
   }
 
   function bindSearchDnD() {
-    searchEls().forEach(function (search) {
+    tbEls().forEach(function (search) {
       search.addEventListener('dragenter', function (e) {
         e.preventDefault();
       });
@@ -2757,7 +2773,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   document.body.addEventListener('drop', function (e) {
     e.preventDefault();
     var onS = false;
-    searchEls().forEach(function (s) {
+    tbEls().forEach(function (s) {
       if (e.target === s || s.contains(e.target)) onS = true;
     });
     if (onS) return;
