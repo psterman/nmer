@@ -38,6 +38,7 @@ global g_FTB_WV2 := 0
 global g_FTB_WV2_Ready := false
 global g_FTB_WV2_FrameReady := false
 global g_FTB_PendingSelection := ""
+global g_FTB_PendingNiumaCompose := []
 global g_FTB_UI_Ready := false
 global g_FTB_WaitingUiFinishedReveal := false
 global g_FTB_ScreenshotDeferLastTick := 0  ; 防抖：WebView 短时双发 postMessage 会排队两次 Deferred，避免第二次再跑完整截图助手流程
@@ -208,6 +209,21 @@ FloatingToolbar_FlushPendingSelectionIfReady() {
     g_FTB_PendingSelection := ""
 }
 
+FloatingToolbar_FlushPendingNiumaComposeIfReady() {
+    global g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_WV2_FrameReady, g_FTB_PendingNiumaCompose
+    if !(g_FTB_WV2 && g_FTB_WV2_Ready && g_FTB_WV2_FrameReady)
+        return
+    if !(g_FTB_PendingNiumaCompose is Array) || (g_FTB_PendingNiumaCompose.Length = 0)
+        return
+    try {
+        for _, payload in g_FTB_PendingNiumaCompose {
+            WebView_QueuePayload(g_FTB_WV2, payload)
+        }
+        g_FTB_PendingNiumaCompose := []
+    } catch as _e {
+    }
+}
+
 FloatingToolbar_OnNavigationStarting(sender, args) {
     global g_FTB_WV2_FrameReady
     g_FTB_WV2_FrameReady := false
@@ -222,6 +238,7 @@ FloatingToolbar_OnNavigationCompleted(sender, args) {
     }
     g_FTB_WV2_FrameReady := !!ok
     FloatingToolbar_FlushPendingSelectionIfReady()
+    FloatingToolbar_FlushPendingNiumaComposeIfReady()
 }
 
 ; ===================== 鍦嗚杈规澶勭悊 =====================
@@ -361,6 +378,7 @@ FloatingToolbar_OnWebMessage(sender, args) {
         SetTimer(FloatingToolbar_PushLogoToWeb, -10)
         try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_scale", "scale", FloatingToolbarScale))
         FloatingToolbar_FlushPendingSelectionIfReady()
+        FloatingToolbar_FlushPendingNiumaComposeIfReady()
         return
     }
 
@@ -378,6 +396,7 @@ FloatingToolbar_OnWebMessage(sender, args) {
 
         ; 不再使用 AnimateWindow(AW_BLEND)，避免黑白渐变闪屏；由 FloatingToolbar_FinishReveal 一次性不透明显示
         FloatingToolbar_FinishReveal()
+        FloatingToolbar_FlushPendingNiumaComposeIfReady()
         return
     }
 
@@ -1279,6 +1298,44 @@ FloatingToolbar_NotifySelectionClear() {
     }
 }
 
+FloatingToolbar_SendTextToNiumaChat(text, sendNow := true, appendMode := true, openDrawer := true) {
+    global g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_WV2_FrameReady, g_FTB_PendingNiumaCompose
+
+    t := Trim(String(text), " `t`r`n")
+    if (t = "")
+        return false
+    if !g_FTB_WV2
+        return false
+
+    if openDrawer {
+        try FloatingToolbarSetChatDrawerState(true)
+    }
+
+    payload := Map(
+        "type", "niuma_compose_send",
+        "text", t,
+        "send", !!sendNow,
+        "append", !!appendMode,
+        "openDrawer", !!openDrawer
+    )
+    if !(g_FTB_WV2_Ready && g_FTB_WV2_FrameReady) {
+        try {
+            if !(g_FTB_PendingNiumaCompose is Array)
+                g_FTB_PendingNiumaCompose := []
+            g_FTB_PendingNiumaCompose.Push(payload)
+            return true
+        } catch as _ePending {
+            return false
+        }
+    }
+    try {
+        WebView_QueuePayload(g_FTB_WV2, payload)
+        return true
+    } catch as _e {
+        return false
+    }
+}
+
 ; ===================== 鍒濆鍖?=====================
 InitFloatingToolbar() {
 }
@@ -1304,5 +1361,3 @@ GetButtonTip(action) {
             return ""
     }
 }
-
-

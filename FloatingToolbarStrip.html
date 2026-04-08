@@ -2790,6 +2790,29 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
         return;
       }
       if (d.type === 'set_selected') sel(d.action || '');
+      if (d.type === 'niuma_compose_send') {
+        var inText = String(d.text || '');
+        if (!inText.trim()) return;
+        var appendMode = d.append !== false;
+        var shouldOpenDrawer = d.openDrawer !== false;
+        var shouldSendNow = d.send !== false;
+        if (shouldOpenDrawer) setDrawer(true);
+        var base = String(input.value || '');
+        if (appendMode && base.trim()) input.value = base.replace(/\s+$/, '') + '\n\n' + inText;
+        else input.value = inText;
+        try {
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        } catch (_) {}
+        requestAnimationFrame(function () {
+          try {
+            input.focus();
+            var end = input.value.length;
+            input.setSelectionRange(end, end);
+          } catch (_) {}
+          if (shouldSendNow) sendChat();
+        });
+        return;
+      }
     });
   }
 

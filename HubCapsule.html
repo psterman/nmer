@@ -1316,7 +1316,7 @@ body.native-titlebar #header { display: none; }
   });
 
   btnAi.addEventListener('click', () => {
-    const text = activeText() || mergedText();
+    const text = selectedCardText() || activeText() || mergedText();
     if (!text) {
       previewCard.classList.remove('preview-pulse');
       void previewCard.offsetWidth;

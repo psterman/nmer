@@ -511,8 +511,17 @@ SelectionSense_OnMenuWebMessage(sender, args) {
     if (typ = "hub_ai") {
         SelectionSense_HideMenu()
         t2 := msg.Has("text") ? Trim(String(msg["text"])) : ""
-        try PromptQuickPad_OpenCaptureDraft(t2, true)
-        catch {
+        if (t2 != "") {
+            sent := false
+            try sent := SelectionSense_SendToNiumaChatAndSubmit(t2)
+            catch as _e {
+                sent := false
+            }
+            if !sent {
+                try PromptQuickPad_OpenCaptureDraft(t2, true)
+                catch as _e {
+                }
+            }
         }
         return
     }
@@ -603,6 +612,28 @@ SelectionSense_HubCapsule_FlushPendingSegments() {
         }
     } catch as _e {
     }
+}
+
+SelectionSense_SendToNiumaChatAndSubmit(text) {
+    t := Trim(String(text), " `t`r`n")
+    if (t = "")
+        return false
+
+    try ShowFloatingToolbar()
+    catch as _e {
+    }
+
+    sent := false
+    Loop 8 {
+        try sent := FloatingToolbar_SendTextToNiumaChat(t, true, true, true)
+        catch as _e {
+            sent := false
+        }
+        if sent
+            return true
+        Sleep(120)
+    }
+    return false
 }
 
 ; ===================== HubCapsule：从外部推送一段文本入栈 =====================
