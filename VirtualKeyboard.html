@@ -1,9 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VK KeyBinder</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
 /* ── Reset & Variables ─────────────────────────────────────────────────── */
 :root {
@@ -654,7 +655,22 @@ body::after {
   border-left-color: var(--matrix-green);
   text-shadow: 0 0 6px #00ff4155;
 }
-.sidebar-item.all { padding-left: 10px; font-weight: 600; }
+.mol-ico {
+  width: 16px;
+  text-align: center;
+  font-size: 12px;
+}
+.mol-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mol-count {
+  font-size: 10px;
+  color: var(--text-xs);
+}
 
 /* ── Command Panel ──────────────────────────────────────────────────────── */
 #cmd-search-bar {
@@ -663,6 +679,42 @@ body::after {
   padding: 6px 10px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
+}
+#atom-tabs {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: #101010;
+}
+.atom-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border2);
+  border-radius: 999px;
+  background: #171717;
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: .12s ease;
+}
+.atom-tab:hover {
+  color: var(--orange-lt);
+  border-color: var(--orange);
+}
+.atom-tab.active {
+  color: var(--orange-lt);
+  border-color: var(--orange);
+  box-shadow: var(--glow);
+}
+.atom-count {
+  color: #666;
+  font-size: 10px;
 }
 #cmd-search {
   flex: 1;
@@ -715,8 +767,8 @@ body::after {
 }
 .cmd-row {
   display: flex; align-items: center;
-  padding: 0 10px;
-  height: 32px;
+  padding: 4px 10px;
+  min-height: 34px;
   border-bottom: 1px solid var(--border);
   font-size: var(--vk-panel-font);
   cursor: default;
@@ -749,7 +801,35 @@ body::after {
   flex: 1;
   color: var(--text);
   font-family: var(--font-ui);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.cmd-icon {
+  width: 14px;
+  text-align: center;
+  color: var(--orange-lt);
+  flex-shrink: 0;
+}
+.cmd-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmd-hit {
+  font-size: 10px;
+  color: #7ca08a;
+  border: 1px solid #2a4b34;
+  border-radius: 4px;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+.cmd-mark {
+  background: #f39c12;
+  color: #201100;
+  border-radius: 2px;
+  padding: 0 1px;
 }
 .cmd-row.recording .cmd-name {
   color: var(--orange);
@@ -1487,7 +1567,7 @@ body::after {
     <!-- Sidebar -->
     <div id="sidebar">
       <div class="sidebar-section">
-        <div class="sidebar-section-title">分类</div>
+        <div class="sidebar-section-title">场景</div>
       </div>
       <div id="sidebar-list"></div>
     </div>
@@ -1498,6 +1578,7 @@ body::after {
         <input id="cmd-search" type="text" placeholder="搜索命令..." autocomplete="off" spellcheck="false">
         <span id="cmd-count">0 个命令</span>
       </div>
+      <div id="atom-tabs"></div>
       <div id="cmd-list-wrapper">
         <div id="cmd-list"></div>
       </div>
@@ -1542,13 +1623,17 @@ const state = {
   isAdmin:     true,
   adminWarning: '',
   categories:  [],          // [ { id, name, commands:[cmdId,...] } ]
+  scenarios:   [],          // [ { id, name, icon, color, tabs:[{id,name,commands}], commandCount } ]
+  commandRoutes: {},        // cmdId -> { scenarioId, tabId }
+  activeScenarioId: '',
+  activeTabId: '',
   commands:    {},          // cmdId -> { name, desc, fn? }
   bindings:    {},          // cmdId -> { ahkKey, displayKey }
   ahkKeyIndex: {},          // ahkKey -> cmdId  (reverse)
   suggestedBindings: {},    // cmdId -> 单键（CursorHelper CapsLock+ 默认）
   suggestedByKey: {},       // 单键 -> cmdId（无修饰时用于键帽提示）
-  filter:      'all',       // 'all' | categoryId
-  promptTplTab: '基础',      // 提示词右侧 6 标签
+  filter:      'all',       // legacy
+  promptTplTab: '基础',      // legacy
   search:      '',
   recording:   null,        // cmdId being recorded
   focusedCmdId: null,       // 当前右侧选中的命令（聚焦模式）
@@ -1614,6 +1699,238 @@ function escapeHtml(s) {
   const d = document.createElement('div');
   d.textContent = String(s);
   return d.innerHTML;
+}
+
+const SCENARIO_ORDER = ['ai', 'search', 'favorites', 'chat', 'clipboard', 'prompts', 'drafts', 'screenshot', 'settings', 'other'];
+const SCENARIO_META = {
+  ai:         { name: 'AI 助手',      icon: 'fa-robot',             color: '#58c7ff' },
+  search:     { name: '搜索导航',    icon: 'fa-magnifying-glass',  color: '#6ee7b7' },
+  favorites:  { name: '收藏常用',    icon: 'fa-star',              color: '#fbbf24' },
+  chat:       { name: '对话发送',    icon: 'fa-comments',          color: '#a78bfa' },
+  clipboard:  { name: '剪贴操作',    icon: 'fa-clipboard',         color: '#34d399' },
+  prompts:    { name: '提示词',      icon: 'fa-lightbulb',         color: '#f59e0b' },
+  drafts:     { name: '草稿本',      icon: 'fa-note-sticky',       color: '#f97316' },
+  screenshot: { name: '截图图像',    icon: 'fa-camera',            color: '#22d3ee' },
+  settings:   { name: '设置管理',    icon: 'fa-gear',              color: '#94a3b8' },
+  other:      { name: '其他',        icon: 'fa-toolbox',           color: '#9ca3af' },
+};
+
+function normalizeKeywordList(value) {
+  const src = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(/[,\|;/\s]+/)
+      : [];
+  const out = [];
+  const seen = new Set();
+  for (const item of src) {
+    const k = String(item || '').trim().toLowerCase();
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(k);
+  }
+  return out;
+}
+
+function safeIconClass(iconClass) {
+  const raw = String(iconClass || '').trim();
+  if (!raw) return 'fa-bolt';
+  return /^fa-[a-z0-9-]+$/i.test(raw) ? raw : 'fa-bolt';
+}
+
+function inferCommandIconClass(cmdId, cmd) {
+  const text = `${cmdId} ${cmd?.name || ''} ${cmd?.desc || ''}`.toLowerCase();
+  if (/(search|find|query|google|everything|搜|查|检索)/.test(text)) return 'fa-magnifying-glass';
+  if (/(clip|copy|paste|cut|剪贴|复制|粘贴)/.test(text)) return 'fa-clipboard';
+  if (/(chat|talk|message|send|对话|发送)/.test(text)) return 'fa-comments';
+  if (/(prompt|template|提示词|模板)/.test(text)) return 'fa-lightbulb';
+  if (/(draft|note|memo|草稿|笔记)/.test(text)) return 'fa-note-sticky';
+  if (/(screen|shot|capture|image|截图|图像|ocr)/.test(text)) return 'fa-camera';
+  if (/(setting|config|option|mode|bind|hotkey|系统|设置|配置|绑定)/.test(text)) return 'fa-gear';
+  if (/(star|favorite|bookmark|收藏)/.test(text)) return 'fa-star';
+  if (/(window|win_|最小化|关闭窗口)/.test(text)) return 'fa-window-restore';
+  if (/(ai|gpt|llm|解释|改写|翻译)/.test(text)) return 'fa-robot';
+  return 'fa-bolt';
+}
+
+function buildGuessedKeywords(cmdId, cmd) {
+  const text = `${cmdId} ${cmd?.name || ''} ${cmd?.desc || ''}`.toLowerCase();
+  const out = [];
+  const add = (...words) => words.forEach(w => out.push(String(w).toLowerCase()));
+
+  if (/(ai|gpt|llm|解释|改写|润色|翻译)/.test(text)) add('ai', '问答', '解释', '改写', '翻译');
+  if (/(search|find|query|搜|查|检索)/.test(text)) add('搜索', '查找', '检索', '定位');
+  if (/(clip|copy|paste|cut|剪贴|复制|粘贴)/.test(text)) add('剪贴板', '复制', '粘贴');
+  if (/(chat|send|message|talk|对话|发送)/.test(text)) add('对话', '发送', '回复');
+  if (/(prompt|template|提示词|模板)/.test(text)) add('提示词', '模板', 'prompt');
+  if (/(draft|note|memo|草稿|笔记)/.test(text)) add('草稿', '笔记', '记录');
+  if (/(screen|shot|capture|截图|图像|ocr)/.test(text)) add('截图', '截屏', '图像', '识别');
+  if (/(setting|config|option|mode|bind|hotkey|系统|设置|配置|绑定)/.test(text)) add('设置', '配置', '快捷键');
+
+  for (const token of String(cmdId || '').split(/[_\-\s]+/)) {
+    if (token) out.push(token.toLowerCase());
+  }
+  for (const token of String(cmd?.name || '').split(/\s+/)) {
+    if (token) out.push(token.toLowerCase());
+  }
+
+  return normalizeKeywordList(out);
+}
+
+function enrichCommands(commands) {
+  const out = {};
+  for (const [cmdId, raw] of Object.entries(commands || {})) {
+    const cmd = raw || {};
+    const guessed = buildGuessedKeywords(cmdId, cmd);
+    const existing = normalizeKeywordList(cmd.keywords);
+    const merged = normalizeKeywordList([...existing, ...guessed]);
+    out[cmdId] = {
+      ...cmd,
+      iconClass: safeIconClass(cmd.iconClass || inferCommandIconClass(cmdId, cmd)),
+      keywords: merged,
+    };
+  }
+  return out;
+}
+
+function classifyScenarioIdForCategory(cat) {
+  const text = `${cat?.id || ''} ${cat?.name || ''}`.toLowerCase();
+  if (/(clip|clipboard|copy|paste|剪贴|复制|粘贴)/.test(text)) return 'clipboard';
+  if (/(prompt|template|提示词|模板)/.test(text)) return 'prompts';
+  if (/(chat|talk|message|send|对话|发送)/.test(text)) return 'chat';
+  if (/(ai|gpt|llm|解释|改写|翻译)/.test(text)) return 'ai';
+  if (/(search|find|query|搜|查|检索)/.test(text)) return 'search';
+  if (/(star|favorite|bookmark|收藏)/.test(text)) return 'favorites';
+  if (/(draft|note|memo|草稿|笔记)/.test(text)) return 'drafts';
+  if (/(screen|shot|capture|image|截图|图像|ocr)/.test(text)) return 'screenshot';
+  if (/(setting|config|option|mode|system|window|admin|绑定|设置|配置|窗口|系统)/.test(text)) return 'settings';
+  return 'other';
+}
+
+function classifyTabName(cat) {
+  const base = String(cat?.name || cat?.id || '任务')
+    .replace(/^capslock\s*[·•\-\|]?\s*/i, '')
+    .trim();
+  return base || '任务';
+}
+
+function getScenarioById(scenarioId) {
+  return state.scenarios.find(s => s.id === scenarioId) || null;
+}
+
+function ensureActiveScenarioAndTab() {
+  if (!state.scenarios.length) {
+    state.activeScenarioId = '';
+    state.activeTabId = '';
+    return;
+  }
+  let scenario = getScenarioById(state.activeScenarioId);
+  if (!scenario) scenario = state.scenarios[0];
+  state.activeScenarioId = scenario.id;
+  const hasTab = scenario.tabs.some(tab => tab.id === state.activeTabId);
+  if (!hasTab) state.activeTabId = scenario.tabs[0]?.id || '';
+}
+
+function buildScenariosFromCategories() {
+  const map = new Map();
+  const commandRoutes = {};
+  const used = new Set();
+
+  const ensureScenario = (id) => {
+    if (map.has(id)) return map.get(id);
+    const meta = SCENARIO_META[id] || SCENARIO_META.other;
+    const sc = {
+      id,
+      name: meta.name,
+      icon: meta.icon,
+      color: meta.color,
+      tabs: [],
+      commandCount: 0,
+    };
+    map.set(id, sc);
+    return sc;
+  };
+
+  for (const cat of state.categories || []) {
+    const cmdIds = (Array.isArray(cat?.commands) ? cat.commands : [])
+      .filter(cmdId => !!state.commands[cmdId]);
+    if (!cmdIds.length) continue;
+    const scenarioId = classifyScenarioIdForCategory(cat);
+    const scenario = ensureScenario(scenarioId);
+    const tabId = `${scenarioId}:${cat?.id || ('tab_' + scenario.tabs.length)}`;
+    scenario.tabs.push({
+      id: tabId,
+      name: classifyTabName(cat),
+      commands: cmdIds,
+    });
+    for (const cmdId of cmdIds) {
+      if (!commandRoutes[cmdId]) commandRoutes[cmdId] = { scenarioId, tabId };
+      used.add(cmdId);
+    }
+  }
+
+  const looseCommands = Object.keys(state.commands || {}).filter(cmdId => !used.has(cmdId));
+  if (looseCommands.length) {
+    const scenario = ensureScenario('other');
+    const tabId = 'other:all';
+    scenario.tabs.push({ id: tabId, name: '通用操作', commands: looseCommands });
+    for (const cmdId of looseCommands) {
+      if (!commandRoutes[cmdId]) commandRoutes[cmdId] = { scenarioId: 'other', tabId };
+    }
+  }
+
+  const scenarios = [];
+  for (const id of SCENARIO_ORDER) {
+    const item = map.get(id);
+    if (!item || !item.tabs.length) continue;
+    const uniq = new Set();
+    for (const tab of item.tabs) for (const cmdId of tab.commands) uniq.add(cmdId);
+    item.commandCount = uniq.size;
+    scenarios.push(item);
+  }
+  for (const [id, item] of map.entries()) {
+    if (SCENARIO_ORDER.includes(id) || !item.tabs.length) continue;
+    const uniq = new Set();
+    for (const tab of item.tabs) for (const cmdId of tab.commands) uniq.add(cmdId);
+    item.commandCount = uniq.size;
+    scenarios.push(item);
+  }
+
+  state.commandRoutes = commandRoutes;
+  state.scenarios = scenarios;
+}
+
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function highlightQuery(text, query) {
+  const raw = escapeHtml(text || '');
+  const q = String(query || '').trim();
+  if (!q) return raw;
+  const re = new RegExp(`(${escapeRegExp(q)})`, 'ig');
+  return raw.replace(re, '<mark class="cmd-mark">$1</mark>');
+}
+
+function commandMatchesSearch(cmdId, searchText) {
+  const cmd = state.commands[cmdId] || {};
+  const q = String(searchText || '').trim().toLowerCase();
+  if (!q) return { ok: true, keywordHit: '' };
+
+  const name = String(cmd.name || '').toLowerCase();
+  const desc = String(cmd.desc || '').toLowerCase();
+  const id = String(cmdId || '').toLowerCase();
+  if (name.includes(q) || desc.includes(q) || id.includes(q)) {
+    return { ok: true, keywordHit: '' };
+  }
+
+  const keywords = Array.isArray(cmd.keywords) ? cmd.keywords : [];
+  const hit = keywords.find(k => String(k).toLowerCase().includes(q)) || '';
+  return { ok: !!hit, keywordHit: hit };
+}
+
+function findRouteByCommand(cmdId) {
+  return state.commandRoutes[cmdId] || null;
 }
 
 function syncLastActionCurrentKeyFromBindings() {
@@ -2003,7 +2320,7 @@ function rebuildIndexes() {
 
 function handleInit(msg) {
   state.categories = msg.categories || [];
-  state.commands   = msg.commands   || {};
+  state.commands   = enrichCommands(msg.commands || {});
   state.bindings   = msg.bindings   || {};
   state.suggestedBindings = msg.suggestedBindings || {};
   state.lastActionId = msg.lastActionId || '';
@@ -2014,11 +2331,14 @@ function handleInit(msg) {
   state.adminWarning = msg.adminWarning || '';
   state.embeddedHost = msg.embeddedHost !== false;
 
+  buildScenariosFromCategories();
+  ensureActiveScenarioAndTab();
   rebuildIndexes();
 
   applyDashboardConfig(msg.dashboardConfig || [], msg.dashboardLayout || dashboardLayout);
 
   renderSidebar();
+  renderAtomTabs();
   renderCommandList();
   renderKeyboardSlots();
   renderModifierKeys();
@@ -2927,15 +3247,47 @@ function initDashboardDrag() {
 function renderSidebar() {
   const list = document.getElementById('sidebar-list');
   list.innerHTML = '';
-
-  const all = mkEl('div', 'sidebar-item all' + (state.filter === 'all' ? ' active' : ''), '全部');
-  all.addEventListener('click', () => { state.filter = 'all'; renderSidebar(); renderCommandList(); });
-  list.appendChild(all);
-
-  for (const cat of state.categories) {
-    const item = mkEl('div', 'sidebar-item' + (state.filter === cat.id ? ' active' : ''), cat.name);
-    item.addEventListener('click', () => { state.filter = cat.id; renderSidebar(); renderCommandList(); });
+  ensureActiveScenarioAndTab();
+  for (const scenario of state.scenarios) {
+    const meta = SCENARIO_META[scenario.id] || SCENARIO_META.other;
+    const item = document.createElement('div');
+    item.className = 'sidebar-item' + (state.activeScenarioId === scenario.id ? ' active' : '');
+    item.innerHTML = ''
+      + `<span class="mol-ico" style="color:${meta.color}"><i class="fa-solid ${meta.icon}"></i></span>`
+      + `<span class="mol-name">${escapeHtml(scenario.name)}</span>`
+      + `<span class="mol-count">${scenario.commandCount || 0}</span>`;
+    item.addEventListener('click', () => {
+      state.activeScenarioId = scenario.id;
+      state.activeTabId = scenario.tabs[0]?.id || '';
+      renderSidebar();
+      renderAtomTabs();
+      renderCommandList();
+    });
     list.appendChild(item);
+  }
+}
+
+function renderAtomTabs() {
+  const tabsEl = document.getElementById('atom-tabs');
+  if (!tabsEl) return;
+  tabsEl.innerHTML = '';
+  ensureActiveScenarioAndTab();
+  const scenario = getScenarioById(state.activeScenarioId);
+  if (!scenario || !scenario.tabs.length) return;
+
+  for (const tab of scenario.tabs) {
+    const tabEl = document.createElement('button');
+    tabEl.type = 'button';
+    tabEl.className = 'atom-tab' + (tab.id === state.activeTabId ? ' active' : '');
+    tabEl.innerHTML = ''
+      + `<span>${escapeHtml(tab.name)}</span>`
+      + `<span class="atom-count">${tab.commands.length}</span>`;
+    tabEl.addEventListener('click', () => {
+      state.activeTabId = tab.id;
+      renderAtomTabs();
+      renderCommandList();
+    });
+    tabsEl.appendChild(tabEl);
   }
 }
 
@@ -2944,49 +3296,41 @@ function renderSidebar() {
 // ═══════════════════════════════════════════════════════════════════════════
 function renderCommandList() {
   const container = document.getElementById('cmd-list');
-  const search    = state.search.toLowerCase();
+  const searchText = String(state.search || '').trim();
   container.innerHTML = '';
   let total = 0;
 
-  if (state.filter === 'prompt_templates') {
-    const ptCats = ['基础', '专业', '改错', '优化', '解释', '重构'];
-    const tabs = mkEl('div', 'pt-tabs', '');
-    for (const c of ptCats) {
-      const t = mkEl('div', 'pt-tab' + (state.promptTplTab === c ? ' active' : ''), c);
-      t.addEventListener('click', () => { state.promptTplTab = c; renderCommandList(); });
-      tabs.appendChild(t);
-    }
-    container.appendChild(tabs);
+  state.lastFilteredCmdIds = [];
+  ensureActiveScenarioAndTab();
+  const scenario = getScenarioById(state.activeScenarioId);
+  if (!scenario) {
+    document.getElementById('cmd-count').textContent = '0 个命令';
+    container.appendChild(mkEl('div', 'no-command-found', '[NO COMMAND FOUND]'));
+    return;
   }
 
-  const visibleCats = state.filter === 'all'
-    ? state.categories
-    : state.categories.filter(c => c.id === state.filter);
+  const tabs = searchText
+    ? scenario.tabs
+    : scenario.tabs.filter(tab => tab.id === state.activeTabId);
+  const visibleTabs = tabs.length ? tabs : scenario.tabs.slice(0, 1);
 
-  state.lastFilteredCmdIds = [];
-  for (const cat of visibleCats) {
-    const visibleCmds = cat.commands.filter(cmdId => {
-      const cmd = state.commands[cmdId];
-      if (!cmd) return false;
-      if (state.filter === 'prompt_templates') {
-        if ((cmd.ptCategory || '基础') !== state.promptTplTab) return false;
-      }
-      if (!search) return true;
-      const name = (cmd.name || '').toLowerCase();
-      const id   = cmdId.toLowerCase();
-      const desc = (cmd.desc || '').toLowerCase();
-      return name.includes(search) || id.includes(search) || desc.includes(search);
-    });
-    if (visibleCmds.length === 0) continue;
+  for (const tab of visibleTabs) {
+    const hits = [];
+    for (const cmdId of tab.commands) {
+      if (!state.commands[cmdId]) continue;
+      const match = commandMatchesSearch(cmdId, searchText);
+      if (!match.ok) continue;
+      hits.push({ cmdId, keywordHit: match.keywordHit });
+    }
+    if (!hits.length) continue;
 
-    if (state.filter !== 'prompt_templates') {
-      const hdr = mkEl('div', 'cmd-group-header', cat.name);
-      container.appendChild(hdr);
+    if (visibleTabs.length > 1 || searchText) {
+      container.appendChild(mkEl('div', 'cmd-group-header', tab.name));
     }
 
-    for (const cmdId of visibleCmds) {
-      container.appendChild(makeCmdRow(cmdId));
-      state.lastFilteredCmdIds.push(cmdId);
+    for (const hit of hits) {
+      container.appendChild(makeCmdRow(hit.cmdId, searchText, hit.keywordHit));
+      state.lastFilteredCmdIds.push(hit.cmdId);
       total++;
     }
   }
@@ -3004,25 +3348,21 @@ function renderCommandList() {
 }
 
 function findCategoryIdByCommand(cmdId) {
-  for (const cat of state.categories || []) {
-    if (Array.isArray(cat.commands) && cat.commands.includes(cmdId))
-      return cat.id;
-  }
-  return '';
+  return findRouteByCommand(cmdId)?.tabId || '';
 }
 
 function focusCommandById(cmdId) {
   if (!cmdId || !state.commands[cmdId]) return false;
-  const catId = findCategoryIdByCommand(cmdId);
-  if (catId) {
-    state.filter = catId;
-    if (catId === 'prompt_templates')
-      state.promptTplTab = state.commands[cmdId]?.ptCategory || '基础';
+  const route = findRouteByCommand(cmdId);
+  if (route) {
+    state.activeScenarioId = route.scenarioId;
+    state.activeTabId = route.tabId;
   } else {
-    state.filter = 'all';
+    ensureActiveScenarioAndTab();
   }
   state.focusedCmdId = cmdId;
   renderSidebar();
+  renderAtomTabs();
   renderCommandList();
   renderKeyboardSlots();
   renderModifierKeys();
@@ -3039,7 +3379,7 @@ function focusCommandById(cmdId) {
   return true;
 }
 
-function makeCmdRow(cmdId) {
+function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
   const cmd     = state.commands[cmdId] || { name: cmdId, desc: '' };
   const binding = state.bindings[cmdId];
   const isNone = !!(binding?.explicitNone);
@@ -3066,15 +3406,28 @@ function makeCmdRow(cmdId) {
     if (key) triggerKeyRipple(key);
   });
 
-  // name + desc tooltip
-  const nameEl = mkEl('div', 'cmd-name', cmd.name);
-  if (cmd.desc) nameEl.title = cmd.desc;
+  const nameEl = document.createElement('div');
+  nameEl.className = 'cmd-name';
+  const iconEl = document.createElement('i');
+  iconEl.className = `fa-solid ${safeIconClass(cmd.iconClass)} cmd-icon`;
+  const titleEl = document.createElement('span');
+  titleEl.className = 'cmd-title';
+  titleEl.innerHTML = highlightQuery(cmd.name || cmdId, searchText);
+  nameEl.append(iconEl, titleEl);
+  if (keywordHit) {
+    const hitEl = document.createElement('span');
+    hitEl.className = 'cmd-hit';
+    hitEl.innerHTML = `关键词: ${highlightQuery(keywordHit, searchText)}`;
+    nameEl.appendChild(hitEl);
+  }
+  if (cmd.desc) {
+    const kws = Array.isArray(cmd.keywords) ? cmd.keywords.slice(0, 8).join(', ') : '';
+    nameEl.title = kws ? `${cmd.desc}\n关键词: ${kws}` : cmd.desc;
+  }
 
-  // key display
   const keyEl = mkEl('div', 'cmd-key',
     isRec ? '录制中：按下快捷键（连按两次可录制序列）...' : displayKeyForCmd(cmdId));
 
-  // action buttons
   const actions = document.createElement('div');
   actions.className = 'cmd-actions';
 
