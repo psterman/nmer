@@ -4,37 +4,38 @@
 VK_ExecCursorHelperCmd(cmdId) {
     global CapsLock, CapsLock2, BatchHotkey, IsCountdownActive
     global g_LastExecutedCmdId
+    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyT, HotkeyP
     prevCaps := CapsLock
     CapsLock := true
     executed := false
     try {
         switch cmdId {
             case "ch_c":
-                HandleDynamicHotkey("c", "C")
+                HandleDynamicHotkey(HotkeyC != "" ? HotkeyC : "c", "C")
                 executed := true
             case "ch_v":
-                HandleDynamicHotkey("v", "V")
+                HandleDynamicHotkey(HotkeyV != "" ? HotkeyV : "v", "V")
                 executed := true
             case "ch_x":
-                HandleDynamicHotkey("x", "X")
+                HandleDynamicHotkey(HotkeyX != "" ? HotkeyX : "x", "X")
                 executed := true
             case "ch_e":
-                HandleDynamicHotkey("e", "E")
+                HandleDynamicHotkey(HotkeyE != "" ? HotkeyE : "e", "E")
                 executed := true
             case "ch_r":
-                HandleDynamicHotkey("r", "R")
+                HandleDynamicHotkey(HotkeyR != "" ? HotkeyR : "r", "R")
                 executed := true
             case "ch_o":
-                HandleDynamicHotkey("o", "O")
+                HandleDynamicHotkey(HotkeyO != "" ? HotkeyO : "o", "O")
                 executed := true
             case "ch_q":
-                HandleDynamicHotkey("q", "Q")
+                HandleDynamicHotkey(HotkeyQ != "" ? HotkeyQ : "q", "Q")
                 executed := true
             case "ch_z":
-                HandleDynamicHotkey("z", "Z")
+                HandleDynamicHotkey(HotkeyZ != "" ? HotkeyZ : "z", "Z")
                 executed := true
             case "ch_t":
-                HandleDynamicHotkey("t", "T")
+                HandleDynamicHotkey(HotkeyT != "" ? HotkeyT : "t", "T")
                 executed := true
             case "ch_f":
                 if (IsCountdownActive) {
@@ -60,7 +61,7 @@ VK_ExecCursorHelperCmd(cmdId) {
                 }
                 executed := true
             case "ch_p":
-                HandleDynamicHotkey("p", "P")
+                HandleDynamicHotkey(HotkeyP != "" ? HotkeyP : "p", "P")
                 executed := true
             case "ch_w":
                 CapsLock2 := false
@@ -185,11 +186,20 @@ VK_NoteLastExecutedId(cmdId) {
 }
 
 VK_NoteLastChFromCapsLockKey(keyLower) {
+    global g_VK_Embedded
+    if g_VK_Embedded {
+        bid := VK_LookupBindingCmdForPhys(keyLower)
+        if bid != "" {
+            VK_NoteLastExecutedId(bid)
+            return
+        }
+    }
     static m := Map(
         "c", "ch_c", "v", "ch_v", "x", "ch_x", "e", "ch_e", "r", "ch_r",
         "o", "ch_o", "q", "ch_q", "z", "ch_z", "t", "ch_t", "p", "ch_p",
         "w", "ch_w", "s", "ch_s", "a", "ch_a", "d", "ch_d",
-        "f", "ch_f", "g", "ch_g", "b", "ch_b"
+        "f", "ch_f", "g", "ch_g", "b", "ch_b",
+        "1", "ch_1", "2", "ch_2", "3", "ch_3", "4", "ch_4", "5", "ch_5"
     )
     kl := StrLower(keyLower)
     if m.Has(kl)

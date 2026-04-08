@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -286,6 +286,18 @@ body::after {
 #hud-hint .hud-hint-main { color: var(--text); font-weight: 600; }
 #hud-hint .hud-hint-sub { color: var(--text-dim); }
 #hud-hint .hud-hint-warn { color: #e67e22; }
+#vk-host-mode-hint {
+  flex-basis: 100%;
+  order: 8;
+  margin: 0;
+  padding: 4px 0 0;
+  font-size: 10px;
+  font-weight: 400;
+  color: #9a8a74;
+  line-height: 1.45;
+  display: none;
+}
+#vk-host-mode-hint.visible { display: block; }
 #admin-warning {
   display: none;
   flex-basis: 100%;
@@ -1234,6 +1246,7 @@ body::after {
     <div id="hud-dot"></div>
     <button id="layout-toggle" title="切换 ScanCode 物理键适配模式（防止 IME 干扰）">STANDARD</button>
     <button id="reset-all" title="全局重置（恢复出厂设置）">全局重置</button>
+    <div id="vk-host-mode-hint" aria-live="polite"></div>
     <div id="hud-hint" aria-live="polite"></div>
     <div id="admin-warning" role="alert"></div>
   </div>
@@ -1519,6 +1532,8 @@ const state = {
   dashboardPinned: [],
   dashboardOverwriteResolver: null,
   dashboardEditResolver: null,
+  /** CursorHelper 同进程为 true；独立 VirtualKeyboard.ahk 为 false */
+  embeddedHost: true,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1612,12 +1627,33 @@ function renderHudHint() {
   }
 }
 
+function renderHostModeHint() {
+  const el = document.getElementById('vk-host-mode-hint');
+  if (!el) return;
+  if (!state.connected) {
+    el.classList.remove('visible');
+    el.textContent = '';
+    return;
+  }
+  el.classList.add('visible');
+  if (state.embeddedHost) {
+    el.textContent =
+      '提示（嵌入 CursorHelper）：录制结果会立刻写入配置；物理键触发主要依赖 CapsLock+ 层、'
+      + '与设置联动的少数字母槽、双按 Ctrl/Shift/Alt 以及序列键。带 Ctrl/Alt/Shift 的组合键不会映射到 CapsLock+ 动态热键。'
+      + '未接入上述路径的绑定可在本页点击键帽执行，或单独运行 VirtualKeyboard.ahk 以注册更多全局热键。';
+  } else {
+    el.textContent =
+      '提示（独立进程）：录制保存后会注册全局热键。若同时运行 CursorHelper，保存时会通知其自动重载绑定（无需手动重启脚本）。';
+  }
+}
+
 /** 刷新顶栏主行 + 即时绑定说明（connected 仅在显式传入时改绿点） */
 function updateHudSnapshot(connected) {
   const n = Object.keys(state.bindings).filter((k) => state.bindings[k]?.ahkKey).length;
   let line1 = '已连接 · ' + n + ' 个绑定';
   if (state.quickBindActive) line1 += ' · 即时绑定已开启';
   setHud(line1, connected);
+  renderHostModeHint();
   renderHudHint();
 }
 
@@ -1765,6 +1801,16 @@ function handleAhkMessage(msg) {
         stopRecording(false);
       }
       break;
+    case 'recordPending': {
+      const d = (msg.displayKey != null && msg.displayKey !== '') ? String(msg.displayKey) : '（键）';
+      const w = typeof msg.waitMs === 'number' ? msg.waitMs : 400;
+      const sec = (w / 1000).toFixed(1).replace(/\.0$/, '');
+      if (msg.kind === 'dblMod')
+        setHud('录制：' + d + ' · 正在保存绑定…');
+      else
+        setHud('录制：已收到 「' + d + '」 · 约 ' + sec + ' 秒内可再按一键组成序列，否则保存为单键');
+      break;
+    }
     case 'quickBindState':
       state.lastActionId = msg.lastActionId || '';
       state.lastActionName = msg.lastActionName || '';
@@ -1839,6 +1885,7 @@ function handleInit(msg) {
   state.quickBindActive = !!msg.quickBindActive;
   state.isAdmin = msg.isAdmin !== false;
   state.adminWarning = msg.adminWarning || '';
+  state.embeddedHost = msg.embeddedHost !== false;
 
   rebuildIndexes();
 
@@ -1876,7 +1923,14 @@ function handleBindingUpdated(msg) {
   if (commandId === state.lastActionId) {
     syncLastActionCurrentKeyFromBindings();
   }
-  updateHudSnapshot();
+  const recordFlash = state.recording && commandId === state.recording && !msg.deleted && !msg.explicitNone && ahkKey;
+  if (recordFlash) {
+    const cmdName = state.commands[commandId]?.name || commandId;
+    const disp = displayKey || ahkKey;
+    flashBindSuccessHud('录制已保存：' + cmdName + (disp ? ' ← ' + disp : ''));
+  } else {
+    updateHudSnapshot();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

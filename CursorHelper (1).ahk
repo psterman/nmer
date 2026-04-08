@@ -24793,6 +24793,8 @@ HandleDynamicHotkey(PressedKey, ActionType) {
 
 ; ESC 关闭面板
 Esc:: {
+    if (VirtualKeyboard_HandleKey("Esc"))
+        return
     if (!HandleDynamicHotkey("Esc", "ESC")) {
         ; 如果不匹配，发送原始按键
         Send("{Esc}")
@@ -24819,7 +24821,9 @@ c:: {
     if (!CapsLock) {
         CapsLock := true
     }
-    
+
+    if (VirtualKeyboard_HandleKey("c"))
+        return
     if (HandleDynamicHotkey("c", "C"))
         VK_NoteLastChFromCapsLockKey("c")
     else
@@ -24828,6 +24832,8 @@ c:: {
 
 ; V 键合并粘贴
 v:: {
+    if (VirtualKeyboard_HandleKey("v"))
+        return
     if (HandleDynamicHotkey("v", "V"))
         VK_NoteLastChFromCapsLockKey("v")
     else
@@ -24836,6 +24842,8 @@ v:: {
 
 ; X 键打开剪贴板管理面板（新的 FTS5 剪贴板管理器）
 x:: {
+    if (VirtualKeyboard_HandleKey("x"))
+        return
     if (HandleDynamicHotkey("x", "X"))
         VK_NoteLastChFromCapsLockKey("x")
     else
@@ -24844,6 +24852,8 @@ x:: {
 
 ; E 键执行解释
 e:: {
+    if (VirtualKeyboard_HandleKey("e"))
+        return
     if (HandleDynamicHotkey("e", "E"))
         VK_NoteLastChFromCapsLockKey("e")
     else
@@ -24852,6 +24862,8 @@ e:: {
 
 ; R 键执行重构
 r:: {
+    if (VirtualKeyboard_HandleKey("r"))
+        return
     if (HandleDynamicHotkey("r", "R"))
         VK_NoteLastChFromCapsLockKey("r")
     else
@@ -24860,6 +24872,8 @@ r:: {
 
 ; O 键执行优化
 o:: {
+    if (VirtualKeyboard_HandleKey("o"))
+        return
     if (HandleDynamicHotkey("o", "O"))
         VK_NoteLastChFromCapsLockKey("o")
     else
@@ -24868,6 +24882,8 @@ o:: {
 
 ; Q 键打开配置面板
 q:: {
+    if (VirtualKeyboard_HandleKey("q"))
+        return
     if (HandleDynamicHotkey("q", "Q"))
         VK_NoteLastChFromCapsLockKey("q")
     else
@@ -24876,6 +24892,8 @@ q:: {
 
 ; Z 键语音输入（切换模式）
 z:: {
+    if (VirtualKeyboard_HandleKey("z"))
+        return
     if (HandleDynamicHotkey("z", "Z"))
         VK_NoteLastChFromCapsLockKey("z")
     else
@@ -24884,6 +24902,8 @@ z:: {
 
 ; T 键执行截图并弹出智能菜单
 t:: {
+    if (VirtualKeyboard_HandleKey("t"))
+        return
     ; 添加调试信息
     TrayTip("调试", "CapsLock+T 被触发", "Iconi 1")
     if (HandleDynamicHotkey("t", "T")) {
@@ -24898,6 +24918,8 @@ t:: {
 ; F 键：激活搜索中心或执行区域内操作
 f:: {
     global IsCountdownActive, CapsLock2
+    if (VirtualKeyboard_HandleKey("f"))
+        return
     ; 标记已使用组合键，避免 CapsLock 释放时走“单击切换大小写”分支
     CapsLock2 := false
     ; 如果倒计时正在进行，按下 F 立即加速执行（发射内容）
@@ -24921,6 +24943,8 @@ f:: {
 ; G 键激活语音搜索面板
 g:: {
     global CapsLock2
+    if (VirtualKeyboard_HandleKey("g"))
+        return
     ; 与 CapsLock+F 一致：明确标记组合键已消费，避免释放时误切换大小写状态
     CapsLock2 := false
     ; CapsLock+G 激活原来的语音搜索面板
@@ -24931,6 +24955,8 @@ g:: {
 ; B 键：面板显示且批量键为 B 时走 BatchOperation；面板显示且非批量键则透传 b；面板未显示时打开 Prompt 采集窗
 b:: {
     global BatchHotkey, CapsLock2
+    if (VirtualKeyboard_HandleKey("b"))
+        return
     if GetPanelVisibleState() {
         CapsLock2 := false
         if StrLower(BatchHotkey) = "b" {
@@ -25089,6 +25115,8 @@ Esc:: {
 ; W 键映射为 Up（上方向键）- 全局生效（SearchCenter 中会被上面的专用热键覆盖）
 w:: {
     global CapsLock2
+    if (VirtualKeyboard_HandleKey("w"))
+        return
     CapsLock2 := false
     Send("{Up}")
     VK_NoteLastChFromCapsLockKey("w")
@@ -25097,6 +25125,8 @@ w:: {
 ; S 键映射为 Down（下方向键）- 全局生效（SearchCenter 中会被上面的专用热键覆盖）
 s:: {
     global CapsLock2
+    if (VirtualKeyboard_HandleKey("s"))
+        return
     CapsLock2 := false
     Send("{Down}")
     VK_NoteLastChFromCapsLockKey("s")
@@ -25105,6 +25135,8 @@ s:: {
 ; A 键映射为 Left（左方向键）- 全局生效（SearchCenter 中会被上面的专用热键覆盖）
 a:: {
     global CapsLock2
+    if (VirtualKeyboard_HandleKey("a"))
+        return
     CapsLock2 := false
     Send("{Left}")
     VK_NoteLastChFromCapsLockKey("a")
@@ -25113,6 +25145,8 @@ a:: {
 ; D 键映射为 Right（右方向键）- 全局生效（SearchCenter 中会被上面的专用热键覆盖）
 d:: {
     global CapsLock2
+    if (VirtualKeyboard_HandleKey("d"))
+        return
     CapsLock2 := false
     Send("{Right}")
     VK_NoteLastChFromCapsLockKey("d")
@@ -25120,6 +25154,8 @@ d:: {
 
 ; P 键区域截图
 p:: {
+    if (VirtualKeyboard_HandleKey("p"))
+        return
     if (HandleDynamicHotkey("p", "P"))
         VK_NoteLastChFromCapsLockKey("p")
     else
@@ -25128,22 +25164,32 @@ p:: {
 
 ; 1-5 键激活对应顺序的快捷操作按钮
 1:: {
+    if (VirtualKeyboard_HandleKey("1"))
+        return
     ActivateQuickActionButton(1)
 }
 
 2:: {
+    if (VirtualKeyboard_HandleKey("2"))
+        return
     ActivateQuickActionButton(2)
 }
 
 3:: {
+    if (VirtualKeyboard_HandleKey("3"))
+        return
     ActivateQuickActionButton(3)
 }
 
 4:: {
+    if (VirtualKeyboard_HandleKey("4"))
+        return
     ActivateQuickActionButton(4)
 }
 
 5:: {
+    if (VirtualKeyboard_HandleKey("5"))
+        return
     ActivateQuickActionButton(5)
 }
 

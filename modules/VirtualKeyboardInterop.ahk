@@ -15,8 +15,10 @@ _VkInteropCopyData(wParam, lParam, *) {
     }
     if !(j is Map) || !j.Has("type")
         return false
-    if (j["type"] = "bindingsReloaded")
+    if (j["type"] = "bindingsReloaded") {
+        VK_HandleBindingsReloaded()
         return true
+    }
     if (j["type"] = "vkExec" && j.Has("cmdId")) {
         VK_ExecCursorHelperCmd(j["cmdId"])
         return true

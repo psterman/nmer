@@ -13,6 +13,8 @@ global g_InverseBindings := Map()
 ; - g_Bindings = Map(effectiveAhkKey -> cmdId)
 ; - g_InverseBindings = Map(cmdId -> effectiveAhkKey)
 global g_HotkeyBound := Map()
+; 嵌入模式：CapsLock 下由 HotIf(GetCapsLockState)+Hotkey() 动态挂载的键（重载前须 Off）
+global g_VK_CapsLockDynHotkeys := []
 global g_VK_Gui := 0
 global g_VK_WV2 := 0
 global g_VK_Ctrl := 0
@@ -1057,6 +1059,134 @@ _ExecuteCommand(cmdId) {
     }
 }
 
+_VK_PushCandUnique(arr, v) {
+    if v = ""
+        return
+    for x in arr {
+        if (x = v)
+            return
+    }
+    arr.Push(v)
+}
+
+; 与 g_Bindings 键名对齐：尝试多种写法（Esc/Escape、分号名等）
+_VK_BindingLookupCandidates(physKey) {
+    c := []
+    _VK_PushCandUnique(c, physKey)
+    if (StrLen(physKey) = 1)
+        _VK_PushCandUnique(c, StrLower(physKey))
+    lk := StrLower(physKey)
+    switch lk {
+        case "esc":
+            _VK_PushCandUnique(c, "Escape")
+            _VK_PushCandUnique(c, "Esc")
+        case "escape":
+            _VK_PushCandUnique(c, "Esc")
+            _VK_PushCandUnique(c, "Escape")
+        case "semicolon":
+            _VK_PushCandUnique(c, ";")
+        case ";":
+            _VK_PushCandUnique(c, "Semicolon")
+        case "slash":
+            _VK_PushCandUnique(c, "/")
+        case "/":
+            _VK_PushCandUnique(c, "Slash")
+    }
+    return c
+}
+
+; 供 VirtualKeyboard_HandleKey、VK_NoteLastChFromCapsLockKey 共用
+VK_LookupBindingCmdForPhys(physKey) {
+    global g_Bindings
+    for cand in _VK_BindingLookupCandidates(physKey) {
+        if g_Bindings.Has(cand)
+            return g_Bindings[cand]
+    }
+    return ""
+}
+
+; 嵌入 CursorHelper：若当前物理键在 g_Bindings 中有命令则执行并返回 true（截断宿主默认）
+VirtualKeyboard_HandleKey(physKey) {
+    global g_VK_Embedded
+    if !g_VK_Embedded || physKey = ""
+        return false
+    cmdId := VK_LookupBindingCmdForPhys(physKey)
+    if cmdId = ""
+        return false
+    _ExecuteCommand(cmdId)
+    return true
+}
+
+_VkCapsLockHotIfCb(*) {
+    return GetCapsLockState()
+}
+
+; 宿主 #HotIf GetCapsLockState() 下已静态定义的键，避免与动态 Hotkey 重复 variant
+_VK_IsHostStaticCapsHotkeyKey(ahkKey) {
+    if ahkKey = ""
+        return true
+    if _VkIsRuntimeHookKey(ahkKey)
+        return true
+    if (InStr(ahkKey, "^") || InStr(ahkKey, "!") || InStr(ahkKey, "+"))
+        return true
+    static norm := Map(
+        "c", 1, "v", 1, "x", 1, "e", 1, "r", 1, "o", 1, "q", 1, "z", 1, "t", 1, "f", 1, "g", 1, "b", 1,
+        "w", 1, "s", 1, "a", 1, "d", 1, "p", 1,
+        "1", 1, "2", 1, "3", 1, "4", 1, "5", 1
+    )
+    k := StrLower(ahkKey)
+    if (k = "esc" || k = "escape")
+        return true
+    if norm.Has(k)
+        return true
+    return false
+}
+
+_VK_UnregisterCapsLockDispatchHotkeys() {
+    global g_VK_CapsLockDynHotkeys
+    for hk in g_VK_CapsLockDynHotkeys {
+        try Hotkey(hk, "Off")
+        catch as e
+            OutputDebug("[VK] CapsLock dyn off " . hk . ": " . e.Message)
+    }
+    g_VK_CapsLockDynHotkeys := []
+}
+
+_VK_RegisterCapsLockDispatchHotkeys() {
+    global g_VK_Embedded, g_Bindings, g_VK_CapsLockDynHotkeys
+    if !g_VK_Embedded {
+        _VK_UnregisterCapsLockDispatchHotkeys()
+        return
+    }
+    _VK_UnregisterCapsLockDispatchHotkeys()
+    try {
+        HotIf(_VkCapsLockHotIfCb)
+        for ahkKey, cmdId in g_Bindings {
+            if _VK_IsHostStaticCapsHotkeyKey(ahkKey)
+                continue
+            try {
+                Hotkey(ahkKey, VkDynCapsLockHandler, "On")
+                g_VK_CapsLockDynHotkeys.Push(ahkKey)
+            } catch as e
+                OutputDebug("[VK] CapsLock dyn on " . ahkKey . ": " . e.Message)
+        }
+    } finally {
+        HotIf()
+    }
+}
+
+VkDynCapsLockHandler(*) {
+    if VirtualKeyboard_HandleKey(A_ThisHotkey)
+        return
+    th := A_ThisHotkey
+    if (StrLen(th) = 1) {
+        try SendText(th)
+        catch as e
+            OutputDebug("[VK] VkDynCapsLockHandler passthrough: " . e.Message)
+    } else
+        OutputDebug("[VK] VkDynCapsLockHandler: unhandled " . th)
+}
+
 _OnWV2Created(ctrl) {
     global g_VK_WV2, g_VK_Ctrl, g_VK_ExpectAppLocalNavigationResult, g_VK_TriedDiskAfterAppLocalFail
 
@@ -1496,6 +1626,7 @@ _VK_SyncEmbeddedCapslockHotkeys() {
     HotkeyT := tVal
     HotkeyF := fVal
     HotkeyP := pVal
+    _VK_RegisterCapsLockDispatchHotkeys()
 }
 
 _VkJsonStr(s) {
@@ -1704,7 +1835,7 @@ _VkParseSequenceKey(ahkKey) {
     return [SubStr(body, 1, pos - 1), SubStr(body, pos + 2)]
 }
 
-_EnsureSequenceHook() {
+_EnsureSequenceHook(force := false) {
     global g_Bindings, g_VK_SeqIH, g_VK_SeqLast
     need := false
     for ahkKey, cmdId in g_Bindings {
@@ -1717,6 +1848,8 @@ _EnsureSequenceHook() {
         _StopSequenceHook()
         return
     }
+    if force
+        _StopSequenceHook()
     if IsObject(g_VK_SeqIH)
         return
     ih := InputHook("V L0")
@@ -1742,13 +1875,15 @@ _StopSequenceHook() {
     g_VK_SeqLast["tick"] := 0
 }
 
-_EnsureDoubleModifierHook() {
+_EnsureDoubleModifierHook(force := false) {
     global g_Bindings, g_VK_DblModIH, g_VK_DblModLast
     need := g_Bindings.Has("^^") || g_Bindings.Has("++") || g_Bindings.Has("!!")
     if !need {
         _StopDoubleModifierHook()
         return
     }
+    if force
+        _StopDoubleModifierHook()
     if IsObject(g_VK_DblModIH)
         return
     ih := InputHook("V L0")
@@ -1931,6 +2066,8 @@ _OnRecordKeyUp(ih, vk, sc) {
     if (prev > 0 && now - prev < g_VK_DblModIntervalMs) {
         g_VK_RecordDblModLast[grp] := 0
         dbl := grp = "ctrl" ? "^^" : grp = "shift" ? "++" : "!!"
+        dblDisp := grp = "ctrl" ? "双按 Ctrl" : grp = "shift" ? "双按 Shift" : "双按 Alt"
+        VK_SendToWeb('{"type":"recordPending","displayKey":"' . _VkJsonStr(dblDisp) . '","kind":"dblMod"}')
         _VkFinalizeRecordedHotkey(dbl)
         return
     }
@@ -2000,6 +2137,9 @@ _OnRecordKeyDown(ih, vk, sc) {
     g_RecordPendingTick := now
     token := g_RecordFinalizeToken + 1
     g_RecordFinalizeToken := token
+    dispWait := _ToDisplayKey(ahkKey)
+    VK_SendToWeb('{"type":"recordPending","displayKey":"' . _VkJsonStr(dispWait)
+        . '","waitMs":' . g_VK_SequenceIntervalMs . '}')
     SetTimer(_VkMakeRecordFinalizeTimer(token), -g_VK_SequenceIntervalMs)
 }
 
@@ -2151,7 +2291,7 @@ _GetKeyFromSC(sc) {
 }
 
 _PushInit() {
-    global g_Commands, g_InverseBindings, g_LastExecutedCmdId, g_VK_QuickBindArmed, g_VK_QuickBindConsumed, g_VK_IsAdmin, g_VK_AdminWarning
+    global g_Commands, g_InverseBindings, g_LastExecutedCmdId, g_VK_QuickBindArmed, g_VK_QuickBindConsumed, g_VK_IsAdmin, g_VK_AdminWarning, g_VK_Embedded
 
     if !g_Commands.Has("Categories") {
         OutputDebug("[VK] Commands not loaded")
@@ -2239,6 +2379,7 @@ _PushInit() {
     dashPinned := _VK_DashboardPinnedJson()
     adminWarning := _JsonStr(g_VK_AdminWarning)
     isAdmin := g_VK_IsAdmin ? "true" : "false"
+    embeddedHost := g_VK_Embedded ? "true" : "false"
 
     payload := '{"type":"init","categories":' . catJson
         . ',"commands":' . clJson
@@ -2250,6 +2391,7 @@ _PushInit() {
         . ',"quickBindActive":' . quickBindActive
         . ',"isAdmin":' . isAdmin
         . ',"adminWarning":' . adminWarning
+        . ',"embeddedHost":' . embeddedHost
         . ',"dashboardLayout":' . dashLayout
         . ',"dashboardConfig":' . dashCfg
         . ',"dashboardPinned":' . dashPinned . '}'
@@ -2426,6 +2568,54 @@ _VK_RequestFocusInput() {
         return
     }
     g_VK_FocusPending := true
+}
+
+; 释放当前进程内由 VK 注册的 Hotkey（独立模式全量重绑前调用）。
+_VK_ReleaseOldHotkeys() {
+    global g_HotkeyBound
+    keys := []
+    for k, _ in g_HotkeyBound
+        keys.Push(k)
+    for k in keys
+        _VK_ReleaseBoundHotkey(k)
+}
+
+; 独立 VirtualKeyboard 保存绑定后通知 CursorHelper：重载 Commands.json 并同步 CapsLock 变量 / 双击修饰键与序列钩子。
+VK_HandleBindingsReloaded(*) {
+    global g_VK_Embedded, g_VK_Gui, g_VK_Ready, g_Commands, g_Bindings, g_ModState
+
+    _LoadCommands()
+
+    if (!(g_Commands is Map) || !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+        || g_Commands["CommandList"].Count = 0)
+        OutputDebug("[VK] VK_HandleBindingsReloaded: CommandList 缺失或为空，请检查 Commands.json")
+    if g_Bindings.Count = 0
+        OutputDebug("[VK] VK_HandleBindingsReloaded: g_Bindings 为空（可能无有效绑定）")
+
+    g_ModState["ctrl"] := GetKeyState("Ctrl", "P")
+    g_ModState["alt"] := GetKeyState("Alt", "P")
+    g_ModState["shift"] := GetKeyState("Shift", "P")
+    if g_VK_Ready
+        _PushModifierState()
+
+    if g_VK_Embedded {
+        try {
+            global CapsLock
+            CapsLock := GetKeyState("CapsLock", "P")
+        } catch as e {
+            OutputDebug("[VK] VK_HandleBindingsReloaded: CapsLock 同步跳过 — " . e.Message)
+        }
+    }
+
+    if !g_VK_Embedded {
+        _VK_ReleaseOldHotkeys()
+        _ApplyAllBindings()
+    } else {
+        _EnsureDoubleModifierHook(true)
+        _EnsureSequenceHook(true)
+    }
+
+    _PushInit()
 }
 
 NotifyScript(targetTitle, payload) {
