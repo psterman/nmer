@@ -10,6 +10,72 @@ VK_ExecCursorHelperCmd(cmdId) {
     executed := false
     try {
         switch cmdId {
+            ; ==================== 牛马 AI：消息 ====================
+            case "send":
+                if !VK_NiumaExecScript("(function(){var b=document.getElementById('send'); if(b){ b.click(); return 'ok'; } return 'no-send';})();", true)
+                    VK_NiumaControlSend("{Enter}", true)
+                executed := true
+            case "newline":
+                if !VK_NiumaExecScript("(function(){var i=document.getElementById('input'); if(!i) return 'no-input'; var s=i.selectionStart||0,e=i.selectionEnd||0,v=i.value||''; i.value=v.slice(0,s)+'\\n'+v.slice(e); i.selectionStart=i.selectionEnd=s+1; try{i.dispatchEvent(new Event('input',{bubbles:true}));}catch(_){ } return 'ok';})();", true)
+                    VK_NiumaControlSend("^{Enter}", true)
+                executed := true
+            case "new_chat":
+                if !VK_NiumaExecScript("(function(){var b=document.querySelector('#sessionTabs .stab-add'); if(b){ b.click(); return 'ok'; } return 'no-add';})();", true)
+                    VK_NiumaControlSend("^n", true)
+                executed := true
+            case "clear_input":
+                if !VK_NiumaExecScript("(function(){var i=document.getElementById('input'); if(!i) return 'no-input'; i.value=''; try{i.dispatchEvent(new Event('input',{bubbles:true}));}catch(_){ } return 'ok';})();", true)
+                    VK_NiumaControlSend("^{Del}", true)
+                executed := true
+            case "close_tab":
+                if !VK_NiumaExecScript("(function(){var x=document.querySelector('#sessionTabs .stab.active .stab-x'); if(x){ x.click(); return 'ok'; } return 'no-close';})();", true)
+                    VK_NiumaControlSend("^w", true)
+                executed := true
+            case "exit_ai":
+                try FloatingToolbarSetChatDrawerState(false)
+                VK_NiumaControlSend("{Esc}", false)
+                executed := true
+
+            ; ==================== 牛马 AI：切换 ====================
+            case "tab1":
+                VK_SwitchTab(1)
+                executed := true
+            case "tab2":
+                VK_SwitchTab(2)
+                executed := true
+            case "tab3":
+                VK_SwitchTab(3)
+                executed := true
+            case "tab4":
+                VK_SwitchTab(4)
+                executed := true
+            case "tab5":
+                VK_SwitchTab(5)
+                executed := true
+            case "tab6":
+                VK_SwitchTab(6)
+                executed := true
+            case "tab7":
+                VK_SwitchTab(7)
+                executed := true
+            case "tab8":
+                VK_SwitchTab(8)
+                executed := true
+
+            ; ==================== 牛马 AI：提示词 ====================
+            case "ai_exp":
+                VK_SendPromptByClipboard("请用小白能听懂的话解释下面这段内容：")
+                executed := true
+            case "ai_opt":
+                VK_SendPromptByClipboard("请优化下面内容的表达逻辑，让语句更清楚：")
+                executed := true
+            case "ai_ref":
+                VK_SendPromptByClipboard("请重构下面代码，给出更清晰的结构和实现：")
+                executed := true
+            case "ai_act":
+                VK_SendPromptByClipboard("请根据下面内容给出可执行的下一步动作建议：")
+                executed := true
+
             case "ch_c":
                 HandleDynamicHotkey(HotkeyC != "" ? HotkeyC : "c", "C")
                 executed := true
@@ -173,6 +239,101 @@ VK_ExecCursorHelperCmd(cmdId) {
         OutputDebug("[VK-Exec] error: " . e.Message)
     } finally {
         CapsLock := prevCaps
+    }
+}
+
+VK_EnsureNiumaWindow(openDrawer := true) {
+    global FloatingToolbarGUI
+    try ShowFloatingToolbar()
+    if openDrawer {
+        try FloatingToolbarSetChatDrawerState(true)
+    }
+    if !(IsObject(FloatingToolbarGUI) && FloatingToolbarGUI) {
+        return 0
+    }
+    try return FloatingToolbarGUI.Hwnd
+    catch {
+        return 0
+    }
+}
+
+VK_NiumaExecScript(js, openDrawer := true) {
+    global g_FTB_WV2
+    VK_EnsureNiumaWindow(openDrawer)
+    if !g_FTB_WV2
+        return false
+    try {
+        g_FTB_WV2.ExecuteScript(js)
+        return true
+    } catch as e {
+        OutputDebug("[VK-Exec] Niuma ExecuteScript failed: " . e.Message)
+        return false
+    }
+}
+
+; 消息类：优先 ControlSend，失败回退 PostMessage（确保非焦点窗口也尽量可执行）
+VK_NiumaControlSend(keys, openDrawer := true) {
+    hwnd := VK_EnsureNiumaWindow(openDrawer)
+    if !hwnd
+        return false
+    try {
+        ControlSend(keys, , "ahk_id " . hwnd)
+        return true
+    } catch {
+    }
+
+    ; 兜底：仅对 Enter / Esc 做 PostMessage，组合键继续依赖 ControlSend
+    vk := 0
+    if (keys = "{Enter}")
+        vk := 0x0D
+    else if (keys = "{Esc}")
+        vk := 0x1B
+    if (vk = 0)
+        return false
+    try {
+        PostMessage(0x0100, vk, 0, , "ahk_id " . hwnd) ; WM_KEYDOWN
+        PostMessage(0x0101, vk, 0, , "ahk_id " . hwnd) ; WM_KEYUP
+        return true
+    } catch {
+        return false
+    }
+}
+
+; 切换类：通过 WebView2.ExecuteScript 调用前端切换逻辑
+VK_SwitchTab(n) {
+    global g_FTB_WV2
+    idx := Integer(n)
+    if (idx < 1)
+        idx := 1
+    if (idx > 8)
+        idx := 8
+
+    VK_EnsureNiumaWindow(true)
+    if !g_FTB_WV2
+        return false
+
+    js := "(function(){var i=" . idx . ";var all=[].slice.call(document.querySelectorAll('#sessionTabs .stab[data-session-id]'));var el=all[i-1];if(el){el.click();return 'ok';}return 'no-tab';})();"
+    try {
+        g_FTB_WV2.ExecuteScript(js)
+        return true
+    } catch as e {
+        OutputDebug("[VK-Exec] VK_SwitchTab ExecuteScript failed: " . e.Message)
+        return false
+    }
+}
+
+VK_SendPromptByClipboard(prefix) {
+    txt := Trim(String(A_Clipboard), " `t`r`n")
+    if (txt = "") {
+        ; 小白可感知反馈：选中内容后再触发提示词动作
+        try TrayTip("未检测到选中文本，请先复制或选中后重试。", "牛马AI", "Icon! 2")
+        return false
+    }
+    payload := prefix . "`n`n" . txt
+    try return FloatingToolbar_SendTextToNiumaChat(payload, true, false, true)
+    catch as e {
+        OutputDebug("[VK-Exec] VK_SendPromptByClipboard failed: " . e.Message)
+        return false
     }
 }
 

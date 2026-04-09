@@ -281,6 +281,8 @@ FloatingToolbar_OnWebViewCreated(ctrl) {
     s.AreDefaultContextMenusEnabled := false
     s.IsStatusBarEnabled := false
     s.AreDevToolsEnabled := false
+    ; 避免 Ctrl+1/2/W 等被浏览器加速键先消费，确保 Niuma Chat 内部快捷键优先生效
+    try s.AreBrowserAcceleratorKeysEnabled := false
 
     g_FTB_WV2.add_NavigationStarting(FloatingToolbar_OnNavigationStarting)
     g_FTB_WV2.add_NavigationCompleted(FloatingToolbar_OnNavigationCompleted)

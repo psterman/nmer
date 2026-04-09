@@ -1146,7 +1146,17 @@ _VkCapsLockHotIfCb(*) {
 }
 
 _VkCursorWinHotIfCb(*) {
-    return !!WinActive("ahk_exe Cursor.exe")
+    global FloatingToolbarGUI
+    if WinActive("ahk_exe Cursor.exe")
+        return true
+    ; Niuma Chat 输入发生在 FloatingToolbar 的 WebView2 中，也要允许 VK 自定义组合键生效
+    try {
+        if (IsSet(FloatingToolbarGUI) && IsObject(FloatingToolbarGUI) && FloatingToolbarGUI.Hwnd) {
+            if WinActive("ahk_id " . FloatingToolbarGUI.Hwnd)
+                return true
+        }
+    }
+    return false
 }
 
 ; 宿主 #HotIf GetCapsLockState() 下已静态定义的键，避免与动态 Hotkey 重复 variant
@@ -1190,6 +1200,21 @@ _VK_UnregisterEmbeddedScopedHotkeys() {
     g_VK_EmbeddedScopedHotkeys := []
 }
 
+_VK_IsEmbeddedScopedCommand(cmdId) {
+    if (cmdId = "")
+        return false
+    ; Cursor 原生命令（来自映射目录）
+    if CursorShortcutMapper_IsCursorVkCommand(cmdId)
+        return true
+    ; 牛马 AI 专用命令：允许在嵌入模式下注册 Ctrl/组合键
+    static allow := Map(
+        "send", 1, "newline", 1, "new_chat", 1, "clear_input", 1, "close_tab", 1, "exit_ai", 1,
+        "tab1", 1, "tab2", 1, "tab3", 1, "tab4", 1, "tab5", 1, "tab6", 1, "tab7", 1, "tab8", 1,
+        "ai_exp", 1, "ai_opt", 1, "ai_ref", 1, "ai_act", 1
+    )
+    return allow.Has(cmdId)
+}
+
 _VK_RegisterEmbeddedScopedHotkeys() {
     global g_VK_Embedded, g_Bindings, g_VK_EmbeddedScopedHotkeys
     _VK_UnregisterEmbeddedScopedHotkeys()
@@ -1201,7 +1226,7 @@ _VK_RegisterEmbeddedScopedHotkeys() {
         for ahkKey, cmdId in g_Bindings {
             if _VkIsRuntimeHookKey(ahkKey)
                 continue
-            if !CursorShortcutMapper_IsCursorVkCommand(cmdId)
+            if !_VK_IsEmbeddedScopedCommand(cmdId)
                 continue
             ; Scoped mapping is for user-defined combo keys; avoid stealing plain typing keys.
             if !(InStr(ahkKey, "^") || InStr(ahkKey, "!") || InStr(ahkKey, "+") || InStr(ahkKey, "#"))
