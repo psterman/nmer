@@ -313,7 +313,14 @@ _VK_BuiltinCommandCatalog() {
         ]),
         Map("id", "screenshot", "name", "📸 智能截图", "commands", [
             Map("id", "ch_t", "name", "截图智能菜单", "desc", "CapsLock+T：截图后弹出智能菜单", "fn", "CH_RUN", "suggested", "t"),
-            Map("id", "ch_p", "name", "区域截图粘贴", "desc", "CapsLock+P：区域截图并粘贴到 Cursor", "fn", "CH_RUN", "suggested", "p")
+            Map("id", "ch_p", "name", "区域截图粘贴", "desc", "CapsLock+P：区域截图并粘贴到 Cursor", "fn", "CH_RUN", "suggested", "p"),
+            Map("id", "ss_pin", "name", "截图助手 / 置顶", "desc", "截图助手：切换置顶与工具栏显示状态", "fn", "CH_RUN", "suggested", "q"),
+            Map("id", "ss_ocr", "name", "截图助手 / OCR", "desc", "截图助手：执行 OCR 识别", "fn", "CH_RUN", "suggested", "e"),
+            Map("id", "ss_text", "name", "截图助手 / 纯文本", "desc", "截图助手：OCR后粘贴纯文本", "fn", "CH_RUN", "suggested", "c"),
+            Map("id", "ss_save", "name", "截图助手 / 保存", "desc", "截图助手：保存截图到文件", "fn", "CH_RUN", "suggested", "r"),
+            Map("id", "ss_ai", "name", "截图助手 / AI", "desc", "截图助手：OCR后发送到 AI", "fn", "CH_RUN", "suggested", "z"),
+            Map("id", "ss_search", "name", "截图助手 / 搜索", "desc", "截图助手：OCR后发送到搜索中心", "fn", "CH_RUN", "suggested", "f"),
+            Map("id", "ss_close", "name", "截图助手 / 关闭", "desc", "截图助手：关闭截图面板", "fn", "CH_RUN", "suggested", "Escape")
         ]),
         Map("id", "settings", "name", "⚙️ 设置中心", "commands", [
             Map("id", "sys_show_vk", "name", "显示虚拟键盘", "desc", "打开 VK KeyBinder 窗口", "fn", "SHOW_VK"),
@@ -2853,5 +2860,4 @@ _FallbackHtml() {
             . '</div></body></html>'
     )
 }
-
 

@@ -231,6 +231,34 @@ VK_ExecCursorHelperCmd(cmdId) {
                 if (VK_IsClipboardPanelActive())
                     VK_ClipboardToggleShortcuts()
                 executed := true
+            case "ss_pin":
+                if (IsScreenshotEditorActive())
+                    ToggleScreenshotEditorAlwaysOnTop()
+                executed := true
+            case "ss_ocr":
+                if (IsScreenshotEditorActive())
+                    ExecuteScreenshotOCR()
+                executed := true
+            case "ss_text":
+                if (IsScreenshotEditorActive())
+                    PasteScreenshotAsText()
+                executed := true
+            case "ss_save":
+                if (IsScreenshotEditorActive())
+                    SaveScreenshotToFile()
+                executed := true
+            case "ss_ai":
+                if (IsScreenshotEditorActive())
+                    ScreenshotEditorSendToAI()
+                executed := true
+            case "ss_search":
+                if (IsScreenshotEditorActive())
+                    ScreenshotEditorSearchText()
+                executed := true
+            case "ss_close":
+                if (IsScreenshotEditorActive())
+                    CloseScreenshotEditor()
+                executed := true
             case "ch_backspace":
                 if (VK_IsHubCapsuleActive()) {
                     VK_HubCapsuleAction("clear")

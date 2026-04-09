@@ -24743,6 +24743,11 @@ HandleDynamicHotkey(PressedKey, ActionType) {
     ; 将按键转换为小写进行比较（ESC特殊处理）
     KeyLower := StrLower(PressedKey)
     ConfigKey := ""
+
+    ; 截图助手优先：当截图助手打开时，Q/E/C/R/Z/F/Esc 统一切到截图工具栏动作
+    if (HandleScreenshotEditorHotkey(ActionType)) {
+        return true
+    }
     
     ; 首先检查是否匹配快捷操作按钮配置的快捷键
     if (PanelVisible && QuickActionButtons.Length > 0) {
@@ -24954,6 +24959,49 @@ HandleDynamicHotkey(PressedKey, ActionType) {
         return true  ; 已处理
     }
     return false  ; 未匹配，需要发送原始按键
+}
+
+IsScreenshotEditorActive() {
+    global GuiID_ScreenshotEditor
+    try {
+        if !(IsObject(GuiID_ScreenshotEditor) && GuiID_ScreenshotEditor != 0)
+            return false
+        hwnd := GuiID_ScreenshotEditor.Hwnd
+        if !hwnd
+            return false
+        return !!WinExist("ahk_id " . hwnd)
+    } catch {
+        return false
+    }
+}
+
+HandleScreenshotEditorHotkey(ActionType) {
+    if !IsScreenshotEditorActive()
+        return false
+    switch ActionType {
+        case "Q":
+            ToggleScreenshotEditorAlwaysOnTop()
+            return true
+        case "E":
+            ExecuteScreenshotOCR()
+            return true
+        case "C":
+            PasteScreenshotAsText()
+            return true
+        case "R":
+            SaveScreenshotToFile()
+            return true
+        case "Z":
+            ScreenshotEditorSendToAI()
+            return true
+        case "F":
+            ScreenshotEditorSearchText()
+            return true
+        case "ESC":
+            CloseScreenshotEditor()
+            return true
+    }
+    return false
 }
 
 ; ===================== 面板快捷键 =====================
@@ -35530,11 +35578,11 @@ ShowScreenshotEditor(DebugGui := 0) {
         GuiID_ScreenshotToolbar.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
         
         ; 工具栏尺寸
-        ToolbarHeight := 50
+        ToolbarHeight := 56
         ToolbarPadding := 10
-        ButtonWidth := 80
-        ButtonHeight := 35
-        ButtonSpacing := 10
+        ButtonWidth := 120
+        ButtonHeight := 36
+        ButtonSpacing := 8
         ButtonY := (ToolbarHeight - ButtonHeight) // 2
         ButtonX := ToolbarPadding
         
@@ -35544,43 +35592,50 @@ ShowScreenshotEditor(DebugGui := 0) {
         ; 工具栏按钮（添加到悬浮工具栏）
         ; [置顶] 按钮
         global ScreenshotEditorAlwaysOnTop := true
-        PinBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg, "📌 置顶")
-        PinBtn.SetFont("s9", "Segoe UI")
+        PinBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg, "📌 置顶 [CapsLock+Q]")
+        PinBtn.SetFont("s8", "Segoe UI")
         PinBtn.OnEvent("Click", (*) => ToggleScreenshotEditorAlwaysOnTop())
         HoverBtnWithAnimation(PinBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
         ButtonX += ButtonWidth + ButtonSpacing
         
         ; [OCR] 按钮
-        OCRBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg, "🔍 OCR")
-        OCRBtn.SetFont("s9", "Segoe UI")
+        OCRBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg, "🔍 OCR [CapsLock+E]")
+        OCRBtn.SetFont("s8", "Segoe UI")
         OCRBtn.OnEvent("Click", (*) => ExecuteScreenshotOCR())
         HoverBtnWithAnimation(OCRBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
         ButtonX += ButtonWidth + ButtonSpacing
 
         ; [粘贴纯文本] 按钮
-        PasteTextBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg, "📝 纯文本")
-        PasteTextBtn.SetFont("s9", "Segoe UI")
+        PasteTextBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg, "📝 纯文本 [CapsLock+C]")
+        PasteTextBtn.SetFont("s8", "Segoe UI")
         PasteTextBtn.OnEvent("Click", (*) => PasteScreenshotAsText())
         HoverBtnWithAnimation(PasteTextBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
         ButtonX += ButtonWidth + ButtonSpacing
 
-        ; [复制] 按钮
-        CopyBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary, "📋 复制")
-        CopyBtn.SetFont("s9", "Segoe UI")
-        CopyBtn.OnEvent("Click", (*) => CopyScreenshotToClipboard())
-        HoverBtnWithAnimation(CopyBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
-        ButtonX += ButtonWidth + ButtonSpacing
-
         ; [保存] 按钮
-        SaveBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg, "💾 保存")
-        SaveBtn.SetFont("s9", "Segoe UI")
+        SaveBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg, "💾 保存 [CapsLock+R]")
+        SaveBtn.SetFont("s8", "Segoe UI")
         SaveBtn.OnEvent("Click", (*) => SaveScreenshotToFile())
         HoverBtnWithAnimation(SaveBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
         ButtonX += ButtonWidth + ButtonSpacing
+
+        ; [AI] 按钮
+        AIBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary, "🤖 AI [CapsLock+Z]")
+        AIBtn.SetFont("s8", "Segoe UI")
+        AIBtn.OnEvent("Click", (*) => ScreenshotEditorSendToAI())
+        HoverBtnWithAnimation(AIBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+        ButtonX += ButtonWidth + ButtonSpacing
+
+        ; [搜索] 按钮
+        SearchBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg, "🔎 搜索 [CapsLock+F]")
+        SearchBtn.SetFont("s8", "Segoe UI")
+        SearchBtn.OnEvent("Click", (*) => ScreenshotEditorSearchText())
+        HoverBtnWithAnimation(SearchBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        ButtonX += ButtonWidth + ButtonSpacing
         
         ; [关闭] 按钮（在工具栏）
-        CloseToolbarBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnDanger, "✕ 关闭")
-        CloseToolbarBtn.SetFont("s9", "Segoe UI")
+        CloseToolbarBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnDanger, "✕ 关闭 [Esc]")
+        CloseToolbarBtn.SetFont("s8", "Segoe UI")
         CloseToolbarBtn.OnEvent("Click", (*) => CloseScreenshotEditor())
         HoverBtnWithAnimation(CloseToolbarBtn, UI_Colors.BtnDanger, UI_Colors.BtnDangerHover)
         ButtonX += ButtonWidth + ButtonSpacing
@@ -36551,6 +36606,81 @@ ExecuteScreenshotOCR() {
     } catch as e {
         ToolTip()
         TrayTip("错误", "OCR识别失败: " . e.Message, "Iconx 2")
+    }
+}
+
+ScreenshotEditorExtractText(showProgressTip := true) {
+    global ScreenshotEditorBitmap
+
+    try {
+        if (!ScreenshotEditorBitmap || ScreenshotEditorBitmap <= 0) {
+            TrayTip("错误", "没有可用的截图", "Iconx 2")
+            return ""
+        }
+
+        if (showProgressTip) {
+            TrayTip("识别中", "正在识别截图文本...", "Iconi 1")
+        }
+
+        tempPath := A_Temp "\OCR_SS_Action_" . A_TickCount . ".png"
+        result := Gdip_SaveBitmapToFile(ScreenshotEditorBitmap, tempPath)
+        if (result != 0) {
+            TrayTip("错误", "保存临时图片失败", "Iconx 2")
+            return ""
+        }
+
+        ocrResult := OCR.FromFile(tempPath, "zh-CN")
+        try FileDelete(tempPath)
+
+        if (!ocrResult) {
+            TrayTip("错误", "OCR识别失败", "Iconx 2")
+            return ""
+        }
+
+        recognizedText := ""
+        try {
+            if (ocrResult.HasProp("Text")) {
+                recognizedText := Trim(String(ocrResult.Text))
+            }
+        } catch {
+            recognizedText := ""
+        }
+
+        if (recognizedText = "") {
+            TrayTip("提示", "未识别到可用文本", "Iconi 1")
+            return ""
+        }
+        return recognizedText
+    } catch as e {
+        TrayTip("错误", "OCR识别失败: " . e.Message, "Iconx 2")
+        return ""
+    }
+}
+
+ScreenshotEditorSendToAI() {
+    text := ScreenshotEditorExtractText(true)
+    if (text = "")
+        return
+    try {
+        ok := FloatingToolbar_SendTextToNiumaChat(text, true, true, true)
+        if (ok) {
+            TrayTip("AI", "截图文本已发送到 AI", "Iconi 1")
+        } else {
+            TrayTip("AI", "发送失败，请重试", "Iconx 1")
+        }
+    } catch as e {
+        TrayTip("AI", "发送失败: " . e.Message, "Iconx 1")
+    }
+}
+
+ScreenshotEditorSearchText() {
+    text := ScreenshotEditorExtractText(true)
+    if (text = "")
+        return
+    try {
+        SearchCenter_RunQueryWithKeyword(text)
+    } catch as e {
+        TrayTip("搜索", "打开搜索失败: " . e.Message, "Iconx 1")
     }
 }
 
