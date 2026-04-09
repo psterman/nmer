@@ -553,6 +553,14 @@ global GuiID_ScreenshotToolbar := 0  ; 截图助手工具栏 GUI ID
 global ScreenshotEditorBitmap := 0  ; 截图编辑器中的Gdip位图句柄
 global ScreenshotEditorGraphics := 0  ; 截图编辑器中的Gdip图形句柄
 global ScreenshotEditorImagePath := ""  ; 当前编辑的图片缓存路径
+global ScreenshotEditorTitleBarHeight := 30  ; 截图助手标题栏高度
+global ScreenshotEditorZoomScale := 1.0  ; 当前缩放比例
+global ScreenshotEditorZoomMin := 0.2  ; 最小缩放
+global ScreenshotEditorZoomMax := 4.0  ; 最大缩放
+global ScreenshotEditorBaseWidth := 0  ; 原始预览宽度
+global ScreenshotEditorBaseHeight := 0  ; 原始预览高度
+global GuiID_ScreenshotZoomTip := 0  ; 缩放提示 GUI
+global ScreenshotZoomTipTextCtrl := 0  ; 缩放提示文本控件
 global ScreenshotEditorAlwaysOnTop := true  ; 截图助手是否置顶
 global ScreenshotEditorTitleBar := 0  ; 截图助手标题栏控件
 global ScreenshotEditorCloseBtn := 0  ; 截图助手关闭按钮控件
@@ -24975,6 +24983,25 @@ IsScreenshotEditorActive() {
     }
 }
 
+IsScreenshotEditorZoomHotkeyActive() {
+    global GuiID_ScreenshotEditor, ScreenshotEditorToolbarVisible
+    if !IsScreenshotEditorActive()
+        return false
+    ; 仅在置顶隐藏工具栏模式下启用滚轮缩放
+    if (ScreenshotEditorToolbarVisible)
+        return false
+    try {
+        MouseGetPos(, , &hoverHwnd)
+        if !hoverHwnd
+            return false
+        ; 鼠标位于截图助手窗口或其子控件上均允许缩放
+        return (hoverHwnd = GuiID_ScreenshotEditor.Hwnd) || DllCall("user32\IsChild", "ptr", GuiID_ScreenshotEditor.Hwnd, "ptr", hoverHwnd, "int")
+    }
+    catch {
+        return false
+    }
+}
+
 HandleScreenshotEditorHotkey(ActionType) {
     if !IsScreenshotEditorActive()
         return false
@@ -25003,6 +25030,15 @@ HandleScreenshotEditorHotkey(ActionType) {
     }
     return false
 }
+
+#HotIf IsScreenshotEditorZoomHotkeyActive()
+WheelUp:: {
+    ScreenshotEditorZoomBy(0.1)
+}
+WheelDown:: {
+    ScreenshotEditorZoomBy(-0.1)
+}
+#HotIf
 
 ; ===================== 面板快捷键 =====================
 ; 当 CapsLock 按下时，响应快捷键（采用 CapsLock+ 方案）
@@ -35248,6 +35284,7 @@ ShowScreenshotEditor(DebugGui := 0) {
     global GuiID_ScreenshotEditor, ScreenshotClipboard, UI_Colors, ThemeMode
     global ScreenshotEditorBitmap, ScreenshotEditorGraphics, ScreenshotEditorImagePath
     global ScreenshotEditorMode
+    global ScreenshotEditorTitleBarHeight, ScreenshotEditorBaseWidth, ScreenshotEditorBaseHeight, ScreenshotEditorZoomScale
     global g_ShowScreenshotEditorInFlight
     
     ; 初始化局部变量
@@ -35516,6 +35553,9 @@ ShowScreenshotEditor(DebugGui := 0) {
         global ScreenshotEditorPreviewBitmap := pPreviewBitmap  ; 保存预览位图句柄
         global ScreenshotEditorPreviewWidth := PreviewWidth
         global ScreenshotEditorPreviewHeight := PreviewHeight
+        global ScreenshotEditorBaseWidth := PreviewWidth
+        global ScreenshotEditorBaseHeight := PreviewHeight
+        global ScreenshotEditorZoomScale := 1.0
         global ScreenshotEditorImgWidth := ImgWidth
         global ScreenshotEditorImgHeight := ImgHeight
         
@@ -35529,6 +35569,7 @@ ShowScreenshotEditor(DebugGui := 0) {
         ; 窗口尺寸（仅预览区域，工具栏独立悬浮）
         ; 消除黑边：窗口宽度等于图片宽度，高度等于标题栏+图片高度
         TitleBarHeight := 30
+        ScreenshotEditorTitleBarHeight := TitleBarHeight
         WindowWidth := PreviewWidth
         WindowHeight := TitleBarHeight + PreviewHeight
         
@@ -35568,6 +35609,7 @@ ShowScreenshotEditor(DebugGui := 0) {
         ; 为图片控件添加拖动功能（Picture控件支持Click事件）
         global ScreenshotEditorIsDraggingWindow := false
         PreviewPic.OnEvent("Click", (*) => ScreenshotEditorDragWindow())
+        PreviewPic.OnEvent("ContextMenu", OnScreenshotEditorContextMenu)
         
         ; 全局变量
         global ScreenshotEditorPreviewPic := PreviewPic  ; 保存图片控件引用
@@ -35578,13 +35620,20 @@ ShowScreenshotEditor(DebugGui := 0) {
         GuiID_ScreenshotToolbar.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
         
         ; 工具栏尺寸
-        ToolbarHeight := 56
-        ToolbarPadding := 10
-        ButtonWidth := 120
-        ButtonHeight := 36
-        ButtonSpacing := 8
+        ToolbarHeight := 66
+        ToolbarPadding := 14
+        ButtonWidth := 142
+        ButtonHeight := 40
+        ButtonSpacing := 14
         ButtonY := (ToolbarHeight - ButtonHeight) // 2
         ButtonX := ToolbarPadding
+
+        ; 参考搜索中心：深色底 + 橙色描边/文字
+        ToolbarBtnBg := "1a1a1d"
+        ToolbarBtnHover := "2a2a30"
+        ToolbarBtnText := "ff9a3c"
+        ToolbarBtnDangerBg := "2a1414"
+        ToolbarBtnDangerHover := "3a1b1b"
         
         ; 先创建拖动区域（在按钮下方，不覆盖按钮）
         ; 注意：拖动区域会在按钮创建后添加，确保按钮在上层
@@ -35592,52 +35641,52 @@ ShowScreenshotEditor(DebugGui := 0) {
         ; 工具栏按钮（添加到悬浮工具栏）
         ; [置顶] 按钮
         global ScreenshotEditorAlwaysOnTop := true
-        PinBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg, "📌 置顶 [CapsLock+Q]")
+        PinBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 Border c" . ToolbarBtnText . " Background" . ToolbarBtnBg, "📌 置顶 [CapsLock+Q]")
         PinBtn.SetFont("s8", "Segoe UI")
         PinBtn.OnEvent("Click", (*) => ToggleScreenshotEditorAlwaysOnTop())
-        HoverBtnWithAnimation(PinBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        HoverBtnWithAnimation(PinBtn, ToolbarBtnBg, ToolbarBtnHover)
         ButtonX += ButtonWidth + ButtonSpacing
         
         ; [OCR] 按钮
-        OCRBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg, "🔍 OCR [CapsLock+E]")
+        OCRBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 Border c" . ToolbarBtnText . " Background" . ToolbarBtnBg, "🔍 OCR [CapsLock+E]")
         OCRBtn.SetFont("s8", "Segoe UI")
         OCRBtn.OnEvent("Click", (*) => ExecuteScreenshotOCR())
-        HoverBtnWithAnimation(OCRBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        HoverBtnWithAnimation(OCRBtn, ToolbarBtnBg, ToolbarBtnHover)
         ButtonX += ButtonWidth + ButtonSpacing
 
         ; [粘贴纯文本] 按钮
-        PasteTextBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg, "📝 纯文本 [CapsLock+C]")
+        PasteTextBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 Border c" . ToolbarBtnText . " Background" . ToolbarBtnBg, "📝 纯文本 [CapsLock+C]")
         PasteTextBtn.SetFont("s8", "Segoe UI")
         PasteTextBtn.OnEvent("Click", (*) => PasteScreenshotAsText())
-        HoverBtnWithAnimation(PasteTextBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        HoverBtnWithAnimation(PasteTextBtn, ToolbarBtnBg, ToolbarBtnHover)
         ButtonX += ButtonWidth + ButtonSpacing
 
         ; [保存] 按钮
-        SaveBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg, "💾 保存 [CapsLock+R]")
+        SaveBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 Border c" . ToolbarBtnText . " Background" . ToolbarBtnBg, "💾 保存 [CapsLock+R]")
         SaveBtn.SetFont("s8", "Segoe UI")
         SaveBtn.OnEvent("Click", (*) => SaveScreenshotToFile())
-        HoverBtnWithAnimation(SaveBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        HoverBtnWithAnimation(SaveBtn, ToolbarBtnBg, ToolbarBtnHover)
         ButtonX += ButtonWidth + ButtonSpacing
 
         ; [AI] 按钮
-        AIBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary, "🤖 AI [CapsLock+Z]")
+        AIBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 Border c" . ToolbarBtnText . " Background" . ToolbarBtnBg, "🤖 AI [CapsLock+Z]")
         AIBtn.SetFont("s8", "Segoe UI")
         AIBtn.OnEvent("Click", (*) => ScreenshotEditorSendToAI())
-        HoverBtnWithAnimation(AIBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+        HoverBtnWithAnimation(AIBtn, ToolbarBtnBg, ToolbarBtnHover)
         ButtonX += ButtonWidth + ButtonSpacing
 
         ; [搜索] 按钮
-        SearchBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.BtnBg, "🔎 搜索 [CapsLock+F]")
+        SearchBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 Border c" . ToolbarBtnText . " Background" . ToolbarBtnBg, "🔎 搜索 [CapsLock+F]")
         SearchBtn.SetFont("s8", "Segoe UI")
         SearchBtn.OnEvent("Click", (*) => ScreenshotEditorSearchText())
-        HoverBtnWithAnimation(SearchBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+        HoverBtnWithAnimation(SearchBtn, ToolbarBtnBg, ToolbarBtnHover)
         ButtonX += ButtonWidth + ButtonSpacing
         
         ; [关闭] 按钮（在工具栏）
-        CloseToolbarBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 cFFFFFF Background" . UI_Colors.BtnDanger, "✕ 关闭 [Esc]")
+        CloseToolbarBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 Border c" . ToolbarBtnText . " Background" . ToolbarBtnDangerBg, "✕ 关闭 [Esc]")
         CloseToolbarBtn.SetFont("s8", "Segoe UI")
         CloseToolbarBtn.OnEvent("Click", (*) => CloseScreenshotEditor())
-        HoverBtnWithAnimation(CloseToolbarBtn, UI_Colors.BtnDanger, UI_Colors.BtnDangerHover)
+        HoverBtnWithAnimation(CloseToolbarBtn, ToolbarBtnDangerBg, ToolbarBtnDangerHover)
         ButtonX += ButtonWidth + ButtonSpacing
         
         ; 计算工具栏宽度
@@ -35977,8 +36026,7 @@ SyncScreenshotToolbarPosition() {
 ; 切换截图助手置顶状态（隐藏/显示工具栏和标题栏）
 ToggleScreenshotEditorAlwaysOnTop() {
     global GuiID_ScreenshotEditor, GuiID_ScreenshotToolbar, ScreenshotEditorAlwaysOnTop
-    global ScreenshotEditorTitleBar, ScreenshotEditorCloseBtn, ScreenshotEditorToolbarVisible
-    global ScreenshotEditorPreviewPic, ScreenshotEditorPreviewWidth, ScreenshotEditorPreviewHeight
+    global ScreenshotEditorTitleBar, ScreenshotEditorCloseBtn, ScreenshotEditorToolbarVisible, ScreenshotEditorZoomScale
     
     try {
         ScreenshotEditorToolbarVisible := !ScreenshotEditorToolbarVisible
@@ -35994,14 +36042,8 @@ ToggleScreenshotEditorAlwaysOnTop() {
             if (GuiID_ScreenshotToolbar != 0) {
                 GuiID_ScreenshotToolbar.Hide()
             }
-            
-            ; 调整窗口大小和图片位置（移除标题栏高度，无黑边）
-            WinGetPos(&WinX, &WinY, &WinW, &WinH, "ahk_id " . GuiID_ScreenshotEditor.Hwnd)
-            NewHeight := ScreenshotEditorPreviewHeight  ; 预览高度（无边距）
-            ScreenshotEditorPreviewPic.Move(0, 0)  ; 图片移到顶部，紧贴边缘
-            GuiID_ScreenshotEditor.Show("w" . WinW . " h" . NewHeight . " x" . WinX . " y" . WinY)
-            
-            TrayTip("提示", "已隐藏工具栏和标题栏，右键图片可显示菜单", "Iconi 1")
+            ScreenshotEditorApplyZoom(ScreenshotEditorZoomScale, true)
+            TrayTip("提示", "已进入置顶缩放模式：滚轮可缩放", "Iconi 1")
         } else {
             ; 显示工具栏和标题栏
             ShowScreenshotEditorToolbar()
@@ -36015,8 +36057,7 @@ ToggleScreenshotEditorAlwaysOnTop() {
 ; 显示截图助手工具栏和标题栏
 ShowScreenshotEditorToolbar() {
     global GuiID_ScreenshotEditor, GuiID_ScreenshotToolbar
-    global ScreenshotEditorTitleBar, ScreenshotEditorCloseBtn, ScreenshotEditorToolbarVisible
-    global ScreenshotEditorPreviewPic, ScreenshotEditorPreviewWidth, ScreenshotEditorPreviewHeight
+    global ScreenshotEditorTitleBar, ScreenshotEditorCloseBtn, ScreenshotEditorToolbarVisible, ScreenshotEditorZoomScale
     
     try {
         ScreenshotEditorToolbarVisible := true
@@ -36028,23 +36069,190 @@ ShowScreenshotEditorToolbar() {
         if (ScreenshotEditorCloseBtn) {
             ScreenshotEditorCloseBtn.Visible := true
         }
-        
-        ; 调整窗口大小和图片位置（恢复标题栏高度，无黑边）
-        WinGetPos(&WinX, &WinY, &WinW, &WinH, "ahk_id " . GuiID_ScreenshotEditor.Hwnd)
-        TitleBarHeight := 30
-        PreviewY := TitleBarHeight
-        NewHeight := ScreenshotEditorPreviewHeight + TitleBarHeight  ; 预览高度 + 标题栏高度（无边距）
-        ScreenshotEditorPreviewPic.Move(0, PreviewY)  ; 图片移到标题栏下方，紧贴左边缘
-        GuiID_ScreenshotEditor.Show("w" . WinW . " h" . NewHeight . " x" . WinX . " y" . WinY)
-        
-        ; 显示工具栏
-        if (GuiID_ScreenshotToolbar != 0) {
-            ToolbarX := WinX
-            ToolbarY := WinY + NewHeight + 10
-            GuiID_ScreenshotToolbar.Show("x" . ToolbarX . " y" . ToolbarY)
-        }
+
+        ; 按当前缩放比例恢复布局
+        ScreenshotEditorApplyZoom(ScreenshotEditorZoomScale, false)
     } catch as e {
         TrayTip("错误", "显示工具栏失败: " . e.Message, "Iconx 2")
+    }
+}
+
+ScreenshotEditorZoomBy(step) {
+    global ScreenshotEditorZoomScale
+    newScale := ScreenshotEditorZoomScale + step
+    ScreenshotEditorApplyZoom(newScale, true)
+}
+
+ScreenshotEditorApplyZoom(newScale, showTip := true) {
+    global GuiID_ScreenshotEditor, GuiID_ScreenshotToolbar
+    global ScreenshotEditorPreviewPic, ScreenshotEditorToolbarVisible
+    global ScreenshotEditorTitleBarHeight, ScreenshotEditorZoomScale, ScreenshotEditorZoomMin, ScreenshotEditorZoomMax
+    global ScreenshotEditorBaseWidth, ScreenshotEditorBaseHeight
+    global ScreenshotEditorPreviewWidth, ScreenshotEditorPreviewHeight
+
+    try {
+        if !(IsObject(GuiID_ScreenshotEditor) && GuiID_ScreenshotEditor != 0)
+            return
+        if (!ScreenshotEditorPreviewPic)
+            return
+
+        if (!ScreenshotEditorBaseWidth || !ScreenshotEditorBaseHeight) {
+            ScreenshotEditorBaseWidth := ScreenshotEditorPreviewWidth
+            ScreenshotEditorBaseHeight := ScreenshotEditorPreviewHeight
+        }
+        if (!ScreenshotEditorBaseWidth || !ScreenshotEditorBaseHeight)
+            return
+
+        if (newScale < ScreenshotEditorZoomMin)
+            newScale := ScreenshotEditorZoomMin
+
+        ; 屏幕可视范围动态限幅，避免放大后出现“截断感”
+        titleH := ScreenshotEditorToolbarVisible ? ScreenshotEditorTitleBarHeight : 0
+        vW := SysGet(78), vH := SysGet(79)
+        maxScaleW := (vW - 20) / ScreenshotEditorBaseWidth
+        maxScaleH := (vH - 20 - titleH) / ScreenshotEditorBaseHeight
+        screenMaxScale := Min(maxScaleW, maxScaleH)
+        if (screenMaxScale < ScreenshotEditorZoomMin)
+            screenMaxScale := ScreenshotEditorZoomMin
+        effectiveMaxScale := Min(ScreenshotEditorZoomMax, screenMaxScale)
+        if (newScale > effectiveMaxScale)
+            newScale := effectiveMaxScale
+        ScreenshotEditorZoomScale := newScale
+
+        drawW := Max(120, Round(ScreenshotEditorBaseWidth * ScreenshotEditorZoomScale))
+        drawH := Max(80, Round(ScreenshotEditorBaseHeight * ScreenshotEditorZoomScale))
+
+        previewY := titleH
+        winW := drawW
+        winH := drawH + titleH
+
+        WinGetPos(&oldX, &oldY, &oldW, &oldH, "ahk_id " . GuiID_ScreenshotEditor.Hwnd)
+        if (!oldW || !oldH) {
+            oldW := winW
+            oldH := winH
+        }
+
+        ; 以当前窗口中心为基准缩放，避免向右下扩展造成“截断感”
+        centerX := oldX + (oldW // 2)
+        centerY := oldY + (oldH // 2)
+        winX := centerX - (winW // 2)
+        winY := centerY - (winH // 2)
+
+        ; 限制在虚拟屏幕范围内，避免放大后跑出边界
+        vL := SysGet(76), vT := SysGet(77), vW := SysGet(78), vH := SysGet(79)
+        vR := vL + vW, vB := vT + vH
+        if (winX < vL)
+            winX := vL
+        if (winY < vT)
+            winY := vT
+        if (winX + winW > vR)
+            winX := vR - winW
+        if (winY + winH > vB)
+            winY := vB - winH
+        if (winX < vL)
+            winX := vL
+        if (winY < vT)
+            winY := vT
+
+        ; 关键修复：从原图重采样当前尺寸，避免仅拉伸控件导致的“截断/失真感”
+        ScreenshotEditorRefreshScaledPreview(drawW, drawH)
+        ScreenshotEditorPreviewPic.Move(0, previewY, drawW, drawH)
+        GuiID_ScreenshotEditor.Show("w" . winW . " h" . winH . " x" . winX . " y" . winY)
+
+        if (ScreenshotEditorToolbarVisible && GuiID_ScreenshotToolbar != 0) {
+            toolbarX := winX
+            toolbarY := winY + winH + 10
+            GuiID_ScreenshotToolbar.Show("x" . toolbarX . " y" . toolbarY)
+        }
+
+        if (showTip)
+            ScreenshotEditorShowZoomTip(ScreenshotEditorZoomScale, drawW, drawH)
+    } catch as e {
+        TrayTip("缩放", "缩放失败: " . e.Message, "Iconx 1")
+    }
+}
+
+ScreenshotEditorRefreshScaledPreview(drawW, drawH) {
+    global ScreenshotEditorBitmap, ScreenshotEditorPreviewPic, ScreenshotEditorImagePath
+    if (!ScreenshotEditorBitmap || !ScreenshotEditorPreviewPic)
+        return
+    pScaled := 0
+    pG := 0
+    try {
+        result := DllCall("gdiplus\GdipCreateBitmapFromScan0"
+            , "Int", drawW
+            , "Int", drawH
+            , "Int", 0
+            , "UInt", 0x26200A
+            , "Ptr", 0
+            , "Ptr*", &pScaled := 0)
+        if (result != 0 || !pScaled)
+            return
+
+        result := DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", pScaled, "Ptr*", &pG := 0)
+        if (result != 0 || !pG)
+            return
+
+        DllCall("gdiplus\GdipSetInterpolationMode", "Ptr", pG, "Int", 7) ; HighQualityBicubic
+        DllCall("gdiplus\GdipDrawImageRect", "Ptr", pG, "Ptr", ScreenshotEditorBitmap
+            , "Float", 0, "Float", 0, "Float", drawW, "Float", drawH)
+
+        newPath := A_Temp "\ScreenshotEditor_zoom_" . A_TickCount . ".png"
+        saveRet := Gdip_SaveBitmapToFile(pScaled, newPath)
+        if (saveRet != 0)
+            return
+
+        ; 先切图，再删旧图，避免控件引用失效
+        ScreenshotEditorPreviewPic.Value := newPath
+        oldPath := ScreenshotEditorImagePath
+        ScreenshotEditorImagePath := newPath
+        if (oldPath != "" && oldPath != newPath && FileExist(oldPath)) {
+            try FileDelete(oldPath)
+        }
+    } catch {
+    } finally {
+        if (pG)
+            try Gdip_DeleteGraphics(pG)
+        if (pScaled)
+            try Gdip_DisposeImage(pScaled)
+    }
+}
+
+ScreenshotEditorShowZoomTip(scale, width, height) {
+    global GuiID_ScreenshotEditor, GuiID_ScreenshotZoomTip, ScreenshotZoomTipTextCtrl
+    global ScreenshotEditorToolbarVisible, ScreenshotEditorTitleBarHeight
+
+    try {
+        if !(IsObject(GuiID_ScreenshotZoomTip) && GuiID_ScreenshotZoomTip != 0) {
+            GuiID_ScreenshotZoomTip := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale")
+            GuiID_ScreenshotZoomTip.BackColor := "0b0b0b"
+            GuiID_ScreenshotZoomTip.MarginX := 10
+            GuiID_ScreenshotZoomTip.MarginY := 6
+            ScreenshotZoomTipTextCtrl := GuiID_ScreenshotZoomTip.Add("Text", "cFF8A00", "")
+            ScreenshotZoomTipTextCtrl.SetFont("s10 Bold", "Segoe UI")
+        }
+
+        txt := "缩放 " . Round(scale * 100) . "%  |  尺寸 " . width . " x " . height
+        ScreenshotZoomTipTextCtrl.Value := txt
+        GuiID_ScreenshotZoomTip.Show("NA AutoSize")
+
+        WinGetPos(&ex, &ey, &ew, , "ahk_id " . GuiID_ScreenshotEditor.Hwnd)
+        WinGetPos(, , &tw, &th, "ahk_id " . GuiID_ScreenshotZoomTip.Hwnd)
+        tx := ex + ew - tw - 12
+        ty := ey + (ScreenshotEditorToolbarVisible ? ScreenshotEditorTitleBarHeight + 8 : 8)
+        GuiID_ScreenshotZoomTip.Show("NA x" . tx . " y" . ty)
+
+        SetTimer(ScreenshotEditorHideZoomTip, -1200)
+    } catch {
+    }
+}
+
+ScreenshotEditorHideZoomTip(*) {
+    global GuiID_ScreenshotZoomTip
+    try {
+        if (IsObject(GuiID_ScreenshotZoomTip) && GuiID_ScreenshotZoomTip != 0)
+            GuiID_ScreenshotZoomTip.Hide()
+    } catch {
     }
 }
 
@@ -36091,6 +36299,8 @@ CheckScreenshotEditorWindowDragUp() {
 CloseScreenshotEditor() {
     global GuiID_ScreenshotEditor, GuiID_ScreenshotToolbar, ScreenshotEditorBitmap, ScreenshotEditorGraphics
     global ScreenshotEditorImagePath, ScreenshotEditorPreviewBitmap
+    global GuiID_ScreenshotZoomTip, ScreenshotZoomTipTextCtrl
+    global ScreenshotEditorZoomScale, ScreenshotEditorBaseWidth, ScreenshotEditorBaseHeight
     
     try {
         ; 关闭工具栏窗口
@@ -36103,6 +36313,17 @@ CloseScreenshotEditor() {
                 ; 忽略销毁错误
             }
             GuiID_ScreenshotToolbar := 0
+        }
+
+        if (GuiID_ScreenshotZoomTip && (GuiID_ScreenshotZoomTip != 0)) {
+            try {
+                if (IsObject(GuiID_ScreenshotZoomTip)) {
+                    GuiID_ScreenshotZoomTip.Destroy()
+                }
+            } catch {
+            }
+            GuiID_ScreenshotZoomTip := 0
+            ScreenshotZoomTipTextCtrl := 0
         }
         
         ; 重置状态
@@ -36151,6 +36372,10 @@ CloseScreenshotEditor() {
             }
             GuiID_ScreenshotEditor := 0
         }
+
+        ScreenshotEditorZoomScale := 1.0
+        ScreenshotEditorBaseWidth := 0
+        ScreenshotEditorBaseHeight := 0
     } catch as err {
     }
 }
@@ -36189,23 +36414,20 @@ UpdateScreenshotEditorPreview() {
 }
 
 ; 截图助手右键菜单（用于退出）
-OnScreenshotEditorContextMenu(Ctrl, Info) {
+OnScreenshotEditorContextMenu(Ctrl, Info := 0, *) {
     global GuiID_ScreenshotEditor
     
     try {
-        ; 创建右键菜单
-        ContextMenu := Menu()
-        ContextMenu.Add("📋 复制", (*) => CopyScreenshotToClipboard())
-        ContextMenu.Add("💾 保存图片", (*) => SaveScreenshotToFile())
-        ContextMenu.Add()  ; 分隔线
-        ContextMenu.Add("📌 弹出工具栏", (*) => ShowScreenshotEditorToolbar())
-        ContextMenu.Add("✕ 关闭", (*) => CloseScreenshotEditor())
-        
         ; 获取鼠标位置
         MouseGetPos(&MouseX, &MouseY)
-        
-        ; 显示菜单
-        ContextMenu.Show(MouseX, MouseY)
+
+        ; 黑橙风格菜单（与工具栏/托盘同款）
+        MenuItems := []
+        MenuItems.Push({Text: "复制", Icon: "📋", Action: (*) => CopyScreenshotToClipboard()})
+        MenuItems.Push({Text: "保存图片", Icon: "💾", Action: (*) => SaveScreenshotToFile()})
+        MenuItems.Push({Text: "弹出工具栏", Icon: "📌", Action: (*) => ShowScreenshotEditorToolbar()})
+        MenuItems.Push({Text: "关闭", Icon: "✕", Action: (*) => CloseScreenshotEditor()})
+        ShowDarkStylePopupMenuAt(MenuItems, MouseX + 2, MouseY + 2)
     } catch as e {
         ; 如果菜单显示失败，忽略错误
     }

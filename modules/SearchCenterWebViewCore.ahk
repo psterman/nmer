@@ -11,6 +11,34 @@ global g_SCWV_FocusPending := false
 global SearchCenterWebKeyword := ""
 global g_SCWV_PendingJsonQueue := []  ; WebView 未 ready 时暂存，ready 后由 SCWV_FlushPendingJsonQueue 发出
 
+SCWV_HostAlive() {
+    global g_SCWV_Gui
+    try {
+        if !(IsObject(g_SCWV_Gui) && g_SCWV_Gui)
+            return false
+        hwnd := g_SCWV_Gui.Hwnd
+        if !hwnd
+            return false
+        return !!WinExist("ahk_id " . hwnd)
+    } catch {
+        return false
+    }
+}
+
+SCWV_ResetHostState() {
+    global g_SCWV_Gui, g_SCWV_Ctrl, g_SCWV_WV2, g_SCWV_Ready, g_SCWV_Visible
+    global g_SCWV_FocusPending, g_SCWV_PendingJsonQueue, GuiID_SearchCenter
+
+    g_SCWV_Gui := 0
+    g_SCWV_Ctrl := 0
+    g_SCWV_WV2 := 0
+    g_SCWV_Ready := false
+    g_SCWV_Visible := false
+    g_SCWV_FocusPending := false
+    g_SCWV_PendingJsonQueue := []
+    GuiID_SearchCenter := 0
+}
+
 SearchCenter_ShouldUseWebView() {
     return true
 }
@@ -36,8 +64,10 @@ SCWV_GetGuiHwnd() {
 SCWV_Init() {
     global g_SCWV_Gui
 
-    if g_SCWV_Gui
+    if g_SCWV_Gui && SCWV_HostAlive()
         return
+    if g_SCWV_Gui && !SCWV_HostAlive()
+        SCWV_ResetHostState()
 
     ; 使用 Windows 原生标题栏与系统窗口按钮（最小化/最大化/关闭）
     g_SCWV_Gui := Gui("+AlwaysOnTop +Resize +MinSize760x540 +MinimizeBox +MaximizeBox -DPIScale +Owner", "搜索中心")
@@ -148,6 +178,10 @@ SCWV_RefreshComposition(*) {
 SCWV_Show() {
     global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_Ready, g_SCWV_Ctrl, GuiID_SearchCenter, g_SCWV_LastShown
 
+    if !SCWV_HostAlive() {
+        SCWV_ResetHostState()
+        SCWV_Init()
+    }
     if !g_SCWV_Gui
         SCWV_Init()
 
@@ -155,15 +189,25 @@ SCWV_Show() {
 
     if g_SCWV_Visible {
         try WinActivate("ahk_id " . g_SCWV_Gui.Hwnd)
-        WebView2_MoveFocusProgrammatic(g_SCWV_Ctrl)
+        try WebView2_MoveFocusProgrammatic(g_SCWV_Ctrl)
         SetTimer(_SCWV_DeferredMoveFocus100, -100)
         try CapsLock_ScheduleNormalizeAfterChord()
         try SearchCenter_ScheduleIMEStabilize()
         return
     }
 
-    g_SCWV_Gui.Show("w1180 h760 Center")
-    try WinMaximize("ahk_id " . g_SCWV_Gui.Hwnd)
+    try {
+        g_SCWV_Gui.Show("w1180 h760 Center")
+        try WinMaximize("ahk_id " . g_SCWV_Gui.Hwnd)
+    } catch {
+        ; 兜底：窗口对象存在但句柄失效时重建一次，避免 “Gui has no window”
+        SCWV_ResetHostState()
+        SCWV_Init()
+        if !g_SCWV_Gui
+            return
+        g_SCWV_Gui.Show("w1180 h760 Center")
+        try WinMaximize("ahk_id " . g_SCWV_Gui.Hwnd)
+    }
     g_SCWV_Visible := true
     g_SCWV_LastShown := A_TickCount
     WMActivateChain_Register(SCWV_WM_ACTIVATE)
@@ -177,7 +221,7 @@ SCWV_Show() {
     else
         SetTimer(SCWV_DeferredPush, -250)
 
-    WebView2_MoveFocusProgrammatic(g_SCWV_Ctrl)
+    try WebView2_MoveFocusProgrammatic(g_SCWV_Ctrl)
     SetTimer(_SCWV_DeferredMoveFocus100, -100)
     SetTimer(SCWV_FocusDeferred, -80)
     SCWV_RequestFocusInput()
@@ -225,6 +269,11 @@ SCWV_RequestFocusInput() {
 
 SCWV_Hide(PersistSelection := true) {
     global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_SearchTimer, GuiID_SearchCenter, g_SCWV_PendingJsonQueue
+
+    if !SCWV_HostAlive() {
+        SCWV_ResetHostState()
+        return
+    }
 
     ; 取消 WM_ACTIVATE 延迟关闭，避免用户已在工具栏同步 Hide 后 50ms 又执行一次 Hide/副作用
     SetTimer(SCWV_WMDeactivateHideTick, 0)
@@ -1083,9 +1132,19 @@ SearchCenter_RunQueryWithKeyword(keyword) {
         g_SCWV_SearchTimer := 0
     }
 
-    SCWV_Init()
-    SCWV_Show()
-    _SCWV_PerformSearch(SearchCenterWebKeyword)
-    SCWV_PushState("state")
-    SCWV_RequestFocusInput()
+    try {
+        SCWV_Init()
+        SCWV_Show()
+        _SCWV_PerformSearch(SearchCenterWebKeyword)
+        SCWV_PushState("state")
+        SCWV_RequestFocusInput()
+    } catch {
+        ; 兜底重试：规避旧句柄失效导致的偶发打开失败
+        SCWV_ResetHostState()
+        SCWV_Init()
+        SCWV_Show()
+        _SCWV_PerformSearch(SearchCenterWebKeyword)
+        SCWV_PushState("state")
+        SCWV_RequestFocusInput()
+    }
 }
