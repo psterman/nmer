@@ -1777,6 +1777,33 @@ const CLIPBOARD_TAB_PRESET = [
   ] },
 ];
 
+const PROMPTS_TAB_PRESET = [
+  { id: 'prompts:category_tags', name: '分类标签', commands: [
+    'ch_q', 'ch_w', 'ch_e', 'ch_r'
+  ] },
+  { id: 'prompts:list_actions', name: '列表操作', commands: [
+    'ch_a', 'ch_s', 'ch_d', 'ch_f'
+  ] },
+  { id: 'prompts:capture_actions', name: '采集操作', commands: [
+    'ch_z', 'ch_x', 'ch_c', 'ch_v'
+  ] },
+  { id: 'prompts:panel_actions', name: '面板功能', commands: [
+    'ch_g', 'ch_t', 'ch_p', 'ch_b', 'ch_1', 'ch_2', 'ch_3', 'ch_4'
+  ] },
+];
+
+const SCRATCHPAD_TAB_PRESET = [
+  { id: 'scratchpad:category_tags', name: '分类标签', commands: [
+    'ch_f', 'ch_a', 'ch_backspace'
+  ] },
+  { id: 'scratchpad:quick_slots', name: '快捷槽位', commands: [
+    'ch_1', 'ch_2', 'ch_3', 'ch_4', 'ch_5'
+  ] },
+  { id: 'scratchpad:panel_actions', name: '面板功能', commands: [
+    'ch_g', 'ch_c', 'ch_x', 'ch_v', 'qa_split'
+  ] },
+];
+
 const SEARCH_COMMAND_OVERRIDES = {
   ch_q: { name: 'AI 引擎',      desc: '切换到 AI 引擎组（CapsLock+Q）', iconClass: 'fa-robot' },
   ch_w: { name: 'CLI 引擎',     desc: '切换到 CLI 引擎组（CapsLock+W）', iconClass: 'fa-terminal' },
@@ -1839,6 +1866,45 @@ const CLIPBOARD_COMMAND_OVERRIDES = {
   cp_search: { name: '搜索', desc: 'Ctrl+Enter：立即执行搜索', iconClass: 'fa-magnifying-glass' },
   cp_clear_search: { name: '清空搜索框', desc: 'Ctrl+Backspace：清空搜索框', iconClass: 'fa-delete-left' },
   cp_show_shortcuts: { name: '快捷键展示', desc: 'Ctrl+K：打开快捷键面板', iconClass: 'fa-keyboard' },
+};
+
+const PROMPTS_COMMAND_OVERRIDES = {
+  ch_q: { name: '全部', desc: '分类标签：显示全部（CapsLock+Q）', iconClass: 'fa-layer-group' },
+  ch_w: { name: '快捷操作', desc: '分类标签：只看快捷操作（CapsLock+W）', iconClass: 'fa-wand-magic-sparkles' },
+  ch_e: { name: '模板库', desc: '分类标签：只看模板库（CapsLock+E）', iconClass: 'fa-box-archive' },
+  ch_r: { name: '我的提示词', desc: '分类标签：只看我的提示词（CapsLock+R）', iconClass: 'fa-user-pen' },
+  ch_a: { name: '粘贴选中', desc: '列表操作：粘贴当前选中项（CapsLock+A）', iconClass: 'fa-paste' },
+  ch_s: { name: '编辑选中', desc: '列表操作：编辑当前选中项（CapsLock+S）', iconClass: 'fa-pen-to-square' },
+  ch_d: { name: '查看选中', desc: '列表操作：查看当前选中项（CapsLock+D）', iconClass: 'fa-eye' },
+  ch_f: { name: '删除选中', desc: '列表操作：删除当前选中项（CapsLock+F）', iconClass: 'fa-trash' },
+  ch_z: { name: '载入所选', desc: '采集操作：载入列表选中到采集区（CapsLock+Z）', iconClass: 'fa-file-import' },
+  ch_x: { name: '保存采集', desc: '采集操作：保存采集内容（CapsLock+X）', iconClass: 'fa-floppy-disk' },
+  ch_c: { name: '清空采集', desc: '采集操作：清空采集内容（CapsLock+C）', iconClass: 'fa-eraser' },
+  ch_v: { name: '展开收起采集', desc: '采集操作：展开/收起采集栏（CapsLock+V）', iconClass: 'fa-up-down' },
+  ch_g: { name: '关闭面板', desc: '面板功能：关闭提示词面板（CapsLock+G）', iconClass: 'fa-xmark' },
+  ch_t: { name: '导入', desc: '面板功能：导入 prompts.json（CapsLock+T）', iconClass: 'fa-file-import' },
+  ch_p: { name: '导出', desc: '面板功能：导出 prompts.json（CapsLock+P）', iconClass: 'fa-file-export' },
+  ch_b: { name: '置顶开关', desc: '面板功能：切换面板置顶（CapsLock+B）', iconClass: 'fa-thumbtack' },
+  ch_1: { name: 'JSON 说明', desc: '面板功能：打开 JSON 格式说明（CapsLock+1）', iconClass: 'fa-circle-info' },
+  ch_2: { name: '保存编辑', desc: '面板功能：编辑弹窗中保存（CapsLock+2）', iconClass: 'fa-check' },
+  ch_3: { name: '取消编辑', desc: '面板功能：编辑弹窗中取消/关闭（CapsLock+3）', iconClass: 'fa-ban' },
+  ch_4: { name: '关闭说明', desc: '面板功能：关闭 JSON 说明弹窗（CapsLock+4）', iconClass: 'fa-circle-xmark' },
+};
+
+const SCRATCHPAD_COMMAND_OVERRIDES = {
+  ch_f: { name: '搜索', desc: '分类标签：HubCapsule 搜索（CapsLock+F）', iconClass: 'fa-magnifying-glass' },
+  ch_a: { name: 'AI', desc: '分类标签：HubCapsule AI（CapsLock+A）', iconClass: 'fa-robot' },
+  ch_backspace: { name: '清空', desc: '分类标签：清空 HubCapsule（CapsLock+Backspace）', iconClass: 'fa-delete-left' },
+  ch_1: { name: '槽位 1', desc: '快捷槽位：选中第 1 条文本（CapsLock+1）', iconClass: 'fa-list-ol' },
+  ch_2: { name: '槽位 2', desc: '快捷槽位：选中第 2 条文本（CapsLock+2）', iconClass: 'fa-list-ol' },
+  ch_3: { name: '槽位 3', desc: '快捷槽位：选中第 3 条文本（CapsLock+3）', iconClass: 'fa-list-ol' },
+  ch_4: { name: '槽位 4', desc: '快捷槽位：选中第 4 条文本（CapsLock+4）', iconClass: 'fa-list-ol' },
+  ch_5: { name: '槽位 5', desc: '快捷槽位：选中第 5 条文本（CapsLock+5）', iconClass: 'fa-list-ol' },
+  ch_g: { name: '关闭面板', desc: '面板功能：关闭 HubCapsule（CapsLock+G）', iconClass: 'fa-xmark' },
+  ch_c: { name: '触发模式Caps', desc: '面板功能：切到 CapsLock 触发（CapsLock+C）', iconClass: 'fa-toggle-on' },
+  ch_x: { name: '触发模式双击', desc: '面板功能：切到双击 Ctrl+C 触发（CapsLock+X）', iconClass: 'fa-toggle-off' },
+  ch_v: { name: '复制图片预览', desc: '面板功能：复制当前图片预览（CapsLock+V）', iconClass: 'fa-image' },
+  qa_split: { name: '分割代码', desc: '草稿操作：执行分割代码动作', iconClass: 'fa-code-branch' }
 };
 
 function normalizeKeywordList(value) {
@@ -2027,6 +2093,44 @@ function buildScenariosFromCategories() {
       });
       for (const cmdId of cmdIds) {
         commandRoutes[cmdId] = { scenarioId: 'clipboard', tabId: preset.id };
+        used.add(cmdId);
+      }
+    }
+  }
+
+  // 提示词固定右侧标签布局（分类标签 / 列表操作 / 采集操作 / 面板功能）
+  {
+    const scenario = ensureScenario('prompts');
+    scenario.tabs = [];
+    for (const preset of PROMPTS_TAB_PRESET) {
+      const cmdIds = preset.commands.filter(cmdId => !!state.commands[cmdId]);
+      if (!cmdIds.length) continue;
+      scenario.tabs.push({
+        id: preset.id,
+        name: preset.name,
+        commands: cmdIds,
+      });
+      for (const cmdId of cmdIds) {
+        commandRoutes[cmdId] = { scenarioId: 'prompts', tabId: preset.id };
+        used.add(cmdId);
+      }
+    }
+  }
+
+  // 草稿本固定右侧标签布局（快捷槽位 / 草稿操作）
+  {
+    const scenario = ensureScenario('scratchpad');
+    scenario.tabs = [];
+    for (const preset of SCRATCHPAD_TAB_PRESET) {
+      const cmdIds = preset.commands.filter(cmdId => !!state.commands[cmdId]);
+      if (!cmdIds.length) continue;
+      scenario.tabs.push({
+        id: preset.id,
+        name: preset.name,
+        commands: cmdIds,
+      });
+      for (const cmdId of cmdIds) {
+        commandRoutes[cmdId] = { scenarioId: 'scratchpad', tabId: preset.id };
         used.add(cmdId);
       }
     }
@@ -3559,6 +3663,10 @@ function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
     ? SEARCH_COMMAND_OVERRIDES
     : state.activeScenarioId === 'clipboard'
       ? CLIPBOARD_COMMAND_OVERRIDES
+      : state.activeScenarioId === 'prompts'
+        ? PROMPTS_COMMAND_OVERRIDES
+        : state.activeScenarioId === 'scratchpad'
+          ? SCRATCHPAD_COMMAND_OVERRIDES
       : null;
   const cmd = (overrideMap && overrideMap[cmdId])
     ? { ...baseCmd, ...overrideMap[cmdId] }

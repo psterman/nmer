@@ -65,7 +65,8 @@ html, body {
   outline: none;
 }
 #search-input:focus { border-color: var(--orange-dk); }
-#cat-strip {
+#cat-strip,
+#source-strip {
   display: flex; flex-wrap: wrap; gap: 6px;
   padding: 6px 10px;
   background: var(--bg);
@@ -73,7 +74,11 @@ html, body {
   max-height: 72px;
   overflow-y: auto;
 }
-.cat-chip {
+.cat-chip,
+.source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 10px;
   border-radius: 4px;
   cursor: pointer;
@@ -81,7 +86,8 @@ html, body {
   background: #363636;
   color: var(--text);
 }
-.cat-chip.on {
+.cat-chip.on,
+.source-chip.on {
   background: #ff7700;
   color: #fff;
   font-weight: bold;
@@ -118,6 +124,9 @@ html, body {
 #cap-body { min-height: 100px; resize: vertical; font-family: var(--font-mono); }
 .capture-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .capture-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 5px 12px;
   font-size: 12px;
   cursor: pointer;
@@ -208,9 +217,48 @@ html, body {
   border-top: 1px solid var(--border);
 }
 #link-bar a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--orange);
   cursor: pointer;
   text-decoration: underline;
+}
+.pqp-hotkey-item {
+  position: relative;
+}
+.hotkey-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 14px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+  color: #7f8a95;
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+.hotkey-hint.unbound {
+  border-style: dashed;
+  opacity: .72;
+}
+.caps-hotkey-ready {
+  border-color: rgba(255,179,71,.45) !important;
+  box-shadow: 0 0 0 1px rgba(255,179,71,.16) inset;
+}
+.caps-hotkey-hit {
+  border-color: rgba(255,179,71,.82) !important;
+  box-shadow: 0 0 0 1px rgba(255,179,71,.42) inset, 0 0 18px rgba(255,141,42,.28);
+  transform: translateY(-1px);
+}
+.caps-hotkey-hit .hotkey-hint {
+  color: #fff;
+  border-color: rgba(255,200,120,.72);
+  background: rgba(255,141,42,.24);
 }
 #ctx-menu {
   position: fixed;
@@ -490,21 +538,24 @@ html, body {
   border-color: rgba(255,179,71,.5);
   background: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
 }
-#cat-strip {
+#cat-strip,
+#source-strip {
   gap: 8px;
   padding: 10px 12px;
   max-height: 74px;
   border-bottom: none;
   background: transparent;
 }
-.cat-chip {
+.cat-chip,
+.source-chip {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--surface2);
   color: var(--text-dim);
   padding: 8px 13px;
 }
-.cat-chip.on {
+.cat-chip.on,
+.source-chip.on {
   background: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
   border-color: rgba(255,179,71,.5);
   color: #fff;
@@ -635,6 +686,7 @@ html, body {
     <button type="button" id="toolbar-close" title="关闭">×</button>
   </div>
   <div id="cat-strip"></div>
+  <div id="source-strip"></div>
   <div id="capture-panel">
     <div id="capture-toggle">▶ 摘录 / 采集（点击展开）</div>
     <div id="capture-body">
@@ -731,6 +783,9 @@ const state = {
   selectedMergedIndex: 0,
   keyword: '',
   category: '全部',
+  sourceFilter: 'all',
+  capsHintActive: false,
+  capsPressedKey: '',
   captureExpanded: false,
   helpOpen: false,
   itemModalOpen: false,
@@ -744,6 +799,172 @@ document.getElementById('toolbar-close').addEventListener('click', () => {
 
 function sendAction(type, extra = {}) {
   postToAhk({ type, ...extra });
+}
+
+const SOURCE_FILTER_HOTKEY = Object.freeze({
+  all: 'q',
+  builtin: 'w',
+  template: 'e',
+  json: 'r'
+});
+
+const STATIC_HOTKEY_BINDINGS = Object.freeze([
+  ['#toolbar-close', 'g'],
+  ['#btn-load-sel', 'z'],
+  ['#btn-save-cap', 'x'],
+  ['#btn-clear-cap', 'c'],
+  ['#lnk-import', 't'],
+  ['#lnk-export', 'p'],
+  ['#lnk-pin', 'b'],
+  ['#lnk-json', '1'],
+  ['#help-close', '4'],
+  ['#item-modal-close', '3'],
+  ['#item-modal-save', '2'],
+  ['#item-modal-cancel', '3']
+]);
+let capsHoldTimer = 0;
+let capsFlashTimer = 0;
+
+function normalizeHintKey(key) {
+  const k = String(key || '').trim().toLowerCase();
+  return /^[a-z0-9]$/.test(k) ? k : '';
+}
+
+function hotkeyHintHtml(hotkey) {
+  if (hotkey) {
+    return '<span class="hotkey-hint">Caps+' + escapeHtml(String(hotkey).toUpperCase()) + '</span>';
+  }
+  return '<span class="hotkey-hint unbound">可绑定</span>';
+}
+
+function setElementHotkeyHint(el, hotkey, explicitLabel) {
+  if (!el) return;
+  const normalized = normalizeHintKey(hotkey);
+  const label = explicitLabel != null ? String(explicitLabel) : (el.dataset.hotkeyBase || el.textContent || '').trim();
+  if (!label) return;
+  if (!el.dataset.hotkeyBase || explicitLabel != null)
+    el.dataset.hotkeyBase = label;
+  el.classList.add('pqp-hotkey-item');
+  el.dataset.hotkey = normalized;
+  el.innerHTML = '<span class="hotkey-label">' + escapeHtml(label) + '</span>' + hotkeyHintHtml(normalized);
+}
+
+function applyStaticHotkeyHints() {
+  STATIC_HOTKEY_BINDINGS.forEach(([selector, hotkey]) => {
+    const el = document.querySelector(selector);
+    if (!el) return;
+    let label;
+    if (selector === '#toolbar-close')
+      label = '关闭';
+    else if (selector === '#lnk-pin')
+      label = (el.dataset.hotkeyBase || el.textContent || '').trim();
+    setElementHotkeyHint(el, hotkey, label);
+  });
+  const closeBtn = document.getElementById('toolbar-close');
+  if (closeBtn)
+    closeBtn.title = '关闭（Caps+G）';
+  updateHotkeyHighlights();
+}
+
+function updateHotkeyHighlights() {
+  const nodes = document.querySelectorAll('.pqp-hotkey-item');
+  nodes.forEach((el) => {
+    const hk = normalizeHintKey(el.dataset.hotkey || '');
+    const ready = state.capsHintActive && !!hk;
+    const hit = ready && state.capsPressedKey === hk;
+    el.classList.toggle('caps-hotkey-ready', ready);
+    el.classList.toggle('caps-hotkey-hit', hit);
+  });
+}
+
+function setCapsHintActive(active) {
+  state.capsHintActive = !!active;
+  if (!state.capsHintActive)
+    state.capsPressedKey = '';
+  updateHotkeyHighlights();
+}
+
+function setCapsPressedKey(key) {
+  state.capsPressedKey = normalizeHintKey(key);
+  updateHotkeyHighlights();
+}
+
+function flashCapsPressedKey(key) {
+  const normalized = normalizeHintKey(key);
+  if (!normalized) return;
+  setCapsPressedKey(normalized);
+  if (capsFlashTimer) clearTimeout(capsFlashTimer);
+  capsFlashTimer = setTimeout(() => {
+    if (state.capsPressedKey === normalized) {
+      state.capsPressedKey = '';
+      updateHotkeyHighlights();
+    }
+  }, 260);
+}
+
+function beginCapsHoldHint() {
+  if (capsHoldTimer) clearTimeout(capsHoldTimer);
+  capsHoldTimer = setTimeout(() => {
+    setCapsHintActive(true);
+  }, 220);
+}
+
+function endCapsHoldHint() {
+  if (capsHoldTimer) clearTimeout(capsHoldTimer);
+  capsHoldTimer = 0;
+  if (capsFlashTimer) clearTimeout(capsFlashTimer);
+  capsFlashTimer = 0;
+  setCapsHintActive(false);
+}
+
+const SOURCE_FILTER_PRESETS = [
+  { key: 'all', label: '全部' },
+  { key: 'builtin', label: '快捷操作' },
+  { key: 'template', label: '模板库' },
+  { key: 'json', label: '我的提示词' }
+];
+
+function normalizeSourceFilter(filterType) {
+  const f = String(filterType || '').trim().toLowerCase();
+  if (f === 'builtin' || f === 'template' || f === 'json') return f;
+  return 'all';
+}
+
+function setSourceFilter(filterType) {
+  state.sourceFilter = normalizeSourceFilter(filterType);
+  state.selectedIndex = 0;
+  renderSourceFilters(state.sourceFilter);
+  renderList();
+}
+
+function renderSourceFilters(sel) {
+  const el = document.getElementById('source-strip');
+  if (!el) return;
+  el.innerHTML = '';
+  SOURCE_FILTER_PRESETS.forEach((it) => {
+    const chip = document.createElement('span');
+    const hotkey = SOURCE_FILTER_HOTKEY[it.key] || '';
+    chip.className = 'source-chip pqp-hotkey-item' + (it.key === sel ? ' on' : '');
+    chip.dataset.hotkey = hotkey;
+    chip.innerHTML = '<span class="hotkey-label">' + escapeHtml(it.label) + '</span>' + hotkeyHintHtml(hotkey);
+    chip.onclick = () => setSourceFilter(it.key);
+    el.appendChild(chip);
+  });
+  updateHotkeyHighlights();
+}
+
+function getDisplayItems() {
+  const src = normalizeSourceFilter(state.sourceFilter);
+  if (src === 'all') return state.items || [];
+  return (state.items || []).filter(it => String(it?.source || '').toLowerCase() === src);
+}
+
+function getSelectedDisplayItem() {
+  const items = getDisplayItems();
+  if (!items.length) return null;
+  if (state.selectedIndex < 0 || state.selectedIndex >= items.length)
+    state.selectedIndex = 0;
+  return items[state.selectedIndex] || null;
 }
 
 function escapeHtml(s) {
@@ -777,8 +998,9 @@ function renderCategories(cats, sel) {
 function renderList() {
   const panel = document.getElementById('list-panel');
   const kw = state.keyword;
+  const displayItems = getDisplayItems();
   panel.innerHTML = '';
-  state.items.forEach((it, i) => {
+  displayItems.forEach((it, i) => {
     const row = document.createElement('div');
     row.className = 'pqp-item' + (i === state.selectedIndex ? ' active' : '');
     row.dataset.idx = i;
@@ -794,14 +1016,15 @@ function renderList() {
     row.oncontextmenu = (e) => { e.preventDefault(); showCtxMenu(e.clientX, e.clientY, it.mergedIndex); };
     panel.appendChild(row);
   });
-  if (state.items.length && state.selectedIndex >= state.items.length)
+  if (displayItems.length && state.selectedIndex >= displayItems.length)
     state.selectedIndex = 0;
   updatePreview();
 }
 
 function selectItem(i) {
   state.selectedIndex = i;
-  const it = state.items[i];
+  const items = getDisplayItems();
+  const it = items[i];
   state.selectedMergedIndex = it ? it.mergedIndex : 0;
   document.querySelectorAll('.pqp-item').forEach((el, j) => {
     el.classList.toggle('active', j === i);
@@ -810,7 +1033,7 @@ function selectItem(i) {
 }
 
 function updatePreview() {
-  const it = state.items[state.selectedIndex];
+  const it = getSelectedDisplayItem();
   const meta = document.getElementById('preview-meta');
   const content = document.getElementById('preview-content');
   if (!it) {
@@ -825,6 +1048,12 @@ function updatePreview() {
 function handleAhkMessage(msg) {
   if (!msg || !msg.type) return;
   switch (msg.type) {
+    case 'capsHint':
+      setCapsHintActive(!!msg.active);
+      break;
+    case 'capsHintPress':
+      flashCapsPressedKey(msg.key || '');
+      break;
     case 'focus_input': {
       const input = document.getElementById('search-input');
       if (input) input.focus();
@@ -836,8 +1065,11 @@ function handleAhkMessage(msg) {
       state.keyword = msg.keyword || '';
       document.getElementById('search-input').value = state.keyword;
       state.category = msg.selectedCategory || '全部';
+      if (msg.sourceFilter !== undefined)
+        state.sourceFilter = normalizeSourceFilter(msg.sourceFilter);
       if (msg.categories)
         renderCategories(msg.categories, state.category);
+      renderSourceFilters(state.sourceFilter);
       document.getElementById('status-bar').textContent = msg.statusLine || '';
       if (msg.pinTop !== undefined) {
         document.getElementById('lnk-pin').textContent = msg.pinTop ? '置顶·开' : '置顶·关';
@@ -857,6 +1089,7 @@ function handleAhkMessage(msg) {
         state.captureExpanded = !!msg.captureExpanded;
         syncCaptureUi();
       }
+      applyStaticHotkeyHints();
       state.selectedIndex = 0;
       renderList();
       break;
@@ -878,6 +1111,12 @@ function handleAhkMessage(msg) {
       break;
     case 'itemModalOpen':
       openItemModal(msg);
+      break;
+    case 'vk_set_source_filter':
+      setSourceFilter(msg.filterType || 'all');
+      break;
+    case 'vk_action':
+      handleVkAction(msg.action || '');
       break;
     default:
       break;
@@ -915,34 +1154,128 @@ function fillItemCategorySelect(cats, current) {
 function syncCaptureUi() {
   const body = document.getElementById('capture-body');
   const t = document.getElementById('capture-toggle');
+  let label = '';
   if (state.captureExpanded) {
     body.classList.add('expanded');
-    t.textContent = '▼ 摘录 / 采集（点击收起）';
+    label = '▼ 摘录 / 采集（点击收起）';
   } else {
     body.classList.remove('expanded');
-    t.textContent = '▶ 摘录 / 采集（点击展开）';
+    label = '▶ 摘录 / 采集（点击展开）';
+  }
+  setElementHotkeyHint(t, 'v', label);
+}
+
+function toggleCapturePanel() {
+  state.captureExpanded = !state.captureExpanded;
+  syncCaptureUi();
+}
+
+function saveCaptureDraft() {
+  sendAction('captureSave', {
+    title: document.getElementById('cap-title').value,
+    category: document.getElementById('cap-cat').value,
+    tags: document.getElementById('cap-tags').value,
+    body: document.getElementById('cap-body').value
+  });
+}
+
+function loadSelectedToCapture() {
+  const it = getSelectedCaptureItem();
+  if (!it) return;
+  sendAction('captureLoadSelected', { mergedIndex: it.mergedIndex });
+}
+
+function clearCaptureDraft() {
+  document.getElementById('cap-title').value = '';
+  document.getElementById('cap-tags').value = '';
+  document.getElementById('cap-body').value = '';
+  sendAction('captureClear');
+}
+
+function withSelectedMergedIndex(fn) {
+  const it = getSelectedDisplayItem();
+  if (!it) return;
+  fn(it.mergedIndex);
+}
+
+function handleVkAction(action) {
+  const a = String(action || '').trim().toLowerCase();
+  switch (a) {
+    case 'close':
+      sendAction('requestHide');
+      break;
+    case 'import':
+      sendAction('import');
+      break;
+    case 'export':
+      sendAction('export');
+      break;
+    case 'toggle_pin':
+      sendAction('togglePinTop');
+      break;
+    case 'json_help':
+      sendAction('jsonHelp');
+      break;
+    case 'paste':
+      withSelectedMergedIndex((mi) => sendAction('paste', { mergedIndex: mi }));
+      break;
+    case 'edit':
+      withSelectedMergedIndex((mi) => sendAction('edit', { mergedIndex: mi }));
+      break;
+    case 'view':
+      withSelectedMergedIndex((mi) => sendAction('view', { mergedIndex: mi }));
+      break;
+    case 'delete':
+      withSelectedMergedIndex((mi) => sendAction('delete', { mergedIndex: mi }));
+      break;
+    case 'capture_load_selected':
+      loadSelectedToCapture();
+      break;
+    case 'capture_save':
+      saveCaptureDraft();
+      break;
+    case 'capture_clear':
+      clearCaptureDraft();
+      break;
+    case 'capture_toggle':
+      toggleCapturePanel();
+      break;
+    case 'item_save':
+      if (state.itemModalOpen && state.itemModal && state.itemModal.editable)
+        document.getElementById('item-modal-save').click();
+      break;
+    case 'item_cancel':
+      if (state.itemModalOpen)
+        closeItemModal();
+      break;
+    case 'help_close':
+      if (state.helpOpen)
+        closeHelpModal();
+      break;
+    default:
+      break;
   }
 }
 
 document.getElementById('capture-toggle').addEventListener('click', () => {
-  state.captureExpanded = !state.captureExpanded;
-  syncCaptureUi();
+  toggleCapturePanel();
 });
 
 function doPaste() {
-  const it = state.items[state.selectedIndex];
+  const it = getSelectedDisplayItem();
   if (!it) return;
   sendAction('paste', { mergedIndex: it.mergedIndex });
 }
 
 function getSelectedCaptureItem() {
-  if (state.items[state.selectedIndex])
-    return state.items[state.selectedIndex];
-  if (state.items.length > 0) {
+  const items = getDisplayItems();
+  if (items[state.selectedIndex])
+    return items[state.selectedIndex];
+  if (items.length > 0) {
     state.selectedIndex = 0;
-    state.selectedMergedIndex = state.items[0].mergedIndex || 0;
+    state.selectedMergedIndex = items[0].mergedIndex || 0;
     renderList();
-    return state.items[0];
+    return items[0];
   }
   return null;
 }
@@ -1097,32 +1430,28 @@ document.getElementById('lnk-pin').onclick = () => sendAction('togglePinTop');
 document.getElementById('btn-save-cap').onclick = (e) => {
   e.preventDefault();
   e.stopPropagation();
-  sendAction('captureSave', {
-    title: document.getElementById('cap-title').value,
-    category: document.getElementById('cap-cat').value,
-    tags: document.getElementById('cap-tags').value,
-    body: document.getElementById('cap-body').value
-  });
+  saveCaptureDraft();
 };
 
 document.getElementById('btn-load-sel').onclick = (e) => {
   e.preventDefault();
   e.stopPropagation();
-  const it = getSelectedCaptureItem();
-  if (!it) return;
-  sendAction('captureLoadSelected', { mergedIndex: it.mergedIndex });
+  loadSelectedToCapture();
 };
 
 document.getElementById('btn-clear-cap').onclick = (e) => {
   e.preventDefault();
   e.stopPropagation();
-  document.getElementById('cap-title').value = '';
-  document.getElementById('cap-tags').value = '';
-  document.getElementById('cap-body').value = '';
-  sendAction('captureClear');
+  clearCaptureDraft();
 };
 
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'CapsLock') {
+    beginCapsHoldHint();
+  } else if (state.capsHintActive) {
+    const pressed = normalizeHintKey(e.key);
+    if (pressed) setCapsPressedKey(pressed);
+  }
   if (state.itemModalOpen && e.key === 'Escape') {
     e.preventDefault();
     closeItemModal();
@@ -1145,11 +1474,37 @@ document.addEventListener('keydown', (e) => {
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= 9 && !e.ctrlKey && !e.altKey && e.target.id !== 'search-input') {
     const i = n - 1;
-    if (state.items[i]) {
-      sendAction('pasteByIndex', { index: i });
-    }
+    const items = getDisplayItems();
+    if (items[i])
+      sendAction('paste', { mergedIndex: items[i].mergedIndex });
   }
 });
+
+document.addEventListener('keyup', (e) => {
+  if (e.key === 'CapsLock') {
+    endCapsHoldHint();
+    return;
+  }
+  if (!state.capsHintActive) return;
+  const released = normalizeHintKey(e.key);
+  if (released && state.capsPressedKey === released) {
+    state.capsPressedKey = '';
+    updateHotkeyHighlights();
+  }
+});
+
+window.addEventListener('blur', () => {
+  endCapsHoldHint();
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden)
+    endCapsHoldHint();
+});
+
+renderSourceFilters(state.sourceFilter);
+applyStaticHotkeyHints();
+syncCaptureUi();
 
 if (window.chrome && window.chrome.webview) {
   window.chrome.webview.addEventListener('message', (e) => {

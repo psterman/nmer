@@ -297,12 +297,19 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "qa_batch", "name", "快捷动作 / 批量操作", "desc", "执行 Quick Action: Batch", "fn", "CH_RUN")
         ]),
         Map("id", "scratchpad", "name", "📝 草稿本", "commands", [
+            Map("id", "ch_f", "name", "草稿本 / 搜索", "desc", "CapsLock+F：在 HubCapsule 中执行搜索", "fn", "CH_RUN", "suggested", "f"),
+            Map("id", "ch_a", "name", "草稿本 / AI", "desc", "CapsLock+A：在 HubCapsule 中执行 AI 动作", "fn", "CH_RUN", "suggested", "a"),
+            Map("id", "ch_backspace", "name", "草稿本 / 清空", "desc", "CapsLock+Backspace：清空 HubCapsule 内容", "fn", "CH_RUN", "suggested", "Backspace"),
+            Map("id", "ch_g", "name", "草稿本 / 关闭", "desc", "CapsLock+G：关闭 HubCapsule 面板", "fn", "CH_RUN", "suggested", "g"),
+            Map("id", "ch_c", "name", "草稿本 / 触发模式Caps", "desc", "CapsLock+C：切到 CapsLock 触发模式", "fn", "CH_RUN", "suggested", "c"),
+            Map("id", "ch_x", "name", "草稿本 / 触发模式双击", "desc", "CapsLock+X：切到双击 Ctrl+C 触发模式", "fn", "CH_RUN", "suggested", "x"),
+            Map("id", "ch_v", "name", "草稿本 / 复制图片预览", "desc", "CapsLock+V：复制当前图片预览", "fn", "CH_RUN", "suggested", "v"),
             Map("id", "qa_split", "name", "快捷动作 / 分割代码", "desc", "执行 Quick Action: Split", "fn", "CH_RUN"),
-            Map("id", "ch_1", "name", "快捷槽位 1", "desc", "执行快捷操作槽位 1", "fn", "CH_RUN", "suggested", "1"),
-            Map("id", "ch_2", "name", "快捷槽位 2", "desc", "执行快捷操作槽位 2", "fn", "CH_RUN", "suggested", "2"),
-            Map("id", "ch_3", "name", "快捷槽位 3", "desc", "执行快捷操作槽位 3", "fn", "CH_RUN", "suggested", "3"),
-            Map("id", "ch_4", "name", "快捷槽位 4", "desc", "执行快捷操作槽位 4", "fn", "CH_RUN", "suggested", "4"),
-            Map("id", "ch_5", "name", "快捷槽位 5", "desc", "执行快捷操作槽位 5", "fn", "CH_RUN", "suggested", "5")
+            Map("id", "ch_1", "name", "快捷槽位 1", "desc", "CapsLock+1：选中草稿本第 1 条文本", "fn", "CH_RUN", "suggested", "1"),
+            Map("id", "ch_2", "name", "快捷槽位 2", "desc", "CapsLock+2：选中草稿本第 2 条文本", "fn", "CH_RUN", "suggested", "2"),
+            Map("id", "ch_3", "name", "快捷槽位 3", "desc", "CapsLock+3：选中草稿本第 3 条文本", "fn", "CH_RUN", "suggested", "3"),
+            Map("id", "ch_4", "name", "快捷槽位 4", "desc", "CapsLock+4：选中草稿本第 4 条文本", "fn", "CH_RUN", "suggested", "4"),
+            Map("id", "ch_5", "name", "快捷槽位 5", "desc", "CapsLock+5：选中草稿本第 5 条文本", "fn", "CH_RUN", "suggested", "5")
         ]),
         Map("id", "screenshot", "name", "📸 智能截图", "commands", [
             Map("id", "ch_t", "name", "截图智能菜单", "desc", "CapsLock+T：截图后弹出智能菜单", "fn", "CH_RUN", "suggested", "t"),
@@ -2846,6 +2853,5 @@ _FallbackHtml() {
             . '</div></body></html>'
     )
 }
-
 
 

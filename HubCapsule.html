@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -23,14 +23,14 @@
 html, body {
   width: 100%;
   height: 100%;
-  /* 与宿主 WebView 实色背景一致，避免透明区域与旧版 TransColor 叠加穿透 */
+  /* 涓庡涓?WebView 瀹炶壊鑳屾櫙涓€鑷达紝閬垮厤閫忔槑鍖哄煙涓庢棫鐗?TransColor 鍙犲姞绌块€?*/
   background: #1a1a1a;
   overflow: hidden;
   color: var(--text);
   font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
 }
 
-/* 整窗可接系统拖放：必须为 auto，否则 padding 区无法收到 dragover/drop */
+/* 鏁寸獥鍙帴绯荤粺鎷栨斁锛氬繀椤讳负 auto锛屽惁鍒?padding 鍖烘棤娉曟敹鍒?dragover/drop */
 #host {
   width: 100%;
   height: 100%;
@@ -63,7 +63,7 @@ html, body {
   transition: transform var(--ease), border-color var(--ease), box-shadow var(--ease), width var(--ease), opacity var(--ease);
 }
 
-/* 胶囊透明度由 JS applyVisualState 按「仅预览 / 拖动或已入栈」设置，避免与已有卡片冲突 */
+/* 鑳跺泭閫忔槑搴︾敱 JS applyVisualState 鎸夈€屼粎棰勮 / 鎷栧姩鎴栧凡鍏ユ爤銆嶈缃紝閬垮厤涓庡凡鏈夊崱鐗囧啿绐?*/
 
 @keyframes open-flow {
   0% {
@@ -90,7 +90,7 @@ html, body {
     inset 0 1px 0 rgba(255, 255, 255, 0.42);
 }
 
-/* 鸿蒙式：系统拖入时高亮胶囊 + 预览区提示 */
+/* 楦胯挋寮忥細绯荤粺鎷栧叆鏃堕珮浜兌鍥?+ 棰勮鍖烘彁绀?*/
 #capsule.external-drop-hover {
   transform: scale(1.02);
   border-color: var(--capsule-border-strong);
@@ -182,7 +182,7 @@ html, body {
     0 0 36px rgba(255, 154, 47, 0.28);
 }
 
-/* 仅预览且无堆叠卡片时：胶囊壳不拦截点击，空白区穿透到 #host，由脚本通知 AHK 立即关闭 */
+/* 浠呴瑙堜笖鏃犲爢鍙犲崱鐗囨椂锛氳兌鍥婂３涓嶆嫤鎴偣鍑伙紝绌虹櫧鍖虹┛閫忓埌 #host锛岀敱鑴氭湰閫氱煡 AHK 绔嬪嵆鍏抽棴 */
 #capsule.selection-active:not(.has-content) {
   pointer-events: none;
 }
@@ -620,14 +620,18 @@ body.native-titlebar #header { display: none; }
 }
 
 .action-btn {
-  height: 34px;
+  min-height: 44px;
+  padding: 6px 10px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(21, 28, 42, 0.5);
   color: var(--text);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: transform var(--ease), border-color var(--ease), box-shadow var(--ease), background var(--ease);
 }
 
@@ -638,6 +642,145 @@ body.native-titlebar #header { display: none; }
 }
 
 .action-btn:active { transform: scale(0.97); }
+.action-btn .hub-chip-main {
+  width: 100%;
+  align-items: center;
+}
+
+#slot-strip {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 6px;
+  padding: 0 12px 8px;
+}
+
+.slot-strip-title {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.hub-chip-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+#hub-slot-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  padding-bottom: 2px;
+}
+
+#hub-slot-row::-webkit-scrollbar {
+  height: 6px;
+}
+
+#hub-slot-row::-webkit-scrollbar-thumb {
+  background: rgba(255, 170, 95, 0.45);
+  border-radius: 999px;
+}
+
+#hub-slot-row .hub-chip {
+  flex: 0 0 112px;
+  max-width: 112px;
+}
+
+.hub-chip {
+  min-height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(19, 26, 40, 0.48);
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+}
+
+.hub-chip-main {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.hub-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hub-chip-sub {
+  width: 100%;
+  color: var(--text-muted);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hub-hotkey-item {
+  position: relative;
+}
+
+.hotkey-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 14px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+  color: #8b97ad;
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.hotkey-hint.unbound {
+  border-style: dashed;
+  opacity: .72;
+}
+
+.caps-hotkey-ready {
+  border-color: rgba(255,179,71,.45) !important;
+  box-shadow: 0 0 0 1px rgba(255,179,71,.16) inset;
+}
+
+.caps-hotkey-hit {
+  border-color: rgba(255,179,71,.82) !important;
+  box-shadow: 0 0 0 1px rgba(255,179,71,.42) inset, 0 0 18px rgba(255,141,42,.28);
+  transform: translateY(-1px);
+}
+
+.caps-hotkey-hit .hotkey-hint {
+  color: #fff;
+  border-color: rgba(255,200,120,.72);
+  background: rgba(255,141,42,.24);
+}
+
+.hub-chip.is-selected {
+  border-color: rgba(255,193,132,.82);
+  background: rgba(255,154,47,.2);
+  box-shadow: 0 0 0 1px rgba(255,179,71,.35) inset, 0 0 16px rgba(255,141,42,.2);
+}
+
+.hub-chip.is-selected .hub-chip-label {
+  color: #fff8ef;
+}
+
+.hub-chip.is-selected .hub-chip-sub {
+  color: #ffe0be;
+}
 
 #gravity-tip {
   position: absolute;
@@ -667,7 +810,7 @@ body.native-titlebar #header { display: none; }
 <div id="host">
   <div id="capsule" role="region" aria-label="Hub Capsule">
     <div id="dock-beacon"></div>
-    <div id="gravity-tip">靠近目标</div>
+    <div id="gravity-tip">闈犺繎鐩爣</div>
 
     <div id="main">
       <div id="header" class="window-titlebar" data-drag-handle="1">
@@ -681,6 +824,7 @@ body.native-titlebar #header { display: none; }
         </div>
       </div>
 
+      <div class="slot-strip-title">预览区 · 当前选择 / 拖入草稿</div>
       <div id="preview-card">
         <div id="preview">等待选中文本...</div>
         <div id="preview-image-wrap">
@@ -694,6 +838,7 @@ body.native-titlebar #header { display: none; }
         </div>
       </div>
 
+      <div class="slot-strip-title">内容区 · 已入栈文本（最近 5 条）</div>
       <div id="stack-display">
         <div id="stack-empty">选中内容会按卡片堆叠在这里</div>
         <div id="stack-list"></div>
@@ -703,6 +848,11 @@ body.native-titlebar #header { display: none; }
     <div id="trigger-bar">
       <button type="button" class="trigger-btn" id="btnTriggerCapslock">触发：CapsLock+C</button>
       <button type="button" class="trigger-btn" id="btnTriggerDoubleCtrl">触发：双击 Ctrl+C</button>
+    </div>
+
+    <div id="slot-strip">
+      <div class="slot-strip-title">快捷槽位 · Caps+1..5 选中对应文本</div>
+      <div class="hub-chip-row" id="hub-slot-row"></div>
     </div>
 
     <div id="action-bar">
@@ -731,9 +881,14 @@ body.native-titlebar #header { display: none; }
     collisionBtn: '',
     actionPinned: false,
     justDragged: false,
-    selectedIndex: -1
+    selectedIndex: -1,
+    selectedSlotOneBased: 0,
+    capsHintActive: false,
+    capsPressedKey: ''
   };
   let externalDragDepth = 0;
+  let capsHoldTimer = 0;
+  let capsFlashTimer = 0;
 
   const capsule = document.getElementById('capsule');
   const host = document.getElementById('host');
@@ -755,9 +910,20 @@ body.native-titlebar #header { display: none; }
   const btnClear = document.getElementById('btnClear');
   const btnTriggerCapslock = document.getElementById('btnTriggerCapslock');
   const btnTriggerDoubleCtrl = document.getElementById('btnTriggerDoubleCtrl');
+  const hubSlotRow = document.getElementById('hub-slot-row');
   const resizeHandle = document.getElementById('resize-handle');
   const ctxMenu = document.getElementById('ctx-menu');
   const btnCloseHub = document.getElementById('btnCloseHub');
+
+  const STATIC_HOTKEY_BINDINGS = Object.freeze([
+    ['#btnCloseHub', 'g', '关闭'],
+    ['#btnSearch', 'f', '搜索'],
+    ['#btnAi', 'a', 'AI'],
+    ['#btnClear', 'backspace', '清空'],
+    ['#btnTriggerCapslock', 'c', '触发：CapsLock+C'],
+    ['#btnTriggerDoubleCtrl', 'x', '触发：双击 Ctrl+C'],
+    ['#preview-copy-image', 'v', '复制图片预览']
+  ]);
 
   if (btnCloseHub) {
     btnCloseHub.addEventListener('click', (e) => {
@@ -783,6 +949,82 @@ body.native-titlebar #header { display: none; }
     const d = document.createElement('div');
     d.textContent = text;
     return d.innerHTML;
+  }
+
+  function normalizeHintKey(key) {
+    const k = String(key || '').trim().toLowerCase();
+    if (/^[a-z0-9]$/.test(k)) return k;
+    if (k === 'backspace' || k === 'bks') return 'backspace';
+    return '';
+  }
+
+  function hotkeyHintHtml(hotkey) {
+    const hk = normalizeHintKey(hotkey);
+    if (!hk) return '<span class="hotkey-hint unbound">可绑定</span>';
+    const text = hk === 'backspace' ? 'Caps+Bks' : ('Caps+' + hk.toUpperCase());
+    return '<span class="hotkey-hint">' + escapeHtml(text) + '</span>';
+  }
+
+  function setElementHotkeyHint(el, hotkey, explicitLabel) {
+    if (!el) return;
+    const normalized = normalizeHintKey(hotkey);
+    const label = (explicitLabel != null ? String(explicitLabel) : (el.dataset.hotkeyBase || el.textContent || '')).trim();
+    if (!label) return;
+    el.dataset.hotkeyBase = label;
+    el.dataset.hotkey = normalized;
+    el.classList.add('hub-hotkey-item');
+    el.innerHTML = '<span class="hub-chip-main"><span class="hub-chip-label">' + escapeHtml(label) + '</span>' + hotkeyHintHtml(normalized) + '</span>';
+  }
+
+  function updateHotkeyHighlights() {
+    const nodes = document.querySelectorAll('.hub-hotkey-item');
+    nodes.forEach((el) => {
+      const hk = normalizeHintKey(el.dataset.hotkey || '');
+      const ready = state.capsHintActive && !!hk;
+      const hit = ready && state.capsPressedKey === hk;
+      el.classList.toggle('caps-hotkey-ready', ready);
+      el.classList.toggle('caps-hotkey-hit', hit);
+    });
+  }
+
+  function setCapsHintActive(active) {
+    state.capsHintActive = !!active;
+    if (!state.capsHintActive)
+      state.capsPressedKey = '';
+    updateHotkeyHighlights();
+  }
+
+  function setCapsPressedKey(key) {
+    state.capsPressedKey = normalizeHintKey(key);
+    updateHotkeyHighlights();
+  }
+
+  function flashCapsPressedKey(key) {
+    const normalized = normalizeHintKey(key);
+    if (!normalized) return;
+    setCapsPressedKey(normalized);
+    if (capsFlashTimer) clearTimeout(capsFlashTimer);
+    capsFlashTimer = setTimeout(() => {
+      if (state.capsPressedKey === normalized) {
+        state.capsPressedKey = '';
+        updateHotkeyHighlights();
+      }
+    }, 260);
+  }
+
+  function beginCapsHoldHint() {
+    if (capsHoldTimer) clearTimeout(capsHoldTimer);
+    capsHoldTimer = setTimeout(() => {
+      setCapsHintActive(true);
+    }, 220);
+  }
+
+  function endCapsHoldHint() {
+    if (capsHoldTimer) clearTimeout(capsHoldTimer);
+    capsHoldTimer = 0;
+    if (capsFlashTimer) clearTimeout(capsFlashTimer);
+    capsFlashTimer = 0;
+    setCapsHintActive(false);
   }
 
   function normalizePreviewText(input) {
@@ -896,6 +1138,153 @@ body.native-titlebar #header { display: none; }
     return compactText(item.text || '');
   }
 
+  function listSlotTexts(limit = 5) {
+    const out = [];
+    for (let i = state.segments.length - 1; i >= 0; i -= 1) {
+      const item = asCard(state.segments[i]);
+      if (!item || item.kind !== 'text') continue;
+      const text = compactText(item.text || '');
+      if (!text) continue;
+      out.push({ realIndex: i, text });
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
+  function syncSelectedSlotFromSelectedIndex() {
+    const slots = listSlotTexts(5);
+    const idx = slots.findIndex((it) => it.realIndex === state.selectedIndex);
+    state.selectedSlotOneBased = idx >= 0 ? (idx + 1) : 0;
+  }
+
+  function ensureSelectedSlotVisible() {
+    if (!hubSlotRow) return;
+    if (!state.selectedSlotOneBased) return;
+    const target = hubSlotRow.querySelector(`[data-slot="${state.selectedSlotOneBased}"]`);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }
+
+  function selectSlotByIndex(slotOneBased) {
+    const slot = Number(slotOneBased);
+    if (!Number.isInteger(slot) || slot < 1 || slot > 5) return;
+    const slots = listSlotTexts(5);
+    const target = slots[slot - 1] || null;
+    if (!target) {
+      previewCard.classList.remove('preview-pulse');
+      void previewCard.offsetWidth;
+      previewCard.classList.add('preview-pulse');
+      return;
+    }
+    state.selectedIndex = target.realIndex;
+    state.selectedSlotOneBased = slot;
+    refreshAll();
+    postToAhk({ type: 'hub_stack_selected', text: target.text, index: target.realIndex });
+    requestAnimationFrame(() => {
+      ensureSelectedSlotVisible();
+      const stackCard = stackList.querySelector(`.stack-card[data-real-index="${target.realIndex}"]`);
+      if (stackCard)
+        stackCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    });
+  }
+
+  function doSearch() {
+    const text = selectedCardText() || activeText() || mergedText();
+    if (!text) {
+      previewCard.classList.remove('preview-pulse');
+      void previewCard.offsetWidth;
+      previewCard.classList.add('preview-pulse');
+      return;
+    }
+    postToAhk({ type: 'hub_search', text });
+  }
+
+  function doAi() {
+    const text = selectedCardText() || activeText() || mergedText();
+    if (!text) {
+      previewCard.classList.remove('preview-pulse');
+      void previewCard.offsetWidth;
+      previewCard.classList.add('preview-pulse');
+      return;
+    }
+    postToAhk({ type: 'hub_ai', text });
+  }
+
+  function applyStaticHotkeyHints() {
+    STATIC_HOTKEY_BINDINGS.forEach(([selector, hotkey, label]) => {
+      const el = document.querySelector(selector);
+      if (!el) return;
+      setElementHotkeyHint(el, hotkey, label);
+    });
+    updateHotkeyHighlights();
+  }
+
+  function renderSlotTags() {
+    if (!hubSlotRow) return;
+    const slots = listSlotTexts(5);
+    hubSlotRow.innerHTML = '';
+    for (let i = 1; i <= 5; i += 1) {
+      const slot = slots[i - 1] || null;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'hub-chip hub-hotkey-item';
+      b.dataset.hotkey = String(i);
+      b.dataset.slot = String(i);
+      b.classList.toggle('is-selected', i === state.selectedSlotOneBased);
+      const sub = slot ? slot.text : '空';
+      b.innerHTML =
+        '<span class="hub-chip-main"><span class="hub-chip-label">槽位 ' + i + '</span>' + hotkeyHintHtml(String(i)) + '</span>' +
+        '<span class="hub-chip-sub">' + escapeHtml(sub) + '</span>';
+      b.addEventListener('click', () => selectSlotByIndex(i));
+      hubSlotRow.appendChild(b);
+    }
+  }
+
+  function renderHubTags() {
+    renderSlotTags();
+    updateHotkeyHighlights();
+  }
+
+  function handleVkAction(actionName) {
+    const action = String(actionName || '').trim().toLowerCase();
+    switch (action) {
+      case 'search':
+        doSearch();
+        break;
+      case 'ai':
+        doAi();
+        break;
+      case 'clear':
+        clearAll();
+        break;
+      case 'close':
+        postToAhk({ type: 'selection_menu_dismiss' });
+        break;
+      case 'copy_image':
+        copyCurrentPreviewImage();
+        break;
+      case 'set_trigger_capslock':
+        setCopyTriggerMode('capslock');
+        postToAhk({ type: 'hub_set_copy_trigger_mode', mode: 'capslock' });
+        break;
+      case 'set_trigger_double':
+        setCopyTriggerMode('double');
+        postToAhk({ type: 'hub_set_copy_trigger_mode', mode: 'double' });
+        break;
+      case 'select_slot_1':
+      case 'select_slot_2':
+      case 'select_slot_3':
+      case 'select_slot_4':
+      case 'select_slot_5': {
+        const slot = Number(action.slice(-1));
+        selectSlotByIndex(slot);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
   function syncSegments() {
     postToAhk({ type: 'hub_segments_sync', segments: textSegments() });
     try {
@@ -934,7 +1323,7 @@ body.native-titlebar #header { display: none; }
     if (externalDropHint)
       externalDropHint.setAttribute('aria-hidden', externalOnly ? 'false' : 'true');
 
-    // 规则：仅有未提交的选区预览且未在拖动 → 20%；拖动预览中 / 已有卡片 → 80%；空窗 → 不强制
+    // 未提交草稿且未拖拽：半透明；拖拽中或已有内容：更清晰
     if (hasDraft && !draggingDraft) {
       capsule.style.setProperty('opacity', '0.2', 'important');
     } else if (draggingDraft || hasContent) {
@@ -970,7 +1359,7 @@ body.native-titlebar #header { display: none; }
 
   function renderStack() {
     stackList.innerHTML = '';
-    const visible = state.segments.slice(-4).reverse();
+    const visible = state.segments.slice(-5).reverse();
 
     if (!visible.length) {
       stackEmpty.style.display = 'block';
@@ -1015,6 +1404,8 @@ body.native-titlebar #header { display: none; }
   function refreshAll() {
     updatePreview();
     renderStack();
+    syncSelectedSlotFromSelectedIndex();
+    renderHubTags();
     applyVisualState();
   }
 
@@ -1056,6 +1447,7 @@ body.native-titlebar #header { display: none; }
     state.pendingImageDataUrl = '';
     state.pendingDraft = '';
     state.selectedIndex = -1;
+    state.selectedSlotOneBased = 0;
     refreshAll();
     syncSegments();
     postToAhk({ type: 'hub_stack_selected', text: '', index: -1 });
@@ -1084,7 +1476,7 @@ body.native-titlebar #header { display: none; }
     state.gravityActive = !!active;
     capsule.classList.toggle('gravity-active', state.gravityActive);
     if (state.gravityActive) {
-      gravityTip.textContent = name ? `吸附: ${name}` : '靠近目标';
+      gravityTip.textContent = name ? `鍚搁檮: ${name}` : '闈犺繎鐩爣';
       gravityTip.classList.add('visible');
     } else {
       gravityTip.classList.remove('visible');
@@ -1123,8 +1515,7 @@ body.native-titlebar #header { display: none; }
 
   function beginResize(e) {
     if (e.button !== 0) return;
-    // 与 AHK Gui 客户区一致：整页视口尺寸（#capsule 在 #host 内会偏小）
-    const startW = document.documentElement.clientWidth;
+    // 涓?AHK Gui 瀹㈡埛鍖轰竴鑷达細鏁撮〉瑙嗗彛灏哄锛?capsule 鍦?#host 鍐呬細鍋忓皬锛?    const startW = document.documentElement.clientWidth;
     const startH = document.documentElement.clientHeight;
     state.resize = {
       pointerId: e.pointerId,
@@ -1304,27 +1695,8 @@ body.native-titlebar #header { display: none; }
       hideContextMenu();
   });
 
-  btnSearch.addEventListener('click', () => {
-    const text = selectedCardText() || activeText() || mergedText();
-    if (!text) {
-      previewCard.classList.remove('preview-pulse');
-      void previewCard.offsetWidth;
-      previewCard.classList.add('preview-pulse');
-      return;
-    }
-    postToAhk({ type: 'hub_search', text });
-  });
-
-  btnAi.addEventListener('click', () => {
-    const text = selectedCardText() || activeText() || mergedText();
-    if (!text) {
-      previewCard.classList.remove('preview-pulse');
-      void previewCard.offsetWidth;
-      previewCard.classList.add('preview-pulse');
-      return;
-    }
-    postToAhk({ type: 'hub_ai', text });
-  });
+  btnSearch.addEventListener('click', doSearch);
+  btnAi.addEventListener('click', doAi);
 
   btnClear.addEventListener('click', clearAll);
   btnTriggerCapslock.addEventListener('click', () => {
@@ -1355,7 +1727,7 @@ body.native-titlebar #header { display: none; }
     }
   }
 
-  /** 提交前幽灵飞入堆叠区 */
+  /** 鎻愪氦鍓嶅菇鐏甸鍏ュ爢鍙犲尯 */
   function animateGhostToStackThen(ghost, callback) {
     if (!ghost || !ghost.parentNode) {
       try { if (callback) callback(); } catch (_) {}
@@ -1410,7 +1782,7 @@ body.native-titlebar #header { display: none; }
     ghost.style.color = '#ffe6cc';
     ghost.style.fontSize = '11px';
     ghost.style.boxShadow = '0 6px 16px rgba(0,0,0,.35)';
-    ghost.textContent = '松手加入卡片';
+    ghost.textContent = '鏉炬墜鍔犲叆鍗＄墖';
     document.body.appendChild(ghost);
 
     state.draftDrag = {
@@ -1495,7 +1867,7 @@ body.native-titlebar #header { display: none; }
     ghost.style.color = '#ffe6cc';
     ghost.style.fontSize = '11px';
     ghost.style.boxShadow = '0 6px 16px rgba(0,0,0,.35)';
-    ghost.textContent = '松手加入图片卡片';
+    ghost.textContent = '鏉炬墜鍔犲叆鍥剧墖鍗＄墖';
     document.body.appendChild(ghost);
 
     state.draftDrag = {
@@ -1636,8 +2008,8 @@ body.native-titlebar #header { display: none; }
     return '';
   }
 
-  /** 整页 WebView 作为拖放目标：从 Cursor 等外部窗口拖入即加入卡片 */
-  /** 点击 #host 留白区（含从胶囊穿透的空白）立即通知 AHK 关闭，避免仅预览时整窗矩形误判为「内部」 */
+  /** 鏁撮〉 WebView 浣滀负鎷栨斁鐩爣锛氫粠 Cursor 绛夊閮ㄧ獥鍙ｆ嫋鍏ュ嵆鍔犲叆鍗＄墖 */
+  /** 鐐瑰嚮 #host 鐣欑櫧鍖猴紙鍚粠鑳跺泭绌块€忕殑绌虹櫧锛夌珛鍗抽€氱煡 AHK 鍏抽棴锛岄伩鍏嶄粎棰勮鏃舵暣绐楃煩褰㈣鍒や负銆屽唴閮ㄣ€?*/
   function installDismissOnHostPadding() {
     if (!host) return;
     host.addEventListener('pointerdown', (e) => {
@@ -1647,7 +2019,7 @@ body.native-titlebar #header { display: none; }
     }, true);
   }
 
-  /** 整页 WebView 作为拖放目标：从 Cursor 等外部窗口拖入即加入卡片 */
+  /** 鏁撮〉 WebView 浣滀负鎷栨斁鐩爣锛氫粠 Cursor 绛夊閮ㄧ獥鍙ｆ嫋鍏ュ嵆鍔犲叆鍗＄墖 */
   function installGlobalDropTarget() {
     document.addEventListener('dragenter', (e) => {
       e.preventDefault();
@@ -1691,7 +2063,7 @@ body.native-titlebar #header { display: none; }
     }, true);
   }
 
-  /* WebView2 下 mouse 事件比 pointer 更稳定：捕获阶段监听，避免被内部吞掉 */
+  /* WebView2 涓?mouse 浜嬩欢姣?pointer 鏇寸ǔ瀹氾細鎹曡幏闃舵鐩戝惉锛岄伩鍏嶈鍐呴儴鍚炴帀 */
   draftChip.addEventListener('mousedown', (e) => {
     if (!state.pendingDraft || e.button !== 0) return;
     if (e.target.closest('button')) return;
@@ -1735,6 +2107,12 @@ body.native-titlebar #header { display: none; }
   }, true);
 
   window.addEventListener('keydown', (e) => {
+    if (e.key === 'CapsLock') {
+      beginCapsHoldHint();
+    } else if (state.capsHintActive) {
+      const pressed = normalizeHintKey(e.key);
+      if (pressed) setCapsPressedKey(pressed);
+    }
     if (e.key === 'Escape') {
       hideContextMenu();
       postToAhk({ type: 'selection_menu_dismiss' });
@@ -1747,8 +2125,7 @@ body.native-titlebar #header { display: none; }
     const selected = getSelectedTextInsideCapsule();
     if (selected) {
       postToAhk({ type: 'hub_copy', text: selected });
-      /* 不可 preventDefault：否则 WebView 不会把选区写入系统剪贴板，外部编辑器无法粘贴。
-         AHK 侧若未处理 hub_copy，原先等于只拦掉默认复制。 */
+      /* 涓嶅彲 preventDefault锛氬惁鍒?WebView 涓嶄細鎶婇€夊尯鍐欏叆绯荤粺鍓创鏉匡紝澶栭儴缂栬緫鍣ㄦ棤娉曠矘璐淬€?         AHK 渚ц嫢鏈鐞?hub_copy锛屽師鍏堢瓑浜庡彧鎷︽帀榛樿澶嶅埗銆?*/
       return;
     }
     if (hasPendingImage()) {
@@ -1756,6 +2133,28 @@ body.native-titlebar #header { display: none; }
       e.preventDefault();
     }
   }, true);
+
+  window.addEventListener('keyup', (e) => {
+    if (e.key === 'CapsLock') {
+      endCapsHoldHint();
+      return;
+    }
+    if (!state.capsHintActive) return;
+    const released = normalizeHintKey(e.key);
+    if (released && state.capsPressedKey === released) {
+      state.capsPressedKey = '';
+      updateHotkeyHighlights();
+    }
+  }, true);
+
+  window.addEventListener('blur', () => {
+    endCapsHoldHint();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden)
+      endCapsHoldHint();
+  });
 
   if (window.chrome && window.chrome.webview) {
     window.chrome.webview.addEventListener('message', (event) => {
@@ -1766,6 +2165,15 @@ body.native-titlebar #header { display: none; }
       if (!d || !d.type) return;
 
       switch (d.type) {
+        case 'capsHint':
+          setCapsHintActive(!!d.active);
+          break;
+        case 'capsHintPress':
+          flashCapsPressedKey(d.key || '');
+          break;
+        case 'vk_action':
+          handleVkAction(d.action || '');
+          break;
         case 'push_segment':
           pushSegment(normalizePreviewText(d.text));
           break;
@@ -1828,6 +2236,7 @@ body.native-titlebar #header { display: none; }
 
   loadPersistedSegments();
   setCopyTriggerMode('capslock');
+  applyStaticHotkeyHints();
   refreshAll();
   syncSegments();
   installDismissOnHostPadding();
@@ -1838,3 +2247,5 @@ body.native-titlebar #header { display: none; }
 </script>
 </body>
 </html>
+
+

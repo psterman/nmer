@@ -231,9 +231,24 @@ VK_ExecCursorHelperCmd(cmdId) {
                 if (VK_IsClipboardPanelActive())
                     VK_ClipboardToggleShortcuts()
                 executed := true
+            case "ch_backspace":
+                if (VK_IsHubCapsuleActive()) {
+                    VK_HubCapsuleAction("clear")
+                    executed := true
+                } else {
+                    CapsLock2 := false
+                    Send("{Backspace}")
+                    executed := true
+                }
 
             case "ch_c":
-                if (IsSearchCenterActive()) {
+                if (VK_IsPromptQuickPadActive()) {
+                    VK_PromptQuickPadAction("capture_clear")
+                    executed := true
+                } else if (VK_IsHubCapsuleActive()) {
+                    VK_HubCapsuleAction("set_trigger_capslock")
+                    executed := true
+                } else if (IsSearchCenterActive()) {
                     VK_SearchCenterSetFilter("template")
                     executed := true
                 } else {
@@ -241,7 +256,13 @@ VK_ExecCursorHelperCmd(cmdId) {
                     executed := true
                 }
             case "ch_v":
-                if (VK_IsClipboardPanelActive()) {
+                if (VK_IsPromptQuickPadActive()) {
+                    VK_PromptQuickPadAction("capture_toggle")
+                    executed := true
+                } else if (VK_IsHubCapsuleActive()) {
+                    VK_HubCapsuleAction("copy_image")
+                    executed := true
+                } else if (VK_IsClipboardPanelActive()) {
                     VK_ClipboardSetContinuousPaste(true)
                     executed := true
                 } else if (IsSearchCenterActive()) {
@@ -252,7 +273,13 @@ VK_ExecCursorHelperCmd(cmdId) {
                     executed := true
                 }
             case "ch_x":
-                if (IsSearchCenterActive()) {
+                if (VK_IsPromptQuickPadActive()) {
+                    VK_PromptQuickPadAction("capture_save")
+                    executed := true
+                } else if (VK_IsHubCapsuleActive()) {
+                    VK_HubCapsuleAction("set_trigger_double")
+                    executed := true
+                } else if (IsSearchCenterActive()) {
                     VK_SearchCenterSetFilter("clipboard")
                     executed := true
                 } else {
@@ -260,7 +287,10 @@ VK_ExecCursorHelperCmd(cmdId) {
                     executed := true
                 }
             case "ch_e":
-                if (VK_IsClipboardPanelActive()) {
+                if (VK_IsPromptQuickPadActive()) {
+                    VK_PromptQuickPadSetSourceFilter("template")
+                    executed := true
+                } else if (VK_IsClipboardPanelActive()) {
                     VK_ClipboardSetFilter("image")
                     executed := true
                 } else if (IsSearchCenterActive()) {
@@ -271,7 +301,10 @@ VK_ExecCursorHelperCmd(cmdId) {
                     executed := true
                 }
             case "ch_r":
-                if (VK_IsClipboardPanelActive()) {
+                if (VK_IsPromptQuickPadActive()) {
+                    VK_PromptQuickPadSetSourceFilter("json")
+                    executed := true
+                } else if (VK_IsClipboardPanelActive()) {
                     VK_ClipboardSetFilter("clipboard")
                     executed := true
                 } else if (IsSearchCenterActive()) {
@@ -285,7 +318,10 @@ VK_ExecCursorHelperCmd(cmdId) {
                 HandleDynamicHotkey(HotkeyO != "" ? HotkeyO : "o", "O")
                 executed := true
             case "ch_q":
-                if (VK_IsClipboardPanelActive()) {
+                if (VK_IsPromptQuickPadActive()) {
+                    VK_PromptQuickPadSetSourceFilter("all")
+                    executed := true
+                } else if (VK_IsClipboardPanelActive()) {
                     VK_ClipboardSetFilter("all")
                     executed := true
                 } else if (IsSearchCenterActive()) {
@@ -296,7 +332,10 @@ VK_ExecCursorHelperCmd(cmdId) {
                     executed := true
                 }
             case "ch_z":
-                if (IsSearchCenterActive()) {
+                if (VK_IsPromptQuickPadActive()) {
+                    VK_PromptQuickPadAction("capture_load_selected")
+                    executed := true
+                } else if (IsSearchCenterActive()) {
                     VK_SearchCenterSetFilter("File")
                     executed := true
                 } else {
@@ -304,10 +343,19 @@ VK_ExecCursorHelperCmd(cmdId) {
                     executed := true
                 }
             case "ch_t":
-                HandleDynamicHotkey(HotkeyT != "" ? HotkeyT : "t", "T")
-                executed := true
+                if (VK_IsPromptQuickPadActive()) {
+                    VK_PromptQuickPadAction("import")
+                    executed := true
+                } else {
+                    HandleDynamicHotkey(HotkeyT != "" ? HotkeyT : "t", "T")
+                    executed := true
+                }
             case "ch_f":
-                if (IsCountdownActive) {
+                if (VK_IsPromptQuickPadActive()) {
+                    VK_PromptQuickPadAction("delete")
+                } else if (VK_IsHubCapsuleActive()) {
+                    VK_HubCapsuleAction("search")
+                } else if (IsCountdownActive) {
                     ExecuteCountdownAction()
                 } else if (IsSearchCenterActive()) {
                     HandleSearchCenterF()
@@ -316,10 +364,17 @@ VK_ExecCursorHelperCmd(cmdId) {
                 }
                 executed := true
             case "ch_g":
-                StartVoiceSearch()
+                if (VK_IsPromptQuickPadActive())
+                    VK_PromptQuickPadAction("close")
+                else if (VK_IsHubCapsuleActive())
+                    VK_HubCapsuleAction("close")
+                else
+                    StartVoiceSearch()
                 executed := true
             case "ch_b":
-                if (GetPanelVisibleState()) {
+                if (VK_IsPromptQuickPadActive()) {
+                    VK_PromptQuickPadAction("toggle_pin")
+                } else if (GetPanelVisibleState()) {
                     CapsLock2 := false
                     if StrLower(BatchHotkey) = "b"
                         BatchOperation()
@@ -330,10 +385,17 @@ VK_ExecCursorHelperCmd(cmdId) {
                 }
                 executed := true
             case "ch_p":
-                HandleDynamicHotkey(HotkeyP != "" ? HotkeyP : "p", "P")
+                if (VK_IsPromptQuickPadActive()) {
+                    VK_PromptQuickPadAction("export")
+                } else {
+                    HandleDynamicHotkey(HotkeyP != "" ? HotkeyP : "p", "P")
+                }
                 executed := true
             case "ch_w":
-                if (VK_IsClipboardPanelActive()) {
+                if (VK_IsPromptQuickPadActive()) {
+                    VK_PromptQuickPadSetSourceFilter("builtin")
+                    executed := true
+                } else if (VK_IsClipboardPanelActive()) {
                     VK_ClipboardSetFilter("text")
                     executed := true
                 } else if (IsSearchCenterActive()) {
@@ -345,7 +407,10 @@ VK_ExecCursorHelperCmd(cmdId) {
                     executed := true
                 }
             case "ch_s":
-                if (VK_IsClipboardPanelActive()) {
+                if (VK_IsPromptQuickPadActive()) {
+                    VK_PromptQuickPadAction("edit")
+                    executed := true
+                } else if (VK_IsClipboardPanelActive()) {
                     VK_ClipboardSetFilter("url")
                     executed := true
                 } else if (IsSearchCenterActive()) {
@@ -358,7 +423,13 @@ VK_ExecCursorHelperCmd(cmdId) {
                     executed := true
                 }
             case "ch_a":
-                if (VK_IsClipboardPanelActive()) {
+                if (VK_IsPromptQuickPadActive()) {
+                    VK_PromptQuickPadAction("paste")
+                    executed := true
+                } else if (VK_IsHubCapsuleActive()) {
+                    VK_HubCapsuleAction("ai")
+                    executed := true
+                } else if (VK_IsClipboardPanelActive()) {
                     VK_ClipboardSetFilter("code")
                     executed := true
                 } else if (IsSearchCenterActive()) {
@@ -371,7 +442,10 @@ VK_ExecCursorHelperCmd(cmdId) {
                     executed := true
                 }
             case "ch_d":
-                if (VK_IsClipboardPanelActive()) {
+                if (VK_IsPromptQuickPadActive()) {
+                    VK_PromptQuickPadAction("view")
+                    executed := true
+                } else if (VK_IsClipboardPanelActive()) {
                     VK_ClipboardSetFilter("favorite")
                     executed := true
                 } else if (IsSearchCenterActive()) {
@@ -384,19 +458,42 @@ VK_ExecCursorHelperCmd(cmdId) {
                     executed := true
                 }
             case "ch_1":
-                ExecuteQuickActionSlot(1)
+                if (VK_IsPromptQuickPadActive())
+                    VK_PromptQuickPadAction("json_help")
+                else if (VK_IsHubCapsuleActive())
+                    VK_HubCapsuleAction("select_slot_1")
+                else
+                    ExecuteQuickActionSlot(1)
                 executed := true
             case "ch_2":
-                ExecuteQuickActionSlot(2)
+                if (VK_IsPromptQuickPadActive())
+                    VK_PromptQuickPadAction("item_save")
+                else if (VK_IsHubCapsuleActive())
+                    VK_HubCapsuleAction("select_slot_2")
+                else
+                    ExecuteQuickActionSlot(2)
                 executed := true
             case "ch_3":
-                ExecuteQuickActionSlot(3)
+                if (VK_IsPromptQuickPadActive())
+                    VK_PromptQuickPadAction("item_cancel")
+                else if (VK_IsHubCapsuleActive())
+                    VK_HubCapsuleAction("select_slot_3")
+                else
+                    ExecuteQuickActionSlot(3)
                 executed := true
             case "ch_4":
-                ExecuteQuickActionSlot(4)
+                if (VK_IsPromptQuickPadActive())
+                    VK_PromptQuickPadAction("help_close")
+                else if (VK_IsHubCapsuleActive())
+                    VK_HubCapsuleAction("select_slot_4")
+                else
+                    ExecuteQuickActionSlot(4)
                 executed := true
             case "ch_5":
-                ExecuteQuickActionSlot(5)
+                if (VK_IsHubCapsuleActive())
+                    VK_HubCapsuleAction("select_slot_5")
+                else
+                    ExecuteQuickActionSlot(5)
                 executed := true
             case "qa_split":
                 ExecuteQuickActionByType("Split")
@@ -502,6 +599,86 @@ VK_SearchCenterSetFilter(filterType) {
 
 VK_SearchCenterToggleEngine(engineKey) {
     return VK_SearchCenterPost('{"type":"toggleEngine","engine":"' . engineKey . '"}')
+}
+
+VK_IsPromptQuickPadActive() {
+    hwnd := 0
+    try hwnd := PromptQuickPad_GetHostHwnd()
+    catch {
+        hwnd := 0
+    }
+    if !hwnd
+        return false
+    try return WinActive("ahk_id " . hwnd) ? true : false
+    catch {
+        return false
+    }
+}
+
+VK_PromptQuickPadPost(payloadJson) {
+    if !VK_IsPromptQuickPadActive()
+        return false
+    try {
+        if !PromptQuickPad_ShouldUseWebView() || !PQP_IsReady()
+            return false
+    } catch {
+        return false
+    }
+    try {
+        PQP_SendToWeb(payloadJson)
+        return true
+    } catch as e {
+        OutputDebug("[VK-Exec] PromptQuickPad post failed: " . e.Message)
+        return false
+    }
+}
+
+VK_PromptQuickPadSetSourceFilter(filterType) {
+    return VK_PromptQuickPadPost('{"type":"vk_set_source_filter","filterType":"' . filterType . '"}')
+}
+
+VK_PromptQuickPadAction(actionName) {
+    return VK_PromptQuickPadPost('{"type":"vk_action","action":"' . actionName . '"}')
+}
+
+VK_IsHubCapsuleActive() {
+    global g_SelSense_MenuShowingHub, g_SelSense_MenuGui
+    if !g_SelSense_MenuShowingHub
+        return false
+    hwnd := 0
+    try hwnd := (IsObject(g_SelSense_MenuGui) ? g_SelSense_MenuGui.Hwnd : 0)
+    catch {
+        hwnd := 0
+    }
+    if !hwnd
+        return false
+    try return WinActive("ahk_id " . hwnd) ? true : false
+    catch {
+        return false
+    }
+}
+
+VK_HubCapsulePost(msgObj) {
+    global g_SelSense_MenuWV2, g_SelSense_MenuShowingHub
+    if !g_SelSense_MenuShowingHub
+        return false
+    try {
+        if !g_SelSense_MenuWV2
+            return false
+    } catch {
+        return false
+    }
+    try {
+        WebView_QueuePayload(g_SelSense_MenuWV2, msgObj)
+        return true
+    } catch as e {
+        OutputDebug("[VK-Exec] HubCapsule post failed: " . e.Message)
+        return false
+    }
+}
+
+VK_HubCapsuleAction(actionName) {
+    return VK_HubCapsulePost(Map("type", "vk_action", "action", String(actionName)))
 }
 
 VK_IsClipboardPanelActive() {
@@ -661,7 +838,8 @@ VK_NoteLastChFromCapsLockKey(keyLower) {
         "o", "ch_o", "q", "ch_q", "z", "ch_z", "t", "ch_t", "p", "ch_p",
         "w", "ch_w", "s", "ch_s", "a", "ch_a", "d", "ch_d",
         "f", "ch_f", "g", "ch_g", "b", "ch_b",
-        "1", "ch_1", "2", "ch_2", "3", "ch_3", "4", "ch_4", "5", "ch_5"
+        "1", "ch_1", "2", "ch_2", "3", "ch_3", "4", "ch_4", "5", "ch_5",
+        "backspace", "ch_backspace"
     )
     kl := StrLower(keyLower)
     if m.Has(kl)

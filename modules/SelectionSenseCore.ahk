@@ -67,6 +67,39 @@ SelectionSense_HubCapsule_IniPath() {
     return (IsSet(ConfigFile) && ConfigFile != "") ? ConfigFile : (A_ScriptDir "\CursorShortcut.ini")
 }
 
+SelectionSense_GetHubCapsuleDefaultSize(&outW, &outH) {
+    outW := 420
+    outH := 560
+    try {
+        CoordMode("Mouse", "Screen")
+        MouseGetPos(&mx, &my)
+        mon := SelectionSense_MonitorFromPoint(mx, my)
+        MonitorGetWorkArea(mon, &l, &t, &r, &b)
+        workW := r - l
+        workH := b - t
+        outW := Min(Max(420, Floor(workW * 0.34)), 560)
+        outH := Min(Max(560, Floor(workH * 0.82)), 980)
+    } catch as _e {
+        outW := 420
+        outH := Max(560, Floor(A_ScreenHeight * 0.78))
+    }
+}
+
+SelectionSense_MonitorFromPoint(x, y) {
+    count := 1
+    try count := MonitorGetCount()
+    Loop count {
+        idx := A_Index
+        try {
+            MonitorGet(idx, &l, &t, &r, &b)
+            if (x >= l && x < r && y >= t && y < b)
+                return idx
+        } catch as _e {
+        }
+    }
+    return 1
+}
+
 SelectionSense_HubCapsule_ReadSavedPos(&outX, &outY, &outOk) {
     outOk := false
     outX := 0
@@ -659,8 +692,9 @@ SelectionSense_HubCapsule_PushSegmentText(text) {
     ; 需求：CapsLock+C 复制后要“看得见”——确保 HubCapsule 宿主窗口会被拉起显示（WebView 未就绪会自动重试）
     try {
         global g_SelSense_MenuW, g_SelSense_MenuH, g_SelSense_MenuActivateOnShow, g_SelSense_MenuAnchorX, g_SelSense_MenuAnchorY
-        g_SelSense_MenuW := 420
-        g_SelSense_MenuH := 560
+        SelectionSense_GetHubCapsuleDefaultSize(&defW, &defH)
+        g_SelSense_MenuW := defW
+        g_SelSense_MenuH := defH
         g_SelSense_MenuActivateOnShow := true
         CoordMode("Mouse", "Screen")
         MouseGetPos(&g_SelSense_MenuAnchorX, &g_SelSense_MenuAnchorY)
@@ -893,8 +927,9 @@ SelectionSense_OpenHubCapsuleFromToolbar(useToolbarAnchor := true, pendingTextOv
     global g_SelSense_DoubleCopyHub_LastTick
 
     g_SelSense_DoubleCopyHub_LastTick := 0
-    g_SelSense_MenuW := 420
-    g_SelSense_MenuH := 560
+    SelectionSense_GetHubCapsuleDefaultSize(&defW, &defH)
+    g_SelSense_MenuW := defW
+    g_SelSense_MenuH := defH
     g_SelSense_MenuActivateOnShow := true
     ov := Trim(String(pendingTextOverride))
     if (ov != "")
