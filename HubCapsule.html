@@ -454,7 +454,7 @@ body.native-titlebar #header { display: none; }
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .stack-card {
@@ -464,7 +464,7 @@ body.native-titlebar #header { display: none; }
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(31, 40, 56, 0.58);
   box-shadow: 0 7px 22px rgba(0, 0, 0, 0.38);
-  padding: 9px 10px;
+  padding: 7px 9px;
   transform-origin: center top;
   transition: transform var(--ease), opacity var(--ease), border-color var(--ease);
 }
@@ -591,14 +591,14 @@ body.native-titlebar #header { display: none; }
 
 #action-bar {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   gap: 8px;
   padding: 0 12px 11px;
 }
 
 #trigger-bar {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
   gap: 8px;
   padding: 0 12px 8px;
 }
@@ -684,8 +684,9 @@ body.native-titlebar #header { display: none; }
 }
 
 #hub-slot-row .hub-chip {
-  flex: 0 0 112px;
-  max-width: 112px;
+  flex: 1 1 clamp(88px, 18vw, 140px);
+  min-width: 88px;
+  max-width: 160px;
 }
 
 .hub-chip {
@@ -725,6 +726,36 @@ body.native-titlebar #header { display: none; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.hub-chip.slot-index-chip {
+  align-items: center;
+  justify-content: center;
+  padding: 6px 4px;
+}
+.hub-chip.slot-index-chip .hub-chip-main {
+  justify-content: center;
+  gap: 6px;
+}
+.hub-chip.slot-index-chip .hub-chip-label {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+@media (max-width: 560px) {
+  #action-bar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  #trigger-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .action-btn {
+    min-height: 40px;
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+  #hub-slot-row .hub-chip {
+    min-width: 82px;
+  }
 }
 
 .hub-hotkey-item {
@@ -838,7 +869,7 @@ body.native-titlebar #header { display: none; }
         </div>
       </div>
 
-      <div class="slot-strip-title">内容区 · 已入栈文本（最近 5 条）</div>
+      <div class="slot-strip-title">内容区 · 已入栈文本（按可用高度展示）</div>
       <div id="stack-display">
         <div id="stack-empty">选中内容会按卡片堆叠在这里</div>
         <div id="stack-list"></div>
@@ -1227,14 +1258,12 @@ body.native-titlebar #header { display: none; }
       const slot = slots[i - 1] || null;
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'hub-chip hub-hotkey-item';
+      b.className = 'hub-chip hub-hotkey-item slot-index-chip';
       b.dataset.hotkey = String(i);
       b.dataset.slot = String(i);
       b.classList.toggle('is-selected', i === state.selectedSlotOneBased);
-      const sub = slot ? slot.text : '空';
       b.innerHTML =
-        '<span class="hub-chip-main"><span class="hub-chip-label">槽位 ' + i + '</span>' + hotkeyHintHtml(String(i)) + '</span>' +
-        '<span class="hub-chip-sub">' + escapeHtml(sub) + '</span>';
+        '<span class="hub-chip-main"><span class="hub-chip-label">' + i + '</span>' + hotkeyHintHtml(String(i)) + '</span>';
       b.addEventListener('click', () => selectSlotByIndex(i));
       hubSlotRow.appendChild(b);
     }
@@ -1359,7 +1388,8 @@ body.native-titlebar #header { display: none; }
 
   function renderStack() {
     stackList.innerHTML = '';
-    const visible = state.segments.slice(-5).reverse();
+    const visibleCount = getVisibleStackCount();
+    const visible = state.segments.slice(-visibleCount).reverse();
 
     if (!visible.length) {
       stackEmpty.style.display = 'block';
@@ -1398,6 +1428,28 @@ body.native-titlebar #header { display: none; }
       }
 
       stackList.appendChild(card);
+    });
+  }
+
+  function getVisibleStackCount() {
+    const minCount = 5;
+    const maxCount = 48;
+    const cardApproxHeight = 56;
+    if (!stackDisplay) return minCount;
+    const h = Number(stackDisplay.clientHeight || 0);
+    if (h <= 0) return minCount;
+    const fit = Math.floor((h - 8) / cardApproxHeight);
+    return Math.max(minCount, Math.min(maxCount, fit));
+  }
+
+  let resizeRafId = 0;
+  function scheduleResponsiveRelayout() {
+    if (resizeRafId) cancelAnimationFrame(resizeRafId);
+    resizeRafId = requestAnimationFrame(() => {
+      resizeRafId = 0;
+      renderStack();
+      renderHubTags();
+      applyVisualState();
     });
   }
 
@@ -2239,6 +2291,7 @@ body.native-titlebar #header { display: none; }
   applyStaticHotkeyHints();
   refreshAll();
   syncSegments();
+  window.addEventListener('resize', scheduleResponsiveRelayout);
   installDismissOnHostPadding();
   installGlobalDropTarget();
   postToAhk({ type: 'hub_ready' });

@@ -417,8 +417,13 @@ SelectionSense_EnsureMenuHost() {
     g_SelSense_MenuGui.MarginY := 0
     g_SelSense_MenuGui.Show("w" . g_SelSense_MenuW . " h" . g_SelSense_MenuH . " Hide")
     g_SelSense_MenuGui.OnEvent("Close", (*) => SelectionSense_HideMenu())
+    g_SelSense_MenuGui.OnEvent("Size", SelectionSense_OnMenuHostSize)
 
     WebView2.create(g_SelSense_MenuGui.Hwnd, SelectionSense_OnMenuWebViewCreated)
+}
+
+SelectionSense_OnMenuHostSize(*) {
+    SelectionSense_ApplyMenuBounds()
 }
 
 SelectionSense_OnMenuWebViewCreated(ctrl) {
