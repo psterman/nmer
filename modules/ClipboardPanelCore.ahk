@@ -842,6 +842,8 @@ _CP_BuildWhereClause(keyword, filterType := "all") {
         conditions.Push("IsFavorite = 1")
     else if filterType = "image"
         conditions.Push("(LOWER(DataType) = 'image' OR LOWER(DataType) = 'screenshot')")
+    else if filterType = "clipboard"
+        conditions.Push("(LOWER(DataType) <> 'image' AND LOWER(DataType) <> 'screenshot')")
     else if filterType = "url"
         ; 纯链接 +「图片地址」类（DataType 为 Image 且 ImagePath 为 http(s)）
         conditions.Push("(LOWER(DataType) = 'link' OR (LOWER(DataType) = 'image' AND LOWER(IFNULL(ImagePath, '')) LIKE 'http%'))")
@@ -890,7 +892,7 @@ _CP_NormalizeFilterType(filterType) {
     filterType := StrLower(Trim(filterType))
     if filterType = ""
         return "all"
-    if filterType = "all" || filterType = "text" || filterType = "image" || filterType = "url" || filterType = "code" || filterType = "favorite"
+    if filterType = "all" || filterType = "text" || filterType = "image" || filterType = "clipboard" || filterType = "url" || filterType = "code" || filterType = "favorite"
         return filterType
     return "all"
 }

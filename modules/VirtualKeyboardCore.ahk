@@ -284,6 +284,9 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "ch_c", "name", "连续复制", "desc", "CapsLock+C：连续复制选区", "fn", "CH_RUN", "suggested", "c"),
             Map("id", "ch_v", "name", "合并粘贴", "desc", "CapsLock+V：合并并粘贴已复制内容", "fn", "CH_RUN", "suggested", "v"),
             Map("id", "ch_x", "name", "剪贴板管理", "desc", "CapsLock+X：打开剪贴板管理面板", "fn", "CH_RUN", "suggested", "x"),
+            Map("id", "cp_search", "name", "搜索", "desc", "Ctrl+Enter：立即执行搜索", "fn", "CH_RUN", "suggested", "^Enter"),
+            Map("id", "cp_clear_search", "name", "清空搜索框", "desc", "Ctrl+Backspace：清空搜索框", "fn", "CH_RUN", "suggested", "^Backspace"),
+            Map("id", "cp_show_shortcuts", "name", "快捷键展示", "desc", "Ctrl+K：打开快捷键面板", "fn", "CH_RUN", "suggested", "^k"),
             Map("id", "qa_copy", "name", "快捷动作 / 连续复制", "desc", "执行 Quick Action: Copy", "fn", "CH_RUN"),
             Map("id", "qa_paste", "name", "快捷动作 / 合并粘贴", "desc", "执行 Quick Action: Paste", "fn", "CH_RUN"),
             Map("id", "qa_clipboard", "name", "快捷动作 / 剪贴板管理", "desc", "执行 Quick Action: Clipboard", "fn", "CH_RUN")
@@ -2843,7 +2846,6 @@ _FallbackHtml() {
             . '</div></body></html>'
     )
 }
-
 
 
 

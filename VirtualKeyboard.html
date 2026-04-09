@@ -1767,6 +1767,16 @@ const SEARCH_TAB_PRESET = [
   { id: 'search:search',        name: '搜索',     commands: ['ch_f', 'sc_activate_search'] },
 ];
 
+const CLIPBOARD_TAB_PRESET = [
+  { id: 'clipboard:result_filter', name: '结果过滤', commands: [
+    'ch_q', 'ch_w', 'ch_e', 'ch_r', 'ch_a', 'ch_s', 'ch_d'
+  ] },
+  { id: 'clipboard:clipboard',     name: '剪贴板', commands: [
+    'cp_search', 'cp_clear_search', 'ch_v', 'cp_show_shortcuts',
+    'ch_c', 'ch_x', 'qa_copy', 'qa_paste', 'qa_clipboard'
+  ] },
+];
+
 const SEARCH_COMMAND_OVERRIDES = {
   ch_q: { name: 'AI 引擎',      desc: '切换到 AI 引擎组（CapsLock+Q）', iconClass: 'fa-robot' },
   ch_w: { name: 'CLI 引擎',     desc: '切换到 CLI 引擎组（CapsLock+W）', iconClass: 'fa-terminal' },
@@ -1815,6 +1825,20 @@ const SEARCH_COMMAND_OVERRIDES = {
   sc_filter_config: { name: '配置', desc: '仅显示配置结果', iconClass: 'fa-gear' },
   sc_filter_hotkey: { name: '快捷键', desc: '仅显示快捷键结果', iconClass: 'fa-keyboard' },
   sc_filter_function: { name: '功能', desc: '仅显示功能结果', iconClass: 'fa-sliders' },
+};
+
+const CLIPBOARD_COMMAND_OVERRIDES = {
+  ch_q: { name: '全部',       desc: '结果过滤：显示全部（CapsLock+Q）', iconClass: 'fa-layer-group' },
+  ch_w: { name: '文本',       desc: '结果过滤：只看文本（CapsLock+W）', iconClass: 'fa-file-lines' },
+  ch_e: { name: '图片',       desc: '结果过滤：只看图片（CapsLock+E）', iconClass: 'fa-image' },
+  ch_r: { name: '剪贴板',     desc: '结果过滤：只看剪贴板内容（CapsLock+R）', iconClass: 'fa-clipboard' },
+  ch_a: { name: '代码',       desc: '结果过滤：只看代码（CapsLock+A）', iconClass: 'fa-code' },
+  ch_s: { name: '链接',       desc: '结果过滤：只看链接（CapsLock+S）', iconClass: 'fa-link' },
+  ch_d: { name: '置顶',       desc: '结果过滤：只看置顶（CapsLock+D）', iconClass: 'fa-thumbtack' },
+  ch_v: { name: '持续粘贴打开', desc: '剪贴板：打开持续粘贴（CapsLock+V）', iconClass: 'fa-toggle-on' },
+  cp_search: { name: '搜索', desc: 'Ctrl+Enter：立即执行搜索', iconClass: 'fa-magnifying-glass' },
+  cp_clear_search: { name: '清空搜索框', desc: 'Ctrl+Backspace：清空搜索框', iconClass: 'fa-delete-left' },
+  cp_show_shortcuts: { name: '快捷键展示', desc: 'Ctrl+K：打开快捷键面板', iconClass: 'fa-keyboard' },
 };
 
 function normalizeKeywordList(value) {
@@ -1984,6 +2008,25 @@ function buildScenariosFromCategories() {
       });
       for (const cmdId of cmdIds) {
         commandRoutes[cmdId] = { scenarioId: 'search', tabId: preset.id };
+        used.add(cmdId);
+      }
+    }
+  }
+
+  // 剪贴板固定右侧标签布局（结果过滤 / 剪贴板）
+  {
+    const scenario = ensureScenario('clipboard');
+    scenario.tabs = [];
+    for (const preset of CLIPBOARD_TAB_PRESET) {
+      const cmdIds = preset.commands.filter(cmdId => !!state.commands[cmdId]);
+      if (!cmdIds.length) continue;
+      scenario.tabs.push({
+        id: preset.id,
+        name: preset.name,
+        commands: cmdIds,
+      });
+      for (const cmdId of cmdIds) {
+        commandRoutes[cmdId] = { scenarioId: 'clipboard', tabId: preset.id };
         used.add(cmdId);
       }
     }
@@ -3512,8 +3555,13 @@ function focusCommandById(cmdId) {
 
 function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
   const baseCmd = state.commands[cmdId] || { name: cmdId, desc: '' };
-  const cmd = (state.activeScenarioId === 'search' && SEARCH_COMMAND_OVERRIDES[cmdId])
-    ? { ...baseCmd, ...SEARCH_COMMAND_OVERRIDES[cmdId] }
+  const overrideMap = state.activeScenarioId === 'search'
+    ? SEARCH_COMMAND_OVERRIDES
+    : state.activeScenarioId === 'clipboard'
+      ? CLIPBOARD_COMMAND_OVERRIDES
+      : null;
+  const cmd = (overrideMap && overrideMap[cmdId])
+    ? { ...baseCmd, ...overrideMap[cmdId] }
     : baseCmd;
   const binding = state.bindings[cmdId];
   const isNone = !!(binding?.explicitNone);

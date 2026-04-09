@@ -219,6 +219,19 @@ VK_ExecCursorHelperCmd(cmdId) {
                     VK_SearchCenterSetFilter("function")
                 executed := true
 
+            case "cp_search":
+                if (VK_IsClipboardPanelActive())
+                    VK_ClipboardSearchNow()
+                executed := true
+            case "cp_clear_search":
+                if (VK_IsClipboardPanelActive())
+                    VK_ClipboardClearSearch()
+                executed := true
+            case "cp_show_shortcuts":
+                if (VK_IsClipboardPanelActive())
+                    VK_ClipboardToggleShortcuts()
+                executed := true
+
             case "ch_c":
                 if (IsSearchCenterActive()) {
                     VK_SearchCenterSetFilter("template")
@@ -228,7 +241,10 @@ VK_ExecCursorHelperCmd(cmdId) {
                     executed := true
                 }
             case "ch_v":
-                if (IsSearchCenterActive()) {
+                if (VK_IsClipboardPanelActive()) {
+                    VK_ClipboardSetContinuousPaste(true)
+                    executed := true
+                } else if (IsSearchCenterActive()) {
                     VK_SearchCenterSetFilter("config")
                     executed := true
                 } else {
@@ -244,7 +260,10 @@ VK_ExecCursorHelperCmd(cmdId) {
                     executed := true
                 }
             case "ch_e":
-                if (IsSearchCenterActive()) {
+                if (VK_IsClipboardPanelActive()) {
+                    VK_ClipboardSetFilter("image")
+                    executed := true
+                } else if (IsSearchCenterActive()) {
                     VK_SearchCenterSetCategory("academic")
                     executed := true
                 } else {
@@ -252,7 +271,10 @@ VK_ExecCursorHelperCmd(cmdId) {
                     executed := true
                 }
             case "ch_r":
-                if (IsSearchCenterActive()) {
+                if (VK_IsClipboardPanelActive()) {
+                    VK_ClipboardSetFilter("clipboard")
+                    executed := true
+                } else if (IsSearchCenterActive()) {
                     VK_SearchCenterSetCategory("baidu")
                     executed := true
                 } else {
@@ -263,7 +285,10 @@ VK_ExecCursorHelperCmd(cmdId) {
                 HandleDynamicHotkey(HotkeyO != "" ? HotkeyO : "o", "O")
                 executed := true
             case "ch_q":
-                if (IsSearchCenterActive()) {
+                if (VK_IsClipboardPanelActive()) {
+                    VK_ClipboardSetFilter("all")
+                    executed := true
+                } else if (IsSearchCenterActive()) {
                     VK_SearchCenterSetCategory("ai")
                     executed := true
                 } else {
@@ -308,7 +333,10 @@ VK_ExecCursorHelperCmd(cmdId) {
                 HandleDynamicHotkey(HotkeyP != "" ? HotkeyP : "p", "P")
                 executed := true
             case "ch_w":
-                if (IsSearchCenterActive()) {
+                if (VK_IsClipboardPanelActive()) {
+                    VK_ClipboardSetFilter("text")
+                    executed := true
+                } else if (IsSearchCenterActive()) {
                     VK_SearchCenterSetCategory("cli")
                     executed := true
                 } else {
@@ -317,7 +345,10 @@ VK_ExecCursorHelperCmd(cmdId) {
                     executed := true
                 }
             case "ch_s":
-                if (IsSearchCenterActive()) {
+                if (VK_IsClipboardPanelActive()) {
+                    VK_ClipboardSetFilter("url")
+                    executed := true
+                } else if (IsSearchCenterActive()) {
                     CapsLock2 := false
                     Send("{Down}")
                     executed := true
@@ -327,7 +358,10 @@ VK_ExecCursorHelperCmd(cmdId) {
                     executed := true
                 }
             case "ch_a":
-                if (IsSearchCenterActive()) {
+                if (VK_IsClipboardPanelActive()) {
+                    VK_ClipboardSetFilter("code")
+                    executed := true
+                } else if (IsSearchCenterActive()) {
                     CapsLock2 := false
                     Send("{Left}")
                     executed := true
@@ -337,7 +371,10 @@ VK_ExecCursorHelperCmd(cmdId) {
                     executed := true
                 }
             case "ch_d":
-                if (IsSearchCenterActive()) {
+                if (VK_IsClipboardPanelActive()) {
+                    VK_ClipboardSetFilter("favorite")
+                    executed := true
+                } else if (IsSearchCenterActive()) {
                     CapsLock2 := false
                     Send("{Right}")
                     executed := true
@@ -465,6 +502,45 @@ VK_SearchCenterSetFilter(filterType) {
 
 VK_SearchCenterToggleEngine(engineKey) {
     return VK_SearchCenterPost('{"type":"toggleEngine","engine":"' . engineKey . '"}')
+}
+
+VK_IsClipboardPanelActive() {
+    try return CP_IsForeground()
+    catch {
+        return false
+    }
+}
+
+VK_ClipboardPost(payloadJson) {
+    if !VK_IsClipboardPanelActive()
+        return false
+    try {
+        CP_SendToWeb(payloadJson)
+        return true
+    } catch as e {
+        OutputDebug("[VK-Exec] Clipboard post failed: " . e.Message)
+        return false
+    }
+}
+
+VK_ClipboardSetFilter(filterType) {
+    return VK_ClipboardPost('{"type":"vk_set_filter","filterType":"' . filterType . '"}')
+}
+
+VK_ClipboardSearchNow() {
+    return VK_ClipboardPost('{"type":"vk_search"}')
+}
+
+VK_ClipboardClearSearch() {
+    return VK_ClipboardPost('{"type":"vk_clear_search"}')
+}
+
+VK_ClipboardSetContinuousPaste(enable := true) {
+    return VK_ClipboardPost('{"type":"vk_continuous_paste_on","enabled":' . (enable ? "true" : "false") . '}')
+}
+
+VK_ClipboardToggleShortcuts() {
+    return VK_ClipboardPost('{"type":"vk_show_shortcuts"}')
 }
 
 VK_EnsureNiumaWindow(openDrawer := true) {

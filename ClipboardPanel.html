@@ -1243,6 +1243,26 @@ function handleAhkMessage(msg) {
       if (input) input.focus();
       break;
     }
+    case 'vk_set_filter':
+      setChipFilterAndSearch(msg.filterType || 'all', true);
+      break;
+    case 'vk_search':
+      flushSearchNow();
+      break;
+    case 'vk_clear_search':
+      clearSearchInput(true);
+      break;
+    case 'vk_continuous_paste_on': {
+      const shouldEnable = msg.enabled !== false;
+      if (shouldEnable && !state.continuousPaste) {
+        state.continuousPaste = true;
+        updateContinuousPasteUI();
+      }
+      break;
+    }
+    case 'vk_show_shortcuts':
+      if (!state.actionPanelOpen) toggleActionPanel();
+      break;
     case 'init':
     case 'searchResult':
       state.items = msg.items || [];
@@ -1478,10 +1498,7 @@ function renderList(opts) {
 
 function handleQuickAction(action) {
   if (action === 'clearSearch') {
-    const input = document.getElementById('search-input');
-    input.value = '';
-    state.keyword = '';
-    triggerSearch();
+    clearSearchInput(true);
     return;
   }
   if (!state.selectedId) return;
@@ -1510,6 +1527,7 @@ function buildListHeaderHtml() {
     +       '<button type="button" class="chip' + active('all') + '" data-chip="all">全部</button>'
     +       '<button type="button" class="chip' + active('text') + '" data-chip="text">文本</button>'
     +       '<button type="button" class="chip' + active('image') + '" data-chip="image">图片</button>'
+    +       '<button type="button" class="chip' + active('clipboard') + '" data-chip="clipboard">剪贴板</button>'
     +       '<button type="button" class="chip' + active('url') + '" data-chip="url">链接</button>'
     +       '<button type="button" class="chip' + active('code') + '" data-chip="code">代码</button>'
     +       '<button type="button" class="chip' + active('favorite') + '" data-chip="favorite">置顶</button>'
@@ -1545,8 +1563,7 @@ function buildListHeaderHtml() {
 function bindListHeaderEvents(panel) {
   panel.querySelectorAll('#results-head .chip').forEach((btn) => {
     btn.addEventListener('click', () => {
-      state.chipFilter = btn.dataset.chip || 'all';
-      triggerSearch();
+      setChipFilterAndSearch(btn.dataset.chip || 'all', false);
     });
   });
   const timePopover = panel.querySelector('#time-popover');
@@ -1814,6 +1831,32 @@ function executeAction(action) {
   closeActionPanel();
 }
 
+function normalizeClipboardChipFilter(filterType) {
+  const f = String(filterType || '').trim().toLowerCase();
+  if (!f || f === 'all') return 'all';
+  if (f === 'text' || f === 'image' || f === 'clipboard' || f === 'url' || f === 'code' || f === 'favorite') return f;
+  if (f === 'link') return 'url';
+  if (f === 'pinned') return 'favorite';
+  return 'all';
+}
+
+function setChipFilterAndSearch(filterType, immediate = true) {
+  state.chipFilter = normalizeClipboardChipFilter(filterType);
+  if (immediate) flushSearchNow();
+  else triggerSearch();
+}
+
+function clearSearchInput(immediate = true) {
+  const input = document.getElementById('search-input');
+  if (input) {
+    input.value = '';
+    input.focus();
+  }
+  state.keyword = '';
+  if (immediate) flushSearchNow();
+  else triggerSearch();
+}
+
 document.getElementById('action-overlay').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeActionPanel();
 });
@@ -1827,7 +1870,7 @@ document.querySelectorAll('.action-item').forEach(el => {
 let searchDebounceTimer = 0;
 /** 组合：更多筛选优先于类型标签（链接/代码/置顶）；否则用全部/文本/图片 */
 function resolvedFilterType() {
-  return state.chipFilter || 'all';
+  return normalizeClipboardChipFilter(state.chipFilter);
 }
 
 function triggerSearch() {
@@ -1895,6 +1938,18 @@ document.addEventListener('keydown', (e) => {
   // Ctrl+K: open shortcuts panel
   if (e.ctrlKey && e.key.toLowerCase() === 'k') {
     e.preventDefault(); toggleActionPanel(); return;
+  }
+  // Ctrl+Enter: immediate search
+  if (e.ctrlKey && e.key === 'Enter') {
+    e.preventDefault();
+    flushSearchNow();
+    return;
+  }
+  // Ctrl+Backspace: clear search input
+  if (e.ctrlKey && e.key === 'Backspace') {
+    e.preventDefault();
+    clearSearchInput(true);
+    return;
   }
   // Ctrl+D: quick delete
   if (e.ctrlKey && e.key.toLowerCase() === 'd') {
@@ -1986,11 +2041,7 @@ document.getElementById('search-input').addEventListener('input', (e) => {
   triggerSearch();
 });
 document.getElementById('search-clear-btn').addEventListener('click', () => {
-  const input = document.getElementById('search-input');
-  input.value = '';
-  state.keyword = '';
-  input.focus();
-  flushSearchNow();
+  clearSearchInput(true);
 });
 document.getElementById('search-paste-btn').addEventListener('click', () => {
   if (!state.selectedId) return;
