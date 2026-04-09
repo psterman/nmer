@@ -35686,19 +35686,20 @@ ShowScreenshotEditor(DebugGui := 0) {
         ; 使用原生 Windows API 确保窗口置顶并激活
         try {
             hwnd := EditorGui.Hwnd
-            ; 强制将窗口置顶并激活
-            DllCall("SetWindowPos", "Ptr", hwnd, "Ptr", -1, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0001 | 0x0004)
+            ; 仅置顶，不移动当前位置（保留前面已计算好的居中坐标）
+            DllCall("SetWindowPos", "Ptr", hwnd, "Ptr", -1, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0001 | 0x0002 | 0x0004)
             DllCall("SetForegroundWindow", "Ptr", hwnd)
             Sleep(50)
             ; 再次确保置顶
-            DllCall("SetWindowPos", "Ptr", hwnd, "Ptr", -1, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0001 | 0x0004)
+            DllCall("SetWindowPos", "Ptr", hwnd, "Ptr", -1, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0001 | 0x0002 | 0x0004)
         } catch as e {
         }
         
         ; 同时也激活工具栏窗口
         try {
             toolbarHwnd := GuiID_ScreenshotToolbar.Hwnd
-            DllCall("SetWindowPos", "Ptr", toolbarHwnd, "Ptr", -1, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0001 | 0x0004)
+            ; 工具栏同样只置顶，不重置到左上角
+            DllCall("SetWindowPos", "Ptr", toolbarHwnd, "Ptr", -1, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0001 | 0x0002 | 0x0004)
         } catch as e {
         }
         
