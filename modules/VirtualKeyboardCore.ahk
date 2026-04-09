@@ -204,13 +204,29 @@ _VK_NavigateToStringFromDisk(htmlPath) {
 
 _VK_BuiltinCommandCatalog() {
     return [
-        Map("id", "ai", "name", "🤖 牛马 AI", "commands", [
-            Map("id", "ch_e", "name", "AI 解释", "desc", "CapsLock+E：解释所选内容", "fn", "CH_RUN", "suggested", "e"),
-            Map("id", "ch_r", "name", "AI 重构", "desc", "CapsLock+R：重构所选内容", "fn", "CH_RUN", "suggested", "r"),
-            Map("id", "ch_o", "name", "AI 优化", "desc", "CapsLock+O：优化所选内容", "fn", "CH_RUN", "suggested", "o"),
-            Map("id", "qa_explain", "name", "快捷动作 / 解释", "desc", "执行 Quick Action: Explain", "fn", "CH_RUN"),
-            Map("id", "qa_refactor", "name", "快捷动作 / 重构", "desc", "执行 Quick Action: Refactor", "fn", "CH_RUN"),
-            Map("id", "qa_optimize", "name", "快捷动作 / 优化", "desc", "执行 Quick Action: Optimize", "fn", "CH_RUN")
+        Map("id", "ai_msg", "name", "💬 消息", "commands", [
+            Map("id", "send", "name", "发送消息", "desc", "直接发送", "fn", "CH_RUN", "suggested", "Enter"),
+            Map("id", "newline", "name", "强制换行", "desc", "插入新行", "fn", "CH_RUN", "suggested", "^Enter"),
+            Map("id", "new_chat", "name", "新建对话", "desc", "清空并开始", "fn", "CH_RUN", "suggested", "^n"),
+            Map("id", "clear_input", "name", "清空输入框", "desc", "删除当前内容", "fn", "CH_RUN", "suggested", "^Delete"),
+            Map("id", "close_tab", "name", "关闭标签页", "desc", "关闭当前 Tab", "fn", "CH_RUN", "suggested", "^w"),
+            Map("id", "exit_ai", "name", "退出隐藏", "desc", "收起 AI 抽屉", "fn", "CH_RUN", "suggested", "Escape")
+        ]),
+        Map("id", "ai_switch", "name", "🔄 切换", "commands", [
+            Map("id", "tab1", "name", "切换至 图标1", "desc", "快速跳转界面", "fn", "CH_RUN", "suggested", "^1"),
+            Map("id", "tab2", "name", "切换至 图标2", "desc", "快速跳转界面", "fn", "CH_RUN", "suggested", "^2"),
+            Map("id", "tab3", "name", "切换至 图标3", "desc", "快速跳转界面", "fn", "CH_RUN", "suggested", "^3"),
+            Map("id", "tab4", "name", "切换至 图标4", "desc", "快速跳转界面", "fn", "CH_RUN", "suggested", "^4"),
+            Map("id", "tab5", "name", "切换至 图标5", "desc", "快速跳转界面", "fn", "CH_RUN", "suggested", "^5"),
+            Map("id", "tab6", "name", "切换至 图标6", "desc", "快速跳转界面", "fn", "CH_RUN", "suggested", "^6"),
+            Map("id", "tab7", "name", "切换至 图标7", "desc", "快速跳转界面", "fn", "CH_RUN", "suggested", "^7"),
+            Map("id", "tab8", "name", "切换至 图标8", "desc", "快速跳转界面", "fn", "CH_RUN", "suggested", "^8")
+        ]),
+        Map("id", "ai_prompts", "name", "💡 提示词", "commands", [
+            Map("id", "ai_exp", "name", "AI 解释", "desc", "解析选中文段", "fn", "CH_RUN"),
+            Map("id", "ai_opt", "name", "AI 优化", "desc", "润色内容逻辑", "fn", "CH_RUN"),
+            Map("id", "ai_ref", "name", "AI 重构", "desc", "代码结构改写", "fn", "CH_RUN"),
+            Map("id", "ai_act", "name", "快捷动作", "desc", "执行预设脚本", "fn", "CH_RUN")
         ]),
         Map("id", "search", "name", "🔍 搜索中心", "commands", [
             Map("id", "ch_f", "name", "搜索中心 / 语音搜索", "desc", "CapsLock+F：打开搜索中心或语音搜索", "fn", "CH_RUN", "suggested", "f"),

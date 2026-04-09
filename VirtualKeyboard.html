@@ -1979,8 +1979,9 @@ function syncLastActionCurrentKeyFromBindings() {
   }
   const sk = state.suggestedBindings[id];
   if (sk) {
-    const u = (sk.length === 1 && /[a-zA-Z]/.test(sk)) ? sk.toUpperCase() : sk;
-    state.lastActionCurrentKey = 'CapsLock+' + u;
+    const raw = String(sk).trim();
+    const isSingleLetter = raw.length === 1 && /[a-zA-Z]/.test(raw);
+    state.lastActionCurrentKey = isSingleLetter ? ('CapsLock+' + raw.toUpperCase()) : ahkKeyToDisplayString(raw);
     return;
   }
   state.lastActionCurrentKey = '';
@@ -2326,8 +2327,10 @@ function displayKeyForCmd(cmdId) {
   if (b?.ahkKey) return b.displayKey || b.ahkKey;
   const sk = state.suggestedBindings[cmdId];
   if (sk) {
-    const u = (sk.length === 1 && /[a-zA-Z]/.test(sk)) ? sk.toUpperCase() : sk;
-    return 'CapsLock+' + u;
+    const raw = String(sk).trim();
+    if (!raw) return '—';
+    const isSingleLetter = raw.length === 1 && /[a-zA-Z]/.test(raw);
+    return isSingleLetter ? ('CapsLock+' + raw.toUpperCase()) : ahkKeyToDisplayString(raw);
   }
   return '—';
 }
@@ -3926,69 +3929,63 @@ if (window.chrome && window.chrome.webview) {
   window.simulateInit = () => handleAhkMessage({
     type: 'init',
     categories: [
-      { id:'ai',         name:'🤖 牛马 AI',      commands:['ch_e','ai_refactor','ai_translate'] },
-      { id:'search',     name:'🔍 搜索中心',    commands:['search_global','search_google','search_history'] },
-      { id:'clipboard',  name:'📋 剪贴板',      commands:['ch_c','cb_list','cb_clear'] },
-      { id:'prompts',    name:'💡 提示词',      commands:['pt_common','pt_save'] },
-      { id:'scratchpad', name:'📝 草稿本',      commands:['sp_new','sp_open'] },
-      { id:'screenshot', name:'📸 智能截图',    commands:['sc_capture','sc_ocr','sc_folder'] },
-      { id:'settings',   name:'⚙️ 设置中心',    commands:['sys_show_vk','sys_reload'] },
-      { id:'hotkeys',    name:'⌨️ 快捷键',      commands:['sys_exit'] },
+      { id:'ai_msg',     name:'💬 消息',   commands:['send','newline','new_chat','clear_input','close_tab','exit_ai'] },
+      { id:'ai_switch',  name:'🔄 切换',   commands:['tab1','tab2','tab3','tab4','tab5','tab6','tab7','tab8'] },
+      { id:'ai_prompts', name:'💡 提示词', commands:['ai_exp','ai_opt','ai_ref','ai_act'] },
     ],
     commands: {
-      ch_e:          { name:'AI 帮我读',      desc:'选中文字，让 AI 解释含义',       iconClass:'fa-robot' },
-      ai_refactor:   { name:'AI 帮我改',      desc:'优化句子结构，让表达更清晰',      iconClass:'fa-wand-magic-sparkles' },
-      ai_translate:  { name:'AI 帮我译',      desc:'把内容翻译成你指定的语言',        iconClass:'fa-language' },
-      search_global: { name:'全局秒搜',       desc:'一键搜索本机文件和历史结果',      iconClass:'fa-earth-asia' },
-      search_google: { name:'上网查一下',     desc:'用浏览器直接搜索当前关键词',      iconClass:'fa-globe' },
-      search_history:{ name:'查找历史',       desc:'快速回看你之前搜过什么',         iconClass:'fa-clock-rotate-left' },
-      ch_c:          { name:'超级连续复制',    desc:'像存钱一样把多段文字存入库',      iconClass:'fa-copy' },
-      cb_list:       { name:'打开剪贴仓库',    desc:'查看并复用所有历史复制内容',      iconClass:'fa-clipboard-list' },
-      cb_clear:      { name:'清空剪贴仓库',    desc:'删除当前保存的全部剪贴记录',      iconClass:'fa-trash-can' },
-      pt_common:     { name:'常用提示词',      desc:'打开高频提示词模板快速套用',      iconClass:'fa-lightbulb' },
-      pt_save:       { name:'保存为提示词',    desc:'把当前内容一键保存成模板',       iconClass:'fa-floppy-disk' },
-      sp_new:        { name:'新建草稿',       desc:'立刻开一页临时记录，不怕丢',      iconClass:'fa-pen-to-square' },
-      sp_open:       { name:'打开草稿本',      desc:'继续编辑你之前保存的草稿',       iconClass:'fa-book-open' },
-      sc_capture:    { name:'智能截图',       desc:'快速圈选屏幕并保存画面',         iconClass:'fa-camera' },
-      sc_ocr:        { name:'图中取词',       desc:'截图并自动识别文字',            iconClass:'fa-file-lines' },
-      sc_folder:     { name:'打开截图目录',    desc:'直接打开截图保存位置',          iconClass:'fa-folder-open' },
-      sys_show_vk:   { name:'显示键盘面板',    desc:'呼出虚拟键盘和快捷操作面板',      iconClass:'fa-keyboard' },
-      sys_reload:    { name:'一键重载',       desc:'刷新助手配置并重新加载模块',      iconClass:'fa-rotate-right' },
-      sys_exit:      { name:'彻底退出',       desc:'关闭所有辅助进程',              iconClass:'fa-power-off' },
+      send:        { name:'发送消息',   desc:'直接发送',       iconClass:'fa-paper-plane' },
+      newline:     { name:'强制换行',   desc:'插入新行',       iconClass:'fa-turn-down' },
+      new_chat:    { name:'新建对话',   desc:'清空并开始',     iconClass:'fa-comments' },
+      clear_input: { name:'清空输入框', desc:'删除当前内容',   iconClass:'fa-eraser' },
+      close_tab:   { name:'关闭标签页', desc:'关闭当前 Tab',   iconClass:'fa-xmark' },
+      exit_ai:     { name:'退出隐藏',   desc:'收起 AI 抽屉',   iconClass:'fa-door-open' },
+      tab1:        { name:'切换至 图标1', desc:'快速跳转界面', iconClass:'fa-compass' },
+      tab2:        { name:'切换至 图标2', desc:'快速跳转界面', iconClass:'fa-folder-open' },
+      tab3:        { name:'切换至 图标3', desc:'快速跳转界面', iconClass:'fa-clock-rotate-left' },
+      tab4:        { name:'切换至 图标4', desc:'快速跳转界面', iconClass:'fa-lightbulb' },
+      tab5:        { name:'切换至 图标5', desc:'快速跳转界面', iconClass:'fa-note-sticky' },
+      tab6:        { name:'切换至 图标6', desc:'快速跳转界面', iconClass:'fa-sliders' },
+      tab7:        { name:'切换至 图标7', desc:'快速跳转界面', iconClass:'fa-puzzle-piece' },
+      tab8:        { name:'切换至 图标8', desc:'快速跳转界面', iconClass:'fa-gear' },
+      ai_exp:      { name:'AI 解释',    desc:'解析选中文段',   iconClass:'fa-circle-question' },
+      ai_opt:      { name:'AI 优化',    desc:'润色内容逻辑',   iconClass:'fa-wand-magic-sparkles' },
+      ai_ref:      { name:'AI 重构',    desc:'代码结构改写',   iconClass:'fa-code-branch' },
+      ai_act:      { name:'快捷动作',   desc:'执行预设脚本',   iconClass:'fa-bolt' },
     },
-    bindings: {
-      sys_exit:    { ahkKey:'Escape', displayKey:'Esc' },
-      sys_show_vk: { ahkKey:'^+k',   displayKey:'Ctrl+Shift+K' },
-    },
+    bindings: {},
     suggestedBindings: {
-      ch_e: 'e',
-      ai_refactor: 'r',
-      ai_translate: 't',
-      search_global: 'f',
-      search_google: 'g',
-      search_history: 'h',
-      ch_c: 'c',
-      cb_list: 'v',
-      cb_clear: 'x',
-      pt_common: 'p',
-      pt_save: 's',
-      sp_new: 'n',
-      sp_open: 'o',
-      sc_capture: 'a',
-      sc_ocr: 'q',
-      sc_folder: 'd',
-      sys_reload: '^r',
+      send: 'Enter',
+      newline: '^Enter',
+      new_chat: '^n',
+      clear_input: '^Delete',
+      close_tab: '^w',
+      exit_ai: 'Escape',
+      tab1: '^1',
+      tab2: '^2',
+      tab3: '^3',
+      tab4: '^4',
+      tab5: '^5',
+      tab6: '^6',
+      tab7: '^7',
+      tab8: '^8',
+      ai_exp: '',
+      ai_opt: '',
+      ai_ref: '',
+      ai_act: '',
     },
-    dashboardLayout: 'multi',
+    dashboardLayout: '1',
     dashboardConfig: [
-      { commandId:'ch_e', sourceAhkKey:'e', sourceDisplayKey:'E' },
-      { commandId:'search_global', sourceAhkKey:'f', sourceDisplayKey:'F' },
-      { commandId:'ch_c', sourceAhkKey:'c', sourceDisplayKey:'C' },
-      { commandId:'pt_common', sourceAhkKey:'p', sourceDisplayKey:'P' },
-      { commandId:'sp_new', sourceAhkKey:'n', sourceDisplayKey:'N' },
-      { commandId:'sc_capture', sourceAhkKey:'a', sourceDisplayKey:'A' },
-      { commandId:'sys_show_vk', sourceAhkKey:'^+k', sourceDisplayKey:'Ctrl+Shift+K' },
-      { commandId:'sys_exit', sourceAhkKey:'Escape', sourceDisplayKey:'Esc' },
+      { commandId:'send', sourceAhkKey:'Enter', sourceDisplayKey:'Enter', customTitle:'发送消息', customNote:'直接发送', customShortcut:'' },
+      { commandId:'clear_input', sourceAhkKey:'^Delete', sourceDisplayKey:'Ctrl+Del', customTitle:'清空并关闭', customNote:'先清空，再按 Esc 收起', customShortcut:'' },
+      { commandId:'new_chat', sourceAhkKey:'^n', sourceDisplayKey:'Ctrl+N' },
+      { commandId:'newline', sourceAhkKey:'^Enter', sourceDisplayKey:'Ctrl+Enter' },
+      { commandId:'close_tab', sourceAhkKey:'^w', sourceDisplayKey:'Ctrl+W' },
+      { commandId:'exit_ai', sourceAhkKey:'Escape', sourceDisplayKey:'Esc' },
+      { commandId:'ai_exp', sourceAhkKey:'', sourceDisplayKey:'' },
+      { commandId:'ai_opt', sourceAhkKey:'', sourceDisplayKey:'' },
+      { commandId:'ai_ref', sourceAhkKey:'', sourceDisplayKey:'' },
+      { commandId:'ai_act', sourceAhkKey:'', sourceDisplayKey:'' },
     ],
   });
 }
