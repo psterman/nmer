@@ -262,6 +262,16 @@ button, input, select, textarea { font: inherit; }
   gap: 8px;
   white-space: nowrap;
 }
+.chip .chip-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+.chip .chip-title {
+  line-height: 1.05;
+}
 .chip.active, .filter-chip.active, .engine-chip.active {
   background: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
   border-color: rgba(255,179,71,.5);
@@ -326,7 +336,46 @@ button, input, select, textarea { font: inherit; }
 .filter-chip {
   padding: 5px 10px;
   font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   white-space: nowrap;
+}
+.filter-chip .filter-label { line-height: 1; }
+.hotkey-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 14px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+  color: #7f8a95;
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: .02em;
+}
+.hotkey-hint.unbound {
+  border-style: dashed;
+  opacity: .72;
+}
+.engine-chip .hotkey-hint {
+  margin-top: 1px;
+}
+.caps-hotkey-ready {
+  border-color: rgba(255,179,71,.45) !important;
+  box-shadow: 0 0 0 1px rgba(255,179,71,.16) inset;
+}
+.caps-hotkey-hit {
+  border-color: rgba(255,179,71,.82) !important;
+  box-shadow: 0 0 0 1px rgba(255,179,71,.42) inset, 0 0 18px rgba(255,141,42,.28);
+  transform: translateY(-1px);
+}
+.caps-hotkey-hit .hotkey-hint {
+  color: #fff;
+  border-color: rgba(255,200,120,.72);
+  background: rgba(255,141,42,.24);
 }
 #layout {
   display: grid;
@@ -614,10 +663,33 @@ const state = {
   loadMoreCooldownUntil: 0,
   isCliCategory: false,
   statusLine: "",
-  selectedRow: 1
+  selectedRow: 1,
+  capsHintActive: false,
+  capsPressedKey: ""
 };
 
 const postToAhk = (obj) => BasePanel.postToAhk(obj);
+const HOTKEY_HINT_MAP = Object.freeze({
+  category: Object.freeze({
+    ai: "q",
+    cli: "w",
+    academic: "e",
+    baidu: "r"
+  }),
+  engine: Object.freeze({
+    deepseek: "a",
+    yuanbao: "s",
+    doubao: "d"
+  }),
+  filter: Object.freeze({
+    File: "z",
+    clipboard: "x",
+    template: "c",
+    config: "v"
+  })
+});
+let capsHoldTimer = 0;
+let capsFlashTimer = 0;
 
 function escapeHtml(text) {
   if (text === null || text === undefined) return "";
@@ -639,44 +711,141 @@ function highlight(text, keyword) {
   }
 }
 
+function getHintHotkey(group, value) {
+  if (!group || !value) return "";
+  const src = HOTKEY_HINT_MAP[group];
+  if (!src) return "";
+  return src[value] || "";
+}
+
+function normalizeHintKey(key) {
+  const k = String(key || "").trim().toLowerCase();
+  return /^[a-z0-9]$/.test(k) ? k : "";
+}
+
+function hotkeyHintHtml(hotkey) {
+  if (hotkey) {
+    return "<span class=\"hotkey-hint\">Caps+" + escapeHtml(String(hotkey).toUpperCase()) + "</span>";
+  }
+  return "<span class=\"hotkey-hint unbound\">可绑定</span>";
+}
+
+function getFooterHintText() {
+  return state.isCliCategory
+    ? "CLI 分类：输入内容后可直接发送到选中的终端"
+    : "网络分类：输入内容后会并发打开选中的搜索引擎";
+}
+
+function syncFooterHint() {
+  const footer = document.getElementById("footer-hint");
+  if (!footer) return;
+  if (state.capsHintActive) {
+    footer.textContent = "CapsLock 热键提示中：按对应字母可快速定位";
+    return;
+  }
+  footer.textContent = getFooterHintText();
+}
+
+function updateHotkeyHighlights() {
+  const nodes = document.querySelectorAll(".hotkey-item");
+  nodes.forEach((el) => {
+    const hk = normalizeHintKey(el.dataset.hotkey || "");
+    const ready = state.capsHintActive && !!hk;
+    const hit = ready && state.capsPressedKey === hk;
+    el.classList.toggle("caps-hotkey-ready", ready);
+    el.classList.toggle("caps-hotkey-hit", hit);
+  });
+}
+
+function setCapsHintActive(active) {
+  const next = !!active;
+  if (state.capsHintActive === next) return;
+  state.capsHintActive = next;
+  if (!next) state.capsPressedKey = "";
+  updateHotkeyHighlights();
+  syncFooterHint();
+}
+
+function setCapsPressedKey(key) {
+  state.capsPressedKey = normalizeHintKey(key);
+  updateHotkeyHighlights();
+}
+
+function flashCapsPressedKey(key) {
+  const normalized = normalizeHintKey(key);
+  if (!normalized) return;
+  setCapsPressedKey(normalized);
+  if (capsFlashTimer) clearTimeout(capsFlashTimer);
+  capsFlashTimer = setTimeout(() => {
+    if (state.capsPressedKey === normalized) {
+      state.capsPressedKey = "";
+      updateHotkeyHighlights();
+    }
+  }, 260);
+}
+
+function beginCapsHoldHint() {
+  if (capsHoldTimer) clearTimeout(capsHoldTimer);
+  capsHoldTimer = setTimeout(() => {
+    setCapsHintActive(true);
+  }, 220);
+}
+
+function endCapsHoldHint() {
+  if (capsHoldTimer) clearTimeout(capsHoldTimer);
+  capsHoldTimer = 0;
+  if (capsFlashTimer) clearTimeout(capsFlashTimer);
+  capsFlashTimer = 0;
+  setCapsHintActive(false);
+}
+
 function renderCategories() {
   const wrap = document.getElementById("categories");
   wrap.innerHTML = "";
   state.categories.forEach((cat) => {
+    const hotkey = getHintHotkey("category", cat.key);
     const el = document.createElement("button");
-    el.className = "chip" + (cat.key === state.currentCategoryKey ? " active" : "");
-    el.innerHTML = "<span>" + escapeHtml(cat.text) + "</span><span class=\"count\">" + (cat.selectedCount || 0) + "</span>";
+    el.className = "chip hotkey-item" + (cat.key === state.currentCategoryKey ? " active" : "");
+    el.dataset.hotkey = hotkey || "";
+    el.innerHTML = "<span class=\"chip-main\"><span class=\"chip-title\">" + escapeHtml(cat.text) + "</span>" + hotkeyHintHtml(hotkey) + "</span><span class=\"count\">" + (cat.selectedCount || 0) + "</span>";
     el.onclick = () => postToAhk({ type: "setCategory", category: cat.key });
     wrap.appendChild(el);
   });
+  updateHotkeyHighlights();
 }
 
 function renderEngines() {
   const wrap = document.getElementById("engines");
   wrap.innerHTML = "";
   state.engines.forEach((engine) => {
+    const hotkey = getHintHotkey("engine", engine.value);
     const active = state.selectedEngines.includes(engine.value);
     const el = document.createElement("button");
-    el.className = "engine-chip" + (active ? " active" : "");
+    el.className = "engine-chip hotkey-item" + (active ? " active" : "");
+    el.dataset.hotkey = hotkey || "";
     const icon = engine.iconUrl
       ? "<span class=\"engine-icon-wrap\"><img src=\"" + engine.iconUrl + "\" alt=\"\"></span>"
       : "<span class=\"engine-icon-wrap\"><span class=\"engine-fallback\">" + escapeHtml((engine.name || "?").slice(0, 1).toUpperCase()) + "</span></span>";
-    el.innerHTML = icon + "<span class=\"label\">" + escapeHtml(engine.name) + "</span>";
+    el.innerHTML = icon + "<span class=\"label\">" + escapeHtml(engine.name) + "</span>" + hotkeyHintHtml(hotkey);
     el.onclick = () => postToAhk({ type: "toggleEngine", engine: engine.value });
     wrap.appendChild(el);
   });
+  updateHotkeyHighlights();
 }
 
 function renderFilters() {
   const wrap = document.getElementById("filters");
   wrap.innerHTML = "";
   state.filters.forEach((filter) => {
+    const hotkey = getHintHotkey("filter", filter.key);
     const el = document.createElement("button");
-    el.className = "filter-chip" + (filter.key === state.filterType ? " active" : "");
-    el.textContent = filter.text;
+    el.className = "filter-chip hotkey-item" + (filter.key === state.filterType ? " active" : "");
+    el.dataset.hotkey = hotkey || "";
+    el.innerHTML = "<span class=\"filter-label\">" + escapeHtml(filter.text) + "</span>" + hotkeyHintHtml(hotkey);
     el.onclick = () => postToAhk({ type: "setFilter", filterType: filter.key });
     wrap.appendChild(el);
   });
+  updateHotkeyHighlights();
 }
 
 function renderResults() {
@@ -786,9 +955,7 @@ function applyState(payload) {
   document.getElementById("result-count").textContent = String(state.results.length) + " 条";
   document.getElementById("btn-run").textContent = "搜索";
   document.getElementById("btn-open-cli").style.display = state.isCliCategory ? "inline-flex" : "none";
-  document.getElementById("footer-hint").textContent = state.isCliCategory
-    ? "CLI 分类：输入内容后可直接发送到选中的终端"
-    : "网络分类：输入内容后会并发打开选中的搜索引擎";
+  syncFooterHint();
 
   renderCategories();
   renderEngines();
@@ -898,6 +1065,13 @@ if (chromeCloseBtn) {
 })();
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "CapsLock") {
+    beginCapsHoldHint();
+  } else if (state.capsHintActive) {
+    const pressed = normalizeHintKey(event.key);
+    if (pressed) setCapsPressedKey(pressed);
+  }
+
   const activeTag = document.activeElement ? document.activeElement.tagName : "";
   const isTyping = activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT";
 
@@ -938,10 +1112,39 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+document.addEventListener("keyup", (event) => {
+  if (event.key === "CapsLock") {
+    endCapsHoldHint();
+    return;
+  }
+  if (!state.capsHintActive) return;
+  const released = normalizeHintKey(event.key);
+  if (released && state.capsPressedKey === released) {
+    state.capsPressedKey = "";
+    updateHotkeyHighlights();
+  }
+});
+
+window.addEventListener("blur", () => {
+  endCapsHoldHint();
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) endCapsHoldHint();
+});
+
 if (window.chrome && window.chrome.webview) {
   window.chrome.webview.addEventListener("message", (event) => {
     const payload = event.data;
     if (!payload || !payload.type) return;
+    if (payload.type === "capsHint") {
+      setCapsHintActive(!!payload.active);
+      return;
+    }
+    if (payload.type === "capsHintPress") {
+      flashCapsPressedKey(payload.key || "");
+      return;
+    }
     if (payload.type === "setCategory") {
       postToAhk({ type: "setCategory", category: payload.category || "" });
       return;

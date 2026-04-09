@@ -4407,6 +4407,7 @@ SearchCenter_HandleCapsChordKey(ch) {
     CapsLock2 := false
     RestoreCapsLockAfterChord()
     try CapsLock_ScheduleNormalizeAfterChord()
+    try SearchCenter_FlashCapsHintKey(k)
 
     VK_ExecCursorHelperCmd(cmdId)
     return true
@@ -4476,6 +4477,31 @@ SearchCenter_SetFilterByKey(filterType) {
     } catch {
     }
     return false
+}
+
+SearchCenter_SetCapsHintActive(isActive) {
+    try {
+        if (SearchCenter_ShouldUseWebView() && IsSearchCenterActive()) {
+            SCWV_PostJson('{"type":"capsHint","active":' . (isActive ? "true" : "false") . '}')
+        }
+    } catch {
+    }
+}
+
+SearchCenter_FlashCapsHintKey(key) {
+    k := StrLower(Trim(String(key)))
+    if (k = "")
+        return
+    try {
+        if (SearchCenter_ShouldUseWebView() && IsSearchCenterActive()) {
+            SCWV_PostJson('{"type":"capsHintPress","key":"' . k . '"}')
+        }
+    } catch {
+    }
+}
+
+SearchCenter_CapsHintOnTimer(*) {
+    SearchCenter_SetCapsHintActive(true)
 }
 
 ; ===================== CapsLock核心逻辑 =====================
@@ -4587,6 +4613,12 @@ CapsLock:: {
     if (!IsSet(CapsLockHoldTimeSeconds) || CapsLockHoldTimeSeconds = "") {
         CapsLockHoldTimeSeconds := 0.5
     }
+    ; 搜索中心热键提示：按住 CapsLock 一段时间后通知 WebView 进入提示高亮态
+    SetTimer(SearchCenter_CapsHintOnTimer, 0)
+    HintDelayMs := Round(CapsLockHoldTimeSeconds * 1000)
+    if (HintDelayMs < 120)
+        HintDelayMs := 120
+    SetTimer(SearchCenter_CapsHintOnTimer, -HintDelayMs)
     
     ; 【关键修复】记录初始状态，必须在按下时立即记录，用于最后的恢复/切换逻辑
     ; 必须在任何可能改变CAPSLOCK状态的操作之前记录
@@ -4626,6 +4658,8 @@ CapsLock:: {
         
         ; 等待 CapsLock 释放
         KeyWait("CapsLock")
+        SetTimer(SearchCenter_CapsHintOnTimer, 0)
+        SearchCenter_SetCapsHintActive(false)
         
         ; 停止定时器
         SetTimer(ClearCapsLock2Timer, 0)
@@ -4679,6 +4713,8 @@ CapsLock:: {
     ; 等待 CapsLock 释放
     KeyWait("CapsLock")
     SetTimer(ShowPanelTimer, 0)  ; 取消未触发的长按检测
+    SetTimer(SearchCenter_CapsHintOnTimer, 0)
+    SearchCenter_SetCapsHintActive(false)
     if (VKHoldVisible) {
         try VK_Hide()
         VKHoldVisible := false
