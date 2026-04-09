@@ -1745,6 +1745,78 @@ const SCENARIO_META = {
   other:      { name: '其他',        icon: 'fa-toolbox',           color: '#9ca3af' },
 };
 
+const SEARCH_TAB_PRESET = [
+  { id: 'search:engine_switch', name: '引擎切换', commands: [
+    'ch_q', 'ch_w', 'ch_e', 'ch_r',
+    'sc_cat_ai', 'sc_cat_cli', 'sc_cat_academic', 'sc_cat_baidu',
+    'sc_cat_image', 'sc_cat_audio', 'sc_cat_video', 'sc_cat_book',
+    'sc_cat_price', 'sc_cat_medical', 'sc_cat_cloud'
+  ] },
+  { id: 'search:ai_filter',     name: 'ai筛选',   commands: [
+    'ch_a', 'ch_s', 'ch_d',
+    'sc_eng_deepseek', 'sc_eng_yuanbao', 'sc_eng_doubao', 'sc_eng_zhipu',
+    'sc_eng_mita', 'sc_eng_wenxin', 'sc_eng_qianwen', 'sc_eng_kimi',
+    'sc_eng_perplexity', 'sc_eng_copilot', 'sc_eng_chatgpt', 'sc_eng_grok',
+    'sc_eng_you', 'sc_eng_claude', 'sc_eng_monica', 'sc_eng_webpilot', 'sc_eng_wepilot'
+  ] },
+  { id: 'search:result_filter', name: '结果过滤', commands: [
+    'ch_z', 'ch_x', 'ch_c', 'ch_v',
+    'sc_filter_text', 'sc_filter_clipboard', 'sc_filter_prompt',
+    'sc_filter_config', 'sc_filter_hotkey', 'sc_filter_function'
+  ] },
+  { id: 'search:search',        name: '搜索',     commands: ['ch_f', 'sc_activate_search'] },
+];
+
+const SEARCH_COMMAND_OVERRIDES = {
+  ch_q: { name: 'AI 引擎',      desc: '切换到 AI 引擎组（CapsLock+Q）', iconClass: 'fa-robot' },
+  ch_w: { name: 'CLI 引擎',     desc: '切换到 CLI 引擎组（CapsLock+W）', iconClass: 'fa-terminal' },
+  ch_e: { name: '学术引擎',     desc: '切换到学术引擎组（CapsLock+E）', iconClass: 'fa-graduation-cap' },
+  ch_r: { name: '百度引擎',     desc: '切换到百度引擎组（CapsLock+R）', iconClass: 'fa-compass' },
+  ch_a: { name: 'DeepSeek',     desc: '优先筛选 DeepSeek 相关结果（CapsLock+A）', iconClass: 'fa-bolt' },
+  ch_s: { name: '元宝',         desc: '优先筛选元宝相关结果（CapsLock+S）', iconClass: 'fa-gem' },
+  ch_d: { name: '豆包',         desc: '优先筛选豆包相关结果（CapsLock+D）', iconClass: 'fa-cube' },
+  ch_z: { name: '文本',         desc: '只看文本类结果（CapsLock+Z）', iconClass: 'fa-file-lines' },
+  ch_x: { name: '剪贴板',       desc: '只看剪贴板类结果（CapsLock+X）', iconClass: 'fa-clipboard' },
+  ch_c: { name: '提示词',       desc: '只看提示词类结果（CapsLock+C）', iconClass: 'fa-lightbulb' },
+  ch_v: { name: '配置',         desc: '只看配置类结果（CapsLock+V）', iconClass: 'fa-gear' },
+  ch_f: { name: '激活搜索中心', desc: '打开并激活搜索中心（CapsLock+F）', iconClass: 'fa-magnifying-glass' },
+  sc_activate_search: { name: '激活搜索中心', desc: '打开并激活搜索中心', iconClass: 'fa-magnifying-glass' },
+  sc_cat_ai: { name: 'AI 分类', desc: '切换到 AI 分类', iconClass: 'fa-robot' },
+  sc_cat_cli: { name: 'CLI 分类', desc: '切换到 CLI 分类', iconClass: 'fa-terminal' },
+  sc_cat_academic: { name: '学术分类', desc: '切换到学术分类', iconClass: 'fa-graduation-cap' },
+  sc_cat_baidu: { name: '百度分类', desc: '切换到百度分类', iconClass: 'fa-compass' },
+  sc_cat_image: { name: '图片分类', desc: '切换到图片分类', iconClass: 'fa-image' },
+  sc_cat_audio: { name: '音频分类', desc: '切换到音频分类', iconClass: 'fa-music' },
+  sc_cat_video: { name: '视频分类', desc: '切换到视频分类', iconClass: 'fa-video' },
+  sc_cat_book: { name: '图书分类', desc: '切换到图书分类', iconClass: 'fa-book' },
+  sc_cat_price: { name: '比价分类', desc: '切换到比价分类', iconClass: 'fa-tags' },
+  sc_cat_medical: { name: '医疗分类', desc: '切换到医疗分类', iconClass: 'fa-stethoscope' },
+  sc_cat_cloud: { name: '网盘分类', desc: '切换到网盘分类', iconClass: 'fa-cloud' },
+  sc_eng_deepseek: { name: 'DeepSeek', desc: '切换 DeepSeek 选中状态', iconClass: 'fa-bolt' },
+  sc_eng_yuanbao: { name: '元宝', desc: '切换元宝选中状态', iconClass: 'fa-gem' },
+  sc_eng_doubao: { name: '豆包', desc: '切换豆包选中状态', iconClass: 'fa-cube' },
+  sc_eng_zhipu: { name: '智谱', desc: '切换智谱选中状态', iconClass: 'fa-circle-nodes' },
+  sc_eng_mita: { name: '秘塔', desc: '切换秘塔选中状态', iconClass: 'fa-chess-rook' },
+  sc_eng_wenxin: { name: '文心一言', desc: '切换文心一言选中状态', iconClass: 'fa-comment-dots' },
+  sc_eng_qianwen: { name: '千问', desc: '切换千问选中状态', iconClass: 'fa-q' },
+  sc_eng_kimi: { name: 'Kimi', desc: '切换 Kimi 选中状态', iconClass: 'fa-k' },
+  sc_eng_perplexity: { name: 'Perplexity', desc: '切换 Perplexity 选中状态', iconClass: 'fa-brain' },
+  sc_eng_copilot: { name: 'Copilot', desc: '切换 Copilot 选中状态', iconClass: 'fa-window-maximize' },
+  sc_eng_chatgpt: { name: 'ChatGPT', desc: '切换 ChatGPT 选中状态', iconClass: 'fa-comment' },
+  sc_eng_grok: { name: 'Grok', desc: '切换 Grok 选中状态', iconClass: 'fa-xmark' },
+  sc_eng_you: { name: 'You', desc: '切换 You 选中状态', iconClass: 'fa-circle' },
+  sc_eng_claude: { name: 'Claude', desc: '切换 Claude 选中状态', iconClass: 'fa-a' },
+  sc_eng_monica: { name: 'Monica', desc: '切换 Monica 选中状态', iconClass: 'fa-face-smile' },
+  sc_eng_webpilot: { name: 'WebPilot', desc: '切换 WebPilot 选中状态', iconClass: 'fa-compass-drafting' },
+  sc_eng_wepilot: { name: 'wepilot', desc: '切换 wepilot 选中状态（兼容别名）', iconClass: 'fa-compass-drafting' },
+  sc_filter_text: { name: '文本', desc: '仅显示文本结果', iconClass: 'fa-file-lines' },
+  sc_filter_clipboard: { name: '剪贴板', desc: '仅显示剪贴板结果', iconClass: 'fa-clipboard' },
+  sc_filter_prompt: { name: '提示词', desc: '仅显示提示词结果', iconClass: 'fa-lightbulb' },
+  sc_filter_config: { name: '配置', desc: '仅显示配置结果', iconClass: 'fa-gear' },
+  sc_filter_hotkey: { name: '快捷键', desc: '仅显示快捷键结果', iconClass: 'fa-keyboard' },
+  sc_filter_function: { name: '功能', desc: '仅显示功能结果', iconClass: 'fa-sliders' },
+};
+
 function normalizeKeywordList(value) {
   const src = Array.isArray(value)
     ? value
@@ -1895,6 +1967,25 @@ function buildScenariosFromCategories() {
     for (const cmdId of cmdIds) {
       if (!commandRoutes[cmdId]) commandRoutes[cmdId] = { scenarioId, tabId };
       used.add(cmdId);
+    }
+  }
+
+  // 搜索中心固定右侧 4 标签布局（引擎切换 / ai筛选 / 结果过滤 / 搜索）
+  {
+    const scenario = ensureScenario('search');
+    scenario.tabs = [];
+    for (const preset of SEARCH_TAB_PRESET) {
+      const cmdIds = preset.commands.filter(cmdId => !!state.commands[cmdId]);
+      if (!cmdIds.length) continue;
+      scenario.tabs.push({
+        id: preset.id,
+        name: preset.name,
+        commands: cmdIds,
+      });
+      for (const cmdId of cmdIds) {
+        commandRoutes[cmdId] = { scenarioId: 'search', tabId: preset.id };
+        used.add(cmdId);
+      }
     }
   }
 
@@ -3420,7 +3511,10 @@ function focusCommandById(cmdId) {
 }
 
 function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
-  const cmd     = state.commands[cmdId] || { name: cmdId, desc: '' };
+  const baseCmd = state.commands[cmdId] || { name: cmdId, desc: '' };
+  const cmd = (state.activeScenarioId === 'search' && SEARCH_COMMAND_OVERRIDES[cmdId])
+    ? { ...baseCmd, ...SEARCH_COMMAND_OVERRIDES[cmdId] }
+    : baseCmd;
   const binding = state.bindings[cmdId];
   const isNone = !!(binding?.explicitNone);
   const hasReal = !!(binding?.ahkKey);
@@ -4002,3 +4096,4 @@ function mkEl(tag, cls, text) {
 </script>
 </body>
 </html>
+

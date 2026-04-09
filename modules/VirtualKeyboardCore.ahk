@@ -229,8 +229,54 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "ai_act", "name", "快捷动作", "desc", "执行预设脚本", "fn", "CH_RUN")
         ]),
         Map("id", "search", "name", "🔍 搜索中心", "commands", [
+            Map("id", "ch_q", "name", "引擎切换 / AI", "desc", "CapsLock+Q：切换到 AI 引擎分类", "fn", "CH_RUN", "suggested", "q"),
+            Map("id", "ch_w", "name", "引擎切换 / CLI", "desc", "CapsLock+W：切换到 CLI 引擎分类", "fn", "CH_RUN", "suggested", "w"),
+            Map("id", "ch_e", "name", "引擎切换 / 学术", "desc", "CapsLock+E：切换到学术引擎分类", "fn", "CH_RUN", "suggested", "e"),
+            Map("id", "ch_r", "name", "引擎切换 / 百度", "desc", "CapsLock+R：切换到百度引擎分类", "fn", "CH_RUN", "suggested", "r"),
+            Map("id", "ch_a", "name", "AI筛选 / DeepSeek", "desc", "CapsLock+A：切换 DeepSeek 筛选", "fn", "CH_RUN", "suggested", "a"),
+            Map("id", "ch_s", "name", "AI筛选 / 元宝", "desc", "CapsLock+S：切换元宝筛选", "fn", "CH_RUN", "suggested", "s"),
+            Map("id", "ch_d", "name", "AI筛选 / 豆包", "desc", "CapsLock+D：切换豆包筛选", "fn", "CH_RUN", "suggested", "d"),
+            Map("id", "ch_z", "name", "结果过滤 / 文本", "desc", "CapsLock+Z：只看文本结果", "fn", "CH_RUN", "suggested", "z"),
+            Map("id", "ch_x", "name", "结果过滤 / 剪贴板", "desc", "CapsLock+X：只看剪贴板结果", "fn", "CH_RUN", "suggested", "x"),
+            Map("id", "ch_c", "name", "结果过滤 / 提示词", "desc", "CapsLock+C：只看提示词结果", "fn", "CH_RUN", "suggested", "c"),
+            Map("id", "ch_v", "name", "结果过滤 / 配置", "desc", "CapsLock+V：只看配置结果", "fn", "CH_RUN", "suggested", "v"),
             Map("id", "ch_f", "name", "搜索中心 / 语音搜索", "desc", "CapsLock+F：打开搜索中心或语音搜索", "fn", "CH_RUN", "suggested", "f"),
             Map("id", "ch_g", "name", "语音搜索面板", "desc", "CapsLock+G：直接启动语音搜索面板", "fn", "CH_RUN", "suggested", "g"),
+            Map("id", "sc_activate_search", "name", "激活搜索中心", "desc", "打开并激活搜索中心", "fn", "CH_RUN"),
+            Map("id", "sc_cat_ai", "name", "分类 / AI", "desc", "切换到 AI 分类", "fn", "CH_RUN"),
+            Map("id", "sc_cat_cli", "name", "分类 / CLI", "desc", "切换到 CLI 分类", "fn", "CH_RUN"),
+            Map("id", "sc_cat_academic", "name", "分类 / 学术", "desc", "切换到学术分类", "fn", "CH_RUN"),
+            Map("id", "sc_cat_baidu", "name", "分类 / 百度", "desc", "切换到百度分类", "fn", "CH_RUN"),
+            Map("id", "sc_cat_image", "name", "分类 / 图片", "desc", "切换到图片分类", "fn", "CH_RUN"),
+            Map("id", "sc_cat_audio", "name", "分类 / 音频", "desc", "切换到音频分类", "fn", "CH_RUN"),
+            Map("id", "sc_cat_video", "name", "分类 / 视频", "desc", "切换到视频分类", "fn", "CH_RUN"),
+            Map("id", "sc_cat_book", "name", "分类 / 图书", "desc", "切换到图书分类", "fn", "CH_RUN"),
+            Map("id", "sc_cat_price", "name", "分类 / 比价", "desc", "切换到比价分类", "fn", "CH_RUN"),
+            Map("id", "sc_cat_medical", "name", "分类 / 医疗", "desc", "切换到医疗分类", "fn", "CH_RUN"),
+            Map("id", "sc_cat_cloud", "name", "分类 / 网盘", "desc", "切换到网盘分类", "fn", "CH_RUN"),
+            Map("id", "sc_eng_deepseek", "name", "引擎 / DeepSeek", "desc", "切换 DeepSeek 选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_yuanbao", "name", "引擎 / 元宝", "desc", "切换元宝选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_doubao", "name", "引擎 / 豆包", "desc", "切换豆包选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_zhipu", "name", "引擎 / 智谱", "desc", "切换智谱选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_mita", "name", "引擎 / 秘塔", "desc", "切换秘塔选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_wenxin", "name", "引擎 / 文心一言", "desc", "切换文心一言选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_qianwen", "name", "引擎 / 千问", "desc", "切换千问选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_kimi", "name", "引擎 / Kimi", "desc", "切换 Kimi 选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_perplexity", "name", "引擎 / Perplexity", "desc", "切换 Perplexity 选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_copilot", "name", "引擎 / Copilot", "desc", "切换 Copilot 选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_chatgpt", "name", "引擎 / ChatGPT", "desc", "切换 ChatGPT 选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_grok", "name", "引擎 / Grok", "desc", "切换 Grok 选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_you", "name", "引擎 / You", "desc", "切换 You 选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_claude", "name", "引擎 / Claude", "desc", "切换 Claude 选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_monica", "name", "引擎 / Monica", "desc", "切换 Monica 选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_webpilot", "name", "引擎 / WebPilot", "desc", "切换 WebPilot 选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_wepilot", "name", "引擎 / wepilot", "desc", "切换 wepilot 选中状态（兼容别名）", "fn", "CH_RUN"),
+            Map("id", "sc_filter_text", "name", "过滤 / 文本", "desc", "只看文本结果", "fn", "CH_RUN"),
+            Map("id", "sc_filter_clipboard", "name", "过滤 / 剪贴板", "desc", "只看剪贴板结果", "fn", "CH_RUN"),
+            Map("id", "sc_filter_prompt", "name", "过滤 / 提示词", "desc", "只看提示词结果", "fn", "CH_RUN"),
+            Map("id", "sc_filter_config", "name", "过滤 / 配置", "desc", "只看配置结果", "fn", "CH_RUN"),
+            Map("id", "sc_filter_hotkey", "name", "过滤 / 快捷键", "desc", "只看快捷键结果", "fn", "CH_RUN"),
+            Map("id", "sc_filter_function", "name", "过滤 / 功能", "desc", "只看功能结果", "fn", "CH_RUN"),
             Map("id", "qa_global_search", "name", "全局搜索", "desc", "Cursor: Ctrl+Shift+F", "fn", "CH_RUN"),
             Map("id", "qa_browser", "name", "简单浏览器", "desc", "Cursor: Ctrl+Shift+B", "fn", "CH_RUN")
         ]),
@@ -1127,6 +1173,41 @@ VK_LookupBindingCmdForPhys(physKey) {
             return g_Bindings[cand]
     }
     return ""
+}
+
+; 搜索中心 CapsLock+第二键：g_Bindings 上 q/a/z 等往往指向 ch_*（如打开设置），与内置「搜索中心」说明不一致。
+; 若用户已为该键绑定任意 sc_* 则优先；否则回退到与内置搜索类说明一致的 sc_*（def 表为宿主内建 CH_RUN，不依赖 CommandList 是否同步）。
+VK_SearchCenterResolveCapsChordCmd(physKey) {
+    global g_Commands
+    k := StrLower(Trim(String(physKey)))
+    if (k = "")
+        return ""
+    cmdId := VK_LookupBindingCmdForPhys(k)
+    if (cmdId != "" && SubStr(cmdId, 1, 3) = "sc_")
+        return cmdId
+    static def := Map(
+        "q", "sc_cat_ai",
+        "w", "sc_cat_cli",
+        "e", "sc_cat_academic",
+        "r", "sc_cat_baidu",
+        "a", "sc_eng_deepseek",
+        "s", "sc_eng_yuanbao",
+        "d", "sc_eng_doubao",
+        "z", "sc_filter_text",
+        "x", "sc_filter_clipboard",
+        "c", "sc_filter_prompt",
+        "v", "sc_filter_config"
+    )
+    if !def.Has(k)
+        return ""
+    sc := def[k]
+    ; 内建 def 与 VirtualKeyboardExecCmd 中 sc_* 分支一致；若 CommandList 异常缺失，仍返回 sc 以便 VK_ExecCursorHelperCmd 执行
+    if (g_Commands is Map) && g_Commands.Has("CommandList") {
+        cl := g_Commands["CommandList"]
+        if (cl is Map) && !cl.Has(sc)
+            OutputDebug("[VK] SC chord: CommandList missing " . sc . " (fallback still used)")
+    }
+    return sc
 }
 
 ; 嵌入 CursorHelper：若当前物理键在 g_Bindings 中有命令则执行并返回 true（截断宿主默认）

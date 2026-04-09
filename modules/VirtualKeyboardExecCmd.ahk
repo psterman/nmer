@@ -76,30 +76,208 @@ VK_ExecCursorHelperCmd(cmdId) {
                 VK_SendPromptByClipboard("请根据下面内容给出可执行的下一步动作建议：")
                 executed := true
 
+            ; ==================== 搜索中心：选项命令（可自定义绑定） ====================
+            case "sc_activate_search":
+                ShowSearchCenter()
+                executed := true
+            case "sc_cat_ai":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetCategory("ai")
+                executed := true
+            case "sc_cat_cli":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetCategory("cli")
+                executed := true
+            case "sc_cat_academic":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetCategory("academic")
+                executed := true
+            case "sc_cat_baidu":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetCategory("baidu")
+                executed := true
+            case "sc_cat_image":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetCategory("image")
+                executed := true
+            case "sc_cat_audio":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetCategory("audio")
+                executed := true
+            case "sc_cat_video":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetCategory("video")
+                executed := true
+            case "sc_cat_book":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetCategory("book")
+                executed := true
+            case "sc_cat_price":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetCategory("price")
+                executed := true
+            case "sc_cat_medical":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetCategory("medical")
+                executed := true
+            case "sc_cat_cloud":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetCategory("cloud")
+                executed := true
+
+            case "sc_eng_deepseek":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("deepseek")
+                executed := true
+            case "sc_eng_yuanbao":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("yuanbao")
+                executed := true
+            case "sc_eng_doubao":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("doubao")
+                executed := true
+            case "sc_eng_zhipu":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("zhipu")
+                executed := true
+            case "sc_eng_mita":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("mita")
+                executed := true
+            case "sc_eng_wenxin":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("wenxin")
+                executed := true
+            case "sc_eng_qianwen":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("qianwen")
+                executed := true
+            case "sc_eng_kimi":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("kimi")
+                executed := true
+            case "sc_eng_perplexity":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("perplexity")
+                executed := true
+            case "sc_eng_copilot":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("copilot")
+                executed := true
+            case "sc_eng_chatgpt":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("chatgpt")
+                executed := true
+            case "sc_eng_grok":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("grok")
+                executed := true
+            case "sc_eng_you":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("you")
+                executed := true
+            case "sc_eng_claude":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("claude")
+                executed := true
+            case "sc_eng_monica":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("monica")
+                executed := true
+            case "sc_eng_webpilot":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("webpilot")
+                executed := true
+            case "sc_eng_wepilot":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterToggleEngine("webpilot")
+                executed := true
+
+            case "sc_filter_text":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetFilter("File")
+                executed := true
+            case "sc_filter_clipboard":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetFilter("clipboard")
+                executed := true
+            case "sc_filter_prompt":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetFilter("template")
+                executed := true
+            case "sc_filter_config":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetFilter("config")
+                executed := true
+            case "sc_filter_hotkey":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetFilter("hotkey")
+                executed := true
+            case "sc_filter_function":
+                if (IsSearchCenterActive())
+                    VK_SearchCenterSetFilter("function")
+                executed := true
+
             case "ch_c":
-                HandleDynamicHotkey(HotkeyC != "" ? HotkeyC : "c", "C")
-                executed := true
+                if (IsSearchCenterActive()) {
+                    VK_SearchCenterSetFilter("template")
+                    executed := true
+                } else {
+                    HandleDynamicHotkey(HotkeyC != "" ? HotkeyC : "c", "C")
+                    executed := true
+                }
             case "ch_v":
-                HandleDynamicHotkey(HotkeyV != "" ? HotkeyV : "v", "V")
-                executed := true
+                if (IsSearchCenterActive()) {
+                    VK_SearchCenterSetFilter("config")
+                    executed := true
+                } else {
+                    HandleDynamicHotkey(HotkeyV != "" ? HotkeyV : "v", "V")
+                    executed := true
+                }
             case "ch_x":
-                HandleDynamicHotkey(HotkeyX != "" ? HotkeyX : "x", "X")
-                executed := true
+                if (IsSearchCenterActive()) {
+                    VK_SearchCenterSetFilter("clipboard")
+                    executed := true
+                } else {
+                    HandleDynamicHotkey(HotkeyX != "" ? HotkeyX : "x", "X")
+                    executed := true
+                }
             case "ch_e":
-                HandleDynamicHotkey(HotkeyE != "" ? HotkeyE : "e", "E")
-                executed := true
+                if (IsSearchCenterActive()) {
+                    VK_SearchCenterSetCategory("academic")
+                    executed := true
+                } else {
+                    HandleDynamicHotkey(HotkeyE != "" ? HotkeyE : "e", "E")
+                    executed := true
+                }
             case "ch_r":
-                HandleDynamicHotkey(HotkeyR != "" ? HotkeyR : "r", "R")
-                executed := true
+                if (IsSearchCenterActive()) {
+                    VK_SearchCenterSetCategory("baidu")
+                    executed := true
+                } else {
+                    HandleDynamicHotkey(HotkeyR != "" ? HotkeyR : "r", "R")
+                    executed := true
+                }
             case "ch_o":
                 HandleDynamicHotkey(HotkeyO != "" ? HotkeyO : "o", "O")
                 executed := true
             case "ch_q":
-                HandleDynamicHotkey(HotkeyQ != "" ? HotkeyQ : "q", "Q")
-                executed := true
+                if (IsSearchCenterActive()) {
+                    VK_SearchCenterSetCategory("ai")
+                    executed := true
+                } else {
+                    HandleDynamicHotkey(HotkeyQ != "" ? HotkeyQ : "q", "Q")
+                    executed := true
+                }
             case "ch_z":
-                HandleDynamicHotkey(HotkeyZ != "" ? HotkeyZ : "z", "Z")
-                executed := true
+                if (IsSearchCenterActive()) {
+                    VK_SearchCenterSetFilter("File")
+                    executed := true
+                } else {
+                    HandleDynamicHotkey(HotkeyZ != "" ? HotkeyZ : "z", "Z")
+                    executed := true
+                }
             case "ch_t":
                 HandleDynamicHotkey(HotkeyT != "" ? HotkeyT : "t", "T")
                 executed := true
@@ -130,21 +308,44 @@ VK_ExecCursorHelperCmd(cmdId) {
                 HandleDynamicHotkey(HotkeyP != "" ? HotkeyP : "p", "P")
                 executed := true
             case "ch_w":
-                CapsLock2 := false
-                Send("{Up}")
-                executed := true
+                if (IsSearchCenterActive()) {
+                    VK_SearchCenterSetCategory("cli")
+                    executed := true
+                } else {
+                    CapsLock2 := false
+                    Send("{Up}")
+                    executed := true
+                }
             case "ch_s":
-                CapsLock2 := false
-                Send("{Down}")
-                executed := true
+                if (IsSearchCenterActive()) {
+                    CapsLock2 := false
+                    Send("{Down}")
+                    executed := true
+                } else {
+                    CapsLock2 := false
+                    Send("{Down}")
+                    executed := true
+                }
             case "ch_a":
-                CapsLock2 := false
-                Send("{Left}")
-                executed := true
+                if (IsSearchCenterActive()) {
+                    CapsLock2 := false
+                    Send("{Left}")
+                    executed := true
+                } else {
+                    CapsLock2 := false
+                    Send("{Left}")
+                    executed := true
+                }
             case "ch_d":
-                CapsLock2 := false
-                Send("{Right}")
-                executed := true
+                if (IsSearchCenterActive()) {
+                    CapsLock2 := false
+                    Send("{Right}")
+                    executed := true
+                } else {
+                    CapsLock2 := false
+                    Send("{Right}")
+                    executed := true
+                }
             case "ch_1":
                 ExecuteQuickActionSlot(1)
                 executed := true
@@ -240,6 +441,30 @@ VK_ExecCursorHelperCmd(cmdId) {
     } finally {
         CapsLock := prevCaps
     }
+}
+
+VK_SearchCenterPost(payloadJson) {
+    if !IsSearchCenterActive()
+        return false
+    try {
+        SCWV_PostJson(payloadJson)
+        return true
+    } catch as e {
+        OutputDebug("[VK-Exec] SearchCenter post failed: " . e.Message)
+        return false
+    }
+}
+
+VK_SearchCenterSetCategory(categoryKey) {
+    return VK_SearchCenterPost('{"type":"setCategory","category":"' . categoryKey . '"}')
+}
+
+VK_SearchCenterSetFilter(filterType) {
+    return VK_SearchCenterPost('{"type":"setFilter","filterType":"' . filterType . '"}')
+}
+
+VK_SearchCenterToggleEngine(engineKey) {
+    return VK_SearchCenterPost('{"type":"toggleEngine","engine":"' . engineKey . '"}')
 }
 
 VK_EnsureNiumaWindow(openDrawer := true) {

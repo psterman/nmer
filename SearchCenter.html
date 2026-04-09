@@ -942,6 +942,26 @@ if (window.chrome && window.chrome.webview) {
   window.chrome.webview.addEventListener("message", (event) => {
     const payload = event.data;
     if (!payload || !payload.type) return;
+    if (payload.type === "setCategory") {
+      postToAhk({ type: "setCategory", category: payload.category || "" });
+      return;
+    }
+    if (payload.type === "toggleEngine") {
+      postToAhk({ type: "toggleEngine", engine: payload.engine || "" });
+      return;
+    }
+    if (payload.type === "setFilter") {
+      postToAhk({ type: "setFilter", filterType: payload.filterType || "" });
+      return;
+    }
+    if (payload.type === "setLimit") {
+      postToAhk({ type: "setLimit", limit: Number(payload.limit) || 50 });
+      return;
+    }
+    if (payload.type === "activateResult") {
+      postToAhk({ type: "activateResult", row: Number(payload.row) || state.selectedRow || 1 });
+      return;
+    }
     if (payload.type === "focus_input") {
       const input = document.getElementById("search");
       if (input) input.focus();

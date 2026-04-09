@@ -9,6 +9,7 @@ global g_SCWV_LastShown := 0  ; SCWV_Show 后宽限期，避免点击悬浮条�
 global g_SCWV_SearchTimer := 0
 global g_SCWV_FocusPending := false
 global SearchCenterWebKeyword := ""
+global g_SCWV_PendingJsonQueue := []  ; WebView 未 ready 时暂存，ready 后由 SCWV_FlushPendingJsonQueue 发出
 
 SearchCenter_ShouldUseWebView() {
     return true
@@ -223,7 +224,7 @@ SCWV_RequestFocusInput() {
 }
 
 SCWV_Hide(PersistSelection := true) {
-    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_SearchTimer, GuiID_SearchCenter
+    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_SearchTimer, GuiID_SearchCenter, g_SCWV_PendingJsonQueue
 
     ; 取消 WM_ACTIVATE 延迟关闭，避免用户已在工具栏同步 Hide 后 50ms 又执行一次 Hide/副作用
     SetTimer(SCWV_WMDeactivateHideTick, 0)
@@ -231,6 +232,8 @@ SCWV_Hide(PersistSelection := true) {
     SetTimer(SCWV_RefreshComposition, 0)
     SetTimer(_SCWV_DeferredMoveFocus100, 0)
     SetTimer(SCWV_FocusDeferred, 0)
+    SetTimer(SCWV_FlushPendingJsonQueue, 0)
+    g_SCWV_PendingJsonQueue := []
 
     if PersistSelection
         _SCWV_SaveCurrentCategorySelection()
@@ -294,11 +297,40 @@ SCWV_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
     }
 }
 
-SCWV_PostJson(jsonStr) {
-    global g_SCWV_WV2, g_SCWV_Ready
-
-    if !(g_SCWV_WV2 && g_SCWV_Ready)
+SCWV_FlushPendingJsonQueue(*) {
+    global g_SCWV_WV2, g_SCWV_Ready, g_SCWV_PendingJsonQueue
+    if !g_SCWV_WV2 {
         return
+    }
+    if !g_SCWV_Ready {
+        if (g_SCWV_PendingJsonQueue.Length)
+            SetTimer(SCWV_FlushPendingJsonQueue, -80)
+        return
+    }
+    while g_SCWV_PendingJsonQueue.Length {
+        item := g_SCWV_PendingJsonQueue.RemoveAt(1)
+        if (item is Map) && item.Has("obj")
+            WebView_QueuePayload(g_SCWV_WV2, item["obj"])
+        else if (item is Map) && item.Has("str")
+            WebView_QueueJson(g_SCWV_WV2, item["str"])
+    }
+}
+
+SCWV_PostJson(jsonStr) {
+    global g_SCWV_WV2, g_SCWV_Ready, g_SCWV_PendingJsonQueue
+
+    if !g_SCWV_WV2
+        return
+    if !g_SCWV_Ready {
+        if (g_SCWV_PendingJsonQueue.Length >= 64)
+            g_SCWV_PendingJsonQueue.RemoveAt(1)
+        if (IsObject(jsonStr))
+            g_SCWV_PendingJsonQueue.Push(Map("obj", jsonStr))
+        else
+            g_SCWV_PendingJsonQueue.Push(Map("str", String(jsonStr)))
+        SetTimer(SCWV_FlushPendingJsonQueue, -50)
+        return
+    }
     if (IsObject(jsonStr))
         WebView_QueuePayload(g_SCWV_WV2, jsonStr)
     else
@@ -360,6 +392,7 @@ SCWV_OnWebMessage(sender, args) {
             global g_SCWV_Ready
             g_SCWV_Ready := true
             SCWV_PushState("init")
+            try SCWV_FlushPendingJsonQueue()
             if g_SCWV_FocusPending
                 SCWV_RequestFocusInput()
         case "search":

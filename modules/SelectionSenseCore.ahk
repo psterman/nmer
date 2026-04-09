@@ -187,28 +187,38 @@ SelectionSense_SetHubCopyTriggerMode(mode) {
     try IniWrite(g_SelSense_HubCopyTriggerMode, cfg, "SelectionSense", "HubCopyTriggerMode")
 }
 
+; Gui 对象在未 Show 前访问 .Hwnd 会抛 “Gui has no window”，此处仅做句柄比对时必须吞掉。
+SelectionSense_GuiHwndMatches(guiObj, hwnd) {
+    if !hwnd || !IsObject(guiObj)
+        return false
+    try return (hwnd = guiObj.Hwnd)
+    catch as _e {
+        return false
+    }
+}
+
 SelectionSense_IsKnownGuiRoot(hwnd) {
     if !hwnd
         return false
     global FloatingToolbarGUI, g_SCWV_Gui, g_CP_Gui, g_VK_Gui, g_PQP_Gui, g_SelSense_MenuGui
     global AIListPanelGUI, GuiID_ConfigGUI, GuiID_SearchCenter
-    if (IsSet(FloatingToolbarGUI) && FloatingToolbarGUI && hwnd = FloatingToolbarGUI.Hwnd)
+    if (IsSet(FloatingToolbarGUI) && FloatingToolbarGUI && SelectionSense_GuiHwndMatches(FloatingToolbarGUI, hwnd))
         return true
-    if (IsSet(g_SCWV_Gui) && g_SCWV_Gui && hwnd = g_SCWV_Gui.Hwnd)
+    if (IsSet(g_SCWV_Gui) && g_SCWV_Gui && SelectionSense_GuiHwndMatches(g_SCWV_Gui, hwnd))
         return true
-    if (IsSet(g_CP_Gui) && g_CP_Gui && hwnd = g_CP_Gui.Hwnd)
+    if (IsSet(g_CP_Gui) && g_CP_Gui && SelectionSense_GuiHwndMatches(g_CP_Gui, hwnd))
         return true
-    if (IsSet(g_VK_Gui) && g_VK_Gui && hwnd = g_VK_Gui.Hwnd)
+    if (IsSet(g_VK_Gui) && g_VK_Gui && SelectionSense_GuiHwndMatches(g_VK_Gui, hwnd))
         return true
-    if (IsSet(g_PQP_Gui) && g_PQP_Gui && hwnd = g_PQP_Gui.Hwnd)
+    if (IsSet(g_PQP_Gui) && g_PQP_Gui && SelectionSense_GuiHwndMatches(g_PQP_Gui, hwnd))
         return true
-    if (IsSet(g_SelSense_MenuGui) && g_SelSense_MenuGui && hwnd = g_SelSense_MenuGui.Hwnd)
+    if (IsSet(g_SelSense_MenuGui) && g_SelSense_MenuGui && SelectionSense_GuiHwndMatches(g_SelSense_MenuGui, hwnd))
         return true
-    if (IsSet(AIListPanelGUI) && AIListPanelGUI && hwnd = AIListPanelGUI.Hwnd)
+    if (IsSet(AIListPanelGUI) && AIListPanelGUI && SelectionSense_GuiHwndMatches(AIListPanelGUI, hwnd))
         return true
-    if (IsSet(GuiID_ConfigGUI) && GuiID_ConfigGUI && hwnd = GuiID_ConfigGUI.Hwnd)
+    if (IsSet(GuiID_ConfigGUI) && GuiID_ConfigGUI && SelectionSense_GuiHwndMatches(GuiID_ConfigGUI, hwnd))
         return true
-    if (IsSet(GuiID_SearchCenter) && GuiID_SearchCenter && hwnd = GuiID_SearchCenter.Hwnd)
+    if (IsSet(GuiID_SearchCenter) && GuiID_SearchCenter && SelectionSense_GuiHwndMatches(GuiID_SearchCenter, hwnd))
         return true
     return false
 }
