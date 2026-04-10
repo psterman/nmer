@@ -276,9 +276,7 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "sc_filter_prompt", "name", "过滤 / 提示词", "desc", "只看提示词结果", "fn", "CH_RUN"),
             Map("id", "sc_filter_config", "name", "过滤 / 配置", "desc", "只看配置结果", "fn", "CH_RUN"),
             Map("id", "sc_filter_hotkey", "name", "过滤 / 快捷键", "desc", "只看快捷键结果", "fn", "CH_RUN"),
-            Map("id", "sc_filter_function", "name", "过滤 / 功能", "desc", "只看功能结果", "fn", "CH_RUN"),
-            Map("id", "qa_global_search", "name", "全局搜索", "desc", "Cursor: Ctrl+Shift+F", "fn", "CH_RUN"),
-            Map("id", "qa_browser", "name", "简单浏览器", "desc", "Cursor: Ctrl+Shift+B", "fn", "CH_RUN")
+            Map("id", "sc_filter_function", "name", "过滤 / 功能", "desc", "只看功能结果", "fn", "CH_RUN")
         ]),
         Map("id", "clipboard", "name", "📋 剪贴板", "commands", [
             Map("id", "ch_c", "name", "连续复制", "desc", "CapsLock+C：连续复制选区", "fn", "CH_RUN", "suggested", "c"),
@@ -313,7 +311,9 @@ _VK_BuiltinCommandCatalog() {
         ]),
         Map("id", "screenshot", "name", "📸 智能截图", "commands", [
             Map("id", "ch_t", "name", "截图智能菜单", "desc", "CapsLock+T：截图后弹出智能菜单", "fn", "CH_RUN", "suggested", "t"),
-            Map("id", "ch_p", "name", "区域截图粘贴", "desc", "CapsLock+P：区域截图并粘贴到 Cursor", "fn", "CH_RUN", "suggested", "p"),
+            Map("id", "ch_p", "name", "区域截图粘贴", "desc", "CapsLock+P：区域截图并粘贴到 Cursor", "fn", "CH_RUN", "suggested", "p")
+        ]),
+        Map("id", "screenshot_helper", "name", "🖼️ 截图助手", "commands", [
             Map("id", "ss_pin", "name", "截图助手 / 置顶", "desc", "截图助手：切换置顶与工具栏显示状态", "fn", "CH_RUN", "suggested", "q"),
             Map("id", "ss_ocr", "name", "截图助手 / OCR", "desc", "截图助手：执行 OCR 识别", "fn", "CH_RUN", "suggested", "e"),
             Map("id", "ss_text", "name", "截图助手 / 纯文本", "desc", "截图助手：OCR后粘贴纯文本", "fn", "CH_RUN", "suggested", "c"),
@@ -328,13 +328,20 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "sys_reset_vk", "name", "重置键盘高亮", "desc", "清除虚拟键盘上的高亮状态", "fn", "RESET_VK"),
             Map("id", "win_min", "name", "最小化窗口", "desc", "最小化当前活动窗口", "fn", "WIN_MIN"),
             Map("id", "win_close", "name", "关闭窗口", "desc", "关闭当前活动窗口", "fn", "WIN_CLOSE"),
-            Map("id", "qa_config", "name", "快捷动作 / 设置", "desc", "执行 Quick Action: Config", "fn", "CH_RUN"),
+            Map("id", "qa_config", "name", "快捷动作 / 设置", "desc", "执行 Quick Action: Config", "fn", "CH_RUN")
+        ]),
+        Map("id", "cursor", "name", "🧭 Cursor", "commands", [
+            Map("id", "qa_global_search", "name", "全局搜索", "desc", "Cursor: Ctrl+Shift+F", "fn", "CH_RUN"),
+            Map("id", "qa_browser", "name", "简单浏览器", "desc", "Cursor: Ctrl+Shift+B", "fn", "CH_RUN"),
             Map("id", "qa_settings", "name", "VS Code 设置", "desc", "Cursor: Ctrl+Shift+J", "fn", "CH_RUN"),
             Map("id", "qa_cursor_settings", "name", "Cursor 设置", "desc", "Cursor: Ctrl+,", "fn", "CH_RUN"),
             Map("id", "qa_explorer", "name", "资源管理器", "desc", "Cursor: Ctrl+Shift+E", "fn", "CH_RUN"),
             Map("id", "qa_source_control", "name", "源代码管理", "desc", "Cursor: Ctrl+Shift+G", "fn", "CH_RUN"),
             Map("id", "qa_extensions", "name", "扩展", "desc", "Cursor: Ctrl+Shift+X", "fn", "CH_RUN"),
             Map("id", "qa_terminal", "name", "终端", "desc", "Cursor: Ctrl+Shift+``", "fn", "CH_RUN"),
+            Map("id", "qa_command_palette", "name", "命令面板", "desc", "Cursor: Ctrl+Shift+P", "fn", "CH_RUN"),
+            Map("id", "qa_voice", "name", "快捷动作 / 语音输入", "desc", "执行 Quick Action: Voice", "fn", "CH_RUN"),
+            Map("id", "ch_z", "name", "语音输入", "desc", "CapsLock+Z：开始或停止语音输入", "fn", "CH_RUN", "suggested", "z"),
             Map("id", "cursor_open", "name", "打开光标面板", "desc", "显示光标助手面板", "fn", "CURSOR_OPEN"),
             Map("id", "cursor_close", "name", "关闭光标面板", "desc", "隐藏光标助手面板", "fn", "CURSOR_CLOSE")
         ]),
@@ -344,10 +351,7 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "ch_w", "name", "方向上", "desc", "CapsLock+W：发送方向上", "fn", "CH_RUN", "suggested", "w"),
             Map("id", "ch_s", "name", "方向下", "desc", "CapsLock+S：发送方向下", "fn", "CH_RUN", "suggested", "s"),
             Map("id", "ch_a", "name", "方向左", "desc", "CapsLock+A：发送方向左", "fn", "CH_RUN", "suggested", "a"),
-            Map("id", "ch_d", "name", "方向右", "desc", "CapsLock+D：发送方向右", "fn", "CH_RUN", "suggested", "d"),
-            Map("id", "qa_command_palette", "name", "命令面板", "desc", "Cursor: Ctrl+Shift+P", "fn", "CH_RUN"),
-            Map("id", "qa_voice", "name", "快捷动作 / 语音输入", "desc", "执行 Quick Action: Voice", "fn", "CH_RUN"),
-            Map("id", "ch_z", "name", "语音输入", "desc", "CapsLock+Z：开始或停止语音输入", "fn", "CH_RUN", "suggested", "z")
+            Map("id", "ch_d", "name", "方向右", "desc", "CapsLock+D：发送方向右", "fn", "CH_RUN", "suggested", "d")
         ])
     ]
 }
@@ -2860,4 +2864,3 @@ _FallbackHtml() {
             . '</div></body></html>'
     )
 }
-

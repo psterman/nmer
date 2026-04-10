@@ -574,6 +574,8 @@ body::after {
   border-color: #35ff88 !important;
   color: #35ff88 !important;
   box-shadow: 0 0 10px #35ff8899 !important;
+  background: linear-gradient(180deg, #1a2a20, #15231b) !important;
+  border-bottom-color: #2cff83 !important;
 }
 .k.slot-occupied {
   background: #2c1500;
@@ -1669,7 +1671,9 @@ const state = {
   recording:   null,        // cmdId being recorded
   focusedCmdId: null,       // 当前右侧选中的命令（聚焦模式）
   focusedMods: null,        // 聚焦命令要求的修饰键（来自 ahkKey 的 ^ ! +）
-  activeMods:  { ctrl:false, alt:false, shift:false },
+  activeMods:  { ctrl:false, alt:false, shift:false, win:false }, // 兼容旧逻辑（实时合并值）
+  hostMods:    { ctrl:false, alt:false, shift:false, win:false }, // AHK 回传
+  uiMods:      { ctrl:false, alt:false, shift:false, win:false }, // 虚拟键盘点击切换
   lastFilteredCmdIds: [],
   nativeLayout: false,      // ScanCode 物理键适配模式
   lastActionId: '',
@@ -1732,7 +1736,7 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
-const SCENARIO_ORDER = ['ai', 'search', 'clipboard', 'prompts', 'scratchpad', 'screenshot', 'settings', 'hotkeys'];
+const SCENARIO_ORDER = ['ai', 'search', 'clipboard', 'prompts', 'scratchpad', 'screenshot', 'settings', 'hotkeys', 'cursor'];
 const SCENARIO_META = {
   ai:         { name: '🤖 牛马 AI',   icon: 'fa-robot',             color: '#00d4ff' },
   search:     { name: '🔍 搜索中心', icon: 'fa-magnifying-glass',  color: '#6ee7b7' },
@@ -1742,6 +1746,7 @@ const SCENARIO_META = {
   screenshot: { name: '📸 智能截图', icon: 'fa-camera',            color: '#22d3ee' },
   settings:   { name: '⚙️ 设置中心', icon: 'fa-gear',              color: '#94a3b8' },
   hotkeys:    { name: '⌨️ 快捷键',   icon: 'fa-keyboard',          color: '#e67e22' },
+  cursor:     { name: '🧭 Cursor',   icon: 'fa-compass-drafting',  color: '#60a5fa' },
   other:      { name: '其他',        icon: 'fa-toolbox',           color: '#9ca3af' },
 };
 
@@ -1801,6 +1806,16 @@ const SCRATCHPAD_TAB_PRESET = [
   ] },
   { id: 'scratchpad:panel_actions', name: '面板功能', commands: [
     'ch_g', 'ch_c', 'ch_x', 'ch_v', 'qa_split'
+  ] },
+];
+
+const CURSOR_TAB_PRESET = [
+  { id: 'cursor:hotkeys', name: '快捷键', commands: [
+    'qa_command_palette', 'qa_voice', 'ch_z',
+    'qa_global_search', 'qa_browser',
+    'qa_settings', 'qa_cursor_settings', 'qa_explorer',
+    'qa_source_control', 'qa_extensions', 'qa_terminal',
+    'cursor_open', 'cursor_close'
   ] },
 ];
 
@@ -1987,6 +2002,7 @@ function enrichCommands(commands) {
 
 function classifyScenarioIdForCategory(cat) {
   const text = `${cat?.id || ''} ${cat?.name || ''}`.toLowerCase();
+  if (/(cursor|vscode|code|ide|editor|命令面板|资源管理器|源代码管理|扩展|终端|语音输入)/.test(text)) return 'cursor';
   if (/(clip|clipboard|copy|paste|剪贴|复制|粘贴)/.test(text)) return 'clipboard';
   if (/(prompt|template|提示词|模板)/.test(text)) return 'prompts';
   if (/(ai|gpt|llm|解释|改写|翻译)/.test(text)) return 'ai';
@@ -2131,6 +2147,25 @@ function buildScenariosFromCategories() {
       });
       for (const cmdId of cmdIds) {
         commandRoutes[cmdId] = { scenarioId: 'scratchpad', tabId: preset.id };
+        used.add(cmdId);
+      }
+    }
+  }
+
+  // Cursor 固定右侧标签布局（快捷键）
+  {
+    const scenario = ensureScenario('cursor');
+    scenario.tabs = [];
+    for (const preset of CURSOR_TAB_PRESET) {
+      const cmdIds = preset.commands.filter(cmdId => !!state.commands[cmdId]);
+      if (!cmdIds.length) continue;
+      scenario.tabs.push({
+        id: preset.id,
+        name: preset.name,
+        commands: cmdIds,
+      });
+      for (const cmdId of cmdIds) {
+        commandRoutes[cmdId] = { scenarioId: 'cursor', tabId: preset.id };
         used.add(cmdId);
       }
     }
@@ -2480,11 +2515,13 @@ function handleAhkMessage(msg) {
       setHud(msg.message);
       break;
     case 'modifierState':
-      state.activeMods = {
+      state.hostMods = {
         ctrl: !!msg.ctrl,
         alt: !!msg.alt,
         shift: !!msg.shift,
+        win: !!msg.win,
       };
+      state.activeMods = getEffectiveMods();
       renderModifierKeys();
       renderKeyboardSlots();
       break;
@@ -3657,9 +3694,8 @@ function focusCommandById(cmdId) {
   return true;
 }
 
-function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
-  const baseCmd = state.commands[cmdId] || { name: cmdId, desc: '' };
-  const overrideMap = state.activeScenarioId === 'search'
+function getActiveScenarioOverrideMap() {
+  return state.activeScenarioId === 'search'
     ? SEARCH_COMMAND_OVERRIDES
     : state.activeScenarioId === 'clipboard'
       ? CLIPBOARD_COMMAND_OVERRIDES
@@ -3667,10 +3703,19 @@ function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
         ? PROMPTS_COMMAND_OVERRIDES
         : state.activeScenarioId === 'scratchpad'
           ? SCRATCHPAD_COMMAND_OVERRIDES
-      : null;
-  const cmd = (overrideMap && overrideMap[cmdId])
-    ? { ...baseCmd, ...overrideMap[cmdId] }
-    : baseCmd;
+          : null;
+}
+
+function getScenarioDisplayCommand(cmdId) {
+  const baseCmd = state.commands[cmdId] || { name: cmdId, desc: '' };
+  const overrideMap = getActiveScenarioOverrideMap();
+  if (overrideMap && overrideMap[cmdId])
+    return { ...baseCmd, ...overrideMap[cmdId] };
+  return baseCmd;
+}
+
+function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
+  const cmd = getScenarioDisplayCommand(cmdId);
   const binding = state.bindings[cmdId];
   const isNone = !!(binding?.explicitNone);
   const hasReal = !!(binding?.ahkKey);
@@ -3806,7 +3851,7 @@ function renderKeyboardSlots() {
             el.classList.add('bound', 'slot-occupied');
             el.dataset.mappedCmdId = focusCmdId;
             el.dataset.mappedAhkKey = focusAKey;
-            const cmdName = state.commands[focusCmdId]?.name || focusCmdId;
+            const cmdName = getScenarioDisplayCommand(focusCmdId)?.name || focusCmdId;
             lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
           }
         }
@@ -3821,7 +3866,7 @@ function renderKeyboardSlots() {
           el.dataset.mappedCmdId = cmdId;
           el.dataset.mappedAhkKey = dbl;
           if (!hasReal) el.classList.add('slot-suggested');
-          const cmdName = state.commands[cmdId]?.name || cmdId;
+          const cmdName = getScenarioDisplayCommand(cmdId)?.name || cmdId;
           lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
         }
       }
@@ -3833,7 +3878,7 @@ function renderKeyboardSlots() {
         el.classList.add('bound', 'slot-occupied');
         el.dataset.mappedCmdId = focusCmdId;
         el.dataset.mappedAhkKey = focusAKey;
-        const cmdName = state.commands[focusCmdId]?.name || focusCmdId;
+        const cmdName = getScenarioDisplayCommand(focusCmdId)?.name || focusCmdId;
         lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
       }
       return;
@@ -3847,7 +3892,7 @@ function renderKeyboardSlots() {
       el.dataset.mappedCmdId = cmdId;
       el.dataset.mappedAhkKey = lookup;
       if (!hasReal) el.classList.add('slot-suggested');
-      const cmdName = state.commands[cmdId]?.name || cmdId;
+      const cmdName = getScenarioDisplayCommand(cmdId)?.name || cmdId;
       lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
     } else {
       el.classList.add('slot-available');
@@ -3909,14 +3954,28 @@ function doubleAhkToKeys(ahk) {
 }
 
 function getActivePrefix() {
-  return (state.activeMods.ctrl ? '^' : '')
-      +  (state.activeMods.alt ? '!' : '')
-      +  (state.activeMods.shift ? '+' : '');
+  const m = getEffectiveMods();
+  return (m.ctrl ? '^' : '')
+      +  (m.alt ? '!' : '')
+      +  (m.shift ? '+' : '');
+}
+
+function getEffectiveMods() {
+  const h = state.hostMods || { ctrl:false, alt:false, shift:false, win:false };
+  const u = state.uiMods || { ctrl:false, alt:false, shift:false, win:false };
+  const merged = {
+    ctrl: !!(h.ctrl || u.ctrl),
+    alt: !!(h.alt || u.alt),
+    shift: !!(h.shift || u.shift),
+    win: !!(h.win || u.win),
+  };
+  state.activeMods = merged;
+  return merged;
 }
 
 function renderModifierKeys() {
-  const mod = state.activeMods;
-  const fmod = state.focusedMods || { ctrl:false, alt:false, shift:false };
+  const mod = getEffectiveMods();
+  const fmod = state.focusedMods || { ctrl:false, alt:false, shift:false, win:false };
   document.querySelectorAll('.k.mod-active').forEach(el => el.classList.remove('mod-active'));
   if (mod.ctrl || fmod.ctrl) {
     document.querySelectorAll('.k[data-ahkkey="LCtrl"], .k[data-ahkkey="RCtrl"]')
@@ -3928,6 +3987,10 @@ function renderModifierKeys() {
   }
   if (mod.shift || fmod.shift) {
     document.querySelectorAll('.k[data-ahkkey="LShift"], .k[data-ahkkey="RShift"]')
+      .forEach(el => el.classList.add('mod-active'));
+  }
+  if (mod.win || fmod.win) {
+    document.querySelectorAll('.k[data-ahkkey="LWin"], .k[data-ahkkey="RWin"]')
       .forEach(el => el.classList.add('mod-active'));
   }
   // 聚焦模式下显式提示 CapsLock 前缀
@@ -4114,10 +4177,38 @@ function tryExecuteDoubleAltFromClick(ahkKey, el, e) {
   return false;
 }
 
+function isUiToggleModifierKey(ahkKey) {
+  return ahkKey === 'LCtrl' || ahkKey === 'RCtrl'
+    || ahkKey === 'LAlt' || ahkKey === 'RAlt'
+    || ahkKey === 'LShift' || ahkKey === 'RShift'
+    || ahkKey === 'LWin' || ahkKey === 'RWin';
+}
+
+function toggleModifierFromVirtualKey(ahkKey) {
+  if (!state.uiMods) state.uiMods = { ctrl:false, alt:false, shift:false, win:false };
+  if (ahkKey === 'LCtrl' || ahkKey === 'RCtrl')
+    state.uiMods.ctrl = !state.uiMods.ctrl;
+  else if (ahkKey === 'LAlt' || ahkKey === 'RAlt')
+    state.uiMods.alt = !state.uiMods.alt;
+  else if (ahkKey === 'LShift' || ahkKey === 'RShift')
+    state.uiMods.shift = !state.uiMods.shift;
+  else if (ahkKey === 'LWin' || ahkKey === 'RWin')
+    state.uiMods.win = !state.uiMods.win;
+  renderModifierKeys();
+  renderKeyboardSlots();
+}
+
 document.querySelectorAll('.k').forEach(el => {
   el.addEventListener('click', (e) => {
     const ahkKey = el.dataset.ahkkey;
     if (!ahkKey) return;
+    if (isUiToggleModifierKey(ahkKey)) {
+      if (tryExecuteDoubleAltFromClick(ahkKey, el, e)) return;
+      toggleModifierFromVirtualKey(ahkKey);
+      el.classList.add('pressed');
+      setTimeout(() => el.classList.remove('pressed'), 180);
+      return;
+    }
     if (tryExecuteDoubleAltFromClick(ahkKey, el, e)) return;
     const mappedCmdId = el.dataset.mappedCmdId || state.ahkKeyIndex[ahkKey] || '';
     if (mappedCmdId) focusCommandById(mappedCmdId);

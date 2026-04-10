@@ -4024,7 +4024,8 @@ CloseTrayMenuIfClickedOutside(*) {
             MouseGetPos(&MX, &MY)
             WinGetPos(&WX, &WY, &WW, &WH, "ahk_id " . TrayMenuGUI.Hwnd)
             if (MX < WX || MX > WX + WW || MY < WY || MY > WY + WH) {
-                if (GetKeyState("LButton", "P") || GetKeyState("RButton", "P")) {
+                ; 仅左键外点关闭，避免右键刚打开菜单时被立即判定关闭
+                if (GetKeyState("LButton", "P")) {
                     try {
                         TrayMenuGUI.Destroy()
                         TrayMenuGUI := 0
@@ -4158,17 +4159,18 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
     Padding := 10
     MenuHeight := MenuItems.Length * MenuItemHeight + Padding * 2
 
-    ScreenWidth := SysGet(78)
-    ScreenHeight := SysGet(79)
-    if (posX < 10) {
-        posX := 10
-    } else if (posX + MenuWidth > ScreenWidth - 10) {
-        posX := ScreenWidth - MenuWidth - 10
+    ; 使用虚拟屏幕范围，兼容多屏/负坐标
+    vL := SysGet(76), vT := SysGet(77), vW := SysGet(78), vH := SysGet(79)
+    vR := vL + vW, vB := vT + vH
+    if (posX < vL + 10) {
+        posX := vL + 10
+    } else if (posX + MenuWidth > vR - 10) {
+        posX := vR - MenuWidth - 10
     }
-    if (posY < 10) {
-        posY := 10
-    } else if (posY + MenuHeight > ScreenHeight - 10) {
-        posY := ScreenHeight - MenuHeight - 10
+    if (posY < vT + 10) {
+        posY := vT + 10
+    } else if (posY + MenuHeight > vB - 10) {
+        posY := vB - MenuHeight - 10
     }
 
     TrayMenuGUI := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
@@ -4176,12 +4178,19 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
     TrayMenuGUI.Add("Text", "x0 y0 w" . MenuWidth . " h" . MenuHeight . " Background1a1a1a", "")
 
     TrayMenuSelectedItem := 0
-    IconSize := 20
+    IconSize := 18
     IconLeftMargin := Padding + 8
     TextLeftMargin := IconLeftMargin + IconSize + 10
 
-    ClickHelper(act, *) {
-        act()
+    ClickHelper(item, *) {
+        try {
+            keepOpen := (item.HasProp("KeepMenuOpen") && item.KeepMenuOpen)
+            if (!keepOpen)
+                CloseDarkStylePopupMenu()
+            if (item.HasProp("Action") && IsObject(item.Action))
+                item.Action()
+        } catch {
+        }
     }
 
     Loop MenuItems.Length {
@@ -4189,21 +4198,109 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
         Item := MenuItems[Index]
         ItemY := Padding + (Index - 1) * MenuItemHeight
         ItemBg := TrayMenuGUI.Add("Text", "x" . Padding . " y" . ItemY . " w" . (MenuWidth - Padding * 2) . " h" . MenuItemHeight . " Background1a1a1a vMenuItemBg" . Index, "")
-        ItemBg.OnEvent("Click", ClickHelper.Bind(Item.Action))
-        if (Item.HasProp("Icon") && Item.Icon != "") {
+        ItemBg.OnEvent("Click", ClickHelper.Bind(Item))
+        iconFile := ResolveDarkPopupItemIconFile(Item, IconSize)
+        if (iconFile != "" && FileExist(iconFile)) {
+            IconPic := TrayMenuGUI.Add("Picture", "x" . IconLeftMargin . " y" . (ItemY + ((MenuItemHeight - IconSize) // 2)) . " w" . IconSize . " h" . IconSize . " BackgroundTrans vMenuItemIconPic" . Index, iconFile)
+            IconPic.OnEvent("Click", ClickHelper.Bind(Item))
+        } else if (Item.HasProp("Icon") && Item.Icon != "") {
             IconText := TrayMenuGUI.Add("Text", "x" . IconLeftMargin . " y" . ItemY . " w" . IconSize . " h" . MenuItemHeight . " Center 0x200 cff6600 BackgroundTrans vMenuItemIcon" . Index, Item.Icon)
             IconText.SetFont("s14", "Segoe UI Symbol")
-            IconText.OnEvent("Click", ClickHelper.Bind(Item.Action))
+            IconText.OnEvent("Click", ClickHelper.Bind(Item))
         }
         ItemText := TrayMenuGUI.Add("Text", "x" . TextLeftMargin . " y" . ItemY . " w" . (MenuWidth - TextLeftMargin - Padding) . " h" . MenuItemHeight . " Left 0x200 cff6600 BackgroundTrans vMenuItemText" . Index, Item.Text)
         ItemText.SetFont("s11", "Segoe UI")
-        ItemText.OnEvent("Click", ClickHelper.Bind(Item.Action))
+        ItemText.OnEvent("Click", ClickHelper.Bind(Item))
     }
 
     TrayMenuGUI.Show("x" . posX . " y" . posY . " w" . MenuWidth . " h" . MenuHeight)
     WinActivate("ahk_id " . TrayMenuGUI.Hwnd)
     SetTimer(CheckTrayMenuMousePosition, 50)
     SetTimer(CloseTrayMenuIfClickedOutside, 100)
+}
+
+ResolveDarkPopupItemIconFile(Item, size := 18) {
+    try {
+        if (Item.HasProp("SvgIcon") && Item.SvgIcon != "" && FileExist(Item.SvgIcon)) {
+            pngNextToSvg := RegExReplace(Item.SvgIcon, "\.svg$", ".png")
+            if (FileExist(pngNextToSvg))
+                return pngNextToSvg
+            return EnsureSvgIconRasterized(Item.SvgIcon, size)
+        }
+        if (Item.HasProp("IconFile") && Item.IconFile != "" && FileExist(Item.IconFile))
+            return Item.IconFile
+    } catch {
+    }
+    return ""
+}
+
+EnsureSvgIconRasterized(svgPath, size := 18) {
+    try {
+        cacheDir := A_ScriptDir "\cache\menu-icons"
+        if !DirExist(cacheDir)
+            DirCreate(cacheDir)
+        baseName := RegExReplace(svgPath, "^.*\\", "")
+        key := RegExReplace(baseName, "\.svg$", "")
+        pngPath := cacheDir "\" . key . "_" . size . ".png"
+
+        needRender := !FileExist(pngPath)
+        if (!needRender) {
+            try {
+                svgTime := FileGetTime(svgPath, "M")
+                pngTime := FileGetTime(pngPath, "M")
+                needRender := (svgTime > pngTime)
+            } catch {
+                needRender := true
+            }
+        }
+
+        if (needRender) {
+            edge := ResolveHeadlessBrowserForSvg()
+            if (edge = "")
+                return ""
+            url := "file:///" . StrReplace(svgPath, "\", "/")
+            cmd := '"' . edge . '" --headless --disable-gpu --window-size=' . size . ',' . size . ' --screenshot="' . pngPath . '" "' . url . '"'
+            RunWait(cmd, , "Hide")
+            if (!FileExist(pngPath))
+                return ""
+        }
+        return pngPath
+    } catch {
+        return ""
+    }
+}
+
+ResolveHeadlessBrowserForSvg() {
+    static cached := ""
+    if (cached != "" && FileExist(cached))
+        return cached
+    candidates := [
+        "C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        "C:\Program Files\Google\Chrome\Application\chrome.exe",
+        "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+    ]
+    for _, p in candidates {
+        if FileExist(p) {
+            cached := p
+            return cached
+        }
+    }
+    return ""
+}
+
+CloseDarkStylePopupMenu(*) {
+    global TrayMenuGUI, TrayMenuSelectedItem
+    try {
+        if (TrayMenuGUI != 0) {
+            try TrayMenuGUI.Destroy()
+            TrayMenuGUI := 0
+            TrayMenuSelectedItem := 0
+        }
+    } catch {
+    }
+    SetTimer(CheckTrayMenuMousePosition, 0)
+    SetTimer(CloseTrayMenuIfClickedOutside, 0)
 }
 
 ; 悬浮工具栏（空白处/图标）右键：与托盘菜单同款样式，并含「关闭工具栏」「重启脚本」
@@ -25033,10 +25130,10 @@ HandleScreenshotEditorHotkey(ActionType) {
 
 #HotIf IsScreenshotEditorZoomHotkeyActive()
 WheelUp:: {
-    ScreenshotEditorZoomBy(0.1)
+    ScreenshotEditorZoomWithWheel(1)
 }
 WheelDown:: {
-    ScreenshotEditorZoomBy(-0.1)
+    ScreenshotEditorZoomWithWheel(-1)
 }
 #HotIf
 
@@ -35621,73 +35718,84 @@ ShowScreenshotEditor(DebugGui := 0) {
         
         ; 工具栏尺寸
         ToolbarHeight := 66
-        ToolbarPadding := 14
-        ButtonWidth := 142
+        ToolbarPadding := 12
+        ButtonWidth := 164
         ButtonHeight := 40
-        ButtonSpacing := 14
+        ButtonSpacing := 10
         ButtonY := (ToolbarHeight - ButtonHeight) // 2
         ButtonX := ToolbarPadding
 
-        ; 参考搜索中心：深色底 + 橙色描边/文字
-        ToolbarBtnBg := "1a1a1d"
-        ToolbarBtnHover := "2a2a30"
-        ToolbarBtnText := "ff9a3c"
-        ToolbarBtnDangerBg := "2a1414"
-        ToolbarBtnDangerHover := "3a1b1b"
+        ; 参考搜索提示词标签：主标签 + 右侧快捷键胶囊
+        ToolbarBtnBg := "171d24"
+        ToolbarBtnHover := "212a34"
+        ToolbarBtnBorder := "2f3a47"
+        ToolbarBtnText := "e6edf5"
+        ToolbarKeyBg := "232c36"
+        ToolbarKeyBorder := "3c4756"
+        ToolbarKeyText := "8f9cab"
+
+        ToolbarBtnDangerBg := "28181a"
+        ToolbarBtnDangerHover := "341f22"
+        ToolbarBtnDangerBorder := "5b2e33"
+        ToolbarKeyDangerBg := "342023"
+        ToolbarKeyDangerBorder := "6b3a40"
+        ToolbarKeyDangerText := "c89ea4"
+
+        AddScreenshotToolbarTagButton(labelText, hotkeyHint, onClick, isDanger := false) {
+            ; AHK v2 无 nonlocal；本嵌套函数读写外层局部变量（ButtonX 等）并读取 global GuiID_ScreenshotToolbar
+            global GuiID_ScreenshotToolbar
+
+            bg := isDanger ? ToolbarBtnDangerBg : ToolbarBtnBg
+            bgHover := isDanger ? ToolbarBtnDangerHover : ToolbarBtnHover
+            border := isDanger ? ToolbarBtnDangerBorder : ToolbarBtnBorder
+            keyBg := isDanger ? ToolbarKeyDangerBg : ToolbarKeyBg
+            keyBorder := isDanger ? ToolbarKeyDangerBorder : ToolbarKeyBorder
+            keyText := isDanger ? ToolbarKeyDangerText : ToolbarKeyText
+
+            baseCtrl := GuiID_ScreenshotToolbar.Add("Text"
+                , "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Border c" . border . " Background" . bg
+                , "")
+            HoverBtnWithAnimation(baseCtrl, bg, bgHover)
+
+            keyW := 66
+            keyH := 22
+            keyX := ButtonX + ButtonWidth - keyW - 10
+            keyY := ButtonY + ((ButtonHeight - keyH) // 2)
+            labelX := ButtonX + 12
+            labelW := keyX - labelX - 8
+
+            labelCtrl := GuiID_ScreenshotToolbar.Add("Text"
+                , "x" . labelX . " y" . ButtonY . " w" . labelW . " h" . ButtonHeight . " Left 0x200 BackgroundTrans c" . ToolbarBtnText
+                , labelText)
+            labelCtrl.SetFont("s9 Bold", "Segoe UI")
+
+            keyCtrl := GuiID_ScreenshotToolbar.Add("Text"
+                , "x" . keyX . " y" . keyY . " w" . keyW . " h" . keyH . " Center 0x200 Border c" . keyText . " Background" . keyBg
+                , hotkeyHint)
+            keyCtrl.SetFont("s8 Bold", "Segoe UI")
+
+            doClick(*) {
+                try onClick.Call()
+            }
+            baseCtrl.OnEvent("Click", doClick)
+            labelCtrl.OnEvent("Click", doClick)
+            keyCtrl.OnEvent("Click", doClick)
+
+            ButtonX += ButtonWidth + ButtonSpacing
+        }
         
         ; 先创建拖动区域（在按钮下方，不覆盖按钮）
         ; 注意：拖动区域会在按钮创建后添加，确保按钮在上层
         
-        ; 工具栏按钮（添加到悬浮工具栏）
-        ; [置顶] 按钮
+        ; 工具栏按钮（标签风格）
         global ScreenshotEditorAlwaysOnTop := true
-        PinBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 Border c" . ToolbarBtnText . " Background" . ToolbarBtnBg, "📌 置顶 [CapsLock+Q]")
-        PinBtn.SetFont("s8", "Segoe UI")
-        PinBtn.OnEvent("Click", (*) => ToggleScreenshotEditorAlwaysOnTop())
-        HoverBtnWithAnimation(PinBtn, ToolbarBtnBg, ToolbarBtnHover)
-        ButtonX += ButtonWidth + ButtonSpacing
-        
-        ; [OCR] 按钮
-        OCRBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 Border c" . ToolbarBtnText . " Background" . ToolbarBtnBg, "🔍 OCR [CapsLock+E]")
-        OCRBtn.SetFont("s8", "Segoe UI")
-        OCRBtn.OnEvent("Click", (*) => ExecuteScreenshotOCR())
-        HoverBtnWithAnimation(OCRBtn, ToolbarBtnBg, ToolbarBtnHover)
-        ButtonX += ButtonWidth + ButtonSpacing
-
-        ; [粘贴纯文本] 按钮
-        PasteTextBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 Border c" . ToolbarBtnText . " Background" . ToolbarBtnBg, "📝 纯文本 [CapsLock+C]")
-        PasteTextBtn.SetFont("s8", "Segoe UI")
-        PasteTextBtn.OnEvent("Click", (*) => PasteScreenshotAsText())
-        HoverBtnWithAnimation(PasteTextBtn, ToolbarBtnBg, ToolbarBtnHover)
-        ButtonX += ButtonWidth + ButtonSpacing
-
-        ; [保存] 按钮
-        SaveBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 Border c" . ToolbarBtnText . " Background" . ToolbarBtnBg, "💾 保存 [CapsLock+R]")
-        SaveBtn.SetFont("s8", "Segoe UI")
-        SaveBtn.OnEvent("Click", (*) => SaveScreenshotToFile())
-        HoverBtnWithAnimation(SaveBtn, ToolbarBtnBg, ToolbarBtnHover)
-        ButtonX += ButtonWidth + ButtonSpacing
-
-        ; [AI] 按钮
-        AIBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 Border c" . ToolbarBtnText . " Background" . ToolbarBtnBg, "🤖 AI [CapsLock+Z]")
-        AIBtn.SetFont("s8", "Segoe UI")
-        AIBtn.OnEvent("Click", (*) => ScreenshotEditorSendToAI())
-        HoverBtnWithAnimation(AIBtn, ToolbarBtnBg, ToolbarBtnHover)
-        ButtonX += ButtonWidth + ButtonSpacing
-
-        ; [搜索] 按钮
-        SearchBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 Border c" . ToolbarBtnText . " Background" . ToolbarBtnBg, "🔎 搜索 [CapsLock+F]")
-        SearchBtn.SetFont("s8", "Segoe UI")
-        SearchBtn.OnEvent("Click", (*) => ScreenshotEditorSearchText())
-        HoverBtnWithAnimation(SearchBtn, ToolbarBtnBg, ToolbarBtnHover)
-        ButtonX += ButtonWidth + ButtonSpacing
-        
-        ; [关闭] 按钮（在工具栏）
-        CloseToolbarBtn := GuiID_ScreenshotToolbar.Add("Text", "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Center 0x200 Border c" . ToolbarBtnText . " Background" . ToolbarBtnDangerBg, "✕ 关闭 [Esc]")
-        CloseToolbarBtn.SetFont("s8", "Segoe UI")
-        CloseToolbarBtn.OnEvent("Click", (*) => CloseScreenshotEditor())
-        HoverBtnWithAnimation(CloseToolbarBtn, ToolbarBtnDangerBg, ToolbarBtnDangerHover)
-        ButtonX += ButtonWidth + ButtonSpacing
+        AddScreenshotToolbarTagButton("置顶", "Caps+Q", (*) => ToggleScreenshotEditorAlwaysOnTop())
+        AddScreenshotToolbarTagButton("OCR", "Caps+E", (*) => ExecuteScreenshotOCR())
+        AddScreenshotToolbarTagButton("纯文本", "Caps+C", (*) => PasteScreenshotAsText())
+        AddScreenshotToolbarTagButton("保存", "Caps+R", (*) => SaveScreenshotToFile())
+        AddScreenshotToolbarTagButton("AI", "Caps+Z", (*) => ScreenshotEditorSendToAI())
+        AddScreenshotToolbarTagButton("搜索", "Caps+F", (*) => ScreenshotEditorSearchText())
+        AddScreenshotToolbarTagButton("关闭", "Esc", (*) => CloseScreenshotEditor(), true)
         
         ; 计算工具栏宽度
         ToolbarWidth := ButtonX + ToolbarPadding
@@ -36083,6 +36191,20 @@ ScreenshotEditorZoomBy(step) {
     ScreenshotEditorApplyZoom(newScale, true)
 }
 
+; 指数缩放：参考 d3/openSeadragon 的滚轮缩放思路，使用 2^delta 让不同倍率下手感一致
+ScreenshotEditorZoomWithWheel(direction) {
+    global ScreenshotEditorZoomScale
+    try {
+        d := (direction > 0) ? 1 : -1
+        wheelDelta := 0.12 * d
+        factor := Exp(wheelDelta * Ln(2.0))
+        newScale := ScreenshotEditorZoomScale * factor
+        ScreenshotEditorApplyZoom(newScale, true)
+    } catch {
+        ScreenshotEditorZoomBy(0.1 * ((direction > 0) ? 1 : -1))
+    }
+}
+
 ScreenshotEditorApplyZoom(newScale, showTip := true) {
     global GuiID_ScreenshotEditor, GuiID_ScreenshotToolbar
     global ScreenshotEditorPreviewPic, ScreenshotEditorToolbarVisible
@@ -36256,6 +36378,15 @@ ScreenshotEditorHideZoomTip(*) {
     }
 }
 
+ScreenshotEditorShowCurrentZoomTip() {
+    global ScreenshotEditorZoomScale, ScreenshotEditorBaseWidth, ScreenshotEditorBaseHeight
+    if (!ScreenshotEditorBaseWidth || !ScreenshotEditorBaseHeight)
+        return
+    drawW := Max(120, Round(ScreenshotEditorBaseWidth * ScreenshotEditorZoomScale))
+    drawH := Max(80, Round(ScreenshotEditorBaseHeight * ScreenshotEditorZoomScale))
+    ScreenshotEditorShowZoomTip(ScreenshotEditorZoomScale, drawW, drawH)
+}
+
 ; 截图助手图片控件点击事件（用于拖动窗口）
 OnScreenshotEditorPicClick(Ctrl, Info) {
     global ScreenshotEditorIsDraggingWindow, GuiID_ScreenshotEditor
@@ -36413,23 +36544,248 @@ UpdateScreenshotEditorPreview() {
     }
 }
 
-; 截图助手右键菜单（用于退出）
+ScreenshotEditorMenuSvgIconPath(iconKey) {
+    ; 统一维护截图右键菜单图标映射（SVG 资源路径）
+    baseDir := A_ScriptDir "\assets\images\screenshot-menu"
+    map := Map(
+        "copy", baseDir "\copy.svg",
+        "save", baseDir "\save.svg",
+        "folder", baseDir "\folder.svg",
+        "toolbar_show", baseDir "\toolbar-show.svg",
+        "toolbar_hide", baseDir "\toolbar-hide.svg",
+        "process", baseDir "\process.svg",
+        "rotate_left", baseDir "\rotate-left.svg",
+        "rotate_right", baseDir "\rotate-right.svg",
+        "flip_h", baseDir "\flip-h.svg",
+        "flip_v", baseDir "\flip-v.svg",
+        "delete", baseDir "\delete.svg",
+        "close", baseDir "\close.svg"
+    )
+    return map.Has(iconKey) ? map[iconKey] : ""
+}
+
+; 截图助手右键菜单（黑橙风格）
 OnScreenshotEditorContextMenu(Ctrl, Info := 0, *) {
-    global GuiID_ScreenshotEditor
-    
+    global ScreenshotEditorToolbarVisible
+
     try {
-        ; 获取鼠标位置
+        if !IsScreenshotEditorActive()
+            return
+        CloseDarkStylePopupMenu()
         MouseGetPos(&MouseX, &MouseY)
 
-        ; 黑橙风格菜单（与工具栏/托盘同款）
         MenuItems := []
-        MenuItems.Push({Text: "复制", Icon: "📋", Action: (*) => CopyScreenshotToClipboard()})
-        MenuItems.Push({Text: "保存图片", Icon: "💾", Action: (*) => SaveScreenshotToFile()})
-        MenuItems.Push({Text: "弹出工具栏", Icon: "📌", Action: (*) => ShowScreenshotEditorToolbar()})
-        MenuItems.Push({Text: "关闭", Icon: "✕", Action: (*) => CloseScreenshotEditor()})
+        MenuItems.Push({Text: "复制", Icon: "⎘", SvgIcon: ScreenshotEditorMenuSvgIconPath("copy"), Action: (*) => ScreenshotEditorCopyKeepMode()})
+        MenuItems.Push({Text: "保存图片", Icon: "⬇", SvgIcon: ScreenshotEditorMenuSvgIconPath("save"), Action: (*) => ScreenshotEditorSaveKeepMode()})
+        MenuItems.Push({Text: "在文件夹中查看", Icon: "▦", SvgIcon: ScreenshotEditorMenuSvgIconPath("folder"), Action: (*) => ScreenshotEditorRevealInFolder()})
+        MenuItems.Push({Text: "处理图片", Icon: "◫", SvgIcon: ScreenshotEditorMenuSvgIconPath("process"), Action: (*) => ScreenshotEditorShowImageProcessMenu()})
+        MenuItems.Push({Text: "弹出工具栏", Icon: "▣", SvgIcon: ScreenshotEditorMenuSvgIconPath("toolbar_show"), Action: (*) => ScreenshotEditorShowToolbarFromMenu()})
+        if (ScreenshotEditorToolbarVisible) {
+            MenuItems.Push({Text: "关闭工具栏", Icon: "◩", SvgIcon: ScreenshotEditorMenuSvgIconPath("toolbar_hide"), Action: (*) => ScreenshotEditorHideToolbarFromMenu()})
+        } else {
+            MenuItems.Push({Text: "关闭工具栏", Icon: "◩", SvgIcon: ScreenshotEditorMenuSvgIconPath("toolbar_hide"), Action: (*) => ScreenshotEditorHideToolbarFromMenu()})
+        }
+        MenuItems.Push({Text: "彻底删除", Icon: "⌦", SvgIcon: ScreenshotEditorMenuSvgIconPath("delete"), Action: (*) => ScreenshotEditorDeletePermanently()})
+        MenuItems.Push({Text: "关闭", Icon: "✕", SvgIcon: ScreenshotEditorMenuSvgIconPath("close"), Action: (*) => CloseScreenshotEditor()})
         ShowDarkStylePopupMenuAt(MenuItems, MouseX + 2, MouseY + 2)
+    } catch {
+    }
+}
+
+ScreenshotEditorShowFallbackContextMenu() {
+    m := Menu()
+    processMenu := Menu()
+    processMenu.Add("向左旋转", (*) => ScreenshotEditorTransformImage("rotate_left"))
+    processMenu.Add("向右旋转", (*) => ScreenshotEditorTransformImage("rotate_right"))
+    processMenu.Add("水平翻转", (*) => ScreenshotEditorTransformImage("flip_h"))
+    processMenu.Add("垂直翻转", (*) => ScreenshotEditorTransformImage("flip_v"))
+    m.Add("复制", (*) => ScreenshotEditorCopyKeepMode())
+    m.Add("保存图片", (*) => ScreenshotEditorSaveKeepMode())
+    m.Add("在文件夹中查看", (*) => ScreenshotEditorRevealInFolder())
+    m.Add("处理图片", processMenu)
+    m.Add()
+    m.Add("弹出工具栏", (*) => ScreenshotEditorShowToolbarFromMenu())
+    m.Add("关闭工具栏", (*) => ScreenshotEditorHideToolbarFromMenu())
+    m.Add("彻底删除", (*) => ScreenshotEditorDeletePermanently())
+    m.Add("关闭", (*) => CloseScreenshotEditor())
+    MouseGetPos(&x, &y)
+    m.Show(x, y)
+}
+
+ScreenshotEditorShowToolbarFromMenu() {
+    global ScreenshotEditorToolbarVisible
+    try {
+        ScreenshotEditorToolbarVisible := true
+        ShowScreenshotEditorToolbar()
+        SetTimer(ScreenshotEditorEnsureToolbarVisible, -40)
+        SetTimer(ScreenshotEditorEnsureToolbarVisible, -140)
     } catch as e {
-        ; 如果菜单显示失败，忽略错误
+        TrayTip("工具栏", "弹出工具栏失败: " . e.Message, "Iconx 1")
+    }
+}
+
+ScreenshotEditorEnsureToolbarVisible(*) {
+    global GuiID_ScreenshotEditor, GuiID_ScreenshotToolbar
+    global ScreenshotEditorToolbarVisible
+    if (!ScreenshotEditorToolbarVisible)
+        return
+    try {
+        if !(IsObject(GuiID_ScreenshotEditor) && GuiID_ScreenshotEditor != 0)
+            return
+        if !(IsObject(GuiID_ScreenshotToolbar) && GuiID_ScreenshotToolbar != 0)
+            return
+        WinGetPos(&winX, &winY, &winW, &winH, "ahk_id " . GuiID_ScreenshotEditor.Hwnd)
+        GuiID_ScreenshotToolbar.Show("x" . winX . " y" . (winY + winH + 10))
+        WinSetAlwaysOnTop("On", "ahk_id " . GuiID_ScreenshotToolbar.Hwnd)
+    } catch {
+    }
+}
+
+ScreenshotEditorHideToolbarFromMenu() {
+    global GuiID_ScreenshotToolbar, ScreenshotEditorTitleBar, ScreenshotEditorCloseBtn
+    global ScreenshotEditorToolbarVisible, ScreenshotEditorZoomScale
+    try {
+        ScreenshotEditorToolbarVisible := false
+        if (ScreenshotEditorTitleBar)
+            ScreenshotEditorTitleBar.Visible := false
+        if (ScreenshotEditorCloseBtn)
+            ScreenshotEditorCloseBtn.Visible := false
+        if (GuiID_ScreenshotToolbar && GuiID_ScreenshotToolbar != 0)
+            GuiID_ScreenshotToolbar.Hide()
+        ScreenshotEditorApplyZoom(ScreenshotEditorZoomScale, false)
+    } catch as e {
+        TrayTip("工具栏", "关闭工具栏失败: " . e.Message, "Iconx 1")
+    }
+}
+
+ScreenshotEditorCopyKeepMode() {
+    CopyScreenshotToClipboard(false)
+}
+
+ScreenshotEditorSaveKeepMode() {
+    SaveScreenshotToFile(false)
+}
+
+ScreenshotEditorRevealInFolder() {
+    global ScreenshotEditorImagePath
+    try {
+        if (ScreenshotEditorImagePath != "" && FileExist(ScreenshotEditorImagePath)) {
+            Run('explorer.exe /select,"' . ScreenshotEditorImagePath . '"')
+            return
+        }
+        TrayTip("文件", "当前截图尚未生成可定位的文件", "Iconi 1")
+    } catch as e {
+        TrayTip("文件", "打开文件夹失败: " . e.Message, "Iconx 1")
+    }
+}
+
+ScreenshotEditorShowImageProcessMenu() {
+    try {
+        MouseGetPos(&mx, &my)
+        MenuItems := []
+        MenuItems.Push({Text: "向左旋转", Icon: "↶", SvgIcon: ScreenshotEditorMenuSvgIconPath("rotate_left"), Action: (*) => ScreenshotEditorTransformImage("rotate_left")})
+        MenuItems.Push({Text: "向右旋转", Icon: "↷", SvgIcon: ScreenshotEditorMenuSvgIconPath("rotate_right"), Action: (*) => ScreenshotEditorTransformImage("rotate_right")})
+        MenuItems.Push({Text: "水平翻转", Icon: "⇋", SvgIcon: ScreenshotEditorMenuSvgIconPath("flip_h"), Action: (*) => ScreenshotEditorTransformImage("flip_h")})
+        MenuItems.Push({Text: "垂直翻转", Icon: "⇵", SvgIcon: ScreenshotEditorMenuSvgIconPath("flip_v"), Action: (*) => ScreenshotEditorTransformImage("flip_v")})
+        ShowDarkStylePopupMenuAt(MenuItems, mx + 140, my + 2)
+    } catch {
+    }
+}
+
+ScreenshotEditorTransformImage(actionType) {
+    global ScreenshotEditorBitmap, ScreenshotEditorGraphics, ScreenshotEditorPreviewBitmap
+    global ScreenshotEditorPreviewWidth, ScreenshotEditorPreviewHeight
+    global ScreenshotEditorBaseWidth, ScreenshotEditorBaseHeight
+    global ScreenshotEditorZoomScale
+    if (!ScreenshotEditorBitmap) {
+        TrayTip("图像处理", "当前无可处理图片", "Iconx 1")
+        return
+    }
+
+    rotateFlipType := 0
+    switch actionType {
+        case "rotate_left":
+            rotateFlipType := 3
+        case "rotate_right":
+            rotateFlipType := 1
+        case "flip_h":
+            rotateFlipType := 4
+        case "flip_v":
+            rotateFlipType := 6
+        default:
+            return
+    }
+
+    try {
+        st := DllCall("gdiplus\GdipImageRotateFlip", "Ptr", ScreenshotEditorBitmap, "Int", rotateFlipType, "Int")
+        if (st != 0) {
+            TrayTip("图像处理", "图像变换失败，状态码: " . st, "Iconx 1")
+            return
+        }
+
+        newW := Gdip_GetImageWidth(ScreenshotEditorBitmap)
+        newH := Gdip_GetImageHeight(ScreenshotEditorBitmap)
+        if (!newW || !newH)
+            return
+
+        if (ScreenshotEditorGraphics) {
+            try Gdip_DeleteGraphics(ScreenshotEditorGraphics)
+            ScreenshotEditorGraphics := 0
+        }
+        if (ScreenshotEditorPreviewBitmap) {
+            try Gdip_DisposeImage(ScreenshotEditorPreviewBitmap)
+            ScreenshotEditorPreviewBitmap := 0
+        }
+
+        pPreview := 0
+        pGraphics := 0
+        ret := DllCall("gdiplus\GdipCreateBitmapFromScan0"
+            , "Int", newW
+            , "Int", newH
+            , "Int", 0
+            , "UInt", 0x26200A
+            , "Ptr", 0
+            , "Ptr*", &pPreview := 0)
+        if (ret = 0 && pPreview) {
+            ret2 := DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", pPreview, "Ptr*", &pGraphics := 0)
+            if (ret2 = 0 && pGraphics) {
+                DllCall("gdiplus\GdipSetInterpolationMode", "Ptr", pGraphics, "Int", 7)
+                DllCall("gdiplus\GdipDrawImageRect", "Ptr", pGraphics, "Ptr", ScreenshotEditorBitmap
+                    , "Float", 0, "Float", 0, "Float", newW, "Float", newH)
+                ScreenshotEditorPreviewBitmap := pPreview
+                ScreenshotEditorGraphics := pGraphics
+            } else {
+                if (pPreview)
+                    try Gdip_DisposeImage(pPreview)
+            }
+        }
+
+        ScreenshotEditorPreviewWidth := newW
+        ScreenshotEditorPreviewHeight := newH
+        ScreenshotEditorBaseWidth := newW
+        ScreenshotEditorBaseHeight := newH
+
+        ScreenshotEditorApplyZoom(ScreenshotEditorZoomScale, false)
+        ScreenshotEditorShowCurrentZoomTip()
+    } catch as e {
+        TrayTip("图像处理", "图像处理失败: " . e.Message, "Iconx 1")
+    }
+}
+
+ScreenshotEditorDeletePermanently() {
+    global ScreenshotEditorImagePath
+    try {
+        answer := MsgBox("确定要彻底删除当前截图吗？此操作不可恢复。", "彻底删除", "YesNo Iconx")
+        if (answer != "Yes")
+            return
+        targetPath := ScreenshotEditorImagePath
+        CloseScreenshotEditor()
+        if (targetPath != "" && FileExist(targetPath)) {
+            try FileDelete(targetPath)
+        }
+        TrayTip("删除", "截图已彻底删除", "Iconi 1")
+    } catch as e {
+        TrayTip("删除", "删除失败: " . e.Message, "Iconx 1")
     }
 }
 
@@ -36907,7 +37263,7 @@ ScreenshotEditorSearchText() {
 }
 
 ; 复制截图到剪贴板
-CopyScreenshotToClipboard() {
+CopyScreenshotToClipboard(closeAfter := true) {
     global ScreenshotEditorBitmap, ScreenshotClipboard
 
     try {
@@ -36922,8 +37278,9 @@ CopyScreenshotToClipboard() {
             TrayTip("成功", "截图已复制到剪贴板", "Iconi 1")
         }
 
-        ; 关闭预览窗
-        CloseScreenshotEditor()
+        ; 按需关闭预览窗
+        if (closeAfter)
+            CloseScreenshotEditor()
     } catch as e {
         TrayTip("错误", "复制失败: " . e.Message, "Iconx 2")
     }
@@ -36993,7 +37350,7 @@ PasteScreenshotAsText() {
 }
 
 ; 保存截图到文件
-SaveScreenshotToFile() {
+SaveScreenshotToFile(closeAfter := true) {
     global ScreenshotEditorBitmap, ScreenshotEditorImagePath, ClipboardDB
     
     try {
@@ -37056,8 +37413,9 @@ SaveScreenshotToFile() {
             TrayTip("错误", "没有可保存的图片", "Iconx 2")
         }
         
-        ; 关闭预览窗
-        CloseScreenshotEditor()
+        ; 按需关闭预览窗
+        if (closeAfter)
+            CloseScreenshotEditor()
     } catch as e {
         TrayTip("错误", "保存失败: " . e.Message, "Iconx 2")
     }
