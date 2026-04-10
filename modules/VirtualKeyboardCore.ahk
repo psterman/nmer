@@ -298,6 +298,7 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "qa_batch", "name", "快捷动作 / 批量操作", "desc", "执行 Quick Action: Batch", "fn", "CH_RUN")
         ]),
         Map("id", "scratchpad", "name", "📝 草稿本", "commands", [
+            Map("id", "hub_capsule", "name", "草稿本 HubCapsule", "desc", "打开 HubCapsule 堆叠草稿页（原悬浮条「新」）", "fn", "CH_RUN"),
             Map("id", "ch_f", "name", "草稿本 / 搜索", "desc", "CapsLock+F：在 HubCapsule 中执行搜索", "fn", "CH_RUN", "suggested", "f"),
             Map("id", "ch_a", "name", "草稿本 / AI", "desc", "CapsLock+A：在 HubCapsule 中执行 AI 动作", "fn", "CH_RUN", "suggested", "a"),
             Map("id", "ch_backspace", "name", "草稿本 / 清空", "desc", "CapsLock+Backspace：清空 HubCapsule 内容", "fn", "CH_RUN", "suggested", "Backspace"),
@@ -846,7 +847,7 @@ _VK_DefaultToolbarLayoutCmdIds() {
         "sc_activate_search",
         "qa_clipboard",
         "ch_b",
-        "pqp_capture",
+        "hub_capsule",
         "ch_t",
         "qa_config",
         "sys_show_vk",
@@ -868,7 +869,12 @@ _VK_ToolbarLayoutToJson() {
             continue
         ib := (item.Has("in_bar") && item["in_bar"]) ? "true" : "false"
         im := (item.Has("in_context_menu") && item["in_context_menu"]) ? "true" : "false"
-        json .= sep . '{"cmdId":' . _JsonStr(cid) . ',"in_bar":' . ib . ',"in_context_menu":' . im . '}'
+        te := "false"
+        if item.Has("toolbarEligible") && item["toolbarEligible"]
+            te := "true"
+        else if !item.Has("toolbarEligible") && ((item.Has("in_bar") && item["in_bar"]) || (item.Has("in_context_menu") && item["in_context_menu"]))
+            te := "true"
+        json .= sep . '{"cmdId":' . _JsonStr(cid) . ',"in_bar":' . ib . ',"in_context_menu":' . im . ',"toolbarEligible":' . te . '}'
         sep := ","
     }
     json .= "]"
@@ -900,25 +906,30 @@ _VK_EnsureToolbarLayout() {
             seen[cid] := true
             ib := item.Has("in_bar") ? !!item["in_bar"] : false
             im := item.Has("in_context_menu") ? !!item["in_context_menu"] : false
-            out.Push(Map("cmdId", cid, "in_bar", ib, "in_context_menu", im))
+            te := false
+            if item.Has("toolbarEligible")
+                te := !!item["toolbarEligible"]
+            else
+                te := ib || im
+            out.Push(Map("cmdId", cid, "in_bar", ib, "in_context_menu", im, "toolbarEligible", te))
         }
     } else {
         for cid in _VK_DefaultToolbarLayoutCmdIds() {
             if !cmdList.Has(cid) || seen.Has(cid)
                 continue
             seen[cid] := true
-            out.Push(Map("cmdId", cid, "in_bar", true, "in_context_menu", false))
+            out.Push(Map("cmdId", cid, "in_bar", true, "in_context_menu", false, "toolbarEligible", true))
         }
     }
 
-    ; 补全 CommandList 中尚未出现的命令（默认在备选池）
+    ; 补全 CommandList 中尚未出现的命令（默认不参与工具栏/高级操作台，直至在 KeyBinder 勾选 Bar）
     for cmdId, _ in cmdList {
         if (SubStr(cmdId, 1, 3) = "pt_")
             continue
         if seen.Has(cmdId)
             continue
         seen[cmdId] := true
-        out.Push(Map("cmdId", cmdId, "in_bar", false, "in_context_menu", false))
+        out.Push(Map("cmdId", cmdId, "in_bar", false, "in_context_menu", false, "toolbarEligible", false))
     }
 
     g_Commands["ToolbarLayout"] := out
@@ -946,7 +957,10 @@ _VK_ApplyToolbarLayoutFromWeb(msg) {
         seen[cid] := true
         ib := item.Has("in_bar") ? !!item["in_bar"] : false
         im := item.Has("in_context_menu") ? !!item["in_context_menu"] : false
-        out.Push(Map("cmdId", cid, "in_bar", ib, "in_context_menu", im))
+        te := item.Has("toolbarEligible") ? !!item["toolbarEligible"] : (ib || im)
+        if !te
+            ib := false
+        out.Push(Map("cmdId", cid, "in_bar", ib, "in_context_menu", im, "toolbarEligible", te))
     }
 
     for cmdId, _ in cmdList {
@@ -955,7 +969,7 @@ _VK_ApplyToolbarLayoutFromWeb(msg) {
         if seen.Has(cmdId)
             continue
         seen[cmdId] := true
-        out.Push(Map("cmdId", cmdId, "in_bar", false, "in_context_menu", false))
+        out.Push(Map("cmdId", cmdId, "in_bar", false, "in_context_menu", false, "toolbarEligible", false))
     }
 
     g_Commands["ToolbarLayout"] := out

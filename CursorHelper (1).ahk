@@ -17185,10 +17185,16 @@ ConfigWebView_GetKeybinderToolbarSnapshot() {
             cid := Trim(String(row["cmdId"]))
             if (cid = "")
                 continue
+            te := false
+            if row.Has("toolbarEligible")
+                te := !!row["toolbarEligible"]
+            else
+                te := (row.Has("in_bar") && row["in_bar"]) || (row.Has("in_context_menu") && row["in_context_menu"])
             tl.Push(Map(
                 "cmdId", cid,
                 "in_bar", row.Has("in_bar") ? !!row["in_bar"] : false,
-                "in_context_menu", row.Has("in_context_menu") ? !!row["in_context_menu"] : false
+                "in_context_menu", row.Has("in_context_menu") ? !!row["in_context_menu"] : false,
+                "toolbarEligible", te
             ))
         }
     }

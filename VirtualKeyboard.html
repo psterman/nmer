@@ -1747,7 +1747,7 @@ const state = {
   dashboardPinned: [],
   dashboardOverwriteResolver: null,
   dashboardEditResolver: null,
-  /** { cmdId, in_bar, in_context_menu }[] 与 Commands.json ToolbarLayout 一致 */
+  /** { cmdId, in_bar, in_context_menu, toolbarEligible }[] 与 Commands.json ToolbarLayout 一致；toolbarEligible 由 KeyBinder Bar 勾选 */
   toolbarLayout: [],
   /** CursorHelper 同进程为 true；独立 VirtualKeyboard.ahk 为 false */
   embeddedHost: true,
@@ -1967,6 +1967,7 @@ const PROMPTS_COMMAND_OVERRIDES = {
 };
 
 const SCRATCHPAD_COMMAND_OVERRIDES = {
+  hub_capsule: { name: 'HubCapsule', desc: '打开草稿本 HubCapsule 页面（堆叠选区）', iconClass: 'fa-note-sticky' },
   ch_f: { name: '搜索', desc: '分类标签：HubCapsule 搜索（CapsLock+F）', iconClass: 'fa-magnifying-glass' },
   ch_a: { name: 'AI', desc: '分类标签：HubCapsule AI（CapsLock+A）', iconClass: 'fa-robot' },
   ch_backspace: { name: '清空', desc: '分类标签：清空 HubCapsule（CapsLock+Backspace）', iconClass: 'fa-delete-left' },
@@ -2691,11 +2692,16 @@ function normalizeIncomingToolbarLayout(arr) {
   if (!Array.isArray(arr)) return [];
   return arr
     .filter((item) => item && item.cmdId && state.commands[item.cmdId])
-    .map((item) => ({
-      cmdId: String(item.cmdId),
-      in_bar: !!item.in_bar,
-      in_context_menu: !!item.in_context_menu,
-    }));
+    .map((item) => {
+      const ib = !!item.in_bar;
+      const im = !!item.in_context_menu;
+      const hasTe = item.toolbarEligible !== undefined && item.toolbarEligible !== null;
+      const te = hasTe ? !!item.toolbarEligible : ib || im;
+      if (!te) {
+        return { cmdId: String(item.cmdId), in_bar: false, in_context_menu: im, toolbarEligible: false };
+      }
+      return { cmdId: String(item.cmdId), in_bar: ib, in_context_menu: im, toolbarEligible: true };
+    });
 }
 
 function saveToolbarLayout() {
@@ -2708,15 +2714,24 @@ function saveToolbarLayout() {
 
 function reorderToolbarBarPoolFlags() {
   const bars = state.toolbarLayout.filter((x) => x.in_bar);
-  const pools = state.toolbarLayout.filter((x) => !x.in_bar);
-  state.toolbarLayout = [...bars, ...pools];
+  const pools = state.toolbarLayout.filter((x) => !x.in_bar && x.toolbarEligible);
+  const rest = state.toolbarLayout.filter((x) => !x.toolbarEligible);
+  state.toolbarLayout = [...bars, ...pools, ...rest];
 }
 
-function setCmdToolbarBarFlag(cmdId, inBar) {
+function setCmdToolbarBarFlag(cmdId, wantEligible) {
   const r = state.toolbarLayout.find((x) => x.cmdId === cmdId);
   if (!r) return;
-  if (!!r.in_bar === !!inBar) return;
-  r.in_bar = !!inBar;
+  const on = !!wantEligible;
+  if (on) {
+    if (r.toolbarEligible && r.in_bar) return;
+    r.toolbarEligible = true;
+    r.in_bar = true;
+  } else {
+    if (!r.toolbarEligible && !r.in_bar) return;
+    r.toolbarEligible = false;
+    r.in_bar = false;
+  }
   reorderToolbarBarPoolFlags();
   saveToolbarLayout();
   renderCommandList();
@@ -2734,12 +2749,12 @@ function makeCmdToolbarToggles(cmdId) {
   const wrap = document.createElement('div');
   wrap.className = 'cmd-toolbar-toggles';
   const row = state.toolbarLayout.find((x) => x.cmdId === cmdId);
-  const barOn = !!(row && row.in_bar);
+  const barOn = !!(row && row.toolbarEligible);
   const menuOn = !!(row && row.in_context_menu);
 
   const barEl = document.createElement('div');
   barEl.className = 'vk-mini-toggle' + (barOn ? ' on' : '');
-  barEl.title = '悬浮工具栏';
+  barEl.title = '悬浮工具栏：勾选后加入设置中心高级设置的操作台（可拖上条）；关闭则从条与备用池移除';
   barEl.innerHTML = '<span class="lbl">Bar</span><div class="track"><div class="knob"></div></div>';
   barEl.addEventListener('click', (e) => {
     e.stopPropagation();

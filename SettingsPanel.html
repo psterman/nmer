@@ -557,7 +557,7 @@
       bolt: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
       star: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 7.4h7.6l-6 4.6 2.3 7-6.3-4.6-6.3 4.6 2.3-7-6-4.6h7.6z"/></svg>',
     };
-    const FTB_CMD_KEY = { sc_activate_search: "search", qa_clipboard: "clipboard", ch_b: "prompt", pqp_capture: "screenshot", ch_t: "screenshot", qa_config: "settings", sys_show_vk: "keyboard" };
+    const FTB_CMD_KEY = { sc_activate_search: "search", qa_clipboard: "clipboard", hub_capsule: "notepad", ch_b: "prompt", pqp_capture: "bolt", ch_t: "screenshot", qa_config: "settings", sys_show_vk: "keyboard" };
     const FTB_FA_KEY = { "magnifying-glass": "search", clipboard: "clipboard", comments: "comments", lightbulb: "prompt", "note-sticky": "notepad", camera: "screenshot", gear: "settings", keyboard: "keyboard", list: "list", "window-restore": "window", robot: "robot", bolt: "bolt", star: "star", circle: "bolt", layer: "list", "layer-group": "list", terminal: "keyboard", sliders: "settings", code: "bolt", "wand-magic-sparkles": "prompt" };
     function destroyFtbWorkbenchSortable() {
       try { ftbSortBar?.destroy(); } catch {}
@@ -602,16 +602,22 @@
     function collectFtbLayoutFromDom() {
       const rows = [];
       document.querySelectorAll("#cfg-ftb-bar .cfg-ftb-tile").forEach((el) => {
-        rows.push({ cmdId: el.dataset.cmdId, in_bar: true, in_context_menu: el.dataset.inMenu === "1" });
+        rows.push({ cmdId: el.dataset.cmdId, in_bar: true, in_context_menu: el.dataset.inMenu === "1", toolbarEligible: true });
       });
       document.querySelectorAll("#cfg-ftb-pool .cfg-ftb-tile").forEach((el) => {
-        rows.push({ cmdId: el.dataset.cmdId, in_bar: false, in_context_menu: el.dataset.inMenu === "1" });
+        rows.push({ cmdId: el.dataset.cmdId, in_bar: false, in_context_menu: el.dataset.inMenu === "1", toolbarEligible: true });
       });
       const seen = new Set(rows.map((r) => r.cmdId));
       (state.data.keybinderToolbarLayout || []).forEach((r) => {
         if (r && r.cmdId && !seen.has(r.cmdId)) {
           seen.add(r.cmdId);
-          rows.push({ cmdId: r.cmdId, in_bar: !!r.in_bar, in_context_menu: !!r.in_context_menu });
+          const te = r.toolbarEligible !== undefined && r.toolbarEligible !== null ? !!r.toolbarEligible : !!(r.in_bar || r.in_context_menu);
+          rows.push({
+            cmdId: r.cmdId,
+            in_bar: te ? !!r.in_bar : false,
+            in_context_menu: !!r.in_context_menu,
+            toolbarEligible: te,
+          });
         }
       });
       return rows;
@@ -665,6 +671,11 @@
       }
       return wrap;
     }
+    function rowToolbarEligible(row) {
+      if (!row) return false;
+      if (row.toolbarEligible !== undefined && row.toolbarEligible !== null) return !!row.toolbarEligible;
+      return !!(row.in_bar || row.in_context_menu);
+    }
     function mountFtbWorkbench() {
       const bar = document.getElementById("cfg-ftb-bar");
       const pool = document.getElementById("cfg-ftb-pool");
@@ -675,12 +686,12 @@
       pool.innerHTML = "";
       for (const row of layout) {
         const c = cmdMap[row.cmdId];
-        if (!c) continue;
+        if (!c || !rowToolbarEligible(row)) continue;
         if (row.in_bar) bar.appendChild(createFtbTileEl(row.cmdId, c, row, true));
       }
       for (const row of layout) {
         const c = cmdMap[row.cmdId];
-        if (!c) continue;
+        if (!c || !rowToolbarEligible(row)) continue;
         if (!row.in_bar) pool.appendChild(createFtbTileEl(row.cmdId, c, row, false));
       }
       if (typeof Sortable === "undefined") return;
@@ -1004,12 +1015,12 @@
   <div class="advanced-col-right">
     <div class="card ftb-workbench-card">
       <div class="title">悬浮工具栏 · 1:1 操作台</div>
-      <div class="ftb-pool-hint">数据来自 Commands.json 的 ToolbarLayout，与桌面悬浮条一致。条内按钮可左右拖动排序；拖入下方区域即从条上移除；从下方拖回条内即恢复显示。角标为「CapsLock+右键」动态菜单项开关。</div>
+      <div class="ftb-pool-hint">仅显示已在 VK KeyBinder 中勾选 Bar 的命令。条内可拖动排序；拖入下方备用池即从桌面悬浮条隐藏（仍在 KeyBinder 候选内）；拖回条内即恢复显示。角标为「CapsLock+右键」动态菜单项开关。</div>
       <div class="ftb-mock-strip" aria-label="模拟悬浮条">
         <div class="ftb-mock-logo" title="实际悬浮条左侧为牛标，此处仅占位对齐"></div>
         <div id="cfg-ftb-bar" class="ftb-mock-btns"></div>
       </div>
-      <div class="ftb-pool-hint">命令池（当前未在条上显示的命令）</div>
+      <div class="ftb-pool-hint">备用池（已勾选 Bar、当前未在条上的命令）</div>
       <div id="cfg-ftb-pool" class="ftb-mock-pool"></div>
     </div>
   </div>

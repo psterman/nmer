@@ -60,9 +60,9 @@ body.drawer-open #drawerRoot{display:flex!important}
 .btn1:disabled{opacity:.45;cursor:not-allowed}
 .btn2,.btn3{height:38px;padding:0 14px;border-radius:10px;border:1px solid rgba(255,102,0,.22);cursor:pointer;background:rgba(255,255,255,.04);color:var(--text)}
 #chatStatusRow{margin-top:8px}
-.logo-btn{flex-shrink:0;width:max(calc(42px * var(--ui)),34px);height:max(calc(42px * var(--ui)),34px);border:none;border-radius:calc(8px * var(--ui));background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:4px;transition:all var(--ease);color:#ff6600;outline:none;position:relative}
-.logo-btn:hover{filter:brightness(1.3);background:rgba(255,255,255,.06)}
-.logo-btn:focus-visible{background:rgba(255,255,255,.06);box-shadow:0 0 0 1px rgba(255,102,0,.45)}
+.logo-btn{flex-shrink:0;width:max(calc(42px * var(--ui)),34px);height:max(calc(42px * var(--ui)),34px);border:1px solid transparent;border-radius:calc(8px * var(--ui));background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:4px;transition:background-color var(--ease),border-color var(--ease),transform var(--ease),color var(--ease);color:#ff6600;outline:none;position:relative}
+.logo-btn:hover{background:rgba(255,102,0,.1);border-color:rgba(255,102,0,.32)}
+.logo-btn:focus-visible{background:rgba(255,102,0,.12);border-color:rgba(255,102,0,.5);box-shadow:none}
 .logo-img{width:max(calc(30px * var(--ui)),28px);height:max(calc(30px * var(--ui)),28px);min-width:28px;min-height:28px;object-fit:contain;pointer-events:none;transform-origin:center;transition:transform .24s cubic-bezier(.22,1,.36,1),width .24s cubic-bezier(.22,1,.36,1),height .24s cubic-bezier(.22,1,.36,1)}
 .icon-btns{display:flex;flex-direction:row;align-items:center;gap:calc(5px * var(--ui));flex:1;min-width:0;flex-wrap:nowrap;overflow-x:auto;transition:max-width .24s cubic-bezier(.22,1,.36,1),opacity .2s ease,transform .24s cubic-bezier(.22,1,.36,1)}
 .icon-btns::-webkit-scrollbar{height:4px}
@@ -72,17 +72,17 @@ body.ftb-compact #collapsedRoot::after{opacity:0!important;animation:none!import
 body.ftb-compact #collapsedRoot .logo-btn{width:100%;height:100%;padding:0;border-radius:999px;background:transparent;box-shadow:none;filter:none}
 body.ftb-compact #collapsedRoot .logo-btn:hover{filter:none;background:transparent}
 body.ftb-compact #collapsedRoot .logo-btn .logo-img{transform:scale(1.02)}
-.tb{width:calc(40px * var(--ui));height:calc(40px * var(--ui));display:flex;align-items:center;justify-content:center;border-radius:calc(8px * var(--ui));cursor:pointer;position:relative;transition:all var(--ease);color:#ff6600;background:transparent;flex-shrink:0}
+.tb{width:calc(40px * var(--ui));height:calc(40px * var(--ui));display:flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:calc(8px * var(--ui));cursor:pointer;position:relative;transition:background-color var(--ease),border-color var(--ease),transform var(--ease),color var(--ease);color:#ff6600;background:transparent;flex-shrink:0}
 .tb svg{width:calc(24px * var(--ui));height:calc(24px * var(--ui));pointer-events:none}
 .tb .tb-ico{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--orange)}
 .tb .tb-ico svg{stroke:currentColor}
 button.tb{font:inherit;font-family:inherit}
-.tb:hover{filter:brightness(1.3);background:rgba(255,255,255,.06)}
+.tb:hover{background:rgba(255,102,0,.1);border-color:rgba(255,102,0,.28)}
 .tb .dot{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--orange);opacity:0}
 .tb.selected .dot{opacity:1}
-.tb[data-action=Search].pulse{animation:breathe 1.6s ease-in-out infinite;box-shadow:0 0 12px rgba(255,102,0,.4)}
+.tb[data-action=Search].pulse{animation:breathe 1.6s ease-in-out infinite}
 .tb[data-action=Search].drag-over{transform:scale(.9)}
-.tb.drag-over{transform:scale(.92);background:rgba(255,102,0,.12);box-shadow:0 0 0 1px rgba(255,102,0,.35)}
+.tb.drag-over{transform:scale(.92);background:rgba(255,102,0,.14);border-color:rgba(255,102,0,.42)}
 .tb[data-action=Search].loading svg{animation:spin .7s linear infinite}
 .bubble{position:absolute;left:50%;bottom:calc(100% + 5px);transform:translateX(-50%);padding:2px 7px;font-size:10px;font-weight:600;color:#00ff41;background:rgba(10,10,10,.92);border:1px solid rgba(0,255,65,.4);border-radius:5px;white-space:nowrap;opacity:0;pointer-events:none}
 .tb[data-action=Search].pulse .bubble{opacity:1}
@@ -388,8 +388,9 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   var TOOLBAR_CMD_TO_KEY = {
     sc_activate_search: 'search',
     qa_clipboard: 'clipboard',
+    hub_capsule: 'notepad',
     ch_b: 'prompt',
-    pqp_capture: 'screenshot',
+    pqp_capture: 'bolt',
     ch_t: 'screenshot',
     qa_config: 'settings',
     sys_show_vk: 'keyboard',
@@ -454,7 +455,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
         ic = 'fa-solid ' + ic;
       var bucket = 'Search';
       if (cid === 'sc_activate_search') bucket = 'Search';
-      else if (cid === 'qa_clipboard' || cid === 'ch_b' || cid === 'pqp_capture') bucket = 'Prompt';
+      else if (cid === 'qa_clipboard' || cid === 'ch_b' || cid === 'pqp_capture' || cid === 'hub_capsule') bucket = 'Prompt';
       var sd = bucket === 'Search' ? ' data-search-drop="1"' : '';
       html +=
         '<button type="button" class="tb" title="' +

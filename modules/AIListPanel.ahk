@@ -2799,7 +2799,13 @@ PromptQuickPad_QuickCapture(*) {
         A_Clipboard := ""
         SendInput("^c")
         if !ClipWait(1.5) {
-            TrayTip("未获取到选中文本", "Prompt Quick-Pad", "Iconi 1")
+            ; HandleCapsLockB 在无选区时不会打开面板；直接打开收录区供手动粘贴。
+            try PromptQuickPad_OpenCaptureDraft("", true)
+            catch as err
+                try TrayTip("打开 Prompt Quick-Pad 失败：`n" . err.Message, "Prompt Quick-Pad", "Iconx 2")
+                catch as _e {
+                }
+            TrayTip("未获取到选中文本，已打开收录区，可手动粘贴。", "Prompt Quick-Pad", "Iconi 1")
             return
         }
         PromptQuickPad_OpenCaptureDraft(A_Clipboard, true)

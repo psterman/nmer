@@ -580,6 +580,15 @@ VK_ExecCursorHelperCmd(cmdId) {
             case "qa_cursor_settings":
                 ExecuteQuickActionByType("CursorSettings")
                 executed := true
+            case "hub_capsule":
+                try {
+                    SelectionSense_OpenHubCapsuleFromToolbar()
+                } catch as err {
+                    try TrayTip("无法打开 HubCapsule：`n" . err.Message, "HubCapsule", "Iconx 2")
+                    catch as _e {
+                    }
+                }
+                executed := true
             case "pqp_capture":
                 PromptQuickPad_QuickCapture()
                 executed := true

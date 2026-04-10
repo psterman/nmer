@@ -1307,6 +1307,8 @@ FloatingToolbarPushCmdLayoutToWeb() {
             continue
         if !row.Has("in_bar") || !row["in_bar"]
             continue
+        if row.Has("toolbarEligible") && !row["toolbarEligible"]
+            continue
         cid := Trim(String(row["cmdId"]))
         if (cid = "" || !cmdList.Has(cid))
             continue
