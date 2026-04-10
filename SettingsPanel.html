@@ -259,6 +259,59 @@
       .prompt-grid { grid-template-columns: 1fr; }
     }
     .hint { display: none !important; }
+    .apple-toolbar-wrap { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    .apple-group {
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+      padding: 14px;
+    }
+    .apple-group-title {
+      font-size: 13px;
+      color: #dce5ee;
+      font-weight: 700;
+      margin-bottom: 10px;
+      letter-spacing: .2px;
+    }
+    .apple-list {
+      width: 100%;
+      min-height: 270px;
+      padding: 8px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(10,12,15,.6);
+      color: var(--text);
+      outline: none;
+      font-size: 13px;
+    }
+    .apple-list:focus { border-color: rgba(255,179,71,.7); box-shadow: 0 0 0 2px rgba(255,179,71,.15); }
+    .apple-controls {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: 1fr auto auto auto auto;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .apple-controls select { min-width: 260px; }
+    .apple-mini-btn {
+      min-width: 56px;
+      height: 38px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.03);
+      color: #eaf0f6;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .apple-mini-btn:hover {
+      border-color: rgba(255,179,71,.6);
+      background: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.1));
+    }
+    @media (max-width: 1180px) {
+      .apple-controls { grid-template-columns: 1fr 1fr; }
+      .apple-controls select { min-width: 0; }
+    }
   </style>
   <script src="https://app.local/assets/js/BasePanel.js"></script>
 </head>
@@ -669,7 +722,7 @@
           .map(id => `<option value="${esc(id)}">${esc(tbMenuMap[id] || id)}</option>`).join("");
         const tbBtnAdd = tbBtnOpts.map(o => `<option value="${esc(o.id)}">${esc(o.name || o.id)}</option>`).join("");
         const tbMenuAdd = tbMenuOpts.map(o => `<option value="${esc(o.id)}">${esc(o.name || o.id)}</option>`).join("");
-        panel.innerHTML = `<div class="card"><div class="title">高级设置</div><div class="row"><div class="label">界面语言</div><select id="language">${optionsKV([{value:"zh",label:"中文"},{value:"en",label:"英文"}],d.language)}</select></div><div class="row"><div class="label">AI 等待时间 (秒)</div><input id="aiSleepTimeSeconds" type="number" min="0.05" max="10" step="0.05" value="${esc((Number(d.aiSleepTime || 200) / 1000).toFixed(2).replace(/\.?0+$/,""))}"></div><div class="row"><div class="label">启动延迟 (秒)</div><input id="launchDelaySeconds" type="number" min="0.5" max="10" step="0.1" value="${esc(d.launchDelaySeconds)}"></div></div><div class="card"><div class="title">悬浮工具栏</div><div class="grid2"><div><div class="label">显示图标（顺序即布局）</div><select id="toolbarButtonsList" multiple size="9">${tbBtnList}</select><div class="inline" style="margin-top:8px;"><select id="toolbarButtonAddSelect">${tbBtnAdd}</select><button class="btn" id="btnToolbarButtonAdd">添加</button><button class="btn" id="btnToolbarButtonDel">删除</button><button class="btn" id="btnToolbarButtonUp">上移</button><button class="btn" id="btnToolbarButtonDown">下移</button></div></div><div><div class="label">右键菜单项（顺序即布局）</div><select id="toolbarMenusList" multiple size="9">${tbMenuList}</select><div class="inline" style="margin-top:8px;"><select id="toolbarMenuAddSelect">${tbMenuAdd}</select><button class="btn" id="btnToolbarMenuAdd">添加</button><button class="btn" id="btnToolbarMenuDel">删除</button><button class="btn" id="btnToolbarMenuUp">上移</button><button class="btn" id="btnToolbarMenuDown">下移</button></div></div></div></div><div class="card"><div class="title">配置管理</div><div class="inline"><button class="btn" id="btnExportCfg">导出配置</button><button class="btn" id="btnImportCfg">导入配置</button><button class="btn" id="btnResetCfg">重置默认</button></div></div>`;
+        panel.innerHTML = `<div class="card"><div class="title">高级设置</div><div class="row"><div class="label">界面语言</div><select id="language">${optionsKV([{value:"zh",label:"中文"},{value:"en",label:"英文"}],d.language)}</select></div><div class="row"><div class="label">AI 等待时间 (秒)</div><input id="aiSleepTimeSeconds" type="number" min="0.05" max="10" step="0.05" value="${esc((Number(d.aiSleepTime || 200) / 1000).toFixed(2).replace(/\.?0+$/,""))}"></div><div class="row"><div class="label">启动延迟 (秒)</div><input id="launchDelaySeconds" type="number" min="0.5" max="10" step="0.1" value="${esc(d.launchDelaySeconds)}"></div></div><div class="card"><div class="title">悬浮工具栏</div><div class="apple-toolbar-wrap"><div class="apple-group"><div class="apple-group-title">显示图标（顺序即布局）</div><select class="apple-list" id="toolbarButtonsList" multiple size="12">${tbBtnList}</select><div class="apple-controls"><select id="toolbarButtonAddSelect">${tbBtnAdd}</select><button class="apple-mini-btn" id="btnToolbarButtonAdd">添加</button><button class="apple-mini-btn" id="btnToolbarButtonDel">删除</button><button class="apple-mini-btn" id="btnToolbarButtonUp">上移</button><button class="apple-mini-btn" id="btnToolbarButtonDown">下移</button></div></div><div class="apple-group"><div class="apple-group-title">右键菜单项（顺序即布局）</div><select class="apple-list" id="toolbarMenusList" multiple size="12">${tbMenuList}</select><div class="apple-controls"><select id="toolbarMenuAddSelect">${tbMenuAdd}</select><button class="apple-mini-btn" id="btnToolbarMenuAdd">添加</button><button class="apple-mini-btn" id="btnToolbarMenuDel">删除</button><button class="apple-mini-btn" id="btnToolbarMenuUp">上移</button><button class="apple-mini-btn" id="btnToolbarMenuDown">下移</button></div></div></div></div><div class="card"><div class="title">配置管理</div><div class="inline"><button class="btn" id="btnExportCfg">导出配置</button><button class="btn" id="btnImportCfg">导入配置</button><button class="btn" id="btnResetCfg">重置默认</button></div></div>`;
         const moveSel = (listId, dir) => {
           const list = document.getElementById(listId); if (!list) return;
           const i = list.selectedIndex; if (i < 0) return;
