@@ -4394,9 +4394,9 @@ FTB_SanitizeToolbarMenuItems(itemsOrCsv) {
 }
 
 ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
-    global FloatingToolbarIsVisible, FloatingToolbarMenuItems, g_Commands
+    global g_Commands
 
-    MenuWidth := 200
+    MenuWidth := 280
     MenuItemHeight := 35
     Padding := 10
     MenuItems := []
@@ -4404,14 +4404,40 @@ ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
     try {
         if (IsSet(g_Commands) && g_Commands is Map && g_Commands.Has("ToolbarLayout") && g_Commands["ToolbarLayout"] is Array
             && g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map) {
+            orderedCids := []
+            seen := Map()
+            if (g_Commands.Has("ContextMenuLayout") && g_Commands["ContextMenuLayout"] is Array) {
+                for item in g_Commands["ContextMenuLayout"] {
+                    cid := Trim(String(item))
+                    if (cid = "" || seen.Has(cid))
+                        continue
+                    inMenu := false
+                    for row in g_Commands["ToolbarLayout"] {
+                        if !(row is Map) || !row.Has("cmdId")
+                            continue
+                        if Trim(String(row["cmdId"])) != cid
+                            continue
+                        inMenu := row.Has("in_context_menu") && row["in_context_menu"]
+                        break
+                    }
+                    if (inMenu && g_Commands["CommandList"].Has(cid)) {
+                        orderedCids.Push(cid)
+                        seen[cid] := true
+                    }
+                }
+            }
             for row in g_Commands["ToolbarLayout"] {
                 if !(row is Map) || !row.Has("cmdId")
                     continue
                 if !row.Has("in_context_menu") || !row["in_context_menu"]
                     continue
                 cid := Trim(String(row["cmdId"]))
-                if (cid = "" || !g_Commands["CommandList"].Has(cid))
+                if (cid = "" || seen.Has(cid) || !g_Commands["CommandList"].Has(cid))
                     continue
+                orderedCids.Push(cid)
+                seen[cid] := true
+            }
+            for cid in orderedCids {
                 nm := g_Commands["CommandList"][cid]["name"]
                 if (nm = "")
                     nm := cid
@@ -4421,27 +4447,8 @@ ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
     } catch {
     }
 
-    FloatingToolbarMenuItems := FTB_SanitizeToolbarMenuItems(FloatingToolbarMenuItems)
-
-    menuDef := Map(
-        "ToggleToolbar", {Text: FloatingToolbarIsVisible ? "隐藏工具栏" : "显示工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"},
-        "MinimizeToEdge", {Text: "最小化到边缘", Action: MinimizeFloatingToolbarToEdge, Icon: "⊏"},
-        "ResetScale", {Text: "重置大小", Action: FloatingToolbarResetScale, Icon: "⤢"},
-        "SearchCenter", {Text: "搜索中心", Action: ShowSearchCenterFromMenu, Icon: "●"},
-        "Clipboard", {Text: "剪贴板", Action: ShowClipboardFromMenu, Icon: "▤"},
-        "OpenConfig", {Text: GetText("open_config_menu"), Action: ShowConfigFromMenu, Icon: "⚙"},
-        "HideToolbar", {Text: "关闭工具栏", Action: HideFloatingToolbarFromPopupMenu, Icon: "◼"},
-        "ReloadScript", {Text: "重启脚本", Action: ReloadScriptFromPopupMenu, Icon: "↻"},
-        "ExitApp", {Text: GetText("exit_menu"), Action: ExitFromMenu, Icon: "✕"}
-    )
-
-    fixedStart := MenuItems.Length
-    for id in FloatingToolbarMenuItems {
-        if (menuDef.Has(id))
-            MenuItems.Push(menuDef[id])
-    }
-    if (MenuItems.Length = fixedStart)
-        MenuItems.Push(menuDef["ToggleToolbar"])
+    if (MenuItems.Length = 0)
+        MenuItems.Push({ Text: "（右键菜单暂无命令）", Icon: "·", Action: (*) => 0 })
 
     MenuHeight := MenuItems.Length * MenuItemHeight + Padding * 2
     posX := anchorX - (MenuWidth // 2)
@@ -17203,11 +17210,18 @@ ConfigWebView_GetKeybinderToolbarSnapshot() {
             if (SubStr(cid, 1, 3) = "pt_")
                 continue
             nm := (ent is Map && ent.Has("name")) ? String(ent["name"]) : cid
+            desc := (ent is Map && ent.Has("desc")) ? String(ent["desc"]) : ""
+            fn := (ent is Map && ent.Has("fn")) ? String(ent["fn"]) : ""
             ic := (ent is Map && ent.Has("iconClass")) ? String(ent["iconClass"]) : ""
-            cmds.Push(Map("id", cid, "name", nm, "iconClass", ic))
+            cmds.Push(Map("id", cid, "name", nm, "desc", desc, "fn", fn, "iconClass", ic))
         }
     }
-    return Map("toolbarLayout", tl, "commands", cmds)
+    cml := []
+    if (g_Commands.Has("ContextMenuLayout") && g_Commands["ContextMenuLayout"] is Array) {
+        for item in g_Commands["ContextMenuLayout"]
+            cml.Push(String(item))
+    }
+    return Map("toolbarLayout", tl, "commands", cmds, "contextMenuLayout", cml)
 }
 
 ConfigWebView_BuildInitData() {
@@ -17341,6 +17355,7 @@ ConfigWebView_BuildInitData() {
     kbSnap := ConfigWebView_GetKeybinderToolbarSnapshot()
     cfgPayload["keybinderToolbarLayout"] := kbSnap["toolbarLayout"]
     cfgPayload["keybinderCommands"] := kbSnap["commands"]
+    cfgPayload["keybinderContextMenuLayout"] := kbSnap.Has("contextMenuLayout") ? kbSnap["contextMenuLayout"] : []
     return cfgPayload
 }
 
@@ -17407,7 +17422,8 @@ ConfigWebView_BuildInitDataSafe() {
                 Map("id","ExitApp","name","退出程序")
             ],
             "keybinderToolbarLayout", [],
-            "keybinderCommands", []
+            "keybinderCommands", [],
+            "keybinderContextMenuLayout", []
         )
     }
 }
@@ -17715,6 +17731,7 @@ ConfigWebView_OnMessage(sender, args) {
             ConfigWebView_Send(Map("type", "saveResult", "ok", ok, "error", err))
         case "saveKeybinderToolbarLayout":
             tl := msg.Has("toolbarLayout") && msg["toolbarLayout"] is Array ? msg["toolbarLayout"] : []
+            cml := msg.Has("contextMenuLayout") && msg["contextMenuLayout"] is Array ? msg["contextMenuLayout"] : []
             ok := false
             err := ""
             try {
@@ -17723,6 +17740,15 @@ ConfigWebView_OnMessage(sender, args) {
                 } catch {
                 }
                 if _VK_ApplyToolbarLayoutFromWeb(Map("toolbarLayout", tl)) {
+                    _VK_ApplyContextMenuLayoutFromWeb(cml)
+                    if (msg.Has("floatingToolbarMenuItems") && msg["floatingToolbarMenuItems"] is Array) {
+                        global FloatingToolbarMenuItems, ConfigFile
+                        FloatingToolbarMenuItems := FTB_SanitizeToolbarMenuItems(msg["floatingToolbarMenuItems"])
+                        try IniWrite(FTB_ItemsToCsv(FloatingToolbarMenuItems), ConfigFile, "Settings", "FloatingToolbarMenuItems")
+                        catch as ie {
+                            OutputDebug("[ConfigWebView] IniWrite FloatingToolbarMenuItems: " . ie.Message)
+                        }
+                    }
                     _SaveBindings()
                     try FloatingToolbarReloadFromToolbarLayout()
                     catch as e

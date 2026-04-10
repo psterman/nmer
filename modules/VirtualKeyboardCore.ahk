@@ -334,6 +334,17 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "win_close", "name", "关闭窗口", "desc", "关闭当前活动窗口", "fn", "WIN_CLOSE"),
             Map("id", "qa_config", "name", "快捷动作 / 设置", "desc", "执行 Quick Action: Config", "fn", "CH_RUN")
         ]),
+        Map("id", "floating_toolbar_menu", "name", "🧩 悬浮工具栏菜单", "commands", [
+            Map("id", "ftm_reset_scale", "name", "重置大小", "desc", "右键菜单：重置悬浮工具栏缩放", "fn", "CH_RUN"),
+            Map("id", "ftm_search_center", "name", "搜索中心", "desc", "右键菜单：打开搜索中心", "fn", "CH_RUN"),
+            Map("id", "ftm_clipboard", "name", "剪贴板", "desc", "右键菜单：打开剪贴板", "fn", "CH_RUN"),
+            Map("id", "ftm_minimize_to_edge", "name", "最小化到边缘", "desc", "右键菜单：将悬浮工具栏吸附到边缘", "fn", "CH_RUN"),
+            Map("id", "ftm_exit_app", "name", "退出程序", "desc", "右键菜单：退出整个程序", "fn", "CH_RUN"),
+            Map("id", "ftm_hide_toolbar", "name", "关闭工具栏", "desc", "右键菜单：隐藏悬浮工具栏", "fn", "CH_RUN"),
+            Map("id", "ftm_open_config", "name", "打开设置", "desc", "右键菜单：打开设置面板", "fn", "CH_RUN"),
+            Map("id", "ftm_toggle_toolbar", "name", "显示/隐藏工具栏", "desc", "右键菜单：切换工具栏可见性", "fn", "CH_RUN"),
+            Map("id", "ftm_reload_script", "name", "重启脚本", "desc", "右键菜单：重载脚本", "fn", "CH_RUN")
+        ]),
         Map("id", "cursor", "name", "🧭 Cursor", "commands", [
             Map("id", "qa_global_search", "name", "全局搜索", "desc", "Cursor: Ctrl+Shift+F", "fn", "CH_RUN"),
             Map("id", "qa_browser", "name", "简单浏览器", "desc", "Cursor: Ctrl+Shift+B", "fn", "CH_RUN"),
@@ -425,6 +436,7 @@ _LoadCommands() {
     _VK_RebuildEffectiveBindings()
     _VK_EnsureDashboardStorage()
     _VK_EnsureToolbarLayout()
+    _VK_EnsureContextMenuLayout()
     _VK_SyncFloatPinnedFromStorage()
     _VK_RenderGlobalFloatPanel()
     if g_VK_Embedded
@@ -923,13 +935,25 @@ _VK_EnsureToolbarLayout() {
     }
 
     ; 补全 CommandList 中尚未出现的命令（默认不参与工具栏/高级操作台，直至在 KeyBinder 勾选 Bar）
+    menuDefaults := Map(
+        "ftm_reset_scale", true,
+        "ftm_search_center", true,
+        "ftm_clipboard", true,
+        "ftm_minimize_to_edge", true,
+        "ftm_exit_app", true,
+        "ftm_hide_toolbar", true,
+        "ftm_open_config", true,
+        "ftm_toggle_toolbar", true,
+        "ftm_reload_script", true
+    )
     for cmdId, _ in cmdList {
         if (SubStr(cmdId, 1, 3) = "pt_")
             continue
         if seen.Has(cmdId)
             continue
         seen[cmdId] := true
-        out.Push(Map("cmdId", cmdId, "in_bar", false, "in_context_menu", false, "toolbarEligible", false))
+        isMenuDefault := menuDefaults.Has(cmdId)
+        out.Push(Map("cmdId", cmdId, "in_bar", false, "in_context_menu", isMenuDefault, "toolbarEligible", isMenuDefault))
     }
 
     g_Commands["ToolbarLayout"] := out
@@ -1154,13 +1178,111 @@ _SerializeCommands() {
     dashCfgJson := _VK_DashboardConfigJson()
     dashPinnedJson := _VK_DashboardPinnedJson()
     tlJson := _VK_ToolbarLayoutToJson()
+    cmJson := _VK_ContextMenuLayoutToJson()
 
     return '{"Categories":' . catJson . ',"CommandList":' . clJson . ',"Bindings":' . bJson
         . ',"SuggestedBindings":' . sbJson
         . ',"DashboardLayout":' . dashLayoutJson
         . ',"DashboardConfig":' . dashCfgJson
         . ',"DashboardPinned":' . dashPinnedJson
-        . ',"ToolbarLayout":' . tlJson . '}'
+        . ',"ToolbarLayout":' . tlJson . ',"ContextMenuLayout":' . cmJson . '}'
+}
+
+_VK_ContextMenuLayoutToJson() {
+    global g_Commands
+    if !(g_Commands is Map) || !g_Commands.Has("ContextMenuLayout") || !(g_Commands["ContextMenuLayout"] is Array)
+        return "[]"
+    json := "["
+    sep := ""
+    for item in g_Commands["ContextMenuLayout"] {
+        cid := Trim(String(item))
+        if (cid = "")
+            continue
+        json .= sep . _JsonStr(cid)
+        sep := ","
+    }
+    json .= "]"
+    return json
+}
+
+_VK_EnsureContextMenuLayout() {
+    global g_Commands
+    if !(g_Commands is Map) || !g_Commands.Has("ToolbarLayout") || !(g_Commands["ToolbarLayout"] is Array)
+        return
+    cmdList := (g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map) ? g_Commands["CommandList"] : Map()
+    raw := unset
+    if g_Commands.Has("ContextMenuLayout") && g_Commands["ContextMenuLayout"] is Array && g_Commands["ContextMenuLayout"].Length > 0
+        raw := g_Commands["ContextMenuLayout"]
+    if !IsSet(raw) {
+        out := []
+        seen := Map()
+        for row in g_Commands["ToolbarLayout"] {
+            if !(row is Map) || !row.Has("cmdId")
+                continue
+            if !row.Has("in_context_menu") || !row["in_context_menu"]
+                continue
+            cid := Trim(String(row["cmdId"]))
+            if (cid = "" || seen.Has(cid) || !cmdList.Has(cid))
+                continue
+            ent := cmdList[cid]
+            if !(ent is Map) || !ent.Has("fn") || ent["fn"] != "CH_RUN"
+                continue
+            seen[cid] := true
+            out.Push(cid)
+        }
+        g_Commands["ContextMenuLayout"] := out
+        return
+    }
+    seen := Map()
+    out := []
+    for item in raw {
+        cid := Trim(String(item))
+        if (cid = "" || seen.Has(cid) || !cmdList.Has(cid))
+            continue
+        ent := cmdList[cid]
+        if !(ent is Map) || !ent.Has("fn") || ent["fn"] != "CH_RUN"
+            continue
+        seen[cid] := true
+        out.Push(cid)
+    }
+    for row in g_Commands["ToolbarLayout"] {
+        if !(row is Map) || !row.Has("cmdId")
+            continue
+        if !row.Has("in_context_menu") || !row["in_context_menu"]
+            continue
+        cid := Trim(String(row["cmdId"]))
+        if (cid = "" || seen.Has(cid) || !cmdList.Has(cid))
+            continue
+        ent := cmdList[cid]
+        if !(ent is Map) || !ent.Has("fn") || ent["fn"] != "CH_RUN"
+            continue
+        seen[cid] := true
+        out.Push(cid)
+    }
+    g_Commands["ContextMenuLayout"] := out
+}
+
+_VK_ApplyContextMenuLayoutFromWeb(arr) {
+    global g_Commands
+    if !(g_Commands is Map) || !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+        return false
+    if !(arr is Array)
+        return false
+    cmdList := g_Commands["CommandList"]
+    seen := Map()
+    out := []
+    for item in arr {
+        cid := Trim(String(item))
+        if (cid = "" || seen.Has(cid) || !cmdList.Has(cid))
+            continue
+        ent := cmdList[cid]
+        if !(ent is Map) || !ent.Has("fn") || ent["fn"] != "CH_RUN"
+            continue
+        seen[cid] := true
+        out.Push(cid)
+    }
+    g_Commands["ContextMenuLayout"] := out
+    return true
 }
 
 _JsonStr(s) {

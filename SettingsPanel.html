@@ -314,12 +314,18 @@
     }
     .advanced-split {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(300px, 440px);
+      grid-template-columns: 1fr;
       gap: 14px;
       align-items: start;
     }
-    @media (max-width: 1100px) {
-      .advanced-split { grid-template-columns: 1fr; }
+    .advanced-workbench-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+    @media (max-width: 1200px) {
+      .advanced-workbench-row { grid-template-columns: 1fr; }
     }
     .ftb-workbench-card .ftb-pool-hint {
       font-size: 11px;
@@ -437,6 +443,82 @@
     .cfg-ftb-menu svg { width: 11px; height: 11px; stroke: currentColor; fill: none; }
     .sortable-ghost { opacity: 0.45; }
     .sortable-drag { cursor: grabbing !important; box-shadow: 0 0 12px rgba(255, 102, 0, 0.35); }
+    .menu-workbench-card .cfg-menu-mock-popup {
+      max-height: 360px;
+      overflow-y: auto;
+      padding: 10px 10px 6px;
+      border-radius: 10px;
+      background: #0a0a0a;
+      border: 1px solid rgba(255, 102, 0, 0.28);
+    }
+    .cfg-menu-section-hint {
+      font-size: 10px;
+      color: var(--text-xs);
+      margin: 10px 0 6px;
+      letter-spacing: 0.03em;
+    }
+    .cfg-menu-section-hint:first-child { margin-top: 0; }
+    .cfg-menu-list { min-height: 40px; margin-bottom: 4px; }
+    .cfg-menu-pool {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 220px;
+      overflow-y: auto;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px dashed rgba(255, 102, 0, 0.28);
+      background: rgba(14, 14, 14, 0.95);
+    }
+    .shared-pool-card .pool-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+    }
+    @media (max-width: 1200px) {
+      .shared-pool-card .pool-grid { grid-template-columns: 1fr; }
+    }
+    .cfg-menu-tile {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: grab;
+      border: 1px solid rgba(255, 102, 0, 0.22);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text);
+    }
+    .cfg-menu-tile-cmd .cfg-menu-ico {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 2px;
+    }
+    .cfg-menu-tile-cmd .cfg-menu-ico svg { width: 20px; height: 20px; stroke: #ff6600; fill: none; }
+    .cfg-menu-text { min-width: 0; flex: 1; }
+    .cfg-menu-line1 {
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .cfg-menu-line2 {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--text-xs);
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .cfg-menu-tile-fixed .cfg-menu-fixed-badge { flex-shrink: 0; font-size: 13px; opacity: 0.65; margin-top: 1px; }
+    .cfg-menu-tile-fixed .cfg-menu-line1 { font-weight: 500; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <script src="https://app.local/assets/js/BasePanel.js"></script>
@@ -536,12 +618,17 @@
         floatingToolbarButtonOptions: [...TOOLBAR_BUTTON_OPTIONS],
         floatingToolbarMenuOptions: [...TOOLBAR_MENU_OPTIONS],
         keybinderToolbarLayout: [],
-        keybinderCommands: []
+        keybinderCommands: [],
+        keybinderContextMenuLayout: []
       }
     };
     let ftbSortBar = null;
     let ftbSortPool = null;
     let ftbSaveTimer = 0;
+    let menuSortBarCmds = null;
+    let menuSortPoolCmds = null;
+    let menuSortBarFixed = null;
+    let menuSortPoolFixed = null;
     const FTB_SVG = {
       search: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>',
       prompt: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 3c4.97 0 9 3.58 9 8 0 1.8-.67 3.47-1.8 4.82L20 21l-5.02-1.67A10.53 10.53 0 0 1 12 20c-4.97 0-9-3.58-9-8s4.03-9 9-9Z"/></svg>',
@@ -563,6 +650,13 @@
       try { ftbSortBar?.destroy(); } catch {}
       try { ftbSortPool?.destroy(); } catch {}
       ftbSortBar = ftbSortPool = null;
+    }
+    function destroyMenuWorkbenchSortable() {
+      try { menuSortBarCmds?.destroy(); } catch {}
+      try { menuSortPoolCmds?.destroy(); } catch {}
+      try { menuSortBarFixed?.destroy(); } catch {}
+      try { menuSortPoolFixed?.destroy(); } catch {}
+      menuSortBarCmds = menuSortPoolCmds = menuSortBarFixed = menuSortPoolFixed = null;
     }
     function buildKeybinderCommandMap() {
       const m = {};
@@ -599,15 +693,24 @@
       }
       return FTB_SVG[key] || FTB_SVG.bolt;
     }
-    function collectFtbLayoutFromDom() {
+    function collectToolbarLayoutFromFtbDom() {
+      if (!document.getElementById("cfg-ftb-bar")) {
+        try {
+          return JSON.parse(JSON.stringify(state.data.keybinderToolbarLayout || []));
+        } catch {
+          return [...(state.data.keybinderToolbarLayout || [])];
+        }
+      }
       const rows = [];
+      const seen = new Set();
       document.querySelectorAll("#cfg-ftb-bar .cfg-ftb-tile").forEach((el) => {
-        rows.push({ cmdId: el.dataset.cmdId, in_bar: true, in_context_menu: el.dataset.inMenu === "1", toolbarEligible: true });
+        rows.push({ cmdId: el.dataset.cmdId, in_bar: true, in_context_menu: false, toolbarEligible: true });
+        seen.add(el.dataset.cmdId);
       });
-      document.querySelectorAll("#cfg-ftb-pool .cfg-ftb-tile").forEach((el) => {
-        rows.push({ cmdId: el.dataset.cmdId, in_bar: false, in_context_menu: el.dataset.inMenu === "1", toolbarEligible: true });
+      document.querySelectorAll("#cfg-shared-pool-ftb .cfg-ftb-tile").forEach((el) => {
+        rows.push({ cmdId: el.dataset.cmdId, in_bar: false, in_context_menu: false, toolbarEligible: true });
+        seen.add(el.dataset.cmdId);
       });
-      const seen = new Set(rows.map((r) => r.cmdId));
       (state.data.keybinderToolbarLayout || []).forEach((r) => {
         if (r && r.cmdId && !seen.has(r.cmdId)) {
           seen.add(r.cmdId);
@@ -615,21 +718,52 @@
           rows.push({
             cmdId: r.cmdId,
             in_bar: te ? !!r.in_bar : false,
-            in_context_menu: !!r.in_context_menu,
+            in_context_menu: false,
             toolbarEligible: te,
           });
         }
       });
       return rows;
     }
-    function scheduleFtbToolbarSave() {
+    function mergeContextMenuFromMenuDom(rows) {
+      const active = new Set([...document.querySelectorAll("#cfg-menu-bar-cmds .cfg-menu-tile")].map((el) => el.dataset.id));
+      const cmdMap = buildKeybinderCommandMap();
+      rows.forEach((row) => {
+        const c = cmdMap[row.cmdId];
+        row.in_context_menu = !!(c && c.fn === "CH_RUN" && active.has(row.cmdId));
+      });
+    }
+    function collectKeybinderWorkbenchPayload() {
+      if (!document.getElementById("cfg-menu-bar-cmds")) {
+        let tl;
+        try {
+          tl = JSON.parse(JSON.stringify(state.data.keybinderToolbarLayout || []));
+        } catch {
+          tl = [...(state.data.keybinderToolbarLayout || [])];
+        }
+        return {
+          toolbarLayout: tl,
+          contextMenuLayout: [...(state.data.keybinderContextMenuLayout || [])],
+        };
+      }
+      const toolbarLayout = collectToolbarLayoutFromFtbDom();
+      mergeContextMenuFromMenuDom(toolbarLayout);
+      const contextMenuLayout = [...document.querySelectorAll("#cfg-menu-bar-cmds .cfg-menu-tile")].map((el) => el.dataset.id);
+      return { toolbarLayout, contextMenuLayout };
+    }
+    function scheduleKeybinderUnifiedSave() {
       if (ftbSaveTimer) clearTimeout(ftbSaveTimer);
       ftbSaveTimer = setTimeout(() => {
         ftbSaveTimer = 0;
-        const layout = collectFtbLayoutFromDom();
-        state.data.keybinderToolbarLayout = layout;
-        post({ type: "saveKeybinderToolbarLayout", toolbarLayout: layout });
-      }, 300);
+        const payload = collectKeybinderWorkbenchPayload();
+        state.data.keybinderToolbarLayout = payload.toolbarLayout;
+        state.data.keybinderContextMenuLayout = payload.contextMenuLayout;
+        post({
+          type: "saveKeybinderToolbarLayout",
+          toolbarLayout: payload.toolbarLayout,
+          contextMenuLayout: payload.contextMenuLayout,
+        });
+      }, 320);
     }
     function createFtbTileEl(cmdId, cmd, row, compact) {
       const icRaw = (cmd && cmd.iconClass) ? String(cmd.iconClass).trim() : "";
@@ -639,37 +773,85 @@
         else if (/^fa-[a-z0-9-]+$/i.test(icRaw)) iconFull = `fa-solid ${icRaw}`;
         else iconFull = `fa-solid ${cfgInferIconClass(cmd || { id: cmdId })}`;
       } else iconFull = `fa-solid ${cfgInferIconClass(cmd || { id: cmdId })}`;
-      const inMenu = !!(row && row.in_context_menu);
       const wrap = document.createElement("div");
       wrap.className = "cfg-ftb-tile" + (compact ? " cfg-ftb-tile-compact" : "");
       wrap.dataset.cmdId = cmdId;
-      wrap.dataset.inMenu = inMenu ? "1" : "0";
       wrap.title = (cmd && cmd.name) || cmdId;
-      const menuBtn = document.createElement("button");
-      menuBtn.type = "button";
-      menuBtn.className = "cfg-ftb-menu" + (inMenu ? " on" : "");
-      menuBtn.title = "加入 CapsLock+右键 动态菜单";
-      menuBtn.innerHTML = FTB_SVG.list;
-      menuBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const on = wrap.dataset.inMenu !== "1";
-        wrap.dataset.inMenu = on ? "1" : "0";
-        menuBtn.classList.toggle("on", on);
-        scheduleFtbToolbarSave();
-      });
       const ico = document.createElement("span");
       ico.className = "cfg-ftb-ico";
       ico.innerHTML = cfgToolbarIconSvg(cmdId, iconFull);
       if (compact) {
-        wrap.append(menuBtn, ico);
+        wrap.append(ico);
       } else {
         const nm = document.createElement("div");
         nm.className = "cfg-ftb-tile-name";
         nm.textContent = (cmd && cmd.name) || cmdId;
-        wrap.append(menuBtn, ico, nm);
+        wrap.append(ico, nm);
       }
       return wrap;
+    }
+    function createMenuCmdTileEl(cmdId, cmd) {
+      const wrap = document.createElement("div");
+      wrap.className = "cfg-menu-tile cfg-menu-tile-cmd";
+      wrap.dataset.kind = "cmd";
+      wrap.dataset.id = cmdId;
+      const title = (cmd && cmd.name) || cmdId;
+      const desc = (cmd && cmd.desc) || "";
+      wrap.title = desc ? `${title}\n${desc}` : title;
+      const ico = document.createElement("span");
+      ico.className = "cfg-menu-ico";
+      const icRaw = (cmd && cmd.iconClass) ? String(cmd.iconClass).trim() : "";
+      let iconFull = "";
+      if (icRaw) {
+        if (/\bfa-(solid|brands|regular)\b/.test(icRaw)) iconFull = icRaw;
+        else if (/^fa-[a-z0-9-]+$/i.test(icRaw)) iconFull = `fa-solid ${icRaw}`;
+        else iconFull = `fa-solid ${cfgInferIconClass(cmd || { id: cmdId })}`;
+      } else iconFull = `fa-solid ${cfgInferIconClass(cmd || { id: cmdId })}`;
+      ico.innerHTML = cfgToolbarIconSvg(cmdId, iconFull);
+      const text = document.createElement("div");
+      text.className = "cfg-menu-text";
+      const t1 = document.createElement("div");
+      t1.className = "cfg-menu-line1";
+      t1.textContent = title;
+      const t2 = document.createElement("div");
+      t2.className = "cfg-menu-line2";
+      t2.textContent = desc;
+      text.append(t1, t2);
+      wrap.append(ico, text);
+      return wrap;
+    }
+    function mountMenuWorkbench() {
+      const barC = document.getElementById("cfg-menu-bar-cmds");
+      const poolC = document.getElementById("cfg-shared-pool-menu-cmds");
+      if (!barC || !poolC) return;
+      destroyMenuWorkbenchSortable();
+      const cmdMap = buildKeybinderCommandMap();
+      const chRun = (state.data.keybinderCommands || []).filter((c) => c && c.fn === "CH_RUN" && c.id && !String(c.id).startsWith("pt_"));
+      const layout = state.data.keybinderToolbarLayout || [];
+      const activeSet = new Set(layout.filter((r) => r && r.in_context_menu).map((r) => r.cmdId));
+      const ctxOrder = state.data.keybinderContextMenuLayout || [];
+      const barCmdIds = [];
+      for (const id of ctxOrder) {
+        if (activeSet.has(id) && !barCmdIds.includes(id)) barCmdIds.push(id);
+      }
+      for (const row of layout) {
+        if (row && row.in_context_menu && row.cmdId && !barCmdIds.includes(row.cmdId)) barCmdIds.push(row.cmdId);
+      }
+      const poolCmdIds = chRun.map((c) => c.id).filter((id) => !activeSet.has(id));
+      barC.innerHTML = "";
+      poolC.innerHTML = "";
+      barCmdIds.forEach((id) => {
+        const c = cmdMap[id];
+        if (c) barC.appendChild(createMenuCmdTileEl(id, c));
+      });
+      poolCmdIds.forEach((id) => {
+        const c = cmdMap[id];
+        if (c) poolC.appendChild(createMenuCmdTileEl(id, c));
+      });
+      if (typeof Sortable === "undefined") return;
+      const so = { animation: 150, ghostClass: "sortable-ghost", dragClass: "sortable-drag", onEnd: scheduleKeybinderUnifiedSave };
+      menuSortBarCmds = new Sortable(barC, { ...so, group: "menuRun" });
+      menuSortPoolCmds = new Sortable(poolC, { ...so, group: "menuRun" });
     }
     function rowToolbarEligible(row) {
       if (!row) return false;
@@ -678,7 +860,7 @@
     }
     function mountFtbWorkbench() {
       const bar = document.getElementById("cfg-ftb-bar");
-      const pool = document.getElementById("cfg-ftb-pool");
+      const pool = document.getElementById("cfg-shared-pool-ftb");
       if (!bar || !pool) return;
       const cmdMap = buildKeybinderCommandMap();
       const layout = state.data.keybinderToolbarLayout || [];
@@ -696,7 +878,7 @@
       }
       if (typeof Sortable === "undefined") return;
       destroyFtbWorkbenchSortable();
-      const opt = { group: "cfg-ftb", animation: 150, ghostClass: "sortable-ghost", dragClass: "sortable-drag", filter: ".cfg-ftb-menu", preventOnFilter: false, onEnd: scheduleFtbToolbarSave };
+      const opt = { group: "cfg-ftb", animation: 150, ghostClass: "sortable-ghost", dragClass: "sortable-drag", onEnd: scheduleKeybinderUnifiedSave };
       ftbSortBar = new Sortable(bar, opt);
       ftbSortPool = new Sortable(pool, opt);
     }
@@ -826,6 +1008,7 @@
     }
     function render() {
       destroyFtbWorkbenchSortable();
+      destroyMenuWorkbenchSortable();
       const d = state.data; const panel = document.getElementById("panel");
       applyWebTheme(d.themeMode || "dark");
       const defaultTabOpts = [
@@ -1004,24 +1187,41 @@
       } else if (state.activeTab === "advanced") {
         const aiSec = (Number(d.aiSleepTime || 200) / 1000).toFixed(2).replace(/\.?0+$/, "");
         panel.innerHTML = `<div class="advanced-split">
-  <div class="advanced-col-left">
-    <div class="card"><div class="title">高级设置</div>
-      <div class="row"><div class="label">界面语言</div><select id="language">${optionsKV([{value:"zh",label:"中文"},{value:"en",label:"英文"}],d.language)}</select></div>
-      <div class="row"><div class="label">AI 等待时间 (秒)</div><input id="aiSleepTimeSeconds" type="number" min="0.05" max="10" step="0.05" value="${esc(aiSec)}"></div>
-      <div class="row"><div class="label">启动延迟 (秒)</div><input id="launchDelaySeconds" type="number" min="0.5" max="10" step="0.1" value="${esc(d.launchDelaySeconds)}"></div>
-    </div>
-    <div class="card"><div class="title">配置管理</div><div class="inline"><button class="btn" id="btnExportCfg">导出配置</button><button class="btn" id="btnImportCfg">导入配置</button><button class="btn" id="btnResetCfg">重置默认</button></div></div>
+  <div class="card"><div class="title">高级设置</div>
+    <div class="row"><div class="label">界面语言</div><select id="language">${optionsKV([{value:"zh",label:"中文"},{value:"en",label:"英文"}],d.language)}</select></div>
+    <div class="row"><div class="label">AI 等待时间 (秒)</div><input id="aiSleepTimeSeconds" type="number" min="0.05" max="10" step="0.05" value="${esc(aiSec)}"></div>
+    <div class="row"><div class="label">启动延迟 (秒)</div><input id="launchDelaySeconds" type="number" min="0.5" max="10" step="0.1" value="${esc(d.launchDelaySeconds)}"></div>
   </div>
-  <div class="advanced-col-right">
+  <div class="card"><div class="title">配置管理</div><div class="inline"><button class="btn" id="btnExportCfg">导出配置</button><button class="btn" id="btnImportCfg">导入配置</button><button class="btn" id="btnResetCfg">重置默认</button></div></div>
+  <div class="advanced-workbench-row">
     <div class="card ftb-workbench-card">
       <div class="title">悬浮工具栏 · 1:1 操作台</div>
-      <div class="ftb-pool-hint">仅显示已在 VK KeyBinder 中勾选 Bar 的命令。条内可拖动排序；拖入下方备用池即从桌面悬浮条隐藏（仍在 KeyBinder 候选内）；拖回条内即恢复显示。角标为「CapsLock+右键」动态菜单项开关。</div>
+      <div class="ftb-pool-hint">仅显示已在 VK KeyBinder 中勾选 Bar 的命令。条内可拖动排序；从下方共用备用池拖回可恢复显示。</div>
       <div class="ftb-mock-strip" aria-label="模拟悬浮条">
         <div class="ftb-mock-logo" title="实际悬浮条左侧为牛标，此处仅占位对齐"></div>
         <div id="cfg-ftb-bar" class="ftb-mock-btns"></div>
       </div>
-      <div class="ftb-pool-hint">备用池（已勾选 Bar、当前未在条上的命令）</div>
-      <div id="cfg-ftb-pool" class="ftb-mock-pool"></div>
+    </div>
+    <div class="card menu-workbench-card">
+      <div class="title">悬浮工具栏 · 右键菜单操作台</div>
+      <div class="ftb-pool-hint">与悬浮条空白处右键菜单一致：仅显示 JSON 命令（CH_RUN）。顺序即真实菜单自上而下，长文本支持多行截断。</div>
+      <div class="cfg-menu-mock-popup" aria-label="模拟右键菜单">
+        <div class="cfg-menu-section-hint">菜单内命令（JSON）</div>
+        <div id="cfg-menu-bar-cmds" class="cfg-menu-list"></div>
+      </div>
+    </div>
+  </div>
+  <div class="card shared-pool-card">
+    <div class="title">共用备用池</div>
+    <div class="pool-grid">
+      <div>
+        <div class="ftb-pool-hint">悬浮工具栏 · 备用命令</div>
+        <div id="cfg-shared-pool-ftb" class="ftb-mock-pool"></div>
+      </div>
+      <div>
+        <div class="ftb-pool-hint">右键菜单 · 备用命令（JSON）</div>
+        <div id="cfg-shared-pool-menu-cmds" class="cfg-menu-pool"></div>
+      </div>
     </div>
   </div>
 </div>`;
@@ -1029,6 +1229,7 @@
         document.getElementById("btnImportCfg").addEventListener("click", () => post({ type: "invokeAction", op: "importConfig" }));
         document.getElementById("btnResetCfg").addEventListener("click", () => post({ type: "invokeAction", op: "resetToDefaults" }));
         mountFtbWorkbench();
+        mountMenuWorkbench();
       } else {
         const selectedDefault = csvToArr(d.searchEngine || "deepseek");
         const selectedAiCli = csvToArr(d.voiceSearchSelectedEnginesCsv || "codex");
@@ -1065,7 +1266,25 @@
       if (!Array.isArray(d.quickActions) || d.quickActions.length !== 5) return "快速操作必须为 5 项";
       return "";
     }
-    document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => { state.data = readFromUI(); state.activeTab = btn.dataset.tab; document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active")); btn.classList.add("active"); render(); }));
+    document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => {
+      if (state.activeTab === "advanced" && ftbSaveTimer) {
+        clearTimeout(ftbSaveTimer);
+        ftbSaveTimer = 0;
+        const payload = collectKeybinderWorkbenchPayload();
+        state.data.keybinderToolbarLayout = payload.toolbarLayout;
+        state.data.keybinderContextMenuLayout = payload.contextMenuLayout;
+        post({
+          type: "saveKeybinderToolbarLayout",
+          toolbarLayout: payload.toolbarLayout,
+          contextMenuLayout: payload.contextMenuLayout,
+        });
+      }
+      state.data = readFromUI();
+      state.activeTab = btn.dataset.tab;
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      render();
+    }));
     const panelRoot = document.getElementById("panel");
     panelRoot.addEventListener("input", (e) => {
       const t = e.target;
@@ -1100,6 +1319,7 @@
         state.data = { ...state.data, ...p, hotkeys: { ...state.data.hotkeys, ...(p.hotkeys || {}) }, quickActions: (p.quickActions?.length ? p.quickActions : state.data.quickActions) };
         if (Array.isArray(p.keybinderToolbarLayout)) state.data.keybinderToolbarLayout = p.keybinderToolbarLayout;
         if (Array.isArray(p.keybinderCommands)) state.data.keybinderCommands = p.keybinderCommands;
+        if (Array.isArray(p.keybinderContextMenuLayout)) state.data.keybinderContextMenuLayout = p.keybinderContextMenuLayout;
         const startTab = (msg.payload || {}).defaultStartTab;
         const validStartTabs = new Set(["general","appearance","prompts","hotkeys","advanced","search"]);
         if (startTab && validStartTabs.has(startTab)) {
@@ -1117,7 +1337,7 @@
       if (msg.type === "browseCursorPathResult" && msg.path) { state.data.cursorPath = msg.path; render(); return; }
       if (msg.type === "saveResult") { setStatus(msg.ok ? "保存成功" : (msg.error || "保存失败"), msg.ok ? "ok" : "err"); return; }
       if (msg.type === "saveKeybinderToolbarLayoutResult") {
-        setStatus(msg.ok ? "悬浮工具栏已写入 Commands.json" : (msg.error || "保存失败"), msg.ok ? "ok" : "err");
+        setStatus(msg.ok ? "工具栏与右键菜单已写入配置" : (msg.error || "保存失败"), msg.ok ? "ok" : "err");
         return;
       }
       if (msg.type === "actionResult") { setStatus(msg.ok ? "操作成功" : (msg.error || "操作失败"), msg.ok ? "ok" : "err"); }

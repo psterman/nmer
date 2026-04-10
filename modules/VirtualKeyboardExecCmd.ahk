@@ -580,6 +580,33 @@ VK_ExecCursorHelperCmd(cmdId) {
             case "qa_cursor_settings":
                 ExecuteQuickActionByType("CursorSettings")
                 executed := true
+            case "ftm_reset_scale":
+                FloatingToolbarResetScale()
+                executed := true
+            case "ftm_search_center":
+                ShowSearchCenterFromMenu()
+                executed := true
+            case "ftm_clipboard":
+                ShowClipboardFromMenu()
+                executed := true
+            case "ftm_minimize_to_edge":
+                MinimizeFloatingToolbarToEdge()
+                executed := true
+            case "ftm_exit_app":
+                ExitFromMenu()
+                executed := true
+            case "ftm_hide_toolbar":
+                HideFloatingToolbarFromPopupMenu()
+                executed := true
+            case "ftm_open_config":
+                ShowConfigFromMenu()
+                executed := true
+            case "ftm_toggle_toolbar":
+                ToggleFloatingToolbarFromMenu()
+                executed := true
+            case "ftm_reload_script":
+                ReloadScriptFromPopupMenu()
+                executed := true
             case "hub_capsule":
                 try {
                     SelectionSense_OpenHubCapsuleFromToolbar()
