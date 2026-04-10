@@ -31,6 +31,7 @@ global FloatingToolbarIsMinimized := false
 global FloatingToolbarChatDrawerOpen := false
 global FloatingToolbarChatDrawerWidth := 620
 global FloatingToolbarChatDrawerHeight := 720
+global FloatingToolbarCmdVisibleCount := 7
 global FloatingToolbarLastClosedX := 0
 global FloatingToolbarLastClosedY := 0
 
@@ -1256,6 +1257,18 @@ FloatingToolbarPushScaleStateToWeb(scaleValue := "") {
 
 FloatingToolbar_DeferredToolbarCmd(cmdId) {
     c := String(cmdId)
+    if (c = "ftb_scratchpad") {
+        try _ExecuteCommand("hub_capsule")
+        return
+    }
+    if (c = "ftb_screenshot") {
+        try _ExecuteCommand("ch_t")
+        return
+    }
+    if (c = "ftb_cursor_menu") {
+        FloatingToolbar_ShowCursorQuickMenu()
+        return
+    }
     try {
         _ExecuteCommand(c)
     } catch as e {
@@ -1266,7 +1279,7 @@ FloatingToolbar_DeferredToolbarCmd(cmdId) {
 }
 
 FloatingToolbarPushCmdLayoutToWeb() {
-    global g_FTB_WV2, g_Commands
+    global g_FTB_WV2, g_Commands, FloatingToolbarCmdVisibleCount, FloatingToolbarChatDrawerOpen
     if !g_FTB_WV2
         return
     try {
@@ -1303,11 +1316,17 @@ FloatingToolbarPushCmdLayoutToWeb() {
             else if !InStr(ic, "fa-solid") && !InStr(ic, "fa-brands") && !InStr(ic, "fa-regular")
                 ic := "fa-solid " . ic
         }
-        items.Push(Map("cmdId", cid, "name", nm, "iconClass", ic))
+        rowPayload := Map("cmdId", cid, "name", nm, "iconClass", ic)
+        if (cid = "ftb_cursor_menu")
+            rowPayload["iconPath"] := "images/cursor.png"
+        items.Push(rowPayload)
     }
+    FloatingToolbarCmdVisibleCount := items.Length
     try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_toolbar_cmds", "items", items))
     catch as _e {
     }
+    if !FloatingToolbarChatDrawerOpen && !FloatingToolbarIsCompactMode()
+        FloatingToolbar_ResizeForToolbarCount()
 }
 
 FloatingToolbarReloadFromToolbarLayout() {
@@ -1371,13 +1390,59 @@ FloatingToolbarExitCompactMode() {
 
 ; ===================== 璁＄畻宸ュ叿鏍忓搴﹀拰楂樺害 =====================
 FloatingToolbarCalculateWidth() {
-    global FloatingToolbarScale, FloatingToolbarChatDrawerOpen, FloatingToolbarChatDrawerWidth, FloatingToolbarCompactDiameter
-    BaseWidth := 380
+    global FloatingToolbarScale, FloatingToolbarChatDrawerOpen, FloatingToolbarChatDrawerWidth, FloatingToolbarCompactDiameter, FloatingToolbarCmdVisibleCount
+    iconCount := (FloatingToolbarCmdVisibleCount > 0) ? FloatingToolbarCmdVisibleCount : 7
+    BaseWidth := Max(220, 56 + iconCount * 46)
     if (FloatingToolbarChatDrawerOpen)
         return Round(Max(BaseWidth, FloatingToolbarChatDrawerWidth) * FloatingToolbarScale)
     if FloatingToolbarIsCompactMode()
         return Round(FloatingToolbarCompactDiameter)
     return Round(BaseWidth * FloatingToolbarScale)
+}
+
+FloatingToolbar_ShowCursorQuickMenu() {
+    menuItems := [
+        { Text: "命令面板  (Ctrl+Shift+P)", Icon: "▸", Action: (*) => _ExecuteCommand("qa_command_palette") },
+        { Text: "全局搜索  (Ctrl+Shift+F)", Icon: "▸", Action: (*) => _ExecuteCommand("qa_global_search") },
+        { Text: "资源管理器  (Ctrl+Shift+E)", Icon: "▸", Action: (*) => _ExecuteCommand("qa_explorer") },
+        { Text: "源代码管理  (Ctrl+Shift+G)", Icon: "▸", Action: (*) => _ExecuteCommand("qa_source_control") },
+        { Text: "扩展  (Ctrl+Shift+X)", Icon: "▸", Action: (*) => _ExecuteCommand("qa_extensions") },
+        { Text: "终端  (Ctrl+Shift+``)", Icon: "▸", Action: (*) => _ExecuteCommand("qa_terminal") },
+        { Text: "Cursor 设置  (Ctrl+,)", Icon: "▸", Action: (*) => _ExecuteCommand("qa_cursor_settings") }
+    ]
+    try {
+        MouseGetPos &mx, &my
+        ShowDarkStylePopupMenuAt(menuItems, mx + 2, my + 2)
+    } catch {
+    }
+}
+
+FloatingToolbar_ResizeForToolbarCount() {
+    global FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY, FloatingToolbarChatDrawerOpen
+    if !IsObject(FloatingToolbarGUI) || FloatingToolbarChatDrawerOpen || FloatingToolbarIsCompactMode()
+        return
+    newW := FloatingToolbarCalculateWidth()
+    newH := FloatingToolbarCalculateHeight()
+    try FloatingToolbarGUI.GetPos(&gx, &gy, &gw, &gh)
+    catch {
+        gx := FloatingToolbarWindowX
+        gy := FloatingToolbarWindowY
+        gw := newW
+    }
+    rightEdge := gx + gw
+    newX := rightEdge - newW
+    ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
+    vr := vl + vw
+    if (newX < vl)
+        newX := vl
+    if (newX + newW > vr)
+        newX := vr - newW
+    FloatingToolbarWindowX := newX
+    FloatingToolbarWindowY := gy
+    try FloatingToolbarGUI.Move(newX, gy, newW, newH)
+    catch {
+    }
+    FloatingToolbar_ApplyWebViewBounds()
 }
 
 FloatingToolbarCalculateHeight() {

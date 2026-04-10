@@ -343,7 +343,10 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "ftm_hide_toolbar", "name", "关闭工具栏", "desc", "右键菜单：隐藏悬浮工具栏", "fn", "CH_RUN"),
             Map("id", "ftm_open_config", "name", "打开设置", "desc", "右键菜单：打开设置面板", "fn", "CH_RUN"),
             Map("id", "ftm_toggle_toolbar", "name", "显示/隐藏工具栏", "desc", "右键菜单：切换工具栏可见性", "fn", "CH_RUN"),
-            Map("id", "ftm_reload_script", "name", "重启脚本", "desc", "右键菜单：重载脚本", "fn", "CH_RUN")
+            Map("id", "ftm_reload_script", "name", "重启脚本", "desc", "右键菜单：重载脚本", "fn", "CH_RUN"),
+            Map("id", "ftb_scratchpad", "name", "草稿本入口", "desc", "悬浮工具栏：打开 HubCapsule 草稿本", "fn", "CH_RUN", "iconClass", "fa-note-sticky"),
+            Map("id", "ftb_screenshot", "name", "智能截图入口", "desc", "悬浮工具栏：打开截图智能菜单", "fn", "CH_RUN", "iconClass", "fa-camera"),
+            Map("id", "ftb_cursor_menu", "name", "Cursor 快捷菜单", "desc", "悬浮工具栏：弹出 Cursor 常用快捷键菜单", "fn", "CH_RUN", "iconClass", "fa-compass")
         ]),
         Map("id", "cursor", "name", "🧭 Cursor", "commands", [
             Map("id", "qa_global_search", "name", "全局搜索", "desc", "Cursor: Ctrl+Shift+F", "fn", "CH_RUN"),
@@ -860,7 +863,9 @@ _VK_DefaultToolbarLayoutCmdIds() {
         "qa_clipboard",
         "ch_b",
         "hub_capsule",
-        "ch_t",
+        "ftb_scratchpad",
+        "ftb_screenshot",
+        "ftb_cursor_menu",
         "qa_config",
         "sys_show_vk",
     ]

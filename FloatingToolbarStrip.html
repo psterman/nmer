@@ -76,6 +76,7 @@ body.ftb-compact #collapsedRoot .logo-btn .logo-img{transform:scale(1.02)}
 .tb svg{width:calc(24px * var(--ui));height:calc(24px * var(--ui));pointer-events:none}
 .tb .tb-ico{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--orange)}
 .tb .tb-ico svg{stroke:currentColor}
+.tb .tb-ico-img{width:calc(22px * var(--ui));height:calc(22px * var(--ui));object-fit:contain;pointer-events:none}
 button.tb{font:inherit;font-family:inherit}
 .tb:hover{background:rgba(255,102,0,.1);border-color:rgba(255,102,0,.28)}
 .tb .dot{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--orange);opacity:0}
@@ -394,6 +395,9 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     ch_t: 'screenshot',
     qa_config: 'settings',
     sys_show_vk: 'keyboard',
+    ftb_scratchpad: 'notepad',
+    ftb_screenshot: 'screenshot',
+    ftb_cursor_menu: 'bolt',
   };
 
   var FA_SUFFIX_TO_KEY = {
@@ -432,7 +436,10 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     return suf || 'circle';
   }
 
-  function toolbarIconSvgHtml(cmdId, iconClass) {
+  function toolbarIconSvgHtml(cmdId, iconClass, iconPath) {
+    if (iconPath) {
+      return '<span class="tb-ico"><img class="tb-ico-img" src="' + escAttr(iconPath) + '" alt=""></span>';
+    }
     var key = TOOLBAR_CMD_TO_KEY[String(cmdId || '').trim()];
     if (!key) {
       var suf = extractFaSuffix(iconClass);
@@ -451,6 +458,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       if (!cid) return;
       var nm = escAttr((it && it.name) || cid);
       var ic = String((it && it.iconClass) || 'fa-solid fa-circle');
+      var ip = String((it && it.iconPath) || '').trim();
       if (ic.indexOf('fa-') === 0 && ic.indexOf('fa-solid') === -1 && ic.indexOf('fa-brands') === -1 && ic.indexOf('fa-regular') === -1)
         ic = 'fa-solid ' + ic;
       var bucket = 'Search';
@@ -467,7 +475,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
         '"' +
         sd +
         '>' +
-        toolbarIconSvgHtml(cid, ic) +
+        toolbarIconSvgHtml(cid, ic, ip) +
         '<span class="dot"></span></button>';
     });
     if (!html)
