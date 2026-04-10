@@ -28940,6 +28940,11 @@ ExecuteSearchCenterBatchSearch(*) {
         SearchCenterDebounceTimer := 0
     }
     
+    ; 窗口已销毁或 Invalidate 后引用为 0 时，热键/定时器仍可能晚到，避免对 Integer 取 .Value
+    if (!GuiID_SearchCenter || GuiID_SearchCenter = 0 || !IsObject(SearchCenterSearchEdit)) {
+        return
+    }
+    
     ; 获取搜索关键词
     Keyword := SearchCenterSearchEdit.Value
     if (StrLen(Keyword) < 1) {
@@ -29415,6 +29420,9 @@ OpenSearchGroupEngines() {
         return
     
     CurrentGroup := SearchGroups[SearchCenterCurrentGroup + 1]
+    if (!GuiID_SearchCenter || GuiID_SearchCenter = 0 || !IsObject(SearchCenterSearchEdit)) {
+        return
+    }
     Query := SearchCenterSearchEdit.Value
     
     ; 如果查询为空，使用默认查询

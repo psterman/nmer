@@ -997,6 +997,11 @@ body::after {
   border-color: var(--cyan);
   box-shadow: var(--glow-cyan);
 }
+.btn-icon .fa-solid {
+  pointer-events: none;
+  font-size: 11px;
+  line-height: 1;
+}
 #keyboard-zone.fade-switch .k .map-label {
   animation: fadeSwitch .1s linear;
 }
@@ -4045,9 +4050,13 @@ function renderSidebar() {
       if (e.target.closest('.scene-drag-handle')) return;
       state.activeScenarioId = scenario.id;
       state.activeTabId = scenario.tabs[0]?.id || '';
+      state.focusedCmdId = null;
+      state.focusedMods = null;
       renderSidebar();
       renderAtomTabs();
       renderCommandList();
+      renderKeyboardSlots();
+      renderModifierKeys();
     });
     list.appendChild(item);
   }
@@ -4173,6 +4182,8 @@ function renderAtomTabs() {
       state.activeTabId = tab.id;
       renderAtomTabs();
       renderCommandList();
+      renderKeyboardSlots();
+      renderModifierKeys();
     });
     tabsEl.appendChild(tabEl);
   }
@@ -4278,6 +4289,89 @@ function getActiveScenarioOverrideMap() {
           : null;
 }
 
+/** 键帽预览：无搜索时为当前场景全部 Tab 的命令并集（牛马 AI 等多 Tab 场景才能看全）；有搜索时仅保留场景内匹配搜索的命令 */
+function getKeyboardPreviewCmdIdSet() {
+  const scenario = getScenarioById(state.activeScenarioId);
+  if (!scenario)
+    return new Set();
+  const searchText = String(state.search || '').trim();
+  const set = new Set();
+  for (const tab of scenario.tabs) {
+    for (const cmdId of tab.commands) {
+      if (!state.commands[cmdId])
+        continue;
+      if (searchText) {
+        const match = commandMatchesSearch(cmdId, searchText);
+        if (!match.ok)
+          continue;
+      }
+      set.add(cmdId);
+    }
+  }
+  return set;
+}
+
+/** 剥掉 AHK 热键中的 ^!+# 修饰，得到与 data-ahkkey 对应的主键名（如 ^1→1，^Enter→Enter） */
+function ahkHotkeySuffixBaseKey(ahkKey) {
+  const k = String(ahkKey || '').trim();
+  if (!k || /^(\^\^|\+\+|!!)$/.test(k))
+    return '';
+  if (/[&~]/.test(k) || k.includes('::'))
+    return '';
+  return k.replace(/[\^!+#]/g, '');
+}
+
+/** ^Numpad1 等与主键盘数字行互映射，便于预览 */
+function mainRowDigitFromNumpadBase(base) {
+  const m = /^Numpad([0-9])$/i.exec(String(base || ''));
+  return m ? m[1] : '';
+}
+
+/**
+ * 场景预览用：主键 → { cmdId, ahkKey }。仅收录「带修饰符」的绑定（如 ^1、^Enter），
+ * 避免与裸键 ahkKeyIndex[baseKey] 重复；同键多命令时按场景 Tab 顺序先到先得。
+ */
+function buildPreviewModifierBaseKeyMap(previewCmdSet) {
+  const map = new Map();
+  if (!previewCmdSet || previewCmdSet.size === 0)
+    return map;
+  const scenario = getScenarioById(state.activeScenarioId);
+  const orderedIds = [];
+  if (scenario) {
+    for (const tab of scenario.tabs) {
+      for (const cmdId of tab.commands) {
+        if (previewCmdSet.has(cmdId))
+          orderedIds.push(cmdId);
+      }
+    }
+  } else {
+    previewCmdSet.forEach((id) => orderedIds.push(id));
+  }
+  const seen = new Set();
+  for (const cmdId of orderedIds) {
+    if (seen.has(cmdId))
+      continue;
+    seen.add(cmdId);
+    const b = state.bindings[cmdId];
+    if (b?.explicitNone)
+      continue;
+    const key = b?.ahkKey || state.suggestedBindings[cmdId] || '';
+    if (!key)
+      continue;
+    const base = ahkHotkeySuffixBaseKey(key);
+    if (!base || map.has(base))
+      continue;
+    if (key === base)
+      continue;
+    const hit = { cmdId, ahkKey: key };
+    map.set(base, hit);
+    const digit = mainRowDigitFromNumpadBase(base);
+    if (digit && !map.has(digit))
+      map.set(digit, hit);
+  }
+  return map;
+}
+
 function getScenarioDisplayCommand(cmdId) {
   const baseCmd = state.commands[cmdId] || { name: cmdId, desc: '' };
   const overrideMap = getActiveScenarioOverrideMap();
@@ -4339,9 +4433,12 @@ function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
   actions.className = 'cmd-actions';
 
   const editBtn = document.createElement('button');
+  editBtn.type = 'button';
   editBtn.className = 'btn-icon' + (isRec ? ' active-rec' : '');
   editBtn.title     = isRec ? '停止录制' : '录制快捷键';
-  editBtn.textContent = isRec ? '停' : '录';
+  editBtn.innerHTML = isRec
+    ? '<i class="fa-solid fa-stop" aria-hidden="true"></i>'
+    : '<i class="fa-solid fa-play" aria-hidden="true"></i>';
   editBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (isRec) stopRecording();
@@ -4349,9 +4446,10 @@ function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
   });
 
   const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
   clearBtn.className   = 'btn-icon danger';
   clearBtn.title       = '清空按键（显式禁用）';
-  clearBtn.textContent = '清';
+  clearBtn.innerHTML   = '<i class="fa-solid fa-eraser" aria-hidden="true"></i>';
   clearBtn.style.display = (!isRec && (hasReal || hasSuggested)) ? '' : 'none';
   clearBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -4359,9 +4457,10 @@ function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
   });
 
   const resetBtn = document.createElement('button');
+  resetBtn.type = 'button';
   resetBtn.className   = 'btn-icon';
   resetBtn.title       = '重置为建议值';
-  resetBtn.textContent = '复';
+  resetBtn.innerHTML   = '<i class="fa-solid fa-arrow-rotate-left" aria-hidden="true"></i>';
   resetBtn.style.display = binding ? '' : 'none';
   resetBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -4369,9 +4468,10 @@ function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
   });
 
   const testBtn = document.createElement('button');
+  testBtn.type = 'button';
   testBtn.className   = 'btn-icon';
   testBtn.title       = '执行命令';
-  testBtn.textContent = '执';
+  testBtn.innerHTML   = '<i class="fa-solid fa-square-check" aria-hidden="true"></i>';
   testBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     postToAhk({ type: 'executeCommand', commandId: cmdId });
@@ -4395,6 +4495,10 @@ function renderKeyboardSlots() {
 
   const prefix = getActivePrefix();
   const focusCmdId = state.focusedCmdId;
+  const previewCmdSet = !focusCmdId ? getKeyboardPreviewCmdIdSet() : null;
+  const previewModBaseMap = !focusCmdId && previewCmdSet && previewCmdSet.size > 0
+    ? buildPreviewModifierBaseKeyMap(previewCmdSet)
+    : null;
   const focusAKey = focusCmdId
     ? (state.bindings[focusCmdId]?.explicitNone
         ? ''
@@ -4407,7 +4511,7 @@ function renderKeyboardSlots() {
         shift: focusAKey.includes('+'),
       }
     : null;
-  const focusLookup = /^(\^\^|\+\+|!!)$/.test(focusAKey) ? focusAKey : focusAKey.replace(/[\^!+]/g, '');
+  const focusLookup = /^(\^\^|\+\+|!!)$/.test(focusAKey) ? focusAKey : focusAKey.replace(/[\^!+#]/g, '');
   document.querySelectorAll('.k').forEach(el => {
     const baseKey = el.dataset.ahkkey;
     if (!baseKey) return;
@@ -4432,7 +4536,9 @@ function renderKeyboardSlots() {
       }
       const dbl = modifierToDoubleAhkKey(baseKey);
       if (dbl) {
-        const cmdId = state.ahkKeyIndex[dbl];
+        let cmdId = state.ahkKeyIndex[dbl];
+        if (cmdId && previewCmdSet && !previewCmdSet.has(cmdId))
+          cmdId = '';
         if (cmdId) {
           const hasReal = !!(state.bindings[cmdId]?.ahkKey);
           el.classList.add('bound', 'slot-occupied');
@@ -4458,12 +4564,34 @@ function renderKeyboardSlots() {
     }
     const lookup = prefix + baseKey;
     let cmdId = state.ahkKeyIndex[lookup];
-    if (!cmdId && prefix === '') cmdId = state.suggestedByKey[baseKey];
+    let mappedAhkForSlot = lookup;
+    if (!cmdId && prefix === '') {
+      cmdId = state.ahkKeyIndex[baseKey] || '';
+      if (cmdId)
+        mappedAhkForSlot = baseKey;
+    }
+    if (!cmdId && prefix === '') {
+      cmdId = state.suggestedByKey[baseKey] || '';
+      if (cmdId)
+        mappedAhkForSlot = baseKey;
+    }
+    if (cmdId && previewCmdSet && !previewCmdSet.has(cmdId))
+      cmdId = '';
+    // ch_1..ch_5 占用 suggestedByKey['1']..['5']（CapsLock+数字），过滤后须回退到场景内的 ^1..^5
+    if (!cmdId && prefix === '' && previewModBaseMap) {
+      const hit = previewModBaseMap.get(baseKey);
+      if (hit) {
+        cmdId = hit.cmdId;
+        mappedAhkForSlot = hit.ahkKey;
+      }
+    }
+    if (cmdId && previewCmdSet && !previewCmdSet.has(cmdId))
+      cmdId = '';
     if (cmdId) {
       const hasReal = !!(state.bindings[cmdId]?.ahkKey);
       el.classList.add('bound', 'slot-occupied');
       el.dataset.mappedCmdId = cmdId;
-      el.dataset.mappedAhkKey = lookup;
+      el.dataset.mappedAhkKey = mappedAhkForSlot;
       if (!hasReal) el.classList.add('slot-suggested');
       const cmdName = getScenarioDisplayCommand(cmdId)?.name || cmdId;
       lbl.textContent = cmdName.length > 22 ? cmdName.slice(0, 20) + '…' : cmdName;
@@ -4834,6 +4962,8 @@ document.querySelectorAll('.k').forEach(el => {
 document.getElementById('cmd-search').addEventListener('input', (e) => {
   state.search = e.target.value;
   renderCommandList();
+  renderKeyboardSlots();
+  renderModifierKeys();
 });
 
 document.addEventListener('keydown', (e) => {

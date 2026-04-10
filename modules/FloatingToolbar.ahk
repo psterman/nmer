@@ -1268,6 +1268,10 @@ FloatingToolbarPushScaleStateToWeb(scaleValue := "") {
 
 FloatingToolbar_DeferredToolbarCmd(cmdId) {
     c := String(cmdId)
+    if (c = "ch_b" || c = "qa_batch") {
+        try PromptQuickPad_OpenCaptureDraft("", false)
+        return
+    }
     if (c = "ftb_scratchpad") {
         try _ExecuteCommand("hub_capsule")
         return
