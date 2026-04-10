@@ -666,23 +666,6 @@ body::after {
   overflow-y: hidden;
   white-space: nowrap;
 }
-.vk-toolbar-preview-logo {
-  flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-}
-.vk-toolbar-preview-logo img {
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
-}
 .vk-toolbar-preview-empty {
   width: 100%;
   color: var(--text-xs);
@@ -750,12 +733,29 @@ body::after {
   text-align: center;
   font-size: 12px;
   flex: 0 0 16px;
+  color: var(--orange);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mol-ico svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mol-ico img {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
 }
 .scene-checkbox {
   width: 13px;
   height: 13px;
   margin: 0;
-  accent-color: #37cc70;
+  accent-color: #ff6600;
   cursor: pointer;
 }
 .scene-checkbox.fixed {
@@ -2161,10 +2161,44 @@ function getToolbarCmdIdByScenarioId(scenarioId) {
 
 function toolbarIconSvgHtml(cmdId) {
   const key = TOOLBAR_CMD_TO_KEY[String(cmdId || '').trim()] || 'bolt';
+  if (String(cmdId || '').trim() === 'hub_capsule') {
+    return '<img class="vk-toolbar-cursor-img" src="assets/牛马.png" alt="牛马">';
+  }
   if (key === 'cursor_img') {
     return '<img class="vk-toolbar-cursor-img" src="images/cursor.png" alt="Cursor">';
   }
   return TOOLBAR_SVG_PARTS[key] || TOOLBAR_SVG_PARTS.bolt;
+}
+
+function scenarioIconHtml(scenarioId) {
+  const cmdId = getToolbarCmdIdByScenarioId(scenarioId);
+  if (cmdId) return toolbarIconSvgHtml(cmdId);
+  const meta = SCENARIO_META[scenarioId] || SCENARIO_META.other;
+  return `<i class="fa-solid ${meta.icon}"></i>`;
+}
+
+function syncMappedToolbarOrderFromScenarioOrder() {
+  const visibleMapped = [];
+  const visibleMappedIds = new Set();
+  for (const scenario of state.scenarios) {
+    const cmdId = getToolbarCmdIdByScenarioId(scenario.id);
+    if (!cmdId) continue;
+    const row = state.toolbarLayout.find((x) => x.cmdId === cmdId);
+    if (!row || !row.visible_in_bar) continue;
+    visibleMapped.push(row);
+    visibleMappedIds.add(cmdId);
+  }
+  const visibleOthers = state.toolbarLayout.filter((x) => x.visible_in_bar && !visibleMappedIds.has(x.cmdId));
+  const pools = state.toolbarLayout.filter((x) => !x.visible_in_bar && x.visible_in_menu);
+  const rest = state.toolbarLayout.filter((x) => !x.visible_in_bar && !x.visible_in_menu);
+  const bars = [...visibleMapped, ...visibleOthers];
+  bars.forEach((row, idx) => {
+    row.order_bar = idx;
+  });
+  pools.forEach((row) => {
+    row.order_bar = -1;
+  });
+  state.toolbarLayout = [...bars, ...pools, ...rest];
 }
 
 function inferCommandIconClass(cmdId, cmd) {
@@ -2972,6 +3006,12 @@ function setCmdToolbarBarFlag(cmdId, wantEligible) {
   } else {
     if (!r.visible_in_bar) return;
     r.visible_in_bar = false;
+  }
+  for (const scenario of state.scenarios) {
+    if (getToolbarCmdIdByScenarioId(scenario.id) === cmdId) {
+      scenario.visible_in_bar = !!r.visible_in_bar;
+      break;
+    }
   }
   reorderToolbarBarPoolFlags();
   saveToolbarLayout();
@@ -3963,26 +4003,27 @@ function renderSidebar() {
   list.innerHTML = '';
   ensureActiveScenarioAndTab();
   for (const scenario of state.scenarios) {
-    const meta = SCENARIO_META[scenario.id] || SCENARIO_META.other;
     const mappedCmdId = getToolbarCmdIdByScenarioId(scenario.id);
     const mappedRow = mappedCmdId ? state.toolbarLayout.find((x) => x.cmdId === mappedCmdId) : null;
     const isLogoScene = mappedCmdId === 'hub_capsule';
     const checked = isLogoScene || !!(mappedRow && mappedRow.visible_in_bar);
     const item = document.createElement('div');
     item.className = 'sidebar-item' + (state.activeScenarioId === scenario.id ? ' active' : '');
+    if (scenario.id === 'ai') item.classList.add('fixed-scene');
     item.dataset.sceneId = scenario.id;
     item.draggable = false;
     item.innerHTML = ''
       + (!isLogoScene
         ? `<input class="scene-checkbox" type="checkbox" ${checked ? 'checked' : ''} aria-label="显示场景到工具栏">`
         : '<span class="scene-checkbox fixed" title="牛马图标固定保留"></span>')
-      + `<span class="mol-ico" style="color:${meta.color}"><i class="fa-solid ${meta.icon}"></i></span>`
+      + `<span class="mol-ico">${scenarioIconHtml(scenario.id)}</span>`
       + `<span class="mol-name">${escapeHtml(scenario.name)}</span>`
       + `<span class="mol-count">${scenario.commandCount || 0}</span>`;
     const handle = document.createElement('span');
     handle.className = 'scene-drag-handle';
     handle.textContent = '::';
-    handle.title = '拖拽排序';
+    handle.title = scenario.id === 'ai' ? '牛马AI 固定置顶' : '拖拽排序';
+    if (scenario.id === 'ai') handle.style.opacity = '0.35';
     item.appendChild(handle);
     const checkbox = item.querySelector('.scene-checkbox:not(.fixed)');
     if (checkbox) {
@@ -4008,35 +4049,41 @@ function renderToolbarPreviewSandbox() {
   const box = document.getElementById('vk-toolbar-preview-sandbox');
   if (!box) return;
   box.innerHTML = '';
-  const logo = document.createElement('div');
-  logo.className = 'vk-toolbar-preview-logo';
-  logo.innerHTML = `<img src="${escapeHtml(state.toolbarLogoUrl || 'assets/牛马.png')}" alt="牛马">`;
-  box.appendChild(logo);
-  const visibleBars = state.toolbarLayout
-    .filter((row) => !!row.visible_in_bar && !!state.commands[row.cmdId])
-    .sort((a, b) => Number(a.order_bar || 0) - Number(b.order_bar || 0));
-  if (!visibleBars.length) {
+  const visibleScenes = state.scenarios.filter((scenario) => {
+    const cmdId = getToolbarCmdIdByScenarioId(scenario.id);
+    if (!cmdId) return false;
+    const row = state.toolbarLayout.find((x) => x.cmdId === cmdId);
+    return !!(row && row.visible_in_bar);
+  });
+  if (!visibleScenes.length) {
     const empty = document.createElement('div');
     empty.className = 'vk-toolbar-preview-empty';
     empty.textContent = '勾选命令的 Bar 后，图标会出现在这里并支持拖拽排序。';
     box.appendChild(empty);
     return;
   }
-  for (const row of visibleBars) {
-    const cmd = state.commands[row.cmdId] || {};
+  for (const scenario of visibleScenes) {
+    const cmdId = getToolbarCmdIdByScenarioId(scenario.id);
+    const cmd = state.commands[cmdId] || {};
     const tile = document.createElement('div');
     tile.className = 'vk-toolbar-preview-item';
-    tile.dataset.cmdId = row.cmdId;
-    tile.title = cmd.name || row.cmdId;
-    tile.innerHTML = toolbarIconSvgHtml(row.cmdId);
+    if (scenario.id === 'ai') tile.classList.add('fixed');
+    tile.dataset.sceneId = scenario.id;
+    tile.title = cmd.name || scenario.name;
+    tile.innerHTML = toolbarIconSvgHtml(cmdId);
     box.appendChild(tile);
   }
 }
 
 function reorderScenariosByIds(ids) {
   const byId = new Map(state.scenarios.map((s) => [s.id, s]));
+  const aiScene = byId.get('ai') || null;
   const ordered = [];
   const used = new Set();
+  if (aiScene) {
+    ordered.push(aiScene);
+    used.add('ai');
+  }
   for (const id of ids) {
     const scene = byId.get(id);
     if (!scene || used.has(id)) continue;
@@ -4063,33 +4110,14 @@ function initSceneLayoutSortables() {
       animation: 140,
       ghostClass: 'vk-scene-sortable-ghost',
       chosenClass: 'vk-scene-sortable-chosen',
-      draggable: '.vk-toolbar-preview-item',
+      draggable: '.vk-toolbar-preview-item:not(.fixed)',
       onEnd: () => {
-        const visibleCmdIds = Array.from(preview.querySelectorAll('.vk-toolbar-preview-item'))
-          .map((el) => String(el.dataset.cmdId || ''))
+        const visibleSceneIds = Array.from(preview.querySelectorAll('.vk-toolbar-preview-item'))
+          .map((el) => String(el.dataset.sceneId || ''))
           .filter(Boolean);
-        const visibleMap = new Map(
-          state.toolbarLayout
-            .filter((x) => x.visible_in_bar)
-            .map((x) => [x.cmdId, x])
-        );
-        const reorderedVisible = [];
-        for (const cmdId of visibleCmdIds) {
-          const row = visibleMap.get(cmdId);
-          if (row) reorderedVisible.push(row);
-        }
-        for (const row of state.toolbarLayout) {
-          if (row.visible_in_bar && !reorderedVisible.includes(row)) reorderedVisible.push(row);
-        }
-        const pools = state.toolbarLayout.filter((x) => !x.visible_in_bar && x.visible_in_menu);
-        const rest = state.toolbarLayout.filter((x) => !x.visible_in_bar && !x.visible_in_menu);
-        reorderedVisible.forEach((row, idx) => {
-          row.order_bar = idx;
-        });
-        pools.forEach((row) => {
-          row.order_bar = -1;
-        });
-        state.toolbarLayout = [...reorderedVisible, ...pools, ...rest];
+        reorderScenariosByIds(visibleSceneIds);
+        syncMappedToolbarOrderFromScenarioOrder();
+        renderSidebar();
         renderToolbarPreviewSandbox();
         saveToolbarLayout();
         renderCommandList();
@@ -4103,15 +4131,16 @@ function initSceneLayoutSortables() {
       ghostClass: 'vk-scene-sortable-ghost',
       chosenClass: 'vk-scene-sortable-chosen',
       handle: '.scene-drag-handle',
-      draggable: '.sidebar-item',
+      draggable: '.sidebar-item:not(.fixed-scene)',
       onEnd: () => {
         const allIds = Array.from(list.querySelectorAll('.sidebar-item'))
           .map((el) => String(el.dataset.sceneId || ''))
           .filter(Boolean);
         reorderScenariosByIds(allIds);
+        syncMappedToolbarOrderFromScenarioOrder();
         renderSidebar();
         renderToolbarPreviewSandbox();
-        saveSceneToolbarLayout();
+        saveToolbarLayout();
       },
     });
   }

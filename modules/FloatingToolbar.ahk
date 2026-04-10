@@ -34,6 +34,18 @@ global FloatingToolbarChatDrawerHeight := 720
 global FloatingToolbarCmdVisibleCount := 7
 global FloatingToolbarLastClosedX := 0
 global FloatingToolbarLastClosedY := 0
+global g_FTB_BlockedCmdIds := Map("ch_t", true, "pqp_capture", true, "ss_menu", true)
+global g_FTB_AllowedCmdIds := Map(
+    "hub_capsule", true,
+    "sc_activate_search", true,
+    "qa_clipboard", true,
+    "ch_b", true,
+    "ftb_scratchpad", true,
+    "ftb_screenshot", true,
+    "qa_config", true,
+    "sys_show_vk", true,
+    "ftb_cursor_menu", true
+)
 
 global g_FTB_WV2_Ctrl := 0
 global g_FTB_WV2 := 0
@@ -1279,7 +1291,7 @@ FloatingToolbar_DeferredToolbarCmd(cmdId) {
 }
 
 FloatingToolbarPushCmdLayoutToWeb() {
-    global g_FTB_WV2, g_Commands, FloatingToolbarCmdVisibleCount, FloatingToolbarChatDrawerOpen
+    global g_FTB_WV2, g_Commands, FloatingToolbarCmdVisibleCount, FloatingToolbarChatDrawerOpen, g_FTB_BlockedCmdIds, g_FTB_AllowedCmdIds
     if !g_FTB_WV2
         return
     try {
@@ -1306,6 +1318,10 @@ FloatingToolbarPushCmdLayoutToWeb() {
         cid := Trim(String(row["cmdId"]))
         if (cid = "" || !cmdList.Has(cid))
             continue
+        if g_FTB_BlockedCmdIds.Has(cid)
+            continue
+        if !g_FTB_AllowedCmdIds.Has(cid)
+            continue
         ent := cmdList[cid]
         nm := ent.Has("name") ? String(ent["name"]) : cid
         ic := "fa-circle"
@@ -1319,6 +1335,8 @@ FloatingToolbarPushCmdLayoutToWeb() {
         rowPayload := Map("cmdId", cid, "name", nm, "iconClass", ic)
         if (cid = "ftb_cursor_menu")
             rowPayload["iconPath"] := "images/cursor.png"
+        if (cid = "hub_capsule")
+            rowPayload["iconPath"] := "assets/牛马.png"
         items.Push(rowPayload)
     }
     FloatingToolbarCmdVisibleCount := items.Length
