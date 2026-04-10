@@ -16,6 +16,9 @@ global g_InverseBindings := Map()
 global g_HotkeyBound := Map()
 ; 嵌入模式：CapsLock 下由 HotIf(GetCapsLockState)+Hotkey() 动态挂载的键（重载前须 Off）
 global g_VK_CapsLockDynHotkeys := []
+global g_VK_PhysModSyncOn := false
+global g_VK_LastPhysModSig := ""
+global g_VK_WinBlockRegistered := false
 ; 嵌入模式：仅在 Cursor 窗口激活时生效的动态热键（qa_* 原生命令映射）
 global g_VK_EmbeddedScopedHotkeys := []
 global g_VK_Gui := 0
@@ -1858,11 +1861,41 @@ _VkScToDataAhkBase(vk, sc) {
     return base
 }
 
+; GetKeyName / 扫描表可能为 LControl，与 VirtualKeyboard.html 的 data-ahkkey（LCtrl）不一致，统一成与 DOM 一致
+_VkNormalizeKeyNameForWeb(kn) {
+    static m := Map(
+        "LControl", "LCtrl",
+        "RControl", "RCtrl",
+        "LMenu", "LAlt",
+        "RMenu", "RAlt",
+    )
+    if m.Has(kn)
+        return m[kn]
+    return kn
+}
+
+; 键帽预览：修饰键 / Win 使用 GetKeyName 的左右名（与 HTML data-ahkkey 一致），其它键走 _VkScToDataAhkBase
+_VkPreviewKeyBaseFromHook(vk, sc) {
+    global g_UseScanCode
+    if g_UseScanCode {
+        kn := _GetKeyFromSC(sc)
+        if kn = ""
+            kn := GetKeyName(Format("vk{:x}sc{:x}", vk, sc))
+    } else {
+        kn := GetKeyName(Format("vk{:x}sc{:x}", vk, sc))
+    }
+    if kn = ""
+        return ""
+    if _IsModifierOnlyKey(kn)
+        return _VkNormalizeKeyNameForWeb(kn)
+    return _VkScToDataAhkBase(vk, sc)
+}
+
 _OnVkPreviewKeyDown(ih, vk, sc) {
     global g_VK_Ready
     if !g_VK_Ready
         return
-    base := _VkScToDataAhkBase(vk, sc)
+    base := _VkPreviewKeyBaseFromHook(vk, sc)
     if base = ""
         return
     VK_SendToWeb('{"type":"keyPreview","phase":"down","base":"' . _VkJsonStr(base) . '"}')
@@ -1872,7 +1905,7 @@ _OnVkPreviewKeyUp(ih, vk, sc) {
     global g_VK_Ready
     if !g_VK_Ready
         return
-    base := _VkScToDataAhkBase(vk, sc)
+    base := _VkPreviewKeyBaseFromHook(vk, sc)
     if base = ""
         return
     VK_SendToWeb('{"type":"keyPreview","phase":"up","base":"' . _VkJsonStr(base) . '"}')
@@ -2200,12 +2233,104 @@ _UpdateModifierState() {
     _PushModifierState()
 }
 
+; WebView2 常吞掉 Alt/Ctrl 的 KeyUp，仅靠 InputHook 会导致 hostMods 与真实键盘脱节；VK 可见时轮询同步（有变化才推送）
+_VK_PhysicalModSyncTick(*) {
+    global g_VK_Gui, g_VK_Ready, g_ModState, g_VK_LastPhysModSig
+    if !g_VK_Ready || !g_VK_Gui
+        return
+    try {
+        if !(WinExist("ahk_id " . g_VK_Gui.Hwnd) && (WinGetStyle("ahk_id " . g_VK_Gui.Hwnd) & 0x10000000))
+            return
+    } catch {
+        return
+    }
+    c := GetKeyState("Ctrl", "P")
+    a := GetKeyState("Alt", "P")
+    s := GetKeyState("Shift", "P")
+    w := GetKeyState("LWin", "P") || GetKeyState("RWin", "P")
+    sig := (c ? "1" : "0") . (a ? "1" : "0") . (s ? "1" : "0") . (w ? "1" : "0")
+    if (sig = g_VK_LastPhysModSig)
+        return
+    g_VK_LastPhysModSig := sig
+    g_ModState["ctrl"] := c
+    g_ModState["alt"] := a
+    g_ModState["shift"] := s
+    _PushModifierState()
+}
+
+_VK_StartPhysicalModSyncTimer() {
+    global g_VK_PhysModSyncOn
+    if g_VK_PhysModSyncOn
+        return
+    g_VK_PhysModSyncOn := true
+    SetTimer(_VK_PhysicalModSyncTick, 90)
+}
+
+_VK_StopPhysicalModSyncTimer() {
+    global g_VK_PhysModSyncOn
+    if !g_VK_PhysModSyncOn
+        return
+    SetTimer(_VK_PhysicalModSyncTick, 0)
+    g_VK_PhysModSyncOn := false
+}
+
+; 前台为 KeyBinder（含 WebView 子 HWND）时拦截 Win，避免开始菜单抢焦点导致界面被 WM 关闭
+VK_IsKeybinderInputContext(*) {
+    global g_VK_Gui
+    if !g_VK_Gui
+        return false
+    try {
+        ah := WinExist("A")
+        if !ah
+            return false
+        root := DllCall("user32\GetAncestor", "ptr", ah, "uint", 2, "ptr")
+        return (root = g_VK_Gui.Hwnd)
+    } catch {
+        return false
+    }
+}
+
+_VK_SuppressWinKey(*) {
+}
+
+_VK_RegisterWinKeyBlockWhileVkOpen() {
+    global g_VK_WinBlockRegistered
+    if g_VK_WinBlockRegistered
+        return
+    try {
+        HotIf(VK_IsKeybinderInputContext)
+        Hotkey("LWin", _VK_SuppressWinKey, "On")
+        Hotkey("RWin", _VK_SuppressWinKey, "On")
+        HotIf()
+        g_VK_WinBlockRegistered := true
+    } catch as e {
+        OutputDebug("[VK] Win key block: " . e.Message)
+    }
+}
+
+_VK_UnregisterWinKeyBlock() {
+    global g_VK_WinBlockRegistered
+    if !g_VK_WinBlockRegistered
+        return
+    try {
+        HotIf(VK_IsKeybinderInputContext)
+        Hotkey("LWin", "Off")
+        Hotkey("RWin", "Off")
+        HotIf()
+    } catch as e {
+        OutputDebug("[VK] Win key unblock: " . e.Message)
+    }
+    g_VK_WinBlockRegistered := false
+}
+
 _PushModifierState() {
     global g_ModState
+    winDown := GetKeyState("LWin", "P") || GetKeyState("RWin", "P")
     VK_SendToWeb(
         '{"type":"modifierState","ctrl":' . (g_ModState["ctrl"] ? "true" : "false")
             . ',"alt":' . (g_ModState["alt"] ? "true" : "false")
             . ',"shift":' . (g_ModState["shift"] ? "true" : "false")
+            . ',"win":' . (winDown ? "true" : "false")
             . '}'
     )
 }
@@ -2412,6 +2537,8 @@ _IsModifierOnlyKey(keyName) {
         || keyName = "RAlt"
         || keyName = "LShift"
         || keyName = "RShift"
+        || keyName = "LWin"
+        || keyName = "RWin"
 }
 
 _VkRecordModifierDoubleTap(keyName) {
@@ -2685,7 +2812,11 @@ VK_Show() {
         SetTimer(_VK_RefreshWebViewComposition, -30)
         SetTimer(_VK_RefreshWebViewComposition, -120)
         SetTimer(_VK_RefreshWebViewComposition, -380)
+        global g_VK_LastPhysModSig
+        g_VK_LastPhysModSig := ""
         _StartKeyPreviewHook()
+        _VK_StartPhysicalModSyncTimer()
+        _VK_RegisterWinKeyBlockWhileVkOpen()
         ; 仅在「长按 CapsLock 临时调起」时开启上一动作即时绑定，其他入口（托盘/按钮）保持关闭。
         ; 须先于 _PushInit：否则 init 里 quickBindActive 仍为 false，前端不显示即时绑定提示
         if (openFromCapsHold)
@@ -2708,6 +2839,8 @@ VK_Hide() {
     global g_VK_Gui
     VK_SendToWeb('{"type":"keyPreviewClear"}')
     _StopKeyPreviewHook()
+    _VK_StopPhysicalModSyncTimer()
+    _VK_UnregisterWinKeyBlock()
     _VK_StopQuickBindHook()
     WMActivateChain_Unregister(_VK_WM_ACTIVATE)
     if g_VK_Gui

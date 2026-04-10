@@ -21,6 +21,7 @@ global FloatingToolbarWindowY := 0
 global FloatingToolbarScale := 1.0
 global FloatingToolbarMinScale := 0.7
 global FloatingToolbarMaxScale := 1.5
+global FloatingToolbarCompactDiameter := 52
 global FloatingToolbarDragging := false
 global FloatingToolbar_DragOriginScreenX := 0
 global FloatingToolbar_DragOriginScreenY := 0
@@ -378,7 +379,8 @@ FloatingToolbar_OnWebMessage(sender, args) {
         g_FTB_WV2_Ready := true
         FloatingToolbar_ApplyWebViewBounds()
         SetTimer(FloatingToolbar_PushLogoToWeb, -10)
-        try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_scale", "scale", FloatingToolbarScale))
+        FloatingToolbarPushScaleStateToWeb(FloatingToolbarScale)
+        FloatingToolbarPushButtonConfigToWeb()
         FloatingToolbar_FlushPendingSelectionIfReady()
         FloatingToolbar_FlushPendingNiumaComposeIfReady()
         return
@@ -492,6 +494,11 @@ FloatingToolbar_OnWebMessage(sender, args) {
         delta := msg.Has("delta") ? Integer(msg["delta"]) : 0
         if (delta != 0)
             FloatingToolbarApplyWheelDelta(delta)
+        return
+    }
+
+    if (typ = "exit_compact") {
+        FloatingToolbarExitCompactMode()
         return
     }
 
@@ -644,6 +651,7 @@ FloatingToolbarSetChatDrawerState(open) {
     FloatingToolbarGUI.Move(newX, newY, newW, newH)
     FloatingToolbarApplyRoundedCorners()
     FloatingToolbar_ApplyWebViewBounds()
+    FloatingToolbarPushScaleStateToWeb(FloatingToolbarScale)
     SaveFloatingToolbarPosition()
 }
 
@@ -1008,9 +1016,7 @@ FloatingToolbarApplyWheelDelta(delta) {
         FloatingToolbarApplyRoundedCorners()
         FloatingToolbar_ApplyWebViewBounds()
 
-        if g_FTB_WV2 {
-            try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_scale", "scale", newScale))
-        }
+        FloatingToolbarPushScaleStateToWeb(newScale)
 
         FloatingToolbarSaveScale()
         SaveFloatingToolbarPosition()
@@ -1126,9 +1132,7 @@ FloatingToolbarResetScale() {
     FloatingToolbarApplyRoundedCorners()
     FloatingToolbar_ApplyWebViewBounds()
 
-    if g_FTB_WV2 {
-        try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_scale", "scale", 1.0))
-    }
+    FloatingToolbarPushScaleStateToWeb(1.0)
 
     FloatingToolbarSaveScale()
     SaveFloatingToolbarPosition()
@@ -1224,23 +1228,115 @@ FloatingToolbarLoadScale() {
     FloatingToolbarLoadDrawerWidth()
 }
 
+FloatingToolbarIsCompactMode(scaleValue := "") {
+    global FloatingToolbarScale, FloatingToolbarMinScale, FloatingToolbarChatDrawerOpen
+    sc := (scaleValue = "") ? FloatingToolbarScale : Float(scaleValue)
+    if FloatingToolbarChatDrawerOpen
+        return false
+    return (sc <= (FloatingToolbarMinScale + 0.0001))
+}
+
+FloatingToolbarPushScaleStateToWeb(scaleValue := "") {
+    global g_FTB_WV2, FloatingToolbarScale
+    if !g_FTB_WV2
+        return
+    sc := (scaleValue = "") ? FloatingToolbarScale : Float(scaleValue)
+    compact := FloatingToolbarIsCompactMode(sc)
+    try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_scale", "scale", sc, "compact", compact))
+    catch as _e {
+    }
+}
+
+FloatingToolbarPushButtonConfigToWeb() {
+    global g_FTB_WV2, FloatingToolbarButtonItems
+    if !g_FTB_WV2
+        return
+    actions := ["Search", "Record", "Prompt", "NewPrompt", "Screenshot", "Settings", "VirtualKeyboard"]
+    try {
+        if (IsSet(FloatingToolbarButtonItems) && FloatingToolbarButtonItems is Array && FloatingToolbarButtonItems.Length > 0) {
+            actions := []
+            for id in FloatingToolbarButtonItems
+                actions.Push(String(id))
+        }
+    } catch {
+    }
+    try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_toolbar_config", "actions", actions))
+    catch as _e {
+    }
+}
+
+FloatingToolbarExitCompactMode() {
+    global FloatingToolbarGUI, FloatingToolbarScale, FloatingToolbarMinScale, FloatingToolbarMaxScale
+    global FloatingToolbarWindowX, FloatingToolbarWindowY
+
+    if !IsObject(FloatingToolbarGUI) || !(FloatingToolbarGUI is Gui)
+        return
+    if !FloatingToolbarIsCompactMode()
+        return
+
+    targetScale := FloatingToolbarMinScale + 0.15
+    if (targetScale > FloatingToolbarMaxScale)
+        targetScale := FloatingToolbarMaxScale
+
+    try FloatingToolbarGUI.GetPos(&oldX, &oldY, &oldW, &oldH)
+    catch {
+        oldX := FloatingToolbarWindowX
+        oldY := FloatingToolbarWindowY
+        oldW := FloatingToolbarCalculateWidth()
+        oldH := FloatingToolbarCalculateHeight()
+    }
+
+    centerX := oldX + (oldW / 2.0)
+    centerY := oldY + (oldH / 2.0)
+    FloatingToolbarScale := targetScale
+    newW := FloatingToolbarCalculateWidth()
+    newH := FloatingToolbarCalculateHeight()
+    newX := Round(centerX - (newW / 2.0))
+    newY := Round(centerY - (newH / 2.0))
+
+    ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
+    vr := vl + vw
+    vb := vt + vh
+    if (newX < vl)
+        newX := vl
+    if (newY < vt)
+        newY := vt
+    if (newX + newW > vr)
+        newX := vr - newW
+    if (newY + newH > vb)
+        newY := vb - newH
+
+    FloatingToolbarWindowX := newX
+    FloatingToolbarWindowY := newY
+    FloatingToolbarGUI.Move(newX, newY, newW, newH)
+    FloatingToolbarApplyRoundedCorners()
+    FloatingToolbar_ApplyWebViewBounds()
+    FloatingToolbarPushScaleStateToWeb(targetScale)
+    FloatingToolbarSaveScale()
+    SaveFloatingToolbarPosition()
+}
+
 ; ===================== 璁＄畻宸ュ叿鏍忓搴﹀拰楂樺害 =====================
 FloatingToolbarCalculateWidth() {
-    global FloatingToolbarScale, FloatingToolbarChatDrawerOpen, FloatingToolbarChatDrawerWidth
+    global FloatingToolbarScale, FloatingToolbarChatDrawerOpen, FloatingToolbarChatDrawerWidth, FloatingToolbarCompactDiameter
     BaseWidth := 380
     if (FloatingToolbarChatDrawerOpen)
         return Round(Max(BaseWidth, FloatingToolbarChatDrawerWidth) * FloatingToolbarScale)
+    if FloatingToolbarIsCompactMode()
+        return Round(FloatingToolbarCompactDiameter)
     return Round(BaseWidth * FloatingToolbarScale)
 }
 
 FloatingToolbarCalculateHeight() {
-    global FloatingToolbarScale, FloatingToolbarChatDrawerOpen, FloatingToolbarChatDrawerHeight
+    global FloatingToolbarScale, FloatingToolbarChatDrawerOpen, FloatingToolbarChatDrawerHeight, FloatingToolbarCompactDiameter
     ; HTML 缁撴瀯涓?52px logo + 涓婁笅鍚?6px padding锛屽洜姝ゅ熀鍑嗛珮搴﹀繀椤绘槸 64
     BaseHeight := 64
     if FloatingToolbarChatDrawerOpen {
         ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
         return vh
     }
+    if FloatingToolbarIsCompactMode()
+        return Round(FloatingToolbarCompactDiameter)
     return Round(BaseHeight * FloatingToolbarScale)
 }
 

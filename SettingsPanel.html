@@ -258,6 +258,7 @@
       .row { grid-template-columns: 1fr; gap: 6px; }
       .prompt-grid { grid-template-columns: 1fr; }
     }
+    .hint { display: none !important; }
   </style>
   <script src="https://app.local/assets/js/BasePanel.js"></script>
 </head>
@@ -317,6 +318,17 @@
     ];
     const ACTION_TYPES = ["Explain","Refactor","Optimize","Config","Copy","Paste","Clipboard","Voice","Split","Batch","CommandPalette","Terminal","GlobalSearch","Explorer","SourceControl","Extensions","Browser","Settings","CursorSettings"];
     const HOTKEY_KEYS = ["ESC","C","V","X","E","R","O","Q","Z","S","B","T","F","P"];
+    const TOOLBAR_BUTTON_OPTIONS = [
+      { id:"Search", name:"搜索" }, { id:"Record", name:"记录" }, { id:"Prompt", name:"提示词" },
+      { id:"NewPrompt", name:"草稿本" }, { id:"Screenshot", name:"截图" }, { id:"Settings", name:"设置" }, { id:"VirtualKeyboard", name:"虚拟键盘" }
+    ];
+    const TOOLBAR_MENU_OPTIONS = [
+      { id:"ToggleToolbar", name:"显示/隐藏工具栏" }, { id:"MinimizeToEdge", name:"最小化到边缘" }, { id:"ResetScale", name:"重置大小" },
+      { id:"SearchCenter", name:"搜索中心" }, { id:"Clipboard", name:"剪贴板" }, { id:"OpenConfig", name:"打开设置" },
+      { id:"HideToolbar", name:"关闭工具栏" }, { id:"ReloadScript", name:"重启脚本" }, { id:"ExitApp", name:"退出程序" }
+    ];
+    const DEFAULT_TOOLBAR_BUTTONS = ["Search","Record","Prompt","NewPrompt","Screenshot","Settings","VirtualKeyboard"];
+    const DEFAULT_TOOLBAR_MENUS = ["ToggleToolbar","MinimizeToEdge","ResetScale","SearchCenter","Clipboard","OpenConfig","HideToolbar","ReloadScript","ExitApp"];
     const state = {
       activeTab: "general",
       selectedPromptTemplateId: "",
@@ -339,7 +351,11 @@
         language: "zh", aiSleepTime: 200, launchDelaySeconds: 3.0,
         searchEngine: "deepseek", autoLoadSelectedText: false, autoUpdateVoiceInput: true,
         voiceSearchEnabledCategories: ["ai","cli","academic","baidu","image","audio","video","book","price","medical","cloud"],
-        voiceSearchSelectedEnginesCsv: "deepseek"
+        voiceSearchSelectedEnginesCsv: "deepseek",
+        floatingToolbarButtons: [...DEFAULT_TOOLBAR_BUTTONS],
+        floatingToolbarMenuItems: [...DEFAULT_TOOLBAR_MENUS],
+        floatingToolbarButtonOptions: [...TOOLBAR_BUTTON_OPTIONS],
+        floatingToolbarMenuOptions: [...TOOLBAR_MENU_OPTIONS]
       }
     };
     const post = (msg) => BasePanel.postToAhk(msg);
@@ -407,6 +423,15 @@
       const aiSleepSeconds = Number(document.getElementById("aiSleepTimeSeconds")?.value ?? (Number(d.aiSleepTime) / 1000));
       d.aiSleepTime = Math.max(0.05, aiSleepSeconds) * 1000;
       d.launchDelaySeconds = Number(document.getElementById("launchDelaySeconds")?.value ?? d.launchDelaySeconds);
+      const listValues = (id) => Array.from(document.getElementById(id)?.options || []).map(o => o.value).filter(Boolean);
+      if (document.getElementById("toolbarButtonsList")) {
+        const btns = listValues("toolbarButtonsList");
+        d.floatingToolbarButtons = btns.length ? btns : [...DEFAULT_TOOLBAR_BUTTONS];
+      }
+      if (document.getElementById("toolbarMenusList")) {
+        const menus = listValues("toolbarMenusList");
+        d.floatingToolbarMenuItems = menus.length ? menus : [...DEFAULT_TOOLBAR_MENUS];
+      }
       return d;
     }
     function csvToArr(v){ return String(v || "").split(",").map(s => s.trim()).filter(Boolean); }
@@ -423,7 +448,7 @@
       d.voiceSearchEnabledCategories = cats;
       return d;
     }
-    function readFromUI() { let d = { ...state.data, hotkeys: { ...state.data.hotkeys }, quickActions: [...state.data.quickActions], voiceSearchEnabledCategories: [...state.data.voiceSearchEnabledCategories] }; d = readGeneral(d); d = readAppearance(d); d = readPrompts(d); d = readHotkeys(d); d = readAdvanced(d); d = readSearch(d); return d; }
+    function readFromUI() { let d = { ...state.data, hotkeys: { ...state.data.hotkeys }, quickActions: [...state.data.quickActions], voiceSearchEnabledCategories: [...state.data.voiceSearchEnabledCategories], floatingToolbarButtons: [...(state.data.floatingToolbarButtons||[])], floatingToolbarMenuItems: [...(state.data.floatingToolbarMenuItems||[])] }; d = readGeneral(d); d = readAppearance(d); d = readPrompts(d); d = readHotkeys(d); d = readAdvanced(d); d = readSearch(d); return d; }
     function selectOpt(id, val){ const el = document.getElementById(id); if (el) el.value = val; }
     function options(items, selected){ return items.map(v => `<option value="${esc(v)}"${v===selected?" selected":""}>${esc(v)}</option>`).join(""); }
     function optionsKV(items, selected){ return items.map(it => `<option value="${esc(it.value)}"${it.value===selected?" selected":""}>${esc(it.label)}</option>`).join(""); }
@@ -634,7 +659,55 @@
         panel.innerHTML = `<div class="card"><div class="title">快捷键设置</div><div class="row"><div class="label">长按 CapsLock 打开 VK 快捷键面板</div><div><input id="capsLockHoldVkEnabled" type="checkbox" ${checked(d.capsLockHoldVkEnabled !== false && d.capsLockHoldVkEnabled !== 0)}></div></div><div class="hint" style="margin:-4px 0 10px 0;">开启后，按住 CapsLock 达到「通用设置」中的长按时间即弹出 KeyBinder，松开 CapsLock 后关闭；关闭本项后仍可从托盘菜单打开虚拟键盘。</div>${hotkeyRows}<div class="row"><div class="label">Prompt 快速采集热键</div><input id="promptQuickCaptureHotkey" type="text" value="${esc(d.promptQuickCaptureHotkey)}"></div></div><div class="card"><div class="title">快速操作按钮 (5)</div>${qaRows}<div class="inline"><button class="btn" id="btnOpenLegacyHotkeys">打开原版快捷键设置</button></div></div>`;
         document.getElementById("btnOpenLegacyHotkeys").addEventListener("click", () => post({ type: "invokeAction", op: "openLegacyTab", tab: "hotkeys" }));
       } else if (state.activeTab === "advanced") {
-        panel.innerHTML = `<div class="card"><div class="title">高级设置</div><div class="row"><div class="label">界面语言</div><select id="language">${optionsKV([{value:"zh",label:"中文"},{value:"en",label:"英文"}],d.language)}</select></div><div class="row"><div class="label">AI 等待时间 (秒)</div><input id="aiSleepTimeSeconds" type="number" min="0.05" max="10" step="0.05" value="${esc((Number(d.aiSleepTime || 200) / 1000).toFixed(2).replace(/\.?0+$/,""))}"></div><div class="row"><div class="label">启动延迟 (秒)</div><input id="launchDelaySeconds" type="number" min="0.5" max="10" step="0.1" value="${esc(d.launchDelaySeconds)}"></div><div class="hint">弹窗位置已统一到“外观设置 > 弹窗位置”。</div></div><div class="card"><div class="title">配置管理</div><div class="inline"><button class="btn" id="btnExportCfg">导出配置</button><button class="btn" id="btnImportCfg">导入配置</button><button class="btn" id="btnResetCfg">重置默认</button></div></div>`;
+        const tbBtnOpts = (Array.isArray(d.floatingToolbarButtonOptions) && d.floatingToolbarButtonOptions.length) ? d.floatingToolbarButtonOptions : TOOLBAR_BUTTON_OPTIONS;
+        const tbMenuOpts = (Array.isArray(d.floatingToolbarMenuOptions) && d.floatingToolbarMenuOptions.length) ? d.floatingToolbarMenuOptions : TOOLBAR_MENU_OPTIONS;
+        const tbBtnMap = Object.fromEntries(tbBtnOpts.map(o => [o.id, o.name || o.id]));
+        const tbMenuMap = Object.fromEntries(tbMenuOpts.map(o => [o.id, o.name || o.id]));
+        const tbBtnList = (Array.isArray(d.floatingToolbarButtons) && d.floatingToolbarButtons.length ? d.floatingToolbarButtons : DEFAULT_TOOLBAR_BUTTONS)
+          .map(id => `<option value="${esc(id)}">${esc(tbBtnMap[id] || id)}</option>`).join("");
+        const tbMenuList = (Array.isArray(d.floatingToolbarMenuItems) && d.floatingToolbarMenuItems.length ? d.floatingToolbarMenuItems : DEFAULT_TOOLBAR_MENUS)
+          .map(id => `<option value="${esc(id)}">${esc(tbMenuMap[id] || id)}</option>`).join("");
+        const tbBtnAdd = tbBtnOpts.map(o => `<option value="${esc(o.id)}">${esc(o.name || o.id)}</option>`).join("");
+        const tbMenuAdd = tbMenuOpts.map(o => `<option value="${esc(o.id)}">${esc(o.name || o.id)}</option>`).join("");
+        panel.innerHTML = `<div class="card"><div class="title">高级设置</div><div class="row"><div class="label">界面语言</div><select id="language">${optionsKV([{value:"zh",label:"中文"},{value:"en",label:"英文"}],d.language)}</select></div><div class="row"><div class="label">AI 等待时间 (秒)</div><input id="aiSleepTimeSeconds" type="number" min="0.05" max="10" step="0.05" value="${esc((Number(d.aiSleepTime || 200) / 1000).toFixed(2).replace(/\.?0+$/,""))}"></div><div class="row"><div class="label">启动延迟 (秒)</div><input id="launchDelaySeconds" type="number" min="0.5" max="10" step="0.1" value="${esc(d.launchDelaySeconds)}"></div></div><div class="card"><div class="title">悬浮工具栏</div><div class="grid2"><div><div class="label">显示图标（顺序即布局）</div><select id="toolbarButtonsList" multiple size="9">${tbBtnList}</select><div class="inline" style="margin-top:8px;"><select id="toolbarButtonAddSelect">${tbBtnAdd}</select><button class="btn" id="btnToolbarButtonAdd">添加</button><button class="btn" id="btnToolbarButtonDel">删除</button><button class="btn" id="btnToolbarButtonUp">上移</button><button class="btn" id="btnToolbarButtonDown">下移</button></div></div><div><div class="label">右键菜单项（顺序即布局）</div><select id="toolbarMenusList" multiple size="9">${tbMenuList}</select><div class="inline" style="margin-top:8px;"><select id="toolbarMenuAddSelect">${tbMenuAdd}</select><button class="btn" id="btnToolbarMenuAdd">添加</button><button class="btn" id="btnToolbarMenuDel">删除</button><button class="btn" id="btnToolbarMenuUp">上移</button><button class="btn" id="btnToolbarMenuDown">下移</button></div></div></div></div><div class="card"><div class="title">配置管理</div><div class="inline"><button class="btn" id="btnExportCfg">导出配置</button><button class="btn" id="btnImportCfg">导入配置</button><button class="btn" id="btnResetCfg">重置默认</button></div></div>`;
+        const moveSel = (listId, dir) => {
+          const list = document.getElementById(listId); if (!list) return;
+          const i = list.selectedIndex; if (i < 0) return;
+          const j = i + dir; if (j < 0 || j >= list.options.length) return;
+          const a = list.options[i], b = list.options[j];
+          list.removeChild(a);
+          list.insertBefore(a, dir > 0 ? b.nextSibling : b);
+          list.selectedIndex = j;
+          scheduleAutoSave(10);
+        };
+        const delSel = (listId) => {
+          const list = document.getElementById(listId); if (!list) return;
+          const i = list.selectedIndex; if (i < 0) return;
+          list.remove(i);
+          if (list.options.length) list.selectedIndex = Math.max(0, i - 1);
+          scheduleAutoSave(10);
+        };
+        const addItem = (listId, selectId, labelMap) => {
+          const list = document.getElementById(listId), sel = document.getElementById(selectId);
+          if (!list || !sel) return;
+          const id = sel.value || "";
+          if (!id) return;
+          if (Array.from(list.options).some(o => o.value === id)) return;
+          const opt = document.createElement("option");
+          opt.value = id;
+          opt.textContent = labelMap[id] || id;
+          list.appendChild(opt);
+          list.selectedIndex = list.options.length - 1;
+          scheduleAutoSave(10);
+        };
+        document.getElementById("btnToolbarButtonAdd").addEventListener("click", () => addItem("toolbarButtonsList", "toolbarButtonAddSelect", tbBtnMap));
+        document.getElementById("btnToolbarButtonDel").addEventListener("click", () => delSel("toolbarButtonsList"));
+        document.getElementById("btnToolbarButtonUp").addEventListener("click", () => moveSel("toolbarButtonsList", -1));
+        document.getElementById("btnToolbarButtonDown").addEventListener("click", () => moveSel("toolbarButtonsList", 1));
+        document.getElementById("btnToolbarMenuAdd").addEventListener("click", () => addItem("toolbarMenusList", "toolbarMenuAddSelect", tbMenuMap));
+        document.getElementById("btnToolbarMenuDel").addEventListener("click", () => delSel("toolbarMenusList"));
+        document.getElementById("btnToolbarMenuUp").addEventListener("click", () => moveSel("toolbarMenusList", -1));
+        document.getElementById("btnToolbarMenuDown").addEventListener("click", () => moveSel("toolbarMenusList", 1));
         document.getElementById("btnExportCfg").addEventListener("click", () => post({ type: "invokeAction", op: "exportConfig" }));
         document.getElementById("btnImportCfg").addEventListener("click", () => post({ type: "invokeAction", op: "importConfig" }));
         document.getElementById("btnResetCfg").addEventListener("click", () => post({ type: "invokeAction", op: "resetToDefaults" }));
@@ -710,7 +783,7 @@
         const validStartTabs = new Set(["general","appearance","prompts","hotkeys","advanced","search"]);
         if (startTab && validStartTabs.has(startTab)) {
           state.activeTab = startTab;
-          document.querySelectorAll(".tab-Nbtn").forEach(b => b.classList.toggle("active", b.dataset.tab === startTab));
+          document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === startTab));
         }
         const ids = (state.data.promptTemplateSummary || []).map(t => t.id);
         if (state.selectedPromptTemplateId && !ids.includes(state.selectedPromptTemplateId))

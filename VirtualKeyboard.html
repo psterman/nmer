@@ -533,7 +533,7 @@ body::after {
   text-align: center;
   font-size: 7px;
   font-weight: 600;
-  color: var(--matrix-green);
+  color: #f2f2f2;
   line-height: 1.15;
   max-height: calc(100% - 11px);
   overflow: hidden;
@@ -557,7 +557,7 @@ body::after {
 }
 .k.bound {
   border-bottom-color: var(--matrix-green) !important;
-  color: var(--matrix-green) !important;
+  color: #f2f2f2 !important;
   animation: breath 3s ease-in-out infinite;
 }
 @keyframes breath {
@@ -576,6 +576,17 @@ body::after {
   box-shadow: 0 0 10px #35ff8899 !important;
   background: linear-gradient(180deg, #1a2a20, #15231b) !important;
   border-bottom-color: #2cff83 !important;
+}
+/* slot-occupied / bound 写在后面会盖掉 mod-active；合并选择器保证虚拟修饰键“点亮”可见 */
+.k.mod-active.slot-occupied,
+.k.mod-active.bound,
+.k.mod-active.slot-suggested {
+  border-color: #35ff88 !important;
+  color: #35ff88 !important;
+  box-shadow: 0 0 10px #35ff8899 !important;
+  background: linear-gradient(180deg, #1a2a20, #15231b) !important;
+  border-bottom-color: #2cff83 !important;
+  animation: none !important;
 }
 .k.slot-occupied {
   background: #2c1500;
@@ -1498,11 +1509,11 @@ body::after {
       <div class="kb-main-left-col kb-grid-left kb-grid-r6">
         <div class="kr">
           <div class="k k-ctrl" data-ahkkey="LCtrl">Ctrl</div>
-          <div class="k k-win"  data-ahkkey="LWin">?</div>
+          <div class="k k-win"  data-ahkkey="LWin" title="Win">Win</div>
           <div class="k k-alt"  data-ahkkey="LAlt">Alt</div>
           <div class="k k-spc"  data-ahkkey="Space">SPACE</div>
           <div class="k k-alt"  data-ahkkey="RAlt">Alt</div>
-          <div class="k k-win"  data-ahkkey="RWin">?</div>
+          <div class="k k-win"  data-ahkkey="RWin" title="Win">Win</div>
           <div class="k k-win"  data-ahkkey="AppsKey">≡</div>
           <div class="k k-ctrl" data-ahkkey="RCtrl">Ctrl</div>
         </div>
@@ -2523,7 +2534,7 @@ function handleAhkMessage(msg) {
       };
       state.activeMods = getEffectiveMods();
       renderModifierKeys();
-      renderKeyboardSlots();
+      // 勿在此处 renderKeyboardSlots：会触发 fade + 清空/重填 map-label，物理修饰键轮询时造成命令文字闪烁
       break;
     case 'keyPreview': {
       const base = msg.base;
@@ -3953,11 +3964,12 @@ function doubleAhkToKeys(ahk) {
   return [];
 }
 
+/** 仅虚拟键区 UI 切换（uiMods）参与 ^!+ 前缀；物理按住 Shift/Ctrl 不应改变键帽上的 CapsLock+ 绑定展示 */
 function getActivePrefix() {
-  const m = getEffectiveMods();
-  return (m.ctrl ? '^' : '')
-      +  (m.alt ? '!' : '')
-      +  (m.shift ? '+' : '');
+  const u = state.uiMods || { ctrl: false, alt: false, shift: false, win: false };
+  return (u.ctrl ? '^' : '')
+      +  (u.alt ? '!' : '')
+      +  (u.shift ? '+' : '');
 }
 
 function getEffectiveMods() {
@@ -4151,35 +4163,13 @@ function stopRecording(restoreHud = true) {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Keyboard key click (exec mode: highlight + flash)
-// WebView2 下 Alt 键上原生 dblclick 常被浏览器加速器逻辑吞掉，改用两次 click 间隔判定（与 AHK 400ms 同量级）
+// Alt：虚拟键单击切换会「粘滞」像长按；改为按住 pointer 期间才置 uiMods.alt；双按 Alt 仍用两次松开间隔判定。
 // ═══════════════════════════════════════════════════════════════════════════
 const VK_ALT_DBL_MS = 400;
-let vkLastAltTapAt = 0;
-
-function tryExecuteDoubleAltFromClick(ahkKey, el, e) {
-  if (ahkKey !== 'LAlt' && ahkKey !== 'RAlt') return false;
-  const now = Date.now();
-  if (vkLastAltTapAt > 0 && (now - vkLastAltTapAt) < VK_ALT_DBL_MS) {
-    vkLastAltTapAt = 0;
-    e.preventDefault();
-    e.stopPropagation();
-    const cmdId = state.ahkKeyIndex['!!'];
-    if (cmdId) {
-      postToAhk({ type: 'executeCommand', commandId: cmdId });
-      triggerKeyRipple('!!');
-      focusCommandById(cmdId);
-    }
-    el.classList.add('pressed');
-    setTimeout(() => el.classList.remove('pressed'), 180);
-    return true;
-  }
-  vkLastAltTapAt = now;
-  return false;
-}
+let vkAltLastUpAt = 0;
 
 function isUiToggleModifierKey(ahkKey) {
   return ahkKey === 'LCtrl' || ahkKey === 'RCtrl'
-    || ahkKey === 'LAlt' || ahkKey === 'RAlt'
     || ahkKey === 'LShift' || ahkKey === 'RShift'
     || ahkKey === 'LWin' || ahkKey === 'RWin';
 }
@@ -4188,8 +4178,6 @@ function toggleModifierFromVirtualKey(ahkKey) {
   if (!state.uiMods) state.uiMods = { ctrl:false, alt:false, shift:false, win:false };
   if (ahkKey === 'LCtrl' || ahkKey === 'RCtrl')
     state.uiMods.ctrl = !state.uiMods.ctrl;
-  else if (ahkKey === 'LAlt' || ahkKey === 'RAlt')
-    state.uiMods.alt = !state.uiMods.alt;
   else if (ahkKey === 'LShift' || ahkKey === 'RShift')
     state.uiMods.shift = !state.uiMods.shift;
   else if (ahkKey === 'LWin' || ahkKey === 'RWin')
@@ -4198,18 +4186,66 @@ function toggleModifierFromVirtualKey(ahkKey) {
   renderKeyboardSlots();
 }
 
+function attachVirtualAltPointerHandlers(el) {
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    el.classList.add('pressed');
+    if (!state.uiMods) state.uiMods = { ctrl:false, alt:false, shift:false, win:false };
+    state.uiMods.alt = true;
+    renderModifierKeys();
+    renderKeyboardSlots();
+  });
+  el.addEventListener('pointerup', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    try { el.releasePointerCapture(e.pointerId); } catch (_) {}
+    el.classList.remove('pressed');
+    const now = Date.now();
+    if (vkAltLastUpAt > 0 && (now - vkAltLastUpAt) < VK_ALT_DBL_MS) {
+      vkAltLastUpAt = 0;
+      const cmdId = state.ahkKeyIndex['!!'];
+      if (cmdId) {
+        postToAhk({ type: 'executeCommand', commandId: cmdId });
+        triggerKeyRipple('!!');
+        focusCommandById(cmdId);
+      }
+    } else {
+      vkAltLastUpAt = now;
+    }
+    if (state.uiMods) state.uiMods.alt = false;
+    renderModifierKeys();
+    renderKeyboardSlots();
+  });
+  el.addEventListener('lostpointercapture', () => {
+    el.classList.remove('pressed');
+    if (state.uiMods) state.uiMods.alt = false;
+    renderModifierKeys();
+    renderKeyboardSlots();
+  });
+  el.addEventListener('click', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+}
+
 document.querySelectorAll('.k').forEach(el => {
+  const ak0 = el.dataset.ahkkey;
+  if (ak0 === 'LAlt' || ak0 === 'RAlt')
+    attachVirtualAltPointerHandlers(el);
   el.addEventListener('click', (e) => {
     const ahkKey = el.dataset.ahkkey;
     if (!ahkKey) return;
+    if (ahkKey === 'LAlt' || ahkKey === 'RAlt')
+      return;
     if (isUiToggleModifierKey(ahkKey)) {
-      if (tryExecuteDoubleAltFromClick(ahkKey, el, e)) return;
       toggleModifierFromVirtualKey(ahkKey);
       el.classList.add('pressed');
       setTimeout(() => el.classList.remove('pressed'), 180);
       return;
     }
-    if (tryExecuteDoubleAltFromClick(ahkKey, el, e)) return;
     const mappedCmdId = el.dataset.mappedCmdId || state.ahkKeyIndex[ahkKey] || '';
     if (mappedCmdId) focusCommandById(mappedCmdId);
     el.classList.add('pressed');

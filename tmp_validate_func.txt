@@ -1,0 +1,261 @@
+﻿ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
+    global CursorPath, CapsLockHoldTimeSeconds, CapsLockHoldVkEnabled, AutoStart, DefaultStartTab
+    global ThemeMode, FunctionPanelPos, ConfigPanelScreenIndex, ConfigPanelPos, ClipboardPanelPos, PanelScreenIndex
+    global Prompt_Explain, Prompt_Refactor, Prompt_Optimize
+    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, SplitHotkey, BatchHotkey, HotkeyT, HotkeyF, HotkeyP
+    global PromptQuickCaptureHotkey, QuickActionButtons
+    global Language, AISleepTime, LaunchDelaySeconds, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex, ClipboardPanelScreenIndex
+    global SearchEngine, AutoLoadSelectedText, AutoUpdateVoiceInput, VoiceSearchEnabledCategories, VoiceSearchSelectedEngines
+    global ConfigFile
+
+    try {
+        if !(payload is Map) {
+            errorMsg := "payload 鏃犳晥"
+            return false
+        }
+        NewCursorPath := NormalizeWindowsPath(payload.Get("cursorPath", ""))
+        if (NewCursorPath = "") {
+            errorMsg := "Cursor Path 涓嶈兘涓虹┖"
+            return false
+        }
+        NewHold := Float(payload.Get("capslockHoldTimeSeconds", 0.5))
+        if (NewHold < 0.1 || NewHold > 5.0) {
+            errorMsg := "CapsLock Hold Time 瓒呭嚭鑼冨洿"
+            return false
+        }
+        NewAutoStart := payload.Get("autoStart", false) ? true : false
+        NewCapsLockHoldVk := CapsLockHoldVkEnabled
+        if (payload.Has("capsLockHoldVkEnabled"))
+            NewCapsLockHoldVk := payload["capsLockHoldVkEnabled"] ? true : false
+        NewDefaultTab := payload.Get("defaultStartTab", "general")
+        validTabs := Map("general",1, "appearance",1, "prompts",1, "hotkeys",1, "advanced",1, "search",1)
+        if !validTabs.Has(NewDefaultTab)
+            NewDefaultTab := "general"
+        NewTheme := payload.Get("themeMode", "dark")
+        if (NewTheme != "dark" && NewTheme != "light")
+            NewTheme := "dark"
+        NewPanelPos := payload.Get("functionPanelPos", "center")
+        validPos := Map("center",1, "top-left",1, "top-right",1, "bottom-left",1, "bottom-right",1)
+        if !validPos.Has(NewPanelPos)
+            NewPanelPos := "center"
+        monitorCount := 1
+        try monitorCount := MonitorGetCount()
+        catch
+            monitorCount := 1
+        NewPopupScreen := Integer(payload.Get("popupScreenIndex", payload.Get("panelScreenIndex", 1)))
+        if (NewPopupScreen < 1)
+            NewPopupScreen := 1
+        if (NewPopupScreen > monitorCount)
+            NewPopupScreen := monitorCount
+        NewConfigPanelPos := payload.Get("configPanelPos", "center")
+        if !validPos.Has(NewConfigPanelPos)
+            NewConfigPanelPos := "center"
+        NewClipboardPanelPos := payload.Get("clipboardPanelPos", "center")
+        if !validPos.Has(NewClipboardPanelPos)
+            NewClipboardPanelPos := "center"
+        NewPromptExplain := payload.Get("promptExplain", "")
+        NewPromptRefactor := payload.Get("promptRefactor", "")
+        NewPromptOptimize := payload.Get("promptOptimize", "")
+        NewCursorRules := Map(
+            "general", IniRead(ConfigFile, "CursorRules", "general", ""),
+            "web", IniRead(ConfigFile, "CursorRules", "web", ""),
+            "miniprogram", IniRead(ConfigFile, "CursorRules", "miniprogram", ""),
+            "android", IniRead(ConfigFile, "CursorRules", "android", ""),
+            "ios", IniRead(ConfigFile, "CursorRules", "ios", ""),
+            "python", IniRead(ConfigFile, "CursorRules", "python", "")
+        )
+        if (payload.Has("cursorRules") && payload["cursorRules"] is Map) {
+            crPayload := payload["cursorRules"]
+            for k in ["general","web","miniprogram","android","ios","python"] {
+                if crPayload.Has(k)
+                    NewCursorRules[k] := crPayload.Get(k, "")
+            }
+        }
+        NewLanguage := payload.Get("language", "zh")
+        if (NewLanguage != "zh" && NewLanguage != "en")
+            NewLanguage := "zh"
+        NewAiSleepTime := Integer(payload.Get("aiSleepTime", 200))
+        if (NewAiSleepTime < 50)
+            NewAiSleepTime := 50
+        NewLaunchDelay := Float(payload.Get("launchDelaySeconds", 3.0))
+        if (NewLaunchDelay < 0.5)
+            NewLaunchDelay := 0.5
+        if (NewLaunchDelay > 10.0)
+            NewLaunchDelay := 10.0
+        NewSearchEngine := Trim(payload.Get("searchEngine", "deepseek"))
+        if (NewSearchEngine = "")
+            NewSearchEngine := "deepseek"
+        NewAutoLoad := payload.Get("autoLoadSelectedText", false) ? true : false
+        NewAutoUpdate := payload.Get("autoUpdateVoiceInput", true) ? true : false
+        NewCaptureHotkey := Trim(payload.Get("promptQuickCaptureHotkey", ""))
+        NewVoiceEngineCsv := Trim(payload.Get("voiceSearchSelectedEnginesCsv", ""))
+        NewVoiceCats := []
+        if (payload.Has("voiceSearchEnabledCategories") && payload["voiceSearchEnabledCategories"] is Array) {
+            for c in payload["voiceSearchEnabledCategories"] {
+                if (c != "")
+                    NewVoiceCats.Push(c)
+            }
+        }
+        if (NewVoiceCats.Length = 0)
+            NewVoiceCats := ["ai","cli","academic","baidu","image","audio","video","book","price","medical","cloud"]
+        NewQuickActions := []
+        if (payload.Has("quickActions") && payload["quickActions"] is Array) {
+            for item in payload["quickActions"] {
+                if (item is Map) {
+                    qaType := item.Get("type", "Explain")
+                    qaHotkey := item.Get("hotkey", "")
+                    NewQuickActions.Push(Map("Type", qaType, "Hotkey", qaHotkey))
+                }
+            }
+        }
+        while (NewQuickActions.Length < 5)
+            NewQuickActions.Push(Map("Type", "Explain", "Hotkey", "e"))
+        while (NewQuickActions.Length > 5)
+            NewQuickActions.Pop()
+        hkMap := payload.Get("hotkeys", Map())
+        hkGet(Key, Def) {
+            if (hkMap is Map && hkMap.Has(Key))
+                return Trim(hkMap[Key])
+            return Def
+        }
+        NewHotkeyESC := hkGet("ESC", HotkeyESC)
+        NewHotkeyC := hkGet("C", HotkeyC)
+        NewHotkeyV := hkGet("V", HotkeyV)
+        NewHotkeyX := hkGet("X", HotkeyX)
+        NewHotkeyE := hkGet("E", HotkeyE)
+        NewHotkeyR := hkGet("R", HotkeyR)
+        NewHotkeyO := hkGet("O", HotkeyO)
+        NewHotkeyQ := hkGet("Q", HotkeyQ)
+        NewHotkeyZ := hkGet("Z", HotkeyZ)
+        NewSplitHotkey := hkGet("S", SplitHotkey)
+        NewBatchHotkey := hkGet("B", BatchHotkey)
+        NewHotkeyT := hkGet("T", HotkeyT)
+        NewHotkeyF := hkGet("F", HotkeyF)
+        NewHotkeyP := hkGet("P", HotkeyP)
+
+        CursorPath := NewCursorPath
+        CapsLockHoldTimeSeconds := NewHold
+        CapsLockHoldVkEnabled := NewCapsLockHoldVk
+        AutoStart := NewAutoStart
+        DefaultStartTab := NewDefaultTab
+        FunctionPanelPos := NewPanelPos
+        ConfigPanelPos := NewConfigPanelPos
+        ClipboardPanelPos := NewClipboardPanelPos
+        PanelScreenIndex := NewPopupScreen
+        ConfigPanelScreenIndex := NewPopupScreen
+        Prompt_Explain := NewPromptExplain
+        Prompt_Refactor := NewPromptRefactor
+        Prompt_Optimize := NewPromptOptimize
+        HotkeyESC := NewHotkeyESC
+        HotkeyC := NewHotkeyC
+        HotkeyV := NewHotkeyV
+        HotkeyX := NewHotkeyX
+        HotkeyE := NewHotkeyE
+        HotkeyR := NewHotkeyR
+        HotkeyO := NewHotkeyO
+        HotkeyQ := NewHotkeyQ
+        HotkeyZ := NewHotkeyZ
+        SplitHotkey := NewSplitHotkey
+        BatchHotkey := NewBatchHotkey
+        HotkeyT := NewHotkeyT
+        HotkeyF := NewHotkeyF
+        HotkeyP := NewHotkeyP
+        PromptQuickCaptureHotkey := NewCaptureHotkey
+        QuickActionButtons := NewQuickActions
+        Language := NewLanguage
+        AISleepTime := NewAiSleepTime
+        LaunchDelaySeconds := NewLaunchDelay
+        MsgBoxScreenIndex := NewPopupScreen
+        VoiceInputScreenIndex := NewPopupScreen
+        CursorPanelScreenIndex := NewPopupScreen
+        ClipboardPanelScreenIndex := NewPopupScreen
+        SearchEngine := NewSearchEngine
+        AutoLoadSelectedText := NewAutoLoad
+        AutoUpdateVoiceInput := NewAutoUpdate
+        VoiceSearchEnabledCategories := NewVoiceCats
+        VoiceSearchSelectedEngines := []
+        if (NewVoiceEngineCsv != "") {
+            for item in StrSplit(NewVoiceEngineCsv, ",") {
+                v := Trim(item)
+                if (v != "")
+                    VoiceSearchSelectedEngines.Push(v)
+            }
+        }
+        if (VoiceSearchSelectedEngines.Length = 0)
+            VoiceSearchSelectedEngines.Push("deepseek")
+        ApplyTheme(NewTheme)
+
+        IniWrite(CursorPath, ConfigFile, "Settings", "CursorPath")
+        IniWrite(String(AISleepTime), ConfigFile, "Settings", "AISleepTime")
+        IniWrite(String(CapsLockHoldTimeSeconds), ConfigFile, "Settings", "CapsLockHoldTimeSeconds")
+        IniWrite(CapsLockHoldVkEnabled ? "1" : "0", ConfigFile, "Settings", "CapsLockHoldVkEnabled")
+        IniWrite(String(LaunchDelaySeconds), ConfigFile, "Settings", "LaunchDelaySeconds")
+        IniWrite(Language, ConfigFile, "Settings", "Language")
+        IniWrite(Prompt_Explain, ConfigFile, "Settings", "Prompt_Explain")
+        IniWrite(Prompt_Refactor, ConfigFile, "Settings", "Prompt_Refactor")
+        IniWrite(Prompt_Optimize, ConfigFile, "Settings", "Prompt_Optimize")
+        IniWrite(AutoStart ? "1" : "0", ConfigFile, "Settings", "AutoStart")
+        IniWrite(DefaultStartTab, ConfigFile, "Settings", "DefaultStartTab")
+        IniWrite(ThemeMode, ConfigFile, "Settings", "ThemeMode")
+        IniWrite(PromptQuickCaptureHotkey, ConfigFile, "Settings", "PromptQuickCaptureHotkey")
+        IniWrite(SearchEngine, ConfigFile, "Settings", "SearchEngine")
+        IniWrite(AutoLoadSelectedText ? "1" : "0", ConfigFile, "Settings", "AutoLoadSelectedText")
+        IniWrite(AutoUpdateVoiceInput ? "1" : "0", ConfigFile, "Settings", "AutoUpdateVoiceInput")
+        IniWrite(JoinArray(VoiceSearchEnabledCategories, ","), ConfigFile, "Settings", "VoiceSearchEnabledCategories")
+        IniWrite(JoinArray(VoiceSearchSelectedEngines, ","), ConfigFile, "Settings", "VoiceSearchSelectedEngines")
+        IniWrite(NewCursorRules["general"], ConfigFile, "CursorRules", "general")
+        IniWrite(NewCursorRules["web"], ConfigFile, "CursorRules", "web")
+        IniWrite(NewCursorRules["miniprogram"], ConfigFile, "CursorRules", "miniprogram")
+        IniWrite(NewCursorRules["android"], ConfigFile, "CursorRules", "android")
+        IniWrite(NewCursorRules["ios"], ConfigFile, "CursorRules", "ios")
+        IniWrite(NewCursorRules["python"], ConfigFile, "CursorRules", "python")
+        IniWrite(HotkeyESC, ConfigFile, "Hotkeys", "ESC")
+        IniWrite(HotkeyC, ConfigFile, "Hotkeys", "C")
+        IniWrite(HotkeyV, ConfigFile, "Hotkeys", "V")
+        IniWrite(HotkeyX, ConfigFile, "Hotkeys", "X")
+        IniWrite(HotkeyE, ConfigFile, "Hotkeys", "E")
+        IniWrite(HotkeyR, ConfigFile, "Hotkeys", "R")
+        IniWrite(HotkeyO, ConfigFile, "Hotkeys", "O")
+        IniWrite(HotkeyQ, ConfigFile, "Hotkeys", "Q")
+        IniWrite(HotkeyZ, ConfigFile, "Hotkeys", "Z")
+        IniWrite(SplitHotkey, ConfigFile, "Hotkeys", "Split")
+        IniWrite(BatchHotkey, ConfigFile, "Hotkeys", "Batch")
+        IniWrite(HotkeyT, ConfigFile, "Hotkeys", "T")
+        IniWrite(HotkeyF, ConfigFile, "Hotkeys", "F")
+        IniWrite(HotkeyP, ConfigFile, "Hotkeys", "P")
+        IniWrite("5", ConfigFile, "QuickActions", "ButtonCount")
+        Loop 5 {
+            idx := A_Index
+            btnType := "Explain"
+            btnHotkey := "e"
+            btn := QuickActionButtons[idx]
+            if (btn is Map) {
+                btnType := btn.Get("Type", btnType)
+                btnHotkey := btn.Get("Hotkey", btnHotkey)
+            } else if (IsObject(btn)) {
+                if btn.HasProp("Type")
+                    btnType := btn.Type
+                if btn.HasProp("Hotkey")
+                    btnHotkey := btn.Hotkey
+            }
+            IniWrite(btnType, ConfigFile, "QuickActions", "Button" . idx . "Type")
+            IniWrite(btnHotkey, ConfigFile, "QuickActions", "Button" . idx . "Hotkey")
+        }
+        IniWrite(PanelScreenIndex, ConfigFile, "Appearance", "ScreenIndex")
+        IniWrite(PanelScreenIndex, ConfigFile, "Appearance", "PopupScreenIndex")
+        IniWrite(FunctionPanelPos, ConfigFile, "Appearance", "FunctionPanelPos")
+        IniWrite(ConfigPanelPos, ConfigFile, "Appearance", "ConfigPanelPos")
+        IniWrite(ClipboardPanelPos, ConfigFile, "Appearance", "ClipboardPanelPos")
+        IniWrite(ConfigPanelScreenIndex, ConfigFile, "Advanced", "ConfigPanelScreenIndex")
+        IniWrite(MsgBoxScreenIndex, ConfigFile, "Advanced", "MsgBoxScreenIndex")
+        IniWrite(VoiceInputScreenIndex, ConfigFile, "Advanced", "VoiceInputScreenIndex")
+        IniWrite(CursorPanelScreenIndex, ConfigFile, "Advanced", "CursorPanelScreenIndex")
+        IniWrite(ClipboardPanelScreenIndex, ConfigFile, "Advanced", "ClipboardPanelScreenIndex")
+        SetAutoStart(AutoStart)
+        PromptQuickPad_RegisterCaptureHotkey()
+        return true
+    } catch as err {
+        errorMsg := "淇濆瓨澶辫触: " . err.Message
+        return false
+    }
+}

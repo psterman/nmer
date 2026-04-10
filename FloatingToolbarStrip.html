@@ -12,7 +12,7 @@ button,input,textarea,select{font:inherit}
 #app{position:relative;width:100%;height:100%;background:var(--toolbar-bg)}
 body.drawer-open{background:var(--toolbar-bg)}
 /* 标准圆角矩形：CSS border-radius 各向一致，避免 SVG 非等比拉伸成“药丸/鼓边” */
-#collapsedRoot{position:relative;display:flex;flex-direction:row;align-items:center;height:100%;width:100%;gap:calc(8px * var(--ui));padding:calc(6px * var(--ui)) calc(8px * var(--ui));background:var(--toolbar-bg);background-clip:padding-box;border-radius:calc(10px * var(--ui));border:none;box-shadow:none;opacity:0;visibility:hidden;transition:opacity .12s ease,visibility .12s ease;isolation:isolate;transform:translateZ(0)}
+#collapsedRoot{position:relative;display:flex;flex-direction:row;align-items:center;height:100%;width:100%;gap:calc(8px * var(--ui));padding:calc(6px * var(--ui)) calc(8px * var(--ui));background:var(--toolbar-bg);background-clip:padding-box;border-radius:calc(10px * var(--ui));border:none;box-shadow:none;opacity:0;visibility:hidden;transition:opacity .12s ease,visibility .12s ease,border-radius .24s cubic-bezier(.22,1,.36,1),padding .24s cubic-bezier(.22,1,.36,1),gap .24s cubic-bezier(.22,1,.36,1);isolation:isolate;transform:translateZ(0)}
 /* 仅用户悬停/按下/内部聚焦时：轻盈内发光（平时关闭，避免误以为是黑边） */
 #collapsedRoot::after{content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .22s ease;box-shadow:none}
 #collapsedRoot:hover::after,#collapsedRoot:active::after,#collapsedRoot:focus-within::after{opacity:1;animation:ftbInnerBreath 2.6s ease-in-out infinite}
@@ -45,6 +45,7 @@ body.drawer-open #drawerRoot{display:flex!important}
 .mh{display:flex;justify-content:space-between;gap:12px;padding:8px 12px 6px;font-size:11px;color:var(--muted);border-bottom:1px solid rgba(255,255,255,.05);flex-shrink:0}
 .mb{padding:10px 12px 12px;line-height:1.7;font-size:13px;color:var(--text);user-select:text;-webkit-user-select:text;overflow-wrap:anywhere;word-break:break-word;min-width:0;min-height:min-content}
 .m .mb a{color:#ffb380}
+.m.search-hit{box-shadow:0 0 0 1px rgba(255,132,64,.75),0 0 0 3px rgba(255,102,0,.16)}
 .mb pre{margin-top:10px;border:1px solid rgba(255,102,0,.14);border-radius:12px;background:rgba(8,8,8,.95);overflow:auto}
 .mb pre code{display:block;padding:12px;font:12px/1.65 Consolas,"JetBrains Mono",monospace}
 .hl-comment{color:#6a9955}.hl-string{color:#ce9178}.hl-number{color:#b5cea8}.hl-keyword{color:#ff9b52}.hl-builtins{color:#4fc1ff}.hl-var{color:#dcdcaa}
@@ -61,9 +62,15 @@ body.drawer-open #drawerRoot{display:flex!important}
 .logo-btn{flex-shrink:0;width:max(calc(42px * var(--ui)),34px);height:max(calc(42px * var(--ui)),34px);border:none;border-radius:calc(8px * var(--ui));background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:4px;transition:all var(--ease);color:#ff6600;outline:none;position:relative}
 .logo-btn:hover{filter:brightness(1.3);background:rgba(255,255,255,.06)}
 .logo-btn:focus-visible{background:rgba(255,255,255,.06);box-shadow:0 0 0 1px rgba(255,102,0,.45)}
-.logo-img{width:100%;height:100%;object-fit:contain;pointer-events:none;transform:scale(calc(.92 * var(--ui)));transform-origin:center}
-.icon-btns{display:flex;flex-direction:row;align-items:center;gap:calc(5px * var(--ui));flex:1;min-width:0;flex-wrap:nowrap;overflow-x:auto}
+.logo-img{width:max(calc(30px * var(--ui)),28px);height:max(calc(30px * var(--ui)),28px);min-width:28px;min-height:28px;object-fit:contain;pointer-events:none;transform-origin:center;transition:transform .24s cubic-bezier(.22,1,.36,1),width .24s cubic-bezier(.22,1,.36,1),height .24s cubic-bezier(.22,1,.36,1)}
+.icon-btns{display:flex;flex-direction:row;align-items:center;gap:calc(5px * var(--ui));flex:1;min-width:0;flex-wrap:nowrap;overflow-x:auto;transition:max-width .24s cubic-bezier(.22,1,.36,1),opacity .2s ease,transform .24s cubic-bezier(.22,1,.36,1)}
 .icon-btns::-webkit-scrollbar{height:4px}
+body.ftb-compact #collapsedRoot{justify-content:center;padding:0;gap:0;border-radius:999px}
+body.ftb-compact #collapsedBtns{max-width:0;opacity:0;overflow:hidden;pointer-events:none;transform:translateX(-10px) scale(.94)}
+body.ftb-compact #collapsedRoot::after{opacity:0!important;animation:none!important}
+body.ftb-compact #collapsedRoot .logo-btn{width:100%;height:100%;padding:0;border-radius:999px;background:transparent;box-shadow:none;filter:none}
+body.ftb-compact #collapsedRoot .logo-btn:hover{filter:none;background:transparent}
+body.ftb-compact #collapsedRoot .logo-btn .logo-img{transform:scale(1.02)}
 .tb{width:calc(40px * var(--ui));height:calc(40px * var(--ui));display:flex;align-items:center;justify-content:center;border-radius:calc(8px * var(--ui));cursor:pointer;position:relative;transition:all var(--ease);color:#ff6600;background:transparent;flex-shrink:0}
 .tb svg{width:calc(24px * var(--ui));height:calc(24px * var(--ui));pointer-events:none}
 .tb:hover{filter:brightness(1.3);background:rgba(255,255,255,.06)}
@@ -171,6 +178,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 <header class="hdr">
 <div><div class="t1">NiuMa Chat</div><div class="t2">Markdown · AHK v2 高亮</div></div>
 <div class="icons">
+<button class="ib" id="chat-search" type="button" title="搜索聊天记录" aria-label="搜索聊天记录"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg></button>
 <button class="ib" id="chat-settings" type="button" title="打开设置" aria-label="打开设置"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.82-.33 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.82.33l-.06.06A2 2 0 1 1 4.37 17l.06-.06a1.7 1.7 0 0 0 .33-1.82 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.33-1.82l-.06-.06A2 2 0 1 1 7.03 4.4l.06.06a1.7 1.7 0 0 0 1.82.33h.01a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.5h.01a1.7 1.7 0 0 0 1.82-.33l.06-.06A2 2 0 1 1 19.63 7l-.06.06a1.7 1.7 0 0 0-.33 1.82v.01a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
 <button class="ib" id="drawer-close" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
 </div>
@@ -299,13 +307,44 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 
   var _tpl = $('ftb-toolbar-tpl');
   var _th = _tpl ? _tpl.innerHTML : '';
-  $('collapsedBtns').innerHTML = _th;
-  $('drawerBtns').innerHTML = _th;
+  var DEFAULT_TOOLBAR_ACTIONS = ['Search', 'Record', 'Prompt', 'NewPrompt', 'Screenshot', 'Settings', 'VirtualKeyboard'];
+  function normalizeToolbarActions(actions) {
+    var src = Array.isArray(actions) ? actions : DEFAULT_TOOLBAR_ACTIONS;
+    var allow = { Search:1, Record:1, Prompt:1, NewPrompt:1, Screenshot:1, Settings:1, VirtualKeyboard:1 };
+    var out = [];
+    var seen = {};
+    src.forEach(function (x) {
+      var id = String(x || '').trim();
+      if (!id || !allow[id] || seen[id]) return;
+      seen[id] = 1;
+      out.push(id);
+    });
+    if (!out.length) out = DEFAULT_TOOLBAR_ACTIONS.slice();
+    return out;
+  }
+  function buildToolbarHtmlByActions(actions) {
+    var wrap = document.createElement('div');
+    wrap.innerHTML = _th;
+    var map = {};
+    Array.prototype.slice.call(wrap.querySelectorAll('.tb[data-action]')).forEach(function (el) {
+      map[el.getAttribute('data-action') || ''] = el.outerHTML;
+    });
+    return normalizeToolbarActions(actions).map(function (id) { return map[id] || ''; }).join('');
+  }
+  function rebuildToolbarButtons(actions) {
+    state.toolbarActions = normalizeToolbarActions(actions);
+    var html = buildToolbarHtmlByActions(state.toolbarActions);
+    $('collapsedBtns').innerHTML = html;
+    $('drawerBtns').innerHTML = html;
+    bindSearchDnD();
+    if (state.activeAction) sel(state.activeAction);
+  }
 
   var stage = $('stage'),
     backdrop = $('backdrop'),
     panel = $('panel'),
     dclose = $('drawer-close'),
+    chatSearch = $('chat-search'),
     chatSet = $('chat-settings'),
     chatExportMd = $('chat-export-md'),
     chatExportJson = $('chat-export-json'),
@@ -358,6 +397,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 
   var state = {
     drawer: false,
+    compact: false,
     settings: false,
     sendingBySession: {},
     needSetup: false,
@@ -366,6 +406,9 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     apiKeys: {},
     sessions: [],
     activeSessionId: '',
+    chatSearchKeyword: '',
+    chatSearchCursor: -1,
+    toolbarActions: DEFAULT_TOOLBAR_ACTIONS.slice(),
     niumaHistoryStore: { version: 1, sessions: {}, updatedAt: null },
     niumaHistoryLoaded: false
   };
@@ -415,6 +458,20 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     });
   }
 
+  function setCompact(v) {
+    state.compact = !!v;
+    document.body.classList.toggle('ftb-compact', state.compact);
+  }
+
+  function scrollMsgsToLatest() {
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (!msgs) return;
+        msgs.scrollTop = msgs.scrollHeight;
+      });
+    });
+  }
+
   function scale(v) {
     v = Number(v);
     if (!isFinite(v) || v <= 0) v = 1;
@@ -432,6 +489,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       setNspick(false);
       return;
     }
+    scrollMsgsToLatest();
     if (state.needSetup) setSettings(true);
   }
 
@@ -1029,7 +1087,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       appendMessageDom(item.role, disp, item.ts);
     });
     emptyState();
-    msgs.scrollTop = msgs.scrollHeight;
+    scrollMsgsToLatest();
   }
 
   function add(role, content) {
@@ -1043,8 +1101,50 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     pushSessionHistoryToStore(s);
     emptyState();
     appendMessageDom(n.role, n.content, n.ts);
-    msgs.scrollTop = msgs.scrollHeight;
+    scrollMsgsToLatest();
     renderSessionTabs();
+  }
+
+  function clearChatSearchHit() {
+    msgs.querySelectorAll('article.m.search-hit').forEach(function (n) {
+      n.classList.remove('search-hit');
+    });
+  }
+
+  function runChatSearchPrompt() {
+    var kw = prompt('搜索聊天记录', state.chatSearchKeyword || '');
+    if (kw == null) return;
+    kw = String(kw || '').trim();
+    if (!kw) {
+      state.chatSearchKeyword = '';
+      state.chatSearchCursor = -1;
+      clearChatSearchHit();
+      cstat('已清空搜索关键词');
+      return;
+    }
+    var all = Array.prototype.slice.call(msgs.querySelectorAll('article.m'));
+    var matched = all.filter(function (node) {
+      return String(node.textContent || '').toLowerCase().indexOf(kw.toLowerCase()) >= 0;
+    });
+    if (!matched.length) {
+      clearChatSearchHit();
+      state.chatSearchKeyword = kw;
+      state.chatSearchCursor = -1;
+      cstat('未找到：' + kw, 'error');
+      return;
+    }
+    if (state.chatSearchKeyword !== kw) state.chatSearchCursor = -1;
+    state.chatSearchKeyword = kw;
+    state.chatSearchCursor = (state.chatSearchCursor + 1) % matched.length;
+    clearChatSearchHit();
+    var target = matched[state.chatSearchCursor];
+    target.classList.add('search-hit');
+    try {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (_) {
+      target.scrollIntoView();
+    }
+    cstat('搜索命中 ' + (state.chatSearchCursor + 1) + '/' + matched.length + '：' + kw, 'success');
   }
 
   function switchSession(id) {
@@ -2417,6 +2517,10 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
         return;
       }
       e.stopPropagation();
+      if (state.compact) {
+        post({ type: 'exit_compact' });
+        return;
+      }
       setDrawer(!state.drawer);
     });
   });
@@ -2429,6 +2533,12 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     provider.dataset.prevProv = provider.value;
     setSettings(true);
   });
+
+  if (chatSearch) {
+    chatSearch.addEventListener('click', function () {
+      runChatSearchPrompt();
+    });
+  }
 
   if (chatExportMd) chatExportMd.addEventListener('click', exportMarkdown);
   if (chatExportJson) chatExportJson.addEventListener('click', exportJson);
@@ -2817,7 +2927,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     });
   }
 
-  bindSearchDnD();
+  rebuildToolbarButtons(state.toolbarActions);
   /* 兜底：仅当 set_logo 长时间未回调时显示，避免永远空白 */
   scheduleToolbarReveal(1200);
 
@@ -2854,6 +2964,11 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       }
       if (d.type === 'set_scale') {
         scale(d.scale || 1);
+        setCompact(!!d.compact);
+        return;
+      }
+      if (d.type === 'set_toolbar_config') {
+        rebuildToolbarButtons(d.actions || DEFAULT_TOOLBAR_ACTIONS);
         return;
       }
       if (d.type === 'set_logo') {
@@ -2953,6 +3068,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   fillPromptBuiltinSelect();
   loadCfg();
   scale(1);
+  setCompact(false);
   post({ type: 'toolbar_ready' });
   requestAnimationFrame(function () {
     requestAnimationFrame(function () {

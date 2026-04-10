@@ -751,6 +751,28 @@ global QuickActionButtons := [
     {Type: "Config", Hotkey: "q"},
     {Type: "Explain", Hotkey: "e"}
 ]
+global FloatingToolbarButtonItems := ["Search", "Record", "Prompt", "NewPrompt", "Screenshot", "Settings", "VirtualKeyboard"]
+global FloatingToolbarMenuItems := ["ToggleToolbar", "MinimizeToEdge", "ResetScale", "SearchCenter", "Clipboard", "OpenConfig", "HideToolbar", "ReloadScript", "ExitApp"]
+global FloatingToolbarButtonOptions := [
+    Map("id", "Search", "name", "搜索"),
+    Map("id", "Record", "name", "记录"),
+    Map("id", "Prompt", "name", "提示词"),
+    Map("id", "NewPrompt", "name", "草稿本"),
+    Map("id", "Screenshot", "name", "截图"),
+    Map("id", "Settings", "name", "设置"),
+    Map("id", "VirtualKeyboard", "name", "虚拟键盘")
+]
+global FloatingToolbarMenuOptions := [
+    Map("id", "ToggleToolbar", "name", "显示/隐藏工具栏"),
+    Map("id", "MinimizeToEdge", "name", "最小化到边缘"),
+    Map("id", "ResetScale", "name", "重置大小"),
+    Map("id", "SearchCenter", "name", "搜索中心"),
+    Map("id", "Clipboard", "name", "剪贴板"),
+    Map("id", "OpenConfig", "name", "打开设置"),
+    Map("id", "HideToolbar", "name", "关闭工具栏"),
+    Map("id", "ReloadScript", "name", "重启脚本"),
+    Map("id", "ExitApp", "name", "退出程序")
+]
 
 ; ===================== UI 颜色初始化（必须在脚本早期初始化）=====================
 ; 主题模式：dark（暗色，默认）或 light（亮色）
@@ -2992,6 +3014,11 @@ InitConfig() {
             IniWrite(CapsLockHoldVkEnabled ? "1" : "0", ConfigFile, "Settings", "CapsLockHoldVkEnabled")
             global DefaultStartTab
             DefaultStartTab := IniRead(ConfigFile, "Settings", "DefaultStartTab", "general")
+            global FloatingToolbarButtonItems, FloatingToolbarMenuItems
+            FloatingToolbarButtonItems := FTB_SanitizeToolbarButtonItems(IniRead(ConfigFile, "Settings", "FloatingToolbarButtonItems", FTB_ItemsToCsv(FloatingToolbarButtonItems)))
+            FloatingToolbarMenuItems := FTB_SanitizeToolbarMenuItems(IniRead(ConfigFile, "Settings", "FloatingToolbarMenuItems", FTB_ItemsToCsv(FloatingToolbarMenuItems)))
+            IniWrite(FTB_ItemsToCsv(FloatingToolbarButtonItems), ConfigFile, "Settings", "FloatingToolbarButtonItems")
+            IniWrite(FTB_ItemsToCsv(FloatingToolbarMenuItems), ConfigFile, "Settings", "FloatingToolbarMenuItems")
             ; 读取自定义图标路径
             global CustomIconPath
             CustomIconPath := IniRead(ConfigFile, "Settings", "CustomIconPath", "")
@@ -3194,6 +3221,9 @@ InitConfig() {
             AutoStart := false
             global CapsLockHoldVkEnabled
             CapsLockHoldVkEnabled := true
+            global FloatingToolbarButtonItems, FloatingToolbarMenuItems
+            FloatingToolbarButtonItems := FTB_SanitizeToolbarButtonItems(FloatingToolbarButtonItems)
+            FloatingToolbarMenuItems := FTB_SanitizeToolbarMenuItems(FloatingToolbarMenuItems)
             VoiceSearchEnabledCategories := ["ai", "cli", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
             global PromptQuickCaptureHotkey
             PromptQuickCaptureHotkey := ""
@@ -3231,6 +3261,9 @@ InitConfig() {
         VoiceInputScreenIndex := DefaultVoiceInputScreenIndex
         CursorPanelScreenIndex := DefaultCursorPanelScreenIndex
         ClipboardPanelScreenIndex := DefaultClipboardPanelScreenIndex
+        global FloatingToolbarButtonItems, FloatingToolbarMenuItems
+        FloatingToolbarButtonItems := FTB_SanitizeToolbarButtonItems(FloatingToolbarButtonItems)
+        FloatingToolbarMenuItems := FTB_SanitizeToolbarMenuItems(FloatingToolbarMenuItems)
         global PromptQuickCaptureHotkey
         PromptQuickCaptureHotkey := ""
     }
@@ -4304,27 +4337,89 @@ CloseDarkStylePopupMenu(*) {
 }
 
 ; 悬浮工具栏（空白处/图标）右键：与托盘菜单同款样式，并含「关闭工具栏」「重启脚本」
+FTB_ItemsToCsv(items) {
+    if !(items is Array)
+        return ""
+    out := ""
+    for item in items {
+        v := Trim(String(item))
+        if (v = "")
+            continue
+        if (out != "")
+            out .= ","
+        out .= v
+    }
+    return out
+}
+
+FTB_SanitizeByAllowed(itemsOrCsv, allowedIds, defaults) {
+    src := []
+    if (itemsOrCsv is Array) {
+        for item in itemsOrCsv
+            src.Push(Trim(String(item)))
+    } else {
+        for item in StrSplit(String(itemsOrCsv), ",")
+            src.Push(Trim(String(item)))
+    }
+    out := []
+    seen := Map()
+    for id in src {
+        if (id = "")
+            continue
+        if !allowedIds.Has(id)
+            continue
+        if seen.Has(id)
+            continue
+        seen[id] := true
+        out.Push(id)
+    }
+    if (out.Length = 0) {
+        out := []
+        for id in defaults
+            out.Push(id)
+    }
+    return out
+}
+
+FTB_SanitizeToolbarButtonItems(itemsOrCsv) {
+    allowed := Map("Search",1, "Record",1, "Prompt",1, "NewPrompt",1, "Screenshot",1, "Settings",1, "VirtualKeyboard",1)
+    defaults := ["Search", "Record", "Prompt", "NewPrompt", "Screenshot", "Settings", "VirtualKeyboard"]
+    return FTB_SanitizeByAllowed(itemsOrCsv, allowed, defaults)
+}
+
+FTB_SanitizeToolbarMenuItems(itemsOrCsv) {
+    allowed := Map("ToggleToolbar",1, "MinimizeToEdge",1, "ResetScale",1, "SearchCenter",1, "Clipboard",1, "OpenConfig",1, "HideToolbar",1, "ReloadScript",1, "ExitApp",1)
+    defaults := ["ToggleToolbar", "MinimizeToEdge", "ResetScale", "SearchCenter", "Clipboard", "OpenConfig", "HideToolbar", "ReloadScript", "ExitApp"]
+    return FTB_SanitizeByAllowed(itemsOrCsv, allowed, defaults)
+}
+
 ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
-    global FloatingToolbarIsVisible
+    global FloatingToolbarIsVisible, FloatingToolbarMenuItems
 
     MenuWidth := 200
     MenuItemHeight := 35
     Padding := 10
     MenuItems := []
+    FloatingToolbarMenuItems := FTB_SanitizeToolbarMenuItems(FloatingToolbarMenuItems)
 
-    if (FloatingToolbarIsVisible) {
-        MenuItems.Push({Text: "隐藏工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
-        MenuItems.Push({Text: "最小化到边缘", Action: MinimizeFloatingToolbarToEdge, Icon: "⊏"})
-        MenuItems.Push({Text: "重置大小", Action: FloatingToolbarResetScale, Icon: "⤢"})
-    } else {
-        MenuItems.Push({Text: "显示工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
+    menuDef := Map(
+        "ToggleToolbar", {Text: FloatingToolbarIsVisible ? "隐藏工具栏" : "显示工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"},
+        "MinimizeToEdge", {Text: "最小化到边缘", Action: MinimizeFloatingToolbarToEdge, Icon: "⊏"},
+        "ResetScale", {Text: "重置大小", Action: FloatingToolbarResetScale, Icon: "⤢"},
+        "SearchCenter", {Text: "搜索中心", Action: ShowSearchCenterFromMenu, Icon: "●"},
+        "Clipboard", {Text: "剪贴板", Action: ShowClipboardFromMenu, Icon: "▤"},
+        "OpenConfig", {Text: GetText("open_config_menu"), Action: ShowConfigFromMenu, Icon: "⚙"},
+        "HideToolbar", {Text: "关闭工具栏", Action: HideFloatingToolbarFromPopupMenu, Icon: "◼"},
+        "ReloadScript", {Text: "重启脚本", Action: ReloadScriptFromPopupMenu, Icon: "↻"},
+        "ExitApp", {Text: GetText("exit_menu"), Action: ExitFromMenu, Icon: "✕"}
+    )
+
+    for id in FloatingToolbarMenuItems {
+        if (menuDef.Has(id))
+            MenuItems.Push(menuDef[id])
     }
-    MenuItems.Push({Text: "搜索中心", Action: ShowSearchCenterFromMenu, Icon: "●"})
-    MenuItems.Push({Text: "剪贴板", Action: ShowClipboardFromMenu, Icon: "▤"})
-    MenuItems.Push({Text: GetText("open_config_menu"), Action: ShowConfigFromMenu, Icon: "⚙"})
-    MenuItems.Push({Text: "关闭工具栏", Action: HideFloatingToolbarFromPopupMenu, Icon: "◼"})
-    MenuItems.Push({Text: "重启脚本", Action: ReloadScriptFromPopupMenu, Icon: "↻"})
-    MenuItems.Push({Text: GetText("exit_menu"), Action: ExitFromMenu, Icon: "✕"})
+    if (MenuItems.Length = 0)
+        MenuItems.Push(menuDef["ToggleToolbar"])
 
     MenuHeight := MenuItems.Length * MenuItemHeight + Padding * 2
     posX := anchorX - (MenuWidth // 2)
@@ -17059,6 +17154,7 @@ ConfigWebView_BuildInitData() {
     global Language, AISleepTime, LaunchDelaySeconds, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex, ClipboardPanelScreenIndex
     global SearchEngine, AutoLoadSelectedText, AutoUpdateVoiceInput, VoiceSearchEnabledCategories, VoiceSearchSelectedEngines
     global ConfigFile, DefaultTemplateIDs, PromptTemplates
+    global FloatingToolbarButtonItems, FloatingToolbarMenuItems, FloatingToolbarButtonOptions, FloatingToolbarMenuOptions
     monitorCount := 1
     try monitorCount := MonitorGetCount()
     catch
@@ -17090,6 +17186,8 @@ ConfigWebView_BuildInitData() {
     cats := []
     for c in VoiceSearchEnabledCategories
         cats.Push(c)
+    toolbarButtons := FTB_SanitizeToolbarButtonItems(FloatingToolbarButtonItems)
+    toolbarMenus := FTB_SanitizeToolbarMenuItems(FloatingToolbarMenuItems)
     selectedCsv := ""
     if (IsSet(VoiceSearchSelectedEngines) && VoiceSearchSelectedEngines.Length > 0)
         selectedCsv := JoinArray(VoiceSearchSelectedEngines, ",")
@@ -17169,7 +17267,11 @@ ConfigWebView_BuildInitData() {
         "autoLoadSelectedText", AutoLoadSelectedText,
         "autoUpdateVoiceInput", AutoUpdateVoiceInput,
         "voiceSearchEnabledCategories", cats,
-        "voiceSearchSelectedEnginesCsv", selectedCsv
+        "voiceSearchSelectedEnginesCsv", selectedCsv,
+        "floatingToolbarButtons", toolbarButtons,
+        "floatingToolbarMenuItems", toolbarMenus,
+        "floatingToolbarButtonOptions", FloatingToolbarButtonOptions,
+        "floatingToolbarMenuOptions", FloatingToolbarMenuOptions
     )
 }
 
@@ -17212,7 +17314,29 @@ ConfigWebView_BuildInitDataSafe() {
             "autoLoadSelectedText", false,
             "autoUpdateVoiceInput", true,
             "voiceSearchEnabledCategories", ["ai","cli","academic","baidu","image","audio","video","book","price","medical","cloud"],
-            "voiceSearchSelectedEnginesCsv", "deepseek"
+            "voiceSearchSelectedEnginesCsv", "deepseek",
+            "floatingToolbarButtons", ["Search","Record","Prompt","NewPrompt","Screenshot","Settings","VirtualKeyboard"],
+            "floatingToolbarMenuItems", ["ToggleToolbar","MinimizeToEdge","ResetScale","SearchCenter","Clipboard","OpenConfig","HideToolbar","ReloadScript","ExitApp"],
+            "floatingToolbarButtonOptions", [
+                Map("id","Search","name","搜索"),
+                Map("id","Record","name","记录"),
+                Map("id","Prompt","name","提示词"),
+                Map("id","NewPrompt","name","草稿本"),
+                Map("id","Screenshot","name","截图"),
+                Map("id","Settings","name","设置"),
+                Map("id","VirtualKeyboard","name","虚拟键盘")
+            ],
+            "floatingToolbarMenuOptions", [
+                Map("id","ToggleToolbar","name","显示/隐藏工具栏"),
+                Map("id","MinimizeToEdge","name","最小化到边缘"),
+                Map("id","ResetScale","name","重置大小"),
+                Map("id","SearchCenter","name","搜索中心"),
+                Map("id","Clipboard","name","剪贴板"),
+                Map("id","OpenConfig","name","打开设置"),
+                Map("id","HideToolbar","name","关闭工具栏"),
+                Map("id","ReloadScript","name","重启脚本"),
+                Map("id","ExitApp","name","退出程序")
+            ]
         )
     }
 }
@@ -17225,6 +17349,7 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
     global PromptQuickCaptureHotkey, QuickActionButtons
     global Language, AISleepTime, LaunchDelaySeconds, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex, ClipboardPanelScreenIndex
     global SearchEngine, AutoLoadSelectedText, AutoUpdateVoiceInput, VoiceSearchEnabledCategories, VoiceSearchSelectedEngines
+    global FloatingToolbarButtonItems, FloatingToolbarMenuItems
     global ConfigFile
 
     try {
@@ -17317,6 +17442,12 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         }
         if (NewVoiceCats.Length = 0)
             NewVoiceCats := ["ai","cli","academic","baidu","image","audio","video","book","price","medical","cloud"]
+        NewFloatingToolbarButtons := FTB_SanitizeToolbarButtonItems(FloatingToolbarButtonItems)
+        if (payload.Has("floatingToolbarButtons") && payload["floatingToolbarButtons"] is Array)
+            NewFloatingToolbarButtons := FTB_SanitizeToolbarButtonItems(payload["floatingToolbarButtons"])
+        NewFloatingToolbarMenus := FTB_SanitizeToolbarMenuItems(FloatingToolbarMenuItems)
+        if (payload.Has("floatingToolbarMenuItems") && payload["floatingToolbarMenuItems"] is Array)
+            NewFloatingToolbarMenus := FTB_SanitizeToolbarMenuItems(payload["floatingToolbarMenuItems"])
         NewQuickActions := []
         if (payload.Has("quickActions") && payload["quickActions"] is Array) {
             for item in payload["quickActions"] {
@@ -17392,6 +17523,8 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         AutoLoadSelectedText := NewAutoLoad
         AutoUpdateVoiceInput := NewAutoUpdate
         VoiceSearchEnabledCategories := NewVoiceCats
+        FloatingToolbarButtonItems := NewFloatingToolbarButtons
+        FloatingToolbarMenuItems := NewFloatingToolbarMenus
         VoiceSearchSelectedEngines := []
         if (NewVoiceEngineCsv != "") {
             for item in StrSplit(NewVoiceEngineCsv, ",") {
@@ -17422,6 +17555,8 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         IniWrite(AutoUpdateVoiceInput ? "1" : "0", ConfigFile, "Settings", "AutoUpdateVoiceInput")
         IniWrite(JoinArray(VoiceSearchEnabledCategories, ","), ConfigFile, "Settings", "VoiceSearchEnabledCategories")
         IniWrite(JoinArray(VoiceSearchSelectedEngines, ","), ConfigFile, "Settings", "VoiceSearchSelectedEngines")
+        IniWrite(FTB_ItemsToCsv(FloatingToolbarButtonItems), ConfigFile, "Settings", "FloatingToolbarButtonItems")
+        IniWrite(FTB_ItemsToCsv(FloatingToolbarMenuItems), ConfigFile, "Settings", "FloatingToolbarMenuItems")
         IniWrite(NewCursorRules["general"], ConfigFile, "CursorRules", "general")
         IniWrite(NewCursorRules["web"], ConfigFile, "CursorRules", "web")
         IniWrite(NewCursorRules["miniprogram"], ConfigFile, "CursorRules", "miniprogram")
@@ -17472,6 +17607,7 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         IniWrite(ClipboardPanelScreenIndex, ConfigFile, "Advanced", "ClipboardPanelScreenIndex")
         SetAutoStart(AutoStart)
         PromptQuickPad_RegisterCaptureHotkey()
+        try FloatingToolbarPushButtonConfigToWeb()
         return true
     } catch as err {
         errorMsg := "保存失败: " . err.Message
