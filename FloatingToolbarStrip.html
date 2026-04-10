@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Floating Toolbar</title>
+<!-- 不使用外链图标字体：WebView2 常拦截 CDN，会导致工具栏只显示圆点/方块 -->
 <style>
 :root{--bg:#0a0a0a;--panel:rgba(18,18,18,.92);--panel2:rgba(22,22,22,.96);--orange:#ff6600;--text:#e8e8e8;--muted:#9b9b9b;--ui:1;--ease:.2s cubic-bezier(.22,1,.36,1);--de:.32s ease-in-out;--toolbar-bg:#0a0a0a}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -73,6 +74,9 @@ body.ftb-compact #collapsedRoot .logo-btn:hover{filter:none;background:transpare
 body.ftb-compact #collapsedRoot .logo-btn .logo-img{transform:scale(1.02)}
 .tb{width:calc(40px * var(--ui));height:calc(40px * var(--ui));display:flex;align-items:center;justify-content:center;border-radius:calc(8px * var(--ui));cursor:pointer;position:relative;transition:all var(--ease);color:#ff6600;background:transparent;flex-shrink:0}
 .tb svg{width:calc(24px * var(--ui));height:calc(24px * var(--ui));pointer-events:none}
+.tb .tb-ico{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--orange)}
+.tb .tb-ico svg{stroke:currentColor}
+button.tb{font:inherit;font-family:inherit}
 .tb:hover{filter:brightness(1.3);background:rgba(255,255,255,.06)}
 .tb .dot{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--orange);opacity:0}
 .tb.selected .dot{opacity:1}
@@ -332,12 +336,146 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     return normalizeToolbarActions(actions).map(function (id) { return map[id] || ''; }).join('');
   }
   function rebuildToolbarButtons(actions) {
+    state.toolbarMode = 'legacy';
     state.toolbarActions = normalizeToolbarActions(actions);
     var html = buildToolbarHtmlByActions(state.toolbarActions);
     $('collapsedBtns').innerHTML = html;
     $('drawerBtns').innerHTML = html;
     bindSearchDnD();
     if (state.activeAction) sel(state.activeAction);
+  }
+
+  function escAttr(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
+  }
+
+  var TOOLBAR_SVG_PARTS = {
+    search:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>',
+    record:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l3.8-1 10-10a2.3 2.3 0 0 0-3.3-3.3l-10 10L3 21z"/><path d="M12.9 4.9l3.3 3.3"/></svg>',
+    prompt:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 3c4.97 0 9 3.58 9 8 0 1.8-.67 3.47-1.8 4.82L20 21l-5.02-1.67A10.53 10.53 0 0 1 12 20c-4.97 0-9-3.58-9-8s4.03-9 9-9Z"/></svg>',
+    notepad:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>',
+    screenshot:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 7h4l2-2h4l2 2h4v12H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    settings:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    keyboard:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M6 9h1"/><path d="M9 9h1"/><path d="M12 9h1"/><path d="M15 9h1"/><path d="M18 9h1"/><path d="M6 12h1"/><path d="M9 12h1"/><path d="M12 12h1"/><path d="M15 12h1"/><path d="M18 12h1"/><path d="M7 15h10"/></svg>',
+    clipboard:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>',
+    comments:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
+    list:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>',
+    window:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>',
+    robot:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="10" rx="2"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/><circle cx="9.5" cy="13" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="13" r="1" fill="currentColor" stroke="none"/><path d="M9 18v2"/><path d="M15 18v2"/></svg>',
+    bolt:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
+    star:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 7.4h7.6l-6 4.6 2.3 7-6.3-4.6-6.3 4.6 2.3-7-6-4.6h7.6z"/></svg>',
+    circle:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>',
+  };
+
+  var TOOLBAR_CMD_TO_KEY = {
+    sc_activate_search: 'search',
+    qa_clipboard: 'clipboard',
+    ch_b: 'prompt',
+    pqp_capture: 'screenshot',
+    ch_t: 'screenshot',
+    qa_config: 'settings',
+    sys_show_vk: 'keyboard',
+  };
+
+  var FA_SUFFIX_TO_KEY = {
+    'magnifying-glass': 'search',
+    clipboard: 'clipboard',
+    comments: 'comments',
+    lightbulb: 'prompt',
+    'note-sticky': 'notepad',
+    camera: 'screenshot',
+    gear: 'settings',
+    keyboard: 'keyboard',
+    list: 'list',
+    'window-restore': 'window',
+    robot: 'robot',
+    bolt: 'bolt',
+    star: 'star',
+    circle: 'circle',
+    layer: 'list',
+    'layer-group': 'list',
+    terminal: 'keyboard',
+    sliders: 'settings',
+    code: 'bolt',
+    'wand-magic-sparkles': 'prompt',
+  };
+
+  function extractFaSuffix(iconClass) {
+    var parts = String(iconClass || '')
+      .trim()
+      .split(/\s+/);
+    var suf = '';
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i];
+      if (p === 'fa-solid' || p === 'fa-brands' || p === 'fa-regular') continue;
+      if (p.indexOf('fa-') === 0) suf = p.slice(3);
+    }
+    return suf || 'circle';
+  }
+
+  function toolbarIconSvgHtml(cmdId, iconClass) {
+    var key = TOOLBAR_CMD_TO_KEY[String(cmdId || '').trim()];
+    if (!key) {
+      var suf = extractFaSuffix(iconClass);
+      key = FA_SUFFIX_TO_KEY[suf] || 'bolt';
+    }
+    var inner = TOOLBAR_SVG_PARTS[key] || TOOLBAR_SVG_PARTS.bolt;
+    return '<span class="tb-ico">' + inner + '</span>';
+  }
+
+  function rebuildToolbarCmdButtons(items) {
+    state.toolbarMode = 'cmd';
+    var arr = Array.isArray(items) ? items : [];
+    var html = '';
+    arr.forEach(function (it) {
+      var cid = String((it && it.cmdId) || '').trim();
+      if (!cid) return;
+      var nm = escAttr((it && it.name) || cid);
+      var ic = String((it && it.iconClass) || 'fa-solid fa-circle');
+      if (ic.indexOf('fa-') === 0 && ic.indexOf('fa-solid') === -1 && ic.indexOf('fa-brands') === -1 && ic.indexOf('fa-regular') === -1)
+        ic = 'fa-solid ' + ic;
+      var bucket = 'Search';
+      if (cid === 'sc_activate_search') bucket = 'Search';
+      else if (cid === 'qa_clipboard' || cid === 'ch_b' || cid === 'pqp_capture') bucket = 'Prompt';
+      var sd = bucket === 'Search' ? ' data-search-drop="1"' : '';
+      html +=
+        '<button type="button" class="tb" title="' +
+        nm +
+        '" data-cmd-id="' +
+        escAttr(cid) +
+        '" data-drop-bucket="' +
+        bucket +
+        '"' +
+        sd +
+        '>' +
+        toolbarIconSvgHtml(cid, ic) +
+        '<span class="dot"></span></button>';
+    });
+    if (!html)
+      html =
+        '<span class="hint" style="display:flex;align-items:center;padding:8px 10px;font-size:11px;color:var(--muted)">无工具栏命令（请在 KeyBinder 中配置）</span>';
+    $('collapsedBtns').innerHTML = html;
+    $('drawerBtns').innerHTML = html;
+    bindSearchDnD();
+    if (state.activeCmdId) sel(state.activeCmdId);
   }
 
   var stage = $('stage'),
@@ -389,10 +527,10 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     newSessionGrid = $('newSessionGrid');
 
   function tbEls() {
-    return document.querySelectorAll('.tb[data-action]');
+    return document.querySelectorAll('.tb[data-action], .tb[data-cmd-id]');
   }
   function searchEls() {
-    return document.querySelectorAll('.tb[data-action=Search]');
+    return document.querySelectorAll('.tb[data-action=Search], .tb[data-search-drop="1"]');
   }
 
   var state = {
@@ -434,9 +572,12 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   }
 
   function sel(a) {
-    state.activeAction = String(a || '');
+    var s = String(a || '');
+    state.activeAction = s;
+    if (state.toolbarMode === 'cmd') state.activeCmdId = s;
     document.querySelectorAll('.tb').forEach(function (b) {
-      b.classList.toggle('selected', b.dataset.action === a);
+      var match = b.dataset.action === s || String(b.dataset.cmdId || '') === s;
+      b.classList.toggle('selected', match);
     });
   }
 
@@ -2498,6 +2639,17 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     var b = e.target.closest('.tb');
     if (!b) return;
     e.stopPropagation();
+    var cid = b.dataset.cmdId;
+    if (cid) {
+      cid = String(cid);
+      if (cid === 'ch_t') {
+        if (Date.now() - screenshotLastClick < 2000) return;
+        screenshotLastClick = Date.now();
+      }
+      sel(cid);
+      post({ type: 'toolbar_cmd', cmdId: cid });
+      return;
+    }
     var a = b.dataset.action;
     if (!a) return;
     a = String(a);
@@ -2875,8 +3027,12 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   }
 
   function findDropActionTarget(e) {
-    var n = e && e.target ? e.target.closest('.tb[data-action]') : null;
-    if (n && n.getAttribute) return n.getAttribute('data-action') || 'Search';
+    var n = e && e.target ? e.target.closest('.tb') : null;
+    if (n && n.getAttribute) {
+      var b = n.getAttribute('data-drop-bucket');
+      if (b) return b;
+      return n.getAttribute('data-action') || 'Search';
+    }
     return 'Search';
   }
 
@@ -2899,7 +3055,10 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
     } catch (e2) {}
     var action = findDropActionTarget(e);
-    tbEls().forEach(function (el) { el.classList.toggle('drag-over', (el.getAttribute('data-action') || '') === action); });
+    tbEls().forEach(function (el) {
+      var da = el.getAttribute('data-drop-bucket') || el.getAttribute('data-action') || '';
+      el.classList.toggle('drag-over', da === action);
+    });
     if (String(action || '').toLowerCase() === 'search') dragOver(true);
   }
 
@@ -2969,6 +3128,10 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       }
       if (d.type === 'set_toolbar_config') {
         rebuildToolbarButtons(d.actions || DEFAULT_TOOLBAR_ACTIONS);
+        return;
+      }
+      if (d.type === 'set_toolbar_cmds') {
+        rebuildToolbarCmdButtons(d.items || []);
         return;
       }
       if (d.type === 'set_logo') {

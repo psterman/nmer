@@ -1392,6 +1392,53 @@ body::after {
   border-color: rgba(255,184,112,.95);
   box-shadow: 0 0 0 1px rgba(255,184,112,.22) inset, 0 0 16px rgba(255,130,30,.24);
 }
+
+.cmd-toolbar-toggles {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.vk-mini-toggle {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  cursor: pointer;
+  user-select: none;
+}
+.vk-mini-toggle span.lbl {
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  color: #888;
+}
+.vk-mini-toggle .track {
+  width: 28px;
+  height: 14px;
+  border-radius: 8px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  position: relative;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.vk-mini-toggle.on .track {
+  border-color: rgba(0, 255, 65, 0.45);
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.2);
+}
+.vk-mini-toggle .knob {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #666;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.vk-mini-toggle.on .knob {
+  transform: translateX(14px);
+  background: #00ff41;
+}
 </style>
 <script src="https://app.local/assets/js/BasePanel.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
@@ -1700,6 +1747,8 @@ const state = {
   dashboardPinned: [],
   dashboardOverwriteResolver: null,
   dashboardEditResolver: null,
+  /** { cmdId, in_bar, in_context_menu }[] 与 Commands.json ToolbarLayout 一致 */
+  toolbarLayout: [],
   /** CursorHelper 同进程为 true；独立 VirtualKeyboard.ahk 为 false */
   embeddedHost: true,
 };
@@ -2636,9 +2685,84 @@ function rebuildIndexes() {
   }
 }
 
+let saveToolbarLayoutTimer = null;
+
+function normalizeIncomingToolbarLayout(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((item) => item && item.cmdId && state.commands[item.cmdId])
+    .map((item) => ({
+      cmdId: String(item.cmdId),
+      in_bar: !!item.in_bar,
+      in_context_menu: !!item.in_context_menu,
+    }));
+}
+
+function saveToolbarLayout() {
+  if (saveToolbarLayoutTimer) clearTimeout(saveToolbarLayoutTimer);
+  saveToolbarLayoutTimer = setTimeout(() => {
+    saveToolbarLayoutTimer = null;
+    postToAhk({ type: 'saveToolbarLayout', toolbarLayout: state.toolbarLayout });
+  }, 100);
+}
+
+function reorderToolbarBarPoolFlags() {
+  const bars = state.toolbarLayout.filter((x) => x.in_bar);
+  const pools = state.toolbarLayout.filter((x) => !x.in_bar);
+  state.toolbarLayout = [...bars, ...pools];
+}
+
+function setCmdToolbarBarFlag(cmdId, inBar) {
+  const r = state.toolbarLayout.find((x) => x.cmdId === cmdId);
+  if (!r) return;
+  if (!!r.in_bar === !!inBar) return;
+  r.in_bar = !!inBar;
+  reorderToolbarBarPoolFlags();
+  saveToolbarLayout();
+  renderCommandList();
+}
+
+function setCmdToolbarMenuFlag(cmdId, on) {
+  const r = state.toolbarLayout.find((x) => x.cmdId === cmdId);
+  if (!r) return;
+  r.in_context_menu = !!on;
+  saveToolbarLayout();
+  renderCommandList();
+}
+
+function makeCmdToolbarToggles(cmdId) {
+  const wrap = document.createElement('div');
+  wrap.className = 'cmd-toolbar-toggles';
+  const row = state.toolbarLayout.find((x) => x.cmdId === cmdId);
+  const barOn = !!(row && row.in_bar);
+  const menuOn = !!(row && row.in_context_menu);
+
+  const barEl = document.createElement('div');
+  barEl.className = 'vk-mini-toggle' + (barOn ? ' on' : '');
+  barEl.title = '悬浮工具栏';
+  barEl.innerHTML = '<span class="lbl">Bar</span><div class="track"><div class="knob"></div></div>';
+  barEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setCmdToolbarBarFlag(cmdId, !barOn);
+  });
+
+  const menuEl = document.createElement('div');
+  menuEl.className = 'vk-mini-toggle' + (menuOn ? ' on' : '');
+  menuEl.title = 'Cursor 右键菜单';
+  menuEl.innerHTML = '<span class="lbl">Menu</span><div class="track"><div class="knob"></div></div>';
+  menuEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setCmdToolbarMenuFlag(cmdId, !menuOn);
+  });
+
+  wrap.append(barEl, menuEl);
+  return wrap;
+}
+
 function handleInit(msg) {
   state.categories = msg.categories || [];
   state.commands   = enrichCommands(msg.commands || {});
+  state.toolbarLayout = normalizeIncomingToolbarLayout(msg.toolbarLayout || []);
   state.bindings   = msg.bindings   || {};
   state.suggestedBindings = msg.suggestedBindings || {};
   state.lastActionId = msg.lastActionId || '';
@@ -3817,6 +3941,7 @@ function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
   });
 
   actions.append(editBtn, clearBtn, resetBtn, testBtn);
+  actions.append(makeCmdToolbarToggles(cmdId));
   row.append(nameEl, keyEl, actions);
   return row;
 }

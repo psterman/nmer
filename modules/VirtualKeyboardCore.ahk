@@ -423,6 +423,7 @@ _LoadCommands() {
     _VK_NormalizeBindingsOverrides()
     _VK_RebuildEffectiveBindings()
     _VK_EnsureDashboardStorage()
+    _VK_EnsureToolbarLayout()
     _VK_SyncFloatPinnedFromStorage()
     _VK_RenderGlobalFloatPanel()
     if g_VK_Embedded
@@ -839,6 +840,128 @@ _VK_DashboardPinnedJson() {
     return json
 }
 
+; 与旧 FloatingToolbarButtonItems 顺序对应的默认 cmdId（Search→…→VirtualKeyboard）
+_VK_DefaultToolbarLayoutCmdIds() {
+    return [
+        "sc_activate_search",
+        "qa_clipboard",
+        "ch_b",
+        "pqp_capture",
+        "ch_t",
+        "qa_config",
+        "sys_show_vk",
+    ]
+}
+
+_VK_ToolbarLayoutToJson() {
+    global g_Commands
+    if !(g_Commands is Map) || !g_Commands.Has("ToolbarLayout") || !(g_Commands["ToolbarLayout"] is Array)
+        return "[]"
+    arr := g_Commands["ToolbarLayout"]
+    json := "["
+    sep := ""
+    for item in arr {
+        if !(item is Map) || !item.Has("cmdId")
+            continue
+        cid := String(item["cmdId"])
+        if (cid = "")
+            continue
+        ib := (item.Has("in_bar") && item["in_bar"]) ? "true" : "false"
+        im := (item.Has("in_context_menu") && item["in_context_menu"]) ? "true" : "false"
+        json .= sep . '{"cmdId":' . _JsonStr(cid) . ',"in_bar":' . ib . ',"in_context_menu":' . im . '}'
+        sep := ","
+    }
+    json .= "]"
+    return json
+}
+
+_VK_EnsureToolbarLayout() {
+    global g_Commands
+    if !(g_Commands is Map) || !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+        return
+
+    cmdList := g_Commands["CommandList"]
+    raw := unset
+    if g_Commands.Has("ToolbarLayout") && g_Commands["ToolbarLayout"] is Array
+        raw := g_Commands["ToolbarLayout"]
+    if g_Commands.Has("toolbar_layout") && g_Commands["toolbar_layout"] is Array && !IsSet(raw)
+        raw := g_Commands["toolbar_layout"]
+
+    seen := Map()
+    out := []
+
+    if IsSet(raw) && raw is Array && raw.Length > 0 {
+        for item in raw {
+            if !(item is Map) || !item.Has("cmdId")
+                continue
+            cid := Trim(String(item["cmdId"]))
+            if (cid = "" || !cmdList.Has(cid) || seen.Has(cid))
+                continue
+            seen[cid] := true
+            ib := item.Has("in_bar") ? !!item["in_bar"] : false
+            im := item.Has("in_context_menu") ? !!item["in_context_menu"] : false
+            out.Push(Map("cmdId", cid, "in_bar", ib, "in_context_menu", im))
+        }
+    } else {
+        for cid in _VK_DefaultToolbarLayoutCmdIds() {
+            if !cmdList.Has(cid) || seen.Has(cid)
+                continue
+            seen[cid] := true
+            out.Push(Map("cmdId", cid, "in_bar", true, "in_context_menu", false))
+        }
+    }
+
+    ; 补全 CommandList 中尚未出现的命令（默认在备选池）
+    for cmdId, _ in cmdList {
+        if (SubStr(cmdId, 1, 3) = "pt_")
+            continue
+        if seen.Has(cmdId)
+            continue
+        seen[cmdId] := true
+        out.Push(Map("cmdId", cmdId, "in_bar", false, "in_context_menu", false))
+    }
+
+    g_Commands["ToolbarLayout"] := out
+    if g_Commands.Has("toolbar_layout")
+        g_Commands.Delete("toolbar_layout")
+}
+
+_VK_ApplyToolbarLayoutFromWeb(msg) {
+    global g_Commands
+    if !(g_Commands is Map) || !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+        return false
+    if !(msg is Map) || !msg.Has("toolbarLayout") || !(msg["toolbarLayout"] is Array)
+        return false
+
+    cmdList := g_Commands["CommandList"]
+    seen := Map()
+    out := []
+
+    for item in msg["toolbarLayout"] {
+        if !(item is Map) || !item.Has("cmdId")
+            continue
+        cid := Trim(String(item["cmdId"]))
+        if (cid = "" || !cmdList.Has(cid) || seen.Has(cid))
+            continue
+        seen[cid] := true
+        ib := item.Has("in_bar") ? !!item["in_bar"] : false
+        im := item.Has("in_context_menu") ? !!item["in_context_menu"] : false
+        out.Push(Map("cmdId", cid, "in_bar", ib, "in_context_menu", im))
+    }
+
+    for cmdId, _ in cmdList {
+        if (SubStr(cmdId, 1, 3) = "pt_")
+            continue
+        if seen.Has(cmdId)
+            continue
+        seen[cmdId] := true
+        out.Push(Map("cmdId", cmdId, "in_bar", false, "in_context_menu", false))
+    }
+
+    g_Commands["ToolbarLayout"] := out
+    return true
+}
+
 _VK_HasPinnedCommand(cmdId) {
     global g_VK_FloatPinned
     for v in g_VK_FloatPinned {
@@ -1016,12 +1139,14 @@ _SerializeCommands() {
     dashLayoutJson := _JsonStr(g_Commands["DashboardLayout"])
     dashCfgJson := _VK_DashboardConfigJson()
     dashPinnedJson := _VK_DashboardPinnedJson()
+    tlJson := _VK_ToolbarLayoutToJson()
 
     return '{"Categories":' . catJson . ',"CommandList":' . clJson . ',"Bindings":' . bJson
         . ',"SuggestedBindings":' . sbJson
         . ',"DashboardLayout":' . dashLayoutJson
         . ',"DashboardConfig":' . dashCfgJson
-        . ',"DashboardPinned":' . dashPinnedJson . '}'
+        . ',"DashboardPinned":' . dashPinnedJson
+        . ',"ToolbarLayout":' . tlJson . '}'
 }
 
 _JsonStr(s) {
@@ -1526,7 +1651,7 @@ _TitleDrag(*) {
 }
 
 _OnWebMessage(sender, args) {
-    global g_VK_Ready, g_PendingConflict, g_UseScanCode
+    global g_VK_Ready, g_PendingConflict, g_UseScanCode, g_Commands
 
     jsonStr := args.WebMessageAsJson
     try {
@@ -1607,6 +1732,16 @@ _OnWebMessage(sender, args) {
             if msg.Has("commandId")
                 _VK_UnpinCommand(msg["commandId"])
             OutputDebug("[VK] Dashboard unpin: " . (msg.Has("commandId") ? msg["commandId"] : ""))
+
+        case "saveToolbarLayout":
+            if _VK_ApplyToolbarLayoutFromWeb(msg) {
+                _SaveBindings()
+                try FloatingToolbarReloadFromToolbarLayout()
+                catch as e
+                    OutputDebug("[VK] FloatingToolbarReloadFromToolbarLayout: " . e.Message)
+                if g_VK_Ready
+                    _PushInit()
+            }
 
         default:
             OutputDebug("[VK] Unknown msg: " . msg["type"])
@@ -2655,7 +2790,10 @@ _PushInit() {
         desc := _JsonStr(v["desc"])
         fn := v.Has("fn") ? _JsonStr(v["fn"]) : '""'
         ptCategory := v.Has("ptCategory") ? _JsonStr(v["ptCategory"]) : '""'
-        clJson .= sep2 . _JsonStr(cmdId) . ':{"name":' . nm . ',"desc":' . desc . ',"fn":' . fn . ',"ptCategory":' . ptCategory . '}'
+        ico := ""
+        if (v is Map) && v.Has("iconClass") && v["iconClass"] != ""
+            ico := ',"iconClass":' . _JsonStr(String(v["iconClass"]))
+        clJson .= sep2 . _JsonStr(cmdId) . ':{"name":' . nm . ',"desc":' . desc . ',"fn":' . fn . ',"ptCategory":' . ptCategory . ico . '}'
         sep2 := ","
     }
     clJson .= "}"
@@ -2708,6 +2846,7 @@ _PushInit() {
     dashLayout := _JsonStr(g_Commands["DashboardLayout"])
     dashCfg := _VK_DashboardConfigJson()
     dashPinned := _VK_DashboardPinnedJson()
+    tlJson := _VK_ToolbarLayoutToJson()
     adminWarning := _JsonStr(g_VK_AdminWarning)
     isAdmin := g_VK_IsAdmin ? "true" : "false"
     embeddedHost := g_VK_Embedded ? "true" : "false"
@@ -2725,7 +2864,8 @@ _PushInit() {
         . ',"embeddedHost":' . embeddedHost
         . ',"dashboardLayout":' . dashLayout
         . ',"dashboardConfig":' . dashCfg
-        . ',"dashboardPinned":' . dashPinned . '}'
+        . ',"dashboardPinned":' . dashPinned
+        . ',"toolbarLayout":' . tlJson . '}'
     VK_SendToWeb(payload)
     OutputDebug("[VK] init pushed")
 }
@@ -2964,7 +3104,65 @@ VK_HandleBindingsReloaded(*) {
         _EnsureSequenceHook(true)
     }
 
+    try FloatingToolbarReloadFromToolbarLayout()
+    catch as e
+        OutputDebug("[VK] FloatingToolbarReloadFromToolbarLayout: " . e.Message)
+
     _PushInit()
+}
+
+VK_MakeToolbarContextMenuAction(cid) {
+    c := String(cid)
+    return (*) => SetTimer(() => VK_ExecCursorHelperCmd(c), -1)
+}
+
+VK_ToolbarLayoutHasContextMenuItems() {
+    global g_Commands
+    if !(g_Commands is Map) || !g_Commands.Has("ToolbarLayout") || !(g_Commands["ToolbarLayout"] is Array)
+        return false
+    if !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+        return false
+    cmdList := g_Commands["CommandList"]
+    for item in g_Commands["ToolbarLayout"] {
+        if !(item is Map) || !item.Has("cmdId")
+            continue
+        if !item.Has("in_context_menu") || !item["in_context_menu"]
+            continue
+        cid := Trim(String(item["cmdId"]))
+        if (cid != "" && cmdList.Has(cid))
+            return true
+    }
+    return false
+}
+
+VK_ShowToolbarLayoutContextMenu() {
+    global g_Commands
+    if !(g_Commands is Map) || !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+        return
+    if !g_Commands.Has("ToolbarLayout") || !(g_Commands["ToolbarLayout"] is Array)
+        return
+
+    cmdList := g_Commands["CommandList"]
+    MenuItems := []
+    for item in g_Commands["ToolbarLayout"] {
+        if !(item is Map) || !item.Has("cmdId")
+            continue
+        if !item.Has("in_context_menu") || !item["in_context_menu"]
+            continue
+        cid := Trim(String(item["cmdId"]))
+        if (cid = "" || !cmdList.Has(cid))
+            continue
+        nm := cmdList[cid]["name"]
+        if (nm = "")
+            nm := cid
+        MenuItems.Push({ Text: nm, Icon: "▸", Action: VK_MakeToolbarContextMenuAction(cid) })
+    }
+    if MenuItems.Length = 0
+        return
+    MouseGetPos &mx, &my
+    try ShowDarkStylePopupMenuAt(MenuItems, mx + 2, my + 2)
+    catch as e
+        OutputDebug("[VK] ShowToolbarLayoutContextMenu: " . e.Message)
 }
 
 NotifyScript(targetTitle, payload) {

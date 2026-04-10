@@ -4394,12 +4394,33 @@ FTB_SanitizeToolbarMenuItems(itemsOrCsv) {
 }
 
 ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
-    global FloatingToolbarIsVisible, FloatingToolbarMenuItems
+    global FloatingToolbarIsVisible, FloatingToolbarMenuItems, g_Commands
 
     MenuWidth := 200
     MenuItemHeight := 35
     Padding := 10
     MenuItems := []
+
+    try {
+        if (IsSet(g_Commands) && g_Commands is Map && g_Commands.Has("ToolbarLayout") && g_Commands["ToolbarLayout"] is Array
+            && g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map) {
+            for row in g_Commands["ToolbarLayout"] {
+                if !(row is Map) || !row.Has("cmdId")
+                    continue
+                if !row.Has("in_context_menu") || !row["in_context_menu"]
+                    continue
+                cid := Trim(String(row["cmdId"]))
+                if (cid = "" || !g_Commands["CommandList"].Has(cid))
+                    continue
+                nm := g_Commands["CommandList"][cid]["name"]
+                if (nm = "")
+                    nm := cid
+                MenuItems.Push({ Text: nm, Icon: "▸", Action: VK_MakeToolbarContextMenuAction(cid) })
+            }
+        }
+    } catch {
+    }
+
     FloatingToolbarMenuItems := FTB_SanitizeToolbarMenuItems(FloatingToolbarMenuItems)
 
     menuDef := Map(
@@ -4414,11 +4435,12 @@ ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
         "ExitApp", {Text: GetText("exit_menu"), Action: ExitFromMenu, Icon: "✕"}
     )
 
+    fixedStart := MenuItems.Length
     for id in FloatingToolbarMenuItems {
         if (menuDef.Has(id))
             MenuItems.Push(menuDef[id])
     }
-    if (MenuItems.Length = 0)
+    if (MenuItems.Length = fixedStart)
         MenuItems.Push(menuDef["ToggleToolbar"])
 
     MenuHeight := MenuItems.Length * MenuItemHeight + Padding * 2
@@ -17145,6 +17167,43 @@ JoinArray(arr, sep := ",") {
     return out
 }
 
+; 供 SettingsPanel「高级设置」悬浮条 1:1 操作台：与 Commands.json 中 ToolbarLayout / CommandList 同步
+ConfigWebView_GetKeybinderToolbarSnapshot() {
+    global g_Commands
+    tl := []
+    cmds := []
+    try {
+        _LoadCommands()
+    } catch {
+    }
+    if !(IsSet(g_Commands) && g_Commands is Map)
+        return Map("toolbarLayout", tl, "commands", cmds)
+    if g_Commands.Has("ToolbarLayout") && g_Commands["ToolbarLayout"] is Array {
+        for row in g_Commands["ToolbarLayout"] {
+            if !(row is Map) || !row.Has("cmdId")
+                continue
+            cid := Trim(String(row["cmdId"]))
+            if (cid = "")
+                continue
+            tl.Push(Map(
+                "cmdId", cid,
+                "in_bar", row.Has("in_bar") ? !!row["in_bar"] : false,
+                "in_context_menu", row.Has("in_context_menu") ? !!row["in_context_menu"] : false
+            ))
+        }
+    }
+    if g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map {
+        for cid, ent in g_Commands["CommandList"] {
+            if (SubStr(cid, 1, 3) = "pt_")
+                continue
+            nm := (ent is Map && ent.Has("name")) ? String(ent["name"]) : cid
+            ic := (ent is Map && ent.Has("iconClass")) ? String(ent["iconClass"]) : ""
+            cmds.Push(Map("id", cid, "name", nm, "iconClass", ic))
+        }
+    }
+    return Map("toolbarLayout", tl, "commands", cmds)
+}
+
 ConfigWebView_BuildInitData() {
     global CursorPath, CapsLockHoldTimeSeconds, CapsLockHoldVkEnabled, AutoStart, DefaultStartTab
     global ThemeMode, FunctionPanelPos, ConfigPanelScreenIndex, ConfigPanelPos, ClipboardPanelPos, PanelScreenIndex
@@ -17233,7 +17292,7 @@ ConfigWebView_BuildInitData() {
         "ios", IniRead(ConfigFile, "CursorRules", "ios", ""),
         "python", IniRead(ConfigFile, "CursorRules", "python", "")
     )
-    return Map(
+    cfgPayload := Map(
         "cursorPath", CursorPath,
         "capslockHoldTimeSeconds", CapsLockHoldTimeSeconds,
         "capsLockHoldVkEnabled", CapsLockHoldVkEnabled,
@@ -17273,6 +17332,10 @@ ConfigWebView_BuildInitData() {
         "floatingToolbarButtonOptions", FloatingToolbarButtonOptions,
         "floatingToolbarMenuOptions", FloatingToolbarMenuOptions
     )
+    kbSnap := ConfigWebView_GetKeybinderToolbarSnapshot()
+    cfgPayload["keybinderToolbarLayout"] := kbSnap["toolbarLayout"]
+    cfgPayload["keybinderCommands"] := kbSnap["commands"]
+    return cfgPayload
 }
 
 ConfigWebView_BuildInitDataSafe() {
@@ -17336,7 +17399,9 @@ ConfigWebView_BuildInitDataSafe() {
                 Map("id","HideToolbar","name","关闭工具栏"),
                 Map("id","ReloadScript","name","重启脚本"),
                 Map("id","ExitApp","name","退出程序")
-            ]
+            ],
+            "keybinderToolbarLayout", [],
+            "keybinderCommands", []
         )
     }
 }
@@ -17642,6 +17707,29 @@ ConfigWebView_OnMessage(sender, args) {
             err := ""
             ok := ConfigWebView_ValidateAndApply(payload, &err)
             ConfigWebView_Send(Map("type", "saveResult", "ok", ok, "error", err))
+        case "saveKeybinderToolbarLayout":
+            tl := msg.Has("toolbarLayout") && msg["toolbarLayout"] is Array ? msg["toolbarLayout"] : []
+            ok := false
+            err := ""
+            try {
+                try {
+                    _LoadCommands()
+                } catch {
+                }
+                if _VK_ApplyToolbarLayoutFromWeb(Map("toolbarLayout", tl)) {
+                    _SaveBindings()
+                    try FloatingToolbarReloadFromToolbarLayout()
+                    catch as e
+                        OutputDebug("[ConfigWebView] FloatingToolbarReloadFromToolbarLayout: " . e.Message)
+                    if (IsSet(g_VK_Ready) && g_VK_Ready)
+                        _PushInit()
+                    ok := true
+                } else
+                    err := "工具栏布局无效或未加载命令表"
+            } catch as e {
+                err := e.Message
+            }
+            ConfigWebView_Send(Map("type", "saveKeybinderToolbarLayoutResult", "ok", ok, "error", err))
         case "invokeAction":
             op := msg.Get("op", msg.Get("action", ""))
             payload := msg.Get("payload", Map())
@@ -37561,5 +37649,12 @@ SaveScreenshotToFile(closeAfter := true) {
 #Include modules\VirtualKeyboardExecCmd.ahk
 #Include modules\VirtualKeyboardCore.ahk
 #Include modules\VirtualKeyboardInterop.ahk
+
+; Cursor + CapsLock：动态右键菜单（须在 VirtualKeyboardCore 之后注册）
+#HotIf WinActive("ahk_exe Cursor.exe") && GetCapsLockState() && VK_ToolbarLayoutHasContextMenuItems()
+RButton:: {
+    VK_ShowToolbarLayoutContextMenu()
+}
+#HotIf
 
 OnExit(ExitFunc)

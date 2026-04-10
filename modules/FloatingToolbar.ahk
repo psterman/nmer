@@ -411,6 +411,13 @@ FloatingToolbar_OnWebMessage(sender, args) {
         return
     }
 
+    if (typ = "toolbar_cmd") {
+        cid := msg.Has("cmdId") ? Trim(String(msg["cmdId"])) : ""
+        if (cid != "")
+            SetTimer(FloatingToolbar_DeferredToolbarCmd.Bind(cid), -1)
+        return
+    }
+
     if (typ = "toolbar_toggle_action") {
         action := msg.Has("action") ? String(msg["action"]) : ""
         if (action != "")
@@ -1247,7 +1254,20 @@ FloatingToolbarPushScaleStateToWeb(scaleValue := "") {
     }
 }
 
-FloatingToolbarPushButtonConfigToWeb() {
+FloatingToolbar_DeferredToolbarCmd(cmdId) {
+    c := String(cmdId)
+    try {
+        _ExecuteCommand(c)
+    } catch {
+        try VK_ExecCursorHelperCmd(c)
+        catch as e
+            try OutputDebug("[FloatingToolbar] toolbar_cmd: " . e.Message)
+            catch {
+            }
+    }
+}
+
+FloatingToolbarPushLegacyToolbarToWeb() {
     global g_FTB_WV2, FloatingToolbarButtonItems
     if !g_FTB_WV2
         return
@@ -1263,6 +1283,56 @@ FloatingToolbarPushButtonConfigToWeb() {
     try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_toolbar_config", "actions", actions))
     catch as _e {
     }
+}
+
+FloatingToolbarPushCmdLayoutToWeb() {
+    global g_FTB_WV2, g_Commands
+    if !g_FTB_WV2
+        return
+    try {
+        if (!IsSet(g_Commands) || !(g_Commands is Map) || !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+            || g_Commands["CommandList"].Count = 0)
+            _LoadCommands()
+    } catch {
+    }
+    if !(IsSet(g_Commands) && g_Commands is Map && g_Commands.Has("ToolbarLayout") && g_Commands["ToolbarLayout"] is Array
+        && g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map) {
+        FloatingToolbarPushLegacyToolbarToWeb()
+        return
+    }
+    cmdList := g_Commands["CommandList"]
+    items := []
+    for row in g_Commands["ToolbarLayout"] {
+        if !(row is Map) || !row.Has("cmdId")
+            continue
+        if !row.Has("in_bar") || !row["in_bar"]
+            continue
+        cid := Trim(String(row["cmdId"]))
+        if (cid = "" || !cmdList.Has(cid))
+            continue
+        ent := cmdList[cid]
+        nm := ent.Has("name") ? String(ent["name"]) : cid
+        ic := "fa-circle"
+        if (ent is Map) && ent.Has("iconClass") && ent["iconClass"] != "" {
+            ic := Trim(String(ent["iconClass"]))
+            if (SubStr(ic, 1, 3) != "fa-")
+                ic := "fa-solid " . ic
+            else if !InStr(ic, "fa-solid") && !InStr(ic, "fa-brands") && !InStr(ic, "fa-regular")
+                ic := "fa-solid " . ic
+        }
+        items.Push(Map("cmdId", cid, "name", nm, "iconClass", ic))
+    }
+    try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_toolbar_cmds", "items", items))
+    catch as _e {
+    }
+}
+
+FloatingToolbarReloadFromToolbarLayout() {
+    FloatingToolbarPushCmdLayoutToWeb()
+}
+
+FloatingToolbarPushButtonConfigToWeb() {
+    FloatingToolbarPushCmdLayoutToWeb()
 }
 
 FloatingToolbarExitCompactMode() {
