@@ -36,7 +36,6 @@ global FloatingToolbarLastClosedX := 0
 global FloatingToolbarLastClosedY := 0
 global g_FTB_BlockedCmdIds := Map("ch_t", true, "pqp_capture", true, "ss_menu", true)
 global g_FTB_AllowedCmdIds := Map(
-    "hub_capsule", true,
     "sc_activate_search", true,
     "qa_clipboard", true,
     "ch_b", true,
@@ -1335,8 +1334,6 @@ FloatingToolbarPushCmdLayoutToWeb() {
         rowPayload := Map("cmdId", cid, "name", nm, "iconClass", ic)
         if (cid = "ftb_cursor_menu")
             rowPayload["iconPath"] := "images/cursor.png"
-        if (cid = "hub_capsule")
-            rowPayload["iconPath"] := "assets/牛马.png"
         items.Push(rowPayload)
     }
     FloatingToolbarCmdVisibleCount := items.Length

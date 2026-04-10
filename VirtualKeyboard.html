@@ -116,13 +116,15 @@ body::after {
 }
 #sidebar {
   flex-shrink: 0;
-  width: 360px;
+  width: 430px;
   min-width: 0;
   background: var(--surface);
   border-right: 1px solid var(--border);
-  overflow-y: auto;
+  overflow: hidden;
   padding: 6px 0 8px;
   font-size: var(--vk-panel-font);
+  display: flex;
+  flex-direction: column;
 }
 #cmd-panel {
   flex: 1;
@@ -662,8 +664,7 @@ body::after {
   align-items: center;
   gap: 6px;
   flex-wrap: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: hidden;
   white-space: nowrap;
 }
 .vk-toolbar-preview-empty {
@@ -709,6 +710,8 @@ body::after {
 }
 #sidebar-list {
   padding: 0 6px;
+  overflow: hidden;
+  flex: 1 1 auto;
 }
 .sidebar-item {
   display: flex; align-items: center; gap: 6px;
@@ -1924,7 +1927,7 @@ const SCENARIO_META = {
 };
 
 const SCENARIO_TOOLBAR_CMD_MAP = {
-  ai: 'hub_capsule',
+  ai: '',
   search: 'sc_activate_search',
   clipboard: 'qa_clipboard',
   prompts: 'ch_b',
@@ -2172,9 +2175,14 @@ function toolbarIconSvgHtml(cmdId) {
 
 function scenarioIconHtml(scenarioId) {
   const cmdId = getToolbarCmdIdByScenarioId(scenarioId);
+  if (scenarioId === 'ai') return '<img class="vk-toolbar-cursor-img" src="assets/牛马.png" alt="牛马">';
   if (cmdId) return toolbarIconSvgHtml(cmdId);
   const meta = SCENARIO_META[scenarioId] || SCENARIO_META.other;
   return `<i class="fa-solid ${meta.icon}"></i>`;
+}
+
+function scenarioLabelText(name) {
+  return String(name || '').replace(/^[^\w\u4e00-\u9fff]+/u, '').trim();
 }
 
 function syncMappedToolbarOrderFromScenarioOrder() {
@@ -4005,7 +4013,7 @@ function renderSidebar() {
   for (const scenario of state.scenarios) {
     const mappedCmdId = getToolbarCmdIdByScenarioId(scenario.id);
     const mappedRow = mappedCmdId ? state.toolbarLayout.find((x) => x.cmdId === mappedCmdId) : null;
-    const isLogoScene = mappedCmdId === 'hub_capsule';
+    const isLogoScene = scenario.id === 'ai';
     const checked = isLogoScene || !!(mappedRow && mappedRow.visible_in_bar);
     const item = document.createElement('div');
     item.className = 'sidebar-item' + (state.activeScenarioId === scenario.id ? ' active' : '');
@@ -4017,7 +4025,7 @@ function renderSidebar() {
         ? `<input class="scene-checkbox" type="checkbox" ${checked ? 'checked' : ''} aria-label="显示场景到工具栏">`
         : '<span class="scene-checkbox fixed" title="牛马图标固定保留"></span>')
       + `<span class="mol-ico">${scenarioIconHtml(scenario.id)}</span>`
-      + `<span class="mol-name">${escapeHtml(scenario.name)}</span>`
+      + `<span class="mol-name">${escapeHtml(scenarioLabelText(scenario.name))}</span>`
       + `<span class="mol-count">${scenario.commandCount || 0}</span>`;
     const handle = document.createElement('span');
     handle.className = 'scene-drag-handle';

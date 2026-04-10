@@ -862,7 +862,6 @@ _VK_DefaultToolbarLayoutCmdIds() {
         "sc_activate_search",
         "qa_clipboard",
         "ch_b",
-        "hub_capsule",
         "ftb_scratchpad",
         "ftb_screenshot",
         "ftb_cursor_menu",
