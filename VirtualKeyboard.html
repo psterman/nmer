@@ -116,12 +116,12 @@ body::after {
 }
 #sidebar {
   flex-shrink: 0;
-  width: 160px;
+  width: 360px;
   min-width: 0;
   background: var(--surface);
   border-right: 1px solid var(--border);
   overflow-y: auto;
-  padding: 6px 0;
+  padding: 6px 0 8px;
   font-size: var(--vk-panel-font);
 }
 #cmd-panel {
@@ -651,15 +651,86 @@ body::after {
   font-size: var(--vk-panel-font-sm); letter-spacing: 1px; color: var(--text-xs);
   text-transform: uppercase; margin-bottom: 2px;
 }
+#vk-toolbar-preview-sandbox {
+  margin: 0 8px 8px;
+  min-height: 52px;
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 6px;
+  background: linear-gradient(180deg, #151515, #121212);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+}
+.vk-toolbar-preview-logo {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+.vk-toolbar-preview-logo img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+.vk-toolbar-preview-empty {
+  width: 100%;
+  color: var(--text-xs);
+  font-size: 10px;
+  font-family: var(--font-ui);
+  letter-spacing: .4px;
+}
+.vk-toolbar-preview-item {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+  background: #1a1a1a;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  transition: border-color .12s, box-shadow .12s, color .12s;
+}
+.vk-toolbar-preview-item:hover {
+  border-color: var(--orange);
+  color: var(--orange-lt);
+  box-shadow: var(--glow);
+}
+.vk-toolbar-preview-item svg {
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#sidebar-list {
+  padding: 0 6px;
+}
 .sidebar-item {
-  display: flex; align-items: center; gap: 4px;
-  padding: 4px 8px 4px 12px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 8px;
   font-size: var(--vk-panel-font); font-family: var(--font-ui);
   color: var(--text-dim);
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: 6px;
   transition: background .1s, color .1s;
   border-left: 2px solid transparent;
+  user-select: none;
 }
 .sidebar-item:hover { background: #0d1f10; color: var(--matrix-green); }
 .sidebar-item.active {
@@ -672,6 +743,18 @@ body::after {
   width: 16px;
   text-align: center;
   font-size: 12px;
+  flex: 0 0 16px;
+}
+.scene-checkbox {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: #37cc70;
+  cursor: pointer;
+}
+.scene-checkbox.fixed {
+  opacity: .55;
+  pointer-events: none;
 }
 .mol-name {
   flex: 1;
@@ -683,6 +766,26 @@ body::after {
 .mol-count {
   font-size: 10px;
   color: var(--text-xs);
+}
+.scene-drag-handle {
+  flex: 0 0 auto;
+  color: #6b6b6b;
+  font-size: 11px;
+  letter-spacing: .5px;
+  cursor: grab;
+  padding: 1px 3px;
+  border-radius: 4px;
+}
+.scene-drag-handle:hover {
+  color: var(--orange-lt);
+  background: #1f1f1f;
+}
+.scene-drag-handle:active { cursor: grabbing; }
+.vk-scene-sortable-ghost {
+  opacity: .5;
+}
+.vk-scene-sortable-chosen {
+  box-shadow: 0 0 0 1px rgba(230,126,34,.32) inset;
 }
 
 /* ── Command Panel ──────────────────────────────────────────────────────── */
@@ -1660,6 +1763,7 @@ body::after {
       <div class="sidebar-section">
         <div class="sidebar-section-title">场景</div>
       </div>
+      <div id="vk-toolbar-preview-sandbox" aria-label="悬浮工具栏预览沙盒"></div>
       <div id="sidebar-list"></div>
     </div>
 
@@ -1747,8 +1851,11 @@ const state = {
   dashboardPinned: [],
   dashboardOverwriteResolver: null,
   dashboardEditResolver: null,
-  /** { cmdId, in_bar, in_context_menu, toolbarEligible }[] 与 Commands.json ToolbarLayout 一致；toolbarEligible 由 KeyBinder Bar 勾选 */
+  /** { cmdId, visible_in_bar, visible_in_menu, order_bar, order_menu }[] 与 Commands.json ToolbarLayout 一致 */
   toolbarLayout: [],
+  /** { sceneId, visible_in_bar, order_bar }[] 场景镜像悬浮栏布局 */
+  sceneToolbarLayout: [],
+  toolbarLogoUrl: 'assets/牛马.png',
   /** CursorHelper 同进程为 true；独立 VirtualKeyboard.ahk 为 false */
   embeddedHost: true,
 };
@@ -1808,6 +1915,38 @@ const SCENARIO_META = {
   hotkeys:    { name: '⌨️ 快捷键',   icon: 'fa-keyboard',          color: '#e67e22' },
   cursor:     { name: '🧭 Cursor',   icon: 'fa-compass-drafting',  color: '#60a5fa' },
   other:      { name: '其他',        icon: 'fa-toolbox',           color: '#9ca3af' },
+};
+
+const SCENARIO_TOOLBAR_CMD_MAP = {
+  ai: 'hub_capsule',
+  search: 'sc_activate_search',
+  clipboard: 'qa_clipboard',
+  prompts: 'ch_b',
+  scratchpad: 'ch_t',
+  settings: 'qa_config',
+  hotkeys: 'sys_show_vk',
+  cursor: 'sys_show_vk',
+};
+
+const TOOLBAR_CMD_TO_KEY = {
+  sc_activate_search: 'search',
+  qa_clipboard: 'clipboard',
+  ch_b: 'comments',
+  hub_capsule: 'robot',
+  ch_t: 'notepad',
+  qa_config: 'settings',
+  sys_show_vk: 'keyboard',
+};
+
+const TOOLBAR_SVG_PARTS = {
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>',
+  clipboard: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path></svg>',
+  comments: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>',
+  robot: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="10" rx="2"></rect><path d="M9 8V6a3 3 0 0 1 6 0v2"></path><circle cx="9.5" cy="13" r="1" fill="currentColor" stroke="none"></circle><circle cx="14.5" cy="13" r="1" fill="currentColor" stroke="none"></circle><path d="M9 18v2"></path><path d="M15 18v2"></path></svg>',
+  notepad: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>',
+  settings: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>',
+  keyboard: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"></rect><path d="M6 9h1"></path><path d="M9 9h1"></path><path d="M12 9h1"></path><path d="M15 9h1"></path><path d="M18 9h1"></path><path d="M6 12h1"></path><path d="M9 12h1"></path><path d="M12 12h1"></path><path d="M15 12h1"></path><path d="M18 12h1"></path><path d="M7 15h10"></path></svg>',
+  bolt: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"></path></svg>',
 };
 
 const SEARCH_TAB_PRESET = [
@@ -2006,6 +2145,15 @@ function safeIconClass(iconClass) {
   return /^fa-[a-z0-9-]+$/i.test(raw) ? raw : 'fa-bolt';
 }
 
+function getToolbarCmdIdByScenarioId(scenarioId) {
+  return SCENARIO_TOOLBAR_CMD_MAP[String(scenarioId || '').trim()] || '';
+}
+
+function toolbarIconSvgHtml(cmdId) {
+  const key = TOOLBAR_CMD_TO_KEY[String(cmdId || '').trim()] || 'bolt';
+  return TOOLBAR_SVG_PARTS[key] || TOOLBAR_SVG_PARTS.bolt;
+}
+
 function inferCommandIconClass(cmdId, cmd) {
   const text = `${cmdId} ${cmd?.name || ''} ${cmd?.desc || ''}`.toLowerCase();
   if (/(search|find|query|google|everything|搜|查|检索)/.test(text)) return 'fa-magnifying-glass';
@@ -2086,6 +2234,38 @@ function getScenarioById(scenarioId) {
   return state.scenarios.find(s => s.id === scenarioId) || null;
 }
 
+function getVisibleScenesInOrder() {
+  return state.scenarios
+    .filter((s) => !!s.visible_in_bar)
+    .sort((a, b) => Number(a.order_bar || 0) - Number(b.order_bar || 0));
+}
+
+function reindexOrderBarBySceneArray(scenes = state.scenarios) {
+  (Array.isArray(scenes) ? scenes : []).forEach((scene, idx) => {
+    if (!scene) return;
+    scene.order_bar = idx;
+  });
+}
+
+function normalizeIncomingSceneToolbarLayout(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((item) => item && item.sceneId)
+    .map((item) => ({
+      sceneId: String(item.sceneId),
+      visible_in_bar: item.visible_in_bar !== undefined ? !!item.visible_in_bar : !!item.in_bar,
+      order_bar: Number.isFinite(Number(item.order_bar)) ? Number(item.order_bar) : -1,
+    }));
+}
+
+function syncStateSceneToolbarLayout() {
+  state.sceneToolbarLayout = state.scenarios.map((scene) => ({
+    sceneId: scene.id,
+    visible_in_bar: !!scene.visible_in_bar,
+    order_bar: Number.isFinite(Number(scene.order_bar)) ? Number(scene.order_bar) : -1,
+  }));
+}
+
 function ensureActiveScenarioAndTab() {
   if (!state.scenarios.length) {
     state.activeScenarioId = '';
@@ -2100,6 +2280,23 @@ function ensureActiveScenarioAndTab() {
 }
 
 function buildScenariosFromCategories() {
+  const prevLayoutMap = new Map();
+  for (const oldScene of state.scenarios || []) {
+    if (!oldScene || !oldScene.id) continue;
+    prevLayoutMap.set(String(oldScene.id), {
+      visible_in_bar: !!oldScene.visible_in_bar,
+      order_bar: Number.isFinite(Number(oldScene.order_bar)) ? Number(oldScene.order_bar) : -1,
+    });
+  }
+  const incomingLayoutMap = new Map();
+  for (const row of state.sceneToolbarLayout || []) {
+    if (!row || !row.sceneId) continue;
+    incomingLayoutMap.set(String(row.sceneId), {
+      visible_in_bar: !!row.visible_in_bar,
+      order_bar: Number.isFinite(Number(row.order_bar)) ? Number(row.order_bar) : -1,
+    });
+  }
+
   const map = new Map();
   const commandRoutes = {};
   const used = new Set();
@@ -2259,8 +2456,19 @@ function buildScenariosFromCategories() {
     scenarios.push(item);
   }
 
+  scenarios.forEach((scene, idx) => {
+    const layout = prevLayoutMap.get(scene.id) || incomingLayoutMap.get(scene.id);
+    scene.visible_in_bar = layout ? !!layout.visible_in_bar : true;
+    scene.order_bar = (layout && Number.isFinite(Number(layout.order_bar)) && Number(layout.order_bar) >= 0)
+      ? Number(layout.order_bar)
+      : idx;
+  });
+  scenarios.sort((a, b) => Number(a.order_bar || 0) - Number(b.order_bar || 0));
+  reindexOrderBarBySceneArray(scenarios);
+
   state.commandRoutes = commandRoutes;
   state.scenarios = scenarios;
+  syncStateSceneToolbarLayout();
 }
 
 function escapeRegExp(s) {
@@ -2652,6 +2860,12 @@ function handleAhkMessage(msg) {
       state.nativeLayout = !!msg.native;
       updateLayoutToggleUI();
       break;
+    case 'set_logo':
+      if (msg.url) {
+        state.toolbarLogoUrl = String(msg.url);
+        renderToolbarPreviewSandbox();
+      }
+      break;
     default:
       console.warn('[VK] Unknown AHK msg:', msg.type);
   }
@@ -2687,20 +2901,20 @@ function rebuildIndexes() {
 }
 
 let saveToolbarLayoutTimer = null;
+let saveSceneToolbarLayoutTimer = null;
+let scenePreviewSortable = null;
+let sceneListSortable = null;
 
 function normalizeIncomingToolbarLayout(arr) {
   if (!Array.isArray(arr)) return [];
   return arr
     .filter((item) => item && item.cmdId && state.commands[item.cmdId])
     .map((item) => {
-      const ib = !!item.in_bar;
-      const im = !!item.in_context_menu;
-      const hasTe = item.toolbarEligible !== undefined && item.toolbarEligible !== null;
-      const te = hasTe ? !!item.toolbarEligible : ib || im;
-      if (!te) {
-        return { cmdId: String(item.cmdId), in_bar: false, in_context_menu: im, toolbarEligible: false };
-      }
-      return { cmdId: String(item.cmdId), in_bar: ib, in_context_menu: im, toolbarEligible: true };
+      const vb = item.visible_in_bar !== undefined ? !!item.visible_in_bar : !!item.in_bar;
+      const vm = item.visible_in_menu !== undefined ? !!item.visible_in_menu : !!item.in_context_menu;
+      const ob = Number.isFinite(Number(item.order_bar)) ? Number(item.order_bar) : -1;
+      const om = Number.isFinite(Number(item.order_menu)) ? Number(item.order_menu) : -1;
+      return { cmdId: String(item.cmdId), visible_in_bar: vb, visible_in_menu: vm, order_bar: ob, order_menu: om };
     });
 }
 
@@ -2712,10 +2926,26 @@ function saveToolbarLayout() {
   }, 100);
 }
 
+function saveSceneToolbarLayout() {
+  syncStateSceneToolbarLayout();
+  if (saveSceneToolbarLayoutTimer) clearTimeout(saveSceneToolbarLayoutTimer);
+  saveSceneToolbarLayoutTimer = setTimeout(() => {
+    saveSceneToolbarLayoutTimer = null;
+    postToAhk({ type: 'saveSceneToolbarLayout', sceneToolbarLayout: state.sceneToolbarLayout });
+  }, 100);
+}
+
 function reorderToolbarBarPoolFlags() {
-  const bars = state.toolbarLayout.filter((x) => x.in_bar);
-  const pools = state.toolbarLayout.filter((x) => !x.in_bar && x.toolbarEligible);
-  const rest = state.toolbarLayout.filter((x) => !x.toolbarEligible);
+  const bars = state.toolbarLayout.filter((x) => x.visible_in_bar);
+  const pools = state.toolbarLayout.filter((x) => !x.visible_in_bar && x.visible_in_menu);
+  const rest = state.toolbarLayout.filter((x) => !x.visible_in_bar && !x.visible_in_menu);
+  bars.forEach((r, i) => (r.order_bar = i));
+  pools.forEach((r) => (r.order_bar = -1));
+  let mi = 0;
+  [...bars, ...pools, ...rest].forEach((r) => {
+    if (r.visible_in_menu) r.order_menu = mi++;
+    else r.order_menu = -1;
+  });
   state.toolbarLayout = [...bars, ...pools, ...rest];
 }
 
@@ -2724,24 +2954,25 @@ function setCmdToolbarBarFlag(cmdId, wantEligible) {
   if (!r) return;
   const on = !!wantEligible;
   if (on) {
-    if (r.toolbarEligible && r.in_bar) return;
-    r.toolbarEligible = true;
-    r.in_bar = true;
+    if (r.visible_in_bar) return;
+    r.visible_in_bar = true;
   } else {
-    if (!r.toolbarEligible && !r.in_bar) return;
-    r.toolbarEligible = false;
-    r.in_bar = false;
+    if (!r.visible_in_bar) return;
+    r.visible_in_bar = false;
   }
   reorderToolbarBarPoolFlags();
   saveToolbarLayout();
+  renderToolbarPreviewSandbox();
   renderCommandList();
 }
 
 function setCmdToolbarMenuFlag(cmdId, on) {
   const r = state.toolbarLayout.find((x) => x.cmdId === cmdId);
   if (!r) return;
-  r.in_context_menu = !!on;
+  r.visible_in_menu = !!on;
+  reorderToolbarBarPoolFlags();
   saveToolbarLayout();
+  renderToolbarPreviewSandbox();
   renderCommandList();
 }
 
@@ -2749,8 +2980,8 @@ function makeCmdToolbarToggles(cmdId) {
   const wrap = document.createElement('div');
   wrap.className = 'cmd-toolbar-toggles';
   const row = state.toolbarLayout.find((x) => x.cmdId === cmdId);
-  const barOn = !!(row && row.toolbarEligible);
-  const menuOn = !!(row && row.in_context_menu);
+  const barOn = !!(row && row.visible_in_bar);
+  const menuOn = !!(row && row.visible_in_menu);
 
   const barEl = document.createElement('div');
   barEl.className = 'vk-mini-toggle' + (barOn ? ' on' : '');
@@ -2778,12 +3009,14 @@ function handleInit(msg) {
   state.categories = msg.categories || [];
   state.commands   = enrichCommands(msg.commands || {});
   state.toolbarLayout = normalizeIncomingToolbarLayout(msg.toolbarLayout || []);
+  state.sceneToolbarLayout = normalizeIncomingSceneToolbarLayout(msg.sceneToolbarLayout || []);
   state.bindings   = msg.bindings   || {};
   state.suggestedBindings = msg.suggestedBindings || {};
   state.lastActionId = msg.lastActionId || '';
   state.lastActionName = msg.lastActionName || '';
   state.lastActionCurrentKey = msg.lastActionCurrentKey || '';
   state.quickBindActive = !!msg.quickBindActive;
+  state.toolbarLogoUrl = msg.logoUrl || state.toolbarLogoUrl || 'assets/牛马.png';
   state.isAdmin = msg.isAdmin !== false;
   state.adminWarning = msg.adminWarning || '';
   state.embeddedHost = msg.embeddedHost !== false;
@@ -2795,6 +3028,8 @@ function handleInit(msg) {
   applyDashboardConfig(msg.dashboardConfig || [], msg.dashboardLayout || dashboardLayout);
 
   renderSidebar();
+  renderToolbarPreviewSandbox();
+  initSceneLayoutSortables();
   renderAtomTabs();
   renderCommandList();
   renderKeyboardSlots();
@@ -3715,13 +3950,36 @@ function renderSidebar() {
   ensureActiveScenarioAndTab();
   for (const scenario of state.scenarios) {
     const meta = SCENARIO_META[scenario.id] || SCENARIO_META.other;
+    const mappedCmdId = getToolbarCmdIdByScenarioId(scenario.id);
+    const mappedRow = mappedCmdId ? state.toolbarLayout.find((x) => x.cmdId === mappedCmdId) : null;
+    const isLogoScene = mappedCmdId === 'hub_capsule';
+    const checked = isLogoScene || !!(mappedRow && mappedRow.visible_in_bar);
     const item = document.createElement('div');
     item.className = 'sidebar-item' + (state.activeScenarioId === scenario.id ? ' active' : '');
+    item.dataset.sceneId = scenario.id;
+    item.draggable = false;
     item.innerHTML = ''
+      + (!isLogoScene
+        ? `<input class="scene-checkbox" type="checkbox" ${checked ? 'checked' : ''} aria-label="显示场景到工具栏">`
+        : '<span class="scene-checkbox fixed" title="牛马图标固定保留"></span>')
       + `<span class="mol-ico" style="color:${meta.color}"><i class="fa-solid ${meta.icon}"></i></span>`
       + `<span class="mol-name">${escapeHtml(scenario.name)}</span>`
       + `<span class="mol-count">${scenario.commandCount || 0}</span>`;
-    item.addEventListener('click', () => {
+    const handle = document.createElement('span');
+    handle.className = 'scene-drag-handle';
+    handle.textContent = '::';
+    handle.title = '拖拽排序';
+    item.appendChild(handle);
+    const checkbox = item.querySelector('.scene-checkbox:not(.fixed)');
+    if (checkbox) {
+      checkbox.addEventListener('click', (e) => e.stopPropagation());
+      checkbox.addEventListener('change', (e) => {
+        if (!mappedCmdId) return;
+        setCmdToolbarBarFlag(mappedCmdId, !!e.target.checked);
+      });
+    }
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.scene-drag-handle')) return;
       state.activeScenarioId = scenario.id;
       state.activeTabId = scenario.tabs[0]?.id || '';
       renderSidebar();
@@ -3729,6 +3987,119 @@ function renderSidebar() {
       renderCommandList();
     });
     list.appendChild(item);
+  }
+}
+
+function renderToolbarPreviewSandbox() {
+  const box = document.getElementById('vk-toolbar-preview-sandbox');
+  if (!box) return;
+  box.innerHTML = '';
+  const logo = document.createElement('div');
+  logo.className = 'vk-toolbar-preview-logo';
+  logo.innerHTML = `<img src="${escapeHtml(state.toolbarLogoUrl || 'assets/牛马.png')}" alt="牛马">`;
+  box.appendChild(logo);
+  const visibleBars = state.toolbarLayout
+    .filter((row) => !!row.visible_in_bar && !!state.commands[row.cmdId])
+    .sort((a, b) => Number(a.order_bar || 0) - Number(b.order_bar || 0));
+  if (!visibleBars.length) {
+    const empty = document.createElement('div');
+    empty.className = 'vk-toolbar-preview-empty';
+    empty.textContent = '勾选命令的 Bar 后，图标会出现在这里并支持拖拽排序。';
+    box.appendChild(empty);
+    return;
+  }
+  for (const row of visibleBars) {
+    const cmd = state.commands[row.cmdId] || {};
+    const tile = document.createElement('div');
+    tile.className = 'vk-toolbar-preview-item';
+    tile.dataset.cmdId = row.cmdId;
+    tile.title = cmd.name || row.cmdId;
+    tile.innerHTML = toolbarIconSvgHtml(row.cmdId);
+    box.appendChild(tile);
+  }
+}
+
+function reorderScenariosByIds(ids) {
+  const byId = new Map(state.scenarios.map((s) => [s.id, s]));
+  const ordered = [];
+  const used = new Set();
+  for (const id of ids) {
+    const scene = byId.get(id);
+    if (!scene || used.has(id)) continue;
+    ordered.push(scene);
+    used.add(id);
+  }
+  for (const scene of state.scenarios) {
+    if (used.has(scene.id)) continue;
+    ordered.push(scene);
+  }
+  state.scenarios = ordered;
+  reindexOrderBarBySceneArray(state.scenarios);
+  syncStateSceneToolbarLayout();
+}
+
+function initSceneLayoutSortables() {
+  if (typeof Sortable === 'undefined') return;
+  const preview = document.getElementById('vk-toolbar-preview-sandbox');
+  const list = document.getElementById('sidebar-list');
+  if (!preview || !list) return;
+
+  if (!scenePreviewSortable) {
+    scenePreviewSortable = new Sortable(preview, {
+      animation: 140,
+      ghostClass: 'vk-scene-sortable-ghost',
+      chosenClass: 'vk-scene-sortable-chosen',
+      draggable: '.vk-toolbar-preview-item',
+      onEnd: () => {
+        const visibleCmdIds = Array.from(preview.querySelectorAll('.vk-toolbar-preview-item'))
+          .map((el) => String(el.dataset.cmdId || ''))
+          .filter(Boolean);
+        const visibleMap = new Map(
+          state.toolbarLayout
+            .filter((x) => x.visible_in_bar)
+            .map((x) => [x.cmdId, x])
+        );
+        const reorderedVisible = [];
+        for (const cmdId of visibleCmdIds) {
+          const row = visibleMap.get(cmdId);
+          if (row) reorderedVisible.push(row);
+        }
+        for (const row of state.toolbarLayout) {
+          if (row.visible_in_bar && !reorderedVisible.includes(row)) reorderedVisible.push(row);
+        }
+        const pools = state.toolbarLayout.filter((x) => !x.visible_in_bar && x.visible_in_menu);
+        const rest = state.toolbarLayout.filter((x) => !x.visible_in_bar && !x.visible_in_menu);
+        reorderedVisible.forEach((row, idx) => {
+          row.order_bar = idx;
+        });
+        pools.forEach((row) => {
+          row.order_bar = -1;
+        });
+        state.toolbarLayout = [...reorderedVisible, ...pools, ...rest];
+        renderToolbarPreviewSandbox();
+        saveToolbarLayout();
+        renderCommandList();
+      },
+    });
+  }
+
+  if (!sceneListSortable) {
+    sceneListSortable = new Sortable(list, {
+      animation: 140,
+      ghostClass: 'vk-scene-sortable-ghost',
+      chosenClass: 'vk-scene-sortable-chosen',
+      handle: '.scene-drag-handle',
+      draggable: '.sidebar-item',
+      onEnd: () => {
+        const allIds = Array.from(list.querySelectorAll('.sidebar-item'))
+          .map((el) => String(el.dataset.sceneId || ''))
+          .filter(Boolean);
+        reorderScenariosByIds(allIds);
+        renderSidebar();
+        renderToolbarPreviewSandbox();
+        saveSceneToolbarLayout();
+      },
+    });
   }
 }
 

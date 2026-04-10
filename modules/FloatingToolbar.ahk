@@ -1258,30 +1258,10 @@ FloatingToolbar_DeferredToolbarCmd(cmdId) {
     c := String(cmdId)
     try {
         _ExecuteCommand(c)
-    } catch {
-        try VK_ExecCursorHelperCmd(c)
-        catch as e
-            try OutputDebug("[FloatingToolbar] toolbar_cmd: " . e.Message)
-            catch {
-            }
-    }
-}
-
-FloatingToolbarPushLegacyToolbarToWeb() {
-    global g_FTB_WV2, FloatingToolbarButtonItems
-    if !g_FTB_WV2
-        return
-    actions := ["Search", "Record", "Prompt", "NewPrompt", "Screenshot", "Settings", "VirtualKeyboard"]
-    try {
-        if (IsSet(FloatingToolbarButtonItems) && FloatingToolbarButtonItems is Array && FloatingToolbarButtonItems.Length > 0) {
-            actions := []
-            for id in FloatingToolbarButtonItems
-                actions.Push(String(id))
+    } catch as e {
+        try OutputDebug("[FloatingToolbar] toolbar_cmd: " . e.Message)
+        catch {
         }
-    } catch {
-    }
-    try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_toolbar_config", "actions", actions))
-    catch as _e {
     }
 }
 
@@ -1296,18 +1276,19 @@ FloatingToolbarPushCmdLayoutToWeb() {
     } catch {
     }
     if !(IsSet(g_Commands) && g_Commands is Map && g_Commands.Has("ToolbarLayout") && g_Commands["ToolbarLayout"] is Array
-        && g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map) {
-        FloatingToolbarPushLegacyToolbarToWeb()
+        && g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map)
         return
-    }
     cmdList := g_Commands["CommandList"]
     items := []
-    for row in g_Commands["ToolbarLayout"] {
+    rows := []
+    for row in g_Commands["ToolbarLayout"]
+        rows.Push(row)
+    if rows.Length > 1
+        rows := _VK_SortRowsByNumericKey(rows, "order_bar")
+    for row in rows {
         if !(row is Map) || !row.Has("cmdId")
             continue
-        if !row.Has("in_bar") || !row["in_bar"]
-            continue
-        if row.Has("toolbarEligible") && !row["toolbarEligible"]
+        if !row.Has("visible_in_bar") || !row["visible_in_bar"]
             continue
         cid := Trim(String(row["cmdId"]))
         if (cid = "" || !cmdList.Has(cid))

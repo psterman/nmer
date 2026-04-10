@@ -3014,11 +3014,9 @@ InitConfig() {
             IniWrite(CapsLockHoldVkEnabled ? "1" : "0", ConfigFile, "Settings", "CapsLockHoldVkEnabled")
             global DefaultStartTab
             DefaultStartTab := IniRead(ConfigFile, "Settings", "DefaultStartTab", "general")
-            global FloatingToolbarButtonItems, FloatingToolbarMenuItems
+            global FloatingToolbarButtonItems
             FloatingToolbarButtonItems := FTB_SanitizeToolbarButtonItems(IniRead(ConfigFile, "Settings", "FloatingToolbarButtonItems", FTB_ItemsToCsv(FloatingToolbarButtonItems)))
-            FloatingToolbarMenuItems := FTB_SanitizeToolbarMenuItems(IniRead(ConfigFile, "Settings", "FloatingToolbarMenuItems", FTB_ItemsToCsv(FloatingToolbarMenuItems)))
             IniWrite(FTB_ItemsToCsv(FloatingToolbarButtonItems), ConfigFile, "Settings", "FloatingToolbarButtonItems")
-            IniWrite(FTB_ItemsToCsv(FloatingToolbarMenuItems), ConfigFile, "Settings", "FloatingToolbarMenuItems")
             ; 读取自定义图标路径
             global CustomIconPath
             CustomIconPath := IniRead(ConfigFile, "Settings", "CustomIconPath", "")
@@ -4404,40 +4402,17 @@ ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
     try {
         if (IsSet(g_Commands) && g_Commands is Map && g_Commands.Has("ToolbarLayout") && g_Commands["ToolbarLayout"] is Array
             && g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map) {
-            orderedCids := []
-            seen := Map()
-            if (g_Commands.Has("ContextMenuLayout") && g_Commands["ContextMenuLayout"] is Array) {
-                for item in g_Commands["ContextMenuLayout"] {
-                    cid := Trim(String(item))
-                    if (cid = "" || seen.Has(cid))
-                        continue
-                    inMenu := false
-                    for row in g_Commands["ToolbarLayout"] {
-                        if !(row is Map) || !row.Has("cmdId")
-                            continue
-                        if Trim(String(row["cmdId"])) != cid
-                            continue
-                        inMenu := row.Has("in_context_menu") && row["in_context_menu"]
-                        break
-                    }
-                    if (inMenu && g_Commands["CommandList"].Has(cid)) {
-                        orderedCids.Push(cid)
-                        seen[cid] := true
-                    }
-                }
-            }
-            for row in g_Commands["ToolbarLayout"] {
+            sorted := g_Commands["ToolbarLayout"]
+            if sorted.Length > 1
+                sorted := _VK_SortRowsByNumericKey(sorted, "order_menu")
+            for row in sorted {
                 if !(row is Map) || !row.Has("cmdId")
                     continue
-                if !row.Has("in_context_menu") || !row["in_context_menu"]
+                if !row.Has("visible_in_menu") || !row["visible_in_menu"]
                     continue
                 cid := Trim(String(row["cmdId"]))
-                if (cid = "" || seen.Has(cid) || !g_Commands["CommandList"].Has(cid))
+                if (cid = "" || !g_Commands["CommandList"].Has(cid))
                     continue
-                orderedCids.Push(cid)
-                seen[cid] := true
-            }
-            for cid in orderedCids {
                 nm := g_Commands["CommandList"][cid]["name"]
                 if (nm = "")
                     nm := cid
@@ -17196,11 +17171,13 @@ ConfigWebView_GetKeybinderToolbarSnapshot() {
             if row.Has("toolbarEligible")
                 te := !!row["toolbarEligible"]
             else
-                te := (row.Has("in_bar") && row["in_bar"]) || (row.Has("in_context_menu") && row["in_context_menu"])
+                te := (row.Has("visible_in_bar") && row["visible_in_bar"]) || (row.Has("visible_in_menu") && row["visible_in_menu"])
             tl.Push(Map(
                 "cmdId", cid,
-                "in_bar", row.Has("in_bar") ? !!row["in_bar"] : false,
-                "in_context_menu", row.Has("in_context_menu") ? !!row["in_context_menu"] : false,
+                "visible_in_bar", row.Has("visible_in_bar") ? !!row["visible_in_bar"] : (row.Has("in_bar") ? !!row["in_bar"] : false),
+                "visible_in_menu", row.Has("visible_in_menu") ? !!row["visible_in_menu"] : (row.Has("in_context_menu") ? !!row["in_context_menu"] : false),
+                "order_bar", row.Has("order_bar") ? Integer(row["order_bar"]) : -1,
+                "order_menu", row.Has("order_menu") ? Integer(row["order_menu"]) : -1,
                 "toolbarEligible", te
             ))
         }
@@ -17436,7 +17413,7 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
     global PromptQuickCaptureHotkey, QuickActionButtons
     global Language, AISleepTime, LaunchDelaySeconds, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex, ClipboardPanelScreenIndex
     global SearchEngine, AutoLoadSelectedText, AutoUpdateVoiceInput, VoiceSearchEnabledCategories, VoiceSearchSelectedEngines
-    global FloatingToolbarButtonItems, FloatingToolbarMenuItems
+    global FloatingToolbarButtonItems
     global ConfigFile
 
     try {
@@ -17532,9 +17509,6 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         NewFloatingToolbarButtons := FTB_SanitizeToolbarButtonItems(FloatingToolbarButtonItems)
         if (payload.Has("floatingToolbarButtons") && payload["floatingToolbarButtons"] is Array)
             NewFloatingToolbarButtons := FTB_SanitizeToolbarButtonItems(payload["floatingToolbarButtons"])
-        NewFloatingToolbarMenus := FTB_SanitizeToolbarMenuItems(FloatingToolbarMenuItems)
-        if (payload.Has("floatingToolbarMenuItems") && payload["floatingToolbarMenuItems"] is Array)
-            NewFloatingToolbarMenus := FTB_SanitizeToolbarMenuItems(payload["floatingToolbarMenuItems"])
         NewQuickActions := []
         if (payload.Has("quickActions") && payload["quickActions"] is Array) {
             for item in payload["quickActions"] {
@@ -17611,7 +17585,6 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         AutoUpdateVoiceInput := NewAutoUpdate
         VoiceSearchEnabledCategories := NewVoiceCats
         FloatingToolbarButtonItems := NewFloatingToolbarButtons
-        FloatingToolbarMenuItems := NewFloatingToolbarMenus
         VoiceSearchSelectedEngines := []
         if (NewVoiceEngineCsv != "") {
             for item in StrSplit(NewVoiceEngineCsv, ",") {
@@ -17643,7 +17616,6 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         IniWrite(JoinArray(VoiceSearchEnabledCategories, ","), ConfigFile, "Settings", "VoiceSearchEnabledCategories")
         IniWrite(JoinArray(VoiceSearchSelectedEngines, ","), ConfigFile, "Settings", "VoiceSearchSelectedEngines")
         IniWrite(FTB_ItemsToCsv(FloatingToolbarButtonItems), ConfigFile, "Settings", "FloatingToolbarButtonItems")
-        IniWrite(FTB_ItemsToCsv(FloatingToolbarMenuItems), ConfigFile, "Settings", "FloatingToolbarMenuItems")
         IniWrite(NewCursorRules["general"], ConfigFile, "CursorRules", "general")
         IniWrite(NewCursorRules["web"], ConfigFile, "CursorRules", "web")
         IniWrite(NewCursorRules["miniprogram"], ConfigFile, "CursorRules", "miniprogram")
@@ -17741,14 +17713,6 @@ ConfigWebView_OnMessage(sender, args) {
                 }
                 if _VK_ApplyToolbarLayoutFromWeb(Map("toolbarLayout", tl)) {
                     _VK_ApplyContextMenuLayoutFromWeb(cml)
-                    if (msg.Has("floatingToolbarMenuItems") && msg["floatingToolbarMenuItems"] is Array) {
-                        global FloatingToolbarMenuItems, ConfigFile
-                        FloatingToolbarMenuItems := FTB_SanitizeToolbarMenuItems(msg["floatingToolbarMenuItems"])
-                        try IniWrite(FTB_ItemsToCsv(FloatingToolbarMenuItems), ConfigFile, "Settings", "FloatingToolbarMenuItems")
-                        catch as ie {
-                            OutputDebug("[ConfigWebView] IniWrite FloatingToolbarMenuItems: " . ie.Message)
-                        }
-                    }
                     _SaveBindings()
                     try FloatingToolbarReloadFromToolbarLayout()
                     catch as e

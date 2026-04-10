@@ -879,18 +879,78 @@ _VK_ToolbarLayoutToJson() {
         cid := String(item["cmdId"])
         if (cid = "")
             continue
-        ib := (item.Has("in_bar") && item["in_bar"]) ? "true" : "false"
-        im := (item.Has("in_context_menu") && item["in_context_menu"]) ? "true" : "false"
-        te := "false"
-        if item.Has("toolbarEligible") && item["toolbarEligible"]
-            te := "true"
-        else if !item.Has("toolbarEligible") && ((item.Has("in_bar") && item["in_bar"]) || (item.Has("in_context_menu") && item["in_context_menu"]))
-            te := "true"
-        json .= sep . '{"cmdId":' . _JsonStr(cid) . ',"in_bar":' . ib . ',"in_context_menu":' . im . ',"toolbarEligible":' . te . '}'
+        vb := (item.Has("visible_in_bar") && item["visible_in_bar"]) ? "true" : "false"
+        vm := (item.Has("visible_in_menu") && item["visible_in_menu"]) ? "true" : "false"
+        ob := item.Has("order_bar") ? Integer(item["order_bar"]) : -1
+        om := item.Has("order_menu") ? Integer(item["order_menu"]) : -1
+        json .= sep . '{"cmdId":' . _JsonStr(cid) . ',"visible_in_bar":' . vb . ',"visible_in_menu":' . vm
+            . ',"order_bar":' . ob . ',"order_menu":' . om . '}'
         sep := ","
     }
     json .= "]"
     return json
+}
+
+_VK_SceneToolbarLayoutToJson() {
+    global g_Commands
+    if !(g_Commands is Map) || !g_Commands.Has("SceneToolbarLayout") || !(g_Commands["SceneToolbarLayout"] is Array)
+        return "[]"
+    arr := g_Commands["SceneToolbarLayout"]
+    json := "["
+    sep := ""
+    for item in arr {
+        if !(item is Map) || !item.Has("sceneId")
+            continue
+        sid := Trim(String(item["sceneId"]))
+        if (sid = "")
+            continue
+        vb := (item.Has("visible_in_bar") && item["visible_in_bar"]) ? "true" : "false"
+        ob := item.Has("order_bar") ? Integer(item["order_bar"]) : -1
+        json .= sep . '{"sceneId":' . _JsonStr(sid) . ',"visible_in_bar":' . vb . ',"order_bar":' . ob . '}'
+        sep := ","
+    }
+    json .= "]"
+    return json
+}
+
+_VK_NormalizeToolbarLayoutOrders(arr) {
+    barIdx := 0
+    menuIdx := 0
+    for item in arr {
+        if !(item is Map)
+            continue
+        vb := item.Has("visible_in_bar") && !!item["visible_in_bar"]
+        vm := item.Has("visible_in_menu") && !!item["visible_in_menu"]
+        item["order_bar"] := vb ? barIdx : -1
+        item["order_menu"] := vm ? menuIdx : -1
+        if vb
+            barIdx += 1
+        if vm
+            menuIdx += 1
+    }
+    return arr
+}
+
+_VK_SortRowsByNumericKey(rows, keyName) {
+    src := rows is Array ? rows : []
+    sorted := []
+    for row in src {
+        k := (row is Map && row.Has(keyName)) ? Integer(row[keyName]) : 999999
+        inserted := false
+        loop sorted.Length {
+            i := A_Index
+            cur := sorted[i]
+            ck := (cur is Map && cur.Has(keyName)) ? Integer(cur[keyName]) : 999999
+            if (k < ck) {
+                sorted.InsertAt(i, row)
+                inserted := true
+                break
+            }
+        }
+        if !inserted
+            sorted.Push(row)
+    }
+    return sorted
 }
 
 _VK_EnsureToolbarLayout() {
@@ -907,6 +967,9 @@ _VK_EnsureToolbarLayout() {
 
     seen := Map()
     out := []
+    barItems := []
+    menuItems := []
+    unassigned := []
 
     if IsSet(raw) && raw is Array && raw.Length > 0 {
         for item in raw {
@@ -916,21 +979,31 @@ _VK_EnsureToolbarLayout() {
             if (cid = "" || !cmdList.Has(cid) || seen.Has(cid))
                 continue
             seen[cid] := true
-            ib := item.Has("in_bar") ? !!item["in_bar"] : false
-            im := item.Has("in_context_menu") ? !!item["in_context_menu"] : false
-            te := false
-            if item.Has("toolbarEligible")
-                te := !!item["toolbarEligible"]
-            else
-                te := ib || im
-            out.Push(Map("cmdId", cid, "in_bar", ib, "in_context_menu", im, "toolbarEligible", te))
+            vb := item.Has("visible_in_bar") ? !!item["visible_in_bar"]
+                : (item.Has("in_bar") ? !!item["in_bar"] : false)
+            vm := item.Has("visible_in_menu") ? !!item["visible_in_menu"]
+                : (item.Has("in_context_menu") ? !!item["in_context_menu"] : false)
+            ob := item.Has("order_bar") ? Integer(item["order_bar"])
+                : (item.Has("order") ? Integer(item["order"]) : 999999)
+            om := item.Has("order_menu") ? Integer(item["order_menu"])
+                : (item.Has("order") ? Integer(item["order"]) : 999999)
+            row := Map("cmdId", cid, "visible_in_bar", vb, "visible_in_menu", vm, "order_bar", ob, "order_menu", om)
+            if vb
+                barItems.Push(row)
+            if vm
+                menuItems.Push(row)
+            if !vb && !vm
+                unassigned.Push(row)
         }
     } else {
+        idx := 0
         for cid in _VK_DefaultToolbarLayoutCmdIds() {
             if !cmdList.Has(cid) || seen.Has(cid)
                 continue
             seen[cid] := true
-            out.Push(Map("cmdId", cid, "in_bar", true, "in_context_menu", false, "toolbarEligible", true))
+            row := Map("cmdId", cid, "visible_in_bar", true, "visible_in_menu", false, "order_bar", idx, "order_menu", -1)
+            barItems.Push(row)
+            idx += 1
         }
     }
 
@@ -946,6 +1019,7 @@ _VK_EnsureToolbarLayout() {
         "ftm_toggle_toolbar", true,
         "ftm_reload_script", true
     )
+    menuDefaultOrder := ["ftm_reset_scale", "ftm_search_center", "ftm_clipboard", "ftm_minimize_to_edge", "ftm_exit_app", "ftm_hide_toolbar", "ftm_open_config", "ftm_toggle_toolbar", "ftm_reload_script"]
     for cmdId, _ in cmdList {
         if (SubStr(cmdId, 1, 3) = "pt_")
             continue
@@ -953,9 +1027,55 @@ _VK_EnsureToolbarLayout() {
             continue
         seen[cmdId] := true
         isMenuDefault := menuDefaults.Has(cmdId)
-        out.Push(Map("cmdId", cmdId, "in_bar", false, "in_context_menu", isMenuDefault, "toolbarEligible", isMenuDefault))
+        om := -1
+        if isMenuDefault {
+            for i, x in menuDefaultOrder {
+                if (x = cmdId) {
+                    om := i - 1
+                    break
+                }
+            }
+        }
+        row := Map("cmdId", cmdId, "visible_in_bar", false, "visible_in_menu", isMenuDefault, "order_bar", -1, "order_menu", om)
+        if isMenuDefault
+            menuItems.Push(row)
+        else
+            unassigned.Push(row)
     }
 
+    if barItems.Length > 1
+        barItems := _VK_SortRowsByNumericKey(barItems, "order_bar")
+    if menuItems.Length > 1
+        menuItems := _VK_SortRowsByNumericKey(menuItems, "order_menu")
+    for row in barItems
+        out.Push(row)
+    for row in menuItems {
+        cid := row["cmdId"]
+        already := false
+        for r in out {
+            if r["cmdId"] = cid {
+                already := true
+                r["visible_in_menu"] := true
+                if row.Has("order_menu")
+                    r["order_menu"] := row["order_menu"]
+                break
+            }
+        }
+        if !already
+            out.Push(row)
+    }
+    for row in unassigned {
+        exists := false
+        for r in out {
+            if r["cmdId"] = row["cmdId"] {
+                exists := true
+                break
+            }
+        }
+        if !exists
+            out.Push(row)
+    }
+    out := _VK_NormalizeToolbarLayoutOrders(out)
     g_Commands["ToolbarLayout"] := out
     if g_Commands.Has("toolbar_layout")
         g_Commands.Delete("toolbar_layout")
@@ -979,12 +1099,15 @@ _VK_ApplyToolbarLayoutFromWeb(msg) {
         if (cid = "" || !cmdList.Has(cid) || seen.Has(cid))
             continue
         seen[cid] := true
-        ib := item.Has("in_bar") ? !!item["in_bar"] : false
-        im := item.Has("in_context_menu") ? !!item["in_context_menu"] : false
-        te := item.Has("toolbarEligible") ? !!item["toolbarEligible"] : (ib || im)
-        if !te
-            ib := false
-        out.Push(Map("cmdId", cid, "in_bar", ib, "in_context_menu", im, "toolbarEligible", te))
+        vb := item.Has("visible_in_bar") ? !!item["visible_in_bar"]
+            : (item.Has("in_bar") ? !!item["in_bar"] : false)
+        vm := item.Has("visible_in_menu") ? !!item["visible_in_menu"]
+            : (item.Has("in_context_menu") ? !!item["in_context_menu"] : false)
+        ob := item.Has("order_bar") ? Integer(item["order_bar"])
+            : (item.Has("order") ? Integer(item["order"]) : 999999)
+        om := item.Has("order_menu") ? Integer(item["order_menu"])
+            : (item.Has("order") ? Integer(item["order"]) : 999999)
+        out.Push(Map("cmdId", cid, "visible_in_bar", vb, "visible_in_menu", vm, "order_bar", ob, "order_menu", om))
     }
 
     for cmdId, _ in cmdList {
@@ -993,10 +1116,42 @@ _VK_ApplyToolbarLayoutFromWeb(msg) {
         if seen.Has(cmdId)
             continue
         seen[cmdId] := true
-        out.Push(Map("cmdId", cmdId, "in_bar", false, "in_context_menu", false, "toolbarEligible", false))
+        out.Push(Map("cmdId", cmdId, "visible_in_bar", false, "visible_in_menu", false, "order_bar", -1, "order_menu", -1))
     }
-
+    if out.Length > 1
+        out := _VK_SortRowsByNumericKey(out, "order_bar")
+    out := _VK_NormalizeToolbarLayoutOrders(out)
     g_Commands["ToolbarLayout"] := out
+    return true
+}
+
+_VK_ApplySceneToolbarLayoutFromWeb(msg) {
+    global g_Commands
+    if !(g_Commands is Map)
+        return false
+    if !(msg is Map) || !msg.Has("sceneToolbarLayout") || !(msg["sceneToolbarLayout"] is Array)
+        return false
+    out := []
+    seen := Map()
+    for item in msg["sceneToolbarLayout"] {
+        if !(item is Map) || !item.Has("sceneId")
+            continue
+        sid := Trim(String(item["sceneId"]))
+        if (sid = "" || seen.Has(sid))
+            continue
+        seen[sid] := true
+        vb := item.Has("visible_in_bar") ? !!item["visible_in_bar"]
+            : (item.Has("in_bar") ? !!item["in_bar"] : false)
+        ob := item.Has("order_bar") ? Integer(item["order_bar"])
+            : (item.Has("order") ? Integer(item["order"]) : 999999)
+        out.Push(Map("sceneId", sid, "visible_in_bar", vb, "order_bar", ob))
+    }
+    if out.Length > 1
+        out := _VK_SortRowsByNumericKey(out, "order_bar")
+    idx := 0
+    for row in out
+        row["order_bar"] := idx++
+    g_Commands["SceneToolbarLayout"] := out
     return true
 }
 
@@ -1178,14 +1333,14 @@ _SerializeCommands() {
     dashCfgJson := _VK_DashboardConfigJson()
     dashPinnedJson := _VK_DashboardPinnedJson()
     tlJson := _VK_ToolbarLayoutToJson()
-    cmJson := _VK_ContextMenuLayoutToJson()
-
+    stlJson := _VK_SceneToolbarLayoutToJson()
     return '{"Categories":' . catJson . ',"CommandList":' . clJson . ',"Bindings":' . bJson
         . ',"SuggestedBindings":' . sbJson
         . ',"DashboardLayout":' . dashLayoutJson
         . ',"DashboardConfig":' . dashCfgJson
         . ',"DashboardPinned":' . dashPinnedJson
-        . ',"ToolbarLayout":' . tlJson . ',"ContextMenuLayout":' . cmJson . '}'
+        . ',"ToolbarLayout":' . tlJson
+        . ',"SceneToolbarLayout":' . stlJson . '}'
 }
 
 _VK_ContextMenuLayoutToJson() {
@@ -1219,7 +1374,7 @@ _VK_EnsureContextMenuLayout() {
         for row in g_Commands["ToolbarLayout"] {
             if !(row is Map) || !row.Has("cmdId")
                 continue
-            if !row.Has("in_context_menu") || !row["in_context_menu"]
+            if !row.Has("visible_in_menu") || !row["visible_in_menu"]
                 continue
             cid := Trim(String(row["cmdId"]))
             if (cid = "" || seen.Has(cid) || !cmdList.Has(cid))
@@ -1248,7 +1403,7 @@ _VK_EnsureContextMenuLayout() {
     for row in g_Commands["ToolbarLayout"] {
         if !(row is Map) || !row.Has("cmdId")
             continue
-        if !row.Has("in_context_menu") || !row["in_context_menu"]
+        if !row.Has("visible_in_menu") || !row["visible_in_menu"]
             continue
         cid := Trim(String(row["cmdId"]))
         if (cid = "" || seen.Has(cid) || !cmdList.Has(cid))
@@ -1282,6 +1437,28 @@ _VK_ApplyContextMenuLayoutFromWeb(arr) {
         out.Push(cid)
     }
     g_Commands["ContextMenuLayout"] := out
+    if g_Commands.Has("ToolbarLayout") && g_Commands["ToolbarLayout"] is Array {
+        order := 0
+        active := Map()
+        for cid in out {
+            active[cid] := order
+            order += 1
+        }
+        for row in g_Commands["ToolbarLayout"] {
+            if !(row is Map) || !row.Has("cmdId")
+                continue
+            cid := String(row["cmdId"])
+            if active.Has(cid) {
+                row["visible_in_menu"] := true
+                row["order_menu"] := active[cid]
+            } else {
+                row["visible_in_menu"] := false
+                row["order_menu"] := -1
+            }
+        }
+        tl := g_Commands["ToolbarLayout"]
+        g_Commands["ToolbarLayout"] := _VK_NormalizeToolbarLayoutOrders(tl)
+    }
     return true
 }
 
@@ -1875,6 +2052,15 @@ _OnWebMessage(sender, args) {
                 try FloatingToolbarReloadFromToolbarLayout()
                 catch as e
                     OutputDebug("[VK] FloatingToolbarReloadFromToolbarLayout: " . e.Message)
+                if g_VK_Ready
+                    _PushInit()
+            }
+        case "saveSceneToolbarLayout":
+            if _VK_ApplySceneToolbarLayoutFromWeb(msg) {
+                _SaveBindings()
+                try FloatingToolbarReloadFromToolbarLayout()
+                catch as e
+                    OutputDebug("[VK] FloatingToolbarReloadFromToolbarLayout(scene): " . e.Message)
                 if g_VK_Ready
                     _PushInit()
             }
@@ -3249,7 +3435,7 @@ VK_HandleBindingsReloaded(*) {
 
 VK_MakeToolbarContextMenuAction(cid) {
     c := String(cid)
-    return (*) => SetTimer(() => VK_ExecCursorHelperCmd(c), -1)
+    return (*) => SetTimer(() => _ExecuteCommand(c), -1)
 }
 
 VK_ToolbarLayoutHasContextMenuItems() {
@@ -3262,7 +3448,7 @@ VK_ToolbarLayoutHasContextMenuItems() {
     for item in g_Commands["ToolbarLayout"] {
         if !(item is Map) || !item.Has("cmdId")
             continue
-        if !item.Has("in_context_menu") || !item["in_context_menu"]
+        if !item.Has("visible_in_menu") || !item["visible_in_menu"]
             continue
         cid := Trim(String(item["cmdId"]))
         if (cid != "" && cmdList.Has(cid))
@@ -3280,10 +3466,13 @@ VK_ShowToolbarLayoutContextMenu() {
 
     cmdList := g_Commands["CommandList"]
     MenuItems := []
-    for item in g_Commands["ToolbarLayout"] {
+    rows := g_Commands["ToolbarLayout"]
+    if rows.Length > 1
+        rows := _VK_SortRowsByNumericKey(rows, "order_menu")
+    for item in rows {
         if !(item is Map) || !item.Has("cmdId")
             continue
-        if !item.Has("in_context_menu") || !item["in_context_menu"]
+        if !item.Has("visible_in_menu") || !item["visible_in_menu"]
             continue
         cid := Trim(String(item["cmdId"]))
         if (cid = "" || !cmdList.Has(cid))
