@@ -2318,6 +2318,8 @@ OnHistoryListViewContextMenu(LV, Item, IsRightClick, X, Y) {
     menuItems := [
         { Text: "复制", Icon: "📋", Action: (*) => HistoryContextMenuCopy() },
         { Text: "粘贴", Icon: "📄", Action: (*) => HistoryContextMenuPaste() },
+        { Text: "语音朗读", Icon: "🔊", Action: (*) => HistoryContextMenuSpeak() },
+        { Text: "停止朗读", Icon: "⏹", Action: (*) => HistoryContextMenuStopSpeak() },
         { Text: "删除", Icon: "🗑", Action: (*) => HistoryContextMenuDelete() },
         { Text: "添加到提示词", Icon: "✎", Action: (*) => HistoryContextMenuAddToPrompt() }
     ]
@@ -2325,6 +2327,35 @@ OnHistoryListViewContextMenu(LV, Item, IsRightClick, X, Y) {
     catch as err {
         OutputDebug("ClipboardHistoryPanel context menu: " . err.Message)
     }
+}
+
+; ===================== 右键菜单：语音朗读（SAPI）=====================
+HistoryContextMenuSpeak(*) {
+    global HistoryListView, HistoryDisplayCache
+    selectedRows := []
+    row := 0
+    Loop {
+        row := HistoryListView.GetNext(row, "Checked")
+        if (row = 0)
+            break
+        selectedRows.Push(row)
+    }
+    if (selectedRows.Length = 0)
+        return
+    r := selectedRows[1]
+    if (r < 1 || r > HistoryDisplayCache.Length)
+        return
+    rowData := HistoryDisplayCache[r]
+    content := rowData.Has("Content") ? String(rowData["Content"]) : ""
+    title := rowData.Has("Title") ? String(rowData["Title"]) : SubStr(content, 1, 120)
+    if (title = "")
+        title := "clip"
+    m := Map("Title", title, "Content", content, "DataType", "text", "Source", "clipboard_lv")
+    SC_SAPI_SpeakFromContextItem(m)
+}
+
+HistoryContextMenuStopSpeak(*) {
+    SC_SAPI_Stop()
 }
 
 ; ===================== 右键菜单：复制 =====================

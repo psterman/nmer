@@ -1313,6 +1313,16 @@ function pqpEntryHasLocalWindowsPath(mergedIndex) {
   return !!c && !/[\r\n]/.test(c) && /^([a-zA-Z]:\\|\\\\)/.test(c);
 }
 
+function pqpEntryHasSpeakableText(mergedIndex) {
+  const items = getDisplayItems();
+  const it = items.find((x) => x.mergedIndex === mergedIndex);
+  if (!it) return false;
+  const c = String(it.content != null ? it.content : '').replace(/\0/g, '').trim();
+  if (c.length > 0) return true;
+  const t = String(it.title != null ? it.title : '').trim();
+  return t.length > 0;
+}
+
 function isPqpScStyleCmd(act) {
   return /^(sc_|ai_|sys_)/.test(String(act || ''));
 }
@@ -1331,6 +1341,9 @@ function showCtxMenu(x, y, mergedIndex) {
     item.textContent = row.name || act;
     const needsFile = row.disableNoLocalFile === true || row.disableNoLocalFile === 'true' || PQP_SC_NEEDS_LOCAL_FILE.has(act);
     if (needsFile && !pqpEntryHasLocalWindowsPath(mergedIndex))
+      item.classList.add('disabled');
+    const needsText = row.disableNoText === true || row.disableNoText === 'true';
+    if (needsText && !pqpEntryHasSpeakableText(mergedIndex))
       item.classList.add('disabled');
     item.addEventListener('click', (ev) => {
       ev.preventDefault();

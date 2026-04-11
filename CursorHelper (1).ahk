@@ -137,6 +137,7 @@ global MainScriptDir := A_ScriptDir
 
 ; ===================== 包含新的剪贴板管理器模块 =====================
 #Include modules\ClipboardFTS5.ahk
+#Include modules\SpeechSAPI.ahk
 #Include modules\ClipboardHistoryPanel.ahk
 #Include modules\ClipboardPanelCore.ahk
 #Include modules\ShellIconCache.ahk

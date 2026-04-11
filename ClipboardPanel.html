@@ -1074,6 +1074,15 @@ function itemHasLocalWindowsPath(it) {
   return false;
 }
 
+/** 语音朗读：需非空可读文本（content 或 title） */
+function itemHasSpeakableText(it) {
+  if (!it) return false;
+  const c = String(it.content != null ? it.content : '').replace(/\0/g, '').trim();
+  if (c.length > 0) return true;
+  const t = String(it.title != null ? it.title : '').trim();
+  return t.length > 0;
+}
+
 function isCpScStyleCmd(act) {
   return /^(sc_|ai_|sys_)/.test(String(act || ''));
 }
@@ -1247,6 +1256,8 @@ function renderCpContextMenuFromSpec() {
     }
     if (it.disableNoLocalFile === true || it.disableNoLocalFile === 'true')
       div.dataset.needsLocalFile = '1';
+    if (it.disableNoText === true || it.disableNoText === 'true')
+      div.dataset.needsText = '1';
     menu.appendChild(div);
   });
   updateContinuousPasteUI();
@@ -1278,6 +1289,10 @@ function showContextMenu(clientX, clientY) {
   }
   menu.querySelectorAll('.ctx-item[data-needs-local-file="1"]').forEach((el) => {
     if (itemHasLocalWindowsPath(item)) el.classList.remove('disabled');
+    else el.classList.add('disabled');
+  });
+  menu.querySelectorAll('.ctx-item[data-needs-text="1"]').forEach((el) => {
+    if (itemHasSpeakableText(item)) el.classList.remove('disabled');
     else el.classList.add('disabled');
   });
   updateContinuousPasteUI();

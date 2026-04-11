@@ -21,6 +21,8 @@ global g_SCWV_DarkSubCmdByIdx := Map()
 global g_SCWV_DarkSubHoverIdx := 0
 global g_SCWV_DarkSubMenuHoverTimer := 0
 global g_SCWV_DarkMenuHoverTimer := 0  ; 悬停两行渐变
+global g_SCWV_DarkCtxItemCount := 0  ; 主右键菜单行数（避免用 Gui.HasProp 检测控件，部分版本会抛错导致永不高亮）
+global g_SCWV_DarkSubItemCount := 0
 global g_SCWV_PinnedKeys := Map()  ; 置顶键 id:xxx 或 c:内容哈希
 global g_SCWV_RecycleBin := []  ; 删除项快照 {title,content,id}
 
@@ -1398,6 +1400,8 @@ _SCWV_DestroyDarkSubMenus(*) {
     }
     g_SCWV_DarkSubCmdByIdx := Map()
     g_SCWV_DarkSubHoverIdx := 0
+    global g_SCWV_DarkSubItemCount
+    g_SCWV_DarkSubItemCount := 0
     if IsSet(g_SCWV_DarkSubGui) && g_SCWV_DarkSubGui {
         try g_SCWV_DarkSubGui.Destroy()
         catch {
@@ -1419,6 +1423,8 @@ _SCWV_DestroyDarkRowMenus(*) {
     g_SCWV_DarkCtxSubSpecByIdx := Map()
     g_SCWV_DarkCtxHoverIdx := 0
     g_SCWV_DarkCtxCmdByIdx := Map()
+    global g_SCWV_DarkCtxItemCount
+    g_SCWV_DarkCtxItemCount := 0
     if IsSet(g_SCWV_DarkCtxGui) && g_SCWV_DarkCtxGui {
         try g_SCWV_DarkCtxGui.Destroy()
         catch {
@@ -1426,6 +1432,14 @@ _SCWV_DestroyDarkRowMenus(*) {
         g_SCWV_DarkCtxGui := 0
     }
     g_SCWV_RowCtxMenu := 0
+}
+
+; 会弹出资源管理器 / 系统属性 / UAC 的命令：勿立刻把焦点抢回搜索中心，否则 F2 重命名与属性框会失效或被挡住
+_SCWV_ShouldRefocusSearchAfterCmd(cmdId) {
+    c := Trim(String(cmdId))
+    if (c = "sc_file_properties" || c = "sc_file_meta" || c = "sc_file_rename" || c = "sc_open_path" || c = "sc_run_as_admin")
+        return false
+    return true
 }
 
 _SCWV_DarkSearchItemApplyHover(idx) {
@@ -1457,7 +1471,7 @@ _SCWV_DarkSearchItemApplyHover(idx) {
 }
 
 _SCWV_CheckDarkSearchCtxMouse(*) {
-    global g_SCWV_DarkCtxGui, g_SCWV_DarkCtxHoverIdx, g_SCWV_DarkSubGui
+    global g_SCWV_DarkCtxGui, g_SCWV_DarkCtxHoverIdx, g_SCWV_DarkSubGui, g_SCWV_DarkCtxItemCount
     if !g_SCWV_DarkCtxGui
         return
     try {
@@ -1500,12 +1514,8 @@ _SCWV_CheckDarkSearchCtxMouse(*) {
         return
     }
     ItemIndex := Floor((RelY - Padding) / MenuItemHeight) + 1
-    try {
-        if !g_SCWV_DarkCtxGui.HasProp("ScCtxBg" . ItemIndex)
-            return
-    } catch {
+    if (ItemIndex < 1 || ItemIndex > g_SCWV_DarkCtxItemCount)
         return
-    }
     ItemY := Padding + (ItemIndex - 1) * MenuItemHeight
     if RelY >= ItemY && RelY < ItemY + MenuItemHeight
         _SCWV_DarkSearchItemApplyHover(ItemIndex)
@@ -1545,7 +1555,7 @@ _SCWV_OnDarkSubMenuClick(idx, *) {
     if (c != "") {
         global g_SCWV_DarkSubGui
         try {
-            if g_SCWV_DarkSubGui && g_SCWV_DarkSubGui.HasProp("ScSubBg" . idx) {
+            if g_SCWV_DarkSubGui {
                 g_SCWV_DarkSubGui["ScSubBg" . idx].BackColor := "ffc48a"
                 g_SCWV_DarkSubGui["ScSubTx" . idx].Opt("c1a1a1a")
             }
@@ -1557,18 +1567,20 @@ _SCWV_OnDarkSubMenuClick(idx, *) {
     SetTimer(SCWV_WMDeactivateHideTick, 0)
     if (c != "")
         SC_ExecuteContextCommand(c, row)
-    if g_SCWV_Gui {
+    if _SCWV_ShouldRefocusSearchAfterCmd(c) && g_SCWV_Gui {
         try WinActivate("ahk_id " . g_SCWV_Gui.Hwnd)
         catch as _ea {
         }
     }
-    try SCWV_RequestFocusInput()
-    catch as _eb {
+    if _SCWV_ShouldRefocusSearchAfterCmd(c) {
+        try SCWV_RequestFocusInput()
+        catch as _eb {
+        }
     }
 }
 
 _SCWV_CheckDarkSubCtxMouse(*) {
-    global g_SCWV_DarkSubGui, g_SCWV_DarkSubHoverIdx, g_SCWV_DarkSubMenuHoverTimer
+    global g_SCWV_DarkSubGui, g_SCWV_DarkSubHoverIdx, g_SCWV_DarkSubMenuHoverTimer, g_SCWV_DarkSubItemCount
     if !g_SCWV_DarkSubGui
         return
     try {
@@ -1605,15 +1617,23 @@ _SCWV_CheckDarkSubCtxMouse(*) {
     }
     RelY := MY - WY
     if RelY < Padding {
+        if g_SCWV_DarkSubMenuHoverTimer {
+            SetTimer(g_SCWV_DarkSubMenuHoverTimer, 0)
+            g_SCWV_DarkSubMenuHoverTimer := 0
+        }
+        if g_SCWV_DarkSubHoverIdx > 0 {
+            try {
+                g_SCWV_DarkSubGui["ScSubBg" . g_SCWV_DarkSubHoverIdx].BackColor := "1a1a1a"
+                g_SCWV_DarkSubGui["ScSubTx" . g_SCWV_DarkSubHoverIdx].Opt("cff6600")
+            } catch {
+            }
+            g_SCWV_DarkSubHoverIdx := 0
+        }
         return
     }
     ItemIndex := Floor((RelY - Padding) / MenuItemHeight) + 1
-    try {
-        if !g_SCWV_DarkSubGui.HasProp("ScSubBg" . ItemIndex)
-            return
-    } catch {
+    if (ItemIndex < 1 || ItemIndex > g_SCWV_DarkSubItemCount)
         return
-    }
     ItemY := Padding + (ItemIndex - 1) * MenuItemHeight
     if RelY < ItemY || RelY >= ItemY + MenuItemHeight {
         return
@@ -1643,7 +1663,7 @@ _SCWV_CheckDarkSubCtxMouse(*) {
 }
 
 _SCWV_ShowDarkSubMenuAt(children, posX, posY) {
-    global g_SCWV_DarkSubGui, g_SCWV_DarkSubCmdByIdx, g_SCWV_DarkCtxGui, g_SCWV_Gui
+    global g_SCWV_DarkSubGui, g_SCWV_DarkSubCmdByIdx, g_SCWV_DarkCtxGui, g_SCWV_Gui, g_SCWV_DarkSubItemCount
     _SCWV_DestroyDarkSubMenus()
     if !(children is Array) || children.Length = 0
         return
@@ -1684,6 +1704,7 @@ _SCWV_ShowDarkSubMenuAt(children, posX, posY) {
     g_SCWV_DarkSubGui.MarginY := Padding
     g_SCWV_DarkSubGui.Add("Text", "x0 y0 w" . MenuWidth . " h" . MenuHeight . " Background1a1a1a", "")
     g_SCWV_DarkSubCmdByIdx := Map()
+    g_SCWV_DarkSubItemCount := n
     Loop children.Length {
         i := A_Index
         it := children[i]
@@ -1713,7 +1734,7 @@ _SCWV_OnDarkSearchMenuClick(idx, *) {
     if g_SCWV_DarkCtxSubSpecByIdx.Has(idx) {
         ch := g_SCWV_DarkCtxSubSpecByIdx[idx]
         try {
-            if g_SCWV_DarkCtxGui && g_SCWV_DarkCtxGui.HasProp("ScCtxBg" . idx) {
+            if g_SCWV_DarkCtxGui {
                 g_SCWV_DarkCtxGui["ScCtxBg" . idx].BackColor := "ffc48a"
                 g_SCWV_DarkCtxGui["ScCtxTx" . idx].Opt("c1a1a1a")
             }
@@ -1737,7 +1758,7 @@ _SCWV_OnDarkSearchMenuClick(idx, *) {
     row := g_SCWV_MenuActionRow
     if (c != "") {
         try {
-            if g_SCWV_DarkCtxGui && g_SCWV_DarkCtxGui.HasProp("ScCtxBg" . idx) {
+            if g_SCWV_DarkCtxGui {
                 g_SCWV_DarkCtxGui["ScCtxBg" . idx].BackColor := "ffc48a"
                 g_SCWV_DarkCtxGui["ScCtxTx" . idx].Opt("c1a1a1a")
             }
@@ -1749,18 +1770,20 @@ _SCWV_OnDarkSearchMenuClick(idx, *) {
     SetTimer(SCWV_WMDeactivateHideTick, 0)
     if (c != "")
         SC_ExecuteContextCommand(c, row)
-    if g_SCWV_Gui {
+    if _SCWV_ShouldRefocusSearchAfterCmd(c) && g_SCWV_Gui {
         try WinActivate("ahk_id " . g_SCWV_Gui.Hwnd)
         catch as _ea {
         }
     }
-    try SCWV_RequestFocusInput()
-    catch as _eb {
+    if _SCWV_ShouldRefocusSearchAfterCmd(c) {
+        try SCWV_RequestFocusInput()
+        catch as _eb {
+        }
     }
 }
 
 _SCWV_ShowDarkSearchRowMenuAt(spec, posX, posY) {
-    global g_SCWV_DarkCtxGui, g_SCWV_DarkCtxCmdByIdx, g_SCWV_DarkCtxHoverIdx, g_SCWV_DarkCtxSubSpecByIdx
+    global g_SCWV_DarkCtxGui, g_SCWV_DarkCtxCmdByIdx, g_SCWV_DarkCtxHoverIdx, g_SCWV_DarkCtxSubSpecByIdx, g_SCWV_DarkCtxItemCount
     _SCWV_DestroyDarkRowMenus()
     if !(spec is Array) || spec.Length = 0
         spec := [Map("k", "cmd", "id", "", "t", "（未配置菜单）")]
@@ -1768,6 +1791,7 @@ _SCWV_ShowDarkSearchRowMenuAt(spec, posX, posY) {
     MenuItemHeight := 34
     Padding := 8
     n := spec.Length
+    g_SCWV_DarkCtxItemCount := n
     MenuHeight := n * MenuItemHeight + Padding * 2
     ScreenWidth := SysGet(78)
     ScreenHeight := SysGet(79)

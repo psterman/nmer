@@ -976,6 +976,11 @@ body.native-titlebar #header { display: none; }
     return false;
   }
 
+  function hubSegHasSpeakableText(seg) {
+    if (!seg || seg.kind !== 'text') return false;
+    return String(seg.text || '').replace(/\0/g, '').trim().length > 0;
+  }
+
   function applyHubCtxFileDisables() {
     if (!ctxMenu) return;
     const idx = Number(ctxMenu.dataset.index);
@@ -983,6 +988,10 @@ body.native-titlebar #header { display: none; }
     const ok = hubSegHasLocalPath(seg);
     ctxMenu.querySelectorAll('button.ctx-item[data-needs-local-file="1"]').forEach((el) => {
       el.disabled = !ok;
+    });
+    const okText = hubSegHasSpeakableText(seg);
+    ctxMenu.querySelectorAll('button.ctx-item[data-needs-text="1"]').forEach((el) => {
+      el.disabled = !okText;
     });
   }
 
@@ -1000,6 +1009,8 @@ body.native-titlebar #header { display: none; }
       btn.dataset.act = act;
       if (HUB_SC_NEEDS_LOCAL_FILE.has(act))
         btn.dataset.needsLocalFile = '1';
+      if (it.disableNoText === true || it.disableNoText === 'true')
+        btn.dataset.needsText = '1';
       btn.textContent = it.name || act;
       ctxMenu.appendChild(btn);
     });

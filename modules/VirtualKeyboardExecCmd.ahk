@@ -1018,12 +1018,17 @@ SC_ShellFolderItemInvokeVerb(path, verb) {
 }
 
 ; 系统「属性」对话框（SHOP_FILEPATH = 1）
+; SHObjectProperties 返回 HRESULT：S_OK = 0 为成功（原先写成 r!=0 会把成功当成失败）
 SC_SHObjectPropertiesFile(path) {
     p := SC_NormalizeFsPath(path)
     if (p = "" || (!FileExist(p) && !DirExist(p)))
         return false
-    r := DllCall("shell32\SHObjectProperties", "ptr", 0, "int", 1, "wstr", p, "ptr", 0, "int")
-    return r != 0
+    r := 0
+    try r := DllCall("shell32\SHObjectProperties", "ptr", 0, "uint", 1, "wstr", p, "ptr", 0, "int")
+    catch {
+        return false
+    }
+    return Integer(r) = 0
 }
 
 ; 在已打开的资源管理器窗口中触发重命名（选中项后 F2）
@@ -1059,6 +1064,10 @@ SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
     id := Trim(String(cmdId))
     if (id = "")
         return
+    if (id = "sc_voice_stop") {
+        SC_SAPI_Stop()
+        return
+    }
 
     Item := 0
     r := Integer(visibleRow)
@@ -1458,6 +1467,8 @@ SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
             }
         case "sys_empty_recycle":
             SC_SearchCenterEmptyRecycleBin()
+        case "sc_voice_speak":
+            SC_SAPI_SpeakFromContextItem(Item)
         default:
             return
     }

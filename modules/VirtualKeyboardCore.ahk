@@ -302,6 +302,8 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "sc_menu_sep_2", "name", "────────", "desc", "分隔线（已弃用，配置将自动隐藏）", "fn", "CH_RUN"),
             Map("id", "ai_explain_item", "name", "牛马 AI 解释", "desc", "搜索中心结果", "fn", "CH_RUN"),
             Map("id", "ai_translate_item", "name", "自动翻译", "desc", "搜索中心结果", "fn", "CH_RUN"),
+            Map("id", "sc_voice_speak", "name", "语音朗读", "desc", "搜索中心/剪贴板等：SAPI 朗读内容", "fn", "CH_RUN"),
+            Map("id", "sc_voice_stop", "name", "停止朗读", "desc", "停止当前 SAPI 语音输出", "fn", "CH_RUN"),
             Map("id", "ai_prompt_refine", "name", "提示词精炼", "desc", "搜索中心结果", "fn", "CH_RUN"),
             Map("id", "sc_menu_sep_3", "name", "────────", "desc", "分隔线（已弃用，配置将自动隐藏）", "fn", "CH_RUN"),
             Map("id", "sc_pin_item", "name", "置顶/取消置顶", "desc", "搜索中心结果", "fn", "CH_RUN"),
@@ -987,7 +989,7 @@ _VK_DefaultSearchCenterContextMenuCmdIds() {
         "sc_execute", "sc_run_as_admin", "sc_open_path",
         "sc_copy", "sc_copy_plain", "sc_copy_link", "sc_copy_digit", "sc_copy_chinese", "sc_copy_md",
         "sc_to_draft", "sc_to_prompt", "sc_to_openclaw",
-        "ai_explain_item", "ai_translate_item", "ai_prompt_refine",
+        "ai_explain_item", "ai_translate_item", "sc_voice_speak", "sc_voice_stop", "ai_prompt_refine",
         "sc_pin_item", "sc_delete_item",
         "sc_file_properties", "sc_file_rename"
     ]
@@ -1362,10 +1364,11 @@ _VK_SceneCtxMenuItemsJson(sceneKey) {
         disImg := (c = "cp_ctx_ocrImage") ? "true" : "false"
         disFile := (c = "sc_open_path" || c = "sc_open_with" || c = "sc_run_as_admin" || c = "sc_recycle_item"
             || c = "sc_file_properties" || c = "sc_file_meta" || c = "sc_file_rename") ? "true" : "false"
+        disText := (c = "sc_voice_speak") ? "true" : "false"
         json .= sep . '{"id":' . _JsonStr(c) . ',"name":' . _JsonStr(nm) . ',"act":' . _JsonStr(act)
             . ',"visible":' . (visOn ? "true" : "false") . ',"toggle":' . toggle
             . ',"disableNoPastePath":' . disPath . ',"disableNotImage":' . disImg
-            . ',"disableNoLocalFile":' . disFile . "}"
+            . ',"disableNoLocalFile":' . disFile . ',"disableNoText":' . disText . "}"
         sep := ","
     }
     json .= "]"
@@ -1487,11 +1490,13 @@ _VK_SearchRowDefaultOrder(cmdId) {
         "sc_to_openclaw", 11,
         "ai_explain_item", 12,
         "ai_translate_item", 13,
-        "ai_prompt_refine", 14,
-        "sc_pin_item", 15,
-        "sc_delete_item", 16,
-        "sc_file_properties", 17,
-        "sc_file_rename", 18
+        "sc_voice_speak", 14,
+        "sc_voice_stop", 15,
+        "ai_prompt_refine", 16,
+        "sc_pin_item", 17,
+        "sc_delete_item", 18,
+        "sc_file_properties", 19,
+        "sc_file_rename", 20
     )
     c := Trim(String(cmdId))
     return m.Has(c) ? Integer(m[c]) : -1
