@@ -755,29 +755,36 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
   box-shadow: var(--glow-hot);
 }
 
-/* Context menu (Raycast-style) */
+/* Context menu — 与搜索中心 / VK 暗色弹出一致：橙字 + 悬停橙条白字 */
 #context-menu {
   position: fixed; z-index: 300;
   overflow: hidden;
   min-width: 220px; max-width: 320px;
-  background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0)), var(--surface);
-  border: 1px solid rgba(255,255,255,.12);
-  border-radius: 16px; padding: 6px 0;
-  box-shadow: var(--glow), inset 0 1px 0 rgba(255,255,255,.12);
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 102, 0, 0.35);
+  border-radius: 12px; padding: 6px;
+  box-shadow: 0 16px 34px rgba(0,0,0,0.45);
   display: none;
 }
 #context-menu.visible { display: block; }
 .ctx-item {
-  padding: 9px 14px; font-size: 13px; color: var(--text);
+  padding: 9px 14px; font-size: 13px; color: #ff6600;
   cursor: pointer; user-select: none;
+  border-radius: 8px;
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
-.ctx-item:hover:not(.disabled) { background: linear-gradient(180deg, rgba(255,141,42,.16), rgba(255,141,42,.06)); }
+.ctx-item:hover:not(.disabled) {
+  background: #ff6600;
+  color: #fff;
+}
+.ctx-item:hover:not(.disabled) .ctx-hint { color: rgba(255, 255, 255, 0.88); }
 .ctx-item.disabled { opacity: 0.35; pointer-events: none; cursor: default; }
-.ctx-item .ctx-hint { font-family: var(--font); font-size: 10px; color: var(--text-xs); }
-.ctx-sep { height: 1px; background: var(--border); margin: 4px 10px; }
-.ctx-item.toggle.on .ctx-check { color: var(--orange); }
-.ctx-item.toggle:not(.on) .ctx-check { opacity: 0.25; }
+.ctx-item .ctx-hint { font-family: var(--font); font-size: 10px; color: rgba(255, 102, 0, 0.55); }
+.ctx-item.toggle { justify-content: flex-start; gap: 10px; }
+.ctx-item.toggle.on .ctx-check { color: #ff6600; }
+.ctx-item.toggle:not(.on) .ctx-check { opacity: 0.28; }
+.ctx-item.toggle:hover:not(.disabled).on .ctx-check,
+.ctx-item.toggle:hover:not(.disabled):not(.on) .ctx-check { color: #fff; opacity: 1; }
 </style>
 <script src="https://app.local/assets/js/BasePanel.js"></script>
 </head>
@@ -838,20 +845,8 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
   </div>
 </div>
 
-<!-- Right-click context menu -->
-<div id="context-menu" aria-hidden="true">
-  <div class="ctx-item" data-ctx="paste"><span>粘贴</span><span class="ctx-hint">Enter</span></div>
-  <div class="ctx-item" data-ctx="copyToClipboard"><span>复制到剪贴板</span></div>
-  <div class="ctx-item" data-ctx="pastePlain"><span>粘贴纯文本</span></div>
-  <div class="ctx-item" data-ctx="pasteWithNewline"><span>粘贴并换行</span></div>
-  <div class="ctx-item" data-ctx="pin"><span>置顶</span></div>
-  <div class="ctx-item" data-ctx="pastePath" id="ctx-paste-path"><span>粘贴路径</span></div>
-  <div class="ctx-item" data-ctx="ocrImage" id="ctx-ocr-image"><span>图片 OCR</span></div>
-  <div class="ctx-item" data-ctx="screenshotToOcr"><span>截图到 OCR</span></div>
-  <div class="ctx-item" data-ctx="delete"><span>删除</span><span class="ctx-hint">Ctrl+D</span></div>
-  <div class="ctx-sep"></div>
-  <div class="ctx-item toggle" data-ctx="toggleContinuous" id="ctx-toggle-continuous"><span class="ctx-check">✓</span><span>持续粘贴（不关闭窗口）</span></div>
-</div>
+<!-- Right-click context menu（由 ctxMenuSpec 动态生成） -->
+<div id="context-menu" aria-hidden="true"></div>
 
 <!-- Shortcuts Panel Overlay -->
 <div id="action-overlay">
@@ -924,8 +919,23 @@ const state = {
   ctxMenuVisible: false,
   /** 上次分页完成后的时间戳，防止贴底连续触发 loadMore */
   loadMoreCooldownUntil: 0,
-  peekSpaceDown: false
+  peekSpaceDown: false,
+  /** @type {Array<{id?:string,name?:string,act?:string,visible?:boolean}>} */
+  ctxMenuSpec: []
 };
+
+const CP_CTX_FALLBACK = [
+  { name: '粘贴', act: 'paste', visible: true },
+  { name: '复制到剪贴板', act: 'copyToClipboard', visible: true },
+  { name: '粘贴纯文本', act: 'pastePlain', visible: true },
+  { name: '粘贴并换行', act: 'pasteWithNewline', visible: true },
+  { name: '置顶', act: 'pin', visible: true },
+  { name: '粘贴路径', act: 'pastePath', visible: true, disableNoPastePath: true },
+  { name: '图片 OCR', act: 'ocrImage', visible: true, disableNotImage: true },
+  { name: '截图到 OCR', act: 'screenshotToOcr', visible: true },
+  { name: '删除', act: 'delete', visible: true },
+  { name: '持续粘贴（不关闭窗口）', act: 'toggleContinuous', visible: true, toggle: true }
+];
 
   const PAGE_SIZE = 30;
 const LOAD_MORE_COOLDOWN_MS = 420;
@@ -1046,6 +1056,22 @@ function itemIsImage(it) {
   if (!it || !it.dataType) return false;
   const t = String(it.dataType).toLowerCase();
   return t === 'image' || t === 'screenshot';
+}
+
+/** 用于禁用「打开位置 / 打开方式 / 属性 / 重命名」等需本地路径的搜索中心同款命令 */
+function itemHasLocalWindowsPath(it) {
+  if (!it) return false;
+  const ip = String(it.imagePath || '').trim();
+  if (ip && /^([a-zA-Z]:\\|\\\\)/.test(ip)) return true;
+  const sp = String(it.sourcePath || '').trim();
+  if (sp && /^([a-zA-Z]:\\|\\\\)/.test(sp)) return true;
+  const c = String(it.content || '').trim();
+  if (c && !/[\r\n]/.test(c) && /^([a-zA-Z]:\\|\\\\)/.test(c)) return true;
+  return false;
+}
+
+function isCpScStyleCmd(act) {
+  return /^(sc_|ai_|sys_)/.test(String(act || ''));
 }
 
 function looksLikeImageRef(value) {
@@ -1178,6 +1204,50 @@ function toggleContinuousPaste() {
   updateContinuousPasteUI();
 }
 
+function renderCpContextMenuFromSpec() {
+  const menu = document.getElementById('context-menu');
+  if (!menu) return;
+  const spec = Array.isArray(state.ctxMenuSpec) && state.ctxMenuSpec.length ? state.ctxMenuSpec : CP_CTX_FALLBACK;
+  const rows = spec.filter((it) => it && it.visible !== false);
+  menu.innerHTML = '';
+  rows.forEach((it) => {
+    const act = String(it.act || '').trim();
+    if (!act) return;
+    const div = document.createElement('div');
+    div.className = 'ctx-item';
+    const isToggle = act === 'toggleContinuous' || it.toggle === true;
+    if (isToggle) div.classList.add('toggle');
+    div.dataset.ctx = act;
+    if (act === 'pastePath') div.id = 'ctx-paste-path';
+    else if (act === 'ocrImage') div.id = 'ctx-ocr-image';
+    else if (act === 'toggleContinuous') div.id = 'ctx-toggle-continuous';
+    if (isToggle) {
+      const check = document.createElement('span');
+      check.className = 'ctx-check';
+      check.textContent = '✓';
+      div.appendChild(check);
+    }
+    const label = document.createElement('span');
+    label.textContent = it.name || act;
+    div.appendChild(label);
+    if (act === 'paste') {
+      const hint = document.createElement('span');
+      hint.className = 'ctx-hint';
+      hint.textContent = 'Enter';
+      div.appendChild(hint);
+    } else     if (act === 'delete') {
+      const hint = document.createElement('span');
+      hint.className = 'ctx-hint';
+      hint.textContent = 'Ctrl+D';
+      div.appendChild(hint);
+    }
+    if (it.disableNoLocalFile === true || it.disableNoLocalFile === 'true')
+      div.dataset.needsLocalFile = '1';
+    menu.appendChild(div);
+  });
+  updateContinuousPasteUI();
+}
+
 function hideContextMenu() {
   const menu = document.getElementById('context-menu');
   if (menu) {
@@ -1190,6 +1260,7 @@ function hideContextMenu() {
 function showContextMenu(clientX, clientY) {
   const menu = document.getElementById('context-menu');
   if (!menu) return;
+  renderCpContextMenuFromSpec();
   const item = state.items[state.selectedIndex];
   const pathEl = document.getElementById('ctx-paste-path');
   const ocrEl = document.getElementById('ctx-ocr-image');
@@ -1201,6 +1272,10 @@ function showContextMenu(clientX, clientY) {
     if (itemIsImage(item)) ocrEl.classList.remove('disabled');
     else ocrEl.classList.add('disabled');
   }
+  menu.querySelectorAll('.ctx-item[data-needs-local-file="1"]').forEach((el) => {
+    if (itemHasLocalWindowsPath(item)) el.classList.remove('disabled');
+    else el.classList.add('disabled');
+  });
   updateContinuousPasteUI();
   menu.classList.add('visible');
   menu.setAttribute('aria-hidden', 'false');
@@ -1232,7 +1307,10 @@ function runCtxAction(act, id) {
     case 'screenshotToOcr': postToAhk({ type: 'screenshotToOcr', keepOpen: true }); break;
     case 'pin': postToAhk({ type: 'pin', id }); break;
     case 'delete': postToAhk({ type: 'delete', id }); break;
-    default: break;
+    default:
+      if (isCpScStyleCmd(act) && id)
+        postToAhk({ type: 'cpScCtxCmd', cmdId: act, id });
+      break;
   }
 }
 
@@ -1266,6 +1344,8 @@ function handleAhkMessage(msg) {
     case 'init':
     case 'searchResult':
       state.items = msg.items || [];
+      if (Array.isArray(msg.ctxMenuSpec))
+        state.ctxMenuSpec = msg.ctxMenuSpec;
       if (msg.total != null && msg.total >= 0) {
         state.total = msg.total;
       } else {
@@ -1288,6 +1368,8 @@ function handleAhkMessage(msg) {
     case 'moreItems':
       if (msg.items && msg.items.length > 0) {
         state.items = state.items.concat(msg.items);
+        if (Array.isArray(msg.ctxMenuSpec))
+          state.ctxMenuSpec = msg.ctxMenuSpec;
         if (msg.total != null && msg.total >= 0) {
           state.total = msg.total;
         }
@@ -2117,6 +2199,12 @@ if (ctxMenu) {
     if (act === 'screenshotToOcr') {
       hideContextMenu();
       runCtxAction(act, '');
+      return;
+    }
+    if (isCpScStyleCmd(act)) {
+      if (!state.selectedId) return;
+      hideContextMenu();
+      runCtxAction(act, state.selectedId);
       return;
     }
     if (!state.selectedId) return;

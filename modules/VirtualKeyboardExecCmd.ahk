@@ -909,3 +909,366 @@ VK_NoteLastChFromCapsLockKey(keyLower) {
     if m.Has(kl)
         VK_NoteLastExecutedId(m[kl])
 }
+
+SC_JoinAllRegExMatches(haystack, pattern) {
+    h := String(haystack)
+    out := ""
+    start := 1
+    while RegExMatch(h, pattern, &m, start) {
+        out .= m[]
+        start := m.Pos + m.Len
+    }
+    return out
+}
+
+; 搜索中心 WebView 结果行右键：统一执行入口。
+; ctxItem：可选 Map（剪贴板 / Hub / PQP 合成项），键 Title/Content/DataType/OriginalDataType/Source/ClipboardId/HubSegIndex/PromptMergedIndex
+SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
+    id := Trim(String(cmdId))
+    if (id = "")
+        return
+
+    Item := 0
+    r := Integer(visibleRow)
+    if IsSet(ctxItem) && ctxItem is Map {
+        Item := ctxItem
+        r := 0
+    } else {
+        if (r < 1)
+            return
+        Item := GetSearchCenterResultItemByRow(r)
+    }
+    if !IsObject(Item)
+        return
+
+    if Item is Map {
+        Content := Item.Has("Content") ? Item["Content"] : (Item.Has("Title") ? Item["Title"] : "")
+        Title := Item.Has("Title") ? Item["Title"] : Content
+        DataType := Item.Has("DataType") ? Item["DataType"] : ""
+        origDt := Item.Has("OriginalDataType") ? Item["OriginalDataType"] : ""
+    } else {
+        Content := Item.HasProp("Content") ? Item.Content : Item.Title
+        Title := Item.HasProp("Title") ? Item.Title : Content
+        DataType := Item.HasProp("DataType") ? Item.DataType : ""
+        origDt := Item.HasProp("OriginalDataType") ? Item.OriginalDataType : ""
+    }
+    isFileLike := (DataType = "file" || DataType = "File" || DataType = "Folder" || origDt = "file")
+    path := Trim(String(Content))
+
+    switch id {
+        case "sc_execute":
+            if Item is Map && Item.Has("Source") {
+                src := String(Item["Source"])
+                if (src = "clipboard" && Item.Has("ClipboardId") && Integer(Item["ClipboardId"]) > 0) {
+                    _CP_DoPaste(Integer(Item["ClipboardId"]), false)
+                    return
+                }
+                if (src = "hub") {
+                    t := Trim(String(Content), " `t`r`n")
+                    if (t != "") {
+                        try A_Clipboard := t
+                        catch {
+                        }
+                        Sleep(50)
+                        try Send("^v")
+                        catch {
+                        }
+                    }
+                    return
+                }
+                if (src = "pqp" && Item.Has("PromptMergedIndex")) {
+                    PromptQuickPad_PasteByMergedIndex(Integer(Item["PromptMergedIndex"]))
+                    Sleep(50)
+                    try Send("^v")
+                    catch {
+                    }
+                    return
+                }
+                try TrayTip("立即执行", "当前项无法在此面板执行", "Iconi 2")
+                catch {
+                }
+                return
+            }
+            SC_ActivateSearchResultItem(Item, true, true)
+        case "sc_run_as_admin":
+            if !isFileLike || !FileExist(path) {
+                try TrayTip("仅支持本地 .exe / .bat", path, "Icon! 2")
+                catch {
+                }
+                return
+            }
+            ext := ""
+            SplitPath(path, , , &ext)
+            el := StrLower(ext)
+            if (el != ".exe" && el != ".bat") {
+                try TrayTip("仅支持 .exe / .bat", path, "Icon! 2")
+                catch {
+                }
+                return
+            }
+            try Run('*RunAs "' . path . '"')
+            catch as err {
+                try TrayTip("提升运行失败", err.Message, "Iconx 2")
+                catch {
+                }
+            }
+        case "sc_open_path":
+            if !isFileLike || !FileExist(path) {
+                try TrayTip("无法打开位置", "非本地文件路径", "Icon! 2")
+                catch {
+                }
+                return
+            }
+            SplitPath(path, , &dir)
+            if (dir = "")
+                return
+            arg := '/select,"' . path . '"'
+            try Run("explorer.exe " . arg)
+            catch as err {
+                try TrayTip("资源管理器失败", err.Message, "Iconx 2")
+                catch {
+                }
+            }
+        case "sc_open_with":
+            if !isFileLike || !FileExist(path) {
+                try TrayTip("打开方式", "需要存在的本地文件", "Icon! 2")
+                catch {
+                }
+                return
+            }
+            ok := false
+            try {
+                hr := DllCall("ptr", "shell32\ShellExecuteW", "ptr", 0, "wstr", "openas", "wstr", path, "ptr", 0, "ptr", 0, "int", 1)
+                ok := (hr > 32)
+            } catch {
+                ok := false
+            }
+            if ok
+                return
+            sysRoot := EnvGet("SystemRoot")
+            if (sysRoot = "")
+                sysRoot := A_WinDir
+            try Run('"' . sysRoot . '\System32\rundll32.exe" shell32.dll,OpenAs_RunDLL "' . path . '"')
+            catch as err {
+                try TrayTip("打开方式失败", err.Message, "Iconx 2")
+                catch {
+                }
+            }
+        case "sc_copy_link":
+            try A_Clipboard := Content
+            try TrayTip("已复制", "路径/内容已复制", "Iconi 1")
+            catch {
+            }
+        case "sc_copy_digit":
+            d := SC_JoinAllRegExMatches(Content, "\d+")
+            if (d = "") {
+                try TrayTip("未匹配到数字", "", "Icon! 2")
+                catch {
+                }
+                return
+            }
+            try A_Clipboard := d
+            try TrayTip("已复制数字", d, "Iconi 1")
+            catch {
+            }
+        case "sc_copy_chinese":
+            zh := SC_JoinAllRegExMatches(Content, "\p{Han}+")
+            if (zh = "") {
+                try TrayTip("未匹配到中文", "", "Icon! 2")
+                catch {
+                }
+                return
+            }
+            try A_Clipboard := zh
+            try TrayTip("已复制中文", SubStr(zh, 1, 80), "Iconi 1")
+            catch {
+            }
+        case "sc_copy_md":
+            link := Content
+            name := Title
+            if (DataType = "Link" || RegExMatch(Content, "i)^https?://"))
+                md := "[" . name . "](" . link . ")"
+            else
+                md := "[" . name . "](" . link . ")"
+            try A_Clipboard := md
+            try TrayTip("已复制 Markdown", md, "Iconi 1")
+            catch {
+            }
+        case "sc_to_draft":
+            seg := Trim(String(Content), " `t`r`n")
+            if (seg = "")
+                return
+            try SelectionSense_OpenHubCapsuleFromToolbar(false, seg)
+            catch {
+            }
+            Sleep(280)
+            if !VK_HubCapsulePost(Map("type", "push_segment", "text", seg)) {
+                try TrayTip("草稿本", "HubCapsule 未就绪，请稍后再试", "Icon! 2")
+                catch {
+                }
+            }
+        case "sc_to_prompt":
+            try A_Clipboard := Content
+            try TrayTip("已复制", "内容已复制，可粘贴到提示词模板", "Iconi 1")
+            catch {
+            }
+        case "sc_to_openclaw":
+            t := Trim(String(Content), " `t`r`n")
+            if (t = "") {
+                return
+            }
+            try FloatingToolbar_SendTextToNiumaChat(t, true, true, true)
+            catch as err {
+                try TrayTip("发送失败", err.Message, "Iconx 2")
+                catch {
+                }
+            }
+        case "ai_explain_item":
+            t := Trim(String(Content), " `t`r`n")
+            if (t = "") {
+                return
+            }
+            payload := "请用小白能听懂的话解释下面这段内容：`n`n" . t
+            try FloatingToolbar_SendTextToNiumaChat(payload, true, false, true)
+            catch as err {
+                try TrayTip("牛马 AI", err.Message, "Iconx 2")
+                catch {
+                }
+            }
+        case "ai_translate_item":
+            t := Trim(String(Content), " `t`r`n")
+            if (t = "") {
+                return
+            }
+            payload := "请自动检测语种并将下面内容翻译为另一种常用语言（中文↔英文优先），只输出译文：`n`n" . t
+            try FloatingToolbar_SendTextToNiumaChat(payload, true, false, true)
+            catch as err {
+                try TrayTip("翻译", err.Message, "Iconx 2")
+                catch {
+                }
+            }
+        case "ai_prompt_refine":
+            t := Trim(String(Content), " `t`r`n")
+            clip := Trim(String(A_Clipboard), " `t`r`n")
+            payload := "请将「结果项内容」与「剪贴板内容」结合，精炼为一条高质量、可执行的提示词，只输出最终 Prompt：`n`n--- 结果项 ---`n" . t . "`n`n--- 剪贴板 ---`n" . clip
+            try FloatingToolbar_SendTextToNiumaChat(payload, true, false, true)
+            catch as err {
+                try TrayTip("提示词精炼", err.Message, "Iconx 2")
+                catch {
+                }
+            }
+        case "sc_pin_item":
+            if Item is Map && Item.Has("Source") && String(Item["Source"]) = "clipboard" && Item.Has("ClipboardId") {
+                _CP_DoPin(Integer(Item["ClipboardId"]))
+                return
+            }
+            if Item is Map && Item.Has("Source") && String(Item["Source"]) != "" && String(Item["Source"]) != "clipboard" {
+                try TrayTip("置顶", "仅剪贴板历史条目支持置顶", "Iconi 2")
+                catch {
+                }
+                return
+            }
+            SC_SearchCenterTogglePinByItem(Item)
+        case "sc_delete_item":
+            if Item is Map && Item.Has("Source") {
+                src := String(Item["Source"])
+                if (src = "clipboard" && Item.Has("ClipboardId")) {
+                    _CP_DoDelete(Integer(Item["ClipboardId"]))
+                    return
+                }
+                if (src = "hub" && Item.Has("HubSegIndex")) {
+                    global g_SelSense_MenuWV2
+                    if g_SelSense_MenuWV2 {
+                        try WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_remove_at", "index", Integer(Item["HubSegIndex"])))
+                        catch {
+                        }
+                    }
+                    return
+                }
+                if (src = "pqp" && Item.Has("PromptMergedIndex")) {
+                    PromptQuickPad_DeleteByMergedIndex(Integer(Item["PromptMergedIndex"]))
+                    return
+                }
+            }
+            if (r < 1)
+                return
+            SC_SearchCenterRemoveVisibleRowFromList(r)
+        case "sc_recycle_item":
+            if Item is Map && Item.Has("Source") && String(Item["Source"]) = "clipboard" {
+                if !(isFileLike && FileExist(path)) {
+                    try TrayTip("回收", "当前剪贴板项不是可进回收站的本地文件", "Iconi 2")
+                    catch {
+                    }
+                    return
+                }
+                try FileRecycle(path)
+                catch as err {
+                    try TrayTip("回收失败", err.Message, "Iconx 2")
+                    catch {
+                    }
+                    return
+                }
+                if Item.Has("ClipboardId")
+                    _CP_DoDelete(Integer(Item["ClipboardId"]))
+                return
+            }
+            if Item is Map && Item.Has("Source") && String(Item["Source"]) = "pqp" {
+                try TrayTip("回收", "提示词列表项请使用「删除」或自行管理 prompts.json", "Iconi 2")
+                catch {
+                }
+                return
+            }
+            if Item is Map && Item.Has("Source") && String(Item["Source"]) = "hub" {
+                try TrayTip("回收", "草稿卡片请使用「移除」或清空堆叠", "Iconi 2")
+                catch {
+                }
+                return
+            }
+            if (r < 1)
+                return
+            SC_SearchCenterRecycleVisibleRow(r)
+        case "sc_file_properties":
+        case "sc_file_meta":
+            if isFileLike && FileExist(path) {
+                try DllCall("ptr", "shell32\ShellExecuteW", "ptr", 0, "wstr", "properties", "wstr", path, "ptr", 0, "ptr", 0, "int", 1)
+                catch as err {
+                    try TrayTip("属性", err.Message, "Iconx 2")
+                    catch {
+                    }
+                }
+            } else {
+                try TrayTip("属性", "仅支持本地文件", "Iconi 2")
+                catch {
+                }
+            }
+        case "sc_file_rename":
+            if !isFileLike || !FileExist(path) {
+                try TrayTip("重命名", "仅支持本地文件", "Iconi 2")
+                catch {
+                }
+                return
+            }
+            SplitPath(path, &fn, &dir)
+            if (dir = "" || fn = "") {
+                return
+            }
+            try {
+                sh := ComObject("Shell.Application")
+                fld := sh.NameSpace(dir)
+                if !fld
+                    throw Error("no folder")
+                it := fld.ParseName(fn)
+                if !it
+                    throw Error("no item")
+                it.InvokeVerb("rename")
+            } catch as err {
+                try TrayTip("重命名", err.Message, "Iconx 2")
+                catch {
+                }
+            }
+        case "sys_empty_recycle":
+            SC_SearchCenterEmptyRecycleBin()
+        default:
+            return
+    }
+}

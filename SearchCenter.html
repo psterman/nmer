@@ -882,6 +882,17 @@ function renderResults() {
       state.selectedRow = item.row;
       renderResults();
     };
+    row.oncontextmenu = (ev) => {
+      ev.preventDefault();
+      state.selectedRow = item.row;
+      renderResults();
+      postToAhk({
+        type: "searchCenterContextMenu",
+        row: item.row,
+        screenX: ev.screenX,
+        screenY: ev.screenY,
+      });
+    };
     row.ondblclick = () => {
       postToAhk({ type: "activateResult", row: item.row });
     };

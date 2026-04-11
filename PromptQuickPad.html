@@ -264,13 +264,25 @@ html, body {
   position: fixed;
   z-index: 10000;
   background: #1a1a1a;
-  border: 1px solid var(--border);
-  min-width: 140px;
+  border: 1px solid rgba(255, 102, 0, 0.35);
+  min-width: 156px;
   display: none;
-  box-shadow: 0 4px 12px rgba(0,0,0,.5);
+  box-shadow: 0 16px 34px rgba(0,0,0,0.45);
+  border-radius: 12px;
+  padding: 6px;
 }
-#ctx-menu .mi { padding: 8px 12px; cursor: pointer; font-size: 12px; }
-#ctx-menu .mi:hover { background: var(--orange-dk); color: #fff; }
+#ctx-menu .mi {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #ff6600;
+  border-radius: 8px;
+}
+#ctx-menu .mi:hover:not(.disabled) {
+  background: #ff6600;
+  color: #fff;
+}
+#ctx-menu .mi.disabled { opacity: 0.35; pointer-events: none; cursor: default; }
 #help-modal {
   position: fixed;
   inset: 0;
@@ -476,7 +488,6 @@ html, body {
 #preview-panel,
 #status-bar,
 #link-bar,
-#ctx-menu,
 #help-card,
 .item-card {
   position: relative;
@@ -493,7 +504,6 @@ html, body {
 #preview-panel::after,
 #status-bar::after,
 #link-bar::after,
-#ctx-menu::after,
 #help-card::after,
 .item-card::after {
   content: "";
@@ -647,16 +657,6 @@ html, body {
   border-color: rgba(255,179,71,.5);
   background: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
 }
-#ctx-menu {
-  border-radius: 12px;
-  padding: 6px;
-  min-width: 156px;
-  background: var(--surface);
-}
-#ctx-menu .mi { border-radius: 8px; }
-#ctx-menu .mi:hover {
-  background: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
-}
 #help-head, .item-head {
   background: rgba(255,255,255,.02);
   border-bottom: 1px solid var(--border);
@@ -789,8 +789,17 @@ const state = {
   captureExpanded: false,
   helpOpen: false,
   itemModalOpen: false,
-  itemModal: null
+  itemModal: null,
+  /** @type {Array<{name?:string,act?:string,visible?:boolean}>} */
+  pqpCtxMenuSpec: []
 };
+
+const PQP_CTX_FALLBACK = [
+  { name: '粘贴', act: 'paste', visible: true },
+  { name: '编辑', act: 'edit', visible: true },
+  { name: '查看', act: 'view', visible: true },
+  { name: '删除', act: 'delete', visible: true }
+];
 
 const postToAhk = (obj) => BasePanel.postToAhk(obj);
 document.getElementById('toolbar-close').addEventListener('click', () => {
@@ -1062,6 +1071,8 @@ function handleAhkMessage(msg) {
     case 'init':
     case 'searchResult':
       state.items = msg.items || [];
+      if (Array.isArray(msg.pqpCtxMenuSpec))
+        state.pqpCtxMenuSpec = msg.pqpCtxMenuSpec;
       state.keyword = msg.keyword || '';
       document.getElementById('search-input').value = state.keyword;
       state.category = msg.selectedCategory || '全部';
@@ -1281,44 +1292,52 @@ function getSelectedCaptureItem() {
 }
 
 function showCtx(x, y, mergedIndex) {
-  const m = document.getElementById('ctx-menu');
-  m.innerHTML = [
-    { t: '粘贴', a: 'paste' },
-    { t: '编辑', a: 'edit' },
-    { t: '查看', a: 'view' },
-    { t: '删除', a: 'delete' }
-  ].map(o => '<div class="mi" data-a="' + o.a + '" data-m="' + mergedIndex + '">' + o.t + '</div>').join('');
-  m.style.left = x + 'px';
-  m.style.top = y + 'px';
-  m.style.display = 'block';
-  m.onclick = (ev) => {
-    const mi = ev.target.closest('.mi');
-    if (!mi) return;
-    const a = mi.dataset.a;
-    const merg = parseInt(mi.dataset.m, 10);
-    m.style.display = 'none';
-    postToAhk({ type: a, mergedIndex: merg });
-  };
+  showCtxMenu(x, y, mergedIndex);
 }
 document.addEventListener('click', () => { document.getElementById('ctx-menu').style.display = 'none'; });
 
+const PQP_SC_NEEDS_LOCAL_FILE = new Set([
+  'sc_open_path', 'sc_open_with', 'sc_run_as_admin', 'sc_recycle_item',
+  'sc_file_properties', 'sc_file_meta', 'sc_file_rename'
+]);
+
+function pqpEntryHasLocalWindowsPath(mergedIndex) {
+  const items = getDisplayItems();
+  const it = items.find((x) => x.mergedIndex === mergedIndex);
+  if (!it) return false;
+  const c = String((it.content != null ? it.content : '') || '').trim();
+  return !!c && !/[\r\n]/.test(c) && /^([a-zA-Z]:\\|\\\\)/.test(c);
+}
+
+function isPqpScStyleCmd(act) {
+  return /^(sc_|ai_|sys_)/.test(String(act || ''));
+}
+
 function showCtxMenu(x, y, mergedIndex) {
   const m = document.getElementById('ctx-menu');
+  if (!m) return;
+  const spec = Array.isArray(state.pqpCtxMenuSpec) && state.pqpCtxMenuSpec.length ? state.pqpCtxMenuSpec : PQP_CTX_FALLBACK;
+  const rows = spec.filter((it) => it && it.visible !== false);
   m.innerHTML = '';
-  [
-    { t: '粘贴', a: 'paste' },
-    { t: '编辑', a: 'edit' },
-    { t: '查看', a: 'view' },
-    { t: '删除', a: 'delete' }
-  ].forEach(o => {
+  rows.forEach((row) => {
+    const act = String(row.act || '').trim();
+    if (!act) return;
     const item = document.createElement('div');
     item.className = 'mi';
-    item.textContent = o.t;
+    item.textContent = row.name || act;
+    const needsFile = row.disableNoLocalFile === true || row.disableNoLocalFile === 'true' || PQP_SC_NEEDS_LOCAL_FILE.has(act);
+    if (needsFile && !pqpEntryHasLocalWindowsPath(mergedIndex))
+      item.classList.add('disabled');
     item.addEventListener('click', (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
+      if (item.classList.contains('disabled'))
+        return;
       m.style.display = 'none';
-      sendAction(o.a, { mergedIndex });
+      if (isPqpScStyleCmd(act))
+        postToAhk({ type: 'pqpScCtxCmd', cmdId: act, mergedIndex });
+      else
+        sendAction(act, { mergedIndex });
     });
     m.appendChild(item);
   });

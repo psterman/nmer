@@ -189,6 +189,16 @@ PromptQuickPad_PushDataToWeb(msgType := "init") {
         "silentTpl", PromptQuickPad_CapsLockBSilentToTemplate ? true : false,
         "body", ""
     )
+    pqpSpec := "[]"
+    try {
+        if IsSet(_VK_SceneCtxMenuItemsJson)
+            pqpSpec := _VK_SceneCtxMenuItemsJson("prompts")
+    } catch {
+    }
+    pqpItems := []
+    try pqpItems := Jxon_Load(pqpSpec)
+    catch {
+    }
     payload := Map(
         "type", msgType,
         "items", items,
@@ -199,7 +209,8 @@ PromptQuickPad_PushDataToWeb(msgType := "init") {
         "pinTop", PromptQuickPad_PinTop ? true : false,
         "captureVisible", PromptQuickPad_CaptureChromeVisible ? true : false,
         "captureExpanded", PromptQuickPad_CaptureExpanded ? true : false,
-        "captureDraft", draftMap
+        "captureDraft", draftMap,
+        "pqpCtxMenuSpec", pqpItems
     )
     try PQP_SendToWeb(payload)
     catch {
@@ -264,6 +275,32 @@ PromptQuickPad_ProcessWebMessage(msg) {
             PromptQuickPad_SyncSilentFromWeb(msg)
         case "itemEditSave":
             PromptQuickPad_SaveItemEditFromWeb(msg)
+        case "pqpScCtxCmd":
+            cmdId0 := msg.Has("cmdId") ? String(msg["cmdId"]) : ""
+            mi0 := msg.Has("mergedIndex") ? Integer(msg["mergedIndex"]) : 0
+            if (cmdId0 = "" || mi0 < 1)
+                return
+            merged0 := PromptQuickPad_BuildMergedList()
+            if mi0 > merged0.Length
+                return
+            entry0 := merged0[mi0]
+            title0 := entry0.Has("title") ? entry0["title"] : ""
+            content0 := entry0.Has("content") ? entry0["content"] : ""
+            m0 := Map(
+                "Title", title0,
+                "Content", content0,
+                "DataType", "template",
+                "OriginalDataType", "template",
+                "Source", "pqp",
+                "PromptMergedIndex", mi0,
+                "ClipboardId", 0,
+                "HubSegIndex", -1
+            )
+            try SC_ExecuteContextCommand(cmdId0, 0, m0)
+            catch as err {
+                OutputDebug("[PQP] pqpScCtxCmd: " . err.Message)
+            }
+            return
         default:
             OutputDebug("[PQP] Unknown web msg: " . msg["type"])
     }

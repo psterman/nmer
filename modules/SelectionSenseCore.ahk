@@ -515,11 +515,14 @@ SelectionSense_OnMenuWebMessage(sender, args) {
             if g_SelSense_MenuShowingHub && Trim(String(g_SelSense_PendingText)) != ""
                 SelectionSense_PushHubPreviewText(g_SelSense_PendingText)
         }
+        if g_SelSense_MenuShowingHub
+            SelectionSense_PushHubCtxMenuSpec()
         return
     }
     if (typ = "hub_ready") {
         ; HubCapsule 明确就绪：补发待推送段落
         SelectionSense_HubCapsule_FlushPendingSegments()
+        SelectionSense_PushHubCtxMenuSpec()
         return
     }
 
@@ -644,6 +647,42 @@ SelectionSense_OnMenuWebMessage(sender, args) {
         SelectionSense_HubCapsule_WriteSavedPos()
         return
     }
+    if (typ = "hubScCtxCmd") {
+        cmdId0 := msg.Has("cmdId") ? String(msg["cmdId"]) : ""
+        idx0 := msg.Has("segmentIndex") ? Integer(msg["segmentIndex"]) : -1
+        if (cmdId0 = "" || idx0 < 0)
+            return
+        txt0 := msg.Has("text") ? String(msg["text"]) : ""
+        path0 := msg.Has("imagePath") ? Trim(String(msg["imagePath"])) : ""
+        kind0 := msg.Has("kind") ? String(msg["kind"]) : "text"
+        contentOut := txt0
+        dataTypeOut := "text"
+        if (kind0 = "image" && path0 != "" && FileExist(path0)) {
+            contentOut := path0
+            dataTypeOut := "file"
+        } else if (kind0 = "image" && path0 != "") {
+            contentOut := path0
+            dataTypeOut := "Image"
+        }
+        title0 := SubStr(contentOut, 1, 120)
+        if (title0 = "")
+            title0 := "hub #" . (idx0 + 1)
+        m0 := Map(
+            "Title", title0,
+            "Content", contentOut,
+            "DataType", dataTypeOut,
+            "OriginalDataType", kind0,
+            "Source", "hub",
+            "HubSegIndex", idx0,
+            "ClipboardId", 0,
+            "PromptMergedIndex", 0
+        )
+        try SC_ExecuteContextCommand(cmdId0, 0, m0)
+        catch as err {
+            OutputDebug("[Hub] hubScCtxCmd: " . err.Message)
+        }
+        return
+    }
 }
 
 SelectionSense_HubCapsule_FlushPendingSegments() {
@@ -742,6 +781,25 @@ SelectionSense_HubCapsule_PushSegmentText(text) {
     }
     ; WebView 未 ready 时仅入队，返回 false 便于调用方再补发预览/二次 Show
     return false
+}
+
+SelectionSense_PushHubCtxMenuSpec() {
+    global g_SelSense_MenuWV2, g_SelSense_MenuReady, g_SelSense_MenuShowingHub
+    if !(g_SelSense_MenuWV2 && g_SelSense_MenuReady && g_SelSense_MenuShowingHub)
+        return
+    spec := "[]"
+    try {
+        if IsSet(_VK_SceneCtxMenuItemsJson)
+            spec := _VK_SceneCtxMenuItemsJson("scratchpad")
+    } catch {
+    }
+    items := []
+    try items := Jxon_Load(spec)
+    catch {
+    }
+    try WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_ctx_menu_spec", "items", items))
+    catch {
+    }
 }
 
 SelectionSense_PushMenuText(text) {

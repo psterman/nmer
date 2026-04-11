@@ -701,7 +701,21 @@
         const vm = r.visible_in_menu !== undefined ? !!r.visible_in_menu : !!r.in_context_menu;
         const ob = Number.isFinite(Number(r.order_bar)) ? Number(r.order_bar) : -1;
         const om = Number.isFinite(Number(r.order_menu)) ? Number(r.order_menu) : -1;
-        return { cmdId: String(r.cmdId), visible_in_bar: vb, visible_in_menu: vm, order_bar: ob, order_menu: om };
+        const vsr = r.visible_in_search_row !== undefined ? !!r.visible_in_search_row : false;
+        const osr = Number.isFinite(Number(r.order_search_row)) ? Number(r.order_search_row) : -1;
+        const ms = Array.isArray(r.menu_scenes)
+          ? r.menu_scenes.map((x) => String(x || '').trim()).filter(Boolean)
+          : [];
+        return {
+          cmdId: String(r.cmdId),
+          visible_in_bar: vb,
+          visible_in_menu: vm,
+          order_bar: ob,
+          order_menu: om,
+          visible_in_search_row: vsr,
+          order_search_row: osr,
+          menu_scenes: ms,
+        };
       }).filter(Boolean);
     }
     function collectToolbarLayoutFromFtbDom() {

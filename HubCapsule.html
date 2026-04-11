@@ -547,13 +547,11 @@ body.native-titlebar #header { display: none; }
 #ctx-menu {
   position: fixed;
   z-index: 99999;
-  min-width: 132px;
+  min-width: 148px;
   border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.16);
-  background: rgba(18, 24, 36, 0.94);
-  box-shadow: 0 16px 34px rgba(0,0,0,0.34);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 102, 0, 0.35);
+  background: #1a1a1a;
+  box-shadow: 0 16px 34px rgba(0,0,0,0.45);
   padding: 6px;
   display: none;
 }
@@ -564,15 +562,23 @@ body.native-titlebar #header { display: none; }
   width: 100%;
   border: 0;
   background: transparent;
-  color: var(--text);
+  color: #ff6600;
   text-align: left;
   font-size: 12px;
-  padding: 8px 10px;
+  padding: 8px 12px;
   border-radius: 8px;
   cursor: pointer;
 }
 
-.ctx-item:hover { background: rgba(255,154,47,0.14); }
+.ctx-item:hover:not(:disabled) {
+  background: #ff6600;
+  color: #fff;
+}
+
+.ctx-item:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
 
 #resize-handle {
   position: absolute;
@@ -833,11 +839,7 @@ body.native-titlebar #header { display: none; }
 </style>
 </head>
 <body class="native-titlebar">
-<div id="ctx-menu">
-  <button class="ctx-item" type="button" data-act="copy">Copy</button>
-  <button class="ctx-item" type="button" data-act="remove">Remove</button>
-  <button class="ctx-item" type="button" data-act="clear">Clear All</button>
-</div>
+<div id="ctx-menu" aria-hidden="true"></div>
 <div id="host">
   <div id="capsule" role="region" aria-label="Hub Capsule">
     <div id="dock-beacon"></div>
@@ -945,6 +947,60 @@ body.native-titlebar #header { display: none; }
   const resizeHandle = document.getElementById('resize-handle');
   const ctxMenu = document.getElementById('ctx-menu');
   const btnCloseHub = document.getElementById('btnCloseHub');
+
+  const HUB_CTX_FALLBACK = [
+    { name: '复制', act: 'copy', visible: true },
+    { name: '移除', act: 'remove', visible: true },
+    { name: '清空全部', act: 'clear', visible: true }
+  ];
+
+  const HUB_SC_NEEDS_LOCAL_FILE = new Set([
+    'sc_open_path', 'sc_open_with', 'sc_run_as_admin', 'sc_recycle_item',
+    'sc_file_properties', 'sc_file_meta', 'sc_file_rename'
+  ]);
+
+  function hubSegHasLocalPath(seg) {
+    if (!seg) return false;
+    if (seg.kind === 'image') {
+      const p = String(seg.imagePath || '').trim();
+      return !!p && /^([a-zA-Z]:\\|\\\\)/.test(p);
+    }
+    if (seg.kind === 'text') {
+      const t = String(seg.text || '').trim();
+      return !!t && !/[\r\n]/.test(t) && /^([a-zA-Z]:\\|\\\\)/.test(t);
+    }
+    return false;
+  }
+
+  function applyHubCtxFileDisables() {
+    if (!ctxMenu) return;
+    const idx = Number(ctxMenu.dataset.index);
+    const seg = Number.isInteger(idx) ? asCard(state.segments[idx]) : null;
+    const ok = hubSegHasLocalPath(seg);
+    ctxMenu.querySelectorAll('button.ctx-item[data-needs-local-file="1"]').forEach((el) => {
+      el.disabled = !ok;
+    });
+  }
+
+  function rebuildHubCtxMenuDom(items) {
+    if (!ctxMenu) return;
+    const raw = Array.isArray(items) && items.length ? items : HUB_CTX_FALLBACK;
+    const visible = raw.filter((it) => it && it.visible !== false);
+    ctxMenu.innerHTML = '';
+    visible.forEach((it) => {
+      const act = String(it.act || '').trim();
+      if (!act) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ctx-item';
+      btn.dataset.act = act;
+      if (HUB_SC_NEEDS_LOCAL_FILE.has(act))
+        btn.dataset.needsLocalFile = '1';
+      btn.textContent = it.name || act;
+      ctxMenu.appendChild(btn);
+    });
+  }
+  rebuildHubCtxMenuDom(HUB_CTX_FALLBACK);
 
   const STATIC_HOTKEY_BINDINGS = Object.freeze([
     ['#btnCloseHub', 'g', '关闭'],
@@ -1337,6 +1393,7 @@ body.native-titlebar #header { display: none; }
   function hideContextMenu() {
     ctxMenu.classList.remove('open');
     ctxMenu.removeAttribute('data-index');
+    ctxMenu.setAttribute('aria-hidden', 'true');
   }
 
   function applyVisualState() {
@@ -1716,11 +1773,13 @@ body.native-titlebar #header { display: none; }
     ctxMenu.style.left = `${e.clientX}px`;
     ctxMenu.style.top = `${e.clientY}px`;
     ctxMenu.classList.add('open');
+    ctxMenu.setAttribute('aria-hidden', 'false');
+    applyHubCtxFileDisables();
   });
 
   ctxMenu.addEventListener('click', (e) => {
     const item = e.target.closest('.ctx-item');
-    if (!item) return;
+    if (!item || item.disabled) return;
     const idx = Number(ctxMenu.dataset.index);
     const seg = Number.isInteger(idx) ? asCard(state.segments[idx]) : null;
     switch (item.dataset.act) {
@@ -1738,6 +1797,21 @@ body.native-titlebar #header { display: none; }
       case 'clear':
         clearAll();
         break;
+      default: {
+        const actId = String(item.dataset.act || '').trim();
+        if (/^(sc_|ai_|sys_)/.test(actId) && Number.isInteger(idx) && idx >= 0) {
+          const seg0 = asCard(state.segments[idx]);
+          postToAhk({
+            type: 'hubScCtxCmd',
+            cmdId: actId,
+            segmentIndex: idx,
+            text: seg0 && seg0.kind === 'text' ? (seg0.text || '') : '',
+            imagePath: seg0 && seg0.kind === 'image' ? (seg0.imagePath || '') : '',
+            kind: seg0 ? seg0.kind : ''
+          });
+        }
+        break;
+      }
     }
     hideContextMenu();
   });
@@ -2281,6 +2355,15 @@ body.native-titlebar #header { display: none; }
           state.pendingImageDataUrl = '';
           hideContextMenu();
           refreshAll();
+          break;
+        case 'hub_remove_at': {
+          const i = Number(d.index);
+          if (Number.isInteger(i) && i >= 0 && i < state.segments.length)
+            removeAt(i);
+          break;
+        }
+        case 'hub_ctx_menu_spec':
+          rebuildHubCtxMenuDom(d.items);
           break;
       }
     });

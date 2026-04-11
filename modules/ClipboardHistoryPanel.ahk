@@ -2293,7 +2293,7 @@ GetIconPathForRow(rowData) {
 ; ===================== ListView 右键菜单事件 =====================
 OnHistoryListViewContextMenu(LV, Item, IsRightClick, X, Y) {
     global HistoryListView, HistoryDisplayCache
-    
+
     ; 获取选中的行（支持多选）
     selectedRows := []
     row := 0
@@ -2304,26 +2304,27 @@ OnHistoryListViewContextMenu(LV, Item, IsRightClick, X, Y) {
         }
         selectedRows.Push(row)
     }
-    
+
     ; 如果没有选中任何行，选中当前右键点击的行
     if (selectedRows.Length = 0 && Item > 0) {
         selectedRows.Push(Item)
     }
-    
+
     ; 如果没有选中任何行，不显示菜单
     if (selectedRows.Length = 0) {
         return
     }
-    
-    ; 创建右键菜单
-    contextMenu := Menu()
-    contextMenu.Add("复制", HistoryContextMenuCopy)
-    contextMenu.Add("粘贴", HistoryContextMenuPaste)
-    contextMenu.Add("删除", HistoryContextMenuDelete)
-    contextMenu.Add("添加到提示词", HistoryContextMenuAddToPrompt)
-    
-    ; 显示菜单
-    contextMenu.Show(X, Y)
+
+    menuItems := [
+        { Text: "复制", Icon: "📋", Action: (*) => HistoryContextMenuCopy() },
+        { Text: "粘贴", Icon: "📄", Action: (*) => HistoryContextMenuPaste() },
+        { Text: "删除", Icon: "🗑", Action: (*) => HistoryContextMenuDelete() },
+        { Text: "添加到提示词", Icon: "✎", Action: (*) => HistoryContextMenuAddToPrompt() }
+    ]
+    try ShowDarkStylePopupMenuAt(menuItems, X, Y)
+    catch as err {
+        OutputDebug("ClipboardHistoryPanel context menu: " . err.Message)
+    }
 }
 
 ; ===================== 右键菜单：复制 =====================

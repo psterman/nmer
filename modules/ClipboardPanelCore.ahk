@@ -545,6 +545,19 @@ _CP_OnWebMessage(sender, args) {
         case "requestHide":
             CP_Hide()
 
+        case "cpScCtxCmd":
+            cmdSc := msg.Has("cmdId") ? String(msg["cmdId"]) : ""
+            idSc := msg.Has("id") ? Integer(msg["id"]) : 0
+            if (cmdSc = "" || idSc < 1)
+                return
+            m := _CP_BuildClipScCtxMap(idSc)
+            if !(m is Map) || !m.Has("Source")
+                return
+            try SC_ExecuteContextCommand(cmdSc, 0, m)
+            catch as err {
+                OutputDebug("[CP] cpScCtxCmd: " . err.Message)
+            }
+
         default:
             OutputDebug("[CP] Unknown msg type: " . action)
     }
@@ -926,7 +939,13 @@ _CP_BuildItemsJson(msgType, items, total := 0, hasMore := false) {
         json .= _CP_ItemToJson(items[A_Index])
     }
 
-    json .= '],"total":' . total . ',"hasMore":' . (hasMore ? "true" : "false") . '}'
+    spec := "[]"
+    try {
+        if IsSet(_VK_SceneCtxMenuItemsJson)
+            spec := _VK_SceneCtxMenuItemsJson("clipboard")
+    } catch {
+    }
+    json .= '],"total":' . total . ',"hasMore":' . (hasMore ? "true" : "false") . ',"ctxMenuSpec":' . spec . "}"
     return json
 }
 
@@ -1056,6 +1075,47 @@ _CP_ResolvePastePath(content, sourcePath) {
     if FileExist(c)
         return c
     return ""
+}
+
+; 供搜索中心同款右键命令：合成与结果行一致的 Map 供 SC_ExecuteContextCommand 使用
+_CP_BuildClipScCtxMap(clipId) {
+    id := Integer(clipId)
+    if id < 1
+        return Map()
+    row := _CP_GetClipRow(id)
+    content := row["content"]
+    dtRaw := row["dataType"]
+    dt := StrLower(dtRaw)
+    ip := Trim(String(row["imagePath"]))
+    sp := Trim(String(row["sourcePath"]))
+    pathForFile := _CP_ResolvePastePath(content, sp)
+    if (pathForFile = "" && ip != "")
+        pathForFile := ip
+    contentOut := content
+    dataTypeOut := dtRaw
+    if (pathForFile != "" && FileExist(pathForFile)) {
+        contentOut := pathForFile
+        if (dt = "image" || dt = "screenshot")
+            dataTypeOut := "Image"
+        else
+            dataTypeOut := "file"
+    } else if ((dt = "image" || dt = "screenshot") && ip != "" && FileExist(ip)) {
+        contentOut := ip
+        dataTypeOut := "Image"
+    }
+    title := SubStr(content, 1, 120)
+    if (title = "")
+        title := "clip #" . id
+    return Map(
+        "Title", title,
+        "Content", contentOut,
+        "DataType", dataTypeOut,
+        "OriginalDataType", dtRaw,
+        "Source", "clipboard",
+        "ClipboardId", id,
+        "HubSegIndex", -1,
+        "PromptMergedIndex", 0
+    )
 }
 
 ; ===================== 操作：粘贴 =====================
