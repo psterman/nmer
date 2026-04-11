@@ -118,6 +118,7 @@ body::after {
   flex-shrink: 0;
   width: 430px;
   min-width: 0;
+  min-height: 0;
   background: var(--surface);
   border-right: 1px solid var(--border);
   overflow: hidden;
@@ -648,13 +649,17 @@ body::after {
 .k-caps.caps-on::after { background: var(--orange); box-shadow: var(--glow); }
 
 /* ── Sidebar ────────────────────────────────────────────────────────────── */
-.sidebar-section { padding: 4px 8px 2px; }
+.sidebar-section {
+  padding: 4px 8px 2px;
+  flex-shrink: 0;
+}
 .sidebar-section-title {
   font-size: var(--vk-panel-font-sm); letter-spacing: 1px; color: var(--text-xs);
   text-transform: uppercase; margin-bottom: 2px;
 }
 #vk-toolbar-preview-sandbox {
   margin: 0 8px 8px;
+  flex-shrink: 0;
   min-height: 52px;
   border: 1px solid var(--border2);
   border-radius: 8px;
@@ -709,10 +714,16 @@ body::after {
   pointer-events: none;
 }
 #sidebar-list {
-  padding: 0 6px;
-  overflow: hidden;
-  flex: 1 1 auto;
+  padding: 0 6px 4px;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
+#sidebar-list::-webkit-scrollbar { width: 6px; }
+#sidebar-list::-webkit-scrollbar-track { background: var(--bg); }
+#sidebar-list::-webkit-scrollbar-thumb { background: #1e3a22; border-radius: 3px; }
+#sidebar-list::-webkit-scrollbar-thumb:hover { background: #00ff4144; }
 .sidebar-item {
   display: flex; align-items: center; gap: 6px;
   padding: 6px 8px;
@@ -1022,6 +1033,10 @@ body::after {
   position: relative;
   overflow: hidden;
 }
+/* 宫格拖拽时禁用槽位 hover 位移，避免与 Sortable / 重绘抢布局 */
+#dashboard-container.dashboard-sortable-active .dashboard-slot:hover {
+  transform: none;
+}
 #dashboard-container.layout-2 {
   padding: 4px 10px 6px;
 }
@@ -1197,6 +1212,9 @@ body::after {
   border-color: rgba(243,156,18,.95);
   box-shadow: var(--glow), 0 0 0 1px rgba(243,156,18,.28) inset;
   transform: translateY(-1px);
+}
+#dashboard-container.dashboard-sortable-active .dashboard-slot {
+  transition: border-color .12s ease, box-shadow .12s ease, background .12s ease;
 }
 .dashboard-slot:hover::after { opacity: .55; }
 #dashboard-container.drop-active .dashboard-slot.is-empty,
@@ -3649,10 +3667,10 @@ function bindSceneMenuSlotSortable(slot) {
   slot.dataset.sceneSortableBound = '1';
   const s = new Sortable(slot, {
     group: { name: 'sceneMenuActions', pull: true, put: true },
-    animation: 90,
+    animation: 0,
     easing: 'cubic-bezier(0.2,0,0,1)',
-    swapThreshold: 0.62,
-    invertSwap: true,
+    swapThreshold: 0.65,
+    invertSwap: false,
     draggable: '.dashboard-item',
     filter: '.dashboard-item--scene-locked, .search-row-vis-btn',
     preventOnFilter: true,
@@ -3661,6 +3679,8 @@ function bindSceneMenuSlotSortable(slot) {
     dragClass: 'dashboard-dragging',
     onStart() {
       state.dashboardDragActive = true;
+      const dc = document.getElementById('dashboard-container');
+      if (dc) dc.classList.add('dashboard-sortable-active');
     },
     onAdd(evt) {
       const toSlot = evt.to;
@@ -3668,11 +3688,14 @@ function bindSceneMenuSlotSortable(slot) {
         if (it !== evt.item) it.remove();
       });
       const item = dashboardItemFromElement(evt.item);
-      if (item && isSceneMenuSystemCmd(item.commandId)) evt.item.remove();
-      flushSceneMenuFromDomRebuild();
+      if (item && isSceneMenuSystemCmd(item.commandId)) {
+        evt.item.remove();
+        return;
+      }
+      queueMicrotask(() => flushSceneMenuFromDomRebuild());
     },
     onUpdate() {
-      flushSceneMenuFromDomRebuild();
+      queueMicrotask(() => flushSceneMenuFromDomRebuild());
     },
     onEnd() {
       endDashboardDragState();
@@ -4616,6 +4639,8 @@ function endDashboardDragState() {
   state.draggedDashboardItem = null;
   cleanupDashboardDragPreview();
   syncDashboardDropCue(false);
+  const dc = document.getElementById('dashboard-container');
+  if (dc) dc.classList.remove('dashboard-sortable-active');
 }
 
 function initDashboardDrag() {
@@ -4830,6 +4855,8 @@ function initDashboardDrag() {
     state.draggedDashboardItem = meta;
     state.dashboardDragActive = true;
     syncDashboardDropCue(true);
+    const dc = document.getElementById('dashboard-container');
+    if (dc) dc.classList.add('dashboard-sortable-active');
     keyEl.classList.add('dashboard-drag-source');
 
     if (ev.dataTransfer) {
@@ -4877,10 +4904,10 @@ function initDashboardDrag() {
     slot.dataset.sortableBound = '1';
     new Sortable(slot, {
       group: { name: 'actions', pull: true, put: true },
-      animation: 90,
+      animation: 0,
       easing: 'cubic-bezier(0.2,0,0,1)',
-      swapThreshold: 0.62,
-      invertSwap: true,
+      swapThreshold: 0.65,
+      invertSwap: false,
       forceFallback: false,
       fallbackTolerance: 3,
       draggable: '.dashboard-item',
@@ -4889,6 +4916,8 @@ function initDashboardDrag() {
       dragClass: 'dashboard-dragging',
       onStart: () => {
         state.dashboardDragActive = true;
+        const dc = document.getElementById('dashboard-container');
+        if (dc) dc.classList.add('dashboard-sortable-active');
       },
       onAdd: (evt) => {
         const toSlot = evt.to;
@@ -4903,18 +4932,19 @@ function initDashboardDrag() {
         const item = dashboardItemFromElement(evt.item);
         if (!item) {
           evt.item.remove();
-          endDashboardDragState();
           return;
         }
-        const swapped = swapDashboardSlots(fromIndex, toIndex);
-        if (!swapped) applyDashboardItemToSlot(toIndex, item, fromIndex);
+        queueMicrotask(() => {
+          const swapped = swapDashboardSlots(fromIndex, toIndex);
+          if (!swapped) applyDashboardItemToSlot(toIndex, item, fromIndex);
+        });
       },
       onUpdate: (evt) => {
         const toIndex = slotIndexFromEl(evt.to);
         const fromIndex = slotIndexFromEl(evt.from);
         const item = dashboardItemFromElement(evt.item);
         if (!item || toIndex < 0 || fromIndex < 0) return;
-        postDashboardMove(item, fromIndex, toIndex);
+        queueMicrotask(() => postDashboardMove(item, fromIndex, toIndex));
       },
       onEnd: () => {
         endDashboardDragState();
@@ -5074,6 +5104,11 @@ function initSceneLayoutSortables() {
       chosenClass: 'vk-scene-sortable-chosen',
       handle: '.scene-drag-handle',
       draggable: '.sidebar-item:not(.fixed-scene)',
+      scroll: true,
+      bubbleScroll: true,
+      scrollSensitivity: 48,
+      scrollSpeed: 12,
+      forceAutoScrollFallback: true,
       onEnd: () => {
         const allIds = Array.from(list.querySelectorAll('.sidebar-item'))
           .map((el) => String(el.dataset.sceneId || ''))
