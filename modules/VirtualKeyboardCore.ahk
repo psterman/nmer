@@ -244,7 +244,7 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "ch_c", "name", "结果过滤 / 提示词", "desc", "CapsLock+C：只看提示词结果", "fn", "CH_RUN", "suggested", "c"),
             Map("id", "ch_v", "name", "结果过滤 / 配置", "desc", "CapsLock+V：只看配置结果", "fn", "CH_RUN", "suggested", "v"),
             Map("id", "ch_f", "name", "搜索中心 / 语音搜索", "desc", "CapsLock+F：打开搜索中心或语音搜索", "fn", "CH_RUN", "suggested", "f"),
-            Map("id", "ch_g", "name", "语音搜索面板", "desc", "CapsLock+G：直接启动语音搜索面板", "fn", "CH_RUN", "suggested", "g"),
+            Map("id", "ch_g", "name", "显示虚拟键盘", "desc", "CapsLock+G：打开 VK KeyBinder（搜索中心内语义以面板为准）", "fn", "CH_RUN", "suggested", "g"),
             Map("id", "sc_activate_search", "name", "激活搜索中心", "desc", "打开并激活搜索中心", "fn", "CH_RUN"),
             Map("id", "sc_cat_ai", "name", "分类 / AI", "desc", "切换到 AI 分类", "fn", "CH_RUN"),
             Map("id", "sc_cat_cli", "name", "分类 / CLI", "desc", "切换到 CLI 分类", "fn", "CH_RUN"),
@@ -336,6 +336,7 @@ _VK_BuiltinCommandCatalog() {
         ]),
         Map("id", "prompts", "name", "💡 提示词", "commands", [
             Map("id", "ch_b", "name", "Prompt / 批量入口", "desc", "CapsLock+B：Prompt Quick-Pad 或批量操作入口", "fn", "CH_RUN", "suggested", "b"),
+            Map("id", "ch_p", "name", "提示词快捷采集", "desc", "CapsLock+P：打开 Prompt 采集浮层", "fn", "CH_RUN", "suggested", "p"),
             Map("id", "pqp_capture", "name", "选区快速采集", "desc", "执行 Prompt Quick-Pad 的选区采集动作", "fn", "CH_RUN"),
             Map("id", "qa_batch", "name", "快捷动作 / 批量操作", "desc", "执行 Quick Action: Batch", "fn", "CH_RUN"),
             Map("id", "pqp_ctx_paste", "name", "粘贴", "desc", "Prompt Quick Pad 列表项右键", "fn", "CH_RUN"),
@@ -348,7 +349,7 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "ch_f", "name", "草稿本 / 搜索", "desc", "CapsLock+F：在 HubCapsule 中执行搜索", "fn", "CH_RUN", "suggested", "f"),
             Map("id", "ch_a", "name", "草稿本 / AI", "desc", "CapsLock+A：在 HubCapsule 中执行 AI 动作", "fn", "CH_RUN", "suggested", "a"),
             Map("id", "ch_backspace", "name", "草稿本 / 清空", "desc", "CapsLock+Backspace：清空 HubCapsule 内容", "fn", "CH_RUN", "suggested", "Backspace"),
-            Map("id", "ch_g", "name", "草稿本 / 关闭", "desc", "CapsLock+G：关闭 HubCapsule 面板", "fn", "CH_RUN", "suggested", "g"),
+            Map("id", "ch_g", "name", "草稿本 / 关闭", "desc", "Hub 打开时：关闭；否则 CapsLock+G 打开虚拟键盘", "fn", "CH_RUN", "suggested", "g"),
             Map("id", "ch_c", "name", "草稿本 / 触发模式Caps", "desc", "CapsLock+C：切到 CapsLock 触发模式", "fn", "CH_RUN", "suggested", "c"),
             Map("id", "ch_x", "name", "草稿本 / 触发模式双击", "desc", "CapsLock+X：切到双击 Ctrl+C 触发模式", "fn", "CH_RUN", "suggested", "x"),
             Map("id", "ch_v", "name", "草稿本 / 复制图片预览", "desc", "CapsLock+V：复制当前图片预览", "fn", "CH_RUN", "suggested", "v"),
@@ -363,8 +364,7 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "hub_ctx_clear", "name", "清空全部", "desc", "HubCapsule 堆叠卡片右键", "fn", "CH_RUN")
         ]),
         Map("id", "screenshot", "name", "📸 智能截图", "commands", [
-            Map("id", "ch_t", "name", "截图智能菜单", "desc", "CapsLock+T：截图后弹出智能菜单", "fn", "CH_RUN", "suggested", "t"),
-            Map("id", "ch_p", "name", "区域截图粘贴", "desc", "CapsLock+P：区域截图并粘贴到 Cursor", "fn", "CH_RUN", "suggested", "p")
+            Map("id", "ch_t", "name", "截图智能菜单", "desc", "CapsLock+T：截图后弹出智能菜单（含区域截图等）", "fn", "CH_RUN", "suggested", "t")
         ]),
         Map("id", "screenshot_helper", "name", "🖼️ 截图助手", "commands", [
             Map("id", "ss_pin", "name", "截图助手 / 置顶", "desc", "截图助手：切换置顶与工具栏显示状态", "fn", "CH_RUN", "suggested", "q"),
@@ -383,20 +383,6 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "win_close", "name", "关闭窗口", "desc", "关闭当前活动窗口", "fn", "WIN_CLOSE"),
             Map("id", "qa_config", "name", "快捷动作 / 设置", "desc", "执行 Quick Action: Config", "fn", "CH_RUN")
         ]),
-        Map("id", "floating_toolbar_menu", "name", "🧩 悬浮工具栏菜单", "commands", [
-            Map("id", "ftm_reset_scale", "name", "重置大小", "desc", "右键菜单：重置悬浮工具栏缩放", "fn", "CH_RUN"),
-            Map("id", "ftm_search_center", "name", "搜索中心", "desc", "右键菜单：打开搜索中心", "fn", "CH_RUN"),
-            Map("id", "ftm_clipboard", "name", "剪贴板", "desc", "右键菜单：打开剪贴板", "fn", "CH_RUN"),
-            Map("id", "ftm_minimize_to_edge", "name", "最小化到边缘", "desc", "右键菜单：将悬浮工具栏吸附到边缘", "fn", "CH_RUN"),
-            Map("id", "ftm_exit_app", "name", "退出程序", "desc", "右键菜单：退出整个程序", "fn", "CH_RUN"),
-            Map("id", "ftm_hide_toolbar", "name", "关闭工具栏", "desc", "右键菜单：隐藏悬浮工具栏", "fn", "CH_RUN"),
-            Map("id", "ftm_open_config", "name", "打开设置", "desc", "右键菜单：打开设置面板", "fn", "CH_RUN"),
-            Map("id", "ftm_toggle_toolbar", "name", "显示/隐藏工具栏", "desc", "右键菜单：切换工具栏可见性", "fn", "CH_RUN"),
-            Map("id", "ftm_reload_script", "name", "重启脚本", "desc", "右键菜单：重载脚本", "fn", "CH_RUN"),
-            Map("id", "ftb_scratchpad", "name", "草稿本入口", "desc", "悬浮工具栏：打开 HubCapsule 草稿本", "fn", "CH_RUN", "iconClass", "fa-note-sticky"),
-            Map("id", "ftb_screenshot", "name", "智能截图入口", "desc", "悬浮工具栏：打开截图智能菜单", "fn", "CH_RUN", "iconClass", "fa-camera"),
-            Map("id", "ftb_cursor_menu", "name", "Cursor 快捷菜单", "desc", "悬浮工具栏：弹出 Cursor 常用快捷键菜单", "fn", "CH_RUN", "iconClass", "fa-compass")
-        ]),
         Map("id", "cursor", "name", "🧭 Cursor", "commands", [
             Map("id", "qa_global_search", "name", "全局搜索", "desc", "Cursor: Ctrl+Shift+F", "fn", "CH_RUN"),
             Map("id", "qa_browser", "name", "简单浏览器", "desc", "Cursor: Ctrl+Shift+B", "fn", "CH_RUN"),
@@ -412,13 +398,36 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "cursor_open", "name", "打开光标面板", "desc", "显示光标助手面板", "fn", "CURSOR_OPEN"),
             Map("id", "cursor_close", "name", "关闭光标面板", "desc", "隐藏光标助手面板", "fn", "CURSOR_CLOSE")
         ]),
-        Map("id", "hotkeys", "name", "⌨️ 快捷键", "commands", [
-            Map("id", "sys_exit", "name", "退出程序", "desc", "退出 VirtualKeyboard / 宿主脚本", "fn", "EXIT_APP", "suggested", "Escape"),
-            Map("id", "ch_q", "name", "打开配置", "desc", "CapsLock+Q：打开设置面板", "fn", "CH_RUN", "suggested", "q"),
+        Map("id", "vk_direction", "name", "方向", "commands", [
             Map("id", "ch_w", "name", "方向上", "desc", "CapsLock+W：发送方向上", "fn", "CH_RUN", "suggested", "w"),
             Map("id", "ch_s", "name", "方向下", "desc", "CapsLock+S：发送方向下", "fn", "CH_RUN", "suggested", "s"),
             Map("id", "ch_a", "name", "方向左", "desc", "CapsLock+A：发送方向左", "fn", "CH_RUN", "suggested", "a"),
             Map("id", "ch_d", "name", "方向右", "desc", "CapsLock+D：发送方向右", "fn", "CH_RUN", "suggested", "d")
+        ]),
+        Map("id", "hotkeys", "name", "⌨️ 快捷键", "commands", [
+            Map("id", "sys_exit", "name", "退出程序", "desc", "退出 VirtualKeyboard / 宿主脚本", "fn", "EXIT_APP", "suggested", "Escape"),
+            Map("id", "ch_f", "name", "搜索中心", "desc", "CapsLock+F：打开搜索中心", "fn", "CH_RUN", "suggested", "f"),
+            Map("id", "ch_x", "name", "剪贴板管理", "desc", "CapsLock+X：打开剪贴板面板", "fn", "CH_RUN", "suggested", "x"),
+            Map("id", "ch_q", "name", "打开配置", "desc", "CapsLock+Q：打开设置面板", "fn", "CH_RUN", "suggested", "q"),
+            Map("id", "hub_capsule", "name", "草稿本 Hub", "desc", "仅打开草稿本窗口；连续采集请用 CapsLock+C 或双击 Ctrl+C", "fn", "CH_RUN"),
+            Map("id", "ch_t", "name", "智能截图", "desc", "CapsLock+T：截图智能菜单", "fn", "CH_RUN", "suggested", "t"),
+            Map("id", "ch_p", "name", "提示词采集", "desc", "CapsLock+P：Prompt 快捷采集", "fn", "CH_RUN", "suggested", "p"),
+            Map("id", "ch_r", "name", "牛马 Chat", "desc", "CapsLock+R：打开悬浮条牛马对话抽屉", "fn", "CH_RUN", "suggested", "r"),
+            Map("id", "ch_b", "name", "Cursor 快捷菜单", "desc", "CapsLock+B：Prompt/批量 或 Cursor 快捷入口", "fn", "CH_RUN", "suggested", "b"),
+            Map("id", "ch_g", "name", "显示虚拟键盘", "desc", "CapsLock+G：打开本 KeyBinder 窗口", "fn", "CH_RUN", "suggested", "g"),
+            Map("id", "sys_show_vk", "name", "显示虚拟键盘（菜单）", "desc", "与 CapsLock+G 相同，便于未绑物理键时从列表触发", "fn", "SHOW_VK"),
+            Map("id", "ftm_reset_scale", "name", "重置大小", "desc", "悬浮工具栏右键：重置缩放", "fn", "CH_RUN"),
+            Map("id", "ftm_search_center", "name", "搜索中心", "desc", "悬浮工具栏右键：打开搜索中心", "fn", "CH_RUN"),
+            Map("id", "ftm_clipboard", "name", "剪贴板", "desc", "悬浮工具栏右键：打开剪贴板", "fn", "CH_RUN"),
+            Map("id", "ftm_minimize_to_edge", "name", "最小化到边缘", "desc", "悬浮工具栏右键：吸附到边缘", "fn", "CH_RUN"),
+            Map("id", "ftm_exit_app", "name", "退出程序", "desc", "悬浮工具栏右键：退出程序", "fn", "CH_RUN"),
+            Map("id", "ftm_hide_toolbar", "name", "关闭工具栏", "desc", "悬浮工具栏右键：隐藏工具栏", "fn", "CH_RUN"),
+            Map("id", "ftm_open_config", "name", "打开设置", "desc", "悬浮工具栏右键：打开设置", "fn", "CH_RUN"),
+            Map("id", "ftm_toggle_toolbar", "name", "显示/隐藏工具栏", "desc", "悬浮工具栏右键：切换可见性", "fn", "CH_RUN"),
+            Map("id", "ftm_reload_script", "name", "重启脚本", "desc", "悬浮工具栏右键：重载脚本", "fn", "CH_RUN"),
+            Map("id", "ftb_scratchpad", "name", "草稿本入口", "desc", "悬浮条按钮：打开 HubCapsule", "fn", "CH_RUN", "iconClass", "fa-note-sticky"),
+            Map("id", "ftb_screenshot", "name", "智能截图入口", "desc", "悬浮条按钮：截图智能菜单", "fn", "CH_RUN", "iconClass", "fa-camera"),
+            Map("id", "ftb_cursor_menu", "name", "Cursor 快捷菜单", "desc", "悬浮条按钮：Cursor 常用快捷键", "fn", "CH_RUN", "iconClass", "fa-compass")
         ])
     ]
 }
@@ -2431,11 +2440,12 @@ _VkRunPromptTemplate(cmdId) {
         OutputDebug("[VK] PT_RUN: ExecutePromptByTemplateId 不可用（需 CursorHelper）")
 }
 
+; 返回是否真正执行了命令（供 VirtualKeyboard_HandleKey 决定是否把按键交给宿主 CapsLock+ 逻辑）
 _ExecuteCommand(cmdId) {
     global g_Commands, g_VK_Embedded, g_LastExecutedCmdId
     if !g_Commands.Has("CommandList") || !g_Commands["CommandList"].Has(cmdId) {
         OutputDebug("[VK] Unknown command: " . cmdId)
-        return
+        return false
     }
     executed := false
     fn := g_Commands["CommandList"][cmdId]["fn"]
@@ -2469,9 +2479,8 @@ _ExecuteCommand(cmdId) {
             executed := true
         case "CH_RUN":
             if g_VK_Embedded {
-                ; 实现由 VirtualKeyboardExecCmd.ahk（CursorHelper）或 VirtualKeyboard.ahk 内 stub 提供；勿用 Func("…")（未定义时会抛 TargetError）
-                VK_ExecCursorHelperCmd(cmdId)
-                executed := true
+                ; 嵌入宿主：仅当 VK_Exec 真正命中分支时才视为「已消费按键」，否则须回退 HandleDynamicHotkey
+                executed := VK_ExecCursorHelperCmd(cmdId)
             } else if !NotifyScript("CursorHelper", '{"type":"vkExec","cmdId":"' . cmdId . '"}')
                 OutputDebug("[VK] CH_RUN " . cmdId . " — CursorHelper 未运行或未处理 vkExec")
             else
@@ -2483,9 +2492,13 @@ _ExecuteCommand(cmdId) {
             OutputDebug("[VK] Unhandled fn: " . fn)
     }
     if executed {
-        g_LastExecutedCmdId := cmdId
-        _VK_PushQuickBindState()
+        ; CH_RUN 嵌入路径下 g_LastExecutedCmdId / QuickBind 已由 VK_ExecCursorHelperCmd 更新
+        if !(fn = "CH_RUN" && g_VK_Embedded) {
+            g_LastExecutedCmdId := cmdId
+            _VK_PushQuickBindState()
+        }
     }
+    return executed
 }
 
 _VK_PushCandUnique(arr, v) {
@@ -2591,8 +2604,7 @@ VirtualKeyboard_HandleKey(physKey) {
                 return false
         }
     }
-    _ExecuteCommand(cmdId)
-    return true
+    return _ExecuteCommand(cmdId)
 }
 
 _VkCapsLockHotIfCb(*) {

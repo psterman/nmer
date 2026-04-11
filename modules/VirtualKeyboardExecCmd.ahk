@@ -27,7 +27,7 @@ _VK_H(name, args*) {
 VK_ExecCursorHelperCmd(cmdId) {
     global CapsLock, CapsLock2, BatchHotkey, IsCountdownActive
     global g_LastExecutedCmdId
-    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyT, HotkeyP
+    global HotkeyESC, HotkeyC, HotkeyV, HotkeyX, HotkeyE, HotkeyR, HotkeyO, HotkeyQ, HotkeyZ, HotkeyT
     prevCaps := CapsLock
     CapsLock := true
     executed := false
@@ -362,7 +362,7 @@ VK_ExecCursorHelperCmd(cmdId) {
                     VK_SearchCenterSetCategory("baidu")
                     executed := true
                 } else {
-                    _VK_H("HandleDynamicHotkey",HotkeyR != "" ? HotkeyR : "r", "R")
+                    VK_EnsureNiumaWindow(true)
                     executed := true
                 }
             case "ch_o":
@@ -419,8 +419,12 @@ VK_ExecCursorHelperCmd(cmdId) {
                     VK_PromptQuickPadAction("close")
                 else if (VK_IsHubCapsuleActive())
                     VK_HubCapsuleAction("close")
-                else
-                    StartVoiceSearch()
+                else {
+                    try VK_Show()
+                    catch as e {
+                        OutputDebug("[VK-Exec] VK_Show failed: " . e.Message)
+                    }
+                }
                 executed := true
             case "ch_b":
                 if (VK_IsPromptQuickPadActive()) {
@@ -439,7 +443,12 @@ VK_ExecCursorHelperCmd(cmdId) {
                 if (VK_IsPromptQuickPadActive()) {
                     VK_PromptQuickPadAction("export")
                 } else {
-                    _VK_H("HandleDynamicHotkey",HotkeyP != "" ? HotkeyP : "p", "P")
+                    try PromptQuickPad_OpenCaptureDraft("", true)
+                    catch as e {
+                        try TrayTip("无法打开提示词采集：`n" . e.Message, "VK", "Iconx 2")
+                        catch as _e {
+                        }
+                    }
                 }
                 executed := true
             case "ch_w":
@@ -662,6 +671,7 @@ VK_ExecCursorHelperCmd(cmdId) {
     } finally {
         CapsLock := prevCaps
     }
+    return executed
 }
 
 VK_SearchCenterPost(payloadJson) {

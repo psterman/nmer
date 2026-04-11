@@ -1094,12 +1094,7 @@ SelectionSense_OnUserCopy(*) {
         return
     }
 
-    ; 触发模式为 CapsLock+C 时，普通 Ctrl+C 不负责“打开”Hub（Hub 已打开时仍允许刷新预览）
-    if (g_SelSense_HubCopyTriggerMode != "double") {
-        g_SelSense_DoubleCopyHub_LastTick := 0
-        return
-    }
-
+    ; 双击 Ctrl+C：无论偏好模式为何，均允许作为草稿本入口（单按 Ctrl+C 仍不会单独打开 Hub）
     now := A_TickCount
     winMs := 520
     if (g_SelSense_DoubleCopyHub_LastTick > 0 && (now - g_SelSense_DoubleCopyHub_LastTick) <= winMs) {

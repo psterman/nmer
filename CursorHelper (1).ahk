@@ -4565,17 +4565,21 @@ ShowCustomTrayMenu(ItemName := "", ItemPos := "", MyMenu := "") {
 UpdateTrayMenu()  ; 初始化托盘菜单
 
 ; ===================== CapsLock 状态检查函数 =====================
-; 用于 #HotIf 指令的函数
+; 用于 #HotIf GetCapsLockState() 下的 CapsLock+ 第二键热键。
+;
+; 联动顺序（嵌入 VK 时）：
+; 1) 按下 CapsLock：由下方「无 ~ 的 CapsLock::」接管，设 CapsLock:=true 并 KeyWait 到松手；松手后再处理单击切换/组合键恢复。
+; 2) 按住期间按第二键：#HotIf 为真（本函数 = true），先走 VirtualKeyboard_HandleKey(键)；
+;    仅当 VK 内 _ExecuteCommand 对该绑定返回「已执行」时才 return（吞键），否则继续 HandleDynamicHotkey（CapsLock+C 等宿主逻辑）。
+; 3) 录制快捷键时本函数临时为 false，避免 #HotIf 抢走第二键导致录到「… then CapsLock」或大写灯异常。
 GetCapsLockState() {
     global CapsLock
-    ; VK KeyBinder 录制模式：勿把物理 CapsLock 当作组合键上下文，否则第二键会被宿主静态热键（如 q::）吞掉且大写灯被锁死
     try {
         if VK_IsVkRecordingHotkey()
             return false
     } catch as e {
     }
-    ; 检查变量状态或物理按键状态（确保即使变量被清除，物理按键仍能触发）
-    ; 这样即使用户先按 CapsLock 再释放，只要在释放前按了其他键，也能触发
+    ; 变量 true（按下分支已置位）或物理仍按住，均可匹配组合键（与逻辑大写灯是否 On 无关）
     return CapsLock || GetKeyState("CapsLock", "P")
 }
 
@@ -19150,9 +19154,8 @@ CapsLockCopy() {
         A_Clipboard := OldClipboard
 
         TrimmedContent := Trim(NewContent, " `t`r`n")
-        ; HubCapsule 触发方式：仅在「CapsLock+C 模式」下由本分支打开（DB 失败时仍应先出窗口）
-        global g_SelSense_HubCopyTriggerMode
-        if (TrimmedContent != "" && g_SelSense_HubCopyTriggerMode = "capslock") {
+        ; 无论 Hub 触发模式偏好（Caps / 双击 Ctrl+C），CapsLock+C 成功复制后都应同步草稿本 Hub
+        if (TrimmedContent != "") {
             try {
                 SelectionSense_SyncHubFromUserCopyChannel(TrimmedContent, true)
             } catch as HubOpenErr {
@@ -25321,8 +25324,11 @@ HandleDynamicHotkey(PressedKey, ActionType) {
                 }
             case "P":
                 CapsLock2 := false
-                ; 执行区域截图并粘贴到Cursor
-                ExecuteScreenshot()
+                ; CapsLock+P：提示词快捷采集（区域截图请用 CapsLock+T 智能截图菜单）
+                try PromptQuickPad_OpenCaptureDraft("", true)
+                catch as e {
+                    TrayTip("无法打开提示词采集：`n" . e.Message, GetText("tip"), "Iconx 2")
+                }
             case "T":
                 CapsLock2 := false
                 ; 执行截图，完成后弹出智能菜单

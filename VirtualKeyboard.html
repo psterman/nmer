@@ -107,6 +107,7 @@ body::after {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  --kb-key-h: 32px;
 }
 #bottom-zone {
   flex: 1 1 0;
@@ -533,19 +534,19 @@ body::after {
 }
 .k .map-label {
   position: absolute;
-  top: 2px;
+  top: 1px;
   left: 2px;
   right: 2px;
-  bottom: auto;
+  bottom: 11px;
   text-align: center;
   font-size: 7px;
   font-weight: 600;
   color: #f2f2f2;
-  line-height: 1.15;
-  max-height: calc(100% - 11px);
+  line-height: 1.18;
+  max-height: none;
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   white-space: normal;
   word-break: break-word;
@@ -556,7 +557,8 @@ body::after {
 }
 .kb-right-rail-stack .k .map-label {
   font-size: 6px;
-  max-height: calc(100% - 9px);
+  bottom: 10px;
+  -webkit-line-clamp: 3;
 }
 .k:hover {
   background: #222; border-color: var(--border2);
@@ -2602,6 +2604,8 @@ function enrichCommands(commands) {
 }
 
 function classifyScenarioIdForCategory(cat) {
+  const idRaw = String(cat?.id || '').trim().toLowerCase();
+  if (idRaw === 'vk_direction') return 'hotkeys';
   const text = `${cat?.id || ''} ${cat?.name || ''}`.toLowerCase();
   if (/(cursor|vscode|code|ide|editor|命令面板|资源管理器|源代码管理|扩展|终端|语音输入)/.test(text)) return 'cursor';
   if (/(clip|clipboard|copy|paste|剪贴|复制|粘贴)/.test(text)) return 'clipboard';

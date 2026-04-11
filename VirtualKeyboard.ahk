@@ -10,6 +10,7 @@
 ; 独立进程未 #Include VirtualKeyboardExecCmd；提供占位，供 Core 内直接调用（避免 Func("VK_ExecCursorHelperCmd") 在函数不存在时抛错）
 VK_ExecCursorHelperCmd(cmdId) {
     OutputDebug("[VK] 独立 VK 无 CursorHelper CH_RUN 实现: " . cmdId)
+    return false
 }
 #Include modules\WMActivateChain.ahk
 #Include modules\VirtualKeyboardCore.ahk
