@@ -505,6 +505,10 @@ body::after {
   transition: background .1s, border-color .1s, box-shadow .1s, color .1s, transform .05s;
   flex-shrink: 1;
   line-height: 1.15;
+  outline: none;
+}
+.k:focus-visible {
+  outline: none;
 }
 /* 物理键符：右下小字，为上方自定义命令名让位 */
 .k .k-face {
@@ -559,18 +563,15 @@ body::after {
   color: var(--text); z-index: 2;
 }
 .k.bound {
-  border-bottom-color: var(--matrix-green) !important;
+  border-bottom-color: var(--orange-lt) !important;
   color: #f2f2f2 !important;
-  animation: breath 3s ease-in-out infinite;
-}
-@keyframes breath {
-  0%,100% { box-shadow: 0 0 4px #00ff4122; }
-  50%      { box-shadow: var(--glow-green); }
+  animation: none;
+  box-shadow: none;
 }
 .k.recording-target {
-  border-color: var(--cyan) !important;
-  box-shadow: var(--glow-cyan) !important;
-  color: var(--cyan) !important;
+  border-color: var(--orange-lt) !important;
+  box-shadow: none !important;
+  color: var(--orange-lt) !important;
   animation: none !important;
 }
 .k.mod-active {
@@ -601,7 +602,7 @@ body::after {
 }
 .k.slot-suggested.slot-occupied {
   border-color: #5a5a5a !important;
-  border-style: dashed;
+  border-style: solid;
 }
 .k.ripple {
   animation: ripplePulse 0.8s ease-out;
@@ -865,8 +866,8 @@ body::after {
   transition: border-color .15s;
 }
 #cmd-search:focus {
-  border-color: var(--matrix-green);
-  box-shadow: 0 0 0 1px #00ff4133, 0 0 10px #00ff4122;
+  border-color: var(--orange-lt);
+  box-shadow: 0 0 0 1px rgba(243, 156, 18, 0.25);
   color: var(--text);
 }
 #cmd-search::placeholder { color: var(--text-xs); transition: color .2s; }
@@ -927,11 +928,6 @@ body::after {
 }
 .cmd-row.recording {
   background: #1a0e00 !important;
-  animation: rec-pulse 1s ease-in-out infinite;
-}
-@keyframes rec-pulse {
-  0%,100% { background: #1a0e00; }
-  50%      { background: #2a1800; }
 }
 .cmd-name {
   flex: 1;
@@ -973,7 +969,7 @@ body::after {
 .cmd-key {
   min-width: 100px;
   font-family: var(--font);
-  font-size: var(--vk-panel-font-sm);
+  font-size: 11px;
   color: var(--text-dim);
   text-align: right;
   padding-right: 12px;
@@ -982,10 +978,8 @@ body::after {
 .cmd-row.binding-suggested .cmd-key { color: #8b8b8b; }
 .cmd-row.binding-none .cmd-key { color: #666; }
 .cmd-row.recording .cmd-key {
-  color: var(--cyan);
-  animation: blink 1s step-end infinite;
+  color: var(--orange-lt);
 }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
 .cmd-actions {
   display: flex; gap: 4px; align-items: center;
   flex-shrink: 0;
@@ -1004,9 +998,9 @@ body::after {
 .btn-icon:hover { color: var(--orange); border-color: var(--border2); }
 .btn-icon.danger:hover { color: #e74c3c; border-color: #e74c3c66; }
 .btn-icon.active-rec {
-  color: var(--cyan);
-  border-color: var(--cyan);
-  box-shadow: var(--glow-cyan);
+  color: var(--orange-lt);
+  border-color: rgba(243, 156, 18, 0.55);
+  box-shadow: none;
 }
 .btn-icon .fa-solid {
   pointer-events: none;
@@ -3212,6 +3206,7 @@ function handleAhkMessage(msg) {
       if (msg.active) {
         state.recording = msg.commandId || state.recording;
         renderCommandList();
+        renderModifierKeys();
         setHud('MODE: CONFIG | SELECTED: ' + state.recording + ' | PRESS KEY OR DOUBLE-TAP');
       } else {
         stopRecording(false);
@@ -4003,6 +3998,16 @@ function handleBindingUpdated(msg) {
   renderCommandList();
   renderKeyboardSlots();
   renderModifierKeys();
+  // 宫格 / 场景菜单项上的快捷键提示依赖 displayKeyForCmd(state.bindings)，绑定变更后须重绘
+  try {
+    ensureDashboardSlots();
+  } catch (e) { /* ignore */ }
+  try {
+    renderSceneMenuGrid();
+  } catch (e) { /* ignore */ }
+  try {
+    renderToolbarPreviewSandbox();
+  } catch (e) { /* ignore */ }
   if (commandId === state.lastActionId) {
     syncLastActionCurrentKeyFromBindings();
   }
@@ -5262,6 +5267,18 @@ function getActiveScenarioOverrideMap() {
           : null;
 }
 
+/**
+ * 宿主侧 CapsLock+单键 全局热键（与 CursorHelper #HotIf GetCapsLockState() 下静态键一致）。
+ * 键帽 map-label 不应随侧边场景切换而消失，否则用户看不到 CapsLock+Q/F 等默认绑定。
+ */
+const CAPS_CHORD_GLOBAL_PREVIEW_CMD_IDS = [
+  'ch_c', 'ch_v', 'ch_x', 'ch_e', 'ch_r', 'ch_o', 'ch_q', 'ch_z', 'ch_t', 'ch_f', 'ch_g', 'ch_b',
+  'ch_w', 'ch_s', 'ch_a', 'ch_d', 'ch_p',
+  'ch_1', 'ch_2', 'ch_3', 'ch_4', 'ch_5',
+  'sys_exit',
+  'qa_config',
+];
+
 /** 键帽预览：无搜索时为当前场景全部 Tab 的命令并集（牛马 AI 等多 Tab 场景才能看全）；有搜索时仅保留场景内匹配搜索的命令 */
 function getKeyboardPreviewCmdIdSet() {
   const scenario = getScenarioById(state.activeScenarioId);
@@ -5279,6 +5296,20 @@ function getKeyboardPreviewCmdIdSet() {
           continue;
       }
       set.add(cmdId);
+    }
+  }
+  if (!searchText) {
+    for (const cid of CAPS_CHORD_GLOBAL_PREVIEW_CMD_IDS) {
+      if (state.commands[cid])
+        set.add(cid);
+    }
+    for (const [cmdId, b] of Object.entries(state.bindings || {})) {
+      if (!b || b.explicitNone || !b.ahkKey) continue;
+      const ak = String(b.ahkKey).trim();
+      if (!ak || /^(\^\^|\+\+|!!)$/.test(ak)) continue;
+      if (/[\^!#]/.test(ak)) continue;
+      if (ak.length === 1 && /^[a-zA-Z0-9]$/.test(ak) && state.commands[cmdId])
+        set.add(cmdId);
     }
   }
   return set;
@@ -5668,8 +5699,8 @@ function renderModifierKeys() {
     document.querySelectorAll('.k[data-ahkkey="LWin"], .k[data-ahkkey="RWin"]')
       .forEach(el => el.classList.add('mod-active'));
   }
-  // 聚焦模式下显式提示 CapsLock 前缀
-  if (state.focusedCmdId) {
+  // 聚焦非录制：提示「当前命令多为 CapsLock+键」；录制中勿用 mod-active，否则像物理一直按住 CapsLock
+  if (state.focusedCmdId && !state.recording) {
     document.querySelectorAll('.k[data-ahkkey="CapsLock"]')
       .forEach(el => el.classList.add('mod-active'));
   }
@@ -5796,6 +5827,7 @@ function startRecording(cmdId) {
   if (state.recording) stopRecording();
   state.recording = cmdId;
   renderCommandList();
+  renderModifierKeys();
   // highlight corresponding key on keyboard if already bound
   if (state.bindings[cmdId]?.ahkKey) {
     const ak = state.bindings[cmdId].ahkKey;
@@ -5818,6 +5850,7 @@ function stopRecording(restoreHud = true) {
   const wasRecording = state.recording != null;
   state.recording = null;
   renderCommandList();
+  renderModifierKeys();
   if (wasRecording)
     postToAhk({ type: 'cancelRecord' });
   if (restoreHud)

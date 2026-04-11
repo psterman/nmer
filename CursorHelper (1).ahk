@@ -4568,6 +4568,12 @@ UpdateTrayMenu()  ; 初始化托盘菜单
 ; 用于 #HotIf 指令的函数
 GetCapsLockState() {
     global CapsLock
+    ; VK KeyBinder 录制模式：勿把物理 CapsLock 当作组合键上下文，否则第二键会被宿主静态热键（如 q::）吞掉且大写灯被锁死
+    try {
+        if VK_IsVkRecordingHotkey()
+            return false
+    } catch as e {
+    }
     ; 检查变量状态或物理按键状态（确保即使变量被清除，物理按键仍能触发）
     ; 这样即使用户先按 CapsLock 再释放，只要在释放前按了其他键，也能触发
     return CapsLock || GetKeyState("CapsLock", "P")

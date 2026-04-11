@@ -3195,7 +3195,10 @@ _VK_SyncEmbeddedCapslockHotkeys() {
     eVal := g_InverseBindings.Has("ch_e") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_e"]) : ""
     rVal := g_InverseBindings.Has("ch_r") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_r"]) : ""
     oVal := g_InverseBindings.Has("ch_o") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_o"]) : ""
+    ; q：打开配置类命令可能是 ch_q（⌨️ 快捷键分类）或 qa_config（⚙️ 设置中心场景条）
     qVal := g_InverseBindings.Has("ch_q") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_q"]) : ""
+    if (qVal = "" && g_InverseBindings.Has("qa_config"))
+        qVal := _VK_ToEmbeddedHotkeyValue(g_InverseBindings["qa_config"])
     zVal := g_InverseBindings.Has("ch_z") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_z"]) : ""
     tVal := g_InverseBindings.Has("ch_t") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_t"]) : ""
     fVal := g_InverseBindings.Has("ch_f") ? _VK_ToEmbeddedHotkeyValue(g_InverseBindings["ch_f"]) : ""
@@ -3716,6 +3719,16 @@ _PushModifierState() {
     )
 }
 
+; 供宿主 GetCapsLockState() 使用：VK 录制快捷键时临时视为「非 CapsLock 组合」上下文，避免 #HotIf GetCapsLockState() 抢走第二键
+VK_IsVkRecordingHotkey(*) {
+    global g_RecordCtx
+    try {
+        return g_RecordCtx.Has("active") && g_RecordCtx["active"]
+    } catch as e {
+        return false
+    }
+}
+
 _BeginRecord(commandId) {
     global g_RecordHook, g_RecordCtx, g_VK_RecordDblModLast
     global g_RecordPendingKey, g_RecordPendingTick, g_RecordFinalizeToken
@@ -3735,6 +3748,10 @@ _BeginRecord(commandId) {
 
     ih := InputHook("V L0")
     ih.KeyOpt("{All}", "N")
+    ; CapsLock 在 InputHook 中默认仍会传到系统（切换大小写灯）。录制 CapsLock+第二键 时必须拦截。
+    try ih.KeyOpt("{CapsLock}", "+S")
+    catch as e
+        OutputDebug("[VK] record KeyOpt CapsLock: " . e.Message)
     ih.NotifyNonText := true
     ih.OnKeyDown := _OnRecordKeyDown
     ih.OnKeyUp := _OnRecordKeyUp
@@ -3815,6 +3832,11 @@ _OnRecordKeyDown(ih, vk, sc) {
     }
 
     if keyName = ""
+        return
+
+    ; CapsLock 不参与录制：绑定语义是「CapsLock+第二键」，只存第二键。否则释键/重复事件会与 Q 组成
+    ; 「CapsLock+Q then CapsLock」等错误序列。
+    if (keyName = "CapsLock" || vk = 0x14)
         return
 
     if !_IsModifierOnlyKey(keyName) {
@@ -4125,6 +4147,7 @@ _PushInit() {
 }
 
 _AhkKeyToDisplay(ahkKey) {
+    global g_VK_Embedded
     if _VkIsSequenceKey(ahkKey) {
         parts := _VkParseSequenceKey(ahkKey)
         if (parts.Length >= 2) {
@@ -4170,6 +4193,9 @@ _AhkKeyToDisplay(ahkKey) {
     )
     if specialMap.Has(key)
         key := specialMap[key]
+    ; 嵌入宿主：无修饰的单字母热键与 #HotIf GetCapsLockState() 下单键一致，展示为 CapsLock+字母
+    if (g_VK_Embedded && display = "" && StrLen(key) = 1 && RegExMatch(key, "^[A-Z]$"))
+        return "CapsLock+" . key
     return display . key
 }
 
