@@ -923,56 +923,9 @@ _VK_SceneMenuCanonicalKeys() {
     return ["search", "scratchpad", "clipboard", "prompts", "floating_bar"]
 }
 
-; 不可删减的系统项：场景间跳转（顺序固定，合并时置于尾部）
+; 供 Web 端「系统锁定」提示（若槽位中出现这些 cmdId 则不可拖删）
 _VK_SystemSceneMenuCmdIds() {
     return ["ftm_search_center", "hub_capsule", "ftm_clipboard", "ch_b"]
-}
-
-_VK_SceneMenuSystemIdSet() {
-    sys := _VK_SystemSceneMenuCmdIds()
-    m := Map()
-    for id in sys
-        m[id] := true
-    return m
-}
-
-_VK_FilterValidSceneMenuCmds(cmdList, arr) {
-    out := []
-    seen := Map()
-    if !(arr is Array)
-        return out
-    for item in arr {
-        cid := Trim(String(item))
-        if (cid = "" || !cmdList.Has(cid) || seen.Has(cid))
-            continue
-        seen[cid] := true
-        out.Push(cid)
-    }
-    return out
-}
-
-; 去掉用户序列中的系统项后，再按固定顺序追加（去重）
-_VK_MergeSystemSceneMenuItems(cmdList, userArr) {
-    sys := _VK_SystemSceneMenuCmdIds()
-    sysSet := _VK_SceneMenuSystemIdSet()
-    base := _VK_FilterValidSceneMenuCmds(cmdList, userArr)
-    out := []
-    seen := Map()
-    for cid in base {
-        if sysSet.Has(cid)
-            continue
-        if seen.Has(cid)
-            continue
-        seen[cid] := true
-        out.Push(cid)
-    }
-    for id in sys {
-        if !cmdList.Has(id) || seen.Has(id)
-            continue
-        seen[id] := true
-        out.Push(id)
-    }
-    return out
 }
 
 _VK_CommandsFromCategoryId(catId) {
@@ -1051,18 +1004,20 @@ _VK_DefaultSceneMenuFloatingBarRaw() {
         }
     }
     }
-    extras := [
-        "ch_t", "pqp_capture", "ss_pin", "ss_ocr", "ss_text", "ss_save", "ss_ai", "ss_search", "ss_close",
-        "ftb_scratchpad", "ftb_screenshot", "ftb_cursor_menu", "sc_activate_search", "qa_clipboard",
-        "qa_config", "sys_show_vk", "hub_capsule",
-        "ftm_reset_scale", "ftm_minimize_to_edge", "ftm_exit_app", "ftm_hide_toolbar", "ftm_open_config",
-        "ftm_toggle_toolbar", "ftm_reload_script"
-    ]
-    for e in extras {
-        if cmdList.Has(e) && !seen.Has(e) {
-            seen[e] := true
-            out.Push(e)
-        }
+    return out
+}
+
+; Web / JSON 下发的槽位序列：按索引对应宫格，空串表示空槽（与 VK 一宫格/二宫格/三宫格对齐）
+_VK_SceneMenuArrayPreserveSlots(cmdList, arr) {
+    out := []
+    if !(arr is Array)
+        return out
+    for item in arr {
+        cid := Trim(String(item))
+        if (cid = "" || !cmdList.Has(cid))
+            out.Push("")
+        else
+            out.Push(cid)
     }
     return out
 }
@@ -1071,7 +1026,7 @@ _VK_DefaultSceneMenuForKey(key) {
     k := String(key)
     if (k = "floating_bar")
         return _VK_DefaultSceneMenuFloatingBarRaw()
-    ; 搜索中心 / 草稿本 / 剪贴板 / 提示词：宫格由用户在 VK 中从键盘拖入填充，默认仅系统跳转尾项
+    ; 搜索中心 / 草稿本 / 剪贴板 / 提示词：默认无预置命令，由用户在 VK 从键盘拖入
     return []
 }
 
@@ -1083,19 +1038,23 @@ _VK_EnsureSceneMenus() {
     keys := _VK_SceneMenuCanonicalKeys()
     sm := Map()
     if g_Commands.Has("SceneMenus") && g_Commands["SceneMenus"] is Map {
-        ; 从 JSON 读入的 Map 拷贝到规范键
         raw := g_Commands["SceneMenus"]
         for key in keys {
             if raw.Has(key) && raw[key] is Array && raw[key].Length > 0 {
-                merged := _VK_MergeSystemSceneMenuItems(cmdList, _VK_FilterValidSceneMenuCmds(cmdList, raw[key]))
-                sm[key] := merged
+                sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, raw[key])
+            } else if (key = "floating_bar") {
+                sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_DefaultSceneMenuForKey(key))
             } else {
-                sm[key] := _VK_MergeSystemSceneMenuItems(cmdList, _VK_DefaultSceneMenuForKey(key))
+                sm[key] := []
             }
         }
     } else {
-        for key in keys
-            sm[key] := _VK_MergeSystemSceneMenuItems(cmdList, _VK_DefaultSceneMenuForKey(key))
+        for key in keys {
+            if (key = "floating_bar")
+                sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_DefaultSceneMenuForKey(key))
+            else
+                sm[key] := []
+        }
     }
     g_Commands["SceneMenus"] := sm
 }
@@ -1182,14 +1141,14 @@ _VK_ApplySceneMenuFromWeb(msg) {
         for item in msg["cmds"] {
             cid := Trim(String(item))
             if (cid = "" || !cmdList.Has(cid))
-                continue
-            user.Push(cid)
+                user.Push("")
+            else
+                user.Push(cid)
         }
     }
-    merged := _VK_MergeSystemSceneMenuItems(cmdList, user)
     if !g_Commands.Has("SceneMenus") || !(g_Commands["SceneMenus"] is Map)
         g_Commands["SceneMenus"] := Map()
-    g_Commands["SceneMenus"][key] := merged
+    g_Commands["SceneMenus"][key] := user
     if (key = "floating_bar")
         _VK_SyncContextMenuLayoutFromFloatingSceneMenu()
     return true

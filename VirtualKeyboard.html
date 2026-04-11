@@ -1217,7 +1217,9 @@ body::after {
 .scene-menu-panel {
   margin-bottom: 10px;
   padding-bottom: 8px;
-  border-bottom: 1px solid rgba(0, 255, 65, .1);
+}
+.dashboard-main-panel {
+  margin-bottom: 10px;
 }
 .scene-menu-panel-hint {
   font-size: 9px;
@@ -1971,11 +1973,13 @@ body::after {
         <div id="scene-menu-tabs" class="scene-menu-tabs-inline" role="tablist" aria-label="场景右键菜单"></div>
       </div>
     </div>
-    <div id="scene-menu-panel" class="scene-menu-panel" aria-label="场景右键菜单宫格">
-      <div class="scene-menu-panel-hint">场景菜单 · 仅从上方虚拟键盘拖入；与上一行「一/二/三宫格」尺寸联动。快捷动作宫格在下方。</div>
+    <div id="scene-menu-panel" class="scene-menu-panel" hidden aria-label="场景右键菜单宫格">
+      <div class="scene-menu-panel-hint">场景菜单 · 仅从上方虚拟键盘拖入槽位；与「一/二/三宫格」尺寸联动。本区域与快捷动作宫格二选一显示。</div>
       <div id="scene-menu-grid" class="dashboard-grid layout-multi"></div>
     </div>
-    <div id="dashboard-grid" class="layout-multi"></div>
+    <div id="dashboard-main-panel" class="dashboard-main-panel">
+      <div id="dashboard-grid" class="layout-multi"></div>
+    </div>
   </div>
   <div id="dashboard-context-menu" role="menu" aria-label="宫格右键菜单">
     <button class="dashboard-menu-item" data-menu-action="paste" type="button">粘贴</button>
@@ -2125,6 +2129,8 @@ const state = {
   sceneMenuHighlightId: null,
   /** 当前选中的场景右键菜单宫格（与下方宫格联动展示） */
   activeSceneMenuKey: 'floating_bar',
+  /** main=仅快捷动作宫格；scene=仅场景菜单宫格（不同时显示） */
+  dashboardPanelMode: 'main',
   /** 宫格右键菜单当前针对：main | sceneMenu */
   dashboardMenuContext: 'main',
   /** { sceneId, visible_in_bar, order_bar }[] 场景镜像悬浮栏布局 */
@@ -3273,7 +3279,13 @@ function normalizeIncomingSceneMenus(raw) {
   const out = {};
   for (const k of SCENE_MENU_KEYS) {
     const arr = raw && Array.isArray(raw[k]) ? raw[k] : [];
-    out[k] = arr.map((x) => String(x || '').trim()).filter((id) => id && state.commands[id]);
+    out[k] = arr.map((x) => {
+      if (x === null || x === undefined) return '';
+      const s = String(x).trim();
+      if (!s) return '';
+      if (!state.commands[s]) return '';
+      return s;
+    });
   }
   return out;
 }
@@ -3303,6 +3315,8 @@ function getActiveSceneMenuKey() {
 function setActiveSceneMenuKey(key) {
   if (!SCENE_MENU_KEYS.includes(key)) return;
   state.activeSceneMenuKey = key;
+  state.dashboardPanelMode = 'scene';
+  syncDashboardPanelVisibility();
   renderSceneMenuTabs();
   renderSceneMenuGrid();
 }
@@ -3322,7 +3336,7 @@ function setSceneMenuFromSlotsArray(key, slots) {
   const arr = [];
   for (let i = 0; i < slots.length; i++) {
     const it = normalizeDashboardItem(slots[i]);
-    if (it) arr.push(it.commandId);
+    arr.push(it ? it.commandId : '');
   }
   state.sceneMenus[key] = arr;
   scheduleSaveSceneMenu(key);
@@ -3498,14 +3512,31 @@ async function handleKeyboardDropToSceneSlot(toIndex) {
 function onSceneFocusFromSidebar(scenarioId) {
   const tab = SCENARIO_TO_SCENE_MENU_TAB[String(scenarioId || '')];
   state.sceneMenuHighlightId = tab || null;
+  if (tab) {
+    state.activeSceneMenuKey = tab;
+    state.dashboardPanelMode = 'scene';
+    syncDashboardPanelVisibility();
+    renderSceneMenuGrid();
+  } else {
+    state.dashboardPanelMode = 'main';
+    syncDashboardPanelVisibility();
+  }
   renderSceneMenuTabs();
+}
+
+function syncDashboardPanelVisibility() {
+  const mainPanel = document.getElementById('dashboard-main-panel');
+  const scenePanel = document.getElementById('scene-menu-panel');
+  const scene = state.dashboardPanelMode === 'scene';
+  if (mainPanel) mainPanel.hidden = scene;
+  if (scenePanel) scenePanel.hidden = !scene;
 }
 
 function renderSceneMenuTabs() {
   const wrap = document.getElementById('scene-menu-tabs');
   if (!wrap) return;
   wrap.innerHTML = '';
-  const active = getActiveSceneMenuKey();
+  const active = state.dashboardPanelMode === 'scene' ? getActiveSceneMenuKey() : null;
   for (const key of SCENE_MENU_KEYS) {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -3603,6 +3634,7 @@ function handleInit(msg) {
     ? msg.sceneMenuSystemIds.map((x) => String(x || '').trim()).filter(Boolean)
     : [];
   state.sceneMenus = normalizeIncomingSceneMenus(msg.sceneMenus || {});
+  state.dashboardPanelMode = 'main';
   state.bindings   = msg.bindings   || {};
   state.suggestedBindings = msg.suggestedBindings || {};
   state.lastActionId = msg.lastActionId || '';
@@ -3631,6 +3663,7 @@ function handleInit(msg) {
   updateHudSnapshot(true);
   renderAdminWarning();
   initDashboardDrag();
+  syncDashboardPanelVisibility();
 }
 
 function handleBindingUpdated(msg) {
@@ -3755,6 +3788,7 @@ function applyDashboardConfig(rawConfig, layoutHint) {
   syncDashboardLayoutUI();
   ensureDashboardSlots();
   renderSceneMenuGrid();
+  syncDashboardPanelVisibility();
 }
 
 function syncDashboardLayoutUI() {
@@ -4314,7 +4348,11 @@ function initDashboardDrag() {
   applyDashboardLayout(dashboardLayout);
 
   document.querySelectorAll('#dashboard-layout-switch .dashboard-layout-btn').forEach((btn) => {
-    btn.addEventListener('click', () => applyDashboardLayout(btn.dataset.layout));
+    btn.addEventListener('click', () => {
+      state.dashboardPanelMode = 'main';
+      syncDashboardPanelVisibility();
+      applyDashboardLayout(btn.dataset.layout);
+    });
   });
 
   container.addEventListener('dragenter', () => {
