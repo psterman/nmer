@@ -283,9 +283,11 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "sc_execute", "name", "立即执行", "desc", "搜索中心结果：智能执行", "fn", "CH_RUN"),
             Map("id", "sc_run_as_admin", "name", "以管理员运行", "desc", "搜索中心结果：提升权限运行", "fn", "CH_RUN"),
             Map("id", "sc_open_path", "name", "打开文件位置", "desc", "搜索中心结果：资源管理器选中", "fn", "CH_RUN"),
-            Map("id", "sc_open_with", "name", "打开方式", "desc", "搜索中心结果：系统打开方式", "fn", "CH_RUN"),
+            Map("id", "sc_open_with", "name", "打开方式（已隐藏）", "desc", "仍可从热键调用", "fn", "CH_RUN"),
             Map("id", "sc_menu_sep_1", "name", "────────", "desc", "分隔线（已弃用，配置将自动隐藏）", "fn", "CH_RUN"),
             Map("id", "sc_copy_sub", "name", "复制到…", "desc", "搜索中心结果：子菜单占位（已弃用）", "fn", "CH_RUN"),
+            Map("id", "sc_copy", "name", "复制", "desc", "搜索中心结果：复制完整内容", "fn", "CH_RUN"),
+            Map("id", "sc_copy_plain", "name", "复制全文", "desc", "同「复制」", "fn", "CH_RUN"),
             Map("id", "sc_copy_link", "name", "复制路径/链接", "desc", "搜索中心结果", "fn", "CH_RUN"),
             Map("id", "sc_copy_digit", "name", "复制数字", "desc", "搜索中心结果", "fn", "CH_RUN"),
             Map("id", "sc_copy_chinese", "name", "复制中文", "desc", "搜索中心结果", "fn", "CH_RUN"),
@@ -294,18 +296,21 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "sc_to_draft", "name", "发送到草稿本", "desc", "搜索中心结果", "fn", "CH_RUN"),
             Map("id", "sc_to_prompt", "name", "发送到提示词中心", "desc", "搜索中心结果", "fn", "CH_RUN"),
             Map("id", "sc_to_openclaw", "name", "发送到 OpenClaw", "desc", "搜索中心结果：对话", "fn", "CH_RUN"),
+            Map("id", "sc_send_desktop", "name", "发送到桌面（复制文件）", "desc", "搜索中心结果：复制本地文件到桌面", "fn", "CH_RUN"),
+            Map("id", "sc_send_documents", "name", "发送到文档（复制文件）", "desc", "搜索中心结果：复制本地文件到文档", "fn", "CH_RUN"),
+            Map("id", "sc_open_sendto_folder", "name", "打开「发送到」文件夹", "desc", "搜索中心结果：系统发送到目录", "fn", "CH_RUN"),
             Map("id", "sc_menu_sep_2", "name", "────────", "desc", "分隔线（已弃用，配置将自动隐藏）", "fn", "CH_RUN"),
             Map("id", "ai_explain_item", "name", "牛马 AI 解释", "desc", "搜索中心结果", "fn", "CH_RUN"),
             Map("id", "ai_translate_item", "name", "自动翻译", "desc", "搜索中心结果", "fn", "CH_RUN"),
             Map("id", "ai_prompt_refine", "name", "提示词精炼", "desc", "搜索中心结果", "fn", "CH_RUN"),
             Map("id", "sc_menu_sep_3", "name", "────────", "desc", "分隔线（已弃用，配置将自动隐藏）", "fn", "CH_RUN"),
             Map("id", "sc_pin_item", "name", "置顶/取消置顶", "desc", "搜索中心结果", "fn", "CH_RUN"),
-            Map("id", "sc_delete_item", "name", "删除", "desc", "搜索中心结果：仅从列表移除", "fn", "CH_RUN"),
-            Map("id", "sc_recycle_item", "name", "回收", "desc", "搜索中心结果：文件进回收站并暂存可还原", "fn", "CH_RUN"),
+            Map("id", "sc_delete_item", "name", "删除", "desc", "搜索中心结果：移至搜索中心回收站（本地文件同时进系统回收站）", "fn", "CH_RUN"),
+            Map("id", "sc_recycle_item", "name", "回收（已隐藏）", "desc", "仍可从热键调用", "fn", "CH_RUN"),
             Map("id", "sc_file_properties", "name", "属性", "desc", "搜索中心结果：系统属性", "fn", "CH_RUN"),
             Map("id", "sc_file_rename", "name", "重命名", "desc", "搜索中心结果：系统重命名", "fn", "CH_RUN"),
             Map("id", "sc_file_meta", "name", "属性（兼容）", "desc", "兼容旧配置，同属性", "fn", "CH_RUN"),
-            Map("id", "sys_empty_recycle", "name", "清空回收站", "desc", "搜索中心临时回收站", "fn", "CH_RUN")
+            Map("id", "sys_empty_recycle", "name", "清空回收站（已隐藏）", "desc", "仍可从热键调用；面板内回收站弹窗可清空", "fn", "CH_RUN")
         ]),
         Map("id", "clipboard", "name", "📋 剪贴板", "commands", [
             Map("id", "ch_c", "name", "连续复制", "desc", "CapsLock+C：连续复制选区", "fn", "CH_RUN", "suggested", "c"),
@@ -979,12 +984,12 @@ _VK_SceneMenuKeysWithDefaultCommands() {
 ; 与搜索中心结果行右键一致的扁平命令（复制到 / 发送到 子项已展开）
 _VK_DefaultSearchCenterContextMenuCmdIds() {
     return [
-        "sc_execute", "sc_run_as_admin", "sc_open_path", "sc_open_with",
-        "sc_copy_link", "sc_copy_digit", "sc_copy_chinese", "sc_copy_md",
+        "sc_execute", "sc_run_as_admin", "sc_open_path",
+        "sc_copy", "sc_copy_plain", "sc_copy_link", "sc_copy_digit", "sc_copy_chinese", "sc_copy_md",
         "sc_to_draft", "sc_to_prompt", "sc_to_openclaw",
         "ai_explain_item", "ai_translate_item", "ai_prompt_refine",
-        "sc_pin_item", "sc_delete_item", "sc_recycle_item",
-        "sc_file_properties", "sc_file_rename", "sys_empty_recycle"
+        "sc_pin_item", "sc_delete_item",
+        "sc_file_properties", "sc_file_rename"
     ]
 }
 
@@ -1471,23 +1476,22 @@ _VK_SearchRowDefaultOrder(cmdId) {
         "sc_execute", 0,
         "sc_run_as_admin", 1,
         "sc_open_path", 2,
-        "sc_open_with", 3,
-        "sc_copy_link", 4,
-        "sc_copy_digit", 5,
-        "sc_copy_chinese", 6,
-        "sc_copy_md", 7,
-        "sc_to_draft", 8,
-        "sc_to_prompt", 9,
-        "sc_to_openclaw", 10,
-        "ai_explain_item", 11,
-        "ai_translate_item", 12,
-        "ai_prompt_refine", 13,
-        "sc_pin_item", 14,
-        "sc_delete_item", 15,
-        "sc_recycle_item", 16,
+        "sc_copy", 3,
+        "sc_copy_plain", 4,
+        "sc_copy_link", 5,
+        "sc_copy_digit", 6,
+        "sc_copy_chinese", 7,
+        "sc_copy_md", 8,
+        "sc_to_draft", 9,
+        "sc_to_prompt", 10,
+        "sc_to_openclaw", 11,
+        "ai_explain_item", 12,
+        "ai_translate_item", 13,
+        "ai_prompt_refine", 14,
+        "sc_pin_item", 15,
+        "sc_delete_item", 16,
         "sc_file_properties", 17,
-        "sc_file_rename", 18,
-        "sys_empty_recycle", 19
+        "sc_file_rename", 18
     )
     c := Trim(String(cmdId))
     return m.Has(c) ? Integer(m[c]) : -1
@@ -1498,6 +1502,10 @@ _VK_IsSearchCenterGridCmd(cmdId) {
     if (c = "" || SubStr(c, 1, 12) = "sc_menu_sep_")
         return false
     if (c = "sc_copy_sub" || c = "sc_send_sub")
+        return false
+    if (c = "sc_send_desktop" || c = "sc_send_documents" || c = "sc_open_sendto_folder")
+        return false
+    if (c = "sc_open_with" || c = "sc_recycle_item" || c = "sys_empty_recycle")
         return false
     return _VK_SearchRowDefaultOrder(c) >= 0
 }
@@ -1602,6 +1610,11 @@ _VK_MigrateSearchToolbarLegacy(&arr) {
             }
         }
         if (SubStr(cid, 1, 12) = "sc_menu_sep_") || cid = "sc_copy_sub" || cid = "sc_send_sub" {
+            item["visible_in_search_row"] := false
+            item["order_search_row"] := -1
+            item["menu_scenes"] := []
+        }
+        if (cid = "sc_open_with" || cid = "sc_recycle_item" || cid = "sys_empty_recycle") {
             item["visible_in_search_row"] := false
             item["order_search_row"] := -1
             item["menu_scenes"] := []

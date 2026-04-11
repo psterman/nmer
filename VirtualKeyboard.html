@@ -1652,10 +1652,13 @@ body::after {
   border-radius: 6px;
   cursor: pointer;
   font-size: 11px;
+  transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, transform 0.12s ease;
 }
 .dashboard-menu-item:hover {
   background: #2a1a00;
   color: var(--orange-lt);
+  box-shadow: 0 0 0 1px rgba(255, 179, 102, 0.22) inset;
+  transform: translateX(1px);
 }
 .dashboard-menu-item:disabled {
   opacity: .35;

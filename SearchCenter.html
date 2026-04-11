@@ -435,6 +435,14 @@ button, input, select, textarea { font: inherit; }
   font-weight: 600;
   color: #fff;
 }
+.pin-ico {
+  display: inline-block;
+  margin-right: 5px;
+  font-size: 12px;
+  vertical-align: middle;
+  opacity: 0.95;
+  user-select: none;
+}
 .result-sub {
   margin-top: 3px;
   font-size: 11px;
@@ -482,12 +490,114 @@ button, input, select, textarea { font: inherit; }
 }
 #footer {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   padding: 4px 4px 0;
   font-size: 12px;
   color: var(--muted);
+}
+.footer-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.footer-inline-btns {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.footer-inline-btns .btn {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+.recycle-badge {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255,141,42,.25);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.recycle-badge:empty,
+.recycle-badge.muted {
+  background: rgba(255,255,255,.08);
+  color: var(--muted);
+  font-weight: 600;
+}
+.recycle-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.55);
+  padding: 20px;
+}
+.recycle-overlay.open {
+  display: flex;
+}
+.recycle-dialog {
+  width: min(520px, 96vw);
+  max-height: min(72vh, 560px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+.recycle-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+  font-size: 14px;
+}
+.recycle-list {
+  flex: 1 1 auto;
+  min-height: 120px;
+  max-height: 44vh;
+  overflow: auto;
+  padding: 10px 12px;
+}
+.recycle-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+  margin-bottom: 8px;
+}
+.recycle-row .t {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
+.recycle-row .p {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+  word-break: break-all;
+}
+.recycle-dialog-foot {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 .btn {
   height: 40px;
@@ -630,8 +740,27 @@ mark {
   </div>
 
   <div id="footer">
-    <div>Enter 执行主操作 · Esc 关闭 · 双击结果立即处理</div>
+    <div class="footer-row-main">
+      <span>Enter 执行主操作 · Esc 关闭 · 双击结果立即处理</span>
+      <div class="footer-inline-btns">
+        <button type="button" id="btn-sc-recycle" class="btn ghost">搜索回收站<span class="recycle-badge muted" id="recycle-badge">0</span></button>
+        <button type="button" id="btn-win-recycle-sc" class="btn ghost">系统回收站</button>
+      </div>
+    </div>
     <div id="footer-hint">WebView2 模式</div>
+  </div>
+
+  <div id="recycle-overlay" class="recycle-overlay" aria-hidden="true">
+    <div class="recycle-dialog card" role="dialog" aria-modal="true" aria-labelledby="recycle-dlg-title">
+      <div class="recycle-dialog-head">
+        <span id="recycle-dlg-title">搜索中心回收站</span>
+        <button type="button" id="recycle-close" class="chrome-btn" title="关闭">×</button>
+      </div>
+      <div id="recycle-list" class="recycle-list"></div>
+      <div class="recycle-dialog-foot">
+        <button type="button" id="recycle-empty-all" class="btn">全部清空</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -665,7 +794,9 @@ const state = {
   statusLine: "",
   selectedRow: 1,
   capsHintActive: false,
-  capsPressedKey: ""
+  capsPressedKey: "",
+  recycleBin: [],
+  recycleCount: 0
 };
 
 const postToAhk = (obj) => BasePanel.postToAhk(obj);
@@ -685,7 +816,8 @@ const HOTKEY_HINT_MAP = Object.freeze({
     File: "z",
     clipboard: "x",
     template: "c",
-    config: "v"
+    config: "v",
+    pinned: "p"
   })
 });
 let capsHoldTimer = 0;
@@ -868,9 +1000,10 @@ function renderResults() {
   state.results.forEach((item) => {
     const row = document.createElement("div");
     row.className = "result-item" + (item.row === state.selectedRow ? " active" : "");
+    const pinMark = item.pinned ? "<span class=\"pin-ico\" title=\"置顶\">🔝</span>" : "";
     row.innerHTML =
       "<div>" +
-        "<div class=\"result-title\">" + highlight(item.title, state.keyword) + "</div>" +
+        "<div class=\"result-title\">" + pinMark + highlight(item.title, state.keyword) + "</div>" +
         "<div class=\"result-sub\">" + escapeHtml(item.subtitle || "") + "</div>" +
         "<div class=\"result-preview\">" + highlight(item.preview || "", state.keyword) + "</div>" +
       "</div>" +
@@ -940,6 +1073,55 @@ function buildSkeletonListHtml(count) {
   return html;
 }
 
+function syncRecycleBadge() {
+  const badge = document.getElementById("recycle-badge");
+  if (!badge) return;
+  const n = Number(state.recycleCount) || 0;
+  badge.textContent = String(n);
+  badge.classList.toggle("muted", n < 1);
+}
+
+function renderRecycleModalList() {
+  const list = document.getElementById("recycle-list");
+  if (!list) return;
+  const rows = state.recycleBin || [];
+  if (!rows.length) {
+    list.innerHTML = "<div class=\"empty\" style=\"min-height:100px\">暂无已移除项。在结果行使用「回收」命令可将条目暂存于此。</div>";
+    return;
+  }
+  list.innerHTML = "";
+  rows.forEach((it) => {
+    const wrap = document.createElement("div");
+    wrap.className = "recycle-row";
+    const idx = Number(it.index) || 0;
+    wrap.innerHTML =
+      "<div><div class=\"t\">" + escapeHtml(it.title || "（无标题）") + "</div>" +
+      "<div class=\"p\">" + escapeHtml(it.preview || "") + "</div></div>";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn ghost";
+    btn.textContent = "还原";
+    btn.onclick = () => postToAhk({ type: "searchCenterRestoreRecycle", index: idx });
+    wrap.appendChild(btn);
+    list.appendChild(wrap);
+  });
+}
+
+function openRecycleModal() {
+  const ov = document.getElementById("recycle-overlay");
+  if (!ov) return;
+  renderRecycleModalList();
+  ov.classList.add("open");
+  ov.setAttribute("aria-hidden", "false");
+}
+
+function closeRecycleModal() {
+  const ov = document.getElementById("recycle-overlay");
+  if (!ov) return;
+  ov.classList.remove("open");
+  ov.setAttribute("aria-hidden", "true");
+}
+
 function applyState(payload) {
   state.keyword = payload.keyword || "";
   state.limit = payload.limit || 50;
@@ -954,6 +1136,8 @@ function applyState(payload) {
   state.loading = false;
   state.isCliCategory = !!payload.isCliCategory;
   state.statusLine = payload.statusLine || "";
+  state.recycleBin = Array.isArray(payload.recycleBin) ? payload.recycleBin : [];
+  state.recycleCount = typeof payload.recycleCount === "number" ? payload.recycleCount : state.recycleBin.length;
 
   const wasSelected = state.selectedRow;
   if (!state.results.some((item) => item.row === wasSelected)) {
@@ -967,6 +1151,10 @@ function applyState(payload) {
   document.getElementById("btn-run").textContent = "搜索";
   document.getElementById("btn-open-cli").style.display = state.isCliCategory ? "inline-flex" : "none";
   syncFooterHint();
+  syncRecycleBadge();
+  if (document.getElementById("recycle-overlay") && document.getElementById("recycle-overlay").classList.contains("open")) {
+    renderRecycleModalList();
+  }
 
   renderCategories();
   renderEngines();
@@ -1034,6 +1222,33 @@ document.getElementById("btn-web-search").addEventListener("click", () => {
 document.getElementById("btn-open-cli").addEventListener("click", () => {
   postToAhk({ type: "cliOpen" });
 });
+
+const btnScRecycle = document.getElementById("btn-sc-recycle");
+if (btnScRecycle) {
+  btnScRecycle.addEventListener("click", () => openRecycleModal());
+}
+const btnWinRecycleSc = document.getElementById("btn-win-recycle-sc");
+if (btnWinRecycleSc) {
+  btnWinRecycleSc.addEventListener("click", () => postToAhk({ type: "openWindowsRecycleBin" }));
+}
+const recycleClose = document.getElementById("recycle-close");
+if (recycleClose) {
+  recycleClose.addEventListener("click", () => closeRecycleModal());
+}
+const recycleEmptyAll = document.getElementById("recycle-empty-all");
+if (recycleEmptyAll) {
+  recycleEmptyAll.addEventListener("click", () => {
+    if (!state.recycleCount) return;
+    if (!window.confirm("清空搜索中心回收站？已移除的条目将无法从此处还原。")) return;
+    postToAhk({ type: "searchCenterEmptyRecycle" });
+  });
+}
+const recycleOverlay = document.getElementById("recycle-overlay");
+if (recycleOverlay) {
+  recycleOverlay.addEventListener("click", (e) => {
+    if (e.target === recycleOverlay) closeRecycleModal();
+  });
+}
 
 const chromeCloseBtn = document.getElementById("chrome-close");
 const chromeMinimizeBtn = document.getElementById("chrome-minimize");

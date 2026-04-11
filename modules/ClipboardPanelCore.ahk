@@ -558,6 +558,9 @@ _CP_OnWebMessage(sender, args) {
                 OutputDebug("[CP] cpScCtxCmd: " . err.Message)
             }
 
+        case "openWindowsRecycleBin":
+            SCWV_OpenWindowsRecycleBinFolder()
+
         default:
             OutputDebug("[CP] Unknown msg type: " . action)
     }

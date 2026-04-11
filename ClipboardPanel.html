@@ -772,10 +772,13 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
   cursor: pointer; user-select: none;
   border-radius: 8px;
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, transform 0.12s ease;
 }
 .ctx-item:hover:not(.disabled) {
   background: #ff6600;
   color: #fff;
+  box-shadow: 0 0 0 1px rgba(255, 179, 102, 0.35) inset;
+  transform: translateX(1px);
 }
 .ctx-item:hover:not(.disabled) .ctx-hint { color: rgba(255, 255, 255, 0.88); }
 .ctx-item.disabled { opacity: 0.35; pointer-events: none; cursor: default; }
@@ -806,6 +809,7 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
     <div id="search-actions">
       <button type="button" id="search-clear-btn" class="search-act-btn">清空</button>
       <button type="button" id="search-paste-btn" class="search-act-btn">粘贴</button>
+      <button type="button" id="btn-win-recycle" class="search-act-btn" title="打开 Windows 系统回收站">系统回收站</button>
     </div>
     <div id="search-hints">
       <span class="hint-tag">1-9 粘贴</span>
@@ -2129,6 +2133,10 @@ document.getElementById('search-paste-btn').addEventListener('click', () => {
   if (!state.selectedId) return;
   postToAhk({ type: 'paste', id: state.selectedId, keepOpen: keepOpenFlag() });
 });
+const btnWinRecycleCp = document.getElementById('btn-win-recycle');
+if (btnWinRecycleCp) {
+  btnWinRecycleCp.addEventListener('click', () => postToAhk({ type: 'openWindowsRecycleBin' }));
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 分页：Raycast 式提前加载 — 大 rootMargin + 哨兵 IO；滚动近底 rAF 兜底（scroll 仅随用户滚轮/触控）

@@ -921,6 +921,138 @@ SC_JoinAllRegExMatches(haystack, pattern) {
     return out
 }
 
+; shell32 ShellExecuteW：返回 >32 为成功（原先用 DllCall("ptr","shell32\...") 会把返回类型写错导致始终失败）
+SC_ShellExecuteFileVerb(filePath, verb) {
+    p := Trim(String(filePath))
+    v := Trim(String(verb))
+    if (p = "" || v = "")
+        return false
+    if !FileExist(p) && !DirExist(p)
+        return false
+    hr := DllCall("shell32\ShellExecuteW", "ptr", 0, "wstr", v, "wstr", p, "ptr", 0, "ptr", 0, "int", 1, "ptr")
+    return (hr > 32)
+}
+
+; 若类型标记非文件但 Content 实为存在的本地路径，则按文件处理（属性/打开方式/回收等）
+SC_CtxCoerceLocalFilePath(&isFileLike, &path, Content) {
+    path := Trim(String(path))
+    c := Trim(String(Content))
+    if (path = "" && c != "")
+        path := c
+    if isFileLike || path = ""
+        return
+    if InStr(path, "`n") || InStr(path, "`r")
+        return
+    if (FileExist(path) || DirExist(path))
+        isFileLike := true
+}
+
+; 规范化本地路径（长路径名），便于 explorer / Shell API
+SC_NormalizeFsPath(p) {
+    s := Trim(String(p))
+    if (s = "")
+        return ""
+    if !FileExist(s) && !DirExist(s)
+        return s
+    buf := Buffer(520 * 2, 0)
+    n := DllCall("kernel32\GetLongPathNameW", "wstr", s, "ptr", buf.Ptr, "uint", 260, "uint")
+    if (n > 0 && n < 260)
+        return StrGet(buf.Ptr, n, "UTF-16")
+    return s
+}
+
+; 资源管理器原生：在父文件夹中选中该项（比 /select 命令行更稳）
+SC_OpenFolderAndSelectPath(path) {
+    p := SC_NormalizeFsPath(path)
+    if (p = "" || (!FileExist(p) && !DirExist(p)))
+        return false
+    hr := DllCall("shell32\SHParseDisplayName", "wstr", p, "ptr", 0, "ptr*", &pidlFull := 0, "uint", 0, "uint*", &attrs := 0, "uint")
+    if (hr != 0 || pidlFull = 0)
+        return false
+    pidlFolder := DllCall("shell32\ILClone", "ptr", pidlFull, "ptr")
+    if !pidlFolder {
+        DllCall("ole32\CoTaskMemFree", "ptr", pidlFull)
+        return false
+    }
+    if !DllCall("shell32\ILRemoveLastID", "ptr", pidlFolder) {
+        DllCall("ole32\CoTaskMemFree", "ptr", pidlFolder)
+        DllCall("ole32\CoTaskMemFree", "ptr", pidlFull)
+        return false
+    }
+    last := DllCall("shell32\ILFindLastID", "ptr", pidlFull, "ptr")
+    if !last {
+        DllCall("ole32\CoTaskMemFree", "ptr", pidlFolder)
+        DllCall("ole32\CoTaskMemFree", "ptr", pidlFull)
+        return false
+    }
+    childArr := Buffer(A_PtrSize, 0)
+    NumPut("ptr", last, childArr, 0)
+    hr2 := DllCall("shell32\SHOpenFolderAndSelectItems", "ptr", pidlFolder, "uint", 1, "ptr", childArr.Ptr, "uint", 0, "uint")
+    DllCall("ole32\CoTaskMemFree", "ptr", pidlFolder)
+    DllCall("ole32\CoTaskMemFree", "ptr", pidlFull)
+    return (hr2 = 0)
+}
+
+; 与资源管理器一致：FolderItem.InvokeVerb（属性 / 重命名等）
+SC_ShellFolderItemInvokeVerb(path, verb) {
+    p := SC_NormalizeFsPath(path)
+    v := Trim(String(verb))
+    if (p = "" || v = "" || (!FileExist(p) && !DirExist(p)))
+        return false
+    SplitPath(p, &fn, &dir)
+    if (dir = "" || fn = "")
+        return false
+    try {
+        sh := ComObject("Shell.Application")
+        fld := sh.NameSpace(dir)
+        if !fld
+            return false
+        it := fld.ParseName(fn)
+        if !it
+            return false
+        it.InvokeVerb(v)
+        return true
+    } catch as _e {
+        return false
+    }
+}
+
+; 系统「属性」对话框（SHOP_FILEPATH = 1）
+SC_SHObjectPropertiesFile(path) {
+    p := SC_NormalizeFsPath(path)
+    if (p = "" || (!FileExist(p) && !DirExist(p)))
+        return false
+    r := DllCall("shell32\SHObjectProperties", "ptr", 0, "int", 1, "wstr", p, "ptr", 0, "int")
+    return r != 0
+}
+
+; 在已打开的资源管理器窗口中触发重命名（选中项后 F2）
+SC_SendRenameKeyToForegroundExplorer() {
+    hwnd := 0
+    try hwnd := WinGetID("A")
+    catch as _e {
+        return false
+    }
+    if !hwnd
+        return false
+    try {
+        cls := WinGetClass("ahk_id " . hwnd)
+        if (cls != "CabinetWClass" && cls != "ExploreWClass")
+            return false
+    } catch {
+        return false
+    }
+    try WinActivate("ahk_id " . hwnd)
+    catch {
+    }
+    Sleep(120)
+    try Send("{F2}")
+    catch {
+        return false
+    }
+    return true
+}
+
 ; 搜索中心 WebView 结果行右键：统一执行入口。
 ; ctxItem：可选 Map（剪贴板 / Hub / PQP 合成项），键 Title/Content/DataType/OriginalDataType/Source/ClipboardId/HubSegIndex/PromptMergedIndex
 SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
@@ -954,6 +1086,7 @@ SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
     }
     isFileLike := (DataType = "file" || DataType = "File" || DataType = "Folder" || origDt = "file")
     path := Trim(String(Content))
+    SC_CtxCoerceLocalFilePath(&isFileLike, &path, Content)
 
     switch id {
         case "sc_execute":
@@ -989,7 +1122,8 @@ SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
                 }
                 return
             }
-            SC_ActivateSearchResultItem(Item, true, true)
+            ; 从搜索中心右键菜单执行：不关闭搜索中心窗口（避免失焦自动 Hide 与操作被打断）
+            SC_ActivateSearchResultItem(Item, false, true)
         case "sc_run_as_admin":
             if !isFileLike || !FileExist(path) {
                 try TrayTip("仅支持本地 .exe / .bat", path, "Icon! 2")
@@ -1013,46 +1147,47 @@ SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
                 }
             }
         case "sc_open_path":
-            if !isFileLike || !FileExist(path) {
-                try TrayTip("无法打开位置", "非本地文件路径", "Icon! 2")
+            if !isFileLike || (!FileExist(path) && !DirExist(path)) {
+                try TrayTip("无法打开位置", "非本地文件或文件夹路径", "Icon! 2")
                 catch {
                 }
                 return
             }
-            SplitPath(path, , &dir)
-            if (dir = "")
+            pn := SC_NormalizeFsPath(path)
+            if SC_OpenFolderAndSelectPath(pn)
                 return
-            arg := '/select,"' . path . '"'
-            try Run("explorer.exe " . arg)
-            catch as err {
+            try {
+                Run('explorer.exe /select,"' . pn . '"')
+            } catch as err {
                 try TrayTip("资源管理器失败", err.Message, "Iconx 2")
                 catch {
                 }
             }
         case "sc_open_with":
+            ; 已从搜索中心右键移除；保留 case 供旧热键/脚本调用
             if !isFileLike || !FileExist(path) {
                 try TrayTip("打开方式", "需要存在的本地文件", "Icon! 2")
                 catch {
                 }
                 return
             }
-            ok := false
-            try {
-                hr := DllCall("ptr", "shell32\ShellExecuteW", "ptr", 0, "wstr", "openas", "wstr", path, "ptr", 0, "ptr", 0, "int", 1)
-                ok := (hr > 32)
-            } catch {
-                ok := false
-            }
-            if ok
+            if SC_ShellExecuteFileVerb(path, "openas")
                 return
             sysRoot := EnvGet("SystemRoot")
             if (sysRoot = "")
                 sysRoot := A_WinDir
-            try Run('"' . sysRoot . '\System32\rundll32.exe" shell32.dll,OpenAs_RunDLL "' . path . '"')
-            catch as err {
+            try {
+                Run(Format('"{1}\System32\rundll32.exe" shell32.dll,OpenAs_RunDLL "{2}"', sysRoot, path))
+            } catch as err {
                 try TrayTip("打开方式失败", err.Message, "Iconx 2")
                 catch {
                 }
+            }
+        case "sc_copy":
+        case "sc_copy_plain":
+            try A_Clipboard := Content
+            try TrayTip("已复制", "全文已复制到剪贴板", "Iconi 1")
+            catch {
             }
         case "sc_copy_link":
             try A_Clipboard := Content
@@ -1120,6 +1255,50 @@ SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
             try FloatingToolbar_SendTextToNiumaChat(t, true, true, true)
             catch as err {
                 try TrayTip("发送失败", err.Message, "Iconx 2")
+                catch {
+                }
+            }
+        case "sc_send_desktop":
+        case "sc_send_documents":
+            if !isFileLike || !FileExist(path) {
+                try TrayTip("发送", "仅支持本地文件（非文件夹）", "Iconi 2")
+                catch {
+                }
+                return
+            }
+            destRoot := EnvGet("USERPROFILE") . (id = "sc_send_desktop" ? "\Desktop" : "\Documents")
+            if !DirExist(destRoot) {
+                try DirCreate(destRoot)
+                catch as _e {
+                }
+            }
+            SplitPath(path, &srcFn)
+            dest := destRoot . "\" . srcFn
+            if FileExist(dest) {
+                SplitPath(path, &nameNoExt, , &ext)
+                dest := destRoot . "\" . nameNoExt . " (" . A_Now . ")" . (ext != "" ? "." . ext : "")
+            }
+            try {
+                FileCopy path, dest, false
+                try TrayTip("已发送", dest, "Iconi 1")
+                catch {
+                }
+            } catch as err {
+                try TrayTip("复制失败", err.Message, "Iconx 2")
+                catch {
+                }
+            }
+        case "sc_open_sendto_folder":
+            st := EnvGet("APPDATA") . "\Microsoft\Windows\SendTo"
+            if !DirExist(st) {
+                try TrayTip("发送到", "未找到系统「发送到」目录", "Icon! 2")
+                catch {
+                }
+                return
+            }
+            try Run('explorer.exe "' . st . '"')
+            catch as err {
+                try TrayTip("打开失败", err.Message, "Iconx 2")
                 catch {
                 }
             }
@@ -1192,7 +1371,7 @@ SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
             }
             if (r < 1)
                 return
-            SC_SearchCenterRemoveVisibleRowFromList(r)
+            SC_SearchCenterRecycleVisibleRow(r)
         case "sc_recycle_item":
             if Item is Map && Item.Has("Source") && String(Item["Source"]) = "clipboard" {
                 if !(isFileLike && FileExist(path)) {
@@ -1229,40 +1408,51 @@ SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
             SC_SearchCenterRecycleVisibleRow(r)
         case "sc_file_properties":
         case "sc_file_meta":
-            if isFileLike && FileExist(path) {
-                try DllCall("ptr", "shell32\ShellExecuteW", "ptr", 0, "wstr", "properties", "wstr", path, "ptr", 0, "ptr", 0, "int", 1)
-                catch as err {
-                    try TrayTip("属性", err.Message, "Iconx 2")
-                    catch {
-                    }
+            if isFileLike && (FileExist(path) || DirExist(path)) {
+                pn := SC_NormalizeFsPath(path)
+                if SC_SHObjectPropertiesFile(pn)
+                    return
+                if SC_ShellFolderItemInvokeVerb(pn, "properties")
+                    return
+                if SC_ShellExecuteFileVerb(pn, "properties")
+                    return
+                try TrayTip("属性", "无法打开系统属性对话框", "Iconx 2")
+                catch {
                 }
             } else {
-                try TrayTip("属性", "仅支持本地文件", "Iconi 2")
+                try TrayTip("属性", "仅支持本地文件或文件夹", "Iconi 2")
                 catch {
                 }
             }
         case "sc_file_rename":
-            if !isFileLike || !FileExist(path) {
-                try TrayTip("重命名", "仅支持本地文件", "Iconi 2")
+            if !isFileLike || (!FileExist(path) && !DirExist(path)) {
+                try TrayTip("重命名", "仅支持本地文件或文件夹", "Iconi 2")
                 catch {
                 }
                 return
             }
-            SplitPath(path, &fn, &dir)
-            if (dir = "" || fn = "") {
+            pn := SC_NormalizeFsPath(path)
+            if SC_ShellFolderItemInvokeVerb(pn, "rename")
+                return
+            if SC_OpenFolderAndSelectPath(pn) {
+                Sleep(280)
+                if SC_SendRenameKeyToForegroundExplorer()
+                    return
+                try TrayTip("重命名", "已打开所在文件夹并选中该项，请按 F2", "Iconi 1")
+                catch {
+                }
                 return
             }
             try {
-                sh := ComObject("Shell.Application")
-                fld := sh.NameSpace(dir)
-                if !fld
-                    throw Error("no folder")
-                it := fld.ParseName(fn)
-                if !it
-                    throw Error("no item")
-                it.InvokeVerb("rename")
-            } catch as err {
-                try TrayTip("重命名", err.Message, "Iconx 2")
+                Run('explorer.exe /select,"' . pn . '"')
+                Sleep(320)
+                if SC_SendRenameKeyToForegroundExplorer()
+                    return
+                try TrayTip("重命名", "已尝试打开所在位置，请按 F2", "Iconi 1")
+                catch {
+                }
+            } catch as err2 {
+                try TrayTip("重命名", err2.Message, "Iconx 2")
                 catch {
                 }
             }

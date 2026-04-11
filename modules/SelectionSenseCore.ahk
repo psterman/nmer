@@ -525,6 +525,10 @@ SelectionSense_OnMenuWebMessage(sender, args) {
         SelectionSense_PushHubCtxMenuSpec()
         return
     }
+    if (typ = "openWindowsRecycleBin") {
+        SCWV_OpenWindowsRecycleBinFolder()
+        return
+    }
 
     txt := msg.Has("text") ? String(msg["text"]) : ""
 

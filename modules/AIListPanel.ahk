@@ -62,6 +62,7 @@ global PromptQuickPad_PinTop := true
 global PromptQuickPad_LinkBarHeight := 22
 global PromptQuickPadCtxMenuGUI := 0
 global PromptQuickPadCtxMenuSel := 0
+global PromptQuickPadCtxHoverTimer := 0
 global PromptQuickPad_CaptureChromeVisible := false
 global PromptQuickPad_CaptureExpanded := false
 global PromptQuickPadCaptureToggle := 0
@@ -300,6 +301,9 @@ PromptQuickPad_ProcessWebMessage(msg) {
             catch as err {
                 OutputDebug("[PQP] pqpScCtxCmd: " . err.Message)
             }
+            return
+        case "openWindowsRecycleBin":
+            SCWV_OpenWindowsRecycleBinFolder()
             return
         default:
             OutputDebug("[PQP] Unknown web msg: " . msg["type"])
@@ -1607,6 +1611,7 @@ PromptQuickPad_TogglePinTop(*) {
 
 PromptQuickPad_DestroyCtxMenu() {
     global PromptQuickPadCtxMenuGUI, PromptQuickPadCtxMenuSel
+    PromptQuickPad_CtxCancelHoverAnim()
     SetTimer(PromptQuickPad_CheckCtxMenuMouse, 0)
     SetTimer(PromptQuickPad_CloseCtxMenuIfOutside, 0)
     PromptQuickPadCtxMenuSel := 0
@@ -1625,27 +1630,53 @@ PromptQuickPad_CtxMenuClick(act, *) {
     }
 }
 
+PromptQuickPad_CtxCancelHoverAnim() {
+    global PromptQuickPadCtxHoverTimer
+    if PromptQuickPadCtxHoverTimer {
+        SetTimer(PromptQuickPadCtxHoverTimer, 0)
+        PromptQuickPadCtxHoverTimer := 0
+    }
+}
+
+PromptQuickPad_CtxItemHoverPhase2(ItemIndex, *) {
+    global PromptQuickPadCtxMenuGUI, PromptQuickPadCtxMenuSel, PromptQuickPadCtxHoverTimer
+    PromptQuickPadCtxHoverTimer := 0
+    if !PromptQuickPadCtxMenuGUI || PromptQuickPadCtxMenuSel != ItemIndex
+        return
+    try {
+        PromptQuickPadCtxMenuGUI["MenuItemBg" . ItemIndex].BackColor := "ff6600"
+        PromptQuickPadCtxMenuGUI["MenuItemText" . ItemIndex].Opt("cFFFFFF")
+        if PromptQuickPadCtxMenuGUI.HasProp("MenuItemIcon" . ItemIndex)
+            PromptQuickPadCtxMenuGUI["MenuItemIcon" . ItemIndex].Opt("cFFFFFF")
+    } catch {
+    }
+}
+
 PromptQuickPad_CtxItemHover(ItemIndex) {
-    global PromptQuickPadCtxMenuGUI, PromptQuickPadCtxMenuSel
-    if PromptQuickPadCtxMenuSel != ItemIndex {
-        if PromptQuickPadCtxMenuSel > 0 {
-            try {
-                PromptQuickPadCtxMenuGUI["MenuItemBg" . PromptQuickPadCtxMenuSel].BackColor := "1a1a1a"
-                PromptQuickPadCtxMenuGUI["MenuItemText" . PromptQuickPadCtxMenuSel].Opt("cff6600")
-                if PromptQuickPadCtxMenuGUI.HasProp("MenuItemIcon" . PromptQuickPadCtxMenuSel)
-                    PromptQuickPadCtxMenuGUI["MenuItemIcon" . PromptQuickPadCtxMenuSel].Opt("cff6600")
-            } catch {
-            }
-        }
-        PromptQuickPadCtxMenuSel := ItemIndex
+    global PromptQuickPadCtxMenuGUI, PromptQuickPadCtxMenuSel, PromptQuickPadCtxHoverTimer
+    if PromptQuickPadCtxMenuSel = ItemIndex
+        return
+    PromptQuickPad_CtxCancelHoverAnim()
+    if PromptQuickPadCtxMenuSel > 0 {
         try {
-            PromptQuickPadCtxMenuGUI["MenuItemBg" . ItemIndex].BackColor := "ff6600"
-            PromptQuickPadCtxMenuGUI["MenuItemText" . ItemIndex].Opt("cFFFFFF")
-            if PromptQuickPadCtxMenuGUI.HasProp("MenuItemIcon" . ItemIndex)
-                PromptQuickPadCtxMenuGUI["MenuItemIcon" . ItemIndex].Opt("cFFFFFF")
+            PromptQuickPadCtxMenuGUI["MenuItemBg" . PromptQuickPadCtxMenuSel].BackColor := "1a1a1a"
+            PromptQuickPadCtxMenuGUI["MenuItemText" . PromptQuickPadCtxMenuSel].Opt("cff6600")
+            if PromptQuickPadCtxMenuGUI.HasProp("MenuItemIcon" . PromptQuickPadCtxMenuSel)
+                PromptQuickPadCtxMenuGUI["MenuItemIcon" . PromptQuickPadCtxMenuSel].Opt("cff6600")
         } catch {
         }
     }
+    PromptQuickPadCtxMenuSel := ItemIndex
+    try {
+        PromptQuickPadCtxMenuGUI["MenuItemBg" . ItemIndex].BackColor := "2a2622"
+        PromptQuickPadCtxMenuGUI["MenuItemText" . ItemIndex].Opt("cffb366")
+        if PromptQuickPadCtxMenuGUI.HasProp("MenuItemIcon" . ItemIndex)
+            PromptQuickPadCtxMenuGUI["MenuItemIcon" . ItemIndex].Opt("cffb366")
+    } catch {
+    }
+    fn := PromptQuickPad_CtxItemHoverPhase2.Bind(ItemIndex)
+    PromptQuickPadCtxHoverTimer := fn
+    SetTimer(fn, -50)
 }
 
 PromptQuickPad_CheckCtxMenuMouse(*) {
@@ -1677,6 +1708,7 @@ PromptQuickPad_CheckCtxMenuMouse(*) {
         return
     }
     if MX < WX || MX > WX + WW || MY < WY || MY > WY + WH {
+        PromptQuickPad_CtxCancelHoverAnim()
         if PromptQuickPadCtxMenuSel > 0 {
             try {
                 PromptQuickPadCtxMenuGUI["MenuItemBg" . PromptQuickPadCtxMenuSel].BackColor := "1a1a1a"
@@ -1693,6 +1725,7 @@ PromptQuickPad_CheckCtxMenuMouse(*) {
     MenuItemHeight := 35
     Padding := 10
     if RelY < Padding {
+        PromptQuickPad_CtxCancelHoverAnim()
         if PromptQuickPadCtxMenuSel > 0 {
             try {
                 PromptQuickPadCtxMenuGUI["MenuItemBg" . PromptQuickPadCtxMenuSel].BackColor := "1a1a1a"
@@ -1715,14 +1748,17 @@ PromptQuickPad_CheckCtxMenuMouse(*) {
     ItemY := Padding + (ItemIndex - 1) * MenuItemHeight
     if RelY >= ItemY && RelY < ItemY + MenuItemHeight
         PromptQuickPad_CtxItemHover(ItemIndex)
-    else if PromptQuickPadCtxMenuSel > 0 {
-        try {
-            PromptQuickPadCtxMenuGUI["MenuItemBg" . PromptQuickPadCtxMenuSel].BackColor := "1a1a1a"
-            PromptQuickPadCtxMenuGUI["MenuItemText" . PromptQuickPadCtxMenuSel].Opt("cff6600")
-            if PromptQuickPadCtxMenuGUI.HasProp("MenuItemIcon" . PromptQuickPadCtxMenuSel)
-                PromptQuickPadCtxMenuGUI["MenuItemIcon" . PromptQuickPadCtxMenuSel].Opt("cff6600")
-            PromptQuickPadCtxMenuSel := 0
-        } catch {
+    else {
+        PromptQuickPad_CtxCancelHoverAnim()
+        if PromptQuickPadCtxMenuSel > 0 {
+            try {
+                PromptQuickPadCtxMenuGUI["MenuItemBg" . PromptQuickPadCtxMenuSel].BackColor := "1a1a1a"
+                PromptQuickPadCtxMenuGUI["MenuItemText" . PromptQuickPadCtxMenuSel].Opt("cff6600")
+                if PromptQuickPadCtxMenuGUI.HasProp("MenuItemIcon" . PromptQuickPadCtxMenuSel)
+                    PromptQuickPadCtxMenuGUI["MenuItemIcon" . PromptQuickPadCtxMenuSel].Opt("cff6600")
+                PromptQuickPadCtxMenuSel := 0
+            } catch {
+            }
         }
     }
 }

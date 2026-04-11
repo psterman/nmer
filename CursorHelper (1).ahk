@@ -3861,6 +3861,7 @@ ToggleToolbarAndPanel(*) {
 ; ===================== 托盘图标配置 =====================
 global TrayMenuGUI := 0  ; 自定义托盘菜单GUI
 global TrayMenuSelectedItem := 0  ; 当前选中的菜单项
+global TrayMenuHoverTimer := 0  ; 暗色菜单悬停渐变
 
 ; ===================== 监听托盘消息 =====================
 ; 当鼠标在托盘图标上点击时，Windows 会发送 0x404 消息
@@ -3893,30 +3894,54 @@ UpdateTrayMenu() {
     A_TrayMenu.Delete()
 }
 
-; 托盘菜单项悬停处理函数
+TrayMenuCancelHoverAnim() {
+    global TrayMenuHoverTimer
+    if (TrayMenuHoverTimer) {
+        SetTimer(TrayMenuHoverTimer, 0)
+        TrayMenuHoverTimer := 0
+    }
+}
+
+TrayMenuItemHoverPhase2(ItemIndex, *) {
+    global TrayMenuGUI, TrayMenuSelectedItem, TrayMenuHoverTimer
+    TrayMenuHoverTimer := 0
+    if (!TrayMenuGUI || TrayMenuSelectedItem != ItemIndex)
+        return
+    try {
+        TrayMenuGUI["MenuItemBg" . ItemIndex].BackColor := "ff6600"
+        TrayMenuGUI["MenuItemText" . ItemIndex].Opt("cFFFFFF")
+        if (TrayMenuGUI.HasProp("MenuItemIcon" . ItemIndex))
+            TrayMenuGUI["MenuItemIcon" . ItemIndex].Opt("cFFFFFF")
+    } catch {
+    }
+}
+
+; 托盘菜单项悬停处理函数（两阶段过渡）
 TrayMenuItemHover(ItemIndex, *) {
-    global TrayMenuGUI, TrayMenuSelectedItem
-    if (TrayMenuSelectedItem != ItemIndex) {
-        ; 清除之前的选中状态
-        if (TrayMenuSelectedItem > 0) {
-            try {
-                TrayMenuGUI["MenuItemBg" . TrayMenuSelectedItem].BackColor := "1a1a1a"
-                TrayMenuGUI["MenuItemText" . TrayMenuSelectedItem].Opt("cff6600")  ; 恢复橙色文本
-                if (TrayMenuGUI.HasProp("MenuItemIcon" . TrayMenuSelectedItem)) {
-                    TrayMenuGUI["MenuItemIcon" . TrayMenuSelectedItem].Opt("cff6600")  ; 恢复橙色图标
-                }
-            }
-        }
-        ; 设置新的选中状态（橙色高亮背景，白色文本和图标）
-        TrayMenuSelectedItem := ItemIndex
+    global TrayMenuGUI, TrayMenuSelectedItem, TrayMenuHoverTimer
+    if (TrayMenuSelectedItem = ItemIndex)
+        return
+    TrayMenuCancelHoverAnim()
+    if (TrayMenuSelectedItem > 0) {
         try {
-            TrayMenuGUI["MenuItemBg" . ItemIndex].BackColor := "ff6600"  ; 橙色高亮背景
-            TrayMenuGUI["MenuItemText" . ItemIndex].Opt("cFFFFFF")  ; 白色文本
-            if (TrayMenuGUI.HasProp("MenuItemIcon" . ItemIndex)) {
-                TrayMenuGUI["MenuItemIcon" . ItemIndex].Opt("cFFFFFF")  ; 白色图标
-            }
+            TrayMenuGUI["MenuItemBg" . TrayMenuSelectedItem].BackColor := "1a1a1a"
+            TrayMenuGUI["MenuItemText" . TrayMenuSelectedItem].Opt("cff6600")
+            if (TrayMenuGUI.HasProp("MenuItemIcon" . TrayMenuSelectedItem))
+                TrayMenuGUI["MenuItemIcon" . TrayMenuSelectedItem].Opt("cff6600")
+        } catch {
         }
     }
+    TrayMenuSelectedItem := ItemIndex
+    try {
+        TrayMenuGUI["MenuItemBg" . ItemIndex].BackColor := "2a2622"
+        TrayMenuGUI["MenuItemText" . ItemIndex].Opt("cffb366")
+        if (TrayMenuGUI.HasProp("MenuItemIcon" . ItemIndex))
+            TrayMenuGUI["MenuItemIcon" . ItemIndex].Opt("cffb366")
+    } catch {
+    }
+    fn := TrayMenuItemHoverPhase2.Bind(ItemIndex)
+    TrayMenuHoverTimer := fn
+    SetTimer(fn, -50)
 }
 
 ; 托盘菜单项离开处理函数
@@ -3972,6 +3997,7 @@ CheckTrayMenuMousePosition(*) {
     
     ; 检查鼠标是否在菜单窗口内
     if (MX < WX || MX > WX + WW || MY < WY || MY > WY + WH) {
+        TrayMenuCancelHoverAnim()
         ; 鼠标在菜单外，清除悬停效果
         if (TrayMenuSelectedItem > 0) {
             try {
@@ -3995,6 +4021,7 @@ CheckTrayMenuMousePosition(*) {
     
     ; 检查鼠标是否在菜单区域内
     if (RelY < Padding) {
+        TrayMenuCancelHoverAnim()
         ; 鼠标在菜单上方填充区域，清除悬停效果
         if (TrayMenuSelectedItem > 0) {
             try {
@@ -4026,6 +4053,7 @@ CheckTrayMenuMousePosition(*) {
     if (RelY >= ItemY && RelY < ItemY + MenuItemHeight) {
         TrayMenuItemHover(ItemIndex)
     } else {
+        TrayMenuCancelHoverAnim()
         ; 鼠标不在任何菜单项上，清除悬停效果
         if (TrayMenuSelectedItem > 0) {
             try {
@@ -4179,6 +4207,7 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
 
     if (TrayMenuGUI != 0) {
         try {
+            TrayMenuCancelHoverAnim()
             TrayMenuGUI.Destroy()
             SetTimer(CheckTrayMenuMousePosition, 0)
             SetTimer(CloseTrayMenuIfClickedOutside, 0)
@@ -4322,6 +4351,7 @@ ResolveHeadlessBrowserForSvg() {
 
 CloseDarkStylePopupMenu(*) {
     global TrayMenuGUI, TrayMenuSelectedItem
+    TrayMenuCancelHoverAnim()
     try {
         if (TrayMenuGUI != 0) {
             try TrayMenuGUI.Destroy()

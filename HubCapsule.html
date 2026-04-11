@@ -568,11 +568,14 @@ body.native-titlebar #header { display: none; }
   padding: 8px 12px;
   border-radius: 8px;
   cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, transform 0.12s ease;
 }
 
 .ctx-item:hover:not(:disabled) {
   background: #ff6600;
   color: #fff;
+  box-shadow: 0 0 0 1px rgba(255, 200, 140, 0.4) inset;
+  transform: translateX(1px);
 }
 
 .ctx-item:disabled {
@@ -892,6 +895,7 @@ body.native-titlebar #header { display: none; }
       <button type="button" class="action-btn" id="btnSearch">搜索</button>
       <button type="button" class="action-btn" id="btnAi">AI</button>
       <button type="button" class="action-btn" id="btnClear">清空</button>
+      <button type="button" class="action-btn" id="btnWinRecycle" title="打开 Windows 系统回收站">系统回收站</button>
     </div>
     <div id="resize-handle" title="Resize"></div>
   </div>
@@ -1825,6 +1829,10 @@ body.native-titlebar #header { display: none; }
   btnAi.addEventListener('click', doAi);
 
   btnClear.addEventListener('click', clearAll);
+  const btnWinRecycle = document.getElementById('btnWinRecycle');
+  if (btnWinRecycle) {
+    btnWinRecycle.addEventListener('click', () => postToAhk({ type: 'openWindowsRecycleBin' }));
+  }
   btnTriggerCapslock.addEventListener('click', () => {
     setCopyTriggerMode('capslock');
     postToAhk({ type: 'hub_set_copy_trigger_mode', mode: 'capslock' });
