@@ -546,7 +546,8 @@ body.native-titlebar #header { display: none; }
 
 #ctx-menu {
   position: fixed;
-  z-index: 99999;
+  z-index: 999999;
+  isolation: isolate;
   overflow: visible;
   min-width: 220px;
   max-width: 320px;
@@ -592,6 +593,10 @@ body.native-titlebar #header { display: none; }
   justify-content: space-between;
   flex-wrap: nowrap;
 }
+.ctx-item.ctx-sub-parent:hover,
+.ctx-item.ctx-sub-parent:focus-within {
+  z-index: 1000000;
+}
 .ctx-item.ctx-sub-parent::after {
   content: '▸';
   font-size: 11px;
@@ -611,7 +616,7 @@ body.native-titlebar #header { display: none; }
   border: 1px solid rgba(255, 102, 0, 0.35);
   border-radius: 12px;
   box-shadow: 0 16px 34px rgba(0,0,0,0.45);
-  z-index: 100000;
+  z-index: 1000001;
 }
 .ctx-item.ctx-sub-parent:hover > .ctx-sub-panel,
 .ctx-item.ctx-sub-parent:focus-within > .ctx-sub-panel {
@@ -899,7 +904,6 @@ button.ctx-sub-item:disabled {
 </style>
 </head>
 <body class="native-titlebar">
-<div id="ctx-menu" aria-hidden="true"></div>
 <div id="host">
   <div id="capsule" role="region" aria-label="Hub Capsule">
     <div id="dock-beacon"></div>
@@ -957,6 +961,7 @@ button.ctx-sub-item:disabled {
     <div id="resize-handle" title="Resize"></div>
   </div>
 </div>
+<div id="ctx-menu" aria-hidden="true"></div>
 
 <script>
 (function () {

@@ -1305,6 +1305,25 @@ _SCWV_AniMenuShow(hwnd) {
     }
 }
 
+; 与剪贴板右键：1px 橙色描边 + 8px 内边距；行高 34
+_SCWV_DarkMenuLayout(&frm, &itemPad, &itemH, &innerTop) {
+    frm := 1
+    itemPad := 8
+    itemH := 34
+    innerTop := frm + itemPad
+}
+
+; Win11 DWM 圆角（失败则忽略）
+_SCWV_DarkMenuRoundCorners(hwnd) {
+    if !hwnd
+        return
+    attr := Buffer(4, 0)
+    NumPut("uint", 2, attr)
+    try DllCall("dwmapi\DwmSetWindowAttribute", "ptr", hwnd, "uint", 33, "ptr", attr, "uint", 4)
+    catch {
+    }
+}
+
 _SCWV_FilterCtxChildrenByToolbar(childTemplates, specIdSet) {
     out := []
     if !(childTemplates is Array) || !(specIdSet is Map)
@@ -1419,12 +1438,11 @@ _SCWV_DarkCtxComputeSubXY(idx, &subX, &subY) {
     subY := A_ScreenHeight // 2
     if !g_SCWV_DarkCtxGui
         return
-    pad := 8
-    itemH := 34
+    _SCWV_DarkMenuLayout(&Df, &Pad, &itemH, &innerTop)
     try {
         WinGetPos(&WX, &WY, &WW, &WH, "ahk_id " . g_SCWV_DarkCtxGui.Hwnd)
         subX := WX + WW - 4
-        subY := WY + pad + (idx - 1) * itemH
+        subY := WY + innerTop + (idx - 1) * itemH
     } catch {
     }
 }
@@ -1576,18 +1594,17 @@ _SCWV_CheckDarkSearchCtxMouse(*) {
             _SCWV_DarkSearchItemApplyHover(0)
         return
     }
-    MenuItemHeight := 34
-    Padding := 8
+    _SCWV_DarkMenuLayout(&Df, &Pad, &MenuItemHeight, &innerTop)
     RelY := MY - WY
-    if RelY < Padding {
+    if RelY < innerTop {
         if g_SCWV_DarkCtxHoverIdx > 0
             _SCWV_DarkSearchItemApplyHover(0)
         return
     }
-    ItemIndex := Floor((RelY - Padding) / MenuItemHeight) + 1
+    ItemIndex := Floor((RelY - innerTop) / MenuItemHeight) + 1
     if (ItemIndex < 1 || ItemIndex > g_SCWV_DarkCtxItemCount)
         return
-    ItemY := Padding + (ItemIndex - 1) * MenuItemHeight
+    ItemY := innerTop + (ItemIndex - 1) * MenuItemHeight
     if RelY >= ItemY && RelY < ItemY + MenuItemHeight
         _SCWV_DarkSearchItemApplyHover(ItemIndex)
     else if g_SCWV_DarkCtxHoverIdx > 0
@@ -1663,8 +1680,7 @@ _SCWV_CheckDarkSubCtxMouse(*) {
         _SCWV_DestroyDarkSubMenus()
         return
     }
-    MenuItemHeight := 34
-    Padding := 8
+    _SCWV_DarkMenuLayout(&Df, &Pad, &MenuItemHeight, &innerTop)
     try {
         MouseGetPos(&MX, &MY)
         WinGetPos(&WX, &WY, &WW, &WH, "ahk_id " . g_SCWV_DarkSubGui.Hwnd)
@@ -1687,7 +1703,7 @@ _SCWV_CheckDarkSubCtxMouse(*) {
         return
     }
     RelY := MY - WY
-    if RelY < Padding {
+    if RelY < innerTop {
         if g_SCWV_DarkSubMenuHoverTimer {
             SetTimer(g_SCWV_DarkSubMenuHoverTimer, 0)
             g_SCWV_DarkSubMenuHoverTimer := 0
@@ -1702,10 +1718,10 @@ _SCWV_CheckDarkSubCtxMouse(*) {
         }
         return
     }
-    ItemIndex := Floor((RelY - Padding) / MenuItemHeight) + 1
+    ItemIndex := Floor((RelY - innerTop) / MenuItemHeight) + 1
     if (ItemIndex < 1 || ItemIndex > g_SCWV_DarkSubItemCount)
         return
-    ItemY := Padding + (ItemIndex - 1) * MenuItemHeight
+    ItemY := innerTop + (ItemIndex - 1) * MenuItemHeight
     if RelY < ItemY || RelY >= ItemY + MenuItemHeight {
         return
     }
@@ -1738,11 +1754,10 @@ _SCWV_ShowDarkSubMenuAt(children, posX, posY) {
     _SCWV_DestroyDarkSubMenus()
     if !(children is Array) || children.Length = 0
         return
+    _SCWV_DarkMenuLayout(&Df, &Pad, &MenuItemHeight, &innerTop)
     MenuWidth := 220
-    MenuItemHeight := 34
-    Padding := 8
     n := children.Length
-    MenuHeight := n * MenuItemHeight + Padding * 2
+    MenuHeight := 2 * Df + n * MenuItemHeight + 2 * Pad
     ScreenWidth := SysGet(78)
     ScreenHeight := SysGet(79)
     posX := Integer(posX)
@@ -1770,10 +1785,10 @@ _SCWV_ShowDarkSubMenuAt(children, posX, posY) {
     if ownerHwnd
         ownOpt := " +Owner" . ownerHwnd
     g_SCWV_DarkSubGui := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale" . ownOpt, "SearchCtxSub")
-    g_SCWV_DarkSubGui.BackColor := "1a1a1a"
-    g_SCWV_DarkSubGui.MarginX := Padding
-    g_SCWV_DarkSubGui.MarginY := Padding
-    g_SCWV_DarkSubGui.Add("Text", "x0 y0 w" . MenuWidth . " h" . MenuHeight . " Background1a1a1a", "")
+    g_SCWV_DarkSubGui.BackColor := "59341c"
+    g_SCWV_DarkSubGui.MarginX := 0
+    g_SCWV_DarkSubGui.MarginY := 0
+    g_SCWV_DarkSubGui.Add("Text", "x" . Df . " y" . Df . " w" . (MenuWidth - 2 * Df) . " h" . (MenuHeight - 2 * Df) . " Background1a1a1a", "")
     g_SCWV_DarkSubCmdByIdx := Map()
     g_SCWV_DarkSubItemCount := n
     Loop children.Length {
@@ -1781,10 +1796,10 @@ _SCWV_ShowDarkSubMenuAt(children, posX, posY) {
         it := children[i]
         t := it.Has("t") ? String(it["t"]) : ""
         id := it.Has("id") ? Trim(String(it["id"])) : ""
-        iy := Padding + (i - 1) * MenuItemHeight
-        ItemBg := g_SCWV_DarkSubGui.Add("Text", "x" . Padding . " y" . iy . " w" . (MenuWidth - Padding * 2) . " h" . MenuItemHeight . " Background1a1a1a vScSubBg" . i, "")
+        iy := innerTop + (i - 1) * MenuItemHeight
+        ItemBg := g_SCWV_DarkSubGui.Add("Text", "x" . innerTop . " y" . iy . " w" . (MenuWidth - 2 * innerTop) . " h" . MenuItemHeight . " Background1a1a1a vScSubBg" . i, "")
         ItemBg.OnEvent("Click", _SCWV_OnDarkSubMenuClick.Bind(i))
-        ItemTxt := g_SCWV_DarkSubGui.Add("Text", "x" . (Padding + 10) . " y" . iy . " w" . (MenuWidth - Padding * 2 - 14) . " h" . MenuItemHeight . " Left 0x200 cff6600 BackgroundTrans vScSubTx" . i, t)
+        ItemTxt := g_SCWV_DarkSubGui.Add("Text", "x" . (innerTop + 10) . " y" . iy . " w" . (MenuWidth - 2 * innerTop - 14) . " h" . MenuItemHeight . " Left 0x200 cff6600 BackgroundTrans vScSubTx" . i, t)
         ItemTxt.SetFont("s11", "Segoe UI")
         ItemTxt.OnEvent("Click", _SCWV_OnDarkSubMenuClick.Bind(i))
         if (id != "")
@@ -1794,6 +1809,7 @@ _SCWV_ShowDarkSubMenuAt(children, posX, posY) {
     try _SCWV_AniMenuShow(g_SCWV_DarkSubGui.Hwnd)
     catch {
     }
+    _SCWV_DarkMenuRoundCorners(g_SCWV_DarkSubGui.Hwnd)
     try WinActivate("ahk_id " . g_SCWV_DarkSubGui.Hwnd)
     catch {
     }
@@ -1853,12 +1869,11 @@ _SCWV_ShowDarkSearchRowMenuAt(spec, posX, posY) {
     _SCWV_DestroyDarkRowMenus()
     if !(spec is Array) || spec.Length = 0
         spec := [Map("k", "cmd", "id", "", "t", "（未配置菜单）")]
+    _SCWV_DarkMenuLayout(&Df, &Pad, &MenuItemHeight, &innerTop)
     MenuWidth := 220
-    MenuItemHeight := 34
-    Padding := 8
     n := spec.Length
     g_SCWV_DarkCtxItemCount := n
-    MenuHeight := n * MenuItemHeight + Padding * 2
+    MenuHeight := 2 * Df + n * MenuItemHeight + 2 * Pad
     ScreenWidth := SysGet(78)
     ScreenHeight := SysGet(79)
     posX := Integer(posX)
@@ -1883,10 +1898,10 @@ _SCWV_ShowDarkSearchRowMenuAt(spec, posX, posY) {
         }
     }
     g_SCWV_DarkCtxGui := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale" . ownOpt, "SearchCtx")
-    g_SCWV_DarkCtxGui.BackColor := "1a1a1a"
-    g_SCWV_DarkCtxGui.MarginX := Padding
-    g_SCWV_DarkCtxGui.MarginY := Padding
-    g_SCWV_DarkCtxGui.Add("Text", "x0 y0 w" . MenuWidth . " h" . MenuHeight . " Background1a1a1a", "")
+    g_SCWV_DarkCtxGui.BackColor := "59341c"
+    g_SCWV_DarkCtxGui.MarginX := 0
+    g_SCWV_DarkCtxGui.MarginY := 0
+    g_SCWV_DarkCtxGui.Add("Text", "x" . Df . " y" . Df . " w" . (MenuWidth - 2 * Df) . " h" . (MenuHeight - 2 * Df) . " Background1a1a1a", "")
     g_SCWV_DarkCtxCmdByIdx := Map()
     g_SCWV_DarkCtxSubSpecByIdx := Map()
     g_SCWV_DarkCtxHoverIdx := 0
@@ -1896,10 +1911,10 @@ _SCWV_ShowDarkSearchRowMenuAt(spec, posX, posY) {
         t := it.Has("t") ? String(it["t"]) : ""
         isSub := it.Has("k") && String(it["k"]) = "sub"
         id := isSub ? "" : (it.Has("id") ? Trim(String(it["id"])) : "")
-        iy := Padding + (i - 1) * MenuItemHeight
-        ItemBg := g_SCWV_DarkCtxGui.Add("Text", "x" . Padding . " y" . iy . " w" . (MenuWidth - Padding * 2) . " h" . MenuItemHeight . " Background1a1a1a vScCtxBg" . i, "")
+        iy := innerTop + (i - 1) * MenuItemHeight
+        ItemBg := g_SCWV_DarkCtxGui.Add("Text", "x" . innerTop . " y" . iy . " w" . (MenuWidth - 2 * innerTop) . " h" . MenuItemHeight . " Background1a1a1a vScCtxBg" . i, "")
         ItemBg.OnEvent("Click", _SCWV_OnDarkSearchMenuClick.Bind(i))
-        ItemTxt := g_SCWV_DarkCtxGui.Add("Text", "x" . (Padding + 10) . " y" . iy . " w" . (MenuWidth - Padding * 2 - 14) . " h" . MenuItemHeight . " Left 0x200 cff6600 BackgroundTrans vScCtxTx" . i, t)
+        ItemTxt := g_SCWV_DarkCtxGui.Add("Text", "x" . (innerTop + 10) . " y" . iy . " w" . (MenuWidth - 2 * innerTop - 14) . " h" . MenuItemHeight . " Left 0x200 cff6600 BackgroundTrans vScCtxTx" . i, t)
         ItemTxt.SetFont("s11", "Segoe UI")
         ItemTxt.OnEvent("Click", _SCWV_OnDarkSearchMenuClick.Bind(i))
         if (isSub && it.Has("children"))
@@ -1911,6 +1926,7 @@ _SCWV_ShowDarkSearchRowMenuAt(spec, posX, posY) {
     try _SCWV_AniMenuShow(g_SCWV_DarkCtxGui.Hwnd)
     catch {
     }
+    _SCWV_DarkMenuRoundCorners(g_SCWV_DarkCtxGui.Hwnd)
     try WinActivate("ahk_id " . g_SCWV_DarkCtxGui.Hwnd)
     catch {
     }

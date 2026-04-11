@@ -795,6 +795,10 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
   justify-content: space-between;
   flex-wrap: nowrap;
 }
+.ctx-item.ctx-sub-parent:hover,
+.ctx-item.ctx-sub-parent:focus-within {
+  z-index: 50;
+}
 .ctx-item.ctx-sub-parent::after {
   content: '▸';
   font-size: 11px;
@@ -814,7 +818,7 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
   border: 1px solid rgba(255, 102, 0, 0.35);
   border-radius: 12px;
   box-shadow: 0 16px 34px rgba(0,0,0,0.45);
-  z-index: 400;
+  z-index: 51;
 }
 .ctx-item.ctx-sub-parent:hover > .ctx-sub-panel,
 .ctx-item.ctx-sub-parent:focus-within > .ctx-sub-panel {

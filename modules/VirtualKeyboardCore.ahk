@@ -999,7 +999,7 @@ _VK_MergeSceneMenuWithSearchCtxCmds(baseIds) {
     if baseIds is Array {
         for cid in baseIds {
             c := Trim(String(cid))
-            if (c = "")
+            if (c = "" || seen.Has(c))
                 continue
             out.Push(c)
             seen[c] := true
@@ -1330,15 +1330,28 @@ _VK_SceneCtxActMap(sceneKey) {
 ; 旧版「复制路径/链接」槽位拆成 path + url（保留其它槽位顺序）
 _VK_SceneMenuIdsMigrateCopyLinkSplit(arr) {
     out := []
+    seen := Map()
     if !(arr is Array)
         return out
     for item in arr {
         c := Trim(String(item))
+        if (c = "")
+            continue
         if (c = "sc_copy_link") {
-            out.Push("sc_copy_path")
-            out.Push("sc_copy_url")
-        } else
-            out.Push(item)
+            if !seen.Has("sc_copy_path") {
+                out.Push("sc_copy_path")
+                seen["sc_copy_path"] := true
+            }
+            if !seen.Has("sc_copy_url") {
+                out.Push("sc_copy_url")
+                seen["sc_copy_url"] := true
+            }
+            continue
+        }
+        if seen.Has(c)
+            continue
+        out.Push(c)
+        seen[c] := true
     }
     return out
 }
@@ -1356,16 +1369,34 @@ _VK_RegroupWebSceneCtxMenuFlat(items) {
     pasteChildren := []
     copyChildren := []
     sendChildren := []
+    pasteSeen := Map()
+    copySeen := Map()
+    sendSeen := Map()
     for it in items {
         if !(it is Map) || !it.Has("id")
             continue
         id := Trim(String(it["id"]))
-        if pasteIds.Has(id)
-            pasteChildren.Push(it)
-        if copyIds.Has(id)
-            copyChildren.Push(it)
-        if sendWeb.Has(id)
-            sendChildren.Push(it)
+        if pasteIds.Has(id) {
+            if !pasteSeen.Has(id) {
+                pasteSeen[id] := true
+                pasteChildren.Push(it)
+            }
+            continue
+        }
+        if copyIds.Has(id) {
+            if !copySeen.Has(id) {
+                copySeen[id] := true
+                copyChildren.Push(it)
+            }
+            continue
+        }
+        if sendWeb.Has(id) {
+            if !sendSeen.Has(id) {
+                sendSeen[id] := true
+                sendChildren.Push(it)
+            }
+            continue
+        }
     }
     out := []
     pasteDone := false
