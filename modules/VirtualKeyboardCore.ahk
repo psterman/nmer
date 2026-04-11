@@ -372,7 +372,7 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "ss_text", "name", "截图助手 / 纯文本", "desc", "截图助手：OCR后粘贴纯文本", "fn", "CH_RUN", "suggested", "c"),
             Map("id", "ss_save", "name", "截图助手 / 保存", "desc", "截图助手：保存截图到文件", "fn", "CH_RUN", "suggested", "r"),
             Map("id", "ss_ai", "name", "截图助手 / AI", "desc", "截图助手：OCR后发送到 AI", "fn", "CH_RUN", "suggested", "z"),
-            Map("id", "ss_search", "name", "截图助手 / 搜索", "desc", "截图助手：OCR后发送到搜索中心", "fn", "CH_RUN", "suggested", "f"),
+            Map("id", "ss_search", "name", "截图助手 / 搜索", "desc", "截图助手：OCR后发送到搜索中心（默认 CapsLock+N，避免与搜索中心的 F 冲突）", "fn", "CH_RUN", "suggested", "n"),
             Map("id", "ss_close", "name", "截图助手 / 关闭", "desc", "截图助手：关闭截图面板", "fn", "CH_RUN", "suggested", "Escape")
         ]),
         Map("id", "settings", "name", "⚙️ 设置中心", "commands", [
@@ -2577,6 +2577,20 @@ VirtualKeyboard_HandleKey(physKey) {
     cmdId := VK_LookupBindingCmdForPhys(physKey)
     if cmdId = ""
         return false
+    ; ss_* 仅在截图助手编辑器前台时才有意义；否则 CapsLock+键会「吞掉」宿主逻辑（如 F 应打开搜索中心）
+    if (SubStr(cmdId, 1, 3) = "ss_") {
+        ssOn := false
+        try ssOn := IsScreenshotEditorActive()
+        catch {
+            ssOn := false
+        }
+        if !ssOn {
+            if (cmdId = "ss_search")
+                cmdId := "ch_f"
+            else
+                return false
+        }
+    }
     _ExecuteCommand(cmdId)
     return true
 }

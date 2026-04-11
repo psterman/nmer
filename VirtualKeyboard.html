@@ -1440,6 +1440,12 @@ body::after {
 .dashboard-item.dashboard-dragging {
   transform: none;
 }
+/* forceFallback 拖块：叠在 #root scale 之上，避免被宫格/侧栏挡住 */
+.sortable-fallback {
+  z-index: 99900 !important;
+  pointer-events: none !important;
+  box-sizing: border-box;
+}
 .k.dashboard-dragging {
   transform: none !important;
 }
@@ -3669,8 +3675,13 @@ function bindSceneMenuSlotSortable(slot) {
     group: { name: 'sceneMenuActions', pull: true, put: true },
     animation: 0,
     easing: 'cubic-bezier(0.2,0,0,1)',
-    swapThreshold: 0.65,
+    swapThreshold: 0.35,
     invertSwap: false,
+    /* #root 使用 transform:scale 时原生 HTML5 DnD 命中会错位；fallback 跟鼠标走 */
+    forceFallback: true,
+    fallbackOnBody: true,
+    fallbackTolerance: 0,
+    emptyInsertThreshold: 48,
     draggable: '.dashboard-item',
     filter: '.dashboard-item--scene-locked, .search-row-vis-btn',
     preventOnFilter: true,
@@ -4906,10 +4917,12 @@ function initDashboardDrag() {
       group: { name: 'actions', pull: true, put: true },
       animation: 0,
       easing: 'cubic-bezier(0.2,0,0,1)',
-      swapThreshold: 0.65,
+      swapThreshold: 0.35,
       invertSwap: false,
-      forceFallback: false,
-      fallbackTolerance: 3,
+      forceFallback: true,
+      fallbackOnBody: true,
+      fallbackTolerance: 0,
+      emptyInsertThreshold: 48,
       draggable: '.dashboard-item',
       ghostClass: 'dashboard-drag-ghost',
       chosenClass: 'dashboard-drag-chosen',
