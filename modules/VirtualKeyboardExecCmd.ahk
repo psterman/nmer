@@ -1,5 +1,28 @@
 ; CursorHelper 命令执行（VirtualKeyboard CH_RUN / WM_COPYDATA vkExec 共用）
 ; 须在 HandleDynamicHotkey、ExecuteQuickActionByType、ExecuteQuickActionSlot 等定义之后再 #Include
+;
+; 宿主函数由主脚本在 Include 本文件之前定义。此处用静态 Map 缓存 Func引用再 .Call：
+; - 单独打开本文件时 LSP 不会把裸名当成「未赋值局部变量」
+; - 与「每次 Func(字符串)」相比，首次进入时一次性绑定，减少异常时机问题
+
+_VK_H(name, args*) {
+    static _m := 0
+    if (_m = 0) {
+        _m := Map()
+        for _n in [
+            "FloatingToolbarSetChatDrawerState", "ShowSearchCenter", "ShowSearchCenterFromMenu",
+            "IsSearchCenterActive", "IsScreenshotEditorActive", "ToggleScreenshotEditorAlwaysOnTop",
+            "ExecuteScreenshotOCR", "PasteScreenshotAsText", "SaveScreenshotToFile",
+            "ScreenshotEditorSendToAI", "ScreenshotEditorSearchText", "CloseScreenshotEditor",
+            "HandleDynamicHotkey", "ExecuteCountdownAction", "HandleSearchCenterF",
+            "FloatingToolbarResetScale", "MinimizeFloatingToolbarToEdge",
+            "HideFloatingToolbarFromPopupMenu", "ToggleFloatingToolbarFromMenu",
+            "ShowFloatingToolbar", "FloatingToolbar_SendTextToNiumaChat"
+        ]
+            _m[_n] := Func(_n)
+    }
+    return _m[name].Call(args*)
+}
 
 VK_ExecCursorHelperCmd(cmdId) {
     global CapsLock, CapsLock2, BatchHotkey, IsCountdownActive
@@ -32,7 +55,7 @@ VK_ExecCursorHelperCmd(cmdId) {
                     VK_NiumaControlSend("^w", true)
                 executed := true
             case "exit_ai":
-                try FloatingToolbarSetChatDrawerState(false)
+                try _VK_H("FloatingToolbarSetChatDrawerState", false)
                 VK_NiumaControlSend("{Esc}", false)
                 executed := true
 
@@ -78,144 +101,144 @@ VK_ExecCursorHelperCmd(cmdId) {
 
             ; ==================== 搜索中心：选项命令（可自定义绑定） ====================
             case "sc_activate_search":
-                ShowSearchCenter()
+                _VK_H("ShowSearchCenter")
                 executed := true
             case "sc_cat_ai":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetCategory("ai")
                 executed := true
             case "sc_cat_cli":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetCategory("cli")
                 executed := true
             case "sc_cat_academic":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetCategory("academic")
                 executed := true
             case "sc_cat_baidu":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetCategory("baidu")
                 executed := true
             case "sc_cat_image":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetCategory("image")
                 executed := true
             case "sc_cat_audio":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetCategory("audio")
                 executed := true
             case "sc_cat_video":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetCategory("video")
                 executed := true
             case "sc_cat_book":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetCategory("book")
                 executed := true
             case "sc_cat_price":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetCategory("price")
                 executed := true
             case "sc_cat_medical":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetCategory("medical")
                 executed := true
             case "sc_cat_cloud":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetCategory("cloud")
                 executed := true
 
             case "sc_eng_deepseek":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("deepseek")
                 executed := true
             case "sc_eng_yuanbao":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("yuanbao")
                 executed := true
             case "sc_eng_doubao":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("doubao")
                 executed := true
             case "sc_eng_zhipu":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("zhipu")
                 executed := true
             case "sc_eng_mita":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("mita")
                 executed := true
             case "sc_eng_wenxin":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("wenxin")
                 executed := true
             case "sc_eng_qianwen":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("qianwen")
                 executed := true
             case "sc_eng_kimi":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("kimi")
                 executed := true
             case "sc_eng_perplexity":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("perplexity")
                 executed := true
             case "sc_eng_copilot":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("copilot")
                 executed := true
             case "sc_eng_chatgpt":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("chatgpt")
                 executed := true
             case "sc_eng_grok":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("grok")
                 executed := true
             case "sc_eng_you":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("you")
                 executed := true
             case "sc_eng_claude":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("claude")
                 executed := true
             case "sc_eng_monica":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("monica")
                 executed := true
             case "sc_eng_webpilot":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("webpilot")
                 executed := true
             case "sc_eng_wepilot":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterToggleEngine("webpilot")
                 executed := true
 
             case "sc_filter_text":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetFilter("File")
                 executed := true
             case "sc_filter_clipboard":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetFilter("clipboard")
                 executed := true
             case "sc_filter_prompt":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetFilter("template")
                 executed := true
             case "sc_filter_config":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetFilter("config")
                 executed := true
             case "sc_filter_hotkey":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetFilter("hotkey")
                 executed := true
             case "sc_filter_function":
-                if (IsSearchCenterActive())
+                if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetFilter("function")
                 executed := true
 
@@ -232,32 +255,32 @@ VK_ExecCursorHelperCmd(cmdId) {
                     VK_ClipboardToggleShortcuts()
                 executed := true
             case "ss_pin":
-                if (IsScreenshotEditorActive())
-                    ToggleScreenshotEditorAlwaysOnTop()
+                if (_VK_H("IsScreenshotEditorActive"))
+                    _VK_H("ToggleScreenshotEditorAlwaysOnTop")
                 executed := true
             case "ss_ocr":
-                if (IsScreenshotEditorActive())
-                    ExecuteScreenshotOCR()
+                if (_VK_H("IsScreenshotEditorActive"))
+                    _VK_H("ExecuteScreenshotOCR")
                 executed := true
             case "ss_text":
-                if (IsScreenshotEditorActive())
-                    PasteScreenshotAsText()
+                if (_VK_H("IsScreenshotEditorActive"))
+                    _VK_H("PasteScreenshotAsText")
                 executed := true
             case "ss_save":
-                if (IsScreenshotEditorActive())
-                    SaveScreenshotToFile()
+                if (_VK_H("IsScreenshotEditorActive"))
+                    _VK_H("SaveScreenshotToFile")
                 executed := true
             case "ss_ai":
-                if (IsScreenshotEditorActive())
-                    ScreenshotEditorSendToAI()
+                if (_VK_H("IsScreenshotEditorActive"))
+                    _VK_H("ScreenshotEditorSendToAI")
                 executed := true
             case "ss_search":
-                if (IsScreenshotEditorActive())
-                    ScreenshotEditorSearchText()
+                if (_VK_H("IsScreenshotEditorActive"))
+                    _VK_H("ScreenshotEditorSearchText")
                 executed := true
             case "ss_close":
-                if (IsScreenshotEditorActive())
-                    CloseScreenshotEditor()
+                if (_VK_H("IsScreenshotEditorActive"))
+                    _VK_H("CloseScreenshotEditor")
                 executed := true
             case "ch_backspace":
                 if (VK_IsHubCapsuleActive()) {
@@ -276,11 +299,11 @@ VK_ExecCursorHelperCmd(cmdId) {
                 } else if (VK_IsHubCapsuleActive()) {
                     VK_HubCapsuleAction("set_trigger_capslock")
                     executed := true
-                } else if (IsSearchCenterActive()) {
+                } else if (_VK_H("IsSearchCenterActive")) {
                     VK_SearchCenterSetFilter("template")
                     executed := true
                 } else {
-                    HandleDynamicHotkey(HotkeyC != "" ? HotkeyC : "c", "C")
+                    _VK_H("HandleDynamicHotkey",HotkeyC != "" ? HotkeyC : "c", "C")
                     executed := true
                 }
             case "ch_v":
@@ -293,11 +316,11 @@ VK_ExecCursorHelperCmd(cmdId) {
                 } else if (VK_IsClipboardPanelActive()) {
                     VK_ClipboardSetContinuousPaste(true)
                     executed := true
-                } else if (IsSearchCenterActive()) {
+                } else if (_VK_H("IsSearchCenterActive")) {
                     VK_SearchCenterSetFilter("config")
                     executed := true
                 } else {
-                    HandleDynamicHotkey(HotkeyV != "" ? HotkeyV : "v", "V")
+                    _VK_H("HandleDynamicHotkey",HotkeyV != "" ? HotkeyV : "v", "V")
                     executed := true
                 }
             case "ch_x":
@@ -307,11 +330,11 @@ VK_ExecCursorHelperCmd(cmdId) {
                 } else if (VK_IsHubCapsuleActive()) {
                     VK_HubCapsuleAction("set_trigger_double")
                     executed := true
-                } else if (IsSearchCenterActive()) {
+                } else if (_VK_H("IsSearchCenterActive")) {
                     VK_SearchCenterSetFilter("clipboard")
                     executed := true
                 } else {
-                    HandleDynamicHotkey(HotkeyX != "" ? HotkeyX : "x", "X")
+                    _VK_H("HandleDynamicHotkey",HotkeyX != "" ? HotkeyX : "x", "X")
                     executed := true
                 }
             case "ch_e":
@@ -321,11 +344,11 @@ VK_ExecCursorHelperCmd(cmdId) {
                 } else if (VK_IsClipboardPanelActive()) {
                     VK_ClipboardSetFilter("image")
                     executed := true
-                } else if (IsSearchCenterActive()) {
+                } else if (_VK_H("IsSearchCenterActive")) {
                     VK_SearchCenterSetCategory("academic")
                     executed := true
                 } else {
-                    HandleDynamicHotkey(HotkeyE != "" ? HotkeyE : "e", "E")
+                    _VK_H("HandleDynamicHotkey",HotkeyE != "" ? HotkeyE : "e", "E")
                     executed := true
                 }
             case "ch_r":
@@ -335,15 +358,15 @@ VK_ExecCursorHelperCmd(cmdId) {
                 } else if (VK_IsClipboardPanelActive()) {
                     VK_ClipboardSetFilter("clipboard")
                     executed := true
-                } else if (IsSearchCenterActive()) {
+                } else if (_VK_H("IsSearchCenterActive")) {
                     VK_SearchCenterSetCategory("baidu")
                     executed := true
                 } else {
-                    HandleDynamicHotkey(HotkeyR != "" ? HotkeyR : "r", "R")
+                    _VK_H("HandleDynamicHotkey",HotkeyR != "" ? HotkeyR : "r", "R")
                     executed := true
                 }
             case "ch_o":
-                HandleDynamicHotkey(HotkeyO != "" ? HotkeyO : "o", "O")
+                _VK_H("HandleDynamicHotkey",HotkeyO != "" ? HotkeyO : "o", "O")
                 executed := true
             case "ch_q":
                 if (VK_IsPromptQuickPadActive()) {
@@ -352,22 +375,22 @@ VK_ExecCursorHelperCmd(cmdId) {
                 } else if (VK_IsClipboardPanelActive()) {
                     VK_ClipboardSetFilter("all")
                     executed := true
-                } else if (IsSearchCenterActive()) {
+                } else if (_VK_H("IsSearchCenterActive")) {
                     VK_SearchCenterSetCategory("ai")
                     executed := true
                 } else {
-                    HandleDynamicHotkey(HotkeyQ != "" ? HotkeyQ : "q", "Q")
+                    _VK_H("HandleDynamicHotkey",HotkeyQ != "" ? HotkeyQ : "q", "Q")
                     executed := true
                 }
             case "ch_z":
                 if (VK_IsPromptQuickPadActive()) {
                     VK_PromptQuickPadAction("capture_load_selected")
                     executed := true
-                } else if (IsSearchCenterActive()) {
+                } else if (_VK_H("IsSearchCenterActive")) {
                     VK_SearchCenterSetFilter("File")
                     executed := true
                 } else {
-                    HandleDynamicHotkey(HotkeyZ != "" ? HotkeyZ : "z", "Z")
+                    _VK_H("HandleDynamicHotkey",HotkeyZ != "" ? HotkeyZ : "z", "Z")
                     executed := true
                 }
             case "ch_t":
@@ -375,7 +398,7 @@ VK_ExecCursorHelperCmd(cmdId) {
                     VK_PromptQuickPadAction("import")
                     executed := true
                 } else {
-                    HandleDynamicHotkey(HotkeyT != "" ? HotkeyT : "t", "T")
+                    _VK_H("HandleDynamicHotkey",HotkeyT != "" ? HotkeyT : "t", "T")
                     executed := true
                 }
             case "ch_f":
@@ -384,11 +407,11 @@ VK_ExecCursorHelperCmd(cmdId) {
                 } else if (VK_IsHubCapsuleActive()) {
                     VK_HubCapsuleAction("search")
                 } else if (IsCountdownActive) {
-                    ExecuteCountdownAction()
-                } else if (IsSearchCenterActive()) {
-                    HandleSearchCenterF()
+                    _VK_H("ExecuteCountdownAction")
+                } else if (_VK_H("IsSearchCenterActive")) {
+                    _VK_H("HandleSearchCenterF")
                 } else {
-                    ShowSearchCenter()
+                    _VK_H("ShowSearchCenter")
                 }
                 executed := true
             case "ch_g":
@@ -416,7 +439,7 @@ VK_ExecCursorHelperCmd(cmdId) {
                 if (VK_IsPromptQuickPadActive()) {
                     VK_PromptQuickPadAction("export")
                 } else {
-                    HandleDynamicHotkey(HotkeyP != "" ? HotkeyP : "p", "P")
+                    _VK_H("HandleDynamicHotkey",HotkeyP != "" ? HotkeyP : "p", "P")
                 }
                 executed := true
             case "ch_w":
@@ -426,7 +449,7 @@ VK_ExecCursorHelperCmd(cmdId) {
                 } else if (VK_IsClipboardPanelActive()) {
                     VK_ClipboardSetFilter("text")
                     executed := true
-                } else if (IsSearchCenterActive()) {
+                } else if (_VK_H("IsSearchCenterActive")) {
                     VK_SearchCenterSetCategory("cli")
                     executed := true
                 } else {
@@ -441,7 +464,7 @@ VK_ExecCursorHelperCmd(cmdId) {
                 } else if (VK_IsClipboardPanelActive()) {
                     VK_ClipboardSetFilter("url")
                     executed := true
-                } else if (IsSearchCenterActive()) {
+                } else if (_VK_H("IsSearchCenterActive")) {
                     CapsLock2 := false
                     Send("{Down}")
                     executed := true
@@ -460,7 +483,7 @@ VK_ExecCursorHelperCmd(cmdId) {
                 } else if (VK_IsClipboardPanelActive()) {
                     VK_ClipboardSetFilter("code")
                     executed := true
-                } else if (IsSearchCenterActive()) {
+                } else if (_VK_H("IsSearchCenterActive")) {
                     CapsLock2 := false
                     Send("{Left}")
                     executed := true
@@ -476,7 +499,7 @@ VK_ExecCursorHelperCmd(cmdId) {
                 } else if (VK_IsClipboardPanelActive()) {
                     VK_ClipboardSetFilter("favorite")
                     executed := true
-                } else if (IsSearchCenterActive()) {
+                } else if (_VK_H("IsSearchCenterActive")) {
                     CapsLock2 := false
                     Send("{Right}")
                     executed := true
@@ -581,28 +604,28 @@ VK_ExecCursorHelperCmd(cmdId) {
                 ExecuteQuickActionByType("CursorSettings")
                 executed := true
             case "ftm_reset_scale":
-                FloatingToolbarResetScale()
+                _VK_H("FloatingToolbarResetScale")
                 executed := true
             case "ftm_search_center":
-                ShowSearchCenterFromMenu()
+                _VK_H("ShowSearchCenterFromMenu")
                 executed := true
             case "ftm_clipboard":
                 ShowClipboardFromMenu()
                 executed := true
             case "ftm_minimize_to_edge":
-                MinimizeFloatingToolbarToEdge()
+                _VK_H("MinimizeFloatingToolbarToEdge")
                 executed := true
             case "ftm_exit_app":
                 ExitFromMenu()
                 executed := true
             case "ftm_hide_toolbar":
-                HideFloatingToolbarFromPopupMenu()
+                _VK_H("HideFloatingToolbarFromPopupMenu")
                 executed := true
             case "ftm_open_config":
                 ShowConfigFromMenu()
                 executed := true
             case "ftm_toggle_toolbar":
-                ToggleFloatingToolbarFromMenu()
+                _VK_H("ToggleFloatingToolbarFromMenu")
                 executed := true
             case "ftm_reload_script":
                 ReloadScriptFromPopupMenu()
@@ -642,7 +665,7 @@ VK_ExecCursorHelperCmd(cmdId) {
 }
 
 VK_SearchCenterPost(payloadJson) {
-    if !IsSearchCenterActive()
+    if !_VK_H("IsSearchCenterActive")
         return false
     try {
         SCWV_PostJson(payloadJson)
@@ -786,9 +809,9 @@ VK_ClipboardToggleShortcuts() {
 
 VK_EnsureNiumaWindow(openDrawer := true) {
     global FloatingToolbarGUI
-    try ShowFloatingToolbar()
+    try _VK_H("ShowFloatingToolbar")
     if openDrawer {
-        try FloatingToolbarSetChatDrawerState(true)
+        try _VK_H("FloatingToolbarSetChatDrawerState", true)
     }
     if !(IsObject(FloatingToolbarGUI) && FloatingToolbarGUI) {
         return 0
@@ -872,7 +895,7 @@ VK_SendPromptByClipboard(prefix) {
         return false
     }
     payload := prefix . "`n`n" . txt
-    try return FloatingToolbar_SendTextToNiumaChat(payload, true, false, true)
+    try return _VK_H("FloatingToolbar_SendTextToNiumaChat",payload, true, false, true)
     catch as e {
         OutputDebug("[VK-Exec] VK_SendPromptByClipboard failed: " . e.Message)
         return false
@@ -919,6 +942,44 @@ SC_JoinAllRegExMatches(haystack, pattern) {
         start := m.Pos + m.Len
     }
     return out
+}
+
+; 内容中首条 http(s) URL（用于「复制链接」）；\S 外先用 [^\s]+ 避免引号转义出错，尾部标点由 RTrim 去掉
+SC_ExtractFirstHttpUrl(haystack) {
+    h := String(haystack)
+    if !RegExMatch(h, "i)(https?://[^\s]+)", &m)
+        return ""
+    return RTrim(m[1], ".,;:!?)'|" . Chr(34))
+}
+
+; 优先取存在的本地路径：逐行 → 整段 → 常见 Windows 路径样式
+SC_ExtractPathForCopy(Content) {
+    c := String(Content)
+    Loop Parse, c, "`n", "`r" {
+        line := Trim(A_LoopField)
+        if (line = "")
+            continue
+        lineEx := line
+        if (StrLen(line) >= 2 && SubStr(line, 1, 1) = '"' && SubStr(line, -1) = '"')
+            lineEx := SubStr(line, 2, StrLen(line) - 2)
+        if !InStr(lineEx, "`n") && (FileExist(lineEx) || DirExist(lineEx))
+            return lineEx
+    }
+    one := Trim(StrReplace(StrReplace(c, "`r", ""), "`n", ""))
+    if (StrLen(one) >= 2 && SubStr(one, 1, 1) = '"' && SubStr(one, -1) = '"')
+        one := SubStr(one, 2, StrLen(one) - 2)
+    if (one != "" && (FileExist(one) || DirExist(one)))
+        return one
+    ; 禁止 Windows 路径非法字符；双引号用 Chr(34) 拼接，避免 "" 与 `r`n 在同一字面量里触发解析错误
+    ccBad := "\\/:*?" . Chr(34) . "<>|" . "`r`n"
+    if RegExMatch(c, "i)([a-z]:\\(?:[^" . ccBad . "]+[\\/])*[^" . ccBad . "]+)", &m)
+        return m[1]
+    if RegExMatch(c, "i)(\\\\[^\s`r`n]+\\[^\s`r`n]+(?:\\[^\s`r`n]+)*)", &m2) {
+        cand := m2[1]
+        if (FileExist(cand) || DirExist(cand))
+            return cand
+    }
+    return ""
 }
 
 ; shell32 ShellExecuteW：返回 >32 为成功（原先用 DllCall("ptr","shell32\...") 会把返回类型写错导致始终失败）
@@ -993,71 +1054,6 @@ SC_OpenFolderAndSelectPath(path) {
     return (hr2 = 0)
 }
 
-; 与资源管理器一致：FolderItem.InvokeVerb（属性 / 重命名等）
-SC_ShellFolderItemInvokeVerb(path, verb) {
-    p := SC_NormalizeFsPath(path)
-    v := Trim(String(verb))
-    if (p = "" || v = "" || (!FileExist(p) && !DirExist(p)))
-        return false
-    SplitPath(p, &fn, &dir)
-    if (dir = "" || fn = "")
-        return false
-    try {
-        sh := ComObject("Shell.Application")
-        fld := sh.NameSpace(dir)
-        if !fld
-            return false
-        it := fld.ParseName(fn)
-        if !it
-            return false
-        it.InvokeVerb(v)
-        return true
-    } catch as _e {
-        return false
-    }
-}
-
-; 系统「属性」对话框（SHOP_FILEPATH = 1）
-; SHObjectProperties 返回 HRESULT：S_OK = 0 为成功（原先写成 r!=0 会把成功当成失败）
-SC_SHObjectPropertiesFile(path) {
-    p := SC_NormalizeFsPath(path)
-    if (p = "" || (!FileExist(p) && !DirExist(p)))
-        return false
-    r := 0
-    try r := DllCall("shell32\SHObjectProperties", "ptr", 0, "uint", 1, "wstr", p, "ptr", 0, "int")
-    catch {
-        return false
-    }
-    return Integer(r) = 0
-}
-
-; 在已打开的资源管理器窗口中触发重命名（选中项后 F2）
-SC_SendRenameKeyToForegroundExplorer() {
-    hwnd := 0
-    try hwnd := WinGetID("A")
-    catch as _e {
-        return false
-    }
-    if !hwnd
-        return false
-    try {
-        cls := WinGetClass("ahk_id " . hwnd)
-        if (cls != "CabinetWClass" && cls != "ExploreWClass")
-            return false
-    } catch {
-        return false
-    }
-    try WinActivate("ahk_id " . hwnd)
-    catch {
-    }
-    Sleep(120)
-    try Send("{F2}")
-    catch {
-        return false
-    }
-    return true
-}
-
 ; 搜索中心 WebView 结果行右键：统一执行入口。
 ; ctxItem：可选 Map（剪贴板 / Hub / PQP 合成项），键 Title/Content/DataType/OriginalDataType/Source/ClipboardId/HubSegIndex/PromptMergedIndex
 SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
@@ -1096,6 +1092,34 @@ SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
     isFileLike := (DataType = "file" || DataType = "File" || DataType = "Folder" || origDt = "file")
     path := Trim(String(Content))
     SC_CtxCoerceLocalFilePath(&isFileLike, &path, Content)
+
+    ; 搜索中心暗色子菜单：粘贴到 / 剪贴板类命令（需剪贴板来源 + ClipboardId）
+    if (SubStr(id, 1, 8) = "cp_ctx_") {
+        clipId := 0
+        if Item is Map && Item.Has("Source") && Item["Source"] = "clipboard" && Item.Has("ClipboardId")
+            clipId := Integer(Item["ClipboardId"])
+        if (clipId < 1) {
+            try TrayTip("剪贴板项", "当前结果不是剪贴板条目", "Icon! 2")
+            catch {
+            }
+            return
+        }
+        switch id {
+            case "cp_ctx_pastePlain":
+                _CP_DoPastePlain(clipId, false)
+            case "cp_ctx_pasteWithNewline":
+                _CP_DoPasteWithNewline(clipId, false)
+            case "cp_ctx_pastePath":
+                _CP_DoPastePath(clipId, false)
+            case "cp_ctx_copyToClipboard":
+                _CP_DoCopyToClipboard(clipId, false)
+            default:
+                try TrayTip("剪贴板", "不支持该命令", "Iconi 2")
+                catch {
+                }
+        }
+        return
+    }
 
     switch id {
         case "sc_execute":
@@ -1198,9 +1222,43 @@ SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
             try TrayTip("已复制", "全文已复制到剪贴板", "Iconi 1")
             catch {
             }
+        case "sc_copy_path":
+            p := SC_ExtractPathForCopy(Content)
+            if (p = "") {
+                try TrayTip("未找到路径", "内容中无可用的本地路径", "Icon! 2")
+                catch {
+                }
+                return
+            }
+            try A_Clipboard := p
+            try TrayTip("已复制路径", p, "Iconi 1")
+            catch {
+            }
+        case "sc_copy_url":
+            u := SC_ExtractFirstHttpUrl(Content)
+            if (u = "") {
+                try TrayTip("未找到链接", "", "Icon! 2")
+                catch {
+                }
+                return
+            }
+            try A_Clipboard := u
+            try TrayTip("已复制链接", u, "Iconi 1")
+            catch {
+            }
         case "sc_copy_link":
-            try A_Clipboard := Content
-            try TrayTip("已复制", "路径/内容已复制", "Iconi 1")
+            p := SC_ExtractPathForCopy(Content)
+            if (p != "") {
+                try A_Clipboard := p
+            } else {
+                u := SC_ExtractFirstHttpUrl(Content)
+                if (u != "") {
+                    try A_Clipboard := u
+                } else {
+                    try A_Clipboard := Content
+                }
+            }
+            try TrayTip("已复制", "路径/链接/全文已复制", "Iconi 1")
             catch {
             }
         case "sc_copy_digit":
@@ -1261,7 +1319,7 @@ SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
             if (t = "") {
                 return
             }
-            try FloatingToolbar_SendTextToNiumaChat(t, true, true, true)
+            try _VK_H("FloatingToolbar_SendTextToNiumaChat",t, true, true, true)
             catch as err {
                 try TrayTip("发送失败", err.Message, "Iconx 2")
                 catch {
@@ -1317,7 +1375,7 @@ SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
                 return
             }
             payload := "请用小白能听懂的话解释下面这段内容：`n`n" . t
-            try FloatingToolbar_SendTextToNiumaChat(payload, true, false, true)
+            try _VK_H("FloatingToolbar_SendTextToNiumaChat",payload, true, false, true)
             catch as err {
                 try TrayTip("牛马 AI", err.Message, "Iconx 2")
                 catch {
@@ -1329,7 +1387,7 @@ SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
                 return
             }
             payload := "请自动检测语种并将下面内容翻译为另一种常用语言（中文↔英文优先），只输出译文：`n`n" . t
-            try FloatingToolbar_SendTextToNiumaChat(payload, true, false, true)
+            try _VK_H("FloatingToolbar_SendTextToNiumaChat",payload, true, false, true)
             catch as err {
                 try TrayTip("翻译", err.Message, "Iconx 2")
                 catch {
@@ -1339,7 +1397,7 @@ SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
             t := Trim(String(Content), " `t`r`n")
             clip := Trim(String(A_Clipboard), " `t`r`n")
             payload := "请将「结果项内容」与「剪贴板内容」结合，精炼为一条高质量、可执行的提示词，只输出最终 Prompt：`n`n--- 结果项 ---`n" . t . "`n`n--- 剪贴板 ---`n" . clip
-            try FloatingToolbar_SendTextToNiumaChat(payload, true, false, true)
+            try _VK_H("FloatingToolbar_SendTextToNiumaChat",payload, true, false, true)
             catch as err {
                 try TrayTip("提示词精炼", err.Message, "Iconx 2")
                 catch {
@@ -1415,56 +1473,6 @@ SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
             if (r < 1)
                 return
             SC_SearchCenterRecycleVisibleRow(r)
-        case "sc_file_properties":
-        case "sc_file_meta":
-            if isFileLike && (FileExist(path) || DirExist(path)) {
-                pn := SC_NormalizeFsPath(path)
-                if SC_SHObjectPropertiesFile(pn)
-                    return
-                if SC_ShellFolderItemInvokeVerb(pn, "properties")
-                    return
-                if SC_ShellExecuteFileVerb(pn, "properties")
-                    return
-                try TrayTip("属性", "无法打开系统属性对话框", "Iconx 2")
-                catch {
-                }
-            } else {
-                try TrayTip("属性", "仅支持本地文件或文件夹", "Iconi 2")
-                catch {
-                }
-            }
-        case "sc_file_rename":
-            if !isFileLike || (!FileExist(path) && !DirExist(path)) {
-                try TrayTip("重命名", "仅支持本地文件或文件夹", "Iconi 2")
-                catch {
-                }
-                return
-            }
-            pn := SC_NormalizeFsPath(path)
-            if SC_ShellFolderItemInvokeVerb(pn, "rename")
-                return
-            if SC_OpenFolderAndSelectPath(pn) {
-                Sleep(280)
-                if SC_SendRenameKeyToForegroundExplorer()
-                    return
-                try TrayTip("重命名", "已打开所在文件夹并选中该项，请按 F2", "Iconi 1")
-                catch {
-                }
-                return
-            }
-            try {
-                Run('explorer.exe /select,"' . pn . '"')
-                Sleep(320)
-                if SC_SendRenameKeyToForegroundExplorer()
-                    return
-                try TrayTip("重命名", "已尝试打开所在位置，请按 F2", "Iconi 1")
-                catch {
-                }
-            } catch as err2 {
-                try TrayTip("重命名", err2.Message, "Iconx 2")
-                catch {
-                }
-            }
         case "sys_empty_recycle":
             SC_SearchCenterEmptyRecycleBin()
         case "sc_voice_speak":

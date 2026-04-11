@@ -4,6 +4,11 @@
 ; - config/user_keymap.json
 ; Compiled artifact:
 ; - Data/vk_cursor_keymap_compiled.json
+;
+; Jxon_Load / Jxon_Dump 由主脚本 #Include lib\Jxon.ahk 提供；此处用 Func 包装避免单独打开本文件时静态分析误报「未赋值」。
+
+_CSM_JxonLoad(s) => Func("Jxon_Load").Call(s)
+_CSM_JxonDump(o) => Func("Jxon_Dump").Call(o)
 
 global g_CSM_CatalogPath := A_ScriptDir "\config\cursor_command_catalog.json"
 global g_CSM_UserKeymapPath := A_ScriptDir "\config\user_keymap.json"
@@ -40,7 +45,7 @@ CursorShortcutMapper_LoadUserKeymap() {
 CursorShortcutMapper_SaveUserKeymap(entries) {
     global g_CSM_UserKeymapPath
     _CSM_EnsureParentDir(g_CSM_UserKeymapPath)
-    json := Jxon_Dump(entries)
+    json := _CSM_JxonDump(entries)
     try FileDelete(g_CSM_UserKeymapPath)
     FileAppend(json, g_CSM_UserKeymapPath, "UTF-8")
 }
@@ -306,7 +311,7 @@ CursorShortcutMapper_CompileAndPersist() {
     )
     _CSM_EnsureParentDir(g_CSM_CompiledPath)
     try FileDelete(g_CSM_CompiledPath)
-    FileAppend(Jxon_Dump(payload), g_CSM_CompiledPath, "UTF-8")
+    FileAppend(_CSM_JxonDump(payload), g_CSM_CompiledPath, "UTF-8")
     return Map("ok", true, "errors", [], "warnings", [], "ruleCount", rules.Length)
 }
 
@@ -317,7 +322,7 @@ _CSM_LoadJson(path) {
     try raw := FileRead(path, "UTF-8")
     if (raw = "")
         return Map()
-    try return Jxon_Load(raw)
+    try return _CSM_JxonLoad(raw)
     return Map()
 }
 

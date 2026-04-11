@@ -288,7 +288,9 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "sc_copy_sub", "name", "复制到…", "desc", "搜索中心结果：子菜单占位（已弃用）", "fn", "CH_RUN"),
             Map("id", "sc_copy", "name", "复制", "desc", "搜索中心结果：复制完整内容", "fn", "CH_RUN"),
             Map("id", "sc_copy_plain", "name", "复制全文", "desc", "同「复制」", "fn", "CH_RUN"),
-            Map("id", "sc_copy_link", "name", "复制路径/链接", "desc", "搜索中心结果", "fn", "CH_RUN"),
+            Map("id", "sc_copy_path", "name", "复制路径", "desc", "搜索中心结果：本地路径", "fn", "CH_RUN"),
+            Map("id", "sc_copy_url", "name", "复制链接", "desc", "搜索中心结果：首条 http(s) 链接", "fn", "CH_RUN"),
+            Map("id", "sc_copy_link", "name", "复制路径/链接（兼容）", "desc", "已拆分为路径/链接；旧配置仍可用", "fn", "CH_RUN"),
             Map("id", "sc_copy_digit", "name", "复制数字", "desc", "搜索中心结果", "fn", "CH_RUN"),
             Map("id", "sc_copy_chinese", "name", "复制中文", "desc", "搜索中心结果", "fn", "CH_RUN"),
             Map("id", "sc_copy_md", "name", "复制 Markdown", "desc", "搜索中心结果", "fn", "CH_RUN"),
@@ -309,9 +311,6 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "sc_pin_item", "name", "置顶/取消置顶", "desc", "搜索中心结果", "fn", "CH_RUN"),
             Map("id", "sc_delete_item", "name", "删除", "desc", "搜索中心结果：移至搜索中心回收站（本地文件同时进系统回收站）", "fn", "CH_RUN"),
             Map("id", "sc_recycle_item", "name", "回收（已隐藏）", "desc", "仍可从热键调用", "fn", "CH_RUN"),
-            Map("id", "sc_file_properties", "name", "属性", "desc", "搜索中心结果：系统属性", "fn", "CH_RUN"),
-            Map("id", "sc_file_rename", "name", "重命名", "desc", "搜索中心结果：系统重命名", "fn", "CH_RUN"),
-            Map("id", "sc_file_meta", "name", "属性（兼容）", "desc", "兼容旧配置，同属性", "fn", "CH_RUN"),
             Map("id", "sys_empty_recycle", "name", "清空回收站（已隐藏）", "desc", "仍可从热键调用；面板内回收站弹窗可清空", "fn", "CH_RUN")
         ]),
         Map("id", "clipboard", "name", "📋 剪贴板", "commands", [
@@ -987,11 +986,10 @@ _VK_SceneMenuKeysWithDefaultCommands() {
 _VK_DefaultSearchCenterContextMenuCmdIds() {
     return [
         "sc_execute", "sc_run_as_admin", "sc_open_path",
-        "sc_copy", "sc_copy_plain", "sc_copy_link", "sc_copy_digit", "sc_copy_chinese", "sc_copy_md",
+        "sc_copy", "sc_copy_plain", "sc_copy_path", "sc_copy_url", "sc_copy_digit", "sc_copy_chinese", "sc_copy_md",
         "sc_to_draft", "sc_to_prompt", "sc_to_openclaw",
         "ai_explain_item", "ai_translate_item", "sc_voice_speak", "sc_voice_stop", "ai_prompt_refine",
-        "sc_pin_item", "sc_delete_item",
-        "sc_file_properties", "sc_file_rename"
+        "sc_pin_item", "sc_delete_item"
     ]
 }
 
@@ -1162,9 +1160,10 @@ _VK_EnsureSceneMenus() {
                 mergedArr := raw[key]
                 if (key = "clipboard" || key = "scratchpad" || key = "prompts")
                     mergedArr := _VK_MergeSceneMenuWithSearchCtxCmds(raw[key])
+                mergedArr := _VK_SceneMenuIdsMigrateCopyLinkSplit(mergedArr)
                 sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, mergedArr)
             } else if (key = "floating_bar") {
-                sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_DefaultSceneMenuForKey(key))
+                sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_SceneMenuIdsMigrateCopyLinkSplit(_VK_DefaultSceneMenuForKey(key)))
             } else {
                 fill := false
                 for d in defFill {
@@ -1174,7 +1173,7 @@ _VK_EnsureSceneMenus() {
                     }
                 }
                 if fill
-                    sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_DefaultSceneMenuForKey(key))
+                    sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_SceneMenuIdsMigrateCopyLinkSplit(_VK_DefaultSceneMenuForKey(key)))
                 else
                     sm[key] := []
             }
@@ -1182,7 +1181,7 @@ _VK_EnsureSceneMenus() {
     } else {
         for key in keys {
             if (key = "floating_bar")
-                sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_DefaultSceneMenuForKey(key))
+                sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_SceneMenuIdsMigrateCopyLinkSplit(_VK_DefaultSceneMenuForKey(key)))
             else {
                 fill := false
                 for d in defFill {
@@ -1192,7 +1191,7 @@ _VK_EnsureSceneMenus() {
                     }
                 }
                 if fill
-                    sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_DefaultSceneMenuForKey(key))
+                    sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_SceneMenuIdsMigrateCopyLinkSplit(_VK_DefaultSceneMenuForKey(key)))
                 else
                     sm[key] := []
             }
@@ -1328,6 +1327,124 @@ _VK_SceneCtxActMap(sceneKey) {
     return Map()
 }
 
+; 旧版「复制路径/链接」槽位拆成 path + url（保留其它槽位顺序）
+_VK_SceneMenuIdsMigrateCopyLinkSplit(arr) {
+    out := []
+    if !(arr is Array)
+        return out
+    for item in arr {
+        c := Trim(String(item))
+        if (c = "sc_copy_link") {
+            out.Push("sc_copy_path")
+            out.Push("sc_copy_url")
+        } else
+            out.Push(item)
+    }
+    return out
+}
+
+_VK_RegroupWebSceneCtxMenuFlat(items) {
+    pasteIds := Map()
+    for s in ["cp_ctx_pastePlain", "cp_ctx_pasteWithNewline", "cp_ctx_pastePath", "cp_ctx_copyToClipboard"]
+        pasteIds[s] := true
+    copyIds := Map()
+    for s in ["sc_copy_path", "sc_copy_url", "sc_copy_digit", "sc_copy_chinese", "sc_copy_md", "sc_copy_link"]
+        copyIds[s] := true
+    sendWeb := Map()
+    for s in ["sc_to_draft", "sc_to_prompt", "sc_to_openclaw"]
+        sendWeb[s] := true
+    pasteChildren := []
+    copyChildren := []
+    sendChildren := []
+    for it in items {
+        if !(it is Map) || !it.Has("id")
+            continue
+        id := Trim(String(it["id"]))
+        if pasteIds.Has(id)
+            pasteChildren.Push(it)
+        if copyIds.Has(id)
+            copyChildren.Push(it)
+        if sendWeb.Has(id)
+            sendChildren.Push(it)
+    }
+    out := []
+    pasteDone := false
+    copyDone := false
+    sendDone := false
+    for it in items {
+        if !(it is Map) || !it.Has("id")
+            continue
+        id := Trim(String(it["id"]))
+        if pasteIds.Has(id) {
+            if !pasteDone && pasteChildren.Length {
+                out.Push(Map("k", "sub", "t", "粘贴到 ▸", "children", pasteChildren))
+                pasteDone := true
+            }
+            continue
+        }
+        if copyIds.Has(id) {
+            if !copyDone && copyChildren.Length {
+                out.Push(Map("k", "sub", "t", "复制到 ▸", "children", copyChildren))
+                copyDone := true
+            }
+            continue
+        }
+        if sendWeb.Has(id) {
+            if !sendDone && sendChildren.Length {
+                out.Push(Map("k", "sub", "t", "发送到 ▸", "children", sendChildren))
+                sendDone := true
+            }
+            continue
+        }
+        out.Push(it)
+    }
+    return out
+}
+
+_VK_WebCtxMenuSerializeFlatItem(it) {
+    if !(it is Map)
+        return "{}"
+    c := it.Has("id") ? String(it["id"]) : ""
+    nm := it.Has("name") ? String(it["name"]) : c
+    act := it.Has("act") ? String(it["act"]) : ""
+    visOn := it.Has("visible") ? !!it["visible"] : true
+    tg := it.Has("toggle") && it["toggle"] ? "true" : "false"
+    disPath := it.Has("disableNoPastePath") && it["disableNoPastePath"] ? "true" : "false"
+    disImg := it.Has("disableNotImage") && it["disableNotImage"] ? "true" : "false"
+    disFile := it.Has("disableNoLocalFile") && it["disableNoLocalFile"] ? "true" : "false"
+    disText := it.Has("disableNoText") && it["disableNoText"] ? "true" : "false"
+    return '{"id":' . _JsonStr(c) . ',"name":' . _JsonStr(nm) . ',"act":' . _JsonStr(act)
+        . ',"visible":' . (visOn ? "true" : "false") . ',"toggle":' . tg
+        . ',"disableNoPastePath":' . disPath . ',"disableNotImage":' . disImg
+        . ',"disableNoLocalFile":' . disFile . ',"disableNoText":' . disText . "}"
+}
+
+_VK_WebCtxMenuTreeToJson(tree) {
+    json := "["
+    sep := ""
+    for ent in tree {
+        if !(ent is Map)
+            continue
+        if ent.Has("children") {
+            ch := ent["children"]
+            cj := ""
+            sep2 := ""
+            if ch is Array {
+                for chIt in ch {
+                    cj .= sep2 . _VK_WebCtxMenuSerializeFlatItem(chIt)
+                    sep2 := ","
+                }
+            }
+            lbl := ent.Has("t") ? String(ent["t"]) : (ent.Has("name") ? String(ent["name"]) : "")
+            json .= sep . '{"k":"sub","name":' . _JsonStr(lbl) . ',"children":[' . cj . "]}"
+        } else
+            json .= sep . _VK_WebCtxMenuSerializeFlatItem(ent)
+        sep := ","
+    }
+    json .= "]"
+    return json
+}
+
 _VK_SceneCtxMenuItemsJson(sceneKey) {
     global g_Commands
     if !(g_Commands is Map) || !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
@@ -1343,8 +1460,7 @@ _VK_SceneCtxMenuItemsJson(sceneKey) {
         return "[]"
     arr := sm.Has(sk) && sm[sk] is Array ? sm[sk] : []
     vm := vis.Has(sk) && vis[sk] is Map ? vis[sk] : Map()
-    json := "["
-    sep := ""
+    items := []
     for cid in arr {
         c := Trim(String(cid))
         if (c = "" || !cmdList.Has(c))
@@ -1359,20 +1475,21 @@ _VK_SceneCtxMenuItemsJson(sceneKey) {
         ent := cmdList[c]
         nm := ent is Map && ent.Has("name") ? String(ent["name"]) : c
         visOn := vm.Has(c) ? !!vm[c] : true
-        toggle := (c = "cp_ctx_toggle_continuous") ? "true" : "false"
-        disPath := (c = "cp_ctx_pastePath") ? "true" : "false"
-        disImg := (c = "cp_ctx_ocrImage") ? "true" : "false"
-        disFile := (c = "sc_open_path" || c = "sc_open_with" || c = "sc_run_as_admin" || c = "sc_recycle_item"
-            || c = "sc_file_properties" || c = "sc_file_meta" || c = "sc_file_rename") ? "true" : "false"
-        disText := (c = "sc_voice_speak") ? "true" : "false"
-        json .= sep . '{"id":' . _JsonStr(c) . ',"name":' . _JsonStr(nm) . ',"act":' . _JsonStr(act)
-            . ',"visible":' . (visOn ? "true" : "false") . ',"toggle":' . toggle
-            . ',"disableNoPastePath":' . disPath . ',"disableNotImage":' . disImg
-            . ',"disableNoLocalFile":' . disFile . ',"disableNoText":' . disText . "}"
-        sep := ","
+        itm := Map(
+            "id", c,
+            "name", nm,
+            "act", act,
+            "visible", visOn,
+            "toggle", (c = "cp_ctx_toggle_continuous"),
+            "disableNoPastePath", (c = "cp_ctx_pastePath"),
+            "disableNotImage", (c = "cp_ctx_ocrImage"),
+            "disableNoLocalFile", (c = "sc_open_path" || c = "sc_open_with" || c = "sc_run_as_admin" || c = "sc_recycle_item"),
+            "disableNoText", (c = "sc_voice_speak")
+        )
+        items.Push(itm)
     }
-    json .= "]"
-    return json
+    tree := _VK_RegroupWebSceneCtxMenuFlat(items)
+    return _VK_WebCtxMenuTreeToJson(tree)
 }
 
 _VK_SceneMenuSystemIdsJson() {
@@ -1481,22 +1598,21 @@ _VK_SearchRowDefaultOrder(cmdId) {
         "sc_open_path", 2,
         "sc_copy", 3,
         "sc_copy_plain", 4,
-        "sc_copy_link", 5,
-        "sc_copy_digit", 6,
-        "sc_copy_chinese", 7,
-        "sc_copy_md", 8,
-        "sc_to_draft", 9,
-        "sc_to_prompt", 10,
-        "sc_to_openclaw", 11,
-        "ai_explain_item", 12,
-        "ai_translate_item", 13,
-        "sc_voice_speak", 14,
-        "sc_voice_stop", 15,
-        "ai_prompt_refine", 16,
-        "sc_pin_item", 17,
-        "sc_delete_item", 18,
-        "sc_file_properties", 19,
-        "sc_file_rename", 20
+        "sc_copy_path", 5,
+        "sc_copy_url", 6,
+        "sc_copy_digit", 7,
+        "sc_copy_chinese", 8,
+        "sc_copy_md", 9,
+        "sc_to_draft", 10,
+        "sc_to_prompt", 11,
+        "sc_to_openclaw", 12,
+        "ai_explain_item", 13,
+        "ai_translate_item", 14,
+        "sc_voice_speak", 15,
+        "sc_voice_stop", 16,
+        "ai_prompt_refine", 17,
+        "sc_pin_item", 18,
+        "sc_delete_item", 19
     )
     c := Trim(String(cmdId))
     return m.Has(c) ? Integer(m[c]) : -1
@@ -1511,6 +1627,8 @@ _VK_IsSearchCenterGridCmd(cmdId) {
     if (c = "sc_send_desktop" || c = "sc_send_documents" || c = "sc_open_sendto_folder")
         return false
     if (c = "sc_open_with" || c = "sc_recycle_item" || c = "sys_empty_recycle")
+        return false
+    if (c = "sc_file_properties" || c = "sc_file_meta" || c = "sc_file_rename")
         return false
     return _VK_SearchRowDefaultOrder(c) >= 0
 }
@@ -1593,26 +1711,14 @@ _VK_NormalizeToolbarSearchRowOrders(arr) {
 _VK_MigrateSearchToolbarLegacy(&arr) {
     if !(arr is Array)
         return
-    hasProps := false
-    for item in arr {
-        if !(item is Map) || !item.Has("cmdId")
-            continue
-        if Trim(String(item["cmdId"])) = "sc_file_properties"
-            hasProps := true
-    }
     for item in arr {
         if !(item is Map) || !item.Has("cmdId")
             continue
         cid := Trim(String(item["cmdId"]))
-        if (cid = "sc_file_meta") {
-            if hasProps {
-                item["visible_in_search_row"] := false
-                item["order_search_row"] := -1
-                item["menu_scenes"] := []
-            } else {
-                item["cmdId"] := "sc_file_properties"
-                hasProps := true
-            }
+        if (cid = "sc_file_properties" || cid = "sc_file_meta" || cid = "sc_file_rename") {
+            item["visible_in_search_row"] := false
+            item["order_search_row"] := -1
+            item["menu_scenes"] := []
         }
         if (SubStr(cid, 1, 12) = "sc_menu_sep_") || cid = "sc_copy_sub" || cid = "sc_send_sub" {
             item["visible_in_search_row"] := false
@@ -1620,6 +1726,11 @@ _VK_MigrateSearchToolbarLegacy(&arr) {
             item["menu_scenes"] := []
         }
         if (cid = "sc_open_with" || cid = "sc_recycle_item" || cid = "sys_empty_recycle") {
+            item["visible_in_search_row"] := false
+            item["order_search_row"] := -1
+            item["menu_scenes"] := []
+        }
+        if (cid = "sc_copy_link") {
             item["visible_in_search_row"] := false
             item["order_search_row"] := -1
             item["menu_scenes"] := []

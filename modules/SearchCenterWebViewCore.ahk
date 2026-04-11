@@ -1305,9 +1305,34 @@ _SCWV_AniMenuShow(hwnd) {
     }
 }
 
+_SCWV_FilterCtxChildrenByToolbar(childTemplates, specIdSet) {
+    out := []
+    if !(childTemplates is Array) || !(specIdSet is Map)
+        return out
+    for ch in childTemplates {
+        if !(ch is Map)
+            continue
+        cid := ch.Has("id") ? Trim(String(ch["id"])) : ""
+        if (cid != "" && specIdSet.Has(cid))
+            out.Push(ch)
+    }
+    return out
+}
+
+_SCWV_SearchCtxPasteToChildren() {
+    return [
+        Map("id", "cp_ctx_pastePlain", "t", "粘贴纯文本"),
+        Map("id", "cp_ctx_pasteWithNewline", "t", "粘贴并换行"),
+        Map("id", "cp_ctx_pastePath", "t", "粘贴路径"),
+        Map("id", "cp_ctx_copyToClipboard", "t", "复制到剪贴板")
+    ]
+}
+
 _SCWV_SearchCtxCopyToChildren() {
     return [
-        Map("id", "sc_copy_link", "t", "复制路径/链接"),
+        Map("id", "sc_copy_path", "t", "复制路径"),
+        Map("id", "sc_copy_url", "t", "复制链接"),
+        Map("id", "sc_copy_link", "t", "复制路径/链接（兼容）"),
         Map("id", "sc_copy_digit", "t", "复制数字"),
         Map("id", "sc_copy_chinese", "t", "复制中文"),
         Map("id", "sc_copy_md", "t", "复制 Markdown")
@@ -1325,13 +1350,38 @@ _SCWV_SearchCtxSendChildren() {
     ]
 }
 
+_SCWV_AppendSearchCtxStandardBlock(&out, specIds) {
+    ; 粘贴类与工具栏槽位无关：搜索中心统一提供四项（非剪贴板结果执行时会提示）
+    pCh := _SCWV_SearchCtxPasteToChildren()
+    if pCh.Length
+        out.Push(Map("k", "sub", "t", "粘贴到 ▸", "children", pCh))
+    out.Push(Map("k", "cmd", "id", "sc_copy", "t", "复制"))
+    cCh := _SCWV_FilterCtxChildrenByToolbar(_SCWV_SearchCtxCopyToChildren(), specIds)
+    if cCh.Length
+        out.Push(Map("k", "sub", "t", "复制到 ▸", "children", cCh))
+    sCh := _SCWV_FilterCtxChildrenByToolbar(_SCWV_SearchCtxSendChildren(), specIds)
+    if sCh.Length
+        out.Push(Map("k", "sub", "t", "发送到 ▸", "children", sCh))
+}
+
 _SCWV_RegroupSearchCtxSpec(baseSpec, Item) {
     global g_SCWV_PinnedKeys
+    specIds := Map()
+    for ent0 in baseSpec {
+        if ent0 is Map && ent0.Has("id") {
+            id0 := Trim(String(ent0["id"]))
+            if (id0 != "")
+                specIds[id0] := true
+        }
+    }
+    pasteToIds := Map()
+    for s in ["cp_ctx_pastePlain", "cp_ctx_pasteWithNewline", "cp_ctx_pastePath", "cp_ctx_copyToClipboard"]
+        pasteToIds[s] := true
     copyTopIds := Map()
     copyTopIds["sc_copy"] := true
     copyTopIds["sc_copy_plain"] := true
     copyToIds := Map()
-    for s in ["sc_copy_link", "sc_copy_digit", "sc_copy_chinese", "sc_copy_md"]
+    for s in ["sc_copy_path", "sc_copy_url", "sc_copy_link", "sc_copy_digit", "sc_copy_chinese", "sc_copy_md"]
         copyToIds[s] := true
     sendIds := Map()
     for s in ["sc_to_draft", "sc_to_prompt", "sc_to_openclaw", "sc_send_desktop", "sc_send_documents", "sc_open_sendto_folder"]
@@ -1348,23 +1398,35 @@ _SCWV_RegroupSearchCtxSpec(baseSpec, Item) {
             out.Push(Map("k", "cmd", "id", cid, "t", pinned ? "取消置顶" : "置顶"))
             continue
         }
-        if copyTopIds.Has(cid) || copyToIds.Has(cid) || sendIds.Has(cid) {
+        if pasteToIds.Has(cid) || copyTopIds.Has(cid) || copyToIds.Has(cid) || sendIds.Has(cid) {
             if !blockIns {
-                out.Push(Map("k", "cmd", "id", "sc_copy", "t", "复制"))
-                out.Push(Map("k", "sub", "t", "复制到 ▸", "children", _SCWV_SearchCtxCopyToChildren()))
-                out.Push(Map("k", "sub", "t", "发送到 ▸", "children", _SCWV_SearchCtxSendChildren()))
+                _SCWV_AppendSearchCtxStandardBlock(&out, specIds)
                 blockIns := true
             }
             continue
         }
         out.Push(ent)
     }
-    if !blockIns {
-        out.Push(Map("k", "cmd", "id", "sc_copy", "t", "复制"))
-        out.Push(Map("k", "sub", "t", "复制到 ▸", "children", _SCWV_SearchCtxCopyToChildren()))
-        out.Push(Map("k", "sub", "t", "发送到 ▸", "children", _SCWV_SearchCtxSendChildren()))
-    }
+    if !blockIns
+        _SCWV_AppendSearchCtxStandardBlock(&out, specIds)
     return out
+}
+
+; 主菜单项右侧对齐子菜单左上角（与点击展开使用同一套坐标）
+_SCWV_DarkCtxComputeSubXY(idx, &subX, &subY) {
+    global g_SCWV_DarkCtxGui
+    subX := A_ScreenWidth // 2
+    subY := A_ScreenHeight // 2
+    if !g_SCWV_DarkCtxGui
+        return
+    pad := 8
+    itemH := 34
+    try {
+        WinGetPos(&WX, &WY, &WW, &WH, "ahk_id " . g_SCWV_DarkCtxGui.Hwnd)
+        subX := WX + WW - 4
+        subY := WY + pad + (idx - 1) * itemH
+    } catch {
+    }
 }
 
 _SCWV_DarkMenuHoverPhase2(idx, *) {
@@ -1437,13 +1499,13 @@ _SCWV_DestroyDarkRowMenus(*) {
 ; 会弹出资源管理器 / 系统属性 / UAC 的命令：勿立刻把焦点抢回搜索中心，否则 F2 重命名与属性框会失效或被挡住
 _SCWV_ShouldRefocusSearchAfterCmd(cmdId) {
     c := Trim(String(cmdId))
-    if (c = "sc_file_properties" || c = "sc_file_meta" || c = "sc_file_rename" || c = "sc_open_path" || c = "sc_run_as_admin")
+    if (c = "sc_open_path" || c = "sc_run_as_admin")
         return false
     return true
 }
 
 _SCWV_DarkSearchItemApplyHover(idx) {
-    global g_SCWV_DarkCtxGui, g_SCWV_DarkCtxHoverIdx, g_SCWV_DarkMenuHoverTimer
+    global g_SCWV_DarkCtxGui, g_SCWV_DarkCtxHoverIdx, g_SCWV_DarkMenuHoverTimer, g_SCWV_DarkCtxSubSpecByIdx
     if g_SCWV_DarkCtxHoverIdx = idx
         return
     if g_SCWV_DarkMenuHoverTimer {
@@ -1464,6 +1526,15 @@ _SCWV_DarkSearchItemApplyHover(idx) {
             g_SCWV_DarkCtxGui["ScCtxTx" . idx].Opt("cffb366")
         } catch {
         }
+        if g_SCWV_DarkCtxSubSpecByIdx.Has(idx) {
+            try {
+                ch := g_SCWV_DarkCtxSubSpecByIdx[idx]
+                _SCWV_DarkCtxComputeSubXY(idx, &sx, &sy)
+                _SCWV_ShowDarkSubMenuAt(ch, sx, sy)
+            } catch {
+            }
+        } else
+            _SCWV_DestroyDarkSubMenus()
         fn := _SCWV_DarkMenuHoverPhase2.Bind(idx)
         g_SCWV_DarkMenuHoverTimer := fn
         SetTimer(fn, -50)
@@ -1667,7 +1738,7 @@ _SCWV_ShowDarkSubMenuAt(children, posX, posY) {
     _SCWV_DestroyDarkSubMenus()
     if !(children is Array) || children.Length = 0
         return
-    MenuWidth := 268
+    MenuWidth := 220
     MenuItemHeight := 34
     Padding := 8
     n := children.Length
@@ -1714,7 +1785,7 @@ _SCWV_ShowDarkSubMenuAt(children, posX, posY) {
         ItemBg := g_SCWV_DarkSubGui.Add("Text", "x" . Padding . " y" . iy . " w" . (MenuWidth - Padding * 2) . " h" . MenuItemHeight . " Background1a1a1a vScSubBg" . i, "")
         ItemBg.OnEvent("Click", _SCWV_OnDarkSubMenuClick.Bind(i))
         ItemTxt := g_SCWV_DarkSubGui.Add("Text", "x" . (Padding + 10) . " y" . iy . " w" . (MenuWidth - Padding * 2 - 14) . " h" . MenuItemHeight . " Left 0x200 cff6600 BackgroundTrans vScSubTx" . i, t)
-        ItemTxt.SetFont("s10", "Segoe UI")
+        ItemTxt.SetFont("s11", "Segoe UI")
         ItemTxt.OnEvent("Click", _SCWV_OnDarkSubMenuClick.Bind(i))
         if (id != "")
             g_SCWV_DarkSubCmdByIdx[i] := id
@@ -1741,13 +1812,8 @@ _SCWV_OnDarkSearchMenuClick(idx, *) {
         } catch {
         }
         Sleep(32)
-        Padding := 8
-        MenuItemHeight := 34
-        MenuWidth := 252
         try {
-            WinGetPos(&WX, &WY, &WW, &WH, "ahk_id " . g_SCWV_DarkCtxGui.Hwnd)
-            subX := WX + WW - 4
-            subY := WY + Padding + (idx - 1) * MenuItemHeight
+            _SCWV_DarkCtxComputeSubXY(idx, &subX, &subY)
             _SCWV_ShowDarkSubMenuAt(ch, subX, subY)
         } catch {
             _SCWV_ShowDarkSubMenuAt(ch, A_ScreenWidth // 2, A_ScreenHeight // 2)
@@ -1787,7 +1853,7 @@ _SCWV_ShowDarkSearchRowMenuAt(spec, posX, posY) {
     _SCWV_DestroyDarkRowMenus()
     if !(spec is Array) || spec.Length = 0
         spec := [Map("k", "cmd", "id", "", "t", "（未配置菜单）")]
-    MenuWidth := 252
+    MenuWidth := 220
     MenuItemHeight := 34
     Padding := 8
     n := spec.Length
@@ -1834,7 +1900,7 @@ _SCWV_ShowDarkSearchRowMenuAt(spec, posX, posY) {
         ItemBg := g_SCWV_DarkCtxGui.Add("Text", "x" . Padding . " y" . iy . " w" . (MenuWidth - Padding * 2) . " h" . MenuItemHeight . " Background1a1a1a vScCtxBg" . i, "")
         ItemBg.OnEvent("Click", _SCWV_OnDarkSearchMenuClick.Bind(i))
         ItemTxt := g_SCWV_DarkCtxGui.Add("Text", "x" . (Padding + 10) . " y" . iy . " w" . (MenuWidth - Padding * 2 - 14) . " h" . MenuItemHeight . " Left 0x200 cff6600 BackgroundTrans vScCtxTx" . i, t)
-        ItemTxt.SetFont("s10", "Segoe UI")
+        ItemTxt.SetFont("s11", "Segoe UI")
         ItemTxt.OnEvent("Click", _SCWV_OnDarkSearchMenuClick.Bind(i))
         if (isSub && it.Has("children"))
             g_SCWV_DarkCtxSubSpecByIdx[i] := it["children"]
