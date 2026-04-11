@@ -439,6 +439,7 @@ _LoadCommands() {
     _VK_RebuildEffectiveBindings()
     _VK_EnsureDashboardStorage()
     _VK_EnsureToolbarLayout()
+    _VK_EnsureSceneMenus()
     _VK_EnsureContextMenuLayout()
     _VK_SyncFloatPinnedFromStorage()
     _VK_RenderGlobalFloatPanel()
@@ -917,6 +918,283 @@ _VK_SceneToolbarLayoutToJson() {
     return json
 }
 
+; ── SceneMenus：五套场景右键菜单 cmdId 序列（Commands.json 顶层 SceneMenus） ──
+_VK_SceneMenuCanonicalKeys() {
+    return ["search", "scratchpad", "clipboard", "prompts", "floating_bar"]
+}
+
+; 不可删减的系统项：场景间跳转（顺序固定，合并时置于尾部）
+_VK_SystemSceneMenuCmdIds() {
+    return ["ftm_search_center", "hub_capsule", "ftm_clipboard", "ch_b"]
+}
+
+_VK_SceneMenuSystemIdSet() {
+    sys := _VK_SystemSceneMenuCmdIds()
+    m := Map()
+    for id in sys
+        m[id] := true
+    return m
+}
+
+_VK_FilterValidSceneMenuCmds(cmdList, arr) {
+    out := []
+    seen := Map()
+    if !(arr is Array)
+        return out
+    for item in arr {
+        cid := Trim(String(item))
+        if (cid = "" || !cmdList.Has(cid) || seen.Has(cid))
+            continue
+        seen[cid] := true
+        out.Push(cid)
+    }
+    return out
+}
+
+; 去掉用户序列中的系统项后，再按固定顺序追加（去重）
+_VK_MergeSystemSceneMenuItems(cmdList, userArr) {
+    sys := _VK_SystemSceneMenuCmdIds()
+    sysSet := _VK_SceneMenuSystemIdSet()
+    base := _VK_FilterValidSceneMenuCmds(cmdList, userArr)
+    out := []
+    seen := Map()
+    for cid in base {
+        if sysSet.Has(cid)
+            continue
+        if seen.Has(cid)
+            continue
+        seen[cid] := true
+        out.Push(cid)
+    }
+    for id in sys {
+        if !cmdList.Has(id) || seen.Has(id)
+            continue
+        seen[id] := true
+        out.Push(id)
+    }
+    return out
+}
+
+_VK_CommandsFromCategoryId(catId) {
+    global g_Commands
+    out := []
+    if !(g_Commands is Map) || !g_Commands.Has("Categories") || !(g_Commands["Categories"] is Array)
+        return out
+    if !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+        return out
+    cmdList := g_Commands["CommandList"]
+    cidCat := Trim(String(catId))
+    for cat in g_Commands["Categories"] {
+        if !(cat is Map) || !cat.Has("id") || cat["id"] != cidCat
+            continue
+        if !cat.Has("commands") || !(cat["commands"] is Array)
+            return out
+        for c in cat["commands"] {
+            x := Trim(String(c))
+            if (x != "" && cmdList.Has(x))
+                out.Push(x)
+        }
+        return out
+    }
+    return out
+}
+
+_VK_DefaultSceneMenuFloatingBarRaw() {
+    global g_Commands
+    out := []
+    seen := Map()
+    if !(g_Commands is Map) || !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+        return out
+    cmdList := g_Commands["CommandList"]
+    if g_Commands.Has("ToolbarLayout") && g_Commands["ToolbarLayout"] is Array {
+    rows := g_Commands["ToolbarLayout"]
+    menuItems := []
+    for row in rows {
+        if !(row is Map) || !row.Has("cmdId")
+            continue
+        if !row.Has("visible_in_menu") || !row["visible_in_menu"]
+            continue
+        cid := Trim(String(row["cmdId"]))
+        if (cid = "" || !cmdList.Has(cid))
+            continue
+        om := row.Has("order_menu") ? Integer(row["order_menu"]) : 999999
+        menuItems.Push(Map("cmdId", cid, "order_menu", om))
+    }
+    if menuItems.Length > 1
+        menuItems := _VK_SortRowsByNumericKey(menuItems, "order_menu")
+    for it in menuItems {
+        cid := it["cmdId"]
+        if !seen.Has(cid) {
+            seen[cid] := true
+            out.Push(cid)
+        }
+    }
+    barItems := []
+    for row in rows {
+        if !(row is Map) || !row.Has("cmdId")
+            continue
+        if !row.Has("visible_in_bar") || !row["visible_in_bar"]
+            continue
+        cid := Trim(String(row["cmdId"]))
+        if (cid = "" || !cmdList.Has(cid))
+            continue
+        ob := row.Has("order_bar") ? Integer(row["order_bar"]) : 999999
+        barItems.Push(Map("cmdId", cid, "order_bar", ob))
+    }
+    if barItems.Length > 1
+        barItems := _VK_SortRowsByNumericKey(barItems, "order_bar")
+    for it in barItems {
+        cid := it["cmdId"]
+        if !seen.Has(cid) {
+            seen[cid] := true
+            out.Push(cid)
+        }
+    }
+    }
+    extras := [
+        "ch_t", "pqp_capture", "ss_pin", "ss_ocr", "ss_text", "ss_save", "ss_ai", "ss_search", "ss_close",
+        "ftb_scratchpad", "ftb_screenshot", "ftb_cursor_menu", "sc_activate_search", "qa_clipboard",
+        "qa_config", "sys_show_vk", "hub_capsule",
+        "ftm_reset_scale", "ftm_minimize_to_edge", "ftm_exit_app", "ftm_hide_toolbar", "ftm_open_config",
+        "ftm_toggle_toolbar", "ftm_reload_script"
+    ]
+    for e in extras {
+        if cmdList.Has(e) && !seen.Has(e) {
+            seen[e] := true
+            out.Push(e)
+        }
+    }
+    return out
+}
+
+_VK_DefaultSceneMenuForKey(key) {
+    k := String(key)
+    if (k = "floating_bar")
+        return _VK_DefaultSceneMenuFloatingBarRaw()
+    ; 搜索中心 / 草稿本 / 剪贴板 / 提示词：宫格由用户在 VK 中从键盘拖入填充，默认仅系统跳转尾项
+    return []
+}
+
+_VK_EnsureSceneMenus() {
+    global g_Commands
+    if !(g_Commands is Map) || !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+        return
+    cmdList := g_Commands["CommandList"]
+    keys := _VK_SceneMenuCanonicalKeys()
+    sm := Map()
+    if g_Commands.Has("SceneMenus") && g_Commands["SceneMenus"] is Map {
+        ; 从 JSON 读入的 Map 拷贝到规范键
+        raw := g_Commands["SceneMenus"]
+        for key in keys {
+            if raw.Has(key) && raw[key] is Array && raw[key].Length > 0 {
+                merged := _VK_MergeSystemSceneMenuItems(cmdList, _VK_FilterValidSceneMenuCmds(cmdList, raw[key]))
+                sm[key] := merged
+            } else {
+                sm[key] := _VK_MergeSystemSceneMenuItems(cmdList, _VK_DefaultSceneMenuForKey(key))
+            }
+        }
+    } else {
+        for key in keys
+            sm[key] := _VK_MergeSystemSceneMenuItems(cmdList, _VK_DefaultSceneMenuForKey(key))
+    }
+    g_Commands["SceneMenus"] := sm
+}
+
+_VK_SceneMenusToJson() {
+    global g_Commands
+    if !g_Commands.Has("SceneMenus") || !(g_Commands["SceneMenus"] is Map)
+        _VK_EnsureSceneMenus()
+    keys := _VK_SceneMenuCanonicalKeys()
+    sm := g_Commands.Has("SceneMenus") && g_Commands["SceneMenus"] is Map ? g_Commands["SceneMenus"] : Map()
+    json := "{"
+    sep := ""
+    for key in keys {
+        inner := "["
+        sep2 := ""
+        arr := sm.Has(key) && sm[key] is Array ? sm[key] : []
+        for cid in arr {
+            inner .= sep2 . _JsonStr(Trim(String(cid)))
+            sep2 := ","
+        }
+        inner .= "]"
+        json .= sep . _JsonStr(key) . ":" . inner
+        sep := ","
+    }
+    json .= "}"
+    return json
+}
+
+_VK_SceneMenuSystemIdsJson() {
+    sys := _VK_SystemSceneMenuCmdIds()
+    json := "["
+    sep := ""
+    for id in sys {
+        json .= sep . _JsonStr(String(id))
+        sep := ","
+    }
+    json .= "]"
+    return json
+}
+
+_VK_SyncContextMenuLayoutFromFloatingSceneMenu() {
+    global g_Commands
+    if !(g_Commands is Map) || !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+        return
+    cmdList := g_Commands["CommandList"]
+    out := []
+    if !g_Commands.Has("SceneMenus") || !(g_Commands["SceneMenus"] is Map)
+        return
+    sm := g_Commands["SceneMenus"]
+    if !sm.Has("floating_bar") || !(sm["floating_bar"] is Array)
+        return
+    for cid in sm["floating_bar"] {
+        c := Trim(String(cid))
+        if (c = "" || !cmdList.Has(c))
+            continue
+        ent := cmdList[c]
+        if !(ent is Map) || !ent.Has("fn") || ent["fn"] != "CH_RUN"
+            continue
+        out.Push(c)
+    }
+    g_Commands["ContextMenuLayout"] := out
+}
+
+_VK_ApplySceneMenuFromWeb(msg) {
+    global g_Commands
+    if !(g_Commands is Map) || !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+        return false
+    if !(msg is Map) || !msg.Has("scene")
+        return false
+    key := Trim(String(msg["scene"]))
+    keys := _VK_SceneMenuCanonicalKeys()
+    valid := false
+    for k in keys {
+        if (k = key) {
+            valid := true
+            break
+        }
+    }
+    if !valid
+        return false
+    cmdList := g_Commands["CommandList"]
+    user := []
+    if msg.Has("cmds") && msg["cmds"] is Array {
+        for item in msg["cmds"] {
+            cid := Trim(String(item))
+            if (cid = "" || !cmdList.Has(cid))
+                continue
+            user.Push(cid)
+        }
+    }
+    merged := _VK_MergeSystemSceneMenuItems(cmdList, user)
+    if !g_Commands.Has("SceneMenus") || !(g_Commands["SceneMenus"] is Map)
+        g_Commands["SceneMenus"] := Map()
+    g_Commands["SceneMenus"][key] := merged
+    if (key = "floating_bar")
+        _VK_SyncContextMenuLayoutFromFloatingSceneMenu()
+    return true
+}
+
 _VK_NormalizeToolbarLayoutOrders(arr) {
     barIdx := 0
     menuIdx := 0
@@ -1338,13 +1616,15 @@ _SerializeCommands() {
     dashPinnedJson := _VK_DashboardPinnedJson()
     tlJson := _VK_ToolbarLayoutToJson()
     stlJson := _VK_SceneToolbarLayoutToJson()
+    smJson := _VK_SceneMenusToJson()
     return '{"Categories":' . catJson . ',"CommandList":' . clJson . ',"Bindings":' . bJson
         . ',"SuggestedBindings":' . sbJson
         . ',"DashboardLayout":' . dashLayoutJson
         . ',"DashboardConfig":' . dashCfgJson
         . ',"DashboardPinned":' . dashPinnedJson
         . ',"ToolbarLayout":' . tlJson
-        . ',"SceneToolbarLayout":' . stlJson . '}'
+        . ',"SceneToolbarLayout":' . stlJson
+        . ',"SceneMenus":' . smJson . '}'
 }
 
 _VK_ContextMenuLayoutToJson() {
@@ -1368,6 +1648,13 @@ _VK_EnsureContextMenuLayout() {
     global g_Commands
     if !(g_Commands is Map) || !g_Commands.Has("ToolbarLayout") || !(g_Commands["ToolbarLayout"] is Array)
         return
+    if g_Commands.Has("SceneMenus") && g_Commands["SceneMenus"] is Map {
+        sm := g_Commands["SceneMenus"]
+        if sm.Has("floating_bar") && sm["floating_bar"] is Array && sm["floating_bar"].Length > 0 {
+            _VK_SyncContextMenuLayoutFromFloatingSceneMenu()
+            return
+        }
+    }
     cmdList := (g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map) ? g_Commands["CommandList"] : Map()
     raw := unset
     if g_Commands.Has("ContextMenuLayout") && g_Commands["ContextMenuLayout"] is Array && g_Commands["ContextMenuLayout"].Length > 0
@@ -2065,6 +2352,19 @@ _OnWebMessage(sender, args) {
                 try FloatingToolbarReloadFromToolbarLayout()
                 catch as e
                     OutputDebug("[VK] FloatingToolbarReloadFromToolbarLayout(scene): " . e.Message)
+                if g_VK_Ready
+                    _PushInit()
+            }
+
+        case "saveSceneMenu":
+            if _VK_ApplySceneMenuFromWeb(msg) {
+                _SaveBindings()
+                sk := msg.Has("scene") ? Trim(String(msg["scene"])) : ""
+                if (sk = "floating_bar") {
+                    try FloatingToolbarReloadFromToolbarLayout()
+                    catch as e
+                        OutputDebug("[VK] FloatingToolbarReloadFromToolbarLayout(sceneMenu): " . e.Message)
+                }
                 if g_VK_Ready
                     _PushInit()
             }
@@ -3173,6 +3473,9 @@ _PushInit() {
     dashCfg := _VK_DashboardConfigJson()
     dashPinned := _VK_DashboardPinnedJson()
     tlJson := _VK_ToolbarLayoutToJson()
+    stlJson := _VK_SceneToolbarLayoutToJson()
+    smJson := _VK_SceneMenusToJson()
+    sysIdsJson := _VK_SceneMenuSystemIdsJson()
     adminWarning := _JsonStr(g_VK_AdminWarning)
     isAdmin := g_VK_IsAdmin ? "true" : "false"
     embeddedHost := g_VK_Embedded ? "true" : "false"
@@ -3191,7 +3494,10 @@ _PushInit() {
         . ',"dashboardLayout":' . dashLayout
         . ',"dashboardConfig":' . dashCfg
         . ',"dashboardPinned":' . dashPinned
-        . ',"toolbarLayout":' . tlJson . '}'
+        . ',"toolbarLayout":' . tlJson
+        . ',"sceneToolbarLayout":' . stlJson
+        . ',"sceneMenus":' . smJson
+        . ',"sceneMenuSystemIds":' . sysIdsJson . '}'
     VK_SendToWeb(payload)
     OutputDebug("[VK] init pushed")
 }
@@ -3465,26 +3771,39 @@ VK_ShowToolbarLayoutContextMenu() {
     global g_Commands
     if !(g_Commands is Map) || !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
         return
-    if !g_Commands.Has("ToolbarLayout") || !(g_Commands["ToolbarLayout"] is Array)
-        return
-
     cmdList := g_Commands["CommandList"]
     MenuItems := []
-    rows := g_Commands["ToolbarLayout"]
-    if rows.Length > 1
-        rows := _VK_SortRowsByNumericKey(rows, "order_menu")
-    for item in rows {
-        if !(item is Map) || !item.Has("cmdId")
-            continue
-        if !item.Has("visible_in_menu") || !item["visible_in_menu"]
-            continue
-        cid := Trim(String(item["cmdId"]))
-        if (cid = "" || !cmdList.Has(cid))
-            continue
-        nm := cmdList[cid]["name"]
-        if (nm = "")
-            nm := cid
-        MenuItems.Push({ Text: nm, Icon: "▸", Action: VK_MakeToolbarContextMenuAction(cid) })
+    if g_Commands.Has("SceneMenus") && g_Commands["SceneMenus"] is Map {
+        sm := g_Commands["SceneMenus"]
+        if sm.Has("floating_bar") && sm["floating_bar"] is Array {
+            for cid in sm["floating_bar"] {
+                c := Trim(String(cid))
+                if (c = "" || !cmdList.Has(c))
+                    continue
+                nm := cmdList[c]["name"]
+                if (nm = "")
+                    nm := c
+                MenuItems.Push({ Text: nm, Icon: "▸", Action: VK_MakeToolbarContextMenuAction(c) })
+            }
+        }
+    }
+    if MenuItems.Length = 0 && g_Commands.Has("ToolbarLayout") && g_Commands["ToolbarLayout"] is Array {
+        rows := g_Commands["ToolbarLayout"]
+        if rows.Length > 1
+            rows := _VK_SortRowsByNumericKey(rows, "order_menu")
+        for item in rows {
+            if !(item is Map) || !item.Has("cmdId")
+                continue
+            if !item.Has("visible_in_menu") || !item["visible_in_menu"]
+                continue
+            cid := Trim(String(item["cmdId"]))
+            if (cid = "" || !cmdList.Has(cid))
+                continue
+            nm := cmdList[cid]["name"]
+            if (nm = "")
+                nm := cid
+            MenuItems.Push({ Text: nm, Icon: "▸", Action: VK_MakeToolbarContextMenuAction(cid) })
+        }
     }
     if MenuItems.Length = 0
         return

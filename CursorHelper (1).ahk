@@ -4400,23 +4400,39 @@ ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
     MenuItems := []
 
     try {
-        if (IsSet(g_Commands) && g_Commands is Map && g_Commands.Has("ToolbarLayout") && g_Commands["ToolbarLayout"] is Array
-            && g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map) {
-            sorted := g_Commands["ToolbarLayout"]
-            if sorted.Length > 1
-                sorted := _VK_SortRowsByNumericKey(sorted, "order_menu")
-            for row in sorted {
-                if !(row is Map) || !row.Has("cmdId")
-                    continue
-                if !row.Has("visible_in_menu") || !row["visible_in_menu"]
-                    continue
-                cid := Trim(String(row["cmdId"]))
-                if (cid = "" || !g_Commands["CommandList"].Has(cid))
-                    continue
-                nm := g_Commands["CommandList"][cid]["name"]
-                if (nm = "")
-                    nm := cid
-                MenuItems.Push({ Text: nm, Icon: "▸", Action: VK_MakeToolbarContextMenuAction(cid) })
+        if (IsSet(g_Commands) && g_Commands is Map && g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map) {
+            cmdList := g_Commands["CommandList"]
+            if (g_Commands.Has("SceneMenus") && g_Commands["SceneMenus"] is Map) {
+                sm := g_Commands["SceneMenus"]
+                if (sm.Has("floating_bar") && sm["floating_bar"] is Array) {
+                    for cid in sm["floating_bar"] {
+                        c := Trim(String(cid))
+                        if (c = "" || !cmdList.Has(c))
+                            continue
+                        nm := cmdList[c]["name"]
+                        if (nm = "")
+                            nm := c
+                        MenuItems.Push({ Text: nm, Icon: "▸", Action: VK_MakeToolbarContextMenuAction(c) })
+                    }
+                }
+            }
+            if (MenuItems.Length = 0 && g_Commands.Has("ToolbarLayout") && g_Commands["ToolbarLayout"] is Array) {
+                sorted := g_Commands["ToolbarLayout"]
+                if sorted.Length > 1
+                    sorted := _VK_SortRowsByNumericKey(sorted, "order_menu")
+                for row in sorted {
+                    if !(row is Map) || !row.Has("cmdId")
+                        continue
+                    if !row.Has("visible_in_menu") || !row["visible_in_menu"]
+                        continue
+                    cid := Trim(String(row["cmdId"]))
+                    if (cid = "" || !cmdList.Has(cid))
+                        continue
+                    nm := cmdList[cid]["name"]
+                    if (nm = "")
+                        nm := cid
+                    MenuItems.Push({ Text: nm, Icon: "▸", Action: VK_MakeToolbarContextMenuAction(cid) })
+                }
             }
         }
     } catch {
