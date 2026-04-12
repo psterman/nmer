@@ -3863,7 +3863,6 @@ ToggleToolbarAndPanel(*) {
 global TrayMenuGUI := 0  ; 自定义托盘菜单GUI
 global TrayMenuSelectedItem := 0  ; 当前选中的菜单项
 global TrayMenuHoverTimer := 0  ; 暗色菜单悬停渐变
-
 ; ===================== 监听托盘消息 =====================
 ; 当鼠标在托盘图标上点击时，Windows 会发送 0x404 消息
 ; 我们通过监听这个消息，手动判断是左键还是右键，然后立即显示自定义GUI菜单
@@ -4013,43 +4012,31 @@ CheckTrayMenuMousePosition(*) {
         return
     }
     
-    ; 计算鼠标在 GUI 内的相对 Y 坐标
-    RelY := MY - WY
-    
-    ; 菜单参数（与 ShowCustomTrayMenu 中的保持一致）
     MenuItemHeight := 35
     Padding := 10
-    
-    ; 检查鼠标是否在菜单区域内
+    RelY := MY - WY
+
     if (RelY < Padding) {
         TrayMenuCancelHoverAnim()
-        ; 鼠标在菜单上方填充区域，清除悬停效果
         if (TrayMenuSelectedItem > 0) {
             try {
                 TrayMenuGUI["MenuItemBg" . TrayMenuSelectedItem].BackColor := "1a1a1a"
-                TrayMenuGUI["MenuItemText" . TrayMenuSelectedItem].Opt("cff6600")  ; 恢复橙色文本
-                if (TrayMenuGUI.HasProp("MenuItemIcon" . TrayMenuSelectedItem)) {
-                    TrayMenuGUI["MenuItemIcon" . TrayMenuSelectedItem].Opt("cff6600")  ; 恢复橙色图标
-                }
+                TrayMenuGUI["MenuItemText" . TrayMenuSelectedItem].Opt("cff6600")
+                if (TrayMenuGUI.HasProp("MenuItemIcon" . TrayMenuSelectedItem))
+                    TrayMenuGUI["MenuItemIcon" . TrayMenuSelectedItem].Opt("cff6600")
                 TrayMenuSelectedItem := 0
             }
         }
         return
     }
-    
-    ; 计算当前鼠标所在的菜单项索引（从1开始）
+
     ItemIndex := Floor((RelY - Padding) / MenuItemHeight) + 1
-    
-    ; 验证索引是否有效（通过尝试访问控件）
     try {
-        testCtrl := TrayMenuGUI["MenuItemBg" . ItemIndex]
-        if (!testCtrl)
+        if !TrayMenuGUI["MenuItemBg" . ItemIndex]
             return
     } catch {
         return
     }
-    
-    ; 验证鼠标确实在菜单项区域内（防止边界情况）
     ItemY := Padding + (ItemIndex - 1) * MenuItemHeight
     if (RelY >= ItemY && RelY < ItemY + MenuItemHeight) {
         TrayMenuItemHover(ItemIndex)
@@ -4215,10 +4202,13 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
         }
     }
 
-    MenuWidth := 200
+    n := MenuItems.Length
     MenuItemHeight := 35
     Padding := 10
-    MenuHeight := MenuItems.Length * MenuItemHeight + Padding * 2
+    MenuWidth := 200
+    MenuHeight := n * MenuItemHeight + Padding * 2
+    cellPad := 4
+    cellUseW := MenuWidth - Padding * 2 - cellPad
 
     ; 使用虚拟屏幕范围，兼容多屏/负坐标
     vL := SysGet(76), vT := SysGet(77), vW := SysGet(78), vH := SysGet(79)
@@ -4240,8 +4230,6 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
 
     TrayMenuSelectedItem := 0
     IconSize := 18
-    IconLeftMargin := Padding + 8
-    TextLeftMargin := IconLeftMargin + IconSize + 10
 
     ClickHelper(item, *) {
         try {
@@ -4254,11 +4242,14 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
         }
     }
 
-    Loop MenuItems.Length {
+    Loop n {
         Index := A_Index
         Item := MenuItems[Index]
+        baseX := Padding
         ItemY := Padding + (Index - 1) * MenuItemHeight
-        ItemBg := TrayMenuGUI.Add("Text", "x" . Padding . " y" . ItemY . " w" . (MenuWidth - Padding * 2) . " h" . MenuItemHeight . " Background1a1a1a vMenuItemBg" . Index, "")
+        IconLeftMargin := baseX + 8
+        TextLeftMargin := IconLeftMargin + IconSize + 8
+        ItemBg := TrayMenuGUI.Add("Text", "x" . baseX . " y" . ItemY . " w" . cellUseW . " h" . MenuItemHeight . " Background1a1a1a vMenuItemBg" . Index, "")
         ItemBg.OnEvent("Click", ClickHelper.Bind(Item))
         iconFile := ResolveDarkPopupItemIconFile(Item, IconSize)
         if (iconFile != "" && FileExist(iconFile)) {
@@ -4269,7 +4260,10 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
             IconText.SetFont("s14", "Segoe UI Symbol")
             IconText.OnEvent("Click", ClickHelper.Bind(Item))
         }
-        ItemText := TrayMenuGUI.Add("Text", "x" . TextLeftMargin . " y" . ItemY . " w" . (MenuWidth - TextLeftMargin - Padding) . " h" . MenuItemHeight . " Left 0x200 cff6600 BackgroundTrans vMenuItemText" . Index, Item.Text)
+        tw := cellUseW - (TextLeftMargin - baseX) - 6
+        if (tw < 24)
+            tw := 24
+        ItemText := TrayMenuGUI.Add("Text", "x" . TextLeftMargin . " y" . ItemY . " w" . tw . " h" . MenuItemHeight . " Left 0x200 cff6600 BackgroundTrans vMenuItemText" . Index, Item.Text)
         ItemText.SetFont("s11", "Segoe UI")
         ItemText.OnEvent("Click", ClickHelper.Bind(Item))
     }
@@ -4425,7 +4419,6 @@ FTB_SanitizeToolbarMenuItems(itemsOrCsv) {
 ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
     global g_Commands
 
-    MenuWidth := 280
     MenuItemHeight := 35
     Padding := 10
     MenuItems := []
@@ -4472,7 +4465,9 @@ ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
     if (MenuItems.Length = 0)
         MenuItems.Push({ Text: "（右键菜单暂无命令）", Icon: "·", Action: (*) => 0 })
 
-    MenuHeight := MenuItems.Length * MenuItemHeight + Padding * 2
+    n := MenuItems.Length
+    MenuHeight := n * MenuItemHeight + Padding * 2
+    MenuWidth := 280
     posX := anchorX - (MenuWidth // 2)
     posY := anchorY - MenuHeight - 10
 

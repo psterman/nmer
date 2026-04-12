@@ -1595,17 +1595,21 @@ _SCWV_CheckDarkSearchCtxMouse(*) {
         return
     }
     _SCWV_DarkMenuLayout(&Df, &Pad, &MenuItemHeight, &innerTop)
+    RelX := MX - WX
     RelY := MY - WY
-    if RelY < innerTop {
+    if RelY < innerTop || RelX < innerTop {
         if g_SCWV_DarkCtxHoverIdx > 0
             _SCWV_DarkSearchItemApplyHover(0)
         return
     }
     ItemIndex := Floor((RelY - innerTop) / MenuItemHeight) + 1
-    if (ItemIndex < 1 || ItemIndex > g_SCWV_DarkCtxItemCount)
+    if (ItemIndex < 1 || ItemIndex > g_SCWV_DarkCtxItemCount) {
+        if g_SCWV_DarkCtxHoverIdx > 0
+            _SCWV_DarkSearchItemApplyHover(0)
         return
+    }
     ItemY := innerTop + (ItemIndex - 1) * MenuItemHeight
-    if RelY >= ItemY && RelY < ItemY + MenuItemHeight
+    if RelY >= ItemY && RelY < ItemY + MenuItemHeight && RelX >= innerTop && RelX < WW - innerTop
         _SCWV_DarkSearchItemApplyHover(ItemIndex)
     else if g_SCWV_DarkCtxHoverIdx > 0
         _SCWV_DarkSearchItemApplyHover(0)
@@ -1870,10 +1874,11 @@ _SCWV_ShowDarkSearchRowMenuAt(spec, posX, posY) {
     if !(spec is Array) || spec.Length = 0
         spec := [Map("k", "cmd", "id", "", "t", "（未配置菜单）")]
     _SCWV_DarkMenuLayout(&Df, &Pad, &MenuItemHeight, &innerTop)
-    MenuWidth := 220
     n := spec.Length
     g_SCWV_DarkCtxItemCount := n
+    MenuWidth := 220
     MenuHeight := 2 * Df + n * MenuItemHeight + 2 * Pad
+    cellW := MenuWidth - 2 * innerTop
     ScreenWidth := SysGet(78)
     ScreenHeight := SysGet(79)
     posX := Integer(posX)
@@ -1912,9 +1917,9 @@ _SCWV_ShowDarkSearchRowMenuAt(spec, posX, posY) {
         isSub := it.Has("k") && String(it["k"]) = "sub"
         id := isSub ? "" : (it.Has("id") ? Trim(String(it["id"])) : "")
         iy := innerTop + (i - 1) * MenuItemHeight
-        ItemBg := g_SCWV_DarkCtxGui.Add("Text", "x" . innerTop . " y" . iy . " w" . (MenuWidth - 2 * innerTop) . " h" . MenuItemHeight . " Background1a1a1a vScCtxBg" . i, "")
+        ItemBg := g_SCWV_DarkCtxGui.Add("Text", "x" . innerTop . " y" . iy . " w" . cellW . " h" . MenuItemHeight . " Background1a1a1a vScCtxBg" . i, "")
         ItemBg.OnEvent("Click", _SCWV_OnDarkSearchMenuClick.Bind(i))
-        ItemTxt := g_SCWV_DarkCtxGui.Add("Text", "x" . (innerTop + 10) . " y" . iy . " w" . (MenuWidth - 2 * innerTop - 14) . " h" . MenuItemHeight . " Left 0x200 cff6600 BackgroundTrans vScCtxTx" . i, t)
+        ItemTxt := g_SCWV_DarkCtxGui.Add("Text", "x" . (innerTop + 10) . " y" . iy . " w" . (cellW - 14) . " h" . MenuItemHeight . " Left 0x200 cff6600 BackgroundTrans vScCtxTx" . i, t)
         ItemTxt.SetFont("s11", "Segoe UI")
         ItemTxt.OnEvent("Click", _SCWV_OnDarkSearchMenuClick.Bind(i))
         if (isSub && it.Has("children"))

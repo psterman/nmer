@@ -2008,21 +2008,21 @@ body::after {
   </div><!-- #keyboard-zone -->
 
   <!-- ── Dashboard Grid (Drag & Drop) ──────────────────────────────────── -->
-  <div id="dashboard-container" aria-label="快捷动作面板">
+  <div id="dashboard-container" class="layout-multi" aria-label="快捷动作面板">
     <div id="dashboard-toolbar">
       <div id="dashboard-title">DASHBOARD</div>
-      <div class="dashboard-toolbar-row" role="group" aria-label="宫格与场景菜单">
-        <div id="dashboard-layout-switch" aria-label="宫格布局切换">
-          <button class="dashboard-layout-btn" data-layout="1" type="button">一宫格</button>
-          <button class="dashboard-layout-btn" data-layout="2" type="button">二宫格</button>
-          <button class="dashboard-layout-btn active" data-layout="multi" type="button">三宫格</button>
+      <div class="dashboard-toolbar-row" role="group" aria-label="场景右键菜单编辑宫格与主宫格">
+        <div id="dashboard-layout-switch" aria-label="本页场景右键菜单编辑区行数（一/二/三）；不改变各窗口实际弹出的右键菜单外观">
+          <button class="dashboard-layout-btn" data-layout="1" type="button" title="本页场景菜单编辑区：单行（10 槽）。不影响搜索中心/草稿本等实际右键菜单">一宫格</button>
+          <button class="dashboard-layout-btn" data-layout="2" type="button" title="本页场景菜单编辑区：双行（20 槽）。不影响各宿主运行时右键菜单">二宫格</button>
+          <button class="dashboard-layout-btn active" data-layout="multi" type="button" title="本页场景菜单编辑区：多行密铺（60 槽）。不影响各宿主运行时右键菜单">三宫格</button>
         </div>
         <span class="dashboard-toolbar-sep" aria-hidden="true"></span>
         <div id="scene-menu-tabs" class="scene-menu-tabs-inline" role="tablist" aria-label="场景右键菜单"></div>
       </div>
     </div>
     <div id="scene-menu-panel" class="scene-menu-panel" hidden aria-label="场景右键菜单宫格">
-      <div class="scene-menu-panel-hint">场景菜单 · 仅从上方虚拟键盘拖入槽位；与「一/二/三宫格」尺寸联动。搜索中心场景：本宫格顺序与显示/隐藏即同步到搜索结果右键菜单（橙黑主题）。</div>
+      <div class="scene-menu-panel-hint">场景菜单 · 从键盘拖入槽位。每个场景（搜索中心 / 草稿本 / 剪贴板 / 提示词 / 悬浮条）共用同一份最多 60 槽数据；「一/二/三宫格」只切换本页<strong>可见</strong>行数（10 / 20 / 60 槽），不会另存一套配置。与下方主快捷宫格无关，也不改变各窗口实际弹出的右键菜单外观。</div>
       <div id="scene-menu-grid" class="dashboard-grid layout-multi"></div>
     </div>
     <div id="dashboard-main-panel" class="dashboard-main-panel">
@@ -3450,13 +3450,23 @@ function normalizeIncomingSceneMenus(raw) {
   const out = {};
   for (const k of SCENE_MENU_KEYS) {
     const arr = raw && Array.isArray(raw[k]) ? raw[k] : [];
-    out[k] = arr.map((x) => {
+    const mapped = arr.map((x) => {
       if (x === null || x === undefined) return '';
       const s = String(x).trim();
       if (!s) return '';
       if (!state.commands[s]) return '';
       return s;
     });
+    if (k === 'search') {
+      out[k] = mapped;
+      continue;
+    }
+    const full = [];
+    for (let i = 0; i < SCENE_MENU_MAX_SLOTS; i++) {
+      const s = mapped[i] == null ? '' : String(mapped[i]).trim();
+      full.push(s && state.commands[s] ? s : '');
+    }
+    out[k] = full;
   }
   return out;
 }
@@ -3539,37 +3549,35 @@ function isToolbarRowSearchCenterPool(r) {
 }
 
 function getSearchSceneMenuSlots() {
-  const nBase = slotsForLayout(dashboardLayout);
+  const cap = sceneMenuSlotCap(dashboardLayout);
   const pool = state.toolbarLayout
     .filter((r) => isToolbarRowSearchCenterPool(r))
     .sort((a, b) => (a.order_search_row - b.order_search_row) || 0);
-  const need = Math.max(nBase, pool.length + 2);
-  const slots = Array.from({ length: need }, () => null);
-  pool.forEach((r, i) => {
-    slots[i] = normalizeDashboardItem(r.cmdId);
-  });
+  const slots = Array.from({ length: cap }, () => null);
+  for (let i = 0; i < cap && i < pool.length; i++) {
+    slots[i] = normalizeDashboardItem(pool[i].cmdId);
+  }
   return slots;
 }
 
 function getDynamicSceneMenuSlots(key) {
-  const nBase = slotsForLayout(dashboardLayout);
-  const ids = Array.isArray(state.sceneMenus[key]) ? state.sceneMenus[key] : [];
-  const pool = ids.map((id) => String(id || '').trim()).filter((id) => id && state.commands[id]);
-  const need = Math.max(nBase, pool.length + 2);
-  const slots = Array.from({ length: need }, () => null);
-  pool.forEach((id, i) => {
-    slots[i] = normalizeDashboardItem(id);
-  });
+  const cap = sceneMenuSlotCap(dashboardLayout);
+  const ids = ensureSceneMenuStorageArray(key);
+  const slots = Array.from({ length: cap }, () => null);
+  for (let i = 0; i < cap; i++) {
+    const id = ids[i];
+    if (id && state.commands[id]) slots[i] = normalizeDashboardItem(id);
+  }
   return slots;
 }
 
 function getSceneMenuSlots(key) {
   if (key === 'search') return getSearchSceneMenuSlots();
   if (isDynamicSceneMenuKey(key)) return getDynamicSceneMenuSlots(key);
-  const n = slotsForLayout(dashboardLayout);
-  const ids = Array.isArray(state.sceneMenus[key]) ? state.sceneMenus[key] : [];
-  const slots = Array.from({ length: n }, () => null);
-  for (let i = 0; i < Math.min(ids.length, n); i++) {
+  const cap = sceneMenuSlotCap(dashboardLayout);
+  const ids = ensureSceneMenuStorageArray(key);
+  const slots = Array.from({ length: cap }, () => null);
+  for (let i = 0; i < cap; i++) {
     const id = ids[i];
     if (id && state.commands[id]) slots[i] = normalizeDashboardItem(id);
   }
@@ -3584,14 +3592,24 @@ function applyToolbarSearchFromSlotsArray(slots) {
     if (seen.includes(it.commandId)) continue;
     seen.push(it.commandId);
   }
-  seen.forEach((cmdId, i) => {
+  const pool = state.toolbarLayout
+    .filter((r) => isToolbarRowSearchCenterPool(r))
+    .sort((a, b) => (a.order_search_row - b.order_search_row) || 0);
+  const seenSet = new Set(seen);
+  let ord = 0;
+  for (const cmdId of seen) {
     const r = state.toolbarLayout.find((x) => x.cmdId === cmdId);
-    if (!r) return;
-    r.order_search_row = i;
+    if (!r) continue;
+    r.order_search_row = ord++;
     r.visible_in_search_row = true;
     if (!Array.isArray(r.menu_scenes)) r.menu_scenes = [];
     if (!r.menu_scenes.includes('search_center')) r.menu_scenes.push('search_center');
-  });
+  }
+  const rest = pool.filter((r) => !seenSet.has(r.cmdId))
+    .sort((a, b) => (a.order_search_row - b.order_search_row) || 0);
+  for (const r of rest) {
+    r.order_search_row = ord++;
+  }
   saveToolbarLayout();
 }
 
@@ -3600,28 +3618,30 @@ function setSceneMenuFromSlotsArray(key, slots) {
     applyToolbarSearchFromSlotsArray(slots);
     return;
   }
+  const cap = sceneMenuSlotCap(dashboardLayout);
+  const mergeCap = Math.min(slots.length, cap);
   if (isDynamicSceneMenuKey(key)) {
-    const seen = [];
-    const arr = [];
-    for (let i = 0; i < slots.length; i++) {
+    const full = ensureSceneMenuStorageArray(key);
+    for (let i = 0; i < mergeCap; i++) {
+      const it = normalizeDashboardItem(slots[i]);
+      full[i] = it ? it.commandId : '';
+    }
+    state.sceneMenus[key] = full;
+    for (let i = 0; i < mergeCap; i++) {
       const it = normalizeDashboardItem(slots[i]);
       if (!it) continue;
-      if (seen.includes(it.commandId)) continue;
-      seen.push(it.commandId);
-      arr.push(it.commandId);
       if (!state.sceneMenuVisibility[key]) state.sceneMenuVisibility[key] = {};
       if (state.sceneMenuVisibility[key][it.commandId] === undefined) state.sceneMenuVisibility[key][it.commandId] = true;
     }
-    state.sceneMenus[key] = arr;
     scheduleSaveSceneMenu(key);
     return;
   }
-  const arr = [];
-  for (let i = 0; i < slots.length; i++) {
+  const full = ensureSceneMenuStorageArray(key);
+  for (let i = 0; i < mergeCap; i++) {
     const it = normalizeDashboardItem(slots[i]);
-    arr.push(it ? it.commandId : '');
+    full[i] = it ? it.commandId : '';
   }
-  state.sceneMenus[key] = arr;
+  state.sceneMenus[key] = full;
   scheduleSaveSceneMenu(key);
 }
 
@@ -3636,7 +3656,7 @@ function collectSceneMenuSlotsFromDom() {
       return itemEl ? dashboardItemFromElement(itemEl) : null;
     });
   }
-  const n = slotsForLayout(dashboardLayout);
+  const n = sceneMenuSlotCap(dashboardLayout);
   const slots = Array.from({ length: n }, () => null);
   children.forEach((slot, index) => {
     if (index >= n) return;
@@ -3649,37 +3669,54 @@ function collectSceneMenuSlotsFromDom() {
 function commitToolbarSearchRowFromSceneGrid() {
   const grid = document.getElementById('scene-menu-grid');
   if (!grid) return;
+  const cap = sceneMenuSlotCap(dashboardLayout);
   const children = Array.from(grid.querySelectorAll('.scene-menu-slot'));
   const ordered = [];
-  children.forEach((slot) => {
+  children.forEach((slot, idx) => {
+    if (idx >= cap) return;
     const itemEl = slot.querySelector('.dashboard-item');
     const id = itemEl && itemEl.dataset.cmdId;
     if (id) ordered.push(id);
   });
-  ordered.forEach((cmdId, i) => {
+  const pool = state.toolbarLayout
+    .filter((r) => isToolbarRowSearchCenterPool(r))
+    .sort((a, b) => (a.order_search_row - b.order_search_row) || 0);
+  const seenSet = new Set(ordered);
+  let ord = 0;
+  for (const cmdId of ordered) {
     const r = state.toolbarLayout.find((x) => x.cmdId === cmdId);
-    if (!r) return;
-    r.order_search_row = i;
+    if (!r) continue;
+    r.order_search_row = ord++;
+    r.visible_in_search_row = true;
     if (!Array.isArray(r.menu_scenes)) r.menu_scenes = [];
     if (!r.menu_scenes.includes('search_center')) r.menu_scenes.push('search_center');
-  });
+  }
+  const rest = pool.filter((r) => !seenSet.has(r.cmdId))
+    .sort((a, b) => (a.order_search_row - b.order_search_row) || 0);
+  for (const r of rest) {
+    r.order_search_row = ord++;
+  }
   saveToolbarLayout();
 }
 
 function commitDynamicSceneMenuFromGrid(sceneKey) {
   const grid = document.getElementById('scene-menu-grid');
   if (!grid) return;
-  const ordered = [];
-  grid.querySelectorAll('.scene-menu-slot').forEach((slot) => {
-    const itemEl = slot.querySelector('.dashboard-item');
+  const cap = sceneMenuSlotCap(dashboardLayout);
+  const full = ensureSceneMenuStorageArray(sceneKey);
+  const children = Array.from(grid.querySelectorAll('.scene-menu-slot'));
+  for (let i = 0; i < cap; i++) {
+    const slot = children[i];
+    const itemEl = slot && slot.querySelector('.dashboard-item');
     const id = itemEl && itemEl.dataset.cmdId;
-    if (id) ordered.push(id);
-  });
-  state.sceneMenus[sceneKey] = ordered;
+    full[i] = id ? String(id).trim() : '';
+    if (!full[i] || !state.commands[full[i]]) full[i] = '';
+  }
+  state.sceneMenus[sceneKey] = full;
   postToAhk({
     type: 'saveSceneMenu',
     scene: sceneKey,
-    cmds: ordered,
+    cmds: full,
     visible: { ...(state.sceneMenuVisibility[sceneKey] || {}) },
   });
 }
@@ -3863,8 +3900,9 @@ function removeSceneMenuItemAt(slotIndex) {
     return;
   }
   if (isDynamicSceneMenuKey(key)) {
-    const next = (Array.isArray(state.sceneMenus[key]) ? state.sceneMenus[key] : []).filter((id) => id !== rem.commandId);
-    state.sceneMenus[key] = next;
+    const full = ensureSceneMenuStorageArray(key);
+    if (slotIndex >= 0 && slotIndex < full.length) full[slotIndex] = '';
+    state.sceneMenus[key] = full;
     if (state.sceneMenuVisibility[key]) delete state.sceneMenuVisibility[key][rem.commandId];
     scheduleSaveSceneMenu(key);
     renderSceneMenuGrid();
@@ -3879,6 +3917,7 @@ async function pasteSceneMenuClipboardToSlot(slotIndex) {
   const clip = normalizeDashboardItem(state.dashboardClipboard);
   if (!clip) return false;
   const key = getActiveSceneMenuKey();
+  stripSceneMenuCmdElsewhere(key, clip.commandId, slotIndex);
   let slots = getSceneMenuSlots(key);
   if (slotIndex < 0 || slotIndex >= slots.length) return false;
   const existing = slots[slotIndex];
@@ -3901,6 +3940,7 @@ async function handleKeyboardDropToSceneSlot(toIndex) {
   const key = getActiveSceneMenuKey();
   const incoming = normalizeDashboardItem(state.draggedDashboardItem);
   if (!incoming || isSceneMenuSystemCmd(incoming.commandId)) return false;
+  stripSceneMenuCmdElsewhere(key, incoming.commandId, toIndex);
   let slots = getSceneMenuSlots(key);
   if (toIndex < 0 || toIndex >= slots.length) return false;
   const target = slots[toIndex];
@@ -4140,12 +4180,45 @@ function resolveDashboardLayout(layout) {
   return 'multi';
 }
 
-function slotsForLayout(layout) {
+const MAIN_DASHBOARD_SLOT_COUNT = 60;
+
+function mainDashboardSlotCount() {
+  return MAIN_DASHBOARD_SLOT_COUNT;
+}
+
+/** 场景菜单在 Commands.json / 内存中统一按索引保存的最大槽位数（与三宫格一致） */
+const SCENE_MENU_MAX_SLOTS = MAIN_DASHBOARD_SLOT_COUNT;
+
+/** 仅影响本页场景菜单编辑区可见行数（一=10 / 二=20 / 三=60），不改变各场景已保存的完整槽位数据 */
+function sceneMenuSlotCap(layout) {
   const resolved = resolveDashboardLayout(layout);
-  if (resolved === 'multi') return 60; // 3行 * 20列
-  if (resolved === 1) return 10;       // 1行 * 10列
-  if (resolved === 2) return 20;       // 2行 * 10列
+  if (resolved === 'multi') return 60;
+  if (resolved === 1) return 10;
+  if (resolved === 2) return 20;
   return 60;
+}
+
+/** 非搜索类场景：固定长度 SCENE_MENU_MAX_SLOTS，空串表示空槽（与 AHK 侧按索引存盘一致） */
+function ensureSceneMenuStorageArray(key) {
+  if (key === 'search') return [];
+  const raw = Array.isArray(state.sceneMenus[key]) ? state.sceneMenus[key] : [];
+  const out = [];
+  for (let i = 0; i < SCENE_MENU_MAX_SLOTS; i++) {
+    const s = raw[i] == null ? '' : String(raw[i]).trim();
+    out.push(s && state.commands[s] ? s : '');
+  }
+  return out;
+}
+
+/** 同一命令仅占一个槽位：从完整存储中去掉其它索引上的 cmdId（搜索中心由工具栏顺序单独管理） */
+function stripSceneMenuCmdElsewhere(key, cmdId, keepIndex) {
+  if (key === 'search' || !cmdId) return;
+  const full = ensureSceneMenuStorageArray(key);
+  for (let i = 0; i < full.length; i++) {
+    if (i === keepIndex) continue;
+    if (full[i] === cmdId) full[i] = '';
+  }
+  state.sceneMenus[key] = full;
 }
 
 function normalizeDashboardItem(item) {
@@ -4174,7 +4247,7 @@ function normalizeDashboardItem(item) {
 
 function normalizeDashboardConfig(rawConfig, layoutHint) {
   const layout = resolveDashboardLayout(rawConfig?.layout || rawConfig?.mode || layoutHint);
-  const slotCount = slotsForLayout(layout);
+  const slotCount = mainDashboardSlotCount();
   const slots = Array.from({ length: slotCount }, () => null);
   const rawSlots = Array.isArray(rawConfig)
     ? rawConfig
@@ -4200,7 +4273,7 @@ function serializeDashboardConfig() {
 }
 
 function ensureDashboardStateSize(layoutHint) {
-  const slotCount = slotsForLayout(layoutHint || dashboardLayout);
+  const slotCount = mainDashboardSlotCount();
   if (!Array.isArray(state.dashboardConfig)) state.dashboardConfig = [];
   const next = Array.from({ length: slotCount }, (_, index) => normalizeDashboardItem(state.dashboardConfig[index]));
   state.dashboardConfig = next;
@@ -4221,9 +4294,10 @@ function syncDashboardLayoutUI() {
   const grid = document.getElementById('dashboard-grid');
   const sceneGrid = document.getElementById('scene-menu-grid');
   const container = document.getElementById('dashboard-container');
-  if (!grid) return;
-  grid.classList.remove('layout-1', 'layout-2', 'layout-multi');
-  grid.classList.add(`layout-${dashboardLayout}`);
+  if (grid) {
+    grid.classList.remove('layout-1', 'layout-2', 'layout-multi');
+    grid.classList.add('layout-multi');
+  }
   if (sceneGrid) {
     sceneGrid.classList.remove('layout-1', 'layout-2', 'layout-multi');
     sceneGrid.classList.add(`layout-${dashboardLayout}`);
@@ -4239,7 +4313,7 @@ function syncDashboardLayoutUI() {
 
 function applyDashboardLayout(layout) {
   dashboardLayout = resolveDashboardLayout(layout);
-  ensureDashboardStateSize(dashboardLayout);
+  ensureDashboardStateSize();
   syncDashboardLayoutUI();
   ensureDashboardSlots();
   renderSceneMenuGrid();
@@ -4420,9 +4494,25 @@ function getDashboardSlotEl(index) {
   return document.querySelector(`#dashboard-grid .dashboard-slot[data-slot-index="${index}"]`);
 }
 
+function dashboardSlotSignature(item) {
+  if (!item) return '';
+  return [
+    item.commandId,
+    item.customTitle || '',
+    item.customNote || '',
+    item.customShortcut || '',
+    item.sourceAhkKey || '',
+    item.sourceDisplayKey || '',
+    displayKeyForCmd(item.commandId),
+  ].join('\x1e');
+}
+
 function renderDashboardSlot(slot, item, index) {
   if (!slot) return;
   slot.dataset.slotIndex = String(index);
+  const sig = dashboardSlotSignature(item);
+  if (slot.dataset.dashSig === sig) return;
+  slot.dataset.dashSig = sig;
   slot.innerHTML = '';
   slot.classList.toggle('is-empty', !item);
   slot.title = item ? '' : '拖拽命令到此处';
@@ -4446,16 +4536,8 @@ function createDashboardDragPreview(itemLike) {
   preview.style.position = 'fixed';
   preview.style.left = '-9999px';
   preview.style.top = '-9999px';
-  if (dashboardLayout === 'multi') {
-    preview.style.width = '94px';
-    preview.style.height = '94px';
-  } else if (dashboardLayout === 2 || String(dashboardLayout) === '2') {
-    preview.style.width = '122px';
-    preview.style.height = '34px';
-  } else {
-    preview.style.width = '132px';
-    preview.style.height = '38px';
-  }
+  preview.style.width = '94px';
+  preview.style.height = '94px';
   preview.style.pointerEvents = 'none';
   preview.style.zIndex = '99999';
   preview.className = 'dashboard-slot';
@@ -4779,8 +4861,10 @@ function initDashboardDrag() {
 
   document.querySelectorAll('#dashboard-layout-switch .dashboard-layout-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      state.dashboardPanelMode = 'main';
+      // 一/二/三仅控制「场景右键菜单」编辑区行数，不得切到下方主快捷 60 宫格
+      state.dashboardPanelMode = 'scene';
       syncDashboardPanelVisibility();
+      renderSceneMenuTabs();
       applyDashboardLayout(btn.dataset.layout);
     });
   });

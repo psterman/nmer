@@ -766,7 +766,14 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
   box-shadow: 0 16px 34px rgba(0,0,0,0.45);
   display: none;
 }
-#context-menu.visible { display: block; }
+#context-menu.visible {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+#context-menu.visible .ctx-item.ctx-sub-parent {
+  grid-column: 1 / -1;
+}
 .ctx-item {
   padding: 9px 14px; font-size: 13px; color: #ff6600;
   cursor: pointer; user-select: none;

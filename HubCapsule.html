@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -802,7 +802,14 @@ body.native-titlebar #header { display: none; }
   display: none;
 }
 
-#ctx-menu.open { display: block; }
+#ctx-menu.open {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+#ctx-menu.open .ctx-sub-parent {
+  grid-column: 1 / -1;
+}
 
 #preview-ctx-menu {
   position: fixed;

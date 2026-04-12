@@ -819,6 +819,10 @@ _VK_EnsureDashboardStorage() {
         }
         normalized.Push("")
     }
+    while normalized.Length > 60
+        normalized.Pop()
+    while normalized.Length < 60
+        normalized.Push("")
     g_Commands["DashboardConfig"] := normalized
 
     rawPinned := (g_Commands.Has("DashboardPinned") && g_Commands["DashboardPinned"] is Array)
@@ -1127,13 +1131,46 @@ _VK_DefaultSceneMenuFloatingBarRaw() {
     return out
 }
 
-; Web / JSON 下发的槽位序列：按索引对应宫格，空串表示空槽（与 VK 一宫格/二宫格/三宫格对齐）
+; Web / JSON 下发的槽位序列：按索引对应宫格，空串表示空槽（VK 场景编辑区与三宫格一致为 60 槽；一/二宫格仅 Web 侧视图）
 _VK_SceneMenuArrayPreserveSlots(cmdList, arr) {
     out := []
     if !(arr is Array)
         return out
     for item in arr {
         cid := Trim(String(item))
+        if (cid = "" || !cmdList.Has(cid))
+            out.Push("")
+        else
+            out.Push(cid)
+    }
+    return out
+}
+
+_VK_SceneMenuGridSlotCount() {
+    return 60
+}
+
+; 若已含空槽位，视为新版按索引存盘，跳过后续「压缩迁移」以免打乱槽位
+_VK_SceneMenuHasEmptySlot(arr) {
+    if !(arr is Array)
+        return false
+    for item in arr {
+        if (Trim(String(item)) = "")
+            return true
+    }
+    return false
+}
+
+_VK_SceneMenuPadToGridSlotCount(cmdList, arr) {
+    maxN := _VK_SceneMenuGridSlotCount()
+    out := []
+    if !(arr is Array)
+        arr := []
+    Loop maxN {
+        i := A_Index
+        cid := ""
+        if (i <= arr.Length)
+            cid := Trim(String(arr[i]))
         if (cid = "" || !cmdList.Has(cid))
             out.Push("")
         else
@@ -1166,14 +1203,17 @@ _VK_EnsureSceneMenus() {
     if g_Commands.Has("SceneMenus") && g_Commands["SceneMenus"] is Map {
         raw := g_Commands["SceneMenus"]
         for key in keys {
+            useGridPad := (key = "floating_bar" || key = "clipboard" || key = "scratchpad" || key = "prompts")
             if raw.Has(key) && raw[key] is Array && raw[key].Length > 0 {
                 mergedArr := raw[key]
                 if (key = "clipboard" || key = "scratchpad" || key = "prompts")
                     mergedArr := _VK_MergeSceneMenuWithSearchCtxCmds(raw[key])
-                mergedArr := _VK_SceneMenuIdsMigrateCopyLinkSplit(mergedArr)
-                sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, mergedArr)
+                if !_VK_SceneMenuHasEmptySlot(mergedArr)
+                    mergedArr := _VK_SceneMenuIdsMigrateCopyLinkSplit(mergedArr)
+                preserved := _VK_SceneMenuArrayPreserveSlots(cmdList, mergedArr)
+                sm[key] := useGridPad ? _VK_SceneMenuPadToGridSlotCount(cmdList, preserved) : preserved
             } else if (key = "floating_bar") {
-                sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_SceneMenuIdsMigrateCopyLinkSplit(_VK_DefaultSceneMenuForKey(key)))
+                sm[key] := _VK_SceneMenuPadToGridSlotCount(cmdList, _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_SceneMenuIdsMigrateCopyLinkSplit(_VK_DefaultSceneMenuForKey(key))))
             } else {
                 fill := false
                 for d in defFill {
@@ -1183,7 +1223,7 @@ _VK_EnsureSceneMenus() {
                     }
                 }
                 if fill
-                    sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_SceneMenuIdsMigrateCopyLinkSplit(_VK_DefaultSceneMenuForKey(key)))
+                    sm[key] := _VK_SceneMenuPadToGridSlotCount(cmdList, _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_SceneMenuIdsMigrateCopyLinkSplit(_VK_DefaultSceneMenuForKey(key))))
                 else
                     sm[key] := []
             }
@@ -1191,7 +1231,7 @@ _VK_EnsureSceneMenus() {
     } else {
         for key in keys {
             if (key = "floating_bar")
-                sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_SceneMenuIdsMigrateCopyLinkSplit(_VK_DefaultSceneMenuForKey(key)))
+                sm[key] := _VK_SceneMenuPadToGridSlotCount(cmdList, _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_SceneMenuIdsMigrateCopyLinkSplit(_VK_DefaultSceneMenuForKey(key))))
             else {
                 fill := false
                 for d in defFill {
@@ -1201,7 +1241,7 @@ _VK_EnsureSceneMenus() {
                     }
                 }
                 if fill
-                    sm[key] := _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_SceneMenuIdsMigrateCopyLinkSplit(_VK_DefaultSceneMenuForKey(key)))
+                    sm[key] := _VK_SceneMenuPadToGridSlotCount(cmdList, _VK_SceneMenuArrayPreserveSlots(cmdList, _VK_SceneMenuIdsMigrateCopyLinkSplit(_VK_DefaultSceneMenuForKey(key))))
                 else
                     sm[key] := []
             }
@@ -1596,6 +1636,8 @@ _VK_ApplySceneMenuFromWeb(msg) {
                 user.Push(cid)
         }
     }
+    if (key = "floating_bar" || key = "clipboard" || key = "scratchpad" || key = "prompts")
+        user := _VK_SceneMenuPadToGridSlotCount(cmdList, user)
     if !g_Commands.Has("SceneMenus") || !(g_Commands["SceneMenus"] is Map)
         g_Commands["SceneMenus"] := Map()
     g_Commands["SceneMenus"][key] := user

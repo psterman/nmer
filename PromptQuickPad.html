@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -272,6 +272,9 @@ html, body {
   box-shadow: 0 16px 34px rgba(0,0,0,0.45);
   border-radius: 12px;
   padding: 6px;
+}
+#ctx-menu .mi.mi-sub-parent {
+  grid-column: 1 / -1;
 }
 #ctx-menu .mi {
   padding: 9px 14px;
@@ -1435,7 +1438,9 @@ function showCtxMenu(x, y, mergedIndex) {
   });
   m.style.left = x + 'px';
   m.style.top = y + 'px';
-  m.style.display = 'block';
+  m.style.display = 'grid';
+  m.style.gridTemplateColumns = '1fr';
+  m.style.gap = '4px';
 }
 
 function openHelpModal(body) {
