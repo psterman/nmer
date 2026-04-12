@@ -15,6 +15,9 @@
   --accent: #ff9a2f;
   --accent-soft: rgba(255, 154, 47, 0.22);
   --accent-glow: rgba(255, 154, 47, 0.45);
+  --pending-bar: rgba(61, 255, 154, 0.14);
+  --pending-border: rgba(61, 255, 154, 0.38);
+  --pending-text: #c6ffe4;
   --ease: 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -187,8 +190,16 @@ html, body {
   pointer-events: none;
 }
 #capsule.selection-active:not(.has-content) #header,
+#capsule.selection-active:not(.has-content) #preview-search-wrap,
+#capsule.selection-active:not(.has-content) #pending-bar,
 #capsule.selection-active:not(.has-content) #preview-card,
+#capsule.selection-active:not(.has-content) #stack-row,
+#capsule.selection-active:not(.has-content) #slot-rail,
+#capsule.selection-active:not(.has-content) #stack-display,
 #capsule.selection-active:not(.has-content) #action-bar,
+#capsule.selection-active:not(.has-content) #hub-trash-panel,
+#capsule.selection-active:not(.has-content) #hub-trash-backdrop,
+#capsule.selection-active:not(.has-content) #preview-ctx-menu,
 #capsule.selection-active:not(.has-content) #resize-handle {
   pointer-events: auto;
 }
@@ -202,7 +213,7 @@ html, body {
 #capsule.is-docked #main,
 #capsule.is-docked #trigger-bar,
 #capsule.is-docked #action-bar,
-#capsule.is-docked #stack-display {
+#capsule.is-docked #stack-row {
   opacity: 0;
   pointer-events: none;
   transform: translateX(12px);
@@ -335,6 +346,83 @@ body.native-titlebar #header { display: none; }
   transform: scale(0.94);
 }
 
+#pending-bar {
+  border-radius: 12px;
+  border: 1px solid var(--pending-border);
+  background: linear-gradient(145deg, var(--pending-bar), rgba(12, 28, 22, 0.62));
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pending-bar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pending-bar-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--pending-text);
+  text-shadow: 0 0 12px rgba(61, 255, 154, 0.25);
+}
+
+.pending-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.pending-btn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(61, 255, 154, 0.42);
+  background: rgba(10, 36, 26, 0.55);
+  color: #e8fff4;
+  cursor: pointer;
+  transition: transform var(--ease), border-color var(--ease), box-shadow var(--ease), background var(--ease);
+}
+
+.pending-btn:hover {
+  border-color: rgba(120, 255, 190, 0.65);
+  background: rgba(20, 52, 38, 0.72);
+  box-shadow: 0 0 12px rgba(61, 255, 154, 0.22);
+}
+
+.pending-btn:active {
+  transform: scale(0.97);
+}
+
+.pending-btn.primary {
+  border-color: rgba(255, 193, 132, 0.65);
+  background: rgba(255, 154, 47, 0.18);
+  color: #fff5e8;
+}
+
+.pending-btn.primary:hover {
+  background: rgba(255, 154, 47, 0.28);
+  box-shadow: 0 0 14px rgba(255, 154, 47, 0.22);
+}
+
+#preview-card.pending-to-stack {
+  animation: pending-to-stack 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes pending-to-stack {
+  0% { transform: scale(1); filter: brightness(1); }
+  35% { transform: scale(0.97); filter: brightness(1.12); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
 #preview-card {
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -354,14 +442,94 @@ body.native-titlebar #header { display: none; }
 }
 
 #preview {
+  display: block;
+  width: 100%;
+  min-height: 72px;
+  max-height: 160px;
+  resize: vertical;
   font-size: 12px;
   line-height: 1.5;
-  max-height: 52px;
-  overflow: hidden;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(8, 12, 20, 0.55);
   color: #edf2ff;
   word-break: break-word;
+  font-family: inherit;
   user-select: text;
   -webkit-user-select: text;
+}
+
+#preview.hide-when-image {
+  display: none !important;
+}
+
+#preview-search-wrap {
+  flex-shrink: 0;
+}
+
+#hub-stack-filter {
+  width: 100%;
+  padding: 7px 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(61, 255, 154, 0.28);
+  background: rgba(10, 28, 22, 0.55);
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+
+#hub-stack-filter::placeholder {
+  color: var(--text-muted);
+}
+
+#hub-stack-filter:focus {
+  border-color: rgba(61, 255, 154, 0.55);
+  box-shadow: 0 0 0 1px rgba(61, 255, 154, 0.2);
+}
+
+#stack-row {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 10px;
+  min-height: 120px;
+  flex: 1;
+  min-height: 0;
+}
+
+#slot-rail {
+  flex: 0 0 auto;
+  width: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.slot-rail-title {
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+#hub-slot-row.slot-rail-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-x: visible;
+  overflow-y: auto;
+  max-height: 100%;
+  padding-bottom: 4px;
+}
+
+#hub-slot-row.slot-rail-chips .hub-chip {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: 100%;
+  max-width: none;
 }
 
 #preview-card.preview-pulse::after {
@@ -377,15 +545,6 @@ body.native-titlebar #header { display: none; }
 #preview-card.selection-hint:not(.draft-drag-active) #preview {
   user-select: text;
   -webkit-user-select: text;
-}
-
-#preview-card.selection-hint:not(.draft-drag-active) {
-  animation: hint-glow 1.6s ease-in-out infinite;
-}
-
-@keyframes hint-glow {
-  0%, 100% { box-shadow: inset 0 0 0 1px rgba(255,154,47,0.08); }
-  50% { box-shadow: inset 0 0 0 1px rgba(255,154,47,0.45); }
 }
 
 @keyframes preview-bloom {
@@ -413,15 +572,15 @@ body.native-titlebar #header { display: none; }
 #draft-chip { touch-action: none; }
 
 #stack-display {
-  margin-top: 2px;
   flex: 1;
-  min-height: 72px;
+  min-width: 0;
+  min-height: 120px;
+  margin-top: 0;
   overflow: auto;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(14, 19, 30, 0.34);
   padding: 10px;
-  perspective: 1000px;
   transition: opacity var(--ease), transform var(--ease);
   scrollbar-gutter: stable;
 }
@@ -463,10 +622,51 @@ body.native-titlebar #header { display: none; }
   border-radius: 11px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(31, 40, 56, 0.58);
-  box-shadow: 0 7px 22px rgba(0, 0, 0, 0.38);
-  padding: 7px 9px;
-  transform-origin: center top;
-  transition: transform var(--ease), opacity var(--ease), border-color var(--ease);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  padding: 8px 10px;
+  transition: border-color var(--ease), box-shadow var(--ease);
+}
+
+.stack-card-toolbar {
+  display: none;
+  gap: 4px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.stack-card.is-selected .stack-card-toolbar {
+  display: flex;
+}
+
+.stk-icon-btn {
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 193, 132, 0.35);
+  background: rgba(255, 154, 47, 0.12);
+  color: #ffe8cc;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  transition: background var(--ease), border-color var(--ease);
+}
+
+.stk-icon-btn:hover {
+  background: rgba(255, 154, 47, 0.22);
+  border-color: rgba(255, 193, 132, 0.55);
+}
+
+.stack-card-text[draggable="true"] {
+  cursor: grab;
+}
+
+.stack-card-text[draggable="true"]:active {
+  cursor: grabbing;
 }
 
 .stack-card.is-selected {
@@ -560,6 +760,145 @@ body.native-titlebar #header { display: none; }
 }
 
 #ctx-menu.open { display: block; }
+
+#preview-ctx-menu {
+  position: fixed;
+  z-index: 999998;
+  display: none;
+  min-width: 160px;
+  border-radius: 10px;
+  border: 1px solid rgba(61, 255, 154, 0.4);
+  background: rgba(14, 28, 22, 0.96);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  padding: 6px;
+}
+
+#preview-ctx-menu.open {
+  display: block;
+}
+
+.preview-ctx-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pending-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.preview-ctx-item:hover {
+  background: rgba(61, 255, 154, 0.15);
+}
+
+.hub-trash-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 999990;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.hub-trash-backdrop.open {
+  display: block;
+}
+
+.hub-trash-panel {
+  display: none;
+  position: fixed;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(320px, 86vw);
+  max-height: 72vh;
+  z-index: 999991;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 193, 132, 0.35);
+  background: rgba(22, 28, 40, 0.97);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5);
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.hub-trash-panel.open {
+  display: flex;
+}
+
+.hub-trash-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffe8cc;
+}
+
+.hub-trash-head button {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.hub-trash-actions {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hub-trash-actions button {
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 154, 47, 0.4);
+  background: rgba(255, 154, 47, 0.12);
+  color: #ffe8cc;
+  cursor: pointer;
+}
+
+#hub-trash-list {
+  overflow-y: auto;
+  padding: 8px;
+  flex: 1;
+  min-height: 120px;
+}
+
+.hub-trash-item {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.hub-trash-item-meta {
+  color: var(--text-muted);
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+
+.hub-trash-item-actions {
+  margin-top: 6px;
+  display: flex;
+  gap: 6px;
+}
+
+.hub-trash-item-actions button {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(61, 255, 154, 0.35);
+  background: rgba(61, 255, 154, 0.1);
+  color: var(--pending-text);
+  cursor: pointer;
+}
 
 .ctx-item {
   width: 100%;
@@ -921,24 +1260,45 @@ button.ctx-sub-item:disabled {
         </div>
       </div>
 
-      <div class="slot-strip-title">预览区 · 当前选择 / 拖入草稿</div>
+      <div class="slot-strip-title">预览区 · 待处理（临时，不入草稿栈）</div>
+      <div id="preview-search-wrap">
+        <input type="search" id="hub-stack-filter" placeholder="过滤草稿栈内容…" autocomplete="off" spellcheck="false">
+      </div>
+      <div id="pending-bar">
+        <div class="pending-bar-head">
+          <span class="pending-bar-title">待处理预览 · 操作台</span>
+        </div>
+        <div class="pending-bar-actions">
+          <button type="button" class="pending-btn primary" id="btnPendingSave">存入草稿区</button>
+          <button type="button" class="pending-btn" id="btnPendingSearch">搜索</button>
+          <button type="button" class="pending-btn" id="btnPendingAi">快速 AI</button>
+          <button type="button" class="pending-btn" id="btnPendingFormat">纯文本整理</button>
+          <button type="button" class="pending-btn" id="btnPendingClear">清空预览</button>
+        </div>
+      </div>
       <div id="preview-card">
-        <div id="preview">等待选中文本...</div>
+        <textarea id="preview" rows="4" spellcheck="false" placeholder="在此编辑待处理文本，或从外部/草稿栈拖入覆盖…"></textarea>
         <div id="preview-image-wrap">
           <img id="preview-image" alt="预览图片">
           <button type="button" id="preview-copy-image">复制图片预览</button>
         </div>
-        <div id="draft-chip">从 Cursor 等窗口把选中文本拖入本窗口任意处松手，即可加入卡片（约 80% 不透明）</div>
+        <div id="draft-chip">拖入文本会先出现在此处；点「存入草稿区」或拖到下方堆栈区再松手才会入栈</div>
         <div id="external-drop-hint" aria-hidden="true">
           <span class="hint-title">拖放至此</span>
-          <span class="hint-sub">松手后内容将加入预览与卡片堆叠</span>
+          <span class="hint-sub">松手后仅更新预览，请再点「存入草稿区」入栈</span>
         </div>
       </div>
 
-      <div class="slot-strip-title">内容区 · 已入栈文本（按可用高度展示）</div>
-      <div id="stack-display">
-        <div id="stack-empty">选中内容会按卡片堆叠在这里</div>
-        <div id="stack-list"></div>
+      <div class="slot-strip-title">内容区 · 草稿栈（最新在上）</div>
+      <div id="stack-row">
+        <aside id="slot-rail" aria-label="快捷槽位 Caps+1..5">
+          <div class="slot-rail-title">槽位</div>
+          <div class="hub-chip-row slot-rail-chips" id="hub-slot-row"></div>
+        </aside>
+        <div id="stack-display">
+          <div id="stack-empty">草稿条目将纵向排列在此（最新在上）</div>
+          <div id="stack-list"></div>
+        </div>
       </div>
     </div>
 
@@ -947,28 +1307,41 @@ button.ctx-sub-item:disabled {
       <button type="button" class="trigger-btn" id="btnTriggerDoubleCtrl">触发：双击 Ctrl+C</button>
     </div>
 
-    <div id="slot-strip">
-      <div class="slot-strip-title">快捷槽位 · Caps+1..5 选中对应文本</div>
-      <div class="hub-chip-row" id="hub-slot-row"></div>
-    </div>
-
     <div id="action-bar">
-      <button type="button" class="action-btn" id="btnSearch">搜索</button>
-      <button type="button" class="action-btn" id="btnAi">AI</button>
-      <button type="button" class="action-btn" id="btnClear">清空</button>
-      <button type="button" class="action-btn" id="btnWinRecycle" title="打开 Windows 系统回收站">系统回收站</button>
+      <button type="button" class="action-btn" id="btnClear">清空草稿</button>
+      <button type="button" class="action-btn" id="btnWinRecycle" title="草稿本回收站">草稿回收站</button>
     </div>
     <div id="resize-handle" title="Resize"></div>
   </div>
 </div>
 <div id="ctx-menu" aria-hidden="true"></div>
+<div id="preview-ctx-menu" aria-hidden="true">
+  <button type="button" class="preview-ctx-item" data-pctx="save">存入草稿区</button>
+  <button type="button" class="preview-ctx-item" data-pctx="clear">清空预览</button>
+  <button type="button" class="preview-ctx-item" data-pctx="format">纯文本整理</button>
+  <button type="button" class="preview-ctx-item" data-pctx="copy">复制预览</button>
+</div>
+<div id="hub-trash-backdrop" aria-hidden="true"></div>
+<div id="hub-trash-panel" aria-hidden="true">
+  <div class="hub-trash-head">
+    <span>草稿回收站</span>
+    <button type="button" id="btnTrashClose" aria-label="关闭">×</button>
+  </div>
+  <div class="hub-trash-actions">
+    <button type="button" id="btnTrashEmpty">清空回收站</button>
+  </div>
+  <div id="hub-trash-list"></div>
+</div>
 
 <script>
 (function () {
   'use strict';
 
+  /* 二期扩展：localStorage hub_auto_collect_after_ai — 外链 AI 完成后自动 draft_collect（需宿主回传） */
   const state = {
     segments: [],
+    trash: [],
+    stackFilter: '',
     copyTriggerMode: 'capslock',
     drag: null,
     draftDrag: null,
@@ -1004,9 +1377,19 @@ button.ctx-sub-item:disabled {
   const stackEmpty = document.getElementById('stack-empty');
   const stackList = document.getElementById('stack-list');
   const gravityTip = document.getElementById('gravity-tip');
-  const btnSearch = document.getElementById('btnSearch');
-  const btnAi = document.getElementById('btnAi');
   const btnClear = document.getElementById('btnClear');
+  const hubStackFilter = document.getElementById('hub-stack-filter');
+  const previewCtxMenu = document.getElementById('preview-ctx-menu');
+  const hubTrashBackdrop = document.getElementById('hub-trash-backdrop');
+  const hubTrashPanel = document.getElementById('hub-trash-panel');
+  const hubTrashList = document.getElementById('hub-trash-list');
+  const btnTrashClose = document.getElementById('btnTrashClose');
+  const btnTrashEmpty = document.getElementById('btnTrashEmpty');
+  const btnPendingSave = document.getElementById('btnPendingSave');
+  const btnPendingSearch = document.getElementById('btnPendingSearch');
+  const btnPendingAi = document.getElementById('btnPendingAi');
+  const btnPendingFormat = document.getElementById('btnPendingFormat');
+  const btnPendingClear = document.getElementById('btnPendingClear');
   const btnTriggerCapslock = document.getElementById('btnTriggerCapslock');
   const btnTriggerDoubleCtrl = document.getElementById('btnTriggerDoubleCtrl');
   const hubSlotRow = document.getElementById('hub-slot-row');
@@ -1135,9 +1518,9 @@ button.ctx-sub-item:disabled {
 
   const STATIC_HOTKEY_BINDINGS = Object.freeze([
     ['#btnCloseHub', 'g', '关闭'],
-    ['#btnSearch', 'f', '搜索'],
-    ['#btnAi', 'a', 'AI'],
-    ['#btnClear', 'backspace', '清空'],
+    ['#btnPendingSearch', 'f', '搜索'],
+    ['#btnPendingAi', 'a', '快速 AI'],
+    ['#btnClear', 'backspace', '清空草稿'],
     ['#btnTriggerCapslock', 'c', '触发：CapsLock+C'],
     ['#btnTriggerDoubleCtrl', 'x', '触发：双击 Ctrl+C'],
     ['#preview-copy-image', 'v', '复制图片预览']
@@ -1311,8 +1694,106 @@ button.ctx-sub-item:disabled {
     return !!(state.pendingImagePath || state.pendingImageDataUrl);
   }
 
+  function syncPendingFromTextarea() {
+    if (preview && preview.tagName === 'TEXTAREA' && !hasPendingImage())
+      state.pendingDraft = preview.value;
+  }
+
+  function getPreviewText() {
+    if (hasPendingImage()) return '';
+    syncPendingFromTextarea();
+    return String(state.pendingDraft || '').replace(/\r\n/g, '\n').trim();
+  }
+
+  function clearPreviewOnly() {
+    state.pendingDraft = '';
+    state.pendingImagePath = '';
+    state.pendingImageDataUrl = '';
+    if (preview && preview.tagName === 'TEXTAREA') preview.value = '';
+    refreshAll();
+  }
+
+  /** 显式「存入草稿区」或 AHK draft_collect：入 segments 并清空预览 */
+  function addToDraft(textOpt, _source) {
+    syncPendingFromTextarea();
+    let t = textOpt != null ? compactText(textOpt) : '';
+    if (!t) t = getPreviewText();
+
+    if (hasPendingImage() && !t) {
+      previewCard.classList.remove('pending-to-stack');
+      void previewCard.offsetWidth;
+      previewCard.classList.add('pending-to-stack');
+      pushImageSegment(state.pendingImagePath, state.pendingImageDataUrl);
+      setTimeout(() => previewCard.classList.remove('pending-to-stack'), 560);
+      return;
+    }
+    if (!t) {
+      previewCard.classList.remove('preview-pulse');
+      void previewCard.offsetWidth;
+      previewCard.classList.add('preview-pulse');
+      return;
+    }
+    previewCard.classList.remove('pending-to-stack');
+    void previewCard.offsetWidth;
+    previewCard.classList.add('pending-to-stack');
+    pushSegment(t);
+    setTimeout(() => previewCard.classList.remove('pending-to-stack'), 560);
+  }
+
+  function formatPreviewPlainLines() {
+    syncPendingFromTextarea();
+    const raw = String(state.pendingDraft || '');
+    if (!raw.trim()) return;
+    const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
+    const out = lines.join('\n');
+    if (!out) return;
+    state.pendingImagePath = '';
+    state.pendingImageDataUrl = '';
+    state.pendingDraft = out;
+    refreshAll();
+    previewCard.classList.remove('preview-pulse');
+    void previewCard.offsetWidth;
+    previewCard.classList.add('preview-pulse');
+  }
+
+  function textFromPendingOrStack() {
+    const p = getPreviewText();
+    if (p) return p;
+    const sel = selectedCardText();
+    if (sel) return sel;
+    return mergedText();
+  }
+
+  function doPendingSearch() {
+    const text = textFromPendingOrStack();
+    if (!text) {
+      previewCard.classList.remove('preview-pulse');
+      void previewCard.offsetWidth;
+      previewCard.classList.add('preview-pulse');
+      return;
+    }
+    postToAhk({ type: 'hub_search', text });
+  }
+
+  function doPendingAi() {
+    const text = textFromPendingOrStack();
+    if (!text) {
+      previewCard.classList.remove('preview-pulse');
+      void previewCard.offsetWidth;
+      previewCard.classList.add('preview-pulse');
+      return;
+    }
+    postToAhk({ type: 'hub_ai', text });
+  }
+
   function getSelectedTextInsideCapsule() {
     try {
+      if (preview && preview.tagName === 'TEXTAREA' && document.activeElement === preview) {
+        const a = preview.selectionStart;
+        const b = preview.selectionEnd;
+        if (Number.isInteger(a) && Number.isInteger(b) && b > a)
+          return String(preview.value.slice(a, b) || '').trim();
+      }
       const sel = window.getSelection();
       if (!sel || sel.rangeCount < 1 || sel.isCollapsed) return '';
       const range = sel.getRangeAt(0);
@@ -1406,28 +1887,6 @@ button.ctx-sub-item:disabled {
     });
   }
 
-  function doSearch() {
-    const text = selectedCardText() || activeText() || mergedText();
-    if (!text) {
-      previewCard.classList.remove('preview-pulse');
-      void previewCard.offsetWidth;
-      previewCard.classList.add('preview-pulse');
-      return;
-    }
-    postToAhk({ type: 'hub_search', text });
-  }
-
-  function doAi() {
-    const text = selectedCardText() || activeText() || mergedText();
-    if (!text) {
-      previewCard.classList.remove('preview-pulse');
-      void previewCard.offsetWidth;
-      previewCard.classList.add('preview-pulse');
-      return;
-    }
-    postToAhk({ type: 'hub_ai', text });
-  }
-
   function applyStaticHotkeyHints() {
     STATIC_HOTKEY_BINDINGS.forEach(([selector, hotkey, label]) => {
       const el = document.querySelector(selector);
@@ -1465,10 +1924,10 @@ button.ctx-sub-item:disabled {
     const action = String(actionName || '').trim().toLowerCase();
     switch (action) {
       case 'search':
-        doSearch();
+        doPendingSearch();
         break;
       case 'ai':
-        doAi();
+        doPendingAi();
         break;
       case 'clear':
         clearAll();
@@ -1528,7 +1987,9 @@ button.ctx-sub-item:disabled {
   }
 
   function applyVisualState() {
-    const hasDraft = !!state.pendingDraft || hasPendingImage();
+    const syncTa = !!(preview && preview.tagName === 'TEXTAREA');
+    const draftLen = syncTa ? String(preview.value || '').trim().length : String(state.pendingDraft || '').trim().length;
+    const hasDraft = draftLen > 0 || hasPendingImage();
     const hasContent = state.segments.length > 0;
     const draggingDraft = !!state.draftDrag || externalDragDepth > 0;
     const externalOnly = externalDragDepth > 0 && !state.draftDrag;
@@ -1540,11 +2001,10 @@ button.ctx-sub-item:disabled {
     if (externalDropHint)
       externalDropHint.setAttribute('aria-hidden', externalOnly ? 'false' : 'true');
 
-    // 未提交草稿且未拖拽：半透明；拖拽中或已有内容：更清晰
     if (hasDraft && !draggingDraft) {
-      capsule.style.setProperty('opacity', '0.2', 'important');
+      capsule.style.setProperty('opacity', '0.68', 'important');
     } else if (draggingDraft || hasContent) {
-      capsule.style.setProperty('opacity', '0.8', 'important');
+      capsule.style.setProperty('opacity', '0.88', 'important');
     } else {
       capsule.style.removeProperty('opacity');
     }
@@ -1555,7 +2015,10 @@ button.ctx-sub-item:disabled {
   function updatePreview() {
     const showingImage = hasPendingImage();
     previewImageWrap.classList.toggle('show', showingImage);
-    preview.style.display = showingImage ? 'none' : 'block';
+    if (preview && preview.tagName === 'TEXTAREA') {
+      preview.classList.toggle('hide-when-image', showingImage);
+      preview.style.display = showingImage ? 'none' : '';
+    }
 
     if (showingImage) {
       previewImage.src = state.pendingImageDataUrl || (state.pendingImagePath ? toFileUrl(state.pendingImagePath) : '');
@@ -1565,69 +2028,131 @@ button.ctx-sub-item:disabled {
       return;
     }
 
-    const src = state.pendingDraft !== ''
-      ? state.pendingDraft
-      : (state.segments.length ? state.segments[state.segments.length - 1] : '');
-    const text = compactText(src);
-    preview.textContent = text ? (text.length > 120 ? text.slice(0, 120) + '...' : text) : '等待选中文本...';
-    draftChip.classList.toggle('show', !!state.pendingDraft);
+    if (preview && preview.tagName === 'TEXTAREA') {
+      const next = state.pendingDraft != null ? String(state.pendingDraft) : '';
+      if (preview.value !== next) preview.value = next;
+    }
+    const showChip = !!(state.pendingDraft && String(state.pendingDraft).trim());
+    draftChip.classList.toggle('show', showChip);
     headerCount.textContent = String(state.segments.length);
+  }
+
+  function segmentMatchesFilter(rawItem, qLower) {
+    if (!qLower) return true;
+    const c = asCard(rawItem);
+    if (!c) return false;
+    if (c.kind === 'text')
+      return String(c.text || '').toLowerCase().includes(qLower);
+    const p = String(c.imagePath || '').toLowerCase();
+    return p.includes(qLower);
+  }
+
+  function cloneRawSegment(i) {
+    const s = state.segments[i];
+    if (!s || typeof s !== 'object') return null;
+    try {
+      return JSON.parse(JSON.stringify(s));
+    } catch (_) {
+      return {
+        kind: s.kind,
+        text: s.text,
+        imagePath: s.imagePath,
+        imageDataUrl: s.imageDataUrl
+      };
+    }
+  }
+
+  function saveTrashToStorage() {
+    try {
+      localStorage.setItem('hub_capsule_trash', JSON.stringify(state.trash));
+    } catch (_) {}
+  }
+
+  function loadPersistedTrash() {
+    try {
+      const raw = localStorage.getItem('hub_capsule_trash');
+      if (!raw) return;
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr))
+        state.trash = arr.filter((e) => e && e.card);
+    } catch (_) {}
+  }
+
+  function pushTrashFromIndex(i) {
+    const card = cloneRawSegment(i);
+    if (!card) return;
+    state.trash.push({ card, ts: Date.now() });
+    saveTrashToStorage();
+  }
+
+  function stackToolbarHtmlFor(kind) {
+    if (kind === 'image') {
+      return (
+        '<div class="stack-card-toolbar" data-stop-select="1">' +
+        '<button type="button" class="stk-icon-btn" data-sact="copy" title="复制">拷</button>' +
+        '<button type="button" class="stk-icon-btn" data-sact="remove" title="删除">删</button>' +
+        '</div>'
+      );
+    }
+    return (
+      '<div class="stack-card-toolbar" data-stop-select="1">' +
+      '<button type="button" class="stk-icon-btn" data-sact="ai" title="AI">AI</button>' +
+      '<button type="button" class="stk-icon-btn" data-sact="search" title="搜索">搜</button>' +
+      '<button type="button" class="stk-icon-btn" data-sact="copy" title="复制">拷</button>' +
+      '<button type="button" class="stk-icon-btn" data-sact="remove" title="删除">删</button>' +
+      '</div>'
+    );
   }
 
   function renderStack() {
     stackList.innerHTML = '';
-    const visibleCount = getVisibleStackCount();
-    const visible = state.segments.slice(-visibleCount).reverse();
+    const qLower = String(state.stackFilter || '').trim().toLowerCase();
+    const orderedIndices = [];
+    for (let i = 0; i < state.segments.length; i += 1) {
+      if (segmentMatchesFilter(state.segments[i], qLower))
+        orderedIndices.push(i);
+    }
+    orderedIndices.reverse();
 
-    if (!visible.length) {
+    if (!orderedIndices.length) {
       stackEmpty.style.display = 'block';
+      if (state.segments.length && qLower)
+        stackEmpty.textContent = '无匹配过滤条件的草稿';
+      else
+        stackEmpty.textContent = '草稿条目将纵向排列在此（最新在上）';
       return;
     }
 
     stackEmpty.style.display = 'none';
 
-    visible.forEach((rawItem, idx) => {
+    orderedIndices.forEach((realIdx) => {
+      const rawItem = state.segments[realIdx];
       const item = asCard(rawItem);
       if (!item) return;
       const card = document.createElement('div');
       card.className = 'stack-card';
-      const z = 10 - idx;
-      const scale = 1 - idx * 0.025;
-      const rot = idx * 1.6;
-      card.style.zIndex = String(z);
-      card.style.transform = `translateZ(${-idx * 18}px) scale(${scale}) rotateX(${rot}deg)`;
-      card.style.marginTop = '0';
-      card.dataset.realIndex = String(state.segments.length - 1 - idx);
+      card.dataset.realIndex = String(realIdx);
       card.dataset.kind = item.kind;
-      if (Number(card.dataset.realIndex) === state.selectedIndex) {
+      if (realIdx === state.selectedIndex)
         card.classList.add('is-selected');
-      }
 
+      const tb = stackToolbarHtmlFor(item.kind);
       if (item.kind === 'image') {
         const src = item.imageDataUrl || (item.imagePath ? toFileUrl(item.imagePath) : '');
         card.innerHTML =
-          `<img class="stack-card-image" src="${escapeHtml(src)}" alt="图片卡片">` +
-          `<button class="stack-card-remove" type="button" data-remove-index="${card.dataset.realIndex}" aria-label="删除">×</button>`;
+          tb +
+          `<img class="stack-card-image" src="${escapeHtml(src)}" alt="图片卡片" draggable="false">` +
+          `<button class="stack-card-remove" type="button" data-remove-index="${realIdx}" aria-label="删除">×</button>`;
       } else {
-        const t = compactText(item.text);
+        const rawT = String((rawItem && rawItem.text != null) ? rawItem.text : (item.text || ''));
         card.innerHTML =
-          `<div class="stack-card-text">${escapeHtml(t)}</div>` +
-          `<button class="stack-card-remove" type="button" data-remove-index="${card.dataset.realIndex}" aria-label="删除">×</button>`;
+          tb +
+          `<div class="stack-card-text" draggable="true" data-real-index="${realIdx}">${escapeHtml(rawT)}</div>` +
+          `<button class="stack-card-remove" type="button" data-remove-index="${realIdx}" aria-label="删除">×</button>`;
       }
 
       stackList.appendChild(card);
     });
-  }
-
-  function getVisibleStackCount() {
-    const minCount = 5;
-    const maxCount = 48;
-    const cardApproxHeight = 56;
-    if (!stackDisplay) return minCount;
-    const h = Number(stackDisplay.clientHeight || 0);
-    if (h <= 0) return minCount;
-    const fit = Math.floor((h - 8) / cardApproxHeight);
-    return Math.max(minCount, Math.min(maxCount, fit));
   }
 
   let resizeRafId = 0;
@@ -1656,6 +2181,7 @@ button.ctx-sub-item:disabled {
     state.pendingDraft = '';
     state.pendingImagePath = '';
     state.pendingImageDataUrl = '';
+    if (preview && preview.tagName === 'TEXTAREA') preview.value = '';
     state.selectedIndex = state.segments.length - 1;
     refreshAll();
     syncSegments();
@@ -1673,6 +2199,7 @@ button.ctx-sub-item:disabled {
     state.pendingDraft = '';
     state.pendingImagePath = '';
     state.pendingImageDataUrl = '';
+    if (preview && preview.tagName === 'TEXTAREA') preview.value = '';
     state.selectedIndex = state.segments.length - 1;
     refreshAll();
     syncSegments();
@@ -1682,14 +2209,18 @@ button.ctx-sub-item:disabled {
   }
 
   function clearAll() {
+    for (let i = state.segments.length - 1; i >= 0; i -= 1)
+      pushTrashFromIndex(i);
     state.segments = [];
     state.pendingImagePath = '';
     state.pendingImageDataUrl = '';
     state.pendingDraft = '';
+    if (preview && preview.tagName === 'TEXTAREA') preview.value = '';
     state.selectedIndex = -1;
     state.selectedSlotOneBased = 0;
     refreshAll();
     syncSegments();
+    renderTrashList();
     postToAhk({ type: 'hub_stack_selected', text: '', index: -1 });
     postToAhk({ type: 'hub_cleared' });
   }
@@ -1697,13 +2228,103 @@ button.ctx-sub-item:disabled {
   function removeAt(i) {
     if (i < 0 || i >= state.segments.length) return;
     const removedSelected = (state.selectedIndex === i);
+    pushTrashFromIndex(i);
     state.segments.splice(i, 1);
     if (state.selectedIndex === i) state.selectedIndex = -1;
     if (state.selectedIndex > i) state.selectedIndex -= 1;
     refreshAll();
     syncSegments();
+    renderTrashList();
     if (removedSelected) {
       postToAhk({ type: 'hub_stack_selected', text: '', index: -1 });
+    }
+  }
+
+  function restoreTrashAt(trashIdx) {
+    if (trashIdx < 0 || trashIdx >= state.trash.length) return;
+    const entry = state.trash[trashIdx];
+    const raw = entry.card;
+    let card;
+    if (raw && raw.kind === 'image') {
+      const p = String(raw.imagePath || '').trim();
+      const d = String(raw.imageDataUrl || '').trim();
+      if (!p && !d) return;
+      card = { kind: 'image', imagePath: p, imageDataUrl: d };
+    } else {
+      const t = compactText(raw.text || '');
+      if (!t) return;
+      card = { kind: 'text', text: t };
+    }
+    state.trash.splice(trashIdx, 1);
+    state.segments.push(card);
+    state.selectedIndex = state.segments.length - 1;
+    saveTrashToStorage();
+    syncSegments();
+    refreshAll();
+    renderTrashList();
+  }
+
+  function openTrashPanel() {
+    if (hubTrashPanel) hubTrashPanel.classList.add('open');
+    if (hubTrashBackdrop) hubTrashBackdrop.classList.add('open');
+    if (hubTrashPanel) hubTrashPanel.setAttribute('aria-hidden', 'false');
+    if (hubTrashBackdrop) hubTrashBackdrop.setAttribute('aria-hidden', 'false');
+    renderTrashList();
+  }
+
+  function closeTrashPanel() {
+    if (hubTrashPanel) hubTrashPanel.classList.remove('open');
+    if (hubTrashBackdrop) hubTrashBackdrop.classList.remove('open');
+    if (hubTrashPanel) hubTrashPanel.setAttribute('aria-hidden', 'true');
+    if (hubTrashBackdrop) hubTrashBackdrop.setAttribute('aria-hidden', 'true');
+  }
+
+  function renderTrashList() {
+    if (!hubTrashList) return;
+    hubTrashList.innerHTML = '';
+    if (!state.trash.length) {
+      const empty = document.createElement('div');
+      empty.className = 'hub-trash-item-meta';
+      empty.style.textAlign = 'center';
+      empty.style.padding = '16px';
+      empty.textContent = '回收站为空';
+      hubTrashList.appendChild(empty);
+      return;
+    }
+    for (let i = state.trash.length - 1; i >= 0; i -= 1) {
+      const entry = state.trash[i];
+      const c = entry.card || {};
+      const wrap = document.createElement('div');
+      wrap.className = 'hub-trash-item';
+      const meta = document.createElement('div');
+      meta.className = 'hub-trash-item-meta';
+      meta.textContent = new Date(entry.ts || Date.now()).toLocaleString() + ' · ' + (c.kind === 'image' ? '图片' : '文本');
+      const body = document.createElement('div');
+      if (c.kind === 'image')
+        body.textContent = (c.imagePath || '').slice(0, 120) || '[图片]';
+      else
+        body.textContent = String(c.text || '').slice(0, 280);
+      const actions = document.createElement('div');
+      actions.className = 'hub-trash-item-actions';
+      const bRestore = document.createElement('button');
+      bRestore.type = 'button';
+      bRestore.textContent = '恢复';
+      const idx = i;
+      bRestore.addEventListener('click', () => restoreTrashAt(idx));
+      const bDel = document.createElement('button');
+      bDel.type = 'button';
+      bDel.textContent = '销毁';
+      bDel.addEventListener('click', () => {
+        state.trash.splice(idx, 1);
+        saveTrashToStorage();
+        renderTrashList();
+      });
+      actions.appendChild(bRestore);
+      actions.appendChild(bDel);
+      wrap.appendChild(meta);
+      wrap.appendChild(body);
+      wrap.appendChild(actions);
+      hubTrashList.appendChild(wrap);
     }
   }
 
@@ -1729,7 +2350,7 @@ button.ctx-sub-item:disabled {
   }
 
   function setDraftPreview(text) {
-    const t = compactText(text);
+    let t = String(normalizePreviewText(text) || '').replace(/\r\n/g, '\n').trim();
     if (!t) return;
     state.pendingImagePath = '';
     state.pendingImageDataUrl = '';
@@ -1745,6 +2366,7 @@ button.ctx-sub-item:disabled {
     const d = String(imageDataUrl || '').trim();
     if (!p && !d) return;
     state.pendingDraft = '';
+    if (preview && preview.tagName === 'TEXTAREA') preview.value = '';
     state.pendingImagePath = p;
     state.pendingImageDataUrl = d;
     refreshAll();
@@ -1873,11 +2495,51 @@ button.ctx-sub-item:disabled {
   });
 
   stackList.addEventListener('click', (e) => {
+    const sBtn = e.target.closest('[data-sact]');
+    if (sBtn) {
+      e.stopPropagation();
+      const card = sBtn.closest('.stack-card');
+      const idx = Number(card?.dataset.realIndex ?? -1);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= state.segments.length) return;
+      const raw = state.segments[idx];
+      const item = asCard(raw);
+      const act = sBtn.getAttribute('data-sact');
+      if (act === 'remove') {
+        removeAt(idx);
+        return;
+      }
+      if (item && item.kind === 'image') {
+        if (act === 'copy')
+          postToAhk({ type: 'hub_copy_image', imagePath: item.imagePath || '', imageDataUrl: item.imageDataUrl || '' });
+        return;
+      }
+      const tFull = raw && raw.kind === 'text' ? String(raw.text || '') : String(item.text || '');
+      const tSend = tFull.trim() ? tFull : (item.text || '');
+      if (act === 'copy') postToAhk({ type: 'hub_copy', text: tSend });
+      else if (act === 'search') postToAhk({ type: 'hub_search', text: tSend });
+      else if (act === 'ai') postToAhk({ type: 'hub_ai', text: tSend });
+      return;
+    }
     const rm = e.target.closest('[data-remove-index]');
     if (!rm) return;
     const i = parseInt(rm.getAttribute('data-remove-index'), 10);
     if (!Number.isNaN(i)) removeAt(i);
     e.stopPropagation();
+  });
+
+  stackList.addEventListener('dragstart', (e) => {
+    const textEl = e.target.closest('.stack-card-text');
+    if (!textEl) return;
+    const idx = Number(textEl.dataset.realIndex ?? -1);
+    const raw = state.segments[idx];
+    const item = asCard(raw);
+    if (item && item.kind === 'text') {
+      const payload = raw && raw.text != null ? String(raw.text) : String(item.text || '');
+      e.dataTransfer.setData('text/plain', payload);
+      e.dataTransfer.effectAllowed = 'copy';
+    } else {
+      e.preventDefault();
+    }
   });
 
   stackList.addEventListener('pointerdown', (e) => {
@@ -1950,15 +2612,93 @@ button.ctx-sub-item:disabled {
   document.addEventListener('pointerdown', (e) => {
     if (!e.target.closest('#ctx-menu'))
       hideContextMenu();
+    if (previewCtxMenu && !e.target.closest('#preview-ctx-menu'))
+      hidePreviewCtxMenu();
   });
 
-  btnSearch.addEventListener('click', doSearch);
-  btnAi.addEventListener('click', doAi);
+  function hidePreviewCtxMenu() {
+    if (!previewCtxMenu) return;
+    previewCtxMenu.classList.remove('open');
+    previewCtxMenu.setAttribute('aria-hidden', 'true');
+  }
+
+  function showPreviewCtxMenu(clientX, clientY) {
+    if (!previewCtxMenu) return;
+    previewCtxMenu.style.left = `${clientX}px`;
+    previewCtxMenu.style.top = `${clientY}px`;
+    previewCtxMenu.classList.add('open');
+    previewCtxMenu.setAttribute('aria-hidden', 'false');
+  }
 
   btnClear.addEventListener('click', clearAll);
+  if (btnPendingSave) btnPendingSave.addEventListener('click', () => addToDraft());
+  if (btnPendingSearch) btnPendingSearch.addEventListener('click', doPendingSearch);
+  if (btnPendingAi) btnPendingAi.addEventListener('click', doPendingAi);
+  if (btnPendingFormat) btnPendingFormat.addEventListener('click', formatPreviewPlainLines);
+  if (btnPendingClear) btnPendingClear.addEventListener('click', clearPreviewOnly);
   const btnWinRecycle = document.getElementById('btnWinRecycle');
   if (btnWinRecycle) {
-    btnWinRecycle.addEventListener('click', () => postToAhk({ type: 'openWindowsRecycleBin' }));
+    btnWinRecycle.addEventListener('click', () => openTrashPanel());
+  }
+  if (btnTrashClose)
+    btnTrashClose.addEventListener('click', () => closeTrashPanel());
+  if (hubTrashBackdrop)
+    hubTrashBackdrop.addEventListener('click', () => closeTrashPanel());
+  if (btnTrashEmpty) {
+    btnTrashEmpty.addEventListener('click', () => {
+      state.trash = [];
+      saveTrashToStorage();
+      renderTrashList();
+    });
+  }
+  if (previewCtxMenu) {
+    previewCtxMenu.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-pctx]');
+      if (!b) return;
+      const act = b.getAttribute('data-pctx');
+      hidePreviewCtxMenu();
+      syncPendingFromTextarea();
+      if (act === 'save')
+        addToDraft();
+      else if (act === 'clear')
+        clearPreviewOnly();
+      else if (act === 'format')
+        formatPreviewPlainLines();
+      else if (act === 'copy') {
+        const raw = String(state.pendingDraft || '').replace(/\r\n/g, '\n');
+        if (raw.trim())
+          postToAhk({ type: 'hub_copy', text: raw });
+      }
+    });
+  }
+
+  function onPreviewZoneContextMenu(e) {
+    if (e.target.closest('button')) return;
+    e.preventDefault();
+    showPreviewCtxMenu(e.clientX, e.clientY);
+  }
+
+  if (previewCard)
+    previewCard.addEventListener('contextmenu', onPreviewZoneContextMenu);
+  const pendingBarEl = document.getElementById('pending-bar');
+  if (pendingBarEl)
+    pendingBarEl.addEventListener('contextmenu', onPreviewZoneContextMenu);
+  if (hubStackFilter) {
+    hubStackFilter.addEventListener('input', () => {
+      state.stackFilter = hubStackFilter.value || '';
+      renderStack();
+      applyVisualState();
+    });
+  }
+  if (preview && preview.tagName === 'TEXTAREA') {
+    preview.addEventListener('input', () => {
+      if (!hasPendingImage()) {
+        state.pendingDraft = preview.value;
+        draftChip.classList.toggle('show', !!String(preview.value || '').trim());
+        applyVisualState();
+        headerCount.textContent = String(state.segments.length);
+      }
+    });
   }
   btnTriggerCapslock.addEventListener('click', () => {
     setCopyTriggerMode('capslock');
@@ -1971,6 +2711,30 @@ button.ctx-sub-item:disabled {
   previewCopyImage.addEventListener('click', () => {
     copyCurrentPreviewImage();
   });
+
+  if (previewCard) {
+    previewCard.addEventListener('dragover', (e) => {
+      if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('text/plain')) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    });
+    previewCard.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      let t = '';
+      try {
+        t = e.dataTransfer.getData('text/plain');
+      } catch (_) {}
+      t = String(t || '').replace(/\r\n/g, '\n').trim();
+      if (!t) return;
+      state.pendingImagePath = '';
+      state.pendingImageDataUrl = '';
+      state.pendingDraft = t;
+      refreshAll();
+      flashDropSuccessOnPreview();
+    });
+  }
 
   const DRAFT_DRAG_MIN_PX = 6;
   const DRAFT_HOLD_MS = 320;
@@ -2028,7 +2792,8 @@ button.ctx-sub-item:disabled {
   }
 
   function beginDraftDrag(e) {
-    if (state.draftDrag || !state.pendingDraft) return;
+    syncPendingFromTextarea();
+    if (state.draftDrag || !String(state.pendingDraft || '').trim()) return;
     if (e.button !== undefined && e.button !== 0) return;
 
     const ghost = document.createElement('div');
@@ -2074,6 +2839,7 @@ button.ctx-sub-item:disabled {
     function onDraftUp(ev) {
       if (!state.draftDrag || state.draftDrag.finished) return;
       if (ev.button !== undefined && ev.button !== 0) return;
+      syncPendingFromTextarea();
       const dd = state.draftDrag;
       const moved = dd.moved;
       const g = dd.ghost;
@@ -2293,7 +3059,7 @@ button.ctx-sub-item:disabled {
         e.dataTransfer.dropEffect = 'copy';
       } catch (_) {}
       bumpExternalDragVisual();
-    }, true);
+    }, false);
 
     document.addEventListener('dragleave', (e) => {
       e.preventDefault();
@@ -2307,32 +3073,27 @@ button.ctx-sub-item:disabled {
         externalDragLeaveTimer = null;
       }
       externalDragDepth = 0;
-      const segLenBefore = state.segments.length;
       const dropped = readExternalDropText(e);
       if (dropped) {
-        pushSegment(dropped);
-      } else if (hasPendingImage()) {
-        pushImageSegment(state.pendingImagePath, state.pendingImageDataUrl);
-      } else if (state.pendingDraft) {
-        pushSegment(state.pendingDraft);
+        setDraftPreview(dropped);
+        flashDropSuccessOnPreview();
       }
       applyVisualState();
       postToAhk({ type: 'hub_external_drag', phase: 'leave' });
-      if (state.segments.length > segLenBefore) {
-        flashDropSuccessOnPreview();
-      }
-    }, true);
+    }, false);
   }
 
   /* WebView2 涓?mouse 浜嬩欢姣?pointer 鏇寸ǔ瀹氾細鎹曡幏闃舵鐩戝惉锛岄伩鍏嶈鍐呴儴鍚炴帀 */
   draftChip.addEventListener('mousedown', (e) => {
-    if (!state.pendingDraft || e.button !== 0) return;
+    syncPendingFromTextarea();
+    if (!String(state.pendingDraft || '').trim() || e.button !== 0) return;
     if (e.target.closest('button')) return;
     beginDraftDrag(e);
   }, true);
 
   draftChip.addEventListener('pointerdown', (e) => {
-    if (!state.pendingDraft || e.button !== 0) return;
+    syncPendingFromTextarea();
+    if (!String(state.pendingDraft || '').trim() || e.button !== 0) return;
     if (e.pointerType === 'mouse') return;
     if (e.target.closest('button')) return;
     beginDraftDrag(e);
@@ -2344,7 +3105,10 @@ button.ctx-sub-item:disabled {
     if (e.target.closest('#draft-chip')) return;
     if (e.target.closest('#external-drop-hint')) return;
     if (hasPendingImage()) return;
-    if (!state.pendingDraft) return;
+    syncPendingFromTextarea();
+    if (!String(state.pendingDraft || '').trim()) return;
+    if (preview && preview.tagName === 'TEXTAREA' && (e.target === preview || preview.contains(e.target)))
+      return;
     if (window.getSelection && String(window.getSelection().toString()).trim()) return;
     if (e.target === previewImage || (previewImage && previewImage.contains(e.target))) return;
     beginDraftDrag(e);
@@ -2376,6 +3140,12 @@ button.ctx-sub-item:disabled {
     }
     if (e.key === 'Escape') {
       hideContextMenu();
+      hidePreviewCtxMenu();
+      if (hubTrashPanel && hubTrashPanel.classList.contains('open')) {
+        closeTrashPanel();
+        e.preventDefault();
+        return;
+      }
       postToAhk({ type: 'selection_menu_dismiss' });
       e.preventDefault();
       return;
@@ -2410,11 +3180,14 @@ button.ctx-sub-item:disabled {
 
   window.addEventListener('blur', () => {
     endCapsHoldHint();
+    clearPreviewOnly();
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden)
+    if (document.hidden) {
       endCapsHoldHint();
+      clearPreviewOnly();
+    }
   });
 
   if (window.chrome && window.chrome.webview) {
@@ -2435,8 +3208,17 @@ button.ctx-sub-item:disabled {
         case 'vk_action':
           handleVkAction(d.action || '');
           break;
+        case 'preview_update':
+          if (d.imagePath || d.imageDataUrl)
+            setImagePreview(d.imagePath || '', d.imageDataUrl || '');
+          else
+            setDraftPreview(normalizePreviewText(d.text));
+          break;
+        case 'draft_collect':
+          addToDraft(normalizePreviewText(d.text), d.source || '');
+          break;
         case 'push_segment':
-          pushSegment(normalizePreviewText(d.text));
+          addToDraft(normalizePreviewText(d.text), 'legacy_push_segment');
           break;
         case 'hub_preview_selection':
           if (d.imagePath || d.imageDataUrl)
@@ -2488,7 +3270,9 @@ button.ctx-sub-item:disabled {
           state.pendingDraft = '';
           state.pendingImagePath = '';
           state.pendingImageDataUrl = '';
+          if (preview && preview.tagName === 'TEXTAREA') preview.value = '';
           hideContextMenu();
+          hidePreviewCtxMenu();
           refreshAll();
           break;
         case 'hub_remove_at': {
@@ -2505,6 +3289,7 @@ button.ctx-sub-item:disabled {
   }
 
   loadPersistedSegments();
+  loadPersistedTrash();
   setCopyTriggerMode('capslock');
   applyStaticHotkeyHints();
   refreshAll();

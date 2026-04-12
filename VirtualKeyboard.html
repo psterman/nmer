@@ -2370,6 +2370,36 @@ const CURSOR_TAB_PRESET = [
   ] },
 ];
 
+/** 快捷键场景固定布局：每个 cmdId 只出现一次，避免侧边栏重复项与 Bar 开关只命中 toolbarLayout 第一条同 cmd 记录 */
+const HOTKEY_TAB_PRESET = [
+  { id: 'hotkeys:direction', name: '方向', commands: ['ch_w', 'ch_s', 'ch_a', 'ch_d'] },
+  {
+    id: 'hotkeys:shortcuts',
+    name: '快捷键',
+    /* 不含 ftb_*：与 hub_capsule / ch_t / ch_b 入口重复；悬浮条仍用这些 cmdId（见 SCENARIO_TOOLBAR_CMD_MAP） */
+    commands: [
+      'sys_exit', 'ch_f', 'ch_x', 'ch_q', 'hub_capsule', 'ch_t', 'ch_p', 'ch_r', 'ch_b', 'ch_g', 'sys_show_vk',
+      'ftm_reset_scale', 'ftm_search_center', 'ftm_clipboard', 'ftm_minimize_to_edge', 'ftm_exit_app',
+      'ftm_hide_toolbar', 'ftm_open_config', 'ftm_toggle_toolbar', 'ftm_reload_script',
+    ],
+  },
+];
+
+/** 与 Caps 和弦/Hub 入口重复，勿放入「快捷键」或「其它」标签（仍可作为未分类或悬浮条专用 cmd 存在） */
+const HOTKEY_CMD_MERGED_ELSEWHERE = new Set(['ftb_scratchpad', 'ftb_screenshot', 'ftb_cursor_menu']);
+
+function dedupeCmdIdsPreserveOrder(cmdIds) {
+  const seen = new Set();
+  const out = [];
+  for (const id of cmdIds || []) {
+    const s = String(id || '').trim();
+    if (!s || seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
+  }
+  return out;
+}
+
 const SEARCH_COMMAND_OVERRIDES = {
   ch_q: { name: 'AI 引擎',      desc: '切换到 AI 引擎组（CapsLock+Q）', iconClass: 'fa-robot' },
   ch_w: { name: 'CLI 引擎',     desc: '切换到 CLI 引擎组（CapsLock+W）', iconClass: 'fa-terminal' },
@@ -2712,11 +2742,22 @@ function buildScenariosFromCategories() {
     return sc;
   };
 
+  const hotkeysCategoryCmdOrder = [];
+  const hotkeysCategoryCmdSeen = new Set();
   for (const cat of state.categories || []) {
-    const cmdIds = (Array.isArray(cat?.commands) ? cat.commands : [])
-      .filter(cmdId => !!state.commands[cmdId]);
+    const cmdIds = dedupeCmdIdsPreserveOrder(
+      (Array.isArray(cat?.commands) ? cat.commands : []).filter((cmdId) => !!state.commands[cmdId]),
+    );
     if (!cmdIds.length) continue;
     const scenarioId = classifyScenarioIdForCategory(cat);
+    if (scenarioId === 'hotkeys') {
+      for (const cmdId of cmdIds) {
+        if (hotkeysCategoryCmdSeen.has(cmdId)) continue;
+        hotkeysCategoryCmdSeen.add(cmdId);
+        hotkeysCategoryCmdOrder.push(cmdId);
+      }
+      continue;
+    }
     const scenario = ensureScenario(scenarioId);
     const tabId = `${scenarioId}:${cat?.id || ('tab_' + scenario.tabs.length)}`;
     scenario.tabs.push({
@@ -2820,6 +2861,45 @@ function buildScenariosFromCategories() {
       });
       for (const cmdId of cmdIds) {
         commandRoutes[cmdId] = { scenarioId: 'cursor', tabId: preset.id };
+        used.add(cmdId);
+      }
+    }
+  }
+
+  // 快捷键场景：固定「方向 / 快捷键」，忽略 Commands.json 里重复/多份「快捷键」分类，避免同 cmd 多条目干扰 Bar 开关
+  {
+    const scenario = ensureScenario('hotkeys');
+    scenario.tabs = [];
+    const presetAll = new Set();
+    for (const preset of HOTKEY_TAB_PRESET) {
+      const cmdIds = dedupeCmdIdsPreserveOrder(
+        preset.commands.filter((cmdId) => !!state.commands[cmdId]),
+      );
+      if (!cmdIds.length) continue;
+      cmdIds.forEach((c) => presetAll.add(c));
+      scenario.tabs.push({
+        id: preset.id,
+        name: preset.name,
+        commands: cmdIds,
+      });
+      for (const cmdId of cmdIds) {
+        commandRoutes[cmdId] = { scenarioId: 'hotkeys', tabId: preset.id };
+        used.add(cmdId);
+      }
+    }
+    const extras = dedupeCmdIdsPreserveOrder(hotkeysCategoryCmdOrder).filter(
+      (cmdId) =>
+        !!state.commands[cmdId] && !presetAll.has(cmdId) && !HOTKEY_CMD_MERGED_ELSEWHERE.has(cmdId),
+    );
+    if (extras.length) {
+      const tabId = 'hotkeys:extra';
+      scenario.tabs.push({
+        id: tabId,
+        name: '其它',
+        commands: extras,
+      });
+      for (const cmdId of extras) {
+        commandRoutes[cmdId] = { scenarioId: 'hotkeys', tabId };
         used.add(cmdId);
       }
     }
@@ -3304,29 +3384,49 @@ let sceneListSortable = null;
 
 function normalizeIncomingToolbarLayout(arr) {
   if (!Array.isArray(arr)) return [];
-  return arr
-    .filter((item) => item && item.cmdId && state.commands[item.cmdId])
-    .map((item) => {
-      const vb = item.visible_in_bar !== undefined ? !!item.visible_in_bar : !!item.in_bar;
-      const vm = item.visible_in_menu !== undefined ? !!item.visible_in_menu : !!item.in_context_menu;
-      const ob = Number.isFinite(Number(item.order_bar)) ? Number(item.order_bar) : -1;
-      const om = Number.isFinite(Number(item.order_menu)) ? Number(item.order_menu) : -1;
-      const vsr = item.visible_in_search_row !== undefined ? !!item.visible_in_search_row : false;
-      const osr = Number.isFinite(Number(item.order_search_row)) ? Number(item.order_search_row) : -1;
-      const ms = Array.isArray(item.menu_scenes)
-        ? item.menu_scenes.map((x) => String(x || '').trim()).filter(Boolean)
-        : [];
-      return {
-        cmdId: String(item.cmdId),
-        visible_in_bar: vb,
-        visible_in_menu: vm,
-        order_bar: ob,
-        order_menu: om,
-        visible_in_search_row: vsr,
-        order_search_row: osr,
-        menu_scenes: ms,
-      };
-    });
+  const mergeMenuScenes = (a, b) => {
+    const s = new Set();
+    (Array.isArray(a) ? a : []).forEach((x) => s.add(String(x || '').trim()));
+    (Array.isArray(b) ? b : []).forEach((x) => s.add(String(x || '').trim()));
+    return [...s].filter(Boolean);
+  };
+  const byCmd = new Map();
+  for (const item of arr) {
+    if (!item || !item.cmdId || !state.commands[item.cmdId]) continue;
+    const vb = item.visible_in_bar !== undefined ? !!item.visible_in_bar : !!item.in_bar;
+    const vm = item.visible_in_menu !== undefined ? !!item.visible_in_menu : !!item.in_context_menu;
+    const ob = Number.isFinite(Number(item.order_bar)) ? Number(item.order_bar) : -1;
+    const om = Number.isFinite(Number(item.order_menu)) ? Number(item.order_menu) : -1;
+    const vsr = item.visible_in_search_row !== undefined ? !!item.visible_in_search_row : false;
+    const osr = Number.isFinite(Number(item.order_search_row)) ? Number(item.order_search_row) : -1;
+    const ms = Array.isArray(item.menu_scenes)
+      ? item.menu_scenes.map((x) => String(x || '').trim()).filter(Boolean)
+      : [];
+    const row = {
+      cmdId: String(item.cmdId),
+      visible_in_bar: vb,
+      visible_in_menu: vm,
+      order_bar: ob,
+      order_menu: om,
+      visible_in_search_row: vsr,
+      order_search_row: osr,
+      menu_scenes: ms,
+    };
+    const cid = row.cmdId;
+    if (!byCmd.has(cid)) {
+      byCmd.set(cid, row);
+      continue;
+    }
+    const prev = byCmd.get(cid);
+    prev.visible_in_bar = prev.visible_in_bar || row.visible_in_bar;
+    prev.visible_in_menu = prev.visible_in_menu || row.visible_in_menu;
+    prev.visible_in_search_row = prev.visible_in_search_row || row.visible_in_search_row;
+    prev.menu_scenes = mergeMenuScenes(prev.menu_scenes, row.menu_scenes);
+    if (prev.order_bar < 0 && row.order_bar >= 0) prev.order_bar = row.order_bar;
+    if (prev.order_menu < 0 && row.order_menu >= 0) prev.order_menu = row.order_menu;
+    if (prev.order_search_row < 0 && row.order_search_row >= 0) prev.order_search_row = row.order_search_row;
+  }
+  return [...byCmd.values()];
 }
 
 function saveToolbarLayout() {

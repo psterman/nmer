@@ -1314,7 +1314,7 @@ SC_ExecuteContextCommand(cmdId, visibleRow := 0, ctxItem := unset) {
             catch {
             }
             Sleep(280)
-            if !VK_HubCapsulePost(Map("type", "push_segment", "text", seg)) {
+            if !VK_HubCapsulePost(Map("type", "draft_collect", "text", seg, "source", "vk_clip_ctx")) {
                 try TrayTip("草稿本", "HubCapsule 未就绪，请稍后再试", "Icon! 2")
                 catch {
                 }

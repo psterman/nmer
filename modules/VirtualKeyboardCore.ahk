@@ -425,6 +425,7 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "ftm_open_config", "name", "打开设置", "desc", "悬浮工具栏右键：打开设置", "fn", "CH_RUN"),
             Map("id", "ftm_toggle_toolbar", "name", "显示/隐藏工具栏", "desc", "悬浮工具栏右键：切换可见性", "fn", "CH_RUN"),
             Map("id", "ftm_reload_script", "name", "重启脚本", "desc", "悬浮工具栏右键：重载脚本", "fn", "CH_RUN"),
+            ; 下列 cmd 供悬浮条/场景条专用绑定；VK 网页「快捷键」标签由 HOTKEY_TAB_PRESET 展示，不再重复列出
             Map("id", "ftb_scratchpad", "name", "草稿本入口", "desc", "悬浮条按钮：打开 HubCapsule", "fn", "CH_RUN", "iconClass", "fa-note-sticky"),
             Map("id", "ftb_screenshot", "name", "智能截图入口", "desc", "悬浮条按钮：截图智能菜单", "fn", "CH_RUN", "iconClass", "fa-camera"),
             Map("id", "ftb_cursor_menu", "name", "Cursor 快捷菜单", "desc", "悬浮条按钮：Cursor 常用快捷键", "fn", "CH_RUN", "iconClass", "fa-compass")
