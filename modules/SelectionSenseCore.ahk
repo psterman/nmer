@@ -657,6 +657,31 @@ SelectionSense_OnMenuWebMessage(sender, args) {
         SelectionSense_HubCapsule_WriteSavedPos()
         return
     }
+    if (typ = "hub_copy") {
+        t2 := msg.Has("text") ? String(msg["text"]) : ""
+        if (Trim(t2, " `t`r`n") != "")
+            A_Clipboard := t2
+        return
+    }
+    if (typ = "hub_copy_image") {
+        p := msg.Has("imagePath") ? Trim(String(msg["imagePath"])) : ""
+        if (p != "" && FileExist(p)) {
+            try {
+                pBitmap := Gdip_CreateBitmapFromFile(p)
+                if (pBitmap) {
+                    A_Clipboard := ""
+                    Sleep(30)
+                    Gdip_SetBitmapToClipboard(pBitmap)
+                    Gdip_DisposeImage(pBitmap)
+                }
+            } catch as _e {
+                try A_Clipboard := p
+                catch {
+                }
+            }
+        }
+        return
+    }
     if (typ = "hubScCtxCmd") {
         cmdId0 := msg.Has("cmdId") ? String(msg["cmdId"]) : ""
         idx0 := msg.Has("segmentIndex") ? Integer(msg["segmentIndex"]) : -1

@@ -1606,19 +1606,19 @@ InitFloatingToolbar() {
 GetButtonTip(action) {
     switch action {
         case "Search":
-            return "鎼滅储璁板綍 (Caps + F)"
+            return "搜索记录 (CapsLock + F)"
         case "Record":
-            return "鏂板壀璐存澘 (WebView2 路 FTS5)"
+            return "新剪贴板 (WebView2 · FTS5)"
         case "AIAssistant":
-            return "AI鍔╂墜 (Ctrl+Shift+B)"
+            return "AI 助手 (Ctrl+Shift+B)"
         case "PromptNew":
-            return "HubCapsule 鎽樺綍 / 鏂版彁绀鸿瘝"
+            return "Hub 草稿 · 运行 hub_capsule · 采集 CapsLock+C"
         case "Screenshot":
-            return "灞忓箷鎴浘 (Caps + T)"
+            return "屏幕截图 (CapsLock + T)"
         case "Settings":
-            return "绯荤粺璁剧疆 (Caps + Q)"
+            return "系统设置 (CapsLock + Q)"
         case "VirtualKeyboard":
-            return "铏氭嫙閿洏 (Ctrl+Shift+K)"
+            return "虚拟键盘 (Ctrl+Shift+K)"
         default:
             return ""
     }

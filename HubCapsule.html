@@ -159,13 +159,13 @@ html, body {
   50% { transform: translate(-50%, -52%) scale(1.02); }
 }
 
-#preview-card.drop-success-flash {
+#preview.drop-success-flash {
   animation: drop-success 480ms ease-out;
 }
 
 @keyframes drop-success {
   0% { filter: brightness(1); transform: scale(1); }
-  35% { filter: brightness(1.25); transform: scale(1.03); }
+  35% { filter: brightness(1.22); transform: scale(1.02); }
   100% { filter: brightness(1); transform: scale(1); }
 }
 
@@ -191,14 +191,11 @@ html, body {
 }
 #capsule.selection-active:not(.has-content) #header,
 #capsule.selection-active:not(.has-content) #preview-search-wrap,
-#capsule.selection-active:not(.has-content) #pending-bar,
-#capsule.selection-active:not(.has-content) #preview-card,
+#capsule.selection-active:not(.has-content) #pending-lane,
 #capsule.selection-active:not(.has-content) #stack-row,
 #capsule.selection-active:not(.has-content) #slot-rail,
 #capsule.selection-active:not(.has-content) #stack-display,
 #capsule.selection-active:not(.has-content) #action-bar,
-#capsule.selection-active:not(.has-content) #hub-trash-panel,
-#capsule.selection-active:not(.has-content) #hub-trash-backdrop,
 #capsule.selection-active:not(.has-content) #preview-ctx-menu,
 #capsule.selection-active:not(.has-content) #resize-handle {
   pointer-events: auto;
@@ -346,11 +343,22 @@ body.native-titlebar #header { display: none; }
   transform: scale(0.94);
 }
 
-#pending-bar {
+#pending-lane {
   border-radius: 12px;
   border: 1px solid var(--pending-border);
   background: linear-gradient(145deg, var(--pending-bar), rgba(12, 28, 22, 0.62));
   padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+#pending-bar {
+  border-radius: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -424,20 +432,24 @@ body.native-titlebar #header { display: none; }
 }
 
 #preview-card {
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(20, 27, 40, 0.48);
-  padding: 10px 11px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  padding: 0;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   touch-action: none;
 }
 
-#preview-card.selection-hint {
+#preview-card.preview-pulse-image {
+  overflow: visible;
+}
+
+#preview-card.selection-hint:not(.draft-drag-active) {
   cursor: grab;
 }
 
-#preview-card.selection-hint:active {
+#preview-card.selection-hint:not(.draft-drag-active):active {
   cursor: grabbing;
 }
 
@@ -458,6 +470,13 @@ body.native-titlebar #header { display: none; }
   font-family: inherit;
   user-select: text;
   -webkit-user-select: text;
+  position: relative;
+  box-sizing: border-box;
+}
+
+#preview-card.draft-drag-active #preview {
+  border-color: rgba(255, 193, 132, 0.78);
+  box-shadow: 0 0 0 2px rgba(255, 154, 47, 0.22), 0 4px 18px rgba(0, 0, 0, 0.28);
 }
 
 #preview.hide-when-image {
@@ -532,10 +551,21 @@ body.native-titlebar #header { display: none; }
   max-width: none;
 }
 
-#preview-card.preview-pulse::after {
+#preview.preview-pulse::after {
   content: "";
   position: absolute;
-  inset: -18px;
+  inset: -8px;
+  border-radius: 14px;
+  background: radial-gradient(circle at center, rgba(255, 178, 93, 0.42), transparent 62%);
+  opacity: 0;
+  pointer-events: none;
+  animation: preview-bloom 560ms ease-out;
+}
+
+#preview-card.preview-pulse-image::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
   background: radial-gradient(circle at center, rgba(255, 178, 93, 0.4), transparent 62%);
   opacity: 0;
   pointer-events: none;
@@ -661,11 +691,23 @@ body.native-titlebar #header { display: none; }
   border-color: rgba(255, 193, 132, 0.55);
 }
 
-.stack-card-text[draggable="true"] {
+.stk-emoji-btn {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.stack-card-time {
+  font-size: 10px;
+  color: #7a8499;
+  margin: 0 0 6px;
+  letter-spacing: 0.02em;
+}
+
+.stack-card[draggable="true"] {
   cursor: grab;
 }
 
-.stack-card-text[draggable="true"]:active {
+.stack-card[draggable="true"]:active {
   cursor: grabbing;
 }
 
@@ -677,6 +719,7 @@ body.native-titlebar #header { display: none; }
 .stack-card:hover { border-color: rgba(255, 186, 119, 0.55); }
 
 .stack-card-text {
+  cursor: inherit;
   font-size: 12px;
   color: #eef3ff;
   line-height: 1.35;
@@ -794,36 +837,35 @@ body.native-titlebar #header { display: none; }
   background: rgba(61, 255, 154, 0.15);
 }
 
-.hub-trash-backdrop {
+.hub-trash-overlay {
   display: none;
   position: fixed;
   inset: 0;
-  z-index: 999990;
-  background: rgba(0, 0, 0, 0.45);
-}
-
-.hub-trash-backdrop.open {
-  display: block;
-}
-
-.hub-trash-panel {
-  display: none;
-  position: fixed;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: min(320px, 86vw);
-  max-height: 72vh;
   z-index: 999991;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.hub-trash-overlay.open {
+  display: flex;
+}
+
+.hub-trash-dialog {
+  width: min(320px, 92vw);
+  max-height: min(72vh, 560px);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
   border-radius: 14px;
   border: 1px solid rgba(255, 193, 132, 0.35);
   background: rgba(22, 28, 40, 0.97);
   box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5);
-  flex-direction: column;
-  overflow: hidden;
 }
 
-.hub-trash-panel.open {
+.hub-trash-overlay.open .hub-trash-dialog {
   display: flex;
 }
 
@@ -1151,6 +1193,21 @@ button.ctx-sub-item:disabled {
   font-weight: 700;
 }
 
+.hub-chip.slot-index-chip .hub-chip-main.slot-chip-merged {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
+.hub-chip.slot-index-chip .slot-cap-hint {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+}
+
 @media (max-width: 560px) {
   #action-bar {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1246,7 +1303,7 @@ button.ctx-sub-item:disabled {
 <div id="host">
   <div id="capsule" role="region" aria-label="Hub Capsule">
     <div id="dock-beacon"></div>
-    <div id="gravity-tip">闈犺繎鐩爣</div>
+    <div id="gravity-tip">靠近目标</div>
 
     <div id="main">
       <div id="header" class="window-titlebar" data-drag-handle="1">
@@ -1264,28 +1321,30 @@ button.ctx-sub-item:disabled {
       <div id="preview-search-wrap">
         <input type="search" id="hub-stack-filter" placeholder="过滤草稿栈内容…" autocomplete="off" spellcheck="false">
       </div>
-      <div id="pending-bar">
-        <div class="pending-bar-head">
-          <span class="pending-bar-title">待处理预览 · 操作台</span>
+      <div id="pending-lane">
+        <div id="pending-bar">
+          <div class="pending-bar-head">
+            <span class="pending-bar-title">待处理预览 · 操作台</span>
+          </div>
+          <div class="pending-bar-actions">
+            <button type="button" class="pending-btn primary" id="btnPendingSave">存入草稿区</button>
+            <button type="button" class="pending-btn" id="btnPendingSearch">搜索</button>
+            <button type="button" class="pending-btn" id="btnPendingAi">快速 AI</button>
+            <button type="button" class="pending-btn" id="btnPendingFormat">纯文本整理</button>
+            <button type="button" class="pending-btn" id="btnPendingClear">清空预览</button>
+          </div>
         </div>
-        <div class="pending-bar-actions">
-          <button type="button" class="pending-btn primary" id="btnPendingSave">存入草稿区</button>
-          <button type="button" class="pending-btn" id="btnPendingSearch">搜索</button>
-          <button type="button" class="pending-btn" id="btnPendingAi">快速 AI</button>
-          <button type="button" class="pending-btn" id="btnPendingFormat">纯文本整理</button>
-          <button type="button" class="pending-btn" id="btnPendingClear">清空预览</button>
-        </div>
-      </div>
-      <div id="preview-card">
-        <textarea id="preview" rows="4" spellcheck="false" placeholder="在此编辑待处理文本，或从外部/草稿栈拖入覆盖…"></textarea>
-        <div id="preview-image-wrap">
-          <img id="preview-image" alt="预览图片">
-          <button type="button" id="preview-copy-image">复制图片预览</button>
-        </div>
-        <div id="draft-chip">拖入文本会先出现在此处；点「存入草稿区」或拖到下方堆栈区再松手才会入栈</div>
-        <div id="external-drop-hint" aria-hidden="true">
-          <span class="hint-title">拖放至此</span>
-          <span class="hint-sub">松手后仅更新预览，请再点「存入草稿区」入栈</span>
+        <div id="preview-card">
+          <textarea id="preview" rows="4" spellcheck="false" placeholder="在此编辑待处理文本，或从外部/草稿栈拖入覆盖…"></textarea>
+          <div id="preview-image-wrap">
+            <img id="preview-image" alt="预览图片">
+            <button type="button" id="preview-copy-image">复制图片预览</button>
+          </div>
+          <div id="draft-chip">拖入文本会先出现在此处；点「存入草稿区」或拖到下方堆栈区再松手才会入栈</div>
+          <div id="external-drop-hint" aria-hidden="true">
+            <span class="hint-title">拖放至此</span>
+            <span class="hint-sub">松手后仅更新预览，请再点「存入草稿区」入栈</span>
+          </div>
         </div>
       </div>
 
@@ -1313,6 +1372,18 @@ button.ctx-sub-item:disabled {
     </div>
     <div id="resize-handle" title="Resize"></div>
   </div>
+  <div id="hub-trash-overlay" class="hub-trash-overlay" aria-hidden="true">
+    <div class="hub-trash-dialog" role="dialog" aria-modal="true" aria-labelledby="hub-trash-title">
+      <div class="hub-trash-head">
+        <span id="hub-trash-title">草稿回收站</span>
+        <button type="button" id="btnTrashClose" aria-label="关闭">×</button>
+      </div>
+      <div class="hub-trash-actions">
+        <button type="button" id="btnTrashEmpty">清空回收站</button>
+      </div>
+      <div id="hub-trash-list"></div>
+    </div>
+  </div>
 </div>
 <div id="ctx-menu" aria-hidden="true"></div>
 <div id="preview-ctx-menu" aria-hidden="true">
@@ -1320,17 +1391,6 @@ button.ctx-sub-item:disabled {
   <button type="button" class="preview-ctx-item" data-pctx="clear">清空预览</button>
   <button type="button" class="preview-ctx-item" data-pctx="format">纯文本整理</button>
   <button type="button" class="preview-ctx-item" data-pctx="copy">复制预览</button>
-</div>
-<div id="hub-trash-backdrop" aria-hidden="true"></div>
-<div id="hub-trash-panel" aria-hidden="true">
-  <div class="hub-trash-head">
-    <span>草稿回收站</span>
-    <button type="button" id="btnTrashClose" aria-label="关闭">×</button>
-  </div>
-  <div class="hub-trash-actions">
-    <button type="button" id="btnTrashEmpty">清空回收站</button>
-  </div>
-  <div id="hub-trash-list"></div>
 </div>
 
 <script>
@@ -1380,8 +1440,7 @@ button.ctx-sub-item:disabled {
   const btnClear = document.getElementById('btnClear');
   const hubStackFilter = document.getElementById('hub-stack-filter');
   const previewCtxMenu = document.getElementById('preview-ctx-menu');
-  const hubTrashBackdrop = document.getElementById('hub-trash-backdrop');
-  const hubTrashPanel = document.getElementById('hub-trash-panel');
+  const hubTrashOverlay = document.getElementById('hub-trash-overlay');
   const hubTrashList = document.getElementById('hub-trash-list');
   const btnTrashClose = document.getElementById('btnTrashClose');
   const btnTrashEmpty = document.getElementById('btnTrashEmpty');
@@ -1662,10 +1721,22 @@ button.ctx-sub-item:disabled {
   }
 
   function asCard(item) {
+    function withAddedAt(base, src) {
+      const n = src && typeof src.addedAt === 'number' ? src.addedAt : NaN;
+      if (Number.isFinite(n))
+        base.addedAt = n;
+      return base;
+    }
     if (item && typeof item === 'object') {
-      if (item.kind === 'image')
-        return { kind: 'image', imagePath: String(item.imagePath || '').trim(), imageDataUrl: String(item.imageDataUrl || '').trim() };
-      return { kind: 'text', text: compactText(item.text || '') };
+      if (item.kind === 'image') {
+        const imagePath = String(item.imagePath || '').trim();
+        const imageDataUrl = String(item.imageDataUrl || '').trim();
+        if (!imagePath && !imageDataUrl) return null;
+        return withAddedAt({ kind: 'image', imagePath, imageDataUrl }, item);
+      }
+      const text = compactText(item.text || '');
+      if (!text) return null;
+      return withAddedAt({ kind: 'text', text }, item);
     }
     const t = compactText(item);
     return t ? { kind: 'text', text: t } : null;
@@ -1870,9 +1941,7 @@ button.ctx-sub-item:disabled {
     const slots = listSlotTexts(5);
     const target = slots[slot - 1] || null;
     if (!target) {
-      previewCard.classList.remove('preview-pulse');
-      void previewCard.offsetWidth;
-      previewCard.classList.add('preview-pulse');
+      pulsePreviewBloom();
       return;
     }
     state.selectedIndex = target.realIndex;
@@ -1909,7 +1978,11 @@ button.ctx-sub-item:disabled {
       b.dataset.slot = String(i);
       b.classList.toggle('is-selected', i === state.selectedSlotOneBased);
       b.innerHTML =
-        '<span class="hub-chip-main"><span class="hub-chip-label">' + i + '</span>' + hotkeyHintHtml(String(i)) + '</span>';
+        '<span class="hub-chip-main slot-chip-merged"><span class="hub-chip-label">' +
+        i +
+        '</span><span class="slot-cap-hint">Caps+' +
+        i +
+        '</span></span>';
       b.addEventListener('click', () => selectSlotByIndex(i));
       hubSlotRow.appendChild(b);
     }
@@ -2086,20 +2159,29 @@ button.ctx-sub-item:disabled {
   }
 
   function stackToolbarHtmlFor(kind) {
+    const iconAi = '\u{1F9E0}';
+    const iconSearch = '\u{1F50D}';
+    const iconCopy = '\u{1F4D2}';
     if (kind === 'image') {
       return (
-        '<div class="stack-card-toolbar" data-stop-select="1">' +
-        '<button type="button" class="stk-icon-btn" data-sact="copy" title="复制">拷</button>' +
-        '<button type="button" class="stk-icon-btn" data-sact="remove" title="删除">删</button>' +
+        '<div class="stack-card-toolbar" data-stop-select="1" draggable="false">' +
+        '<button type="button" class="stk-icon-btn stk-emoji-btn" data-sact="copy" title="复制" aria-label="复制" draggable="false">' +
+        iconCopy +
+        '</button>' +
         '</div>'
       );
     }
     return (
-      '<div class="stack-card-toolbar" data-stop-select="1">' +
-      '<button type="button" class="stk-icon-btn" data-sact="ai" title="AI">AI</button>' +
-      '<button type="button" class="stk-icon-btn" data-sact="search" title="搜索">搜</button>' +
-      '<button type="button" class="stk-icon-btn" data-sact="copy" title="复制">拷</button>' +
-      '<button type="button" class="stk-icon-btn" data-sact="remove" title="删除">删</button>' +
+      '<div class="stack-card-toolbar" data-stop-select="1" draggable="false">' +
+      '<button type="button" class="stk-icon-btn stk-emoji-btn" data-sact="ai" title="AI" aria-label="AI" draggable="false">' +
+      iconAi +
+      '</button>' +
+      '<button type="button" class="stk-icon-btn stk-emoji-btn" data-sact="search" title="搜索" aria-label="搜索" draggable="false">' +
+      iconSearch +
+      '</button>' +
+      '<button type="button" class="stk-icon-btn stk-emoji-btn" data-sact="copy" title="复制" aria-label="复制" draggable="false">' +
+      iconCopy +
+      '</button>' +
       '</div>'
     );
   }
@@ -2137,19 +2219,30 @@ button.ctx-sub-item:disabled {
         card.classList.add('is-selected');
 
       const tb = stackToolbarHtmlFor(item.kind);
+      let timeRow = '';
+      if (realIdx === state.selectedIndex && rawItem && typeof rawItem.addedAt === 'number' && Number.isFinite(rawItem.addedAt)) {
+        timeRow = `<div class="stack-card-time" draggable="false">${escapeHtml(new Date(rawItem.addedAt).toLocaleString())}</div>`;
+      }
       if (item.kind === 'image') {
         const src = item.imageDataUrl || (item.imagePath ? toFileUrl(item.imagePath) : '');
         card.innerHTML =
           tb +
+          timeRow +
           `<img class="stack-card-image" src="${escapeHtml(src)}" alt="图片卡片" draggable="false">` +
-          `<button class="stack-card-remove" type="button" data-remove-index="${realIdx}" aria-label="删除">×</button>`;
+          `<button class="stack-card-remove" type="button" data-remove-index="${realIdx}" aria-label="删除" draggable="false">×</button>`;
       } else {
         const rawT = String((rawItem && rawItem.text != null) ? rawItem.text : (item.text || ''));
         card.innerHTML =
           tb +
-          `<div class="stack-card-text" draggable="true" data-real-index="${realIdx}">${escapeHtml(rawT)}</div>` +
-          `<button class="stack-card-remove" type="button" data-remove-index="${realIdx}" aria-label="删除">×</button>`;
+          timeRow +
+          `<div class="stack-card-text" data-real-index="${realIdx}">${escapeHtml(rawT)}</div>` +
+          `<button class="stack-card-remove" type="button" data-remove-index="${realIdx}" aria-label="删除" draggable="false">×</button>`;
       }
+
+      if (item.kind === 'text')
+        card.setAttribute('draggable', 'true');
+      else
+        card.setAttribute('draggable', 'false');
 
       stackList.appendChild(card);
     });
@@ -2177,7 +2270,7 @@ button.ctx-sub-item:disabled {
   function pushSegment(text) {
     const t = compactText(text);
     if (!t) return;
-    state.segments.push({ kind: 'text', text: t });
+    state.segments.push({ kind: 'text', text: t, addedAt: Date.now() });
     state.pendingDraft = '';
     state.pendingImagePath = '';
     state.pendingImageDataUrl = '';
@@ -2195,7 +2288,7 @@ button.ctx-sub-item:disabled {
     const p = String(imagePath || '').trim();
     const d = String(imageDataUrl || '').trim();
     if (!p && !d) return;
-    state.segments.push({ kind: 'image', imagePath: p, imageDataUrl: d });
+    state.segments.push({ kind: 'image', imagePath: p, imageDataUrl: d, addedAt: Date.now() });
     state.pendingDraft = '';
     state.pendingImagePath = '';
     state.pendingImageDataUrl = '';
@@ -2250,10 +2343,12 @@ button.ctx-sub-item:disabled {
       const d = String(raw.imageDataUrl || '').trim();
       if (!p && !d) return;
       card = { kind: 'image', imagePath: p, imageDataUrl: d };
+      if (typeof raw.addedAt === 'number' && Number.isFinite(raw.addedAt)) card.addedAt = raw.addedAt;
     } else {
       const t = compactText(raw.text || '');
       if (!t) return;
       card = { kind: 'text', text: t };
+      if (raw && typeof raw.addedAt === 'number' && Number.isFinite(raw.addedAt)) card.addedAt = raw.addedAt;
     }
     state.trash.splice(trashIdx, 1);
     state.segments.push(card);
@@ -2265,18 +2360,18 @@ button.ctx-sub-item:disabled {
   }
 
   function openTrashPanel() {
-    if (hubTrashPanel) hubTrashPanel.classList.add('open');
-    if (hubTrashBackdrop) hubTrashBackdrop.classList.add('open');
-    if (hubTrashPanel) hubTrashPanel.setAttribute('aria-hidden', 'false');
-    if (hubTrashBackdrop) hubTrashBackdrop.setAttribute('aria-hidden', 'false');
+    if (hubTrashOverlay) {
+      hubTrashOverlay.classList.add('open');
+      hubTrashOverlay.setAttribute('aria-hidden', 'false');
+    }
     renderTrashList();
   }
 
   function closeTrashPanel() {
-    if (hubTrashPanel) hubTrashPanel.classList.remove('open');
-    if (hubTrashBackdrop) hubTrashBackdrop.classList.remove('open');
-    if (hubTrashPanel) hubTrashPanel.setAttribute('aria-hidden', 'true');
-    if (hubTrashBackdrop) hubTrashBackdrop.setAttribute('aria-hidden', 'true');
+    if (hubTrashOverlay) {
+      hubTrashOverlay.classList.remove('open');
+      hubTrashOverlay.setAttribute('aria-hidden', 'true');
+    }
   }
 
   function renderTrashList() {
@@ -2337,7 +2432,7 @@ button.ctx-sub-item:disabled {
     state.gravityActive = !!active;
     capsule.classList.toggle('gravity-active', state.gravityActive);
     if (state.gravityActive) {
-      gravityTip.textContent = name ? `鍚搁檮: ${name}` : '闈犺繎鐩爣';
+      gravityTip.textContent = name ? `吸附: ${name}` : '靠近目标';
       gravityTip.classList.add('visible');
     } else {
       gravityTip.classList.remove('visible');
@@ -2349,6 +2444,20 @@ button.ctx-sub-item:disabled {
     capsule.classList.toggle('collision-hit', !!active);
   }
 
+  function pulsePreviewBloom() {
+    if (hasPendingImage()) {
+      preview.classList.remove('preview-pulse');
+      previewCard.classList.remove('preview-pulse-image');
+      void previewCard.offsetWidth;
+      previewCard.classList.add('preview-pulse-image');
+    } else {
+      previewCard.classList.remove('preview-pulse-image');
+      preview.classList.remove('preview-pulse');
+      void preview.offsetWidth;
+      preview.classList.add('preview-pulse');
+    }
+  }
+
   function setDraftPreview(text) {
     let t = String(normalizePreviewText(text) || '').replace(/\r\n/g, '\n').trim();
     if (!t) return;
@@ -2356,9 +2465,7 @@ button.ctx-sub-item:disabled {
     state.pendingImageDataUrl = '';
     state.pendingDraft = t;
     refreshAll();
-    previewCard.classList.remove('preview-pulse');
-    void previewCard.offsetWidth;
-    previewCard.classList.add('preview-pulse');
+    pulsePreviewBloom();
   }
 
   function setImagePreview(imagePath, imageDataUrl) {
@@ -2370,9 +2477,7 @@ button.ctx-sub-item:disabled {
     state.pendingImagePath = p;
     state.pendingImageDataUrl = d;
     refreshAll();
-    previewCard.classList.remove('preview-pulse');
-    void previewCard.offsetWidth;
-    previewCard.classList.add('preview-pulse');
+    pulsePreviewBloom();
   }
 
   function beginResize(e) {
@@ -2528,9 +2633,13 @@ button.ctx-sub-item:disabled {
   });
 
   stackList.addEventListener('dragstart', (e) => {
-    const textEl = e.target.closest('.stack-card-text');
-    if (!textEl) return;
-    const idx = Number(textEl.dataset.realIndex ?? -1);
+    const card = e.target.closest('.stack-card');
+    if (!card) return;
+    if (e.target.closest('.stack-card-toolbar') || e.target.closest('[data-remove-index]')) {
+      e.preventDefault();
+      return;
+    }
+    const idx = Number(card.dataset.realIndex ?? -1);
     const raw = state.segments[idx];
     const item = asCard(raw);
     if (item && item.kind === 'text') {
@@ -2543,6 +2652,7 @@ button.ctx-sub-item:disabled {
   });
 
   stackList.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.stack-card-toolbar')) return;
     if (e.target.closest('[data-remove-index]')) return;
     const card = e.target.closest('.stack-card');
     if (!card) return;
@@ -2642,8 +2752,11 @@ button.ctx-sub-item:disabled {
   }
   if (btnTrashClose)
     btnTrashClose.addEventListener('click', () => closeTrashPanel());
-  if (hubTrashBackdrop)
-    hubTrashBackdrop.addEventListener('click', () => closeTrashPanel());
+  if (hubTrashOverlay) {
+    hubTrashOverlay.addEventListener('click', (e) => {
+      if (e.target === hubTrashOverlay) closeTrashPanel();
+    });
+  }
   if (btnTrashEmpty) {
     btnTrashEmpty.addEventListener('click', () => {
       state.trash = [];
@@ -2699,6 +2812,7 @@ button.ctx-sub-item:disabled {
         headerCount.textContent = String(state.segments.length);
       }
     });
+    preview.addEventListener('mousedown', armDraftDragFromTextarea, true);
   }
   btnTriggerCapslock.addEventListener('click', () => {
     setCopyTriggerMode('capslock');
@@ -2722,6 +2836,7 @@ button.ctx-sub-item:disabled {
     previewCard.addEventListener('drop', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      clearExternalDropVisual();
       let t = '';
       try {
         t = e.dataTransfer.getData('text/plain');
@@ -2732,12 +2847,56 @@ button.ctx-sub-item:disabled {
       state.pendingImageDataUrl = '';
       state.pendingDraft = t;
       refreshAll();
+      pulsePreviewBloom();
       flashDropSuccessOnPreview();
     });
   }
 
   const DRAFT_DRAG_MIN_PX = 6;
   const DRAFT_HOLD_MS = 320;
+
+  function armDraftDragFromTextarea(e) {
+    if (e.button !== 0) return;
+    if (hasPendingImage()) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let live = true;
+    function cleanup() {
+      if (!live) return;
+      live = false;
+      window.removeEventListener('mousemove', onMove, true);
+      window.removeEventListener('mouseup', onUp, true);
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('pointerup', onUp, true);
+    }
+    function onUp() {
+      cleanup();
+    }
+    function onMove(mv) {
+      if (!live) return;
+      if (mv.type === 'mousemove' && mv.buttons !== undefined && mv.buttons !== 1) {
+        cleanup();
+        return;
+      }
+      const dx = mv.clientX - startX;
+      const dy = mv.clientY - startY;
+      if (Math.hypot(dx, dy) < DRAFT_DRAG_MIN_PX) return;
+      if (preview && preview.tagName === 'TEXTAREA') {
+        const a = preview.selectionStart;
+        const b = preview.selectionEnd;
+        if (b > a) return;
+      }
+      cleanup();
+      syncPendingFromTextarea();
+      if (!String(state.pendingDraft || '').trim()) return;
+      mv.preventDefault();
+      beginDraftDrag(mv);
+    }
+    window.addEventListener('mousemove', onMove, true);
+    window.addEventListener('mouseup', onUp, true);
+    window.addEventListener('pointermove', onMove, true);
+    window.addEventListener('pointerup', onUp, true);
+  }
 
   function pointInStackDisplay(clientX, clientY) {
     if (!stackDisplay) return false;
@@ -2808,7 +2967,7 @@ button.ctx-sub-item:disabled {
     ghost.style.color = '#ffe6cc';
     ghost.style.fontSize = '11px';
     ghost.style.boxShadow = '0 6px 16px rgba(0,0,0,.35)';
-    ghost.textContent = '鏉炬墜鍔犲叆鍗＄墖';
+    ghost.textContent = '\u677e\u624b\u52a0\u5165\u8349\u7a3f\u5361\u7247';
     document.body.appendChild(ghost);
 
     state.draftDrag = {
@@ -2894,7 +3053,7 @@ button.ctx-sub-item:disabled {
     ghost.style.color = '#ffe6cc';
     ghost.style.fontSize = '11px';
     ghost.style.boxShadow = '0 6px 16px rgba(0,0,0,.35)';
-    ghost.textContent = '鏉炬墜鍔犲叆鍥剧墖鍗＄墖';
+    ghost.textContent = '\u677e\u624b\u52a0\u5165\u56fe\u7247\u5361\u7247';
     document.body.appendChild(ghost);
 
     state.draftDrag = {
@@ -2999,14 +3158,15 @@ button.ctx-sub-item:disabled {
   }
 
   function flashDropSuccessOnPreview() {
-    previewCard.classList.remove('drop-success-flash');
-    void previewCard.offsetWidth;
-    previewCard.classList.add('drop-success-flash');
+    const el = hasPendingImage() ? previewCard : preview;
+    el.classList.remove('drop-success-flash');
+    void el.offsetWidth;
+    el.classList.add('drop-success-flash');
     const onEnd = () => {
-      previewCard.removeEventListener('animationend', onEnd);
-      previewCard.classList.remove('drop-success-flash');
+      el.removeEventListener('animationend', onEnd);
+      el.classList.remove('drop-success-flash');
     };
-    previewCard.addEventListener('animationend', onEnd);
+    el.addEventListener('animationend', onEnd);
   }
 
   function readExternalDropText(e) {
@@ -3141,7 +3301,7 @@ button.ctx-sub-item:disabled {
     if (e.key === 'Escape') {
       hideContextMenu();
       hidePreviewCtxMenu();
-      if (hubTrashPanel && hubTrashPanel.classList.contains('open')) {
+      if (hubTrashOverlay && hubTrashOverlay.classList.contains('open')) {
         closeTrashPanel();
         e.preventDefault();
         return;
@@ -3243,7 +3403,13 @@ button.ctx-sub-item:disabled {
           break;
         case 'hub_restore_segments':
           state.segments = Array.isArray(d.segments)
-            ? d.segments.map((item) => asCard(item)).filter((item) => item && item.kind === 'text' && item.text)
+            ? d.segments
+                .map((item) => asCard(item))
+                .filter(
+                  (item) =>
+                    item &&
+                    ((item.kind === 'text' && item.text) || (item.kind === 'image' && (item.imagePath || item.imageDataUrl)))
+                )
             : [];
           refreshAll();
           syncSegments();
