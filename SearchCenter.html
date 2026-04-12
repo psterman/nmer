@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>搜索中心</title>
+<link rel="stylesheet" href="https://app.local/assets/vendor/prism/prism-tomorrow.min.css">
 <style>
 :root {
   --bg: #111315;
@@ -228,7 +229,7 @@ button, input, select, textarea { font: inherit; }
 #engines::-webkit-scrollbar,
 #filters::-webkit-scrollbar,
 #result-list::-webkit-scrollbar,
-#preview::-webkit-scrollbar {
+#preview-web-scroll::-webkit-scrollbar {
   height: 8px;
   width: 8px;
 }
@@ -236,7 +237,7 @@ button, input, select, textarea { font: inherit; }
 #engines::-webkit-scrollbar-thumb,
 #filters::-webkit-scrollbar-thumb,
 #result-list::-webkit-scrollbar-thumb,
-#preview::-webkit-scrollbar-thumb {
+#preview-web-scroll::-webkit-scrollbar-thumb {
   background: #3a434d;
   border-radius: 999px;
 }
@@ -477,8 +478,23 @@ button, input, select, textarea { font: inherit; }
   color: var(--muted);
   text-align: right;
 }
-#preview {
+#preview-panel {
   height: calc(100% - 59px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+#preview-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+#preview-web-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   padding: 16px 18px 18px;
   white-space: pre-wrap;
@@ -487,6 +503,126 @@ button, input, select, textarea { font: inherit; }
   line-height: 1.65;
   font-size: 12px;
   color: #d6dde5;
+}
+#preview-web-scroll.mode-hidden {
+  display: none !important;
+}
+#preview-host {
+  flex: 1 1 auto;
+  min-height: 120px;
+  display: none;
+  margin: 0 12px 8px;
+  border-radius: 10px;
+  border: 1px dashed rgba(255,255,255,.12);
+  background: rgba(0,0,0,.12);
+  box-sizing: border-box;
+}
+#preview-host.mode-native {
+  display: block;
+}
+#preview-ql-hint {
+  flex-shrink: 0;
+  padding: 8px 14px 12px;
+  font-size: 11px;
+  color: #7f8a95;
+  border-top: 1px solid rgba(255,255,255,.06);
+  background: rgba(0,0,0,.12);
+}
+#preview-ql-hint.hidden {
+  display: none;
+}
+#preview-ql-hint .ql-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+#preview-ql-btn, .preview-ctrl-btn {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,179,71,.25);
+  background: rgba(255,255,255,.05);
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+#preview-ql-btn:hover, .preview-ctrl-btn:hover {
+  background: rgba(255,255,255,.1);
+  border-color: rgba(255,179,71,.45);
+}
+#preview-ql-btn.btn-highlight, .preview-ctrl-btn.btn-highlight {
+  background: rgba(255,141,42,.22);
+  border-color: rgba(255,141,42,.7);
+  box-shadow: 0 0 8px rgba(255,141,42,0.15);
+  font-weight: bold;
+}
+#preview-ql-btn.btn-highlight:hover {
+  background: rgba(255,141,42,.35);
+}
+#preview-ql-btn:disabled, .preview-ctrl-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+#preview-web-scroll pre[class*="language-"] {
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(0,0,0,.35) !important;
+  overflow: auto;
+  max-height: none;
+}
+#preview-web-scroll img.preview-img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  border-radius: 8px;
+}
+.preview-plain {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  line-height: 1.65;
+  font-size: 12px;
+}
+.preview-truncate-note {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255,141,42,.12);
+  border: 1px solid rgba(255,179,71,.28);
+  color: #e7c4a0;
+  font-size: 11px;
+}
+.preview-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px 16px;
+  margin-top: 4px;
+}
+.preview-meta-item {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  color: #7f8a95;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.preview-meta-key {
+  color: #555;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+.preview-meta-val {
+  color: #aaa;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 #footer {
   display: flex;
@@ -676,6 +812,14 @@ mark {
 }
 </style>
 <script src="https://app.local/assets/js/BasePanel.js"></script>
+<script src="https://app.local/assets/vendor/prism/prism-core.min.js"></script>
+<script src="https://app.local/assets/vendor/prism/components/prism-markup.min.js"></script>
+<script src="https://app.local/assets/vendor/prism/components/prism-clike.min.js"></script>
+<script src="https://app.local/assets/vendor/prism/components/prism-markup-templating.min.js"></script>
+<script src="https://app.local/assets/vendor/prism/components/prism-javascript.min.js"></script>
+<script src="https://app.local/assets/vendor/prism/components/prism-python.min.js"></script>
+<script src="https://app.local/assets/vendor/prism/components/prism-json.min.js"></script>
+<script src="https://app.local/assets/vendor/prism/components/prism-markdown.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -728,14 +872,30 @@ mark {
     </div>
     <div id="preview-card" class="card">
       <div id="preview-head">
-        <div>
+        <div style="width: 100%;">
           <div class="head-title">预览</div>
-          <div class="head-sub" id="preview-meta">未选中结果</div>
+          <div id="preview-meta" class="preview-meta-grid">
+             <div class="preview-empty-meta">未选中结果</div>
+          </div>
         </div>
       </div>
-      <div id="preview">当前未选中本地结果。
+      <div id="preview-panel">
+        <div id="preview-main">
+          <div id="preview-web-scroll">当前未选中本地结果。
 
 在输入框中输入内容可实时过滤数据，点击列表项后会在这里显示详细预览。</div>
+          <div id="preview-host" aria-hidden="true"></div>
+        </div>
+        <div id="preview-ql-hint" class="hidden">
+          <div class="ql-row">
+            <span class="ql-text">按 <kbd>Space</kbd> 预览 / 选项：</span>
+            <div class="ql-btns">
+              <button type="button" id="preview-native-btn" class="preview-ctrl-btn" title="调用系统原生 IPreviewHandler">IPreview</button>
+              <button type="button" id="preview-ql-btn" title="调用 QuickLook.exe (空格快捷键)">QuickLook</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -796,10 +956,19 @@ const state = {
   capsHintActive: false,
   capsPressedKey: "",
   recycleBin: [],
-  recycleCount: 0
+  recycleCount: 0,
+  previewTimer: 0,
+  previewSeq: 0,
+  previewPath: "",
+  iPreviewFailed: false,
+  iPreviewActive: false
 };
 
 const postToAhk = (obj) => BasePanel.postToAhk(obj);
+const PREVIEW_DEBOUNCE_MS = 150;
+const PREVIEW_TEXT_EXT = new Set(["txt", "ahk", "py", "js", "md", "json", "log"]);
+const PREVIEW_IMAGE_EXT = new Set(["png", "jpg", "jpeg", "gif", "svg"]);
+const ONE_MB = 1048576;
 const HOTKEY_HINT_MAP = Object.freeze({
   category: Object.freeze({
     ai: "q",
@@ -1049,19 +1218,317 @@ function renderResults() {
   renderPreview();
 }
 
-function renderPreview() {
-  const preview = document.getElementById("preview");
+function looksLikeWindowsPath(s) {
+  if (!s || typeof s !== "string") return false;
+  const t = s.trim();
+  if (t.length < 3) return false;
+  if (/^[A-Za-z]:[\\/]/.test(t)) return true;
+  if (t.startsWith("\\\\")) return true;
+  return false;
+}
+
+function getSelectedItemPath(item) {
+  if (!item) return "";
+  const p = (item.path && String(item.path).trim()) || "";
+  if (p && looksLikeWindowsPath(p)) return p;
+  const dt = String(item.dataType || item.type || "").toLowerCase();
+  const isFileish = dt === "file" || dt === "folder" || /文件|路径/.test(String(item.source || ""));
+  const c = item.content ? String(item.content).trim() : "";
+  if (isFileish && looksLikeWindowsPath(c)) return c;
+  return "";
+}
+
+function pathExtensionLower(path) {
+  if (!path) return "";
+  const base = path.replace(/^.*[\\/]/, "");
+  const i = base.lastIndexOf(".");
+  if (i <= 0 || i === base.length - 1) return "";
+  return base.slice(i + 1).toLowerCase();
+}
+
+function prismLangForExt(ext) {
+  if (ext === "py") return "python";
+  if (ext === "js") return "javascript";
+  if (ext === "md") return "markdown";
+  if (ext === "json") return "json";
+  if (ext === "ahk") return "clike";
+  if (ext === "txt" || ext === "log") return "plaintext";
+  return "plaintext";
+}
+
+function truncateToLines(text, maxLines) {
+  const lines = text.split(/\r\n|\r|\n/);
+  if (lines.length <= maxLines) return { text, truncated: false };
+  return { text: lines.slice(0, maxLines).join("\n"), truncated: true };
+}
+
+function setQuickLookHintVisible(show) {
+  const el = document.getElementById("preview-ql-hint");
+  if (!el) return;
+  el.classList.toggle("hidden", !show);
+}
+
+function stopNativePreview() {
+  postToAhk({ type: "PREVIEW_NATIVE_STOP" });
+}
+
+function setPreviewLayoutMode(mode) {
+  const web = document.getElementById("preview-web-scroll");
+  const host = document.getElementById("preview-host");
+  if (!web || !host) return;
+  if (mode === "native") {
+    web.classList.add("mode-hidden");
+    host.classList.add("mode-native");
+    host.setAttribute("aria-hidden", "false");
+  } else {
+    web.classList.remove("mode-hidden");
+    host.classList.remove("mode-native");
+    host.setAttribute("aria-hidden", "true");
+  }
+}
+
+function renderFallbackTextPreview(item, pane, meta) {
+  meta.textContent = [item.source || item.subtitle || "", item.type || "", item.time || ""].filter(Boolean).join(" · ");
+  pane.innerHTML = "";
+  pane.textContent = item.previewText || item.content || item.title || "";
+}
+
+function scheduleRunPreview() {
+  if (state.previewTimer) clearTimeout(state.previewTimer);
+  state.iPreviewActive = false;
+  state.iPreviewFailed = false;
+  state.previewTimer = setTimeout(() => {
+    state.previewTimer = 0;
+    runPreviewForSelection();
+  }, PREVIEW_DEBOUNCE_MS);
+}
+
+function collectPreviewBounds() {
+  const host = document.getElementById("preview-host");
+  if (!host || !host.classList.contains("mode-native")) return null;
+  const r = host.getBoundingClientRect();
+  if (r.width < 4 || r.height < 4) return null;
+  return {
+    left: r.left,
+    top: r.top,
+    width: r.width,
+    height: r.height,
+    dpr: typeof window.devicePixelRatio === "number" ? window.devicePixelRatio : 1
+  };
+}
+
+function runPreviewForSelection() {
+  state.previewSeq += 1;
+  const seq = state.previewSeq;
   const meta = document.getElementById("preview-meta");
-  const item = state.results.find((entry) => entry.row === state.selectedRow);
+  const pane = document.getElementById("preview-web-scroll");
+  const item = state.results.find((entry) => entry.row == state.selectedRow);
+  if (!meta || !pane) return;
+
   if (!item) {
     meta.textContent = "未选中结果";
-    preview.innerHTML =
+    pane.innerHTML =
       "<div class=\"preview-empty\">当前未选中本地结果。<br><br>在输入框中输入内容可实时过滤数据，点击列表项后会在这里显示详细预览。<br><br>" +
       "<div class=\"sk-line w1\"></div><div class=\"sk-line w3\"></div><div class=\"sk-line w2\"></div></div>";
+    setPreviewLayoutMode("web");
+    setQuickLookHintVisible(false);
+    state.previewPath = "";
+    stopNativePreview();
     return;
   }
-  meta.textContent = [item.source || item.subtitle || "", item.type || "", item.time || ""].filter(Boolean).join(" · ");
-  preview.textContent = item.previewText || item.content || item.title || "";
+
+  const isFile = !!getSelectedItemPath(item);
+  const path = getSelectedItemPath(item);
+  state.previewPath = path;
+  setQuickLookHintVisible(!!path);
+
+  renderRichMeta({
+    "来源": item.source || item.subtitle || "",
+    "类型": item.type || "",
+    "时间": item.time || ""
+  });
+
+  if (!path) {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    renderFallbackTextPreview(item, pane, meta);
+    return;
+  }
+
+  const ext = pathExtensionLower(path);
+
+  if (PREVIEW_TEXT_EXT.has(ext)) {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    pane.innerHTML = "<div class=\"preview-loading\">加载文本…</div>";
+    postToAhk({ type: "WEB_PREVIEW_TEXT", path, seq });
+    return;
+  }
+
+  if (PREVIEW_IMAGE_EXT.has(ext)) {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    pane.innerHTML = "<div class=\"preview-loading\">加载图片…</div>";
+    postToAhk({ type: "WEB_PREVIEW_IMAGE", path, seq });
+    return;
+  }
+
+  setPreviewLayoutMode("native");
+  pane.innerHTML = "<div class=\"preview-empty\" style=\"min-height:80px\">此处为原生预览占位区域。<br><br>你可以点击下方按钮或按空格尝试不同预览方式。</div>";
+  
+  const isL1Handled = PREVIEW_TEXT_EXT.has(ext) || PREVIEW_IMAGE_EXT.has(ext);
+  const qlBtn = document.getElementById("preview-ql-btn");
+  const nativeBtn = document.getElementById("preview-native-btn");
+  if (qlBtn) qlBtn.classList.toggle("btn-highlight", !isL1Handled);
+  if (nativeBtn) nativeBtn.classList.toggle("btn-highlight", !isL1Handled && !state.iPreviewFailed);
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (seq !== state.previewSeq) return;
+      // 默认不自动加载重型 IPreviewHandler，除非文件类型非常明确或是用户要求
+    });
+  });
+}
+
+function onWebPreviewTextResult(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+  const raw = payload.text != null ? String(payload.text) : "";
+  const sizeBytes = Number(payload.sizeBytes) || 0;
+  const truncatedServer = !!payload.truncated;
+  let body = raw;
+  let note = "";
+  let lineTrunc = false;
+  if (sizeBytes > ONE_MB || truncatedServer) {
+    const t = truncateToLines(body, 1000);
+    body = t.text;
+    lineTrunc = t.truncated;
+    note = "文件较大，已截断显示（最多约 1MB / 1000 行）。完整内容请点击下方 QuickLook 或使用外部编辑器。";
+  }
+  const ext = pathExtensionLower(state.previewPath);
+  const lang = prismLangForExt(ext);
+  const esc = body
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  let html = "";
+  if (note) html += "<div class=\"preview-truncate-note\">" + note + (lineTrunc ? "（已限制为前 1000 行）" : "") + "</div>";
+  if (lang === "plaintext") {
+    html += "<pre class=\"preview-plain\">" + esc + "</pre>";
+  } else {
+    html += "<pre><code class=\"language-" + lang + "\">" + esc + "</code></pre>";
+  }
+  pane.innerHTML = html;
+  if (lang !== "plaintext") {
+    const code = pane.querySelector("code");
+    if (code && window.Prism) {
+      try {
+        Prism.highlightElement(code);
+      } catch (e) {
+        /* ignore */
+      }
+    }
+  }
+}
+
+function onWebPreviewImageResult(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+  const url = payload.dataUrl ? String(payload.dataUrl) : "";
+  if (!url) {
+    pane.innerHTML = "<div class=\"preview-empty\">无法加载图片预览。</div>";
+    return;
+  }
+  const img = new Image();
+  img.className = "preview-img";
+  img.onload = () => {
+     renderRichMeta({ "图片尺寸": img.naturalWidth + " x " + img.naturalHeight }, true);
+  };
+  img.src = url;
+  pane.innerHTML = "";
+  pane.appendChild(img);
+}
+
+function renderRichMeta(data, append = false) {
+  const wrap = document.getElementById("preview-meta");
+  if (!wrap) return;
+  if (!append) wrap.innerHTML = "";
+  
+  Object.keys(data).forEach(key => {
+    const val = data[key];
+    if (val == null || val === "") return;
+    
+    // 如果是追加且已存在该 Key，则更新
+    let existing = wrap.querySelector(`[data-meta-key="${key}"]`);
+    if (existing) {
+       existing.querySelector(".preview-meta-val").textContent = val;
+    } else {
+       const row = document.createElement("div");
+       row.className = "preview-meta-item";
+       row.dataset.metaKey = key;
+       row.innerHTML = `<span class="preview-meta-key">${escapeHtml(key)}:</span><span class="preview-meta-val">${escapeHtml(val)}</span>`;
+       wrap.appendChild(row);
+    }
+  });
+}
+
+function onPreviewMetaUpdate(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  if (payload.meta) {
+    renderRichMeta(payload.meta, true);
+  }
+}
+
+function onNativePreviewFailed(payload) {
+  state.iPreviewFailed = true;
+  state.iPreviewActive = false;
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+  const msg = payload.message ? String(payload.message) : "系统原生预览不可用。";
+  stopNativePreview();
+  setPreviewLayoutMode("web");
+  pane.innerHTML = "<div class=\"preview-empty\">" + escapeHtml(msg) + "<br><br>建议点击 QuickLook 按钮或按空格预览。</div>";
+  
+  const qlBtn = document.getElementById("preview-ql-btn");
+  if (qlBtn) qlBtn.classList.add("btn-highlight");
+}
+
+function invokeIPreviewHandler() {
+  if (!state.previewPath) return;
+  state.iPreviewActive = true;
+  state.iPreviewFailed = false; // 重试
+  const b = collectPreviewBounds();
+  postToAhk({ 
+    type: "INVOKE_IPREVIEW", 
+    path: state.previewPath, 
+    seq: state.previewSeq,
+    bounds: b 
+  });
+}
+
+let previewHostRo = null;
+function ensurePreviewHostObserver() {
+  const host = document.getElementById("preview-host");
+  if (!host || previewHostRo) return;
+  previewHostRo = new ResizeObserver(() => {
+    if (!state.previewPath) return;
+    const ext = pathExtensionLower(state.previewPath);
+    if (PREVIEW_TEXT_EXT.has(ext) || PREVIEW_IMAGE_EXT.has(ext)) return;
+    
+    // 如果 IPreviewHandler 激活中，同步 Bounds
+    if (state.iPreviewActive) {
+      const b = collectPreviewBounds();
+      postToAhk({ type: "NATIVE_PREVIEW", path: state.previewPath, seq: state.previewSeq, bounds: b });
+    }
+  });
+  previewHostRo.observe(host);
+}
+
+function renderPreview() {
+  ensurePreviewHostObserver();
+  scheduleRunPreview();
 }
 
 function buildSkeletonListHtml(count) {
@@ -1140,7 +1607,7 @@ function applyState(payload) {
   state.recycleCount = typeof payload.recycleCount === "number" ? payload.recycleCount : state.recycleBin.length;
 
   const wasSelected = state.selectedRow;
-  if (!state.results.some((item) => item.row === wasSelected)) {
+  if (!state.results.some((item) => item.row == wasSelected)) {
     state.selectedRow = state.results.length ? state.results[0].row : 1;
   }
 
@@ -1249,6 +1716,19 @@ if (recycleOverlay) {
     if (e.target === recycleOverlay) closeRecycleModal();
   });
 }
+const previewQlBtn = document.getElementById("preview-ql-btn");
+if (previewQlBtn) {
+  previewQlBtn.addEventListener("click", () => {
+    if (!state.previewPath) return;
+    postToAhk({ type: "QUICKLOOK", path: state.previewPath });
+  });
+}
+const previewNativeBtn = document.getElementById("preview-native-btn");
+if (previewNativeBtn) {
+  previewNativeBtn.addEventListener("click", () => {
+    invokeIPreviewHandler();
+  });
+}
 
 const chromeCloseBtn = document.getElementById("chrome-close");
 const chromeMinimizeBtn = document.getElementById("chrome-minimize");
@@ -1316,6 +1796,14 @@ document.addEventListener("keydown", (event) => {
 
   if (isTyping) return;
 
+  if (event.key === " ") {
+    event.preventDefault();
+    if (state.previewPath) {
+      postToAhk({ type: "QUICKLOOK", path: state.previewPath });
+    }
+    return;
+  }
+
   if (event.key === "ArrowDown" && state.results.length) {
     event.preventDefault();
     const current = state.results.findIndex((item) => item.row === state.selectedRow);
@@ -1349,6 +1837,10 @@ document.addEventListener("keyup", (event) => {
     state.capsPressedKey = "";
     updateHotkeyHighlights();
   }
+});
+
+window.addEventListener("resize", () => {
+  scheduleRunPreview();
 });
 
 window.addEventListener("blur", () => {
@@ -1404,6 +1896,22 @@ if (window.chrome && window.chrome.webview) {
         input.focus();
         input.select();
       }
+      return;
+    }
+    if (payload.type === "WEB_PREVIEW_TEXT_RESULT") {
+      onWebPreviewTextResult(payload);
+      return;
+    }
+    if (payload.type === "WEB_PREVIEW_IMAGE_RESULT") {
+      onWebPreviewImageResult(payload);
+      return;
+    }
+    if (payload.type === "NATIVE_PREVIEW_FAILED") {
+      onNativePreviewFailed(payload);
+      return;
+    }
+    if (payload.type === "PREVIEW_META_UPDATE") {
+      onPreviewMetaUpdate(payload);
       return;
     }
     if (payload.type === "init" || payload.type === "state") {

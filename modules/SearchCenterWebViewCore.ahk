@@ -55,6 +55,9 @@ SCWV_ResetHostState() {
     global g_SCWV_RowCtxMenu
     g_SCWV_RowCtxMenu := 0
     _SCWV_DestroyDarkRowMenus()
+    try SCWV_Preview_UnloadNative()
+    catch {
+    }
 }
 
 SearchCenter_ShouldUseWebView() {
@@ -155,6 +158,9 @@ SCWV_OnGuiResize(GuiObj, MinMax, Width, Height) {
     if (MinMax = -1)
         return
     SCWV_ApplyBounds()
+    try SCWV_Preview_OnHostLayoutChanged()
+    catch {
+    }
 }
 
 SCWV_OnNavigationCompleted(sender, args) {
@@ -211,6 +217,7 @@ SCWV_RefreshComposition(*) {
     try {
         SCWV_ApplyBounds()
         g_SCWV_Ctrl.NotifyParentWindowPositionChanged()
+        SCWV_Preview_OnHostLayoutChanged()
     } catch {
     }
 }
@@ -339,6 +346,9 @@ SCWV_Hide(PersistSelection := true) {
 
     if g_SCWV_Gui {
         try g_SCWV_Gui.Hide()
+    }
+    try SCWV_Preview_UnloadNative()
+    catch {
     }
 }
 
@@ -552,6 +562,32 @@ SCWV_OnWebMessage(sender, args) {
             SC_SearchCenterEmptyRecycleBin()
         case "openWindowsRecycleBin":
             SCWV_OpenWindowsRecycleBinFolder()
+        case "WEB_PREVIEW_TEXT":
+            p := msg.Has("path") ? String(msg["path"]) : ""
+            sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
+            SCWV_Preview_OnWebText(p, sq)
+        case "WEB_PREVIEW_IMAGE":
+            p := msg.Has("path") ? String(msg["path"]) : ""
+            sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
+            SCWV_Preview_OnWebImage(p, sq)
+        case "NATIVE_PREVIEW":
+            p := msg.Has("path") ? String(msg["path"]) : ""
+            sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
+            bmap := msg.Has("bounds") && (msg["bounds"] is Map) ? msg["bounds"] : 0
+            SCWV_Preview_OnNative(p, sq, bmap)
+        case "PREVIEW_NATIVE_STOP":
+            SCWV_Preview_UnloadNative()
+        case "QUICKLOOK":
+            p := msg.Has("path") ? String(msg["path"]) : ""
+            SCWV_Preview_TryQuickLook(p)
+        case "INVOKE_IPREVIEW":
+            p := msg.Has("path") ? String(msg["path"]) : ""
+            sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
+            bmap := msg.Has("bounds") && (msg["bounds"] is Map) ? msg["bounds"] : 0
+            try SCWV_Preview_Get().InvokeNative(p, sq, bmap)
+            catch as err {
+                SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", err.Message))
+            }
     }
 }
 
@@ -866,6 +902,12 @@ SCWV_PushState(msgType := "state") {
         }
         pkRow := _SCWV_ResultPinKey(item)
         isPinned := (pkRow != "" && g_SCWV_PinnedKeys.Has(pkRow) && g_SCWV_PinnedKeys[pkRow])
+        filePath := ""
+        if (item.HasProp("OriginalDataType") && item.OriginalDataType = "file") || (item.HasProp("DataType") && (item.DataType = "File" || item.DataType = "Folder")) {
+            cand := item.HasProp("Content") ? Trim(String(item.Content)) : ""
+            if (cand != "" && FileExist(cand))
+                filePath := cand
+        }
         results.Push(Map(
             "row", index,
             "title", rowTitle,
@@ -877,6 +919,7 @@ SCWV_PushState(msgType := "state") {
             "dataType", item.HasProp("DataType") ? item.DataType : "",
             "source", item.HasProp("Source") ? item.Source : "",
             "content", item.HasProp("Content") ? item.Content : rowTitle,
+            "path", filePath,
             "pinned", isPinned ? true : false
         ))
     }
@@ -2137,4 +2180,512 @@ SC_SearchCenterRecycleVisibleRow(visibleRow) {
 
 SC_SearchCenterDeleteVisibleRow(visibleRow) {
     SC_SearchCenterRecycleVisibleRow(visibleRow)
+}
+
+; ── SearchCenter 文件预览：Web 读盘回传 / IPreviewHandler 原生 / QuickLook ─────────
+global g_SCWV_PreviewSingleton := 0
+global g_SCWV_QLRaiseTimer := 0
+
+SCWV_Preview_Get() {
+    global g_SCWV_PreviewSingleton
+    ; 不可对0/"" 使用 "is PreviewManager"，否则 v2 会抛错（Resize 时即触发 → 搜索中心闪退）
+    if !IsObject(g_SCWV_PreviewSingleton)
+        g_SCWV_PreviewSingleton := PreviewManager()
+    return g_SCWV_PreviewSingleton
+}
+
+SCWV_Preview_UnloadNative() {
+    try SCWV_Preview_Get().Unload()
+    catch {
+    }
+}
+
+SCWV_Preview_OnHostLayoutChanged() {
+    try SCWV_Preview_Get().OnHostLayoutChanged()
+    catch {
+    }
+}
+
+SCWV_Preview_OnWebText(path, seq) {
+    try SCWV_Preview_Get().OnWebText(path, seq)
+    catch as err {
+        _SCWV_Preview_PostTextErr(seq, err.Message)
+    }
+}
+
+SCWV_Preview_OnWebImage(path, seq) {
+    try SCWV_Preview_Get().OnWebImage(path, seq)
+    catch as err {
+        SCWV_PostJson(Map("type", "WEB_PREVIEW_IMAGE_RESULT", "seq", seq, "dataUrl", "", "error", err.Message))
+    }
+}
+
+SCWV_Preview_OnNative(path, seq, boundsMap) {
+    try SCWV_Preview_Get().ScheduleNative(path, seq, boundsMap)
+    catch as err {
+        SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", err.Message))
+    }
+}
+
+SCWV_Preview_TryQuickLook(path) {
+    try SCWV_Preview_Get().TryQuickLook(path)
+    catch {
+    }
+}
+
+_SCWV_Preview_PostTextErr(seq, msg) {
+    SCWV_PostJson(Map("type", "WEB_PREVIEW_TEXT_RESULT", "seq", seq, "text", "", "truncated", false, "sizeBytes", 0, "error", msg))
+}
+
+_SCWV_QuickLookRaiseOnce(*) {
+    global g_SCWV_QLRaiseTimer
+    g_SCWV_QLRaiseTimer := 0
+    lst := WinGetList("ahk_exe QuickLook.exe")
+    if !(IsObject(lst) && lst.Length)
+        return
+    best := 0
+    bestArea := 0
+    for _, hwnd in lst {
+        expr := "ahk_id " hwnd
+        try {
+            if !WinExist(expr)
+                continue
+            if (WinGetMinMax(expr) = 1)
+                continue
+            WinGetPos(, , &w, &h, expr)
+            a := w * h
+            if (a > bestArea) {
+                bestArea := a
+                best := hwnd
+            }
+        } catch {
+        }
+    }
+    if !best
+        return
+    expr := "ahk_id " best
+    try {
+        WinActivate(expr)
+        WinSetAlwaysOnTop 1, expr
+    } catch {
+    }
+}
+
+_SCWV_B64EncodeBuf(buf) {
+    if !(buf is Buffer) || buf.Size <= 0
+        return ""
+    encSz := 0
+    DllCall("crypt32\CryptBinaryToStringW", "Ptr", buf.Ptr, "UInt", buf.Size, "UInt", 0x40000001, "Ptr", 0, "UInt*", &encSz)
+    if (encSz <= 1)
+        return ""
+    out := Buffer(encSz * 2, 0)
+    if !DllCall("crypt32\CryptBinaryToStringW", "Ptr", buf.Ptr, "UInt", buf.Size, "UInt", 0x40000001, "Ptr", out.Ptr, "UInt*", &encSz)
+        return ""
+    return StrGet(out.Ptr, encSz - 1, "UTF-16")
+}
+
+_SCWV_RegPreviewClsidForExt(extDot) {
+    shellex := "\shellex\{8895b1c6-b41f-4c1c-a562-0d564d35d9c5}"
+    paths := [
+        extDot . shellex,
+        "SystemFileAssociations\" . extDot . shellex
+    ]
+    for p in paths {
+        try {
+            v := RegRead("HKCR\" . p, "")
+            v := Trim(String(v))
+            if (v != "")
+                return v
+        } catch {
+        }
+    }
+    return ""
+}
+
+_SCWV_WebViewClientScreenOrigin(&sx, &sy) {
+    global g_SCWV_Gui, g_SCWV_Ctrl
+    sx := 0, sy := 0
+    if !g_SCWV_Gui || !g_SCWV_Ctrl
+        return false
+    ph := 0
+    try ph := g_SCWV_Ctrl.ParentWindow
+    catch {
+        return false
+    }
+    if !ph
+        return false
+    try {
+        pt := Buffer(8, 0)
+        DllCall("user32\ClientToScreen", "Ptr", ph, "Ptr", pt)
+        sx := NumGet(pt, 0, "Int")
+        sy := NumGet(pt, 4, "Int")
+    } catch {
+        return false
+    }
+    return true
+}
+
+_SCWV_WebViewRasterScale() {
+    global g_SCWV_Ctrl
+    if !g_SCWV_Ctrl
+        return 1
+    try {
+        sc := g_SCWV_Ctrl.RasterizationScale
+        if (sc > 0.1 && sc < 10)
+            return sc
+    } catch {
+    }
+    return 1
+}
+
+_SCWV_BoundsMapToScreen(boundsMap, &rx, &ry, &rw, &rh) {
+    global g_SCWV_Ctrl
+    rx := 0, ry := 0, rw := 400, rh := 300
+    if !g_SCWV_Ctrl
+        return false
+    rc := g_SCWV_Ctrl.Bounds
+    bw := 800
+    bh := 600
+    bl := 0
+    bt := 0
+    try {
+        bw := rc.right - rc.left
+        bh := rc.bottom - rc.top
+        bl := rc.left
+        bt := rc.top
+    } catch {
+    }
+    sc := _SCWV_WebViewRasterScale()
+    cl := 0.0
+    ct := 0.0
+    cw := bw / Max(sc, 0.01)
+    ch := bh / Max(sc, 0.01)
+    if (boundsMap is Map) && boundsMap.Has("left") {
+        cl := Float(boundsMap["left"])
+        ct := Float(boundsMap["top"])
+        cw := Float(boundsMap["width"])
+        ch := Float(boundsMap["height"])
+        if (boundsMap.Has("dpr")) {
+            dpr := Float(boundsMap["dpr"])
+            if (dpr > 0.1 && dpr < 10)
+                sc := dpr
+        }
+    }
+    if !(_SCWV_WebViewClientScreenOrigin(&psx, &psy))
+        return false
+    rx := psx + bl + Round(cl * sc)
+    ry := psy + bt + Round(ct * sc)
+    rw := Max(Round(cw * sc), 80)
+    rh := Max(Round(ch * sc), 60)
+    return true
+}
+
+class PreviewManager {
+    NativeGui := 0
+    PreviewHandler := 0
+    InitObj := 0
+    RootObj := 0
+    CurrentPath := ""
+    BoundsCss := 0
+    NativeTimer := 0
+    PendingPath := ""
+    PendingSeq := 0
+    PendingBounds := 0
+
+    Unload() {
+        if this.PreviewHandler {
+            try ComCall(9, this.PreviewHandler, "hresult") ; IPreviewHandler::Unload
+            catch {
+            }
+            this.PreviewHandler := 0
+        }
+        this.InitObj := 0
+        this.RootObj := 0
+        if this.NativeGui {
+            try this.NativeGui.Hide()
+            catch {
+            }
+        }
+        this.CurrentPath := ""
+        this.BoundsCss := 0
+        if this.NativeTimer {
+            SetTimer(this.NativeTimer, 0)
+            this.NativeTimer := 0
+        }
+        this.PendingPath := ""
+        this.PendingSeq := 0
+        this.PendingBounds := 0
+    }
+
+    TryQuickLook(path) {
+        path := Trim(String(path))
+        if (path = "" || !FileExist(path))
+            return
+        ql := A_ScriptDir "\lib\QuickLook\QuickLook.exe"
+        if !FileExist(ql)
+            return
+        global g_SCWV_QLRaiseTimer
+        SCWV_Preview_UnloadNative()
+        if g_SCWV_QLRaiseTimer {
+            SetTimer(g_SCWV_QLRaiseTimer, 0)
+            g_SCWV_QLRaiseTimer := 0
+        }
+        if !ProcessExist("QuickLook.exe") {
+            try Run('"' ql '"', A_ScriptDir)
+            catch {
+            }
+            Sleep 450
+        }
+        try Run('"' ql '" "' path '"',, "UseErrorLevel")
+        catch {
+        }
+        g_SCWV_QLRaiseTimer := _SCWV_QuickLookRaiseOnce
+        SetTimer(_SCWV_QuickLookRaiseOnce, -380)
+    }
+
+    OnWebText(path, seq) {
+        path := Trim(String(path))
+        this._PostDetailMeta(path, seq)
+        if (path = "" || !FileExist(path)) {
+            _SCWV_Preview_PostTextErr(seq, "无效路径")
+            return
+        }
+        sz := FileGetSize(path)
+        truncated := false
+        maxB := 1048576
+        n := Min(sz, maxB)
+        if (sz > maxB)
+            truncated := true
+        f := FileOpen(path, "r")
+        buf := Buffer(n, 0)
+        f.RawRead(buf, n)
+        f.Close()
+        text := StrGet(buf, buf.Size, "utf-8")
+        lineTrunc := false
+        if truncated {
+            cnt := 0
+            out := ""
+            Loop Parse text, "`n", "`r" {
+                cnt += 1
+                if (cnt > 1000) {
+                    lineTrunc := true
+                    break
+                }
+                out .= (cnt > 1 ? "`n" : "") A_LoopField
+            }
+            text := out
+        }
+        SCWV_PostJson(Map(
+            "type", "WEB_PREVIEW_TEXT_RESULT",
+            "seq", seq,
+            "text", text,
+            "truncated", truncated || lineTrunc,
+            "sizeBytes", sz
+        ))
+    }
+
+    OnWebImage(path, seq) {
+        path := Trim(String(path))
+        this._PostDetailMeta(path, seq)
+        if (path = "" || !FileExist(path)) {
+            SCWV_PostJson(Map("type", "WEB_PREVIEW_IMAGE_RESULT", "seq", seq, "dataUrl", ""))
+            return
+        }
+        sz := FileGetSize(path)
+        if (sz > 12582912) {
+            SCWV_PostJson(Map("type", "WEB_PREVIEW_IMAGE_RESULT", "seq", seq, "dataUrl", "", "error", "图片过大"))
+            return
+        }
+        f := FileOpen(path, "r")
+        buf := Buffer(sz)
+        f.RawRead(buf, sz)
+        f.Close()
+        b64 := _SCWV_B64EncodeBuf(buf)
+        SplitPath path, , , &ext
+        ext := StrLower(ext)
+        mime := "application/octet-stream"
+        if (ext = "png")
+            mime := "image/png"
+        else if (ext = "jpg" || ext = "jpeg")
+            mime := "image/jpeg"
+        else if (ext = "gif")
+            mime := "image/gif"
+        else if (ext = "svg")
+            mime := "image/svg+xml"
+        dataUrl := "data:" mime ";base64," b64
+        SCWV_PostJson(Map("type", "WEB_PREVIEW_IMAGE_RESULT", "seq", seq, "dataUrl", dataUrl))
+    }
+
+    ScheduleNative(path, seq, boundsMap) {
+        path := Trim(String(path))
+        this._PostDetailMeta(path, seq)
+        if (path = "" || !FileExist(path)) {
+            SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", "无效路径"))
+            return
+        }
+
+        ; 如果路径没变且窗口已存在，仅触发布局刷新 (Resize)，不重新加载 COM
+        if (this.CurrentPath = path && this.PreviewHandler && this.NativeGui) {
+            this.BoundsCss := boundsMap
+            this.OnHostLayoutChanged()
+            return
+        }
+
+        this.PendingPath := path
+        this.PendingSeq := seq
+        this.PendingBounds := boundsMap
+        if this.NativeTimer
+            SetTimer(this.NativeTimer, 0)
+        this.NativeTimer := ObjBindMethod(this, "_FireNativeDebounced")
+        SetTimer(this.NativeTimer, -150)
+    }
+
+    _FireNativeDebounced() {
+        this.NativeTimer := 0
+        p := this.PendingPath
+        sq := this.PendingSeq
+        bm := this.PendingBounds
+        if (p = "")
+            return
+
+        ; 即使是重新加载也只需清理 COM，不销毁 GUI
+        if this.PreviewHandler {
+            try ComCall(9, this.PreviewHandler, "hresult")
+            catch {
+            }
+            this.PreviewHandler := 0
+        }
+        this.InitObj := 0
+        this.RootObj := 0
+        
+        this.CurrentPath := p
+        this.BoundsCss := bm
+        
+        global g_SCWV_Gui
+        if !g_SCWV_Gui {
+            SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", "窗口未就绪"))
+            return
+        }
+        
+        if !_SCWV_BoundsMapToScreen(bm, &rx, &ry, &rw, &rh) {
+            SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", "无法计算预览区域"))
+            return
+        }
+
+        if !this.NativeGui {
+            ownerHwnd := g_SCWV_Gui.Hwnd
+            this.NativeGui := Gui("+Owner" . ownerHwnd . " -Caption +ToolWindow +Border", "SCNativePreview")
+            this.NativeGui.BackColor := "1b1b1d"
+        }
+        
+        this.NativeGui.Show("x" rx " y" ry " w" rw " h" rh " NoActivate")
+        try WinSetAlwaysOnTop true, "ahk_id " . this.NativeGui.Hwnd
+        catch {
+        }
+        
+        hostHwnd := this.NativeGui.Hwnd
+        if !this._AttachPreviewHandler(p, hostHwnd, rw, rh) {
+            this.Unload() ; 彻底失败则隐藏
+            SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", "系统预览组件不可用（可尝试 QuickLook）", "path", p))
+        }
+    }
+
+    OnHostLayoutChanged() {
+        if !this.PreviewHandler || !this.NativeGui || !this.BoundsCss
+            return
+        if !_SCWV_BoundsMapToScreen(this.BoundsCss, &rx, &ry, &rw, &rh)
+            return
+        try this.NativeGui.Move(rx, ry, rw, rh)
+        catch {
+        }
+        rect := Buffer(16, 0)
+        NumPut("int", 0, rect, 0)
+        NumPut("int", 0, rect, 4)
+        NumPut("int", rw, rect, 8)
+        NumPut("int", rh, rect, 12)
+        try ComCall(7, this.PreviewHandler, "ptr", rect.Ptr, "hresult")
+        catch {
+        }
+    }
+
+    _AttachPreviewHandler(path, hostHwnd, w, h) {
+        SplitPath path, , , &ext
+        extDot := "." StrLower(ext)
+        clsid := _SCWV_RegPreviewClsidForExt(extDot)
+        if (clsid = "")
+            return false
+        try this.RootObj := Func("ComObjCreate").Call(clsid)
+        catch {
+            return false
+        }
+        try this.InitObj := Func("ComObjQuery").Call(this.RootObj, "{219a5d78-a9ef-443a-9271-1e392d5d1b1e}")
+        catch {
+            this.InitObj := 0
+            return false
+        }
+        try ComCall(3, this.InitObj, "wstr", path, "uint", 0, "hresult")
+        catch {
+            return false
+        }
+        try this.PreviewHandler := Func("ComObjQuery").Call(this.RootObj, "{8895b1c6-b41f-4c1c-a562-0d564d35d9c5}")
+        catch {
+            return false
+        }
+        rect := Buffer(16, 0)
+        NumPut("int", 0, rect, 0)
+        NumPut("int", 0, rect, 4)
+        NumPut("int", w, rect, 8)
+        NumPut("int", h, rect, 12)
+        try ComCall(3, this.PreviewHandler, "ptr", hostHwnd, "ptr", rect.Ptr, "hresult")
+        catch {
+            return false
+        }
+        try ComCall(7, this.PreviewHandler, "ptr", rect.Ptr, "hresult")
+        catch {
+        }
+        try ComCall(8, this.PreviewHandler, "hresult")
+        catch {
+            return false
+        }
+        return true
+    }
+
+    InvokeNative(path, seq, boundsMap) {
+        this.Unload()
+        this.ScheduleNative(path, seq, boundsMap)
+    }
+    _PostDetailMeta(path, seq) {
+        if (path = "" || !FileExist(path))
+            return
+        try {
+            sz := FileGetSize(path)
+            if (sz > 1048576)
+                szStr := Round(sz / 1048576, 2) . " MB"
+            else if (sz > 1024)
+                szStr := Round(sz / 1024, 1) . " KB"
+            else
+                szStr := sz . " B"
+                
+            modTime := FileGetTime(path, "M")
+            creTime := FileGetTime(path, "C")
+            fmtMod := FormatTime(modTime, "yyyy-MM-dd HH:mm")
+            fmtCre := FormatTime(creTime, "yyyy-MM-dd HH:mm")
+            
+            SplitPath path, , , &ext
+            
+            SCWV_PostJson(Map(
+                "type", "PREVIEW_META_UPDATE",
+                "seq", seq,
+                "path", path,
+                "meta", Map(
+                    "大小", szStr,
+                    "修改日期", fmtMod,
+                    "创建日期", fmtCre,
+                    "后缀名", StrUpper(ext),
+                    "完整路径", path
+                )
+            ))
+        } catch {
+        }
+    }
 }
