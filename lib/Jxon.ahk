@@ -194,26 +194,30 @@ _skipWhitespace(s, &pos) {
 
 ; Dump value
 _dumpValue(v) {
-    if (v is Map) {
+    t := Type(v)
+    if (t == "Map") {
         parts := []
         for key, val in v {
-            parts.Push('"' key '":' _dumpValue(val))
+            parts.Push('"' . key . '":' . _dumpValue(val))
         }
-        return "{" StrJoin(parts, ",") "}"
-    } else if (v is Array) {
+        return "{" . StrJoin(parts, ",") . "}"
+    } else if (t == "Array") {
         items := []
         for item in v {
             items.Push(_dumpValue(item))
         }
-        return "[" StrJoin(items, ",") "]"
-    } else if (v is String) {
-        return '"' StrReplace(StrReplace(StrReplace(StrReplace(v, '\', '\\'), '`t', '\t'), '`n', '\n'), '"', '\"') '"'
-    } else if (v is Integer || v is Float) {
+        return "[" . StrJoin(items, ",") . "]"
+    } else if (t == "String") {
+        return '"' . StrReplace(StrReplace(StrReplace(StrReplace(v, '\', '\\'), '`t', '\t'), '`n', '\n'), '"', '\"') . '"'
+    } else if (t == "Integer" || t == "Float") {
+        ; AHK v2 中 true/false 也是 Integer，这里直接输出数字以保证数据严谨
         return String(v)
-    } else if (v = true) {
-        return "true"
-    } else if (v = false) {
-        return "false"
+    } else if (IsObject(v)) {
+        parts := []
+        for prop in v.OwnProps() {
+            parts.Push('"' . prop . '":' . _dumpValue(v.%prop%))
+        }
+        return "{" . StrJoin(parts, ",") . "}"
     } else {
         return "null"
     }
@@ -221,14 +225,14 @@ _dumpValue(v) {
 
 ; String join helper
 StrJoin(arr, sep) {
-    if (arr.Length == 0) {
+    if (Type(arr) != "Array" || arr.Length == 0) {
         return ""
     }
 
     result := arr[1]
-    for i in arr {
-        if (A_Index > 1) {
-            result .= sep i
+    for idx, val in arr {
+        if (idx > 1) {
+            result .= sep . val
         }
     }
     return result

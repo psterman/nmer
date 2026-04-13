@@ -1195,20 +1195,26 @@ function renderResults() {
     const row = document.createElement("div");
     row.className = "result-item" + (item.row === state.selectedRow ? " active" : "");
     const isHistory = (item.type === "history" || item.type === "History");
+    const isTutorial = (item.type === "tutorial");
     const pinMark = item.pinned ? "<span class=\"pin-ico\" title=\"置顶\">🔝</span>" : "";
-    const historyIcon = isHistory ? "<span style='margin-right:6px; opacity:0.5; font-size:12px'>🕒</span>" : "";
     
-    // 如果是历史记录，标题置灰，弱化表现
-    const titleStyle = isHistory ? " style='color:#bbb'" : "";
+    let icon = "";
+    if (isHistory) icon = "<span style='margin-right:6px; opacity:0.5; font-size:12px'>🕒</span>";
+    if (isTutorial) icon = "<span style='margin-right:6px; color:#ffb347; font-size:12px'>💡</span>";
+    
+    // 如果是历史记录，标题置灰，弱化表现；如果是教程，标题加亮
+    let titleStyle = "";
+    if (isHistory) titleStyle = " style='color:#bbb'";
+    if (isTutorial) titleStyle = " style='color:#ffb347; font-weight:500'";
     
     row.innerHTML =
       "<div>" +
-        "<div class=\"result-title\"" + titleStyle + ">" + historyIcon + pinMark + highlight(item.title, state.keyword) + "</div>" +
+        "<div class=\"result-title\"" + titleStyle + ">" + icon + pinMark + highlight(item.title, state.keyword) + "</div>" +
         "<div class=\"result-sub\">" + escapeHtml(item.subtitle || "") + "</div>" +
         "<div class=\"result-preview\">" + highlight(item.preview || "", state.keyword) + "</div>" +
       "</div>" +
       "<div class=\"result-meta\">" +
-        (isHistory ? "" : "<span class=\"pill\">" + escapeHtml(item.type || "") + "</span>") +
+        (isHistory || isTutorial ? "" : "<span class=\"pill\">" + escapeHtml(item.type || "") + "</span>") +
         "<span class=\"time\">" + escapeHtml(item.time || "") + "</span>" +
       "</div>";
     row.onclick = () => {
