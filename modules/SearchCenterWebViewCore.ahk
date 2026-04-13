@@ -1,11 +1,11 @@
-#Requires AutoHotkey v2.0
+﻿#Requires AutoHotkey v2.0
 
 global g_SCWV_Gui := 0
 global g_SCWV_Ctrl := 0
 global g_SCWV_WV2 := 0
 global g_SCWV_Ready := false
 global g_SCWV_Visible := false
-global g_SCWV_LastShown := 0  ; SCWV_Show 后宽限期，避免点击悬浮条失焦立刻 Hide 与二次点击抢跑
+global g_SCWV_LastShown := 0  ; SCWV_Show 鍚庡闄愭湡锛岄伩鍏嶇偣鍑绘偓娴潯澶辩劍绔嬪埢 Hide 涓庝簩娆＄偣鍑绘姠璺?
 global g_SCWV_SearchTimer := 0
 global g_SCWV_FocusPending := false
 global SearchCenterWebKeyword := ""
@@ -13,22 +13,22 @@ global SearchCenterSearchResults := []
 global SearchCenterHasMoreData := false
 global SearchCenterFilterType := ""
 global SearchCenterCurrentLimit := 30
-global g_SCWV_PendingJsonQueue := []  ; WebView 未 ready 时暂存，ready 后由 SCWV_FlushPendingJsonQueue 发出
-global g_SCWV_RowCtxMenu := 0  ; 兼容占位（深色菜单不再使用原生 Menu）
-global g_SCWV_MenuActionRow := 0  ; 当前菜单对应的可见结果行号（1-based）
-global g_SCWV_DarkCtxGui := 0  ; 搜索结果行深色右键菜单 GUI
+global g_SCWV_PendingJsonQueue := []  ; WebView 鏈?ready 鏃舵殏瀛橈紝ready 鍚庣敱 SCWV_FlushPendingJsonQueue 鍙戝嚭
+global g_SCWV_RowCtxMenu := 0  ; 鍏煎鍗犱綅锛堟繁鑹茶彍鍗曚笉鍐嶄娇鐢ㄥ師鐢?Menu锛?
+global g_SCWV_MenuActionRow := 0  ; 褰撳墠鑿滃崟瀵瑰簲鐨勫彲瑙佺粨鏋滆鍙凤紙1-based锛?
+global g_SCWV_DarkCtxGui := 0  ; 鎼滅储缁撴灉琛屾繁鑹插彸閿彍鍗?GUI
 global g_SCWV_DarkCtxHoverIdx := 0
-global g_SCWV_DarkCtxCmdByIdx := Map()  ; 1-based行号 -> cmdId
-global g_SCWV_DarkCtxSubSpecByIdx := Map()  ; 主菜单行号 -> 子菜单 children 数组
+global g_SCWV_DarkCtxCmdByIdx := Map()  ; 1-based琛屽彿 -> cmdId
+global g_SCWV_DarkCtxSubSpecByIdx := Map()  ; 涓昏彍鍗曡鍙?-> 瀛愯彍鍗?children 鏁扮粍
 global g_SCWV_DarkSubGui := 0
 global g_SCWV_DarkSubCmdByIdx := Map()
 global g_SCWV_DarkSubHoverIdx := 0
 global g_SCWV_DarkSubMenuHoverTimer := 0
-global g_SCWV_DarkMenuHoverTimer := 0  ; 悬停两行渐变
-global g_SCWV_DarkCtxItemCount := 0  ; 主右键菜单行数（避免用 Gui.HasProp 检测控件，部分版本会抛错导致永不高亮）
+global g_SCWV_DarkMenuHoverTimer := 0  ; 鎮仠涓よ娓愬彉
+global g_SCWV_DarkCtxItemCount := 0  ; 涓诲彸閿彍鍗曡鏁帮紙閬垮厤鐢?Gui.HasProp 妫€娴嬫帶浠讹紝閮ㄥ垎鐗堟湰浼氭姏閿欏鑷存案涓嶉珮浜級
 global g_SCWV_DarkSubItemCount := 0
-global g_SCWV_PinnedKeys := Map()  ; 置顶键 id:xxx 或 c:内容哈希
-global g_SCWV_RecycleBin := []  ; 删除项快照 {title,content,id}
+global g_SCWV_PinnedKeys := Map()  ; 缃《閿?id:xxx 鎴?c:鍐呭鍝堝笇
+global g_SCWV_RecycleBin := []  ; 鍒犻櫎椤瑰揩鐓?{title,content,id}
 
 SCWV_HostAlive() {
     global g_SCWV_Gui
@@ -116,7 +116,7 @@ SCWV_Init() {
     if g_SCWV_Gui && !SCWV_HostAlive()
         SCWV_ResetHostState()
 
-    ; 使用 Windows 原生标题栏与系统窗口按钮（最小化/最大化/关闭）
+    ; 浣跨敤 Windows 鍘熺敓鏍囬鏍忎笌绯荤粺绐楀彛鎸夐挳锛堟渶灏忓寲/鏈€澶у寲/鍏抽棴锛?
     g_SCWV_Gui := Gui("+AlwaysOnTop +Resize +MinSize760x540 +MinimizeBox +MaximizeBox -DPIScale +Owner", "搜索中心")
     g_SCWV_Gui.BackColor := "1b1b1d"
     g_SCWV_Gui.MarginX := 0
@@ -154,11 +154,13 @@ SCWV_OnCreated(ctrl) {
 
     
     ; 映射物理驱动器到虚拟域名，允许 WebView2 播放本地媒体
-    ; 1 = COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW（允许跨域加载，解决 0:00 无法播放问题）
+    ; 1 = COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW
     try {
         g_SCWV_WV2.SetVirtualHostNameToFolderMapping("c.local", "C:\", 1)
         g_SCWV_WV2.SetVirtualHostNameToFolderMapping("d.local", "D:\", 1)
         g_SCWV_WV2.SetVirtualHostNameToFolderMapping("e.local", "E:\", 1)
+    }
+    catch {
     }
     
     g_SCWV_WV2.Navigate(BuildAppLocalUrl("SearchCenter.html"))
@@ -208,7 +210,7 @@ SCWV_ApplyBounds() {
     g_SCWV_Ctrl.Bounds := rc
 }
 
-; WebView 内联输入依赖宿主激活 + WebView 取焦，IMM/TSF 才能稳定附着（否则表现为有时中文、有时英文小写）
+; WebView 鍐呰仈杈撳叆渚濊禆瀹夸富婵€娲?+ WebView 鍙栫劍锛孖MM/TSF 鎵嶈兘绋冲畾闄勭潃锛堝惁鍒欒〃鐜颁负鏈夋椂涓枃銆佹湁鏃惰嫳鏂囧皬鍐欙級
 SCWV_FocusForIME(*) {
     global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_Ctrl, g_SCWV_WV2, g_SCWV_Ready
     if !g_SCWV_Visible || !g_SCWV_Gui || !g_SCWV_Ctrl
@@ -261,8 +263,7 @@ SCWV_Show() {
         g_SCWV_Gui.Show("w1180 h760 Center")
         try WinMaximize("ahk_id " . g_SCWV_Gui.Hwnd)
     } catch {
-        ; 兜底：窗口对象存在但句柄失效时重建一次，避免 “Gui has no window”
-        SCWV_ResetHostState()
+        ; 鍏滃簳锛氱獥鍙ｅ璞″瓨鍦ㄤ絾鍙ユ焺澶辨晥鏃堕噸寤轰竴娆★紝閬垮厤 鈥淕ui has no window鈥?        SCWV_ResetHostState()
         SCWV_Init()
         if !g_SCWV_Gui
             return
@@ -281,7 +282,7 @@ SCWV_Show() {
     try {
         _SCWV_PerformSearch(SearchCenterWebKeyword)
     } catch {
-        _SCWV_LoadSearchHistory() ; 降级处理：尝试直接载入历史，避开复杂的搜索链路
+        _SCWV_LoadSearchHistory() ; 降级处理：尝试直接载入历史，避开复杂搜索链路
     }
 
     if g_SCWV_Ready
@@ -343,8 +344,7 @@ SCWV_Hide(PersistSelection := true) {
         return
     }
 
-    ; 取消 WM_ACTIVATE 延迟关闭，避免用户已在工具栏同步 Hide 后 50ms 又执行一次 Hide/副作用
-    SetTimer(SCWV_WMDeactivateHideTick, 0)
+    ; 鍙栨秷 WM_ACTIVATE 寤惰繜鍏抽棴锛岄伩鍏嶇敤鎴峰凡鍦ㄥ伐鍏锋爮鍚屾 Hide 鍚?50ms 鍙堟墽琛屼竴娆?Hide/鍓綔鐢?    SetTimer(SCWV_WMDeactivateHideTick, 0)
     SetTimer(SCWV_DeferredPush, 0)
     SetTimer(SCWV_RefreshComposition, 0)
     SetTimer(_SCWV_DeferredMoveFocus100, 0)
@@ -373,7 +373,7 @@ SCWV_Hide(PersistSelection := true) {
     }
 }
 
-; 失焦后延迟关闭（命名定时器，便于 SCWV_Hide 取消，避免与工具栏二次点击竞态）
+; 澶辩劍鍚庡欢杩熷叧闂紙鍛藉悕瀹氭椂鍣紝渚夸簬 SCWV_Hide 鍙栨秷锛岄伩鍏嶄笌宸ュ叿鏍忎簩娆＄偣鍑荤珵鎬侊級
 SCWV_WMDeactivateHideTick(*) {
     global g_SCWV_Visible, g_SCWV_Gui
     if !g_SCWV_Visible || !g_SCWV_Gui
@@ -385,7 +385,7 @@ SCWV_WMDeactivateHideTick(*) {
             return
     } catch {
     }
-    ; 长按 CapsLock 打开的 VK 会抢 WebView 焦点；若仍自动 Hide 搜索中心，会引发焦点风暴并表现为 VK「闪退」
+    ; 长按 CapsLock 打开的 VK 会抢 WebView 焦点；若仍自动 Hide 搜索中心，会引发焦点风暴
     try {
         if VK_IsHostVisible()
             return
@@ -401,13 +401,13 @@ SCWV_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
         return
 
     if (hwnd = g_SCWV_Gui.Hwnd && (wParam & 0xFFFF) = 0) {
-        ; 用户点击同进程悬浮工具栏切换关闭时，前台常在 WebView 子 HWND 上，须识别宿主链，勿抢先 Hide
+        ; 鐢ㄦ埛鐐瑰嚮鍚岃繘绋嬫偓娴伐鍏锋爮鍒囨崲鍏抽棴鏃讹紝鍓嶅彴甯稿湪 WebView 瀛?HWND 涓婏紝椤昏瘑鍒涓婚摼锛屽嬁鎶㈠厛 Hide
         try {
             if (FloatingToolbar_IsForegroundToolbarOrChild())
                 return
         } catch {
         }
-        ; 虚拟键盘已显示时，失焦常因焦点进 VK 的 WebView2，勿关闭搜索中心（否则连带搞乱 VK）
+        ; 虚拟键盘已显示时，失焦常因焦点进入 VK 的 WebView2，勿关闭搜索中心
         try {
             if VK_IsHostVisible()
                 return
@@ -645,9 +645,7 @@ _SCWV_PerformSearch(keyword, offset := 0) {
     global SearchCenterSearchResults, SearchCenterCurrentLimit, SearchCenterHasMoreData, SearchCenterFilterType, SearchCenterWebKeyword
 
     keyword := Trim(String(keyword))
-    ; 前端 debounce 后发 {type:search} 时只传 keyword 进本函数，未写回 SearchCenterWebKeyword；
-    ; SCWV_PushState 仍用旧全局（常为空），applyState 会把 #search 设成空串 → 输入被清空、选区丢失无法复制。
-    if (offset = 0)
+    ; 鍓嶇 debounce 鍚庡彂 {type:search} 鏃跺彧浼?keyword 杩涙湰鍑芥暟锛屾湭鍐欏洖 SearchCenterWebKeyword锛?    ; SCWV_PushState 浠嶇敤鏃у叏灞€锛堝父涓虹┖锛夛紝applyState 浼氭妸 #search 璁炬垚绌轰覆 鈫?杈撳叆琚竻绌恒€侀€夊尯涓㈠け鏃犳硶澶嶅埗銆?    if (offset = 0)
         SearchCenterWebKeyword := keyword
 
     if (offset = 0)
@@ -970,7 +968,7 @@ SCWV_PushState(msgType := "state") {
     currentCategoryKey := GetSearchCenterCurrentCategoryKey()
     status := "本地结果 " . results.Length . " 条"
     status .= " · 已选引擎 " . (IsObject(SearchCenterSelectedEngines) ? SearchCenterSelectedEngines.Length : 0) . " 个"
-    status .= " · 当前限制 " . SearchCenterCurrentLimit
+    status .= " 路 褰撳墠闄愬埗 " . SearchCenterCurrentLimit
 
     payload := Map(
         "type", msgType,
@@ -999,7 +997,7 @@ SCWV_PushState(msgType := "state") {
 _SCWV_BuildFilterPayload() {
     return [
         Map("key", "", "text", "全部"),
-        Map("key", "File", "text", "文本"),
+        Map("key", "File", "text", "文件"),
         Map("key", "clipboard", "text", "剪贴板"),
         Map("key", "template", "text", "提示词"),
         Map("key", "config", "text", "配置"),
@@ -1042,13 +1040,13 @@ _SCWV_PathToWebAssetUrl(path) {
     if (p = "" || !FileExist(p))
         return ""
 
-    ; 优先检查是否在脚本目录内（资产目录）
+    ; 浼樺厛妫€鏌ユ槸鍚﹀湪鑴氭湰鐩綍鍐咃紙璧勪骇鐩綍锛?
     scriptRoot := StrReplace(A_ScriptDir, "\", "/")
     normalized := StrReplace(p, "\", "/")
     
     resUrl := ""
     if (SubStr(normalized, 1, 1) != "/" && SubStr(normalized, 2, 1) != ":") {
-        ; 相对路径
+        ; 鐩稿璺緞
     } else {
         scriptRootWithSlash := scriptRoot . "/"
         if (SubStr(normalized, 1, StrLen(scriptRootWithSlash)) = scriptRootWithSlash) {
@@ -1060,7 +1058,7 @@ _SCWV_PathToWebAssetUrl(path) {
     if (resUrl = "" && RegExMatch(p, "^([a-zA-Z]):\\", &m)) {
         drive := StrLower(m[1])
         relativePath := SubStr(p, 4)
-        ; 直接原样返回，由浏览器原生处理编码
+        ; 鐩存帴鍘熸牱杩斿洖锛岀敱娴忚鍣ㄥ師鐢熷鐞嗙紪鐮?
         resUrl := "https://" . drive . ".local/" . StrReplace(relativePath, "\", "/")
     }
 
@@ -1171,14 +1169,14 @@ _SCWV_LoadSelectedEngines(CategoryKey) {
     } catch {
     }
 
-    ; 兼容旧版本：清除历史默认项（含 openclaw/codex_cli），避免自动选中
+    ; 鍏煎鏃х増鏈細娓呴櫎鍘嗗彶榛樿椤癸紙鍚?openclaw/codex_cli锛夛紝閬垮厤鑷姩閫変腑
     if (Engines.Length = 1) {
         legacy := StrLower(Trim(Engines[1]))
         if (legacy = "codex_cli" || legacy = "openclaw" || legacy = "openclaw_cli")
             Engines := []
     }
 
-    ; 仅保留当前分类中有效的引擎值，防止跨分类残留导致计数异常（例如 AI 显示 1）
+    ; 浠呬繚鐣欏綋鍓嶅垎绫讳腑鏈夋晥鐨勫紩鎿庡€硷紝闃叉璺ㄥ垎绫绘畫鐣欏鑷磋鏁板紓甯革紙渚嬪 AI 鏄剧ず 1锛?
     valid := Map()
     try {
         for _, engine in GetSortedSearchEngines(CategoryKey) {
@@ -1196,7 +1194,7 @@ _SCWV_LoadSelectedEngines(CategoryKey) {
     }
     Engines := filtered
 
-    ; CLI 分类不再设置默认引擎，必须由用户手动选择后才生效
+    ; CLI 鍒嗙被涓嶅啀璁剧疆榛樿寮曟搸锛屽繀椤荤敱鐢ㄦ埛鎵嬪姩閫夋嫨鍚庢墠鐢熸晥
 
     SearchCenterSelectedEnginesByCategory[CategoryKey] := _SCWV_CopyArray(Engines)
     return Engines
@@ -1296,7 +1294,7 @@ _SCWV_SendToCLI(prompt) {
     LaunchSelectedCLIAgents(prompt)
 }
 
-; 搜索中心结果执行：smartTextSearch=true 时，在有关键词且非文件/链接情况下用内容二次搜索（右键「立即执行」）；双击仍为粘贴
+; 搜索中心结果执行：smartTextSearch=true 时，在有关键词且非文件/链接情况下用内容二次搜索（右键“立即执行”）；双击仍为粘贴
 SC_ActivateSearchResultItem(Item, doHide := true, smartTextSearch := false) {
     if !IsObject(Item)
         return
@@ -1394,7 +1392,7 @@ SearchCenter_RunQueryWithKeyword(keyword) {
         SCWV_PushState("state")
         SCWV_RequestFocusInput()
     } catch {
-        ; 兜底重试：规避旧句柄失效导致的偶发打开失败
+        ; 鍏滃簳閲嶈瘯锛氳閬挎棫鍙ユ焺澶辨晥瀵艰嚧鐨勫伓鍙戞墦寮€澶辫触
         SCWV_ResetHostState()
         SCWV_Init()
         SCWV_Show()
@@ -1437,7 +1435,7 @@ _SCWV_AniMenuShow(hwnd) {
     }
 }
 
-; 与剪贴板右键：1px 橙色描边 + 8px 内边距；行高 34
+; 涓庡壀璐存澘鍙抽敭锛?px 姗欒壊鎻忚竟 + 8px 鍐呰竟璺濓紱琛岄珮 34
 _SCWV_DarkMenuLayout(&frm, &itemPad, &itemH, &innerTop) {
     frm := 1
     itemPad := 8
@@ -1497,22 +1495,22 @@ _SCWV_SearchCtxSendChildren() {
         Map("id", "sc_to_openclaw", "t", "发送到 OpenClaw"),
         Map("id", "sc_send_desktop", "t", "发送到桌面（复制文件）"),
         Map("id", "sc_send_documents", "t", "发送到文档（复制文件）"),
-        Map("id", "sc_open_sendto_folder", "t", "打开「发送到」文件夹")
+        Map("id", "sc_open_sendto_folder", "t", "打开“发送到”文件夹")
     ]
 }
 
 _SCWV_AppendSearchCtxStandardBlock(&out, specIds) {
-    ; 粘贴类与工具栏槽位无关：搜索中心统一提供四项（非剪贴板结果执行时会提示）
+    ; 绮樿创绫讳笌宸ュ叿鏍忔Ы浣嶆棤鍏筹細鎼滅储涓績缁熶竴鎻愪緵鍥涢」锛堥潪鍓创鏉跨粨鏋滄墽琛屾椂浼氭彁绀猴級
     pCh := _SCWV_SearchCtxPasteToChildren()
     if pCh.Length
-        out.Push(Map("k", "sub", "t", "粘贴到 ▸", "children", pCh))
+        out.Push(Map("k", "sub", "t", "粘贴到 ▶", "children", pCh))
     out.Push(Map("k", "cmd", "id", "sc_copy", "t", "复制"))
     cCh := _SCWV_FilterCtxChildrenByToolbar(_SCWV_SearchCtxCopyToChildren(), specIds)
     if cCh.Length
-        out.Push(Map("k", "sub", "t", "复制到 ▸", "children", cCh))
+        out.Push(Map("k", "sub", "t", "复制到 ▶", "children", cCh))
     sCh := _SCWV_FilterCtxChildrenByToolbar(_SCWV_SearchCtxSendChildren(), specIds)
     if sCh.Length
-        out.Push(Map("k", "sub", "t", "发送到 ▸", "children", sCh))
+        out.Push(Map("k", "sub", "t", "发送到 ▶", "children", sCh))
 }
 
 _SCWV_RegroupSearchCtxSpec(baseSpec, Item) {
@@ -1563,7 +1561,7 @@ _SCWV_RegroupSearchCtxSpec(baseSpec, Item) {
     return out
 }
 
-; 主菜单项右侧对齐子菜单左上角（与点击展开使用同一套坐标）
+; 涓昏彍鍗曢」鍙充晶瀵归綈瀛愯彍鍗曞乏涓婅锛堜笌鐐瑰嚮灞曞紑浣跨敤鍚屼竴濂楀潗鏍囷級
 _SCWV_DarkCtxComputeSubXY(idx, &subX, &subY) {
     global g_SCWV_DarkCtxGui
     subX := A_ScreenWidth // 2
@@ -1646,7 +1644,7 @@ _SCWV_DestroyDarkRowMenus(*) {
     g_SCWV_RowCtxMenu := 0
 }
 
-; 会弹出资源管理器 / 系统属性 / UAC 的命令：勿立刻把焦点抢回搜索中心，否则 F2 重命名与属性框会失效或被挡住
+; 会弹出资源管理器 / 系统属性 / UAC 的命令：勿立刻把焦点抢回搜索中心
 _SCWV_ShouldRefocusSearchAfterCmd(cmdId) {
     c := Trim(String(cmdId))
     if (c = "sc_open_path" || c = "sc_run_as_admin")
@@ -2271,14 +2269,13 @@ SC_SearchCenterDeleteVisibleRow(visibleRow) {
     SC_SearchCenterRecycleVisibleRow(visibleRow)
 }
 
-; ── SearchCenter 文件预览：Web 读盘回传 / IPreviewHandler 原生 / QuickLook ─────────
+; 鈹€鈹€ SearchCenter 鏂囦欢棰勮锛歐eb 璇荤洏鍥炰紶 / IPreviewHandler 鍘熺敓 / QuickLook 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 global g_SCWV_PreviewSingleton := 0
 global g_SCWV_QLRaiseTimer := 0
 
 SCWV_Preview_Get() {
     global g_SCWV_PreviewSingleton
-    ; 不可对0/"" 使用 "is PreviewManager"，否则 v2 会抛错（Resize 时即触发 → 搜索中心闪退）
-    if !IsObject(g_SCWV_PreviewSingleton)
+    ; 涓嶅彲瀵?/"" 浣跨敤 "is PreviewManager"锛屽惁鍒?v2 浼氭姏閿欙紙Resize 鏃跺嵆瑙﹀彂 鈫?鎼滅储涓績闂€€锛?    if !IsObject(g_SCWV_PreviewSingleton)
         g_SCWV_PreviewSingleton := PreviewManager()
     return g_SCWV_PreviewSingleton
 }
@@ -2536,7 +2533,7 @@ class PreviewManager {
         path := Trim(String(path))
         this._PostDetailMeta(path, seq)
         if (path = "" || !FileExist(path)) {
-            _SCWV_Preview_PostTextErr(seq, "无效路径")
+            _SCWV_Preview_PostTextErr(seq, "鏃犳晥璺緞")
             return
         }
         sz := FileGetSize(path)
@@ -2582,7 +2579,7 @@ class PreviewManager {
         }
         sz := FileGetSize(path)
         if (sz > 12582912) {
-            SCWV_PostJson(Map("type", "WEB_PREVIEW_IMAGE_RESULT", "seq", seq, "dataUrl", "", "error", "图片过大"))
+            SCWV_PostJson(Map("type", "WEB_PREVIEW_IMAGE_RESULT", "seq", seq, "dataUrl", "", "error", "鍥剧墖杩囧ぇ"))
             return
         }
         f := FileOpen(path, "r")
@@ -2609,11 +2606,11 @@ class PreviewManager {
         path := Trim(String(path))
         this._PostDetailMeta(path, seq)
         if (path = "" || !FileExist(path)) {
-            SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", "无效路径"))
+            SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", "鏃犳晥璺緞"))
             return
         }
 
-        ; 如果路径没变且窗口已存在，仅触发布局刷新 (Resize)，不重新加载 COM
+        ; 濡傛灉璺緞娌″彉涓旂獥鍙ｅ凡瀛樺湪锛屼粎瑙﹀彂甯冨眬鍒锋柊 (Resize)锛屼笉閲嶆柊鍔犺浇 COM
         if (this.CurrentPath = path && this.PreviewHandler && this.NativeGui) {
             this.BoundsCss := boundsMap
             this.OnHostLayoutChanged()
@@ -2637,7 +2634,7 @@ class PreviewManager {
         if (p = "")
             return
 
-        ; 即使是重新加载也只需清理 COM，不销毁 GUI
+        ; 鍗充娇鏄噸鏂板姞杞戒篃鍙渶娓呯悊 COM锛屼笉閿€姣?GUI
         if this.PreviewHandler {
             try ComCall(9, this.PreviewHandler, "hresult")
             catch {
@@ -2657,7 +2654,7 @@ class PreviewManager {
         }
         
         if !_SCWV_BoundsMapToScreen(bm, &rx, &ry, &rw, &rh) {
-            SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", "无法计算预览区域"))
+            SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", "鏃犳硶璁＄畻棰勮鍖哄煙"))
             return
         }
 
@@ -2674,8 +2671,7 @@ class PreviewManager {
         
         hostHwnd := this.NativeGui.Hwnd
         if !this._AttachPreviewHandler(p, hostHwnd, rw, rh) {
-            this.Unload() ; 彻底失败则隐藏
-            SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", "系统预览组件不可用（可尝试 QuickLook）", "path", p))
+            this.Unload(), SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", "系统预览组件不可用（可尝试 QuickLook）", "path", p))
         }
     }
 
@@ -2767,11 +2763,11 @@ class PreviewManager {
                 "seq", seq,
                 "path", path,
                 "meta", Map(
-                    "大小", szStr,
-                    "修改日期", fmtMod,
-                    "创建日期", fmtCre,
+                    "澶у皬", szStr,
+                    "淇敼鏃ユ湡", fmtMod,
+                    "鍒涘缓鏃ユ湡", fmtCre,
                     "后缀名", StrUpper(ext),
-                    "完整路径", path
+                    "瀹屾暣璺緞", path
                 )
             ))
         } catch {
@@ -2788,7 +2784,7 @@ _SCWV_RecordSearchHistory(keyword) {
     historyFile := A_ScriptDir . "\Data\SearchCenterHistory.json"
     historyArr := []
     
-    ; 读取现有记录
+    ; 璇诲彇鐜版湁璁板綍
     if FileExist(historyFile) {
         try {
             content := FileRead(historyFile, "UTF-8")
@@ -2801,14 +2797,14 @@ _SCWV_RecordSearchHistory(keyword) {
     if (Type(historyArr) != "Array")
         historyArr := []
         
-    ; 去重并放至队首
+    ; 鍘婚噸骞舵斁鑷抽槦棣?
     newArr := [k]
     for _, item in historyArr {
         if (String(item) != k)
             newArr.Push(String(item))
     }
     
-    ; 虽然前端可以选择 LIMIT，但我们在本地最多保留 1000 条，读取时再截断。
+    ; 铏界劧鍓嶇鍙互閫夋嫨 LIMIT锛屼絾鎴戜滑鍦ㄦ湰鍦版渶澶氫繚鐣?1000 鏉★紝璇诲彇鏃跺啀鎴柇銆?
     if (newArr.Length > 1000)
         newArr.Length := 1000
         
@@ -2829,46 +2825,33 @@ _SCWV_LoadSearchHistory() {
     historyFile := A_ScriptDir "\Data\SearchCenterHistory.json"
     historyArr := []
     
-    ; 1. 组装置顶教程技巧 (Tutorial Tips)
+    ; 1. 缁勮鏂版墜鎸囧崡鍗＄墖 (Master Guide Card)
     SearchCenterSearchResults := []
-    
+    tutorialContent := "快速上手（30秒）`n"
+                     . "1. 输入关键词：支持文件名、路径片段、剪贴板内容、模板名。`n"
+                     . "2. 用方向键选择结果，按 Enter 执行。`n"
+                     . "3. 通过分类和筛选缩小范围（文本、剪贴板、模板、配置等）。`n`n"
+                     . "常见场景`n"
+                     . "- 找文件：输入文件名关键词，可配合文件筛选。`n"
+                     . "- 找复制过的内容：输入片段后切到剪贴板筛选。`n"
+                     . "- 找提示词或配置：输入关键词后切到对应筛选。`n`n"
+                     . "高效操作`n"
+                     . "- 双击或 Enter：执行当前结果。`n"
+                     . "- 右键结果：复制、发送到、置顶、删除。`n"
+                     . "- 空格：对文件尝试 QuickLook 预览。`n`n"
+                     . "建议`n"
+                     . "- 首次使用先从文件和剪贴板两个筛选开始。`n"
+                     . "- 关键词尽量短而准，必要时加第二个词缩小范围。"
+
     SearchCenterSearchResults.Push({
-        Title: "Caps + Z: 快速过滤文本结果",
-        Subtitle: "实时从数千条本地文本库中匹配",
+        Title: "搜索中心新手指南（从入门到高效）",
+        Subtitle: tutorialContent,
+        Content: tutorialContent,
         DataType: "tutorial",
-        Source: "操作技巧",
-        Time: "置顶"
+        Source: "新手引导",
+        Time: "快速开始"
     })
-    SearchCenterSearchResults.Push({
-        Title: "Caps + X: 快速过滤剪贴板记录",
-        Subtitle: "查看最近复制过的所有文本与图片",
-        DataType: "tutorial",
-        Source: "操作技巧",
-        Time: "置顶"
-    })
-    SearchCenterSearchResults.Push({
-        Title: "Caps + C: 快速切换至 AI 提示词",
-        Subtitle: "一键呼出常用的 Prompt 模版",
-        DataType: "tutorial",
-        Source: "操作技巧",
-        Time: "置顶"
-    })
-    SearchCenterSearchResults.Push({
-        Title: "Caps + P: 给选中条目置顶",
-        Subtitle: "将常用结果固定在列表顶部",
-        DataType: "tutorial",
-        Source: "操作技巧",
-        Time: "置顶"
-    })
-    SearchCenterSearchResults.Push({
-        Title: "Enter / 双击: 复制并执行条目",
-        Subtitle: "直接将内容粘贴到您当前的焦点窗口",
-        DataType: "tutorial",
-        Source: "操作技巧",
-        Time: "置顶"
-    })
-    
-    ; 2. 读取并添加用户真实历史 (User History)
+    ; 2. 璇诲彇骞舵坊鍔犵敤鎴风湡瀹炲巻鍙?(User History)
     if FileExist(historyFile) {
         try {
             content := FileRead(historyFile, "UTF-8")
@@ -2888,7 +2871,8 @@ _SCWV_LoadSearchHistory() {
                 Path: String(item),
                 OriginalDataType: "history"
             })
-            if (SearchCenterSearchResults.Length >= (limit + 5)) ; 5 是教程数量
+            ; 5 是教程占位数量
+            if (SearchCenterSearchResults.Length >= (limit + 5))
                 break
         }
     }
@@ -2896,3 +2880,4 @@ _SCWV_LoadSearchHistory() {
     SearchCenterHasMoreData := false
     SCWV_PushState("state")
 }
+

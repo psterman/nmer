@@ -718,15 +718,18 @@ FloatingToolbar_DeferredScreenshot(*) {
 FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
     switch action {
         case "Search":
-            try ShowSearchCenter()
-            catch as err {
-                SetCapsLockState("AlwaysOff")
-                Send("{CapsLock down}")
-                Sleep(30)
-                Send("f")
-                Sleep(30)
-                Send("{CapsLock up}")
-                SetCapsLockState("Off")
+            try Func("SelectionSense_OnToolbarSearchClick").Call()
+            catch {
+                try ShowSearchCenter()
+                catch as err {
+                    SetCapsLockState("AlwaysOff")
+                    Send("{CapsLock down}")
+                    Sleep(30)
+                    Send("f")
+                    Sleep(30)
+                    Send("{CapsLock up}")
+                    SetCapsLockState("Off")
+                }
             }
         case "Record":
             ; 浠呮墦寮€鏂板壀璐存澘锛圵ebView2 + ClipMain/FTS5锛夛紝涓嶅洖閫€鏃?ListView 闈㈡澘

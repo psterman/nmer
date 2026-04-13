@@ -4225,6 +4225,10 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
     }
 
     TrayMenuGUI := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
+    if !(IsObject(TrayMenuGUI) && TrayMenuGUI) {
+        TrayMenuGUI := 0
+        return
+    }
     TrayMenuGUI.BackColor := "1a1a1a"
     TrayMenuGUI.Add("Text", "x0 y0 w" . MenuWidth . " h" . MenuHeight . " Background1a1a1a", "")
 
@@ -4269,7 +4273,8 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
     }
 
     TrayMenuGUI.Show("x" . posX . " y" . posY . " w" . MenuWidth . " h" . MenuHeight)
-    WinActivate("ahk_id " . TrayMenuGUI.Hwnd)
+    if (IsObject(TrayMenuGUI) && TrayMenuGUI.HasProp("Hwnd") && TrayMenuGUI.Hwnd)
+        WinActivate("ahk_id " . TrayMenuGUI.Hwnd)
     SetTimer(CheckTrayMenuMousePosition, 50)
     SetTimer(CloseTrayMenuIfClickedOutside, 100)
 }

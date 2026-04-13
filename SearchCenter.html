@@ -424,6 +424,32 @@ button, input, select, textarea { font: inherit; }
   cursor: pointer;
   transition: .14s ease;
 }
+    /* 教程/技巧卡片专属样式 */
+    .result-item.tutorial {
+      background: linear-gradient(135deg, rgba(255, 140, 0, 0.1) 0%, rgba(255, 69, 0, 0.05) 100%);
+      border: 1px solid rgba(255, 140, 0, 0.3);
+      padding: 16px;
+      margin-bottom: 12px;
+      border-radius: 12px;
+      cursor: default;
+    }
+    .result-item.tutorial:hover {
+      background: linear-gradient(135deg, rgba(255, 140, 0, 0.15) 0%, rgba(255, 69, 0, 0.1) 100%);
+      border-color: rgba(255, 140, 0, 0.5);
+    }
+    .result-item.tutorial .result-title {
+      color: #ff8c00;
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .result-item.tutorial .result-subtitle {
+      color: #eee;
+      opacity: 0.95;
+      font-size: 0.9rem;
+      white-space: pre-wrap; /* 允许换行 */
+      line-height: 1.6;
+    }
 .result-item + .result-item { margin-top: 5px; }
 .result-item:hover {
   background: rgba(255,255,255,.03);
@@ -1233,12 +1259,7 @@ function renderResults() {
       });
     };
     row.ondblclick = () => {
-      if ((item.type === "history" || item.type === "History") && state.keyword === "") {
-        postToAhk({ type: "set_input", keyword: item.title });
-        postToAhk({ type: "search", keyword: item.title });
-      } else {
-        postToAhk({ type: "activateResult", row: item.row });
-      }
+      postToAhk({ type: "activateResult", row: item.row });
     };
     list.appendChild(row);
   });
@@ -1918,13 +1939,7 @@ document.addEventListener("keydown", (event) => {
 
   if (event.key === "Enter" && state.results.length) {
     event.preventDefault();
-    const selItem = state.results.find(x => x.row === state.selectedRow);
-    if (selItem && (selItem.type === "history" || selItem.type === "History") && state.keyword === "") {
-        postToAhk({ type: "set_input", keyword: selItem.title });
-        postToAhk({ type: "search", keyword: selItem.title });
-    } else {
-        postToAhk({ type: "activateResult", row: state.selectedRow });
-    }
+    postToAhk({ type: "activateResult", row: state.selectedRow });
   }
 });
 
@@ -2027,4 +2042,3 @@ if (window.chrome && window.chrome.webview) {
 </script>
 </body>
 </html>
-
