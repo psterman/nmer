@@ -251,7 +251,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       gemini: { label: 'Gemini', transport: 'gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-2.5-flash', models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'] },
       glm: { label: 'GLM', transport: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-plus', models: ['glm-4-plus', 'glm-4-air', 'glm-4-flash'] },
       siliconflow: { label: '硅基流动', transport: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', model: 'Qwen/Qwen2.5-7B-Instruct', models: ['Qwen/Qwen2.5-7B-Instruct', 'deepseek-ai/DeepSeek-V3', 'THUDM/glm-4-9b-chat'] },
-      minimax: { label: 'MiniMax', transport: 'openai', baseUrl: 'https://api.minimax.chat/v1', model: 'MiniMax-Text-01', models: ['MiniMax-Text-01', 'MiniMax-M1', 'abab6.5s-chat'] },
+      minimax: { label: 'MiniMax', transport: 'openai', baseUrl: 'https://api.minimax.chat/v1', model: 'abab6.5s-chat', models: ['abab6.5s-chat', 'MiniMax-M1', 'MiniMax-Text-01'] },
       zhipu: { label: '智谱', transport: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-plus', models: ['glm-4-plus', 'glm-4-air', 'glm-4-flash'] },
       ollama: { label: 'Ollama', transport: 'openai', baseUrl: 'http://127.0.0.1:11434/v1', model: 'llama3.1:8b', models: ['llama3.1:8b', 'qwen2.5:7b', 'deepseek-r1:7b', 'gemma3:4b'] },
       openclaw: { label: 'OpenClaw', transport: 'openclaw', baseUrl: 'http://127.0.0.1:18789', model: 'gateway', models: ['gateway'] }
@@ -557,7 +557,9 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     chatSearchCursor: -1,
     toolbarActions: DEFAULT_TOOLBAR_ACTIONS.slice(),
     niumaHistoryStore: { version: 1, sessions: {}, updatedAt: null },
-    niumaHistoryLoaded: false
+    niumaHistoryLoaded: false,
+    dynamicModels: {},
+    dynamicModelsFetchedAt: {}
   };
   var toolbarVisibleSynced = false;
   var toolbarRevealTimer = 0;
@@ -1562,16 +1564,109 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     closeProviderDd();
     modelDdMenu.hidden = !open;
     if (modelDdBtn) modelDdBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) ensureDynamicModelsForActiveProvider();
+  }
+
+  function uniqStrings(arr) {
+    var out = [],
+      seen = {};
+    (arr || []).forEach(function (x) {
+      var v = String(x || '').trim();
+      if (!v || seen[v]) return;
+      seen[v] = 1;
+      out.push(v);
+    });
+    return out;
+  }
+
+  function getPresetModels(pid) {
+    var p = P[pid] || P.openai;
+    var staticModels = Array.isArray(p.models) ? p.models : [];
+    var dynamicModels = (state.dynamicModels && state.dynamicModels[pid]) || [];
+    return uniqStrings([].concat(dynamicModels, staticModels));
+  }
+
+  function modelListUrl(base) {
+    var b = String(base || '').trim().replace(/\/+$/, '');
+    if (!b) return '';
+    return b + '/models';
+  }
+
+  function collectModelIdsDeep(v, out) {
+    if (!v) return;
+    if (Array.isArray(v)) {
+      v.forEach(function (it) {
+        collectModelIdsDeep(it, out);
+      });
+      return;
+    }
+    if (typeof v === 'string') {
+      var s = v.trim();
+      if (s) out.push(s);
+      return;
+    }
+    if (typeof v !== 'object') return;
+    var cand = [v.id, v.model, v.name, v.model_id, v.modelId];
+    cand.forEach(function (x) {
+      if (typeof x === 'string' && x.trim()) out.push(x.trim());
+    });
+    if (v.data) collectModelIdsDeep(v.data, out);
+    if (v.models) collectModelIdsDeep(v.models, out);
+    if (v.result) collectModelIdsDeep(v.result, out);
+    if (v.items) collectModelIdsDeep(v.items, out);
+  }
+
+  async function fetchDynamicModels(pid) {
+    pid = normalizeProviderId(pid);
+    if (!(pid && P[pid])) return [];
+    var prov = P[pid];
+    if (prov.transport !== 'openai') return [];
+    var url = modelListUrl(baseUrl.value || prov.baseUrl);
+    if (!url) return [];
+    var headers = { 'Content-Type': 'application/json' };
+    var key = getApiKeyForProvider(pid);
+    if (key) headers.Authorization = 'Bearer ' + key;
+    var resp = await fetch(url, { method: 'GET', headers: headers });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var body = await resp.json().catch(function () { return {}; });
+    var ids = [];
+    collectModelIdsDeep(body, ids);
+    return uniqStrings(ids).slice(0, 200);
+  }
+
+  async function ensureDynamicModelsForActiveProvider(force) {
+    var pid = normalizeProviderId(provider.value);
+    if (!(pid && P[pid])) return;
+    var now = Date.now();
+    var ttlMs = 5 * 60 * 1000;
+    if (!force) {
+      var at = (state.dynamicModelsFetchedAt && state.dynamicModelsFetchedAt[pid]) || 0;
+      if (at && now - at < ttlMs) return;
+    }
+    try {
+      var list = await fetchDynamicModels(pid);
+      if (!state.dynamicModels) state.dynamicModels = {};
+      if (!state.dynamicModelsFetchedAt) state.dynamicModelsFetchedAt = {};
+      if (list && list.length) state.dynamicModels[pid] = list;
+      state.dynamicModelsFetchedAt[pid] = now;
+      if (normalizeProviderId(provider.value) === pid) {
+        fillModels(pid, model.value.trim());
+      }
+    } catch (e) {
+      if (!state.dynamicModelsFetchedAt) state.dynamicModelsFetchedAt = {};
+      state.dynamicModelsFetchedAt[pid] = now;
+    }
   }
 
   function fillModels(pid, sel) {
     var p = P[pid] || P.openai,
       o = ['<option value="">手动输入</option>'];
-    (p.models || []).forEach(function (m) {
+    getPresetModels(pid).forEach(function (m) {
       o.push('<option value="' + esc(m) + '">' + esc(m) + '</option>');
     });
     modelPreset.innerHTML = o.join('');
-    modelPreset.value = sel && p.models.indexOf(sel) >= 0 ? sel : '';
+    var preset = getPresetModels(pid);
+    modelPreset.value = sel && preset.indexOf(sel) >= 0 ? sel : '';
     buildModelDdMenu(pid);
     syncModelDdUi();
   }
@@ -1603,7 +1698,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       modelDdMenu.appendChild(b);
     }
     addItem('', '手动输入');
-    (p.models || []).forEach(function (m) {
+    getPresetModels(pid).forEach(function (m) {
       addItem(m, m);
     });
   }
@@ -1746,6 +1841,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     refreshSendUi();
     var sAct = activeSession();
     if (sAct && normalizeProviderId(sAct.provider) === 'openclaw') hydrateOpenClawHistoryForSession(sAct, false);
+    ensureDynamicModelsForActiveProvider();
   }
 
   function saveCfg(ok) {
@@ -2804,6 +2900,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     renderSessionTabs();
     saveCfg(false);
     closeProviderDd();
+    ensureDynamicModelsForActiveProvider();
   });
 
   modelPreset.addEventListener('change', function () {

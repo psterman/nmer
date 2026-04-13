@@ -905,6 +905,7 @@ body::after {
   position: sticky; top: 0; z-index: 1;
 }
 .cmd-row {
+  --cmd-accent: var(--orange-lt);
   display: flex; align-items: center;
   padding: 4px 10px;
   min-height: 34px;
@@ -943,8 +944,20 @@ body::after {
 .cmd-icon {
   width: 14px;
   text-align: center;
-  color: var(--orange-lt);
+  color: var(--cmd-accent);
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cmd-icon svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .cmd-title {
   overflow: hidden;
@@ -2200,6 +2213,21 @@ const mismatchDetector = {
   promptCooldownUntil: 0,
 };
 
+const LUCIDE_ICON_NODES_URL = 'assets/icon-nodes.json';
+const LUCIDE_TAGS_URL = 'assets/tags.json';
+const LUCIDE_ICON_FALLBACK = 'zap';
+
+const lucideCatalog = {
+  ready: false,
+  loading: false,
+  failed: false,
+  iconNodes: {},
+  iconNames: new Set(),
+  tagsByIcon: {},
+  keywordToIcons: new Map(),
+  resolveCache: new Map(),
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Utility（AHK 桥接见 app.local BasePanel.js）
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2521,10 +2549,262 @@ function normalizeKeywordList(value) {
   return out;
 }
 
+const FA_TO_LUCIDE = {
+  'fa-a': 'circle',
+  'fa-arrow-rotate-left': 'rotate-ccw',
+  'fa-ban': 'ban',
+  'fa-bolt': 'zap',
+  'fa-book': 'book-open',
+  'fa-box-archive': 'archive',
+  'fa-brain': 'brain',
+  'fa-camera': 'camera',
+  'fa-check': 'check',
+  'fa-chess-rook': 'landmark',
+  'fa-circle': 'circle',
+  'fa-circle-info': 'info',
+  'fa-circle-nodes': 'waypoints',
+  'fa-circle-question': 'circle-question-mark',
+  'fa-circle-xmark': 'circle-x',
+  'fa-clipboard': 'clipboard',
+  'fa-clock-rotate-left': 'history',
+  'fa-cloud': 'cloud',
+  'fa-code': 'code',
+  'fa-code-branch': 'git-branch',
+  'fa-comment': 'message-circle',
+  'fa-comment-dots': 'message-circle-more',
+  'fa-comments': 'messages-square',
+  'fa-compass': 'compass',
+  'fa-compass-drafting': 'compass',
+  'fa-cube': 'box',
+  'fa-delete-left': 'delete',
+  'fa-door-open': 'door-open',
+  'fa-eraser': 'eraser',
+  'fa-eye': 'eye',
+  'fa-face-smile': 'smile',
+  'fa-file-export': 'file-output',
+  'fa-file-import': 'file-input',
+  'fa-file-lines': 'file-text',
+  'fa-floppy-disk': 'save',
+  'fa-folder-open': 'folder-open',
+  'fa-gear': 'settings',
+  'fa-gem': 'gem',
+  'fa-graduation-cap': 'graduation-cap',
+  'fa-image': 'image',
+  'fa-k': 'circle',
+  'fa-keyboard': 'keyboard',
+  'fa-layer-group': 'layers',
+  'fa-lightbulb': 'lightbulb',
+  'fa-link': 'link',
+  'fa-list-ol': 'list-ordered',
+  'fa-magnifying-glass': 'search',
+  'fa-music': 'music',
+  'fa-note-sticky': 'notebook-pen',
+  'fa-paper-plane': 'send',
+  'fa-paste': 'clipboard-paste',
+  'fa-pen-to-square': 'square-pen',
+  'fa-play': 'play',
+  'fa-puzzle-piece': 'puzzle',
+  'fa-q': 'circle',
+  'fa-robot': 'bot',
+  'fa-sliders': 'sliders-horizontal',
+  'fa-square-check': 'square-check-big',
+  'fa-star': 'star',
+  'fa-stethoscope': 'stethoscope',
+  'fa-stop': 'square',
+  'fa-tags': 'tags',
+  'fa-terminal': 'terminal',
+  'fa-thumbtack': 'pin',
+  'fa-toggle-off': 'toggle-left',
+  'fa-toggle-on': 'toggle-right',
+  'fa-toolbox': 'wrench',
+  'fa-trash': 'trash-2',
+  'fa-turn-down': 'corner-down-left',
+  'fa-up-down': 'arrow-up-down',
+  'fa-user-pen': 'user-pen',
+  'fa-video': 'video',
+  'fa-wand-magic-sparkles': 'wand-sparkles',
+  'fa-window-maximize': 'app-window',
+  'fa-window-restore': 'app-window',
+  'fa-xmark': 'x',
+};
+
+const CN_TO_LUCIDE_TERMS = [
+  { re: /(搜索|查找|检索|定位)/g, terms: ['search', 'find', 'scan', 'query'] },
+  { re: /(剪贴板|复制|粘贴)/g, terms: ['clipboard', 'copy', 'paste'] },
+  { re: /(提示词|模板)/g, terms: ['prompt', 'template', 'library'] },
+  { re: /(草稿|笔记|记录)/g, terms: ['note', 'draft', 'memo'] },
+  { re: /(截图|图像|图片|识别|ocr)/g, terms: ['camera', 'image', 'capture', 'scan'] },
+  { re: /(设置|配置|系统)/g, terms: ['settings', 'config', 'system', 'options'] },
+  { re: /(快捷键|热键|键盘)/g, terms: ['hotkey', 'shortcut', 'keyboard'] },
+  { re: /(发送|消息|对话|聊天)/g, terms: ['send', 'message', 'chat'] },
+  { re: /(清空|删除|移除)/g, terms: ['clear', 'delete', 'remove'] },
+  { re: /(保存|导出|导入)/g, terms: ['save', 'export', 'import', 'file'] },
+  { re: /(关闭|退出)/g, terms: ['close', 'exit', 'x'] },
+  { re: /(语音|音频)/g, terms: ['voice', 'audio', 'mic'] },
+  { re: /(视频)/g, terms: ['video', 'movie'] },
+  { re: /(网盘|云)/g, terms: ['cloud', 'storage'] },
+  { re: /(医疗)/g, terms: ['medical', 'health', 'stethoscope'] },
+  { re: /(比价|价格)/g, terms: ['price', 'tag', 'money'] },
+  { re: /(AI|智能|解释|改写|翻译)/g, terms: ['ai', 'bot', 'brain', 'sparkles'] },
+];
+
+function normalizeIconToken(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return '';
+  if (raw.startsWith('lucide:')) return raw.slice(7);
+  return raw;
+}
+
+function tokenizeForLucide(text) {
+  const base = String(text || '').toLowerCase();
+  const out = new Set();
+  for (const seg of base.split(/[^a-z0-9\u4e00-\u9fff]+/g)) {
+    if (seg) out.add(seg);
+  }
+  for (const row of CN_TO_LUCIDE_TERMS) {
+    if (row.re.test(base)) row.terms.forEach((t) => out.add(t));
+    row.re.lastIndex = 0;
+  }
+  return [...out];
+}
+
+function rebuildLucideKeywordIndex() {
+  const idx = new Map();
+  const iconNames = Object.keys(lucideCatalog.tagsByIcon || {});
+  for (const iconName of iconNames) {
+    const words = new Set();
+    words.add(String(iconName || '').toLowerCase());
+    String(iconName || '').split('-').forEach((p) => words.add(p));
+    for (const w of lucideCatalog.tagsByIcon[iconName] || []) {
+      const t = String(w || '').toLowerCase().trim();
+      if (!t) continue;
+      words.add(t);
+      for (const seg of t.split(/[^a-z0-9]+/g)) {
+        if (seg) words.add(seg);
+      }
+    }
+    for (const w of words) {
+      if (!idx.has(w)) idx.set(w, new Set());
+      idx.get(w).add(iconName);
+    }
+  }
+  lucideCatalog.keywordToIcons = idx;
+}
+
+async function initLucideCatalog() {
+  if (lucideCatalog.ready || lucideCatalog.loading) return;
+  lucideCatalog.loading = true;
+  try {
+    const [iconResp, tagsResp] = await Promise.all([
+      fetch(LUCIDE_ICON_NODES_URL, { cache: 'no-store' }),
+      fetch(LUCIDE_TAGS_URL, { cache: 'no-store' }),
+    ]);
+    if (!iconResp.ok || !tagsResp.ok) throw new Error('fetch_failed');
+    const [iconNodes, tagsByIcon] = await Promise.all([iconResp.json(), tagsResp.json()]);
+    lucideCatalog.iconNodes = iconNodes && typeof iconNodes === 'object' ? iconNodes : {};
+    lucideCatalog.iconNames = new Set(Object.keys(lucideCatalog.iconNodes));
+    lucideCatalog.tagsByIcon = tagsByIcon && typeof tagsByIcon === 'object' ? tagsByIcon : {};
+    rebuildLucideKeywordIndex();
+    lucideCatalog.resolveCache.clear();
+    lucideCatalog.ready = true;
+    lucideCatalog.failed = false;
+    renderSidebar();
+    renderToolbarPreviewSandbox();
+    renderCommandList();
+  } catch (err) {
+    lucideCatalog.failed = true;
+    console.warn('[VK] Lucide data load failed:', err);
+  } finally {
+    lucideCatalog.loading = false;
+  }
+}
+
+function safeSvgAttr(v) {
+  return escapeHtml(String(v == null ? '' : v));
+}
+
+function getLucideIconNode(iconName) {
+  const key = normalizeIconToken(iconName);
+  if (!key) return null;
+  if (lucideCatalog.iconNodes && lucideCatalog.iconNodes[key]) return lucideCatalog.iconNodes[key];
+  return null;
+}
+
+function resolveIconNameByTags(cmdId, cmd, tokens) {
+  if (!lucideCatalog.ready || !lucideCatalog.keywordToIcons.size) return '';
+  const scoring = new Map();
+  const allTokens = new Set([
+    ...tokens,
+    ...tokenizeForLucide(cmdId),
+    ...tokenizeForLucide(cmd?.name || ''),
+    ...tokenizeForLucide(cmd?.desc || ''),
+    ...normalizeKeywordList(cmd?.keywords || []),
+  ]);
+  for (const t of allTokens) {
+    const icons = lucideCatalog.keywordToIcons.get(String(t || '').toLowerCase());
+    if (!icons) continue;
+    for (const icon of icons) {
+      scoring.set(icon, (scoring.get(icon) || 0) + (t.length >= 4 ? 3 : 1));
+    }
+  }
+  let best = '';
+  let bestScore = -1;
+  for (const [icon, score] of scoring.entries()) {
+    if (score > bestScore) {
+      best = icon;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+function resolveLucideIconName(iconToken, cmdId, cmd) {
+  const raw = normalizeIconToken(iconToken);
+  const cacheKey = `${raw}|${cmdId || ''}|${cmd?.name || ''}|${cmd?.desc || ''}|${(cmd?.keywords || []).join(',')}`;
+  if (lucideCatalog.resolveCache.has(cacheKey)) return lucideCatalog.resolveCache.get(cacheKey);
+
+  const direct = raw && (!raw.startsWith('fa-') ? raw : (FA_TO_LUCIDE[raw] || ''));
+  if (direct && (!lucideCatalog.ready || lucideCatalog.iconNames.has(direct))) {
+    lucideCatalog.resolveCache.set(cacheKey, direct);
+    return direct;
+  }
+
+  const guessed = inferCommandIconClass(cmdId, cmd);
+  if (guessed && (!lucideCatalog.ready || lucideCatalog.iconNames.has(guessed))) {
+    lucideCatalog.resolveCache.set(cacheKey, guessed);
+    return guessed;
+  }
+
+  const tokens = tokenizeForLucide(`${raw} ${cmdId || ''} ${cmd?.name || ''} ${cmd?.desc || ''}`);
+  const byTags = resolveIconNameByTags(cmdId, cmd, tokens);
+  if (byTags) {
+    lucideCatalog.resolveCache.set(cacheKey, byTags);
+    return byTags;
+  }
+
+  lucideCatalog.resolveCache.set(cacheKey, LUCIDE_ICON_FALLBACK);
+  return LUCIDE_ICON_FALLBACK;
+}
+
+function renderLucideIconSvg(iconName, extraClass = '') {
+  const key = resolveLucideIconName(iconName, '', {});
+  const node = getLucideIconNode(key) || getLucideIconNode(LUCIDE_ICON_FALLBACK);
+  if (!node) {
+    return `<svg viewBox="0 0 24 24" class="${escapeHtml(extraClass)}" fill="none" stroke-width="2"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"></path></svg>`;
+  }
+  const cls = escapeHtml(extraClass || '');
+  const body = node.map((item) => {
+    const tag = String((item && item[0]) || '').trim();
+    const attrs = item && item[1] && typeof item[1] === 'object' ? item[1] : {};
+    if (!/^[a-z][a-z0-9-]*$/i.test(tag)) return '';
+    const pairs = Object.entries(attrs).map(([k, v]) => `${safeSvgAttr(k)}="${safeSvgAttr(v)}"`).join(' ');
+    return `<${tag}${pairs ? ' ' + pairs : ''}></${tag}>`;
+  }).join('');
+  return `<svg viewBox="0 0 24 24" class="${cls}" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+}
+
 function safeIconClass(iconClass) {
-  const raw = String(iconClass || '').trim();
-  if (!raw) return 'fa-bolt';
-  return /^fa-[a-z0-9-]+$/i.test(raw) ? raw : 'fa-bolt';
+  return resolveLucideIconName(iconClass, '', {});
 }
 
 function getToolbarCmdIdByScenarioId(scenarioId) {
@@ -2580,17 +2860,17 @@ function syncMappedToolbarOrderFromScenarioOrder() {
 
 function inferCommandIconClass(cmdId, cmd) {
   const text = `${cmdId} ${cmd?.name || ''} ${cmd?.desc || ''}`.toLowerCase();
-  if (/(search|find|query|google|everything|搜|查|检索)/.test(text)) return 'fa-magnifying-glass';
-  if (/(clip|copy|paste|cut|剪贴|复制|粘贴)/.test(text)) return 'fa-clipboard';
-  if (/(chat|talk|message|send|对话|发送)/.test(text)) return 'fa-comments';
-  if (/(prompt|template|提示词|模板)/.test(text)) return 'fa-lightbulb';
-  if (/(draft|note|memo|草稿|笔记)/.test(text)) return 'fa-note-sticky';
-  if (/(screen|shot|capture|image|截图|图像|ocr)/.test(text)) return 'fa-camera';
-  if (/(setting|config|option|mode|bind|hotkey|系统|设置|配置|绑定)/.test(text)) return 'fa-gear';
-  if (/(star|favorite|bookmark|收藏)/.test(text)) return 'fa-star';
-  if (/(window|win_|最小化|关闭窗口)/.test(text)) return 'fa-window-restore';
-  if (/(ai|gpt|llm|解释|改写|翻译)/.test(text)) return 'fa-robot';
-  return 'fa-bolt';
+  if (/(search|find|query|google|everything|搜|查|检索)/.test(text)) return 'search';
+  if (/(clip|copy|paste|cut|剪贴|复制|粘贴)/.test(text)) return 'clipboard';
+  if (/(chat|talk|message|send|对话|发送)/.test(text)) return 'messages-square';
+  if (/(prompt|template|提示词|模板)/.test(text)) return 'lightbulb';
+  if (/(draft|note|memo|草稿|笔记)/.test(text)) return 'notebook-pen';
+  if (/(screen|shot|capture|image|截图|图像|ocr)/.test(text)) return 'camera';
+  if (/(setting|config|option|mode|bind|hotkey|系统|设置|配置|绑定)/.test(text)) return 'settings';
+  if (/(star|favorite|bookmark|收藏)/.test(text)) return 'star';
+  if (/(window|win_|最小化|关闭窗口)/.test(text)) return 'app-window';
+  if (/(ai|gpt|llm|解释|改写|翻译)/.test(text)) return 'bot';
+  return LUCIDE_ICON_FALLBACK;
 }
 
 function buildGuessedKeywords(cmdId, cmd) {
@@ -2624,9 +2904,11 @@ function enrichCommands(commands) {
     const guessed = buildGuessedKeywords(cmdId, cmd);
     const existing = normalizeKeywordList(cmd.keywords);
     const merged = normalizeKeywordList([...existing, ...guessed]);
+    const iconName = resolveLucideIconName(cmd.iconName || cmd.iconClass || '', cmdId, { ...cmd, keywords: merged });
     out[cmdId] = {
       ...cmd,
-      iconClass: safeIconClass(cmd.iconClass || inferCommandIconClass(cmdId, cmd)),
+      iconClass: cmd.iconClass || '',
+      iconName,
       keywords: merged,
     };
   }
@@ -4081,6 +4363,7 @@ function makeCmdToolbarToggles(cmdId) {
 }
 
 function handleInit(msg) {
+  initLucideCatalog();
   state.categories = msg.categories || [];
   state.commands   = enrichCommands(msg.commands || {});
   state.toolbarLayout = normalizeIncomingToolbarLayout(msg.toolbarLayout || []);
@@ -5589,6 +5872,9 @@ function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
     + (isFocused ? ' active-focus' : '')
     + (hasReal ? ' binding-custom' : hasSuggested ? ' binding-suggested' : isNone ? ' binding-none' : '');
   row.dataset.cmdId = cmdId;
+  const routeMeta = state.commandRoutes[cmdId];
+  const sceneMeta = routeMeta ? (SCENARIO_META[routeMeta.scenarioId] || SCENARIO_META.other) : SCENARIO_META.other;
+  row.style.setProperty('--cmd-accent', sceneMeta.color || '#f39c12');
   row.addEventListener('click', () => {
     state.focusedCmdId = cmdId;
     renderCommandList();
@@ -5601,8 +5887,10 @@ function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
 
   const nameEl = document.createElement('div');
   nameEl.className = 'cmd-name';
-  const iconEl = document.createElement('i');
-  iconEl.className = `fa-solid ${safeIconClass(cmd.iconClass)} cmd-icon`;
+  const iconEl = document.createElement('span');
+  iconEl.className = 'cmd-icon';
+  const iconToken = cmd.iconClass || cmd.iconName || '';
+  iconEl.innerHTML = renderLucideIconSvg(resolveLucideIconName(iconToken, cmdId, cmd));
   const titleEl = document.createElement('span');
   titleEl.className = 'cmd-title';
   titleEl.innerHTML = highlightQuery(cmd.name || cmdId, searchText);
@@ -6265,4 +6553,3 @@ function mkEl(tag, cls, text) {
 </script>
 </body>
 </html>
-
