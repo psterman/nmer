@@ -602,6 +602,7 @@ SCWV_OnWebMessage(sender, args) {
             p := msg.Has("path") ? String(msg["path"]) : ""
             sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
             u := _SCWV_PathToWebAssetUrl(p)
+            try SCWV_Preview_Get()._PostDetailMeta(p, sq)
             SCWV_PostJson(Map("type", "WEB_PREVIEW_MEDIA_RESULT", "url", u, "seq", sq))
     }
 }
@@ -643,7 +644,7 @@ _SCWV_PerformSearch(keyword, offset := 0) {
 
     if (keyword = "") {
         SearchCenterHasMoreData := false
-        _SCWV_LoadDefaultTemplatesData()
+        _SCWV_LoadSearchHistory()
         return
     }
 
@@ -1253,6 +1254,8 @@ _SCWV_BatchSearch() {
         TrayTip("请至少选择一个搜索引擎", "提示", "Icon! 2")
         return
     }
+    
+    _SCWV_RecordSearchHistory(Keyword)
 
     for index, Engine in SearchCenterSelectedEngines {
         if (Engine = "")
@@ -1273,6 +1276,8 @@ _SCWV_SendToCLI(prompt) {
         TrayTip("请输入要发送给 AI 的内容", "提示", "Icon! 2")
         return
     }
+    
+    _SCWV_RecordSearchHistory(prompt)
 
     LaunchSelectedCLIAgents(prompt)
 }
@@ -1346,7 +1351,10 @@ SC_ActivateSearchResultItem(Item, doHide := true, smartTextSearch := false) {
 }
 
 _SCWV_ActivateResultRow(Row) {
+    global SearchCenterWebKeyword
     Item := GetSearchCenterResultItemByRow(Row)
+    if (SearchCenterWebKeyword != "")
+        _SCWV_RecordSearchHistory(SearchCenterWebKeyword)
     SC_ActivateSearchResultItem(Item, true, false)
 }
 
@@ -2755,4 +2763,87 @@ class PreviewManager {
         } catch {
         }
     }
+}
+
+_SCWV_RecordSearchHistory(keyword) {
+    global SearchCenterCurrentLimit
+    k := Trim(String(keyword))
+    if (k = "")
+        return
+        
+    historyFile := A_ScriptDir "\Data\SearchCenterHistory.json"
+    historyArr := []
+    
+    ; 读取现有记录
+    if FileExist(historyFile) {
+        try {
+            content := FileRead(historyFile, "UTF-8")
+            if (content != "")
+                historyArr := Jxon_Load(content)
+        } catch {
+            historyArr := []
+        }
+    }
+    if !(historyArr is Array)
+        historyArr := []
+        
+    ; 去重并放至队首
+    newArr := [k]
+    for _, item in historyArr {
+        if (item != k)
+            newArr.Push(item)
+    }
+    
+    ; 虽然前端可以选择 LIMIT，但我们在本地最多保留 1000 条，读取时再截断。
+    if (newArr.Length > 1000)
+        newArr.Length := 1000
+        
+    if !DirExist(A_ScriptDir "\Data")
+        DirCreate(A_ScriptDir "\Data")
+        
+    try {
+        f := FileOpen(historyFile, "w", "UTF-8")
+        f.Write(Jxon_Dump(newArr))
+        f.Close()
+    }
+}
+
+_SCWV_LoadSearchHistory() {
+    global SearchCenterCurrentLimit
+    historyFile := A_ScriptDir "\Data\SearchCenterHistory.json"
+    historyArr := []
+    
+    if FileExist(historyFile) {
+        try {
+            content := FileRead(historyFile, "UTF-8")
+            if (content != "")
+                historyArr := Jxon_Load(content)
+        }
+    }
+    
+    if !(historyArr is Array)
+        historyArr := []
+        
+    items := []
+    limit := (SearchCenterCurrentLimit && SearchCenterCurrentLimit > 0) ? SearchCenterCurrentLimit : 30
+    
+    for _, item in historyArr {
+        items.Push(Map(
+            "Title", item,
+            "Source", "搜索历史",
+            "DataType", "history",
+            "Time", "",
+            "Path", item
+        ))
+        if (items.Length >= limit)
+            break
+    }
+    
+    SCWV_PostJson(Map(
+        "type", "queryResults",
+        "data", items,
+        "query", "",
+        "filterType", "",
+        "hasMore", false
+    ))
 }
