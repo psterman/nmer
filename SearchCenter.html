@@ -1518,16 +1518,15 @@ function onWebPreviewMediaResult(payload) {
     return;
   }
 
-  const errorHint = `<p style="margin-top:10px; color:#ff4d4d; font-size:12px;">如果无法播放，请检查文件编码或使用 QuickLook (空格键)。<br>加载路径: ${url}</p>`;
+  const errorHint = `<p style="margin-top:10px; color:#ff4d4d; font-size:12px;">如果无法播放，请检查文件编码或使用 QuickLook (空格键)。</p>`;
 
   if (PREVIEW_WEB_VIDEO_EXT.has(ext)) {
     pane.innerHTML = `
       <div class="preview-video-container">
-        <video controls autoplay class="preview-video" style="max-height: 400px; width: 100%;" onerror="this.parentElement.innerHTML += '${errorHint}'">
+        <video controls autoplay class="preview-video" style="max-height: 480px; width: 100%;" onerror="this.parentElement.innerHTML += '${errorHint}'">
           <source src="${url}">
           您的浏览器不支持播放此视频。
         </video>
-        <div style="font-size: 11px; color:#888; text-align: left; margin-top:5px;">Source: ${url}</div>
       </div>
     `;
   } else if (PREVIEW_WEB_AUDIO_EXT.has(ext)) {
@@ -1537,7 +1536,6 @@ function onWebPreviewMediaResult(payload) {
           <source src="${url}">
           您的浏览器不支持播放此音频。
         </audio>
-        <div style="font-size: 11px; color:#888; text-align: left; margin-top:5px;">Source: ${url}</div>
       </div>
     `;
   }
