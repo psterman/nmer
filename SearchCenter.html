@@ -599,6 +599,131 @@ button, input, select, textarea { font: inherit; }
   color: #e7c4a0;
   font-size: 11px;
 }
+.preview-media {
+  width: 100%;
+  max-height: 100%;
+  display: block;
+  border-radius: 12px;
+  background: #0f1115;
+}
+.preview-audio {
+  min-height: 80px;
+}
+.preview-video {
+  min-height: 240px;
+}
+.media-card {
+  display: grid;
+  gap: 10px;
+}
+.media-player {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.03);
+}
+.media-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.media-title-wrap {
+  min-width: 0;
+}
+.media-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f4f7fb;
+  word-break: break-word;
+}
+.media-subtitle {
+  margin-top: 3px;
+  font-size: 11px;
+  color: rgba(220,228,236,.72);
+}
+.media-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.media-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.media-chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+  color: #dfe7ef;
+  font-size: 11px;
+}
+.media-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 2px;
+}
+.media-btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,179,71,.22);
+  background: rgba(255,255,255,.04);
+  color: #f7f7f7;
+  font-size: 11px;
+  cursor: pointer;
+}
+.media-btn:hover {
+  background: rgba(255,255,255,.09);
+}
+.media-btn.active {
+  background: rgba(255,141,42,.22);
+  border-color: rgba(255,141,42,.65);
+  color: #fff3e4;
+}
+.media-status {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: #a8b3bf;
+}
+.media-status strong {
+  color: #f0f4f8;
+  font-weight: 600;
+}
+.media-info-panel {
+  display: none;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.06);
+  background: rgba(0,0,0,.18);
+  font-size: 11px;
+  color: #d9e2ea;
+}
+.media-info-panel.open {
+  display: grid;
+  gap: 6px;
+}
+.media-info-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.media-info-key {
+  color: #f0b46a;
+}
+.media-info-val {
+  color: #dfe7ef;
+}
 .preview-meta-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -963,6 +1088,11 @@ const state = {
   previewPath: "",
   iPreviewFailed: false,
   iPreviewActive: false,
+  mediaPrefs: {
+    muted: (localStorage.getItem("sc_media_muted") || "0") === "1",
+    loop: (localStorage.getItem("sc_media_loop") || "0") === "1",
+    autoplay: (localStorage.getItem("sc_media_autoplay") || "0") === "1"
+  },
   pdfMode: (localStorage.getItem("sc_pdf_preview_mode") || "auto"),
   pdfPlan: null,
   pdfWebBroken: false
@@ -972,6 +1102,8 @@ const postToAhk = (obj) => BasePanel.postToAhk(obj);
 const PREVIEW_DEBOUNCE_MS = 150;
 const PREVIEW_TEXT_EXT = new Set(["txt", "ahk", "py", "js", "md", "json", "log"]);
 const PREVIEW_IMAGE_EXT = new Set(["png", "jpg", "jpeg", "gif", "svg"]);
+const PREVIEW_AUDIO_EXT = new Set(["mp3", "wav", "flac", "m4a", "aac", "ogg", "opus", "wma"]);
+const PREVIEW_VIDEO_EXT = new Set(["mp4", "m4v", "mov", "webm", "mkv", "avi"]);
 const PREVIEW_PDF_EXT = new Set(["pdf"]);
 const PREVIEW_ARCHIVE_EXT = new Set(["zip", "7z", "rar", "tar", "gz", "tgz", "bz2", "xz", "cab", "iso"]);
 const PDF_MODE_OPTIONS = ["auto", "web", "pdfium", "ipreview", "quicklook"];
@@ -1005,6 +1137,52 @@ function escapeHtml(text) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function saveMediaPref(key, value) {
+  state.mediaPrefs[key] = !!value;
+  try {
+    localStorage.setItem("sc_media_" + key, value ? "1" : "0");
+  } catch {}
+}
+
+function formatDuration(totalSeconds) {
+  const n = Number(totalSeconds);
+  if (!Number.isFinite(n) || n < 0) return "--:--";
+  const s = Math.floor(n % 60);
+  const m = Math.floor((n / 60) % 60);
+  const h = Math.floor(n / 3600);
+  const pad = (v) => String(v).padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
+function mediaGlyphForExt(ext) {
+  if (PREVIEW_AUDIO_EXT.has(ext)) return "AUDIO";
+  if (PREVIEW_VIDEO_EXT.has(ext)) return "VIDEO";
+  return "MEDIA";
+}
+
+function mediaResumeKey(path) {
+  return "sc_media_resume::" + String(path || "");
+}
+
+function loadMediaResume(path) {
+  try {
+    const raw = localStorage.getItem(mediaResumeKey(path));
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveMediaResume(path, timeSec) {
+  if (!path) return;
+  const n = Number(timeSec);
+  if (!Number.isFinite(n) || n < 0) return;
+  try {
+    localStorage.setItem(mediaResumeKey(path), String(n));
+  } catch {}
 }
 
 function highlight(text, keyword) {
@@ -1470,6 +1648,277 @@ function onWebPreviewPdfiumResult(payload) {
   finishPdfPlan(true);
 }
 
+function onWebPreviewMediaResult(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+  const url = payload.url ? String(payload.url) : "";
+  const posterUrl = payload.posterUrl ? String(payload.posterUrl) : "";
+  const payloadDuration = Number(payload.durationSec);
+  const payloadMediaInfo = payload.mediaInfo && typeof payload.mediaInfo === "object" ? payload.mediaInfo : null;
+  if (!url) {
+    pane.innerHTML = "<div class=\"preview-empty\">媒体预览地址为空，无法加载。</div>";
+    return;
+  }
+  const ext = pathExtensionLower(state.previewPath);
+  const fileName = state.previewPath ? String(state.previewPath).replace(/^.*[\\/]/, "") : "";
+  const kind = PREVIEW_AUDIO_EXT.has(ext) ? "audio" : "video";
+  const mediaId = "preview-media-el";
+  const currentId = "preview-media-current";
+  const durationId = "preview-media-duration";
+  const statusId = "preview-media-status";
+  const sizeId = "preview-media-size";
+  const infoPanelId = "preview-media-info";
+  const loopActive = state.mediaPrefs.loop ? " active" : "";
+  const mutedActive = state.mediaPrefs.muted ? " active" : "";
+  const autoplayActive = state.mediaPrefs.autoplay ? " active" : "";
+  if (PREVIEW_AUDIO_EXT.has(ext)) {
+    pane.innerHTML =
+      "<div class=\"media-card\">" +
+        "<div class=\"media-player\">" +
+          "<div class=\"media-head\">" +
+            "<div class=\"media-title-wrap\"><div class=\"media-title\">" + escapeHtml(fileName || "音频预览") + "</div><div class=\"media-subtitle\">搜索中心音频预览</div></div>" +
+            "<div class=\"media-chips\"><span class=\"media-chip\">音频</span><span class=\"media-chip\" id=\"" + sizeId + "\">正在读取信息</span></div>" +
+          "</div>" +
+          "<audio id=\"" + mediaId + "\" class=\"preview-media preview-audio\" controls preload=\"metadata\" src=\"" + escapeHtml(url) + "\"></audio>" +
+          "<div class=\"media-toolbar\">" +
+            "<div class=\"media-actions\">" +
+              "<button type=\"button\" class=\"media-btn\" data-media-action=\"info\">编码信息</button>" +
+              "<button type=\"button\" class=\"media-btn" + loopActive + "\" data-media-toggle=\"loop\">循环播放</button>" +
+              "<button type=\"button\" class=\"media-btn" + mutedActive + "\" data-media-toggle=\"muted\">静音</button>" +
+              "<button type=\"button\" class=\"media-btn" + autoplayActive + "\" data-media-toggle=\"autoplay\">自动播放</button>" +
+            "</div>" +
+          "</div>" +
+          "<div id=\"" + infoPanelId + "\" class=\"media-info-panel\"></div>" +
+          "<div class=\"media-status\"><span>当前 <strong id=\"" + currentId + "\">0:00</strong></span><span>总时长 <strong id=\"" + durationId + "\">--:--</strong></span><span id=\"" + statusId + "\">就绪</span></div>" +
+        "</div>" +
+      "</div>";
+  } else if (PREVIEW_VIDEO_EXT.has(ext)) {
+    pane.innerHTML =
+      "<div class=\"media-card\">" +
+        "<div class=\"media-player\">" +
+          "<div class=\"media-head\">" +
+            "<div class=\"media-title-wrap\"><div class=\"media-title\">" + escapeHtml(fileName || "视频预览") + "</div><div class=\"media-subtitle\">搜索中心视频预览</div></div>" +
+            "<div class=\"media-chips\"><span class=\"media-chip\">视频</span><span class=\"media-chip\" id=\"" + sizeId + "\">正在读取信息</span></div>" +
+          "</div>" +
+          "<video id=\"" + mediaId + "\" class=\"preview-media preview-video\" controls preload=\"metadata\" playsinline" + (posterUrl ? " poster=\"" + escapeHtml(posterUrl) + "\"" : "") + " src=\"" + escapeHtml(url) + "\"></video>" +
+          "<div class=\"media-toolbar\">" +
+            "<div class=\"media-actions\">" +
+              "<button type=\"button\" class=\"media-btn\" data-media-action=\"poster\">刷新封面</button>" +
+              "<button type=\"button\" class=\"media-btn\" data-media-action=\"save-frame\">保存截图</button>" +
+              "<button type=\"button\" class=\"media-btn\" data-media-action=\"info\">编码信息</button>" +
+              "<button type=\"button\" class=\"media-btn" + loopActive + "\" data-media-toggle=\"loop\">循环播放</button>" +
+              "<button type=\"button\" class=\"media-btn" + mutedActive + "\" data-media-toggle=\"muted\">静音</button>" +
+              "<button type=\"button\" class=\"media-btn" + autoplayActive + "\" data-media-toggle=\"autoplay\">自动播放</button>" +
+            "</div>" +
+          "</div>" +
+          "<div id=\"" + infoPanelId + "\" class=\"media-info-panel\"></div>" +
+          "<div class=\"media-status\"><span>当前 <strong id=\"" + currentId + "\">0:00</strong></span><span>总时长 <strong id=\"" + durationId + "\">" + escapeHtml(Number.isFinite(payloadDuration) && payloadDuration > 0 ? formatDuration(payloadDuration) : "--:--") + "</strong></span><span id=\"" + statusId + "\">就绪</span></div>" +
+        "</div>" +
+      "</div>";
+  }
+  if (Number.isFinite(payloadDuration) && payloadDuration > 0) {
+    renderRichMeta({ Duration: formatDuration(payloadDuration) }, true);
+  }
+  wireMediaPreview(kind, { posterUrl, payloadDuration, mediaInfo: payloadMediaInfo });
+}
+
+function wireMediaPreview(kind, options = {}) {
+  const media = document.getElementById("preview-media-el");
+  if (!media) return;
+  const mediaPlayer = media.closest(".media-player");
+  const scrollHost = document.getElementById("preview-web-scroll");
+  const currentEl = document.getElementById("preview-media-current");
+  const durationEl = document.getElementById("preview-media-duration");
+  const statusEl = document.getElementById("preview-media-status");
+  const sizeEl = document.getElementById("preview-media-size");
+  const infoPanel = document.getElementById("preview-media-info");
+  const resumeTime = loadMediaResume(state.previewPath);
+  let saveTick = 0;
+  let seekingPoster = false;
+  const applyPrefs = () => {
+    media.loop = !!state.mediaPrefs.loop;
+    media.muted = !!state.mediaPrefs.muted;
+    media.autoplay = !!state.mediaPrefs.autoplay;
+  };
+  const hasPresetPoster = !!options.posterUrl;
+  const syncMeta = () => {
+    const totalSec = Number.isFinite(media.duration) && media.duration > 0 ? media.duration : options.payloadDuration;
+    const total = formatDuration(totalSec);
+    const current = formatDuration(media.currentTime);
+    if (currentEl) currentEl.textContent = current;
+    if (durationEl) durationEl.textContent = total;
+    const extra = [];
+    if (kind === "video" && Number.isFinite(media.videoWidth) && Number.isFinite(media.videoHeight) && media.videoWidth > 0) {
+      extra.push(`${media.videoWidth}x${media.videoHeight}`);
+      renderRichMeta({ Resolution: `${media.videoWidth} x ${media.videoHeight}` }, true);
+    }
+    if (Number.isFinite(totalSec) && totalSec > 0) {
+      renderRichMeta({ Duration: total }, true);
+      extra.unshift(total);
+    }
+    if (sizeEl && extra.length) sizeEl.textContent = extra.join(" · ");
+  };
+  const updateButtons = () => {
+    document.querySelectorAll("[data-media-toggle]").forEach((btn) => {
+      const key = btn.getAttribute("data-media-toggle");
+      btn.classList.toggle("active", !!state.mediaPrefs[key]);
+    });
+  };
+  const capturePoster = () => {
+    if (kind !== "video") return;
+    try {
+      if (!media.videoWidth || !media.videoHeight) return;
+      const canvas = document.createElement("canvas");
+      canvas.width = media.videoWidth;
+      canvas.height = media.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(media, 0, 0, canvas.width, canvas.height);
+      media.setAttribute("poster", canvas.toDataURL("image/jpeg", 0.82));
+    } catch {}
+  };
+  const renderInfoPanel = (info) => {
+    if (!infoPanel) return;
+    const data = info && typeof info === "object" ? info : {};
+    const keys = Object.keys(data);
+    if (!keys.length) {
+      infoPanel.innerHTML = '<div class="media-info-row"><span class="media-info-val">暂无编码信息</span></div>';
+      return;
+    }
+    infoPanel.innerHTML = keys.map((key) =>
+      '<div class="media-info-row"><span class="media-info-key">' + escapeHtml(key) + ':</span><span class="media-info-val">' + escapeHtml(data[key]) + '</span></div>'
+    ).join("");
+  };
+  const toggleInfoPanel = () => {
+    if (!infoPanel) return;
+    if (infoPanel.classList.contains("open")) {
+      infoPanel.classList.remove("open");
+      return;
+    }
+    if (!infoPanel.innerHTML.trim()) {
+      infoPanel.innerHTML = '<div class="media-info-row"><span class="media-info-val">正在读取编码信息...</span></div>';
+      postToAhk({ type: "GET_MEDIA_INFO", path: state.previewPath, seq: state.previewSeq });
+    }
+    infoPanel.classList.add("open");
+  };
+  const refreshPosterBySeek = () => {
+    if (kind !== "video" || seekingPoster) return;
+    const totalSec = Number.isFinite(media.duration) && media.duration > 0 ? media.duration : options.payloadDuration;
+    const target = Math.min(Math.max(Number(totalSec || 0) * 0.12, 1.2), Math.max(Number(totalSec || 0) - 0.4, 1.2));
+    const originalTime = Number.isFinite(media.currentTime) ? media.currentTime : 0;
+    const wasPaused = media.paused;
+    seekingPoster = true;
+    const onSeeked = () => {
+      capturePoster();
+      const onRestore = () => {
+        media.removeEventListener("seeked", onRestore);
+        if (!wasPaused) {
+          try { media.play(); } catch {}
+        }
+        seekingPoster = false;
+      };
+      media.addEventListener("seeked", onRestore);
+      try {
+        media.currentTime = originalTime > 0 ? originalTime : 0;
+      } catch {
+        seekingPoster = false;
+      }
+    };
+    try {
+      media.pause();
+      media.addEventListener("seeked", onSeeked, { once: true });
+      media.currentTime = target;
+    } catch {
+      seekingPoster = false;
+    }
+  };
+  const forwardWheel = (ev) => {
+    if (!scrollHost) return;
+    const dy = Number(ev.deltaY) || 0;
+    const dx = Number(ev.deltaX) || 0;
+    if (Math.abs(dy) < 0.01 && Math.abs(dx) < 0.01) return;
+    ev.preventDefault();
+    scrollHost.scrollTop += dy;
+    if (dx) scrollHost.scrollLeft += dx;
+  };
+  applyPrefs();
+  updateButtons();
+  if (options.mediaInfo && Object.keys(options.mediaInfo).length) {
+    renderInfoPanel(options.mediaInfo);
+  }
+  media.addEventListener("wheel", forwardWheel, { passive: false });
+  if (mediaPlayer) mediaPlayer.addEventListener("wheel", forwardWheel, { passive: false });
+  media.addEventListener("loadedmetadata", () => {
+    syncMeta();
+    if (statusEl) statusEl.textContent = "信息已加载";
+    if (resumeTime > 1 && Number.isFinite(media.duration) && resumeTime < Math.max(2, media.duration - 2)) {
+      try {
+        media.currentTime = resumeTime;
+        if (statusEl) statusEl.textContent = "已恢复上次播放位置";
+      } catch {}
+    }
+    if (state.mediaPrefs.autoplay) {
+      const playAttempt = media.play();
+      if (playAttempt && typeof playAttempt.catch === "function") {
+        playAttempt.catch(() => {
+          if (statusEl) statusEl.textContent = "自动播放被拦截";
+        });
+      }
+    }
+  }, { once: true });
+  media.addEventListener("loadeddata", () => {
+    if (kind === "video") {
+      if (!hasPresetPoster) capturePoster();
+      setTimeout(() => refreshPosterBySeek(), hasPresetPoster ? 120 : 40);
+    }
+  }, { once: true });
+  media.addEventListener("timeupdate", () => {
+    if (currentEl) currentEl.textContent = formatDuration(media.currentTime);
+    if (seekingPoster) return;
+    if (!state.previewPath) return;
+    if (Date.now() - saveTick > 1600) {
+      saveTick = Date.now();
+      saveMediaResume(state.previewPath, media.currentTime);
+    }
+  });
+  media.addEventListener("play", () => {
+    if (statusEl) statusEl.textContent = "播放中";
+  });
+  media.addEventListener("pause", () => {
+    if (statusEl) statusEl.textContent = "已暂停";
+  });
+  media.addEventListener("ended", () => {
+    if (statusEl) statusEl.textContent = media.loop ? "循环中" : "播放结束";
+  });
+  media.addEventListener("volumechange", () => {
+    if (statusEl && media.muted) statusEl.textContent = "静音";
+  });
+  document.querySelectorAll("[data-media-toggle]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.getAttribute("data-media-toggle");
+      const next = !state.mediaPrefs[key];
+      saveMediaPref(key, next);
+      applyPrefs();
+      updateButtons();
+      if (key === "autoplay" && next) {
+        try { media.play(); } catch {}
+      }
+    });
+  });
+  document.querySelectorAll("[data-media-action='poster']").forEach((btn) => {
+    btn.addEventListener("click", () => refreshPosterBySeek());
+  });
+  document.querySelectorAll("[data-media-action='info']").forEach((btn) => {
+    btn.addEventListener("click", () => toggleInfoPanel());
+  });
+  document.querySelectorAll("[data-media-action='save-frame']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      postToAhk({ type: "SAVE_MEDIA_FRAME", path: state.previewPath, timeSec: media.currentTime || 0, seq: state.previewSeq });
+    });
+  });
+}
+
 function runPreviewForSelection() {
   state.previewSeq += 1;
   const seq = state.previewSeq;
@@ -1540,10 +1989,18 @@ function runPreviewForSelection() {
     return;
   }
 
+  if (PREVIEW_AUDIO_EXT.has(ext) || PREVIEW_VIDEO_EXT.has(ext)) {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    pane.innerHTML = "<div class=\"preview-loading\">Loading media preview...</div>";
+    postToAhk({ type: "INVOKE_WEB_MEDIA", path, seq });
+    return;
+  }
+
   setPreviewLayoutMode("native");
   pane.innerHTML = "<div class=\"preview-empty\" style=\"min-height:80px\">此处为原生预览占位区域。<br><br>你可以点击下方按钮或按空格尝试不同预览方式。</div>";
   
-  const isL1Handled = PREVIEW_TEXT_EXT.has(ext) || PREVIEW_IMAGE_EXT.has(ext);
+  const isL1Handled = PREVIEW_TEXT_EXT.has(ext) || PREVIEW_IMAGE_EXT.has(ext) || PREVIEW_AUDIO_EXT.has(ext) || PREVIEW_VIDEO_EXT.has(ext);
   const qlBtn = document.getElementById("preview-ql-btn");
   const nativeBtn = document.getElementById("preview-native-btn");
   if (qlBtn) qlBtn.classList.toggle("btn-highlight", !isL1Handled);
@@ -1679,6 +2136,30 @@ function onPreviewMetaUpdate(payload) {
   if (payload.meta) {
     renderRichMeta(payload.meta, true);
   }
+}
+
+function onMediaInfoResult(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const panel = document.getElementById("preview-media-info");
+  if (!panel) return;
+  const info = payload.info && typeof payload.info === "object" ? payload.info : {};
+  const keys = Object.keys(info);
+  if (!keys.length) {
+    panel.innerHTML = '<div class="media-info-row"><span class="media-info-val">暂无编码信息</span></div>';
+    panel.classList.add("open");
+    return;
+  }
+  panel.innerHTML = keys.map((key) =>
+    '<div class="media-info-row"><span class="media-info-key">' + escapeHtml(key) + ':</span><span class="media-info-val">' + escapeHtml(info[key]) + '</span></div>'
+  ).join("");
+  panel.classList.add("open");
+}
+
+function onMediaFrameSaveResult(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const statusEl = document.getElementById("preview-media-status");
+  if (!statusEl) return;
+  statusEl.textContent = payload && payload.ok ? "截图已保存" : (payload.message ? String(payload.message) : "截图保存失败");
 }
 
 function onNativePreviewFailed(payload) {
@@ -2116,8 +2597,11 @@ if (window.chrome && window.chrome.webview) {
       return;
     }
     if (payload.type === "WEB_PREVIEW_MEDIA_RESULT") {
-      if (pathExtensionLower(state.previewPath) === "pdf") {
+      const ext = pathExtensionLower(state.previewPath);
+      if (ext === "pdf") {
         onPdfWebMediaResult(payload);
+      } else if (PREVIEW_AUDIO_EXT.has(ext) || PREVIEW_VIDEO_EXT.has(ext)) {
+        onWebPreviewMediaResult(payload);
       }
       return;
     }
@@ -2135,6 +2619,14 @@ if (window.chrome && window.chrome.webview) {
     }
     if (payload.type === "PREVIEW_META_UPDATE") {
       onPreviewMetaUpdate(payload);
+      return;
+    }
+    if (payload.type === "MEDIA_INFO_RESULT") {
+      onMediaInfoResult(payload);
+      return;
+    }
+    if (payload.type === "MEDIA_FRAME_SAVE_RESULT") {
+      onMediaFrameSaveResult(payload);
       return;
     }
     if (payload.type === "init" || payload.type === "state") {

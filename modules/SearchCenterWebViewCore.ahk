@@ -635,9 +635,18 @@ SCWV_OnWebMessage(sender, args) {
         case "INVOKE_WEB_MEDIA":
             p := msg.Has("path") ? String(msg["path"]) : ""
             sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
-            u := _SCWV_PathToWebAssetUrl(p)
-            try SCWV_Preview_Get()._PostDetailMeta(p, sq)
-            SCWV_PostJson(Map("type", "WEB_PREVIEW_MEDIA_RESULT", "url", u, "seq", sq))
+            _SCWV_BlockDeactivate(4500, "media_preview")
+            try SCWV_Preview_Get().OnWebMedia(p, sq)
+        case "GET_MEDIA_INFO":
+            p := msg.Has("path") ? String(msg["path"]) : ""
+            sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
+            try SCWV_Preview_Get().PostMediaInfo(p, sq)
+        case "SAVE_MEDIA_FRAME":
+            p := msg.Has("path") ? String(msg["path"]) : ""
+            ts := msg.Has("timeSec") ? msg["timeSec"] : ""
+            sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
+            _SCWV_BlockDeactivate(4500, "media_save_frame")
+            try SCWV_Preview_Get().SaveMediaFrame(p, ts, sq)
         case "INVOKE_PDFIUM":
             p := msg.Has("path") ? String(msg["path"]) : ""
             sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
@@ -2527,6 +2536,182 @@ _SCWV_ExecCapture(cmd, timeoutMs := 12000) {
     return result
 }
 
+_SCWV_IsVideoExt(ext) {
+    e := StrLower(Trim(String(ext)))
+    return (e = "mp4" || e = "m4v" || e = "mov" || e = "webm" || e = "mkv" || e = "avi")
+}
+
+_SCWV_SimpleHash(text) {
+    s := String(text)
+    h := 2166136261
+    Loop Parse, s {
+        h := Mod((h ^ Ord(A_LoopField)) * 16777619, 4294967296)
+    }
+    return Format("{:08X}", h)
+}
+
+_SCWV_GetMediaDurationSeconds(path) {
+    ffprobe := A_ScriptDir "\lib\ffprobe.exe"
+    if !FileExist(ffprobe)
+        return ""
+    cmd := '"' ffprobe '" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "' path '"'
+    try cap := _SCWV_ExecCapture(cmd, 8000)
+    catch
+        return ""
+    out := Trim(cap["stdout"])
+    if (out = "")
+        return ""
+    try n := Number(out)
+    catch
+        return ""
+    if !IsNumber(n)
+        return ""
+    return n
+}
+
+_SCWV_GetPosterSeekSeconds(durationSec) {
+    try d := Number(durationSec)
+    catch
+        d := 0
+    if !(d > 0)
+        return 1.2
+    if (d <= 8)
+        return Min(Max(d * 0.35, 0.6), Max(d - 0.2, 0.6))
+    return Min(Max(d * 0.12, 1.2), 18)
+}
+
+_SCWV_BuildMediaPoster(path, durationSec := "") {
+    ffmpeg := A_ScriptDir "\lib\ffmpeg.exe"
+    if !FileExist(ffmpeg)
+        return ""
+    if (path = "" || !FileExist(path))
+        return ""
+    SplitPath path, &fileName
+    size := 0
+    modTime := ""
+    try size := FileGetSize(path)
+    try modTime := FileGetTime(path, "M")
+    cacheDir := A_ScriptDir "\cache\searchcenter_media"
+    try DirCreate(cacheDir)
+    hash := _SCWV_SimpleHash(path "|" size "|" modTime "|" fileName)
+    outPath := cacheDir "\" hash ".jpg"
+    if FileExist(outPath) {
+        try {
+            if (FileGetSize(outPath) > 0)
+                return outPath
+        } catch {
+        }
+    }
+    seekSec := _SCWV_GetPosterSeekSeconds(durationSec)
+    seekArg := Format("{:.3f}", seekSec)
+    cmd := '"' ffmpeg '" -hide_banner -loglevel error -y -i "' path '" -ss ' seekArg ' -frames:v 1 -q:v 3 "' outPath '"'
+    try cap := _SCWV_ExecCapture(cmd, 20000)
+    catch
+        return ""
+    if FileExist(outPath) {
+        try {
+            if (FileGetSize(outPath) > 0)
+                return outPath
+        } catch {
+        }
+    }
+    return ""
+}
+
+_SCWV_FormatFps(raw) {
+    s := Trim(String(raw))
+    if (s = "")
+        return ""
+    if InStr(s, "/") {
+        parts := StrSplit(s, "/")
+        if (parts.Length >= 2) {
+            try n := Number(parts[1])
+            catch {
+                n := 0
+            }
+            try d := Number(parts[2])
+            catch {
+                d := 0
+            }
+            if (n > 0 && d > 0)
+                return Format("{:.3f}", n / d)
+        }
+    }
+    return s
+}
+
+_SCWV_GetMediaInfo(path) {
+    ffprobe := A_ScriptDir "\lib\ffprobe.exe"
+    if !FileExist(ffprobe)
+        return Map()
+    if (path = "" || !FileExist(path))
+        return Map()
+    cmd := '"' ffprobe '" -v error -print_format json -show_streams -show_format "' path '"'
+    try cap := _SCWV_ExecCapture(cmd, 10000)
+    catch
+        return Map()
+    json := Trim(cap["stdout"])
+    if (json = "")
+        return Map()
+    try obj := Jxon_Load(json)
+    catch
+        return Map()
+    info := Map()
+    v := 0, a := 0
+    try {
+        if (obj.Has("streams") && obj["streams"] is Array) {
+            for _, st in obj["streams"] {
+                ctype := ""
+                try ctype := String(st["codec_type"])
+                if (ctype = "video" && !IsObject(v))
+                    v := st
+                else if (ctype = "audio" && !IsObject(a))
+                    a := st
+            }
+        }
+    }
+    try {
+        fmt := obj.Has("format") ? obj["format"] : 0
+        if (fmt && fmt is Map) {
+            if fmt.Has("format_name")
+                info["封装"] := String(fmt["format_name"])
+            if fmt.Has("bit_rate") {
+                try br := Round(Number(fmt["bit_rate"]) / 1000)
+                if (br > 0)
+                    info["总码率"] := br . " kb/s"
+            }
+        }
+    }
+    if (v && v is Map) {
+        try if v.Has("codec_name")
+            info["视频编码"] := String(v["codec_name"])
+        try if v.Has("profile")
+            info["视频配置"] := String(v["profile"])
+        try if v.Has("pix_fmt")
+            info["像素格式"] := String(v["pix_fmt"])
+        try {
+            vw := v.Has("width") ? Integer(v["width"]) : 0
+            vh := v.Has("height") ? Integer(v["height"]) : 0
+            if (vw > 0 && vh > 0)
+                info["分辨率"] := vw . " x " . vh
+        }
+        try if v.Has("r_frame_rate") {
+            fps := _SCWV_FormatFps(v["r_frame_rate"])
+            if (fps != "")
+                info["帧率"] := fps . " fps"
+        }
+    }
+    if (a && a is Map) {
+        try if a.Has("codec_name")
+            info["音频编码"] := String(a["codec_name"])
+        try if a.Has("channels")
+            info["声道"] := String(a["channels"])
+        try if a.Has("sample_rate")
+            info["采样率"] := String(a["sample_rate"]) . " Hz"
+    }
+    return info
+}
+
 _SCWV_Parse7zList(text, archivePath, maxItems := 500, &total := 0, &truncated := false) {
     entries := []
     block := Map()
@@ -2980,6 +3165,83 @@ class PreviewManager {
             mime := "image/svg+xml"
         dataUrl := "data:" mime ";base64," b64
         SCWV_PostJson(Map("type", "WEB_PREVIEW_IMAGE_RESULT", "seq", seq, "dataUrl", dataUrl))
+    }
+
+    OnWebMedia(path, seq) {
+        path := Trim(String(path))
+        this._PostDetailMeta(path, seq)
+        if (path = "" || !FileExist(path)) {
+            SCWV_PostJson(Map("type", "WEB_PREVIEW_MEDIA_RESULT", "seq", seq, "url", "", "posterUrl", "", "durationSec", "", "mediaInfo", Map()))
+            return
+        }
+        mediaUrl := _SCWV_PathToWebAssetUrl(path)
+        SplitPath path, , , &ext
+        ext := StrLower(ext)
+        durationSec := _SCWV_GetMediaDurationSeconds(path)
+        posterUrl := ""
+        mediaInfo := _SCWV_GetMediaInfo(path)
+        if (_SCWV_IsVideoExt(ext)) {
+            posterPath := _SCWV_BuildMediaPoster(path, durationSec)
+            posterUrl := _SCWV_PathToWebAssetUrl(posterPath)
+        }
+        SCWV_PostJson(Map(
+            "type", "WEB_PREVIEW_MEDIA_RESULT",
+            "seq", seq,
+            "url", mediaUrl,
+            "posterUrl", posterUrl,
+            "durationSec", durationSec,
+            "mediaInfo", mediaInfo
+        ))
+    }
+
+    PostMediaInfo(path, seq) {
+        path := Trim(String(path))
+        info := _SCWV_GetMediaInfo(path)
+        SCWV_PostJson(Map("type", "MEDIA_INFO_RESULT", "seq", seq, "path", path, "info", info))
+    }
+
+    SaveMediaFrame(path, timeSec := "", seq := 0) {
+        path := Trim(String(path))
+        ffmpeg := A_ScriptDir "\lib\ffmpeg.exe"
+        if (path = "" || !FileExist(path) || !FileExist(ffmpeg)) {
+            SCWV_PostJson(Map("type", "MEDIA_FRAME_SAVE_RESULT", "seq", seq, "ok", false, "message", "保存截图失败"))
+            return
+        }
+        safeName := RegExReplace(RegExReplace(path, "^.*[\\/]", ""), "\.[^.]+$", "")
+        if (safeName = "")
+            safeName := "video_frame"
+        defaultPath := A_Desktop "\" safeName "_" . FormatTime(, "yyyyMMdd_HHmmss") . ".jpg"
+        savePath := FileSelect("S16", defaultPath, "保存视频截图", "图片文件 (*.jpg; *.png)")
+        if (savePath = "") {
+            SCWV_PostJson(Map("type", "MEDIA_FRAME_SAVE_RESULT", "seq", seq, "ok", false, "message", "已取消保存"))
+            return
+        }
+        SplitPath savePath, , , &outExt
+        outExt := StrLower(outExt)
+        seek := ""
+        try seekNum := Number(timeSec)
+        catch {
+            seekNum := 0
+        }
+        if (seekNum < 0)
+            seekNum := 0
+        seek := Format("{:.3f}", seekNum)
+        qArg := (outExt = "png") ? "" : " -q:v 2"
+        cmd := '"' ffmpeg '" -hide_banner -loglevel error -y -i "' path '" -ss ' seek ' -frames:v 1' qArg ' "' savePath '"'
+        try _SCWV_ExecCapture(cmd, 25000)
+        catch as err {
+            SCWV_PostJson(Map("type", "MEDIA_FRAME_SAVE_RESULT", "seq", seq, "ok", false, "message", err.Message))
+            return
+        }
+        ok := false
+        try ok := FileExist(savePath) && (FileGetSize(savePath) > 0)
+        SCWV_PostJson(Map(
+            "type", "MEDIA_FRAME_SAVE_RESULT",
+            "seq", seq,
+            "ok", ok,
+            "message", ok ? "截图已保存" : "截图保存失败",
+            "path", savePath
+        ))
     }
 
     OnPdfium(path, seq) {
