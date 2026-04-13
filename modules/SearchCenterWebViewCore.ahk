@@ -30,6 +30,21 @@ global g_SCWV_DarkSubItemCount := 0
 global g_SCWV_PinnedKeys := Map()  ; 缃《閿?id:xxx 鎴?c:鍐呭鍝堝笇
 global g_SCWV_RecycleBin := []  ; 鍒犻櫎椤瑰揩鐓?{title,content,id}
 global g_SCWV_PreviewCapabilityCache := Map() ; extDot -> {state, ts, ...}
+global g_SCWV_DeactivateBlockUntil := 0
+global g_SCWV_DeactivateBlockReason := ""
+
+_SCWV_BlockDeactivate(ms := 1500, reason := "") {
+    global g_SCWV_DeactivateBlockUntil, g_SCWV_DeactivateBlockReason
+    blockUntil := A_TickCount + Max(0, Integer(ms))
+    if (blockUntil > g_SCWV_DeactivateBlockUntil)
+        g_SCWV_DeactivateBlockUntil := blockUntil
+    g_SCWV_DeactivateBlockReason := String(reason)
+}
+
+_SCWV_IsDeactivateBlocked() {
+    global g_SCWV_DeactivateBlockUntil
+    return (g_SCWV_DeactivateBlockUntil > A_TickCount)
+}
 
 SCWV_HostAlive() {
     global g_SCWV_Gui
@@ -339,6 +354,7 @@ SCWV_RequestFocusInput() {
 
 SCWV_Hide(PersistSelection := true) {
     global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_SearchTimer, GuiID_SearchCenter, g_SCWV_PendingJsonQueue
+    global g_SCWV_DeactivateBlockUntil, g_SCWV_DeactivateBlockReason
 
     if !SCWV_HostAlive() {
         SCWV_ResetHostState()
@@ -352,6 +368,8 @@ SCWV_Hide(PersistSelection := true) {
     SetTimer(SCWV_FocusDeferred, 0)
     SetTimer(SCWV_FlushPendingJsonQueue, 0)
     g_SCWV_PendingJsonQueue := []
+    g_SCWV_DeactivateBlockUntil := 0
+    g_SCWV_DeactivateBlockReason := ""
 
     if PersistSelection
         _SCWV_SaveCurrentCategorySelection()
@@ -379,6 +397,8 @@ SCWV_WMDeactivateHideTick(*) {
     global g_SCWV_Visible, g_SCWV_Gui
     if !g_SCWV_Visible || !g_SCWV_Gui
         return
+    if _SCWV_IsDeactivateBlocked()
+        return
     if _SCWV_IsDarkCtxMenuOpen()
         return
     try {
@@ -402,6 +422,8 @@ SCWV_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
         return
 
     if (hwnd = g_SCWV_Gui.Hwnd && (wParam & 0xFFFF) = 0) {
+        if _SCWV_IsDeactivateBlocked()
+            return
         ; 鐢ㄦ埛鐐瑰嚮鍚岃繘绋嬫偓娴伐鍏锋爮鍒囨崲鍏抽棴鏃讹紝鍓嶅彴甯稿湪 WebView 瀛?HWND 涓婏紝椤昏瘑鍒涓婚摼锛屽嬁鎶㈠厛 Hide
         try {
             if (FloatingToolbar_IsForegroundToolbarOrChild())
@@ -620,6 +642,11 @@ SCWV_OnWebMessage(sender, args) {
             p := msg.Has("path") ? String(msg["path"]) : ""
             sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
             SCWV_Preview_OnPdfium(p, sq)
+        case "INVOKE_ARCHIVE_LIST":
+            p := msg.Has("path") ? String(msg["path"]) : ""
+            sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
+            _SCWV_BlockDeactivate(2500, "archive_preview")
+            SCWV_Preview_OnArchiveList(p, sq)
     }
 }
 
@@ -2333,6 +2360,13 @@ SCWV_Preview_OnPdfium(path, seq) {
     }
 }
 
+SCWV_Preview_OnArchiveList(path, seq) {
+    try SCWV_Preview_Get().OnArchiveList(path, seq)
+    catch as err {
+        SCWV_PostJson(Map("type", "WEB_PREVIEW_ARCHIVE_RESULT", "seq", seq, "entries", [], "error", err.Message))
+    }
+}
+
 SCWV_Preview_OnNative(path, seq, boundsMap) {
     try SCWV_Preview_Get().ScheduleNative(path, seq, boundsMap)
     catch as err {
@@ -2428,6 +2462,183 @@ _SCWV_DecodeTextBuffer(buf, sizeBytes) {
     txt936 := StrGet(buf, sizeBytes, "CP936")
     bad936 := _SCWV_CountReplacementChar(txt936)
     return (bad936 < badUtf8) ? txt936 : txtUtf8
+}
+
+_SCWV_ReadFileTextSmart(path, maxBytes := 0) {
+    if (path = "" || !FileExist(path))
+        return ""
+    sz := FileGetSize(path)
+    if (sz <= 0)
+        return ""
+    n := (maxBytes > 0) ? Min(sz, maxBytes) : sz
+    f := FileOpen(path, "r")
+    buf := Buffer(n, 0)
+    f.RawRead(buf, n)
+    f.Close()
+    return _SCWV_DecodeTextBuffer(buf, n)
+}
+
+_SCWV_ExecCapture(cmd, timeoutMs := 12000) {
+    result := Map("stdout", "", "stderr", "", "timedOut", false, "exitCode", "")
+    sh := ComObject("WScript.Shell")
+    ex := sh.Exec(cmd)
+    t0 := A_TickCount
+    outText := ""
+    errText := ""
+
+    while true {
+        try {
+            while !ex.StdOut.AtEndOfStream
+                outText .= ex.StdOut.Read(4096)
+        } catch {
+        }
+        try {
+            while !ex.StdErr.AtEndOfStream
+                errText .= ex.StdErr.Read(2048)
+        } catch {
+        }
+
+        if (ex.Status != 0)
+            break
+
+        if ((A_TickCount - t0) > timeoutMs) {
+            result["timedOut"] := true
+            try ex.Terminate()
+            break
+        }
+        Sleep 30
+    }
+
+    try {
+        while !ex.StdOut.AtEndOfStream
+            outText .= ex.StdOut.Read(4096)
+    } catch {
+    }
+    try {
+        while !ex.StdErr.AtEndOfStream
+            errText .= ex.StdErr.Read(2048)
+    } catch {
+    }
+    try result["exitCode"] := ex.ExitCode
+    catch {
+    }
+    result["stdout"] := outText
+    result["stderr"] := errText
+    return result
+}
+
+_SCWV_Parse7zList(text, archivePath, maxItems := 500, &total := 0, &truncated := false) {
+    entries := []
+    block := Map()
+    total := 0
+    truncated := false
+    arc := StrReplace(StrLower(String(archivePath)), "/", "\")
+
+    ; 解析 key = value 块，空行分隔
+    Loop Parse text, "`n", "`r" {
+        ln := Trim(A_LoopField)
+        if (ln = "") {
+            if (block.Count > 0) {
+                hasPath := block.Has("Path")
+                if hasPath {
+                    p := String(block["Path"])
+                    pl := StrReplace(StrLower(p), "/", "\")
+                    isHeader := (pl = arc) || (p = "") || (p = "-")
+                    if (!isHeader) {
+                        total += 1
+                        if (entries.Length < maxItems) {
+                            isFolder := block.Has("Folder") && InStr(String(block["Folder"]), "+")
+                            entries.Push(Map(
+                                "path", p,
+                                "folder", !!isFolder,
+                                "size", block.Has("Size") ? String(block["Size"]) : "",
+                                "packed", block.Has("Packed Size") ? String(block["Packed Size"]) : "",
+                                "modified", block.Has("Modified") ? String(block["Modified"]) : ""
+                            ))
+                        } else {
+                            truncated := true
+                        }
+                    }
+                }
+                block := Map()
+            }
+            continue
+        }
+        if RegExMatch(ln, "^\s*([^=]+?)\s*=\s*(.*)$", &m) {
+            k := Trim(m[1])
+            v := m[2]
+            block[k] := v
+        }
+    }
+
+    if (block.Count > 0) {
+        hasPath := block.Has("Path")
+        if hasPath {
+            p := String(block["Path"])
+            pl := StrReplace(StrLower(p), "/", "\")
+            isHeader := (pl = arc) || (p = "") || (p = "-")
+            if (!isHeader) {
+                total += 1
+                if (entries.Length < maxItems) {
+                    isFolder := block.Has("Folder") && InStr(String(block["Folder"]), "+")
+                    entries.Push(Map(
+                        "path", p,
+                        "folder", !!isFolder,
+                        "size", block.Has("Size") ? String(block["Size"]) : "",
+                        "packed", block.Has("Packed Size") ? String(block["Packed Size"]) : "",
+                        "modified", block.Has("Modified") ? String(block["Modified"]) : ""
+                    ))
+                } else {
+                    truncated := true
+                }
+            }
+        }
+    }
+
+    return entries
+}
+
+_SCWV_ListZipEntries(path, maxItems := 500, &total := 0, &truncated := false) {
+    total := 0
+    truncated := false
+    entries := []
+    zip := ComObject("Shell.Application").NameSpace(path)
+    if !zip
+        throw Error("zip_namespace_open_failed")
+    items := zip.Items()
+    cnt := 0
+    try cnt := items.Count
+    catch {
+        cnt := 0
+    }
+    Loop cnt {
+        idx := A_Index - 1
+        try it := items.Item(idx)
+        catch {
+            continue
+        }
+        total += 1
+        if (entries.Length >= maxItems) {
+            truncated := true
+            continue
+        }
+        nm := ""
+        sz := ""
+        mod := ""
+        isFolder := false
+        try nm := String(it.Name)
+        try sz := String(it.Size)
+        try mod := String(it.ModifyDate)
+        try isFolder := !!it.IsFolder
+        entries.Push(Map(
+            "path", nm,
+            "folder", isFolder,
+            "size", sz,
+            "packed", "",
+            "modified", mod
+        ))
+    }
+    return entries
 }
 
 _SCWV_RegReadDefault(path) {
@@ -2806,6 +3017,117 @@ class PreviewManager {
                 "error", err.Message,
                 "diag", diag
             ))
+        }
+    }
+
+    OnArchiveList(path, seq) {
+        try {
+            path := Trim(String(path))
+            this._PostDetailMeta(path, seq)
+            if (path = "" || !FileExist(path)) {
+                SCWV_PostJson(Map("type", "WEB_PREVIEW_ARCHIVE_RESULT", "seq", seq, "entries", [], "error", "invalid_path"))
+                return
+            }
+
+            SplitPath path, , , &ext
+            ext := StrLower(ext)
+
+            sevenZip := A_ScriptDir "\lib\7z.exe"
+            sevenZipDll := A_ScriptDir "\lib\7z.dll"
+            if !FileExist(sevenZip) {
+                SCWV_PostJson(Map("type", "WEB_PREVIEW_ARCHIVE_RESULT", "seq", seq, "entries", [], "error", "7z.exe not found in lib"))
+                return
+            }
+            if !FileExist(sevenZipDll) {
+                SCWV_PostJson(Map("type", "WEB_PREVIEW_ARCHIVE_RESULT", "seq", seq, "entries", [], "error", "7z.dll not found in lib"))
+                return
+            }
+
+            cmdUtf8 := '"' sevenZip '" l -slt -ba -y -p"" -bb0 -sccUTF-8 -- "' path '"'
+            try {
+                cap1 := _SCWV_ExecCapture(cmdUtf8, 12000)
+                outText := cap1["stdout"]
+                errText := cap1["stderr"]
+                timedOut := cap1["timedOut"]
+            } catch as e {
+                outText := ""
+                errText := e.Message
+                timedOut := false
+            }
+
+            if (timedOut) {
+                SCWV_PostJson(Map("type", "WEB_PREVIEW_ARCHIVE_RESULT", "seq", seq, "entries", [], "error", "7z timeout (12s)"))
+                return
+            }
+
+            if (InStr(outText, "Codec Load Error") || InStr(errText, "Codec Load Error")) {
+                SCWV_PostJson(Map("type", "WEB_PREVIEW_ARCHIVE_RESULT", "seq", seq, "entries", [], "error", "7z.dll 与 7z.exe 不兼容或位数不匹配"))
+                return
+            }
+
+            if (Trim(outText) = "") {
+                ; 某些 7z 版本不支持 -sccUTF-8，回退一次不带该参数
+                cmdBasic := '"' sevenZip '" l -slt -ba -y -p"" -bb0 -- "' path '"'
+                try {
+                    cap2 := _SCWV_ExecCapture(cmdBasic, 12000)
+                    outText2 := cap2["stdout"]
+                    errText2 := cap2["stderr"]
+                    timedOut2 := cap2["timedOut"]
+                } catch as e2 {
+                    outText2 := ""
+                    errText2 := e2.Message
+                    timedOut2 := false
+                }
+                if (timedOut2) {
+                    SCWV_PostJson(Map("type", "WEB_PREVIEW_ARCHIVE_RESULT", "seq", seq, "entries", [], "error", "7z timeout (12s)"))
+                    return
+                }
+                if (InStr(outText2, "Codec Load Error") || InStr(errText2, "Codec Load Error")) {
+                    SCWV_PostJson(Map("type", "WEB_PREVIEW_ARCHIVE_RESULT", "seq", seq, "entries", [], "error", "7z.dll 与 7z.exe 不兼容或位数不匹配"))
+                    return
+                }
+                if (Trim(outText2) != "") {
+                    outText := outText2
+                    errText := errText2
+                } else if (Trim(errText2) != "") {
+                    errText := errText2
+                }
+            }
+
+            if (Trim(outText) = "") {
+                e := Trim(errText)
+                if (e = "")
+                    e := "empty output"
+                if (ext = "zip") {
+                    try {
+                        entries := _SCWV_ListZipEntries(path, 500, &total, &truncated)
+                        SCWV_PostJson(Map(
+                            "type", "WEB_PREVIEW_ARCHIVE_RESULT",
+                            "seq", seq,
+                            "entries", entries,
+                            "total", total,
+                            "truncated", !!truncated,
+                            "error", ""
+                        ))
+                        return
+                    } catch {
+                    }
+                }
+                SCWV_PostJson(Map("type", "WEB_PREVIEW_ARCHIVE_RESULT", "seq", seq, "entries", [], "error", e))
+                return
+            }
+
+            entries := _SCWV_Parse7zList(outText, path, 500, &total, &truncated)
+            SCWV_PostJson(Map(
+                "type", "WEB_PREVIEW_ARCHIVE_RESULT",
+                "seq", seq,
+                "entries", entries,
+                "total", total,
+                "truncated", !!truncated,
+                "error", ""
+            ))
+        } catch as fatal {
+            SCWV_PostJson(Map("type", "WEB_PREVIEW_ARCHIVE_RESULT", "seq", seq, "entries", [], "error", "archive_preview_exception: " . fatal.Message))
         }
     }
 

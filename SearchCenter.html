@@ -973,6 +973,7 @@ const PREVIEW_DEBOUNCE_MS = 150;
 const PREVIEW_TEXT_EXT = new Set(["txt", "ahk", "py", "js", "md", "json", "log"]);
 const PREVIEW_IMAGE_EXT = new Set(["png", "jpg", "jpeg", "gif", "svg"]);
 const PREVIEW_PDF_EXT = new Set(["pdf"]);
+const PREVIEW_ARCHIVE_EXT = new Set(["zip", "7z", "rar", "tar", "gz", "tgz", "bz2", "xz", "cab", "iso"]);
 const PDF_MODE_OPTIONS = ["auto", "web", "pdfium", "ipreview", "quicklook"];
 const ONE_MB = 1048576;
 const HOTKEY_HINT_MAP = Object.freeze({
@@ -1346,9 +1347,9 @@ function cyclePdfMode() {
 function startPdfPlan(path, seq) {
   const mode = state.pdfMode || "auto";
   let chain = [];
-  if (mode === "auto") chain = state.pdfWebBroken ? ["pdfium", "ipreview", "quicklook"] : ["web", "pdfium", "ipreview", "quicklook"];
-  else if (mode === "quicklook") chain = ["quicklook"];
-  else chain = [mode, "quicklook"];
+  if (mode === "auto") chain = state.pdfWebBroken ? ["pdfium", "ipreview"] : ["web", "pdfium", "ipreview"];
+  else if (mode === "quicklook") chain = ["quicklook"]; // 用户显式选择 quicklook 才执行
+  else chain = [mode];
   state.pdfPlan = { path, seq, chain, idx: -1, done: false, timer: 0 };
   advancePdfPlan("start");
 }
@@ -1370,6 +1371,10 @@ function advancePdfPlan(reason) {
   }
   state.pdfPlan.idx += 1;
   if (state.pdfPlan.idx >= state.pdfPlan.chain.length) {
+    const pane = document.getElementById("preview-web-scroll");
+    if (pane) {
+      pane.innerHTML = "<div class=\"preview-empty\">当前 PDF 预览方案均失败。<br><br>请手动点击 QuickLook，或点击 PDF:xxx 切换预览策略。</div>";
+    }
     finishPdfPlan(false);
     return;
   }
@@ -1511,6 +1516,14 @@ function runPreviewForSelection() {
     return;
   }
 
+  if (PREVIEW_ARCHIVE_EXT.has(ext)) {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    pane.innerHTML = "<div class=\"preview-loading\">正在读取压缩包目录…</div>";
+    postToAhk({ type: "INVOKE_ARCHIVE_LIST", path, seq });
+    return;
+  }
+
   if (PREVIEW_TEXT_EXT.has(ext)) {
     setPreviewLayoutMode("web");
     stopNativePreview();
@@ -1603,6 +1616,39 @@ function onWebPreviewImageResult(payload) {
   img.src = url;
   pane.innerHTML = "";
   pane.appendChild(img);
+}
+
+function onWebPreviewArchiveResult(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+  const entries = Array.isArray(payload.entries) ? payload.entries : [];
+  const error = payload.error ? String(payload.error) : "";
+  if (error) {
+    pane.innerHTML = "<div class=\"preview-empty\">压缩包目录读取失败：" + escapeHtml(error) + "<br><br>建议尝试 QuickLook。</div>";
+    return;
+  }
+  if (!entries.length) {
+    pane.innerHTML = "<div class=\"preview-empty\">压缩包内没有可展示的条目。</div>";
+    return;
+  }
+  let html = "<div class=\"preview-truncate-note\">Archive List (read-only)</div>";
+  html += "<table style=\"width:100%; border-collapse:collapse; font-size:12px;\">";
+  html += "<thead><tr><th style=\"text-align:left; padding:6px; border-bottom:1px solid #333;\">Name</th><th style=\"text-align:right; padding:6px; border-bottom:1px solid #333;\">Size</th><th style=\"text-align:right; padding:6px; border-bottom:1px solid #333;\">Packed</th><th style=\"text-align:left; padding:6px; border-bottom:1px solid #333;\">Modified</th></tr></thead><tbody>";
+  entries.forEach((it) => {
+    const nm = (it.folder ? "[D] " : "[F] ") + (it.path || "");
+    html += "<tr>";
+    html += "<td style=\"padding:6px; border-bottom:1px solid #262626; word-break:break-all;\">" + escapeHtml(nm) + "</td>";
+    html += "<td style=\"padding:6px; border-bottom:1px solid #262626; text-align:right;\">" + escapeHtml(String(it.size || "")) + "</td>";
+    html += "<td style=\"padding:6px; border-bottom:1px solid #262626; text-align:right;\">" + escapeHtml(String(it.packed || "")) + "</td>";
+    html += "<td style=\"padding:6px; border-bottom:1px solid #262626;\">" + escapeHtml(String(it.modified || "")) + "</td>";
+    html += "</tr>";
+  });
+  html += "</tbody></table>";
+  if (payload.truncated) {
+    html += "<div class=\"preview-truncate-note\">条目较多，已截断显示前 " + escapeHtml(String(entries.length)) + " 项。</div>";
+  }
+  pane.innerHTML = html;
 }
 
 function renderRichMeta(data, append = false) {
@@ -2077,6 +2123,10 @@ if (window.chrome && window.chrome.webview) {
     }
     if (payload.type === "WEB_PREVIEW_PDFIUM_RESULT") {
       onWebPreviewPdfiumResult(payload);
+      return;
+    }
+    if (payload.type === "WEB_PREVIEW_ARCHIVE_RESULT") {
+      onWebPreviewArchiveResult(payload);
       return;
     }
     if (payload.type === "NATIVE_PREVIEW_FAILED") {
