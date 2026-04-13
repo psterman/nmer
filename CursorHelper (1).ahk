@@ -4111,8 +4111,8 @@ ToggleFloatingToolbarFromMenu(*) {
 ; 显示搜索中心
 ShowSearchCenterFromMenu(*) {
     global TrayMenuGUI
-    ShowSearchCenter()
-    ; 关闭菜单
+
+    ; 先关闭右键菜单，再激活搜索中心，避免菜单窗口仍占着前台导致搜索中心拿不到焦点。
     if (TrayMenuGUI != 0) {
         try {
             TrayMenuGUI.Destroy()
@@ -4120,6 +4120,11 @@ ShowSearchCenterFromMenu(*) {
             SetTimer(CheckTrayMenuMousePosition, 0)  ; 停止鼠标位置检查定时器
         }
     }
+
+    if FuncExists("FloatingToolbar_ActivateSearchCenter")
+        FloatingToolbar_ActivateSearchCenter()
+    else
+        ShowSearchCenter()
 }
 
 ; 显示剪贴板历史面板

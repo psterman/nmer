@@ -15,7 +15,7 @@ _VK_H(name, args*) {
             "ExecuteScreenshotOCR", "PasteScreenshotAsText", "SaveScreenshotToFile",
             "ScreenshotEditorSendToAI", "ScreenshotEditorSearchText", "CloseScreenshotEditor",
             "HandleDynamicHotkey", "ExecuteCountdownAction", "HandleSearchCenterF",
-            "SelectionSense_OnToolbarSearchClick",
+            "SelectionSense_OnToolbarSearchClick", "FloatingToolbar_ActivateSearchCenter",
             "FloatingToolbarResetScale", "MinimizeFloatingToolbarToEdge",
             "HideFloatingToolbarFromPopupMenu", "ToggleFloatingToolbarFromMenu",
             "ShowFloatingToolbar", "FloatingToolbar_SendTextToNiumaChat"
@@ -102,7 +102,7 @@ VK_ExecCursorHelperCmd(cmdId) {
 
             ; ==================== 搜索中心：选项命令（可自定义绑定） ====================
             case "sc_activate_search":
-                try _VK_H("SelectionSense_OnToolbarSearchClick")
+                try _VK_H("FloatingToolbar_ActivateSearchCenter")
                 catch {
                     _VK_H("ShowSearchCenter")
                 }

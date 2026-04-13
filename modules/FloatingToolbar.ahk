@@ -438,12 +438,7 @@ FloatingToolbar_OnWebMessage(sender, args) {
     }
 
     if (typ = "toolbar_search_click") {
-        try Func("SelectionSense_OnToolbarSearchClick").Call()
-        catch {
-            try ShowSearchCenter()
-            catch {
-            }
-        }
+        FloatingToolbar_ActivateSearchCenter()
         return
     }
 
@@ -715,22 +710,98 @@ FloatingToolbar_DeferredScreenshot(*) {
     ; 悬浮条在 ExecuteScreenshotWithMenu 内剪贴板就绪后、ShowScreenshotEditor 前统一恢复，避免 finally 再延迟 Show 造成双重显示与位置偏移
 }
 
+FloatingToolbar_EnsureSearchCenterFocused(*) {
+    global GuiID_SearchCenter
+
+    try {
+        hwnd := 0
+        if (IsSet(SCWV_GetGuiHwnd))
+            hwnd := SCWV_GetGuiHwnd()
+        if (!hwnd && GuiID_SearchCenter && IsObject(GuiID_SearchCenter) && GuiID_SearchCenter.HasProp("Hwnd"))
+            hwnd := GuiID_SearchCenter.Hwnd
+        if !hwnd
+            return
+        WinActivate("ahk_id " . hwnd)
+    } catch {
+    }
+
+    try {
+        if (IsSet(SCWV_RequestFocusInput))
+            SCWV_RequestFocusInput()
+    } catch {
+    }
+}
+
+FloatingToolbar_ActivateSearchCenter() {
+    selectedText := ""
+    opened := false
+    usedWebView := false
+
+    try usedWebView := SearchCenter_ShouldUseWebView()
+
+    ; 与 CapsLock+F/拖放入口统一：有选中文本时直接带词打开，否则强制走搜索中心显示链路。
+    try selectedText := Trim(String(SelectionSense_GetLastSelectedText()))
+    catch {
+        selectedText := ""
+    }
+
+    try {
+        if (selectedText != "")
+            SearchCenter_RunQueryWithKeyword(selectedText)
+        else if (usedWebView) {
+            SCWV_Init()
+            SCWV_Show()
+        } else
+            ShowSearchCenter()
+        opened := true
+    } catch {
+    }
+
+    ; 兜底重建：避免 g_SCWV_Visible / 宿主句柄残留导致“判定已开但面板没出来”。
+    if (!opened && usedWebView) {
+        try {
+            SCWV_ResetHostState()
+            SCWV_Init()
+            SCWV_Show()
+            opened := true
+        } catch {
+        }
+    }
+
+    if (!opened) {
+        try ShowSearchCenter()
+        catch {
+        }
+    }
+
+    ; 不论入口来自图标还是右键菜单，最后都再强制一次可见与输入焦点。
+    if (usedWebView) {
+        try {
+            if (!SCWV_IsVisible())
+                SCWV_Show()
+        } catch {
+            try {
+                SCWV_ResetHostState()
+                SCWV_Init()
+                SCWV_Show()
+            } catch {
+            }
+        }
+        try SCWV_RequestFocusInput()
+        catch {
+        }
+    }
+
+    ; 工具栏点击后前台可能仍短暂停在工具栏 WebView，上一个激活链会吞掉焦点；补几次确保搜索中心真正拿到输入焦点。
+    SetTimer(FloatingToolbar_EnsureSearchCenterFocused, -20)
+    SetTimer(FloatingToolbar_EnsureSearchCenterFocused, -120)
+    SetTimer(FloatingToolbar_EnsureSearchCenterFocused, -320)
+}
+
 FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
     switch action {
         case "Search":
-            try Func("SelectionSense_OnToolbarSearchClick").Call()
-            catch {
-                try ShowSearchCenter()
-                catch as err {
-                    SetCapsLockState("AlwaysOff")
-                    Send("{CapsLock down}")
-                    Sleep(30)
-                    Send("f")
-                    Sleep(30)
-                    Send("{CapsLock up}")
-                    SetCapsLockState("Off")
-                }
-            }
+            FloatingToolbar_ActivateSearchCenter()
         case "Record":
             ; 浠呮墦寮€鏂板壀璐存澘锛圵ebView2 + ClipMain/FTS5锛夛紝涓嶅洖閫€鏃?ListView 闈㈡澘
             try CP_Show()
@@ -814,7 +885,7 @@ FloatingToolbarToggleButtonAction(action) {
     global GuiID_SearchCenter, GuiID_ConfigGUI, ConfigWebViewMode, GuiID_ScreenshotEditor, g_PQP_Gui
     switch action {
         case "Search":
-            SetTimer(FloatingToolbar_SearchToggleDeferred, -1)
+            SetTimer(FloatingToolbar_ActivateSearchCenter, -1)
             return
         case "Record":
             try {
