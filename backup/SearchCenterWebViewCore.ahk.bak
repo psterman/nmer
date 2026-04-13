@@ -139,24 +139,14 @@ SCWV_OnCreated(ctrl) {
     SCWV_ApplyBounds()
 
     s := g_SCWV_WV2.Settings
-    s.AreDefaultContextMenusEnabled := true
+    s.AreDefaultContextMenusEnabled := false
     s.IsStatusBarEnabled := false
-    s.AreDevToolsEnabled := true
+    s.AreDevToolsEnabled := false
 
     g_SCWV_WV2.add_WebMessageReceived(SCWV_OnWebMessage)
     try g_SCWV_WV2.add_NavigationCompleted(SCWV_OnNavigationCompleted)
 
-     try ApplyUnifiedWebViewAssets(g_SCWV_WV2)
-
-    
-    ; 映射物理驱动器到虚拟域名，允许 WebView2 播放本地媒体
-    ; 1 = COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW（允许跨域加载，解决 0:00 无法播放问题）
-    try {
-        g_SCWV_WV2.SetVirtualHostNameToFolderMapping("c.local", "C:\", 1)
-        g_SCWV_WV2.SetVirtualHostNameToFolderMapping("d.local", "D:\", 1)
-        g_SCWV_WV2.SetVirtualHostNameToFolderMapping("e.local", "E:\", 1)
-    }
-    
+    try ApplyUnifiedWebViewAssets(g_SCWV_WV2)
     g_SCWV_WV2.Navigate(BuildAppLocalUrl("SearchCenter.html"))
 }
 
@@ -598,11 +588,6 @@ SCWV_OnWebMessage(sender, args) {
             catch as err {
                 SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", err.Message))
             }
-        case "INVOKE_WEB_MEDIA":
-            p := msg.Has("path") ? String(msg["path"]) : ""
-            sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
-            u := _SCWV_PathToWebAssetUrl(p)
-            SCWV_PostJson(Map("type", "WEB_PREVIEW_MEDIA_RESULT", "url", u, "seq", sq))
     }
 }
 
@@ -1027,67 +1012,15 @@ _SCWV_PathToWebAssetUrl(path) {
     if (p = "" || !FileExist(p))
         return ""
 
-    ; 优先检查是否在脚本目录内（资产目录）
     scriptRoot := StrReplace(A_ScriptDir, "\", "/")
     normalized := StrReplace(p, "\", "/")
-    
-    resUrl := ""
-    if (SubStr(normalized, 1, 1) != "/" && SubStr(normalized, 2, 1) != ":") {
-        ; 相对路径
-    } else {
-        scriptRootWithSlash := scriptRoot . "/"
-        if (SubStr(normalized, 1, StrLen(scriptRootWithSlash)) = scriptRootWithSlash) {
-            relativePath := SubStr(normalized, StrLen(scriptRootWithSlash) + 1)
-            resUrl := BuildAppAssetUrl(relativePath)
-        }
+    scriptRootWithSlash := scriptRoot . "/"
+    if (SubStr(normalized, 1, StrLen(scriptRootWithSlash)) = scriptRootWithSlash) {
+        relativePath := SubStr(normalized, StrLen(scriptRootWithSlash) + 1)
+        return BuildAppAssetUrl(relativePath)
     }
 
-    if (resUrl = "" && RegExMatch(p, "^([a-zA-Z]):\\", &m)) {
-        drive := StrLower(m[1])
-        relativePath := SubStr(p, 4)
-        ; 直接原样返回，由浏览器原生处理编码
-        resUrl := "https://" . drive . ".local/" . StrReplace(relativePath, "\", "/")
-    }
-
-    return resUrl
-}
-
-_SCWV_UrlEncode(str) {
-    fEscaped := ""
-    Loop Parse, str {
-        if RegExMatch(A_LoopField, "[0-9a-zA-Z\-\.\_\~\/]")
-            fEscaped .= A_LoopField
-        else {
-            buf := Buffer(4, 0)
-            len := StrPut(A_LoopField, buf, "UTF-8")
-            Loop len - 1 {
-                fEscaped .= "%" . Format("{:02X}", NumGet(buf, A_Index - 1, "UChar"))
-            }
-        }
-    }
-    return fEscaped
-}
-
-_SCWV_UrlDecode(str) {
-    res := ""
-    i := 1
-    while i <= StrLen(str) {
-        c := SubStr(str, i, 1)
-        if (c = "%") {
-            buf := Buffer(StrLen(str) // 3 + 1, 0)
-            count := 0
-            while i <= StrLen(str) && SubStr(str, i, 1) = "%" {
-                hex := SubStr(str, i + 1, 2)
-                NumPut("char", "0x" . hex, buf, count++)
-                i += 3
-            }
-            res .= StrGet(buf, count, "UTF-8")
-        } else {
-            res .= c
-            i += 1
-        }
-    }
-    return res
+    return ""
 }
 
 _SCWV_CopyArray(arr) {

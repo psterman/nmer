@@ -810,24 +810,6 @@ mark {
   #layout { grid-template-columns: 1fr; }
   #preview-card { min-height: 240px; }
 }
-.preview-video-container, .preview-audio-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-  background: rgba(0,0,0,0.2);
-  border-radius: 8px;
-  margin-top: 20px;
-}
-.preview-video {
-  max-width: 100%;
-  max-height: 480px;
-  border-radius: 4px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-}
-.preview-audio {
-  width: 100%;
-}
 </style>
 <script src="https://app.local/assets/js/BasePanel.js"></script>
 <script src="https://app.local/assets/vendor/prism/prism-core.min.js"></script>
@@ -986,10 +968,6 @@ const postToAhk = (obj) => BasePanel.postToAhk(obj);
 const PREVIEW_DEBOUNCE_MS = 150;
 const PREVIEW_TEXT_EXT = new Set(["txt", "ahk", "py", "js", "md", "json", "log"]);
 const PREVIEW_IMAGE_EXT = new Set(["png", "jpg", "jpeg", "gif", "svg"]);
-const PREVIEW_VIDEO_EXT = new Set(["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm"]);
-const PREVIEW_AUDIO_EXT = new Set(["mp3", "wav", "m4a", "flac", "ogg", "wma"]);
-const PREVIEW_WEB_VIDEO_EXT = new Set(["mp4", "webm"]);
-const PREVIEW_WEB_AUDIO_EXT = new Set(["mp3", "wav", "ogg"]);
 const ONE_MB = 1048576;
 const HOTKEY_HINT_MAP = Object.freeze({
   category: Object.freeze({
@@ -1395,24 +1373,6 @@ function runPreviewForSelection() {
     return;
   }
 
-  const isWebMedia = PREVIEW_WEB_VIDEO_EXT.has(ext) || PREVIEW_WEB_AUDIO_EXT.has(ext);
-  const isNativeMedia = (PREVIEW_VIDEO_EXT.has(ext) || PREVIEW_AUDIO_EXT.has(ext)) && !isWebMedia;
-  
-  if (isWebMedia) {
-    setPreviewLayoutMode("web");
-    stopNativePreview();
-    pane.innerHTML = "<div class=\"preview-loading\">正在初始化播放器…</div>";
-    postToAhk({ type: "INVOKE_WEB_MEDIA", path, seq });
-    return;
-  }
-
-  if (isNativeMedia) {
-    setPreviewLayoutMode("native");
-    pane.innerHTML = "<div class=\"preview-loading\">正在加载多媒体预览组件…</div>";
-    invokeIPreviewHandler();
-    return;
-  }
-
   setPreviewLayoutMode("native");
   pane.innerHTML = "<div class=\"preview-empty\" style=\"min-height:80px\">此处为原生预览占位区域。<br><br>你可以点击下方按钮或按空格尝试不同预览方式。</div>";
   
@@ -1489,44 +1449,6 @@ function onWebPreviewImageResult(payload) {
   img.src = url;
   pane.innerHTML = "";
   pane.appendChild(img);
-}
-
-function onWebPreviewMediaResult(payload) {
-  if (Number(payload.seq) !== state.previewSeq) return;
-  console.log("Media Preview Debug:", payload);
-  const pane = document.getElementById("preview-web-scroll");
-  if (!pane) return;
-  const url = payload.url || "";
-  const ext = pathExtensionLower(state.previewPath);
-  
-  if (!url) {
-    pane.innerHTML = "<div class=\"preview-empty\">无法加载媒体文件。</div>";
-    return;
-  }
-
-  const errorHint = `<p style="margin-top:10px; color:#ff4d4d; font-size:12px;">如果无法播放，请检查文件编码或使用 QuickLook (空格键)。<br>加载路径: ${url}</p>`;
-
-  if (PREVIEW_WEB_VIDEO_EXT.has(ext)) {
-    pane.innerHTML = `
-      <div class="preview-video-container">
-        <video controls autoplay class="preview-video" style="max-height: 400px; width: 100%;" onerror="this.parentElement.innerHTML += '${errorHint}'">
-          <source src="${url}">
-          您的浏览器不支持播放此视频。
-        </video>
-        <div style="font-size: 11px; color:#888; text-align: left; margin-top:5px;">Source: ${url}</div>
-      </div>
-    `;
-  } else if (PREVIEW_WEB_AUDIO_EXT.has(ext)) {
-    pane.innerHTML = `
-      <div class="preview-audio-container">
-        <audio controls autoplay class="preview-audio" style="margin-bottom:10px; width: 100%;" onerror="this.parentElement.innerHTML += '${errorHint}'">
-          <source src="${url}">
-          您的浏览器不支持播放此音频。
-        </audio>
-        <div style="font-size: 11px; color:#888; text-align: left; margin-top:5px;">Source: ${url}</div>
-      </div>
-    `;
-  }
 }
 
 function renderRichMeta(data, append = false) {
@@ -1980,13 +1902,11 @@ if (window.chrome && window.chrome.webview) {
       onWebPreviewTextResult(payload);
       return;
     }
-    if (payload.type === "PREVIEW_WEB_IMAGE_RESULT") {
+    if (payload.type === "WEB_PREVIEW_IMAGE_RESULT") {
       onWebPreviewImageResult(payload);
+      return;
     }
-    if (payload.type === "WEB_PREVIEW_MEDIA_RESULT") {
-      onWebPreviewMediaResult(payload);
-    }
-    if (payload.type === "INVOKE_IPREVIEW_HANDLER") {
+    if (payload.type === "NATIVE_PREVIEW_FAILED") {
       onNativePreviewFailed(payload);
       return;
     }
