@@ -127,8 +127,7 @@ button, input, select, textarea { font: inherit; }
   border-radius: inherit;
   padding: 1px;
   background: linear-gradient(135deg, var(--glass-edge), var(--glass-edge-soft) 45%, var(--glass-warm));
-  -webkit-mask: linear-gradient(180deg, #000 0%, #000 80%, transparent);
-  mask: linear-gradient(180deg, #000 0%, #000 80%, transparent);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
@@ -331,7 +330,6 @@ button, input, select, textarea { font: inherit; }
   word-break: break-all;
   display: -webkit-box;
   -webkit-line-clamp: 2;
-  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -424,32 +422,6 @@ button, input, select, textarea { font: inherit; }
   cursor: pointer;
   transition: .14s ease;
 }
-    /* 教程/技巧卡片专属样式 */
-    .result-item.tutorial {
-      background: linear-gradient(135deg, rgba(255, 140, 0, 0.1) 0%, rgba(255, 69, 0, 0.05) 100%);
-      border: 1px solid rgba(255, 140, 0, 0.3);
-      padding: 16px;
-      margin-bottom: 12px;
-      border-radius: 12px;
-      cursor: default;
-    }
-    .result-item.tutorial:hover {
-      background: linear-gradient(135deg, rgba(255, 140, 0, 0.15) 0%, rgba(255, 69, 0, 0.1) 100%);
-      border-color: rgba(255, 140, 0, 0.5);
-    }
-    .result-item.tutorial .result-title {
-      color: #ff8c00;
-      font-size: 1.1rem;
-      font-weight: 700;
-      margin-bottom: 6px;
-    }
-    .result-item.tutorial .result-subtitle {
-      color: #eee;
-      opacity: 0.95;
-      font-size: 0.9rem;
-      white-space: pre-wrap; /* 允许换行 */
-      line-height: 1.6;
-    }
 .result-item + .result-item { margin-top: 5px; }
 .result-item:hover {
   background: rgba(255,255,255,.03);
@@ -483,8 +455,7 @@ button, input, select, textarea { font: inherit; }
   font-size: 11px;
   line-height: 1.35;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -839,24 +810,6 @@ mark {
   #layout { grid-template-columns: 1fr; }
   #preview-card { min-height: 240px; }
 }
-.preview-video-container, .preview-audio-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-  background: rgba(0,0,0,0.2);
-  border-radius: 8px;
-  margin-top: 20px;
-}
-.preview-video {
-  max-width: 100%;
-  max-height: 480px;
-  border-radius: 4px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-}
-.preview-audio {
-  width: 100%;
-}
 </style>
 <script src="https://app.local/assets/js/BasePanel.js"></script>
 <script src="https://app.local/assets/vendor/prism/prism-core.min.js"></script>
@@ -894,7 +847,7 @@ mark {
       <select id="limit">
         <option value="10">10 条</option>
           <option value="20">20 条</option>
-          <option value="30" selected>30 条</option>
+          <option value="30">30 条</option>
           <option value="50">50 条</option>
         <option value="100">100 条</option>
         <option value="200">200 条</option>
@@ -937,6 +890,7 @@ mark {
           <div class="ql-row">
             <span class="ql-text">按 <kbd>Space</kbd> 预览 / 选项：</span>
             <div class="ql-btns">
+              <button type="button" id="preview-pdf-mode-btn" class="preview-ctrl-btn" title="PDF 预览策略">PDF:auto</button>
               <button type="button" id="preview-native-btn" class="preview-ctrl-btn" title="调用系统原生 IPreviewHandler">IPreview</button>
               <button type="button" id="preview-ql-btn" title="调用 QuickLook.exe (空格快捷键)">QuickLook</button>
             </div>
@@ -1008,17 +962,18 @@ const state = {
   previewSeq: 0,
   previewPath: "",
   iPreviewFailed: false,
-  iPreviewActive: false
+  iPreviewActive: false,
+  pdfMode: (localStorage.getItem("sc_pdf_preview_mode") || "auto"),
+  pdfPlan: null,
+  pdfWebBroken: false
 };
 
 const postToAhk = (obj) => BasePanel.postToAhk(obj);
 const PREVIEW_DEBOUNCE_MS = 150;
 const PREVIEW_TEXT_EXT = new Set(["txt", "ahk", "py", "js", "md", "json", "log"]);
 const PREVIEW_IMAGE_EXT = new Set(["png", "jpg", "jpeg", "gif", "svg"]);
-const PREVIEW_VIDEO_EXT = new Set(["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm"]);
-const PREVIEW_AUDIO_EXT = new Set(["mp3", "wav", "m4a", "flac", "ogg", "wma"]);
-const PREVIEW_WEB_VIDEO_EXT = new Set(["mp4", "webm"]);
-const PREVIEW_WEB_AUDIO_EXT = new Set(["mp3", "wav", "ogg"]);
+const PREVIEW_PDF_EXT = new Set(["pdf"]);
+const PDF_MODE_OPTIONS = ["auto", "web", "pdfium", "ipreview", "quicklook"];
 const ONE_MB = 1048576;
 const HOTKEY_HINT_MAP = Object.freeze({
   category: Object.freeze({
@@ -1220,27 +1175,15 @@ function renderResults() {
   state.results.forEach((item) => {
     const row = document.createElement("div");
     row.className = "result-item" + (item.row === state.selectedRow ? " active" : "");
-    const isHistory = (item.type === "history" || item.type === "History");
-    const isTutorial = (item.type === "tutorial");
     const pinMark = item.pinned ? "<span class=\"pin-ico\" title=\"置顶\">🔝</span>" : "";
-    
-    let icon = "";
-    if (isHistory) icon = "<span style='margin-right:6px; opacity:0.5; font-size:12px'>🕒</span>";
-    if (isTutorial) icon = "<span style='margin-right:6px; color:#ffb347; font-size:12px'>💡</span>";
-    
-    // 如果是历史记录，标题置灰，弱化表现；如果是教程，标题加亮
-    let titleStyle = "";
-    if (isHistory) titleStyle = " style='color:#bbb'";
-    if (isTutorial) titleStyle = " style='color:#ffb347; font-weight:500'";
-    
     row.innerHTML =
       "<div>" +
-        "<div class=\"result-title\"" + titleStyle + ">" + icon + pinMark + highlight(item.title, state.keyword) + "</div>" +
+        "<div class=\"result-title\">" + pinMark + highlight(item.title, state.keyword) + "</div>" +
         "<div class=\"result-sub\">" + escapeHtml(item.subtitle || "") + "</div>" +
         "<div class=\"result-preview\">" + highlight(item.preview || "", state.keyword) + "</div>" +
       "</div>" +
       "<div class=\"result-meta\">" +
-        (isHistory || isTutorial ? "" : "<span class=\"pill\">" + escapeHtml(item.type || "") + "</span>") +
+        "<span class=\"pill\">" + escapeHtml(item.type || "") + "</span>" +
         "<span class=\"time\">" + escapeHtml(item.time || "") + "</span>" +
       "</div>";
     row.onclick = () => {
@@ -1380,6 +1323,148 @@ function collectPreviewBounds() {
   };
 }
 
+function setPdfMode(mode) {
+  const m = PDF_MODE_OPTIONS.includes(mode) ? mode : "auto";
+  state.pdfMode = m;
+  try { localStorage.setItem("sc_pdf_preview_mode", m); } catch {}
+  updatePdfModeButton();
+}
+
+function updatePdfModeButton() {
+  const btn = document.getElementById("preview-pdf-mode-btn");
+  if (!btn) return;
+  btn.textContent = "PDF:" + state.pdfMode;
+}
+
+function cyclePdfMode() {
+  const idx = PDF_MODE_OPTIONS.indexOf(state.pdfMode);
+  const next = PDF_MODE_OPTIONS[(idx + 1) % PDF_MODE_OPTIONS.length];
+  setPdfMode(next);
+  if (pathExtensionLower(state.previewPath) === "pdf") scheduleRunPreview();
+}
+
+function startPdfPlan(path, seq) {
+  const mode = state.pdfMode || "auto";
+  let chain = [];
+  if (mode === "auto") chain = state.pdfWebBroken ? ["pdfium", "ipreview", "quicklook"] : ["web", "pdfium", "ipreview", "quicklook"];
+  else if (mode === "quicklook") chain = ["quicklook"];
+  else chain = [mode, "quicklook"];
+  state.pdfPlan = { path, seq, chain, idx: -1, done: false, timer: 0 };
+  advancePdfPlan("start");
+}
+
+function finishPdfPlan(ok) {
+  if (!state.pdfPlan) return;
+  if (state.pdfPlan.timer) {
+    clearTimeout(state.pdfPlan.timer);
+    state.pdfPlan.timer = 0;
+  }
+  state.pdfPlan.done = !!ok;
+}
+
+function advancePdfPlan(reason) {
+  if (!state.pdfPlan || state.pdfPlan.done) return;
+  if (state.pdfPlan.timer) {
+    clearTimeout(state.pdfPlan.timer);
+    state.pdfPlan.timer = 0;
+  }
+  state.pdfPlan.idx += 1;
+  if (state.pdfPlan.idx >= state.pdfPlan.chain.length) {
+    finishPdfPlan(false);
+    return;
+  }
+
+  const mode = state.pdfPlan.chain[state.pdfPlan.idx];
+  state.pdfPlan.current = mode;
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+
+  if (mode === "web") {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    pane.innerHTML = "<div class=\"preview-loading\">PDF WebView 方案加载中…</div>";
+    postToAhk({ type: "INVOKE_WEB_MEDIA", path: state.pdfPlan.path, seq: state.pdfPlan.seq });
+    return;
+  }
+  if (mode === "pdfium") {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    pane.innerHTML = "<div class=\"preview-loading\">PDFium 方案加载中…</div>";
+    postToAhk({ type: "INVOKE_PDFIUM", path: state.pdfPlan.path, seq: state.pdfPlan.seq });
+    return;
+  }
+  if (mode === "ipreview") {
+    setPreviewLayoutMode("native");
+    pane.innerHTML = "<div class=\"preview-loading\">IPreviewHandler 方案加载中…</div>";
+    invokeIPreviewHandler();
+    return;
+  }
+  if (mode === "quicklook") {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    pane.innerHTML = "<div class=\"preview-empty\">已切换到 QuickLook 兜底预览。</div>";
+    postToAhk({ type: "QUICKLOOK", path: state.pdfPlan.path });
+    finishPdfPlan(true);
+  }
+}
+
+function onPdfWebMediaResult(payload) {
+  if (!state.pdfPlan || state.pdfPlan.done) return;
+  if (state.pdfPlan.current !== "web") return;
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+  const url = payload.url ? String(payload.url) : "";
+  if (!url) {
+    state.pdfWebBroken = true;
+    advancePdfPlan("web_empty");
+    return;
+  }
+  pane.innerHTML = "<iframe id=\"pdf-webview-frame\" src=\"" + url + "\" style=\"width:100%;height:100%;min-height:360px;border:none;background:#111;\"></iframe>";
+  const frame = document.getElementById("pdf-webview-frame");
+  if (!frame) {
+    advancePdfPlan("web_iframe_missing");
+    return;
+  }
+  let settled = false;
+  const ok = () => {
+    if (settled) return;
+    settled = true;
+    state.pdfWebBroken = false;
+    finishPdfPlan(true);
+  };
+  const fail = () => {
+    if (settled) return;
+    settled = true;
+    state.pdfWebBroken = true;
+    advancePdfPlan("web_iframe_error");
+  };
+  frame.addEventListener("load", ok, { once: true });
+  frame.addEventListener("error", fail, { once: true });
+  state.pdfPlan.timer = setTimeout(() => {
+    if (!settled) fail();
+  }, 900);
+}
+
+function onWebPreviewPdfiumResult(payload) {
+  if (!state.pdfPlan || state.pdfPlan.done) return;
+  if (state.pdfPlan.current !== "pdfium") return;
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+  const dataUrl = payload.dataUrl ? String(payload.dataUrl) : "";
+  if (!dataUrl) {
+    advancePdfPlan("pdfium_fail");
+    return;
+  }
+  pane.innerHTML = "";
+  const img = new Image();
+  img.className = "preview-img";
+  img.src = dataUrl;
+  pane.appendChild(img);
+  finishPdfPlan(true);
+}
+
 function runPreviewForSelection() {
   state.previewSeq += 1;
   const seq = state.previewSeq;
@@ -1419,6 +1504,12 @@ function runPreviewForSelection() {
   }
 
   const ext = pathExtensionLower(path);
+  updatePdfModeButton();
+
+  if (PREVIEW_PDF_EXT.has(ext)) {
+    startPdfPlan(path, seq);
+    return;
+  }
 
   if (PREVIEW_TEXT_EXT.has(ext)) {
     setPreviewLayoutMode("web");
@@ -1433,24 +1524,6 @@ function runPreviewForSelection() {
     stopNativePreview();
     pane.innerHTML = "<div class=\"preview-loading\">加载图片…</div>";
     postToAhk({ type: "WEB_PREVIEW_IMAGE", path, seq });
-    return;
-  }
-
-  const isWebMedia = PREVIEW_WEB_VIDEO_EXT.has(ext) || PREVIEW_WEB_AUDIO_EXT.has(ext);
-  const isNativeMedia = (PREVIEW_VIDEO_EXT.has(ext) || PREVIEW_AUDIO_EXT.has(ext)) && !isWebMedia;
-  
-  if (isWebMedia) {
-    setPreviewLayoutMode("web");
-    stopNativePreview();
-    pane.innerHTML = "<div class=\"preview-loading\">正在初始化播放器…</div>";
-    postToAhk({ type: "INVOKE_WEB_MEDIA", path, seq });
-    return;
-  }
-
-  if (isNativeMedia) {
-    setPreviewLayoutMode("native");
-    pane.innerHTML = "<div class=\"preview-loading\">正在加载多媒体预览组件…</div>";
-    invokeIPreviewHandler();
     return;
   }
 
@@ -1532,42 +1605,6 @@ function onWebPreviewImageResult(payload) {
   pane.appendChild(img);
 }
 
-function onWebPreviewMediaResult(payload) {
-  if (Number(payload.seq) !== state.previewSeq) return;
-  console.log("Media Preview Debug:", payload);
-  const pane = document.getElementById("preview-web-scroll");
-  if (!pane) return;
-  const url = payload.url || "";
-  const ext = pathExtensionLower(state.previewPath);
-  
-  if (!url) {
-    pane.innerHTML = "<div class=\"preview-empty\">无法加载媒体文件。</div>";
-    return;
-  }
-
-  const errorHint = `<p style="margin-top:10px; color:#ff4d4d; font-size:12px;">如果无法播放，请检查文件编码或使用 QuickLook (空格键)。</p>`;
-
-  if (PREVIEW_WEB_VIDEO_EXT.has(ext)) {
-    pane.innerHTML = `
-      <div class="preview-video-container">
-        <video controls autoplay class="preview-video" style="max-height: 480px; width: 100%;" onerror="this.parentElement.innerHTML += '${errorHint}'">
-          <source src="${url}">
-          您的浏览器不支持播放此视频。
-        </video>
-      </div>
-    `;
-  } else if (PREVIEW_WEB_AUDIO_EXT.has(ext)) {
-    pane.innerHTML = `
-      <div class="preview-audio-container">
-        <audio controls autoplay class="preview-audio" style="margin-bottom:10px; width: 100%;" onerror="this.parentElement.innerHTML += '${errorHint}'">
-          <source src="${url}">
-          您的浏览器不支持播放此音频。
-        </audio>
-      </div>
-    `;
-  }
-}
-
 function renderRichMeta(data, append = false) {
   const wrap = document.getElementById("preview-meta");
   if (!wrap) return;
@@ -1601,6 +1638,10 @@ function onPreviewMetaUpdate(payload) {
 function onNativePreviewFailed(payload) {
   state.iPreviewFailed = true;
   state.iPreviewActive = false;
+  if (state.pdfPlan && !state.pdfPlan.done && state.pdfPlan.current === "ipreview") {
+    advancePdfPlan("ipreview_fail");
+    return;
+  }
   const pane = document.getElementById("preview-web-scroll");
   if (!pane) return;
   const msg = payload.message ? String(payload.message) : "系统原生预览不可用。";
@@ -1833,6 +1874,11 @@ if (recycleOverlay) {
     if (e.target === recycleOverlay) closeRecycleModal();
   });
 }
+const previewPdfModeBtn = document.getElementById("preview-pdf-mode-btn");
+if (previewPdfModeBtn) {
+  previewPdfModeBtn.addEventListener("click", () => cyclePdfMode());
+}
+setPdfMode(state.pdfMode || "auto");
 const previewQlBtn = document.getElementById("preview-ql-btn");
 if (previewQlBtn) {
   previewQlBtn.addEventListener("click", () => {
@@ -2021,11 +2067,19 @@ if (window.chrome && window.chrome.webview) {
     }
     if (payload.type === "WEB_PREVIEW_IMAGE_RESULT") {
       onWebPreviewImageResult(payload);
+      return;
     }
     if (payload.type === "WEB_PREVIEW_MEDIA_RESULT") {
-      onWebPreviewMediaResult(payload);
+      if (pathExtensionLower(state.previewPath) === "pdf") {
+        onPdfWebMediaResult(payload);
+      }
+      return;
     }
-    if (payload.type === "INVOKE_IPREVIEW_HANDLER") {
+    if (payload.type === "WEB_PREVIEW_PDFIUM_RESULT") {
+      onWebPreviewPdfiumResult(payload);
+      return;
+    }
+    if (payload.type === "NATIVE_PREVIEW_FAILED") {
       onNativePreviewFailed(payload);
       return;
     }

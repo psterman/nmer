@@ -29,6 +29,7 @@ global g_SCWV_DarkCtxItemCount := 0  ; 涓诲彸閿彍鍗曡鏁帮紙閬�
 global g_SCWV_DarkSubItemCount := 0
 global g_SCWV_PinnedKeys := Map()  ; 缃《閿?id:xxx 鎴?c:鍐呭鍝堝笇
 global g_SCWV_RecycleBin := []  ; 鍒犻櫎椤瑰揩鐓?{title,content,id}
+global g_SCWV_PreviewCapabilityCache := Map() ; extDot -> {state, ts, ...}
 
 SCWV_HostAlive() {
     global g_SCWV_Gui
@@ -615,6 +616,10 @@ SCWV_OnWebMessage(sender, args) {
             u := _SCWV_PathToWebAssetUrl(p)
             try SCWV_Preview_Get()._PostDetailMeta(p, sq)
             SCWV_PostJson(Map("type", "WEB_PREVIEW_MEDIA_RESULT", "url", u, "seq", sq))
+        case "INVOKE_PDFIUM":
+            p := msg.Has("path") ? String(msg["path"]) : ""
+            sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
+            SCWV_Preview_OnPdfium(p, sq)
     }
 }
 
@@ -1058,11 +1063,26 @@ _SCWV_PathToWebAssetUrl(path) {
     if (resUrl = "" && RegExMatch(p, "^([a-zA-Z]):\\", &m)) {
         drive := StrLower(m[1])
         relativePath := SubStr(p, 4)
-        ; 鐩存帴鍘熸牱杩斿洖锛岀敱娴忚鍣ㄥ師鐢熷鐞嗙紪鐮?
-        resUrl := "https://" . drive . ".local/" . StrReplace(relativePath, "\", "/")
+        encodedSegs := []
+        for _, seg in StrSplit(relativePath, "\") {
+            if (seg = "")
+                continue
+            encodedSegs.Push(_SCWV_UrlEncode(seg))
+        }
+        resUrl := "https://" . drive . ".local/" . _SCWV_JoinArray(encodedSegs, "/")
     }
 
     return resUrl
+}
+
+_SCWV_JoinArray(arr, sep := ",") {
+    out := ""
+    for i, v in arr {
+        if (i > 1)
+            out .= sep
+        out .= String(v)
+    }
+    return out
 }
 
 _SCWV_UrlEncode(str) {
@@ -2306,6 +2326,13 @@ SCWV_Preview_OnWebImage(path, seq) {
     }
 }
 
+SCWV_Preview_OnPdfium(path, seq) {
+    try SCWV_Preview_Get().OnPdfium(path, seq)
+    catch as err {
+        SCWV_PostJson(Map("type", "WEB_PREVIEW_PDFIUM_RESULT", "seq", seq, "dataUrl", "", "error", err.Message))
+    }
+}
+
 SCWV_Preview_OnNative(path, seq, boundsMap) {
     try SCWV_Preview_Get().ScheduleNative(path, seq, boundsMap)
     catch as err {
@@ -2370,21 +2397,146 @@ _SCWV_B64EncodeBuf(buf) {
     return StrGet(out.Ptr, encSz - 1, "UTF-16")
 }
 
-_SCWV_RegPreviewClsidForExt(extDot) {
-    shellex := "\shellex\{8895b1c6-b41f-4c1c-a562-0d564d35d9c5}"
-    paths := [
-        extDot . shellex,
-        "SystemFileAssociations\" . extDot . shellex
+_SCWV_CountReplacementChar(s) {
+    c := 0
+    try StrReplace(String(s), "�", "", &c)
+    catch {
+        c := 0
+    }
+    return c
+}
+
+_SCWV_DecodeTextBuffer(buf, sizeBytes) {
+    if !(buf is Buffer) || sizeBytes <= 0
+        return ""
+    if (sizeBytes >= 3) {
+        b0 := NumGet(buf, 0, "UChar"), b1 := NumGet(buf, 1, "UChar"), b2 := NumGet(buf, 2, "UChar")
+        if (b0 = 0xEF && b1 = 0xBB && b2 = 0xBF)
+            return StrGet(buf.Ptr + 3, sizeBytes - 3, "UTF-8")
+    }
+    if (sizeBytes >= 2) {
+        b0 := NumGet(buf, 0, "UChar"), b1 := NumGet(buf, 1, "UChar")
+        if (b0 = 0xFF && b1 = 0xFE)
+            return StrGet(buf.Ptr + 2, Floor((sizeBytes - 2) / 2), "UTF-16")
+        if (b0 = 0xFE && b1 = 0xFF)
+            return StrGet(buf.Ptr + 2, Floor((sizeBytes - 2) / 2), "UTF-16")
+    }
+    txtUtf8 := StrGet(buf, sizeBytes, "UTF-8")
+    badUtf8 := _SCWV_CountReplacementChar(txtUtf8)
+    if (badUtf8 = 0)
+        return txtUtf8
+    txt936 := StrGet(buf, sizeBytes, "CP936")
+    bad936 := _SCWV_CountReplacementChar(txt936)
+    return (bad936 < badUtf8) ? txt936 : txtUtf8
+}
+
+_SCWV_RegReadDefault(path) {
+    try {
+        v := RegRead(path, "")
+        v := Trim(String(v))
+        if (v != "")
+            return v
+    } catch {
+    }
+    return ""
+}
+
+_SCWV_ErrToText(err) {
+    txt := ""
+    try txt := String(err.Message)
+    catch {
+        txt := "unknown error"
+    }
+    try {
+        if (err.What != "")
+            txt .= " | what=" . String(err.What)
+    } catch {
+    }
+    try {
+        if (err.Extra != "")
+            txt .= " | extra=" . String(err.Extra)
+    } catch {
+    }
+    try txt .= " | line=" . String(err.Line)
+    catch {
+    }
+    return txt
+}
+
+_SCWV_ReadProgIdForExt(extDot, &fromKey := "") {
+    fromKey := ""
+    roots := [
+        "HKCU\Software\Classes\",
+        "HKCR\"
     ]
-    for p in paths {
-        try {
-            v := RegRead("HKCR\" . p, "")
-            v := Trim(String(v))
-            if (v != "")
-                return v
-        } catch {
+    for _, r in roots {
+        k := r . extDot
+        v := _SCWV_RegReadDefault(k)
+        if (v != "") {
+            fromKey := k
+            return v
         }
     }
+    return ""
+}
+
+_SCWV_RegPreviewClsidForExt(extDot, &hitPath := "", &hitSource := "", &trace := 0) {
+    guid := "{8895b1c6-b41f-4c1c-a562-0d564d35d9c5}"
+    extDot := "." . LTrim(StrLower(String(extDot)), ".")
+    shellex := "\shellex\" . guid
+    hitPath := ""
+    hitSource := ""
+    progid := _SCWV_ReadProgIdForExt(extDot, &progidFrom)
+    attempts := []
+
+    directPaths := [
+        "HKCU\Software\Classes\" . extDot . shellex,
+        "HKCR\" . extDot . shellex
+    ]
+    for _, p in directPaths {
+        attempts.Push(p)
+        v := _SCWV_RegReadDefault(p)
+        if (v != "") {
+            hitPath := p
+            hitSource := "ext_direct"
+            trace := Map("attempts", attempts, "progid", progid, "progidFrom", progidFrom)
+            return v
+        }
+    }
+
+    if (progid != "") {
+        progidPaths := [
+            "HKCU\Software\Classes\" . progid . shellex,
+            "HKCR\" . progid . shellex
+        ]
+        for _, p in progidPaths {
+            attempts.Push(p)
+            v := _SCWV_RegReadDefault(p)
+            if (v != "") {
+                hitPath := p
+                hitSource := "progid"
+                trace := Map("attempts", attempts, "progid", progid, "progidFrom", progidFrom)
+                return v
+            }
+        }
+    }
+
+    sfaPaths := [
+        "HKCU\Software\Classes\SystemFileAssociations\" . extDot . shellex,
+        "HKCR\SystemFileAssociations\" . extDot . shellex
+    ]
+    for _, p in sfaPaths {
+        attempts.Push(p)
+        v := _SCWV_RegReadDefault(p)
+        if (v != "") {
+            hitPath := p
+            hitSource := "system_file_assoc"
+            trace := Map("attempts", attempts, "progid", progid, "progidFrom", progidFrom)
+            return v
+        }
+    }
+
+    trace := Map("attempts", attempts, "progid", progid, "progidFrom", progidFrom)
     return ""
 }
 
@@ -2477,6 +2629,7 @@ class PreviewManager {
     PendingPath := ""
     PendingSeq := 0
     PendingBounds := 0
+    NativeLastDiag := 0
 
     Unload() {
         if this.PreviewHandler {
@@ -2501,6 +2654,22 @@ class PreviewManager {
         this.PendingPath := ""
         this.PendingSeq := 0
         this.PendingBounds := 0
+    }
+
+    _PostNativeFail(path, userMsg, reason := "", detail := "") {
+        SplitPath path, , , &ext
+        payload := Map(
+            "type", "NATIVE_PREVIEW_FAILED",
+            "message", userMsg,
+            "path", path,
+            "ext", StrLower(ext),
+            "reason", reason,
+            "detail", detail,
+            "processArch", (A_PtrSize = 8 ? "x64" : "x86")
+        )
+        if (this.NativeLastDiag is Map)
+            payload["diag"] := this.NativeLastDiag
+        SCWV_PostJson(payload)
     }
 
     TryQuickLook(path) {
@@ -2546,7 +2715,7 @@ class PreviewManager {
         buf := Buffer(n, 0)
         f.RawRead(buf, n)
         f.Close()
-        text := StrGet(buf, buf.Size, "utf-8")
+        text := _SCWV_DecodeTextBuffer(buf, n)
         lineTrunc := false
         if truncated {
             cnt := 0
@@ -2602,11 +2771,50 @@ class PreviewManager {
         SCWV_PostJson(Map("type", "WEB_PREVIEW_IMAGE_RESULT", "seq", seq, "dataUrl", dataUrl))
     }
 
+    OnPdfium(path, seq) {
+        path := Trim(String(path))
+        this._PostDetailMeta(path, seq)
+        if (path = "" || !FileExist(path)) {
+            SCWV_PostJson(Map("type", "WEB_PREVIEW_PDFIUM_RESULT", "seq", seq, "dataUrl", "", "error", "invalid_path"))
+            return
+        }
+
+        pdfiumDll := A_ScriptDir "\lib\pdfium.dll"
+        icuDat := A_ScriptDir "\lib\icudtl.dat"
+        diag := Map(
+            "engine", "imageput_pdf_channel",
+            "pdfiumDllPresent", !!FileExist(pdfiumDll),
+            "icuDatPresent", !!FileExist(icuDat)
+        )
+        try {
+            ; ImagePut 对 pdf 输入会走其 PDF 渲染通道，输出首图 Base64
+            b64 := ImagePut("Base64", path, "jpg", 70)
+            if (b64 = "")
+                throw Error("empty_base64")
+            SCWV_PostJson(Map(
+                "type", "WEB_PREVIEW_PDFIUM_RESULT",
+                "seq", seq,
+                "dataUrl", "data:image/jpeg;base64," . b64,
+                "diag", diag
+            ))
+        } catch as err {
+            diag["error"] := _SCWV_ErrToText(err)
+            SCWV_PostJson(Map(
+                "type", "WEB_PREVIEW_PDFIUM_RESULT",
+                "seq", seq,
+                "dataUrl", "",
+                "error", err.Message,
+                "diag", diag
+            ))
+        }
+    }
+
     ScheduleNative(path, seq, boundsMap) {
         path := Trim(String(path))
         this._PostDetailMeta(path, seq)
         if (path = "" || !FileExist(path)) {
-            SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", "鏃犳晥璺緞"))
+            this.NativeLastDiag := Map("step", "precheck", "error", "invalid_path")
+            this._PostNativeFail(path, "无效路径", "invalid_path")
             return
         }
 
@@ -2649,12 +2857,14 @@ class PreviewManager {
         
         global g_SCWV_Gui
         if !g_SCWV_Gui {
-            SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", "窗口未就绪"))
+            this.NativeLastDiag := Map("step", "precheck", "error", "host_not_ready")
+            this._PostNativeFail(p, "窗口未就绪", "host_not_ready")
             return
         }
         
         if !_SCWV_BoundsMapToScreen(bm, &rx, &ry, &rw, &rh) {
-            SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", "鏃犳硶璁＄畻棰勮鍖哄煙"))
+            this.NativeLastDiag := Map("step", "precheck", "error", "bounds_invalid")
+            this._PostNativeFail(p, "无法计算预览区域", "bounds_invalid")
             return
         }
 
@@ -2671,7 +2881,8 @@ class PreviewManager {
         
         hostHwnd := this.NativeGui.Hwnd
         if !this._AttachPreviewHandler(p, hostHwnd, rw, rh) {
-            this.Unload(), SCWV_PostJson(Map("type", "NATIVE_PREVIEW_FAILED", "message", "系统预览组件不可用（可尝试 QuickLook）", "path", p))
+            this.Unload()
+            this._PostNativeFail(p, "系统预览组件不可用（可尝试 QuickLook）", "attach_failed")
         }
     }
 
@@ -2694,26 +2905,110 @@ class PreviewManager {
     }
 
     _AttachPreviewHandler(path, hostHwnd, w, h) {
+        global g_SCWV_PreviewCapabilityCache
         SplitPath path, , , &ext
         extDot := "." StrLower(ext)
-        clsid := _SCWV_RegPreviewClsidForExt(extDot)
-        if (clsid = "")
+        nowTick := A_TickCount
+
+        if g_SCWV_PreviewCapabilityCache.Has(extDot) {
+            cacheEntry := g_SCWV_PreviewCapabilityCache[extDot]
+            if (cacheEntry is Map) {
+                st := cacheEntry.Has("state") ? String(cacheEntry["state"]) : ""
+                ts := cacheEntry.Has("ts") ? Integer(cacheEntry["ts"]) : 0
+                if (st = "no_handler" && (nowTick - ts) < 300000) {
+                    this.NativeLastDiag := Map(
+                        "step", "resolve_clsid",
+                        "ext", extDot,
+                        "state", st,
+                        "cacheHit", true,
+                        "cacheAgeMs", nowTick - ts,
+                        "error", "cached_no_handler"
+                    )
+                    return false
+                }
+            }
+        }
+
+        clsid := _SCWV_RegPreviewClsidForExt(extDot, &regPath, &regSource, &regTrace)
+        if (clsid = "") {
+            g_SCWV_PreviewCapabilityCache[extDot] := Map(
+                "state", "no_handler",
+                "ts", nowTick,
+                "ext", extDot
+            )
+            this.NativeLastDiag := Map(
+                "step", "resolve_clsid",
+                "ext", extDot,
+                "state", "no_handler",
+                "cacheHit", false,
+                "regSource", "",
+                "regPath", "",
+                "trace", regTrace
+            )
             return false
+        }
+
+        g_SCWV_PreviewCapabilityCache[extDot] := Map(
+            "state", "has_handler",
+            "ts", nowTick,
+            "ext", extDot,
+            "clsid", clsid,
+            "regPath", regPath,
+            "regSource", regSource
+        )
+
         try this.RootObj := Func("ComObjCreate").Call(clsid)
-        catch {
+        catch as err {
+            this.NativeLastDiag := Map(
+                "step", "ComObjCreate",
+                "ext", extDot,
+                "clsid", clsid,
+                "regPath", regPath,
+                "regSource", regSource,
+                "trace", regTrace,
+                "error", _SCWV_ErrToText(err)
+            )
             return false
         }
         try this.InitObj := Func("ComObjQuery").Call(this.RootObj, "{219a5d78-a9ef-443a-9271-1e392d5d1b1e}")
-        catch {
+        catch as err {
             this.InitObj := 0
+            this.NativeLastDiag := Map(
+                "step", "ComObjQuery_IInitializeWithFile",
+                "ext", extDot,
+                "clsid", clsid,
+                "regPath", regPath,
+                "regSource", regSource,
+                "trace", regTrace,
+                "error", _SCWV_ErrToText(err)
+            )
             return false
         }
         try ComCall(3, this.InitObj, "wstr", path, "uint", 0, "hresult")
-        catch {
+        catch as err {
+            this.NativeLastDiag := Map(
+                "step", "IInitializeWithFile::Initialize",
+                "ext", extDot,
+                "clsid", clsid,
+                "path", path,
+                "regPath", regPath,
+                "regSource", regSource,
+                "trace", regTrace,
+                "error", _SCWV_ErrToText(err)
+            )
             return false
         }
         try this.PreviewHandler := Func("ComObjQuery").Call(this.RootObj, "{8895b1c6-b41f-4c1c-a562-0d564d35d9c5}")
-        catch {
+        catch as err {
+            this.NativeLastDiag := Map(
+                "step", "ComObjQuery_IPreviewHandler",
+                "ext", extDot,
+                "clsid", clsid,
+                "regPath", regPath,
+                "regSource", regSource,
+                "trace", regTrace,
+                "error", _SCWV_ErrToText(err)
+            )
             return false
         }
         rect := Buffer(16, 0)
@@ -2722,16 +3017,42 @@ class PreviewManager {
         NumPut("int", w, rect, 8)
         NumPut("int", h, rect, 12)
         try ComCall(3, this.PreviewHandler, "ptr", hostHwnd, "ptr", rect.Ptr, "hresult")
-        catch {
+        catch as err {
+            this.NativeLastDiag := Map(
+                "step", "IPreviewHandler::SetWindow",
+                "ext", extDot,
+                "clsid", clsid,
+                "regPath", regPath,
+                "regSource", regSource,
+                "trace", regTrace,
+                "error", _SCWV_ErrToText(err)
+            )
             return false
         }
         try ComCall(7, this.PreviewHandler, "ptr", rect.Ptr, "hresult")
         catch {
         }
         try ComCall(8, this.PreviewHandler, "hresult")
-        catch {
+        catch as err {
+            this.NativeLastDiag := Map(
+                "step", "IPreviewHandler::DoPreview",
+                "ext", extDot,
+                "clsid", clsid,
+                "regPath", regPath,
+                "regSource", regSource,
+                "trace", regTrace,
+                "error", _SCWV_ErrToText(err)
+            )
             return false
         }
+        this.NativeLastDiag := Map(
+            "step", "success",
+            "ext", extDot,
+            "clsid", clsid,
+            "regPath", regPath,
+            "regSource", regSource,
+            "trace", regTrace
+        )
         return true
     }
 
@@ -2763,11 +3084,11 @@ class PreviewManager {
                 "seq", seq,
                 "path", path,
                 "meta", Map(
-                    "澶у皬", szStr,
-                    "淇敼鏃ユ湡", fmtMod,
-                    "鍒涘缓鏃ユ湡", fmtCre,
-                    "后缀名", StrUpper(ext),
-                    "瀹屾暣璺緞", path
+                    "Size", szStr,
+                    "Modified", fmtMod,
+                    "Created", fmtCre,
+                    "Ext", StrUpper(ext),
+                    "Path", path
                 )
             ))
         } catch {
