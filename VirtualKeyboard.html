@@ -2278,7 +2278,7 @@ const SCENARIO_TO_SCENE_MENU_TAB = {
 };
 
 function isDynamicSceneMenuKey(key) {
-  return key === 'clipboard' || key === 'scratchpad' || key === 'prompts';
+  return key === 'clipboard' || key === 'scratchpad' || key === 'prompts' || key === 'floating_bar';
 }
 const SCENARIO_META = {
   ai:         { name: '🤖 牛马 AI',   icon: 'fa-robot',             color: '#00d4ff' },
@@ -3784,6 +3784,7 @@ function scheduleSaveSceneMenu(sceneKey) {
   if (!sceneKey || !SCENE_MENU_KEYS.includes(sceneKey)) return;
   if (sceneKey === 'search') return;
   if (saveSceneMenuTimer) clearTimeout(saveSceneMenuTimer);
+  const delay = sceneKey === 'floating_bar' ? 10 : 120;
   saveSceneMenuTimer = setTimeout(() => {
     saveSceneMenuTimer = null;
     const cmds = Array.isArray(state.sceneMenus[sceneKey]) ? state.sceneMenus[sceneKey].slice() : [];
@@ -3792,7 +3793,7 @@ function scheduleSaveSceneMenu(sceneKey) {
       payload.visible = { ...(state.sceneMenuVisibility[sceneKey] || {}) };
     }
     postToAhk(payload);
-  }, 120);
+  }, delay);
 }
 
 function isSceneMenuSystemCmd(cmdId) {
@@ -4341,6 +4342,7 @@ function makeCmdToolbarToggles(cmdId) {
   wrap.className = 'cmd-toolbar-toggles';
   const row = state.toolbarLayout.find((x) => x.cmdId === cmdId);
   const barOn = !!(row && row.visible_in_bar);
+  const menuOn = !!(row && row.visible_in_menu);
 
   const barEl = document.createElement('div');
   barEl.className = 'vk-mini-toggle' + (barOn ? ' on' : '');
@@ -4351,14 +4353,16 @@ function makeCmdToolbarToggles(cmdId) {
     setCmdToolbarBarFlag(cmdId, !barOn);
   });
 
-  const menuHint = document.createElement('div');
-  menuHint.className = 'vk-mini-toggle';
-  menuHint.style.cursor = 'default';
-  menuHint.style.opacity = '0.85';
-  menuHint.title = '悬浮条右键菜单已迁至 Dashboard →「悬浮条」标签编辑';
-  menuHint.innerHTML = '<span class="lbl">Menu</span><span style="font-size:8px;color:#6a7a6a;margin-left:2px">Dashboard</span>';
+  const menuEl = document.createElement('div');
+  menuEl.className = 'vk-mini-toggle' + (menuOn ? ' on' : '');
+  menuEl.title = '快捷菜单宫格：开启后可出现在悬浮条标签的快捷菜单编辑区；关闭则隐藏';
+  menuEl.innerHTML = '<span class="lbl">菜单</span><div class="track"><div class="knob"></div></div>';
+  menuEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setCmdToolbarMenuFlag(cmdId, !menuOn);
+  });
 
-  wrap.append(barEl, menuHint);
+  wrap.append(barEl, menuEl);
   return wrap;
 }
 

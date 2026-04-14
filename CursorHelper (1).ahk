@@ -4432,6 +4432,7 @@ ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
     MenuItemHeight := 35
     Padding := 10
     MenuItems := []
+    useFloatingSceneMenu := false
 
     try {
         if (IsSet(g_Commands) && g_Commands is Map && g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map) {
@@ -4439,9 +4440,19 @@ ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
             if (g_Commands.Has("SceneMenus") && g_Commands["SceneMenus"] is Map) {
                 sm := g_Commands["SceneMenus"]
                 if (sm.Has("floating_bar") && sm["floating_bar"] is Array) {
+                    useFloatingSceneMenu := true
+                    vm := Map()
+                    if g_Commands.Has("SceneMenuVisibility") && g_Commands["SceneMenuVisibility"] is Map {
+                        visAll := g_Commands["SceneMenuVisibility"]
+                        if visAll.Has("floating_bar") && visAll["floating_bar"] is Map
+                            vm := visAll["floating_bar"]
+                    }
                     for cid in sm["floating_bar"] {
                         c := Trim(String(cid))
                         if (c = "" || !cmdList.Has(c))
+                            continue
+                        visOn := vm.Has(c) ? !!vm[c] : true
+                        if !visOn
                             continue
                         nm := cmdList[c]["name"]
                         if (nm = "")
@@ -4450,7 +4461,7 @@ ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
                     }
                 }
             }
-            if (MenuItems.Length = 0 && g_Commands.Has("ToolbarLayout") && g_Commands["ToolbarLayout"] is Array) {
+            if (!useFloatingSceneMenu && MenuItems.Length = 0 && g_Commands.Has("ToolbarLayout") && g_Commands["ToolbarLayout"] is Array) {
                 sorted := g_Commands["ToolbarLayout"]
                 if sorted.Length > 1
                     sorted := _VK_SortRowsByNumericKey(sorted, "order_menu")

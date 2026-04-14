@@ -1589,6 +1589,7 @@ _VK_SyncContextMenuLayoutFromFloatingSceneMenu() {
     global g_Commands
     if !(g_Commands is Map) || !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
         return
+    _VK_EnsureSceneMenuVisibility()
     cmdList := g_Commands["CommandList"]
     out := []
     if !g_Commands.Has("SceneMenus") || !(g_Commands["SceneMenus"] is Map)
@@ -1596,9 +1597,18 @@ _VK_SyncContextMenuLayoutFromFloatingSceneMenu() {
     sm := g_Commands["SceneMenus"]
     if !sm.Has("floating_bar") || !(sm["floating_bar"] is Array)
         return
+    vm := Map()
+    if g_Commands.Has("SceneMenuVisibility") && g_Commands["SceneMenuVisibility"] is Map {
+        visAll := g_Commands["SceneMenuVisibility"]
+        if visAll.Has("floating_bar") && visAll["floating_bar"] is Map
+            vm := visAll["floating_bar"]
+    }
     for cid in sm["floating_bar"] {
         c := Trim(String(cid))
         if (c = "" || !cmdList.Has(c))
+            continue
+        visOn := vm.Has(c) ? !!vm[c] : true
+        if !visOn
             continue
         ent := cmdList[c]
         if !(ent is Map) || !ent.Has("fn") || ent["fn"] != "CH_RUN"
@@ -3018,8 +3028,6 @@ _OnWebMessage(sender, args) {
                 try FloatingToolbarReloadFromToolbarLayout()
                 catch as e
                     OutputDebug("[VK] FloatingToolbarReloadFromToolbarLayout: " . e.Message)
-                if g_VK_Ready
-                    _PushInit()
             }
         case "saveSceneToolbarLayout":
             if _VK_ApplySceneToolbarLayoutFromWeb(msg) {
@@ -3027,8 +3035,6 @@ _OnWebMessage(sender, args) {
                 try FloatingToolbarReloadFromToolbarLayout()
                 catch as e
                     OutputDebug("[VK] FloatingToolbarReloadFromToolbarLayout(scene): " . e.Message)
-                if g_VK_Ready
-                    _PushInit()
             }
 
         case "saveSceneMenu":
@@ -3040,8 +3046,6 @@ _OnWebMessage(sender, args) {
                     catch as e
                         OutputDebug("[VK] FloatingToolbarReloadFromToolbarLayout(sceneMenu): " . e.Message)
                 }
-                if g_VK_Ready
-                    _PushInit()
             }
 
         default:
@@ -4439,11 +4443,8 @@ VK_HandleBindingsReloaded(*) {
         _EnsureSequenceHook(true)
     }
 
-    try FloatingToolbarReloadFromToolbarLayout()
-    catch as e
-        OutputDebug("[VK] FloatingToolbarReloadFromToolbarLayout: " . e.Message)
-
-    _PushInit()
+    ; 绑定重载场景不再强制重建悬浮条/整页 init，避免 VK 编辑过程焦点跳转与宫格刷新抖动
+    ; 悬浮条布局变更在 saveToolbarLayout/saveSceneToolbarLayout/saveSceneMenu(floating_bar) 内单独刷新
 }
 
 VK_MakeToolbarContextMenuAction(cid) {
@@ -4458,6 +4459,25 @@ VK_ToolbarLayoutHasContextMenuItems() {
     if !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
         return false
     cmdList := g_Commands["CommandList"]
+    if g_Commands.Has("SceneMenus") && g_Commands["SceneMenus"] is Map {
+        sm := g_Commands["SceneMenus"]
+        if sm.Has("floating_bar") && sm["floating_bar"] is Array {
+            _VK_EnsureSceneMenuVisibility()
+            vm := Map()
+            if g_Commands.Has("SceneMenuVisibility") && g_Commands["SceneMenuVisibility"] is Map
+                vm := (g_Commands["SceneMenuVisibility"].Has("floating_bar") && g_Commands["SceneMenuVisibility"]["floating_bar"] is Map)
+                    ? g_Commands["SceneMenuVisibility"]["floating_bar"] : Map()
+            for itemCid in sm["floating_bar"] {
+                cid2 := Trim(String(itemCid))
+                if (cid2 = "" || !cmdList.Has(cid2))
+                    continue
+                visOn := vm.Has(cid2) ? !!vm[cid2] : true
+                if visOn
+                    return true
+            }
+            return false
+        }
+    }
     for item in g_Commands["ToolbarLayout"] {
         if !(item is Map) || !item.Has("cmdId")
             continue
@@ -4479,9 +4499,17 @@ VK_ShowToolbarLayoutContextMenu() {
     if g_Commands.Has("SceneMenus") && g_Commands["SceneMenus"] is Map {
         sm := g_Commands["SceneMenus"]
         if sm.Has("floating_bar") && sm["floating_bar"] is Array {
+            _VK_EnsureSceneMenuVisibility()
+            vm := Map()
+            if g_Commands.Has("SceneMenuVisibility") && g_Commands["SceneMenuVisibility"] is Map
+                vm := (g_Commands["SceneMenuVisibility"].Has("floating_bar") && g_Commands["SceneMenuVisibility"]["floating_bar"] is Map)
+                    ? g_Commands["SceneMenuVisibility"]["floating_bar"] : Map()
             for cid in sm["floating_bar"] {
                 c := Trim(String(cid))
                 if (c = "" || !cmdList.Has(c))
+                    continue
+                visOn := vm.Has(c) ? !!vm[c] : true
+                if !visOn
                     continue
                 nm := cmdList[c]["name"]
                 if (nm = "")
