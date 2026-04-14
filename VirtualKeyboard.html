@@ -1455,6 +1455,24 @@ body::after {
   pointer-events: none !important;
   box-sizing: border-box;
 }
+.dashboard-sortable-fallback {
+  z-index: 99910 !important;
+  pointer-events: none !important;
+  box-sizing: border-box !important;
+  width: var(--dashboard-drag-w, 92px) !important;
+  height: var(--dashboard-drag-h, 92px) !important;
+  min-width: var(--dashboard-drag-w, 92px) !important;
+  min-height: var(--dashboard-drag-h, 92px) !important;
+  max-width: var(--dashboard-drag-w, 92px) !important;
+  max-height: var(--dashboard-drag-h, 92px) !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+}
+.dashboard-item.dashboard-sortable-fallback {
+  width: var(--dashboard-drag-w, 92px) !important;
+  height: var(--dashboard-drag-h, 92px) !important;
+  min-height: 0 !important;
+}
 .k.dashboard-dragging {
   transform: none !important;
 }
@@ -3928,6 +3946,21 @@ function setSceneMenuFromSlotsArray(key, slots) {
   scheduleSaveSceneMenu(key);
 }
 
+function swapSceneMenuSlots(fromIndex, toIndex) {
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return false;
+  const key = getActiveSceneMenuKey();
+  const slots = getSceneMenuSlots(key);
+  if (!Array.isArray(slots) || fromIndex >= slots.length || toIndex >= slots.length) return false;
+  const fromItem = normalizeDashboardItem(slots[fromIndex]);
+  if (!fromItem) return false;
+  const toItem = normalizeDashboardItem(slots[toIndex]);
+  slots[toIndex] = fromItem;
+  slots[fromIndex] = toItem || null;
+  setSceneMenuFromSlotsArray(key, slots);
+  renderSceneMenuGrid();
+  return true;
+}
+
 function collectSceneMenuSlotsFromDom() {
   const grid = document.getElementById('scene-menu-grid');
   if (!grid) return [];
@@ -4099,6 +4132,7 @@ function bindSceneMenuSlotSortable(slot) {
     /* #root 使用 transform:scale 时原生 HTML5 DnD 命中会错位；fallback 跟鼠标走 */
     forceFallback: true,
     fallbackOnBody: true,
+    fallbackClass: 'dashboard-sortable-fallback',
     fallbackTolerance: 0,
     emptyInsertThreshold: 48,
     draggable: '.dashboard-item',
@@ -4107,13 +4141,26 @@ function bindSceneMenuSlotSortable(slot) {
     ghostClass: 'dashboard-drag-ghost',
     chosenClass: 'dashboard-drag-chosen',
     dragClass: 'dashboard-dragging',
-    onStart() {
+    onStart(evt) {
       state.dashboardDragActive = true;
       const dc = document.getElementById('dashboard-container');
       if (dc) dc.classList.add('dashboard-sortable-active');
+      const fromIndex = slotIndexFromEl(evt?.from);
+      if (evt?.item) evt.item.dataset.dragFromSlotIndex = String(fromIndex);
+      const rect = evt?.item?.getBoundingClientRect ? evt.item.getBoundingClientRect() : null;
+      if (rect && rect.width > 0 && rect.height > 0) {
+        document.documentElement.style.setProperty('--dashboard-drag-w', `${Math.round(rect.width)}px`);
+        document.documentElement.style.setProperty('--dashboard-drag-h', `${Math.round(rect.height)}px`);
+      }
     },
     onAdd(evt) {
       const toSlot = evt.to;
+      const toIndex = slotIndexFromEl(toSlot);
+      let fromIndex = slotIndexFromEl(evt.from);
+      if (fromIndex < 0) {
+        fromIndex = Number(evt?.item?.dataset?.dragFromSlotIndex);
+        if (!Number.isFinite(fromIndex)) fromIndex = -1;
+      }
       Array.from(toSlot.querySelectorAll('.dashboard-item')).forEach((it) => {
         if (it !== evt.item) it.remove();
       });
@@ -4122,7 +4169,10 @@ function bindSceneMenuSlotSortable(slot) {
         evt.item.remove();
         return;
       }
-      queueMicrotask(() => flushSceneMenuFromDomRebuild());
+      queueMicrotask(() => {
+        const swapped = swapSceneMenuSlots(fromIndex, toIndex);
+        if (!swapped) flushSceneMenuFromDomRebuild();
+      });
     },
     onUpdate() {
       queueMicrotask(() => flushSceneMenuFromDomRebuild());
@@ -5126,6 +5176,8 @@ function removeDashboardItemAt(index, notify = true) {
 function endDashboardDragState() {
   state.dashboardDragActive = false;
   state.draggedDashboardItem = null;
+  document.documentElement.style.removeProperty('--dashboard-drag-w');
+  document.documentElement.style.removeProperty('--dashboard-drag-h');
   cleanupDashboardDragPreview();
   syncDashboardDropCue(false);
   const dc = document.getElementById('dashboard-container');
@@ -5401,22 +5453,34 @@ function initDashboardDrag() {
       invertSwap: false,
       forceFallback: true,
       fallbackOnBody: true,
+      fallbackClass: 'dashboard-sortable-fallback',
       fallbackTolerance: 0,
       emptyInsertThreshold: 48,
       draggable: '.dashboard-item',
       ghostClass: 'dashboard-drag-ghost',
       chosenClass: 'dashboard-drag-chosen',
       dragClass: 'dashboard-dragging',
-      onStart: () => {
+      onStart: (evt) => {
         state.dashboardDragActive = true;
         const dc = document.getElementById('dashboard-container');
         if (dc) dc.classList.add('dashboard-sortable-active');
+        const fromIndex = slotIndexFromEl(evt?.from);
+        if (evt?.item) evt.item.dataset.dragFromSlotIndex = String(fromIndex);
+        const rect = evt?.item?.getBoundingClientRect ? evt.item.getBoundingClientRect() : null;
+        if (rect && rect.width > 0 && rect.height > 0) {
+          document.documentElement.style.setProperty('--dashboard-drag-w', `${Math.round(rect.width)}px`);
+          document.documentElement.style.setProperty('--dashboard-drag-h', `${Math.round(rect.height)}px`);
+        }
       },
       onAdd: (evt) => {
         const toSlot = evt.to;
         const fromSlot = evt.from;
         const toIndex = slotIndexFromEl(toSlot);
-        const fromIndex = slotIndexFromEl(fromSlot);
+        let fromIndex = slotIndexFromEl(fromSlot);
+        if (fromIndex < 0) {
+          fromIndex = Number(evt?.item?.dataset?.dragFromSlotIndex);
+          if (!Number.isFinite(fromIndex)) fromIndex = -1;
+        }
 
         Array.from(toSlot.querySelectorAll('.dashboard-item')).forEach((it) => {
           if (it !== evt.item) it.remove();
