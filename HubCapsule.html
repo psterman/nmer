@@ -427,16 +427,16 @@ body.native-titlebar #header { display: none; }
 }
 
 .adv-panel {
-  position: absolute;
-  inset: 0;
-  z-index: 18;
+  position: relative;
+  z-index: 6;
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto auto;
   gap: 8px;
-  padding: 10px;
+  margin-bottom: 8px;
+  padding: 8px;
   border-radius: 10px;
   border: 1px solid rgba(0, 255, 65, 0.35);
-  background: linear-gradient(165deg, rgba(0, 255, 65, 0.12), rgba(9, 16, 12, 0.9));
+  background: linear-gradient(165deg, rgba(0, 255, 65, 0.12), rgba(9, 16, 12, 0.82));
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
@@ -475,41 +475,251 @@ body.native-titlebar #header { display: none; }
 .adv-groups {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
   gap: 6px;
+  overflow: hidden;
+}
+
+.adv-pill {
+  min-width: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 255, 65, 0.32);
+  background: rgba(10, 18, 12, 0.74);
+  transition: border-color var(--ease), box-shadow var(--ease), background var(--ease), transform var(--ease);
+  overflow: hidden;
+}
+
+.adv-pill.active {
+  border-color: rgba(0, 255, 65, 0.72);
+  box-shadow: 0 0 14px rgba(0, 255, 65, 0.2);
+  transform: translateY(-1px);
+}
+
+.adv-pill.harvest.active {
+  border-color: rgba(54, 232, 255, 0.8);
+  box-shadow: 0 0 14px rgba(54, 232, 255, 0.26);
+}
+
+.adv-pill.purify.active {
+  border-color: rgba(255, 154, 47, 0.82);
+  box-shadow: 0 0 14px rgba(255, 154, 47, 0.27);
 }
 
 .adv-group-btn {
+  width: 100%;
+  border: 0;
+  background: transparent;
   border-radius: 8px;
-  border: 1px solid rgba(0, 255, 65, 0.35);
-  background: rgba(10, 18, 12, 0.78);
   color: #c7ffd7;
-  font-size: 11px;
-  padding: 5px 6px;
+  font-size: 10px;
+  padding: 6px 7px 4px;
   cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.adv-group-btn.active {
-  border-color: rgba(0, 255, 65, 0.8);
-  box-shadow: 0 0 10px rgba(0, 255, 65, 0.24);
+.adv-group-kicker {
+  display: block;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  opacity: 0.78;
 }
 
-.adv-group-btn.harvest.active {
-  border-color: rgba(54, 232, 255, 0.82);
-  box-shadow: 0 0 10px rgba(54, 232, 255, 0.28);
+.adv-group-main {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
 }
 
-.adv-group-btn.purify.active {
-  border-color: rgba(255, 154, 47, 0.82);
-  box-shadow: 0 0 10px rgba(255, 154, 47, 0.3);
+.adv-pill-actions {
+  display: none;
 }
 
 .adv-actions {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  align-content: flex-start;
   gap: 6px;
+  min-height: 34px;
+}
+
+.adv-act-btn {
+  border-radius: 999px;
+  border: 1px solid rgba(0, 255, 65, 0.45);
+  background: rgba(0, 255, 65, 0.13);
+  color: #d8ffe5;
+  font-size: 10px;
+  line-height: 1;
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.adv-act-btn:hover {
+  border-color: rgba(0, 255, 65, 0.78);
+  background: rgba(0, 255, 65, 0.2);
+}
+
+.adv-pill.harvest .adv-act-btn {
+  border-color: rgba(54, 232, 255, 0.55);
+  background: rgba(54, 232, 255, 0.12);
+  color: #d7f7ff;
+}
+
+.adv-pill.harvest .adv-act-btn:hover {
+  border-color: rgba(54, 232, 255, 0.82);
+  background: rgba(54, 232, 255, 0.22);
+}
+
+.adv-pill.purify .adv-act-btn {
+  border-color: rgba(255, 154, 47, 0.58);
+  background: rgba(255, 154, 47, 0.14);
+  color: #ffe8ce;
+}
+
+.adv-pill.purify .adv-act-btn:hover {
+  border-color: rgba(255, 154, 47, 0.85);
+  background: rgba(255, 154, 47, 0.24);
+}
+
+.adv-panel.processing .adv-status {
+  color: #9bffb7;
+  animation: adv-breathe 1s ease-in-out infinite;
+}
+
+.translate-config {
+  position: fixed;
+  left: 20px;
+  right: 20px;
+  top: 64px;
+  bottom: 24px;
+  min-height: 320px;
+  z-index: 120;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 153, 66, 0.55);
+  background: radial-gradient(120% 120% at 0% 0%, rgba(255, 133, 42, 0.18), transparent 45%),
+              linear-gradient(155deg, rgba(22, 14, 8, 0.96), rgba(8, 12, 10, 0.94));
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.45), 0 0 22px rgba(255, 134, 35, 0.14);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
+}
+
+.translate-config[hidden] { display: none !important; }
+
+.tx-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 153, 66, 0.28);
+}
+
+.tx-title { font-size: 13px; font-weight: 700; color: #ffd5ad; letter-spacing: .04em; }
+.tx-sub { font-size: 11px; color: #d6b191; }
+
+.tx-body {
   overflow: auto;
-  padding-right: 2px;
+  padding: 10px 12px 6px;
+  min-height: 0;
+}
+
+.tx-block {
+  border: 1px solid rgba(255, 153, 66, 0.28);
+  border-radius: 10px;
+  padding: 8px;
+  background: rgba(17, 18, 14, 0.55);
+  margin-bottom: 8px;
+}
+
+.tx-block-title { font-size: 11px; color: #ffc88f; margin-bottom: 6px; letter-spacing: .06em; }
+
+.tx-row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; margin-bottom: 6px; }
+.tx-row label { font-size: 11px; color: #ffd8b1; }
+.tx-row select, .tx-row input {
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 154, 47, 0.45);
+  background: rgba(18, 25, 20, 0.88);
+  color: #e8fff1;
+  padding: 0 8px;
+  font-size: 12px;
+}
+.tx-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: #ff9a2f; }
+
+.tx-row-hint { grid-column: 1 / -1; font-size: 11px; color: #b8b2ac; line-height: 1.45; }
+
+.tx-provider-grid { display: grid; gap: 6px; }
+.tx-provider-item {
+  border: 1px solid rgba(255, 154, 47, 0.26);
+  border-radius: 10px;
+  padding: 6px;
+  background: rgba(12, 15, 13, 0.6);
+}
+.tx-provider-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.tx-provider-name { font-size: 12px; color: #ffe1c4; font-weight: 600; }
+.tx-provider-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.tx-provider-row input {
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 154, 47, 0.35);
+  background: rgba(16, 23, 20, 0.9);
+  color: #e8fff1;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.tx-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.tx-links a { color: #ffb86e; font-size: 11px; text-decoration: none; }
+.tx-links a:hover { text-decoration: underline; }
+
+.tx-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255, 153, 66, 0.28);
+}
+.tx-btn {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 154, 47, 0.62);
+  background: rgba(255, 154, 47, 0.2);
+  color: #ffe8ce;
+  font-size: 11px;
+  padding: 6px 11px;
+  cursor: pointer;
+}
+
+@media (max-height: 520px) {
+  .translate-config {
+    top: 10px;
+    bottom: 10px;
+    min-height: 0;
+  }
+}
+
+@keyframes adv-breathe {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+#preview-card.adv-done-glow::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 255, 65, 0.55);
+  box-shadow: 0 0 18px rgba(0, 255, 65, 0.35), 0 0 28px rgba(54, 232, 255, 0.18);
+  opacity: 0;
+  animation: adv-glow-pulse 420ms ease-out;
+  pointer-events: none;
+}
+
+@keyframes adv-glow-pulse {
+  0% { opacity: 0.95; transform: scale(0.985); }
+  100% { opacity: 0; transform: scale(1.015); }
 }
 
 #preview-card.pending-to-stack {
@@ -1432,21 +1642,187 @@ button.ctx-sub-item:disabled {
           </div>
         </div>
         <div id="preview-card">
+          <div id="adv-panel" class="adv-panel" hidden>
+            <div class="adv-head">
+              <span class="adv-title">高级处理</span>
+              <span id="adv-status" class="adv-status">作用域: 全文 | 字符: 0 | 行数: 0 | 提取: 0</span>
+              <button type="button" class="adv-close" id="btnAdvClose">关闭</button>
+            </div>
+            <div id="adv-groups" class="adv-groups"></div>
+            <div id="adv-actions" class="adv-actions"></div>
+            <div id="translate-config" class="translate-config" hidden>
+              <div class="tx-head">
+                <div>
+                  <div class="tx-title">翻译设置</div>
+                  <div class="tx-sub">一级本地词典 + 二级网络词典托底</div>
+                </div>
+                <button type="button" class="tx-btn" id="btnTxCfgX">×</button>
+              </div>
+              <div class="tx-body">
+                <div class="tx-block">
+                  <div class="tx-block-title">执行策略</div>
+                  <div class="tx-row">
+                    <label for="tx-route-mode">翻译路径</label>
+                    <select id="tx-route-mode">
+                      <option value="local_then_network">一级本地，二级网络（推荐）</option>
+                      <option value="local_only">仅本地词典</option>
+                      <option value="network_only">仅网络词典</option>
+                    </select>
+                  </div>
+                  <div class="tx-row">
+                    <label for="tx-local-threshold">本地命中阈值</label>
+                    <input id="tx-local-threshold" type="number" min="0" max="100" step="1" value="35">
+                  </div>
+                  <div class="tx-row-hint">当本地词典命中率低于阈值时，自动走二级网络翻译。</div>
+                </div>
+
+                <div class="tx-block">
+                  <div class="tx-block-title">一级：本地词典</div>
+                  <div class="tx-row">
+                    <label for="tx-dict-mode">词典来源</label>
+                    <select id="tx-dict-mode">
+                      <option value="auto">自动（内置+seed-CEDICT+学习）</option>
+                      <option value="seed_learn">内置+seed+学习</option>
+                      <option value="cedict_learn">仅 CEDICT + 学习</option>
+                      <option value="learn_only">仅学习词典</option>
+                      <option value="off">关闭本地词典</option>
+                    </select>
+                  </div>
+                  <div class="tx-row">
+                    <label for="tx-enable-learn">学习模式</label>
+                    <input id="tx-enable-learn" type="checkbox" checked>
+                  </div>
+                  <div class="tx-row-hint">学习模式会把你手工修订过的译词保存到本地，优先用于后续翻译。</div>
+                </div>
+
+                <div class="tx-block">
+                  <div class="tx-block-title">二级：网络词典/API（按顺序托底）</div>
+                  <div class="tx-row">
+                    <label for="tx-fallback-order">托底顺序</label>
+                    <input id="tx-fallback-order" type="text" value="mymemory,libre,deepl,azure,google,youdao,baidu,tencent,aliyun">
+                  </div>
+                  <div class="tx-provider-grid">
+                    <div class="tx-provider-item">
+                      <div class="tx-provider-head">
+                        <span class="tx-provider-name">MyMemory (RapidAPI)</span>
+                        <label><input type="checkbox" id="tx-en-mymemory" checked>启用</label>
+                      </div>
+                      <div class="tx-provider-row">
+                        <input id="tx-k-mymemory" type="password" placeholder="RapidAPI Key (可选)">
+                        <input id="tx-e-mymemory" type="text" placeholder="Endpoint(默认 mymemory)">
+                      </div>
+                    </div>
+                    <div class="tx-provider-item">
+                      <div class="tx-provider-head">
+                        <span class="tx-provider-name">LibreTranslate</span>
+                        <label><input type="checkbox" id="tx-en-libre" checked>启用</label>
+                      </div>
+                      <div class="tx-provider-row">
+                        <input id="tx-k-libre" type="password" placeholder="API Key (可选)">
+                        <input id="tx-e-libre" type="text" placeholder="Endpoint">
+                      </div>
+                    </div>
+                    <div class="tx-provider-item">
+                      <div class="tx-provider-head">
+                        <span class="tx-provider-name">DeepL</span>
+                        <label><input type="checkbox" id="tx-en-deepl">启用</label>
+                      </div>
+                      <div class="tx-provider-row">
+                        <input id="tx-k-deepl" type="password" placeholder="API Key">
+                        <input id="tx-e-deepl" type="text" placeholder="Endpoint(可选)">
+                      </div>
+                    </div>
+                    <div class="tx-provider-item">
+                      <div class="tx-provider-head">
+                        <span class="tx-provider-name">Microsoft Azure</span>
+                        <label><input type="checkbox" id="tx-en-azure">启用</label>
+                      </div>
+                      <div class="tx-provider-row">
+                        <input id="tx-k-azure" type="password" placeholder="Subscription Key">
+                        <input id="tx-e-azure" type="text" placeholder="Region,Endpoint(可选)">
+                      </div>
+                    </div>
+                    <div class="tx-provider-item">
+                      <div class="tx-provider-head">
+                        <span class="tx-provider-name">Google Cloud</span>
+                        <label><input type="checkbox" id="tx-en-google">启用</label>
+                      </div>
+                      <div class="tx-provider-row">
+                        <input id="tx-k-google" type="password" placeholder="API Key">
+                        <input id="tx-e-google" type="text" placeholder="Endpoint(可选)">
+                      </div>
+                    </div>
+                    <div class="tx-provider-item">
+                      <div class="tx-provider-head">
+                        <span class="tx-provider-name">有道</span>
+                        <label><input type="checkbox" id="tx-en-youdao">启用</label>
+                      </div>
+                      <div class="tx-provider-row">
+                        <input id="tx-k-youdao" type="password" placeholder="Key / AppKey">
+                        <input id="tx-e-youdao" type="text" placeholder="Endpoint 或代理地址">
+                      </div>
+                    </div>
+                    <div class="tx-provider-item">
+                      <div class="tx-provider-head">
+                        <span class="tx-provider-name">百度翻译</span>
+                        <label><input type="checkbox" id="tx-en-baidu">启用</label>
+                      </div>
+                      <div class="tx-provider-row">
+                        <input id="tx-k-baidu" type="password" placeholder="Key / AppId">
+                        <input id="tx-e-baidu" type="text" placeholder="Endpoint 或代理地址">
+                      </div>
+                    </div>
+                    <div class="tx-provider-item">
+                      <div class="tx-provider-head">
+                        <span class="tx-provider-name">腾讯交互翻译</span>
+                        <label><input type="checkbox" id="tx-en-tencent">启用</label>
+                      </div>
+                      <div class="tx-provider-row">
+                        <input id="tx-k-tencent" type="password" placeholder="SecretId / Token">
+                        <input id="tx-e-tencent" type="text" placeholder="Endpoint 或代理地址">
+                      </div>
+                    </div>
+                    <div class="tx-provider-item">
+                      <div class="tx-provider-head">
+                        <span class="tx-provider-name">阿里云翻译</span>
+                        <label><input type="checkbox" id="tx-en-aliyun">启用</label>
+                      </div>
+                      <div class="tx-provider-row">
+                        <input id="tx-k-aliyun" type="password" placeholder="AccessKey / Token">
+                        <input id="tx-e-aliyun" type="text" placeholder="Endpoint 或代理地址">
+                      </div>
+                    </div>
+                    <div class="tx-provider-item">
+                      <div class="tx-provider-head">
+                        <span class="tx-provider-name">统一代理（可选）</span>
+                        <label><input type="checkbox" id="tx-en-proxy">启用</label>
+                      </div>
+                      <div class="tx-provider-row">
+                        <input id="tx-k-proxy" type="password" placeholder="代理 Token">
+                        <input id="tx-e-proxy" type="text" placeholder="代理 Endpoint">
+                      </div>
+                    </div>
+                  </div>
+                  <div class="tx-links">
+                    <a href="https://www.deepl.com/pro-api" target="_blank" rel="noreferrer noopener">DeepL API 注册</a>
+                    <a href="https://portal.azure.com/" target="_blank" rel="noreferrer noopener">Azure 翻译服务</a>
+                    <a href="https://cloud.google.com/translate" target="_blank" rel="noreferrer noopener">Google Cloud Translate</a>
+                    <a href="https://libretranslate.com/" target="_blank" rel="noreferrer noopener">LibreTranslate</a>
+                  </div>
+                </div>
+              </div>
+              <div class="tx-actions">
+                <button type="button" class="tx-btn" id="btnTxCfgCancel">关闭</button>
+                <button type="button" class="tx-btn" id="btnTxCfgSave">保存配置</button>
+              </div>
+            </div>
+          </div>
           <textarea id="preview" rows="4" spellcheck="false" placeholder="在此编辑待处理文本，或从外部/草稿栈拖入覆盖…"></textarea>
           <div id="preview-image-wrap">
             <img id="preview-image" alt="预览图片">
             <button type="button" id="preview-copy-image">复制图片预览</button>
           </div>
           <div id="draft-chip">拖入文本会先出现在此处；点「存入草稿区」或拖到下方堆栈区再松手才会入栈</div>
-          <div id="adv-panel" class="adv-panel" hidden>
-            <div class="adv-head">
-              <span class="adv-title">高级处理</span>
-              <span id="adv-status" class="adv-status">Scope: Full | Chars: 0 | Lines: 0 | Extracted: 0</span>
-              <button type="button" class="adv-close" id="btnAdvClose">关闭</button>
-            </div>
-            <div id="adv-groups" class="adv-groups"></div>
-            <div id="adv-actions" class="adv-actions"></div>
-          </div>
           <div id="external-drop-hint" aria-hidden="true">
             <span class="hint-title">拖放至此</span>
             <span class="hint-sub">松手后仅更新预览，请再点「存入草稿区」入栈</span>
@@ -1529,6 +1905,7 @@ button.ctx-sub-item:disabled {
   let capsFlashTimer = 0;
   let advExtractedCount = 0;
   let advActiveGroup = 'purify';
+  let advBusy = false;
 
   const capsule = document.getElementById('capsule');
   const host = document.getElementById('host');
@@ -1561,6 +1938,45 @@ button.ctx-sub-item:disabled {
   const advStatus = document.getElementById('adv-status');
   const advGroups = document.getElementById('adv-groups');
   const advActions = document.getElementById('adv-actions');
+  const translateConfig = document.getElementById('translate-config');
+  const btnTxCfgX = document.getElementById('btnTxCfgX');
+  const txRouteMode = document.getElementById('tx-route-mode');
+  const txLocalThreshold = document.getElementById('tx-local-threshold');
+  const txDictMode = document.getElementById('tx-dict-mode');
+  const txEnableLearn = document.getElementById('tx-enable-learn');
+  const txFallbackOrder = document.getElementById('tx-fallback-order');
+  const txEnMymemory = document.getElementById('tx-en-mymemory');
+  const txKMymemory = document.getElementById('tx-k-mymemory');
+  const txEMymemory = document.getElementById('tx-e-mymemory');
+  const txEnLibre = document.getElementById('tx-en-libre');
+  const txKLibre = document.getElementById('tx-k-libre');
+  const txELibre = document.getElementById('tx-e-libre');
+  const txEnDeepl = document.getElementById('tx-en-deepl');
+  const txKDeepl = document.getElementById('tx-k-deepl');
+  const txEDeepl = document.getElementById('tx-e-deepl');
+  const txEnAzure = document.getElementById('tx-en-azure');
+  const txKAzure = document.getElementById('tx-k-azure');
+  const txEAzure = document.getElementById('tx-e-azure');
+  const txEnGoogle = document.getElementById('tx-en-google');
+  const txKGoogle = document.getElementById('tx-k-google');
+  const txEGoogle = document.getElementById('tx-e-google');
+  const txEnYoudao = document.getElementById('tx-en-youdao');
+  const txKYoudao = document.getElementById('tx-k-youdao');
+  const txEYoudao = document.getElementById('tx-e-youdao');
+  const txEnBaidu = document.getElementById('tx-en-baidu');
+  const txKBaidu = document.getElementById('tx-k-baidu');
+  const txEBaidu = document.getElementById('tx-e-baidu');
+  const txEnTencent = document.getElementById('tx-en-tencent');
+  const txKTencent = document.getElementById('tx-k-tencent');
+  const txETencent = document.getElementById('tx-e-tencent');
+  const txEnAliyun = document.getElementById('tx-en-aliyun');
+  const txKAliyun = document.getElementById('tx-k-aliyun');
+  const txEAliyun = document.getElementById('tx-e-aliyun');
+  const txEnProxy = document.getElementById('tx-en-proxy');
+  const txKProxy = document.getElementById('tx-k-proxy');
+  const txEProxy = document.getElementById('tx-e-proxy');
+  const btnTxCfgCancel = document.getElementById('btnTxCfgCancel');
+  const btnTxCfgSave = document.getElementById('btnTxCfgSave');
   const btnTriggerCapslock = document.getElementById('btnTriggerCapslock');
   const btnTriggerDoubleCtrl = document.getElementById('btnTriggerDoubleCtrl');
   const hubSlotRow = document.getElementById('hub-slot-row');
@@ -1970,10 +2386,10 @@ button.ctx-sub-item:disabled {
   }
 
   const ADV_GROUPS = Object.freeze([
-    { id: 'harvest', label: 'Harvest' },
-    { id: 'purify', label: 'Purify' },
-    { id: 'morph', label: 'Morph' },
-    { id: 'link', label: 'Link' }
+    { id: 'harvest', kicker: '信息提取', label: '提取' },
+    { id: 'purify', kicker: '文本净化', label: '净化' },
+    { id: 'morph', kicker: '结构变换', label: '形态' },
+    { id: 'link', kicker: '语言能力', label: '语言' }
   ]);
 
   const ADV_ACTIONS = Object.freeze([
@@ -1987,15 +2403,132 @@ button.ctx-sub-item:disabled {
     { group: 'purify', id: 'purify_spaces', label: '去空格' },
     { group: 'purify', id: 'purify_format', label: '清除格式' },
     { group: 'purify', id: 'purify_garbled', label: '修复乱码' },
-    { group: 'morph', id: 'morph_upper', label: '大写' },
-    { group: 'morph', id: 'morph_lower', label: '小写' },
-    { group: 'morph', id: 'morph_snake', label: 'snake_case' },
-    { group: 'morph', id: 'morph_camel', label: 'camelCase' },
+    { group: 'morph', id: 'morph_case_toggle', label: '大小写互换' },
     { group: 'morph', id: 'morph_base64enc', label: 'Base64编码' },
     { group: 'morph', id: 'morph_base64dec', label: 'Base64解码' },
+    { group: 'morph', id: 'morph_zh_toggle', label: '简繁互换' },
+    { group: 'morph', id: 'morph_ts_toggle', label: '时间戳/日期互换' },
     { group: 'link', id: 'link_translate', label: '中英互译' },
-    { group: 'link', id: 'link_comment', label: '注释翻译' }
+    { group: 'link', id: 'link_comment', label: '注释翻译' },
+    { group: 'link', id: 'link_config', label: '翻译设置' }
   ]);
+
+  const TX_CFG_DEFAULT = Object.freeze({
+    routeMode: 'local_then_network',
+    localThreshold: 35,
+    dictMode: 'auto',
+    enableLearn: true,
+    fallbackOrder: 'mymemory,libre,deepl,azure,google,youdao,baidu,tencent,aliyun',
+    providers: {
+      mymemory: { enabled: true, key: '', endpoint: '' },
+      libre: { enabled: true, key: '', endpoint: '' },
+      deepl: { enabled: false, key: '', endpoint: '' },
+      azure: { enabled: false, key: '', endpoint: '' },
+      google: { enabled: false, key: '', endpoint: '' },
+      youdao: { enabled: false, key: '', endpoint: '' },
+      baidu: { enabled: false, key: '', endpoint: '' },
+      tencent: { enabled: false, key: '', endpoint: '' },
+      aliyun: { enabled: false, key: '', endpoint: '' },
+      proxy: { enabled: false, key: '', endpoint: '' }
+    }
+  });
+
+  function getTranslateCfg() {
+    try {
+      const raw = localStorage.getItem('hub_translate_cfg') || '';
+      const obj = raw ? JSON.parse(raw) : {};
+      const providers = Object.assign({}, TX_CFG_DEFAULT.providers, obj.providers || {});
+      return {
+        routeMode: String(obj.routeMode || TX_CFG_DEFAULT.routeMode),
+        localThreshold: Number.isFinite(Number(obj.localThreshold)) ? Number(obj.localThreshold) : TX_CFG_DEFAULT.localThreshold,
+        dictMode: String(obj.dictMode || TX_CFG_DEFAULT.dictMode),
+        enableLearn: obj.enableLearn !== false,
+        fallbackOrder: String(obj.fallbackOrder || TX_CFG_DEFAULT.fallbackOrder),
+        providers
+      };
+    } catch (_) {
+      return JSON.parse(JSON.stringify(TX_CFG_DEFAULT));
+    }
+  }
+
+  function setTranslateCfg(cfg) {
+    const next = Object.assign({}, TX_CFG_DEFAULT, cfg || {});
+    next.providers = Object.assign({}, TX_CFG_DEFAULT.providers, (cfg && cfg.providers) || {});
+    localStorage.setItem('hub_translate_cfg', JSON.stringify(next));
+  }
+
+  function uiLoadTranslateCfg(cfg) {
+    const c = cfg || getTranslateCfg();
+    if (txRouteMode) txRouteMode.value = c.routeMode;
+    if (txLocalThreshold) txLocalThreshold.value = String(c.localThreshold);
+    if (txDictMode) txDictMode.value = c.dictMode;
+    if (txEnableLearn) txEnableLearn.checked = !!c.enableLearn;
+    if (txFallbackOrder) txFallbackOrder.value = c.fallbackOrder;
+    if (txEnMymemory) txEnMymemory.checked = !!(c.providers.mymemory && c.providers.mymemory.enabled);
+    if (txKMymemory) txKMymemory.value = String((c.providers.mymemory && c.providers.mymemory.key) || '');
+    if (txEMymemory) txEMymemory.value = String((c.providers.mymemory && c.providers.mymemory.endpoint) || '');
+    if (txEnLibre) txEnLibre.checked = !!(c.providers.libre && c.providers.libre.enabled);
+    if (txKLibre) txKLibre.value = String((c.providers.libre && c.providers.libre.key) || '');
+    if (txELibre) txELibre.value = String((c.providers.libre && c.providers.libre.endpoint) || '');
+    if (txEnDeepl) txEnDeepl.checked = !!(c.providers.deepl && c.providers.deepl.enabled);
+    if (txKDeepl) txKDeepl.value = String((c.providers.deepl && c.providers.deepl.key) || '');
+    if (txEDeepl) txEDeepl.value = String((c.providers.deepl && c.providers.deepl.endpoint) || '');
+    if (txEnAzure) txEnAzure.checked = !!(c.providers.azure && c.providers.azure.enabled);
+    if (txKAzure) txKAzure.value = String((c.providers.azure && c.providers.azure.key) || '');
+    if (txEAzure) txEAzure.value = String((c.providers.azure && c.providers.azure.endpoint) || '');
+    if (txEnGoogle) txEnGoogle.checked = !!(c.providers.google && c.providers.google.enabled);
+    if (txKGoogle) txKGoogle.value = String((c.providers.google && c.providers.google.key) || '');
+    if (txEGoogle) txEGoogle.value = String((c.providers.google && c.providers.google.endpoint) || '');
+    if (txEnYoudao) txEnYoudao.checked = !!(c.providers.youdao && c.providers.youdao.enabled);
+    if (txKYoudao) txKYoudao.value = String((c.providers.youdao && c.providers.youdao.key) || '');
+    if (txEYoudao) txEYoudao.value = String((c.providers.youdao && c.providers.youdao.endpoint) || '');
+    if (txEnBaidu) txEnBaidu.checked = !!(c.providers.baidu && c.providers.baidu.enabled);
+    if (txKBaidu) txKBaidu.value = String((c.providers.baidu && c.providers.baidu.key) || '');
+    if (txEBaidu) txEBaidu.value = String((c.providers.baidu && c.providers.baidu.endpoint) || '');
+    if (txEnTencent) txEnTencent.checked = !!(c.providers.tencent && c.providers.tencent.enabled);
+    if (txKTencent) txKTencent.value = String((c.providers.tencent && c.providers.tencent.key) || '');
+    if (txETencent) txETencent.value = String((c.providers.tencent && c.providers.tencent.endpoint) || '');
+    if (txEnAliyun) txEnAliyun.checked = !!(c.providers.aliyun && c.providers.aliyun.enabled);
+    if (txKAliyun) txKAliyun.value = String((c.providers.aliyun && c.providers.aliyun.key) || '');
+    if (txEAliyun) txEAliyun.value = String((c.providers.aliyun && c.providers.aliyun.endpoint) || '');
+    if (txEnProxy) txEnProxy.checked = !!(c.providers.proxy && c.providers.proxy.enabled);
+    if (txKProxy) txKProxy.value = String((c.providers.proxy && c.providers.proxy.key) || '');
+    if (txEProxy) txEProxy.value = String((c.providers.proxy && c.providers.proxy.endpoint) || '');
+  }
+
+  function uiReadTranslateCfg() {
+    const cfg = getTranslateCfg();
+    cfg.routeMode = txRouteMode ? String(txRouteMode.value || 'local_then_network') : cfg.routeMode;
+    cfg.localThreshold = txLocalThreshold ? Math.max(0, Math.min(100, Number(txLocalThreshold.value || 35))) : cfg.localThreshold;
+    cfg.dictMode = txDictMode ? String(txDictMode.value || 'auto') : cfg.dictMode;
+    cfg.enableLearn = txEnableLearn ? !!txEnableLearn.checked : cfg.enableLearn;
+    cfg.fallbackOrder = txFallbackOrder ? String(txFallbackOrder.value || TX_CFG_DEFAULT.fallbackOrder) : cfg.fallbackOrder;
+    cfg.providers.mymemory = { enabled: !!(txEnMymemory && txEnMymemory.checked), key: String(txKMymemory ? txKMymemory.value : ''), endpoint: String(txEMymemory ? txEMymemory.value : '') };
+    cfg.providers.libre = { enabled: !!(txEnLibre && txEnLibre.checked), key: String(txKLibre ? txKLibre.value : ''), endpoint: String(txELibre ? txELibre.value : '') };
+    cfg.providers.deepl = { enabled: !!(txEnDeepl && txEnDeepl.checked), key: String(txKDeepl ? txKDeepl.value : ''), endpoint: String(txEDeepl ? txEDeepl.value : '') };
+    cfg.providers.azure = { enabled: !!(txEnAzure && txEnAzure.checked), key: String(txKAzure ? txKAzure.value : ''), endpoint: String(txEAzure ? txEAzure.value : '') };
+    cfg.providers.google = { enabled: !!(txEnGoogle && txEnGoogle.checked), key: String(txKGoogle ? txKGoogle.value : ''), endpoint: String(txEGoogle ? txEGoogle.value : '') };
+    cfg.providers.youdao = { enabled: !!(txEnYoudao && txEnYoudao.checked), key: String(txKYoudao ? txKYoudao.value : ''), endpoint: String(txEYoudao ? txEYoudao.value : '') };
+    cfg.providers.baidu = { enabled: !!(txEnBaidu && txEnBaidu.checked), key: String(txKBaidu ? txKBaidu.value : ''), endpoint: String(txEBaidu ? txEBaidu.value : '') };
+    cfg.providers.tencent = { enabled: !!(txEnTencent && txEnTencent.checked), key: String(txKTencent ? txKTencent.value : ''), endpoint: String(txETencent ? txETencent.value : '') };
+    cfg.providers.aliyun = { enabled: !!(txEnAliyun && txEnAliyun.checked), key: String(txKAliyun ? txKAliyun.value : ''), endpoint: String(txEAliyun ? txEAliyun.value : '') };
+    cfg.providers.proxy = { enabled: !!(txEnProxy && txEnProxy.checked), key: String(txKProxy ? txKProxy.value : ''), endpoint: String(txEProxy ? txEProxy.value : '') };
+    return cfg;
+  }
+
+  function openTranslateCfg() {
+    if (!translateConfig) return;
+    uiLoadTranslateCfg(getTranslateCfg());
+    translateConfig.hidden = false;
+  }
+
+  function closeTranslateCfg() {
+    if (!translateConfig) return;
+    translateConfig.hidden = true;
+  }
+
+  const S2T_MAP = Object.freeze({ "汉":"漢","语":"語","体":"體","后":"後","发":"發","台":"臺","里":"裡","线":"線","网":"網","开":"開","关":"關","数":"數","据":"據","复":"複","杂":"雜","云":"雲","龙":"龍","风":"風","东":"東","万":"萬","与":"與","门":"門","书":"書","画":"畫","车":"車","电":"電","广":"廣","乐":"樂","国":"國","务":"務","优":"優","页":"頁","码":"碼","钟":"鐘","键":"鍵","输":"輸","入":"入","输":"輸","出":"出","测":"測","试":"試","显":"顯","示":"示" });
+  const T2S_MAP = Object.freeze(Object.fromEntries(Object.entries(S2T_MAP).map(([k,v]) => [v,k])));
 
   function getScopeContext() {
     syncPendingFromTextarea();
@@ -2045,27 +2578,142 @@ button.ctx-sub-item:disabled {
     const src = String(state.pendingDraft || '');
     const chars = src.length;
     const lines = src ? src.split(/\r?\n/).length : 0;
-    const scope = ctx.scope === 'selection' ? 'Selection' : 'Full';
-    advStatus.textContent = `Scope: ${scope} | Chars: ${chars} | Lines: ${lines} | Extracted: ${advExtractedCount}`;
+    const scope = ctx.scope === 'selection' ? '选区' : '全文';
+    const suffix = advBusy ? ' | 处理中…' : '';
+    advStatus.textContent = `作用域: ${scope} | 字符: ${chars} | 行数: ${lines} | 提取: ${advExtractedCount}${suffix}`;
   }
 
   function pulseDone() {
     previewCard.classList.remove('preview-pulse');
+    previewCard.classList.remove('adv-done-glow');
     void previewCard.offsetWidth;
     previewCard.classList.add('preview-pulse');
+    previewCard.classList.add('adv-done-glow');
+    setTimeout(() => previewCard.classList.remove('adv-done-glow'), 460);
+  }
+
+  function setAdvBusy(on) {
+    advBusy = !!on;
+    if (advPanel) advPanel.classList.toggle('processing', advBusy);
+    if (advActions)
+      advActions.querySelectorAll('button[data-adv-action]').forEach((b) => { b.disabled = advBusy; });
+    updateAdvStatus();
+  }
+
+  function mapChars(text, charMap) {
+    return Array.from(String(text || '')).map((ch) => (charMap[ch] || ch)).join('');
+  }
+
+  function tsToDateText(raw) {
+    const t = String(raw || '').trim();
+    if (!/^\d{10,13}$/.test(t)) return raw;
+    const n = Number(t.length === 10 ? t + '000' : t);
+    const d = new Date(n);
+    if (Number.isNaN(d.getTime())) return raw;
+    return d.toISOString();
+  }
+
+  function dateToTsText(raw) {
+    const t = String(raw || '').trim();
+    const n = Date.parse(t);
+    if (Number.isNaN(n)) return raw;
+    return String(Math.floor(n / 1000));
+  }
+
+  function toggleCaseText(raw) {
+    const t = String(raw || '');
+    const lower = (t.match(/[a-z]/g) || []).length;
+    const upper = (t.match(/[A-Z]/g) || []).length;
+    if (!lower && !upper) return t;
+    return upper > lower ? t.toLowerCase() : t.toUpperCase();
+  }
+
+  function toggleZhScript(raw) {
+    const t = String(raw || '');
+    const simpCount = Array.from(t).reduce((n, ch) => n + (Object.prototype.hasOwnProperty.call(S2T_MAP, ch) ? 1 : 0), 0);
+    const tradCount = Array.from(t).reduce((n, ch) => n + (Object.prototype.hasOwnProperty.call(T2S_MAP, ch) ? 1 : 0), 0);
+    if (!simpCount && !tradCount) return t;
+    return tradCount > simpCount ? mapChars(t, T2S_MAP) : mapChars(t, S2T_MAP);
+  }
+
+  function toggleTsDate(raw) {
+    const t = String(raw || '').trim();
+    if (/^\d{10,13}$/.test(t)) return tsToDateText(t);
+    if (!Number.isNaN(Date.parse(t))) return dateToTsText(t);
+    return raw;
+  }
+
+  function decodeHtmlEntities(text) {
+    const div = document.createElement('div');
+    div.innerHTML = String(text || '');
+    return String(div.textContent || '');
+  }
+
+  function decodeAsUtf8FromBytes(raw) {
+    try {
+      const bytes = Uint8Array.from(Array.from(String(raw || ''), (ch) => ch.charCodeAt(0) & 0xFF));
+      return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    } catch (_) {
+      return String(raw || '');
+    }
+  }
+
+  function decodeAsGb18030FromBytes(raw) {
+    try {
+      const bytes = Uint8Array.from(Array.from(String(raw || ''), (ch) => ch.charCodeAt(0) & 0xFF));
+      return new TextDecoder('gb18030', { fatal: false }).decode(bytes);
+    } catch (_) {
+      return String(raw || '');
+    }
+  }
+
+  function scoreReadableZh(raw) {
+    const t = String(raw || '');
+    if (!t) return -1;
+    const zhCount = (t.match(/[\u4E00-\u9FFF]/g) || []).length;
+    const replacementCount = (t.match(/[�]/g) || []).length;
+    const mojibakeCount = (t.match(/[ÃÂÊËÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßæåäö]/g) || []).length;
+    return zhCount * 3 - replacementCount * 5 - mojibakeCount * 2;
+  }
+
+  function repairMojibake(raw) {
+    const src = String(raw || '');
+    if (!src) return src;
+    const candidates = [
+      src,
+      decodeAsUtf8FromBytes(src),
+      decodeAsGb18030FromBytes(src),
+      decodeAsUtf8FromBytes(decodeAsGb18030FromBytes(src)),
+      decodeAsGb18030FromBytes(decodeAsUtf8FromBytes(src))
+    ];
+    let best = src;
+    let bestScore = scoreReadableZh(src);
+    candidates.forEach((c) => {
+      const s = scoreReadableZh(c);
+      if (s > bestScore) {
+        best = c;
+        bestScore = s;
+      }
+    });
+    return best.replace(/\u0000/g, '').replace(/[ \t]+\n/g, '\n').trim();
   }
 
   function renderAdvGroups() {
     if (!advGroups) return;
     advGroups.innerHTML = '';
     ADV_GROUPS.forEach((g) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = `adv-group-btn ${g.id}${advActiveGroup === g.id ? ' active' : ''}`;
-      b.dataset.advGroup = g.id;
-      b.textContent = g.label;
-      advGroups.appendChild(b);
+      const pill = document.createElement('section');
+      pill.className = `adv-pill ${g.id}${advActiveGroup === g.id ? ' active' : ''}`;
+      pill.dataset.advGroup = g.id;
+      pill.innerHTML = `
+        <button type="button" class="adv-group-btn" data-adv-group="${escapeHtml(g.id)}">
+          <span class="adv-group-kicker">${escapeHtml(g.kicker)}</span>
+          <span class="adv-group-main">${escapeHtml(g.label)}</span>
+        </button>
+      `;
+      advGroups.appendChild(pill);
     });
+    updateAdvStatus();
   }
 
   function renderAdvActions() {
@@ -2074,15 +2722,256 @@ button.ctx-sub-item:disabled {
     ADV_ACTIONS.filter((a) => a.group === advActiveGroup).forEach((a) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'pending-btn';
+      b.className = 'adv-act-btn';
       b.dataset.advAction = a.id;
       b.textContent = a.label;
       advActions.appendChild(b);
     });
-    updateAdvStatus();
   }
 
-  function dispatchAdvanced(category, action) {
+  const EN_ZH_SEED = Object.freeze({
+    hello: '你好', world: '世界', error: '错误', warning: '警告', success: '成功', file: '文件',
+    folder: '文件夹', save: '保存', cancel: '取消', copy: '复制', paste: '粘贴', delete: '删除',
+    input: '输入', output: '输出', text: '文本', line: '行', translate: '翻译', preview: '预览',
+    draft: '草稿', code: '代码', comment: '注释', open: '打开', close: '关闭', setting: '设置'
+  });
+  const ZH_EN_SEED = Object.freeze(Object.fromEntries(Object.entries(EN_ZH_SEED).map(([k, v]) => [v, k])));
+  const CEDICT_ZH_EN_SEED = Object.freeze({
+    '你好': 'hello', '谢谢': 'thanks', '请稍等': 'please wait', '文件夹': 'folder',
+    '预览区': 'preview area', '草稿区': 'draft area', '中英互译': 'zh-en translation',
+    '清除格式': 'clear formatting', '去空行': 'remove blank lines', '修复乱码': 'repair mojibake'
+  });
+  const CEDICT_EN_ZH_SEED = Object.freeze(Object.fromEntries(Object.entries(CEDICT_ZH_EN_SEED).map(([k, v]) => [v, k])));
+
+  function getLearnDict() {
+    try {
+      const raw = localStorage.getItem('hub_translate_learn_dict') || '';
+      const obj = raw ? JSON.parse(raw) : {};
+      return Object.assign({ en2zh: {}, zh2en: {} }, obj);
+    } catch (_) {
+      return { en2zh: {}, zh2en: {} };
+    }
+  }
+
+  function rememberLearnPair(sourceText, translatedText, cfg) {
+    if (!cfg || !cfg.enableLearn) return;
+    const src = String(sourceText || '').trim();
+    const dst = String(translatedText || '').trim();
+    if (!src || !dst || src === dst) return;
+    if (src.length > 64 || dst.length > 64) return;
+    const learn = getLearnDict();
+    const dir = detectLangDir(src);
+    if (dir === 'zh2en') learn.zh2en[src] = dst;
+    else learn.en2zh[src.toLowerCase()] = dst;
+    localStorage.setItem('hub_translate_learn_dict', JSON.stringify(learn));
+  }
+
+  function tokenReplaceEnToZh(text, dict) {
+    return String(text || '').replace(/\b[a-zA-Z][a-zA-Z0-9_-]*\b/g, (m) => {
+      const key = m.toLowerCase();
+      return dict[key] || m;
+    });
+  }
+
+  function tokenReplaceZhToEn(text, dict) {
+    const keys = Object.keys(dict).sort((a, b) => b.length - a.length);
+    let out = String(text || '');
+    keys.forEach((k) => {
+      out = out.split(k).join(dict[k]);
+    });
+    return out;
+  }
+
+  function detectLangDir(text) {
+    const t = String(text || '');
+    const zh = (t.match(/[\u4E00-\u9FFF]/g) || []).length;
+    const en = (t.match(/[A-Za-z]/g) || []).length;
+    return zh >= en ? 'zh2en' : 'en2zh';
+  }
+
+  function localTranslateText(text, cfg) {
+    const t = String(text || '');
+    if (!t) return { text: t, hitRate: 0 };
+    if (cfg.dictMode === 'off') return { text: t, hitRate: 0 };
+    const learn = getLearnDict();
+    const dir = detectLangDir(t);
+    let en2zhSeed = {};
+    let zh2enSeed = {};
+    if (cfg.dictMode === 'auto' || cfg.dictMode === 'seed_learn') {
+      en2zhSeed = Object.assign({}, en2zhSeed, EN_ZH_SEED, CEDICT_EN_ZH_SEED);
+      zh2enSeed = Object.assign({}, zh2enSeed, ZH_EN_SEED, CEDICT_ZH_EN_SEED);
+    } else if (cfg.dictMode === 'cedict_learn') {
+      en2zhSeed = Object.assign({}, en2zhSeed, CEDICT_EN_ZH_SEED);
+      zh2enSeed = Object.assign({}, zh2enSeed, CEDICT_ZH_EN_SEED);
+    } else if (cfg.dictMode === 'learn_only') {
+      en2zhSeed = {};
+      zh2enSeed = {};
+    }
+    const en2zh = Object.assign({}, en2zhSeed, (cfg.enableLearn ? learn.en2zh : {}));
+    const zh2en = Object.assign({}, zh2enSeed, (cfg.enableLearn ? learn.zh2en : {}));
+    const out = dir === 'zh2en' ? tokenReplaceZhToEn(t, zh2en) : tokenReplaceEnToZh(t, en2zh);
+    const changed = out !== t;
+    const hitRate = changed ? Math.min(100, Math.round((Math.abs(out.length - t.length) + 8) / Math.max(1, t.length) * 100)) : 0;
+    return { text: out, hitRate };
+  }
+
+  async function tryProviderTranslate(provider, text, from, to, cfg) {
+    const p = (cfg.providers && cfg.providers[provider]) || {};
+    if (!p.enabled) return '';
+    const source = from === 'auto' ? '' : from;
+    if (provider === 'mymemory') {
+      const ep = String(p.endpoint || '').trim() || 'https://api.mymemory.translated.net/get';
+      const url = `${ep}?q=${encodeURIComponent(text)}&langpair=${encodeURIComponent((source || 'auto') + '|' + to)}`;
+      const headers = {};
+      if (p.key) {
+        headers['x-rapidapi-key'] = p.key;
+        headers['x-rapidapi-host'] = 'translated-mymemory---translation-memory.p.rapidapi.com';
+      }
+      const r = await fetch(url, { headers });
+      if (!r.ok) return '';
+      const j = await r.json();
+      return String((j && j.responseData && j.responseData.translatedText) || '').trim();
+    }
+    if (provider === 'libre') {
+      const ep = (String(p.endpoint || '').trim() || 'https://libretranslate.com/translate').replace(/\/+$/, '');
+      const r = await fetch(ep, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q: text, source: source || 'auto', target: to, format: 'text', api_key: p.key || undefined })
+      });
+      if (!r.ok) return '';
+      const j = await r.json();
+      return String(j && j.translatedText || '').trim();
+    }
+    if (provider === 'deepl') {
+      if (!p.key) return '';
+      const ep = String(p.endpoint || '').trim() || 'https://api-free.deepl.com/v2/translate';
+      const form = new URLSearchParams();
+      form.set('text', text);
+      form.set('target_lang', to.startsWith('zh') ? 'ZH' : 'EN');
+      if (source) form.set('source_lang', source.startsWith('zh') ? 'ZH' : 'EN');
+      const r = await fetch(ep, {
+        method: 'POST',
+        headers: { 'Authorization': `DeepL-Auth-Key ${p.key}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form.toString()
+      });
+      if (!r.ok) return '';
+      const j = await r.json();
+      const arr = Array.isArray(j && j.translations) ? j.translations : [];
+      return String(arr[0] && arr[0].text || '').trim();
+    }
+    if (provider === 'azure') {
+      if (!p.key) return '';
+      const endpointRaw = String(p.endpoint || '').trim();
+      const region = endpointRaw.split(',')[0] || 'eastasia';
+      const endpoint = (endpointRaw.split(',')[1] || 'https://api.cognitive.microsofttranslator.com').replace(/\/+$/, '');
+      const url = `${endpoint}/translate?api-version=3.0&to=${encodeURIComponent(to)}` + (source ? `&from=${encodeURIComponent(source)}` : '');
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Ocp-Apim-Subscription-Key': p.key,
+          'Ocp-Apim-Subscription-Region': region
+        },
+        body: JSON.stringify([{ Text: text }])
+      });
+      if (!r.ok) return '';
+      const j = await r.json();
+      return String(j && j[0] && j[0].translations && j[0].translations[0] && j[0].translations[0].text || '').trim();
+    }
+    if (provider === 'google') {
+      if (p.key) {
+        const ep = String(p.endpoint || '').trim() || 'https://translation.googleapis.com/language/translate/v2';
+        const r = await fetch(`${ep}?key=${encodeURIComponent(p.key)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ q: text, source: source || undefined, target: to, format: 'text' })
+        });
+        if (!r.ok) return '';
+        const j = await r.json();
+        const translated = String(j && j.data && j.data.translations && j.data.translations[0] && j.data.translations[0].translatedText || '').trim();
+        return decodeHtmlEntities(translated);
+      }
+      const freeEp = String(p.endpoint || '').trim() || 'https://translate.googleapis.com/translate_a/single';
+      const q = `${freeEp}?client=gtx&dt=t&sl=${encodeURIComponent(source || 'auto')}&tl=${encodeURIComponent(to)}&q=${encodeURIComponent(text)}`;
+      const r = await fetch(q);
+      if (!r.ok) return '';
+      const j = await r.json();
+      const arr = Array.isArray(j && j[0]) ? j[0] : [];
+      const translated = arr.map((it) => String(it && it[0] || '')).join('').trim();
+      return decodeHtmlEntities(translated);
+    }
+    if (provider === 'youdao' || provider === 'baidu' || provider === 'tencent' || provider === 'aliyun' || provider === 'proxy') {
+      const endpoint = String(p.endpoint || '').trim() || String((cfg.providers.proxy && cfg.providers.proxy.endpoint) || '').trim();
+      const token = String(p.key || (cfg.providers.proxy && cfg.providers.proxy.key) || '');
+      if (!endpoint) return '';
+      const r = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+        body: JSON.stringify({ provider, text, from, to, key: p.key || '' })
+      });
+      if (!r.ok) return '';
+      const j = await r.json();
+      return String((j && (j.translatedText || j.text || j.result)) || '').trim();
+    }
+    return '';
+  }
+
+  async function networkTranslateText(text, cfg) {
+    const dir = detectLangDir(text);
+    const from = dir === 'zh2en' ? 'zh-CN' : 'en';
+    const to = dir === 'zh2en' ? 'en' : 'zh-CN';
+    const order = String(cfg.fallbackOrder || '').split(',').map((s) => s.trim()).filter(Boolean);
+    for (const p of order) {
+      try {
+        const out = await tryProviderTranslate(p, text, from, to, cfg);
+        if (out && out !== text) return { text: out, provider: p };
+      } catch (_) {}
+    }
+    return { text: '', provider: '' };
+  }
+
+  async function networkTranslateTextSmart(text, cfg) {
+    const sentenceLike = /[。！？.!?]/.test(text) || String(text || '').length > 28 || /\s{1,}/.test(text);
+    if (!sentenceLike) return networkTranslateText(text, cfg);
+    const smartCfg = Object.assign({}, cfg);
+    const baseOrder = String(cfg && cfg.fallbackOrder || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const preferred = ['google', 'deepl', 'azure', 'youdao', 'baidu', 'tencent', 'aliyun', 'mymemory', 'libre'];
+    const rest = baseOrder.filter((p) => !preferred.includes(p));
+    smartCfg.fallbackOrder = preferred.concat(rest).join(',');
+    return networkTranslateText(text, smartCfg);
+  }
+
+  async function translateByCfg(raw, cfg) {
+    const local = localTranslateText(raw, cfg);
+    let finalText = raw;
+    let provider = 'local';
+    const sentenceLike = /[。！？.!?]/.test(raw) || raw.length > 28 || /\s{1,}/.test(raw);
+    if (cfg.routeMode === 'local_only') {
+      finalText = local.text || raw;
+    } else if (cfg.routeMode === 'network_only') {
+      const remote = await networkTranslateTextSmart(raw, cfg);
+      finalText = remote.text || raw;
+      provider = remote.provider || 'none';
+    } else if (sentenceLike) {
+      const remote = await networkTranslateTextSmart(raw, cfg);
+      finalText = remote.text || local.text || raw;
+      provider = remote.provider || (local.text && local.text !== raw ? 'local' : 'none');
+    } else {
+      const hit = Number(local.hitRate || 0);
+      if (local.text && hit >= Number(cfg.localThreshold || 35)) {
+        finalText = local.text;
+      } else {
+        const remote = await networkTranslateTextSmart(raw, cfg);
+        finalText = remote.text || local.text || raw;
+        provider = remote.provider || (local.text && local.text !== raw ? 'local' : 'none');
+      }
+    }
+    rememberLearnPair(raw, finalText, cfg);
+    return { text: finalText, provider };
+  }
+
+  async function dispatchAdvanced(category, action) {
     const ctx = getScopeContext();
     if (ctx.scope === 'none') return;
     const raw = String(ctx.text || '');
@@ -2114,27 +3003,46 @@ button.ctx-sub-item:disabled {
       else if (action === 'purify_format')
         out = raw.replace(/\u00A0/g, ' ').replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/[ \t]+\n/g, '\n');
       else if (action === 'purify_garbled')
-        out = raw.replace(/�+/g, '').replace(/\?{2,}/g, '?');
+        out = repairMojibake(raw);
     } else if (category === 'morph') {
-      if (action === 'morph_upper') out = raw.toUpperCase();
-      else if (action === 'morph_lower') out = raw.toLowerCase();
-      else if (action === 'morph_snake')
-        out = raw.replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/[\s\-]+/g, '_').replace(/_{2,}/g, '_').toLowerCase();
-      else if (action === 'morph_camel')
-        out = raw.toLowerCase().replace(/[_-\s]+([a-z])/g, (_, c) => c.toUpperCase());
+      if (action === 'morph_case_toggle') out = toggleCaseText(raw);
       else if (action === 'morph_base64enc') {
         try { out = btoa(unescape(encodeURIComponent(raw))); } catch (_) { out = raw; }
       } else if (action === 'morph_base64dec') {
         try { out = decodeURIComponent(escape(atob(raw))); } catch (_) { out = raw; }
-      }
+      } else if (action === 'morph_zh_toggle') out = toggleZhScript(raw);
+      else if (action === 'morph_ts_toggle') out = toggleTsDate(raw);
     } else if (category === 'link') {
       if (action === 'link_translate') {
-        postToAhk({ type: 'hub_ai', text: `请将以下文本进行中英互译（保持原意，直接输出译文）：\n${raw}` });
+        const cfg = getTranslateCfg();
+        const ret = await translateByCfg(raw, cfg);
+        const finalText = ret.text || raw;
+        const useProvider = ret.provider || 'none';
+        ctx.apply(finalText);
+        refreshAll();
+        updateAdvStatus();
+        if (advStatus) advStatus.textContent += ` | 翻译源: ${useProvider}`;
         pulseDone();
         return;
       }
       if (action === 'link_comment') {
-        postToAhk({ type: 'hub_ai', text: `请只翻译以下代码注释内容，代码本体不要改动：\n${raw}` });
+        const cfg = getTranslateCfg();
+        const lines = raw.split(/\r?\n/);
+        for (let i = 0; i < lines.length; i += 1) {
+          const m = lines[i].match(/^(\s*[/#*]+\s*)(.+)$/);
+          if (!m) continue;
+          const ret = await translateByCfg(m[2], cfg);
+          lines[i] = `${m[1]}${ret.text || m[2]}`;
+        }
+        const commentOnly = lines.join('\n');
+        ctx.apply(commentOnly);
+        refreshAll();
+        updateAdvStatus();
+        pulseDone();
+        return;
+      }
+      if (action === 'link_config') {
+        openTranslateCfg();
         pulseDone();
         return;
       }
@@ -2151,10 +3059,31 @@ button.ctx-sub-item:disabled {
     advPanel.hidden = !open;
     if (btnPendingPanel) btnPendingPanel.textContent = open ? '高级处理 ▴' : '高级处理 ▾';
     if (open) {
+      closeTranslateCfg();
       renderAdvGroups();
       renderAdvActions();
       updateAdvStatus();
+    } else {
+      closeTranslateCfg();
     }
+  }
+
+  function runAdvancedAction(category, action) {
+    if (advBusy) return;
+    const ctx = getScopeContext();
+    const size = String(ctx.text || '').length;
+    const runNow = () => {
+      setAdvBusy(true);
+      Promise.resolve(dispatchAdvanced(category, action))
+        .finally(() => setAdvBusy(false));
+    };
+    if (size > 1024 * 1024) {
+      const ok = confirm('当前处理文本超过 1MB，可能有短暂卡顿，是否继续？');
+      if (!ok) return;
+      setTimeout(runNow, 24);
+      return;
+    }
+    runNow();
   }
 
   function getSelectedTextInsideCapsule() {
@@ -3025,6 +3954,8 @@ button.ctx-sub-item:disabled {
       hideContextMenu();
     if (previewCtxMenu && !e.target.closest('#preview-ctx-menu'))
       hidePreviewCtxMenu();
+    if (advPanel && !advPanel.hidden && !e.target.closest('#adv-panel') && !e.target.closest('#btnPendingPanel') && !e.target.closest('#preview-card'))
+      setAdvPanelOpen(false);
   });
 
   function hidePreviewCtxMenu() {
@@ -3049,23 +3980,31 @@ button.ctx-sub-item:disabled {
   if (btnAdvClose) btnAdvClose.addEventListener('click', () => setAdvPanelOpen(false));
   if (advGroups) {
     advGroups.addEventListener('click', (e) => {
-      const b = e.target.closest('button[data-adv-group]');
-      if (!b) return;
-      advActiveGroup = String(b.getAttribute('data-adv-group') || 'purify');
+      const g = e.target.closest('button[data-adv-group]');
+      if (!g) return;
+      advActiveGroup = String(g.getAttribute('data-adv-group') || 'purify');
       renderAdvGroups();
       renderAdvActions();
+      closeTranslateCfg();
     });
   }
   if (advActions) {
     advActions.addEventListener('click', (e) => {
       const b = e.target.closest('button[data-adv-action]');
       if (!b) return;
-      dispatchAdvanced(advActiveGroup, String(b.getAttribute('data-adv-action') || ''));
+      runAdvancedAction(advActiveGroup, String(b.getAttribute('data-adv-action') || ''));
     });
   }
+  if (btnTxCfgX) btnTxCfgX.addEventListener('click', closeTranslateCfg);
+  if (btnTxCfgCancel) btnTxCfgCancel.addEventListener('click', closeTranslateCfg);
+  if (btnTxCfgSave) btnTxCfgSave.addEventListener('click', () => {
+    setTranslateCfg(uiReadTranslateCfg());
+    closeTranslateCfg();
+    pulseDone();
+  });
   if (advPanel) {
-    advPanel.addEventListener('click', (e) => e.stopPropagation(), true);
-    advPanel.addEventListener('pointerdown', (e) => e.stopPropagation(), true);
+    advPanel.addEventListener('click', (e) => e.stopPropagation());
+    advPanel.addEventListener('pointerdown', (e) => e.stopPropagation());
   }
   const btnWinRecycle = document.getElementById('btnWinRecycle');
   if (btnWinRecycle) {
