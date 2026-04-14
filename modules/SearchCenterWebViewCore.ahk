@@ -543,7 +543,10 @@ SCWV_OnWebMessage(sender, args) {
             if g_SCWV_FocusPending
                 SCWV_RequestFocusInput()
         case "search":
+            if !msg.Has("keyword")
+                try OutputDebug("[SCWV] search message missing keyword field")
             keyword := msg.Has("keyword") ? String(msg["keyword"]) : ""
+            try OutputDebug("[SCWV] search request keyword_len=" . StrLen(keyword))
             _SCWV_PerformSearch(keyword)
             SCWV_PushState("state")
         case "setCategory":

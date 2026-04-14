@@ -523,6 +523,20 @@ FloatingToolbar_OnWebMessage(sender, args) {
         return
     }
 
+    if (typ = "toolbar_cmd_context") {
+        cid := msg.Has("cmdId") ? Trim(String(msg["cmdId"])) : ""
+        if (cid = "ftb_cursor_menu") {
+            try FloatingToolbar_ShowCursorQuickMenu()
+            catch {
+            }
+            return
+        }
+        x := msg.Has("x") ? Integer(msg["x"]) : 0
+        y := msg.Has("y") ? Integer(msg["y"]) : 0
+        ShowFloatingToolbarUnifiedContextMenu(x, y)
+        return
+    }
+
     if (typ = "drawer_state") {
         open := msg.Has("open") && !!msg["open"]
         FloatingToolbarSetChatDrawerState(open)
@@ -1342,16 +1356,33 @@ FloatingToolbarPushScaleStateToWeb(scaleValue := "") {
 
 FloatingToolbar_DeferredToolbarCmd(cmdId) {
     c := String(cmdId)
+    ; 命令工具栏中的面板类入口统一走 toggle，确保“点击同一按钮可显示/隐藏”。
+    if (c = "sc_activate_search") {
+        FloatingToolbarToggleButtonAction("Search")
+        return
+    }
+    if (c = "qa_clipboard") {
+        FloatingToolbarToggleButtonAction("Record")
+        return
+    }
     if (c = "ch_b" || c = "qa_batch") {
-        try PromptQuickPad_OpenCaptureDraft("", false)
+        FloatingToolbarToggleButtonAction("Prompt")
         return
     }
-    if (c = "ftb_scratchpad") {
-        try _ExecuteCommand("hub_capsule")
+    if (c = "ftb_scratchpad" || c = "hub_capsule") {
+        FloatingToolbarToggleButtonAction("NewPrompt")
         return
     }
-    if (c = "ftb_screenshot") {
-        try _ExecuteCommand("ch_t")
+    if (c = "ftb_screenshot" || c = "ch_t") {
+        FloatingToolbarToggleButtonAction("Screenshot")
+        return
+    }
+    if (c = "qa_config") {
+        FloatingToolbarToggleButtonAction("Settings")
+        return
+    }
+    if (c = "sys_show_vk") {
+        FloatingToolbarToggleButtonAction("VirtualKeyboard")
         return
     }
     if (c = "ftb_cursor_menu") {
@@ -1413,6 +1444,27 @@ FloatingToolbarPushCmdLayoutToWeb() {
         if (cid = "ftb_cursor_menu")
             rowPayload["iconPath"] := "images/cursor.png"
         items.Push(rowPayload)
+    }
+    hasCursorMenu := false
+    for _, it in items {
+        if ((it is Map) && it.Has("cmdId") && String(it["cmdId"]) = "ftb_cursor_menu") {
+            hasCursorMenu := true
+            break
+        }
+    }
+    if (!hasCursorMenu && g_FTB_AllowedCmdIds.Has("ftb_cursor_menu")) {
+        cursorName := "Cursor 快捷菜单"
+        if (cmdList.Has("ftb_cursor_menu")) {
+            cent := cmdList["ftb_cursor_menu"]
+            if (cent is Map) && cent.Has("name") && cent["name"] != ""
+                cursorName := String(cent["name"])
+        }
+        items.Push(Map(
+            "cmdId", "ftb_cursor_menu",
+            "name", cursorName,
+            "iconClass", "fa-solid fa-bolt",
+            "iconPath", "images/cursor.png"
+        ))
     }
     FloatingToolbarCmdVisibleCount := items.Length
     try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_toolbar_cmds", "items", items))

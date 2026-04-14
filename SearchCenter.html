@@ -2325,6 +2325,21 @@ function triggerSearch() {
   }, 400);
 }
 
+function cancelPendingSearchDebounce() {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = 0;
+  }
+}
+
+function runSearchNow() {
+  const input = document.getElementById("search");
+  const keyword = input ? String(input.value || "") : "";
+  state.keyword = keyword;
+  cancelPendingSearchDebounce();
+  postToAhk({ type: "search", keyword });
+}
+
 let loadMoreObserver = null;
 function disconnectLoadMoreObserver() {
   if (loadMoreObserver) {
@@ -2363,8 +2378,7 @@ document.getElementById("limit").addEventListener("change", (event) => {
 });
 
 document.getElementById("btn-run").addEventListener("click", () => {
-  const keyword = document.getElementById("search").value;
-  postToAhk({ type: "search", keyword });
+  runSearchNow();
 });
 
 document.getElementById("btn-web-search").addEventListener("click", () => {
@@ -2479,8 +2493,7 @@ document.addEventListener("keydown", (event) => {
 
   if (event.key === "Enter" && document.activeElement && document.activeElement.id === "search") {
     event.preventDefault();
-    const keyword = document.getElementById("search").value;
-    postToAhk({ type: "search", keyword });
+    runSearchNow();
     return;
   }
 

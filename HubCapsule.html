@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -419,6 +419,97 @@ body.native-titlebar #header { display: none; }
 .pending-btn.primary:hover {
   background: rgba(255, 154, 47, 0.28);
   box-shadow: 0 0 14px rgba(255, 154, 47, 0.22);
+}
+
+.pending-btn.toggle {
+  border-color: rgba(0, 255, 65, 0.55);
+  background: rgba(0, 255, 65, 0.14);
+}
+
+.adv-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 18;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 255, 65, 0.35);
+  background: linear-gradient(165deg, rgba(0, 255, 65, 0.12), rgba(9, 16, 12, 0.9));
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.adv-panel[hidden] { display: none !important; }
+
+.adv-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.adv-title {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #00ff41;
+  font-weight: 700;
+}
+
+.adv-status {
+  flex: 1;
+  font-size: 10px;
+  color: #c8ffd8;
+}
+
+.adv-close {
+  font-size: 11px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 170, 95, 0.62);
+  background: rgba(255, 154, 47, 0.2);
+  color: #ffe7cb;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.adv-groups {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.adv-group-btn {
+  border-radius: 8px;
+  border: 1px solid rgba(0, 255, 65, 0.35);
+  background: rgba(10, 18, 12, 0.78);
+  color: #c7ffd7;
+  font-size: 11px;
+  padding: 5px 6px;
+  cursor: pointer;
+}
+
+.adv-group-btn.active {
+  border-color: rgba(0, 255, 65, 0.8);
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.24);
+}
+
+.adv-group-btn.harvest.active {
+  border-color: rgba(54, 232, 255, 0.82);
+  box-shadow: 0 0 10px rgba(54, 232, 255, 0.28);
+}
+
+.adv-group-btn.purify.active {
+  border-color: rgba(255, 154, 47, 0.82);
+  box-shadow: 0 0 10px rgba(255, 154, 47, 0.3);
+}
+
+.adv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 #preview-card.pending-to-stack {
@@ -1337,8 +1428,7 @@ button.ctx-sub-item:disabled {
             <button type="button" class="pending-btn primary" id="btnPendingSave">存入草稿区</button>
             <button type="button" class="pending-btn" id="btnPendingSearch">搜索</button>
             <button type="button" class="pending-btn" id="btnPendingAi">快速 AI</button>
-            <button type="button" class="pending-btn" id="btnPendingFormat">纯文本整理</button>
-            <button type="button" class="pending-btn" id="btnPendingClear">清空预览</button>
+            <button type="button" class="pending-btn toggle" id="btnPendingPanel">高级处理 ▾</button>
           </div>
         </div>
         <div id="preview-card">
@@ -1348,6 +1438,15 @@ button.ctx-sub-item:disabled {
             <button type="button" id="preview-copy-image">复制图片预览</button>
           </div>
           <div id="draft-chip">拖入文本会先出现在此处；点「存入草稿区」或拖到下方堆栈区再松手才会入栈</div>
+          <div id="adv-panel" class="adv-panel" hidden>
+            <div class="adv-head">
+              <span class="adv-title">高级处理</span>
+              <span id="adv-status" class="adv-status">Scope: Full | Chars: 0 | Lines: 0 | Extracted: 0</span>
+              <button type="button" class="adv-close" id="btnAdvClose">关闭</button>
+            </div>
+            <div id="adv-groups" class="adv-groups"></div>
+            <div id="adv-actions" class="adv-actions"></div>
+          </div>
           <div id="external-drop-hint" aria-hidden="true">
             <span class="hint-title">拖放至此</span>
             <span class="hint-sub">松手后仅更新预览，请再点「存入草稿区」入栈</span>
@@ -1428,6 +1527,8 @@ button.ctx-sub-item:disabled {
   let externalDragDepth = 0;
   let capsHoldTimer = 0;
   let capsFlashTimer = 0;
+  let advExtractedCount = 0;
+  let advActiveGroup = 'purify';
 
   const capsule = document.getElementById('capsule');
   const host = document.getElementById('host');
@@ -1454,8 +1555,12 @@ button.ctx-sub-item:disabled {
   const btnPendingSave = document.getElementById('btnPendingSave');
   const btnPendingSearch = document.getElementById('btnPendingSearch');
   const btnPendingAi = document.getElementById('btnPendingAi');
-  const btnPendingFormat = document.getElementById('btnPendingFormat');
-  const btnPendingClear = document.getElementById('btnPendingClear');
+  const btnPendingPanel = document.getElementById('btnPendingPanel');
+  const btnAdvClose = document.getElementById('btnAdvClose');
+  const advPanel = document.getElementById('adv-panel');
+  const advStatus = document.getElementById('adv-status');
+  const advGroups = document.getElementById('adv-groups');
+  const advActions = document.getElementById('adv-actions');
   const btnTriggerCapslock = document.getElementById('btnTriggerCapslock');
   const btnTriggerDoubleCtrl = document.getElementById('btnTriggerDoubleCtrl');
   const hubSlotRow = document.getElementById('hub-slot-row');
@@ -1862,6 +1967,194 @@ button.ctx-sub-item:disabled {
       return;
     }
     postToAhk({ type: 'hub_ai', text });
+  }
+
+  const ADV_GROUPS = Object.freeze([
+    { id: 'harvest', label: 'Harvest' },
+    { id: 'purify', label: 'Purify' },
+    { id: 'morph', label: 'Morph' },
+    { id: 'link', label: 'Link' }
+  ]);
+
+  const ADV_ACTIONS = Object.freeze([
+    { group: 'harvest', id: 'extract_phone', label: '手机号' },
+    { group: 'harvest', id: 'extract_email', label: 'Email' },
+    { group: 'harvest', id: 'extract_ip', label: 'IP' },
+    { group: 'harvest', id: 'extract_url', label: 'URL' },
+    { group: 'harvest', id: 'extract_zh', label: '中文字符' },
+    { group: 'purify', id: 'purify_lines', label: '去空行' },
+    { group: 'purify', id: 'purify_strip_html', label: '剥离标签' },
+    { group: 'purify', id: 'purify_spaces', label: '去空格' },
+    { group: 'purify', id: 'purify_format', label: '清除格式' },
+    { group: 'purify', id: 'purify_garbled', label: '修复乱码' },
+    { group: 'morph', id: 'morph_upper', label: '大写' },
+    { group: 'morph', id: 'morph_lower', label: '小写' },
+    { group: 'morph', id: 'morph_snake', label: 'snake_case' },
+    { group: 'morph', id: 'morph_camel', label: 'camelCase' },
+    { group: 'morph', id: 'morph_base64enc', label: 'Base64编码' },
+    { group: 'morph', id: 'morph_base64dec', label: 'Base64解码' },
+    { group: 'link', id: 'link_translate', label: '中英互译' },
+    { group: 'link', id: 'link_comment', label: '注释翻译' }
+  ]);
+
+  function getScopeContext() {
+    syncPendingFromTextarea();
+    if (hasPendingImage())
+      return { scope: 'none', text: '', apply: () => {} };
+    if (preview && preview.tagName === 'TEXTAREA' && document.activeElement === preview) {
+      const a = preview.selectionStart;
+      const b = preview.selectionEnd;
+      if (Number.isInteger(a) && Number.isInteger(b) && b > a) {
+        const selected = String(preview.value.slice(a, b) || '');
+        return {
+          scope: 'selection',
+          text: selected,
+          apply: (next) => {
+            const out = String(next == null ? '' : next);
+            const merged = preview.value.slice(0, a) + out + preview.value.slice(b);
+            preview.value = merged;
+            state.pendingDraft = merged;
+            try {
+              preview.selectionStart = a;
+              preview.selectionEnd = a + out.length;
+            } catch (_) {}
+          }
+        };
+      }
+    }
+    const full = String(state.pendingDraft || '');
+    return {
+      scope: 'full',
+      text: full,
+      apply: (next) => {
+        const out = String(next == null ? '' : next);
+        preview.value = out;
+        state.pendingDraft = out;
+      }
+    };
+  }
+
+  function extractDistinct(text, regex) {
+    const arr = String(text || '').match(regex) || [];
+    return Array.from(new Set(arr.map((v) => String(v).trim()).filter(Boolean)));
+  }
+
+  function updateAdvStatus() {
+    if (!advStatus) return;
+    const ctx = getScopeContext();
+    const src = String(state.pendingDraft || '');
+    const chars = src.length;
+    const lines = src ? src.split(/\r?\n/).length : 0;
+    const scope = ctx.scope === 'selection' ? 'Selection' : 'Full';
+    advStatus.textContent = `Scope: ${scope} | Chars: ${chars} | Lines: ${lines} | Extracted: ${advExtractedCount}`;
+  }
+
+  function pulseDone() {
+    previewCard.classList.remove('preview-pulse');
+    void previewCard.offsetWidth;
+    previewCard.classList.add('preview-pulse');
+  }
+
+  function renderAdvGroups() {
+    if (!advGroups) return;
+    advGroups.innerHTML = '';
+    ADV_GROUPS.forEach((g) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `adv-group-btn ${g.id}${advActiveGroup === g.id ? ' active' : ''}`;
+      b.dataset.advGroup = g.id;
+      b.textContent = g.label;
+      advGroups.appendChild(b);
+    });
+  }
+
+  function renderAdvActions() {
+    if (!advActions) return;
+    advActions.innerHTML = '';
+    ADV_ACTIONS.filter((a) => a.group === advActiveGroup).forEach((a) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'pending-btn';
+      b.dataset.advAction = a.id;
+      b.textContent = a.label;
+      advActions.appendChild(b);
+    });
+    updateAdvStatus();
+  }
+
+  function dispatchAdvanced(category, action) {
+    const ctx = getScopeContext();
+    if (ctx.scope === 'none') return;
+    const raw = String(ctx.text || '');
+    let out = raw;
+
+    if (category === 'harvest') {
+      let items = [];
+      if (action === 'extract_phone') items = extractDistinct(raw, /\b(?:\+?86[-\s]?)?1[3-9]\d{9}\b/g);
+      else if (action === 'extract_email') items = extractDistinct(raw, /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g);
+      else if (action === 'extract_ip') items = extractDistinct(raw, /\b(?:\d{1,3}\.){3}\d{1,3}\b/g);
+      else if (action === 'extract_url') items = extractDistinct(raw, /\bhttps?:\/\/[^\s<>"']+/g);
+      else if (action === 'extract_zh') items = extractDistinct(raw, /[\u4E00-\u9FFF]+/g);
+      advExtractedCount = items.length;
+      updateAdvStatus();
+      if (items.length) postToAhk({ type: 'hub_copy', text: items.join('\n') });
+      pulseDone();
+      return;
+    }
+
+    if (category === 'purify') {
+      if (action === 'purify_lines')
+        out = raw.split(/\r?\n/).map((s) => s.trim()).filter(Boolean).join('\n');
+      else if (action === 'purify_strip_html') {
+        const div = document.createElement('div');
+        div.innerHTML = raw;
+        out = String(div.textContent || '');
+      } else if (action === 'purify_spaces')
+        out = raw.split(/\r?\n/).map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+      else if (action === 'purify_format')
+        out = raw.replace(/\u00A0/g, ' ').replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/[ \t]+\n/g, '\n');
+      else if (action === 'purify_garbled')
+        out = raw.replace(/�+/g, '').replace(/\?{2,}/g, '?');
+    } else if (category === 'morph') {
+      if (action === 'morph_upper') out = raw.toUpperCase();
+      else if (action === 'morph_lower') out = raw.toLowerCase();
+      else if (action === 'morph_snake')
+        out = raw.replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/[\s\-]+/g, '_').replace(/_{2,}/g, '_').toLowerCase();
+      else if (action === 'morph_camel')
+        out = raw.toLowerCase().replace(/[_-\s]+([a-z])/g, (_, c) => c.toUpperCase());
+      else if (action === 'morph_base64enc') {
+        try { out = btoa(unescape(encodeURIComponent(raw))); } catch (_) { out = raw; }
+      } else if (action === 'morph_base64dec') {
+        try { out = decodeURIComponent(escape(atob(raw))); } catch (_) { out = raw; }
+      }
+    } else if (category === 'link') {
+      if (action === 'link_translate') {
+        postToAhk({ type: 'hub_ai', text: `请将以下文本进行中英互译（保持原意，直接输出译文）：\n${raw}` });
+        pulseDone();
+        return;
+      }
+      if (action === 'link_comment') {
+        postToAhk({ type: 'hub_ai', text: `请只翻译以下代码注释内容，代码本体不要改动：\n${raw}` });
+        pulseDone();
+        return;
+      }
+    }
+
+    ctx.apply(out);
+    refreshAll();
+    updateAdvStatus();
+    pulseDone();
+  }
+
+  function setAdvPanelOpen(open) {
+    if (!advPanel) return;
+    advPanel.hidden = !open;
+    if (btnPendingPanel) btnPendingPanel.textContent = open ? '高级处理 ▴' : '高级处理 ▾';
+    if (open) {
+      renderAdvGroups();
+      renderAdvActions();
+      updateAdvStatus();
+    }
   }
 
   function getSelectedTextInsideCapsule() {
@@ -2272,6 +2565,7 @@ button.ctx-sub-item:disabled {
     syncSelectedSlotFromSelectedIndex();
     renderHubTags();
     applyVisualState();
+    if (advPanel && !advPanel.hidden) updateAdvStatus();
   }
 
   function pushSegment(text) {
@@ -2751,8 +3045,28 @@ button.ctx-sub-item:disabled {
   if (btnPendingSave) btnPendingSave.addEventListener('click', () => addToDraft());
   if (btnPendingSearch) btnPendingSearch.addEventListener('click', doPendingSearch);
   if (btnPendingAi) btnPendingAi.addEventListener('click', doPendingAi);
-  if (btnPendingFormat) btnPendingFormat.addEventListener('click', formatPreviewPlainLines);
-  if (btnPendingClear) btnPendingClear.addEventListener('click', clearPreviewOnly);
+  if (btnPendingPanel) btnPendingPanel.addEventListener('click', () => setAdvPanelOpen(advPanel ? advPanel.hidden : true));
+  if (btnAdvClose) btnAdvClose.addEventListener('click', () => setAdvPanelOpen(false));
+  if (advGroups) {
+    advGroups.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-adv-group]');
+      if (!b) return;
+      advActiveGroup = String(b.getAttribute('data-adv-group') || 'purify');
+      renderAdvGroups();
+      renderAdvActions();
+    });
+  }
+  if (advActions) {
+    advActions.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-adv-action]');
+      if (!b) return;
+      dispatchAdvanced(advActiveGroup, String(b.getAttribute('data-adv-action') || ''));
+    });
+  }
+  if (advPanel) {
+    advPanel.addEventListener('click', (e) => e.stopPropagation(), true);
+    advPanel.addEventListener('pointerdown', (e) => e.stopPropagation(), true);
+  }
   const btnWinRecycle = document.getElementById('btnWinRecycle');
   if (btnWinRecycle) {
     btnWinRecycle.addEventListener('click', () => openTrashPanel());
@@ -2817,6 +3131,7 @@ button.ctx-sub-item:disabled {
         draftChip.classList.toggle('show', !!String(preview.value || '').trim());
         applyVisualState();
         headerCount.textContent = String(state.segments.length);
+        if (advPanel && !advPanel.hidden) updateAdvStatus();
       }
     });
     preview.addEventListener('mousedown', armDraftDragFromTextarea, true);
@@ -3308,6 +3623,11 @@ button.ctx-sub-item:disabled {
     if (e.key === 'Escape') {
       hideContextMenu();
       hidePreviewCtxMenu();
+      if (advPanel && !advPanel.hidden) {
+        setAdvPanelOpen(false);
+        e.preventDefault();
+        return;
+      }
       if (hubTrashOverlay && hubTrashOverlay.classList.contains('open')) {
         closeTrashPanel();
         e.preventDefault();

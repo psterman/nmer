@@ -436,17 +436,46 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     return suf || 'circle';
   }
 
-  function toolbarIconSvgHtml(cmdId, iconClass, iconPath) {
-    if (iconPath) {
-      return '<span class="tb-ico"><img class="tb-ico-img" src="' + escAttr(iconPath) + '" alt=""></span>';
-    }
+  function toolbarFallbackKey(cmdId, iconClass) {
     var key = TOOLBAR_CMD_TO_KEY[String(cmdId || '').trim()];
     if (!key) {
       var suf = extractFaSuffix(iconClass);
       key = FA_SUFFIX_TO_KEY[suf] || 'bolt';
     }
-    var inner = TOOLBAR_SVG_PARTS[key] || TOOLBAR_SVG_PARTS.bolt;
+    return key || 'bolt';
+  }
+
+  function toolbarIconSvgHtml(cmdId, iconClass, iconPath) {
+    var fbKey = toolbarFallbackKey(cmdId, iconClass);
+    if (iconPath) {
+      return (
+        '<span class="tb-ico">' +
+        '<img class="tb-ico-img" src="' +
+        escAttr(iconPath) +
+        '" data-fallback-key="' +
+        escAttr(fbKey) +
+        '" alt="">' +
+        '</span>'
+      );
+    }
+    var inner = TOOLBAR_SVG_PARTS[fbKey] || TOOLBAR_SVG_PARTS.bolt;
     return '<span class="tb-ico">' + inner + '</span>';
+  }
+
+  function attachToolbarIconFallback(root) {
+    if (!root) return;
+    root.querySelectorAll('img.tb-ico-img[data-fallback-key]').forEach(function (img) {
+      if (img.dataset.fbBound === '1') return;
+      img.dataset.fbBound = '1';
+      var useFallback = function () {
+        var wrap = img.parentElement;
+        if (!wrap) return;
+        var k = String(img.getAttribute('data-fallback-key') || '').trim() || 'bolt';
+        wrap.innerHTML = TOOLBAR_SVG_PARTS[k] || TOOLBAR_SVG_PARTS.bolt;
+      };
+      img.addEventListener('error', useFallback, { once: true });
+      if (img.complete && (!img.naturalWidth || !img.naturalHeight)) useFallback();
+    });
   }
 
   function rebuildToolbarCmdButtons(items) {
@@ -483,6 +512,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
         '<span class="hint" style="display:flex;align-items:center;padding:8px 10px;font-size:11px;color:var(--muted)">无工具栏命令（请在 KeyBinder 中配置）</span>';
     $('collapsedBtns').innerHTML = html;
     $('drawerBtns').innerHTML = html;
+    attachToolbarIconFallback($('collapsedBtns'));
+    attachToolbarIconFallback($('drawerBtns'));
     bindSearchDnD();
     if (state.activeCmdId) sel(state.activeCmdId);
   }
@@ -3094,6 +3125,16 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 
   function openHostContextMenuFromEvent(e) {
     if (!e) return;
+    var tb = e.target && e.target.closest ? e.target.closest('.tb[data-cmd-id]') : null;
+    if (tb) {
+      var cid = String(tb.getAttribute('data-cmd-id') || '').trim();
+      if (cid === 'ftb_cursor_menu') {
+        e.preventDefault();
+        e.stopPropagation();
+        post({ type: 'toolbar_cmd_context', cmdId: cid, x: e.screenX, y: e.screenY });
+        return;
+      }
+    }
     e.preventDefault();
     e.stopPropagation();
     post({ type: 'context_menu', x: e.screenX, y: e.screenY });
