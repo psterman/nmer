@@ -477,32 +477,23 @@ body.native-titlebar #header { display: none; }
   grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: start;
   gap: 6px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .adv-pill {
   min-width: 0;
-  border-radius: 10px;
-  border: 1px solid rgba(0, 255, 65, 0.32);
-  background: rgba(10, 18, 12, 0.74);
+  border-radius: 11px;
+  border: 1px solid rgba(0, 255, 65, 0.26);
+  background: linear-gradient(160deg, rgba(8, 18, 12, 0.82), rgba(7, 14, 10, 0.78));
   transition: border-color var(--ease), box-shadow var(--ease), background var(--ease), transform var(--ease);
   overflow: hidden;
 }
 
 .adv-pill.active {
-  border-color: rgba(0, 255, 65, 0.72);
-  box-shadow: 0 0 14px rgba(0, 255, 65, 0.2);
-  transform: translateY(-1px);
-}
-
-.adv-pill.harvest.active {
-  border-color: rgba(54, 232, 255, 0.8);
-  box-shadow: 0 0 14px rgba(54, 232, 255, 0.26);
-}
-
-.adv-pill.purify.active {
-  border-color: rgba(255, 154, 47, 0.82);
-  box-shadow: 0 0 14px rgba(255, 154, 47, 0.27);
+  border-color: rgba(0, 255, 65, 0.62);
+  box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.24) inset, 0 0 12px rgba(0, 255, 65, 0.16);
+  background: linear-gradient(160deg, rgba(10, 24, 15, 0.9), rgba(8, 16, 12, 0.82));
+  transform: none;
 }
 
 .adv-group-btn {
@@ -557,9 +548,26 @@ body.native-titlebar #header { display: none; }
   white-space: nowrap;
 }
 
+.adv-act-btn.icon-gear {
+  min-width: 30px;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 700;
+}
+
 .adv-act-btn:hover {
   border-color: rgba(0, 255, 65, 0.78);
   background: rgba(0, 255, 65, 0.2);
+}
+
+.adv-act-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+  filter: saturate(0.4);
 }
 
 .adv-pill.harvest .adv-act-btn {
@@ -590,12 +598,12 @@ body.native-titlebar #header { display: none; }
 }
 
 .translate-config {
-  position: fixed;
-  left: 20px;
-  right: 20px;
-  top: 64px;
-  bottom: 24px;
-  min-height: 320px;
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 14px;
+  bottom: 14px;
+  min-height: 0;
   z-index: 120;
   border-radius: 14px;
   border: 1px solid rgba(255, 153, 66, 0.55);
@@ -647,6 +655,21 @@ body.native-titlebar #header { display: none; }
   padding: 0 8px;
   font-size: 12px;
 }
+.tx-row select {
+  appearance: none;
+  background: linear-gradient(145deg, rgba(35, 20, 8, 0.9), rgba(15, 20, 14, 0.9));
+  color: #ffd9b8;
+  border-color: rgba(255, 154, 47, 0.62);
+}
+.tx-row select:focus, .tx-row input:focus {
+  outline: none;
+  border-color: rgba(255, 173, 88, 0.95);
+  box-shadow: 0 0 0 1px rgba(255, 154, 47, 0.35);
+}
+.tx-row select option {
+  background: #25180d;
+  color: #ffd9b8;
+}
 .tx-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: #ff9a2f; }
 
 .tx-row-hint { grid-column: 1 / -1; font-size: 11px; color: #b8b2ac; line-height: 1.45; }
@@ -658,10 +681,53 @@ body.native-titlebar #header { display: none; }
   padding: 6px;
   background: rgba(12, 15, 13, 0.6);
 }
-.tx-provider-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.tx-provider-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; gap: 8px; }
 .tx-provider-name { font-size: 12px; color: #ffe1c4; font-weight: 600; }
+.tx-provider-tools { display: inline-flex; align-items: center; gap: 8px; }
+.tx-provider-link { color: #ffb86e; font-size: 11px; text-decoration: none; }
+.tx-provider-link:hover { text-decoration: underline; }
 .tx-provider-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .tx-provider-row input {
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 154, 47, 0.35);
+  background: rgba(16, 23, 20, 0.9);
+  color: #e8fff1;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.tx-chain-list { display: grid; gap: 8px; }
+.tx-chain-row {
+  border: 1px solid rgba(255, 154, 47, 0.35);
+  border-radius: 10px;
+  background: rgba(12, 15, 13, 0.6);
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+}
+.tx-chain-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+  align-items: center;
+  gap: 6px;
+}
+.tx-chain-top select { min-width: 120px; }
+.tx-chain-enable {
+  display: inline-flex;
+  align-items: center;
+  color: #ffbf86;
+  font-size: 12px;
+}
+.tx-chain-enable input { margin-right: 4px; accent-color: #ff9a2f; }
+.tx-chain-top a { color: #ffb86e; font-size: 11px; text-decoration: none; }
+.tx-chain-top a:hover { text-decoration: underline; }
+.tx-chain-inputs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.tx-chain-inputs input {
   height: 28px;
   border-radius: 8px;
   border: 1px solid rgba(255, 154, 47, 0.35);
@@ -1673,6 +1739,10 @@ button.ctx-sub-item:disabled {
                     <label for="tx-local-threshold">本地命中阈值</label>
                     <input id="tx-local-threshold" type="number" min="0" max="100" step="1" value="35">
                   </div>
+                  <div class="tx-row">
+                    <label for="tx-strict-order">严格顺序</label>
+                    <input id="tx-strict-order" type="checkbox">
+                  </div>
                   <div class="tx-row-hint">当本地词典命中率低于阈值时，自动走二级网络翻译。</div>
                 </div>
 
@@ -1684,132 +1754,87 @@ button.ctx-sub-item:disabled {
                       <option value="auto">自动（内置+seed-CEDICT+学习）</option>
                       <option value="seed_learn">内置+seed+学习</option>
                       <option value="cedict_learn">仅 CEDICT + 学习</option>
+                      <option value="manual">手动组合</option>
                       <option value="learn_only">仅学习词典</option>
                       <option value="off">关闭本地词典</option>
                     </select>
                   </div>
                   <div class="tx-row">
+                    <label for="tx-local-engine">本地方案</label>
+                    <select id="tx-local-engine">
+                      <option value="memory_json">方案1：内存 JSON</option>
+                      <option value="shard_json">方案2：分片 JSON</option>
+                      <option value="idb_worker">方案3：IndexedDB/Worker</option>
+                      <option value="sqlite_bridge">方案4：SQLite 桥接</option>
+                    </select>
+                  </div>
+                  <div class="tx-row">
+                    <label>手动组合</label>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                      <label><input type="checkbox" id="tx-local-seed" checked>seed</label>
+                      <label><input type="checkbox" id="tx-local-cedict" checked>cedict</label>
+                      <label><input type="checkbox" id="tx-local-custom" checked>custom</label>
+                      <label><input type="checkbox" id="tx-local-learn" checked>learn</label>
+                    </div>
+                  </div>
+                  <div class="tx-row">
                     <label for="tx-enable-learn">学习模式</label>
                     <input id="tx-enable-learn" type="checkbox" checked>
                   </div>
+                  <div class="tx-row">
+                    <label for="tx-dict-pack">词典系列</label>
+                    <select id="tx-dict-pack">
+                      <option value="balanced">Balanced（通用）</option>
+                      <option value="tech">Tech（技术词）</option>
+                      <option value="verbose">Verbose（释义更长）</option>
+                    </select>
+                  </div>
+                  <div class="tx-row">
+                    <label>自定义词典</label>
+                    <div style="display:flex; gap:6px;">
+                      <button type="button" class="tx-btn" id="btnTxDictImport">导入词典</button>
+                      <button type="button" class="tx-btn" id="btnTxDictClear">清空导入</button>
+                    </div>
+                  </div>
+                  <input id="tx-dict-file" type="file" accept=".json,.txt,.tsv,.csv" hidden>
                   <div class="tx-row-hint">学习模式会把你手工修订过的译词保存到本地，优先用于后续翻译。</div>
+                  <div class="tx-links">
+                    <a href="https://www.mdbg.net/chinese/dictionary?page=cedict" target="_blank" rel="noreferrer noopener">CC-CEDICT</a>
+                    <a href="https://github.com/skywind3000/ECDICT" target="_blank" rel="noreferrer noopener">ECDICT</a>
+                    <a href="https://github.com/BYVoid/OpenCC" target="_blank" rel="noreferrer noopener">OpenCC</a>
+                    <a href="https://github.com/fxsjy/jieba" target="_blank" rel="noreferrer noopener">Jieba 词库</a>
+                  </div>
                 </div>
 
                 <div class="tx-block">
-                  <div class="tx-block-title">二级：网络词典/API（按顺序托底）</div>
+                  <div class="tx-block-title">二级：网络词典/API（添加机制）</div>
                   <div class="tx-row">
-                    <label for="tx-fallback-order">托底顺序</label>
-                    <input id="tx-fallback-order" type="text" value="mymemory,libre,deepl,azure,google,youdao,baidu,tencent,aliyun">
-                  </div>
-                  <div class="tx-provider-grid">
-                    <div class="tx-provider-item">
-                      <div class="tx-provider-head">
-                        <span class="tx-provider-name">MyMemory (RapidAPI)</span>
-                        <label><input type="checkbox" id="tx-en-mymemory" checked>启用</label>
-                      </div>
-                      <div class="tx-provider-row">
-                        <input id="tx-k-mymemory" type="password" placeholder="RapidAPI Key (可选)">
-                        <input id="tx-e-mymemory" type="text" placeholder="Endpoint(默认 mymemory)">
-                      </div>
-                    </div>
-                    <div class="tx-provider-item">
-                      <div class="tx-provider-head">
-                        <span class="tx-provider-name">LibreTranslate</span>
-                        <label><input type="checkbox" id="tx-en-libre" checked>启用</label>
-                      </div>
-                      <div class="tx-provider-row">
-                        <input id="tx-k-libre" type="password" placeholder="API Key (可选)">
-                        <input id="tx-e-libre" type="text" placeholder="Endpoint">
-                      </div>
-                    </div>
-                    <div class="tx-provider-item">
-                      <div class="tx-provider-head">
-                        <span class="tx-provider-name">DeepL</span>
-                        <label><input type="checkbox" id="tx-en-deepl">启用</label>
-                      </div>
-                      <div class="tx-provider-row">
-                        <input id="tx-k-deepl" type="password" placeholder="API Key">
-                        <input id="tx-e-deepl" type="text" placeholder="Endpoint(可选)">
-                      </div>
-                    </div>
-                    <div class="tx-provider-item">
-                      <div class="tx-provider-head">
-                        <span class="tx-provider-name">Microsoft Azure</span>
-                        <label><input type="checkbox" id="tx-en-azure">启用</label>
-                      </div>
-                      <div class="tx-provider-row">
-                        <input id="tx-k-azure" type="password" placeholder="Subscription Key">
-                        <input id="tx-e-azure" type="text" placeholder="Region,Endpoint(可选)">
-                      </div>
-                    </div>
-                    <div class="tx-provider-item">
-                      <div class="tx-provider-head">
-                        <span class="tx-provider-name">Google Cloud</span>
-                        <label><input type="checkbox" id="tx-en-google">启用</label>
-                      </div>
-                      <div class="tx-provider-row">
-                        <input id="tx-k-google" type="password" placeholder="API Key">
-                        <input id="tx-e-google" type="text" placeholder="Endpoint(可选)">
-                      </div>
-                    </div>
-                    <div class="tx-provider-item">
-                      <div class="tx-provider-head">
-                        <span class="tx-provider-name">有道</span>
-                        <label><input type="checkbox" id="tx-en-youdao">启用</label>
-                      </div>
-                      <div class="tx-provider-row">
-                        <input id="tx-k-youdao" type="password" placeholder="Key / AppKey">
-                        <input id="tx-e-youdao" type="text" placeholder="Endpoint 或代理地址">
-                      </div>
-                    </div>
-                    <div class="tx-provider-item">
-                      <div class="tx-provider-head">
-                        <span class="tx-provider-name">百度翻译</span>
-                        <label><input type="checkbox" id="tx-en-baidu">启用</label>
-                      </div>
-                      <div class="tx-provider-row">
-                        <input id="tx-k-baidu" type="password" placeholder="Key / AppId">
-                        <input id="tx-e-baidu" type="text" placeholder="Endpoint 或代理地址">
-                      </div>
-                    </div>
-                    <div class="tx-provider-item">
-                      <div class="tx-provider-head">
-                        <span class="tx-provider-name">腾讯交互翻译</span>
-                        <label><input type="checkbox" id="tx-en-tencent">启用</label>
-                      </div>
-                      <div class="tx-provider-row">
-                        <input id="tx-k-tencent" type="password" placeholder="SecretId / Token">
-                        <input id="tx-e-tencent" type="text" placeholder="Endpoint 或代理地址">
-                      </div>
-                    </div>
-                    <div class="tx-provider-item">
-                      <div class="tx-provider-head">
-                        <span class="tx-provider-name">阿里云翻译</span>
-                        <label><input type="checkbox" id="tx-en-aliyun">启用</label>
-                      </div>
-                      <div class="tx-provider-row">
-                        <input id="tx-k-aliyun" type="password" placeholder="AccessKey / Token">
-                        <input id="tx-e-aliyun" type="text" placeholder="Endpoint 或代理地址">
-                      </div>
-                    </div>
-                    <div class="tx-provider-item">
-                      <div class="tx-provider-head">
-                        <span class="tx-provider-name">统一代理（可选）</span>
-                        <label><input type="checkbox" id="tx-en-proxy">启用</label>
-                      </div>
-                      <div class="tx-provider-row">
-                        <input id="tx-k-proxy" type="password" placeholder="代理 Token">
-                        <input id="tx-e-proxy" type="text" placeholder="代理 Endpoint">
-                      </div>
+                    <label>已添加引擎</label>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                      <button type="button" class="tx-btn" id="btnTxChainAdd">添加引擎</button>
+                      <button type="button" class="tx-btn" id="btnTxTestChain">测试当前链路</button>
+                      <span id="tx-test-result" style="font-size:11px;color:#ffd1a8;line-height:28px;"></span>
                     </div>
                   </div>
-                  <div class="tx-links">
-                    <a href="https://www.deepl.com/pro-api" target="_blank" rel="noreferrer noopener">DeepL API 注册</a>
-                    <a href="https://portal.azure.com/" target="_blank" rel="noreferrer noopener">Azure 翻译服务</a>
-                    <a href="https://cloud.google.com/translate" target="_blank" rel="noreferrer noopener">Google Cloud Translate</a>
-                    <a href="https://libretranslate.com/" target="_blank" rel="noreferrer noopener">LibreTranslate</a>
-                  </div>
+                  <div id="tx-provider-chain" class="tx-chain-list"></div>
+                  <template id="tx-chain-row-template">
+                    <div class="tx-chain-row">
+                      <div class="tx-chain-top">
+                        <select data-tx-field="provider"></select>
+                        <label class="tx-chain-enable"><input data-tx-field="enabled" type="checkbox" checked>☑</label>
+                        <a data-tx-link href="#" target="_blank" rel="noreferrer noopener">注册</a>
+                        <button type="button" class="tx-btn" data-tx-act="test">测</button>
+                        <button type="button" class="tx-btn" data-tx-act="remove">删</button>
+                      </div>
+                      <div class="tx-chain-inputs">
+                        <input data-tx-field="key" type="text" placeholder="Key / AppID / SecretId">
+                        <input data-tx-field="secret" type="password" placeholder="Secret / AppKey / SecretKey">
+                        <input data-tx-field="endpoint" type="text" placeholder="Endpoint / Host / Region">
+                      </div>
+                    </div>
+                  </template>
                 </div>
+                <div class="tx-row-hint">支持单选或多选。顺序即托底顺序；可指定单一 API 或仅本地词典。</div>
               </div>
               <div class="tx-actions">
                 <button type="button" class="tx-btn" id="btnTxCfgCancel">关闭</button>
@@ -1912,6 +1937,7 @@ button.ctx-sub-item:disabled {
   const header = document.getElementById('header');
   const preview = document.getElementById('preview');
   const previewCard = document.getElementById('preview-card');
+  const pendingLane = document.getElementById('pending-lane');
   const previewImageWrap = document.getElementById('preview-image-wrap');
   const previewImage = document.getElementById('preview-image');
   const previewCopyImage = document.getElementById('preview-copy-image');
@@ -1942,41 +1968,26 @@ button.ctx-sub-item:disabled {
   const btnTxCfgX = document.getElementById('btnTxCfgX');
   const txRouteMode = document.getElementById('tx-route-mode');
   const txLocalThreshold = document.getElementById('tx-local-threshold');
+  const txStrictOrder = document.getElementById('tx-strict-order');
   const txDictMode = document.getElementById('tx-dict-mode');
+  const txLocalEngine = document.getElementById('tx-local-engine');
+  const txLocalSeed = document.getElementById('tx-local-seed');
+  const txLocalCedict = document.getElementById('tx-local-cedict');
+  const txLocalCustom = document.getElementById('tx-local-custom');
+  const txLocalLearn = document.getElementById('tx-local-learn');
   const txEnableLearn = document.getElementById('tx-enable-learn');
-  const txFallbackOrder = document.getElementById('tx-fallback-order');
-  const txEnMymemory = document.getElementById('tx-en-mymemory');
-  const txKMymemory = document.getElementById('tx-k-mymemory');
-  const txEMymemory = document.getElementById('tx-e-mymemory');
-  const txEnLibre = document.getElementById('tx-en-libre');
-  const txKLibre = document.getElementById('tx-k-libre');
-  const txELibre = document.getElementById('tx-e-libre');
-  const txEnDeepl = document.getElementById('tx-en-deepl');
-  const txKDeepl = document.getElementById('tx-k-deepl');
-  const txEDeepl = document.getElementById('tx-e-deepl');
-  const txEnAzure = document.getElementById('tx-en-azure');
-  const txKAzure = document.getElementById('tx-k-azure');
-  const txEAzure = document.getElementById('tx-e-azure');
-  const txEnGoogle = document.getElementById('tx-en-google');
-  const txKGoogle = document.getElementById('tx-k-google');
-  const txEGoogle = document.getElementById('tx-e-google');
-  const txEnYoudao = document.getElementById('tx-en-youdao');
-  const txKYoudao = document.getElementById('tx-k-youdao');
-  const txEYoudao = document.getElementById('tx-e-youdao');
-  const txEnBaidu = document.getElementById('tx-en-baidu');
-  const txKBaidu = document.getElementById('tx-k-baidu');
-  const txEBaidu = document.getElementById('tx-e-baidu');
-  const txEnTencent = document.getElementById('tx-en-tencent');
-  const txKTencent = document.getElementById('tx-k-tencent');
-  const txETencent = document.getElementById('tx-e-tencent');
-  const txEnAliyun = document.getElementById('tx-en-aliyun');
-  const txKAliyun = document.getElementById('tx-k-aliyun');
-  const txEAliyun = document.getElementById('tx-e-aliyun');
-  const txEnProxy = document.getElementById('tx-en-proxy');
-  const txKProxy = document.getElementById('tx-k-proxy');
-  const txEProxy = document.getElementById('tx-e-proxy');
+  const txDictPack = document.getElementById('tx-dict-pack');
+  const btnTxDictImport = document.getElementById('btnTxDictImport');
+  const btnTxDictClear = document.getElementById('btnTxDictClear');
+  const txDictFile = document.getElementById('tx-dict-file');
+  const btnTxChainAdd = document.getElementById('btnTxChainAdd');
+  const txProviderChain = document.getElementById('tx-provider-chain');
+  const txChainRowTemplate = document.getElementById('tx-chain-row-template');
+  const btnTxTestChain = document.getElementById('btnTxTestChain');
+  const txTestResult = document.getElementById('tx-test-result');
   const btnTxCfgCancel = document.getElementById('btnTxCfgCancel');
   const btnTxCfgSave = document.getElementById('btnTxCfgSave');
+  let translateConfigHome = translateConfig ? translateConfig.parentElement : null;
   const btnTriggerCapslock = document.getElementById('btnTriggerCapslock');
   const btnTriggerDoubleCtrl = document.getElementById('btnTriggerDoubleCtrl');
   const hubSlotRow = document.getElementById('hub-slot-row');
@@ -2388,8 +2399,8 @@ button.ctx-sub-item:disabled {
   const ADV_GROUPS = Object.freeze([
     { id: 'harvest', kicker: '信息提取', label: '提取' },
     { id: 'purify', kicker: '文本净化', label: '净化' },
-    { id: 'morph', kicker: '结构变换', label: '形态' },
-    { id: 'link', kicker: '语言能力', label: '语言' }
+    { id: 'morph', kicker: '格式转化', label: '转换' },
+    { id: 'link', kicker: '本地化', label: '翻译' }
   ]);
 
   const ADV_ACTIONS = Object.freeze([
@@ -2408,29 +2419,63 @@ button.ctx-sub-item:disabled {
     { group: 'morph', id: 'morph_base64dec', label: 'Base64解码' },
     { group: 'morph', id: 'morph_zh_toggle', label: '简繁互换' },
     { group: 'morph', id: 'morph_ts_toggle', label: '时间戳/日期互换' },
+    { group: 'link', id: 'link_config', label: '⚙' },
     { group: 'link', id: 'link_translate', label: '中英互译' },
-    { group: 'link', id: 'link_comment', label: '注释翻译' },
-    { group: 'link', id: 'link_config', label: '翻译设置' }
+    { group: 'link', id: 'link_comment', label: '注释翻译' }
   ]);
 
   const TX_CFG_DEFAULT = Object.freeze({
     routeMode: 'local_then_network',
     localThreshold: 35,
+    strictOrder: false,
     dictMode: 'auto',
+    localEngine: 'memory_json',
+    dictPack: 'balanced',
     enableLearn: true,
-    fallbackOrder: 'mymemory,libre,deepl,azure,google,youdao,baidu,tencent,aliyun',
+    localParts: { seed: true, cedict: true, custom: true, learn: true },
+    fallbackOrder: 'mymemory,libre,google',
     providers: {
       mymemory: { enabled: true, key: '', endpoint: '' },
       libre: { enabled: true, key: '', endpoint: '' },
       deepl: { enabled: false, key: '', endpoint: '' },
       azure: { enabled: false, key: '', endpoint: '' },
       google: { enabled: false, key: '', endpoint: '' },
-      youdao: { enabled: false, key: '', endpoint: '' },
-      baidu: { enabled: false, key: '', endpoint: '' },
-      tencent: { enabled: false, key: '', endpoint: '' },
-      aliyun: { enabled: false, key: '', endpoint: '' },
+      youdao: { enabled: false, key: '', secret: '', endpoint: '' },
+      baidu: { enabled: false, key: '', secret: '', endpoint: '' },
+      tencent: { enabled: false, key: '', secret: '', endpoint: '' },
+      aliyun: { enabled: false, key: '', secret: '', endpoint: '' },
       proxy: { enabled: false, key: '', endpoint: '' }
     }
+  });
+  const TX_PROVIDERS = Object.freeze(['google', 'mymemory', 'libre', 'youdao', 'baidu', 'tencent', 'aliyun', 'azure', 'deepl']);
+  const TX_PROVIDER_LABEL = Object.freeze({
+    google: 'Google',
+    mymemory: 'MyMemory',
+    libre: 'Libre',
+    youdao: '有道',
+    baidu: '百度',
+    tencent: '腾讯',
+    aliyun: '阿里云',
+    azure: 'Azure',
+    deepl: 'DeepL'
+  });
+  const TX_PROVIDER_LINK = Object.freeze({
+    google: 'https://cloud.google.com/translate',
+    mymemory: 'https://rapidapi.com/community/api/translated-mymemory---translation-memory/',
+    libre: 'https://libretranslate.com/',
+    youdao: 'https://ai.youdao.com/',
+    baidu: 'https://fanyi-api.baidu.com/',
+    tencent: 'https://cloud.tencent.com/product/tmt',
+    aliyun: 'https://www.aliyun.com/product/ai/base_alimt',
+    azure: 'https://portal.azure.com/',
+    deepl: 'https://www.deepl.com/pro-api',
+    proxy: 'https://rapidapi.com/'
+  });
+  const TX_LOCAL_ENGINE_LABEL = Object.freeze({
+    memory_json: '方案1-内存JSON',
+    shard_json: '方案2-分片JSON',
+    idb_worker: '方案3-IDB',
+    sqlite_bridge: '方案4-SQLite'
   });
 
   function getTranslateCfg() {
@@ -2441,8 +2486,12 @@ button.ctx-sub-item:disabled {
       return {
         routeMode: String(obj.routeMode || TX_CFG_DEFAULT.routeMode),
         localThreshold: Number.isFinite(Number(obj.localThreshold)) ? Number(obj.localThreshold) : TX_CFG_DEFAULT.localThreshold,
+        strictOrder: obj.strictOrder === true,
         dictMode: String(obj.dictMode || TX_CFG_DEFAULT.dictMode),
+        localEngine: String(obj.localEngine || TX_CFG_DEFAULT.localEngine),
+        dictPack: String(obj.dictPack || TX_CFG_DEFAULT.dictPack),
         enableLearn: obj.enableLearn !== false,
+        localParts: Object.assign({}, TX_CFG_DEFAULT.localParts, obj.localParts || {}),
         fallbackOrder: String(obj.fallbackOrder || TX_CFG_DEFAULT.fallbackOrder),
         providers
       };
@@ -2457,74 +2506,194 @@ button.ctx-sub-item:disabled {
     localStorage.setItem('hub_translate_cfg', JSON.stringify(next));
   }
 
+  function parseFallbackOrder(orderText) {
+    const order = String(orderText || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const uniq = [];
+    order.forEach((p) => { if (TX_PROVIDERS.includes(p) && !uniq.includes(p)) uniq.push(p); });
+    return uniq;
+  }
+
+  function nextProviderForAdd() {
+    const used = new Set();
+    if (txProviderChain) {
+      txProviderChain.querySelectorAll('.tx-chain-row select[data-tx-field="provider"]').forEach((el) => {
+        const v = String(el.value || '').trim();
+        if (v) used.add(v);
+      });
+    }
+    const free = TX_PROVIDERS.find((p) => !used.has(p));
+    return free || TX_PROVIDERS[0] || 'google';
+  }
+
+  function applyProviderUiHints(row, provider) {
+    if (!row) return;
+    const keyEl = row.querySelector('input[data-tx-field="key"]');
+    const secEl = row.querySelector('input[data-tx-field="secret"]');
+    const epEl = row.querySelector('input[data-tx-field="endpoint"]');
+    const linkEl = row.querySelector('[data-tx-link]');
+    const href = TX_PROVIDER_LINK[provider] || 'https://rapidapi.com/';
+    if (linkEl) {
+      linkEl.setAttribute('href', href);
+      linkEl.textContent = provider === 'libre' ? '官网' : '注册';
+    }
+    if (!keyEl || !secEl || !epEl) return;
+    keyEl.type = provider === 'deepl' ? 'password' : 'text';
+    secEl.type = 'password';
+    if (provider === 'google') {
+      keyEl.placeholder = 'API Key（可空=免费端）';
+      secEl.placeholder = 'Secret（无需）';
+      epEl.placeholder = 'Endpoint(可选)';
+    } else if (provider === 'mymemory') {
+      keyEl.placeholder = 'RapidAPI Key（可选）';
+      secEl.placeholder = 'Secret（无需）';
+      epEl.placeholder = 'Host 或 Endpoint（可选）';
+    } else if (provider === 'libre') {
+      keyEl.placeholder = 'API Key（可选）';
+      secEl.placeholder = 'Secret（无需）';
+      epEl.placeholder = 'Endpoint（如 https://libretranslate.com/translate）';
+    } else if (provider === 'deepl') {
+      keyEl.placeholder = 'DeepL API Key';
+      secEl.placeholder = 'Secret（无需）';
+      epEl.placeholder = 'Endpoint(可选)';
+    } else if (provider === 'azure') {
+      keyEl.placeholder = 'Subscription Key';
+      secEl.placeholder = 'Secret（无需）';
+      epEl.placeholder = 'Region 或 Endpoint';
+    } else if (provider === 'youdao') {
+      keyEl.placeholder = 'AppKey';
+      secEl.placeholder = 'AppSecret';
+      epEl.placeholder = '代理 Endpoint（可选）';
+    } else if (provider === 'baidu') {
+      keyEl.placeholder = 'AppID';
+      secEl.placeholder = 'AppSecret';
+      epEl.placeholder = '代理 Endpoint（可选）';
+    } else if (provider === 'tencent') {
+      keyEl.placeholder = 'SecretId';
+      secEl.placeholder = 'SecretKey';
+      epEl.placeholder = '代理 Endpoint（可选）';
+    } else if (provider === 'aliyun') {
+      keyEl.placeholder = 'AccessKeyId';
+      secEl.placeholder = 'AccessKeySecret';
+      epEl.placeholder = '代理 Endpoint（可选）';
+    } else {
+      keyEl.placeholder = 'Key';
+      secEl.placeholder = 'Secret';
+      epEl.placeholder = 'Endpoint';
+    }
+  }
+
+  function createTxChainRow(provider, pCfg) {
+    if (!txProviderChain) return;
+    const p = TX_PROVIDERS.includes(provider) ? provider : (TX_PROVIDERS[0] || 'google');
+    const row = txChainRowTemplate && txChainRowTemplate.content
+      ? txChainRowTemplate.content.firstElementChild.cloneNode(true)
+      : document.createElement('div');
+    if (!row.classList || !row.classList.contains('tx-chain-row')) return;
+    const sel = row.querySelector('select[data-tx-field="provider"]');
+    if (sel) {
+      sel.innerHTML = TX_PROVIDERS.map((id) => `<option value="${id}">${TX_PROVIDER_LABEL[id] || id}</option>`).join('');
+      sel.value = p;
+    }
+    const en = row.querySelector('input[data-tx-field="enabled"]');
+    const key = row.querySelector('input[data-tx-field="key"]');
+    const sec = row.querySelector('input[data-tx-field="secret"]');
+    const ep = row.querySelector('input[data-tx-field="endpoint"]');
+    if (en) en.checked = !!(pCfg && pCfg.enabled !== false);
+    if (key) key.value = String((pCfg && pCfg.key) || '');
+    if (sec) sec.value = String((pCfg && pCfg.secret) || '');
+    if (ep) ep.value = String((pCfg && pCfg.endpoint) || '');
+    applyProviderUiHints(row, p);
+    txProviderChain.appendChild(row);
+  }
+
+  function uiRenderProviderChain(cfg) {
+    if (!txProviderChain) return;
+    txProviderChain.innerHTML = '';
+    const order = parseFallbackOrder(cfg && cfg.fallbackOrder || TX_CFG_DEFAULT.fallbackOrder);
+    const providers = (cfg && cfg.providers) || {};
+    const enabledOrder = order.filter((p) => !!(providers[p] && providers[p].enabled));
+    const renderOrder = enabledOrder.length ? enabledOrder : (order.length ? order.slice(0, 3) : []);
+    if (!renderOrder.length) {
+      createTxChainRow('google', providers.google || { enabled: true });
+      return;
+    }
+    renderOrder.forEach((p) => createTxChainRow(p, providers[p] || { enabled: true }));
+  }
+
+  function uiReadProviderChain(cfg) {
+    const outCfg = cfg || getTranslateCfg();
+    const rows = txProviderChain ? Array.from(txProviderChain.querySelectorAll('.tx-chain-row')) : [];
+    const nextProviders = Object.assign({}, TX_CFG_DEFAULT.providers);
+    const order = [];
+    rows.forEach((row) => {
+      const provider = String((row.querySelector('select[data-tx-field="provider"]') || {}).value || '').trim();
+      if (!TX_PROVIDERS.includes(provider) || order.includes(provider)) return;
+      const enabled = !!((row.querySelector('input[data-tx-field="enabled"]') || {}).checked);
+      const key = String((row.querySelector('input[data-tx-field="key"]') || {}).value || '').trim();
+      const secret = String((row.querySelector('input[data-tx-field="secret"]') || {}).value || '').trim();
+      const endpoint = String((row.querySelector('input[data-tx-field="endpoint"]') || {}).value || '').trim();
+      order.push(provider);
+      nextProviders[provider] = Object.assign({}, nextProviders[provider] || {}, { enabled, key, secret, endpoint });
+    });
+    if (!order.length) {
+      order.push('mymemory', 'libre', 'google');
+      nextProviders.mymemory = Object.assign({}, nextProviders.mymemory, { enabled: true });
+      nextProviders.libre = Object.assign({}, nextProviders.libre, { enabled: true });
+      nextProviders.google = Object.assign({}, nextProviders.google, { enabled: true });
+    }
+    outCfg.fallbackOrder = order.join(',');
+    outCfg.providers = nextProviders;
+    return outCfg;
+  }
+
   function uiLoadTranslateCfg(cfg) {
     const c = cfg || getTranslateCfg();
     if (txRouteMode) txRouteMode.value = c.routeMode;
     if (txLocalThreshold) txLocalThreshold.value = String(c.localThreshold);
+    if (txStrictOrder) txStrictOrder.checked = !!c.strictOrder;
     if (txDictMode) txDictMode.value = c.dictMode;
+    if (txLocalEngine) txLocalEngine.value = c.localEngine || 'memory_json';
+    if (txDictPack) txDictPack.value = c.dictPack || 'balanced';
     if (txEnableLearn) txEnableLearn.checked = !!c.enableLearn;
-    if (txFallbackOrder) txFallbackOrder.value = c.fallbackOrder;
-    if (txEnMymemory) txEnMymemory.checked = !!(c.providers.mymemory && c.providers.mymemory.enabled);
-    if (txKMymemory) txKMymemory.value = String((c.providers.mymemory && c.providers.mymemory.key) || '');
-    if (txEMymemory) txEMymemory.value = String((c.providers.mymemory && c.providers.mymemory.endpoint) || '');
-    if (txEnLibre) txEnLibre.checked = !!(c.providers.libre && c.providers.libre.enabled);
-    if (txKLibre) txKLibre.value = String((c.providers.libre && c.providers.libre.key) || '');
-    if (txELibre) txELibre.value = String((c.providers.libre && c.providers.libre.endpoint) || '');
-    if (txEnDeepl) txEnDeepl.checked = !!(c.providers.deepl && c.providers.deepl.enabled);
-    if (txKDeepl) txKDeepl.value = String((c.providers.deepl && c.providers.deepl.key) || '');
-    if (txEDeepl) txEDeepl.value = String((c.providers.deepl && c.providers.deepl.endpoint) || '');
-    if (txEnAzure) txEnAzure.checked = !!(c.providers.azure && c.providers.azure.enabled);
-    if (txKAzure) txKAzure.value = String((c.providers.azure && c.providers.azure.key) || '');
-    if (txEAzure) txEAzure.value = String((c.providers.azure && c.providers.azure.endpoint) || '');
-    if (txEnGoogle) txEnGoogle.checked = !!(c.providers.google && c.providers.google.enabled);
-    if (txKGoogle) txKGoogle.value = String((c.providers.google && c.providers.google.key) || '');
-    if (txEGoogle) txEGoogle.value = String((c.providers.google && c.providers.google.endpoint) || '');
-    if (txEnYoudao) txEnYoudao.checked = !!(c.providers.youdao && c.providers.youdao.enabled);
-    if (txKYoudao) txKYoudao.value = String((c.providers.youdao && c.providers.youdao.key) || '');
-    if (txEYoudao) txEYoudao.value = String((c.providers.youdao && c.providers.youdao.endpoint) || '');
-    if (txEnBaidu) txEnBaidu.checked = !!(c.providers.baidu && c.providers.baidu.enabled);
-    if (txKBaidu) txKBaidu.value = String((c.providers.baidu && c.providers.baidu.key) || '');
-    if (txEBaidu) txEBaidu.value = String((c.providers.baidu && c.providers.baidu.endpoint) || '');
-    if (txEnTencent) txEnTencent.checked = !!(c.providers.tencent && c.providers.tencent.enabled);
-    if (txKTencent) txKTencent.value = String((c.providers.tencent && c.providers.tencent.key) || '');
-    if (txETencent) txETencent.value = String((c.providers.tencent && c.providers.tencent.endpoint) || '');
-    if (txEnAliyun) txEnAliyun.checked = !!(c.providers.aliyun && c.providers.aliyun.enabled);
-    if (txKAliyun) txKAliyun.value = String((c.providers.aliyun && c.providers.aliyun.key) || '');
-    if (txEAliyun) txEAliyun.value = String((c.providers.aliyun && c.providers.aliyun.endpoint) || '');
-    if (txEnProxy) txEnProxy.checked = !!(c.providers.proxy && c.providers.proxy.enabled);
-    if (txKProxy) txKProxy.value = String((c.providers.proxy && c.providers.proxy.key) || '');
-    if (txEProxy) txEProxy.value = String((c.providers.proxy && c.providers.proxy.endpoint) || '');
+    if (txLocalSeed) txLocalSeed.checked = !!(c.localParts && c.localParts.seed);
+    if (txLocalCedict) txLocalCedict.checked = !!(c.localParts && c.localParts.cedict);
+    if (txLocalCustom) txLocalCustom.checked = !!(c.localParts && c.localParts.custom);
+    if (txLocalLearn) txLocalLearn.checked = !!(c.localParts && c.localParts.learn);
+    uiRenderProviderChain(c);
   }
 
   function uiReadTranslateCfg() {
     const cfg = getTranslateCfg();
     cfg.routeMode = txRouteMode ? String(txRouteMode.value || 'local_then_network') : cfg.routeMode;
     cfg.localThreshold = txLocalThreshold ? Math.max(0, Math.min(100, Number(txLocalThreshold.value || 35))) : cfg.localThreshold;
+    cfg.strictOrder = !!(txStrictOrder && txStrictOrder.checked);
     cfg.dictMode = txDictMode ? String(txDictMode.value || 'auto') : cfg.dictMode;
+    cfg.localEngine = txLocalEngine ? String(txLocalEngine.value || 'memory_json') : (cfg.localEngine || 'memory_json');
+    cfg.dictPack = txDictPack ? String(txDictPack.value || 'balanced') : cfg.dictPack;
     cfg.enableLearn = txEnableLearn ? !!txEnableLearn.checked : cfg.enableLearn;
-    cfg.fallbackOrder = txFallbackOrder ? String(txFallbackOrder.value || TX_CFG_DEFAULT.fallbackOrder) : cfg.fallbackOrder;
-    cfg.providers.mymemory = { enabled: !!(txEnMymemory && txEnMymemory.checked), key: String(txKMymemory ? txKMymemory.value : ''), endpoint: String(txEMymemory ? txEMymemory.value : '') };
-    cfg.providers.libre = { enabled: !!(txEnLibre && txEnLibre.checked), key: String(txKLibre ? txKLibre.value : ''), endpoint: String(txELibre ? txELibre.value : '') };
-    cfg.providers.deepl = { enabled: !!(txEnDeepl && txEnDeepl.checked), key: String(txKDeepl ? txKDeepl.value : ''), endpoint: String(txEDeepl ? txEDeepl.value : '') };
-    cfg.providers.azure = { enabled: !!(txEnAzure && txEnAzure.checked), key: String(txKAzure ? txKAzure.value : ''), endpoint: String(txEAzure ? txEAzure.value : '') };
-    cfg.providers.google = { enabled: !!(txEnGoogle && txEnGoogle.checked), key: String(txKGoogle ? txKGoogle.value : ''), endpoint: String(txEGoogle ? txEGoogle.value : '') };
-    cfg.providers.youdao = { enabled: !!(txEnYoudao && txEnYoudao.checked), key: String(txKYoudao ? txKYoudao.value : ''), endpoint: String(txEYoudao ? txEYoudao.value : '') };
-    cfg.providers.baidu = { enabled: !!(txEnBaidu && txEnBaidu.checked), key: String(txKBaidu ? txKBaidu.value : ''), endpoint: String(txEBaidu ? txEBaidu.value : '') };
-    cfg.providers.tencent = { enabled: !!(txEnTencent && txEnTencent.checked), key: String(txKTencent ? txKTencent.value : ''), endpoint: String(txETencent ? txETencent.value : '') };
-    cfg.providers.aliyun = { enabled: !!(txEnAliyun && txEnAliyun.checked), key: String(txKAliyun ? txKAliyun.value : ''), endpoint: String(txEAliyun ? txEAliyun.value : '') };
-    cfg.providers.proxy = { enabled: !!(txEnProxy && txEnProxy.checked), key: String(txKProxy ? txKProxy.value : ''), endpoint: String(txEProxy ? txEProxy.value : '') };
-    return cfg;
+    cfg.localParts = {
+      seed: !!(txLocalSeed && txLocalSeed.checked),
+      cedict: !!(txLocalCedict && txLocalCedict.checked),
+      custom: !!(txLocalCustom && txLocalCustom.checked),
+      learn: !!(txLocalLearn && txLocalLearn.checked)
+    };
+    return uiReadProviderChain(cfg);
   }
 
   function openTranslateCfg() {
     if (!translateConfig) return;
+    if (capsule && translateConfig.parentElement !== capsule)
+      capsule.appendChild(translateConfig);
     uiLoadTranslateCfg(getTranslateCfg());
+    setTxTestResult('', null);
     translateConfig.hidden = false;
   }
 
   function closeTranslateCfg() {
     if (!translateConfig) return;
     translateConfig.hidden = true;
+    if (translateConfigHome && translateConfig.parentElement !== translateConfigHome)
+      translateConfigHome.appendChild(translateConfig);
   }
 
   const S2T_MAP = Object.freeze({ "汉":"漢","语":"語","体":"體","后":"後","发":"發","台":"臺","里":"裡","线":"線","网":"網","开":"開","关":"關","数":"數","据":"據","复":"複","杂":"雜","云":"雲","龙":"龍","风":"風","东":"東","万":"萬","与":"與","门":"門","书":"書","画":"畫","车":"車","电":"電","广":"廣","乐":"樂","国":"國","务":"務","优":"優","页":"頁","码":"碼","钟":"鐘","键":"鍵","输":"輸","入":"入","输":"輸","出":"出","测":"測","试":"試","显":"顯","示":"示" });
@@ -2580,7 +2749,25 @@ button.ctx-sub-item:disabled {
     const lines = src ? src.split(/\r?\n/).length : 0;
     const scope = ctx.scope === 'selection' ? '选区' : '全文';
     const suffix = advBusy ? ' | 处理中…' : '';
-    advStatus.textContent = `作用域: ${scope} | 字符: ${chars} | 行数: ${lines} | 提取: ${advExtractedCount}${suffix}`;
+    let msg = `作用域: ${scope} | 字符: ${chars} | 行数: ${lines} | 提取: ${advExtractedCount}`;
+    if (advActiveGroup === 'link') {
+      const text = String((ctx && ctx.text) || '');
+      const stats = getLangStats(text);
+      const cfg = getTranslateCfg();
+      const engine = normalizeLocalEngine(cfg.localEngine);
+      const dirText = text.trim()
+        ? (stats.dir === 'zh2en' ? '中→英' : '英→中')
+        : '待检测';
+      const enableIds = ['link_translate', 'link_comment']
+        .filter((id) => getLinkActionAvailability(id, text).enabled);
+      const enableLabels = enableIds.map((id) => {
+        const it = ADV_ACTIONS.find((a) => a.id === id);
+        return it ? it.label : id;
+      });
+      msg += ` | 翻译方向: ${dirText} | 本地方案: ${TX_LOCAL_ENGINE_LABEL[engine] || engine} | 可用按钮: ${enableLabels.length ? enableLabels.join(' / ') : '仅翻译设置'}`;
+    }
+    advStatus.textContent = `${msg}${suffix}`;
+    refreshAdvActionAvailability();
   }
 
   function pulseDone() {
@@ -2719,14 +2906,27 @@ button.ctx-sub-item:disabled {
   function renderAdvActions() {
     if (!advActions) return;
     advActions.innerHTML = '';
+    const ctx = getScopeContext();
+    const ctxText = String((ctx && ctx.text) || '');
     ADV_ACTIONS.filter((a) => a.group === advActiveGroup).forEach((a) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'adv-act-btn';
+      if (a.id === 'link_config') {
+        b.classList.add('icon-gear');
+        b.title = '翻译设置';
+        b.setAttribute('aria-label', '翻译设置');
+      }
       b.dataset.advAction = a.id;
       b.textContent = a.label;
+      if (a.group === 'link') {
+        const st = getLinkActionAvailability(a.id, ctxText);
+        b.title = st.hint || '';
+        b.disabled = !st.enabled;
+      }
       advActions.appendChild(b);
     });
+    refreshAdvActionAvailability();
   }
 
   const EN_ZH_SEED = Object.freeze({
@@ -2742,6 +2942,11 @@ button.ctx-sub-item:disabled {
     '清除格式': 'clear formatting', '去空行': 'remove blank lines', '修复乱码': 'repair mojibake'
   });
   const CEDICT_EN_ZH_SEED = Object.freeze(Object.fromEntries(Object.entries(CEDICT_ZH_EN_SEED).map(([k, v]) => [v, k])));
+  const TECH_EN_ZH_SEED = Object.freeze({
+    api: '接口', endpoint: '端点', token: '令牌', prompt: '提示词', parser: '解析器', compiler: '编译器',
+    thread: '线程', async: '异步', cache: '缓存', render: '渲染', payload: '载荷', request: '请求', response: '响应'
+  });
+  const TECH_ZH_EN_SEED = Object.freeze(Object.fromEntries(Object.entries(TECH_EN_ZH_SEED).map(([k, v]) => [v, k])));
 
   function getLearnDict() {
     try {
@@ -2751,6 +2956,71 @@ button.ctx-sub-item:disabled {
     } catch (_) {
       return { en2zh: {}, zh2en: {} };
     }
+  }
+
+  function getCustomDict() {
+    try {
+      const raw = localStorage.getItem('hub_translate_custom_dict') || '';
+      const obj = raw ? JSON.parse(raw) : {};
+      return Object.assign({ en2zh: {}, zh2en: {} }, obj);
+    } catch (_) {
+      return { en2zh: {}, zh2en: {} };
+    }
+  }
+
+  function setCustomDict(dict) {
+    const safe = Object.assign({ en2zh: {}, zh2en: {} }, dict || {});
+    localStorage.setItem('hub_translate_custom_dict', JSON.stringify(safe));
+  }
+
+  function parseCustomDictText(raw) {
+    const out = { en2zh: {}, zh2en: {} };
+    const text = String(raw || '');
+    if (!text.trim()) return out;
+    const lines = text.split(/\r?\n/);
+    lines.forEach((line) => {
+      const t = line.trim();
+      if (!t || t.startsWith('#')) return;
+      const parts = t.split(/\t|,|=>|=/).map((s) => String(s || '').trim()).filter(Boolean);
+      if (parts.length < 2) return;
+      const a = parts[0], b = parts[1];
+      if (/[\u4E00-\u9FFF]/.test(a) && /[A-Za-z]/.test(b)) out.zh2en[a] = b;
+      else if (/[A-Za-z]/.test(a) && /[\u4E00-\u9FFF]/.test(b)) out.en2zh[a.toLowerCase()] = b;
+      else if (/[A-Za-z]/.test(a)) out.en2zh[a.toLowerCase()] = b;
+      else out.zh2en[a] = b;
+    });
+    return out;
+  }
+
+  function mergeDict(base, extra) {
+    return {
+      en2zh: Object.assign({}, (base && base.en2zh) || {}, (extra && extra.en2zh) || {}),
+      zh2en: Object.assign({}, (base && base.zh2en) || {}, (extra && extra.zh2en) || {})
+    };
+  }
+
+  function parseCustomDictPayload(raw, fileName) {
+    const name = String(fileName || '').toLowerCase();
+    if (name.endsWith('.json')) {
+      try {
+        const obj = JSON.parse(String(raw || ''));
+        if (Array.isArray(obj)) {
+          const buf = { en2zh: {}, zh2en: {} };
+          obj.forEach((it) => {
+            const a = String((it && (it.src || it.source || it.key || '')) || '').trim();
+            const b = String((it && (it.dst || it.target || it.value || '')) || '').trim();
+            if (!a || !b) return;
+            if (/[\u4E00-\u9FFF]/.test(a) && /[A-Za-z]/.test(b)) buf.zh2en[a] = b;
+            else if (/[A-Za-z]/.test(a)) buf.en2zh[a.toLowerCase()] = b;
+            else buf.zh2en[a] = b;
+          });
+          return buf;
+        }
+        if (obj && typeof obj === 'object')
+          return mergeDict({ en2zh: {}, zh2en: {} }, obj);
+      } catch (_) {}
+    }
+    return parseCustomDictText(raw);
   }
 
   function rememberLearnPair(sourceText, translatedText, cfg) {
@@ -2773,6 +3043,18 @@ button.ctx-sub-item:disabled {
     });
   }
 
+  function phraseReplaceEnToZh(text, dict) {
+    let out = String(text || '');
+    const keys = Object.keys(dict || {})
+      .filter((k) => String(k || '').trim() && String(k || '').trim().includes(' '))
+      .sort((a, b) => b.length - a.length);
+    keys.forEach((k) => {
+      const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      out = out.replace(new RegExp(escaped, 'gi'), String(dict[k] || ''));
+    });
+    return out;
+  }
+
   function tokenReplaceZhToEn(text, dict) {
     const keys = Object.keys(dict).sort((a, b) => b.length - a.length);
     let out = String(text || '');
@@ -2789,46 +3071,543 @@ button.ctx-sub-item:disabled {
     return zh >= en ? 'zh2en' : 'en2zh';
   }
 
-  function localTranslateText(text, cfg) {
+  function getLangStats(text) {
     const t = String(text || '');
-    if (!t) return { text: t, hitRate: 0 };
-    if (cfg.dictMode === 'off') return { text: t, hitRate: 0 };
+    const zh = (t.match(/[\u4E00-\u9FFF]/g) || []).length;
+    const en = (t.match(/[A-Za-z]/g) || []).length;
+    return { zh, en, hasZh: zh > 0, hasEn: en > 0, dir: zh >= en ? 'zh2en' : 'en2zh' };
+  }
+
+  function getLinkActionAvailability(action, text) {
+    const t = String(text || '');
+    const trimmed = t.trim();
+    const stats = getLangStats(trimmed);
+    const hasLang = stats.hasZh || stats.hasEn;
+    if (action === 'link_config') return { enabled: true, hint: '打开翻译设置' };
+    if (action === 'link_translate') {
+      if (!trimmed) return { enabled: false, hint: '无文本，无法翻译' };
+      if (!hasLang) return { enabled: false, hint: '未检测到中英文内容' };
+      return {
+        enabled: true,
+        hint: stats.dir === 'zh2en' ? '检测到中文，方向：中→英' : '检测到英文，方向：英→中'
+      };
+    }
+    if (action === 'link_comment') {
+      if (!trimmed) return { enabled: false, hint: '无文本，无法翻译注释' };
+      const rows = trimmed.split(/\r?\n/);
+      const comments = rows.filter((line) => /^(\s*[/#*]+\s*)(.+)$/.test(line));
+      if (!comments.length) return { enabled: false, hint: '未检测到注释行（// # *）' };
+      const hasCommentLang = comments.some((line) => /[A-Za-z\u4E00-\u9FFF]/.test(line));
+      return hasCommentLang
+        ? { enabled: true, hint: '检测到注释文本，可翻译' }
+        : { enabled: false, hint: '注释中未检测到中英文内容' };
+    }
+    return { enabled: true, hint: '' };
+  }
+
+  function refreshAdvActionAvailability() {
+    if (!advActions || advActiveGroup !== 'link') return;
+    const ctx = getScopeContext();
+    const text = String((ctx && ctx.text) || '');
+    advActions.querySelectorAll('button[data-adv-action]').forEach((b) => {
+      const id = String(b.getAttribute('data-adv-action') || '');
+      const st = getLinkActionAvailability(id, text);
+      if (advBusy) b.disabled = true;
+      else b.disabled = !st.enabled;
+      if (st.hint) b.title = st.hint;
+    });
+  }
+
+  const txLocalRuntime = {
+    shard: null,
+    idbDb: null,
+    idbStamp: '',
+    bundledReady: false,
+    bundledPromise: null,
+    bundledDict: { en2zh: {}, zh2en: {} },
+    sqliteSeq: 1,
+    sqlitePending: new Map()
+  };
+  const TX_BUNDLED_DICT_FILES = Object.freeze([
+    'assets/dict/hubcapsule_base_dict.tsv'
+  ]);
+
+  function normalizeLocalEngine(engine) {
+    const v = String(engine || '').trim();
+    return TX_LOCAL_ENGINE_LABEL[v] ? v : 'memory_json';
+  }
+
+  async function ensureBundledDictLoaded() {
+    if (txLocalRuntime.bundledReady) return txLocalRuntime.bundledDict;
+    if (txLocalRuntime.bundledPromise) return txLocalRuntime.bundledPromise;
+    txLocalRuntime.bundledPromise = (async () => {
+      let merged = { en2zh: {}, zh2en: {} };
+      for (const p of TX_BUNDLED_DICT_FILES) {
+        try {
+          const r = await fetch(p, { cache: 'no-cache' });
+          if (!r.ok) continue;
+          const raw = await r.text();
+          const parsed = parseCustomDictPayload(raw, p);
+          merged = mergeDict(merged, parsed);
+        } catch (_) {}
+      }
+      txLocalRuntime.bundledDict = merged;
+      txLocalRuntime.bundledReady = true;
+      txLocalRuntime.bundledPromise = null;
+      return merged;
+    })();
+    return txLocalRuntime.bundledPromise;
+  }
+
+  function buildLocalDictSnapshot(cfg) {
     const learn = getLearnDict();
-    const dir = detectLangDir(t);
+    const custom = getCustomDict();
     let en2zhSeed = {};
     let zh2enSeed = {};
-    if (cfg.dictMode === 'auto' || cfg.dictMode === 'seed_learn') {
+    if (cfg.dictMode === 'auto') {
       en2zhSeed = Object.assign({}, en2zhSeed, EN_ZH_SEED, CEDICT_EN_ZH_SEED);
       zh2enSeed = Object.assign({}, zh2enSeed, ZH_EN_SEED, CEDICT_ZH_EN_SEED);
+    } else if (cfg.dictMode === 'seed_learn') {
+      en2zhSeed = Object.assign({}, en2zhSeed, EN_ZH_SEED);
+      zh2enSeed = Object.assign({}, zh2enSeed, ZH_EN_SEED);
     } else if (cfg.dictMode === 'cedict_learn') {
       en2zhSeed = Object.assign({}, en2zhSeed, CEDICT_EN_ZH_SEED);
       zh2enSeed = Object.assign({}, zh2enSeed, CEDICT_ZH_EN_SEED);
+    } else if (cfg.dictMode === 'manual') {
+      const lp0 = Object.assign({ seed: true, cedict: true, custom: true, learn: true }, cfg.localParts || {});
+      if (lp0.seed) {
+        en2zhSeed = Object.assign({}, en2zhSeed, EN_ZH_SEED);
+        zh2enSeed = Object.assign({}, zh2enSeed, ZH_EN_SEED);
+      }
+      if (lp0.cedict) {
+        en2zhSeed = Object.assign({}, en2zhSeed, CEDICT_EN_ZH_SEED);
+        zh2enSeed = Object.assign({}, zh2enSeed, CEDICT_ZH_EN_SEED);
+      }
     } else if (cfg.dictMode === 'learn_only') {
       en2zhSeed = {};
       zh2enSeed = {};
     }
-    const en2zh = Object.assign({}, en2zhSeed, (cfg.enableLearn ? learn.en2zh : {}));
-    const zh2en = Object.assign({}, zh2enSeed, (cfg.enableLearn ? learn.zh2en : {}));
-    const out = dir === 'zh2en' ? tokenReplaceZhToEn(t, zh2en) : tokenReplaceEnToZh(t, en2zh);
-    const changed = out !== t;
-    const hitRate = changed ? Math.min(100, Math.round((Math.abs(out.length - t.length) + 8) / Math.max(1, t.length) * 100)) : 0;
-    return { text: out, hitRate };
+    if (cfg.dictPack === 'tech') {
+      en2zhSeed = Object.assign({}, en2zhSeed, TECH_EN_ZH_SEED);
+      zh2enSeed = Object.assign({}, zh2enSeed, TECH_ZH_EN_SEED);
+    } else if (cfg.dictPack === 'verbose') {
+      en2zhSeed = Object.assign({}, en2zhSeed, {
+        translate: '翻译（语义转换）',
+        setting: '设置（参数配置）',
+        preview: '预览区域'
+      });
+      zh2enSeed = Object.assign({}, zh2enSeed, {
+        '翻译（语义转换）': 'translate',
+        '设置（参数配置）': 'setting',
+        '预览区域': 'preview area'
+      });
+    }
+    const lp = Object.assign({ custom: true, learn: true }, cfg.localParts || {});
+    const useCustom = cfg.dictMode === 'manual' ? lp.custom : true;
+    const useLearn = cfg.dictMode === 'manual' ? lp.learn : !!cfg.enableLearn;
+    const bundled = txLocalRuntime.bundledDict || { en2zh: {}, zh2en: {} };
+    const en2zh = Object.assign({}, en2zhSeed, bundled.en2zh || {}, useCustom ? (custom.en2zh || {}) : {}, useLearn ? (learn.en2zh || {}) : {});
+    const zh2en = Object.assign({}, zh2enSeed, bundled.zh2en || {}, useCustom ? (custom.zh2en || {}) : {}, useLearn ? (learn.zh2en || {}) : {});
+    const chain = cfg.dictMode === 'manual'
+      ? `manual(${Object.keys(Object.assign({}, { seed:0, cedict:0, custom:0, learn:0 }, cfg.localParts || {})).filter((k) => (cfg.localParts || {})[k]).join('+') || 'none'})`
+      : cfg.dictMode;
+    const stamp = `${Object.keys(en2zh).length}:${Object.keys(zh2en).length}:${chain}:${cfg.dictPack || 'balanced'}`;
+    return { en2zh, zh2en, chain, stamp };
   }
 
-  async function tryProviderTranslate(provider, text, from, to, cfg) {
+  function translateEnRunNgram(run, en2zh) {
+    const src = String(run || '');
+    const leading = (src.match(/^\s+/) || [''])[0];
+    const trailing = (src.match(/\s+$/) || [''])[0];
+    const core = src.trim();
+    if (!core) return src;
+    const words = core.split(/\s+/).filter(Boolean);
+    if (!words.length) return src;
+    const out = [];
+    let i = 0;
+    const maxGram = 6;
+    while (i < words.length) {
+      let matched = '';
+      let matchedN = 0;
+      const nMax = Math.min(maxGram, words.length - i);
+      for (let n = nMax; n >= 1; n -= 1) {
+        const key = words.slice(i, i + n).join(' ').toLowerCase();
+        const v = en2zh && en2zh[key];
+        if (v) {
+          matched = String(v);
+          matchedN = n;
+          break;
+        }
+      }
+      if (matchedN > 0) {
+        if (matchedN === 1 && shouldKeepEnglishToken(words[i])) {
+          out.push(words[i]);
+          i += 1;
+          continue;
+        }
+        out.push(matched);
+        i += matchedN;
+      } else {
+        const w = words[i];
+        const key = String(w || '').toLowerCase();
+        if (shouldKeepEnglishToken(w)) out.push(w);
+        else out.push((en2zh && en2zh[key]) ? String(en2zh[key]) : w);
+        i += 1;
+      }
+    }
+    return `${leading}${out.join('')}${trailing}`;
+  }
+
+  function translateZhRunMaxMatch(run, zh2en) {
+    const src = String(run || '');
+    if (!src) return src;
+    const out = [];
+    let i = 0;
+    const maxLen = 8;
+    while (i < src.length) {
+      let bestText = '';
+      let bestN = 0;
+      const nMax = Math.min(maxLen, src.length - i);
+      for (let n = nMax; n >= 1; n -= 1) {
+        const seg = src.slice(i, i + n);
+        const v = zh2en && zh2en[seg];
+        if (v) {
+          bestText = String(v);
+          bestN = n;
+          break;
+        }
+      }
+      if (bestN > 0) {
+        out.push(bestText);
+        i += bestN;
+      } else {
+        out.push(src[i]);
+        i += 1;
+      }
+    }
+    return out.join(' ');
+  }
+
+  function translateWithDict(text, dir, dict) {
+    const t = String(text || '');
+    const d = dict || { en2zh: {}, zh2en: {}, chain: 'n/a' };
+    if (!t) return t;
+    if (dir === 'zh2en') {
+      const direct = d.zh2en && d.zh2en[t];
+      if (direct) return String(direct);
+      return t.replace(/[\u4E00-\u9FFF]+/g, (m) => translateZhRunMaxMatch(m, d.zh2en || {}));
+    }
+    const whole = t.trim().toLowerCase();
+    if (shouldKeepEnglishToken(t.trim())) return t;
+    const direct = d.en2zh && d.en2zh[whole];
+    if (direct) return String(direct);
+    return t.replace(/[A-Za-z0-9_'-]+(?:\s+[A-Za-z0-9_'-]+)*/g, (m) => translateEnRunNgram(m, d.en2zh || {}));
+  }
+
+  const EN_KEEP_TERMS = Object.freeze(new Set([
+    'api', 'sdk', 'openai', 'chatgpt', 'gpt', 'webview2', 'sqlite', 'sql',
+    'json', 'yaml', 'xml', 'http', 'https', 'url', 'uri', 'utf8', 'utf-8',
+    'unicode', 'cpu', 'gpu', 'ui', 'ux', 'id', 'uuid', 'css', 'html', 'js',
+    'ts', 'node', 'npm', 'pip', 'cli'
+  ]));
+
+  const EN_TO_ZH_FALLBACK_SYL = Object.freeze({
+    a: '啊', b: '波', c: '克', d: '德', e: '伊', f: '弗', g: '吉', h: '赫', i: '艾',
+    j: '杰', k: '开', l: '勒', m: '姆', n: '恩', o: '欧', p: '皮', q: '丘', r: '尔',
+    s: '斯', t: '特', u: '优', v: '维', w: '瓦', x: '克斯', y: '伊', z: '泽'
+  });
+
+  function shouldKeepEnglishToken(token) {
+    const t = String(token || '').trim();
+    if (!t) return false;
+    const low = t.toLowerCase();
+    if (EN_KEEP_TERMS.has(low)) return true;
+    if (/^[A-Z0-9_]{2,}$/.test(t)) return true;
+    if (/^(?:[A-Za-z]+[0-9]+|[0-9]+[A-Za-z]+)$/.test(t)) return true;
+    return false;
+  }
+
+  function translitEnWord(word) {
+    const w = String(word || '').toLowerCase();
+    if (!w) return '';
+    if (shouldKeepEnglishToken(word)) return String(word || '');
+    return Array.from(w).map((ch) => EN_TO_ZH_FALLBACK_SYL[ch] || ch).join('');
+  }
+
+  function applyCoverageFallback(src, dir, dict, translated) {
+    const s = String(src || '');
+    let out = String(translated || '');
+    if (!s) return out;
+    if (dir === 'en2zh') {
+      out = out.replace(/\b[a-zA-Z][a-zA-Z0-9_-]*\b/g, (m) => {
+        const key = m.toLowerCase();
+        if (dict && dict.en2zh && dict.en2zh[key]) return String(dict.en2zh[key]);
+        return shouldKeepEnglishToken(m) ? m : translitEnWord(m);
+      });
+      return out;
+    }
+    out = out.replace(/[\u4E00-\u9FFF]/g, (ch) => {
+      if (dict && dict.zh2en && dict.zh2en[ch]) return String(dict.zh2en[ch]);
+      return ch;
+    });
+    return out;
+  }
+
+  function calcHitRate(src, out) {
+    const s = String(src || '');
+    const o = String(out || '');
+    if (o === s) return 0;
+    return Math.min(100, Math.round((Math.abs(o.length - s.length) + 8) / Math.max(1, s.length) * 100));
+  }
+
+  function buildShardIndex(dict) {
+    const enShard = {};
+    const zhShard = {};
+    Object.keys((dict && dict.en2zh) || {}).forEach((k) => {
+      const key = String(k || '').toLowerCase();
+      const first = key[0] || '_';
+      if (!enShard[first]) enShard[first] = {};
+      enShard[first][key] = dict.en2zh[k];
+    });
+    Object.keys((dict && dict.zh2en) || {}).forEach((k) => {
+      const key = String(k || '');
+      const first = key[0] || '_';
+      if (!zhShard[first]) zhShard[first] = {};
+      zhShard[first][key] = dict.zh2en[k];
+    });
+    return { enShard, zhShard };
+  }
+
+  function getShardedDictSnapshot(cfg) {
+    const base = buildLocalDictSnapshot(cfg);
+    if (!txLocalRuntime.shard || txLocalRuntime.shard.stamp !== base.stamp) {
+      txLocalRuntime.shard = Object.assign({ stamp: base.stamp }, buildShardIndex(base), { chain: base.chain });
+    }
+    return txLocalRuntime.shard;
+  }
+
+  function localTranslateTextMemory(text, cfg) {
+    const t = String(text || '');
+    if (!t) return { text: t, hitRate: 0, chain: 'memory:empty' };
+    if (cfg.dictMode === 'off') return { text: t, hitRate: 0, chain: 'memory:off' };
+    const dir = detectLangDir(t);
+    const dict = buildLocalDictSnapshot(cfg);
+    const base = translateWithDict(t, dir, dict);
+    const out = applyCoverageFallback(t, dir, dict, base);
+    return { text: out, hitRate: calcHitRate(t, out), chain: `memory:${dict.chain}+coverage` };
+  }
+
+  function localTranslateTextShard(text, cfg) {
+    const t = String(text || '');
+    if (!t) return { text: t, hitRate: 0, chain: 'shard:empty' };
+    if (cfg.dictMode === 'off') return { text: t, hitRate: 0, chain: 'shard:off' };
+    const dir = detectLangDir(t);
+    const s = getShardedDictSnapshot(cfg);
+    let out = t;
+    let mergedEn = {};
+    let mergedZh = {};
+    if (dir === 'zh2en') {
+      const zhChars = Array.from(new Set((t.match(/[\u4E00-\u9FFF]/g) || [])));
+      zhChars.forEach((ch) => { mergedZh = Object.assign(mergedZh, (s.zhShard && s.zhShard[ch]) || {}); });
+      out = translateWithDict(t, dir, { en2zh: {}, zh2en: mergedZh });
+    } else {
+      const keys = new Set((t.match(/\b[a-zA-Z][a-zA-Z0-9_-]*\b/g) || []).map((w) => String(w[0] || '').toLowerCase()));
+      keys.forEach((ch) => { mergedEn = Object.assign(mergedEn, (s.enShard && s.enShard[ch]) || {}); });
+      out = translateWithDict(t, dir, { en2zh: mergedEn, zh2en: {} });
+    }
+    out = applyCoverageFallback(t, dir, { en2zh: mergedEn, zh2en: mergedZh }, out);
+    return { text: out, hitRate: calcHitRate(t, out), chain: `shard:${s.chain || 'n/a'}+coverage` };
+  }
+
+  function idbOpenLocalDict() {
+    if (txLocalRuntime.idbDb) return Promise.resolve(txLocalRuntime.idbDb);
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open('hub_translate_local_dict_v1', 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'k' });
+        if (!db.objectStoreNames.contains('en2zh')) db.createObjectStore('en2zh', { keyPath: 'k' });
+        if (!db.objectStoreNames.contains('zh2en')) db.createObjectStore('zh2en', { keyPath: 'k' });
+      };
+      req.onsuccess = () => {
+        txLocalRuntime.idbDb = req.result;
+        resolve(req.result);
+      };
+      req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
+    });
+  }
+
+  function idbReadMeta(db, key) {
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(['meta'], 'readonly');
+        const req = tx.objectStore('meta').get(key);
+        req.onsuccess = () => resolve(req.result ? req.result.v : '');
+        req.onerror = () => resolve('');
+      } catch (_) { resolve(''); }
+    });
+  }
+
+  function idbResetDict(db, dict, stamp) {
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(['meta', 'en2zh', 'zh2en'], 'readwrite');
+        const en = tx.objectStore('en2zh');
+        const zh = tx.objectStore('zh2en');
+        const meta = tx.objectStore('meta');
+        en.clear();
+        zh.clear();
+        Object.keys(dict.en2zh || {}).forEach((k) => en.put({ k, v: dict.en2zh[k] }));
+        Object.keys(dict.zh2en || {}).forEach((k) => zh.put({ k, v: dict.zh2en[k] }));
+        meta.put({ k: 'stamp', v: stamp });
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch (_) { resolve(false); }
+    });
+  }
+
+  function idbGetPair(db, store, key) {
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction([store], 'readonly');
+        const req = tx.objectStore(store).get(key);
+        req.onsuccess = () => resolve(req.result ? String(req.result.v || '') : '');
+        req.onerror = () => resolve('');
+      } catch (_) { resolve(''); }
+    });
+  }
+
+  async function localTranslateTextIdb(text, cfg) {
+    const t = String(text || '');
+    if (!t) return { text: t, hitRate: 0, chain: 'idb:empty' };
+    if (cfg.dictMode === 'off') return { text: t, hitRate: 0, chain: 'idb:off' };
+    const dir = detectLangDir(t);
+    const dict = buildLocalDictSnapshot(cfg);
+    let db;
+    try {
+      db = await idbOpenLocalDict();
+      const oldStamp = String(await idbReadMeta(db, 'stamp') || '');
+      if (oldStamp !== dict.stamp || txLocalRuntime.idbStamp !== dict.stamp) {
+        await idbResetDict(db, dict, dict.stamp);
+        txLocalRuntime.idbStamp = dict.stamp;
+      }
+    } catch (_) {
+      return localTranslateTextMemory(t, cfg);
+    }
+    let out = t;
+    let covDict = { en2zh: {}, zh2en: {} };
+    if (dir === 'zh2en') {
+      const exact = await idbGetPair(db, 'zh2en', t);
+      out = exact || t;
+      covDict.zh2en = dict.zh2en || {};
+    } else {
+      const whole = t.trim().toLowerCase();
+      const exact = await idbGetPair(db, 'en2zh', whole);
+      if (exact) out = exact;
+      else {
+        const words = Array.from(new Set((t.match(/\b[a-zA-Z][a-zA-Z0-9_-]*\b/g) || []).map((w) => String(w || '').toLowerCase())));
+        const pairList = await Promise.all(words.map((w) => idbGetPair(db, 'en2zh', w)));
+        const mapped = {};
+        words.forEach((w, i) => { if (pairList[i]) mapped[w] = pairList[i]; });
+        out = tokenReplaceEnToZh(phraseReplaceEnToZh(t, mapped), mapped);
+        covDict.en2zh = Object.assign({}, dict.en2zh || {}, mapped);
+      }
+      if (!Object.keys(covDict.en2zh).length) covDict.en2zh = dict.en2zh || {};
+    }
+    out = applyCoverageFallback(t, dir, covDict, out);
+    if (out === t) {
+      const memoryRet = localTranslateTextMemory(t, cfg);
+      return Object.assign({}, memoryRet, { chain: `idb+fallback:${memoryRet.chain}` });
+    }
+    return { text: out, hitRate: calcHitRate(t, out), chain: `idb:${dict.chain}` };
+  }
+
+  function sqliteTranslateRequest(text, dir) {
+    return new Promise((resolve) => {
+      const requestId = `sqlite_${Date.now()}_${txLocalRuntime.sqliteSeq++}`;
+      const timer = setTimeout(() => {
+        txLocalRuntime.sqlitePending.delete(requestId);
+        resolve({ ok: false, text: '', reason: 'timeout' });
+      }, 480);
+      txLocalRuntime.sqlitePending.set(requestId, (payload) => {
+        clearTimeout(timer);
+        resolve(payload || { ok: false, text: '', reason: 'empty' });
+      });
+      postToAhk({
+        type: 'hub_translate_sqlite_lookup',
+        requestId,
+        text: String(text || ''),
+        dir: String(dir || 'en2zh')
+      });
+    });
+  }
+
+  async function localTranslateTextSqlite(text, cfg) {
+    const t = String(text || '');
+    if (!t) return { text: t, hitRate: 0, chain: 'sqlite:empty' };
+    if (cfg.dictMode === 'off') return { text: t, hitRate: 0, chain: 'sqlite:off' };
+    const dir = detectLangDir(t);
+    let out = t;
+    const snapshot = buildLocalDictSnapshot(cfg);
+    if (dir === 'en2zh') {
+      const words = Array.from(new Set((t.match(/\b[a-zA-Z][a-zA-Z0-9_-]*\b/g) || []).map((w) => String(w || '').toLowerCase())));
+      const pairList = await Promise.all(words.map((w) => sqliteTranslateRequest(w, 'en2zh')));
+      const mapped = {};
+      words.forEach((w, i) => {
+        const r = pairList[i];
+        if (r && r.ok && r.text) mapped[w] = String(r.text);
+      });
+      if (Object.keys(mapped).length) out = tokenReplaceEnToZh(phraseReplaceEnToZh(t, mapped), mapped);
+      out = applyCoverageFallback(t, dir, { en2zh: Object.assign({}, snapshot.en2zh || {}, mapped), zh2en: snapshot.zh2en || {} }, out);
+      return { text: out, hitRate: calcHitRate(t, out), chain: 'sqlite:token+coverage' };
+    }
+    const chars = Array.from(new Set((t.match(/[\u4E00-\u9FFF]/g) || [])));
+    const pairList = await Promise.all(chars.map((ch) => sqliteTranslateRequest(ch, 'zh2en')));
+    const mapped = {};
+    chars.forEach((ch, i) => {
+      const r = pairList[i];
+      if (r && r.ok && r.text) mapped[ch] = String(r.text);
+    });
+    if (Object.keys(mapped).length) out = tokenReplaceZhToEn(t, mapped);
+    out = applyCoverageFallback(t, dir, { en2zh: snapshot.en2zh || {}, zh2en: Object.assign({}, snapshot.zh2en || {}, mapped) }, out);
+    if (out && out !== t)
+      return { text: out, hitRate: calcHitRate(t, out), chain: 'sqlite:token+coverage' };
+    const memoryRet = localTranslateTextMemory(t, cfg);
+    return Object.assign({}, memoryRet, { chain: `sqlite+fallback:${memoryRet.chain}` });
+  }
+
+  async function localTranslateText(text, cfg) {
+    await ensureBundledDictLoaded();
+    const engine = normalizeLocalEngine(cfg && cfg.localEngine);
+    if (engine === 'shard_json') return localTranslateTextShard(text, cfg);
+    if (engine === 'idb_worker') return localTranslateTextIdb(text, cfg);
+    if (engine === 'sqlite_bridge') return localTranslateTextSqlite(text, cfg);
+    return localTranslateTextMemory(text, cfg);
+  }
+
+  async function tryProviderTranslate(provider, text, from, to, cfg, testMode) {
     const p = (cfg.providers && cfg.providers[provider]) || {};
-    if (!p.enabled) return '';
+    if (!p.enabled) {
+      if (testMode) throw new Error('未启用');
+      return '';
+    }
     const source = from === 'auto' ? '' : from;
     if (provider === 'mymemory') {
-      const ep = String(p.endpoint || '').trim() || 'https://api.mymemory.translated.net/get';
+      const endpointRaw = String(p.endpoint || '').trim();
+      const ep = /^https?:\/\//i.test(endpointRaw) ? endpointRaw : 'https://api.mymemory.translated.net/get';
       const url = `${ep}?q=${encodeURIComponent(text)}&langpair=${encodeURIComponent((source || 'auto') + '|' + to)}`;
       const headers = {};
       if (p.key) {
         headers['x-rapidapi-key'] = p.key;
-        headers['x-rapidapi-host'] = 'translated-mymemory---translation-memory.p.rapidapi.com';
+        headers['x-rapidapi-host'] = endpointRaw && !/^https?:\/\//i.test(endpointRaw)
+          ? endpointRaw
+          : 'translated-mymemory---translation-memory.p.rapidapi.com';
       }
       const r = await fetch(url, { headers });
-      if (!r.ok) return '';
+      if (!r.ok) {
+        if (testMode) throw new Error(`HTTP ${r.status}`);
+        return '';
+      }
       const j = await r.json();
       return String((j && j.responseData && j.responseData.translatedText) || '').trim();
     }
@@ -2839,12 +3618,18 @@ button.ctx-sub-item:disabled {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ q: text, source: source || 'auto', target: to, format: 'text', api_key: p.key || undefined })
       });
-      if (!r.ok) return '';
+      if (!r.ok) {
+        if (testMode) throw new Error(`HTTP ${r.status}`);
+        return '';
+      }
       const j = await r.json();
       return String(j && j.translatedText || '').trim();
     }
     if (provider === 'deepl') {
-      if (!p.key) return '';
+      if (!p.key) {
+        if (testMode) throw new Error('缺少 API Key');
+        return '';
+      }
       const ep = String(p.endpoint || '').trim() || 'https://api-free.deepl.com/v2/translate';
       const form = new URLSearchParams();
       form.set('text', text);
@@ -2855,16 +3640,22 @@ button.ctx-sub-item:disabled {
         headers: { 'Authorization': `DeepL-Auth-Key ${p.key}`, 'Content-Type': 'application/x-www-form-urlencoded' },
         body: form.toString()
       });
-      if (!r.ok) return '';
+      if (!r.ok) {
+        if (testMode) throw new Error(`HTTP ${r.status}`);
+        return '';
+      }
       const j = await r.json();
       const arr = Array.isArray(j && j.translations) ? j.translations : [];
       return String(arr[0] && arr[0].text || '').trim();
     }
     if (provider === 'azure') {
-      if (!p.key) return '';
+      if (!p.key) {
+        if (testMode) throw new Error('缺少 Subscription Key');
+        return '';
+      }
       const endpointRaw = String(p.endpoint || '').trim();
-      const region = endpointRaw.split(',')[0] || 'eastasia';
-      const endpoint = (endpointRaw.split(',')[1] || 'https://api.cognitive.microsofttranslator.com').replace(/\/+$/, '');
+      const region = endpointRaw && !/^https?:\/\//i.test(endpointRaw) ? endpointRaw : 'eastasia';
+      const endpoint = /^https?:\/\//i.test(endpointRaw) ? endpointRaw.replace(/\/+$/, '') : 'https://api.cognitive.microsofttranslator.com';
       const url = `${endpoint}/translate?api-version=3.0&to=${encodeURIComponent(to)}` + (source ? `&from=${encodeURIComponent(source)}` : '');
       const r = await fetch(url, {
         method: 'POST',
@@ -2875,7 +3666,10 @@ button.ctx-sub-item:disabled {
         },
         body: JSON.stringify([{ Text: text }])
       });
-      if (!r.ok) return '';
+      if (!r.ok) {
+        if (testMode) throw new Error(`HTTP ${r.status}`);
+        return '';
+      }
       const j = await r.json();
       return String(j && j[0] && j[0].translations && j[0].translations[0] && j[0].translations[0].text || '').trim();
     }
@@ -2887,7 +3681,10 @@ button.ctx-sub-item:disabled {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ q: text, source: source || undefined, target: to, format: 'text' })
         });
-        if (!r.ok) return '';
+        if (!r.ok) {
+          if (testMode) throw new Error(`HTTP ${r.status}`);
+          return '';
+        }
         const j = await r.json();
         const translated = String(j && j.data && j.data.translations && j.data.translations[0] && j.data.translations[0].translatedText || '').trim();
         return decodeHtmlEntities(translated);
@@ -2895,7 +3692,10 @@ button.ctx-sub-item:disabled {
       const freeEp = String(p.endpoint || '').trim() || 'https://translate.googleapis.com/translate_a/single';
       const q = `${freeEp}?client=gtx&dt=t&sl=${encodeURIComponent(source || 'auto')}&tl=${encodeURIComponent(to)}&q=${encodeURIComponent(text)}`;
       const r = await fetch(q);
-      if (!r.ok) return '';
+      if (!r.ok) {
+        if (testMode) throw new Error(`HTTP ${r.status}`);
+        return '';
+      }
       const j = await r.json();
       const arr = Array.isArray(j && j[0]) ? j[0] : [];
       const translated = arr.map((it) => String(it && it[0] || '')).join('').trim();
@@ -2904,13 +3704,32 @@ button.ctx-sub-item:disabled {
     if (provider === 'youdao' || provider === 'baidu' || provider === 'tencent' || provider === 'aliyun' || provider === 'proxy') {
       const endpoint = String(p.endpoint || '').trim() || String((cfg.providers.proxy && cfg.providers.proxy.endpoint) || '').trim();
       const token = String(p.key || (cfg.providers.proxy && cfg.providers.proxy.key) || '');
-      if (!endpoint) return '';
+      if (!endpoint) {
+        if (testMode) throw new Error('缺少 Endpoint（需代理地址）');
+        return '';
+      }
       const r = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
-        body: JSON.stringify({ provider, text, from, to, key: p.key || '' })
+        body: JSON.stringify({
+          provider,
+          text,
+          from,
+          to,
+          key: p.key || '',
+          secret: String(p.secret || ''),
+          appid: String(p.key || ''),
+          appkey: String(p.secret || ''),
+          secretId: String(p.key || ''),
+          secretKey: String(p.secret || ''),
+          accessKeyId: String(p.key || ''),
+          accessKeySecret: String(p.secret || '')
+        })
       });
-      if (!r.ok) return '';
+      if (!r.ok) {
+        if (testMode) throw new Error(`HTTP ${r.status}`);
+        return '';
+      }
       const j = await r.json();
       return String((j && (j.translatedText || j.text || j.result)) || '').trim();
     }
@@ -2932,43 +3751,85 @@ button.ctx-sub-item:disabled {
   }
 
   async function networkTranslateTextSmart(text, cfg) {
+    if (cfg && cfg.strictOrder) return networkTranslateText(text, cfg);
     const sentenceLike = /[。！？.!?]/.test(text) || String(text || '').length > 28 || /\s{1,}/.test(text);
     if (!sentenceLike) return networkTranslateText(text, cfg);
     const smartCfg = Object.assign({}, cfg);
     const baseOrder = String(cfg && cfg.fallbackOrder || '').split(',').map((s) => s.trim()).filter(Boolean);
-    const preferred = ['google', 'deepl', 'azure', 'youdao', 'baidu', 'tencent', 'aliyun', 'mymemory', 'libre'];
+    const preferred = ['google', 'mymemory', 'libre', 'youdao', 'baidu', 'tencent', 'aliyun', 'azure', 'deepl'];
     const rest = baseOrder.filter((p) => !preferred.includes(p));
     smartCfg.fallbackOrder = preferred.concat(rest).join(',');
     return networkTranslateText(text, smartCfg);
   }
 
+  function setTxTestResult(msg, ok) {
+    if (!txTestResult) return;
+    txTestResult.textContent = String(msg || '');
+    txTestResult.style.color = ok === true ? '#9bffb7' : (ok === false ? '#ffb08a' : '#ffd1a8');
+    if (advStatus && msg) advStatus.textContent = `${advStatus.textContent.split(' | 翻译测试')[0]} | 翻译测试: ${msg}`;
+  }
+
+  async function testProviderConnectivity(provider) {
+    const cfg = uiReadTranslateCfg();
+    const src = 'Network translation connectivity test.';
+    setTxTestResult(`${TX_PROVIDER_LABEL[provider] || provider}: 测试中...`, null);
+    try {
+      const out = await tryProviderTranslate(provider, src, 'en', 'zh-CN', cfg, true);
+      const ok = !!String(out || '').trim();
+      if (!ok) {
+        setTxTestResult(`${TX_PROVIDER_LABEL[provider] || provider}: 失败（返回空结果）`, false);
+        return false;
+      }
+      setTxTestResult(`${TX_PROVIDER_LABEL[provider] || provider}: 可用`, true);
+      return ok;
+    } catch (err) {
+      const msg = String((err && err.message) || '未知错误');
+      setTxTestResult(`${TX_PROVIDER_LABEL[provider] || provider}: 失败（${msg}）`, false);
+      return false;
+    }
+  }
+
+  async function testFallbackChain() {
+    const cfg = uiReadTranslateCfg();
+    const order = String(cfg.fallbackOrder || '').split(',').map((s) => s.trim()).filter(Boolean);
+    setTxTestResult('测试中...', null);
+    for (const p of order) {
+      const ok = await testProviderConnectivity(p);
+      if (ok) {
+        setTxTestResult(`链路可用，命中: ${TX_PROVIDER_LABEL[p] || p}`, true);
+        return;
+      }
+    }
+    setTxTestResult('链路失败：没有可用网络词典', false);
+  }
+
   async function translateByCfg(raw, cfg) {
-    const local = localTranslateText(raw, cfg);
+    const local = await localTranslateText(raw, cfg);
     let finalText = raw;
     let provider = 'local';
-    const sentenceLike = /[。！？.!?]/.test(raw) || raw.length > 28 || /\s{1,}/.test(raw);
+    let chain = `local:${local.chain || cfg.dictMode}`;
     if (cfg.routeMode === 'local_only') {
       finalText = local.text || raw;
+      chain += ' -> done';
     } else if (cfg.routeMode === 'network_only') {
       const remote = await networkTranslateTextSmart(raw, cfg);
-      finalText = remote.text || raw;
-      provider = remote.provider || 'none';
-    } else if (sentenceLike) {
-      const remote = await networkTranslateTextSmart(raw, cfg);
       finalText = remote.text || local.text || raw;
-      provider = remote.provider || (local.text && local.text !== raw ? 'local' : 'none');
+      provider = remote.provider || ((local.text && local.text !== raw) ? 'local_fallback' : 'none');
+      chain = `network:${remote.provider || 'none'} -> ${provider}`;
     } else {
       const hit = Number(local.hitRate || 0);
       if (local.text && hit >= Number(cfg.localThreshold || 35)) {
         finalText = local.text;
+        chain += ` -> hit:${hit}%`;
       } else {
         const remote = await networkTranslateTextSmart(raw, cfg);
         finalText = remote.text || local.text || raw;
-        provider = remote.provider || (local.text && local.text !== raw ? 'local' : 'none');
+        provider = remote.provider || (local.text && local.text !== raw ? 'local_fallback' : 'none');
+        chain += ` -> network:${provider}`;
       }
     }
     rememberLearnPair(raw, finalText, cfg);
-    return { text: finalText, provider };
+    return { text: finalText, provider, chain };
   }
 
   async function dispatchAdvanced(category, action) {
@@ -3014,6 +3875,11 @@ button.ctx-sub-item:disabled {
       else if (action === 'morph_ts_toggle') out = toggleTsDate(raw);
     } else if (category === 'link') {
       if (action === 'link_translate') {
+        const st = getLinkActionAvailability(action, raw);
+        if (!st.enabled) {
+          if (advStatus) advStatus.textContent += ` | 翻译跳过: ${st.hint}`;
+          return;
+        }
         const cfg = getTranslateCfg();
         const ret = await translateByCfg(raw, cfg);
         const finalText = ret.text || raw;
@@ -3021,11 +3887,20 @@ button.ctx-sub-item:disabled {
         ctx.apply(finalText);
         refreshAll();
         updateAdvStatus();
-        if (advStatus) advStatus.textContent += ` | 翻译源: ${useProvider}`;
+        if (advStatus) {
+          const unchanged = finalText === raw;
+          const msg = unchanged ? ' | 结果: 未变化（请检查引擎配置/网络）' : '';
+          advStatus.textContent += ` | 翻译源: ${useProvider} | 链路: ${ret.chain || '-'}${msg}`;
+        }
         pulseDone();
         return;
       }
       if (action === 'link_comment') {
+        const st = getLinkActionAvailability(action, raw);
+        if (!st.enabled) {
+          if (advStatus) advStatus.textContent += ` | 翻译跳过: ${st.hint}`;
+          return;
+        }
         const cfg = getTranslateCfg();
         const lines = raw.split(/\r?\n/);
         for (let i = 0; i < lines.length; i += 1) {
@@ -3997,6 +4872,71 @@ button.ctx-sub-item:disabled {
   }
   if (btnTxCfgX) btnTxCfgX.addEventListener('click', closeTranslateCfg);
   if (btnTxCfgCancel) btnTxCfgCancel.addEventListener('click', closeTranslateCfg);
+  if (txLocalEngine) txLocalEngine.addEventListener('change', () => updateAdvStatus());
+  if (btnTxTestChain) btnTxTestChain.addEventListener('click', async () => {
+    const old = btnTxTestChain.textContent;
+    btnTxTestChain.disabled = true;
+    btnTxTestChain.textContent = '测试中...';
+    try { await testFallbackChain(); }
+    finally {
+      btnTxTestChain.disabled = false;
+      btnTxTestChain.textContent = old || '测试托底链';
+    }
+  });
+  if (btnTxChainAdd) btnTxChainAdd.addEventListener('click', () => {
+    createTxChainRow(nextProviderForAdd(), { enabled: true });
+  });
+  if (txProviderChain) {
+    txProviderChain.addEventListener('change', (e) => {
+      const row = e.target.closest('.tx-chain-row');
+      if (!row) return;
+      if (e.target.matches('select[data-tx-field="provider"]')) {
+        applyProviderUiHints(row, String(e.target.value || ''));
+      }
+    });
+    txProviderChain.addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-tx-act]');
+      if (!btn) return;
+      const row = btn.closest('.tx-chain-row');
+      if (!row) return;
+      const act = String(btn.getAttribute('data-tx-act') || '');
+      if (act === 'remove') {
+        row.remove();
+        return;
+      }
+      if (act === 'test') {
+        const p = String((row.querySelector('select[data-tx-field="provider"]') || {}).value || '').trim();
+        if (!TX_PROVIDERS.includes(p)) return;
+        const old = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '测...';
+        try { await testProviderConnectivity(p); }
+        finally {
+          btn.disabled = false;
+          btn.textContent = old || '测';
+        }
+      }
+    });
+  }
+  if (btnTxDictImport) btnTxDictImport.addEventListener('click', () => {
+    if (txDictFile) txDictFile.click();
+  });
+  if (btnTxDictClear) btnTxDictClear.addEventListener('click', () => {
+    setCustomDict({ en2zh: {}, zh2en: {} });
+    pulseDone();
+  });
+  if (txDictFile) txDictFile.addEventListener('change', async () => {
+    const f = txDictFile.files && txDictFile.files[0];
+    if (!f) return;
+    try {
+      const raw = await f.text();
+      const parsed = parseCustomDictPayload(raw, f.name);
+      const merged = mergeDict(getCustomDict(), parsed);
+      setCustomDict(merged);
+      pulseDone();
+    } catch (_) {}
+    txDictFile.value = '';
+  });
   if (btnTxCfgSave) btnTxCfgSave.addEventListener('click', () => {
     setTranslateCfg(uiReadTranslateCfg());
     closeTranslateCfg();
@@ -4005,6 +4945,19 @@ button.ctx-sub-item:disabled {
   if (advPanel) {
     advPanel.addEventListener('click', (e) => e.stopPropagation());
     advPanel.addEventListener('pointerdown', (e) => e.stopPropagation());
+  }
+  if (translateConfig) {
+    translateConfig.addEventListener('click', (e) => e.stopPropagation());
+    translateConfig.addEventListener('pointerdown', (e) => e.stopPropagation());
+    translateConfig.addEventListener('click', (e) => {
+      const a = e.target.closest('a[href]');
+      if (!a) return;
+      const href = String(a.getAttribute('href') || '').trim();
+      if (!/^https?:\/\//i.test(href)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      postToAhk({ type: 'hub_open_external_url', url: href });
+    });
   }
   const btnWinRecycle = document.getElementById('btnWinRecycle');
   if (btnWinRecycle) {
@@ -4075,6 +5028,8 @@ button.ctx-sub-item:disabled {
     });
     preview.addEventListener('mousedown', armDraftDragFromTextarea, true);
   }
+  if (pendingLane)
+    pendingLane.addEventListener('mousedown', armDraftDragFromPendingLane, true);
   btnTriggerCapslock.addEventListener('click', () => {
     setCopyTriggerMode('capslock');
     postToAhk({ type: 'hub_set_copy_trigger_mode', mode: 'capslock' });
@@ -4115,6 +5070,15 @@ button.ctx-sub-item:disabled {
 
   const DRAFT_DRAG_MIN_PX = 6;
   const DRAFT_HOLD_MS = 320;
+
+  function armDraftDragFromPendingLane(e) {
+    if (!e || e.button !== 0) return;
+    const t = e.target;
+    if (!t || !(t instanceof Element)) return;
+    if (t.closest('button, input, select, textarea, a, label, [contenteditable="true"]')) return;
+    if (t.closest('[data-adv-group], [data-adv-action], #translate-config, .tx-btn')) return;
+    armDraftDragFromTextarea(e);
+  }
 
   function armDraftDragFromTextarea(e) {
     if (e.button !== 0) return;
@@ -4664,6 +5628,20 @@ button.ctx-sub-item:disabled {
         case 'hub_preview_state':
           setCopyTriggerMode(d.copyTriggerMode || 'capslock');
           break;
+        case 'hub_translate_sqlite_result': {
+          const rid = String(d.requestId || '');
+          if (!rid) break;
+          const done = txLocalRuntime.sqlitePending.get(rid);
+          if (done) {
+            txLocalRuntime.sqlitePending.delete(rid);
+            done({
+              ok: !!d.ok,
+              text: String(d.text || ''),
+              reason: String(d.reason || '')
+            });
+          }
+          break;
+        }
         case 'clear_segments':
           clearAll();
           break;
