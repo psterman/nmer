@@ -567,6 +567,16 @@ global ScreenshotEditorTitleBar := 0  ; 截图助手标题栏控件
 global ScreenshotEditorCloseBtn := 0  ; 截图助手关闭按钮控件
 global ScreenshotEditorToolbarVisible := true  ; 工具栏是否可见
 global ScreenshotEditorIsDraggingWindow := false  ; 是否正在拖动窗口
+global ScreenshotColorPickerActive := false  ; 截图助手取色器是否启用
+global GuiID_ScreenshotColorPicker := 0  ; 取色器面板 GUI
+global ScreenshotColorPickerMagnifierPic := 0  ; 取色器放大镜图片控件
+global ScreenshotColorPickerCurrentText := 0  ; 取色器当前颜色文本
+global ScreenshotColorPickerCompareText := 0  ; 取色器对比文本
+global ScreenshotColorPickerHistoryEdit := 0  ; 取色器历史文本
+global ScreenshotColorPickerCurrent := Map()  ; 取色器当前颜色
+global ScreenshotColorPickerAnchor := Map()  ; 对比基准颜色
+global ScreenshotColorPickerHistory := []  ; 取色历史
+global ScreenshotColorPickerTickBusy := false  ; 防止取色器定时器重入
 global ClipboardMenuButtons := []  ; 按钮数组
 global ClipboardMenuSelectedIndex := 0  ; 当前选中的按钮索引
 global ClipboardMenuOptions := []  ; 选项数组
@@ -25141,7 +25151,7 @@ HandleDynamicHotkey(PressedKey, ActionType) {
     KeyLower := StrLower(PressedKey)
     ConfigKey := ""
 
-    ; 截图助手优先：当截图助手打开时，Q/E/C/R/Z/F/Esc 统一切到截图工具栏动作
+    ; 截图助手优先：当截图助手打开时，Q/E/C/R/Z/F/X/Esc 统一切到截图工具栏动作
     if (HandleScreenshotEditorHotkey(ActionType)) {
         return true
     }
@@ -25416,6 +25426,9 @@ HandleScreenshotEditorHotkey(ActionType) {
         case "F":
             ScreenshotEditorSearchText()
             return true
+        case "X":
+            ScreenshotEditorToggleColorPicker()
+            return true
         case "ESC":
             CloseScreenshotEditor()
             return true
@@ -25429,6 +25442,12 @@ WheelUp:: {
 }
 WheelDown:: {
     ScreenshotEditorZoomWithWheel(-1)
+}
+#HotIf
+
+#HotIf ScreenshotColorPickerActive
+~LButton:: {
+    ScreenshotColorPickerCaptureAtCursor()
 }
 #HotIf
 
@@ -36098,6 +36117,7 @@ ShowScreenshotEditor(DebugGui := 0) {
         AddScreenshotToolbarTagButton("保存", "Caps+R", (*) => SaveScreenshotToFile())
         AddScreenshotToolbarTagButton("AI", "Caps+Z", (*) => ScreenshotEditorSendToAI())
         AddScreenshotToolbarTagButton("搜索", "Caps+F", (*) => ScreenshotEditorSearchText())
+        AddScreenshotToolbarTagButton("取色", "Caps+X", (*) => ScreenshotEditorToggleColorPicker())
         AddScreenshotToolbarTagButton("关闭", "Esc", (*) => CloseScreenshotEditor(), true)
         
         ; 计算工具栏宽度
@@ -36398,6 +36418,7 @@ ScreenshotToolbarDragWindow(*) {
 ; 同步工具栏位置（跟随主窗口移动）
 SyncScreenshotToolbarPosition() {
     global GuiID_ScreenshotEditor, GuiID_ScreenshotToolbar
+    global ScreenshotColorPickerActive
     
     try {
         if (!GuiID_ScreenshotEditor || GuiID_ScreenshotEditor = 0) {
@@ -36427,6 +36448,9 @@ SyncScreenshotToolbarPosition() {
         ; 移动工具栏到新位置
         if (ToolbarW && ToolbarH) {
             GuiID_ScreenshotToolbar.Show("x" . ToolbarX . " y" . ToolbarY)
+        }
+        if (ScreenshotColorPickerActive) {
+            ScreenshotColorPickerSyncPosition()
         }
     } catch as e {
         ; 如果出错，停止定时器
@@ -36737,6 +36761,8 @@ CloseScreenshotEditor() {
     global ScreenshotEditorZoomScale, ScreenshotEditorBaseWidth, ScreenshotEditorBaseHeight
     
     try {
+        ScreenshotEditorStopColorPicker()
+
         ; 关闭工具栏窗口
         if (GuiID_ScreenshotToolbar && (GuiID_ScreenshotToolbar != 0)) {
             try {
@@ -37090,6 +37116,353 @@ ScreenshotEditorDeletePermanently() {
     } catch as e {
         TrayTip("删除", "删除失败: " . e.Message, "Iconx 1")
     }
+}
+
+ScreenshotEditorToggleColorPicker() {
+    global ScreenshotColorPickerActive
+    if (ScreenshotColorPickerActive) {
+        ScreenshotEditorStopColorPicker()
+        TrayTip("取色器", "已退出取色模式", "Iconi 1")
+    } else {
+        ScreenshotEditorStartColorPicker()
+    }
+}
+
+ScreenshotEditorStartColorPicker() {
+    global GuiID_ScreenshotEditor
+    global ScreenshotColorPickerActive
+    if !(IsObject(GuiID_ScreenshotEditor) && GuiID_ScreenshotEditor != 0)
+        return
+    ScreenshotColorPickerEnsureGui()
+    ScreenshotColorPickerActive := true
+    ScreenshotColorPickerTick()
+    SetTimer(ScreenshotColorPickerTick, 40)
+    TrayTip("取色器", "移动鼠标查看放大镜；左键记录历史；Caps+X 退出", "Iconi 1")
+}
+
+ScreenshotEditorStopColorPicker() {
+    global GuiID_ScreenshotColorPicker, ScreenshotColorPickerActive
+    global ScreenshotColorPickerMagnifierPic, ScreenshotColorPickerCurrentText
+    global ScreenshotColorPickerCompareText, ScreenshotColorPickerHistoryEdit
+    global ScreenshotColorPickerTickBusy
+
+    SetTimer(ScreenshotColorPickerTick, 0)
+    ScreenshotColorPickerTickBusy := false
+    ScreenshotColorPickerActive := false
+    if (IsObject(GuiID_ScreenshotColorPicker) && GuiID_ScreenshotColorPicker != 0) {
+        try GuiID_ScreenshotColorPicker.Destroy()
+    }
+    GuiID_ScreenshotColorPicker := 0
+    ScreenshotColorPickerMagnifierPic := 0
+    ScreenshotColorPickerCurrentText := 0
+    ScreenshotColorPickerCompareText := 0
+    ScreenshotColorPickerHistoryEdit := 0
+}
+
+ScreenshotColorPickerEnsureGui() {
+    global GuiID_ScreenshotEditor
+    global GuiID_ScreenshotColorPicker, ScreenshotColorPickerMagnifierPic
+    global ScreenshotColorPickerCurrentText, ScreenshotColorPickerCompareText
+    global ScreenshotColorPickerHistoryEdit
+
+    if (IsObject(GuiID_ScreenshotColorPicker) && GuiID_ScreenshotColorPicker != 0) {
+        try GuiID_ScreenshotColorPicker.Show("NA")
+        return
+    }
+
+    panel := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
+    panel.BackColor := "121820"
+    panel.SetFont("s9 cE8EDF2", "Segoe UI")
+
+    panel.Add("Text", "x12 y8 w220 h20 cFF9D3A", "屏幕取色器")
+    global ScreenshotColorPickerMagnifierPic
+    global ScreenshotColorPickerCurrentText
+    global ScreenshotColorPickerCompareText
+    global ScreenshotColorPickerHistoryEdit
+    ScreenshotColorPickerMagnifierPic := panel.Add("Picture", "x12 y30 w180 h180 0xE Border")
+    ScreenshotColorPickerCurrentText := panel.Add("Text", "x200 y32 w220 h78 cE8EDF2", "当前颜色")
+    ScreenshotColorPickerCurrentText.SetFont("s9", "Consolas")
+    ScreenshotColorPickerCompareText := panel.Add("Text", "x200 y114 w220 h46 cAAB7C4", "对比: 未设置")
+
+    btnCopyHex := panel.Add("Button", "x12 y220 w84 h26", "复制HEX")
+    btnCopyRgb := panel.Add("Button", "x104 y220 w84 h26", "复制RGB")
+    btnAnchor := panel.Add("Button", "x200 y220 w84 h26", "设为对比")
+    btnHistory := panel.Add("Button", "x292 y220 w84 h26", "加入历史")
+    btnClose := panel.Add("Button", "x384 y220 w36 h26", "✕")
+
+    panel.Add("Text", "x12 y254 w170 h18 c9DB0C2", "历史颜色（最新在前）")
+    ScreenshotColorPickerHistoryEdit := panel.Add("Edit", "x12 y274 w408 h166 ReadOnly -Wrap -VScroll cDCE9F7 Background101820", "")
+    ScreenshotColorPickerHistoryEdit.SetFont("s10", "Consolas")
+
+    btnCopyHex.OnEvent("Click", (*) => ScreenshotColorPickerCopyCurrent("hex"))
+    btnCopyRgb.OnEvent("Click", (*) => ScreenshotColorPickerCopyCurrent("rgb"))
+    btnAnchor.OnEvent("Click", (*) => ScreenshotColorPickerSetAnchor())
+    btnHistory.OnEvent("Click", (*) => ScreenshotColorPickerPushCurrentToHistory())
+    btnClose.OnEvent("Click", (*) => ScreenshotEditorStopColorPicker())
+
+    global GuiID_ScreenshotColorPicker
+    GuiID_ScreenshotColorPicker := panel
+    ScreenshotColorPickerSyncPosition()
+    panel.Show("NA w432 h452")
+}
+
+ScreenshotColorPickerSyncPosition() {
+    global GuiID_ScreenshotEditor, GuiID_ScreenshotColorPicker
+    if !(IsObject(GuiID_ScreenshotEditor) && GuiID_ScreenshotEditor != 0)
+        return
+    if !(IsObject(GuiID_ScreenshotColorPicker) && GuiID_ScreenshotColorPicker != 0)
+        return
+    try {
+        WinGetPos(&ex, &ey, &ew, &eh, "ahk_id " . GuiID_ScreenshotEditor.Hwnd)
+        px := ex + ew + 12
+        py := ey
+        vL := SysGet(76), vT := SysGet(77), vW := SysGet(78), vH := SysGet(79)
+        vR := vL + vW, vB := vT + vH
+        panelW := 432, panelH := 452
+        if (px + panelW > vR)
+            px := Max(vL, ex - panelW - 12)
+        if (py + panelH > vB)
+            py := Max(vT, vB - panelH - 8)
+        GuiID_ScreenshotColorPicker.Show("NA x" . px . " y" . py . " w" . panelW . " h" . panelH)
+    } catch {
+    }
+}
+
+ScreenshotColorPickerCaptureAtCursor() {
+    global ScreenshotColorPickerActive, GuiID_ScreenshotColorPicker
+    if (!ScreenshotColorPickerActive)
+        return
+    try {
+        MouseGetPos(&mx, &my, &hoverHwnd)
+        if (IsObject(GuiID_ScreenshotColorPicker) && GuiID_ScreenshotColorPicker != 0) {
+            if (hoverHwnd = GuiID_ScreenshotColorPicker.Hwnd
+                || DllCall("user32\IsChild", "ptr", GuiID_ScreenshotColorPicker.Hwnd, "ptr", hoverHwnd, "int")) {
+                return
+            }
+        }
+        colorInfo := ScreenshotColorPickerGetColorInfo(mx, my)
+        ScreenshotColorPickerAddHistory(colorInfo)
+        ScreenshotColorPickerRefreshHistoryText()
+        TrayTip("取色", "已记录 " . colorInfo["hex"], "Iconi 1")
+    } catch {
+    }
+}
+
+ScreenshotColorPickerTick(*) {
+    global ScreenshotColorPickerActive, ScreenshotColorPickerTickBusy
+    global GuiID_ScreenshotEditor, GuiID_ScreenshotColorPicker
+    global ScreenshotColorPickerCurrent, ScreenshotColorPickerCurrentText, ScreenshotColorPickerCompareText
+    global ScreenshotColorPickerAnchor
+
+    if (!ScreenshotColorPickerActive)
+        return
+    if (ScreenshotColorPickerTickBusy)
+        return
+    ScreenshotColorPickerTickBusy := true
+    try {
+        if !(IsObject(GuiID_ScreenshotEditor) && GuiID_ScreenshotEditor != 0) {
+            ScreenshotEditorStopColorPicker()
+            return
+        }
+        if !(IsObject(GuiID_ScreenshotColorPicker) && GuiID_ScreenshotColorPicker != 0) {
+            ScreenshotColorPickerEnsureGui()
+        }
+        MouseGetPos(&mx, &my)
+        colorInfo := ScreenshotColorPickerGetColorInfo(mx, my)
+        ScreenshotColorPickerCurrent := colorInfo
+        if (ScreenshotColorPickerCurrentText) {
+            ScreenshotColorPickerCurrentText.Value :=
+                "屏幕: (" . mx . ", " . my . ")`n"
+                . "HEX: " . colorInfo["hex"] . "`n"
+                . "hex: " . colorInfo["hex_lower"] . "`n"
+                . "RGB: " . colorInfo["rgb"]
+        }
+        if (ScreenshotColorPickerCompareText) {
+            ScreenshotColorPickerCompareText.Value := ScreenshotColorPickerBuildCompareText(colorInfo, ScreenshotColorPickerAnchor)
+        }
+        ScreenshotColorPickerRenderMagnifier(mx, my)
+    } catch {
+    } finally {
+        ScreenshotColorPickerTickBusy := false
+    }
+}
+
+ScreenshotColorPickerGetColorInfo(x, y) {
+    color := PixelGetColor(x, y, "RGB")
+    r := (color >> 16) & 0xFF
+    g := (color >> 8) & 0xFF
+    b := color & 0xFF
+    info := Map()
+    info["value"] := color
+    info["r"] := r
+    info["g"] := g
+    info["b"] := b
+    info["hex"] := Format("#{1:06X}", color)
+    info["hex_lower"] := StrLower(info["hex"])
+    info["rgb"] := "rgb(" . r . ", " . g . ", " . b . ")"
+    return info
+}
+
+ScreenshotColorPickerBuildCompareText(current, anchor) {
+    if !(anchor is Map) || anchor.Count = 0
+        return "对比: 未设置（点击“设为对比”）"
+    dr := current["r"] - anchor["r"]
+    dg := current["g"] - anchor["g"]
+    db := current["b"] - anchor["b"]
+    distance := Round(Sqrt(dr * dr + dg * dg + db * db), 2)
+    return "对比基准: " . anchor["hex"] . "`n"
+        . "ΔRGB: (" . dr . ", " . dg . ", " . db . ")  |  距离: " . distance
+}
+
+ScreenshotColorPickerCaptureScreenBitmapNative(x, y, w, h) {
+    if (w <= 0 || h <= 0)
+        return 0
+    hdcScreen := 0, hdcMem := 0, hbm := 0, obm := 0, pBitmap := 0
+    try {
+        hdcScreen := DllCall("user32\GetDC", "ptr", 0, "ptr")
+        if (!hdcScreen)
+            return 0
+        hdcMem := DllCall("gdi32\CreateCompatibleDC", "ptr", hdcScreen, "ptr")
+        if (!hdcMem)
+            return 0
+        hbm := DllCall("gdi32\CreateCompatibleBitmap", "ptr", hdcScreen, "int", w, "int", h, "ptr")
+        if (!hbm)
+            return 0
+        obm := DllCall("gdi32\SelectObject", "ptr", hdcMem, "ptr", hbm, "ptr")
+        ; SRCCOPY | CAPTUREBLT，优先抓取合成后的屏幕内容
+        DllCall("gdi32\BitBlt"
+            , "ptr", hdcMem, "int", 0, "int", 0, "int", w, "int", h
+            , "ptr", hdcScreen, "int", x, "int", y, "uint", 0x00CC0020 | 0x40000000)
+        pBitmap := Gdip_CreateBitmapFromHBITMAP(hbm)
+    } catch {
+        pBitmap := 0
+    } finally {
+        if (obm && hdcMem)
+            try DllCall("gdi32\SelectObject", "ptr", hdcMem, "ptr", obm, "ptr")
+        if (hbm)
+            try DeleteObject(hbm)
+        if (hdcMem)
+            try DllCall("gdi32\DeleteDC", "ptr", hdcMem)
+        if (hdcScreen)
+            try DllCall("user32\ReleaseDC", "ptr", 0, "ptr", hdcScreen)
+    }
+    return pBitmap
+}
+
+ScreenshotColorPickerRenderMagnifier(mouseX, mouseY) {
+    global ScreenshotColorPickerMagnifierPic
+    if (!ScreenshotColorPickerMagnifierPic)
+        return
+    sampleSize := 15
+    zoom := 12
+    drawSize := sampleSize * zoom
+    startX := mouseX - (sampleSize // 2)
+    startY := mouseY - (sampleSize // 2)
+
+    pSrc := 0, pDst := 0, pG := 0, hBitmap := 0, pPen := 0
+    try {
+        pSrc := ScreenshotColorPickerCaptureScreenBitmapNative(startX, startY, sampleSize, sampleSize)
+        if (!pSrc)
+            return
+        pDst := Gdip_CreateBitmap(drawSize, drawSize)
+        if (!pDst)
+            return
+        pG := Gdip_GraphicsFromImage(pDst)
+        if (!pG)
+            return
+
+        Gdip_SetInterpolationMode(pG, 5)  ; NearestNeighbor
+        Gdip_DrawImage(pG, pSrc, 0, 0, drawSize, drawSize, 0, 0, sampleSize, sampleSize)
+
+        centerCell := (sampleSize // 2) * zoom
+        pPen := Gdip_CreatePen(0xFFFF8A00, 2)
+        if (pPen) {
+            Gdip_DrawRectangle(pG, pPen, centerCell, centerCell, zoom, zoom)
+        }
+
+        hBitmap := Gdip_CreateHBITMAPFromBitmap(pDst)
+        if (hBitmap) {
+            SetImage(ScreenshotColorPickerMagnifierPic.Hwnd, hBitmap)
+            hBitmap := 0
+        }
+    } catch {
+    } finally {
+        if (pPen)
+            try Gdip_DeletePen(pPen)
+        if (pG)
+            try Gdip_DeleteGraphics(pG)
+        if (pDst)
+            try Gdip_DisposeImage(pDst)
+        if (pSrc)
+            try Gdip_DisposeImage(pSrc)
+    }
+}
+
+ScreenshotColorPickerCopyCurrent(copyType) {
+    global ScreenshotColorPickerCurrent
+    if !(ScreenshotColorPickerCurrent is Map) || ScreenshotColorPickerCurrent.Count = 0
+        return
+    if (copyType = "rgb") {
+        A_Clipboard := ScreenshotColorPickerCurrent["rgb"]
+        TrayTip("取色器", "RGB 已复制", "Iconi 1")
+    } else {
+        A_Clipboard := ScreenshotColorPickerCurrent["hex"]
+        TrayTip("取色器", "HEX 已复制", "Iconi 1")
+    }
+}
+
+ScreenshotColorPickerSetAnchor() {
+    global ScreenshotColorPickerCurrent, ScreenshotColorPickerAnchor, ScreenshotColorPickerCompareText
+    if !(ScreenshotColorPickerCurrent is Map) || ScreenshotColorPickerCurrent.Count = 0
+        return
+    anchor := Map()
+    for k, v in ScreenshotColorPickerCurrent
+        anchor[k] := v
+    ScreenshotColorPickerAnchor := anchor
+    if (ScreenshotColorPickerCompareText)
+        ScreenshotColorPickerCompareText.Value := ScreenshotColorPickerBuildCompareText(ScreenshotColorPickerCurrent, ScreenshotColorPickerAnchor)
+    TrayTip("取色器", "已设置对比基准: " . anchor["hex"], "Iconi 1")
+}
+
+ScreenshotColorPickerPushCurrentToHistory() {
+    global ScreenshotColorPickerCurrent
+    if !(ScreenshotColorPickerCurrent is Map) || ScreenshotColorPickerCurrent.Count = 0
+        return
+    ScreenshotColorPickerAddHistory(ScreenshotColorPickerCurrent)
+    ScreenshotColorPickerRefreshHistoryText()
+}
+
+ScreenshotColorPickerAddHistory(colorInfo) {
+    global ScreenshotColorPickerHistory
+    if !(ScreenshotColorPickerHistory is Array)
+        ScreenshotColorPickerHistory := []
+    item := Map()
+    for k, v in colorInfo
+        item[k] := v
+    item["time"] := FormatTime(A_Now, "HH:mm:ss")
+    ScreenshotColorPickerHistory.InsertAt(1, item)
+    while (ScreenshotColorPickerHistory.Length > 12) {
+        ScreenshotColorPickerHistory.Pop()
+    }
+}
+
+ScreenshotColorPickerRefreshHistoryText() {
+    global ScreenshotColorPickerHistory, ScreenshotColorPickerHistoryEdit
+    if (!ScreenshotColorPickerHistoryEdit)
+        return
+    if !(ScreenshotColorPickerHistory is Array) || ScreenshotColorPickerHistory.Length = 0 {
+        ScreenshotColorPickerHistoryEdit.Value := "序号  时间       HEX      hex      RGB`r`n---------------------------------------------`r`n暂无历史颜色（点击“加入历史”或左键取样）"
+        return
+    }
+    txt := "序号  时间       HEX       hex       RGB`r`n"
+    txt .= "---------------------------------------------------------------`r`n"
+    for idx, item in ScreenshotColorPickerHistory {
+        seq := Format("{1:02}", idx)
+        hexUpper := item["hex"]
+        hexLower := item.Has("hex_lower") ? item["hex_lower"] : StrLower(hexUpper)
+        txt .= seq . "    " . item["time"] . "   " . hexUpper . "  " . hexLower . "  " . item["rgb"] . "`r`n"
+    }
+    ScreenshotColorPickerHistoryEdit.Value := RTrim(txt, "`r`n")
 }
 
 ; 粘贴OCR文本到Cursor
