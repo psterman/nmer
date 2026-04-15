@@ -56,6 +56,21 @@ global g_FTB_UI_Ready := false
 global g_FTB_WaitingUiFinishedReveal := false
 global g_FTB_ScreenshotDeferLastTick := 0  ; 防抖：WebView 短时双发 postMessage 会排队两次 Deferred，避免第二次再跑完整截图助手流程
 global g_FTB_WV2_CreateRetry := 0
+global g_FTB_DebugOverlayEnabled := true
+
+FTB_Debug(msg, level := "ok") {
+    global g_FTB_DebugOverlayEnabled, g_FTB_WV2
+    if !g_FTB_DebugOverlayEnabled
+        return
+    try OutputDebug("[FTBDBG] " . msg)
+    catch {
+    }
+    if !g_FTB_WV2
+        return
+    try WebView_QueuePayload(g_FTB_WV2, Map("type", "ftb_debug", "msg", String(msg), "level", level, "tick", A_TickCount))
+    catch {
+    }
+}
 
 ; ===================== 鏄剧ず/闅愯棌鎮诞绐?=====================
 ; 首次/重建 WebView 后：先全透明占位，等页面 post UI_FINISHED 再不透明显示，避免未渲染完就露出黑白底。
@@ -202,6 +217,7 @@ CreateFloatingToolbarGUI() {
     ; 与 FloatingToolbarStrip 工具栏底色 #0a0a0a 一致，避免圆角外缘露色
     FloatingToolbarGUI.BackColor := "0a0a0a"
     FloatingToolbarGUI.OnEvent("Close", OnFloatingToolbarClose)
+    FloatingToolbarGUI.OnEvent("ContextMenu", OnFloatingToolbarContextMenu)
 
     OnMessage(0x020A, FloatingToolbarWM_MOUSEWHEEL)
 
@@ -371,21 +387,13 @@ FloatingToolbar_PushLogoToWeb(*) {
 FloatingToolbar_OnWebMessage(sender, args) {
     global g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_WV2_FrameReady, g_FTB_PendingSelection, FloatingToolbarGUI, FloatingToolbarScale
 
-    jsonStr := args.WebMessageAsJson
-    try msg := Jxon_Load(jsonStr)
-    catch {
-        return
-    }
-    if (msg is String) {
-        try msg := Jxon_Load(msg)
-        catch {
-            return
-        }
-    }
+    msg := FloatingToolbar_ParseWebMessage(args)
     if !(msg is Map)
         return
 
     typ := msg.Has("type") ? String(msg["type"]) : ""
+    if (typ != "")
+        FTB_Debug("recv " . typ)
 
     if (typ = "toolbar_ready") {
         g_FTB_WV2_Ready := true
@@ -432,6 +440,7 @@ FloatingToolbar_OnWebMessage(sender, args) {
 
     if (typ = "toolbar_toggle_action") {
         action := msg.Has("action") ? String(msg["action"]) : ""
+        FTB_Debug("toggle " . action)
         if (action != "")
             FloatingToolbarToggleButtonAction(action)
         return
@@ -519,7 +528,8 @@ FloatingToolbar_OnWebMessage(sender, args) {
     if (typ = "context_menu") {
         x := msg.Has("x") ? Integer(msg["x"]) : 0
         y := msg.Has("y") ? Integer(msg["y"]) : 0
-        ShowFloatingToolbarUnifiedContextMenu(x, y)
+        FTB_Debug("context_menu x=" . x . " y=" . y)
+        SetTimer(FloatingToolbar_ShowContextMenuDeferred.Bind(x, y), -1)
         return
     }
 
@@ -533,12 +543,14 @@ FloatingToolbar_OnWebMessage(sender, args) {
         }
         x := msg.Has("x") ? Integer(msg["x"]) : 0
         y := msg.Has("y") ? Integer(msg["y"]) : 0
-        ShowFloatingToolbarUnifiedContextMenu(x, y)
+        FTB_Debug("toolbar_cmd_context x=" . x . " y=" . y)
+        SetTimer(FloatingToolbar_ShowContextMenuDeferred.Bind(x, y), -1)
         return
     }
 
     if (typ = "drawer_state") {
         open := msg.Has("open") && !!msg["open"]
+        FTB_Debug("drawer_state open=" . open)
         FloatingToolbarSetChatDrawerState(open)
         return
     }
@@ -627,7 +639,9 @@ FloatingToolbarSetChatDrawerState(open) {
     global FloatingToolbarLastClosedX, FloatingToolbarLastClosedY
 
     open := !!open
-    if (!FloatingToolbarGUI || !FloatingToolbarIsVisible)
+    ; Do not gate by FloatingToolbarIsVisible: this state flag can lag behind
+    ; WebView UI transitions and would block drawer open/close resize.
+    if (!FloatingToolbarGUI)
         return
 
     try FloatingToolbarGUI.GetPos(&oldX, &oldY, &oldW, &oldH)
@@ -1248,7 +1262,49 @@ FloatingToolbarResetScale() {
 OnFloatingToolbarContextMenu(*) {
     CoordMode("Mouse", "Screen")
     MouseGetPos(&mx, &my)
-    ShowFloatingToolbarUnifiedContextMenu(mx, my)
+    SetTimer(FloatingToolbar_ShowContextMenuDeferred.Bind(mx, my), -1)
+}
+
+FloatingToolbar_ParseWebMessage(args) {
+    ; 1) Preferred path for postMessage(string): raw payload without extra JSON wrapper.
+    try {
+        raw := args.TryGetWebMessageAsString()
+        if (raw != "") {
+            try {
+                m := Jxon_Load(raw)
+                if (m is Map)
+                    return m
+            } catch {
+            }
+        }
+    } catch {
+    }
+
+    ; 2) Fallback path for postMessage(object): JSON value from WebMessageAsJson.
+    try {
+        jsonStr := args.WebMessageAsJson
+        m := Jxon_Load(jsonStr)
+        if (m is String)
+            m := Jxon_Load(m)
+        if (m is Map)
+            return m
+    } catch {
+    }
+
+    FTB_Debug("web message parse failed", "err")
+    return 0
+}
+
+FloatingToolbar_ShowContextMenuDeferred(anchorX := 0, anchorY := 0) {
+    if (anchorX <= 0 || anchorY <= 0) {
+        CoordMode("Mouse", "Screen")
+        MouseGetPos(&anchorX, &anchorY)
+    }
+    FTB_Debug("show menu @" . anchorX . "," . anchorY)
+    try ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY)
+    catch as err {
+        FTB_Debug("show menu failed: " . err.Message, "err")
+    }
 }
 
 ; ===================== 绐楀彛鍏抽棴浜嬩欢 =====================

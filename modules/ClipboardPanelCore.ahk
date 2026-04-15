@@ -17,6 +17,7 @@ global g_CP_TimeRange := "all"  ; all | day | week | month | date:YYYY-MM-DD
 global g_CP_TitleH := 0
 global g_CP_FocusPending := false
 global g_CP_WM_ActivateHideCallback := 0
+global g_CP_LastShown := 0  ; CP_Show 后时间戳，WM_ACTIVATE 宽限期避免刚显示即被关
 global g_CP_PeekGui := 0
 
 _CP_ClipCacheRoot() {
@@ -226,6 +227,7 @@ CP_Show() {
     g_CP_Gui.Show()
     try WinMaximize("ahk_id " . g_CP_Gui.Hwnd)
     g_CP_Visible := true
+    g_CP_LastShown := A_TickCount
     try WinActivate("ahk_id " . g_CP_Gui.Hwnd)
 
     WMActivateChain_Register(_CP_WM_ACTIVATE)
@@ -315,6 +317,15 @@ _CP_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
 
     wp := wParam & 0xFFFF
     if (wp = 0) {
+        ; 刚 Show 后短时间内可能收到失焦（与托盘菜单/悬浮条抢焦点），勿立即关闭
+        if (g_CP_LastShown && (A_TickCount - g_CP_LastShown < 500))
+            return
+        ; 悬浮工具栏或其 WebView 子窗口获得焦点时，不应关闭剪贴板面板
+        try {
+            if (FloatingToolbar_IsForegroundToolbarOrChild())
+                return
+        } catch {
+        }
         g_CP_WM_ActivateHideCallback := _CP_DeferredHideIfStillInactive.Bind()
         SetTimer(g_CP_WM_ActivateHideCallback, -380)
     }

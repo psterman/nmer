@@ -147,6 +147,10 @@ textarea.ctl{min-height:100px;resize:vertical}
 .stab-add:hover{background:rgba(255,102,0,.08)}
 #newSessionPick{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity var(--de);z-index:42}
 body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
+.debug-hud{position:fixed;left:4px;right:4px;bottom:3px;top:auto;z-index:9999;height:16px;overflow:hidden;background:rgba(0,0,0,.72);border:1px solid rgba(255,102,0,.45);border-radius:6px;padding:0 6px;font:10px/14px Consolas,"Cascadia Mono",monospace;color:#d8d8d8;pointer-events:none;white-space:nowrap;text-overflow:ellipsis}
+.debug-hud .row{display:block;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.debug-hud .row.err{color:#ff9b7d}
+.debug-hud .row.ok{color:#7df0b2}
 .nsbg{position:absolute;inset:0;background:rgba(0,0,0,.5)}
 .ns-panel{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(380px,calc(100% - 28px));max-height:min(440px,72vh);background:var(--panel2);border:1px solid rgba(255,102,0,.28);border-radius:18px;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(0,0,0,.45)}
 .nsh{padding:12px 14px;border-bottom:1px solid rgba(255,102,0,.15);display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
@@ -162,6 +166,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 </head>
 <body>
 <div id="app">
+<div id="debugHud" class="debug-hud"></div>
 <template id="ftb-toolbar-tpl">
 <div class="tb" data-action="Search" title="搜索"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><div class="bubble">Selection Ready</div><span class="dot"></span></div>
 <div class="tb" data-action="Record" title="记录"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l3.8-1 10-10a2.3 2.3 0 0 0-3.3-3.3l-10 10L3 21z"/><path d="M12.9 4.9l3.3 3.3"/></svg><span class="dot"></span></div>
@@ -594,6 +599,33 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   };
   var toolbarVisibleSynced = false;
   var toolbarRevealTimer = 0;
+  var DEBUG_HUD = true;
+  var debugLines = [];
+  var debugSeq = 0;
+
+  function dbg(tag, msg, cls) {
+    if (!DEBUG_HUD) return;
+    var hud = document.getElementById('debugHud');
+    if (!hud) return;
+    debugSeq += 1;
+    var ts = new Date();
+    var t = String(ts.getHours()).padStart(2, '0') + ':' + String(ts.getMinutes()).padStart(2, '0') + ':' + String(ts.getSeconds()).padStart(2, '0');
+    var text = t + ' ' + String(tag || '') + ' ' + String(msg || '');
+    debugLines.push({ text: text, cls: cls || '' });
+    if (debugLines.length > 3) debugLines.shift();
+    hud.innerHTML = debugLines
+      .map(function (it) {
+        var c = it.cls ? 'row ' + it.cls : 'row';
+        return '<div class="' + c + '">' + esc(it.text) + '</div>';
+      })
+      .join('');
+    hud.scrollTop = hud.scrollHeight;
+  }
+
+  (function initDebugHudVisibility() {
+    var hud = document.getElementById('debugHud');
+    if (hud && !DEBUG_HUD) hud.style.display = 'none';
+  })();
 
   function revealToolbarSync() {
     if (toolbarVisibleSynced) return;
@@ -609,7 +641,10 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 
   function post(m) {
     try {
-      if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage) window.chrome.webview.postMessage(m);
+      if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage) {
+        dbg('S', (m && m.type ? m.type : '?'));
+        window.chrome.webview.postMessage(JSON.stringify(m));
+      }
     } catch (e) {}
   }
 
@@ -3144,6 +3179,15 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   var appRoot = $('app');
   if (appRoot) {
     appRoot.addEventListener('contextmenu', openHostContextMenuFromEvent, true);
+    appRoot.addEventListener(
+      'pointerup',
+      function (e) {
+        if (e && e.button === 2) {
+          post({ type: 'context_menu', x: e.screenX || 0, y: e.screenY || 0 });
+        }
+      },
+      true
+    );
   }
 
   var hdr = document.querySelector('.hdr');
@@ -3254,7 +3298,17 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   if (window.chrome && window.chrome.webview) {
     window.chrome.webview.addEventListener('message', function (ev) {
       var d = ev.data;
+      if (typeof d === 'string') {
+        try {
+          d = JSON.parse(d);
+        } catch (_) {}
+      }
+      if (d && d.type) dbg('R', d.type, 'ok');
       if (!d || !d.type) return;
+      if (d.type === 'ftb_debug') {
+        dbg('H', d.msg || '', d.level === 'err' ? 'err' : 'ok');
+        return;
+      }
       if (d.type === 'SELECTION_CHANGE') {
         pulse(true);
         return;

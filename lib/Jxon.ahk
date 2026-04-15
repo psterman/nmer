@@ -62,8 +62,15 @@ _parseValue(s, &pos) {
 ; Parse object
 _parseObject(s, &pos) {
     obj := Map()
+    maxPos := StrLen(s)
+    guard := 0
 
-    while (pos <= StrLen(s)) {
+    while (pos <= maxPos) {
+        guard++
+        if (guard > maxPos + 8)
+            throw Error("JSON object parse overflow")
+
+        before := pos
         _skipWhitespace(s, &pos)
 
         if (SubStr(s, pos, 1) == "}") {
@@ -72,6 +79,8 @@ _parseObject(s, &pos) {
         }
 
         ; Parse key
+        if (SubStr(s, pos, 1) != '"')
+            throw Error("JSON object key must be quoted")
         key := _parseValue(s, &pos)
         if (!IsString(key)) {
             key := String(key)
@@ -79,9 +88,9 @@ _parseObject(s, &pos) {
 
         ; Skip colon
         _skipWhitespace(s, &pos)
-        if (SubStr(s, pos, 1) == ":") {
-            pos++
-        }
+        if (SubStr(s, pos, 1) != ":")
+            throw Error("JSON object missing colon")
+        pos++
 
         ; Parse value
         value := _parseValue(s, &pos)
@@ -89,12 +98,18 @@ _parseObject(s, &pos) {
 
         ; Skip comma
         _skipWhitespace(s, &pos)
-        if (SubStr(s, pos, 1) == ",") {
+        ch := SubStr(s, pos, 1)
+        if (ch == ",") {
             pos++
-        } else if (SubStr(s, pos, 1) == "}") {
+        } else if (ch == "}") {
             pos++
             break
+        } else {
+            throw Error("JSON object missing comma")
         }
+
+        if (pos <= before)
+            throw Error("JSON object parser stalled")
     }
 
     return obj
@@ -103,8 +118,15 @@ _parseObject(s, &pos) {
 ; Parse array
 _parseArray(s, &pos) {
     arr := []
+    maxPos := StrLen(s)
+    guard := 0
 
-    while (pos <= StrLen(s)) {
+    while (pos <= maxPos) {
+        guard++
+        if (guard > maxPos + 8)
+            throw Error("JSON array parse overflow")
+
+        before := pos
         _skipWhitespace(s, &pos)
 
         if (SubStr(s, pos, 1) == "]") {
@@ -116,12 +138,18 @@ _parseArray(s, &pos) {
         arr.Push(value)
 
         _skipWhitespace(s, &pos)
-        if (SubStr(s, pos, 1) == ",") {
+        ch := SubStr(s, pos, 1)
+        if (ch == ",") {
             pos++
-        } else if (SubStr(s, pos, 1) == "]") {
+        } else if (ch == "]") {
             pos++
             break
+        } else {
+            throw Error("JSON array missing comma")
         }
+
+        if (pos <= before)
+            throw Error("JSON array parser stalled")
     }
 
     return arr

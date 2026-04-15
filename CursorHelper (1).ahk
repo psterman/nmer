@@ -4140,8 +4140,8 @@ ShowSearchCenterFromMenu(*) {
 ; 显示剪贴板历史面板
 ShowClipboardFromMenu(*) {
     global TrayMenuGUI
-    CP_Show()
-    ; 关闭菜单
+
+    ; 先关闭右键菜单，再激活剪贴板面板，避免菜单窗口仍占着前台导致面板拿不到焦点。
     if (TrayMenuGUI != 0) {
         try {
             TrayMenuGUI.Destroy()
@@ -4149,13 +4149,15 @@ ShowClipboardFromMenu(*) {
             SetTimer(CheckTrayMenuMousePosition, 0)  ; 停止鼠标位置检查定时器
         }
     }
+
+    CP_Show()
 }
 
 ; 显示配置面板
 ShowConfigFromMenu(*) {
     global TrayMenuGUI
-    ShowConfigGUI()
-    ; 关闭菜单
+
+    ; 先关闭右键菜单，再激活配置面板，避免菜单窗口仍占着前台导致面板拿不到焦点。
     if (TrayMenuGUI != 0) {
         try {
             TrayMenuGUI.Destroy()
@@ -4163,6 +4165,8 @@ ShowConfigFromMenu(*) {
             SetTimer(CheckTrayMenuMousePosition, 0)  ; 停止鼠标位置检查定时器
         }
     }
+
+    ShowConfigGUI()
 }
 
 ; 退出程序
