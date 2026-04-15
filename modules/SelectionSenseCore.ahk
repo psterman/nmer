@@ -38,9 +38,137 @@ global g_SelSense_PendingHubSegments := []  ; Hub 鏈?ready 鏃舵殏瀛樺緟 p
 ; 涓庝富鑴氭湰 CapsLockCopy 鍏辩敤锛歋end(^c) 鏈熼棿涓?true锛寏^c 椤昏烦杩囦互鍏嶈鍒版仮澶嶅悗鐨勬棫鍓创鏉?global CapsLockCopyInProgress := false
 ; 鏈€杩戜竴娆″彂寰€ Hub 鐨勩€屽叆鑽夌銆嶆槸鍚︽潵鑷樉寮忛噰闆嗭紙棰勮鏇存柊浼氱疆 false锛?global g_SelSense_IsManualCollected := false
 global g_SelSense_HubDictReady := false
+global g_SelSense_HubDictActiveSource := "builtin_default"
 
 SelectionSense_HubDict_EscapeSql(s) {
     return StrReplace(String(s), "'", "''")
+}
+
+SelectionSense_HubDict_QuoteIdent(name) {
+    q := Chr(34)
+    return q . StrReplace(String(name), q, q . q) . q
+}
+
+SelectionSense_HubDict_NormalizeSourceId(sourceId) {
+    raw := Trim(String(sourceId))
+    if (raw = "")
+        return ""
+    normalized := RegExReplace(StrLower(raw), "[^a-z0-9_]+", "_")
+    normalized := Trim(normalized, "_")
+    if (normalized = "")
+        normalized := "sqlite_dict"
+    return SubStr(normalized, 1, 56)
+}
+
+SelectionSense_HubDict_GetTableColumns(dbAlias, tableName) {
+    global ClipboardDB
+    cols := []
+    if !(IsSet(ClipboardDB) && IsObject(ClipboardDB))
+        return cols
+    alias0 := Trim(String(dbAlias))
+    if (alias0 = "")
+        alias0 := "main"
+    sql := "PRAGMA " . alias0 . ".table_info('" . SelectionSense_HubDict_EscapeSql(tableName) . "')"
+    try {
+        if (ClipboardDB.GetTable(sql, &t) && t && t.HasProp("Rows")) {
+            for _, row in t.Rows {
+                if (row.Length >= 2)
+                    cols.Push(String(row[2]))
+            }
+        }
+    } catch as _e {
+    }
+    return cols
+}
+
+SelectionSense_HubDict_FindColumn(cols, candidates) {
+    if !(cols is Array)
+        return ""
+    byLower := Map()
+    for _, col in cols {
+        c := String(col)
+        if (c != "")
+            byLower[StrLower(c)] := c
+    }
+    for _, want in candidates {
+        w := StrLower(String(want))
+        if byLower.Has(w)
+            return byLower[w]
+    }
+    return ""
+}
+
+SelectionSense_HubDict_DetectKvColumns(dbAlias, tableName) {
+    cols := SelectionSense_HubDict_GetTableColumns(dbAlias, tableName)
+    if (cols.Length < 2)
+        return 0
+    keyCandidates := ["k", "key", "src", "source", "word", "term", "token", "entry", "en", "english", "zh", "chinese", "cn", "text"]
+    valCandidates := ["v", "value", "dst", "target", "translation", "meaning", "mean", "result", "zh", "chinese", "cn", "en", "english", "text"]
+    keyCol := SelectionSense_HubDict_FindColumn(cols, keyCandidates)
+    valCol := SelectionSense_HubDict_FindColumn(cols, valCandidates)
+    if (keyCol = "")
+        keyCol := String(cols[1])
+    if (valCol = "")
+        valCol := (cols.Length >= 2) ? String(cols[2]) : ""
+    if (valCol = keyCol && cols.Length >= 2) {
+        for _, col in cols {
+            if (col != keyCol) {
+                valCol := col
+                break
+            }
+        }
+    }
+    if (keyCol = "" || valCol = "" || keyCol = valCol)
+        return 0
+    return Map("keyCol", keyCol, "valCol", valCol)
+}
+
+SelectionSense_HubDict_DetectEnZhColumns(dbAlias, tableName) {
+    cols := SelectionSense_HubDict_GetTableColumns(dbAlias, tableName)
+    if (cols.Length < 2)
+        return 0
+    enCandidates := ["en", "english", "eng", "src_en", "source_en", "word_en", "term_en"]
+    zhCandidates := ["zh", "chinese", "cn", "han", "src_zh", "source_zh", "word_zh", "term_zh"]
+    enCol := SelectionSense_HubDict_FindColumn(cols, enCandidates)
+    zhCol := SelectionSense_HubDict_FindColumn(cols, zhCandidates)
+    if (enCol = "" || zhCol = "" || enCol = zhCol)
+        return 0
+    return Map("enCol", enCol, "zhCol", zhCol)
+}
+
+SelectionSense_HubDict_SourceExists(sourceId) {
+    global ClipboardDB
+    sid := Trim(String(sourceId))
+    if (sid = "")
+        return false
+    sql := "SELECT COUNT(*) FROM HubLocalDictSource WHERE SourceId='" . SelectionSense_HubDict_EscapeSql(sid) . "'"
+    try {
+        if (ClipboardDB.GetTable(sql, &t) && t && t.HasProp("Rows") && t.Rows.Length > 0 && t.Rows[1].Length > 0)
+            return (Integer(t.Rows[1][1]) > 0)
+    } catch as _e {
+    }
+    return false
+}
+
+SelectionSense_HubDict_GetActiveSource() {
+    global g_SelSense_HubDictActiveSource
+    sid := Trim(String(g_SelSense_HubDictActiveSource))
+    if (sid = "")
+        sid := "builtin_default"
+    if !SelectionSense_HubDict_SourceExists(sid)
+        sid := "builtin_default"
+    g_SelSense_HubDictActiveSource := sid
+    return sid
+}
+
+SelectionSense_HubDict_SaveActiveSource(sourceId) {
+    global g_SelSense_HubDictActiveSource
+    sid := Trim(String(sourceId))
+    if (sid = "")
+        sid := "builtin_default"
+    g_SelSense_HubDictActiveSource := sid
+    cfg := SelectionSense_HubCapsule_IniPath()
+    try IniWrite(sid, cfg, "HubCapsule", "TranslateSqliteActiveDict")
 }
 
 SelectionSense_HubDict_Ensure() {
@@ -50,13 +178,50 @@ SelectionSense_HubDict_Ensure() {
     if !(IsSet(ClipboardDB) && IsObject(ClipboardDB))
         return false
     try {
-        ClipboardDB.Exec("CREATE TABLE IF NOT EXISTS HubLocalDict (Dir TEXT NOT NULL, K TEXT NOT NULL COLLATE NOCASE, V TEXT NOT NULL, PRIMARY KEY (Dir, K))")
-        ClipboardDB.Exec("CREATE INDEX IF NOT EXISTS idx_HubLocalDict_DirK ON HubLocalDict (Dir, K)")
+        hasLegacy := false
+        legacyHasSourceId := false
+        if (ClipboardDB.GetTable("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='HubLocalDict'", &tb)
+            && tb && tb.HasProp("Rows") && tb.Rows.Length > 0 && tb.Rows[1].Length > 0)
+            hasLegacy := Integer(tb.Rows[1][1]) > 0
+        if hasLegacy {
+            cols := SelectionSense_HubDict_GetTableColumns("main", "HubLocalDict")
+            for _, col in cols {
+                if (StrLower(String(col)) = "sourceid") {
+                    legacyHasSourceId := true
+                    break
+                }
+            }
+        }
+        if (hasLegacy && !legacyHasSourceId) {
+            ClipboardDB.Exec("BEGIN IMMEDIATE")
+            try {
+                ClipboardDB.Exec("ALTER TABLE HubLocalDict RENAME TO HubLocalDict_legacy")
+                ClipboardDB.Exec("CREATE TABLE HubLocalDict (SourceId TEXT NOT NULL, Dir TEXT NOT NULL, K TEXT NOT NULL COLLATE NOCASE, V TEXT NOT NULL, PRIMARY KEY (SourceId, Dir, K))")
+                ClipboardDB.Exec("INSERT OR REPLACE INTO HubLocalDict (SourceId, Dir, K, V) SELECT 'builtin_default', LOWER(TRIM(Dir)), K, V FROM HubLocalDict_legacy")
+                ClipboardDB.Exec("DROP TABLE HubLocalDict_legacy")
+                ClipboardDB.Exec("COMMIT")
+            } catch as _e {
+                try ClipboardDB.Exec("ROLLBACK")
+                return false
+            }
+        }
+        ClipboardDB.Exec("CREATE TABLE IF NOT EXISTS HubLocalDict (SourceId TEXT NOT NULL, Dir TEXT NOT NULL, K TEXT NOT NULL COLLATE NOCASE, V TEXT NOT NULL, PRIMARY KEY (SourceId, Dir, K))")
+        ClipboardDB.Exec("CREATE INDEX IF NOT EXISTS idx_HubLocalDict_SourceDirK ON HubLocalDict (SourceId, Dir, K)")
+        ClipboardDB.Exec("CREATE TABLE IF NOT EXISTS HubLocalDictSource (SourceId TEXT PRIMARY KEY, Name TEXT NOT NULL, DbPath TEXT NOT NULL, Kind TEXT NOT NULL DEFAULT 'sqlite_import', CreatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UpdatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
+        ClipboardDB.Exec("INSERT OR IGNORE INTO HubLocalDictSource (SourceId, Name, DbPath, Kind) VALUES ('builtin_default', '内置词典', '[builtin]', 'builtin')")
         rowCount := 0
-        if (ClipboardDB.GetTable("SELECT COUNT(*) FROM HubLocalDict", &t) && t && t.HasProp("Rows") && t.Rows.Length > 0 && t.Rows[1].Length > 0)
+        if (ClipboardDB.GetTable("SELECT COUNT(*) FROM HubLocalDict WHERE SourceId='builtin_default'", &t) && t && t.HasProp("Rows") && t.Rows.Length > 0 && t.Rows[1].Length > 0)
             rowCount := Integer(t.Rows[1][1])
         if (rowCount <= 0)
-            SelectionSense_HubDict_LoadSeedFromFile()
+            SelectionSense_HubDict_LoadSeedFromFile("builtin_default")
+        cfg := SelectionSense_HubCapsule_IniPath()
+        active0 := "builtin_default"
+        try active0 := Trim(String(IniRead(cfg, "HubCapsule", "TranslateSqliteActiveDict", "builtin_default")))
+        if (active0 = "")
+            active0 := "builtin_default"
+        if !SelectionSense_HubDict_SourceExists(active0)
+            active0 := "builtin_default"
+        SelectionSense_HubDict_SaveActiveSource(active0)
         g_SelSense_HubDictReady := true
         return true
     } catch as _e {
@@ -64,10 +229,13 @@ SelectionSense_HubDict_Ensure() {
     }
 }
 
-SelectionSense_HubDict_LoadSeedFromFile() {
+SelectionSense_HubDict_LoadSeedFromFile(sourceId := "builtin_default") {
     global ClipboardDB
     if !(IsSet(ClipboardDB) && IsObject(ClipboardDB))
         return false
+    sid := Trim(String(sourceId))
+    if (sid = "")
+        sid := "builtin_default"
     p := A_ScriptDir "\assets\dict\hubcapsule_base_dict.tsv"
     if !FileExist(p)
         return false
@@ -100,7 +268,8 @@ SelectionSense_HubDict_LoadSeedFromFile() {
             } else {
                 continue
             }
-            sql := "INSERT OR REPLACE INTO HubLocalDict (Dir, K, V) VALUES ('"
+            sql := "INSERT OR REPLACE INTO HubLocalDict (SourceId, Dir, K, V) VALUES ('"
+                . SelectionSense_HubDict_EscapeSql(sid) . "','"
                 . SelectionSense_HubDict_EscapeSql(dir) . "','"
                 . SelectionSense_HubDict_EscapeSql(k) . "','"
                 . SelectionSense_HubDict_EscapeSql(v) . "')"
@@ -114,21 +283,289 @@ SelectionSense_HubDict_LoadSeedFromFile() {
     }
 }
 
-SelectionSense_HubDict_Lookup(dir, key) {
+SelectionSense_HubDict_ListSources() {
+    global ClipboardDB
+    out := []
+    if !SelectionSense_HubDict_Ensure()
+        return out
+    sql := "SELECT SourceId, Name, DbPath, Kind FROM HubLocalDictSource ORDER BY CASE WHEN SourceId='builtin_default' THEN 0 ELSE 1 END, UpdatedAt DESC, Name ASC"
+    try {
+        if (ClipboardDB.GetTable(sql, &t) && t && t.HasProp("Rows")) {
+            for _, row in t.Rows {
+                sid := (row.Length >= 1) ? String(row[1]) : ""
+                if (sid = "")
+                    continue
+                name := (row.Length >= 2) ? String(row[2]) : sid
+                dbPath := (row.Length >= 3) ? String(row[3]) : ""
+                kind := (row.Length >= 4) ? String(row[4]) : ""
+                cnt := 0
+                cntSql := "SELECT COUNT(*) FROM HubLocalDict WHERE SourceId='" . SelectionSense_HubDict_EscapeSql(sid) . "'"
+                if (ClipboardDB.GetTable(cntSql, &c) && c && c.HasProp("Rows") && c.Rows.Length > 0 && c.Rows[1].Length > 0)
+                    cnt := Integer(c.Rows[1][1])
+                out.Push(Map(
+                    "sourceId", sid,
+                    "name", name,
+                    "dbPath", dbPath,
+                    "kind", kind,
+                    "entryCount", cnt,
+                    "isBuiltin", (sid = "builtin_default")
+                ))
+            }
+        }
+    } catch as _e {
+    }
+    if (out.Length = 0)
+        out.Push(Map("sourceId", "builtin_default", "name", "内置词典", "dbPath", "[builtin]", "kind", "builtin", "entryCount", 0, "isBuiltin", true))
+    return out
+}
+
+SelectionSense_HubDict_SetActiveSource(sourceId) {
+    sid := Trim(String(sourceId))
+    if (sid = "")
+        sid := "builtin_default"
+    if !SelectionSense_HubDict_Ensure()
+        return false
+    if !SelectionSense_HubDict_SourceExists(sid)
+        sid := "builtin_default"
+    SelectionSense_HubDict_SaveActiveSource(sid)
+    return true
+}
+
+SelectionSense_HubDict_DeleteSource(sourceId) {
+    global ClipboardDB
+    sid := Trim(String(sourceId))
+    if (sid = "" || sid = "builtin_default")
+        return false
+    if !SelectionSense_HubDict_Ensure()
+        return false
+    if !SelectionSense_HubDict_SourceExists(sid)
+        return false
+    ClipboardDB.Exec("BEGIN IMMEDIATE")
+    try {
+        ClipboardDB.Exec("DELETE FROM HubLocalDict WHERE SourceId='" . SelectionSense_HubDict_EscapeSql(sid) . "'")
+        ClipboardDB.Exec("DELETE FROM HubLocalDictSource WHERE SourceId='" . SelectionSense_HubDict_EscapeSql(sid) . "'")
+        ClipboardDB.Exec("COMMIT")
+    } catch as _e {
+        try ClipboardDB.Exec("ROLLBACK")
+        return false
+    }
+    if (SelectionSense_HubDict_GetActiveSource() = sid)
+        SelectionSense_HubDict_SetActiveSource("builtin_default")
+    return true
+}
+
+SelectionSense_HubDict_ImportSqlite(sourcePath) {
+    global ClipboardDB
+    p := Trim(String(sourcePath))
+    if (p = "")
+        return Map("ok", false, "message", "未选择文件")
+    if !FileExist(p)
+        return Map("ok", false, "message", "文件不存在")
+    if !SelectionSense_HubDict_Ensure()
+        return Map("ok", false, "message", "词典未初始化")
+
+    SplitPath(p, &nameOnly, , , &nameNoExt)
+    baseName := Trim(String(nameNoExt))
+    if (baseName = "")
+        baseName := Trim(String(nameOnly))
+    normalized := SelectionSense_HubDict_NormalizeSourceId(baseName)
+    if (normalized = "")
+        normalized := "sqlite_dict"
+    sid := "sqlite_" . normalized . "_" . A_Now . "_" . Random(100, 999)
+    sid := SubStr(sid, 1, 90)
+    alias0 := "extdict"
+    attached := false
+    mode := ""
+    importedCount := 0
+
+    try {
+        ClipboardDB.Exec("ATTACH DATABASE '" . SelectionSense_HubDict_EscapeSql(p) . "' AS " . alias0)
+        attached := true
+        tables := Map()
+        if (ClipboardDB.GetTable("SELECT name FROM " . alias0 . ".sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'", &tt)
+            && tt && tt.HasProp("Rows")) {
+            for _, row in tt.Rows {
+                if (row.Length < 1)
+                    continue
+                tn := String(row[1])
+                if (tn != "")
+                    tables[StrLower(tn)] := tn
+            }
+        }
+        if (tables.Count = 0)
+            throw Error("未识别到可用数据表")
+
+        hasHub := tables.Has("hublocaldict")
+        hubTable := hasHub ? tables["hublocaldict"] : ""
+        hubDir := "", hubK := "", hubV := ""
+        if hasHub {
+            hubCols := SelectionSense_HubDict_GetTableColumns(alias0, hubTable)
+            hubDir := SelectionSense_HubDict_FindColumn(hubCols, ["dir"])
+            hubK := SelectionSense_HubDict_FindColumn(hubCols, ["k", "key"])
+            hubV := SelectionSense_HubDict_FindColumn(hubCols, ["v", "value"])
+            if (hubDir != "" && hubK != "" && hubV != "")
+                mode := "hub"
+        }
+        if (mode = "") {
+            hasEn2Zh := tables.Has("en2zh")
+            hasZh2En := tables.Has("zh2en")
+            if (hasEn2Zh && hasZh2En) {
+                kvEn := SelectionSense_HubDict_DetectKvColumns(alias0, tables["en2zh"])
+                kvZh := SelectionSense_HubDict_DetectKvColumns(alias0, tables["zh2en"])
+                if (IsObject(kvEn) && IsObject(kvZh)) {
+                    mode := "pair_tables"
+                    pairEnTable := tables["en2zh"]
+                    pairZhTable := tables["zh2en"]
+                }
+            }
+        }
+        if (mode = "") {
+            hasStardict := tables.Has("stardict")
+            if hasStardict {
+                stardictTable := tables["stardict"]
+                sdCols := SelectionSense_HubDict_GetTableColumns(alias0, stardictTable)
+                sdWordCol := SelectionSense_HubDict_FindColumn(sdCols, ["word", "sw", "term", "entry"])
+                sdTransCol := SelectionSense_HubDict_FindColumn(sdCols, ["translation", "trans", "meaning", "mean", "definition"])
+                if (sdWordCol != "" && sdTransCol != "") {
+                    mode := "stardict"
+                    pairTable := stardictTable
+                    pairEnCol := sdWordCol
+                    pairZhCol := sdTransCol
+                }
+            }
+        }
+        if (mode = "") {
+            for _, actualTable in tables {
+                pairCols := SelectionSense_HubDict_DetectEnZhColumns(alias0, actualTable)
+                if IsObject(pairCols) {
+                    mode := "pair_cols"
+                    pairTable := actualTable
+                    pairEnCol := String(pairCols["enCol"])
+                    pairZhCol := String(pairCols["zhCol"])
+                    break
+                }
+            }
+        }
+        if (mode = "")
+            throw Error("未识别支持的词典结构")
+
+        ClipboardDB.Exec("BEGIN IMMEDIATE")
+        try {
+            ClipboardDB.Exec("DELETE FROM HubLocalDict WHERE SourceId='" . SelectionSense_HubDict_EscapeSql(sid) . "'")
+            if (mode = "hub") {
+                qTable := alias0 . "." . SelectionSense_HubDict_QuoteIdent(hubTable)
+                qDir := SelectionSense_HubDict_QuoteIdent(hubDir)
+                qK := SelectionSense_HubDict_QuoteIdent(hubK)
+                qV := SelectionSense_HubDict_QuoteIdent(hubV)
+                insertHub := "INSERT OR REPLACE INTO HubLocalDict (SourceId, Dir, K, V) "
+                    . "SELECT '" . SelectionSense_HubDict_EscapeSql(sid) . "', "
+                    . "CASE LOWER(TRIM(" . qDir . ")) WHEN 'zh2en' THEN 'zh2en' ELSE 'en2zh' END, "
+                    . "CASE WHEN LOWER(TRIM(" . qDir . "))='zh2en' THEN TRIM(" . qK . ") ELSE LOWER(TRIM(" . qK . ")) END, "
+                    . "TRIM(" . qV . ") "
+                    . "FROM " . qTable . " "
+                    . "WHERE TRIM(IFNULL(" . qK . ",''))<>'' AND TRIM(IFNULL(" . qV . ",''))<>''"
+                ClipboardDB.Exec(insertHub)
+            } else if (mode = "pair_tables") {
+                kvEn := SelectionSense_HubDict_DetectKvColumns(alias0, pairEnTable)
+                kvZh := SelectionSense_HubDict_DetectKvColumns(alias0, pairZhTable)
+                qEnTable := alias0 . "." . SelectionSense_HubDict_QuoteIdent(pairEnTable)
+                qZhTable := alias0 . "." . SelectionSense_HubDict_QuoteIdent(pairZhTable)
+                qEnK := SelectionSense_HubDict_QuoteIdent(String(kvEn["keyCol"]))
+                qEnV := SelectionSense_HubDict_QuoteIdent(String(kvEn["valCol"]))
+                qZhK := SelectionSense_HubDict_QuoteIdent(String(kvZh["keyCol"]))
+                qZhV := SelectionSense_HubDict_QuoteIdent(String(kvZh["valCol"]))
+                insertEn := "INSERT OR REPLACE INTO HubLocalDict (SourceId, Dir, K, V) "
+                    . "SELECT '" . SelectionSense_HubDict_EscapeSql(sid) . "', 'en2zh', LOWER(TRIM(" . qEnK . ")), TRIM(" . qEnV . ") "
+                    . "FROM " . qEnTable . " "
+                    . "WHERE TRIM(IFNULL(" . qEnK . ",''))<>'' AND TRIM(IFNULL(" . qEnV . ",''))<>''"
+                insertZh := "INSERT OR REPLACE INTO HubLocalDict (SourceId, Dir, K, V) "
+                    . "SELECT '" . SelectionSense_HubDict_EscapeSql(sid) . "', 'zh2en', TRIM(" . qZhK . "), TRIM(" . qZhV . ") "
+                    . "FROM " . qZhTable . " "
+                    . "WHERE TRIM(IFNULL(" . qZhK . ",''))<>'' AND TRIM(IFNULL(" . qZhV . ",''))<>''"
+                ClipboardDB.Exec(insertEn)
+                ClipboardDB.Exec(insertZh)
+            } else if (mode = "pair_cols") {
+                qPairTable := alias0 . "." . SelectionSense_HubDict_QuoteIdent(pairTable)
+                qEnCol := SelectionSense_HubDict_QuoteIdent(pairEnCol)
+                qZhCol := SelectionSense_HubDict_QuoteIdent(pairZhCol)
+                insertEnZh := "INSERT OR REPLACE INTO HubLocalDict (SourceId, Dir, K, V) "
+                    . "SELECT '" . SelectionSense_HubDict_EscapeSql(sid) . "', 'en2zh', LOWER(TRIM(" . qEnCol . ")), TRIM(" . qZhCol . ") "
+                    . "FROM " . qPairTable . " "
+                    . "WHERE TRIM(IFNULL(" . qEnCol . ",''))<>'' AND TRIM(IFNULL(" . qZhCol . ",''))<>''"
+                insertZhEn := "INSERT OR REPLACE INTO HubLocalDict (SourceId, Dir, K, V) "
+                    . "SELECT '" . SelectionSense_HubDict_EscapeSql(sid) . "', 'zh2en', TRIM(" . qZhCol . "), TRIM(" . qEnCol . ") "
+                    . "FROM " . qPairTable . " "
+                    . "WHERE TRIM(IFNULL(" . qEnCol . ",''))<>'' AND TRIM(IFNULL(" . qZhCol . ",''))<>''"
+                ClipboardDB.Exec(insertEnZh)
+                ClipboardDB.Exec(insertZhEn)
+            } else if (mode = "stardict") {
+                qPairTable := alias0 . "." . SelectionSense_HubDict_QuoteIdent(pairTable)
+                qEnCol := SelectionSense_HubDict_QuoteIdent(pairEnCol)
+                qZhCol := SelectionSense_HubDict_QuoteIdent(pairZhCol)
+                cleanZhExpr := "TRIM(CASE "
+                    . "WHEN INSTR(REPLACE(IFNULL(" . qZhCol . ",''), CHAR(13), ''), CHAR(10))>0 "
+                    . "THEN SUBSTR(REPLACE(IFNULL(" . qZhCol . ",''), CHAR(13), ''), 1, INSTR(REPLACE(IFNULL(" . qZhCol . ",''), CHAR(13), ''), CHAR(10)) - 1) "
+                    . "ELSE REPLACE(IFNULL(" . qZhCol . ",''), CHAR(13), '') END)"
+                insertStardict := "INSERT OR REPLACE INTO HubLocalDict (SourceId, Dir, K, V) "
+                    . "SELECT '" . SelectionSense_HubDict_EscapeSql(sid) . "', 'en2zh', LOWER(TRIM(" . qEnCol . ")), " . cleanZhExpr . " "
+                    . "FROM " . qPairTable . " "
+                    . "WHERE TRIM(IFNULL(" . qEnCol . ",''))<>'' AND " . cleanZhExpr . "<>''"
+                ClipboardDB.Exec(insertStardict)
+            }
+            countSql := "SELECT COUNT(*) FROM HubLocalDict WHERE SourceId='" . SelectionSense_HubDict_EscapeSql(sid) . "'"
+            if (ClipboardDB.GetTable(countSql, &ct) && ct && ct.HasProp("Rows") && ct.Rows.Length > 0 && ct.Rows[1].Length > 0)
+                importedCount := Integer(ct.Rows[1][1])
+            if (importedCount <= 0)
+                throw Error("没有可导入条目")
+            ClipboardDB.Exec("INSERT OR REPLACE INTO HubLocalDictSource (SourceId, Name, DbPath, Kind, UpdatedAt) VALUES ('"
+                . SelectionSense_HubDict_EscapeSql(sid) . "','"
+                . SelectionSense_HubDict_EscapeSql(baseName) . "','"
+                . SelectionSense_HubDict_EscapeSql(p) . "','sqlite_import', CURRENT_TIMESTAMP)")
+            ClipboardDB.Exec("COMMIT")
+        } catch as _e {
+            try ClipboardDB.Exec("ROLLBACK")
+            throw
+        }
+        try ClipboardDB.Exec("DETACH DATABASE " . alias0)
+        attached := false
+    } catch as e {
+        if attached {
+            try ClipboardDB.Exec("DETACH DATABASE " . alias0)
+        }
+        return Map("ok", false, "message", "导入失败: " . e.Message)
+    }
+    SelectionSense_HubDict_SetActiveSource(sid)
+    return Map("ok", true, "message", "导入成功，共 " . importedCount . " 条", "sourceId", sid, "entryCount", importedCount)
+}
+
+SelectionSense_HubDict_Lookup(dir, key, sourceId := "") {
     global ClipboardDB
     if !SelectionSense_HubDict_Ensure()
         return ""
-    d := Trim(String(dir))
+    d := StrLower(Trim(String(dir)))
     k := Trim(String(key))
+    sid := Trim(String(sourceId))
+    if (sid = "")
+        sid := SelectionSense_HubDict_GetActiveSource()
+    if !SelectionSense_HubDict_SourceExists(sid)
+        sid := "builtin_default"
     if (d = "en2zh")
         k := StrLower(k)
     if (k = "")
         return ""
-    sql := "SELECT V FROM HubLocalDict WHERE Dir='" . SelectionSense_HubDict_EscapeSql(d) . "' AND K='" . SelectionSense_HubDict_EscapeSql(k) . "' LIMIT 1"
+    sql := "SELECT V FROM HubLocalDict WHERE SourceId='" . SelectionSense_HubDict_EscapeSql(sid) . "' AND Dir='" . SelectionSense_HubDict_EscapeSql(d) . "' AND K='" . SelectionSense_HubDict_EscapeSql(k) . "' LIMIT 1"
     try {
         if (ClipboardDB.GetTable(sql, &t) && t && t.HasProp("Rows") && t.Rows.Length > 0 && t.Rows[1].Length > 0)
             return String(t.Rows[1][1])
     } catch as _e {
+    }
+    if (sid != "builtin_default") {
+        sql2 := "SELECT V FROM HubLocalDict WHERE SourceId='builtin_default' AND Dir='" . SelectionSense_HubDict_EscapeSql(d) . "' AND K='" . SelectionSense_HubDict_EscapeSql(k) . "' LIMIT 1"
+        try {
+            if (ClipboardDB.GetTable(sql2, &t2) && t2 && t2.HasProp("Rows") && t2.Rows.Length > 0 && t2.Rows[1].Length > 0)
+                return String(t2.Rows[1][1])
+        } catch as _e {
+        }
     }
     return ""
 }
@@ -779,14 +1216,90 @@ SelectionSense_OnMenuWebMessage(sender, args) {
         }
         return
     }
+    if (typ = "hub_translate_sqlite_dict_list") {
+        global g_SelSense_MenuWV2
+        if !SelectionSense_HubDict_Ensure() {
+            try WebView_QueuePayload(g_SelSense_MenuWV2, Map(
+                "type", "hub_translate_sqlite_dict_state",
+                "ok", false,
+                "message", "词典初始化失败",
+                "activeSourceId", "builtin_default",
+                "sources", []
+            ))
+            return
+        }
+        try WebView_QueuePayload(g_SelSense_MenuWV2, Map(
+            "type", "hub_translate_sqlite_dict_state",
+            "ok", true,
+            "message", "",
+            "activeSourceId", SelectionSense_HubDict_GetActiveSource(),
+            "sources", SelectionSense_HubDict_ListSources()
+        ))
+        return
+    }
+    if (typ = "hub_translate_sqlite_dict_import_pick") {
+        global g_SelSense_MenuWV2
+        picked := ""
+        try picked := FileSelect(1, A_ScriptDir, "选择 SQLite 词典文件", "SQLite Files (*.db;*.sqlite;*.sqlite3;*.db3)")
+        if (Trim(String(picked)) = "") {
+            try WebView_QueuePayload(g_SelSense_MenuWV2, Map(
+                "type", "hub_translate_sqlite_dict_state",
+                "ok", false,
+                "message", "已取消导入",
+                "activeSourceId", SelectionSense_HubDict_GetActiveSource(),
+                "sources", SelectionSense_HubDict_ListSources()
+            ))
+            return
+        }
+        ret := SelectionSense_HubDict_ImportSqlite(picked)
+        ok0 := ret.Has("ok") ? !!ret["ok"] : false
+        msg0 := ret.Has("message") ? String(ret["message"]) : (ok0 ? "导入完成" : "导入失败")
+        try WebView_QueuePayload(g_SelSense_MenuWV2, Map(
+            "type", "hub_translate_sqlite_dict_state",
+            "ok", ok0,
+            "message", msg0,
+            "activeSourceId", SelectionSense_HubDict_GetActiveSource(),
+            "sources", SelectionSense_HubDict_ListSources()
+        ))
+        return
+    }
+    if (typ = "hub_translate_sqlite_dict_delete") {
+        global g_SelSense_MenuWV2
+        sid0 := msg.Has("sourceId") ? String(msg["sourceId"]) : ""
+        ok0 := SelectionSense_HubDict_DeleteSource(sid0)
+        msg0 := ok0 ? "词典已删除" : "删除失败（内置词典不可删除）"
+        try WebView_QueuePayload(g_SelSense_MenuWV2, Map(
+            "type", "hub_translate_sqlite_dict_state",
+            "ok", ok0,
+            "message", msg0,
+            "activeSourceId", SelectionSense_HubDict_GetActiveSource(),
+            "sources", SelectionSense_HubDict_ListSources()
+        ))
+        return
+    }
+    if (typ = "hub_translate_sqlite_dict_set_active") {
+        global g_SelSense_MenuWV2
+        sid0 := msg.Has("sourceId") ? String(msg["sourceId"]) : ""
+        ok0 := SelectionSense_HubDict_SetActiveSource(sid0)
+        msg0 := ok0 ? "已切换词典" : "切换失败"
+        try WebView_QueuePayload(g_SelSense_MenuWV2, Map(
+            "type", "hub_translate_sqlite_dict_state",
+            "ok", ok0,
+            "message", msg0,
+            "activeSourceId", SelectionSense_HubDict_GetActiveSource(),
+            "sources", SelectionSense_HubDict_ListSources()
+        ))
+        return
+    }
     if (typ = "hub_translate_sqlite_lookup") {
         global g_SelSense_MenuWV2
         rid := msg.Has("requestId") ? String(msg["requestId"]) : ""
         dir0 := msg.Has("dir") ? String(msg["dir"]) : "en2zh"
         txt0 := msg.Has("text") ? String(msg["text"]) : ""
+        sid0 := msg.Has("sourceId") ? String(msg["sourceId"]) : ""
         if (rid = "")
             return
-        out := SelectionSense_HubDict_Lookup(dir0, txt0)
+        out := SelectionSense_HubDict_Lookup(dir0, txt0, sid0)
         try WebView_QueuePayload(g_SelSense_MenuWV2, Map(
             "type", "hub_translate_sqlite_result",
             "requestId", rid,

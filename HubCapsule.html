@@ -1796,6 +1796,14 @@ button.ctx-sub-item:disabled {
                       <button type="button" class="tx-btn" id="btnTxDictClear">清空导入</button>
                     </div>
                   </div>
+                  <div class="tx-row">
+                    <label for="tx-sqlite-dict">SQLite 词典</label>
+                    <div style="display:flex; gap:6px; align-items:center; flex:1; min-width:0;">
+                      <select id="tx-sqlite-dict" style="flex:1; min-width:120px;"></select>
+                      <button type="button" class="tx-btn" id="btnTxSqliteImport">导入SQLite</button>
+                      <button type="button" class="tx-btn" id="btnTxSqliteDelete">删除</button>
+                    </div>
+                  </div>
                   <input id="tx-dict-file" type="file" accept=".json,.txt,.tsv,.csv" hidden>
                   <div class="tx-row-hint">学习模式会把你手工修订过的译词保存到本地，优先用于后续翻译。</div>
                   <div class="tx-links">
@@ -1979,6 +1987,9 @@ button.ctx-sub-item:disabled {
   const txDictPack = document.getElementById('tx-dict-pack');
   const btnTxDictImport = document.getElementById('btnTxDictImport');
   const btnTxDictClear = document.getElementById('btnTxDictClear');
+  const txSqliteDict = document.getElementById('tx-sqlite-dict');
+  const btnTxSqliteImport = document.getElementById('btnTxSqliteImport');
+  const btnTxSqliteDelete = document.getElementById('btnTxSqliteDelete');
   const txDictFile = document.getElementById('tx-dict-file');
   const btnTxChainAdd = document.getElementById('btnTxChainAdd');
   const txProviderChain = document.getElementById('tx-provider-chain');
@@ -2430,6 +2441,7 @@ button.ctx-sub-item:disabled {
     strictOrder: false,
     dictMode: 'auto',
     localEngine: 'memory_json',
+    sqliteSourceId: 'builtin_default',
     dictPack: 'balanced',
     enableLearn: true,
     localParts: { seed: true, cedict: true, custom: true, learn: true },
@@ -2477,6 +2489,53 @@ button.ctx-sub-item:disabled {
     idb_worker: '方案3-IDB',
     sqlite_bridge: '方案4-SQLite'
   });
+  const TX_SQLITE_BUILTIN_ID = 'builtin_default';
+  let txSqliteSources = [];
+  let txSqliteLastActiveId = TX_SQLITE_BUILTIN_ID;
+
+  function normalizeSqliteSourceId(sourceId) {
+    const sid = String(sourceId || '').trim();
+    return sid || TX_SQLITE_BUILTIN_ID;
+  }
+
+  function renderSqliteDictOptions(preferredId) {
+    if (!txSqliteDict) return;
+    const pref = normalizeSqliteSourceId(preferredId || txSqliteDict.value || TX_SQLITE_BUILTIN_ID);
+    const list = Array.isArray(txSqliteSources) && txSqliteSources.length
+      ? txSqliteSources
+      : [{ sourceId: TX_SQLITE_BUILTIN_ID, name: '内置词典', entryCount: 0, isBuiltin: true }];
+    txSqliteDict.innerHTML = list.map((it) => {
+      const sid = String((it && it.sourceId) || '').trim() || TX_SQLITE_BUILTIN_ID;
+      const name = String((it && it.name) || sid || '未命名词典');
+      const count = Number((it && it.entryCount) || 0);
+      const label = `${name} (${count})`;
+      return `<option value="${sid}">${label}</option>`;
+    }).join('');
+    const hit = list.some((it) => String((it && it.sourceId) || '') === pref);
+    txSqliteDict.value = hit ? pref : String((list[0] && list[0].sourceId) || TX_SQLITE_BUILTIN_ID);
+    if (btnTxSqliteDelete) {
+      const current = txSqliteDict.value || TX_SQLITE_BUILTIN_ID;
+      btnTxSqliteDelete.disabled = (current === TX_SQLITE_BUILTIN_ID);
+    }
+  }
+
+  function requestSqliteDictState() {
+    postToAhk({ type: 'hub_translate_sqlite_dict_list' });
+  }
+
+  function consumeSqliteDictState(payload) {
+    const src = payload || {};
+    txSqliteSources = Array.isArray(src.sources) ? src.sources : [];
+    txSqliteLastActiveId = normalizeSqliteSourceId(src.activeSourceId || txSqliteLastActiveId);
+    const cfg = getTranslateCfg();
+    const pref = normalizeSqliteSourceId(cfg.sqliteSourceId || txSqliteLastActiveId);
+    renderSqliteDictOptions(pref);
+    if (txSqliteDict) {
+      cfg.sqliteSourceId = normalizeSqliteSourceId(txSqliteDict.value || txSqliteLastActiveId);
+      setTranslateCfg(cfg);
+    }
+    if (src.message) setTxTestResult(String(src.message), src.ok !== false);
+  }
 
   function getTranslateCfg() {
     try {
@@ -2489,6 +2548,7 @@ button.ctx-sub-item:disabled {
         strictOrder: obj.strictOrder === true,
         dictMode: String(obj.dictMode || TX_CFG_DEFAULT.dictMode),
         localEngine: String(obj.localEngine || TX_CFG_DEFAULT.localEngine),
+        sqliteSourceId: String(obj.sqliteSourceId || TX_CFG_DEFAULT.sqliteSourceId),
         dictPack: String(obj.dictPack || TX_CFG_DEFAULT.dictPack),
         enableLearn: obj.enableLearn !== false,
         localParts: Object.assign({}, TX_CFG_DEFAULT.localParts, obj.localParts || {}),
@@ -2653,6 +2713,7 @@ button.ctx-sub-item:disabled {
     if (txStrictOrder) txStrictOrder.checked = !!c.strictOrder;
     if (txDictMode) txDictMode.value = c.dictMode;
     if (txLocalEngine) txLocalEngine.value = c.localEngine || 'memory_json';
+    renderSqliteDictOptions(c.sqliteSourceId || txSqliteLastActiveId || TX_SQLITE_BUILTIN_ID);
     if (txDictPack) txDictPack.value = c.dictPack || 'balanced';
     if (txEnableLearn) txEnableLearn.checked = !!c.enableLearn;
     if (txLocalSeed) txLocalSeed.checked = !!(c.localParts && c.localParts.seed);
@@ -2669,6 +2730,7 @@ button.ctx-sub-item:disabled {
     cfg.strictOrder = !!(txStrictOrder && txStrictOrder.checked);
     cfg.dictMode = txDictMode ? String(txDictMode.value || 'auto') : cfg.dictMode;
     cfg.localEngine = txLocalEngine ? String(txLocalEngine.value || 'memory_json') : (cfg.localEngine || 'memory_json');
+    cfg.sqliteSourceId = txSqliteDict ? normalizeSqliteSourceId(txSqliteDict.value || cfg.sqliteSourceId) : normalizeSqliteSourceId(cfg.sqliteSourceId);
     cfg.dictPack = txDictPack ? String(txDictPack.value || 'balanced') : cfg.dictPack;
     cfg.enableLearn = txEnableLearn ? !!txEnableLearn.checked : cfg.enableLearn;
     cfg.localParts = {
@@ -2685,6 +2747,7 @@ button.ctx-sub-item:disabled {
     if (capsule && translateConfig.parentElement !== capsule)
       capsule.appendChild(translateConfig);
     uiLoadTranslateCfg(getTranslateCfg());
+    requestSqliteDictState();
     setTxTestResult('', null);
     translateConfig.hidden = false;
   }
@@ -3522,7 +3585,7 @@ button.ctx-sub-item:disabled {
     return { text: out, hitRate: calcHitRate(t, out), chain: `idb:${dict.chain}` };
   }
 
-  function sqliteTranslateRequest(text, dir) {
+  function sqliteTranslateRequest(text, dir, sourceId) {
     return new Promise((resolve) => {
       const requestId = `sqlite_${Date.now()}_${txLocalRuntime.sqliteSeq++}`;
       const timer = setTimeout(() => {
@@ -3537,7 +3600,8 @@ button.ctx-sub-item:disabled {
         type: 'hub_translate_sqlite_lookup',
         requestId,
         text: String(text || ''),
-        dir: String(dir || 'en2zh')
+        dir: String(dir || 'en2zh'),
+        sourceId: normalizeSqliteSourceId(sourceId || TX_SQLITE_BUILTIN_ID)
       });
     });
   }
@@ -3547,11 +3611,12 @@ button.ctx-sub-item:disabled {
     if (!t) return { text: t, hitRate: 0, chain: 'sqlite:empty' };
     if (cfg.dictMode === 'off') return { text: t, hitRate: 0, chain: 'sqlite:off' };
     const dir = detectLangDir(t);
+    const sourceId = normalizeSqliteSourceId(cfg && cfg.sqliteSourceId);
     let out = t;
     const snapshot = buildLocalDictSnapshot(cfg);
     if (dir === 'en2zh') {
       const words = Array.from(new Set((t.match(/\b[a-zA-Z][a-zA-Z0-9_-]*\b/g) || []).map((w) => String(w || '').toLowerCase())));
-      const pairList = await Promise.all(words.map((w) => sqliteTranslateRequest(w, 'en2zh')));
+      const pairList = await Promise.all(words.map((w) => sqliteTranslateRequest(w, 'en2zh', sourceId)));
       const mapped = {};
       words.forEach((w, i) => {
         const r = pairList[i];
@@ -3562,7 +3627,7 @@ button.ctx-sub-item:disabled {
       return { text: out, hitRate: calcHitRate(t, out), chain: 'sqlite:token+coverage' };
     }
     const chars = Array.from(new Set((t.match(/[\u4E00-\u9FFF]/g) || [])));
-    const pairList = await Promise.all(chars.map((ch) => sqliteTranslateRequest(ch, 'zh2en')));
+    const pairList = await Promise.all(chars.map((ch) => sqliteTranslateRequest(ch, 'zh2en', sourceId)));
     const mapped = {};
     chars.forEach((ch, i) => {
       const r = pairList[i];
@@ -4925,6 +4990,25 @@ button.ctx-sub-item:disabled {
     setCustomDict({ en2zh: {}, zh2en: {} });
     pulseDone();
   });
+  if (txSqliteDict) txSqliteDict.addEventListener('change', () => {
+    const cfg = getTranslateCfg();
+    cfg.sqliteSourceId = normalizeSqliteSourceId(txSqliteDict.value || cfg.sqliteSourceId);
+    setTranslateCfg(cfg);
+    postToAhk({ type: 'hub_translate_sqlite_dict_set_active', sourceId: cfg.sqliteSourceId });
+    if (btnTxSqliteDelete)
+      btnTxSqliteDelete.disabled = (cfg.sqliteSourceId === TX_SQLITE_BUILTIN_ID);
+  });
+  if (btnTxSqliteImport) btnTxSqliteImport.addEventListener('click', () => {
+    postToAhk({ type: 'hub_translate_sqlite_dict_import_pick' });
+  });
+  if (btnTxSqliteDelete) btnTxSqliteDelete.addEventListener('click', () => {
+    const sid = txSqliteDict ? normalizeSqliteSourceId(txSqliteDict.value) : TX_SQLITE_BUILTIN_ID;
+    if (sid === TX_SQLITE_BUILTIN_ID) {
+      setTxTestResult('内置词典不能删除', false);
+      return;
+    }
+    postToAhk({ type: 'hub_translate_sqlite_dict_delete', sourceId: sid });
+  });
   if (txDictFile) txDictFile.addEventListener('change', async () => {
     const f = txDictFile.files && txDictFile.files[0];
     if (!f) return;
@@ -5642,6 +5726,9 @@ button.ctx-sub-item:disabled {
           }
           break;
         }
+        case 'hub_translate_sqlite_dict_state':
+          consumeSqliteDictState(d);
+          break;
         case 'clear_segments':
           clearAll();
           break;
