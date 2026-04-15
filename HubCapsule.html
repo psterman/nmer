@@ -748,6 +748,44 @@ body.native-titlebar #header { display: none; }
   padding: 10px 12px;
   border-top: 1px solid rgba(255, 153, 66, 0.28);
 }
+
+.dict-install-wrap {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.dict-progress-wrap {
+  position: relative;
+  height: 22px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(67, 248, 255, 0.45);
+  background:
+    linear-gradient(90deg, rgba(6, 24, 36, 0.9), rgba(16, 8, 36, 0.92)),
+    repeating-linear-gradient(90deg, rgba(95, 255, 244, 0.08) 0 8px, rgba(255, 60, 196, 0.06) 8px 16px);
+  box-shadow: inset 0 0 16px rgba(50, 220, 255, 0.15), 0 0 10px rgba(255, 50, 180, 0.22);
+}
+
+#dict-progress {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #00f0ff 0%, #00ffc8 45%, #ff4dc4 100%);
+  box-shadow: 0 0 18px rgba(0, 255, 240, 0.5), 0 0 24px rgba(255, 77, 196, 0.45);
+  transition: width 180ms linear;
+}
+
+#dict-progress-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #dfffff;
+  text-shadow: 0 0 8px rgba(0, 255, 255, 0.5), 0 0 10px rgba(255, 77, 196, 0.4);
+  pointer-events: none;
+}
 .tx-btn {
   border-radius: 8px;
   border: 1px solid rgba(255, 154, 47, 0.62);
@@ -1804,6 +1842,16 @@ button.ctx-sub-item:disabled {
                       <button type="button" class="tx-btn" id="btnTxSqliteDelete">删除</button>
                     </div>
                   </div>
+                  <div class="tx-row">
+                    <label>手动下载方案</label>
+                    <div class="dict-install-wrap">
+                      <button type="button" class="tx-btn" id="btnTxInstallLocalDict">一键安装本地词典</button>
+                      <div class="dict-progress-wrap">
+                        <div id="dict-progress"></div>
+                        <span id="dict-progress-text">未开始</span>
+                      </div>
+                    </div>
+                  </div>
                   <input id="tx-dict-file" type="file" accept=".json,.txt,.tsv,.csv" hidden>
                   <div class="tx-row-hint">学习模式会把你手工修订过的译词保存到本地，优先用于后续翻译。</div>
                   <div class="tx-links">
@@ -1990,6 +2038,9 @@ button.ctx-sub-item:disabled {
   const txSqliteDict = document.getElementById('tx-sqlite-dict');
   const btnTxSqliteImport = document.getElementById('btnTxSqliteImport');
   const btnTxSqliteDelete = document.getElementById('btnTxSqliteDelete');
+  const btnTxInstallLocalDict = document.getElementById('btnTxInstallLocalDict');
+  const dictProgress = document.getElementById('dict-progress');
+  const dictProgressText = document.getElementById('dict-progress-text');
   const txDictFile = document.getElementById('tx-dict-file');
   const btnTxChainAdd = document.getElementById('btnTxChainAdd');
   const txProviderChain = document.getElementById('tx-provider-chain');
@@ -2492,6 +2543,8 @@ button.ctx-sub-item:disabled {
   const TX_SQLITE_BUILTIN_ID = 'builtin_default';
   let txSqliteSources = [];
   let txSqliteLastActiveId = TX_SQLITE_BUILTIN_ID;
+  let dictInstallUiTimer = 0;
+  let dictInstallUiTick = 0;
 
   function normalizeSqliteSourceId(sourceId) {
     const sid = String(sourceId || '').trim();
@@ -2747,6 +2800,8 @@ button.ctx-sub-item:disabled {
     if (capsule && translateConfig.parentElement !== capsule)
       capsule.appendChild(translateConfig);
     uiLoadTranslateCfg(getTranslateCfg());
+    if (dictProgressText && !String(dictProgressText.textContent || '').trim())
+      hubDictInstallUpdate(0, '未开始');
     requestSqliteDictState();
     setTxTestResult('', null);
     translateConfig.hidden = false;
@@ -3825,6 +3880,39 @@ button.ctx-sub-item:disabled {
     const rest = baseOrder.filter((p) => !preferred.includes(p));
     smartCfg.fallbackOrder = preferred.concat(rest).join(',');
     return networkTranslateText(text, smartCfg);
+  }
+
+  function hubDictInstallUpdate(percent, status) {
+    const p = Math.max(0, Math.min(100, Number(percent) || 0));
+    const text = String(status || '').trim() || `正在下载词库...${Math.round(p)}%`;
+    if (dictProgress) dictProgress.style.width = `${p.toFixed(1)}%`;
+    if (dictProgressText) dictProgressText.textContent = text;
+    const done = /本地词库已激活|安装失败|失败|错误/.test(text);
+    if (btnTxInstallLocalDict) btnTxInstallLocalDict.disabled = !done && p < 100;
+    if (/本地词库已激活/.test(text)) {
+      setTxTestResult(text, true);
+      requestSqliteDictState();
+      if (dictInstallUiTimer) { clearInterval(dictInstallUiTimer); dictInstallUiTimer = 0; }
+    } else if (/失败|错误/.test(text)) {
+      setTxTestResult(text, false);
+      if (dictInstallUiTimer) { clearInterval(dictInstallUiTimer); dictInstallUiTimer = 0; }
+    }
+  }
+  window.hubDictInstallUpdate = hubDictInstallUpdate;
+
+  function startDictInstallUiWatchdog() {
+    if (dictInstallUiTimer) clearInterval(dictInstallUiTimer);
+    dictInstallUiTick = 0;
+    dictInstallUiTimer = setInterval(() => {
+      dictInstallUiTick += 1;
+      if (dictInstallUiTick <= 8) {
+        hubDictInstallUpdate(2, `正在建立连接（源1/2）${'.'.repeat(dictInstallUiTick % 4)}`);
+      } else if (dictInstallUiTick <= 18) {
+        hubDictInstallUpdate(3, `主源较慢，准备切换镜像源（源2/2）${'.'.repeat(dictInstallUiTick % 4)}`);
+      } else {
+        hubDictInstallUpdate(4, '网络较慢，请稍候；系统仍在尝试连接可用下载源...');
+      }
+    }, 1000);
   }
 
   function setTxTestResult(msg, ok) {
@@ -5000,6 +5088,11 @@ button.ctx-sub-item:disabled {
   });
   if (btnTxSqliteImport) btnTxSqliteImport.addEventListener('click', () => {
     postToAhk({ type: 'hub_translate_sqlite_dict_import_pick' });
+  });
+  if (btnTxInstallLocalDict) btnTxInstallLocalDict.addEventListener('click', () => {
+    hubDictInstallUpdate(1, '正在建立连接（源1/2）');
+    startDictInstallUiWatchdog();
+    postToAhk({ type: 'hub_translate_ecdict_install' });
   });
   if (btnTxSqliteDelete) btnTxSqliteDelete.addEventListener('click', () => {
     const sid = txSqliteDict ? normalizeSqliteSourceId(txSqliteDict.value) : TX_SQLITE_BUILTIN_ID;

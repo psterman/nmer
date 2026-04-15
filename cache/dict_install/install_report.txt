@@ -1,0 +1,6 @@
+﻿[20260415113517] 启动一键安装流程
+[20260415113517] 工作目录: C:\Users\Administrator\Desktop\小c\cache\dict_install
+[20260415113517] 压缩包路径: C:\Users\Administrator\Desktop\小c\cache\dict_install\ecdict-package.zip
+[20260415113517] 解压目录: C:\Users\Administrator\Desktop\小c\cache\dict_install\ecdict-stardict-28
+[20260415113517] 最终数据库路径: C:\Users\Administrator\Desktop\小c\ecdict.db
+[20260415113517] 尝试源1: https://ghproxy.net/https://github.com/skywind3000/ECDICT-ultimate/releases/download/1.0.0/ecdict-ultimate-sqlite.zip
