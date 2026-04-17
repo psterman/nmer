@@ -558,6 +558,9 @@ global ScreenshotToolbarWV2PaintOk := false  ; 截图助手工具栏页面是否
 global ScreenshotToolbarNativeFallback := false  ; 截图工具栏是否已切到原生按钮兜底
 global ScreenshotToolbarCurrentWidth := 520  ; 截图工具栏当前宽度（按 HTML 布局自适应）
 global ScreenshotToolbarCurrentHeight := 56  ; 截图工具栏当前高度（按 HTML 布局自适应）
+global ScreenshotOCRHubPendingText := ""  ; 待推送到 HubCapsule 的 OCR 文本
+global ScreenshotOCRHubPushAttempts := 0  ; OCR->HubCapsule 推送重试次数
+global ScreenshotOCRHubPushInFlight := false  ; OCR->HubCapsule 是否正在推送
 global ScreenshotEditorBitmap := 0  ; 截图编辑器中的Gdip位图句柄
 global ScreenshotEditorGraphics := 0  ; 截图编辑器中的Gdip图形句柄
 global ScreenshotEditorImagePath := ""  ; 当前编辑的图片缓存路径
@@ -4315,9 +4318,7 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
 ResolveDarkPopupItemIconFile(Item, size := 18) {
     try {
         if (Item.HasProp("SvgIcon") && Item.SvgIcon != "" && FileExist(Item.SvgIcon)) {
-            pngNextToSvg := RegExReplace(Item.SvgIcon, "\.svg$", ".png")
-            if (FileExist(pngNextToSvg))
-                return pngNextToSvg
+            ; 强制优先走 SVG 栅格化，避免历史同名 PNG 白底污染
             return EnsureSvgIconRasterized(Item.SvgIcon, size)
         }
         if (Item.HasProp("IconFile") && Item.IconFile != "" && FileExist(Item.IconFile))
@@ -4352,7 +4353,8 @@ EnsureSvgIconRasterized(svgPath, size := 18) {
             if (edge = "")
                 return ""
             url := "file:///" . StrReplace(svgPath, "\", "/")
-            cmd := '"' . edge . '" --headless --disable-gpu --window-size=' . size . ',' . size . ' --screenshot="' . pngPath . '" "' . url . '"'
+            ; 使用与菜单一致的深色底，避免某些系统下 SVG 截图默认白底导致图标出现白块
+            cmd := '"' . edge . '" --headless --disable-gpu --hide-scrollbars --default-background-color=1a1a1a --window-size=' . size . ',' . size . ' --screenshot="' . pngPath . '" "' . url . '"'
             RunWait(cmd, , "Hide")
             if (!FileExist(pngPath))
                 return ""
@@ -36054,7 +36056,7 @@ ShowScreenshotEditor(DebugGui := 0) {
         ; 创建独立的悬浮工具栏窗口（WebView2 承载独立 HTML）
         global GuiID_ScreenshotToolbar, ScreenshotToolbarWV2Ctrl, ScreenshotToolbarWV2, ScreenshotToolbarWV2Ready
         GuiID_ScreenshotToolbar := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
-        GuiID_ScreenshotToolbar.BackColor := "0a0a0a"
+        GuiID_ScreenshotToolbar.BackColor := "010203"
         global ScreenshotToolbarCurrentWidth, ScreenshotToolbarCurrentHeight
         ToolbarWidth := ScreenshotToolbarCurrentWidth
         ToolbarHeight := ScreenshotToolbarCurrentHeight
@@ -36132,6 +36134,8 @@ ShowScreenshotEditor(DebugGui := 0) {
         
         ; 显示悬浮工具栏
         GuiID_ScreenshotToolbar.Show("w" . ToolbarWidth . " h" . ToolbarHeight . " x" . ToolbarX . " y" . ToolbarY)
+        try WinSetTransColor("010203", "ahk_id " . GuiID_ScreenshotToolbar.Hwnd)
+        ScreenshotToolbar_ApplyWindowRegion()
         ScreenshotToolbar_ApplyBounds()
         SetTimer(ScreenshotToolbar_RefreshComposition, -40)
         SetTimer(ScreenshotToolbar_EnsureCreated, -900)
@@ -36353,7 +36357,7 @@ ScreenshotToolbar_OnCreated(ctrl) {
     ScreenshotToolbarWV2 := ctrl.CoreWebView2
     ScreenshotToolbarWV2Ready := false
     ScreenshotToolbarWV2PaintOk := false
-    try ScreenshotToolbarWV2Ctrl.DefaultBackgroundColor := 0xFF0A0A0A
+    try ScreenshotToolbarWV2Ctrl.DefaultBackgroundColor := 0xFF010203
     try {
         s := ScreenshotToolbarWV2.Settings
         s.AreDefaultContextMenusEnabled := false
@@ -36516,8 +36520,30 @@ ScreenshotToolbar_ApplyLayout(width, height) {
     }
 
     try GuiID_ScreenshotToolbar.Show("x" . tx . " y" . ty . " w" . w . " h" . h)
+    try WinSetTransColor("010203", "ahk_id " . GuiID_ScreenshotToolbar.Hwnd)
+    ScreenshotToolbar_ApplyWindowRegion()
     ScreenshotToolbar_ApplyBounds()
     SetTimer(ScreenshotToolbar_RefreshComposition, -30)
+}
+
+ScreenshotToolbar_ApplyWindowRegion() {
+    global GuiID_ScreenshotToolbar
+    if !(IsObject(GuiID_ScreenshotToolbar) && GuiID_ScreenshotToolbar != 0)
+        return
+    hwnd := GuiID_ScreenshotToolbar.Hwnd
+    if !hwnd
+        return
+    try WinGetPos(, , &w, &h, "ahk_id " . hwnd)
+    catch
+        return
+    if (w < 20 || h < 20)
+        return
+    ; 与 HTML 卡片圆角一致（radius≈12px -> ellipse 24x24）
+    rgn := DllCall("gdi32\CreateRoundRectRgn", "Int", 0, "Int", 0, "Int", w + 1, "Int", h + 1, "Int", 24, "Int", 24, "Ptr")
+    if !rgn
+        return
+    ; SetWindowRgn 成功后系统接管 rgn 句柄
+    DllCall("user32\SetWindowRgn", "Ptr", hwnd, "Ptr", rgn, "Int", 1)
 }
 
 ScreenshotToolbar_EnsureUsable(*) {
@@ -36548,7 +36574,7 @@ ScreenshotToolbar_BuildSafeInlineHtml() {
 <!doctype html>
 <html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <style>
-html,body{margin:0;padding:0;width:100%;height:100%;background:#0a0a0a;color:#ff9d3a;font:12px Segoe UI,Microsoft YaHei UI,sans-serif;overflow:hidden}
+html,body{margin:0;padding:0;width:100%;height:100%;background:#010203;color:#ff9d3a;font:12px Segoe UI,Microsoft YaHei UI,sans-serif;overflow:hidden}
 #bar{height:100%;display:flex;align-items:center;gap:4px;padding:6px}
 .b{min-width:34px;height:34px;border:1px solid #663c1f;border-radius:8px;background:#14171b;color:#ff9d3a;cursor:pointer}
 .b:hover{background:#222830}
@@ -36649,6 +36675,8 @@ ScreenshotToolbar_EnableNativeFallback(reason := "") {
     dragTop.OnEvent("Click", ScreenshotToolbarDragWindow)
     dragBottom.OnEvent("Click", ScreenshotToolbarDragWindow)
     try GuiID_ScreenshotToolbar.Show("NA w" . ScreenshotToolbarCurrentWidth . " h" . ScreenshotToolbarCurrentHeight)
+    try WinSetTransColor("010203", "ahk_id " . GuiID_ScreenshotToolbar.Hwnd)
+    ScreenshotToolbar_ApplyWindowRegion()
     if (reason != "")
         OutputDebug("[ScreenshotToolbar] native fallback: " . reason)
 }
@@ -36686,6 +36714,8 @@ SyncScreenshotToolbarPosition() {
         ; 移动工具栏到新位置
         if (ToolbarW && ToolbarH) {
             GuiID_ScreenshotToolbar.Show("x" . ToolbarX . " y" . ToolbarY)
+            try WinSetTransColor("010203", "ahk_id " . GuiID_ScreenshotToolbar.Hwnd)
+            ScreenshotToolbar_ApplyWindowRegion()
             ScreenshotToolbar_ApplyBounds()
         }
         if (ScreenshotColorPickerActive) {
@@ -38489,58 +38519,137 @@ ScreenshotEditorSearchText() {
 }
 
 ScreenshotEditorEditOCRInHubCapsule() {
+    global ScreenshotOCRHubPendingText, ScreenshotOCRHubPushAttempts, ScreenshotOCRHubPushInFlight
     text := ScreenshotEditorExtractText(true)
     if (text = "")
         return
     formatted := ScreenshotOCRApplyTextFormatting(text)
     if (formatted = "")
         return
-    ok := false
-    try ok := ScreenshotEditorPushOCRToHubCapsule(formatted, 1)
-    if (!ok) {
-        ; HubCapsule 的 WebView 可能尚在初始化，做延迟重试
-        SetTimer(() => ScreenshotEditorPushOCRToHubCapsule(formatted, 2), -180)
-        SetTimer(() => ScreenshotEditorPushOCRToHubCapsule(formatted, 3), -520)
-        SetTimer(() => ScreenshotEditorPushOCRToHubCapsule(formatted, 4), -980)
-    }
-    if (ok)
-        TrayTip("草稿本", "OCR 文本已填入 HubCapsule 预览输入框", "Iconi 1")
-    else
-        TrayTip("草稿本", "正在打开 HubCapsule 并填入 OCR 文本...", "Iconi 1")
+    SetTimer(ScreenshotEditorPushOCRToHubCapsuleTick, 0)
+    ScreenshotOCRHubPendingText := formatted
+    ScreenshotOCRHubPushAttempts := 0
+    ScreenshotOCRHubPushInFlight := true
+    try g_SelSense_PendingText := formatted
+    TrayTip("草稿本", "正在连接 HubCapsule 并填入 OCR 文本...", "Iconi 1")
+    SetTimer(ScreenshotEditorPushOCRToHubCapsuleTick, -40)
 }
 
-ScreenshotEditorPushOCRToHubCapsule(formattedText, attempt := 1) {
-    t := Trim(String(formattedText), " `t`r`n")
-    if (t = "")
-        return false
+ScreenshotEditorPushOCRToHubCapsuleTick(*) {
+    global ScreenshotOCRHubPendingText, ScreenshotOCRHubPushAttempts, ScreenshotOCRHubPushInFlight
+    global g_SelSense_PendingText, g_SelSense_MenuReady, g_SelSense_MenuShowingHub, g_SelSense_MenuWV2, g_SelSense_MenuVisible
+    t := Trim(String(ScreenshotOCRHubPendingText), " `t`r`n")
+    if (t = "") {
+        ScreenshotOCRHubPushInFlight := false
+        return
+    }
+    ScreenshotOCRHubPushAttempts += 1
+
+    ; 最多持续约 10 秒（40 * 250ms），覆盖 HubCapsule 冷启动和 WebView2 延迟
+    if (ScreenshotOCRHubPushAttempts > 40) {
+        ScreenshotOCRHubPushInFlight := false
+        try A_Clipboard := t
+        TrayTip("草稿本", "HubCapsule 仍未就绪，OCR 文本已复制到剪贴板", "Iconi 1")
+        return
+    }
+
+    opened := false
+    visible := false
+    ready := false
     try {
-        ; 优先走 SelectionSense 的统一同步通道（会自动拉起 Hub 并推送 preview）
-        if FuncExists("SelectionSense_SyncHubFromUserCopyChannel") {
-            SelectionSense_SyncHubFromUserCopyChannel(t, false, "screenshot_ocr_edit")
-            return true
+        ; 1) 先保证 HubCapsule 宿主被拉起，并把 pending 文本写入共享状态
+        g_SelSense_PendingText := t
+        opened := ScreenshotEditorEnsureHubCapsuleOpen(t)
+        try visible := !!g_SelSense_MenuVisible
+        catch {
+            visible := false
         }
 
-        ; 退化到手工 open + push
-        opened := false
-        if FuncExists("SelectionSense_OpenHubCapsuleFromToolbar") {
-            SelectionSense_OpenHubCapsuleFromToolbar(false, t)
-            opened := true
+        ; 2) 仅当 HubCapsule 页面 ready 后，明确写入「预览区」
+        if (IsSet(g_SelSense_MenuWV2) && g_SelSense_MenuWV2) {
+            ; 先发一轮，哪怕未 ready 也先入队
+            WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "selection_menu_init", "text", t))
+            WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "preview_update", "text", t))
+            WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_preview_selection", "text", t))
+            ; 再补发一次，避免初始化动画期被覆盖
+            SetTimer(() => WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "preview_update", "text", t)), -120)
+            SetTimer(() => WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "selection_menu_init", "text", t)), -220)
+            SetTimer(() => WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_preview_selection", "text", t)), -320)
         }
-        if FuncExists("SelectionSense_PushHubPreviewText") {
-            SelectionSense_PushHubPreviewText(t)
-            return true
+
+        if (IsSet(g_SelSense_MenuWV2) && g_SelSense_MenuWV2
+            && IsSet(g_SelSense_MenuShowingHub) && g_SelSense_MenuShowingHub
+            && IsSet(g_SelSense_MenuVisible) && g_SelSense_MenuVisible) {
+            ready := true
         }
-        if (opened)
-            return true
     } catch as _e {
     }
 
-    ; 最后兜底：保留文本，不丢数据（只在最后一次尝试提示）
-    if (attempt >= 4) {
-        try A_Clipboard := t
-        TrayTip("草稿本", "HubCapsule 仍未就绪，OCR 文本已复制到剪贴板", "Iconi 1")
+    if (ready) {
+        ScreenshotOCRHubPushInFlight := false
+        TrayTip("草稿本", "OCR 文本已写入 HubCapsule 预览区域", "Iconi 1")
+        return
     }
-    return false
+
+    if (ScreenshotOCRHubPushAttempts = 6 || ScreenshotOCRHubPushAttempts = 12 || ScreenshotOCRHubPushAttempts = 24) {
+        if (!visible) {
+            if (opened)
+                TrayTip("草稿本", "正在启动 HubCapsule…", "Iconi 1")
+            else
+                TrayTip("草稿本", "未检测到 HubCapsule 打开入口，继续重试…", "Iconi 1")
+        }
+    }
+
+    ; 未就绪则继续轮询，直到 HubCapsule ready 后再写入
+    SetTimer(ScreenshotEditorPushOCRToHubCapsuleTick, -250)
+}
+
+ScreenshotEditorEnsureHubCapsuleOpen(pendingText := "") {
+    opened := false
+    t := Trim(String(pendingText), " `t`r`n")
+    try {
+        if FuncExists("SelectionSense_HubCapsuleHostIsOpen") && SelectionSense_HubCapsuleHostIsOpen()
+            opened := true
+    } catch {
+    }
+
+    if (!opened) {
+        ; 复用“悬浮工具栏 NewPrompt 按钮”的同源打开路径
+        try {
+            if FuncExists("FloatingToolbarExecuteButtonAction") {
+                FloatingToolbarExecuteButtonAction("NewPrompt", 0)
+                opened := true
+            }
+        } catch {
+        }
+    }
+
+    if (!opened) {
+        try {
+            if FuncExists("SelectionSense_OpenHubCapsuleFromToolbar") {
+                SelectionSense_OpenHubCapsuleFromToolbar(false, t)
+                opened := true
+            }
+        } catch {
+        }
+    }
+
+    if (!opened) {
+        try {
+            if FuncExists("FloatingToolbar_DeferredToolbarCmd") {
+                FloatingToolbar_DeferredToolbarCmd("hub_capsule")
+                opened := true
+            }
+        } catch {
+        }
+    }
+
+    try {
+        if FuncExists("SelectionSense_ShowMenuNearCursor")
+            SelectionSense_ShowMenuNearCursor()
+    } catch {
+    }
+    return opened
 }
 
 ; 复制截图到剪贴板

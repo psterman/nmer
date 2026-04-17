@@ -18,8 +18,8 @@
   --ease:.22s cubic-bezier(.22,1,.36,1);
 }
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:transparent;font:13px "Segoe UI","Microsoft YaHei UI",sans-serif}
-#shell{display:inline-flex;align-items:center;justify-content:center;padding:6px;pointer-events:auto}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#010203;font:13px "Segoe UI","Microsoft YaHei UI",sans-serif}
+#shell{display:inline-flex;align-items:center;justify-content:center;padding:0;pointer-events:auto}
 #bar{
   display:inline-flex;align-items:center;gap:6px;
   width:max-content;
@@ -39,8 +39,8 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:t
   width:30px;height:30px;
   display:inline-flex;align-items:center;justify-content:center;
   border-radius:8px;
-  border:1px solid rgba(255,122,26,.28);
-  background:rgba(255,255,255,.02);
+  border:1px solid transparent;
+  background:#0a0a0a;
   color:var(--accent);
   cursor:pointer;
   outline:none;
@@ -53,8 +53,8 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:t
   box-shadow:0 0 0 1px rgba(255,122,26,.18),0 0 12px rgba(255,122,26,.14);
 }
 .tb:active{transform:translateY(0) scale(.97)}
-.tb.active{background:var(--accent-soft);border-color:var(--accent-border)}
-.tb.danger{color:var(--danger);border-color:rgba(255,138,149,.34)}
+.tb.active{background:var(--accent-soft);border-color:transparent}
+.tb.danger{color:var(--danger);border-color:transparent}
 .tb.danger:hover,.tb.danger:focus-visible{
   background:var(--danger-soft);
   border-color:var(--danger-border);
@@ -116,7 +116,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:t
 
   function reportLayout() {
     try {
-      var r = shell.getBoundingClientRect();
+      var r = bar.getBoundingClientRect();
       post({ action: 'layout', width: Math.ceil(r.width), height: Math.ceil(r.height) });
     } catch (e) {}
   }
