@@ -1979,6 +1979,13 @@ button.ctx-sub-item:disabled {
     capsHintActive: false,
     capsPressedKey: ''
   };
+  // 外部(AHK)推送预览文本后，窗口焦点可能短暂抖动（例如打开/激活链路），
+  // 避免 blur 立刻 clearPreviewOnly() 把刚填入的 OCR 文本清空。
+  let suppressBlurClearUntil = 0;
+  function markExternalPreviewPush(holdMs) {
+    const ms = Number.isFinite(holdMs) ? holdMs : 1600;
+    suppressBlurClearUntil = Math.max(suppressBlurClearUntil, Date.now() + ms);
+  }
   let externalDragDepth = 0;
   let capsHoldTimer = 0;
   let capsFlashTimer = 0;
@@ -4704,6 +4711,7 @@ button.ctx-sub-item:disabled {
   function setDraftPreview(text) {
     let t = String(normalizePreviewText(text) || '').replace(/\r\n/g, '\n').trim();
     if (!t) return;
+    markExternalPreviewPush(1800);
     state.pendingImagePath = '';
     state.pendingImageDataUrl = '';
     state.pendingDraft = t;
@@ -4715,6 +4723,7 @@ button.ctx-sub-item:disabled {
     const p = String(imagePath || '').trim();
     const d = String(imageDataUrl || '').trim();
     if (!p && !d) return;
+    markExternalPreviewPush(1800);
     state.pendingDraft = '';
     if (preview && preview.tagName === 'TEXTAREA') preview.value = '';
     state.pendingImagePath = p;
@@ -5731,6 +5740,7 @@ button.ctx-sub-item:disabled {
 
   window.addEventListener('blur', () => {
     endCapsHoldHint();
+    if (Date.now() < suppressBlurClearUntil) return;
     clearPreviewOnly();
   });
 
@@ -5783,6 +5793,17 @@ button.ctx-sub-item:disabled {
           else
             setDraftPreview(normalizePreviewText(d.text));
           break;
+        case 'hub_focus_preview': {
+          // AHK 侧希望在写入 OCR 后立即可编辑：强制聚焦预览输入框
+          try {
+            if (preview && preview.tagName === 'TEXTAREA') {
+              preview.focus({ preventScroll: true });
+              const len = preview.value ? preview.value.length : 0;
+              preview.setSelectionRange(len, len);
+            }
+          } catch (_) {}
+          break;
+        }
         case 'hub_preview_image':
           setImagePreview(d.imagePath || '', d.imageDataUrl || '');
           break;

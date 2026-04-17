@@ -36056,7 +36056,8 @@ ShowScreenshotEditor(DebugGui := 0) {
         ; 创建独立的悬浮工具栏窗口（WebView2 承载独立 HTML）
         global GuiID_ScreenshotToolbar, ScreenshotToolbarWV2Ctrl, ScreenshotToolbarWV2, ScreenshotToolbarWV2Ready
         GuiID_ScreenshotToolbar := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
-        GuiID_ScreenshotToolbar.BackColor := "010203"
+        ; 不再使用 TransColor 色键透明：在部分机器/WebView2 组合下会出现点击穿透，导致按钮无法生效
+        GuiID_ScreenshotToolbar.BackColor := "0a0a0a"
         global ScreenshotToolbarCurrentWidth, ScreenshotToolbarCurrentHeight
         ToolbarWidth := ScreenshotToolbarCurrentWidth
         ToolbarHeight := ScreenshotToolbarCurrentHeight
@@ -36134,7 +36135,6 @@ ShowScreenshotEditor(DebugGui := 0) {
         
         ; 显示悬浮工具栏
         GuiID_ScreenshotToolbar.Show("w" . ToolbarWidth . " h" . ToolbarHeight . " x" . ToolbarX . " y" . ToolbarY)
-        try WinSetTransColor("010203", "ahk_id " . GuiID_ScreenshotToolbar.Hwnd)
         ScreenshotToolbar_ApplyWindowRegion()
         ScreenshotToolbar_ApplyBounds()
         SetTimer(ScreenshotToolbar_RefreshComposition, -40)
@@ -36357,7 +36357,7 @@ ScreenshotToolbar_OnCreated(ctrl) {
     ScreenshotToolbarWV2 := ctrl.CoreWebView2
     ScreenshotToolbarWV2Ready := false
     ScreenshotToolbarWV2PaintOk := false
-    try ScreenshotToolbarWV2Ctrl.DefaultBackgroundColor := 0xFF010203
+    try ScreenshotToolbarWV2Ctrl.DefaultBackgroundColor := 0xFF0A0A0A
     try {
         s := ScreenshotToolbarWV2.Settings
         s.AreDefaultContextMenusEnabled := false
@@ -36520,7 +36520,6 @@ ScreenshotToolbar_ApplyLayout(width, height) {
     }
 
     try GuiID_ScreenshotToolbar.Show("x" . tx . " y" . ty . " w" . w . " h" . h)
-    try WinSetTransColor("010203", "ahk_id " . GuiID_ScreenshotToolbar.Hwnd)
     ScreenshotToolbar_ApplyWindowRegion()
     ScreenshotToolbar_ApplyBounds()
     SetTimer(ScreenshotToolbar_RefreshComposition, -30)
@@ -36675,7 +36674,6 @@ ScreenshotToolbar_EnableNativeFallback(reason := "") {
     dragTop.OnEvent("Click", ScreenshotToolbarDragWindow)
     dragBottom.OnEvent("Click", ScreenshotToolbarDragWindow)
     try GuiID_ScreenshotToolbar.Show("NA w" . ScreenshotToolbarCurrentWidth . " h" . ScreenshotToolbarCurrentHeight)
-    try WinSetTransColor("010203", "ahk_id " . GuiID_ScreenshotToolbar.Hwnd)
     ScreenshotToolbar_ApplyWindowRegion()
     if (reason != "")
         OutputDebug("[ScreenshotToolbar] native fallback: " . reason)
@@ -36714,7 +36712,6 @@ SyncScreenshotToolbarPosition() {
         ; 移动工具栏到新位置
         if (ToolbarW && ToolbarH) {
             GuiID_ScreenshotToolbar.Show("x" . ToolbarX . " y" . ToolbarY)
-            try WinSetTransColor("010203", "ahk_id " . GuiID_ScreenshotToolbar.Hwnd)
             ScreenshotToolbar_ApplyWindowRegion()
             ScreenshotToolbar_ApplyBounds()
         }
@@ -38519,92 +38516,101 @@ ScreenshotEditorSearchText() {
 }
 
 ScreenshotEditorEditOCRInHubCapsule() {
-    global ScreenshotOCRHubPendingText, ScreenshotOCRHubPushAttempts, ScreenshotOCRHubPushInFlight
     text := ScreenshotEditorExtractText(true)
     if (text = "")
         return
     formatted := ScreenshotOCRApplyTextFormatting(text)
     if (formatted = "")
         return
-    SetTimer(ScreenshotEditorPushOCRToHubCapsuleTick, 0)
-    ScreenshotOCRHubPendingText := formatted
-    ScreenshotOCRHubPushAttempts := 0
-    ScreenshotOCRHubPushInFlight := true
-    try g_SelSense_PendingText := formatted
-    TrayTip("草稿本", "正在连接 HubCapsule 并填入 OCR 文本...", "Iconi 1")
-    SetTimer(ScreenshotEditorPushOCRToHubCapsuleTick, -40)
+    ; 去掉截图工具栏自建的 HubCapsule 联动轮询机制，改为复用悬浮工具栏/SelectionSense 的标准打开与预览填充链路：
+    ; SelectionSense_OpenHubCapsuleFromToolbar 会设置 pendingText 并在 WebView ready 后自动推送到预览区。
+    try {
+        global g_SelSense_MenuActivateOnShow
+        g_SelSense_MenuActivateOnShow := true
+    } catch {
+    }
+
+    ; 直接调用 HubCapsule 原生接口（SelectionSenseCore），并用“CapsLock+C 同款重推”保证预览区一定收到文本
+    try {
+        try g_SelSense_PendingText := formatted
+        SelectionSense_OpenHubCapsuleFromToolbar(false, formatted)
+        ; HubCapsule/WebView2 冷启动时 selection_menu_ready 可能滞后，延迟重推两次 + 轮询兜底
+        SetTimer(ScreenshotEditor_ResyncHubPreviewAfterOcrBind(formatted), -250)
+        SetTimer(ScreenshotEditor_ResyncHubPreviewAfterOcrBind(formatted), -850)
+        TrayTip("草稿本", "已打开 HubCapsule 并填入 OCR 文本", "Iconi 1")
+        return
+    } catch as e1 {
+        ; 可能是模块未初始化/热重载顺序问题：尝试先 Init 再调用一次
+        try {
+            if FuncExists("SelectionSense_Init")
+                SelectionSense_Init()
+        } catch {
+        }
+        try {
+            SelectionSense_OpenHubCapsuleFromToolbar(false, formatted)
+            SetTimer(ScreenshotEditor_ResyncHubPreviewAfterOcrBind(formatted), -250)
+            SetTimer(ScreenshotEditor_ResyncHubPreviewAfterOcrBind(formatted), -850)
+            TrayTip("草稿本", "已打开 HubCapsule 并填入 OCR 文本", "Iconi 1")
+            return
+        } catch as e2 {
+            ; 原生兜底：走命令系统触发 hub_capsule（与悬浮工具栏/虚拟键盘同源）
+            try {
+                if FuncExists("_ExecuteCommand") {
+                    _ExecuteCommand("hub_capsule")
+                    ; 把文本挂到 SelectionSense pending，等 ready 后由其推送
+                    try g_SelSense_PendingText := formatted
+                    SetTimer(ScreenshotEditor_ResyncHubPreviewAfterOcrBind(formatted), -250)
+                    SetTimer(ScreenshotEditor_ResyncHubPreviewAfterOcrBind(formatted), -850)
+                    TrayTip("草稿本", "已触发 hub_capsule 打开，请稍候…", "Iconi 1")
+                    return
+                }
+            } catch {
+            }
+            ; 最后兜底：无法打开则复制到剪贴板
+            try A_Clipboard := formatted
+            TrayTip("草稿本", "HubCapsule 入口不可用，已复制 OCR 文本到剪贴板", "Iconi 1")
+            return
+        }
+    }
+}
+
+; OCR -> HubCapsule：按 CapsLock+C 的逻辑重推一次预览文本，覆盖 WebView2 冷启动/动画期丢消息
+ScreenshotEditor_ResyncHubPreviewAfterOcrBind(text) {
+    ; Bind helper：返回闭包，避免 AHK v2 SetTimer 直接传参的兼容问题
+    return (*) => ScreenshotEditor_ResyncHubPreviewAfterOcrTick(text)
+}
+
+ScreenshotEditor_ResyncHubPreviewAfterOcrTick(text) {
+    static attempt := 0
+    global g_SelSense_MenuReady, g_SelSense_PendingText
+    t := Trim(String(text), " `t`r`n")
+    if (t = "")
+        return
+    attempt += 1
+    ; 最多约 3 秒：15 * 200ms
+    if (attempt > 15) {
+        attempt := 0
+        return
+    }
+    try g_SelSense_PendingText := t
+    try {
+        if (IsSet(g_SelSense_MenuReady) && g_SelSense_MenuReady && FuncExists("SelectionSense_PushMenuText")) {
+            SelectionSense_PushMenuText(t)
+            attempt := 0
+            return
+        }
+    } catch {
+    }
+    SetTimer(ScreenshotEditor_ResyncHubPreviewAfterOcrBind(t), -200)
 }
 
 ScreenshotEditorPushOCRToHubCapsuleTick(*) {
-    global ScreenshotOCRHubPendingText, ScreenshotOCRHubPushAttempts, ScreenshotOCRHubPushInFlight
-    global g_SelSense_PendingText, g_SelSense_MenuReady, g_SelSense_MenuShowingHub, g_SelSense_MenuWV2, g_SelSense_MenuVisible
-    t := Trim(String(ScreenshotOCRHubPendingText), " `t`r`n")
-    if (t = "") {
-        ScreenshotOCRHubPushInFlight := false
-        return
-    }
-    ScreenshotOCRHubPushAttempts += 1
-
-    ; 最多持续约 10 秒（40 * 250ms），覆盖 HubCapsule 冷启动和 WebView2 延迟
-    if (ScreenshotOCRHubPushAttempts > 40) {
-        ScreenshotOCRHubPushInFlight := false
-        try A_Clipboard := t
-        TrayTip("草稿本", "HubCapsule 仍未就绪，OCR 文本已复制到剪贴板", "Iconi 1")
-        return
-    }
-
-    opened := false
-    visible := false
-    ready := false
-    try {
-        ; 1) 先保证 HubCapsule 宿主被拉起，并把 pending 文本写入共享状态
-        g_SelSense_PendingText := t
-        opened := ScreenshotEditorEnsureHubCapsuleOpen(t)
-        try visible := !!g_SelSense_MenuVisible
-        catch {
-            visible := false
-        }
-
-        ; 2) 仅当 HubCapsule 页面 ready 后，明确写入「预览区」
-        if (IsSet(g_SelSense_MenuWV2) && g_SelSense_MenuWV2) {
-            ; 先发一轮，哪怕未 ready 也先入队
-            WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "selection_menu_init", "text", t))
-            WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "preview_update", "text", t))
-            WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_preview_selection", "text", t))
-            ; 再补发一次，避免初始化动画期被覆盖
-            SetTimer(() => WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "preview_update", "text", t)), -120)
-            SetTimer(() => WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "selection_menu_init", "text", t)), -220)
-            SetTimer(() => WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_preview_selection", "text", t)), -320)
-        }
-
-        if (IsSet(g_SelSense_MenuWV2) && g_SelSense_MenuWV2
-            && IsSet(g_SelSense_MenuShowingHub) && g_SelSense_MenuShowingHub
-            && IsSet(g_SelSense_MenuVisible) && g_SelSense_MenuVisible) {
-            ready := true
-        }
-    } catch as _e {
-    }
-
-    if (ready) {
-        ScreenshotOCRHubPushInFlight := false
-        TrayTip("草稿本", "OCR 文本已写入 HubCapsule 预览区域", "Iconi 1")
-        return
-    }
-
-    if (ScreenshotOCRHubPushAttempts = 6 || ScreenshotOCRHubPushAttempts = 12 || ScreenshotOCRHubPushAttempts = 24) {
-        if (!visible) {
-            if (opened)
-                TrayTip("草稿本", "正在启动 HubCapsule…", "Iconi 1")
-            else
-                TrayTip("草稿本", "未检测到 HubCapsule 打开入口，继续重试…", "Iconi 1")
-        }
-    }
-
-    ; 未就绪则继续轮询，直到 HubCapsule ready 后再写入
-    SetTimer(ScreenshotEditorPushOCRToHubCapsuleTick, -250)
+    ; 兼容旧版本：该函数已废弃（截图工具栏 OCR->HubCapsule 改为复用 SelectionSense_OpenHubCapsuleFromToolbar）
+    return
 }
 
 ScreenshotEditorEnsureHubCapsuleOpen(pendingText := "") {
+    global g_SelSense_MenuActivateOnShow, g_SelSense_MenuGui, g_SelSense_MenuVisible, g_SelSense_MenuShowingHub
     opened := false
     t := Trim(String(pendingText), " `t`r`n")
     try {
@@ -38613,21 +38619,25 @@ ScreenshotEditorEnsureHubCapsuleOpen(pendingText := "") {
     } catch {
     }
 
+    ; 截图 OCR 入口的期望是：一定要“打开并激活 HubCapsule”
+    ; 优先走 SelectionSenseCore 的标准入口（它会 Navigate HubCapsule.html 并处理激活/焦点）
     if (!opened) {
-        ; 复用“悬浮工具栏 NewPrompt 按钮”的同源打开路径
         try {
-            if FuncExists("FloatingToolbarExecuteButtonAction") {
-                FloatingToolbarExecuteButtonAction("NewPrompt", 0)
+            g_SelSense_MenuActivateOnShow := true
+            if FuncExists("SelectionSense_OpenHubCapsuleFromToolbar") {
+                SelectionSense_OpenHubCapsuleFromToolbar(false, t)
                 opened := true
             }
         } catch {
         }
     }
 
+    ; 兜底：复用“悬浮工具栏 NewPrompt 按钮”的同源打开路径
     if (!opened) {
         try {
-            if FuncExists("SelectionSense_OpenHubCapsuleFromToolbar") {
-                SelectionSense_OpenHubCapsuleFromToolbar(false, t)
+            g_SelSense_MenuActivateOnShow := true
+            if FuncExists("FloatingToolbarExecuteButtonAction") {
+                FloatingToolbarExecuteButtonAction("NewPrompt", 0)
                 opened := true
             }
         } catch {
@@ -38645,8 +38655,19 @@ ScreenshotEditorEnsureHubCapsuleOpen(pendingText := "") {
     }
 
     try {
+        ; 强制本次展示抢焦点：截图工具栏入口需要“激活草稿本弹窗”
+        g_SelSense_MenuActivateOnShow := true
         if FuncExists("SelectionSense_ShowMenuNearCursor")
             SelectionSense_ShowMenuNearCursor()
+    } catch {
+    }
+
+    ; 若宿主已存在且可见但未在前台，再兜底激活一次（WebView2 内焦点有时会被其他窗口抢走）
+    try {
+        if (IsSet(g_SelSense_MenuGui) && g_SelSense_MenuGui && IsSet(g_SelSense_MenuVisible) && g_SelSense_MenuVisible
+            && IsSet(g_SelSense_MenuShowingHub) && g_SelSense_MenuShowingHub) {
+            WinActivate("ahk_id " . g_SelSense_MenuGui.Hwnd)
+        }
     } catch {
     }
     return opened
