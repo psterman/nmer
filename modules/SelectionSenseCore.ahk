@@ -300,16 +300,12 @@ SelectionSense_HubDict_ListSources() {
                 name := (row.Length >= 2) ? String(row[2]) : sid
                 dbPath := (row.Length >= 3) ? String(row[3]) : ""
                 kind := (row.Length >= 4) ? String(row[4]) : ""
-                cnt := 0
-                cntSql := "SELECT COUNT(*) FROM HubLocalDict WHERE SourceId='" . SelectionSense_HubDict_EscapeSql(sid) . "'"
-                if (ClipboardDB.GetTable(cntSql, &c) && c && c.HasProp("Rows") && c.Rows.Length > 0 && c.Rows[1].Length > 0)
-                    cnt := Integer(c.Rows[1][1])
                 out.Push(Map(
                     "sourceId", sid,
                     "name", name,
                     "dbPath", dbPath,
                     "kind", kind,
-                    "entryCount", cnt,
+                    "entryCount", 0,
                     "isBuiltin", (sid = "builtin_default")
                 ))
             }
@@ -598,23 +594,25 @@ SelectionSense_HubDictInstall_FindDb(rootDir) {
     root := Trim(String(rootDir))
     if (root = "")
         return ""
-    direct := root "\ecdict.db"
+    direct := root "\ultimate.db"
     if FileExist(direct)
         return direct
-    direct2 := root "\stardict.db"
+    direct2 := root "\ecdict.db"
     if FileExist(direct2)
         return direct2
-    direct3 := root "\ecdict.sqlite"
+    direct3 := root "\stardict.db"
     if FileExist(direct3)
         return direct3
-    direct4 := root "\ecdict.sqlite3"
+    direct4 := root "\ecdict.sqlite"
     if FileExist(direct4)
         return direct4
-    direct5 := root "\ultimate.db"
+    direct5 := root "\ecdict.sqlite3"
     if FileExist(direct5)
         return direct5
     loop files root "\*.db", "R" {
         nm := StrLower(A_LoopFileName)
+        if (nm = "ultimate.db")
+            return A_LoopFileFullPath
         if (nm = "ecdict.db")
             return A_LoopFileFullPath
     }
@@ -645,16 +643,23 @@ SelectionSense_HubDictInstall_FindDb(rootDir) {
     return ""
 }
 
-SelectionSense_HubDictInstall_CallSQ3Open() {
+SelectionSense_HubDictInstall_CallSQ3Open(dbPath := "") {
     try {
         fn := Func("SQ3_Open")
     } catch {
         return false
     }
+    dbName := "ultimate.db"
+    p0 := Trim(String(dbPath))
+    if (p0 != "") {
+        SplitPath(p0, &name0)
+        if (name0 != "")
+            dbName := name0
+    }
     oldWd := A_WorkingDir
     try {
         SetWorkingDir(A_ScriptDir)
-        fn.Call("ecdict.db")
+        fn.Call(dbName)
         return true
     } catch {
         return false
@@ -781,7 +786,7 @@ SelectionSense_HubDictInstall_DownloadByBuiltin(url, savePath, statusCb := 0) {
         if FileExist(outPath)
             FileDelete(outPath)
         if IsObject(statusCb)
-            statusCb.Call("WinHTTP 通道失败，切换内置下载通道...")
+            statusCb.Call("正在下载词典包（内置通道）...")
         Download(u, outPath)
         sz := 0
         try sz := FileGetSize(outPath)
@@ -908,8 +913,8 @@ SelectionSense_HubDict_InstallEcdictOneClick() {
         ]
         workDir := A_ScriptDir "\cache\dict_install"
         zipPath := workDir "\ecdict-package.zip"
-        extractDir := workDir "\ecdict-stardict-28"
-        finalDb := A_ScriptDir "\ecdict.db"
+        extractDir := workDir "\dict-package"
+        finalDb := A_ScriptDir "\ultimate.db"
         reportPath := workDir "\install_report.txt"
 
         if !DirExist(workDir)
@@ -925,34 +930,24 @@ SelectionSense_HubDict_InstallEcdictOneClick() {
         if !DirExist(extractDir)
             DirCreate(extractDir)
 
-        SelectionSense_HubDictInstall_RunJs(1, "正在建立连接")
-        cb := (pct, doneBytes, totalBytes) => (
-            SelectionSense_HubDictInstall_RunJs(
-                pct,
-                (totalBytes > 0)
-                    ? ("正在下载词库..." . pct . "%")
-                    : ("正在下载词库...已接收 " . Round(doneBytes / 1024 / 1024, 2) . " MB")
-            )
-        )
-        statusCb := (msg) => SelectionSense_HubDictInstall_RunJs(2, msg)
+        SelectionSense_HubDictInstall_RunJs(5, "准备下载词典...")
+        statusCb := (msg) => SelectionSense_HubDictInstall_RunJs(15, msg)
         dl := 0
         downloadErrors := []
         packageReady := false
         selectedUrl := ""
         for idx, url in urls {
-            SelectionSense_HubDictInstall_RunJs(1, "正在建立连接（源" . idx . "/" . urls.Length . "）")
+            SelectionSense_HubDictInstall_RunJs(15, "正在下载词典包...")
             SelectionSense_HubDictInstall_ReportLine(reportPath, "尝试源" . idx . ": " . url)
-            dl := SelectionSense_HubDictInstall_DownloadByWinHttp(url, zipPath, cb, statusCb)
-            if !(dl.Has("ok") && dl["ok"])
-                dl := SelectionSense_HubDictInstall_DownloadByBuiltin(url, zipPath, statusCb)
+            dl := SelectionSense_HubDictInstall_DownloadByBuiltin(url, zipPath, statusCb)
             if (dl.Has("ok") && dl["ok"]) {
+                SelectionSense_HubDictInstall_RunJs(55, "下载完成，正在校验文件...")
                 SelectionSense_HubDictInstall_ReportLine(reportPath, "源" . idx . "下载成功，大小: " . (dl.Has("bytes") ? String(dl["bytes"]) : "?") . " bytes")
                 info := SelectionSense_HubDictInstall_InspectArchive(zipPath)
                 if !(info.Has("ok") && info["ok"]) {
                     errMsg := info.Has("message") ? String(info["message"]) : "压缩包检测失败"
                     downloadErrors.Push("源" . idx . ": " . errMsg)
                     SelectionSense_HubDictInstall_ReportLine(reportPath, "源" . idx . "包体检测失败: " . errMsg)
-                    SelectionSense_HubDictInstall_RunJs(2, "源" . idx . "包体检测异常，继续尝试解压...")
                 } else {
                     SelectionSense_HubDictInstall_ReportLine(reportPath, "源" . idx . "包体检测: hasDb=" . (info["hasDb"] ? "true" : "false") . ", isStardictRaw=" . (info["isStardictRaw"] ? "true" : "false"))
                 }
@@ -964,29 +959,20 @@ SelectionSense_HubDict_InstallEcdictOneClick() {
             errMsg := dl.Has("message") ? String(dl["message"]) : "下载失败"
             downloadErrors.Push("源" . idx . ": " . errMsg)
             SelectionSense_HubDictInstall_ReportLine(reportPath, "源" . idx . "下载失败: " . errMsg)
-            SelectionSense_HubDictInstall_RunJs(2, "下载源" . idx . "失败，自动切换...")
             Sleep(120)
         }
         if !packageReady {
-            mergedErr := "下载失败"
-            if (downloadErrors.Length > 0) {
-                mergedErr := ""
-                for i, oneErr in downloadErrors {
-                    if (i > 1)
-                        mergedErr .= " | "
-                    mergedErr .= oneErr
-                }
-            }
+            mergedErr := "下载词典失败，请稍后重试"
             SelectionSense_HubDictInstall_ReportLine(reportPath, "终止: 没有任何下载源提供可用 sqlite 包")
             return Map("ok", false, "message", mergedErr)
         }
 
-        SelectionSense_HubDictInstall_RunJs(100, "系统正在解构词库...")
+        SelectionSense_HubDictInstall_RunJs(72, "正在解压词典...")
         sevenZip := A_ScriptDir "\lib\7z.exe"
         if !FileExist(sevenZip)
-            return Map("ok", false, "message", "未找到 7z.exe（路径: lib\\7z.exe）")
+            return Map("ok", false, "message", "缺少解压组件，无法安装词典")
         if !FileExist(zipPath)
-            return Map("ok", false, "message", "下载包不存在，无法解压")
+            return Map("ok", false, "message", "下载包不存在，安装失败")
         ; 先清理旧解压目录，避免因覆盖/同名导致 7z 返回 warning(1)。
         try DirDelete(extractDir, 1)
         catch {
@@ -995,29 +981,20 @@ SelectionSense_HubDict_InstallEcdictOneClick() {
             DirCreate(extractDir)
 
         ; 定向提取数据库文件，避免目录结构/警告导致“已解压但未命中”。
-        cmdDb := '"' . sevenZip . '" e -y -aoa -o"' . extractDir . '" -- "' . zipPath . '" "*.db" "*.sqlite" "*.sqlite3" "*.db3"'
-        rc := RunWait(A_ComSpec . " /c " . cmdDb, , "Hide")
+        cmdDb := '"' . sevenZip . '" e -y -aoa -o"' . extractDir . '" -- "' . zipPath . '" "ultimate.db" "*.sqlite" "*.sqlite3" "*.db3" "*.db"'
+        rc := RunWait(cmdDb, , "Hide")
         SelectionSense_HubDictInstall_ReportLine(reportPath, "7z 定向提取(db)退出码: " . rc)
 
         foundDb := SelectionSense_HubDictInstall_FindDb(extractDir)
         if (foundDb = "") {
             ; 回退到完整解压，再次探测。
             cmdAll := '"' . sevenZip . '" x -y -aoa -o"' . extractDir . '" -- "' . zipPath . '"'
-            rcAll := RunWait(A_ComSpec . " /c " . cmdAll, , "Hide")
+            rcAll := RunWait(cmdAll, , "Hide")
             SelectionSense_HubDictInstall_ReportLine(reportPath, "7z 全量解压退出码: " . rcAll)
             foundDb := SelectionSense_HubDictInstall_FindDb(extractDir)
             rc := rcAll
         }
         SelectionSense_HubDictInstall_ReportLine(reportPath, "数据库探测结果: " . (foundDb != "" ? foundDb : "[未命中]"))
-        ; 7z 退出码 1 = Warning。只要数据库产物存在，就继续导入。
-        if (foundDb = "") {
-            fallbackDb := SelectionSense_HubDictInstall_FindFallbackExistingDb()
-            if (fallbackDb != "") {
-                foundDb := fallbackDb
-                SelectionSense_HubDictInstall_ReportLine(reportPath, "解压目录未命中，回退命中本地已有数据库: " . foundDb)
-                SelectionSense_HubDictInstall_RunJs(96, "已回退使用本地数据库：" . SubStr(foundDb, Max(1, StrLen(foundDb)-40)))
-            }
-        }
         if (foundDb = "") {
             try {
                 listing := ""
@@ -1030,23 +1007,26 @@ SelectionSense_HubDict_InstallEcdictOneClick() {
                     SelectionSense_HubDictInstall_ReportLine(reportPath, "解压目录文件样本:`r`n" . listing)
             } catch {
             }
-            return Map("ok", false, "message", "解压完成，未在解压目录命中数据库；也未在本地回退目录命中 ultimate/ecdict/stardict 数据库（7z退出码: " . rc . "）`n报告: " . reportPath)
+            return Map("ok", false, "message", "词典包解压失败，请稍后重试")
         }
+        SelectionSense_HubDictInstall_RunJs(84, "正在写入词典...")
         try FileCopy(foundDb, finalDb, 1)
         catch as e {
-            SelectionSense_HubDictInstall_ReportLine(reportPath, "写入 ecdict.db 失败: " . e.Message)
-            return Map("ok", false, "message", "写入 ecdict.db 失败: " . e.Message)
+            SelectionSense_HubDictInstall_ReportLine(reportPath, "写入 ultimate.db 失败: " . e.Message)
+            return Map("ok", false, "message", "写入词典失败")
         }
         SelectionSense_HubDictInstall_ReportLine(reportPath, "数据库复制成功: " . finalDb)
 
+        SelectionSense_HubDictInstall_RunJs(90, "正在导入词典...")
         importRet := SelectionSense_HubDict_ImportSqlite(finalDb)
         if !(importRet.Has("ok") && importRet["ok"]) {
             SelectionSense_HubDictInstall_ReportLine(reportPath, "导入失败: " . (importRet.Has("message") ? String(importRet["message"]) : "导入失败"))
-            return Map("ok", false, "message", importRet.Has("message") ? String(importRet["message"]) : "导入失败")
+            return Map("ok", false, "message", "词典导入失败")
         }
         SelectionSense_HubDictInstall_ReportLine(reportPath, "导入成功")
 
-        SelectionSense_HubDictInstall_CallSQ3Open()
+        SelectionSense_HubDictInstall_RunJs(96, "正在激活词典...")
+        SelectionSense_HubDictInstall_CallSQ3Open(finalDb)
         SelectionSense_HubDictInstall_ReportLine(reportPath, "调用 SQ3_Open 完成")
         return Map("ok", true, "message", "本地词库已激活")
     } finally {

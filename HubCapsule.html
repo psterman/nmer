@@ -760,18 +760,16 @@ body.native-titlebar #header { display: none; }
   height: 22px;
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid rgba(67, 248, 255, 0.45);
-  background:
-    linear-gradient(90deg, rgba(6, 24, 36, 0.9), rgba(16, 8, 36, 0.92)),
-    repeating-linear-gradient(90deg, rgba(95, 255, 244, 0.08) 0 8px, rgba(255, 60, 196, 0.06) 8px 16px);
-  box-shadow: inset 0 0 16px rgba(50, 220, 255, 0.15), 0 0 10px rgba(255, 50, 180, 0.22);
+  border: 1px solid rgba(180, 180, 180, 0.35);
+  background: rgba(22, 22, 22, 0.92);
+  box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.06);
 }
 
 #dict-progress {
   width: 0%;
   height: 100%;
-  background: linear-gradient(90deg, #00f0ff 0%, #00ffc8 45%, #ff4dc4 100%);
-  box-shadow: 0 0 18px rgba(0, 255, 240, 0.5), 0 0 24px rgba(255, 77, 196, 0.45);
+  background: #b9b9b9;
+  box-shadow: none;
   transition: width 180ms linear;
 }
 
@@ -782,8 +780,8 @@ body.native-titlebar #header { display: none; }
   align-items: center;
   justify-content: center;
   font-size: 11px;
-  color: #dfffff;
-  text-shadow: 0 0 8px rgba(0, 255, 255, 0.5), 0 0 10px rgba(255, 77, 196, 0.4);
+  color: #e8e8e8;
+  text-shadow: none;
   pointer-events: none;
 }
 .tx-btn {
@@ -2543,8 +2541,6 @@ button.ctx-sub-item:disabled {
   const TX_SQLITE_BUILTIN_ID = 'builtin_default';
   let txSqliteSources = [];
   let txSqliteLastActiveId = TX_SQLITE_BUILTIN_ID;
-  let dictInstallUiTimer = 0;
-  let dictInstallUiTick = 0;
 
   function normalizeSqliteSourceId(sourceId) {
     const sid = String(sourceId || '').trim();
@@ -2561,7 +2557,7 @@ button.ctx-sub-item:disabled {
       const sid = String((it && it.sourceId) || '').trim() || TX_SQLITE_BUILTIN_ID;
       const name = String((it && it.name) || sid || '未命名词典');
       const count = Number((it && it.entryCount) || 0);
-      const label = `${name} (${count})`;
+      const label = count > 0 ? `${name} (${count})` : name;
       return `<option value="${sid}">${label}</option>`;
     }).join('');
     const hit = list.some((it) => String((it && it.sourceId) || '') === pref);
@@ -2581,10 +2577,16 @@ button.ctx-sub-item:disabled {
     txSqliteSources = Array.isArray(src.sources) ? src.sources : [];
     txSqliteLastActiveId = normalizeSqliteSourceId(src.activeSourceId || txSqliteLastActiveId);
     const cfg = getTranslateCfg();
-    const pref = normalizeSqliteSourceId(cfg.sqliteSourceId || txSqliteLastActiveId);
+    const activeFromAhk = normalizeSqliteSourceId(src.activeSourceId || txSqliteLastActiveId);
+    const hasActiveFromAhk = txSqliteSources.some((it) => normalizeSqliteSourceId(it && it.sourceId) === activeFromAhk);
+    const pref = hasActiveFromAhk
+      ? activeFromAhk
+      : normalizeSqliteSourceId(cfg.sqliteSourceId || txSqliteLastActiveId);
     renderSqliteDictOptions(pref);
     if (txSqliteDict) {
       cfg.sqliteSourceId = normalizeSqliteSourceId(txSqliteDict.value || txSqliteLastActiveId);
+      if (cfg.sqliteSourceId !== TX_SQLITE_BUILTIN_ID && src.ok !== false)
+        cfg.localEngine = 'sqlite_bridge';
       setTranslateCfg(cfg);
     }
     if (src.message) setTxTestResult(String(src.message), src.ok !== false);
@@ -3892,28 +3894,11 @@ button.ctx-sub-item:disabled {
     if (/本地词库已激活/.test(text)) {
       setTxTestResult(text, true);
       requestSqliteDictState();
-      if (dictInstallUiTimer) { clearInterval(dictInstallUiTimer); dictInstallUiTimer = 0; }
     } else if (/失败|错误/.test(text)) {
       setTxTestResult(text, false);
-      if (dictInstallUiTimer) { clearInterval(dictInstallUiTimer); dictInstallUiTimer = 0; }
     }
   }
   window.hubDictInstallUpdate = hubDictInstallUpdate;
-
-  function startDictInstallUiWatchdog() {
-    if (dictInstallUiTimer) clearInterval(dictInstallUiTimer);
-    dictInstallUiTick = 0;
-    dictInstallUiTimer = setInterval(() => {
-      dictInstallUiTick += 1;
-      if (dictInstallUiTick <= 8) {
-        hubDictInstallUpdate(2, `正在建立连接（源1/2）${'.'.repeat(dictInstallUiTick % 4)}`);
-      } else if (dictInstallUiTick <= 18) {
-        hubDictInstallUpdate(3, `主源较慢，准备切换镜像源（源2/2）${'.'.repeat(dictInstallUiTick % 4)}`);
-      } else {
-        hubDictInstallUpdate(4, '网络较慢，请稍候；系统仍在尝试连接可用下载源...');
-      }
-    }, 1000);
-  }
 
   function setTxTestResult(msg, ok) {
     if (!txTestResult) return;
@@ -5090,8 +5075,7 @@ button.ctx-sub-item:disabled {
     postToAhk({ type: 'hub_translate_sqlite_dict_import_pick' });
   });
   if (btnTxInstallLocalDict) btnTxInstallLocalDict.addEventListener('click', () => {
-    hubDictInstallUpdate(1, '正在建立连接（源1/2）');
-    startDictInstallUiWatchdog();
+    hubDictInstallUpdate(2, '准备下载词典...');
     postToAhk({ type: 'hub_translate_ecdict_install' });
   });
   if (btnTxSqliteDelete) btnTxSqliteDelete.addEventListener('click', () => {
