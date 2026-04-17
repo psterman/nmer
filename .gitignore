@@ -22,3 +22,5 @@ PromptTemplates.ini
 
 # 调试日志（根目录）
 clipboard_debug.log
+
+cache/dict_install/
