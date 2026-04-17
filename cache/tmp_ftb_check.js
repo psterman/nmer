@@ -1,289 +1,24 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Floating Toolbar</title>
-<!-- 不使用外链图标字体：WebView2 常拦截 CDN，会导致工具栏只显示圆点/方块 -->
-<style>
-:root{--bg:#0a0a0a;--panel:rgba(18,18,18,.92);--panel2:rgba(22,22,22,.96);--orange:#ff6600;--text:#e8e8e8;--muted:#9b9b9b;--ui:1;--ease:.2s cubic-bezier(.22,1,.36,1);--de:.32s ease-in-out;--toolbar-bg:#0a0a0a}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{width:100%;height:100%;overflow:hidden;background:var(--toolbar-bg);font:14px "Segoe UI","Microsoft YaHei UI",sans-serif;color:var(--text);user-select:none;-webkit-user-select:none}
-button,input,textarea,select{font:inherit}
-#app{position:relative;width:100%;height:100%;background:var(--toolbar-bg)}
-body.drawer-open{background:var(--toolbar-bg)}
-/* 标准圆角矩形：CSS border-radius 各向一致，避免 SVG 非等比拉伸成“药丸/鼓边” */
-#collapsedRoot{position:relative;display:flex;flex-direction:row;align-items:center;height:100%;width:100%;gap:calc(8px * var(--ui));padding:calc(6px * var(--ui)) calc(8px * var(--ui));background:var(--toolbar-bg);background-clip:padding-box;border-radius:calc(10px * var(--ui));border:none;box-shadow:none;opacity:0;visibility:hidden;transition:opacity .12s ease,visibility .12s ease,border-radius .24s cubic-bezier(.22,1,.36,1),padding .24s cubic-bezier(.22,1,.36,1),gap .24s cubic-bezier(.22,1,.36,1);isolation:isolate;transform:translateZ(0)}
-/* 仅用户悬停/按下/内部聚焦时：轻盈内发光（平时关闭，避免误以为是黑边） */
-#collapsedRoot::after{content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .22s ease;box-shadow:none}
-#collapsedRoot:hover::after,#collapsedRoot:active::after,#collapsedRoot:focus-within::after{opacity:1;animation:ftbInnerBreath 2.6s ease-in-out infinite}
-#collapsedRoot > *{position:relative;z-index:1}
-body.ftb-ready #collapsedRoot{opacity:1;visibility:visible}
-body.drawer-open #collapsedRoot{display:none!important}
-#drawerRoot{display:none;position:absolute;inset:0;flex-direction:column;min-height:0}
-body.drawer-open #drawerRoot{display:flex!important}
-#stage{flex:1;display:flex;flex-direction:row;min-height:0;position:relative}
-#backdrop{position:absolute;inset:0;z-index:1;background:transparent}
-#panel{position:relative;z-index:2;flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--panel);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-left:1px solid rgba(255,102,0,.35);box-shadow:-12px 0 40px rgba(0,0,0,.35)}
-#resizeGrip{position:absolute;left:0;top:0;bottom:0;width:10px;z-index:30;cursor:ew-resize;background:linear-gradient(90deg,rgba(255,102,0,.28),transparent);opacity:.6}
-#resizeGrip:hover{opacity:1}
-.hdr{flex-shrink:0;display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid rgba(255,102,0,.15);background:linear-gradient(180deg,rgba(255,102,0,.06),transparent);cursor:grab}
-.hdr:active{cursor:grabbing}
-.t1{font-size:15px;font-weight:700}
-.t2{margin-top:3px;font-size:11px;color:var(--muted)}
-.icons{display:flex;gap:8px}
-.ib{width:34px;height:34px;border:1px solid rgba(255,102,0,.28);border-radius:10px;background:rgba(255,255,255,.04);color:var(--orange);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all var(--ease)}
-.ib:hover{background:rgba(255,102,0,.12);border-color:rgba(255,102,0,.6)}
-.ib svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-#main{flex:1;min-height:0;display:flex;flex-direction:column;min-width:0}
-#msgs{flex:1;min-height:0;min-width:0;overflow:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px;align-items:stretch}
-#msgs > #empty{flex-shrink:0}
-#msgs::-webkit-scrollbar,.sbody::-webkit-scrollbar{width:8px}
-#msgs::-webkit-scrollbar-thumb,.sbody::-webkit-scrollbar-thumb{background:rgba(255,102,0,.28);border-radius:99px}
-#cliPane{display:none;flex:1;min-height:0;min-width:0;overflow:hidden;padding:12px 14px 14px}
-.cli-shell{height:100%;min-height:0;display:flex;flex-direction:column;border:1px solid rgba(255,102,0,.18);border-radius:14px;background:rgba(255,255,255,.03);overflow:hidden}
-.cli-bar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.12)}
-.cli-title{font-size:12px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cli-btns{display:flex;gap:8px;flex-shrink:0}
-.cli-btn{height:30px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,179,71,.22);background:rgba(255,255,255,.04);color:#f7f7f7;font-size:11px;cursor:pointer}
-.cli-btn:hover{background:rgba(255,255,255,.09)}
-.cli-frame{flex:1;min-height:0;border:none;width:100%;background:#0b0b0b}
-body.cli-mode #msgs,body.cli-mode #cmp{display:none!important}
-body.cli-mode #cliPane{display:flex!important}
-#empty{padding:14px;border:1px dashed rgba(255,102,0,.25);border-radius:14px;color:var(--muted);background:rgba(255,255,255,.03);line-height:1.6;font-size:13px}
-.m{width:fit-content;max-width:min(92%,100%);border-radius:14px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.04);overflow:hidden;align-self:flex-start;flex-shrink:0;min-height:min-content}
-.m.user{align-self:flex-end;background:rgba(255,102,0,.12);border-color:rgba(255,102,0,.22)}
-.mh{display:flex;justify-content:space-between;gap:12px;padding:8px 12px 6px;font-size:11px;color:var(--muted);border-bottom:1px solid rgba(255,255,255,.05);flex-shrink:0}
-.mb{padding:10px 12px 12px;line-height:1.7;font-size:13px;color:var(--text);user-select:text;-webkit-user-select:text;overflow-wrap:anywhere;word-break:break-word;min-width:0;min-height:min-content}
-.m .mb a{color:#ffb380}
-.m.search-hit{box-shadow:0 0 0 1px rgba(255,132,64,.75),0 0 0 3px rgba(255,102,0,.16)}
-.mb pre{margin-top:10px;border:1px solid rgba(255,102,0,.14);border-radius:12px;background:rgba(8,8,8,.95);overflow:auto}
-.mb pre code{display:block;padding:12px;font:12px/1.65 Consolas,"JetBrains Mono",monospace}
-.hl-comment{color:#6a9955}.hl-string{color:#ce9178}.hl-number{color:#b5cea8}.hl-keyword{color:#ff9b52}.hl-builtins{color:#4fc1ff}.hl-var{color:#dcdcaa}
-#cmp{flex-shrink:0;padding:12px 16px 14px;border-top:1px solid rgba(255,102,0,.15);background:linear-gradient(180deg,rgba(255,255,255,.02),transparent)}
-#input{width:100%;min-height:96px;resize:vertical;border:1px solid rgba(255,102,0,.2);border-radius:14px;background:rgba(8,8,8,.72);color:var(--text);padding:10px 12px;outline:none;user-select:text;-webkit-user-select:text}
-#composerFooter{display:flex;flex-direction:row;align-items:flex-end;gap:12px;margin-top:10px}
-.drawer-toolbar{flex:1;display:flex;flex-direction:row;align-items:center;gap:calc(6px * var(--ui));min-width:0;background:transparent;padding:0}
-#sendWrap{flex-shrink:0;display:flex;align-items:flex-end}
-.st{font-size:12px;color:var(--muted)}.st.error{color:#ff7a59}.st.success{color:#4ed08b}
-.btn1{min-height:42px;padding:0 18px;border-radius:12px;border:1px solid rgba(255,102,0,.3);cursor:pointer;font-weight:700;background:linear-gradient(180deg,#ff7d26,#ff6600);color:#111;transition:all var(--ease)}
-.btn1:disabled{opacity:.45;cursor:not-allowed}
-.btn2,.btn3{height:38px;padding:0 14px;border-radius:10px;border:1px solid rgba(255,102,0,.22);cursor:pointer;background:rgba(255,255,255,.04);color:var(--text)}
-#chatStatusRow{margin-top:8px}
-.logo-btn{flex-shrink:0;width:max(calc(42px * var(--ui)),34px);height:max(calc(42px * var(--ui)),34px);border:1px solid transparent;border-radius:calc(8px * var(--ui));background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:4px;transition:background-color var(--ease),border-color var(--ease),transform var(--ease),color var(--ease);color:#ff6600;outline:none;position:relative}
-.logo-btn:hover{background:rgba(255,102,0,.1);border-color:rgba(255,102,0,.32)}
-.logo-btn:focus-visible{background:rgba(255,102,0,.12);border-color:rgba(255,102,0,.5);box-shadow:none}
-.logo-img{width:max(calc(30px * var(--ui)),28px);height:max(calc(30px * var(--ui)),28px);min-width:28px;min-height:28px;object-fit:contain;pointer-events:none;transform-origin:center;transition:transform .24s cubic-bezier(.22,1,.36,1),width .24s cubic-bezier(.22,1,.36,1),height .24s cubic-bezier(.22,1,.36,1)}
-.icon-btns{display:flex;flex-direction:row;align-items:center;gap:calc(5px * var(--ui));flex:1;min-width:0;flex-wrap:nowrap;overflow-x:auto;transition:max-width .24s cubic-bezier(.22,1,.36,1),opacity .2s ease,transform .24s cubic-bezier(.22,1,.36,1)}
-.icon-btns::-webkit-scrollbar{height:4px}
-body.ftb-compact #collapsedRoot{justify-content:center;padding:0;gap:0;border-radius:999px}
-body.ftb-compact #collapsedBtns{max-width:0;opacity:0;overflow:hidden;pointer-events:none;transform:translateX(-10px) scale(.94)}
-body.ftb-compact #collapsedRoot::after{opacity:0!important;animation:none!important}
-body.ftb-compact #collapsedRoot .logo-btn{width:100%;height:100%;padding:0;border-radius:999px;background:transparent;box-shadow:none;filter:none}
-body.ftb-compact #collapsedRoot .logo-btn:hover{filter:none;background:transparent}
-body.ftb-compact #collapsedRoot .logo-btn .logo-img{transform:scale(1.02)}
-.tb{width:calc(40px * var(--ui));height:calc(40px * var(--ui));display:flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:calc(8px * var(--ui));cursor:pointer;position:relative;transition:background-color var(--ease),border-color var(--ease),transform var(--ease),color var(--ease);color:#ff6600;background:transparent;flex-shrink:0}
-.tb svg{width:calc(24px * var(--ui));height:calc(24px * var(--ui));pointer-events:none}
-.tb .tb-ico{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--orange)}
-.tb .tb-ico svg{stroke:currentColor}
-.tb .tb-ico-img{width:calc(22px * var(--ui));height:calc(22px * var(--ui));object-fit:contain;pointer-events:none}
-button.tb{font:inherit;font-family:inherit}
-.tb:hover{background:rgba(255,102,0,.1);border-color:rgba(255,102,0,.28)}
-.tb .dot{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--orange);opacity:0}
-.tb.selected .dot{opacity:1}
-.tb[data-action=Search].pulse{animation:breathe 1.6s ease-in-out infinite}
-.tb[data-action=Search].drag-over{transform:scale(.9)}
-.tb.drag-over{transform:scale(.92);background:rgba(255,102,0,.14);border-color:rgba(255,102,0,.42)}
-.tb[data-action=Search].loading svg{animation:spin .7s linear infinite}
-.bubble{position:absolute;left:50%;bottom:calc(100% + 5px);transform:translateX(-50%);padding:2px 7px;font-size:10px;font-weight:600;color:#00ff41;background:rgba(10,10,10,.92);border:1px solid rgba(0,255,65,.4);border-radius:5px;white-space:nowrap;opacity:0;pointer-events:none}
-.tb[data-action=Search].pulse .bubble{opacity:1}
-@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
-@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
-@keyframes ftbChromePulse{
-0%,100%{border-color:rgba(255,102,0,.42);box-shadow:0 0 0 1px rgba(255,102,0,.1),0 0 10px rgba(255,102,0,.16),0 0 22px rgba(255,102,0,.08)}
-50%{border-color:rgba(255,102,0,.58);box-shadow:0 0 0 1px rgba(255,102,0,.16),0 0 16px rgba(255,102,0,.26),0 0 32px rgba(255,102,0,.14)}
-}
-@keyframes ftbInnerBreath{
-0%,100%{box-shadow:inset 0 0 14px rgba(255,102,0,.04),inset 0 0 6px rgba(255,140,60,.03)}
-50%{box-shadow:inset 0 0 18px rgba(255,102,0,.08),inset 0 0 10px rgba(255,140,60,.05)}
-}
-#settings{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity var(--de);z-index:40}
-body.settings-open #settings{opacity:1;pointer-events:auto}
-.sbg{position:absolute;inset:0;background:rgba(0,0,0,.45)}
-.sd{position:absolute;top:14px;right:14px;bottom:14px;left:14px;max-width:560px;margin-left:auto;background:var(--panel2);border:1px solid rgba(255,102,0,.28);border-radius:18px;display:flex;flex-direction:column}
-.sh{padding:14px 16px 12px;border-bottom:1px solid rgba(255,102,0,.15);display:flex;justify-content:space-between;align-items:center}
-.sbt{font-size:15px;font-weight:700}
-.sbt2{margin-top:3px;font-size:11px;color:var(--muted)}
-.sbody{flex:1;overflow:auto;padding:14px 16px;display:grid;gap:12px}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.fld{display:grid;gap:6px}
-.fld label{font-size:11px;color:var(--muted)}
-.ctl{width:100%;min-height:40px;border:1px solid rgba(255,102,0,.22);border-radius:10px;background:#101010;color:var(--text);padding:8px 10px;outline:none}
-select.ctl{cursor:pointer;appearance:auto;background-color:#101010;color:var(--text)}
-select.ctl option,select.ctl optgroup{background-color:#141414;color:var(--text)}
-textarea.ctl{min-height:100px;resize:vertical}
-.hint{padding:10px 12px;border:1px solid rgba(255,102,0,.14);border-radius:12px;background:rgba(255,255,255,.03);color:var(--muted);font-size:11px;line-height:1.55}
-.hint.mini{padding:6px 8px;font-size:10px;margin-top:4px}
-.prompt-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
-.prompt-tools .ctl{max-width:min(100%,220px)}
-.prompt-tools .btn3{flex-shrink:0}
-.dd{position:relative}
-.dd-wrap{position:relative}
-.dd-btn{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:7px 10px;border:1px solid rgba(255,102,0,.22);border-radius:10px;background:#101010;color:var(--text);cursor:pointer;text-align:left;font:inherit}
-.dd-btn:hover{border-color:rgba(255,102,0,.45)}
-.dd-icon{width:22px;height:22px;flex-shrink:0;object-fit:contain}
-.dd-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
-.dd-chev{flex-shrink:0;color:var(--muted);font-size:10px}
-.dd-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);max-height:min(50vh,260px);overflow-y:auto;z-index:50;background:#1a1a1a;border:1px solid rgba(255,102,0,.28);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.45);padding:4px 0}
-.dd-menu[hidden]{display:none!important}
-.dd-item{display:flex;align-items:center;gap:8px;width:calc(100% - 8px);margin:0 4px;border:none;border-radius:8px;background:transparent;color:var(--text);padding:8px 10px;cursor:pointer;text-align:left;font:inherit}
-.dd-item:hover,.dd-item.dd-active{background:rgba(255,102,0,.14)}
-.dd-item .dd-icon{width:22px;height:22px}
-.fld-dd .dd{margin-top:4px}
-.vh-select{position:absolute;opacity:0;pointer-events:none;width:0;height:0;overflow:hidden;border:none;padding:0;margin:0}
-.sf{padding:12px 16px 14px;border-top:1px solid rgba(255,102,0,.15);display:flex;justify-content:space-between;gap:12px;align-items:center}
-#ftb-toolbar-tpl{display:none}
-.session-tabs{display:flex;flex-wrap:nowrap;gap:5px;padding:8px 10px 10px;border-bottom:1px solid rgba(255,102,0,.12);overflow-x:auto;flex-shrink:0;align-items:center;background:rgba(0,0,0,.12)}
-.session-tabs::-webkit-scrollbar{height:4px}
-.stab{flex-shrink:0;display:inline-flex;align-items:center;gap:5px;max-width:104px;padding:5px 6px 5px 7px;border-radius:10px;border:1px solid rgba(255,102,0,.2);background:rgba(255,255,255,.04);cursor:pointer;font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden}
-.stab:hover{background:rgba(255,102,0,.1)}
-.stab.active{border-color:rgba(255,102,0,.55);background:rgba(255,102,0,.14);color:var(--orange)}
-.stab-ico{display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:8px;flex-shrink:0;background:rgba(0,0,0,.25);padding:2px}
-.stab-ico-img{width:18px;height:18px;display:block;object-fit:contain}
-.stab-t{overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:56px;font-weight:600}
-.stab-x{flex-shrink:0;width:18px;height:18px;border:none;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0;display:flex;align-items:center;justify-content:center}
-.stab-x:hover{color:#ff7a59;background:rgba(255,255,255,.08)}
-.stab-add{flex-shrink:0;width:32px;height:32px;padding:0;border-radius:10px;border:1px dashed rgba(255,102,0,.35);background:transparent;color:var(--orange);cursor:pointer;font-size:18px;font-weight:600;line-height:1;display:flex;align-items:center;justify-content:center}
-.stab-add:hover{background:rgba(255,102,0,.08)}
-#newSessionPick{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity var(--de);z-index:42}
-body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
-.debug-hud{position:fixed;left:4px;right:4px;bottom:3px;top:auto;z-index:9999;height:16px;overflow:hidden;background:rgba(0,0,0,.72);border:1px solid rgba(255,102,0,.45);border-radius:6px;padding:0 6px;font:10px/14px Consolas,"Cascadia Mono",monospace;color:#d8d8d8;pointer-events:none;white-space:nowrap;text-overflow:ellipsis}
-.debug-hud .row{display:block;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.debug-hud .row.err{color:#ff9b7d}
-.debug-hud .row.ok{color:#7df0b2}
-.nsbg{position:absolute;inset:0;background:rgba(0,0,0,.5)}
-.ns-panel{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(380px,calc(100% - 28px));max-height:min(440px,72vh);background:var(--panel2);border:1px solid rgba(255,102,0,.28);border-radius:18px;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(0,0,0,.45)}
-.nsh{padding:12px 14px;border-bottom:1px solid rgba(255,102,0,.15);display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-.nst{font-size:14px;font-weight:700}
-.nst2{font-size:11px;color:var(--muted);margin-top:3px}
-.ns-grid{flex:1;overflow:auto;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.ns-item{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px;border:1px solid rgba(255,102,0,.2);border-radius:12px;background:rgba(255,255,255,.04);cursor:pointer;color:var(--text)}
-.ns-item:hover{background:rgba(255,102,0,.12);border-color:rgba(255,102,0,.45)}
-.ns-item .stab-ico{width:40px;height:40px;border-radius:12px;padding:4px}
-.ns-item .stab-ico-img{width:28px;height:28px}
-.ns-lab{font-size:11px;font-weight:600;text-align:center;line-height:1.25;word-break:break-all}
-</style>
-</head>
-<body>
-<div id="app">
-<div id="debugHud" class="debug-hud"></div>
-<template id="ftb-toolbar-tpl">
-<div class="tb" data-action="Search" title="搜索"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><div class="bubble">Selection Ready</div><span class="dot"></span></div>
-<div class="tb" data-action="Record" title="记录"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l3.8-1 10-10a2.3 2.3 0 0 0-3.3-3.3l-10 10L3 21z"/><path d="M12.9 4.9l3.3 3.3"/></svg><span class="dot"></span></div>
-<div class="tb" data-action="Prompt" title="提示词"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><path d="M12 3c4.97 0 9 3.58 9 8 0 1.8-.67 3.47-1.8 4.82L20 21l-5.02-1.67A10.53 10.53 0 0 1 12 20c-4.97 0-9-3.58-9-8s4.03-9 9-9Z"/></svg><span class="dot"></span></div>
-<div class="tb" data-action="NewPrompt" title="Hub草稿 · hub_capsule · CapsLock+C"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg><span class="dot"></span></div>
-<div class="tb" data-action="Screenshot" title="截图"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><path d="M4 7h4l2-2h4l2 2h4v12H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span class="dot"></span></div>
-<div class="tb" data-action="Settings" title="设置"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="dot"></span></div>
-<div class="tb" data-action="VirtualKeyboard" title="键盘"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M6 9h1"/><path d="M9 9h1"/><path d="M12 9h1"/><path d="M15 9h1"/><path d="M18 9h1"/><path d="M6 12h1"/><path d="M9 12h1"/><path d="M12 12h1"/><path d="M15 12h1"/><path d="M18 12h1"/><path d="M7 15h10"/></svg><span class="dot"></span></div>
-</template>
-<div id="collapsedRoot">
-<button type="button" class="logo-btn" data-logo-toggle title="牛马 / NiuMa Chat"><img class="logo-img" alt="" /></button>
-<div id="collapsedBtns" class="icon-btns"></div>
-</div>
-<div id="drawerRoot">
-<div id="stage">
-<div id="backdrop"></div>
-<aside id="panel">
-<div id="resizeGrip" title="拖动调整宽度"></div>
-<header class="hdr">
-<div><div class="t1">NiuMa Chat</div><div class="t2">Markdown · AHK v2 高亮</div></div>
-<div class="icons">
-<button class="ib" id="chat-search" type="button" title="搜索聊天记录" aria-label="搜索聊天记录"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg></button>
-<button class="ib" id="chat-settings" type="button" title="打开设置" aria-label="打开设置"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.82-.33 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.82.33l-.06.06A2 2 0 1 1 4.37 17l.06-.06a1.7 1.7 0 0 0 .33-1.82 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.33-1.82l-.06-.06A2 2 0 1 1 7.03 4.4l.06.06a1.7 1.7 0 0 0 1.82.33h.01a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.5h.01a1.7 1.7 0 0 0 1.82-.33l.06-.06A2 2 0 1 1 19.63 7l-.06.06a1.7 1.7 0 0 0-.33 1.82v.01a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
-<button class="ib" id="drawer-close" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-</div>
-</header>
-<div id="sessionTabs" class="session-tabs" role="tablist" aria-label="对话标签"></div>
-<div id="main">
-<section id="msgs"><div id="empty">首次使用请点「设」完成 API。展开后工具条在输入框下方、发送按钮左侧。</div></section>
-<section id="cliPane" aria-label="CLI 终端">
-  <div class="cli-shell">
-    <div class="cli-bar">
-      <div class="cli-title" id="cliTitle">CLI 终端（ttyd）</div>
-      <div class="cli-btns">
-        <button type="button" class="cli-btn" id="cliOpenBtn" title="启动/打开 CLI">打开</button>
-        <button type="button" class="cli-btn" id="cliRestartBtn" title="强制重启 ttyd 服务">重启</button>
-        <button type="button" class="cli-btn" id="cliReloadBtn" title="刷新终端页面">刷新</button>
-        <button type="button" class="cli-btn" id="cliPopBtn" title="在外部浏览器打开">外部打开</button>
-      </div>
-    </div>
-    <iframe id="cliFrame" class="cli-frame" src="about:blank" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"></iframe>
-  </div>
-</section>
-<section id="cmp">
-<textarea id="input" placeholder="输入消息，Ctrl+Enter 发送"></textarea>
-<div id="composerFooter">
-<div class="drawer-toolbar">
-<button type="button" class="logo-btn" data-logo-toggle title="收起"><img class="logo-img" alt="" /></button>
-<div id="drawerBtns" class="icon-btns"></div>
-</div>
-<div id="sendWrap"><button class="btn1" id="send" type="button">发送消息</button></div>
-</div>
-<div id="chatStatusRow"><div class="st" id="chat-status">就绪</div></div>
-</section>
-</div>
-<div id="settings" aria-hidden="true">
-<div class="sbg"></div>
-<section class="sd">
-<header class="sh"><div><div class="sbt">API 设置</div><div class="sbt2">保存在本机 localStorage</div></div><button class="ib" id="settings-close" type="button" title="关闭设置" aria-label="关闭设置"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
-<div class="sbody">
-<div class="row"><div class="fld fld-dd"><label for="providerDdBtn">服务商</label><div class="dd" id="providerDd"><div class="dd-wrap"><button type="button" class="dd-btn" id="providerDdBtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="providerDdMenu"><img id="providerDdIcon" class="dd-icon" alt="" /><span id="providerDdLabel" class="dd-label"></span><span class="dd-chev" aria-hidden="true">▾</span></button><div class="dd-menu" id="providerDdMenu" role="listbox" hidden></div></div><select id="provider" class="ctl vh-select" tabindex="-1" aria-hidden="true"></select></div></div><div class="fld fld-dd"><label for="modelDdBtn">模型预设</label><div class="dd" id="modelDd"><div class="dd-wrap"><button type="button" class="dd-btn" id="modelDdBtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="modelDdMenu"><img id="modelDdIcon" class="dd-icon" alt="" /><span id="modelDdLabel" class="dd-label"></span><span class="dd-chev" aria-hidden="true">▾</span></button><div class="dd-menu" id="modelDdMenu" role="listbox" hidden></div></div><select id="modelPreset" class="ctl vh-select" tabindex="-1" aria-hidden="true"></select></div></div></div>
-<div class="fld"><label for="apiKey" id="apiKeyLabel">API Key</label><input id="apiKey" class="ctl" type="password" autocomplete="off" placeholder="API Key"><div class="hint mini" id="apiKeyKeyHint" style="display:none"></div></div>
-<div class="fld"><label for="baseUrl">Base URL</label><input id="baseUrl" class="ctl" type="text" autocomplete="off"></div>
-<div class="fld"><label for="model">Model</label><input id="model" class="ctl" type="text" autocomplete="off"></div>
-<div class="fld"><label for="systemPrompt">System Prompt</label><div class="prompt-tools"><select id="promptBuiltin" class="ctl"></select><button type="button" class="btn3" id="promptTplApply">应用到上方</button><button type="button" class="btn3" id="promptImportBtn">从文件导入</button><input type="file" id="promptImportFile" accept=".txt,.md,.json,text/plain" style="display:none" /></div><textarea id="systemPrompt" class="ctl"></textarea></div>
-<div class="hint" id="providerHint"></div>
-<div class="hint">各服务商 API Key 分槽保存、互不覆盖；多标签对话在本地长期保存。记录很多时可在下方导出备份。</div>
-<div class="row" style="display:flex;gap:8px;align-items:center;justify-content:flex-start;">
-  <button class="btn2" id="chat-export-md" type="button" title="导出当前对话 Markdown">导出 Markdown</button>
-  <button class="btn2" id="chat-export-json" type="button" title="导出当前对话 JSON">导出 JSON</button>
-</div>
-</div>
-<footer class="sf"><div class="st" id="config-status"></div><div style="display:flex;gap:8px;"><button class="btn2" id="resetCfg" type="button">重置</button><button class="btn3" id="saveCfg" type="button">完成</button></div></footer>
-</section>
-</div>
-<div id="newSessionPick" aria-hidden="true">
-<div class="nsbg" id="newSessionPickBg"></div>
-<section class="ns-panel">
-<header class="nsh"><div><div class="nst">新对话</div><div class="nst2">选择要使用的 AI（各标签独立上下文）</div></div><button class="ib" id="newSessionPickClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
-<div id="newSessionGrid" class="ns-grid"></div>
-</section>
-</div>
-</aside>
-</div>
-</div>
-</div>
-<script>
+﻿
 (function () {
   var LS = 'niuma_chat_drawer_config_v2',
     LEGACY_LS = 'niuma_chat_drawer_config_v1',
     SESSIONS_LS = 'niuma_chat_sessions_v1',
     NIUMA_HISTORY_LS = 'niuma_chat_history_v1',
     NIUMA_HISTORY_API = '/api/niuma/history',
-    SP = '你是一个擅长 AHK v2、自动化脚本和桌面工作流的助手。',
+    SP = '浣犳槸涓€涓搮闀?AHK v2銆佽嚜鍔ㄥ寲鑴氭湰鍜屾闈㈠伐浣滄祦鐨勫姪鎵嬨€?,
     P = {
       openai: { label: 'OpenAI', transport: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', models: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini', 'gpt-4o'] },
       codex: { label: 'Codex', transport: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', models: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini', 'gpt-4o'] },
-      codex_cli: { label: 'Codex CLI（ttyd）', transport: 'cli', baseUrl: 'http://127.0.0.1:7681', model: 'codex', models: ['codex'] },
+      codex_cli: { label: 'Codex CLI锛坱tyd锛?, transport: 'cli', baseUrl: 'http://127.0.0.1:7681', model: 'codex', models: ['codex'] },
       kimi: { label: 'Kimi', transport: 'openai', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'kimi-k2-0711-preview'] },
       qwen: { label: 'Qwen', transport: 'openai', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus', models: ['qwen-plus', 'qwen-turbo', 'qwen-max', 'qwen3-coder-plus'] },
       deepseek: { label: 'DeepSeek', transport: 'openai', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', models: ['deepseek-chat', 'deepseek-reasoner'] },
       claude: { label: 'Claude', transport: 'anthropic', baseUrl: 'https://api.anthropic.com', model: 'claude-3-5-sonnet-latest', models: ['claude-3-5-sonnet-latest', 'claude-3-7-sonnet-latest', 'claude-3-5-haiku-latest'] },
       gemini: { label: 'Gemini', transport: 'gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-2.5-flash', models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'] },
       glm: { label: 'GLM', transport: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-plus', models: ['glm-4-plus', 'glm-4-air', 'glm-4-flash'] },
-      siliconflow: { label: '硅基流动', transport: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', model: 'Qwen/Qwen2.5-7B-Instruct', models: ['Qwen/Qwen2.5-7B-Instruct', 'deepseek-ai/DeepSeek-V3', 'THUDM/glm-4-9b-chat'] },
+      siliconflow: { label: '纭呭熀娴佸姩', transport: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', model: 'Qwen/Qwen2.5-7B-Instruct', models: ['Qwen/Qwen2.5-7B-Instruct', 'deepseek-ai/DeepSeek-V3', 'THUDM/glm-4-9b-chat'] },
       minimax: { label: 'MiniMax', transport: 'openai', baseUrl: 'https://api.minimax.chat/v1', model: 'abab6.5s-chat', models: ['abab6.5s-chat', 'MiniMax-M1', 'MiniMax-Text-01'] },
-      zhipu: { label: '智谱', transport: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-plus', models: ['glm-4-plus', 'glm-4-air', 'glm-4-flash'] },
+      zhipu: { label: '鏅鸿氨', transport: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-plus', models: ['glm-4-plus', 'glm-4-air', 'glm-4-flash'] },
       ollama: { label: 'Ollama', transport: 'openai', baseUrl: 'http://127.0.0.1:11434/v1', model: 'llama3.1:8b', models: ['llama3.1:8b', 'qwen2.5:7b', 'deepseek-r1:7b', 'gemma3:4b'] },
       openclaw: { label: 'OpenClaw', transport: 'openclaw', baseUrl: 'http://127.0.0.1:18789', model: 'gateway', models: ['gateway'] }
     },
@@ -301,37 +36,37 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       claude: ['Claude', 'claude'],
       gemini: ['gemini', 'Gemini'],
       glm: ['glm', 'GLM'],
-      siliconflow: ['siliconflow', '硅基流动'],
+      siliconflow: ['siliconflow', '纭呭熀娴佸姩'],
       minimax: ['minimax', 'MiniMax'],
       zhipu: ['zhipu', 'Zhipu'],
       ollama: ['ollama', 'Ollama'],
       openclaw: ['openclaw', 'OpenClaw']
     },
     KEYMETA = {
-      openai: { keyLabel: 'OpenAI API Key', keyPlaceholder: 'sk-...', keyHint: '仅保存到「OpenAI」槽位；与 Kimi、DeepSeek 等密钥互不覆盖。' },
-      codex: { keyLabel: 'OpenAI API Key', keyPlaceholder: 'sk-...', keyHint: 'Codex 默认走 OpenAI 官方接口；如你使用其他兼容 baseUrl，可在下方改 Base URL 与 Model。' },
-      codex_cli: { keyLabel: '无需 API Key', keyPlaceholder: '本模式不使用 API Key', keyHint: '点击发送会打开 ttyd Web 终端（本机 `http://127.0.0.1:7681/`），进入 Codex CLI 专属对话。' },
-      kimi: { keyLabel: 'Kimi（Moonshot）API Key', keyPlaceholder: 'Moonshot 密钥', keyHint: 'Authorization: Bearer；单独保存在「Kimi」槽位。' },
-      qwen: { keyLabel: 'DashScope API Key', keyPlaceholder: '阿里云百炼 / DashScope', keyHint: '通义千问兼容 OpenAI 接口；密钥仅存「Qwen」槽位。' },
-      deepseek: { keyLabel: 'DeepSeek API Key', keyPlaceholder: 'DeepSeek 密钥', keyHint: '单独保存在「DeepSeek」槽位。' },
-      claude: { keyLabel: 'Anthropic API Key', keyPlaceholder: 'sk-ant-...', keyHint: '请求头 x-api-key；单独保存在「Claude」槽位（与 OpenAI 密钥不同）。' },
-      gemini: { keyLabel: 'Google AI API Key', keyPlaceholder: 'AIza...', keyHint: '密钥以 query 参数 key= 传递；单独保存在「Gemini」槽位。' },
-      glm: { keyLabel: '智谱 BigModel API Key', keyPlaceholder: 'BigModel 密钥', keyHint: '与「智谱」槽位分离保存；均为 OpenAI 兼容但密钥不同。' },
-      siliconflow: { keyLabel: '硅基流动 API Key', keyPlaceholder: '硅基流动密钥', keyHint: '单独保存在「硅基流动」槽位。' },
-      minimax: { keyLabel: 'MiniMax API Key', keyPlaceholder: 'MiniMax 密钥', keyHint: '单独保存在「MiniMax」槽位。' },
-      zhipu: { keyLabel: '智谱 API Key', keyPlaceholder: '智谱开放平台密钥', keyHint: '单独保存在「智谱」槽位（与 GLM BigModel 可填不同密钥）。' },
-      ollama: { keyLabel: 'Ollama API Key（可选）', keyPlaceholder: '本地默认可留空', keyHint: '本地 Ollama 默认无需 API Key；如启用鉴权可在此填写。' },
+      openai: { keyLabel: 'OpenAI API Key', keyPlaceholder: 'sk-...', keyHint: '浠呬繚瀛樺埌銆孫penAI銆嶆Ы浣嶏紱涓?Kimi銆丏eepSeek 绛夊瘑閽ヤ簰涓嶈鐩栥€? },
+      codex: { keyLabel: 'OpenAI API Key', keyPlaceholder: 'sk-...', keyHint: 'Codex 榛樿璧?OpenAI 瀹樻柟鎺ュ彛锛涘浣犱娇鐢ㄥ叾浠栧吋瀹?baseUrl锛屽彲鍦ㄤ笅鏂规敼 Base URL 涓?Model銆? },
+      codex_cli: { keyLabel: '鏃犻渶 API Key', keyPlaceholder: '鏈ā寮忎笉浣跨敤 API Key', keyHint: '鐐瑰嚮鍙戦€佷細鎵撳紑 ttyd Web 缁堢锛堟湰鏈?`http://127.0.0.1:7681/`锛夛紝杩涘叆 Codex CLI 涓撳睘瀵硅瘽銆? },
+      kimi: { keyLabel: 'Kimi锛圡oonshot锛堿PI Key', keyPlaceholder: 'Moonshot 瀵嗛挜', keyHint: 'Authorization: Bearer锛涘崟鐙繚瀛樺湪銆孠imi銆嶆Ы浣嶃€? },
+      qwen: { keyLabel: 'DashScope API Key', keyPlaceholder: '闃块噷浜戠櫨鐐?/ DashScope', keyHint: '閫氫箟鍗冮棶鍏煎 OpenAI 鎺ュ彛锛涘瘑閽ヤ粎瀛樸€孮wen銆嶆Ы浣嶃€? },
+      deepseek: { keyLabel: 'DeepSeek API Key', keyPlaceholder: 'DeepSeek 瀵嗛挜', keyHint: '鍗曠嫭淇濆瓨鍦ㄣ€孌eepSeek銆嶆Ы浣嶃€? },
+      claude: { keyLabel: 'Anthropic API Key', keyPlaceholder: 'sk-ant-...', keyHint: '璇锋眰澶?x-api-key锛涘崟鐙繚瀛樺湪銆孋laude銆嶆Ы浣嶏紙涓?OpenAI 瀵嗛挜涓嶅悓锛夈€? },
+      gemini: { keyLabel: 'Google AI API Key', keyPlaceholder: 'AIza...', keyHint: '瀵嗛挜浠?query 鍙傛暟 key= 浼犻€掞紱鍗曠嫭淇濆瓨鍦ㄣ€孏emini銆嶆Ы浣嶃€? },
+      glm: { keyLabel: '鏅鸿氨 BigModel API Key', keyPlaceholder: 'BigModel 瀵嗛挜', keyHint: '涓庛€屾櫤璋便€嶆Ы浣嶅垎绂讳繚瀛橈紱鍧囦负 OpenAI 鍏煎浣嗗瘑閽ヤ笉鍚屻€? },
+      siliconflow: { keyLabel: '纭呭熀娴佸姩 API Key', keyPlaceholder: '纭呭熀娴佸姩瀵嗛挜', keyHint: '鍗曠嫭淇濆瓨鍦ㄣ€岀鍩烘祦鍔ㄣ€嶆Ы浣嶃€? },
+      minimax: { keyLabel: 'MiniMax API Key', keyPlaceholder: 'MiniMax 瀵嗛挜', keyHint: '鍗曠嫭淇濆瓨鍦ㄣ€孧iniMax銆嶆Ы浣嶃€? },
+      zhipu: { keyLabel: '鏅鸿氨 API Key', keyPlaceholder: '鏅鸿氨寮€鏀惧钩鍙板瘑閽?, keyHint: '鍗曠嫭淇濆瓨鍦ㄣ€屾櫤璋便€嶆Ы浣嶏紙涓?GLM BigModel 鍙～涓嶅悓瀵嗛挜锛夈€? },
+      ollama: { keyLabel: 'Ollama API Key锛堝彲閫夛級', keyPlaceholder: '鏈湴榛樿鍙暀绌?, keyHint: '鏈湴 Ollama 榛樿鏃犻渶 API Key锛涘鍚敤閴存潈鍙湪姝ゅ～鍐欍€? },
       openclaw: {
         keyLabel: 'Gateway Token',
-        keyPlaceholder: '与 openclaw dashboard 中 token 一致',
-        keyHint: '也可留空，仅把带 #token= 的完整控制台地址填在 Base URL；走本机 WebSocket，与 OpenAI HTTP 无关。'
+        keyPlaceholder: '涓?openclaw dashboard 涓?token 涓€鑷?,
+        keyHint: '涔熷彲鐣欑┖锛屼粎鎶婂甫 #token= 鐨勫畬鏁存帶鍒跺彴鍦板潃濉湪 Base URL锛涜蛋鏈満 WebSocket锛屼笌 OpenAI HTTP 鏃犲叧銆?
       }
     },
     PROMPT_BUILTIN = [
-      { id: '_ahk', name: '默认 · AHK / 自动化', text: SP },
-      { id: '_empty', name: '空（不设系统提示）', text: '' },
-      { id: '_code', name: '代码审查', text: '你是严谨的代码审查助手。指出问题、风险与可改进处，给出具体修改建议，避免空话。' },
-      { id: '_zh', name: '简明中文助手', text: '请用简明、准确的中文回答。需要时分条说明；不确定处请标明假设。' },
+      { id: '_ahk', name: '榛樿 路 AHK / 鑷姩鍖?, text: SP },
+      { id: '_empty', name: '绌猴紙涓嶈绯荤粺鎻愮ず锛?, text: '' },
+      { id: '_code', name: '浠ｇ爜瀹℃煡', text: '浣犳槸涓ヨ皑鐨勪唬鐮佸鏌ュ姪鎵嬨€傛寚鍑洪棶棰樸€侀闄╀笌鍙敼杩涘锛岀粰鍑哄叿浣撲慨鏀瑰缓璁紝閬垮厤绌鸿瘽銆? },
+      { id: '_zh', name: '绠€鏄庝腑鏂囧姪鎵?, text: '璇风敤绠€鏄庛€佸噯纭殑涓枃鍥炵瓟銆傞渶瑕佹椂鍒嗘潯璇存槑锛涗笉纭畾澶勮鏍囨槑鍋囪銆? },
       { id: '_en', name: 'Concise English', text: 'You are a concise technical assistant. Answer clearly; use bullet points when helpful.' }
     ];
 
@@ -379,6 +114,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     $('drawerBtns').innerHTML = html;
     bindSearchDnD();
     if (state.activeAction) sel(state.activeAction);
+    queueCollapsedLayout(0);
   }
 
   function escAttr(s) {
@@ -544,13 +280,14 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     });
     if (!html)
       html =
-        '<span class="hint" style="display:flex;align-items:center;padding:8px 10px;font-size:11px;color:var(--muted)">无工具栏命令（请在 KeyBinder 中配置）</span>';
+        '<span class="hint" style="display:flex;align-items:center;padding:8px 10px;font-size:11px;color:var(--muted)">鏃犲伐鍏锋爮鍛戒护锛堣鍦?KeyBinder 涓厤缃級</span>';
     $('collapsedBtns').innerHTML = html;
     $('drawerBtns').innerHTML = html;
     attachToolbarIconFallback($('collapsedBtns'));
     attachToolbarIconFallback($('drawerBtns'));
     bindSearchDnD();
     if (state.activeCmdId) sel(state.activeCmdId);
+    queueCollapsedLayout(0);
   }
 
   var stage = $('stage'),
@@ -629,6 +366,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   };
   var toolbarVisibleSynced = false;
   var toolbarRevealTimer = 0;
+  var collapsedLayoutTimer = 0;
   var DEBUG_HUD = false;
   var debugLines = [];
   var debugSeq = 0;
@@ -678,6 +416,26 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     } catch (e) {}
   }
 
+  function postCollapsedLayout(force) {
+    if (state.drawer) return;
+    if (!collapsedRoot) return;
+    var r = collapsedRoot.getBoundingClientRect();
+    var w = Math.ceil(Math.max(r.width || 0, collapsedRoot.scrollWidth || 0));
+    var h = Math.ceil(r.height || 0);
+    if (w <= 0 || h <= 0) return;
+    if (!force && state._lastCollapsedW === w && state._lastCollapsedH === h) return;
+    state._lastCollapsedW = w;
+    state._lastCollapsedH = h;
+    post({ type: 'collapsed_layout', width: w, height: h });
+  }
+
+  function queueCollapsedLayout(delay) {
+    if (collapsedLayoutTimer) clearTimeout(collapsedLayoutTimer);
+    collapsedLayoutTimer = setTimeout(function () {
+      postCollapsedLayout(false);
+    }, Math.max(0, Number(delay) || 0));
+  }
+
   function sel(a) {
     var s = String(a || '');
     state.activeAction = s;
@@ -709,6 +467,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   function setCompact(v) {
     state.compact = !!v;
     document.body.classList.toggle('ftb-compact', state.compact);
+    queueCollapsedLayout(0);
   }
 
   function scrollMsgsToLatest() {
@@ -724,6 +483,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     v = Number(v);
     if (!isFinite(v) || v <= 0) v = 1;
     document.documentElement.style.setProperty('--ui', String(v));
+    queueCollapsedLayout(0);
   }
 
   function setDrawer(v) {
@@ -735,6 +495,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     if (!state.drawer) {
       setSettings(false);
       setNspick(false);
+      queueCollapsedLayout(0);
       return;
     }
     scrollMsgsToLatest();
@@ -776,7 +537,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     return h;
   }
 
-  /** API 常返回 <br> / 已转义的换行，先换成 \n 再走 Markdown，避免屏上显示字面量 <br> */
+  /** API 甯歌繑鍥?<br> / 宸茶浆涔夌殑鎹㈣锛屽厛鎹㈡垚 \n 鍐嶈蛋 Markdown锛岄伩鍏嶅睆涓婃樉绀哄瓧闈㈤噺 <br> */
   function preMarkdownForChat(s) {
     s = String(s || '').replace(/\r\n/g, '\n');
     s = s.replace(/<br\s*\/?>/gi, '\n');
@@ -862,13 +623,41 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     return providerTransport(s.provider) === 'cli';
   }
 
+  function defaultCliBaseForProvider(pid) {
+    pid = normalizeProviderId(pid);
+    var p = pid && P[pid] ? P[pid] : null;
+    if (!p) return '';
+    return String((p.baseUrl || '').trim()).trim();
+  }
+
+  function normalizeCliUrl(rawUrl, pid) {
+    var fallback = defaultCliBaseForProvider(pid);
+    var raw = String((rawUrl || '').trim()).trim();
+    if (!raw) raw = fallback;
+    if (!raw) return '';
+    try {
+      var u = new URL(raw.indexOf('://') >= 0 ? raw : 'http://' + raw);
+      var host = (u.hostname || '127.0.0.1').trim();
+      var port = parseInt(u.port || '', 10);
+      if (!isFinite(port) || port <= 0 || port > 65535) {
+        var fu = null;
+        try {
+          fu = new URL(fallback.indexOf('://') >= 0 ? fallback : 'http://' + fallback);
+        } catch (e2) {}
+        port = fu && fu.port ? parseInt(fu.port, 10) : 7681;
+      }
+      return 'http://' + host + ':' + String(port) + '/';
+    } catch (e) {
+      return fallback || '';
+    }
+  }
+
   function cliUrlForSession(s) {
     if (!s) return '';
     var pid = normalizeProviderId(s.provider);
     var p = pid && P[pid] ? P[pid] : null;
     if (!p) return '';
-    // CLI 视图以 baseUrl 作为 ttyd 页面地址
-    return String((s.baseUrl || '').trim() || (p.baseUrl || '')).trim();
+    return normalizeCliUrl((s.baseUrl || '').trim() || (p.baseUrl || ''), pid);
   }
 
   function ensureCliLaunchedForSession(s) {
@@ -880,6 +669,20 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     } catch (e) {}
   }
 
+  function reloadCliFrameWithRetry(url) {
+    var fr = $('cliFrame');
+    if (!fr || !url) return;
+    var rounds = [0, 420, 1100, 2100];
+    rounds.forEach(function (ms) {
+      setTimeout(function () {
+        try {
+          fr.dataset.src = url;
+          fr.src = url;
+        } catch (e) {}
+      }, ms);
+    });
+  }
+
   function syncChatViewMode() {
     var s = activeSession();
     var on = isCliSession(s);
@@ -888,22 +691,13 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       var titleEl = $('cliTitle');
       if (titleEl) {
         var pl = (s && P[s.provider] ? P[s.provider].label : (s && s.provider ? s.provider : 'CLI'));
-        titleEl.textContent = pl + ' · ttyd';
+        titleEl.textContent = pl + ' 路 ttyd';
       }
     } catch (e) {}
     if (!on) return;
     ensureCliLaunchedForSession(s);
     var url = cliUrlForSession(s);
-    var fr = $('cliFrame');
-    if (fr && url) {
-      // 避免重复 reload：只有 url 变化才重设
-      try {
-        if (String(fr.dataset.src || '') !== url) {
-          fr.dataset.src = url;
-          fr.src = url;
-        }
-      } catch (e2) {}
-    }
+    reloadCliFrameWithRetry(url);
   }
 
   function normalizeRole(role) {
@@ -920,10 +714,10 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     return t.toISOString();
   }
 
-  /** 从 Gateway / 持久化 JSON 中取出可展示正文（含 parts[]、嵌套 content） */
+  /** 浠?Gateway / 鎸佷箙鍖?JSON 涓彇鍑哄彲灞曠ず姝ｆ枃锛堝惈 parts[]銆佸祵濂?content锛?*/
   function ocExtractMessageContentForHistory(m) {
     if (!m || typeof m !== 'object') return '';
-    /* 勿在 content==="" 时提前返回：网关常把正文放在 text / parts，content 仅占位空串 */
+    /* 鍕垮湪 content==="" 鏃舵彁鍓嶈繑鍥烇細缃戝叧甯告妸姝ｆ枃鏀惧湪 text / parts锛宑ontent 浠呭崰浣嶇┖涓?*/
     var strFields = ['content', 'text', 'message', 'body', 'input', 'output', 'prompt', 'value'];
     for (var si = 0; si < strFields.length; si++) {
       var sf = m[strFields[si]];
@@ -1086,7 +880,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
         JSON.stringify({ v: 1, activeSessionId: state.activeSessionId, sessions: state.sessions })
       );
     } catch (e) {
-      cstat('本地存储可能已满，请导出后删除部分对话标签。', 'error');
+      cstat('鏈湴瀛樺偍鍙兘宸叉弧锛岃瀵煎嚭鍚庡垹闄ら儴鍒嗗璇濇爣绛俱€?, 'error');
     }
   }
 
@@ -1139,7 +933,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       id: genId(),
       provider: pid,
       model: model.value.trim() || p.model,
-      baseUrl: baseUrl.value.trim(),
+      baseUrl: p.transport === 'cli' ? normalizeCliUrl(baseUrl.value, pid) : baseUrl.value.trim(),
       gatewaySessionKey: pid === 'openclaw' ? 'main' : '',
       history: []
     };
@@ -1164,7 +958,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     fillModels(pid, s.model);
     var p = P[pid] || P.openai;
     model.value = s.model || p.model;
-    baseUrl.value = (s.baseUrl || '').trim() || p.baseUrl;
+    if (p.transport === 'cli') baseUrl.value = normalizeCliUrl((s.baseUrl || '').trim() || p.baseUrl, pid);
+    else baseUrl.value = (s.baseUrl || '').trim() || p.baseUrl;
     hint(pid);
     apiKey.value = (state.apiKeys && state.apiKeys[pid]) || '';
     refreshApiKeyField(pid);
@@ -1179,7 +974,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     var p = P[pid] || P.openai;
     s.provider = pid;
     s.model = model.value.trim() || p.model;
-    s.baseUrl = baseUrl.value.trim();
+    s.baseUrl = p.transport === 'cli' ? normalizeCliUrl(baseUrl.value, pid) : baseUrl.value.trim();
     if (pid !== 'openclaw') s.gatewaySessionKey = '';
     else if (!String(s.gatewaySessionKey || '').trim()) s.gatewaySessionKey = 'main';
   }
@@ -1231,13 +1026,19 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       lab = apiKeyLabel,
       kh = apiKeyKeyHint;
     if (lab) lab.textContent = km.keyLabel || 'API Key';
-    apiKey.placeholder = km.keyPlaceholder || '填写密钥';
+    apiKey.placeholder = km.keyPlaceholder || '濉啓瀵嗛挜';
     try {
       var p = P[pid] || {};
       var isCli = p && p.transport === 'cli';
       apiKey.disabled = !!isCli;
       apiKey.setAttribute('aria-disabled', isCli ? 'true' : 'false');
       apiKey.style.opacity = isCli ? '0.6' : '';
+      if (baseUrl) {
+        baseUrl.readOnly = !!isCli;
+        baseUrl.setAttribute('aria-readonly', isCli ? 'true' : 'false');
+        baseUrl.style.opacity = isCli ? '0.75' : '';
+        if (isCli) baseUrl.value = normalizeCliUrl(baseUrl.value, pid);
+      }
     } catch (e) {}
     if (kh) {
       if (km.keyHint) {
@@ -1267,7 +1068,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 
   function fillPromptBuiltinSelect() {
     if (!promptBuiltin) return;
-    var opts = '<option value="">— 内置模版 —</option>';
+    var opts = '<option value="">鈥?鍐呯疆妯＄増 鈥?/option>';
     PROMPT_BUILTIN.forEach(function (t) {
       opts += '<option value="' + esc(t.id) + '">' + esc(t.name) + '</option>';
     });
@@ -1277,7 +1078,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 
   function applySelectedPromptBuiltin() {
     if (!promptBuiltin || !promptBuiltin.value) {
-      sstat('请先在列表中选择一个内置模版。', 'error');
+      sstat('璇峰厛鍦ㄥ垪琛ㄤ腑閫夋嫨涓€涓唴缃ā鐗堛€?, 'error');
       return;
     }
     var id = promptBuiltin.value,
@@ -1291,20 +1092,20 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     if (!found) return;
     systemPrompt.value = found.text;
     saveCfg(false);
-    sstat('已应用模版：' + found.name, 'success');
+    sstat('宸插簲鐢ㄦā鐗堬細' + found.name, 'success');
   }
 
   function shortModel(m) {
     m = String(m || '').trim();
-    if (!m) return '…';
+    if (!m) return '鈥?;
     var tail = m.replace(/^.*\//, '');
-    if (tail.length > 9) return tail.slice(0, 7) + '…';
+    if (tail.length > 9) return tail.slice(0, 7) + '鈥?;
     return tail;
   }
 
   function tabTitleForSession(s) {
     var pl = (P[s.provider] || {}).label || s.provider || '';
-    return pl + ' · ' + shortModel(s.model);
+    return pl + ' 路 ' + shortModel(s.model);
   }
 
   function renderSessionTabs() {
@@ -1328,8 +1129,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       var x = document.createElement('button');
       x.type = 'button';
       x.className = 'stab-x';
-      x.setAttribute('aria-label', '关闭标签');
-      x.textContent = '×';
+      x.setAttribute('aria-label', '鍏抽棴鏍囩');
+      x.textContent = '脳';
       x.setAttribute('data-close-session', s.id);
       wrap.appendChild(ico);
       wrap.appendChild(t);
@@ -1341,8 +1142,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     addBtn.className = 'stab-add';
     addBtn.id = 'sessionTabAdd';
     addBtn.textContent = '+';
-    addBtn.setAttribute('title', '选择 AI 新建对话');
-    addBtn.setAttribute('aria-label', '选择 AI 新建对话');
+    addBtn.setAttribute('title', '閫夋嫨 AI 鏂板缓瀵硅瘽');
+    addBtn.setAttribute('aria-label', '閫夋嫨 AI 鏂板缓瀵硅瘽');
     sessionTabsEl.appendChild(addBtn);
     refreshSendUi();
     syncChatViewMode();
@@ -1391,8 +1192,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       return;
     }
     if (isCliSession(s)) {
-      // CLI 模式不渲染气泡历史（独立终端界面）
-      emptyState();
+      // CLI 妯″紡涓嶆覆鏌撴皵娉″巻鍙诧紙鐙珛缁堢鐣岄潰锛?      emptyState();
       syncChatViewMode();
       return;
     }
@@ -1400,7 +1200,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       if (!item || !item.role) return;
       var raw = item.content != null ? String(item.content) : '';
       var disp = raw.trim() ? raw : ocExtractMessageContentForHistory(item);
-      if (!String(disp || '').trim()) disp = '（无正文）';
+      if (!String(disp || '').trim()) disp = '锛堟棤姝ｆ枃锛?;
       appendMessageDom(item.role, disp, item.ts);
     });
     emptyState();
@@ -1430,14 +1230,14 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   }
 
   function runChatSearchPrompt() {
-    var kw = prompt('搜索聊天记录', state.chatSearchKeyword || '');
+    var kw = prompt('鎼滅储鑱婂ぉ璁板綍', state.chatSearchKeyword || '');
     if (kw == null) return;
     kw = String(kw || '').trim();
     if (!kw) {
       state.chatSearchKeyword = '';
       state.chatSearchCursor = -1;
       clearChatSearchHit();
-      cstat('已清空搜索关键词');
+      cstat('宸叉竻绌烘悳绱㈠叧閿瘝');
       return;
     }
     var all = Array.prototype.slice.call(msgs.querySelectorAll('article.m'));
@@ -1448,7 +1248,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       clearChatSearchHit();
       state.chatSearchKeyword = kw;
       state.chatSearchCursor = -1;
-      cstat('未找到：' + kw, 'error');
+      cstat('鏈壘鍒帮細' + kw, 'error');
       return;
     }
     if (state.chatSearchKeyword !== kw) state.chatSearchCursor = -1;
@@ -1462,7 +1262,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     } catch (_) {
       target.scrollIntoView();
     }
-    cstat('搜索命中 ' + (state.chatSearchCursor + 1) + '/' + matched.length + '：' + kw, 'success');
+    cstat('鎼滅储鍛戒腑 ' + (state.chatSearchCursor + 1) + '/' + matched.length + '锛? + kw, 'success');
   }
 
   function switchSession(id) {
@@ -1539,14 +1339,14 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     renderSessionTabs();
     updateNeedSetup();
     closeNewSessionPick();
-    cstat('已打开「' + p.label + '」新对话', 'success');
+    cstat('宸叉墦寮€銆? + p.label + '銆嶆柊瀵硅瘽', 'success');
     if (pid === 'openclaw') hydrateOpenClawHistoryForSession(s, true);
     syncChatViewMode();
   }
 
   function removeSession(id) {
     if (state.sessions.length <= 1) {
-      cstat('至少保留一个对话标签。', 'error');
+      cstat('鑷冲皯淇濈暀涓€涓璇濇爣绛俱€?, 'error');
       return;
     }
     var cur = activeSession();
@@ -1581,31 +1381,31 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   function exportMarkdown() {
     var s = activeSession();
     if (!s || !s.history.length) {
-      cstat('当前标签没有消息可导出。', 'error');
+      cstat('褰撳墠鏍囩娌℃湁娑堟伅鍙鍑恒€?, 'error');
       return;
     }
     syncSessionFromForm(s);
     var lines = [];
-    lines.push('# NiuMa Chat 导出');
+    lines.push('# NiuMa Chat 瀵煎嚭');
     lines.push('');
-    lines.push('- 服务商: ' + ((P[s.provider] || {}).label || s.provider));
-    lines.push('- 模型: ' + s.model);
-    lines.push('- 导出时间: ' + new Date().toLocaleString());
+    lines.push('- 鏈嶅姟鍟? ' + ((P[s.provider] || {}).label || s.provider));
+    lines.push('- 妯″瀷: ' + s.model);
+    lines.push('- 瀵煎嚭鏃堕棿: ' + new Date().toLocaleString());
     lines.push('');
     s.history.forEach(function (m) {
-      lines.push('## ' + (m.role === 'user' ? '用户' : '助手') + ' · ' + (m.ts || ''));
+      lines.push('## ' + (m.role === 'user' ? '鐢ㄦ埛' : '鍔╂墜') + ' 路 ' + (m.ts || ''));
       lines.push('');
       lines.push(m.content);
       lines.push('');
     });
     downloadBlob('niuma-chat-' + s.id + '.md', lines.join('\n'), 'text/markdown;charset=utf-8');
-    cstat('已导出 Markdown。', 'success');
+    cstat('宸插鍑?Markdown銆?, 'success');
   }
 
   function exportJson() {
     var s = activeSession();
     if (!s || !s.history.length) {
-      cstat('当前标签没有消息可导出。', 'error');
+      cstat('褰撳墠鏍囩娌℃湁娑堟伅鍙鍑恒€?, 'error');
       return;
     }
     syncSessionFromForm(s);
@@ -1621,7 +1421,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       }
     };
     downloadBlob('niuma-chat-' + s.id + '.json', JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
-    cstat('已导出 JSON。', 'success');
+    cstat('宸插鍑?JSON銆?, 'success');
   }
 
   function cstat(t, m) {
@@ -1639,13 +1439,13 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     var sending = isSessionSending(sid);
     var s = activeSession();
     if (isCliSession(s)) {
-      // CLI 模式隐藏 composer，本按钮不作为主要入口；保持禁用避免误触
+      // CLI 妯″紡闅愯棌 composer锛屾湰鎸夐挳涓嶄綔涓轰富瑕佸叆鍙ｏ紱淇濇寔绂佺敤閬垮厤璇Е
       send.disabled = true;
-      send.textContent = 'CLI 模式';
+      send.textContent = 'CLI 妯″紡';
       return;
     }
     send.disabled = sending;
-    send.textContent = sending ? '发送中...' : '发送消息';
+    send.textContent = sending ? '鍙戦€佷腑...' : '鍙戦€佹秷鎭?;
   }
 
   function setSessionSending(id, v) {
@@ -1835,7 +1635,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 
   function fillModels(pid, sel) {
     var p = P[pid] || P.openai,
-      o = ['<option value="">手动输入</option>'];
+      o = ['<option value="">鎵嬪姩杈撳叆</option>'];
     getPresetModels(pid).forEach(function (m) {
       o.push('<option value="' + esc(m) + '">' + esc(m) + '</option>');
     });
@@ -1872,7 +1672,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       });
       modelDdMenu.appendChild(b);
     }
-    addItem('', '手动输入');
+    addItem('', '鎵嬪姩杈撳叆');
     getPresetModels(pid).forEach(function (m) {
       addItem(m, m);
     });
@@ -1882,7 +1682,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     var pv = normalizeProviderId(provider.value);
     var k = pv && P[pv] ? pv : 'openai';
     var mp = modelPreset.value;
-    var label = mp ? mp : '手动输入';
+    var label = mp ? mp : '鎵嬪姩杈撳叆';
     if (modelDdLabel) modelDdLabel.textContent = label;
     if (modelDdIcon) bindProviderIconImg(modelDdIcon, k, 'dd-icon');
     if (modelDdMenu) {
@@ -1895,17 +1695,17 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   function hint(pid) {
     var p = P[pid] || P.openai,
       m = {
-        openai: 'OpenAI 兼容 chat/completions',
-        anthropic: 'Anthropic messages 接口',
-        gemini: 'Gemini generateContent 接口',
-        openclaw: 'OpenClaw Gateway WebSocket（connect + chat.send）'
+        openai: 'OpenAI 鍏煎 chat/completions',
+        anthropic: 'Anthropic messages 鎺ュ彛',
+        gemini: 'Gemini generateContent 鎺ュ彛',
+        openclaw: 'OpenClaw Gateway WebSocket锛坈onnect + chat.send锛?
       };
-    var transportLabel = pid === 'ollama' ? '本地 Ollama（OpenAI 兼容 chat/completions）' : (m[p.transport] || p.transport);
+    var transportLabel = pid === 'ollama' ? '鏈湴 Ollama锛圤penAI 鍏煎 chat/completions锛? : (m[p.transport] || p.transport);
     ph.textContent =
       p.label +
-      ' 默认走 ' +
+      ' 榛樿璧?' +
       transportLabel +
-      '。如你使用中转站、反向代理或私有网关，也可以直接覆盖 Base URL 和 Model。';
+      '銆傚浣犱娇鐢ㄤ腑杞珯銆佸弽鍚戜唬鐞嗘垨绉佹湁缃戝叧锛屼篃鍙互鐩存帴瑕嗙洊 Base URL 鍜?Model銆?;
   }
 
   function applyProvider(pid, keep) {
@@ -1915,7 +1715,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     provider.value = pid;
     fillModels(pid, model.value.trim());
     hint(pid);
-    if (!keep || !baseUrl.value.trim()) baseUrl.value = p.baseUrl;
+    if (p.transport === 'cli') baseUrl.value = normalizeCliUrl(p.baseUrl, pid);
+    else if (!keep || !baseUrl.value.trim()) baseUrl.value = p.baseUrl;
     if (!keep || !model.value.trim()) model.value = p.model;
     if (!systemPrompt.value.trim()) systemPrompt.value = SP;
     syncProviderDdUi();
@@ -2010,7 +1811,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     });
 
     updateNeedSetup();
-    sstat(state.needSetup ? '首次使用请先完成 API 设置。' : '配置与对话已从本地恢复。', state.needSetup ? '' : 'success');
+    sstat(state.needSetup ? '棣栨浣跨敤璇峰厛瀹屾垚 API 璁剧疆銆? : '閰嶇疆涓庡璇濆凡浠庢湰鍦版仮澶嶃€?, state.needSetup ? '' : 'success');
     renderSessionTabs();
     rebuildMsgList();
     refreshSendUi();
@@ -2036,7 +1837,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     localStorage.setItem(LS, JSON.stringify(d));
     persistSessions();
     updateNeedSetup();
-    sstat(ok ? '设置已保存到本地。' : '配置会自动保存到本地。', ok ? 'success' : '');
+    sstat(ok ? '璁剧疆宸蹭繚瀛樺埌鏈湴銆? : '閰嶇疆浼氳嚜鍔ㄤ繚瀛樺埌鏈湴銆?, ok ? 'success' : '');
     renderSessionTabs();
     return d;
   }
@@ -2055,7 +1856,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     state.activeSessionId = '';
     loadCfg();
     state.needSetup = true;
-    sstat('已重置：各服务商密钥与对话已清空，请分别填写。', '');
+    sstat('宸查噸缃細鍚勬湇鍔″晢瀵嗛挜涓庡璇濆凡娓呯┖锛岃鍒嗗埆濉啓銆?, '');
     setSettings(true);
   }
 
@@ -2151,7 +1952,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     } catch (e) {
       c = '';
     }
-    if (!c) throw new Error('响应中没有可显示的内容。');
+    if (!c) throw new Error('鍝嶅簲涓病鏈夊彲鏄剧ず鐨勫唴瀹广€?);
     return c;
   }
 
@@ -2179,7 +1980,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     } catch (e) {
       c = '';
     }
-    if (!c) throw new Error('响应中没有可显示的内容。');
+    if (!c) throw new Error('鍝嶅簲涓病鏈夊彲鏄剧ず鐨勫唴瀹广€?);
     return c;
   }
 
@@ -2205,7 +2006,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     } catch (e) {
       c = '';
     }
-    if (!c) throw new Error('响应中没有可显示的内容。');
+    if (!c) throw new Error('鍝嶅簲涓病鏈夊彲鏄剧ず鐨勫唴瀹广€?);
     return c;
   }
 
@@ -2261,7 +2062,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     }
   }
 
-  /** OpenClaw broadcast("chat", payload)：正文在 message.content[].text，而非旧版 response.text */
+  /** OpenClaw broadcast("chat", payload)锛氭鏂囧湪 message.content[].text锛岃€岄潪鏃х増 response.text */
   function ocExtractChatEventPayload(pl) {
     if (!pl || typeof pl !== 'object') return '';
     if (pl.state === 'error') return '';
@@ -2287,9 +2088,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   }
 
   /**
-   * 与 openclaw2 控制台一致：顶层常为 type:event + payload.event===chat，
-   * 而非 msg.event===chat（否则 NiuMa 永远等不到 final，45s 超时）。
-   */
+   * 涓?openclaw2 鎺у埗鍙颁竴鑷达細椤跺眰甯镐负 type:event + payload.event===chat锛?   * 鑰岄潪 msg.event===chat锛堝惁鍒?NiuMa 姘歌繙绛変笉鍒?final锛?5s 瓒呮椂锛夈€?   */
   function ocGetChatBroadcastPayload(msg) {
     if (!msg || typeof msg !== 'object') return null;
     if (msg.payload != null && typeof msg.payload === 'object' && msg.event === 'chat') return msg.payload;
@@ -2504,7 +2303,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
         } catch (e0) {}
         var rpcRes = await openClawRpc(cfg, 'chat.history', { sessionKey: sk, limit: 100 }, 10000);
         var gw = extractGatewayHistoryMessages(rpcRes).map(mapGatewayHistoryItem).filter(Boolean);
-        /* 本地优先：避免网关 chat.history 占位项（content 空、仅有 id）与刚发送条目同 key 时盖住本地正文 */
+        /* 鏈湴浼樺厛锛氶伩鍏嶇綉鍏?chat.history 鍗犱綅椤癸紙content 绌恒€佷粎鏈?id锛変笌鍒氬彂閫佹潯鐩悓 key 鏃剁洊浣忔湰鍦版鏂?*/
         if (gw.length) s.history = mergeHistoryList(s.history || [], gw).slice(-400);
       }
       pushSessionHistoryToStore(s);
@@ -2519,16 +2318,16 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 
   async function reqOpenClaw(cfg) {
     var ep = openClawEndpointFromCfg(cfg);
-    if (!ep.ok) throw new Error('缺少 Gateway Token：请填写密钥，或将带 #token= 的控制台地址填入 Base URL。');
+    if (!ep.ok) throw new Error('缂哄皯 Gateway Token锛氳濉啓瀵嗛挜锛屾垨灏嗗甫 #token= 鐨勬帶鍒跺彴鍦板潃濉叆 Base URL銆?);
     var wsUrl = 'ws://' + ep.host + ':' + ep.port + '/?token=' + encodeURIComponent(ep.token);
     var h = activeSession() ? activeSession().history : [];
     var last = h[h.length - 1];
-    if (!last || last.role !== 'user') throw new Error('内部错误：缺少用户消息。');
+    if (!last || last.role !== 'user') throw new Error('鍐呴儴閿欒锛氱己灏戠敤鎴锋秷鎭€?);
     var msgText = String(last.content != null ? last.content : '');
     if (!msgText.trim()) msgText = ocExtractMessageContentForHistory(last);
-    if (!String(msgText || '').trim()) throw new Error('上一条用户消息正文为空，请重新输入后发送。');
+    if (!String(msgText || '').trim()) throw new Error('涓婁竴鏉＄敤鎴锋秷鎭鏂囦负绌猴紝璇烽噸鏂拌緭鍏ュ悗鍙戦€併€?);
     if (cfg.systemPrompt && h.length === 1) {
-      msgText = '【系统提示】\n' + cfg.systemPrompt + '\n\n' + msgText;
+      msgText = '銆愮郴缁熸彁绀恒€慭n' + cfg.systemPrompt + '\n\n' + msgText;
     }
     var s0 = activeSession();
     var sessionKey = getOpenClawSessionKey(s0);
@@ -2543,7 +2342,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       try {
         ws = new WebSocket(wsUrl);
       } catch (e) {
-        reject(new Error('无法建立 WebSocket：' + (e && e.message ? e.message : String(e))));
+        reject(new Error('鏃犳硶寤虹珛 WebSocket锛? + (e && e.message ? e.message : String(e))));
         return;
       }
       var seq = 0;
@@ -2555,7 +2354,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       var pendingText = '';
       var finalizeTimer = null;
       var hardTimeout = setTimeout(function () {
-        settleReject(new Error('OpenClaw 响应超时（45s）。'));
+        settleReject(new Error('OpenClaw 鍝嶅簲瓒呮椂锛?5s锛夈€?));
       }, 45000);
 
       function cleanup() {
@@ -2588,7 +2387,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
         finalizeTimer = setTimeout(function () {
           var t = pendingText.trim();
           if (t) settleResolve(t);
-          else settleReject(new Error('响应中没有可显示的内容。'));
+          else settleReject(new Error('鍝嶅簲涓病鏈夊彲鏄剧ず鐨勫唴瀹广€?));
         }, 1200);
       }
 
@@ -2599,7 +2398,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       function okDone() {
         var t = pendingText.trim();
         if (t) settleResolve(t);
-        else settleReject(new Error('响应中没有可显示的内容。'));
+        else settleReject(new Error('鍝嶅簲涓病鏈夊彲鏄剧ず鐨勫唴瀹广€?));
       }
 
       function sendConnectOnce() {
@@ -2611,7 +2410,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
           minProtocol: 3,
           maxProtocol: 3,
           client: {
-            /* 须与 Gateway 的 openclaw-control-ui 一致：webchat id 会在无设备身份时被 clearUnboundScopes 清空 scopes，导致 chat.send 报 missing scope: operator.write */
+            /* 椤讳笌 Gateway 鐨?openclaw-control-ui 涓€鑷达細webchat id 浼氬湪鏃犺澶囪韩浠芥椂琚?clearUnboundScopes 娓呯┖ scopes锛屽鑷?chat.send 鎶?missing scope: operator.write */
             id: 'openclaw-control-ui',
             version: 'niuma',
             platform: typeof navigator !== 'undefined' ? navigator.platform || 'web' : 'web',
@@ -2628,7 +2427,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
         try {
           ws.send(JSON.stringify({ type: 'req', id: cid, method: 'connect', params: params }));
         } catch (e) {
-          fail(new Error('发送认证请求失败：' + (e && e.message ? e.message : String(e))));
+          fail(new Error('鍙戦€佽璇佽姹傚け璐ワ細' + (e && e.message ? e.message : String(e))));
         }
       }
 
@@ -2649,7 +2448,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
             })
           );
         } catch (e) {
-          fail(new Error('发送对话失败：' + (e && e.message ? e.message : String(e))));
+          fail(new Error('鍙戦€佸璇濆け璐ワ細' + (e && e.message ? e.message : String(e))));
         }
       }
 
@@ -2665,7 +2464,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 
         if (typeof msg.id === 'string' && msg.id.indexOf('connect-') === 0) {
           if (msg.error || msg.ok === false) {
-            var em = (msg.error && msg.error.message) || 'Gateway 认证失败';
+            var em = (msg.error && msg.error.message) || 'Gateway 璁よ瘉澶辫触';
             fail(new Error(String(em)));
             return;
           }
@@ -2684,7 +2483,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 
         if (!authenticated) return;
 
-        /* chat.send 先返回 type:res（仅 started），助手正文由 broadcast("chat") 推送 */
+        /* chat.send 鍏堣繑鍥?type:res锛堜粎 started锛夛紝鍔╂墜姝ｆ枃鐢?broadcast("chat") 鎺ㄩ€?*/
         if (msg.type === 'res' && msg.id === chatMsgId) {
           if (msg.error || msg.ok === false) {
             var er0 = (msg.error && msg.error.message) || JSON.stringify(msg.error || {});
@@ -2704,12 +2503,12 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
         if (plChat) {
           var pl = plChat;
           if (pl.state === 'error') {
-            fail(new Error(String(pl.errorMessage || 'OpenClaw 对话出错')));
+            fail(new Error(String(pl.errorMessage || 'OpenClaw 瀵硅瘽鍑洪敊')));
             return;
           }
           var chatTxt = ocExtractChatEventPayload(pl);
           if (chatTxt) {
-            /* delta：可能是增量片段（需拼接）或每帧全量快照（需整段替换） */
+            /* delta锛氬彲鑳芥槸澧為噺鐗囨锛堥渶鎷兼帴锛夋垨姣忓抚鍏ㄩ噺蹇収锛堥渶鏁存鏇挎崲锛?*/
             if (pl.state === 'delta') {
               if (pendingText && chatTxt.length >= pendingText.length && chatTxt.indexOf(pendingText) === 0)
                 pendingText = chatTxt;
@@ -2728,7 +2527,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
                 var dbg = JSON.stringify(pl);
                 if (dbg && dbg.length > 2 && dbg.length < 8000)
                   pendingText =
-                    '（Gateway 返回了 final 但未解析出正文，请升级脚本或核对 Gateway 版本。原始 payload 摘要）\n' +
+                    '锛圙ateway 杩斿洖浜?final 浣嗘湭瑙ｆ瀽鍑烘鏂囷紝璇峰崌绾ц剼鏈垨鏍稿 Gateway 鐗堟湰銆傚師濮?payload 鎽樿锛塡n' +
                     dbg.slice(0, 4000);
               } catch (e3) {}
             }
@@ -2736,7 +2535,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
             return;
           }
           if (pl.state === 'delta' && chatTxt) armFinalize();
-          /* 部分 Gateway 只推 text/content，无 state */
+          /* 閮ㄥ垎 Gateway 鍙帹 text/content锛屾棤 state */
           if (pl.state == null && chatTxt) armFinalize();
           return;
         }
@@ -2754,7 +2553,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
         }
 
         var respPayload = msg.payload || (msg.result !== undefined && typeof msg.result === 'object' ? msg.result : null);
-        /* 与 openclaw2：流式帧常带 msg.result 而非 ev===response，且可能无 id */
+        /* 涓?openclaw2锛氭祦寮忓抚甯稿甫 msg.result 鑰岄潪 ev===response锛屼笖鍙兘鏃?id */
         var isResp =
           ev === 'response' ||
           ev === 'chat.response' ||
@@ -2776,7 +2575,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 
         if (ev === 'error' || msg.error) {
           var emsg = ocExtractText((msg.payload && msg.payload.message) || (msg.error && msg.error.message) || msg.error);
-          fail(new Error(emsg || '服务端错误'));
+          fail(new Error(emsg || '鏈嶅姟绔敊璇?));
           return;
         }
 
@@ -2788,7 +2587,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
           armFinalize();
         }
 
-        /* 兜底：信封未标 chat 但 payload 已是流式结构（仅在本连接已发 chat.send 后） */
+        /* 鍏滃簳锛氫俊灏佹湭鏍?chat 浣?payload 宸叉槸娴佸紡缁撴瀯锛堜粎鍦ㄦ湰杩炴帴宸插彂 chat.send 鍚庯級 */
         if (chatMsgId) {
           var silentEv = { health: 1, tick: 1, ping: 1, pong: 1, heartbeat: 1, typing: 1 };
           if (!silentEv[ev]) {
@@ -2803,7 +2602,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
                 guess.state === 'error')
             ) {
               if (guess.state === 'error') {
-                fail(new Error(String(guess.errorMessage || 'OpenClaw 对话出错')));
+                fail(new Error(String(guess.errorMessage || 'OpenClaw 瀵硅瘽鍑洪敊')));
                 return;
               }
               var gt = ocExtractChatEventPayload(guess);
@@ -2842,7 +2641,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       };
 
       ws.onerror = function () {
-        settleReject(new Error('WebSocket 错误（请确认 OpenClaw Gateway 已在本机 ' + ep.host + ':' + ep.port + ' 运行）。'));
+        settleReject(new Error('WebSocket 閿欒锛堣纭 OpenClaw Gateway 宸插湪鏈満 ' + ep.host + ':' + ep.port + ' 杩愯锛夈€?));
       };
 
       ws.onclose = function (e) {
@@ -2851,7 +2650,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
           settleResolve(pendingText.trim());
           return;
         }
-        settleReject(new Error('连接已关闭（code ' + e.code + '）。'));
+        settleReject(new Error('杩炴帴宸插叧闂紙code ' + e.code + '锛夈€?));
       };
     });
   }
@@ -2861,7 +2660,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     if (!s || !s.id) return;
     var sid = s.id;
     if (isSessionSending(sid)) {
-      cstatForSession(sid, '该标签仍在等待上一次响应，请稍候。', 'error');
+      cstatForSession(sid, '璇ユ爣绛句粛鍦ㄧ瓑寰呬笂涓€娆″搷搴旓紝璇风◢鍊欍€?, 'error');
       return;
     }
     var text = input.value.trim();
@@ -2871,32 +2670,32 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     if (!cfg) return;
     var p0 = P[cfg.provider] || P.openai;
     if (p0.transport === 'cli') {
-      // CLI 原生界面：不依赖 Base URL / Model 校验，点击即打开专属终端
+      // CLI 鍘熺敓鐣岄潰锛氫笉渚濊禆 Base URL / Model 鏍￠獙锛岀偣鍑诲嵆鎵撳紑涓撳睘缁堢
       add('user', text);
       input.value = '';
-      cstatForSession(sid, '正在打开 CLI 专属会话窗口...');
+      cstatForSession(sid, '姝ｅ湪鎵撳紑 CLI 涓撳睘浼氳瘽绐楀彛...');
       post({ type: 'niuma_cli_open', engine: cfg.provider });
       return;
     }
     if (!cfg.baseUrl || !cfg.model) {
-      cstatForSession(sid, '请先在设置里填写 Base URL 和 Model。', 'error');
+      cstatForSession(sid, '璇峰厛鍦ㄨ缃噷濉啓 Base URL 鍜?Model銆?, 'error');
       setSettings(true);
       return;
     }
     if (p0.transport !== 'openclaw' && cfg.provider !== 'ollama' && !cfg.apiKey) {
-      cstatForSession(sid, '请先在设置里填写 API Key、Base URL 和 Model。', 'error');
+      cstatForSession(sid, '璇峰厛鍦ㄨ缃噷濉啓 API Key銆丅ase URL 鍜?Model銆?, 'error');
       setSettings(true);
       return;
     }
     if (p0.transport === 'openclaw' && !openClawEndpointFromCfg(cfg).ok) {
-      cstatForSession(sid, 'OpenClaw：请在「Gateway Token」填写 token，或将带 #token= 的完整控制台地址填入 Base URL。', 'error');
+      cstatForSession(sid, 'OpenClaw锛氳鍦ㄣ€孏ateway Token銆嶅～鍐?token锛屾垨灏嗗甫 #token= 鐨勫畬鏁存帶鍒跺彴鍦板潃濉叆 Base URL銆?, 'error');
       setSettings(true);
       return;
     }
     add('user', text);
     input.value = '';
     setSessionSending(sid, true);
-    cstatForSession(sid, '正在请求模型响应...');
+    cstatForSession(sid, '姝ｅ湪璇锋眰妯″瀷鍝嶅簲...');
     try {
       var p = P[cfg.provider] || P.openai,
         content = '';
@@ -2905,9 +2704,9 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       else if (p.transport === 'openclaw') content = await reqOpenClaw(cfg);
       else content = await reqOpenAI(cfg);
       add('assistant', content);
-      cstatForSession(sid, '响应完成。', 'success');
+      cstatForSession(sid, '鍝嶅簲瀹屾垚銆?, 'success');
     } catch (err) {
-      cstatForSession(sid, '请求失败：' + (err && err.message ? err.message : '未知错误'), 'error');
+      cstatForSession(sid, '璇锋眰澶辫触锛? + (err && err.message ? err.message : '鏈煡閿欒'), 'error');
     } finally {
       setSessionSending(sid, false);
     }
@@ -2998,10 +2797,10 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       rd.onload = function () {
         systemPrompt.value = String(rd.result || '');
         saveCfg(false);
-        sstat('已从文件导入：' + f.name, 'success');
+        sstat('宸蹭粠鏂囦欢瀵煎叆锛? + f.name, 'success');
       };
       rd.onerror = function () {
-        sstat('读取文件失败。', 'error');
+        sstat('璇诲彇鏂囦欢澶辫触銆?, 'error');
       };
       rd.readAsText(f);
       this.value = '';
@@ -3072,16 +2871,12 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     cliOpenBtn.addEventListener('click', function () {
       var s = activeSession();
       if (!s || !isCliSession(s)) return;
-      // 确保宿主启动 ttyd，并把 iframe 指向目标
+      // 纭繚瀹夸富鍚姩 ttyd锛屽苟鎶?iframe 鎸囧悜鐩爣
       try {
         post({ type: 'niuma_cli_open', engine: s.provider });
       } catch (e) {}
       var url = cliUrlForSession(s);
-      var fr = $('cliFrame');
-      if (fr && url) {
-        fr.dataset.src = url;
-        fr.src = url;
-      }
+      reloadCliFrameWithRetry(url);
     });
   }
   if (cliReloadBtn) {
@@ -3100,15 +2895,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       try {
         post({ type: 'niuma_cli_restart', engine: s.provider });
       } catch (e) {}
-      // 稍等端口重启后再加载
-      setTimeout(function () {
-        var url = cliUrlForSession(s);
-        var fr = $('cliFrame');
-        if (fr && url) {
-          fr.dataset.src = url;
-          fr.src = url;
-        }
-      }, 450);
+      var url = cliUrlForSession(s);
+      reloadCliFrameWithRetry(url);
     });
   }
   if (cliPopBtn) {
@@ -3202,7 +2990,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       setDrawer(false);
     }
   }
-  // 捕获阶段：焦点在对话输入框等处时，冒泡阶段可能收不到 Esc，仍能关闭 NiuMa Chat 抽屉
+  // 鎹曡幏闃舵锛氱劍鐐瑰湪瀵硅瘽杈撳叆妗嗙瓑澶勬椂锛屽啋娉￠樁娈靛彲鑳芥敹涓嶅埌 Esc锛屼粛鑳藉叧闂?NiuMa Chat 鎶藉眽
   function handleGlobalNiumaHotkeys(e) {
     if (!state.drawer) return;
     if (!e.ctrlKey || e.altKey || e.metaKey) return;
@@ -3216,7 +3004,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       return;
     }
 
-    // Ctrl+W 关闭当前标签（至少保留一个）
+    // Ctrl+W 鍏抽棴褰撳墠鏍囩锛堣嚦灏戜繚鐣欎竴涓級
     if (key === 'w') {
       var sid = state.activeSessionId || '';
       if (sid) {
@@ -3227,8 +3015,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       return;
     }
 
-    // Ctrl+Delete 清空输入框
-    if (key === 'delete' || code === 'Delete') {
+    // Ctrl+Delete 娓呯┖杈撳叆妗?    if (key === 'delete' || code === 'Delete') {
       e.preventDefault();
       e.stopPropagation();
       if (input) {
@@ -3240,8 +3027,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       return;
     }
 
-    // Ctrl+1..8 切换标签：优先 code（Digit1..Digit8 / Numpad1..Numpad8）
-    var idx = -1;
+    // Ctrl+1..8 鍒囨崲鏍囩锛氫紭鍏?code锛圖igit1..Digit8 / Numpad1..Numpad8锛?    var idx = -1;
     if (/^Digit[1-8]$/.test(code) || /^Numpad[1-8]$/.test(code)) {
       idx = parseInt(code.replace(/^\D+/, ''), 10) - 1;
     } else if (/^[1-8]$/.test(key)) {
@@ -3356,7 +3142,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     post({ type: 'context_menu', x: e.screenX, y: e.screenY });
   }
 
-  /* 右键菜单在折叠态/抽屉态都可触发（之前只绑定 collapsedRoot，打开 niuma chat 后会失效） */
+  /* 鍙抽敭鑿滃崟鍦ㄦ姌鍙犳€?鎶藉眽鎬侀兘鍙Е鍙戯紙涔嬪墠鍙粦瀹?collapsedRoot锛屾墦寮€ niuma chat 鍚庝細澶辨晥锛?*/
   var appRoot = $('app');
   if (appRoot) {
     appRoot.addEventListener('contextmenu', openHostContextMenuFromEvent, true);
@@ -3459,7 +3245,8 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   }
 
   rebuildToolbarButtons(state.toolbarActions);
-  /* 兜底：仅当 set_logo 长时间未回调时显示，避免永远空白 */
+  queueCollapsedLayout(0);
+  /* 鍏滃簳锛氫粎褰?set_logo 闀挎椂闂存湭鍥炶皟鏃舵樉绀猴紝閬垮厤姘歌繙绌虹櫧 */
   scheduleToolbarReveal(1200);
 
   document.body.addEventListener('dragover', function (e) {
@@ -3522,6 +3309,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
         function paintThenReveal() {
           requestAnimationFrame(function () {
             requestAnimationFrame(revealToolbarSync);
+            queueCollapsedLayout(0);
           });
         }
         if (!u || !imgs.length) {
@@ -3609,12 +3397,19 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     });
   }
 
+  window.addEventListener('resize', function () {
+    queueCollapsedLayout(60);
+  });
+
   fillProviders();
   fillPromptBuiltinSelect();
   loadCfg();
   scale(1);
   setCompact(false);
   post({ type: 'toolbar_ready' });
+  setTimeout(function () {
+    postCollapsedLayout(true);
+  }, 30);
   requestAnimationFrame(function () {
     requestAnimationFrame(function () {
       setTimeout(function () {
@@ -3623,6 +3418,4 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     });
   });
 })();
-</script>
-</body>
-</html>
+
