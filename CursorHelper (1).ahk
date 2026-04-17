@@ -567,6 +567,13 @@ global ScreenshotEditorTitleBar := 0  ; 截图助手标题栏控件
 global ScreenshotEditorCloseBtn := 0  ; 截图助手关闭按钮控件
 global ScreenshotEditorToolbarVisible := true  ; 工具栏是否可见
 global ScreenshotEditorIsDraggingWindow := false  ; 是否正在拖动窗口
+global ScreenshotToolbarHoverItems := []  ; 截图工具栏按钮悬浮区域与提示
+global ScreenshotToolbarHoverTipLastKey := ""  ; 当前悬浮提示对应按钮 key
+global GuiID_ScreenshotToolbarTip := 0  ; 工具栏悬浮提示 GUI
+global ScreenshotToolbarTipTextCtrl := 0  ; 工具栏悬浮提示文本控件
+global ScreenshotOCRTextLayoutMode := "auto"  ; auto | single_line | multi_line
+global ScreenshotOCRPunctuationMode := "keep"  ; keep | halfwidth | strip
+global ScreenshotOCRDirectCopyEnabled := false  ; OCR窗口是否下次直接复制文本
 global ScreenshotColorPickerActive := false  ; 截图助手取色器是否启用
 global GuiID_ScreenshotColorPicker := 0  ; 取色器面板 GUI
 global ScreenshotColorPickerMagnifierPic := 0  ; 取色器放大镜图片控件
@@ -36043,104 +36050,111 @@ ShowScreenshotEditor(DebugGui := 0) {
         GuiID_ScreenshotToolbar.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
         
         ; 工具栏尺寸
-        ToolbarHeight := 66
-        ToolbarPadding := 12
-        ButtonWidth := 164
-        ButtonHeight := 40
-        ButtonSpacing := 10
-        ButtonY := (ToolbarHeight - ButtonHeight) // 2
-        ButtonX := ToolbarPadding
+        ; Compact icon toolbar (PixPin/Snipaste style)
+        GuiID_ScreenshotToolbar.BackColor := "0f1114"
+        ToolbarHeight := 44
+        ToolbarPaddingX := 8
+        ToolbarPaddingY := 6
+        ButtonSize := 30
+        ButtonGap := 6
+        SepGap := 8
+        SepW := 1
+        ButtonY := (ToolbarHeight - ButtonSize) // 2
+        ButtonX := ToolbarPaddingX
 
-        ; 参考搜索提示词标签：主标签 + 右侧快捷键胶囊
-        ToolbarBtnBg := "171d24"
-        ToolbarBtnHover := "212a34"
-        ToolbarBtnBorder := "2f3a47"
-        ToolbarBtnText := "e6edf5"
-        ToolbarKeyBg := "232c36"
-        ToolbarKeyBorder := "3c4756"
-        ToolbarKeyText := "8f9cab"
+        ToolbarBtnBg := "0f1114"
+        ToolbarBtnHover := "1a2028"
+        ToolbarBtnBorder := "7a4a20"
+        ToolbarBtnText := "ff9d3a"
+        ToolbarBtnAccentBg := "201308"
+        ToolbarBtnAccentHover := "2f1c0b"
+        ToolbarBtnAccentBorder := "a2632d"
+        ToolbarBtnDangerBg := "251417"
+        ToolbarBtnDangerHover := "3a1d22"
+        ToolbarBtnDangerBorder := "69363d"
+        ToolbarBtnDangerText := "ff9aa6"
+        ToolbarSepColor := "5a3a20"
+        global ScreenshotToolbarHoverItems, ScreenshotToolbarHoverTipLastKey
+        ScreenshotToolbarHoverItems := []
+        ScreenshotToolbarHoverTipLastKey := ""
 
-        ToolbarBtnDangerBg := "28181a"
-        ToolbarBtnDangerHover := "341f22"
-        ToolbarBtnDangerBorder := "5b2e33"
-        ToolbarKeyDangerBg := "342023"
-        ToolbarKeyDangerBorder := "6b3a40"
-        ToolbarKeyDangerText := "c89ea4"
-
-        AddScreenshotToolbarTagButton(labelText, hotkeyHint, onClick, isDanger := false) {
-            ; AHK v2 无 nonlocal；本嵌套函数读写外层局部变量（ButtonX 等）并读取 global GuiID_ScreenshotToolbar
+        AddScreenshotToolbarSeparator() {
             global GuiID_ScreenshotToolbar
-
-            bg := isDanger ? ToolbarBtnDangerBg : ToolbarBtnBg
-            bgHover := isDanger ? ToolbarBtnDangerHover : ToolbarBtnHover
-            border := isDanger ? ToolbarBtnDangerBorder : ToolbarBtnBorder
-            keyBg := isDanger ? ToolbarKeyDangerBg : ToolbarKeyBg
-            keyBorder := isDanger ? ToolbarKeyDangerBorder : ToolbarKeyBorder
-            keyText := isDanger ? ToolbarKeyDangerText : ToolbarKeyText
-
-            baseCtrl := GuiID_ScreenshotToolbar.Add("Text"
-                , "x" . ButtonX . " y" . ButtonY . " w" . ButtonWidth . " h" . ButtonHeight . " Border c" . border . " Background" . bg
+            ButtonX += SepGap
+            sepCtrl := GuiID_ScreenshotToolbar.Add("Text"
+                , "x" . ButtonX . " y" . (ButtonY + 4) . " w" . SepW . " h" . (ButtonSize - 8) . " Border c" . ToolbarSepColor . " Background" . ToolbarSepColor
                 , "")
-            HoverBtnWithAnimation(baseCtrl, bg, bgHover)
+            sepCtrl.OnEvent("Click", ScreenshotToolbarDragWindow)
+            ButtonX += SepW + SepGap
+        }
 
-            keyW := 66
-            keyH := 22
-            keyX := ButtonX + ButtonWidth - keyW - 10
-            keyY := ButtonY + ((ButtonHeight - keyH) // 2)
-            labelX := ButtonX + 12
-            labelW := keyX - labelX - 8
+        AddScreenshotToolbarIconButton(iconKey, fallbackText, tipText, onClick, isDanger := false, isAccent := false) {
+            global GuiID_ScreenshotToolbar
+            global ScreenshotToolbarHoverItems
+            bg := isDanger ? ToolbarBtnDangerBg : (isAccent ? ToolbarBtnAccentBg : ToolbarBtnBg)
+            bgHover := isDanger ? ToolbarBtnDangerHover : (isAccent ? ToolbarBtnAccentHover : ToolbarBtnHover)
+            border := isDanger ? ToolbarBtnDangerBorder : (isAccent ? ToolbarBtnAccentBorder : ToolbarBtnBorder)
+            iconColor := isDanger ? ToolbarBtnDangerText : ToolbarBtnText
+            localX := ButtonX
 
-            labelCtrl := GuiID_ScreenshotToolbar.Add("Text"
-                , "x" . labelX . " y" . ButtonY . " w" . labelW . " h" . ButtonHeight . " Left 0x200 BackgroundTrans c" . ToolbarBtnText
-                , labelText)
-            labelCtrl.SetFont("s9 Bold", "Segoe UI")
+            btnCtrl := GuiID_ScreenshotToolbar.Add("Text"
+                , "x" . ButtonX . " y" . ButtonY . " w" . ButtonSize . " h" . ButtonSize . " Center 0x200 Border c" . border . " Background" . bg
+                , "")
+            btnCtrl.SetFont("c" . iconColor)
+            HoverBtnWithAnimation(btnCtrl, bg, bgHover)
 
-            keyCtrl := GuiID_ScreenshotToolbar.Add("Text"
-                , "x" . keyX . " y" . keyY . " w" . keyW . " h" . keyH . " Center 0x200 Border c" . keyText . " Background" . keyBg
-                , hotkeyHint)
-            keyCtrl.SetFont("s8 Bold", "Segoe UI")
+            iconPath := ScreenshotEditorToolbarIconPath(iconKey)
+            iconCtrl := 0
+            if (iconPath != "" && FileExist(iconPath)) {
+                iconSize := ButtonSize - 10
+                iconOffset := (ButtonSize - iconSize) // 2
+                iconCtrl := GuiID_ScreenshotToolbar.Add("Picture"
+                    , "x" . (ButtonX + iconOffset) . " y" . (ButtonY + iconOffset) . " w" . iconSize . " h" . iconSize . " BackgroundTrans"
+                    , iconPath)
+            } else {
+                iconCtrl := GuiID_ScreenshotToolbar.Add("Text"
+                    , "x" . ButtonX . " y" . ButtonY . " w" . ButtonSize . " h" . ButtonSize . " Center 0x200 BackgroundTrans c" . iconColor
+                    , fallbackText)
+                iconCtrl.SetFont("s11 Bold", "Segoe UI Symbol")
+            }
 
             doClick(*) {
                 try onClick.Call()
             }
-            baseCtrl.OnEvent("Click", doClick)
-            labelCtrl.OnEvent("Click", doClick)
-            keyCtrl.OnEvent("Click", doClick)
-
-            ButtonX += ButtonWidth + ButtonSpacing
+            btnCtrl.OnEvent("Click", doClick)
+            try iconCtrl.OnEvent("Click", doClick)
+            ScreenshotToolbarHoverItems.Push(Map(
+                "key", iconKey,
+                "x", localX,
+                "y", ButtonY,
+                "w", ButtonSize,
+                "h", ButtonSize,
+                "tip", tipText
+            ))
+            ButtonX += ButtonSize + ButtonGap
         }
         
-        ; 先创建拖动区域（在按钮下方，不覆盖按钮）
-        ; 注意：拖动区域会在按钮创建后添加，确保按钮在上层
-        
-        ; 工具栏按钮（标签风格）
         global ScreenshotEditorAlwaysOnTop := true
-        AddScreenshotToolbarTagButton("置顶", "Caps+Q", (*) => ToggleScreenshotEditorAlwaysOnTop())
-        AddScreenshotToolbarTagButton("OCR", "Caps+E", (*) => ExecuteScreenshotOCR())
-        AddScreenshotToolbarTagButton("纯文本", "Caps+C", (*) => PasteScreenshotAsText())
-        AddScreenshotToolbarTagButton("保存", "Caps+R", (*) => SaveScreenshotToFile())
-        AddScreenshotToolbarTagButton("AI", "Caps+Z", (*) => ScreenshotEditorSendToAI())
-        AddScreenshotToolbarTagButton("搜索", "Caps+F", (*) => ScreenshotEditorSearchText())
-        AddScreenshotToolbarTagButton("取色", "Caps+X", (*) => ScreenshotEditorToggleColorPicker())
-        AddScreenshotToolbarTagButton("关闭", "Esc", (*) => CloseScreenshotEditor(), true)
+        AddScreenshotToolbarIconButton("pin", "▣", "置顶  Caps+Q", (*) => ToggleScreenshotEditorAlwaysOnTop(), false, true) ; Caps+Q
+        AddScreenshotToolbarIconButton("ocr", "T", "识别文本  Caps+E", (*) => ExecuteScreenshotOCR(), false, true) ; Caps+E
+        AddScreenshotToolbarIconButton("text", "¶", "复制文本  Caps+C", (*) => PasteScreenshotAsText()) ; Caps+C
+        AddScreenshotToolbarIconButton("save", "⭳", "保存图片  Caps+R", (*) => SaveScreenshotToFile()) ; Caps+R
+        AddScreenshotToolbarSeparator()
+        AddScreenshotToolbarIconButton("ai", "✦", "发送到AI  Caps+Z", (*) => ScreenshotEditorSendToAI(), false, true) ; Caps+Z
+        AddScreenshotToolbarIconButton("search", "⌕", "搜索文本  Caps+F", (*) => ScreenshotEditorSearchText()) ; Caps+F
+        AddScreenshotToolbarIconButton("color", "◉", "取色器  Caps+X", (*) => ScreenshotEditorToggleColorPicker()) ; Caps+X
+        AddScreenshotToolbarSeparator()
+        AddScreenshotToolbarIconButton("close", "✕", "关闭  Esc", (*) => CloseScreenshotEditor(), true) ; Esc
         
-        ; 计算工具栏宽度
-        ToolbarWidth := ButtonX + ToolbarPadding
+        ToolbarWidth := ButtonX - ButtonGap + ToolbarPaddingX
         
-        ; 为工具栏添加拖动功能
-        ; 在工具栏的空白区域添加拖动区域（不覆盖按钮）
-        ; Text控件只支持Click事件
-        ; 顶部拖动区域
-        ToolbarDragTop := GuiID_ScreenshotToolbar.Add("Text", "x0 y0 w" . ToolbarWidth . " h" . ButtonY . " BackgroundTrans")
+        ToolbarDragTop := GuiID_ScreenshotToolbar.Add("Text", "x0 y0 w" . ToolbarWidth . " h" . ToolbarPaddingY . " BackgroundTrans")
         ToolbarDragTop.OnEvent("Click", ScreenshotToolbarDragWindow)
-        ; 底部拖动区域
-        ToolbarDragBottom := GuiID_ScreenshotToolbar.Add("Text", "x0 y" . (ButtonY + ButtonHeight) . " w" . ToolbarWidth . " h" . (ToolbarHeight - ButtonY - ButtonHeight) . " BackgroundTrans")
+        ToolbarDragBottom := GuiID_ScreenshotToolbar.Add("Text", "x0 y" . (ToolbarHeight - ToolbarPaddingY) . " w" . ToolbarWidth . " h" . ToolbarPaddingY . " BackgroundTrans")
         ToolbarDragBottom.OnEvent("Click", ScreenshotToolbarDragWindow)
-        ; 左侧拖动区域（按钮左侧）
-        ToolbarDragLeft := GuiID_ScreenshotToolbar.Add("Text", "x0 y" . ButtonY . " w" . ToolbarPadding . " h" . ButtonHeight . " BackgroundTrans")
+        ToolbarDragLeft := GuiID_ScreenshotToolbar.Add("Text", "x0 y" . ButtonY . " w" . ToolbarPaddingX . " h" . ButtonSize . " BackgroundTrans")
         ToolbarDragLeft.OnEvent("Click", ScreenshotToolbarDragWindow)
-        ; 右侧拖动区域（按钮右侧到工具栏边缘）
-        ToolbarDragRight := GuiID_ScreenshotToolbar.Add("Text", "x" . (ButtonX - ToolbarPadding) . " y" . ButtonY . " w" . (ToolbarWidth - ButtonX + ToolbarPadding) . " h" . ButtonHeight . " BackgroundTrans")
+        ToolbarDragRight := GuiID_ScreenshotToolbar.Add("Text", "x" . (ToolbarWidth - ToolbarPaddingX) . " y" . ButtonY . " w" . ToolbarPaddingX . " h" . ButtonSize . " BackgroundTrans")
         ToolbarDragRight.OnEvent("Click", ScreenshotToolbarDragWindow)
         
         ; [关闭] 按钮（在标题栏右侧，最后创建以确保在最上层）
@@ -36208,6 +36222,7 @@ ShowScreenshotEditor(DebugGui := 0) {
         
         ; 显示悬浮工具栏
         GuiID_ScreenshotToolbar.Show("w" . ToolbarWidth . " h" . ToolbarHeight . " x" . ToolbarX . " y" . ToolbarY)
+        SetTimer(ScreenshotToolbarHoverTick, 60)
         
         ; 激活工具栏窗口
         try {
@@ -36763,11 +36778,14 @@ CloseScreenshotEditor() {
     global ScreenshotEditorImagePath, ScreenshotEditorPreviewBitmap
     global GuiID_ScreenshotZoomTip, ScreenshotZoomTipTextCtrl
     global ScreenshotEditorZoomScale, ScreenshotEditorBaseWidth, ScreenshotEditorBaseHeight
+    global GuiID_ScreenshotToolbarTip, ScreenshotToolbarTipTextCtrl
     
     try {
         ScreenshotEditorStopColorPicker()
 
         ; 关闭工具栏窗口
+        SetTimer(ScreenshotToolbarHoverTick, 0)
+        ScreenshotToolbarHideHoverTip()
         if (GuiID_ScreenshotToolbar && (GuiID_ScreenshotToolbar != 0)) {
             try {
                 if (IsObject(GuiID_ScreenshotToolbar)) {
@@ -36777,6 +36795,16 @@ CloseScreenshotEditor() {
                 ; 忽略销毁错误
             }
             GuiID_ScreenshotToolbar := 0
+        }
+
+        if (GuiID_ScreenshotToolbarTip && (GuiID_ScreenshotToolbarTip != 0)) {
+            try {
+                if (IsObject(GuiID_ScreenshotToolbarTip))
+                    GuiID_ScreenshotToolbarTip.Destroy()
+            } catch {
+            }
+            GuiID_ScreenshotToolbarTip := 0
+            ScreenshotToolbarTipTextCtrl := 0
         }
 
         if (GuiID_ScreenshotZoomTip && (GuiID_ScreenshotZoomTip != 0)) {
@@ -36877,10 +36905,109 @@ UpdateScreenshotEditorPreview() {
     }
 }
 
+ScreenshotEditorToolbarIconPath(iconKey) {
+    baseDir := A_ScriptDir "\assets\images"
+    menuDir := baseDir "\screenshot-menu"
+    iconMap := Map(
+        "pin", menuDir "\toolbar-show.png",
+        "ocr", menuDir "\process.png",
+        "text", menuDir "\copy.png",
+        "save", menuDir "\save.png",
+        "ai", baseDir "\toolbar_ai.png",
+        "search", baseDir "\toolbar_search.png",
+        "color", menuDir "\flip-h.png",
+        "close", menuDir "\close.png"
+    )
+    return iconMap.Has(iconKey) ? iconMap[iconKey] : ""
+}
+
+ScreenshotToolbarEnsureTipGui() {
+    global GuiID_ScreenshotToolbarTip, ScreenshotToolbarTipTextCtrl
+    if (GuiID_ScreenshotToolbarTip && GuiID_ScreenshotToolbarTip != 0)
+        return
+    GuiID_ScreenshotToolbarTip := Gui("+AlwaysOnTop -Caption +ToolWindow +Border +E0x20")
+    GuiID_ScreenshotToolbarTip.BackColor := "0f1114"
+    ScreenshotToolbarTipTextCtrl := GuiID_ScreenshotToolbarTip.Add("Text", "x8 y4 cffb062 BackgroundTrans", "")
+    ScreenshotToolbarTipTextCtrl.SetFont("s9", "Segoe UI")
+}
+
+ScreenshotToolbarShowHoverTip(tipText, anchorX, anchorY) {
+    global GuiID_ScreenshotToolbarTip, ScreenshotToolbarTipTextCtrl
+    ScreenshotToolbarEnsureTipGui()
+    if (!(GuiID_ScreenshotToolbarTip && ScreenshotToolbarTipTextCtrl))
+        return
+    try {
+        ScreenshotToolbarTipTextCtrl.Value := tipText
+        GuiID_ScreenshotToolbarTip.Show("NA AutoSize x-32000 y-32000")
+        GuiID_ScreenshotToolbarTip.GetPos(, , &tw, &th)
+        ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
+        tx := anchorX - (tw // 2)
+        ty := anchorY - th - 14
+        if (tx < vl)
+            tx := vl + 2
+        if (tx + tw > vl + vw)
+            tx := vl + vw - tw - 2
+        if (ty < vt)
+            ty := anchorY + 14
+        GuiID_ScreenshotToolbarTip.Show("NA x" . tx . " y" . ty)
+    } catch {
+    }
+}
+
+ScreenshotToolbarHideHoverTip() {
+    global GuiID_ScreenshotToolbarTip, ScreenshotToolbarHoverTipLastKey
+    ScreenshotToolbarHoverTipLastKey := ""
+    try {
+        if (GuiID_ScreenshotToolbarTip && GuiID_ScreenshotToolbarTip != 0)
+            GuiID_ScreenshotToolbarTip.Hide()
+    } catch {
+    }
+}
+
+ScreenshotToolbarHoverTick(*) {
+    global GuiID_ScreenshotToolbar, ScreenshotToolbarHoverItems, ScreenshotToolbarHoverTipLastKey
+    if !(GuiID_ScreenshotToolbar && IsObject(GuiID_ScreenshotToolbar) && GuiID_ScreenshotToolbar != 0) {
+        ScreenshotToolbarHideHoverTip()
+        SetTimer(ScreenshotToolbarHoverTick, 0)
+        return
+    }
+    try WinGetPos(&wx, &wy, &ww, &wh, "ahk_id " . GuiID_ScreenshotToolbar.Hwnd)
+    catch {
+        ScreenshotToolbarHideHoverTip()
+        return
+    }
+
+    MouseGetPos(&mx, &my, &hoverWin)
+    if (hoverWin != GuiID_ScreenshotToolbar.Hwnd) {
+        ScreenshotToolbarHideHoverTip()
+        return
+    }
+
+    lx := mx - wx
+    ly := my - wy
+    hitKey := ""
+    hitTip := ""
+    for _, item in ScreenshotToolbarHoverItems {
+        if (lx >= item["x"] && lx <= item["x"] + item["w"] && ly >= item["y"] && ly <= item["y"] + item["h"]) {
+            hitKey := item["key"]
+            hitTip := item["tip"]
+            break
+        }
+    }
+    if (hitKey = "") {
+        ScreenshotToolbarHideHoverTip()
+        return
+    }
+    if (hitKey != ScreenshotToolbarHoverTipLastKey) {
+        ScreenshotToolbarHoverTipLastKey := hitKey
+        ScreenshotToolbarShowHoverTip(hitTip, mx, my)
+    }
+}
+
 ScreenshotEditorMenuSvgIconPath(iconKey) {
     ; 统一维护截图右键菜单图标映射（SVG 资源路径）
     baseDir := A_ScriptDir "\assets\images\screenshot-menu"
-    map := Map(
+    iconMap := Map(
         "copy", baseDir "\copy.svg",
         "save", baseDir "\save.svg",
         "folder", baseDir "\folder.svg",
@@ -36894,7 +37021,7 @@ ScreenshotEditorMenuSvgIconPath(iconKey) {
         "delete", baseDir "\delete.svg",
         "close", baseDir "\close.svg"
     )
-    return map.Has(iconKey) ? map[iconKey] : ""
+    return iconMap.Has(iconKey) ? iconMap[iconKey] : ""
 }
 
 ; 截图助手右键菜单（黑橙风格）
@@ -36979,6 +37106,7 @@ ScreenshotEditorHideToolbarFromMenu() {
     global ScreenshotEditorToolbarVisible, ScreenshotEditorZoomScale
     try {
         ScreenshotEditorToolbarVisible := false
+        ScreenshotToolbarHideHoverTip()
         if (ScreenshotEditorTitleBar)
             ScreenshotEditorTitleBar.Visible := false
         if (ScreenshotEditorCloseBtn)
@@ -37759,6 +37887,111 @@ CleanCodeOCRText(ResultObj) {
     }
 }
 
+ScreenshotOCRLoadPrefs() {
+    global ConfigFile, ScreenshotOCRTextLayoutMode, ScreenshotOCRPunctuationMode, ScreenshotOCRDirectCopyEnabled
+    static loaded := false
+    if (loaded)
+        return
+    loaded := true
+    try {
+        mode := IniRead(ConfigFile, "Settings", "ScreenshotOCRTextLayoutMode", ScreenshotOCRTextLayoutMode)
+        punct := IniRead(ConfigFile, "Settings", "ScreenshotOCRPunctuationMode", ScreenshotOCRPunctuationMode)
+        directCopy := IniRead(ConfigFile, "Settings", "ScreenshotOCRDirectCopyEnabled", ScreenshotOCRDirectCopyEnabled ? "1" : "0")
+
+        if (mode != "auto" && mode != "single_line" && mode != "multi_line")
+            mode := "auto"
+        if (punct != "keep" && punct != "halfwidth" && punct != "strip")
+            punct := "keep"
+        ScreenshotOCRTextLayoutMode := mode
+        ScreenshotOCRPunctuationMode := punct
+        ScreenshotOCRDirectCopyEnabled := (String(directCopy) = "1")
+    } catch {
+    }
+}
+
+ScreenshotOCRSavePrefs() {
+    global ConfigFile, ScreenshotOCRTextLayoutMode, ScreenshotOCRPunctuationMode, ScreenshotOCRDirectCopyEnabled
+    try IniWrite(ScreenshotOCRTextLayoutMode, ConfigFile, "Settings", "ScreenshotOCRTextLayoutMode")
+    try IniWrite(ScreenshotOCRPunctuationMode, ConfigFile, "Settings", "ScreenshotOCRPunctuationMode")
+    try IniWrite(ScreenshotOCRDirectCopyEnabled ? "1" : "0", ConfigFile, "Settings", "ScreenshotOCRDirectCopyEnabled")
+}
+
+ScreenshotOCRNormalizePunctuationHalfwidth(Text) {
+    charMap := Map(
+        "，", ",", "。", ".", "：", ":", "；", ";", "！", "!", "？", "?",
+        "（", "(", "）", ")", "【", "[", "】", "]", "《", "<", "》", ">",
+        "“", '"', "”", '"', "‘", "'", "’", "'",
+        "、", ",", "——", "-", "…", "..."
+    )
+    out := Text
+    for k, v in charMap
+        out := StrReplace(out, k, v)
+    return out
+}
+
+ScreenshotOCRStripPunctuation(Text) {
+    ; Remove most punctuation/symbols while keeping letters/digits/chinese/newlines/spaces.
+    return RegExReplace(Text, "[^\p{L}\p{N}\x{4E00}-\x{9FFF}\s`r`n]+", "")
+}
+
+ScreenshotOCRApplyTextFormattingByMode(Text, layoutMode, punctMode) {
+    out := String(Text)
+    if (layoutMode = "multi_line") {
+        out := ProcessOCRTextPreserveLayout(out)
+    } else if (layoutMode = "single_line") {
+        out := ProcessOCRTextAutoFlow(out)
+    } else {
+        ; auto: choose by structure (many short lines -> multiline, else single line)
+        lineCount := 0
+        shortLineCount := 0
+        lines := StrSplit(StrReplace(out, "`r", ""), "`n")
+        for _, line in lines {
+            t := Trim(line)
+            if (t = "")
+                continue
+            lineCount += 1
+            if (StrLen(t) <= 18)
+                shortLineCount += 1
+        }
+        if (lineCount >= 3 && shortLineCount * 1.0 / lineCount >= 0.55) {
+            out := ProcessOCRTextPreserveLayout(out)
+        } else {
+            out := ProcessOCRTextAutoFlow(out)
+        }
+    }
+
+    if (punctMode = "halfwidth") {
+        out := ScreenshotOCRNormalizePunctuationHalfwidth(out)
+    } else if (punctMode = "strip") {
+        out := ScreenshotOCRStripPunctuation(out)
+        out := RegExReplace(out, "[ \t]{2,}", " ")
+        out := RegExReplace(out, "(`r?`n){3,}", "`n`n")
+    }
+    return Trim(out)
+}
+
+ScreenshotOCRApplyTextFormatting(Text) {
+    global ScreenshotOCRTextLayoutMode, ScreenshotOCRPunctuationMode
+    ScreenshotOCRLoadPrefs()
+    return ScreenshotOCRApplyTextFormattingByMode(Text, ScreenshotOCRTextLayoutMode, ScreenshotOCRPunctuationMode)
+}
+
+ScreenshotOCRLayoutModeLabel(layoutMode) {
+    if (layoutMode = "single_line")
+        return "移除换行"
+    if (layoutMode = "multi_line")
+        return "多行"
+    return "自动"
+}
+
+ScreenshotOCRPunctuationModeLabel(punctMode) {
+    if (punctMode = "halfwidth")
+        return "半角"
+    if (punctMode = "strip")
+        return "去标点"
+    return "保留"
+}
+
 ; 执行截图OCR识别（优化版，专为代码截图设计）
 ExecuteScreenshotOCR() {
     global ScreenshotEditorBitmap
@@ -37839,27 +38072,109 @@ ExecuteScreenshotOCR() {
             return
         }
         
-        ; 显示OCR结果
+        ScreenshotOCRLoadPrefs()
+        global ScreenshotOCRTextLayoutMode, ScreenshotOCRPunctuationMode, ScreenshotOCRDirectCopyEnabled
+
+        if (ScreenshotOCRDirectCopyEnabled) {
+            directText := ScreenshotOCRApplyTextFormatting(cleanedText)
+            A_Clipboard := directText
+            TrayTip("识别完成", "已直接复制文本（" . ScreenshotOCRLayoutModeLabel(ScreenshotOCRTextLayoutMode) . "）", "Iconi 1")
+            ToolTip()
+            return
+        }
+
+        ; 显示OCR结果（支持复制排版）
         OCRResultGui := Gui("+AlwaysOnTop -Caption")
         OCRResultGui.BackColor := UI_Colors.Background
         OCRResultGui.SetFont("s10 c" . UI_Colors.Text, "Segoe UI")
-        
-        ResultText := OCRResultGui.Add("Edit", "x10 y10 w500 h300 ReadOnly Multi Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, cleanedText)
+        OCRResultGui.OnEvent("Escape", (*) => OCRResultGui.Destroy())
+
+        rawText := cleanedText
+        layoutMode := ScreenshotOCRTextLayoutMode
+        punctuationMode := ScreenshotOCRPunctuationMode
+        previewText := ScreenshotOCRApplyTextFormattingByMode(rawText, layoutMode, punctuationMode)
+
+        ResultText := OCRResultGui.Add("Edit", "x10 y10 w560 h310 ReadOnly Multi Background" . UI_Colors.InputBg . " c" . UI_Colors.Text, previewText)
         ResultText.SetFont("s11", "Consolas")
-        
-        ; [粘贴纯文本] 按钮
-        PasteTextBtn := OCRResultGui.Add("Text", "x10 y320 w120 h30 Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary, "📋 粘贴纯文本")
-        PasteTextBtn.SetFont("s10", "Segoe UI")
-        PasteTextBtn.OnEvent("Click", (*) => PasteOCRTextToCursor(cleanedText, OCRResultGui))
-        HoverBtnWithAnimation(PasteTextBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
-        
-        ; [关闭] 按钮
-        CloseBtn := OCRResultGui.Add("Text", "x420 y320 w80 h30 Center 0x200 cFFFFFF Background" . UI_Colors.BtnBg, "关闭")
+
+        CloseBtn := OCRResultGui.Add("Text", "x550 y2 w20 h20 Center 0x200 c" . UI_Colors.Text . " Background" . UI_Colors.Background, "✕")
         CloseBtn.SetFont("s10", "Segoe UI")
         CloseBtn.OnEvent("Click", (*) => OCRResultGui.Destroy())
-        HoverBtnWithAnimation(CloseBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
-        
-        OCRResultGui.Show("w520 h360")
+        HoverBtnWithAnimation(CloseBtn, UI_Colors.Background, UI_Colors.BtnDanger)
+
+        DirectCopyCheck := OCRResultGui.Add("CheckBox", "x10 y330 w180 h24 c" . UI_Colors.Text, "下次直接复制文本")
+        DirectCopyCheck.Value := ScreenshotOCRDirectCopyEnabled ? 1 : 0
+
+        LayoutBtn := OCRResultGui.Add("Text", "x340 y328 w90 h30 Center 0x200 cFFFFFF Background" . UI_Colors.BtnBg, "排版")
+        LayoutBtn.SetFont("s10", "Segoe UI")
+        HoverBtnWithAnimation(LayoutBtn, UI_Colors.BtnBg, UI_Colors.BtnHover)
+
+        CopyBtn := OCRResultGui.Add("Text", "x438 y328 w64 h30 Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary, "复制")
+        CopyBtn.SetFont("s10", "Segoe UI")
+        HoverBtnWithAnimation(CopyBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+
+        PasteBtn := OCRResultGui.Add("Text", "x506 y328 w64 h30 Center 0x200 cFFFFFF Background" . UI_Colors.BtnPrimary, "粘贴")
+        PasteBtn.SetFont("s10", "Segoe UI")
+        HoverBtnWithAnimation(PasteBtn, UI_Colors.BtnPrimary, UI_Colors.BtnPrimaryHover)
+
+        RefreshPreviewText() {
+            formatted := ScreenshotOCRApplyTextFormattingByMode(rawText, layoutMode, punctuationMode)
+            ResultText.Value := formatted
+            LayoutBtn.Value := "排版 " . ScreenshotOCRLayoutModeLabel(layoutMode)
+        }
+
+        SaveModeToGlobal() {
+            global ScreenshotOCRTextLayoutMode, ScreenshotOCRPunctuationMode
+            ScreenshotOCRTextLayoutMode := layoutMode
+            ScreenshotOCRPunctuationMode := punctuationMode
+            ScreenshotOCRSavePrefs()
+        }
+
+        CopyCurrentText(*) {
+            txt := ResultText.Value
+            if (txt = "") {
+                TrayTip("复制", "没有可复制的文本", "Iconx 1")
+                return
+            }
+            A_Clipboard := txt
+            TrayTip("复制", "文本已复制到剪贴板", "Iconi 1")
+        }
+
+        PasteCurrentText(*) {
+            txt := ResultText.Value
+            if (txt = "") {
+                TrayTip("粘贴", "没有可粘贴的文本", "Iconx 1")
+                return
+            }
+            PasteOCRTextToCursor(txt, OCRResultGui)
+        }
+
+        ShowLayoutMenu(*) {
+            punctMenu := Menu()
+            punctMenu.Add((punctuationMode = "keep" ? "✓ " : "") . "保留标点", (*) => (punctuationMode := "keep", SaveModeToGlobal(), RefreshPreviewText()))
+            punctMenu.Add((punctuationMode = "halfwidth" ? "✓ " : "") . "转半角标点", (*) => (punctuationMode := "halfwidth", SaveModeToGlobal(), RefreshPreviewText()))
+            punctMenu.Add((punctuationMode = "strip" ? "✓ " : "") . "移除标点", (*) => (punctuationMode := "strip", SaveModeToGlobal(), RefreshPreviewText()))
+
+            layoutMenu := Menu()
+            layoutMenu.Add((layoutMode = "auto" ? "✓ " : "") . "自动", (*) => (layoutMode := "auto", SaveModeToGlobal(), RefreshPreviewText()))
+            layoutMenu.Add((layoutMode = "single_line" ? "✓ " : "") . "移除换行符", (*) => (layoutMode := "single_line", SaveModeToGlobal(), RefreshPreviewText()))
+            layoutMenu.Add((layoutMode = "multi_line" ? "✓ " : "") . "多行", (*) => (layoutMode := "multi_line", SaveModeToGlobal(), RefreshPreviewText()))
+            layoutMenu.Add()
+            layoutMenu.Add("标点", punctMenu)
+
+            MouseGetPos(&mx, &my)
+            layoutMenu.Show(mx, my)
+        }
+
+        DirectCopyCheck.OnEvent("Click", (*) => (
+            ScreenshotOCRDirectCopyEnabled := (DirectCopyCheck.Value = 1),
+            ScreenshotOCRSavePrefs()
+        ))
+        LayoutBtn.OnEvent("Click", ShowLayoutMenu)
+        CopyBtn.OnEvent("Click", CopyCurrentText)
+        PasteBtn.OnEvent("Click", PasteCurrentText)
+        OCRResultGui.Show("w580 h366")
+        RefreshPreviewText()
         ToolTip()
     } catch as e {
         ToolTip()
@@ -37968,7 +38283,7 @@ CopyScreenshotToClipboard(closeAfter := true) {
 
 ; 粘贴截图为纯文本（OCR识别后粘贴）
 PasteScreenshotAsText() {
-    global ScreenshotEditorBitmap, ScreenshotEditorImagePath
+    global ScreenshotEditorBitmap, ScreenshotEditorImagePath, ScreenshotOCRTextLayoutMode
 
     try {
         ; 先执行OCR识别
@@ -38014,9 +38329,10 @@ PasteScreenshotAsText() {
             return
         }
 
-        ; 将识别结果复制到剪贴板
-        A_Clipboard := recognizedText
-        TrayTip("成功", "文字已复制到剪贴板，可直接粘贴", "Iconi 1")
+        ; 按 OCR 排版设置处理后复制到剪贴板
+        formattedText := ScreenshotOCRApplyTextFormatting(recognizedText)
+        A_Clipboard := formattedText
+        TrayTip("成功", "文字已复制到剪贴板（" . ScreenshotOCRLayoutModeLabel(ScreenshotOCRTextLayoutMode) . "）", "Iconi 1")
 
         ; 关闭预览窗
         CloseScreenshotEditor()
