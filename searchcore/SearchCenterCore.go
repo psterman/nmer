@@ -1,16 +1,14 @@
-// SearchCenterCore — 搜索中心极速模式：Clipboard.db FTS5 + CursorData.db 回退
+// SearchCenterCore — 搜索中心极速模式（Go HTTP 聚合）
 package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"unicode"
 
@@ -43,122 +41,88 @@ func main() {
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-SearchCenterCore", "1")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
 	http.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
-		handleSearchWithDB(w, r, db)
+		handleSearchWithDB(w, r, db, absBase)
+	})
+	statusH := func(w http.ResponseWriter, r *http.Request) {
+		handleStatus(w, r, db, absBase)
+	}
+	http.HandleFunc("/v1/status", statusH)
+	http.HandleFunc("/status", statusH)
+	// 浏览器或代理若自动加了尾部斜杠，默认 ServeMux 不会匹配 /v1/status
+	http.HandleFunc("/v1/status/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/v1/status", http.StatusTemporaryRedirect)
 	})
 
-	log.Printf("SearchCenterCore listening on http://%s (base=%s)\n", *addr, absBase)
+	log.Printf("SearchCenterCore listening on http://%s (base=%s) routes: /health /search /v1/status /status\n", *addr, absBase)
 	if err := http.ListenAndServe(*addr, nil); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func openDatabases(absBase string) (*sql.DB, error) {
+// pickPrimaryClipboardPath 与 AHK 一致：ClipboardDB 实际使用 Data\CursorData.db；
+// 若根目录 Clipboard.db 缺失或 0 字节（曾被误建空库），必须以 CursorData.db 为主连接，否则会搜不到任何行。
+func pickPrimaryClipboardPath(absBase string) (mainPath string, attachCurPath string, err error) {
 	clipPath := filepath.Join(absBase, "Clipboard.db")
-	clipSlash := filepath.ToSlash(clipPath)
-	dsn := "file:" + clipSlash + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
+	curPath := filepath.Join(absBase, "Data", "CursorData.db")
+	stClip, errClip := os.Stat(clipPath)
+	stCur, errCur := os.Stat(curPath)
+	clipOK := errClip == nil && !stClip.IsDir() && stClip.Size() > 0
+	curOK := errCur == nil && !stCur.IsDir() && stCur.Size() > 0
+	if !clipOK && !curOK {
+		return "", "", fmt.Errorf("未找到有效剪贴板库：需要非空 Clipboard.db 或 Data\\CursorData.db（base=%s）", absBase)
+	}
+	if clipOK {
+		mainPath = clipPath
+		if curOK {
+			attachCurPath = curPath
+		}
+		return mainPath, attachCurPath, nil
+	}
+	mainPath = curPath
+	log.Printf("[db] Clipboard.db 不存在或为空文件，主库改为 Data\\CursorData.db（与 AHK ClipboardDB 路径一致）")
+	return mainPath, "", nil
+}
+
+func openDatabases(absBase string) (*sql.DB, error) {
+	mainPath, attachCur, err := pickPrimaryClipboardPath(absBase)
+	if err != nil {
+		return nil, err
+	}
+	mainSlash := filepath.ToSlash(mainPath)
+	dsn := "file:" + mainSlash + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
 	if err := db.Ping(); err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("open Clipboard.db: %w", err)
+		return nil, fmt.Errorf("open clipboard db %s: %w", mainPath, err)
 	}
 
-	curPath := filepath.Join(absBase, "Data", "CursorData.db")
-	curPath = filepath.ToSlash(curPath)
-	attachSQL := fmt.Sprintf(`ATTACH DATABASE '%s' AS cur`, escapeSQLString(curPath))
-	if _, err := db.Exec(attachSQL); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("attach CursorData.db: %w", err)
+	clipboardMainIsCursorData = strings.EqualFold(filepath.Base(mainPath), "CursorData.db")
+	curDatabaseAttached = false
+	if attachCur != "" {
+		curSlash := filepath.ToSlash(attachCur)
+		attachSQL := fmt.Sprintf(`ATTACH DATABASE '%s' AS cur`, escapeSQLString(curSlash))
+		if _, err := db.Exec(attachSQL); err != nil {
+			log.Printf("[db] ATTACH CursorData.db 失败: %v", err)
+		} else {
+			curDatabaseAttached = true
+			log.Printf("[db] ATTACH CursorData.db 成功")
+		}
+	} else if filepath.Base(mainPath) == "Clipboard.db" {
+		log.Printf("[db] 未同时存在可用的 Data\\CursorData.db，legacy 仅查主库 ClipboardHistory")
 	}
 	return db, nil
 }
 
 func escapeSQLString(s string) string {
 	return strings.ReplaceAll(s, "'", "''")
-}
-
-func handleSearchWithDB(w http.ResponseWriter, r *http.Request, db *sql.DB) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	q := strings.TrimSpace(r.URL.Query().Get("q"))
-	typeStr := strings.TrimSpace(r.URL.Query().Get("type"))
-	if typeStr == "" {
-		typeStr = "all"
-	}
-	limit := 30
-	if v := r.URL.Query().Get("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			limit = n
-		}
-	}
-	offset := 0
-	if v := r.URL.Query().Get("offset"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-			offset = n
-		}
-	}
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-	if typeStr != "all" && typeStr != "clipboard" {
-		_ = json.NewEncoder(w).Encode(searchResponse{
-			Items:   []map[string]any{},
-			HasMore: false,
-			Offset:  offset,
-			Limit:   limit,
-			Query:   q,
-			Type:    typeStr,
-		})
-		return
-	}
-
-	if q == "" {
-		_ = json.NewEncoder(w).Encode(searchResponse{
-			Items:   []map[string]any{},
-			HasMore: false,
-			Offset:  offset,
-			Limit:   limit,
-			Query:   q,
-			Type:    typeStr,
-		})
-		return
-	}
-
-	tokens := splitQueryTokens(q)
-	if len(tokens) == 0 {
-		_ = json.NewEncoder(w).Encode(searchResponse{
-			Items:   []map[string]any{},
-			HasMore: false,
-			Offset:  offset,
-			Limit:   limit,
-			Query:   q,
-			Type:    typeStr,
-		})
-		return
-	}
-
-	items, hasMore, err := searchClipboard(db, tokens, limit, offset)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	_ = json.NewEncoder(w).Encode(searchResponse{
-		Items:   items,
-		HasMore: hasMore,
-		Offset:  offset,
-		Limit:   limit,
-		Query:   q,
-		Type:    typeStr,
-	})
 }
 
 type searchResponse struct {
@@ -168,6 +132,7 @@ type searchResponse struct {
 	Limit   int              `json:"limit"`
 	Query   string           `json:"query"`
 	Type    string           `json:"type"`
+	Hints   []string         `json:"hints,omitempty"`
 }
 
 func splitQueryTokens(q string) []string {
@@ -181,7 +146,6 @@ func splitQueryTokens(q string) []string {
 	return out
 }
 
-// FTS5 MATCH：空格分词 AND；token 转义双引号
 func ftsMatchQuery(tokens []string) string {
 	var parts []string
 	for _, t := range tokens {
@@ -204,71 +168,7 @@ func needsFtsQuote(s string) bool {
 	return false
 }
 
-func searchClipboard(db *sql.DB, tokens []string, limit, offset int) ([]map[string]any, bool, error) {
-	match := ftsMatchQuery(tokens)
-	fetch := limit + 1
-
-	sqlFTS := `
-SELECT rowid AS id, Content, SourceApp, DataType, LastCopyTime, SourcePath,
-       CharCount, Timestamp, CopyCount
-FROM ClipboardHistory
-WHERE ClipboardHistory MATCH ?
-ORDER BY COALESCE(LastCopyTime, Timestamp) DESC
-LIMIT ? OFFSET ?`
-
-	rows, err := db.Query(sqlFTS, match, fetch, offset)
-	if err != nil {
-		// FTS 不可用或表不存在时回退仅 legacy
-		return searchLegacyOnly(db, tokens, limit, offset)
-	}
-	defer rows.Close()
-
-	var items []map[string]any
-	for rows.Next() {
-		var id int64
-		var content, sourceApp, dataType sql.NullString
-		var lastCopyTime, timestamp sql.NullString
-		var sourcePath sql.NullString
-		var charCount, copyCount sql.NullInt64
-
-		if err := rows.Scan(&id, &content, &sourceApp, &dataType, &lastCopyTime, &sourcePath, &charCount, &timestamp, &copyCount); err != nil {
-			continue
-		}
-		items = append(items, buildClipItem(id, content, sourceApp, dataType, lastCopyTime, sourcePath, charCount, timestamp, copyCount))
-	}
-	_ = rows.Err()
-
-	if len(items) == 0 {
-		return searchLegacyOnly(db, tokens, limit, offset)
-	}
-
-	hasMore := len(items) > limit
-	if hasMore {
-		items = items[:limit]
-	}
-	return items, hasMore, nil
-}
-
-func searchLegacyOnly(db *sql.DB, tokens []string, limit, offset int) ([]map[string]any, bool, error) {
-	fetch := limit + 1
-	where, args := legacyWhereClause(tokens)
-	if where == "" {
-		return nil, false, nil
-	}
-	q := `
-SELECT ID, Content, SourceApp, SourceTitle, SourcePath, DataType, Timestamp, CharCount, WordCount
-FROM cur.ClipboardHistory
-WHERE ` + where + `
-ORDER BY Timestamp DESC
-LIMIT ? OFFSET ?`
-	args = append(args, fetch, offset)
-
-	rows, err := db.Query(q, args...)
-	if err != nil {
-		return nil, false, err
-	}
-	defer rows.Close()
-
+func scanLegacyClipboardRows(rows *sql.Rows) ([]map[string]any, error) {
 	var items []map[string]any
 	for rows.Next() {
 		var id int64
@@ -279,11 +179,69 @@ LIMIT ? OFFSET ?`
 		}
 		items = append(items, buildLegacyClipItem(id, content, sourceApp, sourceTitle, sourcePath, dataType, timestamp, charCount, wordCount))
 	}
-	hasMore := len(items) > limit
-	if hasMore {
-		items = items[:limit]
+	return items, rows.Err()
+}
+
+// legacyClipboardSelectSQLs 生成多组 SQL：主库 ClipboardHistory 可能是普通表或 FTS5 影子表，列名/主键与 AHK 不完全一致时单列失败会导致「永远 0 条」。
+func legacyClipboardSelectSQLs(tbl, where string) []string {
+	// tbl 仅来自白名单：cur.ClipboardHistory 或 ClipboardHistory
+	orderVariants := []string{
+		"ORDER BY Timestamp DESC",
+		"ORDER BY COALESCE(LastCopyTime, Timestamp) DESC",
 	}
-	return items, hasMore, rows.Err()
+	selVariants := []string{
+		"SELECT ID, Content, SourceApp, SourceTitle, SourcePath, DataType, Timestamp, CharCount, WordCount",
+		"SELECT rowid AS ID, Content, SourceApp, SourceTitle, SourcePath, DataType, Timestamp, CharCount, 0 AS WordCount",
+		"SELECT rowid AS ID, Content, IFNULL(SourceApp,'') AS SourceApp, IFNULL(SourceTitle,'') AS SourceTitle, IFNULL(SourcePath,'') AS SourcePath, DataType, Timestamp, IFNULL(CharCount,0) AS CharCount, 0 AS WordCount",
+	}
+	var out []string
+	for _, sel := range selVariants {
+		for _, ob := range orderVariants {
+			out = append(out, fmt.Sprintf("%s FROM %s WHERE %s %s LIMIT ? OFFSET ?", sel, tbl, where, ob))
+		}
+	}
+	return out
+}
+
+// searchLegacyOnly 依次尝试 cur.ClipboardHistory（若已 ATTACH）与主库 ClipboardHistory，与 AHK 多库场景对齐。
+func searchLegacyOnly(db *sql.DB, tokens []string, limit, offset int) ([]map[string]any, bool, error) {
+	fetch := limit + 1
+	where, baseArgs := legacyWhereClause(tokens)
+	if where == "" {
+		return nil, false, nil
+	}
+	var candidates []string
+	if curDatabaseAttached {
+		candidates = append(candidates, "cur.ClipboardHistory")
+	}
+	if tableNameExists(db, "ClipboardHistory") {
+		candidates = append(candidates, "ClipboardHistory")
+	}
+	for _, tbl := range candidates {
+		for _, q := range legacyClipboardSelectSQLs(tbl, where) {
+			args := append(append([]any{}, baseArgs...), fetch, offset)
+			rows, err := db.Query(q, args...)
+			if err != nil {
+				continue
+			}
+			items, scanErr := scanLegacyClipboardRows(rows)
+			_ = rows.Close()
+			if scanErr != nil {
+				continue
+			}
+			if len(items) == 0 {
+				continue
+			}
+			hasMore := len(items) > limit
+			if hasMore {
+				items = items[:limit]
+			}
+			log.Printf("[search] legacy 命中表 %s（%d 条）", tbl, len(items))
+			return items, hasMore, nil
+		}
+		log.Printf("[search] legacy 表 %s 全部 SQL 变体失败或 0 行", tbl)
+	}
+	return nil, false, nil
 }
 
 func legacyWhereClause(tokens []string) (string, []any) {
@@ -294,136 +252,16 @@ func legacyWhereClause(tokens []string) (string, []any) {
 	var args []any
 	for _, tok := range tokens {
 		pat := "%" + strings.ToLower(tok) + "%"
+		// 日期时间串（如 2024-04-13）含数字，需可搜；与 AHK 短词走 LIKE 的行为对齐
 		part := `(LOWER(COALESCE(Content,'')) LIKE ? OR LOWER(COALESCE(SourceApp,'')) LIKE ? OR ` +
 			`LOWER(COALESCE(SourceTitle,'')) LIKE ? OR LOWER(COALESCE(SourcePath,'')) LIKE ? OR ` +
-			`LOWER(COALESCE(DataType,'')) LIKE ?)`
+			`LOWER(COALESCE(DataType,'')) LIKE ? OR LOWER(COALESCE(Timestamp,'')) LIKE ?)`
 		parts = append(parts, part)
-		for range 5 {
+		for range 6 {
 			args = append(args, pat)
 		}
 	}
 	return strings.Join(parts, " AND "), args
-}
-
-func buildClipItem(id int64, content, sourceApp, dataType sql.NullString, lastCopyTime, sourcePath sql.NullString, charCount sql.NullInt64, timestamp sql.NullString, copyCount sql.NullInt64) map[string]any {
-	c := nv(content)
-	sa := nv(sourceApp)
-	dt := nv(dataType)
-	sp := nv(sourcePath)
-	ts := nv(timestamp)
-	lct := nv(lastCopyTime)
-	if lct == "" {
-		lct = ts
-	}
-	cc := intFromNull(charCount)
-	cp := intFromNull(copyCount)
-	if cp <= 0 {
-		cp = 1
-	}
-
-	preview := c
-	runes := []rune(preview)
-	if len(runes) > 100 {
-		preview = string(runes[:100]) + "..."
-	}
-
-	timeFormatted := formatTimeDisplay(lct, ts)
-
-	titlePrefix, displayName := emojiAndName(dt)
-	displayTitle := titlePrefix + preview
-
-	subTitle := buildSubTitle(sa, cc, timeFormatted)
-
-	meta := map[string]any{
-		"SourceApp":     sa,
-		"SourcePath":    sp,
-		"DataType":      dt,
-		"Timestamp":     ts,
-		"TimeFormatted": timeFormatted,
-		"CharCount":     cc,
-		"CopyCount":     cp,
-	}
-
-	return map[string]any{
-		"DataType":     "clipboard",
-		"DataTypeName": displayName,
-		"ID":           id,
-		"Title":        displayTitle,
-		"SubTitle":     subTitle,
-		"Content":      c,
-		"Preview":      preview,
-		"Time":         timeFormatted,
-		"TimeFormatted": timeFormatted,
-		"Timestamp":    lct,
-		"Source":       displayName,
-		"Metadata":     meta,
-	}
-}
-
-func buildLegacyClipItem(id int64, content, sourceApp, sourceTitle, sourcePath, dataType, timestamp sql.NullString, charCount, wordCount sql.NullInt64) map[string]any {
-	c := nv(content)
-	sa := nv(sourceApp)
-	st := nv(sourceTitle)
-	sp := nv(sourcePath)
-	dt := nv(dataType)
-	ts := nv(timestamp)
-	cc := intFromNull(charCount)
-	wc := intFromNull(wordCount)
-
-	preview := c
-	runes := []rune(preview)
-	if len(runes) > 100 {
-		preview = string(runes[:100]) + "..."
-	}
-	timeFormatted := formatTimeDisplay(ts, ts)
-
-	titlePrefix, displayName := emojiAndName(dt)
-	displayTitle := titlePrefix + preview
-
-	subTitle := ""
-	if sa != "" {
-		subTitle = "来自: " + sa
-	}
-	if cc > 0 {
-		if subTitle != "" {
-			subTitle += " | 字数: " + strconv.Itoa(cc)
-		} else {
-			subTitle = "字数: " + strconv.Itoa(cc)
-		}
-	}
-	if subTitle != "" {
-		subTitle += " · " + timeFormatted
-	} else {
-		subTitle = timeFormatted
-	}
-
-	meta := map[string]any{
-		"SourceApp":     sa,
-		"SourceTitle":   st,
-		"SourcePath":    sp,
-		"DataType":      dt,
-		"Timestamp":     ts,
-		"TimeFormatted": timeFormatted,
-		"CharCount":     cc,
-		"WordCount":     wc,
-	}
-
-	return map[string]any{
-		"DataType":     "clipboard",
-		"DataTypeName": displayName,
-		"ID":           id,
-		"Title":        displayTitle,
-		"SubTitle":     subTitle,
-		"Content":      c,
-		"Preview":      preview,
-		"Time":         timeFormatted,
-		"TimeFormatted": timeFormatted,
-		"Timestamp":    ts,
-		"Source":       displayName,
-		"Metadata":     meta,
-		"Action":       "copy_to_clipboard",
-		"ActionParams": map[string]any{"ID": id, "Content": c},
-	}
 }
 
 func nv(s sql.NullString) string {
@@ -455,9 +293,9 @@ func buildSubTitle(sourceApp string, charCount int, timeFormatted string) string
 	}
 	if charCount > 0 {
 		if sub != "" {
-			sub += " | 字数: " + strconv.Itoa(charCount)
+			sub += " | 字数: " + fmt.Sprintf("%d", charCount)
 		} else {
-			sub = "字数: " + strconv.Itoa(charCount)
+			sub = "字数: " + fmt.Sprintf("%d", charCount)
 		}
 	}
 	if sub != "" {

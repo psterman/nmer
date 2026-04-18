@@ -13,7 +13,8 @@ global SearchCenterSearchResults := []
 global SearchCenterHasMoreData := false
 global SearchCenterFilterType := ""
 global SearchCenterCurrentLimit := 30
-global SearchCenterEngineMode := "go"  ; go = SearchCenterCore FTS 极速；ahk = SearchAllDataSources 标准
+global SearchCenterEngineMode := "go"  ; go=SearchCenterCore HTTP；ahk=SearchAllDataSources（与旧版 ListView 一致）
+global g_SCWV_SkipHostSort := false     ; Go 已混排时跳过 AHK SortSearchCenterMergedResults
 global g_SCWV_PendingJsonQueue := []  ; WebView 鏈?ready 鏃舵殏瀛橈紝ready 鍚庣敱 SCWV_FlushPendingJsonQueue 鍙戝嚭
 global g_SCWV_RowCtxMenu := 0  ; 鍏煎鍗犱綅锛堟繁鑹茶彍鍗曚笉鍐嶄娇鐢ㄥ師鐢?Menu锛?
 global g_SCWV_MenuActionRow := 0  ; 褰撳墠鑿滃崟瀵瑰簲鐨勫彲瑙佺粨鏋滆鍙凤紙1-based锛?
@@ -315,33 +316,84 @@ _SCWV_EnsureSearchCoreRunning() {
 }
 
 _SCWV_MapFilterToGoSearchType(FilterType) {
-    if (FilterType = "clipboard")
-        return "clipboard"
-    return "all"
+    switch FilterType {
+        case "clipboard":
+            return "clipboard"
+        case "template":
+            return "template"
+        case "config":
+            return "config"
+        case "File", "file":
+            return "file"
+        case "hotkey":
+            return "hotkey"
+        case "function":
+            return "function"
+        case "ui":
+            return "ui"
+        default:
+            return "all"
+    }
 }
 
 _SCWV_HttpGetSearchCore(queryString) {
+    r := _SCWV_HttpGetSearchCoreResp(queryString)
+    return r.Has("body") ? r["body"] : ""
+}
+
+; 返回 Map: status, body（仅 status=200 时 body 为 JSON 文本）
+_SCWV_HttpGetSearchCoreResp(queryString) {
     try {
         whr := ComObject("WinHttp.WinHttpRequest.5.1")
         url := "http://127.0.0.1:8080/search?" . queryString
         whr.Open("GET", url, false)
         whr.SetTimeouts(25000, 25000, 25000, 25000)
         whr.Send()
-        if (whr.Status != 200)
-            return ""
-        return whr.ResponseText
+        st := Integer(whr.Status)
+        body := ""
+        if (st = 200)
+            body := whr.ResponseText
+        return Map("status", st, "body", body, "responseText", whr.ResponseText)
     } catch as err {
         try OutputDebug("[SCWV] SearchCore HTTP: " . err.Message)
-        return ""
+        return Map("status", 0, "body", "", "responseText", "")
     }
+}
+
+; 将 Go 返回的扁平 items 按 originalDataType 分组为 SearchAllDataSources 形状
+_SCWV_GroupGoItemsToAllDataResults(GoItems, hasMoreGo) {
+    buckets := Map()
+    for _, it in GoItems {
+        od := "clipboard"
+        if (it is Map) {
+            if it.Has("originalDataType")
+                od := String(it["originalDataType"])
+            else if it.Has("OriginalDataType")
+                od := String(it["OriginalDataType"])
+        }
+        if !buckets.Has(od)
+            buckets[od] := []
+        arr := buckets[od]
+        arr.Push(it)
+        buckets[od] := arr
+    }
+    AllDataResults := Map()
+    for od, arr in buckets {
+        AllDataResults[od] := { DataType: od, DataTypeName: GetDataTypeName(od), Items: arr, HasMore: hasMoreGo }
+    }
+    return AllDataResults
+}
+
+_SCWV_ShowSearchCoreError(reason) {
+    try TrayTip("搜索中心", reason, "Iconx 2")
+    catch {
+    }
+    try OutputDebug("[SCWV] " . reason)
 }
 
 ; 由宿主发起 WinHttp 访问本机 Go，避免 https://app.local 页面 fetch http 被混合内容拦截
 _SCWV_ExecuteGoSearchHttp(offset := 0, keyword := "", goType := "", limit := 0) {
-    global SearchCenterWebKeyword, SearchCenterCurrentLimit, SearchCenterEngineMode, SearchCenterFilterType
-
-    if (SearchCenterEngineMode != "go")
-        return
+    global SearchCenterWebKeyword, SearchCenterCurrentLimit, SearchCenterFilterType
 
     kw := Trim(String(keyword))
     if (kw = "")
@@ -362,7 +414,10 @@ _SCWV_ExecuteGoSearchHttp(offset := 0, keyword := "", goType := "", limit := 0) 
         off := 0
 
     if !_SCWV_EnsureSearchCoreRunning() {
-        _SCWV_PerformSearch(kw, off)
+        global SearchCenterSearchResults, SearchCenterHasMoreData
+        SearchCenterSearchResults := []
+        SearchCenterHasMoreData := false
+        _SCWV_ShowSearchCoreError("SearchCenterCore 未启动或无法连接（请检查 SearchCenterCore.exe）")
         SCWV_PushState("state")
         return
     }
@@ -373,40 +428,75 @@ _SCWV_ExecuteGoSearchHttp(offset := 0, keyword := "", goType := "", limit := 0) 
     }
 
     q := "q=" . encQ . "&type=" . gt . "&limit=" . lim . "&offset=" . off
-    body := _SCWV_HttpGetSearchCore(q)
+    resp := _SCWV_HttpGetSearchCoreResp(q)
+    st := resp.Has("status") ? Integer(resp["status"]) : 0
+    if (st != 200) {
+        global SearchCenterSearchResults, SearchCenterHasMoreData
+        SearchCenterSearchResults := []
+        SearchCenterHasMoreData := false
+        _SCWV_ShowSearchCoreError("SearchCenterCore 请求失败 HTTP " . st)
+        SCWV_PushState("state")
+        return
+    }
+    body := resp.Has("body") ? resp["body"] : ""
     if (body = "") {
-        _SCWV_PerformSearch(kw, off)
+        global SearchCenterSearchResults, SearchCenterHasMoreData
+        SearchCenterSearchResults := []
+        SearchCenterHasMoreData := false
+        _SCWV_ShowSearchCoreError("SearchCenterCore 返回空响应")
         SCWV_PushState("state")
         return
     }
 
     try data := Jxon_Load(body)
-    catch {
-        _SCWV_PerformSearch(kw, off)
+    catch as e {
+        global SearchCenterSearchResults, SearchCenterHasMoreData
+        SearchCenterSearchResults := []
+        SearchCenterHasMoreData := false
+        _SCWV_ShowSearchCoreError("SearchCenterCore JSON 解析失败: " . e.Message)
         SCWV_PushState("state")
         return
     }
     if !(data is Map) {
-        _SCWV_PerformSearch(kw, off)
+        global SearchCenterSearchResults, SearchCenterHasMoreData
+        SearchCenterSearchResults := []
+        SearchCenterHasMoreData := false
+        _SCWV_ShowSearchCoreError("SearchCenterCore 响应格式无效")
         SCWV_PushState("state")
         return
     }
 
-    itemsRaw := data.Has("items") ? data["items"] : []
+    ; Go encoding/json 与部分解析器键名：兼容 items / Items、hasMore / HasMore
+    itemsRaw := []
+    if (data.Has("items"))
+        itemsRaw := data["items"]
+    else if (data.Has("Items"))
+        itemsRaw := data["Items"]
     GoItems := []
     if (itemsRaw is Array) {
         for _, it in itemsRaw
             GoItems.Push(it)
     }
-    hasMore := data.Has("hasMore") ? (data["hasMore"] ? true : false) : false
+    hasMore := false
+    if (data.Has("hasMore"))
+        hasMore := data["hasMore"] ? true : false
+    else if (data.Has("HasMore"))
+        hasMore := data["HasMore"] ? true : false
     _SCWV_ApplySearchResultSync(kw, off, hasMore, GoItems)
     SCWV_PushState("state")
 }
 
 _SCWV_PostRequestSearchGo(*) {
     global SearchCenterEngineMode, SearchCenterWebKeyword
-    if (SearchCenterEngineMode = "go" && Trim(SearchCenterWebKeyword) != "")
+    kw := Trim(SearchCenterWebKeyword)
+    if (kw = "")
+        return
+    if (SearchCenterEngineMode = "go") {
         _SCWV_ExecuteGoSearchHttp(0, "", "", 0)
+    } else {
+        _SCWV_RunAhkSearch(0)
+        SCWV_PushState("state")
+    }
 }
 
 _SCWV_ResultItemHas(Item, Prop) {
@@ -470,15 +560,12 @@ SCWV_Show() {
     SetTimer(SCWV_RefreshComposition, -120)
     SetTimer(SCWV_RefreshComposition, -380)
 
-    ; 窗口显示后：标准模式跑 AHK 搜索；极速模式仅拉历史或交给前端 Go fetch
+    ; 窗口显示后：无关键词仅历史；有关键词则按引擎模式搜索
     try {
-        if (SearchCenterEngineMode = "go") {
+        if (SearchCenterEngineMode = "go")
             _SCWV_EnsureSearchCoreRunning()
-            if (Trim(SearchCenterWebKeyword) = "")
-                _SCWV_LoadSearchHistory()
-        } else {
-            _SCWV_PerformSearch(SearchCenterWebKeyword)
-        }
+        if (Trim(SearchCenterWebKeyword) = "")
+            _SCWV_LoadSearchHistory()
     } catch {
         _SCWV_LoadSearchHistory()
     }
@@ -488,7 +575,7 @@ SCWV_Show() {
     else
         SetTimer(SCWV_DeferredPush, -250)
 
-    if (SearchCenterEngineMode = "go" && Trim(SearchCenterWebKeyword) != "")
+    if (Trim(SearchCenterWebKeyword) != "")
         SetTimer(_SCWV_PostRequestSearchGo, -120)
 
     try WebView2_MoveFocusProgrammatic(g_SCWV_Ctrl)
@@ -758,61 +845,56 @@ SCWV_OnWebMessage(sender, args) {
             gt0 := msg.Has("goType") ? String(msg["goType"]) : ""
             _SCWV_ExecuteGoSearchHttp(off0, kw0, gt0, lim0)
         case "search":
-            global SearchCenterEngineMode, SearchCenterWebKeyword, SearchCenterHasMoreData
+            global SearchCenterWebKeyword, SearchCenterHasMoreData
             if !msg.Has("keyword")
                 try OutputDebug("[SCWV] search message missing keyword field")
             keyword := msg.Has("keyword") ? String(msg["keyword"]) : ""
             try OutputDebug("[SCWV] search request keyword_len=" . StrLen(keyword))
-            if (SearchCenterEngineMode = "go") {
-                SearchCenterWebKeyword := Trim(String(keyword))
-                if (SearchCenterWebKeyword = "") {
-                    SearchCenterHasMoreData := false
-                    _SCWV_LoadSearchHistory()
-                    SCWV_PushState("state")
-                } else {
-                    _SCWV_EnsureSearchCoreRunning()
-                    _SCWV_RecordSearchHistory(SearchCenterWebKeyword)
-                    SetTimer(_SCWV_PostRequestSearchGo, -40)
-                    ; 有关键词时由 _SCWV_ExecuteGoSearchHttp 再 PushState，避免先推空结果
-                }
-            } else {
-                _SCWV_PerformSearch(keyword)
+            SearchCenterWebKeyword := Trim(String(keyword))
+            if (SearchCenterWebKeyword = "") {
+                SearchCenterHasMoreData := false
+                _SCWV_LoadSearchHistory()
                 SCWV_PushState("state")
+            } else {
+                if (SearchCenterEngineMode = "go")
+                    _SCWV_EnsureSearchCoreRunning()
+                _SCWV_RecordSearchHistory(SearchCenterWebKeyword)
+                SetTimer(_SCWV_PostRequestSearchGo, -40)
             }
         case "setCategory":
-            global SearchCenterEngineMode, SearchCenterWebKeyword
+            global SearchCenterWebKeyword
             if msg.Has("category")
                 _SCWV_SetCategoryByKey(String(msg["category"]))
-            if (SearchCenterEngineMode = "go" && Trim(SearchCenterWebKeyword) != "")
+            if (Trim(SearchCenterWebKeyword) != "")
                 SetTimer(_SCWV_PostRequestSearchGo, -60)
             SCWV_PushState("state")
         case "setFilter":
-            global SearchCenterFilterType, SearchCenterEngineMode, SearchCenterWebKeyword
+            global SearchCenterFilterType, SearchCenterWebKeyword
             nextFilter := msg.Has("filterType") ? String(msg["filterType"]) : ""
             SearchCenterFilterType := (SearchCenterFilterType = nextFilter) ? "" : nextFilter
-            if (SearchCenterEngineMode = "go" && Trim(SearchCenterWebKeyword) != "")
+            if (Trim(SearchCenterWebKeyword) != "")
                 SetTimer(_SCWV_PostRequestSearchGo, -60)
             SCWV_PushState("state")
         case "setLimit":
-            global SearchCenterCurrentLimit, SearchCenterEverythingLimit, SearchCenterEngineMode
+            global SearchCenterCurrentLimit, SearchCenterEverythingLimit
             val := msg.Has("limit") ? Integer(msg["limit"]) : 50
             if (val <= 0)
                 val := 50
             SearchCenterCurrentLimit := val
             SearchCenterEverythingLimit := val
-            if (SearchCenterEngineMode = "ahk")
-                _SCWV_PerformSearch(SearchCenterWebKeyword)
-            else
-                SetTimer(_SCWV_PostRequestSearchGo, -50)
+            SetTimer(_SCWV_PostRequestSearchGo, -50)
             SCWV_PushState("state")
         case "loadMore":
-            global SearchCenterEngineMode
+            global SearchCenterWebKeyword, SearchCenterFilterType, SearchCenterCurrentLimit, SearchCenterEngineMode
             offset := msg.Has("offset") ? Integer(msg["offset"]) : 0
             if (offset < 0)
                 offset := 0
-            if (SearchCenterEngineMode = "ahk")
-                _SCWV_PerformSearch(SearchCenterWebKeyword, offset)
-            SCWV_PushState("state")
+            if (SearchCenterEngineMode = "go") {
+                _SCWV_ExecuteGoSearchHttp(offset, SearchCenterWebKeyword, _SCWV_MapFilterToGoSearchType(SearchCenterFilterType), SearchCenterCurrentLimit)
+            } else {
+                _SCWV_RunAhkSearch(offset)
+                SCWV_PushState("state")
+            }
         case "toggleEngine":
             if msg.Has("engine")
                 _SCWV_ToggleEngine(String(msg["engine"]))
@@ -926,11 +1008,15 @@ SCWV_QueueSearch(keyword) {
 }
 
 _SCWV_FireSearch(*) {
-    global g_SCWV_SearchTimer, SearchCenterWebKeyword
+    global g_SCWV_SearchTimer, SearchCenterWebKeyword, SearchCenterEngineMode
 
     g_SCWV_SearchTimer := 0
-    _SCWV_PerformSearch(SearchCenterWebKeyword)
-    SCWV_PushState("state")
+    if (SearchCenterEngineMode = "go") {
+        _SCWV_ExecuteGoSearchHttp(0, SearchCenterWebKeyword, "", 0)
+    } else if (Trim(SearchCenterWebKeyword) != "") {
+        _SCWV_RunAhkSearch(0)
+        SCWV_PushState("state")
+    }
 }
 
 _SCWV_TypeDataField(TypeData, Prop, Fallback) {
@@ -1103,16 +1189,65 @@ _SCWV_MergeAllDataResultsIntoSearchLists(AllDataResults, keyword, offset) {
     }
 
     if (offset = 0 && SearchCenterSearchResults.Length > 0) {
-        try SortSearchCenterMergedResults(&SearchCenterSearchResults, keyword)
+        global g_SCWV_SkipHostSort
+        if !g_SCWV_SkipHostSort {
+            try SortSearchCenterMergedResults(&SearchCenterSearchResults, keyword)
+        }
+        g_SCWV_SkipHostSort := false
         try _SCWV_SortPinnedFirst(SearchCenterSearchResults)
     }
 }
 
+; 标准模式：走宿主 SearchAllDataSources（与 DebouncedSearchCenter 数据源一致），需 CursorHelper 已加载 SearchAllDataSources / GetSearchCenterDataTypesForFilter
+_SCWV_RunAhkSearch(offset := 0) {
+    global SearchCenterWebKeyword, SearchCenterCurrentLimit, SearchCenterFilterType
+    global SearchCenterSearchResults, SearchCenterHasMoreData, g_SCWV_SkipHostSort
+
+    keyword := Trim(SearchCenterWebKeyword)
+    if (keyword = "") {
+        SearchCenterHasMoreData := false
+        return
+    }
+    FilterDataTypes := GetSearchCenterDataTypesForFilter(SearchCenterFilterType)
+    if (FilterDataTypes.Length > 0) {
+        hasFileType := false
+        for _, dt in FilterDataTypes {
+            if (dt = "file") {
+                hasFileType := true
+                break
+            }
+        }
+        if (!hasFileType)
+            FilterDataTypes.Push("file")
+    }
+    try {
+        AllDataResults := SearchAllDataSources(keyword, FilterDataTypes, SearchCenterCurrentLimit, offset)
+        SearchCenterHasMoreData := false
+        for DataType, TypeData in AllDataResults {
+            hm := false
+            if (TypeData is Map)
+                hm := TypeData.Has("HasMore") && TypeData["HasMore"]
+            else if (IsObject(TypeData) && TypeData.HasProp("HasMore"))
+                hm := TypeData.HasMore
+            if (hm) {
+                SearchCenterHasMoreData := true
+                break
+            }
+        }
+        g_SCWV_SkipHostSort := false
+        if (offset = 0)
+            SearchCenterSearchResults := []
+        _SCWV_MergeAllDataResultsIntoSearchLists(AllDataResults, keyword, offset)
+    } catch as err {
+        try OutputDebug("[SCWV] SearchAllDataSources: " . err.Message)
+    }
+}
+
 _SCWV_PerformSearch(keyword, offset := 0) {
-    global SearchCenterSearchResults, SearchCenterCurrentLimit, SearchCenterHasMoreData, SearchCenterFilterType, SearchCenterWebKeyword
+    global SearchCenterSearchResults, SearchCenterHasMoreData, SearchCenterWebKeyword
 
     keyword := Trim(String(keyword))
-    ; 鍓嶇 debounce 鍚庡彂 {type:search} 鏃跺彧浼?keyword 杩涙湰鍑芥暟锛屾湭鍐欏洖 SearchCenterWebKeyword锛?    ; SCWV_PushState 浠嶇敤鏃у叏灞€锛堝父涓虹┖锛夛紝applyState 浼氭妸 #search 璁炬垚绌轰覆 鈫?杈撳叆琚竻绌恒€侀€夊尯涓㈠け鏃犳硶澶嶅埗銆?    if (offset = 0)
+    if (offset = 0)
         SearchCenterWebKeyword := keyword
 
     if (offset = 0)
@@ -1126,45 +1261,13 @@ _SCWV_PerformSearch(keyword, offset := 0) {
         _SCWV_LoadSearchHistory()
         return
     }
-
+    ; 已迁移至 SearchCenterCore Go，不再调用 SearchAllDataSources；请使用 _SCWV_ExecuteGoSearchHttp
     SearchCenterHasMoreData := false
-
-    try {
-        FilterDataTypes := GetSearchCenterDataTypesForFilter(SearchCenterFilterType)
-        if (FilterDataTypes.Length > 0) {
-            hasFileType := false
-            for _, dt in FilterDataTypes {
-                if (dt = "file") {
-                    hasFileType := true
-                    break
-                }
-            }
-            if !hasFileType
-                FilterDataTypes.Push("file")
-        }
-
-        AllDataResults := SearchAllDataSources(keyword, FilterDataTypes, SearchCenterCurrentLimit, offset)
-        for _, TypeData in AllDataResults {
-            hm := false
-            if (TypeData is Map)
-                hm := TypeData.Has("HasMore") && TypeData["HasMore"]
-            else if (IsObject(TypeData) && TypeData.HasProp("HasMore"))
-                hm := TypeData.HasMore
-            if (hm) {
-                SearchCenterHasMoreData := true
-                break
-            }
-        }
-
-        _SCWV_MergeAllDataResultsIntoSearchLists(AllDataResults, keyword, offset)
-    } catch as err {
-        OutputDebug("SCWV search error: " . err.Message)
-    }
-
+    SearchCenterSearchResults := []
 }
 
 _SCWV_ApplySearchResultSync(keyword, offset, hasMoreGo, GoItems) {
-    global SearchCenterSearchResults, SearchCenterCurrentLimit, SearchCenterHasMoreData, SearchCenterFilterType, SearchCenterWebKeyword
+    global SearchCenterSearchResults, SearchCenterHasMoreData, SearchCenterWebKeyword, g_SCWV_SkipHostSort
 
     keyword := Trim(String(keyword))
     if (offset = 0) {
@@ -1180,66 +1283,10 @@ _SCWV_ApplySearchResultSync(keyword, offset, hasMoreGo, GoItems) {
         return
     }
 
-    if (offset > 0) {
-        clipMap := Map("clipboard", { DataType: "clipboard", DataTypeName: GetDataTypeName("clipboard"), Items: GoItems, HasMore: hasMoreGo })
-        _SCWV_MergeAllDataResultsIntoSearchLists(clipMap, keyword, offset)
-        SearchCenterHasMoreData := hasMoreGo ? true : false
-        try _SCWV_SortPinnedFirst(SearchCenterSearchResults)
-        return
-    }
-
-    FilterDataTypes := GetSearchCenterDataTypesForFilter(SearchCenterFilterType)
-    if (FilterDataTypes.Length > 0) {
-        hasFileType := false
-        for _, dt in FilterDataTypes {
-            if (dt = "file") {
-                hasFileType := true
-                break
-            }
-        }
-        if !hasFileType
-            FilterDataTypes.Push("file")
-    }
-
-    DataTypesNoClip := []
-    if (FilterDataTypes.Length = 0) {
-        DataTypesNoClip := ["template", "config", "file", "hotkey", "function", "ui"]
-    } else {
-        for _, dt in FilterDataTypes {
-            if (dt != "clipboard")
-                DataTypesNoClip.Push(dt)
-        }
-    }
-
-    AllDataResults := Map()
-    if (GoItems.Length > 0) {
-        AllDataResults["clipboard"] := { DataType: "clipboard", DataTypeName: GetDataTypeName("clipboard"), Items: GoItems, HasMore: hasMoreGo }
-    }
-
-    if (DataTypesNoClip.Length > 0) {
-        AllOther := SearchAllDataSources(keyword, DataTypesNoClip, SearchCenterCurrentLimit, 0)
-        for k, v in AllOther
-            AllDataResults[k] := v
-    }
-
-    SearchCenterHasMoreData := false
-    if (hasMoreGo)
-        SearchCenterHasMoreData := true
-    if !SearchCenterHasMoreData {
-        for _, TypeData in AllDataResults {
-            hm := false
-            if (TypeData is Map)
-                hm := TypeData.Has("HasMore") && TypeData["HasMore"]
-            else if (IsObject(TypeData) && TypeData.HasProp("HasMore"))
-                hm := TypeData.HasMore
-            if (hm) {
-                SearchCenterHasMoreData := true
-                break
-            }
-        }
-    }
-
-    _SCWV_MergeAllDataResultsIntoSearchLists(AllDataResults, keyword, 0)
+    AllDataResults := _SCWV_GroupGoItemsToAllDataResults(GoItems, hasMoreGo)
+    SearchCenterHasMoreData := hasMoreGo ? true : false
+    g_SCWV_SkipHostSort := true
+    _SCWV_MergeAllDataResultsIntoSearchLists(AllDataResults, keyword, offset)
 }
 
 _SCWV_ResultPinKey(Item) {
@@ -1395,7 +1442,7 @@ SCWV_PushState(msgType := "state") {
     currentCategoryKey := GetSearchCenterCurrentCategoryKey()
     status := "本地结果 " . results.Length . " 条"
     status .= " · 已选引擎 " . (IsObject(SearchCenterSelectedEngines) ? SearchCenterSelectedEngines.Length : 0) . " 个"
-    status .= " 路 褰撳墠闄愬埗 " . SearchCenterCurrentLimit
+    status .= " · 当前限制 " . SearchCenterCurrentLimit
 
     payload := Map(
         "type", msgType,
@@ -1694,7 +1741,7 @@ _SCWV_EnsureSearchDataReady() {
     }
 
     if !IsObject(SearchCenterSearchResults) || SearchCenterSearchResults.Length = 0
-        _SCWV_PerformSearch(SearchCenterWebKeyword)
+        _SCWV_ExecuteGoSearchHttp(0, SearchCenterWebKeyword, "", 0)
 }
 
 _SCWV_BatchSearch() {
@@ -1831,7 +1878,7 @@ SearchCenter_RunQueryWithKeyword(keyword) {
     try {
         SCWV_Init()
         SCWV_Show()
-        _SCWV_PerformSearch(SearchCenterWebKeyword)
+        _SCWV_ExecuteGoSearchHttp(0, SearchCenterWebKeyword, "", 0)
         SCWV_PushState("state")
         SCWV_RequestFocusInput()
     } catch {
@@ -1839,7 +1886,7 @@ SearchCenter_RunQueryWithKeyword(keyword) {
         SCWV_ResetHostState()
         SCWV_Init()
         SCWV_Show()
-        _SCWV_PerformSearch(SearchCenterWebKeyword)
+        _SCWV_ExecuteGoSearchHttp(0, SearchCenterWebKeyword, "", 0)
         SCWV_PushState("state")
         SCWV_RequestFocusInput()
     }
@@ -2600,7 +2647,7 @@ SC_SearchCenterTogglePinByItem(Item) {
         g_SCWV_PinnedKeys.Delete(k)
     else
         g_SCWV_PinnedKeys[k] := true
-    _SCWV_PerformSearch(SearchCenterWebKeyword)
+    _SCWV_ExecuteGoSearchHttp(0, SearchCenterWebKeyword, "", 0)
     SCWV_PushState("state")
 }
 
