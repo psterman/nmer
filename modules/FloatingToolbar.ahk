@@ -183,7 +183,20 @@ HideFloatingToolbar() {
 }
 
 ToggleFloatingToolbar() {
-    global FloatingToolbarIsVisible
+    global FloatingToolbarIsVisible, AppearanceActivationMode, FloatingBubbleIsVisible
+
+    mode := NormalizeAppearanceActivationMode(AppearanceActivationMode)
+    if (mode = "bubble") {
+        if (FloatingBubbleIsVisible) {
+            HideFloatingBubble()
+        } else {
+            ShowFloatingBubble()
+        }
+        return
+    }
+    if (mode = "tray") {
+        return
+    }
 
     if (FloatingToolbarIsVisible) {
         HideFloatingToolbar()
@@ -508,8 +521,7 @@ FloatingToolbar_OnWebMessage(sender, args) {
         CoordMode("Mouse", "Screen")
         MouseGetPos(&FloatingToolbar_DragOriginScreenX, &FloatingToolbar_DragOriginScreenY)
         FloatingToolbarDragging := true
-        ; 更高频率轮询鼠标，拖动更跟手（WebView2 内拖动依赖宿主轮询）
-        SetTimer(FloatingToolbar_DoDrag, 1)
+        SetTimer(FloatingToolbar_DragRun, -1)
         return
     }
 
@@ -1169,43 +1181,42 @@ FloatingToolbarApplyWheelDelta(delta) {
     }
 }
 
-; ===================== 鎷栧姩锛圵ebView2 瀹㈡埛鍖?PostMessage HTCAPTION 涓嶅彲闈狅紝鐢ㄦ墜鍔?Move锛?====================
-FloatingToolbar_DoDrag(*) {
+; ===================== 拖动（WebView2 内 PostMessage HTCAPTION 不可靠，用手动 Move；同步循环比 1ms 定时器更跟手）====================
+FloatingToolbar_DragRun(*) {
     global FloatingToolbarGUI, FloatingToolbarDragging, FloatingToolbarWindowX, FloatingToolbarWindowY
     global FloatingToolbar_DragOriginScreenX, FloatingToolbar_DragOriginScreenY
     global FloatingToolbar_DragOriginWinX, FloatingToolbar_DragOriginWinY
 
-    if !(FloatingToolbarDragging && FloatingToolbarGUI) {
-        SetTimer(FloatingToolbar_DoDrag, 0)
+    if !(FloatingToolbarGUI && FloatingToolbarDragging)
         return
+    try {
+        while GetKeyState("LButton", "P") {
+            CoordMode("Mouse", "Screen")
+            MouseGetPos(&mx, &my)
+            newX := FloatingToolbar_DragOriginWinX + (mx - FloatingToolbar_DragOriginScreenX)
+            newY := FloatingToolbar_DragOriginWinY + (my - FloatingToolbar_DragOriginScreenY)
+            ToolbarWidth := FloatingToolbarCalculateWidth()
+            ToolbarHeight := FloatingToolbarCalculateHeight()
+            ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
+            vr := vl + vw
+            vb := vt + vh
+            if (newX < vl)
+                newX := vl
+            if (newY < vt)
+                newY := vt
+            if (newX + ToolbarWidth > vr)
+                newX := vr - ToolbarWidth
+            if (newY + ToolbarHeight > vb)
+                newY := vb - ToolbarHeight
+            try FloatingToolbarGUI.Move(newX, newY)
+            FloatingToolbarWindowX := newX
+            FloatingToolbarWindowY := newY
+        }
+    } catch {
     }
-    if !GetKeyState("LButton", "P") {
-        FloatingToolbarDragging := false
-        SetTimer(FloatingToolbar_DoDrag, 0)
-        FloatingToolbarCheckWindowPosition()
-        SaveFloatingToolbarPosition()
-        return
-    }
-    CoordMode("Mouse", "Screen")
-    MouseGetPos(&mx, &my)
-    newX := FloatingToolbar_DragOriginWinX + (mx - FloatingToolbar_DragOriginScreenX)
-    newY := FloatingToolbar_DragOriginWinY + (my - FloatingToolbar_DragOriginScreenY)
-    ToolbarWidth := FloatingToolbarCalculateWidth()
-    ToolbarHeight := FloatingToolbarCalculateHeight()
-    ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
-    vr := vl + vw
-    vb := vt + vh
-    if (newX < vl)
-        newX := vl
-    if (newY < vt)
-        newY := vt
-    if (newX + ToolbarWidth > vr)
-        newX := vr - ToolbarWidth
-    if (newY + ToolbarHeight > vb)
-        newY := vb - ToolbarHeight
-    try FloatingToolbarGUI.Move(newX, newY)
-    FloatingToolbarWindowX := newX
-    FloatingToolbarWindowY := newY
+    FloatingToolbarDragging := false
+    FloatingToolbarCheckWindowPosition()
+    SaveFloatingToolbarPosition()
 }
 
 ; ===================== 绐楀彛浣嶇疆妫€鏌ヤ笌纾佸惛 =====================

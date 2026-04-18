@@ -705,8 +705,8 @@
     const DEFAULT_TOOLBAR_MENUS = ["ToggleToolbar","MinimizeToEdge","ResetScale","SearchCenter","Clipboard","OpenConfig","HideToolbar","ReloadScript","ExitApp"];
     const ACTIVATION_MODE_OPTIONS = [
       { value: "toolbar", label: "悬浮栏", desc: "显示完整悬浮条，适合重度高频操作。" },
-      { value: "bubble", label: "悬浮球", desc: "仅保留一个牛马 PNG 图标，点击后再展开菜单。" },
-      { value: "tray", label: "后台", desc: "仅保留托盘入口，不显示任何悬浮 UI。" }
+      { value: "bubble", label: "悬浮球", desc: "仅显示牛马图标；右键打开与悬浮条相同的命令菜单，长按左键拖动位置。" },
+      { value: "tray", label: "后台", desc: "不显示任何悬浮窗，仅通过托盘图标使用功能。" }
     ];
     const ACTIVATION_MODE_LOCAL_KEY = "settings.appearance.activationMode";
     const NIUMA_ICON_URL = "https://app.local/%E7%89%9B%E9%A9%AC.png";
@@ -740,7 +740,8 @@
         floatingToolbarMenuOptions: [...TOOLBAR_MENU_OPTIONS],
         keybinderToolbarLayout: [],
         keybinderCommands: [],
-        keybinderContextMenuLayout: []
+        keybinderContextMenuLayout: [],
+        appearanceActivationMode: "toolbar"
       }
     };
     let ftbSortBar = null;
@@ -1120,13 +1121,27 @@
       d.voiceSearchEnabledCategories = cats;
       return d;
     }
-    function readFromUI() { let d = { ...state.data, hotkeys: { ...state.data.hotkeys }, quickActions: [...state.data.quickActions], voiceSearchEnabledCategories: [...state.data.voiceSearchEnabledCategories], floatingToolbarButtons: [...(state.data.floatingToolbarButtons||[])], floatingToolbarMenuItems: [...(state.data.floatingToolbarMenuItems||[])] }; d = readGeneral(d); d = readAppearance(d); d = readPrompts(d); d = readHotkeys(d); d = readAdvanced(d); d = readSearch(d); return d; }
+    function readFromUI() {
+      syncActivationModeFromDom();
+      let d = { ...state.data, hotkeys: { ...state.data.hotkeys }, quickActions: [...state.data.quickActions], voiceSearchEnabledCategories: [...state.data.voiceSearchEnabledCategories], floatingToolbarButtons: [...(state.data.floatingToolbarButtons||[])], floatingToolbarMenuItems: [...(state.data.floatingToolbarMenuItems||[])] };
+      d = readGeneral(d); d = readAppearance(d); d = readPrompts(d); d = readHotkeys(d); d = readAdvanced(d); d = readSearch(d);
+      d.appearanceActivationMode = normalizeActivationMode(state.appearanceActivationMode);
+      state.data.appearanceActivationMode = d.appearanceActivationMode;
+      return d;
+    }
     function selectOpt(id, val){ const el = document.getElementById(id); if (el) el.value = val; }
     function options(items, selected){ return items.map(v => `<option value="${esc(v)}"${v===selected?" selected":""}>${esc(v)}</option>`).join(""); }
     function optionsKV(items, selected){ return items.map(it => `<option value="${esc(it.value)}"${it.value===selected?" selected":""}>${esc(it.label)}</option>`).join(""); }
     function normalizeActivationMode(v){
       const s = String(v || "").trim();
       return ACTIVATION_MODE_OPTIONS.some(o => o.value === s) ? s : "toolbar";
+    }
+    /** 从当前外观页单选项同步，避免仅点了选项未触发 state 更新时保存丢失 */
+    function syncActivationModeFromDom() {
+      try {
+        const el = document.querySelector('input[name="activationMode"]:checked');
+        if (el) state.appearanceActivationMode = normalizeActivationMode(el.value);
+      } catch (_) {}
     }
     function loadAppearanceActivationMode(){
       try {
@@ -1145,7 +1160,7 @@
       return ACTIVATION_MODE_OPTIONS.map((opt) => {
         const active = selected === opt.value;
         return `<label class="activation-mode-option ${active ? "active" : ""}" data-activation-item="${esc(opt.value)}">
-  <input class="activation-mode-radio" data-nosave="1" type="radio" name="activationMode" value="${esc(opt.value)}" ${active ? "checked" : ""}>
+  <input class="activation-mode-radio" type="radio" name="activationMode" value="${esc(opt.value)}" ${active ? "checked" : ""}>
   <div>
     <div class="activation-mode-title">${esc(opt.label)}</div>
     <div class="activation-mode-desc">${esc(opt.desc)}</div>
@@ -1158,7 +1173,7 @@
       if (m === "bubble") {
         return `<div class="mode-preview-scene">
   <div class="mode-icon-bubble"><img src="${esc(NIUMA_ICON_URL)}" alt="牛马图标"></div>
-  <div class="hint">仅显示一个牛马图标；点击后展开菜单。</div>
+  <div class="hint">仅牛马图标；右键命令菜单；长按左键拖动。</div>
 </div>`;
       }
       if (m === "tray") {
@@ -1176,9 +1191,10 @@
 </div>`;
     }
     function bindAppearanceActivationMode(){
-      document.querySelectorAll('input[name="activationMode"][data-nosave="1"]').forEach((el) => {
+      document.querySelectorAll('input[name="activationMode"]').forEach((el) => {
         el.addEventListener("change", () => {
           state.appearanceActivationMode = normalizeActivationMode(el.value);
+          state.data.appearanceActivationMode = state.appearanceActivationMode;
           saveAppearanceActivationMode();
           const prev = document.getElementById("activationModePreview");
           if (prev)
@@ -1246,8 +1262,8 @@
         const activationMode = normalizeActivationMode(state.appearanceActivationMode);
         panel.innerHTML = `<div class="card"><div class="title">外观设置</div><div class="row"><div class="label">主题模式</div><select id="themeMode">${optionsKV([{value:"dark",label:"深色"},{value:"light",label:"浅色"}],d.themeMode)}</select></div><div class="row"><div class="label">弹窗位置</div><select id="popupScreenIndex">${optionsKV(screenOpts, String(d.popupScreenIndex || 1))}</select></div><div class="hint">已自动识别显示器数量：${esc(monitorCount)}。此设置会应用到所有弹窗并固定保存。</div></div>
 <div class="card">
-  <div class="title">激活方式（前端设计）</div>
-  <div class="hint">当前仅完成前端设计与交互，不涉及后端执行逻辑。</div>
+  <div class="title">激活方式</div>
+  <div class="hint">选择悬浮栏、悬浮球或仅托盘；修改后将写入配置并立即生效。</div>
   <div class="activation-mode-group">${activationModeOptionsHtml(activationMode)}</div>
   <div class="activation-mode-preview">
     <div class="mode-preview-title">模式预览</div>
@@ -1474,6 +1490,11 @@
     });
     panelRoot.addEventListener("change", (e) => {
       const t = e.target;
+      if (t && t.name === "activationMode") {
+        state.appearanceActivationMode = normalizeActivationMode(t.value);
+        state.data.appearanceActivationMode = state.appearanceActivationMode;
+        saveAppearanceActivationMode();
+      }
       if (!t || !(t.matches?.("input,textarea,select"))) return;
       if (t.id === "themeMode") {
         state.data.themeMode = t.value;
@@ -1498,6 +1519,8 @@
         const p = msg.payload || {};
         state.data = { ...state.data, ...p, hotkeys: { ...state.data.hotkeys, ...(p.hotkeys || {}) }, quickActions: (p.quickActions?.length ? p.quickActions : state.data.quickActions) };
         state.appearanceActivationMode = normalizeActivationMode(p.appearanceActivationMode || state.appearanceActivationMode);
+        state.data.appearanceActivationMode = state.appearanceActivationMode;
+        saveAppearanceActivationMode();
         if (Array.isArray(p.keybinderToolbarLayout)) state.data.keybinderToolbarLayout = normalizeToolbarLayoutRows(p.keybinderToolbarLayout);
         if (Array.isArray(p.keybinderCommands)) state.data.keybinderCommands = p.keybinderCommands;
         if (Array.isArray(p.keybinderContextMenuLayout)) state.data.keybinderContextMenuLayout = p.keybinderContextMenuLayout;

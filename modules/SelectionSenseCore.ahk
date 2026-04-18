@@ -1865,7 +1865,7 @@ SelectionSense_SendToNiumaChatAndSubmit(text) {
     if (t = "")
         return false
 
-    try ShowFloatingToolbar()
+    try EnsureFloatingSurfaceVisible()
     catch as _e {
     }
 

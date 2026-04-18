@@ -119,6 +119,9 @@ class WebView2 {
 		}
 		static handler(this, err, result := '') {
 			this := ObjFromPtrAddRef(NumGet(this, A_PtrSize, 'ptr'))
+			; WebView 销毁或句柄失效时，回调可能落到裸 Buffer，避免访问不存在的 resolve/reject
+			if !IsObject(this) || !this.HasProp("resolve") || !this.HasProp("reject")
+				return
 			; 0x80004004: operation aborted (common during shutdown/navigation)
 			if err && err = 0x80004004 {
 				(this.resolve)(result)

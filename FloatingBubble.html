@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      /* 与宿主 Gui / DefaultBackgroundColor 同一灰，避免出现「外圈近黑 + 内圈浅灰」的甜甜圈环 */
+      background-color: #121212;
+      color-scheme: dark;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* 单层灰圆 + 居中图标，无嵌套双色圆 */
+    .wrap {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #121212;
+      border-radius: 50%;
+      overflow: hidden;
+      isolation: isolate;
+      transform: translateZ(0);
+      backface-visibility: hidden;
+    }
+    .wrap img#logo {
+      width: 78%;
+      height: 78%;
+      max-width: 37px;
+      max-height: 37px;
+      object-fit: contain;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap" id="root">
+    <img id="logo" alt="" draggable="false" />
+  </div>
+  <script>
+    function post(m) {
+      try {
+        if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage) {
+          window.chrome.webview.postMessage(JSON.stringify(m));
+        }
+      } catch (e) {}
+    }
+    var holdTimer = null;
+    var HOLD_MS = 140;
+    var hoverTimer = null;
+    var HOVER_MENU_MS = 1000;
+    var dragStartScreenX = 0;
+    var dragStartScreenY = 0;
+    var MOVE_PX = 8;
+    var dragSent = false;
+    var root = document.getElementById('root');
+    var logo = document.getElementById('logo');
+
+    function clearHold() {
+      if (holdTimer) {
+        clearTimeout(holdTimer);
+        holdTimer = null;
+      }
+    }
+    function clearHoverMenuTimer() {
+      if (hoverTimer) {
+        clearTimeout(hoverTimer);
+        hoverTimer = null;
+      }
+    }
+    function postModeMenu(reason) {
+      post({ type: 'bubble_mode_menu', x: 0, y: 0, reason: reason });
+    }
+    function scheduleHoverMenu() {
+      clearHoverMenuTimer();
+      hoverTimer = setTimeout(function () {
+        hoverTimer = null;
+        postModeMenu('hover2s');
+      }, HOVER_MENU_MS);
+    }
+    function onPointerEnter() {
+      scheduleHoverMenu();
+    }
+    function onPointerLeave() {
+      clearHoverMenuTimer();
+    }
+    function onPointerDown(e) {
+      if (e.button !== 0) return;
+      clearHoverMenuTimer();
+      dragSent = false;
+      dragStartScreenX = e.screenX;
+      dragStartScreenY = e.screenY;
+      try {
+        if (root.setPointerCapture) root.setPointerCapture(e.pointerId);
+      } catch (_) {}
+      clearHold();
+      holdTimer = setTimeout(function () {
+        holdTimer = null;
+        if (e.buttons & 1 && !dragSent) {
+          dragSent = true;
+          post({ type: 'drag_host' });
+        }
+      }, HOLD_MS);
+    }
+    function onPointerMove(e) {
+      if (e.buttons !== 1 || dragSent) return;
+      var dx = e.screenX - dragStartScreenX;
+      var dy = e.screenY - dragStartScreenY;
+      if (dx * dx + dy * dy >= MOVE_PX * MOVE_PX) {
+        clearHold();
+        dragSent = true;
+        post({ type: 'drag_host' });
+      }
+    }
+    function onPointerUp(e) {
+      try {
+        if (e && root.releasePointerCapture) root.releasePointerCapture(e.pointerId);
+      } catch (_) {}
+      var hadDrag = dragSent;
+      clearHold();
+      if (e && e.button === 0 && !hadDrag) {
+        post({ type: 'bubble_mode_menu', x: e.screenX || 0, y: e.screenY || 0, reason: 'click' });
+      }
+      dragSent = false;
+    }
+    root.addEventListener('pointerenter', onPointerEnter);
+    root.addEventListener('pointerleave', onPointerLeave);
+    root.addEventListener('pointerdown', onPointerDown);
+    root.addEventListener('pointermove', onPointerMove);
+    root.addEventListener('pointerup', onPointerUp);
+    root.addEventListener('pointercancel', onPointerUp);
+    root.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      post({ type: 'context_menu', x: e.screenX || 0, y: e.screenY || 0 });
+    });
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.addEventListener('message', function (ev) {
+        try {
+          var raw = ev.data;
+          var d = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          if (d && d.type === 'set_logo' && d.url) {
+            logo.src = d.url;
+          }
+        } catch (err) {}
+      });
+    }
+    post({ type: 'bubble_ready' });
+  </script>
+</body>
+</html>

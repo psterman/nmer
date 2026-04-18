@@ -145,6 +145,7 @@ global MainScriptDir := A_ScriptDir
 
 ; ===================== 包含悬浮工具栏模块 =====================
 #Include modules\FloatingToolbar.ahk
+#Include modules\FloatingBubble.ahk
 #Include modules\GravityPump.ahk
 #Include modules\AIListPanel.ahk
 #Include modules\PromptQuickPadCore.ahk
@@ -801,6 +802,9 @@ global FloatingToolbarMenuOptions := [
     Map("id", "ReloadScript", "name", "重启脚本"),
     Map("id", "ExitApp", "name", "退出程序")
 ]
+
+; 激活方式：toolbar=悬浮栏 bubble=悬浮球 tray=后台（仅托盘，无悬浮 UI）
+global AppearanceActivationMode := "toolbar"
 
 ; ===================== UI 颜色初始化（必须在脚本早期初始化）=====================
 ; 主题模式：dark（暗色，默认）或 light（亮色）
@@ -2728,6 +2732,14 @@ SyncPromptTemplatesToDB() {
     }
 }
 
+; ===================== 激活方式规范化 =====================
+NormalizeAppearanceActivationMode(v) {
+    s := Trim(String(v))
+    if (s = "bubble" || s = "tray" || s = "toolbar")
+        return s
+    return "toolbar"
+}
+
 ; ===================== 初始化配置 =====================
 InitConfig() {
     ; 1. 默认配置
@@ -3172,6 +3184,9 @@ InitConfig() {
             CursorPanelScreenIndex := UnifiedPopupScreenIndex
             ClipboardPanelScreenIndex := UnifiedPopupScreenIndex
             
+            global AppearanceActivationMode
+            AppearanceActivationMode := NormalizeAppearanceActivationMode(IniRead(ConfigFile, "Appearance", "ActivationMode", "toolbar"))
+            
             ; 加载快捷操作按钮配置
             QuickActionButtons := []
             ButtonCount := Integer(IniRead(ConfigFile, "QuickActions", "ButtonCount", "5"))
@@ -3253,6 +3268,8 @@ InitConfig() {
             VoiceSearchEnabledCategories := ["ai", "cli", "academic", "baidu", "image", "audio", "video", "book", "price", "medical", "cloud"]
             global PromptQuickCaptureHotkey
             PromptQuickCaptureHotkey := ""
+            global AppearanceActivationMode
+            AppearanceActivationMode := "toolbar"
         }
     } catch as e {
         MsgBox("Error loading config: " . e.Message, "Error", "IconX")
@@ -3292,11 +3309,61 @@ InitConfig() {
         FloatingToolbarMenuItems := FTB_SanitizeToolbarMenuItems(FloatingToolbarMenuItems)
         global PromptQuickCaptureHotkey
         PromptQuickCaptureHotkey := ""
+        global AppearanceActivationMode
+        AppearanceActivationMode := "toolbar"
     }
+    
+    global AppearanceActivationMode
+    AppearanceActivationMode := NormalizeAppearanceActivationMode(AppearanceActivationMode)
     
     ; 验证语言设置
     if (Language != "zh" && Language != "en") {
         Language := "zh"  ; 默认中文
+    }
+}
+
+; 根据「外观 · 激活方式」显示悬浮栏 / 悬浮球 / 或仅托盘
+ApplyAppearanceActivationMode() {
+    global AppearanceActivationMode
+    m := NormalizeAppearanceActivationMode(AppearanceActivationMode)
+    if (m = "toolbar") {
+        try FloatingBubble_DestroyCompletely()
+        catch {
+        }
+        try ShowFloatingToolbar()
+        catch {
+        }
+        return
+    }
+    if (m = "bubble") {
+        try HideFloatingToolbar()
+        catch {
+        }
+        try ShowFloatingBubble()
+        catch {
+        }
+        return
+    }
+    try HideFloatingToolbar()
+    catch {
+    }
+    try FloatingBubble_DestroyCompletely()
+    catch {
+    }
+}
+
+; 选区/牛马等需要宿主表面已显示时调用：按激活方式打开悬浮栏或悬浮球（后台模式不弹出）
+EnsureFloatingSurfaceVisible() {
+    global AppearanceActivationMode
+    m := NormalizeAppearanceActivationMode(AppearanceActivationMode)
+    if (m = "toolbar") {
+        try ShowFloatingToolbar()
+        catch {
+        }
+    } else if (m = "bubble") {
+        try ShowFloatingBubble()
+        catch {
+        }
     }
 }
 
@@ -3436,8 +3503,9 @@ InitClipboardHistoryPanel()
 SetTimer(Global_InitAllPanels, -1200)
 ; 初始化悬浮工具栏
 InitFloatingToolbar()
-; 显示悬浮工具栏（随主脚本运行）
-ShowFloatingToolbar()
+InitFloatingBubble()
+; 按「激活方式」显示悬浮栏 / 悬浮球 / 或仅托盘
+ApplyAppearanceActivationMode()
 SetTimer(AutoStartTtydForNiumaChat, -1800)
 GravityPump_Register()
 SelectionSense_Init()
@@ -3867,17 +3935,50 @@ ProcessClipboardChange() {
 ToggleToolbarAndPanel(*) {
     global FloatingToolbarIsVisible, FloatingToolbarIsMinimized
     global AIListPanelIsVisible, AIListPanelIsMinimized
-    
-    ; 检查当前状态
+    global AppearanceActivationMode, FloatingBubbleIsVisible
+
+    mode := NormalizeAppearanceActivationMode(AppearanceActivationMode)
+    if (mode = "tray") {
+        if (AIListPanelIsMinimized) {
+            RestoreAIListPanel()
+        } else if (AIListPanelIsVisible) {
+            MinimizeAIListPanelToEdge()
+        }
+        return
+    }
+    if (mode = "bubble") {
+        if (FloatingToolbarIsMinimized || AIListPanelIsMinimized) {
+            RestoreFloatingToolbar()
+            RestoreAIListPanel()
+            if (!FloatingBubbleIsVisible) {
+                try ShowFloatingBubble()
+                catch {
+                }
+            }
+        } else {
+            if (FloatingBubbleIsVisible) {
+                try HideFloatingBubble()
+                catch {
+                }
+            }
+            if (FloatingToolbarIsVisible) {
+                MinimizeFloatingToolbarToEdge()
+            }
+            if (AIListPanelIsVisible) {
+                MinimizeAIListPanelToEdge()
+            }
+        }
+        return
+    }
+
+    ; 悬浮栏模式：原逻辑
     if (FloatingToolbarIsMinimized || AIListPanelIsMinimized) {
-        ; 如果已最小化，恢复显示
         RestoreFloatingToolbar()
         RestoreAIListPanel()
         if (!FloatingToolbarIsVisible) {
             ShowFloatingToolbar()
         }
     } else {
-        ; 如果正常显示，隐藏到边缘
         if (FloatingToolbarIsVisible) {
             MinimizeFloatingToolbarToEdge()
         }
@@ -4194,7 +4295,7 @@ ExitFromMenu(*) {
 
 ; 关闭悬浮工具栏（与「隐藏/显示」切换不同：始终关闭）
 HideFloatingToolbarFromPopupMenu(*) {
-    global TrayMenuGUI
+    global TrayMenuGUI, AppearanceActivationMode
     if (TrayMenuGUI != 0) {
         try {
             TrayMenuGUI.Destroy()
@@ -4203,7 +4304,13 @@ HideFloatingToolbarFromPopupMenu(*) {
             SetTimer(CloseTrayMenuIfClickedOutside, 0)
         }
     }
-    HideFloatingToolbar()
+    if (NormalizeAppearanceActivationMode(AppearanceActivationMode) = "bubble") {
+        try HideFloatingBubble()
+        catch {
+        }
+    } else {
+        HideFloatingToolbar()
+    }
 }
 
 ; 重启脚本（先关闭暗色弹出菜单）
@@ -4564,26 +4671,51 @@ AddMenuButton(Text, CallbackFunc) {
     btn.OnEvent("Click", (ctrl, *) => (TrayMenuGUI.Hide(), CallbackFunc()))
 }
 
+FloatingBubbleShowFromMenu(*) {
+    try ShowFloatingBubble()
+    catch {
+    }
+}
+
+FloatingBubbleHideFromMenu(*) {
+    try HideFloatingBubble()
+    catch {
+    }
+}
+
 ; 创建自定义暗色托盘菜单（仅在右键点击托盘图标时激活）
 ShowCustomTrayMenu(ItemName := "", ItemPos := "", MyMenu := "") {
-    global FloatingToolbarIsVisible
+    global FloatingToolbarIsVisible, AppearanceActivationMode, FloatingBubbleIsVisible
 
     MenuWidth := 200
     MenuItemHeight := 35
     Padding := 10
     MenuItems := []
 
-    if (FloatingToolbarIsVisible) {
-        MenuItems.Push({Text: "隐藏工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
-        MenuItems.Push({Text: "最小化到边缘", Action: MinimizeFloatingToolbarToEdge, Icon: "⊏"})
-        MenuItems.Push({Text: "重置大小", Action: FloatingToolbarResetScale, Icon: "⤢"})
+    mode := NormalizeAppearanceActivationMode(AppearanceActivationMode)
+    if (mode = "tray") {
+        ; 后台模式：不提供会唤起悬浮栏/悬浮球的项
+    } else if (mode = "bubble") {
+        if (FloatingBubbleIsVisible) {
+            MenuItems.Push({Text: "隐藏悬浮球", Action: FloatingBubbleHideFromMenu, Icon: "☰"})
+        } else {
+            MenuItems.Push({Text: "显示悬浮球", Action: FloatingBubbleShowFromMenu, Icon: "☰"})
+        }
     } else {
-        MenuItems.Push({Text: "显示工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
+        if (FloatingToolbarIsVisible) {
+            MenuItems.Push({Text: "隐藏工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
+            MenuItems.Push({Text: "最小化到边缘", Action: MinimizeFloatingToolbarToEdge, Icon: "⊏"})
+            MenuItems.Push({Text: "重置大小", Action: FloatingToolbarResetScale, Icon: "⤢"})
+        } else {
+            MenuItems.Push({Text: "显示工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰"})
+        }
     }
     MenuItems.Push({Text: "搜索中心", Action: ShowSearchCenterFromMenu, Icon: "●"})
     MenuItems.Push({Text: "剪贴板", Action: ShowClipboardFromMenu, Icon: "▤"})
     MenuItems.Push({Text: GetText("open_config_menu"), Action: ShowConfigFromMenu, Icon: "⚙"})
-    MenuItems.Push({Text: "关闭工具栏", Action: HideFloatingToolbarFromPopupMenu, Icon: "◼"})
+    if (mode != "tray") {
+        MenuItems.Push({Text: "关闭工具栏", Action: HideFloatingToolbarFromPopupMenu, Icon: "◼"})
+    }
     MenuItems.Push({Text: "重启脚本", Action: ReloadScriptFromPopupMenu, Icon: "↻"})
     MenuItems.Push({Text: GetText("exit_menu"), Action: ExitFromMenu, Icon: "✕"})
 
@@ -17289,6 +17421,7 @@ ConfigWebView_BuildInitData() {
     global SearchEngine, AutoLoadSelectedText, AutoUpdateVoiceInput, VoiceSearchEnabledCategories, VoiceSearchSelectedEngines
     global ConfigFile, DefaultTemplateIDs, PromptTemplates
     global FloatingToolbarButtonItems, FloatingToolbarMenuItems, FloatingToolbarButtonOptions, FloatingToolbarMenuOptions
+    global AppearanceActivationMode
     monitorCount := 1
     try monitorCount := MonitorGetCount()
     catch
@@ -17405,7 +17538,8 @@ ConfigWebView_BuildInitData() {
         "floatingToolbarButtons", toolbarButtons,
         "floatingToolbarMenuItems", toolbarMenus,
         "floatingToolbarButtonOptions", FloatingToolbarButtonOptions,
-        "floatingToolbarMenuOptions", FloatingToolbarMenuOptions
+        "floatingToolbarMenuOptions", FloatingToolbarMenuOptions,
+        "appearanceActivationMode", NormalizeAppearanceActivationMode(AppearanceActivationMode)
     )
     kbSnap := ConfigWebView_GetKeybinderToolbarSnapshot()
     cfgPayload["keybinderToolbarLayout"] := kbSnap["toolbarLayout"]
@@ -17476,6 +17610,7 @@ ConfigWebView_BuildInitDataSafe() {
                 Map("id","ReloadScript","name","重启脚本"),
                 Map("id","ExitApp","name","退出程序")
             ],
+            "appearanceActivationMode", "toolbar",
             "keybinderToolbarLayout", [],
             "keybinderCommands", [],
             "keybinderContextMenuLayout", []
@@ -17492,6 +17627,7 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
     global Language, AISleepTime, LaunchDelaySeconds, MsgBoxScreenIndex, VoiceInputScreenIndex, CursorPanelScreenIndex, ClipboardPanelScreenIndex
     global SearchEngine, AutoLoadSelectedText, AutoUpdateVoiceInput, VoiceSearchEnabledCategories, VoiceSearchSelectedEngines
     global FloatingToolbarButtonItems
+    global AppearanceActivationMode
     global ConfigFile
 
     try {
@@ -17584,6 +17720,18 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         }
         if (NewVoiceCats.Length = 0)
             NewVoiceCats := ["ai","cli","academic","baidu","image","audio","video","book","price","medical","cloud"]
+        _amRaw := ""
+        if (payload is Map) {
+            if payload.Has("appearanceActivationMode")
+                _amRaw := payload["appearanceActivationMode"]
+            else if payload.Has("AppearanceActivationMode")
+                _amRaw := payload["AppearanceActivationMode"]
+        }
+        if (_amRaw = "" && payload is Map)
+            _amRaw := payload.Get("appearanceActivationMode", "toolbar")
+        if (_amRaw = "")
+            _amRaw := "toolbar"
+        NewAppearanceActivationMode := NormalizeAppearanceActivationMode(_amRaw)
         NewFloatingToolbarButtons := FTB_SanitizeToolbarButtonItems(FloatingToolbarButtonItems)
         if (payload.Has("floatingToolbarButtons") && payload["floatingToolbarButtons"] is Array)
             NewFloatingToolbarButtons := FTB_SanitizeToolbarButtonItems(payload["floatingToolbarButtons"])
@@ -17663,6 +17811,7 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         AutoUpdateVoiceInput := NewAutoUpdate
         VoiceSearchEnabledCategories := NewVoiceCats
         FloatingToolbarButtonItems := NewFloatingToolbarButtons
+        AppearanceActivationMode := NewAppearanceActivationMode
         VoiceSearchSelectedEngines := []
         if (NewVoiceEngineCsv != "") {
             for item in StrSplit(NewVoiceEngineCsv, ",") {
@@ -17734,6 +17883,7 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         }
         IniWrite(PanelScreenIndex, ConfigFile, "Appearance", "ScreenIndex")
         IniWrite(PanelScreenIndex, ConfigFile, "Appearance", "PopupScreenIndex")
+        IniWrite(AppearanceActivationMode, ConfigFile, "Appearance", "ActivationMode")
         IniWrite(FunctionPanelPos, ConfigFile, "Appearance", "FunctionPanelPos")
         IniWrite(ConfigPanelPos, ConfigFile, "Appearance", "ConfigPanelPos")
         IniWrite(ClipboardPanelPos, ConfigFile, "Appearance", "ClipboardPanelPos")
@@ -17745,6 +17895,9 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         SetAutoStart(AutoStart)
         PromptQuickPad_RegisterCaptureHotkey()
         try FloatingToolbarPushButtonConfigToWeb()
+        try ApplyAppearanceActivationMode()
+        catch {
+        }
         return true
     } catch as err {
         errorMsg := "保存失败: " . err.Message
@@ -30468,9 +30621,11 @@ global ScreenshotOldClipboard := ""  ; 保存截图前的剪贴板内容
 
 ; 从悬浮条隐藏工具栏后发起截图时，在剪贴板就绪、显示助手前恢复悬浮条（避免与 finally 延迟 Show 重复导致双开/偏移）
 ScreenshotFlowRestoreFloatingToolbarIfNeeded() {
-    global FloatingToolbar_ScheduleRestoreAfterScreenshot
+    global FloatingToolbar_ScheduleRestoreAfterScreenshot, AppearanceActivationMode
     if (FloatingToolbar_ScheduleRestoreAfterScreenshot) {
         FloatingToolbar_ScheduleRestoreAfterScreenshot := false
+        if (NormalizeAppearanceActivationMode(AppearanceActivationMode) != "toolbar")
+            return
         try ShowFloatingToolbar()
         catch as _e {
         }
