@@ -147,6 +147,21 @@ SCWV_Init() {
     _SCWV_EnsureSearchDataReady()
 }
 
+; 为 _SCWV_PathToWebAssetUrl 生成的 https://x.local/... 注册对应盘符根目录
+_SCWV_MapAllDriveVirtualHosts(wv2) {
+    if !wv2
+        return
+    Loop 26 {
+        dl := Chr(A_Index + 64)
+        root := dl . ":\"
+        if DirExist(root) {
+            try wv2.SetVirtualHostNameToFolderMapping(StrLower(dl) . ".local", root, 1)
+            catch {
+            }
+        }
+    }
+}
+
 SCWV_OnCreated(ctrl) {
     global g_SCWV_Ctrl, g_SCWV_WV2
 
@@ -169,15 +184,10 @@ SCWV_OnCreated(ctrl) {
      try ApplyUnifiedWebViewAssets(g_SCWV_WV2)
 
     
-    ; 映射物理驱动器到虚拟域名，允许 WebView2 播放本地媒体
+    ; 映射物理驱动器到虚拟域名，允许 WebView2 播放本地媒体 / PDF iframe
+    ; 仅 C/D/E 时 F:、G: 等盘上的文件会得到 https://x.local/... 但无映射，预览为空
     ; 1 = COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW
-    try {
-        g_SCWV_WV2.SetVirtualHostNameToFolderMapping("c.local", "C:\", 1)
-        g_SCWV_WV2.SetVirtualHostNameToFolderMapping("d.local", "D:\", 1)
-        g_SCWV_WV2.SetVirtualHostNameToFolderMapping("e.local", "E:\", 1)
-    }
-    catch {
-    }
+    _SCWV_MapAllDriveVirtualHosts(g_SCWV_WV2)
     
     g_SCWV_WV2.Navigate(BuildAppLocalUrl("SearchCenter.html"))
 }
@@ -656,6 +666,14 @@ SCWV_OnWebMessage(sender, args) {
             p := msg.Has("path") ? String(msg["path"]) : ""
             sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
             SCWV_Preview_OnPdfium(p, sq)
+        case "INVOKE_PDF_JS":
+            p := msg.Has("path") ? String(msg["path"]) : ""
+            sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
+            _SCWV_BlockDeactivate(12000, "pdf_js_preview")
+            try SCWV_Preview_Get().OnWebPdfJs(p, sq)
+            catch as err {
+                SCWV_PostJson(Map("type", "WEB_PREVIEW_PDF_JS_ERROR", "seq", sq, "message", err.Message))
+            }
         case "INVOKE_ARCHIVE_LIST":
             p := msg.Has("path") ? String(msg["path"]) : ""
             sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
@@ -2864,6 +2882,166 @@ _SCWV_ErrToText(err) {
     return txt
 }
 
+; Windows 长路径前缀 \\?\ ，避免字符串转义歧义
+_SCWV_Win32LongPathPrefix() {
+    return Chr(92) . Chr(92) . "?" . Chr(92)
+}
+
+; PDFium：在 Init 前将 icudtl.dat 所在目录（UTF-8）交给库，若导出不存在则忽略
+_SCWV_FpdfSetIcuPathUtf8(dllPath, dirContainingIcuDat) {
+    n := StrPut(dirContainingIcuDat, "UTF-8")
+    buf := Buffer(n)
+    StrPut(dirContainingIcuDat, buf, "UTF-8")
+    return DllCall(dllPath "\FPDF_SetIcuDataPath", "ptr", buf.Ptr, "int")
+}
+
+_SCWV_PdfiumCloseFpdf(st, dllPath) {
+    if !IsObject(st)
+        return
+    if st.bmp {
+        try DllCall(dllPath "\FPDFBitmap_Destroy", "ptr", st.bmp)
+        st.bmp := 0
+    }
+    if st.page {
+        try DllCall(dllPath "\FPDF_ClosePage", "ptr", st.page)
+        st.page := 0
+    }
+    if st.doc {
+        try DllCall(dllPath "\FPDF_CloseDocument", "ptr", st.doc)
+        st.doc := 0
+    }
+}
+
+_SCWV_PdfiumCloseAll(st, dllPath) {
+    if !IsObject(st)
+        return
+    if st.pClone {
+        try Gdip_DisposeImage(st.pClone)
+        st.pClone := 0
+    }
+    if st.pGdip {
+        try Gdip_DisposeImage(st.pGdip)
+        st.pGdip := 0
+    }
+    _SCWV_PdfiumCloseFpdf(st, dllPath)
+}
+
+; 使用 lib\pdfium.dll（Chromium PDFium 构建）渲染首页为 JPEG Base64；需 64 位 DLL 与 64 位 AHK 匹配
+_SCWV_PdfiumTryRenderFirstPageJpeg(path, quality := 70) {
+    dllPath := A_ScriptDir "\lib\pdfium.dll"
+    if !FileExist(dllPath)
+        return { b64: "", err: "missing_dll", engine: "pdfium_native" }
+
+    st := { doc: 0, page: 0, bmp: 0, pGdip: 0, pClone: 0 }
+    libDir := A_ScriptDir "\lib"
+    try {
+        DllCall("kernel32\SetDllDirectoryW", "str", libDir)
+        sz := FileGetSize(path)
+        if (sz > 80 * 1024 * 1024 || sz < 16)
+            return { b64: "", err: "文件过大或无效（>80MB）", engine: "pdfium_native" }
+
+        static g_SCWV_PdfiumInit := false
+        if !g_SCWV_PdfiumInit {
+            if FileExist(libDir "\icudtl.dat") {
+                try _SCWV_FpdfSetIcuPathUtf8(dllPath, libDir)
+                catch {
+                }
+            }
+            cfg := Buffer(4 + 3 * A_PtrSize + 4, 0)
+            NumPut("uint", 2, cfg, 0)
+            try DllCall(dllPath "\FPDF_InitLibraryWithConfig", "ptr", cfg)
+            catch {
+                DllCall(dllPath "\FPDF_InitLibrary")
+            }
+            g_SCWV_PdfiumInit := true
+        }
+
+        fb := FileRead(path, "RAW")
+        st.doc := DllCall(dllPath "\FPDF_LoadMemDocument64", "ptr", fb.Ptr, "uptr", fb.Size, "ptr", 0, "ptr")
+        if !st.doc {
+            le := 0
+            try le := DllCall(dllPath "\FPDF_GetLastError", "uint")
+            return { b64: "", err: "FPDF_LoadMemDocument64 失败 (错误 " . (le != 0 ? le : "?") . ")", engine: "pdfium_native" }
+        }
+
+        n := DllCall(dllPath "\FPDF_GetPageCount", "ptr", st.doc, "int")
+        if (n < 1) {
+            _SCWV_PdfiumCloseFpdf(st, dllPath)
+            return { b64: "", err: "PDF 无页面", engine: "pdfium_native" }
+        }
+
+        st.page := DllCall(dllPath "\FPDF_LoadPage", "ptr", st.doc, "int", 0, "ptr")
+        if !st.page {
+            _SCWV_PdfiumCloseFpdf(st, dllPath)
+            return { b64: "", err: "无法加载首页", engine: "pdfium_native" }
+        }
+
+        pw := DllCall(dllPath "\FPDF_GetPageWidthF", "ptr", st.page, "float")
+        ph := DllCall(dllPath "\FPDF_GetPageHeightF", "ptr", st.page, "float")
+        if (pw <= 0 || ph <= 0) {
+            try {
+                pw := DllCall(dllPath "\FPDF_GetPageWidth", "ptr", st.page, "double")
+                ph := DllCall(dllPath "\FPDF_GetPageHeight", "ptr", st.page, "double")
+            } catch {
+                pw := 0
+                ph := 0
+            }
+        }
+        if (pw <= 0 || ph <= 0) {
+            _SCWV_PdfiumCloseFpdf(st, dllPath)
+            return { b64: "", err: "无效页面尺寸", engine: "pdfium_native" }
+        }
+
+        maxW := 1200, maxH := 1800
+        sc := Min(maxW / pw, maxH / ph, 1.0)
+        rw := Max(1, Round(pw * sc))
+        rh := Max(1, Round(ph * sc))
+
+        st.bmp := DllCall(dllPath "\FPDFBitmap_Create", "int", rw, "int", rh, "int", 0, "ptr")
+        if !st.bmp {
+            _SCWV_PdfiumCloseFpdf(st, dllPath)
+            return { b64: "", err: "FPDFBitmap_Create 失败", engine: "pdfium_native" }
+        }
+
+        DllCall(dllPath "\FPDFBitmap_FillRect", "ptr", st.bmp, "int", 0, "int", 0, "int", rw, "int", rh, "uint", 0xFFFFFFFF)
+        DllCall(dllPath "\FPDF_RenderPageBitmap", "ptr", st.bmp, "ptr", st.page, "int", 0, "int", 0, "int", rw, "int", rh, "int", 0, "int", 1)
+
+        stride := DllCall(dllPath "\FPDFBitmap_GetStride", "ptr", st.bmp, "int")
+        bufPtr := DllCall(dllPath "\FPDFBitmap_GetBuffer", "ptr", st.bmp, "ptr")
+
+        pGdip := 0
+        DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", rw, "Int", rh, "Int", stride, "Int", 0x26200A, "UPtr", bufPtr, "UPtr*", &pGdip)
+        st.pGdip := pGdip
+        if !pGdip {
+            _SCWV_PdfiumCloseFpdf(st, dllPath)
+            return { b64: "", err: "GdipCreateBitmapFromScan0 失败", engine: "pdfium_native" }
+        }
+
+        st.pClone := Gdip_CloneBitmapArea(pGdip, 0, 0, rw, rh, 0x26200A)
+        Gdip_DisposeImage(pGdip)
+        st.pGdip := 0
+
+        _SCWV_PdfiumCloseFpdf(st, dllPath)
+
+        if !st.pClone
+            return { b64: "", err: "Gdip_CloneBitmapArea 失败", engine: "pdfium_native" }
+
+        b64 := ImagePut("Base64", { pBitmap: st.pClone }, "jpg", quality)
+        Gdip_DisposeImage(st.pClone)
+        st.pClone := 0
+
+        if (b64 = "")
+            return { b64: "", err: "JPEG 编码失败", engine: "pdfium_native" }
+
+        return { b64: b64, err: "", engine: "pdfium_native" }
+    } catch as e {
+        _SCWV_PdfiumCloseAll(st, dllPath)
+        return { b64: "", err: e.Message, engine: "pdfium_native", detail: _SCWV_ErrToText(e) }
+    } finally {
+        try DllCall("kernel32\SetDllDirectoryW", "ptr", 0)
+    }
+}
+
 _SCWV_ReadProgIdForExt(extDot, &fromKey := "") {
     fromKey := ""
     roots := [
@@ -3176,7 +3354,7 @@ class PreviewManager {
         path := Trim(String(path))
         this._PostDetailMeta(path, seq)
         if (path = "" || !FileExist(path)) {
-            SCWV_PostJson(Map("type", "WEB_PREVIEW_MEDIA_RESULT", "seq", seq, "url", "", "posterUrl", "", "durationSec", "", "mediaInfo", Map()))
+            SCWV_PostJson(Map("type", "WEB_PREVIEW_MEDIA_RESULT", "seq", seq, "path", path, "url", "", "posterUrl", "", "durationSec", "", "mediaInfo", Map()))
             return
         }
         mediaUrl := _SCWV_PathToWebAssetUrl(path)
@@ -3192,11 +3370,66 @@ class PreviewManager {
         SCWV_PostJson(Map(
             "type", "WEB_PREVIEW_MEDIA_RESULT",
             "seq", seq,
+            "path", path,
             "url", mediaUrl,
             "posterUrl", posterUrl,
             "durationSec", durationSec,
             "mediaInfo", mediaInfo
         ))
+    }
+
+    ; PDF.js 内嵌预览：分块 Base64 传入 WebView，避免跨虚拟主机 CORS
+    OnWebPdfJs(path, seq) {
+        path := Trim(String(path))
+        this._PostDetailMeta(path, seq)
+        maxTotal := 40 * 1024 * 1024
+        chunk := 450000
+        if (path = "" || !FileExist(path)) {
+            SCWV_PostJson(Map("type", "WEB_PREVIEW_PDF_JS_ERROR", "seq", seq, "message", "invalid_path"))
+            return
+        }
+        sz := FileGetSize(path)
+        if (sz < 16) {
+            SCWV_PostJson(Map("type", "WEB_PREVIEW_PDF_JS_ERROR", "seq", seq, "message", "file_too_small"))
+            return
+        }
+        if (sz > maxTotal) {
+            SCWV_PostJson(Map("type", "WEB_PREVIEW_PDF_JS_ERROR", "seq", seq, "message", "pdf_too_large_40mb"))
+            return
+        }
+        totalParts := Ceil(sz / chunk)
+        if (totalParts < 1)
+            totalParts := 1
+        SCWV_PostJson(Map(
+            "type", "WEB_PREVIEW_PDF_JS_BEGIN",
+            "seq", seq,
+            "totalParts", totalParts,
+            "totalBytes", sz
+        ))
+        try {
+            f := FileOpen(path, "r")
+            try {
+                Loop totalParts {
+                    i := A_Index - 1
+                    remain := sz - i * chunk
+                    n := Min(chunk, remain)
+                    buf := Buffer(n, 0)
+                    f.RawRead(buf, n)
+                    b64 := _SCWV_B64EncodeBuf(buf)
+                    if (b64 = "") {
+                        SCWV_PostJson(Map("type", "WEB_PREVIEW_PDF_JS_ERROR", "seq", seq, "message", "b64_failed"))
+                        return
+                    }
+                    SCWV_PostJson(Map("type", "WEB_PREVIEW_PDF_JS_PART", "seq", seq, "index", i, "data", b64))
+                }
+            } finally {
+                try f.Close()
+                catch {
+                }
+            }
+        } catch as e {
+            SCWV_PostJson(Map("type", "WEB_PREVIEW_PDF_JS_ERROR", "seq", seq, "message", e.Message))
+        }
     }
 
     PostMediaInfo(path, seq) {
@@ -3260,30 +3493,77 @@ class PreviewManager {
         pdfiumDll := A_ScriptDir "\lib\pdfium.dll"
         icuDat := A_ScriptDir "\lib\icudtl.dat"
         diag := Map(
-            "engine", "imageput_pdf_channel",
             "pdfiumDllPresent", !!FileExist(pdfiumDll),
-            "icuDatPresent", !!FileExist(icuDat)
+            "icuDatPresent", !!FileExist(icuDat),
+            "hint", "优先 lib\\pdfium.dll + icudtl.dat（与 AHK 同位数）；失败则回退 Windows.Data.Pdf。"
         )
+
+        ; 1) 原生 PDFium（lib\pdfium.dll）
+        if FileExist(pdfiumDll) {
+            r := _SCWV_PdfiumTryRenderFirstPageJpeg(path, 70)
+            diag["engine"] := r.HasProp("engine") ? r.engine : "pdfium_native"
+            if (r.b64 != "") {
+                diag["branch"] := "pdfium_dll"
+                SCWV_PostJson(Map(
+                    "type", "WEB_PREVIEW_PDFIUM_RESULT",
+                    "seq", seq,
+                    "dataUrl", "data:image/jpeg;base64," . r.b64,
+                    "diag", diag
+                ))
+                return
+            }
+            diag["pdfiumError"] := r.HasProp("err") ? r.err : ""
+            if r.HasProp("detail")
+                diag["pdfiumDetail"] := r.detail
+        } else {
+            diag["engine"] := "fallback_only"
+            diag["pdfiumSkipped"] := "lib\\pdfium.dll 不存在"
+        }
+
+        ; 2) 回退：ImagePut → Windows.Data.Pdf（WinRT）
+        pathsToTry := [path]
+        lp := _SCWV_Win32LongPathPrefix()
+        if (StrLen(path) >= 240 && RegExMatch(path, "^[a-zA-Z]:\\") && SubStr(path, 1, 4) != lp) {
+            pathsToTry.Push(lp . path)
+        }
+
+        oldRender := ImagePut.render
         try {
-            ; ImagePut 对 pdf 输入会走其 PDF 渲染通道，输出首图 Base64
-            b64 := ImagePut("Base64", path, "jpg", 70)
-            if (b64 = "")
-                throw Error("empty_base64")
-            SCWV_PostJson(Map(
-                "type", "WEB_PREVIEW_PDFIUM_RESULT",
-                "seq", seq,
-                "dataUrl", "data:image/jpeg;base64," . b64,
-                "diag", diag
-            ))
-        } catch as err {
-            diag["error"] := _SCWV_ErrToText(err)
+            ImagePut.render := 2
+            lastMsg := ""
+            lastDetail := ""
+            for cand in pathsToTry {
+                if !FileExist(cand)
+                    continue
+                try {
+                    b64 := ImagePut("Base64", cand, "jpg", 70)
+                    if (b64 = "")
+                        throw Error("empty_base64")
+                    diag["engine"] := "windows_data_pdf_imageput"
+                    diag["branch"] := "winrt_fallback"
+                    SCWV_PostJson(Map(
+                        "type", "WEB_PREVIEW_PDFIUM_RESULT",
+                        "seq", seq,
+                        "dataUrl", "data:image/jpeg;base64," . b64,
+                        "diag", diag
+                    ))
+                    return
+                } catch as err {
+                    lastMsg := err.Message
+                    lastDetail := _SCWV_ErrToText(err)
+                }
+            }
+            diag["error"] := lastDetail != "" ? lastDetail : "no_attempt"
+            diag["engine"] := "failed"
             SCWV_PostJson(Map(
                 "type", "WEB_PREVIEW_PDFIUM_RESULT",
                 "seq", seq,
                 "dataUrl", "",
-                "error", err.Message,
+                "error", lastMsg != "" ? lastMsg : "PDF 渲染失败（PDFium 与系统 PDF 均不可用）",
                 "diag", diag
             ))
+        } finally {
+            try ImagePut.render := oldRender
         }
     }
 
@@ -3471,7 +3751,7 @@ class PreviewManager {
         hostHwnd := this.NativeGui.Hwnd
         if !this._AttachPreviewHandler(p, hostHwnd, rw, rh) {
             this.Unload()
-            this._PostNativeFail(p, "系统预览组件不可用（可尝试 QuickLook）", "attach_failed")
+            this._PostNativeFail(p, "系统预览组件不可用（可改用侧栏 PDF.js 内嵌预览）", "attach_failed")
         }
     }
 
@@ -3748,7 +4028,7 @@ _SCWV_LoadSearchHistory() {
                      . "高效操作`n"
                      . "- 双击或 Enter：执行当前结果。`n"
                      . "- 右键结果：复制、发送到、置顶、删除。`n"
-                     . "- 空格：对文件尝试 QuickLook 预览。`n`n"
+                     . "- 空格：重新加载当前文件预览（PDF 默认走侧栏 PDF.js）。`n`n"
                      . "建议`n"
                      . "- 首次使用先从文件和剪贴板两个筛选开始。`n"
                      . "- 关键词尽量短而准，必要时加第二个词缩小范围。"

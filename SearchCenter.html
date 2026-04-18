@@ -519,6 +519,34 @@ button, input, select, textarea { font: inherit; }
   font-size: 12px;
   color: #d6dde5;
 }
+.pdfjs-viewport {
+  width: 100%;
+  min-height: 200px;
+  max-height: min(78vh, 920px);
+  overflow: auto;
+  background: #262a2f;
+  padding: 10px 8px 16px;
+  border-radius: 8px;
+  box-sizing: border-box;
+  white-space: normal;
+  font-family: var(--font-ui);
+}
+.pdfjs-page-wrap {
+  margin: 0 auto 14px;
+  text-align: center;
+}
+.pdfjs-page-wrap canvas {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+}
+.pdfjs-page-ph {
+  padding: 20px;
+  color: var(--muted);
+  font-size: 12px;
+}
 #preview-web-scroll.mode-hidden {
   display: none !important;
 }
@@ -1028,11 +1056,11 @@ mark {
         </div>
         <div id="preview-ql-hint" class="hidden">
           <div class="ql-row">
-            <span class="ql-text">按 <kbd>Space</kbd> 预览 / 选项：</span>
+            <span class="ql-text">按 <kbd>Space</kbd> 重新加载预览 · 选项：</span>
             <div class="ql-btns">
               <button type="button" id="preview-pdf-mode-btn" class="preview-ctrl-btn" title="PDF 预览策略">PDF:auto</button>
               <button type="button" id="preview-native-btn" class="preview-ctrl-btn" title="调用系统原生 IPreviewHandler">IPreview</button>
-              <button type="button" id="preview-ql-btn" title="调用 QuickLook.exe (空格快捷键)">QuickLook</button>
+              <button type="button" id="preview-ql-btn" title="可选：调用便携版 QuickLook.exe">QuickLook</button>
             </div>
           </div>
         </div>
@@ -1110,8 +1138,11 @@ const state = {
   },
   pdfMode: (localStorage.getItem("sc_pdf_preview_mode") || "auto"),
   pdfPlan: null,
-  pdfWebBroken: false
+  pdfWebBroken: false,
+  pdfJsRx: null
 };
+
+const PDF_JS_ASSET_BASE = "https://app.local/assets/pdfjs/";
 
 const postToAhk = (obj) => BasePanel.postToAhk(obj);
 const PREVIEW_DEBOUNCE_MS = 150;
@@ -1121,7 +1152,7 @@ const PREVIEW_AUDIO_EXT = new Set(["mp3", "wav", "flac", "m4a", "aac", "ogg", "o
 const PREVIEW_VIDEO_EXT = new Set(["mp4", "m4v", "mov", "webm", "mkv", "avi"]);
 const PREVIEW_PDF_EXT = new Set(["pdf"]);
 const PREVIEW_ARCHIVE_EXT = new Set(["zip", "7z", "rar", "tar", "gz", "tgz", "bz2", "xz", "cab", "iso"]);
-const PDF_MODE_OPTIONS = ["auto", "web", "pdfium", "ipreview", "quicklook"];
+const PDF_MODE_OPTIONS = ["auto", "pdfjs", "web", "pdfium", "ipreview", "quicklook"];
 const ONE_MB = 1048576;
 const HOTKEY_HINT_MAP = Object.freeze({
   category: Object.freeze({
@@ -1557,12 +1588,165 @@ function cyclePdfMode() {
   if (pathExtensionLower(state.previewPath) === "pdf") scheduleRunPreview();
 }
 
+function ensurePdfJsScript() {
+  if (globalThis.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_JS_ASSET_BASE + "pdf.worker.min.js";
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = PDF_JS_ASSET_BASE + "pdf.min.js";
+    s.onload = () => {
+      if (!globalThis.pdfjsLib) {
+        reject(new Error("pdfjsLib missing"));
+        return;
+      }
+      pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_JS_ASSET_BASE + "pdf.worker.min.js";
+      resolve();
+    };
+    s.onerror = () => reject(new Error("pdf.min.js load error"));
+    document.head.appendChild(s);
+  });
+}
+
+function base64ToUint8Array(b64) {
+  return fetch("data:application/pdf;base64," + b64).then((r) => r.arrayBuffer()).then((ab) => new Uint8Array(ab));
+}
+
+function renderPdfJsToPane(b64) {
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return Promise.reject(new Error("no pane"));
+  return ensurePdfJsScript()
+    .then(() => base64ToUint8Array(b64))
+    .then((data) => pdfjsLib.getDocument({ data, verbosity: 0 }).promise)
+    .then((pdf) => {
+      const viewportEl = document.createElement("div");
+      viewportEl.className = "pdfjs-viewport";
+      const head = document.createElement("div");
+      head.style.cssText = "color:#93a0ad;font-size:12px;margin-bottom:10px;text-align:center;";
+      head.textContent = "共 " + pdf.numPages + " 页 · PDF.js 内嵌预览（无需 QuickLook）";
+      viewportEl.appendChild(head);
+      pane.innerHTML = "";
+      pane.appendChild(viewportEl);
+      const hostWidth = Math.max(280, pane.clientWidth - 20);
+      const maxPages = Math.min(pdf.numPages, 200);
+      if (pdf.numPages > maxPages) {
+        const warn = document.createElement("div");
+        warn.style.cssText = "color:#ffb347;font-size:11px;text-align:center;margin:6px 0;";
+        warn.textContent = "页数过多，仅渲染前 " + maxPages + " 页以保证流畅；完整阅读请使用外部阅读器。";
+        viewportEl.appendChild(warn);
+      }
+      const items = [];
+      for (let p = 1; p <= maxPages; p++) {
+        const wrap = document.createElement("div");
+        wrap.className = "pdfjs-page-wrap";
+        const ph = document.createElement("div");
+        ph.className = "pdfjs-page-ph";
+        ph.textContent = "第 " + p + " 页…";
+        wrap.appendChild(ph);
+        viewportEl.appendChild(wrap);
+        items.push({ wrap, ph, pn: p, done: false });
+      }
+      const io = new IntersectionObserver(
+        (ents) => {
+          for (const e of ents) {
+            if (!e.isIntersecting) continue;
+            const w = e.target;
+            io.unobserve(w);
+            const item = items.find((it) => it.wrap === w);
+            if (item && !item.done) {
+              item.done = true;
+              pdf.getPage(item.pn).then((page) => {
+                const baseVp = page.getViewport({ scale: 1 });
+                const scale = Math.min(hostWidth / baseVp.width, 2);
+                const vp = page.getViewport({ scale });
+                const canvas = document.createElement("canvas");
+                const ctx = canvas.getContext("2d");
+                canvas.width = vp.width;
+                canvas.height = vp.height;
+                return page.render({ canvasContext: ctx, viewport: vp }).promise.then(() => {
+                  item.ph.replaceWith(canvas);
+                });
+              }).catch(() => {
+                item.ph.textContent = "第 " + item.pn + " 页渲染失败";
+              });
+            }
+          }
+        },
+        { root: viewportEl, rootMargin: "400px", threshold: 0.01 }
+      );
+      for (const it of items) {
+        io.observe(it.wrap);
+      }
+      return null;
+    });
+}
+
+function runPdfJsPipelineFromBase64(b64) {
+  renderPdfJsToPane(b64)
+    .then(() => {
+      finishPdfPlan(true);
+    })
+    .catch(() => {
+      advancePdfPlan("pdfjs_render_fail");
+    });
+}
+
+function onWebPdfJsBegin(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  if (!state.pdfPlan || state.pdfPlan.done || state.pdfPlan.current !== "pdfjs") return;
+  const n = Number(payload.totalParts);
+  const tb = Number(payload.totalBytes);
+  if (!Number.isFinite(n) || n < 1) {
+    advancePdfPlan("pdfjs_begin_bad");
+    return;
+  }
+  state.pdfJsRx = {
+    seq: Number(payload.seq),
+    totalParts: n,
+    totalBytes: Number.isFinite(tb) ? tb : 0,
+    parts: new Array(n),
+    got: 0
+  };
+  const pane = document.getElementById("preview-web-scroll");
+  if (pane) {
+    const mb = state.pdfJsRx.totalBytes > 0 ? (state.pdfJsRx.totalBytes / ONE_MB).toFixed(2) : "?";
+    pane.innerHTML =
+      "<div class=\"preview-loading\">PDF.js 传输中…（约 " + escapeHtml(String(mb)) + " MB · " + n + " 段）</div>";
+  }
+}
+
+function onWebPdfJsPart(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const rx = state.pdfJsRx;
+  if (!rx || rx.seq !== Number(payload.seq)) return;
+  const idx = Number(payload.index);
+  if (!Number.isFinite(idx) || idx < 0 || idx >= rx.totalParts) return;
+  if (rx.parts[idx] != null) return;
+  rx.parts[idx] = String(payload.data || "");
+  rx.got++;
+  if (rx.got < rx.totalParts) return;
+  const b64 = rx.parts.join("");
+  state.pdfJsRx = null;
+  runPdfJsPipelineFromBase64(b64);
+}
+
+function onWebPdfJsError(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  if (!state.pdfPlan || state.pdfPlan.done) return;
+  if (state.pdfPlan.current !== "pdfjs") return;
+  state.pdfJsRx = null;
+  advancePdfPlan("pdfjs_err");
+}
+
 function startPdfPlan(path, seq) {
   const mode = state.pdfMode || "auto";
   let chain = [];
-  if (mode === "auto") chain = state.pdfWebBroken ? ["pdfium", "ipreview"] : ["web", "pdfium", "ipreview"];
+  if (mode === "auto")
+    chain = state.pdfWebBroken ? ["pdfjs", "pdfium", "ipreview"] : ["pdfjs", "web", "pdfium", "ipreview"];
   else if (mode === "quicklook") chain = ["quicklook"]; // 用户显式选择 quicklook 才执行
   else chain = [mode];
+  state.pdfJsRx = null;
   state.pdfPlan = { path, seq, chain, idx: -1, done: false, timer: 0 };
   advancePdfPlan("start");
 }
@@ -1586,7 +1770,9 @@ function advancePdfPlan(reason) {
   if (state.pdfPlan.idx >= state.pdfPlan.chain.length) {
     const pane = document.getElementById("preview-web-scroll");
     if (pane) {
-      pane.innerHTML = "<div class=\"preview-empty\">当前 PDF 预览方案均失败。<br><br>请手动点击 QuickLook，或点击 PDF:xxx 切换预览策略。</div>";
+      pane.innerHTML =
+        "<div class=\"preview-empty\">当前 PDF 预览均未成功（已尝试 PDF.js、WebView 内置、PDFium 与系统预览）。<br><br>" +
+        "请确认文件小于 40MB；可双击列表用默认程序打开。可选：QuickLook 按钮。</div>";
     }
     finishPdfPlan(false);
     return;
@@ -1597,6 +1783,14 @@ function advancePdfPlan(reason) {
   const pane = document.getElementById("preview-web-scroll");
   if (!pane) return;
 
+  if (mode === "pdfjs") {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    state.pdfJsRx = null;
+    pane.innerHTML = "<div class=\"preview-loading\">PDF.js 内嵌预览准备中…</div>";
+    postToAhk({ type: "INVOKE_PDF_JS", path: state.pdfPlan.path, seq: state.pdfPlan.seq });
+    return;
+  }
   if (mode === "web") {
     setPreviewLayoutMode("web");
     stopNativePreview();
@@ -1638,7 +1832,7 @@ function onPdfWebMediaResult(payload) {
     advancePdfPlan("web_empty");
     return;
   }
-  pane.innerHTML = "<iframe id=\"pdf-webview-frame\" src=\"" + url + "\" style=\"width:100%;height:100%;min-height:360px;border:none;background:#111;\"></iframe>";
+  pane.innerHTML = "<iframe id=\"pdf-webview-frame\" src=\"" + escapeHtml(url) + "\" style=\"width:100%;height:100%;min-height:360px;border:none;background:#111;\"></iframe>";
   const frame = document.getElementById("pdf-webview-frame");
   if (!frame) {
     advancePdfPlan("web_iframe_missing");
@@ -1661,7 +1855,7 @@ function onPdfWebMediaResult(payload) {
   frame.addEventListener("error", fail, { once: true });
   state.pdfPlan.timer = setTimeout(() => {
     if (!settled) fail();
-  }, 900);
+  }, 4500);
 }
 
 function onWebPreviewPdfiumResult(payload) {
@@ -1695,8 +1889,9 @@ function onWebPreviewMediaResult(payload) {
     pane.innerHTML = "<div class=\"preview-empty\">媒体预览地址为空，无法加载。</div>";
     return;
   }
-  const ext = pathExtensionLower(state.previewPath);
-  const fileName = state.previewPath ? String(state.previewPath).replace(/^.*[\\/]/, "") : "";
+  const pathForMedia = (payload.path && String(payload.path).trim()) || state.previewPath || "";
+  const ext = pathExtensionLower(pathForMedia);
+  const fileName = pathForMedia ? String(pathForMedia).replace(/^.*[\\/]/, "") : "";
   const kind = PREVIEW_AUDIO_EXT.has(ext) ? "audio" : "video";
   const mediaId = "preview-media-el";
   const currentId = "preview-media-current";
@@ -1956,6 +2151,7 @@ function wireMediaPreview(kind, options = {}) {
 
 function runPreviewForSelection() {
   state.previewSeq += 1;
+  state.pdfJsRx = null;
   const seq = state.previewSeq;
   const meta = document.getElementById("preview-meta");
   const pane = document.getElementById("preview-web-scroll");
@@ -2063,7 +2259,7 @@ function onWebPreviewTextResult(payload) {
     const t = truncateToLines(body, 1000);
     body = t.text;
     lineTrunc = t.truncated;
-    note = "文件较大，已截断显示（最多约 1MB / 1000 行）。完整内容请点击下方 QuickLook 或使用外部编辑器。";
+    note = "文件较大，已截断显示（最多约 1MB / 1000 行）。完整内容请用外部编辑器打开或双击结果。";
   }
   const ext = pathExtensionLower(state.previewPath);
   const lang = prismLangForExt(ext);
@@ -2117,7 +2313,8 @@ function onWebPreviewArchiveResult(payload) {
   const entries = Array.isArray(payload.entries) ? payload.entries : [];
   const error = payload.error ? String(payload.error) : "";
   if (error) {
-    pane.innerHTML = "<div class=\"preview-empty\">压缩包目录读取失败：" + escapeHtml(error) + "<br><br>建议尝试 QuickLook。</div>";
+    pane.innerHTML =
+      "<div class=\"preview-empty\">压缩包目录读取失败：" + escapeHtml(error) + "<br><br>可双击用关联程序打开压缩包。</div>";
     return;
   }
   if (!entries.length) {
@@ -2209,7 +2406,10 @@ function onNativePreviewFailed(payload) {
   const msg = payload.message ? String(payload.message) : "系统原生预览不可用。";
   stopNativePreview();
   setPreviewLayoutMode("web");
-  pane.innerHTML = "<div class=\"preview-empty\">" + escapeHtml(msg) + "<br><br>建议点击 QuickLook 按钮或按空格预览。</div>";
+  pane.innerHTML =
+    "<div class=\"preview-empty\">" +
+    escapeHtml(msg) +
+    "<br><br>侧栏默认已优先使用 PDF.js；可按空格重新加载预览，或切换 PDF:pdfjs / PDF:web。</div>";
   
   const qlBtn = document.getElementById("preview-ql-btn");
   if (qlBtn) qlBtn.classList.add("btn-highlight");
@@ -2537,7 +2737,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === " ") {
     event.preventDefault();
     if (state.previewPath) {
-      postToAhk({ type: "QUICKLOOK", path: state.previewPath });
+      scheduleRunPreview();
     }
     return;
   }
@@ -2644,8 +2844,21 @@ if (window.chrome && window.chrome.webview) {
       onWebPreviewImageResult(payload);
       return;
     }
+    if (payload.type === "WEB_PREVIEW_PDF_JS_BEGIN") {
+      onWebPdfJsBegin(payload);
+      return;
+    }
+    if (payload.type === "WEB_PREVIEW_PDF_JS_PART") {
+      onWebPdfJsPart(payload);
+      return;
+    }
+    if (payload.type === "WEB_PREVIEW_PDF_JS_ERROR") {
+      onWebPdfJsError(payload);
+      return;
+    }
     if (payload.type === "WEB_PREVIEW_MEDIA_RESULT") {
-      const ext = pathExtensionLower(state.previewPath);
+      const pathForExt = (payload.path && String(payload.path).trim()) || state.previewPath || "";
+      const ext = pathExtensionLower(pathForExt);
       if (ext === "pdf") {
         onPdfWebMediaResult(payload);
       } else if (PREVIEW_AUDIO_EXT.has(ext) || PREVIEW_VIDEO_EXT.has(ext)) {
