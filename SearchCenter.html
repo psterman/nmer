@@ -43,8 +43,9 @@ button, input, select, textarea { font: inherit; }
   gap: 12px;
   padding: 14px 26px 18px;
 }
+/* 须显示标题栏：极速/标准 与窗口控制在此；勿 display:none（会隐藏引擎切换） */
 #chrome-header {
-  display: none;
+  display: flex;
 }
 .chrome-header {
   position: relative;
@@ -104,6 +105,32 @@ button, input, select, textarea { font: inherit; }
 .chrome-btn.close:hover {
   border-color: rgba(255,122,122,.6);
   background: linear-gradient(180deg, rgba(255,122,122,.22), rgba(255,122,122,.12));
+}
+.chrome-engine-btn {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 8px;
+  min-width: 44px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(255,179,71,.35);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255,179,71,.14), rgba(255,141,42,.08));
+  color: var(--text);
+  cursor: pointer;
+}
+.chrome-engine-btn:hover {
+  border-color: rgba(255,179,71,.55);
+  background: linear-gradient(180deg, rgba(255,179,71,.22), rgba(255,141,42,.14));
+}
+.chrome-engine-btn.ahk-mode {
+  border-color: var(--border);
+  background: var(--panel-2);
+}
+#search-bar .chrome-engine-btn {
+  min-height: 40px;
+  align-self: center;
 }
 .bar {
   display: flex;
@@ -994,6 +1021,7 @@ mark {
     <header id="chrome-header" class="chrome-header window-titlebar">
     <div class="chrome-drag" id="chrome-drag" title="拖动窗口">搜索中心</div>
     <div class="chrome-controls">
+      <button type="button" id="engine-mode-btn" class="chrome-engine-btn" title="切换搜索引擎：极速(Go) / 标准(AHK)">极速</button>
       <button type="button" id="chrome-minimize" class="chrome-btn" title="Minimize">-</button>
       <button type="button" id="chrome-maximize" class="chrome-btn" title="Maximize">[]</button>
       <button type="button" id="chrome-close" class="chrome-btn close" title="Close">X</button>
@@ -1012,6 +1040,7 @@ mark {
       <div id="status" class="search-status-inline">准备中...</div>
     </div>
     <div class="search-actions">
+      <button type="button" id="engine-mode-btn-inline" class="chrome-engine-btn" title="极速(Go) / 标准(AHK)">极速</button>
       <select id="limit">
         <option value="10">10 条</option>
           <option value="20">20 条</option>
@@ -1106,9 +1135,12 @@ if (typeof BasePanel === 'undefined') {
     }
   };
 }
+const SC_ENGINE_MODE_KEY = "sc_engine_mode";
+
 const state = {
   keyword: "",
   limit: 30,
+  engineMode: (typeof localStorage !== "undefined" && localStorage.getItem(SC_ENGINE_MODE_KEY)) || "go",
   categories: [],
   currentCategoryKey: "ai",
   engines: [],
@@ -1145,6 +1177,53 @@ const state = {
 const PDF_JS_ASSET_BASE = "https://app.local/assets/pdfjs/";
 
 const postToAhk = (obj) => BasePanel.postToAhk(obj);
+
+function syncEngineModeButton() {
+  const btn = document.getElementById("engine-mode-btn");
+  const btn2 = document.getElementById("engine-mode-btn-inline");
+  const syncOne = (b) => {
+    if (!b) return;
+    const isGo = state.engineMode === "go";
+    b.textContent = isGo ? "极速" : "标准";
+    b.title = isGo ? "当前：极速 (Go FTS)。点击切换为标准 (AHK)" : "当前：标准 (AHK)。点击切换为极速 (Go)";
+    b.classList.toggle("ahk-mode", !isGo);
+  };
+  syncOne(btn);
+  syncOne(btn2);
+  const isGo = state.engineMode === "go";
+  btn.textContent = isGo ? "极速" : "标准";
+  btn.title = isGo ? "当前：极速 (Go FTS)。点击切换为标准 (AHK)" : "当前：标准 (AHK)。点击切换为极速 (Go)";
+  btn.classList.toggle("ahk-mode", !isGo);
+}
+
+/** 与 Go /search 的 type= 对齐：非剪贴板筛选时 Go 返回空剪贴板项，由 AHK 合并其它源 */
+function mapFilterToGoSearchType() {
+  const f = state.filterType || "";
+  if (f === "clipboard") return "clipboard";
+  return "all";
+}
+
+function effectiveSearchLimit() {
+  let lim = Number(state.limit) || 30;
+  if (lim > 500) lim = 500;
+  return lim;
+}
+
+/** 极速模式：由 AHK WinHttp 请求本机 Go（避免 https://app.local 页面 fetch http 被混合内容拦截） */
+function runSearchGoPipeline(offset) {
+  postToAhk({
+    type: "searchGoRequest",
+    keyword: state.keyword,
+    offset: offset || 0,
+    limit: effectiveSearchLimit(),
+    goType: mapFilterToGoSearchType()
+  });
+}
+
+function fallbackToAhkSearch() {
+  postToAhk({ type: "search", keyword: state.keyword });
+}
+
 const PREVIEW_DEBOUNCE_MS = 150;
 const PREVIEW_TEXT_EXT = new Set(["txt", "ahk", "py", "js", "md", "json", "log"]);
 const PREVIEW_IMAGE_EXT = new Set(["png", "jpg", "jpeg", "gif", "svg"]);
@@ -2518,6 +2597,12 @@ function applyState(payload) {
   state.selectedEngines = payload.selectedEngines || [];
   state.filters = payload.filters || [];
   state.filterType = payload.filterType || "";
+  if (payload.engineMode === "go" || payload.engineMode === "ahk") {
+    state.engineMode = payload.engineMode;
+    try {
+      localStorage.setItem(SC_ENGINE_MODE_KEY, state.engineMode);
+    } catch (e) {}
+  }
   state.results = payload.results || [];
   state.hasMore = !!payload.hasMore;
   state.loading = false;
@@ -2547,6 +2632,7 @@ function applyState(payload) {
   renderEngines();
   renderFilters();
   renderResults();
+  syncEngineModeButton();
   requestAnimationFrame(() => {
     window.dispatchEvent(new Event("resize"));
   });
@@ -2556,7 +2642,15 @@ let searchDebounceTimer = 0;
 function triggerSearch() {
   if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
   searchDebounceTimer = setTimeout(() => {
-    postToAhk({ type: "search", keyword: state.keyword });
+    if (state.engineMode === "go") {
+      try {
+        runSearchGoPipeline(0);
+      } catch (e) {
+        fallbackToAhkSearch();
+      }
+    } else {
+      postToAhk({ type: "search", keyword: state.keyword });
+    }
   }, 400);
 }
 
@@ -2572,7 +2666,15 @@ function runSearchNow() {
   const keyword = input ? String(input.value || "") : "";
   state.keyword = keyword;
   cancelPendingSearchDebounce();
-  postToAhk({ type: "search", keyword });
+  if (state.engineMode === "go") {
+    try {
+      runSearchGoPipeline(0);
+    } catch (e) {
+      fallbackToAhkSearch();
+    }
+  } else {
+    postToAhk({ type: "search", keyword });
+  }
 }
 
 let loadMoreObserver = null;
@@ -2588,6 +2690,15 @@ function requestLoadMore() {
   if (Date.now() < state.loadMoreCooldownUntil) return;
   state.loading = true;
   state.loadMoreCooldownUntil = Date.now() + 350;
+  if (state.engineMode === "go") {
+    try {
+      runSearchGoPipeline(state.results.length);
+    } catch (e) {
+      postToAhk({ type: "loadMore", offset: state.results.length });
+    }
+    state.loading = false;
+    return;
+  }
   postToAhk({ type: "loadMore", offset: state.results.length });
 }
 
@@ -2890,12 +3001,47 @@ if (window.chrome && window.chrome.webview) {
       onMediaFrameSaveResult(payload);
       return;
     }
+    if (payload.type === "requestSearchGo") {
+      if (state.engineMode === "go" && (state.keyword || "").trim()) {
+        try {
+          runSearchGoPipeline(0);
+        } catch (e) {
+          fallbackToAhkSearch();
+        }
+      }
+      return;
+    }
     if (payload.type === "init" || payload.type === "state") {
       applyState(payload);
     }
   });
   postToAhk({ type: "ready" });
 }
+
+(function initEngineModeButton() {
+  const onToggle = () => {
+    state.engineMode = state.engineMode === "go" ? "ahk" : "go";
+    try {
+      localStorage.setItem(SC_ENGINE_MODE_KEY, state.engineMode);
+    } catch (e) {}
+    syncEngineModeButton();
+    postToAhk({ type: "setEngineMode", mode: state.engineMode });
+    if (state.engineMode === "go") {
+      try {
+        runSearchGoPipeline(0);
+      } catch (e) {
+        fallbackToAhkSearch();
+      }
+    } else {
+      postToAhk({ type: "search", keyword: state.keyword });
+    }
+  };
+  syncEngineModeButton();
+  ["engine-mode-btn", "engine-mode-btn-inline"].forEach((id) => {
+    const b = document.getElementById(id);
+    if (b) b.addEventListener("click", onToggle);
+  });
+})();
 </script>
 </body>
 </html>

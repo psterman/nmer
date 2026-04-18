@@ -13,6 +13,7 @@ global SearchCenterSearchResults := []
 global SearchCenterHasMoreData := false
 global SearchCenterFilterType := ""
 global SearchCenterCurrentLimit := 30
+global SearchCenterEngineMode := "go"  ; go = SearchCenterCore FTS 极速；ahk = SearchAllDataSources 标准
 global g_SCWV_PendingJsonQueue := []  ; WebView 鏈?ready 鏃舵殏瀛橈紝ready 鍚庣敱 SCWV_FlushPendingJsonQueue 鍙戝嚭
 global g_SCWV_RowCtxMenu := 0  ; 鍏煎鍗犱綅锛堟繁鑹茶彍鍗曚笉鍐嶄娇鐢ㄥ師鐢?Menu锛?
 global g_SCWV_MenuActionRow := 0  ; 褰撳墠鑿滃崟瀵瑰簲鐨勫彲瑙佺粨鏋滆鍙凤紙1-based锛?
@@ -144,6 +145,7 @@ SCWV_Init() {
     WebView2.create(g_SCWV_Gui.Hwnd, SCWV_OnCreated)
 
     _SCWV_EnsureCurrentCategoryState()
+    _SCWV_LoadSearchEngineMode()
     _SCWV_EnsureSearchDataReady()
 }
 
@@ -264,8 +266,170 @@ SCWV_RefreshComposition(*) {
     }
 }
 
+_SCWV_LoadSearchEngineMode() {
+    global SearchCenterEngineMode, ConfigFile
+    try {
+        m := IniRead(ConfigFile, "Settings", "SearchCenterEngineMode", "go")
+        if (m = "ahk" || m = "go")
+            SearchCenterEngineMode := m
+    } catch {
+    }
+}
+
+_SCWV_SaveSearchEngineMode(mode) {
+    global ConfigFile
+    try IniWrite(mode, ConfigFile, "Settings", "SearchCenterEngineMode")
+    catch {
+    }
+}
+
+_SCWV_IsSearchCoreAlive() {
+    try {
+        whr := ComObject("WinHttp.WinHttpRequest.5.1")
+        whr.Open("GET", "http://127.0.0.1:8080/health", false)
+        whr.SetTimeouts(2000, 2000, 2000, 2000)
+        whr.Send()
+        return whr.Status = 200
+    } catch {
+        return false
+    }
+}
+
+_SCWV_EnsureSearchCoreRunning() {
+    global A_ScriptDir
+    if _SCWV_IsSearchCoreAlive()
+        return true
+    exe := A_ScriptDir "\SearchCenterCore.exe"
+    if !FileExist(exe)
+        return false
+    try {
+        Run('"' exe '" -base "' A_ScriptDir '"', A_ScriptDir, "Hide")
+        Loop 60 {
+            Sleep(80)
+            if _SCWV_IsSearchCoreAlive()
+                return true
+        }
+    } catch {
+    }
+    return false
+}
+
+_SCWV_MapFilterToGoSearchType(FilterType) {
+    if (FilterType = "clipboard")
+        return "clipboard"
+    return "all"
+}
+
+_SCWV_HttpGetSearchCore(queryString) {
+    try {
+        whr := ComObject("WinHttp.WinHttpRequest.5.1")
+        url := "http://127.0.0.1:8080/search?" . queryString
+        whr.Open("GET", url, false)
+        whr.SetTimeouts(25000, 25000, 25000, 25000)
+        whr.Send()
+        if (whr.Status != 200)
+            return ""
+        return whr.ResponseText
+    } catch as err {
+        try OutputDebug("[SCWV] SearchCore HTTP: " . err.Message)
+        return ""
+    }
+}
+
+; 由宿主发起 WinHttp 访问本机 Go，避免 https://app.local 页面 fetch http 被混合内容拦截
+_SCWV_ExecuteGoSearchHttp(offset := 0, keyword := "", goType := "", limit := 0) {
+    global SearchCenterWebKeyword, SearchCenterCurrentLimit, SearchCenterEngineMode, SearchCenterFilterType
+
+    if (SearchCenterEngineMode != "go")
+        return
+
+    kw := Trim(String(keyword))
+    if (kw = "")
+        kw := Trim(SearchCenterWebKeyword)
+
+    gt := Trim(String(goType))
+    if (gt = "")
+        gt := _SCWV_MapFilterToGoSearchType(SearchCenterFilterType)
+
+    lim := Integer(limit)
+    if (lim <= 0)
+        lim := SearchCenterCurrentLimit
+    if (lim <= 0)
+        lim := 30
+
+    off := Integer(offset)
+    if (off < 0)
+        off := 0
+
+    if !_SCWV_EnsureSearchCoreRunning() {
+        _SCWV_PerformSearch(kw, off)
+        SCWV_PushState("state")
+        return
+    }
+
+    encQ := kw
+    try encQ := UriEncode(kw)
+    catch {
+    }
+
+    q := "q=" . encQ . "&type=" . gt . "&limit=" . lim . "&offset=" . off
+    body := _SCWV_HttpGetSearchCore(q)
+    if (body = "") {
+        _SCWV_PerformSearch(kw, off)
+        SCWV_PushState("state")
+        return
+    }
+
+    try data := Jxon_Load(body)
+    catch {
+        _SCWV_PerformSearch(kw, off)
+        SCWV_PushState("state")
+        return
+    }
+    if !(data is Map) {
+        _SCWV_PerformSearch(kw, off)
+        SCWV_PushState("state")
+        return
+    }
+
+    itemsRaw := data.Has("items") ? data["items"] : []
+    GoItems := []
+    if (itemsRaw is Array) {
+        for _, it in itemsRaw
+            GoItems.Push(it)
+    }
+    hasMore := data.Has("hasMore") ? (data["hasMore"] ? true : false) : false
+    _SCWV_ApplySearchResultSync(kw, off, hasMore, GoItems)
+    SCWV_PushState("state")
+}
+
+_SCWV_PostRequestSearchGo(*) {
+    global SearchCenterEngineMode, SearchCenterWebKeyword
+    if (SearchCenterEngineMode = "go" && Trim(SearchCenterWebKeyword) != "")
+        _SCWV_ExecuteGoSearchHttp(0, "", "", 0)
+}
+
+_SCWV_ResultItemHas(Item, Prop) {
+    if (Item is Map)
+        return Item.Has(Prop)
+    try return Item.HasProp(Prop)
+    catch {
+        return false
+    }
+}
+
+_SCWV_ResultItemGet(Item, Prop, Default := "") {
+    if (Item is Map)
+        return Item.Has(Prop) ? Item[Prop] : Default
+    try return Item.HasProp(Prop) ? Item.%Prop% : Default
+    catch {
+        return Default
+    }
+}
+
 SCWV_Show() {
     global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_Ready, g_SCWV_Ctrl, GuiID_SearchCenter, g_SCWV_LastShown, SearchCenterWebKeyword
+    global SearchCenterEngineMode
 
     if !SCWV_HostAlive() {
         SCWV_ResetHostState()
@@ -306,17 +470,26 @@ SCWV_Show() {
     SetTimer(SCWV_RefreshComposition, -120)
     SetTimer(SCWV_RefreshComposition, -380)
 
-    ; 窗口显示后，强制执行当前关键词搜索（若为空则自动触发 _SCWV_LoadSearchHistory）
+    ; 窗口显示后：标准模式跑 AHK 搜索；极速模式仅拉历史或交给前端 Go fetch
     try {
-        _SCWV_PerformSearch(SearchCenterWebKeyword)
+        if (SearchCenterEngineMode = "go") {
+            _SCWV_EnsureSearchCoreRunning()
+            if (Trim(SearchCenterWebKeyword) = "")
+                _SCWV_LoadSearchHistory()
+        } else {
+            _SCWV_PerformSearch(SearchCenterWebKeyword)
+        }
     } catch {
-        _SCWV_LoadSearchHistory() ; 降级处理：尝试直接载入历史，避开复杂搜索链路
+        _SCWV_LoadSearchHistory()
     }
 
     if g_SCWV_Ready
         SCWV_PushState("init")
     else
         SetTimer(SCWV_DeferredPush, -250)
+
+    if (SearchCenterEngineMode = "go" && Trim(SearchCenterWebKeyword) != "")
+        SetTimer(_SCWV_PostRequestSearchGo, -120)
 
     try WebView2_MoveFocusProgrammatic(g_SCWV_Ctrl)
     SetTimer(_SCWV_DeferredMoveFocus100, -100)
@@ -554,36 +727,91 @@ SCWV_OnWebMessage(sender, args) {
             try SCWV_FlushPendingJsonQueue()
             if g_SCWV_FocusPending
                 SCWV_RequestFocusInput()
+        case "setEngineMode":
+            global SearchCenterEngineMode
+            mo := msg.Has("mode") ? String(msg["mode"]) : "go"
+            if (mo = "go" || mo = "ahk") {
+                SearchCenterEngineMode := mo
+                _SCWV_SaveSearchEngineMode(mo)
+            }
+            SCWV_PushState("state")
+        case "searchResultSync":
+            kw := msg.Has("keyword") ? String(msg["keyword"]) : ""
+            off := msg.Has("offset") ? Integer(msg["offset"]) : 0
+            if (off < 0)
+                off := 0
+            hm := msg.Has("hasMore") ? (msg["hasMore"] ? true : false) : false
+            raw := msg.Has("items") ? msg["items"] : []
+            GoItems := []
+            if (raw is Array) {
+                for _, it in raw
+                    GoItems.Push(it)
+            }
+            _SCWV_ApplySearchResultSync(kw, off, hm, GoItems)
+            SCWV_PushState("state")
+        case "searchGoRequest":
+            kw0 := msg.Has("keyword") ? String(msg["keyword"]) : ""
+            off0 := msg.Has("offset") ? Integer(msg["offset"]) : 0
+            if (off0 < 0)
+                off0 := 0
+            lim0 := msg.Has("limit") ? Integer(msg["limit"]) : 0
+            gt0 := msg.Has("goType") ? String(msg["goType"]) : ""
+            _SCWV_ExecuteGoSearchHttp(off0, kw0, gt0, lim0)
         case "search":
+            global SearchCenterEngineMode, SearchCenterWebKeyword, SearchCenterHasMoreData
             if !msg.Has("keyword")
                 try OutputDebug("[SCWV] search message missing keyword field")
             keyword := msg.Has("keyword") ? String(msg["keyword"]) : ""
             try OutputDebug("[SCWV] search request keyword_len=" . StrLen(keyword))
-            _SCWV_PerformSearch(keyword)
-            SCWV_PushState("state")
+            if (SearchCenterEngineMode = "go") {
+                SearchCenterWebKeyword := Trim(String(keyword))
+                if (SearchCenterWebKeyword = "") {
+                    SearchCenterHasMoreData := false
+                    _SCWV_LoadSearchHistory()
+                    SCWV_PushState("state")
+                } else {
+                    _SCWV_EnsureSearchCoreRunning()
+                    _SCWV_RecordSearchHistory(SearchCenterWebKeyword)
+                    SetTimer(_SCWV_PostRequestSearchGo, -40)
+                    ; 有关键词时由 _SCWV_ExecuteGoSearchHttp 再 PushState，避免先推空结果
+                }
+            } else {
+                _SCWV_PerformSearch(keyword)
+                SCWV_PushState("state")
+            }
         case "setCategory":
+            global SearchCenterEngineMode, SearchCenterWebKeyword
             if msg.Has("category")
                 _SCWV_SetCategoryByKey(String(msg["category"]))
+            if (SearchCenterEngineMode = "go" && Trim(SearchCenterWebKeyword) != "")
+                SetTimer(_SCWV_PostRequestSearchGo, -60)
             SCWV_PushState("state")
         case "setFilter":
-            global SearchCenterFilterType
+            global SearchCenterFilterType, SearchCenterEngineMode, SearchCenterWebKeyword
             nextFilter := msg.Has("filterType") ? String(msg["filterType"]) : ""
             SearchCenterFilterType := (SearchCenterFilterType = nextFilter) ? "" : nextFilter
+            if (SearchCenterEngineMode = "go" && Trim(SearchCenterWebKeyword) != "")
+                SetTimer(_SCWV_PostRequestSearchGo, -60)
             SCWV_PushState("state")
         case "setLimit":
-            global SearchCenterCurrentLimit, SearchCenterEverythingLimit
+            global SearchCenterCurrentLimit, SearchCenterEverythingLimit, SearchCenterEngineMode
             val := msg.Has("limit") ? Integer(msg["limit"]) : 50
             if (val <= 0)
                 val := 50
             SearchCenterCurrentLimit := val
             SearchCenterEverythingLimit := val
-            _SCWV_PerformSearch(SearchCenterWebKeyword)
+            if (SearchCenterEngineMode = "ahk")
+                _SCWV_PerformSearch(SearchCenterWebKeyword)
+            else
+                SetTimer(_SCWV_PostRequestSearchGo, -50)
             SCWV_PushState("state")
         case "loadMore":
+            global SearchCenterEngineMode
             offset := msg.Has("offset") ? Integer(msg["offset"]) : 0
             if (offset < 0)
                 offset := 0
-            _SCWV_PerformSearch(SearchCenterWebKeyword, offset)
+            if (SearchCenterEngineMode = "ahk")
+                _SCWV_PerformSearch(SearchCenterWebKeyword, offset)
             SCWV_PushState("state")
         case "toggleEngine":
             if msg.Has("engine")
@@ -705,169 +933,158 @@ _SCWV_FireSearch(*) {
     SCWV_PushState("state")
 }
 
-_SCWV_PerformSearch(keyword, offset := 0) {
-    global SearchCenterSearchResults, SearchCenterCurrentLimit, SearchCenterHasMoreData, SearchCenterFilterType, SearchCenterWebKeyword
-
-    keyword := Trim(String(keyword))
-    ; 鍓嶇 debounce 鍚庡彂 {type:search} 鏃跺彧浼?keyword 杩涙湰鍑芥暟锛屾湭鍐欏洖 SearchCenterWebKeyword锛?    ; SCWV_PushState 浠嶇敤鏃у叏灞€锛堝父涓虹┖锛夛紝applyState 浼氭妸 #search 璁炬垚绌轰覆 鈫?杈撳叆琚竻绌恒€侀€夊尯涓㈠け鏃犳硶澶嶅埗銆?    if (offset = 0)
-        SearchCenterWebKeyword := keyword
-
-    if (offset = 0)
-        SearchCenterSearchResults := []
-
-    if (offset = 0 && keyword != "")
-        _SCWV_RecordSearchHistory(keyword)
-
-    if (keyword = "") {
-        SearchCenterHasMoreData := false
-        _SCWV_LoadSearchHistory()
-        return
-    }
-
-    NewResults := []
-    SearchCenterHasMoreData := false
-
+_SCWV_TypeDataField(TypeData, Prop, Fallback) {
+    if (TypeData is Map && TypeData.Has(Prop))
+        return TypeData[Prop]
     try {
-        FilterDataTypes := GetSearchCenterDataTypesForFilter(SearchCenterFilterType)
-        if (FilterDataTypes.Length > 0) {
-            hasFileType := false
-            for _, dt in FilterDataTypes {
-                if (dt = "file") {
-                    hasFileType := true
-                    break
-                }
-            }
-            if !hasFileType
-                FilterDataTypes.Push("file")
-        }
+        if (TypeData.HasProp(Prop))
+            return TypeData.%Prop%
+    } catch {
+    }
+    return Fallback
+}
 
-        AllDataResults := SearchAllDataSources(keyword, FilterDataTypes, SearchCenterCurrentLimit, offset)
-        for _, TypeData in AllDataResults {
-            if (IsObject(TypeData) && TypeData.HasProp("HasMore") && TypeData.HasMore) {
-                SearchCenterHasMoreData := true
-                break
-            }
-        }
+_SCWV_MergeAllDataResultsIntoSearchLists(AllDataResults, keyword, offset) {
+    global SearchCenterSearchResults
+    NewResults := []
 
-        for DataType, TypeData in AllDataResults {
-            if !(IsObject(TypeData) && TypeData.HasProp("Items"))
+    for DataType, TypeData in AllDataResults {
+        if !IsObject(TypeData)
+            continue
+        itemList := unset
+        if (TypeData is Map) {
+            if !TypeData.Has("Items")
                 continue
-
-            for _, Item in TypeData.Items {
-                TimeDisplay := ""
-                if (Item.HasProp("TimeFormatted")) {
-                    TimeDisplay := Item.TimeFormatted
-                } else if (Item.HasProp("Timestamp")) {
-                    try {
-                        TimeDisplay := FormatTime(Item.Timestamp, "yyyy-MM-dd HH:mm:ss")
-                    } catch {
-                        TimeDisplay := Item.Timestamp
-                    }
-                }
-
-                TitleText := ""
-                if (Item.HasProp("DisplayTitle") && Item.DisplayTitle != "") {
-                    TitleText := Item.DisplayTitle
-                } else if (Item.HasProp("Title") && Item.Title != "") {
-                    TitleText := Item.Title
-                } else if (Item.HasProp("Content") && Item.Content != "") {
-                    TitleText := SubStr(Item.Content, 1, 50)
-                    if (StrLen(Item.Content) > 50)
-                        TitleText .= "..."
-                }
-
-                ItemDataType := ""
-                if (Item.HasProp("Metadata") && IsObject(Item.Metadata) && Item.Metadata.Has("DataType") && Item.Metadata["DataType"] != "") {
-                    ItemDataType := Item.Metadata["DataType"]
-                } else if (Item.HasProp("DataType") && Item.DataType != "") {
-                    if (Item.DataType != "clipboard" && Item.DataType != "template" && Item.DataType != "config" && Item.DataType != "file" && Item.DataType != "hotkey" && Item.DataType != "function" && Item.DataType != "ui")
-                        ItemDataType := Item.DataType
-                }
-
-                if (ItemDataType = "" && DataType = "clipboard") {
-                    if (Item.HasProp("DataTypeName") && Item.DataTypeName != "") {
-                        DataTypeName := Item.DataTypeName
-                        if (DataTypeName = "代码片段" || DataTypeName = "代码")
-                            ItemDataType := "Code"
-                        else if (DataTypeName = "链接")
-                            ItemDataType := "Link"
-                        else if (DataTypeName = "邮箱" || DataTypeName = "邮件")
-                            ItemDataType := "Email"
-                        else if (DataTypeName = "图片")
-                            ItemDataType := "Image"
-                        else if (DataTypeName = "颜色")
-                            ItemDataType := "Color"
-                        else if (DataTypeName = "文本" || DataTypeName = "剪贴板历史")
-                            ItemDataType := "Text"
-                    }
-                }
-
-                if (ItemDataType = "" && DataType != "clipboard") {
-                    if (DataType = "template")
-                        ItemDataType := "Template"
-                    else if (DataType = "config")
-                        ItemDataType := "Config"
-                    else if (DataType = "file")
-                        ItemDataType := "File"
-                    else if (DataType = "hotkey")
-                        ItemDataType := "Hotkey"
-                    else if (DataType = "function")
-                        ItemDataType := "Function"
-                    else if (DataType = "ui")
-                        ItemDataType := "UI"
-                }
-
-                if (ItemDataType = "")
-                    ItemDataType := (DataType = "clipboard") ? "Text" : DataType
-
-                ResultItem := {
-                    Title: TitleText,
-                    Source: TypeData.HasProp("DataTypeName") ? TypeData.DataTypeName : DataType,
-                    DataType: ItemDataType,
-                    Time: TimeDisplay,
-                    Content: Item.HasProp("Content") ? Item.Content : TitleText,
-                    ID: Item.HasProp("ID") ? Item.ID : "",
-                    OriginalDataType: DataType
-                }
-                if (Item.HasProp("Metadata") && IsObject(Item.Metadata))
-                    ResultItem.Metadata := Item.Metadata
-                if (Item.HasProp("DisplayTitle") && Item.DisplayTitle != "")
-                    ResultItem.DisplayTitle := Item.DisplayTitle
-                if (Item.HasProp("Category") && Item.Category != "")
-                    ResultItem.Category := Item.Category
-                if (Item.HasProp("TypeHint") && Item.TypeHint != "")
-                    ResultItem.TypeHint := Item.TypeHint
-                if (Item.HasProp("FzyCategoryBonus"))
-                    ResultItem.FzyCategoryBonus := Item.FzyCategoryBonus
-                if (Item.HasProp("DisplayPath") && Item.DisplayPath != "")
-                    ResultItem.DisplayPath := Item.DisplayPath
-                if (Item.HasProp("DisplaySubtitle") && Item.DisplaySubtitle != "")
-                    ResultItem.DisplaySubtitle := Item.DisplaySubtitle
-                if (Item.HasProp("SubCategory") && Item.SubCategory != "")
-                    ResultItem.SubCategory := Item.SubCategory
-                if (Item.HasProp("CategoryColor") && Item.CategoryColor != "")
-                    ResultItem.CategoryColor := Item.CategoryColor
-                if (Item.HasProp("PathTrust"))
-                    ResultItem.PathTrust := Item.PathTrust
-                if (Item.HasProp("BonusTotal"))
-                    ResultItem.BonusTotal := Item.BonusTotal
-                if (Item.HasProp("PenaltyTotal"))
-                    ResultItem.PenaltyTotal := Item.PenaltyTotal
-                if (Item.HasProp("FzyBase"))
-                    ResultItem.FzyBase := Item.FzyBase
-                if (Item.HasProp("FinalScore"))
-                    ResultItem.FinalScore := Item.FinalScore
-                if (Item.HasProp("QuotaCategory"))
-                    ResultItem.QuotaCategory := Item.QuotaCategory
-
-                if (offset = 0)
-                    SearchCenterSearchResults.Push(ResultItem)
-                else
-                    NewResults.Push(ResultItem)
-            }
+            itemList := TypeData["Items"]
+        } else {
+            if !TypeData.HasProp("Items")
+                continue
+            itemList := TypeData.Items
         }
-    } catch as err {
-        OutputDebug("SCWV search error: " . err.Message)
+        if !IsObject(itemList)
+            continue
+
+        for _, Item in itemList {
+            TimeDisplay := ""
+            if (_SCWV_ResultItemHas(Item, "TimeFormatted")) {
+                TimeDisplay := _SCWV_ResultItemGet(Item, "TimeFormatted", "")
+            } else if (_SCWV_ResultItemHas(Item, "Timestamp")) {
+                ts := _SCWV_ResultItemGet(Item, "Timestamp", "")
+                try {
+                    TimeDisplay := FormatTime(ts, "yyyy-MM-dd HH:mm:ss")
+                } catch {
+                    TimeDisplay := ts
+                }
+            }
+
+            TitleText := ""
+            if (_SCWV_ResultItemHas(Item, "DisplayTitle") && _SCWV_ResultItemGet(Item, "DisplayTitle", "") != "") {
+                TitleText := _SCWV_ResultItemGet(Item, "DisplayTitle", "")
+            } else if (_SCWV_ResultItemHas(Item, "Title") && _SCWV_ResultItemGet(Item, "Title", "") != "") {
+                TitleText := _SCWV_ResultItemGet(Item, "Title", "")
+            } else if (_SCWV_ResultItemHas(Item, "Content") && _SCWV_ResultItemGet(Item, "Content", "") != "") {
+                c := _SCWV_ResultItemGet(Item, "Content", "")
+                TitleText := SubStr(c, 1, 50)
+                if (StrLen(c) > 50)
+                    TitleText .= "..."
+            }
+
+            ItemDataType := ""
+            meta := _SCWV_ResultItemGet(Item, "Metadata", 0)
+            if (IsObject(meta)) {
+                if (meta is Map && meta.Has("DataType") && meta["DataType"] != "")
+                    ItemDataType := meta["DataType"]
+                else if (meta.HasProp("DataType") && meta.DataType != "")
+                    ItemDataType := meta.DataType
+            }
+            if (ItemDataType = "" && _SCWV_ResultItemHas(Item, "DataType")) {
+                idt := _SCWV_ResultItemGet(Item, "DataType", "")
+                if (idt != "" && idt != "clipboard" && idt != "template" && idt != "config" && idt != "file" && idt != "hotkey" && idt != "function" && idt != "ui")
+                    ItemDataType := idt
+            }
+
+            if (ItemDataType = "" && DataType = "clipboard") {
+                if (_SCWV_ResultItemHas(Item, "DataTypeName") && _SCWV_ResultItemGet(Item, "DataTypeName", "") != "") {
+                    DataTypeName := _SCWV_ResultItemGet(Item, "DataTypeName", "")
+                    if (DataTypeName = "代码片段" || DataTypeName = "代码")
+                        ItemDataType := "Code"
+                    else if (DataTypeName = "链接")
+                        ItemDataType := "Link"
+                    else if (DataTypeName = "邮箱" || DataTypeName = "邮件")
+                        ItemDataType := "Email"
+                    else if (DataTypeName = "图片")
+                        ItemDataType := "Image"
+                    else if (DataTypeName = "颜色")
+                        ItemDataType := "Color"
+                    else if (DataTypeName = "文本" || DataTypeName = "剪贴板历史")
+                        ItemDataType := "Text"
+                }
+            }
+
+            if (ItemDataType = "" && DataType != "clipboard") {
+                if (DataType = "template")
+                    ItemDataType := "Template"
+                else if (DataType = "config")
+                    ItemDataType := "Config"
+                else if (DataType = "file")
+                    ItemDataType := "File"
+                else if (DataType = "hotkey")
+                    ItemDataType := "Hotkey"
+                else if (DataType = "function")
+                    ItemDataType := "Function"
+                else if (DataType = "ui")
+                    ItemDataType := "UI"
+            }
+
+            if (ItemDataType = "")
+                ItemDataType := (DataType = "clipboard") ? "Text" : DataType
+
+            typeName := _SCWV_TypeDataField(TypeData, "DataTypeName", DataType)
+            ResultItem := {
+                Title: TitleText,
+                Source: typeName,
+                DataType: ItemDataType,
+                Time: TimeDisplay,
+                Content: _SCWV_ResultItemHas(Item, "Content") ? _SCWV_ResultItemGet(Item, "Content", "") : TitleText,
+                ID: _SCWV_ResultItemHas(Item, "ID") ? _SCWV_ResultItemGet(Item, "ID", "") : "",
+                OriginalDataType: DataType
+            }
+            if (_SCWV_ResultItemHas(Item, "Metadata") && IsObject(_SCWV_ResultItemGet(Item, "Metadata", 0)))
+                ResultItem.Metadata := _SCWV_ResultItemGet(Item, "Metadata", 0)
+            if (_SCWV_ResultItemHas(Item, "DisplayTitle") && _SCWV_ResultItemGet(Item, "DisplayTitle", "") != "")
+                ResultItem.DisplayTitle := _SCWV_ResultItemGet(Item, "DisplayTitle", "")
+            if (_SCWV_ResultItemHas(Item, "Category") && _SCWV_ResultItemGet(Item, "Category", "") != "")
+                ResultItem.Category := _SCWV_ResultItemGet(Item, "Category", "")
+            if (_SCWV_ResultItemHas(Item, "TypeHint") && _SCWV_ResultItemGet(Item, "TypeHint", "") != "")
+                ResultItem.TypeHint := _SCWV_ResultItemGet(Item, "TypeHint", "")
+            if (_SCWV_ResultItemHas(Item, "FzyCategoryBonus"))
+                ResultItem.FzyCategoryBonus := _SCWV_ResultItemGet(Item, "FzyCategoryBonus", "")
+            if (_SCWV_ResultItemHas(Item, "DisplayPath") && _SCWV_ResultItemGet(Item, "DisplayPath", "") != "")
+                ResultItem.DisplayPath := _SCWV_ResultItemGet(Item, "DisplayPath", "")
+            if (_SCWV_ResultItemHas(Item, "DisplaySubtitle") && _SCWV_ResultItemGet(Item, "DisplaySubtitle", "") != "")
+                ResultItem.DisplaySubtitle := _SCWV_ResultItemGet(Item, "DisplaySubtitle", "")
+            if (_SCWV_ResultItemHas(Item, "SubCategory") && _SCWV_ResultItemGet(Item, "SubCategory", "") != "")
+                ResultItem.SubCategory := _SCWV_ResultItemGet(Item, "SubCategory", "")
+            if (_SCWV_ResultItemHas(Item, "CategoryColor") && _SCWV_ResultItemGet(Item, "CategoryColor", "") != "")
+                ResultItem.CategoryColor := _SCWV_ResultItemGet(Item, "CategoryColor", "")
+            if (_SCWV_ResultItemHas(Item, "PathTrust"))
+                ResultItem.PathTrust := _SCWV_ResultItemGet(Item, "PathTrust", "")
+            if (_SCWV_ResultItemHas(Item, "BonusTotal"))
+                ResultItem.BonusTotal := _SCWV_ResultItemGet(Item, "BonusTotal", "")
+            if (_SCWV_ResultItemHas(Item, "PenaltyTotal"))
+                ResultItem.PenaltyTotal := _SCWV_ResultItemGet(Item, "PenaltyTotal", "")
+            if (_SCWV_ResultItemHas(Item, "FzyBase"))
+                ResultItem.FzyBase := _SCWV_ResultItemGet(Item, "FzyBase", "")
+            if (_SCWV_ResultItemHas(Item, "FinalScore"))
+                ResultItem.FinalScore := _SCWV_ResultItemGet(Item, "FinalScore", "")
+            if (_SCWV_ResultItemHas(Item, "QuotaCategory"))
+                ResultItem.QuotaCategory := _SCWV_ResultItemGet(Item, "QuotaCategory", "")
+
+            if (offset = 0)
+                SearchCenterSearchResults.Push(ResultItem)
+            else
+                NewResults.Push(ResultItem)
+        }
     }
 
     if (offset > 0 && NewResults.Length > 0) {
@@ -891,13 +1108,159 @@ _SCWV_PerformSearch(keyword, offset := 0) {
     }
 }
 
+_SCWV_PerformSearch(keyword, offset := 0) {
+    global SearchCenterSearchResults, SearchCenterCurrentLimit, SearchCenterHasMoreData, SearchCenterFilterType, SearchCenterWebKeyword
+
+    keyword := Trim(String(keyword))
+    ; 鍓嶇 debounce 鍚庡彂 {type:search} 鏃跺彧浼?keyword 杩涙湰鍑芥暟锛屾湭鍐欏洖 SearchCenterWebKeyword锛?    ; SCWV_PushState 浠嶇敤鏃у叏灞€锛堝父涓虹┖锛夛紝applyState 浼氭妸 #search 璁炬垚绌轰覆 鈫?杈撳叆琚竻绌恒€侀€夊尯涓㈠け鏃犳硶澶嶅埗銆?    if (offset = 0)
+        SearchCenterWebKeyword := keyword
+
+    if (offset = 0)
+        SearchCenterSearchResults := []
+
+    if (offset = 0 && keyword != "")
+        _SCWV_RecordSearchHistory(keyword)
+
+    if (keyword = "") {
+        SearchCenterHasMoreData := false
+        _SCWV_LoadSearchHistory()
+        return
+    }
+
+    SearchCenterHasMoreData := false
+
+    try {
+        FilterDataTypes := GetSearchCenterDataTypesForFilter(SearchCenterFilterType)
+        if (FilterDataTypes.Length > 0) {
+            hasFileType := false
+            for _, dt in FilterDataTypes {
+                if (dt = "file") {
+                    hasFileType := true
+                    break
+                }
+            }
+            if !hasFileType
+                FilterDataTypes.Push("file")
+        }
+
+        AllDataResults := SearchAllDataSources(keyword, FilterDataTypes, SearchCenterCurrentLimit, offset)
+        for _, TypeData in AllDataResults {
+            hm := false
+            if (TypeData is Map)
+                hm := TypeData.Has("HasMore") && TypeData["HasMore"]
+            else if (IsObject(TypeData) && TypeData.HasProp("HasMore"))
+                hm := TypeData.HasMore
+            if (hm) {
+                SearchCenterHasMoreData := true
+                break
+            }
+        }
+
+        _SCWV_MergeAllDataResultsIntoSearchLists(AllDataResults, keyword, offset)
+    } catch as err {
+        OutputDebug("SCWV search error: " . err.Message)
+    }
+
+}
+
+_SCWV_ApplySearchResultSync(keyword, offset, hasMoreGo, GoItems) {
+    global SearchCenterSearchResults, SearchCenterCurrentLimit, SearchCenterHasMoreData, SearchCenterFilterType, SearchCenterWebKeyword
+
+    keyword := Trim(String(keyword))
+    if (offset = 0) {
+        SearchCenterWebKeyword := keyword
+        SearchCenterSearchResults := []
+        if (keyword != "")
+            _SCWV_RecordSearchHistory(keyword)
+    }
+
+    if (keyword = "") {
+        SearchCenterHasMoreData := false
+        _SCWV_LoadSearchHistory()
+        return
+    }
+
+    if (offset > 0) {
+        clipMap := Map("clipboard", { DataType: "clipboard", DataTypeName: GetDataTypeName("clipboard"), Items: GoItems, HasMore: hasMoreGo })
+        _SCWV_MergeAllDataResultsIntoSearchLists(clipMap, keyword, offset)
+        SearchCenterHasMoreData := hasMoreGo ? true : false
+        try _SCWV_SortPinnedFirst(SearchCenterSearchResults)
+        return
+    }
+
+    FilterDataTypes := GetSearchCenterDataTypesForFilter(SearchCenterFilterType)
+    if (FilterDataTypes.Length > 0) {
+        hasFileType := false
+        for _, dt in FilterDataTypes {
+            if (dt = "file") {
+                hasFileType := true
+                break
+            }
+        }
+        if !hasFileType
+            FilterDataTypes.Push("file")
+    }
+
+    DataTypesNoClip := []
+    if (FilterDataTypes.Length = 0) {
+        DataTypesNoClip := ["template", "config", "file", "hotkey", "function", "ui"]
+    } else {
+        for _, dt in FilterDataTypes {
+            if (dt != "clipboard")
+                DataTypesNoClip.Push(dt)
+        }
+    }
+
+    AllDataResults := Map()
+    if (GoItems.Length > 0) {
+        AllDataResults["clipboard"] := { DataType: "clipboard", DataTypeName: GetDataTypeName("clipboard"), Items: GoItems, HasMore: hasMoreGo }
+    }
+
+    if (DataTypesNoClip.Length > 0) {
+        AllOther := SearchAllDataSources(keyword, DataTypesNoClip, SearchCenterCurrentLimit, 0)
+        for k, v in AllOther
+            AllDataResults[k] := v
+    }
+
+    SearchCenterHasMoreData := false
+    if (hasMoreGo)
+        SearchCenterHasMoreData := true
+    if !SearchCenterHasMoreData {
+        for _, TypeData in AllDataResults {
+            hm := false
+            if (TypeData is Map)
+                hm := TypeData.Has("HasMore") && TypeData["HasMore"]
+            else if (IsObject(TypeData) && TypeData.HasProp("HasMore"))
+                hm := TypeData.HasMore
+            if (hm) {
+                SearchCenterHasMoreData := true
+                break
+            }
+        }
+    }
+
+    _SCWV_MergeAllDataResultsIntoSearchLists(AllDataResults, keyword, 0)
+}
+
 _SCWV_ResultPinKey(Item) {
     if !IsObject(Item)
         return ""
-    id := Item.HasProp("ID") ? Trim(String(Item.ID)) : ""
+    id := ""
+    if (Item is Map && Item.Has("ID"))
+        id := Trim(String(Item["ID"]))
+    else if (Item.HasProp("ID"))
+        id := Trim(String(Item.ID))
     if (id != "")
         return "id:" . id
-    c := Item.HasProp("Content") ? Item.Content : (Item.HasProp("Title") ? Item.Title : "")
+    c := ""
+    if (Item is Map) {
+        if (Item.Has("Content"))
+            c := Item["Content"]
+        else if (Item.Has("Title"))
+            c := Item["Title"]
+    } else {
+        c := Item.HasProp("Content") ? Item.Content : (Item.HasProp("Title") ? Item.Title : "")
+    }
     return "c:" . StrLen(c) . ":" . SubStr(c, 1, 200)
 }
 
@@ -975,7 +1338,7 @@ _SCWV_GetFilteredResults() {
 
 SCWV_PushState(msgType := "state") {
     global SearchCenterWebKeyword, SearchCenterCurrentLimit, SearchCenterSelectedEngines, SearchCenterFilterType
-    global SearchCenterHasMoreData
+    global SearchCenterHasMoreData, SearchCenterEngineMode
     global g_SCWV_RecycleBin, g_SCWV_PinnedKeys
 
     if !SearchCenter_ShouldUseWebView()
@@ -1037,6 +1400,7 @@ SCWV_PushState(msgType := "state") {
     payload := Map(
         "type", msgType,
         "keyword", SearchCenterWebKeyword,
+        "engineMode", SearchCenterEngineMode,
         "limit", SearchCenterCurrentLimit,
         "categories", _SCWV_BuildCategoryPayload(),
         "currentCategoryKey", currentCategoryKey,
