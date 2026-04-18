@@ -3571,6 +3571,18 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
         });
         return;
       }
+      if (d.type === 'host_force_toolbar_home') {
+        setSettings(false);
+        setNspick(false);
+        if (state.drawer) setDrawer(false);
+        else {
+          state.drawer = false;
+          document.body.classList.remove('drawer-open');
+          if (stage) stage.setAttribute('aria-hidden', 'true');
+          if (panel) panel.setAttribute('aria-hidden', 'true');
+        }
+        return;
+      }
     });
   }
 

@@ -264,6 +264,8 @@ SCWV_Show() {
     if !g_SCWV_Gui
         SCWV_Init()
 
+    try FloatingToolbarCollapseTransientUi()
+
     GuiID_SearchCenter := g_SCWV_Gui
 
     if g_SCWV_Visible {

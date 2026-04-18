@@ -13701,7 +13701,7 @@ SearchClipboardFTS5ForSearchCenter(Keyword, MaxResults := 10, Offset := 0) {
 
 ; 搜索剪贴板历史（优先使用新的 FTS5 数据库 ClipMain）
 SearchClipboardHistory(Keyword, MaxResults := 10, Offset := 0) {
-    global ClipboardDB, ClipboardFTS5DB, global_ST
+    global ClipboardDB, ClipboardFTS5DB
     Results := []
     
     ; 【新增】优先使用新的剪贴板数据库（ClipMain）
@@ -13718,15 +13718,6 @@ SearchClipboardHistory(Keyword, MaxResults := 10, Offset := 0) {
         return Results
     }
     
-    ; 【入口熔断】在执行 Prepare 之前，必须先检查并释放旧句柄
-    if (IsObject(global_ST) && global_ST.HasProp("Free")) {
-        try {
-            global_ST.Free()
-        } catch as err {
-        }
-        global_ST := 0
-    }
-    
     KeywordLower := StrLower(Keyword)
     ; 【增强搜索】支持多字段搜索：Content, SourceApp, SourceTitle, SourcePath, DataType
     ; 【修复】使用 ORDER BY Timestamp DESC 确保按时间倒序排列
@@ -13738,9 +13729,6 @@ SearchClipboardHistory(Keyword, MaxResults := 10, Offset := 0) {
         if (!ClipboardDB.Prepare(SQL, &ST)) {
             return Results
         }
-
-        ; 更新全局句柄
-        global_ST := ST
 
         ; 检查ST是否是有效的Statement对象
         if (!IsObject(ST) || !ST.HasProp("Bind")) {
@@ -13872,12 +13860,11 @@ SearchClipboardHistory(Keyword, MaxResults := 10, Offset := 0) {
     } catch as e {
         ; 错误处理
     } finally {
-        ; 【过程保底】无论查询成功还是报错，都在 finally 块中强制执行 global_ST.Free()
+        ; 使用局部 ST，避免干扰其他模块正在使用的全局 SQLite 语句句柄
         try {
-            if (IsObject(global_ST) && global_ST.HasProp("Free")) {
-                global_ST.Free()
+            if (IsObject(ST) && ST.HasProp("Free")) {
+                ST.Free()
             }
-            global_ST := 0
         } catch as err {
         }
     }
@@ -14473,7 +14460,7 @@ NormalizeWindowsPath(path) {
 
 ; 搜索文件路径
 SearchFilePaths(Keyword, MaxResults := 10, Offset := 0) {
-    global ClipboardDB, global_ST, SearchCenterEverythingLimit
+    global ClipboardDB, SearchCenterEverythingLimit
     Results := []
     
     ; 【修复】如果关键词为空，直接返回空结果
@@ -14669,15 +14656,6 @@ SearchFilePaths(Keyword, MaxResults := 10, Offset := 0) {
         return Results
     }
     
-    ; 【入口熔断】在执行 Prepare 之前，必须先检查并释放旧句柄
-    if (IsObject(global_ST) && global_ST.HasProp("Free")) {
-        try {
-            global_ST.Free()
-        } catch as err {
-        }
-        global_ST := 0
-    }
-    
     KeywordLower := StrLower(Keyword)
     Count := Results.Length  ; 从已有结果数量开始计数
     
@@ -14690,9 +14668,6 @@ SearchFilePaths(Keyword, MaxResults := 10, Offset := 0) {
             FinalizeSearchFilePathsResults(&Results, Keyword)
             return Results
         }
-        
-        ; 更新全局句柄
-        global_ST := ST
         
         ; 检查ST是否是有效的Statement对象
         if (!IsObject(ST) || !ST.HasProp("Bind")) {
@@ -14770,12 +14745,11 @@ SearchFilePaths(Keyword, MaxResults := 10, Offset := 0) {
     } catch as e {
         ; 错误处理
     } finally {
-        ; 【过程保底】无论查询成功还是报错，都在 finally 块中强制执行 global_ST.Free()
+        ; 使用局部 ST，避免搜索中心查询时误释放其他模块仍在使用的全局语句句柄
         try {
-            if (IsObject(global_ST) && global_ST.HasProp("Free")) {
-                global_ST.Free()
+            if (IsObject(ST) && ST.HasProp("Free")) {
+                ST.Free()
             }
-            global_ST := 0
         } catch as err {
         }
     }
@@ -38865,3 +38839,4 @@ RButton:: {
 #HotIf
 
 OnExit(ExitFunc)
+

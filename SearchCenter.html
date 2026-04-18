@@ -211,6 +211,8 @@ button, input, select, textarea { font: inherit; }
 }
 #head-filters {
   min-width: 0;
+  position: relative;
+  z-index: 1;
 }
 #filters {
   display: flex;
@@ -388,7 +390,16 @@ button, input, select, textarea { font: inherit; }
   min-height: 0;
   overflow: hidden;
 }
-#results-head, #preview-head {
+#results-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,.02);
+}
+#preview-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -396,6 +407,10 @@ button, input, select, textarea { font: inherit; }
   padding: 14px 18px;
   border-bottom: 1px solid var(--border);
   background: rgba(255,255,255,.02);
+}
+#results-head .head-sub {
+  justify-self: end;
+  pointer-events: none;
 }
 .head-title {
   font-size: 14px;
@@ -1325,10 +1340,30 @@ function renderFilters() {
   state.filters.forEach((filter) => {
     const hotkey = getHintHotkey("filter", filter.key);
     const el = document.createElement("button");
+    el.type = "button";
     el.className = "filter-chip hotkey-item" + (filter.key === state.filterType ? " active" : "");
     el.dataset.hotkey = hotkey || "";
+    el.dataset.filterKey = filter.key || "";
     el.innerHTML = "<span class=\"filter-label\">" + escapeHtml(filter.text) + "</span>" + hotkeyHintHtml(hotkey);
-    el.onclick = () => postToAhk({ type: "setFilter", filterType: filter.key });
+    const applyFilter = () => postToAhk({ type: "setFilter", filterType: filter.key });
+    let pressedHandled = false;
+    let pressedAt = 0;
+    // 输入防抖回包会重绘过滤栏；pointerdown 比 click 更早触发，避免点击被重绘吞掉
+    el.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      pressedHandled = true;
+      pressedAt = Date.now();
+      applyFilter();
+    });
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (pressedHandled && (Date.now() - pressedAt) < 450) {
+        pressedHandled = false;
+        return;
+      }
+      pressedHandled = false;
+      applyFilter();
+    });
     wrap.appendChild(el);
   });
   updateHotkeyHighlights();

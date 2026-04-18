@@ -697,6 +697,30 @@ FloatingToolbarSetChatDrawerState(open) {
     SaveFloatingToolbarPosition()
 }
 
+FloatingToolbarCollapseTransientUi(forceResize := true) {
+    global g_FTB_WV2, FloatingToolbarGUI, FloatingToolbarChatDrawerOpen
+
+    if (FloatingToolbarChatDrawerOpen) {
+        try FloatingToolbarSetChatDrawerState(false)
+    } else if (forceResize && IsObject(FloatingToolbarGUI)) {
+        try {
+            newW := FloatingToolbarCalculateWidth()
+            newH := FloatingToolbarCalculateHeight()
+            FloatingToolbarGUI.GetPos(&gx, &gy, &gw, &gh)
+            FloatingToolbarGUI.Move(gx, gy, newW, newH)
+            FloatingToolbarApplyRoundedCorners()
+            FloatingToolbar_ApplyWebViewBounds()
+        } catch {
+        }
+    }
+
+    if g_FTB_WV2 {
+        try WebView_QueuePayload(g_FTB_WV2, Map("type", "host_force_toolbar_home"))
+        catch {
+        }
+    }
+}
+
 ; ===================== 鎵ц鎸夐挳鍔ㄤ綔 =====================
 ; WebView2 WebMessageReceived 须尽快返回；ExecuteScreenshotWithMenu 含长 Sleep 与剪贴板轮询，
 ; 在回调内同步调用会阻塞 WebView 消息泵，导致工具栏卡死且截图助手无法弹出。
@@ -766,6 +790,7 @@ FloatingToolbar_ActivateSearchCenter() {
     usedWebView := false
 
     try usedWebView := SearchCenter_ShouldUseWebView()
+    try FloatingToolbarCollapseTransientUi()
 
     ; 与 CapsLock+F/拖放入口统一：有选中文本时直接带词打开，否则强制走搜索中心显示链路。
     try selectedText := Trim(String(SelectionSense_GetLastSelectedText()))
