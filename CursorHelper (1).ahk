@@ -4564,6 +4564,18 @@ FTB_SanitizeToolbarMenuItems(itemsOrCsv) {
     return FTB_SanitizeByAllowed(itemsOrCsv, allowed, defaults)
 }
 
+; 悬浮条统一右键：多套 cmdId 对应同一入口（工具栏槽位 vs 旧版 ftm_* / hub_*），按语义去重只保留先出现的项
+FTB_UnifiedContextMenuDedupeSlotKey(cmdId) {
+    c := Trim(String(cmdId))
+    if (c = "sc_activate_search" || c = "ftm_search_center")
+        return "slot:search_center"
+    if (c = "qa_clipboard" || c = "ftm_clipboard")
+        return "slot:clipboard"
+    if (c = "ftb_scratchpad" || c = "hub_capsule")
+        return "slot:scratchpad"
+    return "id:" . c
+}
+
 ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
     global g_Commands
 
@@ -4571,6 +4583,7 @@ ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
     Padding := 10
     MenuItems := []
     useFloatingSceneMenu := false
+    seenMenuSlots := Map()
 
     try {
         if (IsSet(g_Commands) && g_Commands is Map && g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map) {
@@ -4592,6 +4605,10 @@ ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
                         visOn := vm.Has(c) ? !!vm[c] : true
                         if !visOn
                             continue
+                        sk := FTB_UnifiedContextMenuDedupeSlotKey(c)
+                        if seenMenuSlots.Has(sk)
+                            continue
+                        seenMenuSlots[sk] := true
                         nm := cmdList[c]["name"]
                         if (nm = "")
                             nm := c
@@ -4611,6 +4628,10 @@ ShowFloatingToolbarUnifiedContextMenu(anchorX, anchorY) {
                     cid := Trim(String(row["cmdId"]))
                     if (cid = "" || !cmdList.Has(cid))
                         continue
+                    sk := FTB_UnifiedContextMenuDedupeSlotKey(cid)
+                    if seenMenuSlots.Has(sk)
+                        continue
+                    seenMenuSlots[sk] := true
                     nm := cmdList[cid]["name"]
                     if (nm = "")
                         nm := cid

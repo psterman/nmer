@@ -53,8 +53,6 @@
     }
     var holdTimer = null;
     var HOLD_MS = 140;
-    var hoverTimer = null;
-    var HOVER_MENU_MS = 1000;
     var dragStartScreenX = 0;
     var dragStartScreenY = 0;
     var MOVE_PX = 8;
@@ -68,31 +66,8 @@
         holdTimer = null;
       }
     }
-    function clearHoverMenuTimer() {
-      if (hoverTimer) {
-        clearTimeout(hoverTimer);
-        hoverTimer = null;
-      }
-    }
-    function postModeMenu(reason) {
-      post({ type: 'bubble_mode_menu', x: 0, y: 0, reason: reason });
-    }
-    function scheduleHoverMenu() {
-      clearHoverMenuTimer();
-      hoverTimer = setTimeout(function () {
-        hoverTimer = null;
-        postModeMenu('hover2s');
-      }, HOVER_MENU_MS);
-    }
-    function onPointerEnter() {
-      scheduleHoverMenu();
-    }
-    function onPointerLeave() {
-      clearHoverMenuTimer();
-    }
     function onPointerDown(e) {
       if (e.button !== 0) return;
-      clearHoverMenuTimer();
       dragSent = false;
       dragStartScreenX = e.screenX;
       dragStartScreenY = e.screenY;
@@ -129,8 +104,6 @@
       }
       dragSent = false;
     }
-    root.addEventListener('pointerenter', onPointerEnter);
-    root.addEventListener('pointerleave', onPointerLeave);
     root.addEventListener('pointerdown', onPointerDown);
     root.addEventListener('pointermove', onPointerMove);
     root.addEventListener('pointerup', onPointerUp);
