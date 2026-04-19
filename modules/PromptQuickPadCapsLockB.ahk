@@ -22,19 +22,7 @@ _PQPCB_CallExternal(funcName, args*) {
     return ""
 }
 
-PromptQuickPad_ReloadCapsLockBSettings() {
-    global PromptQuickPad_CapsLockBSilent, PromptQuickPad_CapsLockBSilentToTemplate, PromptQuickPad_CapsLockBDefaultTitle
-    global PromptQuickPad_CapsLockBDefaultCategory, PromptQuickPad_CapsLockBDefaultTags
-    cfg := A_ScriptDir . "\CursorShortcut.ini"
-    try {
-        PromptQuickPad_CapsLockBSilent := (IniRead(cfg, "PromptQuickPad", "CapsLockBSilent", "0") = "1")
-        PromptQuickPad_CapsLockBSilentToTemplate := (IniRead(cfg, "PromptQuickPad", "CapsLockBSilentToTemplate", "0") = "1")
-        PromptQuickPad_CapsLockBDefaultTitle := IniRead(cfg, "PromptQuickPad", "CapsLockBDefaultTitle", "摘录")
-        PromptQuickPad_CapsLockBDefaultCategory := IniRead(cfg, "PromptQuickPad", "CapsLockBDefaultCategory", "")
-        PromptQuickPad_CapsLockBDefaultTags := IniRead(cfg, "PromptQuickPad", "CapsLockBDefaultTags", "")
-    } catch {
-    }
-}
+; PromptQuickPad_ReloadCapsLockBSettings：见 modules\PromptSyncService.ahk
 
 PromptQuickPad_CapsB_IsOurGuiWindow(hwnd) {
     if !hwnd

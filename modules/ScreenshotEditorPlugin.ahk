@@ -3246,7 +3246,7 @@ WheelDown:: {
 }
 #HotIf
 
-#HotIf ScreenshotColorPickerActive
+#HotIf ScreenshotEditorPlugin_IsColorPickerHotkeyActive()
 ~LButton:: {
     ScreenshotEditorPlugin.ScreenshotColorPickerCaptureAtCursor()
 }
@@ -3254,4 +3254,9 @@ WheelDown:: {
 
 ScreenshotEditorPlugin_IsZoomHotkeyActive() {
     return ScreenshotEditorPlugin.IsScreenshotEditorZoomHotkeyActive()
+}
+
+ScreenshotEditorPlugin_IsColorPickerHotkeyActive() {
+    global ScreenshotColorPickerActive
+    return IsSet(ScreenshotColorPickerActive) && ScreenshotColorPickerActive
 }

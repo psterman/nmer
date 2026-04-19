@@ -318,18 +318,6 @@ PromptQuickPad_TogglePinTopWeb() {
     PromptQuickPad_PushDataToWeb("searchResult")
 }
 
-PromptQuickPad_SyncSilentFromWeb(msg) {
-    cfg := A_ScriptDir . "\CursorShortcut.ini"
-    silent := msg.Has("silent") && (msg["silent"] = true || msg["silent"] = 1)
-    tpl := msg.Has("silentTpl") && (msg["silentTpl"] = true || msg["silentTpl"] = 1)
-    try {
-        IniWrite(silent ? "1" : "0", cfg, "PromptQuickPad", "CapsLockBSilent")
-        IniWrite(tpl ? "1" : "0", cfg, "PromptQuickPad", "CapsLockBSilentToTemplate")
-    } catch {
-    }
-    PromptQuickPad_ReloadCapsLockBSettings()
-}
-
 PromptQuickPad_SaveDraftFromWeb(msg) {
     global PromptQuickPadData
     title := msg.Has("title") ? Trim(String(msg["title"])) : ""
@@ -372,13 +360,7 @@ PromptQuickPad_LoadDraftFromMergedIndex(mi) {
     PromptQuickPad_CapsLockBDefaultTitle := entry.Has("title") ? entry["title"] : ""
     PromptQuickPad_CapsLockBDefaultCategory := entry.Has("category") ? entry["category"] : ""
     PromptQuickPad_CapsLockBDefaultTags := entry.Has("tags") ? entry["tags"] : ""
-    cfg := A_ScriptDir . "\CursorShortcut.ini"
-    try {
-        IniWrite(PromptQuickPad_CapsLockBDefaultTitle, cfg, "PromptQuickPad", "CapsLockBDefaultTitle")
-        IniWrite(PromptQuickPad_CapsLockBDefaultCategory, cfg, "PromptQuickPad", "CapsLockBDefaultCategory")
-        IniWrite(PromptQuickPad_CapsLockBDefaultTags, cfg, "PromptQuickPad", "CapsLockBDefaultTags")
-    } catch {
-    }
+    PSS_WriteCapsLockBDefaultFieldsToIni(PromptQuickPad_CapsLockBDefaultTitle, PromptQuickPad_CapsLockBDefaultCategory, PromptQuickPad_CapsLockBDefaultTags)
     PromptQuickPad_ReloadCapsLockBSettings()
     body := entry.Has("content") ? entry["content"] : ""
     m := Map("type", "captureDraftFill", "title", PromptQuickPad_CapsLockBDefaultTitle,
@@ -972,13 +954,7 @@ PromptQuickPad_WriteDefaultsFromCaptureDraft() {
     PromptQuickPad_CapsLockBDefaultTitle := title
     PromptQuickPad_CapsLockBDefaultCategory := cat
     PromptQuickPad_CapsLockBDefaultTags := tags
-    cfg := A_ScriptDir . "\CursorShortcut.ini"
-    try {
-        IniWrite(title, cfg, "PromptQuickPad", "CapsLockBDefaultTitle")
-        IniWrite(cat, cfg, "PromptQuickPad", "CapsLockBDefaultCategory")
-        IniWrite(tags, cfg, "PromptQuickPad", "CapsLockBDefaultTags")
-    } catch {
-    }
+    PSS_WriteCapsLockBDefaultFieldsToIni(title, cat, tags)
 }
 
 PromptQuickPad_OnCaptureSilentChange(GuiCtrlObj, *) {
@@ -986,10 +962,7 @@ PromptQuickPad_OnCaptureSilentChange(GuiCtrlObj, *) {
     try PromptQuickPad_CapsLockBSilent := GuiCtrlObj.Value = 1
     catch
         return
-    cfg := A_ScriptDir . "\CursorShortcut.ini"
-    try IniWrite(PromptQuickPad_CapsLockBSilent ? "1" : "0", cfg, "PromptQuickPad", "CapsLockBSilent")
-    catch {
-    }
+    PSS_IniWritePQP("CapsLockBSilent", PromptQuickPad_CapsLockBSilent ? "1" : "0")
     if PromptQuickPad_CapsLockBSilent
         PromptQuickPad_WriteDefaultsFromCaptureDraft()
 }
@@ -999,28 +972,7 @@ PromptQuickPad_OnCaptureSilentTplChange(GuiCtrlObj, *) {
     try PromptQuickPad_CapsLockBSilentToTemplate := GuiCtrlObj.Value = 1
     catch
         return
-    cfg := A_ScriptDir . "\CursorShortcut.ini"
-    try IniWrite(PromptQuickPad_CapsLockBSilentToTemplate ? "1" : "0", cfg, "PromptQuickPad", "CapsLockBSilentToTemplate")
-    catch {
-    }
-}
-
-PromptQuickPad_SyncCaptureDraftFromIni() {
-    global PromptQuickPad_edDraftTitle, PromptQuickPad_edDraftTags, PromptQuickPad_cbDraftCategory
-    global PromptQuickPad_chkCaptureSilent, PromptQuickPad_chkCaptureSilentTpl
-    global PromptQuickPad_CapsLockBDefaultTitle, PromptQuickPad_CapsLockBDefaultCategory, PromptQuickPad_CapsLockBDefaultTags
-    global PromptQuickPad_CapsLockBSilent, PromptQuickPad_CapsLockBSilentToTemplate
-    PromptQuickPad_ReloadCapsLockBSettings()
-    if PromptQuickPad_edDraftTitle != 0
-        PromptQuickPad_edDraftTitle.Value := PromptQuickPad_CapsLockBDefaultTitle
-    if PromptQuickPad_edDraftTags != 0
-        PromptQuickPad_edDraftTags.Value := PromptQuickPad_CapsLockBDefaultTags
-    if PromptQuickPad_cbDraftCategory != 0
-        PromptQuickPad_cbDraftCategory.Text := (Trim(PromptQuickPad_CapsLockBDefaultCategory) = "" ? "未分类" : Trim(PromptQuickPad_CapsLockBDefaultCategory))
-    if PromptQuickPad_chkCaptureSilent != 0
-        PromptQuickPad_chkCaptureSilent.Value := PromptQuickPad_CapsLockBSilent ? 1 : 0
-    if PromptQuickPad_chkCaptureSilentTpl != 0
-        PromptQuickPad_chkCaptureSilentTpl.Value := PromptQuickPad_CapsLockBSilentToTemplate ? 1 : 0
+    PSS_IniWritePQP("CapsLockBSilentToTemplate", PromptQuickPad_CapsLockBSilentToTemplate ? "1" : "0")
 }
 
 PromptQuickPad_FillCaptureDraftContent(initialText := "") {

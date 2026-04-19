@@ -30,9 +30,11 @@ global MonitorLastSuccessTime := 0
 global MonitorDebounceText := 0
 global MonitorFlashOriginalBg := ""
 global MonitorAutoShow := false  ; 是否自动显示监控窗口（入库时）
+global MonitorRefreshPeriodMs := 2000       ; 统计区定时刷新间隔
+global MonitorTrayTipThrottleMs := 3500     ; 窗口关闭时 TrayTip 最小间隔，避免刷屏
 
 ; 暗黑模式配色
-MonitorColors := {
+global MonitorColors := {
     Background: "1e1e1e",
     Border: "3c3c3c",
     Text: "cccccc",
@@ -65,14 +67,20 @@ ShowClipboardMonitor() {
     AddMonitorLog("监控窗口已打开")
     AddMonitorLog("等待剪贴板变化...")
     
-    ; 启动定时刷新（每2秒刷新一次统计数据）
-    SetTimer(RefreshMonitorData, 2000)
+    ; 启动定时刷新统计数据
+    SetTimer(RefreshMonitorData, MonitorRefreshPeriodMs)
 }
 
 HideClipboardMonitor() {
-    global GuiID_ClipboardMonitor, MonitorIsVisible
+    global GuiID_ClipboardMonitor, MonitorIsVisible, MonitorFlashOriginalBg
     
+    SetTimer(RestoreMonitorWindowBg, 0)  ; 取消待处理的闪烁恢复，避免 Hide 后仍改 BackColor
     if (GuiID_ClipboardMonitor != 0) {
+        try {
+            if (MonitorFlashOriginalBg != "")
+                GuiID_ClipboardMonitor.BackColor := MonitorFlashOriginalBg
+        } catch {
+        }
         GuiID_ClipboardMonitor.Hide()
         MonitorIsVisible := false
         SetTimer(RefreshMonitorData, 0)  ; 停止定时刷新
@@ -171,12 +179,31 @@ CreateClipboardMonitorGUI() {
     AddMonitorLog("监控窗口已启动")
 }
 
+; 控件已销毁或窗口已关时安全更新，避免定时器残留抛错
+MonitorSafeSetText(ctrl, text) {
+    if (!ctrl || !IsObject(ctrl))
+        return
+    try
+        ctrl.Text := text
+}
+
+MonitorSafeSetValue(ctrl, value) {
+    if (!ctrl || !IsObject(ctrl))
+        return
+    try
+        ctrl.Value := value
+}
+
 ; ===================== 刷新监控数据 =====================
 RefreshMonitorData() {
     global ClipboardFTS5DB, MonitorLastRecordID, MonitorTodayStats
     global MonitorSourceAppText, MonitorDataTypeText, MonitorCharCountText
     global MonitorContentPreview, MonitorTodayTotalText, MonitorImageCountText, MonitorFailCountText
     global MonitorStatusLight, MonitorColors
+    global GuiID_ClipboardMonitor
+    
+    if (!GuiID_ClipboardMonitor || GuiID_ClipboardMonitor = 0)
+        return
     
     if (!ClipboardFTS5DB || ClipboardFTS5DB = 0) {
         UpdateStatusLight(false, "数据库未连接")
@@ -206,25 +233,20 @@ RefreshMonitorData() {
                     charCount := row[5]    ; CharCount
                     timestamp := row[6]    ; Timestamp
                     
-                    ; 更新显示
-                    MonitorSourceAppText.Text := sourceApp
-                    MonitorDataTypeText.Text := dataType
-                    MonitorCharCountText.Text := charCount
+                    MonitorSafeSetText(MonitorSourceAppText, sourceApp)
+                    MonitorSafeSetText(MonitorDataTypeText, dataType)
+                    MonitorSafeSetText(MonitorCharCountText, charCount)
                     
-                    ; 更新内容预览（前150字符）
                     preview := content
-                    if (StrLen(preview) > 150) {
+                    if (StrLen(preview) > 150)
                         preview := SubStr(preview, 1, 150) . "..."
-                    }
-                    MonitorContentPreview.Value := preview
+                    MonitorSafeSetValue(MonitorContentPreview, preview)
                     
-                    ; 更新状态灯为绿色
                     UpdateStatusLight(true, "")
                 }
             }
         }
         
-        ; 更新今日统计
         UpdateTodayStats()
         
     } catch as err {
@@ -244,38 +266,28 @@ UpdateTodayStats() {
     }
     
     try {
-        ; 获取今日开始时间
         todayStart := FormatTime(A_Now, "yyyy-MM-dd") . " 00:00:00"
-        
-        ; 今日总数（使用 GetTable，需要转义单引号）
         escapedTodayStart := StrReplace(todayStart, "'", "''")
-        SQL := "SELECT COUNT(*) FROM ClipMain WHERE Timestamp >= '" . escapedTodayStart . "'"
+        ; 单次查询合并今日总数与图片数，减少 SQLite 往返
+        SQL := "SELECT COUNT(*), " .
+               "COALESCE(SUM(CASE WHEN DataType = 'Image' THEN 1 ELSE 0 END), 0) " .
+               "FROM ClipMain WHERE Timestamp >= '" . escapedTodayStart . "'"
         table := ""
         if (ClipboardFTS5DB.GetTable(SQL, &table, 1)) {
             if (table.HasRows && table.Rows.Length > 0) {
                 MonitorTodayStats["Total"] := table.Rows[1][1]
+                MonitorTodayStats["Images"] := table.Rows[1][2]
             }
         }
         
-        ; 今日图片数
-        SQL := "SELECT COUNT(*) FROM ClipMain WHERE DataType = 'Image' AND Timestamp >= '" . escapedTodayStart . "'"
-        table := ""
-        if (ClipboardFTS5DB.GetTable(SQL, &table, 1)) {
-            if (table.HasRows && table.Rows.Length > 0) {
-                MonitorTodayStats["Images"] := table.Rows[1][1]
-            }
-        }
-        
-        ; 更新显示
-        MonitorTodayTotalText.Text := MonitorTodayStats["Total"]
-        MonitorImageCountText.Text := MonitorTodayStats["Images"]
-        MonitorFailCountText.Text := MonitorTodayStats["Fails"]
+        MonitorSafeSetText(MonitorTodayTotalText, MonitorTodayStats["Total"])
+        MonitorSafeSetText(MonitorImageCountText, MonitorTodayStats["Images"])
+        MonitorSafeSetText(MonitorFailCountText, MonitorTodayStats["Fails"])
         
         ; 更新防抖过滤显示（通过全局变量引用）
         global MonitorDebounceText
-        if (MonitorDebounceText && MonitorDebounceFiltered > 0) {
-            MonitorDebounceText.Text := "防抖过滤: " . MonitorDebounceFiltered . " 次"
-        }
+        if (MonitorDebounceFiltered > 0)
+            MonitorSafeSetText(MonitorDebounceText, "防抖过滤: " . MonitorDebounceFiltered . " 次")
         
     } catch as err {
         AddMonitorLog("更新统计错误: " . err.Message)
@@ -286,15 +298,19 @@ UpdateTodayStats() {
 UpdateStatusLight(isSuccess, errorMsg := "") {
     global MonitorStatusLight, MonitorColors, MonitorFailCountText, MonitorTodayStats
     
-    if (isSuccess) {
-        MonitorStatusLight.BackColor := MonitorColors.StatusGreen
-        MonitorStatusLight.Text := "●"
-    } else {
-        MonitorStatusLight.BackColor := MonitorColors.StatusRed
-        MonitorStatusLight.Text := "●"
-        if (errorMsg != "") {
-            MonitorStatusLight.ToolTip := "错误: " . errorMsg
+    if (!MonitorStatusLight || !IsObject(MonitorStatusLight))
+        return
+    try {
+        if (isSuccess) {
+            MonitorStatusLight.BackColor := MonitorColors.StatusGreen
+            MonitorStatusLight.Text := "●"
+        } else {
+            MonitorStatusLight.BackColor := MonitorColors.StatusRed
+            MonitorStatusLight.Text := "●"
+            if (errorMsg != "")
+                MonitorStatusLight.ToolTip := "错误: " . errorMsg
         }
+    } catch {
     }
 }
 
@@ -302,34 +318,28 @@ UpdateStatusLight(isSuccess, errorMsg := "") {
 AddMonitorLog(message) {
     global MonitorLogEdit
     
-    if (!MonitorLogEdit) {
+    if (!MonitorLogEdit || !IsObject(MonitorLogEdit))
+        return
+    
+    timestamp := FormatTime(, "HH:mm:ss")
+    line := "[" . timestamp . "] " . message
+    
+    try {
+        currentLog := MonitorLogEdit.Value
+        newLog := (currentLog != "" ? currentLog . "`r`n" : "") . line
+        logLines := StrSplit(newLog, "`n", "`r")
+        while (logLines.Length > 50)
+            logLines.RemoveAt(1)
+        MonitorLogEdit.Value := Array_Join(logLines, "`r`n")
+    } catch {
         return
     }
     
-    timestamp := FormatTime(, "HH:mm:ss")
-    logEntry := "[" . timestamp . "] " . message . "`r`n"
-    
-    ; 追加到日志（保持最后50行）
-    currentLog := MonitorLogEdit.Value
-    logLines := StrSplit(currentLog, "`r`n")
-    
-    ; 如果超过50行，删除最旧的
-    if (logLines.Length > 50) {
-        logLines.RemoveAt(1, logLines.Length - 50)
-    }
-    
-    ; 添加新日志
-    logLines.Push("[" . timestamp . "] " . message)
-    MonitorLogEdit.Value := Array_Join(logLines, "`r`n")
-    
-    ; 滚动到底部
     try {
-        ; 使用 ControlSend 滚动到底部
         ControlSend("{End}", MonitorLogEdit)
         Sleep(10)
         ControlSend("^{End}", MonitorLogEdit)
     } catch {
-        ; 忽略错误
     }
 }
 
@@ -347,63 +357,53 @@ Array_Join(arr, delimiter) {
 
 ; ===================== 记录入库成功 =====================
 RecordInsertSuccess(sourceApp, dataType, charCount, content) {
-    global MonitorLastSuccessTime, MonitorIsVisible, MonitorAutoShow
+    global MonitorLastSuccessTime, MonitorIsVisible, MonitorAutoShow, MonitorTrayTipThrottleMs
+    static lastTrayTip := 0
     
-    ; 更新成功时间
     MonitorLastSuccessTime := A_TickCount
     
-    ; 如果设置了自动显示，且窗口未打开，则打开窗口
-    if (MonitorAutoShow && !MonitorIsVisible) {
+    if (MonitorAutoShow && !MonitorIsVisible)
         ShowClipboardMonitor()
-    }
     
-    ; 如果监控窗口打开，更新GUI
     if (MonitorIsVisible) {
-        ; 添加日志
         AddMonitorLog("成功入库: " . sourceApp . " (" . dataType . ", " . charCount . " 字符)")
-        
-        ; 触发绿色闪烁
         FlashMonitorWindow()
-        
-        ; 延迟刷新数据（避免频繁刷新）
         SetTimer(() => RefreshMonitorData(), -500)
     } else {
-        ; 即使窗口未打开，也显示托盘提示
+        ; lastTrayTip=0 表示尚未提示过，不节流
+        if (MonitorTrayTipThrottleMs > 0 && lastTrayTip && (A_TickCount - lastTrayTip) < MonitorTrayTipThrottleMs)
+            return
+        lastTrayTip := A_TickCount
         preview := content
-        if (StrLen(preview) > 50) {
+        if (StrLen(preview) > 50)
             preview := SubStr(preview, 1, 50) . "..."
-        }
         TrayTip("入库成功", sourceApp . " (" . dataType . ", " . charCount . " 字符)`n" . preview, "Iconi 1")
     }
 }
 
 ; ===================== 记录入库失败 =====================
 RecordInsertFail(errorMsg, errorCode := "") {
-    global MonitorTodayStats, MonitorFailCountText, MonitorIsVisible
+    global MonitorTodayStats, MonitorFailCountText, MonitorIsVisible, MonitorTrayTipThrottleMs
+    static lastFailTrayTip := 0
     
-    ; 增加失败计数
     MonitorTodayStats["Fails"]++
     
-    ; 如果监控窗口打开，更新GUI
+    logMsg := "错误: " . errorMsg
+    if (errorCode != "")
+        logMsg .= " (错误码: " . errorCode . ")"
+    
     if (MonitorIsVisible) {
-        MonitorFailCountText.Text := MonitorTodayStats["Fails"]
-        
-        ; 更新状态灯
+        MonitorSafeSetText(MonitorFailCountText, MonitorTodayStats["Fails"])
         UpdateStatusLight(false, errorMsg)
-        
-        ; 添加日志
-        logMsg := "错误: " . errorMsg
-        if (errorCode != "") {
-            logMsg .= " (错误码: " . errorCode . ")"
-        }
         AddMonitorLog(logMsg)
     } else {
-        ; 即使窗口未打开，也显示托盘提示
-        logMsg := "入库失败: " . errorMsg
-        if (errorCode != "") {
-            logMsg .= " (错误码: " . errorCode . ")"
-        }
-        TrayTip("入库失败", logMsg, "Iconx 2")
+        tip := "入库失败: " . errorMsg
+        if (errorCode != "")
+            tip .= " (错误码: " . errorCode . ")"
+        if (MonitorTrayTipThrottleMs > 0 && lastFailTrayTip && (A_TickCount - lastFailTrayTip) < MonitorTrayTipThrottleMs)
+            return
+        lastFailTrayTip := A_TickCount
+        TrayTip("入库失败", tip, "Iconx 2")
     }
 }
 
@@ -418,30 +418,22 @@ RecordDebounceFiltered() {
     MonitorDebounceFiltered++
     AddMonitorLog("防抖过滤: 重复请求被过滤 (300ms)")
     
-    ; 更新显示
-    if (MonitorDebounceText) {
-        MonitorDebounceText.Text := "防抖过滤: " . MonitorDebounceFiltered . " 次"
-    }
+    MonitorSafeSetText(MonitorDebounceText, "防抖过滤: " . MonitorDebounceFiltered . " 次")
 }
 
 ; ===================== 窗口闪烁效果 =====================
 FlashMonitorWindow() {
     global GuiID_ClipboardMonitor, MonitorColors, MonitorFlashOriginalBg
     
-    if (!GuiID_ClipboardMonitor || GuiID_ClipboardMonitor = 0) {
+    if (!GuiID_ClipboardMonitor || GuiID_ClipboardMonitor = 0)
         return
-    }
     
     try {
-        ; 闪烁绿色边框（通过临时改变背景色实现）
+        SetTimer(RestoreMonitorWindowBg, 0)  ; 取消上一次闪烁恢复，只保留最后一次
         MonitorFlashOriginalBg := GuiID_ClipboardMonitor.BackColor
         GuiID_ClipboardMonitor.BackColor := MonitorColors.StatusGreen
-        
-        ; 200ms后恢复
         SetTimer(RestoreMonitorWindowBg, -200)
-        
     } catch {
-        ; 忽略错误
     }
 }
 
