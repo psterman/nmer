@@ -77,7 +77,7 @@ FTB_Debug(msg, level := "ok") {
 ; 隐藏后再打开且 WebView 仍在：直接显示，不再等待。
 FloatingToolbar_FinishReveal() {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarWindowX, FloatingToolbarWindowY
-    global g_FTB_WaitingUiFinishedReveal
+    global g_FTB_WaitingUiFinishedReveal, g_FTB_WV2
 
     if !FloatingToolbarGUI
         return
@@ -98,6 +98,7 @@ FloatingToolbar_FinishReveal() {
     }
 
     FloatingToolbarIsVisible := true
+    try WebView2_NotifyShown(g_FTB_WV2)
     FloatingToolbarApplyRoundedCorners()
     FloatingToolbar_ApplyWebViewBounds()
     SetTimer(FloatingToolbarCheckWindowPosition, 100)
@@ -167,7 +168,7 @@ ShowFloatingToolbar() {
 }
 
 HideFloatingToolbar() {
-    global FloatingToolbarGUI, FloatingToolbarIsVisible, g_FTB_WaitingUiFinishedReveal
+    global FloatingToolbarGUI, FloatingToolbarIsVisible, g_FTB_WaitingUiFinishedReveal, g_FTB_WV2
 
     if (FloatingToolbarGUI != 0) {
         SaveFloatingToolbarPosition()
@@ -176,7 +177,8 @@ HideFloatingToolbar() {
         try WinSetTransparent(255, "ahk_id " . FloatingToolbarGUI.Hwnd)
         catch {
         }
-        FloatingToolbarGUI.Hide()
+        try WebView2_NotifyHidden(g_FTB_WV2)
+        try FloatingToolbarGUI.Hide()
         FloatingToolbarIsVisible := false
         SetTimer(FloatingToolbarCheckWindowPosition, 0)
     }
@@ -234,7 +236,7 @@ CreateFloatingToolbarGUI() {
 
     OnMessage(0x020A, FloatingToolbarWM_MOUSEWHEEL)
 
-    WebView2.create(FloatingToolbarGUI.Hwnd, FloatingToolbar_OnWebViewCreated)
+    WebView2.create(FloatingToolbarGUI.Hwnd, FloatingToolbar_OnWebViewCreated, WebView2_EnsureSharedEnvBlocking())
 }
 
 FloatingToolbar_FlushPendingSelectionIfReady() {
@@ -321,10 +323,11 @@ FloatingToolbar_OnWebViewCreated(ctrl) {
 
     s := g_FTB_WV2.Settings
     s.AreDefaultContextMenusEnabled := false
-    s.IsStatusBarEnabled := false
     s.AreDevToolsEnabled := false
     ; 避免 Ctrl+1/2/W 等被浏览器加速键先消费，确保 Niuma Chat 内部快捷键优先生效
     try s.AreBrowserAcceleratorKeysEnabled := false
+    ApplyWebView2PerformanceSettings(g_FTB_WV2)
+    WebView2_RegisterHostBridge(g_FTB_WV2)
 
     g_FTB_WV2.add_NavigationStarting(FloatingToolbar_OnNavigationStarting)
     g_FTB_WV2.add_NavigationCompleted(FloatingToolbar_OnNavigationCompleted)
@@ -359,7 +362,7 @@ FloatingToolbar_RetryCreateWebView() {
     if (g_FTB_WV2_CreateRetry >= 3)
         return
     g_FTB_WV2_CreateRetry += 1
-    SetTimer((*) => WebView2.create(FloatingToolbarGUI.Hwnd, FloatingToolbar_OnWebViewCreated), -200)
+    SetTimer((*) => WebView2.create(FloatingToolbarGUI.Hwnd, FloatingToolbar_OnWebViewCreated, WebView2_EnsureSharedEnvBlocking()), -200)
 }
 
 FloatingToolbar_GetLogoAppUrl() {

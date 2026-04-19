@@ -3486,6 +3486,12 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
       }
       if (d && d.type) dbg('R', d.type, 'ok');
       if (!d || !d.type) return;
+      if (d.type === 'RESET_STATE') {
+        try {
+          if (typeof window.onWebViewResetState === 'function') window.onWebViewResetState();
+        } catch (_) {}
+        return;
+      }
       if (d.type === 'ftb_debug') {
         dbg('H', d.msg || '', d.level === 'err' ? 'err' : 'ok');
         return;

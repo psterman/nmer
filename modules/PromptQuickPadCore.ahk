@@ -93,7 +93,7 @@ PQP_Init() {
     WV2 := _PQP_GetWebView2Class()
     if !WV2
         return
-    WV2.create(g_PQP_Gui.Hwnd, _PQP_OnWV2Created)
+    WV2.create(g_PQP_Gui.Hwnd, _PQP_OnWV2Created, WebView2_EnsureSharedEnvBlocking())
 }
 
 _PQP_OnWV2Created(ctrl) {
@@ -109,8 +109,9 @@ _PQP_OnWV2Created(ctrl) {
 
     s := g_PQP_WV2.Settings
     s.AreDefaultContextMenusEnabled := false
-    s.IsStatusBarEnabled := false
     s.AreDevToolsEnabled := false
+    ApplyWebView2PerformanceSettings(g_PQP_WV2)
+    WebView2_RegisterHostBridge(g_PQP_WV2)
 
     g_PQP_WV2.add_WebMessageReceived(_PQP_OnWebMessage)
     try g_PQP_WV2.add_NavigationCompleted(_PQP_OnNavigationCompleted)
@@ -271,6 +272,7 @@ PQP_Show() {
     try g_PQP_Gui.Show("x" . panelX . " y" . panelY . " w" . panelW . " h" . panelH . " NoActivate")
     g_PQP_Visible := true
     g_PQP_LastShown := A_TickCount
+    try WebView2_NotifyShown(g_PQP_WV2)
     WMActivateChain_Register(_PQP_WM_ACTIVATE)
 
     _PQP_RefreshWebViewComposition()
@@ -346,6 +348,7 @@ PQP_Hide() {
 
     g_PQP_Visible := false
     WMActivateChain_Unregister(_PQP_WM_ACTIVATE)
+    try WebView2_NotifyHidden(g_PQP_WV2)
     if g_PQP_Gui {
         try g_PQP_Gui.Hide()
     }

@@ -25,4 +25,21 @@
     PROTO_VERSION: PROTO,
     postToAhk: postToAhk
   };
+
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.addEventListener('message', function (ev) {
+      var d = ev.data;
+      if (typeof d === 'string') {
+        try {
+          d = JSON.parse(d);
+        } catch (e) {
+          return;
+        }
+      }
+      if (!d || d.type !== 'RESET_STATE') return;
+      try {
+        if (typeof window.onWebViewResetState === 'function') window.onWebViewResetState();
+      } catch (e) {}
+    });
+  }
 })(typeof globalThis !== 'undefined' ? globalThis : window);

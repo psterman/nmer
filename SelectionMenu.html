@@ -104,8 +104,22 @@ html, body {
 
   if (window.chrome && window.chrome.webview) {
     window.chrome.webview.addEventListener("message", function (ev) {
-      const d = ev.data;
-      if (!d || d.type !== "selection_menu_init") return;
+      let d = ev.data;
+      if (typeof d === "string") {
+        try {
+          d = JSON.parse(d);
+        } catch (e) {
+          return;
+        }
+      }
+      if (!d) return;
+      if (d.type === "RESET_STATE") {
+        try {
+          if (typeof window.onWebViewResetState === "function") window.onWebViewResetState();
+        } catch (e) {}
+        return;
+      }
+      if (d.type !== "selection_menu_init") return;
       setPreview(d.text || "");
     });
   }

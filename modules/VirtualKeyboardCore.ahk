@@ -135,7 +135,7 @@ VK_Init(embedded := false) {
     g_VK_Gui.OnEvent("Close", (*) => VK_Hide())
     g_VK_Gui.OnEvent("Size", _OnGuiResize)
 
-    WebView2.create(g_VK_Gui.Hwnd, _OnWV2Created)
+    WebView2.create(g_VK_Gui.Hwnd, _OnWV2Created, WebView2_EnsureSharedEnvBlocking())
 
     if !embedded {
         A_TrayMenu.Delete()
@@ -2818,10 +2818,11 @@ _OnWV2Created(ctrl) {
 
     s := g_VK_WV2.Settings
     s.AreDefaultContextMenusEnabled := false
-    s.IsStatusBarEnabled := false
     s.AreDevToolsEnabled := true
     ; 避免 Alt 与浏览器快捷键/菜单栏逻辑抢焦点，否则虚拟键上 Alt 双击常收不到 dblclick
     try s.AreBrowserAcceleratorKeysEnabled := false
+    ApplyWebView2PerformanceSettings(g_VK_WV2)
+    WebView2_RegisterHostBridge(g_VK_WV2)
 
     g_VK_WV2.add_WebMessageReceived(_OnWebMessage)
     try g_VK_WV2.add_NavigationCompleted(_VK_OnNavigationCompleted)
@@ -4310,18 +4311,20 @@ VK_Show() {
         WebView2_MoveFocusProgrammatic(g_VK_Ctrl)
         SetTimer(_VK_DeferredMoveFocus, -100)
         _VK_RequestFocusInput()
+        try WebView2_NotifyShown(g_VK_WV2)
         ; 不再 WinActivate：会与 Cursor/WebView 抢焦点，触发 WM_ACTIVATE 失活链，导致快捷键设置窗「闪一下就被 _VK_WM_ACTIVATE 关掉」
     }
 }
 
 VK_Hide() {
-    global g_VK_Gui
+    global g_VK_Gui, g_VK_WV2
     VK_SendToWeb('{"type":"keyPreviewClear"}')
     _StopKeyPreviewHook()
     _VK_StopPhysicalModSyncTimer()
     _VK_UnregisterWinKeyBlock()
     _VK_StopQuickBindHook()
     WMActivateChain_Unregister(_VK_WM_ACTIVATE)
+    try WebView2_NotifyHidden(g_VK_WV2)
     if g_VK_Gui
         g_VK_Gui.Hide()
 }

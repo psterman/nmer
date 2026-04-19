@@ -215,7 +215,7 @@ FloatingBubble_RetryCreateWebView() {
     if (g_FB_WV2_CreateRetry >= 3)
         return
     g_FB_WV2_CreateRetry += 1
-    SetTimer((*) => WebView2.create(FloatingBubbleGUI.Hwnd, FloatingBubble_OnWebViewCreated), -200)
+    SetTimer((*) => WebView2.create(FloatingBubbleGUI.Hwnd, FloatingBubble_OnWebViewCreated, WebView2_EnsureSharedEnvBlocking()), -200)
 }
 
 FloatingBubble_OnWebViewCreated(ctrl) {
@@ -239,9 +239,10 @@ FloatingBubble_OnWebViewCreated(ctrl) {
 
     s := g_FB_WV2.Settings
     s.AreDefaultContextMenusEnabled := false
-    s.IsStatusBarEnabled := false
     s.AreDevToolsEnabled := false
     try s.AreBrowserAcceleratorKeysEnabled := false
+    ApplyWebView2PerformanceSettings(g_FB_WV2)
+    WebView2_RegisterHostBridge(g_FB_WV2)
 
     g_FB_WV2.add_NavigationStarting(FloatingBubble_OnNavigationStarting)
     g_FB_WV2.add_NavigationCompleted(FloatingBubble_OnNavigationCompleted)
@@ -267,7 +268,7 @@ CreateFloatingBubbleGUI() {
 
     FloatingBubbleGUI := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x02000000", "Floating Bubble")
     FloatingBubbleGUI.BackColor := "121212"
-    WebView2.create(FloatingBubbleGUI.Hwnd, FloatingBubble_OnWebViewCreated)
+    WebView2.create(FloatingBubbleGUI.Hwnd, FloatingBubble_OnWebViewCreated, WebView2_EnsureSharedEnvBlocking())
 }
 
 SaveFloatingBubblePosition() {
@@ -370,6 +371,7 @@ ShowFloatingBubble() {
     }
     FloatingBubble_ApplyWebViewBounds()
     FloatingBubbleIsVisible := true
+    try WebView2_NotifyShown(g_FB_WV2)
     SetTimer(FloatingBubble_PushLogoToWeb, -50)
 }
 
@@ -380,6 +382,7 @@ HideFloatingBubble() {
         return
     FloatingBubbleDragging := false
     SaveFloatingBubblePosition()
+    try WebView2_NotifyHidden(g_FB_WV2)
     try FloatingBubbleGUI.Hide()
     catch {
     }

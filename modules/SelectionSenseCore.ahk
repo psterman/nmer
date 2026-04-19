@@ -1442,7 +1442,7 @@ SelectionSense_EnsureMenuHost() {
     g_SelSense_MenuGui.OnEvent("Close", (*) => SelectionSense_HideMenu())
     g_SelSense_MenuGui.OnEvent("Size", SelectionSense_OnMenuHostSize)
 
-    WebView2.create(g_SelSense_MenuGui.Hwnd, SelectionSense_OnMenuWebViewCreated)
+    WebView2.create(g_SelSense_MenuGui.Hwnd, SelectionSense_OnMenuWebViewCreated, WebView2_EnsureSharedEnvBlocking())
 }
 
 SelectionSense_OnMenuHostSize(*) {
@@ -1463,8 +1463,9 @@ SelectionSense_OnMenuWebViewCreated(ctrl) {
 
     s := g_SelSense_MenuWV2.Settings
     s.AreDefaultContextMenusEnabled := false
-    s.IsStatusBarEnabled := false
     s.AreDevToolsEnabled := false
+    ApplyWebView2PerformanceSettings(g_SelSense_MenuWV2)
+    WebView2_RegisterHostBridge(g_SelSense_MenuWV2)
 
     g_SelSense_MenuWV2.add_WebMessageReceived(SelectionSense_OnMenuWebMessage)
     try ApplyUnifiedWebViewAssets(g_SelSense_MenuWV2)
@@ -2105,6 +2106,7 @@ SelectionSense_ShowMenuNearCursor() {
     try g_SelSense_MenuGui.Show("x" . x . " y" . y . " w" . w . " h" . h . showOpt)
     try WinShow("ahk_id " . g_SelSense_MenuGui.Hwnd)
     g_SelSense_MenuVisible := true
+    try WebView2_NotifyShown(g_SelSense_MenuWV2)
     g_SelSense_MenuActivateOnShow := false
     SelectionSense_ApplyMenuBounds()
     try g_SelSense_MenuCtrl.NotifyParentWindowPositionChanged()
@@ -2252,6 +2254,7 @@ SelectionSense_HideMenu() {
     try FloatingToolbar_NotifySelectionClear()
     catch as _e {
     }
+    try WebView2_NotifyHidden(g_SelSense_MenuWV2)
     if g_SelSense_MenuGui {
         try g_SelSense_MenuGui.Hide()
     }

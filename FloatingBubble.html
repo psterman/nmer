@@ -117,6 +117,12 @@
         try {
           var raw = ev.data;
           var d = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          if (d && d.type === 'RESET_STATE') {
+            try {
+              if (typeof window.onWebViewResetState === 'function') window.onWebViewResetState();
+            } catch (err2) {}
+            return;
+          }
           if (d && d.type === 'set_logo' && d.url) {
             logo.src = d.url;
           }

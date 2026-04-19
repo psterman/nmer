@@ -194,7 +194,7 @@ CP_Init() {
     g_CP_Gui.OnEvent("Close", (*) => CP_Hide())
     g_CP_Gui.OnEvent("Size", _CP_OnGuiResize)
 
-    WebView2.create(g_CP_Gui.Hwnd, _CP_OnWV2Created)
+    WebView2.create(g_CP_Gui.Hwnd, _CP_OnWV2Created, WebView2_EnsureSharedEnvBlocking())
 }
 
 ; ===================== 显示 / 隐藏 =====================
@@ -229,6 +229,7 @@ CP_Show() {
     g_CP_Visible := true
     g_CP_LastShown := A_TickCount
     try WinActivate("ahk_id " . g_CP_Gui.Hwnd)
+    try WebView2_NotifyShown(g_CP_WV2)
 
     WMActivateChain_Register(_CP_WM_ACTIVATE)
 
@@ -278,6 +279,7 @@ CP_Hide() {
     WMActivateChain_Unregister(_CP_WM_ACTIVATE)
 
     g_CP_Visible := false
+    try WebView2_NotifyHidden(g_CP_WV2)
     if g_CP_Gui
         g_CP_Gui.Hide()
 }
@@ -374,8 +376,9 @@ _CP_OnWV2Created(ctrl) {
 
     s := g_CP_WV2.Settings
     s.AreDefaultContextMenusEnabled := false
-    s.IsStatusBarEnabled := false
     s.AreDevToolsEnabled := true
+    ApplyWebView2PerformanceSettings(g_CP_WV2)
+    WebView2_RegisterHostBridge(g_CP_WV2)
 
     g_CP_WV2.add_WebMessageReceived(_CP_OnWebMessage)
     try g_CP_WV2.add_NavigationCompleted(_CP_OnNavigationCompleted)

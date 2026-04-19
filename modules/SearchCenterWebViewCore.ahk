@@ -143,7 +143,7 @@ SCWV_Init() {
     g_SCWV_Gui.OnEvent("Size", SCWV_OnGuiResize)
     g_SCWV_Gui.Show("w1180 h760 Hide")
 
-    WebView2.create(g_SCWV_Gui.Hwnd, SCWV_OnCreated)
+    WebView2.create(g_SCWV_Gui.Hwnd, SCWV_OnCreated, WebView2_EnsureSharedEnvBlocking())
 
     _SCWV_EnsureCurrentCategoryState()
     _SCWV_LoadSearchEngineMode()
@@ -178,8 +178,9 @@ SCWV_OnCreated(ctrl) {
 
     s := g_SCWV_WV2.Settings
     s.AreDefaultContextMenusEnabled := true
-    s.IsStatusBarEnabled := false
     s.AreDevToolsEnabled := true
+    ApplyWebView2PerformanceSettings(g_SCWV_WV2)
+    WebView2_RegisterHostBridge(g_SCWV_WV2)
 
     g_SCWV_WV2.add_WebMessageReceived(SCWV_OnWebMessage)
     try g_SCWV_WV2.add_NavigationCompleted(SCWV_OnNavigationCompleted)
@@ -554,6 +555,7 @@ SCWV_Show() {
     }
     g_SCWV_Visible := true
     g_SCWV_LastShown := A_TickCount
+    try WebView2_NotifyShown(g_SCWV_WV2)
     WMActivateChain_Register(SCWV_WM_ACTIVATE)
 
     SCWV_RefreshComposition()
@@ -656,6 +658,7 @@ SCWV_Hide(PersistSelection := true) {
     GuiID_SearchCenter := 0
     SearchCenterInvalidateGuiControlRefs()
 
+    try WebView2_NotifyHidden(g_SCWV_WV2)
     if g_SCWV_Gui {
         try g_SCWV_Gui.Hide()
     }

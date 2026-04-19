@@ -135,6 +135,15 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
   if (window.chrome && window.chrome.webview) {
     window.chrome.webview.addEventListener('message', function (ev) {
       var msg = ev.data || {};
+      if (typeof msg === 'string') {
+        try { msg = JSON.parse(msg); } catch (e) { return; }
+      }
+      if (msg && msg.type === 'RESET_STATE') {
+        try {
+          if (typeof window.onWebViewResetState === 'function') window.onWebViewResetState();
+        } catch (e) {}
+        return;
+      }
       if (msg.type !== 'state') return;
       var pinBtn = bar.querySelector('.tb[data-cmd="pin"]');
       if (pinBtn) pinBtn.classList.toggle('active', !!msg.toolbarVisible);
