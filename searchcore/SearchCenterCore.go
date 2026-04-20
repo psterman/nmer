@@ -39,6 +39,10 @@ func main() {
 	}
 	defer db.Close()
 
+	if err := StartIndexer(absBase); err != nil {
+		log.Printf("[fulltext] StartIndexer failed: %v", err)
+	}
+
 	clipHTTPBase = clipHTTPBaseFromAddr(*addr)
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +63,9 @@ func main() {
 	http.HandleFunc("/v1/status/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/v1/status", http.StatusTemporaryRedirect)
 	})
+	http.HandleFunc("/v1/fulltext/status", handleFullTextStatus)
+	http.HandleFunc("/v1/fulltext/progress", handleFullTextProgress)
+	http.HandleFunc("/v1/fulltext/progress/stream", handleFullTextProgressStream)
 	http.HandleFunc("/clip/search", func(w http.ResponseWriter, r *http.Request) {
 		handleClipSearch(w, r, db)
 	})
@@ -66,7 +73,7 @@ func main() {
 		handleClipPreview(w, r, db, absBase)
 	})
 
-	log.Printf("SearchCenterCore listening on http://%s (base=%s) routes: /health /search /clip/search /clip/preview /v1/status /status\n", *addr, absBase)
+	log.Printf("SearchCenterCore listening on http://%s (base=%s) routes: /health /search /clip/search /clip/preview /v1/status /status /v1/fulltext/status /v1/fulltext/progress /v1/fulltext/progress/stream\n", *addr, absBase)
 	if err := http.ListenAndServe(*addr, nil); err != nil {
 		log.Fatal(err)
 	}

@@ -134,6 +134,10 @@ func handleSearchWithDB(w http.ResponseWriter, r *http.Request, db *sql.DB, base
 		run(func() ([]map[string]any, error) {
 			return searchFilePathsSupplementDB(db, q, fetchCap), nil
 		})
+	case "fulltext":
+		run(func() ([]map[string]any, error) {
+			return searchFullTextWithBackend(baseDir, q, fetchCap)
+		})
 	case "template":
 		run(func() ([]map[string]any, error) {
 			return searchTemplates(baseDir, q, fetchCap, 0), nil
@@ -169,7 +173,7 @@ func handleSearchWithDB(w http.ResponseWriter, r *http.Request, db *sql.DB, base
 	wg.Wait()
 
 	if firstErr != nil && len(merged) == 0 {
-		if typeStr == "clipboard" || typeStr == "file" {
+		if typeStr == "clipboard" || typeStr == "file" || typeStr == "fulltext" {
 			http.Error(w, firstErr.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -217,6 +221,9 @@ func normalizeSearchType(t string) string {
 	}
 	if t == "clip" {
 		return "clipboard"
+	}
+	if t == "content" || t == "全文" || t == "全文搜索" {
+		return "fulltext"
 	}
 	return t
 }

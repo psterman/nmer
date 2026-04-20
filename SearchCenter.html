@@ -1281,6 +1281,7 @@ function syncEngineModeButton() {
 function mapFilterToGoSearchType() {
   const f = state.filterType || "";
   if (f === "clipboard") return "clipboard";
+  if (f === "fulltext") return "fulltext";
   return "all";
 }
 

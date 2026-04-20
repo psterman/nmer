@@ -1,14 +1,14 @@
-﻿[20260417131521] 启动一键安装流程
-[20260417131521] 工作目录: C:\Users\Administrator\Desktop\小c\cache\dict_install
-[20260417131521] 压缩包路径: C:\Users\Administrator\Desktop\小c\cache\dict_install\ecdict-package.zip
-[20260417131521] 解压目录: C:\Users\Administrator\Desktop\小c\cache\dict_install\dict-package
-[20260417131521] 最终数据库路径: C:\Users\Administrator\Desktop\小c\ultimate.db
-[20260417131521] 尝试源1: https://ghproxy.net/https://github.com/skywind3000/ECDICT-ultimate/releases/download/1.0.0/ecdict-ultimate-sqlite.zip
-[20260417131542] 源1下载成功，大小: 297225412 bytes
-[20260417131542] 源1包体检测: hasDb=false, isStardictRaw=false
-[20260417131542] 选定下载源: https://ghproxy.net/https://github.com/skywind3000/ECDICT-ultimate/releases/download/1.0.0/ecdict-ultimate-sqlite.zip
-[20260417131548] 7z 定向提取(db)退出码: 0
-[20260417131548] 数据库探测结果: C:\Users\Administrator\Desktop\小c\cache\dict_install\dict-package\ultimate.db
-[20260417131549] 数据库复制成功: C:\Users\Administrator\Desktop\小c\ultimate.db
-[20260417131614] 导入成功
-[20260417131614] 调用 SQ3_Open 完成
+﻿[20260421004225] 启动一键安装流程
+[20260421004225] 工作目录: C:\Users\Administrator\Desktop\小c\cache\dict_install
+[20260421004225] 压缩包路径: C:\Users\Administrator\Desktop\小c\cache\dict_install\ecdict-package.zip
+[20260421004225] 解压目录: C:\Users\Administrator\Desktop\小c\cache\dict_install\dict-package
+[20260421004225] 最终数据库路径: C:\Users\Administrator\Desktop\小c\ultimate.db
+[20260421004225] 尝试源1: https://ghproxy.net/https://github.com/skywind3000/ECDICT-ultimate/releases/download/1.0.0/ecdict-ultimate-sqlite.zip
+[20260421004254] 源1下载成功，大小: 297225412 bytes
+[20260421004254] 源1包体检测: hasDb=false, isStardictRaw=false
+[20260421004254] 选定下载源: https://ghproxy.net/https://github.com/skywind3000/ECDICT-ultimate/releases/download/1.0.0/ecdict-ultimate-sqlite.zip
+[20260421004259] 7z 定向提取(db)退出码: 0
+[20260421004259] 数据库探测结果: C:\Users\Administrator\Desktop\小c\cache\dict_install\dict-package\ultimate.db
+[20260421004300] 数据库复制成功: C:\Users\Administrator\Desktop\小c\ultimate.db
+[20260421004328] 导入成功
+[20260421004328] 调用 SQ3_Open 完成

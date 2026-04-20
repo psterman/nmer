@@ -9,15 +9,16 @@ import (
 )
 
 type serverStatus struct {
-	Base                 string `json:"base"`
-	ClipboardDB          string `json:"clipboardDbPath"`
-	MainIsCursorData     bool   `json:"mainIsCursorDataDb"`
-	CursorDataAttached   bool   `json:"cursorDataAttached"`
-	ClipMainPresent      bool   `json:"clipMainPresent"`
-	CurClipMainPresent   bool   `json:"curClipMainPresent"`
-	ClipboardHistoryFTS  bool   `json:"clipboardHistoryFts"`
-	EverythingDLLPresent bool   `json:"everythingDllPresent"`
-	EverythingExeFound   bool   `json:"everythingExeFound"`
+	Base                 string         `json:"base"`
+	ClipboardDB          string         `json:"clipboardDbPath"`
+	MainIsCursorData     bool           `json:"mainIsCursorDataDb"`
+	CursorDataAttached   bool           `json:"cursorDataAttached"`
+	ClipMainPresent      bool           `json:"clipMainPresent"`
+	CurClipMainPresent   bool           `json:"curClipMainPresent"`
+	ClipboardHistoryFTS  bool           `json:"clipboardHistoryFts"`
+	EverythingDLLPresent bool           `json:"everythingDllPresent"`
+	EverythingExeFound   bool           `json:"everythingExeFound"`
+	FullText             FullTextStatus `json:"fullText"`
 }
 
 func handleStatus(w http.ResponseWriter, r *http.Request, db *sql.DB, absBase string) {
@@ -34,6 +35,7 @@ func handleStatus(w http.ResponseWriter, r *http.Request, db *sql.DB, absBase st
 		CursorDataAttached:   curDatabaseAttached,
 		EverythingDLLPresent: fileExists(filepath.Join(absBase, "lib", "everything64.dll")),
 		EverythingExeFound:   resolveEverythingExe(absBase) != "",
+		FullText:             GetStatus(),
 	}
 	st.ClipMainPresent = tableNameExists(db, "ClipMain")
 	st.CurClipMainPresent = curDatabaseAttached && tableExistsInAttached(db, "cur", "ClipMain")

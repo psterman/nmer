@@ -329,6 +329,8 @@ _SCWV_MapFilterToGoSearchType(FilterType) {
     switch FilterType {
         case "clipboard":
             return "clipboard"
+        case "fulltext":
+            return "fulltext"
         case "template":
             return "template"
         case "config":
@@ -389,7 +391,10 @@ _SCWV_GroupGoItemsToAllDataResults(GoItems, hasMoreGo) {
     }
     AllDataResults := Map()
     for od, arr in buckets {
-        AllDataResults[od] := { DataType: od, DataTypeName: GetDataTypeName(od), Items: arr, HasMore: hasMoreGo }
+        dn := GetDataTypeName(od)
+        if (od = "fulltext")
+            dn := "全文搜索"
+        AllDataResults[od] := { DataType: od, DataTypeName: dn, Items: arr, HasMore: hasMoreGo }
     }
     return AllDataResults
 }
@@ -1149,6 +1154,8 @@ _SCWV_MergeAllDataResultsIntoSearchLists(AllDataResults, keyword, offset) {
                     ItemDataType := "Function"
                 else if (DataType = "ui")
                     ItemDataType := "UI"
+                else if (DataType = "fulltext")
+                    ItemDataType := "FullText"
             }
 
             if (ItemDataType = "")
@@ -1235,6 +1242,10 @@ _SCWV_RunAhkSearch(offset := 0) {
     keyword := Trim(SearchCenterWebKeyword)
     if (keyword = "") {
         SearchCenterHasMoreData := false
+        return
+    }
+    if (SearchCenterFilterType = "fulltext") {
+        _SCWV_ExecuteGoSearchHttp(offset, keyword, "fulltext", SearchCenterCurrentLimit)
         return
     }
     FilterDataTypes := GetSearchCenterDataTypesForFilter(SearchCenterFilterType)
@@ -1398,7 +1409,16 @@ _SCWV_GetFilteredResults() {
         } else if (SearchCenterFilterType = "function") {
             ShouldInclude := (res.HasProp("OriginalDataType") && res.OriginalDataType = "function") || (res.HasProp("Source") && InStr(res.Source, "功能") > 0)
         } else if (SearchCenterFilterType = "File") {
-            ShouldInclude := (res.HasProp("OriginalDataType") && res.OriginalDataType = "file") || (res.HasProp("DataType") && res.DataType = "File") || (res.HasProp("Source") && InStr(res.Source, "文件") > 0)
+            ShouldInclude := (res.HasProp("OriginalDataType") && (res.OriginalDataType = "file" || res.OriginalDataType = "fulltext")) || (res.HasProp("DataType") && res.DataType = "File") || (res.HasProp("Source") && InStr(res.Source, "文件") > 0)
+        } else if (SearchCenterFilterType = "fulltext") {
+            fullHit := false
+            if (res.HasProp("Metadata") && IsObject(res.Metadata)) {
+                if (res.Metadata is Map)
+                    fullHit := res.Metadata.Has("FullTextHit") && res.Metadata["FullTextHit"]
+                else if (res.Metadata.HasProp("FullTextHit"))
+                    fullHit := res.Metadata.FullTextHit
+            }
+            ShouldInclude := (res.HasProp("OriginalDataType") && res.OriginalDataType = "fulltext") || fullHit || (res.HasProp("DataType") && (res.DataType = "FullText" || res.DataType = "fulltext"))
         } else if (SearchCenterFilterType = "pinned") {
             pk := _SCWV_ResultPinKey(res)
             ShouldInclude := (pk != "" && g_SCWV_PinnedKeys.Has(pk) && g_SCWV_PinnedKeys[pk])
@@ -2121,6 +2141,7 @@ _SCWV_BuildFilterPayload() {
     return [
         Map("key", "", "text", "全部"),
         Map("key", "File", "text", "文件"),
+        Map("key", "fulltext", "text", "全文搜索"),
         Map("key", "clipboard", "text", "剪贴板"),
         Map("key", "template", "text", "提示词"),
         Map("key", "config", "text", "配置"),
@@ -5280,4 +5301,3 @@ _SCWV_LoadSearchHistory() {
     SearchCenterHasMoreData := false
     SCWV_PushState("state")
 }
-
