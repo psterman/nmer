@@ -1744,6 +1744,68 @@ _CP_DoGetPreview(id) {
                     imageFormat := StrLower(ext)
                 }
 
+                ; 额外：尝试识别“本地文件路径”并提供更强预览
+                ; - 优先 SourcePath（若为真实文件）
+                ; - 再尝试 Content 本身是路径
+                filePath := ""
+                try filePath := _CP_ResolvePastePath(content, item.Has("SourcePath") ? item["SourcePath"] : "")
+                catch
+                    filePath := ""
+                fileName2 := ""
+                fileExt := ""
+                fileSize2 := 0
+                isLocalFile := false
+                if (filePath != "" && FileExist(filePath)) {
+                    isLocalFile := true
+                    try SplitPath(filePath, &fileName2, , &fileExt)
+                    catch {
+                        fileName2 := ""
+                        fileExt := ""
+                    }
+                    try fileSize2 := FileGetSize(filePath)
+                    catch
+                        fileSize2 := 0
+                    if (!finalFileSize && fileSize2)
+                        finalFileSize := fileSize2
+                    if (!imageInfo["fileName"] && fileName2)
+                        imageInfo["fileName"] := fileName2
+                }
+
+                ; 小文本/Markdown/PDF：由 AHK 读取并送 base64，避免 WebView2 的 file:// 限制
+                ; 约束：避免巨大文件导致内存/消息体积爆炸
+                previewText := ""
+                fileBase64 := ""
+                fileMime := ""
+                maxTextBytes := 256 * 1024
+                maxBase64Bytes := 8 * 1024 * 1024
+                extLower := StrLower(Trim(fileExt, "."))
+                if (isLocalFile && extLower != "") {
+                    if (extLower = "txt" || extLower = "log" || extLower = "json" || extLower = "md" || extLower = "ahk" || extLower = "py" || extLower = "js") {
+                        try {
+                            bufT := FileRead(filePath, "RAW")
+                            if IsObject(bufT) && bufT.Size > 0 {
+                                n := bufT.Size > maxTextBytes ? maxTextBytes : bufT.Size
+                                previewText := StrGet(bufT, n, "UTF-8")
+                            }
+                        } catch as err {
+                            previewText := ""
+                        }
+                    } else if (extLower = "pdf") {
+                        try {
+                            if (fileSize2 > 0 && fileSize2 <= maxBase64Bytes) {
+                                bufP := FileRead(filePath, "RAW")
+                                if IsObject(bufP) && bufP.Size > 0 {
+                                    fileBase64 := Base64Encode(bufP)
+                                    fileMime := "application/pdf"
+                                }
+                            }
+                        } catch {
+                            fileBase64 := ""
+                            fileMime := ""
+                        }
+                    }
+                }
+
                 json := '{"type":"preview","id":' . id
                 json .= ',"content":' . _CP_JsonStr(content)
                 json .= ',"dataType":' . _CP_JsonStr(dataType)
@@ -1752,6 +1814,9 @@ _CP_DoGetPreview(id) {
                 json .= ',"thumbDataUrl":' . _CP_JsonStr(thumbDataUrl)
                 json .= ',"sourceUrl":' . _CP_JsonStr(sourceUrl)
                 json .= ',"imageFormat":' . _CP_JsonStr(imageFormat)
+                json .= ',"previewText":' . _CP_JsonStr(previewText)
+                json .= ',"fileBase64":' . _CP_JsonStr(fileBase64)
+                json .= ',"fileMime":' . _CP_JsonStr(fileMime)
                 json .= ',"meta":{'
                 json .= '"charCount":' . (charCount ? charCount : StrLen(content))
                 json .= ',"sourceApp":' . _CP_JsonStr(sourceApp)
@@ -1761,7 +1826,9 @@ _CP_DoGetPreview(id) {
                 json .= ',"imageHeight":' . finalHeight
                 json .= ',"fileSize":' . finalFileSize
                 json .= ',"fileSizeText":' . _CP_JsonStr(_CP_FormatBytes(finalFileSize))
-                json .= ',"fileName":' . _CP_JsonStr(imageInfo["fileName"])
+                json .= ',"fileName":' . _CP_JsonStr(imageInfo["fileName"] ? imageInfo["fileName"] : fileName2)
+                json .= ',"filePath":' . _CP_JsonStr(filePath)
+                json .= ',"fileExt":' . _CP_JsonStr(extLower)
                 json .= ',"sourceUrl":' . _CP_JsonStr(sourceUrl)
                 json .= ',"imageFormat":' . _CP_JsonStr(imageFormat)
                 json .= '}}'

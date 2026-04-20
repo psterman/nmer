@@ -1995,6 +1995,9 @@ function renderPreview(data) {
     if (data.meta.fileName) {
       metaHtml += '<div class="meta-item"><span class="meta-label">文件</span><span class="meta-value">' + escapeHtml(data.meta.fileName) + '</span></div>';
     }
+    if (data.meta.fileExt) {
+      metaHtml += '<div class="meta-item"><span class="meta-label">后缀</span><span class="meta-value">' + escapeHtml(String(data.meta.fileExt).toUpperCase()) + '</span></div>';
+    }
     if (data.meta.sourceUrl || data.sourceUrl) {
       const srcUrl = String(data.meta.sourceUrl || data.sourceUrl || '').trim();
       if (srcUrl) {
@@ -2013,6 +2016,51 @@ function renderPreview(data) {
 
   bodyEl.className = 'fade-in';
   setTimeout(() => { bodyEl.className = ''; }, 200);
+
+  const meta = (data && data.meta) ? data.meta : {};
+  const filePath = String(meta.filePath || '').trim();
+  const fileExt = String(meta.fileExt || '').trim().toLowerCase();
+  const fileMime = String(data.fileMime || '').trim().toLowerCase();
+  const fileBase64 = String(data.fileBase64 || '').trim();
+  const previewText = (data.previewText != null) ? String(data.previewText) : '';
+
+  const PREVIEW_TEXT_EXT = new Set(['txt','log','json','md','ahk','py','js']);
+  const PREVIEW_AUDIO_EXT = new Set(['mp3','wav','flac','m4a','aac','ogg','opus','wma']);
+  const PREVIEW_VIDEO_EXT = new Set(['mp4','m4v','mov','webm','mkv','avi']);
+
+  // 1) PDF：优先 AHK 传入 base64（避免 file:// 权限问题）
+  if ((fileExt === 'pdf' || fileMime === 'application/pdf') && fileBase64) {
+    bodyEl.innerHTML =
+      '<div class="preview-image-wrap">' +
+        '<iframe style="width:100%;height:100%;min-height:420px;border:0;border-radius:12px;background:#0f1113" ' +
+          'src="data:application/pdf;base64,' + escapeHtml(fileBase64) + '"></iframe>' +
+      '</div>';
+    return;
+  }
+
+  // 2) 音频/视频：使用 file:///（若 WebView2 环境拦截，会自然失败并显示错误）
+  if (filePath && (PREVIEW_AUDIO_EXT.has(fileExt) || PREVIEW_VIDEO_EXT.has(fileExt))) {
+    const url = toFileUrl(filePath);
+    if (PREVIEW_AUDIO_EXT.has(fileExt)) {
+      bodyEl.innerHTML =
+        '<div class="preview-image-wrap">' +
+          '<audio controls preload="metadata" style="width:100%" src="' + escapeHtml(url) + '"></audio>' +
+        '</div>';
+    } else {
+      bodyEl.innerHTML =
+        '<div class="preview-image-wrap">' +
+          '<video controls preload="metadata" playsinline style="width:100%;max-height:520px;border-radius:12px;background:#000" src="' + escapeHtml(url) + '"></video>' +
+        '</div>';
+    }
+    return;
+  }
+
+  // 3) 文本/Markdown：优先 previewText（由 AHK 截断后返回）
+  if ((filePath && PREVIEW_TEXT_EXT.has(fileExt)) || (previewText && previewText.length)) {
+    const text = previewText || (data.content || '');
+    bodyEl.innerHTML = '<pre>' + escapeHtml(text) + '</pre>';
+    return;
+  }
 
   let fallbackImageRef = extractImageRef(data.imagePath || data.content);
   const rawRef = String(data.imagePath || data.content || '').trim();
