@@ -156,28 +156,62 @@ _parseArray(s, &pos) {
 }
 
 ; Parse string
+; 注意：AHK v2 的转义字符是反引号(`)，不是反斜杠(\)。
+; 所以源码里要表示 "单个反斜杠" 就是 "\"，要表示 "双引号" 就是 '"'。
+; 旧实现用 "\\" 比较单字符 char，永远不会成立，导致 JSON 中的所有
+; \" \\ \n 等转义都被错误处理，进而把 \" 后的 " 当成字符串结束符，
+; 整个 JSON 解析失败回退成空 Map()，是单字符搜索"无结果"的根因。
 _parseString(s, &pos) {
     pos++ ; skip opening quote
     result := ""
+    sLen := StrLen(s)
 
-    while (pos <= StrLen(s)) {
+    while (pos <= sLen) {
         char := SubStr(s, pos, 1)
         pos++
 
         if (char == '"') {
             break
-        } else if (char == "\\") {
-            if (pos <= StrLen(s)) {
+        } else if (char == "\") {
+            if (pos <= sLen) {
                 next := SubStr(s, pos, 1)
                 pos++
                 switch next {
                     case '"': result .= '"'
-                    case '\\': result .= '\\'
-                    case 'n': result .= '`n'
-                    case 'r': result .= '`r'
-                    case 't': result .= '`t'
-                    case 'b': result .= '`b'
-                    case 'f': result .= '`f'
+                    case "\": result .= "\"
+                    case "/": result .= "/"
+                    case "n": result .= "`n"
+                    case "r": result .= "`r"
+                    case "t": result .= "`t"
+                    case "b": result .= "`b"
+                    case "f": result .= "`f"
+                    case "u":
+                        ; \uXXXX —— 解析 4 位十六进制 Unicode 码点
+                        if (pos + 3 <= sLen) {
+                            hex := SubStr(s, pos, 4)
+                            pos += 4
+                            try {
+                                code := Integer("0x" . hex)
+                                ; 处理 BMP 之外的代理对（高代理 0xD800-0xDBFF）
+                                if (code >= 0xD800 && code <= 0xDBFF
+                                    && pos + 5 <= sLen
+                                    && SubStr(s, pos, 2) == "\u") {
+                                    hex2 := SubStr(s, pos + 2, 4)
+                                    try {
+                                        low := Integer("0x" . hex2)
+                                        if (low >= 0xDC00 && low <= 0xDFFF) {
+                                            pos += 6
+                                            code := 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
+                                        }
+                                    }
+                                }
+                                result .= Chr(code)
+                            } catch {
+                                result .= next
+                            }
+                        } else {
+                            result .= next
+                        }
                     default: result .= next
                 }
             }
@@ -236,7 +270,16 @@ _dumpValue(v) {
         }
         return "[" . StrJoin(items, ",") . "]"
     } else if (t == "String") {
-        return '"' . StrReplace(StrReplace(StrReplace(StrReplace(v, '\', '\\'), '`t', '\t'), '`n', '\n'), '"', '\"') . '"'
+        ; 必须先转义反斜杠本身，再转义其它特殊字符；同样注意 AHK v2 中
+        ; "\\" 是两个字符，所以这里用 "\" 表示单反斜杠、"\\" 表示双反斜杠。
+        esc := StrReplace(v, "\", "\\")
+        esc := StrReplace(esc, '"', '\"')
+        esc := StrReplace(esc, "`b", "\b")
+        esc := StrReplace(esc, "`f", "\f")
+        esc := StrReplace(esc, "`n", "\n")
+        esc := StrReplace(esc, "`r", "\r")
+        esc := StrReplace(esc, "`t", "\t")
+        return '"' . esc . '"'
     } else if (t == "Integer" || t == "Float") {
         ; AHK v2 中 true/false 也是 Integer，这里直接输出数字以保证数据严谨
         return String(v)
