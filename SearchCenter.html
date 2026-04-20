@@ -692,33 +692,6 @@ button, input, select, textarea { font: inherit; }
   opacity: 0.3;
   cursor: default;
 }
-.ql-install-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255,255,255,.06);
-}
-.ql-install-text {
-  flex: 1 1 100%;
-  min-width: 0;
-  line-height: 1.45;
-  color: #9aa3ad;
-  font-size: 11px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-#preview-ql-install-btn {
-  align-self: flex-start;
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-.ql-install-row.hidden {
-  display: none !important;
-}
 #preview-web-scroll pre[class*="language-"] {
   margin: 0;
   padding: 12px;
@@ -1180,10 +1153,6 @@ mark {
               <button type="button" id="preview-ql-btn" title="可选：调用便携版 QuickLook.exe">QuickLook</button>
             </div>
           </div>
-          <div id="preview-ql-install-row" class="ql-install-row hidden">
-            <span id="preview-ql-install-text" class="ql-install-text">QuickLook 未安装时无法使用空格兜底预览。可一键下载官方便携包（依次尝试 GitHub → ghproxy.com → ghproxy.net → kkgithub）。</span>
-            <button type="button" id="preview-ql-install-btn" class="preview-ctrl-btn" title="下载并解压到本地 cache 目录">一键安装 QuickLook</button>
-          </div>
         </div>
       </div>
     </div>
@@ -1271,7 +1240,9 @@ const state = {
     installBusy: false,
     installProgressMsg: "",
     installProgressPct: null,
-    lastInstallError: ""
+    lastInstallError: "",
+    pendingOpenPath: "",
+    pendingOpenRow: 0
   }
 };
 
@@ -1334,7 +1305,7 @@ const PREVIEW_AUDIO_EXT = new Set(["mp3", "wav", "flac", "m4a", "aac", "ogg", "o
 const PREVIEW_VIDEO_EXT = new Set(["mp4", "m4v", "mov", "webm", "mkv", "avi"]);
 const PREVIEW_PDF_EXT = new Set(["pdf"]);
 const PREVIEW_ARCHIVE_EXT = new Set(["zip", "7z", "rar", "tar", "gz", "tgz", "bz2", "xz", "cab", "iso"]);
-const PDF_MODE_OPTIONS = ["auto", "pdfjs", "web", "pdfium", "ipreview", "quicklook"];
+const PDF_MODE_OPTIONS_BASE = ["auto", "pdfjs", "web", "pdfium", "ipreview"];
 const ONE_MB = 1048576;
 const HOTKEY_HINT_MAP = Object.freeze({
   category: Object.freeze({
@@ -1702,40 +1673,44 @@ function setQuickLookHintVisible(show) {
   if (show) updateQuickLookInstallUi();
 }
 
+function isQuickLookInstalled() {
+  const q = state.quickLook || {};
+  return !!q.installed;
+}
+
 /**
- * QuickLook 可选组件：与 AHK quickLook 状态同步，控制「一键安装」行显隐与文案。
+ * 单按钮模式：
+ * 未安装 => 按钮显示“安装QuickLook”，点击后用户确认下载并安装；
+ * 已安装 => 按钮显示“QuickLook”，点击后直接触发 QuickLook 预览。
  */
 function updateQuickLookInstallUi() {
-  const row = document.getElementById("preview-ql-install-row");
-  const txt = document.getElementById("preview-ql-install-text");
-  const btn = document.getElementById("preview-ql-install-btn");
-  if (!row || !txt || !btn) return;
+  const btn = document.getElementById("preview-ql-btn");
+  if (!btn) return;
   const q = state.quickLook || {};
-  const installed = !!q.installed;
+  const installed = isQuickLookInstalled();
   const busy = !!q.installBusy;
-  if (installed && !busy) {
-    row.classList.add("hidden");
-    return;
-  }
-  row.classList.remove("hidden");
-  btn.disabled = busy;
-  if (busy) {
-    const pm = (q.installProgressMsg && String(q.installProgressMsg).trim()) || "正在安装…";
-    const pct = typeof q.installProgressPct === "number" && !Number.isNaN(q.installProgressPct) ? q.installProgressPct : null;
-    txt.textContent = pct != null ? `进度 ${Math.round(pct)}% · ${pm}` : pm;
-    btn.textContent = "安装中…";
-    return;
-  }
   const err = (q.lastInstallError && String(q.lastInstallError).trim()) || "";
-  if (err) {
-    txt.textContent = err + " 可点击重试（依次尝试 GitHub / ghproxy.com / ghproxy.net / kkgithub）。";
-  } else {
-    txt.textContent =
-      "QuickLook 未安装时无法使用空格兜底预览。点击下方可下载官方 " +
-      (q.version || "4.5.0") +
-      " 便携包并解压到本地 cache（双源下载 → 校验 → 7z 解压）。";
+
+  if (busy) {
+    const pm = (q.installProgressMsg && String(q.installProgressMsg).trim()) || "正在安装 QuickLook…";
+    const pct = typeof q.installProgressPct === "number" && !Number.isNaN(q.installProgressPct) ? q.installProgressPct : null;
+    btn.disabled = true;
+    btn.textContent = pct != null ? `安装中 ${Math.round(pct)}%` : "安装中…";
+    btn.title = pm;
+    return;
   }
-  btn.textContent = "一键安装 QuickLook";
+
+  btn.disabled = false;
+  if (installed) {
+    btn.textContent = "QuickLook";
+    btn.title = "已安装，点击直接使用 QuickLook 预览";
+    return;
+  }
+
+  btn.textContent = "安装QuickLook";
+  btn.title = err
+    ? (err + " 点击重试安装。")
+    : "未安装。点击后可下载并启用 QuickLook 预览机制。";
 }
 
 function stopNativePreview() {
@@ -1787,8 +1762,15 @@ function collectPreviewBounds() {
   };
 }
 
+function getPdfModeOptions() {
+  const options = PDF_MODE_OPTIONS_BASE.slice();
+  if (isQuickLookInstalled()) options.push("quicklook");
+  return options;
+}
+
 function setPdfMode(mode) {
-  const m = PDF_MODE_OPTIONS.includes(mode) ? mode : "auto";
+  const options = getPdfModeOptions();
+  const m = options.includes(mode) ? mode : "auto";
   state.pdfMode = m;
   try { localStorage.setItem("sc_pdf_preview_mode", m); } catch {}
   updatePdfModeButton();
@@ -1801,8 +1783,9 @@ function updatePdfModeButton() {
 }
 
 function cyclePdfMode() {
-  const idx = PDF_MODE_OPTIONS.indexOf(state.pdfMode);
-  const next = PDF_MODE_OPTIONS[(idx + 1) % PDF_MODE_OPTIONS.length];
+  const options = getPdfModeOptions();
+  const idx = options.indexOf(state.pdfMode);
+  const next = options[(idx + 1) % options.length];
   setPdfMode(next);
   if (pathExtensionLower(state.previewPath) === "pdf") scheduleRunPreview();
 }
@@ -1959,12 +1942,18 @@ function onWebPdfJsError(payload) {
 }
 
 function startPdfPlan(path, seq) {
-  const mode = state.pdfMode || "auto";
+  let mode = state.pdfMode || "auto";
+  if (mode === "quicklook" && !isQuickLookInstalled()) {
+    mode = "auto";
+    setPdfMode("auto");
+  }
   let chain = [];
   if (mode === "auto")
     chain = state.pdfWebBroken ? ["pdfjs", "pdfium", "ipreview"] : ["pdfjs", "web", "pdfium", "ipreview"];
-  else if (mode === "quicklook") chain = ["quicklook"]; // 用户显式选择 quicklook 才执行
-  else chain = [mode];
+  else if (mode === "quicklook")
+    chain = ["quicklook"]; // only run QuickLook when explicitly selected
+  else
+    chain = [mode];
   state.pdfJsRx = null;
   state.pdfPlan = { path, seq, chain, idx: -1, done: false, timer: 0 };
   advancePdfPlan("start");
@@ -2658,9 +2647,24 @@ function invokeQuickLook(pathOverride = "") {
   if (!targetPath) targetPath = state.previewPath || "";
   if (!targetPath) return;
   const pane = document.getElementById("preview-web-scroll");
-  if (pane) {
-    pane.innerHTML = "<div class=\"preview-loading\">正在调用 QuickLook…</div>";
+  state.quickLook = state.quickLook || {};
+  if (!isQuickLookInstalled()) {
+    if (state.quickLook.installBusy) {
+      if (pane) pane.innerHTML = "<div class=\"preview-loading\">正在安装 QuickLook…</div>";
+      return;
+    }
+    const ok = window.confirm("尚未安装 QuickLook。是否现在下载并启用 QuickLook 预览机制？");
+    if (!ok) return;
+    state.quickLook.lastInstallError = "";
+    state.quickLook.pendingOpenPath = targetPath;
+    state.quickLook.pendingOpenRow = selectedRow;
+    if (pane) pane.innerHTML = "<div class=\"preview-loading\">正在下载并安装 QuickLook…</div>";
+    postToAhk({ type: "INSTALL_QUICKLOOK" });
+    updateQuickLookInstallUi();
+    return;
   }
+
+  if (pane) pane.innerHTML = "<div class=\"preview-loading\">正在调用 QuickLook…</div>";
   postToAhk({ type: "QUICKLOOK", path: targetPath, row: selectedRow });
 }
 
@@ -2798,6 +2802,9 @@ function applyState(payload) {
     if (q.version != null) state.quickLook.version = String(q.version);
     if (typeof q.installBusy === "boolean") state.quickLook.installBusy = q.installBusy;
     updateQuickLookInstallUi();
+    if (!isQuickLookInstalled() && state.pdfMode === "quicklook") {
+      setPdfMode("auto");
+    }
   }
 
   const wasSelected = state.selectedRow;
@@ -2970,19 +2977,11 @@ if (previewPdfModeBtn) {
   previewPdfModeBtn.addEventListener("click", () => cyclePdfMode());
 }
 setPdfMode(state.pdfMode || "auto");
+updateQuickLookInstallUi();
 const previewQlBtn = document.getElementById("preview-ql-btn");
 if (previewQlBtn) {
   previewQlBtn.addEventListener("click", () => {
     invokeQuickLook();
-  });
-}
-const previewQlInstallBtn = document.getElementById("preview-ql-install-btn");
-if (previewQlInstallBtn) {
-  previewQlInstallBtn.addEventListener("click", () => {
-    if (state.quickLook && state.quickLook.installBusy) return;
-    state.quickLook = state.quickLook || {};
-    state.quickLook.lastInstallError = "";
-    postToAhk({ type: "INSTALL_QUICKLOOK" });
   });
 }
 const previewNativeBtn = document.getElementById("preview-native-btn");
@@ -3245,10 +3244,28 @@ if (window.chrome && window.chrome.webview) {
         state.quickLook.installed = true;
         state.quickLook.lastInstallError = "";
         if (payload.path) state.quickLook.path = String(payload.path);
+        const pendingPath = state.quickLook.pendingOpenPath ? String(state.quickLook.pendingOpenPath) : "";
+        const pendingRow = Number(state.quickLook.pendingOpenRow) || 0;
+        state.quickLook.pendingOpenPath = "";
+        state.quickLook.pendingOpenRow = 0;
+        if (pendingPath) {
+          setTimeout(() => {
+            invokeQuickLook(pendingPath);
+          }, 80);
+        } else if (pendingRow > 0) {
+          setTimeout(() => {
+            const item = state.results.find((entry) => entry.row == pendingRow);
+            const p = getSelectedItemPath(item);
+            if (p) invokeQuickLook(p);
+          }, 80);
+        }
       } else {
         state.quickLook.lastInstallError = String(payload.message || "安装失败");
+        state.quickLook.pendingOpenPath = "";
+        state.quickLook.pendingOpenRow = 0;
       }
       updateQuickLookInstallUi();
+      if (!isQuickLookInstalled() && state.pdfMode === "quicklook") setPdfMode("auto");
       return;
     }
     if (payload.type === "init" || payload.type === "state") {

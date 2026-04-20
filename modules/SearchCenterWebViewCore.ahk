@@ -3583,19 +3583,6 @@ _SCWV_QuickLookInvokeStep(*) {
         return
     }
 
-    hwnd := _SCWV_QuickLookFindPreviewHwnd()
-    if hwnd {
-        if g_SCWV_QLRaiseTimer {
-            try SetTimer(g_SCWV_QLRaiseTimer, 0)
-            g_SCWV_QLRaiseTimer := 0
-        }
-        g_SCWV_QLRaiseTimer := _SCWV_QuickLookRaiseOnce
-        SetTimer(_SCWV_QuickLookRaiseOnce, -120)
-        _SCWV_QuickLookPostOpenState("ok", "QuickLook 预览窗口已激活。", p)
-        _SCWV_QuickLookInvokeReset()
-        return
-    }
-
     shouldSend := (g_SCWV_QLInvokeSendCount = 0)
     ; 仅在等待较久时补发一次，避免重复调用触发 QuickLook 反向切换关闭。
     if (!shouldSend && g_SCWV_QLInvokeSendCount = 1 && g_SCWV_QLInvokeAttempts >= 6)
@@ -3616,18 +3603,21 @@ _SCWV_QuickLookInvokeStep(*) {
             return
         }
 
-        hwnd2 := _SCWV_QuickLookFindPreviewHwnd()
-        if hwnd2 {
-            if g_SCWV_QLRaiseTimer {
-                try SetTimer(g_SCWV_QLRaiseTimer, 0)
-                g_SCWV_QLRaiseTimer := 0
-            }
-            g_SCWV_QLRaiseTimer := _SCWV_QuickLookRaiseOnce
-            SetTimer(_SCWV_QuickLookRaiseOnce, -120)
-            _SCWV_QuickLookPostOpenState("ok", "QuickLook 预览窗口已激活。", p)
-            _SCWV_QuickLookInvokeReset()
-            return
+    }
+
+    ; 只有本次请求已至少发送过一次目标路径，才认定“已激活”。
+    ; 否则 QuickLook 仅是已有旧窗口时会被误判成功，导致新文件不切换。
+    hwnd := _SCWV_QuickLookFindPreviewHwnd()
+    if (hwnd && g_SCWV_QLInvokeSendCount > 0) {
+        if g_SCWV_QLRaiseTimer {
+            try SetTimer(g_SCWV_QLRaiseTimer, 0)
+            g_SCWV_QLRaiseTimer := 0
         }
+        g_SCWV_QLRaiseTimer := _SCWV_QuickLookRaiseOnce
+        SetTimer(_SCWV_QuickLookRaiseOnce, -120)
+        _SCWV_QuickLookPostOpenState("ok", "QuickLook 预览窗口已激活。", p)
+        _SCWV_QuickLookInvokeReset()
+        return
     }
 
     if (g_SCWV_QLInvokeAttempts >= maxAttempts) {
@@ -4490,7 +4480,7 @@ class PreviewManager {
         }
         ql := SCWV_ResolveQuickLookExe()
         if (ql = "" || !FileExist(ql)) {
-            _SCWV_QuickLookPostOpenState("fail", "QuickLook 未安装，请先点击“一键安装 QuickLook”。", path)
+            _SCWV_QuickLookPostOpenState("fail", "QuickLook 未安装，请先点击“QuickLook”按钮下载并启用。", path)
             return
         }
         SCWV_Preview_UnloadNative()
