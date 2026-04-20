@@ -3298,6 +3298,11 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     if (longPressTriggered) return;
     clearLongPressTimer();
     longPressTriggered = true;
+    if (appEl && longPressPointerId !== null && appEl.setPointerCapture) {
+      try {
+        appEl.setPointerCapture(longPressPointerId);
+      } catch (_) {}
+    }
     dragHost();
   }
 
@@ -3308,7 +3313,9 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     }
     if (appEl && e && appEl.releasePointerCapture) {
       try {
-        appEl.releasePointerCapture(e.pointerId);
+        if (!appEl.hasPointerCapture || appEl.hasPointerCapture(e.pointerId)) {
+          appEl.releasePointerCapture(e.pointerId);
+        }
       } catch (_) {}
     }
     longPressTriggered = false;
@@ -3327,11 +3334,6 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
         longPressPointerId = e.pointerId;
         longPressStartScreenX = e.screenX;
         longPressStartScreenY = e.screenY;
-        if (appEl.setPointerCapture) {
-          try {
-            appEl.setPointerCapture(e.pointerId);
-          } catch (_) {}
-        }
         clearLongPressTimer();
         longPressTimer = setTimeout(function () {
           if (longPressPointerId === null) return;

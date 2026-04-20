@@ -102,9 +102,17 @@ button, input, select, textarea { font: inherit; }
   background: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
   color: #fff;
 }
-.chrome-btn.close:hover {
-  border-color: rgba(255,122,122,.6);
-  background: linear-gradient(180deg, rgba(255,122,122,.22), rgba(255,122,122,.12));
+.chrome-btn.active {
+  border-color: rgba(255,179,71,.72);
+  background: linear-gradient(180deg, rgba(255,179,71,.24), rgba(255,141,42,.2));
+  color: #fff;
+}
+#chrome-topmost {
+  width: auto;
+  min-width: 44px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 600;
 }
 .chrome-engine-btn {
   flex-shrink: 0;
@@ -1080,9 +1088,7 @@ mark {
         <button type="button" id="engine-mode-go" class="engine-mode-btn" data-engine="go" title="极速：Go SearchCenterCore">极速 · Go</button>
         <button type="button" id="engine-mode-ahk" class="engine-mode-btn" data-engine="ahk" title="标准：AHK 本地引擎">标准 · AHK</button>
       </div>
-      <button type="button" id="chrome-minimize" class="chrome-btn" title="Minimize">-</button>
-      <button type="button" id="chrome-maximize" class="chrome-btn" title="Maximize">[]</button>
-      <button type="button" id="chrome-close" class="chrome-btn close" title="Close">X</button>
+      <button type="button" id="chrome-topmost" class="chrome-btn" title="置顶窗口">置顶</button>
     </div>
   </header>
 
@@ -1233,6 +1239,7 @@ const state = {
   pdfPlan: null,
   pdfWebBroken: false,
   pdfJsRx: null,
+  hostTopMost: true,
   quickLook: {
     installed: false,
     path: "",
@@ -1676,6 +1683,15 @@ function setQuickLookHintVisible(show) {
 function isQuickLookInstalled() {
   const q = state.quickLook || {};
   return !!q.installed;
+}
+
+function updateChromeTopMostButton() {
+  const btn = document.getElementById("chrome-topmost");
+  if (!btn) return;
+  const topMost = !!state.hostTopMost;
+  btn.classList.toggle("active", topMost);
+  btn.textContent = topMost ? "置顶" : "未置顶";
+  btn.title = topMost ? "当前已置顶，点击取消置顶" : "当前未置顶，点击置顶窗口";
 }
 
 /**
@@ -2793,6 +2809,7 @@ function applyState(payload) {
   state.statusLine = payload.statusLine || "";
   state.recycleBin = Array.isArray(payload.recycleBin) ? payload.recycleBin : [];
   state.recycleCount = typeof payload.recycleCount === "number" ? payload.recycleCount : state.recycleBin.length;
+  if (typeof payload.hostTopMost === "boolean") state.hostTopMost = payload.hostTopMost;
 
   if (payload.quickLook && typeof payload.quickLook === "object") {
     const q = payload.quickLook;
@@ -2829,6 +2846,7 @@ function applyState(payload) {
   renderFilters();
   renderResults();
   syncEngineModeButton();
+  updateChromeTopMostButton();
   requestAnimationFrame(() => {
     window.dispatchEvent(new Event("resize"));
   });
@@ -2991,24 +3009,13 @@ if (previewNativeBtn) {
   });
 }
 
-const chromeCloseBtn = document.getElementById("chrome-close");
-const chromeMinimizeBtn = document.getElementById("chrome-minimize");
-const chromeMaximizeBtn = document.getElementById("chrome-maximize");
-if (chromeMinimizeBtn) {
-  chromeMinimizeBtn.addEventListener("click", () => {
-    postToAhk({ type: "windowMinimize" });
+const chromeTopMostBtn = document.getElementById("chrome-topmost");
+if (chromeTopMostBtn) {
+  chromeTopMostBtn.addEventListener("click", () => {
+    postToAhk({ type: "windowToggleTopMost" });
   });
 }
-if (chromeMaximizeBtn) {
-  chromeMaximizeBtn.addEventListener("click", () => {
-    postToAhk({ type: "windowToggleMaximize" });
-  });
-}
-if (chromeCloseBtn) {
-  chromeCloseBtn.addEventListener("click", () => {
-    postToAhk({ type: "close" });
-  });
-}
+updateChromeTopMostButton();
 
 (function initChromeDrag() {
   const dragHost = document.getElementById("chrome-header");
