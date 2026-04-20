@@ -34,6 +34,15 @@ global g_SCWV_RecycleBin := []  ; 鍒犻櫎椤瑰揩鐓?{title,content,id}
 global g_SCWV_PreviewCapabilityCache := Map() ; extDot -> {state, ts, ...}
 global g_SCWV_DeactivateBlockUntil := 0
 global g_SCWV_DeactivateBlockReason := ""
+global g_SCWV_QuickLookVersion := "4.5.0"
+global g_SCWV_QuickLookInstallBusy := false
+global g_SCWV_QuickLookInstallQueued := false
+global g_SCWV_QLInvokeTimer := 0
+global g_SCWV_QLInvokePath := ""
+global g_SCWV_QLInvokeExe := ""
+global g_SCWV_QLInvokeDir := ""
+global g_SCWV_QLInvokeAttempts := 0
+global g_SCWV_QLInvokeSendCount := 0
 
 _SCWV_BlockDeactivate(ms := 1500, reason := "") {
     global g_SCWV_DeactivateBlockUntil, g_SCWV_DeactivateBlockReason
@@ -951,6 +960,9 @@ SCWV_OnWebMessage(sender, args) {
             SCWV_Preview_UnloadNative()
         case "QUICKLOOK":
             p := msg.Has("path") ? String(msg["path"]) : ""
+            row := msg.Has("row") ? Integer(msg["row"]) : 0
+            if (Trim(p) = "")
+                p := _SCWV_ResolveQuickLookPathByRow(row)
             SCWV_Preview_TryQuickLook(p)
         case "INVOKE_IPREVIEW":
             p := msg.Has("path") ? String(msg["path"]) : ""
@@ -992,6 +1004,20 @@ SCWV_OnWebMessage(sender, args) {
             sq := msg.Has("seq") ? Integer(msg["seq"]) : 0
             _SCWV_BlockDeactivate(2500, "archive_preview")
             SCWV_Preview_OnArchiveList(p, sq)
+        case "INSTALL_QUICKLOOK":
+            global g_SCWV_QuickLookInstallBusy
+            if g_SCWV_QuickLookInstallBusy {
+                SCWV_PostJson(Map("type", "quicklook_install_progress", "percent", 0, "message", "安装任务进行中，请稍候…"))
+                return
+            }
+            if (SCWV_ResolveQuickLookExe() != "") {
+                SCWV_PostJson(Map("type", "quicklook_install_state", "ok", true, "message", "QuickLook 已安装", "path", SCWV_ResolveQuickLookExe()))
+                return
+            }
+            if !SCWV_QuickLookInstall_RequestStart()
+                SCWV_PostJson(Map("type", "quicklook_install_state", "ok", false, "message", "无法开始安装（可能已有任务）", "path", ""))
+        case "QUICKLOOK_STATUS":
+            SCWV_PushState("state")
     }
 }
 
@@ -1447,6 +1473,7 @@ SCWV_PushState(msgType := "state") {
     status .= " · 已选引擎 " . (IsObject(SearchCenterSelectedEngines) ? SearchCenterSelectedEngines.Length : 0) . " 个"
     status .= " · 当前限制 " . SearchCenterCurrentLimit
 
+    qlExe := SCWV_ResolveQuickLookExe()
     payload := Map(
         "type", msgType,
         "keyword", SearchCenterWebKeyword,
@@ -1466,10 +1493,628 @@ SCWV_PushState(msgType := "state") {
         "hasMore", SearchCenterHasMoreData ? true : false,
         "total", results.Length,
         "recycleBin", recycleBin,
-        "recycleCount", recycleBin.Length
+        "recycleCount", recycleBin.Length,
+        "quickLook", Map(
+            "installed", (qlExe != ""),
+            "path", qlExe,
+            "version", g_SCWV_QuickLookVersion,
+            "installBusy", g_SCWV_QuickLookInstallBusy
+        )
     )
 
     try SCWV_PostJson(payload)
+}
+
+; 可选组件 QuickLook：优先用户下载目录，其次兼容旧版 lib 内置路径
+SCWV_ResolveQuickLookExe() {
+    global g_SCWV_QuickLookVersion
+    v := Trim(String(g_SCWV_QuickLookVersion))
+    if (v = "")
+        v := "4.5.0"
+    p1 := A_ScriptDir "\cache\addons\QuickLook-" . v . "\QuickLook.exe"
+    if FileExist(p1)
+        return p1
+    p2 := A_ScriptDir "\lib\QuickLook\QuickLook.exe"
+    if FileExist(p2)
+        return p2
+    return ""
+}
+
+_SCWV_Read7zListLog(path) {
+    p := Trim(String(path))
+    if (p = "" || !FileExist(p))
+        return ""
+    for enc in ["UTF-8", "CP0"] {
+        try {
+            t := FileRead(p, enc)
+            if (Trim(t) != "")
+                return t
+        } catch {
+        }
+    }
+    try return FileRead(p)
+    catch {
+        return ""
+    }
+}
+
+_SCWV_ZipListTextHasQuickLookExe(t) {
+    if (Trim(String(t)) = "")
+        return false
+    if InStr(t, "QuickLook.exe", false)
+        return true
+    return RegExMatch(t, "i)QuickLook\.exe") ? true : false
+}
+
+; 在中央目录/局部文件头附近搜索 ASCII 文件名（不依赖 7z 控制台编码）
+_SCWV_ZipRawContainsQuickLookExe(zipPath) {
+    z := Trim(String(zipPath))
+    if (z = "" || !FileExist(z))
+        return false
+    needle := "QuickLook.exe"
+    n := StrLen(needle)
+    nb := Buffer(n)
+    StrPut(needle, nb, "CP0")
+    try sz := FileGetSize(z)
+    catch {
+        return false
+    }
+    if (sz < n)
+        return false
+    chunkMax := 2 * 1024 * 1024
+    f := FileOpen(z, "r")
+    if !f
+        return false
+    try {
+        tailLen := Min(chunkMax, sz)
+        f.Seek(sz - tailLen)
+        buf := Buffer(tailLen, 0)
+        f.RawRead(buf, tailLen)
+        if _SCWV_BufferFindBytes(buf, nb, n)
+            return true
+        f.Seek(0)
+        headLen := Min(chunkMax, sz)
+        buf2 := Buffer(headLen, 0)
+        f.RawRead(buf2, headLen)
+        return _SCWV_BufferFindBytes(buf2, nb, n)
+    } catch {
+        return false
+    } finally {
+        try f.Close()
+    }
+}
+
+_SCWV_BufferFindBytes(hay, needleBuf, n) {
+    if !IsObject(hay) || hay.Size < n || n < 1
+        return false
+    lim := hay.Size - n
+    pH := hay.Ptr
+    pN := needleBuf.Ptr
+    Loop lim + 1 {
+        i := A_Index - 1
+        match := true
+        Loop n {
+            j := A_Index - 1
+            if NumGet(pH, i + j, "UChar") != NumGet(pN, j, "UChar") {
+                match := false
+                break
+            }
+        }
+        if match
+            return true
+    }
+    return false
+}
+
+_SCWV_QuickLookInspectArchive(zipPath) {
+    z := Trim(String(zipPath))
+    if (z = "" || !FileExist(z))
+        return Map("ok", false, "message", "压缩包不存在")
+    sevenZip := A_ScriptDir "\lib\7z.exe"
+    if !FileExist(sevenZip)
+        return Map("ok", false, "message", "未找到 lib\\7z.exe")
+    workDir := A_ScriptDir "\cache\quicklook_install"
+    if !DirExist(workDir)
+        DirCreate(workDir)
+    listLog := workDir "\7z_list_ql.log"
+    hitLog := workDir "\7z_hit_ql.txt"
+    listSlt := workDir "\7z_list_slt.log"
+    try FileDelete(listLog)
+    catch {
+    }
+    try FileDelete(hitLog)
+    catch {
+    }
+    try FileDelete(listSlt)
+    catch {
+    }
+    ; ① 简短列表（推荐，-slt 与 -ba 组合在部分版本下输出异常）
+    cmd := '"' . sevenZip . '" l -ba -- "' . z . '" > "' . listLog . '" 2>&1'
+    rc := RunWait(A_ComSpec . " /c " . cmd, , "Hide")
+    txt := _SCWV_Read7zListLog(listLog)
+    if (rc > 1 && Trim(txt) = "")
+        return Map("ok", false, "message", "压缩包列表失败(7z退出码:" . rc . ")")
+    if _SCWV_ZipListTextHasQuickLookExe(txt)
+        return Map("ok", true, "hasExe", true, "list", txt)
+    ; ② findstr 过滤（控制台 OEM 下仍能找到 ASCII 路径）
+    cmdHit := '"' . sevenZip . '" l -ba -- "' . z . '" | findstr /i "QuickLook.exe" > "' . hitLog . '" 2>&1'
+    RunWait(A_ComSpec . " /c " . cmdHit, , "Hide")
+    hitTxt := _SCWV_Read7zListLog(hitLog)
+    if _SCWV_ZipListTextHasQuickLookExe(hitTxt)
+        return Map("ok", true, "hasExe", true, "list", txt "`n---`n" . hitTxt)
+    ; ③ 技术列表（无 -ba）
+    cmdSlt := '"' . sevenZip . '" l -slt -- "' . z . '" > "' . listSlt . '" 2>&1'
+    rcSlt := RunWait(A_ComSpec . " /c " . cmdSlt, , "Hide")
+    txtSlt := _SCWV_Read7zListLog(listSlt)
+    if (rcSlt > 1 && Trim(txtSlt) = "" && Trim(txt) = "")
+        return Map("ok", false, "message", "压缩包列表失败(7z)")
+    if _SCWV_ZipListTextHasQuickLookExe(txtSlt)
+        return Map("ok", true, "hasExe", true, "list", txtSlt)
+    ; ④ 直接扫 zip 内 ASCII 文件名（兜底）
+    if _SCWV_ZipRawContainsQuickLookExe(z)
+        return Map("ok", true, "hasExe", true, "list", "(zip 内嵌文件名扫描)")
+    return Map("ok", true, "hasExe", false, "list", SubStr(txt . txtSlt, 1, 1500))
+}
+
+_SCWV_QuickLookFindPortableRoot(dir) {
+    root := Trim(String(dir))
+    if (root = "" || !DirExist(root))
+        return ""
+    found := ""
+    Loop Files root "\*", "R" {
+        if (A_LoopFileName != "QuickLook.exe")
+            continue
+        found := A_LoopFileDir
+        break
+    }
+    return found
+}
+
+; QuickLook 下载进度回调（供 Bind 固定 percent，避免胖箭头捕获 for 循环变量 idx 导致未赋值错误）
+_SCWV_QuickLookDownloadStatusCb(percent, msg) {
+    SCWV_QuickLookInstall_PostProgress(Integer(percent), String(msg))
+}
+
+; WinHttp 分段下载：状态行（Bind 固定 idx / 源总数 / 源名称）
+SCWV_QuickLookInstall_OnHttpStatus(idx, n, label, msg) {
+    SCWV_QuickLookInstall_PostProgress(Min(92, 6 + (idx - 1) * 3), "① 下载 · [" . idx . "/" . n . " " . label . "] " . String(msg))
+}
+
+; WinHttp 分段下载：进度（Bind 固定 idx / n / label；回调参数 pct, written, total）
+SCWV_QuickLookInstall_OnHttpProgress(idx, n, label, pct, written, total) {
+    span := 34 / n
+    base := 10 + (idx - 1) * span
+    overall := Floor(Min(48, base + (pct / 100) * span))
+    wMb := Round(written / 1048576, 2)
+    tMb := total > 0 ? Round(total / 1048576, 2) : 0
+    line := total > 0 ? (wMb . " / " . tMb . " MB · " . pct . "%") : (wMb . " MB · " . pct . "%")
+    SCWV_QuickLookInstall_PostProgress(overall, "① 下载 · [" . idx . "/" . n . " " . label . "] " . line)
+}
+
+; QuickLook 专用下载（与 Hub 词典同源逻辑；定义在本模块，避免依赖 #Include 顺序）
+_SCWV_QuickLookDownloadByBuiltin(url, savePath, statusCb := 0) {
+    u := Trim(String(url))
+    outPath := Trim(String(savePath))
+    if (u = "")
+        return Map("ok", false, "message", "下载地址为空")
+    if (outPath = "")
+        return Map("ok", false, "message", "下载目标路径为空")
+    ret := 0
+    try {
+        ; 优先复用“翻译设置”里的内置下载实现，保证下载链路一致
+        try {
+            fnBuiltin := Func("SelectionSense_HubDictInstall_DownloadByBuiltin")
+            ret := fnBuiltin.Call(u, outPath, statusCb)
+        } catch {
+            SplitPath(outPath, , &outDir)
+            if (outDir != "" && !DirExist(outDir))
+                DirCreate(outDir)
+            if FileExist(outPath)
+                FileDelete(outPath)
+            if IsObject(statusCb)
+                statusCb.Call("正在下载 QuickLook（内置通道）…")
+            Download(u, outPath)
+            ret := Map("ok", true)
+        }
+
+        if !(ret is Map)
+            ret := Map("ok", false, "message", "内置下载返回值异常")
+        if !(ret.Has("ok") && ret["ok"]) {
+            msg0 := ret.Has("message") ? String(ret["message"]) : "内置下载失败"
+            return Map("ok", false, "message", msg0)
+        }
+
+        sz := 0
+        try sz := FileGetSize(outPath)
+        catch {
+            sz := 0
+        }
+        if (sz <= 0)
+            return Map("ok", false, "message", "下载结果为空（0 字节）")
+        if (sz < 256 * 1024)
+            return Map("ok", false, "message", "下载文件过小（" . Round(sz / 1024, 1) . "KB），疑似错误页或网络受限")
+        if !_SCWV_FileLooksLikeZip(outPath)
+            return Map("ok", false, "message", "文件头非 ZIP（GitHub 等资源需跟随 302 重定向，当前结果可能为网页）")
+        return Map("ok", true, "bytes", sz, "total", sz, "path", outPath, "via", "builtin")
+    } catch as e {
+        return Map("ok", false, "message", "下载失败: " . e.Message)
+    }
+}
+
+; 本地文件是否为常见 ZIP 魔数（排除 HTML/JSON 错误页）
+_SCWV_FileLooksLikeZip(path) {
+    p := Trim(String(path))
+    if (p = "" || !FileExist(p))
+        return false
+    try sz := FileGetSize(p)
+    catch {
+        return false
+    }
+    if (sz < 4)
+        return false
+    f := FileOpen(p, "r")
+    if !f
+        return false
+    try {
+        b := Buffer(8, 0)
+        nRead := f.RawRead(b, 8)
+        if (nRead < 4)
+            return false
+        b0 := NumGet(b, 0, "UChar")
+        b1 := NumGet(b, 1, "UChar")
+        b2 := NumGet(b, 2, "UChar")
+        b3 := NumGet(b, 3, "UChar")
+        if (b0 = 0x3C)
+            return false
+        if (b0 = 0x50 && b1 = 0x4B) {
+            if (b2 = 0x03 && b3 = 0x04)
+                return true
+            if (b2 = 0x05 && b3 = 0x06)
+                return true
+            if (b2 = 0x07 && b3 = 0x08)
+                return true
+        }
+    } finally {
+        try f.Close()
+    }
+    return false
+}
+
+; 依次尝试：内置下载（对齐翻译设置）→ WinHttp COM → curl -L（跟随 GitHub 302）→ 低层 WinHttp（末选）
+_SCWV_QuickLookDownloadTryAll(url, zipPath, idx, nSrc, label, reportPath) {
+    u := Trim(String(url))
+    outPath := Trim(String(zipPath))
+    if (u = "" || outPath = "")
+        return Map("ok", false, "message", "参数无效")
+    errors := []
+    SplitPath(outPath, , &outDir)
+    if (outDir != "" && !DirExist(outDir))
+        DirCreate(outDir)
+    if FileExist(outPath)
+        try FileDelete(outPath)
+    catch {
+    }
+
+    ; 1) 内置下载：和翻译设置同链路
+    SCWV_QuickLookInstall_PostProgress(Min(46, 10 + idx * 3), "① 下载 · [" . idx . "/" . nSrc . " " . label . "] 内置下载（与翻译设置同链路）…")
+    dlBuiltin := _SCWV_QuickLookDownloadByBuiltin(u, outPath, 0)
+    if (dlBuiltin.Has("ok") && dlBuiltin["ok"]) {
+        szBuiltin := dlBuiltin.Has("bytes") ? Integer(dlBuiltin["bytes"]) : 0
+        if (szBuiltin <= 0) {
+            try szBuiltin := FileGetSize(outPath)
+            catch {
+                szBuiltin := 0
+            }
+        }
+        return Map("ok", true, "bytes", szBuiltin, "via", "builtin")
+    }
+    errBuiltin := dlBuiltin.Has("message") ? String(dlBuiltin["message"]) : "内置下载失败"
+    errors.Push("内置下载: " . errBuiltin)
+    _SCWV_QuickLookInstallReportLine(reportPath, errors[errors.Length])
+    try FileDelete(outPath)
+    catch {
+    }
+
+    ; 2) WinHttp COM（默认跟随重定向）
+    SCWV_QuickLookInstall_PostProgress(Min(46, 11 + idx * 3), "① 下载 · [" . idx . "/" . nSrc . " " . label . "] WinHttp COM（跟随重定向）…")
+    try {
+        whr := ComObject("WinHttp.WinHttpRequest.5.1")
+        whr.Open("GET", u, false)
+        whr.SetRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        whr.SetRequestHeader("Accept", "application/octet-stream,*/*")
+        whr.Send()
+        st := whr.Status
+        if (st = 200) {
+            ado := ComObject("ADODB.Stream")
+            ado.Type := 1
+            ado.Open()
+            ado.Write(whr.ResponseBody)
+            if FileExist(outPath)
+                try FileDelete(outPath)
+            ado.SaveToFile(outPath, 2)
+            ado.Close()
+            try sz2 := FileGetSize(outPath)
+            catch {
+                sz2 := 0
+            }
+            if (sz2 >= 200 * 1024 && _SCWV_FileLooksLikeZip(outPath))
+                return Map("ok", true, "bytes", sz2, "via", "com")
+            errors.Push("COM: HTTP 200 但校验失败（" . Round(sz2 / 1024, 1) . "KB）")
+            _SCWV_QuickLookInstallReportLine(reportPath, errors[errors.Length])
+        } else {
+            errors.Push("COM: HTTP " . st)
+            _SCWV_QuickLookInstallReportLine(reportPath, errors[errors.Length])
+        }
+    } catch as eCom {
+        errors.Push("COM 异常: " . eCom.Message)
+        _SCWV_QuickLookInstallReportLine(reportPath, errors[errors.Length])
+    }
+    try FileDelete(outPath)
+    catch {
+    }
+
+    ; 3) curl -L（在部分环境更稳定）
+    curlExe := A_WinDir . "\System32\curl.exe"
+    if FileExist(curlExe) {
+        SCWV_QuickLookInstall_PostProgress(Min(46, 12 + idx * 3), "① 下载 · [" . idx . "/" . nSrc . " " . label . "] curl -L（跟随重定向）…")
+        _SCWV_QuickLookInstallReportLine(reportPath, "curl: " . u)
+        cmd := '"' . curlExe . '" -fL -S --connect-timeout 30 --max-time 900 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" -o "' . outPath . '" "' . u . '"'
+        rc := RunWait(A_ComSpec . " /c " . cmd, , "Hide")
+        try sz := FileGetSize(outPath)
+        catch {
+            sz := 0
+        }
+        if (rc = 0 && sz >= 200 * 1024 && _SCWV_FileLooksLikeZip(outPath))
+            return Map("ok", true, "bytes", sz, "via", "curl")
+        errC := "curl 失败(退出码 " . rc . ")"
+        if (sz > 0 && sz < 200 * 1024)
+            errC .= "，体积 " . Round(sz / 1024, 1) . "KB"
+        else if (sz > 0 && !_SCWV_FileLooksLikeZip(outPath))
+            errC .= "，文件头非 ZIP"
+        errors.Push(errC)
+        _SCWV_QuickLookInstallReportLine(reportPath, errors[errors.Length])
+        try FileDelete(outPath)
+        catch {
+        }
+    }
+
+    ; 4) 低层 WinHttp（末选）
+    progressCb := SCWV_QuickLookInstall_OnHttpProgress.Bind(idx, nSrc, label)
+    statusCb := SCWV_QuickLookInstall_OnHttpStatus.Bind(idx, nSrc, label)
+    SCWV_QuickLookInstall_PostProgress(Min(46, 13 + idx * 3), "① 下载 · [" . idx . "/" . nSrc . " " . label . "] WinHttp 底层（无自动重定向，末选）…")
+    dl2 := Map("ok", false, "message", "")
+    try {
+        dl2 := SelectionSense_HubDictInstall_DownloadByWinHttp(u, outPath, progressCb, statusCb)
+    } catch as eW {
+        dl2 := Map("ok", false, "message", eW.Message)
+    }
+    if (dl2.Has("ok") && dl2["ok"]) {
+        try sz3 := FileGetSize(outPath)
+        catch {
+            sz3 := 0
+        }
+        if (sz3 >= 200 * 1024 && _SCWV_FileLooksLikeZip(outPath))
+            return Map("ok", true, "bytes", sz3, "via", "winhttp-dll")
+        try FileDelete(outPath)
+        catch {
+        }
+        errors.Push("WinHttp: 已拉取 " . Round(sz3 / 1024, 1) . "KB 但非有效 ZIP")
+        _SCWV_QuickLookInstallReportLine(reportPath, errors[errors.Length])
+    } else {
+        errors.Push("WinHttp: " . (dl2.Has("message") ? String(dl2["message"]) : "失败"))
+        _SCWV_QuickLookInstallReportLine(reportPath, errors[errors.Length])
+    }
+    merged := ""
+    for i, e in errors
+        merged .= (i > 1 ? " | " : "") . e
+    if (merged = "")
+        merged := "所有下载通道均失败"
+    return Map("ok", false, "message", merged)
+}
+
+_SCWV_QuickLookInstallReportLine(reportPath, text) {
+    rp := Trim(String(reportPath))
+    if (rp = "")
+        return
+    line := "[" . A_Now . "] " . String(text) . "`r`n"
+    try FileAppend(line, rp, "UTF-8")
+    catch {
+    }
+}
+
+SCWV_QuickLookInstall_PostProgress(percent, message := "") {
+    SCWV_PostJson(Map(
+        "type", "quicklook_install_progress",
+        "percent", Integer(percent),
+        "message", String(message)
+    ))
+}
+
+; 下载并解压 QuickLook 便携包到 cache\addons\QuickLook-<version>（流程对齐 Hub 词典 SQLite 包安装）
+SCWV_QuickLookInstall_RunInner() {
+    global g_SCWV_QuickLookVersion, g_SCWV_QuickLookInstallBusy
+    v := Trim(String(g_SCWV_QuickLookVersion))
+    if (v = "")
+        v := "4.5.0"
+    zipName := "QuickLook-" . v . ".zip"
+    baseGh := "https://github.com/QL-Win/QuickLook/releases/download/" . v . "/" . zipName
+    urls := [
+        baseGh,
+        "https://ghproxy.com/https://github.com/QL-Win/QuickLook/releases/download/" . v . "/" . zipName,
+        "https://ghproxy.net/https://github.com/QL-Win/QuickLook/releases/download/" . v . "/" . zipName,
+        "https://kkgithub.com/QL-Win/QuickLook/releases/download/" . v . "/" . zipName
+    ]
+    srcNames := ["GitHub 官方", "ghproxy.com", "ghproxy.net", "kkgithub.com"]
+    nSrc := urls.Length
+    workDir := A_ScriptDir "\cache\quicklook_install"
+    zipPath := workDir "\" . zipName
+    staging := workDir "\staging_" . A_TickCount
+    finalDir := A_ScriptDir "\cache\addons\QuickLook-" . v
+    reportPath := workDir "\install_report.txt"
+    sevenZip := A_ScriptDir "\lib\7z.exe"
+
+    if !DirExist(workDir)
+        DirCreate(workDir)
+    if !DirExist(A_ScriptDir "\cache\addons")
+        DirCreate(A_ScriptDir "\cache\addons")
+
+    try FileDelete(reportPath)
+    catch {
+    }
+    _SCWV_QuickLookInstallReportLine(reportPath, "开始 QuickLook 可选组件安装")
+    _SCWV_QuickLookInstallReportLine(reportPath, "目标目录: " . finalDir)
+
+    if !FileExist(sevenZip) {
+        SCWV_QuickLookInstall_PostProgress(0, "缺少 lib\\7z.exe，无法解压")
+        SCWV_PostJson(Map("type", "quicklook_install_state", "ok", false, "message", "缺少解压组件 lib\\7z.exe", "path", ""))
+        return
+    }
+
+    SCWV_QuickLookInstall_PostProgress(5, "流程：① 内置下载（同翻译设置）优先，失败再 COM/curl/WinHttp → ② ZIP 与包内 QuickLook.exe 校验 → ③ 解压落盘。共 " . nSrc . " 个镜像将依次尝试。")
+    packageReady := false
+    selectedUrl := ""
+    downloadErrors := []
+
+    for idx, url in urls {
+        label := srcNames[idx]
+        _SCWV_QuickLookInstallReportLine(reportPath, "尝试源" . idx . " (" . label . "): " . url)
+        dl := _SCWV_QuickLookDownloadTryAll(url, zipPath, idx, nSrc, label, reportPath)
+        if (dl.Has("ok") && dl["ok"]) {
+            if dl.Has("via")
+                _SCWV_QuickLookInstallReportLine(reportPath, "下载成功，通道: " . dl["via"])
+            try szOk := FileGetSize(zipPath)
+            catch {
+                szOk := 0
+            }
+            SCWV_QuickLookInstall_PostProgress(49, "② 校验 · [" . idx . "/" . nSrc . " " . label . "] 已下载 " . Round(szOk / 1048576, 2) . " MB，检测 QuickLook.exe …")
+            info := _SCWV_QuickLookInspectArchive(zipPath)
+            if !(info.Has("ok") && info["ok"]) {
+                errMsg := info.Has("message") ? String(info["message"]) : "压缩包检测失败"
+                downloadErrors.Push("#" . idx . " " . label . ": " . errMsg)
+                _SCWV_QuickLookInstallReportLine(reportPath, "源" . idx . "列表失败: " . errMsg)
+                try FileDelete(zipPath)
+                catch {
+                }
+                if (idx < nSrc)
+                    SCWV_QuickLookInstall_PostProgress(18, "③ 自动切换 · 源 " . idx . " 列表失败 → 下一源 " . (idx + 1) . "/" . nSrc . " …")
+                Sleep(200)
+                continue
+            }
+            if !(info.Has("hasExe") && info["hasExe"]) {
+                downloadErrors.Push("#" . idx . " " . label . ": 包内未找到 QuickLook.exe")
+                _SCWV_QuickLookInstallReportLine(reportPath, "源" . idx . "包内无 QuickLook.exe（已尝试 7z 列表/findstr/二进制扫描）")
+                try FileDelete(zipPath)
+                catch {
+                }
+                if (idx < nSrc)
+                    SCWV_QuickLookInstall_PostProgress(18, "③ 自动切换 · 源 " . idx . " 校验未通过 → 下一源 " . (idx + 1) . "/" . nSrc . " …")
+                Sleep(200)
+                continue
+            }
+            packageReady := true
+            selectedUrl := url
+            _SCWV_QuickLookInstallReportLine(reportPath, "选定源: " . selectedUrl)
+            break
+        }
+        errMsg := dl.Has("message") ? String(dl["message"]) : "下载失败"
+        downloadErrors.Push("#" . idx . " " . label . ": " . errMsg)
+        _SCWV_QuickLookInstallReportLine(reportPath, "源" . idx . "下载失败: " . errMsg)
+        if (idx < nSrc)
+            SCWV_QuickLookInstall_PostProgress(16, "③ 自动切换 · 源 " . idx . " 下载失败 → 下一源 " . (idx + 1) . "/" . nSrc . " …")
+        Sleep(200)
+    }
+
+    if !packageReady {
+        merged := "全部 " . nSrc . " 个地址均未成功，请检查网络或稍后重试"
+        if downloadErrors.Length {
+            merged .= " 详情："
+            for i, e in downloadErrors
+                merged .= (i > 1 ? " | " : "") . e
+        }
+        SCWV_QuickLookInstall_PostProgress(0, merged)
+        SCWV_PostJson(Map("type", "quicklook_install_state", "ok", false, "message", merged, "path", ""))
+        _SCWV_QuickLookInstallReportLine(reportPath, "终止: 无可用下载源")
+        return
+    }
+
+    SCWV_QuickLookInstall_PostProgress(58, "正在解压…")
+    try DirDelete(staging, 1)
+    catch {
+    }
+    if !DirExist(staging)
+        DirCreate(staging)
+
+    cmdAll := '"' . sevenZip . '" x -y -aoa -o"' . staging . '" -- "' . zipPath . '"'
+    rcAll := RunWait(cmdAll, , "Hide")
+    _SCWV_QuickLookInstallReportLine(reportPath, "7z 全量解压退出码: " . rcAll)
+    if (rcAll > 1) {
+        SCWV_QuickLookInstall_PostProgress(0, "解压失败(7z 退出码 " . rcAll . ")")
+        SCWV_PostJson(Map("type", "quicklook_install_state", "ok", false, "message", "解压失败", "path", ""))
+        return
+    }
+
+    portableRoot := _SCWV_QuickLookFindPortableRoot(staging)
+    if (portableRoot = "" || !FileExist(portableRoot "\QuickLook.exe")) {
+        SCWV_QuickLookInstall_PostProgress(0, "解压后未找到 QuickLook.exe")
+        SCWV_PostJson(Map("type", "quicklook_install_state", "ok", false, "message", "解压后未找到 QuickLook.exe", "path", ""))
+        _SCWV_QuickLookInstallReportLine(reportPath, "未找到 QuickLook.exe 于 staging")
+        return
+    }
+
+    SCWV_QuickLookInstall_PostProgress(82, "写入安装目录…")
+    try {
+        if DirExist(finalDir)
+            DirDelete(finalDir, 1)
+    } catch as e0 {
+        _SCWV_QuickLookInstallReportLine(reportPath, "删除旧目录失败: " . e0.Message)
+    }
+    try DirCopy(portableRoot, finalDir, 1)
+    catch as e1 {
+        SCWV_QuickLookInstall_PostProgress(0, "复制失败: " . e1.Message)
+        SCWV_PostJson(Map("type", "quicklook_install_state", "ok", false, "message", "复制到安装目录失败", "path", ""))
+        _SCWV_QuickLookInstallReportLine(reportPath, "DirCopy 失败: " . e1.Message)
+        return
+    }
+
+    exeFinal := finalDir . "\QuickLook.exe"
+    if !FileExist(exeFinal) {
+        SCWV_QuickLookInstall_PostProgress(0, "安装目录缺少 QuickLook.exe")
+        SCWV_PostJson(Map("type", "quicklook_install_state", "ok", false, "message", "安装校验失败", "path", ""))
+        return
+    }
+
+    _SCWV_QuickLookInstallReportLine(reportPath, "安装成功: " . exeFinal)
+    SCWV_QuickLookInstall_PostProgress(100, "QuickLook 已就绪")
+    SCWV_PostJson(Map("type", "quicklook_install_state", "ok", true, "message", "QuickLook 安装完成", "path", exeFinal))
+}
+
+SCWV_QuickLookInstall_AsyncWorker(*) {
+    global g_SCWV_QuickLookInstallQueued, g_SCWV_QuickLookInstallBusy
+    g_SCWV_QuickLookInstallQueued := false
+    try {
+        SCWV_QuickLookInstall_RunInner()
+    } catch as err {
+        SCWV_PostJson(Map("type", "quicklook_install_state", "ok", false, "message", "安装异常: " . err.Message, "path", ""))
+    } finally {
+        g_SCWV_QuickLookInstallBusy := false
+        try SCWV_PushState("state")
+        catch {
+        }
+    }
+}
+
+SCWV_QuickLookInstall_RequestStart() {
+    global g_SCWV_QuickLookInstallBusy, g_SCWV_QuickLookInstallQueued
+    if g_SCWV_QuickLookInstallBusy || g_SCWV_QuickLookInstallQueued
+        return false
+    ex := SCWV_ResolveQuickLookExe()
+    if (ex != "")
+        return false
+    g_SCWV_QuickLookInstallQueued := true
+    g_SCWV_QuickLookInstallBusy := true
+    SCWV_QuickLookInstall_PostProgress(2, "准备下载 QuickLook…")
+    SetTimer(SCWV_QuickLookInstall_AsyncWorker, -10)
+    return true
 }
 
 _SCWV_BuildFilterPayload() {
@@ -2826,16 +3471,56 @@ SCWV_Preview_TryQuickLook(path) {
     }
 }
 
-_SCWV_Preview_PostTextErr(seq, msg) {
-    SCWV_PostJson(Map("type", "WEB_PREVIEW_TEXT_RESULT", "seq", seq, "text", "", "truncated", false, "sizeBytes", 0, "error", msg))
+_SCWV_QuickLookPostOpenState(status, message := "", path := "") {
+    st := Trim(String(status))
+    if (st = "")
+        st := "pending"
+    try SCWV_PostJson(Map(
+        "type", "quicklook_open_state",
+        "status", st,
+        "message", String(message),
+        "path", String(path)
+    ))
 }
 
-_SCWV_QuickLookRaiseOnce(*) {
-    global g_SCWV_QLRaiseTimer
-    g_SCWV_QLRaiseTimer := 0
+_SCWV_QuickLookInvokeReset() {
+    global g_SCWV_QLInvokeTimer, g_SCWV_QLInvokePath, g_SCWV_QLInvokeExe, g_SCWV_QLInvokeDir, g_SCWV_QLInvokeAttempts, g_SCWV_QLInvokeSendCount
+    if g_SCWV_QLInvokeTimer {
+        try SetTimer(g_SCWV_QLInvokeTimer, 0)
+        g_SCWV_QLInvokeTimer := 0
+    }
+    g_SCWV_QLInvokePath := ""
+    g_SCWV_QLInvokeExe := ""
+    g_SCWV_QLInvokeDir := ""
+    g_SCWV_QLInvokeAttempts := 0
+    g_SCWV_QLInvokeSendCount := 0
+}
+
+_SCWV_QuickLookInvokeSchedule(delayMs := 0) {
+    global g_SCWV_QLInvokeTimer
+    ms := Max(0, Integer(delayMs))
+    if !g_SCWV_QLInvokeTimer
+        g_SCWV_QLInvokeTimer := _SCWV_QuickLookInvokeStep
+    SetTimer(g_SCWV_QLInvokeTimer, -ms)
+}
+
+_SCWV_QuickLookInvokeBegin(path, qlExe) {
+    global g_SCWV_QLInvokePath, g_SCWV_QLInvokeExe, g_SCWV_QLInvokeDir, g_SCWV_QLInvokeAttempts, g_SCWV_QLInvokeSendCount
+    _SCWV_QuickLookInvokeReset()
+    g_SCWV_QLInvokePath := Trim(String(path))
+    g_SCWV_QLInvokeExe := Trim(String(qlExe))
+    SplitPath(g_SCWV_QLInvokeExe, , &qld)
+    g_SCWV_QLInvokeDir := qld
+    g_SCWV_QLInvokeAttempts := 0
+    g_SCWV_QLInvokeSendCount := 0
+    _SCWV_QuickLookPostOpenState("pending", "正在调用 QuickLook…", g_SCWV_QLInvokePath)
+    _SCWV_QuickLookInvokeSchedule(10)
+}
+
+_SCWV_QuickLookFindPreviewHwnd() {
     lst := WinGetList("ahk_exe QuickLook.exe")
     if !(IsObject(lst) && lst.Length)
-        return
+        return 0
     best := 0
     bestArea := 0
     for _, hwnd in lst {
@@ -2843,9 +3528,14 @@ _SCWV_QuickLookRaiseOnce(*) {
         try {
             if !WinExist(expr)
                 continue
-            if (WinGetMinMax(expr) = 1)
+            if !DllCall("user32\IsWindowVisible", "Ptr", hwnd, "Int")
+                continue
+            mm := WinGetMinMax(expr)
+            if (mm = -1) ; minimized
                 continue
             WinGetPos(, , &w, &h, expr)
+            if (w < 120 || h < 80)
+                continue
             a := w * h
             if (a > bestArea) {
                 bestArea := a
@@ -2854,6 +3544,133 @@ _SCWV_QuickLookRaiseOnce(*) {
         } catch {
         }
     }
+    return best
+}
+
+_SCWV_QuickLookInvokeStep(*) {
+    global g_SCWV_QLInvokePath, g_SCWV_QLInvokeExe, g_SCWV_QLInvokeDir, g_SCWV_QLInvokeAttempts, g_SCWV_QLInvokeSendCount, g_SCWV_QLRaiseTimer
+    p := Trim(String(g_SCWV_QLInvokePath))
+    ql := Trim(String(g_SCWV_QLInvokeExe))
+    qd := String(g_SCWV_QLInvokeDir)
+    if (p = "" || ql = "") {
+        _SCWV_QuickLookInvokeReset()
+        return
+    }
+    if (!FileExist(p) && !DirExist(p)) {
+        _SCWV_QuickLookPostOpenState("fail", "文件已不存在，无法打开 QuickLook 预览。", p)
+        _SCWV_QuickLookInvokeReset()
+        return
+    }
+    if !FileExist(ql) {
+        _SCWV_QuickLookPostOpenState("fail", "QuickLook 未安装或路径无效。", p)
+        _SCWV_QuickLookInvokeReset()
+        return
+    }
+
+    g_SCWV_QLInvokeAttempts += 1
+    maxAttempts := 10
+    if !ProcessExist("QuickLook.exe") {
+        try Run('"' ql '"', qd)
+        catch as err {
+            if (g_SCWV_QLInvokeAttempts >= maxAttempts) {
+                _SCWV_QuickLookPostOpenState("fail", "启动 QuickLook 失败: " . err.Message, p)
+                _SCWV_QuickLookInvokeReset()
+                return
+            }
+        }
+        _SCWV_QuickLookPostOpenState("pending", "QuickLook 启动中…", p)
+        _SCWV_QuickLookInvokeSchedule(420)
+        return
+    }
+
+    hwnd := _SCWV_QuickLookFindPreviewHwnd()
+    if hwnd {
+        if g_SCWV_QLRaiseTimer {
+            try SetTimer(g_SCWV_QLRaiseTimer, 0)
+            g_SCWV_QLRaiseTimer := 0
+        }
+        g_SCWV_QLRaiseTimer := _SCWV_QuickLookRaiseOnce
+        SetTimer(_SCWV_QuickLookRaiseOnce, -120)
+        _SCWV_QuickLookPostOpenState("ok", "QuickLook 预览窗口已激活。", p)
+        _SCWV_QuickLookInvokeReset()
+        return
+    }
+
+    shouldSend := (g_SCWV_QLInvokeSendCount = 0)
+    ; 仅在等待较久时补发一次，避免重复调用触发 QuickLook 反向切换关闭。
+    if (!shouldSend && g_SCWV_QLInvokeSendCount = 1 && g_SCWV_QLInvokeAttempts >= 6)
+        shouldSend := true
+
+    if shouldSend {
+        try {
+            Run('"' ql '" "' p '"', qd, "UseErrorLevel")
+            g_SCWV_QLInvokeSendCount += 1
+        } catch as err {
+            if (g_SCWV_QLInvokeAttempts >= maxAttempts) {
+                _SCWV_QuickLookPostOpenState("fail", "调用 QuickLook 失败: " . err.Message, p)
+                _SCWV_QuickLookInvokeReset()
+                return
+            }
+            _SCWV_QuickLookPostOpenState("pending", "正在重试打开 QuickLook 预览…", p)
+            _SCWV_QuickLookInvokeSchedule(260)
+            return
+        }
+
+        hwnd2 := _SCWV_QuickLookFindPreviewHwnd()
+        if hwnd2 {
+            if g_SCWV_QLRaiseTimer {
+                try SetTimer(g_SCWV_QLRaiseTimer, 0)
+                g_SCWV_QLRaiseTimer := 0
+            }
+            g_SCWV_QLRaiseTimer := _SCWV_QuickLookRaiseOnce
+            SetTimer(_SCWV_QuickLookRaiseOnce, -120)
+            _SCWV_QuickLookPostOpenState("ok", "QuickLook 预览窗口已激活。", p)
+            _SCWV_QuickLookInvokeReset()
+            return
+        }
+    }
+
+    if (g_SCWV_QLInvokeAttempts >= maxAttempts) {
+        _SCWV_QuickLookPostOpenState("fail", "QuickLook 已启动，但未出现预览窗口。请重试或重新安装 QuickLook。", p)
+        _SCWV_QuickLookInvokeReset()
+        return
+    }
+
+    _SCWV_QuickLookPostOpenState("pending", "等待 QuickLook 显示预览窗口…（" . g_SCWV_QLInvokeAttempts . "/" . maxAttempts . "）", p)
+    _SCWV_QuickLookInvokeSchedule(260)
+}
+
+_SCWV_ResolveQuickLookPathByRow(row) {
+    r := Integer(row)
+    if (r < 1)
+        return ""
+    item := GetSearchCenterResultItemByRow(r)
+    if !IsObject(item)
+        return ""
+
+    p := ""
+    if item.HasProp("Path")
+        p := Trim(String(item.Path))
+    if (p != "" && (FileExist(p) || DirExist(p)))
+        return p
+
+    c := ""
+    if item.HasProp("Content")
+        c := Trim(String(item.Content))
+    if (c != "" && (FileExist(c) || DirExist(c)))
+        return c
+
+    return ""
+}
+
+_SCWV_Preview_PostTextErr(seq, msg) {
+    SCWV_PostJson(Map("type", "WEB_PREVIEW_TEXT_RESULT", "seq", seq, "text", "", "truncated", false, "sizeBytes", 0, "error", msg))
+}
+
+_SCWV_QuickLookRaiseOnce(*) {
+    global g_SCWV_QLRaiseTimer
+    g_SCWV_QLRaiseTimer := 0
+    best := _SCWV_QuickLookFindPreviewHwnd()
     if !best
         return
     expr := "ahk_id " best
@@ -3667,28 +4484,17 @@ class PreviewManager {
 
     TryQuickLook(path) {
         path := Trim(String(path))
-        if (path = "" || !FileExist(path))
+        if (path = "" || (!FileExist(path) && !DirExist(path))) {
+            _SCWV_QuickLookPostOpenState("fail", "当前条目不是可预览的本地文件。", path)
             return
-        ql := A_ScriptDir "\lib\QuickLook\QuickLook.exe"
-        if !FileExist(ql)
+        }
+        ql := SCWV_ResolveQuickLookExe()
+        if (ql = "" || !FileExist(ql)) {
+            _SCWV_QuickLookPostOpenState("fail", "QuickLook 未安装，请先点击“一键安装 QuickLook”。", path)
             return
-        global g_SCWV_QLRaiseTimer
+        }
         SCWV_Preview_UnloadNative()
-        if g_SCWV_QLRaiseTimer {
-            SetTimer(g_SCWV_QLRaiseTimer, 0)
-            g_SCWV_QLRaiseTimer := 0
-        }
-        if !ProcessExist("QuickLook.exe") {
-            try Run('"' ql '"', A_ScriptDir)
-            catch {
-            }
-            Sleep 450
-        }
-        try Run('"' ql '" "' path '"',, "UseErrorLevel")
-        catch {
-        }
-        g_SCWV_QLRaiseTimer := _SCWV_QuickLookRaiseOnce
-        SetTimer(_SCWV_QuickLookRaiseOnce, -380)
+        _SCWV_QuickLookInvokeBegin(path, ql)
     }
 
     OnWebText(path, seq) {
