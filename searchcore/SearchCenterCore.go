@@ -39,6 +39,8 @@ func main() {
 	}
 	defer db.Close()
 
+	clipHTTPBase = clipHTTPBaseFromAddr(*addr)
+
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("X-SearchCenterCore", "1")
@@ -57,8 +59,14 @@ func main() {
 	http.HandleFunc("/v1/status/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/v1/status", http.StatusTemporaryRedirect)
 	})
+	http.HandleFunc("/clip/search", func(w http.ResponseWriter, r *http.Request) {
+		handleClipSearch(w, r, db)
+	})
+	http.HandleFunc("/clip/preview", func(w http.ResponseWriter, r *http.Request) {
+		handleClipPreview(w, r, db, absBase)
+	})
 
-	log.Printf("SearchCenterCore listening on http://%s (base=%s) routes: /health /search /v1/status /status\n", *addr, absBase)
+	log.Printf("SearchCenterCore listening on http://%s (base=%s) routes: /health /search /clip/search /clip/preview /v1/status /status\n", *addr, absBase)
 	if err := http.ListenAndServe(*addr, nil); err != nil {
 		log.Fatal(err)
 	}

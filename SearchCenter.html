@@ -132,6 +132,40 @@ button, input, select, textarea { font: inherit; }
   min-height: 40px;
   align-self: center;
 }
+
+/* ClipboardPanel 风格：引擎分段按钮（极速/标准） */
+.engine-mode-group {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.engine-mode-btn {
+  height: 26px;
+  padding: 0 10px;
+  border: none;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#search-bar .engine-mode-btn { min-height: 40px; }
+.engine-mode-btn:hover {
+  color: var(--text);
+  background: #262c33;
+}
+.engine-mode-btn.active {
+  background: linear-gradient(180deg, rgba(255,179,71,.22), rgba(255,141,42,.14));
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255,179,71,.35);
+}
+.engine-mode-btn + .engine-mode-btn {
+  border-left: 1px solid var(--border);
+}
 .bar {
   display: flex;
   align-items: center;
@@ -1021,7 +1055,10 @@ mark {
     <header id="chrome-header" class="chrome-header window-titlebar">
     <div class="chrome-drag" id="chrome-drag" title="拖动窗口">搜索中心</div>
     <div class="chrome-controls">
-      <button type="button" id="engine-mode-btn" class="chrome-engine-btn" title="切换搜索引擎：极速(Go) / 标准(AHK)">极速</button>
+      <div class="engine-mode-group" role="group" aria-label="搜索引擎模式">
+        <button type="button" id="engine-mode-go" class="engine-mode-btn" data-engine="go" title="极速：Go SearchCenterCore">极速 · Go</button>
+        <button type="button" id="engine-mode-ahk" class="engine-mode-btn" data-engine="ahk" title="标准：AHK 本地引擎">标准 · AHK</button>
+      </div>
       <button type="button" id="chrome-minimize" class="chrome-btn" title="Minimize">-</button>
       <button type="button" id="chrome-maximize" class="chrome-btn" title="Maximize">[]</button>
       <button type="button" id="chrome-close" class="chrome-btn close" title="Close">X</button>
@@ -1040,7 +1077,10 @@ mark {
       <div id="status" class="search-status-inline">准备中...</div>
     </div>
     <div class="search-actions">
-      <button type="button" id="engine-mode-btn-inline" class="chrome-engine-btn" title="极速(Go) / 标准(AHK)">极速</button>
+      <div class="engine-mode-group" role="group" aria-label="搜索引擎模式">
+        <button type="button" id="engine-mode-go-inline" class="engine-mode-btn" data-engine="go" title="极速：Go SearchCenterCore">极速 · Go</button>
+        <button type="button" id="engine-mode-ahk-inline" class="engine-mode-btn" data-engine="ahk" title="标准：AHK 本地引擎">标准 · AHK</button>
+      </div>
       <select id="limit">
         <option value="10">10 条</option>
           <option value="20">20 条</option>
@@ -1179,21 +1219,23 @@ const PDF_JS_ASSET_BASE = "https://app.local/assets/pdfjs/";
 const postToAhk = (obj) => BasePanel.postToAhk(obj);
 
 function syncEngineModeButton() {
-  const btn = document.getElementById("engine-mode-btn");
-  const btn2 = document.getElementById("engine-mode-btn-inline");
-  const syncOne = (b) => {
-    if (!b) return;
-    const isGo = state.engineMode === "go";
-    b.textContent = isGo ? "极速" : "标准";
-    b.title = isGo ? "当前：极速 (Go FTS)。点击切换为标准 (AHK)" : "当前：标准 (AHK)。点击切换为极速 (Go)";
-    b.classList.toggle("ahk-mode", !isGo);
-  };
-  syncOne(btn);
-  syncOne(btn2);
   const isGo = state.engineMode === "go";
-  btn.textContent = isGo ? "极速" : "标准";
-  btn.title = isGo ? "当前：极速 (Go FTS)。点击切换为标准 (AHK)" : "当前：标准 (AHK)。点击切换为极速 (Go)";
-  btn.classList.toggle("ahk-mode", !isGo);
+  const ids = [
+    ["engine-mode-go", "go"],
+    ["engine-mode-ahk", "ahk"],
+    ["engine-mode-go-inline", "go"],
+    ["engine-mode-ahk-inline", "ahk"]
+  ];
+  ids.forEach(([id, mode]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle("active", (mode === "go") === isGo);
+    if (mode === "go") {
+      el.title = isGo ? "当前：极速（Go）。点击保持" : "切换为：极速（Go）";
+    } else {
+      el.title = !isGo ? "当前：标准（AHK）。点击保持" : "切换为：标准（AHK）";
+    }
+  });
 }
 
 /** 与 Go /search 的 type= 对齐：非剪贴板筛选时 Go 返回空剪贴板项，由 AHK 合并其它源 */
@@ -3019,27 +3061,29 @@ if (window.chrome && window.chrome.webview) {
 }
 
 (function initEngineModeButton() {
-  const onToggle = () => {
-    state.engineMode = state.engineMode === "go" ? "ahk" : "go";
+  const setMode = (mode) => {
+    const next = mode === "ahk" ? "ahk" : "go";
+    if (state.engineMode === next) return;
+    state.engineMode = next;
     try {
       localStorage.setItem(SC_ENGINE_MODE_KEY, state.engineMode);
     } catch (e) {}
     syncEngineModeButton();
     postToAhk({ type: "setEngineMode", mode: state.engineMode });
     if (state.engineMode === "go") {
-      try {
-        runSearchGoPipeline(0);
-      } catch (e) {
-        fallbackToAhkSearch();
-      }
+      try { runSearchGoPipeline(0); } catch (e) { fallbackToAhkSearch(); }
     } else {
       postToAhk({ type: "search", keyword: state.keyword });
     }
   };
   syncEngineModeButton();
-  ["engine-mode-btn", "engine-mode-btn-inline"].forEach((id) => {
+  [
+    "engine-mode-go", "engine-mode-ahk",
+    "engine-mode-go-inline", "engine-mode-ahk-inline"
+  ].forEach((id) => {
     const b = document.getElementById(id);
-    if (b) b.addEventListener("click", onToggle);
+    if (!b) return;
+    b.addEventListener("click", () => setMode(b.getAttribute("data-engine") || "go"));
   });
 })();
 </script>

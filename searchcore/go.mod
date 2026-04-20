@@ -1,8 +1,13 @@
 module searchcore
 
-go 1.22
+go 1.23
 
-require modernc.org/sqlite v1.34.5
+require (
+	github.com/eringen/gowebper v0.1.2
+	github.com/mozillazg/go-pinyin v0.20.0
+	golang.org/x/image v0.18.0
+	modernc.org/sqlite v1.34.5
+)
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect

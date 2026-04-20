@@ -337,6 +337,36 @@ body.native-titlebar .chrome-drag { display: none; }
   gap: 8px;
   flex-shrink: 0;
 }
+.engine-mode-group {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.engine-mode-btn {
+  height: 34px;
+  padding: 0 11px;
+  border: none;
+  background: var(--surface2);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.engine-mode-btn:hover {
+  color: var(--text);
+  background: var(--surface3);
+}
+.engine-mode-btn.active {
+  background: linear-gradient(180deg, rgba(255,179,71,.22), rgba(255,141,42,.14));
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255,179,71,.35);
+}
+.engine-mode-btn + .engine-mode-btn {
+  border-left: 1px solid var(--border);
+}
 .search-act-btn {
   height: 34px;
   padding: 0 12px;
@@ -870,6 +900,10 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
     <span id="search-icon">&#128269;</span>
     <input id="search-input" type="text" placeholder="搜索剪贴板历史..." autocomplete="off" spellcheck="false">
     <div id="search-actions">
+      <div class="engine-mode-group" role="group" aria-label="搜索后端">
+        <button type="button" class="engine-mode-btn active" data-engine="go" id="engine-mode-go" title="SearchCenterCore HTTP">极速 · Go</button>
+        <button type="button" class="engine-mode-btn" data-engine="ahk" id="engine-mode-ahk" title="本地 SQLite">标准 · AHK</button>
+      </div>
       <button type="button" id="search-clear-btn" class="search-act-btn">清空</button>
       <button type="button" id="search-paste-btn" class="search-act-btn">粘贴</button>
       <button type="button" id="btn-win-recycle" class="search-act-btn" title="打开 Windows 系统回收站">系统回收站</button>
@@ -988,7 +1022,9 @@ const state = {
   loadMoreCooldownUntil: 0,
   peekSpaceDown: false,
   /** @type {Array<{id?:string,name?:string,act?:string,visible?:boolean}>} */
-  ctxMenuSpec: []
+  ctxMenuSpec: [],
+  /** 搜索后端：go=SearchCenterCore；ahk=本地 SQLite */
+  engineMode: 'go'
 };
 
 const CP_CTX_FALLBACK = [
@@ -1212,6 +1248,8 @@ function localImageDiskPath(it) {
  */
 function thumbUrlForItem(it) {
   if (!it) return '';
+  const pu = String(it.previewUrl || '').trim();
+  if (pu && itemCanPreviewAsImage(it)) return pu;
   if (it.imageDataUrl) return it.imageDataUrl;
   if (it.thumbDataUrl) return it.thumbDataUrl;
   const vu = String(it.thumbVirtualUrl || '').trim();
@@ -1221,6 +1259,8 @@ function thumbUrlForItem(it) {
 
 function imageCardFallbackSrc(it) {
   if (!it) return '';
+  const pu = String(it.previewUrl || '').trim();
+  if (pu && itemCanPreviewAsImage(it)) return pu;
   if (it.imageDataUrl) return it.imageDataUrl;
   const vu = String(it.thumbVirtualUrl || '').trim();
   if (vu) return vu;
@@ -1463,6 +1503,10 @@ function handleAhkMessage(msg) {
       break;
     case 'init':
     case 'searchResult':
+      if (msg.engineMode === 'go' || msg.engineMode === 'ahk') {
+        state.engineMode = msg.engineMode;
+        syncEngineModeUI();
+      }
       state.items = msg.items || [];
       if (Array.isArray(msg.ctxMenuSpec))
         state.ctxMenuSpec = msg.ctxMenuSpec;
@@ -1486,6 +1530,10 @@ function handleAhkMessage(msg) {
       break;
 
     case 'moreItems':
+      if (msg.engineMode === 'go' || msg.engineMode === 'ahk') {
+        state.engineMode = msg.engineMode;
+        syncEngineModeUI();
+      }
       if (msg.items && msg.items.length > 0) {
         state.items = state.items.concat(msg.items);
         if (Array.isArray(msg.ctxMenuSpec))
@@ -2059,6 +2107,23 @@ function clearSearchInput(immediate = true) {
   else triggerSearch();
 }
 
+function syncEngineModeUI() {
+  const m = state.engineMode === 'ahk' ? 'ahk' : 'go';
+  const go = document.getElementById('engine-mode-go');
+  const ahk = document.getElementById('engine-mode-ahk');
+  if (go) go.classList.toggle('active', m === 'go');
+  if (ahk) ahk.classList.toggle('active', m === 'ahk');
+}
+
+function setEngineMode(mode) {
+  const m = mode === 'ahk' ? 'ahk' : 'go';
+  if (state.engineMode === m) return;
+  state.engineMode = m;
+  syncEngineModeUI();
+  // 由 AHK 在 setEngineMode 内立即刷新列表，避免与 search 消息顺序竞态
+  postToAhk({ type: 'setEngineMode', engine: m });
+}
+
 document.getElementById('action-overlay').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeActionPanel();
 });
@@ -2085,7 +2150,7 @@ function triggerSearch() {
       filterType: state.filterType,
       timeRange: state.timeRange || 'all'
     });
-  }, 320);
+  }, 150);
 }
 function flushSearchNow() {
   if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
@@ -2252,6 +2317,16 @@ document.getElementById('search-paste-btn').addEventListener('click', () => {
 const btnWinRecycleCp = document.getElementById('btn-win-recycle');
 if (btnWinRecycleCp) {
   btnWinRecycleCp.addEventListener('click', () => postToAhk({ type: 'openWindowsRecycleBin' }));
+}
+
+const engineModeGroup = document.querySelector('.engine-mode-group');
+if (engineModeGroup) {
+  engineModeGroup.addEventListener('click', (e) => {
+    const btn = e.target && e.target.closest && e.target.closest('[data-engine]');
+    if (!btn) return;
+    e.preventDefault();
+    setEngineMode(btn.getAttribute('data-engine') || 'go');
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -19,6 +19,116 @@ global g_CP_FocusPending := false
 global g_CP_WM_ActivateHideCallback := 0
 global g_CP_LastShown := 0  ; CP_Show 后时间戳，WM_ACTIVATE 宽限期避免刚显示即被关
 global g_CP_PeekGui := 0
+; go=HTTP /clip/search + Go JSON；ahk=本地 SQLite（_CP_LoadItems）
+global g_CP_EngineMode := "go"
+
+; --- SearchCenterCore：剪贴板列表 /clip/search ---
+_CP_UrlEncode(str) {
+    fEscaped := ""
+    Loop Parse, str {
+        if RegExMatch(A_LoopField, "[0-9a-zA-Z\-\.\_\~\/]")
+            fEscaped .= A_LoopField
+        else {
+            buf := Buffer(4, 0)
+            len := StrPut(A_LoopField, buf, "UTF-8")
+            Loop len - 1 {
+                fEscaped .= "%" . Format("{:02X}", NumGet(buf, A_Index - 1, "UChar"))
+            }
+        }
+    }
+    return fEscaped
+}
+
+_CP_IsSearchCoreAlive() {
+    try {
+        whr := ComObject("WinHttp.WinHttpRequest.5.1")
+        whr.Open("GET", "http://127.0.0.1:8080/health", false)
+        whr.SetTimeouts(2000, 2000, 2000, 2000)
+        whr.Send()
+        return whr.Status = 200
+    } catch {
+        return false
+    }
+}
+
+_CP_EnsureSearchCoreRunning() {
+    if _CP_IsSearchCoreAlive()
+        return true
+    base := IsSet(MainScriptDir) ? MainScriptDir : A_ScriptDir
+    exe := base "\SearchCenterCore.exe"
+    if !FileExist(exe)
+        return false
+    try {
+        Run('"' exe '" -base "' base '"', base, "Hide")
+        Loop 60 {
+            Sleep(80)
+            if _CP_IsSearchCoreAlive()
+                return true
+        }
+    } catch {
+    }
+    return false
+}
+
+; 将 Go 返回的 JSON 与 ctxMenuSpec 合并后供 WebView 使用（Jxon 保证转义正确）
+_CP_MergeCtxMenuIntoClipJson(body) {
+    global g_CP_EngineMode
+    if (body = "")
+        return ""
+    try {
+        m := (%"Jxon_Load"%).Call(body)
+    } catch {
+        return ""
+    }
+    if !(m is Map)
+        return ""
+    m["engineMode"] := g_CP_EngineMode
+    specStr := "[]"
+    try {
+        if IsSet(_VK_SceneCtxMenuItemsJson)
+            specStr := _VK_SceneCtxMenuItemsJson("clipboard")
+    } catch {
+    }
+    try {
+        m["ctxMenuSpec"] := (%"Jxon_Load"%).Call(specStr)
+    } catch {
+        m["ctxMenuSpec"] := []
+    }
+    try {
+        return (%"Jxon_Dump"%).Call(m)
+    } catch {
+        return ""
+    }
+}
+
+; 成功返回 true（已向 WebView 投递）；失败返回 false，由调用方走 AHK SQLite
+_CP_TryClipSearchViaGo(keyword, filterType, timeRange, offset, limit, msgType) {
+    global g_CP_EngineMode
+    if (g_CP_EngineMode != "go")
+        return false
+    if !_CP_EnsureSearchCoreRunning()
+        return false
+    kwEnc := _CP_UrlEncode(keyword)
+    trEnc := _CP_UrlEncode(timeRange)
+    url := "http://127.0.0.1:8080/clip/search?keyword=" . kwEnc . "&type=" . filterType . "&timeRange=" . trEnc
+        . "&offset=" . offset . "&limit=" . limit . "&msgType=" . msgType
+    try {
+        whr := ComObject("WinHttp.WinHttpRequest.5.1")
+        whr.Open("GET", url, false)
+        whr.SetTimeouts(12000, 12000, 12000, 12000)
+        whr.Send()
+        if (whr.Status != 200)
+            return false
+        merged := _CP_MergeCtxMenuIntoClipJson(whr.ResponseText)
+        if (merged = "")
+            return false
+        CP_SendToWeb(merged)
+        return true
+    } catch as err {
+        OutputDebug("[CP] Go clip/search: " . err.Message)
+        return false
+    }
+}
 
 _CP_ClipCacheRoot() {
     return (IsSet(MainScriptDir) ? MainScriptDir : A_ScriptDir) "\Cache"
@@ -486,6 +596,16 @@ _CP_OnWebMessage(sender, args) {
             if g_CP_FocusPending
                 CP_RequestFocusInput()
 
+        case "setEngineMode":
+            eng := ""
+            if msg.Has("engine")
+                eng := StrLower(Trim(msg["engine"] . ""))
+            if (eng != "go" && eng != "ahk")
+                return
+            global g_CP_EngineMode, g_CP_LastKeyword, g_CP_FilterType
+            g_CP_EngineMode := eng
+            _CP_ExecuteSearch(g_CP_LastKeyword, g_CP_FilterType)
+
         case "search":
             keyword := msg.Has("keyword") ? msg["keyword"] : ""
             filterType := msg.Has("filterType") ? msg["filterType"] : "all"
@@ -586,6 +706,8 @@ _CP_PushInitialData() {
     g_CP_LastKeyword := ""
     g_CP_FilterType := "all"
     g_CP_TimeRange := "all"
+    if _CP_TryClipSearchViaGo("", g_CP_FilterType, g_CP_TimeRange, 0, 30, "init")
+        return
     items := _CP_LoadItems("", g_CP_FilterType, 0, 30)
     total := _CP_GetTotalCount("", g_CP_FilterType)
     hasMore := (items.Length < total)
@@ -595,12 +717,14 @@ _CP_PushInitialData() {
 
 ; 外部 OnClipboardChange 写入 ClipMain 后调用：面板已显示时刷新列表（保留当前搜索词与筛选）
 CP_NotifyClipboardUpdated() {
-    global g_CP_Visible, g_CP_Ready, g_CP_LastKeyword, g_CP_FilterType
+    global g_CP_Visible, g_CP_Ready, g_CP_LastKeyword, g_CP_FilterType, g_CP_TimeRange
     if !g_CP_Visible || !g_CP_Ready
         return
     try {
         kw := g_CP_LastKeyword
         ft := g_CP_FilterType
+        if _CP_TryClipSearchViaGo(kw, ft, g_CP_TimeRange, 0, 30, "init")
+            return
         items := _CP_LoadItems(kw, ft, 0, 30)
         total := _CP_GetTotalCount(kw, ft)
         hasMore := (items.Length < total)
@@ -612,10 +736,12 @@ CP_NotifyClipboardUpdated() {
 }
 
 _CP_DoLoadMore(offset) {
-    global g_CP_LastKeyword, g_CP_FilterType
+    global g_CP_LastKeyword, g_CP_FilterType, g_CP_TimeRange
     offset := Integer(offset)
     if offset < 0
         offset := 0
+    if _CP_TryClipSearchViaGo(g_CP_LastKeyword, g_CP_FilterType, g_CP_TimeRange, offset, 30, "moreItems")
+        return
     items := _CP_LoadItems(g_CP_LastKeyword, g_CP_FilterType, offset, 30)
     total := _CP_GetTotalCount(g_CP_LastKeyword, g_CP_FilterType)
     hasMore := (offset + items.Length) < total
@@ -640,9 +766,11 @@ _CP_DebouncedSearch(keyword, filterType := "all") {
 }
 
 _CP_ExecuteSearch(keyword, filterType := "all") {
-    global g_CP_SearchTimer
+    global g_CP_SearchTimer, g_CP_TimeRange
     g_CP_SearchTimer := 0
     filterType := _CP_NormalizeFilterType(filterType)
+    if _CP_TryClipSearchViaGo(keyword, filterType, g_CP_TimeRange, 0, 30, "searchResult")
+        return
     items := _CP_LoadItems(keyword, filterType, 0, 30)
     total := _CP_GetTotalCount(keyword, filterType)
     hasMore := (items.Length < total)
@@ -948,6 +1076,7 @@ _CP_RowToMap(row, columnIndexMap) {
 
 ; ===================== JSON 构建 =====================
 _CP_BuildItemsJson(msgType, items, total := 0, hasMore := false) {
+    global g_CP_EngineMode
     json := '{"type":"' . msgType . '","items":['
 
     Loop items.Length {
@@ -962,7 +1091,7 @@ _CP_BuildItemsJson(msgType, items, total := 0, hasMore := false) {
             spec := _VK_SceneCtxMenuItemsJson("clipboard")
     } catch {
     }
-    json .= '],"total":' . total . ',"hasMore":' . (hasMore ? "true" : "false") . ',"ctxMenuSpec":' . spec . "}"
+    json .= '],"total":' . total . ',"hasMore":' . (hasMore ? "true" : "false") . ',"engineMode":"' . g_CP_EngineMode . '","ctxMenuSpec":' . spec . "}"
     return json
 }
 
