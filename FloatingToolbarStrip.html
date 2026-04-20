@@ -3269,10 +3269,11 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   resetCfg.addEventListener('click', reset);
 
   var dragT = 0;
+  var DRAG_POST_INTERVAL_MS = 24;
 
   function dragHost() {
     var t = Date.now();
-    if (t - dragT < 40) return;
+    if (t - dragT < DRAG_POST_INTERVAL_MS) return;
     dragT = t;
     post({ type: 'drag_host' });
   }
@@ -3280,7 +3281,11 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   var longPressTimer = 0;
   var longPressTriggered = false;
   var longPressPointerId = null;
-  var LONG_PRESS_MS = 260;
+  var longPressStartScreenX = 0;
+  var longPressStartScreenY = 0;
+  var LONG_PRESS_MS = 160;
+  var LONG_PRESS_MOVE_PX = 8;
+  var appEl = document.getElementById('app');
 
   function clearLongPressTimer() {
     if (longPressTimer) {
@@ -3289,46 +3294,87 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     }
   }
 
-  function endLongPress() {
+  function triggerLongPressDrag() {
+    if (longPressTriggered) return;
+    clearLongPressTimer();
+    longPressTriggered = true;
+    dragHost();
+  }
+
+  function endLongPress(e) {
     clearLongPressTimer();
     if (longPressTriggered) {
       suppressClickUntil = Date.now() + 420;
+    }
+    if (appEl && e && appEl.releasePointerCapture) {
+      try {
+        appEl.releasePointerCapture(e.pointerId);
+      } catch (_) {}
     }
     longPressTriggered = false;
     longPressPointerId = null;
   }
 
-  document.getElementById('app').addEventListener(
-    'pointerdown',
-    function (e) {
-      if (e.button !== 0) return;
-      if (e.target.closest('#resizeGrip')) return;
-      longPressTriggered = false;
-      longPressPointerId = e.pointerId;
-      clearLongPressTimer();
-      longPressTimer = setTimeout(function () {
-        longPressTriggered = true;
-        dragHost();
-      }, LONG_PRESS_MS);
-    },
-    true
-  );
+  if (appEl) {
+    appEl.addEventListener(
+      'pointerdown',
+      function (e) {
+        if (e.button !== 0) return;
+        if (e.target && e.target.closest && e.target.closest('#resizeGrip')) return;
+        if (state.drawer || state.settings || state.nspick) return;
+        if (!(e.target && e.target.closest && e.target.closest('#collapsedRoot'))) return;
+        longPressTriggered = false;
+        longPressPointerId = e.pointerId;
+        longPressStartScreenX = e.screenX;
+        longPressStartScreenY = e.screenY;
+        if (appEl.setPointerCapture) {
+          try {
+            appEl.setPointerCapture(e.pointerId);
+          } catch (_) {}
+        }
+        clearLongPressTimer();
+        longPressTimer = setTimeout(function () {
+          if (longPressPointerId === null) return;
+          triggerLongPressDrag();
+        }, LONG_PRESS_MS);
+      },
+      true
+    );
 
-  document.getElementById('app').addEventListener(
-    'pointerup',
-    function (e) {
-      if (longPressPointerId !== null && e.pointerId === longPressPointerId) endLongPress();
-    },
-    true
-  );
+    appEl.addEventListener(
+      'pointermove',
+      function (e) {
+        if (longPressPointerId === null || e.pointerId !== longPressPointerId) return;
+        if (longPressTriggered) return;
+        if ((e.buttons & 1) === 0) {
+          endLongPress(e);
+          return;
+        }
+        var dx = e.screenX - longPressStartScreenX;
+        var dy = e.screenY - longPressStartScreenY;
+        if (dx * dx + dy * dy >= LONG_PRESS_MOVE_PX * LONG_PRESS_MOVE_PX) {
+          triggerLongPressDrag();
+        }
+      },
+      true
+    );
 
-  document.getElementById('app').addEventListener(
-    'pointercancel',
-    function (e) {
-      if (longPressPointerId !== null && e.pointerId === longPressPointerId) endLongPress();
-    },
-    true
-  );
+    appEl.addEventListener(
+      'pointerup',
+      function (e) {
+        if (longPressPointerId !== null && e.pointerId === longPressPointerId) endLongPress(e);
+      },
+      true
+    );
+
+    appEl.addEventListener(
+      'pointercancel',
+      function (e) {
+        if (longPressPointerId !== null && e.pointerId === longPressPointerId) endLongPress(e);
+      },
+      true
+    );
+  }
 
   collapsedRoot.addEventListener(
     'wheel',

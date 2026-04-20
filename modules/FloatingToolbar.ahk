@@ -515,7 +515,7 @@ FloatingToolbar_OnWebMessage(sender, args) {
         global FloatingToolbarGUI, FloatingToolbarDragging
         global FloatingToolbar_DragOriginScreenX, FloatingToolbar_DragOriginScreenY
         global FloatingToolbar_DragOriginWinX, FloatingToolbar_DragOriginWinY
-        if !FloatingToolbarGUI
+        if !FloatingToolbarGUI || FloatingToolbarDragging
             return
         try FloatingToolbarGUI.GetPos(&FloatingToolbar_DragOriginWinX, &FloatingToolbar_DragOriginWinY)
         catch as _e {
@@ -1193,16 +1193,18 @@ FloatingToolbar_DragRun(*) {
     if !(FloatingToolbarGUI && FloatingToolbarDragging)
         return
     try {
+        ToolbarWidth := FloatingToolbarCalculateWidth()
+        ToolbarHeight := FloatingToolbarCalculateHeight()
+        ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
+        vr := vl + vw
+        vb := vt + vh
+        lastX := FloatingToolbarWindowX
+        lastY := FloatingToolbarWindowY
         while GetKeyState("LButton", "P") {
             CoordMode("Mouse", "Screen")
             MouseGetPos(&mx, &my)
             newX := FloatingToolbar_DragOriginWinX + (mx - FloatingToolbar_DragOriginScreenX)
             newY := FloatingToolbar_DragOriginWinY + (my - FloatingToolbar_DragOriginScreenY)
-            ToolbarWidth := FloatingToolbarCalculateWidth()
-            ToolbarHeight := FloatingToolbarCalculateHeight()
-            ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
-            vr := vl + vw
-            vb := vt + vh
             if (newX < vl)
                 newX := vl
             if (newY < vt)
@@ -1211,9 +1213,13 @@ FloatingToolbar_DragRun(*) {
                 newX := vr - ToolbarWidth
             if (newY + ToolbarHeight > vb)
                 newY := vb - ToolbarHeight
-            try FloatingToolbarGUI.Move(newX, newY)
-            FloatingToolbarWindowX := newX
-            FloatingToolbarWindowY := newY
+            if (newX != lastX || newY != lastY) {
+                try FloatingToolbarGUI.Move(newX, newY)
+                lastX := newX
+                lastY := newY
+                FloatingToolbarWindowX := newX
+                FloatingToolbarWindowY := newY
+            }
         }
     } catch {
     }
