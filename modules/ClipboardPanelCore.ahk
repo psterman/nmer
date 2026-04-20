@@ -498,7 +498,32 @@ _CP_OnWV2Created(ctrl) {
     if !DirExist(cacheRoot)
         DirCreate(cacheRoot)
     try g_CP_WV2.SetVirtualHostNameToFolderMapping("clip.local", cacheRoot, WebView2.HOST_RESOURCE_ACCESS_KIND.ALLOW)
+    ; Raycast/搜索中心同款：把本机盘符映射为 https://c.local/...，避免 file:/// 在 WebView2 下的权限/解码问题
+    try _CP_MapDriveLocalHosts()
     g_CP_WV2.Navigate(BuildAppLocalUrl("ClipboardPanel.html"))
+}
+
+_CP_MapDriveLocalHosts() {
+    global g_CP_WV2, WebView2
+    if !g_CP_WV2
+        return
+    try {
+        drives := DriveGetList("FIXED")
+    } catch {
+        drives := ""
+    }
+    if (drives = "")
+        return
+    Loop Parse, drives {
+        d := StrLower(A_LoopField)
+        if (d = "")
+            continue
+        root := StrUpper(d) . ":\"
+        if !DirExist(root)
+            continue
+        host := d . ".local"
+        try g_CP_WV2.SetVirtualHostNameToFolderMapping(host, root, WebView2.HOST_RESOURCE_ACCESS_KIND.ALLOW)
+    }
 }
 
 _CP_ApplyBounds() {
@@ -1210,16 +1235,19 @@ _CP_StripHtml(s) {
 }
 
 _CP_ResolvePastePath(content, sourcePath) {
+    ; 说明：CaptureClipboardTextToFTS5 写入的 SourcePath 常为「来源进程路径」（如 explorer.exe），
+    ; 若优先取 SourcePath，会把用户复制的文件路径条目误判成 exe，导致右侧无法预览真实文件。
+    ; 因此：无换行的 Content 若本身是存在的路径，优先于 SourcePath。
     sourcePath := Trim(sourcePath)
-    if sourcePath != "" && FileExist(sourcePath)
-        return sourcePath
     c := Trim(content)
+    if (c != "" && !InStr(c, "`n") && !InStr(c, "`r") && FileExist(c))
+        return c
+    if (sourcePath != "" && FileExist(sourcePath))
+        return sourcePath
     if c = ""
         return ""
     if InStr(c, "`n") || InStr(c, "`r")
         return ""
-    if FileExist(c)
-        return c
     return ""
 }
 
@@ -1744,13 +1772,15 @@ _CP_DoGetPreview(id) {
                     imageFormat := StrLower(ext)
                 }
 
-                ; 额外：尝试识别“本地文件路径”并提供更强预览
-                ; - 优先 SourcePath（若为真实文件）
-                ; - 再尝试 Content 本身是路径
+                ; 额外：尝试识别“本地文件路径”并提供更强预览（Content 路径优先，见 _CP_ResolvePastePath）
                 filePath := ""
                 try filePath := _CP_ResolvePastePath(content, item.Has("SourcePath") ? item["SourcePath"] : "")
                 catch
                     filePath := ""
+                ipTrim := Trim(String(imagePath))
+                if ((filePath = "" || !FileExist(filePath)) && ipTrim != "" && !RegExMatch(ipTrim, "i)^https?://") && FileExist(ipTrim)) {
+                    filePath := ipTrim
+                }
                 fileName2 := ""
                 fileExt := ""
                 fileSize2 := 0
@@ -1791,8 +1821,14 @@ _CP_DoGetPreview(id) {
                             previewText := ""
                         }
                     } else if (extLower = "pdf") {
+                        ; 有可用路径时由前端用虚拟主机 / file URL 预览，不再塞整份 base64（数 MB 时 WebView data: 黑屏且拖慢宿主）
+                        ; 仅无路径或极小的兜底才读 base64
                         try {
-                            if (fileSize2 > 0 && fileSize2 <= maxBase64Bytes) {
+                            maxPdfEmbedBytes := 768 * 1024
+                            if (filePath != "" && FileExist(filePath) && fileSize2 > maxPdfEmbedBytes) {
+                                fileBase64 := ""
+                                fileMime := "application/pdf"
+                            } else if (fileSize2 > 0 && fileSize2 <= maxBase64Bytes) {
                                 bufP := FileRead(filePath, "RAW")
                                 if IsObject(bufP) && bufP.Size > 0 {
                                     fileBase64 := Base64Encode(bufP)

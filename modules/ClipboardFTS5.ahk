@@ -1190,10 +1190,11 @@ CaptureClipboardToFTS5() {
     }
     
     try {
-        ; 检查剪贴板是否有内容（文本 / DIB / CF_BITMAP）
+        ; 检查剪贴板是否有内容（文本 / DIB / CF_BITMAP / CF_HDROP）
         if (!DllCall("IsClipboardFormatAvailable", "UInt", 1)
             && !DllCall("IsClipboardFormatAvailable", "UInt", 8)
-            && !DllCall("IsClipboardFormatAvailable", "UInt", 2)) {
+            && !DllCall("IsClipboardFormatAvailable", "UInt", 2)
+            && !DllCall("IsClipboardFormatAvailable", "UInt", 15)) {
             return false
         }
         
@@ -1210,6 +1211,24 @@ CaptureClipboardToFTS5() {
             || DllCall("IsClipboardFormatAvailable", "UInt", 2)) {
             return CaptureClipboardImageToFTS5(SourceApp)
         }
+
+        ; 处理资源管理器复制文件（CF_HDROP=15）
+        if (DllCall("IsClipboardFormatAvailable", "UInt", 15)) {
+            try {
+                wc := WinClip()
+                files := wc.GetFiles()
+                if (files != "") {
+                    ; 先尝试图片文件入库；其余文件按“文本+SourcePath”记录（便于预览/粘贴路径）
+                    okImg := ClipboardFTS5_ImportDroppedImageFiles(files, SourceApp)
+                    okAny := okImg
+                    okAny := ClipboardFTS5_ImportDroppedNonImageFiles(files, SourceApp) || okAny
+                    if okAny
+                        return true
+                }
+            } catch {
+            }
+            ; 继续后续文本兜底（部分应用会同时写入 CF_TEXT 路径）
+        }
         
         ; 处理文本
         if (DllCall("IsClipboardFormatAvailable", "UInt", 1)) {
@@ -1222,6 +1241,51 @@ CaptureClipboardToFTS5() {
     } catch as err {
         return false
     }
+}
+
+; 资源管理器 CF_HDROP：把非图片文件也记入 ClipMain（Text + SourcePath + FileSize）
+ClipboardFTS5_ImportDroppedNonImageFiles(fileListText, SourceApp) {
+    global ClipboardFTS5DB
+    if (!ClipboardFTS5DB || ClipboardFTS5DB = 0)
+        return false
+    if (fileListText = "")
+        return false
+    anyOk := false
+    Loop parse, fileListText, "`n", "`r" {
+        fp := Trim(A_LoopField)
+        if (fp = "" || !FileExist(fp))
+            continue
+        SplitPath(fp, &fileName, , &ext)
+        ext := StrLower(ext)
+        ; 图片文件已由 CaptureImageFileToFTS5 处理
+        if RegExMatch(ext, "^(png|jpe?g|gif|webp|bmp|ico|svg)$")
+            continue
+        fileSize := 0
+        try fileSize := FileGetSize(fp)
+        content := fp
+        charCount := StrLen(content)
+        SQL := "INSERT INTO ClipMain (Content, SourceApp, DataType, CharCount, SourcePath, FileSize, Timestamp) " .
+               "VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))"
+        stmt := ""
+        try {
+            if !ClipboardFTS5DB.Prepare(SQL, &stmt)
+                continue
+            stmt.Bind(1, content)
+            stmt.Bind(2, SourceApp)
+            stmt.Bind(3, "Text")
+            stmt.Bind(4, charCount)
+            stmt.Bind(5, fp)
+            stmt.Bind(6, fileSize)
+            if (stmt.Step() != 101) {
+                ; ignore
+            } else {
+                anyOk := true
+            }
+        } catch {
+        }
+        try stmt.Free()
+    }
+    return anyOk
 }
 
 ; ===================== 采集文本到数据库 =====================

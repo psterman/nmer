@@ -2681,9 +2681,11 @@ function applyState(payload) {
 }
 
 let searchDebounceTimer = 0;
+const SEARCH_INPUT_DEBOUNCE_MS = 180;
 function triggerSearch() {
   if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
   searchDebounceTimer = setTimeout(() => {
+    searchDebounceTimer = 0;
     if (state.engineMode === "go") {
       try {
         runSearchGoPipeline(0);
@@ -2693,7 +2695,7 @@ function triggerSearch() {
     } else {
       postToAhk({ type: "search", keyword: state.keyword });
     }
-  }, 400);
+  }, SEARCH_INPUT_DEBOUNCE_MS);
 }
 
 function cancelPendingSearchDebounce() {
@@ -2756,10 +2758,23 @@ function setupLoadMoreObserver() {
   loadMoreObserver.observe(sent);
 }
 
-document.getElementById("search").addEventListener("input", (event) => {
-  state.keyword = event.target.value;
-  triggerSearch();
-});
+let searchCompositionActive = false;
+const searchInputEl = document.getElementById("search");
+if (searchInputEl) {
+  searchInputEl.addEventListener("compositionstart", () => {
+    searchCompositionActive = true;
+  });
+  searchInputEl.addEventListener("compositionend", (event) => {
+    searchCompositionActive = false;
+    state.keyword = event.target.value;
+    triggerSearch();
+  });
+  searchInputEl.addEventListener("input", (event) => {
+    if (searchCompositionActive) return;
+    state.keyword = event.target.value;
+    triggerSearch();
+  });
+}
 
 document.getElementById("limit").addEventListener("change", (event) => {
   postToAhk({ type: "setLimit", limit: Number(event.target.value) || 50 });

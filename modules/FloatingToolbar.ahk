@@ -1503,6 +1503,11 @@ FloatingToolbarPushCmdLayoutToWeb() {
             _LoadCommands()
     } catch {
     }
+    try {
+        if (IsSet(_VK_EnsureToolbarLayout) && IsSet(g_Commands) && g_Commands is Map && g_Commands.Has("CommandList"))
+            _VK_EnsureToolbarLayout()
+    } catch {
+    }
     if !(IsSet(g_Commands) && g_Commands is Map && g_Commands.Has("ToolbarLayout") && g_Commands["ToolbarLayout"] is Array
         && g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map)
         return
