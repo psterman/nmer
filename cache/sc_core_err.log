@@ -1,0 +1,4 @@
+2026/04/21 16:38:10 [db] ATTACH CursorData.db 成功
+2026/04/21 16:38:10 [fulltext] StartIndexer failed: open bluge writer failed: error opening index: error getting exclusive access to diretory: unable to obtain exclusive access: The process cannot access the file because another process has locked a portion of the file.
+2026/04/21 16:38:10 SearchCenterCore listening on http://127.0.0.1:8080 (base=c:\Users\Administrator\Desktop\小c) routes: /health /search /clip/search /clip/preview /v1/status /status /v1/fulltext/status /v1/fulltext/progress /v1/fulltext/progress/stream /v1/fulltext/config /v1/fulltext/control
+2026/04/21 16:38:10 listen tcp 127.0.0.1:8080: bind: Only one usage of each socket address (protocol/network address/port) is normally permitted.

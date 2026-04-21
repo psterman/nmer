@@ -25,8 +25,14 @@ type FullTextStatus struct {
 	Ready              bool     `json:"ready"`
 	InitialScanDone    bool     `json:"initialScanDone"`
 	Progress           float64  `json:"progress"`
+	ProgressText       string   `json:"progressText"`
+	ProgressDetail     string   `json:"progressDetail"`
+	EfficiencyText     string   `json:"efficiencyText"`
+	ScanPhase          string   `json:"scanPhase"`
 	IndexingFile       string   `json:"indexing_file"`
 	IndexedFiles       int64    `json:"indexedFiles"`
+	DiscoveredFiles    int64    `json:"discoveredFiles"`
+	ProcessedFiles     int64    `json:"processedFiles"`
 	PendingTasks       int      `json:"pendingTasks"`
 	WorkerCount        int      `json:"workerCount"`
 	ScanSpeed          string   `json:"scanSpeed"`
@@ -38,20 +44,27 @@ type FullTextStatus struct {
 	LowDisk            bool     `json:"lowDisk"`
 	FreeDiskMB         int64    `json:"freeDiskMB"`
 	WritesPaused       bool     `json:"writesPaused"`
+	FilesPerSec        float64  `json:"filesPerSec"`
+	ETASeconds         int64    `json:"etaSeconds"`
 	LastError          string   `json:"lastError,omitempty"`
 	Alerts             []string `json:"alerts,omitempty"`
 	LastUpdatedRFC3339 string   `json:"lastUpdated"`
 }
 
 type fullTextProgressPayload struct {
-	Progress     float64  `json:"progress"`
-	ProgressText string   `json:"progressText"`
-	IndexingFile string   `json:"indexing_file"`
-	Ready        bool     `json:"ready"`
-	Running      bool     `json:"running"`
-	LowDisk      bool     `json:"lowDisk"`
-	EngineLights []string `json:"engine_lights"`
-	Alerts       []string `json:"alerts,omitempty"`
+	Progress       float64  `json:"progress"`
+	ProgressText   string   `json:"progressText"`
+	ProgressDetail string   `json:"progressDetail"`
+	EfficiencyText string   `json:"efficiencyText"`
+	ScanPhase      string   `json:"scanPhase"`
+	IndexingFile   string   `json:"indexing_file"`
+	Ready          bool     `json:"ready"`
+	Running        bool     `json:"running"`
+	LowDisk        bool     `json:"lowDisk"`
+	FilesPerSec    float64  `json:"filesPerSec"`
+	ETASeconds     int64    `json:"etaSeconds"`
+	EngineLights   []string `json:"engine_lights"`
+	Alerts         []string `json:"alerts,omitempty"`
 }
 
 func InitFullTextRuntime(baseDir string) {}
@@ -73,6 +86,10 @@ func GetStatus() FullTextStatus {
 		Ready:              false,
 		InitialScanDone:    false,
 		Progress:           0,
+		ProgressText:       "0.0%",
+		ProgressDetail:     "未开始扫描",
+		EfficiencyText:     "0 文件/秒",
+		ScanPhase:          "idle",
 		LastUpdatedRFC3339: time.Now().Format(time.RFC3339),
 	}
 }
@@ -80,14 +97,19 @@ func GetStatus() FullTextStatus {
 func GetProgressPayload() fullTextProgressPayload {
 	st := GetStatus()
 	return fullTextProgressPayload{
-		Progress:     st.Progress,
-		ProgressText: "0.0%",
-		IndexingFile: st.IndexingFile,
-		Ready:        st.Ready,
-		Running:      st.Running,
-		LowDisk:      st.LowDisk,
-		EngineLights: []string{"off", "off", "off", "off"},
-		Alerts:       st.Alerts,
+		Progress:       st.Progress,
+		ProgressText:   st.ProgressText,
+		ProgressDetail: st.ProgressDetail,
+		EfficiencyText: st.EfficiencyText,
+		ScanPhase:      st.ScanPhase,
+		IndexingFile:   st.IndexingFile,
+		Ready:          st.Ready,
+		Running:        st.Running,
+		LowDisk:        st.LowDisk,
+		FilesPerSec:    st.FilesPerSec,
+		ETASeconds:     st.ETASeconds,
+		EngineLights:   []string{"off", "off", "off", "off"},
+		Alerts:         st.Alerts,
 	}
 }
 

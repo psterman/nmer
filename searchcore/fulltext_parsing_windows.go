@@ -15,7 +15,12 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf16"
 	"unicode/utf8"
+
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 func (b *blugeIndexer) readFileForIndex(path string, fileSize int64) (string, string, error) {
@@ -29,6 +34,12 @@ func (b *blugeIndexer) readFileForIndex(path string, fileSize int64) (string, st
 		return text, trimPreview(text, 180), nil
 	case "docx":
 		text, err := extractDOCXText(path)
+		if err != nil {
+			return "", "", err
+		}
+		return text, trimPreview(text, 180), nil
+	case "xlsx":
+		text, err := extractXLSXText(path)
 		if err != nil {
 			return "", "", err
 		}
@@ -63,14 +74,131 @@ func (b *blugeIndexer) readPlainTextFileForIndex(path string, fileSize int64) (s
 	if len(buf) == 0 {
 		return "", "", nil
 	}
-	if bytes.IndexByte(buf, 0) >= 0 {
-		return "", "", errSkipNonText
+	text, err := decodeBestEffortText(buf)
+	if err != nil {
+		return "", "", err
 	}
-	if !utf8.Valid(buf) {
-		buf = bytes.ToValidUTF8(buf, []byte(" "))
-	}
-	text := string(buf)
 	return text, trimPreview(text, 180), nil
+}
+
+func decodeBestEffortText(buf []byte) (string, error) {
+	if len(buf) == 0 {
+		return "", nil
+	}
+	if s, ok := decodeUTF16WithBOM(buf); ok {
+		if strings.TrimSpace(s) == "" {
+			return "", errSkipNonText
+		}
+		return s, nil
+	}
+	if utf8.Valid(buf) {
+		s := strings.TrimSpace(string(buf))
+		if s == "" {
+			return "", errSkipNonText
+		}
+		return s, nil
+	}
+	if s, ok := decodeLikelyUTF16NoBOM(buf); ok {
+		if strings.TrimSpace(s) == "" {
+			return "", errSkipNonText
+		}
+		return s, nil
+	}
+	if s, _, err := transform.String(simplifiedchinese.GB18030.NewDecoder(), string(buf)); err == nil {
+		s = strings.TrimSpace(strings.ReplaceAll(s, "\x00", " "))
+		if s != "" {
+			return s, nil
+		}
+	}
+	if bytes.IndexByte(buf, 0) >= 0 {
+		return "", errSkipNonText
+	}
+	s := strings.TrimSpace(string(bytes.ToValidUTF8(buf, []byte(" "))))
+	if s == "" {
+		return "", errSkipNonText
+	}
+	return s, nil
+}
+
+func decodeUTF16WithBOM(buf []byte) (string, bool) {
+	if len(buf) < 2 {
+		return "", false
+	}
+	if buf[0] == 0xFF && buf[1] == 0xFE {
+		return decodeUTF16Bytes(buf[2:], true), true
+	}
+	if buf[0] == 0xFE && buf[1] == 0xFF {
+		return decodeUTF16Bytes(buf[2:], false), true
+	}
+	return "", false
+}
+
+func decodeLikelyUTF16NoBOM(buf []byte) (string, bool) {
+	if len(buf) < 4 || len(buf)%2 != 0 {
+		return "", false
+	}
+	var zeroEven, zeroOdd int
+	for i := 0; i < len(buf); i += 2 {
+		if buf[i] == 0 {
+			zeroEven++
+		}
+		if i+1 < len(buf) && buf[i+1] == 0 {
+			zeroOdd++
+		}
+	}
+	total := len(buf) / 2
+	if total == 0 {
+		return "", false
+	}
+	leLikely := float64(zeroOdd)/float64(total) > 0.20
+	beLikely := float64(zeroEven)/float64(total) > 0.20
+	if !leLikely && !beLikely {
+		return "", false
+	}
+	le := decodeUTF16Bytes(buf, true)
+	be := decodeUTF16Bytes(buf, false)
+	if scoreTextQuality(le) >= scoreTextQuality(be) {
+		return le, true
+	}
+	return be, true
+}
+
+func decodeUTF16Bytes(buf []byte, littleEndian bool) string {
+	if len(buf) < 2 {
+		return ""
+	}
+	u16 := make([]uint16, 0, len(buf)/2)
+	for i := 0; i+1 < len(buf); i += 2 {
+		var v uint16
+		if littleEndian {
+			v = uint16(buf[i]) | uint16(buf[i+1])<<8
+		} else {
+			v = uint16(buf[i])<<8 | uint16(buf[i+1])
+		}
+		u16 = append(u16, v)
+	}
+	runes := utf16.Decode(u16)
+	return strings.TrimSpace(string(runes))
+}
+
+func scoreTextQuality(s string) int {
+	if s == "" {
+		return 0
+	}
+	score := 0
+	for _, r := range s {
+		switch {
+		case unicode.Is(unicode.Han, r):
+			score += 4
+		case unicode.IsLetter(r), unicode.IsDigit(r):
+			score += 2
+		case unicode.IsSpace(r):
+			score += 1
+		case unicode.IsPunct(r):
+			score += 1
+		}
+	}
+	return score
 }
 
 func (b *blugeIndexer) extractPDFText(path string) (string, error) {
@@ -149,6 +277,35 @@ func extractDOCXText(path string) (string, error) {
 		return "", errSkipNonText
 	}
 	return text, nil
+}
+
+func extractXLSXText(path string) (string, error) {
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		return "", err
+	}
+	defer zr.Close()
+
+	for _, f := range zr.File {
+		name := strings.ToLower(strings.ReplaceAll(f.Name, "\\", "/"))
+		if name != "xl/sharedstrings.xml" {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			continue
+		}
+		buf, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if err != nil || len(buf) == 0 {
+			continue
+		}
+		text := collectXMLCharData(buf)
+		if strings.TrimSpace(text) != "" {
+			return text, nil
+		}
+	}
+	return "", errSkipNonText
 }
 
 func collectXMLCharData(buf []byte) string {

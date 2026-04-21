@@ -55,7 +55,9 @@ _CP_EnsureSearchCoreRunning() {
     if _CP_IsSearchCoreAlive()
         return true
     base := IsSet(MainScriptDir) ? MainScriptDir : A_ScriptDir
-    exe := base "\SearchCenterCore.exe"
+    preferred := base "\searchcore\SearchCenterCore.exe"
+    fallback := base "\SearchCenterCore.exe"
+    exe := FileExist(preferred) ? preferred : fallback
     if !FileExist(exe)
         return false
     try {

@@ -119,6 +119,8 @@ func buildFullTextFileItem(fullPath, lineText string, lineNo int, score float64,
 		"DateModified": ts,
 		"SearchScore":  score,
 		"HitSource":    hitSource,
+		"HitCount":     1,
+		"HitLines":     []int{lineNo},
 	}
 
 	id := fullPath
@@ -305,7 +307,6 @@ func rgExcludeGlobs() []string {
 	return []string{
 		"!**/.git/**",
 		"!**/node_modules/**",
-		"!**/AppData/**",
 		"!**/$Recycle.Bin/**",
 		"!**/Windows/**",
 		"!**/*.exe",

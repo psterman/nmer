@@ -1171,6 +1171,7 @@ mark {
         <span class="ft-mini-light" id="ftl3"></span>
         <span class="ft-mini-light" id="ftl4"></span>
         <span id="ft-progress-text">FT 0.0%</span>
+        <span id="ft-efficiency-text" class="ft-mini-file">0 文件/秒</span>
         <span id="ft-file" class="ft-mini-file">空闲</span>
       </div>
     </div>
@@ -1317,7 +1318,14 @@ const state = {
     ready: false,
     progress: 0,
     progressText: "0.0%",
+    progressDetail: "",
+    efficiencyText: "",
+    scanPhase: "idle",
     indexing_file: "",
+    discoveredFiles: 0,
+    processedFiles: 0,
+    filesPerSec: 0,
+    etaSeconds: 0,
     engine_lights: ["off", "off", "off", "off"]
   },
   quickLook: {
@@ -1526,7 +1534,14 @@ function normalizeFulltextPayload(payload) {
     ready: !!src.ready,
     progress: Number.isFinite(Number(src.progress)) ? Number(src.progress) : 0,
     progressText: String(src.progressText || "0.0%"),
+    progressDetail: String(src.progressDetail || ""),
+    efficiencyText: String(src.efficiencyText || ""),
+    scanPhase: String(src.scanPhase || ""),
     indexing_file: String(src.indexing_file || ""),
+    discoveredFiles: Number.isFinite(Number(src.discoveredFiles)) ? Number(src.discoveredFiles) : 0,
+    processedFiles: Number.isFinite(Number(src.processedFiles)) ? Number(src.processedFiles) : 0,
+    filesPerSec: Number.isFinite(Number(src.filesPerSec)) ? Number(src.filesPerSec) : 0,
+    etaSeconds: Number.isFinite(Number(src.etaSeconds)) ? Number(src.etaSeconds) : 0,
     engine_lights: Array.isArray(src.engine_lights) && src.engine_lights.length === 4
       ? src.engine_lights.map((v) => String(v || "off"))
       : ["off", "off", "off", "off"]
@@ -1544,12 +1559,27 @@ function applyFulltextStatus(payload) {
   });
   const progressEl = document.getElementById("ft-progress-text");
   if (progressEl) {
-    const txt = state.fulltext.progressText || `${state.fulltext.progress.toFixed(1)}%`;
+    const txt = state.fulltext.progressDetail || state.fulltext.progressText || `${state.fulltext.progress.toFixed(1)}%`;
     progressEl.textContent = `FT ${txt}`;
+  }
+  const effEl = document.getElementById("ft-efficiency-text");
+  if (effEl) {
+    const txt = state.fulltext.efficiencyText || `${state.fulltext.filesPerSec.toFixed(2)} 文件/秒`;
+    effEl.textContent = txt;
+    effEl.title = txt;
   }
   const fileEl = document.getElementById("ft-file");
   if (fileEl) {
-    const t = state.fulltext.indexing_file || (state.fulltext.running ? "索引监控中" : "空闲");
+    const phaseMap = {
+      startup: "准备中",
+      walking: "扫描目录中",
+      indexing: "冷索引中",
+      idle_wait: "等待空闲",
+      ready: "索引就绪",
+      idle: "空闲"
+    };
+    const phase = phaseMap[state.fulltext.scanPhase] || (state.fulltext.running ? "索引监控中" : "空闲");
+    const t = state.fulltext.indexing_file ? `${phase} · ${state.fulltext.indexing_file}` : phase;
     fileEl.textContent = t;
     fileEl.title = t;
   }

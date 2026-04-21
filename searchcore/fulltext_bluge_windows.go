@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	defaultInitialScanDelay = 15 * time.Second
+	defaultInitialScanDelay = 1 * time.Second
 	defaultPerFilePause     = 5 * time.Millisecond
 	defaultMaxTextFileBytes = int64(2 * 1024 * 1024)
 	defaultHardReadLimit    = int64(32 * 1024 * 1024)
@@ -48,8 +48,14 @@ type FullTextStatus struct {
 	Ready              bool     `json:"ready"`
 	InitialScanDone    bool     `json:"initialScanDone"`
 	Progress           float64  `json:"progress"`
+	ProgressText       string   `json:"progressText"`
+	ProgressDetail     string   `json:"progressDetail"`
+	EfficiencyText     string   `json:"efficiencyText"`
+	ScanPhase          string   `json:"scanPhase"`
 	IndexingFile       string   `json:"indexing_file"`
 	IndexedFiles       int64    `json:"indexedFiles"`
+	DiscoveredFiles    int64    `json:"discoveredFiles"`
+	ProcessedFiles     int64    `json:"processedFiles"`
 	PendingTasks       int      `json:"pendingTasks"`
 	WorkerCount        int      `json:"workerCount"`
 	ScanSpeed          string   `json:"scanSpeed"`
@@ -61,6 +67,8 @@ type FullTextStatus struct {
 	LowDisk            bool     `json:"lowDisk"`
 	FreeDiskMB         int64    `json:"freeDiskMB"`
 	WritesPaused       bool     `json:"writesPaused"`
+	FilesPerSec        float64  `json:"filesPerSec"`
+	ETASeconds         int64    `json:"etaSeconds"`
 	LastError          string   `json:"lastError,omitempty"`
 	Alerts             []string `json:"alerts,omitempty"`
 	LastUpdatedRFC3339 string   `json:"lastUpdated"`
@@ -82,6 +90,7 @@ type fullTextConfig struct {
 	MinFreeDiskBytes int64
 	NeedUserIndexDir bool
 	ExcludeDirs      map[string]struct{}
+	IdleIndexAfter   time.Duration
 }
 
 type fileFingerprint struct {
@@ -119,17 +128,24 @@ type blugeIndexer struct {
 	initialWalkDone  bool
 	initialTaskTotal int64
 	initialTaskDone  int64
+	idleWaitNotified bool
+	startedAt        time.Time
 }
 
 type fullTextProgressPayload struct {
-	Progress     float64  `json:"progress"`
-	ProgressText string   `json:"progressText"`
-	IndexingFile string   `json:"indexing_file"`
-	Ready        bool     `json:"ready"`
-	Running      bool     `json:"running"`
-	LowDisk      bool     `json:"lowDisk"`
-	EngineLights []string `json:"engine_lights"`
-	Alerts       []string `json:"alerts,omitempty"`
+	Progress       float64  `json:"progress"`
+	ProgressText   string   `json:"progressText"`
+	ProgressDetail string   `json:"progressDetail"`
+	EfficiencyText string   `json:"efficiencyText"`
+	ScanPhase      string   `json:"scanPhase"`
+	IndexingFile   string   `json:"indexing_file"`
+	Ready          bool     `json:"ready"`
+	Running        bool     `json:"running"`
+	LowDisk        bool     `json:"lowDisk"`
+	FilesPerSec    float64  `json:"filesPerSec"`
+	ETASeconds     int64    `json:"etaSeconds"`
+	EngineLights   []string `json:"engine_lights"`
+	Alerts         []string `json:"alerts,omitempty"`
 }
 
 func StartIndexer(baseDir string) error {
@@ -174,6 +190,10 @@ func GetStatus() FullTextStatus {
 			Ready:              false,
 			InitialScanDone:    false,
 			Progress:           0,
+			ProgressText:       "0.0%",
+			ProgressDetail:     "未开始扫描",
+			EfficiencyText:     "0 文件/秒",
+			ScanPhase:          "idle",
 			LastUpdatedRFC3339: time.Now().Format(time.RFC3339),
 		}
 	}
@@ -183,14 +203,19 @@ func GetStatus() FullTextStatus {
 func GetProgressPayload() fullTextProgressPayload {
 	st := GetStatus()
 	return fullTextProgressPayload{
-		Progress:     st.Progress,
-		ProgressText: fmt.Sprintf("%.1f%%", st.Progress),
-		IndexingFile: st.IndexingFile,
-		Ready:        st.Ready,
-		Running:      st.Running,
-		LowDisk:      st.LowDisk,
-		EngineLights: buildEngineLights(st),
-		Alerts:       st.Alerts,
+		Progress:       st.Progress,
+		ProgressText:   st.ProgressText,
+		ProgressDetail: st.ProgressDetail,
+		EfficiencyText: st.EfficiencyText,
+		ScanPhase:      st.ScanPhase,
+		IndexingFile:   st.IndexingFile,
+		Ready:          st.Ready,
+		Running:        st.Running,
+		LowDisk:        st.LowDisk,
+		FilesPerSec:    st.FilesPerSec,
+		ETASeconds:     st.ETASeconds,
+		EngineLights:   buildEngineLights(st),
+		Alerts:         st.Alerts,
 	}
 }
 
@@ -224,8 +249,16 @@ func searchFullTextWithBackend(baseDir, keyword string, maxResults int) ([]map[s
 
 	_ = StartIndexer(baseDir)
 
-	hotItems, hotErr := searchFullTextWithRg(baseDir, kw, maxResults*2)
 	coldItems, coldErr := Search(kw, maxResults*2)
+	if !shouldUseHotPathForQuery(baseDir) {
+		merged := mergeAndRankFullTextItems(kw, maxResults, coldItems)
+		if len(merged) > 0 || coldErr == nil {
+			return merged, nil
+		}
+		return nil, coldErr
+	}
+
+	hotItems, hotErr := searchFullTextWithRg(baseDir, kw, maxResults*2)
 
 	merged := mergeAndRankFullTextItems(kw, maxResults, hotItems, coldItems)
 	if len(merged) > 0 {
@@ -241,6 +274,18 @@ func searchFullTextWithBackend(baseDir, keyword string, maxResults int) ([]map[s
 		return nil, coldErr
 	}
 	return []map[string]any{}, nil
+}
+
+func shouldUseHotPathForQuery(baseDir string) bool {
+	roots := fullTextRoots(baseDir)
+	if len(roots) != 1 {
+		return false
+	}
+	r := strings.TrimSpace(roots[0])
+	if len(r) == 3 && r[1] == ':' && (r[2] == '\\' || r[2] == '/') {
+		return false
+	}
+	return true
 }
 
 func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
@@ -284,8 +329,14 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 			Ready:              false,
 			InitialScanDone:    false,
 			Progress:           0,
+			ProgressText:       "0.0%",
+			ProgressDetail:     "等待开始扫描",
+			EfficiencyText:     "0 文件/秒",
+			ScanPhase:          "startup",
 			IndexingFile:       "",
 			IndexedFiles:       0,
+			DiscoveredFiles:    0,
+			ProcessedFiles:     0,
 			PendingTasks:       0,
 			WorkerCount:        cfg.Workers,
 			ScanSpeed:          cfg.ScanSpeed,
@@ -296,6 +347,7 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 			Roots:              append([]string{}, cfg.Roots...),
 			LastUpdatedRFC3339: time.Now().Format(time.RFC3339),
 		},
+		startedAt: time.Now(),
 	}
 
 	if cfg.NeedUserIndexDir {
@@ -324,6 +376,7 @@ func (b *blugeIndexer) StartIndexer() error {
 
 		b.mu.Lock()
 		b.status.Running = true
+		b.status.ScanPhase = "walking"
 		b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 		b.mu.Unlock()
 
@@ -418,13 +471,22 @@ func (b *blugeIndexer) initialScanLoop() {
 		return
 	case <-time.After(b.cfg.InitialDelay):
 	}
+	if !b.waitInitialIdleOnce() {
+		return
+	}
 
 	for _, root := range b.cfg.Roots {
+		b.mu.Lock()
+		b.status.ScanPhase = "walking"
+		b.status.IndexingFile = "扫描目录: " + root
+		b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
+		b.mu.Unlock()
 		b.walkRoot(root, true)
 	}
 
 	b.mu.Lock()
 	b.initialWalkDone = true
+	b.status.ScanPhase = "indexing"
 	b.refreshProgressLocked()
 	b.mu.Unlock()
 }
@@ -449,6 +511,13 @@ func (b *blugeIndexer) walkRoot(root string, initial bool) {
 			if b.shouldSkipDir(path, d.Name()) {
 				return filepath.SkipDir
 			}
+			if initial && normalizePathKey(path) == normalizePathKey(cleanRoot) {
+				b.mu.Lock()
+				b.status.ScanPhase = "walking"
+				b.status.IndexingFile = "扫描目录: " + cleanRoot
+				b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
+				b.mu.Unlock()
+			}
 			b.addWatch(path)
 			return nil
 		}
@@ -460,6 +529,7 @@ func (b *blugeIndexer) walkRoot(root string, initial bool) {
 		if initial {
 			b.mu.Lock()
 			b.initialTaskTotal++
+			b.status.DiscoveredFiles = b.initialTaskTotal
 			b.refreshProgressLocked()
 			b.mu.Unlock()
 		}
@@ -493,9 +563,11 @@ func (b *blugeIndexer) workerLoop(workerID int) {
 			if task.Initial {
 				b.mu.Lock()
 				b.initialTaskDone++
+				b.status.ProcessedFiles = b.initialTaskDone
 				if b.initialWalkDone && b.initialTaskDone >= b.initialTaskTotal {
 					b.status.InitialScanDone = true
 					b.status.Ready = true
+					b.status.ScanPhase = "ready"
 				}
 				b.refreshProgressLocked()
 				b.mu.Unlock()
@@ -505,6 +577,37 @@ func (b *blugeIndexer) workerLoop(workerID int) {
 				time.Sleep(b.cfg.PerFilePause)
 			}
 			b.clearCurrentFile(task.Path)
+		}
+	}
+}
+
+func (b *blugeIndexer) waitInitialIdleOnce() bool {
+	if b.cfg.IdleIndexAfter <= 0 {
+		return true
+	}
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		if userIdleForAtLeast(b.cfg.IdleIndexAfter) {
+			b.mu.Lock()
+			b.idleWaitNotified = false
+			b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
+			b.mu.Unlock()
+			return true
+		}
+		b.mu.Lock()
+		if !b.idleWaitNotified {
+			b.appendAlertLocked("初始冷索引等待用户空闲 3 分钟后继续")
+			b.idleWaitNotified = true
+		}
+		b.status.ScanPhase = "idle_wait"
+		b.status.IndexingFile = "等待空闲后批量索引"
+		b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
+		b.mu.Unlock()
+		select {
+		case <-b.ctx.Done():
+			return false
+		case <-ticker.C:
 		}
 	}
 }
@@ -853,6 +956,10 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 	}
 
 	score := scoreByPathAndContent(pathVal, snippetVal, query, float64(match.Score))
+	hitCount, hitLines := b.computeHitStats(pathVal, query)
+	if hitCount > 0 {
+		subParts = append(subParts, fmt.Sprintf("命中 %d 处", hitCount))
+	}
 	meta := map[string]any{
 		"FilePath":       pathVal,
 		"FileName":       fileName,
@@ -866,6 +973,8 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 		"SearchScore":    score,
 		"IndexedSize":    sizeVal,
 		"IndexedExtName": extVal,
+		"HitCount":       hitCount,
+		"HitLines":       hitLines,
 	}
 
 	return map[string]any{
@@ -882,6 +991,59 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 		"Action":           "open_file",
 		"ActionParams":     map[string]any{"FilePath": pathVal},
 	}
+}
+
+func (b *blugeIndexer) computeHitStats(path, query string) (int, []int) {
+	q := strings.TrimSpace(query)
+	if q == "" {
+		return 0, nil
+	}
+	st, err := os.Stat(path)
+	if err != nil || st.IsDir() || st.Size() <= 0 {
+		return 0, nil
+	}
+	ext := pathExtLower(path)
+	if ext == "pdf" || st.Size() > 8*1024*1024 {
+		return 0, nil
+	}
+	text, _, err := b.readFileForIndex(path, st.Size())
+	if err != nil || text == "" {
+		return 0, nil
+	}
+	return countHitsAndLines(text, q, 6)
+}
+
+func countHitsAndLines(text, query string, lineLimit int) (int, []int) {
+	if text == "" || query == "" {
+		return 0, nil
+	}
+	src := strings.ToLower(text)
+	q := strings.ToLower(query)
+	count := 0
+	for pos := 0; ; {
+		i := strings.Index(src[pos:], q)
+		if i < 0 {
+			break
+		}
+		count++
+		pos += i + len(q)
+		if pos >= len(src) {
+			break
+		}
+	}
+	lines := make([]int, 0, lineLimit)
+	if lineLimit > 0 {
+		parts := strings.Split(text, "\n")
+		for i, ln := range parts {
+			if strings.Contains(strings.ToLower(ln), q) {
+				lines = append(lines, i+1)
+				if len(lines) >= lineLimit {
+					break
+				}
+			}
+		}
+	}
+	return count, lines
 }
 
 func (b *blugeIndexer) shouldSkipDir(path, dirName string) bool {
@@ -921,14 +1083,8 @@ func (b *blugeIndexer) shouldIndexByColdPath(path string, size int64) bool {
 	if _, ok := b.cfg.FilterConfig.ColdExts[ext]; ok {
 		return true
 	}
-	if size > b.cfg.FilterConfig.MaxScanSizeBytes {
-		if ext == "" {
-			return false
-		}
-		switch ext {
-		case "exe", "dll", "jpg", "jpeg", "png", "gif", "ico", "mp4", "mp3", "avi", "mkv", "zip", "7z", "rar", "db":
-			return false
-		default:
+	if b.cfg.IncludeLargeText && size > b.cfg.FilterConfig.MaxScanSizeBytes {
+		if _, ok := b.cfg.FilterConfig.HotExts[ext]; ok {
 			return true
 		}
 	}
@@ -947,6 +1103,7 @@ func (b *blugeIndexer) isIndexDirPath(path string) bool {
 func (b *blugeIndexer) markCurrentFile(path string) {
 	b.mu.Lock()
 	b.status.IndexingFile = path
+	b.status.ScanPhase = "indexing"
 	b.status.PendingTasks = len(b.tasks)
 	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 	b.mu.Unlock()
@@ -997,8 +1154,15 @@ func (b *blugeIndexer) appendAlertLocked(msg string) {
 func (b *blugeIndexer) refreshProgressLocked() {
 	total := b.initialTaskTotal
 	done := b.initialTaskDone
+	b.status.DiscoveredFiles = total
+	b.status.ProcessedFiles = done
 	if b.status.InitialScanDone {
 		b.status.Progress = 100
+		b.status.ProgressText = "100.0%"
+		b.status.FilesPerSec = b.computeFilesPerSecLocked(done)
+		b.status.ETASeconds = 0
+		b.status.ProgressDetail = fmt.Sprintf("已处理 %d / %d，待处理 %d，索引根 %d", done, total, len(b.tasks), len(b.cfg.Roots))
+		b.status.EfficiencyText = fmt.Sprintf("%.2f 文件/秒", b.status.FilesPerSec)
 		return
 	}
 	if total <= 0 {
@@ -1006,9 +1170,15 @@ func (b *blugeIndexer) refreshProgressLocked() {
 			b.status.Progress = 100
 			b.status.InitialScanDone = true
 			b.status.Ready = true
+			b.status.ScanPhase = "ready"
 		} else {
 			b.status.Progress = 0
 		}
+		b.status.ProgressText = fmt.Sprintf("%.1f%%", b.status.Progress)
+		b.status.FilesPerSec = b.computeFilesPerSecLocked(done)
+		b.status.ETASeconds = 0
+		b.status.ProgressDetail = fmt.Sprintf("已发现 %d，待处理 %d，索引根 %d", total, len(b.tasks), len(b.cfg.Roots))
+		b.status.EfficiencyText = fmt.Sprintf("%.2f 文件/秒", b.status.FilesPerSec)
 		return
 	}
 	p := (float64(done) * 100.0) / float64(total)
@@ -1026,7 +1196,51 @@ func (b *blugeIndexer) refreshProgressLocked() {
 		b.status.InitialScanDone = true
 		b.status.Ready = true
 		b.status.Progress = 100
+		b.status.ScanPhase = "ready"
 	}
+	displayProgress := b.status.Progress
+	if done > 0 && displayProgress > 0 && displayProgress < 0.1 {
+		displayProgress = 0.1
+	}
+	b.status.ProgressText = fmt.Sprintf("%.1f%%", displayProgress)
+	fps := b.computeFilesPerSecLocked(done)
+	b.status.FilesPerSec = fps
+	if fps > 0 && done < total {
+		b.status.ETASeconds = int64(float64(total-done) / fps)
+	} else {
+		b.status.ETASeconds = 0
+	}
+	b.status.ProgressDetail = fmt.Sprintf("已处理 %d / %d，待处理 %d，索引根 %d", done, total, len(b.tasks), len(b.cfg.Roots))
+	etaText := formatETASeconds(b.status.ETASeconds)
+	if etaText != "" {
+		b.status.EfficiencyText = fmt.Sprintf("%.2f 文件/秒，预计剩余 %s", fps, etaText)
+	} else {
+		b.status.EfficiencyText = fmt.Sprintf("%.2f 文件/秒", fps)
+	}
+}
+
+func (b *blugeIndexer) computeFilesPerSecLocked(done int64) float64 {
+	if b.startedAt.IsZero() || done <= 0 {
+		return 0
+	}
+	secs := time.Since(b.startedAt).Seconds()
+	if secs <= 0 {
+		return 0
+	}
+	return float64(done) / secs
+}
+
+func formatETASeconds(sec int64) string {
+	if sec <= 0 {
+		return ""
+	}
+	if sec < 60 {
+		return fmt.Sprintf("%ds", sec)
+	}
+	if sec < 3600 {
+		return fmt.Sprintf("%dm%ds", sec/60, sec%60)
+	}
+	return fmt.Sprintf("%dh%dm", sec/3600, (sec%3600)/60)
 }
 
 func loadFullTextConfig(baseDir string) fullTextConfig {
@@ -1065,7 +1279,7 @@ func loadFullTextConfig(baseDir string) fullTextConfig {
 	}
 
 	initialDelay := defaultInitialScanDelay
-	if v := parseInt64Env("SEARCHCENTER_FT_INITIAL_DELAY_SEC", 15); v > 0 {
+	if v := parseInt64Env("SEARCHCENTER_FT_INITIAL_DELAY_SEC", 1); v > 0 {
 		initialDelay = time.Duration(v) * time.Second
 	}
 
@@ -1090,6 +1304,7 @@ func loadFullTextConfig(baseDir string) fullTextConfig {
 		MinFreeDiskBytes: minFree,
 		NeedUserIndexDir: needHint,
 		ExcludeDirs:      exclude,
+		IdleIndexAfter:   time.Duration(filterCfg.IdleIndexAfter) * time.Second,
 	}
 }
 

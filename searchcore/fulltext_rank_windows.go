@@ -3,9 +3,11 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 func mergeAndRankFullTextItems(keyword string, limit int, groups ...[]map[string]any) []map[string]any {
@@ -65,7 +67,25 @@ func scoreByPathAndContent(path, content, keyword string, base float64) float64 
 	if strings.Contains(body, kw) {
 		score += 10
 	}
-	return score
+	return applyRecencyBoost(path, score)
+}
+
+func applyRecencyBoost(path string, score float64) float64 {
+	st, err := os.Stat(path)
+	if err != nil {
+		return score
+	}
+	age := time.Since(st.ModTime())
+	switch {
+	case age <= 7*24*time.Hour:
+		return score * 1.10
+	case age <= 30*24*time.Hour:
+		return score * 1.07
+	case age <= 90*24*time.Hour:
+		return score * 1.05
+	default:
+		return score
+	}
 }
 
 func itemFilePath(it map[string]any) string {

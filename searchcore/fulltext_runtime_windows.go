@@ -96,7 +96,7 @@ func defaultFullTextRuntimeConfig(baseDir string) FullTextRuntimeConfig {
 		IndexDir:         idxDir,
 		IncludeLargeText: parseBoolEnv("SEARCHCENTER_FT_INCLUDE_LARGE", false),
 		MaxFileSizeMB:    parseInt64Env("SEARCHCENTER_FT_MAX_FILE_MB", 2),
-		InitialDelaySec:  parseInt64Env("SEARCHCENTER_FT_INITIAL_DELAY_SEC", 15),
+		InitialDelaySec:  parseInt64Env("SEARCHCENTER_FT_INITIAL_DELAY_SEC", 1),
 		PauseMS:          parseInt64Env("SEARCHCENTER_FT_PAUSE_MS", -1),
 		ScanSpeed:        resolveScanSpeed(),
 	}
@@ -125,7 +125,7 @@ func normalizeFullTextRuntimeConfig(baseDir string, cfg FullTextRuntimeConfig) F
 		cfg.MaxFileSizeMB = 2
 	}
 	if cfg.InitialDelaySec <= 0 {
-		cfg.InitialDelaySec = 15
+		cfg.InitialDelaySec = 1
 	}
 	if cfg.PauseMS < -1 {
 		cfg.PauseMS = -1
@@ -276,6 +276,9 @@ func (b *blugeIndexer) Stop() error {
 	b.mu.Lock()
 	b.status.Running = false
 	b.status.Ready = false
+	b.status.ScanPhase = "idle"
+	b.status.ProgressDetail = "索引已停止"
+	b.status.EfficiencyText = "0 文件/秒"
 	b.status.IndexingFile = ""
 	b.status.PendingTasks = 0
 	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
