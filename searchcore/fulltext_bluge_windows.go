@@ -660,7 +660,7 @@ func (b *blugeIndexer) enqueueTask(task indexTask) {
 	key := normalizePathKey(task.Path)
 	b.mu.Lock()
 	if ts, ok := b.recentEnqueue[key]; ok {
-		if time.Since(ts) < 250*time.Millisecond {
+		if !task.Initial && time.Since(ts) < 250*time.Millisecond {
 			b.mu.Unlock()
 			return
 		}
@@ -673,15 +673,25 @@ func (b *blugeIndexer) enqueueTask(task indexTask) {
 	}
 	b.mu.Unlock()
 
-	select {
-	case b.tasks <- task:
-		b.mu.Lock()
-		b.status.PendingTasks = len(b.tasks)
-		b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
-		b.mu.Unlock()
-	default:
-		b.appendAlert("索引任务队列已满，已丢弃部分事件")
+	if task.Initial {
+		// 初始扫描任务不能丢弃，否则 total 会增加但 done 不增加，进度会长期卡在 99.x%
+		select {
+		case b.tasks <- task:
+		case <-b.ctx.Done():
+			return
+		}
+	} else {
+		select {
+		case b.tasks <- task:
+		default:
+			b.appendAlert("索引任务队列已满，已丢弃部分事件")
+			return
+		}
 	}
+	b.mu.Lock()
+	b.status.PendingTasks = len(b.tasks)
+	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
+	b.mu.Unlock()
 }
 
 func (b *blugeIndexer) indexFile(path string) error {

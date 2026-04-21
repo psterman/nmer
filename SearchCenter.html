@@ -279,29 +279,38 @@ button, input, select, textarea { font: inherit; }
   background: #3f3f3f;
   opacity: .75;
   flex: 0 0 auto;
+  transform: scale(1);
+  transition: background-color .24s ease, box-shadow .24s ease, opacity .24s ease, transform .24s ease;
+  will-change: transform, opacity;
 }
 .ft-mini-light.active {
   background: #22d3ee;
   box-shadow: 0 0 8px rgba(34,211,238,.9);
-  animation: ft-mini-breath 1.4s ease-in-out infinite;
+  animation: ft-mini-breath 1.35s cubic-bezier(.4,0,.2,1) infinite both;
 }
 .ft-mini-light.ready {
   background: #4ade80;
   box-shadow: 0 0 8px rgba(74,222,128,.9);
+  opacity: .95;
+  transform: scale(1);
 }
 .ft-mini-light.warn {
   background: #f97316;
   box-shadow: 0 0 8px rgba(249,115,22,.95);
-  animation: ft-mini-breath .95s ease-in-out infinite;
+  animation: ft-mini-breath .95s cubic-bezier(.4,0,.2,1) infinite both;
 }
+#ftl1.active, #ftl1.warn { animation-delay: 0ms; }
+#ftl2.active, #ftl2.warn { animation-delay: 110ms; }
+#ftl3.active, #ftl3.warn { animation-delay: 220ms; }
+#ftl4.active, #ftl4.warn { animation-delay: 330ms; }
 .ft-mini-file {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 @keyframes ft-mini-breath {
-  0% { opacity: .55; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.22); }
-  100% { opacity: .55; transform: scale(1); }
+  0%, 100% { opacity: .58; transform: scale(.92); }
+  35% { opacity: 1; transform: scale(1.14); }
+  70% { opacity: .74; transform: scale(1.01); }
 }
 .search-actions {
   display: flex;
