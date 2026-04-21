@@ -58,14 +58,21 @@ func scoreByPathAndContent(path, content, keyword string, base float64) float64 
 	full := strings.ToLower(path)
 	body := strings.ToLower(content)
 
+	// 字段加权：文件名 > 路径 > 正文（对标 AnyTXT 文件名优先）
 	if strings.Contains(name, kw) {
-		score += 120
+		if name == kw {
+			score += 320
+		} else if strings.HasPrefix(name, kw) {
+			score += 260
+		} else {
+			score += 200
+		}
 	}
 	if strings.Contains(full, kw) {
-		score += 35
+		score += 75
 	}
 	if strings.Contains(body, kw) {
-		score += 10
+		score += 25
 	}
 	return applyRecencyBoost(path, score)
 }

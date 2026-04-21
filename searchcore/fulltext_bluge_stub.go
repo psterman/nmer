@@ -49,6 +49,8 @@ type FullTextStatus struct {
 	LastError          string   `json:"lastError,omitempty"`
 	Alerts             []string `json:"alerts,omitempty"`
 	LastUpdatedRFC3339 string   `json:"lastUpdated"`
+	ScanMode           string   `json:"scan_mode,omitempty"`
+	IndexEpoch         uint64   `json:"indexEpoch,omitempty"`
 }
 
 type fullTextProgressPayload struct {
@@ -65,6 +67,8 @@ type fullTextProgressPayload struct {
 	ETASeconds     int64    `json:"etaSeconds"`
 	EngineLights   []string `json:"engine_lights"`
 	Alerts         []string `json:"alerts,omitempty"`
+	ScanMode       string   `json:"scan_mode,omitempty"`
+	IndexEpoch     uint64   `json:"indexEpoch,omitempty"`
 }
 
 func InitFullTextRuntime(baseDir string) {}
@@ -110,6 +114,8 @@ func GetProgressPayload() fullTextProgressPayload {
 		ETASeconds:     st.ETASeconds,
 		EngineLights:   []string{"off", "off", "off", "off"},
 		Alerts:         st.Alerts,
+		ScanMode:       st.ScanMode,
+		IndexEpoch:     st.IndexEpoch,
 	}
 }
 

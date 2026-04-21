@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io/fs"
 	"log"
 	"net/http"
@@ -16,10 +17,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/blugelabs/bluge"
 	"github.com/blugelabs/bluge/analysis/lang/cjk"
+	blugeindex "github.com/blugelabs/bluge/index"
 	blugeSearch "github.com/blugelabs/bluge/search"
 	"github.com/fsnotify/fsnotify"
 	"golang.org/x/sys/windows"
@@ -31,7 +34,9 @@ const (
 	defaultMaxTextFileBytes = int64(2 * 1024 * 1024)
 	defaultHardReadLimit    = int64(32 * 1024 * 1024)
 	defaultMinFreeDiskBytes = int64(500 * 1024 * 1024)
-	defaultQueueSize        = 4096
+	defaultQueueSize         = 16384
+	defaultBatchMaxDocs      = 256
+	defaultBatchFlushInterval = time.Second
 )
 
 var (
@@ -72,6 +77,8 @@ type FullTextStatus struct {
 	LastError          string   `json:"lastError,omitempty"`
 	Alerts             []string `json:"alerts,omitempty"`
 	LastUpdatedRFC3339 string   `json:"lastUpdated"`
+	ScanMode           string   `json:"scan_mode,omitempty"`
+	IndexEpoch         uint64   `json:"indexEpoch,omitempty"`
 }
 
 type fullTextConfig struct {
@@ -91,11 +98,16 @@ type fullTextConfig struct {
 	NeedUserIndexDir bool
 	ExcludeDirs      map[string]struct{}
 	IdleIndexAfter   time.Duration
+	BatchMaxDocs     int
+	BatchFlushInterval time.Duration
+	UseMFT           bool
+	UseUSN           bool
 }
 
 type fileFingerprint struct {
-	Size    int64
-	ModNano int64
+	Size         int64
+	ModNano      int64
+	ContentHash  uint32
 }
 
 type indexTask struct {
@@ -130,6 +142,20 @@ type blugeIndexer struct {
 	initialTaskDone  int64
 	idleWaitNotified bool
 	startedAt        time.Time
+
+	cachedReader atomic.Pointer[bluge.Reader]
+
+	batchMu       sync.Mutex
+	pendingBatch  *blugeindex.Batch
+	batchOpCount  int
+	batchFirstAdd time.Time
+
+	indexEpoch atomic.Uint64
+	usedMFT    atomic.Bool
+	usnRunning atomic.Bool
+
+	frnPathMu sync.RWMutex
+	frnToAbs  map[uint64]string
 }
 
 type fullTextProgressPayload struct {
@@ -146,6 +172,8 @@ type fullTextProgressPayload struct {
 	ETASeconds     int64    `json:"etaSeconds"`
 	EngineLights   []string `json:"engine_lights"`
 	Alerts         []string `json:"alerts,omitempty"`
+	ScanMode       string   `json:"scan_mode,omitempty"`
+	IndexEpoch     uint64   `json:"indexEpoch,omitempty"`
 }
 
 func StartIndexer(baseDir string) error {
@@ -216,6 +244,8 @@ func GetProgressPayload() fullTextProgressPayload {
 		ETASeconds:     st.ETASeconds,
 		EngineLights:   buildEngineLights(st),
 		Alerts:         st.Alerts,
+		ScanMode:       st.ScanMode,
+		IndexEpoch:     st.IndexEpoch,
 	}
 }
 
@@ -323,6 +353,7 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 		knownFiles:    map[string]fileFingerprint{},
 		watchedDirs:   map[string]struct{}{},
 		recentEnqueue: map[string]time.Time{},
+		frnToAbs:      make(map[uint64]string),
 		status: FullTextStatus{
 			Engine:             "bluge",
 			Running:            false,
@@ -364,7 +395,123 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 		idx.recordError(fmt.Errorf("refresh index count: %w", err))
 	}
 
+	if err := idx.refreshReader(); err != nil {
+		idx.recordError(fmt.Errorf("initial bluge reader: %w", err))
+	}
+
 	return idx, nil
+}
+
+func (b *blugeIndexer) refreshReader() error {
+	if b.writer == nil {
+		return errors.New("no writer")
+	}
+	nr, err := b.writer.Reader()
+	if err != nil {
+		return err
+	}
+	old := b.cachedReader.Swap(nr)
+	if old != nil {
+		prev := old
+		go func() {
+			time.Sleep(1500 * time.Millisecond)
+			_ = prev.Close()
+		}()
+	}
+	b.indexEpoch.Add(1)
+	return nil
+}
+
+func (b *blugeIndexer) enqueueBatchUpdate(id string, doc *bluge.Document) error {
+	b.batchMu.Lock()
+	defer b.batchMu.Unlock()
+	if b.pendingBatch == nil {
+		b.pendingBatch = bluge.NewBatch()
+	}
+	if b.batchOpCount == 0 {
+		b.batchFirstAdd = time.Now()
+	}
+	b.pendingBatch.Update(bluge.Identifier(id), doc)
+	b.batchOpCount++
+	return b.maybeFlushBatchLocked()
+}
+
+func (b *blugeIndexer) enqueueBatchDelete(id string) error {
+	b.batchMu.Lock()
+	defer b.batchMu.Unlock()
+	if b.pendingBatch == nil {
+		b.pendingBatch = bluge.NewBatch()
+	}
+	if b.batchOpCount == 0 {
+		b.batchFirstAdd = time.Now()
+	}
+	b.pendingBatch.Delete(bluge.Identifier(id))
+	b.batchOpCount++
+	return b.maybeFlushBatchLocked()
+}
+
+func (b *blugeIndexer) maybeFlushBatchLocked() error {
+	if b.batchOpCount == 0 {
+		return nil
+	}
+	overdue := !b.batchFirstAdd.IsZero() && time.Since(b.batchFirstAdd) >= b.cfg.BatchFlushInterval
+	if b.batchOpCount < b.cfg.BatchMaxDocs && !overdue {
+		return nil
+	}
+	return b.flushBatchLocked()
+}
+
+func (b *blugeIndexer) flushBatchLocked() error {
+	if b.pendingBatch == nil || b.batchOpCount == 0 {
+		return nil
+	}
+	err := b.writer.Batch(b.pendingBatch)
+	if err != nil {
+		return err
+	}
+	b.pendingBatch.Reset()
+	b.batchOpCount = 0
+	b.batchFirstAdd = time.Time{}
+	if err := b.refreshReader(); err != nil {
+		return err
+	}
+	bumpFullTextQueryCacheEpoch()
+	return nil
+}
+
+func (b *blugeIndexer) periodicBatchFlushLoop() {
+	t := time.NewTicker(500 * time.Millisecond)
+	defer t.Stop()
+	for {
+		select {
+		case <-b.ctx.Done():
+			return
+		case <-t.C:
+			b.batchMu.Lock()
+			if b.batchOpCount > 0 && !b.batchFirstAdd.IsZero() && time.Since(b.batchFirstAdd) >= b.cfg.BatchFlushInterval {
+				_ = b.flushBatchLocked()
+			}
+			b.batchMu.Unlock()
+		}
+	}
+}
+
+func (b *blugeIndexer) drainPendingBatches() error {
+	b.batchMu.Lock()
+	defer b.batchMu.Unlock()
+	for b.batchOpCount > 0 {
+		if err := b.flushBatchLocked(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *blugeIndexer) closeCachedReaderOnStop() {
+	old := b.cachedReader.Swap(nil)
+	if old != nil {
+		_ = old.Close()
+	}
 }
 
 func (b *blugeIndexer) StartIndexer() error {
@@ -383,8 +530,29 @@ func (b *blugeIndexer) StartIndexer() error {
 		for i := 0; i < b.cfg.Workers; i++ {
 			go b.workerLoop(i + 1)
 		}
+		go b.periodicBatchFlushLoop()
 		go b.watchLoop()
 		go b.initialScanLoop()
+		if b.cfg.UseUSN {
+			seen := map[byte]struct{}{}
+			for _, root := range b.cfg.Roots {
+				if !isVolumeRootPath(root) {
+					continue
+				}
+				d, err := driveLetterFromRoot(root)
+				if err != nil {
+					continue
+				}
+				if _, ok := seen[d]; ok {
+					continue
+				}
+				seen[d] = struct{}{}
+				go b.usnJournalLoop(d)
+			}
+			if len(seen) > 0 {
+				b.usnRunning.Store(true)
+			}
+		}
 	})
 	return startErr
 }
@@ -398,13 +566,20 @@ func (b *blugeIndexer) Search(query string, limit int) ([]map[string]any, error)
 		limit = 30
 	}
 
-	reader, err := b.writer.Reader()
-	if err != nil {
-		return nil, err
+	reader := b.cachedReader.Load()
+	if reader == nil {
+		if err := b.refreshReader(); err != nil {
+			return nil, err
+		}
+		reader = b.cachedReader.Load()
 	}
-	defer reader.Close()
+	if reader == nil {
+		return nil, errors.New("bluge reader unavailable")
+	}
 
-	q := buildBlugeQuery(qText)
+	q := lookupFullTextQueryCache(qText, limit, func() bluge.Query {
+		return buildBlugeQuery(qText)
+	})
 	req := bluge.NewTopNSearch(limit, q).WithStandardAggregations()
 	it, err := reader.Search(context.Background(), req)
 	if err != nil {
@@ -434,7 +609,17 @@ func (b *blugeIndexer) GetStatus() FullTextStatus {
 	b.refreshProgressLocked()
 	b.status.PendingTasks = len(b.tasks)
 	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
-	return cloneFullTextStatus(b.status)
+	st := cloneFullTextStatus(b.status)
+	st.IndexEpoch = b.indexEpoch.Load()
+	mode := "walk"
+	if b.usedMFT.Load() {
+		mode = "mft"
+	}
+	if b.usnRunning.Load() {
+		mode += "+usn"
+	}
+	st.ScanMode = mode
+	return st
 }
 
 func cloneFullTextStatus(st FullTextStatus) FullTextStatus {
@@ -445,11 +630,16 @@ func cloneFullTextStatus(st FullTextStatus) FullTextStatus {
 }
 
 func (b *blugeIndexer) refreshIndexedCount() error {
-	reader, err := b.writer.Reader()
-	if err != nil {
-		return err
+	reader := b.cachedReader.Load()
+	if reader == nil {
+		if err := b.refreshReader(); err != nil {
+			return err
+		}
+		reader = b.cachedReader.Load()
 	}
-	defer reader.Close()
+	if reader == nil {
+		return errors.New("reader unavailable for count")
+	}
 
 	req := bluge.NewTopNSearch(1, bluge.NewMatchAllQuery()).WithStandardAggregations()
 	it, err := reader.Search(context.Background(), req)
@@ -497,46 +687,109 @@ func (b *blugeIndexer) walkRoot(root string, initial bool) {
 		return
 	}
 
-	_ = filepath.WalkDir(cleanRoot, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		select {
-		case <-b.ctx.Done():
-			return context.Canceled
-		default:
-		}
+	if b.cfg.UseMFT && isVolumeRootPath(cleanRoot) {
+		b.mu.Lock()
+		b.status.ScanPhase = "walking"
+		b.status.IndexingFile = "MFT 枚举: " + cleanRoot
+		b.mu.Unlock()
 
-		if d.IsDir() {
-			if b.shouldSkipDir(path, d.Name()) {
-				return filepath.SkipDir
+		err := walkRootWithMFT(b.ctx, cleanRoot, b.frnToAbs, func(abs string) error {
+			select {
+			case <-b.ctx.Done():
+				return context.Canceled
+			default:
 			}
-			if initial && normalizePathKey(path) == normalizePathKey(cleanRoot) {
+			if b.shouldSkipFileByName(abs) {
+				return nil
+			}
+			if initial {
 				b.mu.Lock()
-				b.status.ScanPhase = "walking"
-				b.status.IndexingFile = "扫描目录: " + cleanRoot
-				b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
+				b.initialTaskTotal++
+				b.status.DiscoveredFiles = b.initialTaskTotal
+				b.refreshProgressLocked()
 				b.mu.Unlock()
 			}
-			b.addWatch(path)
+			b.enqueueTask(indexTask{Path: abs, Initial: initial})
 			return nil
+		})
+		if err != nil {
+			b.recordError(err)
+			b.appendAlert(fmt.Sprintf("MFT 枚举失败，回退 WalkDir: %v", err))
+			b.walkRootDirConcurrent(cleanRoot, initial)
+		} else {
+			b.usedMFT.Store(true)
 		}
+		return
+	}
 
-		if b.shouldSkipFileByName(path) {
-			return nil
+	b.walkRootDirConcurrent(cleanRoot, initial)
+}
+
+func (b *blugeIndexer) walkRootDirConcurrent(cleanRoot string, initial bool) {
+	sem := make(chan struct{}, max(4, runtime.NumCPU()))
+	var wg sync.WaitGroup
+
+	var walkDir func(string)
+	walkDir = func(dir string) {
+		b.addWatch(dir)
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return
 		}
-
-		if initial {
-			b.mu.Lock()
-			b.initialTaskTotal++
-			b.status.DiscoveredFiles = b.initialTaskTotal
-			b.refreshProgressLocked()
-			b.mu.Unlock()
+		for _, ent := range entries {
+			path := filepath.Join(dir, ent.Name())
+			select {
+			case <-b.ctx.Done():
+				return
+			default:
+			}
+			if ent.IsDir() {
+				if b.shouldSkipDir(path, ent.Name()) {
+					continue
+				}
+				if initial && normalizePathKey(path) == normalizePathKey(cleanRoot) {
+					b.mu.Lock()
+					b.status.ScanPhase = "walking"
+					b.status.IndexingFile = "扫描目录: " + cleanRoot
+					b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
+					b.mu.Unlock()
+				}
+				wg.Add(1)
+				go func(p string) {
+					defer wg.Done()
+					sem <- struct{}{}
+					defer func() { <-sem }()
+					walkDir(p)
+				}(path)
+				continue
+			}
+			if b.shouldSkipFileByName(path) {
+				continue
+			}
+			if initial {
+				b.mu.Lock()
+				b.initialTaskTotal++
+				b.status.DiscoveredFiles = b.initialTaskTotal
+				b.refreshProgressLocked()
+				b.mu.Unlock()
+			}
+			b.enqueueTask(indexTask{Path: path, Initial: initial})
 		}
+	}
 
-		b.enqueueTask(indexTask{Path: path, Initial: initial})
-		return nil
-	})
+	b.mu.Lock()
+	b.status.ScanPhase = "walking"
+	b.status.IndexingFile = "扫描目录: " + cleanRoot
+	b.mu.Unlock()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		sem <- struct{}{}
+		defer func() { <-sem }()
+		walkDir(cleanRoot)
+	}()
+	wg.Wait()
 }
 
 func (b *blugeIndexer) workerLoop(workerID int) {
@@ -830,7 +1083,16 @@ func (b *blugeIndexer) indexFile(path string) error {
 	}
 
 	id := docIDForPath(path)
-	fp := fileFingerprint{Size: st.Size(), ModNano: st.ModTime().UnixNano()}
+	content, snippet, err := b.readFileForIndex(path, st.Size())
+	if err != nil {
+		if errors.Is(err, errSkipNonText) || errors.Is(err, errSkipTooLarge) {
+			return b.deleteByPath(path)
+		}
+		return fmt.Errorf("read index content failed (%s): %w", path, err)
+	}
+
+	contentCRC := crc32.ChecksumIEEE([]byte(content))
+	fp := fileFingerprint{Size: st.Size(), ModNano: st.ModTime().UnixNano(), ContentHash: contentCRC}
 
 	if b.meta != nil {
 		if oldFP, ok, gerr := b.meta.Get(path); gerr == nil && ok && oldFP == fp {
@@ -844,20 +1106,14 @@ func (b *blugeIndexer) indexFile(path string) error {
 	}
 	b.mu.RUnlock()
 
-	content, snippet, err := b.readFileForIndex(path, st.Size())
-	if err != nil {
-		if errors.Is(err, errSkipNonText) || errors.Is(err, errSkipTooLarge) {
-			return b.deleteByPath(path)
-		}
-		return fmt.Errorf("read index content failed (%s): %w", path, err)
-	}
-
 	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
 	mod := st.ModTime()
+	baseName := strings.ToLower(filepath.Base(path))
 
 	doc := bluge.NewDocument(id).
 		AddField(bluge.NewKeywordField("path", path).StoreValue()).
 		AddField(bluge.NewKeywordField("path_lower", strings.ToLower(path)).StoreValue()).
+		AddField(bluge.NewTextField("title", baseName).WithAnalyzer(cjk.Analyzer()).SearchTermPositions()).
 		AddField(bluge.NewTextField("content", content).WithAnalyzer(cjk.Analyzer()).SearchTermPositions()).
 		AddField(bluge.NewKeywordField("ext", ext).StoreValue().Sortable().Aggregatable()).
 		AddField(bluge.NewDateTimeField("mtime", mod).StoreValue().Sortable()).
@@ -865,7 +1121,7 @@ func (b *blugeIndexer) indexFile(path string) error {
 		AddField(bluge.NewStoredOnlyField("snippet", []byte(snippet))).
 		AddField(bluge.NewTextField("path_text", strings.ToLower(path)).WithAnalyzer(cjk.Analyzer()))
 
-	if err := b.writer.Update(doc.ID(), doc); err != nil {
+	if err := b.enqueueBatchUpdate(id, doc); err != nil {
 		return fmt.Errorf("bluge update failed (%s): %w", path, err)
 	}
 
@@ -884,7 +1140,7 @@ func (b *blugeIndexer) indexFile(path string) error {
 
 func (b *blugeIndexer) deleteByPath(path string) error {
 	id := docIDForPath(path)
-	if err := b.writer.Delete(bluge.Identifier(id)); err != nil {
+	if err := b.enqueueBatchDelete(id); err != nil {
 		return fmt.Errorf("bluge delete failed (%s): %w", path, err)
 	}
 	b.mu.Lock()
@@ -956,7 +1212,17 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 	}
 
 	score := scoreByPathAndContent(pathVal, snippetVal, query, float64(match.Score))
-	hitCount, hitLines := b.computeHitStats(pathVal, query)
+	hitCtx := buildHitContextForFile(pathVal, query, 6)
+	hitLines := make([]int, 0, len(hitCtx))
+	for _, blk := range hitCtx {
+		if ln, ok := blk["line"].(int); ok {
+			hitLines = append(hitLines, ln)
+		}
+	}
+	hitCount := len(hitLines)
+	if hitCount == 0 {
+		hitCount, hitLines = b.computeHitStats(pathVal, query)
+	}
 	if hitCount > 0 {
 		subParts = append(subParts, fmt.Sprintf("命中 %d 处", hitCount))
 	}
@@ -975,6 +1241,7 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 		"IndexedExtName": extVal,
 		"HitCount":       hitCount,
 		"HitLines":       hitLines,
+		"HitContext":     hitCtx,
 	}
 
 	return map[string]any{
@@ -1288,23 +1555,37 @@ func loadFullTextConfig(baseDir string) fullTextConfig {
 		minFree = defaultMinFreeDiskBytes
 	}
 
+	batchMax := int(parseInt64Env("SEARCHCENTER_FT_BATCH_DOCS", defaultBatchMaxDocs))
+	if batchMax < 1 {
+		batchMax = defaultBatchMaxDocs
+	}
+	batchMS := parseInt64Env("SEARCHCENTER_FT_BATCH_MS", 1000)
+	batchInterval := time.Duration(batchMS) * time.Millisecond
+	if batchInterval < 50*time.Millisecond {
+		batchInterval = 50 * time.Millisecond
+	}
+
 	return fullTextConfig{
-		BaseDir:          baseDir,
-		IndexDir:         indexDir,
-		Roots:            roots,
-		FilterConfig:     filterCfg,
-		Workers:          workers,
-		InitialDelay:     initialDelay,
-		PerFilePause:     perFilePause,
-		ScanSpeed:        scanSpeed,
-		IncludeLargeText: includeLarge,
-		MaxFileSizeBytes: maxFileSize,
-		HardReadLimit:    hardLimit,
-		QueueSize:        queueSize,
-		MinFreeDiskBytes: minFree,
-		NeedUserIndexDir: needHint,
-		ExcludeDirs:      exclude,
-		IdleIndexAfter:   time.Duration(filterCfg.IdleIndexAfter) * time.Second,
+		BaseDir:            baseDir,
+		IndexDir:           indexDir,
+		Roots:              roots,
+		FilterConfig:       filterCfg,
+		Workers:            workers,
+		InitialDelay:       initialDelay,
+		PerFilePause:       perFilePause,
+		ScanSpeed:          scanSpeed,
+		IncludeLargeText:   includeLarge,
+		MaxFileSizeBytes:   maxFileSize,
+		HardReadLimit:      hardLimit,
+		QueueSize:          queueSize,
+		MinFreeDiskBytes:   minFree,
+		NeedUserIndexDir:   needHint,
+		ExcludeDirs:        exclude,
+		IdleIndexAfter:     time.Duration(filterCfg.IdleIndexAfter) * time.Second,
+		BatchMaxDocs:       batchMax,
+		BatchFlushInterval: batchInterval,
+		UseMFT:             parseBoolEnv("SEARCHCENTER_FT_USE_MFT", true),
+		UseUSN:             parseBoolEnv("SEARCHCENTER_FT_USE_USN", true),
 	}
 }
 
@@ -1433,6 +1714,92 @@ func freeDiskBytesAtPath(path string) (uint64, error) {
 	return freeBytesAvailable, nil
 }
 
+func parseHumanByteSize(s string) (float64, bool) {
+	s = strings.TrimSpace(strings.ToLower(s))
+	if s == "" {
+		return 0, false
+	}
+	mult := 1.0
+	switch {
+	case strings.HasSuffix(s, "gb"):
+		mult = 1024 * 1024 * 1024
+		s = strings.TrimSuffix(s, "gb")
+	case strings.HasSuffix(s, "mb"):
+		mult = 1024 * 1024
+		s = strings.TrimSuffix(s, "mb")
+	case strings.HasSuffix(s, "kb"):
+		mult = 1024
+		s = strings.TrimSuffix(s, "kb")
+	case len(s) > 0 && (s[len(s)-1] == 'k' || s[len(s)-1] == 'm' || s[len(s)-1] == 'g'):
+		switch s[len(s)-1] {
+		case 'g':
+			mult = 1024 * 1024 * 1024
+		case 'm':
+			mult = 1024 * 1024
+		case 'k':
+			mult = 1024
+		}
+		s = s[:len(s)-1]
+	}
+	s = strings.TrimSpace(s)
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, false
+	}
+	return v * mult, true
+}
+
+func blugeNumericRangeOnSize(spec string) (bluge.Query, bool) {
+	spec = strings.TrimSpace(spec)
+	if len(spec) < 2 {
+		return nil, false
+	}
+	op := spec[0]
+	rest := strings.TrimSpace(spec[1:])
+	v, ok := parseHumanByteSize(rest)
+	if !ok {
+		return nil, false
+	}
+	switch op {
+	case '>':
+		return bluge.NewNumericRangeQuery(v, bluge.MaxNumeric).SetField("size"), true
+	case '<':
+		return bluge.NewNumericRangeQuery(bluge.MinNumeric, v).SetField("size"), true
+	case '=':
+		return bluge.NewNumericRangeInclusiveQuery(v, v, true, true).SetField("size"), true
+	default:
+		return nil, false
+	}
+}
+
+func blugeDateRangeOnMtime(spec string) (bluge.Query, bool) {
+	spec = strings.TrimSpace(spec)
+	if len(spec) < 2 {
+		return nil, false
+	}
+	op := spec[0]
+	rest := strings.TrimSpace(spec[1:])
+	var t time.Time
+	var err error
+	if t, err = time.ParseInLocation("2006-01-02", rest, time.Local); err != nil {
+		if t, err = time.ParseInLocation("2006-01-02 15:04", rest, time.Local); err != nil {
+			return nil, false
+		}
+	}
+	var start, end time.Time
+	switch op {
+	case '>':
+		start = t
+		end = time.Now().Add(365000 * time.Hour)
+	case '<':
+		start = time.Time{}
+		end = t
+	default:
+		return nil, false
+	}
+	return bluge.NewDateRangeQuery(start, end).SetField("mtime"), true
+}
+
 func buildBlugeQuery(raw string) bluge.Query {
 	query := strings.TrimSpace(raw)
 	if query == "" {
@@ -1446,7 +1813,11 @@ func buildBlugeQuery(raw string) bluge.Query {
 		if ph == "" {
 			continue
 		}
-		root.AddMust(bluge.NewMatchPhraseQuery(ph).SetField("content"))
+		pq := bluge.NewBooleanQuery()
+		pq.AddShould(bluge.NewMatchPhraseQuery(ph).SetField("content"))
+		pq.AddShould(bluge.NewMatchPhraseQuery(strings.ToLower(ph)).SetField("title"))
+		pq.SetMinShould(1)
+		root.AddMust(pq)
 	}
 
 	for _, tk := range tokens {
@@ -1469,6 +1840,31 @@ func buildBlugeQuery(raw string) bluge.Query {
 					root.AddMust(bluge.NewWildcardQuery("*" + strings.ToLower(v) + "*").SetField("path_lower"))
 				}
 			}
+		case strings.HasPrefix(low, "size:"):
+			v := strings.TrimPrefix(low, "size:")
+			if qn, ok := blugeNumericRangeOnSize(v); ok {
+				root.AddMust(qn)
+			}
+		case strings.HasPrefix(low, "mtime:"):
+			v := strings.TrimPrefix(low, "mtime:")
+			if qd, ok := blugeDateRangeOnMtime(v); ok {
+				root.AddMust(qd)
+			}
+		case strings.HasPrefix(low, "dir:"):
+			v := strings.TrimPrefix(low, "dir:")
+			if v != "" {
+				pat := "*" + strings.ToLower(v) + "*"
+				root.AddMust(bluge.NewWildcardQuery(pat).SetField("path_lower"))
+			}
+		case strings.HasPrefix(low, "name:"):
+			v := strings.TrimPrefix(low, "name:")
+			if v != "" {
+				lowv := strings.ToLower(v)
+				if !strings.ContainsAny(lowv, "*?") {
+					lowv = "*" + lowv + "*"
+				}
+				root.AddMust(bluge.NewWildcardQuery(lowv).SetField("path_lower"))
+			}
 		case strings.HasSuffix(low, "~") && len(low) > 1:
 			root.AddMust(bluge.NewFuzzyQuery(strings.TrimSuffix(low, "~")).SetField("content"))
 		case strings.HasSuffix(low, "*") && len(low) > 1:
@@ -1477,10 +1873,9 @@ func buildBlugeQuery(raw string) bluge.Query {
 			root.AddMust(bluge.NewWildcardQuery(low).SetField("content"))
 		default:
 			mix := bluge.NewBooleanQuery()
-			mix.AddShould(
-				bluge.NewMatchQuery(tk).SetField("content"),
-				bluge.NewMatchQuery(strings.ToLower(tk)).SetField("path_text"),
-			)
+			mix.AddShould(bluge.NewMatchQuery(tk).SetField("content").SetBoost(1))
+			mix.AddShould(bluge.NewMatchQuery(strings.ToLower(tk)).SetField("path_text").SetBoost(3))
+			mix.AddShould(bluge.NewMatchQuery(strings.ToLower(tk)).SetField("title").SetBoost(8))
 			mix.SetMinShould(1)
 			root.AddMust(mix)
 		}
@@ -1558,14 +1953,19 @@ func handleFullTextProgressStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 
+	var lastPayload string
 	for {
 		payload := GetProgressPayload()
 		b, _ := json.Marshal(payload)
-		_, _ = fmt.Fprintf(w, "data: %s\n\n", b)
-		flusher.Flush()
+		s := string(b)
+		if s != lastPayload {
+			lastPayload = s
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", b)
+			flusher.Flush()
+		}
 
 		select {
 		case <-r.Context().Done():

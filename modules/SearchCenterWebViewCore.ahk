@@ -444,8 +444,36 @@ _SCWV_DefaultFullTextStatusPayload() {
         "includeLargeText", false,
         "maxFileSizeMB", 2,
         "indexDir", "",
-        "lastError", ""
+        "lastError", "",
+        "scan_mode", "",
+        "indexEpoch", 0
     )
+}
+
+; 供 WebView 展示全文命中上下文（HitContext）；键名用小写便于 JS 读取
+_SCWV_ResultMetadataForWeb(item) {
+    if !IsObject(item) || !item.HasProp("Metadata")
+        return 0
+    m := item.Metadata
+    if !(m is Map)
+        return 0
+    out := Map()
+    if m.Has("HitCount")
+        out["hitCount"] := m["HitCount"]
+    if m.Has("HitContext") {
+        ctx := m["HitContext"]
+        if (ctx is Array && ctx.Length > 0)
+            out["hitContext"] := ctx
+    }
+    if m.Has("StreamPhase")
+        out["streamPhase"] := m["StreamPhase"]
+    if m.Has("FullTextHit")
+        out["fullTextHit"] := m["FullTextHit"] ? true : false
+    if m.Has("FilePath")
+        out["filePath"] := m["FilePath"]
+    if (out.Count = 0)
+        return 0
+    return out
 }
 
 _SCWV_MergeMap(target, source) {
@@ -1635,7 +1663,7 @@ SCWV_PushState(msgType := "state") {
             if (cand != "" && FileExist(cand))
                 filePath := cand
         }
-        results.Push(Map(
+        rowMap := Map(
             "row", index,
             "title", rowTitle,
             "subtitle", rowSubtitle,
@@ -1648,7 +1676,11 @@ SCWV_PushState(msgType := "state") {
             "content", item.HasProp("Content") ? item.Content : rowTitle,
             "path", filePath,
             "pinned", isPinned ? true : false
-        ))
+        )
+        metaWeb := _SCWV_ResultMetadataForWeb(item)
+        if (metaWeb is Map)
+            rowMap["metadata"] := metaWeb
+        results.Push(rowMap)
     }
 
     recycleBin := []

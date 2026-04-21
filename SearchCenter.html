@@ -307,6 +307,44 @@ button, input, select, textarea { font: inherit; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.ft-scan-badge {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: #8eb9ff;
+  flex: 0 0 auto;
+  letter-spacing: 0.02em;
+}
+.hit-context-wrap {
+  margin-top: 5px;
+  width: 100%;
+  min-width: 0;
+}
+.hit-ctx-btn {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.hit-ctx-body {
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #9fb0bd;
+  white-space: normal;
+  max-height: 140px;
+  overflow: auto;
+  border-left: 2px solid rgba(34, 211, 238, 0.35);
+  padding-left: 8px;
+}
+.hit-ctx-body.hidden {
+  display: none;
+}
 @keyframes ft-mini-breath {
   0%, 100% { opacity: .58; transform: scale(.92); }
   35% { opacity: 1; transform: scale(1.14); }
@@ -1171,6 +1209,7 @@ mark {
         <span class="ft-mini-light" id="ftl3"></span>
         <span class="ft-mini-light" id="ftl4"></span>
         <span id="ft-progress-text">FT 0.0%</span>
+        <span id="ft-scan-badge" class="ft-scan-badge" style="display:none" title=""></span>
         <span id="ft-efficiency-text" class="ft-mini-file">0 文件/秒</span>
         <span id="ft-file" class="ft-mini-file">空闲</span>
       </div>
@@ -1276,6 +1315,12 @@ if (typeof BasePanel === 'undefined') {
   };
 }
 const SC_ENGINE_MODE_KEY = "sc_engine_mode";
+/** 与 SearchCenterCore HTTP 监听一致；EventSource 直连进度流（失败时回退 AHK 轮询） */
+const SEARCH_CORE_ORIGIN = "http://127.0.0.1:8080";
+let fulltextProgressES = null;
+let fulltextPollTimer = 0;
+let fulltextEsBackoffMs = 2000;
+let fulltextEsReconnectTimer = 0;
 
 const state = {
   keyword: "",
@@ -1326,7 +1371,9 @@ const state = {
     processedFiles: 0,
     filesPerSec: 0,
     etaSeconds: 0,
-    engine_lights: ["off", "off", "off", "off"]
+    engine_lights: ["off", "off", "off", "off"],
+    scan_mode: "",
+    indexEpoch: 0
   },
   quickLook: {
     installed: false,
@@ -1544,12 +1591,89 @@ function normalizeFulltextPayload(payload) {
     etaSeconds: Number.isFinite(Number(src.etaSeconds)) ? Number(src.etaSeconds) : 0,
     engine_lights: Array.isArray(src.engine_lights) && src.engine_lights.length === 4
       ? src.engine_lights.map((v) => String(v || "off"))
-      : ["off", "off", "off", "off"]
+      : ["off", "off", "off", "off"],
+    scan_mode: String(src.scan_mode || ""),
+    indexEpoch: Number.isFinite(Number(src.indexEpoch)) ? Number(src.indexEpoch) : 0
+  };
+}
+
+function formatScanModeBadge(mode) {
+  const m = String(mode || "").toLowerCase();
+  if (!m) return "";
+  if (m.includes("mft")) {
+    return (m.includes("usn") ? "⚡MFT·🔁USN" : "⚡MFT");
+  }
+  if (m.includes("walk")) {
+    return (m.includes("usn") ? "🐢Walk·🔁USN" : "🐢Walk");
+  }
+  if (m.includes("usn")) return "🔁USN";
+  return String(mode || "");
+}
+
+function getHitContextList(item) {
+  const md = item && item.metadata;
+  if (!md || typeof md !== "object") return null;
+  const ctx = md.hitContext;
+  return Array.isArray(ctx) && ctx.length ? ctx : null;
+}
+
+function startFulltextProgressStream() {
+  if (typeof EventSource === "undefined") {
+    if (!fulltextPollTimer) {
+      fulltextPollTimer = setInterval(() => requestFulltextStatus(), 2500);
+    }
+    return;
+  }
+  if (fulltextProgressES) {
+    try {
+      fulltextProgressES.close();
+    } catch (e) {}
+    fulltextProgressES = null;
+  }
+  let es;
+  try {
+    es = new EventSource(SEARCH_CORE_ORIGIN + "/v1/fulltext/progress/stream");
+  } catch (e) {
+    if (!fulltextPollTimer) {
+      fulltextPollTimer = setInterval(() => requestFulltextStatus(), 2500);
+    }
+    return;
+  }
+  fulltextProgressES = es;
+  es.addEventListener("open", () => {
+    fulltextEsBackoffMs = 2000;
+    if (fulltextPollTimer) {
+      clearInterval(fulltextPollTimer);
+      fulltextPollTimer = 0;
+    }
+  });
+  es.onmessage = (ev) => {
+    try {
+      const data = JSON.parse(ev.data || "{}");
+      applyFulltextStatus(data);
+    } catch (e) {}
+  };
+  es.onerror = () => {
+    try {
+      es.close();
+    } catch (e) {}
+    if (fulltextProgressES === es) fulltextProgressES = null;
+    if (!fulltextPollTimer) {
+      fulltextPollTimer = setInterval(() => requestFulltextStatus(), 2500);
+    }
+    const wait = fulltextEsBackoffMs;
+    fulltextEsBackoffMs = Math.min(Math.floor(fulltextEsBackoffMs * 1.5), 60000);
+    if (!fulltextEsReconnectTimer) {
+      fulltextEsReconnectTimer = setTimeout(() => {
+        fulltextEsReconnectTimer = 0;
+        startFulltextProgressStream();
+      }, wait);
+    }
   };
 }
 
 function applyFulltextStatus(payload) {
-  state.fulltext = normalizeFulltextPayload(payload);
+  state.fulltext = normalizeFulltextPayload(Object.assign({}, state.fulltext, payload || {}));
   const lightIds = ["ftl1", "ftl2", "ftl3", "ftl4"];
   lightIds.forEach((id, idx) => {
     const el = document.getElementById(id);
@@ -1592,6 +1716,15 @@ function applyFulltextStatus(payload) {
       toggleBtn.textContent = "启动索引";
       toggleBtn.title = "点击启动全文索引";
     }
+  }
+  const scanBadge = document.getElementById("ft-scan-badge");
+  if (scanBadge) {
+    const lab = formatScanModeBadge(state.fulltext.scan_mode);
+    scanBadge.textContent = lab;
+    scanBadge.title = state.fulltext.scan_mode
+      ? ("扫描模式: " + state.fulltext.scan_mode + (state.fulltext.indexEpoch ? " · epoch " + state.fulltext.indexEpoch : ""))
+      : "扫描模式";
+    scanBadge.style.display = lab ? "inline" : "none";
   }
 }
 
@@ -1742,16 +1875,42 @@ function renderResults() {
     const row = document.createElement("div");
     row.className = "result-item" + (item.row === state.selectedRow ? " active" : "");
     const pinMark = item.pinned ? "<span class=\"pin-ico\" title=\"置顶\">🔝</span>" : "";
+    const hitCtx = getHitContextList(item);
+    let hitBlock = "";
+    if (hitCtx) {
+      const lines = hitCtx.map((b) => {
+        if (!b || typeof b !== "object") return "";
+        const lineNo = b.line != null ? b.line : b.Line;
+        const sn = b.snippet != null ? b.snippet : b.Snippet;
+        return "<span class=\"hit-ctx-line\">" + escapeHtml(String(lineNo || "")) + "</span> " + highlight(String(sn || ""), state.keyword);
+      }).filter(Boolean);
+      hitBlock =
+        "<div class=\"hit-context-wrap\">" +
+        "<button type=\"button\" class=\"hit-ctx-btn\">命中上下文 · " + hitCtx.length + "</button>" +
+        "<div class=\"hit-ctx-body hidden\">" + lines.join("<br>") + "</div></div>";
+    }
     row.innerHTML =
       "<div>" +
         "<div class=\"result-title\">" + pinMark + highlight(item.title, state.keyword) + "</div>" +
         "<div class=\"result-sub\">" + escapeHtml(item.subtitle || "") + "</div>" +
         "<div class=\"result-preview\">" + highlight(item.preview || "", state.keyword) + "</div>" +
+        hitBlock +
       "</div>" +
       "<div class=\"result-meta\">" +
         "<span class=\"pill\">" + escapeHtml(item.type || "") + "</span>" +
         "<span class=\"time\">" + escapeHtml(item.time || "") + "</span>" +
       "</div>";
+    if (hitCtx) {
+      const btn = row.querySelector(".hit-ctx-btn");
+      const body = row.querySelector(".hit-ctx-body");
+      if (btn && body) {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          body.classList.toggle("hidden");
+        });
+      }
+    }
     row.onclick = () => {
       state.selectedRow = item.row;
       renderResults();
@@ -3461,9 +3620,7 @@ if (window.chrome && window.chrome.webview) {
   });
   postToAhk({ type: "ready" });
   requestFulltextStatus();
-  setInterval(() => {
-    requestFulltextStatus();
-  }, 1500);
+  startFulltextProgressStream();
 }
 
 (function initEngineModeButton() {

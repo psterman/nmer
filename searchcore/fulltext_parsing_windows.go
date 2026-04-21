@@ -5,7 +5,6 @@ package main
 import (
 	"archive/zip"
 	"bytes"
-	"context"
 	"encoding/xml"
 	"fmt"
 	"html"
@@ -14,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
@@ -56,6 +54,28 @@ func (b *blugeIndexer) readPlainTextFileForIndex(path string, fileSize int64) (s
 	}
 	if fileSize > maxRead {
 		return "", "", errSkipTooLarge
+	}
+
+	prefix, err := readFilePrefix(path, 512)
+	if err != nil {
+		return "", "", err
+	}
+	if sniffBinaryOrNonText(prefix) {
+		return "", "", errSkipNonText
+	}
+
+	const mmapThreshold int64 = 256 * 1024
+	if fileSize > mmapThreshold {
+		raw, merr := mmapReadFileUpTo(path, min64(maxRead, fileSize))
+		if merr == nil && len(raw) > 0 {
+			if int64(len(raw)) > maxRead {
+				return "", "", errSkipTooLarge
+			}
+			text, derr := decodeBestEffortText(raw)
+			if derr == nil && strings.TrimSpace(text) != "" {
+				return text, trimPreview(text, 180), nil
+			}
+		}
 	}
 
 	f, err := os.Open(path)
@@ -202,19 +222,11 @@ func scoreTextQuality(s string) int {
 }
 
 func (b *blugeIndexer) extractPDFText(path string) (string, error) {
-	tool := resolvePDFToTextExe(b.cfg.BaseDir, b.cfg.FilterConfig)
-	if tool == "" {
-		return "", fmt.Errorf("pdftotext not found")
-	}
-
-	ctx, cancel := context.WithTimeout(b.ctx, 25*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, tool, "-enc", "UTF-8", "-q", "-nopgbrk", path, "-")
-	out, err := cmd.Output()
+	out, err := enqueuePDFExtract(b.ctx, b.cfg.BaseDir, b.cfg.FilterConfig, path)
 	if err != nil {
 		return "", fmt.Errorf("pdftotext failed: %w", err)
 	}
-	text := strings.TrimSpace(string(bytes.ToValidUTF8(out, []byte(" "))))
+	text := strings.TrimSpace(string(bytes.ToValidUTF8([]byte(out), []byte(" "))))
 	if text == "" {
 		return "", errSkipNonText
 	}
@@ -286,9 +298,10 @@ func extractXLSXText(path string) (string, error) {
 	}
 	defer zr.Close()
 
+	var parts []string
 	for _, f := range zr.File {
 		name := strings.ToLower(strings.ReplaceAll(f.Name, "\\", "/"))
-		if name != "xl/sharedstrings.xml" {
+		if name != "xl/sharedstrings.xml" && !(strings.HasPrefix(name, "xl/worksheets/sheet") && strings.HasSuffix(name, ".xml")) {
 			continue
 		}
 		rc, err := f.Open()
@@ -302,10 +315,14 @@ func extractXLSXText(path string) (string, error) {
 		}
 		text := collectXMLCharData(buf)
 		if strings.TrimSpace(text) != "" {
-			return text, nil
+			parts = append(parts, text)
 		}
 	}
-	return "", errSkipNonText
+	out := strings.TrimSpace(strings.Join(parts, "\n"))
+	if out == "" {
+		return "", errSkipNonText
+	}
+	return out, nil
 }
 
 func collectXMLCharData(buf []byte) string {

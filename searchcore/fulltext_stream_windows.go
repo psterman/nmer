@@ -11,10 +11,11 @@ import (
 )
 
 type fullTextStreamEvent struct {
-	Type string         `json:"type"`
-	Item map[string]any `json:"item,omitempty"`
-	Done bool           `json:"done,omitempty"`
-	Err  string         `json:"err,omitempty"`
+	Type  string         `json:"type"`
+	Phase string         `json:"phase,omitempty"`
+	Item  map[string]any `json:"item,omitempty"`
+	Done  bool           `json:"done,omitempty"`
+	Err   string         `json:"err,omitempty"`
 }
 
 func handleFullTextSearchStream(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +57,7 @@ func handleFullTextSearchStream(w http.ResponseWriter, r *http.Request) {
 
 	seen := map[string]struct{}{}
 	count := 0
-	sendItem := func(it map[string]any) bool {
+	sendItem := func(phase string, it map[string]any) bool {
 		p := itemFilePath(it)
 		if p == "" {
 			return true
@@ -67,18 +68,35 @@ func handleFullTextSearchStream(w http.ResponseWriter, r *http.Request) {
 		}
 		seen[k] = struct{}{}
 		setItemScore(it, scoreByPathAndContent(p, itemPreview(it), q, itemScore(it)))
-		emit(fullTextStreamEvent{Type: "item", Item: it})
+		if m, ok := it["Metadata"].(map[string]any); ok {
+			m["StreamPhase"] = phase
+		} else {
+			it["Metadata"] = map[string]any{"StreamPhase": phase}
+		}
+		emit(fullTextStreamEvent{Type: "item", Phase: phase, Item: it})
 		count++
 		return count < limit
 	}
 
-	if err := streamFullTextWithRg(baseDir, q, limit, sendItem); err != nil {
+	emit(fullTextStreamEvent{Type: "phase", Phase: "filename"})
+	if ev, err := everythingQuery(baseDir, q, limit*2, false); err == nil {
+		for _, it := range ev {
+			if !sendItem("filename", it) {
+				break
+			}
+		}
+	}
+
+	emit(fullTextStreamEvent{Type: "phase", Phase: "content"})
+	_ = StartIndexer(baseDir)
+	if err := streamFullTextWithRg(baseDir, q, limit, func(it map[string]any) bool {
+		return sendItem("content-hot", it)
+	}); err != nil {
 		emit(fullTextStreamEvent{Type: "warn", Err: err.Error()})
 	}
-	_ = StartIndexer(baseDir)
 	if cold, err := Search(q, limit*2); err == nil {
 		for _, it := range mergeAndRankFullTextItems(q, limit*2, cold) {
-			if !sendItem(it) {
+			if !sendItem("content-cold", it) {
 				break
 			}
 		}
@@ -86,5 +104,5 @@ func handleFullTextSearchStream(w http.ResponseWriter, r *http.Request) {
 		emit(fullTextStreamEvent{Type: "warn", Err: err.Error()})
 	}
 
-	emit(fullTextStreamEvent{Type: "done", Done: true})
+	emit(fullTextStreamEvent{Type: "done", Phase: "done", Done: true})
 }

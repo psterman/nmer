@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -264,6 +265,10 @@ func (b *blugeIndexer) Stop() error {
 	if b.watcher != nil {
 		_ = b.watcher.Close()
 	}
+	if err := b.drainPendingBatches(); err != nil {
+		log.Printf("[fulltext] drain pending batches: %v", err)
+	}
+	b.closeCachedReaderOnStop()
 	var closeErr error
 	if b.writer != nil {
 		closeErr = b.writer.Close()
