@@ -306,16 +306,28 @@ _SCWV_IsSearchCoreAlive() {
     }
 }
 
-_SCWV_EnsureSearchCoreRunning() {
+_SCWV_SearchCoreExePath() {
     global A_ScriptDir
-    if _SCWV_IsSearchCoreAlive()
-        return true
-    exe := A_ScriptDir "\SearchCenterCore.exe"
-    if !FileExist(exe)
+    preferred := A_ScriptDir "\searchcore\SearchCenterCore.exe"
+    if FileExist(preferred)
+        return preferred
+    fallback := A_ScriptDir "\SearchCenterCore.exe"
+    if FileExist(fallback)
+        return fallback
+    return ""
+}
+
+_SCWV_RestartSearchCore() {
+    exe := _SCWV_SearchCoreExePath()
+    if (exe = "")
         return false
+    try ProcessClose("SearchCenterCore.exe")
+    catch {
+    }
+    Sleep(150)
     try {
         Run('"' exe '" -base "' A_ScriptDir '"', A_ScriptDir, "Hide")
-        Loop 60 {
+        Loop 70 {
             Sleep(80)
             if _SCWV_IsSearchCoreAlive()
                 return true
@@ -323,6 +335,12 @@ _SCWV_EnsureSearchCoreRunning() {
     } catch {
     }
     return false
+}
+
+_SCWV_EnsureSearchCoreRunning() {
+    if _SCWV_IsSearchCoreAlive()
+        return true
+    return _SCWV_RestartSearchCore()
 }
 
 _SCWV_MapFilterToGoSearchType(FilterType) {
@@ -372,7 +390,7 @@ _SCWV_HttpGetSearchCoreResp(queryString) {
     }
 }
 
-_SCWV_HttpSearchCoreJson(method, path, body := "") {
+_SCWV_HttpSearchCoreJsonRaw(method, path, body := "") {
     try {
         whr := ComObject("WinHttp.WinHttpRequest.5.1")
         url := "http://127.0.0.1:8080" . path
@@ -395,6 +413,15 @@ _SCWV_HttpSearchCoreJson(method, path, body := "") {
     } catch as err {
         return Map("status", 0, "text", "", "json", 0, "error", err.Message)
     }
+}
+
+_SCWV_HttpSearchCoreJson(method, path, body := "") {
+    resp := _SCWV_HttpSearchCoreJsonRaw(method, path, body)
+    if (resp.Has("status") && Integer(resp["status"]) = 404 && InStr(path, "/v1/fulltext/") = 1) {
+        if _SCWV_RestartSearchCore()
+            resp := _SCWV_HttpSearchCoreJsonRaw(method, path, body)
+    }
+    return resp
 }
 
 _SCWV_DefaultFullTextStatusPayload() {

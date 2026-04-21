@@ -114,6 +114,17 @@ button, input, select, textarea { font: inherit; }
   font-size: 12px;
   font-weight: 600;
 }
+#btn-ft-settings-top {
+  width: auto;
+  min-width: 72px;
+  padding: 0 8px;
+  font-size: 12px;
+  gap: 4px;
+}
+#btn-ft-settings-top .icon {
+  font-size: 13px;
+  opacity: .95;
+}
 .chrome-engine-btn {
   flex-shrink: 0;
   height: 26px;
@@ -1130,6 +1141,7 @@ mark {
         <button type="button" id="engine-mode-go" class="engine-mode-btn" data-engine="go" title="极速：Go SearchCenterCore">极速 · Go</button>
         <button type="button" id="engine-mode-ahk" class="engine-mode-btn" data-engine="ahk" title="标准：AHK 本地引擎">标准 · AHK</button>
       </div>
+      <button type="button" id="btn-ft-settings-top" class="chrome-btn" title="搜索设置"><span class="icon">⚙</span><span>搜索设置</span></button>
       <button type="button" id="chrome-topmost" class="chrome-btn" title="置顶窗口">置顶</button>
     </div>
   </header>
@@ -1170,9 +1182,7 @@ mark {
       <button id="btn-run" class="btn primary">搜索</button>
       <button id="btn-web-search" class="btn">网页搜索</button>
       <button id="btn-open-cli" class="btn">打开所选终端</button>
-      <button id="btn-ft-start" class="btn" title="启动全文索引">启动索引</button>
-      <button id="btn-ft-stop" class="btn" title="停止全文索引">停止索引</button>
-      <button id="btn-ft-settings" class="btn" title="跳转搜索设置">搜索设置</button>
+      <button id="btn-ft-toggle" class="btn" title="启动或停止全文索引">启动索引</button>
     </div>
   </div>
 
@@ -1534,6 +1544,16 @@ function applyFulltextStatus(payload) {
     fileEl.textContent = t;
     fileEl.title = t;
   }
+  const toggleBtn = document.getElementById("btn-ft-toggle");
+  if (toggleBtn) {
+    if (state.fulltext.running) {
+      toggleBtn.textContent = "停止索引";
+      toggleBtn.title = "点击停止全文索引";
+    } else {
+      toggleBtn.textContent = "启动索引";
+      toggleBtn.title = "点击启动全文索引";
+    }
+  }
 }
 
 function requestFulltextStatus() {
@@ -1641,7 +1661,7 @@ function renderFilters() {
     const applyFilter = () => postToAhk({ type: "setFilter", filterType: filter.key });
     let pressedHandled = false;
     let pressedAt = 0;
-    // 输入防抖回包会重绘过滤栏；pointerdown 比 click 更早触发，避免点击被重绘吞掉
+    // 输入防抖回包会重绘过滤栏，pointerdown 比 click 更早触发，避免点击被重绘吞掉
     el.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       pressedHandled = true;
@@ -3066,13 +3086,11 @@ document.getElementById("btn-web-search").addEventListener("click", () => {
 document.getElementById("btn-open-cli").addEventListener("click", () => {
   postToAhk({ type: "cliOpen" });
 });
-document.getElementById("btn-ft-start").addEventListener("click", () => {
-  postToAhk({ type: "fulltextControl", control: "start" });
+document.getElementById("btn-ft-toggle").addEventListener("click", () => {
+  const act = state.fulltext && state.fulltext.running ? "stop" : "start";
+  postToAhk({ type: "fulltextControl", control: act });
 });
-document.getElementById("btn-ft-stop").addEventListener("click", () => {
-  postToAhk({ type: "fulltextControl", control: "stop" });
-});
-document.getElementById("btn-ft-settings").addEventListener("click", () => {
+document.getElementById("btn-ft-settings-top").addEventListener("click", () => {
   postToAhk({ type: "openSettingsPanel" });
 });
 

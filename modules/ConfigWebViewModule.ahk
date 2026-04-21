@@ -193,9 +193,13 @@ ConfigWebView_EnsureSearchCoreRunning() {
             return true
     } catch {
     }
-    exe := A_ScriptDir "\SearchCenterCore.exe"
+    exe := ConfigWebView_SearchCoreExePath()
     if !FileExist(exe)
         return false
+    try ProcessClose("SearchCenterCore.exe")
+    catch {
+    }
+    Sleep(120)
     try {
         Run('"' exe '" -base "' A_ScriptDir '"', A_ScriptDir, "Hide")
         Loop 40 {
@@ -215,7 +219,17 @@ ConfigWebView_EnsureSearchCoreRunning() {
     return false
 }
 
-ConfigWebView_HttpSearchCoreJson(method, path, body := "") {
+ConfigWebView_SearchCoreExePath() {
+    preferred := A_ScriptDir "\searchcore\SearchCenterCore.exe"
+    if FileExist(preferred)
+        return preferred
+    fallback := A_ScriptDir "\SearchCenterCore.exe"
+    if FileExist(fallback)
+        return fallback
+    return ""
+}
+
+ConfigWebView_HttpSearchCoreJsonRaw(method, path, body := "") {
     try {
         whr := ComObject("WinHttp.WinHttpRequest.5.1")
         url := "http://127.0.0.1:8080" . path
@@ -238,6 +252,15 @@ ConfigWebView_HttpSearchCoreJson(method, path, body := "") {
     } catch as err {
         return Map("status", 0, "text", "", "json", 0, "error", err.Message)
     }
+}
+
+ConfigWebView_HttpSearchCoreJson(method, path, body := "") {
+    resp := ConfigWebView_HttpSearchCoreJsonRaw(method, path, body)
+    if (resp.Has("status") && Integer(resp["status"]) = 404 && InStr(path, "/v1/fulltext/") = 1) {
+        if ConfigWebView_EnsureSearchCoreRunning()
+            resp := ConfigWebView_HttpSearchCoreJsonRaw(method, path, body)
+    }
+    return resp
 }
 
 ConfigWebView_MergeMap(target, source) {

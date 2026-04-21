@@ -1139,8 +1139,10 @@
         const evt = el.type === "checkbox" || el.tagName === "SELECT" ? "change" : "input";
         el.addEventListener(evt, () => scheduleFullTextApply());
       });
-      document.getElementById("btnFtStart")?.addEventListener("click", () => post({ type: "fulltextControl", control: "start" }));
-      document.getElementById("btnFtStop")?.addEventListener("click", () => post({ type: "fulltextControl", control: "stop" }));
+      document.getElementById("btnFtToggle")?.addEventListener("click", () => {
+        const act = state.fullText && state.fullText.running ? "stop" : "start";
+        post({ type: "fulltextControl", control: act });
+      });
       document.getElementById("btnFtRefresh")?.addEventListener("click", () => requestFullTextStatus(true));
       document.getElementById("btnFtPickDir")?.addEventListener("click", () => post({ type: "fulltextPickIndexDir" }));
     }
@@ -1165,6 +1167,16 @@
       }
       const hint = document.getElementById("ftHint");
       if (hint) hint.textContent = ft.lastError || "设置会自动保存并自动应用到索引引擎。";
+      const toggleBtn = document.getElementById("btnFtToggle");
+      if (toggleBtn) {
+        if (ft.running) {
+          toggleBtn.textContent = "停止索引";
+          toggleBtn.title = "点击停止全文索引";
+        } else {
+          toggleBtn.textContent = "启动索引";
+          toggleBtn.title = "点击启动全文索引";
+        }
+      }
     }
     function loadCustomCategories(){
       try {
@@ -1576,8 +1588,7 @@
     <div class="ft-progress"><div id="ftProgressBar" class="ft-progress-bar" style="width:${progressNum.toFixed(1)}%"></div></div>
     <div id="ftCurrentFile" class="ft-file" title="${esc(ft.indexing_file || "")}">${esc(ft.indexing_file || "当前无索引任务")}</div>
     <div class="inline" style="margin-top:10px;">
-      <button class="btn" id="btnFtStart">启动索引</button>
-      <button class="btn" id="btnFtStop">停止索引</button>
+      <button class="btn" id="btnFtToggle">启动索引</button>
       <button class="btn" id="btnFtRefresh">刷新状态</button>
     </div>
     <div class="row" style="margin-top:10px;">
