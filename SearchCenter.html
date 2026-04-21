@@ -250,6 +250,48 @@ button, input, select, textarea { font: inherit; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.fulltext-inline {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 14px;
+  color: #8ea0ad;
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.ft-mini-light {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3f3f3f;
+  opacity: .75;
+  flex: 0 0 auto;
+}
+.ft-mini-light.active {
+  background: #22d3ee;
+  box-shadow: 0 0 8px rgba(34,211,238,.9);
+  animation: ft-mini-breath 1.4s ease-in-out infinite;
+}
+.ft-mini-light.ready {
+  background: #4ade80;
+  box-shadow: 0 0 8px rgba(74,222,128,.9);
+}
+.ft-mini-light.warn {
+  background: #f97316;
+  box-shadow: 0 0 8px rgba(249,115,22,.95);
+  animation: ft-mini-breath .95s ease-in-out infinite;
+}
+.ft-mini-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@keyframes ft-mini-breath {
+  0% { opacity: .55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.22); }
+  100% { opacity: .55; transform: scale(1); }
+}
 .search-actions {
   display: flex;
   align-items: center;
@@ -1102,6 +1144,14 @@ mark {
     <div class="search-input-wrap">
       <input id="search" type="text" placeholder="搜索本地结果，或直接作为网络搜索 / CLI 提示词发送">
       <div id="status" class="search-status-inline">准备中...</div>
+      <div id="fulltext-inline" class="fulltext-inline">
+        <span class="ft-mini-light" id="ftl1"></span>
+        <span class="ft-mini-light" id="ftl2"></span>
+        <span class="ft-mini-light" id="ftl3"></span>
+        <span class="ft-mini-light" id="ftl4"></span>
+        <span id="ft-progress-text">FT 0.0%</span>
+        <span id="ft-file" class="ft-mini-file">空闲</span>
+      </div>
     </div>
     <div class="search-actions">
       <div class="engine-mode-group" role="group" aria-label="搜索引擎模式">
@@ -1120,6 +1170,9 @@ mark {
       <button id="btn-run" class="btn primary">搜索</button>
       <button id="btn-web-search" class="btn">网页搜索</button>
       <button id="btn-open-cli" class="btn">打开所选终端</button>
+      <button id="btn-ft-start" class="btn" title="启动全文索引">启动索引</button>
+      <button id="btn-ft-stop" class="btn" title="停止全文索引">停止索引</button>
+      <button id="btn-ft-settings" class="btn" title="跳转搜索设置">搜索设置</button>
     </div>
   </div>
 
@@ -1240,6 +1293,14 @@ const state = {
   pdfWebBroken: false,
   pdfJsRx: null,
   hostTopMost: true,
+  fulltext: {
+    running: false,
+    ready: false,
+    progress: 0,
+    progressText: "0.0%",
+    indexing_file: "",
+    engine_lights: ["off", "off", "off", "off"]
+  },
   quickLook: {
     installed: false,
     path: "",
@@ -1437,6 +1498,46 @@ function syncFooterHint() {
     return;
   }
   footer.textContent = getFooterHintText();
+}
+
+function normalizeFulltextPayload(payload) {
+  const src = payload && typeof payload === "object" ? payload : {};
+  return {
+    running: !!src.running,
+    ready: !!src.ready,
+    progress: Number.isFinite(Number(src.progress)) ? Number(src.progress) : 0,
+    progressText: String(src.progressText || "0.0%"),
+    indexing_file: String(src.indexing_file || ""),
+    engine_lights: Array.isArray(src.engine_lights) && src.engine_lights.length === 4
+      ? src.engine_lights.map((v) => String(v || "off"))
+      : ["off", "off", "off", "off"]
+  };
+}
+
+function applyFulltextStatus(payload) {
+  state.fulltext = normalizeFulltextPayload(payload);
+  const lightIds = ["ftl1", "ftl2", "ftl3", "ftl4"];
+  lightIds.forEach((id, idx) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove("off", "active", "ready", "warn");
+    el.classList.add(state.fulltext.engine_lights[idx] || "off");
+  });
+  const progressEl = document.getElementById("ft-progress-text");
+  if (progressEl) {
+    const txt = state.fulltext.progressText || `${state.fulltext.progress.toFixed(1)}%`;
+    progressEl.textContent = `FT ${txt}`;
+  }
+  const fileEl = document.getElementById("ft-file");
+  if (fileEl) {
+    const t = state.fulltext.indexing_file || (state.fulltext.running ? "索引监控中" : "空闲");
+    fileEl.textContent = t;
+    fileEl.title = t;
+  }
+}
+
+function requestFulltextStatus() {
+  postToAhk({ type: "fulltextStatusRequest", withConfig: false });
 }
 
 function updateHotkeyHighlights() {
@@ -2833,6 +2934,7 @@ function applyState(payload) {
   document.getElementById("search").value = state.keyword;
   document.getElementById("limit").value = String(state.limit);
   document.getElementById("status").textContent = state.statusLine || "已同步";
+  applyFulltextStatus(state.fulltext);
   document.getElementById("result-count").textContent = String(state.results.length) + " 条";
   document.getElementById("btn-run").textContent = "搜索";
   document.getElementById("btn-open-cli").style.display = state.isCliCategory ? "inline-flex" : "none";
@@ -2963,6 +3065,15 @@ document.getElementById("btn-web-search").addEventListener("click", () => {
 
 document.getElementById("btn-open-cli").addEventListener("click", () => {
   postToAhk({ type: "cliOpen" });
+});
+document.getElementById("btn-ft-start").addEventListener("click", () => {
+  postToAhk({ type: "fulltextControl", control: "start" });
+});
+document.getElementById("btn-ft-stop").addEventListener("click", () => {
+  postToAhk({ type: "fulltextControl", control: "stop" });
+});
+document.getElementById("btn-ft-settings").addEventListener("click", () => {
+  postToAhk({ type: "openSettingsPanel" });
 });
 
 const btnScRecycle = document.getElementById("btn-sc-recycle");
@@ -3276,11 +3387,26 @@ if (window.chrome && window.chrome.webview) {
       if (!isQuickLookInstalled() && state.pdfMode === "quicklook") setPdfMode("auto");
       return;
     }
+    if (payload.type === "fulltextStatus") {
+      applyFulltextStatus(payload.payload || {});
+      return;
+    }
+    if (payload.type === "fulltextActionResult") {
+      if (!payload.ok) {
+        const tip = payload.error ? String(payload.error) : "全文索引操作失败";
+        document.getElementById("status").textContent = tip;
+      }
+      return;
+    }
     if (payload.type === "init" || payload.type === "state") {
       applyState(payload);
     }
   });
   postToAhk({ type: "ready" });
+  requestFulltextStatus();
+  setInterval(() => {
+    requestFulltextStatus();
+  }, 1500);
 }
 
 (function initEngineModeButton() {

@@ -124,14 +124,21 @@ type blugeIndexer struct {
 
 type fullTextProgressPayload struct {
 	Progress     float64  `json:"progress"`
+	ProgressText string   `json:"progressText"`
 	IndexingFile string   `json:"indexing_file"`
 	Ready        bool     `json:"ready"`
 	Running      bool     `json:"running"`
 	LowDisk      bool     `json:"lowDisk"`
+	EngineLights []string `json:"engine_lights"`
 	Alerts       []string `json:"alerts,omitempty"`
 }
 
 func StartIndexer(baseDir string) error {
+	ensureFullTextRuntime(baseDir)
+	if isFullTextStartSuppressed() {
+		return errors.New("fulltext indexer is paused")
+	}
+
 	fullTextGlobalMu.Lock()
 	defer fullTextGlobalMu.Unlock()
 
@@ -178,12 +185,36 @@ func GetProgressPayload() fullTextProgressPayload {
 	st := GetStatus()
 	return fullTextProgressPayload{
 		Progress:     st.Progress,
+		ProgressText: fmt.Sprintf("%.1f%%", st.Progress),
 		IndexingFile: st.IndexingFile,
 		Ready:        st.Ready,
 		Running:      st.Running,
 		LowDisk:      st.LowDisk,
+		EngineLights: buildEngineLights(st),
 		Alerts:       st.Alerts,
 	}
+}
+
+func buildEngineLights(st FullTextStatus) []string {
+	lights := []string{"off", "off", "off", "off"}
+	if st.Running {
+		lights[0] = "active"
+	}
+	if st.PendingTasks > 0 || st.IndexingFile != "" {
+		lights[1] = "active"
+	}
+	if st.Progress > 0 {
+		lights[2] = "active"
+	}
+	if st.LowDisk || st.WritesPaused || st.LastError != "" {
+		lights[3] = "warn"
+	} else if st.Running {
+		lights[3] = "active"
+	}
+	if st.Ready {
+		lights = []string{"ready", "ready", "ready", "ready"}
+	}
+	return lights
 }
 
 func searchFullTextWithBackend(baseDir, keyword string, maxResults int) ([]map[string]any, error) {
@@ -1047,9 +1078,7 @@ func resolveIndexDir(baseDir string) (string, bool) {
 			raw = filepath.Join(baseDir, raw)
 		}
 		abs := filepath.Clean(raw)
-		if !isUnderBase(abs, baseDir) {
-			return abs, false
-		}
+		return abs, false
 	}
 
 	local := strings.TrimSpace(os.Getenv("LOCALAPPDATA"))

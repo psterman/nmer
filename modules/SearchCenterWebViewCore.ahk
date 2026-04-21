@@ -372,6 +372,128 @@ _SCWV_HttpGetSearchCoreResp(queryString) {
     }
 }
 
+_SCWV_HttpSearchCoreJson(method, path, body := "") {
+    try {
+        whr := ComObject("WinHttp.WinHttpRequest.5.1")
+        url := "http://127.0.0.1:8080" . path
+        whr.Open(method, url, false)
+        whr.SetTimeouts(3000, 3000, 10000, 10000)
+        if (method = "POST" || method = "PUT" || method = "PATCH") {
+            whr.SetRequestHeader("Content-Type", "application/json; charset=utf-8")
+            payload := (Trim(String(body)) = "") ? "{}" : body
+            whr.Send(payload)
+        } else {
+            whr.Send()
+        }
+        st := Integer(whr.Status)
+        txt := whr.ResponseText
+        obj := 0
+        if (Trim(String(txt)) != "") {
+            try obj := Jxon_Load(txt)
+        }
+        return Map("status", st, "text", txt, "json", obj)
+    } catch as err {
+        return Map("status", 0, "text", "", "json", 0, "error", err.Message)
+    }
+}
+
+_SCWV_DefaultFullTextStatusPayload() {
+    return Map(
+        "running", false,
+        "ready", false,
+        "progress", 0,
+        "progressText", "0.0%",
+        "indexing_file", "",
+        "engine_lights", ["off", "off", "off", "off"],
+        "workerCount", 0,
+        "scanSpeed", "normal",
+        "includeLargeText", false,
+        "maxFileSizeMB", 2,
+        "indexDir", "",
+        "lastError", ""
+    )
+}
+
+_SCWV_MergeMap(target, source) {
+    if !(target is Map) || !(source is Map)
+        return target
+    for k, v in source
+        target[k] := v
+    return target
+}
+
+_SCWV_PostFullTextStatus(withConfig := false) {
+    payload := _SCWV_DefaultFullTextStatusPayload()
+    if !_SCWV_EnsureSearchCoreRunning() {
+        SCWV_PostJson(Map("type", "fulltextStatus", "payload", payload))
+        return
+    }
+
+    stResp := _SCWV_HttpSearchCoreJson("GET", "/v1/fulltext/status")
+    if (stResp.Has("status") && Integer(stResp["status"]) = 200 && stResp.Has("json") && (stResp["json"] is Map))
+        payload := _SCWV_MergeMap(payload, stResp["json"])
+
+    pgResp := _SCWV_HttpSearchCoreJson("GET", "/v1/fulltext/progress")
+    if (pgResp.Has("status") && Integer(pgResp["status"]) = 200 && pgResp.Has("json") && (pgResp["json"] is Map))
+        payload := _SCWV_MergeMap(payload, pgResp["json"])
+
+    if withConfig {
+        cfgResp := _SCWV_HttpSearchCoreJson("GET", "/v1/fulltext/config")
+        if (cfgResp.Has("status") && Integer(cfgResp["status"]) = 200 && cfgResp.Has("json") && (cfgResp["json"] is Map)) {
+            cfgRoot := cfgResp["json"]
+            if (cfgRoot.Has("config"))
+                payload["config"] := cfgRoot["config"]
+            if (cfgRoot.Has("status") && (cfgRoot["status"] is Map))
+                payload := _SCWV_MergeMap(payload, cfgRoot["status"])
+            if (cfgRoot.Has("progress") && (cfgRoot["progress"] is Map))
+                payload := _SCWV_MergeMap(payload, cfgRoot["progress"])
+        }
+    }
+
+    SCWV_PostJson(Map("type", "fulltextStatus", "payload", payload))
+}
+
+_SCWV_ControlFullText(action := "start") {
+    act := StrLower(Trim(String(action)))
+    if (act = "")
+        act := "start"
+    if !_SCWV_EnsureSearchCoreRunning() {
+        SCWV_PostJson(Map("type", "fulltextActionResult", "ok", false, "action", act, "error", "SearchCenterCore 未启动"))
+        _SCWV_PostFullTextStatus(true)
+        return
+    }
+    req := Jxon_Dump(Map("action", act))
+    resp := _SCWV_HttpSearchCoreJson("POST", "/v1/fulltext/control", req)
+    ok := (resp.Has("status") && Integer(resp["status"]) = 200)
+    errMsg := ""
+    if !ok {
+        errMsg := resp.Has("text") ? String(resp["text"]) : ("HTTP " . (resp.Has("status") ? String(resp["status"]) : "0"))
+    }
+    SCWV_PostJson(Map("type", "fulltextActionResult", "ok", ok, "action", act, "error", errMsg))
+    _SCWV_PostFullTextStatus(true)
+}
+
+_SCWV_UpdateFullTextConfig(payloadMap) {
+    if !(payloadMap is Map) {
+        SCWV_PostJson(Map("type", "fulltextConfigResult", "ok", false, "error", "配置参数无效"))
+        return
+    }
+    if !_SCWV_EnsureSearchCoreRunning() {
+        SCWV_PostJson(Map("type", "fulltextConfigResult", "ok", false, "error", "SearchCenterCore 未启动"))
+        _SCWV_PostFullTextStatus(true)
+        return
+    }
+    req := Jxon_Dump(payloadMap)
+    resp := _SCWV_HttpSearchCoreJson("POST", "/v1/fulltext/config", req)
+    ok := (resp.Has("status") && Integer(resp["status"]) = 200)
+    errMsg := ""
+    if !ok {
+        errMsg := resp.Has("text") ? String(resp["text"]) : ("HTTP " . (resp.Has("status") ? String(resp["status"]) : "0"))
+    }
+    SCWV_PostJson(Map("type", "fulltextConfigResult", "ok", ok, "error", errMsg))
+    _SCWV_PostFullTextStatus(true)
+}
+
 ; 将 Go 返回的扁平 items 按 originalDataType 分组为 SearchAllDataSources 形状
 _SCWV_GroupGoItemsToAllDataResults(GoItems, hasMoreGo) {
     buckets := Map()
@@ -828,6 +950,7 @@ SCWV_OnWebMessage(sender, args) {
             global g_SCWV_Ready
             g_SCWV_Ready := true
             SCWV_PushState("init")
+            _SCWV_PostFullTextStatus(false)
             try SCWV_FlushPendingJsonQueue()
             if g_SCWV_FocusPending
                 SCWV_RequestFocusInput()
@@ -861,6 +984,25 @@ SCWV_OnWebMessage(sender, args) {
             lim0 := msg.Has("limit") ? Integer(msg["limit"]) : 0
             gt0 := msg.Has("goType") ? String(msg["goType"]) : ""
             _SCWV_ExecuteGoSearchHttp(off0, kw0, gt0, lim0)
+        case "fulltextStatusRequest":
+            withCfg := msg.Has("withConfig") ? (msg["withConfig"] ? true : false) : false
+            _SCWV_PostFullTextStatus(withCfg)
+        case "fulltextControl":
+            act := msg.Has("control") ? String(msg["control"]) : "start"
+            _SCWV_ControlFullText(act)
+        case "fulltextConfigUpdate":
+            pl := msg.Has("payload") && (msg["payload"] is Map) ? msg["payload"] : Map()
+            _SCWV_UpdateFullTextConfig(pl)
+        case "openSettingsPanel":
+            try {
+                if IsSet(ShowConfigWebViewGUI) {
+                    ShowConfigWebViewGUI()
+                } else if IsSet(ShowConfigGUI) {
+                    ShowConfigGUI()
+                }
+            } catch as err {
+                SCWV_PostJson(Map("type", "fulltextActionResult", "ok", false, "action", "openSettingsPanel", "error", err.Message))
+            }
         case "search":
             global SearchCenterWebKeyword, SearchCenterHasMoreData
             if !msg.Has("keyword")

@@ -183,6 +183,154 @@ ConfigWebView_Send(msgMap) {
     WebView_QueuePayload(ConfigWV2, msgMap)
 }
 
+ConfigWebView_EnsureSearchCoreRunning() {
+    try {
+        whr := ComObject("WinHttp.WinHttpRequest.5.1")
+        whr.Open("GET", "http://127.0.0.1:8080/health", false)
+        whr.SetTimeouts(1500, 1500, 1500, 1500)
+        whr.Send()
+        if (whr.Status = 200)
+            return true
+    } catch {
+    }
+    exe := A_ScriptDir "\SearchCenterCore.exe"
+    if !FileExist(exe)
+        return false
+    try {
+        Run('"' exe '" -base "' A_ScriptDir '"', A_ScriptDir, "Hide")
+        Loop 40 {
+            Sleep(80)
+            try {
+                whr2 := ComObject("WinHttp.WinHttpRequest.5.1")
+                whr2.Open("GET", "http://127.0.0.1:8080/health", false)
+                whr2.SetTimeouts(1000, 1000, 1000, 1000)
+                whr2.Send()
+                if (whr2.Status = 200)
+                    return true
+            } catch {
+            }
+        }
+    } catch {
+    }
+    return false
+}
+
+ConfigWebView_HttpSearchCoreJson(method, path, body := "") {
+    try {
+        whr := ComObject("WinHttp.WinHttpRequest.5.1")
+        url := "http://127.0.0.1:8080" . path
+        whr.Open(method, url, false)
+        whr.SetTimeouts(3000, 3000, 10000, 10000)
+        if (method = "POST" || method = "PUT" || method = "PATCH") {
+            whr.SetRequestHeader("Content-Type", "application/json; charset=utf-8")
+            payload := (Trim(String(body)) = "") ? "{}" : body
+            whr.Send(payload)
+        } else {
+            whr.Send()
+        }
+        st := Integer(whr.Status)
+        txt := whr.ResponseText
+        obj := 0
+        if (Trim(String(txt)) != "") {
+            try obj := Jxon_Load(txt)
+        }
+        return Map("status", st, "text", txt, "json", obj)
+    } catch as err {
+        return Map("status", 0, "text", "", "json", 0, "error", err.Message)
+    }
+}
+
+ConfigWebView_MergeMap(target, source) {
+    if !(target is Map) || !(source is Map)
+        return target
+    for k, v in source
+        target[k] := v
+    return target
+}
+
+ConfigWebView_DefaultFullTextStatusPayload() {
+    return Map(
+        "running", false,
+        "ready", false,
+        "progress", 0,
+        "progressText", "0.0%",
+        "indexing_file", "",
+        "engine_lights", ["off", "off", "off", "off"],
+        "workerCount", 0,
+        "scanSpeed", "normal",
+        "includeLargeText", false,
+        "maxFileSizeMB", 2,
+        "indexDir", "",
+        "lastError", ""
+    )
+}
+
+ConfigWebView_PostFullTextStatus(withConfig := true) {
+    payload := ConfigWebView_DefaultFullTextStatusPayload()
+    if !ConfigWebView_EnsureSearchCoreRunning() {
+        ConfigWebView_Send(Map("type", "fulltextStatus", "payload", payload))
+        return
+    }
+    stResp := ConfigWebView_HttpSearchCoreJson("GET", "/v1/fulltext/status")
+    if (stResp.Has("status") && Integer(stResp["status"]) = 200 && stResp.Has("json") && (stResp["json"] is Map))
+        payload := ConfigWebView_MergeMap(payload, stResp["json"])
+
+    pgResp := ConfigWebView_HttpSearchCoreJson("GET", "/v1/fulltext/progress")
+    if (pgResp.Has("status") && Integer(pgResp["status"]) = 200 && pgResp.Has("json") && (pgResp["json"] is Map))
+        payload := ConfigWebView_MergeMap(payload, pgResp["json"])
+
+    if withConfig {
+        cfgResp := ConfigWebView_HttpSearchCoreJson("GET", "/v1/fulltext/config")
+        if (cfgResp.Has("status") && Integer(cfgResp["status"]) = 200 && cfgResp.Has("json") && (cfgResp["json"] is Map)) {
+            root := cfgResp["json"]
+            if (root.Has("config"))
+                payload["config"] := root["config"]
+            if (root.Has("status") && (root["status"] is Map))
+                payload := ConfigWebView_MergeMap(payload, root["status"])
+            if (root.Has("progress") && (root["progress"] is Map))
+                payload := ConfigWebView_MergeMap(payload, root["progress"])
+        }
+    }
+    ConfigWebView_Send(Map("type", "fulltextStatus", "payload", payload))
+}
+
+ConfigWebView_FullTextControl(action) {
+    act := StrLower(Trim(String(action)))
+    if (act = "")
+        act := "start"
+    if !ConfigWebView_EnsureSearchCoreRunning() {
+        ConfigWebView_Send(Map("type", "fulltextActionResult", "ok", false, "action", act, "error", "SearchCenterCore 未启动"))
+        ConfigWebView_PostFullTextStatus(true)
+        return
+    }
+    resp := ConfigWebView_HttpSearchCoreJson("POST", "/v1/fulltext/control", Jxon_Dump(Map("action", act)))
+    ok := (resp.Has("status") && Integer(resp["status"]) = 200)
+    err := ""
+    if !ok
+        err := resp.Has("text") ? String(resp["text"]) : ("HTTP " . (resp.Has("status") ? String(resp["status"]) : "0"))
+    ConfigWebView_Send(Map("type", "fulltextActionResult", "ok", ok, "action", act, "error", err))
+    ConfigWebView_PostFullTextStatus(true)
+}
+
+ConfigWebView_FullTextUpdateConfig(payload) {
+    if !(payload is Map) {
+        ConfigWebView_Send(Map("type", "fulltextConfigResult", "ok", false, "error", "配置参数无效"))
+        return
+    }
+    if !ConfigWebView_EnsureSearchCoreRunning() {
+        ConfigWebView_Send(Map("type", "fulltextConfigResult", "ok", false, "error", "SearchCenterCore 未启动"))
+        ConfigWebView_PostFullTextStatus(true)
+        return
+    }
+    resp := ConfigWebView_HttpSearchCoreJson("POST", "/v1/fulltext/config", Jxon_Dump(payload))
+    ok := (resp.Has("status") && Integer(resp["status"]) = 200)
+    err := ""
+    if !ok
+        err := resp.Has("text") ? String(resp["text"]) : ("HTTP " . (resp.Has("status") ? String(resp["status"]) : "0"))
+    ConfigWebView_Send(Map("type", "fulltextConfigResult", "ok", ok, "error", err))
+    ConfigWebView_PostFullTextStatus(true)
+}
+
 JoinArray(arr, sep := ",") {
     if !(arr is Array) || arr.Length = 0
         return ""
@@ -758,6 +906,22 @@ ConfigWebView_OnMessage(sender, args) {
         case "ready":
             ConfigWV2Ready := true
             ConfigWebView_Send(Map("type", "initData", "payload", ConfigWebView_BuildInitDataSafe()))
+            ConfigWebView_PostFullTextStatus(true)
+        case "fulltextStatusRequest":
+            withCfg := msg.Has("withConfig") ? (msg["withConfig"] ? true : false) : true
+            ConfigWebView_PostFullTextStatus(withCfg)
+        case "fulltextControl":
+            act := msg.Has("control") ? String(msg["control"]) : "start"
+            ConfigWebView_FullTextControl(act)
+        case "fulltextConfigUpdate":
+            pl := msg.Has("payload") && (msg["payload"] is Map) ? msg["payload"] : Map()
+            ConfigWebView_FullTextUpdateConfig(pl)
+        case "fulltextPickIndexDir":
+            selectedDir := ""
+            try selectedDir := FileSelect("D", A_ScriptDir, "选择索引目录")
+            if (selectedDir = "")
+                selectedDir := ""
+            ConfigWebView_Send(Map("type", "fulltextBrowseResult", "path", selectedDir))
         case "browseCursorPath":
             selected := FileSelect("1", A_ScriptDir, "选择 Cursor.exe", "Executable (*.exe)")
             if (selected = "")
@@ -844,7 +1008,7 @@ ConfigWebView_OnMessage(sender, args) {
                 ok := false
                 err := e.Message
             }
-            ConfigWebView_Send(Map("type", "actionResult", "ok", ok, "error", err))
+            ConfigWebView_Send(Map("type", "actionResult", "ok", ok, "error", err, "op", op))
             if ok
                 ConfigWebView_Send(Map("type", "initData", "payload", ConfigWebView_BuildInitDataSafe()))
         case "cancel":
