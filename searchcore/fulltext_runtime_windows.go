@@ -268,6 +268,11 @@ func (b *blugeIndexer) Stop() error {
 	if b.writer != nil {
 		closeErr = b.writer.Close()
 	}
+	if b.meta != nil {
+		if err := b.meta.Close(); closeErr == nil {
+			closeErr = err
+		}
+	}
 	b.mu.Lock()
 	b.status.Running = false
 	b.status.Ready = false

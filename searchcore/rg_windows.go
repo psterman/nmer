@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -61,31 +62,6 @@ func resolveRgExe(baseDir string) string {
 	return ""
 }
 
-func fullTextRoots(baseDir string) []string {
-	env := strings.TrimSpace(os.Getenv("SEARCHCENTER_FULLTEXT_ROOTS"))
-	if env == "" {
-		return []string{baseDir}
-	}
-	parts := strings.Split(env, ";")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		s := strings.TrimSpace(p)
-		if s == "" {
-			continue
-		}
-		if !filepath.IsAbs(s) {
-			s = filepath.Join(baseDir, s)
-		}
-		if st, err := os.Stat(s); err == nil && st.IsDir() {
-			out = append(out, s)
-		}
-	}
-	if len(out) == 0 {
-		return []string{baseDir}
-	}
-	return out
-}
-
 func rgTextValue(v rgJSONText) string {
 	if v.Text != "" {
 		return v.Text
@@ -112,7 +88,7 @@ func trimPreview(s string, maxRunes int) string {
 	return string(r[:maxRunes]) + "..."
 }
 
-func buildFullTextFileItem(fullPath, lineText string, lineNo int) map[string]any {
+func buildFullTextFileItem(fullPath, lineText string, lineNo int, score float64, hitSource string) map[string]any {
 	dirPath, fileName, ext := splitPathParts(fullPath)
 	preview := trimPreview(lineText, 180)
 	subParts := []string{}
@@ -120,7 +96,7 @@ func buildFullTextFileItem(fullPath, lineText string, lineNo int) map[string]any
 		subParts = append(subParts, dirPath)
 	}
 	if lineNo > 0 {
-		subParts = append(subParts, "第 "+strconv.Itoa(lineNo)+" 行")
+		subParts = append(subParts, "line "+strconv.Itoa(lineNo))
 	}
 	var ts string
 	if st, err := os.Stat(fullPath); err == nil {
@@ -129,7 +105,7 @@ func buildFullTextFileItem(fullPath, lineText string, lineNo int) map[string]any
 	if ts != "" {
 		subParts = append(subParts, ts)
 	}
-	subTitle := strings.Join(subParts, " · ")
+	subTitle := strings.Join(subParts, " | ")
 
 	meta := map[string]any{
 		"FilePath":     fullPath,
@@ -141,6 +117,8 @@ func buildFullTextFileItem(fullPath, lineText string, lineNo int) map[string]any
 		"MatchedLine":  preview,
 		"FullTextHit":  true,
 		"DateModified": ts,
+		"SearchScore":  score,
+		"HitSource":    hitSource,
 	}
 
 	id := fullPath
@@ -168,30 +146,49 @@ func searchFullTextWithRg(baseDir, keyword string, maxResults int) ([]map[string
 	if kw == "" || maxResults <= 0 {
 		return []map[string]any{}, nil
 	}
-	rgExe := resolveRgExe(baseDir)
-	if rgExe == "" {
-		return nil, fmt.Errorf("未找到 rg.exe，可放到 tools\\rg.exe 或安装 ripgrep")
-	}
-
-	roots := fullTextRoots(baseDir)
-	seen := map[string]struct{}{}
-	out := make([]map[string]any, 0, maxResults)
-	for _, root := range roots {
-		items, err := searchFullTextRoot(rgExe, root, kw, maxResults-len(out), seen)
-		if err != nil && len(out) == 0 {
-			return nil, err
-		}
-		out = append(out, items...)
-		if len(out) >= maxResults {
-			break
-		}
+	var out []map[string]any
+	err := streamFullTextWithRg(baseDir, kw, maxResults, func(item map[string]any) bool {
+		out = append(out, item)
+		return len(out) < maxResults
+	})
+	if err != nil {
+		return nil, err
 	}
 	return out, nil
 }
 
-func searchFullTextRoot(rgExe, root, keyword string, maxResults int, seen map[string]struct{}) ([]map[string]any, error) {
+func streamFullTextWithRg(baseDir, keyword string, maxResults int, emit func(map[string]any) bool) error {
+	kw := strings.TrimSpace(keyword)
+	if kw == "" || maxResults <= 0 {
+		return nil
+	}
+	rgExe := resolveRgExe(baseDir)
+	if rgExe == "" {
+		return fmt.Errorf("rg.exe not found; place it in tools\\rg.exe or install ripgrep")
+	}
+
+	filterCfg := loadFullTextFilterConfig(baseDir)
+	roots := fullTextRoots(baseDir)
+	seen := map[string]struct{}{}
+	for _, root := range roots {
+		remain := maxResults - len(seen)
+		if remain <= 0 {
+			break
+		}
+		count, err := streamFullTextRoot(rgExe, root, kw, remain, seen, filterCfg, emit)
+		if err != nil && len(seen) == 0 {
+			return err
+		}
+		if count <= 0 && err != nil {
+			continue
+		}
+	}
+	return nil
+}
+
+func streamFullTextRoot(rgExe, root, keyword string, maxResults int, seen map[string]struct{}, cfg fullTextFilterResolved, emit func(map[string]any) bool) (int, error) {
 	if maxResults <= 0 {
-		return nil, nil
+		return 0, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), rgDefaultTimeout)
 	defer cancel()
@@ -202,32 +199,32 @@ func searchFullTextRoot(rgExe, root, keyword string, maxResults int, seen map[st
 		"--max-count", "1",
 		"--fixed-strings",
 		"--ignore-case",
-		"--glob", "!**/.git/**",
-		"--glob", "!**/node_modules/**",
-		"--glob", "!**/cache/**",
-		"--glob", "!**/Data/**",
-		"--glob", "!**/*.exe",
-		"--glob", "!**/*.dll",
-		"--glob", "!**/*.db",
-		"--glob", "!**/*.wal",
-		"--glob", "!**/*.shm",
-		"--max-filesize", "2M",
-		keyword,
-		root,
+		"--hidden",
+		"--no-messages",
+		"--max-filesize", fmt.Sprintf("%d", cfg.MaxScanSizeBytes),
 	}
+
+	for _, g := range rgExcludeGlobs() {
+		args = append(args, "--glob", g)
+	}
+	for _, ext := range sortedExts(cfg.HotExts) {
+		args = append(args, "--glob", "**/*."+ext)
+	}
+	args = append(args, keyword, root)
+
 	cmd := exec.CommandContext(ctx, rgExe, args...)
 	cmd.Dir = root
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	var stderrBuf bytes.Buffer
 	cmd.Stderr = &stderrBuf
 	if err := cmd.Start(); err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	out := make([]map[string]any, 0, maxResults)
+	count := 0
 	sc := bufio.NewScanner(stdout)
 	sc.Buffer(make([]byte, 0, 128*1024), rgScannerMaxBytes)
 	for sc.Scan() {
@@ -247,14 +244,28 @@ func searchFullTextRoot(rgExe, root, keyword string, maxResults int, seen map[st
 			p = filepath.Join(root, p)
 		}
 		p = filepath.Clean(p)
+		if isExcludedByFilter(p, cfg) {
+			continue
+		}
+		if !isHotExt(pathExtLower(p), cfg) {
+			continue
+		}
 		key := strings.ToLower(p)
 		if _, ok := seen[key]; ok {
 			continue
 		}
 		seen[key] = struct{}{}
-		mt := rgTextValue(ev.Data.Lines)
-		out = append(out, buildFullTextFileItem(p, mt, ev.Data.LineNumber))
-		if len(out) >= maxResults {
+
+		score := scoreByPathAndContent(p, rgTextValue(ev.Data.Lines), keyword, 50)
+		item := buildFullTextFileItem(p, rgTextValue(ev.Data.Lines), ev.Data.LineNumber, score, "hot-rg")
+		count++
+		if emit != nil {
+			if !emit(item) {
+				cancel()
+				break
+			}
+		}
+		if count >= maxResults {
 			cancel()
 			break
 		}
@@ -262,18 +273,54 @@ func searchFullTextRoot(rgExe, root, keyword string, maxResults int, seen map[st
 
 	_ = sc.Err()
 	waitErr := cmd.Wait()
-	if len(out) > 0 {
-		return out, nil
+	if count > 0 {
+		return count, nil
 	}
 	if ctx.Err() == context.DeadlineExceeded {
-		return nil, fmt.Errorf("全文搜索超时（%s）", rgDefaultTimeout)
+		return 0, fmt.Errorf("fulltext hot scan timeout (%s)", rgDefaultTimeout)
 	}
 	if waitErr != nil {
 		msg := strings.TrimSpace(stderrBuf.String())
 		if msg == "" {
 			msg = waitErr.Error()
 		}
-		return nil, fmt.Errorf("rg 执行失败: %s", msg)
+		return 0, fmt.Errorf("rg execution failed: %s", msg)
 	}
-	return out, nil
+	return 0, nil
+}
+
+func pathExtLower(path string) string {
+	return strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+}
+
+func isHotExt(ext string, cfg fullTextFilterResolved) bool {
+	if ext == "" {
+		return false
+	}
+	_, ok := cfg.HotExts[ext]
+	return ok
+}
+
+func rgExcludeGlobs() []string {
+	return []string{
+		"!**/.git/**",
+		"!**/node_modules/**",
+		"!**/AppData/**",
+		"!**/$Recycle.Bin/**",
+		"!**/Windows/**",
+		"!**/*.exe",
+		"!**/*.dll",
+		"!**/*.db",
+		"!**/*.wal",
+		"!**/*.shm",
+	}
+}
+
+func sortedExts(m map[string]struct{}) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

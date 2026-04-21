@@ -3,12 +3,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -19,7 +17,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/blugelabs/bluge"
 	"github.com/blugelabs/bluge/analysis/lang/cjk"
@@ -73,6 +70,7 @@ type fullTextConfig struct {
 	BaseDir          string
 	IndexDir         string
 	Roots            []string
+	FilterConfig     fullTextFilterResolved
 	Workers          int
 	InitialDelay     time.Duration
 	PerFilePause     time.Duration
@@ -101,6 +99,7 @@ type blugeIndexer struct {
 	cfg     fullTextConfig
 	writer  *bluge.Writer
 	watcher *fsnotify.Watcher
+	meta    *indexMetaStore
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -223,26 +222,25 @@ func searchFullTextWithBackend(baseDir, keyword string, maxResults int) ([]map[s
 		return []map[string]any{}, nil
 	}
 
-	if err := StartIndexer(baseDir); err != nil {
-		return searchFullTextWithRg(baseDir, kw, maxResults)
-	}
+	_ = StartIndexer(baseDir)
 
-	items, err := Search(kw, maxResults)
-	if err == nil {
-		st := GetStatus()
-		if len(items) > 0 || st.Ready {
-			return items, nil
-		}
-	}
+	hotItems, hotErr := searchFullTextWithRg(baseDir, kw, maxResults*2)
+	coldItems, coldErr := Search(kw, maxResults*2)
 
-	rgItems, rgErr := searchFullTextWithRg(baseDir, kw, maxResults)
-	if rgErr != nil {
-		if err != nil {
-			return nil, fmt.Errorf("bluge=%v; rg=%v", err, rgErr)
-		}
-		return items, nil
+	merged := mergeAndRankFullTextItems(kw, maxResults, hotItems, coldItems)
+	if len(merged) > 0 {
+		return merged, nil
 	}
-	return rgItems, nil
+	if hotErr != nil && coldErr != nil {
+		return nil, fmt.Errorf("hot path failed: %v; cold path failed: %v", hotErr, coldErr)
+	}
+	if hotErr != nil {
+		return nil, hotErr
+	}
+	if coldErr != nil {
+		return nil, coldErr
+	}
+	return []map[string]any{}, nil
 }
 
 func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
@@ -261,12 +259,19 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 		_ = writer.Close()
 		return nil, fmt.Errorf("create watcher failed: %w", err)
 	}
+	meta, err := openIndexMetaStore(cfg.IndexDir)
+	if err != nil {
+		_ = watcher.Close()
+		_ = writer.Close()
+		return nil, fmt.Errorf("open index meta failed: %w", err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	idx := &blugeIndexer{
 		cfg:           cfg,
 		writer:        writer,
 		watcher:       watcher,
+		meta:          meta,
 		ctx:           ctx,
 		cancel:        cancel,
 		tasks:         make(chan indexTask, cfg.QueueSize),
@@ -295,6 +300,12 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 
 	if cfg.NeedUserIndexDir {
 		idx.appendAlert("建议设置 SEARCHCENTER_FT_INDEX_DIR 到独立目录，避免默认路径占用系统盘")
+	}
+
+	if known, kerr := idx.meta.LoadAll(); kerr == nil {
+		idx.knownFiles = known
+	} else {
+		idx.recordError(fmt.Errorf("load index meta failed: %w", kerr))
 	}
 
 	if err := idx.refreshIndexedCount(); err != nil {
@@ -356,7 +367,7 @@ func (b *blugeIndexer) Search(query string, limit int) ([]map[string]any, error)
 		if match == nil {
 			break
 		}
-		item := b.matchToResultItem(match)
+		item := b.matchToResultItem(match, qText)
 		if item != nil {
 			out = append(out, item)
 		}
@@ -708,22 +719,27 @@ func (b *blugeIndexer) indexFile(path string) error {
 	if b.shouldSkipFileByName(path) {
 		return b.deleteByPath(path)
 	}
-	if !b.cfg.IncludeLargeText && st.Size() > b.cfg.MaxFileSizeBytes {
+	if !b.shouldIndexByColdPath(path, st.Size()) {
 		return b.deleteByPath(path)
 	}
-	if st.Size() > b.cfg.HardReadLimit {
+	if st.Size() > b.cfg.HardReadLimit && pathExtLower(path) != "pdf" && pathExtLower(path) != "docx" {
 		return b.deleteByPath(path)
 	}
 
 	id := docIDForPath(path)
 	fp := fileFingerprint{Size: st.Size(), ModNano: st.ModTime().UnixNano()}
 
+	if b.meta != nil {
+		if oldFP, ok, gerr := b.meta.Get(path); gerr == nil && ok && oldFP == fp {
+			return nil
+		}
+	}
 	b.mu.RLock()
-	prev, ok := b.knownFiles[id]
-	b.mu.RUnlock()
-	if ok && prev == fp {
+	if prev, ok := b.knownFiles[id]; ok && prev == fp {
+		b.mu.RUnlock()
 		return nil
 	}
+	b.mu.RUnlock()
 
 	content, snippet, err := b.readFileForIndex(path, st.Size())
 	if err != nil {
@@ -757,6 +773,9 @@ func (b *blugeIndexer) indexFile(path string) error {
 	}
 	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 	b.mu.Unlock()
+	if b.meta != nil {
+		_ = b.meta.Upsert(path, fp)
+	}
 	return nil
 }
 
@@ -772,48 +791,13 @@ func (b *blugeIndexer) deleteByPath(path string) error {
 	}
 	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 	b.mu.Unlock()
+	if b.meta != nil {
+		_ = b.meta.Delete(path)
+	}
 	return nil
 }
 
-func (b *blugeIndexer) readFileForIndex(path string, fileSize int64) (string, string, error) {
-	if !b.cfg.IncludeLargeText && fileSize > b.cfg.MaxFileSizeBytes {
-		return "", "", errSkipTooLarge
-	}
-
-	maxRead := b.cfg.HardReadLimit
-	if maxRead <= 0 {
-		maxRead = defaultHardReadLimit
-	}
-
-	f, err := os.Open(path)
-	if err != nil {
-		return "", "", err
-	}
-	defer f.Close()
-
-	buf, err := io.ReadAll(io.LimitReader(f, maxRead+1))
-	if err != nil {
-		return "", "", err
-	}
-	if int64(len(buf)) > maxRead {
-		return "", "", errSkipTooLarge
-	}
-	if len(buf) == 0 {
-		return "", "", nil
-	}
-	if bytes.IndexByte(buf, 0) >= 0 {
-		return "", "", errSkipNonText
-	}
-	if !utf8.Valid(buf) {
-		buf = bytes.ToValidUTF8(buf, []byte(" "))
-	}
-
-	text := string(buf)
-	snippet := trimPreview(text, 180)
-	return text, snippet, nil
-}
-
-func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch) map[string]any {
+func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query string) map[string]any {
 	var (
 		pathVal    string
 		snippetVal string
@@ -868,6 +852,7 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch) map[s
 		subParts = append(subParts, fmt.Sprintf("%d KB", sizeVal/1024))
 	}
 
+	score := scoreByPathAndContent(pathVal, snippetVal, query, float64(match.Score))
 	meta := map[string]any{
 		"FilePath":       pathVal,
 		"FileName":       fileName,
@@ -878,7 +863,7 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch) map[s
 		"MatchedLine":    snippetVal,
 		"DateModified":   ts,
 		"IndexedBy":      "bluge",
-		"SearchScore":    match.Score,
+		"SearchScore":    score,
 		"IndexedSize":    sizeVal,
 		"IndexedExtName": extVal,
 	}
@@ -903,6 +888,9 @@ func (b *blugeIndexer) shouldSkipDir(path, dirName string) bool {
 	if b.isIndexDirPath(path) {
 		return true
 	}
+	if isExcludedByFilter(path, b.cfg.FilterConfig) {
+		return true
+	}
 	name := strings.ToLower(strings.TrimSpace(dirName))
 	_, skip := b.cfg.ExcludeDirs[name]
 	return skip
@@ -912,17 +900,39 @@ func (b *blugeIndexer) shouldSkipFileByName(path string) bool {
 	if b.isIndexDirPath(path) {
 		return true
 	}
+	if isExcludedByFilter(path, b.cfg.FilterConfig) {
+		return true
+	}
 	name := strings.ToLower(filepath.Base(path))
 	if strings.HasPrefix(name, ".") && name != ".env" {
 		return true
 	}
 	ext := strings.ToLower(filepath.Ext(name))
 	switch ext {
-	case ".exe", ".dll", ".db", ".wal", ".shm", ".jpg", ".jpeg", ".png", ".gif", ".ico", ".zip", ".7z", ".rar", ".mp4", ".mp3", ".avi", ".mkv", ".pdf":
+	case ".exe", ".dll", ".db", ".wal", ".shm", ".jpg", ".jpeg", ".png", ".gif", ".ico", ".zip", ".7z", ".rar", ".mp4", ".mp3", ".avi", ".mkv":
 		return true
 	default:
 		return false
 	}
+}
+
+func (b *blugeIndexer) shouldIndexByColdPath(path string, size int64) bool {
+	ext := pathExtLower(path)
+	if _, ok := b.cfg.FilterConfig.ColdExts[ext]; ok {
+		return true
+	}
+	if size > b.cfg.FilterConfig.MaxScanSizeBytes {
+		if ext == "" {
+			return false
+		}
+		switch ext {
+		case "exe", "dll", "jpg", "jpeg", "png", "gif", "ico", "mp4", "mp3", "avi", "mkv", "zip", "7z", "rar", "db":
+			return false
+		default:
+			return true
+		}
+	}
+	return false
 }
 
 func (b *blugeIndexer) isIndexDirPath(path string) bool {
@@ -1020,6 +1030,7 @@ func (b *blugeIndexer) refreshProgressLocked() {
 }
 
 func loadFullTextConfig(baseDir string) fullTextConfig {
+	filterCfg := loadFullTextFilterConfig(baseDir)
 	roots := fullTextRoots(baseDir)
 	indexDir, needHint := resolveIndexDir(baseDir)
 	workers := resolveWorkerCount()
@@ -1067,6 +1078,7 @@ func loadFullTextConfig(baseDir string) fullTextConfig {
 		BaseDir:          baseDir,
 		IndexDir:         indexDir,
 		Roots:            roots,
+		FilterConfig:     filterCfg,
 		Workers:          workers,
 		InitialDelay:     initialDelay,
 		PerFilePause:     perFilePause,

@@ -69,6 +69,7 @@ func main() {
 	http.HandleFunc("/v1/fulltext/status", handleFullTextStatus)
 	http.HandleFunc("/v1/fulltext/progress", handleFullTextProgress)
 	http.HandleFunc("/v1/fulltext/progress/stream", handleFullTextProgressStream)
+	http.HandleFunc("/v1/fulltext/search/stream", handleFullTextSearchStream)
 	http.HandleFunc("/v1/fulltext/config", handleFullTextConfig)
 	http.HandleFunc("/v1/fulltext/control", handleFullTextControl)
 	http.HandleFunc("/clip/search", func(w http.ResponseWriter, r *http.Request) {
