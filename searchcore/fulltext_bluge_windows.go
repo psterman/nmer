@@ -29,13 +29,13 @@ import (
 )
 
 const (
-	defaultInitialScanDelay = 1 * time.Second
-	defaultPerFilePause     = 5 * time.Millisecond
-	defaultMaxTextFileBytes = int64(2 * 1024 * 1024)
-	defaultHardReadLimit    = int64(32 * 1024 * 1024)
-	defaultMinFreeDiskBytes = int64(500 * 1024 * 1024)
-	defaultQueueSize         = 16384
-	defaultBatchMaxDocs      = 256
+	defaultInitialScanDelay   = 1 * time.Second
+	defaultPerFilePause       = 5 * time.Millisecond
+	defaultMaxTextFileBytes   = int64(2 * 1024 * 1024)
+	defaultHardReadLimit      = int64(32 * 1024 * 1024)
+	defaultMinFreeDiskBytes   = int64(500 * 1024 * 1024)
+	defaultQueueSize          = 16384
+	defaultBatchMaxDocs       = 256
 	defaultBatchFlushInterval = time.Second
 )
 
@@ -82,32 +82,32 @@ type FullTextStatus struct {
 }
 
 type fullTextConfig struct {
-	BaseDir          string
-	IndexDir         string
-	Roots            []string
-	FilterConfig     fullTextFilterResolved
-	Workers          int
-	InitialDelay     time.Duration
-	PerFilePause     time.Duration
-	ScanSpeed        string
-	IncludeLargeText bool
-	MaxFileSizeBytes int64
-	HardReadLimit    int64
-	QueueSize        int
-	MinFreeDiskBytes int64
-	NeedUserIndexDir bool
-	ExcludeDirs      map[string]struct{}
-	IdleIndexAfter   time.Duration
-	BatchMaxDocs     int
+	BaseDir            string
+	IndexDir           string
+	Roots              []string
+	FilterConfig       fullTextFilterResolved
+	Workers            int
+	InitialDelay       time.Duration
+	PerFilePause       time.Duration
+	ScanSpeed          string
+	IncludeLargeText   bool
+	MaxFileSizeBytes   int64
+	HardReadLimit      int64
+	QueueSize          int
+	MinFreeDiskBytes   int64
+	NeedUserIndexDir   bool
+	ExcludeDirs        map[string]struct{}
+	IdleIndexAfter     time.Duration
+	BatchMaxDocs       int
 	BatchFlushInterval time.Duration
-	UseMFT           bool
-	UseUSN           bool
+	UseMFT             bool
+	UseUSN             bool
 }
 
 type fileFingerprint struct {
-	Size         int64
-	ModNano      int64
-	ContentHash  uint32
+	Size        int64
+	ModNano     int64
+	ContentHash uint32
 }
 
 type indexTask struct {
@@ -276,23 +276,33 @@ func searchFullTextWithBackend(baseDir, keyword string, maxResults int) ([]map[s
 	if kw == "" || maxResults <= 0 {
 		return []map[string]any{}, nil
 	}
+	searchTerms := extractSearchContentTerms(kw)
+	hotKeyword := pickPrimarySearchTerm(searchTerms)
 
 	_ = StartIndexer(baseDir)
 
 	coldItems, coldErr := Search(kw, maxResults*2)
-	if !shouldUseHotPathForQuery(baseDir) {
-		merged := mergeAndRankFullTextItems(kw, maxResults, coldItems)
-		if len(merged) > 0 || coldErr == nil {
-			return merged, nil
+	useHot := shouldUseHotPathForQuery(baseDir)
+	st := GetStatus()
+	if !useHot {
+		if !st.Ready || len(coldItems) < max(3, maxResults/3) {
+			useHot = true
 		}
-		return nil, coldErr
 	}
 
-	hotItems, hotErr := searchFullTextWithRg(baseDir, kw, maxResults*2)
+	hotItems := []map[string]any{}
+	var hotErr error
+	if useHot && hotKeyword != "" {
+		hotItems, hotErr = searchFullTextWithRg(baseDir, hotKeyword, maxResults*2)
+	}
 
 	merged := mergeAndRankFullTextItems(kw, maxResults, hotItems, coldItems)
+	merged = applyStructuredFiltersToItems(merged, kw)
 	if len(merged) > 0 {
 		return merged, nil
+	}
+	if coldErr == nil {
+		return []map[string]any{}, nil
 	}
 	if hotErr != nil && coldErr != nil {
 		return nil, fmt.Errorf("hot path failed: %v; cold path failed: %v", hotErr, coldErr)
@@ -693,7 +703,7 @@ func (b *blugeIndexer) walkRoot(root string, initial bool) {
 		b.status.IndexingFile = "MFT 枚举: " + cleanRoot
 		b.mu.Unlock()
 
-		err := walkRootWithMFT(b.ctx, cleanRoot, b.frnToAbs, func(abs string) error {
+		emitted, err := walkRootWithMFT(b.ctx, cleanRoot, b.frnToAbs, func(abs string) error {
 			select {
 			case <-b.ctx.Done():
 				return context.Canceled
@@ -712,9 +722,13 @@ func (b *blugeIndexer) walkRoot(root string, initial bool) {
 			b.enqueueTask(indexTask{Path: abs, Initial: initial})
 			return nil
 		})
-		if err != nil {
+		if err != nil || emitted == 0 {
 			b.recordError(err)
-			b.appendAlert(fmt.Sprintf("MFT 枚举失败，回退 WalkDir: %v", err))
+			if err != nil {
+				b.appendAlert(fmt.Sprintf("MFT 枚举失败，回退 WalkDir: %v", err))
+			} else {
+				b.appendAlert(fmt.Sprintf("MFT 枚举返回 0 文件，回退 WalkDir: %s", cleanRoot))
+			}
 			b.walkRootDirConcurrent(cleanRoot, initial)
 		} else {
 			b.usedMFT.Store(true)
@@ -1188,6 +1202,9 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 	if pathVal == "" {
 		return nil
 	}
+	if isExcludedByFilter(pathVal, b.cfg.FilterConfig) {
+		return nil
+	}
 
 	dirPath, fileName, extFromPath := splitPathParts(pathVal)
 	if extVal == "" {
@@ -1211,8 +1228,10 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 		subParts = append(subParts, fmt.Sprintf("%d KB", sizeVal/1024))
 	}
 
-	score := scoreByPathAndContent(pathVal, snippetVal, query, float64(match.Score))
-	hitCtx := buildHitContextForFile(pathVal, query, 6)
+	terms := extractSearchContentTerms(query)
+	primaryTerm := pickPrimarySearchTerm(terms)
+	score := scoreByPathAndContent(pathVal, snippetVal, primaryTerm, float64(match.Score))
+	hitCtx := buildHitContextForFile(pathVal, primaryTerm, 6)
 	hitLines := make([]int, 0, len(hitCtx))
 	for _, blk := range hitCtx {
 		if ln, ok := blk["line"].(int); ok {
@@ -1221,7 +1240,17 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 	}
 	hitCount := len(hitLines)
 	if hitCount == 0 {
-		hitCount, hitLines = b.computeHitStats(pathVal, query)
+		hitCount, hitLines = b.computeHitStats(pathVal, primaryTerm)
+	}
+	qLower := strings.ToLower(strings.TrimSpace(primaryTerm))
+	snippetHit := qLower != "" && strings.Contains(strings.ToLower(snippetVal), qLower)
+	pathHit := qLower != "" && strings.Contains(strings.ToLower(pathVal), qLower)
+	// When query has only structured filters (e.g. ext:txt), keep matched docs.
+	if len(terms) > 0 && hitCount == 0 && !snippetHit && !pathHit {
+		return nil
+	}
+	if hitCount == 0 && (snippetHit || pathHit) {
+		hitCount = 1
 	}
 	if hitCount > 0 {
 		subParts = append(subParts, fmt.Sprintf("命中 %d 处", hitCount))
@@ -1918,6 +1947,119 @@ func splitQueryWithPhrases(raw string) (phrases, tokens []string) {
 		}
 	}
 	return phrases, tokens
+}
+
+func extractSearchContentTerms(raw string) []string {
+	phrases, tokens := splitQueryWithPhrases(strings.TrimSpace(raw))
+	out := make([]string, 0, len(phrases)+len(tokens))
+	seen := map[string]struct{}{}
+	for _, ph := range phrases {
+		s := strings.TrimSpace(ph)
+		if s == "" {
+			continue
+		}
+		key := strings.ToLower(s)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, s)
+	}
+	for _, tk := range tokens {
+		s := strings.TrimSpace(tk)
+		if s == "" {
+			continue
+		}
+		low := strings.ToLower(s)
+		if strings.HasPrefix(low, "ext:") ||
+			strings.HasPrefix(low, "path:") ||
+			strings.HasPrefix(low, "size:") ||
+			strings.HasPrefix(low, "mtime:") ||
+			strings.HasPrefix(low, "dir:") ||
+			strings.HasPrefix(low, "name:") {
+			continue
+		}
+		s = strings.Trim(s, "*?")
+		s = strings.TrimSuffix(s, "~")
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		key := strings.ToLower(s)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, s)
+	}
+	return out
+}
+
+func pickPrimarySearchTerm(terms []string) string {
+	if len(terms) == 0 {
+		return ""
+	}
+	best := terms[0]
+	for _, t := range terms[1:] {
+		if len([]rune(strings.TrimSpace(t))) > len([]rune(strings.TrimSpace(best))) {
+			best = t
+		}
+	}
+	return strings.TrimSpace(best)
+}
+
+func extractExtFilters(raw string) map[string]struct{} {
+	_, tokens := splitQueryWithPhrases(strings.TrimSpace(raw))
+	out := map[string]struct{}{}
+	for _, tk := range tokens {
+		low := strings.ToLower(strings.TrimSpace(tk))
+		if !strings.HasPrefix(low, "ext:") {
+			continue
+		}
+		ext := normalizeExt(strings.TrimPrefix(low, "ext:"))
+		if ext != "" {
+			out[ext] = struct{}{}
+		}
+	}
+	return out
+}
+
+func itemExtLower(it map[string]any) string {
+	if it == nil {
+		return ""
+	}
+	if m, ok := it["Metadata"].(map[string]any); ok && m != nil {
+		if v, ok := m["IndexedExtName"].(string); ok && strings.TrimSpace(v) != "" {
+			return normalizeExt(v)
+		}
+		if v, ok := m["Ext"].(string); ok && strings.TrimSpace(v) != "" {
+			return normalizeExt(v)
+		}
+	}
+	p := itemFilePath(it)
+	if p == "" {
+		return ""
+	}
+	return pathExtLower(p)
+}
+
+func applyStructuredFiltersToItems(items []map[string]any, rawQuery string) []map[string]any {
+	if len(items) == 0 {
+		return items
+	}
+	extFilters := extractExtFilters(rawQuery)
+	if len(extFilters) == 0 {
+		return items
+	}
+	out := make([]map[string]any, 0, len(items))
+	for _, it := range items {
+		ext := itemExtLower(it)
+		if _, ok := extFilters[ext]; !ok {
+			continue
+		}
+		out = append(out, it)
+	}
+	return out
 }
 
 func handleFullTextStatus(w http.ResponseWriter, r *http.Request) {

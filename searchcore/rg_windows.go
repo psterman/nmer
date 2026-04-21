@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	rgDefaultTimeout  = 12 * time.Second
+	rgDefaultTimeout  = 4 * time.Second
 	rgScannerMaxBytes = 4 * 1024 * 1024
 )
 
@@ -172,18 +172,22 @@ func streamFullTextWithRg(baseDir, keyword string, maxResults int, emit func(map
 	filterCfg := loadFullTextFilterConfig(baseDir)
 	roots := fullTextRoots(baseDir)
 	seen := map[string]struct{}{}
+	var lastErr error
 	for _, root := range roots {
 		remain := maxResults - len(seen)
 		if remain <= 0 {
 			break
 		}
 		count, err := streamFullTextRoot(rgExe, root, kw, remain, seen, filterCfg, emit)
-		if err != nil && len(seen) == 0 {
-			return err
+		if err != nil {
+			lastErr = err
 		}
 		if count <= 0 && err != nil {
 			continue
 		}
+	}
+	if len(seen) == 0 && lastErr != nil {
+		return lastErr
 	}
 	return nil
 }

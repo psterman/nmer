@@ -195,16 +195,18 @@ func resolveMFTPath(frn uint64, nodes map[uint64]mftNode, maxDepth int) string {
 }
 
 // walkRootWithMFT 使用 MFT 枚举在卷根（如 C:\）下发现文件并回调；frnMap 可选，用于 USN 路径解析。
-func walkRootWithMFT(ctx context.Context, root string, frnMap map[uint64]string, emitFile func(absPath string) error) error {
+// 返回值为已发现并回调的文件数。
+func walkRootWithMFT(ctx context.Context, root string, frnMap map[uint64]string, emitFile func(absPath string) error) (int, error) {
 	drive, err := driveLetterFromRoot(root)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	nodes := make(map[uint64]mftNode, 1<<20)
 	if err := enumerateMFTVolume(ctx, drive, nodes); err != nil {
-		return err
+		return 0, err
 	}
 	prefix := string(drive) + ":"
+	emitted := 0
 	for frn, n := range nodes {
 		rel := resolveMFTPath(frn, nodes, 512)
 		if rel == "" {
@@ -218,8 +220,9 @@ func walkRootWithMFT(ctx context.Context, root string, frnMap map[uint64]string,
 			continue
 		}
 		if err := emitFile(abs); err != nil {
-			return err
+			return emitted, err
 		}
+		emitted++
 	}
-	return nil
+	return emitted, nil
 }

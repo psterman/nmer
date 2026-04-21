@@ -106,27 +106,27 @@ func decodeBestEffortText(buf []byte) (string, error) {
 		return "", nil
 	}
 	if s, ok := decodeUTF16WithBOM(buf); ok {
-		if strings.TrimSpace(s) == "" {
+		if strings.TrimSpace(s) == "" || !looksLikeMeaningfulText(s) {
 			return "", errSkipNonText
 		}
 		return s, nil
 	}
 	if utf8.Valid(buf) {
 		s := strings.TrimSpace(string(buf))
-		if s == "" {
+		if s == "" || !looksLikeMeaningfulText(s) {
 			return "", errSkipNonText
 		}
 		return s, nil
 	}
 	if s, ok := decodeLikelyUTF16NoBOM(buf); ok {
-		if strings.TrimSpace(s) == "" {
+		if strings.TrimSpace(s) == "" || !looksLikeMeaningfulText(s) {
 			return "", errSkipNonText
 		}
 		return s, nil
 	}
 	if s, _, err := transform.String(simplifiedchinese.GB18030.NewDecoder(), string(buf)); err == nil {
 		s = strings.TrimSpace(strings.ReplaceAll(s, "\x00", " "))
-		if s != "" {
+		if s != "" && looksLikeMeaningfulText(s) {
 			return s, nil
 		}
 	}
@@ -134,7 +134,7 @@ func decodeBestEffortText(buf []byte) (string, error) {
 		return "", errSkipNonText
 	}
 	s := strings.TrimSpace(string(bytes.ToValidUTF8(buf, []byte(" "))))
-	if s == "" {
+	if s == "" || !looksLikeMeaningfulText(s) {
 		return "", errSkipNonText
 	}
 	return s, nil
@@ -219,6 +219,49 @@ func scoreTextQuality(s string) int {
 		}
 	}
 	return score
+}
+
+func looksLikeMeaningfulText(s string) bool {
+	if s == "" {
+		return false
+	}
+	var (
+		total       int
+		printable   int
+		controlLike int
+		repl        int
+	)
+	for _, r := range s {
+		total++
+		switch {
+		case r == '\n' || r == '\r' || r == '\t':
+			printable++
+		case r == utf8.RuneError:
+			repl++
+		case r < 32:
+			controlLike++
+		case unicode.IsPrint(r):
+			printable++
+		default:
+			controlLike++
+		}
+	}
+	if total == 0 {
+		return false
+	}
+	printRatio := float64(printable) / float64(total)
+	controlRatio := float64(controlLike) / float64(total)
+	replRatio := float64(repl) / float64(total)
+	if printRatio < 0.70 {
+		return false
+	}
+	if controlRatio > 0.08 {
+		return false
+	}
+	if replRatio > 0.02 {
+		return false
+	}
+	return true
 }
 
 func (b *blugeIndexer) extractPDFText(path string) (string, error) {

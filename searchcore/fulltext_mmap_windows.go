@@ -84,6 +84,9 @@ func sniffBinaryOrNonText(prefix []byte) bool {
 	if len(prefix) == 0 {
 		return true
 	}
+	if looksLikeUTF16Prefix(prefix) {
+		return false
+	}
 	nul := 0
 	for _, c := range prefix {
 		if c == 0 {
@@ -106,6 +109,39 @@ func sniffBinaryOrNonText(prefix []byte) bool {
 		}
 	}
 	return false
+}
+
+func looksLikeUTF16Prefix(prefix []byte) bool {
+	if len(prefix) < 4 {
+		return false
+	}
+	if (prefix[0] == 0xFF && prefix[1] == 0xFE) || (prefix[0] == 0xFE && prefix[1] == 0xFF) {
+		return true
+	}
+	evenZero := 0
+	oddZero := 0
+	pairs := 0
+	max := len(prefix)
+	if max > 256 {
+		max = 256
+	}
+	for i := 0; i+1 < max; i += 2 {
+		pairs++
+		if prefix[i] == 0 {
+			evenZero++
+		}
+		if prefix[i+1] == 0 {
+			oddZero++
+		}
+	}
+	if pairs == 0 {
+		return false
+	}
+	evenRatio := float64(evenZero) / float64(pairs)
+	oddRatio := float64(oddZero) / float64(pairs)
+	// UTF-16 LE: odd bytes frequently NUL for ASCII-heavy text.
+	// UTF-16 BE: even bytes frequently NUL for ASCII-heavy text.
+	return oddRatio >= 0.20 || evenRatio >= 0.20
 }
 
 func min64(a, b int64) int64 {
