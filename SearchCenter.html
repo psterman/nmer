@@ -1801,6 +1801,38 @@ function saveHotkeyBindings() {
   } catch {}
 }
 
+function syncScHotkeyBindingToHost(group, value, key) {
+  postToAhk({
+    type: "scHotkeyBindingsSync",
+    payload: {
+      entries: [{
+        group: String(group || ""),
+        value: String(value || ""),
+        key: normalizeHintKey(key || "")
+      }]
+    }
+  });
+}
+
+function syncAllScHotkeyBindingsToHost() {
+  const src = state.hotkeyBindings;
+  if (!src || typeof src !== "object") return;
+  const entries = [];
+  ["category", "engine", "filter"].forEach((group) => {
+    const row = src[group];
+    if (!row || typeof row !== "object") return;
+    Object.keys(row).forEach((value) => {
+      entries.push({
+        group,
+        value: String(value || ""),
+        key: normalizeHintKey(row[value] || "")
+      });
+    });
+  });
+  if (!entries.length) return;
+  postToAhk({ type: "scHotkeyBindingsSync", payload: { entries } });
+}
+
 function setHotkeyBinding(group, value, key) {
   if (!group || !value) return;
   if (!state.hotkeyBindings || typeof state.hotkeyBindings !== "object") {
@@ -1868,10 +1900,14 @@ function applyHotkeyBindDialog() {
   if (!group || !value) return;
   if (key) {
     const conflict = findHotkeyConflict(group, value, key);
-    if (conflict) setHotkeyBinding(conflict.group, conflict.value, "");
+    if (conflict) {
+      setHotkeyBinding(conflict.group, conflict.value, "");
+      syncScHotkeyBindingToHost(conflict.group, conflict.value, "");
+    }
   }
   setHotkeyBinding(group, value, key);
   saveHotkeyBindings();
+  syncScHotkeyBindingToHost(group, value, key);
   renderCategories();
   renderEngines();
   renderFilters();
@@ -4190,6 +4226,7 @@ if (window.chrome && window.chrome.webview) {
     }
   });
   postToAhk({ type: "ready" });
+  setTimeout(() => syncAllScHotkeyBindingsToHost(), 120);
   requestFulltextStatus();
   startFulltextProgressStream();
 }

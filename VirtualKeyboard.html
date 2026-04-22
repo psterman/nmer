@@ -2347,27 +2347,52 @@ const TOOLBAR_SVG_PARTS = {
   bolt: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"></path></svg>',
 };
 
-const SEARCH_TAB_PRESET = [
-  { id: 'search:engine_switch', name: '引擎切换', commands: [
-    'ch_q', 'ch_w', 'ch_e', 'ch_r',
-    'sc_cat_ai', 'sc_cat_cli', 'sc_cat_academic', 'sc_cat_baidu',
-    'sc_cat_image', 'sc_cat_audio', 'sc_cat_video', 'sc_cat_book',
-    'sc_cat_price', 'sc_cat_medical', 'sc_cat_cloud'
-  ] },
-  { id: 'search:ai_filter',     name: 'ai筛选',   commands: [
-    'ch_a', 'ch_s', 'ch_d',
-    'sc_eng_deepseek', 'sc_eng_yuanbao', 'sc_eng_doubao', 'sc_eng_zhipu',
-    'sc_eng_mita', 'sc_eng_wenxin', 'sc_eng_qianwen', 'sc_eng_kimi',
-    'sc_eng_perplexity', 'sc_eng_copilot', 'sc_eng_chatgpt', 'sc_eng_grok',
-    'sc_eng_you', 'sc_eng_claude', 'sc_eng_monica', 'sc_eng_webpilot', 'sc_eng_wepilot'
-  ] },
-  { id: 'search:result_filter', name: '结果过滤', commands: [
-    'ch_z', 'ch_x', 'ch_c', 'ch_v',
-    'sc_filter_text', 'sc_filter_clipboard', 'sc_filter_prompt',
-    'sc_filter_config', 'sc_filter_hotkey', 'sc_filter_function'
-  ] },
-  { id: 'search:search',        name: '搜索',     commands: ['ch_f', 'sc_activate_search'] },
-];
+function buildSearchTabPreset() {
+  const allCatCmdIds = [];
+  for (const cat of state.categories || []) {
+    const ids = Array.isArray(cat?.commands) ? cat.commands : [];
+    for (const cmdId of ids) allCatCmdIds.push(String(cmdId || ''));
+  }
+
+  const collectByPrefix = (prefix, seedIds = []) => {
+    const out = [];
+    const seen = new Set();
+    const push = (id) => {
+      const s = String(id || '').trim();
+      if (!s || seen.has(s)) return;
+      if (!state.commands[s]) return;
+      if (!s.startsWith(prefix)) return;
+      seen.add(s);
+      out.push(s);
+    };
+    for (const id of seedIds) push(id);
+    for (const id of Object.keys(state.commands || {})) push(id);
+    return out;
+  };
+
+  const catSc = collectByPrefix('sc_cat_', allCatCmdIds);
+  const engSc = collectByPrefix('sc_eng_', allCatCmdIds);
+  const filterSc = collectByPrefix('sc_filter_', allCatCmdIds);
+
+  const catLegacy = ['ch_q', 'ch_w', 'ch_e', 'ch_r'].filter((id) => !!state.commands[id]);
+  const engLegacy = ['ch_a', 'ch_s', 'ch_d'].filter((id) => !!state.commands[id]);
+  const filterLegacy = ['ch_z', 'ch_x', 'ch_c', 'ch_v'].filter((id) => !!state.commands[id]);
+
+  const tabEngine = catSc.length ? catSc : catLegacy;
+  const tabSub = engSc.length ? engSc : engLegacy;
+  const tabFilter = filterSc.length ? filterSc : filterLegacy;
+  const tabSearch = dedupeCmdIdsPreserveOrder([
+    ...(state.commands['sc_activate_search'] ? ['sc_activate_search'] : []),
+    ...(state.commands['ch_f'] ? ['ch_f'] : []),
+  ]);
+
+  const out = [];
+  if (tabEngine.length) out.push({ id: 'search:engine_switch', name: '引擎切换', commands: tabEngine });
+  if (tabSub.length) out.push({ id: 'search:sub_filter', name: (engSc.length ? '子分类' : 'ai筛选'), commands: tabSub });
+  if (tabFilter.length) out.push({ id: 'search:result_filter', name: '结果过滤', commands: tabFilter });
+  if (tabSearch.length) out.push({ id: 'search:search', name: '搜索', commands: tabSearch });
+  return out;
+}
 
 const CLIPBOARD_TAB_PRESET = [
   { id: 'clipboard:result_filter', name: '结果过滤', commands: [
@@ -3071,11 +3096,11 @@ function buildScenariosFromCategories() {
     }
   }
 
-  // 搜索中心固定右侧 4 标签布局（引擎切换 / ai筛选 / 结果过滤 / 搜索）
+  // 搜索中心右侧标签：按当前可用 sc_* 命令动态生成，优先 sc_*，无则回退 ch_*。
   {
     const scenario = ensureScenario('search');
     scenario.tabs = [];
-    for (const preset of SEARCH_TAB_PRESET) {
+    for (const preset of buildSearchTabPreset()) {
       const cmdIds = preset.commands.filter(cmdId => !!state.commands[cmdId]);
       if (!cmdIds.length) continue;
       scenario.tabs.push({
@@ -5918,6 +5943,8 @@ function buildPreviewModifierBaseKeyMap(previewCmdSet) {
 function getScenarioDisplayCommand(cmdId) {
   const baseCmd = state.commands[cmdId] || { name: cmdId, desc: '' };
   const overrideMap = getActiveScenarioOverrideMap();
+  if (state.activeScenarioId === 'search' && /^sc_(cat|eng|filter)_/i.test(String(cmdId || '')))
+    return baseCmd;
   if (overrideMap && overrideMap[cmdId])
     return { ...baseCmd, ...overrideMap[cmdId] };
   return baseCmd;

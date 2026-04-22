@@ -641,6 +641,69 @@ _SCWV_ProbeFullTextFeasibility() {
     SCWV_PostJson(Map("type", "fulltextProbeResult", "ok", true, "error", "", "probe", probe))
 }
 
+_SCWV_MapScBindingToVkCommand(group, value) {
+    gp := StrLower(Trim(String(group)))
+    vv := Trim(String(value))
+    vlow := StrLower(vv)
+    if (gp = "category" && vv != "")
+        return "sc_cat_" . vv
+    if (gp = "engine" && vv != "")
+        return "sc_eng_" . vv
+    if (gp != "filter")
+        return ""
+    switch vlow {
+        case "file", "text":
+            return "sc_filter_text"
+        case "clipboard":
+            return "sc_filter_clipboard"
+        case "template", "prompt":
+            return "sc_filter_prompt"
+        case "config":
+            return "sc_filter_config"
+        case "hotkey":
+            return "sc_filter_hotkey"
+        case "function", "func":
+            return "sc_filter_function"
+    }
+    return ""
+}
+
+_SCWV_SyncScHotkeyBindings(payloadMap) {
+    if !(payloadMap is Map)
+        return
+    if !payloadMap.Has("entries") || !(payloadMap["entries"] is Array)
+        return
+    if !IsSet(CursorShortcutMapper_UpdateUserByVkCommand)
+        return
+
+    changed := 0
+    for _, row in payloadMap["entries"] {
+        if !(row is Map)
+            continue
+        group := row.Has("group") ? String(row["group"]) : ""
+        value := row.Has("value") ? String(row["value"]) : ""
+        key := row.Has("key") ? String(row["key"]) : ""
+        key := StrLower(Trim(key))
+        if !RegExMatch(key, "^[a-z0-9]?$")
+            key := ""
+        cmdId := _SCWV_MapScBindingToVkCommand(group, value)
+        if (cmdId = "")
+            continue
+        enabled := (key != "")
+        ok := false
+        try ok := CursorShortcutMapper_UpdateUserByVkCommand(cmdId, key, enabled, true)
+        if ok
+            changed += 1
+    }
+
+    if (changed > 0) {
+        try {
+            if IsSet(VK_HandleBindingsReloaded)
+                VK_HandleBindingsReloaded()
+        }
+    }
+}
+
 ; 将 Go 返回的扁平 items 按 originalDataType 分组为 SearchAllDataSources 形状
 _SCWV_GroupGoItemsToAllDataResults(GoItems, hasMoreGo) {
     buckets := Map()
@@ -1218,6 +1281,9 @@ SCWV_OnWebMessage(sender, args) {
             _SCWV_UpdateFullTextConfig(pl)
         case "fulltextProbeRequest":
             _SCWV_ProbeFullTextFeasibility()
+        case "scHotkeyBindingsSync":
+            pl := msg.Has("payload") && (msg["payload"] is Map) ? msg["payload"] : Map()
+            _SCWV_SyncScHotkeyBindings(pl)
         case "openSettingsPanel":
             try {
                 if IsSet(ShowConfigWebViewGUI) {
