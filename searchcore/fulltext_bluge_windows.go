@@ -12,8 +12,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -37,7 +39,8 @@ const (
 	defaultQueueSize          = 16384
 	defaultBatchMaxDocs       = 256
 	defaultBatchFlushInterval = time.Second
-	defaultEverythingTimeout  = 1 * time.Second
+	defaultEverythingTimeout  = 8 * time.Second
+	supplementalEverythingTimeout = 30 * time.Second
 	defaultMFTTimeout         = 10 * time.Second
 	defaultRootWalkTimeout    = 10 * time.Minute
 	defaultReadDirTimeout     = 5 * time.Second
@@ -751,20 +754,42 @@ func (b *blugeIndexer) initialScanLoop() {
 		return
 	}
 
+	var wg sync.WaitGroup
 	for _, root := range b.cfg.Roots {
-		b.mu.Lock()
-		b.status.ScanPhase = "walking"
-		b.status.IndexingFile = "Walking root: " + root
-		b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
-		b.mu.Unlock()
-		b.walkRoot(root, true)
+		root := root
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			b.scanInitialRoot(root)
+		}()
 	}
+	wg.Wait()
 
 	b.mu.Lock()
 	b.initialWalkDone = true
 	b.status.ScanPhase = "indexing"
 	b.refreshProgressLocked()
 	b.mu.Unlock()
+}
+
+func (b *blugeIndexer) scanInitialRoot(root string) {
+	beforeDiscovered := b.snapshotInitialTaskTotal()
+	b.mu.Lock()
+	b.status.ScanPhase = "walking"
+	b.status.IndexingFile = "Walking root: " + root
+	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
+	b.mu.Unlock()
+	b.walkRoot(root, true)
+	afterDiscovered := b.snapshotInitialTaskTotal()
+	if afterDiscovered == beforeDiscovered {
+		b.appendAlert(fmt.Sprintf("root %s produced 0 files in primary scan, running supplemental scan", root))
+		b.runSupplementalRootScan(root, true)
+		return
+	}
+	if isNonSystemVolumeRoot(root) {
+		b.appendAlert(fmt.Sprintf("running non-system supplemental scan for %s", root))
+		b.runSupplementalRootScan(root, true)
+	}
 }
 
 func (b *blugeIndexer) walkRoot(root string, initial bool) {
@@ -815,11 +840,8 @@ func (b *blugeIndexer) walkRoot(root string, initial bool) {
 				b.mu.Unlock()
 
 				evEmitted, evErr := b.walkRootWithEverythingWithTimeout(cleanRoot, initial, defaultEverythingTimeout)
-				if evErr == nil && evEmitted >= 2000 {
+				if evErr == nil && evEmitted > 0 {
 					return
-				}
-				if evErr == nil && evEmitted > 0 && evEmitted < 2000 {
-					b.appendAlert(fmt.Sprintf("Everything enumerate too few (%d), fallback to WalkDir: %s", evEmitted, cleanRoot))
 				}
 				if evErr != nil {
 					b.appendAlert(fmt.Sprintf("Everything failed, fallback to WalkDir: %v", evErr))
@@ -839,11 +861,8 @@ func (b *blugeIndexer) walkRoot(root string, initial bool) {
 		b.mu.Unlock()
 
 		emitted, err := b.walkRootWithEverythingWithTimeout(cleanRoot, initial, defaultEverythingTimeout)
-		if err == nil && emitted >= 2000 {
+		if err == nil && emitted > 0 {
 			return
-		}
-		if err == nil && emitted > 0 && emitted < 2000 {
-			b.appendAlert(fmt.Sprintf("Everything enumerate too few (%d), fallback to WalkDir: %s", emitted, cleanRoot))
 		}
 		if err != nil {
 			b.appendAlert(fmt.Sprintf("Everything failed, fallback to WalkDir: %v", err))
@@ -851,6 +870,118 @@ func (b *blugeIndexer) walkRoot(root string, initial bool) {
 	}
 
 	b.walkRootDirConcurrent(cleanRoot, initial)
+}
+
+func (b *blugeIndexer) snapshotInitialTaskTotal() int64 {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.initialTaskTotal
+}
+
+func isNonSystemVolumeRoot(root string) bool {
+	clean := strings.ToUpper(filepath.Clean(strings.TrimSpace(root)))
+	if !isVolumeRootPath(clean) {
+		return false
+	}
+	sys := strings.ToUpper(filepath.Clean(strings.TrimSpace(os.Getenv("SystemDrive"))))
+	if sys == "" {
+		sys = "C:\\"
+	}
+	return !strings.EqualFold(clean, sys)
+}
+
+func (b *blugeIndexer) runSupplementalRootScan(root string, initial bool) {
+	cleanRoot := filepath.Clean(root)
+	if st, err := os.Stat(cleanRoot); err != nil || !st.IsDir() {
+		return
+	}
+
+	b.mu.Lock()
+	b.status.ScanPhase = "walking"
+	b.status.IndexingFile = "Supplemental enumerate: " + cleanRoot
+	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
+	b.mu.Unlock()
+
+	emitted, err := b.walkRootWithEverythingWithTimeout(cleanRoot, initial, supplementalEverythingTimeout)
+	if err == nil && emitted > 0 {
+		return
+	}
+	if err != nil {
+		b.appendAlert(fmt.Sprintf("Supplemental Everything failed on %s: %v", cleanRoot, err))
+	}
+
+	before := b.snapshotInitialTaskTotal()
+	b.walkRootDirConcurrent(cleanRoot, initial)
+	after := b.snapshotInitialTaskTotal()
+	if after > before {
+		return
+	}
+
+	shellEmitted, shellErr := b.walkRootWithShellFallback(cleanRoot, initial, 20*time.Minute)
+	if shellErr != nil {
+		b.appendAlert(fmt.Sprintf("Supplemental shell scan failed on %s: %v", cleanRoot, shellErr))
+	}
+	if shellEmitted <= 0 {
+		b.appendAlert(fmt.Sprintf("Supplemental scan still found 0 files on %s", cleanRoot))
+	}
+}
+
+func (b *blugeIndexer) walkRootWithShellFallback(cleanRoot string, initial bool, timeout time.Duration) (int, error) {
+	extWhitelist := b.everythingExtWhitelist()
+	if len(extWhitelist) == 0 {
+		return 0, nil
+	}
+
+	exts := make([]string, 0, len(extWhitelist))
+	for ext := range extWhitelist {
+		if ext != "" {
+			exts = append(exts, strings.ToLower(ext))
+		}
+	}
+	sort.Strings(exts)
+	listArg := "'" + strings.Join(exts, "','") + "'"
+	rootArg := strings.ReplaceAll(cleanRoot, "'", "''")
+	script := fmt.Sprintf(
+		"$exts=@(%s); Get-ChildItem -LiteralPath '%s' -Recurse -Force -File -ErrorAction SilentlyContinue | Where-Object { $exts -contains $_.Extension.TrimStart('.').ToLowerInvariant() } | ForEach-Object { $_.FullName }",
+		listArg,
+		rootArg,
+	)
+
+	ctx := b.ctx
+	cancel := func() {}
+	if timeout > 0 {
+		var c context.CancelFunc
+		ctx, c = context.WithTimeout(b.ctx, timeout)
+		cancel = c
+	}
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-Command", script)
+	out, err := cmd.Output()
+	if ctx.Err() == context.DeadlineExceeded {
+		return 0, fmt.Errorf("timeout after %s", timeout)
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	emitted := 0
+	for _, line := range strings.Split(string(out), "\n") {
+		p := filepath.Clean(strings.TrimSpace(strings.TrimRight(line, "\r")))
+		if p == "" || b.shouldSkipFileByName(p) {
+			continue
+		}
+		if initial {
+			b.mu.Lock()
+			b.initialTaskTotal++
+			b.status.DiscoveredFiles = b.initialTaskTotal
+			b.refreshProgressLocked()
+			b.mu.Unlock()
+		}
+		b.enqueueTask(indexTask{Path: p, Initial: initial})
+		emitted++
+	}
+	return emitted, nil
 }
 
 func (b *blugeIndexer) walkRootWithEverythingWithTimeout(cleanRoot string, initial bool, timeout time.Duration) (int, error) {

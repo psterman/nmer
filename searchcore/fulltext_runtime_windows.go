@@ -151,12 +151,32 @@ func normalizeFullTextRuntimeConfig(baseDir string, cfg FullTextRuntimeConfig) F
 		def, _ := resolveIndexDir(baseDir)
 		idx = def
 	}
+	// 兼容旧版本：历史配置可能固定使用共享目录
+	// LOCALAPPDATA\\SearchCenter\\bluge_index，容易与其他实例发生锁冲突。
+	// 若检测到该旧路径，自动迁移到当前工作区的专属索引目录。
+	if legacy := legacySharedIndexDir(); legacy != "" {
+		if strings.EqualFold(normalizePathKey(idx), normalizePathKey(legacy)) {
+			def, _ := resolveIndexDir(baseDir)
+			idx = def
+		}
+	}
 	if !filepath.IsAbs(idx) {
 		idx = filepath.Join(baseDir, idx)
 	}
 	cfg.IndexDir = filepath.Clean(idx)
 
 	return cfg
+}
+
+func legacySharedIndexDir() string {
+	local := strings.TrimSpace(os.Getenv("LOCALAPPDATA"))
+	if local == "" {
+		local = strings.TrimSpace(os.Getenv("APPDATA"))
+	}
+	if local == "" {
+		local = os.TempDir()
+	}
+	return filepath.Join(local, "SearchCenter", "bluge_index")
 }
 
 func normalizeScanScheme(s string) string {
