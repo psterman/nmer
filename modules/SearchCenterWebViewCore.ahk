@@ -654,6 +654,8 @@ _SCWV_MapScBindingToVkCommand(group, value) {
     switch vlow {
         case "file", "text":
             return "sc_filter_text"
+        case "fulltext":
+            return "sc_filter_fulltext"
         case "clipboard":
             return "sc_filter_clipboard"
         case "template", "prompt":
@@ -664,6 +666,8 @@ _SCWV_MapScBindingToVkCommand(group, value) {
             return "sc_filter_hotkey"
         case "function", "func":
             return "sc_filter_function"
+        case "pinned", "pin":
+            return "sc_filter_pinned"
     }
     return ""
 }
@@ -677,6 +681,31 @@ _SCWV_SyncScHotkeyBindings(payloadMap) {
         return
 
     changed := 0
+    resetAll := payloadMap.Has("resetAll") ? (payloadMap["resetAll"] ? true : false) : false
+    if (resetAll && IsSet(CursorShortcutMapper_LoadCatalog)) {
+        try {
+            catalog := CursorShortcutMapper_LoadCatalog()
+            if (catalog is Array) {
+                for _, item in catalog {
+                    if !(item is Map)
+                        continue
+                    cid := String(item.Get("vkCommandId", ""))
+                    if (cid = "")
+                        continue
+                    p7 := SubStr(cid, 1, 7)
+                    p10 := SubStr(cid, 1, 10)
+                    if (p7 != "sc_cat_" && p7 != "sc_eng_" && p10 != "sc_filter_")
+                        continue
+                    ok0 := false
+                    try ok0 := CursorShortcutMapper_UpdateUserByVkCommand(cid, "", false, true)
+                    if ok0
+                        changed += 1
+                }
+            }
+        } catch {
+        }
+    }
+
     for _, row in payloadMap["entries"] {
         if !(row is Map)
             continue

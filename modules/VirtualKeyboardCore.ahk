@@ -246,10 +246,10 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "ch_f", "name", "搜索中心 / 语音搜索", "desc", "CapsLock+F：打开搜索中心或语音搜索", "fn", "CH_RUN", "suggested", "f"),
             Map("id", "ch_g", "name", "显示虚拟键盘", "desc", "CapsLock+G：打开 VK KeyBinder（搜索中心内语义以面板为准）", "fn", "CH_RUN", "suggested", "g"),
             Map("id", "sc_activate_search", "name", "激活搜索中心", "desc", "打开并激活搜索中心", "fn", "CH_RUN"),
-            Map("id", "sc_cat_ai", "name", "分类 / AI", "desc", "切换到 AI 分类", "fn", "CH_RUN"),
-            Map("id", "sc_cat_cli", "name", "分类 / CLI", "desc", "切换到 CLI 分类", "fn", "CH_RUN"),
-            Map("id", "sc_cat_academic", "name", "分类 / 学术", "desc", "切换到学术分类", "fn", "CH_RUN"),
-            Map("id", "sc_cat_baidu", "name", "分类 / 百度", "desc", "切换到百度分类", "fn", "CH_RUN"),
+            Map("id", "sc_cat_ai", "name", "分类 / AI", "desc", "切换到 AI 分类", "fn", "CH_RUN", "suggested", "q"),
+            Map("id", "sc_cat_cli", "name", "分类 / CLI", "desc", "切换到 CLI 分类", "fn", "CH_RUN", "suggested", "w"),
+            Map("id", "sc_cat_academic", "name", "分类 / 学术", "desc", "切换到学术分类", "fn", "CH_RUN", "suggested", "e"),
+            Map("id", "sc_cat_baidu", "name", "分类 / 百度", "desc", "切换到百度分类", "fn", "CH_RUN", "suggested", "r"),
             Map("id", "sc_cat_image", "name", "分类 / 图片", "desc", "切换到图片分类", "fn", "CH_RUN"),
             Map("id", "sc_cat_audio", "name", "分类 / 音频", "desc", "切换到音频分类", "fn", "CH_RUN"),
             Map("id", "sc_cat_video", "name", "分类 / 视频", "desc", "切换到视频分类", "fn", "CH_RUN"),
@@ -257,9 +257,9 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "sc_cat_price", "name", "分类 / 比价", "desc", "切换到比价分类", "fn", "CH_RUN"),
             Map("id", "sc_cat_medical", "name", "分类 / 医疗", "desc", "切换到医疗分类", "fn", "CH_RUN"),
             Map("id", "sc_cat_cloud", "name", "分类 / 网盘", "desc", "切换到网盘分类", "fn", "CH_RUN"),
-            Map("id", "sc_eng_deepseek", "name", "引擎 / DeepSeek", "desc", "切换 DeepSeek 选中状态", "fn", "CH_RUN"),
-            Map("id", "sc_eng_yuanbao", "name", "引擎 / 元宝", "desc", "切换元宝选中状态", "fn", "CH_RUN"),
-            Map("id", "sc_eng_doubao", "name", "引擎 / 豆包", "desc", "切换豆包选中状态", "fn", "CH_RUN"),
+            Map("id", "sc_eng_deepseek", "name", "引擎 / DeepSeek", "desc", "切换 DeepSeek 选中状态", "fn", "CH_RUN", "suggested", "a"),
+            Map("id", "sc_eng_yuanbao", "name", "引擎 / 元宝", "desc", "切换元宝选中状态", "fn", "CH_RUN", "suggested", "s"),
+            Map("id", "sc_eng_doubao", "name", "引擎 / 豆包", "desc", "切换豆包选中状态", "fn", "CH_RUN", "suggested", "d"),
             Map("id", "sc_eng_zhipu", "name", "引擎 / 智谱", "desc", "切换智谱选中状态", "fn", "CH_RUN"),
             Map("id", "sc_eng_mita", "name", "引擎 / 秘塔", "desc", "切换秘塔选中状态", "fn", "CH_RUN"),
             Map("id", "sc_eng_wenxin", "name", "引擎 / 文心一言", "desc", "切换文心一言选中状态", "fn", "CH_RUN"),
@@ -274,12 +274,14 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "sc_eng_monica", "name", "引擎 / Monica", "desc", "切换 Monica 选中状态", "fn", "CH_RUN"),
             Map("id", "sc_eng_webpilot", "name", "引擎 / WebPilot", "desc", "切换 WebPilot 选中状态", "fn", "CH_RUN"),
             Map("id", "sc_eng_wepilot", "name", "引擎 / wepilot", "desc", "切换 wepilot 选中状态（兼容别名）", "fn", "CH_RUN"),
-            Map("id", "sc_filter_text", "name", "过滤 / 文本", "desc", "只看文本结果", "fn", "CH_RUN"),
-            Map("id", "sc_filter_clipboard", "name", "过滤 / 剪贴板", "desc", "只看剪贴板结果", "fn", "CH_RUN"),
-            Map("id", "sc_filter_prompt", "name", "过滤 / 提示词", "desc", "只看提示词结果", "fn", "CH_RUN"),
-            Map("id", "sc_filter_config", "name", "过滤 / 配置", "desc", "只看配置结果", "fn", "CH_RUN"),
+            Map("id", "sc_filter_text", "name", "过滤 / 文本", "desc", "只看文本结果", "fn", "CH_RUN", "suggested", "z"),
+            Map("id", "sc_filter_fulltext", "name", "过滤 / 全文搜索", "desc", "只看全文搜索结果", "fn", "CH_RUN"),
+            Map("id", "sc_filter_clipboard", "name", "过滤 / 剪贴板", "desc", "只看剪贴板结果", "fn", "CH_RUN", "suggested", "x"),
+            Map("id", "sc_filter_prompt", "name", "过滤 / 提示词", "desc", "只看提示词结果", "fn", "CH_RUN", "suggested", "c"),
+            Map("id", "sc_filter_config", "name", "过滤 / 配置", "desc", "只看配置结果", "fn", "CH_RUN", "suggested", "v"),
             Map("id", "sc_filter_hotkey", "name", "过滤 / 快捷键", "desc", "只看快捷键结果", "fn", "CH_RUN"),
             Map("id", "sc_filter_function", "name", "过滤 / 功能", "desc", "只看功能结果", "fn", "CH_RUN"),
+            Map("id", "sc_filter_pinned", "name", "过滤 / 置顶", "desc", "只看置顶结果", "fn", "CH_RUN", "suggested", "p"),
             Map("id", "sc_execute", "name", "立即执行", "desc", "搜索中心结果：智能执行", "fn", "CH_RUN"),
             Map("id", "sc_run_as_admin", "name", "以管理员运行", "desc", "搜索中心结果：提升权限运行", "fn", "CH_RUN"),
             Map("id", "sc_open_path", "name", "打开文件位置", "desc", "搜索中心结果：资源管理器选中", "fn", "CH_RUN"),
@@ -2623,7 +2625,8 @@ VK_SearchCenterResolveCapsChordCmd(physKey) {
         "z", "sc_filter_text",
         "x", "sc_filter_clipboard",
         "c", "sc_filter_prompt",
-        "v", "sc_filter_config"
+        "v", "sc_filter_config",
+        "p", "sc_filter_pinned"
     )
     if !def.Has(k)
         return ""
@@ -2688,14 +2691,24 @@ _VK_IsHostStaticCapsHotkeyKey(ahkKey) {
         return true
     if _VkIsRuntimeHookKey(ahkKey)
         return true
-    if (InStr(ahkKey, "^") || InStr(ahkKey, "!") || InStr(ahkKey, "+"))
+    if (InStr(ahkKey, "^") || InStr(ahkKey, "!") || InStr(ahkKey, "+") || InStr(ahkKey, "#"))
         return true
     static norm := Map(
         "c", 1, "v", 1, "x", 1, "e", 1, "r", 1, "o", 1, "q", 1, "z", 1, "t", 1, "f", 1, "g", 1, "b", 1,
         "w", 1, "s", 1, "a", 1, "d", 1, "p", 1,
         "1", 1, "2", 1, "3", 1, "4", 1, "5", 1
     )
-    k := StrLower(ahkKey)
+    ; g_Bindings 里可能出现 $a / *a / ~a 等写法，需先去掉前缀再判断是否是宿主静态键
+    k := StrLower(Trim(String(ahkKey)))
+    while (StrLen(k) > 0) {
+        p := SubStr(k, 1, 1)
+        if (p = "$" || p = "*" || p = "~")
+            k := SubStr(k, 2)
+        else
+            break
+    }
+    if RegExMatch(k, "\s+up$")
+        k := RegExReplace(k, "\s+up$")
     if (k = "esc" || k = "escape")
         return true
     if norm.Has(k)

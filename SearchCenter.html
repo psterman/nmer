@@ -1740,6 +1740,8 @@ const HOTKEY_HINT_DEFAULT_MAP = Object.freeze({
 });
 let capsHoldTimer = 0;
 let capsFlashTimer = 0;
+let lastCapsDownAt = 0;
+let scHotkeySyncTimer = 0;
 
 function escapeHtml(text) {
   if (text === null || text === undefined) return "";
@@ -1882,6 +1884,34 @@ function syncScHotkeyBindingToHost(group, value, key) {
 }
 
 function syncAllScHotkeyBindingsToHost() {
+  const entries = [];
+  const seen = new Set();
+  const pushEntry = (group, value) => {
+    const g = String(group || "");
+    const v = String(value || "");
+    if (!g || !v) return;
+    const mark = g + "::" + v;
+    if (seen.has(mark)) return;
+    seen.add(mark);
+    const key = getHintHotkey(g, v);
+    if (!key) return;
+    entries.push({ group: g, value: v, key });
+  };
+  (state.categories || []).forEach((cat) => pushEntry("category", cat && cat.key));
+  (state.engines || []).forEach((engine) => pushEntry("engine", engine && engine.value));
+  (state.filters || []).forEach((filter) => pushEntry("filter", filter && filter.key));
+  postToAhk({ type: "scHotkeyBindingsSync", payload: { resetAll: true, entries } });
+}
+
+function scheduleScHotkeyBindingsSync(delayMs = 160) {
+  if (scHotkeySyncTimer) clearTimeout(scHotkeySyncTimer);
+  scHotkeySyncTimer = setTimeout(() => {
+    scHotkeySyncTimer = 0;
+    syncAllScHotkeyBindingsToHost();
+  }, Math.max(0, Number(delayMs) || 0));
+}
+
+function syncCustomOnlyScHotkeyBindingsToHost() {
   const src = state.hotkeyBindings;
   if (!src || typeof src !== "object") return;
   const entries = [];
@@ -1974,10 +2004,11 @@ function applyHotkeyBindDialog() {
   }
   setHotkeyBinding(group, value, key);
   saveHotkeyBindings();
-  syncScHotkeyBindingToHost(group, value, key);
+  syncCustomOnlyScHotkeyBindingsToHost();
   renderCategories();
   renderEngines();
   renderFilters();
+  scheduleScHotkeyBindingsSync(50);
   closeHotkeyBindDialog();
 }
 
@@ -2428,6 +2459,7 @@ function flashCapsPressedKey(key) {
 
 function beginCapsHoldHint() {
   if (capsHoldTimer) clearTimeout(capsHoldTimer);
+  lastCapsDownAt = Date.now();
   capsHoldTimer = setTimeout(() => {
     setCapsHintActive(true);
   }, 220);
@@ -2439,6 +2471,25 @@ function endCapsHoldHint() {
   if (capsFlashTimer) clearTimeout(capsFlashTimer);
   capsFlashTimer = 0;
   setCapsHintActive(false);
+}
+
+function triggerHotkeyButtonByKey(rawKey) {
+  const key = normalizeHintKey(rawKey);
+  if (!key) return false;
+  const nodes = document.querySelectorAll(".hotkey-item[data-hotkey]");
+  for (const node of nodes) {
+    const hk = normalizeHintKey(node.dataset.hotkey || "");
+    if (hk !== key) continue;
+    if (typeof node.click === "function") node.click();
+    return true;
+  }
+  return false;
+}
+
+function shouldHandleCapsChordNow() {
+  if (state.capsHintActive) return true;
+  if (!lastCapsDownAt) return false;
+  return (Date.now() - lastCapsDownAt) <= 700;
 }
 
 function renderCategories() {
@@ -3844,6 +3895,7 @@ function applyState(payload) {
   renderCategories();
   renderEngines();
   renderFilters();
+  scheduleScHotkeyBindingsSync();
   renderResults();
   syncEngineModeButton();
   updateChromeTopMostButton();
@@ -4140,6 +4192,15 @@ document.addEventListener("keydown", (event) => {
     if (pressed) setCapsPressedKey(pressed);
   }
 
+  if (!event.repeat && shouldHandleCapsChordNow()) {
+    const pressed = normalizeHintKey(event.key);
+    if (pressed && triggerHotkeyButtonByKey(pressed)) {
+      event.preventDefault();
+      flashCapsPressedKey(pressed);
+      return;
+    }
+  }
+
   const activeTag = document.activeElement ? document.activeElement.tagName : "";
   const isTyping = activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT";
 
@@ -4403,7 +4464,7 @@ if (window.chrome && window.chrome.webview) {
     }
   });
   postToAhk({ type: "ready" });
-  setTimeout(() => syncAllScHotkeyBindingsToHost(), 120);
+  setTimeout(() => scheduleScHotkeyBindingsSync(10), 120);
   requestFulltextStatus();
   startFulltextProgressStream();
 }

@@ -225,6 +225,10 @@ VK_ExecCursorHelperCmd(cmdId) {
                 if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetFilter("File")
                 executed := true
+            case "sc_filter_fulltext":
+                if (_VK_H("IsSearchCenterActive"))
+                    VK_SearchCenterSetFilter("fulltext")
+                executed := true
             case "sc_filter_clipboard":
                 if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetFilter("clipboard")
@@ -244,6 +248,10 @@ VK_ExecCursorHelperCmd(cmdId) {
             case "sc_filter_function":
                 if (_VK_H("IsSearchCenterActive"))
                     VK_SearchCenterSetFilter("function")
+                executed := true
+            case "sc_filter_pinned":
+                if (_VK_H("IsSearchCenterActive"))
+                    VK_SearchCenterSetFilter("pinned")
                 executed := true
 
             case "cp_search":
