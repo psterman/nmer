@@ -84,6 +84,7 @@ func main() {
 	http.HandleFunc("/v1/fulltext/progress/stream", recoverHTTP("v1/fulltext/progress/stream", handleFullTextProgressStream))
 	http.HandleFunc("/v1/fulltext/search/stream", recoverHTTP("v1/fulltext/search/stream", handleFullTextSearchStream))
 	http.HandleFunc("/v1/fulltext/config", recoverHTTP("v1/fulltext/config", handleFullTextConfig))
+	http.HandleFunc("/v1/fulltext/probe", recoverHTTP("v1/fulltext/probe", handleFullTextProbe))
 	http.HandleFunc("/v1/fulltext/control", recoverHTTP("v1/fulltext/control", handleFullTextControl))
 	http.HandleFunc("/clip/search", recoverHTTP("clip/search", func(w http.ResponseWriter, r *http.Request) {
 		handleClipSearch(w, r, db)

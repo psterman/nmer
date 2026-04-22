@@ -317,6 +317,65 @@ button, input, select, textarea { font: inherit; }
   flex: 0 0 auto;
   letter-spacing: 0.02em;
 }
+.ft-scheme-panel {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+.ft-scheme-panel .mini-select {
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 0 8px;
+  min-width: 118px;
+}
+.ft-scheme-panel .mini-btn {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.ft-scheme-panel .mini-btn:hover {
+  border-color: rgba(255,179,71,.5);
+}
+.ft-scheme-panel .mini-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #9eb0bd;
+}
+.ft-probe-summary {
+  color: #9eb0bd;
+}
+.ft-probe-list {
+  margin-top: 4px;
+  display: grid;
+  gap: 4px;
+  max-height: 120px;
+  overflow: auto;
+  font-size: 10px;
+  color: #9eb0bd;
+}
+.ft-probe-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: rgba(255,255,255,.02);
+}
+.ft-probe-ok {
+  color: #4ade80;
+}
+.ft-probe-bad {
+  color: #f97316;
+}
 .hit-context-wrap {
   margin-top: 5px;
   width: 100%;
@@ -1213,6 +1272,22 @@ mark {
         <span id="ft-efficiency-text" class="ft-mini-file">0 文件/秒</span>
         <span id="ft-file" class="ft-mini-file">空闲</span>
       </div>
+      <div id="ft-scheme-panel" class="ft-scheme-panel">
+        <select id="ft-scheme-select" class="mini-select" title="扫描方案">
+          <option value="auto">自动（MFT→Everything→Walk）</option>
+          <option value="mft">优先 MFT（失败回退 Walk）</option>
+          <option value="everything">优先 Everything（失败回退 Walk）</option>
+          <option value="walk">仅 WalkDir</option>
+        </select>
+        <label class="mini-check" title="开启 USN 增量跟踪">
+          <input id="ft-usn-toggle" type="checkbox" checked>
+          USN 增量
+        </label>
+        <button type="button" id="btn-ft-scheme-apply" class="mini-btn" title="保存并重启索引">应用方案</button>
+        <button type="button" id="btn-ft-probe" class="mini-btn" title="检测 MFT / Everything / USN 可行性">检测可行性</button>
+        <span id="ft-probe-summary" class="ft-probe-summary"></span>
+      </div>
+      <div id="ft-probe-list" class="ft-probe-list"></div>
     </div>
     <div class="search-actions">
       <div class="engine-mode-group" role="group" aria-label="搜索引擎模式">
@@ -1376,6 +1451,14 @@ const state = {
     engine_lights: ["off", "off", "off", "off"],
     scan_mode: "",
     indexEpoch: 0
+  },
+  fulltextConfig: {
+    scanScheme: "auto",
+    useUSN: true
+  },
+  fulltextProbe: {
+    busy: false,
+    last: null
   },
   quickLook: {
     installed: false,
@@ -1681,6 +1764,19 @@ function startFulltextProgressStream() {
 
 function applyFulltextStatus(payload) {
   state.fulltext = normalizeFulltextPayload(Object.assign({}, state.fulltext, payload || {}));
+  const cfg = payload && payload.config && typeof payload.config === "object" ? payload.config : null;
+  if (cfg) {
+    let scheme = String(cfg.scanScheme || "").trim().toLowerCase();
+    if (!scheme) {
+      const useMFT = !!cfg.useMFT;
+      const useEverything = !!cfg.useEverything;
+      scheme = useMFT && useEverything ? "auto" : (useMFT ? "mft" : (useEverything ? "everything" : "walk"));
+    }
+    if (!["auto", "mft", "everything", "walk"].includes(scheme)) scheme = "auto";
+    state.fulltextConfig.scanScheme = scheme;
+    state.fulltextConfig.useUSN = (typeof cfg.useUSN === "boolean") ? cfg.useUSN : true;
+    syncFulltextSchemeUi();
+  }
   const lightIds = ["ftl1", "ftl2", "ftl3", "ftl4"];
   lightIds.forEach((id, idx) => {
     const el = document.getElementById(id);
@@ -1744,6 +1840,63 @@ function applyFulltextStatus(payload) {
 
 function requestFulltextStatus() {
   postToAhk({ type: "fulltextStatusRequest", withConfig: false });
+}
+
+function syncFulltextSchemeUi() {
+  const sel = document.getElementById("ft-scheme-select");
+  const usn = document.getElementById("ft-usn-toggle");
+  if (sel) sel.value = state.fulltextConfig.scanScheme || "auto";
+  if (usn) usn.checked = !!state.fulltextConfig.useUSN;
+}
+
+function collectFulltextSchemePayload() {
+  const sel = document.getElementById("ft-scheme-select");
+  const usn = document.getElementById("ft-usn-toggle");
+  const scheme = sel ? String(sel.value || "auto") : "auto";
+  const useUSN = usn ? !!usn.checked : true;
+  return { scanScheme: scheme, useUSN };
+}
+
+function setFulltextProbeSummary(text) {
+  const el = document.getElementById("ft-probe-summary");
+  if (!el) return;
+  el.textContent = String(text || "");
+}
+
+function renderFulltextProbe(probe) {
+  state.fulltextProbe.last = probe && typeof probe === "object" ? probe : null;
+  const list = document.getElementById("ft-probe-list");
+  if (!list) return;
+  const p = state.fulltextProbe.last;
+  if (!p) {
+    list.innerHTML = "";
+    return;
+  }
+  const rows = Array.isArray(p.rootChecks) ? p.rootChecks : [];
+  if (!rows.length) {
+    list.innerHTML = "<div class=\"ft-probe-item\">未返回分盘检测结果</div>";
+    return;
+  }
+  list.innerHTML = rows.map((it) => {
+    const root = escapeHtml(String(it.root || ""));
+    const mftOk = !!it.mftOk;
+    const usnOk = !!it.usnOk;
+    const mftReason = escapeHtml(String(it.mftReason || ""));
+    const usnReason = escapeHtml(String(it.usnReason || ""));
+    return "<div class=\"ft-probe-item\">" +
+      "<div><strong>" + root + "</strong></div>" +
+      "<div>MFT: <span class=\"" + (mftOk ? "ft-probe-ok" : "ft-probe-bad") + "\">" + (mftOk ? "可用" : "不可用") + "</span> · " + mftReason + "</div>" +
+      "<div>USN: <span class=\"" + (usnOk ? "ft-probe-ok" : "ft-probe-bad") + "\">" + (usnOk ? "可用" : "不可用") + "</span> · " + usnReason + "</div>" +
+      "</div>";
+  }).join("");
+  const extra = [];
+  if (typeof p.everythingOk === "boolean") {
+    extra.push("Everything " + (p.everythingOk ? "可用" : "不可用"));
+  }
+  if (p.recommendedScheme) {
+    extra.push("建议方案: " + String(p.recommendedScheme));
+  }
+  setFulltextProbeSummary(extra.join(" · "));
 }
 
 function updateHotkeyHighlights() {
@@ -3305,6 +3458,25 @@ document.getElementById("btn-ft-toggle").addEventListener("click", () => {
 document.getElementById("btn-ft-settings-top").addEventListener("click", () => {
   postToAhk({ type: "openSettingsPanel" });
 });
+const ftSchemeApplyBtn = document.getElementById("btn-ft-scheme-apply");
+if (ftSchemeApplyBtn) {
+  ftSchemeApplyBtn.addEventListener("click", () => {
+    const payload = collectFulltextSchemePayload();
+    state.fulltextConfig.scanScheme = payload.scanScheme;
+    state.fulltextConfig.useUSN = payload.useUSN;
+    syncFulltextSchemeUi();
+    setFulltextProbeSummary("正在应用扫描方案…");
+    postToAhk({ type: "fulltextConfigUpdate", payload });
+  });
+}
+const ftProbeBtn = document.getElementById("btn-ft-probe");
+if (ftProbeBtn) {
+  ftProbeBtn.addEventListener("click", () => {
+    state.fulltextProbe.busy = true;
+    setFulltextProbeSummary("正在检测可行性…");
+    postToAhk({ type: "fulltextProbeRequest" });
+  });
+}
 
 const btnScRecycle = document.getElementById("btn-sc-recycle");
 if (btnScRecycle) {
@@ -3358,6 +3530,7 @@ if (chromeTopMostBtn) {
   });
 }
 updateChromeTopMostButton();
+syncFulltextSchemeUi();
 
 (function initChromeDrag() {
   const dragHost = document.getElementById("chrome-header");
@@ -3625,6 +3798,24 @@ if (window.chrome && window.chrome.webview) {
       if (!payload.ok) {
         const tip = payload.error ? String(payload.error) : "全文索引操作失败";
         document.getElementById("status").textContent = tip;
+      }
+      return;
+    }
+    if (payload.type === "fulltextConfigResult") {
+      if (payload.ok) {
+        setFulltextProbeSummary("扫描方案已应用");
+      } else {
+        setFulltextProbeSummary(payload.error ? String(payload.error) : "扫描方案更新失败");
+      }
+      postToAhk({ type: "fulltextStatusRequest", withConfig: true });
+      return;
+    }
+    if (payload.type === "fulltextProbeResult") {
+      state.fulltextProbe.busy = false;
+      if (payload.ok) {
+        renderFulltextProbe(payload.probe || {});
+      } else {
+        setFulltextProbeSummary(payload.error ? String(payload.error) : "可行性检测失败");
       }
       return;
     }

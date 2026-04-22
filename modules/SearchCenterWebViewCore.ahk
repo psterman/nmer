@@ -593,9 +593,52 @@ _SCWV_UpdateFullTextConfig(payloadMap) {
     errMsg := ""
     if !ok {
         errMsg := resp.Has("text") ? String(resp["text"]) : ("HTTP " . (resp.Has("status") ? String(resp["status"]) : "0"))
+        lowErr := StrLower(errMsg)
+        if (InStr(lowErr, "invalid json body") > 0) {
+            ; 兼容兜底 1：旧/代理路径可能要求外层 payload 包裹
+            reqWrapped := Jxon_Dump(Map("payload", payloadMap))
+            resp2 := _SCWV_HttpSearchCoreJson("POST", "/v1/fulltext/config", reqWrapped)
+            ok := (resp2.Has("status") && Integer(resp2["status"]) = 200)
+            if ok {
+                resp := resp2
+                errMsg := ""
+            } else {
+                errMsg := resp2.Has("text") ? String(resp2["text"]) : ("HTTP " . (resp2.Has("status") ? String(resp2["status"]) : "0"))
+                lowErr2 := StrLower(errMsg)
+                ; 兼容兜底 2：可能仍连着旧 SearchCenterCore，重启后再试一次标准体
+                if (InStr(lowErr2, "invalid json body") > 0 && _SCWV_RestartSearchCore()) {
+                    Sleep(120)
+                    resp3 := _SCWV_HttpSearchCoreJson("POST", "/v1/fulltext/config", req)
+                    ok := (resp3.Has("status") && Integer(resp3["status"]) = 200)
+                    if ok {
+                        resp := resp3
+                        errMsg := ""
+                    } else {
+                        errMsg := resp3.Has("text") ? String(resp3["text"]) : ("HTTP " . (resp3.Has("status") ? String(resp3["status"]) : "0"))
+                    }
+                }
+            }
+        }
     }
     SCWV_PostJson(Map("type", "fulltextConfigResult", "ok", ok, "error", errMsg))
     _SCWV_PostFullTextStatus(true)
+}
+
+_SCWV_ProbeFullTextFeasibility() {
+    if !_SCWV_EnsureSearchCoreRunning() {
+        SCWV_PostJson(Map("type", "fulltextProbeResult", "ok", false, "error", "SearchCenterCore 未启动", "probe", 0))
+        return
+    }
+    resp := _SCWV_HttpSearchCoreJson("GET", "/v1/fulltext/probe")
+    ok := (resp.Has("status") && Integer(resp["status"]) = 200 && resp.Has("json") && (resp["json"] is Map))
+    if !ok {
+        errMsg := resp.Has("text") ? String(resp["text"]) : ("HTTP " . (resp.Has("status") ? String(resp["status"]) : "0"))
+        SCWV_PostJson(Map("type", "fulltextProbeResult", "ok", false, "error", errMsg, "probe", 0))
+        return
+    }
+    root := resp["json"]
+    probe := (root.Has("probe") && (root["probe"] is Map)) ? root["probe"] : root
+    SCWV_PostJson(Map("type", "fulltextProbeResult", "ok", true, "error", "", "probe", probe))
 }
 
 ; 将 Go 返回的扁平 items 按 originalDataType 分组为 SearchAllDataSources 形状
@@ -1130,7 +1173,7 @@ SCWV_OnWebMessage(sender, args) {
             global g_SCWV_Ready
             g_SCWV_Ready := true
             SCWV_PushState("init")
-            _SCWV_PostFullTextStatus(false)
+            _SCWV_PostFullTextStatus(true)
             try SCWV_FlushPendingJsonQueue()
             if g_SCWV_FocusPending
                 SCWV_RequestFocusInput()
@@ -1173,6 +1216,8 @@ SCWV_OnWebMessage(sender, args) {
         case "fulltextConfigUpdate":
             pl := msg.Has("payload") && (msg["payload"] is Map) ? msg["payload"] : Map()
             _SCWV_UpdateFullTextConfig(pl)
+        case "fulltextProbeRequest":
+            _SCWV_ProbeFullTextFeasibility()
         case "openSettingsPanel":
             try {
                 if IsSet(ShowConfigWebViewGUI) {

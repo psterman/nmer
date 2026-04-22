@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,7 +15,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
+	"unicode/utf16"
+
+	"golang.org/x/sys/windows"
 )
 
 const fullTextRuntimeConfigFile = "fulltext_settings.json"
@@ -28,6 +33,8 @@ type FullTextRuntimeConfig struct {
 	InitialDelaySec  int64  `json:"initialDelaySec"`
 	PauseMS          int64  `json:"pauseMS"`
 	ScanSpeed        string `json:"scanSpeed"`
+	ScanScheme       string `json:"scanScheme"`
+	UseUSN           bool   `json:"useUSN"`
 }
 
 type fullTextRuntimeConfigPatch struct {
@@ -39,6 +46,8 @@ type fullTextRuntimeConfigPatch struct {
 	InitialDelaySec  *int64  `json:"initialDelaySec"`
 	PauseMS          *int64  `json:"pauseMS"`
 	ScanSpeed        *string `json:"scanSpeed"`
+	ScanScheme       *string `json:"scanScheme"`
+	UseUSN           *bool   `json:"useUSN"`
 }
 
 type fullTextControlRequest struct {
@@ -91,6 +100,8 @@ func ensureFullTextRuntime(baseDir string) {
 
 func defaultFullTextRuntimeConfig(baseDir string) FullTextRuntimeConfig {
 	idxDir, _ := resolveIndexDir(baseDir)
+	useMFT := parseBoolEnv("SEARCHCENTER_FT_USE_MFT", true)
+	useEverything := parseBoolEnv("SEARCHCENTER_FT_USE_EVERYTHING", false)
 	return FullTextRuntimeConfig{
 		AutoStart:        parseBoolEnv("SEARCHCENTER_FT_AUTOSTART", true),
 		Workers:          resolveWorkerCount(),
@@ -100,6 +111,8 @@ func defaultFullTextRuntimeConfig(baseDir string) FullTextRuntimeConfig {
 		InitialDelaySec:  parseInt64Env("SEARCHCENTER_FT_INITIAL_DELAY_SEC", 1),
 		PauseMS:          parseInt64Env("SEARCHCENTER_FT_PAUSE_MS", -1),
 		ScanSpeed:        resolveScanSpeed(),
+		ScanScheme:       scanSchemeFromFlags(useMFT, useEverything),
+		UseUSN:           parseBoolEnv("SEARCHCENTER_FT_USE_USN", true),
 	}
 }
 
@@ -121,6 +134,7 @@ func normalizeFullTextRuntimeConfig(baseDir string, cfg FullTextRuntimeConfig) F
 	default:
 		cfg.ScanSpeed = "normal"
 	}
+	cfg.ScanScheme = normalizeScanScheme(cfg.ScanScheme)
 
 	if cfg.MaxFileSizeMB <= 0 {
 		cfg.MaxFileSizeMB = 8
@@ -143,6 +157,41 @@ func normalizeFullTextRuntimeConfig(baseDir string, cfg FullTextRuntimeConfig) F
 	cfg.IndexDir = filepath.Clean(idx)
 
 	return cfg
+}
+
+func normalizeScanScheme(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "auto", "mft", "everything", "walk":
+		return strings.ToLower(strings.TrimSpace(s))
+	default:
+		return "auto"
+	}
+}
+
+func scanSchemeFromFlags(useMFT, useEverything bool) string {
+	if useMFT && useEverything {
+		return "auto"
+	}
+	if useMFT {
+		return "mft"
+	}
+	if useEverything {
+		return "everything"
+	}
+	return "walk"
+}
+
+func scanSchemeToFlags(scheme string) (useMFT bool, useEverything bool) {
+	switch normalizeScanScheme(scheme) {
+	case "mft":
+		return true, false
+	case "everything":
+		return false, true
+	case "walk":
+		return false, false
+	default:
+		return true, true
+	}
 }
 
 func loadFullTextRuntimeConfigFromDisk(baseDir string, def FullTextRuntimeConfig) FullTextRuntimeConfig {
@@ -195,7 +244,10 @@ func applyFullTextRuntimeEnv(cfg FullTextRuntimeConfig) {
 	_ = os.Setenv("SEARCHCENTER_FT_INCLUDE_LARGE", strconv.FormatBool(cfg.IncludeLargeText))
 	_ = os.Setenv("SEARCHCENTER_FT_MAX_FILE_MB", strconv.FormatInt(cfg.MaxFileSizeMB, 10))
 	_ = os.Setenv("SEARCHCENTER_FT_SCAN_SPEED", cfg.ScanSpeed)
-	_ = os.Setenv("SEARCHCENTER_FT_USE_EVERYTHING", "false")
+	useMFT, useEverything := scanSchemeToFlags(cfg.ScanScheme)
+	_ = os.Setenv("SEARCHCENTER_FT_USE_MFT", strconv.FormatBool(useMFT))
+	_ = os.Setenv("SEARCHCENTER_FT_USE_EVERYTHING", strconv.FormatBool(useEverything))
+	_ = os.Setenv("SEARCHCENTER_FT_USE_USN", strconv.FormatBool(cfg.UseUSN))
 	_ = os.Setenv("SEARCHCENTER_FT_INITIAL_DELAY_SEC", strconv.FormatInt(cfg.InitialDelaySec, 10))
 	if cfg.PauseMS >= 0 {
 		_ = os.Setenv("SEARCHCENTER_FT_PAUSE_MS", strconv.FormatInt(cfg.PauseMS, 10))
@@ -237,7 +289,145 @@ func mergeFullTextRuntimePatch(baseDir string, cfg *FullTextRuntimeConfig, patch
 	if patch.ScanSpeed != nil {
 		cfg.ScanSpeed = strings.TrimSpace(*patch.ScanSpeed)
 	}
+	if patch.ScanScheme != nil {
+		cfg.ScanScheme = strings.TrimSpace(*patch.ScanScheme)
+	}
+	if patch.UseUSN != nil {
+		cfg.UseUSN = *patch.UseUSN
+	}
 	*cfg = normalizeFullTextRuntimeConfig(baseDir, *cfg)
+}
+
+func probeMFTOnce(drive byte) error {
+	h, err := openNTFSVolumeHandle(drive)
+	if err != nil {
+		return err
+	}
+	defer windows.CloseHandle(h)
+
+	inBuf := make([]byte, 24)
+	outBuf := make([]byte, 1024*1024)
+	var br uint32
+	return windows.DeviceIoControl(h, fsctlEnumUsnData, &inBuf[0], uint32(len(inBuf)), &outBuf[0], uint32(len(outBuf)), &br, nil)
+}
+
+func probeWithTimeout(timeout time.Duration, fn func() error) error {
+	if timeout <= 0 {
+		return fn()
+	}
+	ch := make(chan error, 1)
+	go func() {
+		ch <- fn()
+	}()
+	select {
+	case err := <-ch:
+		return err
+	case <-time.After(timeout):
+		return fmt.Errorf("timeout after %s", timeout)
+	}
+}
+
+func probeEverythingIPC(baseDir string) (bool, string) {
+	if _, err := os.Stat(everythingDLLPath(baseDir)); err != nil {
+		return false, "everything64.dll not found"
+	}
+	if findEverythingPID() == 0 && !tryStartEverything(baseDir) {
+		return false, "Everything process is not running"
+	}
+
+	dll, err := syscall.LoadDLL(everythingDLLPath(baseDir))
+	if err != nil {
+		return false, "load everything64.dll failed: " + err.Error()
+	}
+	defer dll.Release()
+
+	getMajor, err := dll.FindProc("Everything_GetMajorVersion")
+	if err != nil {
+		return false, "Everything_GetMajorVersion not found"
+	}
+	major, _, _ := getMajor.Call()
+	if major == 0 {
+		return false, "Everything IPC unavailable (permission mismatch or sdk disabled)"
+	}
+	return true, "ok"
+}
+
+func probeFullTextFeasibility(baseDir string) map[string]any {
+	cfg := fullTextRuntimeConfig(baseDir)
+	roots := fullTextRoots(baseDir)
+
+	everythingOK, everythingReason := probeEverythingIPC(baseDir)
+	rootChecks := make([]map[string]any, 0, len(roots))
+	mftOKCount := 0
+	usnOKCount := 0
+
+	for _, root := range roots {
+		item := map[string]any{
+			"root":         root,
+			"isVolumeRoot": isVolumeRootPath(root),
+			"mftOk":        false,
+			"mftReason":    "",
+			"usnOk":        false,
+			"usnReason":    "",
+		}
+		if !isVolumeRootPath(root) {
+			item["mftReason"] = "root is not a drive root"
+			item["usnReason"] = "root is not a drive root"
+			rootChecks = append(rootChecks, item)
+			continue
+		}
+		drive, derr := driveLetterFromRoot(root)
+		if derr != nil {
+			item["mftReason"] = derr.Error()
+			item["usnReason"] = derr.Error()
+			rootChecks = append(rootChecks, item)
+			continue
+		}
+		if err := probeWithTimeout(2*time.Second, func() error { return probeMFTOnce(drive) }); err != nil {
+			item["mftReason"] = err.Error()
+		} else {
+			item["mftOk"] = true
+			item["mftReason"] = "ok"
+			mftOKCount++
+		}
+
+		usnErr := probeWithTimeout(2*time.Second, func() error {
+			h, err := openNTFSVolumeHandle(drive)
+			if err != nil {
+				return err
+			}
+			defer windows.CloseHandle(h)
+			_, _, _, qerr := queryUSNJournalInfo(h)
+			return qerr
+		})
+		if usnErr != nil {
+			item["usnReason"] = usnErr.Error()
+		} else {
+			item["usnOk"] = true
+			item["usnReason"] = "ok"
+			usnOKCount++
+		}
+		rootChecks = append(rootChecks, item)
+	}
+
+	recommended := "walk"
+	if len(roots) > 0 && mftOKCount == len(roots) {
+		recommended = "mft"
+	} else if everythingOK {
+		recommended = "everything"
+	}
+
+	return map[string]any{
+		"time":              time.Now().Format(time.RFC3339),
+		"currentConfig":     cfg,
+		"roots":             roots,
+		"rootChecks":        rootChecks,
+		"everythingOk":      everythingOK,
+		"everythingReason":  everythingReason,
+		"mftOkCount":        mftOKCount,
+		"usnOkCount":        usnOKCount,
+		"recommendedScheme": recommended,
+	}
 }
 
 func isFullTextStartSuppressed() bool {
@@ -356,9 +546,23 @@ func handleFullTextConfig(w http.ResponseWriter, r *http.Request) {
 		})
 	case http.MethodPost:
 		var patch fullTextRuntimeConfigPatch
-		if err := json.NewDecoder(r.Body).Decode(&patch); err != nil && err != io.EOF {
+		if buf, err := io.ReadAll(r.Body); err != nil {
 			http.Error(w, "invalid json body", http.StatusBadRequest)
 			return
+		} else if len(bytes.TrimSpace(buf)) > 0 {
+			if err := decodeJSONRelaxed(buf, &patch); err != nil {
+				var wrap struct {
+					Payload json.RawMessage `json:"payload"`
+				}
+				if err2 := decodeJSONRelaxed(buf, &wrap); err2 != nil || len(bytes.TrimSpace(wrap.Payload)) == 0 {
+					http.Error(w, "invalid json body", http.StatusBadRequest)
+					return
+				}
+				if err3 := decodeJSONRelaxed(wrap.Payload, &patch); err3 != nil {
+					http.Error(w, "invalid json body", http.StatusBadRequest)
+					return
+				}
+			}
 		}
 		cfg, err := applyFullTextRuntimePatch(baseDir, patch)
 		if err != nil {
@@ -374,6 +578,61 @@ func handleFullTextConfig(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func decodeJSONRelaxed(data []byte, out any) error {
+	d := bytes.TrimSpace(data)
+	if len(d) == 0 {
+		return io.EOF
+	}
+	if len(d) >= 3 && d[0] == 0xEF && d[1] == 0xBB && d[2] == 0xBF {
+		d = bytes.TrimSpace(d[3:])
+	}
+	if err := json.Unmarshal(d, out); err == nil {
+		return nil
+	}
+
+	// 兼容 UTF-16LE 请求体（某些 WinHTTP/BSTR 场景会出现）
+	if utf16Text, ok := decodeUTF16LEText(d); ok {
+		ud := []byte(strings.TrimSpace(utf16Text))
+		if len(ud) == 0 {
+			return io.EOF
+		}
+		return json.Unmarshal(ud, out)
+	}
+	return fmt.Errorf("invalid json")
+}
+
+func decodeUTF16LEText(data []byte) (string, bool) {
+	if len(data) < 2 {
+		return "", false
+	}
+	d := data
+	if len(d) >= 2 && d[0] == 0xFF && d[1] == 0xFE {
+		d = d[2:]
+	}
+	if len(d)%2 != 0 {
+		return "", false
+	}
+	zeroOdd := 0
+	sample := len(d)
+	if sample > 64 {
+		sample = 64
+	}
+	for i := 1; i < sample; i += 2 {
+		if d[i] == 0 {
+			zeroOdd++
+		}
+	}
+	// 没有明显 UTF-16LE 特征时不做误判转换
+	if zeroOdd < sample/4 {
+		return "", false
+	}
+	u16 := make([]uint16, 0, len(d)/2)
+	for i := 0; i < len(d); i += 2 {
+		u16 = append(u16, uint16(d[i])|uint16(d[i+1])<<8)
+	}
+	return string(utf16.Decode(u16)), true
 }
 
 func handleFullTextControl(w http.ResponseWriter, r *http.Request) {
@@ -422,6 +681,24 @@ func handleFullTextControl(w http.ResponseWriter, r *http.Request) {
 		"config":   fullTextRuntimeConfig(baseDir),
 		"status":   GetStatus(),
 		"progress": GetProgressPayload(),
+	})
+}
+
+func handleFullTextProbe(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	baseDir := fullTextBaseDir()
+	if baseDir == "" {
+		http.Error(w, "base dir not initialized", http.StatusInternalServerError)
+		return
+	}
+	ensureFullTextRuntime(baseDir)
+	payload := probeFullTextFeasibility(baseDir)
+	writeFullTextJSON(w, http.StatusOK, map[string]any{
+		"ok":    true,
+		"probe": payload,
 	})
 }
 
