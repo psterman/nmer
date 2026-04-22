@@ -7,9 +7,11 @@ require (
 	github.com/eringen/gowebper v0.1.2
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/mozillazg/go-pinyin v0.20.0
+	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d
 	github.com/yanyiwu/gojieba v1.4.6
 	golang.org/x/image v0.18.0
 	golang.org/x/sys v0.22.0
+	golang.org/x/text v0.16.0
 	modernc.org/sqlite v1.34.5
 )
 
@@ -35,7 +37,6 @@ require (
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	golang.org/x/text v0.16.0 // indirect
 	modernc.org/libc v1.55.3 // indirect
 	modernc.org/mathutil v1.6.0 // indirect
 	modernc.org/memory v1.8.0 // indirect

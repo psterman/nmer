@@ -1,4 +1,4 @@
-﻿//go:build windows
+//go:build windows
 
 package main
 
@@ -103,7 +103,7 @@ func rgTextValue(v rgJSONText) string {
 	return string(b)
 }
 
-func trimPreview(s string, maxRunes int) string {
+func compactLinePreview(s string, maxRunes int) string {
 	s = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "\r", " "), "\n", " "))
 	if s == "" {
 		return ""
@@ -117,7 +117,7 @@ func trimPreview(s string, maxRunes int) string {
 
 func buildFullTextFileItem(fullPath, lineText string, lineNo int, score float64, hitSource string) map[string]any {
 	dirPath, fileName, ext := splitPathParts(fullPath)
-	preview := trimPreview(lineText, 180)
+	preview := compactLinePreview(lineText, 180)
 	subParts := []string{}
 	if dirPath != "" {
 		subParts = append(subParts, dirPath)
@@ -697,4 +697,3 @@ func discardJSONValue(dec *json.Decoder) error {
 		return nil
 	}
 }
-

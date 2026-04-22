@@ -17,6 +17,8 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
+	"github.com/saintfish/chardet"
+	"golang.org/x/text/encoding/htmlindex"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 )
@@ -29,19 +31,19 @@ func (b *blugeIndexer) readFileForIndex(path string, fileSize int64) (string, st
 		if err != nil {
 			return "", "", err
 		}
-		return text, trimPreview(text, 180), nil
+		return text, extractSummaryFromText(text, 512), nil
 	case "docx":
 		text, err := extractDOCXText(path)
 		if err != nil {
 			return "", "", err
 		}
-		return text, trimPreview(text, 180), nil
+		return text, extractSummaryFromText(text, 512), nil
 	case "xlsx":
 		text, err := extractXLSXText(path)
 		if err != nil {
 			return "", "", err
 		}
-		return text, trimPreview(text, 180), nil
+		return text, extractSummaryFromText(text, 512), nil
 	default:
 		return b.readPlainTextFileForIndex(path, fileSize)
 	}
@@ -73,7 +75,7 @@ func (b *blugeIndexer) readPlainTextFileForIndex(path string, fileSize int64) (s
 			}
 			text, derr := decodeBestEffortText(raw)
 			if derr == nil && strings.TrimSpace(text) != "" {
-				return text, trimPreview(text, 180), nil
+				return text, extractSummaryFromBytes(raw, 512), nil
 			}
 		}
 	}
@@ -98,7 +100,7 @@ func (b *blugeIndexer) readPlainTextFileForIndex(path string, fileSize int64) (s
 	if err != nil {
 		return "", "", err
 	}
-	return text, trimPreview(text, 180), nil
+	return text, extractSummaryFromBytes(buf, 512), nil
 }
 
 func decodeBestEffortText(buf []byte) (string, error) {
@@ -111,15 +113,21 @@ func decodeBestEffortText(buf []byte) (string, error) {
 		}
 		return s, nil
 	}
-	if utf8.Valid(buf) {
-		s := strings.TrimSpace(string(buf))
-		if s == "" || !looksLikeMeaningfulText(s) {
+	if s, ok := decodeLikelyUTF16NoBOM(buf); ok {
+		if strings.TrimSpace(s) == "" || !looksLikeMeaningfulText(s) {
 			return "", errSkipNonText
 		}
 		return s, nil
 	}
-	if s, ok := decodeLikelyUTF16NoBOM(buf); ok {
+	if s, ok := decodeByDetectedCharset(buf); ok {
 		if strings.TrimSpace(s) == "" || !looksLikeMeaningfulText(s) {
+			return "", errSkipNonText
+		}
+		return s, nil
+	}
+	if utf8.Valid(buf) {
+		s := strings.TrimSpace(string(buf))
+		if s == "" || !looksLikeMeaningfulText(s) {
 			return "", errSkipNonText
 		}
 		return s, nil
@@ -138,6 +146,34 @@ func decodeBestEffortText(buf []byte) (string, error) {
 		return "", errSkipNonText
 	}
 	return s, nil
+}
+
+func decodeByDetectedCharset(buf []byte) (string, bool) {
+	detector := chardet.NewTextDetector()
+	res, err := detector.DetectBest(buf)
+	if err != nil || res == nil || strings.TrimSpace(res.Charset) == "" {
+		return "", false
+	}
+	charset := strings.ToLower(strings.TrimSpace(res.Charset))
+	switch charset {
+	case "utf-16le", "utf16le":
+		return decodeUTF16Bytes(buf, true), true
+	case "utf-16be", "utf16be":
+		return decodeUTF16Bytes(buf, false), true
+	case "utf-8", "utf8":
+		if utf8.Valid(buf) {
+			return strings.TrimSpace(string(buf)), true
+		}
+	}
+	enc, err := htmlindex.Get(charset)
+	if err != nil || enc == nil {
+		return "", false
+	}
+	decoded, _, derr := transform.String(enc.NewDecoder(), string(buf))
+	if derr != nil {
+		return "", false
+	}
+	return strings.TrimSpace(strings.ReplaceAll(decoded, "\x00", " ")), true
 }
 
 func decodeUTF16WithBOM(buf []byte) (string, bool) {
@@ -388,4 +424,41 @@ func collectXMLCharData(buf []byte) string {
 		}
 	}
 	return strings.TrimSpace(out.String())
+}
+
+func extractSummaryFromBytes(buf []byte, maxBytes int) string {
+	if len(buf) == 0 || maxBytes <= 0 {
+		return ""
+	}
+	if len(buf) > maxBytes {
+		buf = buf[:maxBytes]
+	}
+	if s, err := decodeBestEffortText(buf); err == nil {
+		return extractSummaryFromText(s, maxBytes)
+	}
+	return ""
+}
+
+func extractSummaryFromText(text string, maxBytes int) string {
+	text = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n"))
+	if text == "" {
+		return ""
+	}
+	firstBlock := text
+	if idx := strings.Index(firstBlock, "\n\n"); idx >= 0 {
+		firstBlock = firstBlock[:idx]
+	}
+	firstBlock = strings.TrimSpace(strings.ReplaceAll(firstBlock, "\n", " "))
+	if firstBlock == "" {
+		return ""
+	}
+	out := []byte(firstBlock)
+	if len(out) <= maxBytes {
+		return firstBlock
+	}
+	out = out[:maxBytes]
+	for len(out) > 0 && !utf8.Valid(out) {
+		out = out[:len(out)-1]
+	}
+	return strings.TrimSpace(string(out))
 }

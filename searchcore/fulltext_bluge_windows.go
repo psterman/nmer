@@ -23,6 +23,7 @@ import (
 	"github.com/blugelabs/bluge"
 	blugeindex "github.com/blugelabs/bluge/index"
 	blugeSearch "github.com/blugelabs/bluge/search"
+	blugeHighlight "github.com/blugelabs/bluge/search/highlight"
 	"github.com/fsnotify/fsnotify"
 	"golang.org/x/sys/windows"
 )
@@ -665,7 +666,7 @@ func (b *blugeIndexer) Search(query string, limit int) ([]map[string]any, error)
 	q := lookupFullTextQueryCache(qText, limit, func() bluge.Query {
 		return buildBlugeQuery(qText)
 	})
-	req := bluge.NewTopNSearch(limit, q).WithStandardAggregations()
+	req := bluge.NewTopNSearch(limit, q).WithStandardAggregations().IncludeLocations()
 	it, err := reader.Search(context.Background(), req)
 	if err != nil {
 		return nil, err
@@ -1312,7 +1313,7 @@ func (b *blugeIndexer) indexFile(path string) error {
 	}
 
 	id := docIDForPath(path)
-	content, snippet, err := b.readFileForIndex(path, st.Size())
+	content, summary, err := b.readFileForIndex(path, st.Size())
 	if err != nil {
 		if errors.Is(err, errSkipNonText) || errors.Is(err, errSkipTooLarge) {
 			return b.deleteByPath(path)
@@ -1338,16 +1339,18 @@ func (b *blugeIndexer) indexFile(path string) error {
 	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
 	mod := st.ModTime()
 	baseName := strings.ToLower(filepath.Base(path))
+	headers := buildIndexHeaders(path, content, summary)
 
 	doc := bluge.NewDocument(id).
 		AddField(bluge.NewKeywordField("path", path).StoreValue()).
 		AddField(bluge.NewKeywordField("path_lower", strings.ToLower(path)).StoreValue()).
-		AddField(bluge.NewTextField("title", baseName).WithAnalyzer(fullTextAnalyzer()).SearchTermPositions()).
+		AddField(bluge.NewTextField("title", baseName).WithAnalyzer(fullTextAnalyzer()).SearchTermPositions().StoreValue()).
+		AddField(bluge.NewTextField("headers", headers).WithAnalyzer(fullTextAnalyzer()).SearchTermPositions().StoreValue()).
 		AddField(bluge.NewTextField("content", content).WithAnalyzer(fullTextAnalyzer()).SearchTermPositions()).
 		AddField(bluge.NewKeywordField("ext", ext).StoreValue().Sortable().Aggregatable()).
 		AddField(bluge.NewDateTimeField("mtime", mod).StoreValue().Sortable()).
 		AddField(bluge.NewNumericField("size", float64(st.Size())).StoreValue().Sortable()).
-		AddField(bluge.NewStoredOnlyField("snippet", []byte(snippet))).
+		AddField(bluge.NewStoredOnlyField("summary", []byte(summary))).
 		AddField(bluge.NewTextField("path_text", strings.ToLower(path)).WithAnalyzer(fullTextAnalyzer()))
 
 	if err := b.enqueueBatchUpdate(id, doc); err != nil {
@@ -1385,10 +1388,98 @@ func (b *blugeIndexer) deleteByPath(path string) error {
 	return nil
 }
 
+func buildIndexHeaders(path, content, summary string) string {
+	parts := make([]string, 0, 8)
+	base := strings.ToLower(filepath.Base(path))
+	if base != "" {
+		parts = append(parts, base)
+	}
+	ext := pathExtLower(path)
+	if ext != "" {
+		parts = append(parts, ext)
+	}
+	dir := strings.ToLower(filepath.Dir(path))
+	if dir != "" && dir != "." {
+		parts = append(parts, dir)
+	}
+	if summary != "" {
+		parts = append(parts, summary)
+	}
+	if content != "" {
+		lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+		collected := 0
+		for _, ln := range lines {
+			line := strings.TrimSpace(ln)
+			if line == "" {
+				continue
+			}
+			parts = append(parts, line)
+			collected++
+			if collected >= 2 {
+				break
+			}
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+func (b *blugeIndexer) buildBestPreview(match *blugeSearch.DocumentMatch, query, path, title, headers, summary string) string {
+	fallback := strings.TrimSpace(summary)
+	if fallback == "" {
+		fallback = strings.TrimSpace(headers)
+	}
+	if fallback == "" {
+		fallback = title
+	}
+	if match == nil || len(match.Locations) == 0 {
+		return fallback
+	}
+
+	highlighter := blugeHighlight.NewHTMLHighlighterTags("<mark>", "</mark>")
+	if tlm := match.Locations["headers"]; len(tlm) > 0 && strings.TrimSpace(headers) != "" {
+		if frag := strings.TrimSpace(highlighter.BestFragment(tlm, []byte(headers))); frag != "" {
+			return frag
+		}
+	}
+	if tlm := match.Locations["title"]; len(tlm) > 0 && strings.TrimSpace(title) != "" {
+		if frag := strings.TrimSpace(highlighter.BestFragment(tlm, []byte(title))); frag != "" {
+			return frag
+		}
+	}
+	if tlm := match.Locations["content"]; len(tlm) > 0 {
+		if text := b.loadPreviewText(path); text != "" {
+			if frag := strings.TrimSpace(highlighter.BestFragment(tlm, []byte(text))); frag != "" {
+				return frag
+			}
+		}
+	}
+	if strings.TrimSpace(fallback) != "" {
+		return fallback
+	}
+	return strings.TrimSpace(query)
+}
+
+func (b *blugeIndexer) loadPreviewText(path string) string {
+	st, err := os.Stat(path)
+	if err != nil || st.IsDir() || st.Size() <= 0 {
+		return ""
+	}
+	if st.Size() > 8*1024*1024 {
+		return ""
+	}
+	text, _, err := b.readFileForIndex(path, st.Size())
+	if err != nil {
+		return ""
+	}
+	return text
+}
+
 func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query string) map[string]any {
 	var (
 		pathVal    string
-		snippetVal string
+		summaryVal string
+		headersVal string
+		titleVal   string
 		extVal     string
 		mtimeVal   time.Time
 		sizeVal    int64
@@ -1398,8 +1489,12 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 		switch field {
 		case "path":
 			pathVal = string(value)
-		case "snippet":
-			snippetVal = string(value)
+		case "summary":
+			summaryVal = string(value)
+		case "headers":
+			headersVal = string(value)
+		case "title":
+			titleVal = string(value)
 		case "ext":
 			extVal = string(value)
 		case "mtime":
@@ -1445,7 +1540,8 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 
 	terms := extractSearchContentTerms(query)
 	primaryTerm := pickPrimarySearchTerm(terms)
-	score := scoreByPathAndContent(pathVal, snippetVal, primaryTerm, float64(match.Score))
+	previewVal := b.buildBestPreview(match, query, pathVal, titleVal, headersVal, summaryVal)
+	score := scoreByPathAndContent(pathVal, previewVal, primaryTerm, float64(match.Score))
 	hitCtx := buildHitContextForFile(pathVal, primaryTerm, 6)
 	hitLines := make([]int, 0, len(hitCtx))
 	for _, blk := range hitCtx {
@@ -1458,7 +1554,7 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 		hitCount, hitLines = b.computeHitStats(pathVal, primaryTerm)
 	}
 	qLower := strings.ToLower(strings.TrimSpace(primaryTerm))
-	snippetHit := qLower != "" && strings.Contains(strings.ToLower(snippetVal), qLower)
+	snippetHit := qLower != "" && strings.Contains(strings.ToLower(previewVal), qLower)
 	pathHit := qLower != "" && strings.Contains(strings.ToLower(pathVal), qLower)
 	// When query has only structured filters (e.g. ext:txt), keep matched docs.
 	if len(terms) > 0 && hitCount == 0 && !snippetHit && !pathHit {
@@ -1477,7 +1573,7 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 		"Ext":            extFromPath,
 		"IsDirectory":    false,
 		"FullTextHit":    true,
-		"MatchedLine":    snippetVal,
+		"MatchedLine":    previewVal,
 		"DateModified":   ts,
 		"IndexedBy":      "bluge",
 		"SearchScore":    score,
@@ -1494,9 +1590,9 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 		"DataTypeName":     "FullText",
 		"ID":               pathVal,
 		"Title":            fileName,
-		"SubTitle":         strings.Join(subParts, " 路 "),
+		"SubTitle":         strings.Join(subParts, " | "),
 		"Content":          pathVal,
-		"Preview":          snippetVal,
+		"Preview":          previewVal,
 		"Source":           "File",
 		"Metadata":         meta,
 		"Action":           "open_file",
@@ -2060,8 +2156,9 @@ func buildBlugeQuery(raw string) bluge.Query {
 			continue
 		}
 		pq := bluge.NewBooleanQuery()
-		pq.AddShould(bluge.NewMatchPhraseQuery(ph).SetField("content"))
-		pq.AddShould(bluge.NewMatchPhraseQuery(strings.ToLower(ph)).SetField("title"))
+		pq.AddShould(bluge.NewMatchPhraseQuery(ph).SetField("content").SetBoost(1))
+		pq.AddShould(bluge.NewMatchPhraseQuery(strings.ToLower(ph)).SetField("headers").SetBoost(2.0))
+		pq.AddShould(bluge.NewMatchPhraseQuery(strings.ToLower(ph)).SetField("title").SetBoost(10))
 		pq.SetMinShould(1)
 		root.AddMust(pq)
 	}
@@ -2120,8 +2217,9 @@ func buildBlugeQuery(raw string) bluge.Query {
 		default:
 			mix := bluge.NewBooleanQuery()
 			mix.AddShould(bluge.NewMatchQuery(tk).SetField("content").SetBoost(1))
+			mix.AddShould(bluge.NewMatchQuery(strings.ToLower(tk)).SetField("headers").SetBoost(2.0))
 			mix.AddShould(bluge.NewMatchQuery(strings.ToLower(tk)).SetField("path_text").SetBoost(3))
-			mix.AddShould(bluge.NewMatchQuery(strings.ToLower(tk)).SetField("title").SetBoost(8))
+			mix.AddShould(bluge.NewMatchQuery(strings.ToLower(tk)).SetField("title").SetBoost(10))
 			mix.SetMinShould(1)
 			root.AddMust(mix)
 		}
