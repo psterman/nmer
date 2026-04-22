@@ -375,9 +375,9 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 		return nil, fmt.Errorf("create index dir failed: %w", err)
 	}
 
-	writer, err := bluge.OpenWriter(bluge.DefaultConfig(cfg.IndexDir))
+	writer, err := openBlugeWriterWithRetry(cfg.IndexDir, 6, 180*time.Millisecond)
 	if err != nil {
-		return nil, fmt.Errorf("open bluge writer failed: %w", err)
+		return nil, fmt.Errorf("open bluge writer failed (%s): %w", cfg.IndexDir, err)
 	}
 
 	watcher, err := fsnotify.NewWatcher()
@@ -451,6 +451,40 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 	}
 
 	return idx, nil
+}
+
+func openBlugeWriterWithRetry(indexDir string, attempts int, baseDelay time.Duration) (*bluge.Writer, error) {
+	if attempts < 1 {
+		attempts = 1
+	}
+	if baseDelay <= 0 {
+		baseDelay = 150 * time.Millisecond
+	}
+
+	var lastErr error
+	for i := 0; i < attempts; i++ {
+		w, err := bluge.OpenWriter(bluge.DefaultConfig(indexDir))
+		if err == nil {
+			return w, nil
+		}
+		lastErr = err
+		if !isLikelyIndexLockError(err) || i == attempts-1 {
+			break
+		}
+		time.Sleep(baseDelay * time.Duration(i+1))
+	}
+	return nil, lastErr
+}
+
+func isLikelyIndexLockError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "exclusive access") ||
+		strings.Contains(msg, "unable to obtain exclusive access") ||
+		strings.Contains(msg, "has locked a portion of the file") ||
+		strings.Contains(msg, "file is being used by another process")
 }
 
 func (b *blugeIndexer) refreshReader() error {
@@ -1814,7 +1848,11 @@ func resolveIndexDir(baseDir string) (string, bool) {
 	if local == "" {
 		local = os.TempDir()
 	}
-	return filepath.Join(local, "SearchCenter", "bluge_index"), true
+	// Use per-workspace index directory by default so multiple SearchCenterCore
+	// instances do not contend for one shared lock file under LOCALAPPDATA.
+	baseKey := strings.ToLower(filepath.Clean(baseDir))
+	tag := fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte(baseKey)))
+	return filepath.Join(local, "SearchCenter", "bluge_index_"+tag), true
 }
 
 func isUnderBase(path, base string) bool {
