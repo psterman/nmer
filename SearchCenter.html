@@ -920,6 +920,73 @@ button, input, select, textarea { font: inherit; }
   color: #e7c4a0;
   font-size: 11px;
 }
+.ft-preview-hit-panel {
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255,255,255,.02);
+  overflow: hidden;
+}
+.ft-preview-hit-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.02);
+  font-size: 11px;
+  color: #aebdca;
+}
+.ft-preview-hit-head .k {
+  color: #d8e2ea;
+}
+.ft-preview-hit-head .v {
+  color: #fff;
+  font-weight: 700;
+}
+.ft-preview-hit-nav {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 11px;
+}
+.ft-preview-hit-nav:hover {
+  border-color: rgba(255,179,71,.45);
+}
+.ft-preview-hit-list {
+  max-height: 180px;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+}
+.ft-preview-hit-row {
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+.ft-preview-hit-row.active {
+  border-color: rgba(255,179,71,.52);
+  box-shadow: 0 0 0 1px rgba(255,179,71,.22) inset;
+  background: rgba(255,179,71,.08);
+}
+.ft-preview-hit-line {
+  font-size: 11px;
+  color: #8eb9ff;
+  margin-bottom: 4px;
+}
+.ft-preview-hit-snippet {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #d5dee6;
+  white-space: normal;
+}
 .preview-media {
   width: 100%;
   max-height: 100%;
@@ -2004,6 +2071,86 @@ function getHitContextList(item) {
   return Array.isArray(ctx) && ctx.length ? ctx : null;
 }
 
+function getSelectedResultItem() {
+  return state.results.find((entry) => entry.row == state.selectedRow) || null;
+}
+
+function normalizeHitContextRows(item) {
+  const ctx = getHitContextList(item);
+  if (!ctx) return [];
+  return ctx.map((b) => {
+    if (!b || typeof b !== "object") return null;
+    const lineNoRaw = b.line != null ? b.line : b.Line;
+    const lineNo = Number(lineNoRaw);
+    const sn = b.snippet != null ? b.snippet : b.Snippet;
+    return {
+      line: Number.isFinite(lineNo) && lineNo > 0 ? Math.floor(lineNo) : 0,
+      snippet: String(sn || "")
+    };
+  }).filter(Boolean);
+}
+
+function hitCountForItem(item, rows) {
+  const md = item && item.metadata && typeof item.metadata === "object" ? item.metadata : null;
+  const raw = md ? Number(md.hitCount) : 0;
+  if (Number.isFinite(raw) && raw > 0) return Math.floor(raw);
+  return rows.length;
+}
+
+function buildFulltextHitPreviewHtml(item, keyword) {
+  const rows = normalizeHitContextRows(item);
+  if (!rows.length) return "";
+  const count = hitCountForItem(item, rows);
+  const keyText = String(keyword || "").trim();
+  const rowsHtml = rows.map((r, i) => {
+    const sn = highlight(r.snippet, keyText).replace(/\n/g, "<br>");
+    const lineLabel = r.line > 0 ? ("行 " + r.line) : "命中片段";
+    return "<div class=\"ft-preview-hit-row\" data-hit-idx=\"" + i + "\">" +
+      "<div class=\"ft-preview-hit-line\">" + escapeHtml(lineLabel) + "</div>" +
+      "<div class=\"ft-preview-hit-snippet\">" + sn + "</div>" +
+      "</div>";
+  }).join("");
+  return "<div class=\"ft-preview-hit-panel\">" +
+    "<div class=\"ft-preview-hit-head\">" +
+      "<span><span class=\"k\">关键词:</span> <span class=\"v\">" + escapeHtml(keyText || "(空)") + "</span></span>" +
+      "<span><span class=\"k\">命中:</span> <span class=\"v\">" + count + "</span></span>" +
+      "<span><span class=\"k\">上下文:</span> <span class=\"v\">" + rows.length + "</span></span>" +
+      "<button type=\"button\" class=\"ft-preview-hit-nav\" data-hit-nav=\"prev\">上一个</button>" +
+      "<button type=\"button\" class=\"ft-preview-hit-nav\" data-hit-nav=\"next\">下一个</button>" +
+      "<span class=\"k\" id=\"ft-preview-hit-index\">1/" + rows.length + "</span>" +
+    "</div>" +
+    "<div class=\"ft-preview-hit-list\">" + rowsHtml + "</div>" +
+    "</div>";
+}
+
+function bindFulltextHitPreviewPanel(pane) {
+  if (!pane) return;
+  const rows = Array.from(pane.querySelectorAll(".ft-preview-hit-row"));
+  if (!rows.length) return;
+  const indexEl = pane.querySelector("#ft-preview-hit-index");
+  let idx = 0;
+  const activate = (next) => {
+    if (!rows.length) return;
+    idx = ((next % rows.length) + rows.length) % rows.length;
+    rows.forEach((r, i) => r.classList.toggle("active", i === idx));
+    const cur = rows[idx];
+    if (cur) cur.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    if (indexEl) indexEl.textContent = (idx + 1) + "/" + rows.length;
+  };
+  rows.forEach((r, i) => {
+    r.addEventListener("click", () => activate(i));
+  });
+  pane.querySelectorAll(".ft-preview-hit-nav").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const dir = btn.getAttribute("data-hit-nav");
+      activate(dir === "prev" ? idx - 1 : idx + 1);
+    });
+  });
+  activate(0);
+}
+
 function startFulltextProgressStream() {
   if (typeof EventSource === "undefined") {
     if (!fulltextPollTimer) {
@@ -2572,8 +2719,10 @@ function setPreviewLayoutMode(mode) {
 
 function renderFallbackTextPreview(item, pane, meta) {
   meta.textContent = [item.source || item.subtitle || "", item.type || "", item.time || ""].filter(Boolean).join(" · ");
-  pane.innerHTML = "";
-  pane.textContent = item.previewText || item.content || item.title || "";
+  const hitHtml = buildFulltextHitPreviewHtml(item, state.keyword);
+  const plain = escapeHtml(String(item.previewText || item.content || item.title || ""));
+  pane.innerHTML = (hitHtml || "") + "<pre class=\"preview-plain\">" + plain + "</pre>";
+  if (hitHtml) bindFulltextHitPreviewPanel(pane);
 }
 
 function scheduleRunPreview() {
@@ -3226,6 +3375,14 @@ function runPreviewForSelection() {
     "类型": item.type || "",
     "时间": item.time || ""
   });
+  const hitRows = normalizeHitContextRows(item);
+  const hitCount = hitCountForItem(item, hitRows);
+  if (hitCount > 0 || hitRows.length > 0) {
+    renderRichMeta({
+      "命中数": String(hitCount || hitRows.length),
+      "上下文": String(hitRows.length)
+    }, true);
+  }
 
   if (!path) {
     setPreviewLayoutMode("web");
@@ -3295,6 +3452,7 @@ function onWebPreviewTextResult(payload) {
   if (Number(payload.seq) !== state.previewSeq) return;
   const pane = document.getElementById("preview-web-scroll");
   if (!pane) return;
+  const item = getSelectedResultItem();
   const raw = payload.text != null ? String(payload.text) : "";
   const sizeBytes = Number(payload.sizeBytes) || 0;
   const truncatedServer = !!payload.truncated;
@@ -3313,7 +3471,9 @@ function onWebPreviewTextResult(payload) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+  const hitHtml = item ? buildFulltextHitPreviewHtml(item, state.keyword) : "";
   let html = "";
+  if (hitHtml) html += hitHtml;
   if (note) html += "<div class=\"preview-truncate-note\">" + note + (lineTrunc ? "（已限制为前 1000 行）" : "") + "</div>";
   if (lang === "plaintext") {
     html += "<pre class=\"preview-plain\">" + esc + "</pre>";
@@ -3321,6 +3481,7 @@ function onWebPreviewTextResult(payload) {
     html += "<pre><code class=\"language-" + lang + "\">" + esc + "</code></pre>";
   }
   pane.innerHTML = html;
+  if (hitHtml) bindFulltextHitPreviewPanel(pane);
   if (lang !== "plaintext") {
     const code = pane.querySelector("code");
     if (code && window.Prism) {
