@@ -96,7 +96,7 @@ func defaultFullTextRuntimeConfig(baseDir string) FullTextRuntimeConfig {
 		Workers:          resolveWorkerCount(),
 		IndexDir:         idxDir,
 		IncludeLargeText: parseBoolEnv("SEARCHCENTER_FT_INCLUDE_LARGE", false),
-		MaxFileSizeMB:    parseInt64Env("SEARCHCENTER_FT_MAX_FILE_MB", 2),
+		MaxFileSizeMB:    parseInt64Env("SEARCHCENTER_FT_MAX_FILE_MB", 8),
 		InitialDelaySec:  parseInt64Env("SEARCHCENTER_FT_INITIAL_DELAY_SEC", 1),
 		PauseMS:          parseInt64Env("SEARCHCENTER_FT_PAUSE_MS", -1),
 		ScanSpeed:        resolveScanSpeed(),
@@ -123,7 +123,7 @@ func normalizeFullTextRuntimeConfig(baseDir string, cfg FullTextRuntimeConfig) F
 	}
 
 	if cfg.MaxFileSizeMB <= 0 {
-		cfg.MaxFileSizeMB = 2
+		cfg.MaxFileSizeMB = 8
 	}
 	if cfg.InitialDelaySec <= 0 {
 		cfg.InitialDelaySec = 1
@@ -195,6 +195,7 @@ func applyFullTextRuntimeEnv(cfg FullTextRuntimeConfig) {
 	_ = os.Setenv("SEARCHCENTER_FT_INCLUDE_LARGE", strconv.FormatBool(cfg.IncludeLargeText))
 	_ = os.Setenv("SEARCHCENTER_FT_MAX_FILE_MB", strconv.FormatInt(cfg.MaxFileSizeMB, 10))
 	_ = os.Setenv("SEARCHCENTER_FT_SCAN_SPEED", cfg.ScanSpeed)
+	_ = os.Setenv("SEARCHCENTER_FT_USE_EVERYTHING", "false")
 	_ = os.Setenv("SEARCHCENTER_FT_INITIAL_DELAY_SEC", strconv.FormatInt(cfg.InitialDelaySec, 10))
 	if cfg.PauseMS >= 0 {
 		_ = os.Setenv("SEARCHCENTER_FT_PAUSE_MS", strconv.FormatInt(cfg.PauseMS, 10))

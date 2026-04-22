@@ -52,7 +52,7 @@ func fullTextFilterConfigPath(baseDir string) string {
 
 func defaultFullTextFilterConfig(baseDir string) fullTextFilterConfig {
 	return fullTextFilterConfig{
-		MaxScanSizeBytes: 2 * 1024 * 1024,
+		MaxScanSizeBytes: 8 * 1024 * 1024,
 		Presets: map[string][]string{
 			"Document":      {"pdf", "docx"},
 			"Spreadsheet":   {"xlsx"},
@@ -114,7 +114,7 @@ func readAndNormalizeFullTextFilterConfig(baseDir string) fullTextFilterResolved
 	}
 
 	if raw.MaxScanSizeBytes <= 0 {
-		raw.MaxScanSizeBytes = 2 * 1024 * 1024
+		raw.MaxScanSizeBytes = 8 * 1024 * 1024
 	}
 	if raw.IdleIndexAfterSec < 0 {
 		raw.IdleIndexAfterSec = 0
@@ -284,6 +284,7 @@ func fullTextRoots(baseDir string) []string {
 
 func discoverSearchRoots() []string {
 	out := make([]string, 0, 8)
+	includeRemovable := parseBoolEnv("SEARCHCENTER_FT_INCLUDE_REMOVABLE", false)
 	for drive := 'C'; drive <= 'Z'; drive++ {
 		root := string(drive) + ":\\"
 		ptr, err := windows.UTF16PtrFromString(root)
@@ -292,7 +293,14 @@ func discoverSearchRoots() []string {
 		}
 		dt, _, _ := procGetDriveTypeW.Call(uintptr(unsafe.Pointer(ptr)))
 		switch uint32(dt) {
-		case 2, 3:
+		case 3:
+			if st, err := os.Stat(root); err == nil && st.IsDir() {
+				out = append(out, root)
+			}
+		case 2:
+			if !includeRemovable {
+				continue
+			}
 			if st, err := os.Stat(root); err == nil && st.IsDir() {
 				out = append(out, root)
 			}

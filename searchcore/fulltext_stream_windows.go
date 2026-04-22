@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type fullTextStreamEvent struct {
@@ -79,17 +80,39 @@ func handleFullTextSearchStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	emit(fullTextStreamEvent{Type: "phase", Phase: "filename"})
-	if ev, err := everythingQuery(baseDir, q, limit*2, false); err == nil {
+	filenameCh := make(chan []map[string]any, 1)
+	go func() {
+		ev, err := everythingQuery(baseDir, q, limit*2, false)
+		if err != nil {
+			filenameCh <- nil
+			return
+		}
+		filenameCh <- ev
+	}()
+	select {
+	case <-r.Context().Done():
+		emit(fullTextStreamEvent{Type: "done", Phase: "done", Done: true})
+		return
+	case ev := <-filenameCh:
 		for _, it := range ev {
 			if !sendItem("filename", it) {
 				break
 			}
 		}
+	case <-time.After(10 * time.Millisecond):
+		emit(fullTextStreamEvent{Type: "warn", Err: "filename phase budget exceeded (10ms), fallback to content phase"})
 	}
 
 	emit(fullTextStreamEvent{Type: "phase", Phase: "content"})
+	// Debounce fulltext start to avoid launching rg on every keystroke burst.
+	select {
+	case <-r.Context().Done():
+		emit(fullTextStreamEvent{Type: "done", Phase: "done", Done: true})
+		return
+	case <-time.After(50 * time.Millisecond):
+	}
 	_ = StartIndexer(baseDir)
-	if err := streamFullTextWithRg(baseDir, q, limit, func(it map[string]any) bool {
+	if err := streamFullTextWithRgContext(r.Context(), baseDir, q, limit, func(it map[string]any) bool {
 		return sendItem("content-hot", it)
 	}); err != nil {
 		emit(fullTextStreamEvent{Type: "warn", Err: err.Error()})

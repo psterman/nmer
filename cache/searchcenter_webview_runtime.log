@@ -1,0 +1,37 @@
+﻿[2026-04-22 08:24:05] SearchCoreError: SearchCenterCore 请求失败 HTTP 0
+[2026-04-22 08:24:25] SearchCoreError: SearchCenterCore 请求失败 HTTP 0
+[2026-04-22 08:26:35] SearchCore HTTP exception: (0x80072EE2) 
+操作超时
+
+Source:	WinHttp.WinHttpRequest
+[2026-04-22 08:26:35] SearchCore HTTP 0, retry once
+[2026-04-22 08:26:42] SearchCore HTTP exception: (0x80072EE2) 
+操作超时
+
+Source:	WinHttp.WinHttpRequest
+[2026-04-22 08:26:42] SearchCoreError: SearchCenterCore 瞬时不可用（HTTP 0），已保留当前结果
+[2026-04-22 08:32:11] SearchCore HTTP exception: (0x80072EE2) 
+操作超时
+
+Source:	WinHttp.WinHttpRequest
+[2026-04-22 08:32:11] SearchCore HTTP 0, retry once
+[2026-04-22 08:32:19] SearchCore HTTP exception: (0x80072EE2) 
+操作超时
+
+Source:	WinHttp.WinHttpRequest
+[2026-04-22 08:32:19] SearchCoreError: SearchCenterCore 瞬时不可用（HTTP 0），已保留当前结果
+[2026-04-22 08:33:07] SearchCore HTTP exception: (0x80072EE2) 
+操作超时
+
+Source:	WinHttp.WinHttpRequest
+[2026-04-22 08:33:07] SearchCore HTTP 0, retry once
+[2026-04-22 08:33:15] SearchCore HTTP exception: (0x80072EE2) 
+操作超时
+
+Source:	WinHttp.WinHttpRequest
+[2026-04-22 08:33:15] SearchCoreError: SearchCenterCore 瞬时不可用（HTTP 0），已保留当前结果
+[2026-04-22 09:51:29] SearchCore HTTP exception: (0x80072EE2) 
+操作超时
+
+Source:	WinHttp.WinHttpRequest
+[2026-04-22 09:51:29] SearchCore HTTP 0, retry once

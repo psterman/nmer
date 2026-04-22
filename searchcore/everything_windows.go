@@ -25,6 +25,12 @@ const (
 	fileAttrDirectory = 0x10
 )
 
+type everythingFileEntry struct {
+	Path    string
+	Size    int64
+	ModNano int64
+}
+
 func everythingDLLPath(baseDir string) string {
 	return filepath.Join(baseDir, "lib", "everything64.dll")
 }
@@ -295,6 +301,145 @@ func splitPathParts(p string) (dir, base, ext string) {
 	dir = filepath.Dir(p)
 	ext = filepath.Ext(base)
 	return
+}
+
+func everythingListFilesForIndex(baseDir string, roots []string, whitelistExt map[string]struct{}) ([]everythingFileEntry, error) {
+	if len(roots) == 0 {
+		return nil, fmt.Errorf("no roots configured")
+	}
+	if findEverythingPID() == 0 {
+		return nil, fmt.Errorf("everything process is not running")
+	}
+
+	dllPath := everythingDLLPath(baseDir)
+	if _, err := os.Stat(dllPath); err != nil {
+		return nil, fmt.Errorf("missing everything dll: %w", err)
+	}
+	dll, err := syscall.LoadDLL(dllPath)
+	if err != nil {
+		return nil, fmt.Errorf("load everything dll failed: %w", err)
+	}
+	defer dll.Release()
+
+	getMajor := dll.MustFindProc("Everything_GetMajorVersion")
+	maj, _, _ := getMajor.Call()
+	if maj == 0 {
+		return nil, fmt.Errorf("everything IPC unavailable (permission mismatch or sdk disabled)")
+	}
+
+	cleanup := dll.MustFindProc("Everything_CleanUp")
+	setSearch := dll.MustFindProc("Everything_SetSearchW")
+	setMax := dll.MustFindProc("Everything_SetMax")
+	setReq := dll.MustFindProc("Everything_SetRequestFlags")
+	query := dll.MustFindProc("Everything_QueryW")
+	getNum := dll.MustFindProc("Everything_GetNumResults")
+	getAttr := dll.MustFindProc("Everything_GetResultAttributes")
+	getPath := dll.MustFindProc("Everything_GetResultFullPathNameW")
+	getSize := dll.MustFindProc("Everything_GetResultSize")
+	getDate := dll.MustFindProc("Everything_GetResultDateModified")
+	getLastErr := dll.MustFindProc("Everything_GetLastError")
+	setMatchPath, _ := dll.FindProc("Everything_SetMatchPath")
+
+	req := evReqPathFileName | evReqSize | evReqDateModified | evReqAttributes
+	dedup := make(map[string]struct{}, 4096)
+	out := make([]everythingFileEntry, 0, 4096)
+	buf := make([]uint16, 4096)
+	extFilter := normalizeExtFilterMap(whitelistExt)
+
+	for _, root := range roots {
+		root = filepath.Clean(strings.TrimSpace(root))
+		if root == "" {
+			continue
+		}
+		_, _, _ = cleanup.Call()
+		searchExpr := root
+		searchWide, err := syscall.UTF16PtrFromString(searchExpr)
+		if err != nil {
+			continue
+		}
+		_, _, _ = setSearch.Call(uintptr(unsafe.Pointer(searchWide)))
+		if setMatchPath != nil {
+			_, _, _ = setMatchPath.Call(uintptr(1))
+		}
+		_, _, _ = setMax.Call(uintptr(^uint32(0)))
+		_, _, _ = setReq.Call(uintptr(req))
+		ok, _, _ := query.Call(uintptr(1))
+		if ok == 0 {
+			code, _, _ := getLastErr.Call()
+			return nil, fmt.Errorf("everything query failed, lastError=%d", code)
+		}
+		num, _, _ := getNum.Call()
+		count := int(num)
+		for i := 0; i < count; i++ {
+			attr, _, _ := getAttr.Call(uintptr(i))
+			if (attr & fileAttrDirectory) != 0 {
+				continue
+			}
+			r1, _, _ := getPath.Call(uintptr(i), uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+			if r1 == 0 {
+				continue
+			}
+			nChars := int(r1)
+			if nChars > len(buf) {
+				nChars = len(buf)
+			}
+			p := string(utf16.Decode(buf[:nChars]))
+			if p == "" || !pathHasRootPrefix(p, root) {
+				continue
+			}
+			if len(extFilter) > 0 {
+				ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(p)), ".")
+				if _, ok := extFilter[ext]; !ok {
+					continue
+				}
+			}
+			key := normalizePathKey(p)
+			if _, seen := dedup[key]; seen {
+				continue
+			}
+			dedup[key] = struct{}{}
+			sz, _, _ := getSize.Call(uintptr(i))
+			ft, _, _ := getDate.Call(uintptr(i))
+			out = append(out, everythingFileEntry{
+				Path:    p,
+				Size:    int64(sz),
+				ModNano: fileTimeToUnixNano(int64(ft)),
+			})
+		}
+	}
+
+	return out, nil
+}
+
+func normalizeExtFilterMap(in map[string]struct{}) map[string]struct{} {
+	out := make(map[string]struct{}, len(in))
+	for ext := range in {
+		e := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(ext)), ".")
+		if e != "" {
+			out[e] = struct{}{}
+		}
+	}
+	return out
+}
+
+func pathHasRootPrefix(path, root string) bool {
+	p := normalizePathKey(path)
+	r := normalizePathKey(root)
+	if p == r {
+		return true
+	}
+	return strings.HasPrefix(p+"\\", r+"\\")
+}
+
+func fileTimeToUnixNano(ft int64) int64 {
+	if ft <= 0 {
+		return 0
+	}
+	const epochDiff = 116444736000000000
+	if ft < epochDiff {
+		return 0
+	}
+	return (ft - epochDiff) * 100
 }
 
 func formatSize(sz int64, isDir bool) string {

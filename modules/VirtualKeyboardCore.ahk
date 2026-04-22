@@ -2593,6 +2593,8 @@ _VK_BindingLookupCandidates(physKey) {
 ; 供 VirtualKeyboard_HandleKey、VK_NoteLastChFromCapsLockKey 共用
 VK_LookupBindingCmdForPhys(physKey) {
     global g_Bindings
+    if !IsSet(g_Bindings) || !(g_Bindings is Map)
+        return ""
     for cand in _VK_BindingLookupCandidates(physKey) {
         if g_Bindings.Has(cand)
             return g_Bindings[cand]
@@ -2638,6 +2640,8 @@ VK_SearchCenterResolveCapsChordCmd(physKey) {
 ; 嵌入 CursorHelper：若当前物理键在 g_Bindings 中有命令则执行并返回 true（截断宿主默认）
 VirtualKeyboard_HandleKey(physKey) {
     global g_VK_Embedded
+    if !IsSet(g_VK_Embedded)
+        g_VK_Embedded := false
     if !g_VK_Embedded || physKey = ""
         return false
     cmdId := VK_LookupBindingCmdForPhys(physKey)

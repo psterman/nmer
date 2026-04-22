@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/blugelabs/bluge"
-	"github.com/blugelabs/bluge/analysis/lang/cjk"
 	blugeindex "github.com/blugelabs/bluge/index"
 	blugeSearch "github.com/blugelabs/bluge/search"
 	"github.com/fsnotify/fsnotify"
@@ -31,12 +30,16 @@ import (
 const (
 	defaultInitialScanDelay   = 1 * time.Second
 	defaultPerFilePause       = 5 * time.Millisecond
-	defaultMaxTextFileBytes   = int64(2 * 1024 * 1024)
+	defaultMaxTextFileBytes   = int64(8 * 1024 * 1024)
 	defaultHardReadLimit      = int64(32 * 1024 * 1024)
 	defaultMinFreeDiskBytes   = int64(500 * 1024 * 1024)
 	defaultQueueSize          = 16384
 	defaultBatchMaxDocs       = 256
 	defaultBatchFlushInterval = time.Second
+	defaultEverythingTimeout  = 1 * time.Second
+	defaultMFTTimeout         = 10 * time.Second
+	defaultRootWalkTimeout    = 90 * time.Second
+	defaultReadDirTimeout     = 5 * time.Second
 )
 
 var (
@@ -100,6 +103,7 @@ type fullTextConfig struct {
 	IdleIndexAfter     time.Duration
 	BatchMaxDocs       int
 	BatchFlushInterval time.Duration
+	UseEverything      bool
 	UseMFT             bool
 	UseUSN             bool
 }
@@ -219,8 +223,8 @@ func GetStatus() FullTextStatus {
 			InitialScanDone:    false,
 			Progress:           0,
 			ProgressText:       "0.0%",
-			ProgressDetail:     "未开始扫描",
-			EfficiencyText:     "0 文件/秒",
+			ProgressDetail:     "not started",
+			EfficiencyText:     "0 files/s",
 			ScanPhase:          "idle",
 			LastUpdatedRFC3339: time.Now().Format(time.RFC3339),
 		}
@@ -272,34 +276,78 @@ func buildEngineLights(st FullTextStatus) []string {
 }
 
 func searchFullTextWithBackend(baseDir, keyword string, maxResults int) ([]map[string]any, error) {
+	return searchFullTextWithBackendContext(context.Background(), baseDir, keyword, maxResults)
+}
+
+func searchFullTextWithBackendContext(ctx context.Context, baseDir, keyword string, maxResults int) ([]map[string]any, error) {
 	kw := strings.TrimSpace(keyword)
 	if kw == "" || maxResults <= 0 {
 		return []map[string]any{}, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if maxResults > 400 {
+		maxResults = 400
 	}
 	searchTerms := extractSearchContentTerms(kw)
 	hotKeyword := pickPrimarySearchTerm(searchTerms)
 
 	_ = StartIndexer(baseDir)
-
-	coldItems, coldErr := Search(kw, maxResults*2)
 	useHot := shouldUseHotPathForQuery(baseDir)
 	st := GetStatus()
-	if !useHot {
-		if !st.Ready || len(coldItems) < max(3, maxResults/3) {
-			useHot = true
-		}
+	if !st.Ready {
+		useHot = true
 	}
 
-	hotItems := []map[string]any{}
-	var hotErr error
-	if useHot && hotKeyword != "" {
-		hotItems, hotErr = searchFullTextWithRg(baseDir, hotKeyword, maxResults*2)
+	type ftResult struct {
+		items []map[string]any
+		err   error
+	}
+	coldCh := make(chan ftResult, 1)
+	go func() {
+		items, err := Search(kw, maxResults*2)
+		coldCh <- ftResult{items: items, err: err}
+	}()
+
+	hotCh := make(chan ftResult, 1)
+	hotEnabled := useHot && hotKeyword != ""
+	if hotEnabled {
+		go func() {
+			items, err := searchFullTextWithRgContext(ctx, baseDir, hotKeyword, maxResults*2)
+			hotCh <- ftResult{items: items, err: err}
+		}()
+	}
+
+	var (
+		coldItems []map[string]any
+		coldErr   error
+		hotItems  []map[string]any
+		hotErr    error
+		gotCold   bool
+		gotHot    bool
+	)
+	for !(gotCold && (gotHot || !hotEnabled)) {
+		select {
+		case <-ctx.Done():
+			gotCold = true
+			gotHot = true
+		case r := <-coldCh:
+			coldItems, coldErr = r.items, r.err
+			gotCold = true
+		case r := <-hotCh:
+			hotItems, hotErr = r.items, r.err
+			gotHot = true
+		}
 	}
 
 	merged := mergeAndRankFullTextItems(kw, maxResults, hotItems, coldItems)
 	merged = applyStructuredFiltersToItems(merged, kw)
 	if len(merged) > 0 {
 		return merged, nil
+	}
+	if ctx.Err() != nil {
+		return []map[string]any{}, nil
 	}
 	if coldErr == nil {
 		return []map[string]any{}, nil
@@ -317,14 +365,7 @@ func searchFullTextWithBackend(baseDir, keyword string, maxResults int) ([]map[s
 }
 
 func shouldUseHotPathForQuery(baseDir string) bool {
-	roots := fullTextRoots(baseDir)
-	if len(roots) != 1 {
-		return false
-	}
-	r := strings.TrimSpace(roots[0])
-	if len(r) == 3 && r[1] == ':' && (r[2] == '\\' || r[2] == '/') {
-		return false
-	}
+	_ = baseDir
 	return true
 }
 
@@ -371,8 +412,8 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 			InitialScanDone:    false,
 			Progress:           0,
 			ProgressText:       "0.0%",
-			ProgressDetail:     "等待开始扫描",
-			EfficiencyText:     "0 文件/秒",
+			ProgressDetail:     "waiting to scan",
+			EfficiencyText:     "0 files/s",
 			ScanPhase:          "startup",
 			IndexingFile:       "",
 			IndexedFiles:       0,
@@ -392,7 +433,7 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 	}
 
 	if cfg.NeedUserIndexDir {
-		idx.appendAlert("建议设置 SEARCHCENTER_FT_INDEX_DIR 到独立目录，避免默认路径占用系统盘")
+		idx.appendAlert("set SEARCHCENTER_FT_INDEX_DIR to a dedicated directory for better stability")
 	}
 
 	if known, kerr := idx.meta.LoadAll(); kerr == nil {
@@ -528,7 +569,7 @@ func (b *blugeIndexer) StartIndexer() error {
 	var startErr error
 	b.startOnce.Do(func() {
 		if err := setProcessIdlePriority(); err != nil {
-			b.appendAlert("无法设置 IDLE_PRIORITY_CLASS，索引仍会继续")
+			b.appendAlert("failed to set IDLE_PRIORITY_CLASS; continuing indexing")
 		}
 
 		b.mu.Lock()
@@ -678,7 +719,7 @@ func (b *blugeIndexer) initialScanLoop() {
 	for _, root := range b.cfg.Roots {
 		b.mu.Lock()
 		b.status.ScanPhase = "walking"
-		b.status.IndexingFile = "扫描目录: " + root
+		b.status.IndexingFile = "Walking root: " + root
 		b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 		b.mu.Unlock()
 		b.walkRoot(root, true)
@@ -697,15 +738,34 @@ func (b *blugeIndexer) walkRoot(root string, initial bool) {
 		return
 	}
 
+	if initial && b.cfg.UseEverything {
+		b.mu.Lock()
+		b.status.ScanPhase = "walking"
+		b.status.IndexingFile = "Everything enumerate: " + cleanRoot
+		b.mu.Unlock()
+
+		emitted, err := b.walkRootWithEverythingWithTimeout(cleanRoot, initial, defaultEverythingTimeout)
+		if err == nil && emitted >= 2000 {
+			return
+		}
+		if err == nil && emitted > 0 && emitted < 2000 {
+			b.appendAlert(fmt.Sprintf("Everything enumerate too few (%d), fallback to MFT/WalkDir: %s", emitted, cleanRoot))
+		}
+		if err != nil {
+			b.appendAlert(fmt.Sprintf("Everything failed, fallback to MFT/WalkDir: %v", err))
+		}
+	}
+
 	if b.cfg.UseMFT && isVolumeRootPath(cleanRoot) {
 		b.mu.Lock()
 		b.status.ScanPhase = "walking"
-		b.status.IndexingFile = "MFT 枚举: " + cleanRoot
+		b.status.IndexingFile = "MFT enumerate: " + cleanRoot
 		b.mu.Unlock()
 
-		emitted, err := walkRootWithMFT(b.ctx, cleanRoot, b.frnToAbs, func(abs string) error {
+		mftCtx, cancelMFT := context.WithTimeout(b.ctx, defaultMFTTimeout)
+		emitted, err := walkRootWithMFT(mftCtx, cleanRoot, b.frnToAbs, func(abs string) error {
 			select {
-			case <-b.ctx.Done():
+			case <-mftCtx.Done():
 				return context.Canceled
 			default:
 			}
@@ -722,12 +782,13 @@ func (b *blugeIndexer) walkRoot(root string, initial bool) {
 			b.enqueueTask(indexTask{Path: abs, Initial: initial})
 			return nil
 		})
+		cancelMFT()
 		if err != nil || emitted == 0 {
 			b.recordError(err)
 			if err != nil {
-				b.appendAlert(fmt.Sprintf("MFT 枚举失败，回退 WalkDir: %v", err))
+				b.appendAlert(fmt.Sprintf("MFT failed, fallback to WalkDir: %v", err))
 			} else {
-				b.appendAlert(fmt.Sprintf("MFT 枚举返回 0 文件，回退 WalkDir: %s", cleanRoot))
+				b.appendAlert(fmt.Sprintf("MFT returned 0 files, fallback to WalkDir: %s", cleanRoot))
 			}
 			b.walkRootDirConcurrent(cleanRoot, initial)
 		} else {
@@ -739,21 +800,98 @@ func (b *blugeIndexer) walkRoot(root string, initial bool) {
 	b.walkRootDirConcurrent(cleanRoot, initial)
 }
 
+func (b *blugeIndexer) walkRootWithEverythingWithTimeout(cleanRoot string, initial bool, timeout time.Duration) (int, error) {
+	if timeout <= 0 {
+		timeout = defaultEverythingTimeout
+	}
+	type result struct {
+		emitted int
+		err     error
+	}
+	done := make(chan result, 1)
+	go func() {
+		emitted, err := b.walkRootWithEverything(cleanRoot, initial)
+		done <- result{emitted: emitted, err: err}
+	}()
+
+	select {
+	case <-b.ctx.Done():
+		return 0, b.ctx.Err()
+	case r := <-done:
+		return r.emitted, r.err
+	case <-time.After(timeout):
+		return 0, fmt.Errorf("everything enumerate timeout after %s", timeout)
+	}
+}
+
+func (b *blugeIndexer) walkRootWithEverything(cleanRoot string, initial bool) (int, error) {
+	extWhitelist := b.everythingExtWhitelist()
+	files, err := everythingListFilesForIndex(b.cfg.BaseDir, []string{cleanRoot}, extWhitelist)
+	if err != nil {
+		return 0, err
+	}
+	emitted := 0
+	for _, f := range files {
+		select {
+		case <-b.ctx.Done():
+			return emitted, context.Canceled
+		default:
+		}
+		if b.shouldSkipFileByName(f.Path) {
+			continue
+		}
+		if initial {
+			b.mu.Lock()
+			b.initialTaskTotal++
+			b.status.DiscoveredFiles = b.initialTaskTotal
+			b.refreshProgressLocked()
+			b.mu.Unlock()
+		}
+		b.enqueueTask(indexTask{Path: f.Path, Initial: initial})
+		emitted++
+	}
+	return emitted, nil
+}
+
+func (b *blugeIndexer) everythingExtWhitelist() map[string]struct{} {
+	out := make(map[string]struct{}, len(b.cfg.FilterConfig.ColdExts)+len(b.cfg.FilterConfig.HotExts))
+	for ext := range b.cfg.FilterConfig.ColdExts {
+		out[normalizeExt(ext)] = struct{}{}
+	}
+	for ext := range b.cfg.FilterConfig.HotExts {
+		out[normalizeExt(ext)] = struct{}{}
+	}
+	delete(out, "")
+	return out
+}
+
 func (b *blugeIndexer) walkRootDirConcurrent(cleanRoot string, initial bool) {
+	walkCtx := b.ctx
+	cancel := func() {}
+	if initial {
+		var c context.CancelFunc
+		walkCtx, c = context.WithTimeout(b.ctx, defaultRootWalkTimeout)
+		cancel = c
+	}
+	defer cancel()
+
 	sem := make(chan struct{}, max(4, runtime.NumCPU()))
 	var wg sync.WaitGroup
 
 	var walkDir func(string)
 	walkDir = func(dir string) {
 		b.addWatch(dir)
-		entries, err := os.ReadDir(dir)
+		entries, err := readDirWithTimeout(dir, defaultReadDirTimeout)
 		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				b.appendAlert(fmt.Sprintf("read dir timeout: %s", dir))
+			}
 			return
 		}
 		for _, ent := range entries {
 			path := filepath.Join(dir, ent.Name())
 			select {
-			case <-b.ctx.Done():
+			case <-walkCtx.Done():
 				return
 			default:
 			}
@@ -764,7 +902,7 @@ func (b *blugeIndexer) walkRootDirConcurrent(cleanRoot string, initial bool) {
 				if initial && normalizePathKey(path) == normalizePathKey(cleanRoot) {
 					b.mu.Lock()
 					b.status.ScanPhase = "walking"
-					b.status.IndexingFile = "扫描目录: " + cleanRoot
+					b.status.IndexingFile = "Walking root: " + cleanRoot
 					b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 					b.mu.Unlock()
 				}
@@ -793,7 +931,7 @@ func (b *blugeIndexer) walkRootDirConcurrent(cleanRoot string, initial bool) {
 
 	b.mu.Lock()
 	b.status.ScanPhase = "walking"
-	b.status.IndexingFile = "扫描目录: " + cleanRoot
+	b.status.IndexingFile = "Walking root: " + cleanRoot
 	b.mu.Unlock()
 
 	wg.Add(1)
@@ -804,6 +942,31 @@ func (b *blugeIndexer) walkRootDirConcurrent(cleanRoot string, initial bool) {
 		walkDir(cleanRoot)
 	}()
 	wg.Wait()
+	if initial && errors.Is(walkCtx.Err(), context.DeadlineExceeded) {
+		b.appendAlert(fmt.Sprintf("walk timeout on %s after %s, continue with partial results", cleanRoot, defaultRootWalkTimeout))
+	}
+}
+
+func readDirWithTimeout(dir string, timeout time.Duration) ([]os.DirEntry, error) {
+	type result struct {
+		entries []os.DirEntry
+		err     error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		entries, err := os.ReadDir(dir)
+		ch <- result{entries: entries, err: err}
+	}()
+	if timeout <= 0 {
+		r := <-ch
+		return r.entries, r.err
+	}
+	select {
+	case r := <-ch:
+		return r.entries, r.err
+	case <-time.After(timeout):
+		return nil, context.DeadlineExceeded
+	}
 }
 
 func (b *blugeIndexer) workerLoop(workerID int) {
@@ -864,11 +1027,11 @@ func (b *blugeIndexer) waitInitialIdleOnce() bool {
 		}
 		b.mu.Lock()
 		if !b.idleWaitNotified {
-			b.appendAlertLocked("初始冷索引等待用户空闲 3 分钟后继续")
+			b.appendAlertLocked("initial cold indexing waits for user idle state")
 			b.idleWaitNotified = true
 		}
 		b.status.ScanPhase = "idle_wait"
-		b.status.IndexingFile = "等待空闲后批量索引"
+		b.status.IndexingFile = "waiting for idle state before indexing"
 		b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 		b.mu.Unlock()
 		select {
@@ -883,7 +1046,7 @@ func (b *blugeIndexer) waitForWritableDisk() bool {
 	for {
 		freeBytes, err := freeDiskBytesAtPath(b.cfg.IndexDir)
 		if err != nil {
-			b.appendAlert("磁盘可用空间检测失败，继续执行索引")
+			b.appendAlert("disk free space check failed; continue indexing")
 			return true
 		}
 		if int64(freeBytes) >= b.cfg.MinFreeDiskBytes {
@@ -914,9 +1077,9 @@ func (b *blugeIndexer) setLowDisk(freeBytes uint64) {
 	b.status.LowDisk = true
 	b.status.WritesPaused = true
 	b.status.FreeDiskMB = int64(freeBytes / (1024 * 1024))
-	b.status.LastError = "磁盘可用空间不足 500MB，已暂停索引写入"
+	b.status.LastError = "free disk space below 500MB; indexing writes paused"
 	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
-	b.appendAlertLocked("磁盘可用空间不足 500MB，索引写入已自动暂停")
+	b.appendAlertLocked("free disk space below 500MB; paused indexing writes")
 }
 
 func (b *blugeIndexer) watchLoop() {
@@ -1055,7 +1218,7 @@ func (b *blugeIndexer) enqueueTask(task indexTask) {
 	b.mu.Unlock()
 
 	if task.Initial {
-		// 初始扫描任务不能丢弃，否则 total 会增加但 done 不增加，进度会长期卡在 99.x%
+		// Initial-scan tasks cannot be dropped, otherwise total grows while done does not.
 		select {
 		case b.tasks <- task:
 		case <-b.ctx.Done():
@@ -1065,7 +1228,7 @@ func (b *blugeIndexer) enqueueTask(task indexTask) {
 		select {
 		case b.tasks <- task:
 		default:
-			b.appendAlert("索引任务队列已满，已丢弃部分事件")
+			b.appendAlert("index task queue is full; dropped partial events")
 			return
 		}
 	}
@@ -1127,13 +1290,13 @@ func (b *blugeIndexer) indexFile(path string) error {
 	doc := bluge.NewDocument(id).
 		AddField(bluge.NewKeywordField("path", path).StoreValue()).
 		AddField(bluge.NewKeywordField("path_lower", strings.ToLower(path)).StoreValue()).
-		AddField(bluge.NewTextField("title", baseName).WithAnalyzer(cjk.Analyzer()).SearchTermPositions()).
-		AddField(bluge.NewTextField("content", content).WithAnalyzer(cjk.Analyzer()).SearchTermPositions()).
+		AddField(bluge.NewTextField("title", baseName).WithAnalyzer(fullTextAnalyzer()).SearchTermPositions()).
+		AddField(bluge.NewTextField("content", content).WithAnalyzer(fullTextAnalyzer()).SearchTermPositions()).
 		AddField(bluge.NewKeywordField("ext", ext).StoreValue().Sortable().Aggregatable()).
 		AddField(bluge.NewDateTimeField("mtime", mod).StoreValue().Sortable()).
 		AddField(bluge.NewNumericField("size", float64(st.Size())).StoreValue().Sortable()).
 		AddField(bluge.NewStoredOnlyField("snippet", []byte(snippet))).
-		AddField(bluge.NewTextField("path_text", strings.ToLower(path)).WithAnalyzer(cjk.Analyzer()))
+		AddField(bluge.NewTextField("path_text", strings.ToLower(path)).WithAnalyzer(fullTextAnalyzer()))
 
 	if err := b.enqueueBatchUpdate(id, doc); err != nil {
 		return fmt.Errorf("bluge update failed (%s): %w", path, err)
@@ -1253,7 +1416,7 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 		hitCount = 1
 	}
 	if hitCount > 0 {
-		subParts = append(subParts, fmt.Sprintf("命中 %d 处", hitCount))
+		subParts = append(subParts, fmt.Sprintf("hits %d", hitCount))
 	}
 	meta := map[string]any{
 		"FilePath":       pathVal,
@@ -1276,13 +1439,13 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 	return map[string]any{
 		"originalDataType": "fulltext",
 		"DataType":         "file",
-		"DataTypeName":     "全文搜索",
+		"DataTypeName":     "FullText",
 		"ID":               pathVal,
 		"Title":            fileName,
-		"SubTitle":         strings.Join(subParts, " · "),
+		"SubTitle":         strings.Join(subParts, " 路 "),
 		"Content":          pathVal,
 		"Preview":          snippetVal,
-		"Source":           "文件",
+		"Source":           "File",
 		"Metadata":         meta,
 		"Action":           "open_file",
 		"ActionParams":     map[string]any{"FilePath": pathVal},
@@ -1375,16 +1538,9 @@ func (b *blugeIndexer) shouldSkipFileByName(path string) bool {
 }
 
 func (b *blugeIndexer) shouldIndexByColdPath(path string, size int64) bool {
-	ext := pathExtLower(path)
-	if _, ok := b.cfg.FilterConfig.ColdExts[ext]; ok {
-		return true
-	}
-	if b.cfg.IncludeLargeText && size > b.cfg.FilterConfig.MaxScanSizeBytes {
-		if _, ok := b.cfg.FilterConfig.HotExts[ext]; ok {
-			return true
-		}
-	}
-	return false
+	_ = path
+	_ = size
+	return true
 }
 
 func (b *blugeIndexer) isIndexDirPath(path string) bool {
@@ -1452,13 +1608,17 @@ func (b *blugeIndexer) refreshProgressLocked() {
 	done := b.initialTaskDone
 	b.status.DiscoveredFiles = total
 	b.status.ProcessedFiles = done
+	if !b.initialWalkDone && total > 0 && done >= total && len(b.tasks) == 0 && b.status.IndexingFile == "" {
+		// Failsafe: if all discovered tasks are drained, promote to "walk done" even if a scanner goroutine stalls.
+		b.initialWalkDone = true
+	}
 	if b.status.InitialScanDone {
 		b.status.Progress = 100
 		b.status.ProgressText = "100.0%"
 		b.status.FilesPerSec = b.computeFilesPerSecLocked(done)
 		b.status.ETASeconds = 0
-		b.status.ProgressDetail = fmt.Sprintf("已处理 %d / %d，待处理 %d，索引根 %d", done, total, len(b.tasks), len(b.cfg.Roots))
-		b.status.EfficiencyText = fmt.Sprintf("%.2f 文件/秒", b.status.FilesPerSec)
+		b.status.ProgressDetail = fmt.Sprintf("Processed %d / %d, pending %d, roots %d", done, total, len(b.tasks), len(b.cfg.Roots))
+		b.status.EfficiencyText = fmt.Sprintf("%.2f files/s", b.status.FilesPerSec)
 		return
 	}
 	if total <= 0 {
@@ -1473,8 +1633,8 @@ func (b *blugeIndexer) refreshProgressLocked() {
 		b.status.ProgressText = fmt.Sprintf("%.1f%%", b.status.Progress)
 		b.status.FilesPerSec = b.computeFilesPerSecLocked(done)
 		b.status.ETASeconds = 0
-		b.status.ProgressDetail = fmt.Sprintf("已发现 %d，待处理 %d，索引根 %d", total, len(b.tasks), len(b.cfg.Roots))
-		b.status.EfficiencyText = fmt.Sprintf("%.2f 文件/秒", b.status.FilesPerSec)
+		b.status.ProgressDetail = fmt.Sprintf("Discovered %d, pending %d, roots %d", total, len(b.tasks), len(b.cfg.Roots))
+		b.status.EfficiencyText = fmt.Sprintf("%.2f files/s", b.status.FilesPerSec)
 		return
 	}
 	p := (float64(done) * 100.0) / float64(total)
@@ -1506,12 +1666,12 @@ func (b *blugeIndexer) refreshProgressLocked() {
 	} else {
 		b.status.ETASeconds = 0
 	}
-	b.status.ProgressDetail = fmt.Sprintf("已处理 %d / %d，待处理 %d，索引根 %d", done, total, len(b.tasks), len(b.cfg.Roots))
+	b.status.ProgressDetail = fmt.Sprintf("Processed %d / %d, pending %d, roots %d", done, total, len(b.tasks), len(b.cfg.Roots))
 	etaText := formatETASeconds(b.status.ETASeconds)
 	if etaText != "" {
-		b.status.EfficiencyText = fmt.Sprintf("%.2f 文件/秒，预计剩余 %s", fps, etaText)
+		b.status.EfficiencyText = fmt.Sprintf("%.2f files/s, eta %s", fps, etaText)
 	} else {
-		b.status.EfficiencyText = fmt.Sprintf("%.2f 文件/秒", fps)
+		b.status.EfficiencyText = fmt.Sprintf("%.2f files/s", fps)
 	}
 }
 
@@ -1547,7 +1707,7 @@ func loadFullTextConfig(baseDir string) fullTextConfig {
 	scanSpeed := resolveScanSpeed()
 	perFilePause := resolvePerFilePause(scanSpeed)
 	includeLarge := parseBoolEnv("SEARCHCENTER_FT_INCLUDE_LARGE", false)
-	maxFileSize := parseInt64Env("SEARCHCENTER_FT_MAX_FILE_MB", 2) * 1024 * 1024
+	maxFileSize := parseInt64Env("SEARCHCENTER_FT_MAX_FILE_MB", 8) * 1024 * 1024
 	if maxFileSize <= 0 {
 		maxFileSize = defaultMaxTextFileBytes
 	}
@@ -1613,6 +1773,7 @@ func loadFullTextConfig(baseDir string) fullTextConfig {
 		IdleIndexAfter:     time.Duration(filterCfg.IdleIndexAfter) * time.Second,
 		BatchMaxDocs:       batchMax,
 		BatchFlushInterval: batchInterval,
+		UseEverything:      parseBoolEnv("SEARCHCENTER_FT_USE_EVERYTHING", false),
 		UseMFT:             parseBoolEnv("SEARCHCENTER_FT_USE_MFT", true),
 		UseUSN:             parseBoolEnv("SEARCHCENTER_FT_USE_USN", true),
 	}

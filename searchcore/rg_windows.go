@@ -1,4 +1,4 @@
-//go:build windows
+﻿//go:build windows
 
 package main
 
@@ -9,18 +9,23 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
 const (
-	rgDefaultTimeout  = 4 * time.Second
-	rgScannerMaxBytes = 4 * 1024 * 1024
+	rgDefaultTimeout  = 4500 * time.Millisecond
+	rgScannerMaxBytes = 1 * 1024 * 1024
+	rgOutputWindow    = 100 * time.Millisecond
+	rgOutputBurst     = 80
+	rgHardResultLimit = 400
 )
 
 type rgJSONText struct {
@@ -37,6 +42,28 @@ type rgJSONMatchData struct {
 type rgJSONEvent struct {
 	Type string          `json:"type"`
 	Data rgJSONMatchData `json:"data"`
+}
+
+func terminateExistingRgProcesses() {
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "taskkill", "/F", "/IM", "rg.exe", "/T")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return
+		}
+		msg := strings.ToLower(string(out))
+		// No running rg.exe is not an error in practice.
+		if strings.Contains(msg, "not found") || strings.Contains(msg, "no running instance") || strings.Contains(msg, "没有运行的任务") || strings.Contains(msg, "没有找到") {
+			return
+		}
+		log.Printf("[rg] taskkill rg.exe failed: %v (%s)", err, strings.TrimSpace(string(out)))
+		return
+	}
+	if s := strings.TrimSpace(string(out)); s != "" {
+		log.Printf("[rg] terminated stale rg.exe processes: %s", s)
+	}
 }
 
 func resolveRgExe(baseDir string) string {
@@ -130,13 +157,13 @@ func buildFullTextFileItem(fullPath, lineText string, lineNo int, score float64,
 	return map[string]any{
 		"originalDataType": "fulltext",
 		"DataType":         "file",
-		"DataTypeName":     "全文搜索",
+		"DataTypeName":     "鍏ㄦ枃鎼滅储",
 		"ID":               id,
 		"Title":            fileName,
 		"SubTitle":         subTitle,
 		"Content":          fullPath,
 		"Preview":          preview,
-		"Source":           "文件",
+		"Source":           "鏂囦欢",
 		"Metadata":         meta,
 		"Action":           "open_file",
 		"ActionParams":     map[string]any{"FilePath": fullPath},
@@ -144,12 +171,17 @@ func buildFullTextFileItem(fullPath, lineText string, lineNo int, score float64,
 }
 
 func searchFullTextWithRg(baseDir, keyword string, maxResults int) ([]map[string]any, error) {
+	return searchFullTextWithRgContext(context.Background(), baseDir, keyword, maxResults)
+}
+
+func searchFullTextWithRgContext(ctx context.Context, baseDir, keyword string, maxResults int) ([]map[string]any, error) {
 	kw := strings.TrimSpace(keyword)
 	if kw == "" || maxResults <= 0 {
 		return []map[string]any{}, nil
 	}
+	terminateExistingRgProcesses()
 	var out []map[string]any
-	err := streamFullTextWithRg(baseDir, kw, maxResults, func(item map[string]any) bool {
+	err := streamFullTextWithRgContext(ctx, baseDir, kw, maxResults, func(item map[string]any) bool {
 		out = append(out, item)
 		return len(out) < maxResults
 	})
@@ -160,9 +192,19 @@ func searchFullTextWithRg(baseDir, keyword string, maxResults int) ([]map[string
 }
 
 func streamFullTextWithRg(baseDir, keyword string, maxResults int, emit func(map[string]any) bool) error {
+	return streamFullTextWithRgContext(context.Background(), baseDir, keyword, maxResults, emit)
+}
+
+func streamFullTextWithRgContext(parent context.Context, baseDir, keyword string, maxResults int, emit func(map[string]any) bool) error {
 	kw := strings.TrimSpace(keyword)
 	if kw == "" || maxResults <= 0 {
 		return nil
+	}
+	if maxResults > rgHardResultLimit {
+		maxResults = rgHardResultLimit
+	}
+	if parent == nil {
+		parent = context.Background()
 	}
 	rgExe := resolveRgExe(baseDir)
 	if rgExe == "" {
@@ -170,15 +212,19 @@ func streamFullTextWithRg(baseDir, keyword string, maxResults int, emit func(map
 	}
 
 	filterCfg := loadFullTextFilterConfig(baseDir)
-	roots := fullTextRoots(baseDir)
-	seen := map[string]struct{}{}
+	roots := limitHotSearchRoots(fullTextRoots(baseDir))
+	seen := map[string]int{}
+	totalOut := 0
 	var lastErr error
 	for _, root := range roots {
-		remain := maxResults - len(seen)
+		remain := maxResults - totalOut
 		if remain <= 0 {
 			break
 		}
-		count, err := streamFullTextRoot(rgExe, root, kw, remain, seen, filterCfg, emit)
+		rootCtx, cancel := context.WithTimeout(parent, rgDefaultTimeout)
+		count, err := streamFullTextRoot(rootCtx, rgExe, root, kw, remain, seen, filterCfg, emit)
+		cancel()
+		totalOut += count
 		if err != nil {
 			lastErr = err
 		}
@@ -186,40 +232,125 @@ func streamFullTextWithRg(baseDir, keyword string, maxResults int, emit func(map
 			continue
 		}
 	}
-	if len(seen) == 0 && lastErr != nil {
+	if totalOut == 0 && lastErr != nil {
 		return lastErr
+	}
+	if err := parent.Err(); err != nil {
+		return err
 	}
 	return nil
 }
 
-func streamFullTextRoot(rgExe, root, keyword string, maxResults int, seen map[string]struct{}, cfg fullTextFilterResolved, emit func(map[string]any) bool) (int, error) {
+func limitHotSearchRoots(roots []string) []string {
+	if len(roots) <= 1 {
+		return roots
+	}
+	maxRoots := int(parseInt64Env("SEARCHCENTER_RG_MAX_ROOTS", 3))
+	if maxRoots < 1 {
+		maxRoots = 1
+	}
+	if maxRoots >= len(roots) {
+		return roots
+	}
+	return append([]string{}, roots[:maxRoots]...)
+}
+
+type rgRateLimiter struct {
+	windowStart time.Time
+	emitted     int
+	dropped     int
+}
+
+func (l *rgRateLimiter) allow(now time.Time) bool {
+	if l.windowStart.IsZero() || now.Sub(l.windowStart) >= rgOutputWindow {
+		if l.dropped > 0 {
+			log.Printf("[rg] throttled %d hits in %s window", l.dropped, rgOutputWindow)
+		}
+		l.windowStart = now
+		l.emitted = 0
+		l.dropped = 0
+	}
+	if l.emitted < rgOutputBurst {
+		l.emitted++
+		return true
+	}
+	l.dropped++
+	return false
+}
+
+func (l *rgRateLimiter) flush() {
+	if l.dropped > 0 {
+		log.Printf("[rg] throttled %d hits in %s window", l.dropped, rgOutputWindow)
+	}
+}
+
+func makeRGJSONLineSplit(maxToken int, onDrop func()) bufio.SplitFunc {
+	dropping := false
+	return func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		if len(data) == 0 {
+			return 0, nil, nil
+		}
+		if i := bytes.IndexByte(data, '\n'); i >= 0 {
+			line := data[:i]
+			advance = i + 1
+			if dropping || len(line) > maxToken {
+				dropping = false
+				if onDrop != nil {
+					onDrop()
+				}
+				return advance, nil, nil
+			}
+			return advance, bytes.TrimRight(line, "\r"), nil
+		}
+		if len(data) > maxToken {
+			dropping = true
+			return maxToken, nil, nil
+		}
+		if atEOF {
+			if dropping || len(data) > maxToken {
+				dropping = false
+				if onDrop != nil {
+					onDrop()
+				}
+				return len(data), nil, nil
+			}
+			return len(data), bytes.TrimRight(data, "\r"), nil
+		}
+		return 0, nil, nil
+	}
+}
+
+func streamFullTextRoot(ctx context.Context, rgExe, root, keyword string, maxResults int, seen map[string]int, cfg fullTextFilterResolved, emit func(map[string]any) bool) (int, error) {
 	if maxResults <= 0 {
 		return 0, nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), rgDefaultTimeout)
-	defer cancel()
 
 	args := []string{
 		"--json",
 		"--line-number",
-		"--max-count", "1",
+		"--max-count", "500",
+		"-j", "2",
 		"--fixed-strings",
 		"--ignore-case",
 		"--hidden",
 		"--no-messages",
-		"--max-filesize", fmt.Sprintf("%d", cfg.MaxScanSizeBytes),
+		"--max-columns", "2000",
+		"--max-filesize", "8M",
 	}
 
 	for _, g := range rgExcludeGlobs() {
 		args = append(args, "--glob", g)
 	}
-	for _, ext := range sortedExts(cfg.HotExts) {
+	for _, ext := range sortedExts(rgSearchExts(cfg)) {
 		args = append(args, "--glob", "**/*."+ext)
 	}
 	args = append(args, keyword, root)
 
-	cmd := exec.CommandContext(ctx, rgExe, args...)
+	cmd := exec.Command(rgExe, args...)
 	cmd.Dir = root
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: 0x08000000 | 0x00000040,
+	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return 0, err
@@ -230,20 +361,44 @@ func streamFullTextRoot(rgExe, root, keyword string, maxResults int, seen map[st
 		return 0, err
 	}
 
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- cmd.Wait()
+	}()
+
+	stopKillWatch := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			if cmd.Process != nil {
+				if err := cmd.Process.Kill(); err == nil {
+					log.Printf("[rg] killed pid=%d due to cancel", cmd.Process.Pid)
+				}
+			}
+		case <-stopKillWatch:
+		}
+	}()
+	defer close(stopKillWatch)
+
 	count := 0
+	oversizeLines := 0
+	limiter := &rgRateLimiter{}
 	sc := bufio.NewScanner(stdout)
-	sc.Buffer(make([]byte, 0, 128*1024), rgScannerMaxBytes)
+	sc.Buffer(make([]byte, 64*1024), rgScannerMaxBytes)
+	sc.Split(makeRGJSONLineSplit(rgScannerMaxBytes, func() {
+		oversizeLines++
+	}))
+
 	for sc.Scan() {
+		if ctx.Err() != nil {
+			break
+		}
 		line := sc.Bytes()
-		var ev rgJSONEvent
-		if err := json.Unmarshal(line, &ev); err != nil {
+		if len(line) == 0 {
 			continue
 		}
-		if ev.Type != "match" {
-			continue
-		}
-		p := strings.TrimSpace(rgTextValue(ev.Data.Path))
-		if p == "" {
+		p, matchedLine, lineNo, ok := parseRGMatchLine(line)
+		if !ok {
 			continue
 		}
 		if !filepath.IsAbs(p) {
@@ -253,32 +408,53 @@ func streamFullTextRoot(rgExe, root, keyword string, maxResults int, seen map[st
 		if isExcludedByFilter(p, cfg) {
 			continue
 		}
-		if !isHotExt(pathExtLower(p), cfg) {
+		if !isAllowedRgExt(pathExtLower(p), cfg) {
 			continue
 		}
 		key := strings.ToLower(p)
-		if _, ok := seen[key]; ok {
+		if seen[key] >= 10 {
 			continue
 		}
-		seen[key] = struct{}{}
+		seen[key]++
 
-		score := scoreByPathAndContent(p, rgTextValue(ev.Data.Lines), keyword, 50)
-		item := buildFullTextFileItem(p, rgTextValue(ev.Data.Lines), ev.Data.LineNumber, score, "hot-rg")
+		score := scoreByPathAndContent(p, matchedLine, keyword, 50)
+		item := buildFullTextFileItem(p, matchedLine, lineNo, score, "hot-rg")
+		if !limiter.allow(time.Now()) {
+			continue
+		}
 		count++
 		if emit != nil {
 			if !emit(item) {
-				cancel()
+				if cmd.Process != nil {
+					_ = cmd.Process.Kill()
+				}
 				break
 			}
 		}
 		if count >= maxResults {
-			cancel()
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
 			break
 		}
 	}
 
-	_ = sc.Err()
-	waitErr := cmd.Wait()
+	if oversizeLines > 0 {
+		log.Printf("[rg] dropped %d oversized JSON lines (> %d bytes)", oversizeLines, rgScannerMaxBytes)
+	}
+	limiter.flush()
+
+	scanErr := sc.Err()
+	if scanErr != nil {
+		log.Printf("[rg] scanner error: %v", scanErr)
+	}
+	if ctx.Err() != nil {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		return count, nil
+	}
+	waitErr := <-waitCh
 	if count > 0 {
 		return count, nil
 	}
@@ -299,12 +475,26 @@ func pathExtLower(path string) string {
 	return strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
 }
 
-func isHotExt(ext string, cfg fullTextFilterResolved) bool {
+func isAllowedRgExt(ext string, cfg fullTextFilterResolved) bool {
 	if ext == "" {
 		return false
 	}
-	_, ok := cfg.HotExts[ext]
+	if _, ok := cfg.HotExts[ext]; ok {
+		return true
+	}
+	_, ok := cfg.ColdExts[ext]
 	return ok
+}
+
+func rgSearchExts(cfg fullTextFilterResolved) map[string]struct{} {
+	out := make(map[string]struct{}, len(cfg.HotExts)+len(cfg.ColdExts))
+	for ext := range cfg.HotExts {
+		out[ext] = struct{}{}
+	}
+	for ext := range cfg.ColdExts {
+		out[ext] = struct{}{}
+	}
+	return out
 }
 
 func rgExcludeGlobs() []string {
@@ -329,3 +519,182 @@ func sortedExts(m map[string]struct{}) []string {
 	sort.Strings(out)
 	return out
 }
+
+func parseRGMatchLine(line []byte) (path string, matchedLine string, lineNo int, ok bool) {
+	dec := json.NewDecoder(bytes.NewReader(line))
+	dec.UseNumber()
+	tok, err := dec.Token()
+	if err != nil {
+		return "", "", 0, false
+	}
+	d, okDelim := tok.(json.Delim)
+	if !okDelim || d != '{' {
+		return "", "", 0, false
+	}
+
+	matchType := false
+	for dec.More() {
+		keyTok, err := dec.Token()
+		if err != nil {
+			return "", "", 0, false
+		}
+		key, okKey := keyTok.(string)
+		if !okKey {
+			return "", "", 0, false
+		}
+		switch key {
+		case "type":
+			var t string
+			if err := dec.Decode(&t); err != nil {
+				return "", "", 0, false
+			}
+			matchType = (t == "match")
+		case "data":
+			p, ln, n, okData := parseRGDataObject(dec)
+			if !okData {
+				return "", "", 0, false
+			}
+			path, matchedLine, lineNo = p, ln, n
+		default:
+			if err := discardJSONValue(dec); err != nil {
+				return "", "", 0, false
+			}
+		}
+	}
+	if _, err := dec.Token(); err != nil {
+		return "", "", 0, false
+	}
+	if !matchType {
+		return "", "", 0, false
+	}
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", "", 0, false
+	}
+	return path, matchedLine, lineNo, true
+}
+
+func parseRGDataObject(dec *json.Decoder) (path string, matchedLine string, lineNo int, ok bool) {
+	tok, err := dec.Token()
+	if err != nil {
+		return "", "", 0, false
+	}
+	d, okDelim := tok.(json.Delim)
+	if !okDelim || d != '{' {
+		return "", "", 0, false
+	}
+	for dec.More() {
+		keyTok, err := dec.Token()
+		if err != nil {
+			return "", "", 0, false
+		}
+		key, okKey := keyTok.(string)
+		if !okKey {
+			return "", "", 0, false
+		}
+		switch key {
+		case "path":
+			text, bytesVal, okText := parseRGTextObject(dec)
+			if !okText {
+				return "", "", 0, false
+			}
+			path = rgTextValue(rgJSONText{Text: text, Bytes: bytesVal})
+		case "lines":
+			text, bytesVal, okText := parseRGTextObject(dec)
+			if !okText {
+				return "", "", 0, false
+			}
+			matchedLine = rgTextValue(rgJSONText{Text: text, Bytes: bytesVal})
+		case "line_number":
+			var n json.Number
+			if err := dec.Decode(&n); err != nil {
+				return "", "", 0, false
+			}
+			if i, err := n.Int64(); err == nil {
+				lineNo = int(i)
+			}
+		default:
+			if err := discardJSONValue(dec); err != nil {
+				return "", "", 0, false
+			}
+		}
+	}
+	if _, err := dec.Token(); err != nil {
+		return "", "", 0, false
+	}
+	return path, matchedLine, lineNo, true
+}
+
+func parseRGTextObject(dec *json.Decoder) (text string, bytesVal string, ok bool) {
+	tok, err := dec.Token()
+	if err != nil {
+		return "", "", false
+	}
+	d, okDelim := tok.(json.Delim)
+	if !okDelim || d != '{' {
+		return "", "", false
+	}
+	for dec.More() {
+		keyTok, err := dec.Token()
+		if err != nil {
+			return "", "", false
+		}
+		key, okKey := keyTok.(string)
+		if !okKey {
+			return "", "", false
+		}
+		switch key {
+		case "text":
+			if err := dec.Decode(&text); err != nil {
+				return "", "", false
+			}
+		case "bytes":
+			if err := dec.Decode(&bytesVal); err != nil {
+				return "", "", false
+			}
+		default:
+			if err := discardJSONValue(dec); err != nil {
+				return "", "", false
+			}
+		}
+	}
+	if _, err := dec.Token(); err != nil {
+		return "", "", false
+	}
+	return text, bytesVal, true
+}
+
+func discardJSONValue(dec *json.Decoder) error {
+	tok, err := dec.Token()
+	if err != nil {
+		return err
+	}
+	d, ok := tok.(json.Delim)
+	if !ok {
+		return nil
+	}
+	switch d {
+	case '{':
+		for dec.More() {
+			if _, err := dec.Token(); err != nil {
+				return err
+			}
+			if err := discardJSONValue(dec); err != nil {
+				return err
+			}
+		}
+		_, err = dec.Token()
+		return err
+	case '[':
+		for dec.More() {
+			if err := discardJSONValue(dec); err != nil {
+				return err
+			}
+		}
+		_, err = dec.Token()
+		return err
+	default:
+		return nil
+	}
+}
+

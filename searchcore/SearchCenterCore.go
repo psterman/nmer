@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"unicode"
 
@@ -16,6 +17,18 @@ import (
 )
 
 const defaultAddr = "127.0.0.1:8080"
+
+func recoverHTTP(name string, h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("[panic] route=%s method=%s path=%s err=%v\n%s", name, r.Method, r.URL.Path, rec, string(debug.Stack()))
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+			}
+		}()
+		h(w, r)
+	}
+}
 
 func main() {
 	baseDir := flag.String("base", "", "主脚本目录（含 Clipboard.db、Data/CursorData.db）")
@@ -48,36 +61,36 @@ func main() {
 
 	clipHTTPBase = clipHTTPBaseFromAddr(*addr)
 
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/health", recoverHTTP("health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("X-SearchCenterCore", "1")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
-	})
-	http.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
+	}))
+	http.HandleFunc("/search", recoverHTTP("search", func(w http.ResponseWriter, r *http.Request) {
 		handleSearchWithDB(w, r, db, absBase)
-	})
+	}))
 	statusH := func(w http.ResponseWriter, r *http.Request) {
 		handleStatus(w, r, db, absBase)
 	}
-	http.HandleFunc("/v1/status", statusH)
-	http.HandleFunc("/status", statusH)
+	http.HandleFunc("/v1/status", recoverHTTP("v1/status", statusH))
+	http.HandleFunc("/status", recoverHTTP("status", statusH))
 	// 浏览器或代理若自动加了尾部斜杠，默认 ServeMux 不会匹配 /v1/status
-	http.HandleFunc("/v1/status/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/v1/status/", recoverHTTP("v1/status/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/v1/status", http.StatusTemporaryRedirect)
-	})
-	http.HandleFunc("/v1/fulltext/status", handleFullTextStatus)
-	http.HandleFunc("/v1/fulltext/progress", handleFullTextProgress)
-	http.HandleFunc("/v1/fulltext/progress/stream", handleFullTextProgressStream)
-	http.HandleFunc("/v1/fulltext/search/stream", handleFullTextSearchStream)
-	http.HandleFunc("/v1/fulltext/config", handleFullTextConfig)
-	http.HandleFunc("/v1/fulltext/control", handleFullTextControl)
-	http.HandleFunc("/clip/search", func(w http.ResponseWriter, r *http.Request) {
+	}))
+	http.HandleFunc("/v1/fulltext/status", recoverHTTP("v1/fulltext/status", handleFullTextStatus))
+	http.HandleFunc("/v1/fulltext/progress", recoverHTTP("v1/fulltext/progress", handleFullTextProgress))
+	http.HandleFunc("/v1/fulltext/progress/stream", recoverHTTP("v1/fulltext/progress/stream", handleFullTextProgressStream))
+	http.HandleFunc("/v1/fulltext/search/stream", recoverHTTP("v1/fulltext/search/stream", handleFullTextSearchStream))
+	http.HandleFunc("/v1/fulltext/config", recoverHTTP("v1/fulltext/config", handleFullTextConfig))
+	http.HandleFunc("/v1/fulltext/control", recoverHTTP("v1/fulltext/control", handleFullTextControl))
+	http.HandleFunc("/clip/search", recoverHTTP("clip/search", func(w http.ResponseWriter, r *http.Request) {
 		handleClipSearch(w, r, db)
-	})
-	http.HandleFunc("/clip/preview", func(w http.ResponseWriter, r *http.Request) {
+	}))
+	http.HandleFunc("/clip/preview", recoverHTTP("clip/preview", func(w http.ResponseWriter, r *http.Request) {
 		handleClipPreview(w, r, db, absBase)
-	})
+	}))
 
 	log.Printf("SearchCenterCore listening on http://%s (base=%s) routes: /health /search /clip/search /clip/preview /v1/status /status /v1/fulltext/status /v1/fulltext/progress /v1/fulltext/progress/stream /v1/fulltext/config /v1/fulltext/control\n", *addr, absBase)
 	if err := http.ListenAndServe(*addr, nil); err != nil {

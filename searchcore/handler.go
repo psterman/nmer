@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"log"
@@ -8,7 +9,28 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
+
+func runQueryWithTimeout(timeout time.Duration, fn func() ([]map[string]any, error)) ([]map[string]any, error) {
+	ch := make(chan struct {
+		items []map[string]any
+		err   error
+	}, 1)
+	go func() {
+		items, err := fn()
+		ch <- struct {
+			items []map[string]any
+			err   error
+		}{items: items, err: err}
+	}()
+	select {
+	case r := <-ch:
+		return r.items, r.err
+	case <-time.After(timeout):
+		return nil, context.DeadlineExceeded
+	}
+}
 
 func handleSearchWithDB(w http.ResponseWriter, r *http.Request, db *sql.DB, baseDir string) {
 	if r.Method != http.MethodGet {
@@ -61,6 +83,15 @@ func handleSearchWithDB(w http.ResponseWriter, r *http.Request, db *sql.DB, base
 	if fetchCap > 2000 {
 		fetchCap = 2000
 	}
+	if typeStr == "fulltext" && fetchCap > 360 {
+		fetchCap = 360
+	}
+	if typeStr == "file" && fetchCap > 80 {
+		fetchCap = 80
+	}
+	if typeStr == "all" && fetchCap > 120 {
+		fetchCap = 120
+	}
 
 	var merged []map[string]any
 	var errMu sync.Mutex
@@ -93,15 +124,24 @@ func handleSearchWithDB(w http.ResponseWriter, r *http.Request, db *sql.DB, base
 			return items, err
 		})
 		run(func() ([]map[string]any, error) {
-			ev, err := everythingQuery(baseDir, q, fetchCap, true)
+			ev, err := runQueryWithTimeout(1200*time.Millisecond, func() ([]map[string]any, error) {
+				return everythingQuery(baseDir, q, fetchCap, true)
+			})
 			if err != nil {
-				log.Printf("[search] Everything 未返回文件结果: %v", err)
+				log.Printf("[search] Everything degraded (type=all): %v", err)
 				return nil, nil
 			}
 			return ev, nil
 		})
 		run(func() ([]map[string]any, error) {
-			return searchFilePathsSupplementDB(db, q, fetchCap), nil
+			items, err := runQueryWithTimeout(1200*time.Millisecond, func() ([]map[string]any, error) {
+				return searchFilePathsSupplementDB(db, q, fetchCap), nil
+			})
+			if err != nil {
+				log.Printf("[search] file supplement degraded (type=all): %v", err)
+				return nil, nil
+			}
+			return items, nil
 		})
 		run(func() ([]map[string]any, error) {
 			return searchTemplates(baseDir, q, fetchCap, 0), nil
@@ -125,18 +165,30 @@ func handleSearchWithDB(w http.ResponseWriter, r *http.Request, db *sql.DB, base
 		})
 	case "file":
 		run(func() ([]map[string]any, error) {
-			ev, err := everythingQuery(baseDir, q, fetchCap, true)
+			ev, err := runQueryWithTimeout(1500*time.Millisecond, func() ([]map[string]any, error) {
+				return everythingQuery(baseDir, q, fetchCap, true)
+			})
 			if err != nil {
-				return nil, err
+				log.Printf("[search] Everything degraded (type=file): %v", err)
+				return []map[string]any{}, nil
 			}
 			return ev, nil
 		})
 		run(func() ([]map[string]any, error) {
-			return searchFilePathsSupplementDB(db, q, fetchCap), nil
+			items, err := runQueryWithTimeout(1200*time.Millisecond, func() ([]map[string]any, error) {
+				return searchFilePathsSupplementDB(db, q, fetchCap), nil
+			})
+			if err != nil {
+				log.Printf("[search] file supplement degraded (type=file): %v", err)
+				return []map[string]any{}, nil
+			}
+			return items, nil
 		})
 	case "fulltext":
 		run(func() ([]map[string]any, error) {
-			return searchFullTextWithBackend(baseDir, q, fetchCap)
+			ctx, cancel := context.WithTimeout(r.Context(), 5500*time.Millisecond)
+			defer cancel()
+			return searchFullTextWithBackendContext(ctx, baseDir, q, fetchCap)
 		})
 	case "template":
 		run(func() ([]map[string]any, error) {
@@ -173,17 +225,29 @@ func handleSearchWithDB(w http.ResponseWriter, r *http.Request, db *sql.DB, base
 	wg.Wait()
 
 	if firstErr != nil && len(merged) == 0 {
-		if typeStr == "clipboard" || typeStr == "file" || typeStr == "fulltext" {
+		if typeStr == "clipboard" || typeStr == "file" {
 			http.Error(w, firstErr.Error(), http.StatusInternalServerError)
 			return
 		}
+		if typeStr == "fulltext" {
+			log.Printf("[search] fulltext degraded: %v", firstErr)
+		}
+	}
+	if typeStr == "file" && len(merged) > 120 {
+		merged = merged[:120]
+	}
+	if typeStr == "fulltext" && len(merged) > 360 {
+		merged = merged[:360]
+	}
+	if typeStr == "all" && len(merged) > 180 {
+		merged = merged[:180]
 	}
 
 	files, others := splitFileAndOther(merged)
 	sorted := sortSearchCenterMerged(files, others, q)
 
-	// 与 AHK SearchAllDataSources 对齐：标准模式对每个数据源各取 MaxResults 再合并，条数约为「每类上限之和」；
-	// 极速模式原先全局混排后只取一页 limit，易表现为「约少一半」。type=all 时放宽为每页最多 2*limit。
+	// 涓?AHK SearchAllDataSources 瀵归綈锛氭爣鍑嗘ā寮忓姣忎釜鏁版嵁婧愬悇鍙?MaxResults 鍐嶅悎骞讹紝鏉℃暟绾︿负銆屾瘡绫讳笂闄愪箣鍜屻€嶏紱
+	// 鏋侀€熸ā寮忓師鍏堝叏灞€娣锋帓鍚庡彧鍙栦竴椤?limit锛屾槗琛ㄧ幇涓恒€岀害灏戜竴鍗娿€嶃€倀ype=all 鏃舵斁瀹戒负姣忛〉鏈€澶?2*limit銆?
 	pageLimit := limit
 	if typeStr == "all" {
 		pageLimit = limit * 2
@@ -222,7 +286,7 @@ func normalizeSearchType(t string) string {
 	if t == "clip" {
 		return "clipboard"
 	}
-	if t == "content" || t == "全文" || t == "全文搜索" {
+	if t == "content" || t == "鍏ㄦ枃" || t == "鍏ㄦ枃鎼滅储" {
 		return "fulltext"
 	}
 	return t

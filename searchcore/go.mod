@@ -7,6 +7,7 @@ require (
 	github.com/eringen/gowebper v0.1.2
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/mozillazg/go-pinyin v0.20.0
+	github.com/yanyiwu/gojieba v1.4.6
 	golang.org/x/image v0.18.0
 	golang.org/x/sys v0.22.0
 	modernc.org/sqlite v1.34.5

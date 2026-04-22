@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -15,15 +16,15 @@ func mergeAndRankFullTextItems(keyword string, limit int, groups ...[]map[string
 	all := make([]map[string]any, 0, limit)
 	for _, g := range groups {
 		for _, it := range g {
-			p := itemFilePath(it)
-			if p == "" {
+			k := itemDedupKey(it)
+			if k == "" {
 				continue
 			}
-			k := normalizePathKey(p)
 			if _, ok := seen[k]; ok {
 				continue
 			}
 			seen[k] = struct{}{}
+			p := itemFilePath(it)
 			score := scoreByPathAndContent(p, itemPreview(it), keyword, itemScore(it))
 			setItemScore(it, score)
 			all = append(all, it)
@@ -43,6 +44,36 @@ func mergeAndRankFullTextItems(keyword string, limit int, groups ...[]map[string
 		return all[:limit]
 	}
 	return all
+}
+
+func itemDedupKey(it map[string]any) string {
+	if it == nil {
+		return ""
+	}
+	if id, ok := it["ID"].(string); ok && strings.TrimSpace(id) != "" {
+		return strings.ToLower(strings.TrimSpace(id))
+	}
+	p := itemFilePath(it)
+	if p == "" {
+		return ""
+	}
+	line := 0
+	if m, ok := it["Metadata"].(map[string]any); ok && m != nil {
+		switch v := m["LineNumber"].(type) {
+		case int:
+			line = v
+		case int32:
+			line = int(v)
+		case int64:
+			line = int(v)
+		case float64:
+			line = int(v)
+		}
+	}
+	if line > 0 {
+		return normalizePathKey(p) + ":" + strconv.Itoa(line)
+	}
+	return normalizePathKey(p)
 }
 
 func scoreByPathAndContent(path, content, keyword string, base float64) float64 {

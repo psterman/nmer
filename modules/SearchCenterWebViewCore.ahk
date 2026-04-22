@@ -43,6 +43,8 @@ global g_SCWV_QLInvokeExe := ""
 global g_SCWV_QLInvokeDir := ""
 global g_SCWV_QLInvokeAttempts := 0
 global g_SCWV_QLInvokeSendCount := 0
+global g_SCWV_SearchHttpInFlight := false
+global g_SCWV_SearchPendingReq := 0
 
 _SCWV_BlockDeactivate(ms := 1500, reason := "") {
     global g_SCWV_DeactivateBlockUntil, g_SCWV_DeactivateBlockReason
@@ -377,7 +379,8 @@ _SCWV_HttpGetSearchCoreResp(queryString) {
         whr := ComObject("WinHttp.WinHttpRequest.5.1")
         url := "http://127.0.0.1:8080/search?" . queryString
         whr.Open("GET", url, false)
-        whr.SetTimeouts(25000, 25000, 25000, 25000)
+        ; 保持较短超时避免 UI 卡死，但给全文阶段留出少量抖动余量
+        whr.SetTimeouts(1200, 1200, 6000, 6000)
         whr.Send()
         st := Integer(whr.Status)
         body := ""
@@ -386,7 +389,8 @@ _SCWV_HttpGetSearchCoreResp(queryString) {
         return Map("status", st, "body", body, "responseText", whr.ResponseText)
     } catch as err {
         try OutputDebug("[SCWV] SearchCore HTTP: " . err.Message)
-        return Map("status", 0, "body", "", "responseText", "")
+        _SCWV_LogRuntime("SearchCore HTTP exception: " . err.Message)
+        return Map("status", 0, "body", "", "responseText", "", "error", err.Message)
     }
 }
 
@@ -588,11 +592,43 @@ _SCWV_ShowSearchCoreError(reason) {
     catch {
     }
     try OutputDebug("[SCWV] " . reason)
+    _SCWV_LogRuntime("SearchCoreError: " . reason)
+}
+
+_SCWV_LogRuntime(msg) {
+    try {
+        logDir := A_ScriptDir . "\cache"
+        if !DirExist(logDir)
+            DirCreate(logDir)
+        ts := FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss")
+        FileAppend("[" . ts . "] " . String(msg) . "`r`n", logDir . "\searchcenter_webview_runtime.log", "UTF-8")
+    } catch {
+    }
+}
+
+_SCWV_SetPendingGoSearch(offset, keyword, goType, limit) {
+    global g_SCWV_SearchPendingReq
+    g_SCWV_SearchPendingReq := Map(
+        "offset", Integer(offset),
+        "keyword", String(keyword),
+        "goType", String(goType),
+        "limit", Integer(limit)
+    )
+}
+
+_SCWV_RunPendingGoSearch(*) {
+    global g_SCWV_SearchPendingReq
+    if !(g_SCWV_SearchPendingReq is Map)
+        return
+    req := g_SCWV_SearchPendingReq
+    g_SCWV_SearchPendingReq := 0
+    _SCWV_ExecuteGoSearchHttp(req["offset"], req["keyword"], req["goType"], req["limit"])
 }
 
 ; 由宿主发起 WinHttp 访问本机 Go，避免 https://app.local 页面 fetch http 被混合内容拦截
 _SCWV_ExecuteGoSearchHttp(offset := 0, keyword := "", goType := "", limit := 0) {
     global SearchCenterWebKeyword, SearchCenterCurrentLimit, SearchCenterFilterType
+    global g_SCWV_SearchHttpInFlight, g_SCWV_SearchPendingReq
 
     kw := Trim(String(keyword))
     if (kw = "")
@@ -612,77 +648,116 @@ _SCWV_ExecuteGoSearchHttp(offset := 0, keyword := "", goType := "", limit := 0) 
     if (off < 0)
         off := 0
 
-    if !_SCWV_EnsureSearchCoreRunning() {
-        global SearchCenterSearchResults, SearchCenterHasMoreData
-        SearchCenterSearchResults := []
-        SearchCenterHasMoreData := false
-        _SCWV_ShowSearchCoreError("SearchCenterCore 未启动或无法连接（请检查 SearchCenterCore.exe）")
-        SCWV_PushState("state")
+    if g_SCWV_SearchHttpInFlight {
+        _SCWV_SetPendingGoSearch(off, kw, gt, lim)
         return
     }
 
-    encQ := kw
-    try encQ := UriEncode(kw)
-    catch {
-    }
+    g_SCWV_SearchHttpInFlight := true
+    _SCWV_BlockDeactivate(2500, "search_http")
+    try {
+        if !_SCWV_EnsureSearchCoreRunning() {
+            global SearchCenterSearchResults, SearchCenterHasMoreData
+            SearchCenterSearchResults := []
+            SearchCenterHasMoreData := false
+            _SCWV_ShowSearchCoreError("SearchCenterCore 未启动或无法连接（请检查 SearchCenterCore.exe）")
+            SCWV_PushState("state")
+            return
+        }
 
-    q := "q=" . encQ . "&type=" . gt . "&limit=" . lim . "&offset=" . off
-    resp := _SCWV_HttpGetSearchCoreResp(q)
-    st := resp.Has("status") ? Integer(resp["status"]) : 0
-    if (st != 200) {
-        global SearchCenterSearchResults, SearchCenterHasMoreData
-        SearchCenterSearchResults := []
-        SearchCenterHasMoreData := false
-        _SCWV_ShowSearchCoreError("SearchCenterCore 请求失败 HTTP " . st)
-        SCWV_PushState("state")
-        return
-    }
-    body := resp.Has("body") ? resp["body"] : ""
-    if (body = "") {
-        global SearchCenterSearchResults, SearchCenterHasMoreData
-        SearchCenterSearchResults := []
-        SearchCenterHasMoreData := false
-        _SCWV_ShowSearchCoreError("SearchCenterCore 返回空响应")
-        SCWV_PushState("state")
-        return
-    }
+        encQ := kw
+        try encQ := UriEncode(kw)
+        catch {
+        }
 
-    try data := Jxon_Load(body)
-    catch as e {
-        global SearchCenterSearchResults, SearchCenterHasMoreData
-        SearchCenterSearchResults := []
-        SearchCenterHasMoreData := false
-        _SCWV_ShowSearchCoreError("SearchCenterCore JSON 解析失败: " . e.Message)
-        SCWV_PushState("state")
-        return
-    }
-    if !(data is Map) {
-        global SearchCenterSearchResults, SearchCenterHasMoreData
-        SearchCenterSearchResults := []
-        SearchCenterHasMoreData := false
-        _SCWV_ShowSearchCoreError("SearchCenterCore 响应格式无效")
-        SCWV_PushState("state")
-        return
-    }
+        q := "q=" . encQ . "&type=" . gt . "&limit=" . lim . "&offset=" . off
+        resp := _SCWV_HttpGetSearchCoreResp(q)
+        st := resp.Has("status") ? Integer(resp["status"]) : 0
+        if (st != 200) {
+            if (st = 0) {
+                ; HTTP 0 常见于瞬时连接抖动：先重启探活并重试一次，不立刻清空现有结果
+                _SCWV_LogRuntime("SearchCore HTTP 0, retry once")
+                _SCWV_EnsureSearchCoreRunning()
+                Sleep(80)
+                resp2 := _SCWV_HttpGetSearchCoreResp(q)
+                st2 := resp2.Has("status") ? Integer(resp2["status"]) : 0
+                if (st2 = 200) {
+                    resp := resp2
+                    st := 200
+                } else {
+                    _SCWV_ShowSearchCoreError("SearchCenterCore 瞬时不可用（HTTP 0），已保留当前结果")
+                    return
+                }
+            } else {
+                global SearchCenterSearchResults, SearchCenterHasMoreData
+                SearchCenterSearchResults := []
+                SearchCenterHasMoreData := false
+                _SCWV_ShowSearchCoreError("SearchCenterCore 请求失败 HTTP " . st)
+                SCWV_PushState("state")
+                return
+            }
+        }
+        body := resp.Has("body") ? resp["body"] : ""
+        if (body = "") {
+            global SearchCenterSearchResults, SearchCenterHasMoreData
+            SearchCenterSearchResults := []
+            SearchCenterHasMoreData := false
+            _SCWV_ShowSearchCoreError("SearchCenterCore 返回空响应")
+            SCWV_PushState("state")
+            return
+        }
+        if (StrLen(body) > 6291456) {
+            global SearchCenterSearchResults, SearchCenterHasMoreData
+            SearchCenterSearchResults := []
+            SearchCenterHasMoreData := false
+            _SCWV_ShowSearchCoreError("SearchCenterCore 返回体过大，已丢弃")
+            SCWV_PushState("state")
+            return
+        }
 
-    ; Go encoding/json 与部分解析器键名：兼容 items / Items、hasMore / HasMore
-    itemsRaw := []
-    if (data.Has("items"))
-        itemsRaw := data["items"]
-    else if (data.Has("Items"))
-        itemsRaw := data["Items"]
-    GoItems := []
-    if (itemsRaw is Array) {
-        for _, it in itemsRaw
-            GoItems.Push(it)
+        try data := Jxon_Load(body)
+        catch as e {
+            global SearchCenterSearchResults, SearchCenterHasMoreData
+            SearchCenterSearchResults := []
+            SearchCenterHasMoreData := false
+            _SCWV_ShowSearchCoreError("SearchCenterCore JSON 解析失败: " . e.Message)
+            SCWV_PushState("state")
+            return
+        }
+        if !(data is Map) {
+            global SearchCenterSearchResults, SearchCenterHasMoreData
+            SearchCenterSearchResults := []
+            SearchCenterHasMoreData := false
+            _SCWV_ShowSearchCoreError("SearchCenterCore 响应格式无效")
+            SCWV_PushState("state")
+            return
+        }
+
+        ; Go encoding/json 与部分解析器键名：兼容 items / Items、hasMore / HasMore
+        itemsRaw := []
+        if (data.Has("items"))
+            itemsRaw := data["items"]
+        else if (data.Has("Items"))
+            itemsRaw := data["Items"]
+        GoItems := []
+        if (itemsRaw is Array) {
+            for _, it in itemsRaw
+                GoItems.Push(it)
+        }
+        hasMore := false
+        if (data.Has("hasMore"))
+            hasMore := data["hasMore"] ? true : false
+        else if (data.Has("HasMore"))
+            hasMore := data["HasMore"] ? true : false
+        _SCWV_ApplySearchResultSync(kw, off, hasMore, GoItems)
+        SCWV_PushState("state")
+    } catch as err {
+        _SCWV_LogRuntime("ExecuteGoSearchHttp exception: " . err.Message)
+    } finally {
+        g_SCWV_SearchHttpInFlight := false
+        if (g_SCWV_SearchPendingReq is Map)
+            SetTimer(_SCWV_RunPendingGoSearch, -1)
     }
-    hasMore := false
-    if (data.Has("hasMore"))
-        hasMore := data["hasMore"] ? true : false
-    else if (data.Has("HasMore"))
-        hasMore := data["HasMore"] ? true : false
-    _SCWV_ApplySearchResultSync(kw, off, hasMore, GoItems)
-    SCWV_PushState("state")
 }
 
 _SCWV_PostRequestSearchGo(*) {
@@ -867,8 +942,10 @@ SCWV_Hide(PersistSelection := true) {
 
 ; 澶辩劍鍚庡欢杩熷叧闂紙鍛藉悕瀹氭椂鍣紝渚夸簬 SCWV_Hide 鍙栨秷锛岄伩鍏嶄笌宸ュ叿鏍忎簩娆＄偣鍑荤珵鎬侊級
 SCWV_WMDeactivateHideTick(*) {
-    global g_SCWV_Visible, g_SCWV_Gui
+    global g_SCWV_Visible, g_SCWV_Gui, g_SCWV_SearchHttpInFlight
     if !g_SCWV_Visible || !g_SCWV_Gui
+        return
+    if g_SCWV_SearchHttpInFlight
         return
     if _SCWV_IsDeactivateBlocked()
         return
@@ -889,12 +966,14 @@ SCWV_WMDeactivateHideTick(*) {
 }
 
 SCWV_WM_ACTIVATE(wParam, lParam, msg, hwnd) {
-    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_LastShown
+    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_LastShown, g_SCWV_SearchHttpInFlight
 
     if !g_SCWV_Visible || !g_SCWV_Gui
         return
 
     if (hwnd = g_SCWV_Gui.Hwnd && (wParam & 0xFFFF) = 0) {
+        if g_SCWV_SearchHttpInFlight
+            return
         if _SCWV_IsDeactivateBlocked()
             return
         ; 鐢ㄦ埛鐐瑰嚮鍚岃繘绋嬫偓娴伐鍏锋爮鍒囨崲鍏抽棴鏃讹紝鍓嶅彴甯稿湪 WebView 瀛?HWND 涓婏紝椤昏瘑鍒涓婚摼锛屽嬁鎶㈠厛 Hide
@@ -1007,6 +1086,7 @@ SCWV_OnWebMessage(sender, args) {
     if (action = "")
         return
 
+    try {
     switch action {
         case "ready":
             global g_SCWV_Ready
@@ -1227,6 +1307,9 @@ SCWV_OnWebMessage(sender, args) {
                 SCWV_PostJson(Map("type", "quicklook_install_state", "ok", false, "message", "无法开始安装（可能已有任务）", "path", ""))
         case "QUICKLOOK_STATUS":
             SCWV_PushState("state")
+    }
+    } catch as err {
+        _SCWV_LogRuntime("OnWebMessage action=" . String(action) . " error=" . err.Message)
     }
 }
 
