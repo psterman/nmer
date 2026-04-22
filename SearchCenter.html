@@ -1998,6 +1998,15 @@ function applyHotkeyBindDialog() {
   if (key) {
     const conflict = findHotkeyConflict(group, value, key);
     if (conflict) {
+      const keyLabel = "Caps+" + key.toUpperCase();
+      const conflictLabel = String(conflict.label || conflict.value || "未命名按钮");
+      const targetLabel = String(d.label || value || "当前按钮");
+      const ok = window.confirm(
+        "检测到快捷键冲突：\n"
+        + keyLabel + " 已被「" + conflictLabel + "」占用。\n"
+        + "是否覆盖并改绑到「" + targetLabel + "」？"
+      );
+      if (!ok) return;
       setHotkeyBinding(conflict.group, conflict.value, "");
       syncScHotkeyBindingToHost(conflict.group, conflict.value, "");
     }
@@ -2490,6 +2499,31 @@ function shouldHandleCapsChordNow() {
   if (state.capsHintActive) return true;
   if (!lastCapsDownAt) return false;
   return (Date.now() - lastCapsDownAt) <= 700;
+}
+
+function captureHotkeyActivationState() {
+  return {
+    category: String(state.currentCategoryKey || ""),
+    engines: Array.isArray(state.selectedEngines) ? state.selectedEngines.slice().sort().join("|") : "",
+    filter: String(state.filterType || "")
+  };
+}
+
+function isSameHotkeyActivationState(a, b) {
+  if (!a || !b) return false;
+  return a.category === b.category && a.engines === b.engines && a.filter === b.filter;
+}
+
+function scheduleHostCapsHotkeyFallback(rawKey) {
+  const key = normalizeHintKey(rawKey);
+  if (!key) return;
+  const before = captureHotkeyActivationState();
+  setTimeout(() => {
+    if (state.hotkeyBindDialog && state.hotkeyBindDialog.open) return;
+    const now = captureHotkeyActivationState();
+    if (!isSameHotkeyActivationState(before, now)) return;
+    triggerHotkeyButtonByKey(key);
+  }, 90);
 }
 
 function renderCategories() {
@@ -4283,6 +4317,7 @@ if (window.chrome && window.chrome.webview) {
     }
     if (payload.type === "capsHintPress") {
       flashCapsPressedKey(payload.key || "");
+      scheduleHostCapsHotkeyFallback(payload.key || "");
       return;
     }
     if (payload.type === "setCategory") {
