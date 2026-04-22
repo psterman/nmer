@@ -1,0 +1,6 @@
+---
+description: 
+alwaysApply: true
+---
+
+所有输出一律使用简体中文。生成 Git commit message 时也必须使用简体中文，简洁准确，优先“动词+对象”（如：修复…/新增…/调整…）。

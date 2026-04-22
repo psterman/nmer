@@ -738,24 +738,6 @@ func (b *blugeIndexer) walkRoot(root string, initial bool) {
 		return
 	}
 
-	if initial && b.cfg.UseEverything {
-		b.mu.Lock()
-		b.status.ScanPhase = "walking"
-		b.status.IndexingFile = "Everything enumerate: " + cleanRoot
-		b.mu.Unlock()
-
-		emitted, err := b.walkRootWithEverythingWithTimeout(cleanRoot, initial, defaultEverythingTimeout)
-		if err == nil && emitted >= 2000 {
-			return
-		}
-		if err == nil && emitted > 0 && emitted < 2000 {
-			b.appendAlert(fmt.Sprintf("Everything enumerate too few (%d), fallback to MFT/WalkDir: %s", emitted, cleanRoot))
-		}
-		if err != nil {
-			b.appendAlert(fmt.Sprintf("Everything failed, fallback to MFT/WalkDir: %v", err))
-		}
-	}
-
 	if b.cfg.UseMFT && isVolumeRootPath(cleanRoot) {
 		b.mu.Lock()
 		b.status.ScanPhase = "walking"
@@ -786,15 +768,51 @@ func (b *blugeIndexer) walkRoot(root string, initial bool) {
 		if err != nil || emitted == 0 {
 			b.recordError(err)
 			if err != nil {
-				b.appendAlert(fmt.Sprintf("MFT failed, fallback to WalkDir: %v", err))
+				b.appendAlert(fmt.Sprintf("MFT failed, fallback to Everything/WalkDir: %v", err))
 			} else {
-				b.appendAlert(fmt.Sprintf("MFT returned 0 files, fallback to WalkDir: %s", cleanRoot))
+				b.appendAlert(fmt.Sprintf("MFT returned 0 files, fallback to Everything/WalkDir: %s", cleanRoot))
+			}
+
+			if initial && b.cfg.UseEverything {
+				b.mu.Lock()
+				b.status.ScanPhase = "walking"
+				b.status.IndexingFile = "Everything enumerate: " + cleanRoot
+				b.mu.Unlock()
+
+				evEmitted, evErr := b.walkRootWithEverythingWithTimeout(cleanRoot, initial, defaultEverythingTimeout)
+				if evErr == nil && evEmitted >= 2000 {
+					return
+				}
+				if evErr == nil && evEmitted > 0 && evEmitted < 2000 {
+					b.appendAlert(fmt.Sprintf("Everything enumerate too few (%d), fallback to WalkDir: %s", evEmitted, cleanRoot))
+				}
+				if evErr != nil {
+					b.appendAlert(fmt.Sprintf("Everything failed, fallback to WalkDir: %v", evErr))
+				}
 			}
 			b.walkRootDirConcurrent(cleanRoot, initial)
 		} else {
 			b.usedMFT.Store(true)
 		}
 		return
+	}
+
+	if initial && b.cfg.UseEverything {
+		b.mu.Lock()
+		b.status.ScanPhase = "walking"
+		b.status.IndexingFile = "Everything enumerate: " + cleanRoot
+		b.mu.Unlock()
+
+		emitted, err := b.walkRootWithEverythingWithTimeout(cleanRoot, initial, defaultEverythingTimeout)
+		if err == nil && emitted >= 2000 {
+			return
+		}
+		if err == nil && emitted > 0 && emitted < 2000 {
+			b.appendAlert(fmt.Sprintf("Everything enumerate too few (%d), fallback to WalkDir: %s", emitted, cleanRoot))
+		}
+		if err != nil {
+			b.appendAlert(fmt.Sprintf("Everything failed, fallback to WalkDir: %v", err))
+		}
 	}
 
 	b.walkRootDirConcurrent(cleanRoot, initial)

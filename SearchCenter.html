@@ -1369,6 +1369,8 @@ const state = {
     indexing_file: "",
     discoveredFiles: 0,
     processedFiles: 0,
+    pendingTasks: 0,
+    rootsCount: 0,
     filesPerSec: 0,
     etaSeconds: 0,
     engine_lights: ["off", "off", "off", "off"],
@@ -1576,6 +1578,9 @@ function syncFooterHint() {
 
 function normalizeFulltextPayload(payload) {
   const src = payload && typeof payload === "object" ? payload : {};
+  const rootsCount = Array.isArray(src.roots)
+    ? src.roots.length
+    : (Number.isFinite(Number(src.rootsCount)) ? Number(src.rootsCount) : 0);
   return {
     running: !!src.running,
     ready: !!src.ready,
@@ -1587,6 +1592,8 @@ function normalizeFulltextPayload(payload) {
     indexing_file: String(src.indexing_file || ""),
     discoveredFiles: Number.isFinite(Number(src.discoveredFiles)) ? Number(src.discoveredFiles) : 0,
     processedFiles: Number.isFinite(Number(src.processedFiles)) ? Number(src.processedFiles) : 0,
+    pendingTasks: Number.isFinite(Number(src.pendingTasks)) ? Number(src.pendingTasks) : 0,
+    rootsCount,
     filesPerSec: Number.isFinite(Number(src.filesPerSec)) ? Number(src.filesPerSec) : 0,
     etaSeconds: Number.isFinite(Number(src.etaSeconds)) ? Number(src.etaSeconds) : 0,
     engine_lights: Array.isArray(src.engine_lights) && src.engine_lights.length === 4
@@ -1683,7 +1690,14 @@ function applyFulltextStatus(payload) {
   });
   const progressEl = document.getElementById("ft-progress-text");
   if (progressEl) {
-    const txt = state.fulltext.progressDetail || state.fulltext.progressText || `${state.fulltext.progress.toFixed(1)}%`;
+    const hasCounters =
+      state.fulltext.discoveredFiles > 0 ||
+      state.fulltext.processedFiles > 0 ||
+      state.fulltext.pendingTasks > 0 ||
+      state.fulltext.rootsCount > 0;
+    const txt = hasCounters
+      ? `已处理 ${state.fulltext.processedFiles} / ${state.fulltext.discoveredFiles}，待处理 ${state.fulltext.pendingTasks}，索引根 ${state.fulltext.rootsCount}`
+      : (state.fulltext.progressDetail || state.fulltext.progressText || `${state.fulltext.progress.toFixed(1)}%`);
     progressEl.textContent = `FT ${txt}`;
   }
   const effEl = document.getElementById("ft-efficiency-text");

@@ -319,6 +319,20 @@ _SCWV_SearchCoreExePath() {
     return ""
 }
 
+_SCWV_ApplySearchCoreDefaults() {
+    ; 提升全文初扫效率：优先允许 Everything 枚举，同时显式开启 MFT/USN
+    ; 仅作用于本进程及其子进程，不写系统级环境变量。
+    try EnvSet("SEARCHCENTER_FT_USE_EVERYTHING", "1")
+    catch {
+    }
+    try EnvSet("SEARCHCENTER_FT_USE_MFT", "1")
+    catch {
+    }
+    try EnvSet("SEARCHCENTER_FT_USE_USN", "1")
+    catch {
+    }
+}
+
 _SCWV_RestartSearchCore() {
     exe := _SCWV_SearchCoreExePath()
     if (exe = "")
@@ -328,6 +342,7 @@ _SCWV_RestartSearchCore() {
     }
     Sleep(150)
     try {
+        _SCWV_ApplySearchCoreDefaults()
         Run('"' exe '" -base "' A_ScriptDir '"', A_ScriptDir, "Hide")
         Loop 70 {
             Sleep(80)
@@ -373,6 +388,28 @@ _SCWV_HttpGetSearchCore(queryString) {
     return r.Has("body") ? r["body"] : ""
 }
 
+_SCWV_WinHttpReadUtf8Text(whr) {
+    if !IsObject(whr)
+        return ""
+    try {
+        ado := ComObject("ADODB.Stream")
+        ado.Type := 1  ; binary
+        ado.Open()
+        ado.Write(whr.ResponseBody)
+        ado.Position := 0
+        ado.Type := 2  ; text
+        ado.Charset := "utf-8"
+        txt := ado.ReadText(-1)
+        ado.Close()
+        return txt
+    } catch {
+        try return whr.ResponseText
+        catch {
+            return ""
+        }
+    }
+}
+
 ; 返回 Map: status, body（仅 status=200 时 body 为 JSON 文本）
 _SCWV_HttpGetSearchCoreResp(queryString) {
     try {
@@ -383,10 +420,11 @@ _SCWV_HttpGetSearchCoreResp(queryString) {
         whr.SetTimeouts(1200, 1200, 6000, 6000)
         whr.Send()
         st := Integer(whr.Status)
+        rawText := _SCWV_WinHttpReadUtf8Text(whr)
         body := ""
         if (st = 200)
-            body := whr.ResponseText
-        return Map("status", st, "body", body, "responseText", whr.ResponseText)
+            body := rawText
+        return Map("status", st, "body", body, "responseText", rawText)
     } catch as err {
         try OutputDebug("[SCWV] SearchCore HTTP: " . err.Message)
         _SCWV_LogRuntime("SearchCore HTTP exception: " . err.Message)
@@ -408,7 +446,7 @@ _SCWV_HttpSearchCoreJsonRaw(method, path, body := "") {
             whr.Send()
         }
         st := Integer(whr.Status)
-        txt := whr.ResponseText
+        txt := _SCWV_WinHttpReadUtf8Text(whr)
         obj := 0
         if (Trim(String(txt)) != "") {
             try obj := Jxon_Load(txt)
