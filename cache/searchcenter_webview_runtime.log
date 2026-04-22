@@ -35,3 +35,18 @@ Source:	WinHttp.WinHttpRequest
 
 Source:	WinHttp.WinHttpRequest
 [2026-04-22 09:51:29] SearchCore HTTP 0, retry once
+[2026-04-22 16:03:01] SearchCore HTTP exception: (0x80072EE2) 
+操作超时
+
+Source:	WinHttp.WinHttpRequest
+[2026-04-22 16:03:01] SearchCore HTTP 0, retry once
+[2026-04-22 16:12:56] SearchCore HTTP exception: (0x80072EE2) 
+操作超时
+
+Source:	WinHttp.WinHttpRequest
+[2026-04-22 16:12:56] SearchCore HTTP 0, retry once
+[2026-04-22 16:13:08] SearchCore HTTP exception: (0x80072EE2) 
+操作超时
+
+Source:	WinHttp.WinHttpRequest
+[2026-04-22 16:13:08] SearchCore HTTP 0, retry once

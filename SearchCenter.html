@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -1410,32 +1410,32 @@ mark {
         <span class="ft-mini-light" id="ftl2"></span>
         <span class="ft-mini-light" id="ftl3"></span>
         <span class="ft-mini-light" id="ftl4"></span>
-        <span id="ft-progress-text">FT 0.0%</span>
+        <span id="ft-progress-text">索引准备中…</span>
         <span id="ft-scan-badge" class="ft-scan-badge" style="display:none" title=""></span>
         <span id="ft-efficiency-text" class="ft-mini-file">0 文件/秒</span>
         <span id="ft-file" class="ft-mini-file">空闲</span>
       </div>
       <div id="ft-scheme-panel" class="ft-scheme-panel">
         <div class="ft-basic-row">
-          <button type="button" id="btn-ft-probe" class="mini-btn" title="检测 MFT / Everything / USN 可行性">检测可行性</button>
+          <button type="button" id="btn-ft-probe" class="mini-btn" title="检测当前电脑适合哪种扫描方式">检测可行性</button>
           <button type="button" id="btn-ft-recommend-apply" class="mini-btn" title="按检测结果自动选最稳方案并应用">一键推荐</button>
-          <button type="button" id="btn-ft-advanced-toggle" class="mini-btn" title="展开手动方案设置">高级设置 ▾</button>
+          <button type="button" id="btn-ft-advanced-toggle" class="mini-btn" title="展开手动方案设置">技术详情 ▾</button>
           <span id="ft-probe-summary" class="ft-probe-summary"></span>
         </div>
         <div id="ft-advanced-wrap" class="ft-advanced-wrap hidden">
-          <select id="ft-scheme-select" class="mini-select" title="扫描方案">
-            <option value="auto">自动（MFT→Everything→Walk）</option>
-            <option value="mft">优先 MFT（失败回退 Walk）</option>
-            <option value="everything">优先 Everything（失败回退 Walk）</option>
-            <option value="walk">仅 WalkDir</option>
+          <select id="ft-scheme-select" class="mini-select" title="扫描方式">
+            <option value="auto">自动选择（推荐）</option>
+            <option value="mft">高速扫描（推荐）</option>
+            <option value="everything">快速扫描（需 Everything）</option>
+            <option value="walk">兼容扫描（最稳定）</option>
           </select>
-          <label class="mini-check" title="开启 USN 增量跟踪">
+          <label class="mini-check" title="文件变化时自动增量更新索引">
             <input id="ft-usn-toggle" type="checkbox" checked>
-            USN 增量
+            实时更新
           </label>
           <button type="button" id="btn-ft-scheme-apply" class="mini-btn" title="保存并重启索引">应用当前设置</button>
         </div>
-        <div id="ft-scheme-help" class="ft-scheme-help">新手建议：先点“检测可行性”，再点“一键推荐”。在 Windows/NTFS 会优先走 MFT 或 USN，不可用时自动回退。</div>
+        <div id="ft-scheme-help" class="ft-scheme-help">建议先点“检测可行性”，再点“一键推荐”。系统会自动选择更稳妥的方式。</div>
       </div>
       <div id="ft-probe-list" class="ft-probe-list"></div>
     </div>
@@ -2054,14 +2054,26 @@ function normalizeFulltextPayload(payload) {
 function formatScanModeBadge(mode) {
   const m = String(mode || "").toLowerCase();
   if (!m) return "";
-  if (m.includes("mft")) {
-    return (m.includes("usn") ? "⚡MFT·🔁USN" : "⚡MFT");
-  }
-  if (m.includes("walk")) {
-    return (m.includes("usn") ? "🐢Walk·🔁USN" : "🐢Walk");
-  }
-  if (m.includes("usn")) return "🔁USN";
+  if (m.includes("mft")) return "高速扫描";
+  if (m.includes("everything")) return "快速扫描";
+  if (m.includes("walk")) return "兼容扫描";
+  if (m.includes("usn")) return "实时更新";
   return String(mode || "");
+}
+
+function userFriendlyProbeReason(reason, kind) {
+  const raw = String(reason || "").trim();
+  if (!raw) return "未返回说明";
+  const low = raw.toLowerCase();
+  if (low.includes("incorrect function")) {
+    return kind === "usn"
+      ? "当前磁盘不支持实时更新，已自动降级，不影响搜索"
+      : "当前磁盘不支持该方式，已自动降级";
+  }
+  if (low.includes("root is not a drive root")) return "该路径不是磁盘根目录";
+  if (low.includes("permission") || low.includes("access denied")) return "权限不足";
+  if (low.includes("timeout")) return "检测超时";
+  return raw;
 }
 
 function getHitContextList(item) {
@@ -2231,15 +2243,19 @@ function applyFulltextStatus(payload) {
   });
   const progressEl = document.getElementById("ft-progress-text");
   if (progressEl) {
-    const hasCounters =
-      state.fulltext.discoveredFiles > 0 ||
-      state.fulltext.processedFiles > 0 ||
-      state.fulltext.pendingTasks > 0 ||
-      state.fulltext.rootsCount > 0;
-    const txt = hasCounters
-      ? `已处理 ${state.fulltext.processedFiles} / ${state.fulltext.discoveredFiles}，待处理 ${state.fulltext.pendingTasks}，索引根 ${state.fulltext.rootsCount}`
-      : (state.fulltext.progressDetail || state.fulltext.progressText || `${state.fulltext.progress.toFixed(1)}%`);
-    progressEl.textContent = `FT ${txt}`;
+    const discovered = Number(state.fulltext.discoveredFiles) || 0;
+    const processed = Number(state.fulltext.processedFiles) || 0;
+    const pending = Number(state.fulltext.pendingTasks) || 0;
+    const roots = Number(state.fulltext.rootsCount) || 0;
+    let txt = "索引准备中…";
+    if (discovered > 0 || processed > 0 || pending > 0) {
+      txt = `正在建立索引：${processed}/${discovered}${pending > 0 ? `，剩余 ${pending}` : ""}`;
+      if (pending === 0 && discovered > 0 && processed >= discovered) {
+        txt = `索引已完成（${roots}个位置）`;
+      }
+    }
+    progressEl.textContent = txt;
+    progressEl.title = txt;
   }
   const effEl = document.getElementById("ft-efficiency-text");
   if (effEl) {
@@ -2252,7 +2268,7 @@ function applyFulltextStatus(payload) {
     const phaseMap = {
       startup: "准备中",
       walking: "扫描目录中",
-      indexing: "冷索引中",
+      indexing: "正在建立索引",
       idle_wait: "等待空闲",
       ready: "索引就绪",
       idle: "空闲"
@@ -2277,8 +2293,8 @@ function applyFulltextStatus(payload) {
     const lab = formatScanModeBadge(state.fulltext.scan_mode);
     scanBadge.textContent = lab;
     scanBadge.title = state.fulltext.scan_mode
-      ? ("扫描模式: " + state.fulltext.scan_mode + (state.fulltext.indexEpoch ? " · epoch " + state.fulltext.indexEpoch : ""))
-      : "扫描模式";
+      ? ("当前模式: " + lab + (state.fulltext.indexEpoch ? " · 轮次 " + state.fulltext.indexEpoch : ""))
+      : "当前模式";
     scanBadge.style.display = lab ? "inline" : "none";
   }
 }
@@ -2296,10 +2312,10 @@ function syncFulltextSchemeUi() {
 
 function schemeDisplayName(scheme) {
   const v = String(scheme || "auto").toLowerCase();
-  if (v === "mft") return "优先 MFT";
-  if (v === "everything") return "优先 Everything";
-  if (v === "walk") return "仅 WalkDir";
-  return "自动（MFT→Everything→Walk）";
+  if (v === "mft") return "高速扫描（推荐）";
+  if (v === "everything") return "快速扫描（需 Everything）";
+  if (v === "walk") return "兼容扫描（最稳定）";
+  return "自动选择（推荐）";
 }
 
 function syncFulltextAdvancedUi() {
@@ -2308,15 +2324,15 @@ function syncFulltextAdvancedUi() {
   const help = document.getElementById("ft-scheme-help");
   const open = !!state.fulltextUiAdvanced;
   if (wrap) wrap.classList.toggle("hidden", !open);
-  if (btn) btn.textContent = open ? "高级设置 ▴" : "高级设置 ▾";
+  if (btn) btn.textContent = open ? "技术详情 ▴" : "技术详情 ▾";
   if (help) {
     const rec = state.fulltextProbe && state.fulltextProbe.last
       ? String((state.fulltextProbe.last.recommendedScheme || "")).toLowerCase()
       : "";
     if (rec) {
-      help.textContent = "建议方案：" + schemeDisplayName(rec) + "。可直接点“一键推荐”，也可展开“高级设置”手动微调。";
+      help.textContent = "推荐方式：" + schemeDisplayName(rec) + "。通常无需手动调整。";
     } else {
-      help.textContent = "新手建议：先点“检测可行性”，再点“一键推荐”。在 Windows/NTFS 会优先走 MFT 或 USN，不可用时自动回退。";
+      help.textContent = "建议先点“检测可行性”，再点“一键推荐”。系统会自动选择更稳妥的方式。";
     }
   }
 }
@@ -2353,20 +2369,20 @@ function renderFulltextProbe(probe) {
     const root = escapeHtml(String(it.root || ""));
     const mftOk = !!it.mftOk;
     const usnOk = !!it.usnOk;
-    const mftReason = escapeHtml(String(it.mftReason || ""));
-    const usnReason = escapeHtml(String(it.usnReason || ""));
+    const mftReason = escapeHtml(userFriendlyProbeReason(String(it.mftReason || ""), "mft"));
+    const usnReason = escapeHtml(userFriendlyProbeReason(String(it.usnReason || ""), "usn"));
     return "<div class=\"ft-probe-item\">" +
       "<div><strong>" + root + "</strong></div>" +
-      "<div>MFT: <span class=\"" + (mftOk ? "ft-probe-ok" : "ft-probe-bad") + "\">" + (mftOk ? "可用" : "不可用") + "</span> · " + mftReason + "</div>" +
-      "<div>USN: <span class=\"" + (usnOk ? "ft-probe-ok" : "ft-probe-bad") + "\">" + (usnOk ? "可用" : "不可用") + "</span> · " + usnReason + "</div>" +
+      "<div>高速扫描: <span class=\"" + (mftOk ? "ft-probe-ok" : "ft-probe-bad") + "\">" + (mftOk ? "可用" : "不可用") + "</span> · " + mftReason + "</div>" +
+      "<div>实时更新: <span class=\"" + (usnOk ? "ft-probe-ok" : "ft-probe-bad") + "\">" + (usnOk ? "可用" : "不可用") + "</span> · " + usnReason + "</div>" +
       "</div>";
   }).join("");
   const extra = [];
   if (typeof p.everythingOk === "boolean") {
-    extra.push("Everything " + (p.everythingOk ? "可用" : "不可用"));
+    extra.push("快速扫描（Everything）" + (p.everythingOk ? "可用" : "不可用"));
   }
   if (p.recommendedScheme) {
-    extra.push("建议方案: " + schemeDisplayName(String(p.recommendedScheme)));
+    extra.push("推荐: " + schemeDisplayName(String(p.recommendedScheme)));
   }
   setFulltextProbeSummary(extra.join(" · "));
   syncFulltextAdvancedUi();
