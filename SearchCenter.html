@@ -609,9 +609,17 @@ button, input, select, textarea { font: inherit; }
   line-height: 1.2;
   letter-spacing: .02em;
 }
+.hotkey-hint-btn {
+  cursor: pointer;
+  user-select: none;
+}
 .hotkey-hint.unbound {
   border-style: dashed;
   opacity: .72;
+  min-width: 18px;
+  padding: 0 4px;
+  font-weight: 700;
+  font-size: 11px;
 }
 .engine-chip .hotkey-hint {
   margin-top: 1px;
@@ -1173,6 +1181,53 @@ button, input, select, textarea { font: inherit; }
   justify-content: flex-end;
   gap: 8px;
 }
+.hotkey-bind-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.55);
+  padding: 20px;
+}
+.hotkey-bind-overlay.open {
+  display: flex;
+}
+.hotkey-bind-dialog {
+  width: min(420px, 96vw);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+.hotkey-bind-body {
+  padding: 12px 16px 10px;
+  display: grid;
+  gap: 8px;
+}
+.hotkey-bind-target {
+  color: #9eb0bd;
+  font-size: 12px;
+}
+.hotkey-bind-capture {
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,.02);
+  color: #c9d4df;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.hotkey-bind-key {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+}
+.hotkey-bind-tip {
+  color: #7f8a95;
+  font-size: 11px;
+}
 .btn {
   height: 40px;
   padding: 0 16px;
@@ -1402,6 +1457,27 @@ mark {
       </div>
     </div>
   </div>
+
+  <div id="hotkey-bind-overlay" class="hotkey-bind-overlay" aria-hidden="true">
+    <div class="hotkey-bind-dialog recycle-dialog card" role="dialog" aria-modal="true" aria-labelledby="hotkey-bind-title">
+      <div class="recycle-dialog-head">
+        <span id="hotkey-bind-title">快捷键绑定</span>
+        <button type="button" id="hotkey-bind-close" class="chrome-btn" title="关闭">×</button>
+      </div>
+      <div class="hotkey-bind-body">
+        <div id="hotkey-bind-target" class="hotkey-bind-target"></div>
+        <div id="hotkey-bind-capture" class="hotkey-bind-capture">
+          当前键：<span id="hotkey-bind-key" class="hotkey-bind-key">未设置</span>
+        </div>
+        <div id="hotkey-bind-tip" class="hotkey-bind-tip">按下 A-Z 或 0-9 作为 Caps+ 快捷键。按 Delete/Backspace 清空，按 Enter 保存。</div>
+      </div>
+      <div class="recycle-dialog-foot">
+        <button type="button" id="hotkey-bind-clear" class="btn ghost">清空</button>
+        <button type="button" id="hotkey-bind-cancel" class="btn ghost">取消</button>
+        <button type="button" id="hotkey-bind-apply" class="btn">保存</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1418,6 +1494,7 @@ if (typeof BasePanel === 'undefined') {
   };
 }
 const SC_ENGINE_MODE_KEY = "sc_engine_mode";
+const SC_HOTKEY_BINDINGS_KEY = "sc_hotkey_bindings_v1";
 const SC_FT_ADVANCED_KEY = "sc_ft_ui_advanced";
 /** 与 SearchCenterCore HTTP 监听一致；EventSource 直连进度流（失败时回退 AHK 轮询） */
 const SEARCH_CORE_ORIGIN = "http://127.0.0.1:8080";
@@ -1445,6 +1522,14 @@ const state = {
   selectedRow: 1,
   capsHintActive: false,
   capsPressedKey: "",
+  hotkeyBindings: null,
+  hotkeyBindDialog: {
+    open: false,
+    group: "",
+    value: "",
+    label: "",
+    draftKey: ""
+  },
   recycleBin: [],
   recycleCount: 0,
   previewTimer: 0,
@@ -1502,6 +1587,7 @@ const state = {
     pendingOpenRow: 0
   }
 };
+state.hotkeyBindings = loadHotkeyBindings();
 
 const PDF_JS_ASSET_BASE = "https://app.local/assets/pdfjs/";
 
@@ -1565,7 +1651,7 @@ const PREVIEW_PDF_EXT = new Set(["pdf"]);
 const PREVIEW_ARCHIVE_EXT = new Set(["zip", "7z", "rar", "tar", "gz", "tgz", "bz2", "xz", "cab", "iso"]);
 const PDF_MODE_OPTIONS_BASE = ["auto", "pdfjs", "web", "pdfium", "ipreview"];
 const ONE_MB = 1048576;
-const HOTKEY_HINT_MAP = Object.freeze({
+const HOTKEY_HINT_DEFAULT_MAP = Object.freeze({
   category: Object.freeze({
     ai: "q",
     cli: "w",
@@ -1594,6 +1680,10 @@ function escapeHtml(text) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function escapeAttr(text) {
+  return escapeHtml(text).replace(/"/g, "&quot;");
 }
 
 function saveMediaPref(key, value) {
@@ -1656,9 +1746,13 @@ function highlight(text, keyword) {
 
 function getHintHotkey(group, value) {
   if (!group || !value) return "";
-  const src = HOTKEY_HINT_MAP[group];
+  const customGroup = state.hotkeyBindings && state.hotkeyBindings[group];
+  if (customGroup && Object.prototype.hasOwnProperty.call(customGroup, value)) {
+    return normalizeHintKey(customGroup[value] || "");
+  }
+  const src = HOTKEY_HINT_DEFAULT_MAP[group];
   if (!src) return "";
-  return src[value] || "";
+  return normalizeHintKey(src[value] || "");
 }
 
 function normalizeHintKey(key) {
@@ -1666,11 +1760,148 @@ function normalizeHintKey(key) {
   return /^[a-z0-9]$/.test(k) ? k : "";
 }
 
-function hotkeyHintHtml(hotkey) {
+function hotkeyHintHtml(hotkey, group, value, label) {
+  const g = escapeAttr(group || "");
+  const v = escapeAttr(value || "");
+  const t = escapeAttr(label || value || "");
+  const common = "hotkey-hint hotkey-hint-btn";
   if (hotkey) {
-    return "<span class=\"hotkey-hint\">Caps+" + escapeHtml(String(hotkey).toUpperCase()) + "</span>";
+    return "<span class=\"" + common + "\" data-hotkey-group=\"" + g + "\" data-hotkey-value=\"" + v + "\" data-hotkey-label=\"" + t + "\" title=\"点击修改快捷键\">Caps+" + escapeHtml(String(hotkey).toUpperCase()) + "</span>";
   }
-  return "<span class=\"hotkey-hint unbound\">可绑定</span>";
+  return "<span class=\"" + common + " unbound\" data-hotkey-group=\"" + g + "\" data-hotkey-value=\"" + v + "\" data-hotkey-label=\"" + t + "\" title=\"点击绑定快捷键\">+</span>";
+}
+
+function emptyHotkeyBindingMap() {
+  return { category: {}, engine: {}, filter: {} };
+}
+
+function loadHotkeyBindings() {
+  try {
+    const raw = localStorage.getItem(SC_HOTKEY_BINDINGS_KEY);
+    if (!raw) return emptyHotkeyBindingMap();
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return emptyHotkeyBindingMap();
+    const out = emptyHotkeyBindingMap();
+    ["category", "engine", "filter"].forEach((group) => {
+      const src = parsed[group];
+      if (!src || typeof src !== "object") return;
+      Object.keys(src).forEach((k) => {
+        out[group][k] = normalizeHintKey(src[k] || "");
+      });
+    });
+    return out;
+  } catch {
+    return emptyHotkeyBindingMap();
+  }
+}
+
+function saveHotkeyBindings() {
+  try {
+    localStorage.setItem(SC_HOTKEY_BINDINGS_KEY, JSON.stringify(state.hotkeyBindings || emptyHotkeyBindingMap()));
+  } catch {}
+}
+
+function setHotkeyBinding(group, value, key) {
+  if (!group || !value) return;
+  if (!state.hotkeyBindings || typeof state.hotkeyBindings !== "object") {
+    state.hotkeyBindings = emptyHotkeyBindingMap();
+  }
+  if (!state.hotkeyBindings[group] || typeof state.hotkeyBindings[group] !== "object") {
+    state.hotkeyBindings[group] = {};
+  }
+  state.hotkeyBindings[group][value] = normalizeHintKey(key || "");
+}
+
+function findHotkeyConflict(group, value, key) {
+  const target = normalizeHintKey(key);
+  if (!target) return null;
+  const nodes = document.querySelectorAll(".hotkey-item[data-hotkey-group][data-hotkey-value]");
+  for (const node of nodes) {
+    const g = String(node.dataset.hotkeyGroup || "");
+    const v = String(node.dataset.hotkeyValue || "");
+    if (!g || !v) continue;
+    if (g === group && v === value) continue;
+    if (getHintHotkey(g, v) === target) {
+      return { group: g, value: v, label: String(node.dataset.hotkeyLabel || v) };
+    }
+  }
+  return null;
+}
+
+function syncHotkeyBindDialogUi() {
+  const target = document.getElementById("hotkey-bind-target");
+  const keyEl = document.getElementById("hotkey-bind-key");
+  if (!target || !keyEl) return;
+  const d = state.hotkeyBindDialog || {};
+  const key = normalizeHintKey(d.draftKey || "");
+  target.textContent = "目标按钮：" + String(d.label || d.value || "");
+  keyEl.textContent = key ? ("Caps+" + key.toUpperCase()) : "未设置";
+}
+
+function openHotkeyBindDialog(group, value, label) {
+  if (!group || !value) return;
+  const ov = document.getElementById("hotkey-bind-overlay");
+  if (!ov) return;
+  state.hotkeyBindDialog.open = true;
+  state.hotkeyBindDialog.group = String(group);
+  state.hotkeyBindDialog.value = String(value);
+  state.hotkeyBindDialog.label = String(label || value);
+  state.hotkeyBindDialog.draftKey = getHintHotkey(group, value) || "";
+  syncHotkeyBindDialogUi();
+  ov.classList.add("open");
+  ov.setAttribute("aria-hidden", "false");
+}
+
+function closeHotkeyBindDialog() {
+  const ov = document.getElementById("hotkey-bind-overlay");
+  if (!ov) return;
+  state.hotkeyBindDialog.open = false;
+  ov.classList.remove("open");
+  ov.setAttribute("aria-hidden", "true");
+}
+
+function applyHotkeyBindDialog() {
+  const d = state.hotkeyBindDialog || {};
+  const group = String(d.group || "");
+  const value = String(d.value || "");
+  const key = normalizeHintKey(d.draftKey || "");
+  if (!group || !value) return;
+  if (key) {
+    const conflict = findHotkeyConflict(group, value, key);
+    if (conflict) setHotkeyBinding(conflict.group, conflict.value, "");
+  }
+  setHotkeyBinding(group, value, key);
+  saveHotkeyBindings();
+  renderCategories();
+  renderEngines();
+  renderFilters();
+  closeHotkeyBindDialog();
+}
+
+function handleHotkeyBindKeydown(event) {
+  if (!(state.hotkeyBindDialog && state.hotkeyBindDialog.open)) return false;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeHotkeyBindDialog();
+    return true;
+  }
+  if (event.key === "Enter") {
+    event.preventDefault();
+    applyHotkeyBindDialog();
+    return true;
+  }
+  if (event.key === "Backspace" || event.key === "Delete") {
+    event.preventDefault();
+    state.hotkeyBindDialog.draftKey = "";
+    syncHotkeyBindDialogUi();
+    return true;
+  }
+  const k = normalizeHintKey(event.key);
+  if (!k) return true;
+  event.preventDefault();
+  state.hotkeyBindDialog.draftKey = k;
+  syncHotkeyBindDialogUi();
+  return true;
 }
 
 function getFooterHintText() {
@@ -2019,7 +2250,10 @@ function renderCategories() {
     const el = document.createElement("button");
     el.className = "chip hotkey-item" + (cat.key === state.currentCategoryKey ? " active" : "");
     el.dataset.hotkey = hotkey || "";
-    el.innerHTML = "<span class=\"chip-main\"><span class=\"chip-title\">" + escapeHtml(cat.text) + "</span>" + hotkeyHintHtml(hotkey) + "</span><span class=\"count\">" + (cat.selectedCount || 0) + "</span>";
+    el.dataset.hotkeyGroup = "category";
+    el.dataset.hotkeyValue = String(cat.key || "");
+    el.dataset.hotkeyLabel = String(cat.text || cat.key || "");
+    el.innerHTML = "<span class=\"chip-main\"><span class=\"chip-title\">" + escapeHtml(cat.text) + "</span>" + hotkeyHintHtml(hotkey, "category", cat.key, cat.text) + "</span><span class=\"count\">" + (cat.selectedCount || 0) + "</span>";
     el.onclick = () => postToAhk({ type: "setCategory", category: cat.key });
     wrap.appendChild(el);
   });
@@ -2035,10 +2269,13 @@ function renderEngines() {
     const el = document.createElement("button");
     el.className = "engine-chip hotkey-item" + (active ? " active" : "");
     el.dataset.hotkey = hotkey || "";
+    el.dataset.hotkeyGroup = "engine";
+    el.dataset.hotkeyValue = String(engine.value || "");
+    el.dataset.hotkeyLabel = String(engine.name || engine.value || "");
     const icon = engine.iconUrl
       ? "<span class=\"engine-icon-wrap\"><img src=\"" + engine.iconUrl + "\" alt=\"\"></span>"
       : "<span class=\"engine-icon-wrap\"><span class=\"engine-fallback\">" + escapeHtml((engine.name || "?").slice(0, 1).toUpperCase()) + "</span></span>";
-    el.innerHTML = icon + "<span class=\"label\">" + escapeHtml(engine.name) + "</span>" + hotkeyHintHtml(hotkey);
+    el.innerHTML = icon + "<span class=\"label\">" + escapeHtml(engine.name) + "</span>" + hotkeyHintHtml(hotkey, "engine", engine.value, engine.name);
     el.onclick = () => postToAhk({ type: "toggleEngine", engine: engine.value });
     wrap.appendChild(el);
   });
@@ -2054,8 +2291,11 @@ function renderFilters() {
     el.type = "button";
     el.className = "filter-chip hotkey-item" + (filter.key === state.filterType ? " active" : "");
     el.dataset.hotkey = hotkey || "";
+    el.dataset.hotkeyGroup = "filter";
+    el.dataset.hotkeyValue = String(filter.key || "");
+    el.dataset.hotkeyLabel = String(filter.text || filter.key || "");
     el.dataset.filterKey = filter.key || "";
-    el.innerHTML = "<span class=\"filter-label\">" + escapeHtml(filter.text) + "</span>" + hotkeyHintHtml(hotkey);
+    el.innerHTML = "<span class=\"filter-label\">" + escapeHtml(filter.text) + "</span>" + hotkeyHintHtml(hotkey, "filter", filter.key, filter.text);
     const applyFilter = () => postToAhk({ type: "setFilter", filterType: filter.key });
     let pressedHandled = false;
     let pressedAt = 0;
@@ -3587,6 +3827,47 @@ if (recycleOverlay) {
     if (e.target === recycleOverlay) closeRecycleModal();
   });
 }
+document.addEventListener("pointerdown", (event) => {
+  const trigger = event.target && event.target.closest ? event.target.closest(".hotkey-hint-btn") : null;
+  if (!trigger) return;
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
+document.addEventListener("mousedown", (event) => {
+  const trigger = event.target && event.target.closest ? event.target.closest(".hotkey-hint-btn") : null;
+  if (!trigger) return;
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
+document.addEventListener("click", (event) => {
+  const trigger = event.target && event.target.closest ? event.target.closest(".hotkey-hint-btn") : null;
+  if (!trigger) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const group = String(trigger.getAttribute("data-hotkey-group") || "");
+  const value = String(trigger.getAttribute("data-hotkey-value") || "");
+  const label = String(trigger.getAttribute("data-hotkey-label") || value);
+  openHotkeyBindDialog(group, value, label);
+});
+const hotkeyBindOverlay = document.getElementById("hotkey-bind-overlay");
+if (hotkeyBindOverlay) {
+  hotkeyBindOverlay.addEventListener("click", (e) => {
+    if (e.target === hotkeyBindOverlay) closeHotkeyBindDialog();
+  });
+}
+const hotkeyBindClose = document.getElementById("hotkey-bind-close");
+if (hotkeyBindClose) hotkeyBindClose.addEventListener("click", () => closeHotkeyBindDialog());
+const hotkeyBindCancel = document.getElementById("hotkey-bind-cancel");
+if (hotkeyBindCancel) hotkeyBindCancel.addEventListener("click", () => closeHotkeyBindDialog());
+const hotkeyBindClear = document.getElementById("hotkey-bind-clear");
+if (hotkeyBindClear) {
+  hotkeyBindClear.addEventListener("click", () => {
+    state.hotkeyBindDialog.draftKey = "";
+    syncHotkeyBindDialogUi();
+  });
+}
+const hotkeyBindApply = document.getElementById("hotkey-bind-apply");
+if (hotkeyBindApply) hotkeyBindApply.addEventListener("click", () => applyHotkeyBindDialog());
 const previewPdfModeBtn = document.getElementById("preview-pdf-mode-btn");
 if (previewPdfModeBtn) {
   previewPdfModeBtn.addEventListener("click", () => cyclePdfMode());
@@ -3638,6 +3919,7 @@ syncFulltextAdvancedUi();
 })();
 
 document.addEventListener("keydown", (event) => {
+  if (handleHotkeyBindKeydown(event)) return;
   if (event.key === "CapsLock") {
     beginCapsHoldHint();
   } else if (state.capsHintActive) {
