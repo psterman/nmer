@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>搜索中心</title>
+<title>鎼滅储涓績</title>
 <link rel="stylesheet" href="https://app.local/assets/vendor/prism/prism-tomorrow.min.css">
 <style>
 :root {
@@ -43,7 +43,7 @@ button, input, select, textarea { font: inherit; }
   gap: 12px;
   padding: 14px 26px 18px;
 }
-/* 须显示标题栏：极速/标准 与窗口控制在此；勿 display:none（会隐藏引擎切换） */
+/* 椤绘樉绀烘爣棰樻爮锛氭瀬閫?鏍囧噯 涓庣獥鍙ｆ帶鍒跺湪姝わ紱鍕?display:none锛堜細闅愯棌寮曟搸鍒囨崲锛?*/
 #chrome-header {
   display: flex;
 }
@@ -152,7 +152,7 @@ button, input, select, textarea { font: inherit; }
   align-self: center;
 }
 
-/* ClipboardPanel 风格：引擎分段按钮（极速/标准） */
+/* ClipboardPanel 椋庢牸锛氬紩鎿庡垎娈垫寜閽紙鏋侀€?鏍囧噯锛?*/
 .engine-mode-group {
   display: inline-flex;
   border: 1px solid var(--border);
@@ -320,19 +320,13 @@ button, input, select, textarea { font: inherit; }
 .ft-scheme-panel {
   margin-top: 6px;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
   flex-wrap: wrap;
   font-size: 11px;
 }
-.ft-basic-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
 .ft-advanced-wrap {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
@@ -369,12 +363,6 @@ button, input, select, textarea { font: inherit; }
 }
 .ft-probe-summary {
   color: #9eb0bd;
-}
-.ft-scheme-help {
-  width: 100%;
-  color: #7f8a95;
-  font-size: 10px;
-  line-height: 1.45;
 }
 .ft-probe-list {
   margin-top: 4px;
@@ -1262,14 +1250,14 @@ mark {
 <body>
 <div id="app">
     <header id="chrome-header" class="chrome-header window-titlebar">
-    <div class="chrome-drag" id="chrome-drag" title="拖动窗口">搜索中心</div>
+    <div class="chrome-drag" id="chrome-drag" title="鎷栧姩绐楀彛">鎼滅储涓績</div>
     <div class="chrome-controls">
-      <div class="engine-mode-group" role="group" aria-label="搜索引擎模式">
-        <button type="button" id="engine-mode-go" class="engine-mode-btn" data-engine="go" title="极速：Go SearchCenterCore">极速 · Go</button>
-        <button type="button" id="engine-mode-ahk" class="engine-mode-btn" data-engine="ahk" title="标准：AHK 本地引擎">标准 · AHK</button>
+      <div class="engine-mode-group" role="group" aria-label="鎼滅储寮曟搸妯″紡">
+        <button type="button" id="engine-mode-go" class="engine-mode-btn" data-engine="go" title="鏋侀€燂細Go SearchCenterCore">鏋侀€?路 Go</button>
+        <button type="button" id="engine-mode-ahk" class="engine-mode-btn" data-engine="ahk" title="鏍囧噯锛欰HK 鏈湴寮曟搸">鏍囧噯 路 AHK</button>
       </div>
-      <button type="button" id="btn-ft-settings-top" class="chrome-btn" title="搜索设置"><span class="icon">⚙</span><span>搜索设置</span></button>
-      <button type="button" id="chrome-topmost" class="chrome-btn" title="置顶窗口">置顶</button>
+      <button type="button" id="btn-ft-settings-top" class="chrome-btn" title="鎼滅储璁剧疆"><span class="icon">鈿?/span><span>鎼滅储璁剧疆</span></button>
+      <button type="button" id="chrome-topmost" class="chrome-btn" title="缃《绐楀彛">缃《</button>
     </div>
   </header>
 
@@ -1281,8 +1269,8 @@ mark {
   <div id="search-bar" class="card">
     <span id="search-icon-inline">&#128269;</span>
     <div class="search-input-wrap">
-      <input id="search" type="text" placeholder="搜索本地结果，或直接作为网络搜索 / CLI 提示词发送">
-      <div id="status" class="search-status-inline">准备中...</div>
+      <input id="search" type="text" placeholder="鎼滅储鏈湴缁撴灉锛屾垨鐩存帴浣滀负缃戠粶鎼滅储 / CLI 鎻愮ず璇嶅彂閫?>
+      <div id="status" class="search-status-inline">鍑嗗涓?..</div>
       <div id="fulltext-inline" class="fulltext-inline">
         <span class="ft-mini-light" id="ftl1"></span>
         <span class="ft-mini-light" id="ftl2"></span>
@@ -1290,51 +1278,48 @@ mark {
         <span class="ft-mini-light" id="ftl4"></span>
         <span id="ft-progress-text">FT 0.0%</span>
         <span id="ft-scan-badge" class="ft-scan-badge" style="display:none" title=""></span>
-        <span id="ft-efficiency-text" class="ft-mini-file">0 文件/秒</span>
-        <span id="ft-file" class="ft-mini-file">空闲</span>
+        <span id="ft-efficiency-text" class="ft-mini-file">0 鏂囦欢/绉?/span>
+        <span id="ft-file" class="ft-mini-file">绌洪棽</span>
       </div>
       <div id="ft-scheme-panel" class="ft-scheme-panel">
-        <div class="ft-basic-row">
-          <button type="button" id="btn-ft-probe" class="mini-btn" title="检测 MFT / Everything / USN 可行性">检测可行性</button>
-          <button type="button" id="btn-ft-recommend-apply" class="mini-btn" title="按检测结果自动选最稳方案并应用">一键推荐</button>
-          <button type="button" id="btn-ft-advanced-toggle" class="mini-btn" title="展开手动方案设置">高级设置 ▾</button>
-          <span id="ft-probe-summary" class="ft-probe-summary"></span>
-        </div>
+        <button type="button" id="btn-ft-probe" class="mini-btn" title="妫€娴?MFT / Everything / USN 鍙鎬?>妫€娴嬪彲琛屾€?/button>
+        <button type="button" id="btn-ft-recommend" class="mini-btn" title="鎸夋娴嬪缓璁嚜鍔ㄨ缃?>涓€閿帹鑽?/button>
+        <button type="button" id="btn-ft-advanced-toggle" class="mini-btn" title="鏄剧ず楂樼骇閰嶇疆">楂樼骇璁剧疆</button>
         <div id="ft-advanced-wrap" class="ft-advanced-wrap hidden">
-          <select id="ft-scheme-select" class="mini-select" title="扫描方案">
-            <option value="auto">自动（MFT→Everything→Walk）</option>
-            <option value="mft">优先 MFT（失败回退 Walk）</option>
-            <option value="everything">优先 Everything（失败回退 Walk）</option>
-            <option value="walk">仅 WalkDir</option>
+          <select id="ft-scheme-select" class="mini-select" title="鎵弿鏂规">
+            <option value="auto">鎺ㄨ崘锛堣嚜鍔級</option>
+            <option value="mft">楂樻€ц兘锛堜紭鍏?MFT锛?/option>
+            <option value="everything">鍏煎浼樺厛锛圗verything锛?/option>
+            <option value="walk">鐪佸績绋冲畾锛堜粎 Walk锛?/option>
           </select>
-          <label class="mini-check" title="开启 USN 增量跟踪">
+          <label class="mini-check" title="寮€鍚?USN 澧為噺璺熻釜">
             <input id="ft-usn-toggle" type="checkbox" checked>
-            USN 增量
+            USN 澧為噺
           </label>
-          <button type="button" id="btn-ft-scheme-apply" class="mini-btn" title="保存并重启索引">应用当前设置</button>
+          <button type="button" id="btn-ft-scheme-apply" class="mini-btn" title="淇濆瓨骞堕噸鍚储寮?>搴旂敤鏂规</button>
         </div>
-        <div id="ft-scheme-help" class="ft-scheme-help">新手建议：先点“检测可行性”，再点“一键推荐”。在 Windows/NTFS 会优先走 MFT 或 USN，不可用时自动回退。</div>
+        <span id="ft-probe-summary" class="ft-probe-summary"></span>
       </div>
       <div id="ft-probe-list" class="ft-probe-list"></div>
     </div>
     <div class="search-actions">
-      <div class="engine-mode-group" role="group" aria-label="搜索引擎模式">
-        <button type="button" id="engine-mode-go-inline" class="engine-mode-btn" data-engine="go" title="极速：Go SearchCenterCore">极速 · Go</button>
-        <button type="button" id="engine-mode-ahk-inline" class="engine-mode-btn" data-engine="ahk" title="标准：AHK 本地引擎">标准 · AHK</button>
+      <div class="engine-mode-group" role="group" aria-label="鎼滅储寮曟搸妯″紡">
+        <button type="button" id="engine-mode-go-inline" class="engine-mode-btn" data-engine="go" title="鏋侀€燂細Go SearchCenterCore">鏋侀€?路 Go</button>
+        <button type="button" id="engine-mode-ahk-inline" class="engine-mode-btn" data-engine="ahk" title="鏍囧噯锛欰HK 鏈湴寮曟搸">鏍囧噯 路 AHK</button>
       </div>
       <select id="limit">
-        <option value="10">10 条</option>
-          <option value="20">20 条</option>
-          <option value="30">30 条</option>
-          <option value="50">50 条</option>
-        <option value="100">100 条</option>
-        <option value="200">200 条</option>
-        <option value="500">全部搜索结果</option>
+        <option value="10">10 鏉?/option>
+          <option value="20">20 鏉?/option>
+          <option value="30">30 鏉?/option>
+          <option value="50">50 鏉?/option>
+        <option value="100">100 鏉?/option>
+        <option value="200">200 鏉?/option>
+        <option value="500">鍏ㄩ儴鎼滅储缁撴灉</option>
       </select>
-      <button id="btn-run" class="btn primary">搜索</button>
-      <button id="btn-web-search" class="btn">网页搜索</button>
-      <button id="btn-open-cli" class="btn">打开所选终端</button>
-      <button id="btn-ft-toggle" class="btn" title="启动或停止全文索引">启动索引</button>
+      <button id="btn-run" class="btn primary">鎼滅储</button>
+      <button id="btn-web-search" class="btn">缃戦〉鎼滅储</button>
+      <button id="btn-open-cli" class="btn">鎵撳紑鎵€閫夌粓绔?/button>
+      <button id="btn-ft-toggle" class="btn" title="鍚姩鎴栧仠姝㈠叏鏂囩储寮?>鍚姩绱㈠紩</button>
     </div>
   </div>
 
@@ -1342,36 +1327,35 @@ mark {
     <div id="results-card" class="card">
       <div id="results-head">
         <div>
-          <div class="head-title">本地结果</div>
+          <div class="head-title">鏈湴缁撴灉</div>
         </div>
         <div id="head-filters"><div id="filters"></div></div>
-        <div class="head-sub" id="result-count">0 条</div>
+        <div class="head-sub" id="result-count">0 鏉?/div>
       </div>
       <div id="result-list"></div>
     </div>
     <div id="preview-card" class="card">
       <div id="preview-head">
         <div style="width: 100%;">
-          <div class="head-title">预览</div>
+          <div class="head-title">棰勮</div>
           <div id="preview-meta" class="preview-meta-grid">
-             <div class="preview-empty-meta">未选中结果</div>
+             <div class="preview-empty-meta">鏈€変腑缁撴灉</div>
           </div>
         </div>
       </div>
       <div id="preview-panel">
         <div id="preview-main">
-          <div id="preview-web-scroll">当前未选中本地结果。
-
-在输入框中输入内容可实时过滤数据，点击列表项后会在这里显示详细预览。</div>
+          <div id="preview-web-scroll">褰撳墠鏈€変腑鏈湴缁撴灉銆?
+鍦ㄨ緭鍏ユ涓緭鍏ュ唴瀹瑰彲瀹炴椂杩囨护鏁版嵁锛岀偣鍑诲垪琛ㄩ」鍚庝細鍦ㄨ繖閲屾樉绀鸿缁嗛瑙堛€?/div>
           <div id="preview-host" aria-hidden="true"></div>
         </div>
         <div id="preview-ql-hint" class="hidden">
           <div class="ql-row">
-            <span class="ql-text">按 <kbd>Space</kbd> 重新加载预览 · 选项：</span>
+            <span class="ql-text">鎸?<kbd>Space</kbd> 閲嶆柊鍔犺浇棰勮 路 閫夐」锛?/span>
             <div class="ql-btns">
-              <button type="button" id="preview-pdf-mode-btn" class="preview-ctrl-btn" title="PDF 预览策略">PDF:auto</button>
-              <button type="button" id="preview-native-btn" class="preview-ctrl-btn" title="调用系统原生 IPreviewHandler">IPreview</button>
-              <button type="button" id="preview-ql-btn" title="可选：调用便携版 QuickLook.exe">QuickLook</button>
+              <button type="button" id="preview-pdf-mode-btn" class="preview-ctrl-btn" title="PDF 棰勮绛栫暐">PDF:auto</button>
+              <button type="button" id="preview-native-btn" class="preview-ctrl-btn" title="璋冪敤绯荤粺鍘熺敓 IPreviewHandler">IPreview</button>
+              <button type="button" id="preview-ql-btn" title="鍙€夛細璋冪敤渚挎惡鐗?QuickLook.exe">QuickLook</button>
             </div>
           </div>
         </div>
@@ -1381,24 +1365,24 @@ mark {
 
   <div id="footer">
     <div class="footer-row-main">
-      <span>Enter 执行主操作 · Esc 关闭 · 双击结果立即处理</span>
+      <span>Enter 鎵ц涓绘搷浣?路 Esc 鍏抽棴 路 鍙屽嚮缁撴灉绔嬪嵆澶勭悊</span>
       <div class="footer-inline-btns">
-        <button type="button" id="btn-sc-recycle" class="btn ghost">搜索回收站<span class="recycle-badge muted" id="recycle-badge">0</span></button>
-        <button type="button" id="btn-win-recycle-sc" class="btn ghost">系统回收站</button>
+        <button type="button" id="btn-sc-recycle" class="btn ghost">鎼滅储鍥炴敹绔?span class="recycle-badge muted" id="recycle-badge">0</span></button>
+        <button type="button" id="btn-win-recycle-sc" class="btn ghost">绯荤粺鍥炴敹绔?/button>
       </div>
     </div>
-    <div id="footer-hint">WebView2 模式</div>
+    <div id="footer-hint">WebView2 妯″紡</div>
   </div>
 
   <div id="recycle-overlay" class="recycle-overlay" aria-hidden="true">
     <div class="recycle-dialog card" role="dialog" aria-modal="true" aria-labelledby="recycle-dlg-title">
       <div class="recycle-dialog-head">
-        <span id="recycle-dlg-title">搜索中心回收站</span>
-        <button type="button" id="recycle-close" class="chrome-btn" title="关闭">×</button>
+        <span id="recycle-dlg-title">鎼滅储涓績鍥炴敹绔?/span>
+        <button type="button" id="recycle-close" class="chrome-btn" title="鍏抽棴">脳</button>
       </div>
       <div id="recycle-list" class="recycle-list"></div>
       <div class="recycle-dialog-foot">
-        <button type="button" id="recycle-empty-all" class="btn">全部清空</button>
+        <button type="button" id="recycle-empty-all" class="btn">鍏ㄩ儴娓呯┖</button>
       </div>
     </div>
   </div>
@@ -1418,8 +1402,8 @@ if (typeof BasePanel === 'undefined') {
   };
 }
 const SC_ENGINE_MODE_KEY = "sc_engine_mode";
-const SC_FT_ADVANCED_KEY = "sc_ft_ui_advanced";
-/** 与 SearchCenterCore HTTP 监听一致；EventSource 直连进度流（失败时回退 AHK 轮询） */
+const SC_FT_ADVANCED_KEY = "sc_ft_advanced_ui_v1";
+/** 涓?SearchCenterCore HTTP 鐩戝惉涓€鑷达紱EventSource 鐩磋繛杩涘害娴侊紙澶辫触鏃跺洖閫€ AHK 杞锛?*/
 const SEARCH_CORE_ORIGIN = "http://127.0.0.1:8080";
 let fulltextProgressES = null;
 let fulltextPollTimer = 0;
@@ -1489,7 +1473,8 @@ const state = {
     busy: false,
     last: null
   },
-  fulltextUiAdvanced: (typeof localStorage !== "undefined" && localStorage.getItem(SC_FT_ADVANCED_KEY) === "1"),
+  fulltextUiAdvanced: ((typeof localStorage !== "undefined" && localStorage.getItem(SC_FT_ADVANCED_KEY)) || "0") === "1",
+  fulltextUiProbePrompted: false,
   quickLook: {
     installed: false,
     path: "",
@@ -1520,14 +1505,14 @@ function syncEngineModeButton() {
     if (!el) return;
     el.classList.toggle("active", (mode === "go") === isGo);
     if (mode === "go") {
-      el.title = isGo ? "当前：极速（Go）。点击保持" : "切换为：极速（Go）";
+      el.title = isGo ? "褰撳墠锛氭瀬閫燂紙Go锛夈€傜偣鍑讳繚鎸? : "鍒囨崲涓猴細鏋侀€燂紙Go锛?;
     } else {
-      el.title = !isGo ? "当前：标准（AHK）。点击保持" : "切换为：标准（AHK）";
+      el.title = !isGo ? "褰撳墠锛氭爣鍑嗭紙AHK锛夈€傜偣鍑讳繚鎸? : "鍒囨崲涓猴細鏍囧噯锛圓HK锛?;
     }
   });
 }
 
-/** 与 Go /search 的 type= 对齐：非剪贴板筛选时 Go 返回空剪贴板项，由 AHK 合并其它源 */
+/** 涓?Go /search 鐨?type= 瀵归綈锛氶潪鍓创鏉跨瓫閫夋椂 Go 杩斿洖绌哄壀璐存澘椤癸紝鐢?AHK 鍚堝苟鍏跺畠婧?*/
 function mapFilterToGoSearchType() {
   const f = state.filterType || "";
   if (f === "clipboard") return "clipboard";
@@ -1541,7 +1526,7 @@ function effectiveSearchLimit() {
   return lim;
 }
 
-/** 极速模式：由 AHK WinHttp 请求本机 Go（避免 https://app.local 页面 fetch http 被混合内容拦截） */
+/** 鏋侀€熸ā寮忥細鐢?AHK WinHttp 璇锋眰鏈満 Go锛堥伩鍏?https://app.local 椤甸潰 fetch http 琚贩鍚堝唴瀹规嫤鎴級 */
 function runSearchGoPipeline(offset) {
   postToAhk({
     type: "searchGoRequest",
@@ -1670,20 +1655,20 @@ function hotkeyHintHtml(hotkey) {
   if (hotkey) {
     return "<span class=\"hotkey-hint\">Caps+" + escapeHtml(String(hotkey).toUpperCase()) + "</span>";
   }
-  return "<span class=\"hotkey-hint unbound\">可绑定</span>";
+  return "<span class=\"hotkey-hint unbound\">鍙粦瀹?/span>";
 }
 
 function getFooterHintText() {
   return state.isCliCategory
-    ? "CLI 分类：输入内容后可直接发送到选中的终端"
-    : "网络分类：输入内容后会并发打开选中的搜索引擎";
+    ? "CLI 鍒嗙被锛氳緭鍏ュ唴瀹瑰悗鍙洿鎺ュ彂閫佸埌閫変腑鐨勭粓绔?
+    : "缃戠粶鍒嗙被锛氳緭鍏ュ唴瀹瑰悗浼氬苟鍙戞墦寮€閫変腑鐨勬悳绱㈠紩鎿?;
 }
 
 function syncFooterHint() {
   const footer = document.getElementById("footer-hint");
   if (!footer) return;
   if (state.capsHintActive) {
-    footer.textContent = "CapsLock 热键提示中：按对应字母可快速定位";
+    footer.textContent = "CapsLock 鐑敭鎻愮ず涓細鎸夊搴斿瓧姣嶅彲蹇€熷畾浣?;
     return;
   }
   footer.textContent = getFooterHintText();
@@ -1721,12 +1706,12 @@ function formatScanModeBadge(mode) {
   const m = String(mode || "").toLowerCase();
   if (!m) return "";
   if (m.includes("mft")) {
-    return (m.includes("usn") ? "⚡MFT·🔁USN" : "⚡MFT");
+    return (m.includes("usn") ? "鈿FT路馃攣USN" : "鈿FT");
   }
   if (m.includes("walk")) {
-    return (m.includes("usn") ? "🐢Walk·🔁USN" : "🐢Walk");
+    return (m.includes("usn") ? "馃悽Walk路馃攣USN" : "馃悽Walk");
   }
-  if (m.includes("usn")) return "🔁USN";
+  if (m.includes("usn")) return "馃攣USN";
   return String(mode || "");
 }
 
@@ -1806,7 +1791,6 @@ function applyFulltextStatus(payload) {
     state.fulltextConfig.scanScheme = scheme;
     state.fulltextConfig.useUSN = (typeof cfg.useUSN === "boolean") ? cfg.useUSN : true;
     syncFulltextSchemeUi();
-    syncFulltextAdvancedUi();
   }
   const lightIds = ["ftl1", "ftl2", "ftl3", "ftl4"];
   lightIds.forEach((id, idx) => {
@@ -1823,39 +1807,39 @@ function applyFulltextStatus(payload) {
       state.fulltext.pendingTasks > 0 ||
       state.fulltext.rootsCount > 0;
     const txt = hasCounters
-      ? `已处理 ${state.fulltext.processedFiles} / ${state.fulltext.discoveredFiles}，待处理 ${state.fulltext.pendingTasks}，索引根 ${state.fulltext.rootsCount}`
+      ? `宸插鐞?${state.fulltext.processedFiles} / ${state.fulltext.discoveredFiles}锛屽緟澶勭悊 ${state.fulltext.pendingTasks}锛岀储寮曟牴 ${state.fulltext.rootsCount}`
       : (state.fulltext.progressDetail || state.fulltext.progressText || `${state.fulltext.progress.toFixed(1)}%`);
     progressEl.textContent = `FT ${txt}`;
   }
   const effEl = document.getElementById("ft-efficiency-text");
   if (effEl) {
-    const txt = state.fulltext.efficiencyText || `${state.fulltext.filesPerSec.toFixed(2)} 文件/秒`;
+    const txt = state.fulltext.efficiencyText || `${state.fulltext.filesPerSec.toFixed(2)} 鏂囦欢/绉抈;
     effEl.textContent = txt;
     effEl.title = txt;
   }
   const fileEl = document.getElementById("ft-file");
   if (fileEl) {
     const phaseMap = {
-      startup: "准备中",
-      walking: "扫描目录中",
-      indexing: "冷索引中",
-      idle_wait: "等待空闲",
-      ready: "索引就绪",
-      idle: "空闲"
+      startup: "鍑嗗涓?,
+      walking: "鎵弿鐩綍涓?,
+      indexing: "鍐风储寮曚腑",
+      idle_wait: "绛夊緟绌洪棽",
+      ready: "绱㈠紩灏辩华",
+      idle: "绌洪棽"
     };
-    const phase = phaseMap[state.fulltext.scanPhase] || (state.fulltext.running ? "索引监控中" : "空闲");
-    const t = state.fulltext.indexing_file ? `${phase} · ${state.fulltext.indexing_file}` : phase;
+    const phase = phaseMap[state.fulltext.scanPhase] || (state.fulltext.running ? "绱㈠紩鐩戞帶涓? : "绌洪棽");
+    const t = state.fulltext.indexing_file ? `${phase} 路 ${state.fulltext.indexing_file}` : phase;
     fileEl.textContent = t;
     fileEl.title = t;
   }
   const toggleBtn = document.getElementById("btn-ft-toggle");
   if (toggleBtn) {
     if (state.fulltext.running) {
-      toggleBtn.textContent = "停止索引";
-      toggleBtn.title = "点击停止全文索引";
+      toggleBtn.textContent = "鍋滄绱㈠紩";
+      toggleBtn.title = "鐐瑰嚮鍋滄鍏ㄦ枃绱㈠紩";
     } else {
-      toggleBtn.textContent = "启动索引";
-      toggleBtn.title = "点击启动全文索引";
+      toggleBtn.textContent = "鍚姩绱㈠紩";
+      toggleBtn.title = "鐐瑰嚮鍚姩鍏ㄦ枃绱㈠紩";
     }
   }
   const scanBadge = document.getElementById("ft-scan-badge");
@@ -1863,8 +1847,8 @@ function applyFulltextStatus(payload) {
     const lab = formatScanModeBadge(state.fulltext.scan_mode);
     scanBadge.textContent = lab;
     scanBadge.title = state.fulltext.scan_mode
-      ? ("扫描模式: " + state.fulltext.scan_mode + (state.fulltext.indexEpoch ? " · epoch " + state.fulltext.indexEpoch : ""))
-      : "扫描模式";
+      ? ("鎵弿妯″紡: " + state.fulltext.scan_mode + (state.fulltext.indexEpoch ? " 路 epoch " + state.fulltext.indexEpoch : ""))
+      : "鎵弿妯″紡";
     scanBadge.style.display = lab ? "inline" : "none";
   }
 }
@@ -1880,31 +1864,18 @@ function syncFulltextSchemeUi() {
   if (usn) usn.checked = !!state.fulltextConfig.useUSN;
 }
 
-function schemeDisplayName(scheme) {
-  const v = String(scheme || "auto").toLowerCase();
-  if (v === "mft") return "优先 MFT";
-  if (v === "everything") return "优先 Everything";
-  if (v === "walk") return "仅 WalkDir";
-  return "自动（MFT→Everything→Walk）";
-}
-
 function syncFulltextAdvancedUi() {
   const wrap = document.getElementById("ft-advanced-wrap");
   const btn = document.getElementById("btn-ft-advanced-toggle");
-  const help = document.getElementById("ft-scheme-help");
   const open = !!state.fulltextUiAdvanced;
   if (wrap) wrap.classList.toggle("hidden", !open);
-  if (btn) btn.textContent = open ? "高级设置 ▴" : "高级设置 ▾";
-  if (help) {
-    const rec = state.fulltextProbe && state.fulltextProbe.last
-      ? String((state.fulltextProbe.last.recommendedScheme || "")).toLowerCase()
-      : "";
-    if (rec) {
-      help.textContent = "建议方案：" + schemeDisplayName(rec) + "。可直接点“一键推荐”，也可展开“高级设置”手动微调。";
-    } else {
-      help.textContent = "新手建议：先点“检测可行性”，再点“一键推荐”。在 Windows/NTFS 会优先走 MFT 或 USN，不可用时自动回退。";
-    }
+  if (btn) {
+    btn.textContent = open ? "收起高级" : "高级设置";
+    btn.title = open ? "收起高级配置" : "显示高级配置";
   }
+  try {
+    localStorage.setItem(SC_FT_ADVANCED_KEY, open ? "1" : "0");
+  } catch (e) {}
 }
 
 function collectFulltextSchemePayload() {
@@ -1921,6 +1892,18 @@ function setFulltextProbeSummary(text) {
   el.textContent = String(text || "");
 }
 
+function humanizeProbeReason(reasonText) {
+  const s = String(reasonText || "").trim();
+  if (!s) return "鏈煡鍘熷洜";
+  const low = s.toLowerCase();
+  if (low.includes("incorrect function")) return "褰撳墠鍗蜂笉鏀寔 USN锛堝父瑙佷簬闈?NTFS 鎴栨潈闄愬彈闄愶級";
+  if (low.includes("timeout")) return "妫€娴嬭秴鏃讹紙绋嶅悗閲嶈瘯锛?;
+  if (low.includes("not running")) return "Everything 鏈繍琛岋紙鍙厛鍚姩 Everything锛?;
+  if (low.includes("not found")) return "缁勪欢鏈畨瑁呮垨璺緞涓嶅瓨鍦?;
+  if (low.includes("permission") || low.includes("access is denied")) return "鏉冮檺涓嶈冻锛堝彲灏濊瘯绠＄悊鍛樿繍琛岋級";
+  return s;
+}
+
 function renderFulltextProbe(probe) {
   state.fulltextProbe.last = probe && typeof probe === "object" ? probe : null;
   const list = document.getElementById("ft-probe-list");
@@ -1932,30 +1915,47 @@ function renderFulltextProbe(probe) {
   }
   const rows = Array.isArray(p.rootChecks) ? p.rootChecks : [];
   if (!rows.length) {
-    list.innerHTML = "<div class=\"ft-probe-item\">未返回分盘检测结果</div>";
+    list.innerHTML = "<div class=\"ft-probe-item\">鏈繑鍥炲垎鐩樻娴嬬粨鏋?/div>";
     return;
   }
   list.innerHTML = rows.map((it) => {
     const root = escapeHtml(String(it.root || ""));
     const mftOk = !!it.mftOk;
     const usnOk = !!it.usnOk;
-    const mftReason = escapeHtml(String(it.mftReason || ""));
-    const usnReason = escapeHtml(String(it.usnReason || ""));
+    const mftReason = escapeHtml(humanizeProbeReason(it.mftReason || ""));
+    const usnReason = escapeHtml(humanizeProbeReason(it.usnReason || ""));
     return "<div class=\"ft-probe-item\">" +
       "<div><strong>" + root + "</strong></div>" +
-      "<div>MFT: <span class=\"" + (mftOk ? "ft-probe-ok" : "ft-probe-bad") + "\">" + (mftOk ? "可用" : "不可用") + "</span> · " + mftReason + "</div>" +
-      "<div>USN: <span class=\"" + (usnOk ? "ft-probe-ok" : "ft-probe-bad") + "\">" + (usnOk ? "可用" : "不可用") + "</span> · " + usnReason + "</div>" +
+      "<div>MFT: <span class=\"" + (mftOk ? "ft-probe-ok" : "ft-probe-bad") + "\">" + (mftOk ? "鍙敤" : "涓嶅彲鐢?) + "</span> 路 " + mftReason + "</div>" +
+      "<div>USN: <span class=\"" + (usnOk ? "ft-probe-ok" : "ft-probe-bad") + "\">" + (usnOk ? "鍙敤" : "鍙€?) + "</span> 路 " + usnReason + "</div>" +
       "</div>";
   }).join("");
   const extra = [];
   if (typeof p.everythingOk === "boolean") {
-    extra.push("Everything " + (p.everythingOk ? "可用" : "不可用"));
+    extra.push("Everything " + (p.everythingOk ? "鍙敤" : "涓嶅彲鐢?));
   }
   if (p.recommendedScheme) {
-    extra.push("建议方案: " + schemeDisplayName(String(p.recommendedScheme)));
+    const rec = String(p.recommendedScheme);
+    const label = rec === "mft" ? "楂樻€ц兘锛圡FT锛? : (rec === "everything" ? "鍏煎浼樺厛锛圗verything锛? : "鐪佸績绋冲畾锛圵alk锛?);
+    extra.push("寤鸿鏂规: " + label);
   }
-  setFulltextProbeSummary(extra.join(" · "));
-  syncFulltextAdvancedUi();
+  setFulltextProbeSummary(extra.join(" 路 "));
+}
+
+function applyRecommendedScheme() {
+  const p = state.fulltextProbe.last;
+  if (!p || !p.recommendedScheme) {
+    setFulltextProbeSummary("璇峰厛鐐光€滄娴嬪彲琛屾€р€?);
+    return;
+  }
+  const rec = String(p.recommendedScheme || "auto").toLowerCase();
+  const sel = document.getElementById("ft-scheme-select");
+  if (sel) sel.value = rec;
+  // 灏忕櫧妯″紡榛樿鎶?USN 鎵撳紑锛涜嫢绯荤粺涓嶆敮鎸佷細鑷姩鍥為€€锛屼笉褰卞搷涓绘祦绋?  const usn = document.getElementById("ft-usn-toggle");
+  if (usn) usn.checked = true;
+  const payload = collectFulltextSchemePayload();
+  setFulltextProbeSummary("姝ｅ湪鎸夊缓璁簲鐢ㄦ柟妗堚€?);
+  postToAhk({ type: "fulltextConfigUpdate", payload });
 }
 
 function updateHotkeyHighlights() {
@@ -2059,7 +2059,7 @@ function renderFilters() {
     const applyFilter = () => postToAhk({ type: "setFilter", filterType: filter.key });
     let pressedHandled = false;
     let pressedAt = 0;
-    // 输入防抖回包会重绘过滤栏，pointerdown 比 click 更早触发，避免点击被重绘吞掉
+    // 杈撳叆闃叉姈鍥炲寘浼氶噸缁樿繃婊ゆ爮锛宲ointerdown 姣?click 鏇存棭瑙﹀彂锛岄伩鍏嶇偣鍑昏閲嶇粯鍚炴帀
     el.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       pressedHandled = true;
@@ -2087,7 +2087,7 @@ function renderResults() {
 
   if (!state.results.length) {
     list.innerHTML =
-      "<div class=\"empty\">暂无结果。<br>你可以在输入框输入关键词搜索本地内容，或选择引擎后执行网络搜索 / CLI 发送。</div>" +
+      "<div class=\"empty\">鏆傛棤缁撴灉銆?br>浣犲彲浠ュ湪杈撳叆妗嗚緭鍏ュ叧閿瘝鎼滅储鏈湴鍐呭锛屾垨閫夋嫨寮曟搸鍚庢墽琛岀綉缁滄悳绱?/ CLI 鍙戦€併€?/div>" +
       buildSkeletonListHtml(7);
     renderPreview();
     return;
@@ -2100,7 +2100,7 @@ function renderResults() {
   state.results.forEach((item) => {
     const row = document.createElement("div");
     row.className = "result-item" + (item.row === state.selectedRow ? " active" : "");
-    const pinMark = item.pinned ? "<span class=\"pin-ico\" title=\"置顶\">🔝</span>" : "";
+    const pinMark = item.pinned ? "<span class=\"pin-ico\" title=\"缃《\">馃敐</span>" : "";
     const hitCtx = getHitContextList(item);
     let hitBlock = "";
     if (hitCtx) {
@@ -2112,7 +2112,7 @@ function renderResults() {
       }).filter(Boolean);
       hitBlock =
         "<div class=\"hit-context-wrap\">" +
-        "<button type=\"button\" class=\"hit-ctx-btn\">命中上下文 · " + hitCtx.length + "</button>" +
+        "<button type=\"button\" class=\"hit-ctx-btn\">鍛戒腑涓婁笅鏂?路 " + hitCtx.length + "</button>" +
         "<div class=\"hit-ctx-body hidden\">" + lines.join("<br>") + "</div></div>";
     }
     row.innerHTML =
@@ -2189,7 +2189,7 @@ function getSelectedItemPath(item) {
   const p = (item.path && String(item.path).trim()) || "";
   if (p && looksLikeWindowsPath(p)) return p;
   const dt = String(item.dataType || item.type || "").toLowerCase();
-  const isFileish = dt === "file" || dt === "folder" || /文件|路径/.test(String(item.source || ""));
+  const isFileish = dt === "file" || dt === "folder" || /鏂囦欢|璺緞/.test(String(item.source || ""));
   const c = item.content ? String(item.content).trim() : "";
   if (isFileish && looksLikeWindowsPath(c)) return c;
   return "";
@@ -2236,15 +2236,13 @@ function updateChromeTopMostButton() {
   if (!btn) return;
   const topMost = !!state.hostTopMost;
   btn.classList.toggle("active", topMost);
-  btn.textContent = topMost ? "置顶" : "未置顶";
-  btn.title = topMost ? "当前已置顶，点击取消置顶" : "当前未置顶，点击置顶窗口";
+  btn.textContent = topMost ? "缃《" : "鏈疆椤?;
+  btn.title = topMost ? "褰撳墠宸茬疆椤讹紝鐐瑰嚮鍙栨秷缃《" : "褰撳墠鏈疆椤讹紝鐐瑰嚮缃《绐楀彛";
 }
 
 /**
- * 单按钮模式：
- * 未安装 => 按钮显示“安装QuickLook”，点击后用户确认下载并安装；
- * 已安装 => 按钮显示“QuickLook”，点击后直接触发 QuickLook 预览。
- */
+ * 鍗曟寜閽ā寮忥細
+ * 鏈畨瑁?=> 鎸夐挳鏄剧ず鈥滃畨瑁匭uickLook鈥濓紝鐐瑰嚮鍚庣敤鎴风‘璁や笅杞藉苟瀹夎锛? * 宸插畨瑁?=> 鎸夐挳鏄剧ず鈥淨uickLook鈥濓紝鐐瑰嚮鍚庣洿鎺ヨЕ鍙?QuickLook 棰勮銆? */
 function updateQuickLookInstallUi() {
   const btn = document.getElementById("preview-ql-btn");
   if (!btn) return;
@@ -2254,10 +2252,10 @@ function updateQuickLookInstallUi() {
   const err = (q.lastInstallError && String(q.lastInstallError).trim()) || "";
 
   if (busy) {
-    const pm = (q.installProgressMsg && String(q.installProgressMsg).trim()) || "正在安装 QuickLook…";
+    const pm = (q.installProgressMsg && String(q.installProgressMsg).trim()) || "姝ｅ湪瀹夎 QuickLook鈥?;
     const pct = typeof q.installProgressPct === "number" && !Number.isNaN(q.installProgressPct) ? q.installProgressPct : null;
     btn.disabled = true;
-    btn.textContent = pct != null ? `安装中 ${Math.round(pct)}%` : "安装中…";
+    btn.textContent = pct != null ? `瀹夎涓?${Math.round(pct)}%` : "瀹夎涓€?;
     btn.title = pm;
     return;
   }
@@ -2265,14 +2263,14 @@ function updateQuickLookInstallUi() {
   btn.disabled = false;
   if (installed) {
     btn.textContent = "QuickLook";
-    btn.title = "已安装，点击直接使用 QuickLook 预览";
+    btn.title = "宸插畨瑁咃紝鐐瑰嚮鐩存帴浣跨敤 QuickLook 棰勮";
     return;
   }
 
-  btn.textContent = "安装QuickLook";
+  btn.textContent = "瀹夎QuickLook";
   btn.title = err
-    ? (err + " 点击重试安装。")
-    : "未安装。点击后可下载并启用 QuickLook 预览机制。";
+    ? (err + " 鐐瑰嚮閲嶈瘯瀹夎銆?)
+    : "鏈畨瑁呫€傜偣鍑诲悗鍙笅杞藉苟鍚敤 QuickLook 棰勮鏈哄埗銆?;
 }
 
 function stopNativePreview() {
@@ -2295,7 +2293,7 @@ function setPreviewLayoutMode(mode) {
 }
 
 function renderFallbackTextPreview(item, pane, meta) {
-  meta.textContent = [item.source || item.subtitle || "", item.type || "", item.time || ""].filter(Boolean).join(" · ");
+  meta.textContent = [item.source || item.subtitle || "", item.type || "", item.time || ""].filter(Boolean).join(" 路 ");
   pane.innerHTML = "";
   pane.textContent = item.previewText || item.content || item.title || "";
 }
@@ -2388,7 +2386,7 @@ function renderPdfJsToPane(b64) {
       viewportEl.className = "pdfjs-viewport";
       const head = document.createElement("div");
       head.style.cssText = "color:#93a0ad;font-size:12px;margin-bottom:10px;text-align:center;";
-      head.textContent = "共 " + pdf.numPages + " 页 · PDF.js 内嵌预览（无需 QuickLook）";
+      head.textContent = "鍏?" + pdf.numPages + " 椤?路 PDF.js 鍐呭祵棰勮锛堟棤闇€ QuickLook锛?;
       viewportEl.appendChild(head);
       pane.innerHTML = "";
       pane.appendChild(viewportEl);
@@ -2397,7 +2395,7 @@ function renderPdfJsToPane(b64) {
       if (pdf.numPages > maxPages) {
         const warn = document.createElement("div");
         warn.style.cssText = "color:#ffb347;font-size:11px;text-align:center;margin:6px 0;";
-        warn.textContent = "页数过多，仅渲染前 " + maxPages + " 页以保证流畅；完整阅读请使用外部阅读器。";
+        warn.textContent = "椤垫暟杩囧锛屼粎娓叉煋鍓?" + maxPages + " 椤典互淇濊瘉娴佺晠锛涘畬鏁撮槄璇昏浣跨敤澶栭儴闃呰鍣ㄣ€?;
         viewportEl.appendChild(warn);
       }
       const items = [];
@@ -2406,7 +2404,7 @@ function renderPdfJsToPane(b64) {
         wrap.className = "pdfjs-page-wrap";
         const ph = document.createElement("div");
         ph.className = "pdfjs-page-ph";
-        ph.textContent = "第 " + p + " 页…";
+        ph.textContent = "绗?" + p + " 椤碘€?;
         wrap.appendChild(ph);
         viewportEl.appendChild(wrap);
         items.push({ wrap, ph, pn: p, done: false });
@@ -2432,7 +2430,7 @@ function renderPdfJsToPane(b64) {
                   item.ph.replaceWith(canvas);
                 });
               }).catch(() => {
-                item.ph.textContent = "第 " + item.pn + " 页渲染失败";
+                item.ph.textContent = "绗?" + item.pn + " 椤垫覆鏌撳け璐?;
               });
             }
           }
@@ -2476,7 +2474,7 @@ function onWebPdfJsBegin(payload) {
   if (pane) {
     const mb = state.pdfJsRx.totalBytes > 0 ? (state.pdfJsRx.totalBytes / ONE_MB).toFixed(2) : "?";
     pane.innerHTML =
-      "<div class=\"preview-loading\">PDF.js 传输中…（约 " + escapeHtml(String(mb)) + " MB · " + n + " 段）</div>";
+      "<div class=\"preview-loading\">PDF.js 浼犺緭涓€︼紙绾?" + escapeHtml(String(mb)) + " MB 路 " + n + " 娈碉級</div>";
   }
 }
 
@@ -2541,8 +2539,8 @@ function advancePdfPlan(reason) {
     const pane = document.getElementById("preview-web-scroll");
     if (pane) {
       pane.innerHTML =
-        "<div class=\"preview-empty\">当前 PDF 预览均未成功（已尝试 PDF.js、WebView 内置、PDFium 与系统预览）。<br><br>" +
-        "请确认文件小于 40MB；可双击列表用默认程序打开。可选：QuickLook 按钮。</div>";
+        "<div class=\"preview-empty\">褰撳墠 PDF 棰勮鍧囨湭鎴愬姛锛堝凡灏濊瘯 PDF.js銆乄ebView 鍐呯疆銆丳DFium 涓庣郴缁熼瑙堬級銆?br><br>" +
+        "璇风‘璁ゆ枃浠跺皬浜?40MB锛涘彲鍙屽嚮鍒楄〃鐢ㄩ粯璁ょ▼搴忔墦寮€銆傚彲閫夛細QuickLook 鎸夐挳銆?/div>";
     }
     finishPdfPlan(false);
     return;
@@ -2557,34 +2555,34 @@ function advancePdfPlan(reason) {
     setPreviewLayoutMode("web");
     stopNativePreview();
     state.pdfJsRx = null;
-    pane.innerHTML = "<div class=\"preview-loading\">PDF.js 内嵌预览准备中…</div>";
+    pane.innerHTML = "<div class=\"preview-loading\">PDF.js 鍐呭祵棰勮鍑嗗涓€?/div>";
     postToAhk({ type: "INVOKE_PDF_JS", path: state.pdfPlan.path, seq: state.pdfPlan.seq });
     return;
   }
   if (mode === "web") {
     setPreviewLayoutMode("web");
     stopNativePreview();
-    pane.innerHTML = "<div class=\"preview-loading\">PDF WebView 方案加载中…</div>";
+    pane.innerHTML = "<div class=\"preview-loading\">PDF WebView 鏂规鍔犺浇涓€?/div>";
     postToAhk({ type: "INVOKE_WEB_MEDIA", path: state.pdfPlan.path, seq: state.pdfPlan.seq });
     return;
   }
   if (mode === "pdfium") {
     setPreviewLayoutMode("web");
     stopNativePreview();
-    pane.innerHTML = "<div class=\"preview-loading\">PDFium 方案加载中…</div>";
+    pane.innerHTML = "<div class=\"preview-loading\">PDFium 鏂规鍔犺浇涓€?/div>";
     postToAhk({ type: "INVOKE_PDFIUM", path: state.pdfPlan.path, seq: state.pdfPlan.seq });
     return;
   }
   if (mode === "ipreview") {
     setPreviewLayoutMode("native");
-    pane.innerHTML = "<div class=\"preview-loading\">IPreviewHandler 方案加载中…</div>";
+    pane.innerHTML = "<div class=\"preview-loading\">IPreviewHandler 鏂规鍔犺浇涓€?/div>";
     invokeIPreviewHandler();
     return;
   }
   if (mode === "quicklook") {
     setPreviewLayoutMode("web");
     stopNativePreview();
-    pane.innerHTML = "<div class=\"preview-empty\">已切换到 QuickLook 兜底预览。</div>";
+    pane.innerHTML = "<div class=\"preview-empty\">宸插垏鎹㈠埌 QuickLook 鍏滃簳棰勮銆?/div>";
     invokeQuickLook(state.pdfPlan.path);
     finishPdfPlan(true);
   }
@@ -2656,7 +2654,7 @@ function onWebPreviewMediaResult(payload) {
   const payloadDuration = Number(payload.durationSec);
   const payloadMediaInfo = payload.mediaInfo && typeof payload.mediaInfo === "object" ? payload.mediaInfo : null;
   if (!url) {
-    pane.innerHTML = "<div class=\"preview-empty\">媒体预览地址为空，无法加载。</div>";
+    pane.innerHTML = "<div class=\"preview-empty\">濯掍綋棰勮鍦板潃涓虹┖锛屾棤娉曞姞杞姐€?/div>";
     return;
   }
   const pathForMedia = (payload.path && String(payload.path).trim()) || state.previewPath || "";
@@ -2677,20 +2675,20 @@ function onWebPreviewMediaResult(payload) {
       "<div class=\"media-card\">" +
         "<div class=\"media-player\">" +
           "<div class=\"media-head\">" +
-            "<div class=\"media-title-wrap\"><div class=\"media-title\">" + escapeHtml(fileName || "音频预览") + "</div><div class=\"media-subtitle\">搜索中心音频预览</div></div>" +
-            "<div class=\"media-chips\"><span class=\"media-chip\">音频</span><span class=\"media-chip\" id=\"" + sizeId + "\">正在读取信息</span></div>" +
+            "<div class=\"media-title-wrap\"><div class=\"media-title\">" + escapeHtml(fileName || "闊抽棰勮") + "</div><div class=\"media-subtitle\">鎼滅储涓績闊抽棰勮</div></div>" +
+            "<div class=\"media-chips\"><span class=\"media-chip\">闊抽</span><span class=\"media-chip\" id=\"" + sizeId + "\">姝ｅ湪璇诲彇淇℃伅</span></div>" +
           "</div>" +
           "<audio id=\"" + mediaId + "\" class=\"preview-media preview-audio\" controls preload=\"metadata\" src=\"" + escapeHtml(url) + "\"></audio>" +
           "<div class=\"media-toolbar\">" +
             "<div class=\"media-actions\">" +
-              "<button type=\"button\" class=\"media-btn\" data-media-action=\"info\">编码信息</button>" +
-              "<button type=\"button\" class=\"media-btn" + loopActive + "\" data-media-toggle=\"loop\">循环播放</button>" +
-              "<button type=\"button\" class=\"media-btn" + mutedActive + "\" data-media-toggle=\"muted\">静音</button>" +
-              "<button type=\"button\" class=\"media-btn" + autoplayActive + "\" data-media-toggle=\"autoplay\">自动播放</button>" +
+              "<button type=\"button\" class=\"media-btn\" data-media-action=\"info\">缂栫爜淇℃伅</button>" +
+              "<button type=\"button\" class=\"media-btn" + loopActive + "\" data-media-toggle=\"loop\">寰幆鎾斁</button>" +
+              "<button type=\"button\" class=\"media-btn" + mutedActive + "\" data-media-toggle=\"muted\">闈欓煶</button>" +
+              "<button type=\"button\" class=\"media-btn" + autoplayActive + "\" data-media-toggle=\"autoplay\">鑷姩鎾斁</button>" +
             "</div>" +
           "</div>" +
           "<div id=\"" + infoPanelId + "\" class=\"media-info-panel\"></div>" +
-          "<div class=\"media-status\"><span>当前 <strong id=\"" + currentId + "\">0:00</strong></span><span>总时长 <strong id=\"" + durationId + "\">--:--</strong></span><span id=\"" + statusId + "\">就绪</span></div>" +
+          "<div class=\"media-status\"><span>褰撳墠 <strong id=\"" + currentId + "\">0:00</strong></span><span>鎬绘椂闀?<strong id=\"" + durationId + "\">--:--</strong></span><span id=\"" + statusId + "\">灏辩华</span></div>" +
         "</div>" +
       "</div>";
   } else if (PREVIEW_VIDEO_EXT.has(ext)) {
@@ -2698,22 +2696,22 @@ function onWebPreviewMediaResult(payload) {
       "<div class=\"media-card\">" +
         "<div class=\"media-player\">" +
           "<div class=\"media-head\">" +
-            "<div class=\"media-title-wrap\"><div class=\"media-title\">" + escapeHtml(fileName || "视频预览") + "</div><div class=\"media-subtitle\">搜索中心视频预览</div></div>" +
-            "<div class=\"media-chips\"><span class=\"media-chip\">视频</span><span class=\"media-chip\" id=\"" + sizeId + "\">正在读取信息</span></div>" +
+            "<div class=\"media-title-wrap\"><div class=\"media-title\">" + escapeHtml(fileName || "瑙嗛棰勮") + "</div><div class=\"media-subtitle\">鎼滅储涓績瑙嗛棰勮</div></div>" +
+            "<div class=\"media-chips\"><span class=\"media-chip\">瑙嗛</span><span class=\"media-chip\" id=\"" + sizeId + "\">姝ｅ湪璇诲彇淇℃伅</span></div>" +
           "</div>" +
           "<video id=\"" + mediaId + "\" class=\"preview-media preview-video\" controls preload=\"metadata\" playsinline" + (posterUrl ? " poster=\"" + escapeHtml(posterUrl) + "\"" : "") + " src=\"" + escapeHtml(url) + "\"></video>" +
           "<div class=\"media-toolbar\">" +
             "<div class=\"media-actions\">" +
-              "<button type=\"button\" class=\"media-btn\" data-media-action=\"poster\">刷新封面</button>" +
-              "<button type=\"button\" class=\"media-btn\" data-media-action=\"save-frame\">保存截图</button>" +
-              "<button type=\"button\" class=\"media-btn\" data-media-action=\"info\">编码信息</button>" +
-              "<button type=\"button\" class=\"media-btn" + loopActive + "\" data-media-toggle=\"loop\">循环播放</button>" +
-              "<button type=\"button\" class=\"media-btn" + mutedActive + "\" data-media-toggle=\"muted\">静音</button>" +
-              "<button type=\"button\" class=\"media-btn" + autoplayActive + "\" data-media-toggle=\"autoplay\">自动播放</button>" +
+              "<button type=\"button\" class=\"media-btn\" data-media-action=\"poster\">鍒锋柊灏侀潰</button>" +
+              "<button type=\"button\" class=\"media-btn\" data-media-action=\"save-frame\">淇濆瓨鎴浘</button>" +
+              "<button type=\"button\" class=\"media-btn\" data-media-action=\"info\">缂栫爜淇℃伅</button>" +
+              "<button type=\"button\" class=\"media-btn" + loopActive + "\" data-media-toggle=\"loop\">寰幆鎾斁</button>" +
+              "<button type=\"button\" class=\"media-btn" + mutedActive + "\" data-media-toggle=\"muted\">闈欓煶</button>" +
+              "<button type=\"button\" class=\"media-btn" + autoplayActive + "\" data-media-toggle=\"autoplay\">鑷姩鎾斁</button>" +
             "</div>" +
           "</div>" +
           "<div id=\"" + infoPanelId + "\" class=\"media-info-panel\"></div>" +
-          "<div class=\"media-status\"><span>当前 <strong id=\"" + currentId + "\">0:00</strong></span><span>总时长 <strong id=\"" + durationId + "\">" + escapeHtml(Number.isFinite(payloadDuration) && payloadDuration > 0 ? formatDuration(payloadDuration) : "--:--") + "</strong></span><span id=\"" + statusId + "\">就绪</span></div>" +
+          "<div class=\"media-status\"><span>褰撳墠 <strong id=\"" + currentId + "\">0:00</strong></span><span>鎬绘椂闀?<strong id=\"" + durationId + "\">" + escapeHtml(Number.isFinite(payloadDuration) && payloadDuration > 0 ? formatDuration(payloadDuration) : "--:--") + "</strong></span><span id=\"" + statusId + "\">灏辩华</span></div>" +
         "</div>" +
       "</div>";
   }
@@ -2757,7 +2755,7 @@ function wireMediaPreview(kind, options = {}) {
       renderRichMeta({ Duration: total }, true);
       extra.unshift(total);
     }
-    if (sizeEl && extra.length) sizeEl.textContent = extra.join(" · ");
+    if (sizeEl && extra.length) sizeEl.textContent = extra.join(" 路 ");
   };
   const updateButtons = () => {
     document.querySelectorAll("[data-media-toggle]").forEach((btn) => {
@@ -2783,7 +2781,7 @@ function wireMediaPreview(kind, options = {}) {
     const data = info && typeof info === "object" ? info : {};
     const keys = Object.keys(data);
     if (!keys.length) {
-      infoPanel.innerHTML = '<div class="media-info-row"><span class="media-info-val">暂无编码信息</span></div>';
+      infoPanel.innerHTML = '<div class="media-info-row"><span class="media-info-val">鏆傛棤缂栫爜淇℃伅</span></div>';
       return;
     }
     infoPanel.innerHTML = keys.map((key) =>
@@ -2797,7 +2795,7 @@ function wireMediaPreview(kind, options = {}) {
       return;
     }
     if (!infoPanel.innerHTML.trim()) {
-      infoPanel.innerHTML = '<div class="media-info-row"><span class="media-info-val">正在读取编码信息...</span></div>';
+      infoPanel.innerHTML = '<div class="media-info-row"><span class="media-info-val">姝ｅ湪璇诲彇缂栫爜淇℃伅...</span></div>';
       postToAhk({ type: "GET_MEDIA_INFO", path: state.previewPath, seq: state.previewSeq });
     }
     infoPanel.classList.add("open");
@@ -2851,18 +2849,18 @@ function wireMediaPreview(kind, options = {}) {
   if (mediaPlayer) mediaPlayer.addEventListener("wheel", forwardWheel, { passive: false });
   media.addEventListener("loadedmetadata", () => {
     syncMeta();
-    if (statusEl) statusEl.textContent = "信息已加载";
+    if (statusEl) statusEl.textContent = "淇℃伅宸插姞杞?;
     if (resumeTime > 1 && Number.isFinite(media.duration) && resumeTime < Math.max(2, media.duration - 2)) {
       try {
         media.currentTime = resumeTime;
-        if (statusEl) statusEl.textContent = "已恢复上次播放位置";
+        if (statusEl) statusEl.textContent = "宸叉仮澶嶄笂娆℃挱鏀句綅缃?;
       } catch {}
     }
     if (state.mediaPrefs.autoplay) {
       const playAttempt = media.play();
       if (playAttempt && typeof playAttempt.catch === "function") {
         playAttempt.catch(() => {
-          if (statusEl) statusEl.textContent = "自动播放被拦截";
+          if (statusEl) statusEl.textContent = "鑷姩鎾斁琚嫤鎴?;
         });
       }
     }
@@ -2883,16 +2881,16 @@ function wireMediaPreview(kind, options = {}) {
     }
   });
   media.addEventListener("play", () => {
-    if (statusEl) statusEl.textContent = "播放中";
+    if (statusEl) statusEl.textContent = "鎾斁涓?;
   });
   media.addEventListener("pause", () => {
-    if (statusEl) statusEl.textContent = "已暂停";
+    if (statusEl) statusEl.textContent = "宸叉殏鍋?;
   });
   media.addEventListener("ended", () => {
-    if (statusEl) statusEl.textContent = media.loop ? "循环中" : "播放结束";
+    if (statusEl) statusEl.textContent = media.loop ? "寰幆涓? : "鎾斁缁撴潫";
   });
   media.addEventListener("volumechange", () => {
-    if (statusEl && media.muted) statusEl.textContent = "静音";
+    if (statusEl && media.muted) statusEl.textContent = "闈欓煶";
   });
   document.querySelectorAll("[data-media-toggle]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -2929,9 +2927,9 @@ function runPreviewForSelection() {
   if (!meta || !pane) return;
 
   if (!item) {
-    meta.textContent = "未选中结果";
+    meta.textContent = "鏈€変腑缁撴灉";
     pane.innerHTML =
-      "<div class=\"preview-empty\">当前未选中本地结果。<br><br>在输入框中输入内容可实时过滤数据，点击列表项后会在这里显示详细预览。<br><br>" +
+      "<div class=\"preview-empty\">褰撳墠鏈€変腑鏈湴缁撴灉銆?br><br>鍦ㄨ緭鍏ユ涓緭鍏ュ唴瀹瑰彲瀹炴椂杩囨护鏁版嵁锛岀偣鍑诲垪琛ㄩ」鍚庝細鍦ㄨ繖閲屾樉绀鸿缁嗛瑙堛€?br><br>" +
       "<div class=\"sk-line w1\"></div><div class=\"sk-line w3\"></div><div class=\"sk-line w2\"></div></div>";
     setPreviewLayoutMode("web");
     setQuickLookHintVisible(false);
@@ -2946,9 +2944,9 @@ function runPreviewForSelection() {
   setQuickLookHintVisible(!!path);
 
   renderRichMeta({
-    "来源": item.source || item.subtitle || "",
-    "类型": item.type || "",
-    "时间": item.time || ""
+    "鏉ユ簮": item.source || item.subtitle || "",
+    "绫诲瀷": item.type || "",
+    "鏃堕棿": item.time || ""
   });
 
   if (!path) {
@@ -2969,7 +2967,7 @@ function runPreviewForSelection() {
   if (PREVIEW_ARCHIVE_EXT.has(ext)) {
     setPreviewLayoutMode("web");
     stopNativePreview();
-    pane.innerHTML = "<div class=\"preview-loading\">正在读取压缩包目录…</div>";
+    pane.innerHTML = "<div class=\"preview-loading\">姝ｅ湪璇诲彇鍘嬬缉鍖呯洰褰曗€?/div>";
     postToAhk({ type: "INVOKE_ARCHIVE_LIST", path, seq });
     return;
   }
@@ -2977,7 +2975,7 @@ function runPreviewForSelection() {
   if (PREVIEW_TEXT_EXT.has(ext)) {
     setPreviewLayoutMode("web");
     stopNativePreview();
-    pane.innerHTML = "<div class=\"preview-loading\">加载文本…</div>";
+    pane.innerHTML = "<div class=\"preview-loading\">鍔犺浇鏂囨湰鈥?/div>";
     postToAhk({ type: "WEB_PREVIEW_TEXT", path, seq });
     return;
   }
@@ -2985,7 +2983,7 @@ function runPreviewForSelection() {
   if (PREVIEW_IMAGE_EXT.has(ext)) {
     setPreviewLayoutMode("web");
     stopNativePreview();
-    pane.innerHTML = "<div class=\"preview-loading\">加载图片…</div>";
+    pane.innerHTML = "<div class=\"preview-loading\">鍔犺浇鍥剧墖鈥?/div>";
     postToAhk({ type: "WEB_PREVIEW_IMAGE", path, seq });
     return;
   }
@@ -2999,7 +2997,7 @@ function runPreviewForSelection() {
   }
 
   setPreviewLayoutMode("native");
-  pane.innerHTML = "<div class=\"preview-empty\" style=\"min-height:80px\">此处为原生预览占位区域。<br><br>你可以点击下方按钮或按空格尝试不同预览方式。</div>";
+  pane.innerHTML = "<div class=\"preview-empty\" style=\"min-height:80px\">姝ゅ涓哄師鐢熼瑙堝崰浣嶅尯鍩熴€?br><br>浣犲彲浠ョ偣鍑讳笅鏂规寜閽垨鎸夌┖鏍煎皾璇曚笉鍚岄瑙堟柟寮忋€?/div>";
   
   const isL1Handled = PREVIEW_TEXT_EXT.has(ext) || PREVIEW_IMAGE_EXT.has(ext) || PREVIEW_AUDIO_EXT.has(ext) || PREVIEW_VIDEO_EXT.has(ext);
   const qlBtn = document.getElementById("preview-ql-btn");
@@ -3010,8 +3008,7 @@ function runPreviewForSelection() {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       if (seq !== state.previewSeq) return;
-      // 默认不自动加载重型 IPreviewHandler，除非文件类型非常明确或是用户要求
-    });
+      // 榛樿涓嶈嚜鍔ㄥ姞杞介噸鍨?IPreviewHandler锛岄櫎闈炴枃浠剁被鍨嬮潪甯告槑纭垨鏄敤鎴疯姹?    });
   });
 }
 
@@ -3029,7 +3026,7 @@ function onWebPreviewTextResult(payload) {
     const t = truncateToLines(body, 1000);
     body = t.text;
     lineTrunc = t.truncated;
-    note = "文件较大，已截断显示（最多约 1MB / 1000 行）。完整内容请用外部编辑器打开或双击结果。";
+    note = "鏂囦欢杈冨ぇ锛屽凡鎴柇鏄剧ず锛堟渶澶氱害 1MB / 1000 琛岋級銆傚畬鏁村唴瀹硅鐢ㄥ閮ㄧ紪杈戝櫒鎵撳紑鎴栧弻鍑荤粨鏋溿€?;
   }
   const ext = pathExtensionLower(state.previewPath);
   const lang = prismLangForExt(ext);
@@ -3038,7 +3035,7 @@ function onWebPreviewTextResult(payload) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
   let html = "";
-  if (note) html += "<div class=\"preview-truncate-note\">" + note + (lineTrunc ? "（已限制为前 1000 行）" : "") + "</div>";
+  if (note) html += "<div class=\"preview-truncate-note\">" + note + (lineTrunc ? "锛堝凡闄愬埗涓哄墠 1000 琛岋級" : "") + "</div>";
   if (lang === "plaintext") {
     html += "<pre class=\"preview-plain\">" + esc + "</pre>";
   } else {
@@ -3063,13 +3060,13 @@ function onWebPreviewImageResult(payload) {
   if (!pane) return;
   const url = payload.dataUrl ? String(payload.dataUrl) : "";
   if (!url) {
-    pane.innerHTML = "<div class=\"preview-empty\">无法加载图片预览。</div>";
+    pane.innerHTML = "<div class=\"preview-empty\">鏃犳硶鍔犺浇鍥剧墖棰勮銆?/div>";
     return;
   }
   const img = new Image();
   img.className = "preview-img";
   img.onload = () => {
-     renderRichMeta({ "图片尺寸": img.naturalWidth + " x " + img.naturalHeight }, true);
+     renderRichMeta({ "鍥剧墖灏哄": img.naturalWidth + " x " + img.naturalHeight }, true);
   };
   img.src = url;
   pane.innerHTML = "";
@@ -3084,11 +3081,11 @@ function onWebPreviewArchiveResult(payload) {
   const error = payload.error ? String(payload.error) : "";
   if (error) {
     pane.innerHTML =
-      "<div class=\"preview-empty\">压缩包目录读取失败：" + escapeHtml(error) + "<br><br>可双击用关联程序打开压缩包。</div>";
+      "<div class=\"preview-empty\">鍘嬬缉鍖呯洰褰曡鍙栧け璐ワ細" + escapeHtml(error) + "<br><br>鍙弻鍑荤敤鍏宠仈绋嬪簭鎵撳紑鍘嬬缉鍖呫€?/div>";
     return;
   }
   if (!entries.length) {
-    pane.innerHTML = "<div class=\"preview-empty\">压缩包内没有可展示的条目。</div>";
+    pane.innerHTML = "<div class=\"preview-empty\">鍘嬬缉鍖呭唴娌℃湁鍙睍绀虹殑鏉＄洰銆?/div>";
     return;
   }
   let html = "<div class=\"preview-truncate-note\">Archive List (read-only)</div>";
@@ -3105,7 +3102,7 @@ function onWebPreviewArchiveResult(payload) {
   });
   html += "</tbody></table>";
   if (payload.truncated) {
-    html += "<div class=\"preview-truncate-note\">条目较多，已截断显示前 " + escapeHtml(String(entries.length)) + " 项。</div>";
+    html += "<div class=\"preview-truncate-note\">鏉＄洰杈冨锛屽凡鎴柇鏄剧ず鍓?" + escapeHtml(String(entries.length)) + " 椤广€?/div>";
   }
   pane.innerHTML = html;
 }
@@ -3119,7 +3116,7 @@ function renderRichMeta(data, append = false) {
     const val = data[key];
     if (val == null || val === "") return;
     
-    // 如果是追加且已存在该 Key，则更新
+    // 濡傛灉鏄拷鍔犱笖宸插瓨鍦ㄨ Key锛屽垯鏇存柊
     let existing = wrap.querySelector(`[data-meta-key="${key}"]`);
     if (existing) {
        existing.querySelector(".preview-meta-val").textContent = val;
@@ -3147,7 +3144,7 @@ function onMediaInfoResult(payload) {
   const info = payload.info && typeof payload.info === "object" ? payload.info : {};
   const keys = Object.keys(info);
   if (!keys.length) {
-    panel.innerHTML = '<div class="media-info-row"><span class="media-info-val">暂无编码信息</span></div>';
+    panel.innerHTML = '<div class="media-info-row"><span class="media-info-val">鏆傛棤缂栫爜淇℃伅</span></div>';
     panel.classList.add("open");
     return;
   }
@@ -3161,7 +3158,7 @@ function onMediaFrameSaveResult(payload) {
   if (Number(payload.seq) !== state.previewSeq) return;
   const statusEl = document.getElementById("preview-media-status");
   if (!statusEl) return;
-  statusEl.textContent = payload && payload.ok ? "截图已保存" : (payload.message ? String(payload.message) : "截图保存失败");
+  statusEl.textContent = payload && payload.ok ? "鎴浘宸蹭繚瀛? : (payload.message ? String(payload.message) : "鎴浘淇濆瓨澶辫触");
 }
 
 function onNativePreviewFailed(payload) {
@@ -3173,13 +3170,13 @@ function onNativePreviewFailed(payload) {
   }
   const pane = document.getElementById("preview-web-scroll");
   if (!pane) return;
-  const msg = payload.message ? String(payload.message) : "系统原生预览不可用。";
+  const msg = payload.message ? String(payload.message) : "绯荤粺鍘熺敓棰勮涓嶅彲鐢ㄣ€?;
   stopNativePreview();
   setPreviewLayoutMode("web");
   pane.innerHTML =
     "<div class=\"preview-empty\">" +
     escapeHtml(msg) +
-    "<br><br>侧栏默认已优先使用 PDF.js；可按空格重新加载预览，或切换 PDF:pdfjs / PDF:web。</div>";
+    "<br><br>渚ф爮榛樿宸蹭紭鍏堜娇鐢?PDF.js锛涘彲鎸夌┖鏍奸噸鏂板姞杞介瑙堬紝鎴栧垏鎹?PDF:pdfjs / PDF:web銆?/div>";
   
   const qlBtn = document.getElementById("preview-ql-btn");
   if (qlBtn) qlBtn.classList.add("btn-highlight");
@@ -3188,7 +3185,7 @@ function onNativePreviewFailed(payload) {
 function invokeIPreviewHandler() {
   if (!state.previewPath) return;
   state.iPreviewActive = true;
-  state.iPreviewFailed = false; // 重试
+  state.iPreviewFailed = false; // 閲嶈瘯
   const b = collectPreviewBounds();
   postToAhk({ 
     type: "INVOKE_IPREVIEW", 
@@ -3212,21 +3209,21 @@ function invokeQuickLook(pathOverride = "") {
   state.quickLook = state.quickLook || {};
   if (!isQuickLookInstalled()) {
     if (state.quickLook.installBusy) {
-      if (pane) pane.innerHTML = "<div class=\"preview-loading\">正在安装 QuickLook…</div>";
+      if (pane) pane.innerHTML = "<div class=\"preview-loading\">姝ｅ湪瀹夎 QuickLook鈥?/div>";
       return;
     }
-    const ok = window.confirm("尚未安装 QuickLook。是否现在下载并启用 QuickLook 预览机制？");
+    const ok = window.confirm("灏氭湭瀹夎 QuickLook銆傛槸鍚︾幇鍦ㄤ笅杞藉苟鍚敤 QuickLook 棰勮鏈哄埗锛?);
     if (!ok) return;
     state.quickLook.lastInstallError = "";
     state.quickLook.pendingOpenPath = targetPath;
     state.quickLook.pendingOpenRow = selectedRow;
-    if (pane) pane.innerHTML = "<div class=\"preview-loading\">正在下载并安装 QuickLook…</div>";
+    if (pane) pane.innerHTML = "<div class=\"preview-loading\">姝ｅ湪涓嬭浇骞跺畨瑁?QuickLook鈥?/div>";
     postToAhk({ type: "INSTALL_QUICKLOOK" });
     updateQuickLookInstallUi();
     return;
   }
 
-  if (pane) pane.innerHTML = "<div class=\"preview-loading\">正在调用 QuickLook…</div>";
+  if (pane) pane.innerHTML = "<div class=\"preview-loading\">姝ｅ湪璋冪敤 QuickLook鈥?/div>";
   postToAhk({ type: "QUICKLOOK", path: targetPath, row: selectedRow });
 }
 
@@ -3261,7 +3258,7 @@ function ensurePreviewHostObserver() {
     const ext = pathExtensionLower(state.previewPath);
     if (PREVIEW_TEXT_EXT.has(ext) || PREVIEW_IMAGE_EXT.has(ext)) return;
     
-    // 如果 IPreviewHandler 激活中，同步 Bounds
+    // 濡傛灉 IPreviewHandler 婵€娲讳腑锛屽悓姝?Bounds
     if (state.iPreviewActive) {
       const b = collectPreviewBounds();
       postToAhk({ type: "NATIVE_PREVIEW", path: state.previewPath, seq: state.previewSeq, bounds: b });
@@ -3297,7 +3294,7 @@ function renderRecycleModalList() {
   if (!list) return;
   const rows = state.recycleBin || [];
   if (!rows.length) {
-    list.innerHTML = "<div class=\"empty\" style=\"min-height:100px\">暂无已移除项。在结果行使用「回收」命令可将条目暂存于此。</div>";
+    list.innerHTML = "<div class=\"empty\" style=\"min-height:100px\">鏆傛棤宸茬Щ闄ら」銆傚湪缁撴灉琛屼娇鐢ㄣ€屽洖鏀躲€嶅懡浠ゅ彲灏嗘潯鐩殏瀛樹簬姝ゃ€?/div>";
     return;
   }
   list.innerHTML = "";
@@ -3306,12 +3303,12 @@ function renderRecycleModalList() {
     wrap.className = "recycle-row";
     const idx = Number(it.index) || 0;
     wrap.innerHTML =
-      "<div><div class=\"t\">" + escapeHtml(it.title || "（无标题）") + "</div>" +
+      "<div><div class=\"t\">" + escapeHtml(it.title || "锛堟棤鏍囬锛?) + "</div>" +
       "<div class=\"p\">" + escapeHtml(it.preview || "") + "</div></div>";
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "btn ghost";
-    btn.textContent = "还原";
+    btn.textContent = "杩樺師";
     btn.onclick = () => postToAhk({ type: "searchCenterRestoreRecycle", index: idx });
     wrap.appendChild(btn);
     list.appendChild(wrap);
@@ -3377,10 +3374,10 @@ function applyState(payload) {
 
   document.getElementById("search").value = state.keyword;
   document.getElementById("limit").value = String(state.limit);
-  document.getElementById("status").textContent = state.statusLine || "已同步";
+  document.getElementById("status").textContent = state.statusLine || "宸插悓姝?;
   applyFulltextStatus(state.fulltext);
-  document.getElementById("result-count").textContent = String(state.results.length) + " 条";
-  document.getElementById("btn-run").textContent = "搜索";
+  document.getElementById("result-count").textContent = String(state.results.length) + " 鏉?;
+  document.getElementById("btn-run").textContent = "鎼滅储";
   document.getElementById("btn-open-cli").style.display = state.isCliCategory ? "inline-flex" : "none";
   syncFooterHint();
   syncRecycleBadge();
@@ -3518,46 +3515,33 @@ document.getElementById("btn-ft-settings-top").addEventListener("click", () => {
   postToAhk({ type: "openSettingsPanel" });
 });
 const ftSchemeApplyBtn = document.getElementById("btn-ft-scheme-apply");
-const applyFulltextConfig = (payload) => {
-  state.fulltextConfig.scanScheme = payload.scanScheme;
-  state.fulltextConfig.useUSN = payload.useUSN;
-  syncFulltextSchemeUi();
-  setFulltextProbeSummary("正在应用扫描方案…");
-  postToAhk({ type: "fulltextConfigUpdate", payload });
-};
 if (ftSchemeApplyBtn) {
   ftSchemeApplyBtn.addEventListener("click", () => {
-    applyFulltextConfig(collectFulltextSchemePayload());
-  });
-}
-const ftRecommendApplyBtn = document.getElementById("btn-ft-recommend-apply");
-if (ftRecommendApplyBtn) {
-  ftRecommendApplyBtn.addEventListener("click", () => {
-    const rec = state.fulltextProbe && state.fulltextProbe.last
-      ? String((state.fulltextProbe.last.recommendedScheme || "")).toLowerCase()
-      : "";
-    const useRec = (rec === "mft" || rec === "everything" || rec === "walk" || rec === "auto") ? rec : "auto";
     const payload = collectFulltextSchemePayload();
-    payload.scanScheme = useRec;
-    applyFulltextConfig(payload);
-  });
-}
-const ftAdvancedBtn = document.getElementById("btn-ft-advanced-toggle");
-if (ftAdvancedBtn) {
-  ftAdvancedBtn.addEventListener("click", () => {
-    state.fulltextUiAdvanced = !state.fulltextUiAdvanced;
-    syncFulltextAdvancedUi();
-    try {
-      localStorage.setItem(SC_FT_ADVANCED_KEY, state.fulltextUiAdvanced ? "1" : "0");
-    } catch (e) {}
+    state.fulltextConfig.scanScheme = payload.scanScheme;
+    state.fulltextConfig.useUSN = payload.useUSN;
+    syncFulltextSchemeUi();
+    setFulltextProbeSummary("姝ｅ湪搴旂敤鎵弿鏂规鈥?);
+    postToAhk({ type: "fulltextConfigUpdate", payload });
   });
 }
 const ftProbeBtn = document.getElementById("btn-ft-probe");
 if (ftProbeBtn) {
   ftProbeBtn.addEventListener("click", () => {
     state.fulltextProbe.busy = true;
-    setFulltextProbeSummary("正在检测可行性…");
+    setFulltextProbeSummary("姝ｅ湪妫€娴嬪彲琛屾€р€?);
     postToAhk({ type: "fulltextProbeRequest" });
+  });
+}
+const ftRecommendBtn = document.getElementById("btn-ft-recommend");
+if (ftRecommendBtn) {
+  ftRecommendBtn.addEventListener("click", () => applyRecommendedScheme());
+}
+const ftAdvancedBtn = document.getElementById("btn-ft-advanced-toggle");
+if (ftAdvancedBtn) {
+  ftAdvancedBtn.addEventListener("click", () => {
+    state.fulltextUiAdvanced = !state.fulltextUiAdvanced;
+    syncFulltextAdvancedUi();
   });
 }
 
@@ -3577,7 +3561,7 @@ const recycleEmptyAll = document.getElementById("recycle-empty-all");
 if (recycleEmptyAll) {
   recycleEmptyAll.addEventListener("click", () => {
     if (!state.recycleCount) return;
-    if (!window.confirm("清空搜索中心回收站？已移除的条目将无法从此处还原。")) return;
+    if (!window.confirm("娓呯┖鎼滅储涓績鍥炴敹绔欙紵宸茬Щ闄ょ殑鏉＄洰灏嗘棤娉曚粠姝ゅ杩樺師銆?)) return;
     postToAhk({ type: "searchCenterEmptyRecycle" });
   });
 }
@@ -3615,6 +3599,10 @@ if (chromeTopMostBtn) {
 updateChromeTopMostButton();
 syncFulltextSchemeUi();
 syncFulltextAdvancedUi();
+if (!state.fulltextUiProbePrompted) {
+  setFulltextProbeSummary("建议先点“检测可行性”，再点“一键推荐”");
+  state.fulltextUiProbePrompted = true;
+}
 
 (function initChromeDrag() {
   const dragHost = document.getElementById("chrome-header");
@@ -3835,7 +3823,7 @@ if (window.chrome && window.chrome.webview) {
     if (payload.type === "quicklook_install_progress") {
       state.quickLook = state.quickLook || {};
       state.quickLook.installBusy = true;
-      state.quickLook.installProgressMsg = String(payload.message || "安装中…");
+      state.quickLook.installProgressMsg = String(payload.message || "瀹夎涓€?);
       state.quickLook.installProgressPct = typeof payload.percent === "number" ? payload.percent : null;
       state.quickLook.lastInstallError = "";
       updateQuickLookInstallUi();
@@ -3866,7 +3854,7 @@ if (window.chrome && window.chrome.webview) {
           }, 80);
         }
       } else {
-        state.quickLook.lastInstallError = String(payload.message || "安装失败");
+        state.quickLook.lastInstallError = String(payload.message || "瀹夎澶辫触");
         state.quickLook.pendingOpenPath = "";
         state.quickLook.pendingOpenRow = 0;
       }
@@ -3880,16 +3868,16 @@ if (window.chrome && window.chrome.webview) {
     }
     if (payload.type === "fulltextActionResult") {
       if (!payload.ok) {
-        const tip = payload.error ? String(payload.error) : "全文索引操作失败";
+        const tip = payload.error ? String(payload.error) : "鍏ㄦ枃绱㈠紩鎿嶄綔澶辫触";
         document.getElementById("status").textContent = tip;
       }
       return;
     }
     if (payload.type === "fulltextConfigResult") {
       if (payload.ok) {
-        setFulltextProbeSummary("扫描方案已应用");
+        setFulltextProbeSummary("鎵弿鏂规宸插簲鐢?);
       } else {
-        setFulltextProbeSummary(payload.error ? String(payload.error) : "扫描方案更新失败");
+        setFulltextProbeSummary(payload.error ? String(payload.error) : "鎵弿鏂规鏇存柊澶辫触");
       }
       postToAhk({ type: "fulltextStatusRequest", withConfig: true });
       return;
@@ -3899,7 +3887,7 @@ if (window.chrome && window.chrome.webview) {
       if (payload.ok) {
         renderFulltextProbe(payload.probe || {});
       } else {
-        setFulltextProbeSummary(payload.error ? String(payload.error) : "可行性检测失败");
+        setFulltextProbeSummary(payload.error ? String(payload.error) : "鍙鎬ф娴嬪け璐?);
       }
       return;
     }
