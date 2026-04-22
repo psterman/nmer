@@ -307,6 +307,41 @@ button, input, select, textarea { font: inherit; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.ft-file-preview {
+  margin-top: 2px;
+  min-height: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #8ea0ad;
+  font-size: 10px;
+  overflow: hidden;
+}
+.ft-file-preview.hidden {
+  display: none;
+}
+.ft-file-chip {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  max-width: calc(50% - 6px);
+}
+.ft-file-chip .k {
+  color: #7f8a95;
+  flex: 0 0 auto;
+}
+.ft-file-chip .v {
+  color: #9dc1df;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .ft-scan-badge {
   font-size: 9px;
   padding: 1px 6px;
@@ -1415,6 +1450,10 @@ mark {
         <span id="ft-efficiency-text" class="ft-mini-file">0 文件/秒</span>
         <span id="ft-file" class="ft-mini-file">空闲</span>
       </div>
+      <div id="ft-file-preview" class="ft-file-preview hidden">
+        <span class="ft-file-chip"><span class="k">文件</span><span id="ft-file-name" class="v">-</span></span>
+        <span class="ft-file-chip"><span class="k">位置</span><span id="ft-file-dir" class="v">-</span></span>
+      </div>
       <div id="ft-scheme-panel" class="ft-scheme-panel">
         <div class="ft-basic-row">
           <button type="button" id="btn-ft-probe" class="mini-btn" title="检测当前电脑适合哪种扫描方式">检测可行性</button>
@@ -2101,6 +2140,60 @@ function formatScanModeBadge(mode) {
   return String(mode || "");
 }
 
+function shortenMiddle(text, maxLen) {
+  const s = String(text || "");
+  const lim = Number(maxLen) || 64;
+  if (s.length <= lim) return s;
+  const head = Math.max(8, Math.floor((lim - 1) * 0.55));
+  const tail = Math.max(6, lim - head - 1);
+  return s.slice(0, head) + "…" + s.slice(s.length - tail);
+}
+
+function extractIndexerPath(rawText) {
+  const s = String(rawText || "").trim();
+  if (!s) return "";
+  if (/^[a-zA-Z]:[\\/]/.test(s) || /^\\\\/.test(s)) return s;
+  const m = s.match(/:\s*([a-zA-Z]:[\\/].*)$/);
+  if (m && m[1]) return m[1].trim();
+  return "";
+}
+
+function splitPathPreview(pathText) {
+  const p = String(pathText || "").replace(/\//g, "\\").trim();
+  if (!p) return { name: "", dir: "" };
+  const idx = p.lastIndexOf("\\");
+  if (idx < 0) return { name: p, dir: "" };
+  const name = p.slice(idx + 1) || p;
+  const dir = idx > 0 ? p.slice(0, idx) : "\\";
+  return { name, dir };
+}
+
+function updateFulltextFilePreview(indexingText) {
+  const wrap = document.getElementById("ft-file-preview");
+  const nameEl = document.getElementById("ft-file-name");
+  const dirEl = document.getElementById("ft-file-dir");
+  if (!wrap || !nameEl || !dirEl) return;
+
+  const path = extractIndexerPath(indexingText);
+  if (!path) {
+    wrap.classList.add("hidden");
+    nameEl.textContent = "-";
+    dirEl.textContent = "-";
+    nameEl.title = "";
+    dirEl.title = "";
+    return;
+  }
+
+  const sp = splitPathPreview(path);
+  const fileName = sp.name || path;
+  const dirName = sp.dir || "根目录";
+  nameEl.textContent = shortenMiddle(fileName, 42);
+  dirEl.textContent = shortenMiddle(dirName, 68);
+  nameEl.title = fileName;
+  dirEl.title = dirName;
+  wrap.classList.remove("hidden");
+}
+
 function userFriendlyProbeReason(reason, kind) {
   const raw = String(reason || "").trim();
   if (!raw) return "未返回说明";
@@ -2314,10 +2407,13 @@ function applyFulltextStatus(payload) {
       idle: "空闲"
     };
     const phase = phaseMap[state.fulltext.scanPhase] || (state.fulltext.running ? "索引监控中" : "空闲");
-    const t = state.fulltext.indexing_file ? `${phase} · ${state.fulltext.indexing_file}` : phase;
+    const path = extractIndexerPath(state.fulltext.indexing_file || "");
+    const displayName = path ? splitPathPreview(path).name : "";
+    const t = displayName ? `${phase} · ${displayName}` : phase;
     fileEl.textContent = t;
-    fileEl.title = t;
+    fileEl.title = state.fulltext.indexing_file ? `${phase} · ${state.fulltext.indexing_file}` : phase;
   }
+  updateFulltextFilePreview(state.fulltext.indexing_file || "");
   const toggleBtn = document.getElementById("btn-ft-toggle");
   if (toggleBtn) {
     if (state.fulltext.running) {

@@ -39,7 +39,7 @@ const (
 	defaultBatchFlushInterval = time.Second
 	defaultEverythingTimeout  = 1 * time.Second
 	defaultMFTTimeout         = 10 * time.Second
-	defaultRootWalkTimeout    = 90 * time.Second
+	defaultRootWalkTimeout    = 10 * time.Minute
 	defaultReadDirTimeout     = 5 * time.Second
 )
 
@@ -808,7 +808,7 @@ func (b *blugeIndexer) walkRoot(root string, initial bool) {
 				b.appendAlert(fmt.Sprintf("MFT returned 0 files, fallback to Everything/WalkDir: %s", cleanRoot))
 			}
 
-			if initial && b.cfg.UseEverything {
+			if initial {
 				b.mu.Lock()
 				b.status.ScanPhase = "walking"
 				b.status.IndexingFile = "Everything enumerate: " + cleanRoot
