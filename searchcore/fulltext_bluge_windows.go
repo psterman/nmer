@@ -31,19 +31,20 @@ import (
 )
 
 const (
-	defaultInitialScanDelay   = 1 * time.Second
-	defaultPerFilePause       = 5 * time.Millisecond
-	defaultMaxTextFileBytes   = int64(8 * 1024 * 1024)
-	defaultHardReadLimit      = int64(32 * 1024 * 1024)
-	defaultMinFreeDiskBytes   = int64(500 * 1024 * 1024)
-	defaultQueueSize          = 16384
-	defaultBatchMaxDocs       = 256
-	defaultBatchFlushInterval = time.Second
-	defaultEverythingTimeout  = 8 * time.Second
+	defaultInitialScanDelay       = 1 * time.Second
+	defaultPerFilePause           = 5 * time.Millisecond
+	defaultMaxTextFileBytes       = int64(8 * 1024 * 1024)
+	defaultHardReadLimit          = int64(32 * 1024 * 1024)
+	defaultMinFreeDiskBytes       = int64(500 * 1024 * 1024)
+	defaultQueueSize              = 16384
+	defaultBatchMaxDocs           = 256
+	defaultBatchFlushInterval     = time.Second
+	defaultEverythingTimeout      = 8 * time.Second
 	supplementalEverythingTimeout = 30 * time.Second
-	defaultMFTTimeout         = 10 * time.Second
-	defaultRootWalkTimeout    = 10 * time.Minute
-	defaultReadDirTimeout     = 5 * time.Second
+	defaultMFTTimeout             = 10 * time.Second
+	defaultRootWalkTimeout        = 10 * time.Minute
+	defaultReadDirTimeout         = 5 * time.Second
+	recentEnqueueKeep             = 30 * time.Minute
 )
 
 var (
@@ -257,6 +258,19 @@ func GetProgressPayload() fullTextProgressPayload {
 	}
 }
 
+func collectRecentUnindexedPaths(window time.Duration, maxCandidates int) []string {
+	if window <= 0 || maxCandidates <= 0 {
+		return nil
+	}
+	fullTextGlobalMu.RLock()
+	idx := fullTextGlobal
+	fullTextGlobalMu.RUnlock()
+	if idx == nil {
+		return nil
+	}
+	return idx.collectRecentUnindexedPaths(window, maxCandidates)
+}
+
 func buildEngineLights(st FullTextStatus) []string {
 	lights := []string{"off", "off", "off", "off"}
 	if st.Running {
@@ -298,54 +312,17 @@ func searchFullTextWithBackendContext(ctx context.Context, baseDir, keyword stri
 	hotKeyword := pickPrimarySearchTerm(searchTerms)
 
 	_ = StartIndexer(baseDir)
-	useHot := shouldUseHotPathForQuery(baseDir)
-	st := GetStatus()
-	if !st.Ready {
-		useHot = true
-	}
-
-	type ftResult struct {
-		items []map[string]any
-		err   error
-	}
-	coldCh := make(chan ftResult, 1)
-	go func() {
-		items, err := Search(kw, maxResults*2)
-		coldCh <- ftResult{items: items, err: err}
-	}()
-
-	hotCh := make(chan ftResult, 1)
-	hotEnabled := useHot && hotKeyword != ""
-	if hotEnabled {
-		go func() {
-			items, err := searchFullTextWithRgContext(ctx, baseDir, hotKeyword, maxResults*2)
-			hotCh <- ftResult{items: items, err: err}
-		}()
-	}
-
-	var (
-		coldItems []map[string]any
-		coldErr   error
-		hotItems  []map[string]any
-		hotErr    error
-		gotCold   bool
-		gotHot    bool
-	)
-	for !(gotCold && (gotHot || !hotEnabled)) {
-		select {
-		case <-ctx.Done():
-			gotCold = true
-			gotHot = true
-		case r := <-coldCh:
-			coldItems, coldErr = r.items, r.err
-			gotCold = true
-		case r := <-hotCh:
-			hotItems, hotErr = r.items, r.err
-			gotHot = true
+	coldItems, coldErr := Search(kw, maxResults*2)
+	merged := mergeAndRankFullTextItems(kw, maxResults, coldItems)
+	hotErr := error(nil)
+	if len(merged) < maxResults && hotKeyword != "" && shouldUseHotPathForQuery(baseDir) {
+		remain := maxResults - len(merged)
+		hotItems, err := searchRecentUnindexedWithRgContext(ctx, baseDir, hotKeyword, remain*2, 10*time.Minute)
+		if err != nil {
+			hotErr = err
 		}
+		merged = mergeAndRankFullTextItems(kw, maxResults, merged, hotItems)
 	}
-
-	merged := mergeAndRankFullTextItems(kw, maxResults, hotItems, coldItems)
 	merged = applyStructuredFiltersToItems(merged, kw)
 	if len(merged) > 0 {
 		return merged, nil
@@ -356,14 +333,14 @@ func searchFullTextWithBackendContext(ctx context.Context, baseDir, keyword stri
 	if coldErr == nil {
 		return []map[string]any{}, nil
 	}
-	if hotErr != nil && coldErr != nil {
-		return nil, fmt.Errorf("hot path failed: %v; cold path failed: %v", hotErr, coldErr)
+	if coldErr != nil {
+		if hotErr != nil {
+			return nil, fmt.Errorf("hot patch failed: %v; cold search failed: %v", hotErr, coldErr)
+		}
+		return nil, coldErr
 	}
 	if hotErr != nil {
 		return nil, hotErr
-	}
-	if coldErr != nil {
-		return nil, coldErr
 	}
 	return []map[string]any{}, nil
 }
@@ -1381,6 +1358,15 @@ func (b *blugeIndexer) enqueueTask(task indexTask) {
 	if task.Path == "" {
 		return
 	}
+	task.Path = filepath.Clean(strings.TrimSpace(task.Path))
+	if task.Path == "" {
+		return
+	}
+	if !filepath.IsAbs(task.Path) {
+		if abs, err := filepath.Abs(task.Path); err == nil && abs != "" {
+			task.Path = filepath.Clean(abs)
+		}
+	}
 	if b.isIndexDirPath(task.Path) {
 		return
 	}
@@ -1395,7 +1381,7 @@ func (b *blugeIndexer) enqueueTask(task indexTask) {
 	}
 	b.recentEnqueue[key] = time.Now()
 	for k, ts := range b.recentEnqueue {
-		if time.Since(ts) > 30*time.Second {
+		if time.Since(ts) > recentEnqueueKeep {
 			delete(b.recentEnqueue, k)
 		}
 	}
@@ -1422,7 +1408,97 @@ func (b *blugeIndexer) enqueueTask(task indexTask) {
 	b.mu.Unlock()
 }
 
+type recentPathEntry struct {
+	path string
+	ts   time.Time
+}
+
+func (b *blugeIndexer) collectRecentUnindexedPaths(window time.Duration, maxCandidates int) []string {
+	if window <= 0 || maxCandidates <= 0 {
+		return nil
+	}
+	cutoff := time.Now().Add(-window)
+	entries := make([]recentPathEntry, 0, 64)
+
+	b.mu.RLock()
+	for p, ts := range b.recentEnqueue {
+		if ts.Before(cutoff) {
+			continue
+		}
+		entries = append(entries, recentPathEntry{path: p, ts: ts})
+	}
+	b.mu.RUnlock()
+	if len(entries) == 0 {
+		return nil
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].ts.After(entries[j].ts)
+	})
+
+	out := make([]string, 0, maxCandidates)
+	for _, it := range entries {
+		if len(out) >= maxCandidates {
+			break
+		}
+		p := filepath.Clean(it.path)
+		if p == "" {
+			continue
+		}
+		if b.shouldSkipFileByName(p) || b.isIndexDirPath(p) {
+			continue
+		}
+		st, err := os.Stat(p)
+		if err != nil || st.IsDir() {
+			continue
+		}
+		if st.ModTime().Before(cutoff) {
+			continue
+		}
+		if !b.shouldIndexByColdPath(p, st.Size()) {
+			continue
+		}
+		if !b.needsIndexingLocked(p, st) {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+func (b *blugeIndexer) needsIndexingLocked(path string, st os.FileInfo) bool {
+	id := docIDForPath(path)
+	modNano := st.ModTime().UnixNano()
+	size := st.Size()
+
+	b.mu.RLock()
+	if fp, ok := b.knownFiles[id]; ok {
+		if fp.Size == size && fp.ModNano == modNano {
+			b.mu.RUnlock()
+			return false
+		}
+	}
+	b.mu.RUnlock()
+
+	if b.meta != nil {
+		if old, ok, err := b.meta.Get(path); err == nil && ok {
+			if old.Size == size && old.ModNano == modNano {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func (b *blugeIndexer) indexFile(path string) error {
+	path = filepath.Clean(strings.TrimSpace(path))
+	if path == "" {
+		return nil
+	}
+	if !filepath.IsAbs(path) {
+		if abs, err := filepath.Abs(path); err == nil && abs != "" {
+			path = filepath.Clean(abs)
+		}
+	}
 	st, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -1502,6 +1578,15 @@ func (b *blugeIndexer) indexFile(path string) error {
 }
 
 func (b *blugeIndexer) deleteByPath(path string) error {
+	path = filepath.Clean(strings.TrimSpace(path))
+	if path == "" {
+		return nil
+	}
+	if !filepath.IsAbs(path) {
+		if abs, err := filepath.Abs(path); err == nil && abs != "" {
+			path = filepath.Clean(abs)
+		}
+	}
 	id := docIDForPath(path)
 	if err := b.enqueueBatchDelete(id); err != nil {
 		return fmt.Errorf("bluge delete failed (%s): %w", path, err)
@@ -1980,7 +2065,7 @@ func formatETASeconds(sec int64) string {
 
 func loadFullTextConfig(baseDir string) fullTextConfig {
 	filterCfg := loadFullTextFilterConfig(baseDir)
-	roots := fullTextRoots(baseDir)
+	roots := mergeAnyTXTRoots(baseDir, fullTextRoots(baseDir))
 	indexDir, needHint := resolveIndexDir(baseDir)
 	workers := resolveWorkerCount()
 	scanSpeed := resolveScanSpeed()
@@ -2056,6 +2141,51 @@ func loadFullTextConfig(baseDir string) fullTextConfig {
 		UseMFT:             parseBoolEnv("SEARCHCENTER_FT_USE_MFT", true),
 		UseUSN:             parseBoolEnv("SEARCHCENTER_FT_USE_USN", true),
 	}
+}
+
+func mergeAnyTXTRoots(baseDir string, preferred []string) []string {
+	ntfsRoots := listNTFSDriveRoots()
+	if len(ntfsRoots) == 0 {
+		return preferred
+	}
+
+	out := make([]string, 0, len(ntfsRoots)+len(preferred))
+	seen := map[string]struct{}{}
+	for _, root := range ntfsRoots {
+		clean := filepath.Clean(strings.TrimSpace(root))
+		if clean == "" {
+			continue
+		}
+		key := normalizePathKey(clean)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, clean)
+	}
+	for _, p := range preferred {
+		clean := filepath.Clean(strings.TrimSpace(p))
+		if clean == "" {
+			continue
+		}
+		covered := false
+		for _, root := range ntfsRoots {
+			if pathHasRootPrefix(clean, root) {
+				covered = true
+				break
+			}
+		}
+		if covered {
+			continue
+		}
+		key := normalizePathKey(clean)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, clean)
+	}
+	return out
 }
 
 func resolveIndexDir(baseDir string) (string, bool) {

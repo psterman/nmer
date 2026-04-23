@@ -241,6 +241,108 @@ func streamFullTextWithRgContext(parent context.Context, baseDir, keyword string
 	return nil
 }
 
+func searchRecentUnindexedWithRgContext(parent context.Context, baseDir, keyword string, maxResults int, recentWindow time.Duration) ([]map[string]any, error) {
+	if maxResults <= 0 {
+		return []map[string]any{}, nil
+	}
+	candidates := collectRecentUnindexedPaths(recentWindow, maxResults*12)
+	if len(candidates) == 0 {
+		return []map[string]any{}, nil
+	}
+	out := make([]map[string]any, 0, maxResults)
+	err := streamFullTextWithRgFilesContext(parent, baseDir, keyword, maxResults, candidates, func(item map[string]any) bool {
+		out = append(out, item)
+		return len(out) < maxResults
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func streamFullTextWithRgFilesContext(parent context.Context, baseDir, keyword string, maxResults int, files []string, emit func(map[string]any) bool) error {
+	kw := strings.TrimSpace(keyword)
+	if kw == "" || maxResults <= 0 || len(files) == 0 {
+		return nil
+	}
+	if maxResults > rgHardResultLimit {
+		maxResults = rgHardResultLimit
+	}
+	if parent == nil {
+		parent = context.Background()
+	}
+
+	rgExe := resolveRgExe(baseDir)
+	if rgExe == "" {
+		return fmt.Errorf("rg.exe not found; place it in tools\\rg.exe or install ripgrep")
+	}
+	filterCfg := loadFullTextFilterConfig(baseDir)
+	targets := make([]string, 0, len(files))
+	dedup := map[string]struct{}{}
+	for _, p := range files {
+		clean := filepath.Clean(strings.TrimSpace(p))
+		if clean == "" {
+			continue
+		}
+		if !filepath.IsAbs(clean) {
+			if abs, err := filepath.Abs(clean); err == nil && abs != "" {
+				clean = filepath.Clean(abs)
+			}
+		}
+		if isExcludedByFilter(clean, filterCfg) {
+			continue
+		}
+		if !isAllowedRgExt(pathExtLower(clean), filterCfg) {
+			continue
+		}
+		if st, err := os.Stat(clean); err != nil || st.IsDir() {
+			continue
+		}
+		key := normalizePathKey(clean)
+		if _, ok := dedup[key]; ok {
+			continue
+		}
+		dedup[key] = struct{}{}
+		targets = append(targets, clean)
+		if len(targets) >= maxResults*20 {
+			break
+		}
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+
+	seen := map[string]int{}
+	totalOut := 0
+	lastErr := error(nil)
+	batchSize := 64
+	for i := 0; i < len(targets); i += batchSize {
+		if parent.Err() != nil {
+			return parent.Err()
+		}
+		end := i + batchSize
+		if end > len(targets) {
+			end = len(targets)
+		}
+		remain := maxResults - totalOut
+		if remain <= 0 {
+			break
+		}
+		batch := targets[i:end]
+		rootCtx, cancel := context.WithTimeout(parent, rgDefaultTimeout)
+		count, err := streamFullTextPaths(rootCtx, rgExe, baseDir, kw, remain, seen, filterCfg, batch, emit)
+		cancel()
+		totalOut += count
+		if err != nil {
+			lastErr = err
+		}
+	}
+	if totalOut == 0 && lastErr != nil {
+		return lastErr
+	}
+	return nil
+}
+
 func limitHotSearchRoots(roots []string) []string {
 	if len(roots) <= 1 {
 		return roots
@@ -448,6 +550,145 @@ func streamFullTextRoot(ctx context.Context, rgExe, root, keyword string, maxRes
 	if scanErr != nil {
 		log.Printf("[rg] scanner error: %v", scanErr)
 	}
+	if ctx.Err() != nil {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		return count, nil
+	}
+	waitErr := <-waitCh
+	if count > 0 {
+		return count, nil
+	}
+	if ctx.Err() == context.DeadlineExceeded {
+		return 0, fmt.Errorf("fulltext hot scan timeout (%s)", rgDefaultTimeout)
+	}
+	if waitErr != nil {
+		msg := strings.TrimSpace(stderrBuf.String())
+		if msg == "" {
+			msg = waitErr.Error()
+		}
+		return 0, fmt.Errorf("rg execution failed: %s", msg)
+	}
+	return 0, nil
+}
+
+func streamFullTextPaths(ctx context.Context, rgExe, baseDir, keyword string, maxResults int, seen map[string]int, cfg fullTextFilterResolved, targets []string, emit func(map[string]any) bool) (int, error) {
+	if maxResults <= 0 || len(targets) == 0 {
+		return 0, nil
+	}
+	args := []string{
+		"--json",
+		"--line-number",
+		"--max-count", "500",
+		"-j", "2",
+		"--fixed-strings",
+		"--ignore-case",
+		"--hidden",
+		"--no-messages",
+		"--max-columns", "2000",
+		"--max-filesize", "8M",
+	}
+	args = append(args, keyword)
+	args = append(args, targets...)
+
+	cmd := exec.Command(rgExe, args...)
+	cmd.Dir = baseDir
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: 0x08000000 | 0x00000040,
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return 0, err
+	}
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
+	if err := cmd.Start(); err != nil {
+		return 0, err
+	}
+
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- cmd.Wait()
+	}()
+
+	stopKillWatch := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+		case <-stopKillWatch:
+		}
+	}()
+	defer close(stopKillWatch)
+
+	count := 0
+	oversizeLines := 0
+	limiter := &rgRateLimiter{}
+	sc := bufio.NewScanner(stdout)
+	sc.Buffer(make([]byte, 64*1024), rgScannerMaxBytes)
+	sc.Split(makeRGJSONLineSplit(rgScannerMaxBytes, func() {
+		oversizeLines++
+	}))
+
+	for sc.Scan() {
+		if ctx.Err() != nil {
+			break
+		}
+		line := sc.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		p, matchedLine, lineNo, ok := parseRGMatchLine(line)
+		if !ok {
+			continue
+		}
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(baseDir, p)
+		}
+		p = filepath.Clean(p)
+		if isExcludedByFilter(p, cfg) {
+			continue
+		}
+		if !isAllowedRgExt(pathExtLower(p), cfg) {
+			continue
+		}
+		key := strings.ToLower(p)
+		if seen[key] >= 10 {
+			continue
+		}
+		seen[key]++
+
+		score := scoreByPathAndContent(p, matchedLine, keyword, 50)
+		item := buildFullTextFileItem(p, matchedLine, lineNo, score, "hot-rg-recent")
+		if !limiter.allow(time.Now()) {
+			continue
+		}
+		count++
+		if emit != nil {
+			if !emit(item) {
+				if cmd.Process != nil {
+					_ = cmd.Process.Kill()
+				}
+				break
+			}
+		}
+		if count >= maxResults {
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			break
+		}
+	}
+
+	if oversizeLines > 0 {
+		log.Printf("[rg] dropped %d oversized JSON lines (> %d bytes)", oversizeLines, rgScannerMaxBytes)
+	}
+	limiter.flush()
+
+	_ = sc.Err()
 	if ctx.Err() != nil {
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()

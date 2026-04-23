@@ -7,7 +7,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"unicode/utf16"
 
@@ -225,4 +227,49 @@ func walkRootWithMFT(ctx context.Context, root string, frnMap map[uint64]string,
 		emitted++
 	}
 	return emitted, nil
+}
+
+// listNTFSDriveRoots returns available NTFS drive roots, e.g. C:\, D:\.
+func listNTFSDriveRoots() []string {
+	mask, err := windows.GetLogicalDrives()
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, 8)
+	for drive := byte('A'); drive <= byte('Z'); drive++ {
+		bit := uint32(1) << (drive - 'A')
+		if (mask & bit) == 0 {
+			continue
+		}
+		root := fmt.Sprintf("%c:\\", drive)
+		ptr, err := windows.UTF16PtrFromString(root)
+		if err != nil {
+			continue
+		}
+
+		var (
+			volName [windows.MAX_PATH + 1]uint16
+			fsName  [64]uint16
+			serial  uint32
+			maxComp uint32
+			flags   uint32
+		)
+		if err := windows.GetVolumeInformation(
+			ptr,
+			&volName[0], uint32(len(volName)),
+			&serial, &maxComp, &flags,
+			&fsName[0], uint32(len(fsName)),
+		); err != nil {
+			continue
+		}
+		if !strings.EqualFold(strings.TrimSpace(windows.UTF16ToString(fsName[:])), "NTFS") {
+			continue
+		}
+		if st, err := os.Stat(root); err != nil || !st.IsDir() {
+			continue
+		}
+		out = append(out, root)
+	}
+	sort.Strings(out)
+	return out
 }

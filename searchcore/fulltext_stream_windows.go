@@ -79,52 +79,43 @@ func handleFullTextSearchStream(w http.ResponseWriter, r *http.Request) {
 		return count < limit
 	}
 
-	emit(fullTextStreamEvent{Type: "phase", Phase: "filename"})
-	filenameCh := make(chan []map[string]any, 1)
-	go func() {
-		ev, err := everythingQuery(baseDir, q, limit*2, false)
-		if err != nil {
-			filenameCh <- nil
-			return
-		}
-		filenameCh <- ev
-	}()
-	select {
-	case <-r.Context().Done():
-		emit(fullTextStreamEvent{Type: "done", Phase: "done", Done: true})
-		return
-	case ev := <-filenameCh:
-		for _, it := range ev {
-			if !sendItem("filename", it) {
-				break
-			}
-		}
-	case <-time.After(10 * time.Millisecond):
-		emit(fullTextStreamEvent{Type: "warn", Err: "filename phase budget exceeded (10ms), fallback to content phase"})
+	_ = StartIndexer(baseDir)
+	terms := extractSearchContentTerms(q)
+	hotKeyword := pickPrimarySearchTerm(terms)
+	if hotKeyword == "" {
+		hotKeyword = q
 	}
 
-	emit(fullTextStreamEvent{Type: "phase", Phase: "content"})
-	// Debounce fulltext start to avoid launching rg on every keystroke burst.
-	select {
-	case <-r.Context().Done():
-		emit(fullTextStreamEvent{Type: "done", Phase: "done", Done: true})
-		return
-	case <-time.After(50 * time.Millisecond):
-	}
-	_ = StartIndexer(baseDir)
-	if err := streamFullTextWithRgContext(r.Context(), baseDir, q, limit, func(it map[string]any) bool {
-		return sendItem("content-hot", it)
-	}); err != nil {
-		emit(fullTextStreamEvent{Type: "warn", Err: err.Error()})
-	}
-	if cold, err := Search(q, limit*2); err == nil {
+	emit(fullTextStreamEvent{Type: "phase", Phase: "content-cold"})
+	cold, coldErr := Search(q, limit*2)
+	if coldErr != nil {
+		emit(fullTextStreamEvent{Type: "warn", Err: coldErr.Error()})
+	} else {
 		for _, it := range mergeAndRankFullTextItems(q, limit*2, cold) {
 			if !sendItem("content-cold", it) {
 				break
 			}
 		}
-	} else {
-		emit(fullTextStreamEvent{Type: "warn", Err: err.Error()})
+	}
+
+	if count < limit {
+		emit(fullTextStreamEvent{Type: "phase", Phase: "content-hot-recent"})
+		remain := limit - count
+		err := streamFullTextWithRgFilesContext(
+			r.Context(),
+			baseDir,
+			hotKeyword,
+			remain*2,
+			collectRecentUnindexedPaths(10*time.Minute, remain*20),
+			func(it map[string]any) bool { return sendItem("content-hot-recent", it) },
+		)
+		if err != nil {
+			emit(fullTextStreamEvent{Type: "warn", Err: err.Error()})
+		}
+	}
+
+	if coldErr != nil && count == 0 {
+		emit(fullTextStreamEvent{Type: "warn", Err: coldErr.Error()})
 	}
 
 	emit(fullTextStreamEvent{Type: "done", Phase: "done", Done: true})
