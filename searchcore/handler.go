@@ -83,9 +83,6 @@ func handleSearchWithDB(w http.ResponseWriter, r *http.Request, db *sql.DB, base
 	if fetchCap > 2000 {
 		fetchCap = 2000
 	}
-	if typeStr == "fulltext" && fetchCap > 360 {
-		fetchCap = 360
-	}
 	if typeStr == "file" && fetchCap > 80 {
 		fetchCap = 80
 	}
@@ -235,9 +232,6 @@ func handleSearchWithDB(w http.ResponseWriter, r *http.Request, db *sql.DB, base
 	}
 	if typeStr == "file" && len(merged) > 120 {
 		merged = merged[:120]
-	}
-	if typeStr == "fulltext" && len(merged) > 360 {
-		merged = merged[:360]
 	}
 	if typeStr == "all" && len(merged) > 180 {
 		merged = merged[:180]

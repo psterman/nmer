@@ -90,27 +90,30 @@ type FullTextStatus struct {
 }
 
 type fullTextConfig struct {
-	BaseDir            string
-	IndexDir           string
-	Roots              []string
-	FilterConfig       fullTextFilterResolved
-	Workers            int
-	InitialDelay       time.Duration
-	PerFilePause       time.Duration
-	ScanSpeed          string
-	IncludeLargeText   bool
-	MaxFileSizeBytes   int64
-	HardReadLimit      int64
-	QueueSize          int
-	MinFreeDiskBytes   int64
-	NeedUserIndexDir   bool
-	ExcludeDirs        map[string]struct{}
-	IdleIndexAfter     time.Duration
-	BatchMaxDocs       int
-	BatchFlushInterval time.Duration
-	UseEverything      bool
-	UseMFT             bool
-	UseUSN             bool
+	BaseDir             string
+	IndexDir            string
+	Roots               []string
+	FilterConfig        fullTextFilterResolved
+	Workers             int
+	InitialDelay        time.Duration
+	PerFilePause        time.Duration
+	ScanSpeed           string
+	IncludeLargeText    bool
+	MaxFileSizeBytes    int64
+	HardReadLimit       int64
+	QueueSize           int
+	MinFreeDiskBytes    int64
+	NeedUserIndexDir    bool
+	ExcludeDirs         map[string]struct{}
+	IdleIndexAfter      time.Duration
+	BatchMaxDocs        int
+	BatchFlushInterval  time.Duration
+	UseEverything       bool
+	UseMFT              bool
+	UseUSN              bool
+	SkipCommonBinaryExt bool
+	IndexMetaOnly       bool
+	ForceContentRecheck bool
 }
 
 type fileFingerprint struct {
@@ -123,6 +126,7 @@ type indexTask struct {
 	Path    string
 	Delete  bool
 	Initial bool
+	Sync    bool
 }
 
 type blugeIndexer struct {
@@ -416,11 +420,33 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 	if cfg.NeedUserIndexDir {
 		idx.appendAlert("set SEARCHCENTER_FT_INDEX_DIR to a dedicated directory for better stability")
 	}
+	if cfg.ForceContentRecheck {
+		idx.appendAlert("full sync enabled: rechecking file contents against index")
+	}
 
 	if known, kerr := idx.meta.LoadAll(); kerr == nil {
 		idx.knownFiles = known
 	} else {
 		idx.recordError(fmt.Errorf("load index meta failed: %w", kerr))
+	}
+	if pst, ok, perr := idx.meta.LoadIndexState(); perr == nil && ok {
+		if pst.IndexedFiles > 0 && idx.status.IndexedFiles < pst.IndexedFiles {
+			idx.status.IndexedFiles = pst.IndexedFiles
+		}
+		if !cfg.ForceContentRecheck && pst.InitialScanDone && len(idx.knownFiles) > 0 {
+			idx.status.InitialScanDone = true
+			idx.status.Ready = true
+			idx.status.Progress = 100
+			idx.status.ProgressText = "100.0%"
+			idx.status.ScanPhase = "ready"
+			if strings.TrimSpace(pst.LastUpdated) != "" {
+				idx.status.ProgressDetail = fmt.Sprintf("Loaded previous snapshot (%d files) at %s", int64(len(idx.knownFiles)), pst.LastUpdated)
+			} else {
+				idx.status.ProgressDetail = fmt.Sprintf("Loaded previous snapshot (%d files)", int64(len(idx.knownFiles)))
+			}
+		}
+	} else if perr != nil {
+		idx.recordError(fmt.Errorf("load index state failed: %w", perr))
 	}
 
 	if err := idx.refreshIndexedCount(); err != nil {
@@ -586,10 +612,15 @@ func (b *blugeIndexer) StartIndexer() error {
 		if err := setProcessIdlePriority(); err != nil {
 			b.appendAlert("failed to set IDLE_PRIORITY_CLASS; continuing indexing")
 		}
+		warmIncremental := b.shouldWarmIncrementalSync()
 
 		b.mu.Lock()
 		b.status.Running = true
-		b.status.ScanPhase = "walking"
+		if warmIncremental {
+			b.status.ScanPhase = "incremental_sync"
+		} else {
+			b.status.ScanPhase = "walking"
+		}
 		b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 		b.mu.Unlock()
 
@@ -597,6 +628,7 @@ func (b *blugeIndexer) StartIndexer() error {
 			go b.workerLoop(i + 1)
 		}
 		go b.periodicBatchFlushLoop()
+		go b.statePersistLoop()
 		go b.watchLoop()
 		go b.initialScanLoop()
 		if b.cfg.UseUSN {
@@ -730,6 +762,14 @@ func (b *blugeIndexer) initialScanLoop() {
 	if !b.waitInitialIdleOnce() {
 		return
 	}
+	incrementalMode := b.shouldWarmIncrementalSync()
+	if incrementalMode {
+		b.mu.Lock()
+		b.status.ScanPhase = "incremental_sync"
+		b.status.IndexingFile = "Incremental sync"
+		b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
+		b.mu.Unlock()
+	}
 
 	var wg sync.WaitGroup
 	for _, root := range b.cfg.Roots {
@@ -737,26 +777,40 @@ func (b *blugeIndexer) initialScanLoop() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			b.scanInitialRoot(root)
+			b.scanInitialRoot(root, !incrementalMode)
 		}()
 	}
 	wg.Wait()
 
 	b.mu.Lock()
-	b.initialWalkDone = true
-	b.status.ScanPhase = "indexing"
+	if incrementalMode {
+		b.status.ScanPhase = "ready"
+		b.status.InitialScanDone = true
+		b.status.Ready = true
+		b.status.IndexingFile = ""
+	} else {
+		b.initialWalkDone = true
+		b.status.ScanPhase = "indexing"
+	}
 	b.refreshProgressLocked()
 	b.mu.Unlock()
 }
 
-func (b *blugeIndexer) scanInitialRoot(root string) {
+func (b *blugeIndexer) scanInitialRoot(root string, initial bool) {
 	beforeDiscovered := b.snapshotInitialTaskTotal()
 	b.mu.Lock()
-	b.status.ScanPhase = "walking"
+	if initial {
+		b.status.ScanPhase = "walking"
+	} else {
+		b.status.ScanPhase = "incremental_sync"
+	}
 	b.status.IndexingFile = "Walking root: " + root
 	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 	b.mu.Unlock()
-	b.walkRoot(root, true)
+	b.walkRoot(root, initial)
+	if !initial {
+		return
+	}
 	afterDiscovered := b.snapshotInitialTaskTotal()
 	if afterDiscovered == beforeDiscovered {
 		b.appendAlert(fmt.Sprintf("root %s produced 0 files in primary scan, running supplemental scan", root))
@@ -798,7 +852,7 @@ func (b *blugeIndexer) walkRoot(root string, initial bool) {
 				b.refreshProgressLocked()
 				b.mu.Unlock()
 			}
-			b.enqueueTask(indexTask{Path: abs, Initial: initial})
+			b.enqueueTask(indexTask{Path: abs, Initial: initial, Sync: !initial})
 			return nil
 		})
 		cancelMFT()
@@ -955,7 +1009,7 @@ func (b *blugeIndexer) walkRootWithShellFallback(cleanRoot string, initial bool,
 			b.refreshProgressLocked()
 			b.mu.Unlock()
 		}
-		b.enqueueTask(indexTask{Path: p, Initial: initial})
+		b.enqueueTask(indexTask{Path: p, Initial: initial, Sync: !initial})
 		emitted++
 	}
 	return emitted, nil
@@ -1008,7 +1062,7 @@ func (b *blugeIndexer) walkRootWithEverything(cleanRoot string, initial bool) (i
 			b.refreshProgressLocked()
 			b.mu.Unlock()
 		}
-		b.enqueueTask(indexTask{Path: f.Path, Initial: initial})
+		b.enqueueTask(indexTask{Path: f.Path, Initial: initial, Sync: !initial})
 		emitted++
 	}
 	return emitted, nil
@@ -1086,7 +1140,7 @@ func (b *blugeIndexer) walkRootDirConcurrent(cleanRoot string, initial bool) {
 				b.refreshProgressLocked()
 				b.mu.Unlock()
 			}
-			b.enqueueTask(indexTask{Path: path, Initial: initial})
+			b.enqueueTask(indexTask{Path: path, Initial: initial, Sync: !initial})
 		}
 	}
 
@@ -1387,7 +1441,7 @@ func (b *blugeIndexer) enqueueTask(task indexTask) {
 	}
 	b.mu.Unlock()
 
-	if task.Initial {
+	if task.Initial || task.Sync {
 		// Initial-scan tasks cannot be dropped, otherwise total grows while done does not.
 		select {
 		case b.tasks <- task:
@@ -1520,16 +1574,42 @@ func (b *blugeIndexer) indexFile(path string) error {
 	}
 
 	id := docIDForPath(path)
+	modNano := st.ModTime().UnixNano()
+	if !b.cfg.ForceContentRecheck {
+		b.mu.RLock()
+		if prev, ok := b.knownFiles[id]; ok && prev.Size == st.Size() && prev.ModNano == modNano {
+			b.mu.RUnlock()
+			return nil
+		}
+		b.mu.RUnlock()
+		if b.meta != nil {
+			if old, ok, gerr := b.meta.Get(path); gerr == nil && ok && old.Size == st.Size() && old.ModNano == modNano {
+				b.mu.Lock()
+				if _, exists := b.knownFiles[id]; !exists {
+					b.knownFiles[id] = old
+					if b.status.IndexedFiles < int64(len(b.knownFiles)) {
+						b.status.IndexedFiles = int64(len(b.knownFiles))
+					}
+				}
+				b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
+				b.mu.Unlock()
+				return nil
+			}
+		}
+	}
 	content, summary, err := b.readFileForIndex(path, st.Size())
 	if err != nil {
 		if errors.Is(err, errSkipNonText) || errors.Is(err, errSkipTooLarge) {
+			if b.cfg.IndexMetaOnly {
+				return b.indexFileMetaOnly(path, st, err)
+			}
 			return b.deleteByPath(path)
 		}
 		return fmt.Errorf("read index content failed (%s): %w", path, err)
 	}
 
 	contentCRC := crc32.ChecksumIEEE([]byte(content))
-	fp := fileFingerprint{Size: st.Size(), ModNano: st.ModTime().UnixNano(), ContentHash: contentCRC}
+	fp := fileFingerprint{Size: st.Size(), ModNano: modNano, ContentHash: contentCRC}
 
 	if b.meta != nil {
 		if oldFP, ok, gerr := b.meta.Get(path); gerr == nil && ok && oldFP == fp {
@@ -1564,6 +1644,53 @@ func (b *blugeIndexer) indexFile(path string) error {
 		return fmt.Errorf("bluge update failed (%s): %w", path, err)
 	}
 
+	b.mu.Lock()
+	b.knownFiles[id] = fp
+	if b.status.IndexedFiles < int64(len(b.knownFiles)) {
+		b.status.IndexedFiles = int64(len(b.knownFiles))
+	}
+	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
+	b.mu.Unlock()
+	if b.meta != nil {
+		_ = b.meta.Upsert(path, fp)
+	}
+	return nil
+}
+
+func (b *blugeIndexer) indexFileMetaOnly(path string, st os.FileInfo, reason error) error {
+	if st == nil || st.IsDir() {
+		return nil
+	}
+	id := docIDForPath(path)
+	mod := st.ModTime()
+	baseName := strings.ToLower(filepath.Base(path))
+	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+	metaText := strings.ToLower(path + " " + baseName)
+	summary := "meta-only"
+	if reason != nil {
+		if errors.Is(reason, errSkipTooLarge) {
+			summary = "meta-only: too large"
+		} else if errors.Is(reason, errSkipNonText) {
+			summary = "meta-only: non-text"
+		}
+	}
+
+	doc := bluge.NewDocument(id).
+		AddField(bluge.NewKeywordField("path", path).StoreValue()).
+		AddField(bluge.NewKeywordField("path_lower", strings.ToLower(path)).StoreValue()).
+		AddField(bluge.NewTextField("title", baseName).WithAnalyzer(fullTextAnalyzer()).SearchTermPositions().StoreValue()).
+		AddField(bluge.NewTextField("headers", metaText).WithAnalyzer(fullTextAnalyzer()).SearchTermPositions().StoreValue()).
+		AddField(bluge.NewTextField("content", "").WithAnalyzer(fullTextAnalyzer()).SearchTermPositions()).
+		AddField(bluge.NewKeywordField("ext", ext).StoreValue().Sortable().Aggregatable()).
+		AddField(bluge.NewDateTimeField("mtime", mod).StoreValue().Sortable()).
+		AddField(bluge.NewNumericField("size", float64(st.Size())).StoreValue().Sortable()).
+		AddField(bluge.NewStoredOnlyField("summary", []byte(summary))).
+		AddField(bluge.NewTextField("path_text", strings.ToLower(path)).WithAnalyzer(fullTextAnalyzer()))
+	if err := b.enqueueBatchUpdate(id, doc); err != nil {
+		return fmt.Errorf("bluge meta-only update failed (%s): %w", path, err)
+	}
+
+	fp := fileFingerprint{Size: st.Size(), ModNano: st.ModTime().UnixNano(), ContentHash: 0}
 	b.mu.Lock()
 	b.knownFiles[id] = fp
 	if b.status.IndexedFiles < int64(len(b.knownFiles)) {
@@ -1892,6 +2019,9 @@ func (b *blugeIndexer) shouldSkipFileByName(path string) bool {
 	if strings.HasPrefix(name, ".") && name != ".env" {
 		return true
 	}
+	if !b.cfg.SkipCommonBinaryExt {
+		return false
+	}
 	ext := strings.ToLower(filepath.Ext(name))
 	switch ext {
 	case ".exe", ".dll", ".db", ".wal", ".shm", ".jpg", ".jpeg", ".png", ".gif", ".ico", ".zip", ".7z", ".rar", ".mp4", ".mp3", ".avi", ".mkv":
@@ -1981,7 +2111,11 @@ func (b *blugeIndexer) refreshProgressLocked() {
 		b.status.ProgressText = "100.0%"
 		b.status.FilesPerSec = b.computeFilesPerSecLocked(done)
 		b.status.ETASeconds = 0
-		b.status.ProgressDetail = fmt.Sprintf("Processed %d / %d, pending %d, roots %d", done, total, len(b.tasks), len(b.cfg.Roots))
+		if total > 0 {
+			b.status.ProgressDetail = fmt.Sprintf("Processed %d / %d, pending %d, roots %d", done, total, len(b.tasks), len(b.cfg.Roots))
+		} else {
+			b.status.ProgressDetail = fmt.Sprintf("Indexed %d files, pending %d, roots %d", b.status.IndexedFiles, len(b.tasks), len(b.cfg.Roots))
+		}
 		b.status.EfficiencyText = fmt.Sprintf("%.2f files/s", b.status.FilesPerSec)
 		return
 	}
@@ -2063,6 +2197,50 @@ func formatETASeconds(sec int64) string {
 	return fmt.Sprintf("%dh%dm", sec/3600, (sec%3600)/60)
 }
 
+func (b *blugeIndexer) shouldWarmIncrementalSync() bool {
+	if b == nil {
+		return false
+	}
+	if b.cfg.ForceContentRecheck {
+		return false
+	}
+	if len(b.knownFiles) == 0 {
+		return false
+	}
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.status.InitialScanDone
+}
+
+func (b *blugeIndexer) statePersistLoop() {
+	t := time.NewTicker(3 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-b.ctx.Done():
+			b.persistIndexStateSnapshot()
+			return
+		case <-t.C:
+			b.persistIndexStateSnapshot()
+		}
+	}
+}
+
+func (b *blugeIndexer) persistIndexStateSnapshot() {
+	if b == nil || b.meta == nil {
+		return
+	}
+	b.mu.RLock()
+	snap := indexPersistState{
+		InitialScanDone: b.status.InitialScanDone,
+		IndexedFiles:    b.status.IndexedFiles,
+		ScanPhase:       b.status.ScanPhase,
+		LastUpdated:     b.status.LastUpdatedRFC3339,
+	}
+	b.mu.RUnlock()
+	_ = b.meta.SaveIndexState(snap)
+}
+
 func loadFullTextConfig(baseDir string) fullTextConfig {
 	filterCfg := loadFullTextFilterConfig(baseDir)
 	roots := mergeAnyTXTRoots(baseDir, fullTextRoots(baseDir))
@@ -2119,27 +2297,30 @@ func loadFullTextConfig(baseDir string) fullTextConfig {
 	}
 
 	return fullTextConfig{
-		BaseDir:            baseDir,
-		IndexDir:           indexDir,
-		Roots:              roots,
-		FilterConfig:       filterCfg,
-		Workers:            workers,
-		InitialDelay:       initialDelay,
-		PerFilePause:       perFilePause,
-		ScanSpeed:          scanSpeed,
-		IncludeLargeText:   includeLarge,
-		MaxFileSizeBytes:   maxFileSize,
-		HardReadLimit:      hardLimit,
-		QueueSize:          queueSize,
-		MinFreeDiskBytes:   minFree,
-		NeedUserIndexDir:   needHint,
-		ExcludeDirs:        exclude,
-		IdleIndexAfter:     time.Duration(filterCfg.IdleIndexAfter) * time.Second,
-		BatchMaxDocs:       batchMax,
-		BatchFlushInterval: batchInterval,
-		UseEverything:      parseBoolEnv("SEARCHCENTER_FT_USE_EVERYTHING", false),
-		UseMFT:             parseBoolEnv("SEARCHCENTER_FT_USE_MFT", true),
-		UseUSN:             parseBoolEnv("SEARCHCENTER_FT_USE_USN", true),
+		BaseDir:             baseDir,
+		IndexDir:            indexDir,
+		Roots:               roots,
+		FilterConfig:        filterCfg,
+		Workers:             workers,
+		InitialDelay:        initialDelay,
+		PerFilePause:        perFilePause,
+		ScanSpeed:           scanSpeed,
+		IncludeLargeText:    includeLarge,
+		MaxFileSizeBytes:    maxFileSize,
+		HardReadLimit:       hardLimit,
+		QueueSize:           queueSize,
+		MinFreeDiskBytes:    minFree,
+		NeedUserIndexDir:    needHint,
+		ExcludeDirs:         exclude,
+		IdleIndexAfter:      time.Duration(filterCfg.IdleIndexAfter) * time.Second,
+		BatchMaxDocs:        batchMax,
+		BatchFlushInterval:  batchInterval,
+		UseEverything:       parseBoolEnv("SEARCHCENTER_FT_USE_EVERYTHING", false),
+		UseMFT:              parseBoolEnv("SEARCHCENTER_FT_USE_MFT", true),
+		UseUSN:              parseBoolEnv("SEARCHCENTER_FT_USE_USN", true),
+		SkipCommonBinaryExt: parseBoolEnv("SEARCHCENTER_FT_SKIP_COMMON_BINARY_EXT", false),
+		IndexMetaOnly:       parseBoolEnv("SEARCHCENTER_FT_INDEX_META_ONLY", true),
+		ForceContentRecheck: parseBoolEnv("SEARCHCENTER_FT_FORCE_RECHECK", false),
 	}
 }
 

@@ -14,6 +14,13 @@ type indexMetaStore struct {
 	db *sql.DB
 }
 
+type indexPersistState struct {
+	InitialScanDone bool
+	IndexedFiles    int64
+	ScanPhase       string
+	LastUpdated     string
+}
+
 func openIndexMetaStore(indexDir string) (*indexMetaStore, error) {
 	metaPath := filepath.Join(indexDir, "index_meta.db")
 	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(metaPath)+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)")
@@ -33,6 +40,13 @@ CREATE TABLE IF NOT EXISTS usn_cursor (
   drive TEXT PRIMARY KEY,
   next_usn INTEGER NOT NULL,
   journal_id INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS index_state (
+  id INTEGER PRIMARY KEY CHECK(id=1),
+  initial_scan_done INTEGER NOT NULL DEFAULT 0,
+  indexed_files INTEGER NOT NULL DEFAULT 0,
+  scan_phase TEXT NOT NULL DEFAULT '',
+  last_updated TEXT NOT NULL DEFAULT ''
 );
 `); err != nil {
 		_ = db.Close()
@@ -146,5 +160,53 @@ ON CONFLICT(drive) DO UPDATE SET
   next_usn=excluded.next_usn,
   journal_id=excluded.journal_id
 `, driveKey, nextUSN, journalID)
+	return err
+}
+
+func (m *indexMetaStore) LoadIndexState() (indexPersistState, bool, error) {
+	if m == nil || m.db == nil {
+		return indexPersistState{}, false, nil
+	}
+	var (
+		initialDone int64
+		indexed     int64
+		phase       string
+		updated     string
+	)
+	err := m.db.QueryRow(`
+SELECT initial_scan_done, indexed_files, scan_phase, last_updated
+FROM index_state WHERE id=1
+`).Scan(&initialDone, &indexed, &phase, &updated)
+	if errors.Is(err, sql.ErrNoRows) {
+		return indexPersistState{}, false, nil
+	}
+	if err != nil {
+		return indexPersistState{}, false, err
+	}
+	return indexPersistState{
+		InitialScanDone: initialDone > 0,
+		IndexedFiles:    indexed,
+		ScanPhase:       phase,
+		LastUpdated:     updated,
+	}, true, nil
+}
+
+func (m *indexMetaStore) SaveIndexState(st indexPersistState) error {
+	if m == nil || m.db == nil {
+		return nil
+	}
+	initialDone := int64(0)
+	if st.InitialScanDone {
+		initialDone = 1
+	}
+	_, err := m.db.Exec(`
+INSERT INTO index_state(id, initial_scan_done, indexed_files, scan_phase, last_updated)
+VALUES(1,?,?,?,?)
+ON CONFLICT(id) DO UPDATE SET
+  initial_scan_done=excluded.initial_scan_done,
+  indexed_files=excluded.indexed_files,
+  scan_phase=excluded.scan_phase,
+  last_updated=excluded.last_updated
+`, initialDone, st.IndexedFiles, strings.TrimSpace(st.ScanPhase), strings.TrimSpace(st.LastUpdated))
 	return err
 }

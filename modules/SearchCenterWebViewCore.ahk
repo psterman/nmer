@@ -664,11 +664,44 @@ _SCWV_PickFullTextIndexDir() {
     } catch {
     }
 
+    hostHwnd := 0
+    hostExpr := ""
+    wasTop := false
+    try {
+        global g_SCWV_Gui, GuiID_SearchCenter
+        if IsSet(g_SCWV_Gui) && (g_SCWV_Gui != 0)
+            hostHwnd := g_SCWV_Gui.Hwnd
+        if (!hostHwnd && IsSet(GuiID_SearchCenter) && GuiID_SearchCenter)
+            hostHwnd := Integer(GuiID_SearchCenter)
+        if (hostHwnd) {
+            hostExpr := "ahk_id " . hostHwnd
+            exStyle := WinGetExStyle(hostExpr)
+            wasTop := (exStyle & 0x8) ? true : false  ; WS_EX_TOPMOST
+            if (wasTop)
+                WinSetAlwaysOnTop(false, hostExpr)
+        }
+    } catch {
+    }
+
     picked := ""
     try picked := FileSelect("D", defaultDir, "选择全文索引目录")
     catch as e {
+        try {
+            if (wasTop && hostExpr != "") {
+                WinSetAlwaysOnTop(true, hostExpr)
+                WinActivate(hostExpr)
+            }
+        } catch {
+        }
         SCWV_PostJson(Map("type", "fulltextIndexDirPicked", "ok", false, "error", e.Message, "path", ""))
         return
+    }
+    try {
+        if (wasTop && hostExpr != "") {
+            WinSetAlwaysOnTop(true, hostExpr)
+            WinActivate(hostExpr)
+        }
+    } catch {
     }
     picked := Trim(String(picked))
     if (picked = "") {

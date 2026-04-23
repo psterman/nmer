@@ -264,13 +264,23 @@ button, input, select, textarea { font: inherit; }
 .fulltext-inline {
   margin-top: 4px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  min-height: 14px;
+  gap: 4px 8px;
+  min-height: 20px;
   color: #8ea0ad;
-  font-size: 10px;
-  white-space: nowrap;
+  font-size: 11px;
+}
+.ft-light-pack {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ft-main-text {
+  min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ft-mini-light {
   width: 8px;
@@ -306,22 +316,24 @@ button, input, select, textarea { font: inherit; }
 .ft-mini-file {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ft-file-preview {
-  margin-top: 2px;
-  min-height: 14px;
+  margin-top: 4px;
+  min-height: 18px;
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #8ea0ad;
-  font-size: 10px;
+  color: #94a7b5;
+  font-size: 11px;
   overflow: hidden;
+  flex-wrap: wrap;
 }
 .ft-file-preview.hidden {
   display: none;
 }
 .ft-file-chip {
-  min-width: 0;
+  min-width: 160px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -329,7 +341,7 @@ button, input, select, textarea { font: inherit; }
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--panel-2);
-  max-width: calc(50% - 6px);
+  max-width: 100%;
 }
 .ft-file-chip .k {
   color: #7f8a95;
@@ -352,46 +364,26 @@ button, input, select, textarea { font: inherit; }
   flex: 0 0 auto;
   letter-spacing: 0.02em;
 }
-.ft-scheme-panel {
+.ft-toolbar {
   margin-top: 6px;
   display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  flex-wrap: wrap;
-  font-size: 11px;
-}
-.ft-basic-row {
-  display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  min-height: 28px;
   flex-wrap: wrap;
+  font-size: 10px;
 }
-.ft-advanced-wrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.ft-index-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 320px;
-}
-.ft-scheme-panel .mini-input {
+.ft-toolbar .mini-input {
   height: 24px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel-2);
   color: var(--text);
   padding: 0 8px;
-  min-width: 220px;
+  min-width: 180px;
   flex: 1 1 280px;
 }
-.ft-advanced-wrap.hidden {
-  display: none;
-}
-.ft-scheme-panel .mini-select {
+.ft-toolbar .mini-select {
   height: 24px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -400,7 +392,7 @@ button, input, select, textarea { font: inherit; }
   padding: 0 8px;
   min-width: 118px;
 }
-.ft-scheme-panel .mini-btn {
+.ft-toolbar .mini-btn {
   height: 24px;
   padding: 0 10px;
   border-radius: 8px;
@@ -409,44 +401,19 @@ button, input, select, textarea { font: inherit; }
   color: var(--text);
   cursor: pointer;
 }
-.ft-scheme-panel .mini-btn:hover {
+.ft-toolbar .mini-btn:hover {
   border-color: rgba(255,179,71,.5);
 }
-.ft-scheme-panel .mini-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: #9eb0bd;
-}
-.ft-probe-summary {
-  color: #9eb0bd;
-}
-.ft-scheme-help {
-  width: 100%;
+.ft-quick-hint {
   color: #7f8a95;
   font-size: 10px;
-  line-height: 1.45;
+  line-height: 1.4;
+  max-width: 100%;
 }
-.ft-probe-list {
-  margin-top: 4px;
-  display: grid;
-  gap: 4px;
-  max-height: 120px;
-  overflow: auto;
+.ft-quick-stats {
+  color: #8fa5b9;
   font-size: 10px;
-  color: #9eb0bd;
-}
-.ft-probe-item {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 4px 8px;
-  background: rgba(255,255,255,.02);
-}
-.ft-probe-ok {
-  color: #4ade80;
-}
-.ft-probe-bad {
-  color: #f97316;
+  line-height: 1.35;
 }
 .hit-context-wrap {
   margin-top: 5px;
@@ -1370,6 +1337,37 @@ button, input, select, textarea { font: inherit; }
   line-height: 1.7;
   min-height: 72px;
 }
+.empty.empty-transition {
+  position: relative;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
+  animation: ft-empty-fade-in .22s ease-out both;
+}
+.empty.empty-transition::after {
+  content: "";
+  display: block;
+  margin-top: 10px;
+  height: 3px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, rgba(255,179,71,.12), rgba(255,179,71,.8), rgba(255,179,71,.12));
+  background-size: 220% 100%;
+  animation: ft-empty-sweep 1.05s linear infinite;
+}
+.empty-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #d6e7f8;
+}
+.empty-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffb347;
+  box-shadow: 0 0 8px rgba(255,179,71,.7);
+  animation: ft-empty-dot 1.1s ease-in-out infinite;
+}
 .skeleton-list {
   display: flex;
   flex-direction: column;
@@ -1410,6 +1408,18 @@ button, input, select, textarea { font: inherit; }
 @keyframes sk-shimmer {
   0% { background-position: 100% 0; }
   100% { background-position: -100% 0; }
+}
+@keyframes ft-empty-fade-in {
+  from { opacity: .35; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes ft-empty-sweep {
+  0% { background-position: 120% 0; }
+  100% { background-position: -120% 0; }
+}
+@keyframes ft-empty-dot {
+  0%, 100% { transform: scale(.9); opacity: .7; }
+  50% { transform: scale(1.2); opacity: 1; }
 }
 mark {
   background: rgba(255,179,71,.9);
@@ -1457,46 +1467,26 @@ mark {
       <input id="search" type="text" placeholder="搜索本地结果，或直接作为网络搜索 / CLI 提示词发送">
       <div id="status" class="search-status-inline">准备中...</div>
       <div id="fulltext-inline" class="fulltext-inline">
-        <span class="ft-mini-light" id="ftl1"></span>
-        <span class="ft-mini-light" id="ftl2"></span>
-        <span class="ft-mini-light" id="ftl3"></span>
-        <span class="ft-mini-light" id="ftl4"></span>
-        <span id="ft-progress-text">索引准备中…</span>
+        <span class="ft-light-pack">
+          <span class="ft-mini-light" id="ftl1"></span>
+          <span class="ft-mini-light" id="ftl2"></span>
+          <span class="ft-mini-light" id="ftl3"></span>
+          <span class="ft-mini-light" id="ftl4"></span>
+        </span>
+        <span id="ft-progress-text" class="ft-main-text">索引准备中…</span>
         <span id="ft-scan-badge" class="ft-scan-badge" style="display:none" title=""></span>
         <span id="ft-efficiency-text" class="ft-mini-file">0 文件/秒</span>
-        <span id="ft-file" class="ft-mini-file">空闲</span>
+        <span id="ft-file" class="ft-main-text">空闲</span>
       </div>
       <div id="ft-file-preview" class="ft-file-preview hidden">
         <span class="ft-file-chip"><span class="k">文件</span><span id="ft-file-name" class="v">-</span></span>
         <span class="ft-file-chip"><span class="k">位置</span><span id="ft-file-dir" class="v">-</span></span>
       </div>
-      <div id="ft-scheme-panel" class="ft-scheme-panel">
-        <div class="ft-basic-row">
-          <button type="button" id="btn-ft-probe" class="mini-btn" title="检测当前电脑适合哪种扫描方式">检测可行性</button>
-          <button type="button" id="btn-ft-recommend-apply" class="mini-btn" title="按检测结果自动选最稳方案并应用">一键推荐</button>
-          <button type="button" id="btn-ft-advanced-toggle" class="mini-btn" title="展开手动方案设置">技术详情 ▾</button>
-          <span id="ft-probe-summary" class="ft-probe-summary"></span>
-        </div>
-        <div id="ft-advanced-wrap" class="ft-advanced-wrap hidden">
-          <select id="ft-scheme-select" class="mini-select" title="扫描方式">
-            <option value="auto">自动选择（推荐）</option>
-            <option value="mft">高速扫描（推荐）</option>
-            <option value="everything">快速扫描（需 Everything）</option>
-            <option value="walk">兼容扫描（最稳定）</option>
-          </select>
-          <label class="mini-check" title="文件变化时自动增量更新索引">
-            <input id="ft-usn-toggle" type="checkbox" checked>
-            实时更新
-          </label>
-          <div class="ft-index-row" title="全文索引数据库目录（Bluge 索引与元数据）">
-            <input id="ft-index-dir" class="mini-input" type="text" placeholder="索引目录（留空使用默认）">
-            <button type="button" id="btn-ft-index-dir-pick" class="mini-btn" title="选择索引目录">选择目录</button>
-          </div>
-          <button type="button" id="btn-ft-scheme-apply" class="mini-btn" title="保存并重启索引">应用当前设置</button>
-        </div>
-        <div id="ft-scheme-help" class="ft-scheme-help">建议先点“检测可行性”，再点“一键推荐”。系统会自动选择更稳妥的方式。</div>
+      <div id="ft-toolbar" class="ft-toolbar">
+        <button type="button" id="btn-ft-open-settings" class="mini-btn" title="打开搜索设置中的全文索引控制台">索引设置</button>
+        <span id="ft-quick-stats" class="ft-quick-stats">索引统计加载中…</span>
+        <span class="ft-quick-hint">推荐方案、增量更新、索引目录等低频配置已迁移到「搜索设置 > 全文索引控制台」。</span>
       </div>
-      <div id="ft-probe-list" class="ft-probe-list"></div>
     </div>
     <div class="search-actions">
       <div class="engine-mode-group" role="group" aria-label="搜索引擎模式">
@@ -1701,6 +1691,7 @@ const state = {
     busy: false,
     last: null
   },
+  fulltextEmptyTransitionUntil: 0,
   fulltextUiAdvanced: (typeof localStorage !== "undefined" && localStorage.getItem(SC_FT_ADVANCED_KEY) === "1"),
   quickLook: {
     installed: false,
@@ -2418,6 +2409,15 @@ function applyFulltextStatus(payload) {
     effEl.textContent = txt;
     effEl.title = txt;
   }
+  const statsEl = document.getElementById("ft-quick-stats");
+  if (statsEl) {
+    const indexed = Number(state.fulltext.indexedFiles) || 0;
+    const discovered = Number(state.fulltext.discoveredFiles) || 0;
+    const pending = Number(state.fulltext.pendingTasks) || 0;
+    const mode = formatScanModeBadge(state.fulltext.scan_mode);
+    statsEl.textContent = `已索引 ${indexed} · 发现 ${discovered} · 待处理 ${pending}${mode ? ` · ${mode}` : ""}`;
+    statsEl.title = statsEl.textContent;
+  }
   const fileEl = document.getElementById("ft-file");
   if (fileEl) {
     const phaseMap = {
@@ -2457,8 +2457,8 @@ function applyFulltextStatus(payload) {
   }
 }
 
-function requestFulltextStatus() {
-  postToAhk({ type: "fulltextStatusRequest", withConfig: false });
+function requestFulltextStatus(withConfig = false) {
+  postToAhk({ type: "fulltextStatusRequest", withConfig: !!withConfig });
 }
 
 function syncFulltextSchemeUi() {
@@ -2732,8 +2732,14 @@ function renderResults() {
   disconnectLoadMoreObserver();
 
   if (!state.results.length) {
+    const isFulltextFilter = resolveFilterKey() === "fulltext";
+    const inTransition = isFulltextFilter && Date.now() < Number(state.fulltextEmptyTransitionUntil || 0);
+    const emptyClass = "empty" + (inTransition ? " empty-transition" : "");
+    const lead = inTransition
+      ? "<span class=\"empty-lead\"><span class=\"empty-dot\"></span>全文搜索视图已切换，等待结果更新…</span><br>"
+      : "";
     list.innerHTML =
-      "<div class=\"empty\">暂无结果。<br>你可以在输入框输入关键词搜索本地内容，或选择引擎后执行网络搜索 / CLI 发送。</div>" +
+      "<div class=\"" + emptyClass + "\">" + lead + "暂无结果。<br>你可以在输入框输入关键词搜索本地内容，或选择引擎后执行网络搜索 / CLI 发送。</div>" +
       buildSkeletonListHtml(7);
     renderPreview();
     return;
@@ -3994,6 +4000,7 @@ function closeRecycleModal() {
 }
 
 function applyState(payload) {
+  const prevFilterType = String(state.filterType || "");
   state.keyword = payload.keyword || "";
   state.limit = payload.limit || 50;
   state.categories = payload.categories || [];
@@ -4002,6 +4009,9 @@ function applyState(payload) {
   state.selectedEngines = payload.selectedEngines || [];
   state.filters = payload.filters || [];
   state.filterType = payload.filterType || "";
+  if (state.filterType === "fulltext" && prevFilterType !== "fulltext") {
+    state.fulltextEmptyTransitionUntil = Date.now() + 1200;
+  }
   if (payload.engineMode === "go" || payload.engineMode === "ahk") {
     state.engineMode = payload.engineMode;
     try {
@@ -4178,54 +4188,10 @@ document.getElementById("btn-ft-toggle").addEventListener("click", () => {
 document.getElementById("btn-ft-settings-top").addEventListener("click", () => {
   postToAhk({ type: "openSettingsPanel" });
 });
-const ftSchemeApplyBtn = document.getElementById("btn-ft-scheme-apply");
-const applyFulltextConfig = (payload) => {
-  state.fulltextConfig.scanScheme = payload.scanScheme;
-  state.fulltextConfig.useUSN = payload.useUSN;
-  state.fulltextConfig.indexDir = String(payload.indexDir || "");
-  syncFulltextSchemeUi();
-  setFulltextProbeSummary("正在应用扫描方案…");
-  postToAhk({ type: "fulltextConfigUpdate", payload });
-};
-if (ftSchemeApplyBtn) {
-  ftSchemeApplyBtn.addEventListener("click", () => {
-    applyFulltextConfig(collectFulltextSchemePayload());
-  });
-}
-const ftRecommendApplyBtn = document.getElementById("btn-ft-recommend-apply");
-if (ftRecommendApplyBtn) {
-  ftRecommendApplyBtn.addEventListener("click", () => {
-    const rec = state.fulltextProbe && state.fulltextProbe.last
-      ? String((state.fulltextProbe.last.recommendedScheme || "")).toLowerCase()
-      : "";
-    const useRec = (rec === "mft" || rec === "everything" || rec === "walk" || rec === "auto") ? rec : "auto";
-    const payload = collectFulltextSchemePayload();
-    payload.scanScheme = useRec;
-    applyFulltextConfig(payload);
-  });
-}
-const ftAdvancedBtn = document.getElementById("btn-ft-advanced-toggle");
-if (ftAdvancedBtn) {
-  ftAdvancedBtn.addEventListener("click", () => {
-    state.fulltextUiAdvanced = !state.fulltextUiAdvanced;
-    syncFulltextAdvancedUi();
-    try {
-      localStorage.setItem(SC_FT_ADVANCED_KEY, state.fulltextUiAdvanced ? "1" : "0");
-    } catch (e) {}
-  });
-}
-const ftProbeBtn = document.getElementById("btn-ft-probe");
-if (ftProbeBtn) {
-  ftProbeBtn.addEventListener("click", () => {
-    state.fulltextProbe.busy = true;
-    setFulltextProbeSummary("正在检测可行性…");
-    postToAhk({ type: "fulltextProbeRequest" });
-  });
-}
-const ftIndexDirPickBtn = document.getElementById("btn-ft-index-dir-pick");
-if (ftIndexDirPickBtn) {
-  ftIndexDirPickBtn.addEventListener("click", () => {
-    postToAhk({ type: "fulltextPickIndexDir" });
+const btnFtOpenSettings = document.getElementById("btn-ft-open-settings");
+if (btnFtOpenSettings) {
+  btnFtOpenSettings.addEventListener("click", () => {
+    postToAhk({ type: "openSettingsPanel" });
   });
 }
 
@@ -4627,7 +4593,7 @@ if (window.chrome && window.chrome.webview) {
       if (payload.ok && payload.path) {
         state.fulltextConfig.indexDir = String(payload.path);
         syncFulltextSchemeUi();
-        setFulltextProbeSummary("已选择索引目录，点击“应用当前设置”生效");
+        document.getElementById("status").textContent = "索引目录已选择，请到「搜索设置 > 全文索引控制台」应用。";
       }
       return;
     }
@@ -4637,7 +4603,7 @@ if (window.chrome && window.chrome.webview) {
   });
   postToAhk({ type: "ready" });
   setTimeout(() => scheduleScHotkeyBindingsSync(10), 120);
-  requestFulltextStatus();
+  requestFulltextStatus(true);
   startFulltextProgressStream();
 }
 

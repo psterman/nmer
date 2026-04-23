@@ -354,6 +354,23 @@ ConfigWebView_FullTextUpdateConfig(payload) {
     ConfigWebView_PostFullTextStatus(true)
 }
 
+ConfigWebView_FullTextProbe() {
+    if !ConfigWebView_EnsureSearchCoreRunning() {
+        ConfigWebView_Send(Map("type", "fulltextProbeResult", "ok", false, "error", "SearchCenterCore 未启动", "probe", 0))
+        return
+    }
+    resp := ConfigWebView_HttpSearchCoreJson("GET", "/v1/fulltext/probe")
+    ok := (resp.Has("status") && Integer(resp["status"]) = 200 && resp.Has("json") && (resp["json"] is Map))
+    if !ok {
+        errMsg := resp.Has("text") ? String(resp["text"]) : ("HTTP " . (resp.Has("status") ? String(resp["status"]) : "0"))
+        ConfigWebView_Send(Map("type", "fulltextProbeResult", "ok", false, "error", errMsg, "probe", 0))
+        return
+    }
+    root := resp["json"]
+    probe := (root.Has("probe") && (root["probe"] is Map)) ? root["probe"] : root
+    ConfigWebView_Send(Map("type", "fulltextProbeResult", "ok", true, "error", "", "probe", probe))
+}
+
 JoinArray(arr, sep := ",") {
     if !(arr is Array) || arr.Length = 0
         return ""
@@ -945,6 +962,8 @@ ConfigWebView_OnMessage(sender, args) {
             if (selectedDir = "")
                 selectedDir := ""
             ConfigWebView_Send(Map("type", "fulltextBrowseResult", "path", selectedDir))
+        case "fulltextProbeRequest":
+            ConfigWebView_FullTextProbe()
         case "browseCursorPath":
             selected := FileSelect("1", A_ScriptDir, "选择 Cursor.exe", "Executable (*.exe)")
             if (selected = "")

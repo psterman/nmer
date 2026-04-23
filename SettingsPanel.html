@@ -76,6 +76,13 @@
     .ft-progress { height: 8px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; margin: 8px 0 10px; }
     .ft-progress-bar { height: 100%; width: 0; background: linear-gradient(90deg, #22d3ee, #4ade80); transition: width .2s ease; }
     .ft-file { font-size: 11px; color: var(--text-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ft-mode-grid { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center; margin: 8px 0 6px; }
+    .ft-mode-grid select { min-width: 130px; }
+    .ft-probe-summary { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+    .ft-probe-list { margin-top: 6px; display: grid; gap: 6px; }
+    .ft-probe-item { border: 1px solid var(--border2); border-radius: 8px; padding: 6px 8px; font-size: 11px; color: var(--text-dim); background: rgba(255,255,255,.02); }
+    .ft-probe-ok { color: #4ade80; }
+    .ft-probe-bad { color: #f97316; }
     @keyframes ft-breath {
       0% { transform: scale(1); opacity: .55; }
       50% { transform: scale(1.25); opacity: 1; }
@@ -748,12 +755,18 @@
           autoStart: true,
           workers: 2,
           indexDir: "",
+          scanScheme: "auto",
+          useUSN: true,
           includeLargeText: false,
-          maxFileSizeMB: 2,
+          maxFileSizeMB: 8,
           scanSpeed: "normal",
-          initialDelaySec: 15,
+          initialDelaySec: 1,
           pauseMS: 5
         }
+      },
+      fullTextProbe: {
+        busy: false,
+        last: null
       },
       data: {
         cursorPath: "", capslockHoldTimeSeconds: 0.5, capsLockHoldVkEnabled: true, autoStart: false, defaultStartTab: "general",
@@ -1101,10 +1114,12 @@
         autoStart: cfgSrc.autoStart !== false,
         workers: Math.max(1, Number(cfgSrc.workers || 2)),
         indexDir: String(cfgSrc.indexDir || ""),
+        scanScheme: String(cfgSrc.scanScheme || "auto"),
+        useUSN: (typeof cfgSrc.useUSN === "boolean") ? cfgSrc.useUSN : true,
         includeLargeText: !!cfgSrc.includeLargeText,
-        maxFileSizeMB: Math.max(1, Number(cfgSrc.maxFileSizeMB || 2)),
+        maxFileSizeMB: Math.max(1, Number(cfgSrc.maxFileSizeMB || 8)),
         scanSpeed: String(cfgSrc.scanSpeed || "normal"),
-        initialDelaySec: Math.max(1, Number(cfgSrc.initialDelaySec || 15)),
+        initialDelaySec: Math.max(1, Number(cfgSrc.initialDelaySec || 1)),
         pauseMS: Math.max(0, Number(cfgSrc.pauseMS ?? 5))
       };
       return next;
@@ -1112,15 +1127,69 @@
     function requestFullTextStatus(withConfig = false){
       post({ type: "fulltextStatusRequest", withConfig: !!withConfig });
     }
+    function requestFullTextProbe(){
+      state.fullTextProbe.busy = true;
+      setFullTextProbeSummary("正在检测可行性…");
+      post({ type: "fulltextProbeRequest" });
+    }
+    function schemeDisplayName(scheme){
+      const v = String(scheme || "auto").toLowerCase();
+      if (v === "mft") return "高速扫描（推荐）";
+      if (v === "everything") return "快速扫描（需 Everything）";
+      if (v === "walk") return "兼容扫描（最稳定）";
+      return "自动选择（推荐）";
+    }
+    function setFullTextProbeSummary(text){
+      const el = document.getElementById("ftProbeSummary");
+      if (!el) return;
+      el.textContent = String(text || "");
+    }
+    function renderFullTextProbe(probe){
+      state.fullTextProbe.last = probe && typeof probe === "object" ? probe : null;
+      const box = document.getElementById("ftProbeList");
+      if (!box) return;
+      const p = state.fullTextProbe.last;
+      if (!p) {
+        box.innerHTML = "";
+        setFullTextProbeSummary("");
+        return;
+      }
+      const rows = Array.isArray(p.rootChecks) ? p.rootChecks : [];
+      if (!rows.length) {
+        box.innerHTML = "<div class=\"ft-probe-item\">未返回分盘检测结果</div>";
+      } else {
+        box.innerHTML = rows.map((item) => {
+          const root = String(item.root || "-");
+          const mftOk = !!item.mftOk;
+          const usnOk = !!item.usnOk;
+          const mftReason = String(item.mftReason || "");
+          const usnReason = String(item.usnReason || "");
+          return `<div class=\"ft-probe-item\"><strong>${esc(root)}</strong><br>高速扫描: <span class=\"${mftOk ? "ft-probe-ok" : "ft-probe-bad"}\">${mftOk ? "可用" : "不可用"}</span> · ${esc(mftReason)}<br>实时更新: <span class=\"${usnOk ? "ft-probe-ok" : "ft-probe-bad"}\">${usnOk ? "可用" : "不可用"}</span> · ${esc(usnReason)}</div>`;
+        }).join("");
+      }
+      const rec = String(p.recommendedScheme || "auto").toLowerCase();
+      setFullTextProbeSummary(`推荐方式：${schemeDisplayName(rec)}`);
+    }
+    function applyRecommendedFullTextScheme(){
+      const rec = state.fullTextProbe && state.fullTextProbe.last
+        ? String(state.fullTextProbe.last.recommendedScheme || "").toLowerCase()
+        : "";
+      const useRec = (rec === "mft" || rec === "everything" || rec === "walk" || rec === "auto") ? rec : "auto";
+      const sel = document.getElementById("ftScanScheme");
+      if (sel) sel.value = useRec;
+      scheduleFullTextApply(10);
+    }
     function readFullTextConfigFromUI(){
       return {
         autoStart: !!document.getElementById("ftAutoStart")?.checked,
         workers: Math.max(1, Number(document.getElementById("ftWorkers")?.value || 2)),
         indexDir: String(document.getElementById("ftIndexDir")?.value || "").trim(),
+        scanScheme: String(document.getElementById("ftScanScheme")?.value || "auto"),
+        useUSN: !!document.getElementById("ftUseUSN")?.checked,
         includeLargeText: !!document.getElementById("ftIncludeLarge")?.checked,
-        maxFileSizeMB: Math.max(1, Number(document.getElementById("ftMaxFileMB")?.value || 2)),
+        maxFileSizeMB: Math.max(1, Number(document.getElementById("ftMaxFileMB")?.value || 8)),
         scanSpeed: String(document.getElementById("ftScanSpeed")?.value || "normal"),
-        initialDelaySec: Math.max(1, Number(document.getElementById("ftInitialDelay")?.value || 15)),
+        initialDelaySec: Math.max(1, Number(document.getElementById("ftInitialDelay")?.value || 1)),
         pauseMS: Math.max(0, Number(document.getElementById("ftPauseMS")?.value || 5))
       };
     }
@@ -1132,7 +1201,7 @@
       }, delay);
     }
     function bindFullTextConsoleControls(){
-      const ids = ["ftAutoStart","ftWorkers","ftIndexDir","ftIncludeLarge","ftMaxFileMB","ftScanSpeed","ftInitialDelay","ftPauseMS"];
+      const ids = ["ftAutoStart","ftWorkers","ftIndexDir","ftScanScheme","ftUseUSN","ftIncludeLarge","ftMaxFileMB","ftScanSpeed","ftInitialDelay","ftPauseMS"];
       ids.forEach((id) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -1145,6 +1214,8 @@
       });
       document.getElementById("btnFtRefresh")?.addEventListener("click", () => requestFullTextStatus(true));
       document.getElementById("btnFtPickDir")?.addEventListener("click", () => post({ type: "fulltextPickIndexDir" }));
+      document.getElementById("btnFtProbe")?.addEventListener("click", () => requestFullTextProbe());
+      document.getElementById("btnFtRecommend")?.addEventListener("click", () => applyRecommendedFullTextScheme());
     }
     function refreshFullTextConsoleDom(){
       if (state.activeTab !== "search") return;
@@ -1167,6 +1238,11 @@
       }
       const hint = document.getElementById("ftHint");
       if (hint) hint.textContent = ft.lastError || "设置会自动保存并自动应用到索引引擎。";
+      const scanScheme = document.getElementById("ftScanScheme");
+      if (scanScheme) scanScheme.value = String(ft.config?.scanScheme || "auto");
+      const useUSN = document.getElementById("ftUseUSN");
+      if (useUSN) useUSN.checked = !!ft.config?.useUSN;
+      renderFullTextProbe(state.fullTextProbe.last);
       const toggleBtn = document.getElementById("btnFtToggle");
       if (toggleBtn) {
         if (ft.running) {
@@ -1590,7 +1666,20 @@
     <div class="inline" style="margin-top:10px;">
       <button class="btn" id="btnFtToggle">启动索引</button>
       <button class="btn" id="btnFtRefresh">刷新状态</button>
+      <button class="btn" id="btnFtProbe">检测可行性</button>
+      <button class="btn" id="btnFtRecommend">应用推荐方式</button>
     </div>
+    <div class="ft-mode-grid">
+      <select id="ftScanScheme" data-nosave="1" title="扫描方式">
+        <option value="auto"${(ftCfg.scanScheme||"auto")==="auto"?" selected":""}>自动选择（推荐）</option>
+        <option value="mft"${ftCfg.scanScheme==="mft"?" selected":""}>高速扫描（推荐）</option>
+        <option value="everything"${ftCfg.scanScheme==="everything"?" selected":""}>快速扫描（需 Everything）</option>
+        <option value="walk"${ftCfg.scanScheme==="walk"?" selected":""}>兼容扫描（最稳定）</option>
+      </select>
+      <label class="inline"><input id="ftUseUSN" data-nosave="1" type="checkbox" ${checked(ftCfg.useUSN !== false)}> 实时更新</label>
+      <span id="ftProbeSummary" class="ft-probe-summary"></span>
+    </div>
+    <div id="ftProbeList" class="ft-probe-list"></div>
     <div class="row" style="margin-top:10px;">
       <div class="label">索引存储目录</div>
       <div class="inline"><input id="ftIndexDir" data-nosave="1" type="text" value="${esc(ftCfg.indexDir || "")}" placeholder="例如：D:\\SearchCenterIndex"><button class="btn" id="btnFtPickDir" type="button">选择目录</button></div>
@@ -1598,10 +1687,10 @@
     <div class="row"><div class="label">后台自启动索引</div><div><input id="ftAutoStart" data-nosave="1" type="checkbox" ${checked(ftCfg.autoStart !== false)}></div></div>
     <div class="row"><div class="label">多线程并发（Worker Pool）</div><div><input id="ftWorkers" data-nosave="1" type="number" min="1" max="32" step="1" value="${esc(ftCfg.workers || 2)}"></div></div>
     <div class="row"><div class="label">扫描速度策略</div><div><select id="ftScanSpeed" data-nosave="1"><option value="slow"${ftCfg.scanSpeed==="slow"?" selected":""}>slow</option><option value="normal"${ftCfg.scanSpeed==="normal"?" selected":""}>normal</option><option value="fast"${ftCfg.scanSpeed==="fast"?" selected":""}>fast</option></select></div></div>
-    <div class="row"><div class="label">初次扫描延迟（秒）</div><div><input id="ftInitialDelay" data-nosave="1" type="number" min="1" max="120" step="1" value="${esc(ftCfg.initialDelaySec || 15)}"></div></div>
+    <div class="row"><div class="label">初次扫描延迟（秒）</div><div><input id="ftInitialDelay" data-nosave="1" type="number" min="1" max="120" step="1" value="${esc(ftCfg.initialDelaySec || 1)}"></div></div>
     <div class="row"><div class="label">单文件间隔（ms）</div><div><input id="ftPauseMS" data-nosave="1" type="number" min="0" max="100" step="1" value="${esc(ftCfg.pauseMS ?? 5)}"></div></div>
     <div class="row"><div class="label">超大文本扫描</div><div class="inline"><input id="ftIncludeLarge" data-nosave="1" type="checkbox" ${checked(ftCfg.includeLargeText)}><span class="ft-kv">允许扫描超过 2MB 文本</span></div></div>
-    <div class="row"><div class="label">超大文本大小上限（MB）</div><div><input id="ftMaxFileMB" data-nosave="1" type="number" min="1" max="512" step="1" value="${esc(ftCfg.maxFileSizeMB || 2)}"></div></div>
+    <div class="row"><div class="label">超大文本大小上限（MB）</div><div><input id="ftMaxFileMB" data-nosave="1" type="number" min="1" max="512" step="1" value="${esc(ftCfg.maxFileSizeMB || 8)}"></div></div>
     <div id="ftHint" class="hint">${ft.lastError ? esc(ft.lastError) : "设置会自动保存并自动应用到索引引擎。"}</div>
   </div>
 </div>`;
@@ -1711,6 +1800,7 @@
       }
       if (msg.type === "fulltextConfigResult") {
         setStatus(msg.ok ? "全文索引配置已应用" : (msg.error || "全文索引配置失败"), msg.ok ? "ok" : "err");
+        requestFullTextStatus(true);
         return;
       }
       if (msg.type === "fulltextActionResult") {
@@ -1724,6 +1814,17 @@
         if (el) {
           el.value = path;
           scheduleFullTextApply(10);
+        }
+        return;
+      }
+      if (msg.type === "fulltextProbeResult") {
+        state.fullTextProbe.busy = false;
+        if (msg.ok) {
+          renderFullTextProbe(msg.probe || {});
+          setStatus("可行性检测完成", "ok");
+        } else {
+          setFullTextProbeSummary(msg.error || "可行性检测失败");
+          setStatus(msg.error || "可行性检测失败", "err");
         }
         return;
       }

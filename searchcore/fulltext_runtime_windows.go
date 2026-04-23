@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"log"
 	"net/http"
@@ -99,7 +100,7 @@ func ensureFullTextRuntime(baseDir string) {
 }
 
 func defaultFullTextRuntimeConfig(baseDir string) FullTextRuntimeConfig {
-	idxDir, _ := resolveIndexDir(baseDir)
+	idxDir := defaultIndexDirByBase(baseDir)
 	useMFT := parseBoolEnv("SEARCHCENTER_FT_USE_MFT", true)
 	useEverything := parseBoolEnv("SEARCHCENTER_FT_USE_EVERYTHING", false)
 	return FullTextRuntimeConfig{
@@ -148,7 +149,7 @@ func normalizeFullTextRuntimeConfig(baseDir string, cfg FullTextRuntimeConfig) F
 
 	idx := strings.TrimSpace(cfg.IndexDir)
 	if idx == "" {
-		def, _ := resolveIndexDir(baseDir)
+		def := defaultIndexDirByBase(baseDir)
 		idx = def
 	}
 	// 兼容旧版本：历史配置可能固定使用共享目录
@@ -156,7 +157,7 @@ func normalizeFullTextRuntimeConfig(baseDir string, cfg FullTextRuntimeConfig) F
 	// 若检测到该旧路径，自动迁移到当前工作区的专属索引目录。
 	if legacy := legacySharedIndexDir(); legacy != "" {
 		if strings.EqualFold(normalizePathKey(idx), normalizePathKey(legacy)) {
-			def, _ := resolveIndexDir(baseDir)
+			def := defaultIndexDirByBase(baseDir)
 			idx = def
 		}
 	}
@@ -166,6 +167,19 @@ func normalizeFullTextRuntimeConfig(baseDir string, cfg FullTextRuntimeConfig) F
 	cfg.IndexDir = filepath.Clean(idx)
 
 	return cfg
+}
+
+func defaultIndexDirByBase(baseDir string) string {
+	local := strings.TrimSpace(os.Getenv("LOCALAPPDATA"))
+	if local == "" {
+		local = strings.TrimSpace(os.Getenv("APPDATA"))
+	}
+	if local == "" {
+		local = os.TempDir()
+	}
+	baseKey := strings.ToLower(filepath.Clean(baseDir))
+	tag := fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte(baseKey)))
+	return filepath.Join(local, "SearchCenter", "bluge_index_"+tag)
 }
 
 func legacySharedIndexDir() string {
@@ -289,10 +303,13 @@ func mergeFullTextRuntimePatch(baseDir string, cfg *FullTextRuntimeConfig, patch
 	}
 	if patch.IndexDir != nil {
 		dir := strings.TrimSpace(*patch.IndexDir)
-		if dir != "" && !filepath.IsAbs(dir) {
-			dir = filepath.Join(baseDir, dir)
+		// Empty value means "keep current", avoiding accidental wipe from partial UI input.
+		if dir != "" {
+			if !filepath.IsAbs(dir) {
+				dir = filepath.Join(baseDir, dir)
+			}
+			cfg.IndexDir = dir
 		}
-		cfg.IndexDir = dir
 	}
 	if patch.IncludeLargeText != nil {
 		cfg.IncludeLargeText = *patch.IncludeLargeText
@@ -499,6 +516,7 @@ func (b *blugeIndexer) Stop() error {
 	b.status.PendingTasks = 0
 	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 	b.mu.Unlock()
+	b.persistIndexStateSnapshot()
 	return closeErr
 }
 
@@ -514,7 +532,8 @@ func StopIndexer() error {
 }
 
 func applyFullTextRuntimePatch(baseDir string, patch fullTextRuntimeConfigPatch) (FullTextRuntimeConfig, error) {
-	cfg := fullTextRuntimeConfig(baseDir)
+	prev := fullTextRuntimeConfig(baseDir)
+	cfg := prev
 	mergeFullTextRuntimePatch(baseDir, &cfg, patch)
 
 	fullTextRuntimeMu.Lock()
@@ -533,14 +552,33 @@ func applyFullTextRuntimePatch(baseDir string, patch fullTextRuntimeConfigPatch)
 	}
 	applyFullTextRuntimeEnv(cfg)
 
+	needsRestart := patch.IndexDir != nil ||
+		patch.ScanScheme != nil ||
+		patch.UseUSN != nil ||
+		patch.Workers != nil ||
+		patch.IncludeLargeText != nil ||
+		patch.MaxFileSizeMB != nil ||
+		patch.ScanSpeed != nil ||
+		patch.InitialDelaySec != nil ||
+		patch.PauseMS != nil
+
 	if isFullTextIndexerRunning() {
-		_ = StopIndexer()
-		if !suppressed {
-			if err := StartIndexer(baseDir); err != nil {
+		// If user explicitly disables autostart while running, stop immediately.
+		if patch.AutoStart != nil && !cfg.AutoStart {
+			if err := StopIndexer(); err != nil {
 				return cfg, err
 			}
+		} else if needsRestart {
+			if err := StopIndexer(); err != nil {
+				return cfg, err
+			}
+			if cfg.AutoStart && !suppressed {
+				if err := StartIndexer(baseDir); err != nil {
+					return cfg, err
+				}
+			}
 		}
-	} else if !suppressed && patch.AutoStart != nil && *patch.AutoStart {
+	} else if cfg.AutoStart && !suppressed && ((patch.AutoStart != nil && *patch.AutoStart) || needsRestart) {
 		if err := StartIndexer(baseDir); err != nil {
 			return cfg, err
 		}
@@ -678,14 +716,22 @@ func handleFullTextControl(w http.ResponseWriter, r *http.Request) {
 	switch action {
 	case "start":
 		setFullTextStartSuppressed(false)
+		_ = os.Unsetenv("SEARCHCENTER_FT_FORCE_RECHECK")
 		err = StartIndexer(baseDir)
 	case "stop":
 		setFullTextStartSuppressed(true)
 		err = StopIndexer()
 	case "restart", "rescan":
 		setFullTextStartSuppressed(false)
+		_ = os.Unsetenv("SEARCHCENTER_FT_FORCE_RECHECK")
 		_ = StopIndexer()
 		err = StartIndexer(baseDir)
+	case "fullsync", "rebuild":
+		setFullTextStartSuppressed(false)
+		_ = StopIndexer()
+		_ = os.Setenv("SEARCHCENTER_FT_FORCE_RECHECK", "1")
+		err = StartIndexer(baseDir)
+		_ = os.Unsetenv("SEARCHCENTER_FT_FORCE_RECHECK")
 	default:
 		http.Error(w, "invalid action", http.StatusBadRequest)
 		return
