@@ -401,15 +401,49 @@ FloatingToolbar_PushLogoToWeb(*) {
 }
 
 FloatingToolbar_PushThemeToWeb(*) {
-    global g_FTB_WV2, ThemeMode
+    global g_FTB_WV2
     if !g_FTB_WV2
         return
-    tm := StrLower(Trim(String(ThemeMode)))
-    if (tm != "light")
-        tm := "dark"
+    tm := FloatingToolbar_GetThemeMode()
     try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_theme", "themeMode", tm))
     catch as _e {
     }
+}
+
+FloatingToolbar_NormalizeThemeToken(raw, fallback := "dark") {
+    s := StrLower(Trim(String(raw)))
+    if (s = "light" || s = "lite")
+        return "light"
+    if (s = "dark")
+        return "dark"
+    return (fallback = "light") ? "light" : "dark"
+}
+
+FloatingToolbar_GetThemeMode() {
+    ; Prefer direct INI read so theme stays correct even if global state is stale.
+    try {
+        global ConfigFile
+        if (IsSet(ConfigFile) && ConfigFile != "") {
+            raw := IniRead(ConfigFile, "Settings", "ThemeMode", "")
+            if (Trim(String(raw)) = "")
+                raw := IniRead(ConfigFile, "Appearance", "ThemeMode", "")
+            if (Trim(String(raw)) != "")
+                return FloatingToolbar_NormalizeThemeToken(raw, "dark")
+        }
+    } catch {
+    }
+    try {
+        fn := Func("ReadPersistedThemeMode")
+        if IsObject(fn)
+            return FloatingToolbar_NormalizeThemeToken(fn.Call(), "dark")
+    } catch {
+    }
+    try {
+        global ThemeMode
+        return FloatingToolbar_NormalizeThemeToken(ThemeMode, "dark")
+    } catch {
+    }
+    return "dark"
 }
 
 FloatingToolbar_OnWebMessage(sender, args) {

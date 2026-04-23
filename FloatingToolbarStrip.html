@@ -629,11 +629,19 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     return document.querySelectorAll('.tb[data-action=Search], .tb[data-search-drop="1"]');
   }
 
+  function getCachedThemeMode() {
+    try {
+      var t = String(localStorage.getItem('settings_themeMode') || '').toLowerCase();
+      if (t === 'light' || t === 'dark') return t;
+    } catch (_) {}
+    return 'dark';
+  }
+
   var state = {
     drawer: false,
     compact: false,
     settings: false,
-    themeMode: 'dark',
+    themeMode: getCachedThemeMode(),
     sendingBySession: {},
     needSetup: false,
     nspick: false,

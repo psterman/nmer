@@ -168,6 +168,47 @@ _PQP_RefreshWebViewComposition(*) {
 }
 
 ; ===================== AHK ↔ JS =====================
+_PQP_PushTheme() {
+    tm := _PQP_GetThemeMode()
+    PQP_SendToWeb(Map("type", "set_theme", "themeMode", tm))
+}
+
+_PQP_NormalizeThemeToken(raw, fallback := "dark") {
+    s := StrLower(Trim(String(raw)))
+    if (s = "light" || s = "lite")
+        return "light"
+    if (s = "dark")
+        return "dark"
+    return (fallback = "light") ? "light" : "dark"
+}
+
+_PQP_GetThemeMode() {
+    ; Prefer direct INI read so theme stays correct even if global state is stale.
+    try {
+        global ConfigFile
+        if (IsSet(ConfigFile) && ConfigFile != "") {
+            raw := IniRead(ConfigFile, "Settings", "ThemeMode", "")
+            if (Trim(String(raw)) = "")
+                raw := IniRead(ConfigFile, "Appearance", "ThemeMode", "")
+            if (Trim(String(raw)) != "")
+                return _PQP_NormalizeThemeToken(raw, "dark")
+        }
+    } catch {
+    }
+    try {
+        fn := Func("ReadPersistedThemeMode")
+        if IsObject(fn)
+            return _PQP_NormalizeThemeToken(fn.Call(), "dark")
+    } catch {
+    }
+    try {
+        global ThemeMode
+        return _PQP_NormalizeThemeToken(ThemeMode, "dark")
+    } catch {
+    }
+    return "dark"
+}
+
 PQP_SendToWeb(jsonStr) {
     global g_PQP_WV2, g_PQP_Ready
     if g_PQP_WV2 && g_PQP_Ready {
@@ -203,6 +244,7 @@ _PQP_OnWebMessage(sender, args) {
         case "ready":
             global g_PQP_Ready
             g_PQP_Ready := true
+            _PQP_PushTheme()
             if PQP_IsVisible()
                 _PQP_CallExternal("PromptQuickPad_PushDataToWeb", "init")
             if g_PQP_FocusPending
@@ -279,6 +321,8 @@ PQP_Show() {
     SetTimer(_PQP_RefreshWebViewComposition, -120)
     SetTimer(_PQP_RefreshWebViewComposition, -380)
 
+    if g_PQP_Ready
+        _PQP_PushTheme()
     if g_PQP_Ready
         _PQP_CallExternal("PromptQuickPad_PushDataToWeb", "init")
     else

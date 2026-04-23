@@ -502,6 +502,8 @@ mark { background: var(--orange-dk); color: #000; }
 
 /* SearchCenter-style UI overrides (style only, no logic changes) */
 :root {
+  --color-scheme: dark;
+  --app-bg: radial-gradient(circle at top right, rgba(255,141,42,.08), transparent 26%), linear-gradient(180deg, #0f1113 0%, #15181c 100%);
   --bg: #111315;
   --surface: #171a1e;
   --surface2: #1f2429;
@@ -520,7 +522,157 @@ mark { background: var(--orange-dk); color: #000; }
   --shadow: 0 18px 42px rgba(0,0,0,.35);
 }
 html, body {
-  background: radial-gradient(circle at top right, rgba(255,141,42,.08), transparent 26%), linear-gradient(180deg, #0f1113 0%, #15181c 100%);
+  background: var(--app-bg);
+  color-scheme: var(--color-scheme);
+}
+html[data-theme="light"] {
+  --color-scheme: light;
+  --app-bg: #f7f7f7;
+  --bg: #f7f7f7;
+  --surface: #ffffff;
+  --surface2: #ffffff;
+  --surface3: #ffffff;
+  --border: #e5e5e5;
+  --border2: #e5e5e5;
+  --glass-edge: rgba(0,0,0,.06);
+  --glass-edge-soft: rgba(0,0,0,.02);
+  --glass-warm: rgba(230,126,34,.12);
+  --orange: #e67e22;
+  --orange-dk: #d35400;
+  --orange-lt: #e9a466;
+  --text: #555555;
+  --text-dim: #666666;
+  --text-xs: #777777;
+  --shadow: 0 6px 16px rgba(0,0,0,.06);
+}
+html[data-theme="light"] #toolbar,
+html[data-theme="light"] #cat-strip,
+html[data-theme="light"] #source-strip,
+html[data-theme="light"] #capture-panel,
+html[data-theme="light"] #list-panel,
+html[data-theme="light"] #preview-panel,
+html[data-theme="light"] #status-bar,
+html[data-theme="light"] #link-bar,
+html[data-theme="light"] #help-card,
+html[data-theme="light"] .item-card {
+  border-color: #e5e5e5;
+  background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.72)), var(--surface);
+  box-shadow: var(--shadow);
+}
+html[data-theme="light"] #search-input,
+html[data-theme="light"] .capture-row input,
+html[data-theme="light"] .capture-row select,
+html[data-theme="light"] .capture-row textarea,
+html[data-theme="light"] .item-field input,
+html[data-theme="light"] .item-field select,
+html[data-theme="light"] .item-field textarea,
+html[data-theme="light"] #toolbar-close,
+html[data-theme="light"] #help-close,
+html[data-theme="light"] .item-close,
+html[data-theme="light"] .capture-actions button,
+html[data-theme="light"] .item-actions button {
+  border-color: #e5e5e5;
+  background: #ffffff;
+  color: #555555;
+}
+html[data-theme="light"] .capture-actions button:hover,
+html[data-theme="light"] .item-actions button:hover,
+html[data-theme="light"] #toolbar-close:hover,
+html[data-theme="light"] #help-close:hover,
+html[data-theme="light"] .item-close:hover,
+html[data-theme="light"] #link-bar a:hover {
+  border-color: #e9b889;
+  background: #fff1e3;
+  color: #d35400;
+}
+html[data-theme="light"] #search-input:focus {
+  border-color: #e9b889;
+}
+html[data-theme="light"] .cat-chip,
+html[data-theme="light"] .source-chip,
+html[data-theme="light"] .pqp-item .src,
+html[data-theme="light"] #link-bar a {
+  border-color: #e5e5e5;
+  background: #ffffff;
+  color: #666666;
+}
+html[data-theme="light"] .cat-chip.on,
+html[data-theme="light"] .source-chip.on {
+  border-color: #e9b889;
+  background: #fff1e3;
+  color: #d35400;
+}
+html[data-theme="light"] #capture-toggle {
+  background: #fafafa;
+  border-bottom-color: #eeeeee;
+  color: #d35400;
+}
+html[data-theme="light"] .pqp-item {
+  border-bottom-color: #efefef;
+}
+html[data-theme="light"] .pqp-item:hover {
+  background: #fafafa;
+  border-color: #eeeeee;
+}
+html[data-theme="light"] .pqp-item.active {
+  background: #fff4ea;
+  border-color: #e9b889;
+}
+html[data-theme="light"] .pqp-item .title {
+  color: #2d2d2d;
+}
+html[data-theme="light"] #help-head,
+html[data-theme="light"] .item-head {
+  background: #fafafa;
+  border-bottom-color: #eeeeee;
+}
+html[data-theme="light"] #help-title,
+html[data-theme="light"] .item-title {
+  color: #2d2d2d;
+}
+html[data-theme="light"] #help-body {
+  background: #ffffff;
+  border-color: #e5e5e5;
+  color: #555555;
+}
+html[data-theme="light"] .item-field input[readonly],
+html[data-theme="light"] .item-field select[disabled],
+html[data-theme="light"] .item-field textarea[readonly] {
+  background: #f8f8f8;
+  color: #666666;
+}
+html[data-theme="light"] .item-actions button.primary {
+  background: #fff1e3;
+  border-color: #e9b889;
+  color: #d35400;
+}
+html[data-theme="light"] .hotkey-hint {
+  border-color: #e8e8e8;
+  background: #f7f7f7;
+  color: #7f7f7f;
+}
+html[data-theme="light"] .caps-hotkey-hit .hotkey-hint {
+  color: #d35400;
+  border-color: #e9b889;
+  background: #fff1e3;
+}
+html[data-theme="light"] #ctx-menu,
+html[data-theme="light"] #ctx-menu .mi-sub-panel {
+  border-color: #e5e5e5;
+  background: #ffffff;
+  box-shadow: 0 12px 26px rgba(0,0,0,.12);
+}
+html[data-theme="light"] #ctx-menu .mi {
+  color: #d35400;
+}
+html[data-theme="light"] #ctx-menu .mi:hover:not(.disabled) {
+  background: #fff1e3;
+  color: #d35400;
+  box-shadow: inset 0 0 0 1px rgba(230,126,34,.16);
+}
+html[data-theme="light"] mark {
+  background: #ffe7d1;
+  color: #b64b00;
 }
 #root {
   display: grid;
@@ -842,6 +994,31 @@ const state = {
   pqpCtxMenuSpec: []
 };
 
+function normalizeThemeMode(mode) {
+  return String(mode || '').toLowerCase() === 'light' ? 'light' : 'dark';
+}
+
+function applyPqpTheme(mode, persist = true) {
+  const tm = normalizeThemeMode(mode);
+  document.documentElement.setAttribute('data-theme', tm);
+  if (document.body) document.body.setAttribute('data-theme', tm);
+  if (persist) {
+    try { localStorage.setItem('pqp_themeMode', tm); } catch (_) {}
+  }
+  return tm;
+}
+
+function bootstrapPqpTheme() {
+  let tm = '';
+  try {
+    tm = String(localStorage.getItem('settings_themeMode') || localStorage.getItem('pqp_themeMode') || '');
+  } catch (_) {}
+  if (!tm && typeof window.matchMedia === 'function') {
+    try { tm = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; } catch (_) {}
+  }
+  applyPqpTheme(tm || 'dark', false);
+}
+
 const PQP_CTX_FALLBACK = [
   { name: '粘贴', act: 'paste', visible: true },
   { name: '编辑', act: 'edit', visible: true },
@@ -1105,6 +1282,9 @@ function updatePreview() {
 function handleAhkMessage(msg) {
   if (!msg || !msg.type) return;
   switch (msg.type) {
+    case 'set_theme':
+      applyPqpTheme(msg.themeMode || msg.theme || 'dark');
+      break;
     case 'capsHint':
       setCapsHintActive(!!msg.active);
       break;
@@ -1625,6 +1805,7 @@ document.addEventListener('visibilitychange', () => {
 renderSourceFilters(state.sourceFilter);
 applyStaticHotkeyHints();
 syncCaptureUi();
+bootstrapPqpTheme();
 
 if (window.chrome && window.chrome.webview) {
   window.chrome.webview.addEventListener('message', (e) => {

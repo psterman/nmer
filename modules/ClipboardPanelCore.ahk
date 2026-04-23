@@ -730,14 +730,44 @@ _CP_OnWebMessage(sender, args) {
 
 ; ===================== 数据推送 =====================
 _CP_PushTheme() {
-    tm := "dark"
+    tm := _CP_GetThemeMode()
+    CP_SendToWeb(Map("type", "set_theme", "themeMode", tm))
+}
+
+_CP_NormalizeThemeToken(raw, fallback := "dark") {
+    s := StrLower(Trim(String(raw)))
+    if (s = "light" || s = "lite")
+        return "light"
+    if (s = "dark")
+        return "dark"
+    return (fallback = "light") ? "light" : "dark"
+}
+
+_CP_GetThemeMode() {
+    ; Prefer direct INI read so theme stays correct even if global state is stale.
     try {
-        global ThemeMode
-        if (StrLower(Trim(String(ThemeMode))) = "light")
-            tm := "light"
+        global ConfigFile
+        if (IsSet(ConfigFile) && ConfigFile != "") {
+            raw := IniRead(ConfigFile, "Settings", "ThemeMode", "")
+            if (Trim(String(raw)) = "")
+                raw := IniRead(ConfigFile, "Appearance", "ThemeMode", "")
+            if (Trim(String(raw)) != "")
+                return _CP_NormalizeThemeToken(raw, "dark")
+        }
     } catch {
     }
-    CP_SendToWeb(Map("type", "set_theme", "themeMode", tm))
+    try {
+        fn := Func("ReadPersistedThemeMode")
+        if IsObject(fn)
+            return _CP_NormalizeThemeToken(fn.Call(), "dark")
+    } catch {
+    }
+    try {
+        global ThemeMode
+        return _CP_NormalizeThemeToken(ThemeMode, "dark")
+    } catch {
+    }
+    return "dark"
 }
 
 _CP_PushInitialData() {
