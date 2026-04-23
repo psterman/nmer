@@ -641,6 +641,43 @@ _SCWV_ProbeFullTextFeasibility() {
     SCWV_PostJson(Map("type", "fulltextProbeResult", "ok", true, "error", "", "probe", probe))
 }
 
+_SCWV_PickFullTextIndexDir() {
+    if !_SCWV_EnsureSearchCoreRunning() {
+        SCWV_PostJson(Map("type", "fulltextIndexDirPicked", "ok", false, "error", "SearchCenterCore 未启动", "path", ""))
+        return
+    }
+
+    defaultDir := A_ScriptDir
+    try {
+        cfgResp := _SCWV_HttpSearchCoreJson("GET", "/v1/fulltext/config")
+        if (cfgResp.Has("status") && Integer(cfgResp["status"]) = 200 && cfgResp.Has("json") && (cfgResp["json"] is Map)) {
+            root := cfgResp["json"]
+            if (root.Has("config") && (root["config"] is Map)) {
+                cfg := root["config"]
+                if (cfg.Has("indexDir")) {
+                    idx := Trim(String(cfg["indexDir"]))
+                    if (idx != "")
+                        defaultDir := idx
+                }
+            }
+        }
+    } catch {
+    }
+
+    picked := ""
+    try picked := FileSelect("D", defaultDir, "选择全文索引目录")
+    catch as e {
+        SCWV_PostJson(Map("type", "fulltextIndexDirPicked", "ok", false, "error", e.Message, "path", ""))
+        return
+    }
+    picked := Trim(String(picked))
+    if (picked = "") {
+        SCWV_PostJson(Map("type", "fulltextIndexDirPicked", "ok", false, "error", "已取消", "path", ""))
+        return
+    }
+    SCWV_PostJson(Map("type", "fulltextIndexDirPicked", "ok", true, "error", "", "path", picked))
+}
+
 _SCWV_MapScBindingToVkCommand(group, value) {
     gp := StrLower(Trim(String(group)))
     vv := Trim(String(value))
@@ -1310,6 +1347,8 @@ SCWV_OnWebMessage(sender, args) {
             _SCWV_UpdateFullTextConfig(pl)
         case "fulltextProbeRequest":
             _SCWV_ProbeFullTextFeasibility()
+        case "fulltextPickIndexDir":
+            _SCWV_PickFullTextIndexDir()
         case "scHotkeyBindingsSync":
             pl := msg.Has("payload") && (msg["payload"] is Map) ? msg["payload"] : Map()
             _SCWV_SyncScHotkeyBindings(pl)

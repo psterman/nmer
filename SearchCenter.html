@@ -372,6 +372,22 @@ button, input, select, textarea { font: inherit; }
   gap: 6px;
   flex-wrap: wrap;
 }
+.ft-index-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 320px;
+}
+.ft-scheme-panel .mini-input {
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 0 8px;
+  min-width: 220px;
+  flex: 1 1 280px;
+}
 .ft-advanced-wrap.hidden {
   display: none;
 }
@@ -1472,6 +1488,10 @@ mark {
             <input id="ft-usn-toggle" type="checkbox" checked>
             实时更新
           </label>
+          <div class="ft-index-row" title="全文索引数据库目录（Bluge 索引与元数据）">
+            <input id="ft-index-dir" class="mini-input" type="text" placeholder="索引目录（留空使用默认）">
+            <button type="button" id="btn-ft-index-dir-pick" class="mini-btn" title="选择索引目录">选择目录</button>
+          </div>
           <button type="button" id="btn-ft-scheme-apply" class="mini-btn" title="保存并重启索引">应用当前设置</button>
         </div>
         <div id="ft-scheme-help" class="ft-scheme-help">建议先点“检测可行性”，再点“一键推荐”。系统会自动选择更稳妥的方式。</div>
@@ -1674,7 +1694,8 @@ const state = {
   },
   fulltextConfig: {
     scanScheme: "auto",
-    useUSN: true
+    useUSN: true,
+    indexDir: ""
   },
   fulltextProbe: {
     busy: false,
@@ -2364,6 +2385,7 @@ function applyFulltextStatus(payload) {
     if (!["auto", "mft", "everything", "walk"].includes(scheme)) scheme = "auto";
     state.fulltextConfig.scanScheme = scheme;
     state.fulltextConfig.useUSN = (typeof cfg.useUSN === "boolean") ? cfg.useUSN : true;
+    state.fulltextConfig.indexDir = String(cfg.indexDir || "");
     syncFulltextSchemeUi();
     syncFulltextAdvancedUi();
   }
@@ -2442,8 +2464,10 @@ function requestFulltextStatus() {
 function syncFulltextSchemeUi() {
   const sel = document.getElementById("ft-scheme-select");
   const usn = document.getElementById("ft-usn-toggle");
+  const idx = document.getElementById("ft-index-dir");
   if (sel) sel.value = state.fulltextConfig.scanScheme || "auto";
   if (usn) usn.checked = !!state.fulltextConfig.useUSN;
+  if (idx) idx.value = String(state.fulltextConfig.indexDir || "");
 }
 
 function schemeDisplayName(scheme) {
@@ -2476,9 +2500,11 @@ function syncFulltextAdvancedUi() {
 function collectFulltextSchemePayload() {
   const sel = document.getElementById("ft-scheme-select");
   const usn = document.getElementById("ft-usn-toggle");
+  const idx = document.getElementById("ft-index-dir");
   const scheme = sel ? String(sel.value || "auto") : "auto";
   const useUSN = usn ? !!usn.checked : true;
-  return { scanScheme: scheme, useUSN };
+  const indexDir = idx ? String(idx.value || "").trim() : "";
+  return { scanScheme: scheme, useUSN, indexDir };
 }
 
 function setFulltextProbeSummary(text) {
@@ -4156,6 +4182,7 @@ const ftSchemeApplyBtn = document.getElementById("btn-ft-scheme-apply");
 const applyFulltextConfig = (payload) => {
   state.fulltextConfig.scanScheme = payload.scanScheme;
   state.fulltextConfig.useUSN = payload.useUSN;
+  state.fulltextConfig.indexDir = String(payload.indexDir || "");
   syncFulltextSchemeUi();
   setFulltextProbeSummary("正在应用扫描方案…");
   postToAhk({ type: "fulltextConfigUpdate", payload });
@@ -4193,6 +4220,12 @@ if (ftProbeBtn) {
     state.fulltextProbe.busy = true;
     setFulltextProbeSummary("正在检测可行性…");
     postToAhk({ type: "fulltextProbeRequest" });
+  });
+}
+const ftIndexDirPickBtn = document.getElementById("btn-ft-index-dir-pick");
+if (ftIndexDirPickBtn) {
+  ftIndexDirPickBtn.addEventListener("click", () => {
+    postToAhk({ type: "fulltextPickIndexDir" });
   });
 }
 
@@ -4587,6 +4620,14 @@ if (window.chrome && window.chrome.webview) {
         renderFulltextProbe(payload.probe || {});
       } else {
         setFulltextProbeSummary(payload.error ? String(payload.error) : "可行性检测失败");
+      }
+      return;
+    }
+    if (payload.type === "fulltextIndexDirPicked") {
+      if (payload.ok && payload.path) {
+        state.fulltextConfig.indexDir = String(payload.path);
+        syncFulltextSchemeUi();
+        setFulltextProbeSummary("已选择索引目录，点击“应用当前设置”生效");
       }
       return;
     }
