@@ -618,6 +618,7 @@ _CP_OnWebMessage(sender, args) {
         case "ready":
             g_CP_Ready := true
             OutputDebug("[CP] WebView ready")
+            _CP_PushTheme()
             if g_CP_Visible
                 _CP_PushInitialData()
             if g_CP_FocusPending
@@ -728,8 +729,20 @@ _CP_OnWebMessage(sender, args) {
 }
 
 ; ===================== 数据推送 =====================
+_CP_PushTheme() {
+    tm := "dark"
+    try {
+        global ThemeMode
+        if (StrLower(Trim(String(ThemeMode))) = "light")
+            tm := "light"
+    } catch {
+    }
+    CP_SendToWeb(Map("type", "set_theme", "themeMode", tm))
+}
+
 _CP_PushInitialData() {
     global g_CP_LastKeyword, g_CP_FilterType, g_CP_TimeRange
+    _CP_PushTheme()
     g_CP_LastKeyword := ""
     g_CP_FilterType := "all"
     g_CP_TimeRange := "all"

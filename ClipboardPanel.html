@@ -6,6 +6,8 @@
 <title>剪贴板</title>
 <style>
 :root {
+  --color-scheme: dark;
+  --app-bg: radial-gradient(circle at top right, rgba(255,141,42,.08), transparent 26%), linear-gradient(180deg, #0f1113 0%, #15181c 100%);
   --bg: #111315;
   --surface: #171a1e;
   --surface2: #1f2429;
@@ -30,15 +32,41 @@
   --matrix-green: #7af2a4;
   --warning-gold: #ffd36d;
 }
+html[data-theme="light"] {
+  --color-scheme: light;
+  --app-bg: #f7f7f7;
+  --bg: #f7f7f7;
+  --surface: #ffffff;
+  --surface2: #ffffff;
+  --surface3: #ffffff;
+  --border: #e5e5e5;
+  --border2: #e5e5e5;
+  --glass-edge: rgba(0,0,0,.06);
+  --glass-edge-soft: rgba(0,0,0,.02);
+  --glass-warm: rgba(230,126,34,.12);
+  --orange: #e67e22;
+  --orange-dk: #d35400;
+  --orange-lt: #e9a466;
+  --cyan: #4b8ec6;
+  --text: #555555;
+  --text-dim: #666666;
+  --text-xs: #777777;
+  --glow: 0 6px 16px rgba(0,0,0,.06);
+  --glow-hot: 0 0 0 1px rgba(230,126,34,.16), 0 8px 20px rgba(211,84,0,.12);
+  --glow-cyan: 0 0 0 1px rgba(75,142,198,.12), 0 8px 18px rgba(75,142,198,.1);
+  --matrix-green: #4f8b63;
+  --warning-gold: #a9852c;
+}
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
   width: 100%; height: 100%;
   margin: 0;
-  background: radial-gradient(circle at top right, rgba(255,141,42,.08), transparent 26%), linear-gradient(180deg, #0f1113 0%, #15181c 100%);
+  background: var(--app-bg);
   color: var(--text);
   font-family: var(--font-ui);
   overflow: hidden;
   user-select: none;
+  color-scheme: var(--color-scheme);
 }
 body::after {
   display: none;
@@ -881,6 +909,193 @@ mark { background: var(--orange); color: var(--bg); border-radius: 2px; padding:
   transform: translateX(1px);
 }
 .ctx-sub-item.disabled { opacity: 0.35; pointer-events: none; cursor: default; }
+
+html[data-theme="light"] .chrome-drag,
+html[data-theme="light"] #results-head,
+html[data-theme="light"] #search-bar,
+html[data-theme="light"] #list-panel,
+html[data-theme="light"] #preview-panel,
+html[data-theme="light"] #status-bar,
+html[data-theme="light"] #action-panel {
+  border-color: #e5e5e5;
+  background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.72)), var(--surface);
+  box-shadow: var(--glow);
+}
+html[data-theme="light"] .chrome-close,
+html[data-theme="light"] #time-filter-btn,
+html[data-theme="light"] #time-date-apply,
+html[data-theme="light"] .search-act-btn,
+html[data-theme="light"] .engine-mode-btn,
+html[data-theme="light"] #search-input,
+html[data-theme="light"] .hint-tag,
+html[data-theme="light"] .quick-btn,
+html[data-theme="light"] #continuous-paste-toggle,
+html[data-theme="light"] .action-item .act-key {
+  border-color: #e5e5e5;
+  background: #ffffff;
+  color: #555555;
+}
+html[data-theme="light"] .chrome-close:hover,
+html[data-theme="light"] .search-act-btn:hover,
+html[data-theme="light"] .quick-btn:hover {
+  border-color: #e9b889;
+  background: #fff1e3;
+  color: #d35400;
+}
+html[data-theme="light"] .result-filter-chips .chip {
+  border-color: #e5e5e5;
+  background: #ffffff;
+  color: #666666;
+}
+html[data-theme="light"] .result-filter-chips .chip:hover {
+  border-color: #e9b889;
+  color: #555555;
+}
+html[data-theme="light"] .result-filter-chips .chip.active {
+  border-color: #e9b889;
+  background: #fff1e3;
+  color: #d35400;
+}
+html[data-theme="light"] .engine-mode-btn.active {
+  background: #fff1e3;
+  color: #d35400;
+  box-shadow: inset 0 0 0 1px rgba(230,126,34,.18);
+}
+html[data-theme="light"] #search-input:focus,
+html[data-theme="light"] #time-date-apply:hover {
+  border-color: #e9b889;
+}
+html[data-theme="light"] #quick-actions,
+html[data-theme="light"] #preview-meta {
+  border-color: #eeeeee;
+  background: #fafafa;
+}
+html[data-theme="light"] .meta-value {
+  color: #555555;
+}
+html[data-theme="light"] .clip-item:hover {
+  background: #fafafa;
+  border-color: #eeeeee;
+}
+html[data-theme="light"] .clip-item.active {
+  background: #fff4ea;
+  border-color: #e9b889;
+}
+html[data-theme="light"] .clip-item.active::before {
+  box-shadow: inset 0 0 0 1px rgba(230,126,34,.16);
+}
+html[data-theme="light"] .clip-item .thumb,
+html[data-theme="light"] .clip-item.clip-item-image-card .image-card-thumb-wrap {
+  border-color: #e5e5e5;
+  background: #f5f5f5;
+}
+html[data-theme="light"] .clip-item.clip-item-image-card .image-card-app-ico {
+  background: rgba(255,255,255,.85);
+  border-color: #e5e5e5;
+}
+html[data-theme="light"] .type-badge.text {
+  background: #edf6ef;
+  color: #4f8b63;
+}
+html[data-theme="light"] .type-badge.image {
+  background: #fbeee8;
+  color: #c66f4b;
+}
+html[data-theme="light"] .type-badge.url {
+  background: #eaf2fa;
+  color: #4b8ec6;
+}
+html[data-theme="light"] .type-badge.code {
+  background: #f6f2e4;
+  color: #9b7b2b;
+}
+html[data-theme="light"] .type-badge.stack {
+  background: #f0ecf8;
+  color: #7560aa;
+}
+html[data-theme="light"] mark {
+  background: #ffe7d1;
+  color: #b64b00;
+}
+html[data-theme="light"] #time-popover {
+  border-color: #e5e5e5;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(0,0,0,.1);
+}
+html[data-theme="light"] #time-popover .time-opt:hover {
+  background: #fff3e8;
+}
+html[data-theme="light"] .time-date-row {
+  border-top-color: #eeeeee;
+}
+html[data-theme="light"] #time-date-picked {
+  color: #9a6a3d;
+}
+html[data-theme="light"] .cal-ym select,
+html[data-theme="light"] .cal-nav {
+  border-color: #e5e5e5;
+  background: #ffffff;
+  color: #555555;
+}
+html[data-theme="light"] .cal-dow { color: #777777; }
+html[data-theme="light"] .cal-day {
+  border-color: #e5e5e5;
+  background: #ffffff;
+  color: #555555;
+}
+html[data-theme="light"] .cal-day:hover {
+  border-color: #e9b889;
+  background: #fff3e8;
+}
+html[data-theme="light"] .cal-day.selected {
+  border-color: #e9b889;
+  background: #fff1e3;
+  color: #d35400;
+}
+html[data-theme="light"] .cal-day.muted {
+  color: #999999;
+  border-color: #efefef;
+}
+html[data-theme="light"] #list-panel::-webkit-scrollbar-thumb,
+html[data-theme="light"] #preview-body::-webkit-scrollbar-thumb {
+  background: #d6d6d6;
+}
+html[data-theme="light"] #action-overlay {
+  background: rgba(247,247,247,.76);
+  backdrop-filter: blur(6px);
+}
+html[data-theme="light"] .action-item:hover,
+html[data-theme="light"] .action-item.active {
+  background: #fff3e8;
+}
+html[data-theme="light"] #continuous-paste-toggle.on {
+  border-color: #e9b889;
+  color: #d35400;
+  background: #fff1e3;
+  box-shadow: 0 0 0 1px rgba(230,126,34,.12), 0 6px 14px rgba(211,84,0,.08);
+}
+html[data-theme="light"] #context-menu,
+html[data-theme="light"] .ctx-sub-panel {
+  border-color: #e5e5e5;
+  background: #ffffff;
+  box-shadow: 0 12px 26px rgba(0,0,0,.12);
+}
+html[data-theme="light"] .ctx-item,
+html[data-theme="light"] .ctx-sub-item {
+  color: #d35400;
+}
+html[data-theme="light"] .ctx-item .ctx-hint {
+  color: rgba(211,84,0,.55);
+}
+html[data-theme="light"] .ctx-item:hover:not(.disabled),
+html[data-theme="light"] .ctx-sub-item:hover:not(.disabled) {
+  background: #fff1e3;
+  color: #d35400;
+  box-shadow: inset 0 0 0 1px rgba(230,126,34,.16);
+}
+html[data-theme="light"] .ctx-item.toggle.on .ctx-check {
+  color: #d35400;
+}
 </style>
 <script src="https://app.local/assets/js/BasePanel.js"></script>
 </head>
@@ -1026,6 +1241,31 @@ const state = {
   /** 搜索后端：go=SearchCenterCore；ahk=本地 SQLite */
   engineMode: 'go'
 };
+
+function normalizeThemeMode(mode) {
+  return String(mode || '').toLowerCase() === 'light' ? 'light' : 'dark';
+}
+
+function applyClipboardTheme(mode, persist = true) {
+  const tm = normalizeThemeMode(mode);
+  document.documentElement.setAttribute('data-theme', tm);
+  if (document.body) document.body.setAttribute('data-theme', tm);
+  if (persist) {
+    try { localStorage.setItem('clipboard_themeMode', tm); } catch (_) {}
+  }
+  return tm;
+}
+
+function bootstrapClipboardTheme() {
+  let tm = '';
+  try {
+    tm = String(localStorage.getItem('settings_themeMode') || localStorage.getItem('clipboard_themeMode') || '');
+  } catch (_) {}
+  if (!tm && typeof window.matchMedia === 'function') {
+    try { tm = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; } catch (_) {}
+  }
+  applyClipboardTheme(tm || 'dark', false);
+}
 
 const CP_CTX_FALLBACK = [
   { name: '粘贴', act: 'paste', visible: true },
@@ -1493,6 +1733,9 @@ function runCtxAction(act, id) {
 
 function handleAhkMessage(msg) {
   switch (msg.type) {
+    case 'set_theme':
+      applyClipboardTheme(msg.themeMode || msg.theme || 'dark');
+      break;
     case 'focus_input': {
       const input = document.getElementById('search-input');
       if (input) input.focus();
@@ -2512,6 +2755,7 @@ document.addEventListener('click', (e) => {
   if (!e.target.closest('#context-menu')) hideContextMenu();
 }, true);
 
+bootstrapClipboardTheme();
 updateContinuousPasteUI();
 
 (function initChromeDrag() {
