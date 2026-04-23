@@ -742,38 +742,69 @@ _SCWV_MapScBindingToVkCommand(group, value) {
     return ""
 }
 
+_SCWV_IsScVkCommandId(cmdId) {
+    cid := String(cmdId)
+    p7 := SubStr(cid, 1, 7)
+    p10 := SubStr(cid, 1, 10)
+    return (p7 = "sc_cat_" || p7 = "sc_eng_" || p10 = "sc_filter_")
+}
+
+_SCWV_ListAllScVkCommands() {
+    global g_Commands
+    out := []
+    if !(g_Commands is Map)
+        return out
+    if !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+        return out
+    for cid, _ in g_Commands["CommandList"] {
+        if _SCWV_IsScVkCommandId(cid)
+            out.Push(String(cid))
+    }
+    return out
+}
+
+_SCWV_CopyMap(src) {
+    dst := Map()
+    if !(src is Map)
+        return dst
+    for k, v in src
+        dst[k] := v
+    return dst
+}
+
+_SCWV_MapEquals(a, b) {
+    if !(a is Map) || !(b is Map)
+        return false
+    if (a.Count != b.Count)
+        return false
+    for k, v in a {
+        if !b.Has(k)
+            return false
+        if String(b[k]) != String(v)
+            return false
+    }
+    return true
+}
+
 _SCWV_SyncScHotkeyBindings(payloadMap) {
+    global g_Commands, g_VK_Ready
     if !(payloadMap is Map)
         return
     if !payloadMap.Has("entries") || !(payloadMap["entries"] is Array)
         return
-    if !IsSet(CursorShortcutMapper_UpdateUserByVkCommand)
+    if !(g_Commands is Map)
+        return
+    if !g_Commands.Has("Bindings") || !(g_Commands["Bindings"] is Map)
+        g_Commands["Bindings"] := Map()
+    if !IsSet(_VK_ApplyOverrides)
         return
 
-    changed := 0
+    oldOverrides := _SCWV_CopyMap(g_Commands["Bindings"])
+    newOverrides := _SCWV_CopyMap(oldOverrides)
     resetAll := payloadMap.Has("resetAll") ? (payloadMap["resetAll"] ? true : false) : false
-    if (resetAll && IsSet(CursorShortcutMapper_LoadCatalog)) {
-        try {
-            catalog := CursorShortcutMapper_LoadCatalog()
-            if (catalog is Array) {
-                for _, item in catalog {
-                    if !(item is Map)
-                        continue
-                    cid := String(item.Get("vkCommandId", ""))
-                    if (cid = "")
-                        continue
-                    p7 := SubStr(cid, 1, 7)
-                    p10 := SubStr(cid, 1, 10)
-                    if (p7 != "sc_cat_" && p7 != "sc_eng_" && p10 != "sc_filter_")
-                        continue
-                    ok0 := false
-                    try ok0 := CursorShortcutMapper_UpdateUserByVkCommand(cid, "", false, true)
-                    if ok0
-                        changed += 1
-                }
-            }
-        } catch {
-        }
+    if resetAll {
+        for _, cid in _SCWV_ListAllScVkCommands()
+            newOverrides[cid] := "NONE"
     }
 
     for _, row in payloadMap["entries"] {
@@ -788,18 +819,31 @@ _SCWV_SyncScHotkeyBindings(payloadMap) {
         cmdId := _SCWV_MapScBindingToVkCommand(group, value)
         if (cmdId = "")
             continue
-        enabled := (key != "")
-        ok := false
-        try ok := CursorShortcutMapper_UpdateUserByVkCommand(cmdId, key, enabled, true)
-        if ok
-            changed += 1
+        if (key = "") {
+            newOverrides[cmdId] := "NONE"
+            continue
+        }
+        ; 与 KeyBinder 一致：新绑定抢占已占用同键
+        for otherCmd, ov in newOverrides {
+            if (otherCmd != cmdId && String(ov) = key)
+                newOverrides.Delete(otherCmd)
+        }
+        newOverrides[cmdId] := key
     }
 
-    if (changed > 0) {
-        try {
-            if IsSet(VK_HandleBindingsReloaded)
-                VK_HandleBindingsReloaded()
-        }
+    if _SCWV_MapEquals(oldOverrides, newOverrides)
+        return
+
+    try _VK_ApplyOverrides(newOverrides)
+    catch {
+        return
+    }
+
+    ; 若 KeyBinder 已打开，主动推送一次 init，确保界面即时反映新绑定。
+    try {
+        if (IsSet(_PushInit) && IsSet(g_VK_Ready) && g_VK_Ready)
+            _PushInit()
+    } catch {
     }
 }
 

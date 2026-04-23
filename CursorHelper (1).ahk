@@ -4122,6 +4122,10 @@ f:: {
     global IsCountdownActive, CapsLock2
     if (VirtualKeyboard_HandleKey("f"))
         return
+    if (IsSearchCenterActive() && SearchCenter_HandleCapsChordKey("f")) {
+        VK_NoteLastChFromCapsLockKey("f")
+        return
+    }
     ; 标记已使用组合键，避免 CapsLock 释放时走“单击切换大小写”分支
     CapsLock2 := false
     RestoreCapsLockAfterChord()
@@ -4290,6 +4294,8 @@ $v::SearchCenter_HandleCapsChordKey("v")
 ; F 键：在倒计时期间加速执行
 $f:: {
     global IsCountdownActive, CapsLock2
+    if (SearchCenter_HandleCapsChordKey("f"))
+        return
     CapsLock2 := false
     if (IsCountdownActive) {
         ExecuteCountdownAction()
