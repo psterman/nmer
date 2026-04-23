@@ -26,6 +26,15 @@ ConfigWebView_CreateHost() {
     WebView2.create(ConfigGUI.Hwnd, ConfigWebView_OnCreated, WebView2_EnsureSharedEnvBlocking())
 }
 
+; 延后一帧推送 initData，避免从悬浮工具栏等 WebView 的 WebMessageReceived 内同步调用时重入/队列顺序异常导致主题错为深色
+ConfigWebView_SendInitDataIfReady(*) {
+    global ConfigWV2Ready
+    try {
+        if IsSet(ConfigWV2Ready) && ConfigWV2Ready
+            ConfigWebView_Send(Map("type", "initData", "payload", ConfigWebView_BuildInitDataSafe()))
+    }
+}
+
 ShowConfigWebViewGUI() {
     global GuiID_ConfigGUI, GuiID_ClipboardManager, ConfigPanelScreenIndex, g_ConfigWebView_LastShown
     ; 单例
@@ -51,8 +60,10 @@ ShowConfigWebViewGUI() {
     SetTimer(ConfigWebView_RefreshRasterizationScale, -50)
     SetTimer(ConfigWebView_RefreshRasterizationScale, -150)
     SetTimer(ConfigWebView_FocusDeferred, -80)
-    global ConfigWV2
+    global ConfigWV2, ConfigWV2Ready
     try WebView2_NotifyShown(ConfigWV2)
+    ; 每次打开都重新推送 initData（延后一帧），确保主题等与 INI 一致且避开 WebView 回调重入
+    SetTimer(ConfigWebView_SendInitDataIfReady, -1)
 }
 
 ConfigWebView_OnCreated(ctrl) {
@@ -530,7 +541,8 @@ ConfigWebView_BuildInitData() {
         "capsLockHoldVkEnabled", CapsLockHoldVkEnabled,
         "autoStart", AutoStart,
         "defaultStartTab", DefaultStartTab,
-        "themeMode", ThemeMode,
+        ; 必须以 INI 为准：内存中 ThemeMode 可能与磁盘不一致（例如从 WebView 回调打开设置时）
+        "themeMode", ReadPersistedThemeMode(),
         "popupScreenIndex", popupScreenIndex,
         "monitorCount", monitorCount,
         "functionPanelPos", FunctionPanelPos,
@@ -578,7 +590,7 @@ ConfigWebView_BuildInitDataSafe() {
         return ConfigWebView_BuildInitData()
     } catch as err {
         OutputDebug("[ConfigWebView] BuildInitData failed: " . err.Message)
-        _tm := (StrLower(Trim(String(ThemeMode))) = "light") ? "light" : "dark"
+        _tm := ReadPersistedThemeMode()
         return Map(
             "cursorPath", "",
             "capslockHoldTimeSeconds", 0.5,
@@ -679,10 +691,12 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         validTabs := Map("general",1, "appearance",1, "prompts",1, "hotkeys",1, "advanced",1, "search",1)
         if !validTabs.Has(NewDefaultTab)
             NewDefaultTab := "general"
-        NewTheme := payload.Has("themeMode") ? payload.Get("themeMode", ThemeMode) : ThemeMode
-        NewTheme := StrLower(Trim(String(NewTheme)))
-        if (NewTheme != "dark" && NewTheme != "light")
-            NewTheme := ((StrLower(Trim(String(ThemeMode))) = "light") ? "light" : "dark")
+        NewTheme := ThemeMode
+        if (payload.Has("themeMode"))
+            NewTheme := payload["themeMode"]
+        else if (payload.Has("ThemeMode"))
+            NewTheme := payload["ThemeMode"]
+        NewTheme := NormalizeIniThemeMode(NewTheme, NormalizeIniThemeMode(ThemeMode, "dark"))
         NewPanelPos := payload.Get("functionPanelPos", "center")
         validPos := Map("center",1, "top-left",1, "top-right",1, "bottom-left",1, "bottom-right",1)
         if !validPos.Has(NewPanelPos)
@@ -802,6 +816,7 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         CapsLockHoldVkEnabled := NewCapsLockHoldVk
         AutoStart := NewAutoStart
         DefaultStartTab := NewDefaultTab
+        ThemeMode := NewTheme
         FunctionPanelPos := NewPanelPos
         ConfigPanelPos := NewConfigPanelPos
         ClipboardPanelPos := NewClipboardPanelPos
@@ -862,7 +877,8 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         IniWrite(Prompt_Optimize, ConfigFile, "Settings", "Prompt_Optimize")
         IniWrite(AutoStart ? "1" : "0", ConfigFile, "Settings", "AutoStart")
         IniWrite(DefaultStartTab, ConfigFile, "Settings", "DefaultStartTab")
-        IniWrite(ThemeMode, ConfigFile, "Settings", "ThemeMode")
+        IniWrite(NewTheme, ConfigFile, "Settings", "ThemeMode")
+        IniWrite(NewTheme, ConfigFile, "Appearance", "ThemeMode")
         IniWrite(PromptQuickCaptureHotkey, ConfigFile, "Settings", "PromptQuickCaptureHotkey")
         IniWrite(SearchEngine, ConfigFile, "Settings", "SearchEngine")
         IniWrite(AutoLoadSelectedText ? "1" : "0", ConfigFile, "Settings", "AutoLoadSelectedText")
@@ -974,6 +990,14 @@ ConfigWebView_OnMessage(sender, args) {
             ConfigWebView_Send(Map("type", "browseCursorPathResult", "path", selected))
         case "saveSettings":
             payload := msg.Get("payload", Map())
+            if (payload is String && payload != "") {
+                try payload := Jxon_Load(payload)
+                catch {
+                    payload := Map()
+                }
+            }
+            if !(payload is Map)
+                payload := Map()
             err := ""
             ok := ConfigWebView_ValidateAndApply(payload, &err)
             ConfigWebView_Send(Map("type", "saveResult", "ok", ok, "error", err))

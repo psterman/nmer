@@ -803,7 +803,7 @@
       },
       data: {
         cursorPath: "", capslockHoldTimeSeconds: 0.5, capsLockHoldVkEnabled: true, autoStart: false, defaultStartTab: "general",
-        themeMode: "dark", popupScreenIndex: 1, monitorCount: 1,
+        themeMode: "", popupScreenIndex: 1, monitorCount: 1,
         promptExplain: "", promptRefactor: "", promptOptimize: "",
         cursorRules: { general:"", web:"", miniprogram:"", android:"", ios:"", python:"" },
         promptTemplateSummary: [], defaultTemplates: { Explain: "", Refactor: "", Optimize: "" },
@@ -1117,9 +1117,10 @@
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[ch]));
     const checked = (v) => v ? "checked" : "";
     let autoSaveTimer = 0;
-    let suppressAutoSave = false;
+    let suppressAutoSave = true;
+    let initDataReceived = false;
     function scheduleAutoSave(delay = 250){
-      if (suppressAutoSave) return;
+      if (suppressAutoSave || !initDataReceived) return;
       if (autoSaveTimer) clearTimeout(autoSaveTimer);
       autoSaveTimer = setTimeout(() => {
         const d = readFromUI();
@@ -1359,8 +1360,17 @@
       d.voiceSearchEnabledCategories = cats;
       return d;
     }
+    function syncThemeAndPopupFromDom() {
+      try {
+        const tm = document.getElementById("themeMode");
+        if (tm) state.data.themeMode = tm.value;
+        const ps = document.getElementById("popupScreenIndex");
+        if (ps) state.data.popupScreenIndex = Number(ps.value);
+      } catch (_) {}
+    }
     function readFromUI() {
       syncActivationModeFromDom();
+      syncThemeAndPopupFromDom();
       let d = { ...state.data, hotkeys: { ...state.data.hotkeys }, quickActions: [...state.data.quickActions], voiceSearchEnabledCategories: [...state.data.voiceSearchEnabledCategories], floatingToolbarButtons: [...(state.data.floatingToolbarButtons||[])], floatingToolbarMenuItems: [...(state.data.floatingToolbarMenuItems||[])] };
       d = readGeneral(d); d = readAppearance(d); d = readPrompts(d); d = readHotkeys(d); d = readAdvanced(d); d = readSearch(d);
       d.appearanceActivationMode = normalizeActivationMode(state.appearanceActivationMode);
@@ -1832,6 +1842,7 @@
       if (t.id === "themeMode") {
         state.data.themeMode = t.value;
         applyWebTheme(t.value);
+        try { localStorage.setItem("settings_themeMode", t.value); } catch (_) {}
       }
       if (t.dataset?.nosave === "1") return;
       scheduleAutoSave(50);
@@ -1850,7 +1861,16 @@
       if (msg.type === "initData") {
         suppressAutoSave = true;
         const p = msg.payload || {};
+        let cachedTheme = "";
+        try {
+          const c = localStorage.getItem("settings_themeMode");
+          if (c === "light" || c === "dark") cachedTheme = c;
+        } catch (_) {}
+        const incomingTheme = (typeof p.themeMode === "string" && p.themeMode) ? p.themeMode : "";
         state.data = { ...state.data, ...p, hotkeys: { ...state.data.hotkeys, ...(p.hotkeys || {}) }, quickActions: (p.quickActions?.length ? p.quickActions : state.data.quickActions) };
+        state.data.themeMode = incomingTheme || cachedTheme || state.data.themeMode || "dark";
+        // 持久化到 localStorage，下次打开时立即应用，无需等 AHK 推送
+        try { localStorage.setItem("settings_themeMode", state.data.themeMode); } catch (_) {}
         state.appearanceActivationMode = normalizeActivationMode(p.appearanceActivationMode || state.appearanceActivationMode);
         state.data.appearanceActivationMode = state.appearanceActivationMode;
         saveAppearanceActivationMode();
@@ -1870,6 +1890,7 @@
         setStatus("已连接", "ok");
         if (state.activeTab === "search")
           requestFullTextStatus(true);
+        initDataReceived = true;
         setTimeout(() => { suppressAutoSave = false; }, 0);
         return;
       }
@@ -1922,6 +1943,16 @@
       if (state.activeTab === "search")
         requestFullTextStatus(false);
     }, 1500);
+    // 页面加载时立即从 localStorage 读取主题并应用，消除 initData 到达前的深色闪烁
+    (function() {
+      try {
+        const cached = localStorage.getItem("settings_themeMode");
+        if (cached === "light" || cached === "dark") {
+          state.data.themeMode = cached;
+          applyWebTheme(cached);
+        }
+      } catch (_) {}
+    })();
     if (window.chrome && window.chrome.webview) { window.chrome.webview.addEventListener("message", e => { const data = typeof e.data === "string" ? JSON.parse(e.data) : e.data; handleHostMessage(data); }); render(); post({ type: "ready" }); setStatus("正在连接..."); } else { render(); setStatus("预览模式"); }
   </script>
 </body>

@@ -3366,6 +3366,7 @@ SaveConfig(*) {
     IniWrite(PanelScreenIndex, ConfigFile, "Panel", "ScreenIndex")
     IniWrite(Language, ConfigFile, "Settings", "Language")
     IniWrite(ThemeMode, ConfigFile, "Settings", "ThemeMode")
+    IniWrite(ThemeMode, ConfigFile, "Appearance", "ThemeMode")
     
     ; 主题已更改，需要重新创建所有面板以应用新主题
     ; 注意：这里不立即重新创建，因为用户可能还在查看配置面板

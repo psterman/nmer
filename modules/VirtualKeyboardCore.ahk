@@ -2743,6 +2743,8 @@ _VK_GetThemeMode() {
     if FileExist(cfgPath) {
         try {
             raw := IniRead(cfgPath, "Settings", "ThemeMode", "")
+            if (raw = "")
+                raw := IniRead(cfgPath, "Appearance", "ThemeMode", "")
             if (raw != "")
                 return _VK_NormalizeThemeToken(raw)
         } catch {

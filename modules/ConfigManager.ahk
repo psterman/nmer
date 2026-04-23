@@ -66,6 +66,79 @@ _Cfg_CountLeadingUtf16BOMs(rawBuf) {
     return cnt
 }
 
+; 合并 INI 文件中重复的同名 Section（保留首次出现的，将后续出现的键值合并进来，以后出现的同名键优先覆盖首次的）
+_Cfg_DeduplicateSections(cfgPath) {
+    try {
+        if !FileExist(cfgPath)
+            return
+        content := FileRead(cfgPath, "UTF-16")
+        lines := StrSplit(content, "`n")
+        ; 收集所有 section 名称及出现次数
+        sectionCounts := Map()
+        for i, line in lines {
+            trimmed := Trim(line, " `r")
+            if (RegExMatch(trimmed, "^\[(.+)\]$", &m)) {
+                name := m[1]
+                sectionCounts[name] := sectionCounts.Has(name) ? sectionCounts[name] + 1 : 1
+            }
+        }
+        ; 判断是否有重复 section
+        hasDup := false
+        for name, cnt in sectionCounts
+            if cnt > 1 {
+                hasDup := true
+                break
+            }
+        if !hasDup
+            return
+        ; 合并：对每个重复段，将后续出现的键合并到第一个段（后出现的同名键覆盖）
+        ; 数据结构：sections 数组，每项 {name, keys(Map), order(Array)}，uniqueNames 跟踪已出现
+        sections := []          ; [{name, keys, order}, ...]
+        sectionIndex := Map()   ; name -> index in sections (first occurrence)
+        currentIdx := -1
+        for i, line in lines {
+            trimmed := Trim(line, " `r")
+            if (RegExMatch(trimmed, "^\[(.+)\]$", &m)) {
+                name := m[1]
+                if sectionIndex.Has(name) {
+                    ; 重复段：后续内容合并到已有段
+                    currentIdx := sectionIndex[name]
+                } else {
+                    sections.Push(Map("name", name, "keys", Map(), "order", []))
+                    currentIdx := sections.Length
+                    sectionIndex[name] := currentIdx
+                }
+            } else if (currentIdx > 0) {
+                ; 属于某个 section 的行（key=value 或空行注释）
+                sec := sections[currentIdx]
+                if (RegExMatch(trimmed, "^([^;=]+)=(.*)$", &kv)) {
+                    key := Trim(kv[1])
+                    val := kv[2]
+                    if !sec["keys"].Has(key)
+                        sec["order"].Push(key)   ; 记录首次出现顺序
+                    sec["keys"][key] := val       ; 后出现的覆盖前面的
+                }
+                ; 注释行和空行不需要合并，直接丢弃（重建时只保留 key=value）
+            }
+        }
+        ; 重建文件内容
+        newContent := ""
+        for i, sec in sections {
+            newContent .= "[" . sec["name"] . "]`r`n"
+            for j, key in sec["order"]
+                newContent .= key . "=" . sec["keys"][key] . "`r`n"
+            newContent .= "`r`n"
+        }
+        backup := cfgPath . ".bak_dedup_" . A_Now
+        try FileCopy(cfgPath, backup, true)
+        try FileDelete(cfgPath)
+        FileAppend(newContent, cfgPath, "UTF-16")
+        OutputDebug("[Config] deduplicated ini sections: " . cfgPath)
+    } catch as e {
+        OutputDebug("[Config] dedup failed: " . e.Message)
+    }
+}
+
 _Cfg_NormalizeIniEncoding(cfgPath) {
     try {
         if !FileExist(cfgPath)
@@ -140,7 +213,33 @@ _Cfg_NormalizeIniEncoding(cfgPath) {
     }
 }
 
+; 统一解析 ini / 前端 传来的主题值（去 BOM、兼容中文别名）
+NormalizeIniThemeMode(raw, defaultMode := "dark") {
+    s := Trim(String(raw))
+    if (StrLen(s) > 0 && Ord(SubStr(s, 1, 1)) = 0xFEFF)
+        s := SubStr(s, 2)
+    s := StrLower(Trim(s))
+    if (s = "light" || s = "浅色" || s = "lite")
+        return "light"
+    if (s = "dark" || s = "深色")
+        return "dark"
+    return (defaultMode = "light") ? "light" : "dark"
+}
+
+; 读取持久化主题：先 [Settings] 再 [Appearance]（与设置页双写一致，规避重复 [Settings] 段导致读不到的问题）
+ReadPersistedThemeMode() {
+    global ConfigFile
+    t1 := IniRead(ConfigFile, "Settings", "ThemeMode", "")
+    if (t1 != "")
+        return NormalizeIniThemeMode(t1, "dark")
+    t2 := IniRead(ConfigFile, "Appearance", "ThemeMode", "")
+    if (t2 != "")
+        return NormalizeIniThemeMode(t2, "dark")
+    return "dark"
+}
+
 InitConfig() {
+    _Cfg_DeduplicateSections(ConfigFile)
     _Cfg_NormalizeIniEncoding(ConfigFile)
     ; 1. 默认配置
     DefaultCursorPath := "C:\Users\" A_UserName "\AppData\Local\Cursor\Cursor.exe"
@@ -238,6 +337,7 @@ InitConfig() {
         IniWrite(DefaultConfigPanelPos, ConfigFile, "Appearance", "ConfigPanelPos")
         IniWrite(DefaultClipboardPanelPos, ConfigFile, "Appearance", "ClipboardPanelPos")
         IniWrite("dark", ConfigFile, "Settings", "ThemeMode")  ; 默认暗色主题
+        IniWrite("dark", ConfigFile, "Appearance", "ThemeMode")
         IniWrite(DefaultConfigPanelScreenIndex, ConfigFile, "Advanced", "ConfigPanelScreenIndex")
         IniWrite(DefaultMsgBoxScreenIndex, ConfigFile, "Advanced", "MsgBoxScreenIndex")
         IniWrite(DefaultVoiceInputScreenIndex, ConfigFile, "Advanced", "VoiceInputScreenIndex")
@@ -497,7 +597,7 @@ InitConfig() {
             
             ; 加载主题模式（暗色或亮色）
             global ThemeMode
-            ThemeMode := IniRead(ConfigFile, "Settings", "ThemeMode", "dark")
+            ThemeMode := ReadPersistedThemeMode()
             ApplyTheme(ThemeMode)
             
             ; 更新托盘图标（使用自定义图标）
