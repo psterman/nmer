@@ -128,10 +128,10 @@ TrayMenuItemHoverPhase2(ItemIndex, *) {
     if (!TrayMenuGUI || TrayMenuSelectedItem != ItemIndex)
         return
     try {
-        TrayMenuGUI["MenuItemBg" . ItemIndex].BackColor := "ff6600"
-        TrayMenuGUI["MenuItemText" . ItemIndex].Opt("cFFFFFF")
+        TrayMenuGUI["MenuItemBg" . ItemIndex].BackColor := TrayPopup_ThemeColor("activeBg")
+        TrayMenuGUI["MenuItemText" . ItemIndex].Opt("c" . TrayPopup_ThemeColor("activeText"))
         if (TrayMenuGUI.HasProp("MenuItemIcon" . ItemIndex))
-            TrayMenuGUI["MenuItemIcon" . ItemIndex].Opt("cFFFFFF")
+            TrayMenuGUI["MenuItemIcon" . ItemIndex].Opt("c" . TrayPopup_ThemeColor("activeText"))
     } catch {
     }
 }
@@ -143,19 +143,19 @@ TrayMenuItemHover(ItemIndex, *) {
     TrayMenuCancelHoverAnim()
     if (TrayMenuSelectedItem > 0) {
         try {
-            TrayMenuGUI["MenuItemBg" . TrayMenuSelectedItem].BackColor := "1a1a1a"
-            TrayMenuGUI["MenuItemText" . TrayMenuSelectedItem].Opt("cff6600")
+            TrayMenuGUI["MenuItemBg" . TrayMenuSelectedItem].BackColor := TrayPopup_ThemeColor("itemBg")
+            TrayMenuGUI["MenuItemText" . TrayMenuSelectedItem].Opt("c" . TrayPopup_ThemeColor("text"))
             if (TrayMenuGUI.HasProp("MenuItemIcon" . TrayMenuSelectedItem))
-                TrayMenuGUI["MenuItemIcon" . TrayMenuSelectedItem].Opt("cff6600")
+                TrayMenuGUI["MenuItemIcon" . TrayMenuSelectedItem].Opt("c" . TrayPopup_ThemeColor("icon"))
         } catch {
         }
     }
     TrayMenuSelectedItem := ItemIndex
     try {
-        TrayMenuGUI["MenuItemBg" . ItemIndex].BackColor := "2a2622"
-        TrayMenuGUI["MenuItemText" . ItemIndex].Opt("cffb366")
+        TrayMenuGUI["MenuItemBg" . ItemIndex].BackColor := TrayPopup_ThemeColor("hoverBg1")
+        TrayMenuGUI["MenuItemText" . ItemIndex].Opt("c" . TrayPopup_ThemeColor("hoverText"))
         if (TrayMenuGUI.HasProp("MenuItemIcon" . ItemIndex))
-            TrayMenuGUI["MenuItemIcon" . ItemIndex].Opt("cffb366")
+            TrayMenuGUI["MenuItemIcon" . ItemIndex].Opt("c" . TrayPopup_ThemeColor("hoverText"))
     } catch {
     }
     fn := TrayMenuItemHoverPhase2.Bind(ItemIndex)
@@ -167,10 +167,10 @@ TrayMenuItemLeave(ItemIndex, *) {
     global TrayMenuGUI, TrayMenuSelectedItem
     if (TrayMenuSelectedItem = ItemIndex) {
         try {
-            TrayMenuGUI["MenuItemBg" . ItemIndex].BackColor := "1a1a1a"
-            TrayMenuGUI["MenuItemText" . ItemIndex].Opt("cff6600")
+            TrayMenuGUI["MenuItemBg" . ItemIndex].BackColor := TrayPopup_ThemeColor("itemBg")
+            TrayMenuGUI["MenuItemText" . ItemIndex].Opt("c" . TrayPopup_ThemeColor("text"))
             if (TrayMenuGUI.HasProp("MenuItemIcon" . ItemIndex)) {
-                TrayMenuGUI["MenuItemIcon" . ItemIndex].Opt("cff6600")
+                TrayMenuGUI["MenuItemIcon" . ItemIndex].Opt("c" . TrayPopup_ThemeColor("icon"))
             }
             TrayMenuSelectedItem := 0
         }
@@ -212,10 +212,10 @@ CheckTrayMenuMousePosition(*) {
         TrayMenuCancelHoverAnim()
         if (TrayMenuSelectedItem > 0) {
             try {
-                TrayMenuGUI["MenuItemBg" . TrayMenuSelectedItem].BackColor := "1a1a1a"
-                TrayMenuGUI["MenuItemText" . TrayMenuSelectedItem].Opt("cff6600")
+                TrayMenuGUI["MenuItemBg" . TrayMenuSelectedItem].BackColor := TrayPopup_ThemeColor("itemBg")
+                TrayMenuGUI["MenuItemText" . TrayMenuSelectedItem].Opt("c" . TrayPopup_ThemeColor("text"))
                 if (TrayMenuGUI.HasProp("MenuItemIcon" . TrayMenuSelectedItem)) {
-                    TrayMenuGUI["MenuItemIcon" . TrayMenuSelectedItem].Opt("cff6600")
+                    TrayMenuGUI["MenuItemIcon" . TrayMenuSelectedItem].Opt("c" . TrayPopup_ThemeColor("icon"))
                 }
                 TrayMenuSelectedItem := 0
             }
@@ -231,10 +231,10 @@ CheckTrayMenuMousePosition(*) {
         TrayMenuCancelHoverAnim()
         if (TrayMenuSelectedItem > 0) {
             try {
-                TrayMenuGUI["MenuItemBg" . TrayMenuSelectedItem].BackColor := "1a1a1a"
-                TrayMenuGUI["MenuItemText" . TrayMenuSelectedItem].Opt("cff6600")
+                TrayMenuGUI["MenuItemBg" . TrayMenuSelectedItem].BackColor := TrayPopup_ThemeColor("itemBg")
+                TrayMenuGUI["MenuItemText" . TrayMenuSelectedItem].Opt("c" . TrayPopup_ThemeColor("text"))
                 if (TrayMenuGUI.HasProp("MenuItemIcon" . TrayMenuSelectedItem))
-                    TrayMenuGUI["MenuItemIcon" . TrayMenuSelectedItem].Opt("cff6600")
+                    TrayMenuGUI["MenuItemIcon" . TrayMenuSelectedItem].Opt("c" . TrayPopup_ThemeColor("icon"))
                 TrayMenuSelectedItem := 0
             }
         }
@@ -255,10 +255,10 @@ CheckTrayMenuMousePosition(*) {
         TrayMenuCancelHoverAnim()
         if (TrayMenuSelectedItem > 0) {
             try {
-                TrayMenuGUI["MenuItemBg" . TrayMenuSelectedItem].BackColor := "1a1a1a"
-                TrayMenuGUI["MenuItemText" . TrayMenuSelectedItem].Opt("cff6600")
+                TrayMenuGUI["MenuItemBg" . TrayMenuSelectedItem].BackColor := TrayPopup_ThemeColor("itemBg")
+                TrayMenuGUI["MenuItemText" . TrayMenuSelectedItem].Opt("c" . TrayPopup_ThemeColor("text"))
                 if (TrayMenuGUI.HasProp("MenuItemIcon" . TrayMenuSelectedItem)) {
-                    TrayMenuGUI["MenuItemIcon" . TrayMenuSelectedItem].Opt("cff6600")
+                    TrayMenuGUI["MenuItemIcon" . TrayMenuSelectedItem].Opt("c" . TrayPopup_ThemeColor("icon"))
                 }
                 TrayMenuSelectedItem := 0
             }
@@ -418,6 +418,61 @@ ReloadScriptFromPopupMenu(*) {
     Reload
 }
 
+TrayPopup_GetThemeMode() {
+    try {
+        global ConfigFile
+        if (IsSet(ConfigFile) && ConfigFile != "") {
+            raw := IniRead(ConfigFile, "Settings", "ThemeMode", "")
+            if (Trim(String(raw)) = "")
+                raw := IniRead(ConfigFile, "Appearance", "ThemeMode", "")
+            t := StrLower(Trim(String(raw)))
+            if (t = "light" || t = "lite" || t = "浅色")
+                return "light"
+        }
+    } catch {
+    }
+    try {
+        fn := Func("ReadPersistedThemeMode")
+        if IsObject(fn) {
+            t2 := StrLower(Trim(String(fn.Call())))
+            if (t2 = "light" || t2 = "lite" || t2 = "浅色")
+                return "light"
+        }
+    } catch {
+    }
+    return "dark"
+}
+
+TrayPopup_ThemeColor(key) {
+    tm := TrayPopup_GetThemeMode()
+    if (tm = "light") {
+        mp := Map(
+            "menuBg", "f7f7f7",
+            "itemBg", "ffffff",
+            "text", "d35400",
+            "icon", "d35400",
+            "hoverBg1", "fff3e8",
+            "hoverBg2", "fbe7d6",
+            "hoverText", "d35400",
+            "activeBg", "e67e22",
+            "activeText", "ffffff"
+        )
+    } else {
+        mp := Map(
+            "menuBg", "1a1a1a",
+            "itemBg", "1a1a1a",
+            "text", "ff6600",
+            "icon", "ff6600",
+            "hoverBg1", "2a2622",
+            "hoverBg2", "ff6600",
+            "hoverText", "ffb366",
+            "activeBg", "ff6600",
+            "activeText", "ffffff"
+        )
+    }
+    return mp.Has(key) ? mp[key] : ((tm = "light") ? "f7f7f7" : "1a1a1a")
+}
+
 ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
     global TrayMenuGUI, TrayMenuSelectedItem
 
@@ -456,8 +511,12 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
         TrayMenuGUI := 0
         return
     }
-    TrayMenuGUI.BackColor := "1a1a1a"
-    TrayMenuGUI.Add("Text", "x0 y0 w" . MenuWidth . " h" . MenuHeight . " Background1a1a1a", "")
+    menuBg := TrayPopup_ThemeColor("menuBg")
+    itemBgColor := TrayPopup_ThemeColor("itemBg")
+    textColor := TrayPopup_ThemeColor("text")
+    iconColor := TrayPopup_ThemeColor("icon")
+    TrayMenuGUI.BackColor := menuBg
+    TrayMenuGUI.Add("Text", "x0 y0 w" . MenuWidth . " h" . MenuHeight . " Background" . menuBg, "")
 
     TrayMenuSelectedItem := 0
     IconSize := 18
@@ -480,21 +539,21 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
         ItemY := Padding + (Index - 1) * MenuItemHeight
         IconLeftMargin := baseX + 8
         TextLeftMargin := IconLeftMargin + IconSize + 8
-        ItemBg := TrayMenuGUI.Add("Text", "x" . baseX . " y" . ItemY . " w" . cellUseW . " h" . MenuItemHeight . " Background1a1a1a vMenuItemBg" . Index, "")
-        ItemBg.OnEvent("Click", ClickHelper.Bind(Item))
+        ItemBgCtrl := TrayMenuGUI.Add("Text", "x" . baseX . " y" . ItemY . " w" . cellUseW . " h" . MenuItemHeight . " Background" . itemBgColor . " vMenuItemBg" . Index, "")
+        ItemBgCtrl.OnEvent("Click", ClickHelper.Bind(Item))
         iconFile := ResolveDarkPopupItemIconFile(Item, IconSize)
         if (iconFile != "" && FileExist(iconFile)) {
             IconPic := TrayMenuGUI.Add("Picture", "x" . IconLeftMargin . " y" . (ItemY + ((MenuItemHeight - IconSize) // 2)) . " w" . IconSize . " h" . IconSize . " BackgroundTrans vMenuItemIconPic" . Index, iconFile)
             IconPic.OnEvent("Click", ClickHelper.Bind(Item))
         } else if (Item.HasProp("Icon") && Item.Icon != "") {
-            IconText := TrayMenuGUI.Add("Text", "x" . IconLeftMargin . " y" . ItemY . " w" . IconSize . " h" . MenuItemHeight . " Center 0x200 cff6600 BackgroundTrans vMenuItemIcon" . Index, Item.Icon)
+            IconText := TrayMenuGUI.Add("Text", "x" . IconLeftMargin . " y" . ItemY . " w" . IconSize . " h" . MenuItemHeight . " Center 0x200 c" . iconColor . " BackgroundTrans vMenuItemIcon" . Index, Item.Icon)
             IconText.SetFont("s14", "Segoe UI Symbol")
             IconText.OnEvent("Click", ClickHelper.Bind(Item))
         }
         tw := cellUseW - (TextLeftMargin - baseX) - 6
         if (tw < 24)
             tw := 24
-        ItemText := TrayMenuGUI.Add("Text", "x" . TextLeftMargin . " y" . ItemY . " w" . tw . " h" . MenuItemHeight . " Left 0x200 cff6600 BackgroundTrans vMenuItemText" . Index, Item.Text)
+        ItemText := TrayMenuGUI.Add("Text", "x" . TextLeftMargin . " y" . ItemY . " w" . tw . " h" . MenuItemHeight . " Left 0x200 c" . textColor . " BackgroundTrans vMenuItemText" . Index, Item.Text)
         ItemText.SetFont("s11", "Segoe UI")
         ItemText.OnEvent("Click", ClickHelper.Bind(Item))
     }
@@ -543,7 +602,8 @@ EnsureSvgIconRasterized(svgPath, size := 18) {
             if (edge = "")
                 return ""
             url := "file:///" . StrReplace(svgPath, "\", "/")
-            cmd := '"' . edge . '" --headless --disable-gpu --hide-scrollbars --default-background-color=1a1a1a --window-size=' . size . ',' . size . ' --screenshot="' . pngPath . '" "' . url . '"'
+            bgColor := (TrayPopup_GetThemeMode() = "light") ? "f7f7f7" : "1a1a1a"
+            cmd := '"' . edge . '" --headless --disable-gpu --hide-scrollbars --default-background-color=' . bgColor . ' --window-size=' . size . ',' . size . ' --screenshot="' . pngPath . '" "' . url . '"'
             RunWait(cmd, , "Hide")
             if (!FileExist(pngPath))
                 return ""

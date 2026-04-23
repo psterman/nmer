@@ -17,8 +17,19 @@
   --danger-border:rgba(255,112,126,.42);
   --ease:.22s cubic-bezier(.22,1,.36,1);
 }
+body[data-theme="light"]{
+  --bg:#f7f7f7;
+  --panel:#ffffff;
+  --panel-border:#e5e5e5;
+  --accent:#e67e22;
+  --accent-soft:#fff3e8;
+  --accent-border:#d35400;
+  --danger:#c0392b;
+  --danger-soft:#fdecea;
+  --danger-border:#e6b0aa;
+}
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#0a0a0a;font:13px "Segoe UI","Microsoft YaHei UI",sans-serif}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font:13px "Segoe UI","Microsoft YaHei UI",sans-serif}
 #shell{display:inline-flex;align-items:center;justify-content:center;padding:0;margin:0;pointer-events:auto}
 #bar{
   display:inline-flex;align-items:center;gap:6px;
@@ -59,6 +70,10 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 }
 .sep{width:1px;height:18px;background:rgba(255,122,26,.3);margin:0 2px;flex:0 0 auto}
 .lucide{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+body[data-theme="light"] #bar{
+  background:#ffffff;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.02);
+}
 </style>
 </head>
 <body>
@@ -111,6 +126,11 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
   var shell = document.getElementById('shell');
   var bar = document.getElementById('bar');
 
+  function applyTheme(mode) {
+    var tm = String(mode || '').toLowerCase() === 'light' ? 'light' : 'dark';
+    document.body.setAttribute('data-theme', tm);
+  }
+
   function reportLayout() {
     try {
       var r = bar.getBoundingClientRect();
@@ -145,12 +165,14 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
         return;
       }
       if (msg.type !== 'state') return;
+      applyTheme(msg.themeMode || msg.theme || 'dark');
       var pinBtn = bar.querySelector('.tb[data-cmd="pin"]');
       if (pinBtn) pinBtn.classList.toggle('active', !!msg.toolbarVisible);
     });
   }
 
   window.addEventListener('resize', reportLayout);
+  applyTheme('dark');
   reportLayout();
   post({ action: 'ready' });
   requestAnimationFrame(function(){ post({ action: 'paint_ok' }); reportLayout(); });

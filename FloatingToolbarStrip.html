@@ -82,7 +82,7 @@ body.ftb-compact #collapsedRoot::after{opacity:0!important;animation:none!import
 body.ftb-compact #collapsedRoot .logo-btn{width:100%;height:100%;padding:0;border-radius:999px;background:transparent;box-shadow:none;filter:none}
 body.ftb-compact #collapsedRoot .logo-btn:hover{filter:none;background:transparent}
 body.ftb-compact #collapsedRoot .logo-btn .logo-img{transform:scale(1.02)}
-.tb{width:calc(40px * var(--ui));height:calc(40px * var(--ui));display:flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:calc(8px * var(--ui));cursor:pointer;position:relative;transition:background-color var(--ease),border-color var(--ease),transform var(--ease),color var(--ease);color:#ff6600;background:transparent;flex-shrink:0}
+.tb{width:calc(40px * var(--ui));height:calc(40px * var(--ui));display:flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:calc(8px * var(--ui));cursor:pointer;position:relative;transition:background-color var(--ease),border-color var(--ease),transform var(--ease),color var(--ease);color:#ff6600;background:transparent;flex-shrink:0;font-size:0;line-height:0;overflow:hidden}
 .tb svg{width:calc(24px * var(--ui));height:calc(24px * var(--ui));pointer-events:none}
 .tb .tb-ico{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--orange)}
 .tb .tb-ico svg{stroke:currentColor}
@@ -174,9 +174,12 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 .ns-lab{font-size:11px;font-weight:600;text-align:center;line-height:1.25;word-break:break-all}
 body[data-theme="light"]{--toolbar-bg:#F7F7F7;--panel:rgba(255,255,255,.96);--panel2:rgba(255,255,255,.98);--orange:#E67E22;--text:#2D2D2D;--muted:#555555}
 body[data-theme="light"] #panel,body[data-theme="light"] .sd,body[data-theme="light"] .ns-panel{border-color:#E5E5E5;box-shadow:-10px 0 24px rgba(0,0,0,.08)}
+body[data-theme="light"] #collapsedRoot{border:1px solid #E5E5E5;box-shadow:0 2px 10px rgba(0,0,0,.06)}
 body[data-theme="light"] #resizeGrip{background:linear-gradient(90deg,rgba(230,126,34,.2),transparent)}
 body[data-theme="light"] .hdr,body[data-theme="light"] .sh,body[data-theme="light"] .sf,body[data-theme="light"] .session-tabs,body[data-theme="light"] #cmp{border-color:#E5E5E5;background:rgba(255,255,255,.9)}
 body[data-theme="light"] .ib,body[data-theme="light"] .btn2,body[data-theme="light"] .btn3,body[data-theme="light"] .stab,body[data-theme="light"] .ns-item{border-color:#E5E5E5;background:#FFFFFF;color:var(--text)}
+body[data-theme="light"] .tb,body[data-theme="light"] .logo-btn{border-color:#E5E5E5;background:#FFFFFF;color:#E67E22}
+body[data-theme="light"] .tb:hover,body[data-theme="light"] .tb.selected,body[data-theme="light"] .logo-btn:hover{border-color:#D35400;background:#FFF3E8;color:#D35400}
 body[data-theme="light"] .ib:hover,body[data-theme="light"] .btn2:hover,body[data-theme="light"] .btn3:hover,body[data-theme="light"] .stab:hover,body[data-theme="light"] .ns-item:hover{border-color:#D35400;background:#FFF3E8}
 body[data-theme="light"] .btn1{background:#E67E22;border-color:#E67E22;color:#FFFFFF}
 body[data-theme="light"] .btn1:hover{background:#D35400;border-color:#D35400}
@@ -503,17 +506,7 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
 
   function toolbarIconSvgHtml(cmdId, iconClass, iconPath) {
     var fbKey = toolbarFallbackKey(cmdId, iconClass);
-    if (iconPath) {
-      return (
-        '<span class="tb-ico">' +
-        '<img class="tb-ico-img" src="' +
-        escAttr(iconPath) +
-        '" data-fallback-key="' +
-        escAttr(fbKey) +
-        '" alt="">' +
-        '</span>'
-      );
-    }
+    // Always render built-in SVG to avoid intermittent text/icon-font fallbacks.
     var inner = TOOLBAR_SVG_PARTS[fbKey] || TOOLBAR_SVG_PARTS.bolt;
     return '<span class="tb-ico">' + inner + '</span>';
   }

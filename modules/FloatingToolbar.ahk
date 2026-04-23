@@ -229,8 +229,8 @@ CreateFloatingToolbarGUI() {
     }
 
     FloatingToolbarGUI := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x02000000", "Floating Toolbar")
-    ; 与 FloatingToolbarStrip 工具栏底色 #0a0a0a 一致，避免圆角外缘露色
-    FloatingToolbarGUI.BackColor := "0a0a0a"
+    ; 与当前主题底色一致，避免圆角外缘露色
+    FloatingToolbarGUI.BackColor := FloatingToolbar_GetThemeBackColorHex()
     FloatingToolbarGUI.OnEvent("Close", OnFloatingToolbarClose)
     FloatingToolbarGUI.OnEvent("ContextMenu", OnFloatingToolbarContextMenu)
 
@@ -315,9 +315,10 @@ FloatingToolbar_OnWebViewCreated(ctrl) {
     g_FTB_WV2_Ready := false
     g_FTB_WV2_FrameReady := false
 
-    ; 与工具栏底色 #0a0a0a 一致，避免透明时透出异色再闪内容
-    try ctrl.DefaultBackgroundColor := 0xFF0A0A0A
+    ; 与当前主题底色一致，避免透明时透出异色再闪内容
+    try ctrl.DefaultBackgroundColor := FloatingToolbar_GetThemeBackColorArgb()
     try ctrl.IsVisible := true
+    FloatingToolbar_ApplyHostThemeColors()
 
     FloatingToolbar_ApplyWebViewBounds()
 
@@ -402,11 +403,38 @@ FloatingToolbar_PushLogoToWeb(*) {
 
 FloatingToolbar_PushThemeToWeb(*) {
     global g_FTB_WV2
+    FloatingToolbar_ApplyHostThemeColors()
     if !g_FTB_WV2
         return
     tm := FloatingToolbar_GetThemeMode()
     try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_theme", "themeMode", tm))
     catch as _e {
+    }
+}
+
+FloatingToolbar_GetThemeBackColorHex() {
+    tm := FloatingToolbar_GetThemeMode()
+    return (tm = "light") ? "f7f7f7" : "0a0a0a"
+}
+
+FloatingToolbar_GetThemeBackColorArgb() {
+    tm := FloatingToolbar_GetThemeMode()
+    return (tm = "light") ? 0xFFF7F7F7 : 0xFF0A0A0A
+}
+
+FloatingToolbar_ApplyHostThemeColors() {
+    global FloatingToolbarGUI, g_FTB_WV2_Ctrl
+    hex := FloatingToolbar_GetThemeBackColorHex()
+    argb := FloatingToolbar_GetThemeBackColorArgb()
+    try {
+        if IsObject(FloatingToolbarGUI)
+            FloatingToolbarGUI.BackColor := hex
+    } catch {
+    }
+    try {
+        if IsObject(g_FTB_WV2_Ctrl)
+            g_FTB_WV2_Ctrl.DefaultBackgroundColor := argb
+    } catch {
     }
 }
 
@@ -1594,8 +1622,6 @@ FloatingToolbarPushCmdLayoutToWeb() {
                 ic := "fa-solid " . ic
         }
         rowPayload := Map("cmdId", cid, "name", nm, "iconClass", ic)
-        if (cid = "ftb_cursor_menu")
-            rowPayload["iconPath"] := "images/cursor.png"
         items.Push(rowPayload)
     }
     hasCursorMenu := false
@@ -1615,8 +1641,7 @@ FloatingToolbarPushCmdLayoutToWeb() {
         items.Push(Map(
             "cmdId", "ftb_cursor_menu",
             "name", cursorName,
-            "iconClass", "fa-solid fa-bolt",
-            "iconPath", "images/cursor.png"
+            "iconClass", "fa-solid fa-bolt"
         ))
     }
     FloatingToolbarCmdVisibleCount := items.Length
