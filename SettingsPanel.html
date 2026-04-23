@@ -66,7 +66,7 @@
     .multi-dd-item { display: flex; align-items: center; gap: 8px; padding: 6px 4px; font-size: 12px; }
     .multi-dd-item img { width: 16px; height: 16px; border-radius: 3px; object-fit: cover; border: 1px solid var(--border2); }
     .ft-console { border: 1px solid var(--border); border-radius: 12px; background: var(--surface2); padding: 12px; margin-top: 12px; }
-    .ft-title { font-size: 13px; color: #fff; margin-bottom: 8px; font-weight: 600; }
+    .ft-title { font-size: 13px; color: var(--title-text); margin-bottom: 8px; font-weight: 600; }
     .ft-light-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
     .ft-light { width: 10px; height: 10px; border-radius: 50%; background: #3f3f3f; box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset; opacity: .7; }
     .ft-light.active { background: #67e8f9; box-shadow: 0 0 10px rgba(103,232,249,.8); animation: ft-breath 1.4s ease-in-out infinite; }
@@ -92,11 +92,14 @@
     /* SearchCenter-style UI overrides (style only, no logic changes) */
     :root {
       --bg: #111315;
+      --app-bg: radial-gradient(circle at top right, rgba(255,141,42,.08), transparent 26%), linear-gradient(180deg, #0f1113 0%, #15181c 100%);
+      --color-scheme: dark;
       --surface: #171a1e;
       --surface2: #1f2429;
       --surface3: #262c33;
       --border: #313941;
       --border2: #3a434d;
+      --panel-border: rgba(255,255,255,.12);
       --glass-edge: rgba(255,255,255,.28);
       --glass-edge-soft: rgba(255,255,255,.08);
       --glass-warm: rgba(255,171,92,.2);
@@ -106,6 +109,19 @@
       --text: #e7ebef;
       --text-dim: #93a0ad;
       --text-xs: #6f7d8b;
+      --title-text: #ffffff;
+      --on-accent: #ffffff;
+      --btn-hover-bg: linear-gradient(180deg, rgba(255,179,71,.12), rgba(255,141,42,.08));
+      --tab-hover-bg: linear-gradient(180deg, rgba(255,179,71,.1), rgba(255,141,42,.08));
+      --tab-hover-border: rgba(255,179,71,.5);
+      --tab-active-bg: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
+      --tab-active-border: rgba(255,179,71,.5);
+      --tab-active-text: #ffffff;
+      --subtab-active-bg: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
+      --subtab-active-border: rgba(255,179,71,.5);
+      --subtab-active-text: #ffffff;
+      --preview-bg: var(--surface2);
+      --preview-hint-text: var(--text-dim);
       --row-hover: rgba(255,255,255,.03);
       --row-active: rgba(255,141,42,.14);
       --row-active-text: #ffffff;
@@ -113,7 +129,8 @@
       --glow-hot: 0 0 0 1px rgba(255,179,71,.24), 0 14px 34px rgba(0,0,0,.28);
     }
     html, body {
-      background: radial-gradient(circle at top right, rgba(255,141,42,.08), transparent 26%), linear-gradient(180deg, #0f1113 0%, #15181c 100%);
+      background: var(--app-bg);
+      color-scheme: var(--color-scheme);
     }
     #app {
       gap: 12px;
@@ -125,7 +142,7 @@
     .list-panel {
       position: relative;
       overflow: hidden;
-      border: 1px solid rgba(255,255,255,.12);
+      border: 1px solid var(--panel-border);
       border-radius: 16px;
       background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0)), var(--surface);
       box-shadow: var(--glow);
@@ -148,7 +165,7 @@
     }
     #sidebar {
       width: 204px;
-      border-right: 1px solid rgba(255,255,255,.12);
+      border-right: 1px solid var(--panel-border);
       padding: 12px 10px;
       gap: 8px;
     }
@@ -162,13 +179,13 @@
     }
     .tab-btn:hover {
       color: var(--text);
-      border-color: rgba(255,179,71,.5);
-      background: linear-gradient(180deg, rgba(255,179,71,.1), rgba(255,141,42,.08));
+      border-color: var(--tab-hover-border);
+      background: var(--tab-hover-bg);
     }
     .tab-btn.active {
-      color: #fff;
-      border-color: rgba(255,179,71,.5);
-      background: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
+      color: var(--tab-active-text);
+      border-color: var(--tab-active-border);
+      background: var(--tab-active-bg);
       box-shadow: var(--glow-hot);
     }
     #content { min-width: 0; }
@@ -183,7 +200,7 @@
       padding: 14px;
       margin-bottom: 12px;
     }
-    .title { color: #fff; font-weight: 700; }
+    .title { color: var(--title-text); font-weight: 700; }
     input[type="text"], input[type="number"], textarea, select {
       background: var(--surface2);
       border: 1px solid var(--border);
@@ -202,17 +219,22 @@
       transition: .15s ease;
     }
     .btn:hover {
-      color: #fff;
-      border-color: rgba(255,179,71,.5);
-      background: linear-gradient(180deg, rgba(255,179,71,.12), rgba(255,141,42,.08));
+      color: var(--orange-dk);
+      border-color: var(--orange-dk);
+      background: var(--btn-hover-bg);
     }
     .btn.primary {
-      background: linear-gradient(180deg, #ffb347, #ff8d2a);
-      border-color: #ffb347;
-      color: #111;
+      background: var(--orange);
+      border-color: var(--orange);
+      color: var(--on-accent);
       font-weight: 700;
     }
-    .btn.primary:hover { box-shadow: var(--glow-hot); }
+    .btn.primary:hover {
+      background: var(--orange-dk);
+      border-color: var(--orange-dk);
+      color: var(--on-accent);
+      box-shadow: var(--glow-hot);
+    }
     .tag {
       border: 1px solid var(--border);
       border-radius: 999px;
@@ -228,9 +250,9 @@
       transition: .15s ease;
     }
     .subtab-btn.active {
-      color: #fff;
-      border-color: rgba(255,179,71,.5);
-      background: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
+      color: var(--subtab-active-text);
+      border-color: var(--subtab-active-border);
+      background: var(--subtab-active-bg);
     }
     .list-head {
       background: rgba(255,255,255,.02);
@@ -284,14 +306,14 @@
     .hint { display: none !important; }
     .apple-toolbar-wrap { display: grid; grid-template-columns: 1fr; gap: 14px; }
     .apple-group {
-      border: 1px solid rgba(255,255,255,.14);
+      border: 1px solid var(--border);
       border-radius: 16px;
-      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+      background: var(--surface);
       padding: 14px;
     }
     .apple-group-title {
       font-size: 13px;
-      color: #dce5ee;
+      color: var(--title-text);
       font-weight: 700;
       margin-bottom: 10px;
       letter-spacing: .2px;
@@ -301,8 +323,8 @@
       min-height: 270px;
       padding: 8px;
       border-radius: 14px;
-      border: 1px solid rgba(255,255,255,.14);
-      background: rgba(10,12,15,.6);
+      border: 1px solid var(--border);
+      background: var(--surface2);
       color: var(--text);
       outline: none;
       font-size: 13px;
@@ -320,16 +342,17 @@
       min-width: 56px;
       height: 38px;
       border-radius: 12px;
-      border: 1px solid rgba(255,255,255,.16);
-      background: rgba(255,255,255,.03);
-      color: #eaf0f6;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
     }
     .apple-mini-btn:hover {
-      border-color: rgba(255,179,71,.6);
-      background: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.1));
+      border-color: var(--orange-dk);
+      color: var(--orange-dk);
+      background: var(--btn-hover-bg);
     }
     @media (max-width: 1180px) {
       .apple-controls { grid-template-columns: 1fr 1fr; }
@@ -362,9 +385,9 @@
       gap: 8px;
       padding: 6px 8px;
       border-radius: 10px;
-      background: #0a0a0a;
-      border: 1px solid rgba(255, 102, 0, 0.38);
-      box-shadow: inset 0 0 0 1px rgba(255, 102, 0, 0.06);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.03);
       min-height: 52px;
     }
     .ftb-mock-logo {
@@ -372,8 +395,8 @@
       height: 40px;
       flex-shrink: 0;
       border-radius: 8px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px dashed rgba(255, 102, 0, 0.3);
+      background: var(--surface2);
+      border: 1px dashed var(--border2);
     }
     .ftb-mock-btns {
       display: flex;
@@ -392,8 +415,8 @@
       min-height: 88px;
       padding: 10px;
       border-radius: 10px;
-      border: 1px dashed rgba(255, 102, 0, 0.28);
-      background: rgba(14, 14, 14, 0.95);
+      border: 1px dashed var(--border2);
+      background: var(--surface2);
     }
     .cfg-ftb-tile {
       position: relative;
@@ -406,9 +429,9 @@
       padding: 6px 4px 4px;
       border-radius: 8px;
       cursor: grab;
-      color: #ff6600;
-      border: 1px solid rgba(255, 102, 0, 0.28);
-      background: rgba(255, 255, 255, 0.04);
+      color: var(--orange);
+      border: 1px solid var(--border);
+      background: var(--surface);
       flex-shrink: 0;
       transition: background 0.15s ease, border-color 0.15s ease;
     }
@@ -424,7 +447,7 @@
       justify-content: center;
     }
     .cfg-ftb-tile.cfg-ftb-tile-compact:hover {
-      background: rgba(255, 255, 255, 0.06);
+      background: var(--surface2);
     }
     .cfg-ftb-tile .cfg-ftb-ico { display: flex; align-items: center; justify-content: center; pointer-events: none; }
     .cfg-ftb-tile .cfg-ftb-ico svg { width: 22px; height: 22px; stroke: currentColor; }
@@ -433,7 +456,7 @@
       margin-top: 3px;
       font-size: 8px;
       line-height: 1.15;
-      color: #b8c0c8;
+      color: var(--text-xs);
       text-align: center;
       max-width: 52px;
       overflow: hidden;
@@ -451,14 +474,14 @@
       border: none;
       border-radius: 4px;
       cursor: pointer;
-      color: #666;
-      background: rgba(0, 0, 0, 0.45);
+      color: var(--text-xs);
+      background: var(--surface3);
       z-index: 2;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    .cfg-ftb-menu:hover { color: #ff6600; }
+    .cfg-ftb-menu:hover { color: var(--orange-dk); }
     .cfg-ftb-menu.on {
       color: #00ff41;
       background: rgba(0, 255, 65, 0.12);
@@ -471,8 +494,8 @@
       overflow-y: auto;
       padding: 10px 10px 6px;
       border-radius: 10px;
-      background: #0a0a0a;
-      border: 1px solid rgba(255, 102, 0, 0.28);
+      background: var(--surface);
+      border: 1px solid var(--border);
     }
     .cfg-menu-section-hint {
       font-size: 10px;
@@ -490,8 +513,8 @@
       overflow-y: auto;
       padding: 10px;
       border-radius: 10px;
-      border: 1px dashed rgba(255, 102, 0, 0.28);
-      background: rgba(14, 14, 14, 0.95);
+      border: 1px dashed var(--border2);
+      background: var(--surface2);
     }
     .shared-pool-card .pool-grid {
       display: grid;
@@ -508,8 +531,8 @@
       padding: 8px 10px;
       border-radius: 8px;
       cursor: grab;
-      border: 1px solid rgba(255, 102, 0, 0.22);
-      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      background: var(--surface);
       color: var(--text);
     }
     .cfg-menu-tile-cmd .cfg-menu-ico {
@@ -519,7 +542,7 @@
       justify-content: center;
       margin-top: 2px;
     }
-    .cfg-menu-tile-cmd .cfg-menu-ico svg { width: 20px; height: 20px; stroke: #ff6600; fill: none; }
+    .cfg-menu-tile-cmd .cfg-menu-ico svg { width: 20px; height: 20px; stroke: var(--orange); fill: none; }
     .cfg-menu-text { min-width: 0; flex: 1; }
     .cfg-menu-line1 {
       font-size: 13px;
@@ -599,7 +622,7 @@
       border: 1px solid var(--border2);
       border-radius: 12px;
       padding: 12px;
-      background: #0f1318;
+      background: var(--preview-bg);
       min-height: 72px;
       display: flex;
       align-items: center;
@@ -619,8 +642,8 @@
       width: 18px;
       height: 18px;
       border-radius: 6px;
-      background: rgba(255,255,255,.18);
-      border: 1px solid rgba(255,255,255,.22);
+      background: rgba(255,255,255,.24);
+      border: 1px solid rgba(255,255,255,.26);
     }
     .mode-icon-bubble {
       width: 54px;
@@ -630,7 +653,7 @@
       background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.22), rgba(255,141,42,.18) 55%, rgba(255,141,42,.08));
       display: grid;
       place-items: center;
-      box-shadow: 0 10px 22px rgba(0,0,0,.38);
+      box-shadow: 0 10px 22px rgba(0,0,0,.16);
     }
     .mode-icon-bubble img {
       width: 32px;
@@ -654,6 +677,16 @@
       height: 16px;
       object-fit: contain;
       border-radius: 4px;
+    }
+    .mode-preview-scene .hint {
+      display: block !important;
+      margin: 0;
+      color: var(--preview-hint-text);
+      line-height: 1.45;
+    }
+    select option, select optgroup {
+      background: var(--surface);
+      color: var(--text);
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
@@ -1414,31 +1447,79 @@
     function applyWebTheme(mode){
       const root = document.documentElement;
       if (mode === "light") {
-        root.style.setProperty("--bg", "#f4f5f7");
+        root.style.setProperty("--bg", "#F7F7F7");
+        root.style.setProperty("--app-bg", "#F7F7F7");
+        root.style.setProperty("--color-scheme", "light");
         root.style.setProperty("--surface", "#ffffff");
-        root.style.setProperty("--surface2", "#f3f4f6");
+        root.style.setProperty("--surface2", "#ffffff");
         root.style.setProperty("--surface3", "#ffffff");
-        root.style.setProperty("--border", "#d7dce2");
-        root.style.setProperty("--border2", "#c9d0d9");
-        root.style.setProperty("--text", "#1f2937");
-        root.style.setProperty("--text-dim", "#4b5563");
-        root.style.setProperty("--text-xs", "#6b7280");
-        root.style.setProperty("--row-hover", "#eef2f7");
-        root.style.setProperty("--row-active", "#fff1e6");
-        root.style.setProperty("--row-active-text", "#7a3e00");
+        root.style.setProperty("--border", "#E5E5E5");
+        root.style.setProperty("--border2", "#E5E5E5");
+        root.style.setProperty("--panel-border", "#E5E5E5");
+        root.style.setProperty("--orange", "#E67E22");
+        root.style.setProperty("--orange-dk", "#D35400");
+        root.style.setProperty("--orange-lt", "#E67E22");
+        root.style.setProperty("--text", "#555555");
+        root.style.setProperty("--text-dim", "#555555");
+        root.style.setProperty("--text-xs", "#777777");
+        root.style.setProperty("--title-text", "#2D2D2D");
+        root.style.setProperty("--on-accent", "#FFFFFF");
+        root.style.setProperty("--btn-hover-bg", "#FFF3E8");
+        root.style.setProperty("--tab-hover-bg", "#FFF7EF");
+        root.style.setProperty("--tab-hover-border", "#E9B889");
+        root.style.setProperty("--tab-active-bg", "#FFF1E3");
+        root.style.setProperty("--tab-active-border", "#E9B889");
+        root.style.setProperty("--tab-active-text", "#D35400");
+        root.style.setProperty("--subtab-active-bg", "#FFF1E3");
+        root.style.setProperty("--subtab-active-border", "#E9B889");
+        root.style.setProperty("--subtab-active-text", "#D35400");
+        root.style.setProperty("--preview-bg", "#FFFFFF");
+        root.style.setProperty("--preview-hint-text", "#555555");
+        root.style.setProperty("--glass-edge", "rgba(0,0,0,.06)");
+        root.style.setProperty("--glass-edge-soft", "rgba(0,0,0,.02)");
+        root.style.setProperty("--glass-warm", "rgba(230,126,34,.12)");
+        root.style.setProperty("--row-hover", "#F7F7F7");
+        root.style.setProperty("--row-active", "#FFF4EA");
+        root.style.setProperty("--row-active-text", "#2D2D2D");
+        root.style.setProperty("--glow", "0 6px 16px rgba(0,0,0,.06)");
+        root.style.setProperty("--glow-hot", "0 0 0 1px rgba(230,126,34,.16), 0 8px 20px rgba(211,84,0,.12)");
       } else {
         root.style.setProperty("--bg", "#0a0a0a");
+        root.style.setProperty("--app-bg", "radial-gradient(circle at top right, rgba(255,141,42,.08), transparent 26%), linear-gradient(180deg, #0f1113 0%, #15181c 100%)");
+        root.style.setProperty("--color-scheme", "dark");
         root.style.setProperty("--surface", "#141414");
         root.style.setProperty("--surface2", "#1a1a1a");
         root.style.setProperty("--surface3", "#202020");
         root.style.setProperty("--border", "#2e2e2e");
         root.style.setProperty("--border2", "#3a3a3a");
+        root.style.setProperty("--panel-border", "rgba(255,255,255,.12)");
+        root.style.setProperty("--orange", "#ff8d2a");
+        root.style.setProperty("--orange-dk", "#ff7a14");
+        root.style.setProperty("--orange-lt", "#ffb347");
         root.style.setProperty("--text", "#f0f0f0");
         root.style.setProperty("--text-dim", "#9a9a9a");
         root.style.setProperty("--text-xs", "#666666");
+        root.style.setProperty("--title-text", "#ffffff");
+        root.style.setProperty("--on-accent", "#ffffff");
+        root.style.setProperty("--btn-hover-bg", "linear-gradient(180deg, rgba(255,179,71,.12), rgba(255,141,42,.08))");
+        root.style.setProperty("--tab-hover-bg", "linear-gradient(180deg, rgba(255,179,71,.1), rgba(255,141,42,.08))");
+        root.style.setProperty("--tab-hover-border", "rgba(255,179,71,.5)");
+        root.style.setProperty("--tab-active-bg", "linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12))");
+        root.style.setProperty("--tab-active-border", "rgba(255,179,71,.5)");
+        root.style.setProperty("--tab-active-text", "#ffffff");
+        root.style.setProperty("--subtab-active-bg", "linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12))");
+        root.style.setProperty("--subtab-active-border", "rgba(255,179,71,.5)");
+        root.style.setProperty("--subtab-active-text", "#ffffff");
+        root.style.setProperty("--preview-bg", "var(--surface2)");
+        root.style.setProperty("--preview-hint-text", "var(--text-dim)");
+        root.style.setProperty("--glass-edge", "rgba(255,255,255,.28)");
+        root.style.setProperty("--glass-edge-soft", "rgba(255,255,255,.08)");
+        root.style.setProperty("--glass-warm", "rgba(255,171,92,.2)");
         root.style.setProperty("--row-hover", "#1f1f1f");
         root.style.setProperty("--row-active", "#2a1b0d");
         root.style.setProperty("--row-active-text", "#f0f0f0");
+        root.style.setProperty("--glow", "0 18px 42px rgba(0,0,0,.35)");
+        root.style.setProperty("--glow-hot", "0 0 0 1px rgba(255,179,71,.24), 0 14px 34px rgba(0,0,0,.28)");
       }
     }
     function render() {
