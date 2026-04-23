@@ -1088,8 +1088,10 @@ SCWV_Show() {
         _SCWV_LoadSearchHistory()
     }
 
-    if g_SCWV_Ready
+    if g_SCWV_Ready {
+        SCWV_PushThemeToWeb()
         SCWV_PushState("init")
+    }
     else
         SetTimer(SCWV_DeferredPush, -250)
 
@@ -1117,6 +1119,7 @@ SCWV_DeferredPush(*) {
         return
 
     if g_SCWV_Ready {
+        SCWV_PushThemeToWeb()
         SCWV_PushState("init")
     } else {
         SetTimer(SCWV_DeferredPush, -350)
@@ -1279,6 +1282,50 @@ SCWV_PostJson(jsonStr) {
         WebView_QueueJson(g_SCWV_WV2, jsonStr)
 }
 
+_SCWV_NormalizeThemeToken(raw, fallback := "dark") {
+    s := StrLower(Trim(String(raw)))
+    if (s = "light" || s = "lite")
+        return "light"
+    if (s = "dark")
+        return "dark"
+    return (fallback = "light") ? "light" : "dark"
+}
+
+_SCWV_GetThemeMode() {
+    ; Prefer direct INI read so theme stays correct even if global state is stale.
+    try {
+        global ConfigFile
+        if (IsSet(ConfigFile) && ConfigFile != "") {
+            raw := IniRead(ConfigFile, "Settings", "ThemeMode", "")
+            if (Trim(String(raw)) = "")
+                raw := IniRead(ConfigFile, "Appearance", "ThemeMode", "")
+            if (Trim(String(raw)) != "")
+                return _SCWV_NormalizeThemeToken(raw, "dark")
+        }
+    } catch {
+    }
+    try {
+        fn := Func("ReadPersistedThemeMode")
+        if IsObject(fn)
+            return _SCWV_NormalizeThemeToken(fn.Call(), "dark")
+    } catch {
+    }
+    try {
+        global ThemeMode
+        return _SCWV_NormalizeThemeToken(ThemeMode, "dark")
+    } catch {
+    }
+    return "dark"
+}
+
+SCWV_PushThemeToWeb(*) {
+    global g_SCWV_WV2
+    if !g_SCWV_WV2
+        return
+    tm := _SCWV_GetThemeMode()
+    try SCWV_PostJson(Map("type", "set_theme", "themeMode", tm))
+}
+
 SCWV_BeginHostDrag(*) {
     global g_SCWV_Gui
     if !g_SCWV_Gui
@@ -1334,6 +1381,7 @@ SCWV_OnWebMessage(sender, args) {
         case "ready":
             global g_SCWV_Ready
             g_SCWV_Ready := true
+            SCWV_PushThemeToWeb()
             SCWV_PushState("init")
             _SCWV_PostFullTextStatus(true)
             try SCWV_FlushPendingJsonQueue()
@@ -2037,6 +2085,7 @@ SCWV_PushState(msgType := "state") {
     qlExe := SCWV_ResolveQuickLookExe()
     payload := Map(
         "type", msgType,
+        "themeMode", _SCWV_GetThemeMode(),
         "keyword", SearchCenterWebKeyword,
         "engineMode", SearchCenterEngineMode,
         "limit", SearchCenterCurrentLimit,

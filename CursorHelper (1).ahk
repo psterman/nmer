@@ -464,6 +464,9 @@ ApplyTheme(Mode) {
     try VK_PushThemeToWeb()
     catch {
     }
+    try SCWV_PushThemeToWeb()
+    catch {
+    }
 }
 
 ; ===================== 更新默认启动页面下拉菜单画刷 =====================
