@@ -1880,6 +1880,10 @@ body::after {
   background: #00ff41;
 }
 /* ── Light Theme ─────────────────────────────────────────────────────── */
+html[data-theme="light"] {
+  background: #F7F7F7;
+  color-scheme: light;
+}
 body[data-theme="light"] {
   --bg: #F7F7F7;
   --surface: #FFFFFF;
@@ -2691,6 +2695,7 @@ const mismatchDetector = {
 function applyVkTheme(mode) {
   const tm = String(mode || '').toLowerCase() === 'light' ? 'light' : 'dark';
   state.themeMode = tm;
+  document.documentElement.setAttribute('data-theme', tm);
   document.body.setAttribute('data-theme', tm);
 }
 

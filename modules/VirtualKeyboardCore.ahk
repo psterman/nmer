@@ -2727,10 +2727,31 @@ _VK_IsHostStaticCapsHotkeyKey(ahkKey) {
     return false
 }
 
+_VK_NormalizeThemeToken(tm) {
+    s := Trim(String(tm))
+    if (StrLen(s) > 0 && Ord(SubStr(s, 1, 1)) = 0xFEFF)
+        s := SubStr(s, 2)
+    s := StrLower(Trim(s))
+    if (s = "light" || s = "浅色" || s = "lite")
+        return "light"
+    return "dark"
+}
+
+; 与设置页一致：优先读 CursorShortcut.ini，避免全局 ThemeMode 未同步时 VK 仍用深色
 _VK_GetThemeMode() {
+    cfgPath := A_ScriptDir "\CursorShortcut.ini"
+    if FileExist(cfgPath) {
+        try {
+            raw := IniRead(cfgPath, "Settings", "ThemeMode", "")
+            if (raw != "")
+                return _VK_NormalizeThemeToken(raw)
+        } catch {
+        }
+    }
     global ThemeMode
-    tm := StrLower(Trim(String(ThemeMode)))
-    return (tm = "light") ? "light" : "dark"
+    if IsSet(ThemeMode)
+        return _VK_NormalizeThemeToken(ThemeMode)
+    return "dark"
 }
 
 _VK_GetHostThemePalette(mode := "") {
@@ -4241,7 +4262,7 @@ _PushInit() {
     adminWarning := _JsonStr(g_VK_AdminWarning)
     isAdmin := g_VK_IsAdmin ? "true" : "false"
     embeddedHost := g_VK_Embedded ? "true" : "false"
-    themeMode := _JsonStr((StrLower(Trim(String(ThemeMode))) = "light") ? "light" : "dark")
+    themeMode := _JsonStr(_VK_GetThemeMode())
 
     payload := '{"type":"init","categories":' . catJson
         . ',"commands":' . clJson
