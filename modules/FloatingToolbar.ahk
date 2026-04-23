@@ -400,6 +400,18 @@ FloatingToolbar_PushLogoToWeb(*) {
     }
 }
 
+FloatingToolbar_PushThemeToWeb(*) {
+    global g_FTB_WV2, ThemeMode
+    if !g_FTB_WV2
+        return
+    tm := StrLower(Trim(String(ThemeMode)))
+    if (tm != "light")
+        tm := "dark"
+    try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_theme", "themeMode", tm))
+    catch as _e {
+    }
+}
+
 FloatingToolbar_OnWebMessage(sender, args) {
     global g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_WV2_FrameReady, g_FTB_PendingSelection, FloatingToolbarGUI, FloatingToolbarScale
 
@@ -415,6 +427,7 @@ FloatingToolbar_OnWebMessage(sender, args) {
         g_FTB_WV2_Ready := true
         FloatingToolbar_ApplyWebViewBounds()
         SetTimer(FloatingToolbar_PushLogoToWeb, -10)
+        SetTimer(FloatingToolbar_PushThemeToWeb, -10)
         FloatingToolbarPushScaleStateToWeb(FloatingToolbarScale)
         FloatingToolbarPushButtonConfigToWeb()
         FloatingToolbar_FlushPendingSelectionIfReady()

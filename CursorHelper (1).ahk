@@ -454,6 +454,13 @@ ApplyTheme(Mode) {
     ; 更新下拉菜单画刷（如果下拉菜单已创建）
     UpdateDefaultStartTabDDLBrush()
     UpdateSearchCenterResultLimitDDLBrush()
+    ; WebView 前端主题同步（悬浮栏/悬浮球等）
+    try FloatingToolbar_PushThemeToWeb()
+    catch {
+    }
+    try FloatingBubble_PushThemeToWeb()
+    catch {
+    }
 }
 
 ; ===================== 更新默认启动页面下拉菜单画刷 =====================

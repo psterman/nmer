@@ -37,6 +37,11 @@
       object-fit: contain;
       pointer-events: none;
     }
+    html[data-theme="light"] body,
+    html[data-theme="light"] .wrap {
+      background-color: #F7F7F7;
+      color-scheme: light;
+    }
   </style>
 </head>
 <body>
@@ -125,6 +130,12 @@
           }
           if (d && d.type === 'set_logo' && d.url) {
             logo.src = d.url;
+            return;
+          }
+          if (d && d.type === 'set_theme') {
+            var tm = String((d.themeMode || d.theme || '')).toLowerCase() === 'light' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', tm);
+            return;
           }
         } catch (err) {}
       });

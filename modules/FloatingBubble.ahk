@@ -89,6 +89,7 @@ FloatingBubble_OnWebMessage(sender, args) {
         g_FB_WV2_Ready := true
         FloatingBubble_ApplyWebViewBounds()
         FloatingBubble_PushLogoToWeb()
+        FloatingBubble_PushThemeToWeb()
         return
     }
     if (typ = "context_menu") {
@@ -184,6 +185,18 @@ FloatingBubble_PushLogoToWeb(*) {
     if (url = "")
         return
     try WebView_QueuePayload(g_FB_WV2, Map("type", "set_logo", "url", url))
+    catch {
+    }
+}
+
+FloatingBubble_PushThemeToWeb(*) {
+    global g_FB_WV2, ThemeMode
+    if !g_FB_WV2
+        return
+    tm := StrLower(Trim(String(ThemeMode)))
+    if (tm != "light")
+        tm := "dark"
+    try WebView_QueuePayload(g_FB_WV2, Map("type", "set_theme", "themeMode", tm))
     catch {
     }
 }

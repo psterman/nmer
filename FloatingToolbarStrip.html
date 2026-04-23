@@ -172,6 +172,27 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
 .ns-item .stab-ico{width:40px;height:40px;border-radius:12px;padding:4px}
 .ns-item .stab-ico-img{width:28px;height:28px}
 .ns-lab{font-size:11px;font-weight:600;text-align:center;line-height:1.25;word-break:break-all}
+body[data-theme="light"]{--toolbar-bg:#F7F7F7;--panel:rgba(255,255,255,.96);--panel2:rgba(255,255,255,.98);--orange:#E67E22;--text:#2D2D2D;--muted:#555555}
+body[data-theme="light"] #panel,body[data-theme="light"] .sd,body[data-theme="light"] .ns-panel{border-color:#E5E5E5;box-shadow:-10px 0 24px rgba(0,0,0,.08)}
+body[data-theme="light"] #resizeGrip{background:linear-gradient(90deg,rgba(230,126,34,.2),transparent)}
+body[data-theme="light"] .hdr,body[data-theme="light"] .sh,body[data-theme="light"] .sf,body[data-theme="light"] .session-tabs,body[data-theme="light"] #cmp{border-color:#E5E5E5;background:rgba(255,255,255,.9)}
+body[data-theme="light"] .ib,body[data-theme="light"] .btn2,body[data-theme="light"] .btn3,body[data-theme="light"] .stab,body[data-theme="light"] .ns-item{border-color:#E5E5E5;background:#FFFFFF;color:var(--text)}
+body[data-theme="light"] .ib:hover,body[data-theme="light"] .btn2:hover,body[data-theme="light"] .btn3:hover,body[data-theme="light"] .stab:hover,body[data-theme="light"] .ns-item:hover{border-color:#D35400;background:#FFF3E8}
+body[data-theme="light"] .btn1{background:#E67E22;border-color:#E67E22;color:#FFFFFF}
+body[data-theme="light"] .btn1:hover{background:#D35400;border-color:#D35400}
+body[data-theme="light"] #empty,body[data-theme="light"] .hint{border-color:#E5E5E5;background:#FFFFFF;color:var(--muted)}
+body[data-theme="light"] .m{border-color:#E5E5E5;background:#FFFFFF}
+body[data-theme="light"] .m.user{background:#FFF1E3;border-color:#E9B889}
+body[data-theme="light"] .mh{border-color:#EAEAEA}
+body[data-theme="light"] .mb pre{background:#FAFAFA;border-color:#E5E5E5}
+body[data-theme="light"] #input,body[data-theme="light"] .ctl,body[data-theme="light"] .dd-btn{background:#FFFFFF;border-color:#E5E5E5;color:var(--text)}
+body[data-theme="light"] select.ctl,body[data-theme="light"] select.ctl option,body[data-theme="light"] select.ctl optgroup{background:#FFFFFF;color:var(--text)}
+body[data-theme="light"] .dd-menu{background:#FFFFFF;border-color:#E5E5E5;box-shadow:0 8px 22px rgba(0,0,0,.1)}
+body[data-theme="light"] .dd-item:hover,body[data-theme="light"] .dd-item.dd-active,body[data-theme="light"] .stab.active{background:#FFF1E3;color:#D35400;border-color:#E9B889}
+body[data-theme="light"] .cli-shell{border-color:#E5E5E5;background:#FFFFFF}
+body[data-theme="light"] .cli-bar{border-color:#E5E5E5;background:#FFFFFF}
+body[data-theme="light"] .cli-frame{background:#FFFFFF}
+body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0,0,.12)}
 </style>
 </head>
 <body>
@@ -612,6 +633,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     drawer: false,
     compact: false,
     settings: false,
+    themeMode: 'dark',
     sendingBySession: {},
     needSetup: false,
     nspick: false,
@@ -724,6 +746,12 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
     v = Number(v);
     if (!isFinite(v) || v <= 0) v = 1;
     document.documentElement.style.setProperty('--ui', String(v));
+  }
+
+  function applyTheme(mode) {
+    var tm = String(mode || '').toLowerCase() === 'light' ? 'light' : 'dark';
+    state.themeMode = tm;
+    document.body.setAttribute('data-theme', tm);
   }
 
   function setDrawer(v) {
@@ -3601,6 +3629,10 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
         });
         return;
       }
+      if (d.type === 'set_theme') {
+        applyTheme(d.themeMode || d.theme);
+        return;
+      }
       if (d.type === 'set_selected') sel(d.action || '');
       if (d.type === 'niuma_compose_send') {
         var inText = String(d.text || '');
@@ -3678,6 +3710,7 @@ body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
   fillProviders();
   fillPromptBuiltinSelect();
   loadCfg();
+  applyTheme(state.themeMode);
   scale(1);
   setCompact(false);
   post({ type: 'toolbar_ready' });
