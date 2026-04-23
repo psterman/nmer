@@ -70,6 +70,8 @@ type FullTextStatus struct {
 	DiscoveredFiles    int64    `json:"discoveredFiles"`
 	ProcessedFiles     int64    `json:"processedFiles"`
 	PendingTasks       int      `json:"pendingTasks"`
+	QueueCapacity      int      `json:"queueCapacity"`
+	QueueSaturated     bool     `json:"queueSaturated"`
 	WorkerCount        int      `json:"workerCount"`
 	ScanSpeed          string   `json:"scanSpeed"`
 	IncludeLargeText   bool     `json:"includeLargeText"`
@@ -405,6 +407,8 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 			DiscoveredFiles:    0,
 			ProcessedFiles:     0,
 			PendingTasks:       0,
+			QueueCapacity:      cfg.QueueSize,
+			QueueSaturated:     false,
 			WorkerCount:        cfg.Workers,
 			ScanSpeed:          cfg.ScanSpeed,
 			IncludeLargeText:   cfg.IncludeLargeText,
@@ -451,6 +455,23 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 
 	if err := idx.refreshIndexedCount(); err != nil {
 		idx.recordError(fmt.Errorf("refresh index count: %w", err))
+	}
+	if !cfg.ForceContentRecheck && len(idx.knownFiles) > 0 && idx.status.IndexedFiles == 0 {
+		// Index files were reset but snapshot still indicates incremental mode.
+		idx.knownFiles = map[string]fileFingerprint{}
+		idx.status.InitialScanDone = false
+		idx.status.Ready = false
+		idx.status.Progress = 0
+		idx.status.ProgressText = "0.0%"
+		idx.status.ScanPhase = "walking"
+		idx.status.ProgressDetail = "index directory appears rebuilt; switching to full scan"
+		idx.appendAlert("index directory rebuilt; forcing full scan")
+		_ = idx.meta.SaveIndexState(indexPersistState{
+			InitialScanDone: false,
+			IndexedFiles:    0,
+			ScanPhase:       "walking",
+			LastUpdated:     time.Now().Format(time.RFC3339),
+		})
 	}
 
 	if err := idx.refreshReader(); err != nil {
@@ -705,7 +726,11 @@ func (b *blugeIndexer) GetStatus() FullTextStatus {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.refreshProgressLocked()
-	b.status.PendingTasks = len(b.tasks)
+	pending := len(b.tasks)
+	capacity := cap(b.tasks)
+	b.status.PendingTasks = pending
+	b.status.QueueCapacity = capacity
+	b.status.QueueSaturated = capacity > 0 && pending >= capacity
 	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 	st := cloneFullTextStatus(b.status)
 	st.IndexEpoch = b.indexEpoch.Load()
@@ -1457,7 +1482,11 @@ func (b *blugeIndexer) enqueueTask(task indexTask) {
 		}
 	}
 	b.mu.Lock()
-	b.status.PendingTasks = len(b.tasks)
+	pending := len(b.tasks)
+	capacity := cap(b.tasks)
+	b.status.PendingTasks = pending
+	b.status.QueueCapacity = capacity
+	b.status.QueueSaturated = capacity > 0 && pending >= capacity
 	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 	b.mu.Unlock()
 }
@@ -2050,7 +2079,11 @@ func (b *blugeIndexer) markCurrentFile(path string) {
 	b.mu.Lock()
 	b.status.IndexingFile = path
 	b.status.ScanPhase = "indexing"
-	b.status.PendingTasks = len(b.tasks)
+	pending := len(b.tasks)
+	capacity := cap(b.tasks)
+	b.status.PendingTasks = pending
+	b.status.QueueCapacity = capacity
+	b.status.QueueSaturated = capacity > 0 && pending >= capacity
 	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 	b.mu.Unlock()
 }
@@ -2060,7 +2093,11 @@ func (b *blugeIndexer) clearCurrentFile(path string) {
 	if b.status.IndexingFile == path {
 		b.status.IndexingFile = ""
 	}
-	b.status.PendingTasks = len(b.tasks)
+	pending := len(b.tasks)
+	capacity := cap(b.tasks)
+	b.status.PendingTasks = pending
+	b.status.QueueCapacity = capacity
+	b.status.QueueSaturated = capacity > 0 && pending >= capacity
 	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 	b.mu.Unlock()
 }
@@ -2100,9 +2137,29 @@ func (b *blugeIndexer) appendAlertLocked(msg string) {
 func (b *blugeIndexer) refreshProgressLocked() {
 	total := b.initialTaskTotal
 	done := b.initialTaskDone
-	b.status.DiscoveredFiles = total
+	pending := len(b.tasks)
+	queueCap := cap(b.tasks)
+	b.status.PendingTasks = pending
+	b.status.QueueCapacity = queueCap
+	b.status.QueueSaturated = queueCap > 0 && pending >= queueCap
+
+	displayTotal := total
+	if displayTotal <= 0 {
+		// In incremental/warm mode there may be no known total yet; avoid showing 0/0.
+		fallbackTotal := done + int64(pending)
+		if fallbackTotal > 0 {
+			displayTotal = fallbackTotal
+		}
+	}
+
+	queueDisplay := fmt.Sprintf("%d", pending)
+	if queueCap > 0 {
+		queueDisplay = fmt.Sprintf("%d/%d", pending, queueCap)
+	}
+
+	b.status.DiscoveredFiles = displayTotal
 	b.status.ProcessedFiles = done
-	if !b.initialWalkDone && total > 0 && done >= total && len(b.tasks) == 0 && b.status.IndexingFile == "" {
+	if !b.initialWalkDone && total > 0 && done >= total && pending == 0 && b.status.IndexingFile == "" {
 		// Failsafe: if all discovered tasks are drained, promote to "walk done" even if a scanner goroutine stalls.
 		b.initialWalkDone = true
 	}
@@ -2112,9 +2169,9 @@ func (b *blugeIndexer) refreshProgressLocked() {
 		b.status.FilesPerSec = b.computeFilesPerSecLocked(done)
 		b.status.ETASeconds = 0
 		if total > 0 {
-			b.status.ProgressDetail = fmt.Sprintf("Processed %d / %d, pending %d, roots %d", done, total, len(b.tasks), len(b.cfg.Roots))
+			b.status.ProgressDetail = fmt.Sprintf("Processed %d / %d, queue %s, roots %d", done, total, queueDisplay, len(b.cfg.Roots))
 		} else {
-			b.status.ProgressDetail = fmt.Sprintf("Indexed %d files, pending %d, roots %d", b.status.IndexedFiles, len(b.tasks), len(b.cfg.Roots))
+			b.status.ProgressDetail = fmt.Sprintf("Indexed %d files, queue %s, roots %d", b.status.IndexedFiles, queueDisplay, len(b.cfg.Roots))
 		}
 		b.status.EfficiencyText = fmt.Sprintf("%.2f files/s", b.status.FilesPerSec)
 		return
@@ -2131,7 +2188,7 @@ func (b *blugeIndexer) refreshProgressLocked() {
 		b.status.ProgressText = fmt.Sprintf("%.1f%%", b.status.Progress)
 		b.status.FilesPerSec = b.computeFilesPerSecLocked(done)
 		b.status.ETASeconds = 0
-		b.status.ProgressDetail = fmt.Sprintf("Discovered %d, pending %d, roots %d", total, len(b.tasks), len(b.cfg.Roots))
+		b.status.ProgressDetail = fmt.Sprintf("Discovered %d, queue %s, roots %d", displayTotal, queueDisplay, len(b.cfg.Roots))
 		b.status.EfficiencyText = fmt.Sprintf("%.2f files/s", b.status.FilesPerSec)
 		return
 	}
@@ -2164,7 +2221,7 @@ func (b *blugeIndexer) refreshProgressLocked() {
 	} else {
 		b.status.ETASeconds = 0
 	}
-	b.status.ProgressDetail = fmt.Sprintf("Processed %d / %d, pending %d, roots %d", done, total, len(b.tasks), len(b.cfg.Roots))
+	b.status.ProgressDetail = fmt.Sprintf("Processed %d / %d, queue %s, roots %d", done, total, queueDisplay, len(b.cfg.Roots))
 	etaText := formatETASeconds(b.status.ETASeconds)
 	if etaText != "" {
 		b.status.EfficiencyText = fmt.Sprintf("%.2f files/s, eta %s", fps, etaText)
