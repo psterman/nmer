@@ -396,7 +396,7 @@ HideFloatingToolbarFromPopupMenu(*) {
 }
 
 ReloadScriptFromPopupMenu(*) {
-    global TrayMenuGUI
+    global TrayMenuGUI, ConfigFile
     if (TrayMenuGUI != 0) {
         try {
             TrayMenuGUI.Destroy()
@@ -409,6 +409,10 @@ ReloadScriptFromPopupMenu(*) {
     catch {
     }
     try SaveFloatingToolbarPosition()
+    catch {
+    }
+    ; 重启前先归一化配置文件编码，避免 ThemeMode 被混写 ini 覆盖
+    try _Cfg_NormalizeIniEncoding(ConfigFile)
     catch {
     }
     Reload

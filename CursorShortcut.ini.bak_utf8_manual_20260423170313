@@ -1,0 +1,169 @@
+[Settings]
+AutoLoadSelectedText=0
+VoiceSearchSelectedEngines=deepseek
+CursorPath=C:\Users\pster\AppData\Local\Cursor\Cursor.exe
+AISleepTime=1000
+CapsLockHoldTimeSeconds=1.5
+Prompt_Explain=������δ���ĺ����߼�������������ؼ��������ã��������ܶ������ԣ���ע�״��
+Prompt_Refactor=�ع���δ��룬��ѭPEP8/��ҵ�淶���������߼����������ע�ͣ����ֹ��ܲ���
+Prompt_Optimize=������δ��������ƿ����ʱ��/�ռ临�Ӷȣ��������Ż�����+�Ա�˵��������ԭ�߼��ɶ���
+Language=zh
+ThemeMode=light
+VoiceSearchEnabledCategories=ai,cli,academic,baidu,image,audio,video,book,price,medical,cloud
+AutoStart=0
+VoiceSearchSelectedEngines_ai=ai:yuanbao,doubao,zhipu,deepseek
+DefaultStartTab=appearance
+AutoUpdateVoiceInput=0
+CustomIconPath=
+SearchCenterSelectedEngines_ai=ai:zhipu
+SearchCenterSelectedEngines_academic=academic:
+SearchCenterSelectedEngines_baidu=baidu:
+SearchCenterSelectedEngines_medical=medical:merck
+SearchCenterSelectedEngines_cloud=cloud:
+SearchCenterSelectedEngines_image=image:
+SearchCenterSelectedEngines_price=price:
+SearchCenterSelectedEngines_book=book:
+SearchCenterSelectedEngines_video=video:
+SearchCenterSelectedEngines_audio=audio:
+LaunchDelaySeconds=3.0
+SearchCenterSelectedEngines_cli=cli:
+SearchCenterSelectedEngines_all=all:
+SearchCenterSelectedEngines_text=text:
+SearchCenterSelectedEngines_link=link:
+SearchCenterSelectedEngines_color=color:
+SearchCenterSelectedEngines_ai_cli=ai_cli:
+PromptQuickCaptureHotkey=
+SearchEngine=deepseek
+CapsLockHoldVkEnabled=1
+FloatingToolbarButtonItems=Record,Search,Prompt,NewPrompt,Screenshot,VirtualKeyboard,Settings
+FloatingToolbarMenuItems=ResetScale,SearchCenter,Clipboard,MinimizeToEdge,ExitApp,HideToolbar,OpenConfig,ToggleToolbar,ReloadScript
+SearchCenterEngineMode=go
+[Panel]
+ScreenIndex=1
+FunctionPanelPos=top-left
+ConfigPanelPos=top-left
+ClipboardPanelPos=top-left
+[Advanced]
+ConfigPanelScreenIndex=1
+MsgBoxScreenIndex=1
+VoiceInputScreenIndex=1
+CursorPanelScreenIndex=1
+ClipboardPanelScreenIndex=1
+[QuickActions]
+ButtonCount=5
+Button1Type=Explain
+Button1Hotkey=
+Button2Type=Explain
+Button2Hotkey=
+Button3Type=Explain
+Button3Hotkey=
+Button4Type=Explain
+Button4Hotkey=
+Button5Type=Explain
+Button5Hotkey=
+[Appearance]
+ClipboardPanelWidth=1184
+ClipboardPanelHeight=1074
+ClipboardPanelX=508
+ClipboardPanelY=75
+ScreenIndex=1
+FunctionPanelPos=top-left
+ConfigPanelPos=top-left
+ClipboardPanelPos=top-left
+PopupScreenIndex=1
+ActivationMode=toolbar
+[ClipboardListView]
+FirstColWidth=250
+ContentColWidth=100
+[Screenshot]
+PanelX=1719
+PanelY=925
+[WindowPositions]
+��������_X=612
+��������_Y=291
+��������_Width=903
+��������_Height=1005
+Cursor���� - �������_X=221
+Cursor���� - �������_Y=68
+Cursor���� - �������_Width=1632
+Cursor���� - �������_Height=1098
+Cursor Assistant - Settings_X=212
+Cursor Assistant - Settings_Y=0
+Cursor Assistant - Settings_Width=1258
+Cursor Assistant - Settings_Height=1058
+CursorHelper (1).ahk_X=820
+CursorHelper (1).ahk_Y=480
+CursorHelper (1).ahk_Width=294
+CursorHelper (1).ahk_Height=134
+?? ����������_X=820
+?? ����������_Y=480
+?? ����������_Width=294
+?? ����������_Height=134
+?? ���������_X=752
+?? ���������_Y=50
+?? ���������_Width=1168
+?? ���������_Height=1035
+FloatingToolbar_X=1047
+FloatingToolbar_Y=773
+AIListPanel_X=-8
+AIListPanel_Y=-8
+AIListPanel_W=1936
+AIListPanel_H=1056
+AIListPanel_IconMode_X=1197
+AIListPanel_IconMode_Y=114
+AIListPanel_IconMode_W=531
+AIListPanel_IconMode_H=233
+HubCapsule_X=1249
+HubCapsule_Y=164
+FloatingBubble_X=1578
+FloatingBubble_Y=836
+[FloatingToolbar]
+Scale=1.0
+ChatDrawerWidth=515
+[PromptQuickPad]
+AlwaysOnTop=1
+CapsLockBSilentToTemplate=0
+CapturePanelExpanded=0
+CapsLockBSilent=0
+CapsLockBDefaultTitle=�������
+CapsLockBDefaultCategory=����
+CapsLockBDefaultTags=Explain,Basic
+[Hotkeys]
+ESC=
+C=c
+V=v
+X=x
+E=e
+R=r
+O=
+Q=q
+Z=z
+Split=s
+Batch=b
+T=t
+F=f
+P=p
+[CursorRules]
+general=
+web=
+miniprogram=
+android=
+ios=
+python=
+[App]
+Mode=legacy
+[SelectionSense]
+HubWinX=949
+HubWinY=0
+HubWinW=985
+HubWinH=1100
+HubPreviewEnabled=1
+CopyTriggerMode=double
+HubCopyTriggerMode=double
+[SearchCenterWebView]
+WinX=170
+WinY=86
+WinW=1580
+WinH=907
+[HubCapsule]
+TranslateSqliteActiveDict=builtin_default

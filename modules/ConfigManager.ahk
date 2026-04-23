@@ -4,7 +4,144 @@
 ; GetClipboardDataForCurrentTab、RefreshClipboardList、ShowImportSuccessTip 等。
 
 ; ===================== 初始化配置 =====================
+_Cfg_FindAsciiMarker(rawBuf, markerText) {
+    if !(rawBuf is Buffer)
+        return -1
+    m := Buffer(StrPut(markerText, "CP0") - 1, 0)
+    StrPut(markerText, m, "CP0")
+    if (m.Size <= 0 || rawBuf.Size < m.Size)
+        return -1
+    max := rawBuf.Size - m.Size
+    i := 0
+    while (i <= max) {
+        ok := true
+        j := 0
+        while (j < m.Size) {
+            if (NumGet(rawBuf, i + j, "UChar") != NumGet(m, j, "UChar")) {
+                ok := false
+                break
+            }
+            j += 1
+        }
+        if ok
+            return i
+        i += 1
+    }
+    return -1
+}
+
+_Cfg_SliceBuffer(src, startPos, byteCount := -1) {
+    if !(src is Buffer)
+        return Buffer(0)
+    if (startPos < 0)
+        startPos := 0
+    if (startPos >= src.Size)
+        return Buffer(0)
+    len := (byteCount < 0) ? (src.Size - startPos) : Min(byteCount, src.Size - startPos)
+    out := Buffer(len, 0)
+    if (len > 0)
+        DllCall("RtlMoveMemory", "Ptr", out.Ptr, "Ptr", src.Ptr + startPos, "UPtr", len)
+    return out
+}
+
+_Cfg_StripLeadingBOM(text) {
+    ; 去除字符串开头所有 U+FEFF（字节序标记），避免 FileAppend 再次加 BOM 造成累积
+    while (StrLen(text) > 0 && Ord(SubStr(text, 1, 1)) = 0xFEFF)
+        text := SubStr(text, 2)
+    return text
+}
+
+_Cfg_CountLeadingUtf16BOMs(rawBuf) {
+    ; 统计文件开头连续的 FF FE（UTF-16 LE BOM）对数
+    if !(rawBuf is Buffer) || rawBuf.Size < 2
+        return 0
+    cnt := 0
+    pos := 0
+    while (pos + 1 < rawBuf.Size
+        && NumGet(rawBuf, pos, "UChar") = 0xFF
+        && NumGet(rawBuf, pos + 1, "UChar") = 0xFE) {
+        cnt += 1
+        pos += 2
+    }
+    return cnt
+}
+
+_Cfg_NormalizeIniEncoding(cfgPath) {
+    try {
+        if !FileExist(cfgPath)
+            return
+        raw := FileRead(cfgPath, "RAW")
+        if !(raw is Buffer) || raw.Size < 4
+            return
+
+        sampleLen := Min(raw.Size, 512)
+        zeroCount := 0
+        idx := 1
+        while (idx < sampleLen) {
+            if (NumGet(raw, idx, "UChar") = 0)
+                zeroCount += 1
+            idx += 2
+        }
+        looksUtf16Head := (zeroCount >= 16)
+        if !looksUtf16Head {
+            utf8Text := _Cfg_StripLeadingBOM(Trim(StrGet(raw, "UTF-8"), "`r`n`t "))
+            if (utf8Text = "" || !InStr(utf8Text, "[Settings]"))
+                return
+            backup := cfgPath . ".bak_utf8_" . A_Now
+            try FileCopy(cfgPath, backup, true)
+            try FileDelete(cfgPath)
+            FileAppend(utf8Text . "`r`n", cfgPath, "UTF-16")
+            OutputDebug("[Config] normalized ini utf8->utf16: " . cfgPath)
+            return
+        }
+
+        asciiSettingsPos := _Cfg_FindAsciiMarker(raw, "[Settings]")
+        bomCount := _Cfg_CountLeadingUtf16BOMs(raw)
+        ; 已经是干净的 UTF-16（单 BOM、无 ASCII 段落残留），直接跳过避免反复重写导致 BOM 堆叠
+        if (asciiSettingsPos < 0 && bomCount <= 1)
+            return
+
+        repairedText := ""
+        if (asciiSettingsPos > 0) {
+            head := _Cfg_SliceBuffer(raw, 0, asciiSettingsPos)
+            tail := _Cfg_SliceBuffer(raw, asciiSettingsPos)
+            headText := _Cfg_StripLeadingBOM(Trim(StrGet(head, "UTF-16"), "`r`n`t "))
+            tailText := _Cfg_StripLeadingBOM(Trim(StrGet(tail, "UTF-8"), "`r`n`t "))
+
+            headHasSettings := InStr(headText, "[Settings]")
+            tailHasSettings := InStr(tailText, "[Settings]")
+            headHasTheme := InStr(headText, "ThemeMode=")
+            tailHasTheme := InStr(tailText, "ThemeMode=")
+
+            ; 混写时优先保留 UTF-16 头（IniWrite 最新写入通常在这里），避免回退到旧尾部配置
+            if (headHasSettings && headHasTheme) {
+                repairedText := headText
+            } else if (tailHasSettings && tailHasTheme) {
+                repairedText := tailText
+            } else if (headHasSettings) {
+                repairedText := headText
+            } else {
+                repairedText := tailText
+            }
+        } else {
+            repairedText := _Cfg_StripLeadingBOM(Trim(StrGet(raw, "UTF-16"), "`r`n`t "))
+        }
+        repairedText := _Cfg_StripLeadingBOM(repairedText)
+        if (repairedText = "" || !InStr(repairedText, "[Settings]"))
+            return
+
+        backup := cfgPath . ".bak_mixed_" . A_Now
+        try FileCopy(cfgPath, backup, true)
+        try FileDelete(cfgPath)
+        FileAppend(repairedText . "`r`n", cfgPath, "UTF-16")
+        OutputDebug("[Config] normalized ini encoding: " . cfgPath)
+    } catch as e {
+        OutputDebug("[Config] normalize ini failed: " . e.Message)
+    }
+}
+
 InitConfig() {
+    _Cfg_NormalizeIniEncoding(ConfigFile)
     ; 1. 默认配置
     DefaultCursorPath := "C:\Users\" A_UserName "\AppData\Local\Cursor\Cursor.exe"
     DefaultAISleepTime := 15000

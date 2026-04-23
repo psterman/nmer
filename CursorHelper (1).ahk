@@ -461,6 +461,9 @@ ApplyTheme(Mode) {
     try FloatingBubble_PushThemeToWeb()
     catch {
     }
+    try VK_PushThemeToWeb()
+    catch {
+    }
 }
 
 ; ===================== 更新默认启动页面下拉菜单画刷 =====================

@@ -27,6 +27,10 @@ global g_VK_Ctrl := 0
 global g_VK_Ready := false
 global g_VK_FocusPending := false
 global g_VK_LastShown := 0
+global g_VK_TitleBgCtrl := 0
+global g_VK_TitleLblCtrl := 0
+global g_VK_MinBtnCtrl := 0
+global g_VK_CloseBtnCtrl := 0
 global g_ModState := Map("ctrl", false, "alt", false, "shift", false)
 global g_RecordCtx := Map("active", false, "commandId", "")
 global g_RecordHook := 0
@@ -79,6 +83,7 @@ VK_OnHostExit(*) {
 
 VK_Init(embedded := false) {
     global g_VK_Gui, g_VK_Embedded, g_JsonPath, g_VK_IsAdmin, g_VK_AdminWarning
+    global g_VK_TitleBgCtrl, g_VK_TitleLblCtrl, g_VK_MinBtnCtrl, g_VK_CloseBtnCtrl
 
     if g_VK_Gui
         return
@@ -105,30 +110,36 @@ VK_Init(embedded := false) {
 
     guiOpts := "+AlwaysOnTop -Caption +Resize -DPIScale +ToolWindow" . _VK_OwnerGuiOpt()
     g_VK_Gui := Gui(guiOpts, "VK KeyBinder")
-    g_VK_Gui.BackColor := "0a0a0a"
+    hostTheme := _VK_GetHostThemePalette()
+    g_VK_Gui.BackColor := hostTheme["windowBg"]
     g_VK_Gui.MarginX := 0
     g_VK_Gui.MarginY := 0
 
     TitleBg := g_VK_Gui.Add("Text",
-        "x0 y0 w" . (WinW - BtnW * 2 - BtnPad * 3) . " h" . TitleH . " Background1a1a1a", "")
+        "x0 y0 w" . (WinW - BtnW * 2 - BtnPad * 3) . " h" . TitleH . " Background" . hostTheme["titleBg"], "")
     TitleBg.OnEvent("Click", _TitleDrag)
 
     TitleLbl := g_VK_Gui.Add("Text",
-        "x16 y" . TitleBtnY . " w400 h22 ce67e22 Background1a1a1a", "[ VK KEYBINDER ]")
+        "x16 y" . TitleBtnY . " w400 h22 c" . hostTheme["titleText"] . " Background" . hostTheme["titleBg"], "[ VK KEYBINDER ]")
     TitleLbl.SetFont("s11 Bold", "Consolas")
     TitleLbl.OnEvent("Click", _TitleDrag)
 
     MinX := WinW - BtnW * 2 - BtnPad * 2
     MinBtn := g_VK_Gui.Add("Text",
-        "x" . MinX . " y" . TitleBtnY . " w" . BtnW . " h22 Center cf5f5f5 Background1a1a1a", "─")
+        "x" . MinX . " y" . TitleBtnY . " w" . BtnW . " h22 Center c" . hostTheme["btnText"] . " Background" . hostTheme["titleBg"], "─")
     MinBtn.SetFont("s11", "Segoe UI")
     MinBtn.OnEvent("Click", (*) => WinMinimize(g_VK_Gui.Hwnd))
 
     CloseX := WinW - BtnW - BtnPad
     CloseBtn := g_VK_Gui.Add("Text",
-        "x" . CloseX . " y" . TitleBtnY . " w" . BtnW . " h22 Center cf5f5f5 Background1a1a1a", "✕")
+        "x" . CloseX . " y" . TitleBtnY . " w" . BtnW . " h22 Center c" . hostTheme["btnText"] . " Background" . hostTheme["titleBg"], "✕")
     CloseBtn.SetFont("s11", "Segoe UI")
     CloseBtn.OnEvent("Click", (*) => VK_Hide())
+
+    g_VK_TitleBgCtrl := TitleBg
+    g_VK_TitleLblCtrl := TitleLbl
+    g_VK_MinBtnCtrl := MinBtn
+    g_VK_CloseBtnCtrl := CloseBtn
 
     showOpt := "w" . WinW . " h" . WinH . (embedded ? " Hide" : " NoActivate")
     g_VK_Gui.Show(showOpt)
@@ -2716,6 +2727,36 @@ _VK_IsHostStaticCapsHotkeyKey(ahkKey) {
     return false
 }
 
+_VK_GetThemeMode() {
+    global ThemeMode
+    tm := StrLower(Trim(String(ThemeMode)))
+    return (tm = "light") ? "light" : "dark"
+}
+
+_VK_GetHostThemePalette(mode := "") {
+    if (mode = "")
+        mode := _VK_GetThemeMode()
+    if (mode = "light")
+        return Map("windowBg", "F7F7F7", "titleBg", "FFFFFF", "titleText", "E67E22", "btnText", "555555")
+    return Map("windowBg", "0a0a0a", "titleBg", "1a1a1a", "titleText", "e67e22", "btnText", "f5f5f5")
+}
+
+VK_ApplyHostTheme(mode := "") {
+    global g_VK_Gui, g_VK_TitleBgCtrl, g_VK_TitleLblCtrl, g_VK_MinBtnCtrl, g_VK_CloseBtnCtrl
+    if !IsObject(g_VK_Gui)
+        return
+    theme := _VK_GetHostThemePalette(mode)
+    try g_VK_Gui.BackColor := theme["windowBg"]
+    if IsObject(g_VK_TitleBgCtrl)
+        try g_VK_TitleBgCtrl.Opt("Background" . theme["titleBg"])
+    if IsObject(g_VK_TitleLblCtrl)
+        try g_VK_TitleLblCtrl.Opt("c" . theme["titleText"] . " Background" . theme["titleBg"])
+    if IsObject(g_VK_MinBtnCtrl)
+        try g_VK_MinBtnCtrl.Opt("c" . theme["btnText"] . " Background" . theme["titleBg"])
+    if IsObject(g_VK_CloseBtnCtrl)
+        try g_VK_CloseBtnCtrl.Opt("c" . theme["btnText"] . " Background" . theme["titleBg"])
+}
+
 _VK_UnregisterCapsLockDispatchHotkeys() {
     global g_VK_CapsLockDynHotkeys
     for hk in g_VK_CapsLockDynHotkeys {
@@ -2978,6 +3019,7 @@ _OnWebMessage(sender, args) {
             g_VK_Ready := true
             OutputDebug("[VK] WebView ready")
             _PushInit()
+            VK_PushThemeToWeb()
             _PushModifierState()
             _StartKeyPreviewHook()
             if g_VK_FocusPending
@@ -4102,7 +4144,7 @@ _GetKeyFromSC(sc) {
 }
 
 _PushInit() {
-    global g_Commands, g_InverseBindings, g_LastExecutedCmdId, g_VK_QuickBindArmed, g_VK_QuickBindConsumed, g_VK_IsAdmin, g_VK_AdminWarning, g_VK_Embedded
+    global g_Commands, g_InverseBindings, g_LastExecutedCmdId, g_VK_QuickBindArmed, g_VK_QuickBindConsumed, g_VK_IsAdmin, g_VK_AdminWarning, g_VK_Embedded, ThemeMode
 
     if !g_Commands.Has("Categories") {
         OutputDebug("[VK] Commands not loaded")
@@ -4199,6 +4241,7 @@ _PushInit() {
     adminWarning := _JsonStr(g_VK_AdminWarning)
     isAdmin := g_VK_IsAdmin ? "true" : "false"
     embeddedHost := g_VK_Embedded ? "true" : "false"
+    themeMode := _JsonStr((StrLower(Trim(String(ThemeMode))) = "light") ? "light" : "dark")
 
     payload := '{"type":"init","categories":' . catJson
         . ',"commands":' . clJson
@@ -4208,6 +4251,7 @@ _PushInit() {
         . ',"lastActionName":' . lastActionName
         . ',"lastActionCurrentKey":' . lastActionCurrentKey
         . ',"quickBindActive":' . quickBindActive
+        . ',"themeMode":' . themeMode
         . ',"isAdmin":' . isAdmin
         . ',"adminWarning":' . adminWarning
         . ',"embeddedHost":' . embeddedHost
@@ -4362,6 +4406,12 @@ VK_SendToWeb(jsonStr) {
     global g_VK_WV2, g_VK_Ready
     if g_VK_WV2 && g_VK_Ready
         WebView_QueueJson(g_VK_WV2, jsonStr)
+}
+
+VK_PushThemeToWeb(*) {
+    tm := _VK_GetThemeMode()
+    VK_ApplyHostTheme(tm)
+    VK_SendToWeb('{"type":"set_theme","themeMode":"' . tm . '"}')
 }
 
 _VK_WM_ACTIVATE(wParam, lParam, msg, hwnd) {

@@ -573,17 +573,19 @@ ConfigWebView_BuildInitData() {
 }
 
 ConfigWebView_BuildInitDataSafe() {
+    global ThemeMode
     try {
         return ConfigWebView_BuildInitData()
     } catch as err {
         OutputDebug("[ConfigWebView] BuildInitData failed: " . err.Message)
+        _tm := (StrLower(Trim(String(ThemeMode))) = "light") ? "light" : "dark"
         return Map(
             "cursorPath", "",
             "capslockHoldTimeSeconds", 0.5,
             "capsLockHoldVkEnabled", true,
             "autoStart", false,
             "defaultStartTab", "general",
-            "themeMode", "dark",
+            "themeMode", _tm,
             "popupScreenIndex", 1,
             "monitorCount", 1,
             "functionPanelPos", "center",
@@ -677,9 +679,10 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         validTabs := Map("general",1, "appearance",1, "prompts",1, "hotkeys",1, "advanced",1, "search",1)
         if !validTabs.Has(NewDefaultTab)
             NewDefaultTab := "general"
-        NewTheme := payload.Get("themeMode", "dark")
+        NewTheme := payload.Has("themeMode") ? payload.Get("themeMode", ThemeMode) : ThemeMode
+        NewTheme := StrLower(Trim(String(NewTheme)))
         if (NewTheme != "dark" && NewTheme != "light")
-            NewTheme := "dark"
+            NewTheme := ((StrLower(Trim(String(ThemeMode))) = "light") ? "light" : "dark")
         NewPanelPos := payload.Get("functionPanelPos", "center")
         validPos := Map("center",1, "top-left",1, "top-right",1, "bottom-left",1, "bottom-right",1)
         if !validPos.Has(NewPanelPos)

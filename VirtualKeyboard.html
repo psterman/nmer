@@ -1879,6 +1879,462 @@ body::after {
   transform: translateX(14px);
   background: #00ff41;
 }
+/* ── Light Theme ─────────────────────────────────────────────────────── */
+body[data-theme="light"] {
+  --bg: #F7F7F7;
+  --surface: #FFFFFF;
+  --surface2: #FFFFFF;
+  --surface3: #FFFFFF;
+  --border: #E5E5E5;
+  --border2: #E5E5E5;
+  --orange: #E67E22;
+  --orange-dk: #D35400;
+  --orange-lt: #E67E22;
+  --text: #2D2D2D;
+  --text-dim: #555555;
+  --text-xs: #777777;
+  --glow: 0 4px 14px rgba(0,0,0,.08);
+  --glow-hot: 0 0 0 1px rgba(230,126,34,.2), 0 8px 20px rgba(211,84,0,.12);
+  --glow-cyan: 0 0 0 1px rgba(0,212,255,.15), 0 8px 20px rgba(0,212,255,.08);
+  --matrix-green: #D35400;
+  --warning-gold: #b7791f;
+  --deep-black: #F7F7F7;
+  --glow-green: 0 0 0 1px rgba(31,157,75,.18), 0 6px 16px rgba(31,157,75,.12);
+  --glow-gold: 0 0 0 1px rgba(183,121,31,.18), 0 6px 16px rgba(183,121,31,.12);
+  background: #F7F7F7;
+  color: var(--text);
+  color-scheme: light;
+}
+body[data-theme="light"]::after { opacity: .06; }
+body[data-theme="light"] #keyboard-zone,
+body[data-theme="light"] #sidebar,
+body[data-theme="light"] #cmd-panel,
+body[data-theme="light"] #hud,
+body[data-theme="light"] #conflict-modal {
+  background: var(--surface);
+  border-color: var(--border);
+}
+body[data-theme="light"] #hud {
+  box-shadow: 0 8px 20px rgba(0,0,0,.08);
+}
+body[data-theme="light"] input,
+body[data-theme="light"] select,
+body[data-theme="light"] textarea,
+body[data-theme="light"] button {
+  color: var(--text);
+}
+body[data-theme="light"] select option,
+body[data-theme="light"] select optgroup {
+  background: #FFFFFF;
+  color: var(--text);
+}
+body[data-theme="light"] .k,
+body[data-theme="light"] .sidebar-item,
+body[data-theme="light"] .cmd-row,
+body[data-theme="light"] .dashboard-slot,
+body[data-theme="light"] .scene-menu-slot,
+body[data-theme="light"] .scene-menu-item,
+body[data-theme="light"] .vk-mini-toggle .track {
+  background: #FFFFFF;
+  border-color: var(--border);
+  color: var(--text);
+}
+body[data-theme="light"] .k:hover,
+body[data-theme="light"] .sidebar-item:hover,
+body[data-theme="light"] .cmd-row:hover,
+body[data-theme="light"] .dashboard-slot:hover,
+body[data-theme="light"] .scene-menu-slot:hover,
+body[data-theme="light"] .scene-menu-item:hover {
+  border-color: #D35400;
+  background: #FFF3E8;
+}
+body[data-theme="light"] .k.active,
+body[data-theme="light"] .sidebar-item.active,
+body[data-theme="light"] .cmd-row.active,
+body[data-theme="light"] .dashboard-slot.active,
+body[data-theme="light"] .scene-menu-slot.active,
+body[data-theme="light"] .scene-menu-item.active {
+  border-color: #E67E22;
+  background: #FFF1E3;
+  color: #D35400;
+}
+body[data-theme="light"] .vk-mini-toggle span.lbl { color: var(--text-dim); }
+body[data-theme="light"] .vk-mini-toggle .track { background: #F1F1F1; }
+body[data-theme="light"] .vk-mini-toggle .knob { background: #B7B7B7; }
+body[data-theme="light"] #hud-hint code {
+  background: #FFF3E8;
+  color: #D35400;
+}
+body[data-theme="light"] #layout-help {
+  color: #555555;
+  background: #FFFFFF;
+  border-color: #E5E5E5;
+}
+body[data-theme="light"] #layout-help:hover {
+  color: #D35400;
+  border-color: #E67E22;
+  box-shadow: 0 0 0 1px rgba(230,126,34,.16) inset;
+  background: #FFF8F2;
+}
+body[data-theme="light"] #layout-toggle:hover,
+body[data-theme="light"] #layout-toggle.native {
+  color: #D35400;
+  border-color: #E67E22;
+  box-shadow: 0 0 0 1px rgba(230,126,34,.16) inset;
+}
+body[data-theme="light"] #reset-all:hover {
+  color: #D35400;
+  border-color: #E67E22;
+  box-shadow: 0 0 0 1px rgba(230,126,34,.16) inset;
+}
+body[data-theme="light"] #atom-tabs,
+body[data-theme="light"] #dashboard-container,
+body[data-theme="light"] .scene-menu-dashboard {
+  background: #FFFFFF;
+}
+body[data-theme="light"] #vk-toolbar-preview-sandbox {
+  background: #FFFFFF;
+}
+body[data-theme="light"] .vk-toolbar-preview-item {
+  background: #FFFFFF;
+}
+body[data-theme="light"] .dashboard-layout-btn,
+body[data-theme="light"] .atom-tab,
+body[data-theme="light"] .pt-tab {
+  background: #FFFFFF;
+  border-color: #E5E5E5;
+  color: #555555;
+}
+body[data-theme="light"] .dashboard-layout-btn:hover,
+body[data-theme="light"] .atom-tab:hover,
+body[data-theme="light"] .pt-tab:hover,
+body[data-theme="light"] .dashboard-layout-btn.active,
+body[data-theme="light"] .atom-tab.active,
+body[data-theme="light"] .pt-tab.active {
+  background: #FFF3E8;
+  border-color: #E67E22;
+  color: #D35400;
+}
+body[data-theme="light"] .k {
+  border-bottom-color: #E5E5E5;
+}
+body[data-theme="light"] .k .k-face {
+  color: #555555 !important;
+}
+body[data-theme="light"] .k:hover {
+  background: #FFF3E8;
+  border-color: #E67E22;
+  color: #2D2D2D;
+}
+body[data-theme="light"] .k:active,
+body[data-theme="light"] .k.pressed,
+body[data-theme="light"] .k.key-live,
+body[data-theme="light"] .k.slot-occupied {
+  background: #FFFFFF;
+  border-color: #E67E22 !important;
+  color: #D35400 !important;
+}
+body[data-theme="light"] .k.mod-active,
+body[data-theme="light"] .k.mod-active.slot-occupied,
+body[data-theme="light"] .k.mod-active.bound,
+body[data-theme="light"] .k.mod-active.slot-suggested {
+  background: #FFF1E3 !important;
+  border-color: #E67E22 !important;
+  border-bottom-color: #D35400 !important;
+  color: #D35400 !important;
+  box-shadow: 0 0 0 1px rgba(230,126,34,.22), 0 6px 16px rgba(211,84,0,.10) !important;
+}
+body[data-theme="light"] .k.bound {
+  border-bottom-color: #E67E22 !important;
+  color: #2D2D2D !important;
+}
+body[data-theme="light"] .k .map-label {
+  color: #555555;
+}
+body[data-theme="light"] .k .k-face,
+body[data-theme="light"] .k .k-face .sub {
+  color: #6A6A6A !important;
+}
+body[data-theme="light"] .sidebar-item:hover,
+body[data-theme="light"] .sidebar-item.active {
+  background: #FFF3E8;
+  color: #D35400;
+  border-left-color: #E67E22;
+  text-shadow: none;
+}
+body[data-theme="light"] #sidebar-list::-webkit-scrollbar-thumb,
+body[data-theme="light"] #cmd-list-wrapper::-webkit-scrollbar-thumb {
+  background: #D8D8D8;
+}
+body[data-theme="light"] #sidebar-list::-webkit-scrollbar-thumb:hover,
+body[data-theme="light"] #cmd-list-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #C6C6C6;
+}
+body[data-theme="light"] .cmd-row:hover {
+  background: #FAFAFA;
+}
+body[data-theme="light"] .cmd-row.has-binding {
+  background: #FFFFFF;
+  border-left: 2px solid rgba(230,126,34,.35);
+}
+body[data-theme="light"] .cmd-row.has-binding:hover {
+  background: #FAFAFA;
+}
+body[data-theme="light"] .cmd-row.active-focus {
+  background: #F8F8F8 !important;
+}
+body[data-theme="light"] .cmd-row.recording {
+  background: #FFF8F0 !important;
+}
+body[data-theme="light"] .cmd-row.binding-custom .cmd-key {
+  color: #D35400;
+}
+body[data-theme="light"] .cmd-row.binding-suggested .cmd-key {
+  color: #777777;
+}
+body[data-theme="light"] .cmd-row.binding-none .cmd-key {
+  color: #9A9A9A;
+}
+body[data-theme="light"] .cmd-hit {
+  color: #777777;
+  border-color: #E5E5E5;
+  background: #FFFFFF;
+}
+body[data-theme="light"] .scene-menu-tab {
+  color: #555555;
+  background: #FFFFFF;
+  border-color: #E5E5E5;
+}
+body[data-theme="light"] .scene-menu-tab:hover,
+body[data-theme="light"] .scene-menu-tab--active,
+body[data-theme="light"] .scene-menu-tab--ready {
+  color: #D35400;
+  border-color: #E67E22;
+  box-shadow: 0 0 0 1px rgba(230,126,34,.20);
+}
+body[data-theme="light"] .scene-menu-tab--ready::after {
+  color: #D35400;
+  text-shadow: none;
+}
+body[data-theme="light"] .scene-menu-editor {
+  background: #FFFFFF;
+  border-color: #E5E5E5;
+}
+body[data-theme="light"] .scene-menu-editor-title {
+  color: #2D2D2D;
+}
+body[data-theme="light"] .scene-menu-editor-close {
+  color: #555555;
+  background: #FFFFFF;
+  border-color: #E5E5E5;
+}
+body[data-theme="light"] .scene-menu-editor-close:hover {
+  color: #D35400;
+  border-color: #E67E22;
+  background: #FFF3E8;
+}
+body[data-theme="light"] .scene-menu-editor-list {
+  background: #FFFFFF;
+  border-color: #E5E5E5;
+}
+body[data-theme="light"] .scene-menu-editor-item {
+  background: #FFFFFF;
+  border-color: #E5E5E5;
+  color: #2D2D2D;
+}
+body[data-theme="light"] .scene-menu-editor-item .scene-menu-editor-ico {
+  background: #FFF3E8;
+  color: #D35400;
+}
+body[data-theme="light"] .scene-menu-trash {
+  color: #777777;
+  border-color: #E5E5E5;
+  background: #FFFFFF;
+}
+body[data-theme="light"] .scene-menu-trash.sortable-drag-over,
+body[data-theme="light"] .scene-menu-trash.scene-trash-active {
+  border-color: #E67E22;
+  color: #D35400;
+  background: #FFF3E8;
+}
+body[data-theme="light"] .dashboard-slot {
+  border: 1px solid #E5E5E5;
+  background: #FFFFFF;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.02);
+}
+body[data-theme="light"] .dashboard-slot.is-empty {
+  background: #FFFFFF;
+}
+body[data-theme="light"] .dashboard-slot::after {
+  background: linear-gradient(135deg, rgba(230,126,34,.10), rgba(0,0,0,0) 45%);
+}
+body[data-theme="light"] .dashboard-slot:hover {
+  border-color: #E67E22;
+  box-shadow: 0 0 0 1px rgba(230,126,34,.14) inset;
+}
+body[data-theme="light"] .dashboard-item {
+  background: #FFFFFF;
+}
+body[data-theme="light"] .dashboard-item::before {
+  display: none;
+}
+body[data-theme="light"] .dashboard-item-icon {
+  background: #FFFFFF;
+  color: #D35400;
+  box-shadow: 0 0 0 1px #E5E5E5 inset;
+}
+body[data-theme="light"] .dashboard-item-label {
+  color: #555555;
+}
+body[data-theme="light"] .dashboard-item-tooltip {
+  background: #FFFFFF;
+  border-color: #E5E5E5;
+  color: #555555;
+  box-shadow: 0 10px 24px rgba(0,0,0,.10);
+}
+body[data-theme="light"] .dashboard-tooltip-name {
+  color: #2D2D2D;
+}
+body[data-theme="light"] .dashboard-tooltip-hint {
+  color: #777777;
+}
+body[data-theme="light"] .search-row-vis-btn {
+  border-color: #E5E5E5;
+  background: #FFFFFF;
+  color: #777777;
+}
+body[data-theme="light"] .search-row-vis-btn:hover {
+  border-color: #E67E22;
+  color: #D35400;
+}
+body[data-theme="light"] #dashboard-context-menu {
+  background: #FFFFFF;
+  border-color: #E5E5E5;
+  box-shadow: 0 12px 26px rgba(0,0,0,.10);
+}
+body[data-theme="light"] .dashboard-menu-item:hover {
+  background: #FFF3E8;
+  color: #D35400;
+  box-shadow: none;
+}
+body[data-theme="light"] .dashboard-menu-item:disabled {
+  color: #9D9D9D;
+}
+body[data-theme="light"] .dashboard-float-btn {
+  border-color: #E5E5E5;
+  background: #FFFFFF;
+  color: #555555;
+  box-shadow: 0 6px 18px rgba(0,0,0,.08);
+}
+body[data-theme="light"] .dashboard-float-btn:hover {
+  border-color: #E67E22;
+  box-shadow: 0 10px 20px rgba(211,84,0,.12);
+}
+body[data-theme="light"] .dashboard-float-btn .float-glyph {
+  background: #FFF3E8;
+  color: #D35400;
+}
+body[data-theme="light"] .vk-mini-toggle.on .track {
+  border-color: rgba(230,126,34,.55);
+  box-shadow: 0 0 8px rgba(230,126,34,.14);
+}
+body[data-theme="light"] .vk-mini-toggle.on .knob {
+  background: #E67E22;
+}
+/* 让浅色视觉接近设置面板：灰色基底，橙色只用于强调态 */
+body[data-theme="light"] .k,
+body[data-theme="light"] .k.slot-available,
+body[data-theme="light"] .k.slot-occupied,
+body[data-theme="light"] .k.slot-suggested.slot-occupied,
+body[data-theme="light"] .k.bound {
+  background: #FFFFFF;
+  border-color: #D9D9D9 !important;
+  border-bottom-color: #D9D9D9 !important;
+  box-shadow: none !important;
+  color: #555555 !important;
+}
+body[data-theme="light"] .k.bound,
+body[data-theme="light"] .k.slot-occupied {
+  box-shadow: inset 0 -2px 0 rgba(230,126,34,.75) !important;
+}
+body[data-theme="light"] .k:hover {
+  background: #FFF8F2;
+  border-color: #E67E22 !important;
+  border-bottom-color: #E67E22 !important;
+  color: #2D2D2D !important;
+}
+body[data-theme="light"] .k:active,
+body[data-theme="light"] .k.pressed,
+body[data-theme="light"] .k.key-live {
+  background: #FFF5EC;
+  border-color: #E67E22 !important;
+  border-bottom-color: #D35400 !important;
+  box-shadow: inset 0 -2px 0 rgba(211,84,0,.75) !important;
+  color: #D35400 !important;
+}
+body[data-theme="light"] #dashboard-title {
+  text-shadow: none;
+}
+body[data-theme="light"] .dashboard-layout-btn,
+body[data-theme="light"] .scene-menu-tab,
+body[data-theme="light"] .atom-tab,
+body[data-theme="light"] #layout-toggle,
+body[data-theme="light"] #layout-help,
+body[data-theme="light"] #reset-all {
+  border-width: 1px;
+  border-style: solid;
+}
+body[data-theme="light"] .dashboard-layout-btn:hover,
+body[data-theme="light"] .dashboard-layout-btn.active,
+body[data-theme="light"] .scene-menu-tab:hover,
+body[data-theme="light"] .scene-menu-tab--active,
+body[data-theme="light"] .atom-tab:hover,
+body[data-theme="light"] .atom-tab.active {
+  background: #FFF8F2;
+}
+body[data-theme="light"] .dashboard-slot,
+body[data-theme="light"] .scene-menu-slot {
+  border-style: solid;
+}
+body[data-theme="light"] .dashboard-slot:hover,
+body[data-theme="light"] .scene-menu-slot:hover {
+  background: #FFFDF9;
+}
+body[data-theme="light"] .dashboard-item-label,
+body[data-theme="light"] .cmd-name,
+body[data-theme="light"] .cmd-key,
+body[data-theme="light"] .mol-name {
+  color: #555555;
+}
+body[data-theme="light"] .cmd-group-header,
+body[data-theme="light"] .scene-menu-panel-hint,
+body[data-theme="light"] #vk-host-mode-hint,
+body[data-theme="light"] #cmd-count {
+  color: #777777;
+}
+body[data-theme="light"] #dashboard-overwrite-overlay,
+body[data-theme="light"] #dashboard-edit-overlay {
+  background: rgba(120,120,120,.18);
+}
+body[data-theme="light"] #dashboard-overwrite-modal,
+body[data-theme="light"] #dashboard-edit-modal {
+  background: #FFFFFF;
+  border-color: #E5E5E5;
+  box-shadow: 0 14px 34px rgba(0,0,0,.12);
+}
+body[data-theme="light"] #dashboard-overwrite-modal .modal-body,
+body[data-theme="light"] .dashboard-edit-label {
+  color: #555555;
+}
+body[data-theme="light"] .dashboard-edit-input {
+  border-color: #E5E5E5;
+  background: #FFFFFF;
+  color: #2D2D2D;
+}
+body[data-theme="light"] .dashboard-edit-input:focus {
+  border-color: #E67E22;
+  box-shadow: 0 0 0 1px rgba(230,126,34,.20), 0 0 14px rgba(211,84,0,.10);
+}
 </style>
 <script src="https://app.local/assets/js/BasePanel.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
@@ -2162,6 +2618,7 @@ if (typeof BasePanel === 'undefined') {
 // ═══════════════════════════════════════════════════════════════════════════
 const state = {
   connected:   false,
+  themeMode:   'dark',
   isAdmin:     true,
   adminWarning: '',
   categories:  [],          // [ { id, name, commands:[cmdId,...] } ]
@@ -2230,6 +2687,12 @@ const mismatchDetector = {
   lastMismatchTick: 0,
   promptCooldownUntil: 0,
 };
+
+function applyVkTheme(mode) {
+  const tm = String(mode || '').toLowerCase() === 'light' ? 'light' : 'dark';
+  state.themeMode = tm;
+  document.body.setAttribute('data-theme', tm);
+}
 
 const LUCIDE_ICON_NODES_URL = 'assets/icon-nodes.json';
 const LUCIDE_TAGS_URL = 'assets/tags.json';
@@ -3572,6 +4035,9 @@ function handleAhkMessage(msg) {
       if (input) input.focus();
       break;
     }
+    case 'set_theme':
+      applyVkTheme(msg.themeMode || msg.theme);
+      break;
     case 'init':
       handleInit(msg);
       break;
@@ -4442,6 +4908,7 @@ function makeCmdToolbarToggles(cmdId) {
 }
 
 function handleInit(msg) {
+  applyVkTheme(msg.themeMode || state.themeMode || 'dark');
   initLucideCatalog();
   state.categories = msg.categories || [];
   state.commands   = enrichCommands(msg.commands || {});
@@ -6558,6 +7025,7 @@ document.getElementById('sidebar-list').addEventListener('click', (e) => {
 // ═══════════════════════════════════════════════════════════════════════════
 // WebView2 bridge
 // ═══════════════════════════════════════════════════════════════════════════
+applyVkTheme(state.themeMode);
 if (window.chrome && window.chrome.webview) {
   window.chrome.webview.addEventListener('message', (e) => {
     try {
@@ -6574,6 +7042,7 @@ if (window.chrome && window.chrome.webview) {
   setHud('预览模式（无 AHK 连接）', false);
   window.simulateInit = () => handleAhkMessage({
     type: 'init',
+    themeMode: 'dark',
     categories: [
       { id:'ai_msg',     name:'💬 消息',   commands:['send','newline','new_chat','clear_input','close_tab','exit_ai'] },
       { id:'ai_switch',  name:'🔄 切换',   commands:['tab1','tab2','tab3','tab4','tab5','tab6','tab7','tab8'] },
