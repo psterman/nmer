@@ -57,6 +57,7 @@ global g_FTB_WaitingUiFinishedReveal := false
 global g_FTB_ScreenshotDeferLastTick := 0  ; 闃叉姈锛歐ebView 鐭椂鍙屽彂 postMessage 浼氭帓闃熶袱娆?Deferred锛岄伩鍏嶇浜屾鍐嶈窇瀹屾暣鎴浘鍔╂墜娴佺▼
 global g_FTB_WV2_CreateRetry := 0
 global g_FTB_DebugOverlayEnabled := true
+global g_FTB_CursorIconDataUrl := ""
 
 FTB_Debug(msg, level := "ok") {
     global g_FTB_DebugOverlayEnabled, g_FTB_WV2
@@ -1627,8 +1628,8 @@ FloatingToolbarPushCmdLayoutToWeb() {
         }
         rowPayload := Map("cmdId", cid, "name", nm, "iconClass", ic)
         if (cid = "ftb_cursor_menu")
-            rowPayload["iconPath"] := A_ScriptDir "\images\cursor.png"
-        if ((ent is Map) && ent.Has("iconPath") && ent["iconPath"] != "")
+            rowPayload["iconPath"] := FloatingToolbar_GetCursorIconPath()
+        if (cid != "ftb_cursor_menu" && (ent is Map) && ent.Has("iconPath") && ent["iconPath"] != "")
             rowPayload["iconPath"] := String(ent["iconPath"])
         items.Push(rowPayload)
     }
@@ -1646,7 +1647,7 @@ FloatingToolbarPushCmdLayoutToWeb() {
             if (cent is Map) && cent.Has("name") && cent["name"] != ""
                 cursorName := String(cent["name"])
         }
-        cursorIconPath := A_ScriptDir "\images\cursor.png"
+        cursorIconPath := FloatingToolbar_GetCursorIconPath()
         items.Push(Map(
             "cmdId", "ftb_cursor_menu",
             "name", cursorName,
@@ -1660,6 +1661,36 @@ FloatingToolbarPushCmdLayoutToWeb() {
     }
     if !FloatingToolbarChatDrawerOpen && !FloatingToolbarIsCompactMode()
         FloatingToolbar_ResizeForToolbarCount()
+}
+
+FloatingToolbar_GetCursorIconPath() {
+    global g_FTB_CursorIconDataUrl
+    if (g_FTB_CursorIconDataUrl != "")
+        return g_FTB_CursorIconDataUrl
+    iconFile := A_ScriptDir "\images\cursor.png"
+    if !FileExist(iconFile)
+        return iconFile
+    try {
+        buf := FileRead(iconFile, "RAW")
+        b64 := FloatingToolbar_Base64EncodeBuffer(buf)
+        if (b64 != "")
+            g_FTB_CursorIconDataUrl := "data:image/png;base64," . b64
+    } catch {
+    }
+    return (g_FTB_CursorIconDataUrl != "") ? g_FTB_CursorIconDataUrl : iconFile
+}
+
+FloatingToolbar_Base64EncodeBuffer(buf) {
+    if !(buf is Buffer) || (buf.Size <= 0)
+        return ""
+    flags := 0x40000001 ; CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF
+    chars := 0
+    if !DllCall("crypt32\CryptBinaryToStringW", "Ptr", buf.Ptr, "UInt", buf.Size, "UInt", flags, "Ptr", 0, "UInt*", &chars)
+        return ""
+    out := Buffer(chars * 2, 0)
+    if !DllCall("crypt32\CryptBinaryToStringW", "Ptr", buf.Ptr, "UInt", buf.Size, "UInt", flags, "Ptr", out.Ptr, "UInt*", &chars)
+        return ""
+    return Trim(StrGet(out.Ptr, "UTF-16"), "`r`n`t ")
 }
 
 FloatingToolbarReloadFromToolbarLayout() {
@@ -1937,4 +1968,3 @@ GetButtonTip(action) {
             return ""
     }
 }
-
