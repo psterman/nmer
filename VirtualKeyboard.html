@@ -4442,7 +4442,7 @@ function setSceneMenuFromSlotsArray(key, slots) {
   scheduleSaveSceneMenu(key);
 }
 
-function swapSceneMenuSlots(fromIndex, toIndex) {
+function swapSceneMenuSlots(fromIndex, toIndex, options = {}) {
   if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return false;
   const key = getActiveSceneMenuKey();
   const slots = getSceneMenuSlots(key);
@@ -4453,7 +4453,7 @@ function swapSceneMenuSlots(fromIndex, toIndex) {
   slots[toIndex] = fromItem;
   slots[fromIndex] = toItem || null;
   setSceneMenuFromSlotsArray(key, slots);
-  renderSceneMenuGrid();
+  if (options.render !== false) renderSceneMenuGrid();
   return true;
 }
 
@@ -4550,6 +4550,20 @@ function flushSceneMenuFromDomRebuild() {
   renderSceneMenuGrid();
 }
 
+function commitSceneMenuFromDomNoRender() {
+  const key = getActiveSceneMenuKey();
+  if (key === 'search') {
+    commitToolbarSearchRowFromSceneGrid();
+    return;
+  }
+  if (isDynamicSceneMenuKey(key)) {
+    commitDynamicSceneMenuFromGrid(key);
+    return;
+  }
+  const slots = collectSceneMenuSlotsFromDom();
+  setSceneMenuFromSlotsArray(key, slots);
+}
+
 function destroySceneMenuGridSortables() {
   sceneMenuGridSortables.forEach((s) => {
     try {
@@ -4574,40 +4588,36 @@ function renderSceneMenuSlotContent(slot, item, index) {
       const row = state.toolbarLayout.find((x) => x.cmdId === item.commandId);
       const vis = row ? !!row.visible_in_search_row : true;
       decorateDashboardItem(el, item, { sceneLocked: locked, searchRowDimmed: !vis });
-      if (!locked) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'search-row-vis-btn';
-        btn.textContent = vis ? '显' : '隐';
-        btn.title = vis ? '在搜索中心右键菜单中显示（点击隐藏）' : '已隐藏：仍占宫格位，点击恢复在右键菜单中显示';
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          if (!row) return;
-          row.visible_in_search_row = !row.visible_in_search_row;
-          saveToolbarLayout();
-          renderSceneMenuGrid();
-        });
-        el.appendChild(btn);
-      }
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'search-row-vis-btn';
+      btn.textContent = vis ? '显' : '隐';
+      btn.title = vis ? '在搜索中心右键菜单中显示（点击隐藏）' : '已隐藏：仍占宫格位，点击恢复在右键菜单中显示';
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (!row) return;
+        row.visible_in_search_row = !row.visible_in_search_row;
+        saveToolbarLayout();
+        renderSceneMenuGrid();
+      });
+      el.appendChild(btn);
     } else if (isDyn) {
       const vis = getSceneMenuVisibilityOn(menuKey, item.commandId);
       decorateDashboardItem(el, item, { sceneLocked: locked, searchRowDimmed: !vis });
-      if (!locked) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'search-row-vis-btn';
-        btn.textContent = vis ? '显' : '隐';
-        btn.title = vis ? '在面板右键菜单中显示（点击隐藏）' : '已隐藏：仍占宫格位，点击恢复在右键菜单中显示';
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          setSceneMenuVisibility(menuKey, item.commandId, !vis);
-          scheduleSaveSceneMenu(menuKey);
-          renderSceneMenuGrid();
-        });
-        el.appendChild(btn);
-      }
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'search-row-vis-btn';
+      btn.textContent = vis ? '显' : '隐';
+      btn.title = vis ? '在面板右键菜单中显示（点击隐藏）' : '已隐藏：仍占宫格位，点击恢复在右键菜单中显示';
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        setSceneMenuVisibility(menuKey, item.commandId, !vis);
+        scheduleSaveSceneMenu(menuKey);
+        renderSceneMenuGrid();
+      });
+      el.appendChild(btn);
     } else {
       decorateDashboardItem(el, item, { sceneLocked: locked });
     }
@@ -4619,9 +4629,10 @@ function bindSceneMenuSlotSortable(slot) {
   if (!slot || slot.dataset.sceneSortableBound === '1') return;
   if (typeof Sortable === 'undefined') return;
   slot.dataset.sceneSortableBound = '1';
+  let sceneDragMutated = false;
   const s = new Sortable(slot, {
     group: { name: 'sceneMenuActions', pull: true, put: true },
-    animation: 0,
+    animation: 120,
     easing: 'cubic-bezier(0.2,0,0,1)',
     swapThreshold: 0.35,
     invertSwap: false,
@@ -4638,6 +4649,7 @@ function bindSceneMenuSlotSortable(slot) {
     chosenClass: 'dashboard-drag-chosen',
     dragClass: 'dashboard-dragging',
     onStart(evt) {
+      sceneDragMutated = false;
       state.dashboardDragActive = true;
       const dc = document.getElementById('dashboard-container');
       if (dc) dc.classList.add('dashboard-sortable-active');
@@ -4666,14 +4678,20 @@ function bindSceneMenuSlotSortable(slot) {
         return;
       }
       queueMicrotask(() => {
-        const swapped = swapSceneMenuSlots(fromIndex, toIndex);
-        if (!swapped) flushSceneMenuFromDomRebuild();
+        const swapped = swapSceneMenuSlots(fromIndex, toIndex, { render: false });
+        if (!swapped) commitSceneMenuFromDomNoRender();
+        sceneDragMutated = true;
       });
     },
     onUpdate() {
-      queueMicrotask(() => flushSceneMenuFromDomRebuild());
+      if (sceneDragMutated) return;
+      queueMicrotask(() => {
+        commitSceneMenuFromDomNoRender();
+        sceneDragMutated = true;
+      });
     },
     onEnd() {
+      if (sceneDragMutated) renderSceneMenuGrid();
       endDashboardDragState();
     },
   });
@@ -5942,9 +5960,10 @@ function initDashboardDrag() {
   const bindSlotSortable = (slot) => {
     if (!slot || slot.dataset.sortableBound === '1') return;
     slot.dataset.sortableBound = '1';
+    let dashboardDragMutated = false;
     new Sortable(slot, {
       group: { name: 'actions', pull: true, put: true },
-      animation: 0,
+      animation: 120,
       easing: 'cubic-bezier(0.2,0,0,1)',
       swapThreshold: 0.35,
       invertSwap: false,
@@ -5958,6 +5977,7 @@ function initDashboardDrag() {
       chosenClass: 'dashboard-drag-chosen',
       dragClass: 'dashboard-dragging',
       onStart: (evt) => {
+        dashboardDragMutated = false;
         state.dashboardDragActive = true;
         const dc = document.getElementById('dashboard-container');
         if (dc) dc.classList.add('dashboard-sortable-active');
@@ -5991,14 +6011,19 @@ function initDashboardDrag() {
         queueMicrotask(() => {
           const swapped = swapDashboardSlots(fromIndex, toIndex);
           if (!swapped) applyDashboardItemToSlot(toIndex, item, fromIndex);
+          dashboardDragMutated = true;
         });
       },
       onUpdate: (evt) => {
+        if (dashboardDragMutated) return;
         const toIndex = slotIndexFromEl(evt.to);
         const fromIndex = slotIndexFromEl(evt.from);
         const item = dashboardItemFromElement(evt.item);
         if (!item || toIndex < 0 || fromIndex < 0) return;
-        queueMicrotask(() => postDashboardMove(item, fromIndex, toIndex));
+        queueMicrotask(() => {
+          postDashboardMove(item, fromIndex, toIndex);
+          dashboardDragMutated = true;
+        });
       },
       onEnd: () => {
         endDashboardDragState();
