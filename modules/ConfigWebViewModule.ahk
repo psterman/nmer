@@ -289,6 +289,7 @@ ConfigWebView_DefaultFullTextStatusPayload() {
         "progress", 0,
         "progressText", "0.0%",
         "indexing_file", "",
+        "indexVersion", "",
         "engine_lights", ["off", "off", "off", "off"],
         "workerCount", 0,
         "scanSpeed", "normal",

@@ -31,6 +31,10 @@ import (
 )
 
 const (
+	// v2.4: analyzer keeps legal single-rune CJK/alnum terms (e.g. "勇"),
+	// requiring a one-time full rebuild so existing indexes gain single-char tokens.
+	fullTextIndexVersion           = "v2.4"
+	fullTextIndexVersionTagFile    = "version.tag"
 	defaultInitialScanDelay       = 1 * time.Second
 	defaultPerFilePause           = 5 * time.Millisecond
 	defaultMaxTextFileBytes       = int64(8 * 1024 * 1024)
@@ -89,6 +93,7 @@ type FullTextStatus struct {
 	LastUpdatedRFC3339 string   `json:"lastUpdated"`
 	ScanMode           string   `json:"scan_mode,omitempty"`
 	IndexEpoch         uint64   `json:"indexEpoch,omitempty"`
+	IndexVersion       string   `json:"indexVersion,omitempty"`
 }
 
 type fullTextConfig struct {
@@ -189,6 +194,7 @@ type fullTextProgressPayload struct {
 	Alerts         []string `json:"alerts,omitempty"`
 	ScanMode       string   `json:"scan_mode,omitempty"`
 	IndexEpoch     uint64   `json:"indexEpoch,omitempty"`
+	IndexVersion   string   `json:"indexVersion,omitempty"`
 }
 
 func StartIndexer(baseDir string) error {
@@ -237,6 +243,7 @@ func GetStatus() FullTextStatus {
 			ProgressDetail:     "not started",
 			EfficiencyText:     "0 files/s",
 			ScanPhase:          "idle",
+			IndexVersion:       fullTextIndexVersion,
 			LastUpdatedRFC3339: time.Now().Format(time.RFC3339),
 		}
 	}
@@ -261,6 +268,7 @@ func GetProgressPayload() fullTextProgressPayload {
 		Alerts:         st.Alerts,
 		ScanMode:       st.ScanMode,
 		IndexEpoch:     st.IndexEpoch,
+		IndexVersion:   st.IndexVersion,
 	}
 }
 
@@ -361,6 +369,21 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 	if err := os.MkdirAll(cfg.IndexDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create index dir failed: %w", err)
 	}
+	forceRebuild, err := ensureIndexVersion(cfg.IndexDir, fullTextIndexVersion)
+	if err != nil {
+		return nil, fmt.Errorf("ensure index version failed: %w", err)
+	}
+	if forceRebuild {
+		cfg.ForceContentRecheck = true
+		cfg.UseEverything = true
+		maxWorkers := runtime.NumCPU() / 2
+		if maxWorkers < 2 {
+			maxWorkers = 2
+		}
+		if cfg.Workers > maxWorkers {
+			cfg.Workers = maxWorkers
+		}
+	}
 
 	writer, err := openBlugeWriterWithRetry(cfg.IndexDir, 6, 180*time.Millisecond)
 	if err != nil {
@@ -423,6 +446,9 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 
 	if cfg.NeedUserIndexDir {
 		idx.appendAlert("set SEARCHCENTER_FT_INDEX_DIR to a dedicated directory for better stability")
+	}
+	if forceRebuild {
+		idx.appendAlert(fmt.Sprintf("index version upgraded to %s; forcing full rebuild", fullTextIndexVersion))
 	}
 	if cfg.ForceContentRecheck {
 		idx.appendAlert("full sync enabled: rechecking file contents against index")
@@ -502,6 +528,45 @@ func openBlugeWriterWithRetry(indexDir string, attempts int, baseDelay time.Dura
 		time.Sleep(baseDelay * time.Duration(i+1))
 	}
 	return nil, lastErr
+}
+
+func ensureIndexVersion(indexDir, targetVersion string) (bool, error) {
+	targetVersion = strings.TrimSpace(targetVersion)
+	if targetVersion == "" {
+		return false, nil
+	}
+	tagPath := filepath.Join(indexDir, fullTextIndexVersionTagFile)
+	current := ""
+	if buf, err := os.ReadFile(tagPath); err == nil {
+		current = strings.TrimSpace(string(buf))
+	}
+	if strings.EqualFold(current, targetVersion) {
+		return false, nil
+	}
+	if err := clearDirContents(indexDir); err != nil {
+		return false, err
+	}
+	if err := os.WriteFile(tagPath, []byte(targetVersion+"\n"), 0o644); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func clearDirContents(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	for _, ent := range entries {
+		name := ent.Name()
+		if name == "." || name == ".." {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(dir, name)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func isLikelyIndexLockError(err error) bool {
@@ -734,6 +799,7 @@ func (b *blugeIndexer) GetStatus() FullTextStatus {
 	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 	st := cloneFullTextStatus(b.status)
 	st.IndexEpoch = b.indexEpoch.Load()
+	st.IndexVersion = fullTextIndexVersion
 	mode := "walk"
 	if b.usedMFT.Load() {
 		mode = "mft"
@@ -1661,8 +1727,9 @@ func (b *blugeIndexer) indexFile(path string) error {
 		AddField(bluge.NewKeywordField("path", path).StoreValue()).
 		AddField(bluge.NewKeywordField("path_lower", strings.ToLower(path)).StoreValue()).
 		AddField(bluge.NewTextField("title", baseName).WithAnalyzer(fullTextAnalyzer()).SearchTermPositions().StoreValue()).
-		AddField(bluge.NewTextField("headers", headers).WithAnalyzer(fullTextAnalyzer()).SearchTermPositions().StoreValue()).
-		AddField(bluge.NewTextField("content", content).WithAnalyzer(fullTextAnalyzer()).SearchTermPositions()).
+		AddField(bluge.NewTextField("headers", headers).WithAnalyzer(fullTextAnalyzer()).StoreValue()).
+		AddField(bluge.NewTextField("content", content).WithAnalyzer(fullTextContentAnalyzer()).SearchTermPositions()).
+		AddField(bluge.NewTextField("content_terms", content).WithAnalyzer(fullTextAnalyzer())).
 		AddField(bluge.NewKeywordField("ext", ext).StoreValue().Sortable().Aggregatable()).
 		AddField(bluge.NewDateTimeField("mtime", mod).StoreValue().Sortable()).
 		AddField(bluge.NewNumericField("size", float64(st.Size())).StoreValue().Sortable()).
@@ -1708,8 +1775,9 @@ func (b *blugeIndexer) indexFileMetaOnly(path string, st os.FileInfo, reason err
 		AddField(bluge.NewKeywordField("path", path).StoreValue()).
 		AddField(bluge.NewKeywordField("path_lower", strings.ToLower(path)).StoreValue()).
 		AddField(bluge.NewTextField("title", baseName).WithAnalyzer(fullTextAnalyzer()).SearchTermPositions().StoreValue()).
-		AddField(bluge.NewTextField("headers", metaText).WithAnalyzer(fullTextAnalyzer()).SearchTermPositions().StoreValue()).
-		AddField(bluge.NewTextField("content", "").WithAnalyzer(fullTextAnalyzer()).SearchTermPositions()).
+		AddField(bluge.NewTextField("headers", metaText).WithAnalyzer(fullTextAnalyzer()).StoreValue()).
+		AddField(bluge.NewTextField("content", "").WithAnalyzer(fullTextContentAnalyzer()).SearchTermPositions()).
+		AddField(bluge.NewTextField("content_terms", "").WithAnalyzer(fullTextAnalyzer())).
 		AddField(bluge.NewKeywordField("ext", ext).StoreValue().Sortable().Aggregatable()).
 		AddField(bluge.NewDateTimeField("mtime", mod).StoreValue().Sortable()).
 		AddField(bluge.NewNumericField("size", float64(st.Size())).StoreValue().Sortable()).
@@ -2708,14 +2776,15 @@ func buildBlugeQuery(raw string) bluge.Query {
 				root.AddMust(bluge.NewWildcardQuery(lowv).SetField("path_lower"))
 			}
 		case strings.HasSuffix(low, "~") && len(low) > 1:
-			root.AddMust(bluge.NewFuzzyQuery(strings.TrimSuffix(low, "~")).SetField("content"))
+			root.AddMust(bluge.NewFuzzyQuery(strings.TrimSuffix(low, "~")).SetField("content_terms"))
 		case strings.HasSuffix(low, "*") && len(low) > 1:
-			root.AddMust(bluge.NewPrefixQuery(strings.TrimSuffix(low, "*")).SetField("content"))
+			root.AddMust(bluge.NewPrefixQuery(strings.TrimSuffix(low, "*")).SetField("content_terms"))
 		case strings.ContainsAny(low, "*?"):
-			root.AddMust(bluge.NewWildcardQuery(low).SetField("content"))
+			root.AddMust(bluge.NewWildcardQuery(low).SetField("content_terms"))
 		default:
 			mix := bluge.NewBooleanQuery()
-			mix.AddShould(bluge.NewMatchQuery(tk).SetField("content").SetBoost(1))
+			mix.AddShould(bluge.NewMatchQuery(tk).SetField("content").SetBoost(1.2))
+			mix.AddShould(bluge.NewMatchQuery(tk).SetField("content_terms").SetBoost(0.9))
 			mix.AddShould(bluge.NewMatchQuery(strings.ToLower(tk)).SetField("headers").SetBoost(2.0))
 			mix.AddShould(bluge.NewMatchQuery(strings.ToLower(tk)).SetField("path_text").SetBoost(3))
 			mix.AddShould(bluge.NewMatchQuery(strings.ToLower(tk)).SetField("title").SetBoost(10))

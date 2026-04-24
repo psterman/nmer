@@ -1,0 +1,5150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>搜索中心</title>
+<link rel="stylesheet" href="https://app.local/assets/vendor/prism/prism-tomorrow.min.css">
+<style>
+@font-face {
+  font-family: "AppUi";
+  src: local("Segoe UI");
+  unicode-range:
+    U+0000-024F,
+    U+1E00-1EFF,
+    U+2000-206F,
+    U+20A0-20CF,
+    U+2100-214F;
+}
+@font-face {
+  font-family: "AppUi";
+  src: local("DengXian"), local("Microsoft YaHei UI"), local("Microsoft YaHei");
+  unicode-range:
+    U+2E80-2EFF,
+    U+2F00-2FDF,
+    U+3000-303F,
+    U+3040-30FF,
+    U+3100-312F,
+    U+31A0-31BF,
+    U+3400-4DBF,
+    U+4E00-9FFF,
+    U+F900-FAFF;
+}
+:root {
+  --bg: #111315;
+  --panel: #171a1e;
+  --panel-2: #1f2429;
+  --border: #313941;
+  --glass-edge: rgba(255,255,255,.28);
+  --glass-edge-soft: rgba(255,255,255,.08);
+  --glass-warm: rgba(255,171,92,.2);
+  --text: #e7ebef;
+  --muted: #93a0ad;
+  --accent: #ff8d2a;
+  --accent-2: #ffb347;
+  --shadow: 0 18px 42px rgba(0, 0, 0, 0.35);
+  --font-ui: "AppUi", "Segoe UI", "DengXian", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "AppUi", "Segoe UI", "DengXian", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+}
+html[data-theme="light"] {
+  --bg: #f4f6f8;
+  --panel: #ffffff;
+  --panel-2: #f7f9fb;
+  --border: #d9e1ea;
+  --glass-edge: rgba(255,255,255,.92);
+  --glass-edge-soft: rgba(255,255,255,.55);
+  --glass-warm: rgba(255,141,42,.18);
+  --text: #1f2a34;
+  --muted: #5f6d7c;
+  --accent: #d66f1a;
+  --accent-2: #e89235;
+  --shadow: 0 16px 32px rgba(20, 32, 48, 0.12);
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: radial-gradient(circle at top right, rgba(255,141,42,.08), transparent 26%), linear-gradient(180deg, #0f1113 0%, #15181c 100%);
+  color: var(--text);
+  font-family: var(--font-ui);
+  overflow: hidden;
+}
+html[data-theme="light"], html[data-theme="light"] body {
+  background: radial-gradient(circle at top right, rgba(230,126,34,.08), transparent 26%), linear-gradient(180deg, #f7fafc 0%, #eef3f8 100%);
+}
+button, input, select, textarea { font: inherit; }
+#app {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  gap: 12px;
+  padding: 14px 26px 18px;
+}
+/* 须显示标题栏：极速/标准 与窗口控制在此；勿 display:none（会隐藏引擎切换） */
+#chrome-header {
+  display: flex;
+}
+.chrome-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  margin: -6px -10px 2px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.01)), rgba(26,31,38,.45);
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.22);
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+.chrome-header:active { cursor: grabbing; }
+.chrome-drag {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  cursor: grab;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.chrome-drag:active { cursor: grabbing; }
+.chrome-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.chrome-btn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.chrome-btn:hover {
+  border-color: rgba(255,179,71,.5);
+  background: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
+  color: #fff;
+}
+.chrome-btn.active {
+  border-color: rgba(255,179,71,.72);
+  background: linear-gradient(180deg, rgba(255,179,71,.24), rgba(255,141,42,.2));
+  color: #fff;
+}
+#chrome-topmost {
+  width: auto;
+  min-width: 44px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+#btn-ft-settings-top {
+  width: auto;
+  min-width: 72px;
+  padding: 0 8px;
+  font-size: 12px;
+  gap: 4px;
+}
+#btn-ft-settings-top .icon {
+  font-size: 13px;
+  opacity: .95;
+}
+.chrome-engine-btn {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 8px;
+  min-width: 44px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(255,179,71,.35);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255,179,71,.14), rgba(255,141,42,.08));
+  color: var(--text);
+  cursor: pointer;
+}
+.chrome-engine-btn:hover {
+  border-color: rgba(255,179,71,.55);
+  background: linear-gradient(180deg, rgba(255,179,71,.22), rgba(255,141,42,.14));
+}
+.chrome-engine-btn.ahk-mode {
+  border-color: var(--border);
+  background: var(--panel-2);
+}
+#search-bar .chrome-engine-btn {
+  min-height: 40px;
+  align-self: center;
+}
+
+/* ClipboardPanel 风格：引擎分段按钮（极速/标准） */
+.engine-mode-group {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.engine-mode-btn {
+  height: 26px;
+  padding: 0 10px;
+  border: none;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#search-bar .engine-mode-btn { min-height: 40px; }
+.engine-mode-btn:hover {
+  color: var(--text);
+  background: #262c33;
+}
+.engine-mode-btn.active {
+  background: linear-gradient(180deg, rgba(255,179,71,.22), rgba(255,141,42,.14));
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255,179,71,.35);
+}
+.engine-mode-btn + .engine-mode-btn {
+  border-left: 1px solid var(--border);
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0)), var(--panel);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.12);
+}
+.card::after,
+.chrome-header::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--glass-edge), var(--glass-edge-soft) 45%, var(--glass-warm));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.72;
+}
+#search-bar {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0)), var(--panel);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.12);
+}
+#search-icon-inline {
+  color: var(--accent);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+#search {
+  width: 100%;
+  display: block;
+  min-width: 0;
+  height: 44px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  padding: 0 14px;
+  outline: none;
+  caret-color: var(--accent);
+  user-select: text;
+  -webkit-user-select: text;
+}
+#search::placeholder { color: #6f7d8b; }
+#search:focus, #limit:focus { border-color: var(--accent); }
+.search-input-wrap {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+}
+.search-status-inline {
+  margin-top: 4px;
+  padding-left: 2px;
+  font-size: 11px;
+  color: #7f8a95;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.runtime-error {
+  margin-top: 4px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, .45);
+  background: linear-gradient(180deg, rgba(239,68,68,.14), rgba(239,68,68,.06));
+  color: #fecaca;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: normal;
+}
+.runtime-error.hidden {
+  display: none;
+}
+.runtime-trace {
+  margin-top: 4px;
+  padding-left: 2px;
+  font-size: 11px;
+  color: #93a6b4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.runtime-trace.hidden {
+  display: none;
+}
+.fulltext-inline {
+  margin-top: 3px;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 18px;
+  min-width: 0;
+  color: #8ea0ad;
+  font-size: 11px;
+}
+.ft-light-pack {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ft-main-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: transparent;
+  color: inherit;
+}
+.ft-mini-light {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3f3f3f;
+  opacity: .75;
+  flex: 0 0 auto;
+  transform: scale(1);
+  transition: background-color .24s ease, box-shadow .24s ease, opacity .24s ease, transform .24s ease;
+  will-change: transform, opacity;
+}
+.ft-mini-light.active {
+  background: #22d3ee;
+  box-shadow: 0 0 8px rgba(34,211,238,.9);
+  animation: ft-mini-breath 1.35s cubic-bezier(.4,0,.2,1) infinite both;
+}
+.ft-mini-light.ready {
+  background: #4ade80;
+  box-shadow: 0 0 8px rgba(74,222,128,.9);
+  opacity: .95;
+  transform: scale(1);
+}
+.ft-mini-light.warn {
+  background: #f97316;
+  box-shadow: 0 0 8px rgba(249,115,22,.95);
+  animation: ft-mini-breath .95s cubic-bezier(.4,0,.2,1) infinite both;
+}
+#ftl1.active, #ftl1.warn { animation-delay: 0ms; }
+#ftl2.active, #ftl2.warn { animation-delay: 110ms; }
+#ftl3.active, #ftl3.warn { animation-delay: 220ms; }
+#ftl4.active, #ftl4.warn { animation-delay: 330ms; }
+.ft-mini-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#ft-progress-text {
+  flex: 1 1 auto;
+}
+#ft-file {
+  flex: 0 1 260px;
+  text-align: right;
+}
+.ft-file-preview {
+  margin-top: 2px;
+  min-height: 18px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #94a7b5;
+  font-size: 11px;
+  overflow: hidden;
+  flex-wrap: wrap;
+}
+.ft-file-preview.hidden {
+  display: none;
+}
+.ft-file-chip {
+  min-width: 160px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  max-width: 100%;
+}
+.ft-file-chip .k {
+  color: #7f8a95;
+  flex: 0 0 auto;
+}
+.ft-file-chip .v {
+  color: #9dc1df;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ft-scan-badge {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: #8eb9ff;
+  flex: 0 0 auto;
+  letter-spacing: 0.02em;
+}
+.ft-toolbar {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  flex-wrap: nowrap;
+  min-width: 0;
+  font-size: 10px;
+}
+.ft-toolbar .mini-input {
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 0 8px;
+  min-width: 180px;
+  flex: 1 1 280px;
+}
+.ft-toolbar .mini-select {
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 0 8px;
+  min-width: 118px;
+}
+.ft-toolbar .mini-btn {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.ft-toolbar .mini-btn:hover {
+  border-color: rgba(255,179,71,.5);
+}
+.ft-quick-hint {
+  color: #7f8a95;
+  font-size: 10px;
+  line-height: 1.25;
+  flex: 0 1 42%;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ft-quick-stats {
+  color: #8fa5b9;
+  font-size: 10px;
+  line-height: 1.2;
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hit-context-wrap {
+  margin-top: 5px;
+  width: 100%;
+  min-width: 0;
+}
+.hit-ctx-btn {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.hit-ctx-body {
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #9fb0bd;
+  white-space: normal;
+  max-height: 140px;
+  overflow: auto;
+  border-left: 2px solid rgba(34, 211, 238, 0.35);
+  padding-left: 8px;
+}
+.hit-ctx-body.hidden {
+  display: none;
+}
+@keyframes ft-mini-breath {
+  0%, 100% { opacity: .58; transform: scale(.92); }
+  35% { opacity: 1; transform: scale(1.14); }
+  70% { opacity: .74; transform: scale(1.01); }
+}
+.search-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: center;
+}
+#limit {
+  width: 122px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 0 10px;
+  outline: none;
+}
+.search-actions .btn {
+  height: 34px;
+  padding: 0 11px;
+}
+#results-head {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+#head-filters {
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+#filters {
+  display: flex;
+  gap: 8px;
+  overflow: auto hidden;
+  padding: 2px 0;
+}
+#categories,
+#engines {
+  display: flex;
+  gap: 10px;
+  overflow: auto hidden;
+  padding: 8px 10px;
+}
+#categories::-webkit-scrollbar,
+#engines::-webkit-scrollbar,
+#filters::-webkit-scrollbar,
+#result-list::-webkit-scrollbar,
+#preview-web-scroll::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+#categories::-webkit-scrollbar-thumb,
+#engines::-webkit-scrollbar-thumb,
+#filters::-webkit-scrollbar-thumb,
+#result-list::-webkit-scrollbar-thumb,
+#preview-web-scroll::-webkit-scrollbar-thumb {
+  background: #3a434d;
+  border-radius: 999px;
+}
+#category-card, #engine-card, #filter-card { padding: 10px 12px; }
+#tag-card {
+  padding: 10px 12px;
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 10px;
+}
+.chip, .engine-chip, .filter-chip {
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--muted);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: .16s ease;
+}
+.chip {
+  padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.chip .chip-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+.chip .chip-title {
+  line-height: 1.05;
+}
+.chip.active, .filter-chip.active, .engine-chip.active {
+  background: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
+  border-color: rgba(255,179,71,.5);
+  color: #fff;
+}
+.chip .count {
+  min-width: 22px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  color: inherit;
+  font-size: 11px;
+  text-align: center;
+}
+.engine-chip {
+  min-width: 64px;
+  max-width: 92px;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  border-radius: 14px;
+}
+.engine-chip .engine-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.engine-chip img, .engine-fallback {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  flex: 0 0 auto;
+  display: block;
+}
+.engine-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #303842;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+.engine-chip .label {
+  width: 100%;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--muted);
+  white-space: normal;
+  word-break: break-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.engine-chip.active .label { color: #fff; }
+.filter-chip {
+  padding: 5px 10px;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.filter-chip .filter-label { line-height: 1; }
+.hotkey-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 14px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+  color: #7f8a95;
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: .02em;
+}
+.hotkey-hint-btn {
+  cursor: pointer;
+  user-select: none;
+}
+.hotkey-hint.unbound {
+  border-style: dashed;
+  opacity: .72;
+  min-width: 18px;
+  padding: 0 4px;
+  font-weight: 700;
+  font-size: 11px;
+}
+.engine-chip .hotkey-hint {
+  margin-top: 1px;
+}
+.caps-hotkey-ready {
+  border-color: rgba(255,179,71,.45) !important;
+  box-shadow: 0 0 0 1px rgba(255,179,71,.16) inset;
+}
+.caps-hotkey-hit {
+  border-color: rgba(255,179,71,.82) !important;
+  box-shadow: 0 0 0 1px rgba(255,179,71,.42) inset, 0 0 18px rgba(255,141,42,.28);
+  transform: translateY(-1px);
+}
+.caps-hotkey-hit .hotkey-hint {
+  color: #fff;
+  border-color: rgba(255,200,120,.72);
+  background: rgba(255,141,42,.24);
+}
+#layout {
+  display: grid;
+  grid-template-columns: minmax(380px, 1.1fr) minmax(320px, .9fr);
+  gap: 16px;
+  min-height: 0;
+}
+#results-card, #preview-card {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+#results-head {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,.02);
+}
+#preview-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,.02);
+}
+#results-head .head-sub {
+  justify-self: end;
+  pointer-events: none;
+}
+.head-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+.head-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+#result-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+}
+.result-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: .14s ease;
+}
+.result-item + .result-item { margin-top: 5px; }
+.result-item:hover {
+  background: rgba(255,255,255,.03);
+  border-color: rgba(255,255,255,.05);
+}
+.result-item.active {
+  background: linear-gradient(180deg, rgba(255,141,42,.16), rgba(255,141,42,.06));
+  border-color: rgba(255,179,71,.45);
+}
+.result-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
+.pin-ico {
+  display: inline-block;
+  margin-right: 5px;
+  font-size: 12px;
+  vertical-align: middle;
+  opacity: 0.95;
+  user-select: none;
+}
+.result-sub {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.result-preview {
+  margin-top: 4px;
+  color: #ccd5dd;
+  font-size: 11px;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.result-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 92px;
+}
+.pill {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #2a3239;
+  color: #d7dee6;
+  font-size: 10px;
+}
+.time {
+  font-size: 10px;
+  color: var(--muted);
+  text-align: right;
+}
+#preview-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+#preview-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+#preview-web-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 18px 18px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  line-height: 1.65;
+  font-size: 12px;
+  color: #d6dde5;
+}
+.pdfjs-viewport {
+  width: 100%;
+  min-height: 200px;
+  max-height: min(78vh, 920px);
+  overflow: auto;
+  background: #262a2f;
+  padding: 10px 8px 16px;
+  border-radius: 8px;
+  box-sizing: border-box;
+  white-space: normal;
+  font-family: var(--font-ui);
+}
+.pdfjs-page-wrap {
+  margin: 0 auto 14px;
+  text-align: center;
+}
+.pdfjs-page-wrap canvas {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+}
+.pdfjs-page-ph {
+  padding: 20px;
+  color: var(--muted);
+  font-size: 12px;
+}
+#preview-web-scroll.mode-hidden {
+  display: none !important;
+}
+#preview-host {
+  flex: 1 1 auto;
+  min-height: 120px;
+  display: none;
+  margin: 0 12px 8px;
+  border-radius: 10px;
+  border: 1px dashed rgba(255,255,255,.12);
+  background: rgba(0,0,0,.12);
+  box-sizing: border-box;
+}
+#preview-host.mode-native {
+  display: block;
+}
+#preview-ql-hint {
+  flex-shrink: 0;
+  padding: 8px 14px 12px;
+  font-size: 11px;
+  color: #7f8a95;
+  border-top: 1px solid rgba(255,255,255,.06);
+  background: rgba(0,0,0,.12);
+  overflow: visible;
+}
+#preview-ql-hint.hidden {
+  display: none;
+}
+#preview-ql-hint .ql-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+#preview-ql-hint .ql-text {
+  flex: 1 1 120px;
+  min-width: 0;
+  line-height: 1.4;
+}
+#preview-ql-hint .ql-btns {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+#preview-ql-btn, .preview-ctrl-btn {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,179,71,.25);
+  background: rgba(255,255,255,.05);
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+#preview-ql-btn:hover, .preview-ctrl-btn:hover {
+  background: rgba(255,255,255,.1);
+  border-color: rgba(255,179,71,.45);
+}
+#preview-ql-btn.btn-highlight, .preview-ctrl-btn.btn-highlight {
+  background: rgba(255,141,42,.22);
+  border-color: rgba(255,141,42,.7);
+  box-shadow: 0 0 8px rgba(255,141,42,0.15);
+  font-weight: bold;
+}
+#preview-ql-btn.btn-highlight:hover {
+  background: rgba(255,141,42,.35);
+}
+#preview-ql-btn:disabled, .preview-ctrl-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+#preview-web-scroll pre[class*="language-"] {
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(0,0,0,.35) !important;
+  overflow: auto;
+  max-height: none;
+}
+#preview-web-scroll img.preview-img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  border-radius: 8px;
+}
+.preview-plain {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  line-height: 1.65;
+  font-size: 12px;
+}
+.preview-truncate-note {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255,141,42,.12);
+  border: 1px solid rgba(255,179,71,.28);
+  color: #e7c4a0;
+  font-size: 11px;
+}
+.ft-preview-hit-panel {
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255,255,255,.02);
+  overflow: hidden;
+}
+.ft-preview-hit-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.02);
+  font-size: 11px;
+  color: #aebdca;
+}
+.ft-preview-hit-head .k {
+  color: #d8e2ea;
+}
+.ft-preview-hit-head .v {
+  color: #fff;
+  font-weight: 700;
+}
+.ft-preview-hit-nav {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 11px;
+}
+.ft-preview-hit-nav:hover {
+  border-color: rgba(255,179,71,.45);
+}
+.ft-preview-hit-list {
+  max-height: 180px;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+}
+.ft-preview-hit-row {
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+.ft-preview-hit-row.active {
+  border-color: rgba(255,179,71,.52);
+  box-shadow: 0 0 0 1px rgba(255,179,71,.22) inset;
+  background: rgba(255,179,71,.08);
+}
+.ft-preview-hit-line {
+  font-size: 11px;
+  color: #8eb9ff;
+  margin-bottom: 4px;
+}
+.ft-preview-hit-snippet {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #d5dee6;
+  white-space: normal;
+}
+.preview-media {
+  width: 100%;
+  max-height: 100%;
+  display: block;
+  border-radius: 12px;
+  background: #0f1115;
+}
+.preview-audio {
+  min-height: 80px;
+}
+.preview-video {
+  min-height: 240px;
+}
+.media-card {
+  display: grid;
+  gap: 10px;
+}
+.media-player {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.03);
+}
+.media-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.media-title-wrap {
+  min-width: 0;
+}
+.media-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f4f7fb;
+  word-break: break-word;
+}
+.media-subtitle {
+  margin-top: 3px;
+  font-size: 11px;
+  color: rgba(220,228,236,.72);
+}
+.media-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.media-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.media-chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+  color: #dfe7ef;
+  font-size: 11px;
+}
+.media-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 2px;
+}
+.media-btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,179,71,.22);
+  background: rgba(255,255,255,.04);
+  color: #f7f7f7;
+  font-size: 11px;
+  cursor: pointer;
+}
+.media-btn:hover {
+  background: rgba(255,255,255,.09);
+}
+.media-btn.active {
+  background: rgba(255,141,42,.22);
+  border-color: rgba(255,141,42,.65);
+  color: #fff3e4;
+}
+.media-status {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: #a8b3bf;
+}
+.media-status strong {
+  color: #f0f4f8;
+  font-weight: 600;
+}
+.media-info-panel {
+  display: none;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.06);
+  background: rgba(0,0,0,.18);
+  font-size: 11px;
+  color: #d9e2ea;
+}
+.media-info-panel.open {
+  display: grid;
+  gap: 6px;
+}
+.media-info-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.media-info-key {
+  color: #f0b46a;
+}
+.media-info-val {
+  color: #dfe7ef;
+}
+.preview-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px 16px;
+  margin-top: 4px;
+}
+.preview-meta-item {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  color: #7f8a95;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.preview-meta-key {
+  color: #555;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+.preview-meta-val {
+  color: #aaa;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#footer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 4px 0;
+  font-size: 12px;
+  color: var(--muted);
+  min-height: 32px;
+  white-space: nowrap;
+}
+.footer-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  flex-wrap: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.footer-row-main > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.footer-inline-btns {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.footer-inline-btns .btn {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+#footer-hint {
+  flex: 0 1 42%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+.recycle-badge {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255,141,42,.25);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.recycle-badge:empty,
+.recycle-badge.muted {
+  background: rgba(255,255,255,.08);
+  color: var(--muted);
+  font-weight: 600;
+}
+.recycle-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.55);
+  padding: 20px;
+}
+.recycle-overlay.open {
+  display: flex;
+}
+.recycle-dialog {
+  width: min(520px, 96vw);
+  max-height: min(72vh, 560px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+.recycle-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+  font-size: 14px;
+}
+.recycle-list {
+  flex: 1 1 auto;
+  min-height: 120px;
+  max-height: 44vh;
+  overflow: auto;
+  padding: 10px 12px;
+}
+.recycle-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+  margin-bottom: 8px;
+}
+.recycle-row .t {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
+.recycle-row .p {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+  word-break: break-all;
+}
+.recycle-dialog-foot {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.hotkey-bind-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.55);
+  padding: 20px;
+}
+.hotkey-bind-overlay.open {
+  display: flex;
+}
+.hotkey-bind-dialog {
+  width: min(420px, 96vw);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+.hotkey-bind-body {
+  padding: 12px 16px 10px;
+  display: grid;
+  gap: 8px;
+}
+.hotkey-bind-target {
+  color: #9eb0bd;
+  font-size: 12px;
+}
+.hotkey-bind-capture {
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,.02);
+  color: #c9d4df;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.hotkey-bind-key {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+}
+.hotkey-bind-tip {
+  color: #7f8a95;
+  font-size: 11px;
+}
+.btn {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: .16s ease;
+}
+.btn:hover { border-color: rgba(255,179,71,.45); }
+.btn.primary {
+  background: linear-gradient(180deg, #ff9b38, #e5791e);
+  color: #101214;
+  border-color: rgba(255,179,71,.7);
+  font-weight: 700;
+}
+.btn.ghost { background: transparent; }
+.empty {
+  padding: 22px;
+  color: var(--muted);
+  line-height: 1.7;
+  min-height: 72px;
+}
+.empty.empty-transition {
+  position: relative;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
+  animation: ft-empty-fade-in .22s ease-out both;
+}
+.empty.empty-transition::after {
+  content: "";
+  display: block;
+  margin-top: 10px;
+  height: 3px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, rgba(255,179,71,.12), rgba(255,179,71,.8), rgba(255,179,71,.12));
+  background-size: 220% 100%;
+  animation: ft-empty-sweep 1.05s linear infinite;
+}
+.empty-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #d6e7f8;
+}
+.empty-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffb347;
+  box-shadow: 0 0 8px rgba(255,179,71,.7);
+  animation: ft-empty-dot 1.1s ease-in-out infinite;
+}
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1 1 auto;
+}
+.skeleton-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.04);
+  background: rgba(255,255,255,.015);
+}
+.sk-line {
+  height: 9px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(255,255,255,.06), rgba(255,255,255,.12), rgba(255,255,255,.06));
+  background-size: 220% 100%;
+  animation: sk-shimmer 1.3s linear infinite;
+}
+.sk-line + .sk-line { margin-top: 5px; }
+.sk-line.w1 { width: 64%; }
+.sk-line.w2 { width: 44%; }
+.sk-line.w3 { width: 78%; }
+.sk-meta {
+  width: 64px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(255,255,255,.06), rgba(255,255,255,.12), rgba(255,255,255,.06));
+  background-size: 220% 100%;
+  animation: sk-shimmer 1.3s linear infinite;
+}
+.preview-empty {
+  min-height: 100%;
+}
+
+/* Light theme hardcoded-color overrides for SearchCenter components */
+html[data-theme="light"] .chrome-header {
+  background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(247,250,253,.9));
+  border-color: #cdd8e3;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 6px 18px rgba(44, 62, 80, .08);
+}
+html[data-theme="light"] .chrome-btn:hover,
+html[data-theme="light"] .chrome-btn.active {
+  color: #ffffff;
+}
+html[data-theme="light"] .engine-mode-btn:hover {
+  background: #eaf0f6;
+}
+html[data-theme="light"] .engine-mode-btn.active {
+  color: #5a3208;
+}
+html[data-theme="light"] .card,
+html[data-theme="light"] #search-bar {
+  border-color: #d7e1eb;
+  box-shadow: 0 10px 22px rgba(44, 62, 80, .08), inset 0 1px 0 rgba(255,255,255,.95);
+}
+html[data-theme="light"] .ft-file-chip .k,
+html[data-theme="light"] .ft-quick-hint,
+html[data-theme="light"] .search-status-inline,
+html[data-theme="light"] .fulltext-inline,
+html[data-theme="light"] .hotkey-hint,
+html[data-theme="light"] .hotkey-bind-tip,
+html[data-theme="light"] .preview-meta-item {
+  color: #6a7b8d;
+}
+html[data-theme="light"] .ft-file-chip .v,
+html[data-theme="light"] .ft-scan-badge,
+html[data-theme="light"] .ft-quick-stats,
+html[data-theme="light"] .ft-preview-hit-line {
+  color: #2f6fa8;
+}
+html[data-theme="light"] .engine-fallback {
+  background: #dce7f3;
+  color: #2f3e4f;
+}
+html[data-theme="light"] .chip.active,
+html[data-theme="light"] .filter-chip.active,
+html[data-theme="light"] .engine-chip.active,
+html[data-theme="light"] .caps-hotkey-hit .hotkey-hint {
+  color: #5a3208;
+}
+html[data-theme="light"] #categories::-webkit-scrollbar-thumb,
+html[data-theme="light"] #engines::-webkit-scrollbar-thumb,
+html[data-theme="light"] #filters::-webkit-scrollbar-thumb,
+html[data-theme="light"] #result-list::-webkit-scrollbar-thumb,
+html[data-theme="light"] #preview-web-scroll::-webkit-scrollbar-thumb {
+  background: #bcc9d6;
+}
+html[data-theme="light"] .result-item:hover {
+  background: #f2f6fa;
+  border-color: #d8e2ec;
+}
+html[data-theme="light"] .result-item.active {
+  background: linear-gradient(180deg, rgba(255,141,42,.18), rgba(255,141,42,.09));
+  border-color: #e8b47f;
+}
+html[data-theme="light"] .result-title {
+  color: #1f2a34;
+}
+html[data-theme="light"] .result-sub {
+  color: #5f6f80;
+}
+html[data-theme="light"] .result-preview,
+html[data-theme="light"] #preview-web-scroll,
+html[data-theme="light"] .preview-plain,
+html[data-theme="light"] .ft-preview-hit-snippet {
+  color: #3f5368;
+}
+html[data-theme="light"] .pill {
+  background: #e7edf4;
+  color: #33475b;
+}
+html[data-theme="light"] .pdfjs-viewport {
+  background: #edf3f8;
+}
+html[data-theme="light"] #preview-host {
+  border-color: #c7d3df;
+  background: rgba(173, 189, 206, .22);
+}
+html[data-theme="light"] #preview-ql-hint {
+  color: #5f7388;
+  border-top-color: #d2dde8;
+  background: rgba(233, 240, 247, .85);
+}
+html[data-theme="light"] #preview-ql-btn,
+html[data-theme="light"] .preview-ctrl-btn {
+  background: #ffffff;
+  color: #30465c;
+  border-color: #c9d7e5;
+}
+html[data-theme="light"] #preview-ql-btn:hover,
+html[data-theme="light"] .preview-ctrl-btn:hover {
+  background: #edf4fb;
+}
+html[data-theme="light"] .media-player {
+  border-color: #d2dde8;
+  background: #f7fbff;
+}
+html[data-theme="light"] .media-title,
+html[data-theme="light"] .media-status strong {
+  color: #223547;
+}
+html[data-theme="light"] .media-subtitle,
+html[data-theme="light"] .media-status {
+  color: #607489;
+}
+html[data-theme="light"] .media-chip,
+html[data-theme="light"] .media-btn {
+  border-color: #c8d6e4;
+  background: #ffffff;
+  color: #334b62;
+}
+html[data-theme="light"] .media-btn:hover {
+  background: #eaf2fa;
+}
+html[data-theme="light"] .media-btn.active {
+  color: #6a3b0d;
+}
+html[data-theme="light"] .media-info-panel {
+  border-color: #d2dde8;
+  background: #f3f8fd;
+  color: #3b5066;
+}
+html[data-theme="light"] .media-info-key {
+  color: #b06415;
+}
+html[data-theme="light"] .media-info-val,
+html[data-theme="light"] .preview-meta-val {
+  color: #42586d;
+}
+html[data-theme="light"] .recycle-overlay,
+html[data-theme="light"] .hotkey-bind-overlay {
+  background: rgba(32, 44, 58, .28);
+}
+html[data-theme="light"] .recycle-row {
+  border-color: #d3deea;
+  background: #f7fbff;
+}
+html[data-theme="light"] .recycle-row .t,
+html[data-theme="light"] .hotkey-bind-key,
+html[data-theme="light"] .hotkey-bind-capture {
+  color: #1f2f40;
+}
+html[data-theme="light"] .hotkey-bind-target {
+  color: #5e7388;
+}
+html[data-theme="light"] .recycle-badge {
+  color: #6c3f11;
+}
+html[data-theme="light"] .recycle-badge:empty,
+html[data-theme="light"] .recycle-badge.muted {
+  background: #e9f0f7;
+  color: #667b91;
+}
+html[data-theme="light"] .empty-lead {
+  color: #46617c;
+}
+html[data-theme="light"] .skeleton-item {
+  border-color: #dce5ee;
+  background: #f8fbfe;
+}
+html[data-theme="light"] .sk-line,
+html[data-theme="light"] .sk-meta {
+  background: linear-gradient(90deg, #e9f0f7, #d9e4ef, #e9f0f7);
+}
+@keyframes sk-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+@keyframes ft-empty-fade-in {
+  from { opacity: .35; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes ft-empty-sweep {
+  0% { background-position: 120% 0; }
+  100% { background-position: -120% 0; }
+}
+@keyframes ft-empty-dot {
+  0%, 100% { transform: scale(.9); opacity: .7; }
+  50% { transform: scale(1.2); opacity: 1; }
+}
+mark {
+  background: rgba(255,179,71,.9);
+  color: #111;
+  padding: 0 2px;
+  border-radius: 3px;
+}
+@media (max-width: 980px) {
+  #layout { grid-template-columns: 1fr; }
+  #preview-card { min-height: 240px; }
+  #search-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  #search-icon-inline {
+    display: none;
+  }
+  .search-actions {
+    width: 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .ft-toolbar,
+  .fulltext-inline {
+    flex-wrap: wrap;
+  }
+  #footer {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  #footer-hint {
+    flex-basis: 100%;
+    text-align: left;
+  }
+}
+</style>
+<script src="https://app.local/assets/js/BasePanel.js"></script>
+<script src="https://app.local/assets/vendor/prism/prism-core.min.js"></script>
+<script src="https://app.local/assets/vendor/prism/components/prism-markup.min.js"></script>
+<script src="https://app.local/assets/vendor/prism/components/prism-clike.min.js"></script>
+<script src="https://app.local/assets/vendor/prism/components/prism-markup-templating.min.js"></script>
+<script src="https://app.local/assets/vendor/prism/components/prism-javascript.min.js"></script>
+<script src="https://app.local/assets/vendor/prism/components/prism-python.min.js"></script>
+<script src="https://app.local/assets/vendor/prism/components/prism-json.min.js"></script>
+<script src="https://app.local/assets/vendor/prism/components/prism-markdown.min.js"></script>
+</head>
+<body>
+<div id="app">
+    <header id="chrome-header" class="chrome-header window-titlebar">
+    <div class="chrome-drag" id="chrome-drag" title="拖动窗口">搜索中心</div>
+    <div class="chrome-controls">
+      <div class="engine-mode-group" role="group" aria-label="搜索引擎模式">
+        <button type="button" id="engine-mode-go" class="engine-mode-btn" data-engine="go" title="极速：Go SearchCenterCore">极速 · Go</button>
+        <button type="button" id="engine-mode-ahk" class="engine-mode-btn" data-engine="ahk" title="标准：AHK 本地引擎">标准 · AHK</button>
+      </div>
+      <button type="button" id="btn-ft-settings-top" class="chrome-btn" title="搜索设置"><span class="icon">⚙</span><span>搜索设置</span></button>
+      <button type="button" id="chrome-topmost" class="chrome-btn" title="置顶窗口">置顶</button>
+    </div>
+  </header>
+
+  <div id="tag-card" class="card">
+    <div id="categories"></div>
+    <div id="engines">    </div>
+  </div>
+
+  <div id="search-bar" class="card">
+    <span id="search-icon-inline">&#128269;</span>
+    <div class="search-input-wrap">
+      <input id="search" type="text" placeholder="搜索本地结果，或直接作为网络搜索 / CLI 提示词发送">
+      <div id="status" class="search-status-inline">准备中...</div>
+      <div id="runtime-error" class="runtime-error hidden"></div>
+      <div id="runtime-trace" class="runtime-trace hidden"></div>
+      <div id="fulltext-inline" class="fulltext-inline">
+        <span class="ft-light-pack">
+          <span class="ft-mini-light" id="ftl1"></span>
+          <span class="ft-mini-light" id="ftl2"></span>
+          <span class="ft-mini-light" id="ftl3"></span>
+          <span class="ft-mini-light" id="ftl4"></span>
+        </span>
+        <span id="ft-progress-text" class="ft-main-text">索引准备中…</span>
+        <span id="ft-scan-badge" class="ft-scan-badge" style="display:none" title=""></span>
+        <span id="ft-efficiency-text" class="ft-mini-file">0 文件/秒</span>
+        <span id="ft-file" class="ft-main-text">空闲</span>
+      </div>
+      <div id="ft-file-preview" class="ft-file-preview hidden">
+        <span class="ft-file-chip"><span class="k">文件</span><span id="ft-file-name" class="v">-</span></span>
+        <span class="ft-file-chip"><span class="k">位置</span><span id="ft-file-dir" class="v">-</span></span>
+      </div>
+      <div id="ft-toolbar" class="ft-toolbar">
+        <button type="button" id="btn-ft-open-settings" class="mini-btn" title="打开搜索设置中的全文索引控制台">索引设置</button>
+        <button type="button" id="btn-ft-rebuild" class="mini-btn" title="强制清空并重建索引，用于验证单字检索">强制重建</button>
+        <span id="ft-quick-stats" class="ft-quick-stats">索引统计加载中…</span>
+        <span class="ft-quick-hint">推荐方案、增量更新、索引目录等低频配置已迁移到「搜索设置 > 全文索引控制台」。</span>
+      </div>
+    </div>
+    <div class="search-actions">
+      <div class="engine-mode-group" role="group" aria-label="搜索引擎模式">
+        <button type="button" id="engine-mode-go-inline" class="engine-mode-btn" data-engine="go" title="极速：Go SearchCenterCore">极速 · Go</button>
+        <button type="button" id="engine-mode-ahk-inline" class="engine-mode-btn" data-engine="ahk" title="标准：AHK 本地引擎">标准 · AHK</button>
+      </div>
+      <select id="limit">
+        <option value="10">10 条</option>
+          <option value="20">20 条</option>
+          <option value="30">30 条</option>
+          <option value="50">50 条</option>
+        <option value="100">100 条</option>
+        <option value="200">200 条</option>
+        <option value="500">全部搜索结果</option>
+      </select>
+      <button id="btn-run" class="btn primary">搜索</button>
+      <button id="btn-web-search" class="btn">网页搜索</button>
+      <button id="btn-open-cli" class="btn">打开所选终端</button>
+      <button id="btn-ft-toggle" class="btn" title="启动或停止全文索引">启动索引</button>
+    </div>
+  </div>
+
+  <div id="layout">
+    <div id="results-card" class="card">
+      <div id="results-head">
+        <div>
+          <div class="head-title">本地结果</div>
+        </div>
+        <div id="head-filters"><div id="filters"></div></div>
+        <div class="head-sub" id="result-count">0 条</div>
+      </div>
+      <div id="result-list"></div>
+    </div>
+    <div id="preview-card" class="card">
+      <div id="preview-head">
+        <div style="width: 100%;">
+          <div class="head-title">预览</div>
+          <div id="preview-meta" class="preview-meta-grid">
+             <div class="preview-empty-meta">未选中结果</div>
+          </div>
+        </div>
+      </div>
+      <div id="preview-panel">
+        <div id="preview-main">
+          <div id="preview-web-scroll">当前未选中本地结果。
+
+在输入框中输入内容可实时过滤数据，点击列表项后会在这里显示详细预览。</div>
+          <div id="preview-host" aria-hidden="true"></div>
+        </div>
+        <div id="preview-ql-hint" class="hidden">
+          <div class="ql-row">
+            <span class="ql-text">按 <kbd>Space</kbd> 重新加载预览 · 选项：</span>
+            <div class="ql-btns">
+              <button type="button" id="preview-pdf-mode-btn" class="preview-ctrl-btn" title="PDF 预览策略">PDF:auto</button>
+              <button type="button" id="preview-native-btn" class="preview-ctrl-btn" title="调用系统原生 IPreviewHandler">IPreview</button>
+              <button type="button" id="preview-ql-btn" title="可选：调用便携版 QuickLook.exe">QuickLook</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="footer">
+    <div class="footer-row-main">
+      <span>Enter 执行主操作 · Esc 关闭 · 双击结果立即处理</span>
+      <div class="footer-inline-btns">
+        <button type="button" id="btn-sc-recycle" class="btn ghost">搜索回收站<span class="recycle-badge muted" id="recycle-badge">0</span></button>
+        <button type="button" id="btn-win-recycle-sc" class="btn ghost">系统回收站</button>
+      </div>
+    </div>
+    <div id="footer-hint">WebView2 模式</div>
+  </div>
+
+  <div id="recycle-overlay" class="recycle-overlay" aria-hidden="true">
+    <div class="recycle-dialog card" role="dialog" aria-modal="true" aria-labelledby="recycle-dlg-title">
+      <div class="recycle-dialog-head">
+        <span id="recycle-dlg-title">搜索中心回收站</span>
+        <button type="button" id="recycle-close" class="chrome-btn" title="关闭">×</button>
+      </div>
+      <div id="recycle-list" class="recycle-list"></div>
+      <div class="recycle-dialog-foot">
+        <button type="button" id="recycle-empty-all" class="btn">全部清空</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="hotkey-bind-overlay" class="hotkey-bind-overlay" aria-hidden="true">
+    <div class="hotkey-bind-dialog recycle-dialog card" role="dialog" aria-modal="true" aria-labelledby="hotkey-bind-title">
+      <div class="recycle-dialog-head">
+        <span id="hotkey-bind-title">快捷键绑定</span>
+        <button type="button" id="hotkey-bind-close" class="chrome-btn" title="关闭">×</button>
+      </div>
+      <div class="hotkey-bind-body">
+        <div id="hotkey-bind-target" class="hotkey-bind-target"></div>
+        <div id="hotkey-bind-capture" class="hotkey-bind-capture">
+          当前键：<span id="hotkey-bind-key" class="hotkey-bind-key">未设置</span>
+        </div>
+        <div id="hotkey-bind-tip" class="hotkey-bind-tip">按下 A-Z 或 0-9 作为 Caps+ 快捷键。按 Delete/Backspace 清空，按 Enter 保存。</div>
+      </div>
+      <div class="recycle-dialog-foot">
+        <button type="button" id="hotkey-bind-clear" class="btn ghost">清空</button>
+        <button type="button" id="hotkey-bind-cancel" class="btn ghost">取消</button>
+        <button type="button" id="hotkey-bind-apply" class="btn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+if (typeof BasePanel === 'undefined') {
+  window.BasePanel = {
+    PROTO_VERSION: 1,
+    postToAhk(obj) {
+      if (!window.chrome || !window.chrome.webview) return;
+      const src = (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : {};
+      const p = Object.assign({ v: 1, timestamp: Date.now() }, src);
+      if (p.action === undefined && p.type !== undefined) p.action = p.type;
+      window.chrome.webview.postMessage(p);
+    }
+  };
+}
+const SC_ENGINE_MODE_KEY = "sc_engine_mode";
+const SC_HOTKEY_BINDINGS_KEY = "sc_hotkey_bindings_v1";
+const SC_FT_ADVANCED_KEY = "sc_ft_ui_advanced";
+
+function normalizeThemeMode(mode) {
+  return String(mode || "").toLowerCase() === "light" ? "light" : "dark";
+}
+
+function getCachedThemeMode() {
+  try {
+    return normalizeThemeMode(localStorage.getItem("settings_themeMode") || "dark");
+  } catch (_) {
+    return "dark";
+  }
+}
+
+function applyTheme(mode, persist = true) {
+  const tm = normalizeThemeMode(mode);
+  document.documentElement.setAttribute("data-theme", tm);
+  if (document.body) document.body.setAttribute("data-theme", tm);
+  if (persist) {
+    try { localStorage.setItem("settings_themeMode", tm); } catch (_) {}
+  }
+  state.themeMode = tm;
+}
+
+/** 与 SearchCenterCore HTTP 监听一致；EventSource 直连进度流（失败时回退 AHK 轮询） */
+const SEARCH_CORE_ORIGIN = "http://127.0.0.1:8080";
+let fulltextProgressES = null;
+let fulltextPollTimer = 0;
+let fulltextEsBackoffMs = 2000;
+let fulltextEsReconnectTimer = 0;
+
+const state = {
+  themeMode: getCachedThemeMode(),
+  keyword: "",
+  limit: 30,
+  engineMode: (typeof localStorage !== "undefined" && localStorage.getItem(SC_ENGINE_MODE_KEY)) || "go",
+  categories: [],
+  currentCategoryKey: "ai",
+  engines: [],
+  selectedEngines: [],
+  filters: [],
+  filterType: "",
+  results: [],
+  hasMore: false,
+  loading: false,
+  loadMoreCooldownUntil: 0,
+  isCliCategory: false,
+  statusLine: "",
+  selectedRow: 1,
+  capsHintActive: false,
+  capsPressedKey: "",
+  hotkeyBindings: null,
+  hotkeyBindDialog: {
+    open: false,
+    group: "",
+    value: "",
+    label: "",
+    draftKey: ""
+  },
+  recycleBin: [],
+  recycleCount: 0,
+  previewTimer: 0,
+  previewSeq: 0,
+  previewPath: "",
+  iPreviewFailed: false,
+  iPreviewActive: false,
+  mediaPrefs: {
+    muted: (localStorage.getItem("sc_media_muted") || "0") === "1",
+    loop: (localStorage.getItem("sc_media_loop") || "0") === "1",
+    autoplay: (localStorage.getItem("sc_media_autoplay") || "0") === "1"
+  },
+  pdfMode: (localStorage.getItem("sc_pdf_preview_mode") || "auto"),
+  pdfPlan: null,
+  pdfWebBroken: false,
+  pdfJsRx: null,
+  hostTopMost: true,
+  fulltext: {
+    running: false,
+    ready: false,
+    progress: 0,
+    progressText: "0.0%",
+    progressDetail: "",
+    efficiencyText: "",
+    scanPhase: "idle",
+    indexing_file: "",
+    discoveredFiles: 0,
+    processedFiles: 0,
+    pendingTasks: 0,
+    indexedFiles: 0,
+    queueCapacity: 0,
+    queueSaturated: false,
+    rootsCount: 0,
+    filesPerSec: 0,
+    etaSeconds: 0,
+    indexVersion: "",
+    engine_lights: ["off", "off", "off", "off"],
+    scan_mode: "",
+    indexEpoch: 0
+  },
+  fulltextConfig: {
+    scanScheme: "auto",
+    useUSN: true,
+    indexDir: ""
+  },
+  fulltextProbe: {
+    busy: false,
+    last: null
+  },
+  fulltextEmptyTransitionUntil: 0,
+  fulltextUiAdvanced: (typeof localStorage !== "undefined" && localStorage.getItem(SC_FT_ADVANCED_KEY) === "1"),
+  quickLook: {
+    installed: false,
+    path: "",
+    version: "4.5.0",
+    installBusy: false,
+    installProgressMsg: "",
+    installProgressPct: null,
+    lastInstallError: "",
+    pendingOpenPath: "",
+    pendingOpenRow: 0
+  }
+};
+state.hotkeyBindings = loadHotkeyBindings();
+
+const PDF_JS_ASSET_BASE = "https://app.local/assets/pdfjs/";
+
+const postToAhk = (obj) => BasePanel.postToAhk(obj);
+
+function setRuntimeError(message, detail = "") {
+  const el = document.getElementById("runtime-error");
+  if (!el) return;
+  const msg = String(message || "").trim();
+  if (!msg) {
+    el.textContent = "";
+    el.classList.add("hidden");
+    return;
+  }
+  const ts = new Date().toLocaleTimeString();
+  const tail = String(detail || "").trim();
+  el.textContent = tail ? `[${ts}] ${msg} · ${tail}` : `[${ts}] ${msg}`;
+  el.title = el.textContent;
+  el.classList.remove("hidden");
+}
+
+function clearRuntimeError() {
+  setRuntimeError("");
+}
+
+function setRuntimeTrace(text) {
+  const el = document.getElementById("runtime-trace");
+  if (!el) return;
+  const msg = String(text || "").trim();
+  if (!msg) {
+    el.textContent = "";
+    el.classList.add("hidden");
+    return;
+  }
+  el.textContent = msg;
+  el.title = msg;
+  el.classList.remove("hidden");
+}
+
+function syncEngineModeButton() {
+  const isGo = state.engineMode === "go";
+  const ids = [
+    ["engine-mode-go", "go"],
+    ["engine-mode-ahk", "ahk"],
+    ["engine-mode-go-inline", "go"],
+    ["engine-mode-ahk-inline", "ahk"]
+  ];
+  ids.forEach(([id, mode]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle("active", (mode === "go") === isGo);
+    if (mode === "go") {
+      el.title = isGo ? "当前：极速（Go）。点击保持" : "切换为：极速（Go）";
+    } else {
+      el.title = !isGo ? "当前：标准（AHK）。点击保持" : "切换为：标准（AHK）";
+    }
+  });
+}
+
+/** 与 Go /search 的 type= 对齐：非剪贴板筛选时 Go 返回空剪贴板项，由 AHK 合并其它源 */
+function resolveFilterKey() {
+  const raw = String(state.filterType || "").trim();
+  if (!raw) return "";
+  const low = raw.toLowerCase();
+  if (raw === "File" || low === "file" || raw === "文件") return "file";
+  if (low === "fulltext" || raw === "全文搜索" || low === "text" || raw === "文本") return "fulltext";
+  if (low === "clipboard" || raw === "剪贴板") return "clipboard";
+  return low;
+}
+
+function mapFilterToGoSearchType() {
+  const f = resolveFilterKey();
+  if (f === "file") return "file";
+  if (f === "clipboard") return "clipboard";
+  if (f === "fulltext") return "fulltext";
+  return "all";
+}
+
+function shouldUseGoSearchPipeline() {
+  // Fulltext relies on SearchCenterCore fulltext backend; force Go pipeline
+  // even when UI engine mode is switched to AHK.
+  return state.engineMode === "go" || resolveFilterKey() === "fulltext";
+}
+
+function effectiveSearchLimit() {
+  let lim = Number(state.limit) || 30;
+  if (lim > 500) lim = 500;
+  return lim;
+}
+
+/** 极速模式：由 AHK WinHttp 请求本机 Go（避免 https://app.local 页面 fetch http 被混合内容拦截） */
+function runSearchGoPipeline(offset) {
+  const reqType = mapFilterToGoSearchType();
+  setRuntimeTrace(`请求 Go 搜索: type=${reqType} · offset=${offset || 0} · q=${(state.keyword || "").trim() ? "有关键词" : "空关键词"}`);
+  postToAhk({
+    type: "searchGoRequest",
+    keyword: state.keyword,
+    offset: offset || 0,
+    limit: effectiveSearchLimit(),
+    goType: reqType
+  });
+}
+
+function fallbackToAhkSearch() {
+  postToAhk({ type: "search", keyword: state.keyword });
+}
+
+const PREVIEW_DEBOUNCE_MS = 150;
+const PREVIEW_TEXT_EXT = new Set(["txt", "ahk", "py", "js", "md", "json", "log"]);
+const PREVIEW_IMAGE_EXT = new Set(["png", "jpg", "jpeg", "gif", "svg"]);
+const PREVIEW_AUDIO_EXT = new Set(["mp3", "wav", "flac", "m4a", "aac", "ogg", "opus", "wma"]);
+const PREVIEW_VIDEO_EXT = new Set(["mp4", "m4v", "mov", "webm", "mkv", "avi"]);
+const PREVIEW_PDF_EXT = new Set(["pdf"]);
+const PREVIEW_ARCHIVE_EXT = new Set(["zip", "7z", "rar", "tar", "gz", "tgz", "bz2", "xz", "cab", "iso"]);
+const PDF_MODE_OPTIONS_BASE = ["auto", "pdfjs", "web", "pdfium", "ipreview"];
+const ONE_MB = 1048576;
+const HOTKEY_HINT_DEFAULT_MAP = Object.freeze({
+  category: Object.freeze({
+    ai: "q",
+    cli: "w",
+    academic: "e",
+    baidu: "r"
+  }),
+  engine: Object.freeze({
+    deepseek: "a",
+    yuanbao: "s",
+    doubao: "d"
+  }),
+  filter: Object.freeze({
+    File: "z",
+    clipboard: "x",
+    template: "c",
+    config: "v",
+    pinned: "p"
+  })
+});
+let capsHoldTimer = 0;
+let capsFlashTimer = 0;
+let lastCapsDownAt = 0;
+let scHotkeySyncTimer = 0;
+
+function escapeHtml(text) {
+  if (text === null || text === undefined) return "";
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function escapeAttr(text) {
+  return escapeHtml(text).replace(/"/g, "&quot;");
+}
+
+function saveMediaPref(key, value) {
+  state.mediaPrefs[key] = !!value;
+  try {
+    localStorage.setItem("sc_media_" + key, value ? "1" : "0");
+  } catch {}
+}
+
+function formatDuration(totalSeconds) {
+  const n = Number(totalSeconds);
+  if (!Number.isFinite(n) || n < 0) return "--:--";
+  const s = Math.floor(n % 60);
+  const m = Math.floor((n / 60) % 60);
+  const h = Math.floor(n / 3600);
+  const pad = (v) => String(v).padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
+function mediaGlyphForExt(ext) {
+  if (PREVIEW_AUDIO_EXT.has(ext)) return "AUDIO";
+  if (PREVIEW_VIDEO_EXT.has(ext)) return "VIDEO";
+  return "MEDIA";
+}
+
+function mediaResumeKey(path) {
+  return "sc_media_resume::" + String(path || "");
+}
+
+function loadMediaResume(path) {
+  try {
+    const raw = localStorage.getItem(mediaResumeKey(path));
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveMediaResume(path, timeSec) {
+  if (!path) return;
+  const n = Number(timeSec);
+  if (!Number.isFinite(n) || n < 0) return;
+  try {
+    localStorage.setItem(mediaResumeKey(path), String(n));
+  } catch {}
+}
+
+function highlight(text, keyword) {
+  const safe = escapeHtml(text);
+  if (!keyword) return safe;
+  try {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp("(" + escaped + ")", "ig");
+    return safe.replace(re, "<mark>$1</mark>");
+  } catch {
+    return safe;
+  }
+}
+
+function getHintHotkey(group, value) {
+  if (!group || !value) return "";
+  const customGroup = state.hotkeyBindings && state.hotkeyBindings[group];
+  if (customGroup && Object.prototype.hasOwnProperty.call(customGroup, value)) {
+    return normalizeHintKey(customGroup[value] || "");
+  }
+  const src = HOTKEY_HINT_DEFAULT_MAP[group];
+  if (!src) return "";
+  return normalizeHintKey(src[value] || "");
+}
+
+function normalizeHintKey(key) {
+  const k = String(key || "").trim().toLowerCase();
+  return /^[a-z0-9]$/.test(k) ? k : "";
+}
+
+function hotkeyHintHtml(hotkey, group, value, label) {
+  const g = escapeAttr(group || "");
+  const v = escapeAttr(value || "");
+  const t = escapeAttr(label || value || "");
+  const common = "hotkey-hint hotkey-hint-btn";
+  if (hotkey) {
+    return "<span class=\"" + common + "\" data-hotkey-group=\"" + g + "\" data-hotkey-value=\"" + v + "\" data-hotkey-label=\"" + t + "\" title=\"点击修改快捷键\">Caps+" + escapeHtml(String(hotkey).toUpperCase()) + "</span>";
+  }
+  return "<span class=\"" + common + " unbound\" data-hotkey-group=\"" + g + "\" data-hotkey-value=\"" + v + "\" data-hotkey-label=\"" + t + "\" title=\"点击绑定快捷键\">+</span>";
+}
+
+function emptyHotkeyBindingMap() {
+  return { category: {}, engine: {}, filter: {} };
+}
+
+function loadHotkeyBindings() {
+  try {
+    const raw = localStorage.getItem(SC_HOTKEY_BINDINGS_KEY);
+    if (!raw) return emptyHotkeyBindingMap();
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return emptyHotkeyBindingMap();
+    const out = emptyHotkeyBindingMap();
+    ["category", "engine", "filter"].forEach((group) => {
+      const src = parsed[group];
+      if (!src || typeof src !== "object") return;
+      Object.keys(src).forEach((k) => {
+        out[group][k] = normalizeHintKey(src[k] || "");
+      });
+    });
+    return out;
+  } catch {
+    return emptyHotkeyBindingMap();
+  }
+}
+
+function saveHotkeyBindings() {
+  try {
+    localStorage.setItem(SC_HOTKEY_BINDINGS_KEY, JSON.stringify(state.hotkeyBindings || emptyHotkeyBindingMap()));
+  } catch {}
+}
+
+function syncScHotkeyBindingToHost(group, value, key) {
+  postToAhk({
+    type: "scHotkeyBindingsSync",
+    payload: {
+      entries: [{
+        group: String(group || ""),
+        value: String(value || ""),
+        key: normalizeHintKey(key || "")
+      }]
+    }
+  });
+}
+
+function syncAllScHotkeyBindingsToHost() {
+  const entries = [];
+  const seen = new Set();
+  const pushEntry = (group, value) => {
+    const g = String(group || "");
+    const v = String(value || "");
+    if (!g || !v) return;
+    const mark = g + "::" + v;
+    if (seen.has(mark)) return;
+    seen.add(mark);
+    const key = getHintHotkey(g, v);
+    if (!key) return;
+    entries.push({ group: g, value: v, key });
+  };
+  (state.categories || []).forEach((cat) => pushEntry("category", cat && cat.key));
+  (state.engines || []).forEach((engine) => pushEntry("engine", engine && engine.value));
+  (state.filters || []).forEach((filter) => pushEntry("filter", filter && filter.key));
+  postToAhk({ type: "scHotkeyBindingsSync", payload: { resetAll: true, entries } });
+}
+
+function scheduleScHotkeyBindingsSync(delayMs = 160) {
+  if (scHotkeySyncTimer) clearTimeout(scHotkeySyncTimer);
+  scHotkeySyncTimer = setTimeout(() => {
+    scHotkeySyncTimer = 0;
+    syncAllScHotkeyBindingsToHost();
+  }, Math.max(0, Number(delayMs) || 0));
+}
+
+function syncCustomOnlyScHotkeyBindingsToHost() {
+  const src = state.hotkeyBindings;
+  if (!src || typeof src !== "object") return;
+  const entries = [];
+  ["category", "engine", "filter"].forEach((group) => {
+    const row = src[group];
+    if (!row || typeof row !== "object") return;
+    Object.keys(row).forEach((value) => {
+      entries.push({
+        group,
+        value: String(value || ""),
+        key: normalizeHintKey(row[value] || "")
+      });
+    });
+  });
+  if (!entries.length) return;
+  postToAhk({ type: "scHotkeyBindingsSync", payload: { entries } });
+}
+
+function setHotkeyBinding(group, value, key) {
+  if (!group || !value) return;
+  if (!state.hotkeyBindings || typeof state.hotkeyBindings !== "object") {
+    state.hotkeyBindings = emptyHotkeyBindingMap();
+  }
+  if (!state.hotkeyBindings[group] || typeof state.hotkeyBindings[group] !== "object") {
+    state.hotkeyBindings[group] = {};
+  }
+  state.hotkeyBindings[group][value] = normalizeHintKey(key || "");
+}
+
+function findHotkeyConflict(group, value, key) {
+  const target = normalizeHintKey(key);
+  if (!target) return null;
+  const nodes = document.querySelectorAll(".hotkey-item[data-hotkey-group][data-hotkey-value]");
+  for (const node of nodes) {
+    const g = String(node.dataset.hotkeyGroup || "");
+    const v = String(node.dataset.hotkeyValue || "");
+    if (!g || !v) continue;
+    if (g === group && v === value) continue;
+    if (getHintHotkey(g, v) === target) {
+      return { group: g, value: v, label: String(node.dataset.hotkeyLabel || v) };
+    }
+  }
+  return null;
+}
+
+function syncHotkeyBindDialogUi() {
+  const target = document.getElementById("hotkey-bind-target");
+  const keyEl = document.getElementById("hotkey-bind-key");
+  if (!target || !keyEl) return;
+  const d = state.hotkeyBindDialog || {};
+  const key = normalizeHintKey(d.draftKey || "");
+  target.textContent = "目标按钮：" + String(d.label || d.value || "");
+  keyEl.textContent = key ? ("Caps+" + key.toUpperCase()) : "未设置";
+}
+
+function openHotkeyBindDialog(group, value, label) {
+  if (!group || !value) return;
+  const ov = document.getElementById("hotkey-bind-overlay");
+  if (!ov) return;
+  state.hotkeyBindDialog.open = true;
+  state.hotkeyBindDialog.group = String(group);
+  state.hotkeyBindDialog.value = String(value);
+  state.hotkeyBindDialog.label = String(label || value);
+  state.hotkeyBindDialog.draftKey = getHintHotkey(group, value) || "";
+  syncHotkeyBindDialogUi();
+  ov.classList.add("open");
+  ov.setAttribute("aria-hidden", "false");
+}
+
+function closeHotkeyBindDialog() {
+  const ov = document.getElementById("hotkey-bind-overlay");
+  if (!ov) return;
+  state.hotkeyBindDialog.open = false;
+  ov.classList.remove("open");
+  ov.setAttribute("aria-hidden", "true");
+}
+
+function applyHotkeyBindDialog() {
+  const d = state.hotkeyBindDialog || {};
+  const group = String(d.group || "");
+  const value = String(d.value || "");
+  const key = normalizeHintKey(d.draftKey || "");
+  if (!group || !value) return;
+  if (key) {
+    const conflict = findHotkeyConflict(group, value, key);
+    if (conflict) {
+      const keyLabel = "Caps+" + key.toUpperCase();
+      const conflictLabel = String(conflict.label || conflict.value || "未命名按钮");
+      const targetLabel = String(d.label || value || "当前按钮");
+      const ok = window.confirm(
+        "检测到快捷键冲突：\n"
+        + keyLabel + " 已被「" + conflictLabel + "」占用。\n"
+        + "是否覆盖并改绑到「" + targetLabel + "」？"
+      );
+      if (!ok) return;
+      setHotkeyBinding(conflict.group, conflict.value, "");
+      syncScHotkeyBindingToHost(conflict.group, conflict.value, "");
+    }
+  }
+  setHotkeyBinding(group, value, key);
+  saveHotkeyBindings();
+  syncCustomOnlyScHotkeyBindingsToHost();
+  renderCategories();
+  renderEngines();
+  renderFilters();
+  scheduleScHotkeyBindingsSync(50);
+  closeHotkeyBindDialog();
+}
+
+function handleHotkeyBindKeydown(event) {
+  if (!(state.hotkeyBindDialog && state.hotkeyBindDialog.open)) return false;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeHotkeyBindDialog();
+    return true;
+  }
+  if (event.key === "Enter") {
+    event.preventDefault();
+    applyHotkeyBindDialog();
+    return true;
+  }
+  if (event.key === "Backspace" || event.key === "Delete") {
+    event.preventDefault();
+    state.hotkeyBindDialog.draftKey = "";
+    syncHotkeyBindDialogUi();
+    return true;
+  }
+  const k = normalizeHintKey(event.key);
+  if (!k) return true;
+  event.preventDefault();
+  state.hotkeyBindDialog.draftKey = k;
+  syncHotkeyBindDialogUi();
+  return true;
+}
+
+function getFooterHintText() {
+  return state.isCliCategory
+    ? "CLI 分类：输入后可直接发送到已选终端"
+    : "网络分类：输入后会并发打开已选搜索引擎";
+}
+
+function syncFooterHint() {
+  const footer = document.getElementById("footer-hint");
+  if (!footer) return;
+  if (state.capsHintActive) {
+    footer.textContent = "Caps 热键模式：按对应字母可快速定位";
+    return;
+  }
+  footer.textContent = getFooterHintText();
+}
+
+function normalizeFulltextPayload(payload) {
+  const src = payload && typeof payload === "object" ? payload : {};
+  const rootsCount = Array.isArray(src.roots)
+    ? src.roots.length
+    : (Number.isFinite(Number(src.rootsCount)) ? Number(src.rootsCount) : 0);
+  return {
+    running: !!src.running,
+    ready: !!src.ready,
+    progress: Number.isFinite(Number(src.progress)) ? Number(src.progress) : 0,
+    progressText: String(src.progressText || "0.0%"),
+    progressDetail: String(src.progressDetail || ""),
+    efficiencyText: String(src.efficiencyText || ""),
+    scanPhase: String(src.scanPhase || ""),
+    indexing_file: String(src.indexing_file || ""),
+    indexedFiles: Number.isFinite(Number(src.indexedFiles)) ? Number(src.indexedFiles) : 0,
+    discoveredFiles: Number.isFinite(Number(src.discoveredFiles)) ? Number(src.discoveredFiles) : 0,
+    processedFiles: Number.isFinite(Number(src.processedFiles)) ? Number(src.processedFiles) : 0,
+    pendingTasks: Number.isFinite(Number(src.pendingTasks)) ? Number(src.pendingTasks) : 0,
+    queueCapacity: Number.isFinite(Number(src.queueCapacity)) ? Number(src.queueCapacity) : 0,
+    queueSaturated: !!src.queueSaturated,
+    rootsCount,
+    filesPerSec: Number.isFinite(Number(src.filesPerSec)) ? Number(src.filesPerSec) : 0,
+    etaSeconds: Number.isFinite(Number(src.etaSeconds)) ? Number(src.etaSeconds) : 0,
+    indexVersion: String(src.indexVersion || ""),
+    engine_lights: Array.isArray(src.engine_lights) && src.engine_lights.length === 4
+      ? src.engine_lights.map((v) => String(v || "off"))
+      : ["off", "off", "off", "off"],
+    scan_mode: String(src.scan_mode || ""),
+    indexEpoch: Number.isFinite(Number(src.indexEpoch)) ? Number(src.indexEpoch) : 0
+  };
+}
+
+function formatScanModeBadge(mode) {
+  const m = String(mode || "").toLowerCase();
+  if (!m) return "";
+  if (m.includes("mft")) return "高速扫描";
+  if (m.includes("everything")) return "快速扫描";
+  if (m.includes("walk")) return "兼容扫描";
+  if (m.includes("usn")) return "实时更新";
+  return String(mode || "");
+}
+
+function shortenMiddle(text, maxLen) {
+  const s = String(text || "");
+  const lim = Number(maxLen) || 64;
+  if (s.length <= lim) return s;
+  const head = Math.max(8, Math.floor((lim - 1) * 0.55));
+  const tail = Math.max(6, lim - head - 1);
+  return s.slice(0, head) + "…" + s.slice(s.length - tail);
+}
+
+function extractIndexerPath(rawText) {
+  const s = String(rawText || "").trim();
+  if (!s) return "";
+  if (/^[a-zA-Z]:[\\/]/.test(s) || /^\\\\/.test(s)) return s;
+  const m = s.match(/:\s*([a-zA-Z]:[\\/].*)$/);
+  if (m && m[1]) return m[1].trim();
+  return "";
+}
+
+function splitPathPreview(pathText) {
+  const p = String(pathText || "").replace(/\//g, "\\").trim();
+  if (!p) return { name: "", dir: "" };
+  const idx = p.lastIndexOf("\\");
+  if (idx < 0) return { name: p, dir: "" };
+  const name = p.slice(idx + 1) || p;
+  const dir = idx > 0 ? p.slice(0, idx) : "\\";
+  return { name, dir };
+}
+
+function updateFulltextFilePreview(indexingText) {
+  const wrap = document.getElementById("ft-file-preview");
+  const nameEl = document.getElementById("ft-file-name");
+  const dirEl = document.getElementById("ft-file-dir");
+  if (!wrap || !nameEl || !dirEl) return;
+
+  const path = extractIndexerPath(indexingText);
+  if (!path) {
+    wrap.classList.add("hidden");
+    nameEl.textContent = "-";
+    dirEl.textContent = "-";
+    nameEl.title = "";
+    dirEl.title = "";
+    return;
+  }
+
+  const sp = splitPathPreview(path);
+  const fileName = sp.name || path;
+  const dirName = sp.dir || "根目录";
+  nameEl.textContent = shortenMiddle(fileName, 42);
+  dirEl.textContent = shortenMiddle(dirName, 68);
+  nameEl.title = fileName;
+  dirEl.title = dirName;
+  wrap.classList.remove("hidden");
+}
+
+function userFriendlyProbeReason(reason, kind) {
+  const raw = String(reason || "").trim();
+  if (!raw) return "未返回说明";
+  const low = raw.toLowerCase();
+  if (low.includes("incorrect function")) {
+    return kind === "usn"
+      ? "当前磁盘不支持实时更新，已自动降级，不影响搜索"
+      : "当前磁盘不支持该方式，已自动降级";
+  }
+  if (low.includes("root is not a drive root")) return "该路径不是磁盘根目录";
+  if (low.includes("permission") || low.includes("access denied")) return "权限不足";
+  if (low.includes("timeout")) return "检测超时";
+  return raw;
+}
+
+function getHitContextList(item) {
+  const md = item && item.metadata;
+  if (!md || typeof md !== "object") return null;
+  const ctx = md.hitContext;
+  return Array.isArray(ctx) && ctx.length ? ctx : null;
+}
+
+function getSelectedResultItem() {
+  return state.results.find((entry) => entry.row == state.selectedRow) || null;
+}
+
+function normalizeHitContextRows(item) {
+  const ctx = getHitContextList(item);
+  if (!ctx) return [];
+  return ctx.map((b) => {
+    if (!b || typeof b !== "object") return null;
+    const lineNoRaw = b.line != null ? b.line : b.Line;
+    const lineNo = Number(lineNoRaw);
+    const sn = b.snippet != null ? b.snippet : b.Snippet;
+    return {
+      line: Number.isFinite(lineNo) && lineNo > 0 ? Math.floor(lineNo) : 0,
+      snippet: String(sn || "")
+    };
+  }).filter(Boolean);
+}
+
+function hitCountForItem(item, rows) {
+  const md = item && item.metadata && typeof item.metadata === "object" ? item.metadata : null;
+  const raw = md ? Number(md.hitCount) : 0;
+  if (Number.isFinite(raw) && raw > 0) return Math.floor(raw);
+  return rows.length;
+}
+
+function buildFulltextHitPreviewHtml(item, keyword) {
+  const rows = normalizeHitContextRows(item);
+  if (!rows.length) return "";
+  const count = hitCountForItem(item, rows);
+  const keyText = String(keyword || "").trim();
+  const rowsHtml = rows.map((r, i) => {
+    const sn = highlight(r.snippet, keyText).replace(/\n/g, "<br>");
+    const lineLabel = r.line > 0 ? ("行 " + r.line) : "命中片段";
+    return "<div class=\"ft-preview-hit-row\" data-hit-idx=\"" + i + "\">" +
+      "<div class=\"ft-preview-hit-line\">" + escapeHtml(lineLabel) + "</div>" +
+      "<div class=\"ft-preview-hit-snippet\">" + sn + "</div>" +
+      "</div>";
+  }).join("");
+  return "<div class=\"ft-preview-hit-panel\">" +
+    "<div class=\"ft-preview-hit-head\">" +
+      "<span><span class=\"k\">关键词:</span> <span class=\"v\">" + escapeHtml(keyText || "(空)") + "</span></span>" +
+      "<span><span class=\"k\">命中:</span> <span class=\"v\">" + count + "</span></span>" +
+      "<span><span class=\"k\">上下文:</span> <span class=\"v\">" + rows.length + "</span></span>" +
+      "<button type=\"button\" class=\"ft-preview-hit-nav\" data-hit-nav=\"prev\">上一个</button>" +
+      "<button type=\"button\" class=\"ft-preview-hit-nav\" data-hit-nav=\"next\">下一个</button>" +
+      "<span class=\"k\" id=\"ft-preview-hit-index\">1/" + rows.length + "</span>" +
+    "</div>" +
+    "<div class=\"ft-preview-hit-list\">" + rowsHtml + "</div>" +
+    "</div>";
+}
+
+function bindFulltextHitPreviewPanel(pane) {
+  if (!pane) return;
+  const rows = Array.from(pane.querySelectorAll(".ft-preview-hit-row"));
+  if (!rows.length) return;
+  const indexEl = pane.querySelector("#ft-preview-hit-index");
+  let idx = 0;
+  const activate = (next) => {
+    if (!rows.length) return;
+    idx = ((next % rows.length) + rows.length) % rows.length;
+    rows.forEach((r, i) => r.classList.toggle("active", i === idx));
+    const cur = rows[idx];
+    if (cur) cur.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    if (indexEl) indexEl.textContent = (idx + 1) + "/" + rows.length;
+  };
+  rows.forEach((r, i) => {
+    r.addEventListener("click", () => activate(i));
+  });
+  pane.querySelectorAll(".ft-preview-hit-nav").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const dir = btn.getAttribute("data-hit-nav");
+      activate(dir === "prev" ? idx - 1 : idx + 1);
+    });
+  });
+  activate(0);
+}
+
+function startFulltextProgressStream() {
+  if (typeof EventSource === "undefined") {
+    if (!fulltextPollTimer) {
+      fulltextPollTimer = setInterval(() => requestFulltextStatus(), 2500);
+    }
+    return;
+  }
+  if (fulltextProgressES) {
+    try {
+      fulltextProgressES.close();
+    } catch (e) {}
+    fulltextProgressES = null;
+  }
+  let es;
+  try {
+    es = new EventSource(SEARCH_CORE_ORIGIN + "/v1/fulltext/progress/stream");
+  } catch (e) {
+    if (!fulltextPollTimer) {
+      fulltextPollTimer = setInterval(() => requestFulltextStatus(), 2500);
+    }
+    return;
+  }
+  fulltextProgressES = es;
+  es.addEventListener("open", () => {
+    fulltextEsBackoffMs = 2000;
+    if (fulltextPollTimer) {
+      clearInterval(fulltextPollTimer);
+      fulltextPollTimer = 0;
+    }
+  });
+  es.onmessage = (ev) => {
+    try {
+      const data = JSON.parse(ev.data || "{}");
+      applyFulltextStatus(data);
+    } catch (e) {}
+  };
+  es.onerror = () => {
+    try {
+      es.close();
+    } catch (e) {}
+    if (fulltextProgressES === es) fulltextProgressES = null;
+    if (!fulltextPollTimer) {
+      fulltextPollTimer = setInterval(() => requestFulltextStatus(), 2500);
+    }
+    const wait = fulltextEsBackoffMs;
+    fulltextEsBackoffMs = Math.min(Math.floor(fulltextEsBackoffMs * 1.5), 60000);
+    if (!fulltextEsReconnectTimer) {
+      fulltextEsReconnectTimer = setTimeout(() => {
+        fulltextEsReconnectTimer = 0;
+        startFulltextProgressStream();
+      }, wait);
+    }
+  };
+}
+
+function applyFulltextStatus(payload) {
+  state.fulltext = normalizeFulltextPayload(Object.assign({}, state.fulltext, payload || {}));
+  const cfg = payload && payload.config && typeof payload.config === "object" ? payload.config : null;
+  if (cfg) {
+    let scheme = String(cfg.scanScheme || "").trim().toLowerCase();
+    if (!scheme) {
+      const useMFT = !!cfg.useMFT;
+      const useEverything = !!cfg.useEverything;
+      scheme = useMFT && useEverything ? "auto" : (useMFT ? "mft" : (useEverything ? "everything" : "walk"));
+    }
+    if (!["auto", "mft", "everything", "walk"].includes(scheme)) scheme = "auto";
+    state.fulltextConfig.scanScheme = scheme;
+    state.fulltextConfig.useUSN = (typeof cfg.useUSN === "boolean") ? cfg.useUSN : true;
+    state.fulltextConfig.indexDir = String(cfg.indexDir || "");
+    syncFulltextSchemeUi();
+    syncFulltextAdvancedUi();
+  }
+  const lightIds = ["ftl1", "ftl2", "ftl3", "ftl4"];
+  lightIds.forEach((id, idx) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove("off", "active", "ready", "warn");
+    el.classList.add(state.fulltext.engine_lights[idx] || "off");
+  });
+  const discovered = Number(state.fulltext.discoveredFiles) || 0;
+  const processed = Number(state.fulltext.processedFiles) || 0;
+  const pending = Number(state.fulltext.pendingTasks) || 0;
+  const queueCap = Number(state.fulltext.queueCapacity) || 0;
+  const queueSat = !!state.fulltext.queueSaturated;
+  const roots = Number(state.fulltext.rootsCount) || 0;
+  const phase = String(state.fulltext.scanPhase || "");
+  const hasCounters = discovered > 0 || processed > 0 || pending > 0;
+  const hasActiveQueue = pending > 0 || (discovered > 0 && processed < discovered);
+  const activeBusy = !!state.fulltext.running && (phase === "walking" || phase === "indexing" || hasActiveQueue);
+  const queueText = pending > 0
+    ? (queueCap > 0 ? `，队列 ${pending}/${queueCap}` : `，队列 ${pending}`)
+    : "";
+  let progressText = "索引准备中…";
+  if (activeBusy && hasCounters) {
+    const total = Math.max(discovered, processed + pending);
+    progressText = `正在建立索引：${processed}/${total}${queueText}`;
+    if (queueSat && pending > 0) {
+      progressText += "（排队已满）";
+    }
+    if (pending === 0 && discovered > 0 && processed >= discovered) {
+      progressText = `索引已完成（${roots}个位置）`;
+    }
+  } else if (activeBusy && phase === "walking") {
+    progressText = "正在扫描目录…";
+  } else if (activeBusy && phase === "indexing") {
+    progressText = pending > 0 ? `正在建立索引…${queueText}` : "正在建立索引…";
+  } else if (state.fulltext.running && phase === "idle_wait") {
+    progressText = "等待空闲后开始索引…";
+  } else if (state.fulltext.ready) {
+    progressText = "索引已就绪";
+  } else if (!state.fulltext.running) {
+    progressText = "索引已停止";
+  }
+  const progressEl = document.getElementById("ft-progress-text");
+  if (progressEl) {
+    progressEl.textContent = progressText;
+    progressEl.title = progressText;
+  }
+  const effEl = document.getElementById("ft-efficiency-text");
+  if (effEl) {
+    const txt = state.fulltext.efficiencyText || `${state.fulltext.filesPerSec.toFixed(2)} 文件/秒`;
+    effEl.textContent = txt;
+    effEl.title = txt;
+  }
+  const statsEl = document.getElementById("ft-quick-stats");
+  if (statsEl) {
+    const indexed = Number(state.fulltext.indexedFiles) || 0;
+    const discovered = Number(state.fulltext.discoveredFiles) || 0;
+    const pending = Number(state.fulltext.pendingTasks) || 0;
+    const queueCap = Number(state.fulltext.queueCapacity) || 0;
+    const queueText = queueCap > 0 ? `${pending}/${queueCap}` : `${pending}`;
+    const mode = formatScanModeBadge(state.fulltext.scan_mode);
+    const ver = state.fulltext.indexVersion ? ` · 版本 ${state.fulltext.indexVersion}` : "";
+    statsEl.textContent = `已索引 ${indexed} · 发现 ${discovered} · 队列 ${queueText}${mode ? ` · ${mode}` : ""}${ver}`;
+    statsEl.title = statsEl.textContent;
+  }
+  const fileEl = document.getElementById("ft-file");
+  if (fileEl) {
+    const phaseMap = {
+      startup: "准备中",
+      walking: "扫描目录中",
+      indexing: "正在建立索引",
+      idle_wait: "等待空闲",
+      ready: "索引就绪",
+      idle: "空闲"
+    };
+    const phaseText = phaseMap[state.fulltext.scanPhase] || (state.fulltext.running ? "索引监控中" : "空闲");
+    const path = extractIndexerPath(state.fulltext.indexing_file || "");
+    const displayName = path ? splitPathPreview(path).name : "";
+    let t = displayName ? `${phaseText} · ${displayName}` : phaseText;
+    if (!displayName && activeBusy) {
+      t = pending > 0 ? `建立索引中 · 队列 ${queueCap > 0 ? `${pending}/${queueCap}` : pending}` : "建立索引中";
+    } else if (!displayName && state.fulltext.running && phase === "idle_wait") {
+      t = "等待空闲后开始";
+    }
+    fileEl.textContent = t;
+    fileEl.title = state.fulltext.indexing_file ? `${phaseText} · ${state.fulltext.indexing_file}` : t;
+  }
+  updateFulltextFilePreview(state.fulltext.indexing_file || "");
+  const toggleBtn = document.getElementById("btn-ft-toggle");
+  if (toggleBtn) {
+    if (state.fulltext.running) {
+      toggleBtn.textContent = "停止索引";
+      toggleBtn.title = "点击停止全文索引";
+    } else {
+      toggleBtn.textContent = "启动索引";
+      toggleBtn.title = "点击启动全文索引";
+    }
+  }
+  const scanBadge = document.getElementById("ft-scan-badge");
+  if (scanBadge) {
+    const lab = formatScanModeBadge(state.fulltext.scan_mode);
+    scanBadge.textContent = lab;
+    scanBadge.title = state.fulltext.scan_mode
+      ? ("当前模式: " + lab
+        + (state.fulltext.indexEpoch ? " · 轮次 " + state.fulltext.indexEpoch : "")
+        + (state.fulltext.indexVersion ? " · 版本 " + state.fulltext.indexVersion : ""))
+      : "当前模式";
+    scanBadge.style.display = lab ? "inline" : "none";
+  }
+}
+
+function requestFulltextStatus(withConfig = false) {
+  postToAhk({ type: "fulltextStatusRequest", withConfig: !!withConfig });
+}
+
+function syncFulltextSchemeUi() {
+  const sel = document.getElementById("ft-scheme-select");
+  const usn = document.getElementById("ft-usn-toggle");
+  const idx = document.getElementById("ft-index-dir");
+  if (sel) sel.value = state.fulltextConfig.scanScheme || "auto";
+  if (usn) usn.checked = !!state.fulltextConfig.useUSN;
+  if (idx) idx.value = String(state.fulltextConfig.indexDir || "");
+}
+
+function schemeDisplayName(scheme) {
+  const v = String(scheme || "auto").toLowerCase();
+  if (v === "mft") return "高速扫描（推荐）";
+  if (v === "everything") return "快速扫描（需 Everything）";
+  if (v === "walk") return "兼容扫描（最稳定）";
+  return "自动选择（推荐）";
+}
+
+function syncFulltextAdvancedUi() {
+  const wrap = document.getElementById("ft-advanced-wrap");
+  const btn = document.getElementById("btn-ft-advanced-toggle");
+  const help = document.getElementById("ft-scheme-help");
+  const open = !!state.fulltextUiAdvanced;
+  if (wrap) wrap.classList.toggle("hidden", !open);
+  if (btn) btn.textContent = open ? "技术详情 ▴" : "技术详情 ▾";
+  if (help) {
+    const currentScheme = String(state.fulltextConfig.scanScheme || "auto").toLowerCase();
+    const currentLabel = schemeDisplayName(currentScheme);
+    const rec = state.fulltextProbe && state.fulltextProbe.last
+      ? String((state.fulltextProbe.last.recommendedScheme || "")).toLowerCase()
+      : "";
+    if (rec) {
+      const recLabel = schemeDisplayName(rec);
+      if (rec === currentScheme) {
+        help.textContent = "当前方式：" + currentLabel + "（与推荐一致）。";
+      } else {
+        help.textContent = "当前方式：" + currentLabel + " · 推荐方式：" + recLabel + "。";
+      }
+    } else {
+      help.textContent = "建议先点“检测可行性”，再点“一键推荐”。系统会自动选择更稳妥的方式。";
+    }
+  }
+}
+
+function collectFulltextSchemePayload() {
+  const sel = document.getElementById("ft-scheme-select");
+  const usn = document.getElementById("ft-usn-toggle");
+  const idx = document.getElementById("ft-index-dir");
+  const scheme = sel ? String(sel.value || "auto") : "auto";
+  const useUSN = usn ? !!usn.checked : true;
+  const indexDir = idx ? String(idx.value || "").trim() : "";
+  return { scanScheme: scheme, useUSN, indexDir };
+}
+
+function setFulltextProbeSummary(text) {
+  const el = document.getElementById("ft-probe-summary");
+  if (!el) return;
+  el.textContent = String(text || "");
+}
+
+function renderFulltextProbe(probe) {
+  state.fulltextProbe.last = probe && typeof probe === "object" ? probe : null;
+  const list = document.getElementById("ft-probe-list");
+  if (!list) return;
+  const p = state.fulltextProbe.last;
+  if (!p) {
+    list.innerHTML = "";
+    return;
+  }
+  const rows = Array.isArray(p.rootChecks) ? p.rootChecks : [];
+  if (!rows.length) {
+    list.innerHTML = "<div class=\"ft-probe-item\">未返回分盘检测结果</div>";
+    return;
+  }
+  list.innerHTML = rows.map((it) => {
+    const root = escapeHtml(String(it.root || ""));
+    const mftOk = !!it.mftOk;
+    const usnOk = !!it.usnOk;
+    const mftReason = escapeHtml(userFriendlyProbeReason(String(it.mftReason || ""), "mft"));
+    const usnReason = escapeHtml(userFriendlyProbeReason(String(it.usnReason || ""), "usn"));
+    return "<div class=\"ft-probe-item\">" +
+      "<div><strong>" + root + "</strong></div>" +
+      "<div>高速扫描: <span class=\"" + (mftOk ? "ft-probe-ok" : "ft-probe-bad") + "\">" + (mftOk ? "可用" : "不可用") + "</span> · " + mftReason + "</div>" +
+      "<div>实时更新: <span class=\"" + (usnOk ? "ft-probe-ok" : "ft-probe-bad") + "\">" + (usnOk ? "可用" : "不可用") + "</span> · " + usnReason + "</div>" +
+      "</div>";
+  }).join("");
+  const extra = [];
+  if (typeof p.everythingOk === "boolean") {
+    extra.push("快速扫描（Everything）" + (p.everythingOk ? "可用" : "不可用"));
+  }
+  if (p.recommendedScheme) {
+    const rec = String(p.recommendedScheme || "").toLowerCase();
+    const cur = String(state.fulltextConfig.scanScheme || "auto").toLowerCase();
+    if (rec === cur) {
+      extra.push("当前方式已匹配推荐");
+    } else {
+      extra.push("推荐: " + schemeDisplayName(rec));
+    }
+  }
+  setFulltextProbeSummary(extra.join(" · "));
+  syncFulltextAdvancedUi();
+}
+
+function updateHotkeyHighlights() {
+  const nodes = document.querySelectorAll(".hotkey-item");
+  nodes.forEach((el) => {
+    const hk = normalizeHintKey(el.dataset.hotkey || "");
+    const ready = state.capsHintActive && !!hk;
+    const hit = ready && state.capsPressedKey === hk;
+    el.classList.toggle("caps-hotkey-ready", ready);
+    el.classList.toggle("caps-hotkey-hit", hit);
+  });
+}
+
+function setCapsHintActive(active) {
+  const next = !!active;
+  if (state.capsHintActive === next) return;
+  state.capsHintActive = next;
+  if (!next) state.capsPressedKey = "";
+  updateHotkeyHighlights();
+  syncFooterHint();
+}
+
+function setCapsPressedKey(key) {
+  state.capsPressedKey = normalizeHintKey(key);
+  updateHotkeyHighlights();
+}
+
+function flashCapsPressedKey(key) {
+  const normalized = normalizeHintKey(key);
+  if (!normalized) return;
+  setCapsPressedKey(normalized);
+  if (capsFlashTimer) clearTimeout(capsFlashTimer);
+  capsFlashTimer = setTimeout(() => {
+    if (state.capsPressedKey === normalized) {
+      state.capsPressedKey = "";
+      updateHotkeyHighlights();
+    }
+  }, 260);
+}
+
+function beginCapsHoldHint() {
+  if (capsHoldTimer) clearTimeout(capsHoldTimer);
+  lastCapsDownAt = Date.now();
+  capsHoldTimer = setTimeout(() => {
+    setCapsHintActive(true);
+  }, 220);
+}
+
+function endCapsHoldHint() {
+  if (capsHoldTimer) clearTimeout(capsHoldTimer);
+  capsHoldTimer = 0;
+  if (capsFlashTimer) clearTimeout(capsFlashTimer);
+  capsFlashTimer = 0;
+  setCapsHintActive(false);
+}
+
+function triggerHotkeyButtonByKey(rawKey) {
+  const key = normalizeHintKey(rawKey);
+  if (!key) return false;
+  const nodes = document.querySelectorAll(".hotkey-item[data-hotkey]");
+  for (const node of nodes) {
+    const hk = normalizeHintKey(node.dataset.hotkey || "");
+    if (hk !== key) continue;
+    if (typeof node.click === "function") node.click();
+    return true;
+  }
+  return false;
+}
+
+function shouldHandleCapsChordNow() {
+  if (state.capsHintActive) return true;
+  if (!lastCapsDownAt) return false;
+  return (Date.now() - lastCapsDownAt) <= 700;
+}
+
+function captureHotkeyActivationState() {
+  return {
+    category: String(state.currentCategoryKey || ""),
+    engines: Array.isArray(state.selectedEngines) ? state.selectedEngines.slice().sort().join("|") : "",
+    filter: String(state.filterType || "")
+  };
+}
+
+function isSameHotkeyActivationState(a, b) {
+  if (!a || !b) return false;
+  return a.category === b.category && a.engines === b.engines && a.filter === b.filter;
+}
+
+function scheduleHostCapsHotkeyFallback(rawKey) {
+  const key = normalizeHintKey(rawKey);
+  if (!key) return;
+  const before = captureHotkeyActivationState();
+  setTimeout(() => {
+    if (state.hotkeyBindDialog && state.hotkeyBindDialog.open) return;
+    const now = captureHotkeyActivationState();
+    if (!isSameHotkeyActivationState(before, now)) return;
+    triggerHotkeyButtonByKey(key);
+  }, 90);
+}
+
+function renderCategories() {
+  const wrap = document.getElementById("categories");
+  wrap.innerHTML = "";
+  state.categories.forEach((cat) => {
+    const hotkey = getHintHotkey("category", cat.key);
+    const el = document.createElement("button");
+    el.className = "chip hotkey-item" + (cat.key === state.currentCategoryKey ? " active" : "");
+    el.dataset.hotkey = hotkey || "";
+    el.dataset.hotkeyGroup = "category";
+    el.dataset.hotkeyValue = String(cat.key || "");
+    el.dataset.hotkeyLabel = String(cat.text || cat.key || "");
+    el.innerHTML = "<span class=\"chip-main\"><span class=\"chip-title\">" + escapeHtml(cat.text) + "</span>" + hotkeyHintHtml(hotkey, "category", cat.key, cat.text) + "</span><span class=\"count\">" + (cat.selectedCount || 0) + "</span>";
+    el.onclick = () => postToAhk({ type: "setCategory", category: cat.key });
+    wrap.appendChild(el);
+  });
+  updateHotkeyHighlights();
+}
+
+function renderEngines() {
+  const wrap = document.getElementById("engines");
+  wrap.innerHTML = "";
+  state.engines.forEach((engine) => {
+    const hotkey = getHintHotkey("engine", engine.value);
+    const active = state.selectedEngines.includes(engine.value);
+    const el = document.createElement("button");
+    el.className = "engine-chip hotkey-item" + (active ? " active" : "");
+    el.dataset.hotkey = hotkey || "";
+    el.dataset.hotkeyGroup = "engine";
+    el.dataset.hotkeyValue = String(engine.value || "");
+    el.dataset.hotkeyLabel = String(engine.name || engine.value || "");
+    const icon = engine.iconUrl
+      ? "<span class=\"engine-icon-wrap\"><img src=\"" + engine.iconUrl + "\" alt=\"\"></span>"
+      : "<span class=\"engine-icon-wrap\"><span class=\"engine-fallback\">" + escapeHtml((engine.name || "?").slice(0, 1).toUpperCase()) + "</span></span>";
+    el.innerHTML = icon + "<span class=\"label\">" + escapeHtml(engine.name) + "</span>" + hotkeyHintHtml(hotkey, "engine", engine.value, engine.name);
+    el.onclick = () => postToAhk({ type: "toggleEngine", engine: engine.value });
+    wrap.appendChild(el);
+  });
+  updateHotkeyHighlights();
+}
+
+function renderFilters() {
+  const wrap = document.getElementById("filters");
+  wrap.innerHTML = "";
+  state.filters.forEach((filter) => {
+    const hotkey = getHintHotkey("filter", filter.key);
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = "filter-chip hotkey-item" + (filter.key === state.filterType ? " active" : "");
+    el.dataset.hotkey = hotkey || "";
+    el.dataset.hotkeyGroup = "filter";
+    el.dataset.hotkeyValue = String(filter.key || "");
+    el.dataset.hotkeyLabel = String(filter.text || filter.key || "");
+    el.dataset.filterKey = filter.key || "";
+    el.innerHTML = "<span class=\"filter-label\">" + escapeHtml(filter.text) + "</span>" + hotkeyHintHtml(hotkey, "filter", filter.key, filter.text);
+    const applyFilter = () => postToAhk({ type: "setFilter", filterType: filter.key });
+    let pressedHandled = false;
+    let pressedAt = 0;
+    // 输入防抖回包会重绘过滤栏，pointerdown 比 click 更早触发，避免点击被重绘吞掉
+    el.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      pressedHandled = true;
+      pressedAt = Date.now();
+      applyFilter();
+    });
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (pressedHandled && (Date.now() - pressedAt) < 450) {
+        pressedHandled = false;
+        return;
+      }
+      pressedHandled = false;
+      applyFilter();
+    });
+    wrap.appendChild(el);
+  });
+  updateHotkeyHighlights();
+}
+
+function renderResults() {
+  const list = document.getElementById("result-list");
+  list.innerHTML = "";
+  disconnectLoadMoreObserver();
+
+  if (!state.results.length) {
+    const isFulltextFilter = resolveFilterKey() === "fulltext";
+    const inTransition = isFulltextFilter && Date.now() < Number(state.fulltextEmptyTransitionUntil || 0);
+    const emptyClass = "empty" + (inTransition ? " empty-transition" : "");
+    const lead = inTransition
+      ? "<span class=\"empty-lead\"><span class=\"empty-dot\"></span>全文搜索视图已切换，等待结果更新…</span><br>"
+      : "";
+    list.innerHTML =
+      "<div class=\"" + emptyClass + "\">" + lead + "暂无结果。<br>你可以在输入框输入关键词搜索本地内容，或选择引擎后执行网络搜索 / CLI 发送。</div>" +
+      buildSkeletonListHtml(7);
+    renderPreview();
+    return;
+  }
+
+  if (state.selectedRow < 1 || state.selectedRow > state.results.length) {
+    state.selectedRow = 1;
+  }
+
+  state.results.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "result-item" + (item.row === state.selectedRow ? " active" : "");
+    const pinMark = item.pinned ? "<span class=\"pin-ico\" title=\"置顶\">🔝</span>" : "";
+    const hitCtx = getHitContextList(item);
+    let hitBlock = "";
+    if (hitCtx) {
+      const lines = hitCtx.map((b) => {
+        if (!b || typeof b !== "object") return "";
+        const lineNo = b.line != null ? b.line : b.Line;
+        const sn = b.snippet != null ? b.snippet : b.Snippet;
+        return "<span class=\"hit-ctx-line\">" + escapeHtml(String(lineNo || "")) + "</span> " + highlight(String(sn || ""), state.keyword);
+      }).filter(Boolean);
+      hitBlock =
+        "<div class=\"hit-context-wrap\">" +
+        "<button type=\"button\" class=\"hit-ctx-btn\">命中上下文 · " + hitCtx.length + "</button>" +
+        "<div class=\"hit-ctx-body hidden\">" + lines.join("<br>") + "</div></div>";
+    }
+    row.innerHTML =
+      "<div>" +
+        "<div class=\"result-title\">" + pinMark + highlight(item.title, state.keyword) + "</div>" +
+        "<div class=\"result-sub\">" + escapeHtml(item.subtitle || "") + "</div>" +
+        "<div class=\"result-preview\">" + highlight(item.preview || "", state.keyword) + "</div>" +
+        hitBlock +
+      "</div>" +
+      "<div class=\"result-meta\">" +
+        "<span class=\"pill\">" + escapeHtml(item.type || "") + "</span>" +
+        "<span class=\"time\">" + escapeHtml(item.time || "") + "</span>" +
+      "</div>";
+    if (hitCtx) {
+      const btn = row.querySelector(".hit-ctx-btn");
+      const body = row.querySelector(".hit-ctx-body");
+      if (btn && body) {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          body.classList.toggle("hidden");
+        });
+      }
+    }
+    row.onclick = () => {
+      state.selectedRow = item.row;
+      renderResults();
+    };
+    row.oncontextmenu = (ev) => {
+      ev.preventDefault();
+      state.selectedRow = item.row;
+      renderResults();
+      postToAhk({
+        type: "searchCenterContextMenu",
+        row: item.row,
+        screenX: ev.screenX,
+        screenY: ev.screenY,
+      });
+    };
+    row.ondblclick = () => {
+      postToAhk({ type: "activateResult", row: item.row });
+    };
+    list.appendChild(row);
+  });
+
+  if (state.results.length < 7) {
+    list.insertAdjacentHTML("beforeend", buildSkeletonListHtml(7 - state.results.length));
+  }
+
+  if (state.hasMore) {
+    const sent = document.createElement("div");
+    sent.id = "load-sentinel";
+    sent.style.height = "2px";
+    sent.style.width = "100%";
+    sent.style.pointerEvents = "none";
+    list.appendChild(sent);
+    setupLoadMoreObserver();
+  }
+
+  renderPreview();
+}
+
+function looksLikeWindowsPath(s) {
+  if (!s || typeof s !== "string") return false;
+  const t = s.trim();
+  if (t.length < 3) return false;
+  if (/^[A-Za-z]:[\\/]/.test(t)) return true;
+  if (t.startsWith("\\\\")) return true;
+  return false;
+}
+
+function getSelectedItemPath(item) {
+  if (!item) return "";
+  const p = (item.path && String(item.path).trim()) || "";
+  if (p && looksLikeWindowsPath(p)) return p;
+  const dt = String(item.dataType || item.type || "").toLowerCase();
+  const isFileish = dt === "file" || dt === "folder" || /文件|路径/.test(String(item.source || ""));
+  const c = item.content ? String(item.content).trim() : "";
+  if (isFileish && looksLikeWindowsPath(c)) return c;
+  return "";
+}
+
+function pathExtensionLower(path) {
+  if (!path) return "";
+  const base = path.replace(/^.*[\\/]/, "");
+  const i = base.lastIndexOf(".");
+  if (i <= 0 || i === base.length - 1) return "";
+  return base.slice(i + 1).toLowerCase();
+}
+
+function prismLangForExt(ext) {
+  if (ext === "py") return "python";
+  if (ext === "js") return "javascript";
+  if (ext === "md") return "markdown";
+  if (ext === "json") return "json";
+  if (ext === "ahk") return "clike";
+  if (ext === "txt" || ext === "log") return "plaintext";
+  return "plaintext";
+}
+
+function truncateToLines(text, maxLines) {
+  const lines = text.split(/\r\n|\r|\n/);
+  if (lines.length <= maxLines) return { text, truncated: false };
+  return { text: lines.slice(0, maxLines).join("\n"), truncated: true };
+}
+
+function setQuickLookHintVisible(show) {
+  const el = document.getElementById("preview-ql-hint");
+  if (!el) return;
+  el.classList.toggle("hidden", !show);
+  if (show) updateQuickLookInstallUi();
+}
+
+function isQuickLookInstalled() {
+  const q = state.quickLook || {};
+  return !!q.installed;
+}
+
+function updateChromeTopMostButton() {
+  const btn = document.getElementById("chrome-topmost");
+  if (!btn) return;
+  const topMost = !!state.hostTopMost;
+  btn.classList.toggle("active", topMost);
+  btn.textContent = topMost ? "置顶" : "未置顶";
+  btn.title = topMost ? "当前已置顶，点击取消置顶" : "当前未置顶，点击置顶窗口";
+}
+
+/**
+ * 单按钮模式：
+ * 未安装 => 按钮显示“安装QuickLook”，点击后用户确认下载并安装；
+ * 已安装 => 按钮显示“QuickLook”，点击后直接触发 QuickLook 预览。
+ */
+function updateQuickLookInstallUi() {
+  const btn = document.getElementById("preview-ql-btn");
+  if (!btn) return;
+  const q = state.quickLook || {};
+  const installed = isQuickLookInstalled();
+  const busy = !!q.installBusy;
+  const err = (q.lastInstallError && String(q.lastInstallError).trim()) || "";
+
+  if (busy) {
+    const pm = (q.installProgressMsg && String(q.installProgressMsg).trim()) || "正在安装 QuickLook…";
+    const pct = typeof q.installProgressPct === "number" && !Number.isNaN(q.installProgressPct) ? q.installProgressPct : null;
+    btn.disabled = true;
+    btn.textContent = pct != null ? `安装中 ${Math.round(pct)}%` : "安装中…";
+    btn.title = pm;
+    return;
+  }
+
+  btn.disabled = false;
+  if (installed) {
+    btn.textContent = "QuickLook";
+    btn.title = "已安装，点击直接使用 QuickLook 预览";
+    return;
+  }
+
+  btn.textContent = "安装QuickLook";
+  btn.title = err
+    ? (err + " 点击重试安装。")
+    : "未安装。点击后可下载并启用 QuickLook 预览机制。";
+}
+
+function stopNativePreview() {
+  postToAhk({ type: "PREVIEW_NATIVE_STOP" });
+}
+
+function setPreviewLayoutMode(mode) {
+  const web = document.getElementById("preview-web-scroll");
+  const host = document.getElementById("preview-host");
+  if (!web || !host) return;
+  if (mode === "native") {
+    web.classList.add("mode-hidden");
+    host.classList.add("mode-native");
+    host.setAttribute("aria-hidden", "false");
+  } else {
+    web.classList.remove("mode-hidden");
+    host.classList.remove("mode-native");
+    host.setAttribute("aria-hidden", "true");
+  }
+}
+
+function renderFallbackTextPreview(item, pane, meta) {
+  meta.textContent = [item.source || item.subtitle || "", item.type || "", item.time || ""].filter(Boolean).join(" · ");
+  const hitHtml = buildFulltextHitPreviewHtml(item, state.keyword);
+  const plain = escapeHtml(String(item.previewText || item.content || item.title || ""));
+  pane.innerHTML = (hitHtml || "") + "<pre class=\"preview-plain\">" + plain + "</pre>";
+  if (hitHtml) bindFulltextHitPreviewPanel(pane);
+}
+
+function scheduleRunPreview() {
+  if (state.previewTimer) clearTimeout(state.previewTimer);
+  state.iPreviewActive = false;
+  state.iPreviewFailed = false;
+  state.previewTimer = setTimeout(() => {
+    state.previewTimer = 0;
+    runPreviewForSelection();
+  }, PREVIEW_DEBOUNCE_MS);
+}
+
+function collectPreviewBounds() {
+  const host = document.getElementById("preview-host");
+  if (!host || !host.classList.contains("mode-native")) return null;
+  const r = host.getBoundingClientRect();
+  if (r.width < 4 || r.height < 4) return null;
+  return {
+    left: r.left,
+    top: r.top,
+    width: r.width,
+    height: r.height,
+    dpr: typeof window.devicePixelRatio === "number" ? window.devicePixelRatio : 1
+  };
+}
+
+function getPdfModeOptions() {
+  const options = PDF_MODE_OPTIONS_BASE.slice();
+  if (isQuickLookInstalled()) options.push("quicklook");
+  return options;
+}
+
+function setPdfMode(mode) {
+  const options = getPdfModeOptions();
+  const m = options.includes(mode) ? mode : "auto";
+  state.pdfMode = m;
+  try { localStorage.setItem("sc_pdf_preview_mode", m); } catch {}
+  updatePdfModeButton();
+}
+
+function updatePdfModeButton() {
+  const btn = document.getElementById("preview-pdf-mode-btn");
+  if (!btn) return;
+  btn.textContent = "PDF:" + state.pdfMode;
+}
+
+function cyclePdfMode() {
+  const options = getPdfModeOptions();
+  const idx = options.indexOf(state.pdfMode);
+  const next = options[(idx + 1) % options.length];
+  setPdfMode(next);
+  if (pathExtensionLower(state.previewPath) === "pdf") scheduleRunPreview();
+}
+
+function ensurePdfJsScript() {
+  if (globalThis.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_JS_ASSET_BASE + "pdf.worker.min.js";
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = PDF_JS_ASSET_BASE + "pdf.min.js";
+    s.onload = () => {
+      if (!globalThis.pdfjsLib) {
+        reject(new Error("pdfjsLib missing"));
+        return;
+      }
+      pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_JS_ASSET_BASE + "pdf.worker.min.js";
+      resolve();
+    };
+    s.onerror = () => reject(new Error("pdf.min.js load error"));
+    document.head.appendChild(s);
+  });
+}
+
+function base64ToUint8Array(b64) {
+  return fetch("data:application/pdf;base64," + b64).then((r) => r.arrayBuffer()).then((ab) => new Uint8Array(ab));
+}
+
+function renderPdfJsToPane(b64) {
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return Promise.reject(new Error("no pane"));
+  return ensurePdfJsScript()
+    .then(() => base64ToUint8Array(b64))
+    .then((data) => pdfjsLib.getDocument({ data, verbosity: 0 }).promise)
+    .then((pdf) => {
+      const viewportEl = document.createElement("div");
+      viewportEl.className = "pdfjs-viewport";
+      const head = document.createElement("div");
+      head.style.cssText = "color:#93a0ad;font-size:12px;margin-bottom:10px;text-align:center;";
+      head.textContent = "共 " + pdf.numPages + " 页 · PDF.js 内嵌预览（无需 QuickLook）";
+      viewportEl.appendChild(head);
+      pane.innerHTML = "";
+      pane.appendChild(viewportEl);
+      const hostWidth = Math.max(280, pane.clientWidth - 20);
+      const maxPages = Math.min(pdf.numPages, 200);
+      if (pdf.numPages > maxPages) {
+        const warn = document.createElement("div");
+        warn.style.cssText = "color:#ffb347;font-size:11px;text-align:center;margin:6px 0;";
+        warn.textContent = "页数过多，仅渲染前 " + maxPages + " 页以保证流畅；完整阅读请使用外部阅读器。";
+        viewportEl.appendChild(warn);
+      }
+      const items = [];
+      for (let p = 1; p <= maxPages; p++) {
+        const wrap = document.createElement("div");
+        wrap.className = "pdfjs-page-wrap";
+        const ph = document.createElement("div");
+        ph.className = "pdfjs-page-ph";
+        ph.textContent = "第 " + p + " 页…";
+        wrap.appendChild(ph);
+        viewportEl.appendChild(wrap);
+        items.push({ wrap, ph, pn: p, done: false });
+      }
+      const io = new IntersectionObserver(
+        (ents) => {
+          for (const e of ents) {
+            if (!e.isIntersecting) continue;
+            const w = e.target;
+            io.unobserve(w);
+            const item = items.find((it) => it.wrap === w);
+            if (item && !item.done) {
+              item.done = true;
+              pdf.getPage(item.pn).then((page) => {
+                const baseVp = page.getViewport({ scale: 1 });
+                const scale = Math.min(hostWidth / baseVp.width, 2);
+                const vp = page.getViewport({ scale });
+                const canvas = document.createElement("canvas");
+                const ctx = canvas.getContext("2d");
+                canvas.width = vp.width;
+                canvas.height = vp.height;
+                return page.render({ canvasContext: ctx, viewport: vp }).promise.then(() => {
+                  item.ph.replaceWith(canvas);
+                });
+              }).catch(() => {
+                item.ph.textContent = "第 " + item.pn + " 页渲染失败";
+              });
+            }
+          }
+        },
+        { root: viewportEl, rootMargin: "400px", threshold: 0.01 }
+      );
+      for (const it of items) {
+        io.observe(it.wrap);
+      }
+      return null;
+    });
+}
+
+function runPdfJsPipelineFromBase64(b64) {
+  renderPdfJsToPane(b64)
+    .then(() => {
+      finishPdfPlan(true);
+    })
+    .catch(() => {
+      advancePdfPlan("pdfjs_render_fail");
+    });
+}
+
+function onWebPdfJsBegin(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  if (!state.pdfPlan || state.pdfPlan.done || state.pdfPlan.current !== "pdfjs") return;
+  const n = Number(payload.totalParts);
+  const tb = Number(payload.totalBytes);
+  if (!Number.isFinite(n) || n < 1) {
+    advancePdfPlan("pdfjs_begin_bad");
+    return;
+  }
+  state.pdfJsRx = {
+    seq: Number(payload.seq),
+    totalParts: n,
+    totalBytes: Number.isFinite(tb) ? tb : 0,
+    parts: new Array(n),
+    got: 0
+  };
+  const pane = document.getElementById("preview-web-scroll");
+  if (pane) {
+    const mb = state.pdfJsRx.totalBytes > 0 ? (state.pdfJsRx.totalBytes / ONE_MB).toFixed(2) : "?";
+    pane.innerHTML =
+      "<div class=\"preview-loading\">PDF.js 传输中…（约 " + escapeHtml(String(mb)) + " MB · " + n + " 段）</div>";
+  }
+}
+
+function onWebPdfJsPart(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const rx = state.pdfJsRx;
+  if (!rx || rx.seq !== Number(payload.seq)) return;
+  const idx = Number(payload.index);
+  if (!Number.isFinite(idx) || idx < 0 || idx >= rx.totalParts) return;
+  if (rx.parts[idx] != null) return;
+  rx.parts[idx] = String(payload.data || "");
+  rx.got++;
+  if (rx.got < rx.totalParts) return;
+  const b64 = rx.parts.join("");
+  state.pdfJsRx = null;
+  runPdfJsPipelineFromBase64(b64);
+}
+
+function onWebPdfJsError(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  if (!state.pdfPlan || state.pdfPlan.done) return;
+  if (state.pdfPlan.current !== "pdfjs") return;
+  state.pdfJsRx = null;
+  advancePdfPlan("pdfjs_err");
+}
+
+function startPdfPlan(path, seq) {
+  let mode = state.pdfMode || "auto";
+  if (mode === "quicklook" && !isQuickLookInstalled()) {
+    mode = "auto";
+    setPdfMode("auto");
+  }
+  let chain = [];
+  if (mode === "auto")
+    chain = state.pdfWebBroken ? ["pdfjs", "pdfium", "ipreview"] : ["pdfjs", "web", "pdfium", "ipreview"];
+  else if (mode === "quicklook")
+    chain = ["quicklook"]; // only run QuickLook when explicitly selected
+  else
+    chain = [mode];
+  state.pdfJsRx = null;
+  state.pdfPlan = { path, seq, chain, idx: -1, done: false, timer: 0 };
+  advancePdfPlan("start");
+}
+
+function finishPdfPlan(ok) {
+  if (!state.pdfPlan) return;
+  if (state.pdfPlan.timer) {
+    clearTimeout(state.pdfPlan.timer);
+    state.pdfPlan.timer = 0;
+  }
+  state.pdfPlan.done = !!ok;
+}
+
+function advancePdfPlan(reason) {
+  if (!state.pdfPlan || state.pdfPlan.done) return;
+  if (state.pdfPlan.timer) {
+    clearTimeout(state.pdfPlan.timer);
+    state.pdfPlan.timer = 0;
+  }
+  state.pdfPlan.idx += 1;
+  if (state.pdfPlan.idx >= state.pdfPlan.chain.length) {
+    const pane = document.getElementById("preview-web-scroll");
+    if (pane) {
+      pane.innerHTML =
+        "<div class=\"preview-empty\">当前 PDF 预览均未成功（已尝试 PDF.js、WebView 内置、PDFium 与系统预览）。<br><br>" +
+        "请确认文件小于 40MB；可双击列表用默认程序打开。可选：QuickLook 按钮。</div>";
+    }
+    finishPdfPlan(false);
+    return;
+  }
+
+  const mode = state.pdfPlan.chain[state.pdfPlan.idx];
+  state.pdfPlan.current = mode;
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+
+  if (mode === "pdfjs") {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    state.pdfJsRx = null;
+    pane.innerHTML = "<div class=\"preview-loading\">PDF.js 内嵌预览准备中…</div>";
+    postToAhk({ type: "INVOKE_PDF_JS", path: state.pdfPlan.path, seq: state.pdfPlan.seq });
+    return;
+  }
+  if (mode === "web") {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    pane.innerHTML = "<div class=\"preview-loading\">PDF WebView 方案加载中…</div>";
+    postToAhk({ type: "INVOKE_WEB_MEDIA", path: state.pdfPlan.path, seq: state.pdfPlan.seq });
+    return;
+  }
+  if (mode === "pdfium") {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    pane.innerHTML = "<div class=\"preview-loading\">PDFium 方案加载中…</div>";
+    postToAhk({ type: "INVOKE_PDFIUM", path: state.pdfPlan.path, seq: state.pdfPlan.seq });
+    return;
+  }
+  if (mode === "ipreview") {
+    setPreviewLayoutMode("native");
+    pane.innerHTML = "<div class=\"preview-loading\">IPreviewHandler 方案加载中…</div>";
+    invokeIPreviewHandler();
+    return;
+  }
+  if (mode === "quicklook") {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    pane.innerHTML = "<div class=\"preview-empty\">已切换到 QuickLook 兜底预览。</div>";
+    invokeQuickLook(state.pdfPlan.path);
+    finishPdfPlan(true);
+  }
+}
+
+function onPdfWebMediaResult(payload) {
+  if (!state.pdfPlan || state.pdfPlan.done) return;
+  if (state.pdfPlan.current !== "web") return;
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+  const url = payload.url ? String(payload.url) : "";
+  if (!url) {
+    state.pdfWebBroken = true;
+    advancePdfPlan("web_empty");
+    return;
+  }
+  const frameBg = state.themeMode === "light" ? "#f3f8fd" : "#111";
+  pane.innerHTML = "<iframe id=\"pdf-webview-frame\" src=\"" + escapeHtml(url) + "\" style=\"width:100%;height:100%;min-height:360px;border:none;background:" + frameBg + ";\"></iframe>";
+  const frame = document.getElementById("pdf-webview-frame");
+  if (!frame) {
+    advancePdfPlan("web_iframe_missing");
+    return;
+  }
+  let settled = false;
+  const ok = () => {
+    if (settled) return;
+    settled = true;
+    state.pdfWebBroken = false;
+    finishPdfPlan(true);
+  };
+  const fail = () => {
+    if (settled) return;
+    settled = true;
+    state.pdfWebBroken = true;
+    advancePdfPlan("web_iframe_error");
+  };
+  frame.addEventListener("load", ok, { once: true });
+  frame.addEventListener("error", fail, { once: true });
+  state.pdfPlan.timer = setTimeout(() => {
+    if (!settled) fail();
+  }, 4500);
+}
+
+function onWebPreviewPdfiumResult(payload) {
+  if (!state.pdfPlan || state.pdfPlan.done) return;
+  if (state.pdfPlan.current !== "pdfium") return;
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+  const dataUrl = payload.dataUrl ? String(payload.dataUrl) : "";
+  if (!dataUrl) {
+    advancePdfPlan("pdfium_fail");
+    return;
+  }
+  pane.innerHTML = "";
+  const img = new Image();
+  img.className = "preview-img";
+  img.src = dataUrl;
+  pane.appendChild(img);
+  finishPdfPlan(true);
+}
+
+function onWebPreviewMediaResult(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+  const url = payload.url ? String(payload.url) : "";
+  const posterUrl = payload.posterUrl ? String(payload.posterUrl) : "";
+  const payloadDuration = Number(payload.durationSec);
+  const payloadMediaInfo = payload.mediaInfo && typeof payload.mediaInfo === "object" ? payload.mediaInfo : null;
+  if (!url) {
+    pane.innerHTML = "<div class=\"preview-empty\">媒体预览地址为空，无法加载。</div>";
+    return;
+  }
+  const pathForMedia = (payload.path && String(payload.path).trim()) || state.previewPath || "";
+  const ext = pathExtensionLower(pathForMedia);
+  const fileName = pathForMedia ? String(pathForMedia).replace(/^.*[\\/]/, "") : "";
+  const kind = PREVIEW_AUDIO_EXT.has(ext) ? "audio" : "video";
+  const mediaId = "preview-media-el";
+  const currentId = "preview-media-current";
+  const durationId = "preview-media-duration";
+  const statusId = "preview-media-status";
+  const sizeId = "preview-media-size";
+  const infoPanelId = "preview-media-info";
+  const loopActive = state.mediaPrefs.loop ? " active" : "";
+  const mutedActive = state.mediaPrefs.muted ? " active" : "";
+  const autoplayActive = state.mediaPrefs.autoplay ? " active" : "";
+  if (PREVIEW_AUDIO_EXT.has(ext)) {
+    pane.innerHTML =
+      "<div class=\"media-card\">" +
+        "<div class=\"media-player\">" +
+          "<div class=\"media-head\">" +
+            "<div class=\"media-title-wrap\"><div class=\"media-title\">" + escapeHtml(fileName || "音频预览") + "</div><div class=\"media-subtitle\">搜索中心音频预览</div></div>" +
+            "<div class=\"media-chips\"><span class=\"media-chip\">音频</span><span class=\"media-chip\" id=\"" + sizeId + "\">正在读取信息</span></div>" +
+          "</div>" +
+          "<audio id=\"" + mediaId + "\" class=\"preview-media preview-audio\" controls preload=\"metadata\" src=\"" + escapeHtml(url) + "\"></audio>" +
+          "<div class=\"media-toolbar\">" +
+            "<div class=\"media-actions\">" +
+              "<button type=\"button\" class=\"media-btn\" data-media-action=\"info\">编码信息</button>" +
+              "<button type=\"button\" class=\"media-btn" + loopActive + "\" data-media-toggle=\"loop\">循环播放</button>" +
+              "<button type=\"button\" class=\"media-btn" + mutedActive + "\" data-media-toggle=\"muted\">静音</button>" +
+              "<button type=\"button\" class=\"media-btn" + autoplayActive + "\" data-media-toggle=\"autoplay\">自动播放</button>" +
+            "</div>" +
+          "</div>" +
+          "<div id=\"" + infoPanelId + "\" class=\"media-info-panel\"></div>" +
+          "<div class=\"media-status\"><span>当前 <strong id=\"" + currentId + "\">0:00</strong></span><span>总时长 <strong id=\"" + durationId + "\">--:--</strong></span><span id=\"" + statusId + "\">就绪</span></div>" +
+        "</div>" +
+      "</div>";
+  } else if (PREVIEW_VIDEO_EXT.has(ext)) {
+    pane.innerHTML =
+      "<div class=\"media-card\">" +
+        "<div class=\"media-player\">" +
+          "<div class=\"media-head\">" +
+            "<div class=\"media-title-wrap\"><div class=\"media-title\">" + escapeHtml(fileName || "视频预览") + "</div><div class=\"media-subtitle\">搜索中心视频预览</div></div>" +
+            "<div class=\"media-chips\"><span class=\"media-chip\">视频</span><span class=\"media-chip\" id=\"" + sizeId + "\">正在读取信息</span></div>" +
+          "</div>" +
+          "<video id=\"" + mediaId + "\" class=\"preview-media preview-video\" controls preload=\"metadata\" playsinline" + (posterUrl ? " poster=\"" + escapeHtml(posterUrl) + "\"" : "") + " src=\"" + escapeHtml(url) + "\"></video>" +
+          "<div class=\"media-toolbar\">" +
+            "<div class=\"media-actions\">" +
+              "<button type=\"button\" class=\"media-btn\" data-media-action=\"poster\">刷新封面</button>" +
+              "<button type=\"button\" class=\"media-btn\" data-media-action=\"save-frame\">保存截图</button>" +
+              "<button type=\"button\" class=\"media-btn\" data-media-action=\"info\">编码信息</button>" +
+              "<button type=\"button\" class=\"media-btn" + loopActive + "\" data-media-toggle=\"loop\">循环播放</button>" +
+              "<button type=\"button\" class=\"media-btn" + mutedActive + "\" data-media-toggle=\"muted\">静音</button>" +
+              "<button type=\"button\" class=\"media-btn" + autoplayActive + "\" data-media-toggle=\"autoplay\">自动播放</button>" +
+            "</div>" +
+          "</div>" +
+          "<div id=\"" + infoPanelId + "\" class=\"media-info-panel\"></div>" +
+          "<div class=\"media-status\"><span>当前 <strong id=\"" + currentId + "\">0:00</strong></span><span>总时长 <strong id=\"" + durationId + "\">" + escapeHtml(Number.isFinite(payloadDuration) && payloadDuration > 0 ? formatDuration(payloadDuration) : "--:--") + "</strong></span><span id=\"" + statusId + "\">就绪</span></div>" +
+        "</div>" +
+      "</div>";
+  }
+  if (Number.isFinite(payloadDuration) && payloadDuration > 0) {
+    renderRichMeta({ Duration: formatDuration(payloadDuration) }, true);
+  }
+  wireMediaPreview(kind, { posterUrl, payloadDuration, mediaInfo: payloadMediaInfo });
+}
+
+function wireMediaPreview(kind, options = {}) {
+  const media = document.getElementById("preview-media-el");
+  if (!media) return;
+  const mediaPlayer = media.closest(".media-player");
+  const scrollHost = document.getElementById("preview-web-scroll");
+  const currentEl = document.getElementById("preview-media-current");
+  const durationEl = document.getElementById("preview-media-duration");
+  const statusEl = document.getElementById("preview-media-status");
+  const sizeEl = document.getElementById("preview-media-size");
+  const infoPanel = document.getElementById("preview-media-info");
+  const resumeTime = loadMediaResume(state.previewPath);
+  let saveTick = 0;
+  let seekingPoster = false;
+  const applyPrefs = () => {
+    media.loop = !!state.mediaPrefs.loop;
+    media.muted = !!state.mediaPrefs.muted;
+    media.autoplay = !!state.mediaPrefs.autoplay;
+  };
+  const hasPresetPoster = !!options.posterUrl;
+  const syncMeta = () => {
+    const totalSec = Number.isFinite(media.duration) && media.duration > 0 ? media.duration : options.payloadDuration;
+    const total = formatDuration(totalSec);
+    const current = formatDuration(media.currentTime);
+    if (currentEl) currentEl.textContent = current;
+    if (durationEl) durationEl.textContent = total;
+    const extra = [];
+    if (kind === "video" && Number.isFinite(media.videoWidth) && Number.isFinite(media.videoHeight) && media.videoWidth > 0) {
+      extra.push(`${media.videoWidth}x${media.videoHeight}`);
+      renderRichMeta({ Resolution: `${media.videoWidth} x ${media.videoHeight}` }, true);
+    }
+    if (Number.isFinite(totalSec) && totalSec > 0) {
+      renderRichMeta({ Duration: total }, true);
+      extra.unshift(total);
+    }
+    if (sizeEl && extra.length) sizeEl.textContent = extra.join(" · ");
+  };
+  const updateButtons = () => {
+    document.querySelectorAll("[data-media-toggle]").forEach((btn) => {
+      const key = btn.getAttribute("data-media-toggle");
+      btn.classList.toggle("active", !!state.mediaPrefs[key]);
+    });
+  };
+  const capturePoster = () => {
+    if (kind !== "video") return;
+    try {
+      if (!media.videoWidth || !media.videoHeight) return;
+      const canvas = document.createElement("canvas");
+      canvas.width = media.videoWidth;
+      canvas.height = media.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(media, 0, 0, canvas.width, canvas.height);
+      media.setAttribute("poster", canvas.toDataURL("image/jpeg", 0.82));
+    } catch {}
+  };
+  const renderInfoPanel = (info) => {
+    if (!infoPanel) return;
+    const data = info && typeof info === "object" ? info : {};
+    const keys = Object.keys(data);
+    if (!keys.length) {
+      infoPanel.innerHTML = '<div class="media-info-row"><span class="media-info-val">暂无编码信息</span></div>';
+      return;
+    }
+    infoPanel.innerHTML = keys.map((key) =>
+      '<div class="media-info-row"><span class="media-info-key">' + escapeHtml(key) + ':</span><span class="media-info-val">' + escapeHtml(data[key]) + '</span></div>'
+    ).join("");
+  };
+  const toggleInfoPanel = () => {
+    if (!infoPanel) return;
+    if (infoPanel.classList.contains("open")) {
+      infoPanel.classList.remove("open");
+      return;
+    }
+    if (!infoPanel.innerHTML.trim()) {
+      infoPanel.innerHTML = '<div class="media-info-row"><span class="media-info-val">正在读取编码信息...</span></div>';
+      postToAhk({ type: "GET_MEDIA_INFO", path: state.previewPath, seq: state.previewSeq });
+    }
+    infoPanel.classList.add("open");
+  };
+  const refreshPosterBySeek = () => {
+    if (kind !== "video" || seekingPoster) return;
+    const totalSec = Number.isFinite(media.duration) && media.duration > 0 ? media.duration : options.payloadDuration;
+    const target = Math.min(Math.max(Number(totalSec || 0) * 0.12, 1.2), Math.max(Number(totalSec || 0) - 0.4, 1.2));
+    const originalTime = Number.isFinite(media.currentTime) ? media.currentTime : 0;
+    const wasPaused = media.paused;
+    seekingPoster = true;
+    const onSeeked = () => {
+      capturePoster();
+      const onRestore = () => {
+        media.removeEventListener("seeked", onRestore);
+        if (!wasPaused) {
+          try { media.play(); } catch {}
+        }
+        seekingPoster = false;
+      };
+      media.addEventListener("seeked", onRestore);
+      try {
+        media.currentTime = originalTime > 0 ? originalTime : 0;
+      } catch {
+        seekingPoster = false;
+      }
+    };
+    try {
+      media.pause();
+      media.addEventListener("seeked", onSeeked, { once: true });
+      media.currentTime = target;
+    } catch {
+      seekingPoster = false;
+    }
+  };
+  const forwardWheel = (ev) => {
+    if (!scrollHost) return;
+    const dy = Number(ev.deltaY) || 0;
+    const dx = Number(ev.deltaX) || 0;
+    if (Math.abs(dy) < 0.01 && Math.abs(dx) < 0.01) return;
+    ev.preventDefault();
+    scrollHost.scrollTop += dy;
+    if (dx) scrollHost.scrollLeft += dx;
+  };
+  applyPrefs();
+  updateButtons();
+  if (options.mediaInfo && Object.keys(options.mediaInfo).length) {
+    renderInfoPanel(options.mediaInfo);
+  }
+  media.addEventListener("wheel", forwardWheel, { passive: false });
+  if (mediaPlayer) mediaPlayer.addEventListener("wheel", forwardWheel, { passive: false });
+  media.addEventListener("loadedmetadata", () => {
+    syncMeta();
+    if (statusEl) statusEl.textContent = "信息已加载";
+    if (resumeTime > 1 && Number.isFinite(media.duration) && resumeTime < Math.max(2, media.duration - 2)) {
+      try {
+        media.currentTime = resumeTime;
+        if (statusEl) statusEl.textContent = "已恢复上次播放位置";
+      } catch {}
+    }
+    if (state.mediaPrefs.autoplay) {
+      const playAttempt = media.play();
+      if (playAttempt && typeof playAttempt.catch === "function") {
+        playAttempt.catch(() => {
+          if (statusEl) statusEl.textContent = "自动播放被拦截";
+        });
+      }
+    }
+  }, { once: true });
+  media.addEventListener("loadeddata", () => {
+    if (kind === "video") {
+      if (!hasPresetPoster) capturePoster();
+      setTimeout(() => refreshPosterBySeek(), hasPresetPoster ? 120 : 40);
+    }
+  }, { once: true });
+  media.addEventListener("timeupdate", () => {
+    if (currentEl) currentEl.textContent = formatDuration(media.currentTime);
+    if (seekingPoster) return;
+    if (!state.previewPath) return;
+    if (Date.now() - saveTick > 1600) {
+      saveTick = Date.now();
+      saveMediaResume(state.previewPath, media.currentTime);
+    }
+  });
+  media.addEventListener("play", () => {
+    if (statusEl) statusEl.textContent = "播放中";
+  });
+  media.addEventListener("pause", () => {
+    if (statusEl) statusEl.textContent = "已暂停";
+  });
+  media.addEventListener("ended", () => {
+    if (statusEl) statusEl.textContent = media.loop ? "循环中" : "播放结束";
+  });
+  media.addEventListener("volumechange", () => {
+    if (statusEl && media.muted) statusEl.textContent = "静音";
+  });
+  document.querySelectorAll("[data-media-toggle]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.getAttribute("data-media-toggle");
+      const next = !state.mediaPrefs[key];
+      saveMediaPref(key, next);
+      applyPrefs();
+      updateButtons();
+      if (key === "autoplay" && next) {
+        try { media.play(); } catch {}
+      }
+    });
+  });
+  document.querySelectorAll("[data-media-action='poster']").forEach((btn) => {
+    btn.addEventListener("click", () => refreshPosterBySeek());
+  });
+  document.querySelectorAll("[data-media-action='info']").forEach((btn) => {
+    btn.addEventListener("click", () => toggleInfoPanel());
+  });
+  document.querySelectorAll("[data-media-action='save-frame']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      postToAhk({ type: "SAVE_MEDIA_FRAME", path: state.previewPath, timeSec: media.currentTime || 0, seq: state.previewSeq });
+    });
+  });
+}
+
+function runPreviewForSelection() {
+  state.previewSeq += 1;
+  state.pdfJsRx = null;
+  const seq = state.previewSeq;
+  const meta = document.getElementById("preview-meta");
+  const pane = document.getElementById("preview-web-scroll");
+  const item = state.results.find((entry) => entry.row == state.selectedRow);
+  if (!meta || !pane) return;
+
+  if (!item) {
+    meta.textContent = "未选中结果";
+    pane.innerHTML =
+      "<div class=\"preview-empty\">当前未选中本地结果。<br><br>在输入框中输入内容可实时过滤数据，点击列表项后会在这里显示详细预览。<br><br>" +
+      "<div class=\"sk-line w1\"></div><div class=\"sk-line w3\"></div><div class=\"sk-line w2\"></div></div>";
+    setPreviewLayoutMode("web");
+    setQuickLookHintVisible(false);
+    state.previewPath = "";
+    stopNativePreview();
+    return;
+  }
+
+  const isFile = !!getSelectedItemPath(item);
+  const path = getSelectedItemPath(item);
+  state.previewPath = path;
+  setQuickLookHintVisible(!!path);
+
+  renderRichMeta({
+    "来源": item.source || item.subtitle || "",
+    "类型": item.type || "",
+    "时间": item.time || ""
+  });
+  const hitRows = normalizeHitContextRows(item);
+  const hitCount = hitCountForItem(item, hitRows);
+  if (hitCount > 0 || hitRows.length > 0) {
+    renderRichMeta({
+      "命中数": String(hitCount || hitRows.length),
+      "上下文": String(hitRows.length)
+    }, true);
+  }
+
+  if (!path) {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    renderFallbackTextPreview(item, pane, meta);
+    return;
+  }
+
+  const ext = pathExtensionLower(path);
+  updatePdfModeButton();
+
+  if (PREVIEW_PDF_EXT.has(ext)) {
+    startPdfPlan(path, seq);
+    return;
+  }
+
+  if (PREVIEW_ARCHIVE_EXT.has(ext)) {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    pane.innerHTML = "<div class=\"preview-loading\">正在读取压缩包目录…</div>";
+    postToAhk({ type: "INVOKE_ARCHIVE_LIST", path, seq });
+    return;
+  }
+
+  if (PREVIEW_TEXT_EXT.has(ext)) {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    pane.innerHTML = "<div class=\"preview-loading\">加载文本…</div>";
+    postToAhk({ type: "WEB_PREVIEW_TEXT", path, seq });
+    return;
+  }
+
+  if (PREVIEW_IMAGE_EXT.has(ext)) {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    pane.innerHTML = "<div class=\"preview-loading\">加载图片…</div>";
+    postToAhk({ type: "WEB_PREVIEW_IMAGE", path, seq });
+    return;
+  }
+
+  if (PREVIEW_AUDIO_EXT.has(ext) || PREVIEW_VIDEO_EXT.has(ext)) {
+    setPreviewLayoutMode("web");
+    stopNativePreview();
+    pane.innerHTML = "<div class=\"preview-loading\">Loading media preview...</div>";
+    postToAhk({ type: "INVOKE_WEB_MEDIA", path, seq });
+    return;
+  }
+
+  setPreviewLayoutMode("native");
+  pane.innerHTML = "<div class=\"preview-empty\" style=\"min-height:80px\">此处为原生预览占位区域。<br><br>你可以点击下方按钮或按空格尝试不同预览方式。</div>";
+  
+  const isL1Handled = PREVIEW_TEXT_EXT.has(ext) || PREVIEW_IMAGE_EXT.has(ext) || PREVIEW_AUDIO_EXT.has(ext) || PREVIEW_VIDEO_EXT.has(ext);
+  const qlBtn = document.getElementById("preview-ql-btn");
+  const nativeBtn = document.getElementById("preview-native-btn");
+  if (qlBtn) qlBtn.classList.toggle("btn-highlight", !isL1Handled);
+  if (nativeBtn) nativeBtn.classList.toggle("btn-highlight", !isL1Handled && !state.iPreviewFailed);
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (seq !== state.previewSeq) return;
+      // 默认不自动加载重型 IPreviewHandler，除非文件类型非常明确或是用户要求
+    });
+  });
+}
+
+function onWebPreviewTextResult(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+  const item = getSelectedResultItem();
+  const raw = payload.text != null ? String(payload.text) : "";
+  const sizeBytes = Number(payload.sizeBytes) || 0;
+  const truncatedServer = !!payload.truncated;
+  let body = raw;
+  let note = "";
+  let lineTrunc = false;
+  if (sizeBytes > ONE_MB || truncatedServer) {
+    const t = truncateToLines(body, 1000);
+    body = t.text;
+    lineTrunc = t.truncated;
+    note = "文件较大，已截断显示（最多约 1MB / 1000 行）。完整内容请用外部编辑器打开或双击结果。";
+  }
+  const ext = pathExtensionLower(state.previewPath);
+  const lang = prismLangForExt(ext);
+  const esc = body
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  const hitHtml = item ? buildFulltextHitPreviewHtml(item, state.keyword) : "";
+  let html = "";
+  if (hitHtml) html += hitHtml;
+  if (note) html += "<div class=\"preview-truncate-note\">" + note + (lineTrunc ? "（已限制为前 1000 行）" : "") + "</div>";
+  if (lang === "plaintext") {
+    html += "<pre class=\"preview-plain\">" + esc + "</pre>";
+  } else {
+    html += "<pre><code class=\"language-" + lang + "\">" + esc + "</code></pre>";
+  }
+  pane.innerHTML = html;
+  if (hitHtml) bindFulltextHitPreviewPanel(pane);
+  if (lang !== "plaintext") {
+    const code = pane.querySelector("code");
+    if (code && window.Prism) {
+      try {
+        Prism.highlightElement(code);
+      } catch (e) {
+        /* ignore */
+      }
+    }
+  }
+}
+
+function onWebPreviewImageResult(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+  const url = payload.dataUrl ? String(payload.dataUrl) : "";
+  if (!url) {
+    pane.innerHTML = "<div class=\"preview-empty\">无法加载图片预览。</div>";
+    return;
+  }
+  const img = new Image();
+  img.className = "preview-img";
+  img.onload = () => {
+     renderRichMeta({ "图片尺寸": img.naturalWidth + " x " + img.naturalHeight }, true);
+  };
+  img.src = url;
+  pane.innerHTML = "";
+  pane.appendChild(img);
+}
+
+function onWebPreviewArchiveResult(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+  const entries = Array.isArray(payload.entries) ? payload.entries : [];
+  const error = payload.error ? String(payload.error) : "";
+  if (error) {
+    pane.innerHTML =
+      "<div class=\"preview-empty\">压缩包目录读取失败：" + escapeHtml(error) + "<br><br>可双击用关联程序打开压缩包。</div>";
+    return;
+  }
+  if (!entries.length) {
+    pane.innerHTML = "<div class=\"preview-empty\">压缩包内没有可展示的条目。</div>";
+    return;
+  }
+  const isLight = state.themeMode === "light";
+  const headBorder = isLight ? "#cfd9e3" : "#333";
+  const rowBorder = isLight ? "#dfe7ef" : "#262626";
+  const textColor = isLight ? "#3f5368" : "#d6dde5";
+  let html = "<div class=\"preview-truncate-note\">Archive List (read-only)</div>";
+  html += "<table style=\"width:100%; border-collapse:collapse; font-size:12px; color:" + textColor + ";\">";
+  html += "<thead><tr><th style=\"text-align:left; padding:6px; border-bottom:1px solid " + headBorder + ";\">Name</th><th style=\"text-align:right; padding:6px; border-bottom:1px solid " + headBorder + ";\">Size</th><th style=\"text-align:right; padding:6px; border-bottom:1px solid " + headBorder + ";\">Packed</th><th style=\"text-align:left; padding:6px; border-bottom:1px solid " + headBorder + ";\">Modified</th></tr></thead><tbody>";
+  entries.forEach((it) => {
+    const nm = (it.folder ? "[D] " : "[F] ") + (it.path || "");
+    html += "<tr>";
+    html += "<td style=\"padding:6px; border-bottom:1px solid " + rowBorder + "; word-break:break-all;\">" + escapeHtml(nm) + "</td>";
+    html += "<td style=\"padding:6px; border-bottom:1px solid " + rowBorder + "; text-align:right;\">" + escapeHtml(String(it.size || "")) + "</td>";
+    html += "<td style=\"padding:6px; border-bottom:1px solid " + rowBorder + "; text-align:right;\">" + escapeHtml(String(it.packed || "")) + "</td>";
+    html += "<td style=\"padding:6px; border-bottom:1px solid " + rowBorder + ";\">" + escapeHtml(String(it.modified || "")) + "</td>";
+    html += "</tr>";
+  });
+  html += "</tbody></table>";
+  if (payload.truncated) {
+    html += "<div class=\"preview-truncate-note\">条目较多，已截断显示前 " + escapeHtml(String(entries.length)) + " 项。</div>";
+  }
+  pane.innerHTML = html;
+}
+
+function renderRichMeta(data, append = false) {
+  const wrap = document.getElementById("preview-meta");
+  if (!wrap) return;
+  if (!append) wrap.innerHTML = "";
+  
+  Object.keys(data).forEach(key => {
+    const val = data[key];
+    if (val == null || val === "") return;
+    
+    // 如果是追加且已存在该 Key，则更新
+    let existing = wrap.querySelector(`[data-meta-key="${key}"]`);
+    if (existing) {
+       existing.querySelector(".preview-meta-val").textContent = val;
+    } else {
+       const row = document.createElement("div");
+       row.className = "preview-meta-item";
+       row.dataset.metaKey = key;
+       row.innerHTML = `<span class="preview-meta-key">${escapeHtml(key)}:</span><span class="preview-meta-val">${escapeHtml(val)}</span>`;
+       wrap.appendChild(row);
+    }
+  });
+}
+
+function onPreviewMetaUpdate(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  if (payload.meta) {
+    renderRichMeta(payload.meta, true);
+  }
+}
+
+function onMediaInfoResult(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const panel = document.getElementById("preview-media-info");
+  if (!panel) return;
+  const info = payload.info && typeof payload.info === "object" ? payload.info : {};
+  const keys = Object.keys(info);
+  if (!keys.length) {
+    panel.innerHTML = '<div class="media-info-row"><span class="media-info-val">暂无编码信息</span></div>';
+    panel.classList.add("open");
+    return;
+  }
+  panel.innerHTML = keys.map((key) =>
+    '<div class="media-info-row"><span class="media-info-key">' + escapeHtml(key) + ':</span><span class="media-info-val">' + escapeHtml(info[key]) + '</span></div>'
+  ).join("");
+  panel.classList.add("open");
+}
+
+function onMediaFrameSaveResult(payload) {
+  if (Number(payload.seq) !== state.previewSeq) return;
+  const statusEl = document.getElementById("preview-media-status");
+  if (!statusEl) return;
+  statusEl.textContent = payload && payload.ok ? "截图已保存" : (payload.message ? String(payload.message) : "截图保存失败");
+}
+
+function onNativePreviewFailed(payload) {
+  state.iPreviewFailed = true;
+  state.iPreviewActive = false;
+  if (state.pdfPlan && !state.pdfPlan.done && state.pdfPlan.current === "ipreview") {
+    advancePdfPlan("ipreview_fail");
+    return;
+  }
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+  const msg = payload.message ? String(payload.message) : "系统原生预览不可用。";
+  stopNativePreview();
+  setPreviewLayoutMode("web");
+  pane.innerHTML =
+    "<div class=\"preview-empty\">" +
+    escapeHtml(msg) +
+    "<br><br>侧栏默认已优先使用 PDF.js；可按空格重新加载预览，或切换 PDF:pdfjs / PDF:web。</div>";
+  
+  const qlBtn = document.getElementById("preview-ql-btn");
+  if (qlBtn) qlBtn.classList.add("btn-highlight");
+}
+
+function invokeIPreviewHandler() {
+  if (!state.previewPath) return;
+  state.iPreviewActive = true;
+  state.iPreviewFailed = false; // 重试
+  const b = collectPreviewBounds();
+  postToAhk({ 
+    type: "INVOKE_IPREVIEW", 
+    path: state.previewPath, 
+    seq: state.previewSeq,
+    bounds: b 
+  });
+}
+
+function invokeQuickLook(pathOverride = "") {
+  const overridePath = pathOverride ? String(pathOverride).trim() : "";
+  let targetPath = overridePath;
+  const selectedRow = Number(state.selectedRow) || 0;
+  if (!targetPath && selectedRow > 0) {
+    const item = state.results.find((entry) => entry.row == selectedRow);
+    targetPath = getSelectedItemPath(item) || "";
+  }
+  if (!targetPath) targetPath = state.previewPath || "";
+  if (!targetPath) return;
+  const pane = document.getElementById("preview-web-scroll");
+  state.quickLook = state.quickLook || {};
+  if (!isQuickLookInstalled()) {
+    if (state.quickLook.installBusy) {
+      if (pane) pane.innerHTML = "<div class=\"preview-loading\">正在安装 QuickLook…</div>";
+      return;
+    }
+    const ok = window.confirm("尚未安装 QuickLook。是否现在下载并启用 QuickLook 预览机制？");
+    if (!ok) return;
+    state.quickLook.lastInstallError = "";
+    state.quickLook.pendingOpenPath = targetPath;
+    state.quickLook.pendingOpenRow = selectedRow;
+    if (pane) pane.innerHTML = "<div class=\"preview-loading\">正在下载并安装 QuickLook…</div>";
+    postToAhk({ type: "INSTALL_QUICKLOOK" });
+    updateQuickLookInstallUi();
+    return;
+  }
+
+  if (pane) pane.innerHTML = "<div class=\"preview-loading\">正在调用 QuickLook…</div>";
+  postToAhk({ type: "QUICKLOOK", path: targetPath, row: selectedRow });
+}
+
+function onQuickLookOpenState(payload) {
+  const pane = document.getElementById("preview-web-scroll");
+  if (!pane) return;
+  const status = payload && payload.status ? String(payload.status) : "";
+  const msg = payload && payload.message ? String(payload.message) : "";
+  const payloadPath = payload && payload.path ? String(payload.path).trim() : "";
+  const currentPath = state.previewPath ? String(state.previewPath).trim() : "";
+  if (payloadPath && currentPath && payloadPath !== currentPath) return;
+  if (!msg) return;
+  if (status === "fail") {
+    pane.innerHTML = "<div class=\"preview-empty\">" + escapeHtml(msg) + "</div>";
+    return;
+  }
+  if (status === "pending") {
+    pane.innerHTML = "<div class=\"preview-loading\">" + escapeHtml(msg) + "</div>";
+    return;
+  }
+  if (status === "ok") {
+    pane.innerHTML = "<div class=\"preview-empty\">" + escapeHtml(msg) + "</div>";
+  }
+}
+
+let previewHostRo = null;
+function ensurePreviewHostObserver() {
+  const host = document.getElementById("preview-host");
+  if (!host || previewHostRo) return;
+  previewHostRo = new ResizeObserver(() => {
+    if (!state.previewPath) return;
+    const ext = pathExtensionLower(state.previewPath);
+    if (PREVIEW_TEXT_EXT.has(ext) || PREVIEW_IMAGE_EXT.has(ext)) return;
+    
+    // 如果 IPreviewHandler 激活中，同步 Bounds
+    if (state.iPreviewActive) {
+      const b = collectPreviewBounds();
+      postToAhk({ type: "NATIVE_PREVIEW", path: state.previewPath, seq: state.previewSeq, bounds: b });
+    }
+  });
+  previewHostRo.observe(host);
+}
+
+function renderPreview() {
+  ensurePreviewHostObserver();
+  scheduleRunPreview();
+}
+
+function buildSkeletonListHtml(count) {
+  let html = "<div class=\"skeleton-list\" aria-hidden=\"true\">";
+  for (let i = 0; i < count; i += 1) {
+    html += "<div class=\"skeleton-item\"><div><div class=\"sk-line w1\"></div><div class=\"sk-line w2\"></div><div class=\"sk-line w3\"></div></div><div class=\"sk-meta\"></div></div>";
+  }
+  html += "</div>";
+  return html;
+}
+
+function syncRecycleBadge() {
+  const badge = document.getElementById("recycle-badge");
+  if (!badge) return;
+  const n = Number(state.recycleCount) || 0;
+  badge.textContent = String(n);
+  badge.classList.toggle("muted", n < 1);
+}
+
+function renderRecycleModalList() {
+  const list = document.getElementById("recycle-list");
+  if (!list) return;
+  const rows = state.recycleBin || [];
+  if (!rows.length) {
+    list.innerHTML = "<div class=\"empty\" style=\"min-height:100px\">暂无已移除项。在结果行使用「回收」命令可将条目暂存于此。</div>";
+    return;
+  }
+  list.innerHTML = "";
+  rows.forEach((it) => {
+    const wrap = document.createElement("div");
+    wrap.className = "recycle-row";
+    const idx = Number(it.index) || 0;
+    wrap.innerHTML =
+      "<div><div class=\"t\">" + escapeHtml(it.title || "（无标题）") + "</div>" +
+      "<div class=\"p\">" + escapeHtml(it.preview || "") + "</div></div>";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn ghost";
+    btn.textContent = "还原";
+    btn.onclick = () => postToAhk({ type: "searchCenterRestoreRecycle", index: idx });
+    wrap.appendChild(btn);
+    list.appendChild(wrap);
+  });
+}
+
+function openRecycleModal() {
+  const ov = document.getElementById("recycle-overlay");
+  if (!ov) return;
+  renderRecycleModalList();
+  ov.classList.add("open");
+  ov.setAttribute("aria-hidden", "false");
+}
+
+function closeRecycleModal() {
+  const ov = document.getElementById("recycle-overlay");
+  if (!ov) return;
+  ov.classList.remove("open");
+  ov.setAttribute("aria-hidden", "true");
+}
+
+function normalizeResultsPayload(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== "object") return [];
+  // WebView2/宿主侧序列化偶发会把数组变成对象（如 {"1":{...},"2":{...}}），这里做兼容归一化
+  const arr = Object.values(raw).filter((v) => v && typeof v === "object");
+  arr.sort((a, b) => {
+    const ra = Number(a.row) || 0;
+    const rb = Number(b.row) || 0;
+    return ra - rb;
+  });
+  return arr;
+}
+
+function applyState(payload) {
+  if (payload && payload.themeMode != null) {
+    applyTheme(payload.themeMode);
+  }
+  const prevFilterType = String(state.filterType || "");
+  state.keyword = payload.keyword || "";
+  state.limit = payload.limit || 50;
+  console.log("[SearchCenter] applyState: keyword=" + state.keyword + " results=" + (payload.results ? Object.keys(payload.results).length : 0));
+  if (payload.results && Object.keys(payload.results).length > 0) {
+      const first = Array.isArray(payload.results) ? payload.results[0] : Object.values(payload.results)[0];
+      console.log("[SearchCenter] First result:", first);
+  }
+  state.categories = payload.categories || [];
+  state.currentCategoryKey = payload.currentCategoryKey || "ai";
+  state.engines = payload.engines || [];
+  state.selectedEngines = payload.selectedEngines || [];
+  state.filters = payload.filters || [];
+  state.filterType = payload.filterType || "";
+  if (state.filterType === "fulltext" && prevFilterType !== "fulltext") {
+    state.fulltextEmptyTransitionUntil = Date.now() + 1200;
+  }
+  if (payload.engineMode === "go" || payload.engineMode === "ahk") {
+    state.engineMode = payload.engineMode;
+    try {
+      localStorage.setItem(SC_ENGINE_MODE_KEY, state.engineMode);
+    } catch (e) {}
+  }
+  state.results = normalizeResultsPayload(payload.results);
+  state.hasMore = !!payload.hasMore;
+  state.loading = false;
+  state.isCliCategory = !!payload.isCliCategory;
+  state.statusLine = payload.statusLine || "";
+  state.recycleBin = Array.isArray(payload.recycleBin) ? payload.recycleBin : [];
+  state.recycleCount = typeof payload.recycleCount === "number" ? payload.recycleCount : state.recycleBin.length;
+  if (typeof payload.hostTopMost === "boolean") state.hostTopMost = payload.hostTopMost;
+
+  if (payload.quickLook && typeof payload.quickLook === "object") {
+    const q = payload.quickLook;
+    state.quickLook = state.quickLook || {};
+    if (typeof q.installed === "boolean") state.quickLook.installed = q.installed;
+    if (q.path != null) state.quickLook.path = String(q.path);
+    if (q.version != null) state.quickLook.version = String(q.version);
+    if (typeof q.installBusy === "boolean") state.quickLook.installBusy = q.installBusy;
+    updateQuickLookInstallUi();
+    if (!isQuickLookInstalled() && state.pdfMode === "quicklook") {
+      setPdfMode("auto");
+    }
+  }
+
+  const wasSelected = state.selectedRow;
+  if (!state.results.some((item) => item.row == wasSelected)) {
+    state.selectedRow = state.results.length ? state.results[0].row : 1;
+  }
+
+  document.getElementById("search").value = state.keyword;
+  document.getElementById("limit").value = String(state.limit);
+  document.getElementById("status").textContent = state.statusLine || "已同步";
+  applyFulltextStatus(state.fulltext);
+  document.getElementById("result-count").textContent = String(state.results.length) + " 条";
+  document.getElementById("btn-run").textContent = "搜索";
+  document.getElementById("btn-open-cli").style.display = state.isCliCategory ? "inline-flex" : "none";
+  syncFooterHint();
+  syncRecycleBadge();
+  if (document.getElementById("recycle-overlay") && document.getElementById("recycle-overlay").classList.contains("open")) {
+    renderRecycleModalList();
+  }
+
+  renderCategories();
+  renderEngines();
+  renderFilters();
+  scheduleScHotkeyBindingsSync();
+  renderResults();
+  syncEngineModeButton();
+  updateChromeTopMostButton();
+  requestAnimationFrame(() => {
+    window.dispatchEvent(new Event("resize"));
+  });
+}
+
+let searchDebounceTimer = 0;
+const SEARCH_INPUT_DEBOUNCE_MS = 180;
+function triggerSearch() {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    searchDebounceTimer = 0;
+    if (shouldUseGoSearchPipeline()) {
+      try {
+        clearRuntimeError();
+        runSearchGoPipeline(0);
+      } catch (e) {
+        setRuntimeError("搜索触发失败", e && e.message ? String(e.message) : "");
+        fallbackToAhkSearch();
+      }
+    } else {
+      clearRuntimeError();
+      postToAhk({ type: "search", keyword: state.keyword });
+    }
+  }, SEARCH_INPUT_DEBOUNCE_MS);
+}
+
+function cancelPendingSearchDebounce() {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = 0;
+  }
+}
+
+function runSearchNow() {
+  const input = document.getElementById("search");
+  const keyword = input ? String(input.value || "") : "";
+  state.keyword = keyword;
+  cancelPendingSearchDebounce();
+  if (shouldUseGoSearchPipeline()) {
+    try {
+      clearRuntimeError();
+      runSearchGoPipeline(0);
+    } catch (e) {
+      setRuntimeError("立即搜索失败", e && e.message ? String(e.message) : "");
+      fallbackToAhkSearch();
+    }
+  } else {
+    clearRuntimeError();
+    postToAhk({ type: "search", keyword });
+  }
+}
+
+let loadMoreObserver = null;
+function disconnectLoadMoreObserver() {
+  if (loadMoreObserver) {
+    loadMoreObserver.disconnect();
+    loadMoreObserver = null;
+  }
+}
+
+function requestLoadMore() {
+  if (!state.hasMore || state.loading) return;
+  if (Date.now() < state.loadMoreCooldownUntil) return;
+  state.loading = true;
+  state.loadMoreCooldownUntil = Date.now() + 350;
+  if (shouldUseGoSearchPipeline()) {
+    try {
+      runSearchGoPipeline(state.results.length);
+    } catch (e) {
+      postToAhk({ type: "loadMore", offset: state.results.length });
+    }
+    state.loading = false;
+    return;
+  }
+  postToAhk({ type: "loadMore", offset: state.results.length });
+}
+
+function setupLoadMoreObserver() {
+  const list = document.getElementById("result-list");
+  const sent = document.getElementById("load-sentinel");
+  if (!list || !sent || !state.hasMore) return;
+  loadMoreObserver = new IntersectionObserver((entries) => {
+    const e = entries[0];
+    if (!e || !e.isIntersecting) return;
+    requestLoadMore();
+  }, { root: list, rootMargin: "0px 0px 320px 0px", threshold: 0 });
+  loadMoreObserver.observe(sent);
+}
+
+let searchCompositionActive = false;
+const searchInputEl = document.getElementById("search");
+if (searchInputEl) {
+  searchInputEl.addEventListener("compositionstart", () => {
+    searchCompositionActive = true;
+  });
+  searchInputEl.addEventListener("compositionend", (event) => {
+    searchCompositionActive = false;
+    state.keyword = event.target.value;
+    triggerSearch();
+  });
+  searchInputEl.addEventListener("input", (event) => {
+    if (searchCompositionActive) return;
+    state.keyword = event.target.value;
+    triggerSearch();
+  });
+}
+
+document.getElementById("limit").addEventListener("change", (event) => {
+  postToAhk({ type: "setLimit", limit: Number(event.target.value) || 50 });
+});
+
+document.getElementById("btn-run").addEventListener("click", () => {
+  runSearchNow();
+});
+
+document.getElementById("btn-web-search").addEventListener("click", () => {
+  postToAhk({ type: "webSearch" });
+});
+
+document.getElementById("btn-open-cli").addEventListener("click", () => {
+  postToAhk({ type: "cliOpen" });
+});
+document.getElementById("btn-ft-toggle").addEventListener("click", () => {
+  const act = state.fulltext && state.fulltext.running ? "stop" : "start";
+  postToAhk({ type: "fulltextControl", control: act });
+});
+document.getElementById("btn-ft-settings-top").addEventListener("click", () => {
+  postToAhk({ type: "openSettingsPanel" });
+});
+const btnFtOpenSettings = document.getElementById("btn-ft-open-settings");
+if (btnFtOpenSettings) {
+  btnFtOpenSettings.addEventListener("click", () => {
+    postToAhk({ type: "openSettingsPanel" });
+  });
+}
+const btnFtRebuild = document.getElementById("btn-ft-rebuild");
+if (btnFtRebuild) {
+  btnFtRebuild.addEventListener("click", () => {
+    if (!window.confirm("将清空并重建全文索引，用于验证单字检索。是否继续？")) return;
+    document.getElementById("status").textContent = "已触发强制重建索引，正在准备…";
+    postToAhk({ type: "fulltextControl", control: "rebuild" });
+  });
+}
+
+const btnScRecycle = document.getElementById("btn-sc-recycle");
+if (btnScRecycle) {
+  btnScRecycle.addEventListener("click", () => openRecycleModal());
+}
+const btnWinRecycleSc = document.getElementById("btn-win-recycle-sc");
+if (btnWinRecycleSc) {
+  btnWinRecycleSc.addEventListener("click", () => postToAhk({ type: "openWindowsRecycleBin" }));
+}
+const recycleClose = document.getElementById("recycle-close");
+if (recycleClose) {
+  recycleClose.addEventListener("click", () => closeRecycleModal());
+}
+const recycleEmptyAll = document.getElementById("recycle-empty-all");
+if (recycleEmptyAll) {
+  recycleEmptyAll.addEventListener("click", () => {
+    if (!state.recycleCount) return;
+    if (!window.confirm("清空搜索中心回收站？已移除的条目将无法从此处还原。")) return;
+    postToAhk({ type: "searchCenterEmptyRecycle" });
+  });
+}
+const recycleOverlay = document.getElementById("recycle-overlay");
+if (recycleOverlay) {
+  recycleOverlay.addEventListener("click", (e) => {
+    if (e.target === recycleOverlay) closeRecycleModal();
+  });
+}
+document.addEventListener("pointerdown", (event) => {
+  const trigger = event.target && event.target.closest ? event.target.closest(".hotkey-hint-btn") : null;
+  if (!trigger) return;
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
+document.addEventListener("mousedown", (event) => {
+  const trigger = event.target && event.target.closest ? event.target.closest(".hotkey-hint-btn") : null;
+  if (!trigger) return;
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
+document.addEventListener("click", (event) => {
+  const trigger = event.target && event.target.closest ? event.target.closest(".hotkey-hint-btn") : null;
+  if (!trigger) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const group = String(trigger.getAttribute("data-hotkey-group") || "");
+  const value = String(trigger.getAttribute("data-hotkey-value") || "");
+  const label = String(trigger.getAttribute("data-hotkey-label") || value);
+  openHotkeyBindDialog(group, value, label);
+});
+const hotkeyBindOverlay = document.getElementById("hotkey-bind-overlay");
+if (hotkeyBindOverlay) {
+  hotkeyBindOverlay.addEventListener("click", (e) => {
+    if (e.target === hotkeyBindOverlay) closeHotkeyBindDialog();
+  });
+}
+const hotkeyBindClose = document.getElementById("hotkey-bind-close");
+if (hotkeyBindClose) hotkeyBindClose.addEventListener("click", () => closeHotkeyBindDialog());
+const hotkeyBindCancel = document.getElementById("hotkey-bind-cancel");
+if (hotkeyBindCancel) hotkeyBindCancel.addEventListener("click", () => closeHotkeyBindDialog());
+const hotkeyBindClear = document.getElementById("hotkey-bind-clear");
+if (hotkeyBindClear) {
+  hotkeyBindClear.addEventListener("click", () => {
+    state.hotkeyBindDialog.draftKey = "";
+    syncHotkeyBindDialogUi();
+  });
+}
+const hotkeyBindApply = document.getElementById("hotkey-bind-apply");
+if (hotkeyBindApply) hotkeyBindApply.addEventListener("click", () => applyHotkeyBindDialog());
+const previewPdfModeBtn = document.getElementById("preview-pdf-mode-btn");
+if (previewPdfModeBtn) {
+  previewPdfModeBtn.addEventListener("click", () => cyclePdfMode());
+}
+setPdfMode(state.pdfMode || "auto");
+updateQuickLookInstallUi();
+const previewQlBtn = document.getElementById("preview-ql-btn");
+if (previewQlBtn) {
+  previewQlBtn.addEventListener("click", () => {
+    invokeQuickLook();
+  });
+}
+const previewNativeBtn = document.getElementById("preview-native-btn");
+if (previewNativeBtn) {
+  previewNativeBtn.addEventListener("click", () => {
+    invokeIPreviewHandler();
+  });
+}
+
+const chromeTopMostBtn = document.getElementById("chrome-topmost");
+if (chromeTopMostBtn) {
+  chromeTopMostBtn.addEventListener("click", () => {
+    postToAhk({ type: "windowToggleTopMost" });
+  });
+}
+updateChromeTopMostButton();
+syncFulltextSchemeUi();
+syncFulltextAdvancedUi();
+
+(function initChromeDrag() {
+  const dragHost = document.getElementById("chrome-header");
+  const dragTitle = document.getElementById("chrome-drag");
+  const startHostDrag = (e) => {
+    if (e.target && e.target.closest(".chrome-btn")) return;
+    if (e.button !== 0) return;
+    e.preventDefault();
+    postToAhk({ type: "dragHost" });
+  };
+  const bindDragStart = (el) => {
+    if (!el) return;
+    if (window.PointerEvent) {
+      el.addEventListener("pointerdown", startHostDrag);
+    } else {
+      el.addEventListener("mousedown", startHostDrag);
+    }
+  };
+  bindDragStart(dragHost);
+  if (dragTitle && dragTitle !== dragHost) bindDragStart(dragTitle);
+})();
+
+document.addEventListener("keydown", (event) => {
+  if (handleHotkeyBindKeydown(event)) return;
+  if (event.key === "CapsLock") {
+    beginCapsHoldHint();
+  } else if (state.capsHintActive) {
+    const pressed = normalizeHintKey(event.key);
+    if (pressed) setCapsPressedKey(pressed);
+  }
+
+  if (!event.repeat && shouldHandleCapsChordNow()) {
+    const pressed = normalizeHintKey(event.key);
+    if (pressed && triggerHotkeyButtonByKey(pressed)) {
+      event.preventDefault();
+      flashCapsPressedKey(pressed);
+      return;
+    }
+  }
+
+  const activeTag = document.activeElement ? document.activeElement.tagName : "";
+  const isTyping = activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT";
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    postToAhk({ type: "close" });
+    return;
+  }
+
+  if (event.key === "Enter" && document.activeElement && document.activeElement.id === "search") {
+    event.preventDefault();
+    runSearchNow();
+    return;
+  }
+
+  if (isTyping) return;
+
+  if (event.key === " ") {
+    event.preventDefault();
+    if (state.previewPath) {
+      scheduleRunPreview();
+    }
+    return;
+  }
+
+  if (event.key === "ArrowDown" && state.results.length) {
+    event.preventDefault();
+    const current = state.results.findIndex((item) => item.row === state.selectedRow);
+    const next = Math.min(state.results.length - 1, Math.max(0, current + 1));
+    state.selectedRow = state.results[next].row;
+    renderResults();
+  }
+
+  if (event.key === "ArrowUp" && state.results.length) {
+    event.preventDefault();
+    const current = state.results.findIndex((item) => item.row === state.selectedRow);
+    const next = Math.max(0, (current < 0 ? 0 : current) - 1);
+    state.selectedRow = state.results[next].row;
+    renderResults();
+  }
+
+  if (event.key === "Enter" && state.results.length) {
+    event.preventDefault();
+    postToAhk({ type: "activateResult", row: state.selectedRow });
+  }
+});
+
+document.addEventListener("keyup", (event) => {
+  if (event.key === "CapsLock") {
+    endCapsHoldHint();
+    return;
+  }
+  if (!state.capsHintActive) return;
+  const released = normalizeHintKey(event.key);
+  if (released && state.capsPressedKey === released) {
+    state.capsPressedKey = "";
+    updateHotkeyHighlights();
+  }
+});
+
+window.addEventListener("resize", () => {
+  scheduleRunPreview();
+});
+
+window.addEventListener("blur", () => {
+  endCapsHoldHint();
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) endCapsHoldHint();
+});
+
+if (window.chrome && window.chrome.webview) {
+  window.addEventListener("error", (ev) => {
+    const msg = ev && ev.message ? String(ev.message) : "未知脚本错误";
+    const src = ev && ev.filename ? String(ev.filename).split("/").pop() : "";
+    const ln = ev && ev.lineno ? String(ev.lineno) : "";
+    setRuntimeError("前端脚本异常", src ? `${src}${ln ? ":" + ln : ""} · ${msg}` : msg);
+  });
+  window.addEventListener("unhandledrejection", (ev) => {
+    const reason = ev && ev.reason;
+    let detail = "";
+    if (reason && reason.message) detail = String(reason.message);
+    else if (typeof reason === "string") detail = reason;
+    else detail = "Promise rejected";
+    setRuntimeError("前端异步异常", detail);
+  });
+  window.chrome.webview.addEventListener("message", (event) => {
+    const payload = event.data;
+    if (!payload || !payload.type) return;
+    if (payload.type === "capsHint") {
+      setCapsHintActive(!!payload.active);
+      return;
+    }
+    if (payload.type === "capsHintPress") {
+      flashCapsPressedKey(payload.key || "");
+      scheduleHostCapsHotkeyFallback(payload.key || "");
+      return;
+    }
+    if (payload.type === "setCategory") {
+      postToAhk({ type: "setCategory", category: payload.category || "" });
+      return;
+    }
+    if (payload.type === "toggleEngine") {
+      postToAhk({ type: "toggleEngine", engine: payload.engine || "" });
+      return;
+    }
+    if (payload.type === "setFilter") {
+      postToAhk({ type: "setFilter", filterType: payload.filterType || "" });
+      return;
+    }
+    if (payload.type === "setLimit") {
+      postToAhk({ type: "setLimit", limit: Number(payload.limit) || 50 });
+      return;
+    }
+    if (payload.type === "activateResult") {
+      postToAhk({ type: "activateResult", row: Number(payload.row) || state.selectedRow || 1 });
+      return;
+    }
+    if (payload.type === "focus_input") {
+      const input = document.getElementById("search");
+      if (input) input.focus();
+      return;
+    }
+    if (payload.type === "set_input") {
+      const input = document.getElementById("search");
+      if (input) {
+        state.keyword = payload.keyword || "";
+        input.value = state.keyword;
+        input.focus();
+        input.select();
+      }
+      return;
+    }
+    if (payload.type === "set_theme") {
+      applyTheme(payload.themeMode || payload.theme || "dark");
+      return;
+    }
+    if (payload.type === "WEB_PREVIEW_TEXT_RESULT") {
+      onWebPreviewTextResult(payload);
+      return;
+    }
+    if (payload.type === "WEB_PREVIEW_IMAGE_RESULT") {
+      onWebPreviewImageResult(payload);
+      return;
+    }
+    if (payload.type === "WEB_PREVIEW_PDF_JS_BEGIN") {
+      onWebPdfJsBegin(payload);
+      return;
+    }
+    if (payload.type === "WEB_PREVIEW_PDF_JS_PART") {
+      onWebPdfJsPart(payload);
+      return;
+    }
+    if (payload.type === "WEB_PREVIEW_PDF_JS_ERROR") {
+      onWebPdfJsError(payload);
+      return;
+    }
+    if (payload.type === "WEB_PREVIEW_MEDIA_RESULT") {
+      const pathForExt = (payload.path && String(payload.path).trim()) || state.previewPath || "";
+      const ext = pathExtensionLower(pathForExt);
+      if (ext === "pdf") {
+        onPdfWebMediaResult(payload);
+      } else if (PREVIEW_AUDIO_EXT.has(ext) || PREVIEW_VIDEO_EXT.has(ext)) {
+        onWebPreviewMediaResult(payload);
+      }
+      return;
+    }
+    if (payload.type === "WEB_PREVIEW_PDFIUM_RESULT") {
+      onWebPreviewPdfiumResult(payload);
+      return;
+    }
+    if (payload.type === "WEB_PREVIEW_ARCHIVE_RESULT") {
+      onWebPreviewArchiveResult(payload);
+      return;
+    }
+    if (payload.type === "NATIVE_PREVIEW_FAILED") {
+      onNativePreviewFailed(payload);
+      return;
+    }
+    if (payload.type === "PREVIEW_META_UPDATE") {
+      onPreviewMetaUpdate(payload);
+      return;
+    }
+    if (payload.type === "MEDIA_INFO_RESULT") {
+      onMediaInfoResult(payload);
+      return;
+    }
+    if (payload.type === "MEDIA_FRAME_SAVE_RESULT") {
+      onMediaFrameSaveResult(payload);
+      return;
+    }
+    if (payload.type === "quicklook_open_state") {
+      onQuickLookOpenState(payload);
+      return;
+    }
+    if (payload.type === "searchRuntimeError") {
+      if (payload.clear) {
+        clearRuntimeError();
+      } else {
+        setRuntimeError(payload.message ? String(payload.message) : "搜索运行异常", payload.detail ? String(payload.detail) : "");
+      }
+      return;
+    }
+    if (payload.type === "searchRuntimeTrace") {
+      setRuntimeTrace(payload.message ? String(payload.message) : "");
+      return;
+    }
+    if (payload.type === "requestSearchGo") {
+      if (shouldUseGoSearchPipeline() && (state.keyword || "").trim()) {
+        try {
+          runSearchGoPipeline(0);
+        } catch (e) {
+          setRuntimeError("requestSearchGo 触发失败", e && e.message ? String(e.message) : "");
+          fallbackToAhkSearch();
+        }
+      }
+      return;
+    }
+    if (payload.type === "quicklook_install_progress") {
+      state.quickLook = state.quickLook || {};
+      state.quickLook.installBusy = true;
+      state.quickLook.installProgressMsg = String(payload.message || "安装中…");
+      state.quickLook.installProgressPct = typeof payload.percent === "number" ? payload.percent : null;
+      state.quickLook.lastInstallError = "";
+      updateQuickLookInstallUi();
+      return;
+    }
+    if (payload.type === "quicklook_install_state") {
+      state.quickLook = state.quickLook || {};
+      state.quickLook.installBusy = false;
+      state.quickLook.installProgressMsg = "";
+      state.quickLook.installProgressPct = null;
+      if (payload.ok) {
+        state.quickLook.installed = true;
+        state.quickLook.lastInstallError = "";
+        if (payload.path) state.quickLook.path = String(payload.path);
+        const pendingPath = state.quickLook.pendingOpenPath ? String(state.quickLook.pendingOpenPath) : "";
+        const pendingRow = Number(state.quickLook.pendingOpenRow) || 0;
+        state.quickLook.pendingOpenPath = "";
+        state.quickLook.pendingOpenRow = 0;
+        if (pendingPath) {
+          setTimeout(() => {
+            invokeQuickLook(pendingPath);
+          }, 80);
+        } else if (pendingRow > 0) {
+          setTimeout(() => {
+            const item = state.results.find((entry) => entry.row == pendingRow);
+            const p = getSelectedItemPath(item);
+            if (p) invokeQuickLook(p);
+          }, 80);
+        }
+      } else {
+        state.quickLook.lastInstallError = String(payload.message || "安装失败");
+        state.quickLook.pendingOpenPath = "";
+        state.quickLook.pendingOpenRow = 0;
+      }
+      updateQuickLookInstallUi();
+      if (!isQuickLookInstalled() && state.pdfMode === "quicklook") setPdfMode("auto");
+      return;
+    }
+    if (payload.type === "fulltextStatus") {
+      applyFulltextStatus(payload.payload || {});
+      return;
+    }
+    if (payload.type === "fulltextActionResult") {
+      if (payload.ok && (payload.action === "rebuild" || payload.action === "fullsync")) {
+        document.getElementById("status").textContent = "强制重建已启动，单字检索将在新索引中生效。";
+      } else if (!payload.ok) {
+        const tip = payload.error ? String(payload.error) : "全文索引操作失败";
+        document.getElementById("status").textContent = tip;
+      }
+      return;
+    }
+    if (payload.type === "fulltextConfigResult") {
+      if (payload.ok) {
+        setFulltextProbeSummary("扫描方案已应用");
+      } else {
+        setFulltextProbeSummary(payload.error ? String(payload.error) : "扫描方案更新失败");
+      }
+      postToAhk({ type: "fulltextStatusRequest", withConfig: true });
+      return;
+    }
+    if (payload.type === "fulltextProbeResult") {
+      state.fulltextProbe.busy = false;
+      if (payload.ok) {
+        renderFulltextProbe(payload.probe || {});
+      } else {
+        setFulltextProbeSummary(payload.error ? String(payload.error) : "可行性检测失败");
+      }
+      return;
+    }
+    if (payload.type === "fulltextIndexDirPicked") {
+      if (payload.ok && payload.path) {
+        state.fulltextConfig.indexDir = String(payload.path);
+        syncFulltextSchemeUi();
+        document.getElementById("status").textContent = "索引目录已选择，请到「搜索设置 > 全文索引控制台」应用。";
+      }
+      return;
+    }
+    if (payload.type === "init" || payload.type === "state") {
+      applyState(payload);
+    }
+  });
+  postToAhk({ type: "ready" });
+  setTimeout(() => scheduleScHotkeyBindingsSync(10), 120);
+  requestFulltextStatus(true);
+  startFulltextProgressStream();
+}
+
+applyTheme(state.themeMode, false);
+
+(function initEngineModeButton() {
+  const setMode = (mode) => {
+    const next = mode === "ahk" ? "ahk" : "go";
+    if (state.engineMode === next) return;
+    state.engineMode = next;
+    try {
+      localStorage.setItem(SC_ENGINE_MODE_KEY, state.engineMode);
+    } catch (e) {}
+    syncEngineModeButton();
+    postToAhk({ type: "setEngineMode", mode: state.engineMode });
+    if (shouldUseGoSearchPipeline()) {
+      try { runSearchGoPipeline(0); } catch (e) { fallbackToAhkSearch(); }
+    } else {
+      postToAhk({ type: "search", keyword: state.keyword });
+    }
+  };
+  syncEngineModeButton();
+  [
+    "engine-mode-go", "engine-mode-ahk",
+    "engine-mode-go-inline", "engine-mode-ahk-inline"
+  ].forEach((id) => {
+    const b = document.getElementById(id);
+    if (!b) return;
+    b.addEventListener("click", () => setMode(b.getAttribute("data-engine") || "go"));
+  });
+})();
+</script>
+</body>
+</html>

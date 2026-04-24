@@ -8,32 +8,32 @@ import (
 )
 
 type classifyTag struct {
-	Category        string
-	SubCategory     string
-	DisplayTitle    string
-	DisplaySubtitle string
-	DisplayPath     string
-	TypeHint        string
-	TitleMarker     string
-	PathTrust       float64
-	BonusTotal      float64
-	PenaltyTotal    float64
+	Category         string
+	SubCategory      string
+	DisplayTitle     string
+	DisplaySubtitle  string
+	DisplayPath      string
+	TypeHint         string
+	TitleMarker      string
+	PathTrust        float64
+	BonusTotal       float64
+	PenaltyTotal     float64
 	FzyCategoryBonus float64
-	QuotaCategory   string
-	CategoryColor   string
+	QuotaCategory    string
+	CategoryColor    string
 }
 
 func resolveItemPath(item map[string]any) string {
-	if p := strVal(item["Preview"]); p != "" {
-		return normalizePath(p)
-	}
-	if c := strVal(item["Content"]); c != "" {
-		return normalizePath(c)
-	}
 	if meta, ok := item["Metadata"].(map[string]any); ok {
-		if fp := strVal(meta["FilePath"]); fp != "" {
+		if fp := strVal(meta["FilePath"]); isFilePathLike(fp) {
 			return normalizePath(fp)
 		}
+	}
+	if c := strVal(item["Content"]); isFilePathLike(c) {
+		return normalizePath(c)
+	}
+	if p := strVal(item["Preview"]); isFilePathLike(p) {
+		return normalizePath(p)
 	}
 	return ""
 }

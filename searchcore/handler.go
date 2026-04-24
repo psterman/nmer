@@ -280,7 +280,7 @@ func normalizeSearchType(t string) string {
 	if t == "clip" {
 		return "clipboard"
 	}
-	if t == "content" || t == "鍏ㄦ枃" || t == "鍏ㄦ枃鎼滅储" {
+	if t == "content" || t == "全文" || t == "全文搜索" || t == "full" {
 		return "fulltext"
 	}
 	return t

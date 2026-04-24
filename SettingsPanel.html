@@ -851,6 +851,7 @@
         progress: 0,
         progressText: "0.0%",
         indexing_file: "",
+        indexVersion: "",
         engine_lights: ["off", "off", "off", "off"],
         config: {
           autoStart: true,
@@ -1207,6 +1208,12 @@
       next.progress = Number.isFinite(Number(src.progress)) ? Number(src.progress) : 0;
       next.progressText = String(src.progressText || `${next.progress.toFixed(1)}%`);
       next.indexing_file = String(src.indexing_file || "");
+      next.indexVersion = String(src.indexVersion || next.indexVersion || "");
+      next.scanPhase = String(src.scanPhase || next.scanPhase || "");
+      next.discoveredFiles = Number.isFinite(Number(src.discoveredFiles)) ? Number(src.discoveredFiles) : Number(next.discoveredFiles || 0);
+      next.processedFiles = Number.isFinite(Number(src.processedFiles)) ? Number(src.processedFiles) : Number(next.processedFiles || 0);
+      next.pendingTasks = Number.isFinite(Number(src.pendingTasks)) ? Number(src.pendingTasks) : Number(next.pendingTasks || 0);
+      next.queueCapacity = Number.isFinite(Number(src.queueCapacity)) ? Number(src.queueCapacity) : Number(next.queueCapacity || 0);
       next.engine_lights = Array.isArray(src.engine_lights) && src.engine_lights.length === 4
         ? src.engine_lights.map(v => String(v || "off"))
         : ["off","off","off","off"];
@@ -1225,6 +1232,25 @@
         pauseMS: Math.max(0, Number(cfgSrc.pauseMS ?? 5))
       };
       return next;
+    }
+    function buildFullTextTaskText(ft){
+      const discovered = Number(ft.discoveredFiles) || 0;
+      const processed = Number(ft.processedFiles) || 0;
+      const pending = Number(ft.pendingTasks) || 0;
+      const queueCap = Number(ft.queueCapacity) || 0;
+      const phase = String(ft.scanPhase || "");
+      const hasActiveQueue = pending > 0 || (discovered > 0 && processed < discovered);
+      const activeBusy = !!ft.running && (phase === "walking" || phase === "indexing" || hasActiveQueue);
+      if (ft.indexing_file) return String(ft.indexing_file);
+      if (activeBusy) {
+        if (phase === "walking") return "正在扫描目录…";
+        if (pending > 0) return queueCap > 0 ? `正在建立索引（队列 ${pending}/${queueCap}）` : `正在建立索引（队列 ${pending}）`;
+        return "正在建立索引…";
+      }
+      if (ft.running && phase === "idle_wait") return "等待空闲后开始索引…";
+      if (ft.ready) return "索引已就绪（当前无索引任务）";
+      if (!ft.running) return "索引已停止（当前无索引任务）";
+      return "当前无索引任务";
     }
     function requestFullTextStatus(withConfig = false){
       post({ type: "fulltextStatusRequest", withConfig: !!withConfig });
@@ -1270,7 +1296,12 @@
         }).join("");
       }
       const rec = String(p.recommendedScheme || "auto").toLowerCase();
-      setFullTextProbeSummary(`推荐方式：${schemeDisplayName(rec)}`);
+      const cur = String(document.getElementById("ftScanScheme")?.value || state.fullText?.config?.scanScheme || "auto").toLowerCase();
+      if (rec === cur) {
+        setFullTextProbeSummary(`当前方式：${schemeDisplayName(cur)}（与推荐一致）`);
+      } else {
+        setFullTextProbeSummary(`当前方式：${schemeDisplayName(cur)} · 推荐方式：${schemeDisplayName(rec)}`);
+      }
     }
     function applyRecommendedFullTextScheme(){
       const rec = state.fullTextProbe && state.fullTextProbe.last
@@ -1318,6 +1349,11 @@
       document.getElementById("btnFtPickDir")?.addEventListener("click", () => post({ type: "fulltextPickIndexDir" }));
       document.getElementById("btnFtProbe")?.addEventListener("click", () => requestFullTextProbe());
       document.getElementById("btnFtRecommend")?.addEventListener("click", () => applyRecommendedFullTextScheme());
+      document.getElementById("btnFtRebuild")?.addEventListener("click", () => {
+        if (!window.confirm("将清空并重建全文索引，用于验证单字检索。是否继续？")) return;
+        setStatus("已触发强制重建索引，正在准备…", "ok");
+        post({ type: "fulltextControl", control: "rebuild" });
+      });
     }
     function refreshFullTextConsoleDom(){
       if (state.activeTab !== "search") return;
@@ -1330,11 +1366,13 @@
       });
       const summary = document.getElementById("ftSummary");
       if (summary) summary.textContent = `${ft.running ? "运行中" : "已停止"} · ${ft.ready ? "已就绪" : "构建中"} · ${ft.progressText || `${ft.progress.toFixed(1)}%`}`;
+      const ver = document.getElementById("ftVersion");
+      if (ver) ver.textContent = `索引版本 ${ft.indexVersion || "-"}`;
       const bar = document.getElementById("ftProgressBar");
       if (bar) bar.style.width = `${Math.max(0, Math.min(100, Number(ft.progress || 0))).toFixed(1)}%`;
       const file = document.getElementById("ftCurrentFile");
       if (file) {
-        const txt = ft.indexing_file || "当前无索引任务";
+        const txt = buildFullTextTaskText(ft);
         file.textContent = txt;
         file.title = txt;
       }
@@ -1819,11 +1857,12 @@
   <div class="title">全文索引控制台</div>
   <div class="ft-console">
     <div class="ft-title">引擎状态</div>
-    <div class="ft-light-row">${lightHtml}<span id="ftSummary" class="ft-kv">${ft.running ? "运行中" : "已停止"} · ${ft.ready ? "已就绪" : "构建中"} · ${esc(ft.progressText || "0.0%")}</span></div>
+    <div class="ft-light-row">${lightHtml}<span id="ftSummary" class="ft-kv">${ft.running ? "运行中" : "已停止"} · ${ft.ready ? "已就绪" : "构建中"} · ${esc(ft.progressText || "0.0%")}</span><span id="ftVersion" class="ft-kv">索引版本 ${esc(ft.indexVersion || "-")}</span></div>
     <div class="ft-progress"><div id="ftProgressBar" class="ft-progress-bar" style="width:${progressNum.toFixed(1)}%"></div></div>
-    <div id="ftCurrentFile" class="ft-file" title="${esc(ft.indexing_file || "")}">${esc(ft.indexing_file || "当前无索引任务")}</div>
+    <div id="ftCurrentFile" class="ft-file" title="${esc(buildFullTextTaskText(ft))}">${esc(buildFullTextTaskText(ft))}</div>
     <div class="inline" style="margin-top:10px;">
       <button class="btn" id="btnFtToggle">启动索引</button>
+      <button class="btn" id="btnFtRebuild">强制重建索引</button>
       <button class="btn" id="btnFtRefresh">刷新状态</button>
       <button class="btn" id="btnFtProbe">检测可行性</button>
       <button class="btn" id="btnFtRecommend">应用推荐方式</button>
@@ -1974,7 +2013,12 @@
         return;
       }
       if (msg.type === "fulltextActionResult") {
-        setStatus(msg.ok ? "全文索引操作成功" : (msg.error || "全文索引操作失败"), msg.ok ? "ok" : "err");
+        if (msg.ok && (msg.action === "rebuild" || msg.action === "fullsync")) {
+          setStatus("强制重建已启动，单字检索将在新索引中生效", "ok");
+        } else {
+          setStatus(msg.ok ? "全文索引操作成功" : (msg.error || "全文索引操作失败"), msg.ok ? "ok" : "err");
+        }
+        requestFullTextStatus(true);
         return;
       }
       if (msg.type === "fulltextBrowseResult") {

@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const fullTextIndexVersion = "stub"
+
 type FullTextRuntimeConfig struct {
 	AutoStart        bool   `json:"autoStart"`
 	Workers          int    `json:"workers"`
@@ -51,6 +53,7 @@ type FullTextStatus struct {
 	LastUpdatedRFC3339 string   `json:"lastUpdated"`
 	ScanMode           string   `json:"scan_mode,omitempty"`
 	IndexEpoch         uint64   `json:"indexEpoch,omitempty"`
+	IndexVersion       string   `json:"indexVersion,omitempty"`
 }
 
 type fullTextProgressPayload struct {
@@ -69,6 +72,7 @@ type fullTextProgressPayload struct {
 	Alerts         []string `json:"alerts,omitempty"`
 	ScanMode       string   `json:"scan_mode,omitempty"`
 	IndexEpoch     uint64   `json:"indexEpoch,omitempty"`
+	IndexVersion   string   `json:"indexVersion,omitempty"`
 }
 
 func InitFullTextRuntime(baseDir string) {}
@@ -94,6 +98,7 @@ func GetStatus() FullTextStatus {
 		ProgressDetail:     "未开始扫描",
 		EfficiencyText:     "0 文件/秒",
 		ScanPhase:          "idle",
+		IndexVersion:       fullTextIndexVersion,
 		LastUpdatedRFC3339: time.Now().Format(time.RFC3339),
 	}
 }
@@ -116,6 +121,7 @@ func GetProgressPayload() fullTextProgressPayload {
 		Alerts:         st.Alerts,
 		ScanMode:       st.ScanMode,
 		IndexEpoch:     st.IndexEpoch,
+		IndexVersion:   st.IndexVersion,
 	}
 }
 

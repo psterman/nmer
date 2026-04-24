@@ -504,8 +504,36 @@ _SCWV_ResultMetadataForWeb(item) {
         out["hitCount"] := m["HitCount"]
     if m.Has("HitContext") {
         ctx := m["HitContext"]
-        if (ctx is Array && ctx.Length > 0)
-            out["hitContext"] := ctx
+        if (ctx is Array && ctx.Length > 0) {
+            ; 防止超大命中上下文导致 PostWebMessageAsJson 负载过大（单字高频词更易触发）
+            ; 仅下发有限条、有限长度摘要；详情可后续按需请求。
+            maxRows := 8
+            maxSnippetChars := 260
+            slim := []
+            lim := (ctx.Length < maxRows) ? ctx.Length : maxRows
+            Loop lim {
+                row := ctx[A_Index]
+                lineNo := 0
+                snippet := ""
+                if (row is Map) {
+                    if row.Has("line")
+                        lineNo := Integer(row["line"])
+                    if row.Has("snippet")
+                        snippet := String(row["snippet"])
+                } else if IsObject(row) {
+                    try lineNo := row.HasProp("line") ? Integer(row.line) : 0
+                    try snippet := row.HasProp("snippet") ? String(row.snippet) : ""
+                }
+                snippet := RegExReplace(snippet, "\s+", " ")
+                if (StrLen(snippet) > maxSnippetChars)
+                    snippet := SubStr(snippet, 1, maxSnippetChars) . "…"
+                snippet := _SCWV_SanitizeForJson(snippet)
+                slim.Push(Map("line", lineNo, "snippet", snippet))
+            }
+            out["hitContext"] := slim
+            if (ctx.Length > lim)
+                out["hitContextTruncated"] := true
+        }
     }
     if m.Has("StreamPhase")
         out["streamPhase"] := m["StreamPhase"]
@@ -516,6 +544,12 @@ _SCWV_ResultMetadataForWeb(item) {
     if (out.Count = 0)
         return 0
     return out
+}
+
+; 移除会破坏 JSON/WebMessage 的控制字符（保留 CR/LF/TAB）
+_SCWV_SanitizeForJson(val) {
+    s := String(val)
+    return RegExReplace(s, "[\x00-\x08\x0B\x0C\x0E-\x1F]", " ")
 }
 
 _SCWV_MergeMap(target, source) {
@@ -1514,7 +1548,11 @@ SCWV_OnWebMessage(sender, args) {
         case "setFilter":
             global SearchCenterFilterType, SearchCenterWebKeyword
             nextFilter := msg.Has("filterType") ? String(msg["filterType"]) : ""
-            SearchCenterFilterType := (SearchCenterFilterType = nextFilter) ? "" : nextFilter
+            ; 全文筛选改为幂等开启：避免重复点击/热键重复下发把 fulltext 误切回空筛选。
+            if (nextFilter = "fulltext")
+                SearchCenterFilterType := "fulltext"
+            else
+                SearchCenterFilterType := (SearchCenterFilterType = nextFilter) ? "" : nextFilter
             if (Trim(SearchCenterWebKeyword) != "")
                 SetTimer(_SCWV_PostRequestSearchGo, -60)
             SCWV_PushState("state")
@@ -2090,16 +2128,16 @@ SCWV_PushState(msgType := "state") {
         }
         rowMap := Map(
             "row", index,
-            "title", rowTitle,
-            "subtitle", rowSubtitle,
-            "type", typeDisplay,
-            "time", item.HasProp("Time") ? item.Time : "",
-            "preview", item.HasProp("Content") ? SubStr(item.Content, 1, 180) : rowTitle,
-            "previewText", BuildSearchCenterPreviewText(item),
-            "dataType", item.HasProp("DataType") ? item.DataType : "",
-            "source", item.HasProp("Source") ? item.Source : "",
-            "content", item.HasProp("Content") ? item.Content : rowTitle,
-            "path", filePath,
+            "title", _SCWV_SanitizeForJson(rowTitle),
+            "subtitle", _SCWV_SanitizeForJson(rowSubtitle),
+            "type", _SCWV_SanitizeForJson(typeDisplay),
+            "time", _SCWV_SanitizeForJson(item.HasProp("Time") ? item.Time : ""),
+            "preview", _SCWV_SanitizeForJson(item.HasProp("Content") ? SubStr(item.Content, 1, 180) : rowTitle),
+            "previewText", _SCWV_SanitizeForJson(BuildSearchCenterPreviewText(item)),
+            "dataType", _SCWV_SanitizeForJson(item.HasProp("DataType") ? item.DataType : ""),
+            "source", _SCWV_SanitizeForJson(item.HasProp("Source") ? item.Source : ""),
+            "content", _SCWV_SanitizeForJson(item.HasProp("Content") ? item.Content : rowTitle),
+            "path", _SCWV_SanitizeForJson(filePath),
             "pinned", isPinned ? true : false
         )
         metaWeb := _SCWV_ResultMetadataForWeb(item)

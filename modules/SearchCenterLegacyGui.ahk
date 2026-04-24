@@ -1433,16 +1433,29 @@ BuildSearchCenterPreviewText(Item) {
         return "当前未选中本地结果。`r`n`r`n在上方输入内容可实时过滤数据，选中列表项后会在这里显示详情预览。"
     }
 
-    Title := Item.HasProp("Title") ? Item.Title : ""
-    Source := Item.HasProp("Source") ? Item.Source : ""
-    Content := Item.HasProp("Content") ? Item.Content : Title
-    DataType := ""
-    if (Item.HasProp("DataType") && Item.DataType != "") {
-        DataType := Item.DataType
-    } else if (Item.HasProp("OriginalDataType") && Item.OriginalDataType != "") {
-        DataType := Item.OriginalDataType
+    if (Item is Map) {
+        Title := Item.Has("Title") ? String(Item["Title"]) : ""
+        Source := Item.Has("Source") ? String(Item["Source"]) : ""
+        Content := Item.Has("Content") ? String(Item["Content"]) : Title
+        DataType := ""
+        if (Item.Has("DataType") && Item["DataType"] != "") {
+            DataType := String(Item["DataType"])
+        } else if (Item.Has("OriginalDataType") && Item["OriginalDataType"] != "") {
+            DataType := String(Item["OriginalDataType"])
+        }
+        TimeText := Item.Has("Time") ? String(Item["Time"]) : ""
+    } else {
+        Title := Item.HasProp("Title") ? Item.Title : ""
+        Source := Item.HasProp("Source") ? Item.Source : ""
+        Content := Item.HasProp("Content") ? Item.Content : Title
+        DataType := ""
+        if (Item.HasProp("DataType") && Item.DataType != "") {
+            DataType := Item.DataType
+        } else if (Item.HasProp("OriginalDataType") && Item.OriginalDataType != "") {
+            DataType := Item.OriginalDataType
+        }
+        TimeText := Item.HasProp("Time") ? Item.Time : ""
     }
-    TimeText := Item.HasProp("Time") ? Item.Time : ""
 
     PreviewText := "标题： " . Title
     if (Source != "") {
