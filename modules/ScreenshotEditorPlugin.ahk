@@ -74,9 +74,6 @@ class ScreenshotEditorPlugin {
     static IsScreenshotEditorZoomHotkeyActive() {
     if !this.IsScreenshotEditorActive()
         return false
-    ; 浠呭湪缃《闅愯棌宸ュ叿鏍忔ā寮忎笅鍚敤婊氳疆缂╂斁
-    if (this.ScreenshotEditorToolbarVisible)
-        return false
     try {
         MouseGetPos(, , &hoverHwnd)
         if !hoverHwnd
@@ -493,7 +490,7 @@ class ScreenshotEditorPlugin {
         WindowHeight := TitleBarHeight + PreviewHeight
         
         ; 鏍囬鏍忥紙鍙嫋鍔級
-        this.ScreenshotEditorTitleBar := EditorGui.Add("Text", "x0 y0 w" . (WindowWidth - 40) . " h" . TitleBarHeight . " Center Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text, "馃摲 鎴浘鍔╂墜")
+        this.ScreenshotEditorTitleBar := EditorGui.Add("Text", "x0 y0 w" . (WindowWidth - 40) . " h" . TitleBarHeight . " Center Background" . UI_Colors.TitleBar . " c" . UI_Colors.Text, "📷 截图助手")
         this.ScreenshotEditorTitleBar.SetFont("s11 Bold", "Segoe UI")
         ; 娣诲姞鎷栧姩鍔熻兘锛圱ext鎺т欢鍙敮鎸丆lick浜嬩欢锛?
         this.ScreenshotEditorTitleBar.OnEvent("Click", ObjBindMethod(ScreenshotEditorPlugin, "ScreenshotEditorDragWindow"))
@@ -917,7 +914,11 @@ class ScreenshotEditorPlugin {
     htmlPath := A_ScriptDir "\ScreenshotToolbarWebView.html"
     try {
         if FileExist(htmlPath) {
-            this.ScreenshotToolbarWV2.NavigateToString(FileRead(htmlPath, "UTF-8"))
+            tm := this.ScreenshotToolbarGetThemeMode()
+            html := FileRead(htmlPath, "UTF-8")
+            bodyTag := Format('<body data-theme="{1}" class="theme-ready">', tm)
+            html := StrReplace(html, "<body>", bodyTag, , , 1)
+            this.ScreenshotToolbarWV2.NavigateToString(html)
         } else {
             try ApplyUnifiedWebViewAssets(this.ScreenshotToolbarWV2)
             this.ScreenshotToolbarWV2.Navigate(BuildAppLocalUrl("ScreenshotToolbarWebView.html"))
@@ -934,11 +935,16 @@ class ScreenshotEditorPlugin {
         return
     }
     this.ScreenshotToolbarCreateCheckPass += 1
-    if (this.ScreenshotToolbarCreateCheckPass < 3) {
+    if (this.ScreenshotToolbarCreateCheckPass < 6) {
         SetTimer(ObjBindMethod(ScreenshotEditorPlugin, "ScreenshotToolbar_EnsureCreated"), -800)
         return
     }
-    this.ScreenshotToolbar_EnableNativeFallback("wv2_create_timeout")
+    ; Prefer WebView lucide toolbar; avoid dropping to legacy text/icon fallback.
+    try {
+        if (IsObject(this.GuiID_ScreenshotToolbar) && this.GuiID_ScreenshotToolbar != 0)
+            WebView2.create(this.GuiID_ScreenshotToolbar.Hwnd, ObjBindMethod(ScreenshotEditorPlugin, "ScreenshotToolbar_OnCreated"), WebView2_EnsureSharedEnvBlocking())
+    } catch {
+    }
 }
 
     static ScreenshotToolbar_OnNavigationCompleted(sender, args) {
@@ -1105,12 +1111,17 @@ class ScreenshotEditorPlugin {
 
     static ScreenshotToolbar_EnsureUsable(*) {
     if !this.ScreenshotToolbarWV2 {
-        this.ScreenshotToolbar_EnableNativeFallback("wv2_missing")
+        ; Keep retrying WebView path so toolbar stays lucide-style.
+        SetTimer(ObjBindMethod(ScreenshotEditorPlugin, "ScreenshotToolbar_EnsureCreated"), -300)
         return
     }
     ; 鑻ラ甯т粛鏈畬鎴愶紝鍒囨崲鍒版瀬绠€瀹夊叏鐗?HTML锛屼繚璇佹寜閽彲瑙?
     if (!this.ScreenshotToolbarWV2PaintOk) {
-        try this.ScreenshotToolbarWV2.NavigateToString(this.ScreenshotToolbar_BuildSafeInlineHtml())
+        try {
+            safeHtml := this.ScreenshotToolbar_BuildSafeInlineHtml()
+            safeHtml := StrReplace(safeHtml, "applyTheme('dark');", "applyTheme('" . this.ScreenshotToolbarGetThemeMode() . "');", , , 1)
+            this.ScreenshotToolbarWV2.NavigateToString(safeHtml)
+        }
         SetTimer(ObjBindMethod(ScreenshotEditorPlugin, "ScreenshotToolbar_RefreshComposition"), -60)
         SetTimer(ObjBindMethod(ScreenshotEditorPlugin, "ScreenshotToolbar_EnsureUsableSecondPass"), -700)
     }
@@ -1145,17 +1156,17 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:var(--bg);color:v
 .i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
 </style></head>
 <body><div id='bar'>
-<button class='b' data-cmd='pin' title='缃《'><svg class='i' viewBox='0 0 24 24'><path d='M12 17v5'/><path d='M9 3h6l1 6 2 2-6 4-6-4 2-2z'/></svg></button>
-<button class='b' data-cmd='ocr' title='璇嗗埆鏂囨湰'><svg class='i' viewBox='0 0 24 24'><path d='M4 4h16v16H4z'/><path d='M8 8h8M8 12h6M8 16h4'/></svg></button>
-<button class='b' data-cmd='ocr_edit' title='缂栬緫OCR鍒拌崏绋挎湰'><svg class='i' viewBox='0 0 24 24'><path d='M3 21h6'/><path d='m14.5 4.5 5 5'/><path d='M7 17l2.5-.5L19 7a1.8 1.8 0 0 0-2.5-2.5L7 14z'/></svg></button>
-<button class='b' data-cmd='text' title='澶嶅埗鏂囨湰'><svg class='i' viewBox='0 0 24 24'><rect x='9' y='9' width='11' height='11' rx='2'/><rect x='4' y='4' width='11' height='11' rx='2'/></svg></button>
-<button class='b' data-cmd='save' title='淇濆瓨鍥剧墖'><svg class='i' viewBox='0 0 24 24'><path d='M5 4h12l2 2v14H5z'/><path d='M8 4v6h8V4'/><path d='M9 16h6'/></svg></button>
+<button class='b' data-cmd='pin' title='置顶'><svg class='i' viewBox='0 0 24 24'><path d='M12 17v5'/><path d='M9 3h6l1 6 2 2-6 4-6-4 2-2z'/></svg></button>
+<button class='b' data-cmd='ocr' title='识别文本'><svg class='i' viewBox='0 0 24 24'><path d='M4 4h16v16H4z'/><path d='M8 8h8M8 12h6M8 16h4'/></svg></button>
+<button class='b' data-cmd='ocr_edit' title='编辑OCR到草稿本'><svg class='i' viewBox='0 0 24 24'><path d='M3 21h6'/><path d='m14.5 4.5 5 5'/><path d='M7 17l2.5-.5L19 7a1.8 1.8 0 0 0-2.5-2.5L7 14z'/></svg></button>
+<button class='b' data-cmd='text' title='复制文本'><svg class='i' viewBox='0 0 24 24'><rect x='9' y='9' width='11' height='11' rx='2'/><rect x='4' y='4' width='11' height='11' rx='2'/></svg></button>
+<button class='b' data-cmd='save' title='保存图片'><svg class='i' viewBox='0 0 24 24'><path d='M5 4h12l2 2v14H5z'/><path d='M8 4v6h8V4'/><path d='M9 16h6'/></svg></button>
 <div class='s'></div>
-<button class='b' data-cmd='ai' title='鍙戦€佸埌AI'><svg class='i' viewBox='0 0 24 24'><path d='M12 3l1.8 4.7L18.5 9 14.8 12l1.3 4.9L12 14l-4.1 2.9L9.2 12 5.5 9l4.7-1.3z'/></svg></button>
-<button class='b' data-cmd='search' title='鎼滅储鏂囨湰'><svg class='i' viewBox='0 0 24 24'><circle cx='11' cy='11' r='7'/><path d='m20 20-3.5-3.5'/></svg></button>
-<button class='b' data-cmd='color' title='鍙栬壊鍣?><svg class='i' viewBox='0 0 24 24'><path d='m14.5 4.5 5 5'/><path d='M7 17 4 20h6l9.5-9.5a1.8 1.8 0 0 0-2.5-2.5z'/></svg></button>
+<button class='b' data-cmd='ai' title='发送到AI'><svg class='i' viewBox='0 0 24 24'><path d='M12 3l1.8 4.7L18.5 9 14.8 12l1.3 4.9L12 14l-4.1 2.9L9.2 12 5.5 9l4.7-1.3z'/></svg></button>
+<button class='b' data-cmd='search' title='搜索文本'><svg class='i' viewBox='0 0 24 24'><circle cx='11' cy='11' r='7'/><path d='m20 20-3.5-3.5'/></svg></button>
+<button class='b' data-cmd='color' title='取色器'><svg class='i' viewBox='0 0 24 24'><path d='m14.5 4.5 5 5'/><path d='M7 17 4 20h6l9.5-9.5a1.8 1.8 0 0 0-2.5-2.5z'/></svg></button>
 <div class='s'></div>
-<button class='b d' data-cmd='close' title='鍏抽棴'><svg class='i' viewBox='0 0 24 24'><path d='M18 6 6 18M6 6l12 12'/></svg></button>
+<button class='b d' data-cmd='close' title='关闭'><svg class='i' viewBox='0 0 24 24'><path d='M18 6 6 18M6 6l12 12'/></svg></button>
 </div>
 <script>
 (function(){

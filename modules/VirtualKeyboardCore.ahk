@@ -256,7 +256,7 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "ch_v", "name", "结果过滤 / 配置", "desc", "CapsLock+V：只看配置结果", "fn", "CH_RUN", "suggested", "v"),
             Map("id", "ch_f", "name", "搜索中心 / 语音搜索", "desc", "CapsLock+F：打开搜索中心或语音搜索", "fn", "CH_RUN", "suggested", "f"),
             Map("id", "ch_g", "name", "显示虚拟键盘", "desc", "CapsLock+G：打开 VK KeyBinder（搜索中心内语义以面板为准）", "fn", "CH_RUN", "suggested", "g"),
-            Map("id", "sc_activate_search", "name", "激活搜索中心", "desc", "打开并激活搜索中心", "fn", "CH_RUN"),
+            Map("id", "sc_activate_search", "name", "搜索", "desc", "打开并激活搜索中心", "fn", "CH_RUN"),
             Map("id", "sc_cat_ai", "name", "分类 / AI", "desc", "切换到 AI 分类", "fn", "CH_RUN", "suggested", "q"),
             Map("id", "sc_cat_cli", "name", "分类 / CLI", "desc", "切换到 CLI 分类", "fn", "CH_RUN", "suggested", "w"),
             Map("id", "sc_cat_academic", "name", "分类 / 学术", "desc", "切换到学术分类", "fn", "CH_RUN", "suggested", "e"),
@@ -335,7 +335,7 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "cp_show_shortcuts", "name", "快捷键展示", "desc", "Ctrl+K：打开快捷键面板", "fn", "CH_RUN", "suggested", "^k"),
             Map("id", "qa_copy", "name", "快捷动作 / 连续复制", "desc", "执行 Quick Action: Copy", "fn", "CH_RUN"),
             Map("id", "qa_paste", "name", "快捷动作 / 合并粘贴", "desc", "执行 Quick Action: Paste", "fn", "CH_RUN"),
-            Map("id", "qa_clipboard", "name", "快捷动作 / 剪贴板管理", "desc", "执行 Quick Action: Clipboard", "fn", "CH_RUN"),
+            Map("id", "qa_clipboard", "name", "剪贴板", "desc", "执行 Quick Action: Clipboard", "fn", "CH_RUN"),
             Map("id", "cp_ctx_paste", "name", "粘贴", "desc", "剪贴板面板列表项右键", "fn", "CH_RUN"),
             Map("id", "cp_ctx_copyToClipboard", "name", "复制到剪贴板", "desc", "剪贴板面板列表项右键", "fn", "CH_RUN"),
             Map("id", "cp_ctx_pastePlain", "name", "粘贴纯文本", "desc", "剪贴板面板列表项右键", "fn", "CH_RUN"),
@@ -348,7 +348,7 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "cp_ctx_toggle_continuous", "name", "持续粘贴（不关闭窗口）", "desc", "剪贴板面板列表项右键", "fn", "CH_RUN")
         ]),
         Map("id", "prompts", "name", "💡 提示词", "commands", [
-            Map("id", "ch_b", "name", "Prompt / 批量入口", "desc", "CapsLock+B：Prompt Quick-Pad 或批量操作入口", "fn", "CH_RUN", "suggested", "b"),
+            Map("id", "ch_b", "name", "提示词", "desc", "CapsLock+B：打开提示词快捷入口", "fn", "CH_RUN", "suggested", "b"),
             Map("id", "ch_p", "name", "提示词快捷采集", "desc", "CapsLock+P：打开 Prompt 采集浮层", "fn", "CH_RUN", "suggested", "p"),
             Map("id", "pqp_capture", "name", "选区快速采集", "desc", "执行 Prompt Quick-Pad 的选区采集动作", "fn", "CH_RUN"),
             Map("id", "qa_batch", "name", "快捷动作 / 批量操作", "desc", "执行 Quick Action: Batch", "fn", "CH_RUN"),
@@ -389,12 +389,12 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "ss_close", "name", "截图助手 / 关闭", "desc", "截图助手：关闭截图面板", "fn", "CH_RUN", "suggested", "Escape")
         ]),
         Map("id", "settings", "name", "⚙️ 设置中心", "commands", [
-            Map("id", "sys_show_vk", "name", "显示虚拟键盘", "desc", "打开 VK KeyBinder 窗口", "fn", "SHOW_VK"),
+            Map("id", "sys_show_vk", "name", "快捷键设置", "desc", "打开 VK KeyBinder 窗口", "fn", "SHOW_VK"),
             Map("id", "sys_hide_vk", "name", "隐藏虚拟键盘", "desc", "关闭 VK KeyBinder 窗口", "fn", "HIDE_VK"),
             Map("id", "sys_reset_vk", "name", "重置键盘高亮", "desc", "清除虚拟键盘上的高亮状态", "fn", "RESET_VK"),
             Map("id", "win_min", "name", "最小化窗口", "desc", "最小化当前活动窗口", "fn", "WIN_MIN"),
             Map("id", "win_close", "name", "关闭窗口", "desc", "关闭当前活动窗口", "fn", "WIN_CLOSE"),
-            Map("id", "qa_config", "name", "快捷动作 / 设置", "desc", "执行 Quick Action: Config", "fn", "CH_RUN")
+            Map("id", "qa_config", "name", "设置", "desc", "执行 Quick Action: Config", "fn", "CH_RUN")
         ]),
         Map("id", "cursor", "name", "🧭 Cursor", "commands", [
             Map("id", "qa_global_search", "name", "全局搜索", "desc", "Cursor: Ctrl+Shift+F", "fn", "CH_RUN"),
@@ -426,11 +426,11 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "ch_t", "name", "智能截图", "desc", "CapsLock+T：截图智能菜单", "fn", "CH_RUN", "suggested", "t"),
             Map("id", "ch_p", "name", "提示词采集", "desc", "CapsLock+P：Prompt 快捷采集", "fn", "CH_RUN", "suggested", "p"),
             Map("id", "ch_r", "name", "牛马 Chat", "desc", "CapsLock+R：打开悬浮条牛马对话抽屉", "fn", "CH_RUN", "suggested", "r"),
-            Map("id", "ch_b", "name", "Cursor 快捷菜单", "desc", "CapsLock+B：Prompt/批量 或 Cursor 快捷入口", "fn", "CH_RUN", "suggested", "b"),
+            Map("id", "ch_b", "name", "提示词", "desc", "CapsLock+B：打开提示词快捷入口", "fn", "CH_RUN", "suggested", "b"),
             Map("id", "ch_g", "name", "显示虚拟键盘", "desc", "CapsLock+G：打开本 KeyBinder 窗口", "fn", "CH_RUN", "suggested", "g"),
-            Map("id", "sys_show_vk", "name", "显示虚拟键盘（菜单）", "desc", "与 CapsLock+G 相同，便于未绑物理键时从列表触发", "fn", "SHOW_VK"),
+            Map("id", "sys_show_vk", "name", "快捷键设置", "desc", "与 CapsLock+G 相同，便于未绑物理键时从列表触发", "fn", "SHOW_VK"),
             Map("id", "ftm_reset_scale", "name", "重置大小", "desc", "悬浮工具栏右键：重置缩放", "fn", "CH_RUN"),
-            Map("id", "ftm_search_center", "name", "搜索中心", "desc", "悬浮工具栏右键：打开搜索中心", "fn", "CH_RUN"),
+            Map("id", "ftm_search_center", "name", "搜索", "desc", "悬浮工具栏右键：打开搜索中心", "fn", "CH_RUN"),
             Map("id", "ftm_clipboard", "name", "剪贴板", "desc", "悬浮工具栏右键：打开剪贴板", "fn", "CH_RUN"),
             Map("id", "ftm_minimize_to_edge", "name", "最小化到边缘", "desc", "悬浮工具栏右键：吸附到边缘", "fn", "CH_RUN"),
             Map("id", "ftm_exit_app", "name", "退出程序", "desc", "悬浮工具栏右键：退出程序", "fn", "CH_RUN"),
@@ -439,9 +439,9 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "ftm_toggle_toolbar", "name", "显示/隐藏工具栏", "desc", "悬浮工具栏右键：切换可见性", "fn", "CH_RUN"),
             Map("id", "ftm_reload_script", "name", "重启脚本", "desc", "悬浮工具栏右键：重载脚本", "fn", "CH_RUN"),
             ; 下列 cmd 供悬浮条/场景条专用绑定；VK 网页「快捷键」标签由 HOTKEY_TAB_PRESET 展示，不再重复列出
-            Map("id", "ftb_scratchpad", "name", "草稿本入口", "desc", "悬浮条按钮：打开 HubCapsule", "fn", "CH_RUN", "iconClass", "fa-note-sticky"),
-            Map("id", "ftb_screenshot", "name", "智能截图入口", "desc", "悬浮条按钮：截图智能菜单", "fn", "CH_RUN", "iconClass", "fa-camera"),
-            Map("id", "ftb_cursor_menu", "name", "Cursor 快捷菜单", "desc", "悬浮条按钮：Cursor 常用快捷键", "fn", "CH_RUN", "iconClass", "fa-compass")
+            Map("id", "ftb_scratchpad", "name", "草稿本", "desc", "悬浮条按钮：打开 HubCapsule", "fn", "CH_RUN", "iconClass", "fa-note-sticky"),
+            Map("id", "ftb_screenshot", "name", "截图", "desc", "悬浮条按钮：截图智能菜单", "fn", "CH_RUN", "iconClass", "fa-camera"),
+            Map("id", "ftb_cursor_menu", "name", "Cursor", "desc", "悬浮条按钮：Cursor 快捷入口", "fn", "CH_RUN", "iconClass", "fa-compass", "iconPath", A_ScriptDir "\images\cursor.png")
         ])
     ]
 }
@@ -471,6 +471,10 @@ _VK_SyncBuiltinCommands() {
             )
             if def.Has("suggested") && def["suggested"] != ""
                 suggested[cmdId] := def["suggested"]
+            for optKey in ["iconClass", "iconPath", "SvgIcon", "IconFile"] {
+                if def.Has(optKey) && def[optKey] != ""
+                    cmdList[cmdId][optKey] := def[optKey]
+            }
         }
         cats.Push(Map("id", cat["id"], "name", cat["name"], "commands", cmdIds))
     }
@@ -493,7 +497,14 @@ _LoadCommands() {
 
     try {
         raw := FileRead(g_JsonPath, "UTF-8")
-        g_Commands := Jxon_Load(raw)
+        if (SubStr(raw, 1, 1) == Chr(0xFEFF))
+            raw := SubStr(raw, 2)
+        parsed := Jxon_Load(raw)
+        if !(parsed is Map) {
+            OutputDebug("[VK] Commands.json 根节点无效（可能编码/BOM/内容损坏），已跳过加载")
+            return
+        }
+        g_Commands := parsed
     } catch as e {
         OutputDebug("[VK] JSON parse error: " . e.Message)
         return
@@ -4607,7 +4618,7 @@ VK_ShowToolbarLayoutContextMenu() {
                 nm := cmdList[c]["name"]
                 if (nm = "")
                     nm := c
-                MenuItems.Push({ Text: nm, Icon: "▸", Action: VK_MakeToolbarContextMenuAction(c) })
+                MenuItems.Push({ Text: nm, Icon: "h", Action: VK_MakeToolbarContextMenuAction(c) })
             }
         }
     }
@@ -4626,7 +4637,7 @@ VK_ShowToolbarLayoutContextMenu() {
             nm := cmdList[cid]["name"]
             if (nm = "")
                 nm := cid
-            MenuItems.Push({ Text: nm, Icon: "▸", Action: VK_MakeToolbarContextMenuAction(cid) })
+            MenuItems.Push({ Text: nm, Icon: "h", Action: VK_MakeToolbarContextMenuAction(cid) })
         }
     }
     if MenuItems.Length = 0
@@ -4667,3 +4678,4 @@ _FallbackHtml() {
             . '</div></body></html>'
     )
 }
+

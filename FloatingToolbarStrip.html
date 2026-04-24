@@ -91,6 +91,7 @@ button.tb{font:inherit;font-family:inherit}
 .tb:hover{background:rgba(255,102,0,.1);border-color:rgba(255,102,0,.28)}
 .tb .dot{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--orange);opacity:0}
 .tb.selected .dot{opacity:1}
+.tb.selected{border-color:transparent!important;background:transparent!important;box-shadow:none!important}
 .tb[data-action=Search].pulse{animation:breathe 1.6s ease-in-out infinite}
 .tb[data-action=Search].drag-over{transform:scale(.9)}
 .tb.drag-over{transform:scale(.92);background:rgba(255,102,0,.14);border-color:rgba(255,102,0,.42)}
@@ -179,7 +180,8 @@ body[data-theme="light"] #resizeGrip{background:linear-gradient(90deg,rgba(230,1
 body[data-theme="light"] .hdr,body[data-theme="light"] .sh,body[data-theme="light"] .sf,body[data-theme="light"] .session-tabs,body[data-theme="light"] #cmp{border-color:#E5E5E5;background:rgba(255,255,255,.9)}
 body[data-theme="light"] .ib,body[data-theme="light"] .btn2,body[data-theme="light"] .btn3,body[data-theme="light"] .stab,body[data-theme="light"] .ns-item{border-color:#E5E5E5;background:#FFFFFF;color:var(--text)}
 body[data-theme="light"] .tb,body[data-theme="light"] .logo-btn{border-color:#E5E5E5;background:#FFFFFF;color:#E67E22}
-body[data-theme="light"] .tb:hover,body[data-theme="light"] .tb.selected,body[data-theme="light"] .logo-btn:hover{border-color:#D35400;background:#FFF3E8;color:#D35400}
+body[data-theme="light"] .tb:hover,body[data-theme="light"] .logo-btn:hover{border-color:#D35400;background:#FFF3E8;color:#D35400}
+body[data-theme="light"] .tb.selected{color:#E67E22}
 body[data-theme="light"] .ib:hover,body[data-theme="light"] .btn2:hover,body[data-theme="light"] .btn3:hover,body[data-theme="light"] .stab:hover,body[data-theme="light"] .ns-item:hover{border-color:#D35400;background:#FFF3E8}
 body[data-theme="light"] .btn1{background:#E67E22;border-color:#E67E22;color:#FFFFFF}
 body[data-theme="light"] .btn1:hover{background:#D35400;border-color:#D35400}
@@ -456,7 +458,7 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     sys_show_vk: 'keyboard',
     ftb_scratchpad: 'notepad',
     ftb_screenshot: 'screenshot',
-    ftb_cursor_menu: 'bolt',
+    ftb_cursor_menu: 'circle',
   };
 
   var FA_SUFFIX_TO_KEY = {
@@ -504,9 +506,27 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     return key || 'bolt';
   }
 
+  function normalizeIconPathToFileUrl(path) {
+    var p = String(path || '').trim();
+    if (!p) return '';
+    if (/^(https?:|file:|data:|blob:)/i.test(p)) return p;
+    if (/^[a-zA-Z]:[\\/]/.test(p)) return 'file:///' + encodeURI(p.replace(/\\/g, '/'));
+    return p;
+  }
+
   function toolbarIconSvgHtml(cmdId, iconClass, iconPath) {
     var fbKey = toolbarFallbackKey(cmdId, iconClass);
-    // Always render built-in SVG to avoid intermittent text/icon-font fallbacks.
+    var normalizedPath = normalizeIconPathToFileUrl(iconPath);
+    if (String(cmdId || '').trim() === 'ftb_cursor_menu' && normalizedPath) {
+      return (
+        '<span class="tb-ico"><img class="tb-ico-img" src="' +
+        escAttr(normalizedPath) +
+        '" alt="" data-fallback-key="' +
+        escAttr(fbKey || 'prompt') +
+        '"></span>'
+      );
+    }
+    // Default to built-in SVG to avoid intermittent text/icon-font fallbacks.
     var inner = TOOLBAR_SVG_PARTS[fbKey] || TOOLBAR_SVG_PARTS.bolt;
     return '<span class="tb-ico">' + inner + '</span>';
   }

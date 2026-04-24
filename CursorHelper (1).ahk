@@ -1,4 +1,5 @@
 ﻿; ===================== msg =====================
+#Requires AutoHotkey v2.0
 
 global pToken := Gdip_Startup()
 if (!pToken) {
@@ -2490,6 +2491,10 @@ _RunWebViewWarmupStep(*) {
 }
 
 _WV2_BeginWarmupAfterEnv(*) {
+    ; 共享 Environment 已就绪后再显示悬浮栏/球，避免启动首屏与 EnsureSharedEnvBlocking 竞态导致卡死或 WebView2 崩溃
+    try ApplyAppearanceActivationMode()
+    catch as _eApp {
+    }
     global WebViewWarmupQueue, WebViewWarmupIndex
     WebViewWarmupIndex := 0
     WebViewWarmupQueue := [CP_Init, PQP_Init, SCWV_Init, VK_EnsureInit.Bind(true)]
@@ -2524,13 +2529,14 @@ InitEverythingService()
 InitClipboardFTS5DB()
 ; 初始化粘贴板历史面板
 InitClipboardHistoryPanel()
-; 初始化 WebView2 剪贴板面板
-SetTimer(Global_InitAllPanels, -1200)
+; 初始化 WebView2 剪贴板面板（尽早创建共享环境；悬浮栏/球在 _WV2_BeginWarmupAfterEnv 内应用，见上）
+Global_InitAllPanels()
 ; 初始化悬浮工具栏
 InitFloatingToolbar()
 InitFloatingBubble()
-; 按「激活方式」显示悬浮栏 / 悬浮球 / 或仅托盘
-ApplyAppearanceActivationMode()
+; 悬浮栏/球：待 WebView2 共享环境就绪后在 _WV2_BeginWarmupAfterEnv 中 ApplyAppearanceActivationMode
+; 若环境回调异常未触发，延后重试一次以免无悬浮界面
+SetTimer(ApplyAppearanceActivationMode, -5000)
 SetTimer(AutoStartTtydForNiumaChat, -1800)
 GravityPump_Register()
 SelectionSense_Init()

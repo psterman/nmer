@@ -30,6 +30,8 @@ body[data-theme="light"]{
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font:13px "Segoe UI","Microsoft YaHei UI",sans-serif}
+body{opacity:0}
+body.theme-ready{opacity:1}
 #shell{display:inline-flex;align-items:center;justify-content:center;padding:0;margin:0;pointer-events:auto}
 #bar{
   display:inline-flex;align-items:center;gap:6px;
@@ -48,7 +50,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:v
   display:inline-flex;align-items:center;justify-content:center;
   border-radius:8px;
   border:1px solid transparent;
-  background:#0a0a0a;
+  background:var(--panel);
   color:var(--accent);
   cursor:pointer;
   outline:none;
@@ -129,6 +131,7 @@ body[data-theme="light"] #bar{
   function applyTheme(mode) {
     var tm = String(mode || '').toLowerCase() === 'light' ? 'light' : 'dark';
     document.body.setAttribute('data-theme', tm);
+    document.body.classList.add('theme-ready');
   }
 
   function reportLayout() {
@@ -172,7 +175,7 @@ body[data-theme="light"] #bar{
   }
 
   window.addEventListener('resize', reportLayout);
-  applyTheme('dark');
+  // Keep hidden until host state arrives to avoid dark->light flash.
   reportLayout();
   post({ action: 'ready' });
   requestAnimationFrame(function(){ post({ action: 'paint_ok' }); reportLayout(); });

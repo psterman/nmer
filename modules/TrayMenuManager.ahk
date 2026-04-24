@@ -1,4 +1,4 @@
-; TrayMenuManager.ahk — 托盘高分辨率图标、自定义暗色菜单、监听 0x0404（与历史脚本中的 0x404 同值）
+﻿; TrayMenuManager.ahk — 托盘高分辨率图标、自定义暗色菜单、监听 0x0404（与历史脚本中的 0x404 同值）
 ; 依赖：主脚本已 #Include lib\Gdip_All.ahk；其余符号（GetText、CleanUp、ExecuteScreenshotWithMenu、ShowSearchCenter、
 ; FloatingToolbar_*、CP_Show、ShowConfigGUI 等）在运行时至托盘点击时已解析。
 
@@ -43,11 +43,13 @@ TrySetTrayIconHighQuality() {
                     DllCall("DestroyIcon", "ptr", h)
                     return
                 }
+            } catch {
             }
         } else {
             try {
                 TraySetIcon(CustomIconPath)
                 return
+            } catch {
             }
         }
     }
@@ -57,6 +59,7 @@ TrySetTrayIconHighQuality() {
         try {
             TraySetIcon(icoNiu)
             return
+        } catch {
         }
     }
     if FileExist(pngNiu) {
@@ -67,6 +70,7 @@ TrySetTrayIconHighQuality() {
                 DllCall("DestroyIcon", "ptr", h)
                 return
             }
+        } catch {
         }
     }
     chIco := A_ScriptDir "\cursor_helper.ico"
@@ -74,10 +78,14 @@ TrySetTrayIconHighQuality() {
         try {
             TraySetIcon(chIco)
             return
+        } catch {
         }
     }
-    if FileExist(A_ScriptDir "\favicon.ico")
+    if FileExist(A_ScriptDir "\favicon.ico") {
         try TraySetIcon(A_ScriptDir "\favicon.ico")
+        catch {
+        }
+    }
 }
 
 ResolveDefaultUiIconPath() {
@@ -123,17 +131,8 @@ TrayMenuCancelHoverAnim() {
 }
 
 TrayMenuItemHoverPhase2(ItemIndex, *) {
-    global TrayMenuGUI, TrayMenuSelectedItem, TrayMenuHoverTimer
+    global TrayMenuHoverTimer
     TrayMenuHoverTimer := 0
-    if (!TrayMenuGUI || TrayMenuSelectedItem != ItemIndex)
-        return
-    try {
-        TrayMenuGUI["MenuItemBg" . ItemIndex].BackColor := TrayPopup_ThemeColor("activeBg")
-        TrayMenuGUI["MenuItemText" . ItemIndex].Opt("c" . TrayPopup_ThemeColor("activeText"))
-        if (TrayMenuGUI.HasProp("MenuItemIcon" . ItemIndex))
-            TrayMenuGUI["MenuItemIcon" . ItemIndex].Opt("c" . TrayPopup_ThemeColor("activeText"))
-    } catch {
-    }
 }
 
 TrayMenuItemHover(ItemIndex, *) {
@@ -158,9 +157,7 @@ TrayMenuItemHover(ItemIndex, *) {
             TrayMenuGUI["MenuItemIcon" . ItemIndex].Opt("c" . TrayPopup_ThemeColor("hoverText"))
     } catch {
     }
-    fn := TrayMenuItemHoverPhase2.Bind(ItemIndex)
-    TrayMenuHoverTimer := fn
-    SetTimer(fn, -50)
+    TrayMenuHoverTimer := 0
 }
 
 TrayMenuItemLeave(ItemIndex, *) {
@@ -173,6 +170,7 @@ TrayMenuItemLeave(ItemIndex, *) {
                 TrayMenuGUI["MenuItemIcon" . ItemIndex].Opt("c" . TrayPopup_ThemeColor("icon"))
             }
             TrayMenuSelectedItem := 0
+        } catch {
         }
     }
 }
@@ -403,6 +401,7 @@ ReloadScriptFromPopupMenu(*) {
             TrayMenuGUI := 0
             SetTimer(CheckTrayMenuMousePosition, 0)
             SetTimer(CloseTrayMenuIfClickedOutside, 0)
+        } catch {
         }
     }
     try FloatingToolbarSaveScale()
@@ -448,11 +447,11 @@ TrayPopup_ThemeColor(key) {
     if (tm = "light") {
         mp := Map(
             "menuBg", "f7f7f7",
-            "itemBg", "ffffff",
+            "itemBg", "f7f7f7",
             "text", "d35400",
             "icon", "d35400",
-            "hoverBg1", "fff3e8",
-            "hoverBg2", "fbe7d6",
+            "hoverBg1", "fff1e3",
+            "hoverBg2", "fff1e3",
             "hoverText", "d35400",
             "activeBg", "e67e22",
             "activeText", "ffffff"
@@ -465,7 +464,7 @@ TrayPopup_ThemeColor(key) {
             "icon", "ff6600",
             "hoverBg1", "2a2622",
             "hoverBg2", "ff6600",
-            "hoverText", "ffb366",
+            "hoverText", "ff6600",
             "activeBg", "ff6600",
             "activeText", "ffffff"
         )
@@ -519,7 +518,7 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
     TrayMenuGUI.Add("Text", "x0 y0 w" . MenuWidth . " h" . MenuHeight . " Background" . menuBg, "")
 
     TrayMenuSelectedItem := 0
-    IconSize := 18
+    IconSize := 16
 
     ClickHelper(item, *) {
         try {
@@ -568,7 +567,13 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
 ResolveDarkPopupItemIconFile(Item, size := 18) {
     try {
         if (Item.HasProp("SvgIcon") && Item.SvgIcon != "" && FileExist(Item.SvgIcon)) {
-            return EnsureSvgIconRasterized(Item.SvgIcon, size)
+            altPng := RegExReplace(Item.SvgIcon, "\.svg$", ".png")
+            if (FileExist(altPng))
+                return altPng
+            png := EnsureSvgIconRasterized(Item.SvgIcon, size)
+            if (png != "" && FileExist(png))
+                return png
+            return ""
         }
         if (Item.HasProp("IconFile") && Item.IconFile != "" && FileExist(Item.IconFile))
             return Item.IconFile
@@ -584,7 +589,8 @@ EnsureSvgIconRasterized(svgPath, size := 18) {
             DirCreate(cacheDir)
         baseName := RegExReplace(svgPath, "^.*\\", "")
         key := RegExReplace(baseName, "\.svg$", "")
-        pngPath := cacheDir "\" . key . "_" . size . ".png"
+        themeKey := TrayPopup_GetThemeMode()
+        pngPath := cacheDir "\" . key . "_" . size . "_" . themeKey . ".png"
 
         needRender := !FileExist(pngPath)
         if (!needRender) {
@@ -719,3 +725,5 @@ ShowCustomTrayMenu(ItemName := "", ItemPos := "", MyMenu := "") {
 
     ShowDarkStylePopupMenuAt(MenuItems, posX, posY)
 }
+
+

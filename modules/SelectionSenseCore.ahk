@@ -1544,7 +1544,8 @@ SelectionSense_OnMenuWebMessage(sender, args) {
         return
     }
     if (typ = "hub_ready") {
-        ; HubCapsule 鏄庣‘灏辩华锛氳ˉ鍙戝緟鎺ㄩ€佹钀?        SelectionSense_HubCapsule_FlushPendingSegments()
+        ; HubCapsule 就绪后补发待推送片段
+        SelectionSense_HubCapsule_FlushPendingSegments()
         SelectionSense_PushHubCtxMenuSpec()
         return
     }

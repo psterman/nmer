@@ -1,11 +1,11 @@
-; ======================================================================================================================
-; 鎮诞宸ュ叿鏍?- WebView2 鍏ㄩ噺閲嶆瀯鐗?; 鐗堟湰: 2.0.0
-; 鍔熻兘:
-;   - 鏁存潯宸ュ叿鏍忕敱鍗曚釜 WebView2 娓叉煋锛岀粺涓€璧涘崥缁?姗欓厤鑹?;   - 宸﹂敭鎷栧姩鏁寸獥銆佹粴杞缉鏀俱€佸彸閿彍鍗?;   - 7 涓姛鑳芥寜閽細鎼滅储銆佽褰曘€佹彁绀鸿瘝銆佹柊鎻愮ず璇嶃€佹埅鍥俱€佽缃€侀敭鐩?;   - 鎼滅储鎸夐挳鏀寔閫夊尯鎰熷簲鍛煎惛鍔ㄧ敾鍜屾嫋鏀炬悳绱?; ======================================================================================================================
+﻿; ======================================================================================================================
+; 閹剚璇炲銉ュ徔閺?- WebView2 閸忋劑鍣洪柌宥嗙€悧?; 閻楀牊婀? 2.0.0
+; 閸旂喕鍏?
+;   - 閺佸瓨娼銉ュ徔閺嶅繒鏁遍崡鏇氶嚋 WebView2 濞撳弶鐓嬮敍宀€绮烘稉鈧挧娑樺触缂?濮楁瑩鍘ら懝?;   - 瀹革箓鏁幏鏍уЗ閺佸鐛ラ妴浣圭泊鏉烆喚缂夐弨淇扁偓浣稿礁闁款喛褰嶉崡?;   - 7 娑擃亜濮涢懗鑺ュ瘻闁筋噯绱伴幖婊呭偍閵嗕浇顔囪ぐ鏇樷偓浣瑰絹缁€楦跨槤閵嗕焦鏌婇幓鎰仛鐠囧秲鈧焦鍩呴崶淇扁偓浣筋啎缂冾喓鈧線鏁惄?;   - 閹兼粎鍌ㄩ幐澶愭尦閺€顖涘瘮闁灏幇鐔风安閸涚厧鎯涢崝銊ф暰閸滃本瀚嬮弨鐐偝缁?; ======================================================================================================================
 
 #Requires AutoHotkey v2.0
 
-; 澶氭樉绀哄櫒铏氭嫙妗岄潰鍖呭洿鐩掞紙SM_XVIRTUALSCREEN 76鈥?9锛?
+; 婢舵碍妯夌粈鍝勬珤閾忔碍瀚欏宀勬桨閸栧懎娲块惄鎺炵礄SM_XVIRTUALSCREEN 76閳?9閿?
 ScreenVirtual_GetBounds(&outL, &outT, &outW, &outH) {
     outL := SysGet(76)
     outT := SysGet(77)
@@ -13,7 +13,7 @@ ScreenVirtual_GetBounds(&outL, &outT, &outW, &outH) {
     outH := SysGet(79)
 }
 
-; ===================== 鍏ㄥ眬鍙橀噺 =====================
+; ===================== 閸忋劌鐪崣姗€鍣?=====================
 global FloatingToolbarGUI := 0
 global FloatingToolbarIsVisible := false
 global FloatingToolbarWindowX := 0
@@ -54,7 +54,7 @@ global g_FTB_PendingSelection := ""
 global g_FTB_PendingNiumaCompose := []
 global g_FTB_UI_Ready := false
 global g_FTB_WaitingUiFinishedReveal := false
-global g_FTB_ScreenshotDeferLastTick := 0  ; 防抖：WebView 短时双发 postMessage 会排队两次 Deferred，避免第二次再跑完整截图助手流程
+global g_FTB_ScreenshotDeferLastTick := 0  ; 闃叉姈锛歐ebView 鐭椂鍙屽彂 postMessage 浼氭帓闃熶袱娆?Deferred锛岄伩鍏嶇浜屾鍐嶈窇瀹屾暣鎴浘鍔╂墜娴佺▼
 global g_FTB_WV2_CreateRetry := 0
 global g_FTB_DebugOverlayEnabled := true
 
@@ -72,9 +72,8 @@ FTB_Debug(msg, level := "ok") {
     }
 }
 
-; ===================== 鏄剧ず/闅愯棌鎮诞绐?=====================
-; 首次/重建 WebView 后：先全透明占位，等页面 post UI_FINISHED 再不透明显示，避免未渲染完就露出黑白底。
-; 隐藏后再打开且 WebView 仍在：直接显示，不再等待。
+; ===================== 閺勫墽銇?闂呮劘妫岄幃顒佽癁缁?=====================
+; 棣栨/閲嶅缓 WebView 鍚庯細鍏堝叏閫忔槑鍗犱綅锛岀瓑椤甸潰 post UI_FINISHED 鍐嶄笉閫忔槑鏄剧ず锛岄伩鍏嶆湭娓叉煋瀹屽氨闇插嚭榛戠櫧搴曘€?; 闅愯棌鍚庡啀鎵撳紑涓?WebView 浠嶅湪锛氱洿鎺ユ樉绀猴紝涓嶅啀绛夊緟銆?
 FloatingToolbar_FinishReveal() {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarWindowX, FloatingToolbarWindowY
     global g_FTB_WaitingUiFinishedReveal, g_FTB_WV2
@@ -119,7 +118,7 @@ ShowFloatingToolbar() {
     if (FloatingToolbarIsVisible && FloatingToolbarGUI != 0) {
         return
     }
-    ; 若上次仍在「等 UI_FINISHED」，先取消超时定时器，避免重复 reveal
+    ; 鑻ヤ笂娆′粛鍦ㄣ€岀瓑 UI_FINISHED銆嶏紝鍏堝彇娑堣秴鏃跺畾鏃跺櫒锛岄伩鍏嶉噸澶?reveal
     if (FloatingToolbarGUI != 0 && g_FTB_WaitingUiFinishedReveal) {
         g_FTB_WaitingUiFinishedReveal := false
         SetTimer(FloatingToolbar_ForceRevealIfStuck, 0)
@@ -146,7 +145,7 @@ ShowFloatingToolbar() {
 
     FloatingToolbarGUI.Show("x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . ToolbarWidth . " h" . ToolbarHeight . " NoActivate")
 
-    ; WebView 已就绪且页面至少完成过一次 UI_FINISHED：直接显示（避免隐藏后再开仍等一帧）
+    ; WebView 宸插氨缁笖椤甸潰鑷冲皯瀹屾垚杩囦竴娆?UI_FINISHED锛氱洿鎺ユ樉绀猴紙閬垮厤闅愯棌鍚庡啀寮€浠嶇瓑涓€甯э級
     if (g_FTB_WV2_Ready && g_FTB_UI_Ready) {
         try WinSetTransparent(255, "ahk_id " . FloatingToolbarGUI.Hwnd)
         catch {
@@ -155,7 +154,7 @@ ShowFloatingToolbar() {
         return
     }
 
-    ; 首次加载或重建：全透明直到 HTML 发 UI_FINISHED（去掉 AnimateWindow 淡入，避免黑白闪动）
+    ; 棣栨鍔犺浇鎴栭噸寤猴細鍏ㄩ€忔槑鐩村埌 HTML 鍙?UI_FINISHED锛堝幓鎺?AnimateWindow 娣″叆锛岄伩鍏嶉粦鐧介棯鍔級
     try WinSetTransparent(0, "ahk_id " . FloatingToolbarGUI.Hwnd)
     catch {
     }
@@ -207,7 +206,7 @@ ToggleFloatingToolbar() {
     }
 }
 
-; ===================== 鍒涘缓GUI =====================
+; ===================== 閸掓稑缂揋UI =====================
 CreateFloatingToolbarGUI() {
     global FloatingToolbarGUI, g_FTB_WV2_Ctrl, g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_PendingSelection
     global g_FTB_UI_Ready, g_FTB_WaitingUiFinishedReveal, g_FTB_WV2_CreateRetry
@@ -229,14 +228,21 @@ CreateFloatingToolbarGUI() {
     }
 
     FloatingToolbarGUI := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x02000000", "Floating Toolbar")
-    ; 与当前主题底色一致，避免圆角外缘露色
+    ; 涓庡綋鍓嶄富棰樺簳鑹蹭竴鑷达紝閬垮厤鍦嗚澶栫紭闇茶壊
     FloatingToolbarGUI.BackColor := FloatingToolbar_GetThemeBackColorHex()
     FloatingToolbarGUI.OnEvent("Close", OnFloatingToolbarClose)
     FloatingToolbarGUI.OnEvent("ContextMenu", OnFloatingToolbarContextMenu)
 
     OnMessage(0x020A, FloatingToolbarWM_MOUSEWHEEL)
 
-    WebView2.create(FloatingToolbarGUI.Hwnd, FloatingToolbar_OnWebViewCreated, WebView2_EnsureSharedEnvBlocking())
+    try {
+        WebView2.create(FloatingToolbarGUI.Hwnd, FloatingToolbar_OnWebViewCreated, WebView2_EnsureSharedEnvBlocking())
+    } catch as e {
+        OutputDebug("[FTB] WebView2.create failed: " . e.Message)
+        try TrayTip("悬浮工具栏", "WebView2 创建失败，请确认已安装 Edge WebView2 运行时。", "Iconx 2")
+        catch {
+        }
+    }
 }
 
 FloatingToolbar_FlushPendingSelectionIfReady() {
@@ -285,9 +291,8 @@ FloatingToolbar_OnNavigationCompleted(sender, args) {
     FloatingToolbar_FlushPendingNiumaComposeIfReady()
 }
 
-; ===================== 鍦嗚杈规澶勭悊 =====================
-; 不再使用 GDI CreateRoundRectRgn 裁剪宿主窗口：整数像素圆角易产生锯齿，
-; 圆角与描边由 WebView 内 SVG/CSS 抗锯齿绘制；宿主保持矩形窗口，BackColor 与工具栏底同色即可。
+; ===================== 閸﹀棜顫楁潏瑙勵攱婢跺嫮鎮?=====================
+; 涓嶅啀浣跨敤 GDI CreateRoundRectRgn 瑁佸壀瀹夸富绐楀彛锛氭暣鏁板儚绱犲渾瑙掓槗浜х敓閿娇锛?; 鍦嗚涓庢弿杈圭敱 WebView 鍐?SVG/CSS 鎶楅敮榻跨粯鍒讹紱瀹夸富淇濇寔鐭╁舰绐楀彛锛孊ackColor 涓庡伐鍏锋爮搴曞悓鑹插嵆鍙€?
 FloatingToolbarApplyRoundedCorners() {
     global FloatingToolbarGUI
 
@@ -300,7 +305,7 @@ FloatingToolbarApplyRoundedCorners() {
     }
 }
 
-; ===================== WebView2 鍥炶皟 =====================
+; ===================== WebView2 閸ョ偠鐨?=====================
 FloatingToolbar_OnWebViewCreated(ctrl) {
     global g_FTB_WV2_Ctrl, g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_WV2_FrameReady, g_FTB_WV2_CreateRetry
 
@@ -315,7 +320,7 @@ FloatingToolbar_OnWebViewCreated(ctrl) {
     g_FTB_WV2_Ready := false
     g_FTB_WV2_FrameReady := false
 
-    ; 与当前主题底色一致，避免透明时透出异色再闪内容
+    ; 涓庡綋鍓嶄富棰樺簳鑹蹭竴鑷达紝閬垮厤閫忔槑鏃堕€忓嚭寮傝壊鍐嶉棯鍐呭
     try ctrl.DefaultBackgroundColor := FloatingToolbar_GetThemeBackColorArgb()
     try ctrl.IsVisible := true
     FloatingToolbar_ApplyHostThemeColors()
@@ -325,7 +330,7 @@ FloatingToolbar_OnWebViewCreated(ctrl) {
     s := g_FTB_WV2.Settings
     s.AreDefaultContextMenusEnabled := false
     s.AreDevToolsEnabled := false
-    ; 避免 Ctrl+1/2/W 等被浏览器加速键先消费，确保 Niuma Chat 内部快捷键优先生效
+    ; 避免 Ctrl+1/2/W 等被浏览器加速键先消费，确保 Niuma Chat 内快捷键优先生效
     try s.AreBrowserAcceleratorKeysEnabled := false
     ApplyWebView2PerformanceSettings(g_FTB_WV2)
     WebView2_RegisterHostBridge(g_FTB_WV2)
@@ -509,7 +514,7 @@ FloatingToolbar_OnWebMessage(sender, args) {
         if !g_FTB_WaitingUiFinishedReveal
             return
 
-        ; 不再使用 AnimateWindow(AW_BLEND)，避免黑白渐变闪屏；由 FloatingToolbar_FinishReveal 一次性不透明显示
+        ; 涓嶅啀浣跨敤 AnimateWindow(AW_BLEND)锛岄伩鍏嶉粦鐧芥笎鍙橀棯灞忥紱鐢?FloatingToolbar_FinishReveal 涓€娆℃€т笉閫忔槑鏄剧ず
         FloatingToolbar_FinishReveal()
         FloatingToolbar_FlushPendingNiumaComposeIfReady()
         return
@@ -570,8 +575,7 @@ FloatingToolbar_OnWebMessage(sender, args) {
                     case "Prompt", "NewPrompt", "Record":
                         PromptQuickPad_OpenCaptureDraft(t, true)
                     default:
-                        ; 未定义输入面板的图标统一回退到搜索中心
-                        SearchCenter_RunQueryWithKeyword(t)
+                        ; 鏈畾涔夎緭鍏ラ潰鏉跨殑鍥炬爣缁熶竴鍥為€€鍒版悳绱腑蹇?                        SearchCenter_RunQueryWithKeyword(t)
                 }
             } catch {
             }
@@ -659,7 +663,7 @@ FloatingToolbar_OnWebMessage(sender, args) {
     }
 }
 
-; 按 WebView 客户区 CSS 像素宽度调整抽屉（保持窗口右缘不动）
+; 鎸?WebView 瀹㈡埛鍖?CSS 鍍忕礌瀹藉害璋冩暣鎶藉眽锛堜繚鎸佺獥鍙ｅ彸缂樹笉鍔級
 FloatingToolbar_ApplyDrawerClientWidth(clientW) {
     global FloatingToolbarGUI, FloatingToolbarChatDrawerOpen, FloatingToolbarChatDrawerWidth
     global FloatingToolbarScale, FloatingToolbarWindowX, FloatingToolbarWindowY
@@ -811,14 +815,14 @@ FloatingToolbarCollapseTransientUi(forceResize := true) {
     }
 }
 
-; ===================== 鎵ц鎸夐挳鍔ㄤ綔 =====================
-; WebView2 WebMessageReceived 须尽快返回；ExecuteScreenshotWithMenu 含长 Sleep 与剪贴板轮询，
+; ===================== 閹笛嗩攽閹稿鎸抽崝銊ょ稊 =====================
+; WebView2 回调须尽快返回；ExecuteScreenshotWithMenu 含 Sleep/剪贴板轮询。
 ; 在回调内同步调用会阻塞 WebView 消息泵，导致工具栏卡死且截图助手无法弹出。
 FloatingToolbar_DeferredScreenshot(*) {
     global FloatingToolbarIsVisible, FloatingToolbar_ScheduleRestoreAfterScreenshot, g_ExecuteScreenshotWithMenuBusy
     global g_FTB_ScreenshotDeferLastTick
 
-    ; 防抖：同一操作 1500ms 内只接受一次（截图流程耗时长，完成后也需阻止重复触发）
+    ; 防抖：同一操作 1500ms 内只接受一次（截图流程耗时长，完成后也需防重复触发）
     if (g_FTB_ScreenshotDeferLastTick && (A_TickCount - g_FTB_ScreenshotDeferLastTick < 1500))
         return
     g_FTB_ScreenshotDeferLastTick := A_TickCount
@@ -843,13 +847,13 @@ FloatingToolbar_DeferredScreenshot(*) {
         ; 截图流程完成后刷新防抖时间戳，阻止后续 1.5 秒内的重复触发
         g_FTB_ScreenshotDeferLastTick := A_TickCount
     } catch as err {
-        ; Hide/Sleep 在 ExecuteScreenshotWithMenu 之前失败时，预占的 busy 不会由后者 finally 清除
+        ; Hide/Sleep 鍦?ExecuteScreenshotWithMenu 涔嬪墠澶辫触鏃讹紝棰勫崰鐨?busy 涓嶄細鐢卞悗鑰?finally 娓呴櫎
         g_ExecuteScreenshotWithMenuBusy := false
         try OutputDebug("[FloatingToolbar] DeferredScreenshot: " . err.Message)
         catch {
         }
     }
-    ; 悬浮条在 ExecuteScreenshotWithMenu 内剪贴板就绪后、ShowScreenshotEditor 前统一恢复，避免 finally 再延迟 Show 造成双重显示与位置偏移
+    ; 悬浮条在 ExecuteScreenshotWithMenu 内剪贴板就绪后、ShowScreenshotEditor 前统一恢复，避免 finally 再延迟 Show 造成双重显示与位移
 }
 
 FloatingToolbar_EnsureSearchCenterFocused(*) {
@@ -882,7 +886,7 @@ FloatingToolbar_ActivateSearchCenter() {
     try usedWebView := SearchCenter_ShouldUseWebView()
     try FloatingToolbarCollapseTransientUi()
 
-    ; 与 CapsLock+F/拖放入口统一：有选中文本时直接带词打开，否则强制走搜索中心显示链路。
+    ; 与 CapsLock+F/拖放入口统一：有选中文本时直接带词打开，否则走搜索中心显示链路
     try selectedText := Trim(String(SelectionSense_GetLastSelectedText()))
     catch {
         selectedText := ""
@@ -900,7 +904,7 @@ FloatingToolbar_ActivateSearchCenter() {
     } catch {
     }
 
-    ; 兜底重建：避免 g_SCWV_Visible / 宿主句柄残留导致“判定已开但面板没出来”。
+    ; 鍏滃簳閲嶅缓锛氶伩鍏?g_SCWV_Visible / 瀹夸富鍙ユ焺娈嬬暀瀵艰嚧鈥滃垽瀹氬凡寮€浣嗛潰鏉挎病鍑烘潵鈥濄€?
     if (!opened && usedWebView) {
         try {
             SCWV_ResetHostState()
@@ -917,7 +921,7 @@ FloatingToolbar_ActivateSearchCenter() {
         }
     }
 
-    ; 不论入口来自图标还是右键菜单，最后都再强制一次可见与输入焦点。
+    ; 涓嶈鍏ュ彛鏉ヨ嚜鍥炬爣杩樻槸鍙抽敭鑿滃崟锛屾渶鍚庨兘鍐嶅己鍒朵竴娆″彲瑙佷笌杈撳叆鐒︾偣銆?
     if (usedWebView) {
         try {
             if (!SCWV_IsVisible())
@@ -930,12 +934,13 @@ FloatingToolbar_ActivateSearchCenter() {
             } catch {
             }
         }
-        try SCWV_RequestFocusInput()
-        catch {
+        try {
+            SCWV_RequestFocusInput()
+        } catch {
         }
     }
 
-    ; 工具栏点击后前台可能仍短暂停在工具栏 WebView，上一个激活链会吞掉焦点；补几次确保搜索中心真正拿到输入焦点。
+    ; 宸ュ叿鏍忕偣鍑诲悗鍓嶅彴鍙兘浠嶇煭鏆傚仠鍦ㄥ伐鍏锋爮 WebView锛屼笂涓€涓縺娲婚摼浼氬悶鎺夌劍鐐癸紱琛ュ嚑娆＄‘淇濇悳绱腑蹇冪湡姝ｆ嬁鍒拌緭鍏ョ劍鐐广€?
     SetTimer(FloatingToolbar_EnsureSearchCenterFocused, -20)
     SetTimer(FloatingToolbar_EnsureSearchCenterFocused, -120)
     SetTimer(FloatingToolbar_EnsureSearchCenterFocused, -320)
@@ -946,10 +951,10 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
         case "Search":
             FloatingToolbar_ActivateSearchCenter()
         case "Record":
-            ; 浠呮墦寮€鏂板壀璐存澘锛圵ebView2 + ClipMain/FTS5锛夛紝涓嶅洖閫€鏃?ListView 闈㈡澘
+            ; 剪贴板：WebView2 + ClipMain/FTS5 等，失败时提示
             try CP_Show()
             catch as err {
-                try TrayTip("鏂板壀璐存澘", "鏃犳硶鎵撳紑 WebView 鍓创鏉? " . err.Message, "Iconx 1")
+                try TrayTip("剪贴板", "无法显示 WebView 剪贴板: " . err.Message, "Iconx 1")
                 catch {
                     OutputDebug("[FloatingToolbar] CP_Show failed: " . err.Message)
                 }
@@ -957,7 +962,7 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
         case "AIAssistant", "Prompt":
             try ShowPromptQuickPadListOnly()
             catch as err {
-                TrayTip("AI閫夋嫨闈㈡澘鍔犺浇澶辫触: " . err.Message, "閿欒", "Iconx 2")
+                TrayTip("AI 快捷面板: " . err.Message, "错误", "Iconx 2")
             }
         case "PromptNew", "NewPrompt":
             try SelectionSense_OpenHubCapsuleFromToolbar()
@@ -967,8 +972,8 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
                 }
             }
         case "Screenshot":
-            ; 不可在 WebView2 WebMessageReceived 回调里同步执行：ExecuteScreenshotWithMenu
-            ; 含长时间 Sleep/剪贴板轮询，会阻塞 WebView 消息泵，导致工具栏卡死且截图窗体无法显示。
+            ; 不可在 WebView2 WebMessageReceived 回调里同步执行 ExecuteScreenshotWithMenu
+            ; 含长时间 Sleep/剪贴板轮询会阻塞消息泵，导致工具栏卡死且截图窗口无法显示
             SetTimer(FloatingToolbar_DeferredScreenshot, -1)
         case "Settings":
             FloatingToolbarOpenSettings()
@@ -977,7 +982,7 @@ FloatingToolbarExecuteButtonAction(action, buttonHwnd) {
     }
 }
 
-; 延后一帧处理搜索切换：让 WM_ACTIVATE / 延迟 Hide 与 postMessage 顺序稳定，避免「先关后立即又打开」
+; 延后一帧处理搜索切换：让 WM_ACTIVATE / 延迟 Hide 与 postMessage 顺序稳定，避免先关后立又弹回
 FloatingToolbar_SearchToggleDeferred(*) {
     global GuiID_SearchCenter
     try {
@@ -1040,11 +1045,11 @@ FloatingToolbarToggleButtonAction(action) {
             }
             FloatingToolbarExecuteButtonAction(action, 0)
         case "AIAssistant", "Prompt":
-            ; 延后一帧：与 WM_ACTIVATE 延迟 Hide、postMessage 顺序对齐，减少「有时关不掉 / 关掉又弹回」
+            ; 延后一帧：与 WM_ACTIVATE、Hide/postMessage 顺序对齐，减少关不掉或关掉又弹回
             SetTimer(FloatingToolbar_PromptToggleDeferred, -1)
             return
         case "Settings":
-            ; WebView 设置：关闭时仅 Hide，GuiID_ConfigGUI 仍非 0，必须按「是否可见」切换，否则会无法再次打开
+            ; WebView 璁剧疆锛氬叧闂椂浠?Hide锛孏uiID_ConfigGUI 浠嶉潪 0锛屽繀椤绘寜銆屾槸鍚﹀彲瑙併€嶅垏鎹紝鍚﹀垯浼氭棤娉曞啀娆℃墦寮€
             try {
                 if (GuiID_ConfigGUI != 0) {
                     cfgVisible := false
@@ -1088,7 +1093,7 @@ FloatingToolbarToggleButtonAction(action) {
             }
             FloatingToolbarExecuteButtonAction(action, 0)
         case "VirtualKeyboard":
-            ; VK_ToggleEmbedded 依赖可见性；失焦自动 Hide 后需与 VK_IsHostVisible 一致，见 VirtualKeyboardCore 宽限期
+            ; VK_ToggleEmbedded 依赖可见性；失焦自动 Hide 后需与 VK_IsHostVisible 一致，见 VirtualKeyboardCore
             try {
                 if (VK_IsHostVisible()) {
                     VK_Hide()
@@ -1108,7 +1113,7 @@ FloatingToolbarToggleButtonAction(action) {
     }
 }
 
-; 前台 HWND 是否为悬浮工具栏或其子窗口（点击工具栏内 WebView 时 WinGetID("A") 常不是宿主 Hwnd）
+; 前台 HWND 是否为悬浮工具栏或其子窗口（点工具栏内 WebView 时 WinGetID("A") 常不是宿主 Hwnd）
 FloatingToolbar_IsForegroundToolbarOrChild() {
     global FloatingToolbarGUI
     if !FloatingToolbarGUI
@@ -1134,7 +1139,7 @@ FloatingToolbar_IsForegroundToolbarOrChild() {
 FloatingToolbarActivateVirtualKeyboard() {
     try VK_ToggleEmbedded()
     catch as err {
-        try TrayTip("铏氭嫙閿洏涓嶅彲鐢? " . err.Message, "铏氭嫙閿洏", "Iconx 2")
+        try TrayTip("閾忔碍瀚欓柨顔炬磸娑撳秴褰查悽? " . err.Message, "閾忔碍瀚欓柨顔炬磸", "Iconx 2")
         catch {
         }
     }
@@ -1167,13 +1172,13 @@ FloatingToolbarOpenSettings() {
     }
 }
 
-; ===================== 婊氳疆缂╂斁澶勭悊 =====================
+; ===================== 濠婃俺鐤嗙紓鈺傛杹婢跺嫮鎮?=====================
 FloatingToolbarWM_MOUSEWHEEL(wParam, lParam, msg, hwnd) {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarChatDrawerOpen
 
     if (!FloatingToolbarIsVisible || !IsObject(FloatingToolbarGUI) || !(FloatingToolbarGUI is Gui))
         return
-    ; 抽屉展开时由页面内滚动，不在此用滚轮缩放整窗
+    ; 鎶藉眽灞曞紑鏃剁敱椤甸潰鍐呮粴鍔紝涓嶅湪姝ょ敤婊氳疆缂╂斁鏁寸獥
     if (FloatingToolbarChatDrawerOpen)
         return
 
@@ -1199,8 +1204,7 @@ FloatingToolbarApplyWheelDelta(delta) {
     global FloatingToolbarGUI, FloatingToolbarScale, FloatingToolbarMinScale, FloatingToolbarMaxScale
     global FloatingToolbarWindowX, FloatingToolbarWindowY, g_FTB_WV2
 
-    ; 必须与 modules\FloatingToolbar.ahk 中 CreateFloatingToolbarGUI 创建的 Gui 一致；
-    ; VirtualKeyboardCore 曾误用同名全局，会导致此处为 Integer 而非 Gui。
+    ; 必须与 CreateFloatingToolbarGUI 创建的 Gui 一致；勿与他处同名全局混用，否则此处可能得到 Integer 而非 Gui
     if !IsObject(FloatingToolbarGUI) || !(FloatingToolbarGUI is Gui)
         return
 
@@ -1259,7 +1263,7 @@ FloatingToolbarApplyWheelDelta(delta) {
     }
 }
 
-; ===================== 拖动（WebView2 内 PostMessage HTCAPTION 不可靠，用手动 Move；同步循环比 1ms 定时器更跟手）====================
+; ===================== 鎷栧姩锛圵ebView2 鍐?PostMessage HTCAPTION 涓嶅彲闈狅紝鐢ㄦ墜鍔?Move锛涘悓姝ュ惊鐜瘮 1ms 瀹氭椂鍣ㄦ洿璺熸墜锛?===================
 FloatingToolbar_DragRun(*) {
     global FloatingToolbarGUI, FloatingToolbarDragging, FloatingToolbarWindowX, FloatingToolbarWindowY
     global FloatingToolbar_DragOriginScreenX, FloatingToolbar_DragOriginScreenY
@@ -1303,7 +1307,7 @@ FloatingToolbar_DragRun(*) {
     SaveFloatingToolbarPosition()
 }
 
-; ===================== 绐楀彛浣嶇疆妫€鏌ヤ笌纾佸惛 =====================
+; ===================== 缁愭褰涙担宥囩枂濡偓閺屻儰绗岀壕浣告儧 =====================
 FloatingToolbarCheckWindowPosition() {
     global FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY, FloatingToolbarDragging, FloatingToolbarIsVisible
 
@@ -1361,7 +1365,7 @@ FloatingToolbarCheckWindowPosition() {
     }
 }
 
-; 鍙抽敭鑿滃崟鐢变富鑴氭湰 ShowFloatingToolbarUnifiedContextMenu 鎻愪緵锛堟繁鑹插脊绐楁牱寮忥級锛岄伩鍏嶄笌 #Include 鍐茬獊銆?
+; 閸欐娊鏁懣婊冨礋閻㈠彉瀵岄懘姘拱 ShowFloatingToolbarUnifiedContextMenu 閹绘劒绶甸敍鍫熺箒閼规彃鑴婄粣妤佺壉瀵骏绱氶敍宀勪缉閸忓秳绗?#Include 閸愯尙鐛婇妴?
 FloatingToolbarResetScale() {
     global FloatingToolbarScale, FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY, g_FTB_WV2
 
@@ -1427,12 +1431,12 @@ FloatingToolbar_ShowContextMenuDeferred(anchorX := 0, anchorY := 0) {
     }
 }
 
-; ===================== 绐楀彛鍏抽棴浜嬩欢 =====================
+; ===================== 缁愭褰涢崗鎶芥４娴滃娆?=====================
 OnFloatingToolbarClose(*) {
     HideFloatingToolbar()
 }
 
-; ===================== 浣嶇疆淇濆瓨鍜屽姞杞?=====================
+; ===================== 娴ｅ秶鐤嗘穱婵嗙摠閸滃苯濮炴潪?=====================
 SaveFloatingToolbarPosition() {
     global FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY
     global FloatingToolbarChatDrawerOpen, FloatingToolbarLastClosedX, FloatingToolbarLastClosedY
@@ -1486,7 +1490,7 @@ LoadFloatingToolbarPosition() {
     }
 }
 
-; ===================== 缂╂斁淇濆瓨鍜屽姞杞?=====================
+; ===================== 缂傗晜鏂佹穱婵嗙摠閸滃苯濮炴潪?=====================
 FloatingToolbarSaveScale() {
     global FloatingToolbarScale
     try {
@@ -1532,7 +1536,7 @@ FloatingToolbarPushScaleStateToWeb(scaleValue := "") {
 
 FloatingToolbar_DeferredToolbarCmd(cmdId) {
     c := String(cmdId)
-    ; 命令工具栏中的面板类入口统一走 toggle，确保“点击同一按钮可显示/隐藏”。
+    ; 命令工具栏与面板类入口统一走 toggle，保证同一按钮可显可隐
     if (c = "sc_activate_search") {
         FloatingToolbarToggleButtonAction("Search")
         return
@@ -1622,6 +1626,10 @@ FloatingToolbarPushCmdLayoutToWeb() {
                 ic := "fa-solid " . ic
         }
         rowPayload := Map("cmdId", cid, "name", nm, "iconClass", ic)
+        if (cid = "ftb_cursor_menu")
+            rowPayload["iconPath"] := A_ScriptDir "\images\cursor.png"
+        if ((ent is Map) && ent.Has("iconPath") && ent["iconPath"] != "")
+            rowPayload["iconPath"] := String(ent["iconPath"])
         items.Push(rowPayload)
     }
     hasCursorMenu := false
@@ -1632,16 +1640,18 @@ FloatingToolbarPushCmdLayoutToWeb() {
         }
     }
     if (!hasCursorMenu && g_FTB_AllowedCmdIds.Has("ftb_cursor_menu")) {
-        cursorName := "Cursor 快捷菜单"
+        cursorName := "Cursor"
         if (cmdList.Has("ftb_cursor_menu")) {
             cent := cmdList["ftb_cursor_menu"]
             if (cent is Map) && cent.Has("name") && cent["name"] != ""
                 cursorName := String(cent["name"])
         }
+        cursorIconPath := A_ScriptDir "\images\cursor.png"
         items.Push(Map(
             "cmdId", "ftb_cursor_menu",
             "name", cursorName,
-            "iconClass", "fa-solid fa-bolt"
+            "iconClass", "fa-solid fa-compass",
+            "iconPath", cursorIconPath
         ))
     }
     FloatingToolbarCmdVisibleCount := items.Length
@@ -1711,7 +1721,7 @@ FloatingToolbarExitCompactMode() {
     SaveFloatingToolbarPosition()
 }
 
-; ===================== 璁＄畻宸ュ叿鏍忓搴﹀拰楂樺害 =====================
+; ===================== 鐠侊紕鐣诲銉ュ徔閺嶅繐顔旀惔锕€鎷版妯哄 =====================
 FloatingToolbarCalculateWidth() {
     global FloatingToolbarScale, FloatingToolbarChatDrawerOpen, FloatingToolbarChatDrawerWidth, FloatingToolbarCompactDiameter, FloatingToolbarCmdVisibleCount
     iconCount := (FloatingToolbarCmdVisibleCount > 0) ? FloatingToolbarCmdVisibleCount : 7
@@ -1725,13 +1735,13 @@ FloatingToolbarCalculateWidth() {
 
 FloatingToolbar_ShowCursorQuickMenu() {
     menuItems := [
-        { Text: "命令面板  (Ctrl+Shift+P)", Icon: "▸", Action: (*) => _ExecuteCommand("qa_command_palette") },
-        { Text: "全局搜索  (Ctrl+Shift+F)", Icon: "▸", Action: (*) => _ExecuteCommand("qa_global_search") },
-        { Text: "资源管理器  (Ctrl+Shift+E)", Icon: "▸", Action: (*) => _ExecuteCommand("qa_explorer") },
-        { Text: "源代码管理  (Ctrl+Shift+G)", Icon: "▸", Action: (*) => _ExecuteCommand("qa_source_control") },
-        { Text: "扩展  (Ctrl+Shift+X)", Icon: "▸", Action: (*) => _ExecuteCommand("qa_extensions") },
-        { Text: "终端  (Ctrl+Shift+``)", Icon: "▸", Action: (*) => _ExecuteCommand("qa_terminal") },
-        { Text: "Cursor 设置  (Ctrl+,)", Icon: "▸", Action: (*) => _ExecuteCommand("qa_cursor_settings") }
+        { Text: "命令面板  (Ctrl+Shift+P)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_command_palette") },
+        { Text: "全局搜索  (Ctrl+Shift+F)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_global_search") },
+        { Text: "资源管理器  (Ctrl+Shift+E)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_explorer") },
+        { Text: "源代码管理  (Ctrl+Shift+G)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_source_control") },
+        { Text: "扩展  (Ctrl+Shift+X)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_extensions") },
+        { Text: "终端  (Ctrl+Shift+``)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_terminal") },
+        { Text: "Cursor 设置  (Ctrl+,)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_cursor_settings") }
     ]
     try {
         MouseGetPos &mx, &my
@@ -1770,7 +1780,7 @@ FloatingToolbar_ResizeForToolbarCount() {
 
 FloatingToolbarCalculateHeight() {
     global FloatingToolbarScale, FloatingToolbarChatDrawerOpen, FloatingToolbarChatDrawerHeight, FloatingToolbarCompactDiameter
-    ; HTML 缁撴瀯涓?52px logo + 涓婁笅鍚?6px padding锛屽洜姝ゅ熀鍑嗛珮搴﹀繀椤绘槸 64
+    ; HTML 缂佹挻鐎稉?52px logo + 娑撳﹣绗呴崥?6px padding閿涘苯娲滃銈呯唨閸戝棝鐝惔锕€绻€妞ょ粯妲?64
     BaseHeight := 64
     if FloatingToolbarChatDrawerOpen {
         ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
@@ -1781,7 +1791,7 @@ FloatingToolbarCalculateHeight() {
     return Round(BaseHeight * FloatingToolbarScale)
 }
 
-; ===================== 鏈€灏忓寲鍒板睆骞曡竟缂?=====================
+; ===================== 閺堚偓鐏忓繐瀵查崚鏉跨潌楠炴洝绔熺紓?=====================
 MinimizeFloatingToolbarToEdge() {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarIsMinimized
     global FloatingToolbarWindowX, FloatingToolbarWindowY
@@ -1833,7 +1843,7 @@ RestoreFloatingToolbar() {
     FloatingToolbarIsMinimized := false
 }
 
-; ===================== 閫夊尯鎰熷簲鑱斿姩 =====================
+; ===================== 闁灏幇鐔风安閼辨柨濮?=====================
 FloatingToolbar_NotifySelectionChange(fullText) {
     global g_FTB_WV2, g_FTB_WV2_Ready, g_FTB_WV2_FrameReady, g_FTB_PendingSelection
 
@@ -1902,28 +1912,29 @@ FloatingToolbar_SendTextToNiumaChat(text, sendNow := true, appendMode := true, o
     }
 }
 
-; ===================== 鍒濆鍖?=====================
+; ===================== 閸掓繂顫愰崠?=====================
 InitFloatingToolbar() {
 }
 
-; ===================== 鏍规嵁鎸夐挳action鑾峰彇鎻愮ず鏂囧瓧 =====================
+; ===================== 閺嶈宓侀幐澶愭尦action閼惧嘲褰囬幓鎰仛閺傚洤鐡?=====================
 GetButtonTip(action) {
     switch action {
         case "Search":
-            return "搜索记录 (CapsLock + F)"
+            return "鎼滅储璁板綍 (CapsLock + F)"
         case "Record":
-            return "新剪贴板 (WebView2 · FTS5)"
+            return "鏂板壀璐存澘 (WebView2 路 FTS5)"
         case "AIAssistant":
-            return "AI 助手 (Ctrl+Shift+B)"
+            return "AI 鍔╂墜 (Ctrl+Shift+B)"
         case "PromptNew":
-            return "Hub 草稿 · 运行 hub_capsule · 采集 CapsLock+C"
+            return "Hub 鑽夌 路 杩愯 hub_capsule 路 閲囬泦 CapsLock+C"
         case "Screenshot":
-            return "屏幕截图 (CapsLock + T)"
+            return "灞忓箷鎴浘 (CapsLock + T)"
         case "Settings":
-            return "系统设置 (CapsLock + Q)"
+            return "绯荤粺璁剧疆 (CapsLock + Q)"
         case "VirtualKeyboard":
-            return "虚拟键盘 (Ctrl+Shift+K)"
+            return "铏氭嫙閿洏 (Ctrl+Shift+K)"
         default:
             return ""
     }
 }
+

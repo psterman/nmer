@@ -244,9 +244,10 @@ _parseNumber(s, &pos) {
 
 ; Skip whitespace
 _skipWhitespace(s, &pos) {
+    bom := Chr(0xFEFF)
     while (pos <= StrLen(s)) {
         char := SubStr(s, pos, 1)
-        if (InStr(" `t`n`r", char)) {
+        if (char = bom || InStr(" `t`n`r", char)) {
             pos++
         } else {
             break
