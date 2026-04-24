@@ -28,16 +28,41 @@
         }
     </script>
     <style>
+        @font-face {
+            font-family: "AppUi";
+            src: local("Segoe UI");
+            unicode-range:
+                U+0000-024F,
+                U+1E00-1EFF,
+                U+2000-206F,
+                U+20A0-20CF,
+                U+2100-214F;
+        }
+        @font-face {
+            font-family: "AppUi";
+            src: local("DengXian"), local("Microsoft YaHei UI"), local("Microsoft YaHei");
+            unicode-range:
+                U+2E80-2EFF,
+                U+2F00-2FDF,
+                U+3000-303F,
+                U+3040-30FF,
+                U+3100-312F,
+                U+31A0-31BF,
+                U+3400-4DBF,
+                U+4E00-9FFF,
+                U+F900-FAFF;
+        }
         @keyframes glow { from { text-shadow: 0 0 5px #F1C40F; } to { text-shadow: 0 0 20px #F1C40F; } }
         .animate-glow { animation: glow 2s ease-in-out infinite alternate; }
         .glass-panel { backdrop-filter: blur(12px); background: rgba(255, 255, 255, 0.9); }
         .dark .glass-panel { background: rgba(26, 26, 26, 0.8); }
-        .kbd-key { display: inline-block; padding: 0.1em 0.4em; background: #edf2f7; border: 1px solid #cbd5e0; border-radius: 0.25rem; font-family: monospace; color: #2d3748; }
+        .kbd-key { display: inline-block; padding: 0.1em 0.4em; background: #edf2f7; border: 1px solid #cbd5e0; border-radius: 0.25rem; font-family: "AppUi","Segoe UI","DengXian","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif; color: #2d3748; }
         .dark .kbd-key { background: #2d3748; border-color: #E67E22; color: #e2e8f0; }
         .flying-text { position: absolute; z-index: 50; background: #E67E22; color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px; pointer-events: none; }
         .cursor-caret { display: inline-block; width: 2px; height: 1.2em; background-color: #F1C40F; vertical-align: middle; animation: blink 1s step-end infinite; }
         @keyframes blink { 50% { opacity: 0; } }
         .engine-selected { background-color: rgba(230, 126, 34, 0.2) !important; border-color: #E67E22 !important; color: white !important; }
+        body { font-family: "AppUi","Segoe UI","DengXian","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif; }
     </style>
 
     <style>
@@ -85,7 +110,7 @@
             border: 1px solid #cbd5e0;
             border-radius: 0.25rem;
             box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
-            font-family: 'JetBrains Mono', monospace;
+            font-family: "AppUi", "Segoe UI", "DengXian", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
         }
         .dark .kbd-key {
             color: #e2e8f0;
@@ -110,7 +135,7 @@
             color: white;
             padding: 2px 6px;
             border-radius: 4px;
-            font-family: monospace;
+            font-family: "AppUi", "Segoe UI", "DengXian", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
             font-size: 12px;
             pointer-events: none;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);

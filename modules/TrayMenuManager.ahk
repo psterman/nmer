@@ -104,6 +104,7 @@ UpdateTrayIcon() {
 global TrayMenuGUI := 0
 global TrayMenuSelectedItem := 0
 global TrayMenuHoverTimer := 0
+global TrayMenuPressedItem := 0
 
 TRAY_ICON_MESSAGE(wParam, lParam, msg, hwnd) {
     if (lParam = 0x203) {
@@ -130,48 +131,109 @@ TrayMenuCancelHoverAnim() {
     }
 }
 
+TrayMenuApplyItemVisual(ItemIndex, state := "idle") {
+    global TrayMenuGUI
+    if (!TrayMenuGUI || ItemIndex <= 0)
+        return
+    try {
+        bg := TrayPopup_ThemeColor("itemBg")
+        accent := bg
+        txt := TrayPopup_ThemeColor("text")
+        ico := TrayPopup_ThemeColor("icon")
+        if (state = "hover") {
+            bg := TrayPopup_ThemeColor("hoverBg1")
+            accent := TrayPopup_ThemeColor("hoverAccent")
+            txt := TrayPopup_ThemeColor("hoverText")
+            ico := TrayPopup_ThemeColor("hoverAccent")
+        } else if (state = "press") {
+            bg := TrayPopup_ThemeColor("activeBg")
+            accent := TrayPopup_ThemeColor("activeAccent")
+            txt := TrayPopup_ThemeColor("activeText")
+            ico := TrayPopup_ThemeColor("activeAccent")
+        }
+        TrayMenuGUI["MenuItemBg" . ItemIndex].BackColor := bg
+        if (TrayMenuGUI.HasProp("MenuItemAccent" . ItemIndex))
+            TrayMenuGUI["MenuItemAccent" . ItemIndex].BackColor := accent
+        if (TrayMenuGUI.HasProp("MenuItemText" . ItemIndex))
+            TrayMenuGUI["MenuItemText" . ItemIndex].SetFont("s11 c" . txt, "DengXian")
+        if (TrayMenuGUI.HasProp("MenuItemIcon" . ItemIndex))
+            TrayMenuGUI["MenuItemIcon" . ItemIndex].SetFont("s14 c" . ico, "Segoe UI Symbol")
+        ; 浅色 + 无主题绘制时，仅改 BackColor 可能不重绘
+        gh := 0
+        try gh := TrayMenuGUI.Hwnd
+        if (gh)
+            DllCall("InvalidateRect", "Ptr", gh, "Ptr", 0, "Int", 1)
+    } catch {
+    }
+}
+
+TrayMenuClearSelection() {
+    global TrayMenuSelectedItem, TrayMenuPressedItem
+    TrayMenuCancelHoverAnim()
+    if (TrayMenuPressedItem > 0) {
+        TrayMenuApplyItemVisual(TrayMenuPressedItem, "idle")
+        TrayMenuPressedItem := 0
+    }
+    if (TrayMenuSelectedItem > 0) {
+        TrayMenuApplyItemVisual(TrayMenuSelectedItem, "idle")
+        TrayMenuSelectedItem := 0
+    }
+}
+
 TrayMenuItemHoverPhase2(ItemIndex, *) {
     global TrayMenuHoverTimer
     TrayMenuHoverTimer := 0
 }
 
 TrayMenuItemHover(ItemIndex, *) {
-    global TrayMenuGUI, TrayMenuSelectedItem, TrayMenuHoverTimer
+    global TrayMenuSelectedItem, TrayMenuHoverTimer, TrayMenuPressedItem
+    if (TrayMenuPressedItem = ItemIndex)
+        return
     if (TrayMenuSelectedItem = ItemIndex)
         return
     TrayMenuCancelHoverAnim()
-    if (TrayMenuSelectedItem > 0) {
-        try {
-            TrayMenuGUI["MenuItemBg" . TrayMenuSelectedItem].BackColor := TrayPopup_ThemeColor("itemBg")
-            TrayMenuGUI["MenuItemText" . TrayMenuSelectedItem].Opt("c" . TrayPopup_ThemeColor("text"))
-            if (TrayMenuGUI.HasProp("MenuItemIcon" . TrayMenuSelectedItem))
-                TrayMenuGUI["MenuItemIcon" . TrayMenuSelectedItem].Opt("c" . TrayPopup_ThemeColor("icon"))
-        } catch {
-        }
-    }
+    if (TrayMenuSelectedItem > 0)
+        TrayMenuApplyItemVisual(TrayMenuSelectedItem, "idle")
     TrayMenuSelectedItem := ItemIndex
-    try {
-        TrayMenuGUI["MenuItemBg" . ItemIndex].BackColor := TrayPopup_ThemeColor("hoverBg1")
-        TrayMenuGUI["MenuItemText" . ItemIndex].Opt("c" . TrayPopup_ThemeColor("hoverText"))
-        if (TrayMenuGUI.HasProp("MenuItemIcon" . ItemIndex))
-            TrayMenuGUI["MenuItemIcon" . ItemIndex].Opt("c" . TrayPopup_ThemeColor("hoverText"))
-    } catch {
-    }
+    TrayMenuApplyItemVisual(ItemIndex, "hover")
     TrayMenuHoverTimer := 0
 }
 
 TrayMenuItemLeave(ItemIndex, *) {
-    global TrayMenuGUI, TrayMenuSelectedItem
+    global TrayMenuSelectedItem, TrayMenuPressedItem
+    if (TrayMenuPressedItem = ItemIndex)
+        return
     if (TrayMenuSelectedItem = ItemIndex) {
-        try {
-            TrayMenuGUI["MenuItemBg" . ItemIndex].BackColor := TrayPopup_ThemeColor("itemBg")
-            TrayMenuGUI["MenuItemText" . ItemIndex].Opt("c" . TrayPopup_ThemeColor("text"))
-            if (TrayMenuGUI.HasProp("MenuItemIcon" . ItemIndex)) {
-                TrayMenuGUI["MenuItemIcon" . ItemIndex].Opt("c" . TrayPopup_ThemeColor("icon"))
-            }
-            TrayMenuSelectedItem := 0
-        } catch {
-        }
+        TrayMenuApplyItemVisual(ItemIndex, "idle")
+        TrayMenuSelectedItem := 0
+    }
+}
+
+TrayMenuItemPress(ItemIndex) {
+    global TrayMenuSelectedItem, TrayMenuPressedItem
+    if (ItemIndex <= 0)
+        return
+    if (TrayMenuSelectedItem > 0 && TrayMenuSelectedItem != ItemIndex)
+        TrayMenuApplyItemVisual(TrayMenuSelectedItem, "idle")
+    TrayMenuSelectedItem := ItemIndex
+    TrayMenuPressedItem := ItemIndex
+    TrayMenuApplyItemVisual(ItemIndex, "press")
+}
+
+TrayMenuInvokeItem(item, itemIndex, keepOpen := false) {
+    global TrayMenuPressedItem
+    TrayMenuItemPress(itemIndex)
+    Sleep(72)
+    if (keepOpen) {
+        TrayMenuApplyItemVisual(itemIndex, "hover")
+        TrayMenuPressedItem := 0
+        return
+    }
+    CloseDarkStylePopupMenu()
+    try {
+        if (item.HasProp("Action") && IsObject(item.Action))
+            item.Action()
+    } catch {
     }
 }
 
@@ -207,17 +269,7 @@ CheckTrayMenuMousePosition(*) {
     }
 
     if (MX < WX || MX > WX + WW || MY < WY || MY > WY + WH) {
-        TrayMenuCancelHoverAnim()
-        if (TrayMenuSelectedItem > 0) {
-            try {
-                TrayMenuGUI["MenuItemBg" . TrayMenuSelectedItem].BackColor := TrayPopup_ThemeColor("itemBg")
-                TrayMenuGUI["MenuItemText" . TrayMenuSelectedItem].Opt("c" . TrayPopup_ThemeColor("text"))
-                if (TrayMenuGUI.HasProp("MenuItemIcon" . TrayMenuSelectedItem)) {
-                    TrayMenuGUI["MenuItemIcon" . TrayMenuSelectedItem].Opt("c" . TrayPopup_ThemeColor("icon"))
-                }
-                TrayMenuSelectedItem := 0
-            }
-        }
+        TrayMenuClearSelection()
         return
     }
 
@@ -226,16 +278,7 @@ CheckTrayMenuMousePosition(*) {
     RelY := MY - WY
 
     if (RelY < Padding) {
-        TrayMenuCancelHoverAnim()
-        if (TrayMenuSelectedItem > 0) {
-            try {
-                TrayMenuGUI["MenuItemBg" . TrayMenuSelectedItem].BackColor := TrayPopup_ThemeColor("itemBg")
-                TrayMenuGUI["MenuItemText" . TrayMenuSelectedItem].Opt("c" . TrayPopup_ThemeColor("text"))
-                if (TrayMenuGUI.HasProp("MenuItemIcon" . TrayMenuSelectedItem))
-                    TrayMenuGUI["MenuItemIcon" . TrayMenuSelectedItem].Opt("c" . TrayPopup_ThemeColor("icon"))
-                TrayMenuSelectedItem := 0
-            }
-        }
+        TrayMenuClearSelection()
         return
     }
 
@@ -250,17 +293,7 @@ CheckTrayMenuMousePosition(*) {
     if (RelY >= ItemY && RelY < ItemY + MenuItemHeight) {
         TrayMenuItemHover(ItemIndex)
     } else {
-        TrayMenuCancelHoverAnim()
-        if (TrayMenuSelectedItem > 0) {
-            try {
-                TrayMenuGUI["MenuItemBg" . TrayMenuSelectedItem].BackColor := TrayPopup_ThemeColor("itemBg")
-                TrayMenuGUI["MenuItemText" . TrayMenuSelectedItem].Opt("c" . TrayPopup_ThemeColor("text"))
-                if (TrayMenuGUI.HasProp("MenuItemIcon" . TrayMenuSelectedItem)) {
-                    TrayMenuGUI["MenuItemIcon" . TrayMenuSelectedItem].Opt("c" . TrayPopup_ThemeColor("icon"))
-                }
-                TrayMenuSelectedItem := 0
-            }
-        }
+        TrayMenuClearSelection()
     }
 }
 
@@ -439,6 +472,15 @@ TrayPopup_GetThemeMode() {
         }
     } catch {
     }
+    try {
+        global ThemeMode
+        if (IsSet(ThemeMode) && ThemeMode != "") {
+            t3 := StrLower(Trim(String(ThemeMode)))
+            if (t3 = "light" || t3 = "lite" || t3 = "浅色")
+                return "light"
+        }
+    } catch {
+    }
     return "dark"
 }
 
@@ -450,11 +492,14 @@ TrayPopup_ThemeColor(key) {
             "itemBg", "f7f7f7",
             "text", "d35400",
             "icon", "d35400",
-            "hoverBg1", "fff1e3",
-            "hoverBg2", "fff1e3",
-            "hoverText", "d35400",
+            ; 浅色下与 f7f7f7 对比需更明显；文字悬停略加深，避免「看不出动效」
+            "hoverBg1", "ffe8cf",
+            "hoverBg2", "ffd9a8",
+            "hoverText", "a04000",
+            "hoverAccent", "d35400",
             "activeBg", "e67e22",
-            "activeText", "ffffff"
+            "activeText", "ffffff",
+            "activeAccent", "d66f1a"
         )
     } else {
         mp := Map(
@@ -465,15 +510,17 @@ TrayPopup_ThemeColor(key) {
             "hoverBg1", "2a2622",
             "hoverBg2", "ff6600",
             "hoverText", "ff6600",
+            "hoverAccent", "ff8f3a",
             "activeBg", "ff6600",
-            "activeText", "ffffff"
+            "activeText", "ffffff",
+            "activeAccent", "ffb36b"
         )
     }
     return mp.Has(key) ? mp[key] : ((tm = "light") ? "f7f7f7" : "1a1a1a")
 }
 
 ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
-    global TrayMenuGUI, TrayMenuSelectedItem
+    global TrayMenuGUI, TrayMenuSelectedItem, TrayMenuPressedItem
 
     if (TrayMenuGUI != 0) {
         try {
@@ -505,7 +552,8 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
         posY := vB - MenuHeight - 10
     }
 
-    TrayMenuGUI := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale")
+    ; -Theme：否则系统视觉主题会盖住 Text 的 Background，淡色下悬停改 BackColor 几乎无变化
+    TrayMenuGUI := Gui("+AlwaysOnTop +ToolWindow -Caption -DPIScale -Theme")
     if !(IsObject(TrayMenuGUI) && TrayMenuGUI) {
         TrayMenuGUI := 0
         return
@@ -518,15 +566,13 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
     TrayMenuGUI.Add("Text", "x0 y0 w" . MenuWidth . " h" . MenuHeight . " Background" . menuBg, "")
 
     TrayMenuSelectedItem := 0
+    TrayMenuPressedItem := 0
     IconSize := 16
 
-    ClickHelper(item, *) {
+    ClickHelper(item, itemIndex, *) {
         try {
             keepOpen := (item.HasProp("KeepMenuOpen") && item.KeepMenuOpen)
-            if (!keepOpen)
-                CloseDarkStylePopupMenu()
-            if (item.HasProp("Action") && IsObject(item.Action))
-                item.Action()
+            TrayMenuInvokeItem(item, itemIndex, keepOpen)
         } catch {
         }
     }
@@ -539,27 +585,36 @@ ShowDarkStylePopupMenuAt(MenuItems, posX, posY) {
         IconLeftMargin := baseX + 8
         TextLeftMargin := IconLeftMargin + IconSize + 8
         ItemBgCtrl := TrayMenuGUI.Add("Text", "x" . baseX . " y" . ItemY . " w" . cellUseW . " h" . MenuItemHeight . " Background" . itemBgColor . " vMenuItemBg" . Index, "")
-        ItemBgCtrl.OnEvent("Click", ClickHelper.Bind(Item))
+        AccentCtrl := TrayMenuGUI.Add("Text", "x" . (baseX + 3) . " y" . (ItemY + 7) . " w3 h" . (MenuItemHeight - 14) . " Background" . itemBgColor . " vMenuItemAccent" . Index, "")
+        ItemBgCtrl.OnEvent("Click", ClickHelper.Bind(Item, Index))
         iconFile := ResolveDarkPopupItemIconFile(Item, IconSize)
         if (iconFile != "" && FileExist(iconFile)) {
             IconPic := TrayMenuGUI.Add("Picture", "x" . IconLeftMargin . " y" . (ItemY + ((MenuItemHeight - IconSize) // 2)) . " w" . IconSize . " h" . IconSize . " BackgroundTrans vMenuItemIconPic" . Index, iconFile)
-            IconPic.OnEvent("Click", ClickHelper.Bind(Item))
+            IconPic.OnEvent("Click", ClickHelper.Bind(Item, Index))
         } else if (Item.HasProp("Icon") && Item.Icon != "") {
             IconText := TrayMenuGUI.Add("Text", "x" . IconLeftMargin . " y" . ItemY . " w" . IconSize . " h" . MenuItemHeight . " Center 0x200 c" . iconColor . " BackgroundTrans vMenuItemIcon" . Index, Item.Icon)
             IconText.SetFont("s14", "Segoe UI Symbol")
-            IconText.OnEvent("Click", ClickHelper.Bind(Item))
+            IconText.OnEvent("Click", ClickHelper.Bind(Item, Index))
         }
         tw := cellUseW - (TextLeftMargin - baseX) - 6
         if (tw < 24)
             tw := 24
         ItemText := TrayMenuGUI.Add("Text", "x" . TextLeftMargin . " y" . ItemY . " w" . tw . " h" . MenuItemHeight . " Left 0x200 c" . textColor . " BackgroundTrans vMenuItemText" . Index, Item.Text)
-        ItemText.SetFont("s11", "Segoe UI")
-        ItemText.OnEvent("Click", ClickHelper.Bind(Item))
+        ItemText.SetFont("s11", "DengXian")
+        ItemText.OnEvent("Click", ClickHelper.Bind(Item, Index))
     }
 
     TrayMenuGUI.Show("x" . posX . " y" . posY . " w" . MenuWidth . " h" . MenuHeight)
-    if (IsObject(TrayMenuGUI) && TrayMenuGUI.HasProp("Hwnd") && TrayMenuGUI.Hwnd)
-        WinActivate("ahk_id " . TrayMenuGUI.Hwnd)
+    if (IsObject(TrayMenuGUI) && TrayMenuGUI.HasProp("Hwnd") && TrayMenuGUI.Hwnd) {
+        ; 与悬浮工具栏等 +AlwaysOnTop 并存时，仅 AlwaysOnTop 可能仍被压在下方，悬停改色在「看不见」的窗口上
+        try {
+            DllCall("SetWindowPos", "Ptr", TrayMenuGUI.Hwnd, "Ptr", -1, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x1 | 0x2)  ; HWND_TOPMOST, SWP_NOMOVE|SWP_NOSIZE
+        } catch {
+        }
+        try WinActivate("ahk_id " . TrayMenuGUI.Hwnd)
+        catch {
+        }
+    }
     SetTimer(CheckTrayMenuMousePosition, 50)
     SetTimer(CloseTrayMenuIfClickedOutside, 100)
 }
@@ -640,13 +695,14 @@ ResolveHeadlessBrowserForSvg() {
 }
 
 CloseDarkStylePopupMenu(*) {
-    global TrayMenuGUI, TrayMenuSelectedItem
+    global TrayMenuGUI, TrayMenuSelectedItem, TrayMenuPressedItem
     TrayMenuCancelHoverAnim()
     try {
         if (TrayMenuGUI != 0) {
             try TrayMenuGUI.Destroy()
             TrayMenuGUI := 0
             TrayMenuSelectedItem := 0
+            TrayMenuPressedItem := 0
         }
     } catch {
     }
@@ -725,5 +781,3 @@ ShowCustomTrayMenu(ItemName := "", ItemPos := "", MyMenu := "") {
 
     ShowDarkStylePopupMenuAt(MenuItems, posX, posY)
 }
-
-

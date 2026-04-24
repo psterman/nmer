@@ -5,6 +5,30 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>剪贴板</title>
 <style>
+@font-face {
+  font-family: "AppUi";
+  src: local("Segoe UI");
+  unicode-range:
+    U+0000-024F,
+    U+1E00-1EFF,
+    U+2000-206F,
+    U+20A0-20CF,
+    U+2100-214F;
+}
+@font-face {
+  font-family: "AppUi";
+  src: local("DengXian"), local("Microsoft YaHei UI"), local("Microsoft YaHei");
+  unicode-range:
+    U+2E80-2EFF,
+    U+2F00-2FDF,
+    U+3000-303F,
+    U+3040-30FF,
+    U+3100-312F,
+    U+31A0-31BF,
+    U+3400-4DBF,
+    U+4E00-9FFF,
+    U+F900-FAFF;
+}
 :root {
   --color-scheme: dark;
   --app-bg: radial-gradient(circle at top right, rgba(255,141,42,.08), transparent 26%), linear-gradient(180deg, #0f1113 0%, #15181c 100%);
@@ -27,8 +51,8 @@
   --glow: 0 18px 42px rgba(0, 0, 0, 0.35);
   --glow-hot: 0 0 0 1px rgba(255,179,71,.24), 0 14px 34px rgba(0,0,0,.28);
   --glow-cyan: 0 0 0 1px rgba(121,210,255,.18), 0 14px 34px rgba(0,0,0,.22);
-  --font: "Cascadia Mono", "Fira Code", "Consolas", monospace;
-  --font-ui: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  --font: "AppUi", "Segoe UI", "DengXian", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+  --font-ui: "AppUi", "Segoe UI", "DengXian", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
   --matrix-green: #7af2a4;
   --warning-gold: #ffd36d;
 }

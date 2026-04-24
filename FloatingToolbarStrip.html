@@ -6,9 +6,11 @@
 <title>Floating Toolbar</title>
 <!-- 不使用外链图标字体：WebView2 常拦截 CDN，会导致工具栏只显示圆点/方块 -->
 <style>
+@font-face{font-family:"AppUi";src:local("Segoe UI");unicode-range:U+0000-024F,U+1E00-1EFF,U+2000-206F,U+20A0-20CF,U+2100-214F}
+@font-face{font-family:"AppUi";src:local("DengXian"),local("Microsoft YaHei UI"),local("Microsoft YaHei");unicode-range:U+2E80-2EFF,U+2F00-2FDF,U+3000-303F,U+3040-30FF,U+3100-312F,U+31A0-31BF,U+3400-4DBF,U+4E00-9FFF,U+F900-FAFF}
 :root{--bg:#0a0a0a;--panel:rgba(18,18,18,.92);--panel2:rgba(22,22,22,.96);--orange:#ff6600;--text:#e8e8e8;--muted:#9b9b9b;--ui:1;--ease:.2s cubic-bezier(.22,1,.36,1);--de:.32s ease-in-out;--toolbar-bg:#0a0a0a}
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{width:100%;height:100%;overflow:hidden;background:var(--toolbar-bg);font:14px "Segoe UI","Microsoft YaHei UI",sans-serif;color:var(--text);user-select:none;-webkit-user-select:none}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--toolbar-bg);font:14px "AppUi","Segoe UI","DengXian","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;color:var(--text);user-select:none;-webkit-user-select:none}
 button,input,textarea,select{font:inherit}
 #app{position:relative;width:100%;height:100%;background:var(--toolbar-bg)}
 body.drawer-open{background:var(--toolbar-bg)}
@@ -58,7 +60,7 @@ body.cli-mode #cliPane{display:flex!important}
 .m .mb a{color:#ffb380}
 .m.search-hit{box-shadow:0 0 0 1px rgba(255,132,64,.75),0 0 0 3px rgba(255,102,0,.16)}
 .mb pre{margin-top:10px;border:1px solid rgba(255,102,0,.14);border-radius:12px;background:rgba(8,8,8,.95);overflow:auto}
-.mb pre code{display:block;padding:12px;font:12px/1.65 Consolas,"JetBrains Mono",monospace}
+.mb pre code{display:block;padding:12px;font:12px/1.65 "AppUi","Segoe UI","DengXian","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif}
 .hl-comment{color:#6a9955}.hl-string{color:#ce9178}.hl-number{color:#b5cea8}.hl-keyword{color:#ff9b52}.hl-builtins{color:#4fc1ff}.hl-var{color:#dcdcaa}
 #cmp{flex-shrink:0;padding:12px 16px 14px;border-top:1px solid rgba(255,102,0,.15);background:linear-gradient(180deg,rgba(255,255,255,.02),transparent)}
 #input{width:100%;min-height:96px;resize:vertical;border:1px solid rgba(255,102,0,.2);border-radius:14px;background:rgba(8,8,8,.72);color:var(--text);padding:10px 12px;outline:none;user-select:text;-webkit-user-select:text}
@@ -158,7 +160,7 @@ textarea.ctl{min-height:100px;resize:vertical}
 .stab-add:hover{background:rgba(255,102,0,.08)}
 #newSessionPick{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity var(--de);z-index:42}
 body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
-.debug-hud{position:fixed;left:4px;right:4px;bottom:3px;top:auto;z-index:9999;height:16px;overflow:hidden;background:rgba(0,0,0,.72);border:1px solid rgba(255,102,0,.45);border-radius:6px;padding:0 6px;font:10px/14px Consolas,"Cascadia Mono",monospace;color:#d8d8d8;pointer-events:none;white-space:nowrap;text-overflow:ellipsis}
+.debug-hud{position:fixed;left:4px;right:4px;bottom:3px;top:auto;z-index:9999;height:16px;overflow:hidden;background:rgba(0,0,0,.72);border:1px solid rgba(255,102,0,.45);border-radius:6px;padding:0 6px;font:10px/14px "AppUi","Segoe UI","DengXian","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;color:#d8d8d8;pointer-events:none;white-space:nowrap;text-overflow:ellipsis}
 .debug-hud .row{display:block;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .debug-hud .row.err{color:#ff9b7d}
 .debug-hud .row.ok{color:#7df0b2}

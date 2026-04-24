@@ -6,6 +6,30 @@
 <title>VK KeyBinder</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
+@font-face {
+  font-family: "AppUi";
+  src: local("Segoe UI");
+  unicode-range:
+    U+0000-024F,
+    U+1E00-1EFF,
+    U+2000-206F,
+    U+20A0-20CF,
+    U+2100-214F;
+}
+@font-face {
+  font-family: "AppUi";
+  src: local("DengXian"), local("Microsoft YaHei UI"), local("Microsoft YaHei");
+  unicode-range:
+    U+2E80-2EFF,
+    U+2F00-2FDF,
+    U+3000-303F,
+    U+3040-30FF,
+    U+3100-312F,
+    U+31A0-31BF,
+    U+3400-4DBF,
+    U+4E00-9FFF,
+    U+F900-FAFF;
+}
 /* ── Reset & Variables ─────────────────────────────────────────────────── */
 :root {
   --bg:           #0a0a0a;
@@ -24,8 +48,8 @@
   --glow:         0 0 8px #e67e2288, 0 0 18px #e67e2244;
   --glow-hot:     0 0 12px #e67e22cc, 0 0 30px #e67e2266;
   --glow-cyan:    0 0 8px #00d4ff88, 0 0 18px #00d4ff44;
-  --font:         "Fira Code", "Consolas", "Courier New", monospace;
-  --font-ui:      "Segoe UI", system-ui, sans-serif;
+  --font:         "AppUi", "Segoe UI", "DengXian", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+  --font-ui:      "AppUi", "Segoe UI", "DengXian", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
   /* ── Cyberpunk palette ─── */
   --matrix-green: #00ff41;
   --warning-gold: #ffcc00;
@@ -43,7 +67,7 @@ html, body {
   width: 100%; height: 100%;
   background: radial-gradient(circle at top right, rgba(230,126,34,.08), transparent 28%), linear-gradient(180deg, #090b0d 0%, #101317 100%);
   color: var(--text);
-  font-family: var(--font);
+  font-family: var(--font-ui);
   overflow: hidden;
   user-select: none;
 }
@@ -301,7 +325,7 @@ body::after {
   display: none;
 }
 #hud-hint code {
-  font-family: Consolas, ui-monospace, monospace;
+  font-family: var(--font-ui);
   font-size: 10px;
   color: var(--orange);
   background: #1a1a1a;
@@ -7479,3 +7503,4 @@ function mkEl(tag, cls, text) {
 </script>
 </body>
 </html>
+

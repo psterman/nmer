@@ -5,6 +5,30 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>选区</title>
 <style>
+@font-face {
+  font-family: "AppUi";
+  src: local("Segoe UI");
+  unicode-range:
+    U+0000-024F,
+    U+1E00-1EFF,
+    U+2000-206F,
+    U+20A0-20CF,
+    U+2100-214F;
+}
+@font-face {
+  font-family: "AppUi";
+  src: local("DengXian"), local("Microsoft YaHei UI"), local("Microsoft YaHei");
+  unicode-range:
+    U+2E80-2EFF,
+    U+2F00-2FDF,
+    U+3000-303F,
+    U+3040-30FF,
+    U+3100-312F,
+    U+31A0-31BF,
+    U+3400-4DBF,
+    U+4E00-9FFF,
+    U+F900-FAFF;
+}
 :root {
   --bg: #0a0a0a;
   --matrix: #00ff41;
@@ -17,7 +41,7 @@ html, body {
   height: 100%;
   background: var(--bg);
   color: var(--matrix);
-  font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  font-family: "AppUi", "Segoe UI", "DengXian", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
   overflow: hidden;
 }
 #app {
