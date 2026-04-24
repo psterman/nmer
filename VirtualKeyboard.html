@@ -1225,7 +1225,29 @@ body::after {
 #dashboard-container.dashboard-sortable-active .dashboard-slot {
   transition: border-color .12s ease, box-shadow .12s ease, background .12s ease;
 }
+#dashboard-container.dashboard-sortable-active .dashboard-item,
+#scene-menu-panel.dashboard-sortable-active .dashboard-item,
+#dashboard-container.dashboard-sortable-active .dashboard-slot,
+#scene-menu-panel.dashboard-sortable-active .scene-menu-slot {
+  transition-duration: .08s !important;
+}
+#dashboard-container.dashboard-sortable-active .dashboard-slot:hover,
+#scene-menu-panel.dashboard-sortable-active .scene-menu-slot:hover {
+  transform: none;
+}
 .dashboard-slot:hover::after { opacity: .55; }
+.dashboard-slot.dashboard-slot--drag-over,
+.scene-menu-slot.dashboard-slot--drag-over {
+  border-color: rgba(255,183,77,.92) !important;
+  background:
+    radial-gradient(95% 95% at 18% 14%, rgba(255,183,77,.16), rgba(0,0,0,0) 58%),
+    linear-gradient(180deg, rgba(34,24,14,.82), rgba(12,12,12,.92)) !important;
+  box-shadow: 0 0 0 1px rgba(255,196,124,.26) inset, 0 0 12px rgba(255,170,90,.14) !important;
+}
+.dashboard-slot.dashboard-slot--drag-over::after,
+.scene-menu-slot.dashboard-slot--drag-over::after {
+  opacity: .42;
+}
 #dashboard-container.drop-active .dashboard-slot.is-empty,
 #scene-menu-panel.drop-active .scene-menu-slot.is-empty {
   animation: dashboardSlotBreath 1.5s ease-in-out infinite;
@@ -1294,7 +1316,9 @@ body::after {
   box-shadow: 0 0 0 1px rgba(0, 212, 255, .28) inset, 0 0 14px rgba(0, 212, 255, .18) !important;
 }
 .dashboard-slot--drag-source .dashboard-item {
-  opacity: 0 !important;
+  opacity: .22 !important;
+  filter: saturate(.7) brightness(.9);
+  box-shadow: none !important;
 }
 .dashboard-item {
   width: 100%;
@@ -1445,21 +1469,46 @@ body::after {
   padding: 2px 4px;
 }
 .dashboard-drag-ghost {
-  opacity: .92 !important;
-  border-color: rgba(255,172,74,.55) !important;
-  background: linear-gradient(180deg, rgba(255,156,40,.16), rgba(68,26,0,.10)) !important;
-  box-shadow: 0 4px 14px rgba(255,132,24,.16), 0 0 0 1px rgba(255,196,124,.20) inset !important;
+  opacity: .96 !important;
+  border-color: rgba(255,172,74,.38) !important;
+  background: linear-gradient(180deg, rgba(255,173,89,.08), rgba(68,26,0,.04)) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.16), 0 0 0 1px rgba(255,196,124,.16) inset !important;
   transform: none !important;
 }
 .dashboard-drag-chosen {
-  box-shadow: 0 2px 10px rgba(255,137,26,.14), 0 0 0 1px rgba(255,186,112,.2) inset !important;
+  box-shadow: none !important;
 }
 .dashboard-item.dashboard-dragging {
   transform: none;
-  opacity: 0 !important;
+  opacity: .18 !important;
+  box-shadow: none !important;
 }
 .dashboard-item.dashboard-drag-chosen {
-  opacity: 0 !important;
+  opacity: .18 !important;
+  box-shadow: none !important;
+}
+.dashboard-slot.swap-active {
+  border-color: rgba(243,156,18,.96) !important;
+  box-shadow: 0 0 0 1px rgba(243,156,18,.34) inset, 0 0 16px rgba(230,126,34,.22) !important;
+}
+.dashboard-slot.swap-source-active {
+  border-color: rgba(0,212,255,.82) !important;
+  box-shadow: 0 0 0 1px rgba(0,212,255,.26) inset, 0 0 14px rgba(0,212,255,.18) !important;
+}
+.dashboard-slot.swap-target-active {
+  border-color: rgba(255,183,77,.96) !important;
+  box-shadow: 0 0 0 1px rgba(255,196,124,.3) inset, 0 0 18px rgba(230,126,34,.28) !important;
+}
+.dashboard-slot.swap-target-active .dashboard-item {
+  animation: dashboardDropSettle .11s cubic-bezier(0.22, 0.9, 0.3, 1);
+}
+.dashboard-swap-clone {
+  position: fixed !important;
+  margin: 0 !important;
+  z-index: 99930 !important;
+  pointer-events: none !important;
+  box-sizing: border-box !important;
+  will-change: transform, opacity !important;
 }
 /* forceFallback 拖块：叠在 #root scale 之上，避免被宫格/侧栏挡住 */
 .sortable-fallback {
@@ -1479,11 +1528,15 @@ body::after {
   max-height: var(--dashboard-drag-h, 92px) !important;
   border-radius: 10px !important;
   overflow: hidden !important;
+  opacity: .98 !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.18) !important;
 }
 .dashboard-item.dashboard-sortable-fallback {
   width: var(--dashboard-drag-w, 92px) !important;
   height: var(--dashboard-drag-h, 92px) !important;
   min-height: 0 !important;
+  opacity: 1 !important;
+  filter: none !important;
 }
 .k.dashboard-dragging {
   transform: none !important;
@@ -1506,6 +1559,11 @@ body::after {
   40% { transform: translateX(2px); }
   60% { transform: translateX(-1px); }
   80% { transform: translateX(1px); }
+}
+@keyframes dashboardDropSettle {
+  0% { transform: scale(.985); filter: brightness(1.02); }
+  65% { transform: scale(1.008); filter: brightness(1.04); }
+  100% { transform: scale(1); filter: brightness(1); }
 }
 .dashboard-item:active { cursor: grabbing; }
 .dashboard-item[data-cmd-id=""] { opacity: .75; }
@@ -2316,6 +2374,75 @@ body[data-theme="light"] .dashboard-slot:hover,
 body[data-theme="light"] .scene-menu-slot:hover {
   background: #FFFDF9;
 }
+body[data-theme="light"] .dashboard-slot.dashboard-slot--drag-over,
+body[data-theme="light"] .scene-menu-slot.dashboard-slot--drag-over {
+  border-color: #E8A45A !important;
+  background: #FFF7EE !important;
+  box-shadow: 0 0 0 1px rgba(230,126,34,.10) inset, 0 6px 14px rgba(230,126,34,.08) !important;
+}
+body[data-theme="light"] .dashboard-slot--drag-source {
+  border-color: #E6C7A2 !important;
+  box-shadow: 0 0 0 1px rgba(230,126,34,.08) inset !important;
+}
+body[data-theme="light"] .dashboard-slot--drag-source .dashboard-item {
+  opacity: .2 !important;
+  filter: saturate(.78) brightness(.98);
+}
+body[data-theme="light"] .dashboard-drag-ghost,
+body[data-theme="light"] .dashboard-sortable-fallback {
+  background: #FFFDFB !important;
+  border-color: #E7D8C7 !important;
+  box-shadow: 0 10px 22px rgba(0,0,0,.10), 0 0 0 1px rgba(230,126,34,.08) inset !important;
+}
+body[data-theme="light"] .dashboard-item.dashboard-sortable-fallback,
+body[data-theme="light"] .dashboard-item.dashboard-dragging,
+body[data-theme="light"] .dashboard-item.dashboard-drag-chosen {
+  background: #FFFDFB !important;
+}
+body[data-theme="light"] .dashboard-item.dashboard-sortable-fallback .dashboard-item-icon,
+body[data-theme="light"] .dashboard-drag-ghost .dashboard-item-icon {
+  background: #FFF7EE !important;
+  color: #D35400 !important;
+  box-shadow: 0 0 0 1px rgba(230,126,34,.12) inset !important;
+}
+body[data-theme="light"] .dashboard-item.dashboard-sortable-fallback .dashboard-item-label,
+body[data-theme="light"] .dashboard-drag-ghost .dashboard-item-label {
+  color: #555555 !important;
+}
+body[data-theme="light"] .dashboard-item.dashboard-sortable-fallback .search-row-vis-btn,
+body[data-theme="light"] .dashboard-drag-ghost .search-row-vis-btn {
+  background: #FFFFFF !important;
+  color: #777777 !important;
+  border-color: #E5E5E5 !important;
+  box-shadow: none !important;
+}
+body[data-theme="light"] .dashboard-slot.swap-source-active {
+  border-color: #E3C6A6 !important;
+  box-shadow: 0 0 0 1px rgba(230,126,34,.08) inset !important;
+}
+body[data-theme="light"] .dashboard-slot.swap-target-active {
+  border-color: #E67E22 !important;
+  background: #FFF7EE !important;
+  box-shadow: 0 0 0 1px rgba(230,126,34,.12) inset, 0 8px 18px rgba(230,126,34,.08) !important;
+}
+body[data-theme="light"] .dashboard-slot.swap-target-active .dashboard-item {
+  background: #FFFDFB !important;
+  color: #555555 !important;
+}
+body[data-theme="light"] .dashboard-slot.swap-target-active .dashboard-item-icon {
+  background: #FFF7EE !important;
+  color: #D35400 !important;
+  box-shadow: 0 0 0 1px rgba(230,126,34,.12) inset !important;
+}
+body[data-theme="light"] .dashboard-slot.swap-target-active .dashboard-item-label {
+  color: #555555 !important;
+}
+body[data-theme="light"] .dashboard-slot.swap-target-active .search-row-vis-btn {
+  background: #FFFFFF !important;
+  color: #777777 !important;
+  border-color: #E5E5E5 !important;
+  box-shadow: none !important;
+}
 body[data-theme="light"] .dashboard-item-label,
 body[data-theme="light"] .cmd-name,
 body[data-theme="light"] .cmd-key,
@@ -2677,7 +2804,7 @@ const state = {
   sceneMenus: {},
   /** 剪贴板 / 草稿本 / 提示词：各 cmdId 是否在对应面板右键中显示 */
   sceneMenuVisibility: {},
-  /** 系统锁定项（不可拖删），与 AHK 一致 */
+  /** 系统锁定项（当前默认空数组），与 AHK 一致 */
   sceneMenuSystemIds: [],
   /** 侧边栏归纳高亮：search | scratchpad | clipboard | prompts | null */
   sceneMenuHighlightId: null,
@@ -2693,6 +2820,27 @@ const state = {
   /** CursorHelper 同进程为 true；独立 VirtualKeyboard.ahk 为 false */
   embeddedHost: true,
 };
+
+const VK_UI_PREF_KEYS = {
+  dashboardLayout: 'vk_dashboard_layout',
+  dashboardPanelMode: 'vk_dashboard_panel_mode',
+  activeSceneMenuKey: 'vk_active_scene_menu_key',
+};
+
+function readVkUiPref(key, fallback = '') {
+  try {
+    const v = localStorage.getItem(key);
+    return (v === null || v === undefined || v === '') ? fallback : v;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function writeVkUiPref(key, value) {
+  try {
+    localStorage.setItem(key, String(value ?? ''));
+  } catch (_) {}
+}
 
 const mismatchDetector = {
   lastWebBase: '',
@@ -4323,6 +4471,9 @@ function scheduleSaveSceneMenu(sceneKey) {
 }
 
 function isSceneMenuSystemCmd(cmdId) {
+  const c = String(cmdId || '').trim();
+  if (c === 'ftm_search_center' || c === 'hub_capsule' || c === 'ftm_clipboard' || c === 'ch_b')
+    return false;
   return state.sceneMenuSystemIds && state.sceneMenuSystemIds.includes(cmdId);
 }
 
@@ -4335,6 +4486,8 @@ function setActiveSceneMenuKey(key) {
   if (!SCENE_MENU_KEYS.includes(key)) return;
   state.activeSceneMenuKey = key;
   state.dashboardPanelMode = 'scene';
+  writeVkUiPref(VK_UI_PREF_KEYS.activeSceneMenuKey, state.activeSceneMenuKey);
+  writeVkUiPref(VK_UI_PREF_KEYS.dashboardPanelMode, state.dashboardPanelMode);
   syncDashboardPanelVisibility();
   renderSceneMenuTabs();
   renderSceneMenuGrid();
@@ -4369,9 +4522,47 @@ function getSearchSceneMenuSlots() {
   return slots;
 }
 
+function floatingBarCmdAlias(cmdId) {
+  const c = String(cmdId || '').trim();
+  if (!c) return '';
+  if (c === 'ftm_search_center' || c === 'sc_activate_search') return 'search_center';
+  if (c === 'ftm_clipboard' || c === 'qa_clipboard') return 'clipboard';
+  if (c === 'hub_capsule' || c === 'ftb_scratchpad') return 'scratchpad';
+  if (c === 'ch_b') return 'prompts';
+  return c;
+}
+
+function normalizeFloatingBarSceneMenuIds(ids) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of (Array.isArray(ids) ? ids : [])) {
+    const id = String(raw || '').trim();
+    if (!id) {
+      out.push('');
+      continue;
+    }
+    if (!state.commands[id]) {
+      out.push('');
+      continue;
+    }
+    const ak = floatingBarCmdAlias(id);
+    if (seen.has(ak)) {
+      out.push('');
+      continue;
+    }
+    seen.add(ak);
+    out.push(id);
+  }
+  return out;
+}
+
 function getDynamicSceneMenuSlots(key) {
   const cap = sceneMenuSlotCap(dashboardLayout);
-  const ids = ensureSceneMenuStorageArray(key);
+  let ids = ensureSceneMenuStorageArray(key);
+  if (key === 'floating_bar') {
+    ids = normalizeFloatingBarSceneMenuIds(ids);
+    state.sceneMenus[key] = ids;
+  }
   const slots = Array.from({ length: cap }, () => null);
   for (let i = 0; i < cap; i++) {
     const id = ids[i];
@@ -4435,7 +4626,7 @@ function setSceneMenuFromSlotsArray(key, slots) {
       const it = normalizeDashboardItem(slots[i]);
       full[i] = it ? it.commandId : '';
     }
-    state.sceneMenus[key] = full;
+    state.sceneMenus[key] = (key === 'floating_bar') ? normalizeFloatingBarSceneMenuIds(full) : full;
     for (let i = 0; i < mergeCap; i++) {
       const it = normalizeDashboardItem(slots[i]);
       if (!it) continue;
@@ -4536,11 +4727,11 @@ function commitDynamicSceneMenuFromGrid(sceneKey) {
     full[i] = id ? String(id).trim() : '';
     if (!full[i] || !state.commands[full[i]]) full[i] = '';
   }
-  state.sceneMenus[sceneKey] = full;
+  state.sceneMenus[sceneKey] = (sceneKey === 'floating_bar') ? normalizeFloatingBarSceneMenuIds(full) : full;
   postToAhk({
     type: 'saveSceneMenu',
     scene: sceneKey,
-    cmds: full,
+    cmds: Array.isArray(state.sceneMenus[sceneKey]) ? state.sceneMenus[sceneKey].slice() : full,
     visible: { ...(state.sceneMenuVisibility[sceneKey] || {}) },
   });
 }
@@ -4644,7 +4835,7 @@ function bindSceneMenuSlotSortable(slot) {
   let sceneDragMutated = false;
   const s = new Sortable(slot, {
     group: { name: 'sceneMenuActions', pull: true, put: true },
-    animation: 180,
+    animation: 0,
     easing: 'cubic-bezier(0.22,1,0.36,1)',
     swapThreshold: 0.35,
     invertSwap: false,
@@ -4664,6 +4855,9 @@ function bindSceneMenuSlotSortable(slot) {
       state.dashboardDragActive = true;
       const dc = document.getElementById('dashboard-container');
       if (dc) dc.classList.add('dashboard-sortable-active');
+      const sp = document.getElementById('scene-menu-panel');
+      if (sp) sp.classList.add('dashboard-sortable-active');
+      clearDashboardDragHover();
       if (evt?.from) evt.from.classList.add('dashboard-slot--drag-source');
       const fromIndex = slotIndexFromEl(evt?.from);
       if (evt?.item) evt.item.dataset.dragFromSlotIndex = String(fromIndex);
@@ -4671,16 +4865,22 @@ function bindSceneMenuSlotSortable(slot) {
       if (rect && rect.width > 0 && rect.height > 0) {
         document.documentElement.style.setProperty('--dashboard-drag-w', `${Math.round(rect.width)}px`);
         document.documentElement.style.setProperty('--dashboard-drag-h', `${Math.round(rect.height)}px`);
+        if (evt?.item) writeDragStartRect(evt.item, rect);
       }
     },
     onAdd(evt) {
       const toSlot = evt.to;
-      const toIndex = slotIndexFromEl(toSlot);
+      let toIndex = slotIndexFromEl(toSlot);
+      const oe = evt?.originalEvent;
+      const sceneGrid = toSlot?.closest('#scene-menu-grid') || document.getElementById('scene-menu-grid');
+      if (oe && Number.isFinite(oe.clientX) && Number.isFinite(oe.clientY))
+        toIndex = resolveSlotIndexFromPoint(sceneGrid, oe.clientX, oe.clientY, toIndex);
       let fromIndex = slotIndexFromEl(evt.from);
       if (fromIndex < 0) {
         fromIndex = Number(evt?.item?.dataset?.dragFromSlotIndex);
         if (!Number.isFinite(fromIndex)) fromIndex = -1;
       }
+      clearDashboardDragHover();
       Array.from(toSlot.querySelectorAll('.dashboard-item')).forEach((it) => {
         if (it !== evt.item) it.remove();
       });
@@ -4689,18 +4889,19 @@ function bindSceneMenuSlotSortable(slot) {
         evt.item.remove();
         return;
       }
-      queueMicrotask(() => {
-        const swapped = swapSceneMenuSlots(fromIndex, toIndex, { render: false });
-        if (!swapped) commitSceneMenuFromDomNoRender();
-        sceneDragMutated = true;
-      });
+      const swapped = swapSceneMenuSlots(fromIndex, toIndex);
+      if (!swapped) commitSceneMenuFromDom();
+      else markSwapSlots(document.getElementById('scene-menu-grid'), fromIndex, toIndex);
+      sceneDragMutated = true;
+    },
+    onMove(evt) {
+      setDashboardDragHover(evt?.to || evt?.related || null);
     },
     onUpdate() {
       if (sceneDragMutated) return;
-      queueMicrotask(() => {
-        commitSceneMenuFromDomNoRender();
-        sceneDragMutated = true;
-      });
+      clearDashboardDragHover();
+      commitSceneMenuFromDom();
+      sceneDragMutated = true;
     },
     onEnd() {
       endDashboardDragState();
@@ -4828,10 +5029,13 @@ function onSceneFocusFromSidebar(scenarioId, opts) {
   if (tab) {
     state.activeSceneMenuKey = tab;
     state.dashboardPanelMode = 'scene';
+    writeVkUiPref(VK_UI_PREF_KEYS.activeSceneMenuKey, state.activeSceneMenuKey);
+    writeVkUiPref(VK_UI_PREF_KEYS.dashboardPanelMode, state.dashboardPanelMode);
     syncDashboardPanelVisibility();
     renderSceneMenuGrid();
   } else {
     state.dashboardPanelMode = 'main';
+    writeVkUiPref(VK_UI_PREF_KEYS.dashboardPanelMode, state.dashboardPanelMode);
     syncDashboardPanelVisibility();
   }
   renderSceneMenuTabs();
@@ -4843,6 +5047,7 @@ function syncDashboardPanelVisibility() {
   const scene = state.dashboardPanelMode === 'scene';
   if (mainPanel) mainPanel.hidden = scene;
   if (scenePanel) scenePanel.hidden = !scene;
+  writeVkUiPref(VK_UI_PREF_KEYS.dashboardPanelMode, scene ? 'scene' : 'main');
 }
 
 function renderSceneMenuTabs() {
@@ -4953,7 +5158,11 @@ function handleInit(msg) {
     : [];
   state.sceneMenus = normalizeIncomingSceneMenus(msg.sceneMenus || {});
   state.sceneMenuVisibility = normalizeIncomingSceneMenuVisibility(msg.sceneMenuVisibility || {});
-  state.dashboardPanelMode = 'main';
+  state.dashboardPanelMode = readVkUiPref(VK_UI_PREF_KEYS.dashboardPanelMode, 'main') === 'scene' ? 'scene' : 'main';
+  state.activeSceneMenuKey = (() => {
+    const k = readVkUiPref(VK_UI_PREF_KEYS.activeSceneMenuKey, state.activeSceneMenuKey || 'floating_bar');
+    return SCENE_MENU_KEYS.includes(k) ? k : 'floating_bar';
+  })();
   state.bindings   = msg.bindings   || {};
   state.suggestedBindings = msg.suggestedBindings || {};
   state.lastActionId = msg.lastActionId || '';
@@ -4969,7 +5178,10 @@ function handleInit(msg) {
   ensureActiveScenarioAndTab();
   rebuildIndexes();
 
-  applyDashboardConfig(msg.dashboardConfig || [], msg.dashboardLayout || dashboardLayout);
+  const initLayout = (msg.dashboardLayout !== undefined && msg.dashboardLayout !== null && String(msg.dashboardLayout).trim() !== '')
+    ? msg.dashboardLayout
+    : readVkUiPref(VK_UI_PREF_KEYS.dashboardLayout, dashboardLayout);
+  applyDashboardConfig(msg.dashboardConfig || [], initLayout);
 
   renderSidebar();
   renderToolbarPreviewSandbox();
@@ -5036,7 +5248,8 @@ function handleBindingUpdated(msg) {
 // ═══════════════════════════════════════════════════════════════════════════
 let dashboardInited = false;
 let dashboardLayout = 'multi';
-const SORTABLE_FORCE_FALLBACK = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+// WebView2 下原生 HTML5 drag image 容易出现残影与拖影，统一走 Sortable fallback 更稳定。
+const SORTABLE_FORCE_FALLBACK = true;
 
 function resolveDashboardLayout(layout) {
   if (String(layout) === '1' || Number(layout) === 1) return 1;
@@ -5147,6 +5360,7 @@ function ensureDashboardStateSize(layoutHint) {
 function applyDashboardConfig(rawConfig, layoutHint) {
   const normalized = normalizeDashboardConfig(rawConfig, layoutHint || dashboardLayout);
   dashboardLayout = normalized.layout;
+  writeVkUiPref(VK_UI_PREF_KEYS.dashboardLayout, dashboardLayout);
   state.dashboardConfig = normalized.slots;
   syncDashboardLayoutUI();
   ensureDashboardSlots();
@@ -5177,6 +5391,7 @@ function syncDashboardLayoutUI() {
 
 function applyDashboardLayout(layout) {
   dashboardLayout = resolveDashboardLayout(layout);
+  writeVkUiPref(VK_UI_PREF_KEYS.dashboardLayout, dashboardLayout);
   ensureDashboardStateSize();
   syncDashboardLayoutUI();
   ensureDashboardSlots();
@@ -5352,6 +5567,74 @@ function decorateDashboardItem(el, itemLike, opts) {
 function slotIndexFromEl(el) {
   const n = Number(el?.dataset?.slotIndex);
   return Number.isFinite(n) ? n : -1;
+}
+
+function resolveSlotIndexFromPoint(gridEl, clientX, clientY, fallback = -1) {
+  if (!gridEl || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return fallback;
+  const hit = document.elementFromPoint(clientX, clientY);
+  const direct = hit && hit.closest ? hit.closest('.dashboard-slot') : null;
+  if (direct && gridEl.contains(direct)) {
+    const idx = slotIndexFromEl(direct);
+    if (idx >= 0) return idx;
+  }
+  let bestIdx = fallback;
+  let bestDist = Number.POSITIVE_INFINITY;
+  const slots = Array.from(gridEl.querySelectorAll('.dashboard-slot'));
+  for (const slot of slots) {
+    const idx = slotIndexFromEl(slot);
+    if (idx < 0) continue;
+    const r = slot.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const d2 = (cx - clientX) * (cx - clientX) + (cy - clientY) * (cy - clientY);
+    if (d2 < bestDist) {
+      bestDist = d2;
+      bestIdx = idx;
+    }
+  }
+  return bestIdx;
+}
+
+function readDragStartRect(itemEl) {
+  if (!itemEl) return null;
+  const x = Number(itemEl.dataset.dragStartX);
+  const y = Number(itemEl.dataset.dragStartY);
+  const w = Number(itemEl.dataset.dragStartW);
+  const h = Number(itemEl.dataset.dragStartH);
+  if (![x, y, w, h].every((n) => Number.isFinite(n) && n >= 0)) return null;
+  return { left: x, top: y, width: w, height: h };
+}
+
+function writeDragStartRect(itemEl, rect) {
+  if (!itemEl || !rect) return;
+  itemEl.dataset.dragStartX = String(rect.left);
+  itemEl.dataset.dragStartY = String(rect.top);
+  itemEl.dataset.dragStartW = String(rect.width);
+  itemEl.dataset.dragStartH = String(rect.height);
+}
+
+function getSlotElByIndex(gridEl, index) {
+  if (!gridEl || index < 0) return null;
+  return gridEl.querySelector(`.dashboard-slot[data-slot-index="${index}"]`);
+}
+
+function markSwapSlots(gridEl, fromIndex, toIndex) {
+  const a = getSlotElByIndex(gridEl, fromIndex);
+  const b = getSlotElByIndex(gridEl, toIndex);
+  if (a) a.classList.add('swap-active', 'swap-source-active');
+  if (b) b.classList.add('swap-active', 'swap-target-active');
+  setTimeout(() => {
+    [a, b].forEach((el) => el && el.classList.remove('swap-active', 'swap-source-active', 'swap-target-active'));
+  }, 90);
+}
+
+function clearDashboardDragHover() {
+  document.querySelectorAll('.dashboard-slot--drag-over').forEach((el) => el.classList.remove('dashboard-slot--drag-over'));
+}
+
+function setDashboardDragHover(slotEl) {
+  clearDashboardDragHover();
+  if (slotEl) slotEl.classList.add('dashboard-slot--drag-over');
 }
 
 function getDashboardSlotEl(index) {
@@ -5706,10 +5989,13 @@ function endDashboardDragState() {
   document.documentElement.style.removeProperty('--dashboard-drag-w');
   document.documentElement.style.removeProperty('--dashboard-drag-h');
   document.querySelectorAll('.dashboard-slot--drag-source').forEach((el) => el.classList.remove('dashboard-slot--drag-source'));
+  clearDashboardDragHover();
   cleanupDashboardDragPreview();
   syncDashboardDropCue(false);
   const dc = document.getElementById('dashboard-container');
   if (dc) dc.classList.remove('dashboard-sortable-active');
+  const sp = document.getElementById('scene-menu-panel');
+  if (sp) sp.classList.remove('dashboard-sortable-active');
 }
 
 function initDashboardDrag() {
@@ -5753,13 +6039,23 @@ function initDashboardDrag() {
     ev.preventDefault();
     const sceneSlot = ev.target.closest('#scene-menu-grid .dashboard-slot');
     if (sceneSlot) {
-      const si = slotIndexFromEl(sceneSlot);
+      const si = resolveSlotIndexFromPoint(
+        document.getElementById('scene-menu-grid'),
+        ev.clientX,
+        ev.clientY,
+        slotIndexFromEl(sceneSlot)
+      );
       if (si >= 0) handleKeyboardDropToSceneSlot(si).finally(() => endDashboardDragState());
       else endDashboardDragState();
       return;
     }
     const slot = ev.target.closest('#dashboard-grid .dashboard-slot');
-    const toIndex = slotIndexFromEl(slot);
+    const toIndex = resolveSlotIndexFromPoint(
+      document.getElementById('dashboard-grid'),
+      ev.clientX,
+      ev.clientY,
+      slotIndexFromEl(slot)
+    );
     if (toIndex >= 0) {
       handleKeyboardDropToSlot(toIndex).finally(() => endDashboardDragState());
     } else {
@@ -5789,6 +6085,10 @@ function initDashboardDrag() {
       if (!slot) return;
       ev.preventDefault();
       syncDashboardDropCue(true);
+      setDashboardDragHover(slot);
+    });
+    sceneGrid.addEventListener('dragleave', (ev) => {
+      if (!sceneGrid.contains(ev.relatedTarget)) clearDashboardDragHover();
     });
   }
 
@@ -5958,12 +6258,21 @@ function initDashboardDrag() {
     if (!slot) return;
     ev.preventDefault();
     syncDashboardDropCue(true);
+    setDashboardDragHover(slot);
+  });
+  grid.addEventListener('dragleave', (ev) => {
+    if (!grid.contains(ev.relatedTarget)) clearDashboardDragHover();
   });
 
   grid.addEventListener('drop', (ev) => {
     if (!state.draggedDashboardItem) return;
     const slot = ev.target.closest('#dashboard-grid .dashboard-slot');
-    const toIndex = slotIndexFromEl(slot);
+    const toIndex = resolveSlotIndexFromPoint(
+      document.getElementById('dashboard-grid'),
+      ev.clientX,
+      ev.clientY,
+      slotIndexFromEl(slot)
+    );
     if (toIndex < 0) return;
     ev.preventDefault();
     ev.stopPropagation();
@@ -5976,7 +6285,7 @@ function initDashboardDrag() {
     let dashboardDragMutated = false;
     new Sortable(slot, {
       group: { name: 'actions', pull: true, put: true },
-      animation: 180,
+      animation: 0,
       easing: 'cubic-bezier(0.22,1,0.36,1)',
       swapThreshold: 0.35,
       invertSwap: false,
@@ -5994,6 +6303,9 @@ function initDashboardDrag() {
         state.dashboardDragActive = true;
         const dc = document.getElementById('dashboard-container');
         if (dc) dc.classList.add('dashboard-sortable-active');
+        const sp = document.getElementById('scene-menu-panel');
+        if (sp) sp.classList.add('dashboard-sortable-active');
+        clearDashboardDragHover();
         if (evt?.from) evt.from.classList.add('dashboard-slot--drag-source');
         const fromIndex = slotIndexFromEl(evt?.from);
         if (evt?.item) evt.item.dataset.dragFromSlotIndex = String(fromIndex);
@@ -6001,18 +6313,23 @@ function initDashboardDrag() {
         if (rect && rect.width > 0 && rect.height > 0) {
           document.documentElement.style.setProperty('--dashboard-drag-w', `${Math.round(rect.width)}px`);
           document.documentElement.style.setProperty('--dashboard-drag-h', `${Math.round(rect.height)}px`);
+          if (evt?.item) writeDragStartRect(evt.item, rect);
         }
       },
       onAdd: (evt) => {
         const toSlot = evt.to;
         const fromSlot = evt.from;
-        const toIndex = slotIndexFromEl(toSlot);
+        let toIndex = slotIndexFromEl(toSlot);
+        const oe = evt?.originalEvent;
+        const mainGrid = toSlot?.closest('#dashboard-grid') || document.getElementById('dashboard-grid');
+        if (oe && Number.isFinite(oe.clientX) && Number.isFinite(oe.clientY))
+          toIndex = resolveSlotIndexFromPoint(mainGrid, oe.clientX, oe.clientY, toIndex);
         let fromIndex = slotIndexFromEl(fromSlot);
         if (fromIndex < 0) {
           fromIndex = Number(evt?.item?.dataset?.dragFromSlotIndex);
           if (!Number.isFinite(fromIndex)) fromIndex = -1;
         }
-
+        clearDashboardDragHover();
         Array.from(toSlot.querySelectorAll('.dashboard-item')).forEach((it) => {
           if (it !== evt.item) it.remove();
         });
@@ -6022,11 +6339,13 @@ function initDashboardDrag() {
           evt.item.remove();
           return;
         }
-        queueMicrotask(() => {
-          const swapped = swapDashboardSlots(fromIndex, toIndex);
-          if (!swapped) applyDashboardItemToSlot(toIndex, item, fromIndex);
-          dashboardDragMutated = true;
-        });
+        const swapped = swapDashboardSlots(fromIndex, toIndex);
+        if (!swapped) applyDashboardItemToSlot(toIndex, item, fromIndex);
+        else markSwapSlots(document.getElementById('dashboard-grid'), fromIndex, toIndex);
+        dashboardDragMutated = true;
+      },
+      onMove: (evt) => {
+        setDashboardDragHover(evt?.to || evt?.related || null);
       },
       onUpdate: (evt) => {
         if (dashboardDragMutated) return;
@@ -6034,10 +6353,9 @@ function initDashboardDrag() {
         const fromIndex = slotIndexFromEl(evt.from);
         const item = dashboardItemFromElement(evt.item);
         if (!item || toIndex < 0 || fromIndex < 0) return;
-        queueMicrotask(() => {
-          postDashboardMove(item, fromIndex, toIndex);
-          dashboardDragMutated = true;
-        });
+        clearDashboardDragHover();
+        postDashboardMove(item, fromIndex, toIndex);
+        dashboardDragMutated = true;
       },
       onEnd: () => {
         endDashboardDragState();

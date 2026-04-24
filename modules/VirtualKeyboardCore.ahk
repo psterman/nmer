@@ -1073,7 +1073,8 @@ _VK_DefaultSceneMenuPromptsCmds() {
 
 ; 供 Web 端「系统锁定」提示（若槽位中出现这些 cmdId 则不可拖删）
 _VK_SystemSceneMenuCmdIds() {
-    return ["ftm_search_center", "hub_capsule", "ftm_clipboard", "ch_b"]
+    ; 不再锁定默认入口，允许用户在 VK 宫格中自由拖拽/换位/删除。
+    return []
 }
 
 _VK_CommandsFromCategoryId(catId) {
@@ -1566,6 +1567,7 @@ _VK_SceneCtxMenuItemsJson(sceneKey) {
     arr := sm.Has(sk) && sm[sk] is Array ? sm[sk] : []
     vm := vis.Has(sk) && vis[sk] is Map ? vis[sk] : Map()
     items := []
+    seenAct := Map()
     for cid in arr {
         c := Trim(String(cid))
         if (c = "" || !cmdList.Has(c))
@@ -1577,6 +1579,11 @@ _VK_SceneCtxMenuItemsJson(sceneKey) {
             act := c
         else
             continue
+        ; 同一 scene 中若多个 cmdId 映射到同一 act，仅保留首个，避免菜单出现重复项（如两个“搜索”）。
+        if (act != "" && seenAct.Has(act))
+            continue
+        if (act != "")
+            seenAct[act] := true
         ent := cmdList[c]
         nm := ent is Map && ent.Has("name") ? String(ent["name"]) : c
         visOn := vm.Has(c) ? !!vm[c] : true
