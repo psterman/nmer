@@ -173,6 +173,7 @@ type blugeIndexer struct {
 	knownFiles    map[string]fileFingerprint
 	watchedDirs   map[string]struct{}
 	recentEnqueue map[string]time.Time
+	overflowTasks map[string]indexTask
 
 	initialWalkDone  bool
 	initialTaskTotal int64
@@ -190,6 +191,9 @@ type blugeIndexer struct {
 	indexEpoch atomic.Uint64
 	usedMFT    atomic.Bool
 	usnRunning atomic.Bool
+	overflowMu sync.Mutex
+	// throttles noisy queue-full alerts when incremental tasks are being retried.
+	lastOverflowAlertNano atomic.Int64
 
 	frnPathMu sync.RWMutex
 	frnToAbs  map[uint64]string
@@ -432,6 +436,7 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 		knownFiles:    map[string]fileFingerprint{},
 		watchedDirs:   map[string]struct{}{},
 		recentEnqueue: map[string]time.Time{},
+		overflowTasks: map[string]indexTask{},
 		frnToAbs:      make(map[uint64]string),
 		status: FullTextStatus{
 			Engine:             "bluge",
@@ -731,6 +736,7 @@ func (b *blugeIndexer) StartIndexer() error {
 		for i := 0; i < b.cfg.Workers; i++ {
 			go b.workerLoop(i + 1)
 		}
+		go b.overflowRetryLoop()
 		if b.cfg.PipelineV2 {
 			writers := resolvePipelineWriterCount(b.cfg.Workers)
 			for i := 0; i < writers; i++ {
@@ -820,6 +826,9 @@ func (b *blugeIndexer) GetStatus() FullTextStatus {
 	if b.cfg.PipelineV2 {
 		pending += len(b.docs)
 	}
+	b.overflowMu.Lock()
+	pending += len(b.overflowTasks)
+	b.overflowMu.Unlock()
 	capacity := cap(b.tasks)
 	if b.cfg.PipelineV2 {
 		capacity += cap(b.docs)
@@ -1604,7 +1613,7 @@ func (b *blugeIndexer) enqueueTask(task indexTask) {
 		select {
 		case b.tasks <- task:
 		default:
-			b.appendAlert("index task queue is full; dropped partial events")
+			b.enqueueOverflowTask(task)
 			return
 		}
 	}
@@ -1613,6 +1622,9 @@ func (b *blugeIndexer) enqueueTask(task indexTask) {
 	if b.cfg.PipelineV2 {
 		pending += len(b.docs)
 	}
+	b.overflowMu.Lock()
+	pending += len(b.overflowTasks)
+	b.overflowMu.Unlock()
 	capacity := cap(b.tasks)
 	if b.cfg.PipelineV2 {
 		capacity += cap(b.docs)
@@ -1622,6 +1634,112 @@ func (b *blugeIndexer) enqueueTask(task indexTask) {
 	b.status.QueueSaturated = capacity > 0 && pending >= capacity
 	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 	b.mu.Unlock()
+}
+
+func (b *blugeIndexer) enqueueOverflowTask(task indexTask) {
+	if task.Path == "" {
+		return
+	}
+	task.Path = filepath.Clean(strings.TrimSpace(task.Path))
+	if task.Path == "" {
+		return
+	}
+	if !filepath.IsAbs(task.Path) {
+		if abs, err := filepath.Abs(task.Path); err == nil && abs != "" {
+			task.Path = filepath.Clean(abs)
+		}
+	}
+	if b.isIndexDirPath(task.Path) {
+		return
+	}
+	key := normalizePathKey(task.Path)
+	b.overflowMu.Lock()
+	if old, ok := b.overflowTasks[key]; ok {
+		// Delete has higher priority than update for correctness.
+		if old.Delete && !task.Delete {
+			task.Delete = true
+		}
+	}
+	b.overflowTasks[key] = task
+	pendingOverflow := len(b.overflowTasks)
+	b.overflowMu.Unlock()
+	b.maybeAlertOverflowQueued(pendingOverflow)
+}
+
+func (b *blugeIndexer) maybeAlertOverflowQueued(pendingOverflow int) {
+	if pendingOverflow <= 0 {
+		return
+	}
+	now := time.Now().UnixNano()
+	last := b.lastOverflowAlertNano.Load()
+	if last > 0 && now-last < int64(10*time.Second) {
+		return
+	}
+	if !b.lastOverflowAlertNano.CompareAndSwap(last, now) {
+		return
+	}
+	b.appendAlert(fmt.Sprintf("index queue busy; queued %d incremental tasks for retry", pendingOverflow))
+}
+
+func (b *blugeIndexer) overflowRetryLoop() {
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-b.ctx.Done():
+			return
+		case <-ticker.C:
+			b.drainOverflowTasks(256)
+		}
+	}
+}
+
+func (b *blugeIndexer) drainOverflowTasks(maxBatch int) {
+	if maxBatch <= 0 {
+		maxBatch = 64
+	}
+	batch := make([]indexTask, 0, maxBatch)
+	b.overflowMu.Lock()
+	for key, task := range b.overflowTasks {
+		batch = append(batch, task)
+		delete(b.overflowTasks, key)
+		if len(batch) >= maxBatch {
+			break
+		}
+	}
+	b.overflowMu.Unlock()
+	if len(batch) == 0 {
+		return
+	}
+
+	pushBack := func(tasks []indexTask) {
+		if len(tasks) == 0 {
+			return
+		}
+		b.overflowMu.Lock()
+		for _, task := range tasks {
+			key := normalizePathKey(task.Path)
+			if key == "" {
+				continue
+			}
+			if old, ok := b.overflowTasks[key]; ok {
+				if old.Delete && !task.Delete {
+					task.Delete = true
+				}
+			}
+			b.overflowTasks[key] = task
+		}
+		b.overflowMu.Unlock()
+	}
+
+	for i, task := range batch {
+		select {
+		case b.tasks <- task:
+		default:
+			pushBack(batch[i:])
+			return
+		}
+	}
 }
 
 func (b *blugeIndexer) enqueuePreparedTask(task preparedIndexTask) bool {
@@ -1639,12 +1757,15 @@ func (b *blugeIndexer) enqueuePreparedTask(task preparedIndexTask) bool {
 		select {
 		case b.docs <- task:
 		default:
-			b.appendAlert("pipeline write queue is full; dropped partial events")
+			b.enqueueOverflowTask(orig)
 			return false
 		}
 	}
 	b.mu.Lock()
 	pending := len(b.tasks) + len(b.docs)
+	b.overflowMu.Lock()
+	pending += len(b.overflowTasks)
+	b.overflowMu.Unlock()
 	capacity := cap(b.tasks) + cap(b.docs)
 	b.status.PendingTasks = pending
 	b.status.QueueCapacity = capacity

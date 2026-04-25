@@ -312,23 +312,27 @@ button, input, select, textarea { font: inherit; }
 .fulltext-inline {
   margin-top: 1px;
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   min-height: 26px;
   min-width: 0;
   color: #8ea0ad;
-  font-size: 10px;
-  overflow: auto hidden;
-  padding-bottom: 1px;
+  font-size: 11px;
+  overflow: hidden;
+  row-gap: 6px;
 }
 .fulltext-inline > * {
-  min-width: fit-content;
+  min-width: 0;
 }
 .ft-light-pack {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  flex: 0 0 auto;
+}
+.ft-light-pack.hidden {
+  display: none;
 }
 .ft-main-text {
   min-width: 0;
@@ -385,14 +389,15 @@ button, input, select, textarea { font: inherit; }
 .ft-metric-box {
   display: inline-flex;
   align-items: center;
-  flex: 0 0 auto;
-  max-width: 340px;
+  flex: 1 1 180px;
+  min-width: 160px;
+  max-width: none;
   padding: 2px 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: rgba(255,255,255,.02);
   color: #a9c0d4;
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
@@ -403,11 +408,11 @@ button, input, select, textarea { font: inherit; }
   font-weight: 600;
 }
 .ft-current-box {
-  max-width: 460px;
+  flex: 2 1 320px;
 }
 .ft-hint-box {
   color: #b7cadb;
-  max-width: 520px;
+  flex: 3 1 420px;
 }
 .hit-context-wrap {
   margin-top: 5px;
@@ -1705,7 +1710,7 @@ mark {
     justify-content: flex-start;
   }
   .fulltext-inline {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
   }
   #footer {
     flex-wrap: wrap;
@@ -1762,7 +1767,7 @@ mark {
       <input id="search" type="text" placeholder="搜索本地结果，或直接作为网络搜索 / CLI 提示词发送">
       <div id="status" class="search-status-inline">准备中...</div>
       <div id="fulltext-inline" class="fulltext-inline">
-        <span class="ft-light-pack">
+        <span class="ft-light-pack hidden">
           <span class="ft-mini-light" id="ftl1"></span>
           <span class="ft-mini-light" id="ftl2"></span>
           <span class="ft-mini-light" id="ftl3"></span>
@@ -1771,7 +1776,7 @@ mark {
         <span id="ft-state-box" class="ft-metric-box ft-state-box" title="索引当前运行状态">状态: 准备中</span>
         <span id="ft-progress-box" class="ft-metric-box" title="本轮处理进度（已处理/总量）">进度: 0/0</span>
         <span id="ft-queue-box" class="ft-metric-box" title="待处理任务队列（当前/容量）">队列: 0/0</span>
-        <span id="ft-indexed-box" class="ft-metric-box" title="索引库累计记录数量">已索引: 0</span>
+        <span id="ft-indexed-box" class="ft-metric-box" title="索引库累计记录数量">数量: 索引库累计 0 · 本轮发现 0</span>
         <span id="ft-speed-box" class="ft-metric-box" title="当前索引吞吐速度">速度: 0 文件/秒</span>
         <span id="ft-current-box" class="ft-metric-box ft-current-box" title="当前正在处理的文件">当前: 空闲</span>
         <span id="ft-version-box" class="ft-metric-box" title="索引版本与扫描模式">版本: -</span>
@@ -2792,6 +2797,13 @@ function applyFulltextStatus(payload) {
     el.classList.remove("off", "active", "ready", "warn");
     el.classList.add(state.fulltext.engine_lights[idx] || "off");
   });
+  const phaseRaw = String(state.fulltext.scanPhase || "").toLowerCase();
+  const indexingActive = !!state.fulltext.running &&
+    (phaseRaw === "walking" || phaseRaw === "indexing" || phaseRaw === "incremental_sync" || (Number(state.fulltext.pendingTasks) || 0) > 0);
+  const lightPackEl = document.querySelector(".ft-light-pack");
+  if (lightPackEl) {
+    lightPackEl.classList.toggle("hidden", !indexingActive);
+  }
   const discovered = Number(state.fulltext.discoveredFiles) || 0;
   const processed = Number(state.fulltext.processedFiles) || 0;
   const pending = Number(state.fulltext.pendingTasks) || 0;
@@ -2834,8 +2846,8 @@ function applyFulltextStatus(payload) {
   }
   const indexedBox = document.getElementById("ft-indexed-box");
   if (indexedBox) {
-    indexedBox.textContent = `数量: 已索引 ${indexed} · 已发现 ${discovered}`;
-    indexedBox.title = "数量含义: 索引库累计记录数 + 本轮已发现候选文件数";
+    indexedBox.textContent = `数量: 索引库累计 ${indexed} · 本轮发现 ${discovered}`;
+    indexedBox.title = "数量关系: 索引库累计=历史累计结果；本轮发现=当前轮次扫描到的候选文件，二者不必相等";
   }
   const speedBox = document.getElementById("ft-speed-box");
   if (speedBox) {
@@ -2871,8 +2883,8 @@ function applyFulltextStatus(payload) {
     } else if (isBuilding) {
       const eta = formatEtaHuman(state.fulltext.etaSeconds);
       hint = eta
-        ? `索引构建中，预计剩余约 ${eta}。首次构建时建议优先使用“文件/子标签”进行快速定位。`
-        : "索引构建中。首次构建时建议优先使用“文件/子标签”进行快速定位。";
+        ? `索引构建中，预计剩余约 ${eta}。增量变更会排队重试，首次构建时建议优先使用“文件/子标签”进行快速定位。`
+        : "索引构建中。增量变更会排队重试，首次构建时建议优先使用“文件/子标签”进行快速定位。";
     } else if (state.fulltext.ready && state.fulltext.indexVersion) {
       hint = `全文索引已就绪（版本 ${state.fulltext.indexVersion}）。如需全量重建，可在「搜索设置 > 全文索引控制台」执行。`;
     } else if (state.fulltext.lastError) {
