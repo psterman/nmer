@@ -315,13 +315,15 @@ button, input, select, textarea { font: inherit; }
   flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
-  min-height: 16px;
+  min-height: 26px;
   min-width: 0;
   color: #8ea0ad;
   font-size: 10px;
+  overflow: auto hidden;
+  padding-bottom: 1px;
 }
 .fulltext-inline > * {
-  min-width: 0;
+  min-width: fit-content;
 }
 .ft-light-pack {
   display: inline-flex;
@@ -370,61 +372,6 @@ button, input, select, textarea { font: inherit; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-#ft-progress-text {
-  flex: 0 1 200px;
-  font-weight: 600;
-  color: #c3d3df;
-}
-#ft-efficiency-text {
-  flex: 0 0 auto;
-  padding: 1px 6px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--panel-2);
-  color: #9ec0d6;
-}
-#ft-file {
-  flex: 1 1 auto;
-  min-width: 0;
-  text-align: left;
-  color: #8ea4b5;
-}
-.ft-file-preview {
-  margin-top: 0;
-  min-height: 16px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: #94a7b5;
-  font-size: 10px;
-  overflow: hidden;
-  flex-wrap: wrap;
-}
-.ft-file-preview.hidden {
-  display: none;
-}
-.ft-file-chip {
-  min-width: 120px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 6px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--panel-2);
-  max-width: 100%;
-}
-.ft-file-chip .k {
-  color: #7f8a95;
-  flex: 0 0 auto;
-}
-.ft-file-chip .v {
-  color: #9dc1df;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
 .ft-scan-badge {
   font-size: 9px;
   padding: 1px 6px;
@@ -435,62 +382,32 @@ button, input, select, textarea { font: inherit; }
   flex: 0 0 auto;
   letter-spacing: 0.02em;
 }
-.ft-toolbar {
-  margin-top: 1px;
-  display: flex;
+.ft-metric-box {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 22px;
-  min-width: 0;
-  font-size: 9px;
-}
-.ft-toolbar .mini-input {
-  height: 24px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel-2);
-  color: var(--text);
-  padding: 0 8px;
-  min-width: 180px;
-  flex: 1 1 280px;
-}
-.ft-toolbar .mini-select {
-  height: 24px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel-2);
-  color: var(--text);
-  padding: 0 8px;
-  min-width: 118px;
-}
-.ft-toolbar .mini-btn {
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--panel-2);
-  color: var(--text);
-  cursor: pointer;
-}
-.ft-toolbar .mini-btn:hover {
-  border-color: rgba(255,179,71,.5);
-}
-.ft-quick-hint {
-  display: none;
-}
-.ft-quick-stats {
-  flex: 1 1 auto;
-  color: #a9c0d4;
-  font-size: 9px;
-  line-height: 1.2;
+  flex: 0 0 auto;
+  max-width: 340px;
+  padding: 2px 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: rgba(255,255,255,.02);
-  padding: 2px 7px;
-  min-width: 0;
+  color: #a9c0d4;
+  font-size: 9px;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.ft-state-box {
+  color: #d6e4ef;
+  font-weight: 600;
+}
+.ft-current-box {
+  max-width: 460px;
+}
+.ft-hint-box {
+  color: #b7cadb;
+  max-width: 520px;
 }
 .hit-context-wrap {
   margin-top: 5px;
@@ -1594,7 +1511,6 @@ html[data-theme="light"] #search-bar {
   border-color: #d7e1eb;
   box-shadow: 0 10px 22px rgba(44, 62, 80, .08), inset 0 1px 0 rgba(255,255,255,.95);
 }
-html[data-theme="light"] .ft-file-chip .k,
 html[data-theme="light"] .ft-quick-hint,
 html[data-theme="light"] .search-status-inline,
 html[data-theme="light"] .fulltext-inline,
@@ -1603,9 +1519,8 @@ html[data-theme="light"] .hotkey-bind-tip,
 html[data-theme="light"] .preview-meta-item {
   color: #6a7b8d;
 }
-html[data-theme="light"] .ft-file-chip .v,
 html[data-theme="light"] .ft-scan-badge,
-html[data-theme="light"] .ft-quick-stats,
+html[data-theme="light"] .ft-metric-box,
 html[data-theme="light"] .ft-preview-hit-line {
   color: #2f6fa8;
 }
@@ -1790,10 +1705,8 @@ mark {
     justify-content: flex-start;
   }
   .fulltext-inline {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
-  .ft-toolbar,
-  .fulltext-inline { row-gap: 6px; }
   #footer {
     flex-wrap: wrap;
     row-gap: 4px;
@@ -1855,19 +1768,14 @@ mark {
           <span class="ft-mini-light" id="ftl3"></span>
           <span class="ft-mini-light" id="ftl4"></span>
         </span>
-        <span id="ft-progress-text" class="ft-main-text">索引准备中…</span>
-        <span id="ft-scan-badge" class="ft-scan-badge" style="display:none" title=""></span>
-        <span id="ft-efficiency-text" class="ft-mini-file">0 文件/秒</span>
-        <span id="ft-file" class="ft-main-text">空闲</span>
-      </div>
-      <div id="ft-file-preview" class="ft-file-preview hidden">
-        <span class="ft-file-chip"><span class="k">文件</span><span id="ft-file-name" class="v">-</span></span>
-        <span class="ft-file-chip"><span class="k">位置</span><span id="ft-file-dir" class="v">-</span></span>
-      </div>
-      <div id="ft-toolbar" class="ft-toolbar">
-        <button type="button" id="btn-ft-open-settings" class="mini-btn" title="打开搜索设置中的全文索引控制台">索引设置</button>
-        <span id="ft-quick-stats" class="ft-quick-stats">索引统计加载中…</span>
-        <span id="ft-quick-hint" class="ft-quick-hint">推荐方案、增量更新、索引目录等低频配置已迁移到「搜索设置 > 全文索引控制台」。</span>
+        <span id="ft-state-box" class="ft-metric-box ft-state-box" title="索引当前运行状态">状态: 准备中</span>
+        <span id="ft-progress-box" class="ft-metric-box" title="本轮处理进度（已处理/总量）">进度: 0/0</span>
+        <span id="ft-queue-box" class="ft-metric-box" title="待处理任务队列（当前/容量）">队列: 0/0</span>
+        <span id="ft-indexed-box" class="ft-metric-box" title="索引库累计记录数量">已索引: 0</span>
+        <span id="ft-speed-box" class="ft-metric-box" title="当前索引吞吐速度">速度: 0 文件/秒</span>
+        <span id="ft-current-box" class="ft-metric-box ft-current-box" title="当前正在处理的文件">当前: 空闲</span>
+        <span id="ft-version-box" class="ft-metric-box" title="索引版本与扫描模式">版本: -</span>
+        <span id="ft-quick-hint" class="ft-metric-box ft-hint-box" title="索引提示">说明: 等待索引状态…</span>
       </div>
     </div>
     <div class="search-actions">
@@ -2703,32 +2611,6 @@ function splitPathPreview(pathText) {
   return { name, dir };
 }
 
-function updateFulltextFilePreview(indexingText) {
-  const wrap = document.getElementById("ft-file-preview");
-  const nameEl = document.getElementById("ft-file-name");
-  const dirEl = document.getElementById("ft-file-dir");
-  if (!wrap || !nameEl || !dirEl) return;
-
-  const path = extractIndexerPath(indexingText);
-  if (!path) {
-    wrap.classList.add("hidden");
-    nameEl.textContent = "-";
-    dirEl.textContent = "-";
-    nameEl.title = "";
-    dirEl.title = "";
-    return;
-  }
-
-  const sp = splitPathPreview(path);
-  const fileName = sp.name || path;
-  const dirName = sp.dir || "根目录";
-  nameEl.textContent = shortenMiddle(fileName, 42);
-  dirEl.textContent = shortenMiddle(dirName, 68);
-  nameEl.title = fileName;
-  dirEl.title = dirName;
-  wrap.classList.remove("hidden");
-}
-
 function userFriendlyProbeReason(reason, kind) {
   const raw = String(reason || "").trim();
   if (!raw) return "未返回说明";
@@ -2910,48 +2792,69 @@ function applyFulltextStatus(payload) {
     el.classList.remove("off", "active", "ready", "warn");
     el.classList.add(state.fulltext.engine_lights[idx] || "off");
   });
-  const progressEl = document.getElementById("ft-progress-text");
-  if (progressEl) {
-    const discovered = Number(state.fulltext.discoveredFiles) || 0;
-    const processed = Number(state.fulltext.processedFiles) || 0;
-    const pending = Number(state.fulltext.pendingTasks) || 0;
-    const queueCap = Number(state.fulltext.queueCapacity) || 0;
-    const queueSat = !!state.fulltext.queueSaturated;
-    const roots = Number(state.fulltext.rootsCount) || 0;
-    let txt = "索引准备中…";
-    if (discovered > 0 || processed > 0 || pending > 0) {
-      const total = Math.max(discovered, processed + pending);
-      const queueText = pending > 0
-        ? (queueCap > 0 ? `，队列 ${pending}/${queueCap}` : `，队列 ${pending}`)
-        : "";
-      txt = `正在建立索引：${processed}/${total}${queueText}`;
-      if (queueSat && pending > 0) {
-        txt += "（排队已满）";
-      }
-      if (pending === 0 && discovered > 0 && processed >= discovered) {
-        txt = `索引已完成（${roots}个位置）`;
-      }
-    }
-    progressEl.textContent = txt;
-    progressEl.title = txt;
+  const discovered = Number(state.fulltext.discoveredFiles) || 0;
+  const processed = Number(state.fulltext.processedFiles) || 0;
+  const pending = Number(state.fulltext.pendingTasks) || 0;
+  const queueCap = Number(state.fulltext.queueCapacity) || 0;
+  const queueSat = !!state.fulltext.queueSaturated;
+  const indexed = Number(state.fulltext.indexedFiles) || 0;
+  const total = Math.max(discovered, processed + pending);
+  const pct = total > 0 ? Math.max(0, Math.min(100, (processed * 100) / total)) : 0;
+  const phaseMap = {
+    startup: "准备中",
+    walking: "扫描目录",
+    indexing: "建立索引",
+    idle_wait: "等待空闲",
+    ready: "索引就绪",
+    idle: "空闲"
+  };
+  const phase = phaseMap[state.fulltext.scanPhase] || (state.fulltext.running ? "索引运行中" : "空闲");
+  const mode = formatScanModeBadge(state.fulltext.scan_mode);
+  const eta = formatEtaHuman(state.fulltext.etaSeconds);
+  const speedTxt = state.fulltext.efficiencyText || `${state.fulltext.filesPerSec.toFixed(2)} 文件/秒`;
+  const path = extractIndexerPath(state.fulltext.indexing_file || "");
+  const displayName = path ? splitPathPreview(path).name : "";
+  const queueText = queueCap > 0 ? `${pending}/${queueCap}` : `${pending}`;
+
+  const stateBox = document.getElementById("ft-state-box");
+  if (stateBox) {
+    const stateTxt = state.fulltext.running ? `${phase}${state.fulltext.ready ? "（监控）" : "（处理中）"}` : phase;
+    stateBox.textContent = `状态: ${stateTxt}`;
+    stateBox.title = `状态含义: ${stateTxt}`;
   }
-  const effEl = document.getElementById("ft-efficiency-text");
-  if (effEl) {
-    const txt = state.fulltext.efficiencyText || `${state.fulltext.filesPerSec.toFixed(2)} 文件/秒`;
-    effEl.textContent = txt;
-    effEl.title = txt;
+  const progressBox = document.getElementById("ft-progress-box");
+  if (progressBox) {
+    progressBox.textContent = `进度: 已处理 ${processed} / ${total}${total > 0 ? `（${pct.toFixed(1)}%）` : ""}`;
+    progressBox.title = "进度含义: 当前轮次已处理数量 / 当前轮次总量";
   }
-  const statsEl = document.getElementById("ft-quick-stats");
-  if (statsEl) {
-    const indexed = Number(state.fulltext.indexedFiles) || 0;
-    const discovered = Number(state.fulltext.discoveredFiles) || 0;
-    const pending = Number(state.fulltext.pendingTasks) || 0;
-    const queueCap = Number(state.fulltext.queueCapacity) || 0;
-    const queueText = queueCap > 0 ? `${pending}/${queueCap}` : `${pending}`;
-    const mode = formatScanModeBadge(state.fulltext.scan_mode);
-    const ver = state.fulltext.indexVersion ? ` · 版本 ${state.fulltext.indexVersion}` : "";
-    statsEl.textContent = `已索引 ${indexed} · 发现 ${discovered} · 队列 ${queueText}${mode ? ` · ${mode}` : ""}${ver}`;
-    statsEl.title = statsEl.textContent;
+  const queueBox = document.getElementById("ft-queue-box");
+  if (queueBox) {
+    queueBox.textContent = `队列: 待处理 ${queueText}${queueSat ? "（接近满载）" : ""}`;
+    queueBox.title = "队列含义: 等待被索引处理的任务数量 / 队列容量";
+  }
+  const indexedBox = document.getElementById("ft-indexed-box");
+  if (indexedBox) {
+    indexedBox.textContent = `数量: 已索引 ${indexed} · 已发现 ${discovered}`;
+    indexedBox.title = "数量含义: 索引库累计记录数 + 本轮已发现候选文件数";
+  }
+  const speedBox = document.getElementById("ft-speed-box");
+  if (speedBox) {
+    speedBox.textContent = eta ? `速度: ${speedTxt} · 预计剩余 ${eta}` : `速度: ${speedTxt}`;
+    speedBox.title = "速度含义: 当前索引吞吐速率（文件/秒）与预计剩余时间";
+  }
+  const currentBox = document.getElementById("ft-current-box");
+  if (currentBox) {
+    const curTxt = displayName || "空闲";
+    currentBox.textContent = `当前: ${curTxt}`;
+    currentBox.title = path ? `当前文件: ${path}` : "当前未处理具体文件";
+  }
+  const versionBox = document.getElementById("ft-version-box");
+  if (versionBox) {
+    const modeTxt = mode || "未知模式";
+    const verTxt = state.fulltext.indexVersion || "-";
+    const epochTxt = state.fulltext.indexEpoch ? ` · 轮次 ${state.fulltext.indexEpoch}` : "";
+    versionBox.textContent = `版本: ${verTxt} · 模式: ${modeTxt}${epochTxt}`;
+    versionBox.title = "版本含义: 索引格式版本；模式含义: 扫描实现策略";
   }
   const hintEl = document.getElementById("ft-quick-hint");
   if (hintEl) {
@@ -2975,27 +2878,9 @@ function applyFulltextStatus(payload) {
     } else if (state.fulltext.lastError) {
       hint = `索引提示：${state.fulltext.lastError}`;
     }
-    hintEl.textContent = hint;
+    hintEl.textContent = `说明: ${hint}`;
     hintEl.title = hint;
   }
-  const fileEl = document.getElementById("ft-file");
-  if (fileEl) {
-    const phaseMap = {
-      startup: "准备中",
-      walking: "扫描目录中",
-      indexing: "正在建立索引",
-      idle_wait: "等待空闲",
-      ready: "索引就绪",
-      idle: "空闲"
-    };
-    const phase = phaseMap[state.fulltext.scanPhase] || (state.fulltext.running ? "索引监控中" : "空闲");
-    const path = extractIndexerPath(state.fulltext.indexing_file || "");
-    const displayName = path ? splitPathPreview(path).name : "";
-    const t = displayName ? `${phase} · ${displayName}` : phase;
-    fileEl.textContent = t;
-    fileEl.title = state.fulltext.indexing_file ? `${phase} · ${state.fulltext.indexing_file}` : phase;
-  }
-  updateFulltextFilePreview(state.fulltext.indexing_file || "");
   const toggleBtn = document.getElementById("btn-ft-toggle");
   if (toggleBtn) {
     if (state.fulltext.running) {
@@ -3005,15 +2890,6 @@ function applyFulltextStatus(payload) {
       toggleBtn.textContent = "启动索引";
       toggleBtn.title = "点击启动全文索引";
     }
-  }
-  const scanBadge = document.getElementById("ft-scan-badge");
-  if (scanBadge) {
-    const lab = formatScanModeBadge(state.fulltext.scan_mode);
-    scanBadge.textContent = lab;
-    scanBadge.title = state.fulltext.scan_mode
-      ? ("当前模式: " + lab + (state.fulltext.indexEpoch ? " · 轮次 " + state.fulltext.indexEpoch : ""))
-      : "当前模式";
-    scanBadge.style.display = lab ? "inline" : "none";
   }
 }
 
@@ -5155,12 +5031,6 @@ document.getElementById("btn-ft-toggle").addEventListener("click", () => {
 document.getElementById("btn-ft-settings-top").addEventListener("click", () => {
   postToAhk({ type: "openSettingsPanel" });
 });
-const btnFtOpenSettings = document.getElementById("btn-ft-open-settings");
-if (btnFtOpenSettings) {
-  btnFtOpenSettings.addEventListener("click", () => {
-    postToAhk({ type: "openSettingsPanel" });
-  });
-}
 
 const btnScRecycle = document.getElementById("btn-sc-recycle");
 if (btnScRecycle) {
