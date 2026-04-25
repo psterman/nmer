@@ -137,11 +137,23 @@ button, input, select, textarea { font: inherit; }
   cursor: pointer;
   font-size: 14px;
   line-height: 1;
+  transition: transform .16s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
 }
 .chrome-btn:hover {
   border-color: rgba(255,179,71,.5);
   background: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
   color: #fff;
+}
+.chrome-btn:active {
+  transform: translateY(1px) scale(.97);
+}
+.chrome-btn.topmost-pop {
+  animation: topmost-pop .28s ease;
+}
+@keyframes topmost-pop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.08); }
+  100% { transform: scale(1); }
 }
 .chrome-btn.active {
   border-color: rgba(255,179,71,.72);
@@ -335,6 +347,37 @@ button, input, select, textarea { font: inherit; }
 .ft-light-pack.hidden {
   display: none;
 }
+.ft-control-btn {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: transform .16s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+}
+.ft-control-btn:hover {
+  border-color: rgba(255,179,71,.55);
+  background: linear-gradient(180deg, rgba(255,179,71,.2), rgba(255,141,42,.12));
+}
+.ft-control-btn:active {
+  transform: translateY(1px) scale(.98);
+}
+.ft-control-btn.secondary {
+  color: #b9cad9;
+}
+#search-bar.ft-collapsed .fulltext-inline .ft-metric-box,
+#search-bar.ft-collapsed .fulltext-inline .ft-light-pack {
+  display: none;
+}
+#search-bar.ft-collapsed .fulltext-inline {
+  min-height: 24px;
+  margin-top: 0;
+}
 .ft-main-text {
   min-width: 0;
   overflow: hidden;
@@ -477,6 +520,26 @@ button, input, select, textarea { font: inherit; }
 .search-actions .btn {
   height: 38px;
   padding: 0 10px;
+}
+.btn-hotkey-plus {
+  min-width: 74px;
+  font-weight: 700;
+  transition: transform .16s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+}
+.btn-hotkey-plus:hover {
+  border-color: rgba(255,179,71,.62);
+  box-shadow: 0 0 0 2px rgba(255,179,71,.18);
+}
+.btn-hotkey-plus:active {
+  transform: translateY(1px) scale(.97);
+}
+.btn-hotkey-plus.pulse {
+  animation: hotkey-plus-pop .25s ease;
+}
+@keyframes hotkey-plus-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+  100% { transform: scale(1); }
 }
 #btn-run {
   min-width: 68px;
@@ -1769,6 +1832,8 @@ mark {
       <input id="search" type="text" placeholder="搜索本地结果，或直接作为网络搜索 / CLI 提示词发送">
       <div id="status" class="search-status-inline">准备中...</div>
       <div id="fulltext-inline" class="fulltext-inline">
+        <button id="btn-ft-toggle" class="ft-control-btn" title="启动或停止全文索引">启动索引</button>
+        <button id="btn-ft-collapse" class="ft-control-btn secondary" title="折叠/展开索引状态区">收起索引</button>
         <span class="ft-light-pack hidden">
           <span class="ft-mini-light" id="ftl1"></span>
           <span class="ft-mini-light" id="ftl2"></span>
@@ -1797,9 +1862,9 @@ mark {
         <option value="500">全部搜索结果</option>
       </select>
       <button id="btn-run" class="btn primary">搜索</button>
+      <button id="btn-hotkey-plus" class="btn btn-hotkey-plus" title="快捷键+：快速进入 Caps 热键提示与绑定">快捷键+</button>
       <button id="btn-web-search" class="btn">网页搜索</button>
       <button id="btn-open-cli" class="btn">打开所选终端</button>
-      <button id="btn-ft-toggle" class="btn" title="启动或停止全文索引">启动索引</button>
     </div>
   </div>
 
@@ -1913,6 +1978,7 @@ if (typeof BasePanel === 'undefined') {
 const SC_ENGINE_MODE_KEY = "sc_engine_mode";
 const SC_HOTKEY_BINDINGS_KEY = "sc_hotkey_bindings_v1";
 const SC_FT_ADVANCED_KEY = "sc_ft_ui_advanced";
+const SC_FT_COLLAPSED_KEY = "sc_ft_collapsed_v1";
 const SC_SUBTAG_AUDIENCE_KEY = "sc_subtag_audience_v1";
 const SC_SUBTAG_SELECTION_KEY = "sc_subtag_selection_v1";
 const SC_SUBTAG_DEBUG_KEY = "sc_subtag_debug_v1";
@@ -1993,7 +2059,7 @@ const state = {
   pdfPlan: null,
   pdfWebBroken: false,
   pdfJsRx: null,
-  hostTopMost: true,
+  hostTopMost: false,
   fulltext: {
     running: false,
     ready: false,
@@ -2029,6 +2095,7 @@ const state = {
     busy: false,
     last: null
   },
+  fulltextCollapsed: (typeof localStorage !== "undefined" && localStorage.getItem(SC_FT_COLLAPSED_KEY) === "1"),
   fulltextEmptyTransitionUntil: 0,
   fulltextUiAdvanced: (typeof localStorage !== "undefined" && localStorage.getItem(SC_FT_ADVANCED_KEY) === "1"),
   subtagDebug: (typeof localStorage !== "undefined" && localStorage.getItem(SC_SUBTAG_DEBUG_KEY) === "1"),
@@ -2522,6 +2589,47 @@ function syncFooterHint() {
     return;
   }
   footer.textContent = getFooterHintText();
+}
+
+function saveFulltextCollapsed() {
+  try {
+    localStorage.setItem(SC_FT_COLLAPSED_KEY, state.fulltextCollapsed ? "1" : "0");
+  } catch (_) {}
+}
+
+function applyFulltextCollapsedUi() {
+  const bar = document.getElementById("search-bar");
+  const btn = document.getElementById("btn-ft-collapse");
+  const collapsed = !!state.fulltextCollapsed;
+  if (bar) bar.classList.toggle("ft-collapsed", collapsed);
+  if (btn) {
+    btn.textContent = collapsed ? "展开索引" : "收起索引";
+    btn.title = collapsed ? "展开索引状态区" : "折叠索引状态区";
+  }
+}
+
+function openQuickHotkeyEntry() {
+  const btn = document.getElementById("btn-hotkey-plus");
+  if (btn) {
+    btn.classList.remove("pulse");
+    void btn.offsetWidth;
+    btn.classList.add("pulse");
+    setTimeout(() => btn.classList.remove("pulse"), 280);
+  }
+  beginCapsHoldHint();
+  const f = String(state.filterType || "");
+  if (f) {
+    const row = (state.filters || []).find((it) => String(it && it.key || "") === f);
+    const label = row ? String(row.text || f) : f;
+    openHotkeyBindDialog("filter", f, label + "（快捷）");
+    return;
+  }
+  const c = String(state.currentCategoryKey || "");
+  if (c) {
+    const row = (state.categories || []).find((it) => String(it && it.key || "") === c);
+    const label = row ? String(row.text || c) : c;
+    openHotkeyBindDialog("category", c, label + "（快捷）");
+  }
 }
 
 function normalizeFulltextPayload(payload) {
@@ -5056,6 +5164,18 @@ document.getElementById("btn-ft-toggle").addEventListener("click", () => {
   const act = state.fulltext && state.fulltext.running ? "stop" : "start";
   postToAhk({ type: "fulltextControl", control: act });
 });
+const btnFtCollapse = document.getElementById("btn-ft-collapse");
+if (btnFtCollapse) {
+  btnFtCollapse.addEventListener("click", () => {
+    state.fulltextCollapsed = !state.fulltextCollapsed;
+    saveFulltextCollapsed();
+    applyFulltextCollapsedUi();
+  });
+}
+const btnHotkeyPlus = document.getElementById("btn-hotkey-plus");
+if (btnHotkeyPlus) {
+  btnHotkeyPlus.addEventListener("click", () => openQuickHotkeyEntry());
+}
 document.getElementById("btn-ft-settings-top").addEventListener("click", () => {
   postToAhk({ type: "openSettingsPanel" });
 });
@@ -5149,10 +5269,17 @@ if (previewNativeBtn) {
 const chromeTopMostBtn = document.getElementById("chrome-topmost");
 if (chromeTopMostBtn) {
   chromeTopMostBtn.addEventListener("click", () => {
+    state.hostTopMost = !state.hostTopMost;
+    updateChromeTopMostButton();
+    chromeTopMostBtn.classList.remove("topmost-pop");
+    void chromeTopMostBtn.offsetWidth;
+    chromeTopMostBtn.classList.add("topmost-pop");
+    setTimeout(() => chromeTopMostBtn.classList.remove("topmost-pop"), 320);
     postToAhk({ type: "windowToggleTopMost" });
   });
 }
 updateChromeTopMostButton();
+applyFulltextCollapsedUi();
 syncFulltextSchemeUi();
 syncFulltextAdvancedUi();
 

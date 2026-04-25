@@ -47,6 +47,7 @@ global g_SCWV_QLInvokeAttempts := 0
 global g_SCWV_QLInvokeSendCount := 0
 global g_SCWV_SearchHttpInFlight := false
 global g_SCWV_SearchPendingReq := 0
+global g_SCWV_HostTopMost := false
 
 _SCWV_BlockDeactivate(ms := 1500, reason := "") {
     global g_SCWV_DeactivateBlockUntil, g_SCWV_DeactivateBlockReason
@@ -148,7 +149,7 @@ SCWV_Init() {
         SCWV_ResetHostState()
 
     ; 浣跨敤 Windows 鍘熺敓鏍囬鏍忎笌绯荤粺绐楀彛鎸夐挳锛堟渶灏忓寲/鏈€澶у寲/鍏抽棴锛?
-    g_SCWV_Gui := Gui("+AlwaysOnTop +Resize +MinSize760x540 +MinimizeBox +MaximizeBox -DPIScale +Owner", "搜索中心")
+    g_SCWV_Gui := Gui("+Resize +MinSize760x540 +MinimizeBox +MaximizeBox -DPIScale +Owner", "搜索中心")
     g_SCWV_Gui.BackColor := "1b1b1d"
     g_SCWV_Gui.MarginX := 0
     g_SCWV_Gui.MarginY := 0
@@ -1181,6 +1182,7 @@ SCWV_Show() {
     try {
         g_SCWV_Gui.Show("w1180 h760 Center")
         try WinMaximize("ahk_id " . g_SCWV_Gui.Hwnd)
+        SCWV_SetHostTopMost(g_SCWV_HostTopMost)
     } catch {
         ; 鍏滃簳锛氱獥鍙ｅ璞″瓨鍦ㄤ絾鍙ユ焺澶辨晥鏃堕噸寤轰竴娆★紝閬垮厤 鈥淕ui has no window鈥?        SCWV_ResetHostState()
         SCWV_Init()
@@ -1188,6 +1190,7 @@ SCWV_Show() {
             return
         g_SCWV_Gui.Show("w1180 h760 Center")
         try WinMaximize("ahk_id " . g_SCWV_Gui.Hwnd)
+        SCWV_SetHostTopMost(g_SCWV_HostTopMost)
     }
     g_SCWV_Visible := true
     g_SCWV_LastShown := A_TickCount
@@ -1475,6 +1478,35 @@ SCWV_ToggleMaximizeHost(*) {
     }
 }
 
+SCWV_IsHostTopMost() {
+    global g_SCWV_Gui, g_SCWV_HostTopMost
+    try {
+        if (g_SCWV_Gui && g_SCWV_Gui.Hwnd) {
+            exStyle := WinGetExStyle("ahk_id " . g_SCWV_Gui.Hwnd)
+            g_SCWV_HostTopMost := (exStyle & 0x8) ? true : false
+        }
+    } catch {
+    }
+    return g_SCWV_HostTopMost ? true : false
+}
+
+SCWV_SetHostTopMost(enabled := false) {
+    global g_SCWV_Gui, g_SCWV_HostTopMost
+    on := enabled ? true : false
+    try {
+        if (g_SCWV_Gui && g_SCWV_Gui.Hwnd)
+            WinSetAlwaysOnTop(on, "ahk_id " . g_SCWV_Gui.Hwnd)
+    } catch {
+    }
+    g_SCWV_HostTopMost := on
+    return g_SCWV_HostTopMost
+}
+
+SCWV_ToggleHostTopMost() {
+    cur := SCWV_IsHostTopMost()
+    return SCWV_SetHostTopMost(!cur)
+}
+
 SCWV_OnWebMessage(sender, args) {
     jsonStr := args.WebMessageAsJson
     try {
@@ -1652,6 +1684,9 @@ SCWV_OnWebMessage(sender, args) {
             SCWV_MinimizeHost()
         case "windowToggleMaximize":
             SCWV_ToggleMaximizeHost()
+        case "windowToggleTopMost":
+            SCWV_ToggleHostTopMost()
+            SCWV_PushState("state")
         case "searchCenterRestoreRecycle":
             idx := msg.Has("index") ? Integer(msg["index"]) : 0
             SC_SearchCenterRestoreRecycleAt(idx)
@@ -2222,6 +2257,7 @@ SCWV_PushState(msgType := "state") {
     payload := Map(
         "type", msgType,
         "themeMode", _SCWV_GetThemeMode(),
+        "hostTopMost", SCWV_IsHostTopMost(),
         "keyword", SearchCenterWebKeyword,
         "engineMode", SearchCenterEngineMode,
         "limit", SearchCenterCurrentLimit,
