@@ -4,10 +4,12 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/crc32"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -33,8 +35,8 @@ import (
 const (
 	// v2.4: analyzer keeps legal single-rune CJK/alnum terms (e.g. "勇"),
 	// requiring a one-time full rebuild so existing indexes gain single-char tokens.
-	fullTextIndexVersion           = "v2.4"
-	fullTextIndexVersionTagFile    = "version.tag"
+	fullTextIndexVersion          = "v2.5"
+	fullTextIndexVersionTagFile   = "version.tag"
 	defaultInitialScanDelay       = 1 * time.Second
 	defaultPerFilePause           = 5 * time.Millisecond
 	defaultMaxTextFileBytes       = int64(8 * 1024 * 1024)
@@ -121,12 +123,18 @@ type fullTextConfig struct {
 	SkipCommonBinaryExt bool
 	IndexMetaOnly       bool
 	ForceContentRecheck bool
+	EnableFastHash      bool
+	EnableSemanticTags  bool
+	SemanticMaxScanKB   int
+	PrivacyMode         string
+	PipelineV2          bool
 }
 
 type fileFingerprint struct {
 	Size        int64
 	ModNano     int64
 	ContentHash uint32
+	FastHash    uint32
 }
 
 type indexTask struct {
@@ -134,6 +142,14 @@ type indexTask struct {
 	Delete  bool
 	Initial bool
 	Sync    bool
+}
+
+type preparedIndexTask struct {
+	Task indexTask
+	Path string
+	ID   string
+	Doc  *bluge.Document
+	FP   fileFingerprint
 }
 
 type blugeIndexer struct {
@@ -146,6 +162,7 @@ type blugeIndexer struct {
 	cancel context.CancelFunc
 
 	tasks chan indexTask
+	docs  chan preparedIndexTask
 
 	startOnce sync.Once
 
@@ -411,6 +428,7 @@ func newBlugeIndexer(baseDir string) (*blugeIndexer, error) {
 		ctx:           ctx,
 		cancel:        cancel,
 		tasks:         make(chan indexTask, cfg.QueueSize),
+		docs:          make(chan preparedIndexTask, cfg.QueueSize),
 		knownFiles:    map[string]fileFingerprint{},
 		watchedDirs:   map[string]struct{}{},
 		recentEnqueue: map[string]time.Time{},
@@ -713,6 +731,13 @@ func (b *blugeIndexer) StartIndexer() error {
 		for i := 0; i < b.cfg.Workers; i++ {
 			go b.workerLoop(i + 1)
 		}
+		if b.cfg.PipelineV2 {
+			writers := resolvePipelineWriterCount(b.cfg.Workers)
+			for i := 0; i < writers; i++ {
+				go b.pipelineWriteLoop(i + 1)
+			}
+			b.appendAlert(fmt.Sprintf("pipeline v2 enabled: %d pre-process workers + %d write workers", b.cfg.Workers, writers))
+		}
 		go b.periodicBatchFlushLoop()
 		go b.statePersistLoop()
 		go b.watchLoop()
@@ -792,7 +817,13 @@ func (b *blugeIndexer) GetStatus() FullTextStatus {
 	defer b.mu.Unlock()
 	b.refreshProgressLocked()
 	pending := len(b.tasks)
+	if b.cfg.PipelineV2 {
+		pending += len(b.docs)
+	}
 	capacity := cap(b.tasks)
+	if b.cfg.PipelineV2 {
+		capacity += cap(b.docs)
+	}
 	b.status.PendingTasks = pending
 	b.status.QueueCapacity = capacity
 	b.status.QueueSaturated = capacity > 0 && pending >= capacity
@@ -1282,33 +1313,63 @@ func (b *blugeIndexer) workerLoop(workerID int) {
 			return
 		case task := <-b.tasks:
 			b.markCurrentFile(task.Path)
+			if task.Delete || !b.cfg.PipelineV2 {
+				if ok := b.waitForWritableDisk(); !ok {
+					return
+				}
+				var err error
+				if task.Delete {
+					err = b.deleteByPath(task.Path)
+				} else {
+					err = b.indexFile(task.Path)
+				}
+				if err != nil {
+					b.recordError(err)
+				}
+				b.markTaskDone(task)
+				if b.cfg.PerFilePause > 0 {
+					time.Sleep(b.cfg.PerFilePause)
+				}
+				b.clearCurrentFile(task.Path)
+				continue
+			}
+
+			prepared, done, err := b.prepareIndexTask(task)
+			if err != nil {
+				b.recordError(err)
+				b.markTaskDone(task)
+				b.clearCurrentFile(task.Path)
+				continue
+			}
+			if done || prepared == nil {
+				b.markTaskDone(task)
+				if b.cfg.PerFilePause > 0 {
+					time.Sleep(b.cfg.PerFilePause)
+				}
+				b.clearCurrentFile(task.Path)
+				continue
+			}
+			if !b.enqueuePreparedTask(*prepared) {
+				b.markTaskDone(task)
+				b.clearCurrentFile(task.Path)
+			}
+		}
+	}
+}
+
+func (b *blugeIndexer) pipelineWriteLoop(workerID int) {
+	for {
+		select {
+		case <-b.ctx.Done():
+			return
+		case task := <-b.docs:
 			if ok := b.waitForWritableDisk(); !ok {
 				return
 			}
-
-			var err error
-			if task.Delete {
-				err = b.deleteByPath(task.Path)
-			} else {
-				err = b.indexFile(task.Path)
-			}
-			if err != nil {
+			if err := b.commitPreparedTask(task); err != nil {
 				b.recordError(err)
 			}
-
-			if task.Initial {
-				b.mu.Lock()
-				b.initialTaskDone++
-				b.status.ProcessedFiles = b.initialTaskDone
-				if b.initialWalkDone && b.initialTaskDone >= b.initialTaskTotal {
-					b.status.InitialScanDone = true
-					b.status.Ready = true
-					b.status.ScanPhase = "ready"
-				}
-				b.refreshProgressLocked()
-				b.mu.Unlock()
-			}
-
+			b.markTaskDone(task.Task)
 			if b.cfg.PerFilePause > 0 {
 				time.Sleep(b.cfg.PerFilePause)
 			}
@@ -1549,10 +1610,63 @@ func (b *blugeIndexer) enqueueTask(task indexTask) {
 	}
 	b.mu.Lock()
 	pending := len(b.tasks)
+	if b.cfg.PipelineV2 {
+		pending += len(b.docs)
+	}
 	capacity := cap(b.tasks)
+	if b.cfg.PipelineV2 {
+		capacity += cap(b.docs)
+	}
 	b.status.PendingTasks = pending
 	b.status.QueueCapacity = capacity
 	b.status.QueueSaturated = capacity > 0 && pending >= capacity
+	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
+	b.mu.Unlock()
+}
+
+func (b *blugeIndexer) enqueuePreparedTask(task preparedIndexTask) bool {
+	if task.Path == "" || task.ID == "" || task.Doc == nil {
+		return false
+	}
+	orig := task.Task
+	if orig.Initial || orig.Sync {
+		select {
+		case b.docs <- task:
+		case <-b.ctx.Done():
+			return false
+		}
+	} else {
+		select {
+		case b.docs <- task:
+		default:
+			b.appendAlert("pipeline write queue is full; dropped partial events")
+			return false
+		}
+	}
+	b.mu.Lock()
+	pending := len(b.tasks) + len(b.docs)
+	capacity := cap(b.tasks) + cap(b.docs)
+	b.status.PendingTasks = pending
+	b.status.QueueCapacity = capacity
+	b.status.QueueSaturated = capacity > 0 && pending >= capacity
+	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
+	b.mu.Unlock()
+	return true
+}
+
+func (b *blugeIndexer) markTaskDone(task indexTask) {
+	if !task.Initial {
+		return
+	}
+	b.mu.Lock()
+	b.initialTaskDone++
+	b.status.ProcessedFiles = b.initialTaskDone
+	if b.initialWalkDone && b.initialTaskDone >= b.initialTaskTotal {
+		b.status.InitialScanDone = true
+		b.status.Ready = true
+		b.status.ScanPhase = "ready"
+	}
+	b.refreshProgressLocked()
 	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 	b.mu.Unlock()
 }
@@ -1639,42 +1753,60 @@ func (b *blugeIndexer) needsIndexingLocked(path string, st os.FileInfo) bool {
 }
 
 func (b *blugeIndexer) indexFile(path string) error {
-	path = filepath.Clean(strings.TrimSpace(path))
-	if path == "" {
+	prepared, done, err := b.prepareIndexTask(indexTask{Path: path})
+	if err != nil {
+		return err
+	}
+	if done || prepared == nil {
 		return nil
+	}
+	return b.commitPreparedTask(*prepared)
+}
+
+func (b *blugeIndexer) prepareIndexTask(task indexTask) (*preparedIndexTask, bool, error) {
+	path := filepath.Clean(strings.TrimSpace(task.Path))
+	if path == "" {
+		return nil, true, nil
 	}
 	if !filepath.IsAbs(path) {
 		if abs, err := filepath.Abs(path); err == nil && abs != "" {
 			path = filepath.Clean(abs)
 		}
 	}
+	task.Path = path
 	st, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return b.deleteByPath(path)
+			return nil, true, b.deleteByPath(path)
 		}
-		return err
+		return nil, false, err
 	}
 	if st.IsDir() {
-		return nil
+		return nil, true, nil
 	}
 	if b.shouldSkipFileByName(path) {
-		return b.deleteByPath(path)
+		return nil, true, b.deleteByPath(path)
 	}
 	if !b.shouldIndexByColdPath(path, st.Size()) {
-		return b.deleteByPath(path)
+		return nil, true, b.deleteByPath(path)
 	}
 	if st.Size() > b.cfg.HardReadLimit && pathExtLower(path) != "pdf" && pathExtLower(path) != "docx" {
-		return b.deleteByPath(path)
+		return nil, true, b.deleteByPath(path)
 	}
 
 	id := docIDForPath(path)
 	modNano := st.ModTime().UnixNano()
+	fastHash := uint32(0)
+	if b.cfg.EnableFastHash {
+		if fh, ferr := computeFileFastHash(path, st.Size()); ferr == nil {
+			fastHash = fh
+		}
+	}
 	if !b.cfg.ForceContentRecheck {
 		b.mu.RLock()
 		if prev, ok := b.knownFiles[id]; ok && prev.Size == st.Size() && prev.ModNano == modNano {
 			b.mu.RUnlock()
-			return nil
+			return nil, true, nil
 		}
 		b.mu.RUnlock()
 		if b.meta != nil {
@@ -1688,7 +1820,7 @@ func (b *blugeIndexer) indexFile(path string) error {
 				}
 				b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 				b.mu.Unlock()
-				return nil
+				return nil, true, nil
 			}
 		}
 	}
@@ -1696,32 +1828,49 @@ func (b *blugeIndexer) indexFile(path string) error {
 	if err != nil {
 		if errors.Is(err, errSkipNonText) || errors.Is(err, errSkipTooLarge) {
 			if b.cfg.IndexMetaOnly {
-				return b.indexFileMetaOnly(path, st, err)
+				return nil, true, b.indexFileMetaOnly(path, st, err)
 			}
-			return b.deleteByPath(path)
+			return nil, true, b.deleteByPath(path)
 		}
-		return fmt.Errorf("read index content failed (%s): %w", path, err)
+		return nil, false, fmt.Errorf("read index content failed (%s): %w", path, err)
 	}
 
-	contentCRC := crc32.ChecksumIEEE([]byte(content))
-	fp := fileFingerprint{Size: st.Size(), ModNano: modNano, ContentHash: contentCRC}
+	contentCRC := uint32(0)
+	if !b.cfg.EnableFastHash {
+		contentCRC = crc32.ChecksumIEEE([]byte(content))
+	}
+	fp := fileFingerprint{Size: st.Size(), ModNano: modNano, ContentHash: contentCRC, FastHash: fastHash}
 
 	if b.meta != nil {
 		if oldFP, ok, gerr := b.meta.Get(path); gerr == nil && ok && oldFP == fp {
-			return nil
+			return nil, true, nil
 		}
 	}
 	b.mu.RLock()
 	if prev, ok := b.knownFiles[id]; ok && prev == fp {
 		b.mu.RUnlock()
-		return nil
+		return nil, true, nil
 	}
 	b.mu.RUnlock()
 
 	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
 	mod := st.ModTime()
 	baseName := strings.ToLower(filepath.Base(path))
-	headers := buildIndexHeaders(path, content, summary)
+	semTags := []string{}
+	if b.cfg.EnableSemanticTags {
+		semTags = semanticExtractTags(path, content, summary, b.cfg.SemanticMaxScanKB*1024)
+	}
+	allowContentHeaders := true
+	summaryForStore := summary
+	if normalizePrivacyMode(b.cfg.PrivacyMode) == privacyModeStrict && semanticHasSensitiveTags(semTags) {
+		allowContentHeaders = false
+		summaryForStore = "[redacted-sensitive]"
+	}
+	contentForHeaders := ""
+	if allowContentHeaders {
+		contentForHeaders = content
+	}
+	headers := buildIndexHeaders(path, contentForHeaders, summaryForStore)
 
 	doc := bluge.NewDocument(id).
 		AddField(bluge.NewKeywordField("path", path).StoreValue()).
@@ -1733,22 +1882,38 @@ func (b *blugeIndexer) indexFile(path string) error {
 		AddField(bluge.NewKeywordField("ext", ext).StoreValue().Sortable().Aggregatable()).
 		AddField(bluge.NewDateTimeField("mtime", mod).StoreValue().Sortable()).
 		AddField(bluge.NewNumericField("size", float64(st.Size())).StoreValue().Sortable()).
-		AddField(bluge.NewStoredOnlyField("summary", []byte(summary))).
+		AddField(bluge.NewStoredOnlyField("summary", []byte(summaryForStore))).
 		AddField(bluge.NewTextField("path_text", strings.ToLower(path)).WithAnalyzer(fullTextAnalyzer()))
+	for _, tag := range semTags {
+		doc.AddField(bluge.NewKeywordField("sem_tags", tag).StoreValue().Aggregatable())
+	}
 
-	if err := b.enqueueBatchUpdate(id, doc); err != nil {
-		return fmt.Errorf("bluge update failed (%s): %w", path, err)
+	return &preparedIndexTask{
+		Task: task,
+		Path: path,
+		ID:   id,
+		Doc:  doc,
+		FP:   fp,
+	}, false, nil
+}
+
+func (b *blugeIndexer) commitPreparedTask(task preparedIndexTask) error {
+	if task.Path == "" || task.ID == "" || task.Doc == nil {
+		return nil
+	}
+	if err := b.enqueueBatchUpdate(task.ID, task.Doc); err != nil {
+		return fmt.Errorf("bluge update failed (%s): %w", task.Path, err)
 	}
 
 	b.mu.Lock()
-	b.knownFiles[id] = fp
+	b.knownFiles[task.ID] = task.FP
 	if b.status.IndexedFiles < int64(len(b.knownFiles)) {
 		b.status.IndexedFiles = int64(len(b.knownFiles))
 	}
 	b.status.LastUpdatedRFC3339 = time.Now().Format(time.RFC3339)
 	b.mu.Unlock()
 	if b.meta != nil {
-		_ = b.meta.Upsert(path, fp)
+		_ = b.meta.Upsert(task.Path, task.FP)
 	}
 	return nil
 }
@@ -1783,11 +1948,24 @@ func (b *blugeIndexer) indexFileMetaOnly(path string, st os.FileInfo, reason err
 		AddField(bluge.NewNumericField("size", float64(st.Size())).StoreValue().Sortable()).
 		AddField(bluge.NewStoredOnlyField("summary", []byte(summary))).
 		AddField(bluge.NewTextField("path_text", strings.ToLower(path)).WithAnalyzer(fullTextAnalyzer()))
+	semTags := []string{}
+	if b.cfg.EnableSemanticTags {
+		semTags = semanticExtractTags(path, "", summary, b.cfg.SemanticMaxScanKB*1024)
+	}
+	for _, tag := range semTags {
+		doc.AddField(bluge.NewKeywordField("sem_tags", tag).StoreValue().Aggregatable())
+	}
 	if err := b.enqueueBatchUpdate(id, doc); err != nil {
 		return fmt.Errorf("bluge meta-only update failed (%s): %w", path, err)
 	}
 
-	fp := fileFingerprint{Size: st.Size(), ModNano: st.ModTime().UnixNano(), ContentHash: 0}
+	fastHash := uint32(0)
+	if b.cfg.EnableFastHash {
+		if fh, ferr := computeFileFastHash(path, st.Size()); ferr == nil {
+			fastHash = fh
+		}
+	}
+	fp := fileFingerprint{Size: st.Size(), ModNano: st.ModTime().UnixNano(), ContentHash: 0, FastHash: fastHash}
 	b.mu.Lock()
 	b.knownFiles[id] = fp
 	if b.status.IndexedFiles < int64(len(b.knownFiles)) {
@@ -1826,6 +2004,57 @@ func (b *blugeIndexer) deleteByPath(path string) error {
 		_ = b.meta.Delete(path)
 	}
 	return nil
+}
+
+func computeFileFastHash(path string, size int64) (uint32, error) {
+	if strings.TrimSpace(path) == "" || size <= 0 {
+		return 0, nil
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	const chunkSize = 4096
+	head := make([]byte, chunkSize)
+	nHead, err := io.ReadFull(f, head)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return 0, err
+	}
+	if nHead < 0 {
+		nHead = 0
+	}
+	head = head[:nHead]
+
+	tail := []byte{}
+	if size > chunkSize {
+		if _, err := f.Seek(max64(0, size-chunkSize), io.SeekStart); err == nil {
+			buf := make([]byte, chunkSize)
+			nTail, terr := io.ReadFull(f, buf)
+			if terr != nil && !errors.Is(terr, io.EOF) && !errors.Is(terr, io.ErrUnexpectedEOF) {
+				return 0, terr
+			}
+			if nTail > 0 {
+				tail = buf[:nTail]
+			}
+		}
+	}
+
+	szBuf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(szBuf, uint64(size))
+	blob := make([]byte, 0, len(head)+len(tail)+len(szBuf))
+	blob = append(blob, head...)
+	blob = append(blob, tail...)
+	blob = append(blob, szBuf...)
+	return crc32.ChecksumIEEE(blob), nil
+}
+
+func max64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func buildIndexHeaders(path, content, summary string) string {
@@ -1921,6 +2150,7 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 		headersVal string
 		titleVal   string
 		extVal     string
+		semTags    []string
 		mtimeVal   time.Time
 		sizeVal    int64
 	)
@@ -1937,6 +2167,11 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 			titleVal = string(value)
 		case "ext":
 			extVal = string(value)
+		case "sem_tags":
+			tag := strings.TrimSpace(string(value))
+			if tag != "" {
+				semTags = append(semTags, tag)
+			}
 		case "mtime":
 			if t, err := bluge.DecodeDateTime(value); err == nil {
 				mtimeVal = t
@@ -1951,6 +2186,17 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 
 	if pathVal == "" {
 		return nil
+	}
+	if len(semTags) > 1 {
+		tagSet := map[string]struct{}{}
+		for _, tag := range semTags {
+			tag = strings.TrimSpace(tag)
+			if tag == "" {
+				continue
+			}
+			tagSet[tag] = struct{}{}
+		}
+		semTags = sortedSemanticTags(tagSet)
 	}
 	if isExcludedByFilter(pathVal, b.cfg.FilterConfig) {
 		return nil
@@ -1981,6 +2227,7 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 	terms := extractSearchContentTerms(query)
 	primaryTerm := pickPrimarySearchTerm(terms)
 	previewVal := b.buildBestPreview(match, query, pathVal, titleVal, headersVal, summaryVal)
+	previewVal = semanticRedactPreview(previewVal, b.cfg.PrivacyMode, semTags)
 	score := scoreByPathAndContent(pathVal, previewVal, primaryTerm, float64(match.Score))
 	hitCtx := buildHitContextForFile(pathVal, primaryTerm, 6)
 	hitLines := make([]int, 0, len(hitCtx))
@@ -2022,6 +2269,7 @@ func (b *blugeIndexer) matchToResultItem(match *blugeSearch.DocumentMatch, query
 		"HitCount":       hitCount,
 		"HitLines":       hitLines,
 		"HitContext":     hitCtx,
+		"SemanticTags":   semTags,
 	}
 
 	return map[string]any{
@@ -2420,6 +2668,10 @@ func loadFullTextConfig(baseDir string) fullTextConfig {
 	if batchInterval < 50*time.Millisecond {
 		batchInterval = 50 * time.Millisecond
 	}
+	semScanKB := int(parseInt64Env("SEARCHCENTER_FT_SEM_MAX_SCAN_KB", 128))
+	if semScanKB <= 0 {
+		semScanKB = 128
+	}
 
 	return fullTextConfig{
 		BaseDir:             baseDir,
@@ -2446,6 +2698,11 @@ func loadFullTextConfig(baseDir string) fullTextConfig {
 		SkipCommonBinaryExt: parseBoolEnv("SEARCHCENTER_FT_SKIP_COMMON_BINARY_EXT", false),
 		IndexMetaOnly:       parseBoolEnv("SEARCHCENTER_FT_INDEX_META_ONLY", true),
 		ForceContentRecheck: parseBoolEnv("SEARCHCENTER_FT_FORCE_RECHECK", false),
+		EnableFastHash:      parseBoolEnv("SEARCHCENTER_FT_ENABLE_FAST_HASH", true),
+		EnableSemanticTags:  parseBoolEnv("SEARCHCENTER_FT_ENABLE_SEM_TAGS", true),
+		SemanticMaxScanKB:   semScanKB,
+		PrivacyMode:         normalizePrivacyMode(strings.TrimSpace(os.Getenv("SEARCHCENTER_FT_PRIVACY_MODE"))),
+		PipelineV2:          parseBoolEnv("SEARCHCENTER_FT_PIPELINE_V2", false),
 	}
 }
 
@@ -2539,6 +2796,22 @@ func resolveWorkerCount() int {
 	}
 	if n > 2 {
 		n = 2
+	}
+	return n
+}
+
+func resolvePipelineWriterCount(workers int) int {
+	if v := strings.TrimSpace(os.Getenv("SEARCHCENTER_FT_PIPELINE_WRITERS")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	n := workers / 2
+	if n < 1 {
+		n = 1
+	}
+	if n > workers {
+		n = workers
 	}
 	return n
 }
@@ -2735,6 +3008,15 @@ func buildBlugeQuery(raw string) bluge.Query {
 			continue
 		}
 		low := strings.ToLower(tk)
+		if semAliasTags, ok := semanticTagsForAlias(low); ok {
+			semQ := bluge.NewBooleanQuery()
+			for _, tag := range semAliasTags {
+				semQ.AddShould(bluge.NewTermQuery(tag).SetField("sem_tags"))
+			}
+			semQ.SetMinShould(1)
+			root.AddMust(semQ)
+			continue
+		}
 		switch {
 		case strings.HasPrefix(low, "ext:"):
 			v := strings.TrimPrefix(low, "ext:")
@@ -2860,6 +3142,9 @@ func extractSearchContentTerms(raw string) []string {
 			strings.HasPrefix(low, "mtime:") ||
 			strings.HasPrefix(low, "dir:") ||
 			strings.HasPrefix(low, "name:") {
+			continue
+		}
+		if _, ok := semanticTagsForAlias(low); ok {
 			continue
 		}
 		s = strings.Trim(s, "*?")

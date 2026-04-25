@@ -1867,7 +1867,7 @@ mark {
       <div id="ft-toolbar" class="ft-toolbar">
         <button type="button" id="btn-ft-open-settings" class="mini-btn" title="打开搜索设置中的全文索引控制台">索引设置</button>
         <span id="ft-quick-stats" class="ft-quick-stats">索引统计加载中…</span>
-        <span class="ft-quick-hint">推荐方案、增量更新、索引目录等低频配置已迁移到「搜索设置 > 全文索引控制台」。</span>
+        <span id="ft-quick-hint" class="ft-quick-hint">推荐方案、增量更新、索引目录等低频配置已迁移到「搜索设置 > 全文索引控制台」。</span>
       </div>
     </div>
     <div class="search-actions">
@@ -2003,6 +2003,7 @@ const SC_HOTKEY_BINDINGS_KEY = "sc_hotkey_bindings_v1";
 const SC_FT_ADVANCED_KEY = "sc_ft_ui_advanced";
 const SC_SUBTAG_AUDIENCE_KEY = "sc_subtag_audience_v1";
 const SC_SUBTAG_SELECTION_KEY = "sc_subtag_selection_v1";
+const SC_SUBTAG_DEBUG_KEY = "sc_subtag_debug_v1";
 
 function normalizeThemeMode(mode) {
   return String(mode || "").toLowerCase() === "light" ? "light" : "dark";
@@ -2084,6 +2085,7 @@ const state = {
   fulltext: {
     running: false,
     ready: false,
+    initialScanDone: false,
     progress: 0,
     progressText: "0.0%",
     progressDetail: "",
@@ -2099,9 +2101,12 @@ const state = {
     rootsCount: 0,
     filesPerSec: 0,
     etaSeconds: 0,
+    alerts: [],
+    lastError: "",
     engine_lights: ["off", "off", "off", "off"],
     scan_mode: "",
-    indexEpoch: 0
+    indexEpoch: 0,
+    indexVersion: ""
   },
   fulltextConfig: {
     scanScheme: "auto",
@@ -2114,6 +2119,7 @@ const state = {
   },
   fulltextEmptyTransitionUntil: 0,
   fulltextUiAdvanced: (typeof localStorage !== "undefined" && localStorage.getItem(SC_FT_ADVANCED_KEY) === "1"),
+  subtagDebug: (typeof localStorage !== "undefined" && localStorage.getItem(SC_SUBTAG_DEBUG_KEY) === "1"),
   quickLook: {
     installed: false,
     path: "",
@@ -2209,37 +2215,52 @@ const LOG_EXT_SET = new Set(["log", "txt", "out", "err"]);
 const STARTUP_EXT_SET = new Set(["exe", "lnk", "app", "cpl"]);
 const WEB_LINK_EXT_SET = new Set(["url"]);
 const IMAGE_MATERIAL_EXT_SET = new Set(["jpg", "jpeg", "png", "svg", "webp", "psd"]);
+const SEM_TAG_NET_SET = new Set(["_geek:net_ip", "_geek:net_domain", "_geek:net_cidr"]);
+const SEM_TAG_FIN_SET = new Set(["_geek:fin_amt"]);
+const SEM_TAG_AUTH_SET = new Set(["_geek:auth_secret", "_geek:auth_token", "_geek:auth_key"]);
+const SEM_TAG_LOGIC_SET = new Set(["_geek:code_func"]);
 const SUBTAG_TAXONOMY = Object.freeze({
   File: Object.freeze({
     newbie: Object.freeze([
       Object.freeze({ key: "all", label: "全部文件", desc: "展示所有文件结果，适合先看全局。", kind: "all" }),
-      Object.freeze({ key: "quickstart", label: "🚀 快捷启动", desc: "电脑里的软件、控制面板功能、常用系统工具。", kind: "quickstart" }),
-      Object.freeze({ key: "doc", label: "📄 办公文档", desc: "工作汇报、PDF、Word、电子书。", kind: "ext", set: DOC_EXT_SET }),
-      Object.freeze({ key: "sheet", label: "📊 表格数据", desc: "账单、统计表、考勤表、CSV。", kind: "ext", set: SHEET_EXT_SET }),
-      Object.freeze({ key: "image", label: "🎨 图片素材", desc: "照片、图标、设计草图、壁纸。", kind: "image" }),
-      Object.freeze({ key: "web", label: "🔗 网络收藏", desc: "浏览器书签、保存的网页链接、历史记录。", kind: "web" }),
-      Object.freeze({ key: "contact", label: "📱 常用联系", desc: "邮箱地址、手机号、同事名字、微信 ID。", kind: "contact" }),
-      Object.freeze({ key: "archive", label: "📦 压缩包", desc: "下载的安装包、整理的旧资料。", kind: "archive" })
+      Object.freeze({ key: "quickstart", label: "🚀 快捷启动", desc: "软件/控制面板/系统工具（.exe .lnk .app .cpl / ms-settings:）。", kind: "quickstart" }),
+      Object.freeze({ key: "doc", label: "📄 办公文档", desc: "工作汇报、PDF、Word、电子书（.docx .pdf .md .epub .txt）。", kind: "ext", set: DOC_EXT_SET }),
+      Object.freeze({ key: "sheet", label: "📊 表格数据", desc: "账单、统计表、考勤表、CSV（.xlsx .xls .csv .tsv）。", kind: "ext", set: SHEET_EXT_SET }),
+      Object.freeze({ key: "image", label: "🎨 图片素材", desc: "照片、图标、设计草图、壁纸（.jpg .png .svg .webp .psd）。", kind: "image" }),
+      Object.freeze({ key: "web", label: "🔗 网络收藏", desc: "浏览器书签、网页链接、历史记录（http/https/.url）。", kind: "web" }),
+      Object.freeze({ key: "contact", label: "📱 常用联系", desc: "邮箱、手机号、同事名、微信 ID。", kind: "contact" }),
+      Object.freeze({ key: "archive", label: "📦 压缩包", desc: "下载安装包或归档旧资料（.zip .7z .rar .tar.gz）。", kind: "archive" })
     ]),
     geek: Object.freeze([
       Object.freeze({ key: "all", label: "All", desc: "不过滤，查看完整文件数据面。", kind: "all" }),
-      Object.freeze({ key: "code", label: "Code & Script", desc: "代码与脚本：适合技术检索与排障。", kind: "ext", set: CODE_EXT_SET }),
+      Object.freeze({ key: "logic", label: "{Logic}", desc: "函数/类/接口等实现语义。", kind: "semTag", tags: SEM_TAG_LOGIC_SET }),
+      Object.freeze({ key: "net", label: "[Net]", desc: "IP/CIDR/Domain 网络语义。", kind: "semTag", tags: SEM_TAG_NET_SET }),
+      Object.freeze({ key: "fin", label: "$Fin", desc: "金额与账单语义。", kind: "semTag", tags: SEM_TAG_FIN_SET }),
+      Object.freeze({ key: "auth", label: "#Auth", desc: "Token/Key/JWT 等敏感认证语义。", kind: "semTag", tags: SEM_TAG_AUTH_SET }),
       Object.freeze({ key: "config", label: "Config", desc: "配置文件：参数、环境与服务配置。", kind: "ext", set: CONFIG_EXT_SET }),
       Object.freeze({ key: "logs", label: "Logs", desc: "日志与输出：用于故障定位和行为回溯。", kind: "ext", set: LOG_EXT_SET }),
-      Object.freeze({ key: "dataset", label: "Dataset", desc: "结构化数据集与报表源。", kind: "ext", set: SHEET_EXT_SET }),
-      Object.freeze({ key: "binary", label: "Binary", desc: "非文本二进制文件（排除代码/配置/文档）。", kind: "binary" })
+      Object.freeze({ key: "code", label: "Code", desc: "代码与脚本文件。", kind: "ext", set: CODE_EXT_SET })
     ])
   }),
   fulltext: Object.freeze({
     newbie: Object.freeze([
       Object.freeze({ key: "all", label: "全部命中", desc: "展示所有全文命中结果。", kind: "all" }),
       Object.freeze({ key: "ctx", label: "上下文丰富", desc: "优先看带命中上下文的条目。", kind: "hitContext" }),
-      Object.freeze({ key: "doc", label: "文档命中", desc: "常见文档中的关键字命中。", kind: "ext", set: DOC_EXT_SET }),
-      Object.freeze({ key: "code", label: "代码命中", desc: "代码与脚本中的关键字命中。", kind: "ext", set: CODE_EXT_SET })
+      Object.freeze({ key: "quickstart", label: "🚀 快捷启动", desc: "软件/系统入口相关命中。", kind: "quickstart" }),
+      Object.freeze({ key: "doc", label: "📄 办公文档", desc: "文档类关键字命中。", kind: "ext", set: DOC_EXT_SET }),
+      Object.freeze({ key: "sheet", label: "📊 表格数据", desc: "表格类关键字命中。", kind: "ext", set: SHEET_EXT_SET }),
+      Object.freeze({ key: "image", label: "🎨 图片素材", desc: "图片与设计素材相关命中。", kind: "image" }),
+      Object.freeze({ key: "web", label: "🔗 网络收藏", desc: "链接、收藏、网页记录相关命中。", kind: "web" }),
+      Object.freeze({ key: "contact", label: "📱 常用联系", desc: "联系人信息相关命中。", kind: "contact" }),
+      Object.freeze({ key: "archive", label: "📦 压缩包", desc: "压缩归档相关命中。", kind: "archive" })
     ]),
     geek: Object.freeze([
       Object.freeze({ key: "all", label: "All Hits", desc: "全文命中的完整视图。", kind: "all" }),
       Object.freeze({ key: "ctx", label: "Context-rich", desc: "命中上下文块更完整，便于二次分析。", kind: "hitContext" }),
+      Object.freeze({ key: "logic", label: "{Logic}", desc: "函数/类/接口语义命中。", kind: "semTag", tags: SEM_TAG_LOGIC_SET }),
+      Object.freeze({ key: "net", label: "[Net]", desc: "IP/CIDR/Domain 语义命中。", kind: "semTag", tags: SEM_TAG_NET_SET }),
+      Object.freeze({ key: "fin", label: "$Fin", desc: "金额语义命中。", kind: "semTag", tags: SEM_TAG_FIN_SET }),
+      Object.freeze({ key: "auth", label: "#Auth", desc: "认证密钥/令牌语义命中。", kind: "semTag", tags: SEM_TAG_AUTH_SET }),
       Object.freeze({ key: "config", label: "Config Hits", desc: "配置文件相关命中，常用于参数追踪。", kind: "ext", set: CONFIG_EXT_SET }),
       Object.freeze({ key: "logs", label: "Log Hits", desc: "日志命中，常用于排障时间线分析。", kind: "ext", set: LOG_EXT_SET }),
       Object.freeze({ key: "code", label: "Code Hits", desc: "代码命中，适合定位实现细节。", kind: "ext", set: CODE_EXT_SET })
@@ -2596,9 +2617,11 @@ function normalizeFulltextPayload(payload) {
   const rootsCount = Array.isArray(src.roots)
     ? src.roots.length
     : (Number.isFinite(Number(src.rootsCount)) ? Number(src.rootsCount) : 0);
+  const alerts = Array.isArray(src.alerts) ? src.alerts.map((v) => String(v || "")).filter(Boolean) : [];
   return {
     running: !!src.running,
     ready: !!src.ready,
+    initialScanDone: !!src.initialScanDone,
     progress: Number.isFinite(Number(src.progress)) ? Number(src.progress) : 0,
     progressText: String(src.progressText || "0.0%"),
     progressDetail: String(src.progressDetail || ""),
@@ -2614,12 +2637,32 @@ function normalizeFulltextPayload(payload) {
     rootsCount,
     filesPerSec: Number.isFinite(Number(src.filesPerSec)) ? Number(src.filesPerSec) : 0,
     etaSeconds: Number.isFinite(Number(src.etaSeconds)) ? Number(src.etaSeconds) : 0,
+    alerts,
+    lastError: String(src.lastError || ""),
     engine_lights: Array.isArray(src.engine_lights) && src.engine_lights.length === 4
       ? src.engine_lights.map((v) => String(v || "off"))
       : ["off", "off", "off", "off"],
     scan_mode: String(src.scan_mode || ""),
-    indexEpoch: Number.isFinite(Number(src.indexEpoch)) ? Number(src.indexEpoch) : 0
+    indexEpoch: Number.isFinite(Number(src.indexEpoch)) ? Number(src.indexEpoch) : 0,
+    indexVersion: String(src.indexVersion || "")
   };
+}
+
+function formatEtaHuman(etaSec) {
+  const n = Number(etaSec);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  const sec = Math.floor(n);
+  if (sec < 60) return `${sec}秒`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}分钟`;
+  const hour = Math.floor(min / 60);
+  const remMin = min % 60;
+  return remMin > 0 ? `${hour}小时${remMin}分钟` : `${hour}小时`;
+}
+
+function isForceRebuildAlert(msg) {
+  const s = String(msg || "").toLowerCase();
+  return s.includes("forcing full rebuild") || s.includes("index version upgraded");
 }
 
 function formatScanModeBadge(mode) {
@@ -2906,8 +2949,34 @@ function applyFulltextStatus(payload) {
     const queueCap = Number(state.fulltext.queueCapacity) || 0;
     const queueText = queueCap > 0 ? `${pending}/${queueCap}` : `${pending}`;
     const mode = formatScanModeBadge(state.fulltext.scan_mode);
-    statsEl.textContent = `已索引 ${indexed} · 发现 ${discovered} · 队列 ${queueText}${mode ? ` · ${mode}` : ""}`;
+    const ver = state.fulltext.indexVersion ? ` · 版本 ${state.fulltext.indexVersion}` : "";
+    statsEl.textContent = `已索引 ${indexed} · 发现 ${discovered} · 队列 ${queueText}${mode ? ` · ${mode}` : ""}${ver}`;
     statsEl.title = statsEl.textContent;
+  }
+  const hintEl = document.getElementById("ft-quick-hint");
+  if (hintEl) {
+    const alerts = Array.isArray(state.fulltext.alerts) ? state.fulltext.alerts : [];
+    const hasForceRebuild = alerts.some((x) => isForceRebuildAlert(x));
+    const phase = String(state.fulltext.scanPhase || "").toLowerCase();
+    const isBuilding = !!state.fulltext.running && (!state.fulltext.ready || !state.fulltext.initialScanDone) &&
+      (phase === "walking" || phase === "indexing" || phase === "incremental_sync" || (Number(state.fulltext.pendingTasks) || 0) > 0);
+    let hint = "推荐方案、增量更新、索引目录等低频配置已迁移到「搜索设置 > 全文索引控制台」。";
+    if (hasForceRebuild) {
+      hint = "检测到索引版本升级，正在首次重建全文索引。重建期间可先用“文件”标签，全文命中会逐步完整。";
+      const eta = formatEtaHuman(state.fulltext.etaSeconds);
+      if (eta) hint += ` 预计剩余约 ${eta}。`;
+    } else if (isBuilding) {
+      const eta = formatEtaHuman(state.fulltext.etaSeconds);
+      hint = eta
+        ? `索引构建中，预计剩余约 ${eta}。首次构建时建议优先使用“文件/子标签”进行快速定位。`
+        : "索引构建中。首次构建时建议优先使用“文件/子标签”进行快速定位。";
+    } else if (state.fulltext.ready && state.fulltext.indexVersion) {
+      hint = `全文索引已就绪（版本 ${state.fulltext.indexVersion}）。如需全量重建，可在「搜索设置 > 全文索引控制台」执行。`;
+    } else if (state.fulltext.lastError) {
+      hint = `索引提示：${state.fulltext.lastError}`;
+    }
+    hintEl.textContent = hint;
+    hintEl.title = hint;
   }
   const fileEl = document.getElementById("ft-file");
   if (fileEl) {
@@ -3157,6 +3226,12 @@ function saveSubtagSelectionMap() {
   } catch (_) {}
 }
 
+function saveSubtagDebug() {
+  try {
+    localStorage.setItem(SC_SUBTAG_DEBUG_KEY, state.subtagDebug ? "1" : "0");
+  } catch (_) {}
+}
+
 function isFolderLikeItem(item) {
   const dt = String(item && (item.dataType || item.type) || "").toLowerCase();
   return dt === "folder" || dt === "dir" || dt === "directory";
@@ -3189,8 +3264,99 @@ function hasContactMarker(text) {
   const s = String(text || "");
   const emailRe = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
   const phoneRe = /(?<!\d)(?:\+?86[-\s]?)?(?:1[3-9]\d{9}|0\d{2,3}[-\s]?\d{7,8})(?!\d)/;
-  const wechatRe = /\b[a-zA-Z][-_a-zA-Z0-9]{5,19}\b/;
+  const wechatRe = /\b(?:wxid_[a-z0-9_]{5,}|(?:wechat|weixin|微信|wx)[:：\s]?[a-zA-Z][-_a-zA-Z0-9]{5,19})\b/i;
   return emailRe.test(s) || phoneRe.test(s) || wechatRe.test(s);
+}
+
+function getMetadataObject(item) {
+  const md = item && item.metadata;
+  return md && typeof md === "object" ? md : null;
+}
+
+function getMetadataValue(item, keys) {
+  const md = getMetadataObject(item);
+  if (!md) return null;
+  for (const k of keys || []) {
+    if (Object.prototype.hasOwnProperty.call(md, k)) return md[k];
+  }
+  const lowered = {};
+  Object.keys(md).forEach((k) => { lowered[String(k).toLowerCase()] = md[k]; });
+  for (const k of keys || []) {
+    const hit = lowered[String(k || "").toLowerCase()];
+    if (hit !== undefined) return hit;
+  }
+  return null;
+}
+
+function normalizeSemanticTagList(item) {
+  const raw = getMetadataValue(item, ["semanticTags", "semTags", "sem_tags", "SemanticTags"]);
+  let arr = [];
+  if (Array.isArray(raw)) {
+    arr = raw;
+  } else if (typeof raw === "string") {
+    arr = raw.split(/[,\s;|]+/g);
+  } else {
+    return [];
+  }
+  const out = [];
+  const seen = new Set();
+  arr.forEach((it) => {
+    const tag = String(it || "").trim().toLowerCase();
+    if (!tag || seen.has(tag)) return;
+    seen.add(tag);
+    out.push(tag);
+  });
+  return out;
+}
+
+function hasNetMarker(text) {
+  const s = String(text || "");
+  if (hasUrlMarker(s)) return true;
+  if (/\b(?:\d{1,3}\.){3}\d{1,3}\b/.test(s)) return true;
+  if (/\b(?:\d{1,3}\.){3}\d{1,3}\/(?:[0-2]?\d|3[0-2])\b/.test(s)) return true;
+  return /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}\b/i.test(s);
+}
+
+function hasAmountMarker(text) {
+  const s = String(text || "");
+  return /(?:¥|￥|\$|usd|cny|rmb|eur)\s?\d[\d,]*(?:\.\d{1,2})?/i.test(s);
+}
+
+function hasAuthMarker(text) {
+  const s = String(text || "");
+  if (/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/.test(s)) return true;
+  return /\b(api[_-]?key|secret|token|bearer|password|passwd|private[_-]?key|access[_-]?key|jwt)\b/i.test(s);
+}
+
+function hasLogicMarker(text) {
+  const s = String(text || "");
+  return /\b(func|function|class|interface|def|fn|lambda)\b/i.test(s);
+}
+
+function matchSemanticTagRule(item, tags, allowFallback = true) {
+  const expected = new Set(Array.from(tags || []).map((t) => String(t || "").toLowerCase()).filter(Boolean));
+  if (!expected.size) return false;
+  const got = new Set(normalizeSemanticTagList(item));
+  for (const tag of expected) {
+    if (got.has(tag)) return true;
+  }
+  if (!allowFallback) return false;
+  let expectsNet = false;
+  let expectsFin = false;
+  let expectsAuth = false;
+  let expectsLogic = false;
+  for (const tag of expected) {
+    if (!expectsNet && tag.startsWith("_geek:net_")) expectsNet = true;
+    if (!expectsFin && tag.startsWith("_geek:fin_")) expectsFin = true;
+    if (!expectsAuth && tag.startsWith("_geek:auth_")) expectsAuth = true;
+    if (!expectsLogic && tag.startsWith("_geek:code_")) expectsLogic = true;
+  }
+  const blob = getItemSearchBlob(item);
+  if (expectsNet) return hasNetMarker(blob);
+  if (expectsFin) return hasAmountMarker(blob);
+  if (expectsAuth) return hasAuthMarker(blob);
+  if (expectsLogic) return hasLogicMarker(blob);
+  return false;
 }
 
 function hasTarGzPath(item) {
@@ -3242,6 +3408,9 @@ function matchSubtagRule(item, rule) {
     if (ext && PREVIEW_ARCHIVE_EXT.has(ext)) return true;
     return hasTarGzPath(item);
   }
+  if (kind === "semTag") {
+    return matchSemanticTagRule(item, rule.tags);
+  }
   return true;
 }
 
@@ -3274,6 +3443,29 @@ function applySubtagResultView() {
   const active = getActiveSubtagKey(filterKey, group);
   const rule = group.find((x) => x && x.key === active) || group[0];
   state.results = raw.filter((item) => matchSubtagRule(item, rule));
+}
+
+function buildSubtagDebugLine(rule) {
+  if (!state.subtagDebug || !rule) return "";
+  const raw = Array.isArray(state.resultsRaw) ? state.resultsRaw : [];
+  const total = raw.length;
+  if (rule.kind === "semTag") {
+    let strictHit = 0;
+    let fallbackHit = 0;
+    raw.forEach((item) => {
+      if (matchSemanticTagRule(item, rule.tags, false)) {
+        strictHit++;
+      } else if (matchSemanticTagRule(item, rule.tags, true)) {
+        fallbackHit++;
+      }
+    });
+    const allHit = strictHit + fallbackHit;
+    const coverage = total > 0 ? ((allHit * 100) / total).toFixed(1) : "0.0";
+    return `调试 · 语义直命中 ${strictHit}，正则兜底 ${fallbackHit}，覆盖率 ${coverage}%`;
+  }
+  const hit = raw.filter((item) => matchSubtagRule(item, rule)).length;
+  const coverage = total > 0 ? ((hit * 100) / total).toFixed(1) : "0.0";
+  return `调试 · 标签命中 ${hit}/${total}（${coverage}%）`;
 }
 
 function syncResultCountLabel() {
@@ -3332,6 +3524,17 @@ function renderSubtagPanel() {
     });
     modesWrap.appendChild(btn);
   });
+  const debugBtn = document.createElement("button");
+  debugBtn.type = "button";
+  debugBtn.className = "subtag-mode-chip" + (state.subtagDebug ? " active" : "");
+  debugBtn.textContent = state.subtagDebug ? "调试:开" : "调试:关";
+  debugBtn.title = "显示子标签命中率和语义兜底统计";
+  debugBtn.addEventListener("click", () => {
+    state.subtagDebug = !state.subtagDebug;
+    saveSubtagDebug();
+    renderSubtagPanel();
+  });
+  modesWrap.appendChild(debugBtn);
 
   const activeKey = getActiveSubtagKey(filterKey, group);
   tagsWrap.innerHTML = "";
@@ -3360,7 +3563,10 @@ function renderSubtagPanel() {
 
   const activeRule = group.find((x) => x && x.key === activeKey) || group[0];
   const audienceText = audience === "geek" ? "极客标签" : "小白标签";
-  descEl.textContent = `${audienceText} · ${activeRule.label}：${activeRule.desc}`;
+  const debugLine = buildSubtagDebugLine(activeRule);
+  descEl.textContent = debugLine
+    ? `${audienceText} · ${activeRule.label}：${activeRule.desc} ｜ ${debugLine}`
+    : `${audienceText} · ${activeRule.label}：${activeRule.desc}`;
 }
 
 function renderCategories() {

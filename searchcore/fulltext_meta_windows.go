@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS file_meta (
   size INTEGER NOT NULL,
   mtime_ns INTEGER NOT NULL,
   indexed_at TEXT NOT NULL,
-  content_hash INTEGER NOT NULL DEFAULT 0
+  content_hash INTEGER NOT NULL DEFAULT 0,
+  fast_hash INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_file_meta_mtime ON file_meta(mtime_ns);
 CREATE TABLE IF NOT EXISTS usn_cursor (
@@ -53,6 +54,7 @@ CREATE TABLE IF NOT EXISTS index_state (
 		return nil, fmt.Errorf("init file_meta failed: %w", err)
 	}
 	_, _ = db.Exec(`ALTER TABLE file_meta ADD COLUMN content_hash INTEGER NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE file_meta ADD COLUMN fast_hash INTEGER NOT NULL DEFAULT 0`)
 	return &indexMetaStore{db: db}, nil
 }
 
@@ -68,7 +70,7 @@ func (m *indexMetaStore) Get(path string) (fileFingerprint, bool, error) {
 		return fileFingerprint{}, false, nil
 	}
 	var fp fileFingerprint
-	err := m.db.QueryRow(`SELECT size, mtime_ns, COALESCE(content_hash,0) FROM file_meta WHERE path=?`, docIDForPath(path)).Scan(&fp.Size, &fp.ModNano, &fp.ContentHash)
+	err := m.db.QueryRow(`SELECT size, mtime_ns, COALESCE(content_hash,0), COALESCE(fast_hash,0) FROM file_meta WHERE path=?`, docIDForPath(path)).Scan(&fp.Size, &fp.ModNano, &fp.ContentHash, &fp.FastHash)
 	if err == sql.ErrNoRows {
 		return fileFingerprint{}, false, nil
 	}
@@ -83,14 +85,15 @@ func (m *indexMetaStore) Upsert(path string, fp fileFingerprint) error {
 		return nil
 	}
 	_, err := m.db.Exec(`
-INSERT INTO file_meta(path, size, mtime_ns, content_hash, indexed_at)
-VALUES(?,?,?,?,datetime('now'))
+INSERT INTO file_meta(path, size, mtime_ns, content_hash, fast_hash, indexed_at)
+VALUES(?,?,?,?,?,datetime('now'))
 ON CONFLICT(path) DO UPDATE SET
   size=excluded.size,
   mtime_ns=excluded.mtime_ns,
   content_hash=excluded.content_hash,
+  fast_hash=excluded.fast_hash,
   indexed_at=excluded.indexed_at
-`, docIDForPath(path), fp.Size, fp.ModNano, fp.ContentHash)
+`, docIDForPath(path), fp.Size, fp.ModNano, fp.ContentHash, fp.FastHash)
 	return err
 }
 
@@ -107,7 +110,7 @@ func (m *indexMetaStore) LoadAll() (map[string]fileFingerprint, error) {
 	if m == nil || m.db == nil {
 		return out, nil
 	}
-	rows, err := m.db.Query(`SELECT path, size, mtime_ns, COALESCE(content_hash,0) FROM file_meta`)
+	rows, err := m.db.Query(`SELECT path, size, mtime_ns, COALESCE(content_hash,0), COALESCE(fast_hash,0) FROM file_meta`)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +118,7 @@ func (m *indexMetaStore) LoadAll() (map[string]fileFingerprint, error) {
 	for rows.Next() {
 		var path string
 		var fp fileFingerprint
-		if err := rows.Scan(&path, &fp.Size, &fp.ModNano, &fp.ContentHash); err != nil {
+		if err := rows.Scan(&path, &fp.Size, &fp.ModNano, &fp.ContentHash, &fp.FastHash); err != nil {
 			continue
 		}
 		out[path] = fp
