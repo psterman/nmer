@@ -4,6 +4,8 @@ global g_SCWV_Gui := 0
 global g_SCWV_Ctrl := 0
 global g_SCWV_WV2 := 0
 global g_SCWV_Ready := false
+global g_SCWV_UI_Ready := false
+global g_SCWV_WaitingUiFinishedReveal := false
 global g_SCWV_Visible := false
 global g_SCWV_LastShown := 0  ; SCWV_Show 鍚庡闄愭湡锛岄伩鍏嶇偣鍑绘偓娴潯澶辩劍绔嬪埢 Hide 涓庝簩娆＄偣鍑绘姠璺?
 global g_SCWV_SearchTimer := 0
@@ -77,16 +79,19 @@ SCWV_HostAlive() {
 }
 
 SCWV_ResetHostState() {
-    global g_SCWV_Gui, g_SCWV_Ctrl, g_SCWV_WV2, g_SCWV_Ready, g_SCWV_Visible
+    global g_SCWV_Gui, g_SCWV_Ctrl, g_SCWV_WV2, g_SCWV_Ready, g_SCWV_UI_Ready, g_SCWV_WaitingUiFinishedReveal, g_SCWV_Visible
     global g_SCWV_FocusPending, g_SCWV_PendingJsonQueue, GuiID_SearchCenter
 
     g_SCWV_Gui := 0
     g_SCWV_Ctrl := 0
     g_SCWV_WV2 := 0
     g_SCWV_Ready := false
+    g_SCWV_UI_Ready := false
+    g_SCWV_WaitingUiFinishedReveal := false
     g_SCWV_Visible := false
     g_SCWV_FocusPending := false
     g_SCWV_PendingJsonQueue := []
+    SetTimer(SCWV_ForceRevealIfStuck, 0)
     GuiID_SearchCenter := 0
     global g_SCWV_RowCtxMenu
     g_SCWV_RowCtxMenu := 0
@@ -180,10 +185,14 @@ _SCWV_MapAllDriveVirtualHosts(wv2) {
 }
 
 SCWV_OnCreated(ctrl) {
-    global g_SCWV_Ctrl, g_SCWV_WV2
+    global g_SCWV_Ctrl, g_SCWV_WV2, g_SCWV_Ready, g_SCWV_UI_Ready, g_SCWV_WaitingUiFinishedReveal
 
     g_SCWV_Ctrl := ctrl
     g_SCWV_WV2 := ctrl.CoreWebView2
+    g_SCWV_Ready := false
+    g_SCWV_UI_Ready := false
+    g_SCWV_WaitingUiFinishedReveal := false
+    SetTimer(SCWV_ForceRevealIfStuck, 0)
 
     try g_SCWV_Ctrl.DefaultBackgroundColor := 0xFF1B1B1D
     try g_SCWV_Ctrl.IsVisible := true
@@ -252,6 +261,25 @@ SCWV_ApplyBounds() {
     rc.right := cw
     rc.bottom := ch
     g_SCWV_Ctrl.Bounds := rc
+}
+
+SCWV_FinishReveal() {
+    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_WaitingUiFinishedReveal
+    if !g_SCWV_Gui
+        return
+    g_SCWV_WaitingUiFinishedReveal := false
+    SetTimer(SCWV_ForceRevealIfStuck, 0)
+    try WinSetTransparent(255, "ahk_id " . g_SCWV_Gui.Hwnd)
+    catch {
+    }
+    g_SCWV_Visible := true
+}
+
+SCWV_ForceRevealIfStuck(*) {
+    global g_SCWV_WaitingUiFinishedReveal
+    if !g_SCWV_WaitingUiFinishedReveal
+        return
+    SCWV_FinishReveal()
 }
 
 ; WebView 鍐呰仈杈撳叆渚濊禆瀹夸富婵€娲?+ WebView 鍙栫劍锛孖MM/TSF 鎵嶈兘绋冲畾闄勭潃锛堝惁鍒欒〃鐜颁负鏈夋椂涓枃銆佹湁鏃惰嫳鏂囧皬鍐欙級
@@ -1156,7 +1184,7 @@ _SCWV_ResultItemGet(Item, Prop, Default := "") {
 }
 
 SCWV_Show() {
-    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_Ready, g_SCWV_Ctrl, GuiID_SearchCenter, g_SCWV_LastShown, SearchCenterWebKeyword
+    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_Ready, g_SCWV_UI_Ready, g_SCWV_WaitingUiFinishedReveal, g_SCWV_Ctrl, GuiID_SearchCenter, g_SCWV_LastShown, SearchCenterWebKeyword
     global SearchCenterEngineMode
 
     if !SCWV_HostAlive() {
@@ -1179,6 +1207,17 @@ SCWV_Show() {
         return
     }
 
+    readyToReveal := (g_SCWV_Ready && g_SCWV_UI_Ready)
+    if readyToReveal {
+        try WinSetTransparent(255, "ahk_id " . g_SCWV_Gui.Hwnd)
+        catch {
+        }
+    } else {
+        try WinSetTransparent(0, "ahk_id " . g_SCWV_Gui.Hwnd)
+        catch {
+        }
+    }
+
     try {
         g_SCWV_Gui.Show("w1180 h760 Center")
         try WinMaximize("ahk_id " . g_SCWV_Gui.Hwnd)
@@ -1188,11 +1227,28 @@ SCWV_Show() {
         SCWV_Init()
         if !g_SCWV_Gui
             return
+        readyToReveal := (g_SCWV_Ready && g_SCWV_UI_Ready)
+        if readyToReveal {
+            try WinSetTransparent(255, "ahk_id " . g_SCWV_Gui.Hwnd)
+            catch {
+            }
+        } else {
+            try WinSetTransparent(0, "ahk_id " . g_SCWV_Gui.Hwnd)
+            catch {
+            }
+        }
         g_SCWV_Gui.Show("w1180 h760 Center")
         try WinMaximize("ahk_id " . g_SCWV_Gui.Hwnd)
         SCWV_SetHostTopMost(g_SCWV_HostTopMost)
     }
-    g_SCWV_Visible := true
+    if readyToReveal {
+        SCWV_FinishReveal()
+    } else {
+        g_SCWV_WaitingUiFinishedReveal := true
+        g_SCWV_Visible := false
+        SetTimer(SCWV_ForceRevealIfStuck, 0)
+        SetTimer(SCWV_ForceRevealIfStuck, -3200)
+    }
     g_SCWV_LastShown := A_TickCount
     try WebView2_NotifyShown(g_SCWV_WV2)
     WMActivateChain_Register(SCWV_WM_ACTIVATE)
@@ -1269,7 +1325,7 @@ SCWV_RequestFocusInput() {
 }
 
 SCWV_Hide(PersistSelection := true) {
-    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_SearchTimer, GuiID_SearchCenter, g_SCWV_PendingJsonQueue
+    global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_WaitingUiFinishedReveal, g_SCWV_SearchTimer, GuiID_SearchCenter, g_SCWV_PendingJsonQueue
     global g_SCWV_DeactivateBlockUntil, g_SCWV_DeactivateBlockReason
 
     if !SCWV_HostAlive() {
@@ -1282,7 +1338,9 @@ SCWV_Hide(PersistSelection := true) {
     SetTimer(SCWV_RefreshComposition, 0)
     SetTimer(_SCWV_DeferredMoveFocus100, 0)
     SetTimer(SCWV_FocusDeferred, 0)
+    SetTimer(SCWV_ForceRevealIfStuck, 0)
     SetTimer(SCWV_FlushPendingJsonQueue, 0)
+    g_SCWV_WaitingUiFinishedReveal := false
     g_SCWV_PendingJsonQueue := []
     g_SCWV_DeactivateBlockUntil := 0
     g_SCWV_DeactivateBlockReason := ""
@@ -1531,8 +1589,11 @@ SCWV_OnWebMessage(sender, args) {
     try {
     switch action {
         case "ready":
-            global g_SCWV_Ready
+            global g_SCWV_Ready, g_SCWV_UI_Ready, g_SCWV_WaitingUiFinishedReveal
             g_SCWV_Ready := true
+            g_SCWV_UI_Ready := true
+            if g_SCWV_WaitingUiFinishedReveal
+                SCWV_FinishReveal()
             SCWV_PushThemeToWeb()
             SCWV_PushState("init")
             _SCWV_PostFullTextStatus(true)

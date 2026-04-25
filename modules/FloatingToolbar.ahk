@@ -77,7 +77,7 @@ FTB_Debug(msg, level := "ok") {
 ; 棣栨/閲嶅缓 WebView 鍚庯細鍏堝叏閫忔槑鍗犱綅锛岀瓑椤甸潰 post UI_FINISHED 鍐嶄笉閫忔槑鏄剧ず锛岄伩鍏嶆湭娓叉煋瀹屽氨闇插嚭榛戠櫧搴曘€?; 闅愯棌鍚庡啀鎵撳紑涓?WebView 浠嶅湪锛氱洿鎺ユ樉绀猴紝涓嶅啀绛夊緟銆?
 FloatingToolbar_FinishReveal() {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarWindowX, FloatingToolbarWindowY
-    global g_FTB_WaitingUiFinishedReveal, g_FTB_WV2
+    global g_FTB_WaitingUiFinishedReveal, g_FTB_WV2, g_FTB_WV2_Ctrl
 
     if !FloatingToolbarGUI
         return
@@ -88,6 +88,10 @@ FloatingToolbar_FinishReveal() {
     tw := FloatingToolbarCalculateWidth()
     th := FloatingToolbarCalculateHeight()
     try FloatingToolbarGUI.Move(FloatingToolbarWindowX, FloatingToolbarWindowY, tw, th)
+    catch {
+    }
+    ; 首启阶段在屏幕外完成 WebView2 首帧渲染，这里再移动回真实位置并显示。
+    try g_FTB_WV2_Ctrl.IsVisible := true
     catch {
     }
     try WinSetTransparent(255, "ahk_id " . FloatingToolbarGUI.Hwnd)
@@ -105,9 +109,13 @@ FloatingToolbar_FinishReveal() {
 }
 
 FloatingToolbar_ForceRevealIfStuck() {
-    global g_FTB_WaitingUiFinishedReveal
+    global g_FTB_WaitingUiFinishedReveal, g_FTB_UI_Ready
     if !g_FTB_WaitingUiFinishedReveal
         return
+    if !g_FTB_UI_Ready {
+        SetTimer(FloatingToolbar_ForceRevealIfStuck, -600)
+        return
+    }
     OutputDebug("[FTB] UI_FINISHED timeout: force reveal")
     FloatingToolbar_FinishReveal()
 }
@@ -144,21 +152,24 @@ ShowFloatingToolbar() {
     ToolbarWidth := FloatingToolbarCalculateWidth()
     ToolbarHeight := FloatingToolbarCalculateHeight()
 
-    FloatingToolbarGUI.Show("x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . ToolbarWidth . " h" . ToolbarHeight . " NoActivate")
+    readyToReveal := (g_FTB_WV2_Ready && g_FTB_UI_Ready)
 
-    ; WebView 宸插氨缁笖椤甸潰鑷冲皯瀹屾垚杩囦竴娆?UI_FINISHED锛氱洿鎺ユ樉绀猴紙閬垮厤闅愯棌鍚庡啀寮€浠嶇瓑涓€甯э級
-    if (g_FTB_WV2_Ready && g_FTB_UI_Ready) {
+    ; WebView 已就绪（隐藏后再次打开）：直接不透明显示，不再等待
+    if readyToReveal {
         try WinSetTransparent(255, "ahk_id " . FloatingToolbarGUI.Hwnd)
         catch {
         }
+        FloatingToolbarGUI.Show("x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . ToolbarWidth . " h" . ToolbarHeight . " NoActivate")
         FloatingToolbar_FinishReveal()
         return
     }
 
-    ; 棣栨鍔犺浇鎴栭噸寤猴細鍏ㄩ€忔槑鐩村埌 HTML 鍙?UI_FINISHED锛堝幓鎺?AnimateWindow 娣″叆锛岄伩鍏嶉粦鐧介棯鍔級
+    ; 首次加载或重建：先在真实位置创建但保持隐藏，等 HTML 发 UI_FINISHED 后再显示。
+    ; 避免屏幕外坐标污染位置状态，也避免 WebView2 首帧白底露出。
     try WinSetTransparent(0, "ahk_id " . FloatingToolbarGUI.Hwnd)
     catch {
     }
+    FloatingToolbarGUI.Show("Hide x" . FloatingToolbarWindowX . " y" . FloatingToolbarWindowY . " w" . ToolbarWidth . " h" . ToolbarHeight . " NoActivate")
     g_FTB_WaitingUiFinishedReveal := true
     FloatingToolbarIsVisible := false
     FloatingToolbarApplyRoundedCorners()
@@ -228,9 +239,11 @@ CreateFloatingToolbarGUI() {
         }
     }
 
-    FloatingToolbarGUI := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x02000000", "Floating Toolbar")
-    ; 涓庡綋鍓嶄富棰樺簳鑹蹭竴鑷达紝閬垮厤鍦嗚澶栫紭闇茶壊
-    FloatingToolbarGUI.BackColor := FloatingToolbar_GetThemeBackColorHex()
+    FloatingToolbarGUI := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x02080000", "Floating Toolbar")
+    ; Boot stays dark until the web UI has painted, avoiding light-theme blank frames.
+    FloatingToolbarGUI.BackColor := FloatingToolbar_GetBootBackColorHex()
+    ; 创建后立即设为完全透明，避免 WebView2 初始化期间闪现白色矩形
+    try WinSetTransparent(0, "ahk_id " . FloatingToolbarGUI.Hwnd)
     FloatingToolbarGUI.OnEvent("Close", OnFloatingToolbarClose)
     FloatingToolbarGUI.OnEvent("ContextMenu", OnFloatingToolbarContextMenu)
 
@@ -321,10 +334,9 @@ FloatingToolbar_OnWebViewCreated(ctrl) {
     g_FTB_WV2_Ready := false
     g_FTB_WV2_FrameReady := false
 
-    ; 涓庡綋鍓嶄富棰樺簳鑹蹭竴鑷达紝閬垮厤閫忔槑鏃堕€忓嚭寮傝壊鍐嶉棯鍐呭
-    try ctrl.DefaultBackgroundColor := FloatingToolbar_GetThemeBackColorArgb()
+    ; Keep WebView2's first compositor frame dark; theme color is applied after UI_FINISHED.
+    try ctrl.DefaultBackgroundColor := FloatingToolbar_GetBootBackColorArgb()
     try ctrl.IsVisible := true
-    FloatingToolbar_ApplyHostThemeColors()
 
     FloatingToolbar_ApplyWebViewBounds()
 
@@ -408,14 +420,23 @@ FloatingToolbar_PushLogoToWeb(*) {
 }
 
 FloatingToolbar_PushThemeToWeb(*) {
-    global g_FTB_WV2
-    FloatingToolbar_ApplyHostThemeColors()
+    global g_FTB_WV2, g_FTB_UI_Ready
+    if g_FTB_UI_Ready
+        FloatingToolbar_ApplyHostThemeColors()
     if !g_FTB_WV2
         return
     tm := FloatingToolbar_GetThemeMode()
     try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_theme", "themeMode", tm))
     catch as _e {
     }
+}
+
+FloatingToolbar_GetBootBackColorHex() {
+    return "0a0a0a"
+}
+
+FloatingToolbar_GetBootBackColorArgb() {
+    return 0xFF0A0A0A
 }
 
 FloatingToolbar_GetThemeBackColorHex() {
@@ -1481,9 +1502,9 @@ LoadFloatingToolbarPosition() {
             ToolbarHeight := FloatingToolbarCalculateHeight()
 
             if (FloatingToolbarWindowX < vl || FloatingToolbarWindowX > vr - ToolbarWidth)
-                FloatingToolbarWindowX := vl
+                FloatingToolbarWindowX := vr - ToolbarWidth
             if (FloatingToolbarWindowY < vt || FloatingToolbarWindowY > vb - ToolbarHeight)
-                FloatingToolbarWindowY := vt
+                FloatingToolbarWindowY := vb - ToolbarHeight
         }
     } catch {
         FloatingToolbarWindowX := 0
