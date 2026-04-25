@@ -203,3 +203,27 @@ Source:	WinHttp.WinHttpRequest
 
 Source:	WinHttp.WinHttpRequest
 [2026-04-25 08:15:56] SearchCoreError: SearchCenterCore 瞬时不可用（HTTP 0），已保留当前结果
+[2026-04-25 08:36:36] SearchCore HTTP exception: (0x80072EE2) 
+操作超时
+
+Source:	WinHttp.WinHttpRequest
+[2026-04-25 08:36:36] SearchCore HTTP 0 fast-fail
+[2026-04-25 08:36:36] SearchCoreError: SearchCenterCore 瞬时不可用（HTTP 0），已保留当前结果
+[2026-04-25 08:36:44] SearchCore HTTP exception: (0x80072EE2) 
+操作超时
+
+Source:	WinHttp.WinHttpRequest
+[2026-04-25 08:36:44] SearchCore HTTP 0 fast-fail
+[2026-04-25 08:36:44] SearchCoreError: SearchCenterCore 瞬时不可用（HTTP 0），已保留当前结果
+[2026-04-25 08:37:08] SearchCore HTTP exception: (0x80072EE2) 
+操作超时
+
+Source:	WinHttp.WinHttpRequest
+[2026-04-25 08:37:08] SearchCore HTTP 0 fast-fail
+[2026-04-25 08:37:08] SearchCoreError: SearchCenterCore 瞬时不可用（HTTP 0），已保留当前结果
+[2026-04-25 08:38:08] SearchCore HTTP exception: (0x80072EE2) 
+操作超时
+
+Source:	WinHttp.WinHttpRequest
+[2026-04-25 08:38:08] SearchCore HTTP 0 fast-fail
+[2026-04-25 08:38:08] SearchCoreError: SearchCenterCore 瞬时不可用（HTTP 0），已保留当前结果

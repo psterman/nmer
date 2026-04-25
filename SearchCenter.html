@@ -550,66 +550,6 @@ button, input, select, textarea { font: inherit; }
   height: 38px;
   padding: 0 10px;
 }
-#file-subtype-head-wrap {
-  display: none;
-  margin-top: 6px;
-  width: 100%;
-  max-width: 100%;
-}
-.file-hfilter-top {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-}
-.file-hfilter-row {
-  display: flex;
-  gap: 6px;
-  overflow: auto hidden;
-  padding: 2px 0;
-  scrollbar-width: thin;
-}
-.file-hfilter-row.major,
-.file-hfilter-row.subtype {
-  margin-top: 2px;
-}
-.file-hfilter-help {
-  margin: 4px 0 2px;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.35;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.file-hfilter-chip {
-  flex: 0 0 auto;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--panel-2);
-  color: var(--muted);
-  font-size: 11px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.file-hfilter-chip:hover {
-  color: var(--text);
-  border-color: rgba(255,255,255,.2);
-}
-.file-hfilter-chip.active {
-  background: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
-  border-color: rgba(255,179,71,.5);
-  color: #fff;
-}
-.file-hfilter-chip.novice {
-  border-color: rgba(142,185,255,.28);
-}
-.file-hfilter-chip.novice.active {
-  background: linear-gradient(180deg, rgba(94,170,255,.2), rgba(74,145,255,.12));
-  border-color: rgba(94,170,255,.65);
-}
 #btn-run {
   min-width: 68px;
   font-weight: 700;
@@ -625,12 +565,74 @@ button, input, select, textarea { font: inherit; }
   min-width: 0;
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 #filters {
   display: flex;
   gap: 8px;
   overflow: auto hidden;
   padding: 2px 0;
+}
+#subtag-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+#subtag-panel.hidden {
+  display: none;
+}
+#subtag-modes,
+#subtags {
+  display: flex;
+  gap: 6px;
+  overflow: auto hidden;
+  padding: 1px 0;
+}
+.subtag-mode-chip,
+.subtag-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: .16s ease;
+  white-space: nowrap;
+}
+.subtag-mode-chip {
+  padding: 2px 8px;
+  font-size: 10px;
+}
+.subtag-chip {
+  padding: 4px 9px;
+  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.subtag-mode-chip.active,
+.subtag-chip.active {
+  background: linear-gradient(180deg, rgba(255,179,71,.18), rgba(255,141,42,.14));
+  border-color: rgba(255,179,71,.56);
+  color: #fff;
+}
+.subtag-chip .cnt {
+  min-width: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+  text-align: center;
+}
+#subtag-desc {
+  font-size: 10px;
+  color: #8ea0ad;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 #categories,
 #engines {
@@ -642,6 +644,8 @@ button, input, select, textarea { font: inherit; }
 #categories::-webkit-scrollbar,
 #engines::-webkit-scrollbar,
 #filters::-webkit-scrollbar,
+#subtag-modes::-webkit-scrollbar,
+#subtags::-webkit-scrollbar,
 #result-list::-webkit-scrollbar,
 #preview-web-scroll::-webkit-scrollbar {
   height: 8px;
@@ -650,6 +654,8 @@ button, input, select, textarea { font: inherit; }
 #categories::-webkit-scrollbar-thumb,
 #engines::-webkit-scrollbar-thumb,
 #filters::-webkit-scrollbar-thumb,
+#subtag-modes::-webkit-scrollbar-thumb,
+#subtags::-webkit-scrollbar-thumb,
 #result-list::-webkit-scrollbar-thumb,
 #preview-web-scroll::-webkit-scrollbar-thumb {
   background: #3a434d;
@@ -875,32 +881,14 @@ button, input, select, textarea { font: inherit; }
   font-size: 13px;
   font-weight: 600;
   color: #fff;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-.result-type-icon {
-  flex: 0 0 auto;
-  width: 18px;
-  text-align: center;
-  opacity: 0.95;
-  font-size: 13px;
-  line-height: 1;
 }
 .pin-ico {
   display: inline-block;
-  margin-right: 1px;
+  margin-right: 5px;
   font-size: 12px;
   vertical-align: middle;
   opacity: 0.95;
   user-select: none;
-}
-.result-title-text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .result-sub {
   margin-top: 3px;
@@ -1628,15 +1616,22 @@ html[data-theme="light"] .engine-fallback {
 html[data-theme="light"] .chip.active,
 html[data-theme="light"] .filter-chip.active,
 html[data-theme="light"] .engine-chip.active,
+html[data-theme="light"] .subtag-chip.active,
+html[data-theme="light"] .subtag-mode-chip.active,
 html[data-theme="light"] .caps-hotkey-hit .hotkey-hint {
   color: #5a3208;
 }
 html[data-theme="light"] #categories::-webkit-scrollbar-thumb,
 html[data-theme="light"] #engines::-webkit-scrollbar-thumb,
 html[data-theme="light"] #filters::-webkit-scrollbar-thumb,
+html[data-theme="light"] #subtag-modes::-webkit-scrollbar-thumb,
+html[data-theme="light"] #subtags::-webkit-scrollbar-thumb,
 html[data-theme="light"] #result-list::-webkit-scrollbar-thumb,
 html[data-theme="light"] #preview-web-scroll::-webkit-scrollbar-thumb {
   background: #bcc9d6;
+}
+html[data-theme="light"] #subtag-desc {
+  color: #5f7488;
 }
 html[data-theme="light"] .result-item:hover {
   background: #f2f6fa;
@@ -1794,18 +1789,6 @@ mark {
     flex-wrap: wrap;
     justify-content: flex-start;
   }
-  .file-hfilter-chip {
-    height: 26px;
-    padding: 0 9px;
-    font-size: 10px;
-  }
-  .file-hfilter-top {
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
-  .file-hfilter-help {
-    white-space: normal;
-  }
   .fulltext-inline {
     flex-wrap: wrap;
   }
@@ -1916,13 +1899,10 @@ mark {
         </div>
         <div id="head-filters">
           <div id="filters"></div>
-          <div id="file-subtype-head-wrap">
-            <div class="file-hfilter-top">
-              <div id="file-novice-row" class="file-hfilter-row novice" aria-label="文件小白分类"></div>
-              <div id="file-major-row" class="file-hfilter-row major" aria-label="文件大类"></div>
-            </div>
-            <div id="file-novice-help" class="file-hfilter-help" aria-live="polite"></div>
-            <div id="file-subtype-row" class="file-hfilter-row subtype" aria-label="文件细分类型"></div>
+          <div id="subtag-panel" class="hidden">
+            <div id="subtag-modes"></div>
+            <div id="subtags"></div>
+            <div id="subtag-desc"></div>
           </div>
         </div>
         <div class="head-sub" id="result-count">0 条</div>
@@ -2021,6 +2001,8 @@ if (typeof BasePanel === 'undefined') {
 const SC_ENGINE_MODE_KEY = "sc_engine_mode";
 const SC_HOTKEY_BINDINGS_KEY = "sc_hotkey_bindings_v1";
 const SC_FT_ADVANCED_KEY = "sc_ft_ui_advanced";
+const SC_SUBTAG_AUDIENCE_KEY = "sc_subtag_audience_v1";
+const SC_SUBTAG_SELECTION_KEY = "sc_subtag_selection_v1";
 
 function normalizeThemeMode(mode) {
   return String(mode || "").toLowerCase() === "light" ? "light" : "dark";
@@ -2062,10 +2044,10 @@ const state = {
   selectedEngines: [],
   filters: [],
   filterType: "",
-  fileNoviceFilter: "ALL",
-  fileSubtypeMajor: "",
-  fileSubtypeFilter: "all",
+  resultsRaw: [],
   results: [],
+  subtagAudience: (typeof localStorage !== "undefined" && localStorage.getItem(SC_SUBTAG_AUDIENCE_KEY) === "geek") ? "geek" : "newbie",
+  activeSubtags: {},
   hasMore: false,
   loading: false,
   loadMoreCooldownUntil: 0,
@@ -2145,380 +2127,19 @@ const state = {
   }
 };
 state.hotkeyBindings = loadHotkeyBindings();
+try {
+  const rawSubtagMap = localStorage.getItem(SC_SUBTAG_SELECTION_KEY);
+  if (rawSubtagMap) {
+    const parsed = JSON.parse(rawSubtagMap);
+    if (parsed && typeof parsed === "object") {
+      state.activeSubtags = parsed;
+    }
+  }
+} catch (_) {}
 
 const PDF_JS_ASSET_BASE = "https://app.local/assets/pdfjs/";
 
 const postToAhk = (obj) => BasePanel.postToAhk(obj);
-
-const FILE_EXT_GROUPS = Object.freeze({
-  image: new Set(["png", "jpg", "jpeg", "webp", "bmp", "svg", "tif", "tiff", "ico", "heic"]),
-  gif: new Set(["gif"]),
-  video: new Set(["mp4", "mkv", "mov", "avi", "wmv", "flv", "webm", "m4v", "mpeg", "mpg"]),
-  audio: new Set(["mp3", "wav", "flac", "aac", "m4a", "ogg", "opus", "wma"]),
-  source: new Set(["ahk", "go", "js", "ts", "tsx", "jsx", "py", "java", "c", "cpp", "h", "hpp", "cs", "rs", "php", "rb", "lua", "sh", "ps1", "bat", "cmd", "sql"]),
-  config: new Set(["ini", "json", "yaml", "yml", "toml", "conf", "cfg", "env", "xml", "properties"]),
-  markdown: new Set(["md", "markdown", "mdx"]),
-  imageDisk: new Set(["iso", "img", "vhd", "vhdx", "vmdk", "dmg"])
-});
-
-const FILE_SUBTYPE_GROUPS = Object.freeze({
-  fs: Object.freeze({
-    label: "文件系统",
-    items: Object.freeze([
-      { key: "fs_folder", label: "文件夹" },
-      { key: "fs_image", label: "镜像文件" },
-      { key: "fs_mount", label: "挂载盘" }
-    ])
-  }),
-  code: Object.freeze({
-    label: "代码/文本",
-    items: Object.freeze([
-      { key: "code_source", label: "源码" },
-      { key: "code_config", label: "配置" },
-      { key: "code_markdown", label: "Markdown" }
-    ])
-  }),
-  net: Object.freeze({
-    label: "网络数据",
-    items: Object.freeze([
-      { key: "net_url", label: "URL" },
-      { key: "net_ip", label: "IP地址" },
-      { key: "net_domain", label: "域名" }
-    ])
-  }),
-  fin: Object.freeze({
-    label: "财务/数学",
-    items: Object.freeze([
-      { key: "fin_bankcard", label: "银行卡" },
-      { key: "fin_amount", label: "金额" },
-      { key: "fin_latlng", label: "经纬度" }
-    ])
-  }),
-  contact: Object.freeze({
-    label: "通讯录",
-    items: Object.freeze([
-      { key: "contact_email", label: "邮箱" },
-      { key: "contact_phone", label: "手机号" },
-      { key: "contact_wechat", label: "微信ID" }
-    ])
-  }),
-  media: Object.freeze({
-    label: "富媒体",
-    items: Object.freeze([
-      { key: "media_image", label: "图片" },
-      { key: "media_gif", label: "动图GIF" },
-      { key: "media_video", label: "视频" },
-      { key: "media_audio", label: "音效" }
-    ])
-  })
-});
-
-const FILE_NOVICE_TAGS = Object.freeze([
-  { id: "APPS", name: "启动台" },
-  { id: "DOCS", name: "文档" },
-  { id: "DATA", name: "表格" },
-  { id: "IMGS", name: "素材" },
-  { id: "LINK", name: "网络" },
-  { id: "CHAT", name: "联系人" }
-]);
-
-const FILE_NOVICE_EXT = Object.freeze({
-  APPS: new Set(["exe", "lnk", "app", "cpl"]),
-  DOCS: new Set(["doc", "docx", "pdf", "txt", "md"]),
-  DATA: new Set(["xls", "xlsx", "csv", "tsv"]),
-  IMGS: new Set(["jpg", "jpeg", "png", "svg", "webp"])
-});
-
-const FILE_NOVICE_HELP = Object.freeze({
-  APPS: "启动台：电脑里的软件、控制面板设置（.exe / .lnk / .app / .cpl）",
-  DOCS: "文档：工作报告、作业、笔记、PDF（.docx / .pdf / .txt / .md）",
-  DATA: "表格：账单、统计表、考勤表（.xlsx / .csv / .tsv）",
-  IMGS: "素材：照片、图标、截图（.jpg / .png / .svg / .webp）",
-  LINK: "网络：网址、书签、历史记录（http / https）",
-  CHAT: "联系人：手机号、邮箱、微信ID（Regex 识别）",
-  ALL: "文件标签默认覆盖全部结果。可用上方“小白分类”快速缩小范围，或用右侧专业分类精确过滤。"
-});
-
-function subtypeMajorKey(subtype) {
-  const st = String(subtype || "");
-  if (st === "all" || !st) return "";
-  if (st.startsWith("fs_")) return "fs";
-  if (st.startsWith("code_")) return "code";
-  if (st.startsWith("net_")) return "net";
-  if (st.startsWith("fin_")) return "fin";
-  if (st.startsWith("contact_")) return "contact";
-  if (st.startsWith("media_")) return "media";
-  return "";
-}
-
-function isFileFilterActive() {
-  return String(state.filterType || "") === "File";
-}
-
-function resolveFilterKey() {
-  return String(state.filterType || "");
-}
-
-function itemRawText(item) {
-  if (!item || typeof item !== "object") return "";
-  return [
-    item.title, item.subtitle, item.preview, item.content, item.source, item.path
-  ].map((v) => String(v || "")).join(" ");
-}
-
-function itemPathText(item) {
-  if (!item || typeof item !== "object") return "";
-  const p = String(item.path || "").trim();
-  if (p && looksLikeWindowsPath(p)) return p;
-  const c = String(item.content || "").trim();
-  return looksLikeWindowsPath(c) ? c : "";
-}
-
-function itemExtLower(item) {
-  const p = itemPathText(item);
-  if (p) return pathExtensionLower(p);
-  const txt = itemRawText(item).toLowerCase();
-  const m = txt.match(/\.([a-z0-9]{1,8})(?:\b|$)/i);
-  return m ? String(m[1] || "").toLowerCase() : "";
-}
-
-function luhnCheck(numText) {
-  const digits = String(numText || "").replace(/\D/g, "");
-  if (!/^\d{13,19}$/.test(digits)) return false;
-  let sum = 0;
-  let shouldDouble = false;
-  for (let i = digits.length - 1; i >= 0; i -= 1) {
-    let d = Number(digits[i]);
-    if (shouldDouble) {
-      d *= 2;
-      if (d > 9) d -= 9;
-    }
-    sum += d;
-    shouldDouble = !shouldDouble;
-  }
-  return sum % 10 === 0;
-}
-
-function itemMatchesSubtype(item, subtype) {
-  if (!subtype || subtype === "all") return true;
-  const raw = itemRawText(item);
-  const rawL = raw.toLowerCase();
-  const path = itemPathText(item);
-  const pathL = String(path || "").toLowerCase();
-  const ext = itemExtLower(item);
-  const typeL = String(item && (item.type || item.dataType) || "").toLowerCase();
-
-  const reUrl = /https?:\/\/[^\s"']+/i;
-  const reIp = /\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/;
-  const reDomain = /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|cn|io|dev|ai|edu|gov|info|co|me|top|xyz)\b/i;
-  const reAmount = /(?:¥|￥|\$|usd|cny|rmb)?\s*[+-]?\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?\b/i;
-  const reLatLng = /\b-?(?:[1-8]?\d(?:\.\d+)?|90(?:\.0+)?)\s*[,，]\s*-?(?:1[0-7]\d(?:\.\d+)?|180(?:\.0+)?|[1-9]?\d(?:\.\d+)?)\b/;
-  const reEmail = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
-  const rePhone = /(?:\+?86[-\s]?)?1[3-9]\d{9}\b|\+\d{1,3}[-\s]?\d{6,14}\b/;
-  const reWechat = /\b(?:wxid_[a-z0-9_-]{5,20}|[a-z][-_a-z0-9]{5,19})\b/i;
-
-  switch (subtype) {
-    case "fs_folder":
-      return typeL.includes("folder") || typeL.includes("文件夹") || /\\$/.test(path) || /^[a-z]:\\?$/i.test(path);
-    case "fs_image":
-      return FILE_EXT_GROUPS.imageDisk.has(ext);
-    case "fs_mount":
-      return /^[a-z]:\\?$/i.test(path) || pathL.startsWith("\\\\?\\volume") || pathL.startsWith("\\\\.\\physicaldrive");
-    case "code_source":
-      return FILE_EXT_GROUPS.source.has(ext);
-    case "code_config":
-      return FILE_EXT_GROUPS.config.has(ext);
-    case "code_markdown":
-      return FILE_EXT_GROUPS.markdown.has(ext);
-    case "net_url":
-      return reUrl.test(raw);
-    case "net_ip":
-      return reIp.test(raw);
-    case "net_domain":
-      return reDomain.test(raw);
-    case "fin_bankcard": {
-      const candidates = raw.match(/\d[\d\s-]{11,25}\d/g) || [];
-      return candidates.some((x) => luhnCheck(x));
-    }
-    case "fin_amount":
-      return reAmount.test(raw);
-    case "fin_latlng":
-      return reLatLng.test(raw);
-    case "contact_email":
-      return reEmail.test(raw);
-    case "contact_phone":
-      return rePhone.test(raw);
-    case "contact_wechat":
-      return /微信|wechat|wxid_/i.test(raw) || reWechat.test(raw);
-    case "media_image":
-      return FILE_EXT_GROUPS.image.has(ext);
-    case "media_gif":
-      return FILE_EXT_GROUPS.gif.has(ext);
-    case "media_video":
-      return FILE_EXT_GROUPS.video.has(ext);
-    case "media_audio":
-      return FILE_EXT_GROUPS.audio.has(ext);
-    default:
-      return true;
-  }
-}
-
-function itemMatchesNoviceTag(item, noviceId) {
-  const id = String(noviceId || "ALL").toUpperCase();
-  if (!id || id === "ALL") return true;
-  const raw = itemRawText(item);
-  const ext = itemExtLower(item);
-  const reUrl = /https?:\/\/[^\s"']+/i;
-  const reEmail = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
-  const rePhone = /(?:\+?86[-\s]?)?1[3-9]\d{9}\b|\+\d{1,3}[-\s]?\d{6,14}\b/;
-  const reWechat = /\b(?:wxid_[a-z0-9_-]{5,20}|[a-z][-_a-z0-9]{5,19})\b/i;
-
-  switch (id) {
-    case "APPS":
-      return FILE_NOVICE_EXT.APPS.has(ext);
-    case "DOCS":
-      return FILE_NOVICE_EXT.DOCS.has(ext);
-    case "DATA":
-      return FILE_NOVICE_EXT.DATA.has(ext);
-    case "IMGS":
-      return FILE_NOVICE_EXT.IMGS.has(ext);
-    case "LINK":
-      return reUrl.test(raw) || ext === "url";
-    case "CHAT":
-      return reEmail.test(raw) || rePhone.test(raw) || reWechat.test(raw) || /地址|address/i.test(raw);
-    default:
-      return true;
-  }
-}
-
-function getVisibleResults() {
-  const base = Array.isArray(state.results) ? state.results : [];
-  if (!isFileFilterActive()) return base;
-  const novice = String(state.fileNoviceFilter || "ALL").toUpperCase();
-  const afterNovice = (novice === "ALL") ? base : base.filter((item) => itemMatchesNoviceTag(item, novice));
-  const subtype = String(state.fileSubtypeFilter || "all");
-  if (subtype === "all") return afterNovice;
-  return afterNovice.filter((item) => itemMatchesSubtype(item, subtype));
-}
-
-function syncResultCount() {
-  const el = document.getElementById("result-count");
-  if (!el) return;
-  el.textContent = String(getVisibleResults().length) + " 条";
-}
-
-function setFileSubtypeFilter(nextSubtype, forceMajor = "") {
-  const sub = String(nextSubtype || "all");
-  state.fileNoviceFilter = "ALL";
-  state.fileSubtypeFilter = sub;
-  state.fileSubtypeMajor = forceMajor || subtypeMajorKey(sub);
-  const visible = getVisibleResults();
-  if (!visible.some((item) => item.row == state.selectedRow)) {
-    state.selectedRow = visible.length ? visible[0].row : 1;
-  }
-  syncResultCount();
-  renderResults();
-  syncFileSubtypeUi();
-}
-
-function setFileNoviceFilter(nextNovice) {
-  const nv = String(nextNovice || "ALL").toUpperCase();
-  state.fileNoviceFilter = (state.fileNoviceFilter === nv) ? "ALL" : nv;
-  if (state.fileNoviceFilter !== "ALL") {
-    state.fileSubtypeFilter = "all";
-    state.fileSubtypeMajor = "";
-  }
-  const visible = getVisibleResults();
-  if (!visible.some((item) => item.row == state.selectedRow)) {
-    state.selectedRow = visible.length ? visible[0].row : 1;
-  }
-  syncResultCount();
-  renderResults();
-  syncFileSubtypeUi();
-}
-
-function renderFileNoviceHead() {
-  const noviceRow = document.getElementById("file-novice-row");
-  if (!noviceRow) return;
-  noviceRow.innerHTML = "";
-  FILE_NOVICE_TAGS.forEach((tag) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "file-hfilter-chip novice" + (state.fileNoviceFilter === tag.id ? " active" : "");
-    btn.textContent = tag.name;
-    btn.onclick = () => setFileNoviceFilter(tag.id);
-    noviceRow.appendChild(btn);
-  });
-}
-
-function renderFileNoviceHelp() {
-  const help = document.getElementById("file-novice-help");
-  if (!help) return;
-  const key = String(state.fileNoviceFilter || "ALL").toUpperCase();
-  help.textContent = FILE_NOVICE_HELP[key] || FILE_NOVICE_HELP.ALL;
-}
-
-function renderFileSubtypeHead() {
-  renderFileNoviceHead();
-  renderFileNoviceHelp();
-  const majorRow = document.getElementById("file-major-row");
-  const subtypeRow = document.getElementById("file-subtype-row");
-  if (!majorRow || !subtypeRow) return;
-  majorRow.innerHTML = "";
-  subtypeRow.innerHTML = "";
-
-  const majorKeys = ["fs", "code", "net", "fin", "contact", "media"];
-  majorKeys.forEach((mk) => {
-    const group = FILE_SUBTYPE_GROUPS[mk];
-    if (!group) return;
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "file-hfilter-chip" + (state.fileSubtypeMajor === mk ? " active" : "");
-    btn.textContent = group.label;
-    btn.onclick = () => {
-      if (state.fileSubtypeMajor === mk) {
-        setFileSubtypeFilter("all", "");
-        return;
-      }
-      const items = group.items || [];
-      const keep = items.some((it) => it.key === state.fileSubtypeFilter);
-      const next = keep ? state.fileSubtypeFilter : (items[0] ? items[0].key : "all");
-      setFileSubtypeFilter(next, mk);
-    };
-    majorRow.appendChild(btn);
-  });
-
-  const activeGroup = FILE_SUBTYPE_GROUPS[state.fileSubtypeMajor];
-  if (!activeGroup || !Array.isArray(activeGroup.items) || !activeGroup.items.length) {
-    subtypeRow.style.display = "none";
-    return;
-  }
-  subtypeRow.style.display = "flex";
-  (activeGroup.items || []).forEach((it) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "file-hfilter-chip" + (state.fileSubtypeFilter === it.key ? " active" : "");
-    btn.textContent = it.label;
-    btn.onclick = () => setFileSubtypeFilter(it.key, state.fileSubtypeMajor);
-    subtypeRow.appendChild(btn);
-  });
-}
-
-function syncFileSubtypeUi() {
-  const headWrap = document.getElementById("file-subtype-head-wrap");
-  if (!headWrap) return;
-  if (String(state.fileSubtypeFilter || "all") === "all") {
-    state.fileSubtypeMajor = "";
-  } else {
-    state.fileSubtypeMajor = subtypeMajorKey(state.fileSubtypeFilter);
-  }
-  if (isFileFilterActive()) {
-    headWrap.style.display = "block";
-    renderFileSubtypeHead();
-  } else {
-    headWrap.style.display = "none";
-  }
-}
 
 function syncEngineModeButton() {
   const isGo = state.engineMode === "go";
@@ -2578,6 +2199,53 @@ const PREVIEW_PDF_EXT = new Set(["pdf"]);
 const PREVIEW_ARCHIVE_EXT = new Set(["zip", "7z", "rar", "tar", "gz", "tgz", "bz2", "xz", "cab", "iso"]);
 const PDF_MODE_OPTIONS_BASE = ["auto", "pdfjs", "web", "pdfium", "ipreview"];
 const ONE_MB = 1048576;
+const DOC_EXT_SET = new Set(["doc", "docx", "pdf", "md", "epub", "txt", "rtf", "wps", "odt"]);
+const SHEET_EXT_SET = new Set(["xls", "xlsx", "csv", "tsv", "ods"]);
+const SLIDE_EXT_SET = new Set(["ppt", "pptx", "key", "odp"]);
+const CODE_EXT_SET = new Set(["ahk", "py", "js", "ts", "jsx", "tsx", "json", "yaml", "yml", "ini", "bat", "ps1", "sh", "java", "go", "rs", "cpp", "c", "h", "hpp", "cs", "html", "css", "sql", "toml", "xml"]);
+const MEDIA_EXT_SET = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico", "psd", "mp3", "wav", "flac", "m4a", "aac", "ogg", "opus", "wma", "mp4", "m4v", "mov", "webm", "mkv", "avi"]);
+const CONFIG_EXT_SET = new Set(["ini", "json", "yaml", "yml", "toml", "xml", "conf", "cfg", "properties"]);
+const LOG_EXT_SET = new Set(["log", "txt", "out", "err"]);
+const STARTUP_EXT_SET = new Set(["exe", "lnk", "app", "cpl"]);
+const WEB_LINK_EXT_SET = new Set(["url"]);
+const IMAGE_MATERIAL_EXT_SET = new Set(["jpg", "jpeg", "png", "svg", "webp", "psd"]);
+const SUBTAG_TAXONOMY = Object.freeze({
+  File: Object.freeze({
+    newbie: Object.freeze([
+      Object.freeze({ key: "all", label: "全部文件", desc: "展示所有文件结果，适合先看全局。", kind: "all" }),
+      Object.freeze({ key: "quickstart", label: "🚀 快捷启动", desc: "电脑里的软件、控制面板功能、常用系统工具。", kind: "quickstart" }),
+      Object.freeze({ key: "doc", label: "📄 办公文档", desc: "工作汇报、PDF、Word、电子书。", kind: "ext", set: DOC_EXT_SET }),
+      Object.freeze({ key: "sheet", label: "📊 表格数据", desc: "账单、统计表、考勤表、CSV。", kind: "ext", set: SHEET_EXT_SET }),
+      Object.freeze({ key: "image", label: "🎨 图片素材", desc: "照片、图标、设计草图、壁纸。", kind: "image" }),
+      Object.freeze({ key: "web", label: "🔗 网络收藏", desc: "浏览器书签、保存的网页链接、历史记录。", kind: "web" }),
+      Object.freeze({ key: "contact", label: "📱 常用联系", desc: "邮箱地址、手机号、同事名字、微信 ID。", kind: "contact" }),
+      Object.freeze({ key: "archive", label: "📦 压缩包", desc: "下载的安装包、整理的旧资料。", kind: "archive" })
+    ]),
+    geek: Object.freeze([
+      Object.freeze({ key: "all", label: "All", desc: "不过滤，查看完整文件数据面。", kind: "all" }),
+      Object.freeze({ key: "code", label: "Code & Script", desc: "代码与脚本：适合技术检索与排障。", kind: "ext", set: CODE_EXT_SET }),
+      Object.freeze({ key: "config", label: "Config", desc: "配置文件：参数、环境与服务配置。", kind: "ext", set: CONFIG_EXT_SET }),
+      Object.freeze({ key: "logs", label: "Logs", desc: "日志与输出：用于故障定位和行为回溯。", kind: "ext", set: LOG_EXT_SET }),
+      Object.freeze({ key: "dataset", label: "Dataset", desc: "结构化数据集与报表源。", kind: "ext", set: SHEET_EXT_SET }),
+      Object.freeze({ key: "binary", label: "Binary", desc: "非文本二进制文件（排除代码/配置/文档）。", kind: "binary" })
+    ])
+  }),
+  fulltext: Object.freeze({
+    newbie: Object.freeze([
+      Object.freeze({ key: "all", label: "全部命中", desc: "展示所有全文命中结果。", kind: "all" }),
+      Object.freeze({ key: "ctx", label: "上下文丰富", desc: "优先看带命中上下文的条目。", kind: "hitContext" }),
+      Object.freeze({ key: "doc", label: "文档命中", desc: "常见文档中的关键字命中。", kind: "ext", set: DOC_EXT_SET }),
+      Object.freeze({ key: "code", label: "代码命中", desc: "代码与脚本中的关键字命中。", kind: "ext", set: CODE_EXT_SET })
+    ]),
+    geek: Object.freeze([
+      Object.freeze({ key: "all", label: "All Hits", desc: "全文命中的完整视图。", kind: "all" }),
+      Object.freeze({ key: "ctx", label: "Context-rich", desc: "命中上下文块更完整，便于二次分析。", kind: "hitContext" }),
+      Object.freeze({ key: "config", label: "Config Hits", desc: "配置文件相关命中，常用于参数追踪。", kind: "ext", set: CONFIG_EXT_SET }),
+      Object.freeze({ key: "logs", label: "Log Hits", desc: "日志命中，常用于排障时间线分析。", kind: "ext", set: LOG_EXT_SET }),
+      Object.freeze({ key: "code", label: "Code Hits", desc: "代码命中，适合定位实现细节。", kind: "ext", set: CODE_EXT_SET })
+    ])
+  })
+});
 const HOTKEY_HINT_DEFAULT_MAP = Object.freeze({
   category: Object.freeze({
     ai: "q",
@@ -3041,7 +2709,7 @@ function getHitContextList(item) {
 }
 
 function getSelectedResultItem() {
-  return getVisibleResults().find((entry) => entry.row == state.selectedRow) || null;
+  return state.results.find((entry) => entry.row == state.selectedRow) || null;
 }
 
 function normalizeHitContextRows(item) {
@@ -3471,6 +3139,230 @@ function scheduleHostCapsHotkeyFallback(rawKey) {
   }, 90);
 }
 
+function resolveFilterKey() {
+  const raw = String(state.filterType || "");
+  if (raw.toLowerCase() === "file") return "File";
+  return raw;
+}
+
+function saveSubtagAudience() {
+  try {
+    localStorage.setItem(SC_SUBTAG_AUDIENCE_KEY, state.subtagAudience === "geek" ? "geek" : "newbie");
+  } catch (_) {}
+}
+
+function saveSubtagSelectionMap() {
+  try {
+    localStorage.setItem(SC_SUBTAG_SELECTION_KEY, JSON.stringify(state.activeSubtags || {}));
+  } catch (_) {}
+}
+
+function isFolderLikeItem(item) {
+  const dt = String(item && (item.dataType || item.type) || "").toLowerCase();
+  return dt === "folder" || dt === "dir" || dt === "directory";
+}
+
+function itemFileExt(item) {
+  const p = getSelectedItemPath(item);
+  return pathExtensionLower(p);
+}
+
+function getItemSearchBlob(item) {
+  if (!item || typeof item !== "object") return "";
+  const parts = [
+    item.title,
+    item.subtitle,
+    item.preview,
+    item.content,
+    item.path,
+    item.source
+  ].filter((v) => v !== null && v !== undefined).map((v) => String(v));
+  return parts.join("\n");
+}
+
+function hasUrlMarker(text) {
+  const s = String(text || "");
+  return /https?:\/\//i.test(s);
+}
+
+function hasContactMarker(text) {
+  const s = String(text || "");
+  const emailRe = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
+  const phoneRe = /(?<!\d)(?:\+?86[-\s]?)?(?:1[3-9]\d{9}|0\d{2,3}[-\s]?\d{7,8})(?!\d)/;
+  const wechatRe = /\b[a-zA-Z][-_a-zA-Z0-9]{5,19}\b/;
+  return emailRe.test(s) || phoneRe.test(s) || wechatRe.test(s);
+}
+
+function hasTarGzPath(item) {
+  const p = getSelectedItemPath(item);
+  if (!p) return false;
+  return /\.tar\.gz$/i.test(String(p).trim());
+}
+
+function matchSubtagRule(item, rule) {
+  if (!item || !rule) return false;
+  const kind = String(rule.kind || "all");
+  if (kind === "all") return true;
+  if (kind === "folder") return isFolderLikeItem(item);
+  if (kind === "hitContext") return normalizeHitContextRows(item).length > 0;
+  if (kind === "ext") {
+    if (isFolderLikeItem(item)) return false;
+    const ext = itemFileExt(item);
+    return !!(ext && rule.set && rule.set.has(ext));
+  }
+  if (kind === "binary") {
+    if (isFolderLikeItem(item)) return false;
+    const ext = itemFileExt(item);
+    if (!ext) return false;
+    if (CODE_EXT_SET.has(ext) || CONFIG_EXT_SET.has(ext) || LOG_EXT_SET.has(ext) || DOC_EXT_SET.has(ext) || SHEET_EXT_SET.has(ext) || SLIDE_EXT_SET.has(ext)) {
+      return false;
+    }
+    return true;
+  }
+  if (kind === "quickstart") {
+    const blob = getItemSearchBlob(item);
+    if (/ms-settings:/i.test(blob)) return true;
+    const ext = itemFileExt(item);
+    return !!(ext && STARTUP_EXT_SET.has(ext));
+  }
+  if (kind === "image") {
+    const ext = itemFileExt(item);
+    return !!(ext && IMAGE_MATERIAL_EXT_SET.has(ext));
+  }
+  if (kind === "web") {
+    const ext = itemFileExt(item);
+    if (ext && WEB_LINK_EXT_SET.has(ext)) return true;
+    return hasUrlMarker(getItemSearchBlob(item));
+  }
+  if (kind === "contact") {
+    return hasContactMarker(getItemSearchBlob(item));
+  }
+  if (kind === "archive") {
+    const ext = itemFileExt(item);
+    if (ext && PREVIEW_ARCHIVE_EXT.has(ext)) return true;
+    return hasTarGzPath(item);
+  }
+  return true;
+}
+
+function getCurrentSubtagGroup() {
+  const filterKey = resolveFilterKey();
+  const node = SUBTAG_TAXONOMY[filterKey];
+  if (!node) return null;
+  return node[state.subtagAudience === "geek" ? "geek" : "newbie"] || node.newbie || null;
+}
+
+function getActiveSubtagKey(filterKey, group) {
+  const g = Array.isArray(group) ? group : [];
+  if (!g.length) return "";
+  const current = String((state.activeSubtags && state.activeSubtags[filterKey]) || "");
+  if (current && g.some((x) => x && x.key === current)) return current;
+  const fallback = String((g[0] && g[0].key) || "");
+  if (!state.activeSubtags || typeof state.activeSubtags !== "object") state.activeSubtags = {};
+  state.activeSubtags[filterKey] = fallback;
+  return fallback;
+}
+
+function applySubtagResultView() {
+  const raw = Array.isArray(state.resultsRaw) ? state.resultsRaw : [];
+  const filterKey = resolveFilterKey();
+  const group = getCurrentSubtagGroup();
+  if (!group || !group.length) {
+    state.results = raw.slice();
+    return;
+  }
+  const active = getActiveSubtagKey(filterKey, group);
+  const rule = group.find((x) => x && x.key === active) || group[0];
+  state.results = raw.filter((item) => matchSubtagRule(item, rule));
+}
+
+function syncResultCountLabel() {
+  const el = document.getElementById("result-count");
+  if (!el) return;
+  const n = Array.isArray(state.results) ? state.results.length : 0;
+  const base = Array.isArray(state.resultsRaw) ? state.resultsRaw.length : n;
+  if (base !== n) {
+    el.textContent = `${n} 条（共 ${base} 条）`;
+  } else {
+    el.textContent = `${n} 条`;
+  }
+}
+
+function renderSubtagPanel() {
+  const panel = document.getElementById("subtag-panel");
+  const modesWrap = document.getElementById("subtag-modes");
+  const tagsWrap = document.getElementById("subtags");
+  const descEl = document.getElementById("subtag-desc");
+  if (!panel || !modesWrap || !tagsWrap || !descEl) return;
+
+  const filterKey = resolveFilterKey();
+  const group = getCurrentSubtagGroup();
+  if (!group || !group.length) {
+    panel.classList.add("hidden");
+    modesWrap.innerHTML = "";
+    tagsWrap.innerHTML = "";
+    descEl.textContent = "";
+    return;
+  }
+
+  panel.classList.remove("hidden");
+  const audience = state.subtagAudience === "geek" ? "geek" : "newbie";
+  modesWrap.innerHTML = "";
+  [
+    { key: "newbie", label: "小白标签" },
+    { key: "geek", label: "极客标签" }
+  ].forEach((m) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "subtag-mode-chip" + (audience === m.key ? " active" : "");
+    btn.textContent = m.label;
+    btn.title = m.key === "newbie" ? "更易懂的分类名称与说明" : "更技术化、可用于精细检索";
+    btn.addEventListener("click", () => {
+      if (state.subtagAudience === m.key) return;
+      state.subtagAudience = m.key;
+      saveSubtagAudience();
+      applySubtagResultView();
+      const selectedOk = state.results.some((entry) => entry.row == state.selectedRow);
+      if (!selectedOk) {
+        state.selectedRow = state.results.length ? state.results[0].row : 1;
+      }
+      syncResultCountLabel();
+      renderSubtagPanel();
+      renderResults();
+    });
+    modesWrap.appendChild(btn);
+  });
+
+  const activeKey = getActiveSubtagKey(filterKey, group);
+  tagsWrap.innerHTML = "";
+  group.forEach((rule) => {
+    const btn = document.createElement("button");
+    const count = (Array.isArray(state.resultsRaw) ? state.resultsRaw : []).filter((item) => matchSubtagRule(item, rule)).length;
+    btn.type = "button";
+    btn.className = "subtag-chip" + (rule.key === activeKey ? " active" : "");
+    btn.innerHTML = "<span>" + escapeHtml(String(rule.label || rule.key || "")) + "</span><span class=\"cnt\">" + count + "</span>";
+    btn.title = String(rule.desc || "");
+    btn.addEventListener("click", () => {
+      if (!state.activeSubtags || typeof state.activeSubtags !== "object") state.activeSubtags = {};
+      state.activeSubtags[filterKey] = String(rule.key || "");
+      saveSubtagSelectionMap();
+      applySubtagResultView();
+      const selectedOk = state.results.some((entry) => entry.row == state.selectedRow);
+      if (!selectedOk) {
+        state.selectedRow = state.results.length ? state.results[0].row : 1;
+      }
+      syncResultCountLabel();
+      renderSubtagPanel();
+      renderResults();
+    });
+    tagsWrap.appendChild(btn);
+  });
+
+  const activeRule = group.find((x) => x && x.key === activeKey) || group[0];
+  const audienceText = audience === "geek" ? "极客标签" : "小白标签";
+  descEl.textContent = `${audienceText} · ${activeRule.label}：${activeRule.desc}`;
+}
+
 function renderCategories() {
   const wrap = document.getElementById("categories");
   wrap.innerHTML = "";
@@ -3515,7 +3407,6 @@ function renderFilters() {
   const wrap = document.getElementById("filters");
   wrap.innerHTML = "";
   state.filters.forEach((filter) => {
-    if (String(filter && filter.key || "") === "function") return;
     const hotkey = getHintHotkey("filter", filter.key);
     const el = document.createElement("button");
     el.type = "button";
@@ -3547,56 +3438,37 @@ function renderFilters() {
     });
     wrap.appendChild(el);
   });
+  renderSubtagPanel();
   updateHotkeyHighlights();
 }
 
-function resultTypeIcon(item) {
-  const dt = String(item && (item.dataType || item.type) || "").toLowerCase();
-  const p = String(item && (item.path || item.content) || "");
-  const ext = pathExtensionLower(p);
-  if (dt === "link" || ext === "url" || /^https?:\/\//i.test(p)) return "🌐";
-  if (dt === "image") return "🖼";
-  if (ext === "exe") return "🚀";
-  if (ext === "cpl") return "🧩";
-  if (ext === "lnk") return "🔗";
-  if (ext === "app" || ext === "appref-ms") return "📦";
-  if (/\\$/.test(p) || /^[a-z]:\\?$/i.test(p) || dt === "folder") return "📁";
-  if (dt === "file" || ext) return "📄";
-  return "•";
-}
-
 function renderResults() {
-  const visibleResults = getVisibleResults();
   const list = document.getElementById("result-list");
   list.innerHTML = "";
   disconnectLoadMoreObserver();
 
-  if (!visibleResults.length) {
+  if (!state.results.length) {
     const isFulltextFilter = resolveFilterKey() === "fulltext";
     const inTransition = isFulltextFilter && Date.now() < Number(state.fulltextEmptyTransitionUntil || 0);
     const emptyClass = "empty" + (inTransition ? " empty-transition" : "");
     const lead = inTransition
       ? "<span class=\"empty-lead\"><span class=\"empty-dot\"></span>全文搜索视图已切换，等待结果更新…</span><br>"
       : "";
-    const subtypeHint = (isFileFilterActive() && (String(state.fileSubtypeFilter || "all") !== "all" || String(state.fileNoviceFilter || "ALL") !== "ALL"))
-      ? "<br><span class=\"empty-lead\">当前文件分类筛选无匹配，可切换上方标签查看。</span>"
-      : "";
     list.innerHTML =
-      "<div class=\"" + emptyClass + "\">" + lead + "暂无结果。<br>你可以在输入框输入关键词搜索本地内容，或选择引擎后执行网络搜索 / CLI 发送。" + subtypeHint + "</div>" +
+      "<div class=\"" + emptyClass + "\">" + lead + "暂无结果。<br>你可以在输入框输入关键词搜索本地内容，或选择引擎后执行网络搜索 / CLI 发送。</div>" +
       buildSkeletonListHtml(7);
     renderPreview();
     return;
   }
 
-  if (!visibleResults.some((item) => item.row == state.selectedRow)) {
-    state.selectedRow = visibleResults.length ? visibleResults[0].row : 1;
+  if (state.selectedRow < 1 || state.selectedRow > state.results.length) {
+    state.selectedRow = 1;
   }
 
-  visibleResults.forEach((item) => {
+  state.results.forEach((item) => {
     const row = document.createElement("div");
     row.className = "result-item" + (item.row === state.selectedRow ? " active" : "");
     const pinMark = item.pinned ? "<span class=\"pin-ico\" title=\"置顶\">🔝</span>" : "";
-    const typeIcon = "<span class=\"result-type-icon\" title=\"类型\">" + resultTypeIcon(item) + "</span>";
     const hitCtx = getHitContextList(item);
     let hitBlock = "";
     if (hitCtx) {
@@ -3613,7 +3485,7 @@ function renderResults() {
     }
     row.innerHTML =
       "<div>" +
-        "<div class=\"result-title\">" + typeIcon + pinMark + "<span class=\"result-title-text\">" + highlight(item.title, state.keyword) + "</span></div>" +
+        "<div class=\"result-title\">" + pinMark + highlight(item.title, state.keyword) + "</div>" +
         "<div class=\"result-sub\">" + escapeHtml(item.subtitle || "") + "</div>" +
         "<div class=\"result-preview\">" + highlight(item.preview || "", state.keyword) + "</div>" +
         hitBlock +
@@ -3654,8 +3526,8 @@ function renderResults() {
     list.appendChild(row);
   });
 
-  if (visibleResults.length < 7) {
-    list.insertAdjacentHTML("beforeend", buildSkeletonListHtml(7 - visibleResults.length));
+  if (state.results.length < 7) {
+    list.insertAdjacentHTML("beforeend", buildSkeletonListHtml(7 - state.results.length));
   }
 
   if (state.hasMore) {
@@ -4424,7 +4296,7 @@ function runPreviewForSelection() {
   const seq = state.previewSeq;
   const meta = document.getElementById("preview-meta");
   const pane = document.getElementById("preview-web-scroll");
-  const item = getSelectedResultItem();
+  const item = state.results.find((entry) => entry.row == state.selectedRow);
   if (!meta || !pane) return;
 
   if (!item) {
@@ -4718,7 +4590,7 @@ function invokeQuickLook(pathOverride = "") {
   let targetPath = overridePath;
   const selectedRow = Number(state.selectedRow) || 0;
   if (!targetPath && selectedRow > 0) {
-    const item = getSelectedResultItem();
+    const item = state.results.find((entry) => entry.row == selectedRow);
     targetPath = getSelectedItemPath(item) || "";
   }
   if (!targetPath) targetPath = state.previewPath || "";
@@ -4848,6 +4720,38 @@ function closeRecycleModal() {
   ov.setAttribute("aria-hidden", "true");
 }
 
+function normalizeListPayload(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== "object") return [];
+  const keys = Object.keys(raw);
+  if (!keys.length) return [];
+  const numeric = keys.every((k) => /^\d+$/.test(k));
+  if (numeric) {
+    return keys
+      .sort((a, b) => Number(a) - Number(b))
+      .map((k) => raw[k])
+      .filter((v) => v !== undefined && v !== null);
+  }
+  return Object.values(raw).filter((v) => v !== undefined && v !== null);
+}
+
+function normalizeStringListPayload(raw) {
+  return normalizeListPayload(raw).map((v) => String(v || "")).filter(Boolean);
+}
+
+function fallbackFilterPayload() {
+  return [
+    { key: "", text: "全部" },
+    { key: "File", text: "文件" },
+    { key: "fulltext", text: "全文搜索" },
+    { key: "clipboard", text: "剪贴板" },
+    { key: "template", text: "提示词" },
+    { key: "config", text: "配置" },
+    { key: "hotkey", text: "快捷键" },
+    { key: "pinned", text: "置顶" }
+  ];
+}
+
 function applyState(payload) {
   if (payload && payload.themeMode != null) {
     applyTheme(payload.themeMode);
@@ -4855,11 +4759,14 @@ function applyState(payload) {
   const prevFilterType = String(state.filterType || "");
   state.keyword = payload.keyword || "";
   state.limit = payload.limit || 50;
-  state.categories = payload.categories || [];
+  state.categories = normalizeListPayload(payload.categories);
   state.currentCategoryKey = payload.currentCategoryKey || "ai";
-  state.engines = payload.engines || [];
-  state.selectedEngines = payload.selectedEngines || [];
-  state.filters = payload.filters || [];
+  state.engines = normalizeListPayload(payload.engines);
+  state.selectedEngines = normalizeStringListPayload(payload.selectedEngines);
+  state.filters = normalizeListPayload(payload.filters);
+  if (!state.filters.length) {
+    state.filters = fallbackFilterPayload();
+  }
   state.filterType = payload.filterType || "";
   if (state.filterType === "fulltext" && prevFilterType !== "fulltext") {
     state.fulltextEmptyTransitionUntil = Date.now() + 1200;
@@ -4870,7 +4777,8 @@ function applyState(payload) {
       localStorage.setItem(SC_ENGINE_MODE_KEY, state.engineMode);
     } catch (e) {}
   }
-  state.results = payload.results || [];
+  state.resultsRaw = normalizeListPayload(payload.results);
+  applySubtagResultView();
   state.hasMore = !!payload.hasMore;
   state.loading = false;
   state.isCliCategory = !!payload.isCliCategory;
@@ -4892,18 +4800,16 @@ function applyState(payload) {
     }
   }
 
-  syncFileSubtypeUi();
   const wasSelected = state.selectedRow;
-  const visible = getVisibleResults();
-  if (!visible.some((item) => item.row == wasSelected)) {
-    state.selectedRow = visible.length ? visible[0].row : 1;
+  if (!state.results.some((item) => item.row == wasSelected)) {
+    state.selectedRow = state.results.length ? state.results[0].row : 1;
   }
 
   document.getElementById("search").value = state.keyword;
   document.getElementById("limit").value = String(state.limit);
   document.getElementById("status").textContent = state.statusLine || "已同步";
   applyFulltextStatus(state.fulltext);
-  syncResultCount();
+  syncResultCountLabel();
   document.getElementById("btn-run").textContent = "搜索";
   document.getElementById("btn-open-cli").style.display = state.isCliCategory ? "inline-flex" : "none";
   syncFooterHint();
@@ -4978,16 +4884,17 @@ function requestLoadMore() {
   if (Date.now() < state.loadMoreCooldownUntil) return;
   state.loading = true;
   state.loadMoreCooldownUntil = Date.now() + 350;
+  const offsetBase = Array.isArray(state.resultsRaw) ? state.resultsRaw.length : state.results.length;
   if (state.engineMode === "go") {
     try {
-      runSearchGoPipeline(state.results.length);
+      runSearchGoPipeline(offsetBase);
     } catch (e) {
-      postToAhk({ type: "loadMore", offset: state.results.length });
+      postToAhk({ type: "loadMore", offset: offsetBase });
     }
     state.loading = false;
     return;
   }
-  postToAhk({ type: "loadMore", offset: state.results.length });
+  postToAhk({ type: "loadMore", offset: offsetBase });
 }
 
 function setupLoadMoreObserver() {
@@ -5209,25 +5116,23 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
-  const visibleResults = getVisibleResults();
-
-  if (event.key === "ArrowDown" && visibleResults.length) {
+  if (event.key === "ArrowDown" && state.results.length) {
     event.preventDefault();
-    const current = visibleResults.findIndex((item) => item.row === state.selectedRow);
-    const next = Math.min(visibleResults.length - 1, Math.max(0, current + 1));
-    state.selectedRow = visibleResults[next].row;
+    const current = state.results.findIndex((item) => item.row === state.selectedRow);
+    const next = Math.min(state.results.length - 1, Math.max(0, current + 1));
+    state.selectedRow = state.results[next].row;
     renderResults();
   }
 
-  if (event.key === "ArrowUp" && visibleResults.length) {
+  if (event.key === "ArrowUp" && state.results.length) {
     event.preventDefault();
-    const current = visibleResults.findIndex((item) => item.row === state.selectedRow);
+    const current = state.results.findIndex((item) => item.row === state.selectedRow);
     const next = Math.max(0, (current < 0 ? 0 : current) - 1);
-    state.selectedRow = visibleResults[next].row;
+    state.selectedRow = state.results[next].row;
     renderResults();
   }
 
-  if (event.key === "Enter" && visibleResults.length) {
+  if (event.key === "Enter" && state.results.length) {
     event.preventDefault();
     postToAhk({ type: "activateResult", row: state.selectedRow });
   }
