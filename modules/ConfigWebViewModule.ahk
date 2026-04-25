@@ -865,6 +865,9 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         }
         if (VoiceSearchSelectedEngines.Length = 0)
             VoiceSearchSelectedEngines.Push("deepseek")
+        ; 先持久化主题再 ApplyTheme，避免 FloatingToolbar 等从 INI 读到旧值；ApplyTheme 内也会显式传入 Mode
+        IniWrite(NewTheme, ConfigFile, "Settings", "ThemeMode")
+        IniWrite(NewTheme, ConfigFile, "Appearance", "ThemeMode")
         ApplyTheme(NewTheme)
 
         IniWrite(CursorPath, ConfigFile, "Settings", "CursorPath")
@@ -878,8 +881,6 @@ ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
         IniWrite(Prompt_Optimize, ConfigFile, "Settings", "Prompt_Optimize")
         IniWrite(AutoStart ? "1" : "0", ConfigFile, "Settings", "AutoStart")
         IniWrite(DefaultStartTab, ConfigFile, "Settings", "DefaultStartTab")
-        IniWrite(NewTheme, ConfigFile, "Settings", "ThemeMode")
-        IniWrite(NewTheme, ConfigFile, "Appearance", "ThemeMode")
         IniWrite(PromptQuickCaptureHotkey, ConfigFile, "Settings", "PromptQuickCaptureHotkey")
         IniWrite(SearchEngine, ConfigFile, "Settings", "SearchEngine")
         IniWrite(AutoLoadSelectedText ? "1" : "0", ConfigFile, "Settings", "AutoLoadSelectedText")

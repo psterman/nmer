@@ -419,13 +419,15 @@ FloatingToolbar_PushLogoToWeb(*) {
     }
 }
 
-FloatingToolbar_PushThemeToWeb(*) {
-    global g_FTB_WV2, g_FTB_UI_Ready
-    if g_FTB_UI_Ready
-        FloatingToolbar_ApplyHostThemeColors()
+; override 非空时直接使用该模式（与 ApplyTheme/INI 同步顺序无关，避免读 INI 读到旧值）
+FloatingToolbar_PushThemeToWeb(override := "") {
+    global g_FTB_WV2
+    tm := (Trim(String(override)) != "")
+        ? FloatingToolbar_NormalizeThemeToken(override, "dark")
+        : FloatingToolbar_GetThemeMode()
+    FloatingToolbar_ApplyHostThemeColorsForMode(tm)
     if !g_FTB_WV2
         return
-    tm := FloatingToolbar_GetThemeMode()
     try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_theme", "themeMode", tm))
     catch as _e {
     }
@@ -449,10 +451,11 @@ FloatingToolbar_GetThemeBackColorArgb() {
     return (tm = "light") ? 0xFFF7F7F7 : 0xFF0A0A0A
 }
 
-FloatingToolbar_ApplyHostThemeColors() {
+FloatingToolbar_ApplyHostThemeColorsForMode(tm) {
     global FloatingToolbarGUI, g_FTB_WV2_Ctrl
-    hex := FloatingToolbar_GetThemeBackColorHex()
-    argb := FloatingToolbar_GetThemeBackColorArgb()
+    tm2 := FloatingToolbar_NormalizeThemeToken(tm, "dark")
+    hex := (tm2 = "light") ? "f7f7f7" : "0a0a0a"
+    argb := (tm2 = "light") ? 0xFFF7F7F7 : 0xFF0A0A0A
     try {
         if IsObject(FloatingToolbarGUI)
             FloatingToolbarGUI.BackColor := hex
@@ -463,6 +466,10 @@ FloatingToolbar_ApplyHostThemeColors() {
             g_FTB_WV2_Ctrl.DefaultBackgroundColor := argb
     } catch {
     }
+}
+
+FloatingToolbar_ApplyHostThemeColors() {
+    FloatingToolbar_ApplyHostThemeColorsForMode(FloatingToolbar_GetThemeMode())
 }
 
 FloatingToolbar_NormalizeThemeToken(raw, fallback := "dark") {

@@ -1608,6 +1608,19 @@ SCWV_OnWebMessage(sender, args) {
                 _SCWV_SaveSearchEngineMode(mo)
             }
             SCWV_PushState("state")
+        case "setThemeMode":
+            ; 来自前端的主题切换：写入配置并同步到所有 WebView UI（含悬浮工具栏）
+            tm0 := msg.Has("themeMode") ? String(msg["themeMode"]) : ""
+            tm0 := (StrLower(Trim(tm0)) = "light") ? "light" : "dark"
+            try {
+                global ConfigFile
+                IniWrite(tm0, ConfigFile, "Settings", "ThemeMode")
+                IniWrite(tm0, ConfigFile, "Appearance", "ThemeMode")
+            } catch {
+            }
+            try ApplyTheme(tm0)
+            catch {
+            }
         case "searchResultSync":
             kw := msg.Has("keyword") ? String(msg["keyword"]) : ""
             off := msg.Has("offset") ? Integer(msg["offset"]) : 0

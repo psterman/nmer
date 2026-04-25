@@ -455,8 +455,8 @@ ApplyTheme(Mode) {
     ; 更新下拉菜单画刷（如果下拉菜单已创建）
     UpdateDefaultStartTabDDLBrush()
     UpdateSearchCenterResultLimitDDLBrush()
-    ; WebView 前端主题同步（悬浮栏/悬浮球等）
-    try FloatingToolbar_PushThemeToWeb()
+    ; WebView 前端主题同步（悬浮栏/悬浮球等）；传入 Mode，避免配置页先 Apply 后写 INI 时从磁盘读到旧主题
+    try FloatingToolbar_PushThemeToWeb(Mode)
     catch {
     }
     try FloatingBubble_PushThemeToWeb()

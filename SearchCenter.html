@@ -2089,6 +2089,8 @@ function applyTheme(mode, persist = true) {
   if (document.body) document.body.setAttribute("data-theme", tm);
   if (persist) {
     try { localStorage.setItem("settings_themeMode", tm); } catch (_) {}
+    // 仅当用户主动切换主题时同步宿主；宿主下发 set_theme 时不回传，避免黑/白循环闪动
+    try { postToAhk({ type: "setThemeMode", themeMode: tm }); } catch (_) {}
   }
   state.themeMode = tm;
 }
@@ -5091,7 +5093,7 @@ function fallbackFilterPayload() {
 
 function applyState(payload) {
   if (payload && payload.themeMode != null) {
-    applyTheme(payload.themeMode);
+    applyTheme(payload.themeMode, false);
   }
   const prevFilterType = String(state.filterType || "");
   state.keyword = payload.keyword || "";
@@ -5563,7 +5565,7 @@ if (window.chrome && window.chrome.webview) {
       return;
     }
     if (payload.type === "set_theme") {
-      applyTheme(payload.themeMode || payload.theme || "dark");
+      applyTheme(payload.themeMode || payload.theme || "dark", false);
       return;
     }
     if (payload.type === "WEB_PREVIEW_TEXT_RESULT") {
