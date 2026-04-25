@@ -191,3 +191,15 @@ Source:	WinHttp.WinHttpRequest
 [2026-04-24 20:43:10] SCWV_PushState payload: visible=10 results=10 filter=fulltext
 [2026-04-24 20:43:17] SCWV_PushState payload: visible=10 results=10 filter=fulltext
 [2026-04-24 20:43:17] SCWV_PushState payload: visible=10 results=10 filter=fulltext
+[2026-04-25 07:53:50] SearchCoreError: SearchCenterCore 返回体过大，已丢弃
+[2026-04-25 07:54:03] SearchCoreError: SearchCenterCore 返回体过大，已丢弃
+[2026-04-25 08:15:50] SearchCore HTTP exception: (0x80072EE2) 
+操作超时
+
+Source:	WinHttp.WinHttpRequest
+[2026-04-25 08:15:50] SearchCore HTTP 0, retry once
+[2026-04-25 08:15:56] SearchCore HTTP exception: (0x80072EE2) 
+操作超时
+
+Source:	WinHttp.WinHttpRequest
+[2026-04-25 08:15:56] SearchCoreError: SearchCenterCore 瞬时不可用（HTTP 0），已保留当前结果

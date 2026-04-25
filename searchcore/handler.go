@@ -84,7 +84,7 @@ func handleSearchWithDB(w http.ResponseWriter, r *http.Request, db *sql.DB, base
 		fetchCap = 2000
 	}
 	if typeStr == "file" && fetchCap > 80 {
-		fetchCap = 80
+		fetchCap = 320
 	}
 	if typeStr == "all" && fetchCap > 120 {
 		fetchCap = 120
@@ -117,8 +117,15 @@ func handleSearchWithDB(w http.ResponseWriter, r *http.Request, db *sql.DB, base
 	switch typeStr {
 	case "all":
 		run(func() ([]map[string]any, error) {
-			items, _, err := searchClipboard(db, q, tokens, fetchCap, 0)
-			return items, err
+			items, err := runQueryWithTimeout(1200*time.Millisecond, func() ([]map[string]any, error) {
+				it, _, e := searchClipboard(db, q, tokens, fetchCap, 0)
+				return it, e
+			})
+			if err != nil {
+				log.Printf("[search] clipboard degraded (type=all): %v", err)
+				return nil, nil
+			}
+			return items, nil
 		})
 		run(func() ([]map[string]any, error) {
 			ev, err := runQueryWithTimeout(1200*time.Millisecond, func() ([]map[string]any, error) {
@@ -163,7 +170,8 @@ func handleSearchWithDB(w http.ResponseWriter, r *http.Request, db *sql.DB, base
 	case "file":
 		run(func() ([]map[string]any, error) {
 			ev, err := runQueryWithTimeout(1500*time.Millisecond, func() ([]map[string]any, error) {
-				return everythingQuery(baseDir, q, fetchCap, true)
+				// 文件筛选优先返回可启动文件，不混入目录可显著提升启动台命中
+				return everythingQuery(baseDir, q, fetchCap, false)
 			})
 			if err != nil {
 				log.Printf("[search] Everything degraded (type=file): %v", err)
@@ -243,9 +251,6 @@ func handleSearchWithDB(w http.ResponseWriter, r *http.Request, db *sql.DB, base
 	// 涓?AHK SearchAllDataSources 瀵归綈锛氭爣鍑嗘ā寮忓姣忎釜鏁版嵁婧愬悇鍙?MaxResults 鍐嶅悎骞讹紝鏉℃暟绾︿负銆屾瘡绫讳笂闄愪箣鍜屻€嶏紱
 	// 鏋侀€熸ā寮忓師鍏堝叏灞€娣锋帓鍚庡彧鍙栦竴椤?limit锛屾槗琛ㄧ幇涓恒€岀害灏戜竴鍗娿€嶃€倀ype=all 鏃舵斁瀹戒负姣忛〉鏈€澶?2*limit銆?
 	pageLimit := limit
-	if typeStr == "all" {
-		pageLimit = limit * 2
-	}
 
 	total := len(sorted)
 	end := offset + pageLimit

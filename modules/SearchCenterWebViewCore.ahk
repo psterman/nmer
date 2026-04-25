@@ -10,6 +10,8 @@ global g_SCWV_SearchTimer := 0
 global g_SCWV_FocusPending := false
 global SearchCenterWebKeyword := ""
 global SearchCenterSearchResults := []
+global g_SCWV_AllResultsCache := []
+global g_SCWV_AllResultsKeyword := ""
 global SearchCenterHasMoreData := false
 global SearchCenterFilterType := ""
 global SearchCenterCurrentLimit := 30
@@ -416,8 +418,8 @@ _SCWV_HttpGetSearchCoreResp(queryString) {
         whr := ComObject("WinHttp.WinHttpRequest.5.1")
         url := "http://127.0.0.1:8080/search?" . queryString
         whr.Open("GET", url, false)
-        ; 保持较短超时避免 UI 卡死，但给全文阶段留出少量抖动余量
-        whr.SetTimeouts(1200, 1200, 6000, 6000)
+        ; 收紧超时，避免主线程被同步 HTTP 长时间阻塞
+        whr.SetTimeouts(900, 900, 2200, 2200)
         whr.Send()
         st := Integer(whr.Status)
         rawText := _SCWV_WinHttpReadUtf8Text(whr)
@@ -916,6 +918,29 @@ _SCWV_ShowSearchCoreError(reason) {
     _SCWV_LogRuntime("SearchCoreError: " . reason)
 }
 
+_SCWV_ShowSearchCoreErrorSilent(reason) {
+    try OutputDebug("[SCWV] " . reason)
+    _SCWV_LogRuntime("SearchCoreError: " . reason)
+}
+
+_SCWV_ShouldToastHttp0() {
+    global g_SCWV_LastHttp0ToastTick
+    nowTick := A_TickCount
+    lastTick := (IsSet(g_SCWV_LastHttp0ToastTick) ? Integer(g_SCWV_LastHttp0ToastTick) : 0)
+    if ((nowTick - lastTick) < 12000)
+        return false
+    g_SCWV_LastHttp0ToastTick := nowTick
+    return true
+}
+
+_SCWV_ShowHttp0Notice() {
+    msg := "SearchCenterCore 瞬时不可用（HTTP 0），已保留当前结果"
+    if _SCWV_ShouldToastHttp0()
+        _SCWV_ShowSearchCoreError(msg)
+    else
+        _SCWV_ShowSearchCoreErrorSilent(msg)
+}
+
 _SCWV_LogRuntime(msg) {
     try {
         logDir := A_ScriptDir . "\cache"
@@ -935,6 +960,28 @@ _SCWV_SetPendingGoSearch(offset, keyword, goType, limit) {
         "goType", String(goType),
         "limit", Integer(limit)
     )
+}
+
+_SCWV_CacheAllResults(keyword) {
+    global SearchCenterSearchResults, g_SCWV_AllResultsCache, g_SCWV_AllResultsKeyword
+    g_SCWV_AllResultsKeyword := String(keyword)
+    g_SCWV_AllResultsCache := []
+    if !(SearchCenterSearchResults is Array)
+        return
+    for _, item in SearchCenterSearchResults
+        g_SCWV_AllResultsCache.Push(item)
+}
+
+_SCWV_RestoreAllResultsCache(keyword) {
+    global SearchCenterSearchResults, g_SCWV_AllResultsCache, g_SCWV_AllResultsKeyword
+    if !(g_SCWV_AllResultsCache is Array)
+        return false
+    if (String(g_SCWV_AllResultsKeyword) != String(keyword))
+        return false
+    SearchCenterSearchResults := []
+    for _, item in g_SCWV_AllResultsCache
+        SearchCenterSearchResults.Push(item)
+    return (SearchCenterSearchResults.Length > 0)
 }
 
 _SCWV_RunPendingGoSearch(*) {
@@ -996,19 +1043,11 @@ _SCWV_ExecuteGoSearchHttp(offset := 0, keyword := "", goType := "", limit := 0) 
         st := resp.Has("status") ? Integer(resp["status"]) : 0
         if (st != 200) {
             if (st = 0) {
-                ; HTTP 0 常见于瞬时连接抖动：先重启探活并重试一次，不立刻清空现有结果
-                _SCWV_LogRuntime("SearchCore HTTP 0, retry once")
+                ; HTTP 0 快速失败并保留当前结果，避免二次重试导致 UI 持续卡住
+                _SCWV_LogRuntime("SearchCore HTTP 0 fast-fail")
                 _SCWV_EnsureSearchCoreRunning()
-                Sleep(80)
-                resp2 := _SCWV_HttpGetSearchCoreResp(q)
-                st2 := resp2.Has("status") ? Integer(resp2["status"]) : 0
-                if (st2 = 200) {
-                    resp := resp2
-                    st := 200
-                } else {
-                    _SCWV_ShowSearchCoreError("SearchCenterCore 瞬时不可用（HTTP 0），已保留当前结果")
-                    return
-                }
+                _SCWV_ShowHttp0Notice()
+                return
             } else {
                 global SearchCenterSearchResults, SearchCenterHasMoreData
                 SearchCenterSearchResults := []
@@ -1027,12 +1066,15 @@ _SCWV_ExecuteGoSearchHttp(offset := 0, keyword := "", goType := "", limit := 0) 
             SCWV_PushState("state")
             return
         }
-        if (StrLen(body) > 6291456) {
-            global SearchCenterSearchResults, SearchCenterHasMoreData
-            SearchCenterSearchResults := []
-            SearchCenterHasMoreData := false
-            _SCWV_ShowSearchCoreError("SearchCenterCore 返回体过大，已丢弃")
-            SCWV_PushState("state")
+        ; 返回体保护：先放宽阈值；若超限且当前 limit 较大，自动降载重试一次，避免直接失败
+        maxBodyChars := 20971520  ; ~20MB（UTF-8/ANSI 近似）
+        if (StrLen(body) > maxBodyChars) {
+            if (off = 0 && lim > 50) {
+                _SCWV_LogRuntime("SearchCore body too large, retry with limit=50, len=" . StrLen(body))
+                _SCWV_ExecuteGoSearchHttp(off, kw, gt, 50)
+                return
+            }
+            _SCWV_ShowSearchCoreError("SearchCenterCore 返回体过大（>" . Round(maxBodyChars / 1048576) . "MB），请缩小范围")
             return
         }
 
@@ -1553,6 +1595,11 @@ SCWV_OnWebMessage(sender, args) {
                 SearchCenterFilterType := "fulltext"
             else
                 SearchCenterFilterType := (SearchCenterFilterType = nextFilter) ? "" : nextFilter
+            ; 普通过滤标签优先使用上一次「全部结果」本地切换，避免切标签还要等待后端。
+            if (Trim(SearchCenterWebKeyword) != "" && SearchCenterFilterType != "fulltext" && _SCWV_RestoreAllResultsCache(SearchCenterWebKeyword)) {
+                SCWV_PushState("state")
+                return
+            }
             if (Trim(SearchCenterWebKeyword) != "")
                 SetTimer(_SCWV_PostRequestSearchGo, -60)
             SCWV_PushState("state")
@@ -1838,6 +1885,10 @@ _SCWV_MergeAllDataResultsIntoSearchLists(AllDataResults, keyword, offset) {
                 ID: _SCWV_ResultItemHas(Item, "ID") ? _SCWV_ResultItemGet(Item, "ID", "") : "",
                 OriginalDataType: DataType
             }
+            if (_SCWV_ResultItemHas(Item, "Action") && _SCWV_ResultItemGet(Item, "Action", "") != "")
+                ResultItem.Action := _SCWV_ResultItemGet(Item, "Action", "")
+            if (_SCWV_ResultItemHas(Item, "ActionParams") && IsObject(_SCWV_ResultItemGet(Item, "ActionParams", 0)))
+                ResultItem.ActionParams := _SCWV_ResultItemGet(Item, "ActionParams", 0)
             if (_SCWV_ResultItemHas(Item, "Metadata") && IsObject(_SCWV_ResultItemGet(Item, "Metadata", 0)))
                 ResultItem.Metadata := _SCWV_ResultItemGet(Item, "Metadata", 0)
             if (_SCWV_ResultItemHas(Item, "DisplayTitle") && _SCWV_ResultItemGet(Item, "DisplayTitle", "") != "")
@@ -1975,6 +2026,7 @@ _SCWV_PerformSearch(keyword, offset := 0) {
 
 _SCWV_ApplySearchResultSync(keyword, offset, hasMoreGo, GoItems) {
     global SearchCenterSearchResults, SearchCenterHasMoreData, SearchCenterWebKeyword, g_SCWV_SkipHostSort
+    global SearchCenterFilterType
 
     keyword := Trim(String(keyword))
     if (offset = 0) {
@@ -1994,6 +2046,8 @@ _SCWV_ApplySearchResultSync(keyword, offset, hasMoreGo, GoItems) {
     SearchCenterHasMoreData := hasMoreGo ? true : false
     g_SCWV_SkipHostSort := true
     _SCWV_MergeAllDataResultsIntoSearchLists(AllDataResults, keyword, offset)
+    if (offset = 0 && (SearchCenterFilterType = "" || SearchCenterFilterType = "all"))
+        _SCWV_CacheAllResults(keyword)
 }
 
 _SCWV_ResultPinKey(Item) {
@@ -2818,7 +2872,6 @@ _SCWV_BuildFilterPayload() {
         Map("key", "template", "text", "提示词"),
         Map("key", "config", "text", "配置"),
         Map("key", "hotkey", "text", "快捷键"),
-        Map("key", "function", "text", "功能"),
         Map("key", "pinned", "text", "置顶")
     ]
 }
@@ -3147,14 +3200,12 @@ SC_ActivateSearchResultItem(Item, doHide := true, smartTextSearch := false) {
     }
 
     if (isFileLike) {
-        try {
-            if (FileExist(Content) || DirExist(Content))
-                Run(Content)
-            else
-                TrayTip("路径不存在", Content, "Iconx 2")
-        } catch as err {
-            TrayTip("打开失败", err.Message, "Iconx 2")
-        }
+        launchTarget := _SCWV_ResolveLaunchTarget(Item)
+        if (launchTarget = "")
+            launchTarget := Content
+        launchErr := ""
+        if !_SCWV_LaunchAppTarget(launchTarget, &launchErr)
+            TrayTip("打开失败", launchErr != "" ? launchErr : String(launchTarget), "Iconx 2")
         return
     }
 
@@ -3190,6 +3241,154 @@ SC_ActivateSearchResultItem(Item, doHide := true, smartTextSearch := false) {
         Send("^v")
     } catch as err {
         TrayTip("粘贴失败", err.Message, "Iconx 2")
+    }
+}
+
+_SCWV_ResolveLaunchTarget(Item) {
+    candidates := []
+    if !IsObject(Item)
+        return ""
+
+    ap := _SCWV_ResultItemGet(Item, "ActionParams", 0)
+    if (ap is Map) {
+        if ap.Has("FilePath")
+            candidates.Push(ap["FilePath"])
+        if ap.Has("Path")
+            candidates.Push(ap["Path"])
+    } else if IsObject(ap) {
+        try {
+            if ap.HasProp("FilePath")
+                candidates.Push(ap.FilePath)
+            if ap.HasProp("Path")
+                candidates.Push(ap.Path)
+        }
+    }
+
+    md := _SCWV_ResultItemGet(Item, "Metadata", 0)
+    if (md is Map) {
+        if md.Has("FilePath")
+            candidates.Push(md["FilePath"])
+        if md.Has("Path")
+            candidates.Push(md["Path"])
+    } else if IsObject(md) {
+        try {
+            if md.HasProp("FilePath")
+                candidates.Push(md.FilePath)
+            if md.HasProp("Path")
+                candidates.Push(md.Path)
+        }
+    }
+
+    if (_SCWV_ResultItemHas(Item, "Content"))
+        candidates.Push(_SCWV_ResultItemGet(Item, "Content", ""))
+    if (_SCWV_ResultItemHas(Item, "ID"))
+        candidates.Push(_SCWV_ResultItemGet(Item, "ID", ""))
+
+    for _, cand in candidates {
+        p := _SCWV_CleanLaunchPath(cand)
+        if (p = "")
+            continue
+        if _SCWV_IsShellLaunchToken(p)
+            return p
+        if (FileExist(p) || DirExist(p))
+            return p
+    }
+    for _, cand in candidates {
+        p := _SCWV_CleanLaunchPath(cand)
+        if (p = "")
+            continue
+        if _SCWV_LooksLikePathOrAppToken(p)
+            return p
+    }
+    return ""
+}
+
+_SCWV_CleanLaunchPath(raw) {
+    p := Trim(String(raw))
+    if (p = "")
+        return ""
+    if (SubStr(p, 1, 1) = '"' && SubStr(p, -1) = '"')
+        p := SubStr(p, 2, StrLen(p) - 2)
+    return Trim(p)
+}
+
+_SCWV_IsShellLaunchToken(s) {
+    x := StrLower(Trim(String(s)))
+    return (InStr(x, "shell:") = 1)
+}
+
+_SCWV_LooksLikePathOrAppToken(s) {
+    x := Trim(String(s))
+    if (x = "")
+        return false
+    if _SCWV_IsShellLaunchToken(x)
+        return true
+    if RegExMatch(x, "i)^[a-z]:\\")
+        return true
+    if RegExMatch(x, "i)^\\\\")
+        return true
+    SplitPath(x, , , &ext)
+    ext := StrLower(ext)
+    return (ext = "exe" || ext = "lnk" || ext = "cpl" || ext = "app" || ext = "appref-ms")
+}
+
+_SCWV_LaunchAppTarget(target, &errMsg) {
+    errMsg := ""
+    t := _SCWV_CleanLaunchPath(target)
+    if (t = "") {
+        errMsg := "目标为空"
+        return false
+    }
+
+    if _SCWV_IsShellLaunchToken(t) {
+        try {
+            Run(t)
+            return true
+        } catch as err {
+            errMsg := err.Message
+            return false
+        }
+    }
+
+    if DirExist(t) {
+        try {
+            Run('explorer.exe "' . t . '"')
+            return true
+        } catch as err {
+            errMsg := err.Message
+            return false
+        }
+    }
+
+    SplitPath(t, , , &ext)
+    ext := StrLower(ext)
+
+    try {
+        switch ext {
+            case "exe":
+                Run('"' . t . '"')
+            case "cpl":
+                try Run('control.exe "' . t . '"')
+                catch as _ {
+                    Run('rundll32.exe shell32.dll,Control_RunDLL "' . t . '"')
+                }
+            case "lnk", "appref-ms", "url":
+                Run(t)
+            case "app":
+                if (FileExist(t))
+                    Run('explorer.exe "' . t . '"')
+                else
+                    Run(t)
+            default:
+                if (FileExist(t) || DirExist(t))
+                    Run(t)
+                else
+                    Run('"' . t . '"')
+        }
+        return true
+    } catch as err {
+        errMsg := err.Message
+        return false
     }
 }
 
