@@ -48,9 +48,9 @@ global FloatingToolbarIsVisible := false
 global FloatingToolbarWindowX := 0
 global FloatingToolbarWindowY := 0
 global FloatingToolbarScale := 1.0
-global FloatingToolbarMinScale := 0.7
+global FloatingToolbarMinScale := 0.85
 global FloatingToolbarMaxScale := 2.0
-global FloatingToolbarCompactDiameter := 52
+global FloatingToolbarCompactDiameter := 62
 global FloatingToolbarDragging := false
 global FloatingToolbar_DragOriginScreenX := 0
 global FloatingToolbar_DragOriginScreenY := 0
@@ -384,11 +384,37 @@ FloatingToolbar_OnWebViewCreated(ctrl) {
     g_FTB_WV2.Navigate(BuildAppLocalUrl("FloatingToolbarStrip.html"))
 }
 
+; 历史路径/边缘情况下紧凑态 w≠h 会导致 WebView 非正方形、正圆成竖椭圆且一侧露底（常见右侧黑条）。强制为固定直径。
+FloatingToolbar_SyncCompactWindowSquare() {
+    global FloatingToolbarGUI, FloatingToolbarWindowX, FloatingToolbarWindowY, FloatingToolbarCompactDiameter
+    if !FloatingToolbarGUI
+        return
+    if !FloatingToolbarIsCompactMode()
+        return
+    s := Round(FloatingToolbarCompactDiameter)
+    if (s < 48)
+        s := 48
+    try {
+        FloatingToolbarGUI.GetPos(&gx, &gy, &gw, &gh)
+        if (gw = s && gh = s) {
+            FloatingToolbarWindowX := gx
+            FloatingToolbarWindowY := gy
+            return
+        }
+        FloatingToolbarWindowX := gx
+        FloatingToolbarWindowY := gy
+        FloatingToolbarGUI.Move(gx, gy, s, s)
+    } catch {
+    }
+}
+
 FloatingToolbar_ApplyWebViewBounds() {
     global FloatingToolbarGUI, g_FTB_WV2_Ctrl
 
     if !(FloatingToolbarGUI && g_FTB_WV2_Ctrl)
         return
+    if FloatingToolbarIsCompactMode()
+        FloatingToolbar_SyncCompactWindowSquare()
 
     WinGetClientPos(, , &cw, &ch, FloatingToolbarGUI.Hwnd)
     rc := WebView2.RECT()
@@ -1599,6 +1625,7 @@ FloatingToolbarIsCompactMode(scaleValue := "") {
     sc := (scaleValue = "") ? FloatingToolbarScale : Float(scaleValue)
     if FloatingToolbarChatDrawerOpen
         return false
+    ; 最小缩放时进入紧凑态：只保留一个 NiuMa 图标。
     return (sc <= (FloatingToolbarMinScale + 0.0001))
 }
 
@@ -1678,6 +1705,7 @@ FloatingToolbarPushCmdLayoutToWeb() {
         return
     cmdList := g_Commands["CommandList"]
     items := []
+    hasCursorMenu := false
     rows := []
     for row in g_Commands["ToolbarLayout"]
         rows.Push(row)
@@ -1706,32 +1734,21 @@ FloatingToolbarPushCmdLayoutToWeb() {
                 ic := "fa-solid " . ic
         }
         rowPayload := Map("cmdId", cid, "name", nm, "iconClass", ic)
-        if (cid = "ftb_cursor_menu")
+        if (cid = "ftb_cursor_menu") {
+            hasCursorMenu := true
             rowPayload["iconPath"] := FloatingToolbar_GetCursorIconPath()
+        }
         if (cid != "ftb_cursor_menu" && (ent is Map) && ent.Has("iconPath") && ent["iconPath"] != "")
             rowPayload["iconPath"] := String(ent["iconPath"])
         items.Push(rowPayload)
     }
-    hasCursorMenu := false
-    for _, it in items {
-        if ((it is Map) && it.Has("cmdId") && String(it["cmdId"]) = "ftb_cursor_menu") {
-            hasCursorMenu := true
-            break
-        }
-    }
-    if (!hasCursorMenu && g_FTB_AllowedCmdIds.Has("ftb_cursor_menu")) {
-        cursorName := "Cursor"
-        if (cmdList.Has("ftb_cursor_menu")) {
-            cent := cmdList["ftb_cursor_menu"]
-            if (cent is Map) && cent.Has("name") && cent["name"] != ""
-                cursorName := String(cent["name"])
-        }
-        cursorIconPath := FloatingToolbar_GetCursorIconPath()
+    ; ToolbarLayout 里没配置时也保底补上 cursor 菜单按钮，避免图标缺失。
+    if !hasCursorMenu {
         items.Push(Map(
             "cmdId", "ftb_cursor_menu",
-            "name", cursorName,
-            "iconClass", "fa-solid fa-compass",
-            "iconPath", cursorIconPath
+            "name", "Cursor",
+            "iconClass", "fa-solid fa-location-crosshairs",
+            "iconPath", FloatingToolbar_GetCursorIconPath()
         ))
     }
     FloatingToolbarCmdVisibleCount := items.Length
@@ -1746,7 +1763,12 @@ FloatingToolbar_GetCursorIconPath() {
     global g_FTB_CursorIconDataUrl
     if (g_FTB_CursorIconDataUrl != "")
         return g_FTB_CursorIconDataUrl
-    iconFile := A_ScriptDir "\images\cursor.png"
+    iconFile := A_ScriptDir "\lib\images\cursor.png"
+    if !FileExist(iconFile) {
+        iconFile2 := A_ScriptDir "\images\cursor.png"
+        if FileExist(iconFile2)
+            iconFile := iconFile2
+    }
     if !FileExist(iconFile)
         return iconFile
     try {
@@ -1836,12 +1858,15 @@ FloatingToolbarCalculateWidth() {
     global FloatingToolbarChatDrawerOpen, FloatingToolbarChatDrawerWidth, FloatingToolbarCompactDiameter, FloatingToolbarCmdVisibleCount
     eff := FloatingToolbar_EffectiveScale()
     iconCount := (FloatingToolbarCmdVisibleCount > 0) ? FloatingToolbarCmdVisibleCount : 7
-    BaseWidth := Max(220, 56 + iconCount * 46)
+    ; 按「Logo + 图标数量」自适应宽度，并在最终像素向上取整避免右侧 1~2px 截断。
+    ; CSS 对应：左右 padding(16) + logo(42) + 间距(8) + 图标区(40*n + 5*(n-1))
+    BaseWidth := Max(190, 61 + iconCount * 45)
     if (FloatingToolbarChatDrawerOpen)
-        return Round(Max(BaseWidth, FloatingToolbarChatDrawerWidth) * eff)
+        return Ceil(Max(BaseWidth, FloatingToolbarChatDrawerWidth) * eff + 6)
     if FloatingToolbarIsCompactMode()
-        return Round(FloatingToolbarCompactDiameter * eff)
-    return Round(BaseWidth * eff)
+        ; 紧凑态使用固定像素直径，避免高 DPI 下过小。
+        return Round(FloatingToolbarCompactDiameter)
+    return Ceil(BaseWidth * eff + 6)
 }
 
 FloatingToolbar_ShowCursorQuickMenu() {
@@ -1892,13 +1917,15 @@ FloatingToolbar_ResizeForToolbarCount() {
 FloatingToolbarCalculateHeight() {
     global FloatingToolbarChatDrawerOpen, FloatingToolbarChatDrawerHeight, FloatingToolbarCompactDiameter
     eff := FloatingToolbar_EffectiveScale()
-    BaseHeight := 64
+    ; 增加高度余量，避免放大后图标顶部/底部被裁。
+    BaseHeight := 72
     if FloatingToolbarChatDrawerOpen {
         ScreenVirtual_GetBounds(&vl, &vt, &vw, &vh)
         return vh
     }
     if FloatingToolbarIsCompactMode()
-        return Round(FloatingToolbarCompactDiameter * eff)
+        ; 紧凑态使用固定像素直径，避免高 DPI 下过小。
+        return Round(FloatingToolbarCompactDiameter)
     return Round(BaseHeight * eff)
 }
 
