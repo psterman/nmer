@@ -2160,6 +2160,7 @@ html[data-theme="light"] #tx-test-result {
           </div>
           <div class="pending-bar-actions">
             <button type="button" class="pending-btn primary" id="btnPendingSave">存入草稿区</button>
+            <button type="button" class="pending-btn" id="btnPendingOpenFile">打开文件</button>
             <button type="button" class="pending-btn" id="btnPendingSearch">搜索</button>
             <button type="button" class="pending-btn" id="btnPendingAi">快速 AI</button>
             <button type="button" class="pending-btn toggle" id="btnPendingPanel">高级处理 ▾</button>
@@ -2439,6 +2440,7 @@ html[data-theme="light"] #tx-test-result {
   const btnTrashClose = document.getElementById('btnTrashClose');
   const btnTrashEmpty = document.getElementById('btnTrashEmpty');
   const btnPendingSave = document.getElementById('btnPendingSave');
+  const btnPendingOpenFile = document.getElementById('btnPendingOpenFile');
   const btnPendingSearch = document.getElementById('btnPendingSearch');
   const btnPendingAi = document.getElementById('btnPendingAi');
   const btnPendingPanel = document.getElementById('btnPendingPanel');
@@ -2632,6 +2634,7 @@ html[data-theme="light"] #tx-test-result {
 
   const STATIC_HOTKEY_BINDINGS = Object.freeze([
     ['#btnCloseHub', 'g', '关闭'],
+    ['#btnPendingOpenFile', 'o', '打开文件'],
     ['#btnPendingSearch', 'f', '搜索'],
     ['#btnPendingAi', 'a', '快速 AI'],
     ['#btnClear', 'backspace', '清空草稿'],
@@ -5449,6 +5452,9 @@ html[data-theme="light"] #tx-test-result {
 
   btnClear.addEventListener('click', clearAll);
   if (btnPendingSave) btnPendingSave.addEventListener('click', () => addToDraft());
+  if (btnPendingOpenFile) btnPendingOpenFile.addEventListener('click', () => {
+    postToAhk({ type: 'hub_open_text_file_pick' });
+  });
   if (btnPendingSearch) btnPendingSearch.addEventListener('click', doPendingSearch);
   if (btnPendingAi) btnPendingAi.addEventListener('click', doPendingAi);
   if (btnPendingPanel) btnPendingPanel.addEventListener('click', () => setAdvPanelOpen(advPanel ? advPanel.hidden : true));
@@ -5649,6 +5655,22 @@ html[data-theme="light"] #tx-test-result {
         if (advPanel && !advPanel.hidden) updateAdvStatus();
       }
     });
+    preview.addEventListener('dragover', (e) => {
+      if (!hasExternalDropPayload(e.dataTransfer)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        e.dataTransfer.dropEffect = 'copy';
+      } catch (_) {}
+      bumpExternalDragVisual();
+    }, true);
+    preview.addEventListener('drop', async (e) => {
+      if (!hasExternalDropPayload(e.dataTransfer)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      clearExternalDropVisual();
+      await applyExternalDropToPreview(e);
+    }, true);
     preview.addEventListener('mousedown', armDraftDragFromTextarea, true);
   }
   if (pendingLane)
@@ -5667,27 +5689,19 @@ html[data-theme="light"] #tx-test-result {
 
   if (previewCard) {
     previewCard.addEventListener('dragover', (e) => {
-      if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('text/plain')) {
-        e.preventDefault();
+      if (!hasExternalDropPayload(e.dataTransfer)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      try {
         e.dataTransfer.dropEffect = 'copy';
-      }
+      } catch (_) {}
+      bumpExternalDragVisual();
     });
-    previewCard.addEventListener('drop', (e) => {
+    previewCard.addEventListener('drop', async (e) => {
       e.preventDefault();
       e.stopPropagation();
       clearExternalDropVisual();
-      let t = '';
-      try {
-        t = e.dataTransfer.getData('text/plain');
-      } catch (_) {}
-      t = String(t || '').replace(/\r\n/g, '\n').trim();
-      if (!t) return;
-      state.pendingImagePath = '';
-      state.pendingImageDataUrl = '';
-      state.pendingDraft = t;
-      refreshAll();
-      pulsePreviewBloom();
-      flashDropSuccessOnPreview();
+      await applyExternalDropToPreview(e);
     });
   }
 
@@ -6027,7 +6041,7 @@ html[data-theme="light"] #tx-test-result {
         if (raw && String(raw).trim()) {
           let t = String(raw).replace(/\r\n/g, '\n').trim();
           if (types[i] === 'text/uri-list') t = t.split('\n')[0].trim();
-          return compactText(t);
+          return t;
         }
       } catch (_) {}
     }
@@ -6037,10 +6051,156 @@ html[data-theme="light"] #tx-test-result {
         const div = document.createElement('div');
         div.innerHTML = html;
         const t = (div.textContent || '').trim();
-        if (t) return compactText(t);
+        if (t) return String(t).replace(/\r\n/g, '\n').trim();
       }
     } catch (_) {}
     return '';
+  }
+
+  function decodeFileUriToPath(uri) {
+    let u = String(uri || '').trim();
+    if (!u) return '';
+    if (!/^file:\/\//i.test(u)) return '';
+    u = u.replace(/^file:\/+/i, '/');
+    try {
+      u = decodeURIComponent(u);
+    } catch (_) {}
+    u = u.replace(/\//g, '\\');
+    if (/^\\[A-Za-z]:\\/.test(u)) u = u.slice(1);
+    return u;
+  }
+
+  function getFileExt(nameOrPath) {
+    const s = String(nameOrPath || '').trim();
+    const m = s.match(/\.([^.\\/]+)$/);
+    return m ? String(m[1]).toLowerCase() : '';
+  }
+
+  function rtfToPlainText(raw) {
+    let s = String(raw || '');
+    // Decode \uN Unicode escapes.
+    s = s.replace(/\\u(-?\d+)\??/g, (_, n) => {
+      let code = Number(n);
+      if (!Number.isFinite(code)) return '';
+      if (code < 0) code += 65536;
+      try { return String.fromCharCode(code); } catch (_) { return ''; }
+    });
+    s = s.replace(/\\par[d]?/g, '\n').replace(/\\line/g, '\n').replace(/\\tab/g, '\t');
+    s = s.replace(/\\'([0-9a-fA-F]{2})/g, (_, hh) => {
+      try { return String.fromCharCode(parseInt(hh, 16)); } catch (_) { return ''; }
+    });
+    s = s.replace(/\\[a-zA-Z]+-?\d* ?/g, '');
+    s = s.replace(/\\[^a-zA-Z0-9\s]/g, '');
+    s = s.replace(/[{}]/g, '');
+    return String(s).replace(/\r\n/g, '\n').trim();
+  }
+
+  async function readTextFromDroppedFile(file) {
+    if (!file) return '';
+    const name = String(file.name || '').trim();
+    const ext = getFileExt(name);
+    if (!{ txt: 1, md: 1, rtf: 1, log: 1 }[ext]) return '';
+    const size = Number(file.size || 0);
+    if (size > 6 * 1024 * 1024) return '';
+    let text = '';
+    try {
+      text = await file.text();
+    } catch (_) {
+      return '';
+    }
+    if (ext === 'rtf') text = rtfToPlainText(text);
+    return String(text || '').replace(/\r\n/g, '\n').trim();
+  }
+
+  async function readExternalDropFileText(e) {
+    const dt = e && e.dataTransfer;
+    if (!dt || !dt.files || !dt.files.length) return '';
+    for (let i = 0; i < dt.files.length; i++) {
+      const t = await readTextFromDroppedFile(dt.files[i]);
+      if (t) return t;
+    }
+    return '';
+  }
+
+  function readExternalDropFile(e) {
+    const dt = e && e.dataTransfer;
+    if (!dt) return null;
+    const allow = { txt: 1, md: 1, rtf: 1, log: 1 };
+    if (dt.files && dt.files.length) {
+      for (let i = 0; i < dt.files.length; i++) {
+        const f = dt.files[i];
+        const name = String((f && f.name) || '').trim();
+        const ext = getFileExt(name);
+        if (!allow[ext]) continue;
+        const p = String((f && f.path) || '').trim();
+        if (p) return { path: p, name, ext };
+      }
+    }
+    try {
+      const uriRaw = String(dt.getData('text/uri-list') || '').trim();
+      if (!uriRaw) return null;
+      const lines = uriRaw
+        .split(/\r?\n/)
+        .map((x) => String(x || '').trim())
+        .filter((x) => x && !x.startsWith('#'));
+      for (let i = 0; i < lines.length; i++) {
+        const p = decodeFileUriToPath(lines[i]);
+        const ext = getFileExt(p);
+        if (p && allow[ext]) return { path: p, name: p.split(/[\\/]/).pop() || '', ext };
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  function hasExternalDropPayload(dt) {
+    if (!dt) return false;
+    if (dt.files && dt.files.length) return true;
+    try {
+      const types = Array.from(dt.types || []).map((x) => String(x || '').toLowerCase());
+      if (!types.length) return false;
+      return (
+        types.includes('text/plain') ||
+        types.includes('text') ||
+        types.includes('text/uri-list') ||
+        types.includes('text/html')
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function applyExternalDropToPreview(e) {
+    const droppedFileText = await readExternalDropFileText(e);
+    if (droppedFileText) {
+      setDraftPreview(droppedFileText);
+      flashDropSuccessOnPreview();
+      applyVisualState();
+      postToAhk({ type: 'hub_external_drag', phase: 'leave' });
+      return true;
+    }
+    const droppedFile = readExternalDropFile(e);
+    if (droppedFile && droppedFile.path) {
+      postToAhk({
+        type: 'hub_external_file_drop',
+        path: String(droppedFile.path || ''),
+        name: String(droppedFile.name || ''),
+        ext: String(droppedFile.ext || '')
+      });
+      applyVisualState();
+      postToAhk({ type: 'hub_external_drag', phase: 'leave' });
+      return true;
+    }
+    const dropped = readExternalDropText(e);
+    if (dropped) {
+      setDraftPreview(dropped);
+      flashDropSuccessOnPreview();
+      applyVisualState();
+      postToAhk({ type: 'hub_external_drag', phase: 'leave' });
+      return true;
+    }
+    applyVisualState();
+    postToAhk({ type: 'hub_external_drag', phase: 'leave' });
+    return false;
   }
 
   /** 鏁撮〉 WebView 浣滀负鎷栨斁鐩爣锛氫粠 Cursor 绛夊閮ㄧ獥鍙ｆ嫋鍏ュ嵆鍔犲叆鍗＄墖 */
@@ -6074,20 +6234,14 @@ html[data-theme="light"] #tx-test-result {
       scheduleExternalDragEnd();
     }, true);
 
-    document.addEventListener('drop', (e) => {
+    document.addEventListener('drop', async (e) => {
       e.preventDefault();
       if (externalDragLeaveTimer) {
         clearTimeout(externalDragLeaveTimer);
         externalDragLeaveTimer = null;
       }
       externalDragDepth = 0;
-      const dropped = readExternalDropText(e);
-      if (dropped) {
-        setDraftPreview(dropped);
-        flashDropSuccessOnPreview();
-      }
-      applyVisualState();
-      postToAhk({ type: 'hub_external_drag', phase: 'leave' });
+      await applyExternalDropToPreview(e);
     }, false);
   }
 
@@ -6263,6 +6417,25 @@ html[data-theme="light"] #tx-test-result {
               preview.setSelectionRange(len, len);
             }
           } catch (_) {}
+          break;
+        }
+        case 'hub_external_file_text': {
+          if (d && d.ok && d.text) {
+            setDraftPreview(normalizePreviewText(d.text));
+            flashDropSuccessOnPreview();
+            try {
+              if (preview && preview.tagName === 'TEXTAREA') {
+                preview.focus({ preventScroll: true });
+                const len = preview.value ? preview.value.length : 0;
+                preview.setSelectionRange(len, len);
+              }
+            } catch (_) {}
+          } else if (d && !d.ok) {
+            const fn = String(d.fileName || '').trim();
+            const msg = String(d.message || '').trim() || '读取失败';
+            setDraftPreview((fn ? `[${fn}] ` : '') + msg);
+            flashDropSuccessOnPreview();
+          }
           break;
         }
         case 'hub_preview_image':

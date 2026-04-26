@@ -61,6 +61,7 @@ global FloatingToolbarChatDrawerOpen := false
 global FloatingToolbarChatDrawerWidth := 620
 global FloatingToolbarChatDrawerHeight := 720
 global FloatingToolbarCmdVisibleCount := 7
+global FloatingToolbarMaxVisibleIcons := 9
 global FloatingToolbarLastClosedX := 0
 global FloatingToolbarLastClosedY := 0
 global g_FTB_BlockedCmdIds := Map("ch_t", true, "pqp_capture", true, "ss_menu", true)
@@ -1686,7 +1687,7 @@ FloatingToolbar_DeferredToolbarCmd(cmdId) {
 }
 
 FloatingToolbarPushCmdLayoutToWeb() {
-    global g_FTB_WV2, g_Commands, FloatingToolbarCmdVisibleCount, FloatingToolbarChatDrawerOpen, g_FTB_BlockedCmdIds, g_FTB_AllowedCmdIds
+    global g_FTB_WV2, g_Commands, FloatingToolbarCmdVisibleCount, FloatingToolbarChatDrawerOpen, g_FTB_BlockedCmdIds, g_FTB_AllowedCmdIds, FloatingToolbarMaxVisibleIcons
     if !g_FTB_WV2
         return
     try {
@@ -1750,6 +1751,15 @@ FloatingToolbarPushCmdLayoutToWeb() {
             "iconClass", "fa-solid fa-location-crosshairs",
             "iconPath", FloatingToolbar_GetCursorIconPath()
         ))
+    }
+    maxIcons := (FloatingToolbarMaxVisibleIcons > 0) ? Integer(FloatingToolbarMaxVisibleIcons) : 9
+    if (maxIcons < 1)
+        maxIcons := 1
+    if (items.Length > maxIcons) {
+        trimmed := []
+        Loop maxIcons
+            trimmed.Push(items[A_Index])
+        items := trimmed
     }
     FloatingToolbarCmdVisibleCount := items.Length
     try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_toolbar_cmds", "items", items))
@@ -1855,9 +1865,11 @@ FloatingToolbarExitCompactMode() {
 
 ; ===================== 鐠侊紕鐣诲銉ュ徔閺嶅繐顔旀惔锕€鎷版妯哄 =====================
 FloatingToolbarCalculateWidth() {
-    global FloatingToolbarChatDrawerOpen, FloatingToolbarChatDrawerWidth, FloatingToolbarCompactDiameter, FloatingToolbarCmdVisibleCount
+    global FloatingToolbarChatDrawerOpen, FloatingToolbarChatDrawerWidth, FloatingToolbarCompactDiameter, FloatingToolbarCmdVisibleCount, FloatingToolbarMaxVisibleIcons
     eff := FloatingToolbar_EffectiveScale()
     iconCount := (FloatingToolbarCmdVisibleCount > 0) ? FloatingToolbarCmdVisibleCount : 7
+    if (FloatingToolbarMaxVisibleIcons > 0 && iconCount > FloatingToolbarMaxVisibleIcons)
+        iconCount := FloatingToolbarMaxVisibleIcons
     ; 按「Logo + 图标数量」自适应宽度，并在最终像素向上取整避免右侧 1~2px 截断。
     ; CSS 对应：左右 padding(16) + logo(42) + 间距(8) + 图标区(40*n + 5*(n-1))
     BaseWidth := Max(190, 61 + iconCount * 45)

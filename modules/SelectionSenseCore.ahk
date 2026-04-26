@@ -1710,6 +1710,47 @@ SelectionSense_OnMenuWebMessage(sender, args) {
         }
         return
     }
+    if (typ = "hub_external_file_drop") {
+        global g_SelSense_MenuWV2
+        p0 := msg.Has("path") ? String(msg["path"]) : ""
+        ret0 := SelectionSense_HubCapsule_LoadDroppedText(p0)
+        try WebView_QueuePayload(g_SelSense_MenuWV2, Map(
+            "type", "hub_external_file_text",
+            "ok", ret0["ok"],
+            "text", ret0["text"],
+            "message", ret0["message"],
+            "fileName", ret0["fileName"]
+        ))
+        if (ret0["ok"])
+            try WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_focus_preview"))
+        return
+    }
+    if (typ = "hub_open_text_file_pick") {
+        global g_SelSense_MenuWV2
+        picked := ""
+        try picked := FileSelect(1, A_ScriptDir, "选择文本文件", "Text Files (*.txt;*.md;*.rtf;*.log)")
+        if (Trim(String(picked)) = "") {
+            try WebView_QueuePayload(g_SelSense_MenuWV2, Map(
+                "type", "hub_external_file_text",
+                "ok", false,
+                "text", "",
+                "message", "已取消选择",
+                "fileName", ""
+            ))
+            return
+        }
+        ret0 := SelectionSense_HubCapsule_LoadDroppedText(picked)
+        try WebView_QueuePayload(g_SelSense_MenuWV2, Map(
+            "type", "hub_external_file_text",
+            "ok", ret0["ok"],
+            "text", ret0["text"],
+            "message", ret0["message"],
+            "fileName", ret0["fileName"]
+        ))
+        if (ret0["ok"])
+            try WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_focus_preview"))
+        return
+    }
     if (typ = "hub_translate_ecdict_install") {
         if !SelectionSense_HubDict_InstallEcdictOneClick_AsyncStart()
             SelectionSense_HubDictInstall_RunJs(2, "安装任务正在执行中，请稍候...")
@@ -2011,6 +2052,99 @@ SelectionSense_PushMenuText(text) {
 
 SelectionSense_PushHubPreviewText(text) {
     SelectionSense_QueueHubPreviewUpdate(text)
+}
+
+SelectionSense_HubCapsule_RtfToPlainText(rtfText) {
+    s := String(rtfText)
+    ; Decode \uN Unicode escapes first.
+    pos := 1
+    out := ""
+    while RegExMatch(s, "\\u(-?\d+)\??", &m, pos) {
+        out .= SubStr(s, pos, m.Pos - pos)
+        ch := ""
+        try {
+            code := Integer(m[1])
+            if (code < 0)
+                code += 65536
+            ch := Chr(code)
+        } catch {
+            ch := ""
+        }
+        out .= ch
+        pos := m.Pos + m.Len
+    }
+    s := out . SubStr(s, pos)
+    s := RegExReplace(s, "\\par[d]?", "`n")
+    s := RegExReplace(s, "\\line", "`n")
+    s := RegExReplace(s, "\\tab", "`t")
+    ; Decode \\'hh escapes.
+    while RegExMatch(s, "\\'([0-9A-Fa-f]{2})", &h) {
+        ch2 := ""
+        try ch2 := Chr(Integer("0x" . h[1]))
+        s := StrReplace(s, h[0], ch2, , 1)
+    }
+    ; Strip most remaining RTF control words.
+    s := RegExReplace(s, "\\[a-zA-Z]+-?\d* ?", "")
+    s := RegExReplace(s, "\\[^a-zA-Z0-9\s]", "")
+    s := StrReplace(s, "{", "")
+    s := StrReplace(s, "}", "")
+    s := RegExReplace(s, "[ \t]+\n", "`n")
+    s := RegExReplace(s, "\n{3,}", "`n`n")
+    return Trim(s, " `t`r`n")
+}
+
+SelectionSense_HubCapsule_LoadDroppedText(filePath) {
+    ret := Map("ok", false, "text", "", "message", "", "fileName", "")
+    p := Trim(String(filePath))
+    if (p = "") {
+        ret["message"] := "文件路径为空"
+        return ret
+    }
+    if !FileExist(p) {
+        ret["message"] := "文件不存在"
+        return ret
+    }
+    attrs := FileExist(p)
+    if InStr(attrs, "D") {
+        ret["message"] := "不支持文件夹"
+        return ret
+    }
+    SplitPath(p, &name)
+    ret["fileName"] := name
+    ext := ""
+    if RegExMatch(name, "\.([^.\\\/]+)$", &m)
+        ext := StrLower(String(m[1]))
+    if (ext != "txt" && ext != "md" && ext != "rtf" && ext != "log") {
+        ret["message"] := "仅支持 txt / md / rtf / log"
+        return ret
+    }
+    try sz := FileGetSize(p)
+    catch
+        sz := 0
+    if (sz > 6 * 1024 * 1024) {
+        ret["message"] := "文件过大（>6MB）"
+        return ret
+    }
+    raw := ""
+    try {
+        ; Use default decoding to keep BOM/system codepage compatibility.
+        raw := FileRead(p)
+    } catch as e {
+        ret["message"] := "读取失败: " . e.Message
+        return ret
+    }
+    txt := String(raw)
+    if (ext = "rtf")
+        txt := SelectionSense_HubCapsule_RtfToPlainText(txt)
+    txt := StrReplace(txt, "`r`n", "`n")
+    txt := Trim(txt, " `t`r`n")
+    if (txt = "") {
+        ret["message"] := "文件内容为空"
+        return ret
+    }
+    ret["ok"] := true
+    ret["text"] := txt
+    return ret
 }
 
 ; For CapsLock+C: page/WebView may lag behind Show, so retry preview push once.
