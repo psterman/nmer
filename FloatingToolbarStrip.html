@@ -62,16 +62,16 @@ body.drawer-open .drawer-toolbar .logo-btn,body.drawer-open #panel > header.hdr 
 #msgs{flex:1;min-height:0;min-width:0;overflow:auto;padding:calc(12px * var(--ui)) calc(16px * var(--ui));display:flex;flex-direction:column;gap:calc(10px * var(--ui));align-items:stretch}
 #msgs > #empty{flex-shrink:0}
 /* 旧行已由下方赛博风滚动条块覆盖，避免双定义 */
-#cliPane{display:none;flex:1;min-height:0;min-width:0;overflow:hidden;padding:calc(12px * var(--ui)) calc(14px * var(--ui)) calc(14px * var(--ui))}
-.cli-shell{height:100%;min-height:0;display:flex;flex-direction:column;border:1px solid rgba(255,102,0,.18);border-radius:calc(14px * var(--ui));background:rgba(255,255,255,.03);overflow:hidden}
+#cliPane{display:none;flex:1;min-height:0;min-width:0;overflow:hidden;padding:calc(12px * var(--ui)) calc(14px * var(--ui)) calc(14px * var(--ui));align-items:stretch}
+.cli-shell{flex:1 1 auto;width:100%;max-width:100%;height:100%;min-height:0;min-width:0;display:flex;flex-direction:column;border:1px solid rgba(255,102,0,.18);border-radius:calc(14px * var(--ui));background:rgba(255,255,255,.03);overflow:hidden}
 .cli-bar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:calc(10px * var(--ui));padding:calc(10px * var(--ui)) calc(12px * var(--ui));border-bottom:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.12)}
 .cli-title{font-size:calc(12px * var(--ui));color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cli-btns{display:flex;gap:calc(8px * var(--ui));flex-shrink:0}
 .cli-btn{height:calc(30px * var(--ui));padding:0 calc(12px * var(--ui));border-radius:999px;border:1px solid rgba(255,179,71,.22);background:rgba(255,255,255,.04);color:#f7f7f7;font-size:calc(11px * var(--ui));cursor:pointer}
 .cli-btn:hover{background:rgba(255,255,255,.09)}
-.cli-frame{flex:1;min-height:0;border:none;width:100%;background:#0b0b0b}
+.cli-frame{display:block;flex:1 1 auto;min-height:0;height:100%;border:none;width:100%;background:#0b0b0b}
 body.cli-mode #msgs,body.cli-mode #cmp{display:none!important}
-body.cli-mode #cliPane{display:flex!important}
+body.cli-mode #cliPane{display:flex!important;flex-direction:column}
 #empty{padding:calc(14px * var(--ui));border:1px dashed rgba(255,102,0,.25);border-radius:calc(14px * var(--ui));color:var(--muted);background:rgba(255,255,255,.03);line-height:1.6;font-size:calc(13px * var(--ui))}
 .m{width:fit-content;max-width:min(92%,100%);border-radius:calc(14px * var(--ui));border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.04);overflow:hidden;align-self:flex-start;flex-shrink:0;min-height:min-content}
 .m.user{align-self:flex-end;background:rgba(255,102,0,.12);border-color:rgba(255,102,0,.22)}
@@ -887,6 +887,13 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     var tm = String(mode || '').toLowerCase() === 'light' ? 'light' : 'dark';
     state.themeMode = tm;
     document.body.setAttribute('data-theme', tm);
+    try {
+      var s = activeSession();
+      if (isCliSession(s) && document.body.classList.contains('cli-mode')) {
+        var u = cliUrlForSession(s);
+        if (u) applyCliFrameUrl(u);
+      }
+    } catch (e) {}
   }
 
   function setDrawer(v) {
@@ -1040,7 +1047,34 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     // https://app.local 内嵌 http://127.0.0.1 在部分 WebView2 版本会白屏，优先 localhost
     if (u === 'http://127.0.0.1:7681' || u === 'http://127.0.0.1:7681/')
       u = 'http://localhost:7681/';
-    return u;
+    return cliUrlWithTheme(u);
+  }
+
+  function cliThemePayload() {
+    var light = String(state.themeMode || '').toLowerCase() === 'light';
+    return light
+      ? {
+          scrollbarSliderBackground: 'rgba(230,126,34,0.36)',
+          scrollbarSliderHoverBackground: 'rgba(211,84,0,0.56)',
+          scrollbarSliderActiveBackground: 'rgba(211,84,0,0.72)'
+        }
+      : {
+          scrollbarSliderBackground: 'rgba(255,120,48,0.4)',
+          scrollbarSliderHoverBackground: 'rgba(255,132,64,0.6)',
+          scrollbarSliderActiveBackground: 'rgba(255,150,80,0.76)'
+        };
+  }
+
+  function cliUrlWithTheme(rawUrl) {
+    var u = String(rawUrl || '').trim();
+    if (!u) return '';
+    try {
+      var obj = new URL(u, window.location.href);
+      obj.searchParams.set('theme', JSON.stringify(cliThemePayload()));
+      return obj.toString();
+    } catch (e) {
+      return u;
+    }
   }
 
   function applyCliFrameUrl(u) {
@@ -3952,7 +3986,7 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
           cstatForSession(ts.id, '已在外部浏览器打开终端。', 'success');
           return;
         }
-        if (!turl) turl = cliUrlForSession(ts);
+        turl = cliUrlForSession(ts) || turl;
         if (turl) applyCliFrameUrl(turl);
         cstatForSession(ts.id, '本机终端已就绪。', 'success');
         return;
