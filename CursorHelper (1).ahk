@@ -2540,8 +2540,7 @@ InitFloatingBubble()
 ; 悬浮栏/球：待 WebView2 共享环境就绪后在 _WV2_BeginWarmupAfterEnv 中 ApplyAppearanceActivationMode
 ; 若环境回调异常未触发，延后重试一次以免无悬浮界面
 SetTimer(ApplyAppearanceActivationMode, -5000)
-; ttyd 尽早拉起（~300ms 后），避免 CLI 需先手动跑 ttyd.bat
-SetTimer(AutoStartTtydForNiumaChat, -300)
+; 关闭开机抢占 7681：改为在用户打开 Niuma Chat CLI 时按需启动 ttyd
 GravityPump_Register()
 SelectionSense_Init()
 ; 加载提示词模板系统（在配置初始化后）
@@ -4649,6 +4648,7 @@ SwitchToChineseIMEForSearchCenter(*) {
 ; 在脚本退出前关闭数据库连接，确保数据完全写入
 ExitFunc(ExitReason, ExitCode) {
     global ClipboardDB
+    try NiumaTtyd_StopProcess()
     if (ClipboardDB && ClipboardDB != 0) {
         try {
             ClipboardDB.CloseDB()

@@ -2,6 +2,7 @@
 ; 依赖主脚本中的 WebView_QueuePayload、A_ScriptDir
 
 global NiumaTtyd_Port := 7681
+global NiumaTtyd_Pid := 0
 global NiumaTtyd__BootI := 0
 
 /**
@@ -22,6 +23,41 @@ NiumaTtyd_IsPortListening() {
         A_ComSpec . ' /c "netstat -an | findstr :' . p . ' | findstr LISTENING >nul 2>&1"',
         , "Hide")
     return (checkCode = 0)
+}
+
+NiumaTtyd_GetListeningPid(port := 0) {
+    p := (port && Integer(port) > 0) ? Integer(port) : NiumaTtyd_Port
+    tmp := A_Temp . "\niuma_ttyd_pid_" . A_TickCount . ".txt"
+    try FileDelete(tmp)
+    try {
+        psCmd := "$pp=(Get-NetTCPConnection -State Listen -LocalPort " . p . " -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess); if($pp){Set-Content -LiteralPath '" . StrReplace(tmp, "'", "''") . "' -Value $pp -Encoding ASCII}"
+        RunWait("powershell -NoProfile -Command " . Chr(34) . psCmd . Chr(34), , "Hide")
+    } catch {
+        return 0
+    }
+    if !FileExist(tmp)
+        return 0
+    pid := 0
+    try {
+        s := Trim(FileRead(tmp, "UTF-8"))
+        if (s != "")
+            pid := Integer(s)
+    } catch {
+        pid := 0
+    }
+    try FileDelete(tmp)
+    return pid
+}
+
+NiumaTtyd_IsPortOwnedByTtyd(port := 0) {
+    pid := NiumaTtyd_GetListeningPid(port)
+    if (pid <= 0)
+        return false
+    try {
+        return (StrLower(ProcessGetName(pid)) = "ttyd.exe")
+    } catch {
+        return false
+    }
 }
 
 /**
@@ -57,18 +93,42 @@ NiumaTtyd_SaveShellIni(shell) {
     }
 }
 
+NiumaTtyd_WorkDir() {
+    d := String(A_ScriptDir)
+    if RegExMatch(d, "[^\x00-\x7F]") {
+        try {
+            u := String(EnvGet("USERPROFILE"))
+            if (u != "" && !RegExMatch(u, "[^\x00-\x7F]") && DirExist(u))
+                return u
+        } catch {
+        }
+        if DirExist("C:\\")
+            return "C:\\"
+    }
+    return d
+}
+
 NiumaTtyd_StartProcess() {
+    global NiumaTtyd_Pid
     ttydExe := NiumaTtyd_ExePath()
     p := NiumaTtyd_Port
     if !FileExist(ttydExe)
         return false
-    if (NiumaTtyd_IsPortListening())
+    if NiumaTtyd_IsPortOwnedByTtyd(p) {
+        NiumaTtyd_Pid := NiumaTtyd_GetListeningPid(p)
         return true
+    }
+    if (NiumaTtyd_IsPortListening())
+        return false
     shell := NiumaTtyd_GetShell()
+    workDir := NiumaTtyd_WorkDir()
     ; 可执行与参数原样作为 ttyd 的 command 尾段（与官方 ttyd 命令行一致）
-    cmdLine := '"' . ttydExe . '" -W -i 127.0.0.1 -p ' . p . ' -w "' . A_ScriptDir . '" ' . shell
+    ; WebView2 鍦ㄩ儴鍒嗘満鍣ㄤ笂浼氬嚭鐜?xterm 娓叉煋鍣ㄩ粦灞忥紝寮哄埗 DOM renderer 鏇寸ǔ
+    cmdLine := '"' . ttydExe . '" -W -i 127.0.0.1 -p ' . p . ' -t rendererType=dom -t fontSize=14 -w "' . workDir . '" ' . shell
     try {
-        Run(cmdLine, A_ScriptDir, "Hide")
+        Run(cmdLine, workDir, "Hide", &pid)
+        if (pid > 0)
+            NiumaTtyd_Pid := pid
     } catch as e {
         ; 常见：杀软拦截、工作目录无权限、Shell 路径无效
         try {
@@ -88,19 +148,26 @@ NiumaTtyd_StartProcess() {
  * @returns {Boolean} 成功则 true
  */
 NiumaTtyd_EnsureReady(timeoutMs := 20000) {
+    global NiumaTtyd_Pid
     if !FileExist(NiumaTtyd_ExePath())
         return false
-    if (NiumaTtyd_IsPortListening())
+    if NiumaTtyd_IsPortOwnedByTtyd(NiumaTtyd_Port) {
+        NiumaTtyd_Pid := NiumaTtyd_GetListeningPid(NiumaTtyd_Port)
         return true
+    }
+    if (NiumaTtyd_IsPortListening())
+        return false
     if !NiumaTtyd_StartProcess()
         return false
     deadline := A_TickCount + Integer(timeoutMs)
     while (A_TickCount < deadline) {
-        if (NiumaTtyd_IsPortListening())
+        if NiumaTtyd_IsPortOwnedByTtyd(NiumaTtyd_Port) {
+            NiumaTtyd_Pid := NiumaTtyd_GetListeningPid(NiumaTtyd_Port)
             return true
+        }
         Sleep(150)
     }
-    return NiumaTtyd_IsPortListening()
+    return NiumaTtyd_IsPortOwnedByTtyd(NiumaTtyd_Port)
 }
 
 /**
@@ -115,6 +182,23 @@ NiumaTtyd_Restart(waitMs := 20000) {
     }
     Sleep(500)
     return NiumaTtyd_EnsureReady(waitMs)
+}
+
+NiumaTtyd_StopProcess() {
+    global NiumaTtyd_Pid
+    pid := NiumaTtyd_Pid
+    if (pid > 0) {
+        try ProcessClose(pid)
+    }
+    pid2 := NiumaTtyd_GetListeningPid(NiumaTtyd_Port)
+    if (pid2 > 0) {
+        try {
+            if (StrLower(ProcessGetName(pid2)) = "ttyd.exe")
+                ProcessClose(pid2)
+        } catch {
+        }
+    }
+    NiumaTtyd_Pid := 0
 }
 
 /**
@@ -140,7 +224,21 @@ NiumaTtyd_NotifyWeb(wv2, ok, errMsg, baseUrl) {
 }
 
 NiumaTtyd_BaseUrl() {
-    return "http://127.0.0.1:" . NiumaTtyd_Port . "/"
+    return "http://localhost:" . NiumaTtyd_Port . "/"
+}
+
+NiumaTtyd_OpenExternal(url := "") {
+    u := Trim(String(url))
+    if (u = "")
+        u := NiumaTtyd_BaseUrl()
+    if !NiumaTtyd_EnsureReady(20000)
+        return false
+    try {
+        Run(u)
+        return true
+    } catch {
+        return false
+    }
 }
 
 ; WebMessage 里同步长逻辑会卡 UI：延期到独立定时器
@@ -180,6 +278,17 @@ NiumaTtyd_DeferredRestartJob(*) {
     }
 }
 
+NiumaTtyd_DeferredExternalOpenJob(*) {
+    global g_FTB_WV2
+    wv2 := g_FTB_WV2
+    ok := NiumaTtyd_OpenExternal()
+    if (ok) {
+        NiumaTtyd_NotifyWeb(wv2, true, "", NiumaTtyd_BaseUrl())
+    } else {
+        NiumaTtyd_NotifyWeb(wv2, false, "系统浏览器打开失败，可手动访问 " . NiumaTtyd_BaseUrl(), "")
+    }
+}
+
 /**
  * 主程序启动时热启动 ttyd，并多轮短重试，避免比 WebView/iframe 晚就绪。
  * @param {Object} * 定时器用
@@ -194,7 +303,7 @@ AutoStartTtydForNiumaChat(*) {
 NiumaTtyd_BootstrapRetryStep(*) {
     global NiumaTtyd__BootI
     NiumaTtyd__BootI++
-    if (NiumaTtyd_IsPortListening() || NiumaTtyd__BootI > 20) {
+    if (NiumaTtyd_IsPortOwnedByTtyd(NiumaTtyd_Port) || NiumaTtyd__BootI > 20) {
         NiumaTtyd__BootI := 0
         return
     }

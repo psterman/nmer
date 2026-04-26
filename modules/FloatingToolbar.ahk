@@ -729,6 +729,10 @@ FloatingToolbar_OnWebMessage(sender, args) {
         SetTimer(NiumaTtyd_DeferredRestartJob, -1)
         return
     }
+    if (typ = "niuma_cli_open_external") {
+        SetTimer(NiumaTtyd_DeferredExternalOpenJob, -1)
+        return
+    }
     if (typ = "niuma_save_ttyd_shell") {
         sh := msg.Has("shell") ? Trim(String(msg["shell"])) : ""
         NiumaTtyd_SaveShellIni(sh)
