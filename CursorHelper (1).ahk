@@ -2540,7 +2540,8 @@ InitFloatingBubble()
 ; 悬浮栏/球：待 WebView2 共享环境就绪后在 _WV2_BeginWarmupAfterEnv 中 ApplyAppearanceActivationMode
 ; 若环境回调异常未触发，延后重试一次以免无悬浮界面
 SetTimer(ApplyAppearanceActivationMode, -5000)
-; 关闭开机抢占 7681：改为在用户打开 Niuma Chat CLI 时按需启动 ttyd
+; 启动主脚本后自动拉起 ttyd（内部自带端口占用检测，非 ttyd 占用时会安全退出）
+SetTimer(AutoStartTtydForNiumaChat, -800)
 GravityPump_Register()
 SelectionSense_Init()
 ; 加载提示词模板系统（在配置初始化后）

@@ -1,0 +1,38 @@
+[2026/04/26 周日 16:42:02.10] ========================================
+[2026/04/26 周日 16:42:02.10] ttyd doctor started
+[2026/04/26 周日 16:42:02.11] workdir: C:\Users\Administrator\Desktop\牛马nmer\
+[2026/04/26 周日 16:42:02.11] ========================================
+[2026/04/26 周日 16:42:02.15] [OK] Running as administrator.
+[2026/04/26 周日 16:42:02.15] [OK] Found ttyd.exe.
+[2026/04/26 周日 16:42:02.35] [WARN] AutoHotkey not found in PATH. CursorHelper may not auto-start ttyd.
+[2026/04/26 周日 16:42:02.55] [OK] No Zone.Identifier stream found.
+[2026/04/26 周日 16:42:03.50] [OK] Port 7681 is free.
+[2026/04/26 周日 16:42:03.51] [INFO] Starting ttyd...
+[鍛ㄦ棩 2026/04/26 16:42:05.05] ========================================
+[鍛ㄦ棩 2026/04/26 16:42:05.05] ttyd doctor started
+[鍛ㄦ棩 2026/04/26 16:42:05.06] workdir: C:\Users\Administrator\Desktop\鐗涢┈nmer\
+[鍛ㄦ棩 2026/04/26 16:42:05.06] ========================================
+[鍛ㄦ棩 2026/04/26 16:42:05.08] [OK] Running as administrator.
+[鍛ㄦ棩 2026/04/26 16:42:05.09] [OK] Found ttyd.exe.
+[鍛ㄦ棩 2026/04/26 16:42:05.29] [WARN] AutoHotkey not found in PATH. CursorHelper may not auto-start ttyd.
+[鍛ㄦ棩 2026/04/26 16:42:05.47] [OK] No Zone.Identifier stream found.
+[鍛ㄦ棩 2026/04/26 16:42:06.32] [OK] Port 7681 is free.
+[鍛ㄦ棩 2026/04/26 16:42:06.32] [INFO] Starting ttyd...
+[鍛ㄦ棩 2026/04/26 16:42:17.03] [ERROR] ttyd did not become ready within timeout.
+[鍛ㄦ棩 2026/04/26 16:42:17.03] [HINT] Check antivirus/defender block list and run ttyd_debug.bat for verbose output.
+[鍛ㄦ棩 2026/04/26 16:42:17.03] [DONE] Repair finished with errors.
+[鍛ㄦ棩 2026/04/26 16:42:17.04] [LOG ] C:\Users\Administrator\Desktop\鐗涢┈nmer\ttyd_repair.log
+[鍛ㄦ棩 2026/04/26 16:42:37.96] ========================================
+[鍛ㄦ棩 2026/04/26 16:42:37.96] ttyd doctor started
+[鍛ㄦ棩 2026/04/26 16:42:37.96] workdir: C:\Users\Administrator\Desktop\鐗涢┈nmer\
+[鍛ㄦ棩 2026/04/26 16:42:37.96] ========================================
+[鍛ㄦ棩 2026/04/26 16:42:37.99] [OK] Running as administrator.
+[鍛ㄦ棩 2026/04/26 16:42:37.99] [OK] Found ttyd.exe.
+[鍛ㄦ棩 2026/04/26 16:42:38.19] [WARN] AutoHotkey not found in PATH. CursorHelper may not auto-start ttyd.
+[鍛ㄦ棩 2026/04/26 16:42:38.38] [OK] No Zone.Identifier stream found.
+[鍛ㄦ棩 2026/04/26 16:42:39.24] [OK] Port 7681 is free.
+[鍛ㄦ棩 2026/04/26 16:42:39.24] [INFO] Starting ttyd...
+[鍛ㄦ棩 2026/04/26 16:42:49.69] [ERROR] ttyd did not become ready within timeout.
+[鍛ㄦ棩 2026/04/26 16:42:49.70] [HINT] Check antivirus/defender block list and run ttyd_debug.bat for verbose output.
+[鍛ㄦ棩 2026/04/26 16:42:49.70] [DONE] Repair finished with errors.
+[鍛ㄦ棩 2026/04/26 16:42:49.70] [LOG ] C:\Users\Administrator\Desktop\鐗涢┈nmer\ttyd_repair.log
