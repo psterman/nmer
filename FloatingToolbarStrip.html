@@ -358,7 +358,7 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     SP = '你是一个擅长 AHK v2、自动化脚本和桌面工作流的助手。',
     P = {
       openai: { label: 'OpenAI', transport: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', models: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini', 'gpt-4o'] },
-      codex_cli: { label: '命令行（ttyd）', transport: 'cli', baseUrl: 'http://localhost:7681', model: '', models: [] },
+      codex_cli: { label: '命令行（ttyd）', transport: 'cli', baseUrl: 'http://127.0.0.1:7681', model: '', models: [] },
       kimi: { label: 'Kimi', transport: 'openai', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'kimi-k2-0711-preview'] },
       qwen: { label: 'Qwen', transport: 'openai', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus', models: ['qwen-plus', 'qwen-turbo', 'qwen-max', 'qwen3-coder-plus'] },
       deepseek: { label: 'DeepSeek', transport: 'openai', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', models: ['deepseek-chat', 'deepseek-reasoner'] },
@@ -1044,9 +1044,9 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     if (!p) return '';
     // CLI 视图以 baseUrl 作为 ttyd 页面地址
     var u = String((s.baseUrl || '').trim() || (p.baseUrl || '')).trim();
-    // https://app.local 内嵌 http://127.0.0.1 在部分 WebView2 版本会白屏，优先 localhost
-    if (u === 'http://127.0.0.1:7681' || u === 'http://127.0.0.1:7681/')
-      u = 'http://localhost:7681/';
+    // 历史配置里若是 localhost，则归一到 127.0.0.1，避免 localhost->::1 导致拒绝连接
+    if (u === 'http://localhost:7681' || u === 'http://localhost:7681/')
+      u = 'http://127.0.0.1:7681/';
     return cliUrlWithTheme(u);
   }
 
@@ -1083,6 +1083,12 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     var fr = $('cliFrame');
     if (!fr) return;
     fr.dataset.src = u;
+    var cur = String(fr.src || '').trim();
+    if (cur === u) {
+      try {
+        fr.src = 'about:blank';
+      } catch (e) {}
+    }
     fr.src = u;
   }
 
@@ -1131,8 +1137,8 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     var prevWasCli = _niumaWasCli;
     _niumaWasCli = true;
     var directUrl = cliUrlForSession(s);
-    if (directUrl) applyCliFrameUrl(directUrl);
     var needSpawn = !prevWasCli || !cliFrameUrlLooksLive();
+    if (!needSpawn && directUrl) applyCliFrameUrl(directUrl);
     if (needSpawn) throttledNiumaCliOpen(false);
     cstatForSession(
       s.id,
@@ -3986,7 +3992,11 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
           cstatForSession(ts.id, '已在外部浏览器打开终端。', 'success');
           return;
         }
-        turl = cliUrlForSession(ts) || turl;
+        if (turl) {
+          ts.baseUrl = String(turl).replace(/\/+$/, '');
+          persistSessions();
+        }
+        turl = turl || cliUrlForSession(ts);
         if (turl) applyCliFrameUrl(turl);
         cstatForSession(ts.id, '本机终端已就绪。', 'success');
         return;

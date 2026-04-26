@@ -60,6 +60,23 @@ NiumaTtyd_IsPortOwnedByTtyd(port := 0) {
     }
 }
 
+; 仅端口 LISTEN 并不代表 Web 页面已可用；补一层 HTTP 探测可避免 WebView2 首次拒绝访问
+NiumaTtyd_IsHttpReady(waitMs := 1200) {
+    u := NiumaTtyd_BaseUrl()
+    try {
+        req := ComObject("WinHttp.WinHttpRequest.5.1")
+        ; Resolve/connect/send/receive timeout (ms)
+        req.SetTimeouts(400, 400, Integer(waitMs), Integer(waitMs))
+        req.Open("GET", u, false)
+        req.Send()
+        st := 0
+        try st := Integer(req.Status)
+        return (st >= 200 && st < 500)
+    } catch {
+        return false
+    }
+}
+
 /**
  * 在尚未监听时启动 ttyd 进程；已监听则 no-op。
  * @returns {Boolean} 是否已尝试启动或已在监听
@@ -153,7 +170,8 @@ NiumaTtyd_EnsureReady(timeoutMs := 20000) {
         return false
     if NiumaTtyd_IsPortOwnedByTtyd(NiumaTtyd_Port) {
         NiumaTtyd_Pid := NiumaTtyd_GetListeningPid(NiumaTtyd_Port)
-        return true
+        if NiumaTtyd_IsHttpReady(1200)
+            return true
     }
     if (NiumaTtyd_IsPortListening())
         return false
@@ -163,11 +181,12 @@ NiumaTtyd_EnsureReady(timeoutMs := 20000) {
     while (A_TickCount < deadline) {
         if NiumaTtyd_IsPortOwnedByTtyd(NiumaTtyd_Port) {
             NiumaTtyd_Pid := NiumaTtyd_GetListeningPid(NiumaTtyd_Port)
-            return true
+            if NiumaTtyd_IsHttpReady(1200)
+                return true
         }
         Sleep(150)
     }
-    return NiumaTtyd_IsPortOwnedByTtyd(NiumaTtyd_Port)
+    return (NiumaTtyd_IsPortOwnedByTtyd(NiumaTtyd_Port) && NiumaTtyd_IsHttpReady(1200))
 }
 
 /**
