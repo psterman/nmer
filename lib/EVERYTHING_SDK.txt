@@ -1,0 +1,8 @@
+搜索中心 / 剪贴板等处通过 Everything SDK（everything64.dll）与 Everything 客户端通信。
+
+1. 从 Voidtools 官方下载 Everything 安装包或 SDK。
+2. 将 SDK 中的 Everything64.dll 复制到本目录。
+3. 重命名为：everything64.dll（全小写，与 CursorHelper.ahk 中路径一致）。
+4. 请使用 64 位 Everything 主程序，并保持其运行或允许脚本通过 -startup 拉起，否则 IPC 会失败。
+
+安装完成后无需提交 DLL 到版本库（通常由本机自行放置）。

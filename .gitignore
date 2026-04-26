@@ -1,0 +1,26 @@
+# 本地/敏感：SQLite 主库与 WAL（勿提交；剪贴板内容易含 Token/API Key）
+*.db
+*.db-shm
+*.db-wal
+
+# 根目录 FTS5 剪贴板库（modules/ClipboardFTS5.ahk 使用）
+/Clipboard.db
+/Clipboard.db-shm
+/Clipboard.db-wal
+
+# 显式命名（与通配重复亦可，便于阅读）
+Clipboard.db
+CursorData.db
+CursorHelper.db
+
+# 用户数据目录（含 CursorData.db、截图缓存等）
+Data/
+
+# 本地配置（每人不同，不宜进仓库）
+CursorShortcut.ini
+PromptTemplates.ini
+
+# 调试日志（根目录）
+clipboard_debug.log
+
+cache/dict_install/

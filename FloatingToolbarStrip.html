@@ -1,0 +1,4053 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Floating Toolbar</title>
+<!-- 不使用外链图标字体：WebView2 常拦截 CDN，会导致工具栏只显示圆点/方块 -->
+<style>
+@font-face{font-family:"AppUi";src:local("Segoe UI");unicode-range:U+0000-024F,U+1E00-1EFF,U+2000-206F,U+20A0-20CF,U+2100-214F}
+@font-face{font-family:"AppUi";src:local("DengXian"),local("Microsoft YaHei UI"),local("Microsoft YaHei");unicode-range:U+2E80-2EFF,U+2F00-2FDF,U+3000-303F,U+3040-30FF,U+3100-312F,U+31A0-31BF,U+3400-4DBF,U+4E00-9FFF,U+F900-FAFF}
+:root{--bg:#0a0a0a;--panel:rgba(18,18,18,.92);--panel2:rgba(22,22,22,.96);--orange:#ff6600;--text:#e8e8e8;--muted:#9b9b9b;--ui:1;--ease:.2s cubic-bezier(.22,1,.36,1);--de:.32s ease-in-out;--toolbar-bg:#0a0a0a}
+html{color-scheme:dark}
+html,body{scrollbar-gutter:stable}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--toolbar-bg);font-size:calc(14px * var(--ui));line-height:1.5;font-family:"AppUi","Segoe UI","DengXian","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;color:var(--text);user-select:none;-webkit-user-select:none}
+button,input,textarea,select{font:inherit}
+#ftbBootSplash{position:fixed;inset:0;z-index:10050;display:grid;place-items:center;background:#0d1014;background-image:radial-gradient(circle at 50% 35%,rgba(255,102,0,.18),transparent 54%),linear-gradient(180deg,#090909 0%,#131313 100%);opacity:1;visibility:visible;transition:opacity .22s ease,visibility .22s ease}
+#ftbBootSplash.hide{opacity:0;visibility:hidden;pointer-events:none}
+#ftbBootSplash.done{display:none}
+.ftb-boot-card{position:relative;min-width:136px;min-height:136px;padding:16px 18px 14px;border-radius:20px;border:1px solid rgba(255,102,0,.42);background:linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,.02));box-shadow:0 10px 28px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.24);display:grid;place-items:center;gap:8px}
+.ftb-boot-ring{position:absolute;width:58px;height:58px;border-radius:50%;border:2px solid rgba(255,179,71,.45);border-top-color:#ff8d2a;animation:ftbBootSpin .95s linear infinite}
+.ftb-boot-logo{width:42px;height:42px;object-fit:contain;filter:drop-shadow(0 5px 11px rgba(0,0,0,.35));opacity:0;transition:opacity .16s ease}
+.ftb-boot-logo.ready{opacity:1}
+.ftb-boot-fb{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:12px;border:1px solid rgba(255,179,71,.5);color:#ffb347;font-size:20px;font-weight:700}
+.ftb-boot-fb[hidden]{display:none}
+.ftb-boot-text{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--text);opacity:.9}
+@media (max-height:120px){
+#ftbBootSplash{background:linear-gradient(180deg,#0a0a0a 0%,#141414 100%)}
+.ftb-boot-card{min-width:auto;min-height:auto;padding:0;border:none;border-radius:999px;background:transparent;box-shadow:none;gap:0}
+.ftb-boot-ring{width:26px;height:26px;border-width:1.5px}
+.ftb-boot-logo{width:20px;height:20px}
+.ftb-boot-fb{width:20px;height:20px;border-radius:6px;font-size:12px}
+.ftb-boot-text{display:none}
+}
+@keyframes ftbBootSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+#app{position:relative;width:100%;height:100%;background:var(--toolbar-bg)}
+body.drawer-open{background:var(--toolbar-bg)}
+/* 标准圆角矩形：CSS border-radius 各向一致，避免 SVG 非等比拉伸成“药丸/鼓边” */
+#collapsedRoot{position:relative;display:flex;flex-direction:row;align-items:center;height:100%;width:100%;gap:calc(8px * var(--ui));padding:calc(6px * var(--ui)) calc(8px * var(--ui));background:var(--toolbar-bg);background-clip:padding-box;border-radius:calc(10px * var(--ui));border:none;box-shadow:none;opacity:0;visibility:hidden;transition:opacity .12s ease,visibility .12s ease,border-radius .24s cubic-bezier(.22,1,.36,1),padding .24s cubic-bezier(.22,1,.36,1),gap .24s cubic-bezier(.22,1,.36,1);isolation:isolate;transform:translateZ(0)}
+/* 仅用户悬停/按下/内部聚焦时：轻盈内发光（平时关闭，避免误以为是黑边） */
+#collapsedRoot::after{content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .22s ease;box-shadow:none}
+#collapsedRoot:hover::after,#collapsedRoot:active::after,#collapsedRoot:focus-within::after{opacity:1;animation:ftbInnerBreath 2.6s ease-in-out infinite}
+#collapsedRoot > *{position:relative;z-index:1}
+#collapsedRoot,body.drawer-open .drawer-toolbar .logo-btn{touch-action:manipulation}
+body.ftb-ready #collapsedRoot{opacity:1;visibility:visible}
+body.drawer-open #collapsedRoot{display:none!important}
+#drawerRoot{display:none;position:absolute;inset:0;flex-direction:column;min-height:0}
+body.drawer-open #drawerRoot{display:flex!important}
+#stage{flex:1;display:flex;flex-direction:row;min-height:0;position:relative}
+#backdrop{position:absolute;inset:0;z-index:1;background:transparent}
+#panel{position:relative;z-index:2;flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--panel);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-left:1px solid rgba(255,102,0,.35);box-shadow:-12px 0 40px rgba(0,0,0,.35)}
+#resizeGrip{position:absolute;left:0;top:0;bottom:0;width:calc(10px * var(--ui));z-index:30;cursor:ew-resize;background:linear-gradient(90deg,rgba(255,102,0,.28),transparent);opacity:.6}
+#resizeGrip:hover{opacity:1}
+.hdr{flex-shrink:0;display:flex;justify-content:space-between;align-items:center;padding:calc(14px * var(--ui)) calc(16px * var(--ui));border-bottom:1px solid rgba(255,102,0,.15);background:linear-gradient(180deg,rgba(255,102,0,.06),transparent);cursor:grab;touch-action:none}
+body.drawer-open .drawer-toolbar .logo-btn,body.drawer-open #panel > header.hdr .t1,body.drawer-open #panel > header.hdr .t2{user-select:none;-webkit-user-select:none}
+.hdr:active{cursor:grabbing}
+.t1{font-size:calc(15px * var(--ui));font-weight:700}
+.t2{margin-top:calc(3px * var(--ui));font-size:calc(11px * var(--ui));color:var(--muted)}
+.icons{display:flex;gap:calc(8px * var(--ui))}
+.ib{width:calc(34px * var(--ui));height:calc(34px * var(--ui));border:1px solid rgba(255,102,0,.28);border-radius:calc(10px * var(--ui));background:rgba(255,255,255,.04);color:var(--orange);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all var(--ease)}
+.ib:hover{background:rgba(255,102,0,.12);border-color:rgba(255,102,0,.6)}
+.ib svg{width:calc(16px * var(--ui));height:calc(16px * var(--ui));stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#main{flex:1;min-height:0;display:flex;flex-direction:column;min-width:0}
+#msgs{flex:1;min-height:0;min-width:0;overflow:auto;padding:calc(12px * var(--ui)) calc(16px * var(--ui));display:flex;flex-direction:column;gap:calc(10px * var(--ui));align-items:stretch}
+#msgs > #empty{flex-shrink:0}
+/* 旧行已由下方赛博风滚动条块覆盖，避免双定义 */
+#cliPane{display:none;flex:1;min-height:0;min-width:0;overflow:hidden;padding:calc(12px * var(--ui)) calc(14px * var(--ui)) calc(14px * var(--ui))}
+.cli-shell{height:100%;min-height:0;display:flex;flex-direction:column;border:1px solid rgba(255,102,0,.18);border-radius:calc(14px * var(--ui));background:rgba(255,255,255,.03);overflow:hidden}
+.cli-bar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:calc(10px * var(--ui));padding:calc(10px * var(--ui)) calc(12px * var(--ui));border-bottom:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.12)}
+.cli-title{font-size:calc(12px * var(--ui));color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cli-btns{display:flex;gap:calc(8px * var(--ui));flex-shrink:0}
+.cli-btn{height:calc(30px * var(--ui));padding:0 calc(12px * var(--ui));border-radius:999px;border:1px solid rgba(255,179,71,.22);background:rgba(255,255,255,.04);color:#f7f7f7;font-size:calc(11px * var(--ui));cursor:pointer}
+.cli-btn:hover{background:rgba(255,255,255,.09)}
+.cli-frame{flex:1;min-height:0;border:none;width:100%;background:#0b0b0b}
+body.cli-mode #msgs,body.cli-mode #cmp{display:none!important}
+body.cli-mode #cliPane{display:flex!important}
+#empty{padding:calc(14px * var(--ui));border:1px dashed rgba(255,102,0,.25);border-radius:calc(14px * var(--ui));color:var(--muted);background:rgba(255,255,255,.03);line-height:1.6;font-size:calc(13px * var(--ui))}
+.m{width:fit-content;max-width:min(92%,100%);border-radius:calc(14px * var(--ui));border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.04);overflow:hidden;align-self:flex-start;flex-shrink:0;min-height:min-content}
+.m.user{align-self:flex-end;background:rgba(255,102,0,.12);border-color:rgba(255,102,0,.22)}
+.mh{display:flex;justify-content:space-between;gap:calc(12px * var(--ui));padding:calc(8px * var(--ui)) calc(12px * var(--ui)) calc(6px * var(--ui));font-size:calc(11px * var(--ui));color:var(--muted);border-bottom:1px solid rgba(255,255,255,.05);flex-shrink:0}
+.mb{padding:calc(10px * var(--ui)) calc(12px * var(--ui)) calc(12px * var(--ui));line-height:1.7;font-size:calc(13px * var(--ui));color:var(--text);user-select:text;-webkit-user-select:text;overflow-wrap:anywhere;word-break:break-word;min-width:0;min-height:min-content}
+.m .mb a{color:#ffb380}
+.m.search-hit{box-shadow:0 0 0 1px rgba(255,132,64,.75),0 0 0 3px rgba(255,102,0,.16)}
+.mb pre{margin-top:calc(10px * var(--ui));border:1px solid rgba(255,102,0,.14);border-radius:calc(12px * var(--ui));background:rgba(8,8,8,.95);overflow:auto}
+.mb pre code{display:block;padding:calc(12px * var(--ui));font-size:calc(12px * var(--ui));line-height:1.65;font-family:"AppUi","Segoe UI","DengXian","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif}
+.hl-comment{color:#6a9955}.hl-string{color:#ce9178}.hl-number{color:#b5cea8}.hl-keyword{color:#ff9b52}.hl-builtins{color:#4fc1ff}.hl-var{color:#dcdcaa}
+#cmp{flex-shrink:0;padding:calc(12px * var(--ui)) calc(16px * var(--ui)) calc(14px * var(--ui));border-top:1px solid rgba(255,102,0,.15);background:linear-gradient(180deg,rgba(255,255,255,.02),transparent)}
+#input{width:100%;min-height:calc(96px * var(--ui));resize:vertical;border:1px solid rgba(255,102,0,.2);border-radius:calc(14px * var(--ui));background:rgba(8,8,8,.72);color:var(--text);padding:calc(10px * var(--ui)) calc(12px * var(--ui));outline:none;user-select:text;-webkit-user-select:text}
+#composerFooter{display:flex;flex-direction:row;align-items:flex-end;gap:calc(12px * var(--ui));margin-top:calc(10px * var(--ui))}
+.drawer-toolbar{flex:1;display:flex;flex-direction:row;align-items:center;gap:calc(6px * var(--ui));min-width:0;background:transparent;padding:0}
+#sendWrap{flex-shrink:0;display:flex;align-items:flex-end}
+.st{font-size:calc(12px * var(--ui));color:var(--muted)}.st.error{color:#ff7a59}.st.success{color:#4ed08b}
+.btn1{min-height:calc(42px * var(--ui));padding:0 calc(18px * var(--ui));border-radius:calc(12px * var(--ui));border:1px solid rgba(255,102,0,.3);cursor:pointer;font-weight:700;font-size:calc(14px * var(--ui));background:linear-gradient(180deg,#ff7d26,#ff6600);color:#111;transition:all var(--ease)}
+.btn1:disabled{opacity:.45;cursor:not-allowed}
+.btn2,.btn3{height:calc(38px * var(--ui));padding:0 calc(14px * var(--ui));border-radius:calc(10px * var(--ui));font-size:calc(13px * var(--ui));border:1px solid rgba(255,102,0,.22);cursor:pointer;background:rgba(255,255,255,.04);color:var(--text)}
+#chatStatusRow{margin-top:calc(8px * var(--ui))}
+.logo-btn{flex-shrink:0;width:max(calc(42px * var(--ui)),34px);height:max(calc(42px * var(--ui)),34px);border:1px solid transparent;border-radius:calc(8px * var(--ui));background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:4px;transition:background-color var(--ease),border-color var(--ease),transform var(--ease),color var(--ease);color:#ff6600;outline:none;position:relative}
+.logo-btn:hover{background:rgba(255,102,0,.1);border-color:rgba(255,102,0,.32)}
+.logo-btn:focus-visible{background:rgba(255,102,0,.12);border-color:rgba(255,102,0,.5);box-shadow:none}
+.logo-img{width:max(calc(30px * var(--ui)),28px);height:max(calc(30px * var(--ui)),28px);min-width:max(calc(28px * var(--ui)),24px);min-height:max(calc(28px * var(--ui)),24px);object-fit:contain;pointer-events:none;transform-origin:center;opacity:0;transition:opacity .12s ease,transform .24s cubic-bezier(.22,1,.36,1),width .24s cubic-bezier(.22,1,.36,1),height .24s cubic-bezier(.22,1,.36,1)}
+.logo-img.logo-ready{opacity:1}
+.icon-btns{display:flex;flex-direction:row;align-items:center;gap:calc(5px * var(--ui));flex:1;min-width:0;flex-wrap:nowrap;overflow-x:auto;transition:max-width .24s cubic-bezier(.22,1,.36,1),opacity .2s ease,transform .24s cubic-bezier(.22,1,.36,1)}
+.icon-btns::-webkit-scrollbar{height:4px}
+body.ftb-compact #collapsedRoot{justify-content:center;padding:0;gap:0;border-radius:999px}
+body.ftb-compact #collapsedBtns{max-width:0;opacity:0;overflow:hidden;pointer-events:none;transform:translateX(-10px) scale(.94)}
+body.ftb-compact #collapsedRoot::after{opacity:0!important;animation:none!important}
+body.ftb-compact #collapsedRoot .logo-btn{width:100%;height:100%;padding:0;border-radius:999px;background:transparent;box-shadow:none;filter:none}
+body.ftb-compact #collapsedRoot .logo-btn:hover{filter:none;background:transparent}
+body.ftb-compact #collapsedRoot .logo-btn .logo-img{transform:scale(1.02)}
+.tb{width:calc(40px * var(--ui));height:calc(40px * var(--ui));display:flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:calc(8px * var(--ui));cursor:pointer;position:relative;transition:background-color var(--ease),border-color var(--ease),transform var(--ease),color var(--ease);color:#ff6600;background:transparent;flex-shrink:0;font-size:0;line-height:0;overflow:hidden}
+.tb svg{width:calc(24px * var(--ui));height:calc(24px * var(--ui));pointer-events:none}
+.tb .tb-ico{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--orange)}
+.tb .tb-ico svg{stroke:currentColor}
+.tb .tb-ico-img{width:calc(22px * var(--ui));height:calc(22px * var(--ui));object-fit:contain;pointer-events:none}
+button.tb{font:inherit;font-family:inherit}
+.tb:hover{background:rgba(255,102,0,.1);border-color:rgba(255,102,0,.28)}
+.tb .dot{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--orange);opacity:0}
+.tb.selected .dot{opacity:1}
+.tb.selected{border-color:transparent!important;background:transparent!important;box-shadow:none!important}
+.tb[data-action=Search].pulse{animation:breathe 1.6s ease-in-out infinite}
+.tb[data-action=Search].drag-over{transform:scale(.9)}
+.tb.drag-over{transform:scale(.92);background:rgba(255,102,0,.14);border-color:rgba(255,102,0,.42)}
+.tb[data-action=Search].loading svg{animation:spin .7s linear infinite}
+.bubble{position:absolute;left:50%;bottom:calc(100% + 5px);transform:translateX(-50%);padding:2px 7px;font-size:10px;font-weight:600;color:#00ff41;background:rgba(10,10,10,.92);border:1px solid rgba(0,255,65,.4);border-radius:5px;white-space:nowrap;opacity:0;pointer-events:none}
+.tb[data-action=Search].pulse .bubble{opacity:1}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes ftbChromePulse{
+0%,100%{border-color:rgba(255,102,0,.42);box-shadow:0 0 0 1px rgba(255,102,0,.1),0 0 10px rgba(255,102,0,.16),0 0 22px rgba(255,102,0,.08)}
+50%{border-color:rgba(255,102,0,.58);box-shadow:0 0 0 1px rgba(255,102,0,.16),0 0 16px rgba(255,102,0,.26),0 0 32px rgba(255,102,0,.14)}
+}
+@keyframes ftbInnerBreath{
+0%,100%{box-shadow:inset 0 0 14px rgba(255,102,0,.04),inset 0 0 6px rgba(255,140,60,.03)}
+50%{box-shadow:inset 0 0 18px rgba(255,102,0,.08),inset 0 0 10px rgba(255,140,60,.05)}
+}
+#settings{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity var(--de);z-index:40}
+body.settings-open #settings{opacity:1;pointer-events:auto}
+.sbg{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.sd{position:absolute;top:calc(14px * var(--ui));right:calc(14px * var(--ui));bottom:calc(14px * var(--ui));left:calc(14px * var(--ui));max-width:min(560px,100%);margin-left:auto;background:var(--panel2);border:1px solid rgba(255,102,0,.28);border-radius:calc(18px * var(--ui));display:flex;flex-direction:column}
+.sh{padding:calc(14px * var(--ui)) calc(16px * var(--ui)) calc(12px * var(--ui));border-bottom:1px solid rgba(255,102,0,.15);display:flex;justify-content:space-between;align-items:center}
+.sbt{font-size:calc(15px * var(--ui));font-weight:700}
+.sbt2{margin-top:calc(3px * var(--ui));font-size:calc(11px * var(--ui));color:var(--muted)}
+.sbody{flex:1;overflow:auto;padding:calc(14px * var(--ui)) calc(16px * var(--ui));display:grid;gap:calc(12px * var(--ui))}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:calc(10px * var(--ui))}
+.fld{display:grid;gap:calc(6px * var(--ui))}
+.fld label{font-size:calc(11px * var(--ui));color:var(--muted)}
+.ctl{width:100%;min-height:calc(40px * var(--ui));border:1px solid rgba(255,102,0,.22);border-radius:calc(10px * var(--ui));background:#101010;color:var(--text);font-size:calc(13px * var(--ui));padding:calc(8px * var(--ui)) calc(10px * var(--ui));outline:none}
+select.ctl{cursor:pointer;appearance:auto;background-color:#101010;color:var(--text)}
+select.ctl option,select.ctl optgroup{background-color:#141414;color:var(--text)}
+textarea.ctl{min-height:calc(100px * var(--ui));resize:vertical}
+.hint{padding:calc(10px * var(--ui)) calc(12px * var(--ui));border:1px solid rgba(255,102,0,.14);border-radius:calc(12px * var(--ui));background:rgba(255,255,255,.03);color:var(--muted);font-size:calc(11px * var(--ui));line-height:1.55}
+.hint.mini{padding:calc(6px * var(--ui)) calc(8px * var(--ui));font-size:calc(10px * var(--ui));margin-top:calc(4px * var(--ui))}
+.prompt-tools{display:flex;flex-wrap:wrap;gap:calc(8px * var(--ui));align-items:center;margin-bottom:calc(8px * var(--ui))}
+.prompt-tools .ctl{max-width:min(100%,calc(220px * var(--ui)))}
+.prompt-tools .btn3{flex-shrink:0}
+.dd{position:relative}
+.dd-wrap{position:relative}
+.dd-btn{display:flex;align-items:center;gap:calc(8px * var(--ui));width:100%;min-height:calc(40px * var(--ui));padding:calc(7px * var(--ui)) calc(10px * var(--ui));border:1px solid rgba(255,102,0,.22);border-radius:calc(10px * var(--ui));background:#101010;color:var(--text);cursor:pointer;text-align:left;font-size:calc(13px * var(--ui))}
+.dd-btn:hover{border-color:rgba(255,102,0,.45)}
+.dd-icon{width:calc(22px * var(--ui));height:calc(22px * var(--ui));flex-shrink:0;object-fit:contain}
+.dd-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:calc(13px * var(--ui))}
+.dd-chev{flex-shrink:0;color:var(--muted);font-size:calc(10px * var(--ui))}
+.dd-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);max-height:min(50vh,calc(260px * var(--ui)));overflow-y:auto;z-index:50;background:#1a1a1a;border:1px solid rgba(255,102,0,.28);border-radius:calc(10px * var(--ui));box-shadow:0 8px 24px rgba(0,0,0,.45);padding:calc(4px * var(--ui)) 0}
+.dd-menu[hidden]{display:none!important}
+.dd-item{display:flex;align-items:center;gap:calc(8px * var(--ui));width:calc(100% - 8px);margin:0 calc(4px * var(--ui));border:none;border-radius:calc(8px * var(--ui));background:transparent;color:var(--text);padding:calc(8px * var(--ui)) calc(10px * var(--ui));cursor:pointer;text-align:left;font-size:calc(13px * var(--ui))}
+.dd-item:hover,.dd-item.dd-active{background:rgba(255,102,0,.14)}
+.dd-item .dd-icon{width:calc(22px * var(--ui));height:calc(22px * var(--ui))}
+.fld-dd .dd{margin-top:calc(4px * var(--ui))}
+.vh-select{position:absolute;opacity:0;pointer-events:none;width:0;height:0;overflow:hidden;border:none;padding:0;margin:0}
+.sf{padding:calc(12px * var(--ui)) calc(16px * var(--ui)) calc(14px * var(--ui));border-top:1px solid rgba(255,102,0,.15);display:flex;justify-content:space-between;gap:calc(12px * var(--ui));align-items:center}
+#ftb-toolbar-tpl{display:none}
+.session-tabs{display:flex;flex-wrap:nowrap;gap:calc(5px * var(--ui));padding:calc(8px * var(--ui)) calc(10px * var(--ui)) calc(10px * var(--ui));border-bottom:1px solid rgba(255,102,0,.12);overflow-x:auto;flex-shrink:0;align-items:center;background:rgba(0,0,0,.12)}
+.session-tabs::-webkit-scrollbar{height:calc(4px * var(--ui))}
+.stab{flex-shrink:0;display:inline-flex;align-items:center;gap:calc(5px * var(--ui));max-width:calc(104px * var(--ui));padding:calc(5px * var(--ui)) calc(6px * var(--ui)) calc(5px * var(--ui)) calc(7px * var(--ui));border-radius:calc(10px * var(--ui));border:1px solid rgba(255,102,0,.2);background:rgba(255,255,255,.04);cursor:pointer;font-size:calc(11px * var(--ui));color:var(--text);white-space:nowrap;overflow:hidden}
+.stab:hover{background:rgba(255,102,0,.1)}
+.stab.active{border-color:rgba(255,102,0,.55);background:rgba(255,102,0,.14);color:var(--orange)}
+.stab-ico{display:flex;align-items:center;justify-content:center;width:calc(22px * var(--ui));height:calc(22px * var(--ui));border-radius:calc(8px * var(--ui));flex-shrink:0;background:rgba(0,0,0,.25);padding:calc(2px * var(--ui))}
+.stab-ico-img{width:calc(18px * var(--ui));height:calc(18px * var(--ui));display:block;object-fit:contain}
+.stab-t{overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:calc(56px * var(--ui));font-weight:600}
+.stab-x{flex-shrink:0;width:calc(18px * var(--ui));height:calc(18px * var(--ui));border:none;border-radius:calc(6px * var(--ui));background:transparent;color:var(--muted);cursor:pointer;font-size:calc(14px * var(--ui));line-height:1;padding:0;display:flex;align-items:center;justify-content:center}
+.stab-x:hover{color:#ff7a59;background:rgba(255,255,255,.08)}
+.stab-add{flex-shrink:0;width:calc(32px * var(--ui));height:calc(32px * var(--ui));padding:0;border-radius:calc(10px * var(--ui));border:1px dashed rgba(255,102,0,.35);background:transparent;color:var(--orange);cursor:pointer;font-size:calc(18px * var(--ui));font-weight:600;line-height:1;display:flex;align-items:center;justify-content:center}
+.stab-add:hover{background:rgba(255,102,0,.08)}
+#newSessionPick{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity var(--de);z-index:42}
+body.nspick-open #newSessionPick{opacity:1;pointer-events:auto}
+.debug-hud{position:fixed;left:4px;right:4px;bottom:3px;top:auto;z-index:9999;height:16px;overflow:hidden;background:rgba(0,0,0,.72);border:1px solid rgba(255,102,0,.45);border-radius:6px;padding:0 6px;font:10px/14px "AppUi","Segoe UI","DengXian","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;color:#d8d8d8;pointer-events:none;white-space:nowrap;text-overflow:ellipsis}
+.debug-hud .row{display:block;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.debug-hud .row.err{color:#ff9b7d}
+.debug-hud .row.ok{color:#7df0b2}
+.nsbg{position:absolute;inset:0;background:rgba(0,0,0,.5)}
+.ns-panel{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(calc(380px * var(--ui)),calc(100% - 28px));max-height:min(calc(440px * var(--ui)),72vh);background:var(--panel2);border:1px solid rgba(255,102,0,.28);border-radius:calc(18px * var(--ui));display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(0,0,0,.45)}
+.nsh{padding:calc(12px * var(--ui)) calc(14px * var(--ui));border-bottom:1px solid rgba(255,102,0,.15);display:flex;justify-content:space-between;align-items:flex-start;gap:calc(10px * var(--ui))}
+.nst{font-size:calc(14px * var(--ui));font-weight:700}
+.nst2{font-size:calc(11px * var(--ui));color:var(--muted);margin-top:calc(3px * var(--ui))}
+.ns-grid{flex:1;overflow:auto;padding:calc(12px * var(--ui));display:grid;grid-template-columns:1fr 1fr;gap:calc(8px * var(--ui))}
+.ns-item{display:flex;flex-direction:column;align-items:center;gap:calc(6px * var(--ui));padding:calc(10px * var(--ui)) calc(6px * var(--ui));border:1px solid rgba(255,102,0,.2);border-radius:calc(12px * var(--ui));background:rgba(255,255,255,.04);cursor:pointer;color:var(--text)}
+.ns-item:hover{background:rgba(255,102,0,.12);border-color:rgba(255,102,0,.45)}
+.ns-item .stab-ico{width:calc(40px * var(--ui));height:calc(40px * var(--ui));border-radius:calc(12px * var(--ui));padding:calc(4px * var(--ui))}
+.ns-item .stab-ico-img{width:calc(28px * var(--ui));height:calc(28px * var(--ui))}
+.ns-lab{font-size:calc(11px * var(--ui));font-weight:600;text-align:center;line-height:1.25;word-break:break-all}
+/* 赛博风滚动条：黑橙底 + 橙渐变滑块，隐藏系统箭头（WebView2/Edge 明显） */
+#msgs,.session-tabs,.dd-menu,.sbody,.ns-grid,.ns-panel,.sd,#main,#panel,textarea#input,.mb pre,textarea.ctl,select.ctl,body.drawer-open #app
+  {scrollbar-width:thin;scrollbar-color:rgba(255,120,48,.7) rgba(8,8,10,.95)}
+#msgs::-webkit-scrollbar-button,.session-tabs::-webkit-scrollbar-button,.dd-menu::-webkit-scrollbar-button,.sbody::-webkit-scrollbar-button,.ns-grid::-webkit-scrollbar-button,.ns-panel::-webkit-scrollbar-button,
+#main::-webkit-scrollbar-button,#panel::-webkit-scrollbar-button,textarea#input::-webkit-scrollbar-button,.mb pre::-webkit-scrollbar-button,textarea.ctl::-webkit-scrollbar-button,select.ctl::-webkit-scrollbar-button{min-width:0;min-height:0;width:0;height:0;display:none}
+#msgs::-webkit-scrollbar,.session-tabs::-webkit-scrollbar,.dd-menu::-webkit-scrollbar,.sbody::-webkit-scrollbar,.ns-grid::-webkit-scrollbar,.ns-panel::-webkit-scrollbar,
+#main::-webkit-scrollbar,#panel::-webkit-scrollbar,textarea#input::-webkit-scrollbar,.mb pre::-webkit-scrollbar,textarea.ctl::-webkit-scrollbar,select.ctl::-webkit-scrollbar{width:calc(8px * var(--ui));height:calc(8px * var(--ui))}
+#msgs::-webkit-scrollbar-track,.session-tabs::-webkit-scrollbar-track,.dd-menu::-webkit-scrollbar-track,.sbody::-webkit-scrollbar-track,.ns-grid::-webkit-scrollbar-track,.ns-panel::-webkit-scrollbar-track,
+#main::-webkit-scrollbar-track,#panel::-webkit-scrollbar-track,textarea#input::-webkit-scrollbar-track,.mb pre::-webkit-scrollbar-track,textarea.ctl::-webkit-scrollbar-track,select.ctl::-webkit-scrollbar-track
+  {background:linear-gradient(180deg,rgba(16,16,20,.99),rgba(4,4,6,.96));border-radius:99px;box-shadow:inset 0 0 0 1px rgba(255,102,0,.16)}
+#msgs::-webkit-scrollbar-thumb,.session-tabs::-webkit-scrollbar-thumb,.dd-menu::-webkit-scrollbar-thumb,.sbody::-webkit-scrollbar-thumb,.ns-grid::-webkit-scrollbar-thumb,.ns-panel::-webkit-scrollbar-thumb,
+#main::-webkit-scrollbar-thumb,#panel::-webkit-scrollbar-thumb,textarea#input::-webkit-scrollbar-thumb,.mb pre::-webkit-scrollbar-thumb,textarea.ctl::-webkit-scrollbar-thumb,select.ctl::-webkit-scrollbar-thumb
+  {background:linear-gradient(180deg,rgba(255,150,64,.9),rgba(255,80,0,.75));border-radius:99px;border:1px solid rgba(255,200,120,.3);box-shadow:0 0 10px rgba(255,102,0,.18)}
+#msgs::-webkit-scrollbar-thumb:hover,.session-tabs::-webkit-scrollbar-thumb:hover,.dd-menu::-webkit-scrollbar-thumb:hover,.sbody::-webkit-scrollbar-thumb:hover,.ns-grid::-webkit-scrollbar-thumb:hover,.ns-panel::-webkit-scrollbar-thumb:hover,
+#main::-webkit-scrollbar-thumb:hover,#panel::-webkit-scrollbar-thumb:hover,textarea#input::-webkit-scrollbar-thumb:hover,.mb pre::-webkit-scrollbar-thumb:hover,textarea.ctl::-webkit-scrollbar-thumb:hover,select.ctl::-webkit-scrollbar-thumb:hover
+  {background:linear-gradient(180deg,rgba(255,170,100,.95),rgba(255,110,20,.9))}
+.cli-shell{scrollbar-width:thin;scrollbar-color:rgba(255,120,48,.6) rgba(4,4,6,.97)}
+.cli-shell::-webkit-scrollbar-button{display:none;height:0;width:0}
+.cli-shell::-webkit-scrollbar{width:calc(8px * var(--ui));height:calc(8px * var(--ui))}
+.cli-shell::-webkit-scrollbar-track{background:linear-gradient(180deg,rgba(10,10,12,.95),rgba(2,2,4,.9));border-radius:99px;box-shadow:inset 0 0 0 1px rgba(255,102,0,.1)}
+.cli-shell::-webkit-scrollbar-thumb{background:linear-gradient(180deg,rgba(255,120,50,.9),rgba(200,50,0,.75));border-radius:99px;border:1px solid rgba(255,150,80,.3);box-shadow:0 0 8px rgba(255,100,0,.2)}
+body[data-theme="light"]{color-scheme:light}
+body[data-theme="light"] #msgs,body[data-theme="light"] .session-tabs,body[data-theme="light"] .dd-menu,body[data-theme="light"] .sbody,body[data-theme="light"] .ns-grid,body[data-theme="light"] .ns-panel,body[data-theme="light"] .sd,body[data-theme="light"] #main,body[data-theme="light"] #panel,body[data-theme="light"] textarea#input,body[data-theme="light"] .mb pre,body[data-theme="light"] textarea.ctl,body[data-theme="light"] select.ctl{scrollbar-color:rgba(214,90,20,.6) rgba(255,250,245,.9)}
+body[data-theme="light"] #msgs::-webkit-scrollbar-track,body[data-theme="light"] .session-tabs::-webkit-scrollbar-track,body[data-theme="light"] .dd-menu::-webkit-scrollbar-track,body[data-theme="light"] .sbody::-webkit-scrollbar-track,body[data-theme="light"] .ns-grid::-webkit-scrollbar-track,body[data-theme="light"] .ns-panel::-webkit-scrollbar-track,body[data-theme="light"] #main::-webkit-scrollbar-track,body[data-theme="light"] #panel::-webkit-scrollbar-track,body[data-theme="light"] textarea#input::-webkit-scrollbar-track,body[data-theme="light"] .mb pre::-webkit-scrollbar-track,body[data-theme="light"] textarea.ctl::-webkit-scrollbar-track,body[data-theme="light"] select.ctl::-webkit-scrollbar-track
+  {background:linear-gradient(180deg,#FCFAF7,#F2EDE6);box-shadow:inset 0 0 0 1px rgba(214,100,20,.2)}
+body[data-theme="light"] #msgs::-webkit-scrollbar-thumb,body[data-theme="light"] .session-tabs::-webkit-scrollbar-thumb,body[data-theme="light"] .dd-menu::-webkit-scrollbar-thumb,body[data-theme="light"] .sbody::-webkit-scrollbar-thumb,body[data-theme="light"] .ns-grid::-webkit-scrollbar-thumb,body[data-theme="light"] .ns-panel::-webkit-scrollbar-thumb,body[data-theme="light"] #main::-webkit-scrollbar-thumb,body[data-theme="light"] #panel::-webkit-scrollbar-thumb,body[data-theme="light"] textarea#input::-webkit-scrollbar-thumb,body[data-theme="light"] .mb pre::-webkit-scrollbar-thumb,body[data-theme="light"] textarea.ctl::-webkit-scrollbar-thumb,body[data-theme="light"] select.ctl::-webkit-scrollbar-thumb
+  {background:linear-gradient(180deg,#FFD699,#E88630);border:1px solid rgba(200,100,0,.4);box-shadow:0 0 8px rgba(214,120,20,.2)}
+body[data-theme="light"]{--toolbar-bg:#F7F7F7;--panel:rgba(255,255,255,.96);--panel2:rgba(255,255,255,.98);--orange:#E67E22;--text:#2D2D2D;--muted:#555555}
+body[data-theme="light"] #panel,body[data-theme="light"] .sd,body[data-theme="light"] .ns-panel{border-color:#E5E5E5;box-shadow:-10px 0 24px rgba(0,0,0,.08)}
+body[data-theme="light"] #collapsedRoot{border:1px solid #E5E5E5;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+body[data-theme="light"] #resizeGrip{background:linear-gradient(90deg,rgba(230,126,34,.2),transparent)}
+body[data-theme="light"] .hdr,body[data-theme="light"] .sh,body[data-theme="light"] .sf,body[data-theme="light"] .session-tabs,body[data-theme="light"] #cmp{border-color:#E5E5E5;background:rgba(255,255,255,.9)}
+body[data-theme="light"] .ib,body[data-theme="light"] .btn2,body[data-theme="light"] .btn3,body[data-theme="light"] .stab,body[data-theme="light"] .ns-item{border-color:#E5E5E5;background:#FFFFFF;color:var(--text)}
+body[data-theme="light"] .tb,body[data-theme="light"] .logo-btn{border-color:#E5E5E5;background:#FFFFFF;color:#E67E22}
+body[data-theme="light"] .tb:hover,body[data-theme="light"] .logo-btn:hover{border-color:#D35400;background:#FFF3E8;color:#D35400}
+body[data-theme="light"] .tb.selected{color:#E67E22}
+body[data-theme="light"] .ib:hover,body[data-theme="light"] .btn2:hover,body[data-theme="light"] .btn3:hover,body[data-theme="light"] .stab:hover,body[data-theme="light"] .ns-item:hover{border-color:#D35400;background:#FFF3E8}
+body[data-theme="light"] .btn1{background:#E67E22;border-color:#E67E22;color:#FFFFFF}
+body[data-theme="light"] .btn1:hover{background:#D35400;border-color:#D35400}
+body[data-theme="light"] #empty,body[data-theme="light"] .hint{border-color:#E5E5E5;background:#FFFFFF;color:var(--muted)}
+body[data-theme="light"] .m{border-color:#E5E5E5;background:#FFFFFF}
+body[data-theme="light"] .m.user{background:#FFF1E3;border-color:#E9B889}
+body[data-theme="light"] .mh{border-color:#EAEAEA}
+body[data-theme="light"] .mb pre{background:#FAFAFA;border-color:#E5E5E5}
+body[data-theme="light"] #input,body[data-theme="light"] .ctl,body[data-theme="light"] .dd-btn{background:#FFFFFF;border-color:#E5E5E5;color:var(--text)}
+body[data-theme="light"] select.ctl,body[data-theme="light"] select.ctl option,body[data-theme="light"] select.ctl optgroup{background:#FFFFFF;color:var(--text)}
+body[data-theme="light"] .dd-menu{background:#FFFFFF;border-color:#E5E5E5;box-shadow:0 8px 22px rgba(0,0,0,.1)}
+body[data-theme="light"] .dd-item:hover,body[data-theme="light"] .dd-item.dd-active,body[data-theme="light"] .stab.active{background:#FFF1E3;color:#D35400;border-color:#E9B889}
+body[data-theme="light"] .cli-shell{border-color:#E5E5E5;background:#FFFFFF}
+body[data-theme="light"] .cli-bar{border-color:#E5E5E5;background:#FFFFFF}
+body[data-theme="light"] .cli-frame{background:#FFFFFF}
+body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0,0,.12)}
+</style>
+</head>
+<body>
+<div id="ftbBootSplash" aria-hidden="false">
+<div class="ftb-boot-card">
+<div class="ftb-boot-ring" aria-hidden="true"></div>
+<img id="ftbBootLogo" class="ftb-boot-logo" src="https://app.local/assets/%E7%89%9B%E9%A9%AC.png" alt="NiuMa">
+<span id="ftbBootFallback" class="ftb-boot-fb" hidden>牛</span>
+<div class="ftb-boot-text">NIUMA</div>
+</div>
+</div>
+<div id="app">
+<div id="debugHud" class="debug-hud"></div>
+<template id="ftb-toolbar-tpl">
+<div class="tb" data-action="Search" title="搜索"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><div class="bubble">Selection Ready</div><span class="dot"></span></div>
+<div class="tb" data-action="Record" title="剪贴板"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg><span class="dot"></span></div>
+<div class="tb" data-action="Prompt" title="提示词"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><path d="M12 3c4.97 0 9 3.58 9 8 0 1.8-.67 3.47-1.8 4.82L20 21l-5.02-1.67A10.53 10.53 0 0 1 12 20c-4.97 0-9-3.58-9-8s4.03-9 9-9Z"/></svg><span class="dot"></span></div>
+<div class="tb" data-action="NewPrompt" title="Hub草稿 · hub_capsule · CapsLock+C"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg><span class="dot"></span></div>
+<div class="tb" data-action="Screenshot" title="截图"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><path d="M4 7h4l2-2h4l2 2h4v12H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span class="dot"></span></div>
+<div class="tb" data-action="Settings" title="设置"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="dot"></span></div>
+<div class="tb" data-action="VirtualKeyboard" title="键盘"><svg viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M6 9h1"/><path d="M9 9h1"/><path d="M12 9h1"/><path d="M15 9h1"/><path d="M18 9h1"/><path d="M6 12h1"/><path d="M9 12h1"/><path d="M12 12h1"/><path d="M15 12h1"/><path d="M18 12h1"/><path d="M7 15h10"/></svg><span class="dot"></span></div>
+</template>
+<div id="collapsedRoot">
+<button type="button" class="logo-btn" data-logo-toggle title="牛马 / NiuMa Chat"><img class="logo-img" alt="" /></button>
+<div id="collapsedBtns" class="icon-btns"></div>
+</div>
+<div id="drawerRoot">
+<div id="stage">
+<div id="backdrop"></div>
+<aside id="panel">
+<div id="resizeGrip" title="拖动调整宽度"></div>
+<header class="hdr">
+<div><div class="t1">NiuMa Chat</div><div class="t2">Markdown · AHK v2 高亮</div></div>
+<div class="icons">
+<button class="ib" id="chat-search" type="button" title="搜索聊天记录" aria-label="搜索聊天记录"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg></button>
+<button class="ib" id="chat-settings" type="button" title="打开设置" aria-label="打开设置"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.82-.33 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.82.33l-.06.06A2 2 0 1 1 4.37 17l.06-.06a1.7 1.7 0 0 0 .33-1.82 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.33-1.82l-.06-.06A2 2 0 1 1 7.03 4.4l.06.06a1.7 1.7 0 0 0 1.82.33h.01a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.5h.01a1.7 1.7 0 0 0 1.82-.33l.06-.06A2 2 0 1 1 19.63 7l-.06.06a1.7 1.7 0 0 0-.33 1.82v.01a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+<button class="ib" id="drawer-close" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div>
+</header>
+<div id="sessionTabs" class="session-tabs" role="tablist" aria-label="对话标签"></div>
+<div id="main">
+<section id="msgs"><div id="empty">首次使用请点「设」完成 API。展开后工具条在输入框下方、发送按钮左侧。</div></section>
+<section id="cliPane" aria-label="CLI 终端">
+  <div class="cli-shell">
+    <div class="cli-bar">
+      <div class="cli-title" id="cliTitle">CLI 终端（ttyd）</div>
+      <div class="cli-btns">
+        <button type="button" class="cli-btn" id="cliOpenBtn" title="启动/打开 CLI">打开</button>
+        <button type="button" class="cli-btn" id="cliRestartBtn" title="强制重启 ttyd 服务">重启</button>
+        <button type="button" class="cli-btn" id="cliReloadBtn" title="刷新终端页面">刷新</button>
+        <button type="button" class="cli-btn" id="cliPopBtn" title="在外部浏览器打开">外部打开</button>
+      </div>
+    </div>
+    <iframe id="cliFrame" class="cli-frame" src="about:blank" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"></iframe>
+  </div>
+</section>
+<section id="cmp">
+<textarea id="input" placeholder="输入消息，Ctrl+Enter 发送"></textarea>
+<div id="composerFooter">
+<div class="drawer-toolbar">
+<button type="button" class="logo-btn" data-logo-toggle title="收起"><img class="logo-img" alt="" /></button>
+<div id="drawerBtns" class="icon-btns"></div>
+</div>
+<div id="sendWrap"><button class="btn1" id="send" type="button">发送消息</button></div>
+</div>
+<div id="chatStatusRow"><div class="st" id="chat-status">就绪</div></div>
+</section>
+</div>
+<div id="settings" aria-hidden="true">
+<div class="sbg"></div>
+<section class="sd">
+<header class="sh"><div><div class="sbt">API 设置</div><div class="sbt2">保存在本机 localStorage</div></div><button class="ib" id="settings-close" type="button" title="关闭设置" aria-label="关闭设置"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+<div class="sbody">
+<div class="row" id="fldModelPresetRow"><div class="fld fld-dd"><label for="providerDdBtn">服务商</label><div class="dd" id="providerDd"><div class="dd-wrap"><button type="button" class="dd-btn" id="providerDdBtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="providerDdMenu"><img id="providerDdIcon" class="dd-icon" alt="" /><span id="providerDdLabel" class="dd-label"></span><span class="dd-chev" aria-hidden="true">▾</span></button><div class="dd-menu" id="providerDdMenu" role="listbox" hidden></div></div><select id="provider" class="ctl vh-select" tabindex="-1" aria-hidden="true"></select></div></div><div class="fld fld-dd" id="fldModelDdCol"><label for="modelDdBtn">模型预设</label><div class="dd" id="modelDd"><div class="dd-wrap"><button type="button" class="dd-btn" id="modelDdBtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="modelDdMenu"><img id="modelDdIcon" class="dd-icon" alt="" /><span id="modelDdLabel" class="dd-label"></span><span class="dd-chev" aria-hidden="true">▾</span></button><div class="dd-menu" id="modelDdMenu" role="listbox" hidden></div></div><select id="modelPreset" class="ctl vh-select" tabindex="-1" aria-hidden="true"></select></div></div></div>
+<div class="fld"><label for="apiKey" id="apiKeyLabel">API Key</label><input id="apiKey" class="ctl" type="password" autocomplete="off" placeholder="API Key"><div class="hint mini" id="apiKeyKeyHint" style="display:none"></div></div>
+<div class="fld" id="fldTtydShellRow" style="display:none"><label for="ttydShellCommand">终端启动命令（Shell）</label><input id="ttydShellCommand" class="ctl" type="text" spellcheck="false" autocomplete="off" placeholder="cmd.exe" /><div class="hint mini">传给本机 ttyd 的 Shell（如 <code>cmd.exe</code>、<code>powershell</code> 完整路径等）。点「完成」后写入配置并建议重启 ttyd。若被拦截请允许主目录下 <code>ttyd.exe</code> 或检查本机安全软件。</div></div>
+<div class="fld" id="fldBaseUrlRow"><label for="baseUrl">Base URL</label><input id="baseUrl" class="ctl" type="text" autocomplete="off"></div>
+<div class="fld" id="fldModelRow"><label for="model">Model</label><input id="model" class="ctl" type="text" autocomplete="off"></div>
+<div class="fld"><label for="systemPrompt">System Prompt</label><div class="prompt-tools"><select id="promptBuiltin" class="ctl"></select><button type="button" class="btn3" id="promptTplApply">应用到上方</button><button type="button" class="btn3" id="promptImportBtn">从文件导入</button><input type="file" id="promptImportFile" accept=".txt,.md,.json,text/plain" style="display:none" /></div><textarea id="systemPrompt" class="ctl"></textarea></div>
+<div class="hint" id="providerHint"></div>
+<div class="hint">各服务商 API Key 分槽保存、互不覆盖；多标签对话在本地长期保存。记录很多时可在下方导出备份。</div>
+<div class="row" style="display:flex;gap:8px;align-items:center;justify-content:flex-start;">
+  <button class="btn2" id="chat-export-md" type="button" title="导出当前对话 Markdown">导出 Markdown</button>
+  <button class="btn2" id="chat-export-json" type="button" title="导出当前对话 JSON">导出 JSON</button>
+</div>
+</div>
+<footer class="sf"><div class="st" id="config-status"></div><div style="display:flex;gap:8px;"><button class="btn2" id="resetCfg" type="button">重置</button><button class="btn3" id="saveCfg" type="button">完成</button></div></footer>
+</section>
+</div>
+<div id="newSessionPick" aria-hidden="true">
+<div class="nsbg" id="newSessionPickBg"></div>
+<section class="ns-panel">
+<header class="nsh"><div><div class="nst">新对话</div><div class="nst2">选择要使用的 AI（各标签独立上下文）</div></div><button class="ib" id="newSessionPickClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+<div id="newSessionGrid" class="ns-grid"></div>
+</section>
+</div>
+</aside>
+</div>
+</div>
+</div>
+<script>
+(function () {
+  var LS = 'niuma_chat_drawer_config_v2',
+    LEGACY_LS = 'niuma_chat_drawer_config_v1',
+    SESSIONS_LS = 'niuma_chat_sessions_v1',
+    NIUMA_HISTORY_LS = 'niuma_chat_history_v1',
+    NIUMA_HISTORY_API = '/api/niuma/history',
+    SP = '你是一个擅长 AHK v2、自动化脚本和桌面工作流的助手。',
+    P = {
+      openai: { label: 'OpenAI', transport: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', models: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini', 'gpt-4o'] },
+      codex_cli: { label: '命令行（ttyd）', transport: 'cli', baseUrl: 'http://127.0.0.1:7681', model: '', models: [] },
+      kimi: { label: 'Kimi', transport: 'openai', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'kimi-k2-0711-preview'] },
+      qwen: { label: 'Qwen', transport: 'openai', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus', models: ['qwen-plus', 'qwen-turbo', 'qwen-max', 'qwen3-coder-plus'] },
+      deepseek: { label: 'DeepSeek', transport: 'openai', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', models: ['deepseek-chat', 'deepseek-reasoner'] },
+      claude: { label: 'Claude', transport: 'anthropic', baseUrl: 'https://api.anthropic.com', model: 'claude-3-5-sonnet-latest', models: ['claude-3-5-sonnet-latest', 'claude-3-7-sonnet-latest', 'claude-3-5-haiku-latest'] },
+      gemini: { label: 'Gemini', transport: 'gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-2.5-flash', models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'] },
+      glm: { label: 'GLM', transport: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-plus', models: ['glm-4-plus', 'glm-4-air', 'glm-4-flash'] },
+      siliconflow: { label: '硅基流动', transport: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', model: 'Qwen/Qwen2.5-7B-Instruct', models: ['Qwen/Qwen2.5-7B-Instruct', 'deepseek-ai/DeepSeek-V3', 'THUDM/glm-4-9b-chat'] },
+      minimax: { label: 'MiniMax', transport: 'openai', baseUrl: 'https://api.minimax.chat/v1', model: 'abab6.5s-chat', models: ['abab6.5s-chat', 'MiniMax-M1', 'MiniMax-Text-01'] },
+      zhipu: { label: '智谱', transport: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-plus', models: ['glm-4-plus', 'glm-4-air', 'glm-4-flash'] },
+      ollama: { label: 'Ollama', transport: 'openai', baseUrl: 'http://127.0.0.1:11434/v1', model: 'llama3.1:8b', models: ['llama3.1:8b', 'qwen2.5:7b', 'deepseek-r1:7b', 'gemma3:4b'] },
+      openclaw: { label: 'OpenClaw', transport: 'openclaw', baseUrl: 'http://127.0.0.1:18789', model: 'gateway', models: ['gateway'] }
+    },
+    PROVIDER_PICK_ORDER = [
+      'openai', 'codex_cli', 'kimi', 'qwen', 'deepseek', 'claude', 'gemini', 'glm', 'siliconflow', 'minimax', 'zhipu', 'ollama', 'openclaw'
+    ],
+    ICON_PRIMARY = 'aiicons/',
+    ICON_SECOND = 'lib/images/',
+    ICON_FALLBACK = 'lib/images/chat-ai-fallback.svg',
+    PROVIDER_ICON_EXTS = ['.png', '.jpg', '.jpeg', '.svg', '.webp'],
+    PROVIDER_ICON_BASES = {
+      openai: ['ChatGPT', 'chatgpt', 'openai', 'codex', 'Codex'],
+      codex_cli: ['terminal', 'cmd', 'cli', 'ttyd', 'console', 'codex', 'Codex', 'openai'],
+      kimi: ['kimi', 'Kimi', 'moonshot'],
+      qwen: ['qwen', 'Qwen'],
+      deepseek: ['DeepSeek', 'deepseek'],
+      claude: ['Claude', 'claude'],
+      gemini: ['gemini', 'Gemini'],
+      glm: ['glm', 'GLM'],
+      siliconflow: ['siliconflow', '硅基流动'],
+      minimax: ['minimax', 'MiniMax'],
+      zhipu: ['zhipu', 'Zhipu'],
+      ollama: ['ollama', 'Ollama'],
+      openclaw: ['openclaw', 'OpenClaw']
+    },
+    KEYMETA = {
+      openai: { keyLabel: 'OpenAI API Key', keyPlaceholder: 'sk-...', keyHint: '仅保存到「OpenAI」槽位；与 Kimi、DeepSeek 等密钥互不覆盖。' },
+      codex_cli: { keyLabel: '无需 API Key', keyPlaceholder: '本模式不使用 API Key', keyHint: '本机 ttyd 本地终端，与上方 OpenAI 云端 API 无关。请配置 ttyd 地址与「终端启动命令」；不需要 Model。' },
+      kimi: { keyLabel: 'Kimi（Moonshot）API Key', keyPlaceholder: 'Moonshot 密钥', keyHint: 'Authorization: Bearer；单独保存在「Kimi」槽位。' },
+      qwen: { keyLabel: 'DashScope API Key', keyPlaceholder: '阿里云百炼 / DashScope', keyHint: '通义千问兼容 OpenAI 接口；密钥仅存「Qwen」槽位。' },
+      deepseek: { keyLabel: 'DeepSeek API Key', keyPlaceholder: 'DeepSeek 密钥', keyHint: '单独保存在「DeepSeek」槽位。' },
+      claude: { keyLabel: 'Anthropic API Key', keyPlaceholder: 'sk-ant-...', keyHint: '请求头 x-api-key；单独保存在「Claude」槽位（与 OpenAI 密钥不同）。' },
+      gemini: { keyLabel: 'Google AI API Key', keyPlaceholder: 'AIza...', keyHint: '密钥以 query 参数 key= 传递；单独保存在「Gemini」槽位。' },
+      glm: { keyLabel: '智谱 BigModel API Key', keyPlaceholder: 'BigModel 密钥', keyHint: '与「智谱」槽位分离保存；均为 OpenAI 兼容但密钥不同。' },
+      siliconflow: { keyLabel: '硅基流动 API Key', keyPlaceholder: '硅基流动密钥', keyHint: '单独保存在「硅基流动」槽位。' },
+      minimax: { keyLabel: 'MiniMax API Key', keyPlaceholder: 'MiniMax 密钥', keyHint: '单独保存在「MiniMax」槽位。' },
+      zhipu: { keyLabel: '智谱 API Key', keyPlaceholder: '智谱开放平台密钥', keyHint: '单独保存在「智谱」槽位（与 GLM BigModel 可填不同密钥）。' },
+      ollama: { keyLabel: 'Ollama API Key（可选）', keyPlaceholder: '本地默认可留空', keyHint: '本地 Ollama 默认无需 API Key；如启用鉴权可在此填写。' },
+      openclaw: {
+        keyLabel: 'Gateway Token',
+        keyPlaceholder: '与 openclaw dashboard 中 token 一致',
+        keyHint: '也可留空，仅把带 #token= 的完整控制台地址填在 Base URL；走本机 WebSocket，与 OpenAI HTTP 无关。'
+      }
+    },
+    PROMPT_BUILTIN = [
+      { id: '_ahk', name: '默认 · AHK / 自动化', text: SP },
+      { id: '_empty', name: '空（不设系统提示）', text: '' },
+      { id: '_code', name: '代码审查', text: '你是严谨的代码审查助手。指出问题、风险与可改进处，给出具体修改建议，避免空话。' },
+      { id: '_zh', name: '简明中文助手', text: '请用简明、准确的中文回答。需要时分条说明；不确定处请标明假设。' },
+      { id: '_en', name: 'Concise English', text: 'You are a concise technical assistant. Answer clearly; use bullet points when helpful.' }
+    ];
+
+  function $(id) {
+    return document.getElementById(id);
+  }
+
+  function normalizeProviderId(pid) {
+    pid = String(pid || '').trim();
+    if (pid === 'llama') return 'ollama';
+    if (pid === 'codex') return 'openai';
+    return pid;
+  }
+
+  var _tpl = $('ftb-toolbar-tpl');
+  var _th = _tpl ? _tpl.innerHTML : '';
+  var DEFAULT_TOOLBAR_ACTIONS = ['Search', 'Record', 'Prompt', 'NewPrompt', 'Screenshot', 'Settings', 'VirtualKeyboard'];
+  function normalizeToolbarActions(actions) {
+    var src = Array.isArray(actions) ? actions : DEFAULT_TOOLBAR_ACTIONS;
+    var allow = { Search:1, Record:1, Prompt:1, NewPrompt:1, Screenshot:1, Settings:1, VirtualKeyboard:1 };
+    var out = [];
+    var seen = {};
+    src.forEach(function (x) {
+      var id = String(x || '').trim();
+      if (!id || !allow[id] || seen[id]) return;
+      seen[id] = 1;
+      out.push(id);
+    });
+    if (!out.length) out = DEFAULT_TOOLBAR_ACTIONS.slice();
+    return out;
+  }
+  function buildToolbarHtmlByActions(actions) {
+    var wrap = document.createElement('div');
+    wrap.innerHTML = _th;
+    var map = {};
+    Array.prototype.slice.call(wrap.querySelectorAll('.tb[data-action]')).forEach(function (el) {
+      map[el.getAttribute('data-action') || ''] = el.outerHTML;
+    });
+    return normalizeToolbarActions(actions).map(function (id) { return map[id] || ''; }).join('');
+  }
+  function rebuildToolbarButtons(actions) {
+    state.toolbarMode = 'legacy';
+    state.toolbarActions = normalizeToolbarActions(actions);
+    var html = buildToolbarHtmlByActions(state.toolbarActions);
+    $('collapsedBtns').innerHTML = html;
+    $('drawerBtns').innerHTML = html;
+    bindSearchDnD();
+    if (state.activeAction) sel(state.activeAction);
+  }
+
+  function escAttr(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
+  }
+
+  var TOOLBAR_SVG_PARTS = {
+    search:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>',
+    record:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l3.8-1 10-10a2.3 2.3 0 0 0-3.3-3.3l-10 10L3 21z"/><path d="M12.9 4.9l3.3 3.3"/></svg>',
+    prompt:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 3c4.97 0 9 3.58 9 8 0 1.8-.67 3.47-1.8 4.82L20 21l-5.02-1.67A10.53 10.53 0 0 1 12 20c-4.97 0-9-3.58-9-8s4.03-9 9-9Z"/></svg>',
+    notepad:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>',
+    screenshot:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 7h4l2-2h4l2 2h4v12H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    settings:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    keyboard:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M6 9h1"/><path d="M9 9h1"/><path d="M12 9h1"/><path d="M15 9h1"/><path d="M18 9h1"/><path d="M6 12h1"/><path d="M9 12h1"/><path d="M12 12h1"/><path d="M15 12h1"/><path d="M18 12h1"/><path d="M7 15h10"/></svg>',
+    clipboard:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>',
+    comments:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
+    list:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>',
+    window:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>',
+    robot:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="10" rx="2"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/><circle cx="9.5" cy="13" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="13" r="1" fill="currentColor" stroke="none"/><path d="M9 18v2"/><path d="M15 18v2"/></svg>',
+    bolt:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
+    star:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 7.4h7.6l-6 4.6 2.3 7-6.3-4.6-6.3 4.6 2.3-7-6-4.6h7.6z"/></svg>',
+    circle:
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>',
+  };
+
+  var TOOLBAR_CMD_TO_KEY = {
+    sc_activate_search: 'search',
+    qa_clipboard: 'clipboard',
+    hub_capsule: 'notepad',
+    ch_b: 'prompt',
+    pqp_capture: 'bolt',
+    ch_t: 'screenshot',
+    qa_config: 'settings',
+    sys_show_vk: 'keyboard',
+    ftb_scratchpad: 'notepad',
+    ftb_screenshot: 'screenshot',
+    ftb_cursor_menu: 'circle',
+  };
+
+  var FA_SUFFIX_TO_KEY = {
+    'magnifying-glass': 'search',
+    clipboard: 'clipboard',
+    comments: 'comments',
+    lightbulb: 'prompt',
+    'note-sticky': 'notepad',
+    camera: 'screenshot',
+    gear: 'settings',
+    keyboard: 'keyboard',
+    list: 'list',
+    'window-restore': 'window',
+    robot: 'robot',
+    bolt: 'bolt',
+    star: 'star',
+    circle: 'circle',
+    layer: 'list',
+    'layer-group': 'list',
+    terminal: 'keyboard',
+    sliders: 'settings',
+    code: 'bolt',
+    'wand-magic-sparkles': 'prompt',
+  };
+
+  function extractFaSuffix(iconClass) {
+    var parts = String(iconClass || '')
+      .trim()
+      .split(/\s+/);
+    var suf = '';
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i];
+      if (p === 'fa-solid' || p === 'fa-brands' || p === 'fa-regular') continue;
+      if (p.indexOf('fa-') === 0) suf = p.slice(3);
+    }
+    return suf || 'circle';
+  }
+
+  function toolbarFallbackKey(cmdId, iconClass) {
+    var key = TOOLBAR_CMD_TO_KEY[String(cmdId || '').trim()];
+    if (!key) {
+      var suf = extractFaSuffix(iconClass);
+      key = FA_SUFFIX_TO_KEY[suf] || 'bolt';
+    }
+    return key || 'bolt';
+  }
+
+  function normalizeIconPathToFileUrl(path) {
+    var p = String(path || '').trim();
+    if (!p) return '';
+    if (/^(https?:|file:|data:|blob:)/i.test(p)) return p;
+    if (/^[a-zA-Z]:[\\/]/.test(p)) return 'file:///' + encodeURI(p.replace(/\\/g, '/'));
+    return p;
+  }
+
+  function toolbarIconSvgHtml(cmdId, iconClass, iconPath) {
+    var fbKey = toolbarFallbackKey(cmdId, iconClass);
+    var normalizedPath = normalizeIconPathToFileUrl(iconPath);
+    if (String(cmdId || '').trim() === 'ftb_cursor_menu' && normalizedPath) {
+      return (
+        '<span class="tb-ico"><img class="tb-ico-img" src="' +
+        escAttr(normalizedPath) +
+        '" alt="" data-fallback-key="' +
+        escAttr(fbKey || 'prompt') +
+        '"></span>'
+      );
+    }
+    // Default to built-in SVG to avoid intermittent text/icon-font fallbacks.
+    var inner = TOOLBAR_SVG_PARTS[fbKey] || TOOLBAR_SVG_PARTS.bolt;
+    return '<span class="tb-ico">' + inner + '</span>';
+  }
+
+  function attachToolbarIconFallback(root) {
+    if (!root) return;
+    root.querySelectorAll('img.tb-ico-img[data-fallback-key]').forEach(function (img) {
+      if (img.dataset.fbBound === '1') return;
+      img.dataset.fbBound = '1';
+      var useFallback = function () {
+        var wrap = img.parentElement;
+        if (!wrap) return;
+        var k = String(img.getAttribute('data-fallback-key') || '').trim() || 'bolt';
+        wrap.innerHTML = TOOLBAR_SVG_PARTS[k] || TOOLBAR_SVG_PARTS.bolt;
+      };
+      img.addEventListener('error', useFallback, { once: true });
+      if (img.complete && (!img.naturalWidth || !img.naturalHeight)) useFallback();
+    });
+  }
+
+  function rebuildToolbarCmdButtons(items) {
+    state.toolbarMode = 'cmd';
+    var arr = Array.isArray(items) ? items : [];
+    var html = '';
+    arr.forEach(function (it) {
+      var cid = String((it && it.cmdId) || '').trim();
+      if (!cid) return;
+      var nm = escAttr((it && it.name) || cid);
+      var ic = String((it && it.iconClass) || 'fa-solid fa-circle');
+      var ip = String((it && it.iconPath) || '').trim();
+      if (ic.indexOf('fa-') === 0 && ic.indexOf('fa-solid') === -1 && ic.indexOf('fa-brands') === -1 && ic.indexOf('fa-regular') === -1)
+        ic = 'fa-solid ' + ic;
+      var bucket = 'Search';
+      if (cid === 'sc_activate_search') bucket = 'Search';
+      else if (cid === 'qa_clipboard' || cid === 'ch_b' || cid === 'pqp_capture' || cid === 'hub_capsule') bucket = 'Prompt';
+      var sd = bucket === 'Search' ? ' data-search-drop="1"' : '';
+      html +=
+        '<button type="button" class="tb" title="' +
+        nm +
+        '" data-cmd-id="' +
+        escAttr(cid) +
+        '" data-drop-bucket="' +
+        bucket +
+        '"' +
+        sd +
+        '>' +
+        toolbarIconSvgHtml(cid, ic, ip) +
+        '<span class="dot"></span></button>';
+    });
+    if (!html)
+      html =
+        '<span class="hint" style="display:flex;align-items:center;padding:8px 10px;font-size:11px;color:var(--muted)">无工具栏命令（请在 KeyBinder 中配置）</span>';
+    $('collapsedBtns').innerHTML = html;
+    $('drawerBtns').innerHTML = html;
+    attachToolbarIconFallback($('collapsedBtns'));
+    attachToolbarIconFallback($('drawerBtns'));
+    bindSearchDnD();
+    if (state.activeCmdId) sel(state.activeCmdId);
+  }
+
+  var stage = $('stage'),
+    backdrop = $('backdrop'),
+    panel = $('panel'),
+    dclose = $('drawer-close'),
+    chatSearch = $('chat-search'),
+    chatSet = $('chat-settings'),
+    chatExportMd = $('chat-export-md'),
+    chatExportJson = $('chat-export-json'),
+    sessionTabsEl = $('sessionTabs'),
+    msgs = $('msgs'),
+    empty = $('empty'),
+    input = $('input'),
+    send = $('send'),
+    chatStatus = $('chat-status'),
+    settings = $('settings'),
+    sbg = document.querySelector('.sbg'),
+    sclose = $('settings-close'),
+    ssave = $('saveCfg'),
+    cfgStatus = $('config-status'),
+    ph = $('providerHint'),
+    provider = $('provider'),
+    apiKey = $('apiKey'),
+    baseUrl = $('baseUrl'),
+    model = $('model'),
+    modelPreset = $('modelPreset'),
+    systemPrompt = $('systemPrompt'),
+    apiKeyLabel = $('apiKeyLabel'),
+    apiKeyKeyHint = $('apiKeyKeyHint'),
+    promptBuiltin = $('promptBuiltin'),
+    promptTplApply = $('promptTplApply'),
+    promptImportBtn = $('promptImportBtn'),
+    promptImportFile = $('promptImportFile'),
+    providerDdBtn = $('providerDdBtn'),
+    providerDdMenu = $('providerDdMenu'),
+    providerDdIcon = $('providerDdIcon'),
+    providerDdLabel = $('providerDdLabel'),
+    modelDdBtn = $('modelDdBtn'),
+    modelDdMenu = $('modelDdMenu'),
+    modelDdIcon = $('modelDdIcon'),
+    modelDdLabel = $('modelDdLabel'),
+    ttydShellCommand = $('ttydShellCommand'),
+    fldModelDdCol = $('fldModelDdCol'),
+    fldTtydShellRow = $('fldTtydShellRow'),
+    fldBaseUrlRow = $('fldBaseUrlRow'),
+    fldModelRow = $('fldModelRow'),
+    resetCfg = $('resetCfg'),
+    collapsedRoot = $('collapsedRoot'),
+    resizeGrip = $('resizeGrip'),
+    newSessionPick = $('newSessionPick'),
+    newSessionPickBg = $('newSessionPickBg'),
+    newSessionPickClose = $('newSessionPickClose'),
+    newSessionGrid = $('newSessionGrid');
+
+  function tbEls() {
+    return document.querySelectorAll('.tb[data-action], .tb[data-cmd-id]');
+  }
+  function searchEls() {
+    return document.querySelectorAll('.tb[data-action=Search], .tb[data-search-drop="1"]');
+  }
+
+  function getCachedThemeMode() {
+    try {
+      var t = String(localStorage.getItem('settings_themeMode') || '').toLowerCase();
+      if (t === 'light' || t === 'dark') return t;
+    } catch (_) {}
+    return 'dark';
+  }
+
+  var state = {
+    drawer: false,
+    compact: false,
+    settings: false,
+    themeMode: getCachedThemeMode(),
+    sendingBySession: {},
+    needSetup: false,
+    nspick: false,
+    activeAction: '',
+    apiKeys: {},
+    sessions: [],
+    activeSessionId: '',
+    chatSearchKeyword: '',
+    chatSearchCursor: -1,
+    toolbarActions: DEFAULT_TOOLBAR_ACTIONS.slice(),
+    niumaHistoryStore: { version: 1, sessions: {}, updatedAt: null },
+    niumaHistoryLoaded: false,
+    dynamicModels: {},
+    dynamicModelsFetchedAt: {}
+  };
+  var toolbarVisibleSynced = false;
+  var toolbarRevealTimer = 0;
+  var ftbBootStartAt = Date.now();
+  var ftbBootHidden = false;
+  var DEBUG_HUD = false;
+  var debugLines = [];
+  var debugSeq = 0;
+  var _cliOpenThrottle = 0;
+  var _niumaPendingPop = false;
+  var _niumaWasCli = false;
+
+  function dismissBootSplash(forceNow) {
+    if (ftbBootHidden) return;
+    var splash = $('ftbBootSplash');
+    if (!splash) {
+      ftbBootHidden = true;
+      return;
+    }
+    var elapsed = Date.now() - ftbBootStartAt;
+    var wait = forceNow ? 0 : Math.max(0, 140 - elapsed);
+    function hideNow() {
+      if (ftbBootHidden) return;
+      ftbBootHidden = true;
+      splash.classList.add('hide');
+      splash.setAttribute('aria-hidden', 'true');
+      setTimeout(function () {
+        splash.classList.add('done');
+      }, 240);
+    }
+    if (wait > 0) setTimeout(hideNow, wait);
+    else hideNow();
+  }
+
+  var ftbBootLogo = $('ftbBootLogo');
+  if (ftbBootLogo) {
+    ftbBootLogo.addEventListener('load', function () {
+      ftbBootLogo.classList.add('ready');
+      var fb = $('ftbBootFallback');
+      if (fb) fb.hidden = true;
+    }, { once: true });
+    ftbBootLogo.addEventListener('error', function () {
+      ftbBootLogo.style.display = 'none';
+      var fb = $('ftbBootFallback');
+      if (fb) fb.hidden = false;
+    }, { once: true });
+  }
+  setTimeout(function () { dismissBootSplash(true); }, 2600);
+
+  function dbg(tag, msg, cls) {
+    if (!DEBUG_HUD) return;
+    var hud = document.getElementById('debugHud');
+    if (!hud) return;
+    debugSeq += 1;
+    var ts = new Date();
+    var t = String(ts.getHours()).padStart(2, '0') + ':' + String(ts.getMinutes()).padStart(2, '0') + ':' + String(ts.getSeconds()).padStart(2, '0');
+    var text = t + ' ' + String(tag || '') + ' ' + String(msg || '');
+    debugLines.push({ text: text, cls: cls || '' });
+    if (debugLines.length > 3) debugLines.shift();
+    hud.innerHTML = debugLines
+      .map(function (it) {
+        var c = it.cls ? 'row ' + it.cls : 'row';
+        return '<div class="' + c + '">' + esc(it.text) + '</div>';
+      })
+      .join('');
+    hud.scrollTop = hud.scrollHeight;
+  }
+
+  (function initDebugHudVisibility() {
+    var hud = document.getElementById('debugHud');
+    if (hud && !DEBUG_HUD) hud.style.display = 'none';
+  })();
+
+  function revealToolbarSync() {
+    if (toolbarVisibleSynced) return;
+    toolbarVisibleSynced = true;
+    document.body.classList.add('ftb-ready');
+    dismissBootSplash(false);
+  }
+
+  function scheduleToolbarReveal(ms) {
+    if (toolbarVisibleSynced) return;
+    if (toolbarRevealTimer) clearTimeout(toolbarRevealTimer);
+    toolbarRevealTimer = setTimeout(revealToolbarSync, ms);
+  }
+
+  function post(m) {
+    try {
+      if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage) {
+        dbg('S', (m && m.type ? m.type : '?'));
+        window.chrome.webview.postMessage(JSON.stringify(m));
+      }
+    } catch (e) {}
+  }
+
+  function sel(a) {
+    var s = String(a || '');
+    state.activeAction = s;
+    if (state.toolbarMode === 'cmd') state.activeCmdId = s;
+    document.querySelectorAll('.tb').forEach(function (b) {
+      var match = b.dataset.action === s || String(b.dataset.cmdId || '') === s;
+      b.classList.toggle('selected', match);
+    });
+  }
+
+  function pulse(v) {
+    searchEls().forEach(function (el) {
+      el.classList.toggle('pulse', !!v);
+    });
+  }
+
+  function dragOver(v) {
+    searchEls().forEach(function (el) {
+      el.classList.toggle('drag-over', !!v);
+    });
+  }
+
+  function loading(v) {
+    searchEls().forEach(function (el) {
+      el.classList.toggle('loading', !!v);
+    });
+  }
+
+  function setCompact(v) {
+    state.compact = !!v;
+    document.body.classList.toggle('ftb-compact', state.compact);
+  }
+
+  function scrollMsgsToLatest() {
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (!msgs) return;
+        msgs.scrollTop = msgs.scrollHeight;
+      });
+    });
+  }
+
+  function scale(v) {
+    v = Number(v);
+    if (!isFinite(v) || v <= 0) v = 1;
+    document.documentElement.style.setProperty('--ui', String(v));
+  }
+
+  function drawerResizeBoundsPx() {
+    var u = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui').trim());
+    if (!isFinite(u) || u <= 0) u = 1;
+    return { min: Math.max(1, Math.round(380 * u)), max: Math.max(1, Math.round(1200 * u)) };
+  }
+
+  function applyTheme(mode) {
+    var tm = String(mode || '').toLowerCase() === 'light' ? 'light' : 'dark';
+    state.themeMode = tm;
+    document.body.setAttribute('data-theme', tm);
+  }
+
+  function setDrawer(v) {
+    state.drawer = !!v;
+    document.body.classList.toggle('drawer-open', state.drawer);
+    stage.setAttribute('aria-hidden', state.drawer ? 'false' : 'true');
+    panel.setAttribute('aria-hidden', state.drawer ? 'false' : 'true');
+    post({ type: 'drawer_state', open: state.drawer });
+    if (!state.drawer) {
+      setSettings(false);
+      setNspick(false);
+      return;
+    }
+    scrollMsgsToLatest();
+    if (state.needSetup) {
+      var sd = activeSession();
+      var pp = sd && P[normalizeProviderId(sd.provider)];
+      if (!pp || pp.transport !== 'cli') setSettings(true);
+    }
+  }
+
+  function setNspick(v) {
+    state.nspick = !!v;
+    document.body.classList.toggle('nspick-open', state.nspick);
+    if (newSessionPick) newSessionPick.setAttribute('aria-hidden', state.nspick ? 'false' : 'true');
+  }
+
+  function setSettings(v) {
+    state.settings = !!v;
+    if (state.settings) setNspick(false);
+    document.body.classList.toggle('settings-open', state.settings);
+    settings.setAttribute('aria-hidden', state.settings ? 'false' : 'true');
+    if (state.settings) {
+      syncProviderDdUi();
+      syncModelDdUi();
+      updateProviderFormLayout(normalizeProviderId(provider.value));
+    }
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function ahk(code) {
+    var h = esc(code);
+    h = h.replace(/(^|\n)(\s*;.*)/g, function (m, p1, p2) {
+      return p1 + '<span class="hl-comment">' + p2 + '</span>';
+    });
+    h = h.replace(/("(?:[^"\\]|\\.)*")/g, '<span class="hl-string">$1</span>');
+    h = h.replace(/('(?:[^'\\]|\\.)*')/g, '<span class="hl-string">$1</span>');
+    h = h.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="hl-number">$1</span>');
+    h = h.replace(/\b(global|local|static|if|else|try|catch|return|switch|case|default|for|while|loop|break|continue|class|extends|throw)\b/g, '<span class="hl-keyword">$1</span>');
+    h = h.replace(/\b(Map|Array|Gui|Error|Integer|Float|String|Trim|Format|RegExMatch|SetTimer|Send|Sleep|FileRead|FileAppend|IniRead|IniWrite)\b/g, '<span class="hl-builtins">$1</span>');
+    h = h.replace(/\b([A-Za-z_][A-Za-z0-9_]*)\b(?=\s*:=)/g, '<span class="hl-var">$1</span>');
+    return h;
+  }
+
+  /** API 常返回 <br> / 已转义的换行，先换成 \n 再走 Markdown，避免屏上显示字面量 <br> */
+  function preMarkdownForChat(s) {
+    s = String(s || '').replace(/\r\n/g, '\n');
+    s = s.replace(/<br\s*\/?>/gi, '\n');
+    s = s.replace(/&lt;\s*br\s*\/?\s*&gt;/gi, '\n');
+    return s;
+  }
+
+  function inline(t) {
+    var h = esc(t);
+    h = h.replace(/`([^`]+)`/g, '<code class="inline">$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+    return h;
+  }
+
+  function md(src) {
+    src = String(src || '').replace(/\r\n/g, '\n');
+    var out = [],
+      rx = /```(\w+)?\n([\s\S]*?)```/g,
+      last = 0,
+      m;
+    while ((m = rx.exec(src))) {
+      if (m.index > last) out.push({ t: 'text', c: src.slice(last, m.index) });
+      out.push({ t: 'code', l: (m[1] || '').toLowerCase(), c: m[2] });
+      last = rx.lastIndex;
+    }
+    if (last < src.length) out.push({ t: 'text', c: src.slice(last) });
+    return out
+      .map(function (b) {
+        if (b.t === 'code') {
+          var hi = b.l === 'ahk' || b.l === 'autohotkey' || b.l === 'autohotkeyv2' ? ahk(b.c) : esc(b.c);
+          return '<pre><code>' + hi + '</code></pre>';
+        }
+        return b.c
+          .split(/\n{2,}/)
+          .map(function (chunk) {
+            var t = chunk.trim();
+            if (!t) return '';
+            if (/^\s*>\s?/.test(t)) return '<blockquote>' + inline(t.replace(/^\s*>\s?/gm, '').replace(/\n/g, '<br>')) + '</blockquote>';
+            if (/^\s*[-*]\s+/m.test(t)) {
+              var items = t
+                .split('\n')
+                .map(function (line) {
+                  return line.replace(/^\s*[-*]\s+/, '').trim();
+                })
+                .filter(Boolean);
+              return '<ul>' + items.map(function (i) { return '<li>' + inline(i) + '</li>'; }).join('') + '</ul>';
+            }
+            if (/^#{1,3}\s+/.test(t)) {
+              var lv = t.match(/^#+/)[0].length,
+                cl = t.replace(/^#{1,3}\s+/, '');
+              return '<h' + lv + '>' + inline(cl) + '</h' + lv + '>';
+            }
+            return '<p>' + inline(t.replace(/\n/g, '<br>')) + '</p>';
+          })
+          .join('');
+      })
+      .join('');
+  }
+
+  function genId() {
+    return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  function activeSession() {
+    var list = state.sessions,
+      id = state.activeSessionId;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === id) return list[i];
+    }
+    return list[0] || null;
+  }
+
+  function providerTransport(pid) {
+    pid = normalizeProviderId(pid);
+    var p = pid && P[pid] ? P[pid] : P.openai;
+    return String(p.transport || 'openai');
+  }
+
+  function isCliSession(s) {
+    if (!s) return false;
+    return providerTransport(s.provider) === 'cli';
+  }
+
+  function cliUrlForSession(s) {
+    if (!s) return '';
+    var pid = normalizeProviderId(s.provider);
+    var p = pid && P[pid] ? P[pid] : null;
+    if (!p) return '';
+    // CLI 视图以 baseUrl 作为 ttyd 页面地址
+    return String((s.baseUrl || '').trim() || (p.baseUrl || '')).trim();
+  }
+
+  function applyCliFrameUrl(u) {
+    u = String(u || '').trim();
+    if (!u) return;
+    var fr = $('cliFrame');
+    if (!fr) return;
+    fr.dataset.src = u;
+    fr.src = u;
+  }
+
+  function cliFrameUrlLooksLive() {
+    var fr = $('cliFrame');
+    if (!fr) return false;
+    var u = String(fr.src || '').trim();
+    return !!u && u !== 'about:blank';
+  }
+
+  /** 请求宿主拉起 ttyd；force 时跳过节流（按钮/发消息时） */
+  function throttledNiumaCliOpen(force) {
+    var now = Date.now();
+    if (!force && now - _cliOpenThrottle < 700) return;
+    _cliOpenThrottle = now;
+    try {
+      var s = activeSession();
+      if (!s) return;
+      post({ type: 'niuma_cli_open', engine: s.provider });
+    } catch (e) {}
+  }
+
+  function syncChatViewMode() {
+    var s = activeSession();
+    var on = isCliSession(s);
+    var fr = $('cliFrame');
+    document.body.classList.toggle('cli-mode', !!on);
+    try {
+      var titleEl = $('cliTitle');
+      if (titleEl) {
+        var pl = (s && P[s.provider] ? P[s.provider].label : (s && s.provider ? s.provider : 'CLI'));
+        titleEl.textContent = pl + ' · ttyd';
+      }
+    } catch (e) {}
+    if (!on) {
+      _niumaPendingPop = false;
+      if (_niumaWasCli && fr) {
+        try {
+          fr.src = 'about:blank';
+          if (fr.dataset) fr.dataset.src = '';
+        } catch (e) {}
+      }
+      _niumaWasCli = false;
+      return;
+    }
+    var prevWasCli = _niumaWasCli;
+    _niumaWasCli = true;
+    var needSpawn = !prevWasCli || !cliFrameUrlLooksLive();
+    if (needSpawn) throttledNiumaCliOpen(false);
+    cstatForSession(
+      s.id,
+      needSpawn ? '正在连接本机终端（ttyd）…' : '本机终端已加载，可在标签间切换。'
+    );
+  }
+
+  function normalizeRole(role) {
+    var r = String(role || '').toLowerCase().trim();
+    if (r === 'assistant' || r === 'ai') return 'assistant';
+    if (r === 'human' || r === 'user') return 'user';
+    return '';
+  }
+
+  function ensureIsoTime(ts) {
+    if (!ts) return new Date().toISOString();
+    var t = new Date(ts);
+    if (isNaN(t.getTime())) return new Date().toISOString();
+    return t.toISOString();
+  }
+
+  /** 从 Gateway / 持久化 JSON 中取出可展示正文（含 parts[]、嵌套 content） */
+  function ocExtractMessageContentForHistory(m) {
+    if (!m || typeof m !== 'object') return '';
+    /* 勿在 content==="" 时提前返回：网关常把正文放在 text / parts，content 仅占位空串 */
+    var strFields = ['content', 'text', 'message', 'body', 'input', 'output', 'prompt', 'value'];
+    for (var si = 0; si < strFields.length; si++) {
+      var sf = m[strFields[si]];
+      if (typeof sf === 'string' && sf.trim()) return sf.trim();
+    }
+    var acc = [];
+    if (m.content != null && typeof m.content !== 'string') ocCollectTextDeep(m.content, acc);
+    if (!acc.length && m.message != null && typeof m.message !== 'string') ocCollectTextDeep(m.message, acc);
+    if (!acc.length && Array.isArray(m.parts)) {
+      for (var pi = 0; pi < m.parts.length; pi++) {
+        var p = m.parts[pi];
+        if (p && typeof p === 'object') ocCollectTextDeep(p, acc);
+      }
+    }
+    if (acc.length) return acc.join('\n').trim();
+    return '';
+  }
+
+  function normalizeHistoryItem(m) {
+    if (!m || typeof m !== 'object') return null;
+    var role = normalizeRole(m.role || m.type || m.actor);
+    if (!role) return null;
+    var content = ocExtractMessageContentForHistory(m);
+    if (!content) return null;
+    return { role: role, content: content, ts: ensureIsoTime(m.ts || m.timestamp || m.createdAt || m.updatedAt) };
+  }
+
+  function historyItemKey(m) {
+    var sec = '';
+    try {
+      sec = Math.floor(new Date(m.ts || 0).getTime() / 1000) || '';
+    } catch (e) {}
+    return [m.role || '', m.content || '', sec].join('|');
+  }
+
+  function mergeHistoryList(base, extra) {
+    var out = [],
+      seen = {};
+    (Array.isArray(base) ? base : []).forEach(function (m) {
+      var n = normalizeHistoryItem(m);
+      if (!n) return;
+      var k = historyItemKey(n);
+      if (seen[k]) return;
+      seen[k] = 1;
+      out.push(n);
+    });
+    (Array.isArray(extra) ? extra : []).forEach(function (m) {
+      var n = normalizeHistoryItem(m);
+      if (!n) return;
+      var k = historyItemKey(n);
+      if (seen[k]) return;
+      seen[k] = 1;
+      out.push(n);
+    });
+    return out;
+  }
+
+  function getOpenClawSessionKey(s) {
+    if (s) {
+      var own = String(s.gatewaySessionKey || '').trim();
+      if (own) return own;
+    }
+    try {
+      var lk = String(localStorage.getItem('openclaw2_lastSessionKey') || '').trim();
+      if (lk) return lk;
+    } catch (e) {}
+    return 'main';
+  }
+
+  function historyStoreKeyForSession(s) {
+    if (!s) return '';
+    if (s.provider === 'openclaw') return 'openclaw:' + getOpenClawSessionKey(s);
+    return 'local:' + String(s.id || '');
+  }
+
+  function loadNiumaHistoryStoreFromLocal() {
+    var raw = null;
+    try {
+      raw = localStorage.getItem(NIUMA_HISTORY_LS);
+    } catch (e) {}
+    if (!raw) return { version: 1, sessions: {}, updatedAt: null };
+    try {
+      var obj = JSON.parse(raw);
+      if (!obj || typeof obj !== 'object') throw new Error('invalid');
+      if (!obj.sessions || typeof obj.sessions !== 'object') obj.sessions = {};
+      return obj;
+    } catch (e2) {
+      return { version: 1, sessions: {}, updatedAt: null };
+    }
+  }
+
+  function saveNiumaHistoryStoreToLocal() {
+    try {
+      localStorage.setItem(NIUMA_HISTORY_LS, JSON.stringify(state.niumaHistoryStore || { version: 1, sessions: {}, updatedAt: null }));
+    } catch (e) {}
+  }
+
+  function pushSessionHistoryToStore(s) {
+    if (!s) return;
+    if (!state.niumaHistoryStore || typeof state.niumaHistoryStore !== 'object') state.niumaHistoryStore = { version: 1, sessions: {}, updatedAt: null };
+    if (!state.niumaHistoryStore.sessions || typeof state.niumaHistoryStore.sessions !== 'object') state.niumaHistoryStore.sessions = {};
+    var key = historyStoreKeyForSession(s);
+    if (!key) return;
+    var merged = mergeHistoryList(state.niumaHistoryStore.sessions[key] || [], s.history || []);
+    state.niumaHistoryStore.sessions[key] = merged.slice(-400);
+    state.niumaHistoryStore.updatedAt = new Date().toISOString();
+    saveNiumaHistoryStoreToLocal();
+    fetch(NIUMA_HISTORY_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: state.niumaHistoryStore })
+    }).catch(function () {});
+  }
+
+  function pullStoreHistoryToSession(s) {
+    if (!s) return;
+    if (!state.niumaHistoryStore || !state.niumaHistoryStore.sessions) return;
+    var key = historyStoreKeyForSession(s);
+    if (!key) return;
+    var arr = state.niumaHistoryStore.sessions[key];
+    if ((!Array.isArray(arr) || !arr.length) && s.provider === 'openclaw') {
+      var sk = getOpenClawSessionKey(s);
+      var collected = [];
+      state.sessions.forEach(function (x) {
+        if (!x || x.id === s.id || x.provider !== 'openclaw') return;
+        if (getOpenClawSessionKey(x) !== sk) return;
+        collected = mergeHistoryList(collected, x.history || []);
+      });
+      arr = collected;
+    }
+    if (!Array.isArray(arr) || !arr.length) return;
+    s.history = mergeHistoryList(s.history || [], arr).slice(-400);
+  }
+
+  function loadNiumaHistoryStore() {
+    state.niumaHistoryStore = loadNiumaHistoryStoreFromLocal();
+    state.niumaHistoryLoaded = true;
+    fetch(NIUMA_HISTORY_API, { method: 'GET', cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('history api');
+        return r.json();
+      })
+      .then(function (body) {
+        var data = body && body.data ? body.data : body;
+        if (!data || typeof data !== 'object' || !data.sessions || typeof data.sessions !== 'object') return;
+        if (!state.niumaHistoryStore.sessions || typeof state.niumaHistoryStore.sessions !== 'object') state.niumaHistoryStore.sessions = {};
+        Object.keys(data.sessions).forEach(function (k) {
+          state.niumaHistoryStore.sessions[k] = mergeHistoryList(state.niumaHistoryStore.sessions[k] || [], data.sessions[k] || []).slice(-400);
+        });
+        state.niumaHistoryStore.updatedAt = data.updatedAt || state.niumaHistoryStore.updatedAt || new Date().toISOString();
+        saveNiumaHistoryStoreToLocal();
+      })
+      .catch(function () {});
+  }
+
+  function persistSessions() {
+    try {
+      localStorage.setItem(
+        SESSIONS_LS,
+        JSON.stringify({ v: 1, activeSessionId: state.activeSessionId, sessions: state.sessions })
+      );
+    } catch (e) {
+      cstat('本地存储可能已满，请导出后删除部分对话标签。', 'error');
+    }
+  }
+
+  function loadSessions() {
+    var raw = null;
+    try {
+      raw = localStorage.getItem(SESSIONS_LS);
+    } catch (e) {}
+    state.sessions = [];
+    state.activeSessionId = '';
+    if (!raw) return;
+    var data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      return;
+    }
+    if (!data || !Array.isArray(data.sessions)) return;
+    state.sessions = data.sessions.map(function (s) {
+      var sp = normalizeProviderId(s.provider);
+      var pid = sp && P[sp] ? sp : 'openai';
+      var gk = String(s.gatewaySessionKey || '').trim();
+      var mModel = s.model || '';
+      if (pid === 'codex_cli') mModel = '';
+      return {
+        id: s.id || genId(),
+        provider: pid,
+        model: mModel,
+        baseUrl: s.baseUrl || '',
+        gatewaySessionKey: pid === 'openclaw' ? gk || 'main' : '',
+        history: Array.isArray(s.history)
+          ? s.history.map(function (m) {
+              var n = normalizeHistoryItem(m);
+              if (!n) return null;
+              return {
+                role: n.role,
+                content: n.content,
+                ts: n.ts
+              };
+            }).filter(Boolean)
+          : []
+      };
+    });
+    state.activeSessionId = data.activeSessionId || (state.sessions[0] && state.sessions[0].id) || '';
+  }
+
+  function createSessionFromForm() {
+    var pv = normalizeProviderId(provider.value);
+    var pid = pv && P[pv] ? pv : 'openai';
+    var p = P[pid] || P.openai;
+    return {
+      id: genId(),
+      provider: pid,
+      model: p.transport === 'cli' ? '' : model.value.trim() || p.model,
+      baseUrl: baseUrl.value.trim(),
+      gatewaySessionKey: pid === 'openclaw' ? 'main' : '',
+      history: []
+    };
+  }
+
+  function ensureSessions() {
+    if (state.sessions.length === 0) {
+      var s = createSessionFromForm();
+      state.sessions.push(s);
+      state.activeSessionId = s.id;
+      persistSessions();
+    } else if (!state.activeSessionId || !activeSession()) {
+      state.activeSessionId = state.sessions[0].id;
+    }
+  }
+
+  function syncFormFromSession(s) {
+    if (!s) return;
+    var sp = normalizeProviderId(s.provider);
+    var pid = sp && P[sp] ? sp : 'openai';
+    provider.value = pid;
+    var p = P[pid] || P.openai;
+    if (p.transport === 'cli') {
+      fillModels(pid, '');
+      model.value = '';
+    } else {
+      fillModels(pid, s.model);
+      model.value = s.model || p.model;
+    }
+    baseUrl.value = (s.baseUrl || '').trim() || p.baseUrl;
+    hint(pid);
+    apiKey.value = (state.apiKeys && state.apiKeys[pid]) || '';
+    refreshApiKeyField(pid);
+    provider.dataset.prevProv = pid;
+    syncProviderDdUi();
+    updateProviderFormLayout(pid);
+  }
+
+  function syncSessionFromForm(s) {
+    if (!s) return;
+    var pv = normalizeProviderId(provider.value);
+    var pid = pv && P[pv] ? pv : 'openai';
+    var p = P[pid] || P.openai;
+    s.provider = pid;
+    s.model = p.transport === 'cli' ? '' : model.value.trim() || p.model;
+    s.baseUrl = baseUrl.value.trim();
+    if (pid !== 'openclaw') s.gatewaySessionKey = '';
+    else if (!String(s.gatewaySessionKey || '').trim()) s.gatewaySessionKey = 'main';
+  }
+
+  function providerIconUrlList(pid) {
+    pid = pid && P[pid] ? pid : 'openai';
+    var bases = PROVIDER_ICON_BASES[pid];
+    if (!bases || !bases.length) bases = [pid];
+    var list = [];
+    bases.forEach(function (base) {
+      PROVIDER_ICON_EXTS.forEach(function (ext) {
+        list.push(ICON_SECOND + base + ext);
+      });
+    });
+    list.push(ICON_PRIMARY + pid + '.svg');
+    list.push(ICON_SECOND + pid + '.svg');
+    list.push(ICON_FALLBACK);
+    var seen = {},
+      out = [];
+    list.forEach(function (u) {
+      if (!seen[u]) {
+        seen[u] = 1;
+        out.push(u);
+      }
+    });
+    return out;
+  }
+
+  function bindProviderIconImg(img, pid, extraClass) {
+    img.alt = '';
+    img.loading = 'lazy';
+    img.className = 'stab-ico-img' + (extraClass ? ' ' + extraClass : '');
+    var urls = providerIconUrlList(pid);
+    var idx = 0;
+    img.onerror = function () {
+      idx += 1;
+      if (idx < urls.length) {
+        this.src = urls[idx];
+      } else {
+        this.onerror = null;
+      }
+    };
+    img.removeAttribute('src');
+    img.src = urls[0];
+  }
+
+  function refreshApiKeyField(pid) {
+    var km = KEYMETA[pid] || {},
+      lab = apiKeyLabel,
+      kh = apiKeyKeyHint;
+    if (lab) lab.textContent = km.keyLabel || 'API Key';
+    apiKey.placeholder = km.keyPlaceholder || '填写密钥';
+    try {
+      var p = P[pid] || {};
+      var isCli = p && p.transport === 'cli';
+      apiKey.disabled = !!isCli;
+      apiKey.setAttribute('aria-disabled', isCli ? 'true' : 'false');
+      apiKey.style.opacity = isCli ? '0.6' : '';
+    } catch (e) {}
+    if (kh) {
+      if (km.keyHint) {
+        kh.textContent = km.keyHint;
+        kh.style.display = '';
+      } else {
+        kh.textContent = '';
+        kh.style.display = 'none';
+      }
+    }
+  }
+
+  function updateProviderFormLayout(pid) {
+    pid = normalizeProviderId(pid);
+    if (!(pid && P[pid])) pid = 'openai';
+    var p = P[pid] || P.openai;
+    var isCli = p.transport === 'cli';
+    if (fldModelDdCol) fldModelDdCol.style.display = isCli ? 'none' : '';
+    if (fldModelRow) fldModelRow.style.display = isCli ? 'none' : '';
+    if (fldTtydShellRow) fldTtydShellRow.style.display = isCli ? '' : 'none';
+    if (fldBaseUrlRow) {
+      var bl = fldBaseUrlRow.querySelector('label[for="baseUrl"]');
+      if (bl) bl.textContent = isCli ? 'ttyd 地址（Base URL）' : 'Base URL';
+    }
+  }
+
+  function migrateApiKeysFromStorage(d) {
+    state.apiKeys = {};
+    if (d.apiKeys && typeof d.apiKeys === 'object') {
+      var oa = d.apiKeys.openai;
+      var cx = d.apiKeys.codex;
+      Object.keys(d.apiKeys).forEach(function (k) {
+        if (k === 'openai' || k === 'codex') return;
+        var nk = normalizeProviderId(k);
+        if (d.apiKeys[k] != null) state.apiKeys[nk] = String(d.apiKeys[k]);
+      });
+      if (oa != null && String(oa).trim() !== '') state.apiKeys.openai = String(oa);
+      else if (cx != null && String(cx).trim() !== '') state.apiKeys.openai = String(cx);
+    }
+    if (!Object.keys(state.apiKeys).length && d.apiKey) {
+      var dp = normalizeProviderId(d.provider);
+      var lk = dp && P[dp] ? dp : 'openai';
+      state.apiKeys[lk] = String(d.apiKey);
+    }
+  }
+
+  function fillPromptBuiltinSelect() {
+    if (!promptBuiltin) return;
+    var opts = '<option value="">— 内置模版 —</option>';
+    PROMPT_BUILTIN.forEach(function (t) {
+      opts += '<option value="' + esc(t.id) + '">' + esc(t.name) + '</option>';
+    });
+    promptBuiltin.innerHTML = opts;
+    promptBuiltin.value = '';
+  }
+
+  function applySelectedPromptBuiltin() {
+    if (!promptBuiltin || !promptBuiltin.value) {
+      sstat('请先在列表中选择一个内置模版。', 'error');
+      return;
+    }
+    var id = promptBuiltin.value,
+      found = null;
+    for (var i = 0; i < PROMPT_BUILTIN.length; i++) {
+      if (PROMPT_BUILTIN[i].id === id) {
+        found = PROMPT_BUILTIN[i];
+        break;
+      }
+    }
+    if (!found) return;
+    systemPrompt.value = found.text;
+    saveCfg(false);
+    sstat('已应用模版：' + found.name, 'success');
+  }
+
+  function shortModel(m) {
+    m = String(m || '').trim();
+    if (!m) return '…';
+    var tail = m.replace(/^.*\//, '');
+    if (tail.length > 9) return tail.slice(0, 7) + '…';
+    return tail;
+  }
+
+  function tabTitleForSession(s) {
+    if (!s) return '';
+    var sp = normalizeProviderId(s.provider);
+    var pl = (P[sp] || {}).label || s.provider || '';
+    if (isCliSession(s)) return pl + ' · CLI';
+    return pl + ' · ' + shortModel(s.model);
+  }
+
+  function renderSessionTabs() {
+    if (!sessionTabsEl) return;
+    sessionTabsEl.innerHTML = '';
+    state.sessions.forEach(function (s) {
+      var wrap = document.createElement('div');
+      wrap.className = 'stab' + (s.id === state.activeSessionId ? ' active' : '');
+      wrap.setAttribute('role', 'tab');
+      wrap.dataset.sessionId = s.id;
+      wrap.setAttribute('title', tabTitleForSession(s));
+      var ico = document.createElement('span');
+      ico.className = 'stab-ico';
+      ico.setAttribute('aria-hidden', 'true');
+      var im = document.createElement('img');
+      bindProviderIconImg(im, normalizeProviderId(s.provider));
+      ico.appendChild(im);
+      var t = document.createElement('span');
+      t.className = 'stab-t';
+      t.textContent = isCliSession(s) ? 'CLI' : shortModel(s.model);
+      var x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'stab-x';
+      x.setAttribute('aria-label', '关闭标签');
+      x.textContent = '×';
+      x.setAttribute('data-close-session', s.id);
+      wrap.appendChild(ico);
+      wrap.appendChild(t);
+      wrap.appendChild(x);
+      sessionTabsEl.appendChild(wrap);
+    });
+    var addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'stab-add';
+    addBtn.id = 'sessionTabAdd';
+    addBtn.textContent = '+';
+    addBtn.setAttribute('title', '选择 AI 新建对话');
+    addBtn.setAttribute('aria-label', '选择 AI 新建对话');
+    sessionTabsEl.appendChild(addBtn);
+    refreshSendUi();
+    syncChatViewMode();
+  }
+
+  function emptyState() {
+    var s = activeSession();
+    if (!s || s.history.length) {
+      if (empty) empty.style.display = 'none';
+      return;
+    }
+    if (isCliSession(s)) {
+      empty.textContent = '本机命令行：输入内容后点发送，将拉起或聚焦 ttyd 终端。';
+    } else if (state.needSetup) {
+      empty.textContent = '首次使用请点「设」完成 API。展开后工具条在输入框下方、发送按钮左侧。';
+    } else {
+      empty.textContent = '开始对话，或点「+」选择服务商新建标签。';
+    }
+    if (empty) empty.style.display = '';
+  }
+
+  function appendMessageDom(role, content, ts) {
+    var w = document.createElement('article');
+    w.className = 'm ' + role;
+    var title = role === 'user' ? 'User' : 'Assistant';
+    var timeStr = ts
+      ? (function () {
+          try {
+            return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          } catch (e) {
+            return '';
+          }
+        })()
+      : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    var normalized = preMarkdownForChat(content);
+    var bodyHtml = md(normalized);
+    if (!String(bodyHtml || '').replace(/\s/g, '') && String(normalized || '').trim())
+      bodyHtml = '<p>' + esc(normalized).replace(/\n/g, '<br>') + '</p>';
+    w.innerHTML =
+      '<div class="mh"><span>' +
+      title +
+      '</span><span>' +
+      timeStr +
+      '</span></div><div class="mb">' +
+      bodyHtml +
+      '</div>';
+    msgs.appendChild(w);
+  }
+
+  function rebuildMsgList() {
+    msgs.querySelectorAll('article.m').forEach(function (n) {
+      n.remove();
+    });
+    var s = activeSession();
+    if (!s) {
+      emptyState();
+      return;
+    }
+    if (isCliSession(s)) {
+      // CLI 模式不渲染气泡历史（独立终端界面）
+      emptyState();
+      syncChatViewMode();
+      return;
+    }
+    s.history.forEach(function (item) {
+      if (!item || !item.role) return;
+      var raw = item.content != null ? String(item.content) : '';
+      var disp = raw.trim() ? raw : ocExtractMessageContentForHistory(item);
+      if (!String(disp || '').trim()) disp = '（无正文）';
+      appendMessageDom(item.role, disp, item.ts);
+    });
+    emptyState();
+    scrollMsgsToLatest();
+    syncChatViewMode();
+  }
+
+  function add(role, content) {
+    var s = activeSession();
+    if (!s) return;
+    var ts = new Date().toISOString();
+    var n = normalizeHistoryItem({ role: role, content: content, ts: ts });
+    if (!n) return;
+    s.history.push(n);
+    persistSessions();
+    pushSessionHistoryToStore(s);
+    emptyState();
+    appendMessageDom(n.role, n.content, n.ts);
+    scrollMsgsToLatest();
+    renderSessionTabs();
+  }
+
+  function clearChatSearchHit() {
+    msgs.querySelectorAll('article.m.search-hit').forEach(function (n) {
+      n.classList.remove('search-hit');
+    });
+  }
+
+  function runChatSearchPrompt() {
+    var kw = prompt('搜索聊天记录', state.chatSearchKeyword || '');
+    if (kw == null) return;
+    kw = String(kw || '').trim();
+    if (!kw) {
+      state.chatSearchKeyword = '';
+      state.chatSearchCursor = -1;
+      clearChatSearchHit();
+      cstat('已清空搜索关键词');
+      return;
+    }
+    var all = Array.prototype.slice.call(msgs.querySelectorAll('article.m'));
+    var matched = all.filter(function (node) {
+      return String(node.textContent || '').toLowerCase().indexOf(kw.toLowerCase()) >= 0;
+    });
+    if (!matched.length) {
+      clearChatSearchHit();
+      state.chatSearchKeyword = kw;
+      state.chatSearchCursor = -1;
+      cstat('未找到：' + kw, 'error');
+      return;
+    }
+    if (state.chatSearchKeyword !== kw) state.chatSearchCursor = -1;
+    state.chatSearchKeyword = kw;
+    state.chatSearchCursor = (state.chatSearchCursor + 1) % matched.length;
+    clearChatSearchHit();
+    var target = matched[state.chatSearchCursor];
+    target.classList.add('search-hit');
+    try {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (_) {
+      target.scrollIntoView();
+    }
+    cstat('搜索命中 ' + (state.chatSearchCursor + 1) + '/' + matched.length + '：' + kw, 'success');
+  }
+
+  function switchSession(id) {
+    if (id === state.activeSessionId) return;
+    var cur = activeSession();
+    syncSessionFromForm(cur);
+    pushSessionHistoryToStore(cur);
+    persistSessions();
+    state.activeSessionId = id;
+    var target = activeSession();
+    pullStoreHistoryToSession(target);
+    syncFormFromSession(target);
+    rebuildMsgList();
+    renderSessionTabs();
+    updateNeedSetup();
+    refreshSendUi();
+    if (target && target.provider === 'openclaw') hydrateOpenClawHistoryForSession(target, false);
+    syncChatViewMode();
+  }
+
+  function pickProviderGridKeys() {
+    var out = [];
+    var seen = {};
+    PROVIDER_PICK_ORDER.forEach(function (k) {
+      if (P[k] && !seen[k]) {
+        seen[k] = 1;
+        out.push(k);
+      }
+    });
+    Object.keys(P).forEach(function (k) {
+      if (!seen[k]) out.push(k);
+    });
+    return out;
+  }
+
+  function fillNewSessionGrid() {
+    if (!newSessionGrid) return;
+    newSessionGrid.innerHTML = '';
+    pickProviderGridKeys().forEach(function (k) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ns-item';
+      btn.dataset.pickProvider = k;
+      var ico = document.createElement('span');
+      ico.className = 'stab-ico';
+      ico.setAttribute('aria-hidden', 'true');
+      var im = document.createElement('img');
+      bindProviderIconImg(im, k);
+      ico.appendChild(im);
+      var lab = document.createElement('span');
+      lab.className = 'ns-lab';
+      lab.textContent = P[k].label;
+      btn.appendChild(ico);
+      btn.appendChild(lab);
+      newSessionGrid.appendChild(btn);
+    });
+  }
+
+  function openNewSessionPick() {
+    setSettings(false);
+    setNspick(true);
+    fillNewSessionGrid();
+  }
+
+  function closeNewSessionPick() {
+    setNspick(false);
+  }
+
+  function createSessionWithProvider(pid) {
+    if (!pid || !P[pid]) return;
+    var cur = activeSession();
+    syncSessionFromForm(cur);
+    saveCfg(false);
+    var p = P[pid];
+    var s = {
+      id: genId(),
+      provider: pid,
+      model: p.transport === 'cli' ? '' : p.model,
+      baseUrl: p.baseUrl,
+      gatewaySessionKey: pid === 'openclaw' ? getOpenClawSessionKey(null) : '',
+      history: []
+    };
+    state.sessions.push(s);
+    state.activeSessionId = s.id;
+    pullStoreHistoryToSession(s);
+    persistSessions();
+    syncFormFromSession(s);
+    rebuildMsgList();
+    renderSessionTabs();
+    updateNeedSetup();
+    closeNewSessionPick();
+    cstat('已打开「' + p.label + '」新对话', 'success');
+    if (pid === 'openclaw') hydrateOpenClawHistoryForSession(s, true);
+    syncChatViewMode();
+  }
+
+  function removeSession(id) {
+    if (state.sessions.length <= 1) {
+      cstat('至少保留一个对话标签。', 'error');
+      return;
+    }
+    var cur = activeSession();
+    if (cur && cur.id === id) syncSessionFromForm(cur);
+    var idx = -1;
+    for (var i = 0; i < state.sessions.length; i++) {
+      if (state.sessions[i].id === id) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx < 0) return;
+    state.sessions.splice(idx, 1);
+    if (state.activeSessionId === id) {
+      state.activeSessionId = state.sessions[Math.max(0, idx - 1)].id;
+      syncFormFromSession(activeSession());
+      rebuildMsgList();
+    }
+    persistSessions();
+    renderSessionTabs();
+  }
+
+  function downloadBlob(filename, text, mime) {
+    var blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function exportMarkdown() {
+    var s = activeSession();
+    if (!s || !s.history.length) {
+      cstat('当前标签没有消息可导出。', 'error');
+      return;
+    }
+    syncSessionFromForm(s);
+    var lines = [];
+    lines.push('# NiuMa Chat 导出');
+    lines.push('');
+    lines.push('- 服务商: ' + ((P[s.provider] || {}).label || s.provider));
+    lines.push('- 模型: ' + s.model);
+    lines.push('- 导出时间: ' + new Date().toLocaleString());
+    lines.push('');
+    s.history.forEach(function (m) {
+      lines.push('## ' + (m.role === 'user' ? '用户' : '助手') + ' · ' + (m.ts || ''));
+      lines.push('');
+      lines.push(m.content);
+      lines.push('');
+    });
+    downloadBlob('niuma-chat-' + s.id + '.md', lines.join('\n'), 'text/markdown;charset=utf-8');
+    cstat('已导出 Markdown。', 'success');
+  }
+
+  function exportJson() {
+    var s = activeSession();
+    if (!s || !s.history.length) {
+      cstat('当前标签没有消息可导出。', 'error');
+      return;
+    }
+    syncSessionFromForm(s);
+    var payload = {
+      exportedAt: new Date().toISOString(),
+      session: {
+        id: s.id,
+        provider: s.provider,
+        providerLabel: (P[s.provider] || {}).label || s.provider,
+        model: s.model,
+        baseUrl: s.baseUrl,
+        history: s.history
+      }
+    };
+    downloadBlob('niuma-chat-' + s.id + '.json', JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+    cstat('已导出 JSON。', 'success');
+  }
+
+  function cstat(t, m) {
+    chatStatus.textContent = t;
+    chatStatus.className = 'st' + (m === 'error' ? ' error' : m === 'success' ? ' success' : '');
+  }
+
+  function isSessionSending(id) {
+    if (!id) return false;
+    return !!(state.sendingBySession && state.sendingBySession[id]);
+  }
+
+  function refreshSendUi() {
+    var sid = state.activeSessionId || (activeSession() && activeSession().id) || '';
+    var sending = isSessionSending(sid);
+    var s = activeSession();
+    if (isCliSession(s)) {
+      // CLI 模式隐藏 composer，本按钮不作为主要入口；保持禁用避免误触
+      send.disabled = true;
+      send.textContent = 'CLI 模式';
+      return;
+    }
+    send.disabled = sending;
+    send.textContent = sending ? '发送中...' : '发送消息';
+  }
+
+  function setSessionSending(id, v) {
+    if (!id) return;
+    if (!state.sendingBySession) state.sendingBySession = {};
+    if (v) state.sendingBySession[id] = true;
+    else delete state.sendingBySession[id];
+    refreshSendUi();
+  }
+
+  function cstatForSession(sid, t, m) {
+    if (state.activeSessionId === sid) cstat(t, m);
+  }
+
+  function sstat(t, m) {
+    cfgStatus.textContent = t;
+    cfgStatus.className = 'st' + (m === 'error' ? ' error' : m === 'success' ? ' success' : '');
+  }
+
+  function fillProviders() {
+    provider.innerHTML = Object.keys(P)
+      .map(function (k) {
+        return '<option value="' + k + '">' + P[k].label + '</option>';
+      })
+      .join('');
+    buildProviderDdMenu();
+    syncProviderDdUi();
+  }
+
+  function buildProviderDdMenu() {
+    if (!providerDdMenu) return;
+    providerDdMenu.innerHTML = '';
+    Object.keys(P).forEach(function (k) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dd-item';
+      b.setAttribute('role', 'option');
+      b.dataset.value = k;
+      var im = document.createElement('img');
+      bindProviderIconImg(im, k, 'dd-icon');
+      var sp = document.createElement('span');
+      sp.className = 'dd-label';
+      sp.textContent = P[k].label;
+      b.appendChild(im);
+      b.appendChild(sp);
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        provider.value = k;
+        var ev = new Event('change', { bubbles: true });
+        provider.dispatchEvent(ev);
+        closeProviderDd();
+      });
+      providerDdMenu.appendChild(b);
+    });
+  }
+
+  function syncProviderDdUi() {
+    var pv = normalizeProviderId(provider.value);
+    var k = pv && P[pv] ? pv : 'openai';
+    var p = P[k] || P.openai;
+    if (providerDdLabel) providerDdLabel.textContent = p.label;
+    if (providerDdIcon) bindProviderIconImg(providerDdIcon, k, 'dd-icon');
+    if (providerDdMenu) {
+      providerDdMenu.querySelectorAll('.dd-item').forEach(function (el) {
+        el.classList.toggle('dd-active', el.dataset.value === k);
+      });
+    }
+  }
+
+  function closeProviderDd() {
+    if (providerDdMenu) providerDdMenu.hidden = true;
+    if (providerDdBtn) providerDdBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function closeModelDd() {
+    if (modelDdMenu) modelDdMenu.hidden = true;
+    if (modelDdBtn) modelDdBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleProviderDd() {
+    if (!providerDdMenu) return;
+    var open = providerDdMenu.hidden;
+    closeModelDd();
+    providerDdMenu.hidden = !open;
+    if (providerDdBtn) providerDdBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  function toggleModelDd() {
+    if (!modelDdMenu) return;
+    var open = modelDdMenu.hidden;
+    closeProviderDd();
+    modelDdMenu.hidden = !open;
+    if (modelDdBtn) modelDdBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) ensureDynamicModelsForActiveProvider();
+  }
+
+  function uniqStrings(arr) {
+    var out = [],
+      seen = {};
+    (arr || []).forEach(function (x) {
+      var v = String(x || '').trim();
+      if (!v || seen[v]) return;
+      seen[v] = 1;
+      out.push(v);
+    });
+    return out;
+  }
+
+  function getPresetModels(pid) {
+    var p = P[pid] || P.openai;
+    var staticModels = Array.isArray(p.models) ? p.models : [];
+    var dynamicModels = (state.dynamicModels && state.dynamicModels[pid]) || [];
+    return uniqStrings([].concat(dynamicModels, staticModels));
+  }
+
+  function modelListUrl(base) {
+    var b = String(base || '').trim().replace(/\/+$/, '');
+    if (!b) return '';
+    return b + '/models';
+  }
+
+  function collectModelIdsDeep(v, out) {
+    if (!v) return;
+    if (Array.isArray(v)) {
+      v.forEach(function (it) {
+        collectModelIdsDeep(it, out);
+      });
+      return;
+    }
+    if (typeof v === 'string') {
+      var s = v.trim();
+      if (s) out.push(s);
+      return;
+    }
+    if (typeof v !== 'object') return;
+    var cand = [v.id, v.model, v.name, v.model_id, v.modelId];
+    cand.forEach(function (x) {
+      if (typeof x === 'string' && x.trim()) out.push(x.trim());
+    });
+    if (v.data) collectModelIdsDeep(v.data, out);
+    if (v.models) collectModelIdsDeep(v.models, out);
+    if (v.result) collectModelIdsDeep(v.result, out);
+    if (v.items) collectModelIdsDeep(v.items, out);
+  }
+
+  async function fetchDynamicModels(pid) {
+    pid = normalizeProviderId(pid);
+    if (!(pid && P[pid])) return [];
+    var prov = P[pid];
+    if (prov.transport !== 'openai') return [];
+    var url = modelListUrl(baseUrl.value || prov.baseUrl);
+    if (!url) return [];
+    var headers = { 'Content-Type': 'application/json' };
+    var key = getApiKeyForProvider(pid);
+    if (key) headers.Authorization = 'Bearer ' + key;
+    var resp = await fetch(url, { method: 'GET', headers: headers });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var body = await resp.json().catch(function () { return {}; });
+    var ids = [];
+    collectModelIdsDeep(body, ids);
+    return uniqStrings(ids).slice(0, 200);
+  }
+
+  async function ensureDynamicModelsForActiveProvider(force) {
+    var pid = normalizeProviderId(provider.value);
+    if (!(pid && P[pid])) return;
+    if ((P[pid] || {}).transport === 'cli') return;
+    var now = Date.now();
+    var ttlMs = 5 * 60 * 1000;
+    if (!force) {
+      var at = (state.dynamicModelsFetchedAt && state.dynamicModelsFetchedAt[pid]) || 0;
+      if (at && now - at < ttlMs) return;
+    }
+    try {
+      var list = await fetchDynamicModels(pid);
+      if (!state.dynamicModels) state.dynamicModels = {};
+      if (!state.dynamicModelsFetchedAt) state.dynamicModelsFetchedAt = {};
+      if (list && list.length) state.dynamicModels[pid] = list;
+      state.dynamicModelsFetchedAt[pid] = now;
+      if (normalizeProviderId(provider.value) === pid) {
+        fillModels(pid, model.value.trim());
+      }
+    } catch (e) {
+      if (!state.dynamicModelsFetchedAt) state.dynamicModelsFetchedAt = {};
+      state.dynamicModelsFetchedAt[pid] = now;
+    }
+  }
+
+  function fillModels(pid, sel) {
+    var p = P[pid] || P.openai,
+      o = ['<option value="">手动输入</option>'];
+    getPresetModels(pid).forEach(function (m) {
+      o.push('<option value="' + esc(m) + '">' + esc(m) + '</option>');
+    });
+    modelPreset.innerHTML = o.join('');
+    var preset = getPresetModels(pid);
+    modelPreset.value = sel && preset.indexOf(sel) >= 0 ? sel : '';
+    buildModelDdMenu(pid);
+    syncModelDdUi();
+  }
+
+  function buildModelDdMenu(pid) {
+    if (!modelDdMenu) return;
+    var p = P[pid] || P.openai;
+    modelDdMenu.innerHTML = '';
+    function addItem(val, label) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dd-item';
+      b.setAttribute('role', 'option');
+      b.dataset.value = val;
+      var im = document.createElement('img');
+      bindProviderIconImg(im, pid, 'dd-icon');
+      var sp = document.createElement('span');
+      sp.className = 'dd-label';
+      sp.textContent = label;
+      b.appendChild(im);
+      b.appendChild(sp);
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        modelPreset.value = val;
+        if (val) model.value = val;
+        modelPreset.dispatchEvent(new Event('change', { bubbles: true }));
+        closeModelDd();
+      });
+      modelDdMenu.appendChild(b);
+    }
+    addItem('', '手动输入');
+    getPresetModels(pid).forEach(function (m) {
+      addItem(m, m);
+    });
+  }
+
+  function syncModelDdUi() {
+    var pv = normalizeProviderId(provider.value);
+    var k = pv && P[pv] ? pv : 'openai';
+    var mp = modelPreset.value;
+    var label = mp ? mp : '手动输入';
+    if (modelDdLabel) modelDdLabel.textContent = label;
+    if (modelDdIcon) bindProviderIconImg(modelDdIcon, k, 'dd-icon');
+    if (modelDdMenu) {
+      modelDdMenu.querySelectorAll('.dd-item').forEach(function (el) {
+        el.classList.toggle('dd-active', el.dataset.value === mp);
+      });
+    }
+  }
+
+  function hint(pid) {
+    var p = P[pid] || P.openai;
+    if (p.transport === 'cli') {
+      ph.textContent =
+        p.label +
+        ' 使用本机 ttyd 网页终端。Base URL 为终端页地址（默认 http://127.0.0.1:7681 ）。在「终端启动命令」中配置 cmd / PowerShell 等，保存后写入宿主配置并建议重启 ttyd。';
+      return;
+    }
+    var m = {
+        openai: 'OpenAI 兼容 chat/completions',
+        anthropic: 'Anthropic messages 接口',
+        gemini: 'Gemini generateContent 接口',
+        openclaw: 'OpenClaw Gateway WebSocket（connect + chat.send）'
+      },
+      transportLabel = pid === 'ollama' ? '本地 Ollama（OpenAI 兼容 chat/completions）' : (m[p.transport] || p.transport);
+    ph.textContent =
+      p.label +
+      ' 默认走 ' +
+      transportLabel +
+      '。如你使用中转站、反向代理或私有网关，也可以直接覆盖 Base URL 和 Model。';
+  }
+
+  function applyProvider(pid, keep) {
+    pid = normalizeProviderId(pid);
+    if (!(pid && P[pid])) pid = 'openai';
+    var p = P[pid] || P.openai;
+    provider.value = pid;
+    fillModels(pid, p.transport === 'cli' ? '' : model.value.trim());
+    hint(pid);
+    if (!keep || !baseUrl.value.trim()) baseUrl.value = p.baseUrl;
+    if (!keep || !model.value.trim()) model.value = p.transport === 'cli' ? '' : p.model;
+    if (!systemPrompt.value.trim()) systemPrompt.value = SP;
+    syncProviderDdUi();
+    updateProviderFormLayout(pid);
+  }
+
+  function getApiKeyForProvider(pid) {
+    pid = normalizeProviderId(pid);
+    pid = pid && P[pid] ? pid : 'openai';
+    return ((state.apiKeys && state.apiKeys[pid]) || '').trim();
+  }
+
+  function openClawEndpointFromCfg(cfg) {
+    var raw = (cfg.baseUrl || '').trim();
+    var token = (cfg.apiKey || '').trim();
+    var host = '127.0.0.1';
+    var port = 18789;
+    try {
+      var u = new URL(raw.indexOf('://') >= 0 ? raw : 'http://' + raw);
+      host = u.hostname || host;
+      if (u.port) port = parseInt(u.port, 10) || port;
+      if (u.hash && u.hash.indexOf('token=') >= 0) {
+        var sp = new URLSearchParams(u.hash.replace(/^#/, '?'));
+        var ht = (sp.get('token') || '').trim();
+        if (ht) token = ht;
+      }
+    } catch (e) {}
+    if (!token || !host) return { ok: false };
+    return { ok: true, host: host, port: port, token: token };
+  }
+
+  function updateNeedSetup() {
+    var s = activeSession();
+    if (!s) {
+      state.needSetup = true;
+      return;
+    }
+    var sp = normalizeProviderId(s.provider);
+    var p = P[sp] || P.openai;
+    if (p.transport === 'cli') {
+      state.needSetup = false;
+      return;
+    }
+    var url = (s.baseUrl || '').trim() || baseUrl.value.trim() || p.baseUrl;
+    var m = (s.model || '').trim() || model.value.trim();
+    var k = getApiKeyForProvider(sp);
+    if (p.transport === 'openclaw') {
+      state.needSetup = !openClawEndpointFromCfg({ baseUrl: url, apiKey: k, provider: sp }).ok;
+      return;
+    }
+    if (sp === 'ollama') {
+      state.needSetup = !url || !m;
+      return;
+    }
+    state.needSetup = !k || !url || !m;
+  }
+
+  function loadCfg() {
+    var d = {};
+    try {
+      d = JSON.parse(localStorage.getItem(LS) || localStorage.getItem(LEGACY_LS) || '{}') || {};
+    } catch (e) {
+      d = {};
+    }
+    migrateApiKeysFromStorage(d);
+    systemPrompt.value = Object.prototype.hasOwnProperty.call(d, 'systemPrompt') ? String(d.systemPrompt) : SP;
+    if (ttydShellCommand) ttydShellCommand.value = d.ttydShell != null ? String(d.ttydShell) : '';
+    loadNiumaHistoryStore();
+
+    loadSessions();
+
+    if (state.sessions.length === 0) {
+      var dp = normalizeProviderId(d.provider);
+      var pid = dp && P[dp] ? dp : 'openai';
+      provider.value = pid;
+      applyProvider(pid, true);
+      if (d.baseUrl) baseUrl.value = d.baseUrl;
+      if (d.model) model.value = d.model;
+      fillModels(pid, model.value.trim());
+      var s0 = createSessionFromForm();
+      state.sessions = [s0];
+      state.activeSessionId = s0.id;
+      persistSessions();
+      apiKey.value = state.apiKeys[pid] || '';
+      refreshApiKeyField(pid);
+      provider.dataset.prevProv = pid;
+    } else {
+      ensureSessions();
+      state.sessions.forEach(function (sx) {
+        pullStoreHistoryToSession(sx);
+      });
+      syncFormFromSession(activeSession());
+      fillModels(provider.value, model.value.trim());
+    }
+
+    state.sessions.forEach(function (sx) {
+      pushSessionHistoryToStore(sx);
+    });
+
+    updateNeedSetup();
+    updateProviderFormLayout(normalizeProviderId(provider.value));
+    {
+      var act = activeSession();
+      var skipApiHint = act && isCliSession(act);
+      sstat(
+        skipApiHint
+          ? '配置与对话已从本地恢复。'
+          : state.needSetup
+            ? '首次使用请先完成 API 设置。'
+            : '配置与对话已从本地恢复。',
+        !skipApiHint && state.needSetup ? '' : 'success'
+      );
+    }
+    renderSessionTabs();
+    rebuildMsgList();
+    refreshSendUi();
+    var sAct = activeSession();
+    if (sAct && normalizeProviderId(sAct.provider) === 'openclaw') hydrateOpenClawHistoryForSession(sAct, false);
+    ensureDynamicModelsForActiveProvider();
+  }
+
+  function saveCfg(ok) {
+    var cur = activeSession();
+    syncSessionFromForm(cur);
+    var pv = normalizeProviderId(provider.value);
+    var pid = pv && P[pv] ? pv : 'openai';
+    if (!state.apiKeys) state.apiKeys = {};
+    state.apiKeys[pid] = apiKey.value.trim();
+    var d = {
+      provider: pid,
+      apiKeys: state.apiKeys,
+      baseUrl: baseUrl.value.trim(),
+      model: model.value.trim(),
+      systemPrompt: systemPrompt.value.trim(),
+      ttydShell: ttydShellCommand ? ttydShellCommand.value.trim() : ''
+    };
+    localStorage.setItem(LS, JSON.stringify(d));
+    persistSessions();
+    updateNeedSetup();
+    sstat(ok ? '设置已保存到本地。' : '配置会自动保存到本地。', ok ? 'success' : '');
+    renderSessionTabs();
+    return d;
+  }
+
+  function reset() {
+    localStorage.removeItem(LS);
+    localStorage.removeItem(LEGACY_LS);
+    localStorage.removeItem(SESSIONS_LS);
+    state.apiKeys = {};
+    apiKey.value = '';
+    systemPrompt.value = SP;
+    applyProvider('openai', false);
+    fillModels('openai', model.value.trim());
+    refreshApiKeyField('openai');
+    state.sessions = [];
+    state.activeSessionId = '';
+    loadCfg();
+    state.needSetup = true;
+    sstat('已重置：各服务商密钥与对话已清空，请分别填写。', '');
+    setSettings(true);
+  }
+
+  function buildSendCfg() {
+    var s = activeSession();
+    if (!s) return null;
+    syncSessionFromForm(s);
+    var sp = normalizeProviderId(s.provider);
+    var pid = sp && P[sp] ? sp : 'openai';
+    var p = P[pid] || P.openai;
+    var bu = (s.baseUrl || '').trim() || p.baseUrl;
+    return {
+      provider: pid,
+      model: p.transport === 'cli' ? '' : (s.model || '').trim() || p.model,
+      baseUrl: bu,
+      apiKey: getApiKeyForProvider(pid),
+      systemPrompt: systemPrompt.value.trim()
+    };
+  }
+
+  function oaUrl(u) {
+    u = String(u || '').replace(/\/+$/, '');
+    if (/\/chat\/completions$/i.test(u)) return u;
+    if (/\/v\d+(?:\.\d+)?$/i.test(u)) return u + '/chat/completions';
+    return u + '/chat/completions';
+  }
+
+  function claudeUrl(u) {
+    u = String(u || '').replace(/\/+$/, '');
+    if (/\/v1\/messages$/i.test(u)) return u;
+    if (/\/v1$/i.test(u)) return u + '/messages';
+    return u + '/v1/messages';
+  }
+
+  function geminiUrl(u, m, k) {
+    u = String(u || '').replace(/\/+$/, '');
+    var p = '/models/' + encodeURIComponent(m) + ':generateContent?key=' + encodeURIComponent(k);
+    if (/\/v1beta$/i.test(u) || /\/v1$/i.test(u)) return u + p;
+    return u + '/v1beta' + p;
+  }
+
+  function norm(c) {
+    if (typeof c === 'string') return c;
+    if (Array.isArray(c))
+      return c
+        .map(function (p) {
+          if (typeof p === 'string') return p;
+          if (p && typeof p.text === 'string') return p.text;
+          return '';
+        })
+        .join('\n')
+        .trim();
+    return '';
+  }
+
+  function oaMsgs(cfg) {
+    var m = [];
+    if (cfg.systemPrompt) m.push({ role: 'system', content: cfg.systemPrompt });
+    var h = activeSession() ? activeSession().history : [];
+    h.forEach(function (i) {
+      m.push({ role: i.role, content: i.content });
+    });
+    return m;
+  }
+
+  function claudeMsgs() {
+    var h = activeSession() ? activeSession().history : [];
+    return h.map(function (i) {
+      return { role: i.role === 'assistant' ? 'assistant' : 'user', content: i.content };
+    });
+  }
+
+  function geminiMsgs() {
+    var h = activeSession() ? activeSession().history : [];
+    return h.map(function (i) {
+      return { role: i.role === 'assistant' ? 'model' : 'user', parts: [{ text: i.content }] };
+    });
+  }
+
+  async function reqOpenAI(cfg) {
+    var h = { 'Content-Type': 'application/json' };
+    if (cfg.apiKey) h.Authorization = 'Bearer ' + cfg.apiKey;
+    var r = await fetch(oaUrl(cfg.baseUrl), {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify({ model: cfg.model, messages: oaMsgs(cfg), temperature: 0.7 })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()));
+    var d = await r.json(),
+      c = '';
+    try {
+      c = norm(d.choices[0].message.content);
+    } catch (e) {
+      c = '';
+    }
+    if (!c) throw new Error('响应中没有可显示的内容。');
+    return c;
+  }
+
+  async function reqClaude(cfg) {
+    var r = await fetch(claudeUrl(cfg.baseUrl), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': cfg.apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: cfg.model,
+        system: cfg.systemPrompt || '',
+        max_tokens: 2048,
+        messages: claudeMsgs()
+      })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()));
+    var d = await r.json(),
+      c = '';
+    try {
+      c = (d.content || [])
+        .map(function (p) {
+          return p && p.type === 'text' ? p.text || '' : '';
+        })
+        .join('\n')
+        .trim();
+    } catch (e) {
+      c = '';
+    }
+    if (!c) throw new Error('响应中没有可显示的内容。');
+    return c;
+  }
+
+  async function reqGemini(cfg) {
+    var body = { contents: geminiMsgs(), generationConfig: { temperature: 0.7 } };
+    if (cfg.systemPrompt) body.systemInstruction = { parts: [{ text: cfg.systemPrompt }] };
+    var r = await fetch(geminiUrl(cfg.baseUrl, cfg.model, cfg.apiKey), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()));
+    var d = await r.json(),
+      c = '';
+    try {
+      var parts = (((d.candidates || [])[0] || {}).content || {}).parts || [];
+      c = parts
+        .map(function (p) {
+          return p && typeof p.text === 'string' ? p.text : '';
+        })
+        .join('\n')
+        .trim();
+    } catch (e) {
+      c = '';
+    }
+    if (!c) throw new Error('响应中没有可显示的内容。');
+    return c;
+  }
+
+  function ocExtractText(v) {
+    if (v == null) return '';
+    if (typeof v === 'object')
+      return String(v.text || v.content || v.message || v.body || v.value || '').trim();
+    var s = String(v).trim();
+    if (!s) return '';
+    try {
+      var o = JSON.parse(s);
+      if (o && typeof o === 'object') return String(o.text || o.content || o.message || s).trim();
+    } catch (e) {}
+    return s;
+  }
+
+  function ocCollectTextDeep(v, out) {
+    if (v == null) return;
+    if (typeof v === 'string') {
+      var t = v.trim();
+      if (t) out.push(t);
+      return;
+    }
+    if (Array.isArray(v)) {
+      for (var i = 0; i < v.length; i++) ocCollectTextDeep(v[i], out);
+      return;
+    }
+    if (typeof v === 'object') {
+      if (typeof v.text === 'string' && v.text.trim()) out.push(v.text.trim());
+      if (typeof v.message === 'string' && v.message.trim()) out.push(v.message.trim());
+      if (typeof v.content === 'string' && v.content.trim()) out.push(v.content.trim());
+      if (typeof v.body === 'string' && v.body.trim()) out.push(v.body.trim());
+      if (typeof v.value === 'string' && v.value.trim()) out.push(v.value.trim());
+      if (v.content && typeof v.content !== 'string') ocCollectTextDeep(v.content, out);
+      if (v.delta) ocCollectTextDeep(v.delta, out);
+      if (v.output) ocCollectTextDeep(v.output, out);
+      if (v.response) ocCollectTextDeep(v.response, out);
+      if (v.result) ocCollectTextDeep(v.result, out);
+      if (v.data) ocCollectTextDeep(v.data, out);
+      if (v.payload) ocCollectTextDeep(v.payload, out);
+      if (v.message && typeof v.message !== 'string') ocCollectTextDeep(v.message, out);
+      if (v.parts) ocCollectTextDeep(v.parts, out);
+      if (v.output_text) ocCollectTextDeep(v.output_text, out);
+      if (v.assistant) ocCollectTextDeep(v.assistant, out);
+      if (Array.isArray(v.choices)) {
+        for (var c = 0; c < v.choices.length; c++) {
+          var ch = v.choices[c];
+          if (ch && typeof ch === 'object') {
+            ocCollectTextDeep(ch.message || ch.delta || ch, out);
+          }
+        }
+      }
+    }
+  }
+
+  /** OpenClaw broadcast("chat", payload)：正文在 message.content[].text，而非旧版 response.text */
+  function ocExtractChatEventPayload(pl) {
+    if (!pl || typeof pl !== 'object') return '';
+    if (pl.state === 'error') return '';
+    var msg =
+      pl.message ||
+      pl.assistant ||
+      pl.assistantMessage ||
+      pl.data ||
+      pl.response ||
+      pl.result ||
+      pl.output ||
+      pl.delta ||
+      pl.payload;
+    if (msg == null) msg = pl;
+    if (typeof msg === 'string') return String(msg).trim();
+    var acc = [];
+    ocCollectTextDeep(msg, acc);
+    if (acc.length) return acc.join('\n').trim();
+    acc = [];
+    ocCollectTextDeep(pl, acc);
+    if (acc.length) return acc.join('\n').trim();
+    return ocExtractText(msg) || ocExtractText(pl);
+  }
+
+  /**
+   * 与 openclaw2 控制台一致：顶层常为 type:event + payload.event===chat，
+   * 而非 msg.event===chat（否则 NiuMa 永远等不到 final，45s 超时）。
+   */
+  function ocGetChatBroadcastPayload(msg) {
+    if (!msg || typeof msg !== 'object') return null;
+    if (msg.payload != null && typeof msg.payload === 'object' && msg.event === 'chat') return msg.payload;
+    var t = msg.type,
+      e = msg.event;
+    var isEventEnvelope =
+      t === 'event' ||
+      t === 'push' ||
+      t === 'notification' ||
+      t === 'broadcast' ||
+      e === 'event' ||
+      e === 'push' ||
+      e === 'notification' ||
+      e === 'broadcast';
+    if (!isEventEnvelope) return null;
+    var w = msg.payload || msg.params;
+    if (!w || typeof w !== 'object') return null;
+    var inner = String(w.event || w.type || '').toLowerCase();
+    if (inner !== 'chat') return null;
+    if (w.payload != null && typeof w.payload === 'object') return w.payload;
+    return w;
+  }
+
+  function ocGetChatSideResultPayload(msg) {
+    if (!msg || typeof msg !== 'object') return null;
+    if (msg.payload != null && typeof msg.payload === 'object' && msg.event === 'chat.side_result') return msg.payload;
+    var t = msg.type,
+      e = msg.event;
+    var isEventEnvelope =
+      t === 'event' ||
+      t === 'push' ||
+      t === 'notification' ||
+      t === 'broadcast' ||
+      e === 'event' ||
+      e === 'push' ||
+      e === 'notification' ||
+      e === 'broadcast';
+    if (!isEventEnvelope) return null;
+    var w = msg.payload || msg.params;
+    if (!w || typeof w !== 'object') return null;
+    var inner = String(w.event || w.type || '').toLowerCase();
+    if (inner !== 'chat.side_result') return null;
+    if (w.payload != null && typeof w.payload === 'object') return w.payload;
+    return w;
+  }
+
+  function ocIsChatFinalState(pl) {
+    if (!pl || typeof pl !== 'object') return false;
+    var s = pl.state;
+    if (s === 'final' || s === 'done' || s === 'completed' || s === 'finished') return true;
+    if (pl.done === true || pl.finished === true) return true;
+    return false;
+  }
+
+  function extractGatewayHistoryMessages(res) {
+    if (!res) return [];
+    if (Array.isArray(res)) return res;
+    if (Array.isArray(res.messages)) return res.messages;
+    if (Array.isArray(res.history)) return res.history;
+    if (Array.isArray(res.data)) return res.data;
+    if (Array.isArray(res.items)) return res.items;
+    if (res.result && typeof res.result === 'object') return extractGatewayHistoryMessages(res.result);
+    if (res.data && typeof res.data === 'object') return extractGatewayHistoryMessages(res.data);
+    if (res.payload && typeof res.payload === 'object') return extractGatewayHistoryMessages(res.payload);
+    return [];
+  }
+
+  function mapGatewayHistoryItem(m) {
+    if (!m || typeof m !== 'object') return null;
+    var role = normalizeRole(m.role || m.type || m.actor);
+    if (!role) return null;
+    var content = ocExtractMessageContentForHistory(m);
+    if (!content) return null;
+    return { role: role, content: content, ts: ensureIsoTime(m.ts || m.timestamp || m.createdAt || m.updatedAt) };
+  }
+
+  function openClawRpc(cfg, method, params, timeoutMs) {
+    var ep = openClawEndpointFromCfg(cfg);
+    if (!ep.ok) return Promise.reject(new Error('Gateway token missing'));
+    var wsUrl = 'ws://' + ep.host + ':' + ep.port + '/?token=' + encodeURIComponent(ep.token);
+    var to = Math.max(3000, Number(timeoutMs) || 12000);
+    return new Promise(function (resolve, reject) {
+      var ws;
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch (e) {
+        reject(e);
+        return;
+      }
+      var done = false,
+        seq = 0,
+        connected = false,
+        connectSent = false,
+        rpcId = '';
+      var timer = setTimeout(function () {
+        finishErr(new Error('OpenClaw RPC timeout: ' + method));
+      }, to);
+
+      function finishOk(val) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        try {
+          ws.close();
+        } catch (e) {}
+        resolve(val);
+      }
+      function finishErr(err) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        try {
+          ws.close();
+        } catch (e) {}
+        reject(err);
+      }
+      function sendConnect() {
+        if (connectSent) return;
+        connectSent = true;
+        seq += 1;
+        var cid = 'connect-' + seq;
+        ws.send(
+          JSON.stringify({
+            type: 'req',
+            id: cid,
+            method: 'connect',
+            params: {
+              minProtocol: 3,
+              maxProtocol: 3,
+              client: { id: 'openclaw-control-ui', version: 'niuma', platform: 'web', mode: 'webchat', instanceId: 'niuma-rpc-' + Date.now() },
+              role: 'operator',
+              scopes: ['operator.admin', 'operator.approvals', 'operator.pairing', 'operator.read', 'operator.write'],
+              caps: [],
+              auth: { token: ep.token }
+            }
+          })
+        );
+      }
+      function sendRpc() {
+        if (!connected || rpcId) return;
+        seq += 1;
+        rpcId = 'rpc-' + seq;
+        ws.send(JSON.stringify({ type: 'req', id: rpcId, method: method, params: params || {} }));
+      }
+      ws.onopen = function () {
+        sendConnect();
+      };
+      ws.onerror = function () {
+        finishErr(new Error('OpenClaw websocket error'));
+      };
+      ws.onclose = function () {
+        if (!done) finishErr(new Error('OpenClaw websocket closed'));
+      };
+      ws.onmessage = function (e) {
+        var msg = null;
+        try {
+          msg = JSON.parse(e.data);
+        } catch (ex) {
+          return;
+        }
+        var ev = msg.event || msg.type || msg.method || '';
+        if (ev === 'connect.challenge') {
+          connectSent = false;
+          sendConnect();
+          return;
+        }
+        if (typeof msg.id === 'string' && msg.id.indexOf('connect-') === 0) {
+          if (msg.error || msg.ok === false) {
+            finishErr(new Error((msg.error && msg.error.message) || 'connect failed'));
+            return;
+          }
+          connected = true;
+          sendRpc();
+          return;
+        }
+        if (!connected && ev === 'hello-ok') {
+          connected = true;
+          sendRpc();
+          return;
+        }
+        if (rpcId && msg.id === rpcId) {
+          if (msg.error || msg.ok === false) {
+            finishErr(new Error((msg.error && msg.error.message) || 'rpc failed'));
+            return;
+          }
+          var body = msg.result !== undefined ? msg.result : msg.payload !== undefined ? msg.payload : msg;
+          finishOk(body);
+        }
+      };
+    });
+  }
+
+  async function hydrateOpenClawHistoryForSession(s, force) {
+    if (!s || s.provider !== 'openclaw') return;
+    if (s._historyHydrating) return;
+    if (s._historyHydrated && !force) return;
+    s._historyHydrating = true;
+    try {
+      pullStoreHistoryToSession(s);
+      if (s.id === state.activeSessionId) rebuildMsgList();
+      var cfg = {
+        provider: s.provider,
+        baseUrl: (s.baseUrl || '').trim() || (P.openclaw && P.openclaw.baseUrl) || '',
+        apiKey: getApiKeyForProvider('openclaw')
+      };
+      var ep = openClawEndpointFromCfg(cfg);
+      if (ep.ok) {
+        var sk = getOpenClawSessionKey(s);
+        s.gatewaySessionKey = sk;
+        try {
+          localStorage.setItem('openclaw2_lastSessionKey', sk);
+        } catch (e0) {}
+        var rpcRes = await openClawRpc(cfg, 'chat.history', { sessionKey: sk, limit: 100 }, 10000);
+        var gw = extractGatewayHistoryMessages(rpcRes).map(mapGatewayHistoryItem).filter(Boolean);
+        /* 本地优先：避免网关 chat.history 占位项（content 空、仅有 id）与刚发送条目同 key 时盖住本地正文 */
+        if (gw.length) s.history = mergeHistoryList(s.history || [], gw).slice(-400);
+      }
+      pushSessionHistoryToStore(s);
+      persistSessions();
+      if (s.id === state.activeSessionId) rebuildMsgList();
+      s._historyHydrated = true;
+    } catch (e) {
+    } finally {
+      s._historyHydrating = false;
+    }
+  }
+
+  async function reqOpenClaw(cfg) {
+    var ep = openClawEndpointFromCfg(cfg);
+    if (!ep.ok) throw new Error('缺少 Gateway Token：请填写密钥，或将带 #token= 的控制台地址填入 Base URL。');
+    var wsUrl = 'ws://' + ep.host + ':' + ep.port + '/?token=' + encodeURIComponent(ep.token);
+    var h = activeSession() ? activeSession().history : [];
+    var last = h[h.length - 1];
+    if (!last || last.role !== 'user') throw new Error('内部错误：缺少用户消息。');
+    var msgText = String(last.content != null ? last.content : '');
+    if (!msgText.trim()) msgText = ocExtractMessageContentForHistory(last);
+    if (!String(msgText || '').trim()) throw new Error('上一条用户消息正文为空，请重新输入后发送。');
+    if (cfg.systemPrompt && h.length === 1) {
+      msgText = '【系统提示】\n' + cfg.systemPrompt + '\n\n' + msgText;
+    }
+    var s0 = activeSession();
+    var sessionKey = getOpenClawSessionKey(s0);
+    if (s0) s0.gatewaySessionKey = sessionKey;
+    try {
+      localStorage.setItem('openclaw2_lastSessionKey', sessionKey);
+    } catch (e) {}
+    var instanceId = 'niuma-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
+
+    return new Promise(function (resolve, reject) {
+      var ws;
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch (e) {
+        reject(new Error('无法建立 WebSocket：' + (e && e.message ? e.message : String(e))));
+        return;
+      }
+      var seq = 0;
+      var settled = false;
+      var authenticated = false;
+      var challengeReceived = false;
+      var connectSent = false;
+      var chatMsgId = '';
+      var pendingText = '';
+      var finalizeTimer = null;
+      var hardTimeout = setTimeout(function () {
+        settleReject(new Error('OpenClaw 响应超时（45s）。'));
+      }, 45000);
+
+      function cleanup() {
+        clearTimeout(hardTimeout);
+        if (finalizeTimer) clearTimeout(finalizeTimer);
+      }
+
+      function settleResolve(val) {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        try {
+          ws.close();
+        } catch (e) {}
+        resolve(val);
+      }
+
+      function settleReject(err) {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        try {
+          ws.close();
+        } catch (e) {}
+        reject(err);
+      }
+
+      function armFinalize() {
+        if (finalizeTimer) clearTimeout(finalizeTimer);
+        finalizeTimer = setTimeout(function () {
+          var t = pendingText.trim();
+          if (t) settleResolve(t);
+          else settleReject(new Error('响应中没有可显示的内容。'));
+        }, 1200);
+      }
+
+      function fail(err) {
+        settleReject(err);
+      }
+
+      function okDone() {
+        var t = pendingText.trim();
+        if (t) settleResolve(t);
+        else settleReject(new Error('响应中没有可显示的内容。'));
+      }
+
+      function sendConnectOnce() {
+        if (connectSent) return;
+        connectSent = true;
+        seq += 1;
+        var cid = 'connect-' + seq;
+        var params = {
+          minProtocol: 3,
+          maxProtocol: 3,
+          client: {
+            /* 须与 Gateway 的 openclaw-control-ui 一致：webchat id 会在无设备身份时被 clearUnboundScopes 清空 scopes，导致 chat.send 报 missing scope: operator.write */
+            id: 'openclaw-control-ui',
+            version: 'niuma',
+            platform: typeof navigator !== 'undefined' ? navigator.platform || 'web' : 'web',
+            mode: 'webchat',
+            instanceId: instanceId
+          },
+          role: 'operator',
+          scopes: ['operator.admin', 'operator.approvals', 'operator.pairing', 'operator.read', 'operator.write'],
+          caps: [],
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent || '' : '',
+          locale: typeof navigator !== 'undefined' ? navigator.language || 'zh-CN' : 'zh-CN',
+          auth: { token: ep.token }
+        };
+        try {
+          ws.send(JSON.stringify({ type: 'req', id: cid, method: 'connect', params: params }));
+        } catch (e) {
+          fail(new Error('发送认证请求失败：' + (e && e.message ? e.message : String(e))));
+        }
+      }
+
+      function sendChatMsg() {
+        seq += 1;
+        chatMsgId = 'msg-' + seq;
+        try {
+          ws.send(
+            JSON.stringify({
+              type: 'req',
+              id: chatMsgId,
+              method: 'chat.send',
+              params: {
+                message: msgText,
+                idempotencyKey: chatMsgId,
+                sessionKey: sessionKey
+              }
+            })
+          );
+        } catch (e) {
+          fail(new Error('发送对话失败：' + (e && e.message ? e.message : String(e))));
+        }
+      }
+
+      function onFrame(msg) {
+        var ev = msg.event || msg.type || msg.method || '';
+
+        if (ev === 'connect.challenge') {
+          challengeReceived = true;
+          connectSent = false;
+          sendConnectOnce();
+          return;
+        }
+
+        if (typeof msg.id === 'string' && msg.id.indexOf('connect-') === 0) {
+          if (msg.error || msg.ok === false) {
+            var em = (msg.error && msg.error.message) || 'Gateway 认证失败';
+            fail(new Error(String(em)));
+            return;
+          }
+          if (msg.result !== undefined || msg.ok === true) {
+            authenticated = true;
+            sendChatMsg();
+          }
+          return;
+        }
+
+        if (!authenticated && ev === 'hello-ok') {
+          authenticated = true;
+          sendChatMsg();
+          return;
+        }
+
+        if (!authenticated) return;
+
+        /* chat.send 先返回 type:res（仅 started），助手正文由 broadcast("chat") 推送 */
+        if (msg.type === 'res' && msg.id === chatMsgId) {
+          if (msg.error || msg.ok === false) {
+            var er0 = (msg.error && msg.error.message) || JSON.stringify(msg.error || {});
+            fail(new Error(String(er0)));
+            return;
+          }
+          return;
+        }
+
+        if (msg.id === chatMsgId && msg.error && msg.type !== 'res') {
+          var er = (msg.error && msg.error.message) || JSON.stringify(msg.error);
+          fail(new Error(String(er)));
+          return;
+        }
+
+        var plChat = ocGetChatBroadcastPayload(msg);
+        if (plChat) {
+          var pl = plChat;
+          if (pl.state === 'error') {
+            fail(new Error(String(pl.errorMessage || 'OpenClaw 对话出错')));
+            return;
+          }
+          var chatTxt = ocExtractChatEventPayload(pl);
+          if (chatTxt) {
+            /* delta：可能是增量片段（需拼接）或每帧全量快照（需整段替换） */
+            if (pl.state === 'delta') {
+              if (pendingText && chatTxt.length >= pendingText.length && chatTxt.indexOf(pendingText) === 0)
+                pendingText = chatTxt;
+              else pendingText += chatTxt;
+            } else pendingText = chatTxt;
+          }
+          if (ocIsChatFinalState(pl)) {
+            if (!pendingText.trim()) {
+              var fallback = ocExtractText(
+                pl.errorMessage || pl.stopReason || pl.reason || pl.status || pl.message || ''
+              );
+              if (fallback) pendingText = fallback;
+            }
+            if (!pendingText.trim()) {
+              try {
+                var dbg = JSON.stringify(pl);
+                if (dbg && dbg.length > 2 && dbg.length < 8000)
+                  pendingText =
+                    '（Gateway 返回了 final 但未解析出正文，请升级脚本或核对 Gateway 版本。原始 payload 摘要）\n' +
+                    dbg.slice(0, 4000);
+              } catch (e3) {}
+            }
+            okDone();
+            return;
+          }
+          if (pl.state === 'delta' && chatTxt) armFinalize();
+          /* 部分 Gateway 只推 text/content，无 state */
+          if (pl.state == null && chatTxt) armFinalize();
+          return;
+        }
+
+        var sidePl = ocGetChatSideResultPayload(msg);
+        if (sidePl) {
+          var side = sidePl;
+          var st = ocExtractText(side.text || side.message || side.content || '');
+          if (!st && side.btw && typeof side.btw.question === 'string') st = side.btw.question.trim();
+          if (st) {
+            pendingText = st;
+            armFinalize();
+          }
+          return;
+        }
+
+        var respPayload = msg.payload || (msg.result !== undefined && typeof msg.result === 'object' ? msg.result : null);
+        /* 与 openclaw2：流式帧常带 msg.result 而非 ev===response，且可能无 id */
+        var isResp =
+          ev === 'response' ||
+          ev === 'chat.response' ||
+          (msg.result !== undefined && typeof msg.result === 'object' && respPayload) ||
+          (msg.id === chatMsgId && respPayload);
+
+        if (isResp && respPayload) {
+          var piece =
+            ocExtractText(respPayload.text || respPayload.content || respPayload.message || '') ||
+            ocExtractChatEventPayload(respPayload);
+          if (piece) pendingText += piece;
+          if (respPayload.done || respPayload.finish_reason || respPayload.finished) {
+            okDone();
+            return;
+          }
+          if (piece) armFinalize();
+          return;
+        }
+
+        if (ev === 'error' || msg.error) {
+          var emsg = ocExtractText((msg.payload && msg.payload.message) || (msg.error && msg.error.message) || msg.error);
+          fail(new Error(emsg || '服务端错误'));
+          return;
+        }
+
+        var rest = msg.payload || msg.params || {};
+        var rt =
+          ocExtractText(rest.text || rest.content || rest.message || '') || ocExtractChatEventPayload(rest);
+        if (rt && (msg.id === chatMsgId || msg.id == null || msg.id === '')) {
+          pendingText += rt;
+          armFinalize();
+        }
+
+        /* 兜底：信封未标 chat 但 payload 已是流式结构（仅在本连接已发 chat.send 后） */
+        if (chatMsgId) {
+          var silentEv = { health: 1, tick: 1, ping: 1, pong: 1, heartbeat: 1, typing: 1 };
+          if (!silentEv[ev]) {
+            var guess = msg.payload || msg.params;
+            if (
+              guess &&
+              typeof guess === 'object' &&
+              (guess.state === 'delta' ||
+                guess.state === 'final' ||
+                guess.state === 'done' ||
+                guess.state === 'completed' ||
+                guess.state === 'error')
+            ) {
+              if (guess.state === 'error') {
+                fail(new Error(String(guess.errorMessage || 'OpenClaw 对话出错')));
+                return;
+              }
+              var gt = ocExtractChatEventPayload(guess);
+              if (gt) {
+                if (guess.state === 'delta') {
+                  if (pendingText && gt.length >= pendingText.length && gt.indexOf(pendingText) === 0) pendingText = gt;
+                  else pendingText += gt;
+                } else pendingText = gt;
+                if (ocIsChatFinalState(guess)) okDone();
+                else armFinalize();
+                return;
+              }
+            }
+          }
+        }
+      }
+
+      ws.onmessage = function (e) {
+        var msg;
+        try {
+          msg = JSON.parse(e.data);
+        } catch (ex) {
+          return;
+        }
+        try {
+          onFrame(msg);
+        } catch (ex2) {
+          fail(new Error(ex2 && ex2.message ? ex2.message : String(ex2)));
+        }
+      };
+
+      ws.onopen = function () {
+        setTimeout(function () {
+          if (!authenticated && !challengeReceived) sendConnectOnce();
+        }, 450);
+      };
+
+      ws.onerror = function () {
+        settleReject(new Error('WebSocket 错误（请确认 OpenClaw Gateway 已在本机 ' + ep.host + ':' + ep.port + ' 运行）。'));
+      };
+
+      ws.onclose = function (e) {
+        if (settled) return;
+        if (authenticated && pendingText.trim()) {
+          settleResolve(pendingText.trim());
+          return;
+        }
+        settleReject(new Error('连接已关闭（code ' + e.code + '）。'));
+      };
+    });
+  }
+
+  async function sendChat() {
+    var s = activeSession();
+    if (!s || !s.id) return;
+    var sid = s.id;
+    if (isSessionSending(sid)) {
+      cstatForSession(sid, '该标签仍在等待上一次响应，请稍候。', 'error');
+      return;
+    }
+    var text = input.value.trim();
+    if (!text) return;
+    saveCfg(false);
+    var cfg = buildSendCfg();
+    if (!cfg) return;
+    var p0 = P[cfg.provider] || P.openai;
+    if (p0.transport === 'cli') {
+      // CLI 原生界面：不依赖 Base URL / Model 校验，点击即打开专属终端
+      add('user', text);
+      input.value = '';
+      cstatForSession(sid, '正在连接本机 ttyd 终端…');
+      throttledNiumaCliOpen(true);
+      return;
+    }
+    if (!cfg.baseUrl || !cfg.model) {
+      cstatForSession(sid, '请先在设置里填写 Base URL 和 Model。', 'error');
+      setSettings(true);
+      return;
+    }
+    if (p0.transport !== 'openclaw' && cfg.provider !== 'ollama' && !cfg.apiKey) {
+      cstatForSession(sid, '请先在设置里填写 API Key、Base URL 和 Model。', 'error');
+      setSettings(true);
+      return;
+    }
+    if (p0.transport === 'openclaw' && !openClawEndpointFromCfg(cfg).ok) {
+      cstatForSession(sid, 'OpenClaw：请在「Gateway Token」填写 token，或将带 #token= 的完整控制台地址填入 Base URL。', 'error');
+      setSettings(true);
+      return;
+    }
+    add('user', text);
+    input.value = '';
+    setSessionSending(sid, true);
+    cstatForSession(sid, '正在请求模型响应...');
+    try {
+      var p = P[cfg.provider] || P.openai,
+        content = '';
+      if (p.transport === 'anthropic') content = await reqClaude(cfg);
+      else if (p.transport === 'gemini') content = await reqGemini(cfg);
+      else if (p.transport === 'openclaw') content = await reqOpenClaw(cfg);
+      else content = await reqOpenAI(cfg);
+      add('assistant', content);
+      cstatForSession(sid, '响应完成。', 'success');
+    } catch (err) {
+      cstatForSession(sid, '请求失败：' + (err && err.message ? err.message : '未知错误'), 'error');
+    } finally {
+      setSessionSending(sid, false);
+    }
+  }
+
+  var suppressClickUntil = 0;
+  var screenshotLastClick = 0;
+  function shouldSuppressClick() {
+    return Date.now() < suppressClickUntil;
+  }
+
+  document.getElementById('app').addEventListener('click', function (e) {
+    if (shouldSuppressClick()) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    var b = e.target.closest('.tb');
+    if (!b) return;
+    e.stopPropagation();
+    var cid = b.dataset.cmdId;
+    if (cid) {
+      cid = String(cid);
+      if (cid === 'ch_t') {
+        if (Date.now() - screenshotLastClick < 2000) return;
+        screenshotLastClick = Date.now();
+      }
+      sel(cid);
+      post({ type: 'toolbar_cmd', cmdId: cid });
+      return;
+    }
+    var a = b.dataset.action;
+    if (!a) return;
+    a = String(a);
+    if (a === 'Screenshot') {
+      if (Date.now() - screenshotLastClick < 2000) return;
+      screenshotLastClick = Date.now();
+    }
+    sel(a);
+    post({ type: 'toolbar_toggle_action', action: a });
+  });
+
+  document.querySelectorAll('[data-logo-toggle]').forEach(function (el) {
+    el.addEventListener('click', function (e) {
+      if (shouldSuppressClick()) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      e.stopPropagation();
+      if (state.compact) {
+        post({ type: 'exit_compact' });
+        return;
+      }
+      setDrawer(!state.drawer);
+    });
+  });
+
+  dclose.addEventListener('click', function () {
+    setDrawer(false);
+  });
+
+  chatSet.addEventListener('click', function () {
+    provider.dataset.prevProv = provider.value;
+    setSettings(true);
+  });
+
+  if (chatSearch) {
+    chatSearch.addEventListener('click', function () {
+      runChatSearchPrompt();
+    });
+  }
+
+  if (chatExportMd) chatExportMd.addEventListener('click', exportMarkdown);
+  if (chatExportJson) chatExportJson.addEventListener('click', exportJson);
+
+  if (promptTplApply) promptTplApply.addEventListener('click', applySelectedPromptBuiltin);
+  if (promptImportBtn && promptImportFile) {
+    promptImportBtn.addEventListener('click', function () {
+      promptImportFile.click();
+    });
+  }
+  if (promptImportFile) {
+    promptImportFile.addEventListener('change', function () {
+      var f = this.files && this.files[0];
+      if (!f) return;
+      var rd = new FileReader();
+      rd.onload = function () {
+        systemPrompt.value = String(rd.result || '');
+        saveCfg(false);
+        sstat('已从文件导入：' + f.name, 'success');
+      };
+      rd.onerror = function () {
+        sstat('读取文件失败。', 'error');
+      };
+      rd.readAsText(f);
+      this.value = '';
+    });
+  }
+
+  if (newSessionPickBg) newSessionPickBg.addEventListener('click', closeNewSessionPick);
+  if (newSessionPickClose) newSessionPickClose.addEventListener('click', closeNewSessionPick);
+  if (newSessionPick) {
+    newSessionPick.addEventListener('click', function (e) {
+      var item = e.target.closest('.ns-item');
+      if (item && item.dataset.pickProvider) createSessionWithProvider(item.dataset.pickProvider);
+    });
+  }
+
+  if (sessionTabsEl) {
+    sessionTabsEl.addEventListener('click', function (e) {
+      var xbtn = e.target.closest('[data-close-session]');
+      if (xbtn) {
+        e.stopPropagation();
+        removeSession(xbtn.getAttribute('data-close-session'));
+        return;
+      }
+      if (e.target.id === 'sessionTabAdd' || e.target.closest('#sessionTabAdd')) {
+        openNewSessionPick();
+        return;
+      }
+      var stab = e.target.closest('.stab');
+      if (stab && stab.dataset.sessionId) switchSession(stab.dataset.sessionId);
+    });
+  }
+
+  backdrop.addEventListener('click', function (e) {
+    if (e.target === backdrop) setDrawer(false);
+  });
+
+  stage.addEventListener('click', function (e) {
+    if (e.target === stage) setDrawer(false);
+  });
+
+  sbg.addEventListener('click', function () {
+    setSettings(false);
+  });
+
+  sclose.addEventListener('click', function () {
+    setSettings(false);
+  });
+
+  ssave.addEventListener('click', function () {
+    saveCfg(true);
+    if (ttydShellCommand) {
+      try {
+        post({ type: 'niuma_save_ttyd_shell', shell: String(ttydShellCommand.value || '').trim() });
+      } catch (e) {}
+    }
+    setSettings(false);
+  });
+
+  send.addEventListener('click', sendChat);
+
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.ctrlKey) {
+      e.preventDefault();
+      sendChat();
+    }
+  });
+
+  var cliOpenBtn = $('cliOpenBtn');
+  var cliRestartBtn = $('cliRestartBtn');
+  var cliReloadBtn = $('cliReloadBtn');
+  var cliPopBtn = $('cliPopBtn');
+  if (cliOpenBtn) {
+    cliOpenBtn.addEventListener('click', function () {
+      var s = activeSession();
+      if (!s || !isCliSession(s)) return;
+      cstatForSession(s.id, '正在连接本机终端…');
+      throttledNiumaCliOpen(true);
+    });
+  }
+  if (cliReloadBtn) {
+    cliReloadBtn.addEventListener('click', function () {
+      var fr = $('cliFrame');
+      if (!fr) return;
+      try {
+        fr.src = fr.dataset.src || fr.src || 'about:blank';
+      } catch (e) {}
+    });
+  }
+  if (cliRestartBtn) {
+    cliRestartBtn.addEventListener('click', function () {
+      var s = activeSession();
+      if (!s || !isCliSession(s)) return;
+      cstatForSession(s.id, '正在重启 ttyd…');
+      try {
+        post({ type: 'niuma_cli_restart', engine: s.provider });
+      } catch (e) {}
+    });
+  }
+  if (cliPopBtn) {
+    cliPopBtn.addEventListener('click', function () {
+      var s = activeSession();
+      if (!s || !isCliSession(s)) return;
+      _niumaPendingPop = true;
+      cstatForSession(s.id, '正在准备系统浏览器打开终端…');
+      throttledNiumaCliOpen(true);
+    });
+  }
+
+  provider.addEventListener('focus', function () {
+    this.dataset.prevProv = this.value;
+  });
+
+  provider.addEventListener('change', function () {
+    var prev = normalizeProviderId(this.dataset.prevProv);
+    if (prev && P[prev]) {
+      if (!state.apiKeys) state.apiKeys = {};
+      state.apiKeys[prev] = apiKey.value.trim();
+    }
+    var nextPid = normalizeProviderId(provider.value);
+    applyProvider(nextPid, false);
+    apiKey.value = (state.apiKeys && state.apiKeys[nextPid]) || '';
+    refreshApiKeyField(nextPid);
+    this.dataset.prevProv = nextPid;
+    syncSessionFromForm(activeSession());
+    persistSessions();
+    renderSessionTabs();
+    saveCfg(false);
+    closeProviderDd();
+    ensureDynamicModelsForActiveProvider();
+  });
+
+  modelPreset.addEventListener('change', function () {
+    if (modelPreset.value) {
+      model.value = modelPreset.value;
+    }
+    syncModelDdUi();
+    syncSessionFromForm(activeSession());
+    persistSessions();
+    renderSessionTabs();
+    saveCfg(false);
+  });
+
+  if (providerDdBtn) {
+    providerDdBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      toggleProviderDd();
+    });
+  }
+  if (modelDdBtn) {
+    modelDdBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      toggleModelDd();
+    });
+  }
+  document.addEventListener('click', function (e) {
+    if (e.target.closest && (e.target.closest('#providerDd') || e.target.closest('#modelDd'))) return;
+    closeProviderDd();
+    closeModelDd();
+  });
+
+  function handleGlobalEscape(e) {
+    var k = e.key || '';
+    if (k !== 'Escape' && k !== 'Esc' && String(k).toLowerCase() !== 'escape') return;
+    if (state.nspick) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeNewSessionPick();
+      return;
+    }
+    if (state.settings) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeProviderDd();
+      closeModelDd();
+      setSettings(false);
+      return;
+    }
+    if (state.drawer) {
+      e.preventDefault();
+      e.stopPropagation();
+      setDrawer(false);
+    }
+  }
+  // 捕获阶段：焦点在对话输入框等处时，冒泡阶段可能收不到 Esc，仍能关闭 NiuMa Chat 抽屉
+  function handleGlobalNiumaHotkeys(e) {
+    if (!state.drawer) return;
+    if (!e.ctrlKey || e.altKey || e.metaKey) return;
+    var key = String(e.key || '').toLowerCase();
+    var code = String(e.code || '');
+
+    if (key === 'n') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!state.nspick) openNewSessionPick();
+      return;
+    }
+
+    // Ctrl+W 关闭当前标签（至少保留一个）
+    if (key === 'w') {
+      var sid = state.activeSessionId || '';
+      if (sid) {
+        e.preventDefault();
+        e.stopPropagation();
+        removeSession(sid);
+      }
+      return;
+    }
+
+    // Ctrl+Delete 清空输入框
+    if (key === 'delete' || code === 'Delete') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (input) {
+        input.value = '';
+        try {
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        } catch (_) {}
+      }
+      return;
+    }
+
+    // Ctrl+1..8 切换标签：优先 code（Digit1..Digit8 / Numpad1..Numpad8）
+    var idx = -1;
+    if (/^Digit[1-8]$/.test(code) || /^Numpad[1-8]$/.test(code)) {
+      idx = parseInt(code.replace(/^\D+/, ''), 10) - 1;
+    } else if (/^[1-8]$/.test(key)) {
+      idx = parseInt(key, 10) - 1;
+    }
+    if (idx >= 0) {
+      var tabs = Array.prototype.slice.call(document.querySelectorAll('#sessionTabs .stab[data-session-id]'));
+      var target = tabs[idx];
+      if (target && target.dataset && target.dataset.sessionId) {
+        e.preventDefault();
+        e.stopPropagation();
+        switchSession(target.dataset.sessionId);
+      }
+      return;
+    }
+  }
+  document.addEventListener('keydown', handleGlobalEscape, true);
+
+  [apiKey, baseUrl, model, systemPrompt, ttydShellCommand].forEach(function (el) {
+    if (!el) return;
+    el.addEventListener('input', function () {
+      saveCfg(false);
+    });
+  });
+
+  resetCfg.addEventListener('click', reset);
+
+  var dragT = 0;
+  var DRAG_POST_INTERVAL_MS = 24;
+
+  function dragHost() {
+    var t = Date.now();
+    if (t - dragT < DRAG_POST_INTERVAL_MS) return;
+    dragT = t;
+    post({ type: 'drag_host' });
+  }
+
+  var longPressTimer = 0;
+  var longPressTriggered = false;
+  var longPressPointerId = null;
+  var longPressStartScreenX = 0;
+  var longPressStartScreenY = 0;
+  var LONG_PRESS_MS = 160;
+  var LONG_PRESS_MOVE_PX = 8;
+  var appEl = document.getElementById('app');
+
+  function clearLongPressTimer() {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = 0;
+    }
+  }
+
+  function triggerLongPressDrag() {
+    if (longPressTriggered) return;
+    clearLongPressTimer();
+    longPressTriggered = true;
+    if (appEl && longPressPointerId != null && longPressPointerId !== -1 && appEl.setPointerCapture) {
+      try {
+        appEl.setPointerCapture(longPressPointerId);
+      } catch (_) {}
+    }
+    dragHost();
+  }
+
+  function endLongPress(e) {
+    clearLongPressTimer();
+    if (longPressTriggered) {
+      suppressClickUntil = Date.now() + 420;
+    }
+    if (appEl && e && e.pointerId != null && appEl.releasePointerCapture) {
+      try {
+        if (!appEl.hasPointerCapture || appEl.hasPointerCapture(e.pointerId)) {
+          appEl.releasePointerCapture(e.pointerId);
+        }
+      } catch (_) {}
+    }
+    longPressTriggered = false;
+    longPressPointerId = null;
+  }
+
+  function hostDragZoneOk(t) {
+    if (!t || !t.closest) return false;
+    if (t.closest('#resizeGrip')) return false;
+    if (t.closest('#collapsedRoot')) return true;
+    if (state.drawer) {
+      if (t.closest('header.hdr') && !t.closest('header.hdr .ib')) return true;
+      if (t.closest('.drawer-toolbar .logo-btn')) return true;
+    }
+    return false;
+  }
+
+  if (appEl) {
+    appEl.addEventListener(
+      'pointerdown',
+      function (e) {
+        if (e.button !== 0) return;
+        if (state.settings || state.nspick) return;
+        if (!hostDragZoneOk(e.target)) return;
+        longPressTriggered = false;
+        longPressPointerId = e.pointerId;
+        longPressStartScreenX = e.screenX;
+        longPressStartScreenY = e.screenY;
+        clearLongPressTimer();
+        longPressTimer = setTimeout(function () {
+          if (longPressPointerId === null) return;
+          triggerLongPressDrag();
+        }, LONG_PRESS_MS);
+      },
+      true
+    );
+    appEl.addEventListener(
+      'mousedown',
+      function (e) {
+        if (e.button !== 0) return;
+        if (state.settings || state.nspick) return;
+        if (longPressPointerId !== null) return;
+        if (!hostDragZoneOk(e.target)) return;
+        longPressTriggered = false;
+        longPressPointerId = -1;
+        longPressStartScreenX = e.screenX;
+        longPressStartScreenY = e.screenY;
+        clearLongPressTimer();
+        longPressTimer = setTimeout(function () {
+          if (longPressPointerId === null) return;
+          triggerLongPressDrag();
+        }, LONG_PRESS_MS);
+      },
+      true
+    );
+
+    appEl.addEventListener(
+      'pointermove',
+      function (e) {
+        if (longPressPointerId === null) return;
+        if (longPressPointerId !== -1 && e.pointerId !== longPressPointerId) return;
+        if (longPressTriggered) return;
+        if ((e.buttons & 1) === 0) {
+          endLongPress(e);
+          return;
+        }
+        var dx = e.screenX - longPressStartScreenX;
+        var dy = e.screenY - longPressStartScreenY;
+        if (dx * dx + dy * dy >= LONG_PRESS_MOVE_PX * LONG_PRESS_MOVE_PX) {
+          triggerLongPressDrag();
+        }
+      },
+      true
+    );
+
+    appEl.addEventListener(
+      'pointerup',
+      function (e) {
+        if (longPressPointerId === null) return;
+        if (longPressPointerId === -1) return;
+        if (e.pointerId === longPressPointerId) endLongPress(e);
+      },
+      true
+    );
+
+    appEl.addEventListener(
+      'pointercancel',
+      function (e) {
+        if (longPressPointerId === null) return;
+        if (longPressPointerId === -1) return;
+        if (e.pointerId === longPressPointerId) endLongPress(e);
+      },
+      true
+    );
+
+    appEl.addEventListener(
+      'mousemove',
+      function (e) {
+        if (longPressPointerId !== -1) return;
+        if (longPressTriggered) return;
+        if ((e.buttons & 1) === 0) {
+          endLongPress(e);
+          return;
+        }
+        var dx = e.screenX - longPressStartScreenX;
+        var dy = e.screenY - longPressStartScreenY;
+        if (dx * dx + dy * dy >= LONG_PRESS_MOVE_PX * LONG_PRESS_MOVE_PX) {
+          triggerLongPressDrag();
+        }
+      },
+      true
+    );
+    appEl.addEventListener(
+      'mouseup',
+      function (e) {
+        if (longPressPointerId !== -1) return;
+        if (e.button === 0) endLongPress(e);
+      },
+      true
+    );
+  }
+
+  collapsedRoot.addEventListener(
+    'wheel',
+    function (e) {
+      e.preventDefault();
+      post({ type: 'wheel', delta: e.deltaY > 0 ? -1 : 1 });
+    },
+    { passive: false }
+  );
+
+  function openHostContextMenuFromEvent(e) {
+    if (!e) return;
+    var tb = e.target && e.target.closest ? e.target.closest('.tb[data-cmd-id]') : null;
+    if (tb) {
+      var cid = String(tb.getAttribute('data-cmd-id') || '').trim();
+      if (cid === 'ftb_cursor_menu') {
+        e.preventDefault();
+        e.stopPropagation();
+        post({ type: 'toolbar_cmd_context', cmdId: cid, x: e.screenX, y: e.screenY });
+        return;
+      }
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    post({ type: 'context_menu', x: e.screenX, y: e.screenY });
+  }
+
+  /* 右键菜单在折叠态/抽屉态都可触发（之前只绑定 collapsedRoot，打开 niuma chat 后会失效） */
+  var appRoot = $('app');
+  if (appRoot) {
+    appRoot.addEventListener('contextmenu', openHostContextMenuFromEvent, true);
+    appRoot.addEventListener(
+      'pointerup',
+      function (e) {
+        if (e && e.button === 2) {
+          post({ type: 'context_menu', x: e.screenX || 0, y: e.screenY || 0 });
+        }
+      },
+      true
+    );
+  }
+
+  var hdr = document.querySelector('.hdr');
+
+  async function readDrop(dt) {
+    if (!dt) return '';
+    try {
+      if (dt.items && dt.items.length) {
+        for (var i = 0; i < dt.items.length; i++) {
+          var it = dt.items[i];
+          if (it.kind !== 'string') continue;
+          var s = await new Promise(function (res) {
+            try {
+              it.getAsString(function (x) {
+                res(x || '');
+              });
+            } catch (e2) {
+              res('');
+            }
+          });
+          if (s && String(s).trim()) return String(s).trim();
+        }
+      }
+      return (dt.getData('text/plain') || dt.getData('Text') || dt.getData('text/uri-list') || '').trim();
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function findDropActionTarget(e) {
+    var n = e && e.target ? e.target.closest('.tb') : null;
+    if (n && n.getAttribute) {
+      var b = n.getAttribute('data-drop-bucket');
+      if (b) return b;
+      return n.getAttribute('data-action') || 'Search';
+    }
+    return 'Search';
+  }
+
+  async function onDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var action = findDropActionTarget(e);
+    tbEls().forEach(function (el) { el.classList.remove('drag-over'); });
+    var t = await readDrop(e.dataTransfer);
+    if (!t && e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) t = (e.dataTransfer.files[0].name || '').trim();
+    if (!t) return;
+    loading(true);
+    post({ type: 'drop_action', action: action, text: t });
+  }
+
+  function onDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    } catch (e2) {}
+    var action = findDropActionTarget(e);
+    tbEls().forEach(function (el) {
+      var da = el.getAttribute('data-drop-bucket') || el.getAttribute('data-action') || '';
+      el.classList.toggle('drag-over', da === action);
+    });
+    if (String(action || '').toLowerCase() === 'search') dragOver(true);
+  }
+
+  function onDragLeave(e) {
+    var rt = e.relatedTarget,
+      ok = false;
+    if (rt)
+      searchEls().forEach(function (s) {
+        if (s.contains(rt)) ok = true;
+      });
+    if (!ok) {
+      dragOver(false);
+      tbEls().forEach(function (el) { el.classList.remove('drag-over'); });
+    }
+  }
+
+  function bindSearchDnD() {
+    tbEls().forEach(function (search) {
+      search.addEventListener('dragenter', function (e) {
+        e.preventDefault();
+      });
+      search.addEventListener('dragover', onDragOver);
+      search.addEventListener('dragleave', onDragLeave);
+      search.addEventListener('drop', onDrop);
+    });
+  }
+
+  rebuildToolbarButtons(state.toolbarActions);
+  /* 兜底：仅当 set_logo 长时间未回调时显示，避免永远空白 */
+  scheduleToolbarReveal(1200);
+
+  document.body.addEventListener('dragover', function (e) {
+    e.preventDefault();
+  });
+
+  document.body.addEventListener('drop', function (e) {
+    e.preventDefault();
+    var onS = false;
+    tbEls().forEach(function (s) {
+      if (e.target === s || s.contains(e.target)) onS = true;
+    });
+    if (onS) return;
+    onDrop(e);
+  });
+
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.addEventListener('message', function (ev) {
+      var d = ev.data;
+      if (typeof d === 'string') {
+        try {
+          d = JSON.parse(d);
+        } catch (_) {}
+      }
+      if (d && d.type) dbg('R', d.type, 'ok');
+      if (!d || !d.type) return;
+      if (d.type === 'RESET_STATE') {
+        try {
+          if (typeof window.onWebViewResetState === 'function') window.onWebViewResetState();
+        } catch (_) {}
+        return;
+      }
+      if (d.type === 'ftb_debug') {
+        dbg('H', d.msg || '', d.level === 'err' ? 'err' : 'ok');
+        return;
+      }
+      if (d.type === 'SELECTION_CHANGE') {
+        pulse(true);
+        return;
+      }
+      if (d.type === 'SELECTION_CLEAR') {
+        pulse(false);
+        return;
+      }
+      if (d.type === 'drop_done') {
+        loading(false);
+        pulse(false);
+        return;
+      }
+      if (d.type === 'set_scale') {
+        scale(d.scale || 1);
+        setCompact(!!d.compact);
+        return;
+      }
+      if (d.type === 'set_toolbar_config') {
+        rebuildToolbarButtons(d.actions || DEFAULT_TOOLBAR_ACTIONS);
+        return;
+      }
+      if (d.type === 'set_toolbar_cmds') {
+        rebuildToolbarCmdButtons(d.items || []);
+        return;
+      }
+      if (d.type === 'set_logo') {
+        var u = d.url || '';
+        var imgs = Array.prototype.slice.call(document.querySelectorAll('.logo-btn .logo-img'));
+        function paintThenReveal() {
+          requestAnimationFrame(function () {
+            requestAnimationFrame(revealToolbarSync);
+          });
+        }
+        if (!u || !imgs.length) {
+          paintThenReveal();
+          return;
+        }
+        var remain = imgs.length;
+        imgs.forEach(function (im) {
+          var done = false;
+          function once() {
+            if (done) return;
+            done = true;
+            if (im.naturalWidth && im.naturalHeight) im.classList.add('logo-ready');
+            remain--;
+            if (remain <= 0) paintThenReveal();
+          }
+          im.classList.remove('logo-ready');
+          im.onload = once;
+          im.onerror = once;
+          im.src = u;
+          if (im.decode) {
+            im.decode().then(once).catch(once);
+          } else if (im.complete) {
+            once();
+          }
+        });
+        return;
+      }
+      if (d.type === 'set_theme') {
+        applyTheme(d.themeMode || d.theme);
+        return;
+      }
+      if (d.type === 'set_selected') sel(d.action || '');
+      if (d.type === 'ttyd_ready') {
+        var turl = String(d.baseUrl || '').trim();
+        var ts = activeSession();
+        if (!ts || !isCliSession(ts)) return;
+        if (_niumaPendingPop && turl) {
+          _niumaPendingPop = false;
+          try {
+            window.open(turl, '_blank');
+          } catch (e) {}
+          cstatForSession(ts.id, '已在外部浏览器打开终端。', 'success');
+          return;
+        }
+        if (turl) applyCliFrameUrl(turl);
+        cstatForSession(ts.id, '本机终端已就绪。', 'success');
+        return;
+      }
+      if (d.type === 'ttyd_error') {
+        var ts2 = activeSession();
+        cstatForSession(
+          ts2 && ts2.id,
+          'ttyd：' + (d.message || '启动失败，请检查同目录下是否有 ttyd.exe 或点「重试/重启」'),
+          'error'
+        );
+        return;
+      }
+      if (d.type === 'niuma_compose_send') {
+        var inText = String(d.text || '');
+        if (!inText.trim()) return;
+        var appendMode = d.append !== false;
+        var shouldOpenDrawer = d.openDrawer !== false;
+        var shouldSendNow = d.send !== false;
+        if (shouldOpenDrawer) setDrawer(true);
+        var base = String(input.value || '');
+        if (appendMode && base.trim()) input.value = base.replace(/\s+$/, '') + '\n\n' + inText;
+        else input.value = inText;
+        try {
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        } catch (_) {}
+        requestAnimationFrame(function () {
+          try {
+            input.focus();
+            var end = input.value.length;
+            input.setSelectionRange(end, end);
+          } catch (_) {}
+          if (shouldSendNow) sendChat();
+        });
+        return;
+      }
+      if (d.type === 'host_force_toolbar_home') {
+        setSettings(false);
+        setNspick(false);
+        if (state.drawer) setDrawer(false);
+        else {
+          state.drawer = false;
+          document.body.classList.remove('drawer-open');
+          if (stage) stage.setAttribute('aria-hidden', 'true');
+          if (panel) panel.setAttribute('aria-hidden', 'true');
+        }
+        return;
+      }
+    });
+  }
+
+  var rz = false,
+    rzX = 0,
+    rzW = 0;
+  if (resizeGrip) {
+    resizeGrip.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0) return;
+      rz = true;
+      rzX = e.clientX;
+      rzW = document.documentElement.clientWidth;
+      try {
+        resizeGrip.setPointerCapture(e.pointerId);
+      } catch (x) {}
+    });
+    resizeGrip.addEventListener('pointermove', function (e) {
+      if (!rz) return;
+      var b = drawerResizeBoundsPx();
+      var nw = Math.max(b.min, Math.min(b.max, rzW + (rzX - e.clientX)));
+      post({ type: 'drawer_resize', width: nw });
+    });
+    resizeGrip.addEventListener('pointerup', function (e) {
+      if (rz) {
+        rz = false;
+        post({ type: 'drawer_resize_done' });
+        try {
+          resizeGrip.releasePointerCapture(e.pointerId);
+        } catch (x) {}
+      }
+    });
+    resizeGrip.addEventListener('pointercancel', function () {
+      if (rz) {
+        rz = false;
+        post({ type: 'drawer_resize_done' });
+      }
+    });
+  }
+
+  fillProviders();
+  fillPromptBuiltinSelect();
+  loadCfg();
+  applyTheme(state.themeMode);
+  scale(1);
+  setCompact(false);
+  post({ type: 'toolbar_ready' });
+  setTimeout(function () {
+    post({ type: 'UI_FINISHED' });
+  }, 180);
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () {
+      setTimeout(function () {
+        post({ type: 'UI_FINISHED' });
+      }, 16);
+    });
+  });
+})();
+</script>
+</body>
+</html>

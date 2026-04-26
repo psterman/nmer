@@ -1,0 +1,2071 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings Panel</title>
+  <style>
+    @font-face {
+      font-family: "AppUi";
+      src: local("Segoe UI");
+      font-weight: 400;
+      unicode-range:
+        U+0000-024F,
+        U+1E00-1EFF,
+        U+2000-206F,
+        U+20A0-20CF,
+        U+2100-214F;
+    }
+    @font-face {
+      font-family: "AppUi";
+      src: local("DengXian"), local("Microsoft YaHei UI"), local("Microsoft YaHei");
+      font-weight: 400;
+      unicode-range:
+        U+2E80-2EFF,
+        U+2F00-2FDF,
+        U+3000-303F,
+        U+3040-30FF,
+        U+3100-312F,
+        U+31A0-31BF,
+        U+3400-4DBF,
+        U+4E00-9FFF,
+        U+F900-FAFF;
+    }
+    @font-face {
+      font-family: "AppUi";
+      src: local("Segoe UI Semibold"), local("Segoe UI Bold"), local("Segoe UI");
+      font-weight: 700;
+      unicode-range:
+        U+0000-024F,
+        U+1E00-1EFF,
+        U+2000-206F,
+        U+20A0-20CF,
+        U+2100-214F;
+    }
+    @font-face {
+      font-family: "AppUi";
+      src: local("DengXian"), local("Microsoft YaHei UI Bold"), local("Microsoft YaHei Bold"), local("Microsoft YaHei UI"), local("Microsoft YaHei");
+      font-weight: 700;
+      unicode-range:
+        U+2E80-2EFF,
+        U+2F00-2FDF,
+        U+3000-303F,
+        U+3040-30FF,
+        U+3100-312F,
+        U+31A0-31BF,
+        U+3400-4DBF,
+        U+4E00-9FFF,
+        U+F900-FAFF;
+    }
+    :root {
+      --bg: #0a0a0a; --surface: #141414; --surface2: #1a1a1a; --surface3: #202020;
+      --border: #2e2e2e; --border2: #3a3a3a; --orange: #e67e22;
+      --text: #f0f0f0; --text-dim: #9a9a9a; --text-xs: #666; --success: #00ff41; --danger: #e74c3c;
+      --row-hover: #1f1f1f; --row-active: #2a1b0d; --row-active-text: #f0f0f0;
+      --glow: 0 0 8px #e67e2288, 0 0 18px #e67e2244;
+      --font: "AppUi", "Segoe UI", "DengXian", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+      --font-strong: "AppUi", "Segoe UI Semibold", "Segoe UI", "DengXian", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font); font-weight: 400; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+    #app { display: flex; width: 100%; height: 100%; }
+    #sidebar { width: 190px; background: var(--surface); border-right: 1px solid var(--border); padding: 10px 8px; display: flex; flex-direction: column; gap: 6px; }
+    .tab-btn { border: 1px solid var(--border2); background: var(--surface2); color: var(--text-dim); border-radius: 6px; height: 34px; cursor: pointer; font-size: 12px; text-align: left; padding: 0 12px; transition: .15s; font-family: var(--font-strong); font-weight: 700; }
+    .tab-btn:hover { color: var(--text); border-color: var(--orange); }
+    .tab-btn.active { color: var(--orange); border-color: var(--orange); box-shadow: var(--glow); }
+    #content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    #header { height: 48px; border-bottom: 1px solid var(--border); background: var(--surface2); display: flex; align-items: center; justify-content: space-between; padding: 0 14px; }
+    #status { font-size: 12px; color: var(--text-dim); font-family: var(--font); font-weight: 400; }
+    #panel { flex: 1; overflow: auto; padding: 16px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+    .title { font-size: 14px; margin-bottom: 10px; color: var(--text); font-family: var(--font-strong); font-weight: 700; letter-spacing: .01em; }
+    .row { display: grid; grid-template-columns: 240px 1fr; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .label { font-size: 12px; color: var(--text-dim); font-family: var(--font-strong); font-weight: 700; }
+    input[type="text"], input[type="number"], textarea, select { width: 100%; background: var(--surface3); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); padding: 8px 10px; outline: none; font-family: var(--font); font-weight: 400; }
+    input[type="text"], input[type="number"], select { height: 34px; }
+    textarea { min-height: 120px; resize: vertical; }
+    input:focus, textarea:focus, select:focus { border-color: var(--orange); }
+    .inline { display: flex; gap: 8px; align-items: center; }
+    .btn { height: 34px; border: 1px solid var(--border2); border-radius: 6px; background: var(--surface2); color: var(--text); padding: 0 12px; cursor: pointer; transition: .15s; font-family: var(--font-strong); font-weight: 700; }
+    .btn:hover { border-color: var(--orange); color: var(--orange); }
+    .btn.primary { background: #2a1605; border-color: var(--orange); color: var(--orange); }
+    .btn.primary:hover { box-shadow: var(--glow); }
+    .hint { font-size: 11px; color: var(--text-xs); margin-top: 4px; }
+    #footer { display: none; }
+    .ok { color: var(--success); } .err { color: var(--danger); }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .qa-row { display: grid; grid-template-columns: 70px 1fr 130px; gap: 8px; margin-bottom: 8px; }
+    .tag-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tag { border: 1px solid var(--border2); border-radius: 14px; padding: 4px 10px; font-size: 12px; font-family: var(--font); font-weight: 400; }
+    .subtabs { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+    .subtab-btn { border: 1px solid var(--border2); background: var(--surface2); color: var(--text-dim); border-radius: 6px; height: 30px; padding: 0 12px; cursor: pointer; font-size: 12px; font-family: var(--font-strong); font-weight: 700; }
+    .subtab-btn.active { color: var(--orange); border-color: var(--orange); }
+    .prompt-grid { display: grid; grid-template-columns: 420px 1fr; gap: 12px; }
+    .list-panel { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    .list-head, .list-row { display: grid; grid-template-columns: 120px 1fr; gap: 8px; padding: 8px 10px; }
+    .list-head { background: var(--surface2); color: var(--text-dim); font-size: 12px; border-bottom: 1px solid var(--border); }
+    .list-body { overflow: visible; }
+    .list-row { cursor: pointer; border-bottom: 1px solid var(--border); font-size: 12px; }
+    .list-row:hover { background: var(--row-hover); }
+    .list-row.active { background: var(--row-active); border-left: 2px solid var(--orange); color: var(--row-active-text); }
+    .compact-row { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .editor-toolbar { display: flex; gap: 6px; margin: 6px 0 8px; flex-wrap: wrap; }
+    .editor-toolbar .btn { height: 28px; padding: 0 10px; font-size: 12px; }
+    .search-row { margin-bottom: 8px; }
+    .multi-dd { position: relative; }
+    .multi-dd-btn { width: 100%; height: 34px; border: 1px solid var(--border2); border-radius: 6px; background: var(--surface3); color: var(--text); text-align: left; padding: 0 10px; cursor: pointer; }
+    .multi-dd-panel { position: absolute; z-index: 20; top: 38px; left: 0; right: 0; border: 1px solid var(--border2); border-radius: 6px; background: var(--surface2); padding: 8px; display: none; max-height: 260px; overflow: auto; }
+    .multi-dd.open .multi-dd-panel { display: block; }
+    .multi-dd-item { display: flex; align-items: center; gap: 8px; padding: 6px 4px; font-size: 12px; }
+    .multi-dd-item img { width: 16px; height: 16px; border-radius: 3px; object-fit: cover; border: 1px solid var(--border2); }
+    .ft-console { border: 1px solid var(--border); border-radius: 12px; background: var(--surface2); padding: 12px; margin-top: 12px; }
+    .ft-title { font-size: 13px; color: var(--title-text); margin-bottom: 8px; font-weight: 700; font-family: var(--font-strong); }
+    .ft-light-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    .ft-light { width: 10px; height: 10px; border-radius: 50%; background: #3f3f3f; box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset; opacity: .7; }
+    .ft-light.active { background: #67e8f9; box-shadow: 0 0 10px rgba(103,232,249,.8); animation: ft-breath 1.4s ease-in-out infinite; }
+    .ft-light.ready { background: #4ade80; box-shadow: 0 0 10px rgba(74,222,128,.9); }
+    .ft-light.warn { background: #f97316; box-shadow: 0 0 10px rgba(249,115,22,.9); animation: ft-breath 1s ease-in-out infinite; }
+    .ft-kv { font-size: 12px; color: var(--text-dim); font-family: var(--font); font-weight: 400; }
+    .ft-progress { height: 8px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; margin: 8px 0 10px; }
+    .ft-progress-bar { height: 100%; width: 0; background: linear-gradient(90deg, #22d3ee, #4ade80); transition: width .2s ease; }
+    .ft-file { font-size: 11px; color: var(--text-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ft-mode-grid { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center; margin: 8px 0 6px; }
+    .ft-mode-grid select { min-width: 130px; }
+    .ft-probe-summary { font-size: 12px; color: var(--text-dim); margin-top: 6px; font-family: var(--font); font-weight: 400; }
+    .ft-probe-list { margin-top: 6px; display: grid; gap: 6px; }
+    .ft-probe-item { border: 1px solid var(--border2); border-radius: 8px; padding: 6px 8px; font-size: 11px; color: var(--text-dim); background: rgba(255,255,255,.02); font-family: var(--font); font-weight: 400; }
+    .ft-probe-ok { color: #4ade80; }
+    .ft-probe-bad { color: #f97316; }
+    @keyframes ft-breath {
+      0% { transform: scale(1); opacity: .55; }
+      50% { transform: scale(1.25); opacity: 1; }
+      100% { transform: scale(1); opacity: .55; }
+    }
+
+    /* SearchCenter-style UI overrides (style only, no logic changes) */
+    :root {
+      --bg: #111315;
+      --app-bg: radial-gradient(circle at top right, rgba(255,141,42,.08), transparent 26%), linear-gradient(180deg, #0f1113 0%, #15181c 100%);
+      --color-scheme: dark;
+      --surface: #171a1e;
+      --surface2: #1f2429;
+      --surface3: #262c33;
+      --border: #313941;
+      --border2: #3a434d;
+      --panel-border: rgba(255,255,255,.12);
+      --glass-edge: rgba(255,255,255,.28);
+      --glass-edge-soft: rgba(255,255,255,.08);
+      --glass-warm: rgba(255,171,92,.2);
+      --orange: #ff8d2a;
+      --orange-dk: #ff7a14;
+      --orange-lt: #ffb347;
+      --text: #e7ebef;
+      --text-dim: #93a0ad;
+      --text-xs: #6f7d8b;
+      --title-text: #ffffff;
+      --on-accent: #ffffff;
+      --btn-hover-bg: linear-gradient(180deg, rgba(255,179,71,.12), rgba(255,141,42,.08));
+      --tab-hover-bg: linear-gradient(180deg, rgba(255,179,71,.1), rgba(255,141,42,.08));
+      --tab-hover-border: rgba(255,179,71,.5);
+      --tab-active-bg: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
+      --tab-active-border: rgba(255,179,71,.5);
+      --tab-active-text: #ffffff;
+      --subtab-active-bg: linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12));
+      --subtab-active-border: rgba(255,179,71,.5);
+      --subtab-active-text: #ffffff;
+      --preview-bg: var(--surface2);
+      --preview-hint-text: var(--text-dim);
+      --row-hover: rgba(255,255,255,.03);
+      --row-active: rgba(255,141,42,.14);
+      --row-active-text: #ffffff;
+      --glow: 0 18px 42px rgba(0,0,0,.35);
+      --glow-hot: 0 0 0 1px rgba(255,179,71,.24), 0 14px 34px rgba(0,0,0,.28);
+    }
+    html, body {
+      background: var(--app-bg);
+      color-scheme: var(--color-scheme);
+    }
+    #app {
+      gap: 12px;
+      padding: 14px 16px 16px;
+    }
+    #sidebar,
+    #header,
+    .card,
+    .list-panel {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0)), var(--surface);
+      box-shadow: var(--glow);
+    }
+    #sidebar::after,
+    #header::after,
+    .card::after,
+    .list-panel::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 1px;
+      background: linear-gradient(135deg, var(--glass-edge), var(--glass-edge-soft) 45%, var(--glass-warm));
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+      opacity: .72;
+    }
+    #sidebar {
+      width: 204px;
+      border-right: 1px solid var(--panel-border);
+      padding: 12px 10px;
+      gap: 8px;
+    }
+    .tab-btn {
+      height: 38px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface2);
+      color: var(--text-dim);
+      transition: .15s ease;
+    }
+    .tab-btn:hover {
+      color: var(--text);
+      border-color: var(--tab-hover-border);
+      background: var(--tab-hover-bg);
+    }
+    .tab-btn.active {
+      color: var(--tab-active-text);
+      border-color: var(--tab-active-border);
+      background: var(--tab-active-bg);
+      box-shadow: var(--glow-hot);
+    }
+    #content { min-width: 0; }
+    #header {
+      min-height: 52px;
+      margin-bottom: 12px;
+      border-bottom: none;
+      padding: 0 16px;
+    }
+    #panel { padding: 0 2px; }
+    .card {
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .title { color: var(--title-text); font-weight: 700; }
+    input[type="text"], input[type="number"], textarea, select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+    }
+    input[type="text"], input[type="number"], select { height: 38px; }
+    textarea { line-height: 1.55; }
+    input:focus, textarea:focus, select:focus { border-color: var(--orange); }
+    .btn {
+      height: 36px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface2);
+      color: var(--text);
+      transition: .15s ease;
+    }
+    .btn:hover {
+      color: var(--orange-dk);
+      border-color: var(--orange-dk);
+      background: var(--btn-hover-bg);
+    }
+    .btn.primary {
+      background: var(--orange);
+      border-color: var(--orange);
+      color: var(--on-accent);
+      font-weight: 700;
+    }
+    .btn.primary:hover {
+      background: var(--orange-dk);
+      border-color: var(--orange-dk);
+      color: var(--on-accent);
+      box-shadow: var(--glow-hot);
+    }
+    #header > div:first-child,
+    .apple-group-title,
+    .activation-mode-title,
+    .mode-preview-title,
+    .cfg-menu-tile-fixed .cfg-menu-line1,
+    .list-head,
+    .list-row.active {
+      font-family: var(--font-strong);
+      font-weight: 700;
+    }
+    select option,
+    select optgroup {
+      font-family: var(--font);
+      font-weight: 400;
+    }
+    .tag {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: var(--surface2);
+    }
+    .subtab-btn {
+      height: 32px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface2);
+      color: var(--text-dim);
+      transition: .15s ease;
+    }
+    .subtab-btn.active {
+      color: var(--subtab-active-text);
+      border-color: var(--subtab-active-border);
+      background: var(--subtab-active-bg);
+    }
+    .list-head {
+      background: rgba(255,255,255,.02);
+      border-bottom: 1px solid var(--border);
+    }
+    .list-row:hover { background: var(--row-hover); }
+    .list-row.active {
+      background: linear-gradient(180deg, rgba(255,141,42,.16), rgba(255,141,42,.06));
+      border-left: 2px solid var(--orange-lt);
+      color: var(--row-active-text);
+    }
+    .editor-toolbar .btn {
+      height: 30px;
+      border-radius: 999px;
+    }
+    .multi-dd-btn {
+      height: 38px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface2);
+      color: var(--text);
+    }
+    .multi-dd-panel {
+      top: 42px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      box-shadow: var(--glow);
+    }
+    .multi-dd-item {
+      padding: 7px 6px;
+      border-radius: 8px;
+    }
+    .multi-dd-item:hover { background: rgba(255,255,255,.03); }
+    #panel::-webkit-scrollbar,
+    .multi-dd-panel::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    #panel::-webkit-scrollbar-thumb,
+    .multi-dd-panel::-webkit-scrollbar-thumb {
+      background: var(--border2);
+      border-radius: 999px;
+    }
+    @media (max-width: 1024px) {
+      #app { padding: 12px; gap: 10px; }
+      #sidebar { width: 172px; }
+      .row { grid-template-columns: 1fr; gap: 6px; }
+      .prompt-grid { grid-template-columns: 1fr; }
+    }
+    .hint { display: none !important; }
+    .apple-toolbar-wrap { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    .apple-group {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--surface);
+      padding: 14px;
+    }
+    .apple-group-title {
+      font-size: 13px;
+      color: var(--title-text);
+      font-weight: 700;
+      margin-bottom: 10px;
+      letter-spacing: .2px;
+    }
+    .apple-list {
+      width: 100%;
+      min-height: 270px;
+      padding: 8px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      outline: none;
+      font-size: 13px;
+    }
+    .apple-list:focus { border-color: rgba(255,179,71,.7); box-shadow: 0 0 0 2px rgba(255,179,71,.15); }
+    .apple-controls {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: 1fr auto auto auto auto;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .apple-controls select { min-width: 260px; }
+    .apple-mini-btn {
+      min-width: 56px;
+      height: 38px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .apple-mini-btn:hover {
+      border-color: var(--orange-dk);
+      color: var(--orange-dk);
+      background: var(--btn-hover-bg);
+    }
+    @media (max-width: 1180px) {
+      .apple-controls { grid-template-columns: 1fr 1fr; }
+      .apple-controls select { min-width: 0; }
+    }
+    .advanced-split {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+    .advanced-workbench-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+    @media (max-width: 1200px) {
+      .advanced-workbench-row { grid-template-columns: 1fr; }
+    }
+    .ftb-workbench-card .ftb-pool-hint {
+      font-size: 11px;
+      color: var(--text-xs);
+      margin: 10px 0 6px;
+      line-height: 1.45;
+    }
+    .ftb-mock-strip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.03);
+      min-height: 52px;
+    }
+    .ftb-mock-logo {
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      background: var(--surface2);
+      border: 1px dashed var(--border2);
+    }
+    .ftb-mock-btns {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 5px;
+      flex: 1;
+      min-width: 0;
+    }
+    .ftb-mock-pool {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      align-items: flex-start;
+      min-height: 88px;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px dashed var(--border2);
+      background: var(--surface2);
+    }
+    .cfg-ftb-tile {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      width: 56px;
+      min-height: 58px;
+      padding: 6px 4px 4px;
+      border-radius: 8px;
+      cursor: grab;
+      color: var(--orange);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .cfg-ftb-tile.cfg-ftb-tile-compact {
+      width: 40px;
+      height: 40px;
+      min-height: 40px;
+      padding: 0;
+      cursor: grab;
+      border: none;
+      background: transparent;
+      align-items: center;
+      justify-content: center;
+    }
+    .cfg-ftb-tile.cfg-ftb-tile-compact:hover {
+      background: var(--surface2);
+    }
+    .cfg-ftb-tile .cfg-ftb-ico { display: flex; align-items: center; justify-content: center; pointer-events: none; }
+    .cfg-ftb-tile .cfg-ftb-ico svg { width: 22px; height: 22px; stroke: currentColor; }
+    .cfg-ftb-tile.cfg-ftb-tile-compact .cfg-ftb-ico svg { width: 24px; height: 24px; }
+    .cfg-ftb-tile-name {
+      margin-top: 3px;
+      font-size: 8px;
+      line-height: 1.15;
+      color: var(--text-xs);
+      text-align: center;
+      max-width: 52px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .cfg-ftb-menu {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 16px;
+      height: 16px;
+      padding: 0;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--text-xs);
+      background: var(--surface3);
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .cfg-ftb-menu:hover { color: var(--orange-dk); }
+    .cfg-ftb-menu.on {
+      color: #00ff41;
+      background: rgba(0, 255, 65, 0.12);
+    }
+    .cfg-ftb-menu svg { width: 11px; height: 11px; stroke: currentColor; fill: none; }
+    .sortable-ghost { opacity: 0.45; }
+    .sortable-drag { cursor: grabbing !important; box-shadow: 0 0 12px rgba(255, 102, 0, 0.35); }
+    .menu-workbench-card .cfg-menu-mock-popup {
+      max-height: 360px;
+      overflow-y: auto;
+      padding: 10px 10px 6px;
+      border-radius: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+    .cfg-menu-section-hint {
+      font-size: 10px;
+      color: var(--text-xs);
+      margin: 10px 0 6px;
+      letter-spacing: 0.03em;
+    }
+    .cfg-menu-section-hint:first-child { margin-top: 0; }
+    .cfg-menu-list { min-height: 40px; margin-bottom: 4px; }
+    .cfg-menu-pool {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 220px;
+      overflow-y: auto;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px dashed var(--border2);
+      background: var(--surface2);
+    }
+    .shared-pool-card .pool-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+    }
+    @media (max-width: 1200px) {
+      .shared-pool-card .pool-grid { grid-template-columns: 1fr; }
+    }
+    .cfg-menu-tile {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: grab;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+    }
+    .cfg-menu-tile-cmd .cfg-menu-ico {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 2px;
+    }
+    .cfg-menu-tile-cmd .cfg-menu-ico svg { width: 20px; height: 20px; stroke: var(--orange); fill: none; }
+    .cfg-menu-text { min-width: 0; flex: 1; }
+    .cfg-menu-line1 {
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .cfg-menu-line2 {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--text-xs);
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .cfg-menu-tile-fixed .cfg-menu-fixed-badge { flex-shrink: 0; font-size: 13px; opacity: 0.65; margin-top: 1px; }
+    .cfg-menu-tile-fixed .cfg-menu-line1 { font-weight: 500; }
+    .activation-mode-group {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    .activation-mode-option {
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border2);
+      background: var(--surface2);
+      cursor: pointer;
+      transition: .15s ease;
+    }
+    .activation-mode-option:hover {
+      border-color: rgba(255,179,71,.55);
+      background: linear-gradient(180deg, rgba(255,179,71,.09), rgba(255,141,42,.07));
+    }
+    .activation-mode-option.active {
+      border-color: rgba(255,179,71,.6);
+      box-shadow: var(--glow-hot);
+      background: linear-gradient(180deg, rgba(255,179,71,.15), rgba(255,141,42,.1));
+    }
+    .activation-mode-radio {
+      margin-top: 2px;
+    }
+    .activation-mode-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .activation-mode-desc {
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+    .activation-mode-preview {
+      margin-top: 10px;
+      border: 1px dashed var(--border2);
+      border-radius: 12px;
+      padding: 12px;
+      background: rgba(255,255,255,.02);
+    }
+    .mode-preview-title {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+    .mode-preview-scene {
+      border: 1px solid var(--border2);
+      border-radius: 12px;
+      padding: 12px;
+      background: var(--preview-bg);
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 10px;
+    }
+    .mode-toolbar-mock {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,179,71,.45);
+      background: linear-gradient(180deg, rgba(255,179,71,.12), rgba(255,141,42,.08));
+    }
+    .mode-toolbar-mock .dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 6px;
+      background: rgba(255,255,255,.24);
+      border: 1px solid rgba(255,255,255,.26);
+    }
+    .mode-icon-bubble {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,179,71,.55);
+      background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.22), rgba(255,141,42,.18) 55%, rgba(255,141,42,.08));
+      display: grid;
+      place-items: center;
+      box-shadow: 0 10px 22px rgba(0,0,0,.16);
+    }
+    .mode-icon-bubble img {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+    .mode-tray-mock {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border2);
+      background: rgba(255,255,255,.04);
+      color: var(--text-dim);
+      font-size: 12px;
+    }
+    .mode-tray-mock img {
+      width: 16px;
+      height: 16px;
+      object-fit: contain;
+      border-radius: 4px;
+    }
+    .mode-preview-scene .hint {
+      display: block !important;
+      margin: 0;
+      color: var(--preview-hint-text);
+      line-height: 1.45;
+    }
+    select option, select optgroup {
+      background: var(--surface);
+      color: var(--text);
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="https://app.local/assets/js/BasePanel.js"></script>
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <button class="tab-btn active" data-tab="general">通用设置</button>
+      <button class="tab-btn" data-tab="appearance">外观设置</button>
+      <button class="tab-btn" data-tab="prompts">提示词设置</button>
+      <button class="tab-btn" data-tab="hotkeys">快捷键设置</button>
+      <button class="tab-btn" data-tab="advanced">高级设置</button>
+      <button class="tab-btn" data-tab="search">搜索设置</button>
+    </aside>
+    <section id="content">
+      <div id="header"><div>[ 设置中心 ]</div><div class="inline"><button id="btn-open-legacy" class="btn">打开原版完整设置</button><button id="btn-open-compare" class="btn">对比模式</button><div id="status">等待连接...</div></div></div>
+      <div id="panel"></div>
+      <div id="footer"><button id="btn-cancel" class="btn">取消</button><button id="btn-save" class="btn primary">保存</button></div>
+    </section>
+  </div>
+  <script>
+    if (typeof BasePanel === 'undefined') {
+      window.BasePanel = {
+        PROTO_VERSION: 1,
+        postToAhk(obj) {
+          if (!window.chrome?.webview) return;
+          const src = (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : {};
+          const p = Object.assign({ v: 1, timestamp: Date.now() }, src);
+          if (p.action === undefined && p.type !== undefined) p.action = p.type;
+          window.chrome.webview.postMessage(p);
+        }
+      };
+    }
+    const ALL_CATEGORIES = ["ai","cli","academic","baidu","image","audio","video","book","price","medical","cloud"];
+    const DEFAULT_AI_ENGINES = [
+      { id:"deepseek", icon:"https://app.local/aiicons/DeepSeek.png", label:"DeepSeek" },
+      { id:"yuanbao", icon:"https://app.local/aiicons/yuanbao.png", label:"元宝" },
+      { id:"doubao", icon:"https://app.local/aiicons/doubao.png", label:"豆包" },
+      { id:"zhipu", icon:"https://app.local/aiicons/zhipu.png", label:"智谱" },
+      { id:"mita", icon:"https://app.local/aiicons/mita.png", label:"秘塔" },
+      { id:"wenxin", icon:"https://app.local/aiicons/wenxin.png", label:"文心一言" },
+      { id:"qianwen", icon:"https://app.local/aiicons/DeepSeek.png", label:"千问" },
+      { id:"kimi", icon:"https://app.local/aiicons/Kimi.png", label:"Kimi" },
+      { id:"perplexity", icon:"https://app.local/aiicons/Perplexity.png", label:"Perplexity" },
+      { id:"copilot", icon:"https://app.local/aiicons/Copilot.png", label:"Copilot" },
+      { id:"chatgpt", icon:"https://app.local/aiicons/ChatGPT.png", label:"ChatGPT" },
+      { id:"grok", icon:"https://app.local/aiicons/Grok.png", label:"Grok" },
+      { id:"you", icon:"https://app.local/aiicons/You.png", label:"You" },
+      { id:"claude", icon:"https://app.local/aiicons/Claude.png", label:"Claude" },
+      { id:"monica", icon:"https://app.local/aiicons/Monica.png", label:"Monica" },
+      { id:"webpilot", icon:"https://app.local/aiicons/WebPilot.png", label:"WebPilot" }
+    ];
+    const CLI_ENGINES = [
+      { id:"codex", icon:"https://app.local/aiicons/ChatGPT.png", label:"Codex" },
+      { id:"gemini", icon:"https://app.local/aiicons/DeepSeek.png", label:"Gemini" },
+      { id:"openclaw", icon:"https://app.local/aiicons/Claude.png", label:"OpenClaw" },
+      { id:"qwen", icon:"https://app.local/aiicons/qwen.png", label:"Qwen" }
+    ];
+    const ACTION_TYPES = ["Explain","Refactor","Optimize","Config","Copy","Paste","Clipboard","Voice","Split","Batch","CommandPalette","Terminal","GlobalSearch","Explorer","SourceControl","Extensions","Browser","Settings","CursorSettings"];
+    const HOTKEY_KEYS = ["ESC","C","V","X","E","R","O","Q","Z","S","B","T","F","P"];
+    const TOOLBAR_BUTTON_OPTIONS = [
+      { id:"Search", name:"搜索" }, { id:"Record", name:"记录" }, { id:"Prompt", name:"提示词" },
+      { id:"NewPrompt", name:"草稿本" }, { id:"Screenshot", name:"截图" }, { id:"Settings", name:"设置" }, { id:"VirtualKeyboard", name:"虚拟键盘" }
+    ];
+    const TOOLBAR_MENU_OPTIONS = [
+      { id:"ToggleToolbar", name:"显示/隐藏工具栏" }, { id:"MinimizeToEdge", name:"最小化到边缘" }, { id:"ResetScale", name:"重置大小" },
+      { id:"SearchCenter", name:"搜索中心" }, { id:"Clipboard", name:"剪贴板" }, { id:"OpenConfig", name:"打开设置" },
+      { id:"HideToolbar", name:"关闭工具栏" }, { id:"ReloadScript", name:"重启脚本" }, { id:"ExitApp", name:"退出程序" }
+    ];
+    const DEFAULT_TOOLBAR_BUTTONS = ["Search","Record","Prompt","NewPrompt","Screenshot","Settings","VirtualKeyboard"];
+    const DEFAULT_TOOLBAR_MENUS = ["ToggleToolbar","MinimizeToEdge","ResetScale","SearchCenter","Clipboard","OpenConfig","HideToolbar","ReloadScript","ExitApp"];
+    const ACTIVATION_MODE_OPTIONS = [
+      { value: "toolbar", label: "悬浮栏", desc: "显示完整悬浮条，适合重度高频操作。" },
+      { value: "bubble", label: "悬浮球", desc: "仅显示牛马图标；右键打开与悬浮条相同的命令菜单，长按左键拖动位置。" },
+      { value: "tray", label: "后台", desc: "不显示任何悬浮窗，仅通过托盘图标使用功能。" }
+    ];
+    const ACTIVATION_MODE_LOCAL_KEY = "settings.appearance.activationMode";
+    const NIUMA_ICON_URL = "https://app.local/%E7%89%9B%E9%A9%AC.png";
+    const state = {
+      activeTab: "general",
+      selectedPromptTemplateId: "",
+      promptsMainTab: "templateManager",
+      promptsCategoryTab: "基础",
+      promptsSearchKeyword: "",
+      customPromptCategories: [],
+      promptsSearchComposing: false,
+      creatingPromptTemplate: false,
+      cursorRulesTab: "general",
+      appearanceActivationMode: "toolbar",
+      fullText: {
+        running: false,
+        ready: false,
+        progress: 0,
+        progressText: "0.0%",
+        indexing_file: "",
+        indexVersion: "",
+        engine_lights: ["off", "off", "off", "off"],
+        config: {
+          autoStart: true,
+          workers: 2,
+          indexDir: "",
+          scanScheme: "auto",
+          useUSN: true,
+          includeLargeText: false,
+          maxFileSizeMB: 8,
+          scanSpeed: "normal",
+          initialDelaySec: 1,
+          pauseMS: 5
+        }
+      },
+      fullTextProbe: {
+        busy: false,
+        last: null
+      },
+      data: {
+        cursorPath: "", capslockHoldTimeSeconds: 0.5, capsLockHoldVkEnabled: true, autoStart: false, defaultStartTab: "general",
+        themeMode: "", popupScreenIndex: 1, monitorCount: 1,
+        promptExplain: "", promptRefactor: "", promptOptimize: "",
+        cursorRules: { general:"", web:"", miniprogram:"", android:"", ios:"", python:"" },
+        promptTemplateSummary: [], defaultTemplates: { Explain: "", Refactor: "", Optimize: "" },
+        hotkeys: { ESC:"Esc", C:"c", V:"v", X:"x", E:"e", R:"r", O:"o", Q:"q", Z:"z", S:"s", B:"b", T:"t", F:"f", P:"p" },
+        promptQuickCaptureHotkey: "",
+        quickActions: [{type:"Explain",hotkey:"e"},{type:"Refactor",hotkey:"r"},{type:"Optimize",hotkey:"o"},{type:"Config",hotkey:"q"},{type:"Explain",hotkey:"e"}],
+        language: "zh", aiSleepTime: 200, launchDelaySeconds: 3.0,
+        searchEngine: "deepseek", autoLoadSelectedText: false, autoUpdateVoiceInput: true,
+        voiceSearchEnabledCategories: ["ai","cli","academic","baidu","image","audio","video","book","price","medical","cloud"],
+        voiceSearchSelectedEnginesCsv: "deepseek",
+        floatingToolbarButtons: [...DEFAULT_TOOLBAR_BUTTONS],
+        floatingToolbarMenuItems: [...DEFAULT_TOOLBAR_MENUS],
+        floatingToolbarButtonOptions: [...TOOLBAR_BUTTON_OPTIONS],
+        floatingToolbarMenuOptions: [...TOOLBAR_MENU_OPTIONS],
+        keybinderToolbarLayout: [],
+        keybinderCommands: [],
+        keybinderContextMenuLayout: [],
+        appearanceActivationMode: "toolbar"
+      }
+    };
+    let fullTextApplyTimer = 0;
+    let ftbSortBar = null;
+    let ftbSortPool = null;
+    let ftbSaveTimer = 0;
+    let menuSortBarCmds = null;
+    let menuSortPoolCmds = null;
+    let menuSortBarFixed = null;
+    let menuSortPoolFixed = null;
+    const FTB_SVG = {
+      search: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>',
+      prompt: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 3c4.97 0 9 3.58 9 8 0 1.8-.67 3.47-1.8 4.82L20 21l-5.02-1.67A10.53 10.53 0 0 1 12 20c-4.97 0-9-3.58-9-8s4.03-9 9-9Z"/></svg>',
+      notepad: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>',
+      screenshot: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 7h4l2-2h4l2 2h4v12H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+      settings: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+      keyboard: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M6 9h1"/><path d="M9 9h1"/><path d="M12 9h1"/><path d="M15 9h1"/><path d="M18 9h1"/><path d="M6 12h1"/><path d="M9 12h1"/><path d="M12 12h1"/><path d="M15 12h1"/><path d="M18 12h1"/><path d="M7 15h10"/></svg>',
+      clipboard: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>',
+      comments: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
+      list: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>',
+      window: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>',
+      robot: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="10" rx="2"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/><circle cx="9.5" cy="13" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="13" r="1" fill="currentColor" stroke="none"/></svg>',
+      bolt: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
+      star: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 7.4h7.6l-6 4.6 2.3 7-6.3-4.6-6.3 4.6 2.3-7-6-4.6h7.6z"/></svg>',
+    };
+    const FTB_CMD_KEY = { sc_activate_search: "search", qa_clipboard: "clipboard", hub_capsule: "notepad", ch_b: "prompt", pqp_capture: "bolt", ch_t: "screenshot", qa_config: "settings", sys_show_vk: "keyboard" };
+    const FTB_FA_KEY = { "magnifying-glass": "search", clipboard: "clipboard", comments: "comments", lightbulb: "prompt", "note-sticky": "notepad", camera: "screenshot", gear: "settings", keyboard: "keyboard", list: "list", "window-restore": "window", robot: "robot", bolt: "bolt", star: "star", circle: "bolt", layer: "list", "layer-group": "list", terminal: "keyboard", sliders: "settings", code: "bolt", "wand-magic-sparkles": "prompt" };
+    function destroyFtbWorkbenchSortable() {
+      try { ftbSortBar?.destroy(); } catch {}
+      try { ftbSortPool?.destroy(); } catch {}
+      ftbSortBar = ftbSortPool = null;
+    }
+    function destroyMenuWorkbenchSortable() {
+      try { menuSortBarCmds?.destroy(); } catch {}
+      try { menuSortPoolCmds?.destroy(); } catch {}
+      try { menuSortBarFixed?.destroy(); } catch {}
+      try { menuSortPoolFixed?.destroy(); } catch {}
+      menuSortBarCmds = menuSortPoolCmds = menuSortBarFixed = menuSortPoolFixed = null;
+    }
+    function buildKeybinderCommandMap() {
+      const m = {};
+      (state.data.keybinderCommands || []).forEach((c) => { if (c && c.id) m[c.id] = c; });
+      return m;
+    }
+    function cfgInferIconClass(cmd) {
+      const t = `${cmd.id} ${cmd.name || ""}`.toLowerCase();
+      if (/(search|搜|查|检索)/.test(t)) return "fa-magnifying-glass";
+      if (/(clip|剪贴|复制|粘贴)/.test(t)) return "fa-clipboard";
+      if (/(chat|send|对话|发送)/.test(t)) return "fa-comments";
+      if (/(prompt|提示词|模板)/.test(t)) return "fa-lightbulb";
+      if (/(draft|草稿|笔记)/.test(t)) return "fa-note-sticky";
+      if (/(screen|截图|capture|ocr)/.test(t)) return "fa-camera";
+      if (/(setting|设置|配置|config)/.test(t)) return "fa-gear";
+      if (/(star|收藏)/.test(t)) return "fa-star";
+      if (/(window|win_|最小化|关闭窗口)/.test(t)) return "fa-window-restore";
+      if (/(ai|gpt|llm)/.test(t)) return "fa-robot";
+      return "fa-bolt";
+    }
+    function cfgFaSuffix(iconClass) {
+      let suf = "";
+      String(iconClass || "").trim().split(/\s+/).forEach((p) => {
+        if (p === "fa-solid" || p === "fa-brands" || p === "fa-regular") return;
+        if (p.startsWith("fa-")) suf = p.slice(3);
+      });
+      return suf || "bolt";
+    }
+    function cfgToolbarIconSvg(cmdId, iconClassFull) {
+      let key = FTB_CMD_KEY[String(cmdId || "").trim()];
+      if (!key) {
+        const suf = cfgFaSuffix(iconClassFull);
+        key = FTB_FA_KEY[suf] || "bolt";
+      }
+      return FTB_SVG[key] || FTB_SVG.bolt;
+    }
+    function normalizeToolbarLayoutRows(arr) {
+      const rows = Array.isArray(arr) ? arr : [];
+      return rows.map((r) => {
+        if (!r || !r.cmdId) return null;
+        const vb = r.visible_in_bar !== undefined ? !!r.visible_in_bar : !!r.in_bar;
+        const vm = r.visible_in_menu !== undefined ? !!r.visible_in_menu : !!r.in_context_menu;
+        const ob = Number.isFinite(Number(r.order_bar)) ? Number(r.order_bar) : -1;
+        const om = Number.isFinite(Number(r.order_menu)) ? Number(r.order_menu) : -1;
+        const vsr = r.visible_in_search_row !== undefined ? !!r.visible_in_search_row : false;
+        const osr = Number.isFinite(Number(r.order_search_row)) ? Number(r.order_search_row) : -1;
+        const ms = Array.isArray(r.menu_scenes)
+          ? r.menu_scenes.map((x) => String(x || '').trim()).filter(Boolean)
+          : [];
+        return {
+          cmdId: String(r.cmdId),
+          visible_in_bar: vb,
+          visible_in_menu: vm,
+          order_bar: ob,
+          order_menu: om,
+          visible_in_search_row: vsr,
+          order_search_row: osr,
+          menu_scenes: ms,
+        };
+      }).filter(Boolean);
+    }
+    function collectToolbarLayoutFromFtbDom() {
+      if (!document.getElementById("cfg-ftb-bar")) {
+        try {
+          return JSON.parse(JSON.stringify(state.data.keybinderToolbarLayout || []));
+        } catch {
+          return [...(state.data.keybinderToolbarLayout || [])];
+        }
+      }
+      const rows = [];
+      const seen = new Set();
+      document.querySelectorAll("#cfg-ftb-bar .cfg-ftb-tile").forEach((el) => {
+        rows.push({ cmdId: el.dataset.cmdId, visible_in_bar: true, visible_in_menu: false, order_bar: rows.length, order_menu: -1 });
+        seen.add(el.dataset.cmdId);
+      });
+      document.querySelectorAll("#cfg-shared-pool-ftb .cfg-ftb-tile").forEach((el) => {
+        rows.push({ cmdId: el.dataset.cmdId, visible_in_bar: false, visible_in_menu: false, order_bar: -1, order_menu: -1 });
+        seen.add(el.dataset.cmdId);
+      });
+      normalizeToolbarLayoutRows(state.data.keybinderToolbarLayout || []).forEach((r) => {
+        if (r && r.cmdId && !seen.has(r.cmdId)) {
+          seen.add(r.cmdId);
+          rows.push({
+            cmdId: r.cmdId,
+            visible_in_bar: !!r.visible_in_bar,
+            visible_in_menu: false,
+            order_bar: Number.isFinite(Number(r.order_bar)) ? Number(r.order_bar) : -1,
+            order_menu: -1,
+          });
+        }
+      });
+      return rows;
+    }
+    function mergeContextMenuFromMenuDom(rows) {
+      const active = new Set([...document.querySelectorAll("#cfg-menu-bar-cmds .cfg-menu-tile")].map((el) => el.dataset.id));
+      const cmdMap = buildKeybinderCommandMap();
+      let menuOrder = 0;
+      rows.forEach((row) => {
+        const c = cmdMap[row.cmdId];
+        const on = !!(c && c.fn === "CH_RUN" && active.has(row.cmdId));
+        row.visible_in_menu = on;
+        row.order_menu = on ? menuOrder++ : -1;
+      });
+    }
+    function collectKeybinderWorkbenchPayload() {
+      if (!document.getElementById("cfg-menu-bar-cmds")) {
+        let tl;
+        try {
+          tl = JSON.parse(JSON.stringify(state.data.keybinderToolbarLayout || []));
+        } catch {
+          tl = [...(state.data.keybinderToolbarLayout || [])];
+        }
+        return {
+          toolbarLayout: normalizeToolbarLayoutRows(tl),
+          contextMenuLayout: [...(state.data.keybinderContextMenuLayout || [])],
+        };
+      }
+      const toolbarLayout = collectToolbarLayoutFromFtbDom();
+      mergeContextMenuFromMenuDom(toolbarLayout);
+      const contextMenuLayout = [...document.querySelectorAll("#cfg-menu-bar-cmds .cfg-menu-tile")].map((el) => el.dataset.id);
+      return { toolbarLayout, contextMenuLayout };
+    }
+    function scheduleKeybinderUnifiedSave() {
+      if (ftbSaveTimer) clearTimeout(ftbSaveTimer);
+      ftbSaveTimer = setTimeout(() => {
+        ftbSaveTimer = 0;
+        const payload = collectKeybinderWorkbenchPayload();
+        state.data.keybinderToolbarLayout = normalizeToolbarLayoutRows(payload.toolbarLayout);
+        state.data.keybinderContextMenuLayout = payload.contextMenuLayout;
+        post({
+          type: "saveKeybinderToolbarLayout",
+          toolbarLayout: payload.toolbarLayout,
+          contextMenuLayout: payload.contextMenuLayout,
+        });
+      }, 320);
+    }
+    function createFtbTileEl(cmdId, cmd, row, compact) {
+      const icRaw = (cmd && cmd.iconClass) ? String(cmd.iconClass).trim() : "";
+      let iconFull = "";
+      if (icRaw) {
+        if (/\bfa-(solid|brands|regular)\b/.test(icRaw)) iconFull = icRaw;
+        else if (/^fa-[a-z0-9-]+$/i.test(icRaw)) iconFull = `fa-solid ${icRaw}`;
+        else iconFull = `fa-solid ${cfgInferIconClass(cmd || { id: cmdId })}`;
+      } else iconFull = `fa-solid ${cfgInferIconClass(cmd || { id: cmdId })}`;
+      const wrap = document.createElement("div");
+      wrap.className = "cfg-ftb-tile" + (compact ? " cfg-ftb-tile-compact" : "");
+      wrap.dataset.cmdId = cmdId;
+      wrap.title = (cmd && cmd.name) || cmdId;
+      const ico = document.createElement("span");
+      ico.className = "cfg-ftb-ico";
+      ico.innerHTML = cfgToolbarIconSvg(cmdId, iconFull);
+      if (compact) {
+        wrap.append(ico);
+      } else {
+        const nm = document.createElement("div");
+        nm.className = "cfg-ftb-tile-name";
+        nm.textContent = (cmd && cmd.name) || cmdId;
+        wrap.append(ico, nm);
+      }
+      return wrap;
+    }
+    function createMenuCmdTileEl(cmdId, cmd) {
+      const wrap = document.createElement("div");
+      wrap.className = "cfg-menu-tile cfg-menu-tile-cmd";
+      wrap.dataset.kind = "cmd";
+      wrap.dataset.id = cmdId;
+      const title = (cmd && cmd.name) || cmdId;
+      const desc = (cmd && cmd.desc) || "";
+      wrap.title = desc ? `${title}\n${desc}` : title;
+      const ico = document.createElement("span");
+      ico.className = "cfg-menu-ico";
+      const icRaw = (cmd && cmd.iconClass) ? String(cmd.iconClass).trim() : "";
+      let iconFull = "";
+      if (icRaw) {
+        if (/\bfa-(solid|brands|regular)\b/.test(icRaw)) iconFull = icRaw;
+        else if (/^fa-[a-z0-9-]+$/i.test(icRaw)) iconFull = `fa-solid ${icRaw}`;
+        else iconFull = `fa-solid ${cfgInferIconClass(cmd || { id: cmdId })}`;
+      } else iconFull = `fa-solid ${cfgInferIconClass(cmd || { id: cmdId })}`;
+      ico.innerHTML = cfgToolbarIconSvg(cmdId, iconFull);
+      const text = document.createElement("div");
+      text.className = "cfg-menu-text";
+      const t1 = document.createElement("div");
+      t1.className = "cfg-menu-line1";
+      t1.textContent = title;
+      const t2 = document.createElement("div");
+      t2.className = "cfg-menu-line2";
+      t2.textContent = desc;
+      text.append(t1, t2);
+      wrap.append(ico, text);
+      return wrap;
+    }
+    function mountMenuWorkbench() {
+      const barC = document.getElementById("cfg-menu-bar-cmds");
+      const poolC = document.getElementById("cfg-shared-pool-menu-cmds");
+      if (!barC || !poolC) return;
+      destroyMenuWorkbenchSortable();
+      const cmdMap = buildKeybinderCommandMap();
+      const chRun = (state.data.keybinderCommands || []).filter((c) => c && c.fn === "CH_RUN" && c.id && !String(c.id).startsWith("pt_"));
+      const layout = normalizeToolbarLayoutRows(state.data.keybinderToolbarLayout || []);
+      const activeSet = new Set(layout.filter((r) => r && r.visible_in_menu).map((r) => r.cmdId));
+      const barCmdIds = [];
+      const menuSorted = [...layout].filter((r) => r.visible_in_menu).sort((a, b) => (a.order_menu - b.order_menu));
+      for (const row of menuSorted) {
+        if (row && row.cmdId && !barCmdIds.includes(row.cmdId)) barCmdIds.push(row.cmdId);
+      }
+      for (const row of layout) {
+        if (row && row.visible_in_menu && row.cmdId && !barCmdIds.includes(row.cmdId)) barCmdIds.push(row.cmdId);
+      }
+      const poolCmdIds = chRun.map((c) => c.id).filter((id) => !activeSet.has(id));
+      barC.innerHTML = "";
+      poolC.innerHTML = "";
+      barCmdIds.forEach((id) => {
+        const c = cmdMap[id];
+        if (c) barC.appendChild(createMenuCmdTileEl(id, c));
+      });
+      poolCmdIds.forEach((id) => {
+        const c = cmdMap[id];
+        if (c) poolC.appendChild(createMenuCmdTileEl(id, c));
+      });
+      if (typeof Sortable === "undefined") return;
+      const so = { animation: 150, ghostClass: "sortable-ghost", dragClass: "sortable-drag", onEnd: scheduleKeybinderUnifiedSave };
+      menuSortBarCmds = new Sortable(barC, { ...so, group: "menuRun" });
+      menuSortPoolCmds = new Sortable(poolC, { ...so, group: "menuRun" });
+    }
+    function rowToolbarEligible(row) {
+      if (!row) return false;
+      return !!(row.visible_in_bar || row.visible_in_menu);
+    }
+    function mountFtbWorkbench() {
+      const bar = document.getElementById("cfg-ftb-bar");
+      const pool = document.getElementById("cfg-shared-pool-ftb");
+      if (!bar || !pool) return;
+      const cmdMap = buildKeybinderCommandMap();
+      const layout = normalizeToolbarLayoutRows(state.data.keybinderToolbarLayout || []);
+      bar.innerHTML = "";
+      pool.innerHTML = "";
+      for (const row of layout) {
+        const c = cmdMap[row.cmdId];
+        if (!c || !rowToolbarEligible(row)) continue;
+        if (row.visible_in_bar) bar.appendChild(createFtbTileEl(row.cmdId, c, row, true));
+      }
+      for (const row of layout) {
+        const c = cmdMap[row.cmdId];
+        if (!c || !rowToolbarEligible(row)) continue;
+        if (!row.visible_in_bar) pool.appendChild(createFtbTileEl(row.cmdId, c, row, false));
+      }
+      if (typeof Sortable === "undefined") return;
+      destroyFtbWorkbenchSortable();
+      const opt = { group: "cfg-ftb", animation: 150, ghostClass: "sortable-ghost", dragClass: "sortable-drag", onEnd: scheduleKeybinderUnifiedSave };
+      ftbSortBar = new Sortable(bar, opt);
+      ftbSortPool = new Sortable(pool, opt);
+    }
+    const post = (msg) => BasePanel.postToAhk(msg);
+    const setStatus = (text, cls = "") => { const el = document.getElementById("status"); el.textContent = text; el.className = cls; };
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[ch]));
+    const checked = (v) => v ? "checked" : "";
+    let autoSaveTimer = 0;
+    let suppressAutoSave = true;
+    let initDataReceived = false;
+    function scheduleAutoSave(delay = 250){
+      if (suppressAutoSave || !initDataReceived) return;
+      if (autoSaveTimer) clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(() => {
+        const d = readFromUI();
+        const err = validate(d);
+        if (err) return setStatus(err, "err");
+        setStatus("自动保存中...");
+        post({ type: "saveSettings", payload: d });
+      }, delay);
+    }
+    function bindAutoSaveControls(){}
+    function normalizeFullTextPayload(payload){
+      const next = { ...(state.fullText || {}) };
+      const src = payload && typeof payload === "object" ? payload : {};
+      next.running = !!src.running;
+      next.ready = !!src.ready;
+      next.progress = Number.isFinite(Number(src.progress)) ? Number(src.progress) : 0;
+      next.progressText = String(src.progressText || `${next.progress.toFixed(1)}%`);
+      next.indexing_file = String(src.indexing_file || "");
+      next.indexVersion = String(src.indexVersion || next.indexVersion || "");
+      next.scanPhase = String(src.scanPhase || next.scanPhase || "");
+      next.discoveredFiles = Number.isFinite(Number(src.discoveredFiles)) ? Number(src.discoveredFiles) : Number(next.discoveredFiles || 0);
+      next.processedFiles = Number.isFinite(Number(src.processedFiles)) ? Number(src.processedFiles) : Number(next.processedFiles || 0);
+      next.pendingTasks = Number.isFinite(Number(src.pendingTasks)) ? Number(src.pendingTasks) : Number(next.pendingTasks || 0);
+      next.queueCapacity = Number.isFinite(Number(src.queueCapacity)) ? Number(src.queueCapacity) : Number(next.queueCapacity || 0);
+      next.engine_lights = Array.isArray(src.engine_lights) && src.engine_lights.length === 4
+        ? src.engine_lights.map(v => String(v || "off"))
+        : ["off","off","off","off"];
+      next.lastError = String(src.lastError || "");
+      const cfgSrc = src.config && typeof src.config === "object" ? src.config : (next.config || {});
+      next.config = {
+        autoStart: cfgSrc.autoStart !== false,
+        workers: Math.max(1, Number(cfgSrc.workers || 2)),
+        indexDir: String(cfgSrc.indexDir || ""),
+        scanScheme: String(cfgSrc.scanScheme || "auto"),
+        useUSN: (typeof cfgSrc.useUSN === "boolean") ? cfgSrc.useUSN : true,
+        includeLargeText: !!cfgSrc.includeLargeText,
+        maxFileSizeMB: Math.max(1, Number(cfgSrc.maxFileSizeMB || 8)),
+        scanSpeed: String(cfgSrc.scanSpeed || "normal"),
+        initialDelaySec: Math.max(1, Number(cfgSrc.initialDelaySec || 1)),
+        pauseMS: Math.max(0, Number(cfgSrc.pauseMS ?? 5))
+      };
+      return next;
+    }
+    function buildFullTextTaskText(ft){
+      const discovered = Number(ft.discoveredFiles) || 0;
+      const processed = Number(ft.processedFiles) || 0;
+      const pending = Number(ft.pendingTasks) || 0;
+      const queueCap = Number(ft.queueCapacity) || 0;
+      const phase = String(ft.scanPhase || "");
+      const hasActiveQueue = pending > 0 || (discovered > 0 && processed < discovered);
+      const activeBusy = !!ft.running && (phase === "walking" || phase === "indexing" || hasActiveQueue);
+      if (ft.indexing_file) return String(ft.indexing_file);
+      if (activeBusy) {
+        if (phase === "walking") return "正在扫描目录…";
+        if (pending > 0) return queueCap > 0 ? `正在建立索引（队列 ${pending}/${queueCap}）` : `正在建立索引（队列 ${pending}）`;
+        return "正在建立索引…";
+      }
+      if (ft.running && phase === "idle_wait") return "等待空闲后开始索引…";
+      if (ft.ready) return "索引已就绪（当前无索引任务）";
+      if (!ft.running) return "索引已停止（当前无索引任务）";
+      return "当前无索引任务";
+    }
+    function requestFullTextStatus(withConfig = false){
+      post({ type: "fulltextStatusRequest", withConfig: !!withConfig });
+    }
+    function requestFullTextProbe(){
+      state.fullTextProbe.busy = true;
+      setFullTextProbeSummary("正在检测可行性…");
+      post({ type: "fulltextProbeRequest" });
+    }
+    function schemeDisplayName(scheme){
+      const v = String(scheme || "auto").toLowerCase();
+      if (v === "mft") return "高速扫描（推荐）";
+      if (v === "everything") return "快速扫描（需 Everything）";
+      if (v === "walk") return "兼容扫描（最稳定）";
+      return "自动选择（推荐）";
+    }
+    function setFullTextProbeSummary(text){
+      const el = document.getElementById("ftProbeSummary");
+      if (!el) return;
+      el.textContent = String(text || "");
+    }
+    function renderFullTextProbe(probe){
+      state.fullTextProbe.last = probe && typeof probe === "object" ? probe : null;
+      const box = document.getElementById("ftProbeList");
+      if (!box) return;
+      const p = state.fullTextProbe.last;
+      if (!p) {
+        box.innerHTML = "";
+        setFullTextProbeSummary("");
+        return;
+      }
+      const rows = Array.isArray(p.rootChecks) ? p.rootChecks : [];
+      if (!rows.length) {
+        box.innerHTML = "<div class=\"ft-probe-item\">未返回分盘检测结果</div>";
+      } else {
+        box.innerHTML = rows.map((item) => {
+          const root = String(item.root || "-");
+          const mftOk = !!item.mftOk;
+          const usnOk = !!item.usnOk;
+          const mftReason = String(item.mftReason || "");
+          const usnReason = String(item.usnReason || "");
+          return `<div class=\"ft-probe-item\"><strong>${esc(root)}</strong><br>高速扫描: <span class=\"${mftOk ? "ft-probe-ok" : "ft-probe-bad"}\">${mftOk ? "可用" : "不可用"}</span> · ${esc(mftReason)}<br>实时更新: <span class=\"${usnOk ? "ft-probe-ok" : "ft-probe-bad"}\">${usnOk ? "可用" : "不可用"}</span> · ${esc(usnReason)}</div>`;
+        }).join("");
+      }
+      const rec = String(p.recommendedScheme || "auto").toLowerCase();
+      const cur = String(document.getElementById("ftScanScheme")?.value || state.fullText?.config?.scanScheme || "auto").toLowerCase();
+      if (rec === cur) {
+        setFullTextProbeSummary(`当前方式：${schemeDisplayName(cur)}（与推荐一致）`);
+      } else {
+        setFullTextProbeSummary(`当前方式：${schemeDisplayName(cur)} · 推荐方式：${schemeDisplayName(rec)}`);
+      }
+    }
+    function applyRecommendedFullTextScheme(){
+      const rec = state.fullTextProbe && state.fullTextProbe.last
+        ? String(state.fullTextProbe.last.recommendedScheme || "").toLowerCase()
+        : "";
+      const useRec = (rec === "mft" || rec === "everything" || rec === "walk" || rec === "auto") ? rec : "auto";
+      const sel = document.getElementById("ftScanScheme");
+      if (sel) sel.value = useRec;
+      scheduleFullTextApply(10);
+    }
+    function readFullTextConfigFromUI(){
+      return {
+        autoStart: !!document.getElementById("ftAutoStart")?.checked,
+        workers: Math.max(1, Number(document.getElementById("ftWorkers")?.value || 2)),
+        indexDir: String(document.getElementById("ftIndexDir")?.value || "").trim(),
+        scanScheme: String(document.getElementById("ftScanScheme")?.value || "auto"),
+        useUSN: !!document.getElementById("ftUseUSN")?.checked,
+        includeLargeText: !!document.getElementById("ftIncludeLarge")?.checked,
+        maxFileSizeMB: Math.max(1, Number(document.getElementById("ftMaxFileMB")?.value || 8)),
+        scanSpeed: String(document.getElementById("ftScanSpeed")?.value || "normal"),
+        initialDelaySec: Math.max(1, Number(document.getElementById("ftInitialDelay")?.value || 1)),
+        pauseMS: Math.max(0, Number(document.getElementById("ftPauseMS")?.value || 5))
+      };
+    }
+    function scheduleFullTextApply(delay = 320){
+      if (fullTextApplyTimer) clearTimeout(fullTextApplyTimer);
+      fullTextApplyTimer = setTimeout(() => {
+        const payload = readFullTextConfigFromUI();
+        post({ type: "fulltextConfigUpdate", payload });
+      }, delay);
+    }
+    function bindFullTextConsoleControls(){
+      const ids = ["ftAutoStart","ftWorkers","ftIndexDir","ftScanScheme","ftUseUSN","ftIncludeLarge","ftMaxFileMB","ftScanSpeed","ftInitialDelay","ftPauseMS"];
+      ids.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const evt = el.type === "checkbox" || el.tagName === "SELECT" ? "change" : "input";
+        el.addEventListener(evt, () => scheduleFullTextApply());
+      });
+      document.getElementById("btnFtToggle")?.addEventListener("click", () => {
+        const act = state.fullText && state.fullText.running ? "stop" : "start";
+        post({ type: "fulltextControl", control: act });
+      });
+      document.getElementById("btnFtRefresh")?.addEventListener("click", () => requestFullTextStatus(true));
+      document.getElementById("btnFtPickDir")?.addEventListener("click", () => post({ type: "fulltextPickIndexDir" }));
+      document.getElementById("btnFtProbe")?.addEventListener("click", () => requestFullTextProbe());
+      document.getElementById("btnFtRecommend")?.addEventListener("click", () => applyRecommendedFullTextScheme());
+      document.getElementById("btnFtRebuild")?.addEventListener("click", () => {
+        if (!window.confirm("将清空并重建全文索引，用于验证单字检索。是否继续？")) return;
+        setStatus("已触发强制重建索引，正在准备…", "ok");
+        post({ type: "fulltextControl", control: "rebuild" });
+      });
+    }
+    function refreshFullTextConsoleDom(){
+      if (state.activeTab !== "search") return;
+      const ft = normalizeFullTextPayload(state.fullText);
+      state.fullText = ft;
+      const lights = document.querySelectorAll("[data-ft-light]");
+      lights.forEach((el, idx) => {
+        const st = ft.engine_lights[idx] || "off";
+        el.className = `ft-light ${st}`;
+      });
+      const summary = document.getElementById("ftSummary");
+      if (summary) summary.textContent = `${ft.running ? "运行中" : "已停止"} · ${ft.ready ? "已就绪" : "构建中"} · ${ft.progressText || `${ft.progress.toFixed(1)}%`}`;
+      const ver = document.getElementById("ftVersion");
+      if (ver) ver.textContent = `索引版本 ${ft.indexVersion || "-"}`;
+      const bar = document.getElementById("ftProgressBar");
+      if (bar) bar.style.width = `${Math.max(0, Math.min(100, Number(ft.progress || 0))).toFixed(1)}%`;
+      const file = document.getElementById("ftCurrentFile");
+      if (file) {
+        const txt = buildFullTextTaskText(ft);
+        file.textContent = txt;
+        file.title = txt;
+      }
+      const hint = document.getElementById("ftHint");
+      if (hint) hint.textContent = ft.lastError || "设置会自动保存并自动应用到索引引擎。";
+      const scanScheme = document.getElementById("ftScanScheme");
+      if (scanScheme) scanScheme.value = String(ft.config?.scanScheme || "auto");
+      const useUSN = document.getElementById("ftUseUSN");
+      if (useUSN) useUSN.checked = !!ft.config?.useUSN;
+      renderFullTextProbe(state.fullTextProbe.last);
+      const toggleBtn = document.getElementById("btnFtToggle");
+      if (toggleBtn) {
+        if (ft.running) {
+          toggleBtn.textContent = "停止索引";
+          toggleBtn.title = "点击停止全文索引";
+        } else {
+          toggleBtn.textContent = "启动索引";
+          toggleBtn.title = "点击启动全文索引";
+        }
+      }
+    }
+    function loadCustomCategories(){
+      try {
+        const raw = localStorage.getItem("settings.prompts.customCategories");
+        const arr = JSON.parse(raw || "[]");
+        if (Array.isArray(arr)) {
+          state.customPromptCategories = arr.map(v => String(v || "").trim()).filter(Boolean);
+        }
+      } catch {}
+    }
+    function saveCustomCategories(){
+      try {
+        localStorage.setItem("settings.prompts.customCategories", JSON.stringify(state.customPromptCategories || []));
+      } catch {}
+    }
+    function readGeneral(d){ d.cursorPath = document.getElementById("cursorPath")?.value.trim() ?? d.cursorPath; d.capslockHoldTimeSeconds = Number(document.getElementById("holdTime")?.value ?? d.capslockHoldTimeSeconds); d.autoStart = !!document.getElementById("autoStart")?.checked; d.defaultStartTab = document.getElementById("defaultStartTab")?.value ?? d.defaultStartTab; return d; }
+    function readAppearance(d){ d.themeMode = document.getElementById("themeMode")?.value ?? d.themeMode; d.popupScreenIndex = Number(document.getElementById("popupScreenIndex")?.value ?? d.popupScreenIndex); return d; }
+    function readPrompts(d){
+      d.promptExplain = document.getElementById("promptExplain")?.value ?? d.promptExplain;
+      d.promptRefactor = document.getElementById("promptRefactor")?.value ?? d.promptRefactor;
+      d.promptOptimize = document.getElementById("promptOptimize")?.value ?? d.promptOptimize;
+      const cr = { ...(d.cursorRules || {}) };
+      const ruleEl = document.getElementById("cursorRuleContent");
+      if (ruleEl) cr[state.cursorRulesTab] = ruleEl.value ?? "";
+      d.cursorRules = cr;
+      return d;
+    }
+    function readHotkeys(d){
+      const hk = { ...d.hotkeys };
+      HOTKEY_KEYS.forEach(k => { const el = document.getElementById("hk_" + k); if (el) hk[k] = el.value.trim(); });
+      d.hotkeys = hk;
+      const elVkHold = document.getElementById("capsLockHoldVkEnabled");
+      if (elVkHold) d.capsLockHoldVkEnabled = !!elVkHold.checked;
+      d.promptQuickCaptureHotkey = document.getElementById("promptQuickCaptureHotkey")?.value.trim() ?? d.promptQuickCaptureHotkey;
+      const qa = [];
+      for (let i = 1; i <= 5; i++) {
+        const typeEl = document.getElementById("qaType" + i);
+        const hotkeyEl = document.getElementById("qaHotkey" + i);
+        qa.push({ type: typeEl?.value || "Explain", hotkey: hotkeyEl?.value || "" });
+      }
+      d.quickActions = qa;
+      return d;
+    }
+    function readAdvanced(d){
+      d.language = document.getElementById("language")?.value ?? d.language;
+      const aiSleepSeconds = Number(document.getElementById("aiSleepTimeSeconds")?.value ?? (Number(d.aiSleepTime) / 1000));
+      d.aiSleepTime = Math.max(0.05, aiSleepSeconds) * 1000;
+      d.launchDelaySeconds = Number(document.getElementById("launchDelaySeconds")?.value ?? d.launchDelaySeconds);
+      const listValues = (id) => Array.from(document.getElementById(id)?.options || []).map(o => o.value).filter(Boolean);
+      if (document.getElementById("toolbarButtonsList")) {
+        const btns = listValues("toolbarButtonsList");
+        d.floatingToolbarButtons = btns.length ? btns : [...DEFAULT_TOOLBAR_BUTTONS];
+      }
+      if (document.getElementById("toolbarMenusList")) {
+        const menus = listValues("toolbarMenusList");
+        d.floatingToolbarMenuItems = menus.length ? menus : [...DEFAULT_TOOLBAR_MENUS];
+      }
+      return d;
+    }
+    function csvToArr(v){ return String(v || "").split(",").map(s => s.trim()).filter(Boolean); }
+    function arrToCsv(arr){ return (arr || []).join(","); }
+    function readSearch(d){
+      const selectedDefault = Array.from(document.querySelectorAll('[data-engine-target="default"]:checked')).map(el => el.value);
+      const selectedAiCli = Array.from(document.querySelectorAll('[data-engine-target="ai-cli"]:checked')).map(el => el.value);
+      d.searchEngine = arrToCsv(selectedDefault);
+      d.voiceSearchSelectedEnginesCsv = arrToCsv(selectedAiCli);
+      d.autoLoadSelectedText = !!document.getElementById("autoLoadSelectedText")?.checked;
+      d.autoUpdateVoiceInput = !!document.getElementById("autoUpdateVoiceInput")?.checked;
+      const cats = [];
+      ALL_CATEGORIES.forEach(c => { if (document.getElementById("cat_" + c)?.checked) cats.push(c); });
+      d.voiceSearchEnabledCategories = cats;
+      return d;
+    }
+    function syncThemeAndPopupFromDom() {
+      try {
+        const tm = document.getElementById("themeMode");
+        if (tm) state.data.themeMode = tm.value;
+        const ps = document.getElementById("popupScreenIndex");
+        if (ps) state.data.popupScreenIndex = Number(ps.value);
+      } catch (_) {}
+    }
+    function readFromUI() {
+      syncActivationModeFromDom();
+      syncThemeAndPopupFromDom();
+      let d = { ...state.data, hotkeys: { ...state.data.hotkeys }, quickActions: [...state.data.quickActions], voiceSearchEnabledCategories: [...state.data.voiceSearchEnabledCategories], floatingToolbarButtons: [...(state.data.floatingToolbarButtons||[])], floatingToolbarMenuItems: [...(state.data.floatingToolbarMenuItems||[])] };
+      d = readGeneral(d); d = readAppearance(d); d = readPrompts(d); d = readHotkeys(d); d = readAdvanced(d); d = readSearch(d);
+      d.appearanceActivationMode = normalizeActivationMode(state.appearanceActivationMode);
+      state.data.appearanceActivationMode = d.appearanceActivationMode;
+      return d;
+    }
+    function selectOpt(id, val){ const el = document.getElementById(id); if (el) el.value = val; }
+    function options(items, selected){ return items.map(v => `<option value="${esc(v)}"${v===selected?" selected":""}>${esc(v)}</option>`).join(""); }
+    function optionsKV(items, selected){ return items.map(it => `<option value="${esc(it.value)}"${it.value===selected?" selected":""}>${esc(it.label)}</option>`).join(""); }
+    function normalizeActivationMode(v){
+      const s = String(v || "").trim();
+      return ACTIVATION_MODE_OPTIONS.some(o => o.value === s) ? s : "toolbar";
+    }
+    /** 从当前外观页单选项同步，避免仅点了选项未触发 state 更新时保存丢失 */
+    function syncActivationModeFromDom() {
+      try {
+        const el = document.querySelector('input[name="activationMode"]:checked');
+        if (el) state.appearanceActivationMode = normalizeActivationMode(el.value);
+      } catch (_) {}
+    }
+    function loadAppearanceActivationMode(){
+      try {
+        const raw = localStorage.getItem(ACTIVATION_MODE_LOCAL_KEY);
+        state.appearanceActivationMode = normalizeActivationMode(raw || state.appearanceActivationMode);
+      } catch {
+        state.appearanceActivationMode = normalizeActivationMode(state.appearanceActivationMode);
+      }
+    }
+    function saveAppearanceActivationMode(){
+      try {
+        localStorage.setItem(ACTIVATION_MODE_LOCAL_KEY, normalizeActivationMode(state.appearanceActivationMode));
+      } catch {}
+    }
+    function activationModeOptionsHtml(selected){
+      return ACTIVATION_MODE_OPTIONS.map((opt) => {
+        const active = selected === opt.value;
+        return `<label class="activation-mode-option ${active ? "active" : ""}" data-activation-item="${esc(opt.value)}">
+  <input class="activation-mode-radio" type="radio" name="activationMode" value="${esc(opt.value)}" ${active ? "checked" : ""}>
+  <div>
+    <div class="activation-mode-title">${esc(opt.label)}</div>
+    <div class="activation-mode-desc">${esc(opt.desc)}</div>
+  </div>
+</label>`;
+      }).join("");
+    }
+    function activationModePreviewHtml(mode){
+      const m = normalizeActivationMode(mode);
+      if (m === "bubble") {
+        return `<div class="mode-preview-scene">
+  <div class="mode-icon-bubble"><img src="${esc(NIUMA_ICON_URL)}" alt="牛马图标"></div>
+  <div class="hint">仅牛马图标；右键命令菜单；长按左键拖动。</div>
+</div>`;
+      }
+      if (m === "tray") {
+        return `<div class="mode-preview-scene">
+  <div class="mode-tray-mock"><img src="${esc(NIUMA_ICON_URL)}" alt="牛马图标"><span>CursorHelper（托盘运行中）</span></div>
+  <div class="hint">不显示悬浮 UI，仅托盘可见。</div>
+</div>`;
+      }
+      return `<div class="mode-preview-scene">
+  <div class="mode-toolbar-mock">
+    <div class="mode-icon-bubble" style="width:28px;height:28px;border-radius:8px;box-shadow:none;"><img src="${esc(NIUMA_ICON_URL)}" alt="牛马图标" style="width:18px;height:18px;"></div>
+    <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+  </div>
+  <div class="hint">显示完整悬浮栏，图标和功能入口始终在桌面层。</div>
+</div>`;
+    }
+    function bindAppearanceActivationMode(){
+      document.querySelectorAll('input[name="activationMode"]').forEach((el) => {
+        el.addEventListener("change", () => {
+          state.appearanceActivationMode = normalizeActivationMode(el.value);
+          state.data.appearanceActivationMode = state.appearanceActivationMode;
+          saveAppearanceActivationMode();
+          const prev = document.getElementById("activationModePreview");
+          if (prev)
+            prev.innerHTML = activationModePreviewHtml(state.appearanceActivationMode);
+          document.querySelectorAll("[data-activation-item]").forEach((card) => {
+            card.classList.toggle("active", card.getAttribute("data-activation-item") === state.appearanceActivationMode);
+          });
+          setStatus("激活方式已切换为：" + (ACTIVATION_MODE_OPTIONS.find(o => o.value === state.appearanceActivationMode)?.label || "悬浮栏"), "ok");
+        });
+      });
+    }
+    function applyWebTheme(mode){
+      const root = document.documentElement;
+      if (mode === "light") {
+        root.style.setProperty("--bg", "#F7F7F7");
+        root.style.setProperty("--app-bg", "#F7F7F7");
+        root.style.setProperty("--color-scheme", "light");
+        root.style.setProperty("--surface", "#ffffff");
+        root.style.setProperty("--surface2", "#ffffff");
+        root.style.setProperty("--surface3", "#ffffff");
+        root.style.setProperty("--border", "#E5E5E5");
+        root.style.setProperty("--border2", "#E5E5E5");
+        root.style.setProperty("--panel-border", "#E5E5E5");
+        root.style.setProperty("--orange", "#E67E22");
+        root.style.setProperty("--orange-dk", "#D35400");
+        root.style.setProperty("--orange-lt", "#E67E22");
+        root.style.setProperty("--text", "#555555");
+        root.style.setProperty("--text-dim", "#555555");
+        root.style.setProperty("--text-xs", "#777777");
+        root.style.setProperty("--title-text", "#2D2D2D");
+        root.style.setProperty("--on-accent", "#FFFFFF");
+        root.style.setProperty("--btn-hover-bg", "#FFF3E8");
+        root.style.setProperty("--tab-hover-bg", "#FFF7EF");
+        root.style.setProperty("--tab-hover-border", "#E9B889");
+        root.style.setProperty("--tab-active-bg", "#FFF1E3");
+        root.style.setProperty("--tab-active-border", "#E9B889");
+        root.style.setProperty("--tab-active-text", "#D35400");
+        root.style.setProperty("--subtab-active-bg", "#FFF1E3");
+        root.style.setProperty("--subtab-active-border", "#E9B889");
+        root.style.setProperty("--subtab-active-text", "#D35400");
+        root.style.setProperty("--preview-bg", "#FFFFFF");
+        root.style.setProperty("--preview-hint-text", "#555555");
+        root.style.setProperty("--glass-edge", "rgba(0,0,0,.06)");
+        root.style.setProperty("--glass-edge-soft", "rgba(0,0,0,.02)");
+        root.style.setProperty("--glass-warm", "rgba(230,126,34,.12)");
+        root.style.setProperty("--row-hover", "#F7F7F7");
+        root.style.setProperty("--row-active", "#FFF4EA");
+        root.style.setProperty("--row-active-text", "#2D2D2D");
+        root.style.setProperty("--glow", "0 6px 16px rgba(0,0,0,.06)");
+        root.style.setProperty("--glow-hot", "0 0 0 1px rgba(230,126,34,.16), 0 8px 20px rgba(211,84,0,.12)");
+      } else {
+        root.style.setProperty("--bg", "#0a0a0a");
+        root.style.setProperty("--app-bg", "radial-gradient(circle at top right, rgba(255,141,42,.08), transparent 26%), linear-gradient(180deg, #0f1113 0%, #15181c 100%)");
+        root.style.setProperty("--color-scheme", "dark");
+        root.style.setProperty("--surface", "#141414");
+        root.style.setProperty("--surface2", "#1a1a1a");
+        root.style.setProperty("--surface3", "#202020");
+        root.style.setProperty("--border", "#2e2e2e");
+        root.style.setProperty("--border2", "#3a3a3a");
+        root.style.setProperty("--panel-border", "rgba(255,255,255,.12)");
+        root.style.setProperty("--orange", "#ff8d2a");
+        root.style.setProperty("--orange-dk", "#ff7a14");
+        root.style.setProperty("--orange-lt", "#ffb347");
+        root.style.setProperty("--text", "#f0f0f0");
+        root.style.setProperty("--text-dim", "#9a9a9a");
+        root.style.setProperty("--text-xs", "#666666");
+        root.style.setProperty("--title-text", "#ffffff");
+        root.style.setProperty("--on-accent", "#ffffff");
+        root.style.setProperty("--btn-hover-bg", "linear-gradient(180deg, rgba(255,179,71,.12), rgba(255,141,42,.08))");
+        root.style.setProperty("--tab-hover-bg", "linear-gradient(180deg, rgba(255,179,71,.1), rgba(255,141,42,.08))");
+        root.style.setProperty("--tab-hover-border", "rgba(255,179,71,.5)");
+        root.style.setProperty("--tab-active-bg", "linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12))");
+        root.style.setProperty("--tab-active-border", "rgba(255,179,71,.5)");
+        root.style.setProperty("--tab-active-text", "#ffffff");
+        root.style.setProperty("--subtab-active-bg", "linear-gradient(180deg, rgba(255,179,71,.16), rgba(255,141,42,.12))");
+        root.style.setProperty("--subtab-active-border", "rgba(255,179,71,.5)");
+        root.style.setProperty("--subtab-active-text", "#ffffff");
+        root.style.setProperty("--preview-bg", "var(--surface2)");
+        root.style.setProperty("--preview-hint-text", "var(--text-dim)");
+        root.style.setProperty("--glass-edge", "rgba(255,255,255,.28)");
+        root.style.setProperty("--glass-edge-soft", "rgba(255,255,255,.08)");
+        root.style.setProperty("--glass-warm", "rgba(255,171,92,.2)");
+        root.style.setProperty("--row-hover", "#1f1f1f");
+        root.style.setProperty("--row-active", "#2a1b0d");
+        root.style.setProperty("--row-active-text", "#f0f0f0");
+        root.style.setProperty("--glow", "0 18px 42px rgba(0,0,0,.35)");
+        root.style.setProperty("--glow-hot", "0 0 0 1px rgba(255,179,71,.24), 0 14px 34px rgba(0,0,0,.28)");
+      }
+    }
+    function render() {
+      destroyFtbWorkbenchSortable();
+      destroyMenuWorkbenchSortable();
+      const d = state.data; const panel = document.getElementById("panel");
+      applyWebTheme(d.themeMode || "dark");
+      const defaultTabOpts = [
+        { value:"general", label:"通用设置" },
+        { value:"appearance", label:"外观设置" },
+        { value:"prompts", label:"提示词设置" },
+        { value:"hotkeys", label:"快捷键设置" },
+        { value:"advanced", label:"高级设置" },
+        { value:"search", label:"搜索设置" }
+      ];
+      const monitorCount = Math.max(1, Number(d.monitorCount || 1));
+      const screenOpts = Array.from({ length: monitorCount }, (_, i) => ({ value: String(i + 1), label: `显示器${i + 1}` }));
+      const qaRows = d.quickActions.map((q, i) => `<div class="qa-row"><div class="label">#${i+1}</div><select id="qaType${i+1}">${options(ACTION_TYPES,q.type)}</select><input id="qaHotkey${i+1}" type="text" value="${esc(q.hotkey)}"></div>`).join("");
+      const hotkeyRows = HOTKEY_KEYS.map(k => `<div class="row"><div class="label">快捷键 ${k}</div><input id="hk_${k}" type="text" value="${esc(d.hotkeys[k] || "")}"></div>`).join("");
+      const catRows = ALL_CATEGORIES.map(c => `<label class="tag"><input id="cat_${c}" type="checkbox" ${checked((d.voiceSearchEnabledCategories||[]).includes(c))}> ${esc(c)}</label>`).join("");
+      if (state.activeTab === "general") {
+        panel.innerHTML = `<div class="card"><div class="title">通用设置</div><div class="row"><div class="label">Cursor 路径</div><div class="inline"><input id="cursorPath" type="text" value="${esc(d.cursorPath)}"><button class="btn" id="browsePath">浏览</button></div></div><div class="row"><div class="label">CapsLock 长按时间 (0.1 - 5.0)</div><input id="holdTime" type="number" min="0.1" max="5.0" step="0.1" value="${esc(d.capslockHoldTimeSeconds)}"></div><div class="row"><div class="label">开机自启动</div><div><input id="autoStart" type="checkbox" ${checked(d.autoStart)}></div></div><div class="row"><div class="label">默认启动页</div><select id="defaultStartTab">${optionsKV(defaultTabOpts,d.defaultStartTab)}</select></div><div class="row"><div class="label">安装中文 Cursor</div><div><button class="btn" id="btnInstallChinese">安装 Cursor 中文版</button></div></div></div>`;
+        document.getElementById("browsePath").addEventListener("click", () => post({ type: "browseCursorPath" }));
+        document.getElementById("btnInstallChinese").addEventListener("click", () => post({ type: "invokeAction", op: "installCursorChinese" }));
+      } else if (state.activeTab === "appearance") {
+        const activationMode = normalizeActivationMode(state.appearanceActivationMode);
+        panel.innerHTML = `<div class="card"><div class="title">外观设置</div><div class="row"><div class="label">主题模式</div><select id="themeMode">${optionsKV([{value:"dark",label:"深色"},{value:"light",label:"浅色"}],d.themeMode)}</select></div><div class="row"><div class="label">弹窗位置</div><select id="popupScreenIndex">${optionsKV(screenOpts, String(d.popupScreenIndex || 1))}</select></div><div class="hint">已自动识别显示器数量：${esc(monitorCount)}。此设置会应用到所有弹窗并固定保存。</div></div>
+<div class="card">
+  <div class="title">激活方式</div>
+  <div class="hint">选择悬浮栏、悬浮球或仅托盘；修改后将写入配置并立即生效。</div>
+  <div class="activation-mode-group">${activationModeOptionsHtml(activationMode)}</div>
+  <div class="activation-mode-preview">
+    <div class="mode-preview-title">模式预览</div>
+    <div id="activationModePreview">${activationModePreviewHtml(activationMode)}</div>
+  </div>
+</div>`;
+        bindAppearanceActivationMode();
+      } else if (state.activeTab === "prompts") {
+        const fixedCategories = ["基础","专业","改错","优化","解释","重构"];
+        const tplAll = d.promptTemplateSummary || [];
+        const dynamicCats = Array.from(new Set(tplAll.map(t => (t.category || "").trim()).filter(Boolean)));
+        const allCats = [...new Set([...fixedCategories, ...dynamicCats, ...(state.customPromptCategories || [])])];
+        if (!allCats.includes(state.promptsCategoryTab))
+          state.promptsCategoryTab = "基础";
+        const keyword = (state.promptsSearchKeyword || "").trim().toLowerCase();
+        const filteredByCategory = tplAll.filter(t => {
+          const cat = (t.category || "基础").trim();
+          const byCat = cat === state.promptsCategoryTab;
+          if (!byCat) return false;
+          return true;
+        });
+        const filteredByKeyword = tplAll.filter(t => {
+          if (!keyword) return true;
+          return [t.id, t.title, t.content, t.category].some(v => String(v || "").toLowerCase().includes(keyword));
+        });
+        const filteredRaw = keyword ? filteredByKeyword : filteredByCategory;
+        const dedupeMap = new Map();
+        for (const t of filteredRaw) {
+          const key = String(t?.id || "").trim() || `${String(t?.title || "").trim()}::${String(t?.category || "").trim()}`;
+          if (!dedupeMap.has(key))
+            dedupeMap.set(key, t);
+        }
+        const filtered = Array.from(dedupeMap.values());
+        if (state.selectedPromptTemplateId && !filtered.some(t => t.id === state.selectedPromptTemplateId))
+          state.selectedPromptTemplateId = "";
+        const selected = state.creatingPromptTemplate
+          ? null
+          : (filtered.find(t => t.id === state.selectedPromptTemplateId) || filtered[0] || null);
+        const catTabs = allCats.map(c => `<button class="subtab-btn ${state.promptsCategoryTab === c ? "active" : ""}" data-prompt-cat="${esc(c)}">${esc(c)}</button>`).join("");
+        const listRows = filtered.map(t => `<div class="list-row ${selected?.id === t.id ? "active" : ""}" data-prompt-id="${esc(t.id)}"><div>${esc(t.title || t.id)}</div><div>${esc((t.content || "").replace(/\s+/g, " ").slice(0, 96))}</div></div>`).join("");
+        panel.innerHTML = `<div class="card"><div class="subtabs"><button class="subtab-btn ${state.promptsMainTab === "templateManager" ? "active" : ""}" data-prompt-main="templateManager">模板管理</button><button class="subtab-btn ${state.promptsMainTab === "cursorRules" ? "active" : ""}" data-prompt-main="cursorRules">cursor规则</button></div>${state.promptsMainTab === "templateManager" ? `<div class="search-row"><div class="inline"><input id="promptSearchKeyword" data-nosave="1" type="text" placeholder="搜索模板关键词（自动匹配全部模板）" value="${esc(state.promptsSearchKeyword)}"><button class="btn" id="btnPromptSearchClear">清空</button></div></div><div class="subtabs">${catTabs}</div><div class="prompt-grid"><div class="list-panel"><div class="list-head"><div>名称</div><div>内容</div></div><div class="list-body">${listRows || `<div class="list-row"><div>-</div><div>未匹配到模板</div></div>`}</div></div><div><div class="compact-row"><div class="label">模板标题</div><input id="promptTplTitle" type="text" value="${esc(selected?.title || "")}"></div><div class="compact-row"><div class="label">模板分类</div><div class="inline"><select id="promptTplCategory">${options(allCats, (selected?.category || state.promptsCategoryTab))}</select><button class="btn" id="btnAddCategory">新建分类</button><button class="btn" id="btnDeleteCategory">删除分类</button></div></div><div class="label">模板内容</div><div class="editor-toolbar"><button class="btn" data-editor-action="bold">加粗</button><button class="btn" data-editor-action="code">代码</button><button class="btn" data-editor-action="quote">引用</button><button class="btn" data-editor-action="ul">列表</button><button class="btn" data-editor-action="undo">撤销</button><button class="btn" data-editor-action="redo">重做</button><button class="btn" data-editor-action="clear">清空</button></div><textarea id="promptTplContent" style="min-height:260px;">${esc(selected?.content || "")}</textarea><div class="inline" style="margin-top:8px;"><button class="btn" id="btnTplNew">新建模板</button><button class="btn" id="btnTplSave">保存模板</button><button class="btn" id="btnTplDelete">删除模板</button></div><div class="inline" style="margin-top:8px;"><button class="btn" id="btnImportTpl">导入模板</button><button class="btn" id="btnExportTpl">导出模板</button><button class="btn" id="btnReloadTpl">重载模板</button><button class="btn" id="btnOpenLegacyPrompts">原版模板管理</button></div></div></div>` : (() => { const ruleTabs = [{k:"general",n:"通用规则"},{k:"web",n:"网页开发"},{k:"miniprogram",n:"小程序"},{k:"android",n:"安卓App"},{k:"ios",n:"iOS App"},{k:"python",n:"Python"}]; const tabHtml = ruleTabs.map(t => `<button class="subtab-btn ${state.cursorRulesTab===t.k?"active":""}" data-rule-tab="${t.k}">${t.n}</button>`).join(""); const content = d.cursorRules?.[state.cursorRulesTab] || ""; return `<div class="title">Cursor规则配置</div><div class="hint">根据开发类型配置规则，让 AI 更精准理解项目上下文，减少无效对话与返工。</div><div class="title" style="margin-top:10px;">📋 复制位置</div><div class="hint">在 Cursor 中按 Ctrl+Shift+P 打开命令面板，输入 <code>rules</code> 或 <code>cursor rules</code>，选择 Open Cursor Rules，粘贴到 <code>.cursorrules</code> 文件。</div><div class="title" style="margin-top:10px;">💡 使用方法</div><div class="hint">1. 选择下方开发类型标签 2. 编辑或粘贴规则 3. 点击复制规则 4. 粘贴保存到 Cursor 规则文件 5. 重启 Cursor 生效。</div><div class="subtabs" style="margin-top:10px;">${tabHtml}</div><div class="label">规则内容</div><textarea id="cursorRuleContent" style="min-height:320px;">${esc(content)}</textarea><div class="inline" style="margin-top:8px;"><button class="btn" id="btnCursorRulesCopy">复制规则</button><button class="btn" id="btnOpenLegacyPrompts">打开原版规则设置</button></div>`; })()}</div>`;
+        document.querySelectorAll("[data-prompt-main]").forEach(el => el.addEventListener("click", () => { state.promptsMainTab = el.getAttribute("data-prompt-main"); render(); }));
+        if (state.promptsMainTab === "templateManager") {
+          const searchEl = document.getElementById("promptSearchKeyword");
+          const renderWithSearchFocus = (val, cursorPos) => {
+            state.promptsSearchKeyword = val || "";
+            render();
+            const next = document.getElementById("promptSearchKeyword");
+            if (next) {
+              next.focus();
+              const p = Math.max(0, Math.min(Number(cursorPos ?? next.value.length), next.value.length));
+              try { next.setSelectionRange(p, p); } catch {}
+            }
+          };
+          searchEl.addEventListener("compositionstart", () => { state.promptsSearchComposing = true; });
+          searchEl.addEventListener("compositionend", (e) => {
+            state.promptsSearchComposing = false;
+            renderWithSearchFocus(e.target.value || "", e.target.selectionStart ?? (e.target.value || "").length);
+          });
+          searchEl.addEventListener("input", (e) => {
+            if (state.promptsSearchComposing) return;
+            renderWithSearchFocus(e.target.value || "", e.target.selectionStart ?? (e.target.value || "").length);
+          });
+          searchEl.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+              renderWithSearchFocus(e.target.value || "", e.target.selectionStart ?? (e.target.value || "").length);
+            }
+          });
+          document.getElementById("btnPromptSearchClear").addEventListener("click", () => {
+            renderWithSearchFocus("", 0);
+          });
+          document.querySelectorAll("[data-prompt-cat]").forEach(el => el.addEventListener("click", () => { state.promptsCategoryTab = el.getAttribute("data-prompt-cat"); render(); }));
+          document.querySelectorAll("[data-prompt-id]").forEach(el => el.addEventListener("click", () => { state.selectedPromptTemplateId = el.getAttribute("data-prompt-id"); state.creatingPromptTemplate = false; render(); }));
+          const contentEl = document.getElementById("promptTplContent");
+          document.querySelectorAll("[data-editor-action]").forEach(btn => btn.addEventListener("click", () => {
+            const action = btn.getAttribute("data-editor-action");
+            const insertWrap = (left, right = "") => {
+              const start = contentEl.selectionStart || 0;
+              const end = contentEl.selectionEnd || 0;
+              const cur = contentEl.value || "";
+              const selectedText = cur.slice(start, end);
+              contentEl.value = cur.slice(0, start) + left + selectedText + right + cur.slice(end);
+              contentEl.focus();
+              const pos = start + left.length + selectedText.length + right.length;
+              contentEl.setSelectionRange(pos, pos);
+            };
+            if (action === "bold") insertWrap("**", "**");
+            else if (action === "code") insertWrap("```text\n", "\n```");
+            else if (action === "quote") insertWrap("> ");
+            else if (action === "ul") insertWrap("- ");
+            else if (action === "undo") document.execCommand("undo");
+            else if (action === "redo") document.execCommand("redo");
+            else if (action === "clear") contentEl.value = "";
+          }));
+          document.getElementById("btnAddCategory").addEventListener("click", () => {
+            const v = prompt("请输入新分类名称");
+            if (!v) return;
+            const val = v.trim();
+            if (!val) return;
+            if (!(state.customPromptCategories || []).includes(val))
+              state.customPromptCategories = [...(state.customPromptCategories || []), val];
+            saveCustomCategories();
+            state.promptsCategoryTab = val;
+            render();
+          });
+          document.getElementById("btnDeleteCategory").addEventListener("click", () => {
+            const category = state.promptsCategoryTab;
+            if (!category || fixedCategories.includes(category)) return setStatus("基础分类不可删除", "err");
+            const inCat = tplAll.filter(t => (t.category || "").trim() === category);
+            if (!inCat.length) {
+              state.customPromptCategories = (state.customPromptCategories || []).filter(c => c !== category);
+              saveCustomCategories();
+              state.promptsCategoryTab = "基础";
+              return render();
+            }
+            for (const item of inCat) {
+              post({ type: "invokeAction", op: "promptTemplateUpsert", payload: { id: item.id, title: item.title || item.id, category: "基础", content: item.content || "" } });
+            }
+            state.customPromptCategories = (state.customPromptCategories || []).filter(c => c !== category);
+            saveCustomCategories();
+            state.promptsCategoryTab = "基础";
+            setStatus("分类已清空并迁移到“基础”", "ok");
+            render();
+          });
+          document.getElementById("btnTplNew").addEventListener("click", () => {
+            state.selectedPromptTemplateId = "";
+            state.creatingPromptTemplate = true;
+            render();
+          });
+          document.getElementById("btnTplSave").addEventListener("click", () => {
+            post({ type: "invokeAction", op: "promptTemplateUpsert", payload: { id: state.selectedPromptTemplateId || "", title: document.getElementById("promptTplTitle").value.trim(), category: document.getElementById("promptTplCategory").value.trim(), content: document.getElementById("promptTplContent").value } });
+            state.creatingPromptTemplate = false;
+          });
+          document.getElementById("btnTplDelete").addEventListener("click", () => {
+            if (!state.selectedPromptTemplateId) return setStatus("请先选择模板", "err");
+            post({ type: "invokeAction", op: "promptTemplateDelete", payload: { id: state.selectedPromptTemplateId } });
+          });
+          document.getElementById("btnImportTpl").addEventListener("click", () => post({ type: "invokeAction", op: "importPromptTemplates" }));
+          document.getElementById("btnExportTpl").addEventListener("click", () => post({ type: "invokeAction", op: "exportPromptTemplates" }));
+          document.getElementById("btnReloadTpl").addEventListener("click", () => post({ type: "invokeAction", op: "reloadPromptTemplates" }));
+          document.getElementById("btnOpenLegacyPrompts").addEventListener("click", () => post({ type: "invokeAction", op: "openLegacyTab", tab: "prompts" }));
+        } else if (state.promptsMainTab === "cursorRules") {
+          document.querySelectorAll("[data-rule-tab]").forEach(el => el.addEventListener("click", () => {
+            state.data = readFromUI();
+            state.cursorRulesTab = el.getAttribute("data-rule-tab");
+            render();
+          }));
+          document.getElementById("btnCursorRulesCopy").addEventListener("click", async () => {
+            const text = document.getElementById("cursorRuleContent")?.value || "";
+            try {
+              await navigator.clipboard.writeText(text);
+              setStatus("规则已复制", "ok");
+            } catch {
+              setStatus("复制失败", "err");
+            }
+          });
+          document.getElementById("btnOpenLegacyPrompts").addEventListener("click", () => post({ type: "invokeAction", op: "openLegacyTab", tab: "prompts" }));
+        }
+      } else if (state.activeTab === "hotkeys") {
+        panel.innerHTML = `<div class="card"><div class="title">快捷键设置</div><div class="row"><div class="label">长按 CapsLock 打开 VK 快捷键面板</div><div><input id="capsLockHoldVkEnabled" type="checkbox" ${checked(d.capsLockHoldVkEnabled !== false && d.capsLockHoldVkEnabled !== 0)}></div></div><div class="hint" style="margin:-4px 0 10px 0;">开启后，按住 CapsLock 达到「通用设置」中的长按时间即弹出 KeyBinder，松开 CapsLock 后关闭；关闭本项后仍可从托盘菜单打开虚拟键盘。</div>${hotkeyRows}<div class="row"><div class="label">Prompt 快速采集热键</div><input id="promptQuickCaptureHotkey" type="text" value="${esc(d.promptQuickCaptureHotkey)}"></div></div><div class="card"><div class="title">快速操作按钮 (5)</div>${qaRows}<div class="inline"><button class="btn" id="btnOpenLegacyHotkeys">打开原版快捷键设置</button></div></div>`;
+        document.getElementById("btnOpenLegacyHotkeys").addEventListener("click", () => post({ type: "invokeAction", op: "openLegacyTab", tab: "hotkeys" }));
+      } else if (state.activeTab === "advanced") {
+        const aiSec = (Number(d.aiSleepTime || 200) / 1000).toFixed(2).replace(/\.?0+$/, "");
+        panel.innerHTML = `<div class="advanced-split">
+  <div class="card"><div class="title">高级设置</div>
+    <div class="row"><div class="label">界面语言</div><select id="language">${optionsKV([{value:"zh",label:"中文"},{value:"en",label:"英文"}],d.language)}</select></div>
+    <div class="row"><div class="label">AI 等待时间 (秒)</div><input id="aiSleepTimeSeconds" type="number" min="0.05" max="10" step="0.05" value="${esc(aiSec)}"></div>
+    <div class="row"><div class="label">启动延迟 (秒)</div><input id="launchDelaySeconds" type="number" min="0.5" max="10" step="0.1" value="${esc(d.launchDelaySeconds)}"></div>
+  </div>
+  <div class="card"><div class="title">配置管理</div><div class="inline"><button class="btn" id="btnExportCfg">导出配置</button><button class="btn" id="btnImportCfg">导入配置</button><button class="btn" id="btnResetCfg">重置默认</button></div></div>
+</div>`;
+        document.getElementById("btnExportCfg").addEventListener("click", () => post({ type: "invokeAction", op: "exportConfig" }));
+        document.getElementById("btnImportCfg").addEventListener("click", () => post({ type: "invokeAction", op: "importConfig" }));
+        document.getElementById("btnResetCfg").addEventListener("click", () => post({ type: "invokeAction", op: "resetToDefaults" }));
+      } else {
+        const selectedDefault = csvToArr(d.searchEngine || "deepseek");
+        const selectedAiCli = csvToArr(d.voiceSearchSelectedEnginesCsv || "codex");
+        const defaultSummary = selectedDefault.length ? selectedDefault.join(", ") : "请选择搜索引擎";
+        const aiCliSummary = selectedAiCli.length ? selectedAiCli.join(", ") : "请选择 AI/CLI 搜索引擎";
+        const defaultOptions = DEFAULT_AI_ENGINES.map(e => `<label class="multi-dd-item"><input type="checkbox" data-engine-target="default" value="${esc(e.id)}" ${checked(selectedDefault.includes(e.id))}> <img src="${esc(e.icon)}" alt="${esc(e.label)}"><span>${esc(e.label)}</span></label>`).join("");
+        const aiCliOptions = CLI_ENGINES.map(e => `<label class="multi-dd-item"><input type="checkbox" data-engine-target="ai-cli" value="${esc(e.id)}" ${checked(selectedAiCli.includes(e.id))}> <img src="${esc(e.icon)}" alt="${esc(e.label)}"><span>${esc(e.label)}</span></label>`).join("");
+        const ft = normalizeFullTextPayload(state.fullText);
+        state.fullText = ft;
+        const ftCfg = ft.config || {};
+        const lightHtml = (ft.engine_lights || ["off","off","off","off"]).map((st, idx) => `<span class="ft-light ${esc(st)}" data-ft-light="${idx}"></span>`).join("");
+        const progressNum = Math.max(0, Math.min(100, Number(ft.progress || 0)));
+        panel.innerHTML = `<div class="card"><div class="title">搜索设置</div><div class="row"><div class="label">默认搜索引擎（多选）</div><div class="multi-dd" id="ddDefaultEngine"><button type="button" class="multi-dd-btn" id="btnDefaultEngine">${esc(defaultSummary)}</button><div class="multi-dd-panel">${defaultOptions}</div></div></div><div class="row"><div class="label">AI/CLI 搜索引擎（多选）</div><div class="multi-dd" id="ddAiCliEngine"><button type="button" class="multi-dd-btn" id="btnAiCliEngine">${esc(aiCliSummary)}</button><div class="multi-dd-panel">${aiCliOptions}</div></div></div><div class="row"><div class="label">自动加载选中文本</div><div><input id="autoLoadSelectedText" type="checkbox" ${checked(d.autoLoadSelectedText)}></div></div><div class="row"><div class="label">自动更新语音输入</div><div><input id="autoUpdateVoiceInput" type="checkbox" ${checked(d.autoUpdateVoiceInput)}></div></div><div class="label">启用分类</div><div class="tag-wrap">${catRows}</div><div class="inline" style="margin-top:8px;"><button class="btn" id="btnOpenLegacySearch">打开原版搜索设置</button></div></div>
+<div class="card">
+  <div class="title">全文索引控制台</div>
+  <div class="ft-console">
+    <div class="ft-title">引擎状态</div>
+    <div class="ft-light-row">${lightHtml}<span id="ftSummary" class="ft-kv">${ft.running ? "运行中" : "已停止"} · ${ft.ready ? "已就绪" : "构建中"} · ${esc(ft.progressText || "0.0%")}</span><span id="ftVersion" class="ft-kv">索引版本 ${esc(ft.indexVersion || "-")}</span></div>
+    <div class="ft-progress"><div id="ftProgressBar" class="ft-progress-bar" style="width:${progressNum.toFixed(1)}%"></div></div>
+    <div id="ftCurrentFile" class="ft-file" title="${esc(buildFullTextTaskText(ft))}">${esc(buildFullTextTaskText(ft))}</div>
+    <div class="inline" style="margin-top:10px;">
+      <button class="btn" id="btnFtToggle">启动索引</button>
+      <button class="btn" id="btnFtRebuild">强制重建索引</button>
+      <button class="btn" id="btnFtRefresh">刷新状态</button>
+      <button class="btn" id="btnFtProbe">检测可行性</button>
+      <button class="btn" id="btnFtRecommend">应用推荐方式</button>
+    </div>
+    <div class="ft-mode-grid">
+      <select id="ftScanScheme" data-nosave="1" title="扫描方式">
+        <option value="auto"${(ftCfg.scanScheme||"auto")==="auto"?" selected":""}>自动选择（推荐）</option>
+        <option value="mft"${ftCfg.scanScheme==="mft"?" selected":""}>高速扫描（推荐）</option>
+        <option value="everything"${ftCfg.scanScheme==="everything"?" selected":""}>快速扫描（需 Everything）</option>
+        <option value="walk"${ftCfg.scanScheme==="walk"?" selected":""}>兼容扫描（最稳定）</option>
+      </select>
+      <label class="inline"><input id="ftUseUSN" data-nosave="1" type="checkbox" ${checked(ftCfg.useUSN !== false)}> 实时更新</label>
+      <span id="ftProbeSummary" class="ft-probe-summary"></span>
+    </div>
+    <div id="ftProbeList" class="ft-probe-list"></div>
+    <div class="row" style="margin-top:10px;">
+      <div class="label">索引存储目录</div>
+      <div class="inline"><input id="ftIndexDir" data-nosave="1" type="text" value="${esc(ftCfg.indexDir || "")}" placeholder="例如：D:\\SearchCenterIndex"><button class="btn" id="btnFtPickDir" type="button">选择目录</button></div>
+    </div>
+    <div class="row"><div class="label">后台自启动索引</div><div><input id="ftAutoStart" data-nosave="1" type="checkbox" ${checked(ftCfg.autoStart !== false)}></div></div>
+    <div class="row"><div class="label">多线程并发（Worker Pool）</div><div><input id="ftWorkers" data-nosave="1" type="number" min="1" max="32" step="1" value="${esc(ftCfg.workers || 2)}"></div></div>
+    <div class="row"><div class="label">扫描速度策略</div><div><select id="ftScanSpeed" data-nosave="1"><option value="slow"${ftCfg.scanSpeed==="slow"?" selected":""}>slow</option><option value="normal"${ftCfg.scanSpeed==="normal"?" selected":""}>normal</option><option value="fast"${ftCfg.scanSpeed==="fast"?" selected":""}>fast</option></select></div></div>
+    <div class="row"><div class="label">初次扫描延迟（秒）</div><div><input id="ftInitialDelay" data-nosave="1" type="number" min="1" max="120" step="1" value="${esc(ftCfg.initialDelaySec || 1)}"></div></div>
+    <div class="row"><div class="label">单文件间隔（ms）</div><div><input id="ftPauseMS" data-nosave="1" type="number" min="0" max="100" step="1" value="${esc(ftCfg.pauseMS ?? 5)}"></div></div>
+    <div class="row"><div class="label">超大文本扫描</div><div class="inline"><input id="ftIncludeLarge" data-nosave="1" type="checkbox" ${checked(ftCfg.includeLargeText)}><span class="ft-kv">允许扫描超过 2MB 文本</span></div></div>
+    <div class="row"><div class="label">超大文本大小上限（MB）</div><div><input id="ftMaxFileMB" data-nosave="1" type="number" min="1" max="512" step="1" value="${esc(ftCfg.maxFileSizeMB || 8)}"></div></div>
+    <div id="ftHint" class="hint">${ft.lastError ? esc(ft.lastError) : "设置会自动保存并自动应用到索引引擎。"}</div>
+  </div>
+</div>`;
+        const bindDropdown = (wrapId, btnId, target) => {
+          const wrap = document.getElementById(wrapId);
+          const btn = document.getElementById(btnId);
+          btn.addEventListener("click", () => wrap.classList.toggle("open"));
+          wrap.querySelectorAll(`input[data-engine-target="${target}"]`).forEach(chk => chk.addEventListener("change", () => {
+            const vals = Array.from(wrap.querySelectorAll(`input[data-engine-target="${target}"]:checked`)).map(el => el.value);
+            btn.textContent = vals.length ? vals.join(", ") : (target === "default" ? "请选择搜索引擎" : "请选择 AI/CLI 搜索引擎");
+          }));
+          document.addEventListener("click", (e) => { if (!wrap.contains(e.target)) wrap.classList.remove("open"); });
+        };
+        bindDropdown("ddDefaultEngine", "btnDefaultEngine", "default");
+        bindDropdown("ddAiCliEngine", "btnAiCliEngine", "ai-cli");
+        document.getElementById("btnOpenLegacySearch").addEventListener("click", () => post({ type: "invokeAction", op: "openLegacyTab", tab: "search" }));
+        bindFullTextConsoleControls();
+        refreshFullTextConsoleDom();
+      }
+      bindAutoSaveControls();
+    }
+    function validate(d) {
+      if (!d.cursorPath) return "Cursor 路径不能为空";
+      if (!(d.capslockHoldTimeSeconds >= 0.1 && d.capslockHoldTimeSeconds <= 5.0)) return "CapsLock Hold Time 需要在 0.1 到 5.0 之间";
+      if (!Number.isInteger(d.popupScreenIndex) || d.popupScreenIndex < 1) return "弹窗屏幕序号非法";
+      const maxMonitors = Math.max(1, Number(d.monitorCount || 1));
+      if (d.popupScreenIndex > maxMonitors) return "弹窗屏幕序号超出显示器范围";
+      if (!Number.isInteger(d.aiSleepTime) || d.aiSleepTime < 50) return "AI 等待时间非法";
+      if (!(d.launchDelaySeconds >= 0.5 && d.launchDelaySeconds <= 10)) return "启动延迟时间非法";
+      if (!d.hotkeys || typeof d.hotkeys !== "object") return "快捷键数据无效";
+      if (!Array.isArray(d.quickActions) || d.quickActions.length !== 5) return "快速操作必须为 5 项";
+      return "";
+    }
+    document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => {
+      state.data = readFromUI();
+      state.activeTab = btn.dataset.tab;
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      render();
+      if (state.activeTab === "search")
+        requestFullTextStatus(true);
+    }));
+    const panelRoot = document.getElementById("panel");
+    panelRoot.addEventListener("input", (e) => {
+      const t = e.target;
+      if (!t || !(t.matches?.("input,textarea,select"))) return;
+      if (t.dataset?.nosave === "1") return;
+      scheduleAutoSave();
+    });
+    panelRoot.addEventListener("change", (e) => {
+      const t = e.target;
+      if (t && t.name === "activationMode") {
+        state.appearanceActivationMode = normalizeActivationMode(t.value);
+        state.data.appearanceActivationMode = state.appearanceActivationMode;
+        saveAppearanceActivationMode();
+      }
+      if (!t || !(t.matches?.("input,textarea,select"))) return;
+      if (t.id === "themeMode") {
+        state.data.themeMode = t.value;
+        applyWebTheme(t.value);
+        try { localStorage.setItem("settings_themeMode", t.value); } catch (_) {}
+      }
+      if (t.dataset?.nosave === "1") return;
+      scheduleAutoSave(50);
+    });
+    document.getElementById("btn-open-legacy").addEventListener("click", () => post({ type: "invokeAction", op: "openLegacySettings" }));
+    document.getElementById("btn-open-compare").addEventListener("click", () => post({ type: "invokeAction", op: "openCompareSettings" }));
+    document.getElementById("btn-cancel").addEventListener("click", () => post({ type: "cancel" }));
+    document.getElementById("btn-save").addEventListener("click", () => { const d = readFromUI(); const err = validate(d); if (err) return setStatus(err, "err"); post({ type: "saveSettings", payload: d }); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      post({ type: "cancel" });
+    });
+    function handleHostMessage(msg) {
+      if (!msg || !msg.type) return;
+      if (msg.type === "initData") {
+        suppressAutoSave = true;
+        const p = msg.payload || {};
+        let cachedTheme = "";
+        try {
+          const c = localStorage.getItem("settings_themeMode");
+          if (c === "light" || c === "dark") cachedTheme = c;
+        } catch (_) {}
+        const incomingTheme = (typeof p.themeMode === "string" && p.themeMode) ? p.themeMode : "";
+        state.data = { ...state.data, ...p, hotkeys: { ...state.data.hotkeys, ...(p.hotkeys || {}) }, quickActions: (p.quickActions?.length ? p.quickActions : state.data.quickActions) };
+        state.data.themeMode = incomingTheme || cachedTheme || state.data.themeMode || "dark";
+        // 持久化到 localStorage，下次打开时立即应用，无需等 AHK 推送
+        try { localStorage.setItem("settings_themeMode", state.data.themeMode); } catch (_) {}
+        state.appearanceActivationMode = normalizeActivationMode(p.appearanceActivationMode || state.appearanceActivationMode);
+        state.data.appearanceActivationMode = state.appearanceActivationMode;
+        saveAppearanceActivationMode();
+        if (Array.isArray(p.keybinderToolbarLayout)) state.data.keybinderToolbarLayout = normalizeToolbarLayoutRows(p.keybinderToolbarLayout);
+        if (Array.isArray(p.keybinderCommands)) state.data.keybinderCommands = p.keybinderCommands;
+        if (Array.isArray(p.keybinderContextMenuLayout)) state.data.keybinderContextMenuLayout = p.keybinderContextMenuLayout;
+        const startTab = (msg.payload || {}).defaultStartTab;
+        const validStartTabs = new Set(["general","appearance","prompts","hotkeys","advanced","search"]);
+        if (startTab && validStartTabs.has(startTab)) {
+          state.activeTab = startTab;
+          document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === startTab));
+        }
+        const ids = (state.data.promptTemplateSummary || []).map(t => t.id);
+        if (state.selectedPromptTemplateId && !ids.includes(state.selectedPromptTemplateId))
+          state.selectedPromptTemplateId = "";
+        render();
+        setStatus("已连接", "ok");
+        if (state.activeTab === "search")
+          requestFullTextStatus(true);
+        initDataReceived = true;
+        setTimeout(() => { suppressAutoSave = false; }, 0);
+        return;
+      }
+      if (msg.type === "browseCursorPathResult" && msg.path) { state.data.cursorPath = msg.path; render(); return; }
+      if (msg.type === "fulltextStatus") {
+        state.fullText = normalizeFullTextPayload(msg.payload || {});
+        refreshFullTextConsoleDom();
+        return;
+      }
+      if (msg.type === "fulltextConfigResult") {
+        setStatus(msg.ok ? "全文索引配置已应用" : (msg.error || "全文索引配置失败"), msg.ok ? "ok" : "err");
+        requestFullTextStatus(true);
+        return;
+      }
+      if (msg.type === "fulltextActionResult") {
+        if (msg.ok && (msg.action === "rebuild" || msg.action === "fullsync")) {
+          setStatus("强制重建已启动，单字检索将在新索引中生效", "ok");
+        } else {
+          setStatus(msg.ok ? "全文索引操作成功" : (msg.error || "全文索引操作失败"), msg.ok ? "ok" : "err");
+        }
+        requestFullTextStatus(true);
+        return;
+      }
+      if (msg.type === "fulltextBrowseResult") {
+        const path = String(msg.path || "").trim();
+        if (!path) return;
+        const el = document.getElementById("ftIndexDir");
+        if (el) {
+          el.value = path;
+          scheduleFullTextApply(10);
+        }
+        return;
+      }
+      if (msg.type === "fulltextProbeResult") {
+        state.fullTextProbe.busy = false;
+        if (msg.ok) {
+          renderFullTextProbe(msg.probe || {});
+          setStatus("可行性检测完成", "ok");
+        } else {
+          setFullTextProbeSummary(msg.error || "可行性检测失败");
+          setStatus(msg.error || "可行性检测失败", "err");
+        }
+        return;
+      }
+      if (msg.type === "saveResult") { setStatus(msg.ok ? "保存成功" : (msg.error || "保存失败"), msg.ok ? "ok" : "err"); return; }
+      if (msg.type === "saveKeybinderToolbarLayoutResult") {
+        setStatus(msg.ok ? "工具栏与右键菜单已写入配置" : (msg.error || "保存失败"), msg.ok ? "ok" : "err");
+        return;
+      }
+      if (msg.type === "actionResult") { setStatus(msg.ok ? "操作成功" : (msg.error || "操作失败"), msg.ok ? "ok" : "err"); }
+    }
+    loadCustomCategories();
+    loadAppearanceActivationMode();
+    setInterval(() => {
+      if (state.activeTab === "search")
+        requestFullTextStatus(false);
+    }, 1500);
+    // 页面加载时立即从 localStorage 读取主题并应用，消除 initData 到达前的深色闪烁
+    (function() {
+      try {
+        const cached = localStorage.getItem("settings_themeMode");
+        if (cached === "light" || cached === "dark") {
+          state.data.themeMode = cached;
+          applyWebTheme(cached);
+        }
+      } catch (_) {}
+    })();
+    if (window.chrome && window.chrome.webview) { window.chrome.webview.addEventListener("message", e => { const data = typeof e.data === "string" ? JSON.parse(e.data) : e.data; handleHostMessage(data); }); render(); post({ type: "ready" }); setStatus("正在连接..."); } else { render(); setStatus("预览模式"); }
+</script>
+</body>
+</html>

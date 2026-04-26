@@ -1,0 +1,11 @@
+[
+{"id":"showCommands","label":"Command Palette","vkCommandId":"qa_command_palette","nativeShortcut":"^+p","sendSequence":{"down":["Ctrl","Shift","P"],"up":["P","Shift","Ctrl"]},"scope":"cursor_only"},
+{"id":"toggleTerminal","label":"Terminal","vkCommandId":"qa_terminal","nativeShortcut":"^+``","sendSequence":{"down":["Ctrl","Shift","Backquote"],"up":["Backquote","Shift","Ctrl"]},"scope":"cursor_only"},
+{"id":"globalSearch","label":"Global Search","vkCommandId":"qa_global_search","nativeShortcut":"^+f","sendSequence":{"down":["Ctrl","Shift","F"],"up":["F","Shift","Ctrl"]},"scope":"cursor_only"},
+{"id":"explorer","label":"Explorer","vkCommandId":"qa_explorer","nativeShortcut":"^+e","sendSequence":{"down":["Ctrl","Shift","E"],"up":["E","Shift","Ctrl"]},"scope":"cursor_only"},
+{"id":"sourceControl","label":"Source Control","vkCommandId":"qa_source_control","nativeShortcut":"^+g","sendSequence":{"down":["Ctrl","Shift","G"],"up":["G","Shift","Ctrl"]},"scope":"cursor_only"},
+{"id":"extensions","label":"Extensions","vkCommandId":"qa_extensions","nativeShortcut":"^+x","sendSequence":{"down":["Ctrl","Shift","X"],"up":["X","Shift","Ctrl"]},"scope":"cursor_only"},
+{"id":"simpleBrowser","label":"Browser","vkCommandId":"qa_browser","nativeShortcut":"^+b","sendSequence":{"down":["Ctrl","Shift","B"],"up":["B","Shift","Ctrl"]},"scope":"cursor_only"},
+{"id":"vscodeSettings","label":"VS Code Settings","vkCommandId":"qa_settings","nativeShortcut":"^+j","sendSequence":{"down":["Ctrl","Shift","J"],"up":["J","Shift","Ctrl"]},"scope":"cursor_only"},
+{"id":"cursorSettings","label":"Cursor Settings","vkCommandId":"qa_cursor_settings","nativeShortcut":"^,","sendSequence":{"down":["Ctrl","Comma"],"up":["Comma","Ctrl"]},"scope":"cursor_only"}
+]

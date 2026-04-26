@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>选区</title>
+<style>
+@font-face {
+  font-family: "AppUi";
+  src: local("Segoe UI");
+  unicode-range:
+    U+0000-024F,
+    U+1E00-1EFF,
+    U+2000-206F,
+    U+20A0-20CF,
+    U+2100-214F;
+}
+@font-face {
+  font-family: "AppUi";
+  src: local("DengXian"), local("Microsoft YaHei UI"), local("Microsoft YaHei");
+  unicode-range:
+    U+2E80-2EFF,
+    U+2F00-2FDF,
+    U+3000-303F,
+    U+3040-30FF,
+    U+3100-312F,
+    U+31A0-31BF,
+    U+3400-4DBF,
+    U+4E00-9FFF,
+    U+F900-FAFF;
+}
+:root {
+  --bg: #0a0a0a;
+  --matrix: #00ff41;
+  --ease: 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  color: var(--matrix);
+  font-family: "AppUi", "Segoe UI", "DengXian", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+  overflow: hidden;
+}
+#app {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  height: 100%;
+}
+#preview {
+  font-size: 11px;
+  color: rgba(0, 255, 65, 0.75);
+  line-height: 1.35;
+  max-height: 36px;
+  overflow: hidden;
+  word-break: break-all;
+  border-bottom: 1px solid rgba(0, 255, 65, 0.2);
+  padding-bottom: 8px;
+  margin-bottom: 2px;
+}
+.btn {
+  border: 1px solid rgba(0, 255, 65, 0.45);
+  background: rgba(0, 255, 65, 0.08);
+  color: var(--matrix);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--ease), border-color var(--ease), transform var(--ease);
+}
+.btn:hover {
+  background: rgba(0, 255, 65, 0.18);
+  border-color: var(--matrix);
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn.secondary {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #aaa;
+  background: rgba(255, 255, 255, 0.04);
+}
+.btn.secondary:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ddd;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="preview"></div>
+  <button class="btn" type="button" id="btnSearch">搜索</button>
+  <button class="btn" type="button" id="btnAi">AI</button>
+  <button class="btn secondary" type="button" id="btnCancel">取消</button>
+</div>
+<script>
+(function () {
+  let fullText = "";
+
+  function postToAhk(obj) {
+    try {
+      if (window.chrome && window.chrome.webview)
+        window.chrome.webview.postMessage(obj);
+    } catch (e) {}
+  }
+
+  function setPreview(t) {
+    fullText = t || "";
+    const el = document.getElementById("preview");
+    const show = fullText.length > 90 ? fullText.slice(0, 90) + "…" : fullText;
+    el.textContent = show || "（无文本）";
+  }
+
+  document.getElementById("btnSearch").onclick = function () {
+    postToAhk({ type: "selection_menu_search", text: fullText });
+  };
+  document.getElementById("btnAi").onclick = function () {
+    postToAhk({ type: "selection_menu_ai", text: fullText });
+  };
+  document.getElementById("btnCancel").onclick = function () {
+    postToAhk({ type: "selection_menu_dismiss" });
+  };
+
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.addEventListener("message", function (ev) {
+      let d = ev.data;
+      if (typeof d === "string") {
+        try {
+          d = JSON.parse(d);
+        } catch (e) {
+          return;
+        }
+      }
+      if (!d) return;
+      if (d.type === "RESET_STATE") {
+        try {
+          if (typeof window.onWebViewResetState === "function") window.onWebViewResetState();
+        } catch (e) {}
+        return;
+      }
+      if (d.type !== "selection_menu_init") return;
+      setPreview(d.text || "");
+    });
+  }
+
+  postToAhk({ type: "selection_menu_ready" });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Screenshot Toolbar</title>
+<style>
+@font-face{font-family:"AppUi";src:local("Segoe UI");unicode-range:U+0000-024F,U+1E00-1EFF,U+2000-206F,U+20A0-20CF,U+2100-214F}
+@font-face{font-family:"AppUi";src:local("DengXian"),local("Microsoft YaHei UI"),local("Microsoft YaHei");unicode-range:U+2E80-2EFF,U+2F00-2FDF,U+3000-303F,U+3040-30FF,U+3100-312F,U+31A0-31BF,U+3400-4DBF,U+4E00-9FFF,U+F900-FAFF}
+:root{
+  --bg:#0a0a0a;
+  --panel:#0f1114;
+  --panel-border:rgba(255,122,26,.34);
+  --accent:#ff7a1a;
+  --accent-soft:rgba(255,122,26,.12);
+  --accent-border:rgba(255,122,26,.42);
+  --danger:#ff8a95;
+  --danger-soft:rgba(255,112,126,.16);
+  --danger-border:rgba(255,112,126,.42);
+  --ease:.22s cubic-bezier(.22,1,.36,1);
+}
+body[data-theme="light"]{
+  --bg:#f7f7f7;
+  --panel:#ffffff;
+  --panel-border:#e5e5e5;
+  --accent:#e67e22;
+  --accent-soft:#fff3e8;
+  --accent-border:#d35400;
+  --danger:#c0392b;
+  --danger-soft:#fdecea;
+  --danger-border:#e6b0aa;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font:13px "AppUi","Segoe UI","DengXian","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif}
+body{opacity:0}
+body.theme-ready{opacity:1}
+#shell{display:inline-flex;align-items:center;justify-content:center;padding:0;margin:0;pointer-events:auto}
+#bar{
+  display:inline-flex;align-items:center;gap:6px;
+  width:max-content;
+  height:44px;
+  padding:0 10px;
+  border-radius:12px;
+  background:linear-gradient(180deg,#14181d,#0d1014);
+  border:1px solid var(--panel-border);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
+  animation:barIn .2s ease-out;
+}
+@keyframes barIn{from{transform:translateY(4px);opacity:.85}to{transform:translateY(0);opacity:1}}
+.tb{
+  width:30px;height:30px;
+  display:inline-flex;align-items:center;justify-content:center;
+  border-radius:8px;
+  border:1px solid transparent;
+  background:var(--panel);
+  color:var(--accent);
+  cursor:pointer;
+  outline:none;
+  transition:transform var(--ease),background var(--ease),border-color var(--ease),box-shadow var(--ease),color var(--ease);
+}
+.tb:hover,.tb:focus-visible{
+  transform:translateY(-1px);
+  background:var(--accent-soft);
+  border-color:var(--accent-border);
+  box-shadow:0 0 0 1px rgba(255,122,26,.18),0 0 12px rgba(255,122,26,.14);
+}
+.tb:active{transform:translateY(0) scale(.97)}
+.tb.active{background:var(--accent-soft);border-color:transparent}
+.tb.danger{color:var(--danger);border-color:transparent}
+.tb.danger:hover,.tb.danger:focus-visible{
+  background:var(--danger-soft);
+  border-color:var(--danger-border);
+  box-shadow:0 0 0 1px rgba(255,138,149,.2),0 0 12px rgba(255,138,149,.12);
+}
+.sep{width:1px;height:18px;background:rgba(255,122,26,.3);margin:0 2px;flex:0 0 auto}
+.lucide{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+body[data-theme="light"] #bar{
+  background:#ffffff;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.02);
+}
+</style>
+</head>
+<body>
+<div id="shell">
+  <div id="bar" aria-label="截图工具栏">
+    <button class="tb" data-cmd="pin" title="置顶  Caps+Q" aria-label="置顶">
+      <svg class="lucide" viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 3h6l1 6 2 2-6 4-6-4 2-2z"/></svg>
+    </button>
+    <button class="tb" data-cmd="ocr" title="识别文本  Caps+E" aria-label="识别文本">
+      <svg class="lucide" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h6M8 16h4"/></svg>
+    </button>
+    <button class="tb" data-cmd="ocr_edit" title="编辑OCR到草稿本" aria-label="编辑OCR到草稿本">
+      <svg class="lucide" viewBox="0 0 24 24"><path d="M3 21h6"/><path d="m14.5 4.5 5 5"/><path d="M7 17l2.5-.5L19 7a1.8 1.8 0 0 0-2.5-2.5L7 14z"/></svg>
+    </button>
+    <button class="tb" data-cmd="text" title="复制文本  Caps+C" aria-label="复制文本">
+      <svg class="lucide" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><rect x="4" y="4" width="11" height="11" rx="2"/></svg>
+    </button>
+    <button class="tb" data-cmd="save" title="保存图片  Caps+R" aria-label="保存图片">
+      <svg class="lucide" viewBox="0 0 24 24"><path d="M5 4h12l2 2v14H5z"/><path d="M8 4v6h8V4"/><path d="M9 16h6"/></svg>
+    </button>
+
+    <div class="sep" data-drag="1"></div>
+
+    <button class="tb" data-cmd="ai" title="发送到AI  Caps+Z" aria-label="发送到AI">
+      <svg class="lucide" viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9 14.8 12l1.3 4.9L12 14l-4.1 2.9L9.2 12 5.5 9l4.7-1.3z"/></svg>
+    </button>
+    <button class="tb" data-cmd="search" title="搜索文本  Caps+F" aria-label="搜索文本">
+      <svg class="lucide" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    </button>
+    <button class="tb" data-cmd="color" title="取色器  Caps+X" aria-label="取色器">
+      <svg class="lucide" viewBox="0 0 24 24"><path d="m14.5 4.5 5 5"/><path d="M7 17 4 20h6l9.5-9.5a1.8 1.8 0 0 0-2.5-2.5z"/></svg>
+    </button>
+
+    <div class="sep" data-drag="1"></div>
+
+    <button class="tb danger" data-cmd="close" title="关闭  Esc" aria-label="关闭">
+      <svg class="lucide" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+(function () {
+  function post(obj) {
+    try {
+      if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(obj);
+    } catch (e) {}
+  }
+
+  var shell = document.getElementById('shell');
+  var bar = document.getElementById('bar');
+
+  function applyTheme(mode) {
+    var tm = String(mode || '').toLowerCase() === 'light' ? 'light' : 'dark';
+    document.body.setAttribute('data-theme', tm);
+    document.body.classList.add('theme-ready');
+  }
+
+  function reportLayout() {
+    try {
+      var r = bar.getBoundingClientRect();
+      post({ action: 'layout', width: Math.ceil(r.width), height: Math.ceil(r.height) });
+    } catch (e) {}
+  }
+
+  bar.addEventListener('click', function (ev) {
+    var t = ev.target;
+    while (t && t !== bar && !t.getAttribute('data-cmd')) t = t.parentNode;
+    if (!t || t === bar) return;
+    post({ action: 'invoke', cmd: t.getAttribute('data-cmd') });
+  });
+
+  bar.addEventListener('mousedown', function (ev) {
+    if (ev.button !== 0) return;
+    var t = ev.target;
+    while (t && t !== bar && !t.getAttribute('data-cmd')) t = t.parentNode;
+    if (!t || t === bar) post({ action: 'dragWindow' });
+  });
+
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.addEventListener('message', function (ev) {
+      var msg = ev.data || {};
+      if (typeof msg === 'string') {
+        try { msg = JSON.parse(msg); } catch (e) { return; }
+      }
+      if (msg && msg.type === 'RESET_STATE') {
+        try {
+          if (typeof window.onWebViewResetState === 'function') window.onWebViewResetState();
+        } catch (e) {}
+        return;
+      }
+      if (msg.type !== 'state') return;
+      applyTheme(msg.themeMode || msg.theme || 'dark');
+      var pinBtn = bar.querySelector('.tb[data-cmd="pin"]');
+      if (pinBtn) pinBtn.classList.toggle('active', !!msg.toolbarVisible);
+    });
+  }
+
+  window.addEventListener('resize', reportLayout);
+  // Keep hidden until host state arrives to avoid dark->light flash.
+  reportLayout();
+  post({ action: 'ready' });
+  requestAnimationFrame(function(){ post({ action: 'paint_ok' }); reportLayout(); });
+  setTimeout(reportLayout, 80);
+  setTimeout(reportLayout, 260);
+})();
+</script>
+</body>
+</html>
