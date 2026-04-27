@@ -112,6 +112,13 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 #docPreview{width:100%;height:100%;min-height:320px;flex:1;background:#0a0f18;border:1px solid #293245;border-radius:12px;overflow:auto;padding:14px;line-height:1.7}
 #docPreview h1,#docPreview h2,#docPreview h3{color:#f5f7ff;margin:12px 0 8px}
 #docPreview p,#docPreview li,#docPreview span,#docPreview td,#docPreview th{color:#d8e2f4}
+.resume-toast{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+  background:rgba(9,14,22,.86);border:1px solid #40506b;color:#ecf3ff;
+  border-radius:10px;padding:10px 14px;font-size:13px;z-index:5000;
+  opacity:0;pointer-events:none;transition:opacity .25s ease;
+}
+.resume-toast.show{opacity:1}
 .player-mode{display:flex;gap:8px}
 .mode-btn.active{border-color:#ff9d4f;background:linear-gradient(180deg,#ff8f35,#ff7420);color:#111}
 
@@ -266,6 +273,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     <button class="ctx-item" data-act="info">信息</button>
     <button class="ctx-item" data-act="pin">置顶/取消置顶</button>
   </div>
+  <div id="resumeToast" class="resume-toast">已为您恢复至上次播放位置</div>
 
 <script src="https://unpkg.com/artplayer@5.2.3/dist/artplayer.js"></script>
 <script src="https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js"></script>
@@ -314,6 +322,12 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   var lastPlayCandidates = [];
   var lastPlayCandidateIndex = -1;
   var lastDocPath = "";
+  var progressStoreKey = "cloudplayer_playback_progress_v1";
+  var playbackProgressMap = {};
+  var progressSaveTimer = 0;
+  var artProgressLastSaveAt = 0;
+  var resumeAppliedForId = "";
+  var resumeToastTimer = 0;
   var artPlayer = null;
   var playerMode = "native";
   var autoBootDone = false;
@@ -1072,6 +1086,108 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     else pinnedMap[p] = 1;
     savePins();
   }
+  function loadPlaybackProgress(){
+    try{
+      var raw = localStorage.getItem(progressStoreKey);
+      playbackProgressMap = raw ? (JSON.parse(raw) || {}) : {};
+      if(!playbackProgressMap || typeof playbackProgressMap !== "object") playbackProgressMap = {};
+    }catch(_){ playbackProgressMap = {}; }
+  }
+  function savePlaybackProgress(){
+    try{ localStorage.setItem(progressStoreKey, JSON.stringify(playbackProgressMap || {})); }catch(_){}
+  }
+  function getPlaybackId(path, url){
+    var p = String(path || "").trim();
+    if(p) return "path:" + normPath(p);
+    var u = String(url || "").trim();
+    return u ? ("url:" + u) : "";
+  }
+  function getCurrentPlaybackSeconds(){
+    if(playerMode === "art" && artPlayer){
+      try{
+        var t1 = Number(artPlayer.currentTime || 0);
+        if(isFinite(t1) && t1 >= 0) return t1;
+      }catch(_){}
+      try{
+        var t2 = Number((artPlayer.video && artPlayer.video.currentTime) || 0);
+        if(isFinite(t2) && t2 >= 0) return t2;
+      }catch(_){}
+    }
+    var v = $("video");
+    if(v){
+      var tn = Number(v.currentTime || 0);
+      if(isFinite(tn) && tn >= 0) return tn;
+    }
+    return 0;
+  }
+  function persistPlaybackProgressNow(){
+    var id = getPlaybackId(lastPlayPath, lastPlaySourceUrl);
+    if(!id) return;
+    var sec = getCurrentPlaybackSeconds();
+    if(!isFinite(sec) || sec < 1) return;
+    playbackProgressMap[id] = { t: Math.floor(sec), at: Date.now() };
+    savePlaybackProgress();
+  }
+  function startProgressPersistence(){
+    if(progressSaveTimer) clearInterval(progressSaveTimer);
+    progressSaveTimer = setInterval(function(){
+      persistPlaybackProgressNow();
+    }, 5000);
+  }
+  function getSavedPlaybackSeconds(path, url){
+    var id = getPlaybackId(path, url);
+    if(!id) return 0;
+    var rec = playbackProgressMap && playbackProgressMap[id];
+    var t = rec && typeof rec.t === "number" ? Number(rec.t) : 0;
+    if(!isFinite(t) || t < 1) return 0;
+    return t;
+  }
+  function showResumeToast(){
+    var t = $("resumeToast");
+    if(!t) return;
+    t.textContent = "已为您恢复至上次播放位置";
+    t.classList.add("show");
+    if(resumeToastTimer) clearTimeout(resumeToastTimer);
+    resumeToastTimer = setTimeout(function(){
+      t.classList.remove("show");
+    }, 1800);
+  }
+  function tryRestoreSeekAfterLoad(path, url){
+    var id = getPlaybackId(path, url);
+    if(!id || resumeAppliedForId === id) return;
+    var seekTo = getSavedPlaybackSeconds(path, url);
+    if(!seekTo) return;
+    resumeAppliedForId = id;
+    if(playerMode === "art" && artPlayer){
+      var done = false;
+      var trySeek = function(){
+        if(done) return;
+        try{
+          artPlayer.seek = seekTo;
+          done = true;
+          showResumeToast();
+        }catch(_){}
+      };
+      setTimeout(trySeek, 240);
+      setTimeout(trySeek, 700);
+      setTimeout(trySeek, 1300);
+      return;
+    }
+    var v = $("video");
+    if(v){
+      var doneNative = false;
+      var seekNative = function(){
+        if(doneNative) return;
+        doneNative = true;
+        try{
+          v.currentTime = seekTo;
+          showResumeToast();
+        }catch(_){}
+      };
+      v.addEventListener("loadedmetadata", seekNative, { once:true });
+      v.addEventListener("canplay", seekNative, { once:true });
+    }
+  }
 
   function saveSettings(){
     var data = {
@@ -1492,7 +1608,37 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   }
   function makeDirectDUrl(fullPath){
     state.apiBase = normalizeApiBase(state.apiBase || $("apiBase").value);
-    return state.apiBase + '/d' + encodePathForUrl(fullPath);
+    var p = encodePathForUrl(fullPath);
+    var base = state.apiBase.replace(/\/+$/,"");
+    return base + "/d" + p;
+  }
+  async function fetchWithRange(url, options){
+    options = options || {};
+    var u = String(url || "").trim();
+    if(!u) throw new Error("empty url");
+    var method = options.method || "GET";
+    var baseHeaders = (options.headers && typeof options.headers === "object") ? Object.assign({}, options.headers) : {};
+    var tryRangeFirst = !!options.tryRangeFirst;
+    var doFetch = async function(withRange){
+      var hs = Object.assign({}, baseHeaders);
+      if(withRange) hs["Range"] = hs["Range"] || "bytes=0-";
+      return await fetch(u, { method: method, headers: hs, body: options.body || undefined });
+    };
+    var res = null;
+    if(tryRangeFirst){
+      try{
+        res = await doFetch(true);
+        if(res && (res.ok || res.status === 206)) return res;
+      }catch(_){}
+    }
+    res = await doFetch(false);
+    if((!res.ok || res.status >= 400) && !tryRangeFirst){
+      try{
+        var res2 = await doFetch(true);
+        if(res2 && (res2.ok || res2.status === 206)) return res2;
+      }catch(_){}
+    }
+    return res;
   }
   async function requestFsGetViaHost(fullPath, token, timeoutMs){
     timeoutMs = timeoutMs || 4000;
@@ -1552,6 +1698,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     return { url:candidates[0].url, source:candidates[0].source, headers:candidates[0].headers, candidates:candidates };
   }
   function setPlayerMode(mode){
+    persistPlaybackProgressNow();
     playerMode = (mode === "art") ? "art" : "native";
     if($("btnModeNative")) $("btnModeNative").classList.toggle("active", playerMode === "native");
     if($("btnModeArt")) $("btnModeArt").classList.toggle("active", playerMode === "art");
@@ -1580,6 +1727,16 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       fullscreen: true,
       fullscreenWeb: true,
       theme: "#ff8f35"
+    });
+    artPlayer.on("video:loadedmetadata", function(){
+      tryRestoreSeekAfterLoad(lastPlayPath, lastPlaySourceUrl);
+    });
+    artPlayer.on("video:timeupdate", function(){
+      var now = Date.now();
+      if((now - artProgressLastSaveAt) >= 5000){
+        artProgressLastSaveAt = now;
+        persistPlaybackProgressNow();
+      }
     });
     artPlayer.on("error", function(){
       onPlaybackError("art");
@@ -1615,7 +1772,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       var hs = (candidates[i] && candidates[i].headers && typeof candidates[i].headers === "object") ? candidates[i].headers : {};
       if(!u) continue;
       try{
-        var res = await fetch(u, { method:"GET", headers: hs });
+        var res = await fetchWithRange(u, { method:"GET", headers: hs, tryRangeFirst:true });
         if(!res.ok) continue;
         return await res.arrayBuffer();
       }catch(_){}
@@ -1673,6 +1830,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
         try{
           ap.switchUrl(u);
           ap.play();
+          tryRestoreSeekAfterLoad(lastPlayPath, u);
         }catch(_){
           text($("currentInfo"), "ArtPlayer play failed, switched to native player.");
           setPlayerMode("native");
@@ -1684,6 +1842,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       if(v){
         v.src=u;
         v.play().catch(function(){});
+        tryRestoreSeekAfterLoad(lastPlayPath, u);
       }
     }
     text($("currentInfo"), "Playing: " + (title || u) + (playerMode === "art" ? " [ArtPlayer]" : " [Native]"));
@@ -1704,9 +1863,25 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     var hint = "Playback failed for all stream candidates. Check: 1) OpenList token valid 2) mount path has access 3) storage web proxy enabled.";
     text($("currentInfo"), hint);
   }
+  function playManualUrlFromInput(){
+    persistPlaybackProgressNow();
+    var u = String(($("manualUrl") && $("manualUrl").value) || "").trim();
+    if(!u){
+      text($("currentInfo"), "Play failed: empty URL");
+      return;
+    }
+    lastPlayPath = "";
+    lastPlaySourceUrl = u;
+    lastPlayHeaders = {};
+    lastPlayCandidates = [{ url:u, source:"manual", headers:{} }];
+    lastPlayCandidateIndex = 0;
+    resumeAppliedForId = "";
+    playUrl(u, "manual URL");
+  }
   async function playEntry(entry){
     if(!entry) return;
     if(entry.isDir){ await loadList(entry.path); return; }
+    persistPlaybackProgressNow();
     if(isOfficeDocPath(entry.path)){
       var okPreview = await previewOfficeEntry(entry);
       if(okPreview) return;
@@ -1719,6 +1894,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     lastPlayPath = entry.path;
     lastPlaySourceUrl = lastPlayCandidates[0].url;
     lastPlayHeaders = (lastPlayCandidates[0].headers && typeof lastPlayCandidates[0].headers === "object") ? lastPlayCandidates[0].headers : {};
+    resumeAppliedForId = "";
     playUrl(lastPlaySourceUrl, entry.path);
   }
   async function onRowClick(e){
@@ -1930,11 +2106,11 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     });
     $("btnDashboard").addEventListener("click", function(){ postHost("cloudplayer_open_dashboard"); });
     $("btnRestart").addEventListener("click", function(){ postHost("cloudplayer_restart_openlist"); });
-    $("btnPlayUrl").addEventListener("click", function(){ playUrl($("manualUrl").value, "manual URL"); });
+    $("btnPlayUrl").addEventListener("click", playManualUrlFromInput);
     if($("btnModeNative")) $("btnModeNative").addEventListener("click", function(){ setPlayerMode("native"); if(lastPlaySourceUrl) playUrl(lastPlaySourceUrl, lastPlayPath || lastPlaySourceUrl); });
     if($("btnModeArt")) $("btnModeArt").addEventListener("click", function(){ setPlayerMode("art"); if(lastPlaySourceUrl) playUrl(lastPlaySourceUrl, lastPlayPath || lastPlaySourceUrl); });
     if($("pathInput")) $("pathInput").addEventListener("keydown", function(e){ if(e.key==="Enter") loadList($("pathInput").value); });
-    $("manualUrl").addEventListener("keydown", function(e){ if(e.key==="Enter") playUrl($("manualUrl").value, "manual URL"); });
+    $("manualUrl").addEventListener("keydown", function(e){ if(e.key==="Enter") playManualUrlFromInput(); });
     $("apiBase").addEventListener("change", function(){
       state.apiBase = normalizeApiBase($("apiBase").value);
       $("apiBase").value = state.apiBase;
@@ -2033,6 +2209,16 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     $("video").addEventListener("error", async function(){
       onPlaybackError("native");
     });
+    $("video").addEventListener("loadedmetadata", function(){
+      tryRestoreSeekAfterLoad(lastPlayPath, lastPlaySourceUrl);
+    });
+    window.addEventListener("beforeunload", function(){
+      persistPlaybackProgressNow();
+      if(progressSaveTimer){ clearInterval(progressSaveTimer); progressSaveTimer = 0; }
+    });
+    document.addEventListener("visibilitychange", function(){
+      if(document.hidden) persistPlaybackProgressNow();
+    });
 
     ["mountAli","mountBaidu","mountQuark","mount115","mount123","mountOneDrive","mountDropbox","mountYandex","mountGDrive","aliMountPath","advRootFolderId","advDriveType","advAlipanType","advUseOnlineApi","advClientId","advClientSecret","advApiUrlAddress"].forEach(function(id){
       $(id).addEventListener("change", saveSettings);
@@ -2099,6 +2285,8 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   async function boot(){
     loadProviderTokens();
     loadSettings();
+    loadPlaybackProgress();
+    startProgressPersistence();
     if(uiLang !== "en") uiLang = "zh";
     initProviderOnline();
     applyUiLanguage();
