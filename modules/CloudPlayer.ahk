@@ -267,6 +267,38 @@ CloudPlayer_OnWebMessage(sender, args) {
         return
     }
 
+    ; 任意 /api/fs/* JSON POST（复制/粘贴/删除等）；与列表请求一致地使用 g_CloudPlayerApiBase + WinHttp，避免 WebView host bridge HttpRequest 传入非法 URL。
+    if (typ = "cloudplayer_api_json") {
+        apiPath := payload.Has("apiPath") ? Trim(String(payload["apiPath"])) : ""
+        bodyStr := payload.Has("body") ? String(payload["body"]) : ""
+        token := payload.Has("token") ? Trim(String(payload["token"])) : ""
+        reqId := payload.Has("reqId") ? String(payload["reqId"]) : ""
+        if apiPath = "" || !RegExMatch(apiPath, "i)^/api/fs/") {
+            try WebView_QueuePayload(g_CloudPlayerWv2, Map(
+                "type", "cloudplayer_api_json_result",
+                "reqId", reqId,
+                "ok", false,
+                "status", 0,
+                "error", "invalid apiPath",
+                "text", ""
+            ))
+            return
+        }
+        headers := Map("Content-Type", "application/json", "Accept", "application/json")
+        if (token != "")
+            headers["Authorization"] := token
+        retApi := CloudPlayer_HttpJson("POST", g_CloudPlayerApiBase . apiPath, headers, bodyStr)
+        try WebView_QueuePayload(g_CloudPlayerWv2, Map(
+            "type", "cloudplayer_api_json_result",
+            "reqId", reqId,
+            "ok", retApi["ok"],
+            "status", retApi["status"],
+            "error", retApi["error"],
+            "text", retApi["text"]
+        ))
+        return
+    }
+
     if (typ = "cloudplayer_import_aliyun") {
         if (g_CloudPlayerImportBusy) {
             try WebView_QueuePayload(g_CloudPlayerWv2, Map(

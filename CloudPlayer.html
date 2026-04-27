@@ -1048,7 +1048,10 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
         resolve({ ok:false, status:0, error:"timeout", json:null, bodyText:"", parseError:"timeout", reqId:reqId });
       }, timeoutMs);
       try{ if(window.chrome && window.chrome.webview) window.chrome.webview.addEventListener("message", handler); }catch(_){}
-      postHost("cloudplayer_fs_list", { apiBase: state.apiBase, path:String(path||"/"), token:String(token||""), refresh:!!refresh, reqId:reqId });
+      var abList = normalizeApiBase(($("apiBase") && $("apiBase").value) || state.apiBase);
+      state.apiBase = abList;
+      if($("apiBase")) $("apiBase").value = abList;
+      postHost("cloudplayer_fs_list", { apiBase: abList, path:String(path||"/"), token:String(token||""), refresh:!!refresh, reqId:reqId });
     });
   }
   function waitForHostStatus(timeoutMs, sinceTs){
@@ -1300,16 +1303,72 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       return errRet;
     }
   }
+  function requestApiJsonViaHost(apiPath, payload, timeoutMs){
+    timeoutMs = timeoutMs || 15000;
+    var reqId = "apjson_" + Date.now() + "_" + Math.floor(Math.random() * 1000000);
+    if(!(window.chrome && window.chrome.webview && window.chrome.webview.postMessage))
+      return Promise.resolve(null);
+    var ab = normalizeApiBase(($("apiBase") && $("apiBase").value) || state.apiBase);
+    state.apiBase = ab;
+    if($("apiBase")) $("apiBase").value = ab;
+    var tk = "";
+    try{ tk = String(($("token") && $("token").value) || state.token || "").trim(); }catch(_){ }
+    state.token = tk;
+    return new Promise(function(resolve){
+      var done = false;
+      var cleaned = false;
+      var handler = function(evt){
+        var data = evt && evt.data ? evt.data : null;
+        if(!data || data.type !== "cloudplayer_api_json_result") return;
+        if(String(data.reqId || "") !== reqId) return;
+        if(done) return;
+        done = true;
+        if(!cleaned){
+          cleaned = true;
+          try{ if(window.chrome && window.chrome.webview) window.chrome.webview.removeEventListener("message", handler); }catch(_){ }
+        }
+        clearTimeout(timer);
+        resolve({ ok:!!data.ok, status:Number(data.status || 0), error:String(data.error || ""), bodyText:String(data.text || "") });
+      };
+      var timer = setTimeout(function(){
+        if(done) return;
+        done = true;
+        if(!cleaned){
+          cleaned = true;
+          try{ if(window.chrome && window.chrome.webview) window.chrome.webview.removeEventListener("message", handler); }catch(_){ }
+        }
+        resolve({ ok:false, status:0, error:"timeout", bodyText:"" });
+      }, timeoutMs);
+      try{ if(window.chrome && window.chrome.webview) window.chrome.webview.addEventListener("message", handler); }catch(_){ }
+      postHost("cloudplayer_api_json", {
+        apiPath:String(apiPath || ""),
+        body:JSON.stringify(payload || {}),
+        token:tk,
+        reqId:reqId,
+        apiBase:ab
+      });
+    });
+  }
   async function apiPost(path, payload){
-    state.apiBase = normalizeApiBase(state.apiBase || $("apiBase").value);
-    $("apiBase").value = state.apiBase;
-    var url = state.apiBase + path;
-    var res = await httpViaHost("POST", url, getHeaders(true), JSON.stringify(payload||{}));
+    var ab = normalizeApiBase(($("apiBase") && $("apiBase").value) || state.apiBase);
+    state.apiBase = ab;
+    if($("apiBase")) $("apiBase").value = ab;
+    var pl = payload || {};
+    var hdr = getHeaders(true);
+    var bridgeOk = !!(window.chrome && window.chrome.webview && window.chrome.webview.postMessage);
+    var res = null;
+    if(bridgeOk){
+      var hr = await requestApiJsonViaHost(path, pl, 15000);
+      if(hr && hr.error !== "timeout")
+        res = { ok:!!hr.ok, status:hr.status, body:String(hr.bodyText || ""), error:String(hr.error || ""), channel:"host-api" };
+    }
+    if(!res)
+      res = await httpViaHost("POST", state.apiBase + path, hdr, JSON.stringify(pl));
     var parseError = "";
     var bodyText = String(res.body || "");
-    var json=null;
+    var json = null;
     try{
-      json=JSON.parse(bodyText || "{}");
+      json = JSON.parse(bodyText || "{}");
     }catch(e){
       parseError = e && e.message ? e.message : "json parse failed";
     }
@@ -1650,77 +1709,32 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   function isHttpUrl(url){
     return /^https?:\/\//i.test(String(url || "").trim());
   }
-  async function probeCandidateLatency(candidate, timeoutMs){
-    var c = candidate || {};
-    var u = String(c.url || "").trim();
-    if(!u) return { ok:false, latency:999999, range:false };
-    timeoutMs = Math.max(300, Number(timeoutMs || 1200));
-    var controller = (typeof AbortController !== "undefined") ? new AbortController() : null;
-    var timer = 0;
-    var started = Date.now();
-    try{
-      if(controller){
-        timer = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, timeoutMs);
-      }
-      var hs = (c.headers && typeof c.headers === "object") ? Object.assign({}, c.headers) : {};
-      hs["Range"] = hs["Range"] || "bytes=0-";
-      var r = await fetch(u, {
-        method:"GET",
-        headers: hs,
-        signal: controller ? controller.signal : undefined
-      });
-      var latency = Date.now() - started;
-      var rangeHit = !!(r && (r.status === 206 || String(r.headers.get("content-range")||"").trim() !== "" || String(r.headers.get("accept-ranges")||"").toLowerCase().indexOf("bytes") >= 0));
-      logNet("probe " + u, { status:r.status, latencyMs:latency, rangeResponse:rangeHit });
-      if(!r || !r.ok) return { ok:false, latency:latency, range:rangeHit };
-      return { ok:true, latency:latency, range:rangeHit };
-    }catch(e){
-      return { ok:false, latency:Date.now() - started, range:false, error:e && e.message ? e.message : "probe failed" };
-    }finally{
-      if(timer) clearTimeout(timer);
-    }
-  }
+  /**
+   * 选路策略：网盘/存储直链优先，本机 OpenList 的 /d/ 仅作垫后；不做开播前多路 Range 探测，避免
+   * 首包 TTFB 总偏向 127.0.0.1 且与 <video> 首帧抢带宽。失败时由 onPlaybackError 按 candidates 切下一跳。
+   */
   async function getOptimalUrl(fullPath, fileData){
     var d = fileData || {};
     var h = (d && d.header && typeof d.header === "object") ? d.header : {};
-    var candidates = [];
+    var ordered = [];
     var seen = {};
-    var pushCandidate = function(u, source, headers, direct){
+    var push = function(u, source, headers, direct){
       var url = String(u || "").trim();
       if(!url) return;
       if(!isHttpUrl(url)) return;
       if(seen[url]) return;
       seen[url] = 1;
-      candidates.push({ url:url, source:String(source||""), headers:(headers && typeof headers==="object") ? headers : {}, direct: !!direct });
+      ordered.push({ url:url, source:String(source||""), headers:(headers && typeof headers==="object") ? headers : {}, direct: !!direct });
     };
+    if(d && typeof d.raw_url === "string" && isHttpUrl(d.raw_url)) push(d.raw_url, "raw_url", h, true);
+    if(d && typeof d.url === "string" && isHttpUrl(d.url)) push(d.url, "url", h, true);
+    if(d && d.content && typeof d.content.url === "string" && isHttpUrl(d.content.url)) push(d.content.url, "content.url", h, true);
     var proxyUrl = makeDirectDUrl(fullPath);
-    pushCandidate(proxyUrl, "/d proxy", {}, false);
-    if(d && typeof d.raw_url === "string" && isHttpUrl(d.raw_url)) pushCandidate(d.raw_url, "raw_url", h, true);
-    if(d && typeof d.url === "string" && isHttpUrl(d.url)) pushCandidate(d.url, "url", h, true);
-    if(d && d.content && typeof d.content.url === "string" && isHttpUrl(d.content.url)) pushCandidate(d.content.url, "content.url", h, true);
-    if(!candidates.length) return { primary:{ url:"", source:"none", headers:{} }, candidates:[], debug:{ reason:"no_candidate" } };
-
-    var probes = await Promise.all(candidates.map(function(c){
-      return probeCandidateLatency(c, 1200);
-    }));
-    var bestIdx = -1;
-    var bestLatency = 999999;
-    for(var i=0;i<probes.length;i++){
-      if(!probes[i] || !probes[i].ok) continue;
-      if(probes[i].latency < bestLatency){
-        bestLatency = probes[i].latency;
-        bestIdx = i;
-      }
-    }
-    if(bestIdx < 0){
-      // Fallback order: validated raw_url first, then /d proxy.
-      var rawFirst = candidates.findIndex(function(c){ return c.source === "raw_url"; });
-      bestIdx = rawFirst >= 0 ? rawFirst : 0;
-    }
-    var ordered = [candidates[bestIdx]].concat(candidates.filter(function(_, idx){ return idx !== bestIdx; }));
+    push(proxyUrl, "/d proxy", {}, false);
+    if(!ordered.length) return { primary:{ url:"", source:"none", headers:{} }, candidates:[], debug:{ reason:"no_candidate" } };
     var p = ordered[0] || { url:"", source:"none", headers:{} };
-    logNet("optimal url selected", { source:p.source, url:p.url, probeBestMs:bestLatency });
-    return { primary:p, candidates:ordered, debug:{ bestLatencyMs:bestLatency, bestIndex:bestIdx } };
+    logNet("optimal url selected", { source:p.source, url:p.url, strategy:"direct_first", probe:false });
+    return { primary:p, candidates:ordered, debug:{ strategy:"direct_first", noPreProbe:true } };
   }
   async function fetchWithRange(url, options){
     options = options || {};
@@ -1778,7 +1792,10 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
         resolve({ ok:false, status:0, error:"timeout", json:null, parseError:"timeout", bodyText:"" });
       }, timeoutMs);
       try{ if(window.chrome && window.chrome.webview) window.chrome.webview.addEventListener("message", handler); }catch(_){ }
-      postHost("cloudplayer_fs_get", { apiBase: state.apiBase, path:String(fullPath||"/"), token:String(token||""), reqId:reqId });
+      var abGet = normalizeApiBase(($("apiBase") && $("apiBase").value) || state.apiBase);
+      state.apiBase = abGet;
+      if($("apiBase")) $("apiBase").value = abGet;
+      postHost("cloudplayer_fs_get", { apiBase: abGet, path:String(fullPath||"/"), token:String(token||""), reqId:reqId });
     });
   }
   async function resolveFileUrl(fullPath){
@@ -2327,7 +2344,11 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     var data=evt && evt.data ? evt.data : null;
     if(!data || typeof data!=="object") return;
     if(data.type==="cloudplayer_status"){
-      if(typeof data.apiBase==="string" && data.apiBase) $("apiBase").value=normalizeApiBase(data.apiBase);
+      if(typeof data.apiBase==="string" && data.apiBase){
+        var nb = normalizeApiBase(data.apiBase);
+        $("apiBase").value = nb;
+        state.apiBase = nb;
+      }
       lastHostStatusAt = Date.now();
       lastHostStatusOnline = !!data.openListOnline;
       setStatus(lastHostStatusOnline);
