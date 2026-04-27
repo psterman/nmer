@@ -658,6 +658,12 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       }
     }catch(_){}
   }
+  function logNet(msg, meta){
+    try{
+      if(meta && typeof meta === "object") console.info("[CloudPlayer][net]", msg, meta);
+      else console.info("[CloudPlayer][net]", msg);
+    }catch(_){}
+  }
   function getHeaders(json){
     var h={"Accept":"application/json"};
     if(json) h["Content-Type"]="application/json";
@@ -1254,15 +1260,44 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   }
 
   async function httpViaHost(method, url, headers, body){
-    if (window.chrome && window.chrome.webview && window.chrome.webview.hostObjects && window.chrome.webview.hostObjects.ahk){
-      var raw = await window.chrome.webview.hostObjects.ahk.HttpRequest(String(method||"GET"), String(url||""), JSON.stringify(headers||{}), body==null?"":String(body));
-      try { return JSON.parse(String(raw||"{}")); } catch(e){ return { ok:false, status:0, body:"", error:e && e.message ? e.message : "json parse failed" }; }
+    var m = String(method || "GET");
+    var u = String(url || "");
+    var hs = headers || {};
+    var b = body==null?"":String(body);
+    var bridgeTimeoutMs = 1500;
+    var bridgeAvailable = !!(window.chrome && window.chrome.webview && window.chrome.webview.hostObjects && window.chrome.webview.hostObjects.ahk);
+    if(bridgeAvailable){
+      var bridgePromise = (async function(){
+        try{
+          var raw = await window.chrome.webview.hostObjects.ahk.HttpRequest(m, u, JSON.stringify(hs), b);
+          var parsed = JSON.parse(String(raw||"{}"));
+          parsed.channel = "bridge";
+          return parsed;
+        }catch(e){
+          return { ok:false, status:0, body:"", error:e && e.message ? e.message : "bridge request failed", channel:"bridge" };
+        }
+      })();
+      var raceRet = await Promise.race([
+        bridgePromise,
+        new Promise(function(resolve){
+          setTimeout(function(){ resolve({ __timeout:true }); }, bridgeTimeoutMs);
+        })
+      ]);
+      if(!(raceRet && raceRet.__timeout)){
+        logNet(m + " " + u + " -> bridge", { status:raceRet.status||0, ok:!!raceRet.ok });
+        return raceRet;
+      }
+      logNet(m + " " + u + " -> bridge timeout, fallback fetch", { timeoutMs:bridgeTimeoutMs });
     }
     try{
-      var r = await fetch(url, { method: method, headers: headers || {}, body: body || undefined });
-      return { ok:r.ok, status:r.status, body:await r.text(), error:"" };
+      var r = await fetch(u, { method: m, headers: hs, body: body || undefined });
+      var ret = { ok:r.ok, status:r.status, body:await r.text(), error:"", channel:"fetch" };
+      logNet(m + " " + u + " -> fetch", { status:ret.status, ok:ret.ok });
+      return ret;
     }catch(e){
-      return { ok:false, status:0, body:"", error:e && e.message ? e.message : "fetch failed" };
+      var errRet = { ok:false, status:0, body:"", error:e && e.message ? e.message : "fetch failed", channel:"fetch" };
+      logNet(m + " " + u + " -> fetch failed", { error:errRet.error });
+      return errRet;
     }
   }
   async function apiPost(path, payload){
@@ -1612,6 +1647,81 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     var base = state.apiBase.replace(/\/+$/,"");
     return base + "/d" + p;
   }
+  function isHttpUrl(url){
+    return /^https?:\/\//i.test(String(url || "").trim());
+  }
+  async function probeCandidateLatency(candidate, timeoutMs){
+    var c = candidate || {};
+    var u = String(c.url || "").trim();
+    if(!u) return { ok:false, latency:999999, range:false };
+    timeoutMs = Math.max(300, Number(timeoutMs || 1200));
+    var controller = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var timer = 0;
+    var started = Date.now();
+    try{
+      if(controller){
+        timer = setTimeout(function(){ try{ controller.abort(); }catch(_){} }, timeoutMs);
+      }
+      var hs = (c.headers && typeof c.headers === "object") ? Object.assign({}, c.headers) : {};
+      hs["Range"] = hs["Range"] || "bytes=0-";
+      var r = await fetch(u, {
+        method:"GET",
+        headers: hs,
+        signal: controller ? controller.signal : undefined
+      });
+      var latency = Date.now() - started;
+      var rangeHit = !!(r && (r.status === 206 || String(r.headers.get("content-range")||"").trim() !== "" || String(r.headers.get("accept-ranges")||"").toLowerCase().indexOf("bytes") >= 0));
+      logNet("probe " + u, { status:r.status, latencyMs:latency, rangeResponse:rangeHit });
+      if(!r || !r.ok) return { ok:false, latency:latency, range:rangeHit };
+      return { ok:true, latency:latency, range:rangeHit };
+    }catch(e){
+      return { ok:false, latency:Date.now() - started, range:false, error:e && e.message ? e.message : "probe failed" };
+    }finally{
+      if(timer) clearTimeout(timer);
+    }
+  }
+  async function getOptimalUrl(fullPath, fileData){
+    var d = fileData || {};
+    var h = (d && d.header && typeof d.header === "object") ? d.header : {};
+    var candidates = [];
+    var seen = {};
+    var pushCandidate = function(u, source, headers, direct){
+      var url = String(u || "").trim();
+      if(!url) return;
+      if(!isHttpUrl(url)) return;
+      if(seen[url]) return;
+      seen[url] = 1;
+      candidates.push({ url:url, source:String(source||""), headers:(headers && typeof headers==="object") ? headers : {}, direct: !!direct });
+    };
+    var proxyUrl = makeDirectDUrl(fullPath);
+    pushCandidate(proxyUrl, "/d proxy", {}, false);
+    if(d && typeof d.raw_url === "string" && isHttpUrl(d.raw_url)) pushCandidate(d.raw_url, "raw_url", h, true);
+    if(d && typeof d.url === "string" && isHttpUrl(d.url)) pushCandidate(d.url, "url", h, true);
+    if(d && d.content && typeof d.content.url === "string" && isHttpUrl(d.content.url)) pushCandidate(d.content.url, "content.url", h, true);
+    if(!candidates.length) return { primary:{ url:"", source:"none", headers:{} }, candidates:[], debug:{ reason:"no_candidate" } };
+
+    var probes = await Promise.all(candidates.map(function(c){
+      return probeCandidateLatency(c, 1200);
+    }));
+    var bestIdx = -1;
+    var bestLatency = 999999;
+    for(var i=0;i<probes.length;i++){
+      if(!probes[i] || !probes[i].ok) continue;
+      if(probes[i].latency < bestLatency){
+        bestLatency = probes[i].latency;
+        bestIdx = i;
+      }
+    }
+    if(bestIdx < 0){
+      // Fallback order: validated raw_url first, then /d proxy.
+      var rawFirst = candidates.findIndex(function(c){ return c.source === "raw_url"; });
+      bestIdx = rawFirst >= 0 ? rawFirst : 0;
+    }
+    var ordered = [candidates[bestIdx]].concat(candidates.filter(function(_, idx){ return idx !== bestIdx; }));
+    var p = ordered[0] || { url:"", source:"none", headers:{} };
+    logNet("optimal url selected", { source:p.source, url:p.url, probeBestMs:bestLatency });
+    return { primary:p, candidates:ordered, debug:{ bestLatencyMs:bestLatency, bestIndex:bestIdx } };
+  }
   async function fetchWithRange(url, options){
     options = options || {};
     var u = String(url || "").trim();
@@ -1622,7 +1732,10 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     var doFetch = async function(withRange){
       var hs = Object.assign({}, baseHeaders);
       if(withRange) hs["Range"] = hs["Range"] || "bytes=0-";
-      return await fetch(u, { method: method, headers: hs, body: options.body || undefined });
+      var resp = await fetch(u, { method: method, headers: hs, body: options.body || undefined });
+      var rangeHit = !!(resp && (resp.status === 206 || String(resp.headers.get("content-range")||"").trim() !== "" || String(resp.headers.get("accept-ranges")||"").toLowerCase().indexOf("bytes") >= 0));
+      logNet(method + " " + u + " -> fetchWithRange", { usedRange:withRange, status:resp.status, rangeResponse:rangeHit });
+      return resp;
     };
     var res = null;
     if(tryRangeFirst){
@@ -1678,24 +1791,9 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       ret = await apiPost("/api/fs/get", { path:fullPath, password:"" });
     }
     var d = ret.json && ret.json.data ? ret.json.data : {};
-    var h = (d && d.header && typeof d.header === "object") ? d.header : {};
-    var candidates = [];
-    function pushCandidate(u, source, headers){
-      var url = String(u || "").trim();
-      if(!url) return;
-      for(var i=0;i<candidates.length;i++){
-        if(String(candidates[i].url || "") === url) return;
-      }
-      candidates.push({ url:url, source:String(source||""), headers:(headers && typeof headers==="object") ? headers : {} });
-    }
-    // For web preview, prioritize OpenList proxy path first.
-    // raw_url/url often require custom headers which HTML5 video cannot attach.
-    pushCandidate(makeDirectDUrl(fullPath), "/d proxy", {});
-    if(d && typeof d.raw_url === "string" && d.raw_url) pushCandidate(d.raw_url, "raw_url", h);
-    if(d && typeof d.url === "string" && d.url) pushCandidate(d.url, "url", h);
-    if(d && d.content && typeof d.content.url === "string" && d.content.url) pushCandidate(d.content.url, "content.url", h);
-    if(!candidates.length) return { url:"", source:"none", headers:{}, candidates:[] };
-    return { url:candidates[0].url, source:candidates[0].source, headers:candidates[0].headers, candidates:candidates };
+    var opt = await getOptimalUrl(fullPath, d);
+    if(!opt || !opt.primary || !opt.primary.url) return { url:"", source:"none", headers:{}, candidates:[] };
+    return { url:opt.primary.url, source:opt.primary.source, headers:opt.primary.headers || {}, candidates:opt.candidates || [opt.primary] };
   }
   function setPlayerMode(mode){
     persistPlaybackProgressNow();

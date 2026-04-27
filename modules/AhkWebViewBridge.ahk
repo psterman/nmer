@@ -57,12 +57,37 @@ class AhkInterface {
                 return Jxon_Dump(out)
             }
         }
+        uaVal := ""
+        refererVal := ""
+        rangeVal := ""
         try {
             whr := ComObject("WinHttp.WinHttpRequest.5.1")
             whr.Open(m != "" ? m : "GET", u, false)
             whr.SetTimeouts(30000, 30000, 30000, 30000)
-            for k, v in hdrs
-                try whr.SetRequestHeader(String(k), String(v))
+            for k, v in hdrs {
+                key := String(k)
+                val := String(v)
+                lk := StrLower(Trim(key))
+                if (lk = "user-agent") {
+                    uaVal := val
+                    continue
+                }
+                if (lk = "referer" || lk = "referrer") {
+                    refererVal := val
+                    continue
+                }
+                if (lk = "range") {
+                    rangeVal := val
+                    continue
+                }
+                try whr.SetRequestHeader(key, val)
+            }
+            if (uaVal != "")
+                try whr.SetRequestHeader("User-Agent", uaVal)
+            if (refererVal != "")
+                try whr.SetRequestHeader("Referer", refererVal)
+            if (rangeVal != "")
+                try whr.SetRequestHeader("Range", rangeVal)
             whr.Send(body != "" ? String(body) : "")
             st := Integer(whr.Status)
             out["status"] := st
