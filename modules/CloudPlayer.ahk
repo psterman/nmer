@@ -8,8 +8,6 @@ global g_CloudPlayerOpenListPid := 0
 global g_CloudPlayerApiBase := "http://127.0.0.1:5244"
 global g_CloudPlayerImportBusy := false
 global g_CloudPlayerAutoPulseEnabled := false
-global g_CloudPlayerFfmpegPid := 0
-global g_CloudPlayerFfmpegOutDir := ""
 
 ShowCloudPlayer(*) {
     CloudPlayer_Show()
@@ -82,7 +80,6 @@ CloudPlayer_OnGuiClose(*) {
     global g_CloudPlayerGui, g_CloudPlayerAutoPulseEnabled
     try g_CloudPlayerGui.Hide()
     g_CloudPlayerAutoPulseEnabled := false
-    CloudPlayer_StopFfmpegJob()
 }
 
 CloudPlayer_OnGuiSize(guiObj, minMax, width, height) {
@@ -266,26 +263,6 @@ CloudPlayer_OnWebMessage(sender, args) {
             "status", retGet["status"],
             "error", retGet["error"],
             "text", retGet["text"]
-        ))
-        return
-    }
-
-    if (typ = "cloudplayer_ffmpeg_hls") {
-        reqId := payload.Has("reqId") ? String(payload["reqId"]) : ""
-        srcUrl := payload.Has("sourceUrl") ? Trim(String(payload["sourceUrl"])) : ""
-        token := payload.Has("token") ? Trim(String(payload["token"])) : ""
-        path := payload.Has("path") ? String(payload["path"]) : ""
-        extraHeaders := Map()
-        if (payload.Has("headers") && payload["headers"] is Map)
-            extraHeaders := payload["headers"]
-        errMsg := ""
-        playUrl := CloudPlayer_StartFfmpegHls(srcUrl, token, path, extraHeaders, &errMsg, 20000)
-        try WebView_QueuePayload(g_CloudPlayerWv2, Map(
-            "type", "cloudplayer_ffmpeg_hls_result",
-            "reqId", reqId,
-            "ok", playUrl != "",
-            "playUrl", playUrl,
-            "message", playUrl != "" ? "ok" : (errMsg != "" ? errMsg : "ffmpeg failed")
         ))
         return
     }
@@ -1938,160 +1915,6 @@ CloudPlayer_HttpJson(method, url, headers := 0, body := "") {
         ret["error"] := e.Message
     }
     return ret
-}
-
-CloudPlayer_StopFfmpegJob() {
-    global g_CloudPlayerFfmpegPid, g_CloudPlayerFfmpegOutDir
-    if (g_CloudPlayerFfmpegPid > 0) {
-        try ProcessClose(g_CloudPlayerFfmpegPid)
-        catch {
-        }
-    }
-    g_CloudPlayerFfmpegPid := 0
-    if (g_CloudPlayerFfmpegOutDir != "") {
-        try DirDelete(g_CloudPlayerFfmpegOutDir, true)
-        catch {
-        }
-    }
-    g_CloudPlayerFfmpegOutDir := ""
-}
-
-CloudPlayer_PathToFileUrl(path) {
-    p := String(path)
-    p := StrReplace(p, "\", "/")
-    p := StrReplace(p, " ", "%20")
-    return "file:///" . p
-}
-
-CloudPlayer_ReadShortLog(path, maxLen := 320) {
-    if (!FileExist(path))
-        return ""
-    txt := ""
-    try txt := FileRead(path, "UTF-8")
-    catch {
-        try txt := FileRead(path)
-        catch {
-            txt := ""
-        }
-    }
-    txt := RegExReplace(String(txt), "\s+", " ")
-    txt := Trim(txt)
-    if (StrLen(txt) > maxLen)
-        txt := SubStr(txt, 1, maxLen) . "..."
-    return txt
-}
-
-CloudPlayer_StartFfmpegHls(sourceUrl, token := "", filePath := "", headers := 0, &errMsg := "", timeoutMs := 12000) {
-    global g_CloudPlayerFfmpegPid, g_CloudPlayerFfmpegOutDir
-    errMsg := ""
-    src := Trim(String(sourceUrl))
-    if (src = "") {
-        errMsg := "empty source URL"
-        return ""
-    }
-    ffmpeg := A_ScriptDir . "\lib\ffmpeg.exe"
-    if !FileExist(ffmpeg) {
-        errMsg := "ffmpeg not found: " . ffmpeg
-        return ""
-    }
-
-    CloudPlayer_StopFfmpegJob()
-
-    outDir := A_Temp . "\cloudplayer_hls_" . A_Now . "_" . A_TickCount
-    try DirCreate(outDir)
-    catch as e {
-        errMsg := "cannot create ffmpeg temp dir: " . e.Message
-        return ""
-    }
-    outM3u8 := outDir . "\index.m3u8"
-    q := Chr(34)
-    ffCmd := q . ffmpeg . q . " -hide_banner -loglevel error -y"
-    hdrBlock := ""
-    if (Trim(String(token)) != "")
-        hdrBlock .= "Authorization: " . token . "`r`n"
-    if (headers is Map) {
-        for hk, hv in headers {
-            k := Trim(String(hk))
-            v := Trim(String(hv))
-            if (k = "" || v = "")
-                continue
-            if (StrLower(k) = "authorization")
-                continue
-            hdrBlock .= k . ": " . v . "`r`n"
-        }
-    }
-    if (hdrBlock != "")
-        ffCmd .= " -headers " . q . hdrBlock . q
-    ffCmd .= " -i " . q . src . q
-    ffCmd .= " -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
-    ffCmd .= " -c copy -f hls -hls_time 2 -hls_list_size 0 -hls_flags independent_segments+append_list "
-    ffCmd .= q . outM3u8 . q
-    ex := 0
-    try ex := ComObject("WScript.Shell").Exec(ffCmd)
-    catch as e {
-        errMsg := "cannot start ffmpeg: " . e.Message
-        try DirDelete(outDir, true)
-        catch {
-        }
-        return ""
-    }
-    pid := 0
-    try pid := ex.ProcessID
-    catch {
-        pid := 0
-    }
-    g_CloudPlayerFfmpegPid := pid
-    g_CloudPlayerFfmpegOutDir := outDir
-
-    logBuf := ""
-    waitUntil := A_TickCount + Max(1200, timeoutMs)
-    while (A_TickCount < waitUntil) {
-        try {
-            while !ex.StdOut.AtEndOfStream
-                logBuf .= ex.StdOut.Read(512)
-        } catch {
-        }
-        try {
-            while !ex.StdErr.AtEndOfStream
-                logBuf .= ex.StdErr.Read(512)
-        } catch {
-        }
-        if FileExist(outM3u8) {
-            sz := 0
-            try sz := FileGetSize(outM3u8)
-            catch {
-                sz := 0
-            }
-            if (sz > 0)
-                return CloudPlayer_PathToFileUrl(outM3u8)
-        }
-        try {
-            if (ex.Status != 0) {
-                logText := Trim(RegExReplace(logBuf, "\s+", " "))
-                if (StrLen(logText) > 360)
-                    logText := SubStr(logText, 1, 360) . "..."
-                errMsg := (logText != "") ? ("ffmpeg exited: " . logText) : "ffmpeg exited before producing stream"
-                return ""
-            }
-        } catch {
-        }
-        if (pid > 0 && !ProcessExist(pid) && !FileExist(outM3u8)) {
-            logText := Trim(RegExReplace(logBuf, "\s+", " "))
-            if (StrLen(logText) > 360)
-                logText := SubStr(logText, 1, 360) . "..."
-            errMsg := (logText != "") ? ("ffmpeg exited: " . logText) : "ffmpeg exited before producing stream"
-            return ""
-        }
-        Sleep(200)
-    }
-    try ex.Terminate()
-    catch {
-    }
-    logText := Trim(RegExReplace(logBuf, "\s+", " "))
-    if (StrLen(logText) > 360)
-        logText := SubStr(logText, 1, 360) . "..."
-    errMsg := (logText != "") ? ("ffmpeg output timeout: " . logText) : "ffmpeg output timeout"
-    return ""
 }
 
 CloudPlayer_OpenExternalUrl(url) {

@@ -108,6 +108,9 @@ button.ghost{background:#151d2b}
 .playbar{display:flex;gap:8px}
 .playbar input{flex:1}
 video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1px solid #293245;border-radius:12px}
+#artPlayerWrap{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1px solid #293245;border-radius:12px;overflow:hidden}
+.player-mode{display:flex;gap:8px}
+.mode-btn.active{border-color:#ff9d4f;background:linear-gradient(180deg,#ff8f35,#ff7420);color:#111}
 
 .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(2,6,10,.62);z-index:2000}
 .modal.open{display:flex}
@@ -217,9 +220,10 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       <div id="fileList" class="list"></div>
     </div>
     <div class="card right">
-      <div class="playbar"><input id="manualUrl" placeholder="或粘贴直链视频 URL"><button id="btnPlayUrl">播放 URL</button></div>
+      <div class="playbar"><input id="manualUrl" placeholder="或粘贴直链视频 URL"><button id="btnPlayUrl">播放 URL</button><div class="player-mode"><button id="btnModeNative" class="ghost mode-btn active">原生</button><button id="btnModeArt" class="ghost mode-btn">ArtPlayer</button></div></div>
       <div id="currentInfo" class="hint">未选择文件。</div>
       <video id="video" controls playsinline preload="metadata"></video>
+      <div id="artPlayerWrap" class="hidden"></div>
       <div class="hint">导入成功后，点击上方云盘标签浏览文件夹。</div>
     </div>
   </div>
@@ -259,6 +263,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     <button class="ctx-item" data-act="pin">置顶/取消置顶</button>
   </div>
 
+<script src="https://unpkg.com/artplayer@5.2.3/dist/artplayer.js"></script>
 <script>
 (function(){
   var $ = function(id){ return document.getElementById(id); };
@@ -298,6 +303,8 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   var lastPlayHeaders = {};
   var lastPlayCandidates = [];
   var lastPlayCandidateIndex = -1;
+  var artPlayer = null;
+  var playerMode = "native";
   var autoBootDone = false;
   var uiLang = "zh";
   var providerTokens = {};
@@ -472,6 +479,8 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     if($("btnRestart")) $("btnRestart").textContent = tr("restart_openlist");
     if($("btnSearchClear")) $("btnSearchClear").textContent = tr("clear");
     if($("btnPlayUrl")) $("btnPlayUrl").textContent = tr("play_url");
+    if($("btnModeNative")) $("btnModeNative").textContent = (uiLang === "en" ? "Native" : "原生");
+    if($("btnModeArt")) $("btnModeArt").textContent = "ArtPlayer";
     if($("searchInput")) $("searchInput").placeholder = tr("search_placeholder");
     if($("manualUrl")) $("manualUrl").placeholder = tr("manual_url_placeholder");
     if($("currentInfo") && /No file selected|鏈€夋嫨鏂囦欢/.test($("currentInfo").textContent||"")) text($("currentInfo"), tr("no_file"));
@@ -1512,13 +1521,82 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     if(!candidates.length) return { url:"", source:"none", headers:{}, candidates:[] };
     return { url:candidates[0].url, source:candidates[0].source, headers:candidates[0].headers, candidates:candidates };
   }
+  function setPlayerMode(mode){
+    playerMode = (mode === "art") ? "art" : "native";
+    if($("btnModeNative")) $("btnModeNative").classList.toggle("active", playerMode === "native");
+    if($("btnModeArt")) $("btnModeArt").classList.toggle("active", playerMode === "art");
+    if($("video")) $("video").classList.toggle("hidden", playerMode !== "native");
+    if($("artPlayerWrap")) $("artPlayerWrap").classList.toggle("hidden", playerMode !== "art");
+    if(playerMode === "native" && artPlayer){
+      try{ artPlayer.pause(); }catch(_){}
+    }
+    if(playerMode === "art" && $("video")){
+      try{ $("video").pause(); }catch(_){}
+    }
+  }
+  function ensureArtPlayer(){
+    if(artPlayer) return artPlayer;
+    if(!(window.Artplayer && $("artPlayerWrap"))){
+      return null;
+    }
+    artPlayer = new Artplayer({
+      container: $("artPlayerWrap"),
+      url: "",
+      autoplay: true,
+      setting: true,
+      playbackRate: true,
+      pip: true,
+      fullscreen: true,
+      fullscreenWeb: true,
+      theme: "#ff8f35"
+    });
+    artPlayer.on("error", function(){
+      onPlaybackError("art");
+    });
+    return artPlayer;
+  }
   function playUrl(url, title){
     var u=String(url||"").trim();
     if(!u){ text($("currentInfo"), "Play failed: empty URL"); return; }
-    var v=$("video");
-    v.src=u;
-    v.play().catch(function(){});
-    text($("currentInfo"), "Playing: " + (title || u));
+    if(playerMode === "art"){
+      var ap = ensureArtPlayer();
+      if(!ap){
+        text($("currentInfo"), "ArtPlayer is unavailable, switched to native player.");
+        setPlayerMode("native");
+      }else{
+        try{
+          ap.switchUrl(u);
+          ap.play();
+        }catch(_){
+          text($("currentInfo"), "ArtPlayer play failed, switched to native player.");
+          setPlayerMode("native");
+        }
+      }
+    }
+    if(playerMode === "native"){
+      var v=$("video");
+      if(v){
+        v.src=u;
+        v.play().catch(function(){});
+      }
+    }
+    text($("currentInfo"), "Playing: " + (title || u) + (playerMode === "art" ? " [ArtPlayer]" : " [Native]"));
+  }
+  function onPlaybackError(source){
+    if(!lastPlayPath || !lastPlaySourceUrl) return;
+    if(Array.isArray(lastPlayCandidates) && (lastPlayCandidateIndex + 1) < lastPlayCandidates.length){
+      lastPlayCandidateIndex += 1;
+      var next = lastPlayCandidates[lastPlayCandidateIndex] || {};
+      if(next.url){
+        lastPlaySourceUrl = String(next.url);
+        lastPlayHeaders = (next.headers && typeof next.headers==="object") ? next.headers : {};
+        text($("currentInfo"), (source === "art" ? "ArtPlayer" : "Native") + " playback failed, trying alternate stream (" + (lastPlayCandidateIndex + 1) + "/" + lastPlayCandidates.length + ")...");
+        playUrl(lastPlaySourceUrl, lastPlayPath);
+        return;
+      }
+    }
+    var hint = "Playback failed for all stream candidates. Check: 1) OpenList token valid 2) mount path has access 3) storage web proxy enabled.";
+    text($("currentInfo"), hint);
   }
   async function playEntry(entry){
     if(!entry) return;
@@ -1743,6 +1821,8 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     $("btnDashboard").addEventListener("click", function(){ postHost("cloudplayer_open_dashboard"); });
     $("btnRestart").addEventListener("click", function(){ postHost("cloudplayer_restart_openlist"); });
     $("btnPlayUrl").addEventListener("click", function(){ playUrl($("manualUrl").value, "manual URL"); });
+    if($("btnModeNative")) $("btnModeNative").addEventListener("click", function(){ setPlayerMode("native"); if(lastPlaySourceUrl) playUrl(lastPlaySourceUrl, lastPlayPath || lastPlaySourceUrl); });
+    if($("btnModeArt")) $("btnModeArt").addEventListener("click", function(){ setPlayerMode("art"); if(lastPlaySourceUrl) playUrl(lastPlaySourceUrl, lastPlayPath || lastPlaySourceUrl); });
     if($("pathInput")) $("pathInput").addEventListener("keydown", function(e){ if(e.key==="Enter") loadList($("pathInput").value); });
     $("manualUrl").addEventListener("keydown", function(e){ if(e.key==="Enter") playUrl($("manualUrl").value, "manual URL"); });
     $("apiBase").addEventListener("change", function(){
@@ -1827,20 +1907,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       }
     });
     $("video").addEventListener("error", async function(){
-      if(!lastPlayPath || !lastPlaySourceUrl) return;
-      if(Array.isArray(lastPlayCandidates) && (lastPlayCandidateIndex + 1) < lastPlayCandidates.length){
-        lastPlayCandidateIndex += 1;
-        var next = lastPlayCandidates[lastPlayCandidateIndex] || {};
-        if(next.url){
-          lastPlaySourceUrl = String(next.url);
-          lastPlayHeaders = (next.headers && typeof next.headers==="object") ? next.headers : {};
-          text($("currentInfo"), "Native playback failed, trying alternate stream (" + (lastPlayCandidateIndex + 1) + "/" + lastPlayCandidates.length + ")...");
-          playUrl(lastPlaySourceUrl, lastPlayPath);
-          return;
-        }
-      }
-      var hint = "Native preview failed for all stream candidates. Check: 1) OpenList token valid 2) mount path has access 3) storage web proxy enabled.";
-      text($("currentInfo"), hint);
+      onPlaybackError("native");
     });
 
     ["mountAli","mountBaidu","mountQuark","mount115","mount123","mountOneDrive","mountDropbox","mountYandex","mountGDrive","aliMountPath","advRootFolderId","advDriveType","advAlipanType","advUseOnlineApi","advClientId","advClientSecret","advApiUrlAddress"].forEach(function(id){
@@ -1913,6 +1980,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     applyUiLanguage();
     loadPins();
     bindEvents();
+    setPlayerMode("native");
     setSettingsDrawer(false);
     if(window.chrome && window.chrome.webview) window.chrome.webview.addEventListener("message", onHostMessage);
     state.apiBase = normalizeApiBase($("apiBase").value);
