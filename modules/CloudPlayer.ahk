@@ -65,7 +65,7 @@ CloudPlayer_CreateGui() {
     } catch {
     }
 
-    g_CloudPlayerGui := Gui("+Resize +MinSize960x620 +DPIScale +ToolWindow" . ownerOpt, "CloudPlayer")
+    g_CloudPlayerGui := Gui("+Resize +MinSize960x620 +DPIScale" . ownerOpt, "牛马云")
     g_CloudPlayerGui.BackColor := "121212"
     g_CloudPlayerGui.OnEvent("Size", CloudPlayer_OnGuiSize)
     g_CloudPlayerGui.OnEvent("Close", CloudPlayer_OnGuiClose)

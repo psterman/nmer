@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>云播放器</title>
+<title>牛马云</title>
 <style>
 :root{
   --line:#263246;
@@ -40,7 +40,7 @@ button.ghost{background:#151d2b}
 
 .top{
   display:grid;
-  grid-template-columns:1.2fr 1.4fr 1fr auto auto;
+  grid-template-columns:1.2fr 1.4fr auto auto;
   gap:10px;padding:12px;border-bottom:1px solid var(--line);
   background:rgba(10,15,22,.82);backdrop-filter:blur(8px);
 }
@@ -51,9 +51,13 @@ button.ghost{background:#151d2b}
 .dot.ok{background:var(--ok);box-shadow:0 0 10px rgba(55,214,122,.55)}
 
 .providers{display:flex;gap:8px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line);background:rgba(8,12,18,.7)}
-.pbtn{height:34px;padding:0 12px;border-radius:999px;border:1px solid #32445f;background:#132033;color:#cfe2ff}
+.pbtn{height:34px;padding:0 12px;border-radius:999px;border:1px solid #32445f;background:#132033;color:#cfe2ff;display:inline-flex;align-items:center;gap:8px}
 .pbtn:hover{border-color:#4c6283}
 .pbtn.active{border-color:#ff9d4f;background:linear-gradient(180deg,#ff8f35,#ff7420);color:#111}
+.provider-ico{width:18px;height:18px;object-fit:contain;flex:none}
+.provider-label{line-height:1}
+.provider-dot{width:8px;height:8px;border-radius:50%;background:#8f9db3;box-shadow:0 0 0 1px rgba(255,255,255,.1) inset;flex:none}
+.provider-dot.online{background:#37d67a;box-shadow:0 0 8px rgba(55,214,122,.55)}
 .bind-toggle{margin-left:auto;border-style:dashed}
 
 .quick-import{
@@ -84,6 +88,7 @@ button.ghost{background:#151d2b}
 .pathbar{padding:10px;border-bottom:1px solid var(--line);display:flex;gap:8px}
 .pathbar input{flex:1}
 .pathbar .navbtn{min-width:44px;padding:0 10px}
+.path-display{flex:1;display:flex;align-items:center;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:#111a27;color:#b9c9e3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .searchbar{padding:8px 10px;border-bottom:1px solid var(--line);display:flex;gap:8px}
 .searchbar input{flex:1}
 .list{flex:1;overflow:auto;padding:8px}
@@ -106,6 +111,8 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 .modal.open{display:flex}
 .modal-card{width:min(980px,92vw);height:min(760px,90vh);border:1px solid #2c3d56;border-radius:14px;background:#111826;display:flex;flex-direction:column;overflow:hidden}
 .modal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.modal-head-left{display:flex;align-items:center;gap:10px;min-width:0}
+.modal-provider-ico{width:24px;height:24px;object-fit:contain;flex:none}
 .modal-title{font-weight:700}
 .modal-hint{font-size:12px;color:var(--muted)}
 .modal-body{flex:1;min-height:0;background:#0d1220}
@@ -142,22 +149,19 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 </head>
 <body>
   <div class="compact-head">
-    <div class="badge"><span id="dot" class="dot"></span><span id="statusText">检查中...</span></div>
     <div class="compact-actions">
       <button id="btnSettingsDrawer" class="ghost">设置</button>
     </div>
   </div>
   <div class="providers">
-    <button id="btnAli" class="pbtn">阿里云盘</button>
-    <button id="btnBaidu" class="pbtn">Baidu</button>
-    <button id="btnQuark" class="pbtn">Quark</button>
-    <button id="btn115" class="pbtn">115</button>
-    <button id="btn123" class="pbtn">123</button>
-    <button id="btnOneDrive" class="pbtn">OneDrive</button>
-    <button id="btnDropbox" class="pbtn">Dropbox</button>
-    <button id="btnYandex" class="pbtn">Yandex</button>
-    <button id="btnGDrive" class="pbtn">GoogleDrive</button>
-    <button id="btnRoot" class="pbtn">根目录</button>
+    <button id="btnRoot" class="pbtn"><span class="provider-dot" data-provider-dot></span><span id="providerLabelRoot" class="provider-label">主页</span></button>
+    <button id="btnAli" class="pbtn"><span class="provider-dot" data-provider-dot></span><img class="provider-ico" src="lib/images/aliyun.png" alt=""><span id="providerLabelAli" class="provider-label">阿里云盘</span></button>
+    <button id="btnBaidu" class="pbtn"><span class="provider-dot" data-provider-dot></span><img class="provider-ico" src="lib/images/baiduyun.png" alt=""><span id="providerLabelBaidu" class="provider-label">Baidu</span></button>
+    <button id="btnQuark" class="pbtn"><span class="provider-dot" data-provider-dot></span><img class="provider-ico" src="lib/images/kuake.png" alt=""><span id="providerLabelQuark" class="provider-label">Quark</span></button>
+    <button id="btn115" class="pbtn"><span class="provider-dot" data-provider-dot></span><img class="provider-ico" src="lib/images/115.png" alt=""><span id="providerLabel115" class="provider-label">115</span></button>
+    <button id="btn123" class="pbtn"><span class="provider-dot" data-provider-dot></span><img class="provider-ico" src="lib/images/123.png" alt=""><span id="providerLabel123" class="provider-label">123</span></button>
+    <button id="btnOneDrive" class="pbtn"><span class="provider-dot" data-provider-dot></span><img class="provider-ico" src="lib/images/OneDrive.png" alt=""><span id="providerLabelOneDrive" class="provider-label">OneDrive</span></button>
+    <button id="btnDropbox" class="pbtn"><span class="provider-dot" data-provider-dot></span><img class="provider-ico" src="lib/images/dropbox.png" alt=""><span id="providerLabelDropbox" class="provider-label">Dropbox</span></button>
   </div>
 
   <div class="quick-import">
@@ -172,7 +176,6 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     <div class="top">
       <div class="wrap"><div class="lab">OpenList API</div><input id="apiBase" value="http://127.0.0.1:5244"></div>
       <div class="wrap hidden"><div class="lab">令牌（可选）</div><input id="token" placeholder="鉴权令牌"></div>
-      <div class="wrap"><div class="lab">状态</div><div class="badge"><span class="dot" id="dotMirror"></span><span id="statusTextMirror">检查中...</span></div></div>
       <button id="btnDashboard" class="ghost">OpenList 管理页</button>
       <button id="btnRestart" class="primary">重启 OpenList</button>
     </div>
@@ -185,10 +188,9 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       <div class="adv-item"><label for="advClientId">Client ID</label><input id="advClientId" value=""></div>
       <div class="adv-item"><label for="advClientSecret">Client Secret</label><input id="advClientSecret" value=""></div>
       <div class="adv-item full"><label for="advApiUrlAddress">API URL Address</label><input id="advApiUrlAddress" value="https://api.oplist.org/alicloud/renewapi"></div>
-      <div class="adv-item"><label for="advLanguage">语言</label><select id="advLanguage"><option value="zh">中文</option><option value="en">English</option></select></div>
     </div>
 
-    <div class="pmap">
+    <div class="pmap hidden">
       <div class="row hidden"><span>阿里路径</span><input id="mountAli" value="/aliyun"></div>
       <div class="row"><span>百度路径</span><input id="mountBaidu" value="/baidu"></div>
       <div class="row"><span>夸克路径</span><input id="mountQuark" value="/quark"></div>
@@ -207,8 +209,9 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
         <button id="btnBack" class="navbtn ghost" title="后退">&lt;</button>
         <button id="btnForward" class="navbtn ghost" title="前进">&gt;</button>
         <button id="btnUp" class="navbtn ghost" title="上级">^</button>
-        <input id="pathInput" value="/">
-        <button id="btnLoad">加载</button>
+        <input id="pathInput" class="hidden" value="/">
+        <button id="btnLoad" class="hidden">加载</button>
+        <div id="pathDisplay" class="path-display">/</div>
       </div>
       <div class="searchbar"><input id="searchInput" placeholder="搜索当前目录"><button id="btnSearchClear" class="ghost">清空</button></div>
       <div id="fileList" class="list"></div>
@@ -224,7 +227,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   <div id="scanModal" class="modal">
     <div class="modal-card">
       <div class="modal-head">
-        <div><div class="modal-title">智能登录指引</div><div class="modal-hint">在浏览器登录后，复制 refresh_token 再粘贴到下方。</div></div>
+        <div class="modal-head-left"><img id="guideProviderIcon" class="modal-provider-ico" src="lib/images/aliyun.png" alt=""><div><div class="modal-title">智能登录指引</div><div class="modal-hint">在浏览器登录后，复制 refresh_token 再粘贴到下方。</div></div></div>
         <div style="display:flex;gap:8px"><button id="btnRefreshScan" class="ghost">打开登录页</button><button id="btnOpenTokenExternal" class="ghost">从剪贴板粘贴</button><button id="btnCloseScan" class="primary">关闭</button></div>
       </div>
       <div class="modal-body">
@@ -299,15 +302,13 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   var uiLang = "zh";
   var providerTokens = {};
   var providerMap = {
-    ali: { label:"Aliyun", driver:"AliyundriveOpen", mountId:"mountAli", defaultPath:"/aliyun", loginUrl:"https://api.oplist.org/", tokenLabel:"refresh_token" },
-    baidu: { label:"Baidu", driver:"BaiduNetdisk", mountId:"mountBaidu", defaultPath:"/baidu", loginUrl:"https://api.oplist.org/baiduyun/callback", tokenLabel:"refresh_token" },
-    quark: { label:"Quark", driver:"Quark", mountId:"mountQuark", defaultPath:"/quark", loginUrl:"https://api.oplist.org/quarkyun/callback", requestUrl:"https://api.oplist.org/quarkyun/requests", tokenLabel:"Cookie (__puus / __pus / ctoken)" },
-    pan115: { label:"115", driver:"Pan115", mountId:"mount115", defaultPath:"/pan115", loginUrl:"https://api.oplist.org/115/", tokenLabel:"refresh_token" },
-    pan123: { label:"123", driver:"123Open", mountId:"mount123", defaultPath:"/pan123", loginUrl:"https://api.oplist.org/123/", tokenLabel:"refresh_token" },
-    onedrive: { label:"OneDrive", driver:"Onedrive", mountId:"mountOneDrive", defaultPath:"/onedrive", loginUrl:"https://api.oplist.org/onedrive/", tokenLabel:"refresh_token" },
-    dropbox: { label:"Dropbox", driver:"Dropbox", mountId:"mountDropbox", defaultPath:"/dropbox", loginUrl:"https://api.oplist.org/dropbox/", tokenLabel:"refresh_token" },
-    yandex: { label:"Yandex", driver:"YandexDisk", mountId:"mountYandex", defaultPath:"/yandex", loginUrl:"https://api.oplist.org/yandex/", tokenLabel:"refresh_token" },
-    gdrive: { label:"GoogleDrive", driver:"GoogleDrive", mountId:"mountGDrive", defaultPath:"/gdrive", loginUrl:"https://api.oplist.org/googledrive/", tokenLabel:"refresh_token" }
+    ali: { label:"Aliyun", icon:"lib/images/aliyun.png", driver:"AliyundriveOpen", mountId:"mountAli", defaultPath:"/aliyun", loginUrl:"https://api.oplist.org/", tokenLabel:"refresh_token" },
+    baidu: { label:"Baidu", icon:"lib/images/baiduyun.png", driver:"BaiduNetdisk", mountId:"mountBaidu", defaultPath:"/baidu", loginUrl:"https://api.oplist.org/baiduyun/callback", tokenLabel:"refresh_token" },
+    quark: { label:"Quark", icon:"lib/images/kuake.png", driver:"Quark", mountId:"mountQuark", defaultPath:"/quark", loginUrl:"https://api.oplist.org/quarkyun/callback", requestUrl:"https://api.oplist.org/quarkyun/requests", tokenLabel:"Cookie (__puus / __pus / ctoken)" },
+    pan115: { label:"115", icon:"lib/images/115.png", driver:"Pan115", mountId:"mount115", defaultPath:"/pan115", loginUrl:"https://api.oplist.org/115/", tokenLabel:"refresh_token" },
+    pan123: { label:"123", icon:"lib/images/123.png", driver:"123Open", mountId:"mount123", defaultPath:"/pan123", loginUrl:"https://api.oplist.org/123/", tokenLabel:"refresh_token" },
+    onedrive: { label:"OneDrive", icon:"lib/images/OneDrive.png", driver:"Onedrive", mountId:"mountOneDrive", defaultPath:"/onedrive", loginUrl:"https://api.oplist.org/onedrive/", tokenLabel:"refresh_token" },
+    dropbox: { label:"Dropbox", icon:"lib/images/dropbox.png", driver:"Dropbox", mountId:"mountDropbox", defaultPath:"/dropbox", loginUrl:"https://api.oplist.org/dropbox/", tokenLabel:"refresh_token" }
   };
     var i18n = {
     zh: {
@@ -394,7 +395,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     import_failed: "\u5bfc\u5165\u5931\u8d25\uff1a{msg}",
     importing_cloud_storage: "\u6b63\u5728\u5bfc\u5165\u4e91\u5b58\u50a8...",
     provider_ali: "\u963f\u91cc\u4e91\u76d8",
-    provider_root: "\u6839\u76ee\u5f55",
+    provider_root: "\u4e3b\u9875",
     pmap_ali: "\u963f\u91cc\u8def\u5f84",
     pmap_baidu: "\u767e\u5ea6\u8def\u5f84",
     pmap_quark: "\u5938\u514b\u8def\u5f84",
@@ -429,7 +430,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     import_failed: "Import failed: {msg}",
     importing_cloud_storage: "Importing cloud storage...",
     provider_ali: "Aliyun",
-    provider_root: "Root",
+    provider_root: "Home",
     pmap_ali: "Ali path",
     pmap_baidu: "Baidu path",
     pmap_quark: "Quark path",
@@ -461,11 +462,9 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   }
   function applyUiLanguage(){
     try{ document.documentElement.lang = (uiLang === "en" ? "en" : "zh-CN"); }catch(_){}
-    if($("statusText") && (!$("statusText").textContent || /Checking|妫€鏌ヤ腑/.test($("statusText").textContent))) text($("statusText"), tr("checking"));
-    if($("statusTextMirror") && (!$("statusTextMirror").textContent || /Checking|妫€鏌ヤ腑/.test($("statusTextMirror").textContent))) text($("statusTextMirror"), tr("checking"));
     if($("btnSettingsDrawer")) $("btnSettingsDrawer").textContent = document.body.classList.contains("settings-open") ? tr("hide_settings") : tr("settings");
-    if($("btnAli")) $("btnAli").textContent = tr("provider_ali");
-    if($("btnRoot")) $("btnRoot").textContent = tr("provider_root");
+    if($("providerLabelAli")) $("providerLabelAli").textContent = tr("provider_ali");
+    if($("providerLabelRoot")) $("providerLabelRoot").textContent = tr("provider_root");
     if($("btnSmartLogin")) $("btnSmartLogin").textContent = tr("smart_login");
     try{
       var autoLabel = document.querySelector(".mini-toggle");
@@ -475,7 +474,6 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     }catch(_){}
     if($("btnDashboard")) $("btnDashboard").textContent = tr("openlist_admin");
     if($("btnRestart")) $("btnRestart").textContent = tr("restart_openlist");
-    if($("btnLoad")) $("btnLoad").textContent = tr("load");
     if($("btnSearchClear")) $("btnSearchClear").textContent = tr("clear");
     if($("btnPlayUrl")) $("btnPlayUrl").textContent = tr("play_url");
     if($("searchInput")) $("searchInput").placeholder = tr("search_placeholder");
@@ -490,31 +488,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       var modalTitle = document.querySelector(".modal-title");
       if(modalTitle) modalTitle.textContent = tr("guide_title");
     }catch(_){}
-    if($("advLanguage")){
-      var ops = $("advLanguage").options;
-      if(ops && ops.length >= 2){
-        ops[0].text = tr("lang_zh");
-        ops[1].text = tr("lang_en");
-      }
-    }
     try{
-      var pmapLabels = {
-        mountAli: tr("pmap_ali"),
-        mountBaidu: tr("pmap_baidu"),
-        mountQuark: tr("pmap_quark"),
-        mount115: tr("pmap_115"),
-        mount123: tr("pmap_123"),
-        mountOneDrive: tr("pmap_onedrive"),
-        mountDropbox: tr("pmap_dropbox"),
-        mountYandex: tr("pmap_yandex"),
-        mountGDrive: tr("pmap_google")
-      };
-      Object.keys(pmapLabels).forEach(function(id){
-        var inp = $(id);
-        if(!inp || !inp.parentElement) return;
-        var sp = inp.parentElement.querySelector("span");
-        if(sp) sp.textContent = pmapLabels[id];
-      });
       var ctxMap = {
         copy: tr("ctx_copy"),
         paste: tr("ctx_paste"),
@@ -531,9 +505,8 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
         if(ctxMap[act]) btn.textContent = ctxMap[act];
       });
       var labs = document.querySelectorAll(".top .lab");
-      if(labs && labs.length >= 3){
+      if(labs && labs.length >= 2){
         labs[1].textContent = tr("token_optional");
-        labs[2].textContent = tr("status");
       }
       if($("token")) $("token").placeholder = tr("auth_token");
       var advMap = {
@@ -543,8 +516,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
         advUseOnlineApi: tr("use_online_api"),
         advClientId: tr("client_id"),
         advClientSecret: tr("client_secret"),
-        advApiUrlAddress: tr("api_url"),
-        advLanguage: tr("language")
+        advApiUrlAddress: tr("api_url")
       };
       for(var k in advMap){
         if(!Object.prototype.hasOwnProperty.call(advMap,k)) continue;
@@ -621,11 +593,11 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     if(!/^https?:\/\//i.test(s)) s = "http://" + s.replace(/^\/+/, "");
     return s.replace(/\/+$/, "");
   }
-  function setStatus(ok, label){
-    $("dot").className = ok ? "dot ok" : "dot";
-    text($("statusText"), label);
-    if($("dotMirror")) $("dotMirror").className = ok ? "dot ok" : "dot";
-    if($("statusTextMirror")) text($("statusTextMirror"), label);
+  function setStatus(ok){
+    var dots = document.querySelectorAll("[data-provider-dot]");
+    dots.forEach(function(dot){
+      dot.classList.toggle("online", !!ok);
+    });
   }
   function postHost(type, data){ try{ if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage(Object.assign({ type:type }, data||{})); } }catch(_){} }
   function getHeaders(json){
@@ -639,10 +611,10 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     return h;
   }
   function markProvider(name){
-    ["btnAli","btnBaidu","btnQuark","btn115","btn123","btnOneDrive","btnDropbox","btnYandex","btnGDrive","btnRoot"].forEach(function(id){
+    ["btnAli","btnBaidu","btnQuark","btn115","btn123","btnOneDrive","btnDropbox","btnRoot"].forEach(function(id){
       if($(id)) $(id).classList.remove("active");
     });
-    var m={ali:"btnAli",baidu:"btnBaidu",quark:"btnQuark",pan115:"btn115",pan123:"btn123",onedrive:"btnOneDrive",dropbox:"btnDropbox",yandex:"btnYandex",gdrive:"btnGDrive",root:"btnRoot"};
+    var m={ali:"btnAli",baidu:"btnBaidu",quark:"btnQuark",pan115:"btn115",pan123:"btn123",onedrive:"btnOneDrive",dropbox:"btnDropbox",root:"btnRoot"};
     if(m[name] && $(m[name])) $(m[name]).classList.add("active");
   }
   function openExternal(url){
@@ -1067,7 +1039,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       advDriveType: $("advDriveType").value || "default", advAlipanType: $("advAlipanType").value || "default",
       advUseOnlineApi: $("advUseOnlineApi").value || "true", advClientId: $("advClientId").value || "",
       advClientSecret: $("advClientSecret").value || "", advApiUrlAddress: $("advApiUrlAddress").value || "https://api.oplist.org/alicloud/renewapi",
-      advLanguage: $("advLanguage").value || "zh"
+      advLanguage: uiLang
     };
     try{ localStorage.setItem(storeKey, JSON.stringify(data)); }catch(_){}
   }
@@ -1100,9 +1072,9 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       if(typeof s.advClientId==="string") $("advClientId").value=s.advClientId;
       if(typeof s.advClientSecret==="string") $("advClientSecret").value=s.advClientSecret;
       if(s.advApiUrlAddress) $("advApiUrlAddress").value=s.advApiUrlAddress;
-      if(typeof s.advLanguage==="string" && (s.advLanguage==="zh" || s.advLanguage==="en")) $("advLanguage").value=s.advLanguage;
+      if(typeof s.advLanguage==="string" && (s.advLanguage==="zh" || s.advLanguage==="en")) uiLang = s.advLanguage;
     }catch(_){}
-    uiLang = ($("advLanguage").value === "en") ? "en" : "zh";
+    if(uiLang !== "en") uiLang = "zh";
     applyUiLanguage();
     syncProviderTokenToInputs(state.provider);
   }
@@ -1152,7 +1124,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     state.apiBase = normalizeApiBase($("apiBase").value);
     $("apiBase").value = state.apiBase;
     state.token = $("token").value.trim();
-    if (!opts.skipInitialPending) setStatus(false, "Checking...");
+    if (!opts.skipInitialPending) setStatus(false);
 
     // Ask host process to ping OpenList as primary path (more reliable in WebView).
     postHost("cloudplayer_ping_openlist", { apiBase: state.apiBase });
@@ -1173,19 +1145,19 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 
     // If host already replied for this check cycle, trust host status and avoid flip-flop.
     if (lastHostStatusAt > hostStatusBefore) {
-      setStatus(lastHostStatusOnline, lastHostStatusOnline ? tr("online") : tr("offline"));
+      setStatus(lastHostStatusOnline);
       return lastHostStatusOnline;
     }
 
     var ok = !!(res.status >= 200 && res.status < 600);
     if (ok) {
-      setStatus(true, tr("online") + " (" + res.status + ")");
+      setStatus(true);
       return true;
     }
     if (timedOut) {
-      setStatus(false, "Checking via host...");
+      setStatus(false);
     } else {
-      setStatus(false, tr("offline"));
+      setStatus(false);
     }
     return false;
   }
@@ -1373,7 +1345,8 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       navForwardStack = [];
     }
     state.path=nextPath;
-    $("pathInput").value=state.path;
+    if($("pathInput")) $("pathInput").value=state.path;
+    if($("pathDisplay")) $("pathDisplay").textContent = state.path;
     text($("currentInfo"), "Loading: " + state.path);
     var liveToken = String(($("token") && $("token").value) || state.token || "").trim();
     if(!liveToken){
@@ -1560,6 +1533,10 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     var isQuark = (state.provider === "quark");
     var is123 = (state.provider === "pan123");
     var isEn = (uiLang === "en");
+    if($("guideProviderIcon")){
+      $("guideProviderIcon").src = m.icon || "lib/images/aliyun.png";
+      $("guideProviderIcon").alt = m.label || "";
+    }
     try{
       if($("scanModal").classList.contains("open")){
         $("scanModal").querySelector(".modal-title").textContent = (isEn ? "Smart Login Guide - " : "\u667a\u80fd\u767b\u5f55\u6307\u5f15 - ") + m.label;
@@ -1697,7 +1674,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       var open = !document.body.classList.contains("settings-open");
       setSettingsDrawer(open);
     });
-    $("btnLoad").addEventListener("click", function(){ loadList($("pathInput").value); });
+    if($("btnLoad")) $("btnLoad").addEventListener("click", function(){ loadList($("pathInput").value); });
     $("btnBack").addEventListener("click", async function(){
       if(!navBackStack.length) return;
       var prev = navBackStack.pop();
@@ -1726,7 +1703,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     $("btnDashboard").addEventListener("click", function(){ postHost("cloudplayer_open_dashboard"); });
     $("btnRestart").addEventListener("click", function(){ postHost("cloudplayer_restart_openlist"); });
     $("btnPlayUrl").addEventListener("click", function(){ playUrl($("manualUrl").value, "manual URL"); });
-    $("pathInput").addEventListener("keydown", function(e){ if(e.key==="Enter") loadList($("pathInput").value); });
+    if($("pathInput")) $("pathInput").addEventListener("keydown", function(e){ if(e.key==="Enter") loadList($("pathInput").value); });
     $("manualUrl").addEventListener("keydown", function(e){ if(e.key==="Enter") playUrl($("manualUrl").value, "manual URL"); });
     $("apiBase").addEventListener("change", function(){
       state.apiBase = normalizeApiBase($("apiBase").value);
@@ -1758,8 +1735,6 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     $("btn123").addEventListener("click", function(){ openProvider("pan123"); syncGuideText(); });
     $("btnOneDrive").addEventListener("click", function(){ openProvider("onedrive"); syncGuideText(); });
     $("btnDropbox").addEventListener("click", function(){ openProvider("dropbox"); syncGuideText(); });
-    $("btnYandex").addEventListener("click", function(){ openProvider("yandex"); syncGuideText(); });
-    $("btnGDrive").addEventListener("click", function(){ openProvider("gdrive"); syncGuideText(); });
     $("btnRoot").addEventListener("click", function(){ openProvider("root"); });
 
     $("btnSmartLogin").addEventListener("click", startTokenAssist);
@@ -1851,15 +1826,9 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       text($("currentInfo"), hint);
     });
 
-    ["mountAli","mountBaidu","mountQuark","mount115","mount123","mountOneDrive","mountDropbox","mountYandex","mountGDrive","aliMountPath","advRootFolderId","advDriveType","advAlipanType","advUseOnlineApi","advClientId","advClientSecret","advApiUrlAddress","advLanguage"].forEach(function(id){
+    ["mountAli","mountBaidu","mountQuark","mount115","mount123","mountOneDrive","mountDropbox","mountYandex","mountGDrive","aliMountPath","advRootFolderId","advDriveType","advAlipanType","advUseOnlineApi","advClientId","advClientSecret","advApiUrlAddress"].forEach(function(id){
       $(id).addEventListener("change", saveSettings);
       $(id).addEventListener("blur", saveSettings);
-    });
-    $("advLanguage").addEventListener("change", function(){
-      uiLang = ($("advLanguage").value === "en") ? "en" : "zh";
-      applyUiLanguage();
-      syncGuideText();
-      saveSettings();
     });
   }
   function onHostMessage(evt){
@@ -1869,7 +1838,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       if(typeof data.apiBase==="string" && data.apiBase) $("apiBase").value=normalizeApiBase(data.apiBase);
       lastHostStatusAt = Date.now();
       lastHostStatusOnline = !!data.openListOnline;
-      setStatus(lastHostStatusOnline, lastHostStatusOnline ? tr("online") : tr("offline"));
+      setStatus(lastHostStatusOnline);
       return;
     }
     if(data.type==="cloudplayer_import_result"){
@@ -1919,7 +1888,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   async function boot(){
     loadProviderTokens();
     loadSettings();
-    uiLang = ($("advLanguage") && $("advLanguage").value === "en") ? "en" : "zh";
+    if(uiLang !== "en") uiLang = "zh";
     applyUiLanguage();
     loadPins();
     bindEvents();
