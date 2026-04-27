@@ -109,6 +109,9 @@ button.ghost{background:#151d2b}
 .playbar input{flex:1}
 video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1px solid #293245;border-radius:12px}
 #artPlayerWrap{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1px solid #293245;border-radius:12px;overflow:hidden}
+#docPreview{width:100%;height:100%;min-height:320px;flex:1;background:#0a0f18;border:1px solid #293245;border-radius:12px;overflow:auto;padding:14px;line-height:1.7}
+#docPreview h1,#docPreview h2,#docPreview h3{color:#f5f7ff;margin:12px 0 8px}
+#docPreview p,#docPreview li,#docPreview span,#docPreview td,#docPreview th{color:#d8e2f4}
 .player-mode{display:flex;gap:8px}
 .mode-btn.active{border-color:#ff9d4f;background:linear-gradient(180deg,#ff8f35,#ff7420);color:#111}
 
@@ -224,6 +227,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       <div id="currentInfo" class="hint">未选择文件。</div>
       <video id="video" controls playsinline preload="metadata"></video>
       <div id="artPlayerWrap" class="hidden"></div>
+      <div id="docPreview" class="hidden"></div>
       <div class="hint">导入成功后，点击上方云盘标签浏览文件夹。</div>
     </div>
   </div>
@@ -264,6 +268,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   </div>
 
 <script src="https://unpkg.com/artplayer@5.2.3/dist/artplayer.js"></script>
+<script src="https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <script>
 (function(){
   var $ = function(id){ return document.getElementById(id); };
@@ -296,6 +301,11 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   var currentItems = [];
   var copiedEntry = null;
   var selectedEntryPath = "";
+  var virtualRows = [];
+  var virtualStart = -1;
+  var virtualEnd = -1;
+  var virtualRowHeight = 42;
+  var virtualOverscan = 8;
   var pinStoreKey = "cloudplayer_pins_v1";
   var pinnedMap = {};
   var lastPlayPath = "";
@@ -303,6 +313,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   var lastPlayHeaders = {};
   var lastPlayCandidates = [];
   var lastPlayCandidateIndex = -1;
+  var lastDocPath = "";
   var artPlayer = null;
   var playerMode = "native";
   var autoBootDone = false;
@@ -625,7 +636,14 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     providerOnline.root = true;
     refreshProviderDots();
   }
-  function postHost(type, data){ try{ if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage(Object.assign({ type:type }, data||{})); } }catch(_){} }
+  function postHost(type, data){
+    try{
+      if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage){
+        var payload = Object.assign({ type:type }, data||{});
+        window.chrome.webview.postMessage(JSON.stringify(payload));
+      }
+    }catch(_){}
+  }
   function getHeaders(json){
     var h={"Accept":"application/json"};
     if(json) h["Content-Type"]="application/json";
@@ -1242,10 +1260,42 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     }
     return "";
   }
+  function rowHtml(it){
+    var ico=it.isDir?"DIR":"FILE", size=it.isDir?"":fmtSize(it.size), pin=isPinned(it.path)?'<span class="pin">*</span>':"";
+    var icoHtml = escHtml(ico);
+    if(it.isDir && normPath(state.path) === "/"){
+      var pKey = providerByMountPath(it.path);
+      if(pKey && providerMap[pKey] && providerMap[pKey].icon){
+        icoHtml = '<img class="row-provider-ico" src="' + escHtml(providerMap[pKey].icon) + '" alt="">';
+      }
+    }
+    return '<div class="item" data-path="'+encodeURIComponent(it.path)+'" data-dir="'+(it.isDir?"1":"0")+'"><span class="ico '+(it.isDir?"dir":"file")+'">'+icoHtml+'</span><span class="name">'+pin+escHtml(it.name)+'</span><span class="meta">'+escHtml(size)+'</span></div>';
+  }
+  function renderVirtualWindow(force){
+    var wrap = $("fileList");
+    if(!wrap || !Array.isArray(virtualRows) || !virtualRows.length) return;
+    var top = wrap.scrollTop || 0;
+    var vh = wrap.clientHeight || 420;
+    var start = Math.max(0, Math.floor(top / virtualRowHeight) - virtualOverscan);
+    var end = Math.min(virtualRows.length, Math.ceil((top + vh) / virtualRowHeight) + virtualOverscan);
+    if(!force && start === virtualStart && end === virtualEnd) return;
+    virtualStart = start;
+    virtualEnd = end;
+    var topPad = start * virtualRowHeight;
+    var bottomPad = Math.max(0, (virtualRows.length - end) * virtualRowHeight);
+    var html = '<div style="height:' + topPad + 'px"></div>';
+    for(var i=start;i<end;i++) html += rowHtml(virtualRows[i]);
+    html += '<div style="height:' + bottomPad + 'px"></div>';
+    wrap.innerHTML = html;
+    if(selectedEntryPath) setSelectedPath(selectedEntryPath);
+  }
   function renderList(items){
     var wrap=$("fileList");
     currentItems = Array.isArray(items) ? items.map(buildEntry) : [];
     var rows = getVisibleItems();
+    virtualRows = rows;
+    virtualStart = -1;
+    virtualEnd = -1;
     if(!rows.length){
       if(normPath(state.path) === "/"){
         wrap.innerHTML='<div class="empty">Top directory. Choose a cloud tab above to browse files.</div>';
@@ -1254,28 +1304,8 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       }
       return;
     }
-    var html="";
-    for(var i=0;i<rows.length;i++){
-      var it=rows[i], ico=it.isDir?"DIR":"FILE", size=it.isDir?"":fmtSize(it.size), pin=isPinned(it.path)?'<span class="pin">*</span>':"";
-      var icoHtml = escHtml(ico);
-      if(it.isDir && normPath(state.path) === "/"){
-        var pKey = providerByMountPath(it.path);
-        if(pKey && providerMap[pKey] && providerMap[pKey].icon){
-          icoHtml = '<img class="row-provider-ico" src="' + escHtml(providerMap[pKey].icon) + '" alt="">';
-        }
-      }
-      html += '<div class="item" data-path="'+encodeURIComponent(it.path)+'" data-dir="'+(it.isDir?"1":"0")+'"><span class="ico '+(it.isDir?"dir":"file")+'">'+icoHtml+'</span><span class="name">'+pin+escHtml(it.name)+'</span><span class="meta">'+escHtml(size)+'</span></div>';
-    }
-    wrap.innerHTML=html;
-    wrap.querySelectorAll(".item").forEach(function(el){
-      el.addEventListener("click", onRowClick);
-      el.addEventListener("contextmenu", function(e){
-        e.preventDefault();
-        var fullPath = decodeURIComponent(el.getAttribute("data-path")||"/");
-        setSelectedPath(fullPath);
-        openContextMenu(e.clientX, e.clientY, findEntryByPath(fullPath));
-      });
-    });
+    wrap.scrollTop = 0;
+    renderVirtualWindow(true);
     if(selectedEntryPath) setSelectedPath(selectedEntryPath);
   }
   function hideContextMenu(){ $("ctxMenu").classList.remove("open"); $("ctxMenu")._entry = null; }
@@ -1525,6 +1555,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     playerMode = (mode === "art") ? "art" : "native";
     if($("btnModeNative")) $("btnModeNative").classList.toggle("active", playerMode === "native");
     if($("btnModeArt")) $("btnModeArt").classList.toggle("active", playerMode === "art");
+    if($("docPreview")) $("docPreview").classList.add("hidden");
     if($("video")) $("video").classList.toggle("hidden", playerMode !== "native");
     if($("artPlayerWrap")) $("artPlayerWrap").classList.toggle("hidden", playerMode !== "art");
     if(playerMode === "native" && artPlayer){
@@ -1555,9 +1586,84 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     });
     return artPlayer;
   }
+  function isOfficeDocPath(path){
+    var p = String(path || "").toLowerCase();
+    return /\.(docx|docm|doc|xlsx|xls|pptx|ppt)$/i.test(p);
+  }
+  function getOfficeExt(path){
+    var p = String(path || "").toLowerCase();
+    var m = p.match(/\.([a-z0-9]+)$/i);
+    return m ? m[1] : "";
+  }
+  function showDocPreview(html, title){
+    if($("video")){
+      try{ $("video").pause(); }catch(_){}
+      $("video").classList.add("hidden");
+    }
+    if(artPlayer){
+      try{ artPlayer.pause(); }catch(_){}
+    }
+    if($("artPlayerWrap")) $("artPlayerWrap").classList.add("hidden");
+    var wrap = $("docPreview");
+    if(!wrap) return;
+    wrap.classList.remove("hidden");
+    wrap.innerHTML = '<h3>' + escHtml(title || "Office Preview") + '</h3>' + String(html || "");
+  }
+  async function fetchArrayBufferByCandidates(candidates){
+    for(var i=0;i<candidates.length;i++){
+      var u = String((candidates[i] && candidates[i].url) || "").trim();
+      var hs = (candidates[i] && candidates[i].headers && typeof candidates[i].headers === "object") ? candidates[i].headers : {};
+      if(!u) continue;
+      try{
+        var res = await fetch(u, { method:"GET", headers: hs });
+        if(!res.ok) continue;
+        return await res.arrayBuffer();
+      }catch(_){}
+    }
+    return null;
+  }
+  async function previewOfficeEntry(entry){
+    var ext = getOfficeExt(entry && entry.path);
+    var title = (entry && entry.name) ? entry.name : "Office Preview";
+    if(!ext){
+      text($("currentInfo"), "Office preview failed: unsupported extension.");
+      return false;
+    }
+    if(ext !== "docx" && ext !== "docm"){
+      showDocPreview('<p>当前仅内置 DOCX 预览（mammoth.js）。该文件类型：<b>' + escHtml(ext.toUpperCase()) + '</b>，请下载后查看。</p>', title);
+      text($("currentInfo"), "Office preview: " + ext.toUpperCase() + " is not yet supported by mammoth.js in this panel.");
+      return true;
+    }
+    if(!(window.mammoth && window.mammoth.convertToHtml)){
+      text($("currentInfo"), "Office preview failed: mammoth.js not loaded.");
+      return false;
+    }
+    text($("currentInfo"), "Loading office preview: " + (entry.path || ""));
+    var link = await resolveFileUrl(entry.path);
+    var cands = Array.isArray(link && link.candidates) ? link.candidates : [];
+    if(link && link.url){
+      cands.unshift({ url:link.url, headers:{} });
+    }
+    var buf = await fetchArrayBufferByCandidates(cands);
+    if(!buf){
+      text($("currentInfo"), "Office preview failed: cannot fetch file bytes.");
+      return false;
+    }
+    try{
+      var result = await window.mammoth.convertToHtml({ arrayBuffer: buf });
+      showDocPreview(result && result.value ? result.value : "<p>(Empty document)</p>", title);
+      lastDocPath = entry.path || "";
+      text($("currentInfo"), "Office preview loaded: " + title);
+      return true;
+    }catch(e){
+      text($("currentInfo"), "Office preview failed: " + (e && e.message ? e.message : "convert error"));
+      return false;
+    }
+  }
   function playUrl(url, title){
     var u=String(url||"").trim();
     if(!u){ text($("currentInfo"), "Play failed: empty URL"); return; }
+    if($("docPreview")) $("docPreview").classList.add("hidden");
     if(playerMode === "art"){
       var ap = ensureArtPlayer();
       if(!ap){
@@ -1601,6 +1707,10 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   async function playEntry(entry){
     if(!entry) return;
     if(entry.isDir){ await loadList(entry.path); return; }
+    if(isOfficeDocPath(entry.path)){
+      var okPreview = await previewOfficeEntry(entry);
+      if(okPreview) return;
+    }
     text($("currentInfo"), "Resolving stream URL: " + entry.path);
     var link = await resolveFileUrl(entry.path);
     if(!link || !link.url){ text($("currentInfo"), "Failed to resolve stream URL."); return; }
@@ -1899,7 +2009,21 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     document.addEventListener("click", function(e){
       if(!e.target.closest || !e.target.closest("#ctxMenu")) hideContextMenu();
     });
+    $("fileList").addEventListener("scroll", function(){ renderVirtualWindow(false); });
+    $("fileList").addEventListener("click", function(e){
+      var row = e.target && e.target.closest ? e.target.closest(".item") : null;
+      if(!row) return;
+      onRowClick({ currentTarget: row });
+    });
     $("fileList").addEventListener("contextmenu", function(e){
+      var row = e.target && e.target.closest ? e.target.closest(".item") : null;
+      if(row){
+        e.preventDefault();
+        var fullPath = decodeURIComponent(row.getAttribute("data-path")||"/");
+        setSelectedPath(fullPath);
+        openContextMenu(e.clientX, e.clientY, findEntryByPath(fullPath));
+        return;
+      }
       if(e.target === $("fileList")){
         e.preventDefault();
         setSelectedPath("");
