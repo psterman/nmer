@@ -1,9 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Cloud Player</title>
+<title>云播放器</title>
 <style>
 :root{
   --line:#263246;
@@ -142,13 +142,13 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 </head>
 <body>
   <div class="compact-head">
-    <div class="badge"><span id="dot" class="dot"></span><span id="statusText">Checking...</span></div>
+    <div class="badge"><span id="dot" class="dot"></span><span id="statusText">检查中...</span></div>
     <div class="compact-actions">
-      <button id="btnSettingsDrawer" class="ghost">Settings</button>
+      <button id="btnSettingsDrawer" class="ghost">设置</button>
     </div>
   </div>
   <div class="providers">
-    <button id="btnAli" class="pbtn">Aliyun</button>
+    <button id="btnAli" class="pbtn">阿里云盘</button>
     <button id="btnBaidu" class="pbtn">Baidu</button>
     <button id="btnQuark" class="pbtn">Quark</button>
     <button id="btn115" class="pbtn">115</button>
@@ -157,102 +157,103 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     <button id="btnDropbox" class="pbtn">Dropbox</button>
     <button id="btnYandex" class="pbtn">Yandex</button>
     <button id="btnGDrive" class="pbtn">GoogleDrive</button>
-    <button id="btnRoot" class="pbtn">Root</button>
+    <button id="btnRoot" class="pbtn">根目录</button>
   </div>
 
   <div class="quick-import">
-    <input id="aliRefreshToken" class="hidden" placeholder="Paste aliyun refresh_token">
+    <input id="aliRefreshToken" class="hidden" placeholder="粘贴阿里云 refresh_token">
     <input id="aliMountPath" class="hidden" value="/aliyun" placeholder="/aliyun">
-    <button id="btnSmartLogin" class="primary">Smart Login</button>
-    <label class="mini-toggle"><input id="autoImportOnToken" type="checkbox" checked>Auto Import After Token</label>
-    <p id="importHint" class="hint">For beginners: click Smart Login, complete Aliyun login in browser, copy token once. CloudPlayer will fill and import automatically.</p>
+    <button id="btnSmartLogin" class="primary">智能登录</button>
+    <label class="mini-toggle"><input id="autoImportOnToken" type="checkbox" checked>获取令牌后自动导入</label>
+    <p id="importHint" class="hint">新手提示：点击“智能登录”，在浏览器完成登录后复制令牌，云播放器会自动填充并导入。</p>
   </div>
 
   <div id="settingsDrawer" class="settings-drawer">
     <div class="top">
       <div class="wrap"><div class="lab">OpenList API</div><input id="apiBase" value="http://127.0.0.1:5244"></div>
-      <div class="wrap hidden"><div class="lab">Token (optional)</div><input id="token" placeholder="Authorization token"></div>
-      <div class="wrap"><div class="lab">Status</div><div class="badge"><span class="dot" id="dotMirror"></span><span id="statusTextMirror">Checking...</span></div></div>
-      <button id="btnDashboard" class="ghost">OpenList Admin</button>
-      <button id="btnRestart" class="primary">Restart OpenList</button>
+      <div class="wrap hidden"><div class="lab">令牌（可选）</div><input id="token" placeholder="鉴权令牌"></div>
+      <div class="wrap"><div class="lab">状态</div><div class="badge"><span class="dot" id="dotMirror"></span><span id="statusTextMirror">检查中...</span></div></div>
+      <button id="btnDashboard" class="ghost">OpenList 管理页</button>
+      <button id="btnRestart" class="primary">重启 OpenList</button>
     </div>
 
     <div id="advPanel" class="adv-panel">
-    <div class="adv-item"><label for="advRootFolderId">Root Folder ID</label><input id="advRootFolderId" value="root"></div>
-    <div class="adv-item"><label for="advDriveType">Drive Type</label><select id="advDriveType"><option value="default">default</option><option value="resource">resource</option><option value="backup">backup</option></select></div>
-    <div class="adv-item"><label for="advAlipanType">AliPan Type</label><select id="advAlipanType"><option value="default">default</option><option value="alipanTV">alipanTV</option></select></div>
-    <div class="adv-item"><label for="advUseOnlineApi">Use Online API</label><select id="advUseOnlineApi"><option value="true">true</option><option value="false">false</option></select></div>
-    <div class="adv-item"><label for="advClientId">Client ID</label><input id="advClientId" value=""></div>
-    <div class="adv-item"><label for="advClientSecret">Client Secret</label><input id="advClientSecret" value=""></div>
-    <div class="adv-item full"><label for="advApiUrlAddress">API URL Address</label><input id="advApiUrlAddress" value="https://api.oplist.org/alicloud/renewapi"></div>
+      <div class="adv-item"><label for="advRootFolderId">根目录 ID</label><input id="advRootFolderId" value="root"></div>
+      <div class="adv-item"><label for="advDriveType">盘类型</label><select id="advDriveType"><option value="default">default</option><option value="resource">resource</option><option value="backup">backup</option></select></div>
+      <div class="adv-item"><label for="advAlipanType">阿里盘类型</label><select id="advAlipanType"><option value="default">default</option><option value="alipanTV">alipanTV</option></select></div>
+      <div class="adv-item"><label for="advUseOnlineApi">使用在线 API</label><select id="advUseOnlineApi"><option value="true">true</option><option value="false">false</option></select></div>
+      <div class="adv-item"><label for="advClientId">Client ID</label><input id="advClientId" value=""></div>
+      <div class="adv-item"><label for="advClientSecret">Client Secret</label><input id="advClientSecret" value=""></div>
+      <div class="adv-item full"><label for="advApiUrlAddress">API URL Address</label><input id="advApiUrlAddress" value="https://api.oplist.org/alicloud/renewapi"></div>
+      <div class="adv-item"><label for="advLanguage">语言</label><select id="advLanguage"><option value="zh">中文</option><option value="en">English</option></select></div>
     </div>
 
     <div class="pmap">
-      <div class="row hidden"><span>Ali path</span><input id="mountAli" value="/aliyun"></div>
-      <div class="row"><span>Baidu path</span><input id="mountBaidu" value="/baidu"></div>
-      <div class="row"><span>Quark path</span><input id="mountQuark" value="/quark"></div>
+      <div class="row hidden"><span>阿里路径</span><input id="mountAli" value="/aliyun"></div>
+      <div class="row"><span>百度路径</span><input id="mountBaidu" value="/baidu"></div>
+      <div class="row"><span>夸克路径</span><input id="mountQuark" value="/quark"></div>
       <div class="row"><span>115 path</span><input id="mount115" value="/pan115"></div>
       <div class="row"><span>123 path</span><input id="mount123" value="/pan123"></div>
       <div class="row"><span>OneDrive path</span><input id="mountOneDrive" value="/onedrive"></div>
       <div class="row"><span>Dropbox path</span><input id="mountDropbox" value="/dropbox"></div>
       <div class="row"><span>Yandex path</span><input id="mountYandex" value="/yandex"></div>
-      <div class="row"><span>Google path</span><input id="mountGDrive" value="/gdrive"></div>
+      <div class="row"><span>Google 路径</span><input id="mountGDrive" value="/gdrive"></div>
     </div>
   </div>
 
   <div class="main">
     <div class="card left">
       <div class="pathbar">
-        <button id="btnBack" class="navbtn ghost" title="Back">&lt;</button>
-        <button id="btnForward" class="navbtn ghost" title="Forward">&gt;</button>
-        <button id="btnUp" class="navbtn ghost" title="Up">^</button>
+        <button id="btnBack" class="navbtn ghost" title="后退">&lt;</button>
+        <button id="btnForward" class="navbtn ghost" title="前进">&gt;</button>
+        <button id="btnUp" class="navbtn ghost" title="上级">^</button>
         <input id="pathInput" value="/">
-        <button id="btnLoad">Load</button>
+        <button id="btnLoad">加载</button>
       </div>
-      <div class="searchbar"><input id="searchInput" placeholder="Search in current folder"><button id="btnSearchClear" class="ghost">Clear</button></div>
+      <div class="searchbar"><input id="searchInput" placeholder="搜索当前目录"><button id="btnSearchClear" class="ghost">清空</button></div>
       <div id="fileList" class="list"></div>
     </div>
     <div class="card right">
-      <div class="playbar"><input id="manualUrl" placeholder="Or paste direct video URL"><button id="btnPlayUrl">Play URL</button></div>
-      <div id="currentInfo" class="hint">No file selected.</div>
+      <div class="playbar"><input id="manualUrl" placeholder="或粘贴直链视频 URL"><button id="btnPlayUrl">播放 URL</button></div>
+      <div id="currentInfo" class="hint">未选择文件。</div>
       <video id="video" controls playsinline preload="metadata"></video>
-      <div class="hint">After import, click a cloud tab to browse folders.</div>
+      <div class="hint">导入成功后，点击上方云盘标签浏览文件夹。</div>
     </div>
   </div>
 
   <div id="scanModal" class="modal">
     <div class="modal-card">
       <div class="modal-head">
-        <div><div class="modal-title">Smart Login Guide</div><div class="modal-hint">Login in browser, copy refresh_token, then paste below.</div></div>
-        <div style="display:flex;gap:8px"><button id="btnRefreshScan" class="ghost">Open Login Page</button><button id="btnOpenTokenExternal" class="ghost">Paste Token</button><button id="btnCloseScan" class="primary">Close</button></div>
+        <div><div class="modal-title">智能登录指引</div><div class="modal-hint">在浏览器登录后，复制 refresh_token 再粘贴到下方。</div></div>
+        <div style="display:flex;gap:8px"><button id="btnRefreshScan" class="ghost">打开登录页</button><button id="btnOpenTokenExternal" class="ghost">从剪贴板粘贴</button><button id="btnCloseScan" class="primary">关闭</button></div>
       </div>
       <div class="modal-body">
         <div class="guide-panel">
           <ol class="guide-steps">
-            <li id="guideStep1">Click <b>Open Login Page</b> and complete cloud login in your browser.</li>
-            <li id="guideStep2">After login, copy the <code>refresh_token</code> text.</li>
-            <li id="guideStep3">Paste token into the input below, then click <b>Import Now</b>.</li>
+            <li id="guideStep1">点击<b>打开登录页</b>并在浏览器完成云盘登录。</li>
+            <li id="guideStep2">登录成功后，复制 <code>refresh_token</code> 文本。</li>
+            <li id="guideStep3">将令牌粘贴到下方输入框，再点击 <b>立即导入</b>。</li>
           </ol>
           <div class="guide-row">
-            <input id="guideTokenInput" placeholder="Paste refresh_token here">
-            <button id="btnGuideImport" class="primary">Import Now</button>
+            <input id="guideTokenInput" placeholder="在此粘贴 refresh_token">
+            <button id="btnGuideImport" class="primary">立即导入</button>
           </div>
-          <div class="hint">Tip: token is saved locally and reused next time.</div>
+          <div class="hint">提示：令牌会保存在本地，下次可自动复用。</div>
         </div>
       </div>
     </div>
   </div>
 
   <div id="ctxMenu" class="ctx-menu">
-    <button class="ctx-item" data-act="copy">Copy</button>
-    <button class="ctx-item" data-act="paste">Paste</button>
-    <button class="ctx-item" data-act="delete">Delete</button>
-    <button class="ctx-item" data-act="download">Download</button>
-    <button class="ctx-item" data-act="rename">Rename</button>
-    <button class="ctx-item" data-act="move">Move</button>
-    <button class="ctx-item" data-act="playview">Play/View</button>
-    <button class="ctx-item" data-act="info">Info</button>
-    <button class="ctx-item" data-act="pin">Pin/Unpin</button>
+    <button class="ctx-item" data-act="copy">复制</button>
+    <button class="ctx-item" data-act="paste">粘贴</button>
+    <button class="ctx-item" data-act="delete">删除</button>
+    <button class="ctx-item" data-act="download">下载</button>
+    <button class="ctx-item" data-act="rename">重命名</button>
+    <button class="ctx-item" data-act="move">移动</button>
+    <button class="ctx-item" data-act="playview">播放/查看</button>
+    <button class="ctx-item" data-act="info">信息</button>
+    <button class="ctx-item" data-act="pin">置顶/取消置顶</button>
   </div>
 
 <script>
@@ -280,6 +281,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   var tokenAssistTimer = 0;
   var tokenAssistActive = false;
   var tokenAssistSeen = "";
+  var lastSmartLoginError = "";
   var fsGetReqSeq = 0;
   var navBackStack = [];
   var navForwardStack = [];
@@ -294,11 +296,12 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   var lastPlayCandidates = [];
   var lastPlayCandidateIndex = -1;
   var autoBootDone = false;
+  var uiLang = "zh";
   var providerTokens = {};
   var providerMap = {
     ali: { label:"Aliyun", driver:"AliyundriveOpen", mountId:"mountAli", defaultPath:"/aliyun", loginUrl:"https://api.oplist.org/", tokenLabel:"refresh_token" },
     baidu: { label:"Baidu", driver:"BaiduNetdisk", mountId:"mountBaidu", defaultPath:"/baidu", loginUrl:"https://api.oplist.org/baiduyun/callback", tokenLabel:"refresh_token" },
-    quark: { label:"Quark", driver:"QuarkOpen", mountId:"mountQuark", defaultPath:"/quark", loginUrl:"https://api.oplist.org/quarkyun/callback", tokenLabel:"refresh_token" },
+    quark: { label:"Quark", driver:"Quark", mountId:"mountQuark", defaultPath:"/quark", loginUrl:"https://api.oplist.org/quarkyun/callback", requestUrl:"https://api.oplist.org/quarkyun/requests", tokenLabel:"Cookie (__puus / __pus / ctoken)" },
     pan115: { label:"115", driver:"Pan115", mountId:"mount115", defaultPath:"/pan115", loginUrl:"https://api.oplist.org/115/", tokenLabel:"refresh_token" },
     pan123: { label:"123", driver:"Pan123", mountId:"mount123", defaultPath:"/pan123", loginUrl:"https://api.oplist.org/123/", tokenLabel:"refresh_token" },
     onedrive: { label:"OneDrive", driver:"Onedrive", mountId:"mountOneDrive", defaultPath:"/onedrive", loginUrl:"https://api.oplist.org/onedrive/", tokenLabel:"refresh_token" },
@@ -306,11 +309,280 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     yandex: { label:"Yandex", driver:"YandexDisk", mountId:"mountYandex", defaultPath:"/yandex", loginUrl:"https://api.oplist.org/yandex/", tokenLabel:"refresh_token" },
     gdrive: { label:"GoogleDrive", driver:"GoogleDrive", mountId:"mountGDrive", defaultPath:"/gdrive", loginUrl:"https://api.oplist.org/googledrive/", tokenLabel:"refresh_token" }
   };
+    var i18n = {
+    zh: {
+      checking: "\u68c0\u67e5\u4e2d...",
+      settings: "\u8bbe\u7f6e",
+      hide_settings: "\u9690\u85cf\u8bbe\u7f6e",
+      root: "\u6839\u76ee\u5f55",
+      smart_login: "\u667a\u80fd\u767b\u5f55",
+      auto_import: "\u83b7\u53d6\u4ee4\u724c\u540e\u81ea\u52a8\u5bfc\u5165",
+      openlist_admin: "OpenList \u7ba1\u7406\u9875",
+      restart_openlist: "\u91cd\u542f OpenList",
+      status: "\u72b6\u6001",
+      token_optional: "\u4ee4\u724c\uff08\u53ef\u9009\uff09",
+      auth_token: "\u9274\u6743\u4ee4\u724c",
+      root_folder_id: "\u6839\u76ee\u5f55 ID",
+      drive_type: "\u76d8\u7c7b\u578b",
+      alipan_type: "\u963f\u91cc\u76d8\u7c7b\u578b",
+      use_online_api: "\u4f7f\u7528\u5728\u7ebf API",
+      api_url: "API URL Address",
+      client_id: "Client ID",
+      client_secret: "Client Secret",
+      language: "\u8bed\u8a00",
+      lang_zh: "\u4e2d\u6587",
+      lang_en: "English",
+      load: "\u52a0\u8f7d",
+      clear: "\u6e05\u7a7a",
+      play_url: "\u64ad\u653e URL",
+      search_placeholder: "\u641c\u7d22\u5f53\u524d\u76ee\u5f55",
+      manual_url_placeholder: "\u6216\u7c98\u8d34\u76f4\u94fe\u89c6\u9891 URL",
+      no_file: "\u672a\u9009\u62e9\u6587\u4ef6\u3002",
+      hint_after_import: "\u5bfc\u5165\u6210\u529f\u540e\uff0c\u70b9\u51fb\u4e0a\u65b9\u4e91\u76d8\u6807\u7b7e\u6d4f\u89c8\u6587\u4ef6\u5939\u3002",
+      guide_title: "\u667a\u80fd\u767b\u5f55\u6307\u5f15",
+      guide_open_login: "\u6253\u5f00\u767b\u5f55\u9875",
+      guide_paste_clip: "\u4ece\u526a\u8d34\u677f\u7c98\u8d34",
+      close: "\u5173\u95ed"
+    },
+    en: {
+      checking: "Checking...",
+      settings: "Settings",
+      hide_settings: "Hide Settings",
+      root: "Root",
+      smart_login: "Smart Login",
+      auto_import: "Auto Import After Token",
+      openlist_admin: "OpenList Admin",
+      restart_openlist: "Restart OpenList",
+      status: "Status",
+      token_optional: "Token (optional)",
+      auth_token: "Authorization token",
+      root_folder_id: "Root Folder ID",
+      drive_type: "Drive Type",
+      alipan_type: "AliPan Type",
+      use_online_api: "Use Online API",
+      api_url: "API URL Address",
+      client_id: "Client ID",
+      client_secret: "Client Secret",
+      language: "Language",
+      lang_zh: "Chinese",
+      lang_en: "English",
+      load: "Load",
+      clear: "Clear",
+      play_url: "Play URL",
+      search_placeholder: "Search in current folder",
+      manual_url_placeholder: "Or paste direct video URL",
+      no_file: "No file selected.",
+      hint_after_import: "After import, click a cloud tab to browse folders.",
+      guide_title: "Smart Login Guide",
+      guide_open_login: "Open Login Page",
+      guide_paste_clip: "Paste Token",
+      close: "Close"
+    }
+  };
+    Object.assign(i18n.zh, {
+    online: "\u5728\u7ebf",
+    offline: "\u79bb\u7ebf",
+    smart_login_stopped: "\u667a\u80fd\u767b\u5f55\u5df2\u505c\u6b62\u3002",
+    smart_login_started: "\u5df2\u542f\u52a8 {provider} \u667a\u80fd\u767b\u5f55\u3002\u767b\u5f55\u540e\u590d\u5236 {tokenLabel} \u5e76\u5bfc\u5165\u3002",
+    importing_btn: "\u5bfc\u5165\u4e2d...",
+    import_now_btn: "\u7acb\u5373\u5bfc\u5165",
+    openlist_offline: "OpenList \u4f3c\u4e4e\u79bb\u7ebf\u3002\u70b9\u51fb\u201c\u91cd\u542f OpenList\u201d\uff0c\u7b49\u5f85 2-3 \u79d2\u540e\u91cd\u8bd5\u5bfc\u5165\u3002",
+    importing_provider: "\u6b63\u5728\u5bfc\u5165 {provider} \u5b58\u50a8...",
+    detected_saved_token_importing: "\u5df2\u68c0\u6d4b\u5230\u4fdd\u5b58\u7684 {provider} \u4ee4\u724c\uff0c\u6b63\u5728\u81ea\u52a8\u5bfc\u5165...",
+    opened_login_page: "\u5df2\u5728\u9ed8\u8ba4\u6d4f\u89c8\u5668\u6253\u5f00\u767b\u5f55\u9875\u3002",
+    import_success: "\u5bfc\u5165\u6210\u529f\uff1a{path}\uff08{driver}\uff09",
+    import_failed: "\u5bfc\u5165\u5931\u8d25\uff1a{msg}",
+    importing_cloud_storage: "\u6b63\u5728\u5bfc\u5165\u4e91\u5b58\u50a8...",
+    provider_ali: "\u963f\u91cc\u4e91\u76d8",
+    provider_root: "\u6839\u76ee\u5f55",
+    pmap_ali: "\u963f\u91cc\u8def\u5f84",
+    pmap_baidu: "\u767e\u5ea6\u8def\u5f84",
+    pmap_quark: "\u5938\u514b\u8def\u5f84",
+    pmap_115: "115 \u8def\u5f84",
+    pmap_123: "123 \u8def\u5f84",
+    pmap_onedrive: "OneDrive \u8def\u5f84",
+    pmap_dropbox: "Dropbox \u8def\u5f84",
+    pmap_yandex: "Yandex \u8def\u5f84",
+    pmap_google: "Google \u8def\u5f84",
+    ctx_copy: "\u590d\u5236",
+    ctx_paste: "\u7c98\u8d34",
+    ctx_delete: "\u5220\u9664",
+    ctx_download: "\u4e0b\u8f7d",
+    ctx_rename: "\u91cd\u547d\u540d",
+    ctx_move: "\u79fb\u52a8",
+    ctx_playview: "\u64ad\u653e/\u67e5\u770b",
+    ctx_info: "\u4fe1\u606f",
+    ctx_pin: "\u7f6e\u9876/\u53d6\u6d88\u7f6e\u9876"
+  });
+  Object.assign(i18n.en, {
+    online: "Online",
+    offline: "Offline",
+    smart_login_stopped: "Smart Login stopped.",
+    smart_login_started: "Smart Login started for {provider}. After login, copy {tokenLabel} and import.",
+    importing_btn: "Importing...",
+    import_now_btn: "Import Now",
+    openlist_offline: "OpenList seems offline. Click Restart OpenList, wait 2-3s, then retry import.",
+    importing_provider: "Importing {provider} storage...",
+    detected_saved_token_importing: "Detected saved {provider} token. Importing automatically...",
+    opened_login_page: "Opened login page in your default browser.",
+    import_success: "Import success: {path} ({driver})",
+    import_failed: "Import failed: {msg}",
+    importing_cloud_storage: "Importing cloud storage...",
+    provider_ali: "Aliyun",
+    provider_root: "Root",
+    pmap_ali: "Ali path",
+    pmap_baidu: "Baidu path",
+    pmap_quark: "Quark path",
+    pmap_115: "115 path",
+    pmap_123: "123 path",
+    pmap_onedrive: "OneDrive path",
+    pmap_dropbox: "Dropbox path",
+    pmap_yandex: "Yandex path",
+    pmap_google: "Google path",
+    ctx_copy: "Copy",
+    ctx_paste: "Paste",
+    ctx_delete: "Delete",
+    ctx_download: "Download",
+    ctx_rename: "Rename",
+    ctx_move: "Move",
+    ctx_playview: "Play/View",
+    ctx_info: "Info",
+    ctx_pin: "Pin/Unpin"
+  });
+  function tr(k, vars){
+    var d = i18n[uiLang] || i18n.zh;
+    var s = d[k] || (i18n.en[k] || k);
+    if(vars && typeof vars === "object"){
+      Object.keys(vars).forEach(function(name){
+        s = s.replace(new RegExp("\\{" + name + "\\}", "g"), String(vars[name]));
+      });
+    }
+    return s;
+  }
+  function applyUiLanguage(){
+    try{ document.documentElement.lang = (uiLang === "en" ? "en" : "zh-CN"); }catch(_){}
+    if($("statusText") && (!$("statusText").textContent || /Checking|妫€鏌ヤ腑/.test($("statusText").textContent))) text($("statusText"), tr("checking"));
+    if($("statusTextMirror") && (!$("statusTextMirror").textContent || /Checking|妫€鏌ヤ腑/.test($("statusTextMirror").textContent))) text($("statusTextMirror"), tr("checking"));
+    if($("btnSettingsDrawer")) $("btnSettingsDrawer").textContent = document.body.classList.contains("settings-open") ? tr("hide_settings") : tr("settings");
+    if($("btnAli")) $("btnAli").textContent = tr("provider_ali");
+    if($("btnRoot")) $("btnRoot").textContent = tr("provider_root");
+    if($("btnSmartLogin")) $("btnSmartLogin").textContent = tr("smart_login");
+    try{
+      var autoLabel = document.querySelector(".mini-toggle");
+      if(autoLabel && autoLabel.childNodes && autoLabel.childNodes.length >= 2){
+        autoLabel.childNodes[1].nodeValue = tr("auto_import");
+      }
+    }catch(_){}
+    if($("btnDashboard")) $("btnDashboard").textContent = tr("openlist_admin");
+    if($("btnRestart")) $("btnRestart").textContent = tr("restart_openlist");
+    if($("btnLoad")) $("btnLoad").textContent = tr("load");
+    if($("btnSearchClear")) $("btnSearchClear").textContent = tr("clear");
+    if($("btnPlayUrl")) $("btnPlayUrl").textContent = tr("play_url");
+    if($("searchInput")) $("searchInput").placeholder = tr("search_placeholder");
+    if($("manualUrl")) $("manualUrl").placeholder = tr("manual_url_placeholder");
+    if($("currentInfo") && /No file selected|鏈€夋嫨鏂囦欢/.test($("currentInfo").textContent||"")) text($("currentInfo"), tr("no_file"));
+    var hints = document.querySelectorAll(".card.right .hint");
+    if(hints && hints.length>0) hints[hints.length-1].textContent = tr("hint_after_import");
+    if($("btnRefreshScan")) $("btnRefreshScan").textContent = tr("guide_open_login");
+    if($("btnOpenTokenExternal")) $("btnOpenTokenExternal").textContent = tr("guide_paste_clip");
+    if($("btnCloseScan")) $("btnCloseScan").textContent = tr("close");
+    try{
+      var modalTitle = document.querySelector(".modal-title");
+      if(modalTitle) modalTitle.textContent = tr("guide_title");
+    }catch(_){}
+    if($("advLanguage")){
+      var ops = $("advLanguage").options;
+      if(ops && ops.length >= 2){
+        ops[0].text = tr("lang_zh");
+        ops[1].text = tr("lang_en");
+      }
+    }
+    try{
+      var pmapLabels = {
+        mountAli: tr("pmap_ali"),
+        mountBaidu: tr("pmap_baidu"),
+        mountQuark: tr("pmap_quark"),
+        mount115: tr("pmap_115"),
+        mount123: tr("pmap_123"),
+        mountOneDrive: tr("pmap_onedrive"),
+        mountDropbox: tr("pmap_dropbox"),
+        mountYandex: tr("pmap_yandex"),
+        mountGDrive: tr("pmap_google")
+      };
+      Object.keys(pmapLabels).forEach(function(id){
+        var inp = $(id);
+        if(!inp || !inp.parentElement) return;
+        var sp = inp.parentElement.querySelector("span");
+        if(sp) sp.textContent = pmapLabels[id];
+      });
+      var ctxMap = {
+        copy: tr("ctx_copy"),
+        paste: tr("ctx_paste"),
+        delete: tr("ctx_delete"),
+        download: tr("ctx_download"),
+        rename: tr("ctx_rename"),
+        move: tr("ctx_move"),
+        playview: tr("ctx_playview"),
+        info: tr("ctx_info"),
+        pin: tr("ctx_pin")
+      };
+      document.querySelectorAll("#ctxMenu .ctx-item").forEach(function(btn){
+        var act = btn.getAttribute("data-act") || "";
+        if(ctxMap[act]) btn.textContent = ctxMap[act];
+      });
+      var labs = document.querySelectorAll(".top .lab");
+      if(labs && labs.length >= 3){
+        labs[1].textContent = tr("token_optional");
+        labs[2].textContent = tr("status");
+      }
+      if($("token")) $("token").placeholder = tr("auth_token");
+      var advMap = {
+        advRootFolderId: tr("root_folder_id"),
+        advDriveType: tr("drive_type"),
+        advAlipanType: tr("alipan_type"),
+        advUseOnlineApi: tr("use_online_api"),
+        advClientId: tr("client_id"),
+        advClientSecret: tr("client_secret"),
+        advApiUrlAddress: tr("api_url"),
+        advLanguage: tr("language")
+      };
+      for(var k in advMap){
+        if(!Object.prototype.hasOwnProperty.call(advMap,k)) continue;
+        var el = document.querySelector('label[for=\"'+k+'\"]');
+        if(el) el.textContent = advMap[k];
+      }
+    }catch(_){}
+  }
 
   function text(node, v){ node.textContent = v == null ? "" : String(v); }
   function normalizeProviderKey(k){
     var s = String(k || "").trim();
     return providerMap[s] ? s : "ali";
+  }
+  function getProviderMountPath(providerKey){
+    var key = normalizeProviderKey(providerKey);
+    var m = providerMap[key] || providerMap.ali;
+    var p = (m.mountId && $(m.mountId)) ? $(m.mountId).value : (m.defaultPath || "/");
+    return normPath(p);
+  }
+  function setProviderMountPath(providerKey, path){
+    var key = normalizeProviderKey(providerKey);
+    var m = providerMap[key] || providerMap.ali;
+    var p = normPath(path || m.defaultPath || "/");
+    if(m.mountId && $(m.mountId)) $(m.mountId).value = p;
+    if(key === "ali" && $("aliMountPath")) $("aliMountPath").value = p;
+    return p;
+  }
+  function findMountOwnerByPath(path, excludeProviderKey){
+    var p = normPath(path || "/");
+    var ex = excludeProviderKey ? normalizeProviderKey(excludeProviderKey) : "";
+    var keys = Object.keys(providerMap);
+    for(var i=0;i<keys.length;i++){
+      var k = keys[i];
+      if(ex && k === ex) continue;
+      if(getProviderMountPath(k) === p) return k;
+    }
+    return "";
   }
   function loadProviderTokens(){
     try{
@@ -444,6 +716,141 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     if(m3 && m3[1]) return String(m3[1]).trim();
     return s;
   }
+  function decodeBase64Utf8(b64){
+    var s = String(b64 || "").trim();
+    if(!s) return "";
+    s = s.replace(/-/g, "+").replace(/_/g, "/");
+    while(s.length % 4 !== 0) s += "=";
+    try{
+      var bin = atob(s);
+      var bytes = new Uint8Array(bin.length);
+      for(var i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+      return new TextDecoder("utf-8").decode(bytes);
+    }catch(_){
+      try{ return atob(s); }catch(__){ return ""; }
+    }
+  }
+  function parseSmartLoginPayload(raw){
+    var src = String(raw || "").trim();
+    var out = { raw:src, refreshToken:"", accessToken:"", clientId:"", clientSecret:"", cookie:"", driverHint:"" };
+    if(!src) return out;
+    var candidates = [src];
+    var hashIdx = src.indexOf("#");
+    if(hashIdx >= 0 && hashIdx + 1 < src.length){
+      var hashPart = src.slice(hashIdx + 1).trim();
+      if(hashPart) candidates.push(hashPart);
+      var dec = decodeBase64Utf8(hashPart);
+      if(dec) candidates.push(dec);
+    }
+    for(var ci=0; ci<candidates.length; ci++){
+      var s = String(candidates[ci] || "").trim();
+      if(!s) continue;
+      try{
+        var j = JSON.parse(s);
+        if(j && typeof j === "object"){
+          out.refreshToken = out.refreshToken || String(j.refresh_token || j.refreshToken || "").trim();
+          out.accessToken = out.accessToken || String(j.access_token || j.accessToken || "").trim();
+          out.clientId = out.clientId || String(j.client_uid || j.app_id || j.client_id || "").trim();
+          out.clientSecret = out.clientSecret || String(j.client_key || j.sign_key || j.client_secret || "").trim();
+          out.cookie = out.cookie || String(j.cookie || j.cookies || "").trim();
+          out.driverHint = out.driverHint || String(j.driver_txt || "").trim();
+          if(j.data && typeof j.data === "object"){
+            out.refreshToken = out.refreshToken || String(j.data.refresh_token || j.data.refreshToken || "").trim();
+            out.accessToken = out.accessToken || String(j.data.access_token || j.data.accessToken || "").trim();
+            out.clientId = out.clientId || String(j.data.client_uid || j.data.app_id || j.data.client_id || "").trim();
+            out.clientSecret = out.clientSecret || String(j.data.client_key || j.data.sign_key || j.data.client_secret || "").trim();
+            out.cookie = out.cookie || String(j.data.cookie || j.data.cookies || "").trim();
+          }
+        }
+      }catch(_){}
+      if(!out.refreshToken){
+        var rt = extractRefreshToken(s);
+        if(rt) out.refreshToken = rt;
+      }
+      if(!out.clientId){
+        var m1 = s.match(/(?:^|[?&#])client_uid=([^&#\s]+)/i);
+        if(m1 && m1[1]){
+          try{ out.clientId = decodeURIComponent(String(m1[1])); }catch(_){ out.clientId = String(m1[1]); }
+        }
+      }
+      if(!out.clientSecret){
+        var m2 = s.match(/(?:^|[?&#])client_key=([^&#\s]+)/i);
+        if(m2 && m2[1]){
+          try{ out.clientSecret = decodeURIComponent(String(m2[1])); }catch(_){ out.clientSecret = String(m2[1]); }
+        }
+      }
+    }
+    return out;
+  }
+  function extractProviderToken(providerKey, raw){
+    var p = normalizeProviderKey(providerKey);
+    if(p !== "quark") return extractRefreshToken(raw);
+    var payload = parseSmartLoginPayload(raw);
+    if(payload.clientId) $("advClientId").value = payload.clientId;
+    if(payload.clientSecret) $("advClientSecret").value = payload.clientSecret;
+    if(payload.cookie) return payload.cookie;
+    if(payload.refreshToken) return payload.refreshToken;
+    if(payload.accessToken) return "x_pan_client_id=5325; x_pan_access_token=" + payload.accessToken;
+    return extractRefreshToken(raw);
+  }
+  function looksLikeProviderToken(providerKey, raw){
+    var p = normalizeProviderKey(providerKey);
+    if(p !== "quark") return looksLikeRefreshToken(raw);
+    var payload = parseSmartLoginPayload(raw);
+    var t = extractProviderToken(p, raw);
+    if(t && String(t).trim().length >= 8) return true;
+    return !!(payload.refreshToken || payload.accessToken || payload.cookie);
+  }
+  async function resolveProviderLoginUrl(providerKey){
+    var p = normalizeProviderKey(providerKey);
+    var m = providerMap[p] || providerMap.ali;
+    if(p !== "quark") return buildNoCacheUrl(m.loginUrl || scanBaseUrl);
+    lastSmartLoginError = "";
+    var base = String(m.requestUrl || "").trim();
+    if(!base){
+      lastSmartLoginError = "Quark SmartLogin request URL is empty.";
+      return "";
+    }
+    var urls = [
+      buildNoCacheUrl(base + (base.indexOf("?")>=0?"&":"?") + "server_use=true&driver_txt=quarkyun_fn"),
+      buildNoCacheUrl(base + (base.indexOf("?")>=0?"&":"?") + "server_use=true&driver_txt=quarkyun_oa"),
+      buildNoCacheUrl(base + (base.indexOf("?")>=0?"&":"?") + "server_use=true&driver_txt=quarkyun")
+    ];
+    for(var i=0;i<urls.length;i++){
+      var ret = await httpViaHost("GET", urls[i], { "Accept":"application/json" });
+      if(!(ret && ret.ok)) continue;
+      var body = String(ret.body || "").trim();
+      try{
+        var j = JSON.parse(body || "{}");
+        var u = String((j && (j.text || j.url || (j.data && j.data.url))) || "").trim();
+        if(/^https?:\/\//i.test(u)) return u;
+        if(j && j.text) lastSmartLoginError = String(j.text);
+      }catch(_){}
+      if(/^https?:\/\//i.test(body)) return body;
+    }
+    // Fallback: direct fnOS OAuth authorize-url exchange (bypass oplist requests proxy).
+    try{
+      var fallbackBody = JSON.stringify({
+        authType: 4,
+        grantType: "authorization_code",
+        redirectUrlToFrontend: String(m.loginUrl || "https://api.oplist.org/quarkyun/callback"),
+        trimAppId: "com.trim.cloudstorage"
+      });
+      var ret2 = await httpViaHost("POST", "https://oauth.fnnas.com/api/v1/oauth/getAuthUrl", {
+        "Accept":"application/json",
+        "Content-Type":"application/json"
+      }, fallbackBody);
+      if(ret2 && ret2.ok){
+        var body2 = String(ret2.body || "").trim();
+        var j2 = JSON.parse(body2 || "{}");
+        var u2 = String((((j2||{}).data||{}).authUrlWithNonce) || "").trim();
+        if(/^https?:\/\//i.test(u2)) return u2;
+        if(j2 && typeof j2.msg === "string" && j2.msg) lastSmartLoginError = j2.msg;
+      }
+    }catch(_){}
+    if(!lastSmartLoginError) lastSmartLoginError = "Failed to fetch Quark authorization URL from /quarkyun/requests.";
+    return "";
+  }
   function looksLikeRefreshToken(t){
     var s = extractRefreshToken(t);
     if(!s || s.length < 8) return false;
@@ -457,7 +864,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       tokenAssistTimer = 0;
     }
     if(tokenAssistActive && showMsg){
-      text($("importHint"), "Smart Login stopped.");
+      text($("importHint"), tr("smart_login_stopped"));
     }
     tokenAssistActive = false;
   }
@@ -468,16 +875,21 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     syncGuideText();
     if($("guideTokenInput")) $("guideTokenInput").value = tokenAssistSeen;
     var m = currentProviderMeta();
-    text($("importHint"), "Smart Login started for " + m.label + ". After login, copy " + m.tokenLabel + " and import.");
+    text($("importHint"), tr("smart_login_started", { provider:m.label, tokenLabel:m.tokenLabel }));
     openScanModal();
-    openExternal(buildNoCacheUrl(m.loginUrl || scanBaseUrl));
+    var launchUrl = await resolveProviderLoginUrl(state.provider || "ali");
+    if((state.provider || "ali") === "quark" && !launchUrl){
+      text($("importHint"), "Smart Login start failed: " + (lastSmartLoginError || "cannot get authorize URL") + " (will not open /callback directly).");
+      return;
+    }
+    openExternal(launchUrl);
   }
   function setAliImportBusy(busy){
     aliImportBusy = !!busy;
     var b = $("btnGuideImport");
     if(b){
       b.disabled = aliImportBusy;
-      b.textContent = aliImportBusy ? "Importing..." : "Import Now";
+      b.textContent = aliImportBusy ? tr("importing_btn") : tr("import_now_btn");
     }
     if($("btnSmartLogin")) $("btnSmartLogin").disabled = aliImportBusy;
     if($("btnOpenTokenExternal")) $("btnOpenTokenExternal").disabled = aliImportBusy;
@@ -619,7 +1031,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     var d = $("settingsDrawer");
     if(d) d.classList.toggle("open", isOpen);
     document.body.classList.toggle("settings-open", isOpen);
-    if($("btnSettingsDrawer")) $("btnSettingsDrawer").textContent = isOpen ? "Hide Settings" : "Settings";
+    if($("btnSettingsDrawer")) $("btnSettingsDrawer").textContent = isOpen ? tr("hide_settings") : tr("settings");
   }
 
   function loadPins(){
@@ -654,7 +1066,8 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       aliMountPath: normPath($("aliMountPath").value), advRootFolderId: $("advRootFolderId").value || "root",
       advDriveType: $("advDriveType").value || "default", advAlipanType: $("advAlipanType").value || "default",
       advUseOnlineApi: $("advUseOnlineApi").value || "true", advClientId: $("advClientId").value || "",
-      advClientSecret: $("advClientSecret").value || "", advApiUrlAddress: $("advApiUrlAddress").value || "https://api.oplist.org/alicloud/renewapi"
+      advClientSecret: $("advClientSecret").value || "", advApiUrlAddress: $("advApiUrlAddress").value || "https://api.oplist.org/alicloud/renewapi",
+      advLanguage: $("advLanguage").value || "zh"
     };
     try{ localStorage.setItem(storeKey, JSON.stringify(data)); }catch(_){}
   }
@@ -677,6 +1090,9 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       if(s.mountYandex) $("mountYandex").value=normPath(s.mountYandex);
       if(s.mountGDrive) $("mountGDrive").value=normPath(s.mountGDrive);
       if(s.aliMountPath) $("aliMountPath").value=normPath(s.aliMountPath);
+      if(normPath($("mountAli").value) === normPath($("mountQuark").value)){
+        setProviderMountPath("ali", providerMap.ali.defaultPath || "/aliyun");
+      }
       if(s.advRootFolderId) $("advRootFolderId").value=s.advRootFolderId;
       if(s.advDriveType) $("advDriveType").value=s.advDriveType;
       if(s.advAlipanType) $("advAlipanType").value=s.advAlipanType;
@@ -684,7 +1100,10 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       if(typeof s.advClientId==="string") $("advClientId").value=s.advClientId;
       if(typeof s.advClientSecret==="string") $("advClientSecret").value=s.advClientSecret;
       if(s.advApiUrlAddress) $("advApiUrlAddress").value=s.advApiUrlAddress;
+      if(typeof s.advLanguage==="string" && (s.advLanguage==="zh" || s.advLanguage==="en")) $("advLanguage").value=s.advLanguage;
     }catch(_){}
+    uiLang = ($("advLanguage").value === "en") ? "en" : "zh";
+    applyUiLanguage();
     syncProviderTokenToInputs(state.provider);
   }
   function getAliImportOptions(){
@@ -754,19 +1173,19 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 
     // If host already replied for this check cycle, trust host status and avoid flip-flop.
     if (lastHostStatusAt > hostStatusBefore) {
-      setStatus(lastHostStatusOnline, lastHostStatusOnline ? "Online" : "Offline");
+      setStatus(lastHostStatusOnline, lastHostStatusOnline ? tr("online") : tr("offline"));
       return lastHostStatusOnline;
     }
 
     var ok = !!(res.status >= 200 && res.status < 600);
     if (ok) {
-      setStatus(true, "Online (" + res.status + ")");
+      setStatus(true, tr("online") + " (" + res.status + ")");
       return true;
     }
     if (timedOut) {
       setStatus(false, "Checking via host...");
     } else {
-      setStatus(false, "Offline");
+      setStatus(false, tr("offline"));
     }
     return false;
   }
@@ -1138,27 +1557,66 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   }
   function syncGuideText(){
     var m = currentProviderMeta();
+    var isQuark = (state.provider === "quark");
+    var isEn = (uiLang === "en");
     try{
       if($("scanModal").classList.contains("open")){
-        $("scanModal").querySelector(".modal-title").textContent = "Smart Login Guide - " + m.label;
-        $("scanModal").querySelector(".modal-hint").textContent = "Login in browser, copy " + m.tokenLabel + ", then paste below.";
+        $("scanModal").querySelector(".modal-title").textContent = (isEn ? "Smart Login Guide - " : "\u667a\u80fd\u767b\u5f55\u6307\u5f15 - ") + m.label;
+        $("scanModal").querySelector(".modal-hint").textContent = isQuark
+          ? (isEn ? "Recommended: login web Quark and paste Cookie string." : "\u63a8\u8350\uff1a\u5148\u767b\u5f55\u5938\u514b\u7f51\u9875\u7248\uff0c\u518d\u7c98\u8d34 Cookie \u5b57\u7b26\u4e32\u3002")
+          : (isEn ? ("Login in browser, copy " + m.tokenLabel + ", then paste below.") : ("\u5728\u6d4f\u89c8\u5668\u767b\u5f55\u540e\uff0c\u590d\u5236 " + m.tokenLabel + " \u5e76\u7c98\u8d34\u5230\u4e0b\u65b9\u3002"));
       }
     }catch(_){}
-    if($("guideStep1")) $("guideStep1").innerHTML = "Click <b>Open Login Page</b> and complete <b>" + escHtml(m.label) + "</b> login in your browser.";
-    if($("guideStep2")) $("guideStep2").innerHTML = "After login, copy the <code>" + escHtml(m.tokenLabel) + "</code> text.";
-    if($("guideTokenInput")) $("guideTokenInput").placeholder = "Paste " + m.label + " " + m.tokenLabel + " here";
-    if($("btnGuideImport")) $("btnGuideImport").textContent = "Import " + m.label;
+    if($("guideStep1")) $("guideStep1").innerHTML = isQuark
+      ? (isEn ? "Click <b>Open Login Page</b> and sign in to <b>Quark Web</b>." : "\u70b9\u51fb<b>\u6253\u5f00\u767b\u5f55\u9875</b>\u5e76\u5b8c\u6210<b>\u5938\u514b\u7f51\u9875\u7248</b>\u767b\u5f55\u3002")
+      : (isEn ? ("Click <b>Open Login Page</b> and complete <b>" + escHtml(m.label) + "</b> login in your browser.") : ("\u70b9\u51fb<b>\u6253\u5f00\u767b\u5f55\u9875</b>\u5e76\u5728\u6d4f\u89c8\u5668\u5b8c\u6210<b>" + escHtml(m.label) + "</b>\u767b\u5f55\u3002"));
+    if($("guideStep2")) $("guideStep2").innerHTML = isQuark
+      ? (isEn ? "Open browser DevTools (<code>F12</code>) -> <code>Application</code> -> <code>Cookies</code> -> <code>https://pan.quark.cn</code>, then copy cookie items." : "\u6253\u5f00\u6d4f\u89c8\u5668\u5f00\u53d1\u8005\u5de5\u5177\uff08<code>F12</code>\uff09 -> <code>Application</code> -> <code>Cookies</code> -> <code>https://pan.quark.cn</code>\uff0c\u590d\u5236 Cookie \u9879\u3002")
+      : (isEn ? ("After login, copy the <code>" + escHtml(m.tokenLabel) + "</code> text.") : ("\u767b\u5f55\u6210\u529f\u540e\u590d\u5236 <code>" + escHtml(m.tokenLabel) + "</code> \u6587\u672c\u3002"));
+    if($("guideStep3")) $("guideStep3").innerHTML = isQuark
+      ? (isEn ? "Paste Cookie string below (recommended keys: <code>__puus</code>, <code>__pus</code>, <code>ctoken</code>), then click <b>Import Quark</b>." : "\u5728\u4e0b\u65b9\u7c98\u8d34 Cookie \u5b57\u7b26\u4e32\uff08\u63a8\u8350\u952e\uff1a<code>__puus</code>\u3001<code>__pus</code>\u3001<code>ctoken</code>\uff09\uff0c\u7136\u540e\u70b9\u51fb <b>\u5bfc\u5165\u5938\u514b</b>\u3002")
+      : (isEn ? "Paste token into the input below, then click <b>Import Now</b>." : "\u5c06\u4ee4\u724c\u7c98\u8d34\u5230\u4e0b\u65b9\u8f93\u5165\u6846\uff0c\u518d\u70b9\u51fb <b>\u7acb\u5373\u5bfc\u5165</b>\u3002");
+    if($("guideTokenInput")) $("guideTokenInput").placeholder = isQuark
+      ? (isEn ? "Paste Quark Cookie string here (__puus=...; __pus=...; ctoken=...)" : "\u5728\u6b64\u7c98\u8d34\u5938\u514b Cookie \u5b57\u7b26\u4e32\uff08__puus=...; __pus=...; ctoken=...\uff09")
+      : (isEn ? ("Paste " + m.label + " " + m.tokenLabel + " here") : ("\u5728\u6b64\u7c98\u8d34 " + m.label + " " + m.tokenLabel));
+    if($("btnGuideImport")) $("btnGuideImport").textContent = isEn ? ("Import " + m.label) : ("\u5bfc\u5165 " + m.label);
     syncProviderTokenToInputs(state.provider);
     if($("importHint")){
-      text($("importHint"), "Smart Login for " + m.label + ": open login page, copy " + m.tokenLabel + ", then import.");
+      text($("importHint"), isQuark
+        ? (isEn ? "Quark recommended flow: login web page, copy Cookie (__puus/__pus/ctoken), then import." : "\u5938\u514b\u63a8\u8350\u6d41\u7a0b\uff1a\u767b\u5f55\u7f51\u9875\u7248\uff0c\u590d\u5236 Cookie\uff08__puus/__pus/ctoken\uff09\u540e\u5bfc\u5165\u3002")
+        : (isEn ? ("Smart Login for " + m.label + ": open login page, copy " + m.tokenLabel + ", then import.") : ("\u201c" + m.label + "\u201d\u667a\u80fd\u767b\u5f55\uff1a\u6253\u5f00\u767b\u5f55\u9875\uff0c\u590d\u5236 " + m.tokenLabel + " \u540e\u5bfc\u5165\u3002")));
     }
   }
   async function doProviderImport(providerKey){
     stopTokenAssist(false);
     providerKey = normalizeProviderKey(providerKey || state.provider);
     var m = providerMap[providerKey] || providerMap.ali;
-    var token=extractRefreshToken($("aliRefreshToken").value||"");
-    var mountPath = normPath((m.mountId && $(m.mountId)) ? $(m.mountId).value : m.defaultPath || "/");
+    var rawToken = String($("aliRefreshToken").value||"").trim();
+    var token=extractProviderToken(providerKey, rawToken);
+    var parsedPayload = parseSmartLoginPayload(rawToken);
+    var importDriver = m.driver;
+    var options = getAliImportOptions();
+    if(providerKey === "quark"){
+      if(parsedPayload.clientId && !String(options.clientId||"").trim()) options.clientId = parsedPayload.clientId;
+      if(parsedPayload.clientSecret && !String(options.clientSecret||"").trim()) options.clientSecret = parsedPayload.clientSecret;
+      if(options.clientId) $("advClientId").value = options.clientId;
+      if(options.clientSecret) $("advClientSecret").value = options.clientSecret;
+      if(options.clientId && options.clientSecret){
+        importDriver = "QuarkOpen";
+      }
+    }
+    var mountPath = getProviderMountPath(providerKey);
+    var conflictProvider = findMountOwnerByPath(mountPath, providerKey);
+    if(conflictProvider){
+      if(providerKey === "ali"){
+        mountPath = setProviderMountPath("ali", m.defaultPath || "/aliyun");
+        saveSettings();
+        text($("importHint"), "Ali mount path conflicted with " + (providerMap[conflictProvider].label || conflictProvider) + ". Auto-reset to " + mountPath + " and continuing import.");
+      }else{
+        text($("importHint"), "Mount path " + mountPath + " is already used by " + (providerMap[conflictProvider].label || conflictProvider) + ". Please use a different path.");
+        return;
+      }
+    }
     if(!token){ text($("importHint"), "Please paste " + m.label + " " + m.tokenLabel + " first."); return; }
     if(aliImportBusy){ text($("importHint"), "Import already running, please wait..."); return; }
     var online = !!lastHostStatusOnline;
@@ -1172,19 +1630,19 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       online = await checkOpenList();
     }
     if(!online){
-      text($("importHint"), "OpenList seems offline. Click Restart OpenList, wait 2-3s, then retry import.");
+      text($("importHint"), tr("openlist_offline"));
       return;
     }
     $("aliRefreshToken").value = token;
     if($("guideTokenInput")) $("guideTokenInput").value = token;
     setProviderToken(providerKey, token);
-    if(m.mountId && $(m.mountId)) $(m.mountId).value = mountPath;
+    setProviderMountPath(providerKey, mountPath);
     saveSettings();
     setAliImportBusy(true);
-    markAliImportProgress("Importing " + m.label + " storage...");
+    markAliImportProgress(tr("importing_provider", { provider:m.label }));
     startAliImportWatchdog();
     startAliImportHardTimeout();
-    postHost("cloudplayer_import_storage", { provider:providerKey, driver:m.driver, token:token, mountPath:mountPath, options:getAliImportOptions() });
+    postHost("cloudplayer_import_storage", { provider:providerKey, driver:importDriver, token:token, mountPath:mountPath, options:options });
   }
   async function mountPathReachable(path){
     var p = normPath(path || "/");
@@ -1204,7 +1662,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
         text($("importHint"), "Detected saved " + m.label + " token. Opened " + m.label + " automatically.");
         await loadList(mp, false, { fromHistory:true });
       }else{
-        text($("importHint"), "Detected saved " + m.label + " token. Importing automatically...");
+        text($("importHint"), tr("detected_saved_token_importing", { provider:m.label }));
         await doProviderImport(state.provider);
       }
       return;
@@ -1283,15 +1741,19 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 
     $("btnSmartLogin").addEventListener("click", startTokenAssist);
     $("btnCloseScan").addEventListener("click", closeScanModal);
-    $("btnRefreshScan").addEventListener("click", function(){
-      var m = currentProviderMeta();
-      openExternal(buildNoCacheUrl(m.loginUrl || scanBaseUrl));
-      text($("importHint"), "Opened login page in your default browser.");
+    $("btnRefreshScan").addEventListener("click", async function(){
+      var launchUrl = await resolveProviderLoginUrl(state.provider || "ali");
+      if((state.provider || "ali") === "quark" && !launchUrl){
+        text($("importHint"), "Open login page failed: " + (lastSmartLoginError || "cannot get authorize URL"));
+        return;
+      }
+      openExternal(launchUrl);
+      text($("importHint"), tr("opened_login_page"));
     });
     $("btnOpenTokenExternal").addEventListener("click", async function(){
       var t=await readClipboardText();
-      if(!looksLikeRefreshToken(t)){ text($("importHint"), "Clipboard has no valid refresh_token yet."); return; }
-      t = extractRefreshToken(t);
+      if(!looksLikeProviderToken(state.provider, t)){ text($("importHint"), "Clipboard has no valid login token/callback data yet."); return; }
+      t = extractProviderToken(state.provider, t);
       $("aliRefreshToken").value = t;
       if($("guideTokenInput")) $("guideTokenInput").value = t;
       setProviderToken(state.provider, t);
@@ -1302,15 +1764,16 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       }
     });
     $("btnGuideImport").addEventListener("click", async function(){
-      var t = extractRefreshToken(($("guideTokenInput") && $("guideTokenInput").value) || "");
-      if(!looksLikeRefreshToken(t)){ text($("importHint"), "Please paste a valid refresh_token first."); return; }
+      var tRaw = ($("guideTokenInput") && $("guideTokenInput").value) || "";
+      var t = extractProviderToken(state.provider, tRaw);
+      if(!looksLikeProviderToken(state.provider, tRaw)){ text($("importHint"), "Please paste valid callback URL/token JSON first."); return; }
       $("aliRefreshToken").value = t;
       setProviderToken(state.provider, t);
       saveSettings();
       await doProviderImport(state.provider);
     });
     $("guideTokenInput").addEventListener("change", function(){
-      var tk = extractRefreshToken($("guideTokenInput").value || "");
+      var tk = extractProviderToken(state.provider, $("guideTokenInput").value || "");
       $("aliRefreshToken").value = tk;
       $("guideTokenInput").value = tk;
       setProviderToken(state.provider, tk);
@@ -1322,13 +1785,13 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 
     $("aliRefreshToken").addEventListener("keydown", function(e){ if(e.key==="Enter") doProviderImport(state.provider); });
     $("aliRefreshToken").addEventListener("change", function(){
-      var tk = extractRefreshToken($("aliRefreshToken").value || "");
+      var tk = extractProviderToken(state.provider, $("aliRefreshToken").value || "");
       $("aliRefreshToken").value = tk;
       setProviderToken(state.provider, tk);
       saveSettings();
     });
     $("aliRefreshToken").addEventListener("blur", function(){
-      var tk = extractRefreshToken($("aliRefreshToken").value || "");
+      var tk = extractProviderToken(state.provider, $("aliRefreshToken").value || "");
       $("aliRefreshToken").value = tk;
       setProviderToken(state.provider, tk);
       saveSettings();
@@ -1365,9 +1828,15 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       text($("currentInfo"), hint);
     });
 
-    ["mountAli","mountBaidu","mountQuark","mount115","mount123","mountOneDrive","mountDropbox","mountYandex","mountGDrive","aliMountPath","advRootFolderId","advDriveType","advAlipanType","advUseOnlineApi","advClientId","advClientSecret","advApiUrlAddress"].forEach(function(id){
+    ["mountAli","mountBaidu","mountQuark","mount115","mount123","mountOneDrive","mountDropbox","mountYandex","mountGDrive","aliMountPath","advRootFolderId","advDriveType","advAlipanType","advUseOnlineApi","advClientId","advClientSecret","advApiUrlAddress","advLanguage"].forEach(function(id){
       $(id).addEventListener("change", saveSettings);
       $(id).addEventListener("blur", saveSettings);
+    });
+    $("advLanguage").addEventListener("change", function(){
+      uiLang = ($("advLanguage").value === "en") ? "en" : "zh";
+      applyUiLanguage();
+      syncGuideText();
+      saveSettings();
     });
   }
   function onHostMessage(evt){
@@ -1377,7 +1846,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       if(typeof data.apiBase==="string" && data.apiBase) $("apiBase").value=normalizeApiBase(data.apiBase);
       lastHostStatusAt = Date.now();
       lastHostStatusOnline = !!data.openListOnline;
-      setStatus(lastHostStatusOnline, lastHostStatusOnline ? "Online" : "Offline");
+      setStatus(lastHostStatusOnline, lastHostStatusOnline ? tr("online") : tr("offline"));
       return;
     }
     if(data.type==="cloudplayer_import_result"){
@@ -1386,27 +1855,33 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       stopAliImportWatchdog();
       stopAliImportHardTimeout();
       if(data.ok){
-        var mp=data.mountPath||"/aliyun";
+        var resultProvider = normalizeProviderKey(data.provider || state.provider || "ali");
+        var resultMeta = providerMap[resultProvider] || providerMap.ali;
+        var mp = normPath(data.mountPath || resultMeta.defaultPath || "/");
         if((!$("token").value || !$("token").value.trim()) && data.authToken){
           $("token").value = String(data.authToken);
           state.token = String(data.authToken);
           saveSettings();
         }
-        var m = currentProviderMeta();
-        if(m.mountId && $(m.mountId)) $(m.mountId).value = mp;
-        if(state.provider === "ali") $("aliMountPath").value = mp;
-        if($("aliRefreshToken").value) setProviderToken(state.provider, $("aliRefreshToken").value);
+        setProviderMountPath(resultProvider, mp);
         saveSettings();
-        text($("importHint"), "Import success: " + mp + " (" + (data.driver||m.driver||"storage") + ")");
+        var successMsg = tr("import_success", { path:mp, driver:(data.driver||resultMeta.driver||"storage") });
+        var detailMsg = String(data.message || "").trim();
+        if(detailMsg && detailMsg.toLowerCase().indexOf("auto-migrated") >= 0){
+          successMsg += " - " + detailMsg;
+        }
+        text($("importHint"), successMsg);
         setSettingsDrawer(false);
-        openProvider(state.provider || "ali");
+        if(state.provider === resultProvider){
+          openProvider(state.provider || "ali");
+        }
       }else{
-        text($("importHint"), "Import failed: " + (data.message||"unknown error"));
+        text($("importHint"), tr("import_failed", { msg:(data.message||"unknown error") }));
       }
       return;
     }
     if(data.type==="cloudplayer_import_progress"){
-      markAliImportProgress(data.message || "Importing cloud storage...");
+      markAliImportProgress(data.message || tr("importing_cloud_storage"));
       return;
     }
     if(data.type==="cloudplayer_admin_token"){
@@ -1421,6 +1896,8 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   async function boot(){
     loadProviderTokens();
     loadSettings();
+    uiLang = ($("advLanguage") && $("advLanguage").value === "en") ? "en" : "zh";
+    applyUiLanguage();
     loadPins();
     bindEvents();
     setSettingsDrawer(false);
@@ -1442,4 +1919,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 </script>
 </body>
 </html>
+
+
+
 

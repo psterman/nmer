@@ -319,6 +319,7 @@ CloudPlayer_OnWebMessage(sender, args) {
                 "type", "cloudplayer_import_result",
                 "ok", false,
                 "message", "import is already running",
+                "provider", payload.Has("provider") ? String(payload["provider"]) : "",
                 "mountPath", payload.Has("mountPath") ? String(payload["mountPath"]) : "/",
                 "driver", payload.Has("driver") ? String(payload["driver"]) : "Unknown"
             ))
@@ -401,6 +402,7 @@ CloudPlayer_RunAliImport(refreshToken, mountPath, opts) {
         "type", "cloudplayer_import_result",
         "ok", result["ok"],
         "message", result["message"],
+        "provider", "ali",
         "mountPath", result["mountPath"],
         "driver", result["driver"],
         "authToken", result.Has("authToken") ? result["authToken"] : ""
@@ -437,6 +439,7 @@ CloudPlayer_RunStorageImport(provider, token, mountPath, driver, opts) {
         "type", "cloudplayer_import_result",
         "ok", result["ok"],
         "message", result["message"],
+        "provider", provider,
         "mountPath", result["mountPath"],
         "driver", result["driver"],
         "authToken", result.Has("authToken") ? result["authToken"] : ""
@@ -860,23 +863,48 @@ CloudPlayer_ImportStorageGeneric(provider, token, mountPath := "/", driver := "A
         }
     }
 
+    migratedLegacyDriver := false
+    migratedFromDriver := ""
+    migratedToDriver := ""
     if (providerKey = "quark" && targetId > 0 && existingDriver != "" && StrLower(existingDriver) != StrLower(drvInput)) {
-        out["message"] := "existing mount path uses driver=" . existingDriver . ", but current import expects " . drvInput . ". Please delete old mount first or use a new mount path."
-        return out
+        oldDrv := StrLower(existingDriver)
+        newDrv := StrLower(drvInput)
+        if (CloudPlayer_IsQuarkDriver(oldDrv) && CloudPlayer_IsQuarkDriver(newDrv)) {
+            CloudPlayer_SendImportProgress("Detected mismatched Quark driver (" . existingDriver . " -> " . drvInput . "), replacing mount...")
+            delErr := ""
+            delRet := CloudPlayer_DeleteStorageById(targetId, headers, &delErr)
+            if !delRet["ok"] {
+                out["message"] := "failed to auto-replace legacy Quark mount: " . ((delErr != "") ? delErr : delRet["error"])
+                return out
+            }
+            migratedFromDriver := existingDriver
+            migratedToDriver := drvInput
+            targetId := 0
+            existingDriver := ""
+            migratedLegacyDriver := true
+        } else {
+            out["message"] := "existing mount path uses driver=" . existingDriver . ", but current import expects " . drvInput . ". Please delete old mount first or use a new mount path."
+            return out
+        }
     }
 
     drvCandidates := []
-    ; OpenList does not allow changing driver on an existing storage record.
-    ; If mount path already exists, force update with the existing driver only.
-    if (targetId > 0 && existingDriver != "") {
-        CloudPlayer_ArrayPushUnique(&drvCandidates, existingDriver)
+    ; During Quark driver migration, keep target driver fixed.
+    if (migratedLegacyDriver) {
+        CloudPlayer_ArrayPushUnique(&drvCandidates, drvInput)
     } else {
-        if (existingDriver != "")
+        ; OpenList does not allow changing driver on an existing storage record.
+        ; If mount path already exists, force update with the existing driver only.
+        if (targetId > 0 && existingDriver != "") {
             CloudPlayer_ArrayPushUnique(&drvCandidates, existingDriver)
-        for _, c in CloudPlayer_GetDriverCandidates(providerKey, drvInput)
-            CloudPlayer_ArrayPushUnique(&drvCandidates, c)
-        if (drvCandidates.Length = 0)
-            CloudPlayer_ArrayPushUnique(&drvCandidates, drvInput)
+        } else {
+            if (existingDriver != "")
+                CloudPlayer_ArrayPushUnique(&drvCandidates, existingDriver)
+            for _, c in CloudPlayer_GetDriverCandidates(providerKey, drvInput)
+                CloudPlayer_ArrayPushUnique(&drvCandidates, c)
+            if (drvCandidates.Length = 0)
+                CloudPlayer_ArrayPushUnique(&drvCandidates, drvInput)
+        }
     }
 
     saveRet := 0
@@ -884,7 +912,7 @@ CloudPlayer_ImportStorageGeneric(provider, token, mountPath := "/", driver := "A
     lastSaveError := ""
     saveUrl := g_CloudPlayerApiBase . ((targetId > 0) ? "/api/admin/storage/update" : "/api/admin/storage/create")
     for _, drv in drvCandidates {
-        additionObj := CloudPlayer_BuildGenericAddition(providerKey, tk, opts)
+        additionObj := CloudPlayer_BuildGenericAddition(providerKey, tk, opts, drv)
         additionJson := CloudPlayer_JsonForceBoolLiterals(
             Jxon_Dump(additionObj),
             ["use_online_api", "use_dynamic_upload_api", "low_bandwith_upload_mode", "only_list_video_file"]
@@ -917,7 +945,52 @@ CloudPlayer_ImportStorageGeneric(provider, token, mountPath := "/", driver := "A
             chosenDriver := drv
             break
         }
-        lastSaveError := "driver=" . drv . ": " . saveRet["error"]
+        lowSaveErr := StrLower(String(saveRet["error"]))
+        if (providerKey = "quark"
+            && migratedLegacyDriver
+            && targetId = 0
+            && StrLower(drv) = StrLower(drvInput)
+            && InStr(lowSaveErr, "unique constraint failed: x_storages.mount_path")) {
+            CloudPlayer_SendImportProgress("Mount path still exists, retrying legacy cleanup...")
+            foundId := 0
+            foundDriver := ""
+            findErr := ""
+            if CloudPlayer_FindStorageByMountPath(mp, headers, &foundId, &foundDriver, &findErr) {
+                foundDrvLow := StrLower(foundDriver)
+                wantDrvLow := StrLower(drvInput)
+                if (foundId > 0 && CloudPlayer_IsQuarkDriver(foundDrvLow) && foundDrvLow != wantDrvLow) {
+                    delErr2 := ""
+                    delRet2 := CloudPlayer_DeleteStorageById(foundId, headers, &delErr2)
+                    if (delRet2["ok"]) {
+                        saveRet2 := CloudPlayer_HttpJson("POST", g_CloudPlayerApiBase . "/api/admin/storage/create", headers, bodyJson)
+                        if (saveRet2["ok"]) {
+                            chosenDriver := drv
+                            break
+                        }
+                        lastSaveError := "driver=" . drv . ": " . saveRet2["error"]
+                        continue
+                    }
+                } else if (foundId > 0 && foundDrvLow = wantDrvLow) {
+                    bodyObj["id"] := foundId
+                    bodyJson2 := CloudPlayer_JsonForceBoolLiterals(Jxon_Dump(bodyObj), ["web_proxy", "enable_sign"])
+                    saveRet3 := CloudPlayer_HttpJson("POST", g_CloudPlayerApiBase . "/api/admin/storage/update", headers, bodyJson2)
+                    if (saveRet3["ok"]) {
+                        chosenDriver := drv
+                        break
+                    }
+                    lastSaveError := "driver=" . drv . ": " . saveRet3["error"]
+                    continue
+                }
+            } else if (findErr != "") {
+                lastSaveError := "driver=" . drv . ": " . findErr
+                continue
+            }
+        }
+        saveErrText := String(saveRet["error"])
+        if (providerKey = "quark" && InStr(StrLower(saveErrText), "require login [guest]")) {
+            saveErrText := saveErrText . " (Quark requires valid cookie session; refresh_token-only login may be guest)"
+        }
+        lastSaveError := "driver=" . drv . ": " . saveErrText
     }
     if (chosenDriver = "") {
         out["message"] := "save storage failed: " . (lastSaveError != "" ? lastSaveError : "unknown")
@@ -932,6 +1005,8 @@ CloudPlayer_ImportStorageGeneric(provider, token, mountPath := "/", driver := "A
     }
     out["ok"] := true
     out["message"] := "import success"
+    if (migratedLegacyDriver)
+        out["message"] := out["message"] . " (Quark mount auto-migrated: " . migratedFromDriver . " -> " . migratedToDriver . ")"
     out["driver"] := chosenDriver
     if (verify["count"] = 0)
         out["message"] := out["message"] . " (mount is reachable but empty)"
@@ -950,12 +1025,95 @@ CloudPlayer_ArrayPushUnique(&arr, val) {
     arr.Push(v)
 }
 
+CloudPlayer_IsQuarkDriver(driverName) {
+    d := StrLower(Trim(String(driverName)))
+    return (d = "quark" || d = "quarkopen")
+}
+
+CloudPlayer_DeleteStorageById(storageId, headers := 0, &lastErr := "") {
+    global g_CloudPlayerApiBase
+    ret := Map("ok", false, "error", "invalid storage id")
+    sid := 0
+    try sid := Integer(storageId)
+    catch {
+        sid := 0
+    }
+    if (sid <= 0) {
+        lastErr := "invalid storage id"
+        return ret
+    }
+
+    urlBase := g_CloudPlayerApiBase . "/api/admin/storage/delete"
+    sidStr := String(sid)
+    attempts := [
+        Map("method", "POST", "url", urlBase . "?id=" . sidStr, "body", ""),
+        Map("method", "DELETE", "url", urlBase . "?id=" . sidStr, "body", ""),
+        Map("method", "POST", "url", urlBase, "body", Jxon_Dump(Map("id", sid))),
+        Map("method", "POST", "url", urlBase, "body", Jxon_Dump(Map("id", sidStr))),
+        Map("method", "POST", "url", urlBase, "body", Jxon_Dump(Map("ids", [sid]))),
+        Map("method", "POST", "url", urlBase, "body", Jxon_Dump(Map("ids", [sidStr])))
+    ]
+
+    for _, req in attempts {
+        one := CloudPlayer_HttpJson(req["method"], req["url"], headers, req["body"])
+        if (one["ok"]) {
+            lastErr := ""
+            return one
+        }
+        try lastErr := String(one["error"])
+        catch {
+            lastErr := ""
+        }
+    }
+
+    if (lastErr = "")
+        lastErr := "delete request failed"
+    ret["error"] := lastErr
+    return ret
+}
+
+CloudPlayer_FindStorageByMountPath(mountPath, headers := 0, &rowId := 0, &rowDriver := "", &err := "") {
+    global g_CloudPlayerApiBase
+    rowId := 0
+    rowDriver := ""
+    err := ""
+    mp := Trim(String(mountPath))
+    listRet := CloudPlayer_HttpJson("GET", g_CloudPlayerApiBase . "/api/admin/storage/list", headers)
+    if !listRet["ok"] {
+        err := listRet["error"]
+        return false
+    }
+    if (listRet["json"] is Map && listRet["json"].Has("data")) {
+        dataObj := listRet["json"]["data"]
+        if (dataObj is Map && dataObj.Has("content") && dataObj["content"] is Array) {
+            for _, row in dataObj["content"] {
+                try rowPath := String(row.Has("mount_path") ? row["mount_path"] : "")
+                catch {
+                    rowPath := ""
+                }
+                if (rowPath = mp) {
+                    try rowId := Integer(row.Has("id") ? row["id"] : 0)
+                    catch {
+                        rowId := 0
+                    }
+                    try rowDriver := String(row.Has("driver") ? row["driver"] : "")
+                    catch {
+                        rowDriver := ""
+                    }
+                    break
+                }
+            }
+        }
+    }
+    return true
+}
+
 CloudPlayer_DefaultDriverByProvider(providerKey) {
     p := StrLower(Trim(String(providerKey)))
     if (p = "baidu")
         return "BaiduNetdisk"
     if (p = "quark")
-        return "QuarkOpen"
+        return "Quark"
     if (p = "pan115")
         return "Pan115"
     if (p = "pan123")
@@ -979,8 +1137,14 @@ CloudPlayer_GetDriverCandidates(providerKey, preferred) {
         CloudPlayer_ArrayPushUnique(&arr, "BaiduNetdisk")
         CloudPlayer_ArrayPushUnique(&arr, "Baidu")
     } else if (p = "quark") {
-        CloudPlayer_ArrayPushUnique(&arr, "QuarkOpen")
-        CloudPlayer_ArrayPushUnique(&arr, "Quark")
+        pref := StrLower(Trim(String(preferred)))
+        if (pref = "quarkopen") {
+            CloudPlayer_ArrayPushUnique(&arr, "QuarkOpen")
+            CloudPlayer_ArrayPushUnique(&arr, "Quark")
+        } else {
+            ; Scheme B: keep Quark as primary and avoid unexpected fallback to QuarkOpen.
+            CloudPlayer_ArrayPushUnique(&arr, "Quark")
+        }
     } else if (p = "pan115") {
         CloudPlayer_ArrayPushUnique(&arr, "Pan115")
         CloudPlayer_ArrayPushUnique(&arr, "115Open")
@@ -1004,9 +1168,13 @@ CloudPlayer_GetDriverCandidates(providerKey, preferred) {
     return arr
 }
 
-CloudPlayer_BuildGenericAddition(providerKey, token, opts := 0) {
+CloudPlayer_BuildGenericAddition(providerKey, token, opts := 0, driver := "") {
     p := StrLower(Trim(String(providerKey)))
+    drv := StrLower(Trim(String(driver)))
     tk := CloudPlayer_NormalizeProviderToken(token)
+    refreshToken := tk
+    accessToken := tk
+    cookieValue := tk
     rootFolderId := "root"
     clientId := ""
     clientSecret := ""
@@ -1037,9 +1205,48 @@ CloudPlayer_BuildGenericAddition(providerKey, token, opts := 0) {
     } else if (p = "quark") {
         if (rootFolderId = "root")
             rootFolderId := "0"
+        ; Scheme B still uses online renew endpoint for better token continuity.
+        useOnlineApi := true
         lowApi := StrLower(apiUrlAddress)
         if (apiUrlAddress = "" || InStr(lowApi, "/alicloud/") || InStr(lowApi, "/quark/renewapi"))
             apiUrlAddress := "https://api.oplist.org/quarkyun/renewapi"
+        if (drv = "quarkopen" && (clientId = "" || clientSecret = "")) {
+            ; Only QuarkOpen needs app_id/sign_key bootstrap and x-pan headers.
+            rt2 := ""
+            at2 := ""
+            app2 := ""
+            sign2 := ""
+            bootErr := ""
+            if CloudPlayer_TryBootstrapQuarkOpen(refreshToken, apiUrlAddress, &rt2, &at2, &app2, &sign2, &bootErr) {
+                if (rt2 != "")
+                    refreshToken := rt2
+                if (at2 != "")
+                    accessToken := at2
+                if (clientId = "" && app2 != "")
+                    clientId := app2
+                if (clientSecret = "" && sign2 != "")
+                    clientSecret := sign2
+            }
+        } else if (drv = "quark") {
+            ; Quark(UC) requires cookie, not raw refresh token.
+            parsedCookie := CloudPlayer_ExtractCookieLikeString(tk)
+            if (parsedCookie != "") {
+                cookieValue := parsedCookie
+            } else {
+                rt3 := ""
+                at3 := ""
+                bootErr2 := ""
+                if CloudPlayer_TryBootstrapQuarkCookie(refreshToken, apiUrlAddress, &rt3, &at3, &cookieValue, &bootErr2) {
+                    if (rt3 != "")
+                        refreshToken := rt3
+                    if (at3 != "")
+                        accessToken := at3
+                } else {
+                    ; Avoid treating refresh token text as cookie and ending up in guest mode.
+                    cookieValue := ""
+                }
+            }
+        }
     } else if (p = "pan115") {
         if (apiUrlAddress = "" || InStr(StrLower(apiUrlAddress), "/alicloud/"))
             apiUrlAddress := "https://api.oplist.org/115/renewapi"
@@ -1064,11 +1271,11 @@ CloudPlayer_BuildGenericAddition(providerKey, token, opts := 0) {
         "root_folder_id", rootFolderId,
         "order_by", "",
         "order_direction", "",
-        "refresh_token", tk,
-        "access_token", tk,
+        "refresh_token", refreshToken,
+        "access_token", accessToken,
         "token", tk,
-        "cookie", tk,
-        "cookies", tk,
+        "cookie", cookieValue,
+        "cookies", cookieValue,
         "use_online_api", useOnlineApi,
         "app_id", clientId,
         "sign_key", clientSecret,
@@ -1079,8 +1286,152 @@ CloudPlayer_BuildGenericAddition(providerKey, token, opts := 0) {
     if (p = "baidu") {
         ; Avoid Baidu API errno:2 on list when root path is empty.
         add["root_folder_path"] := "/"
+    } else if (p = "quark" && drv = "quarkopen") {
+        ; Compatibility fields for OpenList builds validating x-pan params.
+        quarkClientId := (clientId != "") ? clientId : "5325"
+        quarkTm := String(DateDiff(A_NowUTC, "19700101000000", "Seconds"))
+        add["x_pan_client_id"] := quarkClientId
+        add["x_pan_tm"] := quarkTm
+        add["x_pan_token"] := tk
+        add["x-pan-client-id"] := quarkClientId
+        add["x-pan-tm"] := quarkTm
+        add["x-pan-token"] := tk
     }
     return add
+}
+
+CloudPlayer_ExtractCookieLikeString(raw) {
+    s := Trim(String(raw))
+    if (s = "")
+        return ""
+    if (InStr(s, "__puus=") || InStr(s, "__pus=") || (InStr(s, "=") && InStr(s, ";")))
+        return s
+    if (RegExMatch(s, "i)(?:^|[?&#])cookie=([^&#\s]+)", &m1))
+        return CloudPlayer_UrlDecodeToken(m1[1])
+    if (RegExMatch(s, "i)(?:^|[?&#])cookies=([^&#\s]+)", &m2))
+        return CloudPlayer_UrlDecodeToken(m2[1])
+    return ""
+}
+
+CloudPlayer_TryBootstrapQuarkCookie(refreshToken, apiUrlAddress, &outRefresh := "", &outAccess := "", &outCookie := "", &err := "") {
+    outRefresh := ""
+    outAccess := ""
+    outCookie := ""
+    err := ""
+    rt := Trim(String(refreshToken))
+    api := Trim(String(apiUrlAddress))
+    if (rt = "" || api = "") {
+        err := "refresh token or api url is empty"
+        return false
+    }
+    sep := InStr(api, "?") ? "&" : "?"
+    ; quarkyun_fn is fnOS OAuth flow; quarkyun is kept for compatibility.
+    urls := [
+        api . sep . "refresh_ui=" . rt . "&server_use=true&driver_txt=quarkyun_fn",
+        api . sep . "refresh_ui=" . rt . "&server_use=true&driver_txt=quarkyun"
+    ]
+    lastErr := ""
+    for _, u in urls {
+        ret := CloudPlayer_HttpJson("GET", u)
+        if !ret["ok"] {
+            lastErr := ret["error"]
+            continue
+        }
+        if !(ret["json"] is Map) {
+            lastErr := "renew api returned non-json response"
+            continue
+        }
+        j := ret["json"]
+        payload := j
+        try {
+            if (j.Has("data") && j["data"] is Map)
+                payload := j["data"]
+        } catch {
+            payload := j
+        }
+        try outRefresh := Trim(String(payload.Has("refresh_token") ? payload["refresh_token"] : ""))
+        catch {
+            outRefresh := ""
+        }
+        try outAccess := Trim(String(payload.Has("access_token") ? payload["access_token"] : ""))
+        catch {
+            outAccess := ""
+        }
+        if (outAccess != "") {
+            outCookie := "x_pan_client_id=5325; x_pan_access_token=" . outAccess
+            err := ""
+            return true
+        }
+        try lastErr := Trim(String(j.Has("text") ? j["text"] : ""))
+        catch {
+            lastErr := ""
+        }
+    }
+    if (lastErr = "")
+        lastErr := "failed to exchange refresh token to access token"
+    err := lastErr
+    return false
+}
+
+CloudPlayer_TryBootstrapQuarkOpen(refreshToken, apiUrlAddress, &outRefresh := "", &outAccess := "", &outAppId := "", &outSignKey := "", &err := "") {
+    outRefresh := ""
+    outAccess := ""
+    outAppId := ""
+    outSignKey := ""
+    err := ""
+    rt := Trim(String(refreshToken))
+    api := Trim(String(apiUrlAddress))
+    if (rt = "" || api = "") {
+        err := "refresh token or api url is empty"
+        return false
+    }
+    sep := InStr(api, "?") ? "&" : "?"
+    url := api . sep . "refresh_ui=" . rt . "&server_use=true&driver_txt=quarkyun_oa"
+    ret := CloudPlayer_HttpJson("GET", url)
+    if !ret["ok"] {
+        err := ret["error"]
+        return false
+    }
+    if !(ret["json"] is Map) {
+        err := "renew api returned non-json response"
+        return false
+    }
+    j := ret["json"]
+    payload := j
+    try {
+        if (j.Has("data") && j["data"] is Map)
+            payload := j["data"]
+    } catch {
+        payload := j
+    }
+    try outRefresh := Trim(String(payload.Has("refresh_token") ? payload["refresh_token"] : ""))
+    catch {
+        outRefresh := ""
+    }
+    try outAccess := Trim(String(payload.Has("access_token") ? payload["access_token"] : ""))
+    catch {
+        outAccess := ""
+    }
+    try outAppId := Trim(String(payload.Has("app_id") ? payload["app_id"] : ""))
+    catch {
+        outAppId := ""
+    }
+    try outSignKey := Trim(String(payload.Has("sign_key") ? payload["sign_key"] : ""))
+    catch {
+        outSignKey := ""
+    }
+    if (outAppId = "" || outSignKey = "") {
+        msg := ""
+        try msg := Trim(String(j.Has("text") ? j["text"] : ""))
+        catch {
+            msg := ""
+        }
+        if (msg = "")
+            msg := "renew api did not return app_id/sign_key"
+        err := msg
+        return false
+    }
+    return true
 }
 
 CloudPlayer_NormalizeProviderToken(raw) {
