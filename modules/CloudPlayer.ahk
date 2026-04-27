@@ -866,6 +866,20 @@ CloudPlayer_ImportStorageGeneric(provider, token, mountPath := "/", driver := "A
     migratedLegacyDriver := false
     migratedFromDriver := ""
     migratedToDriver := ""
+    if (providerKey = "pan123" && targetId > 0) {
+        CloudPlayer_SendImportProgress("Found existing /pan123 storage, recreating to avoid driver-change conflicts...")
+        delErrPan := ""
+        delRetPan := CloudPlayer_DeleteStorageById(targetId, headers, &delErrPan)
+        if !delRetPan["ok"] {
+            out["message"] := "failed to replace existing 123Pan mount: " . ((delErrPan != "") ? delErrPan : delRetPan["error"])
+            return out
+        }
+        migratedFromDriver := existingDriver
+        migratedToDriver := drvInput
+        targetId := 0
+        existingDriver := ""
+        migratedLegacyDriver := true
+    }
     if (providerKey = "quark" && targetId > 0 && existingDriver != "" && StrLower(existingDriver) != StrLower(drvInput)) {
         oldDrv := StrLower(existingDriver)
         newDrv := StrLower(drvInput)
@@ -875,6 +889,27 @@ CloudPlayer_ImportStorageGeneric(provider, token, mountPath := "/", driver := "A
             delRet := CloudPlayer_DeleteStorageById(targetId, headers, &delErr)
             if !delRet["ok"] {
                 out["message"] := "failed to auto-replace legacy Quark mount: " . ((delErr != "") ? delErr : delRet["error"])
+                return out
+            }
+            migratedFromDriver := existingDriver
+            migratedToDriver := drvInput
+            targetId := 0
+            existingDriver := ""
+            migratedLegacyDriver := true
+        } else {
+            out["message"] := "existing mount path uses driver=" . existingDriver . ", but current import expects " . drvInput . ". Please delete old mount first or use a new mount path."
+            return out
+        }
+    }
+    if (providerKey = "pan123" && targetId > 0 && existingDriver != "" && StrLower(existingDriver) != StrLower(drvInput)) {
+        oldDrv2 := StrLower(existingDriver)
+        newDrv2 := StrLower(drvInput)
+        if (CloudPlayer_IsPan123Driver(oldDrv2) && CloudPlayer_IsPan123Driver(newDrv2)) {
+            CloudPlayer_SendImportProgress("Detected mismatched 123Pan driver (" . existingDriver . " -> " . drvInput . "), replacing mount...")
+            delErr3 := ""
+            delRet3 := CloudPlayer_DeleteStorageById(targetId, headers, &delErr3)
+            if !delRet3["ok"] {
+                out["message"] := "failed to auto-replace legacy 123Pan mount: " . ((delErr3 != "") ? delErr3 : delRet3["error"])
                 return out
             }
             migratedFromDriver := existingDriver
@@ -897,6 +932,12 @@ CloudPlayer_ImportStorageGeneric(provider, token, mountPath := "/", driver := "A
         ; If mount path already exists, force update with the existing driver only.
         if (targetId > 0 && existingDriver != "") {
             CloudPlayer_ArrayPushUnique(&drvCandidates, existingDriver)
+            ; 123Pan driver naming differs by OpenList build. Keep fallbacks when an old
+            ; record locks us to an unavailable alias (e.g. Pan123 missing in some builds).
+            if (providerKey = "pan123") {
+                for _, c in CloudPlayer_GetDriverCandidates(providerKey, drvInput)
+                    CloudPlayer_ArrayPushUnique(&drvCandidates, c)
+            }
         } else {
             if (existingDriver != "")
                 CloudPlayer_ArrayPushUnique(&drvCandidates, existingDriver)
@@ -915,7 +956,7 @@ CloudPlayer_ImportStorageGeneric(provider, token, mountPath := "/", driver := "A
         additionObj := CloudPlayer_BuildGenericAddition(providerKey, tk, opts, drv)
         additionJson := CloudPlayer_JsonForceBoolLiterals(
             Jxon_Dump(additionObj),
-            ["use_online_api", "use_dynamic_upload_api", "low_bandwith_upload_mode", "only_list_video_file"]
+            ["use_online_api", "use_dynamic_upload_api", "low_bandwith_upload_mode", "only_list_video_file", "is_sharepoint", "disable_disk_usage", "enable_direct_upload"]
         )
         bodyObj := Map(
             "mount_path", mp,
@@ -946,6 +987,29 @@ CloudPlayer_ImportStorageGeneric(provider, token, mountPath := "/", driver := "A
             break
         }
         lowSaveErr := StrLower(String(saveRet["error"]))
+        if (providerKey = "pan123"
+            && targetId > 0
+            && (InStr(lowSaveErr, "no driver named") || InStr(lowSaveErr, "failed get driver new"))) {
+            CloudPlayer_SendImportProgress("Detected unavailable stored 123 driver alias, recreating mount...")
+            delErr4 := ""
+            delRet4 := CloudPlayer_DeleteStorageById(targetId, headers, &delErr4)
+            if (delRet4["ok"]) {
+                targetId := 0
+                saveUrl := g_CloudPlayerApiBase . "/api/admin/storage/create"
+                try bodyObj.Delete("id")
+                catch {
+                }
+                bodyJson := CloudPlayer_JsonForceBoolLiterals(Jxon_Dump(bodyObj), ["web_proxy", "enable_sign"])
+                ; Re-run current candidate as create, then continue to next fallback if still fails.
+                saveRet4 := CloudPlayer_HttpJson("POST", saveUrl, headers, bodyJson)
+                if (saveRet4["ok"]) {
+                    chosenDriver := drv
+                    break
+                }
+                lowSaveErr := StrLower(String(saveRet4["error"]))
+                saveRet := saveRet4
+            }
+        }
         if (providerKey = "quark"
             && migratedLegacyDriver
             && targetId = 0
@@ -990,6 +1054,15 @@ CloudPlayer_ImportStorageGeneric(provider, token, mountPath := "/", driver := "A
         if (providerKey = "quark" && InStr(StrLower(saveErrText), "require login [guest]")) {
             saveErrText := saveErrText . " (Quark requires valid cookie session; refresh_token-only login may be guest)"
         }
+        if (providerKey = "pan123" && InStr(StrLower(saveErrText), "请输入正确的手机号码")) {
+            saveErrText := saveErrText . " (current OpenList 123 driver may be phone-login mode; try 123Open with valid client_id/client_secret or use a build that supports refresh_token import)"
+        }
+        if (providerKey = "pan123" && InStr(StrLower(saveErrText), "no driver named: 123open")) {
+            saveErrText := saveErrText . " (current OpenList build does not include 123Open; refresh_token import for 123 is unsupported on this build)"
+        }
+        if (providerKey = "onedrive" && InStr(StrLower(saveErrText), "unsupported protocol scheme")) {
+            saveErrText := saveErrText . " (OneDrive host config missing; try with region=global and redirect_uri=https://api.oplist.org/onedrive/callback)"
+        }
         lastSaveError := "driver=" . drv . ": " . saveErrText
     }
     if (chosenDriver = "") {
@@ -1000,13 +1073,76 @@ CloudPlayer_ImportStorageGeneric(provider, token, mountPath := "/", driver := "A
     CloudPlayer_SendImportProgress("Verifying mount...")
     verify := CloudPlayer_VerifyMountList(mp, headers)
     if !verify["ok"] {
+        if (providerKey = "onedrive" && InStr(StrLower(verify["message"]), "segment 'root:'")) {
+            CloudPlayer_SendImportProgress("OneDrive root path fallback: retrying with empty root_folder_path...")
+            ; Some OpenList builds treat "/" as root: and fail on personal accounts.
+            ; Retry once with empty root folder path.
+            fixId := targetId
+            if (fixId <= 0) {
+                findIdTmp := 0
+                findDrvTmp := ""
+                findErrTmp := ""
+                if CloudPlayer_FindStorageByMountPath(mp, headers, &findIdTmp, &findDrvTmp, &findErrTmp)
+                    fixId := findIdTmp
+            }
+            if (fixId <= 0) {
+                out["message"] := "mount check failed: " . verify["message"]
+                return out
+            }
+            bodyObj2 := Map(
+                "mount_path", mp,
+                "order", 0,
+                "remark", "",
+                "cache_expiration", 30,
+                "web_proxy", true,
+                "webdav_policy", "302_redirect",
+                "down_proxy_url", "",
+                "extract_folder", "",
+                "enable_sign", false,
+                "driver", chosenDriver,
+                "order_by", "",
+                "order_direction", "",
+                "status", "work",
+                "id", fixId
+            )
+            add2 := CloudPlayer_BuildGenericAddition(providerKey, tk, opts, chosenDriver)
+            try {
+                add2["root_folder_path"] := ""
+                add2["RootFolderPath"] := ""
+            } catch {
+            }
+            try add2.Delete("root_folder_id")
+            catch {
+            }
+            addJson2 := CloudPlayer_JsonForceBoolLiterals(
+                Jxon_Dump(add2),
+                ["use_online_api", "use_dynamic_upload_api", "low_bandwith_upload_mode", "only_list_video_file", "is_sharepoint", "disable_disk_usage", "enable_direct_upload"]
+            )
+            bodyObj2["addition"] := addJson2
+            bodyJsonFallback := CloudPlayer_JsonForceBoolLiterals(Jxon_Dump(bodyObj2), ["web_proxy", "enable_sign"])
+            saveRetFallback := CloudPlayer_HttpJson("POST", g_CloudPlayerApiBase . "/api/admin/storage/update", headers, bodyJsonFallback)
+            if saveRetFallback["ok"] {
+                verify2 := CloudPlayer_VerifyMountList(mp, headers)
+                if (verify2["ok"]) {
+                    out["ok"] := true
+                    out["message"] := "import success (onedrive root path fallback applied)"
+                    out["driver"] := chosenDriver
+                    if (verify2["count"] = 0)
+                        out["message"] := out["message"] . " (mount is reachable but empty)"
+                    CloudPlayer_SendImportProgress("Import completed with root path fallback.")
+                    return out
+                }
+            }
+        }
         out["message"] := "mount check failed: " . verify["message"]
         return out
     }
     out["ok"] := true
     out["message"] := "import success"
-    if (migratedLegacyDriver)
-        out["message"] := out["message"] . " (Quark mount auto-migrated: " . migratedFromDriver . " -> " . migratedToDriver . ")"
+    if (migratedLegacyDriver) {
+        migrateName := (providerKey = "quark") ? "Quark" : ((providerKey = "pan123") ? "123Pan" : "legacy")
+        out["message"] := out["message"] . " (" . migrateName . " mount auto-migrated: " . migratedFromDriver . " -> " . migratedToDriver . ")"
+    }
     out["driver"] := chosenDriver
     if (verify["count"] = 0)
         out["message"] := out["message"] . " (mount is reachable but empty)"
@@ -1028,6 +1164,11 @@ CloudPlayer_ArrayPushUnique(&arr, val) {
 CloudPlayer_IsQuarkDriver(driverName) {
     d := StrLower(Trim(String(driverName)))
     return (d = "quark" || d = "quarkopen")
+}
+
+CloudPlayer_IsPan123Driver(driverName) {
+    d := StrLower(Trim(String(driverName)))
+    return (d = "pan123" || d = "123pan" || d = "123open")
 }
 
 CloudPlayer_DeleteStorageById(storageId, headers := 0, &lastErr := "") {
@@ -1117,7 +1258,7 @@ CloudPlayer_DefaultDriverByProvider(providerKey) {
     if (p = "pan115")
         return "Pan115"
     if (p = "pan123")
-        return "Pan123"
+        return "123Open"
     if (p = "onedrive")
         return "Onedrive"
     if (p = "dropbox")
@@ -1150,9 +1291,7 @@ CloudPlayer_GetDriverCandidates(providerKey, preferred) {
         CloudPlayer_ArrayPushUnique(&arr, "115Open")
         CloudPlayer_ArrayPushUnique(&arr, "115 Open")
     } else if (p = "pan123") {
-        CloudPlayer_ArrayPushUnique(&arr, "Pan123")
-        CloudPlayer_ArrayPushUnique(&arr, "123Pan")
-        CloudPlayer_ArrayPushUnique(&arr, "123pan")
+        CloudPlayer_ArrayPushUnique(&arr, "123Open")
     } else if (p = "onedrive") {
         CloudPlayer_ArrayPushUnique(&arr, "Onedrive")
         CloudPlayer_ArrayPushUnique(&arr, "OneDrive")
@@ -1180,6 +1319,14 @@ CloudPlayer_BuildGenericAddition(providerKey, token, opts := 0, driver := "") {
     clientSecret := ""
     apiUrlAddress := ""
     useOnlineApi := true
+    region := "global"
+    isSharepoint := false
+    redirectUri := ""
+    siteId := ""
+    chunkSize := 5
+    customHost := ""
+    disableDiskUsage := false
+    enableDirectUpload := false
     if (opts is Map) {
         try {
             if (opts.Has("rootFolderId") && Trim(String(opts["rootFolderId"])) != "")
@@ -1192,6 +1339,28 @@ CloudPlayer_BuildGenericAddition(providerKey, token, opts := 0, driver := "") {
                 apiUrlAddress := Trim(String(opts["apiUrlAddress"]))
             if (opts.Has("useOnlineApi"))
                 useOnlineApi := CloudPlayer_ToBool(opts["useOnlineApi"], true)
+            if (opts.Has("region") && Trim(String(opts["region"])) != "")
+                region := Trim(String(opts["region"]))
+            if (opts.Has("isSharepoint"))
+                isSharepoint := CloudPlayer_ToBool(opts["isSharepoint"], false)
+            if (opts.Has("redirectUri") && Trim(String(opts["redirectUri"])) != "")
+                redirectUri := Trim(String(opts["redirectUri"]))
+            if (opts.Has("siteId") && Trim(String(opts["siteId"])) != "")
+                siteId := Trim(String(opts["siteId"]))
+            if (opts.Has("chunkSize")) {
+                try chunkSize := Integer(opts["chunkSize"])
+                catch {
+                    chunkSize := 5
+                }
+                if (chunkSize <= 0)
+                    chunkSize := 5
+            }
+            if (opts.Has("customHost"))
+                customHost := Trim(String(opts["customHost"]))
+            if (opts.Has("disableDiskUsage"))
+                disableDiskUsage := CloudPlayer_ToBool(opts["disableDiskUsage"], false)
+            if (opts.Has("enableDirectUpload"))
+                enableDirectUpload := CloudPlayer_ToBool(opts["enableDirectUpload"], false)
         } catch {
         }
     }
@@ -1252,10 +1421,18 @@ CloudPlayer_BuildGenericAddition(providerKey, token, opts := 0, driver := "") {
             apiUrlAddress := "https://api.oplist.org/115/renewapi"
     } else if (p = "pan123") {
         if (apiUrlAddress = "" || InStr(StrLower(apiUrlAddress), "/alicloud/"))
-            apiUrlAddress := "https://api.oplist.org/123/renewapi"
+            apiUrlAddress := "https://api.oplist.org/123cloud/renewapi"
     } else if (p = "onedrive") {
         if (apiUrlAddress = "" || InStr(StrLower(apiUrlAddress), "/alicloud/"))
             apiUrlAddress := "https://api.oplist.org/onedrive/renewapi"
+        if (region = "")
+            region := "global"
+        if (redirectUri = "")
+            redirectUri := "https://api.oplist.org/onedrive/callback"
+        ; OpenList docs use root folder path (default "/") for OneDrive.
+        ; Avoid "Resource not found for the segment 'root:'" caused by empty root path.
+        if (rootFolderId = "root")
+            rootFolderId := ""
     } else if (p = "dropbox") {
         if (apiUrlAddress = "" || InStr(StrLower(apiUrlAddress), "/alicloud/"))
             apiUrlAddress := "https://api.oplist.org/dropbox/renewapi"
@@ -1281,11 +1458,37 @@ CloudPlayer_BuildGenericAddition(providerKey, token, opts := 0, driver := "") {
         "sign_key", clientSecret,
         "client_id", clientId,
         "client_secret", clientSecret,
-        "api_url_address", apiUrlAddress
+        "api_url_address", apiUrlAddress,
+        "region", region,
+        "is_sharepoint", isSharepoint,
+        "redirect_uri", redirectUri,
+        "site_id", siteId,
+        "chunk_size", chunkSize,
+        "custom_host", customHost,
+        "disable_disk_usage", disableDiskUsage,
+        "enable_direct_upload", enableDirectUpload
     )
     if (p = "baidu") {
         ; Avoid Baidu API errno:2 on list when root path is empty.
         add["root_folder_path"] := "/"
+    } else if (p = "onedrive") {
+        ; For OneDrive, prefer root folder path and avoid root_folder_id based "root:" addressing.
+        try add.Delete("root_folder_id")
+        catch {
+        }
+        add["root_folder_path"] := "/"
+        add["RootFolderPath"] := "/"
+        add["tenant"] := "common"
+        add["Tenant"] := "common"
+    } else if (p = "pan123" && drv = "123open") {
+        ; 123Open on different OpenList builds may parse either snake_case or PascalCase keys.
+        add["RefreshToken"] := refreshToken
+        add["AccessToken"] := accessToken
+        add["ClientID"] := clientId
+        add["ClientSecret"] := clientSecret
+        add["APIAddress"] := apiUrlAddress
+        add["ApiAddress"] := apiUrlAddress
+        add["apiAddress"] := apiUrlAddress
     } else if (p = "quark" && drv = "quarkopen") {
         ; Compatibility fields for OpenList builds validating x-pan params.
         quarkClientId := (clientId != "") ? clientId : "5325"

@@ -303,7 +303,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     baidu: { label:"Baidu", driver:"BaiduNetdisk", mountId:"mountBaidu", defaultPath:"/baidu", loginUrl:"https://api.oplist.org/baiduyun/callback", tokenLabel:"refresh_token" },
     quark: { label:"Quark", driver:"Quark", mountId:"mountQuark", defaultPath:"/quark", loginUrl:"https://api.oplist.org/quarkyun/callback", requestUrl:"https://api.oplist.org/quarkyun/requests", tokenLabel:"Cookie (__puus / __pus / ctoken)" },
     pan115: { label:"115", driver:"Pan115", mountId:"mount115", defaultPath:"/pan115", loginUrl:"https://api.oplist.org/115/", tokenLabel:"refresh_token" },
-    pan123: { label:"123", driver:"Pan123", mountId:"mount123", defaultPath:"/pan123", loginUrl:"https://api.oplist.org/123/", tokenLabel:"refresh_token" },
+    pan123: { label:"123", driver:"123Open", mountId:"mount123", defaultPath:"/pan123", loginUrl:"https://api.oplist.org/123/", tokenLabel:"refresh_token" },
     onedrive: { label:"OneDrive", driver:"Onedrive", mountId:"mountOneDrive", defaultPath:"/onedrive", loginUrl:"https://api.oplist.org/onedrive/", tokenLabel:"refresh_token" },
     dropbox: { label:"Dropbox", driver:"Dropbox", mountId:"mountDropbox", defaultPath:"/dropbox", loginUrl:"https://api.oplist.org/dropbox/", tokenLabel:"refresh_token" },
     yandex: { label:"Yandex", driver:"YandexDisk", mountId:"mountYandex", defaultPath:"/yandex", loginUrl:"https://api.oplist.org/yandex/", tokenLabel:"refresh_token" },
@@ -1558,31 +1558,54 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   function syncGuideText(){
     var m = currentProviderMeta();
     var isQuark = (state.provider === "quark");
+    var is123 = (state.provider === "pan123");
     var isEn = (uiLang === "en");
     try{
       if($("scanModal").classList.contains("open")){
         $("scanModal").querySelector(".modal-title").textContent = (isEn ? "Smart Login Guide - " : "\u667a\u80fd\u767b\u5f55\u6307\u5f15 - ") + m.label;
-        $("scanModal").querySelector(".modal-hint").textContent = isQuark
+        $("scanModal").querySelector(".modal-hint").textContent = is123
+          ? (isEn
+            ? "123 requires developer plan and valid client_id/client_secret for refresh_token import."
+            : "\u0031\u0032\u0033 \u7f51\u76d8\u9700\u5f00\u53d1\u8005\u5957\u9910\uff0c\u4e14\u9700\u586b\u5199 client_id/client_secret \u624d\u80fd\u7528 refresh_token \u5bfc\u5165\u3002")
+          : isQuark
           ? (isEn ? "Recommended: login web Quark and paste Cookie string." : "\u63a8\u8350\uff1a\u5148\u767b\u5f55\u5938\u514b\u7f51\u9875\u7248\uff0c\u518d\u7c98\u8d34 Cookie \u5b57\u7b26\u4e32\u3002")
           : (isEn ? ("Login in browser, copy " + m.tokenLabel + ", then paste below.") : ("\u5728\u6d4f\u89c8\u5668\u767b\u5f55\u540e\uff0c\u590d\u5236 " + m.tokenLabel + " \u5e76\u7c98\u8d34\u5230\u4e0b\u65b9\u3002"));
       }
     }catch(_){}
-    if($("guideStep1")) $("guideStep1").innerHTML = isQuark
+    if($("guideStep1")) $("guideStep1").innerHTML = is123
+      ? (isEn
+        ? "Before login, ensure your 123 account has <b>Developer Plan</b> enabled."
+        : "\u5f00\u59cb\u524d\uff0c\u8bf7\u786e\u8ba4\u4f60\u7684 123 \u8d26\u53f7\u5df2\u5f00\u901a<b>\u5f00\u53d1\u8005\u5957\u9910</b>\u3002")
+      : isQuark
       ? (isEn ? "Click <b>Open Login Page</b> and sign in to <b>Quark Web</b>." : "\u70b9\u51fb<b>\u6253\u5f00\u767b\u5f55\u9875</b>\u5e76\u5b8c\u6210<b>\u5938\u514b\u7f51\u9875\u7248</b>\u767b\u5f55\u3002")
       : (isEn ? ("Click <b>Open Login Page</b> and complete <b>" + escHtml(m.label) + "</b> login in your browser.") : ("\u70b9\u51fb<b>\u6253\u5f00\u767b\u5f55\u9875</b>\u5e76\u5728\u6d4f\u89c8\u5668\u5b8c\u6210<b>" + escHtml(m.label) + "</b>\u767b\u5f55\u3002"));
-    if($("guideStep2")) $("guideStep2").innerHTML = isQuark
+    if($("guideStep2")) $("guideStep2").innerHTML = is123
+      ? (isEn
+        ? "In <b>Advanced Settings</b>, fill <code>client_id</code> and <code>client_secret</code> from 123 Open API."
+        : "\u5728<b>\u9ad8\u7ea7\u8bbe\u7f6e</b>\u4e2d\u586b\u5199 123 Open API \u7533\u8bf7\u7684 <code>client_id</code> \u4e0e <code>client_secret</code>\u3002")
+      : isQuark
       ? (isEn ? "Open browser DevTools (<code>F12</code>) -> <code>Application</code> -> <code>Cookies</code> -> <code>https://pan.quark.cn</code>, then copy cookie items." : "\u6253\u5f00\u6d4f\u89c8\u5668\u5f00\u53d1\u8005\u5de5\u5177\uff08<code>F12</code>\uff09 -> <code>Application</code> -> <code>Cookies</code> -> <code>https://pan.quark.cn</code>\uff0c\u590d\u5236 Cookie \u9879\u3002")
       : (isEn ? ("After login, copy the <code>" + escHtml(m.tokenLabel) + "</code> text.") : ("\u767b\u5f55\u6210\u529f\u540e\u590d\u5236 <code>" + escHtml(m.tokenLabel) + "</code> \u6587\u672c\u3002"));
-    if($("guideStep3")) $("guideStep3").innerHTML = isQuark
+    if($("guideStep3")) $("guideStep3").innerHTML = is123
+      ? (isEn
+        ? "Paste valid <code>refresh_token</code> below, then click <b>Import 123</b>. Without developer plan, import will fail."
+        : "\u5728\u4e0b\u65b9\u7c98\u8d34\u6709\u6548 <code>refresh_token</code>\uff0c\u7136\u540e\u70b9\u51fb<b>\u5bfc\u5165 123</b>\u3002\u672a\u5f00\u901a\u5f00\u53d1\u8005\u5957\u9910\u65f6\u5c06\u5bfc\u5165\u5931\u8d25\u3002")
+      : isQuark
       ? (isEn ? "Paste Cookie string below (recommended keys: <code>__puus</code>, <code>__pus</code>, <code>ctoken</code>), then click <b>Import Quark</b>." : "\u5728\u4e0b\u65b9\u7c98\u8d34 Cookie \u5b57\u7b26\u4e32\uff08\u63a8\u8350\u952e\uff1a<code>__puus</code>\u3001<code>__pus</code>\u3001<code>ctoken</code>\uff09\uff0c\u7136\u540e\u70b9\u51fb <b>\u5bfc\u5165\u5938\u514b</b>\u3002")
       : (isEn ? "Paste token into the input below, then click <b>Import Now</b>." : "\u5c06\u4ee4\u724c\u7c98\u8d34\u5230\u4e0b\u65b9\u8f93\u5165\u6846\uff0c\u518d\u70b9\u51fb <b>\u7acb\u5373\u5bfc\u5165</b>\u3002");
-    if($("guideTokenInput")) $("guideTokenInput").placeholder = isQuark
+    if($("guideTokenInput")) $("guideTokenInput").placeholder = is123
+      ? (isEn ? "Paste 123 refresh_token here (requires developer plan + valid client_id/client_secret)" : "\u5728\u6b64\u7c98\u8d34 123 refresh_token\uff08\u9700\u5f00\u53d1\u8005\u5957\u9910 + \u6709\u6548 client_id/client_secret\uff09")
+      : isQuark
       ? (isEn ? "Paste Quark Cookie string here (__puus=...; __pus=...; ctoken=...)" : "\u5728\u6b64\u7c98\u8d34\u5938\u514b Cookie \u5b57\u7b26\u4e32\uff08__puus=...; __pus=...; ctoken=...\uff09")
       : (isEn ? ("Paste " + m.label + " " + m.tokenLabel + " here") : ("\u5728\u6b64\u7c98\u8d34 " + m.label + " " + m.tokenLabel));
     if($("btnGuideImport")) $("btnGuideImport").textContent = isEn ? ("Import " + m.label) : ("\u5bfc\u5165 " + m.label);
     syncProviderTokenToInputs(state.provider);
     if($("importHint")){
-      text($("importHint"), isQuark
+      text($("importHint"), is123
+        ? (isEn
+          ? "123 OpenAPI notice: requires developer plan and valid client_id/client_secret. refresh_token-only without OpenAPI credentials may fail."
+          : "123 OpenAPI \u63d0\u793a\uff1a\u9700\u5f00\u53d1\u8005\u5957\u9910\u5e76\u586b\u5199\u6709\u6548 client_id/client_secret\uff0c\u4ec5 refresh_token \u901a\u5e38\u4f1a\u5bfc\u5165\u5931\u8d25\u3002")
+        : isQuark
         ? (isEn ? "Quark recommended flow: login web page, copy Cookie (__puus/__pus/ctoken), then import." : "\u5938\u514b\u63a8\u8350\u6d41\u7a0b\uff1a\u767b\u5f55\u7f51\u9875\u7248\uff0c\u590d\u5236 Cookie\uff08__puus/__pus/ctoken\uff09\u540e\u5bfc\u5165\u3002")
         : (isEn ? ("Smart Login for " + m.label + ": open login page, copy " + m.tokenLabel + ", then import.") : ("\u201c" + m.label + "\u201d\u667a\u80fd\u767b\u5f55\uff1a\u6253\u5f00\u767b\u5f55\u9875\uff0c\u590d\u5236 " + m.tokenLabel + " \u540e\u5bfc\u5165\u3002")));
     }
