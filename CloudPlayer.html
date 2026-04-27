@@ -110,6 +110,10 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 .modal-hint{font-size:12px;color:var(--muted)}
 .modal-body{flex:1;min-height:0;background:#0d1220}
 .modal-body iframe{width:100%;height:100%;border:0}
+.guide-panel{padding:16px;display:flex;flex-direction:column;gap:12px;height:100%;overflow:auto}
+.guide-steps{margin:0;padding-left:18px;color:var(--muted);line-height:1.6}
+.guide-row{display:flex;gap:8px;align-items:center}
+.guide-row input{flex:1}
 
 .ctx-menu{
   position:fixed;z-index:4000;display:none;min-width:180px;background:#111c2d;border:1px solid #2f425f;border-radius:10px;
@@ -147,6 +151,12 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     <button id="btnAli" class="pbtn">Aliyun</button>
     <button id="btnBaidu" class="pbtn">Baidu</button>
     <button id="btnQuark" class="pbtn">Quark</button>
+    <button id="btn115" class="pbtn">115</button>
+    <button id="btn123" class="pbtn">123</button>
+    <button id="btnOneDrive" class="pbtn">OneDrive</button>
+    <button id="btnDropbox" class="pbtn">Dropbox</button>
+    <button id="btnYandex" class="pbtn">Yandex</button>
+    <button id="btnGDrive" class="pbtn">GoogleDrive</button>
     <button id="btnRoot" class="pbtn">Root</button>
   </div>
 
@@ -181,6 +191,12 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       <div class="row hidden"><span>Ali path</span><input id="mountAli" value="/aliyun"></div>
       <div class="row"><span>Baidu path</span><input id="mountBaidu" value="/baidu"></div>
       <div class="row"><span>Quark path</span><input id="mountQuark" value="/quark"></div>
+      <div class="row"><span>115 path</span><input id="mount115" value="/pan115"></div>
+      <div class="row"><span>123 path</span><input id="mount123" value="/pan123"></div>
+      <div class="row"><span>OneDrive path</span><input id="mountOneDrive" value="/onedrive"></div>
+      <div class="row"><span>Dropbox path</span><input id="mountDropbox" value="/dropbox"></div>
+      <div class="row"><span>Yandex path</span><input id="mountYandex" value="/yandex"></div>
+      <div class="row"><span>Google path</span><input id="mountGDrive" value="/gdrive"></div>
     </div>
   </div>
 
@@ -200,17 +216,30 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       <div class="playbar"><input id="manualUrl" placeholder="Or paste direct video URL"><button id="btnPlayUrl">Play URL</button></div>
       <div id="currentInfo" class="hint">No file selected.</div>
       <video id="video" controls playsinline preload="metadata"></video>
-      <div class="hint">After import, click Aliyun to browse all folders.</div>
+      <div class="hint">After import, click a cloud tab to browse folders.</div>
     </div>
   </div>
 
   <div id="scanModal" class="modal">
     <div class="modal-card">
       <div class="modal-head">
-        <div><div class="modal-title">Ali QR Login</div><div class="modal-hint">Use external browser login, then copy refresh_token back here.</div></div>
-        <div style="display:flex;gap:8px"><button id="btnRefreshScan" class="ghost">Refresh QR</button><button id="btnOpenTokenExternal" class="ghost">Open External</button><button id="btnCloseScan" class="primary">Close</button></div>
+        <div><div class="modal-title">Smart Login Guide</div><div class="modal-hint">Login in browser, copy refresh_token, then paste below.</div></div>
+        <div style="display:flex;gap:8px"><button id="btnRefreshScan" class="ghost">Open Login Page</button><button id="btnOpenTokenExternal" class="ghost">Paste Token</button><button id="btnCloseScan" class="primary">Close</button></div>
       </div>
-      <div class="modal-body"><iframe id="scanFrame" src="https://api.oplist.org/" referrerpolicy="no-referrer"></iframe></div>
+      <div class="modal-body">
+        <div class="guide-panel">
+          <ol class="guide-steps">
+            <li id="guideStep1">Click <b>Open Login Page</b> and complete cloud login in your browser.</li>
+            <li id="guideStep2">After login, copy the <code>refresh_token</code> text.</li>
+            <li id="guideStep3">Paste token into the input below, then click <b>Import Now</b>.</li>
+          </ol>
+          <div class="guide-row">
+            <input id="guideTokenInput" placeholder="Paste refresh_token here">
+            <button id="btnGuideImport" class="primary">Import Now</button>
+          </div>
+          <div class="hint">Tip: token is saved locally and reused next time.</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -229,8 +258,9 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 <script>
 (function(){
   var $ = function(id){ return document.getElementById(id); };
-  var state = { apiBase: "", token: "", path: "/", provider: "" };
+  var state = { apiBase: "", token: "", path: "/", provider: "ali" };
   var storeKey = "cloudplayer_mounts_v2";
+  var providerTokenStoreKey = "cloudplayer_provider_tokens_v1";
   var scanRefreshTimer = 0;
   var scanAutoRefreshMs = 45000;
   var scanBaseUrl = "https://api.oplist.org/";
@@ -264,8 +294,49 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   var lastPlayCandidates = [];
   var lastPlayCandidateIndex = -1;
   var autoBootDone = false;
+  var providerTokens = {};
+  var providerMap = {
+    ali: { label:"Aliyun", driver:"AliyundriveOpen", mountId:"mountAli", defaultPath:"/aliyun", loginUrl:"https://api.oplist.org/", tokenLabel:"refresh_token" },
+    baidu: { label:"Baidu", driver:"BaiduNetdisk", mountId:"mountBaidu", defaultPath:"/baidu", loginUrl:"https://api.oplist.org/baiduyun/callback", tokenLabel:"refresh_token" },
+    quark: { label:"Quark", driver:"QuarkOpen", mountId:"mountQuark", defaultPath:"/quark", loginUrl:"https://api.oplist.org/quarkyun/callback", tokenLabel:"refresh_token" },
+    pan115: { label:"115", driver:"Pan115", mountId:"mount115", defaultPath:"/pan115", loginUrl:"https://api.oplist.org/115/", tokenLabel:"refresh_token" },
+    pan123: { label:"123", driver:"Pan123", mountId:"mount123", defaultPath:"/pan123", loginUrl:"https://api.oplist.org/123/", tokenLabel:"refresh_token" },
+    onedrive: { label:"OneDrive", driver:"Onedrive", mountId:"mountOneDrive", defaultPath:"/onedrive", loginUrl:"https://api.oplist.org/onedrive/", tokenLabel:"refresh_token" },
+    dropbox: { label:"Dropbox", driver:"Dropbox", mountId:"mountDropbox", defaultPath:"/dropbox", loginUrl:"https://api.oplist.org/dropbox/", tokenLabel:"refresh_token" },
+    yandex: { label:"Yandex", driver:"YandexDisk", mountId:"mountYandex", defaultPath:"/yandex", loginUrl:"https://api.oplist.org/yandex/", tokenLabel:"refresh_token" },
+    gdrive: { label:"GoogleDrive", driver:"GoogleDrive", mountId:"mountGDrive", defaultPath:"/gdrive", loginUrl:"https://api.oplist.org/googledrive/", tokenLabel:"refresh_token" }
+  };
 
   function text(node, v){ node.textContent = v == null ? "" : String(v); }
+  function normalizeProviderKey(k){
+    var s = String(k || "").trim();
+    return providerMap[s] ? s : "ali";
+  }
+  function loadProviderTokens(){
+    try{
+      var raw = localStorage.getItem(providerTokenStoreKey);
+      providerTokens = raw ? (JSON.parse(raw) || {}) : {};
+      if(!providerTokens || typeof providerTokens !== "object") providerTokens = {};
+    }catch(_){ providerTokens = {}; }
+  }
+  function saveProviderTokens(){
+    try{ localStorage.setItem(providerTokenStoreKey, JSON.stringify(providerTokens || {})); }catch(_){}
+  }
+  function getProviderToken(key){
+    var k = normalizeProviderKey(key);
+    var v = providerTokens && typeof providerTokens === "object" ? providerTokens[k] : "";
+    return String(v || "").trim();
+  }
+  function setProviderToken(key, token){
+    var k = normalizeProviderKey(key);
+    providerTokens[k] = String(token || "").trim();
+    saveProviderTokens();
+  }
+  function syncProviderTokenToInputs(key){
+    var tk = getProviderToken(key);
+    $("aliRefreshToken").value = tk;
+    if($("guideTokenInput")) $("guideTokenInput").value = tk;
+  }
   function normPath(p){ var v = String(p || "/").trim() || "/"; if (!v.startsWith("/")) v = "/" + v; return v.replace(/\/{2,}/g, "/"); }
   function fmtSize(size){ var n = Number(size || 0); if (!isFinite(n) || n <= 0) return ""; var u=["B","KB","MB","GB","TB"], i=0; while(n>=1024 && i<u.length-1){n/=1024;i++;} return (i===0?Math.round(n):n.toFixed(1))+" "+u[i]; }
   function escHtml(s){ return String(s==null?"":s).replace(/[&<>\"]/g, function(ch){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[ch] || ch; }); }
@@ -295,7 +366,13 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     if(liveToken) h["Authorization"]=liveToken;
     return h;
   }
-  function markProvider(name){ ["btnAli","btnBaidu","btnQuark","btnRoot"].forEach(function(id){ $(id).classList.remove("active"); }); var m={ali:"btnAli",baidu:"btnBaidu",quark:"btnQuark",root:"btnRoot"}; if(m[name]) $(m[name]).classList.add("active"); }
+  function markProvider(name){
+    ["btnAli","btnBaidu","btnQuark","btn115","btn123","btnOneDrive","btnDropbox","btnYandex","btnGDrive","btnRoot"].forEach(function(id){
+      if($(id)) $(id).classList.remove("active");
+    });
+    var m={ali:"btnAli",baidu:"btnBaidu",quark:"btnQuark",pan115:"btn115",pan123:"btn123",onedrive:"btnOneDrive",dropbox:"btnDropbox",yandex:"btnYandex",gdrive:"btnGDrive",root:"btnRoot"};
+    if(m[name] && $(m[name])) $(m[name]).classList.add("active");
+  }
   function openExternal(url){
     var u = String(url || "").trim();
     if(!u) return;
@@ -322,26 +399,8 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   }
   function openScanModal(){
     $("scanModal").classList.add("open");
-    if(scanEmbedEnabled){
-      refreshScanFrame("open");
-    }else{
-      var f = $("scanFrame");
-      if(f) f.src = "about:blank";
-      text($("importHint"), "Embedded login may be blocked. Opened external browser for login.");
-    }
-    if(scanAutoOpenExternal){
-      setTimeout(function(){ openExternal(buildNoCacheUrl(scanBaseUrl)); }, 120);
-      text($("importHint"), "Login page opened in your default browser. Complete login there and paste refresh_token here.");
-    }
-    if(scanRefreshTimer) clearInterval(scanRefreshTimer);
-    scanRefreshTimer = setInterval(function(){
-      if(!$("scanModal").classList.contains("open")) return;
-      if(scanEmbedEnabled){
-        refreshScanFrame("auto");
-      }else if(scanAutoOpenExternal){
-        openExternal(buildNoCacheUrl(scanBaseUrl));
-      }
-    }, scanAutoRefreshMs);
+    syncGuideText();
+    text($("importHint"), "Login page opened. Paste token in popup input, then import.");
   }
   function closeScanModal(){
     $("scanModal").classList.remove("open");
@@ -351,13 +410,46 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     }
     stopTokenAssist(false);
   }
+  function extractRefreshToken(raw){
+    var s = String(raw || "").trim();
+    if(!s) return "";
+    if((s[0] === "\"" && s[s.length-1] === "\"") || (s[0] === "'" && s[s.length-1] === "'")){
+      s = s.slice(1, -1).trim();
+    }
+    if(!s) return "";
+    try{
+      var j = JSON.parse(s);
+      if(j && typeof j === "object"){
+        var cands = [
+          j.refresh_token,
+          j.refreshToken,
+          j.token,
+          j.data && (j.data.refresh_token || j.data.refreshToken || j.data.token)
+        ];
+        for(var i=0;i<cands.length;i++){
+          var v = String(cands[i] || "").trim();
+          if(v) return v;
+        }
+      }
+    }catch(_){}
+    var m1 = s.match(/(?:^|[?&#])refresh_token=([^&#\s]+)/i);
+    if(m1 && m1[1]){
+      try{ return decodeURIComponent(String(m1[1]).trim()); }catch(_){ return String(m1[1]).trim(); }
+    }
+    var m2 = s.match(/(?:^|[?&#])token=([^&#\s]+)/i);
+    if(m2 && m2[1]){
+      try{ return decodeURIComponent(String(m2[1]).trim()); }catch(_){ return String(m2[1]).trim(); }
+    }
+    var m3 = s.match(/["']refresh_token["']\s*[:=]\s*["']?([^"',\s}]+)["']?/i);
+    if(m3 && m3[1]) return String(m3[1]).trim();
+    return s;
+  }
   function looksLikeRefreshToken(t){
-    var s = String(t || "").trim();
-    if(!s || s.length < 24) return false;
+    var s = extractRefreshToken(t);
+    if(!s || s.length < 8) return false;
     if(/\s/.test(s)) return false;
-    if(/^https?:\/\//i.test(s)) return false;
     if(s.indexOf("openlist-") === 0) return false;
-    return /^[A-Za-z0-9\-_\.=]+$/.test(s);
+    return true;
   }
   function stopTokenAssist(showMsg){
     if(tokenAssistTimer){
@@ -373,32 +465,22 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     stopTokenAssist(false);
     tokenAssistActive = true;
     tokenAssistSeen = String($("aliRefreshToken").value || "").trim();
-    text($("importHint"), "Smart Login started: finish Aliyun login in browser, then copy refresh_token. We will detect and import automatically.");
+    syncGuideText();
+    if($("guideTokenInput")) $("guideTokenInput").value = tokenAssistSeen;
+    var m = currentProviderMeta();
+    text($("importHint"), "Smart Login started for " + m.label + ". After login, copy " + m.tokenLabel + " and import.");
     openScanModal();
-    tokenAssistTimer = setInterval(async function(){
-      if(!tokenAssistActive) return;
-      var t = await readClipboardText();
-      if(!looksLikeRefreshToken(t)) return;
-      if(t === tokenAssistSeen) return;
-      tokenAssistSeen = t;
-      $("aliRefreshToken").value = t;
-      saveSettings();
-      text($("importHint"), "Detected refresh_token from clipboard.");
-      if($("autoImportOnToken") && $("autoImportOnToken").checked){
-        stopTokenAssist(false);
-        await doAliImport();
-      }
-    }, 1400);
+    openExternal(buildNoCacheUrl(m.loginUrl || scanBaseUrl));
   }
   function setAliImportBusy(busy){
     aliImportBusy = !!busy;
-    var b = $("btnImportAliyun");
+    var b = $("btnGuideImport");
     if(b){
       b.disabled = aliImportBusy;
-      b.textContent = aliImportBusy ? "Importing..." : "Import Aliyun";
+      b.textContent = aliImportBusy ? "Importing..." : "Import Now";
     }
-    var p = $("btnPasteToken");
-    if(p) p.disabled = aliImportBusy;
+    if($("btnSmartLogin")) $("btnSmartLogin").disabled = aliImportBusy;
+    if($("btnOpenTokenExternal")) $("btnOpenTokenExternal").disabled = aliImportBusy;
   }
   function markAliImportProgress(msg){
     aliImportLastUpdate = Date.now();
@@ -562,9 +644,13 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     var data = {
       apiBase: normalizeApiBase($("apiBase").value),
       token: String($("token").value || "").trim(),
-      aliRefreshToken: String($("aliRefreshToken").value || "").trim(),
+      aliRefreshToken: getProviderToken(state.provider),
       autoImportOnToken: !!($("autoImportOnToken") && $("autoImportOnToken").checked),
+      selectedProvider: state.provider || "ali",
       mountAli: normPath($("mountAli").value), mountBaidu: normPath($("mountBaidu").value), mountQuark: normPath($("mountQuark").value),
+      mount115: normPath($("mount115").value), mount123: normPath($("mount123").value),
+      mountOneDrive: normPath($("mountOneDrive").value), mountDropbox: normPath($("mountDropbox").value),
+      mountYandex: normPath($("mountYandex").value), mountGDrive: normPath($("mountGDrive").value),
       aliMountPath: normPath($("aliMountPath").value), advRootFolderId: $("advRootFolderId").value || "root",
       advDriveType: $("advDriveType").value || "default", advAlipanType: $("advAlipanType").value || "default",
       advUseOnlineApi: $("advUseOnlineApi").value || "true", advClientId: $("advClientId").value || "",
@@ -578,11 +664,18 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       var s=JSON.parse(raw); if(!s || typeof s!=="object") return;
       if(s.apiBase) $("apiBase").value = normalizeApiBase(s.apiBase);
       if(typeof s.token === "string") $("token").value = s.token;
-      if(typeof s.aliRefreshToken === "string") $("aliRefreshToken").value = s.aliRefreshToken;
+      if(s.selectedProvider && providerMap[s.selectedProvider]) state.provider = s.selectedProvider;
+      if(typeof s.aliRefreshToken === "string") setProviderToken(state.provider, s.aliRefreshToken);
       if($("autoImportOnToken")) $("autoImportOnToken").checked = (s.autoImportOnToken !== false);
       if(s.mountAli) $("mountAli").value=normPath(s.mountAli);
       if(s.mountBaidu) $("mountBaidu").value=normPath(s.mountBaidu);
       if(s.mountQuark) $("mountQuark").value=normPath(s.mountQuark);
+      if(s.mount115) $("mount115").value=normPath(s.mount115);
+      if(s.mount123) $("mount123").value=normPath(s.mount123);
+      if(s.mountOneDrive) $("mountOneDrive").value=normPath(s.mountOneDrive);
+      if(s.mountDropbox) $("mountDropbox").value=normPath(s.mountDropbox);
+      if(s.mountYandex) $("mountYandex").value=normPath(s.mountYandex);
+      if(s.mountGDrive) $("mountGDrive").value=normPath(s.mountGDrive);
       if(s.aliMountPath) $("aliMountPath").value=normPath(s.aliMountPath);
       if(s.advRootFolderId) $("advRootFolderId").value=s.advRootFolderId;
       if(s.advDriveType) $("advDriveType").value=s.advDriveType;
@@ -592,6 +685,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       if(typeof s.advClientSecret==="string") $("advClientSecret").value=s.advClientSecret;
       if(s.advApiUrlAddress) $("advApiUrlAddress").value=s.advApiUrlAddress;
     }catch(_){}
+    syncProviderTokenToInputs(state.provider);
   }
   function getAliImportOptions(){
     return {
@@ -725,7 +819,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     var rows = getVisibleItems();
     if(!rows.length){
       if(normPath(state.path) === "/"){
-        wrap.innerHTML='<div class="empty">Top directory. Choose Aliyun/Baidu/Quark above to browse files.</div>';
+        wrap.innerHTML='<div class="empty">Top directory. Choose a cloud tab above to browse files.</div>';
       }else{
         wrap.innerHTML='<div class="empty">No files in this folder, or access is currently unavailable.</div>';
       }
@@ -862,24 +956,21 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     state.path=nextPath;
     $("pathInput").value=state.path;
     text($("currentInfo"), "Loading: " + state.path);
-    if(state.path.indexOf("/aliyun") === 0){
+    var liveToken = String(($("token") && $("token").value) || state.token || "").trim();
+    if(!liveToken){
       var autoTk = await requestAdminToken(2800);
       if(autoTk.ok && autoTk.token){
         $("token").value = autoTk.token;
         state.token = autoTk.token;
+        liveToken = autoTk.token;
       }
     }
-    var liveToken = String(($("token") && $("token").value) || state.token || "").trim();
     var ret = null;
-    if(state.path.indexOf("/aliyun") === 0){
-      ret = await requestFsListViaHost(state.path, liveToken, false, 4200);
-      if(!ret || !ret.json){
-        ret = await apiPost("/api/fs/list", { path:state.path, password:"", page:1, per_page:300, refresh:false });
-      }else{
-        ret = { transport:{ ok:ret.ok, status:ret.status, error:ret.error }, json:ret.json, parseError:ret.parseError, bodyText:ret.bodyText };
-      }
-    }else{
+    ret = await requestFsListViaHost(state.path, liveToken, false, 4200);
+    if(!ret || !ret.json){
       ret = await apiPost("/api/fs/list", { path:state.path, password:"", page:1, per_page:300, refresh:false });
+    }else{
+      ret = { transport:{ ok:ret.ok, status:ret.status, error:ret.error }, json:ret.json, parseError:ret.parseError, bodyText:ret.bodyText };
     }
     if(!ret.transport.ok && !ret.json){ renderList([]); text($("currentInfo"), "Load failed: " + (ret.transport.error||"network error")); return; }
     if(!ret.json){
@@ -910,7 +1001,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       return;
     }
     var content = ret.json && ret.json.data && Array.isArray(ret.json.data.content) ? ret.json.data.content : [];
-    if(content.length === 0 && state.path.indexOf("/aliyun") === 0){
+    if(content.length === 0){
       var ret2Raw = await requestFsListViaHost(state.path, String(($("token") && $("token").value) || state.token || "").trim(), true, 4500);
       var ret2 = null;
       if(ret2Raw && ret2Raw.json){
@@ -1018,10 +1109,15 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     await playEntry(entry);
   }
   function openProvider(name){
+    if(name==="root"){ state.provider=""; saveSettings(); markProvider("root"); loadList("/"); return; }
+    var meta = providerMap[name] || providerMap.ali;
+    var p = "/";
+    if(meta.mountId && $(meta.mountId)) p = $(meta.mountId).value;
+    state.provider=name;
+    syncProviderTokenToInputs(state.provider);
     saveSettings();
-    if(name==="root"){ state.provider=""; markProvider("root"); loadList("/"); return; }
-    var p="/"; if(name==="ali") p=$("mountAli").value; if(name==="baidu") p=$("mountBaidu").value; if(name==="quark") p=$("mountQuark").value;
-    state.provider=name; markProvider(name); loadList(normPath(p));
+    markProvider(name);
+    loadList(normPath(p));
   }
   async function readClipboardText(){
     try{
@@ -1036,10 +1132,34 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     }catch(_){}
     return "";
   }
-  async function doAliImport(){
+  function currentProviderMeta(){
+    var key = state.provider && providerMap[state.provider] ? state.provider : "ali";
+    return providerMap[key];
+  }
+  function syncGuideText(){
+    var m = currentProviderMeta();
+    try{
+      if($("scanModal").classList.contains("open")){
+        $("scanModal").querySelector(".modal-title").textContent = "Smart Login Guide - " + m.label;
+        $("scanModal").querySelector(".modal-hint").textContent = "Login in browser, copy " + m.tokenLabel + ", then paste below.";
+      }
+    }catch(_){}
+    if($("guideStep1")) $("guideStep1").innerHTML = "Click <b>Open Login Page</b> and complete <b>" + escHtml(m.label) + "</b> login in your browser.";
+    if($("guideStep2")) $("guideStep2").innerHTML = "After login, copy the <code>" + escHtml(m.tokenLabel) + "</code> text.";
+    if($("guideTokenInput")) $("guideTokenInput").placeholder = "Paste " + m.label + " " + m.tokenLabel + " here";
+    if($("btnGuideImport")) $("btnGuideImport").textContent = "Import " + m.label;
+    syncProviderTokenToInputs(state.provider);
+    if($("importHint")){
+      text($("importHint"), "Smart Login for " + m.label + ": open login page, copy " + m.tokenLabel + ", then import.");
+    }
+  }
+  async function doProviderImport(providerKey){
     stopTokenAssist(false);
-    var refreshToken=String($("aliRefreshToken").value||"").trim(), mountPath=normPath($("aliMountPath").value||"/aliyun");
-    if(!refreshToken){ text($("importHint"), "Please paste aliyun refresh_token first."); return; }
+    providerKey = normalizeProviderKey(providerKey || state.provider);
+    var m = providerMap[providerKey] || providerMap.ali;
+    var token=extractRefreshToken($("aliRefreshToken").value||"");
+    var mountPath = normPath((m.mountId && $(m.mountId)) ? $(m.mountId).value : m.defaultPath || "/");
+    if(!token){ text($("importHint"), "Please paste " + m.label + " " + m.tokenLabel + " first."); return; }
     if(aliImportBusy){ text($("importHint"), "Import already running, please wait..."); return; }
     var online = !!lastHostStatusOnline;
     if(!online){
@@ -1055,33 +1175,37 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       text($("importHint"), "OpenList seems offline. Click Restart OpenList, wait 2-3s, then retry import.");
       return;
     }
-    $("mountAli").value=mountPath; saveSettings();
+    $("aliRefreshToken").value = token;
+    if($("guideTokenInput")) $("guideTokenInput").value = token;
+    setProviderToken(providerKey, token);
+    if(m.mountId && $(m.mountId)) $(m.mountId).value = mountPath;
+    saveSettings();
     setAliImportBusy(true);
-    markAliImportProgress("Importing aliyun storage: submitting request...");
+    markAliImportProgress("Importing " + m.label + " storage...");
     startAliImportWatchdog();
     startAliImportHardTimeout();
-    postHost("cloudplayer_import_aliyun", { refreshToken:refreshToken, mountPath:mountPath, options:getAliImportOptions() });
+    postHost("cloudplayer_import_storage", { provider:providerKey, driver:m.driver, token:token, mountPath:mountPath, options:getAliImportOptions() });
   }
   async function mountPathReachable(path){
-    var p = normPath(path || "/aliyun");
+    var p = normPath(path || "/");
     var ret = await apiPost("/api/fs/list", { path:p, password:"", page:1, per_page:1, refresh:false });
     return !!(ret && ret.json && ret.json.code === 200);
   }
   async function autoEnterCloudDrive(){
     if(autoBootDone) return;
     autoBootDone = true;
-    var rt = String($("aliRefreshToken").value || "").trim();
-    var aliPath = normPath($("mountAli").value || $("aliMountPath").value || "/aliyun");
+    var rt = getProviderToken(state.provider);
+    var m = providerMap[state.provider] || providerMap.ali;
+    var mp = normPath((m.mountId && $(m.mountId)) ? $(m.mountId).value : m.defaultPath || "/");
     if(rt){
-      state.provider = "ali";
-      markProvider("ali");
-      var ok = await mountPathReachable(aliPath);
+      markProvider(state.provider);
+      var ok = await mountPathReachable(mp);
       if(ok){
-        text($("importHint"), "Detected saved Aliyun token. Opened Aliyun automatically.");
-        await loadList(aliPath, false, { fromHistory:true });
+        text($("importHint"), "Detected saved " + m.label + " token. Opened " + m.label + " automatically.");
+        await loadList(mp, false, { fromHistory:true });
       }else{
-        text($("importHint"), "Detected saved Aliyun token. Importing automatically...");
-        await doAliImport();
+        text($("importHint"), "Detected saved " + m.label + " token. Importing automatically...");
+        await doProviderImport(state.provider);
       }
       return;
     }
@@ -1146,26 +1270,69 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       saveSettings();
     });
 
-    $("btnAli").addEventListener("click", function(){ openProvider("ali"); });
-    $("btnBaidu").addEventListener("click", function(){ openProvider("baidu"); });
-    $("btnQuark").addEventListener("click", function(){ openProvider("quark"); });
+    $("btnAli").addEventListener("click", function(){ openProvider("ali"); syncGuideText(); });
+    $("btnBaidu").addEventListener("click", function(){ openProvider("baidu"); syncGuideText(); });
+    $("btnQuark").addEventListener("click", function(){ openProvider("quark"); syncGuideText(); });
+    $("btn115").addEventListener("click", function(){ openProvider("pan115"); syncGuideText(); });
+    $("btn123").addEventListener("click", function(){ openProvider("pan123"); syncGuideText(); });
+    $("btnOneDrive").addEventListener("click", function(){ openProvider("onedrive"); syncGuideText(); });
+    $("btnDropbox").addEventListener("click", function(){ openProvider("dropbox"); syncGuideText(); });
+    $("btnYandex").addEventListener("click", function(){ openProvider("yandex"); syncGuideText(); });
+    $("btnGDrive").addEventListener("click", function(){ openProvider("gdrive"); syncGuideText(); });
     $("btnRoot").addEventListener("click", function(){ openProvider("root"); });
 
     $("btnSmartLogin").addEventListener("click", startTokenAssist);
     $("btnCloseScan").addEventListener("click", closeScanModal);
     $("btnRefreshScan").addEventListener("click", function(){
-      if(scanEmbedEnabled){
-        refreshScanFrame("manual");
-      }else{
-        openExternal(buildNoCacheUrl(scanBaseUrl));
-        text($("importHint"), "Opened a fresh login page in your default browser.");
+      var m = currentProviderMeta();
+      openExternal(buildNoCacheUrl(m.loginUrl || scanBaseUrl));
+      text($("importHint"), "Opened login page in your default browser.");
+    });
+    $("btnOpenTokenExternal").addEventListener("click", async function(){
+      var t=await readClipboardText();
+      if(!looksLikeRefreshToken(t)){ text($("importHint"), "Clipboard has no valid refresh_token yet."); return; }
+      t = extractRefreshToken(t);
+      $("aliRefreshToken").value = t;
+      if($("guideTokenInput")) $("guideTokenInput").value = t;
+      setProviderToken(state.provider, t);
+      saveSettings();
+      text($("importHint"), "Token pasted from clipboard.");
+      if($("autoImportOnToken") && $("autoImportOnToken").checked){
+        await doProviderImport(state.provider);
       }
     });
-    $("btnOpenTokenExternal").addEventListener("click", function(){ openExternal(buildNoCacheUrl(scanBaseUrl)); });
+    $("btnGuideImport").addEventListener("click", async function(){
+      var t = extractRefreshToken(($("guideTokenInput") && $("guideTokenInput").value) || "");
+      if(!looksLikeRefreshToken(t)){ text($("importHint"), "Please paste a valid refresh_token first."); return; }
+      $("aliRefreshToken").value = t;
+      setProviderToken(state.provider, t);
+      saveSettings();
+      await doProviderImport(state.provider);
+    });
+    $("guideTokenInput").addEventListener("change", function(){
+      var tk = extractRefreshToken($("guideTokenInput").value || "");
+      $("aliRefreshToken").value = tk;
+      $("guideTokenInput").value = tk;
+      setProviderToken(state.provider, tk);
+      saveSettings();
+    });
+    $("guideTokenInput").addEventListener("keydown", function(e){
+      if(e.key==="Enter") $("btnGuideImport").click();
+    });
 
-    $("aliRefreshToken").addEventListener("keydown", function(e){ if(e.key==="Enter") doAliImport(); });
-    $("aliRefreshToken").addEventListener("change", saveSettings);
-    $("aliRefreshToken").addEventListener("blur", saveSettings);
+    $("aliRefreshToken").addEventListener("keydown", function(e){ if(e.key==="Enter") doProviderImport(state.provider); });
+    $("aliRefreshToken").addEventListener("change", function(){
+      var tk = extractRefreshToken($("aliRefreshToken").value || "");
+      $("aliRefreshToken").value = tk;
+      setProviderToken(state.provider, tk);
+      saveSettings();
+    });
+    $("aliRefreshToken").addEventListener("blur", function(){
+      var tk = extractRefreshToken($("aliRefreshToken").value || "");
+      $("aliRefreshToken").value = tk;
+      setProviderToken(state.provider, tk);
+      saveSettings();
+    });
     $("autoImportOnToken").addEventListener("change", saveSettings);
 
     $("ctxMenu").querySelectorAll(".ctx-item").forEach(function(btn){
@@ -1198,7 +1365,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       text($("currentInfo"), hint);
     });
 
-    ["mountAli","mountBaidu","mountQuark","aliMountPath","advRootFolderId","advDriveType","advAlipanType","advUseOnlineApi","advClientId","advClientSecret","advApiUrlAddress"].forEach(function(id){
+    ["mountAli","mountBaidu","mountQuark","mount115","mount123","mountOneDrive","mountDropbox","mountYandex","mountGDrive","aliMountPath","advRootFolderId","advDriveType","advAlipanType","advUseOnlineApi","advClientId","advClientSecret","advApiUrlAddress"].forEach(function(id){
       $(id).addEventListener("change", saveSettings);
       $(id).addEventListener("blur", saveSettings);
     });
@@ -1225,17 +1392,21 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
           state.token = String(data.authToken);
           saveSettings();
         }
-        $("mountAli").value=mp; $("aliMountPath").value=mp; saveSettings();
-        text($("importHint"), "Import success: " + mp + " (" + (data.driver||"AliyundriveOpen") + ")");
+        var m = currentProviderMeta();
+        if(m.mountId && $(m.mountId)) $(m.mountId).value = mp;
+        if(state.provider === "ali") $("aliMountPath").value = mp;
+        if($("aliRefreshToken").value) setProviderToken(state.provider, $("aliRefreshToken").value);
+        saveSettings();
+        text($("importHint"), "Import success: " + mp + " (" + (data.driver||m.driver||"storage") + ")");
         setSettingsDrawer(false);
-        openProvider("ali");
+        openProvider(state.provider || "ali");
       }else{
         text($("importHint"), "Import failed: " + (data.message||"unknown error"));
       }
       return;
     }
     if(data.type==="cloudplayer_import_progress"){
-      markAliImportProgress(data.message || "Importing aliyun storage...");
+      markAliImportProgress(data.message || "Importing cloud storage...");
       return;
     }
     if(data.type==="cloudplayer_admin_token"){
@@ -1248,6 +1419,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     }
   }
   async function boot(){
+    loadProviderTokens();
     loadSettings();
     loadPins();
     bindEvents();
@@ -1256,6 +1428,9 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     state.apiBase = normalizeApiBase($("apiBase").value);
     $("apiBase").value = state.apiBase;
     state.token = String($("token").value || "").trim();
+    if(!providerMap[state.provider]) state.provider = "ali";
+    markProvider(state.provider);
+    syncGuideText();
     postHost("cloudplayer_ready", { apiBase: state.apiBase });
     await new Promise(function(r){ setTimeout(r, 80); });
     await checkOpenList({ skipInitialPending: true });

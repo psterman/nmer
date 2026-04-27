@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" xmlns="http://www.w3.org/1999/html">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenList Token 获取工具</title>
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+    <link rel="icon" type="image/png" href="https://cdn.oplist.org/gh/OpenListTeam/Logo@main/logo/32x32.png">
+    <link rel="icon" type="image/png" href="https://cdn.oplist.org/gh/OpenListTeam/Logo@main/logo/64x64.png">
+    <link rel="apple-touch-icon" type="image/png" href="https://cdn.oplist.org/gh/OpenListTeam/Logo@main/logo.png">
+    <link href="https://cdn.oplist.org/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.oplist.org/npm/sweetalert2@11.22.0/dist/sweetalert2.all.min.js"></script>
+</head>
+<body>
+<div class="toggle-theme">
+    <button class="btn btn-outline-secondary" onclick="toggleTheme()" style="z-index: 100;">切换主题</button>
+</div>
+<div class="container form-container">
+    <h2 class="text-center mb-4">?? OpenList Token 获取工具</h2>
+    <div class="mb-3">
+        <label for="driver-txt-input" class="form-label">网盘名称</label>
+        <select id="driver-txt-input" class="form-select">
+            <option value="onedrive_go" selected>OneDrive (OAuth2) 企业账号</option>
+            <option value="onedrive_pr">OneDrive (OAuth2) 个人账号</option>
+            <option value="onedrive_cn">OneDrive (OAuth2) 世纪互联</option>
+            <option value="onedrive_us">OneDrive (OAuth2) 美国版本</option>
+            <option value="onedrive_de">OneDrive (OAuth2) 德国版本</option>
+            <option value="alicloud_go">阿里云盘 (OAuth2) 跳转登录</option>
+            <option value="alicloud_qr">阿里云盘 (OAuth2) 扫码登录</option>
+            <option value="alicloud_tv">阿里云盘 (Client) TV版扫码</option>
+            <option value="alicloud_cs">阿里云盘 (Client) 直接登录</option>
+            <option value="baiduyun_go">百度网盘 (OAuth2) 验证登录</option>
+            <option value="baiduyun_ob">百度网盘 (OAuth2) 手动登录</option>
+            <option value="quarkyun_fn">夸克网盘 (OAuth2) 验证登录</option>
+            <option value="115cloud_go">115 网盘 (OAuth2) 跳转登录</option>
+            <option value="115cloud_qr">115 网盘 (QRCode) 扫码登录</option>
+            <option value="123cloud_go">123 网盘 (OAuth2) Open API</option>
+            <option value="123cloud_oa">123 网盘 (OAuth2) 跳转登录</option>
+            <option value="dropboxs_go">Drop Box (OAuth2) 跳转登录</option>
+            <option value="googleui_go">GoogleDrive Login (OAuth2)</option>
+            <option value="yandexui_go">YandexDrive Login (OAuth2)</option>
+        </select>
+    </div>
+
+    <div class="mb-3" style="margin-top: 15px">
+        <input type="checkbox" id="server-use-input" class="form-check-input">
+        <label for="server-use-input" class="form-check-label">使用 OpenList 提供的参数</label>
+    </div>
+
+    <div class="mb-3" id="client-uid-views">
+        <label for="client-uid-input" class="form-label">客户端ID（ClientID/AppID）</label>
+        <input type="text" id="client-uid-input" class="form-control">
+    </div>
+
+    <div class="mb-3">
+        <label for="client-key-input" class="form-label">应用秘钥 (AppKey/Secret)</label>
+        <input type="text" id="client-key-input" class="form-control">
+    </div>
+
+    <div class="mb-3" id="secret-key-views">
+        <label for="secret-key-input" class="form-label">访问秘钥（SecretKey/Key）</label>
+        <input type="text" id="secret-key-input" class="form-control">
+    </div>
+
+    <div class="mb-3">
+        <label for="direct-url-input" class="form-label">回调地址（Callback URL）</label>
+        <input type="text" id="direct-url-input" class="form-control" readonly onclick="autoCopy(this)">
+    </div>
+
+    <div class="d-grid gap-2 mb-3">
+        <button class="btn btn-primary" onclick="getLogin()">获取 Token</button>
+    </div>
+
+    <div class="d-grid gap-2 mb-3">
+        <button class="btn btn-primary" onclick="getLogin(true)">刷新 Token</button>
+    </div>
+
+    <div class="mb-3">
+        <label for="access-token" class="form-label">访问令牌（Access Token）</label>
+        <textarea id="access-token" class="form-control" rows="3" readonly onclick="autoCopy(this)"></textarea>
+    </div>
+
+    <div class="mb-3">
+        <label for="refresh-token" class="form-label">刷新令牌（Refresh Token）</label>
+        <textarea id="refresh-token" class="form-control" rows="3" readonly onclick="autoCopy(this)"></textarea>
+    </div>
+    <div id="sharepoint-views">
+        <div class="mb-3" id="sharepoint-url-view">
+            <label for="sharepoint-url" class="form-label">SharePoint SiteURL</label>
+            <label for="sharepoint-url"></label><input type="text" id="sharepoint-url" class="form-control">
+        </div>
+        <div class="d-grid gap-2 mb-3" id="sharepoint-btn-view">
+            <button class="btn btn-primary" onclick="getSiteID(document.getElementById('server-use-input').checked)">获取 SharePoint 站点ID</button>
+        </div>
+        <div class="mb-3" id="sharepoint-uid-view">
+            <label for="sharepoint-id" class="form-label">SharePoint Site ID</label>
+            <textarea id="sharepoint-id" class="form-control" rows="3" readonly onclick="autoCopy(this)"></textarea>
+<!--        </div>-->
+<!--        <div class="mb-3" id="odb-webdav-url-view">-->
+<!--            <label for="odb-webdav-url" class="form-label">Onedrive / SPO 地址</label>-->
+<!--            <label for="odb-webdav-url"></label><input type="text" id="odb-webdav-url" class="form-control">-->
+<!--            <div>允许的地址：-->
+<!--                <br/>https://xxxxx.sharepoint.com/sites/xxxxx/.......-->
+<!--                <br/>https://xxxxx.sharepoint.com/personal/xxxxx/.......-->
+<!--                <br/>https://onedrive.live.com/?id=/personal/xxxxxxxxxx/Documents/.......-->
+<!--                <br/>https://onedrive.live.com/?id=.......&cid=xxxxxxxxxxxx-->
+<!--                <br/>-->
+<!--            </div>-->
+<!--        </div>-->
+<!--        <div class="d-grid gap-2 mb-3" id="odb-webdav-btn-view">-->
+<!--            <button class="btn btn-primary" onclick="getWebdav()">获取 WebdavURL 页面路径</button>-->
+<!--        </div>-->
+<!--        <div class="mb-3" id="odb-webdav-out-view">-->
+<!--            <label for="odb-webdav-out" class="form-label">Webdav URL 页面路径</label>-->
+<!--            <textarea id="odb-webdav-out" class="form-control" rows="3" readonly onclick="autoCopy(this)"></textarea>-->
+<!--        </div>-->
+    </div>
+
+    <div class="text-muted text-center">
+        <p style="text-align:center">
+            本工具所有用户信息只以Cookie形式存储于浏览器本地<br>
+            开源于 <a href="https://github.com/OpenListTeam/OpenList-OnlineAPI" target="_blank">GitHub</a> | By <a
+                href="https://github.com/OpenListTeam"
+                target="_blank">OpenListTeam</a>
+        </p>
+        <p id="eo-show" style="text-align:center" hidden="true">
+            本工具国内CDN加速及安全防护由<a href="https://edgeone.ai/zh?from=github" target="_blank">Tencent EdgeOne</a>赞助
+            <br><img src="https://edgeone.ai/media/34fe3a45-492d-4ea4-ae5d-ea1087ca7b4b.png" style="width: 150px"/>
+        </p>
+    </div>
+</div>
+
+
+<!-- 阿里云盘扫码v2模态框 -->
+<div id="qr-modal" class="qr-modal">
+    <div class="qr-modal-content">
+        <span class="close-btn" onclick="closeQRModal()">&times;</span>
+        <h4 id="qr-modal-title"></h4>
+        <div id="qr-code-container" class="qr-code-container" style="display: none;">
+            <div id="qr-code-display"></div>
+        </div>
+        <div id="qr-status" class="qr-status" style="display: none;"></div>
+        <div class="mt-3">
+            <button id="qr-status-btn" class="btn btn-secondary" onclick="checkQRStatus()">
+                刷新状态
+            </button>
+            <button id="refresh-qr-btn" class="btn btn-secondary" onclick="refreshQRCode()" style="display: none;">
+                刷新二维码
+            </button>
+            <button class="btn btn-secondary" onclick="closeQRModal()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- Google Privacy Consent Modal -->
+<div id="google-consent-modal" class="modal">
+    <div class="google-consent-modal-content">
+        <h4>隐私政策和使用条款</h4>
+        <p style="text-align: left">
+            请仔细阅读并理解OpenList应用隐私政策和使用条款。<br>
+            要继续操作，需要同意获取您谷歌账号以下必要权限：</p>
+        <ul>
+            <li style="text-align: left">谷歌云硬盘读写权限</li>
+            <li style="text-align: left">谷歌相册的读写权限</li>
+        </ul>
+        <p>
+            <a href="https://docs.oplist.org/privacy" target="_blank">隐私政策</a>
+            <a href="https://docs.oplist.org/terms" target="_blank">使用条款</a>
+        </p>
+        <button class="btn btn-primary" onclick="acceptGoogleConsent()">同意</button>
+        <button class="btn btn-danger" onclick="window.open('/')">拒绝</button>
+    </div>
+</div>
+
+<script src="/static/event.js"></script>
+<script src="/static/login.js"></script>
+<script src="/static/token.js"></script>
+<script src="/static/theme.js"></script>
+<script src="/static/codes.js"></script>
+<script src="/static/aliv2.js"></script>
+<script src="/static/115qr.js"></script>
+<script src="/static/eulas.js"></script>
+<script src="/static/spoid.js"></script>
+<script src="/static/input.js"></script>
+<script>
+    let callback_flag = false;
+    // 获取select元素和输入框元素
+    const driver_txt_input = document.getElementById('driver-txt-input');
+    const direct_url_input = document.getElementById('direct-url-input');
+    const client_uid_input = document.getElementById('client-uid-input');
+    const client_uid_views = document.getElementById('client-uid-views');
+    const client_key_input = document.getElementById('client-key-input');
+    const secret_key_input = document.getElementById('secret-key-input');
+    const server_use_input = document.getElementById('server-use-input');
+    const secret_key_views = document.getElementById('secret-key-views');
+    const shared_all_views = document.getElementById('sharepoint-views');
+    const shared_url_views = document.getElementById('sharepoint-url-view')
+    const shared_btn_views = document.getElementById('sharepoint-btn-view');
+    const shared_uid_views = document.getElementById('sharepoint-uid-view');
+    const url_hash = window.location.hash.substring(1); // 去掉地址栏上的#号
+    const current_host = window.location.protocol + "//" + window.location.host;
+    if (window.location.host === "api.oplist.org.cn")
+        document.getElementById('eo-show').hidden = false;
+    getToken();
+    // 阿里云盘扫码v2相关变量
+    let alicloud2SessionId = null;
+    let alicloud2CheckInterval = null;
+    let alicloud2StartTime = null;
+    let clientFingerprint = null;
+    // 点击模态框外部关闭
+    window.onclick = function (event) {
+        const modal = document.getElementById('qr-modal');
+        if (event.target === modal) {
+            closeQRModal();
+        }
+    }
+</script>
+</body>
+</html>
+

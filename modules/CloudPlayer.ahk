@@ -312,6 +312,30 @@ CloudPlayer_OnWebMessage(sender, args) {
         SetTimer(CloudPlayer_RunAliImport.Bind(refreshToken, mountPath, opts), -10)
         return
     }
+
+    if (typ = "cloudplayer_import_storage") {
+        if (g_CloudPlayerImportBusy) {
+            try WebView_QueuePayload(g_CloudPlayerWv2, Map(
+                "type", "cloudplayer_import_result",
+                "ok", false,
+                "message", "import is already running",
+                "mountPath", payload.Has("mountPath") ? String(payload["mountPath"]) : "/",
+                "driver", payload.Has("driver") ? String(payload["driver"]) : "Unknown"
+            ))
+            return
+        }
+        provider := payload.Has("provider") ? String(payload["provider"]) : ""
+        mountPath := payload.Has("mountPath") ? String(payload["mountPath"]) : "/"
+        token := payload.Has("token") ? String(payload["token"]) : ""
+        driver := payload.Has("driver") ? String(payload["driver"]) : "Unknown"
+        opts := 0
+        if (payload.Has("options") && payload["options"] is Map)
+            opts := payload["options"]
+        g_CloudPlayerImportBusy := true
+        CloudPlayer_SendImportProgress("Queued import task...")
+        SetTimer(CloudPlayer_RunStorageImport.Bind(provider, token, mountPath, driver, opts), -10)
+        return
+    }
 }
 
 CloudPlayer_ParseWebMessage(args) {
@@ -368,6 +392,42 @@ CloudPlayer_RunAliImport(refreshToken, mountPath, opts) {
         result["mountPath"] := mountPath
     if !result.Has("driver")
         result["driver"] := "AliyundriveOpen"
+    if !result.Has("ok")
+        result["ok"] := false
+    if !result.Has("message")
+        result["message"] := result["ok"] ? "import success" : "import failed"
+
+    try WebView_QueuePayload(g_CloudPlayerWv2, Map(
+        "type", "cloudplayer_import_result",
+        "ok", result["ok"],
+        "message", result["message"],
+        "mountPath", result["mountPath"],
+        "driver", result["driver"],
+        "authToken", result.Has("authToken") ? result["authToken"] : ""
+    ))
+    g_CloudPlayerImportBusy := false
+}
+
+CloudPlayer_RunStorageImport(provider, token, mountPath, driver, opts) {
+    global g_CloudPlayerWv2, g_CloudPlayerImportBusy
+    result := 0
+    try {
+        result := CloudPlayer_ImportStorageGeneric(provider, token, mountPath, driver, opts)
+    } catch as e {
+        result := Map(
+            "ok", false,
+            "message", "import runtime error: " . e.Message,
+            "mountPath", mountPath,
+            "driver", driver
+        )
+    }
+    if !(result is Map) {
+        result := Map("ok", false, "message", "import returned invalid result", "mountPath", mountPath, "driver", driver)
+    }
+    if !result.Has("mountPath")
+        result["mountPath"] := mountPath
+    if !result.Has("driver")
+        result["driver"] := driver
     if !result.Has("ok")
         result["ok"] := false
     if !result.Has("message")
@@ -510,7 +570,7 @@ CloudPlayer_SendImportProgress(message) {
 CloudPlayer_ImportAliyunStorage(refreshToken, mountPath := "/aliyun", opts := 0) {
     global g_CloudPlayerApiBase
     out := Map("ok", false, "message", "", "mountPath", "", "driver", "AliyundriveOpen", "authToken", "")
-    rt := Trim(String(refreshToken))
+    rt := CloudPlayer_NormalizeProviderToken(refreshToken)
     mp := Trim(String(mountPath))
     if (mp = "")
         mp := "/aliyun"
@@ -729,6 +789,373 @@ CloudPlayer_ImportAliyunStorage(refreshToken, mountPath := "/aliyun", opts := 0)
     if (verify["count"] = 0)
         out["message"] := out["message"] . " (mount is reachable but empty)"
     CloudPlayer_SendImportProgress("Import completed.")
+    return out
+}
+
+CloudPlayer_ImportStorageGeneric(provider, token, mountPath := "/", driver := "AliyundriveOpen", opts := 0) {
+    global g_CloudPlayerApiBase
+    providerKey := StrLower(Trim(String(provider)))
+    drvInput := Trim(String(driver))
+    if (drvInput = "" || drvInput = "Unknown")
+        drvInput := CloudPlayer_DefaultDriverByProvider(providerKey)
+    if (drvInput = "AliyundriveOpen" || drvInput = "Aliyundrive")
+        return CloudPlayer_ImportAliyunStorage(token, mountPath, opts)
+
+    out := Map("ok", false, "message", "", "mountPath", "", "driver", drvInput, "authToken", "")
+    tk := CloudPlayer_NormalizeProviderToken(token)
+    mp := Trim(String(mountPath))
+    if (mp = "")
+        mp := "/"
+    if (SubStr(mp, 1, 1) != "/")
+        mp := "/" . mp
+    out["mountPath"] := mp
+
+    if (tk = "") {
+        out["message"] := "token is empty"
+        return out
+    }
+    CloudPlayer_SendImportProgress("Checking OpenList status...")
+    if !CloudPlayer_EnsureOpenListRunning() {
+        out["message"] := "OpenList is not running"
+        return out
+    }
+    CloudPlayer_SendImportProgress("Getting OpenList admin token...")
+    adminTokenErr := ""
+    adminToken := CloudPlayer_GetOpenListAdminToken(&adminTokenErr, 12000)
+    if (adminToken = "") {
+        out["message"] := (adminTokenErr != "") ? adminTokenErr : "failed to get OpenList admin token"
+        return out
+    }
+    out["authToken"] := adminToken
+    headers := Map("Authorization", adminToken, "Content-Type", "application/json")
+
+    CloudPlayer_SendImportProgress("Listing existing storages...")
+    listRet := CloudPlayer_HttpJson("GET", g_CloudPlayerApiBase . "/api/admin/storage/list", headers)
+    if !listRet["ok"] {
+        out["message"] := "failed to list storages: " . listRet["error"]
+        return out
+    }
+    targetId := 0
+    existingDriver := ""
+    if (listRet["json"] is Map && listRet["json"].Has("data")) {
+        dataObj := listRet["json"]["data"]
+        if (dataObj is Map && dataObj.Has("content") && dataObj["content"] is Array) {
+            for _, row in dataObj["content"] {
+                try rowPath := String(row.Has("mount_path") ? row["mount_path"] : "")
+                catch {
+                    rowPath := ""
+                }
+                if (rowPath = mp) {
+                    try targetId := Integer(row.Has("id") ? row["id"] : 0)
+                    catch {
+                        targetId := 0
+                    }
+                    try existingDriver := String(row.Has("driver") ? row["driver"] : "")
+                    catch {
+                        existingDriver := ""
+                    }
+                    break
+                }
+            }
+        }
+    }
+
+    if (providerKey = "quark" && targetId > 0 && existingDriver != "" && StrLower(existingDriver) != StrLower(drvInput)) {
+        out["message"] := "existing mount path uses driver=" . existingDriver . ", but current import expects " . drvInput . ". Please delete old mount first or use a new mount path."
+        return out
+    }
+
+    drvCandidates := []
+    ; OpenList does not allow changing driver on an existing storage record.
+    ; If mount path already exists, force update with the existing driver only.
+    if (targetId > 0 && existingDriver != "") {
+        CloudPlayer_ArrayPushUnique(&drvCandidates, existingDriver)
+    } else {
+        if (existingDriver != "")
+            CloudPlayer_ArrayPushUnique(&drvCandidates, existingDriver)
+        for _, c in CloudPlayer_GetDriverCandidates(providerKey, drvInput)
+            CloudPlayer_ArrayPushUnique(&drvCandidates, c)
+        if (drvCandidates.Length = 0)
+            CloudPlayer_ArrayPushUnique(&drvCandidates, drvInput)
+    }
+
+    saveRet := 0
+    chosenDriver := ""
+    lastSaveError := ""
+    saveUrl := g_CloudPlayerApiBase . ((targetId > 0) ? "/api/admin/storage/update" : "/api/admin/storage/create")
+    for _, drv in drvCandidates {
+        additionObj := CloudPlayer_BuildGenericAddition(providerKey, tk, opts)
+        additionJson := CloudPlayer_JsonForceBoolLiterals(
+            Jxon_Dump(additionObj),
+            ["use_online_api", "use_dynamic_upload_api", "low_bandwith_upload_mode", "only_list_video_file"]
+        )
+        bodyObj := Map(
+            "mount_path", mp,
+            "order", 0,
+            "remark", "",
+            "cache_expiration", 30,
+            "web_proxy", true,
+            "webdav_policy", "302_redirect",
+            "down_proxy_url", "",
+            "extract_folder", "",
+            "enable_sign", false,
+            "driver", drv,
+            "order_by", "",
+            "order_direction", "",
+            "status", "work",
+            "addition", additionJson
+        )
+        if (targetId > 0)
+            bodyObj["id"] := targetId
+
+        CloudPlayer_SendImportProgress((targetId > 0)
+            ? "Updating storage config (" . drv . ")..."
+            : "Creating storage config (" . drv . ")...")
+        bodyJson := CloudPlayer_JsonForceBoolLiterals(Jxon_Dump(bodyObj), ["web_proxy", "enable_sign"])
+        saveRet := CloudPlayer_HttpJson("POST", saveUrl, headers, bodyJson)
+        if (saveRet["ok"]) {
+            chosenDriver := drv
+            break
+        }
+        lastSaveError := "driver=" . drv . ": " . saveRet["error"]
+    }
+    if (chosenDriver = "") {
+        out["message"] := "save storage failed: " . (lastSaveError != "" ? lastSaveError : "unknown")
+        return out
+    }
+
+    CloudPlayer_SendImportProgress("Verifying mount...")
+    verify := CloudPlayer_VerifyMountList(mp, headers)
+    if !verify["ok"] {
+        out["message"] := "mount check failed: " . verify["message"]
+        return out
+    }
+    out["ok"] := true
+    out["message"] := "import success"
+    out["driver"] := chosenDriver
+    if (verify["count"] = 0)
+        out["message"] := out["message"] . " (mount is reachable but empty)"
+    CloudPlayer_SendImportProgress("Import completed.")
+    return out
+}
+
+CloudPlayer_ArrayPushUnique(&arr, val) {
+    v := Trim(String(val))
+    if (v = "")
+        return
+    for _, x in arr {
+        if (StrLower(String(x)) = StrLower(v))
+            return
+    }
+    arr.Push(v)
+}
+
+CloudPlayer_DefaultDriverByProvider(providerKey) {
+    p := StrLower(Trim(String(providerKey)))
+    if (p = "baidu")
+        return "BaiduNetdisk"
+    if (p = "quark")
+        return "QuarkOpen"
+    if (p = "pan115")
+        return "Pan115"
+    if (p = "pan123")
+        return "Pan123"
+    if (p = "onedrive")
+        return "Onedrive"
+    if (p = "dropbox")
+        return "Dropbox"
+    if (p = "yandex")
+        return "YandexDisk"
+    if (p = "gdrive")
+        return "GoogleDrive"
+    return "AliyundriveOpen"
+}
+
+CloudPlayer_GetDriverCandidates(providerKey, preferred) {
+    arr := []
+    p := StrLower(Trim(String(providerKey)))
+    CloudPlayer_ArrayPushUnique(&arr, preferred)
+    if (p = "baidu") {
+        CloudPlayer_ArrayPushUnique(&arr, "BaiduNetdisk")
+        CloudPlayer_ArrayPushUnique(&arr, "Baidu")
+    } else if (p = "quark") {
+        CloudPlayer_ArrayPushUnique(&arr, "QuarkOpen")
+        CloudPlayer_ArrayPushUnique(&arr, "Quark")
+    } else if (p = "pan115") {
+        CloudPlayer_ArrayPushUnique(&arr, "Pan115")
+        CloudPlayer_ArrayPushUnique(&arr, "115Open")
+        CloudPlayer_ArrayPushUnique(&arr, "115 Open")
+    } else if (p = "pan123") {
+        CloudPlayer_ArrayPushUnique(&arr, "Pan123")
+        CloudPlayer_ArrayPushUnique(&arr, "123Pan")
+        CloudPlayer_ArrayPushUnique(&arr, "123pan")
+    } else if (p = "onedrive") {
+        CloudPlayer_ArrayPushUnique(&arr, "Onedrive")
+        CloudPlayer_ArrayPushUnique(&arr, "OneDrive")
+    } else if (p = "dropbox") {
+        CloudPlayer_ArrayPushUnique(&arr, "Dropbox")
+    } else if (p = "yandex") {
+        CloudPlayer_ArrayPushUnique(&arr, "YandexDisk")
+        CloudPlayer_ArrayPushUnique(&arr, "Yandex")
+    } else if (p = "gdrive") {
+        CloudPlayer_ArrayPushUnique(&arr, "GoogleDrive")
+        CloudPlayer_ArrayPushUnique(&arr, "Google Drive")
+    }
+    return arr
+}
+
+CloudPlayer_BuildGenericAddition(providerKey, token, opts := 0) {
+    p := StrLower(Trim(String(providerKey)))
+    tk := CloudPlayer_NormalizeProviderToken(token)
+    rootFolderId := "root"
+    clientId := ""
+    clientSecret := ""
+    apiUrlAddress := ""
+    useOnlineApi := true
+    if (opts is Map) {
+        try {
+            if (opts.Has("rootFolderId") && Trim(String(opts["rootFolderId"])) != "")
+                rootFolderId := Trim(String(opts["rootFolderId"]))
+            if (opts.Has("clientId"))
+                clientId := Trim(String(opts["clientId"]))
+            if (opts.Has("clientSecret"))
+                clientSecret := Trim(String(opts["clientSecret"]))
+            if (opts.Has("apiUrlAddress"))
+                apiUrlAddress := Trim(String(opts["apiUrlAddress"]))
+            if (opts.Has("useOnlineApi"))
+                useOnlineApi := CloudPlayer_ToBool(opts["useOnlineApi"], true)
+        } catch {
+        }
+    }
+
+    ; CloudPlayer advanced panel defaults to Aliyun endpoint.
+    ; Normalize provider-specific online refresh endpoint for generic providers.
+    if (p = "baidu") {
+        lowApi := StrLower(apiUrlAddress)
+        if (apiUrlAddress = "" || InStr(lowApi, "/alicloud/") || InStr(lowApi, "/baidu/renewapi"))
+            apiUrlAddress := "https://api.oplist.org/baiduyun/renewapi"
+    } else if (p = "quark") {
+        if (rootFolderId = "root")
+            rootFolderId := "0"
+        lowApi := StrLower(apiUrlAddress)
+        if (apiUrlAddress = "" || InStr(lowApi, "/alicloud/") || InStr(lowApi, "/quark/renewapi"))
+            apiUrlAddress := "https://api.oplist.org/quarkyun/renewapi"
+    } else if (p = "pan115") {
+        if (apiUrlAddress = "" || InStr(StrLower(apiUrlAddress), "/alicloud/"))
+            apiUrlAddress := "https://api.oplist.org/115/renewapi"
+    } else if (p = "pan123") {
+        if (apiUrlAddress = "" || InStr(StrLower(apiUrlAddress), "/alicloud/"))
+            apiUrlAddress := "https://api.oplist.org/123/renewapi"
+    } else if (p = "onedrive") {
+        if (apiUrlAddress = "" || InStr(StrLower(apiUrlAddress), "/alicloud/"))
+            apiUrlAddress := "https://api.oplist.org/onedrive/renewapi"
+    } else if (p = "dropbox") {
+        if (apiUrlAddress = "" || InStr(StrLower(apiUrlAddress), "/alicloud/"))
+            apiUrlAddress := "https://api.oplist.org/dropbox/renewapi"
+    } else if (p = "yandex") {
+        if (apiUrlAddress = "" || InStr(StrLower(apiUrlAddress), "/alicloud/"))
+            apiUrlAddress := "https://api.oplist.org/yandex/renewapi"
+    } else if (p = "gdrive") {
+        if (apiUrlAddress = "" || InStr(StrLower(apiUrlAddress), "/alicloud/"))
+            apiUrlAddress := "https://api.oplist.org/googledrive/renewapi"
+    }
+
+    add := Map(
+        "root_folder_id", rootFolderId,
+        "order_by", "",
+        "order_direction", "",
+        "refresh_token", tk,
+        "access_token", tk,
+        "token", tk,
+        "cookie", tk,
+        "cookies", tk,
+        "use_online_api", useOnlineApi,
+        "app_id", clientId,
+        "sign_key", clientSecret,
+        "client_id", clientId,
+        "client_secret", clientSecret,
+        "api_url_address", apiUrlAddress
+    )
+    if (p = "baidu") {
+        ; Avoid Baidu API errno:2 on list when root path is empty.
+        add["root_folder_path"] := "/"
+    }
+    return add
+}
+
+CloudPlayer_NormalizeProviderToken(raw) {
+    s := Trim(String(raw))
+    if (s = "")
+        return ""
+
+    if ((SubStr(s, 1, 1) = '"' && SubStr(s, -1) = '"') || (SubStr(s, 1, 1) = "'" && SubStr(s, -1) = "'"))
+        s := Trim(SubStr(s, 2, StrLen(s) - 2))
+    if (s = "")
+        return ""
+
+    if (RegExMatch(s, "i)(?:^|[?&#])refresh_token=([^&#\s]+)", &mRt))
+        return CloudPlayer_UrlDecodeToken(mRt[1])
+    if (RegExMatch(s, "i)(?:^|[?&#])token=([^&#\s]+)", &mTk))
+        return CloudPlayer_UrlDecodeToken(mTk[1])
+    q := Chr(34)
+    patJson := "i)(?:" . q . "|')?refresh_token(?:" . q . "|')?\s*[:=]\s*(?:" . q . "|')?([^" . q . "',\s\}]+)"
+    if (RegExMatch(s, patJson, &mJson))
+        return Trim(String(mJson[1]))
+
+    if (SubStr(s, 1, 1) = "{" && SubStr(s, -1) = "}") {
+        try {
+            j := Jxon_Load(s)
+            if (j is Map) {
+                try {
+                    v := j.Has("refresh_token") ? Trim(String(j["refresh_token"])) : ""
+                    if (v != "")
+                        return v
+                } catch {
+                }
+                try {
+                    v2 := j.Has("refreshToken") ? Trim(String(j["refreshToken"])) : ""
+                    if (v2 != "")
+                        return v2
+                } catch {
+                }
+                try {
+                    d := j.Has("data") ? j["data"] : 0
+                    if (d is Map) {
+                        v3 := d.Has("refresh_token") ? Trim(String(d["refresh_token"])) : ""
+                        if (v3 != "")
+                            return v3
+                        v4 := d.Has("refreshToken") ? Trim(String(d["refreshToken"])) : ""
+                        if (v4 != "")
+                            return v4
+                    }
+                } catch {
+                }
+            }
+        } catch {
+        }
+    }
+    return s
+}
+
+CloudPlayer_UrlDecodeToken(s) {
+    t := String(s)
+    t := StrReplace(t, "+", " ")
+    out := ""
+    i := 1
+    n := StrLen(t)
+    while (i <= n) {
+        ch := SubStr(t, i, 1)
+        if (ch = "%" && i + 2 <= n) {
+            hx := SubStr(t, i + 1, 2)
+            if RegExMatch(hx, "i)^[0-9a-f]{2}$") {
+                out .= Chr("0x" . hx)
+                i += 3
+                continue
+            }
+        }
+        out .= ch
+        i += 1
+    }
     return out
 }
 
