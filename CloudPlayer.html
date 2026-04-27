@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cloud Player</title>
+<style>
+:root{
+  --line:#263246;
+  --text:#eef3ff;
+  --muted:#8ea0bf;
+  --ok:#37d67a;
+  --bg1:#0d1016;
+  --bg2:#1a2f4a;
+}
+*{box-sizing:border-box}
+html,body{
+  margin:0;width:100%;height:100%;
+  background:radial-gradient(1200px 600px at 80% -10%,var(--bg2) 0%,var(--bg1) 58%);
+  color:var(--text);
+  font:14px/1.45 "Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+}
+body{display:flex;flex-direction:column}
+input,button,select{
+  height:36px;border-radius:10px;border:1px solid var(--line);
+  background:#171f2d;color:var(--text);
+}
+input,select{padding:0 10px;outline:none}
+button{padding:0 14px;cursor:pointer;font-weight:600}
+button:hover{border-color:#3a4961}
+button.primary{background:linear-gradient(180deg,#ff963f,#ff7a21);color:#121212;border-color:#ff8d37}
+button.ghost{background:#151d2b}
+
+.top{
+  display:grid;
+  grid-template-columns:1.2fr 1.4fr 1fr auto auto;
+  gap:10px;padding:12px;border-bottom:1px solid var(--line);
+  background:rgba(10,15,22,.82);backdrop-filter:blur(8px);
+}
+.wrap{display:flex;flex-direction:column;min-width:0}
+.lab{font-size:11px;color:var(--muted);margin-bottom:5px}
+.badge{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:#9da9bb}
+.dot.ok{background:var(--ok);box-shadow:0 0 10px rgba(55,214,122,.55)}
+
+.providers{display:flex;gap:8px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line);background:rgba(8,12,18,.7)}
+.pbtn{height:34px;padding:0 12px;border-radius:999px;border:1px solid #32445f;background:#132033;color:#cfe2ff}
+.pbtn:hover{border-color:#4c6283}
+.pbtn.active{border-color:#ff9d4f;background:linear-gradient(180deg,#ff8f35,#ff7420);color:#111}
+.bind-toggle{margin-left:auto;border-style:dashed}
+
+.quick-import{
+  display:grid;grid-template-columns:1.2fr 1fr auto auto auto;gap:8px;align-items:center;
+  padding:10px 12px;border-bottom:1px solid var(--line);background:rgba(8,12,18,.55);
+}
+.hint{font-size:12px;color:var(--muted);padding:0 2px 2px}
+.quick-import .hint{grid-column:1 / span 5;margin:0}
+
+.adv-panel{
+  display:none;grid-template-columns:1fr 1fr 1fr;gap:8px;
+  padding:10px 12px;border-bottom:1px solid var(--line);background:rgba(7,11,18,.75);
+}
+.adv-panel.open{display:grid}
+.adv-item{display:flex;flex-direction:column;gap:4px}
+.adv-item label{font-size:11px;color:var(--muted)}
+.adv-item.full{grid-column:1 / span 3}
+
+.pmap{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.pmap .row{display:flex;align-items:center;gap:8px}
+.pmap .row span{min-width:74px;color:var(--muted);font-size:12px}
+.pmap .row input{flex:1;height:32px}
+
+.main{flex:1;min-height:0;display:grid;grid-template-columns:380px 1fr;gap:12px;padding:12px}
+.card{border:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.01));border-radius:14px;min-height:0}
+.left{display:flex;flex-direction:column;min-height:0}
+.pathbar{padding:10px;border-bottom:1px solid var(--line);display:flex;gap:8px}
+.pathbar input{flex:1}
+.list{flex:1;overflow:auto;padding:8px}
+.item{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;padding:9px 8px;border-radius:10px;border:1px solid transparent}
+.item:hover{background:rgba(255,255,255,.03);border-color:#26364f}
+.item .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .meta{color:var(--muted);font-size:12px}
+.ico{display:inline-flex;align-items:center;justify-content:center;color:#b8c9e8}
+.ico.dir{color:#ffd18c}
+.empty{padding:16px;color:var(--muted)}
+
+.right{display:flex;flex-direction:column;padding:10px;gap:10px}
+.playbar{display:flex;gap:8px}
+.playbar input{flex:1}
+video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1px solid #293245;border-radius:12px}
+
+.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(2,6,10,.62);z-index:2000}
+.modal.open{display:flex}
+.modal-card{width:min(980px,92vw);height:min(760px,90vh);border:1px solid #2c3d56;border-radius:14px;background:#111826;display:flex;flex-direction:column;overflow:hidden}
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.modal-title{font-weight:700}
+.modal-hint{font-size:12px;color:var(--muted)}
+.modal-body{flex:1;min-height:0;background:#0d1220}
+.modal-body iframe{width:100%;height:100%;border:0}
+
+@media (max-width:1300px){
+  .top{grid-template-columns:1fr 1fr}
+  .quick-import{grid-template-columns:1fr 1fr}
+  .quick-import .hint{grid-column:1 / span 2}
+  .adv-panel{grid-template-columns:1fr 1fr}
+  .adv-item.full{grid-column:1 / span 2}
+}
+@media (max-width:1100px){
+  .pmap,.adv-panel,.main{grid-template-columns:1fr}
+  .adv-item.full{grid-column:1}
+}
+</style>
+</head>
+<body>
+  <div class="top">
+    <div class="wrap"><div class="lab">OpenList API</div><input id="apiBase" value="http://127.0.0.1:5244"></div>
+    <div class="wrap"><div class="lab">Token (optional)</div><input id="token" placeholder="Authorization token"></div>
+    <div class="wrap"><div class="lab">Status</div><div class="badge"><span id="dot" class="dot"></span><span id="statusText">Checking...</span></div></div>
+    <button id="btnDashboard" class="ghost">OpenList Admin</button>
+    <button id="btnRestart" class="primary">Restart OpenList</button>
+  </div>
+
+  <div class="providers">
+    <button id="btnAli" class="pbtn">Aliyun</button>
+    <button id="btnBaidu" class="pbtn">Baidu</button>
+    <button id="btnQuark" class="pbtn">Quark</button>
+    <button id="btnRoot" class="pbtn">Root</button>
+    <button id="btnBindGuide" class="pbtn bind-toggle">Ali QR Login</button>
+  </div>
+
+  <div class="quick-import">
+    <input id="aliRefreshToken" placeholder="Paste aliyun refresh_token">
+    <input id="aliMountPath" value="/aliyun" placeholder="/aliyun">
+    <button id="btnPasteToken">Paste from Clipboard</button>
+    <button id="btnImportAliyun" class="primary">Import Aliyun</button>
+    <button id="btnAdvSettings" class="ghost">Advanced</button>
+    <p id="importHint" class="hint">Default import writes a working AliyundriveOpen config. Edit optional params in Advanced.</p>
+  </div>
+
+  <div id="advPanel" class="adv-panel">
+    <div class="adv-item"><label for="advRootFolderId">Root Folder ID</label><input id="advRootFolderId" value="root"></div>
+    <div class="adv-item"><label for="advDriveType">Drive Type</label><select id="advDriveType"><option value="default">default</option><option value="resource">resource</option><option value="backup">backup</option></select></div>
+    <div class="adv-item"><label for="advAlipanType">AliPan Type</label><select id="advAlipanType"><option value="default">default</option><option value="alipanTV">alipanTV</option></select></div>
+    <div class="adv-item"><label for="advUseOnlineApi">Use Online API</label><select id="advUseOnlineApi"><option value="true">true</option><option value="false">false</option></select></div>
+    <div class="adv-item"><label for="advClientId">Client ID</label><input id="advClientId" value=""></div>
+    <div class="adv-item"><label for="advClientSecret">Client Secret</label><input id="advClientSecret" value=""></div>
+    <div class="adv-item full"><label for="advApiUrlAddress">API URL Address</label><input id="advApiUrlAddress" value="https://api.oplist.org/alicloud/renewapi"></div>
+  </div>
+
+  <div class="pmap">
+    <div class="row"><span>Ali path</span><input id="mountAli" value="/aliyun"></div>
+    <div class="row"><span>Baidu path</span><input id="mountBaidu" value="/baidu"></div>
+    <div class="row"><span>Quark path</span><input id="mountQuark" value="/quark"></div>
+  </div>
+
+  <div class="main">
+    <div class="card left">
+      <div class="pathbar"><input id="pathInput" value="/"><button id="btnLoad">Load</button></div>
+      <div id="fileList" class="list"></div>
+    </div>
+    <div class="card right">
+      <div class="playbar"><input id="manualUrl" placeholder="Or paste direct video URL"><button id="btnPlayUrl">Play URL</button></div>
+      <div id="currentInfo" class="hint">No file selected.</div>
+      <video id="video" controls playsinline preload="metadata"></video>
+      <div class="hint">After import, click Aliyun to browse all folders.</div>
+    </div>
+  </div>
+
+  <div id="scanModal" class="modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div><div class="modal-title">Ali QR Login</div><div class="modal-hint">Use external browser login, then copy refresh_token back here.</div></div>
+        <div style="display:flex;gap:8px"><button id="btnRefreshScan" class="ghost">Refresh QR</button><button id="btnOpenTokenExternal" class="ghost">Open External</button><button id="btnCloseScan" class="primary">Close</button></div>
+      </div>
+      <div class="modal-body"><iframe id="scanFrame" src="https://api.oplist.org/" referrerpolicy="no-referrer"></iframe></div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var state = { apiBase: "", token: "", path: "/", provider: "" };
+  var storeKey = "cloudplayer_mounts_v2";
+  var scanRefreshTimer = 0;
+  var scanAutoRefreshMs = 45000;
+  var scanBaseUrl = "https://api.oplist.org/";
+  var scanAutoOpenExternal = true;
+  var scanEmbedEnabled = false;
+  var aliImportBusy = false;
+  var aliImportLastUpdate = 0;
+  var aliImportWatchdogTimer = 0;
+  var aliImportHardTimeoutTimer = 0;
+  var aliImportHardTimeoutMs = 90000;
+  var checkSeq = 0;
+  var lastHostStatusAt = 0;
+  var lastHostStatusOnline = false;
+  var openListAutoCheckTimer = 0;
+  var openListAutoCheckMs = 12000;
+  var adminTokenReqSeq = 0;
+
+  function text(node, v){ node.textContent = v == null ? "" : String(v); }
+  function normPath(p){ var v = String(p || "/").trim() || "/"; if (!v.startsWith("/")) v = "/" + v; return v.replace(/\/{2,}/g, "/"); }
+  function fmtSize(size){ var n = Number(size || 0); if (!isFinite(n) || n <= 0) return ""; var u=["B","KB","MB","GB","TB"], i=0; while(n>=1024 && i<u.length-1){n/=1024;i++;} return (i===0?Math.round(n):n.toFixed(1))+" "+u[i]; }
+  function setStatus(ok, label){ $("dot").className = ok ? "dot ok" : "dot"; text($("statusText"), label); }
+  function postHost(type, data){ try{ if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage(Object.assign({ type:type }, data||{})); } }catch(_){} }
+  function getHeaders(json){
+    var h={"Accept":"application/json"};
+    if(json) h["Content-Type"]="application/json";
+    var liveToken = "";
+    try{ liveToken = String(($("token") && $("token").value) || "").trim(); }catch(_){}
+    if(!liveToken) liveToken = String(state.token||"").trim();
+    state.token = liveToken;
+    if(liveToken) h["Authorization"]=liveToken;
+    return h;
+  }
+  function markProvider(name){ ["btnAli","btnBaidu","btnQuark","btnRoot"].forEach(function(id){ $(id).classList.remove("active"); }); var m={ali:"btnAli",baidu:"btnBaidu",quark:"btnQuark",root:"btnRoot"}; if(m[name]) $(m[name]).classList.add("active"); }
+  function openExternal(url){
+    var u = String(url || "").trim();
+    if(!u) return;
+    var hostBridge = !!(window.chrome && window.chrome.webview && window.chrome.webview.postMessage);
+    if(hostBridge){
+      postHost("cloudplayer_open_url", { url:u });
+    }
+    try{ window.open(u, "_blank"); }catch(_){}
+    if (u.indexOf("127.0.0.1:5244") !== -1) postHost("cloudplayer_open_dashboard");
+  }
+  function buildNoCacheUrl(url){
+    var base = String(url || "").trim();
+    if(!base) return "";
+    return base + (base.indexOf("?") >= 0 ? "&" : "?") + "_ts=" + Date.now();
+  }
+  function refreshScanFrame(reason){
+    if(!scanEmbedEnabled) return;
+    var f = $("scanFrame");
+    if(!f) return;
+    f.src = buildNoCacheUrl(scanBaseUrl);
+    if(reason === "auto"){
+      text($("importHint"), "QR refreshed automatically. If it still expires, use Open External.");
+    }
+  }
+  function openScanModal(){
+    $("scanModal").classList.add("open");
+    if(scanEmbedEnabled){
+      refreshScanFrame("open");
+    }else{
+      var f = $("scanFrame");
+      if(f) f.src = "about:blank";
+      text($("importHint"), "Embedded login may be blocked. Opened external browser for login.");
+    }
+    if(scanAutoOpenExternal){
+      setTimeout(function(){ openExternal(buildNoCacheUrl(scanBaseUrl)); }, 120);
+      text($("importHint"), "Login page opened in your default browser. Complete login there and paste refresh_token here.");
+    }
+    if(scanRefreshTimer) clearInterval(scanRefreshTimer);
+    scanRefreshTimer = setInterval(function(){
+      if(!$("scanModal").classList.contains("open")) return;
+      if(scanEmbedEnabled){
+        refreshScanFrame("auto");
+      }else if(scanAutoOpenExternal){
+        openExternal(buildNoCacheUrl(scanBaseUrl));
+      }
+    }, scanAutoRefreshMs);
+  }
+  function closeScanModal(){
+    $("scanModal").classList.remove("open");
+    if(scanRefreshTimer){
+      clearInterval(scanRefreshTimer);
+      scanRefreshTimer = 0;
+    }
+  }
+  function setAliImportBusy(busy){
+    aliImportBusy = !!busy;
+    var b = $("btnImportAliyun");
+    if(b){
+      b.disabled = aliImportBusy;
+      b.textContent = aliImportBusy ? "Importing..." : "Import Aliyun";
+    }
+    var p = $("btnPasteToken");
+    if(p) p.disabled = aliImportBusy;
+  }
+  function markAliImportProgress(msg){
+    aliImportLastUpdate = Date.now();
+    if(msg) text($("importHint"), String(msg));
+  }
+  function startAliImportWatchdog(){
+    if(aliImportWatchdogTimer) clearInterval(aliImportWatchdogTimer);
+    aliImportWatchdogTimer = setInterval(function(){
+      if(!aliImportBusy){
+        clearInterval(aliImportWatchdogTimer);
+        aliImportWatchdogTimer = 0;
+        return;
+      }
+      var elapsed = Math.max(0, Math.floor((Date.now() - aliImportLastUpdate) / 1000));
+      if(elapsed >= 10 && elapsed < 40){
+        text($("importHint"), "Import is still running (" + elapsed + "s). Checking OpenList token/API...");
+      }else if(elapsed >= 40){
+        text($("importHint"), "Import seems slow (" + elapsed + "s). You can wait, or restart OpenList and retry.");
+      }
+    }, 5000);
+  }
+  function stopAliImportWatchdog(){
+    if(aliImportWatchdogTimer){
+      clearInterval(aliImportWatchdogTimer);
+      aliImportWatchdogTimer = 0;
+    }
+  }
+  function startAliImportHardTimeout(){
+    if(aliImportHardTimeoutTimer) clearTimeout(aliImportHardTimeoutTimer);
+    aliImportHardTimeoutTimer = setTimeout(function(){
+      if(!aliImportBusy) return;
+      setAliImportBusy(false);
+      stopAliImportWatchdog();
+      text($("importHint"), "Import timeout (90s): OpenList may be offline or blocked. Click Restart OpenList and retry.");
+    }, aliImportHardTimeoutMs);
+  }
+  function stopAliImportHardTimeout(){
+    if(aliImportHardTimeoutTimer){
+      clearTimeout(aliImportHardTimeoutTimer);
+      aliImportHardTimeoutTimer = 0;
+    }
+  }
+  function startOpenListAutoCheck(){
+    if(openListAutoCheckTimer) clearInterval(openListAutoCheckTimer);
+    openListAutoCheckTimer = setInterval(function(){
+      if(aliImportBusy) return;
+      checkOpenList({ skipInitialPending:true });
+    }, openListAutoCheckMs);
+  }
+  function requestAdminToken(timeoutMs){
+    timeoutMs = timeoutMs || 2500;
+    var seq = ++adminTokenReqSeq;
+    return new Promise(function(resolve){
+      var done = false;
+      var cleaned = false;
+      var handler = function(evt){
+        var data = evt && evt.data ? evt.data : null;
+        if(!data || data.type!=="cloudplayer_admin_token") return;
+        if(seq !== adminTokenReqSeq) return;
+        if(done) return;
+        done = true;
+        if(!cleaned){
+          cleaned = true;
+          try{ if(window.chrome && window.chrome.webview) window.chrome.webview.removeEventListener("message", handler); }catch(_){}
+        }
+        clearTimeout(timer);
+        resolve({ ok:!!data.ok, token:String(data.token||""), message:String(data.message||"") });
+      };
+      var timer = setTimeout(function(){
+        if(done) return;
+        done = true;
+        if(!cleaned){
+          cleaned = true;
+          try{ if(window.chrome && window.chrome.webview) window.chrome.webview.removeEventListener("message", handler); }catch(_){}
+        }
+        resolve({ ok:false, token:"", message:"timeout" });
+      }, timeoutMs);
+      try{ if(window.chrome && window.chrome.webview) window.chrome.webview.addEventListener("message", handler); }catch(_){}
+      postHost("cloudplayer_request_admin_token", { apiBase: state.apiBase });
+    });
+  }
+  function requestFsListViaHost(path, token, refresh, timeoutMs){
+    timeoutMs = timeoutMs || 3500;
+    var reqId = "fslist_" + Date.now() + "_" + Math.floor(Math.random()*1000000);
+    return new Promise(function(resolve){
+      var done = false;
+      var cleaned = false;
+      var handler = function(evt){
+        var data = evt && evt.data ? evt.data : null;
+        if(!data || data.type!=="cloudplayer_fs_list_result") return;
+        if(String(data.reqId||"") !== reqId) return;
+        if(String(data.path||"") !== String(path||"")) return;
+        if(done) return;
+        done = true;
+        if(!cleaned){
+          cleaned = true;
+          try{ if(window.chrome && window.chrome.webview) window.chrome.webview.removeEventListener("message", handler); }catch(_){}
+        }
+        clearTimeout(timer);
+        var textBody = String(data.text||"");
+        var json = null, parseError = "";
+        try{ json = JSON.parse(textBody || "{}"); }catch(e){ parseError = e && e.message ? e.message : "json parse failed"; }
+        resolve({ ok:!!data.ok, status:Number(data.status||0), error:String(data.error||""), json:json, bodyText:textBody, parseError:parseError, reqId:reqId });
+      };
+      var timer = setTimeout(function(){
+        if(done) return;
+        done = true;
+        if(!cleaned){
+          cleaned = true;
+          try{ if(window.chrome && window.chrome.webview) window.chrome.webview.removeEventListener("message", handler); }catch(_){}
+        }
+        resolve({ ok:false, status:0, error:"timeout", json:null, bodyText:"", parseError:"timeout", reqId:reqId });
+      }, timeoutMs);
+      try{ if(window.chrome && window.chrome.webview) window.chrome.webview.addEventListener("message", handler); }catch(_){}
+      postHost("cloudplayer_fs_list", { apiBase: state.apiBase, path:String(path||"/"), token:String(token||""), refresh:!!refresh, reqId:reqId });
+    });
+  }
+  function waitForHostStatus(timeoutMs, sinceTs){
+    return new Promise(function(resolve){
+      var endAt = Date.now() + Math.max(200, timeoutMs || 1200);
+      var timer = setInterval(function(){
+        if(lastHostStatusAt > sinceTs){
+          clearInterval(timer);
+          resolve(lastHostStatusOnline);
+          return;
+        }
+        if(Date.now() >= endAt){
+          clearInterval(timer);
+          resolve(null);
+        }
+      }, 80);
+    });
+  }
+
+  function saveSettings(){
+    var data = {
+      mountAli: normPath($("mountAli").value), mountBaidu: normPath($("mountBaidu").value), mountQuark: normPath($("mountQuark").value),
+      aliMountPath: normPath($("aliMountPath").value), advRootFolderId: $("advRootFolderId").value || "root",
+      advDriveType: $("advDriveType").value || "default", advAlipanType: $("advAlipanType").value || "default",
+      advUseOnlineApi: $("advUseOnlineApi").value || "true", advClientId: $("advClientId").value || "",
+      advClientSecret: $("advClientSecret").value || "", advApiUrlAddress: $("advApiUrlAddress").value || "https://api.oplist.org/alicloud/renewapi"
+    };
+    try{ localStorage.setItem(storeKey, JSON.stringify(data)); }catch(_){}
+  }
+  function loadSettings(){
+    try{
+      var raw=localStorage.getItem(storeKey); if(!raw) return;
+      var s=JSON.parse(raw); if(!s || typeof s!=="object") return;
+      if(s.mountAli) $("mountAli").value=normPath(s.mountAli);
+      if(s.mountBaidu) $("mountBaidu").value=normPath(s.mountBaidu);
+      if(s.mountQuark) $("mountQuark").value=normPath(s.mountQuark);
+      if(s.aliMountPath) $("aliMountPath").value=normPath(s.aliMountPath);
+      if(s.advRootFolderId) $("advRootFolderId").value=s.advRootFolderId;
+      if(s.advDriveType) $("advDriveType").value=s.advDriveType;
+      if(s.advAlipanType) $("advAlipanType").value=s.advAlipanType;
+      if(s.advUseOnlineApi) $("advUseOnlineApi").value=s.advUseOnlineApi;
+      if(typeof s.advClientId==="string") $("advClientId").value=s.advClientId;
+      if(typeof s.advClientSecret==="string") $("advClientSecret").value=s.advClientSecret;
+      if(s.advApiUrlAddress) $("advApiUrlAddress").value=s.advApiUrlAddress;
+    }catch(_){}
+  }
+  function getAliImportOptions(){
+    return {
+      rootFolderId: String($("advRootFolderId").value || "root").trim() || "root",
+      driveType: $("advDriveType").value || "default",
+      alipanType: $("advAlipanType").value || "default",
+      useOnlineApi: ($("advUseOnlineApi").value || "true") === "true",
+      clientId: $("advClientId").value || "",
+      clientSecret: $("advClientSecret").value || "",
+      apiUrlAddress: String($("advApiUrlAddress").value || "").trim() || "https://api.oplist.org/alicloud/renewapi"
+    };
+  }
+
+  async function httpViaHost(method, url, headers, body){
+    if (window.chrome && window.chrome.webview && window.chrome.webview.hostObjects && window.chrome.webview.hostObjects.ahk){
+      var raw = await window.chrome.webview.hostObjects.ahk.HttpRequest(String(method||"GET"), String(url||""), JSON.stringify(headers||{}), body==null?"":String(body));
+      try { return JSON.parse(String(raw||"{}")); } catch(e){ return { ok:false, status:0, body:"", error:e && e.message ? e.message : "json parse failed" }; }
+    }
+    try{
+      var r = await fetch(url, { method: method, headers: headers || {}, body: body || undefined });
+      return { ok:r.ok, status:r.status, body:await r.text(), error:"" };
+    }catch(e){
+      return { ok:false, status:0, body:"", error:e && e.message ? e.message : "fetch failed" };
+    }
+  }
+  async function apiPost(path, payload){
+    var url = state.apiBase.replace(/\/+$/,"") + path;
+    var res = await httpViaHost("POST", url, getHeaders(true), JSON.stringify(payload||{}));
+    var parseError = "";
+    var bodyText = String(res.body || "");
+    var json=null;
+    try{
+      json=JSON.parse(bodyText || "{}");
+    }catch(e){
+      parseError = e && e.message ? e.message : "json parse failed";
+    }
+    return { transport:res, json:json, parseError:parseError, bodyText:bodyText };
+  }
+  async function checkOpenList(opts){
+    opts = opts || {};
+    var seq = ++checkSeq;
+    var hostStatusBefore = lastHostStatusAt;
+    state.apiBase = $("apiBase").value.trim() || "http://127.0.0.1:5244";
+    state.token = $("token").value.trim();
+    if (!opts.skipInitialPending) setStatus(false, "Checking...");
+
+    // Ask host process to ping OpenList as primary path (more reliable in WebView).
+    postHost("cloudplayer_ping_openlist", { apiBase: state.apiBase });
+
+    // Also do a direct probe with timeout as fallback.
+    var timeoutMs = 4500;
+    var timedOut = false;
+    var res = await Promise.race([
+      httpViaHost("GET", state.apiBase.replace(/\/+$/,"") + "/", getHeaders(false), ""),
+      new Promise(function(resolve){
+        setTimeout(function(){
+          timedOut = true;
+          resolve({ ok:false, status:0, body:"", error:"timeout" });
+        }, timeoutMs);
+      })
+    ]);
+    if (seq !== checkSeq) return false;
+
+    // If host already replied for this check cycle, trust host status and avoid flip-flop.
+    if (lastHostStatusAt > hostStatusBefore) {
+      setStatus(lastHostStatusOnline, lastHostStatusOnline ? "Online" : "Offline");
+      return lastHostStatusOnline;
+    }
+
+    var ok = !!(res.status >= 200 && res.status < 600);
+    if (ok) {
+      setStatus(true, "Online (" + res.status + ")");
+      return true;
+    }
+    if (timedOut) {
+      setStatus(false, "Checking via host...");
+    } else {
+      setStatus(false, "Offline");
+    }
+    return false;
+  }
+  function renderList(items){
+    var wrap=$("fileList");
+    if(!Array.isArray(items)||!items.length){ wrap.innerHTML='<div class="empty">Empty directory, missing path, or no access.</div>'; return; }
+    var html="";
+    for(var i=0;i<items.length;i++){
+      var it=items[i]||{}, isDir=!!it.is_dir, name=String(it.name||""), full=String(it.path || normPath(state.path+"/"+name));
+      var ico=isDir?"📁":"🎬", size=isDir?"":fmtSize(it.size);
+      html += '<div class="item" data-path="'+encodeURIComponent(full)+'" data-dir="'+(isDir?"1":"0")+'"><span class="ico '+(isDir?"dir":"file")+'">'+ico+'</span><span class="name">'+name+'</span><span class="meta">'+size+'</span></div>';
+    }
+    wrap.innerHTML=html;
+    wrap.querySelectorAll(".item").forEach(function(el){ el.addEventListener("click", onRowClick); });
+  }
+  async function loadList(path, retriedAuth){
+    state.path=normPath(path||state.path||"/");
+    $("pathInput").value=state.path;
+    text($("currentInfo"), "Loading: " + state.path);
+    if(state.path.indexOf("/aliyun") === 0){
+      var autoTk = await requestAdminToken(2800);
+      if(autoTk.ok && autoTk.token){
+        $("token").value = autoTk.token;
+        state.token = autoTk.token;
+      }
+    }
+    var liveToken = String(($("token") && $("token").value) || state.token || "").trim();
+    var ret = null;
+    if(state.path.indexOf("/aliyun") === 0){
+      ret = await requestFsListViaHost(state.path, liveToken, false, 4200);
+      if(!ret || !ret.json){
+        ret = await apiPost("/api/fs/list", { path:state.path, password:"", page:1, per_page:300, refresh:false });
+      }else{
+        ret = { transport:{ ok:ret.ok, status:ret.status, error:ret.error }, json:ret.json, parseError:ret.parseError, bodyText:ret.bodyText };
+      }
+    }else{
+      ret = await apiPost("/api/fs/list", { path:state.path, password:"", page:1, per_page:300, refresh:false });
+    }
+    if(!ret.transport.ok && !ret.json){ renderList([]); text($("currentInfo"), "Load failed: " + (ret.transport.error||"network error")); return; }
+    if(!ret.json){
+      renderList([]);
+      var snippet = (ret.bodyText || "").replace(/\s+/g, " ").slice(0, 200);
+      text($("currentInfo"), "Load failed: response parse error (" + (ret.parseError||"unknown") + "), status=" + String(ret.transport && ret.transport.status || 0) + (snippet ? (", body=" + snippet) : ""));
+      return;
+    }
+    var code = (ret.json && typeof ret.json.code === "number") ? ret.json.code : null;
+    if(code !== null && code !== 200){
+      var msg = (ret.json && ret.json.message) ? String(ret.json.message) : ("API code " + code);
+      if(code === 401 && !retriedAuth){
+        text($("currentInfo"), "Authorizing OpenList...");
+        var tk = await requestAdminToken(3200);
+        if(tk.ok && tk.token){
+          $("token").value = tk.token;
+          state.token = tk.token;
+          await loadList(state.path, true);
+          return;
+        }
+      }
+      renderList([]);
+      if(code === 401){
+        text($("currentInfo"), "Load failed: " + msg + ". Fill Token and retry.");
+      }else{
+        text($("currentInfo"), "Load failed: " + msg);
+      }
+      return;
+    }
+    var content = ret.json && ret.json.data && Array.isArray(ret.json.data.content) ? ret.json.data.content : [];
+    if(content.length === 0 && state.path.indexOf("/aliyun") === 0){
+      var ret2Raw = await requestFsListViaHost(state.path, String(($("token") && $("token").value) || state.token || "").trim(), true, 4500);
+      var ret2 = null;
+      if(ret2Raw && ret2Raw.json){
+        ret2 = { transport:{ ok:ret2Raw.ok, status:ret2Raw.status, error:ret2Raw.error }, json:ret2Raw.json, parseError:ret2Raw.parseError, bodyText:ret2Raw.bodyText };
+      }else{
+        ret2 = await apiPost("/api/fs/list", { path:state.path, password:"", page:1, per_page:300, refresh:true });
+      }
+      if(ret2 && ret2.json && typeof ret2.json.code === "number" && ret2.json.code === 200){
+        var content2 = ret2.json && ret2.json.data && Array.isArray(ret2.json.data.content) ? ret2.json.data.content : [];
+        if(content2.length > 0){
+          content = content2;
+        }
+      }
+    }
+    renderList(content);
+    text($("currentInfo"), "Loaded " + content.length + " items (" + state.path + ")");
+  }
+  async function resolveFileUrl(fullPath){
+    var ret=await apiPost("/api/fs/get", { path:fullPath, password:"" });
+    var d=ret.json && ret.json.data ? ret.json.data : {};
+    if(d && typeof d.raw_url==="string" && d.raw_url) return d.raw_url;
+    if(d && typeof d.url==="string" && d.url) return d.url;
+    if(d && d.content && typeof d.content.url==="string" && d.content.url) return d.content.url;
+    return "";
+  }
+  function playUrl(url, title){
+    var u=String(url||"").trim();
+    if(!u){ text($("currentInfo"), "Play failed: empty URL"); return; }
+    var v=$("video"); v.src=u; v.play().catch(function(){});
+    text($("currentInfo"), "Playing: " + (title || u));
+  }
+  async function onRowClick(e){
+    var el=e.currentTarget, fullPath=decodeURIComponent(el.getAttribute("data-path")||"/");
+    if(el.getAttribute("data-dir")==="1"){ await loadList(fullPath); return; }
+    text($("currentInfo"), "Resolving stream URL: " + fullPath);
+    var link=await resolveFileUrl(fullPath);
+    if(!link){ text($("currentInfo"), "Failed to resolve stream URL."); return; }
+    playUrl(link, fullPath);
+  }
+  function openProvider(name){
+    saveSettings();
+    if(name==="root"){ state.provider=""; markProvider("root"); loadList("/"); return; }
+    var p="/"; if(name==="ali") p=$("mountAli").value; if(name==="baidu") p=$("mountBaidu").value; if(name==="quark") p=$("mountQuark").value;
+    state.provider=name; markProvider(name); loadList(normPath(p));
+  }
+  async function readClipboardText(){
+    try{
+      if(window.chrome && window.chrome.webview && window.chrome.webview.hostObjects && window.chrome.webview.hostObjects.ahk){
+        var t=await window.chrome.webview.hostObjects.ahk.GetClipboardText(); return String(t||"").trim();
+      }
+    }catch(_){}
+    try{
+      if(navigator.clipboard && navigator.clipboard.readText){
+        var t2=await navigator.clipboard.readText(); return String(t2||"").trim();
+      }
+    }catch(_){}
+    return "";
+  }
+  async function doAliImport(){
+    var refreshToken=String($("aliRefreshToken").value||"").trim(), mountPath=normPath($("aliMountPath").value||"/aliyun");
+    if(!refreshToken){ text($("importHint"), "Please paste aliyun refresh_token first."); return; }
+    if(aliImportBusy){ text($("importHint"), "Import already running, please wait..."); return; }
+    var online = !!lastHostStatusOnline;
+    if(!online){
+      var hostBefore = lastHostStatusAt;
+      postHost("cloudplayer_ping_openlist", { apiBase: ($("apiBase").value.trim() || "http://127.0.0.1:5244") });
+      var hostRet = await waitForHostStatus(1400, hostBefore);
+      if (hostRet !== null) online = !!hostRet;
+    }
+    if(!online){
+      online = await checkOpenList();
+    }
+    if(!online){
+      text($("importHint"), "OpenList seems offline. Click Restart OpenList, wait 2-3s, then retry import.");
+      return;
+    }
+    $("mountAli").value=mountPath; saveSettings();
+    setAliImportBusy(true);
+    markAliImportProgress("Importing aliyun storage: submitting request...");
+    startAliImportWatchdog();
+    startAliImportHardTimeout();
+    postHost("cloudplayer_import_aliyun", { refreshToken:refreshToken, mountPath:mountPath, options:getAliImportOptions() });
+  }
+  function bindEvents(){
+    $("btnLoad").addEventListener("click", function(){ loadList($("pathInput").value); });
+    $("btnDashboard").addEventListener("click", function(){ postHost("cloudplayer_open_dashboard"); });
+    $("btnRestart").addEventListener("click", function(){ postHost("cloudplayer_restart_openlist"); });
+    $("btnPlayUrl").addEventListener("click", function(){ playUrl($("manualUrl").value, "manual URL"); });
+    $("pathInput").addEventListener("keydown", function(e){ if(e.key==="Enter") loadList($("pathInput").value); });
+    $("manualUrl").addEventListener("keydown", function(e){ if(e.key==="Enter") playUrl($("manualUrl").value, "manual URL"); });
+    $("apiBase").addEventListener("change", function(){
+      state.apiBase = $("apiBase").value.trim() || "http://127.0.0.1:5244";
+      postHost("cloudplayer_set_api_base", { apiBase: state.apiBase });
+      checkOpenList({ skipInitialPending:true });
+    });
+    $("apiBase").addEventListener("blur", function(){
+      state.apiBase = $("apiBase").value.trim() || "http://127.0.0.1:5244";
+      postHost("cloudplayer_set_api_base", { apiBase: state.apiBase });
+      checkOpenList({ skipInitialPending:true });
+    });
+    $("token").addEventListener("change", function(){
+      state.token = $("token").value.trim();
+    });
+    $("token").addEventListener("blur", function(){
+      state.token = $("token").value.trim();
+    });
+
+    $("btnAli").addEventListener("click", function(){ openProvider("ali"); });
+    $("btnBaidu").addEventListener("click", function(){ openProvider("baidu"); });
+    $("btnQuark").addEventListener("click", function(){ openProvider("quark"); });
+    $("btnRoot").addEventListener("click", function(){ openProvider("root"); });
+
+    $("btnBindGuide").addEventListener("click", openScanModal);
+    $("btnCloseScan").addEventListener("click", closeScanModal);
+    $("btnRefreshScan").addEventListener("click", function(){
+      if(scanEmbedEnabled){
+        refreshScanFrame("manual");
+      }else{
+        openExternal(buildNoCacheUrl(scanBaseUrl));
+        text($("importHint"), "Opened a fresh login page in your default browser.");
+      }
+    });
+    $("btnOpenTokenExternal").addEventListener("click", function(){ openExternal(buildNoCacheUrl(scanBaseUrl)); });
+
+    $("btnAdvSettings").addEventListener("click", function(){
+      $("advPanel").classList.toggle("open");
+      $("btnAdvSettings").classList.toggle("active", $("advPanel").classList.contains("open"));
+    });
+
+    $("btnPasteToken").addEventListener("click", async function(){
+      var t=await readClipboardText();
+      if(!t){ text($("importHint"), "Failed to read clipboard, please paste token manually."); return; }
+      $("aliRefreshToken").value=t;
+      text($("importHint"), "Token loaded from clipboard.");
+    });
+    $("btnImportAliyun").addEventListener("click", doAliImport);
+    $("aliRefreshToken").addEventListener("keydown", function(e){ if(e.key==="Enter") doAliImport(); });
+
+    ["mountAli","mountBaidu","mountQuark","aliMountPath","advRootFolderId","advDriveType","advAlipanType","advUseOnlineApi","advClientId","advClientSecret","advApiUrlAddress"].forEach(function(id){
+      $(id).addEventListener("change", saveSettings);
+      $(id).addEventListener("blur", saveSettings);
+    });
+  }
+  function onHostMessage(evt){
+    var data=evt && evt.data ? evt.data : null;
+    if(!data || typeof data!=="object") return;
+    if(data.type==="cloudplayer_status"){
+      if(typeof data.apiBase==="string" && data.apiBase) $("apiBase").value=data.apiBase;
+      lastHostStatusAt = Date.now();
+      lastHostStatusOnline = !!data.openListOnline;
+      setStatus(lastHostStatusOnline, lastHostStatusOnline ? "Online" : "Offline");
+      return;
+    }
+    if(data.type==="cloudplayer_import_result"){
+      setAliImportBusy(false);
+      stopAliImportWatchdog();
+      stopAliImportHardTimeout();
+      if(data.ok){
+        var mp=data.mountPath||"/aliyun";
+        if((!$("token").value || !$("token").value.trim()) && data.authToken){
+          $("token").value = String(data.authToken);
+          state.token = String(data.authToken);
+        }
+        $("mountAli").value=mp; $("aliMountPath").value=mp; saveSettings();
+        text($("importHint"), "Import success: " + mp + " (" + (data.driver||"AliyundriveOpen") + ")");
+        openProvider("ali");
+      }else{
+        text($("importHint"), "Import failed: " + (data.message||"unknown error"));
+      }
+      return;
+    }
+    if(data.type==="cloudplayer_import_progress"){
+      markAliImportProgress(data.message || "Importing aliyun storage...");
+      return;
+    }
+    if(data.type==="cloudplayer_admin_token"){
+      if(data.ok && data.token){
+        $("token").value = String(data.token);
+        state.token = String(data.token);
+      }
+      return;
+    }
+  }
+  async function boot(){
+    loadSettings();
+    bindEvents();
+    if(window.chrome && window.chrome.webview) window.chrome.webview.addEventListener("message", onHostMessage);
+    state.apiBase = $("apiBase").value.trim() || "http://127.0.0.1:5244";
+    postHost("cloudplayer_ready", { apiBase: state.apiBase });
+    await new Promise(function(r){ setTimeout(r, 80); });
+    await checkOpenList({ skipInitialPending: true });
+    startOpenListAutoCheck();
+    openProvider("root");
+  }
+  boot();
+})();
+</script>
+</body>
+</html>

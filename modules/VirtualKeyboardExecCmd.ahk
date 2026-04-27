@@ -660,6 +660,14 @@ VK_ExecCursorHelperCmd(cmdId) {
                     }
                 }
                 executed := true
+            case "ftb_cloud_player":
+                try ShowCloudPlayer()
+                catch as err {
+                    try TrayTip("鏃犳硶鎵撳紑缃戠洏鎾斁鍣細`n" . err.Message, "CloudPlayer", "Iconx 2")
+                    catch as _e {
+                    }
+                }
+                executed := true
             case "pqp_capture":
                 PromptQuickPad_QuickCapture()
                 executed := true

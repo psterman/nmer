@@ -71,6 +71,7 @@ global g_FTB_AllowedCmdIds := Map(
     "ch_b", true,
     "ftb_scratchpad", true,
     "ftb_screenshot", true,
+    "ftb_cloud_player", true,
     "qa_config", true,
     "sys_show_vk", true,
     "ftb_cursor_menu", true
@@ -766,6 +767,115 @@ FloatingToolbar_OnWebMessage(sender, args) {
         SetTimer(NiumaTtyd_DeferredRestartJob, -400)
         return
     }
+    if (typ = "niuma_openclaw_probe_token") {
+        force := msg.Has("force") && !!msg["force"]
+        SetTimer(FloatingToolbar_DeferredProbeOpenClawToken.Bind(force), -1)
+        return
+    }
+}
+
+FloatingToolbar_DeferredProbeOpenClawToken(force := false) {
+    try FloatingToolbar_ProbeOpenClawGatewayToken(!!force)
+}
+
+FloatingToolbar_ProbeOpenClawGatewayToken(force := false) {
+    global g_FTB_WV2
+    if !g_FTB_WV2
+        return
+
+    token := ""
+    source := ""
+
+    try {
+        envTok := Trim(String(EnvGet("OPENCLAW_GATEWAY_TOKEN")))
+        if (envTok != "") {
+            token := envTok
+            source := "env:OPENCLAW_GATEWAY_TOKEN"
+        }
+    } catch {
+    }
+
+    if (token = "") {
+        info := FloatingToolbar_ReadOpenClawGatewayToken()
+        if (info is Map) {
+            try token := Trim(String(info.Has("token") ? info["token"] : ""))
+            catch {
+                token := ""
+            }
+            try source := String(info.Has("source") ? info["source"] : "")
+            catch {
+                source := ""
+            }
+        }
+    }
+
+    try WebView_QueuePayload(g_FTB_WV2, Map(
+        "type", "openclaw_host_token_probe",
+        "token", token,
+        "source", source,
+        "force", !!force
+    ))
+}
+
+FloatingToolbar_ReadOpenClawGatewayToken() {
+    userProfile := ""
+    try userProfile := Trim(String(EnvGet("USERPROFILE")))
+    if (userProfile = "") {
+        homeDrive := ""
+        homePath := ""
+        try homeDrive := Trim(String(EnvGet("HOMEDRIVE")))
+        try homePath := Trim(String(EnvGet("HOMEPATH")))
+        userProfile := homeDrive . homePath
+    }
+    candidates := [
+        userProfile . "\.openclaw\openclaw.json",
+        A_AppData . "\openclaw\openclaw.json",
+        A_AppData . "\clawhub\openclaw.json"
+    ]
+    for _, path in candidates {
+        try {
+            if !FileExist(path)
+                continue
+            raw := FileRead(path, "UTF-8")
+            if (Trim(raw) = "")
+                continue
+            cfg := Jxon_Load(raw)
+            tok := FloatingToolbar_ExtractOpenClawGatewayToken(cfg)
+            if (tok != "")
+                return Map("token", tok, "source", path)
+        } catch {
+        }
+    }
+    return Map("token", "", "source", "")
+}
+
+FloatingToolbar_ExtractOpenClawGatewayToken(cfg) {
+    if !(cfg is Map)
+        return ""
+    try {
+        if cfg.Has("gateway") {
+            gw := cfg["gateway"]
+            if (gw is Map) {
+                if gw.Has("auth") {
+                    auth := gw["auth"]
+                    if (auth is Map) {
+                        if auth.Has("token") {
+                            tok := Trim(String(auth["token"]))
+                            if (tok != "")
+                                return tok
+                        }
+                    }
+                }
+                if gw.Has("token") {
+                    tok2 := Trim(String(gw["token"]))
+                    if (tok2 != "")
+                        return tok2
+                }
+            }
+        }
+    } catch {
+    }
+    return ""
 }
 
 ; 鎸?WebView 瀹㈡埛鍖?CSS 鍍忕礌瀹藉害璋冩暣鎶藉眽锛堜繚鎸佺獥鍙ｅ彸缂樹笉鍔級
@@ -1665,6 +1775,15 @@ FloatingToolbar_DeferredToolbarCmd(cmdId) {
         FloatingToolbarToggleButtonAction("Screenshot")
         return
     }
+    if (c = "ftb_cloud_player") {
+        try ShowCloudPlayer()
+        catch as e {
+            try OutputDebug("[FloatingToolbar] cloud player open failed: " . e.Message)
+            catch {
+            }
+        }
+        return
+    }
     if (c = "qa_config") {
         FloatingToolbarToggleButtonAction("Settings")
         return
@@ -1707,6 +1826,7 @@ FloatingToolbarPushCmdLayoutToWeb() {
     cmdList := g_Commands["CommandList"]
     items := []
     hasCursorMenu := false
+    hasCloudPlayer := false
     rows := []
     for row in g_Commands["ToolbarLayout"]
         rows.Push(row)
@@ -1739,9 +1859,18 @@ FloatingToolbarPushCmdLayoutToWeb() {
             hasCursorMenu := true
             rowPayload["iconPath"] := FloatingToolbar_GetCursorIconPath()
         }
+        if (cid = "ftb_cloud_player")
+            hasCloudPlayer := true
         if (cid != "ftb_cursor_menu" && (ent is Map) && ent.Has("iconPath") && ent["iconPath"] != "")
             rowPayload["iconPath"] := String(ent["iconPath"])
         items.Push(rowPayload)
+    }
+    if !hasCloudPlayer {
+        items.Push(Map(
+            "cmdId", "ftb_cloud_player",
+            "name", "网盘播放器",
+            "iconClass", "fa-solid fa-window-restore"
+        ))
     }
     ; ToolbarLayout 里没配置时也保底补上 cursor 菜单按钮，避免图标缺失。
     if !hasCursorMenu {
@@ -1760,6 +1889,19 @@ FloatingToolbarPushCmdLayoutToWeb() {
         Loop maxIcons
             trimmed.Push(items[A_Index])
         items := trimmed
+    }
+    cloudVisible := false
+    for _, it in items {
+        if ((it is Map) && it.Has("cmdId") && String(it["cmdId"]) = "ftb_cloud_player") {
+            cloudVisible := true
+            break
+        }
+    }
+    if !cloudVisible {
+        if (items.Length >= maxIcons && items.Length > 0)
+            items[items.Length] := Map("cmdId", "ftb_cloud_player", "name", "网盘播放器", "iconClass", "fa-solid fa-window-restore")
+        else
+            items.Push(Map("cmdId", "ftb_cloud_player", "name", "网盘播放器", "iconClass", "fa-solid fa-window-restore"))
     }
     FloatingToolbarCmdVisibleCount := items.Length
     try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_toolbar_cmds", "items", items))

@@ -69,6 +69,7 @@ global MainScriptDir := A_ScriptDir
 
 ; ttyd 本机终端（Niuma Chat CLI）：须在 FloatingToolbar 之前包含，供 Web 消息与定时器引用
 #Include modules\NiumaTtyd.ahk
+#Include modules\CloudPlayer.ahk
 
 ; ===================== 包含悬浮工具栏模块 =====================
 #Include modules\FloatingToolbar.ahk

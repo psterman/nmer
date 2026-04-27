@@ -518,6 +518,7 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     sys_show_vk: 'keyboard',
     ftb_scratchpad: 'notepad',
     ftb_screenshot: 'screenshot',
+    ftb_cloud_player: 'window',
     ftb_cursor_menu: 'circle',
   };
 
@@ -2688,6 +2689,47 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     return { role: role, content: content, ts: ensureIsoTime(m.ts || m.timestamp || m.createdAt || m.updatedAt) };
   }
 
+  function ocNormForMatch(s) {
+    return String(s == null ? '' : s)
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
+  function ocPickAssistantFromHistory(rawMessages, sentText) {
+    var arr = Array.isArray(rawMessages) ? rawMessages : [];
+    if (!arr.length) return '';
+    var rows = [];
+    for (var i = 0; i < arr.length; i++) {
+      var m = arr[i];
+      if (!m || typeof m !== 'object') continue;
+      var role = normalizeRole(m.role || m.type || m.actor);
+      if (!role) continue;
+      var content = ocExtractMessageContentForHistory(m);
+      if (!content) continue;
+      rows.push({ role: role, content: content });
+    }
+    if (!rows.length) return '';
+    var sentNorm = ocNormForMatch(sentText);
+    if (sentNorm) {
+      for (var u = rows.length - 1; u >= 0; u--) {
+        if (rows[u].role !== 'user') continue;
+        var un = ocNormForMatch(rows[u].content);
+        if (!un) continue;
+        if (un === sentNorm || un.indexOf(sentNorm) >= 0 || sentNorm.indexOf(un) >= 0) {
+          for (var a = rows.length - 1; a > u; a--) {
+            if (rows[a].role === 'assistant') return rows[a].content;
+          }
+          break;
+        }
+      }
+    }
+    for (var z = rows.length - 1; z >= 0; z--) {
+      if (rows[z].role === 'assistant') return rows[z].content;
+    }
+    return '';
+  }
+
   function openClawRpc(cfg, method, params, timeoutMs) {
     var ep = openClawEndpointFromCfg(cfg);
     if (!ep.ok) return Promise.reject(new Error('Gateway token missing'));
@@ -2876,6 +2918,7 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
       var chatMsgId = '';
       var pendingText = '';
       var finalizeTimer = null;
+      var recoveringFinal = false;
       var hardTimeout = setTimeout(function () {
         settleReject(new Error('OpenClaw 响应超时（45s）。'));
       }, 45000);
@@ -2922,6 +2965,33 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
         var t = pendingText.trim();
         if (t) settleResolve(t);
         else settleReject(new Error('响应中没有可显示的内容。'));
+      }
+
+      function recoverFinalFromHistory(fromTimeout) {
+        if (recoveringFinal) return;
+        recoveringFinal = true;
+        fromTimeout = fromTimeout === true;
+        (async function () {
+          var waitList = fromTimeout ? [300, 1000, 2200] : [250, 800, 1800];
+          for (var i = 0; i < waitList.length; i++) {
+            try {
+              await new Promise(function (r) {
+                setTimeout(r, waitList[i]);
+              });
+              var rpcRes = await openClawRpc(cfg, 'chat.history', { sessionKey: sessionKey, limit: 200 }, 12000);
+              var raw = extractGatewayHistoryMessages(rpcRes);
+              var picked = ocPickAssistantFromHistory(raw, msgText);
+              if (picked && String(picked).trim()) {
+                pendingText = String(picked).trim();
+                settleResolve(pendingText);
+                return;
+              }
+            } catch (e0) {
+            }
+          }
+          if (fromTimeout) settleReject(new Error('OpenClaw timed out without readable assistant text.'));
+          else settleReject(new Error('OpenClaw returned final state without readable assistant text.'));
+        })();
       }
 
       function sendConnectOnce() {
@@ -3044,6 +3114,10 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
                 pl.errorMessage || pl.stopReason || pl.reason || pl.status || pl.message || ''
               );
               if (fallback) pendingText = fallback;
+            }
+            if (!pendingText.trim()) {
+              recoverFinalFromHistory(false);
+              return;
             }
             if (!pendingText.trim()) {
               try {
