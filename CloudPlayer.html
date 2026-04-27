@@ -233,7 +233,6 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   var openListAutoCheckMs = 12000;
   var adminTokenReqSeq = 0;
   var fsGetReqSeq = 0;
-  var ffmpegReqSeq = 0;
   var navBackStack = [];
   var navForwardStack = [];
   var currentItems = [];
@@ -243,7 +242,10 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   var pinnedMap = {};
   var lastPlayPath = "";
   var lastPlaySourceUrl = "";
-  var ffmpegTriedPath = "";
+  var lastPlayHeaders = {};
+  var lastPlayCandidates = [];
+  var lastPlayCandidateIndex = -1;
+  var autoBootDone = false;
 
   function text(node, v){ node.textContent = v == null ? "" : String(v); }
   function normPath(p){ var v = String(p || "/").trim() || "/"; if (!v.startsWith("/")) v = "/" + v; return v.replace(/\/{2,}/g, "/"); }
@@ -252,6 +254,12 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   function splitPath(full){ var p=normPath(full); if(p==="/") return { dir:"/", name:"" }; var i=p.lastIndexOf("/"); return { dir:i<=0?"/":p.slice(0,i), name:p.slice(i+1) }; }
   function parentPath(p){ var n=normPath(p||"/"); if(n==="/") return "/"; var i=n.lastIndexOf("/"); if(i<=0) return "/"; return n.slice(0,i); }
   function encodePathForUrl(p){ return normPath(p).split("/").map(function(seg, idx){ return idx===0 ? "" : encodeURIComponent(seg); }).join("/"); }
+  function normalizeApiBase(v){
+    var s = String(v || "").trim();
+    if(!s) s = "http://127.0.0.1:5244";
+    if(!/^https?:\/\//i.test(s)) s = "http://" + s.replace(/^\/+/, "");
+    return s.replace(/\/+$/, "");
+  }
   function setStatus(ok, label){ $("dot").className = ok ? "dot ok" : "dot"; text($("statusText"), label); }
   function postHost(type, data){ try{ if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage(Object.assign({ type:type }, data||{})); } }catch(_){} }
   function getHeaders(json){
@@ -482,6 +490,9 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 
   function saveSettings(){
     var data = {
+      apiBase: normalizeApiBase($("apiBase").value),
+      token: String($("token").value || "").trim(),
+      aliRefreshToken: String($("aliRefreshToken").value || "").trim(),
       mountAli: normPath($("mountAli").value), mountBaidu: normPath($("mountBaidu").value), mountQuark: normPath($("mountQuark").value),
       aliMountPath: normPath($("aliMountPath").value), advRootFolderId: $("advRootFolderId").value || "root",
       advDriveType: $("advDriveType").value || "default", advAlipanType: $("advAlipanType").value || "default",
@@ -494,6 +505,9 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     try{
       var raw=localStorage.getItem(storeKey); if(!raw) return;
       var s=JSON.parse(raw); if(!s || typeof s!=="object") return;
+      if(s.apiBase) $("apiBase").value = normalizeApiBase(s.apiBase);
+      if(typeof s.token === "string") $("token").value = s.token;
+      if(typeof s.aliRefreshToken === "string") $("aliRefreshToken").value = s.aliRefreshToken;
       if(s.mountAli) $("mountAli").value=normPath(s.mountAli);
       if(s.mountBaidu) $("mountBaidu").value=normPath(s.mountBaidu);
       if(s.mountQuark) $("mountQuark").value=normPath(s.mountQuark);
@@ -532,7 +546,9 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     }
   }
   async function apiPost(path, payload){
-    var url = state.apiBase.replace(/\/+$/,"") + path;
+    state.apiBase = normalizeApiBase(state.apiBase || $("apiBase").value);
+    $("apiBase").value = state.apiBase;
+    var url = state.apiBase + path;
     var res = await httpViaHost("POST", url, getHeaders(true), JSON.stringify(payload||{}));
     var parseError = "";
     var bodyText = String(res.body || "");
@@ -548,7 +564,8 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     opts = opts || {};
     var seq = ++checkSeq;
     var hostStatusBefore = lastHostStatusAt;
-    state.apiBase = $("apiBase").value.trim() || "http://127.0.0.1:5244";
+    state.apiBase = normalizeApiBase($("apiBase").value);
+    $("apiBase").value = state.apiBase;
     state.token = $("token").value.trim();
     if (!opts.skipInitialPending) setStatus(false, "Checking...");
 
@@ -559,7 +576,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     var timeoutMs = 4500;
     var timedOut = false;
     var res = await Promise.race([
-      httpViaHost("GET", state.apiBase.replace(/\/+$/,"") + "/", getHeaders(false), ""),
+      httpViaHost("GET", state.apiBase + "/", getHeaders(false), ""),
       new Promise(function(resolve){
         setTimeout(function(){
           timedOut = true;
@@ -833,7 +850,8 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     text($("currentInfo"), "Loaded " + content.length + " items (" + state.path + ")");
   }
   function makeDirectDUrl(fullPath){
-    return state.apiBase.replace(/\/+$/,'') + '/d' + encodePathForUrl(fullPath);
+    state.apiBase = normalizeApiBase(state.apiBase || $("apiBase").value);
+    return state.apiBase + '/d' + encodePathForUrl(fullPath);
   }
   async function requestFsGetViaHost(fullPath, token, timeoutMs){
     timeoutMs = timeoutMs || 4000;
@@ -863,37 +881,6 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       postHost("cloudplayer_fs_get", { apiBase: state.apiBase, path:String(fullPath||"/"), token:String(token||""), reqId:reqId });
     });
   }
-  async function requestFfmpegHls(fullPath, sourceUrl, timeoutMs){
-    timeoutMs = timeoutMs || 12000;
-    var reqId = "ffmpeg_" + Date.now() + "_" + (++ffmpegReqSeq);
-    return new Promise(function(resolve){
-      var done = false;
-      var handler = function(evt){
-        var data = evt && evt.data ? evt.data : null;
-        if(!data || data.type !== "cloudplayer_ffmpeg_hls_result") return;
-        if(String(data.reqId||"") !== reqId) return;
-        if(done) return;
-        done = true;
-        clearTimeout(timer);
-        try{ if(window.chrome && window.chrome.webview) window.chrome.webview.removeEventListener("message", handler); }catch(_){ }
-        resolve({ ok:!!data.ok, playUrl:String(data.playUrl||""), message:String(data.message||"") });
-      };
-      var timer = setTimeout(function(){
-        if(done) return;
-        done = true;
-        try{ if(window.chrome && window.chrome.webview) window.chrome.webview.removeEventListener("message", handler); }catch(_){ }
-        resolve({ ok:false, playUrl:"", message:"ffmpeg fallback timeout" });
-      }, timeoutMs);
-      try{ if(window.chrome && window.chrome.webview) window.chrome.webview.addEventListener("message", handler); }catch(_){ }
-      postHost("cloudplayer_ffmpeg_hls", {
-        apiBase: state.apiBase,
-        path:String(fullPath||""),
-        sourceUrl:String(sourceUrl||""),
-        token:String((($("token") && $("token").value) || state.token || "").trim()),
-        reqId:reqId
-      });
-    });
-  }
   async function resolveFileUrl(fullPath){
     var liveToken = String(($("token") && $("token").value) || state.token || "").trim();
     var viaHost = await requestFsGetViaHost(fullPath, liveToken, 4200);
@@ -904,10 +891,24 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       ret = await apiPost("/api/fs/get", { path:fullPath, password:"" });
     }
     var d = ret.json && ret.json.data ? ret.json.data : {};
-    if(d && typeof d.raw_url === "string" && d.raw_url) return { url:d.raw_url, source:"raw_url" };
-    if(d && typeof d.url === "string" && d.url) return { url:d.url, source:"url" };
-    if(d && d.content && typeof d.content.url === "string" && d.content.url) return { url:d.content.url, source:"content.url" };
-    return { url:makeDirectDUrl(fullPath), source:"/d fallback" };
+    var h = (d && d.header && typeof d.header === "object") ? d.header : {};
+    var candidates = [];
+    function pushCandidate(u, source, headers){
+      var url = String(u || "").trim();
+      if(!url) return;
+      for(var i=0;i<candidates.length;i++){
+        if(String(candidates[i].url || "") === url) return;
+      }
+      candidates.push({ url:url, source:String(source||""), headers:(headers && typeof headers==="object") ? headers : {} });
+    }
+    // For web preview, prioritize OpenList proxy path first.
+    // raw_url/url often require custom headers which HTML5 video cannot attach.
+    pushCandidate(makeDirectDUrl(fullPath), "/d proxy", {});
+    if(d && typeof d.raw_url === "string" && d.raw_url) pushCandidate(d.raw_url, "raw_url", h);
+    if(d && typeof d.url === "string" && d.url) pushCandidate(d.url, "url", h);
+    if(d && d.content && typeof d.content.url === "string" && d.content.url) pushCandidate(d.content.url, "content.url", h);
+    if(!candidates.length) return { url:"", source:"none", headers:{}, candidates:[] };
+    return { url:candidates[0].url, source:candidates[0].source, headers:candidates[0].headers, candidates:candidates };
   }
   function playUrl(url, title){
     var u=String(url||"").trim();
@@ -923,10 +924,12 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     text($("currentInfo"), "Resolving stream URL: " + entry.path);
     var link = await resolveFileUrl(entry.path);
     if(!link || !link.url){ text($("currentInfo"), "Failed to resolve stream URL."); return; }
+    lastPlayCandidates = Array.isArray(link.candidates) ? link.candidates : [{ url:link.url, source:link.source||"", headers:(link.headers||{}) }];
+    lastPlayCandidateIndex = 0;
     lastPlayPath = entry.path;
-    lastPlaySourceUrl = link.url;
-    ffmpegTriedPath = "";
-    playUrl(link.url, entry.path);
+    lastPlaySourceUrl = lastPlayCandidates[0].url;
+    lastPlayHeaders = (lastPlayCandidates[0].headers && typeof lastPlayCandidates[0].headers === "object") ? lastPlayCandidates[0].headers : {};
+    playUrl(lastPlaySourceUrl, entry.path);
   }
   async function onRowClick(e){
     var el=e.currentTarget, fullPath=decodeURIComponent(el.getAttribute("data-path")||"/");
@@ -961,7 +964,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     var online = !!lastHostStatusOnline;
     if(!online){
       var hostBefore = lastHostStatusAt;
-      postHost("cloudplayer_ping_openlist", { apiBase: ($("apiBase").value.trim() || "http://127.0.0.1:5244") });
+      postHost("cloudplayer_ping_openlist", { apiBase: normalizeApiBase($("apiBase").value) });
       var hostRet = await waitForHostStatus(1400, hostBefore);
       if (hostRet !== null) online = !!hostRet;
     }
@@ -978,6 +981,31 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     startAliImportWatchdog();
     startAliImportHardTimeout();
     postHost("cloudplayer_import_aliyun", { refreshToken:refreshToken, mountPath:mountPath, options:getAliImportOptions() });
+  }
+  async function mountPathReachable(path){
+    var p = normPath(path || "/aliyun");
+    var ret = await apiPost("/api/fs/list", { path:p, password:"", page:1, per_page:1, refresh:false });
+    return !!(ret && ret.json && ret.json.code === 200);
+  }
+  async function autoEnterCloudDrive(){
+    if(autoBootDone) return;
+    autoBootDone = true;
+    var rt = String($("aliRefreshToken").value || "").trim();
+    var aliPath = normPath($("mountAli").value || $("aliMountPath").value || "/aliyun");
+    if(rt){
+      state.provider = "ali";
+      markProvider("ali");
+      var ok = await mountPathReachable(aliPath);
+      if(ok){
+        text($("importHint"), "Detected saved Aliyun token. Opened Aliyun automatically.");
+        await loadList(aliPath, false, { fromHistory:true });
+      }else{
+        text($("importHint"), "Detected saved Aliyun token. Importing automatically...");
+        await doAliImport();
+      }
+      return;
+    }
+    openProvider("root");
   }
   function bindEvents(){
     $("btnLoad").addEventListener("click", function(){ loadList($("pathInput").value); });
@@ -1012,20 +1040,26 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     $("pathInput").addEventListener("keydown", function(e){ if(e.key==="Enter") loadList($("pathInput").value); });
     $("manualUrl").addEventListener("keydown", function(e){ if(e.key==="Enter") playUrl($("manualUrl").value, "manual URL"); });
     $("apiBase").addEventListener("change", function(){
-      state.apiBase = $("apiBase").value.trim() || "http://127.0.0.1:5244";
+      state.apiBase = normalizeApiBase($("apiBase").value);
+      $("apiBase").value = state.apiBase;
       postHost("cloudplayer_set_api_base", { apiBase: state.apiBase });
       checkOpenList({ skipInitialPending:true });
+      saveSettings();
     });
     $("apiBase").addEventListener("blur", function(){
-      state.apiBase = $("apiBase").value.trim() || "http://127.0.0.1:5244";
+      state.apiBase = normalizeApiBase($("apiBase").value);
+      $("apiBase").value = state.apiBase;
       postHost("cloudplayer_set_api_base", { apiBase: state.apiBase });
       checkOpenList({ skipInitialPending:true });
+      saveSettings();
     });
     $("token").addEventListener("change", function(){
       state.token = $("token").value.trim();
+      saveSettings();
     });
     $("token").addEventListener("blur", function(){
       state.token = $("token").value.trim();
+      saveSettings();
     });
 
     $("btnAli").addEventListener("click", function(){ openProvider("ali"); });
@@ -1054,10 +1088,13 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       var t=await readClipboardText();
       if(!t){ text($("importHint"), "Failed to read clipboard, please paste token manually."); return; }
       $("aliRefreshToken").value=t;
+      saveSettings();
       text($("importHint"), "Token loaded from clipboard.");
     });
     $("btnImportAliyun").addEventListener("click", doAliImport);
     $("aliRefreshToken").addEventListener("keydown", function(e){ if(e.key==="Enter") doAliImport(); });
+    $("aliRefreshToken").addEventListener("change", saveSettings);
+    $("aliRefreshToken").addEventListener("blur", saveSettings);
 
     $("ctxMenu").querySelectorAll(".ctx-item").forEach(function(btn){
       btn.addEventListener("click", function(){ onContextAction(btn.getAttribute("data-act") || ""); });
@@ -1074,15 +1111,19 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     });
     $("video").addEventListener("error", async function(){
       if(!lastPlayPath || !lastPlaySourceUrl) return;
-      if(ffmpegTriedPath === lastPlayPath) return;
-      ffmpegTriedPath = lastPlayPath;
-      text($("currentInfo"), "Native playback failed, trying ffmpeg fallback...");
-      var ret = await requestFfmpegHls(lastPlayPath, lastPlaySourceUrl, 15000);
-      if(ret.ok && ret.playUrl){
-        playUrl(ret.playUrl, lastPlayPath + " (ffmpeg)");
-      }else{
-        text($("currentInfo"), "Failed to resolve stream URL. ffmpeg fallback failed: " + (ret.message || "unknown"));
+      if(Array.isArray(lastPlayCandidates) && (lastPlayCandidateIndex + 1) < lastPlayCandidates.length){
+        lastPlayCandidateIndex += 1;
+        var next = lastPlayCandidates[lastPlayCandidateIndex] || {};
+        if(next.url){
+          lastPlaySourceUrl = String(next.url);
+          lastPlayHeaders = (next.headers && typeof next.headers==="object") ? next.headers : {};
+          text($("currentInfo"), "Native playback failed, trying alternate stream (" + (lastPlayCandidateIndex + 1) + "/" + lastPlayCandidates.length + ")...");
+          playUrl(lastPlaySourceUrl, lastPlayPath);
+          return;
+        }
       }
+      var hint = "Native preview failed for all stream candidates. Check: 1) OpenList token valid 2) mount path has access 3) storage web proxy enabled.";
+      text($("currentInfo"), hint);
     });
 
     ["mountAli","mountBaidu","mountQuark","aliMountPath","advRootFolderId","advDriveType","advAlipanType","advUseOnlineApi","advClientId","advClientSecret","advApiUrlAddress"].forEach(function(id){
@@ -1094,7 +1135,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     var data=evt && evt.data ? evt.data : null;
     if(!data || typeof data!=="object") return;
     if(data.type==="cloudplayer_status"){
-      if(typeof data.apiBase==="string" && data.apiBase) $("apiBase").value=data.apiBase;
+      if(typeof data.apiBase==="string" && data.apiBase) $("apiBase").value=normalizeApiBase(data.apiBase);
       lastHostStatusAt = Date.now();
       lastHostStatusOnline = !!data.openListOnline;
       setStatus(lastHostStatusOnline, lastHostStatusOnline ? "Online" : "Offline");
@@ -1109,6 +1150,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
         if((!$("token").value || !$("token").value.trim()) && data.authToken){
           $("token").value = String(data.authToken);
           state.token = String(data.authToken);
+          saveSettings();
         }
         $("mountAli").value=mp; $("aliMountPath").value=mp; saveSettings();
         text($("importHint"), "Import success: " + mp + " (" + (data.driver||"AliyundriveOpen") + ")");
@@ -1126,6 +1168,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       if(data.ok && data.token){
         $("token").value = String(data.token);
         state.token = String(data.token);
+        saveSettings();
       }
       return;
     }
@@ -1135,12 +1178,14 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     loadPins();
     bindEvents();
     if(window.chrome && window.chrome.webview) window.chrome.webview.addEventListener("message", onHostMessage);
-    state.apiBase = $("apiBase").value.trim() || "http://127.0.0.1:5244";
+    state.apiBase = normalizeApiBase($("apiBase").value);
+    $("apiBase").value = state.apiBase;
+    state.token = String($("token").value || "").trim();
     postHost("cloudplayer_ready", { apiBase: state.apiBase });
     await new Promise(function(r){ setTimeout(r, 80); });
     await checkOpenList({ skipInitialPending: true });
     startOpenListAutoCheck();
-    openProvider("root");
+    await autoEnterCloudDrive();
   }
   boot();
 })();
