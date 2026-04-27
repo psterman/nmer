@@ -75,14 +75,19 @@ button.ghost{background:#151d2b}
 .left{display:flex;flex-direction:column;min-height:0}
 .pathbar{padding:10px;border-bottom:1px solid var(--line);display:flex;gap:8px}
 .pathbar input{flex:1}
+.pathbar .navbtn{min-width:44px;padding:0 10px}
+.searchbar{padding:8px 10px;border-bottom:1px solid var(--line);display:flex;gap:8px}
+.searchbar input{flex:1}
 .list{flex:1;overflow:auto;padding:8px}
 .item{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;padding:9px 8px;border-radius:10px;border:1px solid transparent}
 .item:hover{background:rgba(255,255,255,.03);border-color:#26364f}
+.item.active{border-color:#3c5475;background:rgba(86,136,205,.14)}
 .item .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item .meta{color:var(--muted);font-size:12px}
 .ico{display:inline-flex;align-items:center;justify-content:center;color:#b8c9e8}
 .ico.dir{color:#ffd18c}
 .empty{padding:16px;color:var(--muted)}
+.pin{color:#ffb24c;margin-right:4px}
 
 .right{display:flex;flex-direction:column;padding:10px;gap:10px}
 .playbar{display:flex;gap:8px}
@@ -97,6 +102,17 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 .modal-hint{font-size:12px;color:var(--muted)}
 .modal-body{flex:1;min-height:0;background:#0d1220}
 .modal-body iframe{width:100%;height:100%;border:0}
+
+.ctx-menu{
+  position:fixed;z-index:4000;display:none;min-width:180px;background:#111c2d;border:1px solid #2f425f;border-radius:10px;
+  box-shadow:0 10px 28px rgba(0,0,0,.42);padding:6px;
+}
+.ctx-menu.open{display:block}
+.ctx-item{
+  width:100%;height:32px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--text);
+  text-align:left;padding:0 10px;cursor:pointer
+}
+.ctx-item:hover{background:rgba(255,255,255,.06);border-color:#354a67}
 
 @media (max-width:1300px){
   .top{grid-template-columns:1fr 1fr}
@@ -155,7 +171,14 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 
   <div class="main">
     <div class="card left">
-      <div class="pathbar"><input id="pathInput" value="/"><button id="btnLoad">Load</button></div>
+      <div class="pathbar">
+        <button id="btnBack" class="navbtn ghost" title="Back">&lt;</button>
+        <button id="btnForward" class="navbtn ghost" title="Forward">&gt;</button>
+        <button id="btnUp" class="navbtn ghost" title="Up">^</button>
+        <input id="pathInput" value="/">
+        <button id="btnLoad">Load</button>
+      </div>
+      <div class="searchbar"><input id="searchInput" placeholder="Search in current folder"><button id="btnSearchClear" class="ghost">Clear</button></div>
       <div id="fileList" class="list"></div>
     </div>
     <div class="card right">
@@ -174,6 +197,18 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       </div>
       <div class="modal-body"><iframe id="scanFrame" src="https://api.oplist.org/" referrerpolicy="no-referrer"></iframe></div>
     </div>
+  </div>
+
+  <div id="ctxMenu" class="ctx-menu">
+    <button class="ctx-item" data-act="copy">Copy</button>
+    <button class="ctx-item" data-act="paste">Paste</button>
+    <button class="ctx-item" data-act="delete">Delete</button>
+    <button class="ctx-item" data-act="download">Download</button>
+    <button class="ctx-item" data-act="rename">Rename</button>
+    <button class="ctx-item" data-act="move">Move</button>
+    <button class="ctx-item" data-act="playview">Play/View</button>
+    <button class="ctx-item" data-act="info">Info</button>
+    <button class="ctx-item" data-act="pin">Pin/Unpin</button>
   </div>
 
 <script>
@@ -197,10 +232,26 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   var openListAutoCheckTimer = 0;
   var openListAutoCheckMs = 12000;
   var adminTokenReqSeq = 0;
+  var fsGetReqSeq = 0;
+  var ffmpegReqSeq = 0;
+  var navBackStack = [];
+  var navForwardStack = [];
+  var currentItems = [];
+  var copiedEntry = null;
+  var selectedEntryPath = "";
+  var pinStoreKey = "cloudplayer_pins_v1";
+  var pinnedMap = {};
+  var lastPlayPath = "";
+  var lastPlaySourceUrl = "";
+  var ffmpegTriedPath = "";
 
   function text(node, v){ node.textContent = v == null ? "" : String(v); }
   function normPath(p){ var v = String(p || "/").trim() || "/"; if (!v.startsWith("/")) v = "/" + v; return v.replace(/\/{2,}/g, "/"); }
   function fmtSize(size){ var n = Number(size || 0); if (!isFinite(n) || n <= 0) return ""; var u=["B","KB","MB","GB","TB"], i=0; while(n>=1024 && i<u.length-1){n/=1024;i++;} return (i===0?Math.round(n):n.toFixed(1))+" "+u[i]; }
+  function escHtml(s){ return String(s==null?"":s).replace(/[&<>\"]/g, function(ch){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[ch] || ch; }); }
+  function splitPath(full){ var p=normPath(full); if(p==="/") return { dir:"/", name:"" }; var i=p.lastIndexOf("/"); return { dir:i<=0?"/":p.slice(0,i), name:p.slice(i+1) }; }
+  function parentPath(p){ var n=normPath(p||"/"); if(n==="/") return "/"; var i=n.lastIndexOf("/"); if(i<=0) return "/"; return n.slice(0,i); }
+  function encodePathForUrl(p){ return normPath(p).split("/").map(function(seg, idx){ return idx===0 ? "" : encodeURIComponent(seg); }).join("/"); }
   function setStatus(ok, label){ $("dot").className = ok ? "dot ok" : "dot"; text($("statusText"), label); }
   function postHost(type, data){ try{ if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage(Object.assign({ type:type }, data||{})); } }catch(_){} }
   function getHeaders(json){
@@ -411,6 +462,24 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     });
   }
 
+  function loadPins(){
+    try{
+      var raw = localStorage.getItem(pinStoreKey);
+      pinnedMap = raw ? (JSON.parse(raw) || {}) : {};
+      if(!pinnedMap || typeof pinnedMap !== "object") pinnedMap = {};
+    }catch(_){ pinnedMap = {}; }
+  }
+  function savePins(){
+    try{ localStorage.setItem(pinStoreKey, JSON.stringify(pinnedMap || {})); }catch(_){}
+  }
+  function isPinned(path){ return !!(pinnedMap && pinnedMap[normPath(path)]); }
+  function togglePin(path){
+    var p = normPath(path);
+    if(isPinned(p)) delete pinnedMap[p];
+    else pinnedMap[p] = 1;
+    savePins();
+  }
+
   function saveSettings(){
     var data = {
       mountAli: normPath($("mountAli").value), mountBaidu: normPath($("mountBaidu").value), mountQuark: normPath($("mountQuark").value),
@@ -518,20 +587,183 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     }
     return false;
   }
+  function buildEntry(raw){
+    var it = raw || {};
+    var name = String(it.name || "");
+    var full = String(it.path || normPath(state.path + "/" + name));
+    return {
+      raw: it,
+      name: name,
+      path: normPath(full),
+      isDir: !!it.is_dir,
+      size: Number(it.size || 0),
+      modified: String(it.modified || it.updated_at || "")
+    };
+  }
+  function getVisibleItems(){
+    var q = String(($("searchInput") && $("searchInput").value) || "").trim().toLowerCase();
+    var arr = Array.isArray(currentItems) ? currentItems.slice() : [];
+    if(q){
+      arr = arr.filter(function(it){ return String(it.name || "").toLowerCase().indexOf(q) !== -1; });
+    }
+    arr.sort(function(a,b){
+      var ap = isPinned(a.path), bp = isPinned(b.path);
+      if(ap !== bp) return ap ? -1 : 1;
+      if(a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+      return String(a.name || "").localeCompare(String(b.name || ""), "zh");
+    });
+    return arr;
+  }
+  function setSelectedPath(path){
+    selectedEntryPath = normPath(path || "");
+    var list = $("fileList");
+    if(!list) return;
+    list.querySelectorAll(".item").forEach(function(el){
+      var p = decodeURIComponent(el.getAttribute("data-path") || "");
+      el.classList.toggle("active", normPath(p) === selectedEntryPath);
+    });
+  }
+  function findEntryByPath(path){
+    var p = normPath(path || "");
+    for(var i=0;i<currentItems.length;i++){
+      if(normPath(currentItems[i].path) === p) return currentItems[i];
+    }
+    return null;
+  }
   function renderList(items){
     var wrap=$("fileList");
-    if(!Array.isArray(items)||!items.length){ wrap.innerHTML='<div class="empty">Empty directory, missing path, or no access.</div>'; return; }
+    currentItems = Array.isArray(items) ? items.map(buildEntry) : [];
+    var rows = getVisibleItems();
+    if(!rows.length){ wrap.innerHTML='<div class="empty">Empty directory, missing path, or no access.</div>'; return; }
     var html="";
-    for(var i=0;i<items.length;i++){
-      var it=items[i]||{}, isDir=!!it.is_dir, name=String(it.name||""), full=String(it.path || normPath(state.path+"/"+name));
-      var ico=isDir?"📁":"🎬", size=isDir?"":fmtSize(it.size);
-      html += '<div class="item" data-path="'+encodeURIComponent(full)+'" data-dir="'+(isDir?"1":"0")+'"><span class="ico '+(isDir?"dir":"file")+'">'+ico+'</span><span class="name">'+name+'</span><span class="meta">'+size+'</span></div>';
+    for(var i=0;i<rows.length;i++){
+      var it=rows[i], ico=it.isDir?"DIR":"FILE", size=it.isDir?"":fmtSize(it.size), pin=isPinned(it.path)?'<span class="pin">*</span>':"";
+      html += '<div class="item" data-path="'+encodeURIComponent(it.path)+'" data-dir="'+(it.isDir?"1":"0")+'"><span class="ico '+(it.isDir?"dir":"file")+'">'+ico+'</span><span class="name">'+pin+escHtml(it.name)+'</span><span class="meta">'+escHtml(size)+'</span></div>';
     }
     wrap.innerHTML=html;
-    wrap.querySelectorAll(".item").forEach(function(el){ el.addEventListener("click", onRowClick); });
+    wrap.querySelectorAll(".item").forEach(function(el){
+      el.addEventListener("click", onRowClick);
+      el.addEventListener("contextmenu", function(e){
+        e.preventDefault();
+        var fullPath = decodeURIComponent(el.getAttribute("data-path")||"/");
+        setSelectedPath(fullPath);
+        openContextMenu(e.clientX, e.clientY, findEntryByPath(fullPath));
+      });
+    });
+    if(selectedEntryPath) setSelectedPath(selectedEntryPath);
   }
-  async function loadList(path, retriedAuth){
-    state.path=normPath(path||state.path||"/");
+  function hideContextMenu(){ $("ctxMenu").classList.remove("open"); $("ctxMenu")._entry = null; }
+  function openContextMenu(x, y, entry){
+    var menu = $("ctxMenu");
+    if(!entry){ hideContextMenu(); return; }
+    menu._entry = entry;
+    menu.style.left = Math.max(8, x) + "px";
+    menu.style.top = Math.max(8, y) + "px";
+    menu.classList.add("open");
+  }
+  async function apiFsAction(path, payload){
+    return await apiPost(path, payload || {});
+  }
+  async function doCopyEntry(entry){
+    if(!entry) return;
+    copiedEntry = { path:entry.path, name:entry.name, isDir:entry.isDir };
+    text($("currentInfo"), "Copied: " + entry.path);
+  }
+  async function doPasteInto(targetDir){
+    if(!copiedEntry){ text($("currentInfo"), "Paste failed: clipboard is empty."); return; }
+    var sp = splitPath(copiedEntry.path);
+    var ret = await apiFsAction("/api/fs/copy", { src_dir:sp.dir, dst_dir:normPath(targetDir||state.path), names:[sp.name] });
+    if(ret.json && ret.json.code === 200){
+      text($("currentInfo"), "Paste success: " + copiedEntry.name);
+      await loadList(state.path, false, { fromHistory:true });
+      return;
+    }
+    text($("currentInfo"), "Paste failed: " + ((ret.json && ret.json.message) || (ret.transport && ret.transport.error) || "unknown error"));
+  }
+  async function doDeleteEntry(entry){
+    if(!entry) return;
+    if(!confirm("Delete '" + entry.name + "' ?")) return;
+    var sp = splitPath(entry.path);
+    var ret = await apiFsAction("/api/fs/remove", { dir:sp.dir, names:[sp.name] });
+    if(ret.json && ret.json.code === 200){
+      text($("currentInfo"), "Deleted: " + entry.name);
+      await loadList(state.path, false, { fromHistory:true });
+      return;
+    }
+    text($("currentInfo"), "Delete failed: " + ((ret.json && ret.json.message) || (ret.transport && ret.transport.error) || "unknown error"));
+  }
+  async function doRenameEntry(entry){
+    if(!entry) return;
+    var nextName = prompt("Rename to:", entry.name);
+    if(!nextName || nextName.trim() === "" || nextName.trim() === entry.name) return;
+    var ret = await apiFsAction("/api/fs/rename", { path:entry.path, name:nextName.trim() });
+    if(ret.json && ret.json.code === 200){
+      text($("currentInfo"), "Renamed: " + entry.name + " -> " + nextName.trim());
+      await loadList(state.path, false, { fromHistory:true });
+      return;
+    }
+    text($("currentInfo"), "Rename failed: " + ((ret.json && ret.json.message) || (ret.transport && ret.transport.error) || "unknown error"));
+  }
+  async function doMoveEntry(entry){
+    if(!entry) return;
+    var dst = prompt("Move to path:", state.path);
+    if(!dst) return;
+    var sp = splitPath(entry.path);
+    var ret = await apiFsAction("/api/fs/move", { src_dir:sp.dir, dst_dir:normPath(dst), names:[sp.name] });
+    if(ret.json && ret.json.code === 200){
+      text($("currentInfo"), "Moved: " + entry.name + " -> " + normPath(dst));
+      await loadList(state.path, false, { fromHistory:true });
+      return;
+    }
+    text($("currentInfo"), "Move failed: " + ((ret.json && ret.json.message) || (ret.transport && ret.transport.error) || "unknown error"));
+  }
+  async function doDownloadEntry(entry){
+    if(!entry || entry.isDir) return;
+    var res = await resolveFileUrl(entry.path);
+    if(!res.url){ text($("currentInfo"), "Download failed: cannot resolve URL."); return; }
+    openExternal(res.url);
+    text($("currentInfo"), "Download opened in browser: " + entry.name);
+  }
+  function showEntryInfo(entry){
+    if(!entry) return;
+    var lines = [
+      "Name: " + entry.name,
+      "Path: " + entry.path,
+      "Type: " + (entry.isDir ? "Folder" : "File"),
+      "Size: " + (entry.isDir ? "-" : (fmtSize(entry.size) || "0 B")),
+      "Modified: " + (entry.modified || "-"),
+      "Pinned: " + (isPinned(entry.path) ? "Yes" : "No")
+    ];
+    text($("currentInfo"), lines.join(" | "));
+  }
+  async function onContextAction(act){
+    var entry = $("ctxMenu")._entry || (selectedEntryPath ? findEntryByPath(selectedEntryPath) : null);
+    hideContextMenu();
+    if(act==="copy") return doCopyEntry(entry);
+    if(act==="paste") return doPasteInto((entry && entry.isDir) ? entry.path : state.path);
+    if(act==="delete") return doDeleteEntry(entry);
+    if(act==="download") return doDownloadEntry(entry);
+    if(act==="rename") return doRenameEntry(entry);
+    if(act==="move") return doMoveEntry(entry);
+    if(act==="playview") return playEntry(entry);
+    if(act==="info") return showEntryInfo(entry);
+    if(act==="pin"){
+      if(!entry) return;
+      togglePin(entry.path);
+      renderList(currentItems.map(function(it){ return it.raw || it; }));
+      text($("currentInfo"), (isPinned(entry.path) ? "Pinned: " : "Unpinned: ") + entry.name);
+    }
+  }
+  async function loadList(path, retriedAuth, opts){
+    opts = opts || {};
+    var nextPath = normPath(path||state.path||"/");
+    var prevPath = normPath(state.path||"/");
+    if(!opts.fromHistory && prevPath !== nextPath){
+      navBackStack.push(prevPath);
+      if(navBackStack.length > 100) navBackStack.shift();
+      navForwardStack = [];
+    }
+    state.path=nextPath;
     $("pathInput").value=state.path;
     text($("currentInfo"), "Loading: " + state.path);
     if(state.path.indexOf("/aliyun") === 0){
@@ -569,7 +801,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
         if(tk.ok && tk.token){
           $("token").value = tk.token;
           state.token = tk.token;
-          await loadList(state.path, true);
+          await loadList(state.path, true, { fromHistory:true });
           return;
         }
       }
@@ -600,27 +832,108 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     renderList(content);
     text($("currentInfo"), "Loaded " + content.length + " items (" + state.path + ")");
   }
+  function makeDirectDUrl(fullPath){
+    return state.apiBase.replace(/\/+$/,'') + '/d' + encodePathForUrl(fullPath);
+  }
+  async function requestFsGetViaHost(fullPath, token, timeoutMs){
+    timeoutMs = timeoutMs || 4000;
+    var reqId = "fsget_" + Date.now() + "_" + (++fsGetReqSeq);
+    return new Promise(function(resolve){
+      var done = false;
+      var handler = function(evt){
+        var data = evt && evt.data ? evt.data : null;
+        if(!data || data.type !== "cloudplayer_fs_get_result") return;
+        if(String(data.reqId||"") !== reqId) return;
+        if(done) return;
+        done = true;
+        clearTimeout(timer);
+        try{ if(window.chrome && window.chrome.webview) window.chrome.webview.removeEventListener("message", handler); }catch(_){ }
+        var bodyText = String(data.text || "");
+        var json = null, parseError = "";
+        try{ json = JSON.parse(bodyText || "{}"); }catch(e){ parseError = e && e.message ? e.message : "json parse failed"; }
+        resolve({ ok:!!data.ok, status:Number(data.status||0), error:String(data.error||""), json:json, parseError:parseError, bodyText:bodyText });
+      };
+      var timer = setTimeout(function(){
+        if(done) return;
+        done = true;
+        try{ if(window.chrome && window.chrome.webview) window.chrome.webview.removeEventListener("message", handler); }catch(_){ }
+        resolve({ ok:false, status:0, error:"timeout", json:null, parseError:"timeout", bodyText:"" });
+      }, timeoutMs);
+      try{ if(window.chrome && window.chrome.webview) window.chrome.webview.addEventListener("message", handler); }catch(_){ }
+      postHost("cloudplayer_fs_get", { apiBase: state.apiBase, path:String(fullPath||"/"), token:String(token||""), reqId:reqId });
+    });
+  }
+  async function requestFfmpegHls(fullPath, sourceUrl, timeoutMs){
+    timeoutMs = timeoutMs || 12000;
+    var reqId = "ffmpeg_" + Date.now() + "_" + (++ffmpegReqSeq);
+    return new Promise(function(resolve){
+      var done = false;
+      var handler = function(evt){
+        var data = evt && evt.data ? evt.data : null;
+        if(!data || data.type !== "cloudplayer_ffmpeg_hls_result") return;
+        if(String(data.reqId||"") !== reqId) return;
+        if(done) return;
+        done = true;
+        clearTimeout(timer);
+        try{ if(window.chrome && window.chrome.webview) window.chrome.webview.removeEventListener("message", handler); }catch(_){ }
+        resolve({ ok:!!data.ok, playUrl:String(data.playUrl||""), message:String(data.message||"") });
+      };
+      var timer = setTimeout(function(){
+        if(done) return;
+        done = true;
+        try{ if(window.chrome && window.chrome.webview) window.chrome.webview.removeEventListener("message", handler); }catch(_){ }
+        resolve({ ok:false, playUrl:"", message:"ffmpeg fallback timeout" });
+      }, timeoutMs);
+      try{ if(window.chrome && window.chrome.webview) window.chrome.webview.addEventListener("message", handler); }catch(_){ }
+      postHost("cloudplayer_ffmpeg_hls", {
+        apiBase: state.apiBase,
+        path:String(fullPath||""),
+        sourceUrl:String(sourceUrl||""),
+        token:String((($("token") && $("token").value) || state.token || "").trim()),
+        reqId:reqId
+      });
+    });
+  }
   async function resolveFileUrl(fullPath){
-    var ret=await apiPost("/api/fs/get", { path:fullPath, password:"" });
-    var d=ret.json && ret.json.data ? ret.json.data : {};
-    if(d && typeof d.raw_url==="string" && d.raw_url) return d.raw_url;
-    if(d && typeof d.url==="string" && d.url) return d.url;
-    if(d && d.content && typeof d.content.url==="string" && d.content.url) return d.content.url;
-    return "";
+    var liveToken = String(($("token") && $("token").value) || state.token || "").trim();
+    var viaHost = await requestFsGetViaHost(fullPath, liveToken, 4200);
+    var ret = null;
+    if(viaHost && viaHost.json){
+      ret = { transport:{ ok:viaHost.ok, status:viaHost.status, error:viaHost.error }, json:viaHost.json };
+    }else{
+      ret = await apiPost("/api/fs/get", { path:fullPath, password:"" });
+    }
+    var d = ret.json && ret.json.data ? ret.json.data : {};
+    if(d && typeof d.raw_url === "string" && d.raw_url) return { url:d.raw_url, source:"raw_url" };
+    if(d && typeof d.url === "string" && d.url) return { url:d.url, source:"url" };
+    if(d && d.content && typeof d.content.url === "string" && d.content.url) return { url:d.content.url, source:"content.url" };
+    return { url:makeDirectDUrl(fullPath), source:"/d fallback" };
   }
   function playUrl(url, title){
     var u=String(url||"").trim();
     if(!u){ text($("currentInfo"), "Play failed: empty URL"); return; }
-    var v=$("video"); v.src=u; v.play().catch(function(){});
+    var v=$("video");
+    v.src=u;
+    v.play().catch(function(){});
     text($("currentInfo"), "Playing: " + (title || u));
+  }
+  async function playEntry(entry){
+    if(!entry) return;
+    if(entry.isDir){ await loadList(entry.path); return; }
+    text($("currentInfo"), "Resolving stream URL: " + entry.path);
+    var link = await resolveFileUrl(entry.path);
+    if(!link || !link.url){ text($("currentInfo"), "Failed to resolve stream URL."); return; }
+    lastPlayPath = entry.path;
+    lastPlaySourceUrl = link.url;
+    ffmpegTriedPath = "";
+    playUrl(link.url, entry.path);
   }
   async function onRowClick(e){
     var el=e.currentTarget, fullPath=decodeURIComponent(el.getAttribute("data-path")||"/");
-    if(el.getAttribute("data-dir")==="1"){ await loadList(fullPath); return; }
-    text($("currentInfo"), "Resolving stream URL: " + fullPath);
-    var link=await resolveFileUrl(fullPath);
-    if(!link){ text($("currentInfo"), "Failed to resolve stream URL."); return; }
-    playUrl(link, fullPath);
+    setSelectedPath(fullPath);
+    var entry = findEntryByPath(fullPath) || { path:fullPath, isDir:el.getAttribute("data-dir")==="1", name:splitPath(fullPath).name };
+    if(entry.isDir){ await loadList(fullPath); return; }
+    await playEntry(entry);
   }
   function openProvider(name){
     saveSettings();
@@ -668,6 +981,31 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   }
   function bindEvents(){
     $("btnLoad").addEventListener("click", function(){ loadList($("pathInput").value); });
+    $("btnBack").addEventListener("click", async function(){
+      if(!navBackStack.length) return;
+      var prev = navBackStack.pop();
+      if(normPath(prev) === normPath(state.path)) return;
+      navForwardStack.push(normPath(state.path));
+      await loadList(prev, false, { fromHistory:true });
+    });
+    $("btnForward").addEventListener("click", async function(){
+      if(!navForwardStack.length) return;
+      var next = navForwardStack.pop();
+      if(normPath(next) === normPath(state.path)) return;
+      navBackStack.push(normPath(state.path));
+      await loadList(next, false, { fromHistory:true });
+    });
+    $("btnUp").addEventListener("click", function(){ loadList(parentPath(state.path)); });
+    $("searchInput").addEventListener("input", function(){
+      renderList(currentItems.map(function(it){ return it.raw || it; }));
+      var vis = getVisibleItems();
+      text($("currentInfo"), "Filtered " + vis.length + " / " + currentItems.length + " items (" + state.path + ")");
+    });
+    $("btnSearchClear").addEventListener("click", function(){
+      $("searchInput").value = "";
+      renderList(currentItems.map(function(it){ return it.raw || it; }));
+      text($("currentInfo"), "Loaded " + currentItems.length + " items (" + state.path + ")");
+    });
     $("btnDashboard").addEventListener("click", function(){ postHost("cloudplayer_open_dashboard"); });
     $("btnRestart").addEventListener("click", function(){ postHost("cloudplayer_restart_openlist"); });
     $("btnPlayUrl").addEventListener("click", function(){ playUrl($("manualUrl").value, "manual URL"); });
@@ -721,6 +1059,32 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     $("btnImportAliyun").addEventListener("click", doAliImport);
     $("aliRefreshToken").addEventListener("keydown", function(e){ if(e.key==="Enter") doAliImport(); });
 
+    $("ctxMenu").querySelectorAll(".ctx-item").forEach(function(btn){
+      btn.addEventListener("click", function(){ onContextAction(btn.getAttribute("data-act") || ""); });
+    });
+    document.addEventListener("click", function(e){
+      if(!e.target.closest || !e.target.closest("#ctxMenu")) hideContextMenu();
+    });
+    $("fileList").addEventListener("contextmenu", function(e){
+      if(e.target === $("fileList")){
+        e.preventDefault();
+        setSelectedPath("");
+        openContextMenu(e.clientX, e.clientY, { path:state.path, name:state.path, isDir:true, size:0, modified:"" });
+      }
+    });
+    $("video").addEventListener("error", async function(){
+      if(!lastPlayPath || !lastPlaySourceUrl) return;
+      if(ffmpegTriedPath === lastPlayPath) return;
+      ffmpegTriedPath = lastPlayPath;
+      text($("currentInfo"), "Native playback failed, trying ffmpeg fallback...");
+      var ret = await requestFfmpegHls(lastPlayPath, lastPlaySourceUrl, 15000);
+      if(ret.ok && ret.playUrl){
+        playUrl(ret.playUrl, lastPlayPath + " (ffmpeg)");
+      }else{
+        text($("currentInfo"), "Failed to resolve stream URL. ffmpeg fallback failed: " + (ret.message || "unknown"));
+      }
+    });
+
     ["mountAli","mountBaidu","mountQuark","aliMountPath","advRootFolderId","advDriveType","advAlipanType","advUseOnlineApi","advClientId","advClientSecret","advApiUrlAddress"].forEach(function(id){
       $(id).addEventListener("change", saveSettings);
       $(id).addEventListener("blur", saveSettings);
@@ -768,6 +1132,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   }
   async function boot(){
     loadSettings();
+    loadPins();
     bindEvents();
     if(window.chrome && window.chrome.webview) window.chrome.webview.addEventListener("message", onHostMessage);
     state.apiBase = $("apiBase").value.trim() || "http://127.0.0.1:5244";
@@ -782,3 +1147,4 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 </script>
 </body>
 </html>
+

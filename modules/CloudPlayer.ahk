@@ -8,6 +8,8 @@ global g_CloudPlayerOpenListPid := 0
 global g_CloudPlayerApiBase := "http://127.0.0.1:5244"
 global g_CloudPlayerImportBusy := false
 global g_CloudPlayerAutoPulseEnabled := false
+global g_CloudPlayerFfmpegPid := 0
+global g_CloudPlayerFfmpegOutDir := ""
 
 ShowCloudPlayer(*) {
     CloudPlayer_Show()
@@ -74,6 +76,7 @@ CloudPlayer_OnGuiClose(*) {
     global g_CloudPlayerGui, g_CloudPlayerAutoPulseEnabled
     try g_CloudPlayerGui.Hide()
     g_CloudPlayerAutoPulseEnabled := false
+    CloudPlayer_StopFfmpegJob()
 }
 
 CloudPlayer_OnGuiSize(guiObj, minMax, width, height) {
@@ -234,6 +237,44 @@ CloudPlayer_OnWebMessage(sender, args) {
             "status", retFs["status"],
             "error", retFs["error"],
             "text", retFs["text"]
+        ))
+        return
+    }
+
+    if (typ = "cloudplayer_fs_get") {
+        path := payload.Has("path") ? String(payload["path"]) : "/"
+        token := payload.Has("token") ? Trim(String(payload["token"])) : ""
+        reqId := payload.Has("reqId") ? String(payload["reqId"]) : ""
+        headers := Map("Content-Type", "application/json")
+        if (token != "")
+            headers["Authorization"] := token
+        body := Jxon_Dump(Map("path", path, "password", ""))
+        retGet := CloudPlayer_HttpJson("POST", g_CloudPlayerApiBase . "/api/fs/get", headers, body)
+        try WebView_QueuePayload(g_CloudPlayerWv2, Map(
+            "type", "cloudplayer_fs_get_result",
+            "reqId", reqId,
+            "path", path,
+            "ok", retGet["ok"],
+            "status", retGet["status"],
+            "error", retGet["error"],
+            "text", retGet["text"]
+        ))
+        return
+    }
+
+    if (typ = "cloudplayer_ffmpeg_hls") {
+        reqId := payload.Has("reqId") ? String(payload["reqId"]) : ""
+        srcUrl := payload.Has("sourceUrl") ? Trim(String(payload["sourceUrl"])) : ""
+        token := payload.Has("token") ? Trim(String(payload["token"])) : ""
+        path := payload.Has("path") ? String(payload["path"]) : ""
+        errMsg := ""
+        playUrl := CloudPlayer_StartFfmpegHls(srcUrl, token, path, &errMsg, 12000)
+        try WebView_QueuePayload(g_CloudPlayerWv2, Map(
+            "type", "cloudplayer_ffmpeg_hls_result",
+            "reqId", reqId,
+            "ok", playUrl != "",
+            "playUrl", playUrl,
+            "message", playUrl != "" ? "ok" : (errMsg != "" ? errMsg : "ffmpeg failed")
         ))
         return
     }
@@ -896,6 +937,90 @@ CloudPlayer_HttpJson(method, url, headers := 0, body := "") {
         ret["error"] := e.Message
     }
     return ret
+}
+
+CloudPlayer_StopFfmpegJob() {
+    global g_CloudPlayerFfmpegPid, g_CloudPlayerFfmpegOutDir
+    if (g_CloudPlayerFfmpegPid > 0) {
+        try ProcessClose(g_CloudPlayerFfmpegPid)
+        catch {
+        }
+    }
+    g_CloudPlayerFfmpegPid := 0
+    if (g_CloudPlayerFfmpegOutDir != "") {
+        try DirDelete(g_CloudPlayerFfmpegOutDir, true)
+        catch {
+        }
+    }
+    g_CloudPlayerFfmpegOutDir := ""
+}
+
+CloudPlayer_PathToFileUrl(path) {
+    p := String(path)
+    p := StrReplace(p, "\", "/")
+    p := StrReplace(p, " ", "%20")
+    return "file:///" . p
+}
+
+CloudPlayer_StartFfmpegHls(sourceUrl, token := "", filePath := "", &errMsg := "", timeoutMs := 12000) {
+    global g_CloudPlayerFfmpegPid, g_CloudPlayerFfmpegOutDir
+    errMsg := ""
+    src := Trim(String(sourceUrl))
+    if (src = "") {
+        errMsg := "empty source URL"
+        return ""
+    }
+    ffmpeg := A_ScriptDir . "\lib\ffmpeg.exe"
+    if !FileExist(ffmpeg) {
+        errMsg := "ffmpeg not found: " . ffmpeg
+        return ""
+    }
+
+    CloudPlayer_StopFfmpegJob()
+
+    outDir := A_Temp . "\cloudplayer_hls_" . A_Now . "_" . A_TickCount
+    try DirCreate(outDir)
+    catch as e {
+        errMsg := "cannot create ffmpeg temp dir: " . e.Message
+        return ""
+    }
+    outM3u8 := outDir . "\index.m3u8"
+    q := Chr(34)
+    cmd := q . ffmpeg . q . " -hide_banner -loglevel error -y"
+    if (Trim(String(token)) != "")
+        cmd .= " -headers " . q . "Authorization: " . token . "`r`n" . q
+    cmd .= " -i " . q . src . q
+    cmd .= " -c copy -f hls -hls_time 4 -hls_list_size 0 -hls_flags independent_segments "
+    cmd .= q . outM3u8 . q
+
+    pid := 0
+    try Run(cmd, A_ScriptDir, "Hide", &pid)
+    catch as e {
+        errMsg := "cannot start ffmpeg: " . e.Message
+        try DirDelete(outDir, true)
+        catch {
+        }
+        return ""
+    }
+
+    g_CloudPlayerFfmpegPid := pid
+    g_CloudPlayerFfmpegOutDir := outDir
+
+    waitUntil := A_TickCount + Max(1200, timeoutMs)
+    while (A_TickCount < waitUntil) {
+        if FileExist(outM3u8) {
+            sz := 0
+            try sz := FileGetSize(outM3u8)
+            catch {
+                sz := 0
+            }
+            if (sz > 0)
+                return CloudPlayer_PathToFileUrl(outM3u8)
+        }
+        Sleep(200)
+    }
+    errMsg := "ffmpeg output timeout"
+    return ""
 }
 
 CloudPlayer_OpenExternalUrl(url) {
