@@ -170,44 +170,196 @@ body::after {
   50% { box-shadow: 0 0 18px rgba(0,212,255,.28), 0 0 36px rgba(0,212,255,.16); transform: scale(1.015); }
 }
 .cmd-route-graph {
-  margin-top: 4px;
-  border: 1px dashed rgba(230,126,34,.35);
-  border-radius: 8px;
-  padding: 5px 8px;
-  background: rgba(24,18,12,.45);
+  margin-top: 5px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 12px;
+  padding: 6px;
+  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
   font-size: 10px;
-  color: #b9b9b9;
+  color: #c8c8c8;
+  transition: border-color .2s ease, background .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.cmd-route-graph:hover {
+  border-color: rgba(255,255,255,.22);
+  box-shadow: 0 8px 18px rgba(0,0,0,.22);
+  transform: translateY(-1px);
 }
 .cmd-route-lane { margin-bottom: 4px; }
 .cmd-route-lane:last-child { margin-bottom: 0; }
 .cmd-route-layer {
-  color: #8d8d8d;
+  color: #a8a8a8;
   font-size: 10px;
   margin-bottom: 3px;
+  letter-spacing: .2px;
 }
 .cmd-route-items {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  flex-direction: column;
+  gap: 6px;
 }
 .cmd-route-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 10px;
+  padding: 5px 6px;
+  background: rgba(255,255,255,.03);
+  color: #f3f3f3;
+}
+.cmd-route-scene-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border: 1px solid rgba(230,126,34,.4);
-  border-radius: 6px;
-  padding: 2px 6px;
-  background: rgba(230,126,34,.08);
-  color: #ffd8ad;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 999px;
+  padding: 1px 6px;
+  color: #d8e9ff;
+  background: rgba(0,212,255,.09);
+  white-space: nowrap;
 }
 .cmd-route-item svg {
   width: 12px;
   height: 12px;
   stroke: currentColor;
 }
+.cmd-route-item-main {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+}
+.cmd-route-item-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmd-route-item-main strong {
+  font-weight: 600;
+}
 .cmd-route-dup {
   margin-top: 4px;
-  color: #ffd17d;
+  color: #d5b17f;
+}
+.cmd-route-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 0;
+}
+.cmd-route-toggle,
+.cmd-route-back {
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.04);
+  color: #f1f1f1;
+  border-radius: 8px;
+  padding: 2px 8px;
+  font-size: 10px;
+  cursor: pointer;
+  transition: border-color .16s ease, background .16s ease, transform .16s ease;
+}
+.cmd-route-toggle:hover,
+.cmd-route-back:hover {
+  border-color: rgba(255,255,255,.34);
+  background: rgba(255,255,255,.08);
+  transform: translateY(-1px);
+}
+.cmd-route-back {
+  border-color: rgba(0,212,255,.38);
+  background: rgba(0,212,255,.08);
+  color: #bcefff;
+}
+.cmd-route-lanes,
+.cmd-route-items,
+.cmd-route-dup {
+  max-height: 320px;
+  opacity: 1;
+  transform: translateY(0);
+  overflow: hidden;
+  transition: max-height .28s ease, opacity .2s ease, transform .2s ease;
+}
+.cmd-route-collapsed .cmd-route-lanes,
+.cmd-route-collapsed .cmd-route-dup,
+.cmd-route-collapsed .cmd-route-items,
+.cmd-route-collapsed .cmd-route-overview,
+.cmd-route-collapsed .cmd-route-scene-tabs,
+.cmd-route-collapsed .cmd-route-summary {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+}
+.cmd-route-overview {
+  color: #b7b7b7;
+  font-size: 10px;
+  margin-top: 3px;
+}
+.cmd-route-summary {
+  color: #9fb4bd;
+  font-size: 10px;
+  margin-top: 2px;
+}
+.cmd-route-scene-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 4px 0 2px;
+  scrollbar-width: thin;
+}
+.cmd-route-scene-tab {
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(255,255,255,.03);
+  color: #dbdbdb;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 10px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cmd-route-scene-tab.active {
+  border-color: rgba(0,212,255,.48);
+  color: #bfefff;
+  background: rgba(0,212,255,.14);
+}
+.cmd-route-graph.cmd-route-collapsed {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  margin-top: 2px;
+}
+.cmd-route-graph.cmd-route-collapsed:hover {
+  border-color: transparent;
+  box-shadow: none;
+}
+.cmd-route-graph.cmd-route-collapsed .cmd-route-toggle-row {
+  justify-content: flex-end;
+}
+.cmd-route-jump {
+  border: 1px solid rgba(0,212,255,.35);
+  background: rgba(0,212,255,.12);
+  color: #bcefff;
+  border-radius: 8px;
+  padding: 1px 6px;
+  font-size: 10px;
+  margin-left: 2px;
+  cursor: pointer;
+}
+.cmd-route-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+}
+.cmd-route-icon-btn svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
 }
 .vk-key-chord { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .vk-key-chip {
@@ -222,48 +374,6 @@ body::after {
   font-size: 10px;
 }
 .vk-key-join { color: #7d7d7d; margin: 0 2px; }
-#safe-base {
-  border-top: 1px solid var(--border);
-  padding: 8px 10px 10px;
-  background: linear-gradient(180deg, rgba(230,126,34,.06), rgba(230,126,34,.02));
-}
-#safe-base-title {
-  font-size: 11px;
-  color: #ffd39e;
-  margin-bottom: 6px;
-}
-#safe-base-desc {
-  font-size: 10px;
-  color: #9f9f9f;
-  margin-bottom: 8px;
-}
-#safe-base-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-.safe-core-item {
-  border: 1px solid rgba(255,204,0,.4);
-  border-radius: 6px;
-  padding: 3px 8px;
-  background: rgba(255,204,0,.08);
-  color: #ffe7a0;
-  cursor: pointer;
-  font-size: 10px;
-}
-.safe-core-item:hover { box-shadow: var(--glow-gold); }
-#safe-base-reset {
-  width: 100%;
-  border: 1px solid rgba(0,212,255,.45);
-  border-radius: 8px;
-  background: rgba(0,212,255,.09);
-  color: #bcf4ff;
-  font-size: 11px;
-  padding: 6px 8px;
-  cursor: pointer;
-}
-#safe-base-reset:hover { box-shadow: var(--glow-cyan); }
 /* ── Layout Toggle Button ──────────────────────────────────────────────── */
 #layout-toggle {
   font-family: var(--font);
@@ -2900,12 +3010,6 @@ body[data-theme="light"] .dashboard-edit-input:focus {
       <div id="cmd-list-wrapper">
         <div id="cmd-list"></div>
       </div>
-      <div id="safe-base">
-        <div id="safe-base-title">安全底座 · 系统核心</div>
-        <div id="safe-base-desc">这些保底命令随时可用，不可被场景覆盖。</div>
-        <div id="safe-base-list"></div>
-        <button id="safe-base-reset" type="button">重置为初始规划</button>
-      </div>
     </div>
 
   </div><!-- #bottom-zone -->
@@ -2994,6 +3098,9 @@ const state = {
   sceneMenuHighlightId: null,
   /** 当前选中的场景右键菜单宫格（与下方宫格联动展示） */
   activeSceneMenuKey: 'floating_bar',
+  routeGraphExpanded: {},
+  routeGraphSceneTab: {},
+  routeNavStack: [],
   /** main=仅快捷动作宫格；scene=仅场景菜单宫格（不同时显示） */
   dashboardPanelMode: 'scene',
   /** 宫格右键菜单当前针对：main | sceneMenu */
@@ -5550,7 +5657,6 @@ function handleInit(msg) {
   renderAdminWarning();
   initDashboardDrag();
   syncDashboardPanelVisibility();
-  renderSafeBase();
 }
 
 function handleBindingUpdated(msg) {
@@ -7004,6 +7110,55 @@ function renderCommandList() {
     if (binding?.ahkKey) triggerKeyRipple(binding.ahkKey);
     else if (state.suggestedBindings[onlyId]) triggerKeyRipple(state.suggestedBindings[onlyId]);
   }
+  bindRouteGraphActions();
+}
+
+function bindRouteGraphActions() {
+  document.querySelectorAll('.cmd-route-toggle').forEach((btn) => {
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const key = String(btn.dataset.routeToggle || '');
+      if (!key) return;
+      state.routeGraphExpanded[key] = !state.routeGraphExpanded[key];
+      renderCommandList();
+    });
+  });
+  document.querySelectorAll('.cmd-route-jump').forEach((btn) => {
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const fromId = String(btn.dataset.routeFrom || '');
+      const toId = String(btn.dataset.routeJump || '');
+      if (!toId) return;
+      if (fromId) state.routeNavStack.push(fromId);
+      focusCommandById(toId);
+    });
+  });
+  document.querySelectorAll('.cmd-route-back').forEach((btn) => {
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const backId = state.routeNavStack.pop();
+      if (backId) focusCommandById(backId);
+      else renderCommandList();
+    });
+  });
+  document.querySelectorAll('.cmd-route-scene-tab').forEach((btn) => {
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const key = String(btn.dataset.routeKey || '');
+      const scene = String(btn.dataset.routeScene || '');
+      if (!key || !scene) return;
+      state.routeGraphSceneTab[key] = scene;
+      renderCommandList();
+    });
+  });
 }
 
 function findCategoryIdByCommand(cmdId) {
@@ -7173,6 +7328,11 @@ function computeRouteGraph(ahkKey) {
   const target = String(ahkKey || '').trim();
   if (!target) return [];
   const targetCanon = canonicalRouteKey('', target);
+  return computeRouteGraphByCanonical(targetCanon);
+}
+
+function computeRouteGraphByCanonical(targetCanon) {
+  if (!targetCanon) return [];
   const nodes = [];
   for (const [cmdId] of Object.entries(state.commands || {})) {
     const k = effectiveAhkForCmd(cmdId);
@@ -7207,29 +7367,57 @@ function canonicalRouteKey(cmdId, ahkKey) {
   return key.toLowerCase();
 }
 
-function routeGraphHtml(ahkKey) {
-  const nodes = computeRouteGraph(ahkKey);
+function routeGraphHtml(ahkKey, cmdId = '') {
+  const keyCanon = canonicalRouteKey(cmdId, ahkKey);
+  const nodes = computeRouteGraphByCanonical(keyCanon);
   if (!nodes.length) return '';
-  const grouped = new Map();
-  for (const n of nodes) {
-    const p = Number(n.priority);
-    if (!grouped.has(p)) grouped.set(p, []);
-    grouped.get(p).push(n);
+  const sameKeyNodes = nodes.filter((n) => n.cmdId !== cmdId);
+  if (!sameKeyNodes.length) return '';
+  const expanded = !!state.routeGraphExpanded[keyCanon];
+  const iconExpand = renderLucideIconSvg(expanded ? 'chevrons-up' : 'chevrons-down');
+  const iconBack = renderLucideIconSvg('arrow-left');
+  const iconJump = renderLucideIconSvg('arrow-up-right');
+  const sceneBuckets = new Map();
+  for (const n of sameKeyNodes) {
+    const sid = String(state.commandRoutes?.[n.cmdId]?.scenarioId || n.context || 'global');
+    if (!sceneBuckets.has(sid)) sceneBuckets.set(sid, []);
+    sceneBuckets.get(sid).push(n);
   }
-  const layerName = (p) => (p === 1 ? '第一关 · 和弦' : (p === 2 ? '第二关 · 场景' : (p === 3 ? '第三关 · 全局' : '系统核心')));
-  const lanes = [0, 1, 2, 3]
-    .filter((p) => grouped.has(p))
-    .map((p) => {
-      const items = grouped.get(p).map((n) => {
-        const cmd = state.commands?.[n.cmdId] || {};
-        const icon = renderLucideIconSvg(resolveLucideIconName(cmd.iconClass || cmd.iconName || '', n.cmdId, cmd));
-        return `<span class="cmd-route-item">${icon}<span>${escapeHtml(n.name)}</span></span>`;
-      }).join('');
-      return `<div class="cmd-route-lane"><div class="cmd-route-layer">${layerName(p)}</div><div class="cmd-route-items">${items}</div></div>`;
-    });
-  const hasCrossLayer = new Set(nodes.map((n) => Number(n.priority))).size > 1;
-  const dupHint = hasCrossLayer ? '<div class="cmd-route-dup">同键已在多层级复用，将按优先级分流。</div>' : '';
-  return `<div class="cmd-route-graph">${lanes.join('')}${dupHint}</div>`;
+  const sceneIds = Array.from(sceneBuckets.keys());
+  if (!state.routeGraphSceneTab[keyCanon] || !sceneBuckets.has(state.routeGraphSceneTab[keyCanon])) {
+    state.routeGraphSceneTab[keyCanon] = sceneIds[0];
+  }
+  const activeScene = state.routeGraphSceneTab[keyCanon];
+  const activeNodes = sceneBuckets.get(activeScene) || [];
+
+  const sceneTabs = sceneIds.map((sid) => {
+    const label = scenarioLabelText(SCENE_MENU_LABELS[sid] || sid);
+    const c = (sceneBuckets.get(sid) || []).length;
+    return `<button class="cmd-route-scene-tab ${sid === activeScene ? 'active' : ''}" data-route-scene="${escapeHtml(sid)}" data-route-key="${escapeHtml(keyCanon)}">${escapeHtml(label)}(${c})</button>`;
+  }).join('');
+
+  const jumpItems = activeNodes.map((n) => {
+    const c = state.commands?.[n.cmdId] || {};
+    const icon = renderLucideIconSvg(resolveLucideIconName(c.iconClass || c.iconName || '', n.cmdId, c));
+    const sid = String(state.commandRoutes?.[n.cmdId]?.scenarioId || n.context || activeScene);
+    const sName = scenarioLabelText(SCENE_MENU_LABELS[sid] || sid);
+    const sIcon = scenarioIconHtml(sid);
+    return `<span class="cmd-route-item"><span class="cmd-route-scene-chip">${sIcon}<span>${escapeHtml(sName)}</span></span><span class="cmd-route-item-main">${icon}<strong>${escapeHtml(n.name)}</strong></span><button class="cmd-route-jump cmd-route-icon-btn" title="跳转到该命令" aria-label="跳转到该命令" data-route-jump="${escapeHtml(n.cmdId)}" data-route-from="${escapeHtml(cmdId)}">${iconJump}</button></span>`;
+  }).join('');
+  const backBtn = state.routeNavStack.length
+    ? `<button class="cmd-route-back cmd-route-icon-btn" title="返回上一个命令" aria-label="返回上一个命令" data-route-back="1">${iconBack}</button>`
+    : '';
+  const multiScene = sceneIds.length > 1;
+  const showOverview = sameKeyNodes.length > 1 || sceneIds.length > 1;
+  return `<div class="cmd-route-graph ${expanded ? '' : 'cmd-route-collapsed'}" data-route-key="${escapeHtml(keyCanon)}">
+    <div class="cmd-route-toggle-row">
+      <button class="cmd-route-toggle cmd-route-icon-btn" title="${expanded ? '收起同键命令' : '查看同键命令'}" aria-label="${expanded ? '收起同键命令' : '查看同键命令'}" data-route-toggle="${escapeHtml(keyCanon)}">${iconExpand}</button>
+      ${backBtn}
+    </div>
+    ${showOverview ? `<div class="cmd-route-overview">${sameKeyNodes.length} 命令 / ${sceneIds.length} 场景</div>` : ''}
+    ${multiScene ? `<div class="cmd-route-scene-tabs">${sceneTabs}</div>` : ''}
+    <div class="cmd-route-items">${jumpItems}</div>
+  </div>`;
 }
 
 function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
@@ -7286,7 +7474,7 @@ function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
   const keyEl = mkEl('div', 'cmd-key', '');
   keyEl.innerHTML = isRec ? '录制中：按下快捷键（连按两次可录制序列）...' : displayKeyForCmd(cmdId);
   const activeKey = binding?.explicitNone ? '' : (binding?.ahkKey || state.suggestedBindings[cmdId] || '');
-  const flow = routeGraphHtml(activeKey);
+  const flow = routeGraphHtml(activeKey, cmdId);
   if (flow) keyEl.innerHTML += flow;
 
   const actions = document.createElement('div');
@@ -7701,32 +7889,6 @@ document.getElementById('reset-all')?.addEventListener('click', () => {
   const ok = confirm('确定要恢复所有出厂设置吗？这将清空您所有的自定义快捷键且不可撤销。');
   if (!ok) return;
   postToAhk({ type: 'reset_all' });
-});
-
-function renderSafeBase() {
-  const host = document.getElementById('safe-base-list');
-  if (!host) return;
-  host.innerHTML = '';
-  const core = Object.entries(state.commands || {})
-    .filter(([, c]) => Number(c?.priority) === 0)
-    .slice(0, 12);
-  for (const [cmdId, cmd] of core) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'safe-core-item';
-    btn.textContent = cmd?.name || cmdId;
-    btn.title = '系统核心';
-    btn.addEventListener('click', () => {
-      alert('这是您的保底快捷键，随时可用，不可被场景覆盖');
-      postToAhk({ type: 'executeCommand', commandId: cmdId });
-    });
-    host.appendChild(btn);
-  }
-}
-
-document.getElementById('safe-base-reset')?.addEventListener('click', () => {
-  postToAhk({ type: 'reset_from_backup' });
-  setHud('已请求从原始备份恢复快捷键规划');
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
