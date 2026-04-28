@@ -86,7 +86,9 @@ button.ghost{background:#151d2b}
 .main{flex:1;min-height:0;min-width:0;display:grid;grid-template-columns:minmax(260px,380px) minmax(0,1fr);gap:12px;padding:12px}
 .card{border:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.01));border-radius:14px;min-height:0;min-width:0}
 .left{display:flex;flex-direction:column;min-height:0}
-.pathbar{padding:10px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center}
+.pathbar{padding:10px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.pathbar-nav{display:flex;gap:8px;align-items:center}
+.pathbar-search{display:flex;gap:8px;align-items:center}
 .pathbar .navbtn{min-width:74px;padding:0 10px}
 .path-search-wrap{flex:1;display:flex;align-items:center;gap:8px;padding:0 10px;height:36px;border:1px solid var(--line);border-radius:10px;background:#111a27}
 .path-search-wrap .mag{width:16px;height:16px;color:#ff9d4f;opacity:.95;flex:none}
@@ -272,16 +274,20 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   <div class="main">
     <div class="card left">
       <div class="pathbar">
-        <button id="btnBack" class="navbtn ghost" title="后退">后退</button>
-        <button id="btnForward" class="navbtn ghost" title="前进">前进</button>
-        <button id="btnUp" class="navbtn ghost" title="上级目录">上级目录</button>
-        <input id="pathInput" class="hidden" value="/">
-        <button id="btnLoad" class="hidden">加载</button>
-        <label class="path-search-wrap" for="pathSearchInput">
-          <svg class="mag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
-          <input id="pathSearchInput" placeholder="路径 | 搜索关键词（回车可跳转路径）" value="/">
-        </label>
-        <button id="btnSearchClear" class="ghost">清空</button>
+        <div class="pathbar-nav">
+          <button id="btnBack" class="navbtn ghost" title="后退">后退</button>
+          <button id="btnForward" class="navbtn ghost" title="前进">前进</button>
+          <button id="btnUp" class="navbtn ghost" title="上级目录">上级目录</button>
+          <input id="pathInput" class="hidden" value="/">
+          <button id="btnLoad" class="hidden">加载</button>
+        </div>
+        <div class="pathbar-search">
+          <label class="path-search-wrap" for="pathSearchInput">
+            <svg class="mag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
+            <input id="pathSearchInput" placeholder="路径 | 搜索关键词（回车可跳转路径）" value="/">
+          </label>
+          <button id="btnSearchClear" class="ghost">清空</button>
+        </div>
       </div>
       <div id="fileList" class="list"></div>
       <div class="left-status"><div id="currentInfo" class="hint">未选择文件。</div></div>
@@ -696,6 +702,15 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     var p = normPath(path || "/");
     var q = String(query || "").trim();
     inp.value = q ? (p + " | " + q) : (p + " | ");
+    if(p === "/"){
+      inp.placeholder = (uiLang === "en"
+        ? "Search now or enter path (e.g. /baidu | keyword)"
+        : "先选云盘目录，或直接输入路径搜索（示例：/baidu | 关键词）");
+    }else{
+      inp.placeholder = (uiLang === "en"
+        ? "Path | Search keyword (Enter to open path)"
+        : "路径 | 搜索关键词（回车可跳转路径）");
+    }
   }
   function getCurrentSearchQuery(){
     var inp = $("pathSearchInput");
