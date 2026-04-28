@@ -112,6 +112,10 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 #docPreview{width:100%;height:100%;min-height:320px;flex:1;background:#0a0f18;border:1px solid #293245;border-radius:12px;overflow:auto;padding:14px;line-height:1.7}
 #docPreview h1,#docPreview h2,#docPreview h3{color:#f5f7ff;margin:12px 0 8px}
 #docPreview p,#docPreview li,#docPreview span,#docPreview td,#docPreview th{color:#d8e2f4}
+#webEmbed{
+  width:100%;height:100%;min-height:320px;flex:1;background:#06090f;
+  border:1px solid #293245;border-radius:12px;overflow:hidden;
+}
 .resume-toast{
   position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
   background:linear-gradient(168deg,rgba(48,26,12,.94),rgba(20,12,8,.96));border:1px solid rgba(255,140,72,.5);color:#fff2e8;
@@ -276,11 +280,12 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       <div id="fileList" class="list"></div>
     </div>
     <div class="card right">
-      <div class="playbar"><input id="manualUrl" placeholder="或粘贴直链视频 URL"><button id="btnPlayUrl">播放 URL</button><div class="player-mode"><button id="btnModeNative" class="ghost mode-btn active">原生</button><button id="btnModeArt" class="ghost mode-btn">ArtPlayer</button></div></div>
+      <div class="playbar"><input id="manualUrl" placeholder="粘贴视频 URL（支持直链 / B站 / YouTube）"><button id="btnPlayUrl">播放 URL</button><div class="player-mode"><button id="btnModeNative" class="ghost mode-btn active">原生</button><button id="btnModeArt" class="ghost mode-btn">ArtPlayer</button></div></div>
       <div id="currentInfo" class="hint">未选择文件。</div>
       <video id="video" controls playsinline preload="metadata"></video>
       <div id="artPlayerWrap" class="hidden"></div>
       <div id="docPreview" class="hidden"></div>
+      <iframe id="webEmbed" class="hidden" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
       <div class="hint">导入成功后，点击上方云盘标签浏览文件夹。</div>
     </div>
   </div>
@@ -402,6 +407,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   var resumeToastTimer = 0;
   var artPlayer = null;
   var playerMode = "native";
+  var activeWebEmbed = null;
   var autoBootDone = false;
   var uiLang = "zh";
   var providerTokens = {};
@@ -443,7 +449,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       clear: "\u6e05\u7a7a",
       play_url: "\u64ad\u653e URL",
       search_placeholder: "\u641c\u7d22\u5f53\u524d\u76ee\u5f55",
-      manual_url_placeholder: "\u6216\u7c98\u8d34\u76f4\u94fe\u89c6\u9891 URL",
+      manual_url_placeholder: "\u7c98\u8d34\u89c6\u9891 URL\uff08\u652f\u6301\u76f4\u94fe / B\u7ad9 / YouTube\uff09",
       no_file: "\u672a\u9009\u62e9\u6587\u4ef6\u3002",
       hint_after_import: "\u5bfc\u5165\u6210\u529f\u540e\uff0c\u70b9\u51fb\u4e0a\u65b9\u4e91\u76d8\u6807\u7b7e\u6d4f\u89c8\u6587\u4ef6\u5939\u3002",
       guide_title: "\u667a\u80fd\u767b\u5f55\u6307\u5f15",
@@ -477,7 +483,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       clear: "Clear",
       play_url: "Play URL",
       search_placeholder: "Search in current folder",
-      manual_url_placeholder: "Or paste direct video URL",
+      manual_url_placeholder: "Paste video URL (direct / Bilibili / YouTube)",
       no_file: "No file selected.",
       hint_after_import: "After import, click a cloud tab to browse folders.",
       guide_title: "Smart Login Guide",
@@ -2051,6 +2057,131 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   function isHttpUrl(url){
     return /^https?:\/\//i.test(String(url || "").trim());
   }
+  function normalizeInputUrl(raw){
+    var s = String(raw || "").trim();
+    if(!s) return "";
+    if(/^https?:\/\//i.test(s)) return s;
+    if(/^\/\//.test(s)) return "https:" + s;
+    if(/^(www\.)/i.test(s)) return "https://" + s;
+    if(/^(m\.)/i.test(s)) return "https://" + s;
+    if(/^(youtu\.be|youtube\.com|m\.youtube\.com|bilibili\.com|www\.bilibili\.com|m\.bilibili\.com|b23\.tv|bili2233\.cn)\b/i.test(s))
+      return "https://" + s;
+    return s;
+  }
+  function parseTimeSeconds(v){
+    var s = String(v || "").trim().toLowerCase();
+    if(!s) return 0;
+    if(/^\d+$/.test(s)) return Math.max(0, parseInt(s, 10) || 0);
+    var total = 0, m;
+    m = s.match(/(\d+)h/); if(m) total += (parseInt(m[1], 10) || 0) * 3600;
+    m = s.match(/(\d+)m/); if(m) total += (parseInt(m[1], 10) || 0) * 60;
+    m = s.match(/(\d+)s/); if(m) total += (parseInt(m[1], 10) || 0);
+    return Math.max(0, total);
+  }
+  function isLikelyYoutubeHost(host){
+    var h = String(host || "").toLowerCase();
+    return h === "youtu.be" || h === "youtube.com" || h === "www.youtube.com" || h === "m.youtube.com" || h === "music.youtube.com" || h === "youtube-nocookie.com" || h === "www.youtube-nocookie.com";
+  }
+  function isLikelyBiliHost(host){
+    var h = String(host || "").toLowerCase();
+    return h === "bilibili.com" || h === "www.bilibili.com" || h === "m.bilibili.com" || h === "player.bilibili.com" || h === "b23.tv" || h === "www.b23.tv" || h === "bili2233.cn" || h === "www.bili2233.cn";
+  }
+  function resolveWebEmbedFromUrl(raw){
+    var normalized = normalizeInputUrl(raw);
+    if(!isHttpUrl(normalized)) return null;
+    var u;
+    try{ u = new URL(normalized); }catch(_){ return null; }
+    var host = String(u.hostname || "").toLowerCase();
+    var path = String(u.pathname || "");
+    var m = null;
+    if(isLikelyYoutubeHost(host)){
+      var vid = "";
+      if(host === "youtu.be"){
+        vid = (path.split("/").filter(Boolean)[0] || "").trim();
+      }else{
+        vid = (u.searchParams.get("v") || "").trim();
+        if(!vid){ m = path.match(/\/shorts\/([^/?#]+)/i); if(m) vid = m[1]; }
+        if(!vid){ m = path.match(/\/embed\/([^/?#]+)/i); if(m) vid = m[1]; }
+        if(!vid){ m = path.match(/\/live\/([^/?#]+)/i); if(m) vid = m[1]; }
+        if(!vid){ m = path.match(/\/v\/([^/?#]+)/i); if(m) vid = m[1]; }
+      }
+      vid = String(vid || "").replace(/[^\w-]/g, "");
+      if(vid){
+        var sec = parseTimeSeconds(u.searchParams.get("t") || u.searchParams.get("start"));
+        var q = ["autoplay=1","rel=0","modestbranding=1"];
+        if(sec > 0) q.push("start=" + sec);
+        return { type:"youtube", title:"YouTube", embedUrl:"https://www.youtube.com/embed/" + encodeURIComponent(vid) + "?" + q.join("&"), originalUrl:normalized };
+      }
+    }
+    if(isLikelyBiliHost(host)){
+      if(host === "player.bilibili.com" && /\/player\.html$/i.test(path)){
+        var p = new URLSearchParams(u.search);
+        if(!p.get("autoplay")) p.set("autoplay", "1");
+        return { type:"bilibili", title:"Bilibili", embedUrl:"https://player.bilibili.com/player.html?" + p.toString(), originalUrl:normalized };
+      }
+      m = path.match(/\/video\/(BV[0-9A-Za-z]+)/i);
+      if(m && m[1]){
+        var bv = m[1];
+        var page = Math.max(1, parseInt(u.searchParams.get("p") || "1", 10) || 1);
+        return { type:"bilibili", title:"Bilibili", embedUrl:"https://player.bilibili.com/player.html?bvid=" + encodeURIComponent(bv) + "&page=" + page + "&autoplay=1&high_quality=1&danmaku=0", originalUrl:normalized };
+      }
+      m = path.match(/\/video\/av(\d+)/i);
+      if(m && m[1]){
+        var aid = m[1];
+        var page2 = Math.max(1, parseInt(u.searchParams.get("p") || "1", 10) || 1);
+        return { type:"bilibili", title:"Bilibili", embedUrl:"https://player.bilibili.com/player.html?aid=" + encodeURIComponent(aid) + "&page=" + page2 + "&autoplay=1&high_quality=1&danmaku=0", originalUrl:normalized };
+      }
+      m = path.match(/\/bangumi\/play\/ep(\d+)/i);
+      if(m && m[1]){
+        return { type:"bilibili", title:"Bilibili", embedUrl:"https://player.bilibili.com/player.html?ep_id=" + encodeURIComponent(m[1]) + "&autoplay=1&high_quality=1&danmaku=0", originalUrl:normalized };
+      }
+      if(host.indexOf("b23.tv") >= 0 || host.indexOf("bili2233.cn") >= 0){
+        m = path.match(/\/(BV[0-9A-Za-z]+)/i);
+        if(m && m[1]){
+          return { type:"bilibili", title:"Bilibili", embedUrl:"https://player.bilibili.com/player.html?bvid=" + encodeURIComponent(m[1]) + "&page=1&autoplay=1&high_quality=1&danmaku=0", originalUrl:normalized };
+        }
+      }
+    }
+    return null;
+  }
+  async function resolveWebEmbedSmart(raw){
+    var normalized = normalizeInputUrl(raw);
+    var direct = resolveWebEmbedFromUrl(normalized);
+    if(direct) return direct;
+    var u;
+    try{ u = new URL(normalized); }catch(_){ return null; }
+    var host = String(u.hostname || "").toLowerCase();
+    if(!(host.indexOf("b23.tv") >= 0 || host.indexOf("bili2233.cn") >= 0)) return null;
+    var ret = await httpViaHost("GET", normalized, { "Accept":"text/html,*/*;q=0.9" }, "");
+    var cands = [
+      ret && ret.finalUrl,
+      ret && ret.url,
+      ret && ret.responseUrl,
+      ret && ret.final_url,
+      ret && ret.redirectedUrl,
+      ret && ret.location
+    ];
+    for(var i=0;i<cands.length;i++){
+      var one = String(cands[i] || "").trim();
+      if(!one) continue;
+      var got = resolveWebEmbedFromUrl(one);
+      if(got) return got;
+    }
+    var body = String((ret && ret.body) || "");
+    if(body){
+      var m = body.match(/https?:\/\/(?:www\.)?bilibili\.com\/video\/BV[0-9A-Za-z]+(?:[^\s"'<>]*)/i);
+      if(m && m[0]){
+        var got2 = resolveWebEmbedFromUrl(m[0]);
+        if(got2) return got2;
+      }
+      var m2 = body.match(/https?:\/\/(?:www\.)?youtube\.com\/watch\?v=[A-Za-z0-9_-]{11}(?:[^\s"'<>]*)/i);
+      if(m2 && m2[0]){
+        var got3 = resolveWebEmbedFromUrl(m2[0]);
+        if(got3) return got3;
+      }
+    }
+    return null;
+  }
   /**
    * 选路策略：网盘/存储直链优先，本机 OpenList 的 /d/ 仅作垫后；不做开播前多路 Range 探测，避免
    * 首包 TTFB 总偏向 127.0.0.1 且与 <video> 首帧抢带宽。失败时由 onPlaybackError 按 candidates 切下一跳。
@@ -2160,14 +2291,47 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     if($("btnModeNative")) $("btnModeNative").classList.toggle("active", playerMode === "native");
     if($("btnModeArt")) $("btnModeArt").classList.toggle("active", playerMode === "art");
     if($("docPreview")) $("docPreview").classList.add("hidden");
-    if($("video")) $("video").classList.toggle("hidden", playerMode !== "native");
-    if($("artPlayerWrap")) $("artPlayerWrap").classList.toggle("hidden", playerMode !== "art");
+    if($("webEmbed")){
+      if(activeWebEmbed) $("webEmbed").classList.remove("hidden");
+      else $("webEmbed").classList.add("hidden");
+    }
+    if($("video")) $("video").classList.toggle("hidden", activeWebEmbed ? true : (playerMode !== "native"));
+    if($("artPlayerWrap")) $("artPlayerWrap").classList.toggle("hidden", activeWebEmbed ? true : (playerMode !== "art"));
     if(playerMode === "native" && artPlayer){
       try{ artPlayer.pause(); }catch(_){}
     }
     if(playerMode === "art" && $("video")){
       try{ $("video").pause(); }catch(_){}
     }
+  }
+  function clearWebEmbed(){
+    activeWebEmbed = null;
+    var frame = $("webEmbed");
+    if(frame){
+      frame.classList.add("hidden");
+      try{ frame.src = "about:blank"; }catch(_){}
+    }
+  }
+  function showWebEmbed(embedUrl, title){
+    var frame = $("webEmbed");
+    if(!frame){
+      text($("currentInfo"), "Embed player unavailable in this panel.");
+      return false;
+    }
+    activeWebEmbed = { url:String(embedUrl || ""), title:String(title || "") };
+    if($("docPreview")) $("docPreview").classList.add("hidden");
+    if($("video")){
+      try{ $("video").pause(); }catch(_){}
+      $("video").classList.add("hidden");
+    }
+    if(artPlayer){
+      try{ artPlayer.pause(); }catch(_){}
+    }
+    if($("artPlayerWrap")) $("artPlayerWrap").classList.add("hidden");
+    frame.classList.remove("hidden");
+    try{ if(frame.src !== activeWebEmbed.url) frame.src = activeWebEmbed.url; }catch(_){ frame.src = activeWebEmbed.url; }
+    text($("currentInfo"), "Playing: " + (title || activeWebEmbed.url) + " [Web Embed]");
+    return true;
   }
   function ensureArtPlayer(){
     if(artPlayer) return artPlayer;
@@ -2210,6 +2374,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     return m ? m[1] : "";
   }
   function showDocPreview(html, title){
+    clearWebEmbed();
     if($("video")){
       try{ $("video").pause(); }catch(_){}
       $("video").classList.add("hidden");
@@ -2277,6 +2442,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   function playUrl(url, title){
     var u=String(url||"").trim();
     if(!u){ text($("currentInfo"), "Play failed: empty URL"); return; }
+    clearWebEmbed();
     if($("docPreview")) $("docPreview").classList.add("hidden");
     if(playerMode === "art"){
       var ap = ensureArtPlayer();
@@ -2320,11 +2486,25 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     var hint = "Playback failed for all stream candidates. Check: 1) OpenList token valid 2) mount path has access 3) storage web proxy enabled.";
     text($("currentInfo"), hint);
   }
-  function playManualUrlFromInput(){
+  async function playManualUrlFromInput(){
     persistPlaybackProgressNow();
-    var u = String(($("manualUrl") && $("manualUrl").value) || "").trim();
+    var u = normalizeInputUrl(String(($("manualUrl") && $("manualUrl").value) || "").trim());
     if(!u){
       text($("currentInfo"), "Play failed: empty URL");
+      return;
+    }
+    var embed = null;
+    try{
+      embed = await resolveWebEmbedSmart(u);
+    }catch(_){}
+    if(embed && embed.embedUrl){
+      lastPlayPath = "";
+      lastPlaySourceUrl = String(embed.originalUrl || u);
+      lastPlayHeaders = {};
+      lastPlayCandidates = [{ url:lastPlaySourceUrl, source:"manual-web", headers:{} }];
+      lastPlayCandidateIndex = 0;
+      resumeAppliedForId = "";
+      showWebEmbed(embed.embedUrl, (embed.title || "Web") + " URL");
       return;
     }
     lastPlayPath = "";
@@ -2565,8 +2745,22 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     $("btnDashboard").addEventListener("click", function(){ postHost("cloudplayer_open_dashboard"); });
     $("btnRestart").addEventListener("click", function(){ postHost("cloudplayer_restart_openlist"); });
     $("btnPlayUrl").addEventListener("click", playManualUrlFromInput);
-    if($("btnModeNative")) $("btnModeNative").addEventListener("click", function(){ setPlayerMode("native"); if(lastPlaySourceUrl) playUrl(lastPlaySourceUrl, lastPlayPath || lastPlaySourceUrl); });
-    if($("btnModeArt")) $("btnModeArt").addEventListener("click", function(){ setPlayerMode("art"); if(lastPlaySourceUrl) playUrl(lastPlaySourceUrl, lastPlayPath || lastPlaySourceUrl); });
+    if($("btnModeNative")) $("btnModeNative").addEventListener("click", function(){
+      setPlayerMode("native");
+      if(activeWebEmbed && activeWebEmbed.url){
+        showWebEmbed(activeWebEmbed.url, activeWebEmbed.title || "Web Embed");
+        return;
+      }
+      if(lastPlaySourceUrl) playUrl(lastPlaySourceUrl, lastPlayPath || lastPlaySourceUrl);
+    });
+    if($("btnModeArt")) $("btnModeArt").addEventListener("click", function(){
+      setPlayerMode("art");
+      if(activeWebEmbed && activeWebEmbed.url){
+        showWebEmbed(activeWebEmbed.url, activeWebEmbed.title || "Web Embed");
+        return;
+      }
+      if(lastPlaySourceUrl) playUrl(lastPlaySourceUrl, lastPlayPath || lastPlaySourceUrl);
+    });
     if($("pathInput")) $("pathInput").addEventListener("keydown", function(e){ if(e.key==="Enter") loadList($("pathInput").value); });
     $("manualUrl").addEventListener("keydown", function(e){ if(e.key==="Enter") playManualUrlFromInput(); });
     $("apiBase").addEventListener("change", function(){
@@ -2774,7 +2968,3 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 </script>
 </body>
 </html>
-
-
-
-

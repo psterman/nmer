@@ -1030,14 +1030,6 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     return list[0] || null;
   }
 
-  function sessionById(id) {
-    var list = state.sessions || [];
-    for (var i = 0; i < list.length; i++) {
-      if (list[i] && list[i].id === id) return list[i];
-    }
-    return null;
-  }
-
   function providerTransport(pid) {
     pid = normalizeProviderId(pid);
     var p = pid && P[pid] ? P[pid] : P.openai;
@@ -1160,53 +1152,8 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
 
   function normalizeRole(role) {
     var r = String(role || '').toLowerCase().trim();
-    if (!r) return '';
-    if (
-      r === 'assistant' ||
-      r === 'ai' ||
-      r === 'bot' ||
-      r === 'model' ||
-      r === 'agent' ||
-      r === 'openclaw' ||
-      r === 'assistant_message'
-    )
-      return 'assistant';
-    if (
-      r === 'human' ||
-      r === 'user' ||
-      r === 'customer' ||
-      r === 'client' ||
-      r === 'operator' ||
-      r === 'user_message'
-    )
-      return 'user';
-    return '';
-  }
-
-  function ocRoleFromHistoryItem(m) {
-    if (!m || typeof m !== 'object') return '';
-    if (m.assistant === true || m.isAssistant === true) return 'assistant';
-    if (m.user === true || m.isUser === true) return 'user';
-    var cands = [
-      m.role,
-      m.type,
-      m.actor,
-      m.author,
-      m.sender,
-      m.from,
-      m.kind,
-      m.source,
-      m.channel,
-      m.message && m.message.role,
-      m.payload && m.payload.role,
-      m.data && m.data.role,
-      m.result && m.result.role,
-      m.response && m.response.role
-    ];
-    for (var i = 0; i < cands.length; i++) {
-      var rr = normalizeRole(cands[i]);
-      if (rr) return rr;
-    }
+    if (r === 'assistant' || r === 'ai') return 'assistant';
+    if (r === 'human' || r === 'user') return 'user';
     return '';
   }
 
@@ -1221,21 +1168,7 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
   function ocExtractMessageContentForHistory(m) {
     if (!m || typeof m !== 'object') return '';
     /* 勿在 content==="" 时提前返回：网关常把正文放在 text / parts，content 仅占位空串 */
-    var strFields = [
-      'content',
-      'text',
-      'message',
-      'body',
-      'input',
-      'output',
-      'prompt',
-      'value',
-      'answer',
-      'response',
-      'output_text',
-      'assistantText',
-      'final'
-    ];
+    var strFields = ['content', 'text', 'message', 'body', 'input', 'output', 'prompt', 'value'];
     for (var si = 0; si < strFields.length; si++) {
       var sf = m[strFields[si]];
       if (typeof sf === 'string' && sf.trim()) return sf.trim();
@@ -1243,11 +1176,6 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     var acc = [];
     if (m.content != null && typeof m.content !== 'string') ocCollectTextDeep(m.content, acc);
     if (!acc.length && m.message != null && typeof m.message !== 'string') ocCollectTextDeep(m.message, acc);
-    if (!acc.length && m.payload != null && typeof m.payload !== 'string') ocCollectTextDeep(m.payload, acc);
-    if (!acc.length && m.data != null && typeof m.data !== 'string') ocCollectTextDeep(m.data, acc);
-    if (!acc.length && m.result != null && typeof m.result !== 'string') ocCollectTextDeep(m.result, acc);
-    if (!acc.length && m.response != null && typeof m.response !== 'string') ocCollectTextDeep(m.response, acc);
-    if (!acc.length && m.output != null && typeof m.output !== 'string') ocCollectTextDeep(m.output, acc);
     if (!acc.length && Array.isArray(m.parts)) {
       for (var pi = 0; pi < m.parts.length; pi++) {
         var p = m.parts[pi];
@@ -1260,7 +1188,7 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
 
   function normalizeHistoryItem(m) {
     if (!m || typeof m !== 'object') return null;
-    var role = ocRoleFromHistoryItem(m);
+    var role = normalizeRole(m.role || m.type || m.actor);
     if (!role) return null;
     var content = ocExtractMessageContentForHistory(m);
     if (!content) return null;
@@ -1710,10 +1638,9 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     if (empty) empty.style.display = '';
   }
 
-  function appendMessageDom(role, content, ts, msgId) {
+  function appendMessageDom(role, content, ts) {
     var w = document.createElement('article');
     w.className = 'm ' + role;
-    if (msgId) w.dataset.msgId = msgId;
     var title = role === 'user' ? 'User' : 'Assistant';
     var timeStr = ts
       ? (function () {
@@ -1739,99 +1666,6 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     msgs.appendChild(w);
   }
 
-  function renderMessageNode(node, role, content, ts) {
-    if (!node) return;
-    var title = role === 'user' ? 'User' : 'Assistant';
-    var timeStr = ts
-      ? (function () {
-          try {
-            return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          } catch (e) {
-            return '';
-          }
-        })()
-      : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    var normalized = preMarkdownForChat(content);
-    var bodyHtml = md(normalized);
-    if (!String(bodyHtml || '').replace(/\s/g, '') && String(normalized || '').trim())
-      bodyHtml = '<p>' + esc(normalized).replace(/\n/g, '<br>') + '</p>';
-    node.className = 'm ' + role;
-    node.innerHTML =
-      '<div class="mh"><span>' +
-      title +
-      '</span><span>' +
-      timeStr +
-      '</span></div><div class="mb">' +
-      bodyHtml +
-      '</div>';
-  }
-
-  function genMsgId() {
-    return 'm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
-  }
-
-  function ensureAssistantDraft(s, seedText) {
-    if (!s) return null;
-    var last = s.history && s.history.length ? s.history[s.history.length - 1] : null;
-    if (last && last.role === 'assistant' && last._draft) return last;
-    var n = {
-      _id: genMsgId(),
-      _draft: true,
-      role: 'assistant',
-      content: String(seedText || '').trim() || '思考中...',
-      ts: new Date().toISOString()
-    };
-    s.history.push(n);
-    appendMessageDom(n.role, n.content, n.ts, n._id);
-    emptyState();
-    scrollMsgsToLatest();
-    return n;
-  }
-
-  function updateHistoryMessageById(s, msgId, content, persistNow) {
-    if (!s || !msgId) return false;
-    var found = null;
-    for (var i = s.history.length - 1; i >= 0; i--) {
-      var m = s.history[i];
-      if (m && m._id === msgId) {
-        found = m;
-        break;
-      }
-    }
-    if (!found) return false;
-    found.content = String(content || '').trim() || found.content || '思考中...';
-    var node = msgs.querySelector('article.m[data-msg-id="' + msgId + '"]');
-    if (node && s.id === state.activeSessionId) renderMessageNode(node, found.role, found.content, found.ts);
-    if (persistNow) {
-      persistSessions();
-      pushSessionHistoryToStore(s);
-      renderSessionTabs();
-    }
-    return true;
-  }
-
-  function removeHistoryMessageById(s, msgId, persistNow) {
-    if (!s || !msgId || !Array.isArray(s.history)) return false;
-    var idx = -1;
-    for (var i = s.history.length - 1; i >= 0; i--) {
-      if (s.history[i] && s.history[i]._id === msgId) {
-        idx = i;
-        break;
-      }
-    }
-    if (idx < 0) return false;
-    s.history.splice(idx, 1);
-    var node = msgs.querySelector('article.m[data-msg-id="' + msgId + '"]');
-    if (node) node.remove();
-    if (persistNow) {
-      persistSessions();
-      pushSessionHistoryToStore(s);
-      renderSessionTabs();
-      emptyState();
-    }
-    return true;
-  }
-
   function rebuildMsgList() {
     msgs.querySelectorAll('article.m').forEach(function (n) {
       n.remove();
@@ -1852,7 +1686,7 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
       var raw = item.content != null ? String(item.content) : '';
       var disp = raw.trim() ? raw : ocExtractMessageContentForHistory(item);
       if (!String(disp || '').trim()) disp = '（无正文）';
-      appendMessageDom(item.role, disp, item.ts, item._id || '');
+      appendMessageDom(item.role, disp, item.ts);
     });
     emptyState();
     scrollMsgsToLatest();
@@ -1865,12 +1699,11 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     var ts = new Date().toISOString();
     var n = normalizeHistoryItem({ role: role, content: content, ts: ts });
     if (!n) return;
-    n._id = genMsgId();
     s.history.push(n);
     persistSessions();
     pushSessionHistoryToStore(s);
     emptyState();
-    appendMessageDom(n.role, n.content, n.ts, n._id);
+    appendMessageDom(n.role, n.content, n.ts);
     scrollMsgsToLatest();
     renderSessionTabs();
   }
@@ -2852,7 +2685,7 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
 
   function mapGatewayHistoryItem(m) {
     if (!m || typeof m !== 'object') return null;
-    var role = ocRoleFromHistoryItem(m);
+    var role = normalizeRole(m.role || m.type || m.actor);
     if (!role) return null;
     var content = ocExtractMessageContentForHistory(m);
     if (!content) return null;
@@ -2870,26 +2703,17 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     var arr = Array.isArray(rawMessages) ? rawMessages : [];
     if (!arr.length) return '';
     var rows = [];
-    var loose = [];
     for (var i = 0; i < arr.length; i++) {
       var m = arr[i];
       if (!m || typeof m !== 'object') continue;
+      var role = normalizeRole(m.role || m.type || m.actor);
+      if (!role) continue;
       var content = ocExtractMessageContentForHistory(m);
-      if (content) loose.push(content);
-      var role = ocRoleFromHistoryItem(m);
-      if (!role || !content) continue;
+      if (!content) continue;
       rows.push({ role: role, content: content });
     }
+    if (!rows.length) return '';
     var sentNorm = ocNormForMatch(sentText);
-    if (!rows.length) {
-      for (var q = loose.length - 1; q >= 0; q--) {
-        var ln0 = ocNormForMatch(loose[q]);
-        if (!ln0) continue;
-        if (sentNorm && (ln0 === sentNorm || ln0.indexOf(sentNorm) >= 0 || sentNorm.indexOf(ln0) >= 0)) continue;
-        return loose[q];
-      }
-      return '';
-    }
     if (sentNorm) {
       for (var u = rows.length - 1; u >= 0; u--) {
         if (rows[u].role !== 'user') continue;
@@ -2905,30 +2729,6 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     }
     for (var z = rows.length - 1; z >= 0; z--) {
       if (rows[z].role === 'assistant') return rows[z].content;
-    }
-    for (var q2 = loose.length - 1; q2 >= 0; q2--) {
-      var ln = ocNormForMatch(loose[q2]);
-      if (!ln) continue;
-      if (sentNorm && (ln === sentNorm || ln.indexOf(sentNorm) >= 0 || sentNorm.indexOf(ln) >= 0)) continue;
-      return loose[q2];
-    }
-    return '';
-  }
-
-  function ocPickReadableTextDeep(v, sentText) {
-    if (!v || typeof v !== 'object') return '';
-    var acc = [];
-    ocCollectTextDeep(v, acc);
-    if (!acc.length) return '';
-    var sentNorm = ocNormForMatch(sentText);
-    for (var i = acc.length - 1; i >= 0; i--) {
-      var t = String(acc[i] || '').trim();
-      if (!t) continue;
-      var n = ocNormForMatch(t);
-      if (!n) continue;
-      if (sentNorm && (n === sentNorm || n.indexOf(sentNorm) >= 0 || sentNorm.indexOf(n) >= 0)) continue;
-      if (n.length <= 1) continue;
-      return t;
     }
     return '';
   }
@@ -3084,7 +2884,7 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     }
   }
 
-  async function reqOpenClaw(cfg, hooks) {
+  async function reqOpenClaw(cfg) {
     var ep = openClawEndpointFromCfg(cfg);
     if (!ep.ok) throw new Error('缺少 Gateway Token：请填写密钥，或将带 #token= 的控制台地址填入 Base URL。');
     var wsUrl = 'ws://' + ep.host + ':' + ep.port + '/?token=' + encodeURIComponent(ep.token);
@@ -3123,27 +2923,8 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
       var finalizeTimer = null;
       var recoveringFinal = false;
       var hardTimeout = setTimeout(function () {
-        if (pendingText.trim()) {
-          emitProgress(true);
-          settleResolve(pendingText.trim());
-          return;
-        }
-        recoverFinalFromHistory(true);
-      }, 75000);
-      var lastEmitAt = 0;
-      var lastEmitText = '';
-
-      function emitProgress(force) {
-        if (!hooks || typeof hooks.onProgress !== 'function') return;
-        var textNow = String(pendingText || '');
-        var now = Date.now();
-        if (!force && textNow === lastEmitText && now - lastEmitAt < 80) return;
-        lastEmitAt = now;
-        lastEmitText = textNow;
-        try {
-          hooks.onProgress(textNow);
-        } catch (e0) {}
-      }
+        settleReject(new Error('OpenClaw 响应超时（45s）。'));
+      }, 45000);
 
       function cleanup() {
         clearTimeout(hardTimeout);
@@ -3176,7 +2957,7 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
           var t = pendingText.trim();
           if (t) settleResolve(t);
           else settleReject(new Error('响应中没有可显示的内容。'));
-        }, 320);
+        }, 1200);
       }
 
       function fail(err) {
@@ -3194,54 +2975,25 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
         recoveringFinal = true;
         fromTimeout = fromTimeout === true;
         (async function () {
-          var waitList = fromTimeout ? [400, 1500, 3500] : [120, 360];
-          var lastRpcRes = null;
+          var waitList = fromTimeout ? [300, 1000, 2200] : [250, 800, 1800];
           for (var i = 0; i < waitList.length; i++) {
             try {
               await new Promise(function (r) {
                 setTimeout(r, waitList[i]);
               });
-              var rpcRes = await openClawRpc(
-                cfg,
-                'chat.history',
-                { sessionKey: sessionKey, limit: fromTimeout ? 200 : 120 },
-                fromTimeout ? 8000 : 3500
-              );
-              lastRpcRes = rpcRes;
+              var rpcRes = await openClawRpc(cfg, 'chat.history', { sessionKey: sessionKey, limit: 200 }, 12000);
               var raw = extractGatewayHistoryMessages(rpcRes);
               var picked = ocPickAssistantFromHistory(raw, msgText);
               if (picked && String(picked).trim()) {
                 pendingText = String(picked).trim();
-                emitProgress(true);
-                settleResolve(pendingText);
-                return;
-              }
-              var deepPicked = ocPickReadableTextDeep(rpcRes, msgText);
-              if (deepPicked && String(deepPicked).trim()) {
-                pendingText = String(deepPicked).trim();
-                emitProgress(true);
                 settleResolve(pendingText);
                 return;
               }
             } catch (e0) {
             }
           }
-          if (lastRpcRes) {
-            var fallbackPicked = ocPickReadableTextDeep(lastRpcRes, msgText);
-            if (fallbackPicked && String(fallbackPicked).trim()) {
-              pendingText = String(fallbackPicked).trim();
-              emitProgress(true);
-              settleResolve(pendingText);
-              return;
-            }
-          }
-          if (pendingText.trim()) {
-            emitProgress(true);
-            settleResolve(pendingText.trim());
-            return;
-          }
-          if (fromTimeout) settleReject(new Error('OpenClaw 超时：已重试并回查 history，但仍未解析到可读正文。'));
-          else settleReject(new Error('OpenClaw 已到 final，但回查 history 仍未解析到可读正文。'));
+          if (fromTimeout) settleReject(new Error('OpenClaw timed out without readable assistant text.'));
+          else settleReject(new Error('OpenClaw returned final state without readable assistant text.'));
         })();
       }
 
@@ -3358,7 +3110,6 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
                 pendingText = chatTxt;
               else pendingText += chatTxt;
             } else pendingText = chatTxt;
-            emitProgress(false);
           }
           if (ocIsChatFinalState(pl)) {
             if (!pendingText.trim()) {
@@ -3396,7 +3147,6 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
           if (!st && side.btw && typeof side.btw.question === 'string') st = side.btw.question.trim();
           if (st) {
             pendingText = st;
-            emitProgress(false);
             armFinalize();
           }
           return;
@@ -3414,10 +3164,7 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
           var piece =
             ocExtractText(respPayload.text || respPayload.content || respPayload.message || '') ||
             ocExtractChatEventPayload(respPayload);
-          if (piece) {
-            pendingText += piece;
-            emitProgress(false);
-          }
+          if (piece) pendingText += piece;
           if (respPayload.done || respPayload.finish_reason || respPayload.finished) {
             okDone();
             return;
@@ -3437,7 +3184,6 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
           ocExtractText(rest.text || rest.content || rest.message || '') || ocExtractChatEventPayload(rest);
         if (rt && (msg.id === chatMsgId || msg.id == null || msg.id === '')) {
           pendingText += rt;
-          emitProgress(false);
           armFinalize();
         }
 
@@ -3465,7 +3211,6 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
                   if (pendingText && gt.length >= pendingText.length && gt.indexOf(pendingText) === 0) pendingText = gt;
                   else pendingText += gt;
                 } else pendingText = gt;
-                emitProgress(false);
                 if (ocIsChatFinalState(guess)) okDone();
                 else armFinalize();
                 return;
@@ -3551,63 +3296,16 @@ body[data-theme="light"] .sbg,body[data-theme="light"] .nsbg{background:rgba(0,0
     input.value = '';
     setSessionSending(sid, true);
     cstatForSession(sid, '正在请求模型响应...');
-    var streamDraftId = '';
-    var streamHasText = false;
     try {
       var p = P[cfg.provider] || P.openai,
         content = '';
       if (p.transport === 'anthropic') content = await reqClaude(cfg);
       else if (p.transport === 'gemini') content = await reqGemini(cfg);
-      else if (p.transport === 'openclaw')
-        content = await reqOpenClaw(cfg, {
-          onProgress: function (textNow) {
-            var sAct = sessionById(sid);
-            if (!sAct) return;
-            var draft = streamDraftId
-              ? { _id: streamDraftId }
-              : ensureAssistantDraft(sAct, String(textNow || '').trim() || '思考中...');
-            if (draft && draft._id) streamDraftId = draft._id;
-            if (streamDraftId) {
-              var shown = String(textNow || '').trim() || '思考中...';
-              streamHasText = !!String(textNow || '').trim();
-              updateHistoryMessageById(sAct, streamDraftId, shown, false);
-              if (state.activeSessionId === sid) scrollMsgsToLatest();
-            }
-          }
-        });
+      else if (p.transport === 'openclaw') content = await reqOpenClaw(cfg);
       else content = await reqOpenAI(cfg);
-      if (streamDraftId) {
-        var sAct2 = sessionById(sid);
-        if (sAct2) {
-          updateHistoryMessageById(sAct2, streamDraftId, content, true);
-          for (var di = sAct2.history.length - 1; di >= 0; di--) {
-            if (sAct2.history[di] && sAct2.history[di]._id === streamDraftId) {
-              sAct2.history[di]._draft = false;
-              break;
-            }
-          }
-          persistSessions();
-          pushSessionHistoryToStore(sAct2);
-          renderSessionTabs();
-        }
-      } else add('assistant', content);
+      add('assistant', content);
       cstatForSession(sid, '响应完成。', 'success');
     } catch (err) {
-      if (streamDraftId) {
-        var sErr = sessionById(sid);
-        if (sErr && !streamHasText) removeHistoryMessageById(sErr, streamDraftId, true);
-        else if (sErr && streamHasText) {
-          for (var ei = sErr.history.length - 1; ei >= 0; ei--) {
-            if (sErr.history[ei] && sErr.history[ei]._id === streamDraftId) {
-              sErr.history[ei]._draft = false;
-              break;
-            }
-          }
-          persistSessions();
-          pushSessionHistoryToStore(sErr);
-          renderSessionTabs();
-        }
-      }
       cstatForSession(sid, '请求失败：' + (err && err.message ? err.message : '未知错误'), 'error');
     } finally {
       setSessionSending(sid, false);
