@@ -1085,11 +1085,11 @@ _VK_SceneToolbarLayoutToJson() {
 
 ; ── SceneMenus：五套场景右键菜单 cmdId 序列（Commands.json 顶层 SceneMenus） ──
 _VK_SceneMenuCanonicalKeys() {
-    return ["search", "scratchpad", "clipboard", "prompts", "screenshot", "settings", "cursor", "cloudplayer", "tray_menu", "floating_bar"]
+    return ["search", "scratchpad", "clipboard", "prompts", "screenshot", "settings", "cursor", "cloudplayer", "global_hotkeys", "tray_menu", "floating_bar"]
 }
 
 _VK_SceneMenuKeysWithDefaultCommands() {
-    return ["clipboard", "scratchpad", "prompts", "screenshot", "settings", "cursor", "cloudplayer", "tray_menu"]
+    return ["clipboard", "scratchpad", "prompts", "screenshot", "settings", "cursor", "cloudplayer", "global_hotkeys", "tray_menu"]
 }
 
 ; 与搜索中心结果行右键一致的扁平命令（复制到 / 发送到 子项已展开）
@@ -1157,6 +1157,15 @@ _VK_DefaultSceneMenuCursorCmds() {
 
 _VK_DefaultSceneMenuCloudPlayerCmds() {
     return ["open_cloudplayer", "ftb_cloud_player", "sc_cat_cloud"]
+}
+
+_VK_DefaultSceneMenuGlobalHotkeysCmds() {
+    return [
+        "ch_w", "ch_s", "ch_a", "ch_d",
+        "ch_f", "ch_x", "ch_q", "hub_capsule", "ch_t", "ch_p", "ch_r", "ch_b", "ch_g", "sys_show_vk",
+        "ftm_reset_scale", "ftm_search_center", "ftm_clipboard", "ftm_minimize_to_edge", "ftm_exit_app", "ftm_hide_toolbar", "ftm_open_config", "ftm_toggle_toolbar", "ftm_reload_script",
+        "tray_show_search", "tray_show_clipboard", "tray_show_screenshot", "tray_show_config", "tray_toggle_toolbar", "tray_hide_toolbar", "tray_reload_script", "tray_exit_app"
+    ]
 }
 
 _VK_DefaultSceneMenuFloatingToolbarMenuCmds() {
@@ -1318,6 +1327,8 @@ _VK_DefaultSceneMenuForKey(key) {
         return _VK_DefaultSceneMenuCursorCmds()
     if (k = "cloudplayer")
         return _VK_DefaultSceneMenuCloudPlayerCmds()
+    if (k = "global_hotkeys")
+        return _VK_DefaultSceneMenuGlobalHotkeysCmds()
     if (k = "tray_menu")
         return _VK_DefaultSceneMenuTrayMenuCmds()
     return []
@@ -1532,6 +1543,12 @@ _VK_SceneCtxActMap(sceneKey) {
     if (sk = "tray_menu") {
         m := Map()
         for c in ["tray_show_search", "tray_show_clipboard", "tray_show_screenshot", "tray_show_config", "tray_toggle_toolbar", "tray_hide_toolbar", "tray_reload_script", "tray_exit_app"]
+            m[c] := c
+        return m
+    }
+    if (sk = "global_hotkeys") {
+        m := Map()
+        for c in ["ch_w", "ch_s", "ch_a", "ch_d", "ch_f", "ch_x", "ch_q", "hub_capsule", "ch_t", "ch_p", "ch_r", "ch_b", "ch_g", "sys_show_vk", "ftm_reset_scale", "ftm_search_center", "ftm_clipboard", "ftm_minimize_to_edge", "ftm_exit_app", "ftm_hide_toolbar", "ftm_open_config", "ftm_toggle_toolbar", "ftm_reload_script", "tray_show_search", "tray_show_clipboard", "tray_show_screenshot", "tray_show_config", "tray_toggle_toolbar", "tray_hide_toolbar", "tray_reload_script", "tray_exit_app"]
             m[c] := c
         return m
     }

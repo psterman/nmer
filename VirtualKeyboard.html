@@ -2984,8 +2984,8 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
-const SCENARIO_ORDER = ['ai', 'search', 'clipboard', 'prompts', 'scratchpad', 'screenshot', 'settings', 'hotkeys', 'cursor', 'cloudplayer'];
-const SCENE_MENU_KEYS = ['search', 'scratchpad', 'clipboard', 'prompts', 'screenshot', 'settings', 'cursor', 'cloudplayer', 'tray_menu', 'floating_bar'];
+const SCENARIO_ORDER = ['ai', 'search', 'clipboard', 'prompts', 'scratchpad', 'screenshot', 'settings', 'hotkeys', 'floating_bar', 'tray_menu', 'cursor', 'cloudplayer'];
+const SCENE_MENU_KEYS = ['search', 'scratchpad', 'clipboard', 'prompts', 'screenshot', 'settings', 'cursor', 'cloudplayer', 'global_hotkeys', 'tray_menu', 'floating_bar'];
 const SCENE_MENU_LABELS = {
   search: '搜索中心',
   scratchpad: '草稿本',
@@ -2995,6 +2995,7 @@ const SCENE_MENU_LABELS = {
   settings: '设置',
   cursor: 'Cursor',
   cloudplayer: '牛马云',
+  global_hotkeys: '全局快捷键',
   tray_menu: '托盘右键',
   floating_bar: '悬浮条',
 };
@@ -3005,6 +3006,8 @@ const SCENARIO_TO_SCENE_MENU_TAB = {
   prompts: 'prompts',
   screenshot: 'screenshot',
   settings: 'settings',
+  floating_bar: 'floating_bar',
+  tray_menu: 'tray_menu',
   cursor: 'cursor',
   cloudplayer: 'cloudplayer',
 };
@@ -3021,6 +3024,8 @@ const SCENARIO_META = {
   screenshot: { name: '📸 智能截图', icon: 'fa-camera',            color: '#22d3ee' },
   settings:   { name: '⚙️ 设置中心', icon: 'fa-gear',              color: '#94a3b8' },
   hotkeys:    { name: '⌨️ 快捷键',   icon: 'fa-keyboard',          color: '#e67e22' },
+  floating_bar:{ name: '📋 悬浮栏',  icon: 'fa-bars',              color: '#f59e0b' },
+  tray_menu:  { name: '🖥️ 托盘',    icon: 'fa-window-maximize',   color: '#38bdf8' },
   cursor:     { name: '🧭 Cursor',   icon: 'fa-compass-drafting',  color: '#60a5fa' },
   cloudplayer:{ name: '☁️ 牛马云',   icon: 'fa-cloud',             color: '#38bdf8' },
   other:      { name: '其他',        icon: 'fa-toolbox',           color: '#9ca3af' },
@@ -3035,6 +3040,8 @@ const SCENARIO_TOOLBAR_CMD_MAP = {
   screenshot: 'ftb_screenshot',
   settings: 'qa_config',
   hotkeys: 'sys_show_vk',
+  floating_bar: '',
+  tray_menu: '',
   cursor: 'ftb_cursor_menu',
   cloudplayer: 'ftb_cloud_player',
 };
@@ -3162,14 +3169,27 @@ const CURSOR_TAB_PRESET = [
 /** 快捷键场景固定布局：每个 cmdId 只出现一次，避免侧边栏重复项与 Bar 开关只命中 toolbarLayout 第一条同 cmd 记录 */
 const HOTKEY_TAB_PRESET = [
   { id: 'hotkeys:direction', name: '方向', commands: ['ch_w', 'ch_s', 'ch_a', 'ch_d'] },
+];
+
+const FLOATING_BAR_TAB_PRESET = [
   {
-    id: 'hotkeys:shortcuts',
+    id: 'floating_bar:shortcuts',
     name: '快捷键',
-    /* 不含 ftb_*：与 hub_capsule / ch_t / ch_b 入口重复；悬浮条仍用这些 cmdId（见 SCENARIO_TOOLBAR_CMD_MAP） */
     commands: [
       'sys_exit', 'ch_f', 'ch_x', 'ch_q', 'hub_capsule', 'ch_t', 'ch_p', 'ch_r', 'ch_b', 'ch_g', 'sys_show_vk',
       'ftm_reset_scale', 'ftm_search_center', 'ftm_clipboard', 'ftm_minimize_to_edge', 'ftm_exit_app',
       'ftm_hide_toolbar', 'ftm_open_config', 'ftm_toggle_toolbar', 'ftm_reload_script',
+    ],
+  },
+];
+
+const TRAY_TAB_PRESET = [
+  {
+    id: 'tray_menu:shortcuts',
+    name: '托盘快捷键',
+    commands: [
+      'tray_show_search', 'tray_show_clipboard', 'tray_show_screenshot', 'tray_show_config',
+      'tray_toggle_toolbar', 'tray_hide_toolbar', 'tray_reload_script', 'tray_exit_app',
     ],
   },
 ];
@@ -3910,12 +3930,54 @@ function buildScenariosFromCategories() {
     }
   }
 
-  // 快捷键场景：固定「方向 / 快捷键」，忽略 Commands.json 里重复/多份「快捷键」分类，避免同 cmd 多条目干扰 Bar 开关
+  // 快捷键场景：仅保留「方向」
   {
     const scenario = ensureScenario('hotkeys');
     scenario.tabs = [];
-    const presetAll = new Set();
     for (const preset of HOTKEY_TAB_PRESET) {
+      const cmdIds = dedupeCmdIdsPreserveOrder(
+        preset.commands.filter((cmdId) => !!state.commands[cmdId]),
+      );
+      if (!cmdIds.length) continue;
+      scenario.tabs.push({
+        id: preset.id,
+        name: preset.name,
+        commands: cmdIds,
+      });
+      for (const cmdId of cmdIds) {
+        commandRoutes[cmdId] = { scenarioId: 'hotkeys', tabId: preset.id };
+        used.add(cmdId);
+      }
+    }
+  }
+
+  // 悬浮栏场景：承接原「快捷键」分类
+  {
+    const scenario = ensureScenario('floating_bar');
+    scenario.tabs = [];
+    for (const preset of FLOATING_BAR_TAB_PRESET) {
+      const cmdIds = dedupeCmdIdsPreserveOrder(
+        preset.commands.filter((cmdId) => !!state.commands[cmdId]),
+      );
+      if (!cmdIds.length) continue;
+      scenario.tabs.push({
+        id: preset.id,
+        name: preset.name,
+        commands: cmdIds,
+      });
+      for (const cmdId of cmdIds) {
+        commandRoutes[cmdId] = { scenarioId: 'floating_bar', tabId: preset.id };
+        used.add(cmdId);
+      }
+    }
+  }
+
+  // 托盘场景：承接原「其它」中的托盘快捷键
+  {
+    const scenario = ensureScenario('tray_menu');
+    scenario.tabs = [];
+    const presetAll = new Set();
+    for (const preset of TRAY_TAB_PRESET) {
       const cmdIds = dedupeCmdIdsPreserveOrder(
         preset.commands.filter((cmdId) => !!state.commands[cmdId]),
       );
@@ -3927,23 +3989,27 @@ function buildScenariosFromCategories() {
         commands: cmdIds,
       });
       for (const cmdId of cmdIds) {
-        commandRoutes[cmdId] = { scenarioId: 'hotkeys', tabId: preset.id };
+        commandRoutes[cmdId] = { scenarioId: 'tray_menu', tabId: preset.id };
         used.add(cmdId);
       }
     }
     const extras = dedupeCmdIdsPreserveOrder(hotkeysCategoryCmdOrder).filter(
       (cmdId) =>
-        !!state.commands[cmdId] && !presetAll.has(cmdId) && !HOTKEY_CMD_MERGED_ELSEWHERE.has(cmdId),
+        !!state.commands[cmdId]
+        && !presetAll.has(cmdId)
+        && !HOTKEY_TAB_PRESET[0].commands.includes(cmdId)
+        && !FLOATING_BAR_TAB_PRESET[0].commands.includes(cmdId)
+        && !HOTKEY_CMD_MERGED_ELSEWHERE.has(cmdId),
     );
     if (extras.length) {
-      const tabId = 'hotkeys:extra';
+      const tabId = 'tray_menu:extra';
       scenario.tabs.push({
         id: tabId,
         name: '其它',
         commands: extras,
       });
       for (const cmdId of extras) {
-        commandRoutes[cmdId] = { scenarioId: 'hotkeys', tabId };
+        commandRoutes[cmdId] = { scenarioId: 'tray_menu', tabId };
         used.add(cmdId);
       }
     }
@@ -4500,6 +4566,7 @@ function normalizeIncomingSceneMenus(raw) {
     settings: ['qa_config', 'sys_show_vk', 'sys_hide_vk', 'sys_reset_vk', 'win_min', 'win_close'],
     cursor: ['cursor_open', 'cursor_close', 'qa_command_palette', 'qa_terminal', 'qa_global_search', 'qa_explorer', 'qa_source_control', 'qa_extensions', 'qa_browser', 'qa_settings', 'qa_cursor_settings', 'qa_voice'],
     cloudplayer: ['open_cloudplayer', 'ftb_cloud_player', 'sc_cat_cloud'],
+    global_hotkeys: ['ch_w', 'ch_s', 'ch_a', 'ch_d', 'ch_f', 'ch_x', 'ch_q', 'hub_capsule', 'ch_t', 'ch_p', 'ch_r', 'ch_b', 'ch_g', 'sys_show_vk', 'ftm_reset_scale', 'ftm_search_center', 'ftm_clipboard', 'ftm_minimize_to_edge', 'ftm_exit_app', 'ftm_hide_toolbar', 'ftm_open_config', 'ftm_toggle_toolbar', 'ftm_reload_script', 'tray_show_search', 'tray_show_clipboard', 'tray_show_screenshot', 'tray_show_config', 'tray_toggle_toolbar', 'tray_hide_toolbar', 'tray_reload_script', 'tray_exit_app'],
     tray_menu: ['tray_show_search', 'tray_show_clipboard', 'tray_show_screenshot', 'tray_show_config', 'tray_toggle_toolbar', 'tray_hide_toolbar', 'tray_reload_script', 'tray_exit_app'],
   };
   for (const k of SCENE_MENU_KEYS) {
@@ -5181,6 +5248,7 @@ function sceneMenuTabIconHtml(key) {
     settings: TOOLBAR_SVG_PARTS.settings,
     cursor: '<svg viewBox="0 0 24 24"><path d="M7 3l10 9-5 1.5L10 20z"></path><path d="m12 13 4 5"></path></svg>',
     cloudplayer: TOOLBAR_SVG_PARTS.cloud,
+    global_hotkeys: TOOLBAR_SVG_PARTS.keyboard,
     tray_menu: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8"></path><path d="M12 16v4"></path></svg>',
     floating_bar: '<svg viewBox="0 0 24 24"><rect x="3" y="10" width="18" height="4" rx="2"></rect><circle cx="7" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="17" cy="12" r="1"></circle></svg>',
   };
