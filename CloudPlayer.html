@@ -93,6 +93,7 @@ button.ghost{background:#151d2b}
 .searchbar{padding:8px 10px;border-bottom:1px solid var(--line);display:flex;gap:8px}
 .searchbar input{flex:1}
 .list{flex:1;overflow:auto;padding:8px}
+.left-status{padding:8px 10px;border-top:1px solid var(--line)}
 .item{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;padding:9px 8px;border-radius:10px;border:1px solid transparent}
 .item:hover{background:rgba(255,255,255,.03);border-color:#26364f}
 .item.active{border-color:#3c5475;background:rgba(86,136,205,.14)}
@@ -279,10 +280,10 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       </div>
       <div class="searchbar"><input id="searchInput" placeholder="搜索当前目录"><button id="btnSearchClear" class="ghost">清空</button></div>
       <div id="fileList" class="list"></div>
+      <div class="left-status"><div id="currentInfo" class="hint">未选择文件。</div></div>
     </div>
     <div class="card right">
       <div class="playbar"><input id="manualUrl" placeholder="粘贴视频 URL（支持直链 / B站 / YouTube）"><button id="btnPlayUrl">播放 URL</button><div class="player-mode"><button id="btnModeNative" class="ghost mode-btn active">原生</button><button id="btnModeArt" class="ghost mode-btn">ArtPlayer</button></div></div>
-      <div id="currentInfo" class="hint">未选择文件。</div>
       <video id="video" controls playsinline preload="metadata"></video>
       <div id="artPlayerWrap" class="hidden"></div>
       <div id="docPreview" class="hidden"></div>
@@ -671,6 +672,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       if($("mkdirCancel")) $("mkdirCancel").textContent = tr("mkdir_cancel");
       if($("mkdirInput")) $("mkdirInput").placeholder = tr("mkdir_placeholder");
       updateCtxMenuMkdirBtn();
+      updateCtxMenuDownloadLabel(null);
     }catch(_){}
   }
 
@@ -740,6 +742,23 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     var sup = ctxMenuMkdirSupported();
     btn.disabled = !sup;
     btn.title = sup ? "" : tr("mkdir_unsupported_hint");
+  }
+  function updateCtxMenuDownloadLabel(entry){
+    var btn = document.querySelector("#ctxMenu .ctx-item[data-act=\"download\"]");
+    if(!btn) return;
+    var target = entry || $("ctxMenu")._entry || null;
+    var isFolder = !!(target && target.isDir);
+    if(!isFolder){
+      var picks = getSelectedEntries(target);
+      for(var i=0;i<picks.length;i++){
+        if(picks[i] && picks[i].isDir){ isFolder = true; break; }
+      }
+    }
+    if(isFolder){
+      btn.textContent = (uiLang === "en" ? "Package Download" : "打包下载");
+      return;
+    }
+    btn.textContent = tr("ctx_download");
   }
   function loadProviderTokens(){
     try{
@@ -1755,6 +1774,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     if(!entry){ hideContextMenu(); return; }
     menu._entry = entry;
     updateCtxMenuMkdirBtn();
+    updateCtxMenuDownloadLabel(entry);
     var pad = 8;
     menu.style.left = "0px";
     menu.style.top = "0px";
@@ -2000,7 +2020,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     if(entry.isDir){
       var hostBridge = !!(window.chrome && window.chrome.webview && window.chrome.webview.postMessage);
       if(hostBridge){
-        text($("currentInfo"), "Packaging folder: " + entry.name);
+        text($("currentInfo"), "打包下载：已开始处理文件夹 " + entry.name);
         var tk = await ensureLiveToken(4500);
         postHost("cloudplayer_download_folder", {
           apiBase: normalizeApiBase(($("apiBase") && $("apiBase").value) || state.apiBase),
@@ -3122,9 +3142,14 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     }
     if(data.type==="cloudplayer_download_result"){
       var msg = data.ok
-        ? ("Folder packaged: " + (data.path || data.name || "zip"))
-        : ("Folder download failed: " + (data.message || "unknown error"));
+        ? ("打包下载完成：" + (data.path || data.name || "zip"))
+        : ("打包下载失败：" + (data.message || "unknown error"));
       text($("currentInfo"), msg);
+      return;
+    }
+    if(data.type==="cloudplayer_download_progress"){
+      var pmsg = String(data.message || "").trim();
+      if(pmsg) text($("currentInfo"), pmsg);
       return;
     }
   }

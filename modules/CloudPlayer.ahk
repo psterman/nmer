@@ -2005,6 +2005,17 @@ CloudPlayer_PostDownloadResult(ok, message, path := "", name := "") {
     ))
 }
 
+CloudPlayer_PostDownloadProgress(message) {
+    global g_CloudPlayerWv2
+    msg := Trim(String(message))
+    if (msg = "")
+        return
+    try WebView_QueuePayload(g_CloudPlayerWv2, Map(
+        "type", "cloudplayer_download_progress",
+        "message", msg
+    ))
+}
+
 CloudPlayer_DownloadFolderZip(folderPath, folderName := "", token := "") {
     global g_CloudPlayerApiBase
     p := CloudPlayer_NormalizeRemotePath(folderPath)
@@ -2013,6 +2024,7 @@ CloudPlayer_DownloadFolderZip(folderPath, folderName := "", token := "") {
         name := "cloud-folder"
 
     try {
+        CloudPlayer_PostDownloadProgress("打包下载：准备中...")
         if (Trim(String(token)) = "") {
             errTok := ""
             token := CloudPlayer_GetOpenListAdminToken(&errTok, 12000)
@@ -2030,6 +2042,7 @@ CloudPlayer_DownloadFolderZip(folderPath, folderName := "", token := "") {
         DirCreate(stageRoot)
 
         stats := Map("files", 0, "failed", 0)
+        CloudPlayer_PostDownloadProgress("打包下载：正在扫描目录结构...")
         CloudPlayer_DownloadFolderTree(p, stageRoot, headers, token, stats, 0)
         if (stats["files"] <= 0) {
             try DirDelete(workRoot, true)
@@ -2044,6 +2057,7 @@ CloudPlayer_DownloadFolderZip(folderPath, folderName := "", token := "") {
             return
         }
         try FileDelete(zipPath)
+        CloudPlayer_PostDownloadProgress("打包下载：正在压缩，文件数 " . stats["files"] . "...")
         exitCode := RunWait('"' . sevenZip . '" a -tzip -mx=5 "' . zipPath . '" "' . name . '"', workRoot, "Hide")
         if (exitCode != 0 || !FileExist(zipPath)) {
             try DirDelete(workRoot, true)
@@ -2055,6 +2069,7 @@ CloudPlayer_DownloadFolderZip(folderPath, folderName := "", token := "") {
         msg := "ok, files: " . stats["files"]
         if (stats["failed"] > 0)
             msg .= ", failed: " . stats["failed"]
+        CloudPlayer_PostDownloadProgress("打包下载：已完成，准备打开目录...")
         CloudPlayer_PostDownloadResult(true, msg, zipPath, name)
     } catch as e {
         CloudPlayer_PostDownloadResult(false, e.Message, "", name)
@@ -2096,6 +2111,9 @@ CloudPlayer_DownloadFolderTree(remotePath, localDir, headers, token, stats, dept
                 stats["files"] += 1
             else
                 stats["failed"] += 1
+            total := stats["files"] + stats["failed"]
+            if (Mod(total, 5) = 0)
+                CloudPlayer_PostDownloadProgress("打包下载：已处理 " . total . " 个文件（成功 " . stats["files"] . "，失败 " . stats["failed"] . "）...")
         }
     }
 }
