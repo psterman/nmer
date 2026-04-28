@@ -88,6 +88,44 @@ global g_FTB_WaitingUiFinishedReveal := false
 global g_FTB_ScreenshotDeferLastTick := 0  ; 闃叉姈锛歐ebView 鐭椂鍙屽彂 postMessage 浼氭帓闃熶袱娆?Deferred锛岄伩鍏嶇浜屾鍐嶈窇瀹屾暣鎴浘鍔╂墜娴佺▼
 global g_FTB_WV2_CreateRetry := 0
 global g_FTB_DebugOverlayEnabled := true
+; 页面底部已集成工具栏时，不再让外层悬浮条覆盖页面。
+global g_FTB_OverlaySuppressedByPageDock := false
+global g_FTB_PageDockActive := Map()
+
+FloatingToolbar_CanShowOverlay() {
+    global g_FTB_OverlaySuppressedByPageDock
+    return !g_FTB_OverlaySuppressedByPageDock
+}
+FloatingToolbar_PageDockEnter(tag := "") {
+    global g_FTB_PageDockActive, g_FTB_OverlaySuppressedByPageDock
+    t := Trim(StrLower(String(tag)))
+    if (t = "")
+        return
+    g_FTB_PageDockActive[t] := A_TickCount
+    g_FTB_OverlaySuppressedByPageDock := true
+    try HideFloatingToolbar()
+}
+
+FloatingToolbar_PageDockLeave(tag := "") {
+    global g_FTB_PageDockActive, g_FTB_OverlaySuppressedByPageDock
+    t := Trim(StrLower(String(tag)))
+    if (t != "" && g_FTB_PageDockActive.Has(t))
+        g_FTB_PageDockActive.Delete(t)
+    if (g_FTB_PageDockActive.Count > 0)
+        return
+    g_FTB_OverlaySuppressedByPageDock := false
+    FloatingToolbar_RestoreAfterPageDock()
+}
+
+FloatingToolbar_RestoreAfterPageDock() {
+    global AppearanceActivationMode, FloatingToolbarIsVisible
+    mode := NormalizeAppearanceActivationMode(AppearanceActivationMode)
+    if (mode != "toolbar")
+        return
+    if FloatingToolbarIsVisible
+        return
+    try ShowFloatingToolbar()
+}
 global g_FTB_CursorIconDataUrl := ""
 
 FTB_Debug(msg, level := "ok") {
@@ -154,6 +192,11 @@ FloatingToolbar_ForceRevealIfStuck() {
 ShowFloatingToolbar() {
     global FloatingToolbarGUI, FloatingToolbarIsVisible, FloatingToolbarWindowX, FloatingToolbarWindowY
     global g_FTB_UI_Ready, g_FTB_WaitingUiFinishedReveal, g_FTB_WV2_Ready
+
+    if !FloatingToolbar_CanShowOverlay() {
+        try HideFloatingToolbar()
+        return
+    }
 
     if (FloatingToolbarIsVisible && FloatingToolbarGUI != 0) {
         return
@@ -228,6 +271,11 @@ HideFloatingToolbar() {
 
 ToggleFloatingToolbar() {
     global FloatingToolbarIsVisible, AppearanceActivationMode, FloatingBubbleIsVisible
+
+    if !FloatingToolbar_CanShowOverlay() {
+        try HideFloatingToolbar()
+        return
+    }
 
     mode := NormalizeAppearanceActivationMode(AppearanceActivationMode)
     if (mode = "bubble") {

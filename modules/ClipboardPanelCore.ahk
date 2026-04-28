@@ -324,6 +324,7 @@ CP_IsForeground() {
 
 CP_Show() {
     global g_CP_Gui, g_CP_Visible, g_CP_Ready, g_CP_Ctrl
+    try FloatingToolbar_PageDockEnter("clipboard")
 
     if !g_CP_Gui
         CP_Init()
@@ -375,6 +376,7 @@ _CP_FocusDeferred() {
 
 CP_Hide() {
     global g_CP_Gui, g_CP_Visible, g_CP_SearchTimer, g_CP_WM_ActivateHideCallback
+    try FloatingToolbar_PageDockLeave("clipboard")
 
     if g_CP_WM_ActivateHideCallback {
         SetTimer(g_CP_WM_ActivateHideCallback, 0)
@@ -626,6 +628,8 @@ _CP_OnWebMessage(sender, args) {
                 CP_RequestFocusInput()
         case "nmDockReady":
             _CP_SendDockConfig()
+        case "nmDockLeave":
+            ; lifecycle handled by CP_Show/CP_Hide
         case "nmDockCmd":
             _CP_ExecuteDockCmd(msg)
 

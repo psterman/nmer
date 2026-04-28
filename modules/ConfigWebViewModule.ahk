@@ -37,6 +37,7 @@ ConfigWebView_SendInitDataIfReady(*) {
 
 ShowConfigWebViewGUI() {
     global GuiID_ConfigGUI, GuiID_ClipboardManager, ConfigPanelScreenIndex, g_ConfigWebView_LastShown
+    try FloatingToolbar_PageDockEnter("settings")
     ; 单例
     ConfigWebView_CreateHost()
     if !GuiID_ConfigGUI
@@ -1020,6 +1021,8 @@ ConfigWebView_OnMessage(sender, args) {
             ConfigWebView_SendDockConfig()
         case "nmDockReady":
             ConfigWebView_SendDockConfig()
+        case "nmDockLeave":
+            ; lifecycle handled by ShowConfigWebViewGUI/ConfigWebView_Close
         case "nmDockCmd":
             ConfigWebView_ExecuteDockCmd(msg)
         case "fulltextStatusRequest":
@@ -1232,6 +1235,7 @@ SaveConfigGUIPosition(ConfigGUI) {
 ; WebView 设置页关闭（由 CloseConfigGUI 在 ConfigWebViewMode 下调用）
 ConfigWebView_Close() {
     global GuiID_ConfigGUI, ConfigWV2Ctrl, ConfigWV2
+    try FloatingToolbar_PageDockLeave("settings")
     try {
         WMActivateChain_Unregister(ConfigWebView_WM_ACTIVATE)
         try WebView2_NotifyHidden(ConfigWV2)

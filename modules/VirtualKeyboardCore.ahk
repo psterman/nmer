@@ -411,6 +411,10 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "cursor_open", "name", "打开光标面板", "desc", "显示光标助手面板", "fn", "CURSOR_OPEN"),
             Map("id", "cursor_close", "name", "关闭光标面板", "desc", "隐藏光标助手面板", "fn", "CURSOR_CLOSE")
         ]),
+        Map("id", "cloudplayer", "name", "☁️ 牛马云", "commands", [
+            Map("id", "open_cloudplayer", "name", "打开牛马云", "desc", "打开 CloudPlayer 网盘播放器", "fn", "CH_RUN", "suggested", "y"),
+            Map("id", "ftb_cloud_player", "name", "云盘按钮", "desc", "悬浮条按钮：打开牛马云", "fn", "CH_RUN", "iconClass", "fa-cloud")
+        ]),
         Map("id", "vk_direction", "name", "方向", "commands", [
             Map("id", "ch_w", "name", "方向上", "desc", "CapsLock+W：发送方向上", "fn", "CH_RUN", "suggested", "w"),
             Map("id", "ch_s", "name", "方向下", "desc", "CapsLock+S：发送方向下", "fn", "CH_RUN", "suggested", "s"),
@@ -441,6 +445,7 @@ _VK_BuiltinCommandCatalog() {
             ; 下列 cmd 供悬浮条/场景条专用绑定；VK 网页「快捷键」标签由 HOTKEY_TAB_PRESET 展示，不再重复列出
             Map("id", "ftb_scratchpad", "name", "草稿本", "desc", "悬浮条按钮：打开 HubCapsule", "fn", "CH_RUN", "iconClass", "fa-note-sticky"),
             Map("id", "ftb_screenshot", "name", "截图", "desc", "悬浮条按钮：截图智能菜单", "fn", "CH_RUN", "iconClass", "fa-camera"),
+            Map("id", "ftb_cloud_player", "name", "云盘", "desc", "悬浮条按钮：打开牛马云", "fn", "CH_RUN", "iconClass", "fa-cloud"),
             Map("id", "ftb_cursor_menu", "name", "Cursor", "desc", "悬浮条按钮：Cursor 快捷入口", "fn", "CH_RUN", "iconClass", "fa-compass", "iconPath", A_ScriptDir "\images\cursor.png")
         ])
     ]
@@ -522,6 +527,7 @@ _LoadCommands() {
     _VK_RebuildEffectiveBindings()
     _VK_EnsureDashboardStorage()
     _VK_EnsureToolbarLayout()
+    _VK_EnsureSceneToolbarLayout()
     _VK_EnsureSceneMenus()
     _VK_EnsureContextMenuLayout()
     _VK_SyncFloatPinnedFromStorage()
@@ -952,10 +958,67 @@ _VK_DefaultToolbarLayoutCmdIds() {
         "ch_b",
         "ftb_scratchpad",
         "ftb_screenshot",
+        "ftb_cloud_player",
         "ftb_cursor_menu",
         "qa_config",
         "sys_show_vk",
     ]
+}
+
+_VK_DefaultSceneToolbarLayoutRows() {
+    return [
+        Map("sceneId", "ai", "visible_in_bar", true, "order_bar", 0),
+        Map("sceneId", "search", "visible_in_bar", true, "order_bar", 1),
+        Map("sceneId", "clipboard", "visible_in_bar", true, "order_bar", 2),
+        Map("sceneId", "prompts", "visible_in_bar", true, "order_bar", 3),
+        Map("sceneId", "scratchpad", "visible_in_bar", true, "order_bar", 4),
+        Map("sceneId", "screenshot", "visible_in_bar", true, "order_bar", 5),
+        Map("sceneId", "settings", "visible_in_bar", true, "order_bar", 6),
+        Map("sceneId", "hotkeys", "visible_in_bar", true, "order_bar", 7),
+        Map("sceneId", "cursor", "visible_in_bar", true, "order_bar", 8),
+        Map("sceneId", "cloudplayer", "visible_in_bar", true, "order_bar", 9)
+    ]
+}
+
+_VK_EnsureSceneToolbarLayout() {
+    global g_Commands
+    if !(g_Commands is Map)
+        return
+
+    defaults := _VK_DefaultSceneToolbarLayoutRows()
+    defaultByScene := Map()
+    for row in defaults
+        defaultByScene[row["sceneId"]] := row
+
+    raw := (g_Commands.Has("SceneToolbarLayout") && g_Commands["SceneToolbarLayout"] is Array) ? g_Commands["SceneToolbarLayout"] : []
+    out := []
+    seen := Map()
+
+    for item in raw {
+        if !(item is Map) || !item.Has("sceneId")
+            continue
+        sid := Trim(String(item["sceneId"]))
+        if (sid = "" || seen.Has(sid))
+            continue
+        seen[sid] := true
+        def := defaultByScene.Has(sid) ? defaultByScene[sid] : 0
+        vb := item.Has("visible_in_bar") ? !!item["visible_in_bar"] : (def is Map ? !!def["visible_in_bar"] : true)
+        ob := item.Has("order_bar") ? Integer(item["order_bar"]) : (def is Map ? Integer(def["order_bar"]) : 999999)
+        out.Push(Map("sceneId", sid, "visible_in_bar", vb, "order_bar", ob))
+    }
+
+    for sid, def in defaultByScene {
+        if seen.Has(sid)
+            continue
+        out.Push(Map("sceneId", sid, "visible_in_bar", !!def["visible_in_bar"], "order_bar", Integer(def["order_bar"])))
+    }
+
+    if out.Length > 1
+        out := _VK_SortRowsByNumericKey(out, "order_bar")
+    idx := 0
+    for row in out
+        row["order_bar"] := idx++
+    g_Commands["SceneToolbarLayout"] := out
 }
 
 _VK_ToolbarLayoutToJson() {
@@ -3126,6 +3189,8 @@ _OnWebMessage(sender, args) {
                 _ExecuteCommand(msg["commandId"])
         case "nmDockReady":
             _VK_SendDockConfig()
+        case "nmDockLeave":
+            ; lifecycle handled by VK_Show/VK_Hide
         case "nmDockCmd":
             cmdId0 := msg.Has("cmdId") ? String(msg["cmdId"]) : ""
             if (cmdId0 = "")
@@ -4423,6 +4488,7 @@ VK_MarkNextShowFromCapsLockHold(enabled := true) {
 
 VK_Show() {
     global g_VK_Gui, g_VK_Ready, g_VK_LastShown, g_VK_NextShowFromCapsLockHold
+    try FloatingToolbar_PageDockEnter("hotkeys")
     if g_VK_Gui {
         openFromCapsHold := g_VK_NextShowFromCapsLockHold
         g_VK_NextShowFromCapsLockHold := false
@@ -4460,6 +4526,7 @@ VK_Show() {
 
 VK_Hide() {
     global g_VK_Gui, g_VK_WV2
+    try FloatingToolbar_PageDockLeave("hotkeys")
     VK_SendToWeb('{"type":"keyPreviewClear"}')
     _StopKeyPreviewHook()
     _VK_StopPhysicalModSyncTimer()

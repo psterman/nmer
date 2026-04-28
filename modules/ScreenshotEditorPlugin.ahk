@@ -202,6 +202,7 @@ class ScreenshotEditorPlugin {
 ; 鏄剧ず鎴浘鍔╂墜棰勮绐?
     static ShowScreenshotEditor(DebugGui := 0) {
     global ScreenshotClipboard, UI_Colors, ThemeMode
+    try FloatingToolbar_PageDockEnter("screenshot")
     
     ; 鍒濆鍖栧眬閮ㄥ彉閲?
     pToken := 0
@@ -1005,6 +1006,8 @@ class ScreenshotEditorPlugin {
             this.ScreenshotToolbar_SendDockConfig()
         case "nmDockReady":
             this.ScreenshotToolbar_SendDockConfig()
+        case "nmDockLeave":
+            ; lifecycle handled by ShowScreenshotEditor/CloseScreenshotEditor
         case "nmDockCmd":
             this.ScreenshotToolbar_ExecuteDockCmd(msg)
         case "paint_ok":
@@ -1651,6 +1654,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:var(--bg);color:v
 
 ; 鍏抽棴鎴浘鍔╂墜棰勮绐?
     static CloseScreenshotEditor() {
+    try FloatingToolbar_PageDockLeave("screenshot")
     
     try {
         this.ScreenshotEditorStopColorPicker()

@@ -1186,6 +1186,7 @@ _SCWV_ResultItemGet(Item, Prop, Default := "") {
 SCWV_Show() {
     global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_Ready, g_SCWV_UI_Ready, g_SCWV_WaitingUiFinishedReveal, g_SCWV_Ctrl, GuiID_SearchCenter, g_SCWV_LastShown, SearchCenterWebKeyword
     global SearchCenterEngineMode
+    try FloatingToolbar_PageDockEnter("search")
 
     if !SCWV_HostAlive() {
         SCWV_ResetHostState()
@@ -1327,6 +1328,7 @@ SCWV_RequestFocusInput() {
 SCWV_Hide(PersistSelection := true) {
     global g_SCWV_Gui, g_SCWV_Visible, g_SCWV_WaitingUiFinishedReveal, g_SCWV_SearchTimer, GuiID_SearchCenter, g_SCWV_PendingJsonQueue
     global g_SCWV_DeactivateBlockUntil, g_SCWV_DeactivateBlockReason
+    try FloatingToolbar_PageDockLeave("search")
 
     if !SCWV_HostAlive() {
         SCWV_ResetHostState()
@@ -1672,6 +1674,8 @@ SCWV_OnWebMessage(sender, args) {
             }
         case "nmDockReady":
             _SCWV_SendDockConfig()
+        case "nmDockLeave":
+            ; lifecycle handled by SCWV_Show/SCWV_Hide
         case "nmDockCmd":
             _SCWV_ExecuteDockCmd(msg)
         case "search":

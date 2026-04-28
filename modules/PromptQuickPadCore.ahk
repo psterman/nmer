@@ -252,6 +252,8 @@ _PQP_OnWebMessage(sender, args) {
                 PQP_RequestFocusInput()
         case "nmDockReady":
             _PQP_SendDockConfig()
+        case "nmDockLeave":
+            ; lifecycle handled by PQP_Show/PQP_Hide
         case "nmDockCmd":
             _PQP_ExecuteDockCmd(msg)
 
@@ -343,6 +345,7 @@ _PQP_ExecuteSearch(*) {
 PQP_Show() {
     global g_PQP_Gui, g_PQP_Visible, g_PQP_Ready, g_PQP_Ctrl, g_PQP_LastShown
     global AIListPanelWindowX, AIListPanelWindowY, AIListPanelWindowW, AIListPanelWindowH
+    try FloatingToolbar_PageDockEnter("prompts")
 
     if !g_PQP_Gui
         PQP_Init()
@@ -432,6 +435,7 @@ _PQP_WMDeactivateHideTick(*) {
 
 PQP_Hide() {
     global g_PQP_Gui, g_PQP_Visible, g_PQP_SearchTimer
+    try FloatingToolbar_PageDockLeave("prompts")
 
     SetTimer(_PQP_WMDeactivateHideTick, 0)
     SetTimer(_PQP_RefreshWebViewComposition, 0)

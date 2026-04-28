@@ -1555,6 +1555,10 @@ SelectionSense_OnMenuWebMessage(sender, args) {
         SelectionSense_SendDockConfig()
         return
     }
+    if (typ = "nmDockLeave") {
+        ; lifecycle handled by SelectionSense_ShowMenuNearCursor/SelectionSense_HideMenu
+        return
+    }
     if (typ = "nmDockCmd") {
         SelectionSense_ExecuteDockCmd(msg)
         return
@@ -2242,6 +2246,7 @@ SelectionSense_ShowMenuNearCursor() {
     static hubWvWarned := false
     global g_SelSense_MenuGui, g_SelSense_MenuVisible, g_SelSense_PendingText
     global g_SelSense_MenuAnchorX, g_SelSense_MenuAnchorY, g_SelSense_MenuCtrl
+    try FloatingToolbar_PageDockEnter("scratchpad")
 
     SelectionSense_EnsureMenuHost()
     if !g_SelSense_MenuGui
@@ -2437,6 +2442,7 @@ SelectionSense_DeferredPushMenuText(*) {
 SelectionSense_HideMenu() {
     global g_SelSense_MenuGui, g_SelSense_MenuVisible, g_SelSense_MenuShowingHub, g_SelSense_DoubleCopyHub_LastTick
     global g_SelSense_MenuWV2, g_SelSense_MenuReady, g_SelSense_PendingText
+    try FloatingToolbar_PageDockLeave("scratchpad")
     if (g_SelSense_MenuGui && g_SelSense_MenuVisible && g_SelSense_MenuShowingHub) {
         SelectionSense_HubCapsule_WriteSavedPos()
         try {

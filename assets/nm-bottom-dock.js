@@ -234,6 +234,11 @@
     }
 
     markActive(sourceScene);
+    function notifyLeave() {
+      try { post({ type: 'nmDockLeave', sceneId: sourceScene }); } catch (e) {}
+    }
+    global.addEventListener('pagehide', notifyLeave);
+    global.addEventListener('beforeunload', notifyLeave);
     setTimeout(function () { post({ type: 'nmDockReady', sceneId: sourceScene }); }, 0);
 
     var api = { onHostMessage: onHostMessage, applyConfig: applyConfig, markActive: markActive, root: root };

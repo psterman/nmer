@@ -220,6 +220,35 @@ body::after {
 }
 #reset-all:hover { color: var(--orange); border-color: var(--orange); box-shadow: 0 0 0 1px rgba(230,126,34,.18) inset, 0 0 18px rgba(230,126,34,.22); }
 
+/* ── Keyboard Collapse Button ──────────────────────────────────────────── */
+#vk-toggle-kb {
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  color: var(--text-dim);
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, box-shadow .15s;
+  flex-shrink: 0;
+}
+#vk-toggle-kb:hover {
+  color: var(--orange-lt);
+  border-color: var(--orange-lt);
+  box-shadow: 0 0 0 1px rgba(243,156,18,.2) inset, 0 0 16px rgba(243,156,18,.2);
+}
+#vk-toggle-kb.is-collapsed {
+  color: #ffd7a4;
+  border-color: rgba(243,156,18,.72);
+  box-shadow: 0 0 0 1px rgba(243,156,18,.18) inset, 0 0 16px rgba(243,156,18,.18);
+}
+
+body.vk-kb-collapsed #keyboard-zone { display: none; }
+body.vk-kb-collapsed #bottom-zone { border-top: 1px solid var(--border); }
+
 /* ── Conflict Modal ────────────────────────────────────────────────────── */
 #conflict-overlay {
   display: none;
@@ -2378,7 +2407,8 @@ body[data-theme="light"] .scene-menu-tab,
 body[data-theme="light"] .atom-tab,
 body[data-theme="light"] #layout-toggle,
 body[data-theme="light"] #layout-help,
-body[data-theme="light"] #reset-all {
+body[data-theme="light"] #reset-all,
+body[data-theme="light"] #vk-toggle-kb {
   border-width: 1px;
   border-style: solid;
 }
@@ -2517,6 +2547,7 @@ body[data-theme="light"] .dashboard-edit-input:focus {
     <div id="hud-dot"></div>
     <button id="layout-toggle" title="切换 ScanCode 物理键适配模式（防止 IME 干扰）">STANDARD</button>
     <button id="layout-help" title="按键识别异常时，快速切换到兼容模式">识别异常？</button>
+    <button id="vk-toggle-kb" title="折叠虚拟键盘，仅保留下方面板">折叠键盘</button>
     <button id="reset-all" title="全局重置（恢复出厂设置）">全局重置</button>
     <div id="vk-host-mode-hint" aria-live="polite"></div>
     <div id="hud-hint" aria-live="polite"></div>
@@ -2810,6 +2841,7 @@ const state = {
   uiMods:      { ctrl:false, alt:false, shift:false, win:false }, // 虚拟键盘点击切换
   lastFilteredCmdIds: [],
   nativeLayout: false,      // ScanCode 物理键适配模式
+  keyboardCollapsed: false,
   lastActionId: '',
   lastActionName: '',
   lastActionCurrentKey: '',
@@ -2851,6 +2883,7 @@ const VK_UI_PREF_KEYS = {
   dashboardLayout: 'vk_dashboard_layout',
   dashboardPanelMode: 'vk_dashboard_panel_mode',
   activeSceneMenuKey: 'vk_active_scene_menu_key',
+  keyboardCollapsed: 'vk_keyboard_collapsed',
 };
 
 function readVkUiPref(key, fallback = '') {
@@ -5185,6 +5218,8 @@ function handleInit(msg) {
   state.sceneMenus = normalizeIncomingSceneMenus(msg.sceneMenus || {});
   state.sceneMenuVisibility = normalizeIncomingSceneMenuVisibility(msg.sceneMenuVisibility || {});
   state.dashboardPanelMode = readVkUiPref(VK_UI_PREF_KEYS.dashboardPanelMode, 'main') === 'scene' ? 'scene' : 'main';
+  state.keyboardCollapsed = readVkUiPref(VK_UI_PREF_KEYS.keyboardCollapsed, '0') === '1';
+  applyKeyboardCollapsedUI(state.keyboardCollapsed);
   state.activeSceneMenuKey = (() => {
     const k = readVkUiPref(VK_UI_PREF_KEYS.activeSceneMenuKey, state.activeSceneMenuKey || 'floating_bar');
     return SCENE_MENU_KEYS.includes(k) ? k : 'floating_bar';
@@ -7218,6 +7253,23 @@ function updateLayoutToggleUI() {
   }
 }
 
+function applyKeyboardCollapsedUI(collapsed) {
+  const next = !!collapsed;
+  state.keyboardCollapsed = next;
+  document.body.classList.toggle('vk-kb-collapsed', next);
+  const btn = document.getElementById('vk-toggle-kb');
+  if (!btn) return;
+  btn.classList.toggle('is-collapsed', next);
+  btn.textContent = next ? '展开键盘' : '折叠键盘';
+  btn.title = next ? '展开虚拟键盘' : '折叠虚拟键盘，仅保留下方面板';
+}
+
+function setKeyboardCollapsed(collapsed, persist = true) {
+  applyKeyboardCollapsedUI(collapsed);
+  if (persist)
+    writeVkUiPref(VK_UI_PREF_KEYS.keyboardCollapsed, collapsed ? '1' : '0');
+}
+
 document.getElementById('layout-toggle').addEventListener('click', () => {
   state.nativeLayout = !state.nativeLayout;
   updateLayoutToggleUI();
@@ -7235,6 +7287,10 @@ document.getElementById('layout-help')?.addEventListener('click', () => {
   updateLayoutToggleUI();
   postToAhk({ type: 'setLayoutMode', native: true });
   setHud('已切换到兼容模式（NATIVE）');
+});
+
+document.getElementById('vk-toggle-kb')?.addEventListener('click', () => {
+  setKeyboardCollapsed(!state.keyboardCollapsed, true);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -15,6 +15,7 @@ ShowCloudPlayer(*) {
 
 CloudPlayer_Show() {
     global g_CloudPlayerGui, g_CloudPlayerAutoPulseEnabled
+    try FloatingToolbar_PageDockEnter("cloudplayer")
     if !CloudPlayer_EnsureOpenListRunning() {
         try TrayTip("CloudPlayer", "OpenList 未启动。请确认 openlist.exe 已放到 tools\\openlist\\。", "Icon! 2")
         catch {
@@ -100,6 +101,7 @@ CloudPlayer_ApplyWebViewBounds() {
 
 CloudPlayer_OnGuiClose(*) {
     global g_CloudPlayerGui, g_CloudPlayerAutoPulseEnabled
+    try FloatingToolbar_PageDockLeave("cloudplayer")
     try g_CloudPlayerGui.Hide()
     g_CloudPlayerAutoPulseEnabled := false
 }
@@ -195,6 +197,10 @@ CloudPlayer_OnWebMessage(sender, args) {
 
     if (typ = "nmDockReady") {
         CloudPlayer_SendDockConfig()
+        return
+    }
+    if (typ = "nmDockLeave") {
+        ; lifecycle handled by CloudPlayer_Show/CloudPlayer_OnGuiClose
         return
     }
 
