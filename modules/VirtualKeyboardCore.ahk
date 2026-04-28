@@ -442,11 +442,20 @@ _VK_BuiltinCommandCatalog() {
             Map("id", "ftm_open_config", "name", "打开设置", "desc", "悬浮工具栏右键：打开设置", "fn", "CH_RUN"),
             Map("id", "ftm_toggle_toolbar", "name", "显示/隐藏工具栏", "desc", "悬浮工具栏右键：切换可见性", "fn", "CH_RUN"),
             Map("id", "ftm_reload_script", "name", "重启脚本", "desc", "悬浮工具栏右键：重载脚本", "fn", "CH_RUN"),
+            ; 托盘右键菜单（第一阶段：先纳入 VK 宫格统一规划）
+            Map("id", "tray_show_search", "name", "托盘/打开搜索中心", "desc", "系统托盘右键菜单项", "fn", "CH_RUN"),
+            Map("id", "tray_show_clipboard", "name", "托盘/打开剪贴板", "desc", "系统托盘右键菜单项", "fn", "CH_RUN"),
+            Map("id", "tray_show_screenshot", "name", "托盘/截图", "desc", "系统托盘右键菜单项", "fn", "CH_RUN"),
+            Map("id", "tray_show_config", "name", "托盘/打开设置", "desc", "系统托盘右键菜单项", "fn", "CH_RUN"),
+            Map("id", "tray_toggle_toolbar", "name", "托盘/显示隐藏工具栏", "desc", "系统托盘右键菜单项", "fn", "CH_RUN"),
+            Map("id", "tray_hide_toolbar", "name", "托盘/关闭工具栏", "desc", "系统托盘右键菜单项", "fn", "CH_RUN"),
+            Map("id", "tray_reload_script", "name", "托盘/重启脚本", "desc", "系统托盘右键菜单项", "fn", "CH_RUN"),
+            Map("id", "tray_exit_app", "name", "托盘/退出程序", "desc", "系统托盘右键菜单项", "fn", "CH_RUN"),
             ; 下列 cmd 供悬浮条/场景条专用绑定；VK 网页「快捷键」标签由 HOTKEY_TAB_PRESET 展示，不再重复列出
             Map("id", "ftb_scratchpad", "name", "草稿本", "desc", "悬浮条按钮：打开 HubCapsule", "fn", "CH_RUN", "iconClass", "fa-note-sticky"),
             Map("id", "ftb_screenshot", "name", "截图", "desc", "悬浮条按钮：截图智能菜单", "fn", "CH_RUN", "iconClass", "fa-camera"),
             Map("id", "ftb_cloud_player", "name", "云盘", "desc", "悬浮条按钮：打开牛马云", "fn", "CH_RUN", "iconClass", "fa-cloud"),
-            Map("id", "ftb_cursor_menu", "name", "Cursor", "desc", "悬浮条按钮：Cursor 快捷入口", "fn", "CH_RUN", "iconClass", "fa-compass", "iconPath", A_ScriptDir "\images\cursor.png")
+            Map("id", "ftb_cursor_menu", "name", "Cursor", "desc", "悬浮条按钮：Cursor 快捷入口", "fn", "CH_RUN", "iconClass", "fa-compass", "iconPath", A_ScriptDir "\lib\images\cursor.png")
         ])
     ]
 }
@@ -1076,11 +1085,11 @@ _VK_SceneToolbarLayoutToJson() {
 
 ; ── SceneMenus：五套场景右键菜单 cmdId 序列（Commands.json 顶层 SceneMenus） ──
 _VK_SceneMenuCanonicalKeys() {
-    return ["search", "scratchpad", "clipboard", "prompts", "floating_bar"]
+    return ["search", "scratchpad", "clipboard", "prompts", "screenshot", "settings", "cursor", "cloudplayer", "floating_toolbar_menu", "tray_menu", "floating_bar"]
 }
 
 _VK_SceneMenuKeysWithDefaultCommands() {
-    return ["clipboard", "scratchpad", "prompts"]
+    return ["clipboard", "scratchpad", "prompts", "screenshot", "settings", "cursor", "cloudplayer", "floating_toolbar_menu", "tray_menu"]
 }
 
 ; 与搜索中心结果行右键一致的扁平命令（复制到 / 发送到 子项已展开）
@@ -1132,6 +1141,30 @@ _VK_DefaultSceneMenuPromptsCmds() {
     return _VK_MergeSceneMenuWithSearchCtxCmds([
         "pqp_ctx_paste", "pqp_ctx_edit", "pqp_ctx_view", "pqp_ctx_delete"
     ])
+}
+
+_VK_DefaultSceneMenuScreenshotCmds() {
+    return ["ss_pin", "ss_ocr", "ss_text", "ss_save", "ss_ai", "ss_search", "ss_close", "ch_t"]
+}
+
+_VK_DefaultSceneMenuSettingsCmds() {
+    return ["qa_config", "sys_show_vk", "sys_hide_vk", "sys_reset_vk", "win_min", "win_close"]
+}
+
+_VK_DefaultSceneMenuCursorCmds() {
+    return ["cursor_open", "cursor_close", "qa_command_palette", "qa_terminal", "qa_global_search", "qa_explorer", "qa_source_control", "qa_extensions", "qa_browser", "qa_settings", "qa_cursor_settings", "qa_voice"]
+}
+
+_VK_DefaultSceneMenuCloudPlayerCmds() {
+    return ["open_cloudplayer", "ftb_cloud_player", "sc_cat_cloud"]
+}
+
+_VK_DefaultSceneMenuFloatingToolbarMenuCmds() {
+    return ["ftm_reset_scale", "ftm_search_center", "ftm_clipboard", "ftm_minimize_to_edge", "ftm_exit_app", "ftm_hide_toolbar", "ftm_open_config", "ftm_toggle_toolbar", "ftm_reload_script"]
+}
+
+_VK_DefaultSceneMenuTrayMenuCmds() {
+    return ["tray_show_search", "tray_show_clipboard", "tray_show_screenshot", "tray_show_config", "tray_toggle_toolbar", "tray_hide_toolbar", "tray_reload_script", "tray_exit_app"]
 }
 
 ; 供 Web 端「系统锁定」提示（若槽位中出现这些 cmdId 则不可拖删）
@@ -1277,6 +1310,18 @@ _VK_DefaultSceneMenuForKey(key) {
         return _VK_DefaultSceneMenuScratchpadCmds()
     if (k = "prompts")
         return _VK_DefaultSceneMenuPromptsCmds()
+    if (k = "screenshot")
+        return _VK_DefaultSceneMenuScreenshotCmds()
+    if (k = "settings")
+        return _VK_DefaultSceneMenuSettingsCmds()
+    if (k = "cursor")
+        return _VK_DefaultSceneMenuCursorCmds()
+    if (k = "cloudplayer")
+        return _VK_DefaultSceneMenuCloudPlayerCmds()
+    if (k = "floating_toolbar_menu")
+        return _VK_DefaultSceneMenuFloatingToolbarMenuCmds()
+    if (k = "tray_menu")
+        return _VK_DefaultSceneMenuTrayMenuCmds()
     return []
 }
 
@@ -1291,7 +1336,7 @@ _VK_EnsureSceneMenus() {
     if g_Commands.Has("SceneMenus") && g_Commands["SceneMenus"] is Map {
         raw := g_Commands["SceneMenus"]
         for key in keys {
-            useGridPad := (key = "floating_bar" || key = "clipboard" || key = "scratchpad" || key = "prompts")
+            useGridPad := (key != "search")
             if raw.Has(key) && raw[key] is Array && raw[key].Length > 0 {
                 mergedArr := raw[key]
                 if (key = "clipboard" || key = "scratchpad" || key = "prompts")
@@ -1740,7 +1785,7 @@ _VK_ApplySceneMenuFromWeb(msg) {
                 user.Push(cid)
         }
     }
-    if (key = "floating_bar" || key = "clipboard" || key = "scratchpad" || key = "prompts")
+    if (key != "search")
         user := _VK_SceneMenuPadToGridSlotCount(cmdList, user)
     if !g_Commands.Has("SceneMenus") || !(g_Commands["SceneMenus"] is Map)
         g_Commands["SceneMenus"] := Map()

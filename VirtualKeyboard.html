@@ -2868,7 +2868,7 @@ const state = {
   /** 当前选中的场景右键菜单宫格（与下方宫格联动展示） */
   activeSceneMenuKey: 'floating_bar',
   /** main=仅快捷动作宫格；scene=仅场景菜单宫格（不同时显示） */
-  dashboardPanelMode: 'main',
+  dashboardPanelMode: 'scene',
   /** 宫格右键菜单当前针对：main | sceneMenu */
   dashboardMenuContext: 'main',
   /** { sceneId, visible_in_bar, order_bar }[] 场景镜像悬浮栏布局 */
@@ -2966,13 +2966,19 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
-const SCENARIO_ORDER = ['ai', 'search', 'clipboard', 'prompts', 'scratchpad', 'screenshot', 'settings', 'hotkeys', 'cursor'];
-const SCENE_MENU_KEYS = ['search', 'scratchpad', 'clipboard', 'prompts', 'floating_bar'];
+const SCENARIO_ORDER = ['ai', 'search', 'clipboard', 'prompts', 'scratchpad', 'screenshot', 'settings', 'hotkeys', 'cursor', 'cloudplayer'];
+const SCENE_MENU_KEYS = ['search', 'scratchpad', 'clipboard', 'prompts', 'screenshot', 'settings', 'cursor', 'cloudplayer', 'floating_toolbar_menu', 'tray_menu', 'floating_bar'];
 const SCENE_MENU_LABELS = {
   search: '搜索中心',
   scratchpad: '草稿本',
   clipboard: '剪贴板',
   prompts: '提示词',
+  screenshot: '截图',
+  settings: '设置',
+  cursor: 'Cursor',
+  cloudplayer: '牛马云',
+  floating_toolbar_menu: '悬浮栏右键',
+  tray_menu: '托盘右键',
   floating_bar: '悬浮条',
 };
 const SCENARIO_TO_SCENE_MENU_TAB = {
@@ -2980,10 +2986,14 @@ const SCENARIO_TO_SCENE_MENU_TAB = {
   scratchpad: 'scratchpad',
   clipboard: 'clipboard',
   prompts: 'prompts',
+  screenshot: 'screenshot',
+  settings: 'settings',
+  cursor: 'cursor',
+  cloudplayer: 'cloudplayer',
 };
 
 function isDynamicSceneMenuKey(key) {
-  return key === 'clipboard' || key === 'scratchpad' || key === 'prompts' || key === 'floating_bar';
+  return key !== 'search';
 }
 const SCENARIO_META = {
   ai:         { name: '🤖 牛马 AI',   icon: 'fa-robot',             color: '#00d4ff' },
@@ -2995,6 +3005,7 @@ const SCENARIO_META = {
   settings:   { name: '⚙️ 设置中心', icon: 'fa-gear',              color: '#94a3b8' },
   hotkeys:    { name: '⌨️ 快捷键',   icon: 'fa-keyboard',          color: '#e67e22' },
   cursor:     { name: '🧭 Cursor',   icon: 'fa-compass-drafting',  color: '#60a5fa' },
+  cloudplayer:{ name: '☁️ 牛马云',   icon: 'fa-cloud',             color: '#38bdf8' },
   other:      { name: '其他',        icon: 'fa-toolbox',           color: '#9ca3af' },
 };
 
@@ -3008,6 +3019,7 @@ const SCENARIO_TOOLBAR_CMD_MAP = {
   settings: 'qa_config',
   hotkeys: 'sys_show_vk',
   cursor: 'ftb_cursor_menu',
+  cloudplayer: 'ftb_cloud_player',
 };
 
 const TOOLBAR_CMD_TO_KEY = {
@@ -3020,6 +3032,7 @@ const TOOLBAR_CMD_TO_KEY = {
   qa_config: 'settings',
   sys_show_vk: 'keyboard',
   ftb_cursor_menu: 'cursor_img',
+  ftb_cloud_player: 'cloud',
 };
 
 const TOOLBAR_SVG_PARTS = {
@@ -3030,6 +3043,7 @@ const TOOLBAR_SVG_PARTS = {
   robot: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="10" rx="2"></rect><path d="M9 8V6a3 3 0 0 1 6 0v2"></path><circle cx="9.5" cy="13" r="1" fill="currentColor" stroke="none"></circle><circle cx="14.5" cy="13" r="1" fill="currentColor" stroke="none"></circle><path d="M9 18v2"></path><path d="M15 18v2"></path></svg>',
   notepad: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>',
   settings: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>',
+  cloud: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path></svg>',
   keyboard: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"></rect><path d="M6 9h1"></path><path d="M9 9h1"></path><path d="M12 9h1"></path><path d="M15 9h1"></path><path d="M18 9h1"></path><path d="M6 12h1"></path><path d="M9 12h1"></path><path d="M12 12h1"></path><path d="M15 12h1"></path><path d="M18 12h1"></path><path d="M7 15h10"></path></svg>',
   bolt: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"></path></svg>',
 };
@@ -3547,7 +3561,7 @@ function toolbarIconSvgHtml(cmdId) {
     return '<img class="vk-toolbar-cursor-img" src="assets/牛马.png" alt="牛马">';
   }
   if (key === 'cursor_img') {
-    return '<img class="vk-toolbar-cursor-img" src="images/cursor.png" alt="Cursor">';
+    return '<img class="vk-toolbar-cursor-img" src="lib/images/cursor.png" alt="Cursor">';
   }
   return TOOLBAR_SVG_PARTS[key] || TOOLBAR_SVG_PARTS.bolt;
 }
@@ -3650,6 +3664,7 @@ function classifyScenarioIdForCategory(cat) {
   if (idRaw === 'vk_direction') return 'hotkeys';
   const text = `${cat?.id || ''} ${cat?.name || ''}`.toLowerCase();
   if (/(cursor|vscode|code|ide|editor|命令面板|资源管理器|源代码管理|扩展|终端|语音输入)/.test(text)) return 'cursor';
+  if (/(cloudplayer|cloud|网盘|云盘|牛马云)/.test(text)) return 'cloudplayer';
   if (/(clip|clipboard|copy|paste|剪贴|复制|粘贴)/.test(text)) return 'clipboard';
   if (/(prompt|template|提示词|模板)/.test(text)) return 'prompts';
   if (/(ai|gpt|llm|解释|改写|翻译)/.test(text)) return 'ai';
@@ -4463,6 +4478,14 @@ function saveSceneToolbarLayout() {
 
 function normalizeIncomingSceneMenus(raw) {
   const out = {};
+  const defaultsByKey = {
+    screenshot: ['ss_pin', 'ss_ocr', 'ss_text', 'ss_save', 'ss_ai', 'ss_search', 'ss_close', 'ch_t'],
+    settings: ['qa_config', 'sys_show_vk', 'sys_hide_vk', 'sys_reset_vk', 'win_min', 'win_close'],
+    cursor: ['cursor_open', 'cursor_close', 'qa_command_palette', 'qa_terminal', 'qa_global_search', 'qa_explorer', 'qa_source_control', 'qa_extensions', 'qa_browser', 'qa_settings', 'qa_cursor_settings', 'qa_voice'],
+    cloudplayer: ['open_cloudplayer', 'ftb_cloud_player', 'sc_cat_cloud'],
+    floating_toolbar_menu: ['ftm_reset_scale', 'ftm_search_center', 'ftm_clipboard', 'ftm_minimize_to_edge', 'ftm_exit_app', 'ftm_hide_toolbar', 'ftm_open_config', 'ftm_toggle_toolbar', 'ftm_reload_script'],
+    tray_menu: ['tray_show_search', 'tray_show_clipboard', 'tray_show_screenshot', 'tray_show_config', 'tray_toggle_toolbar', 'tray_hide_toolbar', 'tray_reload_script', 'tray_exit_app'],
+  };
   for (const k of SCENE_MENU_KEYS) {
     const arr = raw && Array.isArray(raw[k]) ? raw[k] : [];
     const mapped = arr.map((x) => {
@@ -4476,9 +4499,13 @@ function normalizeIncomingSceneMenus(raw) {
       out[k] = mapped;
       continue;
     }
+    let seed = mapped;
+    if (!seed.some(Boolean) && defaultsByKey[k]) {
+      seed = defaultsByKey[k].map((cmdId) => (state.commands[cmdId] ? cmdId : ''));
+    }
     const full = [];
     for (let i = 0; i < SCENE_MENU_MAX_SLOTS; i++) {
-      const s = mapped[i] == null ? '' : String(mapped[i]).trim();
+      const s = seed[i] == null ? '' : String(seed[i]).trim();
       full.push(s && state.commands[s] ? s : '');
     }
     out[k] = full;
@@ -5217,7 +5244,7 @@ function handleInit(msg) {
     : [];
   state.sceneMenus = normalizeIncomingSceneMenus(msg.sceneMenus || {});
   state.sceneMenuVisibility = normalizeIncomingSceneMenuVisibility(msg.sceneMenuVisibility || {});
-  state.dashboardPanelMode = readVkUiPref(VK_UI_PREF_KEYS.dashboardPanelMode, 'main') === 'scene' ? 'scene' : 'main';
+  state.dashboardPanelMode = readVkUiPref(VK_UI_PREF_KEYS.dashboardPanelMode, 'scene') === 'scene' ? 'scene' : 'main';
   state.keyboardCollapsed = readVkUiPref(VK_UI_PREF_KEYS.keyboardCollapsed, '0') === '1';
   applyKeyboardCollapsedUI(state.keyboardCollapsed);
   state.activeSceneMenuKey = (() => {
