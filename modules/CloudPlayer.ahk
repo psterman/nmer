@@ -237,8 +237,16 @@ CloudPlayer_OnWebMessage(sender, args) {
 
     if (typ = "cloudplayer_open_url") {
         url := payload.Has("url") ? Trim(String(payload["url"])) : ""
-        if (url != "" && RegExMatch(url, "i)^https?://"))
+        if (url != "" && RegExMatch(url, "i)^https?://") && !RegExMatch(url, "i)/@manage(?:[/?#]|$)"))
             CloudPlayer_OpenExternalUrl(url)
+        return
+    }
+
+    if (typ = "cloudplayer_download_folder") {
+        folderPath := payload.Has("path") ? String(payload["path"]) : "/"
+        folderName := payload.Has("name") ? String(payload["name"]) : ""
+        token := payload.Has("token") ? Trim(String(payload["token"])) : ""
+        SetTimer(() => CloudPlayer_DownloadFolderZip(folderPath, folderName, token), -10)
         return
     }
 
@@ -1986,6 +1994,297 @@ CloudPlayer_NormalizeApiBase(apiBase) {
     return RTrim(s, "/")
 }
 
+CloudPlayer_PostDownloadResult(ok, message, path := "", name := "") {
+    global g_CloudPlayerWv2
+    try WebView_QueuePayload(g_CloudPlayerWv2, Map(
+        "type", "cloudplayer_download_result",
+        "ok", !!ok,
+        "message", String(message),
+        "path", String(path),
+        "name", String(name)
+    ))
+}
+
+CloudPlayer_DownloadFolderZip(folderPath, folderName := "", token := "") {
+    global g_CloudPlayerApiBase
+    p := CloudPlayer_NormalizeRemotePath(folderPath)
+    name := CloudPlayer_SafeFileName(folderName != "" ? folderName : CloudPlayer_RemoteBaseName(p))
+    if (name = "")
+        name := "cloud-folder"
+
+    try {
+        if (Trim(String(token)) = "") {
+            errTok := ""
+            token := CloudPlayer_GetOpenListAdminToken(&errTok, 12000)
+        }
+        headers := Map("Content-Type", "application/json", "Accept", "application/json")
+        if (Trim(String(token)) != "")
+            headers["Authorization"] := Trim(String(token))
+
+        outDir := CloudPlayer_DownloadsDir() . "\牛马云下载"
+        DirCreate(outDir)
+        stamp := FormatTime(, "yyyyMMdd_HHmmss")
+        zipPath := outDir . "\" . name . "_" . stamp . ".zip"
+        workRoot := A_Temp . "\NiumaCloudFolder_" . stamp . "_" . A_TickCount
+        stageRoot := workRoot . "\" . name
+        DirCreate(stageRoot)
+
+        stats := Map("files", 0, "failed", 0)
+        CloudPlayer_DownloadFolderTree(p, stageRoot, headers, token, stats, 0)
+        if (stats["files"] <= 0) {
+            try DirDelete(workRoot, true)
+            CloudPlayer_PostDownloadResult(false, "folder is empty or no file could be downloaded", "", name)
+            return
+        }
+
+        sevenZip := A_ScriptDir . "\lib\7z.exe"
+        if !FileExist(sevenZip) {
+            try DirDelete(workRoot, true)
+            CloudPlayer_PostDownloadResult(false, "missing lib\7z.exe", "", name)
+            return
+        }
+        try FileDelete(zipPath)
+        exitCode := RunWait('"' . sevenZip . '" a -tzip -mx=5 "' . zipPath . '" "' . name . '"', workRoot, "Hide")
+        if (exitCode != 0 || !FileExist(zipPath)) {
+            try DirDelete(workRoot, true)
+            CloudPlayer_PostDownloadResult(false, "zip failed, exit code " . exitCode, "", name)
+            return
+        }
+        try DirDelete(workRoot, true)
+        try Run('explorer.exe /select,"' . zipPath . '"')
+        msg := "ok, files: " . stats["files"]
+        if (stats["failed"] > 0)
+            msg .= ", failed: " . stats["failed"]
+        CloudPlayer_PostDownloadResult(true, msg, zipPath, name)
+    } catch as e {
+        CloudPlayer_PostDownloadResult(false, e.Message, "", name)
+    }
+}
+
+CloudPlayer_DownloadFolderTree(remotePath, localDir, headers, token, stats, depth := 0) {
+    if (depth > 24)
+        return
+    DirCreate(localDir)
+    items := CloudPlayer_ListFolderItems(remotePath, headers)
+    for _, item in items {
+        try name := String(item.Has("name") ? item["name"] : "")
+        catch {
+            name := ""
+        }
+        if (name = "")
+            continue
+        childRemote := CloudPlayer_CombineRemotePath(remotePath, name)
+        safeName := CloudPlayer_SafeFileName(name)
+        if (safeName = "")
+            safeName := "item"
+        isDir := false
+        try isDir := !!item["is_dir"]
+        catch {
+            isDir := false
+        }
+        childLocal := localDir . "\" . safeName
+        if isDir {
+            CloudPlayer_DownloadFolderTree(childRemote, childLocal, headers, token, stats, depth + 1)
+        } else {
+            urlInfo := CloudPlayer_ResolveDownloadUrl(childRemote, headers)
+            if !(urlInfo is Map) || !urlInfo.Has("url") || urlInfo["url"] = "" {
+                stats["failed"] += 1
+                continue
+            }
+            ok := CloudPlayer_DownloadBinary(urlInfo["url"], childLocal, token, urlInfo.Has("headers") ? urlInfo["headers"] : 0)
+            if ok
+                stats["files"] += 1
+            else
+                stats["failed"] += 1
+        }
+    }
+}
+
+CloudPlayer_ListFolderItems(remotePath, headers) {
+    global g_CloudPlayerApiBase
+    out := []
+    page := 1
+    perPage := 500
+    loop 200 {
+        body := CloudPlayer_JsonForceBoolLiterals(Jxon_Dump(Map(
+            "path", CloudPlayer_NormalizeRemotePath(remotePath),
+            "password", "",
+            "page", page,
+            "per_page", perPage,
+            "refresh", false
+        )), ["refresh"])
+        ret := CloudPlayer_HttpJson("POST", g_CloudPlayerApiBase . "/api/fs/list", headers, body)
+        if !ret["ok"]
+            break
+        content := 0
+        try content := ret["json"]["data"]["content"]
+        catch {
+            content := 0
+        }
+        if !(content is Array) || content.Length = 0
+            break
+        for _, row in content
+            out.Push(row)
+        if (content.Length < perPage)
+            break
+        page += 1
+    }
+    return out
+}
+
+CloudPlayer_ResolveDownloadUrl(remotePath, headers) {
+    global g_CloudPlayerApiBase
+    ret := CloudPlayer_HttpJson("POST", g_CloudPlayerApiBase . "/api/fs/get", headers, Jxon_Dump(Map("path", CloudPlayer_NormalizeRemotePath(remotePath), "password", "")))
+    if !ret["ok"]
+        return Map("url", "")
+    data := 0
+    try data := ret["json"]["data"]
+    catch {
+        data := 0
+    }
+    if !(data is Map)
+        return Map("url", "")
+    extraHeaders := data.Has("header") ? data["header"] : 0
+    for _, key in ["raw_url", "url"] {
+        try u := Trim(String(data.Has(key) ? data[key] : ""))
+        catch {
+            u := ""
+        }
+        if (u != "" && RegExMatch(u, "i)^https?://") && !RegExMatch(u, "i)/@manage(?:[/?#]|$)"))
+            return Map("url", u, "headers", extraHeaders)
+    }
+    try {
+        if (data.Has("content") && data["content"] is Map && data["content"].Has("url")) {
+            u2 := Trim(String(data["content"]["url"]))
+            if (u2 != "" && RegExMatch(u2, "i)^https?://") && !RegExMatch(u2, "i)/@manage(?:[/?#]|$)"))
+                return Map("url", u2, "headers", extraHeaders)
+        }
+    } catch {
+    }
+    sign := ""
+    try sign := Trim(String(data.Has("sign") ? data["sign"] : ""))
+    catch {
+        sign := ""
+    }
+    return Map("url", CloudPlayer_MakeDirectDUrl(remotePath, sign), "headers", extraHeaders)
+}
+
+CloudPlayer_DownloadBinary(url, outPath, token := "", extraHeaders := 0) {
+    u := Trim(String(url))
+    if (u = "" || RegExMatch(u, "i)/@manage(?:[/?#]|$)"))
+        return false
+    try {
+        dir := RegExReplace(outPath, "\\[^\\]*$")
+        if (dir != "")
+            DirCreate(dir)
+        whr := ComObject("WinHttp.WinHttpRequest.5.1")
+        whr.Open("GET", u, false)
+        whr.SetTimeouts(10000, 10000, 30000, 120000)
+        whr.SetRequestHeader("User-Agent", "Mozilla/5.0")
+        whr.SetRequestHeader("Accept", "application/octet-stream,*/*")
+        if (Trim(String(token)) != "")
+            whr.SetRequestHeader("Authorization", Trim(String(token)))
+        if (extraHeaders is Map) {
+            for k, v in extraHeaders
+                whr.SetRequestHeader(String(k), String(v))
+        }
+        whr.Send()
+        st := Integer(whr.Status)
+        finalUrl := ""
+        try finalUrl := String(whr.Option(1))
+        catch {
+            finalUrl := u
+        }
+        if (st < 200 || st >= 300 || RegExMatch(finalUrl, "i)/@manage(?:[/?#]|$)"))
+            return false
+        ado := ComObject("ADODB.Stream")
+        ado.Type := 1
+        ado.Open()
+        ado.Write(whr.ResponseBody)
+        try FileDelete(outPath)
+        ado.SaveToFile(outPath, 2)
+        ado.Close()
+        try return FileGetSize(outPath) >= 0
+        catch {
+            return FileExist(outPath)
+        }
+    } catch {
+        return false
+    }
+}
+
+CloudPlayer_MakeDirectDUrl(remotePath, sign := "") {
+    global g_CloudPlayerApiBase
+    u := RTrim(g_CloudPlayerApiBase, "/") . "/d" . CloudPlayer_EncodeRemotePath(remotePath)
+    sg := Trim(String(sign))
+    if (sg != "")
+        u .= "?sign=" . CloudPlayer_UrlEncodeUtf8(sg)
+    return u
+}
+
+CloudPlayer_EncodeRemotePath(remotePath) {
+    p := CloudPlayer_NormalizeRemotePath(remotePath)
+    parts := StrSplit(p, "/")
+    out := ""
+    for _, part in parts {
+        if (part = "")
+            continue
+        out .= "/" . CloudPlayer_UrlEncodeUtf8(part)
+    }
+    return out = "" ? "/" : out
+}
+
+CloudPlayer_UrlEncodeUtf8(s) {
+    buf := Buffer(StrPut(String(s), "UTF-8") - 1)
+    StrPut(String(s), buf, "UTF-8")
+    out := ""
+    loop buf.Size {
+        b := NumGet(buf, A_Index - 1, "UChar")
+        ch := Chr(b)
+        if ((b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x5A) || (b >= 0x61 && b <= 0x7A) || ch = "-" || ch = "_" || ch = "." || ch = "~")
+            out .= ch
+        else
+            out .= "%" . Format("{:02X}", b)
+    }
+    return out
+}
+
+CloudPlayer_NormalizeRemotePath(path) {
+    p := StrReplace(Trim(String(path)), "\", "/")
+    if (p = "")
+        p := "/"
+    if (SubStr(p, 1, 1) != "/")
+        p := "/" . p
+    return RegExReplace(p, "/+", "/")
+}
+
+CloudPlayer_CombineRemotePath(parent, name) {
+    return CloudPlayer_NormalizeRemotePath(RTrim(CloudPlayer_NormalizeRemotePath(parent), "/") . "/" . name)
+}
+
+CloudPlayer_RemoteBaseName(path) {
+    p := RTrim(CloudPlayer_NormalizeRemotePath(path), "/")
+    pos := InStr(p, "/", , -1)
+    return pos > 0 ? SubStr(p, pos + 1) : p
+}
+
+CloudPlayer_SafeFileName(name) {
+    s := Trim(String(name))
+    s := RegExReplace(s, '[\\/:*?"<>|]', "_")
+    s := RegExReplace(s, "\s+", " ")
+    s := Trim(s, " .`t`r`n")
+    if (StrLen(s) > 120)
+        s := SubStr(s, 1, 120)
+    return s
+}
+
+CloudPlayer_DownloadsDir() {
+    dir := EnvGet("USERPROFILE") . "\Downloads"
+    if (dir != "\Downloads" && DirExist(dir))
+        return dir
+    return A_Desktop
+}
+
 CloudPlayer_HttpJson(method, url, headers := 0, body := "") {
     ret := Map("ok", false, "status", 0, "json", 0, "text", "", "error", "")
     try {
@@ -2042,6 +2341,8 @@ CloudPlayer_OpenExternalUrl(url) {
     if (u = "")
         return false
     if !RegExMatch(u, "i)^https?://")
+        return false
+    if RegExMatch(u, "i)/@manage(?:[/?#]|$)")
         return false
 
     ; Use ShellExecute first to force default browser handling for URLs.

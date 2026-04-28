@@ -96,6 +96,7 @@ button.ghost{background:#151d2b}
 .item{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;padding:9px 8px;border-radius:10px;border:1px solid transparent}
 .item:hover{background:rgba(255,255,255,.03);border-color:#26364f}
 .item.active{border-color:#3c5475;background:rgba(86,136,205,.14)}
+.item.selected{border-color:#486284;background:rgba(86,136,205,.22)}
 .item .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item .meta{color:var(--muted);font-size:12px}
 .ico{display:inline-flex;align-items:center;justify-content:center;color:#b8c9e8}
@@ -387,6 +388,8 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   var currentItems = [];
   var copiedEntry = null;
   var selectedEntryPath = "";
+  var selectedEntries = {};
+  var selectionAnchorPath = "";
   var virtualRows = [];
   var virtualStart = -1;
   var virtualEnd = -1;
@@ -839,12 +842,15 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   function openExternal(url){
     var u = String(url || "").trim();
     if(!u) return;
+    if(/\/@manage(?:[/?#]|$)/i.test(u)){
+      text($("currentInfo"), "Blocked dashboard URL during download.");
+      return;
+    }
     var hostBridge = !!(window.chrome && window.chrome.webview && window.chrome.webview.postMessage);
     if(hostBridge){
       postHost("cloudplayer_open_url", { url:u });
     }
     try{ window.open(u, "_blank"); }catch(_){}
-    if (u.indexOf("127.0.0.1:5244") !== -1) postHost("cloudplayer_open_dashboard");
   }
   function buildNoCacheUrl(url){
     var base = String(url || "").trim();
@@ -1582,7 +1588,8 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       path: normPath(full),
       isDir: !!it.is_dir,
       size: Number(it.size || 0),
-      modified: String(it.modified || it.updated_at || "")
+      modified: String(it.modified || it.updated_at || ""),
+      sign: String(it.sign || "")
     };
   }
   function getVisibleItems(){
@@ -1605,8 +1612,73 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     if(!list) return;
     list.querySelectorAll(".item").forEach(function(el){
       var p = decodeURIComponent(el.getAttribute("data-path") || "");
-      el.classList.toggle("active", normPath(p) === selectedEntryPath);
+      var np = normPath(p);
+      el.classList.toggle("active", np === selectedEntryPath);
+      el.classList.toggle("selected", !!selectedEntries[np]);
     });
+  }
+  function getSelectedPaths(){
+    return Object.keys(selectedEntries).filter(function(p){ return !!selectedEntries[p]; });
+  }
+  function clearSelection(keepActive){
+    selectedEntries = {};
+    selectionAnchorPath = "";
+    if(!keepActive) selectedEntryPath = "";
+    setSelectedPath(selectedEntryPath || "");
+  }
+  function addSelection(path){
+    var p = normPath(path || "");
+    if(!p) return;
+    selectedEntries[p] = 1;
+    selectedEntryPath = p;
+    if(!selectionAnchorPath) selectionAnchorPath = p;
+    setSelectedPath(p);
+  }
+  function removeSelection(path){
+    var p = normPath(path || "");
+    if(!p) return;
+    delete selectedEntries[p];
+    if(selectedEntryPath === p){
+      var left = getSelectedPaths();
+      selectedEntryPath = left.length ? left[left.length - 1] : "";
+    }
+    if(selectionAnchorPath === p) selectionAnchorPath = selectedEntryPath || "";
+    setSelectedPath(selectedEntryPath || "");
+  }
+  function selectRange(toPath){
+    var target = normPath(toPath || "");
+    var rows = getVisibleItems();
+    if(!rows.length || !target) return;
+    var anchor = normPath(selectionAnchorPath || selectedEntryPath || target);
+    var ai = -1, ti = -1;
+    for(var i=0;i<rows.length;i++){
+      var rp = normPath(rows[i].path || "");
+      if(rp === anchor) ai = i;
+      if(rp === target) ti = i;
+    }
+    if(ai < 0 || ti < 0){ addSelection(target); return; }
+    var lo = Math.min(ai, ti), hi = Math.max(ai, ti);
+    selectedEntries = {};
+    for(var j=lo;j<=hi;j++){
+      selectedEntries[normPath(rows[j].path || "")] = 1;
+    }
+    selectedEntryPath = target;
+    selectionAnchorPath = anchor;
+    setSelectedPath(target);
+  }
+  function getSelectedEntries(defaultEntry){
+    var selected = [];
+    var seen = {};
+    var paths = getSelectedPaths();
+    for(var i=0;i<paths.length;i++){
+      var e = findEntryByPath(paths[i]);
+      if(e && !seen[e.path]){
+        seen[e.path] = 1;
+        selected.push(e);
+      }
+    }
+    if(defaultEntry && !seen[defaultEntry.path]) selected.push(defaultEntry);
+    return selected;
   }
   function findEntryByPath(path){
     var p = normPath(path || "");
@@ -1924,11 +1996,55 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     text($("currentInfo"), "Move failed: " + ((ret.json && ret.json.message) || (ret.transport && ret.transport.error) || "unknown error"));
   }
   async function doDownloadEntry(entry){
-    if(!entry || entry.isDir) return;
+    if(!entry) return false;
+    if(entry.isDir){
+      var hostBridge = !!(window.chrome && window.chrome.webview && window.chrome.webview.postMessage);
+      if(hostBridge){
+        text($("currentInfo"), "Packaging folder: " + entry.name);
+        var tk = await ensureLiveToken(4500);
+        postHost("cloudplayer_download_folder", {
+          apiBase: normalizeApiBase(($("apiBase") && $("apiBase").value) || state.apiBase),
+          path: entry.path,
+          name: entry.name,
+          token: tk
+        });
+        return true;
+      }
+      text($("currentInfo"), "Folder download requires the desktop host.");
+      return false;
+    }
     var res = await resolveFileUrl(entry.path);
-    if(!res.url){ text($("currentInfo"), "Download failed: cannot resolve URL."); return; }
-    openExternal(res.url);
-    text($("currentInfo"), "Download opened in browser: " + entry.name);
+    var resolvedUrl = String((res && res.url) || "").trim();
+    if(resolvedUrl && !/\/@manage(?:[/?#]|$)/i.test(resolvedUrl)){
+      openExternal(resolvedUrl);
+      return true;
+    }
+    if(!entry.isDir){
+      var fileSign = String((res && res.sign) || entry.sign || "").trim();
+      var fileFallback = makeDirectDUrl(entry.path, fileSign);
+      openExternal(fileFallback);
+      return true;
+    }
+    return false;
+  }
+  async function doDownloadEntries(entries){
+    var arr = Array.isArray(entries) ? entries.filter(Boolean) : [];
+    if(!arr.length){ text($("currentInfo"), "No file selected."); return; }
+    var ok = 0, fail = 0;
+    for(var i=0;i<arr.length;i++){
+      try{
+        var oneOk = await doDownloadEntry(arr[i]);
+        if(oneOk) ok++;
+        else fail++;
+      }catch(_){
+        fail++;
+      }
+    }
+    if(ok > 0){
+      text($("currentInfo"), "Download started: " + ok + " item(s)" + (fail > 0 ? (", failed: " + fail) : ""));
+      return;
+    }
+    text($("currentInfo"), "Download failed: cannot resolve URL.");
   }
   function showEntryInfo(entry){
     if(!entry) return;
@@ -1955,7 +2071,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       return doMkdirInto((entry && entry.isDir) ? entry.path : state.path);
     }
     if(act==="delete") return doDeleteEntry(entry);
-    if(act==="download") return doDownloadEntry(entry);
+    if(act==="download") return doDownloadEntries(getSelectedEntries(entry));
     if(act==="rename") return doRenameEntry(entry);
     if(act==="move") return doMoveEntry(entry);
     if(act==="playview") return playEntry(entry);
@@ -2045,15 +2161,21 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       }
     }
     renderList(content);
+    clearSelection(true);
     text($("currentInfo"), "Loaded " + content.length + " items (" + state.path + ")");
     if(state.provider) setProviderOnline(state.provider, true);
     else setProviderOnline("root", true);
   }
-  function makeDirectDUrl(fullPath){
+  function makeDirectDUrl(fullPath, sign){
     state.apiBase = normalizeApiBase(state.apiBase || $("apiBase").value);
     var p = encodePathForUrl(fullPath);
     var base = state.apiBase.replace(/\/+$/,"");
-    return base + "/d" + p;
+    var u = base + "/d" + p;
+    var sg = String(sign || "").trim();
+    if(sg){
+      u += (u.indexOf("?") >= 0 ? "&" : "?") + "sign=" + encodeURIComponent(sg);
+    }
+    return u;
   }
   function isHttpUrl(url){
     return /^https?:\/\//i.test(String(url || "").trim());
@@ -2190,12 +2312,14 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   async function getOptimalUrl(fullPath, fileData){
     var d = fileData || {};
     var h = (d && d.header && typeof d.header === "object") ? d.header : {};
+    var sign = String((d && (d.sign || (d.content && d.content.sign))) || "").trim();
     var ordered = [];
     var seen = {};
     var push = function(u, source, headers, direct){
       var url = String(u || "").trim();
       if(!url) return;
       if(!isHttpUrl(url)) return;
+      if(/\/@manage(?:[/?#]|$)/i.test(url)) return;
       if(seen[url]) return;
       seen[url] = 1;
       ordered.push({ url:url, source:String(source||""), headers:(headers && typeof headers==="object") ? headers : {}, direct: !!direct });
@@ -2203,7 +2327,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     if(d && typeof d.raw_url === "string" && isHttpUrl(d.raw_url)) push(d.raw_url, "raw_url", h, true);
     if(d && typeof d.url === "string" && isHttpUrl(d.url)) push(d.url, "url", h, true);
     if(d && d.content && typeof d.content.url === "string" && isHttpUrl(d.content.url)) push(d.content.url, "content.url", h, true);
-    var proxyUrl = makeDirectDUrl(fullPath);
+    var proxyUrl = makeDirectDUrl(fullPath, sign);
     push(proxyUrl, "/d proxy", {}, false);
     if(!ordered.length) return { primary:{ url:"", source:"none", headers:{} }, candidates:[], debug:{ reason:"no_candidate" } };
     var p = ordered[0] || { url:"", source:"none", headers:{} };
@@ -2272,8 +2396,22 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       postHost("cloudplayer_fs_get", { apiBase: abGet, path:String(fullPath||"/"), token:String(token||""), reqId:reqId });
     });
   }
+  async function ensureLiveToken(timeoutMs){
+    var tk = String(($("token") && $("token").value) || state.token || "").trim();
+    if(tk) return tk;
+    var autoTk = await requestAdminToken(timeoutMs || 3500);
+    if(autoTk && autoTk.ok && autoTk.token){
+      tk = String(autoTk.token || "").trim();
+      if(tk){
+        if($("token")) $("token").value = tk;
+        state.token = tk;
+        saveSettings();
+      }
+    }
+    return tk;
+  }
   async function resolveFileUrl(fullPath){
-    var liveToken = String(($("token") && $("token").value) || state.token || "").trim();
+    var liveToken = await ensureLiveToken(3500);
     var viaHost = await requestFsGetViaHost(fullPath, liveToken, 4200);
     var ret = null;
     if(viaHost && viaHost.json){
@@ -2281,10 +2419,23 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     }else{
       ret = await apiPost("/api/fs/get", { path:fullPath, password:"" });
     }
+    var code = Number((ret && ret.json && ret.json.code) || 0);
+    if(code === 401){
+      if($("token")) $("token").value = "";
+      state.token = "";
+      liveToken = await ensureLiveToken(4500);
+      viaHost = await requestFsGetViaHost(fullPath, liveToken, 4500);
+      if(viaHost && viaHost.json){
+        ret = { transport:{ ok:viaHost.ok, status:viaHost.status, error:viaHost.error }, json:viaHost.json };
+      }else{
+        ret = await apiPost("/api/fs/get", { path:fullPath, password:"" });
+      }
+    }
     var d = ret.json && ret.json.data ? ret.json.data : {};
+    var sign = String((d && (d.sign || (d.content && d.content.sign))) || "").trim();
     var opt = await getOptimalUrl(fullPath, d);
-    if(!opt || !opt.primary || !opt.primary.url) return { url:"", source:"none", headers:{}, candidates:[] };
-    return { url:opt.primary.url, source:opt.primary.source, headers:opt.primary.headers || {}, candidates:opt.candidates || [opt.primary] };
+    if(!opt || !opt.primary || !opt.primary.url) return { url:"", source:"none", headers:{}, candidates:[], sign:sign };
+    return { url:opt.primary.url, source:opt.primary.source, headers:opt.primary.headers || {}, candidates:opt.candidates || [opt.primary], sign:sign };
   }
   function setPlayerMode(mode){
     persistPlaybackProgressNow();
@@ -2536,8 +2687,27 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     playUrl(lastPlaySourceUrl, entry.path);
   }
   async function onRowClick(e){
-    var el=e.currentTarget, fullPath=decodeURIComponent(el.getAttribute("data-path")||"/");
-    setSelectedPath(fullPath);
+    var el = e.currentTarget;
+    var fullPath = decodeURIComponent(el.getAttribute("data-path") || "/");
+    var isMulti = !!(e.ctrlKey || e.metaKey);
+    var isRange = !!e.shiftKey;
+    if(isRange){
+      selectRange(fullPath);
+      return;
+    }
+    if(isMulti){
+      if(selectedEntries[normPath(fullPath)]) removeSelection(fullPath);
+      else addSelection(fullPath);
+      return;
+    }
+    selectedEntries = {};
+    addSelection(fullPath);
+  }
+  async function onRowOpen(e){
+    var el = e.currentTarget;
+    var fullPath = decodeURIComponent(el.getAttribute("data-path") || "/");
+    selectedEntries = {};
+    addSelection(fullPath);
     var entry = findEntryByPath(fullPath) || { path:fullPath, isDir:el.getAttribute("data-dir")==="1", name:splitPath(fullPath).name };
     if(entry.isDir){ await loadList(fullPath); return; }
     await playEntry(entry);
@@ -2842,20 +3012,30 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     $("fileList").addEventListener("click", function(e){
       var row = e.target && e.target.closest ? e.target.closest(".item") : null;
       if(!row) return;
-      onRowClick({ currentTarget: row });
+      onRowClick({ currentTarget: row, ctrlKey: !!e.ctrlKey, metaKey: !!e.metaKey, shiftKey: !!e.shiftKey });
+    });
+    $("fileList").addEventListener("dblclick", function(e){
+      var row = e.target && e.target.closest ? e.target.closest(".item") : null;
+      if(!row) return;
+      onRowOpen({ currentTarget: row });
     });
     $("fileList").addEventListener("contextmenu", function(e){
       var row = e.target && e.target.closest ? e.target.closest(".item") : null;
       if(row){
         e.preventDefault();
         var fullPath = decodeURIComponent(row.getAttribute("data-path")||"/");
-        setSelectedPath(fullPath);
+        if(!selectedEntries[normPath(fullPath)]){
+          selectedEntries = {};
+          addSelection(fullPath);
+        }else{
+          setSelectedPath(fullPath);
+        }
         openContextMenu(e.clientX, e.clientY, findEntryByPath(fullPath));
         return;
       }
       if(e.target === $("fileList")){
         e.preventDefault();
-        setSelectedPath("");
+        clearSelection(false);
         openContextMenu(e.clientX, e.clientY, { path:state.path, name:state.path, isDir:true, size:0, modified:"" });
       }
     });
@@ -2938,6 +3118,13 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
         state.token = String(data.token);
         saveSettings();
       }
+      return;
+    }
+    if(data.type==="cloudplayer_download_result"){
+      var msg = data.ok
+        ? ("Folder packaged: " + (data.path || data.name || "zip"))
+        : ("Folder download failed: " + (data.message || "unknown error"));
+      text($("currentInfo"), msg);
       return;
     }
   }
