@@ -76,6 +76,28 @@ CloudPlayer_CreateGui() {
     }
 }
 
+CloudPlayer_ApplyWebViewBounds() {
+    global g_CloudPlayerGui, g_CloudPlayerCtrl
+    if !g_CloudPlayerGui || !g_CloudPlayerCtrl
+        return
+    try WinGetClientPos(, , &cw, &ch, g_CloudPlayerGui.Hwnd)
+    catch {
+        return
+    }
+    if (cw < 1 || ch < 1)
+        return
+    rc := WebView2.RECT()
+    rc.left := 0
+    rc.top := 0
+    rc.right := cw
+    rc.bottom := ch
+    try {
+        g_CloudPlayerCtrl.Bounds := rc
+        g_CloudPlayerCtrl.NotifyParentWindowPositionChanged()
+    } catch {
+    }
+}
+
 CloudPlayer_OnGuiClose(*) {
     global g_CloudPlayerGui, g_CloudPlayerAutoPulseEnabled
     try g_CloudPlayerGui.Hide()
@@ -83,10 +105,8 @@ CloudPlayer_OnGuiClose(*) {
 }
 
 CloudPlayer_OnGuiSize(guiObj, minMax, width, height) {
-    global g_CloudPlayerCtrl
-    if !g_CloudPlayerCtrl
-        return
-    try g_CloudPlayerCtrl.Move(0, 0, width, height)
+    ; WebView2.Controller 无 Move；须写 Bounds，否则最大化/拖动后视口仍停留在初次 Fill 的尺寸（右侧空白）
+    CloudPlayer_ApplyWebViewBounds()
 }
 
 CloudPlayer_OnWebViewCreated(ctrl) {
@@ -117,9 +137,7 @@ CloudPlayer_OnWebViewCreated(ctrl) {
         try g_CloudPlayerWv2.WebMessageReceived(CloudPlayer_OnWebMessage)
     }
 
-    cw := 1120, ch := 760
-    try g_CloudPlayerGui.GetClientPos(, , &cw, &ch)
-    try g_CloudPlayerCtrl.Move(0, 0, cw, ch)
+    CloudPlayer_ApplyWebViewBounds()
     url := BuildAppLocalUrl("CloudPlayer.html?t=" . A_TickCount)
     try g_CloudPlayerWv2.Navigate(url)
 
