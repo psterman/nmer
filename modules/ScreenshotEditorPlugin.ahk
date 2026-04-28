@@ -1002,6 +1002,11 @@ class ScreenshotEditorPlugin {
         case "ready":
             this.ScreenshotToolbarWV2Ready := true
             this.ScreenshotToolbar_SendState()
+            this.ScreenshotToolbar_SendDockConfig()
+        case "nmDockReady":
+            this.ScreenshotToolbar_SendDockConfig()
+        case "nmDockCmd":
+            this.ScreenshotToolbar_ExecuteDockCmd(msg)
         case "paint_ok":
             this.ScreenshotToolbarWV2PaintOk := true
         case "layout":
@@ -1011,6 +1016,55 @@ class ScreenshotEditorPlugin {
         case "invoke":
             cmd := msg.Get("cmd", "")
             this.ScreenshotToolbar_InvokeCommand(cmd)
+    }
+}
+
+    static ScreenshotToolbar_SendDockConfig() {
+    arr := []
+    try {
+        if IsSet(_LoadCommands)
+            _LoadCommands()
+        global g_Commands
+        if (g_Commands is Map && g_Commands.Has("SceneToolbarLayout") && g_Commands["SceneToolbarLayout"] is Array) {
+            for row in g_Commands["SceneToolbarLayout"] {
+                if !(row is Map) || !row.Has("sceneId")
+                    continue
+                sid := Trim(String(row["sceneId"]))
+                if (sid = "")
+                    continue
+                arr.Push(Map(
+                    "sceneId", sid,
+                    "visible_in_bar", row.Has("visible_in_bar") ? (row["visible_in_bar"] ? true : false) : true,
+                    "order_bar", row.Has("order_bar") ? Integer(row["order_bar"]) : -1
+                ))
+            }
+        }
+    } catch {
+    }
+    try this.ScreenshotToolbarWV2.PostWebMessageAsJson(WebView_DumpJson(Map("type", "nmDockConfig", "sceneToolbarLayout", arr)))
+}
+
+    static ScreenshotToolbar_ExecuteDockCmd(msg) {
+    cmdId0 := msg.Has("cmdId") ? String(msg["cmdId"]) : ""
+    if (cmdId0 = "")
+        return
+    if (cmdId0 = "open_cloudplayer") {
+        try ShowCloudPlayer()
+        return
+    }
+    m0 := Map(
+        "Title", "dock",
+        "Content", "",
+        "DataType", "text",
+        "OriginalDataType", "text",
+        "Source", "dock",
+        "ClipboardId", 0,
+        "PromptMergedIndex", 0,
+        "HubSegIndex", -1
+    )
+    try SC_ExecuteContextCommand(cmdId0, 0, m0)
+    catch as err {
+        OutputDebug("[ScreenshotToolbar] nmDockCmd: " . err.Message)
     }
 }
 

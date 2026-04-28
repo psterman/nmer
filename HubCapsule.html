@@ -2377,6 +2377,7 @@ html[data-theme="light"] #tx-test-result {
   <button type="button" class="preview-ctx-item" data-pctx="copy">复制预览</button>
 </div>
 
+<script src="./assets/nm-bottom-dock.js"></script>
 <script>
 (function () {
   'use strict';
@@ -2402,6 +2403,7 @@ html[data-theme="light"] #tx-test-result {
     capsHintActive: false,
     capsPressedKey: ''
   };
+  let __nmDock = null;
   // 外部(AHK)推送预览文本后，窗口焦点可能短暂抖动（例如打开/激活链路），
   // 避免 blur 立刻 clearPreviewOnly() 把刚填入的 OCR 文本清空。
   let suppressBlurClearUntil = 0;
@@ -6364,6 +6366,8 @@ html[data-theme="light"] #tx-test-result {
       if (typeof d === 'string') {
         try { d = JSON.parse(d); } catch (_) { return; }
       }
+      if (__nmDock && typeof __nmDock.onHostMessage === 'function')
+        __nmDock.onHostMessage(d);
       if (!d || !d.type) return;
 
       switch (d.type) {
@@ -6527,6 +6531,8 @@ html[data-theme="light"] #tx-test-result {
   window.addEventListener('resize', scheduleResponsiveRelayout);
   installDismissOnHostPadding();
   installGlobalDropTarget();
+  if (window.NiumaBottomDock && typeof window.NiumaBottomDock.mount === 'function')
+    __nmDock = window.NiumaBottomDock.mount({ sceneId: 'scratchpad', post: postToAhk });
   postToAhk({ type: 'hub_ready' });
   postToAhk({ type: 'selection_menu_ready' });
 })();

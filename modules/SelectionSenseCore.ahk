@@ -1529,6 +1529,7 @@ SelectionSense_OnMenuWebMessage(sender, args) {
         global g_SelSense_PendingHubSegments, g_SelSense_MenuShowingHub
         g_SelSense_MenuReady := true
         try WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "hub_preview_state", "copyTriggerMode", g_SelSense_HubCopyTriggerMode))
+        SelectionSense_SendDockConfig()
         ; Both SelectionMenu and HubCapsule emit selection_menu_ready.
         ; Flush pending segments only when current page is HubCapsule.
         if g_SelSense_MenuShowingHub
@@ -1547,6 +1548,15 @@ SelectionSense_OnMenuWebMessage(sender, args) {
         ; HubCapsule 就绪后补发待推送片段
         SelectionSense_HubCapsule_FlushPendingSegments()
         SelectionSense_PushHubCtxMenuSpec()
+        SelectionSense_SendDockConfig()
+        return
+    }
+    if (typ = "nmDockReady") {
+        SelectionSense_SendDockConfig()
+        return
+    }
+    if (typ = "nmDockCmd") {
+        SelectionSense_ExecuteDockCmd(msg)
         return
     }
     if (typ = "openWindowsRecycleBin") {
@@ -1884,6 +1894,58 @@ SelectionSense_OnMenuWebMessage(sender, args) {
             OutputDebug("[Hub] hubScCtxCmd: " . err.Message)
         }
         return
+    }
+}
+
+SelectionSense_SendDockConfig() {
+    global g_SelSense_MenuWV2
+    if !g_SelSense_MenuWV2
+        return
+    arr := []
+    try {
+        if IsSet(_LoadCommands)
+            _LoadCommands()
+        global g_Commands
+        if (g_Commands is Map && g_Commands.Has("SceneToolbarLayout") && g_Commands["SceneToolbarLayout"] is Array) {
+            for row in g_Commands["SceneToolbarLayout"] {
+                if !(row is Map) || !row.Has("sceneId")
+                    continue
+                sid := Trim(String(row["sceneId"]))
+                if (sid = "")
+                    continue
+                arr.Push(Map(
+                    "sceneId", sid,
+                    "visible_in_bar", row.Has("visible_in_bar") ? (row["visible_in_bar"] ? true : false) : true,
+                    "order_bar", row.Has("order_bar") ? Integer(row["order_bar"]) : -1
+                ))
+            }
+        }
+    } catch {
+    }
+    try WebView_QueuePayload(g_SelSense_MenuWV2, Map("type", "nmDockConfig", "sceneToolbarLayout", arr))
+}
+
+SelectionSense_ExecuteDockCmd(msg) {
+    cmdId0 := msg.Has("cmdId") ? String(msg["cmdId"]) : ""
+    if (cmdId0 = "")
+        return
+    if (cmdId0 = "open_cloudplayer") {
+        try ShowCloudPlayer()
+        return
+    }
+    m0 := Map(
+        "Title", "dock",
+        "Content", "",
+        "DataType", "text",
+        "OriginalDataType", "text",
+        "Source", "dock",
+        "ClipboardId", 0,
+        "PromptMergedIndex", 0,
+        "HubSegIndex", -1
+    )
+    try SC_ExecuteContextCommand(cmdId0, 0, m0)
+    catch as err {
+        OutputDebug("[Hub] nmDockCmd: " . err.Message)
     }
 }
 

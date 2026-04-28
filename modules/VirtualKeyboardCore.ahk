@@ -3039,6 +3039,34 @@ _TitleDrag(*) {
     PostMessage(0x00A1, 2, 0, , g_VK_Gui.Hwnd)
 }
 
+_VK_SendDockConfig() {
+    global g_VK_WV2
+    if !g_VK_WV2
+        return
+    arr := []
+    try {
+        if IsSet(_LoadCommands)
+            _LoadCommands()
+        global g_Commands
+        if (g_Commands is Map && g_Commands.Has("SceneToolbarLayout") && g_Commands["SceneToolbarLayout"] is Array) {
+            for row in g_Commands["SceneToolbarLayout"] {
+                if !(row is Map) || !row.Has("sceneId")
+                    continue
+                sid := Trim(String(row["sceneId"]))
+                if (sid = "")
+                    continue
+                arr.Push(Map(
+                    "sceneId", sid,
+                    "visible_in_bar", row.Has("visible_in_bar") ? (row["visible_in_bar"] ? true : false) : true,
+                    "order_bar", row.Has("order_bar") ? Integer(row["order_bar"]) : -1
+                ))
+            }
+        }
+    } catch {
+    }
+    try WebView_QueuePayload(g_VK_WV2, Map("type", "nmDockConfig", "sceneToolbarLayout", arr))
+}
+
 _OnWebMessage(sender, args) {
     global g_VK_Ready, g_PendingConflict, g_UseScanCode, g_Commands
 
@@ -3061,6 +3089,7 @@ _OnWebMessage(sender, args) {
             OutputDebug("[VK] WebView ready")
             _PushInit()
             VK_PushThemeToWeb()
+            _VK_SendDockConfig()
             _PushModifierState()
             _StartKeyPreviewHook()
             if g_VK_FocusPending
@@ -3095,6 +3124,17 @@ _OnWebMessage(sender, args) {
         case "executeCommand":
             if msg.Has("commandId")
                 _ExecuteCommand(msg["commandId"])
+        case "nmDockReady":
+            _VK_SendDockConfig()
+        case "nmDockCmd":
+            cmdId0 := msg.Has("cmdId") ? String(msg["cmdId"]) : ""
+            if (cmdId0 = "")
+                return
+            if (cmdId0 = "open_cloudplayer") {
+                try ShowCloudPlayer()
+                return
+            }
+            _ExecuteCommand(cmdId0)
 
         case "resolveConflict":
             if g_PendingConflict.Has("cmdId") {

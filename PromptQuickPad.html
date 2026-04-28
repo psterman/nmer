@@ -988,6 +988,7 @@ html[data-theme="light"] mark {
     </div>
   </div>
 </div>
+<script src="./assets/nm-bottom-dock.js"></script>
 <script>
 if (typeof BasePanel === 'undefined') {
   window.BasePanel = {
@@ -1017,6 +1018,7 @@ const state = {
   /** @type {Array<{name?:string,act?:string,visible?:boolean}>} */
   pqpCtxMenuSpec: []
 };
+let __nmDock = null;
 
 function normalizeThemeMode(mode) {
   return String(mode || '').toLowerCase() === 'light' ? 'light' : 'dark';
@@ -1835,11 +1837,15 @@ if (window.chrome && window.chrome.webview) {
   window.chrome.webview.addEventListener('message', (e) => {
     try {
       const msg = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+      if (__nmDock && typeof __nmDock.onHostMessage === 'function')
+        __nmDock.onHostMessage(msg);
       if (msg.categories)
         state._lastCats = msg.categories;
       handleAhkMessage(msg);
     } catch (err) { console.error(err); }
   });
+  if (window.NiumaBottomDock && typeof window.NiumaBottomDock.mount === 'function')
+    __nmDock = window.NiumaBottomDock.mount({ sceneId: 'prompts', post: postToAhk });
   sendAction('ready');
 } else {
   document.getElementById('status-bar').textContent = '预览模式（无 AHK）';

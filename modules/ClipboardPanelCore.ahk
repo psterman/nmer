@@ -619,10 +619,15 @@ _CP_OnWebMessage(sender, args) {
             g_CP_Ready := true
             OutputDebug("[CP] WebView ready")
             _CP_PushTheme()
+            _CP_SendDockConfig()
             if g_CP_Visible
                 _CP_PushInitialData()
             if g_CP_FocusPending
                 CP_RequestFocusInput()
+        case "nmDockReady":
+            _CP_SendDockConfig()
+        case "nmDockCmd":
+            _CP_ExecuteDockCmd(msg)
 
         case "setEngineMode":
             eng := ""
@@ -729,6 +734,55 @@ _CP_OnWebMessage(sender, args) {
 }
 
 ; ===================== 数据推送 =====================
+_CP_SendDockConfig() {
+    arr := []
+    try {
+        if IsSet(_LoadCommands)
+            _LoadCommands()
+        global g_Commands
+        if (g_Commands is Map && g_Commands.Has("SceneToolbarLayout") && g_Commands["SceneToolbarLayout"] is Array) {
+            for row in g_Commands["SceneToolbarLayout"] {
+                if !(row is Map) || !row.Has("sceneId")
+                    continue
+                sid := Trim(String(row["sceneId"]))
+                if (sid = "")
+                    continue
+                arr.Push(Map(
+                    "sceneId", sid,
+                    "visible_in_bar", row.Has("visible_in_bar") ? (row["visible_in_bar"] ? true : false) : true,
+                    "order_bar", row.Has("order_bar") ? Integer(row["order_bar"]) : -1
+                ))
+            }
+        }
+    } catch {
+    }
+    CP_SendToWeb(Map("type", "nmDockConfig", "sceneToolbarLayout", arr))
+}
+
+_CP_ExecuteDockCmd(msg) {
+    cmdId0 := msg.Has("cmdId") ? String(msg["cmdId"]) : ""
+    if (cmdId0 = "")
+        return
+    if (cmdId0 = "open_cloudplayer") {
+        try ShowCloudPlayer()
+        return
+    }
+    m0 := Map(
+        "Title", "dock",
+        "Content", "",
+        "DataType", "text",
+        "OriginalDataType", "text",
+        "Source", "dock",
+        "ClipboardId", 0,
+        "PromptMergedIndex", 0,
+        "HubSegIndex", -1
+    )
+    try SC_ExecuteContextCommand(cmdId0, 0, m0)
+    catch as err {
+        OutputDebug("[CP] nmDockCmd: " . err.Message)
+    }
+}
+
 _CP_PushTheme() {
     tm := _CP_GetThemeMode()
     CP_SendToWeb(Map("type", "set_theme", "themeMode", tm))

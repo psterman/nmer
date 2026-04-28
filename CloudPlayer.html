@@ -354,6 +354,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 
 <script src="https://unpkg.com/artplayer@5.2.3/dist/artplayer.js"></script>
 <script src="https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js"></script>
+<script src="./assets/nm-bottom-dock.js"></script>
 <script>
 (function(){
   var $ = function(id){ return document.getElementById(id); };
@@ -2877,9 +2878,11 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       $(id).addEventListener("blur", saveSettings);
     });
   }
+  var __nmDock = null;
   function onHostMessage(evt){
     var data=evt && evt.data ? evt.data : null;
     if(!data || typeof data!=="object") return;
+    if(__nmDock && typeof __nmDock.onHostMessage==="function") __nmDock.onHostMessage(data);
     if(data.type==="cloudplayer_status"){
       if(typeof data.apiBase==="string" && data.apiBase){
         var nb = normalizeApiBase(data.apiBase);
@@ -2948,6 +2951,12 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     applyUiLanguage();
     loadPins();
     bindEvents();
+    if(window.NiumaBottomDock && typeof window.NiumaBottomDock.mount === "function"){
+      __nmDock = window.NiumaBottomDock.mount({
+        sceneId: "cloudplayer",
+        post: function(p){ postHost(p.type || "", p); }
+      });
+    }
     setPlayerMode("native");
     setSettingsDrawer(false);
     if(window.chrome && window.chrome.webview) window.chrome.webview.addEventListener("message", onHostMessage);

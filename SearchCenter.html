@@ -2046,6 +2046,7 @@ mark {
   </div>
 </div>
 
+<script src="./assets/nm-bottom-dock.js"></script>
 <script>
 if (typeof BasePanel === 'undefined') {
   window.BasePanel = {
@@ -2201,6 +2202,7 @@ const state = {
     pendingOpenRow: 0
   }
 };
+let __nmDock = null;
 function dismissStartupSplash(forceNow = false) {
   if (scSplashHidden) return;
   const splash = document.getElementById("startup-splash");
@@ -5519,6 +5521,8 @@ document.addEventListener("visibilitychange", () => {
 if (window.chrome && window.chrome.webview) {
   window.chrome.webview.addEventListener("message", (event) => {
     const payload = event.data;
+    if (__nmDock && typeof __nmDock.onHostMessage === "function")
+      __nmDock.onHostMessage(payload);
     if (!payload || !payload.type) return;
     if (payload.type === "capsHint") {
       setCapsHintActive(!!payload.active);
@@ -5719,6 +5723,8 @@ if (window.chrome && window.chrome.webview) {
       applyState(payload);
     }
   });
+  if (window.NiumaBottomDock && typeof window.NiumaBottomDock.mount === "function")
+    __nmDock = window.NiumaBottomDock.mount({ sceneId: "search", post: postToAhk });
   postToAhk({ type: "ready" });
   setTimeout(() => scheduleScHotkeyBindingsSync(10), 120);
   requestFulltextStatus(true);

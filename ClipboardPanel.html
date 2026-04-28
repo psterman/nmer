@@ -1222,6 +1222,7 @@ html[data-theme="light"] .ctx-item.toggle.on .ctx-check {
   </div>
 </div>
 
+<script src="./assets/nm-bottom-dock.js"></script>
 <script>
 if (typeof BasePanel === 'undefined') {
   window.BasePanel = {
@@ -1265,6 +1266,7 @@ const state = {
   /** 搜索后端：go=SearchCenterCore；ahk=本地 SQLite */
   engineMode: 'go'
 };
+let __nmDock = null;
 
 function normalizeThemeMode(mode) {
   return String(mode || '').toLowerCase() === 'light' ? 'light' : 'dark';
@@ -2800,11 +2802,15 @@ if (window.chrome && window.chrome.webview) {
   window.chrome.webview.addEventListener('message', (e) => {
     try {
       const msg = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+      if (__nmDock && typeof __nmDock.onHostMessage === 'function')
+        __nmDock.onHostMessage(msg);
       handleAhkMessage(msg);
     } catch (err) {
       console.error('[CP] Parse error:', err, e.data);
     }
   });
+  if (window.NiumaBottomDock && typeof window.NiumaBottomDock.mount === 'function')
+    __nmDock = window.NiumaBottomDock.mount({ sceneId: 'clipboard', post: postToAhk });
   postToAhk({ type: 'ready' });
 } else {
   document.getElementById('status-total').textContent = '预览模式（无 AHK 连接）';

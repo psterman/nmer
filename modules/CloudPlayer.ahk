@@ -189,6 +189,17 @@ CloudPlayer_OnWebMessage(sender, args) {
 
     if (typ = "cloudplayer_ready") {
         CloudPlayer_NotifyWebViewStatus()
+        CloudPlayer_SendDockConfig()
+        return
+    }
+
+    if (typ = "nmDockReady") {
+        CloudPlayer_SendDockConfig()
+        return
+    }
+
+    if (typ = "nmDockCmd") {
+        CloudPlayer_ExecuteDockCmd(payload)
         return
     }
 
@@ -364,6 +375,58 @@ CloudPlayer_OnWebMessage(sender, args) {
         CloudPlayer_SendImportProgress("Queued import task...")
         SetTimer(CloudPlayer_RunStorageImport.Bind(provider, token, mountPath, driver, opts), -10)
         return
+    }
+}
+
+CloudPlayer_SendDockConfig() {
+    global g_CloudPlayerWv2
+    if !g_CloudPlayerWv2
+        return
+    arr := []
+    try {
+        if IsSet(_LoadCommands)
+            _LoadCommands()
+        global g_Commands
+        if (g_Commands is Map && g_Commands.Has("SceneToolbarLayout") && g_Commands["SceneToolbarLayout"] is Array) {
+            for row in g_Commands["SceneToolbarLayout"] {
+                if !(row is Map) || !row.Has("sceneId")
+                    continue
+                sid := Trim(String(row["sceneId"]))
+                if (sid = "")
+                    continue
+                arr.Push(Map(
+                    "sceneId", sid,
+                    "visible_in_bar", row.Has("visible_in_bar") ? (row["visible_in_bar"] ? true : false) : true,
+                    "order_bar", row.Has("order_bar") ? Integer(row["order_bar"]) : -1
+                ))
+            }
+        }
+    } catch {
+    }
+    try WebView_QueuePayload(g_CloudPlayerWv2, Map("type", "nmDockConfig", "sceneToolbarLayout", arr))
+}
+
+CloudPlayer_ExecuteDockCmd(payload) {
+    cmdId0 := payload.Has("cmdId") ? String(payload["cmdId"]) : ""
+    if (cmdId0 = "")
+        return
+    if (cmdId0 = "open_cloudplayer") {
+        try ShowCloudPlayer()
+        return
+    }
+    m0 := Map(
+        "Title", "dock",
+        "Content", "",
+        "DataType", "text",
+        "OriginalDataType", "text",
+        "Source", "dock",
+        "ClipboardId", 0,
+        "PromptMergedIndex", 0,
+        "HubSegIndex", -1
+    )
+    try SC_ExecuteContextCommand(cmdId0, 0, m0)
+    catch as err {
+        OutputDebug("[CloudPlayer] nmDockCmd: " . err.Message)
     }
 }
 

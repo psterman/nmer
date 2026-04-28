@@ -245,10 +245,15 @@ _PQP_OnWebMessage(sender, args) {
             global g_PQP_Ready
             g_PQP_Ready := true
             _PQP_PushTheme()
+            _PQP_SendDockConfig()
             if PQP_IsVisible()
                 _PQP_CallExternal("PromptQuickPad_PushDataToWeb", "init")
             if g_PQP_FocusPending
                 PQP_RequestFocusInput()
+        case "nmDockReady":
+            _PQP_SendDockConfig()
+        case "nmDockCmd":
+            _PQP_ExecuteDockCmd(msg)
 
         case "search":
             keyword := msg.Has("keyword") ? msg["keyword"] : ""
@@ -261,6 +266,55 @@ _PQP_OnWebMessage(sender, args) {
 }
 
 ; ===================== 防抖搜索 =====================
+_PQP_SendDockConfig() {
+    arr := []
+    try {
+        if IsSet(_LoadCommands)
+            _LoadCommands()
+        global g_Commands
+        if (g_Commands is Map && g_Commands.Has("SceneToolbarLayout") && g_Commands["SceneToolbarLayout"] is Array) {
+            for row in g_Commands["SceneToolbarLayout"] {
+                if !(row is Map) || !row.Has("sceneId")
+                    continue
+                sid := Trim(String(row["sceneId"]))
+                if (sid = "")
+                    continue
+                arr.Push(Map(
+                    "sceneId", sid,
+                    "visible_in_bar", row.Has("visible_in_bar") ? (row["visible_in_bar"] ? true : false) : true,
+                    "order_bar", row.Has("order_bar") ? Integer(row["order_bar"]) : -1
+                ))
+            }
+        }
+    } catch {
+    }
+    PQP_SendToWeb(Map("type", "nmDockConfig", "sceneToolbarLayout", arr))
+}
+
+_PQP_ExecuteDockCmd(msg) {
+    cmdId0 := msg.Has("cmdId") ? String(msg["cmdId"]) : ""
+    if (cmdId0 = "")
+        return
+    if (cmdId0 = "open_cloudplayer") {
+        try ShowCloudPlayer()
+        return
+    }
+    m0 := Map(
+        "Title", "dock",
+        "Content", "",
+        "DataType", "text",
+        "OriginalDataType", "text",
+        "Source", "dock",
+        "ClipboardId", 0,
+        "PromptMergedIndex", 0,
+        "HubSegIndex", -1
+    )
+    try SC_ExecuteContextCommand(cmdId0, 0, m0)
+    catch as err {
+        OutputDebug("[PQP] nmDockCmd: " . err.Message)
+    }
+}
+
 _PQP_DebouncedSearch(keyword, category := "全部") {
     global g_PQP_SearchTimer, g_PQP_LastKeyword, g_PQP_LastCategory
     g_PQP_LastKeyword := keyword

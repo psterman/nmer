@@ -1596,6 +1596,7 @@ SCWV_OnWebMessage(sender, args) {
                 SCWV_FinishReveal()
             SCWV_PushThemeToWeb()
             SCWV_PushState("init")
+            _SCWV_SendDockConfig()
             _SCWV_PostFullTextStatus(true)
             try SCWV_FlushPendingJsonQueue()
             if g_SCWV_FocusPending
@@ -1669,6 +1670,10 @@ SCWV_OnWebMessage(sender, args) {
             } catch as err {
                 SCWV_PostJson(Map("type", "fulltextActionResult", "ok", false, "action", "openSettingsPanel", "error", err.Message))
             }
+        case "nmDockReady":
+            _SCWV_SendDockConfig()
+        case "nmDockCmd":
+            _SCWV_ExecuteDockCmd(msg)
         case "search":
             global SearchCenterWebKeyword, SearchCenterHasMoreData
             if !msg.Has("keyword")
@@ -1846,6 +1851,55 @@ SCWV_OnWebMessage(sender, args) {
     }
     } catch as err {
         _SCWV_LogRuntime("OnWebMessage action=" . String(action) . " error=" . err.Message)
+    }
+}
+
+_SCWV_SendDockConfig() {
+    arr := []
+    try {
+        if IsSet(_LoadCommands)
+            _LoadCommands()
+        global g_Commands
+        if (g_Commands is Map && g_Commands.Has("SceneToolbarLayout") && g_Commands["SceneToolbarLayout"] is Array) {
+            for row in g_Commands["SceneToolbarLayout"] {
+                if !(row is Map) || !row.Has("sceneId")
+                    continue
+                sid := Trim(String(row["sceneId"]))
+                if (sid = "")
+                    continue
+                arr.Push(Map(
+                    "sceneId", sid,
+                    "visible_in_bar", row.Has("visible_in_bar") ? (row["visible_in_bar"] ? true : false) : true,
+                    "order_bar", row.Has("order_bar") ? Integer(row["order_bar"]) : -1
+                ))
+            }
+        }
+    } catch {
+    }
+    SCWV_PostJson(Map("type", "nmDockConfig", "sceneToolbarLayout", arr))
+}
+
+_SCWV_ExecuteDockCmd(msg) {
+    cmdId0 := msg.Has("cmdId") ? String(msg["cmdId"]) : ""
+    if (cmdId0 = "")
+        return
+    if (cmdId0 = "open_cloudplayer") {
+        try ShowCloudPlayer()
+        return
+    }
+    m0 := Map(
+        "Title", "dock",
+        "Content", "",
+        "DataType", "text",
+        "OriginalDataType", "text",
+        "Source", "dock",
+        "ClipboardId", 0,
+        "PromptMergedIndex", 0,
+        "HubSegIndex", -1
+    )
+    try SC_ExecuteContextCommand(cmdId0, 0, m0)
+    catch as err {
+        _SCWV_LogRuntime("nmDockCmd " . cmdId0 . " error=" . err.Message)
     }
 }
 

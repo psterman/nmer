@@ -2505,6 +2505,7 @@ body[data-theme="light"] .dashboard-edit-input:focus {
 </style>
 <script src="https://app.local/assets/js/BasePanel.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script src="./assets/nm-bottom-dock.js"></script>
 </head>
 <body>
 <div id="root">
@@ -2844,6 +2845,7 @@ const state = {
   /** CursorHelper 同进程为 true；独立 VirtualKeyboard.ahk 为 false */
   embeddedHost: true,
 };
+let __nmDock = null;
 
 const VK_UI_PREF_KEYS = {
   dashboardLayout: 'vk_dashboard_layout',
@@ -7416,11 +7418,15 @@ if (window.chrome && window.chrome.webview) {
   window.chrome.webview.addEventListener('message', (e) => {
     try {
       const msg = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+      if (__nmDock && typeof __nmDock.onHostMessage === 'function')
+        __nmDock.onHostMessage(msg);
       handleAhkMessage(msg);
     } catch (err) {
       console.error('[VK] Parse error:', err, e.data);
     }
   });
+  if (window.NiumaBottomDock && typeof window.NiumaBottomDock.mount === 'function')
+    __nmDock = window.NiumaBottomDock.mount({ sceneId: 'hotkeys', post: postToAhk });
   postToAhk({ type: 'ready' });
   setHud('正在加载命令数据...');
 } else {

@@ -759,6 +759,7 @@
   </style>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <script src="https://app.local/assets/js/BasePanel.js"></script>
+  <script src="./assets/nm-bottom-dock.js"></script>
 </head>
 <body>
   <div id="app">
@@ -893,6 +894,7 @@
         appearanceActivationMode: "toolbar"
       }
     };
+    let __nmDock = null;
     let fullTextApplyTimer = 0;
     let ftbSortBar = null;
     let ftbSortPool = null;
@@ -2065,7 +2067,21 @@
         }
       } catch (_) {}
     })();
-    if (window.chrome && window.chrome.webview) { window.chrome.webview.addEventListener("message", e => { const data = typeof e.data === "string" ? JSON.parse(e.data) : e.data; handleHostMessage(data); }); render(); post({ type: "ready" }); setStatus("正在连接..."); } else { render(); setStatus("预览模式"); }
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.addEventListener("message", e => {
+        const data = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+        if (__nmDock && typeof __nmDock.onHostMessage === "function") __nmDock.onHostMessage(data);
+        handleHostMessage(data);
+      });
+      if (window.NiumaBottomDock && typeof window.NiumaBottomDock.mount === "function")
+        __nmDock = window.NiumaBottomDock.mount({ sceneId: "settings", post: post });
+      render();
+      post({ type: "ready" });
+      setStatus("正在连接...");
+    } else {
+      render();
+      setStatus("预览模式");
+    }
 </script>
 </body>
 </html>

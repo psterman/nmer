@@ -657,6 +657,55 @@ ConfigWebView_BuildInitDataSafe() {
     }
 }
 
+ConfigWebView_SendDockConfig() {
+    arr := []
+    try {
+        if IsSet(_LoadCommands)
+            _LoadCommands()
+        global g_Commands
+        if (g_Commands is Map && g_Commands.Has("SceneToolbarLayout") && g_Commands["SceneToolbarLayout"] is Array) {
+            for row in g_Commands["SceneToolbarLayout"] {
+                if !(row is Map) || !row.Has("sceneId")
+                    continue
+                sid := Trim(String(row["sceneId"]))
+                if (sid = "")
+                    continue
+                arr.Push(Map(
+                    "sceneId", sid,
+                    "visible_in_bar", row.Has("visible_in_bar") ? (row["visible_in_bar"] ? true : false) : true,
+                    "order_bar", row.Has("order_bar") ? Integer(row["order_bar"]) : -1
+                ))
+            }
+        }
+    } catch {
+    }
+    ConfigWebView_Send(Map("type", "nmDockConfig", "sceneToolbarLayout", arr))
+}
+
+ConfigWebView_ExecuteDockCmd(msg) {
+    cmdId0 := msg.Has("cmdId") ? String(msg["cmdId"]) : ""
+    if (cmdId0 = "")
+        return
+    if (cmdId0 = "open_cloudplayer") {
+        try ShowCloudPlayer()
+        return
+    }
+    m0 := Map(
+        "Title", "dock",
+        "Content", "",
+        "DataType", "text",
+        "OriginalDataType", "text",
+        "Source", "dock",
+        "ClipboardId", 0,
+        "PromptMergedIndex", 0,
+        "HubSegIndex", -1
+    )
+    try SC_ExecuteContextCommand(cmdId0, 0, m0)
+    catch as err {
+        OutputDebug("[ConfigWebView] nmDockCmd: " . err.Message)
+    }
+}
+
 ConfigWebView_ValidateAndApply(payload, &errorMsg := "") {
     global CursorPath, CapsLockHoldTimeSeconds, CapsLockHoldVkEnabled, AutoStart, DefaultStartTab
     global ThemeMode, FunctionPanelPos, ConfigPanelScreenIndex, ConfigPanelPos, ClipboardPanelPos, PanelScreenIndex
@@ -968,6 +1017,11 @@ ConfigWebView_OnMessage(sender, args) {
             ConfigWV2Ready := true
             ConfigWebView_Send(Map("type", "initData", "payload", ConfigWebView_BuildInitDataSafe()))
             ConfigWebView_PostFullTextStatus(true)
+            ConfigWebView_SendDockConfig()
+        case "nmDockReady":
+            ConfigWebView_SendDockConfig()
+        case "nmDockCmd":
+            ConfigWebView_ExecuteDockCmd(msg)
         case "fulltextStatusRequest":
             withCfg := msg.Has("withConfig") ? (msg["withConfig"] ? true : false) : true
             ConfigWebView_PostFullTextStatus(withCfg)

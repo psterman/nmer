@@ -119,8 +119,10 @@ body[data-theme="light"] #bar{
   </div>
 </div>
 
+<script src="./assets/nm-bottom-dock.js"></script>
 <script>
 (function () {
+  var __nmDock = null;
   function post(obj) {
     try {
       if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(obj);
@@ -163,6 +165,7 @@ body[data-theme="light"] #bar{
       if (typeof msg === 'string') {
         try { msg = JSON.parse(msg); } catch (e) { return; }
       }
+      if (__nmDock && typeof __nmDock.onHostMessage === 'function') __nmDock.onHostMessage(msg);
       if (msg && msg.type === 'RESET_STATE') {
         try {
           if (typeof window.onWebViewResetState === 'function') window.onWebViewResetState();
@@ -177,6 +180,8 @@ body[data-theme="light"] #bar{
   }
 
   window.addEventListener('resize', reportLayout);
+  if (window.NiumaBottomDock && typeof window.NiumaBottomDock.mount === 'function')
+    __nmDock = window.NiumaBottomDock.mount({ sceneId: 'screenshot', post: post, space: 70 });
   // Keep hidden until host state arrives to avoid dark->light flash.
   reportLayout();
   post({ action: 'ready' });
