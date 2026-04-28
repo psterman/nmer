@@ -25,6 +25,55 @@ _VK_H(name, args*) {
     return _m[name].Call(args*)
 }
 
+; 统一执行入口：所有输入源（热键/托盘/工具栏）都应调用本函数。
+; 说明：
+; - 本函数只做“路由决策”，具体执行仍复用既有实现，避免一次性大改造成回归。
+; - 非嵌入模式优先通知 CursorHelper；嵌入模式走本地执行。
+VK_Execute(cmdId) {
+    global g_Commands, g_VK_Embedded
+    cid := Trim(String(cmdId))
+    if (cid = "")
+        return false
+
+    fn := ""
+    try {
+        if (g_Commands is Map) && g_Commands.Has("CommandList")
+            && (g_Commands["CommandList"] is Map) && g_Commands["CommandList"].Has(cid)
+            fn := String(g_Commands["CommandList"][cid]["fn"])
+    }
+
+    ; 非 CH_RUN 命令交回宿主原执行器（SHOW_VK / EXIT_APP / WIN_MIN ...）
+    if (fn != "" && fn != "CH_RUN") {
+        try {
+            if IsSet(_ExecuteCommand)
+                return _ExecuteCommand(cid)
+        } catch {
+        }
+        return false
+    }
+
+    ; CH_RUN：统一调度（分发目标）
+    ; 1) native_key_to_cursor: qa_*/cursor_*
+    ; 2) frontend_postMessage: sc_/cp_/pqp_/hub_/ss_/ai_* 等
+    ; 3) internal_ahk: tray_/ftm_/sys_/win_ 等
+    ; 当前阶段先复用 VK_ExecCursorHelperCmd，后续可按 dispatchTarget 细分实现。
+    ; Local-first commands: always execute in current process.
+    ; These are app control commands and should never depend on CursorHelper.
+    if (SubStr(cid, 1, 4) = "ftm_" || SubStr(cid, 1, 5) = "tray_")
+        return VK_ExecCursorHelperCmd(cid)
+
+    if g_VK_Embedded
+        return VK_ExecCursorHelperCmd(cid)
+
+    try {
+        if NotifyScript("CursorHelper", '{"type":"vkExec","cmdId":"' . cid . '"}')
+            return true
+    } catch {
+    }
+    ; 兜底：主脚本本地执行（兼容托盘/工具栏直接调用）
+    return VK_ExecCursorHelperCmd(cid)
+}
+
 VK_ExecCursorHelperCmd(cmdId) {
     global CapsLock, CapsLock2, BatchHotkey, IsCountdownActive
     global g_LastExecutedCmdId

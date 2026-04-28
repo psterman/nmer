@@ -4673,5 +4673,10 @@ RButton:: {
 }
 #HotIf
 
+; 保底全局热键：重启脚本（避免 Ctrl+Shift 组合被输入法/系统层抢占时 VK 动态绑定失效）
+$^+q:: {
+    try ReloadScriptFromPopupMenu()
+}
+
 OnExit(ExitFunc)
 

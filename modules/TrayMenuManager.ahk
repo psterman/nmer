@@ -727,8 +727,8 @@ TrayMenu_RunSceneCmd(cmdId) {
     if (c = "")
         return
     try {
-        if IsSet(VK_ExecCursorHelperCmd) {
-            VK_ExecCursorHelperCmd(c)
+        if IsSet(VK_Execute) {
+            VK_Execute(c)
             return
         }
     } catch {
@@ -804,15 +804,15 @@ ShowCustomTrayMenu(ItemName := "", ItemPos := "", MyMenu := "") {
         for it in sceneItems
             MenuItems.Push(it)
     } else {
-        MenuItems.Push({ Text: "搜索中心", Action: ShowSearchCenterFromMenu, Icon: "●" })
-        MenuItems.Push({ Text: "剪贴板", Action: ShowClipboardFromMenu, Icon: "▤" })
-        MenuItems.Push({ Text: "截图", Action: ShowScreenshotFromMenu, Icon: "📷" })
-        MenuItems.Push({ Text: GetText("open_config_menu"), Action: ShowConfigFromMenu, Icon: "⚙" })
+        MenuItems.Push({ Text: "搜索中心", Action: ((*) => TrayMenu_RunSceneCmd("tray_show_search")), Icon: "●" })
+        MenuItems.Push({ Text: "剪贴板", Action: ((*) => TrayMenu_RunSceneCmd("tray_show_clipboard")), Icon: "▤" })
+        MenuItems.Push({ Text: "截图", Action: ((*) => TrayMenu_RunSceneCmd("tray_show_screenshot")), Icon: "📷" })
+        MenuItems.Push({ Text: GetText("open_config_menu"), Action: ((*) => TrayMenu_RunSceneCmd("tray_show_config")), Icon: "⚙" })
         if (mode != "tray") {
-            MenuItems.Push({ Text: "关闭工具栏", Action: HideFloatingToolbarFromPopupMenu, Icon: "◼" })
+            MenuItems.Push({ Text: "关闭工具栏", Action: ((*) => TrayMenu_RunSceneCmd("tray_hide_toolbar")), Icon: "◼" })
         }
-        MenuItems.Push({ Text: "重启脚本", Action: ReloadScriptFromPopupMenu, Icon: "↻" })
-        MenuItems.Push({ Text: GetText("exit_menu"), Action: ExitFromMenu, Icon: "✕" })
+        MenuItems.Push({ Text: "重启脚本", Action: ((*) => TrayMenu_RunSceneCmd("tray_reload_script")), Icon: "↻" })
+        MenuItems.Push({ Text: GetText("exit_menu"), Action: ((*) => TrayMenu_RunSceneCmd("tray_exit_app")), Icon: "✕" })
     }
 
     MenuHeight := MenuItems.Length * MenuItemHeight + Padding * 2

@@ -161,6 +161,109 @@ body::after {
   background: var(--bg);
   font-size: var(--vk-panel-font);
 }
+.env-focus-glow {
+  animation: envFocusPulse 2s ease-in-out infinite;
+  transform-origin: center;
+}
+@keyframes envFocusPulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(0,212,255,0); transform: scale(1); }
+  50% { box-shadow: 0 0 18px rgba(0,212,255,.28), 0 0 36px rgba(0,212,255,.16); transform: scale(1.015); }
+}
+.cmd-route-graph {
+  margin-top: 4px;
+  border: 1px dashed rgba(230,126,34,.35);
+  border-radius: 8px;
+  padding: 5px 8px;
+  background: rgba(24,18,12,.45);
+  font-size: 10px;
+  color: #b9b9b9;
+}
+.cmd-route-lane { margin-bottom: 4px; }
+.cmd-route-lane:last-child { margin-bottom: 0; }
+.cmd-route-layer {
+  color: #8d8d8d;
+  font-size: 10px;
+  margin-bottom: 3px;
+}
+.cmd-route-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.cmd-route-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(230,126,34,.4);
+  border-radius: 6px;
+  padding: 2px 6px;
+  background: rgba(230,126,34,.08);
+  color: #ffd8ad;
+}
+.cmd-route-item svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+}
+.cmd-route-dup {
+  margin-top: 4px;
+  color: #ffd17d;
+}
+.vk-key-chord { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.vk-key-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(230,126,34,.42);
+  border-radius: 6px;
+  padding: 1px 6px;
+  background: rgba(230,126,34,.08);
+  color: #ffd39e;
+  font-size: 10px;
+}
+.vk-key-join { color: #7d7d7d; margin: 0 2px; }
+#safe-base {
+  border-top: 1px solid var(--border);
+  padding: 8px 10px 10px;
+  background: linear-gradient(180deg, rgba(230,126,34,.06), rgba(230,126,34,.02));
+}
+#safe-base-title {
+  font-size: 11px;
+  color: #ffd39e;
+  margin-bottom: 6px;
+}
+#safe-base-desc {
+  font-size: 10px;
+  color: #9f9f9f;
+  margin-bottom: 8px;
+}
+#safe-base-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.safe-core-item {
+  border: 1px solid rgba(255,204,0,.4);
+  border-radius: 6px;
+  padding: 3px 8px;
+  background: rgba(255,204,0,.08);
+  color: #ffe7a0;
+  cursor: pointer;
+  font-size: 10px;
+}
+.safe-core-item:hover { box-shadow: var(--glow-gold); }
+#safe-base-reset {
+  width: 100%;
+  border: 1px solid rgba(0,212,255,.45);
+  border-radius: 8px;
+  background: rgba(0,212,255,.09);
+  color: #bcf4ff;
+  font-size: 11px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+#safe-base-reset:hover { box-shadow: var(--glow-cyan); }
 /* ── Layout Toggle Button ──────────────────────────────────────────────── */
 #layout-toggle {
   font-family: var(--font);
@@ -2797,6 +2900,12 @@ body[data-theme="light"] .dashboard-edit-input:focus {
       <div id="cmd-list-wrapper">
         <div id="cmd-list"></div>
       </div>
+      <div id="safe-base">
+        <div id="safe-base-title">安全底座 · 系统核心</div>
+        <div id="safe-base-desc">这些保底命令随时可用，不可被场景覆盖。</div>
+        <div id="safe-base-list"></div>
+        <button id="safe-base-reset" type="button">重置为初始规划</button>
+      </div>
     </div>
 
   </div><!-- #bottom-zone -->
@@ -2894,8 +3003,34 @@ const state = {
   toolbarLogoUrl: 'assets/牛马.png',
   /** CursorHelper 同进程为 true；独立 VirtualKeyboard.ahk 为 false */
   embeddedHost: true,
+  envFocus: 'global',
 };
 let __nmDock = null;
+
+function inferScenarioPriority(scenarioId) {
+  const sid = String(scenarioId || '').toLowerCase();
+  if (sid === 'global_hotkeys' || sid === 'hotkeys') return 3;
+  if (sid === 'floating_bar' || sid === 'tray_menu') return 3;
+  if (sid === 'cursor' || sid === 'search' || sid === 'clipboard' || sid === 'prompts' || sid === 'scratchpad' || sid === 'screenshot' || sid === 'settings' || sid === 'cloudplayer') return 2;
+  return 3;
+}
+
+function normalizeCommandsPriorityContext() {
+  for (const [cmdId, cmd] of Object.entries(state.commands || {})) {
+    const route = state.commandRoutes?.[cmdId];
+    const sid = route?.scenarioId || '';
+    const cid = String(cmdId || '');
+    if (!Number.isFinite(Number(cmd.priority))) cmd.priority = inferScenarioPriority(sid);
+    if (!cmd.context || !String(cmd.context).trim()) cmd.context = sid || 'global';
+    if (cid.startsWith('ftm_') || cid.startsWith('tray_')) {
+      cmd.priority = 3;
+      cmd.context = 'global';
+    } else if (cid.startsWith('qa_') || cid.startsWith('cursor_')) {
+      cmd.priority = 2;
+      if (!cmd.context || cmd.context === 'global') cmd.context = 'cursor';
+    }
+  }
+}
 
 const VK_UI_PREF_KEYS = {
   dashboardLayout: 'vk_dashboard_layout',
@@ -4435,7 +4570,10 @@ function handleAhkMessage(msg) {
     case 'bind_error': {
       const cmdName = state.commands[msg.commandId]?.name || msg.commandId || '动作';
       const key = msg.displayKey || msg.ahkKey || '';
-      const reason = msg.message ? '（' + msg.message + '）' : '';
+      const sceneMsg = msg.conflictSceneName
+        ? `（会被 ${msg.conflictSceneName} 拦截）`
+        : (msg.targetSceneName ? `（将拦截 ${msg.targetSceneName}）` : '');
+      const reason = msg.message ? '（' + msg.message + '）' : sceneMsg;
       flashBindErrorHud('绑定失败：' + cmdName + (key ? ' -> ' + key : '') + reason);
       break;
     }
@@ -4449,6 +4587,9 @@ function handleAhkMessage(msg) {
     case 'layoutMode':
       state.nativeLayout = !!msg.native;
       updateLayoutToggleUI();
+      break;
+    case 'ENV_FOCUS':
+      applyEnvFocus(msg.focus || msg.scene || msg.context || 'global');
       break;
     case 'set_logo':
       if (msg.url) {
@@ -4464,15 +4605,39 @@ function handleAhkMessage(msg) {
 function displayKeyForCmd(cmdId) {
   const b = state.bindings[cmdId];
   if (b?.explicitNone) return '';
-  if (b?.ahkKey) return b.displayKey || b.ahkKey;
+  if (b?.ahkKey) return ahkKeyToDisplayString(formatEffectiveAhkKeyForDisplay(cmdId, b.ahkKey));
   const sk = state.suggestedBindings[cmdId];
   if (sk) {
     const raw = String(sk).trim();
     if (!raw) return '—';
-    const isSingleLetter = raw.length === 1 && /[a-zA-Z]/.test(raw);
-    return isSingleLetter ? ('CapsLock+' + raw.toUpperCase()) : ahkKeyToDisplayString(raw);
+    return ahkKeyToDisplayString(formatEffectiveAhkKeyForDisplay(cmdId, raw));
   }
   return '—';
+}
+
+function isUnmodifiedAhkKey(ahkKey) {
+  const s = String(ahkKey || '').trim();
+  if (!s) return false;
+  if (s === '^^' || s === '++' || s === '!!') return false;
+  return !(s.includes('^') || s.includes('!') || s.includes('+') || s.includes('#'));
+}
+
+function shouldDisplayAsCapsChord(cmdId, ahkKey) {
+  if (!isUnmodifiedAhkKey(ahkKey)) return false;
+  const id = String(cmdId || '');
+  if (id.startsWith('ch_')) return true;
+  const sid = String(state.commandRoutes?.[id]?.scenarioId || '').toLowerCase();
+  return ['hotkeys', 'global_hotkeys', 'search', 'clipboard', 'prompts', 'scratchpad', 'screenshot'].includes(sid);
+}
+
+function formatEffectiveAhkKeyForDisplay(cmdId, ahkKey) {
+  const key = String(ahkKey || '').trim();
+  if (!key) return key;
+  if (shouldDisplayAsCapsChord(cmdId, key)) {
+    const base = ahkBaseToDisplay(key);
+    return `CapsLock+${base}`;
+  }
+  return key;
 }
 
 function rebuildIndexes() {
@@ -5364,6 +5529,7 @@ function handleInit(msg) {
   state.embeddedHost = msg.embeddedHost !== false;
 
   buildScenariosFromCategories();
+  normalizeCommandsPriorityContext();
   ensureActiveScenarioAndTab();
   rebuildIndexes();
 
@@ -5384,6 +5550,7 @@ function handleInit(msg) {
   renderAdminWarning();
   initDashboardDrag();
   syncDashboardPanelVisibility();
+  renderSafeBase();
 }
 
 function handleBindingUpdated(msg) {
@@ -5647,27 +5814,50 @@ function ahkBaseToDisplay(baseKey) {
   return map[baseKey] || baseKey;
 }
 
-function ahkKeyToDisplayString(ahkKey) {
+function translateKey(ahkKey) {
   if (!ahkKey) return '—';
-  if (ahkKey === '^^') return 'Double Ctrl';
-  if (ahkKey === '++') return 'Double Shift';
-  if (ahkKey === '!!') return 'Double Alt';
-  let key = ahkKey;
+  const rawInput = String(ahkKey).trim();
+  // Display-string path: supports "CapsLock+F", "Ctrl+Shift+Q" etc. (not AHK symbols)
+  if (/^(capslock\+|ctrl\+|alt\+|shift\+|win\+)/i.test(rawInput)) {
+    const parts = rawInput.split('+').map((x) => String(x || '').trim()).filter(Boolean);
+    const chips = parts.map((part) => {
+      const p = part.toLowerCase();
+      if (p === 'ctrl') return '<span class="vk-key-chip"><i class="fa-solid fa-chevron-up"></i> Ctrl</span>';
+      if (p === 'shift') return '<span class="vk-key-chip"><i class="fa-solid fa-arrow-up"></i> Shift</span>';
+      if (p === 'alt') return '<span class="vk-key-chip"><i class="fa-solid fa-bolt"></i> Alt</span>';
+      if (p === 'win') return '<span class="vk-key-chip"><i class="fa-brands fa-windows"></i> Win</span>';
+      if (p === 'capslock') return '<span class="vk-key-chip"><i class="fa-solid fa-a"></i> CapsLock</span>';
+      return `<span class="vk-key-chip">${escapeHtml(part.length === 1 ? part.toUpperCase() : part)}</span>`;
+    });
+    return `<span class="vk-key-chord">${chips.join('<span class="vk-key-join">+</span>')}</span>`;
+  }
+  if (ahkKey === '^^') return '<span class="vk-key-chord"><span class="vk-key-chip"><i class="fa-solid fa-chevron-up"></i> Ctrl ×2</span></span>';
+  if (ahkKey === '++') return '<span class="vk-key-chord"><span class="vk-key-chip"><i class="fa-solid fa-arrow-up"></i> Shift ×2</span></span>';
+  if (ahkKey === '!!') return '<span class="vk-key-chord"><span class="vk-key-chip"><i class="fa-solid fa-bolt"></i> Alt ×2</span></span>';
+  let key = String(ahkKey);
   const parts = [];
   if (key.includes('^')) {
-    parts.push('Ctrl');
+    parts.push('<span class="vk-key-chip"><i class="fa-solid fa-chevron-up"></i> Ctrl</span>');
     key = key.replace(/\^/g, '');
   }
-  if (key.includes('!')) {
-    parts.push('Alt');
-    key = key.replace(/!/g, '');
-  }
   if (key.includes('+')) {
-    parts.push('Shift');
+    parts.push('<span class="vk-key-chip"><i class="fa-solid fa-arrow-up"></i> Shift</span>');
     key = key.replace(/\+/g, '');
   }
-  parts.push(ahkBaseToDisplay(key));
-  return parts.join('+');
+  if (key.includes('!')) {
+    parts.push('<span class="vk-key-chip"><i class="fa-solid fa-bolt"></i> Alt</span>');
+    key = key.replace(/!/g, '');
+  }
+  if (key.includes('#')) {
+    parts.push('<span class="vk-key-chip"><i class="fa-brands fa-windows"></i> Win</span>');
+    key = key.replace(/#/g, '');
+  }
+  parts.push(`<span class="vk-key-chip">${escapeHtml(ahkBaseToDisplay(key))}</span>`);
+  return `<span class="vk-key-chord">${parts.join('<span class="vk-key-join">+</span>')}</span>`;
+}
+
+function ahkKeyToDisplayString(ahkKey) {
+  return translateKey(ahkKey);
 }
 
 function getCommandMetaByElement(el) {
@@ -6615,6 +6805,17 @@ function renderSidebar() {
     });
     list.appendChild(item);
   }
+  applyEnvFocus(state.envFocus);
+}
+
+function applyEnvFocus(rawFocus) {
+  const focus = String(rawFocus || 'global').toLowerCase();
+  state.envFocus = focus;
+  document.querySelectorAll('.sidebar-item').forEach((el) => el.classList.remove('env-focus-glow'));
+  const focusMap = { cursor: 'cursor', browser: 'search', global: 'global_hotkeys' };
+  const sid = focusMap[focus] || focus;
+  const item = document.querySelector(`.sidebar-item[data-scene-id="${CSS.escape(sid)}"]`);
+  if (item) item.classList.add('env-focus-glow');
 }
 
 function renderToolbarPreviewSandbox() {
@@ -6968,6 +7169,69 @@ function getScenarioDisplayCommand(cmdId) {
   return baseCmd;
 }
 
+function computeRouteGraph(ahkKey) {
+  const target = String(ahkKey || '').trim();
+  if (!target) return [];
+  const targetCanon = canonicalRouteKey('', target);
+  const nodes = [];
+  for (const [cmdId] of Object.entries(state.commands || {})) {
+    const k = effectiveAhkForCmd(cmdId);
+    if (!k) continue;
+    if (canonicalRouteKey(cmdId, k) !== targetCanon) continue;
+    const cmd = state.commands?.[cmdId] || {};
+    const route = state.commandRoutes?.[cmdId] || {};
+    nodes.push({
+      cmdId,
+      name: cmd.name || cmdId,
+      priority: Number.isFinite(Number(cmd.priority)) ? Number(cmd.priority) : inferScenarioPriority(route.scenarioId),
+      context: String(cmd.context || route.scenarioId || 'global'),
+    });
+  }
+  nodes.sort((a, b) => a.priority - b.priority);
+  return nodes;
+}
+
+function effectiveAhkForCmd(cmdId) {
+  const b = state.bindings?.[cmdId];
+  if (b?.explicitNone) return '';
+  if (b?.ahkKey) return String(b.ahkKey).trim();
+  const sk = state.suggestedBindings?.[cmdId];
+  return sk ? String(sk).trim() : '';
+}
+
+function canonicalRouteKey(cmdId, ahkKey) {
+  const key = String(ahkKey || '').trim();
+  if (!key) return '';
+  if (shouldDisplayAsCapsChord(cmdId, key))
+    return `caps:${String(ahkBaseToDisplay(key)).toLowerCase()}`;
+  return key.toLowerCase();
+}
+
+function routeGraphHtml(ahkKey) {
+  const nodes = computeRouteGraph(ahkKey);
+  if (!nodes.length) return '';
+  const grouped = new Map();
+  for (const n of nodes) {
+    const p = Number(n.priority);
+    if (!grouped.has(p)) grouped.set(p, []);
+    grouped.get(p).push(n);
+  }
+  const layerName = (p) => (p === 1 ? '第一关 · 和弦' : (p === 2 ? '第二关 · 场景' : (p === 3 ? '第三关 · 全局' : '系统核心')));
+  const lanes = [0, 1, 2, 3]
+    .filter((p) => grouped.has(p))
+    .map((p) => {
+      const items = grouped.get(p).map((n) => {
+        const cmd = state.commands?.[n.cmdId] || {};
+        const icon = renderLucideIconSvg(resolveLucideIconName(cmd.iconClass || cmd.iconName || '', n.cmdId, cmd));
+        return `<span class="cmd-route-item">${icon}<span>${escapeHtml(n.name)}</span></span>`;
+      }).join('');
+      return `<div class="cmd-route-lane"><div class="cmd-route-layer">${layerName(p)}</div><div class="cmd-route-items">${items}</div></div>`;
+    });
+  const hasCrossLayer = new Set(nodes.map((n) => Number(n.priority))).size > 1;
+  const dupHint = hasCrossLayer ? '<div class="cmd-route-dup">同键已在多层级复用，将按优先级分流。</div>' : '';
+  return `<div class="cmd-route-graph">${lanes.join('')}${dupHint}</div>`;
+}
+
 function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
   const cmd = getScenarioDisplayCommand(cmdId);
   const binding = state.bindings[cmdId];
@@ -7019,8 +7283,11 @@ function makeCmdRow(cmdId, searchText = '', keywordHit = '') {
     nameEl.title = kws ? `${cmd.desc}\n关键词: ${kws}` : cmd.desc;
   }
 
-  const keyEl = mkEl('div', 'cmd-key',
-    isRec ? '录制中：按下快捷键（连按两次可录制序列）...' : displayKeyForCmd(cmdId));
+  const keyEl = mkEl('div', 'cmd-key', '');
+  keyEl.innerHTML = isRec ? '录制中：按下快捷键（连按两次可录制序列）...' : displayKeyForCmd(cmdId);
+  const activeKey = binding?.explicitNone ? '' : (binding?.ahkKey || state.suggestedBindings[cmdId] || '');
+  const flow = routeGraphHtml(activeKey);
+  if (flow) keyEl.innerHTML += flow;
 
   const actions = document.createElement('div');
   actions.className = 'cmd-actions';
@@ -7323,11 +7590,17 @@ function triggerKeyRipple(ahkKey) {
 // Conflict Modal
 // ═══════════════════════════════════════════════════════════════════════════
 function handleConfirmConflict(msg) {
-  const { commandId, displayKey, conflictCmdName } = msg;
+  const { commandId, displayKey, conflictCmdName, conflictSceneName, targetSceneName } = msg;
   const cmdName = state.commands[commandId]?.name || commandId;
+  const sceneHint = conflictSceneName
+    ? `它会被 <strong>${escapeHtml(conflictSceneName)}</strong> 拦截。`
+    : (targetSceneName ? `它将拦截 <strong>${escapeHtml(targetSceneName)}</strong>。` : '');
+  const cmd = state.commands[commandId] || {};
+  const ico = renderLucideIconSvg(resolveLucideIconName(cmd.iconClass || cmd.iconName || '', commandId, cmd));
   document.getElementById('conflict-body').innerHTML =
-    `<strong>${displayKey}</strong> 已分配给 <strong>${conflictCmdName}</strong>。<br>` +
-    `是否将其改为 <strong>${cmdName}</strong> 的快捷键？`;
+    `${ahkKeyToDisplayString(displayKey)} 已分配给 <strong>${conflictCmdName}</strong>。<br>`
+    + (sceneHint ? (sceneHint + '<br>') : '') +
+    `改为 ${ico} <strong>${cmdName}</strong> 吗？`;
 
   const overlay = document.getElementById('conflict-overlay');
   overlay.classList.add('visible');
@@ -7428,6 +7701,32 @@ document.getElementById('reset-all')?.addEventListener('click', () => {
   const ok = confirm('确定要恢复所有出厂设置吗？这将清空您所有的自定义快捷键且不可撤销。');
   if (!ok) return;
   postToAhk({ type: 'reset_all' });
+});
+
+function renderSafeBase() {
+  const host = document.getElementById('safe-base-list');
+  if (!host) return;
+  host.innerHTML = '';
+  const core = Object.entries(state.commands || {})
+    .filter(([, c]) => Number(c?.priority) === 0)
+    .slice(0, 12);
+  for (const [cmdId, cmd] of core) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'safe-core-item';
+    btn.textContent = cmd?.name || cmdId;
+    btn.title = '系统核心';
+    btn.addEventListener('click', () => {
+      alert('这是您的保底快捷键，随时可用，不可被场景覆盖');
+      postToAhk({ type: 'executeCommand', commandId: cmdId });
+    });
+    host.appendChild(btn);
+  }
+}
+
+document.getElementById('safe-base-reset')?.addEventListener('click', () => {
+  postToAhk({ type: 'reset_from_backup' });
+  setHud('已请求从原始备份恢复快捷键规划');
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -14,6 +14,13 @@ global g_InverseBindings := Map()
 ; - g_Bindings = Map(effectiveAhkKey -> cmdId)
 ; - g_InverseBindings = Map(cmdId -> effectiveAhkKey)
 global g_HotkeyBound := Map()
+; Priority-layered hotkey indexes (from Commands.json)
+; 0: system, 1: chord, 2: local, 3: global
+global g_L0_Hotkeys := Map()
+global g_L1_Hotkeys := Map()
+global g_L2_Hotkeys := Map()
+global g_L3_Hotkeys := Map()
+global g_VK_CriticalHotkeys := []
 ; 嵌入模式：CapsLock 下由 HotIf(GetCapsLockState)+Hotkey() 动态挂载的键（重载前须 Off）
 global g_VK_CapsLockDynHotkeys := []
 global g_VK_PhysModSyncOn := false
@@ -543,6 +550,7 @@ _LoadCommands() {
     _VK_RenderGlobalFloatPanel()
     if g_VK_Embedded
         _VK_SyncEmbeddedCapslockHotkeys()
+    LoadCommandsConfig()
     OutputDebug("[VK] Loaded " . g_Bindings.Count . " binding(s)")
 }
 
@@ -675,6 +683,135 @@ _VK_RebuildEffectiveBindings(overrides := 0) {
         g_InverseBindings[cmdId] := sk
         used[sk] := cmdId
     }
+}
+
+_VK_HotkeyLayerPush(layerMap, hotkey, infoObj) {
+    if (hotkey = "")
+        return
+    if !layerMap.Has(hotkey)
+        layerMap[hotkey] := []
+    layerMap[hotkey].Push(infoObj)
+}
+
+; Normalize command priority/context with hard rules so behavior is stable even if JSON misses fields.
+_VK_NormalizeCommandLayer(cmdId, cmd, &p, &ctx) {
+    cid := Trim(String(cmdId))
+    p := 3
+    ctx := "global"
+
+    if (cmd is Map) {
+        if cmd.Has("priority")
+            p := Integer(cmd["priority"])
+        if cmd.Has("context") && Trim(String(cmd["context"])) != ""
+            ctx := Trim(String(cmd["context"]))
+    }
+
+    ; Hard business rules:
+    ; - floating toolbar commands are GLOBAL by product definition
+    ; - tray menu commands are GLOBAL entry points
+    ; - cursor-native commands stay LOCAL to Cursor
+    if (SubStr(cid, 1, 4) = "ftm_") {
+        p := 3
+        ctx := "global"
+    } else if (SubStr(cid, 1, 5) = "tray_") {
+        p := 3
+        ctx := "global"
+    } else if (SubStr(cid, 1, 3) = "qa_" || SubStr(cid, 1, 7) = "cursor_") {
+        p := 2
+        if (ctx = "global")
+            ctx := "cursor"
+    }
+
+    if (p < 0)
+        p := 0
+    else if (p > 3)
+        p := 3
+    if (ctx = "")
+        ctx := "global"
+}
+
+; Parse Commands.json runtime data into priority layers for conflict checks.
+; Produces:
+; - g_L0_Hotkeys (system)
+; - g_L1_Hotkeys (chord)
+; - g_L2_Hotkeys (local)
+; - g_L3_Hotkeys (global)
+LoadCommandsConfig() {
+    global g_Commands
+    global g_Bindings
+    global g_L0_Hotkeys, g_L1_Hotkeys, g_L2_Hotkeys, g_L3_Hotkeys
+
+    g_L0_Hotkeys := Map(), g_L1_Hotkeys := Map(), g_L2_Hotkeys := Map(), g_L3_Hotkeys := Map()
+    if !(g_Commands is Map)
+        return
+    if !g_Commands.Has("CommandList") || !(g_Commands["CommandList"] is Map)
+        return
+
+    cmdList := g_Commands["CommandList"]
+    for ahkKey, cmdId in g_Bindings {
+        if (ahkKey = "" || cmdId = "" || !cmdList.Has(cmdId))
+            continue
+        cmd := cmdList[cmdId]
+        _VK_NormalizeCommandLayer(cmdId, cmd, &p, &ctx)
+        info := Map("cmdId", cmdId, "key", ahkKey, "priority", p, "context", ctx)
+        switch p {
+            case 0:
+                _VK_HotkeyLayerPush(g_L0_Hotkeys, ahkKey, info)
+            case 1:
+                _VK_HotkeyLayerPush(g_L1_Hotkeys, ahkKey, info)
+            case 2:
+                _VK_HotkeyLayerPush(g_L2_Hotkeys, ahkKey, info)
+            default:
+                _VK_HotkeyLayerPush(g_L3_Hotkeys, ahkKey, info)
+        }
+    }
+}
+
+; Check whether a key is already reserved by higher-priority layers.
+; Returns:
+; - Map("conflict", false) when no blocking conflict found
+; - Map("conflict", true, "priority", <layer>, "cmdId", <cmd>, "context", <ctx>, "key", <hotkey>) otherwise
+GetHotkeyConflict(hotkey, targetPriority := 3, targetContext := "global") {
+    global g_L0_Hotkeys, g_L1_Hotkeys, g_L2_Hotkeys, g_L3_Hotkeys
+    hk := Trim(String(hotkey))
+    if (hk = "")
+        return Map("conflict", false)
+
+    tp := Integer(targetPriority)
+    if (tp < 0)
+        tp := 0
+    else if (tp > 3)
+        tp := 3
+    tc := Trim(String(targetContext))
+    if (tc = "")
+        tc := "global"
+
+    layers := [g_L0_Hotkeys, g_L1_Hotkeys, g_L2_Hotkeys, g_L3_Hotkeys]
+    Loop tp {
+        idx := A_Index ; 1..tp => priority 0..tp-1
+        layer := layers[idx]
+        if !(layer is Map) || !layer.Has(hk)
+            continue
+        arr := layer[hk]
+        if !(arr is Array)
+            continue
+        for info in arr {
+            if !(info is Map)
+                continue
+            ic := info.Has("context") ? Trim(String(info["context"])) : "global"
+            ; Overlap rule: same context OR either side is global
+            if (ic = tc || ic = "global" || tc = "global") {
+                return Map(
+                    "conflict", true,
+                    "priority", idx - 1,
+                    "cmdId", info.Has("cmdId") ? String(info["cmdId"]) : "",
+                    "context", ic,
+                    "key", hk
+                )
+            }
+        }
+    }
+    return Map("conflict", false)
 }
 
 ; 将 SuggestedBindings 合并进 Bindings（不覆盖用户已有绑定）
@@ -2633,6 +2770,24 @@ _BindKey(ahkKey, cmdId) {
         OutputDebug("[VK] Bound: " . ahkKey . " -> " . cmdId)
         return true
     } catch as e {
+        ; Fallback: force keyboard-hook variant for modified keys to reduce RegisterHotKey conflicts.
+        hkHook := ""
+        if (InStr(ahkKey, "^") || InStr(ahkKey, "!") || InStr(ahkKey, "+") || InStr(ahkKey, "#"))
+            hkHook := "$" . ahkKey
+        if (hkHook != "") {
+            try {
+                Hotkey(hkHook, fn, "On")
+                g_HotkeyBound[hkHook] := 1
+                OutputDebug("[VK] Bound(hook): " . hkHook . " -> " . cmdId)
+                return true
+            } catch as e2 {
+                OutputDebug("[VK] Hotkey error (" . ahkKey . "): " . e.Message . " | hook: " . e2.Message)
+                VK_SendToWeb('{"type":"bind_error","commandId":' . _JsonStr(cmdId)
+                    . ',"ahkKey":' . _JsonStr(ahkKey)
+                    . ',"message":' . _JsonStr(e2.Message) . '}')
+                return false
+            }
+        }
         OutputDebug("[VK] Hotkey error (" . ahkKey . "): " . e.Message)
         VK_SendToWeb('{"type":"bind_error","commandId":' . _JsonStr(cmdId)
             . ',"ahkKey":' . _JsonStr(ahkKey)
@@ -2643,6 +2798,110 @@ _BindKey(ahkKey, cmdId) {
 
 _MakeCmdFn(cmdId) {
     return (*) => _ExecuteCommand(cmdId)
+}
+
+_VK_LayerCmdIdForHotkey(layerMap, ahkKey) {
+    if !(layerMap is Map) || !layerMap.Has(ahkKey)
+        return ""
+    entries := layerMap[ahkKey]
+    if !(entries is Array) || entries.Length = 0
+        return ""
+    ent := entries[1]
+    if !(ent is Map) || !ent.Has("cmdId")
+        return ""
+    return String(ent["cmdId"])
+}
+
+_VK_BindLayerHotkeys(layerMap, layerName := "L3") {
+    if !(layerMap is Map)
+        return
+    for ahkKey, _ in layerMap {
+        if _VkIsRuntimeHookKey(ahkKey)
+            continue
+        cmdId := _VK_LayerCmdIdForHotkey(layerMap, ahkKey)
+        if (cmdId = "")
+            continue
+        _BindKey(ahkKey, cmdId)
+    }
+}
+
+_VK_UnregisterCriticalHotkeys() {
+    global g_VK_CriticalHotkeys
+    for hk in g_VK_CriticalHotkeys {
+        try Hotkey(hk, "Off")
+    }
+    g_VK_CriticalHotkeys := []
+}
+
+_VK_BindCriticalHotkey(ahkKey, fn) {
+    global g_VK_CriticalHotkeys
+    if (ahkKey = "")
+        return false
+    try {
+        Hotkey(ahkKey, fn, "On")
+        g_VK_CriticalHotkeys.Push(ahkKey)
+        return true
+    } catch {
+    }
+    if (InStr(ahkKey, "^") || InStr(ahkKey, "!") || InStr(ahkKey, "+") || InStr(ahkKey, "#")) {
+        hkHook := "$" . ahkKey
+        try {
+            Hotkey(hkHook, fn, "On")
+            g_VK_CriticalHotkeys.Push(hkHook)
+            return true
+        } catch {
+        }
+    }
+    return false
+}
+
+_VK_CriticalReloadHotkeyHandler(*) {
+    try ReloadScriptFromPopupMenu()
+}
+
+_VK_RegisterCriticalGlobalHotkeys() {
+    global g_InverseBindings
+    _VK_UnregisterCriticalHotkeys()
+    if !(g_InverseBindings is Map)
+        return
+    ; 保底：重启脚本永远可触发（避免层级/路由变更导致失效）
+    if g_InverseBindings.Has("ftm_reload_script")
+        _VK_BindCriticalHotkey(g_InverseBindings["ftm_reload_script"], _VK_CriticalReloadHotkeyHandler)
+}
+
+ApplyHotkeysByPriority() {
+    global g_HotkeyBound
+    global g_L0_Hotkeys, g_L1_Hotkeys, g_L2_Hotkeys, g_L3_Hotkeys
+
+    ; 清掉已有动态绑定，避免旧 variant 残留。
+    prevKeys := []
+    for ahkKey, _ in g_HotkeyBound
+        prevKeys.Push(ahkKey)
+    for ahkKey in prevKeys
+        _VK_ReleaseBoundHotkey(ahkKey)
+
+    ; L0: 系统级（无条件）
+    _VK_BindLayerHotkeys(g_L0_Hotkeys, "L0")
+
+    ; L1: 和弦（CapsLock 上下文）
+    try {
+        HotIf(_VkCapsLockHotIfCb) ; 等价于 HotIf(GetCapsLockState)
+        _VK_BindLayerHotkeys(g_L1_Hotkeys, "L1")
+    } finally {
+        HotIf()
+    }
+
+    ; L2: 局部（Cursor 窗口激活）
+    try {
+        HotIfWinActive("ahk_exe cursor.exe")
+        _VK_BindLayerHotkeys(g_L2_Hotkeys, "L2")
+    } finally {
+        HotIf()
+    }
+
+    ; L3: 全局（无条件）
+    _VK_BindLayerHotkeys(g_L3_Hotkeys, "L3")
+    _VK_RegisterCriticalGlobalHotkeys()
 }
 
 _UnbindKey(ahkKey) {
@@ -2660,14 +2919,18 @@ _VK_ReleaseBoundHotkey(ahkKey) {
     if (ahkKey = "" || _VkIsRuntimeHookKey(ahkKey))
         return
     try Hotkey(ahkKey, "Off")
+    if (InStr(ahkKey, "^") || InStr(ahkKey, "!") || InStr(ahkKey, "+") || InStr(ahkKey, "#")) {
+        hkHook := "$" . ahkKey
+        try Hotkey(hkHook, "Off")
+        if g_HotkeyBound.Has(hkHook)
+            g_HotkeyBound.Delete(hkHook)
+    }
     if g_HotkeyBound.Has(ahkKey)
         g_HotkeyBound.Delete(ahkKey)
 }
 
 _ApplyAllBindings() {
-    global g_Bindings
-    for ahkKey, cmdId in g_Bindings
-        _BindKey(ahkKey, cmdId)
+    ApplyHotkeysByPriority()
     _EnsureDoubleModifierHook()
     _EnsureSequenceHook()
 }
@@ -2721,13 +2984,8 @@ _ExecuteCommand(cmdId) {
             OutputDebug("[VK] CURSOR_CLOSE: hook here")
             executed := true
         case "CH_RUN":
-            if g_VK_Embedded {
-                ; 嵌入宿主：仅当 VK_Exec 真正命中分支时才视为「已消费按键」，否则须回退 HandleDynamicHotkey
-                executed := VK_ExecCursorHelperCmd(cmdId)
-            } else if !NotifyScript("CursorHelper", '{"type":"vkExec","cmdId":"' . cmdId . '"}')
-                OutputDebug("[VK] CH_RUN " . cmdId . " — CursorHelper 未运行或未处理 vkExec")
-            else
-                executed := true
+            ; 统一调度入口（热键/托盘/工具栏一致）
+            executed := VK_Execute(cmdId)
         case "PT_RUN":
             _VkRunPromptTemplate(cmdId)
             executed := true
