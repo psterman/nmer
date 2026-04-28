@@ -109,6 +109,7 @@ CloudPlayer_OnWebViewCreated(ctrl) {
 
     try g_CloudPlayerWv2.Settings.IsStatusBarEnabled := false
     try g_CloudPlayerWv2.Settings.AreDefaultContextMenusEnabled := true
+    try g_CloudPlayerWv2.Settings.AreDefaultScriptDialogsEnabled := true
     try g_CloudPlayerWv2.Settings.AreDevToolsEnabled := true
 
     try g_CloudPlayerWv2.add_WebMessageReceived(CloudPlayer_OnWebMessage)

@@ -114,39 +114,85 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
 #docPreview p,#docPreview li,#docPreview span,#docPreview td,#docPreview th{color:#d8e2f4}
 .resume-toast{
   position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
-  background:rgba(9,14,22,.86);border:1px solid #40506b;color:#ecf3ff;
-  border-radius:10px;padding:10px 14px;font-size:13px;z-index:5000;
+  background:linear-gradient(168deg,rgba(48,26,12,.94),rgba(20,12,8,.96));border:1px solid rgba(255,140,72,.5);color:#fff2e8;
+  border-radius:12px;padding:12px 16px;font-size:13px;z-index:5000;
+  box-shadow:0 16px 40px rgba(0,0,0,.45),0 0 24px rgba(255,120,40,.12);
   opacity:0;pointer-events:none;transition:opacity .25s ease;
 }
 .resume-toast.show{opacity:1}
 .player-mode{display:flex;gap:8px}
 .mode-btn.active{border-color:#ff9d4f;background:linear-gradient(180deg,#ff8f35,#ff7420);color:#111}
 
-.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(2,6,10,.62);z-index:2000}
+.modal{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(8,4,2,.68);backdrop-filter:blur(5px);z-index:2000;
+}
 .modal.open{display:flex}
-.modal-card{width:min(980px,92vw);height:min(760px,90vh);border:1px solid #2c3d56;border-radius:14px;background:#111826;display:flex;flex-direction:column;overflow:hidden}
-.modal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.modal-card{
+  width:min(980px,92vw);height:min(760px,90vh);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;
+  background:linear-gradient(168deg,rgba(52,28,12,.97) 0%,rgba(24,14,8,.98) 50%,rgba(14,9,6,.99) 100%);
+  border:1px solid rgba(255,130,60,.55);
+  box-shadow:0 22px 52px rgba(0,0,0,.55),0 0 0 1px rgba(255,170,96,.12) inset,0 0 36px rgba(255,100,40,.1);
+}
+.modal-head{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;
+  border-bottom:1px solid rgba(255,140,72,.38);background:rgba(40,22,10,.55);
+}
 .modal-head-left{display:flex;align-items:center;gap:10px;min-width:0}
 .modal-provider-ico{width:24px;height:24px;object-fit:contain;flex:none}
-.modal-title{font-weight:700}
-.modal-hint{font-size:12px;color:var(--muted)}
-.modal-body{flex:1;min-height:0;background:#0d1220}
+.modal-title{font-weight:700;color:#ffd8bc}
+.modal-hint{font-size:12px;color:rgba(255,220,190,.72)}
+.modal-body{flex:1;min-height:0;background:linear-gradient(180deg,rgba(18,10,6,.92) 0%,rgba(10,6,4,.96) 100%)}
 .modal-body iframe{width:100%;height:100%;border:0}
 .guide-panel{padding:16px;display:flex;flex-direction:column;gap:12px;height:100%;overflow:auto}
-.guide-steps{margin:0;padding-left:18px;color:var(--muted);line-height:1.6}
+.guide-panel .hint{color:rgba(255,200,170,.65)}
+.guide-steps{margin:0;padding-left:18px;color:rgba(255,214,186,.78);line-height:1.6}
 .guide-row{display:flex;gap:8px;align-items:center}
-.guide-row input{flex:1}
+.guide-row input{flex:1;border-color:rgba(255,140,72,.4);background:rgba(10,6,4,.88);color:#fff4eb}
+
+.cp-dialog-text{margin:0 0 12px;font-size:13px;line-height:1.55;color:rgba(255,230,210,.88);white-space:pre-wrap;word-break:break-word}
 
 .ctx-menu{
-  position:fixed;z-index:4000;display:none;min-width:180px;background:#111c2d;border:1px solid #2f425f;border-radius:10px;
-  box-shadow:0 10px 28px rgba(0,0,0,.42);padding:6px;
+  position:fixed;z-index:4000;display:none;min-width:186px;max-width:min(92vw,320px);max-height:min(72vh,520px);
+  overflow-x:hidden;overflow-y:auto;padding:6px;border-radius:12px;
+  background:linear-gradient(165deg,rgba(58,32,14,.97) 0%,rgba(28,16,8,.98) 48%,rgba(18,12,8,.98) 100%);
+  border:1px solid rgba(255,140,64,.55);
+  box-shadow:0 14px 36px rgba(0,0,0,.48),0 0 0 1px rgba(255,160,80,.12) inset,0 0 28px rgba(255,120,40,.12);
+  -webkit-overflow-scrolling:touch;
 }
 .ctx-menu.open{display:block}
 .ctx-item{
-  width:100%;height:32px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--text);
-  text-align:left;padding:0 10px;cursor:pointer
+  width:100%;height:34px;border-radius:8px;border:1px solid transparent;background:transparent;
+  color:#fff0e6;text-align:left;padding:0 12px;cursor:pointer;font-weight:500;
 }
-.ctx-item:hover{background:rgba(255,255,255,.06);border-color:#354a67}
+.ctx-item:hover{
+  background:linear-gradient(180deg,rgba(255,145,64,.22),rgba(255,120,48,.14));
+  border-color:rgba(255,150,88,.42);color:#fffcf8;
+}
+.ctx-item:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+  pointer-events:none;
+  color:rgba(255,230,210,.55);
+}
+
+.mkdir-modal{position:fixed;inset:0;z-index:4100;display:none;align-items:center;justify-content:center;padding:18px;box-sizing:border-box}
+.mkdir-modal.open{display:flex}
+.mkdir-modal-backdrop{position:absolute;inset:0;background:rgba(8,5,3,.72);backdrop-filter:blur(4px)}
+.mkdir-modal-card{
+  position:relative;width:min(100%,360px);border-radius:14px;padding:18px 18px 16px;
+  background:linear-gradient(168deg,rgba(52,28,12,.98) 0%,rgba(22,12,6,.99) 55%,rgba(14,9,6,.99) 100%);
+  border:1px solid rgba(255,130,60,.55);
+  box-shadow:0 22px 48px rgba(0,0,0,.55),0 0 0 1px rgba(255,170,96,.14) inset,0 0 32px rgba(255,100,40,.12);
+}
+.mkdir-modal-title{font-weight:700;font-size:15px;color:#ffd8bc;margin:0 0 12px;letter-spacing:.02em}
+.mkdir-modal .mkdir-inp{width:100%;height:40px;border-radius:10px;border:1px solid rgba(255,140,72,.45);
+  background:rgba(10,6,4,.92);color:#fff6ee;padding:0 12px;outline:none;box-sizing:border-box}
+.mkdir-modal .mkdir-inp:focus{border-color:#ff963f;box-shadow:0 0 0 2px rgba(255,140,64,.2)}
+.mkdir-modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+.mkdir-modal-actions button{min-width:88px}
+
+#cpDialogModal .mkdir-modal-card{max-width:min(100%,420px)}
 
 @media (max-width:1300px){
   .top{grid-template-columns:1fr 1fr}
@@ -265,6 +311,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   <div id="ctxMenu" class="ctx-menu">
     <button class="ctx-item" data-act="copy">复制</button>
     <button class="ctx-item" data-act="paste">粘贴</button>
+    <button class="ctx-item" data-act="mkdir">新建文件夹</button>
     <button class="ctx-item" data-act="delete">删除</button>
     <button class="ctx-item" data-act="download">下载</button>
     <button class="ctx-item" data-act="rename">重命名</button>
@@ -272,6 +319,31 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     <button class="ctx-item" data-act="playview">播放/查看</button>
     <button class="ctx-item" data-act="info">信息</button>
     <button class="ctx-item" data-act="pin">置顶/取消置顶</button>
+  </div>
+  <div id="mkdirModal" class="mkdir-modal" aria-hidden="true">
+    <div class="mkdir-modal-backdrop" role="presentation"></div>
+    <div class="mkdir-modal-card" role="dialog" aria-modal="true" aria-labelledby="mkdirModalTitle">
+      <div id="mkdirModalTitle" class="mkdir-modal-title">新建文件夹</div>
+      <input id="mkdirInput" class="mkdir-inp" type="text" autocomplete="off" maxlength="255">
+      <div class="mkdir-modal-actions">
+        <button type="button" class="ghost" id="mkdirCancel">取消</button>
+        <button type="button" class="primary" id="mkdirOk">创建</button>
+      </div>
+    </div>
+  </div>
+  <div id="cpDialogModal" class="mkdir-modal" aria-hidden="true">
+    <div class="mkdir-modal-backdrop" role="presentation"></div>
+    <div class="mkdir-modal-card" role="dialog" aria-modal="true" aria-labelledby="cpDialogTitle">
+      <div id="cpDialogTitle" class="mkdir-modal-title"></div>
+      <p id="cpDialogText" class="cp-dialog-text"></p>
+      <div id="cpDialogInputRow" class="hidden">
+        <input id="cpDialogInput" class="mkdir-inp" type="text" autocomplete="off" maxlength="2000">
+      </div>
+      <div class="mkdir-modal-actions">
+        <button type="button" class="ghost" id="cpDialogCancel">取消</button>
+        <button type="button" class="primary" id="cpDialogOk">确定</button>
+      </div>
+    </div>
   </div>
   <div id="resumeToast" class="resume-toast">已为您恢复至上次播放位置</div>
 
@@ -336,8 +408,8 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   var providerOnline = {};
   var providerButtonMap = { ali:"btnAli", baidu:"btnBaidu", quark:"btnQuark", pan115:"btn115", pan123:"btn123", onedrive:"btnOneDrive", dropbox:"btnDropbox", root:"btnRoot" };
   var providerMap = {
-    ali: { label:"Aliyun", icon:"lib/images/aliyun.png", driver:"AliyundriveOpen", mountId:"mountAli", defaultPath:"/aliyun", loginUrl:"https://api.oplist.org/#", tokenLabel:"refresh_token" },
-    baidu: { label:"Baidu", icon:"lib/images/baiduyun.png", driver:"BaiduNetdisk", mountId:"mountBaidu", defaultPath:"/baidu", loginUrl:"https://api.oplist.org/#", tokenLabel:"refresh_token" },
+    ali: { label:"Aliyun", icon:"lib/images/aliyun.png", driver:"AliyundriveOpen", mountId:"mountAli", defaultPath:"/aliyun", loginUrl:"https://api.oplist.org/#", tokenLabel:"refresh_token", mkdirSupported:false },
+    baidu: { label:"Baidu", icon:"lib/images/baiduyun.png", driver:"BaiduNetdisk", mountId:"mountBaidu", defaultPath:"/baidu", loginUrl:"https://api.oplist.org/#", tokenLabel:"refresh_token", mkdirSupported:false },
     quark: { label:"Quark", icon:"lib/images/kuake.png", driver:"Quark", mountId:"mountQuark", defaultPath:"/quark", loginUrl:"https://api.oplist.org/quarkyun/callback", requestUrl:"https://api.oplist.org/quarkyun/requests", tokenLabel:"Cookie (__puus / __pus / ctoken)" },
     pan115: { label:"115", icon:"lib/images/115.png", driver:"Pan115", mountId:"mount115", defaultPath:"/pan115", loginUrl:"https://api.oplist.org/#", tokenLabel:"refresh_token" },
     pan123: { label:"123", icon:"lib/images/123.png", driver:"123Open", mountId:"mount123", defaultPath:"/pan123", loginUrl:"https://api.oplist.org/#", tokenLabel:"refresh_token" },
@@ -441,13 +513,29 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     pmap_google: "Google \u8def\u5f84",
     ctx_copy: "\u590d\u5236",
     ctx_paste: "\u7c98\u8d34",
+    ctx_mkdir: "\u65b0\u5efa\u6587\u4ef6\u5939",
     ctx_delete: "\u5220\u9664",
     ctx_download: "\u4e0b\u8f7d",
     ctx_rename: "\u91cd\u547d\u540d",
     ctx_move: "\u79fb\u52a8",
     ctx_playview: "\u64ad\u653e/\u67e5\u770b",
     ctx_info: "\u4fe1\u606f",
-    ctx_pin: "\u7f6e\u9876/\u53d6\u6d88\u7f6e\u9876"
+    ctx_pin: "\u7f6e\u9876/\u53d6\u6d88\u7f6e\u9876",
+    mkdir_title: "\u65b0\u5efa\u6587\u4ef6\u5939",
+    mkdir_ok: "\u521b\u5efa",
+    mkdir_cancel: "\u53d6\u6d88",
+    mkdir_placeholder: "\u8f93\u5165\u6587\u4ef6\u5939\u540d\u79f0",
+    dlg_ok: "\u786e\u5b9a",
+    dlg_cancel: "\u53d6\u6d88",
+    dlg_delete_title: "\u5220\u9664\u786e\u8ba4",
+    dlg_delete_text: "\u786e\u5b9a\u5220\u9664\u300c{name}\u300d\uff1f\u6b64\u64cd\u4f5c\u901a\u5e38\u4e0d\u53ef\u64a4\u9500\u3002",
+    dlg_rename_title: "\u91cd\u547d\u540d",
+    dlg_rename_text: "\u8bf7\u8f93\u5165\u65b0\u7684\u6587\u4ef6\u6216\u6587\u4ef6\u5939\u540d\u79f0\uff1a",
+    dlg_rename_ph: "\u65b0\u540d\u79f0",
+    dlg_move_title: "\u79fb\u5230",
+    dlg_move_text: "\u8bf7\u8f93\u5165\u76ee\u6807\u76ee\u5f55\u5b8c\u6574\u8def\u5f84\uff08\u5982 /baidu/\u5907\u4efd\uff09\uff1a",
+    mkdir_unsupported_hint: "\u963f\u91cc\u4e91\u76d8\u4e0e\u767e\u5ea6\u7f51\u76d8\uff1aOpenList \u5b58\u50a8\u9a71\u52a8\u5c42\u9762\u901a\u5e38\u672a\u5b9e\u73b0\u521b\u5efa\u6587\u4ef6\u5939\uff08\u4e0e\u725b\u9a6c\u4e91\u754c\u9762\u65e0\u5173\uff09\u3002",
+    mkdir_unsupported_toast: "\u5f53\u524d\u7f51\u76d8\u9a71\u52a8\u4e0d\u652f\u6301\u901a\u8fc7\u672c\u754c\u9762\u65b0\u5efa\u6587\u4ef6\u5939\uff08OpenList \u9a71\u52a8\u80fd\u529b\u9650\u5236\uff09\u3002"
   });
   Object.assign(i18n.en, {
     online: "Online",
@@ -476,13 +564,29 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     pmap_google: "Google path",
     ctx_copy: "Copy",
     ctx_paste: "Paste",
+    ctx_mkdir: "New Folder",
     ctx_delete: "Delete",
     ctx_download: "Download",
     ctx_rename: "Rename",
     ctx_move: "Move",
     ctx_playview: "Play/View",
     ctx_info: "Info",
-    ctx_pin: "Pin/Unpin"
+    ctx_pin: "Pin/Unpin",
+    mkdir_title: "New folder",
+    mkdir_ok: "Create",
+    mkdir_cancel: "Cancel",
+    mkdir_placeholder: "Folder name",
+    dlg_ok: "OK",
+    dlg_cancel: "Cancel",
+    dlg_delete_title: "Delete",
+    dlg_delete_text: "Delete \"{name}\"? This usually cannot be undone.",
+    dlg_rename_title: "Rename",
+    dlg_rename_text: "New name:",
+    dlg_rename_ph: "New name",
+    dlg_move_title: "Move to",
+    dlg_move_text: "Destination folder path (e.g. /baidu/backup):",
+    mkdir_unsupported_hint: "Aliyun/Baidu: OpenList drivers often do not implement mkdir (not a Cloud Player UI limit).",
+    mkdir_unsupported_toast: "This storage driver does not support creating folders here (OpenList driver limitation)."
   });
   function tr(k, vars){
     var d = i18n[uiLang] || i18n.zh;
@@ -520,6 +624,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       var ctxMap = {
         copy: tr("ctx_copy"),
         paste: tr("ctx_paste"),
+        mkdir: tr("ctx_mkdir"),
         delete: tr("ctx_delete"),
         download: tr("ctx_download"),
         rename: tr("ctx_rename"),
@@ -551,6 +656,11 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
         var el = document.querySelector('label[for=\"'+k+'\"]');
         if(el) el.textContent = advMap[k];
       }
+      if($("mkdirModalTitle")) $("mkdirModalTitle").textContent = tr("mkdir_title");
+      if($("mkdirOk")) $("mkdirOk").textContent = tr("mkdir_ok");
+      if($("mkdirCancel")) $("mkdirCancel").textContent = tr("mkdir_cancel");
+      if($("mkdirInput")) $("mkdirInput").placeholder = tr("mkdir_placeholder");
+      updateCtxMenuMkdirBtn();
     }catch(_){}
   }
 
@@ -583,6 +693,43 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       if(getProviderMountPath(k) === p) return k;
     }
     return "";
+  }
+  function providerKeyForFsPath(fsPath){
+    var p = normPath(fsPath || "/");
+    if(p === "/") return "";
+    var best = "";
+    var bestLen = -1;
+    var keys = Object.keys(providerMap);
+    for(var i=0;i<keys.length;i++){
+      var k = keys[i];
+      var m = normPath(getProviderMountPath(k));
+      if(m.length <= 1 || m === "/") continue;
+      if(p === m || p.indexOf(m + "/") === 0){
+        if(m.length > bestLen){
+          bestLen = m.length;
+          best = k;
+        }
+      }
+    }
+    return best;
+  }
+  function ctxMenuMkdirSupported(){
+    if(normPath(state.path || "/") === "/") return false;
+    var key = providerKeyForFsPath(state.path);
+    if(!key){
+      var sp = String(state.provider || "").trim();
+      if(sp && providerMap[sp]) key = sp;
+    }
+    if(!key) return true;
+    var m = providerMap[key];
+    return !(m && m.mkdirSupported === false);
+  }
+  function updateCtxMenuMkdirBtn(){
+    var btn = document.querySelector("#ctxMenu .ctx-item[data-act=\"mkdir\"]");
+    if(!btn) return;
+    var sup = ctxMenuMkdirSupported();
+    btn.disabled = !sup;
+    btn.title = sup ? "" : tr("mkdir_unsupported_hint");
   }
   function loadProviderTokens(){
     try{
@@ -1518,14 +1665,37 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     renderVirtualWindow(true);
     if(selectedEntryPath) setSelectedPath(selectedEntryPath);
   }
-  function hideContextMenu(){ $("ctxMenu").classList.remove("open"); $("ctxMenu")._entry = null; }
+  function hideContextMenu(){
+    var menu = $("ctxMenu");
+    menu.classList.remove("open");
+    menu.style.visibility = "";
+    menu._entry = null;
+  }
   function openContextMenu(x, y, entry){
     var menu = $("ctxMenu");
     if(!entry){ hideContextMenu(); return; }
     menu._entry = entry;
-    menu.style.left = Math.max(8, x) + "px";
-    menu.style.top = Math.max(8, y) + "px";
+    updateCtxMenuMkdirBtn();
+    var pad = 8;
+    menu.style.left = "0px";
+    menu.style.top = "0px";
     menu.classList.add("open");
+    menu.style.visibility = "hidden";
+    var mw = Math.max(menu.offsetWidth, 160);
+    var mh = Math.max(menu.offsetHeight, 40);
+    var vw = Math.max(0, (window.innerWidth || document.documentElement.clientWidth || 0));
+    var vh = Math.max(0, (window.innerHeight || document.documentElement.clientHeight || 0));
+    var left = Number(x);
+    var top = Number(y);
+    if(left + mw > vw - pad) left = vw - mw - pad;
+    if(top + mh > vh - pad) top = vh - mh - pad;
+    if(left < pad) left = pad;
+    if(top < pad) top = pad;
+    if(vw > 0 && mw > vw - pad * 2) left = pad;
+    if(vh > 0 && mh > vh - pad * 2) top = pad;
+    menu.style.left = left + "px";
+    menu.style.top = top + "px";
+    menu.style.visibility = "";
   }
   async function apiFsAction(path, payload){
     return await apiPost(path, payload || {});
@@ -1535,50 +1705,213 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     copiedEntry = { path:entry.path, name:entry.name, isDir:entry.isDir };
     text($("currentInfo"), "Copied: " + entry.path);
   }
+  function openMkdirModal(defaultName){
+    return new Promise(function(resolve){
+      var wrap = $("mkdirModal");
+      var inp = $("mkdirInput");
+      var okBtn = $("mkdirOk");
+      var cancelBtn = $("mkdirCancel");
+      var bd = wrap && wrap.querySelector ? wrap.querySelector(".mkdir-modal-backdrop") : null;
+      if(!wrap || !inp || !okBtn || !cancelBtn){
+        resolve(null);
+        return;
+      }
+      if($("mkdirModalTitle")) $("mkdirModalTitle").textContent = tr("mkdir_title");
+      okBtn.textContent = tr("mkdir_ok");
+      cancelBtn.textContent = tr("mkdir_cancel");
+      inp.placeholder = tr("mkdir_placeholder");
+      var done = false;
+      function finish(val){
+        if(done) return;
+        done = true;
+        wrap.classList.remove("open");
+        wrap.setAttribute("aria-hidden", "true");
+        document.removeEventListener("keydown", onDocKey, true);
+        okBtn.removeEventListener("click", onOk);
+        cancelBtn.removeEventListener("click", onCancel);
+        if(bd) bd.removeEventListener("click", onCancel);
+        inp.removeEventListener("keydown", onInpKey);
+        resolve(val);
+      }
+      function onOk(){ finish(sanitizeFolderName(inp.value)); }
+      function onCancel(){ finish(null); }
+      function onInpKey(e){
+        if(e.key === "Enter"){ e.preventDefault(); onOk(); }
+      }
+      function onDocKey(e){
+        if(e.key === "Escape"){ e.preventDefault(); onCancel(); }
+      }
+      inp.value = defaultName;
+      wrap.classList.add("open");
+      wrap.setAttribute("aria-hidden", "false");
+      okBtn.addEventListener("click", onOk);
+      cancelBtn.addEventListener("click", onCancel);
+      if(bd) bd.addEventListener("click", onCancel);
+      inp.addEventListener("keydown", onInpKey);
+      document.addEventListener("keydown", onDocKey, true);
+      setTimeout(function(){ try{ inp.focus(); inp.select(); }catch(_){ } }, 30);
+    });
+  }
+  function openCpDialog(opts){
+    opts = opts || {};
+    return new Promise(function(resolve){
+      var wrap = $("cpDialogModal");
+      var inpRow = $("cpDialogInputRow");
+      var inp = $("cpDialogInput");
+      var okBtn = $("cpDialogOk");
+      var cancelBtn = $("cpDialogCancel");
+      var bd = wrap && wrap.querySelector ? wrap.querySelector(".mkdir-modal-backdrop") : null;
+      var txEl = $("cpDialogText");
+      if(!wrap || !okBtn || !cancelBtn || !inpRow || !inp || !txEl){
+        resolve(opts.mode === "prompt" ? null : false);
+        return;
+      }
+      var mode = opts.mode === "prompt" ? "prompt" : "confirm";
+      $("cpDialogTitle").textContent = String(opts.title || "");
+      text(txEl, opts.text != null ? String(opts.text) : "");
+      if(mode === "prompt"){
+        inpRow.classList.remove("hidden");
+        inp.value = opts.defaultValue != null ? String(opts.defaultValue) : "";
+        inp.placeholder = opts.placeholder != null ? String(opts.placeholder) : "";
+      }else{
+        inpRow.classList.add("hidden");
+      }
+      okBtn.textContent = opts.okText || tr("dlg_ok");
+      cancelBtn.textContent = opts.cancelText || tr("dlg_cancel");
+      var done = false;
+      function finish(val){
+        if(done) return;
+        done = true;
+        wrap.classList.remove("open");
+        wrap.setAttribute("aria-hidden", "true");
+        document.removeEventListener("keydown", onDocKey, true);
+        okBtn.removeEventListener("click", onOk);
+        cancelBtn.removeEventListener("click", onCancel);
+        if(bd) bd.removeEventListener("click", onCancel);
+        if(mode === "prompt") inp.removeEventListener("keydown", onInpKey);
+        resolve(val);
+      }
+      function onOk(){
+        if(mode === "prompt") finish(String(inp.value != null ? inp.value : ""));
+        else finish(true);
+      }
+      function onCancel(){
+        if(mode === "prompt") finish(null);
+        else finish(false);
+      }
+      function onInpKey(e){
+        if(e.key === "Enter"){ e.preventDefault(); onOk(); }
+      }
+      function onDocKey(e){
+        if(e.key === "Escape"){ e.preventDefault(); onCancel(); }
+      }
+      wrap.classList.add("open");
+      wrap.setAttribute("aria-hidden", "false");
+      okBtn.addEventListener("click", onOk);
+      cancelBtn.addEventListener("click", onCancel);
+      if(bd) bd.addEventListener("click", onCancel);
+      if(mode === "prompt"){
+        inp.addEventListener("keydown", onInpKey);
+        setTimeout(function(){ try{ inp.focus(); inp.select(); }catch(_){ } }, 30);
+      }
+      document.addEventListener("keydown", onDocKey, true);
+    });
+  }
+  function sanitizeFolderName(name){
+    var s = String(name || "").trim();
+    if(!s) return "";
+    if(/[\\/]/.test(s) || s.indexOf("..") !== -1) return "";
+    return s;
+  }
+  async function doMkdirInto(targetDir){
+    if(!ctxMenuMkdirSupported()){
+      text($("currentInfo"), tr("mkdir_unsupported_toast"));
+      return;
+    }
+    var td = normPath(targetDir || state.path || "/");
+    var defName = uiLang === "en" ? "New Folder" : "\u65b0\u5efa\u6587\u4ef6\u5939";
+    var nm = await openMkdirModal(defName);
+    if(nm === null) return;
+    if(!nm){
+      text($("currentInfo"), uiLang === "en" ? "Invalid folder name." : "\u6587\u4ef6\u5939\u540d\u65e0\u6548\u3002");
+      return;
+    }
+    var liveToken = String(($("token") && $("token").value) || state.token || "").trim();
+    if(!liveToken){
+      var autoTk = await requestAdminToken(3500);
+      if(autoTk.ok && autoTk.token){
+        $("token").value = autoTk.token;
+        state.token = autoTk.token;
+        saveSettings();
+      }
+    }
+    var fullPath = normPath(td + "/" + nm);
+    var ret = await apiFsAction("/api/fs/mkdir", { path: fullPath });
+    if(ret.json && Number(ret.json.code) === 401){
+      var tk2 = await requestAdminToken(3500);
+      if(tk2.ok && tk2.token){
+        $("token").value = tk2.token;
+        state.token = tk2.token;
+        saveSettings();
+        ret = await apiFsAction("/api/fs/mkdir", { path: fullPath });
+      }
+    }
+    if(ret.json && Number(ret.json.code) === 200){
+      text($("currentInfo"), (uiLang === "en" ? "Folder created: " : "\u5df2\u521b\u5efa\u6587\u4ef6\u5939\uff1a") + nm);
+      await loadList(state.path, false, { fromHistory: true, forceRefresh: true });
+      return;
+    }
+    text($("currentInfo"), (uiLang === "en" ? "Create folder failed: " : "\u65b0\u5efa\u5931\u8d25\uff1a") + ((ret.json && ret.json.message) || (ret.transport && ret.transport.error) || "unknown error"));
+  }
   async function doPasteInto(targetDir){
     if(!copiedEntry){ text($("currentInfo"), "Paste failed: clipboard is empty."); return; }
     var sp = splitPath(copiedEntry.path);
     var ret = await apiFsAction("/api/fs/copy", { src_dir:sp.dir, dst_dir:normPath(targetDir||state.path), names:[sp.name] });
-    if(ret.json && ret.json.code === 200){
+    if(ret.json && Number(ret.json.code) === 200){
       text($("currentInfo"), "Paste success: " + copiedEntry.name);
-      await loadList(state.path, false, { fromHistory:true });
+      await loadList(state.path, false, { fromHistory:true, forceRefresh:true });
       return;
     }
     text($("currentInfo"), "Paste failed: " + ((ret.json && ret.json.message) || (ret.transport && ret.transport.error) || "unknown error"));
   }
   async function doDeleteEntry(entry){
     if(!entry) return;
-    if(!confirm("Delete '" + entry.name + "' ?")) return;
+    var okDel = await openCpDialog({ mode:"confirm", title: tr("dlg_delete_title"), text: tr("dlg_delete_text", { name: entry.name }) });
+    if(!okDel) return;
     var sp = splitPath(entry.path);
     var ret = await apiFsAction("/api/fs/remove", { dir:sp.dir, names:[sp.name] });
-    if(ret.json && ret.json.code === 200){
+    if(ret.json && Number(ret.json.code) === 200){
       text($("currentInfo"), "Deleted: " + entry.name);
-      await loadList(state.path, false, { fromHistory:true });
+      await loadList(state.path, false, { fromHistory:true, forceRefresh:true });
       return;
     }
     text($("currentInfo"), "Delete failed: " + ((ret.json && ret.json.message) || (ret.transport && ret.transport.error) || "unknown error"));
   }
   async function doRenameEntry(entry){
     if(!entry) return;
-    var nextName = prompt("Rename to:", entry.name);
-    if(!nextName || nextName.trim() === "" || nextName.trim() === entry.name) return;
-    var ret = await apiFsAction("/api/fs/rename", { path:entry.path, name:nextName.trim() });
-    if(ret.json && ret.json.code === 200){
-      text($("currentInfo"), "Renamed: " + entry.name + " -> " + nextName.trim());
-      await loadList(state.path, false, { fromHistory:true });
+    var nextName = await openCpDialog({ mode:"prompt", title: tr("dlg_rename_title"), text: tr("dlg_rename_text"), defaultValue: entry.name, placeholder: tr("dlg_rename_ph") });
+    if(nextName == null) return;
+    nextName = nextName.trim();
+    if(!nextName || nextName === entry.name) return;
+    var ret = await apiFsAction("/api/fs/rename", { path:entry.path, name:nextName });
+    if(ret.json && Number(ret.json.code) === 200){
+      text($("currentInfo"), "Renamed: " + entry.name + " -> " + nextName);
+      await loadList(state.path, false, { fromHistory:true, forceRefresh:true });
       return;
     }
     text($("currentInfo"), "Rename failed: " + ((ret.json && ret.json.message) || (ret.transport && ret.transport.error) || "unknown error"));
   }
   async function doMoveEntry(entry){
     if(!entry) return;
-    var dst = prompt("Move to path:", state.path);
+    var dstRaw = await openCpDialog({ mode:"prompt", title: tr("dlg_move_title"), text: tr("dlg_move_text"), defaultValue: state.path, placeholder: "" });
+    if(dstRaw == null) return;
+    var dst = normPath(String(dstRaw).trim());
     if(!dst) return;
     var sp = splitPath(entry.path);
     var ret = await apiFsAction("/api/fs/move", { src_dir:sp.dir, dst_dir:normPath(dst), names:[sp.name] });
-    if(ret.json && ret.json.code === 200){
+    if(ret.json && Number(ret.json.code) === 200){
       text($("currentInfo"), "Moved: " + entry.name + " -> " + normPath(dst));
-      await loadList(state.path, false, { fromHistory:true });
+      await loadList(state.path, false, { fromHistory:true, forceRefresh:true });
       return;
     }
     text($("currentInfo"), "Move failed: " + ((ret.json && ret.json.message) || (ret.transport && ret.transport.error) || "unknown error"));
@@ -1607,6 +1940,13 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     hideContextMenu();
     if(act==="copy") return doCopyEntry(entry);
     if(act==="paste") return doPasteInto((entry && entry.isDir) ? entry.path : state.path);
+    if(act==="mkdir"){
+      if(!ctxMenuMkdirSupported()){
+        text($("currentInfo"), tr("mkdir_unsupported_toast"));
+        return;
+      }
+      return doMkdirInto((entry && entry.isDir) ? entry.path : state.path);
+    }
     if(act==="delete") return doDeleteEntry(entry);
     if(act==="download") return doDownloadEntry(entry);
     if(act==="rename") return doRenameEntry(entry);
@@ -1622,6 +1962,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
   }
   async function loadList(path, retriedAuth, opts){
     opts = opts || {};
+    var forceRefresh = !!(opts.forceRefresh || opts.refreshList);
     var nextPath = normPath(path||state.path||"/");
     var prevPath = normPath(state.path||"/");
     if(!opts.fromHistory && prevPath !== nextPath){
@@ -1632,6 +1973,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     state.path=nextPath;
     if($("pathInput")) $("pathInput").value=state.path;
     if($("pathDisplay")) $("pathDisplay").textContent = state.path;
+    updateCtxMenuMkdirBtn();
     text($("currentInfo"), "Loading: " + state.path);
     var liveToken = String(($("token") && $("token").value) || state.token || "").trim();
     if(!liveToken){
@@ -1643,9 +1985,9 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       }
     }
     var ret = null;
-    ret = await requestFsListViaHost(state.path, liveToken, false, 4200);
+    ret = await requestFsListViaHost(state.path, liveToken, forceRefresh, 4200);
     if(!ret || !ret.json){
-      ret = await apiPost("/api/fs/list", { path:state.path, password:"", page:1, per_page:300, refresh:false });
+      ret = await apiPost("/api/fs/list", { path:state.path, password:"", page:1, per_page:300, refresh:forceRefresh });
     }else{
       ret = { transport:{ ok:ret.ok, status:ret.status, error:ret.error }, json:ret.json, parseError:ret.parseError, bodyText:ret.bodyText };
     }
@@ -1657,7 +1999,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       if(state.provider) setProviderOnline(state.provider, false);
       return;
     }
-    var code = (ret.json && typeof ret.json.code === "number") ? ret.json.code : null;
+    var code = (ret.json && ret.json.code != null && !isNaN(Number(ret.json.code))) ? Number(ret.json.code) : null;
     if(code !== null && code !== 200){
       var msg = (ret.json && ret.json.message) ? String(ret.json.message) : ("API code " + code);
       if(code === 401 && !retriedAuth){
@@ -1680,7 +2022,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
       return;
     }
     var content = ret.json && ret.json.data && Array.isArray(ret.json.data.content) ? ret.json.data.content : [];
-    if(content.length === 0){
+    if(content.length === 0 && !forceRefresh){
       var ret2Raw = await requestFsListViaHost(state.path, String(($("token") && $("token").value) || state.token || "").trim(), true, 4500);
       var ret2 = null;
       if(ret2Raw && ret2Raw.json){
@@ -2020,7 +2362,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     await playEntry(entry);
   }
   function openProvider(name){
-    if(name==="root"){ state.provider=""; saveSettings(); markProvider("root"); setProviderOnline("root", true); loadList("/"); return; }
+    if(name==="root"){ state.provider=""; saveSettings(); markProvider("root"); setProviderOnline("root", true); updateCtxMenuMkdirBtn(); loadList("/"); return; }
     var meta = providerMap[name] || providerMap.ali;
     var p = "/";
     if(meta.mountId && $(meta.mountId)) p = $(meta.mountId).value;
@@ -2028,6 +2370,7 @@ video{width:100%;height:100%;min-height:320px;flex:1;background:#06090f;border:1
     syncProviderTokenToInputs(state.provider);
     saveSettings();
     markProvider(name);
+    updateCtxMenuMkdirBtn();
     loadList(normPath(p));
   }
   async function readClipboardText(){
