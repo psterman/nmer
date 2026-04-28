@@ -3521,8 +3521,11 @@ _OnWebMessage(sender, args) {
             _DoBindKey(cmdId, ahkKey, displayKey)
 
         case "startRecord":
-            if msg.Has("commandId")
-                _BeginRecord(msg["commandId"])
+            if msg.Has("commandId") {
+                policy := msg.Has("bindPolicy") ? String(msg["bindPolicy"]) : "scene_compatible"
+                sceneId := msg.Has("sceneId") ? String(msg["sceneId"]) : ""
+                _BeginRecord(msg["commandId"], policy, sceneId)
+            }
 
         case "cancelRecord":
             _EndRecord()
@@ -3560,7 +3563,8 @@ _OnWebMessage(sender, args) {
                 if msg.Has("confirm") && msg["confirm"]
                     _DoBindKey(g_PendingConflict["cmdId"],
                         g_PendingConflict["ahkKey"],
-                        g_PendingConflict["displayKey"])
+                        g_PendingConflict["displayKey"],
+                        g_PendingConflict.Has("bindPolicy") ? String(g_PendingConflict["bindPolicy"]) : "replace_global")
                 g_PendingConflict := Map()
             }
             VK_SendToWeb('{"type":"recordHint","active":false}')
@@ -3613,7 +3617,7 @@ _OnWebMessage(sender, args) {
     }
 }
 
-_DoBindKey(cmdId, ahkKey, displayKey) {
+_DoBindKey(cmdId, ahkKey, displayKey, bindPolicy := "replace_global") {
     global g_Commands
     if !(g_Commands is Map)
         return false
@@ -3625,7 +3629,19 @@ _DoBindKey(cmdId, ahkKey, displayKey) {
     for k, v in oldOverrides
         newOverrides[k] := v
 
-    ; Ensure uniqueness among user overrides: steal the key from any other cmd that used it.
+    ; scene_compatible: 保留全局已有绑定，不做覆盖（用于“仅当前场景”策略，先保障全局稳定）
+    if (bindPolicy = "scene_compatible") {
+        for otherCmd, v in newOverrides {
+            if (otherCmd != cmdId && v = ahkKey) {
+                VK_SendToWeb('{"type":"bind_blocked","commandId":"' . cmdId
+                    . '","ahkKey":"' . ahkKey
+                    . '","reason":"occupied"}')
+                return false
+            }
+        }
+    }
+
+    ; replace_global: Ensure uniqueness among user overrides: steal the key from any other cmd that used it.
     removed := []
     for otherCmd, v in newOverrides {
         if (otherCmd != cmdId && v = ahkKey) {
@@ -4348,7 +4364,7 @@ VK_IsVkRecordingHotkey(*) {
     }
 }
 
-_BeginRecord(commandId) {
+_BeginRecord(commandId, bindPolicy := "scene_compatible", sceneId := "") {
     global g_RecordHook, g_RecordCtx, g_VK_RecordDblModLast
     global g_RecordPendingKey, g_RecordPendingTick, g_RecordFinalizeToken
 
@@ -4356,6 +4372,8 @@ _BeginRecord(commandId) {
 
     g_RecordCtx["active"] := true
     g_RecordCtx["commandId"] := commandId
+    g_RecordCtx["bindPolicy"] := bindPolicy
+    g_RecordCtx["sceneId"] := sceneId
     g_VK_RecordDblModLast["ctrl"] := 0
     g_VK_RecordDblModLast["shift"] := 0
     g_VK_RecordDblModLast["alt"] := 0
@@ -4429,6 +4447,8 @@ _EndRecord(restartPreview := true) {
     g_RecordHook := 0
     g_RecordCtx["active"] := false
     g_RecordCtx["commandId"] := ""
+    g_RecordCtx["bindPolicy"] := ""
+    g_RecordCtx["sceneId"] := ""
     g_RecordPendingKey := ""
     g_RecordPendingTick := 0
     g_RecordFinalizeToken += 1
@@ -4517,6 +4537,7 @@ _VkFinalizeRecordedHotkey(ahkKey) {
     if !(g_RecordCtx.Has("active") && g_RecordCtx["active"])
         return
     cmdId := g_RecordCtx["commandId"]
+    bindPolicy := g_RecordCtx.Has("bindPolicy") ? String(g_RecordCtx["bindPolicy"]) : "scene_compatible"
     displayKey := _ToDisplayKey(ahkKey)
 
     if g_Bindings.Has(ahkKey) {
@@ -4526,6 +4547,7 @@ _VkFinalizeRecordedHotkey(ahkKey) {
             g_PendingConflict["ahkKey"] := ahkKey
             g_PendingConflict["displayKey"] := displayKey
             g_PendingConflict["conflictId"] := conflictId
+            g_PendingConflict["bindPolicy"] := bindPolicy
             _EndRecord()
             conflictName := (g_Commands.Has("CommandList") && g_Commands["CommandList"].Has(conflictId))
                 ? g_Commands["CommandList"][conflictId]["name"] : conflictId
@@ -4542,7 +4564,7 @@ _VkFinalizeRecordedHotkey(ahkKey) {
     }
 
     _EndRecord()
-    _DoBindKey(cmdId, ahkKey, displayKey)
+    _DoBindKey(cmdId, ahkKey, displayKey, bindPolicy)
     VK_SendToWeb('{"type":"recordHint","active":false,"commandId":"' . cmdId . '"}')
     OutputDebug("[VK] record captured: " . cmdId . " => " . ahkKey)
 }

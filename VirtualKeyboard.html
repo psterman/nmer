@@ -348,6 +348,12 @@ body::after {
   margin-left: 2px;
   cursor: pointer;
 }
+.cmd-route-jump:disabled {
+  border-color: rgba(255,255,255,.14);
+  background: rgba(255,255,255,.04);
+  color: #9a9a9a;
+  cursor: default;
+}
 .cmd-route-icon-btn {
   display: inline-flex;
   align-items: center;
@@ -447,6 +453,29 @@ body::after {
   cursor: pointer;
   transition: color .15s, border-color .15s, box-shadow .15s;
   flex-shrink: 0;
+}
+#bind-policy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 999px;
+  background: rgba(255,255,255,.03);
+}
+.bind-policy-btn {
+  border: 0;
+  background: transparent;
+  color: #bdbdbd;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+.bind-policy-btn.active {
+  color: #d5f3ff;
+  background: rgba(0,212,255,.16);
 }
 #vk-toggle-kb:hover {
   color: var(--orange-lt);
@@ -2778,6 +2807,10 @@ body[data-theme="light"] .dashboard-edit-input:focus {
     <div id="hud-dot"></div>
     <button id="layout-toggle" title="切换 ScanCode 物理键适配模式（防止 IME 干扰）">STANDARD</button>
     <button id="layout-help" title="按键识别异常时，快速切换到兼容模式">识别异常？</button>
+    <div id="bind-policy" title="快捷键冲突策略">
+      <button id="bind-policy-scoped" class="bind-policy-btn active" type="button">仅当前场景</button>
+      <button id="bind-policy-global" class="bind-policy-btn" type="button">替换全局</button>
+    </div>
     <button id="vk-toggle-kb" title="折叠虚拟键盘，仅保留下方面板">折叠键盘</button>
     <button id="reset-all" title="全局重置（恢复出厂设置）">全局重置</button>
     <div id="vk-host-mode-hint" aria-live="polite"></div>
@@ -3103,6 +3136,7 @@ const state = {
   routeNavStack: [],
   /** main=仅快捷动作宫格；scene=仅场景菜单宫格（不同时显示） */
   dashboardPanelMode: 'scene',
+  bindPolicy: 'scene_compatible',
   /** 宫格右键菜单当前针对：main | sceneMenu */
   dashboardMenuContext: 'main',
   /** { sceneId, visible_in_bar, order_bar }[] 场景镜像悬浮栏布局 */
@@ -4684,6 +4718,12 @@ function handleAhkMessage(msg) {
       flashBindErrorHud('绑定失败：' + cmdName + (key ? ' -> ' + key : '') + reason);
       break;
     }
+    case 'bind_blocked': {
+      const cmdName = state.commands[msg.commandId]?.name || msg.commandId || '动作';
+      const key = msg.ahkKey ? ahkKeyToDisplayString(msg.ahkKey) : '';
+      flashBindErrorHud('未覆盖全局：' + cmdName + (key ? ' -> ' + key : '') + '（当前为「仅当前场景」策略）');
+      break;
+    }
     case 'adminWarning':
       state.adminWarning = msg.message || '';
       renderAdminWarning();
@@ -5653,6 +5693,7 @@ function handleInit(msg) {
   renderCommandList();
   renderKeyboardSlots();
   renderModifierKeys();
+  setBindPolicy(state.bindPolicy || 'scene_compatible');
   updateHudSnapshot(true);
   renderAdminWarning();
   initDashboardDrag();
@@ -5932,7 +5973,7 @@ function translateKey(ahkKey) {
       if (p === 'shift') return '<span class="vk-key-chip"><i class="fa-solid fa-arrow-up"></i> Shift</span>';
       if (p === 'alt') return '<span class="vk-key-chip"><i class="fa-solid fa-bolt"></i> Alt</span>';
       if (p === 'win') return '<span class="vk-key-chip"><i class="fa-brands fa-windows"></i> Win</span>';
-      if (p === 'capslock') return '<span class="vk-key-chip"><i class="fa-solid fa-a"></i> CapsLock</span>';
+      if (p === 'capslock') return '<span class="vk-key-chip">CapsLock</span>';
       return `<span class="vk-key-chip">${escapeHtml(part.length === 1 ? part.toUpperCase() : part)}</span>`;
     });
     return `<span class="vk-key-chord">${chips.join('<span class="vk-key-join">+</span>')}</span>`;
@@ -7205,19 +7246,7 @@ function getActiveScenarioOverrideMap() {
           : null;
 }
 
-/**
- * 宿主侧 CapsLock+单键 全局热键（与 CursorHelper #HotIf GetCapsLockState() 下静态键一致）。
- * 键帽 map-label 不应随侧边场景切换而消失，否则用户看不到 CapsLock+Q/F 等默认绑定。
- */
-const CAPS_CHORD_GLOBAL_PREVIEW_CMD_IDS = [
-  'ch_c', 'ch_v', 'ch_x', 'ch_e', 'ch_r', 'ch_o', 'ch_q', 'ch_z', 'ch_t', 'ch_f', 'ch_g', 'ch_b',
-  'ch_w', 'ch_s', 'ch_a', 'ch_d', 'ch_p',
-  'ch_1', 'ch_2', 'ch_3', 'ch_4', 'ch_5',
-  'sys_exit',
-  'qa_config',
-];
-
-/** 键帽预览：无搜索时为当前场景全部 Tab 的命令并集（牛马 AI 等多 Tab 场景才能看全）；有搜索时仅保留场景内匹配搜索的命令 */
+/** 键帽预览：仅显示当前场景命令；有搜索时仅保留场景内匹配搜索的命令 */
 function getKeyboardPreviewCmdIdSet() {
   const scenario = getScenarioById(state.activeScenarioId);
   if (!scenario)
@@ -7234,20 +7263,6 @@ function getKeyboardPreviewCmdIdSet() {
           continue;
       }
       set.add(cmdId);
-    }
-  }
-  if (!searchText) {
-    for (const cid of CAPS_CHORD_GLOBAL_PREVIEW_CMD_IDS) {
-      if (state.commands[cid])
-        set.add(cid);
-    }
-    for (const [cmdId, b] of Object.entries(state.bindings || {})) {
-      if (!b || b.explicitNone || !b.ahkKey) continue;
-      const ak = String(b.ahkKey).trim();
-      if (!ak || /^(\^\^|\+\+|!!)$/.test(ak)) continue;
-      if (/[\^!#]/.test(ak)) continue;
-      if (ak.length === 1 && /^[a-zA-Z0-9]$/.test(ak) && state.commands[cmdId])
-        set.add(cmdId);
     }
   }
   return set;
@@ -7371,7 +7386,7 @@ function routeGraphHtml(ahkKey, cmdId = '') {
   const keyCanon = canonicalRouteKey(cmdId, ahkKey);
   const nodes = computeRouteGraphByCanonical(keyCanon);
   if (!nodes.length) return '';
-  const sameKeyNodes = nodes.filter((n) => n.cmdId !== cmdId);
+  const sameKeyNodes = nodes;
   if (!sameKeyNodes.length) return '';
   const expanded = !!state.routeGraphExpanded[keyCanon];
   const iconExpand = renderLucideIconSvg(expanded ? 'chevrons-up' : 'chevrons-down');
@@ -7402,7 +7417,11 @@ function routeGraphHtml(ahkKey, cmdId = '') {
     const sid = String(state.commandRoutes?.[n.cmdId]?.scenarioId || n.context || activeScene);
     const sName = scenarioLabelText(SCENE_MENU_LABELS[sid] || sid);
     const sIcon = scenarioIconHtml(sid);
-    return `<span class="cmd-route-item"><span class="cmd-route-scene-chip">${sIcon}<span>${escapeHtml(sName)}</span></span><span class="cmd-route-item-main">${icon}<strong>${escapeHtml(n.name)}</strong></span><button class="cmd-route-jump cmd-route-icon-btn" title="跳转到该命令" aria-label="跳转到该命令" data-route-jump="${escapeHtml(n.cmdId)}" data-route-from="${escapeHtml(cmdId)}">${iconJump}</button></span>`;
+    const isCurrent = n.cmdId === cmdId;
+    const actionBtn = isCurrent
+      ? '<button class="cmd-route-jump cmd-route-icon-btn" title="当前命令" aria-label="当前命令" disabled>当前</button>'
+      : `<button class="cmd-route-jump cmd-route-icon-btn" title="跳转到该命令" aria-label="跳转到该命令" data-route-jump="${escapeHtml(n.cmdId)}" data-route-from="${escapeHtml(cmdId)}">${iconJump}</button>`;
+    return `<span class="cmd-route-item"><span class="cmd-route-scene-chip">${sIcon}<span>${escapeHtml(sName)}</span></span><span class="cmd-route-item-main">${icon}<strong>${escapeHtml(n.name)}</strong></span>${actionBtn}</span>`;
   }).join('');
   const backBtn = state.routeNavStack.length
     ? `<button class="cmd-route-back cmd-route-icon-btn" title="返回上一个命令" aria-label="返回上一个命令" data-route-back="1">${iconBack}</button>`
@@ -7881,6 +7900,13 @@ document.getElementById('layout-help')?.addEventListener('click', () => {
 document.getElementById('vk-toggle-kb')?.addEventListener('click', () => {
   setKeyboardCollapsed(!state.keyboardCollapsed, true);
 });
+function setBindPolicy(policy) {
+  state.bindPolicy = (policy === 'replace_global') ? 'replace_global' : 'scene_compatible';
+  document.getElementById('bind-policy-scoped')?.classList.toggle('active', state.bindPolicy === 'scene_compatible');
+  document.getElementById('bind-policy-global')?.classList.toggle('active', state.bindPolicy === 'replace_global');
+}
+document.getElementById('bind-policy-scoped')?.addEventListener('click', () => setBindPolicy('scene_compatible'));
+document.getElementById('bind-policy-global')?.addEventListener('click', () => setBindPolicy('replace_global'));
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Global Reset
@@ -7913,7 +7939,12 @@ function startRecording(cmdId) {
     }
   }
   setHud('MODE: CONFIG | RECORDING: ' + (state.commands[cmdId]?.name || cmdId) + ' | SINGLE OR DOUBLE-TAP');
-  postToAhk({ type: 'startRecord', commandId: cmdId });
+  postToAhk({
+    type: 'startRecord',
+    commandId: cmdId,
+    bindPolicy: state.bindPolicy,
+    sceneId: state.activeScenarioId || ''
+  });
 }
 
 function stopRecording(restoreHud = true) {
