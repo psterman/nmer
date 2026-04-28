@@ -13,7 +13,7 @@
     { id: 'screenshot', title: '截图', cmdId: 'ch_t', sceneId: 'screenshot', icon: '<path d="M4 7h4l2-2h4l2 2h4v12H4z"></path><circle cx="12" cy="13" r="3.5"></circle>' },
     { id: 'settings', title: '设置', cmdId: 'qa_config', sceneId: 'settings', icon: '<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>' },
     { id: 'hotkeys', title: '快捷键', cmdId: 'sys_show_vk', sceneId: 'hotkeys', icon: '<rect x="2.5" y="5" width="19" height="14" rx="2.5"></rect><path d="M6 9h1M9 9h1M12 9h1M15 9h1M18 9h1M6 12h1M9 12h1M12 12h1M15 12h1M18 12h1M7 15h10"></path>' },
-    { id: 'cursor', title: 'Cursor', cmdId: 'cursor_open', sceneId: 'cursor', icon: '<path d="M7 3l10 9-5 1.5L10 20z"></path><path d="m12 13 4 5"></path>' },
+    { id: 'cursor', title: 'Cursor', cmdId: 'cursor_open', sceneId: 'cursor', img: 'lib/images/cursor.png' },
     { id: 'cloud', title: '云盘', cmdId: 'open_cloudplayer', sceneId: 'cloudplayer', always: true, icon: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>' }
   ];
 
@@ -33,7 +33,7 @@
       '#' + ROOT_ID + '{position:fixed;left:0;right:0;bottom:6px;z-index:2147483000;display:flex;justify-content:center;pointer-events:none;}'+
       '#' + ROOT_ID + '.nm-embedded{position:static;left:auto;right:auto;bottom:auto;z-index:auto;display:flex;justify-content:flex-end;pointer-events:auto;width:100%;margin:0;}'+
       '#' + ROOT_ID + ' .nm-collapsed{position:relative;pointer-events:auto;display:flex;flex-direction:row;align-items:center;gap:calc(4px * var(--nm-ui));padding:calc(4px * var(--nm-ui)) calc(6px * var(--nm-ui));background:transparent;border:none;border-radius:calc(10px * var(--nm-ui));max-width:min(980px,calc(100vw - 12px));overflow-x:auto;scrollbar-width:none;}'+
-      '#' + ROOT_ID + '.nm-embedded .nm-collapsed{max-width:100%;padding:2px 0 0;}'+
+      '#' + ROOT_ID + '.nm-embedded .nm-collapsed{max-width:100%;padding:6px 0 0;margin-top:4px;}'+
       '#' + ROOT_ID + ' .nm-collapsed::-webkit-scrollbar{display:none;}'+
       '#' + ROOT_ID + ' .logo-btn{flex-shrink:0;width:max(calc(42px * var(--nm-ui)),34px);height:max(calc(42px * var(--nm-ui)),34px);border:1px solid rgba(255,102,0,.12);border-radius:calc(8px * var(--nm-ui));background:rgba(255,102,0,.04);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:4px;transition:background-color .2s cubic-bezier(.22,1,.36,1),border-color .2s cubic-bezier(.22,1,.36,1),transform .2s cubic-bezier(.22,1,.36,1),color .2s cubic-bezier(.22,1,.36,1);color:#ff6600;outline:none;position:relative;}'+
       '#' + ROOT_ID + ' .logo-btn:hover{background:rgba(255,102,0,.1);border-color:rgba(255,102,0,.32);}'+
@@ -43,6 +43,7 @@
       '#' + ROOT_ID + ' .tb{width:calc(40px * var(--nm-ui));height:calc(40px * var(--nm-ui));display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,102,0,.12);border-radius:calc(8px * var(--nm-ui));cursor:pointer;position:relative;transition:background-color .2s cubic-bezier(.22,1,.36,1),border-color .2s cubic-bezier(.22,1,.36,1),transform .2s cubic-bezier(.22,1,.36,1),color .2s cubic-bezier(.22,1,.36,1);color:#ff6600;background:rgba(255,102,0,.04);flex-shrink:0;font-size:0;line-height:0;overflow:hidden;}'+
       '#' + ROOT_ID + ' .tb .tb-ico{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:#ff6600;}'+
       '#' + ROOT_ID + ' .tb .tb-ico svg{width:calc(24px * var(--nm-ui));height:calc(24px * var(--nm-ui));stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none;}'+
+      '#' + ROOT_ID + ' .tb .tb-ico img{width:calc(20px * var(--nm-ui));height:calc(20px * var(--nm-ui));object-fit:contain;pointer-events:none;display:block;}'+
       '#' + ROOT_ID + ' .tb:hover{background:rgba(255,102,0,.1);border-color:rgba(255,102,0,.28);}'+
       '#' + ROOT_ID + ' .dot{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:#ff6600;opacity:0;pointer-events:none;}'+
       '#' + ROOT_ID + ' .selected .dot{opacity:1;}'+
@@ -87,6 +88,8 @@
     var post = typeof opts.post === 'function' ? opts.post : defaultPost;
     var sourceScene = normalizeSceneId(opts.sceneId || 'search');
     var logoUrl = String(opts.logoUrl || './牛马.png');
+    var uiScale = Number(opts.uiScale);
+    if (!Number.isFinite(uiScale) || uiScale <= 0) uiScale = 1;
 
     var embedTarget = null;
     if (opts.anchorSelector) {
@@ -146,7 +149,11 @@
         el.setAttribute('aria-label', item.title);
         el.dataset.itemId = item.id;
         el.dataset.sceneId = item.sceneId;
-        el.innerHTML = '<span class="tb-ico"><svg viewBox="0 0 24 24">' + item.icon + '</svg></span><span class="dot"></span>';
+        if (item.img) {
+          el.innerHTML = '<span class="tb-ico"><img src="' + item.img + '" alt="' + item.title + '"></span><span class="dot"></span>';
+        } else {
+          el.innerHTML = '<span class="tb-ico"><svg viewBox="0 0 24 24">' + item.icon + '</svg></span><span class="dot"></span>';
+        }
         iconBtns.appendChild(el);
       }
 
@@ -168,6 +175,7 @@
     } else {
       (opts.host || document.body).appendChild(root);
     }
+    root.style.setProperty('--nm-ui', String(uiScale));
 
     function markActive(sceneId) {
       var sid = normalizeSceneId(sceneId || '');
