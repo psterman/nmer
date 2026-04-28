@@ -454,29 +454,6 @@ body::after {
   transition: color .15s, border-color .15s, box-shadow .15s;
   flex-shrink: 0;
 }
-#bind-policy {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px;
-  border: 1px solid rgba(255,255,255,.16);
-  border-radius: 999px;
-  background: rgba(255,255,255,.03);
-}
-.bind-policy-btn {
-  border: 0;
-  background: transparent;
-  color: #bdbdbd;
-  font-size: 10px;
-  font-weight: 600;
-  border-radius: 999px;
-  padding: 4px 9px;
-  cursor: pointer;
-}
-.bind-policy-btn.active {
-  color: #d5f3ff;
-  background: rgba(0,212,255,.16);
-}
 #vk-toggle-kb:hover {
   color: var(--orange-lt);
   border-color: var(--orange-lt);
@@ -2807,10 +2784,6 @@ body[data-theme="light"] .dashboard-edit-input:focus {
     <div id="hud-dot"></div>
     <button id="layout-toggle" title="切换 ScanCode 物理键适配模式（防止 IME 干扰）">STANDARD</button>
     <button id="layout-help" title="按键识别异常时，快速切换到兼容模式">识别异常？</button>
-    <div id="bind-policy" title="快捷键冲突策略">
-      <button id="bind-policy-scoped" class="bind-policy-btn active" type="button">仅当前场景</button>
-      <button id="bind-policy-global" class="bind-policy-btn" type="button">替换全局</button>
-    </div>
     <button id="vk-toggle-kb" title="折叠虚拟键盘，仅保留下方面板">折叠键盘</button>
     <button id="reset-all" title="全局重置（恢复出厂设置）">全局重置</button>
     <div id="vk-host-mode-hint" aria-live="polite"></div>
@@ -3056,7 +3029,8 @@ body[data-theme="light"] .dashboard-edit-input:focus {
       </div>
       <div class="modal-actions">
         <button class="modal-btn cancel"  id="conflict-cancel">取消</button>
-        <button class="modal-btn confirm" id="conflict-confirm">覆盖</button>
+        <button class="modal-btn" id="conflict-apply-scene">仅当前场景</button>
+        <button class="modal-btn confirm" id="conflict-confirm">替换全局</button>
       </div>
     </div>
   </div>
@@ -3136,7 +3110,6 @@ const state = {
   routeNavStack: [],
   /** main=仅快捷动作宫格；scene=仅场景菜单宫格（不同时显示） */
   dashboardPanelMode: 'scene',
-  bindPolicy: 'scene_compatible',
   /** 宫格右键菜单当前针对：main | sceneMenu */
   dashboardMenuContext: 'main',
   /** { sceneId, visible_in_bar, order_bar }[] 场景镜像悬浮栏布局 */
@@ -4411,17 +4384,17 @@ function renderHudHint() {
   const curKey = state.lastActionCurrentKey || '';
   let curLine = '';
   if (curKey) {
-    curLine = '<br><span class="hud-hint-sub">当前快捷键：<code>' + escapeHtml(curKey) + '</code>（新按一键将<span class="hud-hint-warn">覆盖</span>为该键）</span>';
+    curLine = '<br><span class="hud-hint-sub">当前快捷键：<code>' + escapeHtml(curKey) + '</code></span>';
   }
   if (id) {
     el.innerHTML =
       '<span class="hud-hint-main">上一动作：</span><b>' + escapeHtml(name || id) + '</b> <code>' + escapeHtml(id) + '</code>'
       + curLine
-      + '<br><span class="hud-hint-sub">操作说明：请<strong>直接按下</strong>要绑定的物理键（不要只按 Ctrl / Alt / Shift）。可先在外部用一次 CapsLock+功能键（会记入「上一动作」），或在本列表中点击「执行」，再<strong>长按 CapsLock</strong>打开本界面完成绑定。</span>';
+      + '<br><span class="hud-hint-sub">点「录制」后按下你想要的新按键即可。</span>';
   } else {
     el.innerHTML =
-      '<span class="hud-hint-main">当前没有可绑定的「上一动作」。</span>'
-      + '<br><span class="hud-hint-sub">请先：① 在任意窗口使用一次 CapsLock+字母（如 C / V / E、WASD、F / G / B、1–5 面板槽位等），或 ② 在本页对某条命令点「执行」。成功执行后脚本会记录对应命令 ID，再长按 CapsLock 打开此处即可按一键绑定。</span>';
+      '<span class="hud-hint-main">先选一条命令，再点录制。</span>'
+      + '<br><span class="hud-hint-sub">按下按键后会自动保存。</span>';
   }
 }
 
@@ -4435,13 +4408,9 @@ function renderHostModeHint() {
   }
   el.classList.add('visible');
   if (state.embeddedHost) {
-    el.textContent =
-      '提示（嵌入 CursorHelper）：录制结果会立刻写入配置；物理键触发主要依赖 CapsLock+ 层、'
-      + '与设置联动的少数字母槽、双按 Ctrl/Shift/Alt 以及序列键。带 Ctrl/Alt/Shift 的组合键不会映射到 CapsLock+ 动态热键。'
-      + '未接入上述路径的绑定可在本页点击键帽执行，或单独运行 VirtualKeyboard.ahk 以注册更多全局热键。';
+    el.textContent = '提示：这是嵌入模式，保存后立即生效。';
   } else {
-    el.textContent =
-      '提示（独立进程）：录制保存后会注册全局热键。若同时运行 CursorHelper，保存时会通知其自动重载绑定（无需手动重启脚本）。';
+    el.textContent = '提示：这是独立模式，保存后会注册全局热键。';
   }
 }
 
@@ -5693,7 +5662,6 @@ function handleInit(msg) {
   renderCommandList();
   renderKeyboardSlots();
   renderModifierKeys();
-  setBindPolicy(state.bindPolicy || 'scene_compatible');
   updateHudSnapshot(true);
   renderAdminWarning();
   initDashboardDrag();
@@ -7800,21 +7768,24 @@ function handleConfirmConflict(msg) {
   const { commandId, displayKey, conflictCmdName, conflictSceneName, targetSceneName } = msg;
   const cmdName = state.commands[commandId]?.name || commandId;
   const sceneHint = conflictSceneName
-    ? `它会被 <strong>${escapeHtml(conflictSceneName)}</strong> 拦截。`
-    : (targetSceneName ? `它将拦截 <strong>${escapeHtml(targetSceneName)}</strong>。` : '');
+    ? `当前被 <strong>${escapeHtml(conflictSceneName)}</strong> 使用。`
+    : (targetSceneName ? `会影响 <strong>${escapeHtml(targetSceneName)}</strong>。` : '');
   const cmd = state.commands[commandId] || {};
-  const ico = renderLucideIconSvg(resolveLucideIconName(cmd.iconClass || cmd.iconName || '', commandId, cmd));
   document.getElementById('conflict-body').innerHTML =
-    `${ahkKeyToDisplayString(displayKey)} 已分配给 <strong>${conflictCmdName}</strong>。<br>`
-    + (sceneHint ? (sceneHint + '<br>') : '') +
-    `改为 ${ico} <strong>${cmdName}</strong> 吗？`;
+    `${ahkKeyToDisplayString(displayKey)} 已被 <strong>${conflictCmdName}</strong> 占用。<br>`
+    + (sceneHint ? (sceneHint + '<br>') : '')
+    + `请选择：只在当前场景使用，或替换为全局。`;
 
   const overlay = document.getElementById('conflict-overlay');
   overlay.classList.add('visible');
 
   document.getElementById('conflict-confirm').onclick = () => {
     closeConflictModal();
-    postToAhk({ type: 'resolveConflict', confirm: true });
+    postToAhk({ type: 'resolveConflict', confirm: true, bindPolicy: 'replace_global' });
+  };
+  document.getElementById('conflict-apply-scene').onclick = () => {
+    closeConflictModal();
+    postToAhk({ type: 'resolveConflict', confirm: true, bindPolicy: 'scene_compatible' });
   };
   document.getElementById('conflict-cancel').onclick = () => {
     closeConflictModal();
@@ -7900,13 +7871,6 @@ document.getElementById('layout-help')?.addEventListener('click', () => {
 document.getElementById('vk-toggle-kb')?.addEventListener('click', () => {
   setKeyboardCollapsed(!state.keyboardCollapsed, true);
 });
-function setBindPolicy(policy) {
-  state.bindPolicy = (policy === 'replace_global') ? 'replace_global' : 'scene_compatible';
-  document.getElementById('bind-policy-scoped')?.classList.toggle('active', state.bindPolicy === 'scene_compatible');
-  document.getElementById('bind-policy-global')?.classList.toggle('active', state.bindPolicy === 'replace_global');
-}
-document.getElementById('bind-policy-scoped')?.addEventListener('click', () => setBindPolicy('scene_compatible'));
-document.getElementById('bind-policy-global')?.addEventListener('click', () => setBindPolicy('replace_global'));
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Global Reset
@@ -7942,7 +7906,7 @@ function startRecording(cmdId) {
   postToAhk({
     type: 'startRecord',
     commandId: cmdId,
-    bindPolicy: state.bindPolicy,
+    bindPolicy: 'scene_compatible',
     sceneId: state.activeScenarioId || ''
   });
 }

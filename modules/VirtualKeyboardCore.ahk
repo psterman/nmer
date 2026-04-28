@@ -3560,11 +3560,13 @@ _OnWebMessage(sender, args) {
 
         case "resolveConflict":
             if g_PendingConflict.Has("cmdId") {
-                if msg.Has("confirm") && msg["confirm"]
+                if msg.Has("confirm") && msg["confirm"] {
+                    usePolicy := msg.Has("bindPolicy") ? String(msg["bindPolicy"]) : (g_PendingConflict.Has("bindPolicy") ? String(g_PendingConflict["bindPolicy"]) : "replace_global")
                     _DoBindKey(g_PendingConflict["cmdId"],
                         g_PendingConflict["ahkKey"],
                         g_PendingConflict["displayKey"],
-                        g_PendingConflict.Has("bindPolicy") ? String(g_PendingConflict["bindPolicy"]) : "replace_global")
+                        usePolicy)
+                }
                 g_PendingConflict := Map()
             }
             VK_SendToWeb('{"type":"recordHint","active":false}')
