@@ -1868,8 +1868,8 @@ FloatingToolbarPushCmdLayoutToWeb() {
     if !hasCloudPlayer {
         items.Push(Map(
             "cmdId", "ftb_cloud_player",
-            "name", "网盘播放器",
-            "iconClass", "fa-solid fa-window-restore"
+            "name", "云盘",
+            "iconClass", "fa-solid fa-cloud"
         ))
     }
     ; ToolbarLayout 里没配置时也保底补上 cursor 菜单按钮，避免图标缺失。
@@ -1899,9 +1899,9 @@ FloatingToolbarPushCmdLayoutToWeb() {
     }
     if !cloudVisible {
         if (items.Length >= maxIcons && items.Length > 0)
-            items[items.Length] := Map("cmdId", "ftb_cloud_player", "name", "网盘播放器", "iconClass", "fa-solid fa-window-restore")
+            items[items.Length] := Map("cmdId", "ftb_cloud_player", "name", "云盘", "iconClass", "fa-solid fa-cloud")
         else
-            items.Push(Map("cmdId", "ftb_cloud_player", "name", "网盘播放器", "iconClass", "fa-solid fa-window-restore"))
+            items.Push(Map("cmdId", "ftb_cloud_player", "name", "云盘", "iconClass", "fa-solid fa-cloud"))
     }
     FloatingToolbarCmdVisibleCount := items.Length
     try WebView_QueuePayload(g_FTB_WV2, Map("type", "set_toolbar_cmds", "items", items))
