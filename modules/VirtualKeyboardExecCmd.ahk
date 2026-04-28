@@ -651,6 +651,30 @@ VK_ExecCursorHelperCmd(cmdId) {
             case "ftm_reload_script":
                 ReloadScriptFromPopupMenu()
                 executed := true
+            case "tray_show_search":
+                ShowSearchCenterFromMenu()
+                executed := true
+            case "tray_show_clipboard":
+                ShowClipboardFromMenu()
+                executed := true
+            case "tray_show_screenshot":
+                ShowScreenshotFromMenu()
+                executed := true
+            case "tray_show_config":
+                ShowConfigFromMenu()
+                executed := true
+            case "tray_toggle_toolbar":
+                _VK_H("ToggleFloatingToolbarFromMenu")
+                executed := true
+            case "tray_hide_toolbar":
+                _VK_H("HideFloatingToolbarFromPopupMenu")
+                executed := true
+            case "tray_reload_script":
+                ReloadScriptFromPopupMenu()
+                executed := true
+            case "tray_exit_app":
+                ExitFromMenu()
+                executed := true
             case "hub_capsule":
                 try {
                     SelectionSense_OpenHubCapsuleFromToolbar()
@@ -661,6 +685,7 @@ VK_ExecCursorHelperCmd(cmdId) {
                 }
                 executed := true
             case "ftb_cloud_player":
+            case "open_cloudplayer":
                 try ShowCloudPlayer()
                 catch as err {
                     try TrayTip("鏃犳硶鎵撳紑缃戠洏鎾斁鍣細`n" . err.Message, "CloudPlayer", "Iconx 2")

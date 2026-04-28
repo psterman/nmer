@@ -1908,18 +1908,49 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:var(--bg);color:v
         MouseGetPos(&MouseX, &MouseY)
 
         MenuItems := []
-        MenuItems.Push({Text: "复制", Icon: "⧉", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("copy"), Action: (*) => this.ScreenshotEditorCopyKeepMode()})
-        MenuItems.Push({Text: "保存图片", Icon: "💾", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("save"), Action: (*) => this.ScreenshotEditorSaveKeepMode()})
-        MenuItems.Push({Text: "在文件夹中查看", Icon: "▣", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("folder"), Action: (*) => this.ScreenshotEditorRevealInFolder()})
-        MenuItems.Push({Text: "处理图片", Icon: "⚙", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("process"), Action: (*) => this.ScreenshotEditorShowImageProcessMenu()})
-        MenuItems.Push({Text: "弹出工具栏", Icon: "▣", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("toolbar_show"), Action: (*) => this.ScreenshotEditorShowToolbarFromMenu()})
-        if (this.ScreenshotEditorToolbarVisible) {
-            MenuItems.Push({Text: "关闭工具栏", Icon: "◩", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("toolbar_hide"), Action: (*) => this.ScreenshotEditorHideToolbarFromMenu()})
-        } else {
-            MenuItems.Push({Text: "关闭工具栏", Icon: "◩", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("toolbar_hide"), Action: (*) => this.ScreenshotEditorHideToolbarFromMenu()})
+        useSceneMenu := false
+        try {
+            if (IsSet(g_Commands) && g_Commands is Map
+                && g_Commands.Has("SceneMenus") && g_Commands["SceneMenus"] is Map
+                && g_Commands["SceneMenus"].Has("screenshot") && g_Commands["SceneMenus"]["screenshot"] is Array) {
+                vm := Map()
+                if (g_Commands.Has("SceneMenuVisibility") && g_Commands["SceneMenuVisibility"] is Map
+                    && g_Commands["SceneMenuVisibility"].Has("screenshot") && g_Commands["SceneMenuVisibility"]["screenshot"] is Map)
+                    vm := g_Commands["SceneMenuVisibility"]["screenshot"]
+                cmdList := (g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map) ? g_Commands["CommandList"] : Map()
+                seen := Map()
+                for cid0 in g_Commands["SceneMenus"]["screenshot"] {
+                    cid := Trim(String(cid0))
+                    if (cid = "" || seen.Has(cid))
+                        continue
+                    seen[cid] := true
+                    if vm.Has(cid) && !vm[cid]
+                        continue
+                    txt := cid
+                    if (cmdList.Has(cid) && cmdList[cid] is Map && cmdList[cid].Has("name") && cmdList[cid]["name"] != "")
+                        txt := String(cmdList[cid]["name"])
+                    cidLocal := cid
+                    MenuItems.Push({Text: txt, Icon: "•", Action: ((*) => VK_ExecCursorHelperCmd(cidLocal))})
+                }
+                useSceneMenu := (MenuItems.Length > 0)
+            }
+        } catch {
+            useSceneMenu := false
         }
-        MenuItems.Push({Text: "彻底删除", Icon: "🗑", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("delete"), Action: (*) => this.ScreenshotEditorDeletePermanently()})
-        MenuItems.Push({Text: "关闭", Icon: "×", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("close"), Action: (*) => this.CloseScreenshotEditor()})
+        if !useSceneMenu {
+            MenuItems.Push({Text: "复制", Icon: "⧉", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("copy"), Action: (*) => this.ScreenshotEditorCopyKeepMode()})
+            MenuItems.Push({Text: "保存图片", Icon: "💾", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("save"), Action: (*) => this.ScreenshotEditorSaveKeepMode()})
+            MenuItems.Push({Text: "在文件夹中查看", Icon: "▣", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("folder"), Action: (*) => this.ScreenshotEditorRevealInFolder()})
+            MenuItems.Push({Text: "处理图片", Icon: "⚙", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("process"), Action: (*) => this.ScreenshotEditorShowImageProcessMenu()})
+            MenuItems.Push({Text: "弹出工具栏", Icon: "▣", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("toolbar_show"), Action: (*) => this.ScreenshotEditorShowToolbarFromMenu()})
+            if (this.ScreenshotEditorToolbarVisible) {
+                MenuItems.Push({Text: "关闭工具栏", Icon: "◩", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("toolbar_hide"), Action: (*) => this.ScreenshotEditorHideToolbarFromMenu()})
+            } else {
+                MenuItems.Push({Text: "关闭工具栏", Icon: "◩", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("toolbar_hide"), Action: (*) => this.ScreenshotEditorHideToolbarFromMenu()})
+            }
+            MenuItems.Push({Text: "彻底删除", Icon: "🗑", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("delete"), Action: (*) => this.ScreenshotEditorDeletePermanently()})
+            MenuItems.Push({Text: "关闭", Icon: "×", SvgIcon: this.ScreenshotEditorMenuSvgIconPath("close"), Action: (*) => this.CloseScreenshotEditor()})
+        }
         ShowDarkStylePopupMenuAt(MenuItems, MouseX + 2, MouseY + 2)
     } catch {
     }

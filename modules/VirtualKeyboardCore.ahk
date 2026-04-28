@@ -1085,11 +1085,11 @@ _VK_SceneToolbarLayoutToJson() {
 
 ; ── SceneMenus：五套场景右键菜单 cmdId 序列（Commands.json 顶层 SceneMenus） ──
 _VK_SceneMenuCanonicalKeys() {
-    return ["search", "scratchpad", "clipboard", "prompts", "screenshot", "settings", "cursor", "cloudplayer", "floating_toolbar_menu", "tray_menu", "floating_bar"]
+    return ["search", "scratchpad", "clipboard", "prompts", "screenshot", "settings", "cursor", "cloudplayer", "tray_menu", "floating_bar"]
 }
 
 _VK_SceneMenuKeysWithDefaultCommands() {
-    return ["clipboard", "scratchpad", "prompts", "screenshot", "settings", "cursor", "cloudplayer", "floating_toolbar_menu", "tray_menu"]
+    return ["clipboard", "scratchpad", "prompts", "screenshot", "settings", "cursor", "cloudplayer", "tray_menu"]
 }
 
 ; 与搜索中心结果行右键一致的扁平命令（复制到 / 发送到 子项已展开）
@@ -1318,8 +1318,6 @@ _VK_DefaultSceneMenuForKey(key) {
         return _VK_DefaultSceneMenuCursorCmds()
     if (k = "cloudplayer")
         return _VK_DefaultSceneMenuCloudPlayerCmds()
-    if (k = "floating_toolbar_menu")
-        return _VK_DefaultSceneMenuFloatingToolbarMenuCmds()
     if (k = "tray_menu")
         return _VK_DefaultSceneMenuTrayMenuCmds()
     return []
@@ -1505,6 +1503,42 @@ _VK_SceneCtxActMap(sceneKey) {
         m["pqp_ctx_edit"] := "edit"
         m["pqp_ctx_view"] := "view"
         m["pqp_ctx_delete"] := "delete"
+        return m
+    }
+    if (sk = "screenshot") {
+        m := Map()
+        for c in ["ss_pin", "ss_ocr", "ss_text", "ss_save", "ss_ai", "ss_search", "ss_close", "ch_t"]
+            m[c] := c
+        return m
+    }
+    if (sk = "settings") {
+        m := Map()
+        for c in ["qa_config", "sys_show_vk", "sys_hide_vk", "sys_reset_vk", "win_min", "win_close"]
+            m[c] := c
+        return m
+    }
+    if (sk = "cursor") {
+        m := Map()
+        for c in ["cursor_open", "cursor_close", "qa_command_palette", "qa_terminal", "qa_global_search", "qa_explorer", "qa_source_control", "qa_extensions", "qa_browser", "qa_settings", "qa_cursor_settings", "qa_voice"]
+            m[c] := c
+        return m
+    }
+    if (sk = "cloudplayer") {
+        m := Map()
+        for c in ["open_cloudplayer", "ftb_cloud_player", "sc_cat_cloud"]
+            m[c] := c
+        return m
+    }
+    if (sk = "tray_menu") {
+        m := Map()
+        for c in ["tray_show_search", "tray_show_clipboard", "tray_show_screenshot", "tray_show_config", "tray_toggle_toolbar", "tray_hide_toolbar", "tray_reload_script", "tray_exit_app"]
+            m[c] := c
+        return m
+    }
+    if (sk = "floating_bar") {
+        m := Map()
+        for c in ["ftm_reset_scale", "ftm_search_center", "ftm_clipboard", "ftm_minimize_to_edge", "ftm_exit_app", "ftm_hide_toolbar", "ftm_open_config", "ftm_toggle_toolbar", "ftm_reload_script", "ftb_scratchpad", "ftb_screenshot", "ftb_cursor_menu", "ftb_cloud_player", "hub_capsule", "pqp_capture", "qa_clipboard", "sc_activate_search", "sys_show_vk"]
+            m[c] := c
         return m
     }
     return Map()

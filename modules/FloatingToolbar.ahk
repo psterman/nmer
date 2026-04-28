@@ -2072,15 +2072,43 @@ FloatingToolbarCalculateWidth() {
 }
 
 FloatingToolbar_ShowCursorQuickMenu() {
-    menuItems := [
-        { Text: "命令面板  (Ctrl+Shift+P)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_command_palette") },
-        { Text: "全局搜索  (Ctrl+Shift+F)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_global_search") },
-        { Text: "资源管理器  (Ctrl+Shift+E)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_explorer") },
-        { Text: "源代码管理  (Ctrl+Shift+G)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_source_control") },
-        { Text: "扩展  (Ctrl+Shift+X)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_extensions") },
-        { Text: "终端  (Ctrl+Shift+``)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_terminal") },
-        { Text: "Cursor 设置  (Ctrl+,)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_cursor_settings") }
-    ]
+    menuItems := []
+    try {
+        if (IsSet(g_Commands) && g_Commands is Map
+            && g_Commands.Has("SceneMenus") && g_Commands["SceneMenus"] is Map
+            && g_Commands["SceneMenus"].Has("cursor") && g_Commands["SceneMenus"]["cursor"] is Array) {
+            vm := Map()
+            if (g_Commands.Has("SceneMenuVisibility") && g_Commands["SceneMenuVisibility"] is Map
+                && g_Commands["SceneMenuVisibility"].Has("cursor") && g_Commands["SceneMenuVisibility"]["cursor"] is Map)
+                vm := g_Commands["SceneMenuVisibility"]["cursor"]
+            cmdList := (g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map) ? g_Commands["CommandList"] : Map()
+            seen := Map()
+            for cid0 in g_Commands["SceneMenus"]["cursor"] {
+                cid := Trim(String(cid0))
+                if (cid = "" || seen.Has(cid))
+                    continue
+                seen[cid] := true
+                if vm.Has(cid) && !vm[cid]
+                    continue
+                if !cmdList.Has(cid)
+                    continue
+                nm := (cmdList[cid] is Map && cmdList[cid].Has("name")) ? String(cmdList[cid]["name"]) : cid
+                menuItems.Push({ Text: nm, Icon: "▶", Action: ((*) => _ExecuteCommand(cid)) })
+            }
+        }
+    } catch {
+    }
+    if (menuItems.Length = 0) {
+        menuItems := [
+            { Text: "命令面板  (Ctrl+Shift+P)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_command_palette") },
+            { Text: "全局搜索  (Ctrl+Shift+F)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_global_search") },
+            { Text: "资源管理器  (Ctrl+Shift+E)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_explorer") },
+            { Text: "源代码管理  (Ctrl+Shift+G)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_source_control") },
+            { Text: "扩展  (Ctrl+Shift+X)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_extensions") },
+            { Text: "终端  (Ctrl+Shift+``)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_terminal") },
+            { Text: "Cursor 设置  (Ctrl+,)", Icon: "▶", Action: (*) => _ExecuteCommand("qa_cursor_settings") }
+        ]
+    }
     try {
         MouseGetPos &mx, &my
         ShowDarkStylePopupMenuAt(menuItems, mx + 2, my + 2)

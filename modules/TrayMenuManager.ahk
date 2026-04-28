@@ -722,6 +722,55 @@ FloatingBubbleHideFromMenu(*) {
     }
 }
 
+TrayMenu_RunSceneCmd(cmdId) {
+    c := Trim(String(cmdId))
+    if (c = "")
+        return
+    try {
+        if IsSet(VK_ExecCursorHelperCmd) {
+            VK_ExecCursorHelperCmd(c)
+            return
+        }
+    } catch {
+    }
+    try {
+        if IsSet(_ExecuteCommand)
+            _ExecuteCommand(c)
+    } catch {
+    }
+}
+
+TrayMenu_BuildItemsFromSceneMenu(sceneKey := "tray_menu") {
+    global g_Commands
+    items := []
+    if !(IsSet(g_Commands) && g_Commands is Map)
+        return items
+    if !(g_Commands.Has("SceneMenus") && g_Commands["SceneMenus"] is Map)
+        return items
+    sm := g_Commands["SceneMenus"]
+    if !sm.Has(sceneKey) || !(sm[sceneKey] is Array)
+        return items
+    vm := Map()
+    if (g_Commands.Has("SceneMenuVisibility") && g_Commands["SceneMenuVisibility"] is Map
+        && g_Commands["SceneMenuVisibility"].Has(sceneKey) && g_Commands["SceneMenuVisibility"][sceneKey] is Map)
+        vm := g_Commands["SceneMenuVisibility"][sceneKey]
+    cmdList := (g_Commands.Has("CommandList") && g_Commands["CommandList"] is Map) ? g_Commands["CommandList"] : Map()
+    seen := Map()
+    for cid0 in sm[sceneKey] {
+        cid := Trim(String(cid0))
+        if (cid = "" || seen.Has(cid))
+            continue
+        seen[cid] := true
+        if vm.Has(cid) && !vm[cid]
+            continue
+        nm := cid
+        if (cmdList.Has(cid) && cmdList[cid] is Map && cmdList[cid].Has("name") && cmdList[cid]["name"] != "")
+            nm := String(cmdList[cid]["name"])
+        items.Push({ Text: nm, Action: ((*) => TrayMenu_RunSceneCmd(cid)), Icon: "•" })
+    }
+    return items
+}
+
 ShowCustomTrayMenu(ItemName := "", ItemPos := "", MyMenu := "") {
     global FloatingToolbarIsVisible, AppearanceActivationMode, FloatingBubbleIsVisible
 
@@ -750,15 +799,21 @@ ShowCustomTrayMenu(ItemName := "", ItemPos := "", MyMenu := "") {
             MenuItems.Push({ Text: "显示工具栏", Action: ToggleFloatingToolbarFromMenu, Icon: "☰" })
         }
     }
-    MenuItems.Push({ Text: "搜索中心", Action: ShowSearchCenterFromMenu, Icon: "●" })
-    MenuItems.Push({ Text: "剪贴板", Action: ShowClipboardFromMenu, Icon: "▤" })
-    MenuItems.Push({ Text: "截图", Action: ShowScreenshotFromMenu, Icon: "📷" })
-    MenuItems.Push({ Text: GetText("open_config_menu"), Action: ShowConfigFromMenu, Icon: "⚙" })
-    if (mode != "tray") {
-        MenuItems.Push({ Text: "关闭工具栏", Action: HideFloatingToolbarFromPopupMenu, Icon: "◼" })
+    sceneItems := TrayMenu_BuildItemsFromSceneMenu("tray_menu")
+    if (sceneItems.Length > 0) {
+        for it in sceneItems
+            MenuItems.Push(it)
+    } else {
+        MenuItems.Push({ Text: "搜索中心", Action: ShowSearchCenterFromMenu, Icon: "●" })
+        MenuItems.Push({ Text: "剪贴板", Action: ShowClipboardFromMenu, Icon: "▤" })
+        MenuItems.Push({ Text: "截图", Action: ShowScreenshotFromMenu, Icon: "📷" })
+        MenuItems.Push({ Text: GetText("open_config_menu"), Action: ShowConfigFromMenu, Icon: "⚙" })
+        if (mode != "tray") {
+            MenuItems.Push({ Text: "关闭工具栏", Action: HideFloatingToolbarFromPopupMenu, Icon: "◼" })
+        }
+        MenuItems.Push({ Text: "重启脚本", Action: ReloadScriptFromPopupMenu, Icon: "↻" })
+        MenuItems.Push({ Text: GetText("exit_menu"), Action: ExitFromMenu, Icon: "✕" })
     }
-    MenuItems.Push({ Text: "重启脚本", Action: ReloadScriptFromPopupMenu, Icon: "↻" })
-    MenuItems.Push({ Text: GetText("exit_menu"), Action: ExitFromMenu, Icon: "✕" })
 
     MenuHeight := MenuItems.Length * MenuItemHeight + Padding * 2
     CoordMode("Mouse", "Screen")

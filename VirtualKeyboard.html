@@ -1159,6 +1159,24 @@ body.vk-kb-collapsed #bottom-zone { border-top: 1px solid var(--border); }
 .dashboard-layout-btn.scene-menu-scene-btn {
   position: relative;
 }
+.scene-menu-tab-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-right: 5px;
+  vertical-align: -2px;
+}
+.scene-menu-tab-ico svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .scene-menu-tabs-inline .dashboard-layout-btn.scene-menu-scene-btn.scene-menu-tab--ready {
   animation: sceneMenuTabBreath 2.2s ease-in-out infinite;
   box-shadow: 0 0 12px rgba(0, 255, 65, .22);
@@ -2696,7 +2714,7 @@ body[data-theme="light"] .dashboard-edit-input:focus {
   <!-- ── Dashboard Grid (Drag & Drop) ──────────────────────────────────── -->
   <div id="dashboard-container" class="layout-multi" aria-label="快捷动作面板">
     <div id="dashboard-toolbar">
-      <div id="dashboard-title">DASHBOARD</div>
+      <div id="dashboard-title">右键菜单</div>
       <div class="dashboard-toolbar-row" role="group" aria-label="场景右键菜单编辑宫格与主宫格">
         <div id="dashboard-layout-switch" aria-label="本页场景右键菜单编辑区行数（一/二/三）；不改变各窗口实际弹出的右键菜单外观">
           <button class="dashboard-layout-btn" data-layout="1" type="button" title="本页场景菜单编辑区：单行（10 槽）。不影响搜索中心/草稿本等实际右键菜单">一宫格</button>
@@ -2727,7 +2745,7 @@ body[data-theme="light"] .dashboard-edit-input:focus {
 
   <div id="dashboard-overwrite-overlay" aria-modal="true" role="dialog" aria-label="覆盖确认">
     <div id="dashboard-overwrite-modal">
-      <div class="modal-title">[ DASHBOARD OVERWRITE ]</div>
+      <div class="modal-title">[ 右键菜单覆盖 ]</div>
       <div class="modal-body" id="dashboard-overwrite-body">目标宫格已有动作，是否覆盖？</div>
       <div class="modal-actions">
         <button class="modal-btn cancel" id="dashboard-overwrite-cancel" type="button">取消</button>
@@ -2737,7 +2755,7 @@ body[data-theme="light"] .dashboard-edit-input:focus {
   </div>
   <div id="dashboard-edit-overlay" aria-modal="true" role="dialog" aria-label="编辑宫格动作">
     <div id="dashboard-edit-modal">
-      <div class="modal-title">[ DASHBOARD EDIT ]</div>
+      <div class="modal-title">[ 右键菜单编辑 ]</div>
       <div class="dashboard-edit-field">
         <label class="dashboard-edit-label" for="dashboard-edit-title">标题</label>
         <input id="dashboard-edit-title" class="dashboard-edit-input" type="text" maxlength="40" placeholder="显示名称">
@@ -2967,7 +2985,7 @@ function escapeHtml(s) {
 }
 
 const SCENARIO_ORDER = ['ai', 'search', 'clipboard', 'prompts', 'scratchpad', 'screenshot', 'settings', 'hotkeys', 'cursor', 'cloudplayer'];
-const SCENE_MENU_KEYS = ['search', 'scratchpad', 'clipboard', 'prompts', 'screenshot', 'settings', 'cursor', 'cloudplayer', 'floating_toolbar_menu', 'tray_menu', 'floating_bar'];
+const SCENE_MENU_KEYS = ['search', 'scratchpad', 'clipboard', 'prompts', 'screenshot', 'settings', 'cursor', 'cloudplayer', 'tray_menu', 'floating_bar'];
 const SCENE_MENU_LABELS = {
   search: '搜索中心',
   scratchpad: '草稿本',
@@ -2977,7 +2995,6 @@ const SCENE_MENU_LABELS = {
   settings: '设置',
   cursor: 'Cursor',
   cloudplayer: '牛马云',
-  floating_toolbar_menu: '悬浮栏右键',
   tray_menu: '托盘右键',
   floating_bar: '悬浮条',
 };
@@ -4483,7 +4500,6 @@ function normalizeIncomingSceneMenus(raw) {
     settings: ['qa_config', 'sys_show_vk', 'sys_hide_vk', 'sys_reset_vk', 'win_min', 'win_close'],
     cursor: ['cursor_open', 'cursor_close', 'qa_command_palette', 'qa_terminal', 'qa_global_search', 'qa_explorer', 'qa_source_control', 'qa_extensions', 'qa_browser', 'qa_settings', 'qa_cursor_settings', 'qa_voice'],
     cloudplayer: ['open_cloudplayer', 'ftb_cloud_player', 'sc_cat_cloud'],
-    floating_toolbar_menu: ['ftm_reset_scale', 'ftm_search_center', 'ftm_clipboard', 'ftm_minimize_to_edge', 'ftm_exit_app', 'ftm_hide_toolbar', 'ftm_open_config', 'ftm_toggle_toolbar', 'ftm_reload_script'],
     tray_menu: ['tray_show_search', 'tray_show_clipboard', 'tray_show_screenshot', 'tray_show_config', 'tray_toggle_toolbar', 'tray_hide_toolbar', 'tray_reload_script', 'tray_exit_app'],
   };
   for (const k of SCENE_MENU_KEYS) {
@@ -5149,10 +5165,27 @@ function renderSceneMenuTabs() {
       + (state.sceneMenuHighlightId === key ? ' scene-menu-tab--ready' : '');
     btn.setAttribute('role', 'tab');
     btn.dataset.sceneMenuKey = key;
-    btn.textContent = SCENE_MENU_LABELS[key] || key;
+    btn.innerHTML = `${sceneMenuTabIconHtml(key)}${escapeHtml(SCENE_MENU_LABELS[key] || key)}`;
     btn.addEventListener('click', () => setActiveSceneMenuKey(key));
     wrap.appendChild(btn);
   }
+}
+
+function sceneMenuTabIconHtml(key) {
+  const iconMap = {
+    search: TOOLBAR_SVG_PARTS.search,
+    scratchpad: TOOLBAR_SVG_PARTS.notepad,
+    clipboard: TOOLBAR_SVG_PARTS.clipboard,
+    prompts: TOOLBAR_SVG_PARTS.comments,
+    screenshot: TOOLBAR_SVG_PARTS.screenshot,
+    settings: TOOLBAR_SVG_PARTS.settings,
+    cursor: '<svg viewBox="0 0 24 24"><path d="M7 3l10 9-5 1.5L10 20z"></path><path d="m12 13 4 5"></path></svg>',
+    cloudplayer: TOOLBAR_SVG_PARTS.cloud,
+    tray_menu: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8"></path><path d="M12 16v4"></path></svg>',
+    floating_bar: '<svg viewBox="0 0 24 24"><rect x="3" y="10" width="18" height="4" rx="2"></rect><circle cx="7" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="17" cy="12" r="1"></circle></svg>',
+  };
+  const svg = iconMap[key] || TOOLBAR_SVG_PARTS.bolt;
+  return `<span class="scene-menu-tab-ico" aria-hidden="true">${svg}</span>`;
 }
 
 function reorderToolbarBarPoolFlags() {
